@@ -1,0 +1,4819 @@
+{
+ "characters": {
+  "artist1": {
+   "name": "閒雜_武師1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/artist1/normal.png",
+    "angry1": "assets/portraits/artist1/normal.png",
+    "angry2": "assets/portraits/artist1/normal.png",
+    "laugh1": "assets/portraits/artist1/normal.png",
+    "nervous1": "assets/portraits/artist1/normal.png",
+    "nervous2": "assets/portraits/artist1/normal.png",
+    "nervous3": "assets/portraits/artist1/normal.png"
+   }
+  },
+  "artist2": {
+   "name": "閒雜_武師2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/artist2/normal.png",
+    "angry2": "assets/portraits/artist2/normal.png",
+    "laugh1": "assets/portraits/artist2/normal.png",
+    "nervous1": "assets/portraits/artist2/normal.png",
+    "nervous3": "assets/portraits/artist2/normal.png"
+   }
+  },
+  "artists": {
+   "name": "閒雜_武師眾",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/artists/normal.png"
+   }
+  },
+  "aunt1": {
+   "name": "閒雜_大媽1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/aunt1/normal.png",
+    "laugh1": "assets/portraits/aunt1/normal.png",
+    "nervous1": "assets/portraits/aunt1/normal.png",
+    "nervous2": "assets/portraits/aunt1/normal.png"
+   }
+  },
+  "aunt2": {
+   "name": "閒雜_大媽2",
+   "first": "normal",
+   "portraits": {
+    "angry2": "assets/portraits/aunt2/angry2.png",
+    "normal": "assets/portraits/aunt2/normal.png",
+    "angry1": "assets/portraits/aunt2/normal.png",
+    "laugh1": "assets/portraits/aunt2/normal.png",
+    "nervous1": "assets/portraits/aunt2/normal.png",
+    "nervous2": "assets/portraits/aunt2/normal.png",
+    "nervous3": "assets/portraits/aunt2/normal.png",
+    "sad2": "assets/portraits/aunt2/normal.png"
+   }
+  },
+  "aunt3": {
+   "name": "閒雜_大媽3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/aunt3/normal.png",
+    "angry1": "assets/portraits/aunt3/normal.png",
+    "laugh1": "assets/portraits/aunt3/normal.png",
+    "nervous1": "assets/portraits/aunt3/normal.png"
+   }
+  },
+  "badguy1": {
+   "name": "閒雜_歹人1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/badguy1/normal.png",
+    "angry2": "assets/portraits/badguy1/normal.png",
+    "laugh1": "assets/portraits/badguy1/normal.png",
+    "nervous1": "assets/portraits/badguy1/normal.png",
+    "nervous2": "assets/portraits/badguy1/normal.png",
+    "shock": "assets/portraits/badguy1/normal.png"
+   }
+  },
+  "badguy2": {
+   "name": "閒雜_歹人2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/badguy2/normal.png",
+    "laugh1": "assets/portraits/badguy2/normal.png",
+    "nervous1": "assets/portraits/badguy2/normal.png",
+    "nervous2": "assets/portraits/badguy2/normal.png"
+   }
+  },
+  "badguy3": {
+   "name": "閒雜_歹人3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/badguy3/normal.png",
+    "laugh1": "assets/portraits/badguy3/normal.png",
+    "nervous1": "assets/portraits/badguy3/normal.png",
+    "nervous2": "assets/portraits/badguy3/normal.png"
+   }
+  },
+  "bandit1": {
+   "name": "閒雜_山賊1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/bandit1/normal.png",
+    "angry1": "assets/portraits/bandit1/normal.png",
+    "angry2": "assets/portraits/bandit1/normal.png",
+    "laugh1": "assets/portraits/bandit1/normal.png",
+    "laugh2": "assets/portraits/bandit1/normal.png",
+    "nervous1": "assets/portraits/bandit1/normal.png",
+    "nervous2": "assets/portraits/bandit1/normal.png"
+   }
+  },
+  "bandit2": {
+   "name": "閒雜_山賊2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/bandit2/normal.png",
+    "laugh1": "assets/portraits/bandit2/normal.png",
+    "nervous2": "assets/portraits/bandit2/normal.png"
+   }
+  },
+  "bandit3": {
+   "name": "閒雜_山賊3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/bandit3/normal.png",
+    "nervous2": "assets/portraits/bandit3/normal.png"
+   }
+  },
+  "bandit4": {
+   "name": "閒雜_山賊4",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/bandit4/normal.png",
+    "laugh1": "assets/portraits/bandit4/normal.png",
+    "nervous2": "assets/portraits/bandit4/normal.png"
+   }
+  },
+  "bandit5": {
+   "name": "閒雜_山賊5",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/bandit5/normal.png",
+    "nervous2": "assets/portraits/bandit5/normal.png"
+   }
+  },
+  "beggar1": {
+   "name": "丐幫_乞丐1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/beggar1/normal.png",
+    "angry1": "assets/portraits/beggar1/normal.png",
+    "angry2": "assets/portraits/beggar1/normal.png",
+    "laugh1": "assets/portraits/beggar1/normal.png",
+    "laugh2": "assets/portraits/beggar1/normal.png",
+    "nervous1": "assets/portraits/beggar1/normal.png",
+    "nervous2": "assets/portraits/beggar1/normal.png",
+    "nervous3": "assets/portraits/beggar1/normal.png",
+    "shock": "assets/portraits/beggar1/normal.png"
+   }
+  },
+  "beggar2": {
+   "name": "丐幫_乞丐2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/beggar2/normal.png",
+    "angry1": "assets/portraits/beggar2/normal.png",
+    "angry2": "assets/portraits/beggar2/normal.png",
+    "laugh1": "assets/portraits/beggar2/normal.png",
+    "nervous1": "assets/portraits/beggar2/normal.png",
+    "nervous2": "assets/portraits/beggar2/normal.png"
+   }
+  },
+  "beggar3": {
+   "name": "丐幫_乞丐3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/beggar3/normal.png",
+    "angry2": "assets/portraits/beggar3/normal.png"
+   }
+  },
+  "beggar4": {
+   "name": "丐幫_乞丐4",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/beggar4/normal.png",
+    "angry2": "assets/portraits/beggar4/normal.png"
+   }
+  },
+  "beggar5": {
+   "name": "丐幫_乞丐5",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/beggar5/normal.png",
+    "angry1": "assets/portraits/beggar5/normal.png",
+    "angry2": "assets/portraits/beggar5/normal.png",
+    "laugh1": "assets/portraits/beggar5/normal.png",
+    "nervous1": "assets/portraits/beggar5/normal.png"
+   }
+  },
+  "big_shock1": {
+   "name": "滄幫_許大鯨",
+   "first": "normal",
+   "portraits": {
+    "nervous1": "assets/portraits/big_shock1/nervous1.png",
+    "nervous2": "assets/portraits/big_shock1/nervous1.png",
+    "normal": "assets/portraits/big_shock1/normal.png",
+    "shock": "assets/portraits/big_shock1/nervous1.png",
+    "angry1": "assets/portraits/big_shock1/normal.png",
+    "angry2": "assets/portraits/big_shock1/normal.png",
+    "hurt": "assets/portraits/big_shock1/normal.png",
+    "laugh1": "assets/portraits/big_shock1/normal.png",
+    "laugh2": "assets/portraits/big_shock1/normal.png"
+   }
+  },
+  "big_trainee_2": {
+   "name": "唐門_唐大鯨",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/big_trainee_2/angry1.png",
+    "angry2": "assets/portraits/big_trainee_2/angry2.png",
+    "laugh1": "assets/portraits/big_trainee_2/laugh1.png",
+    "nervous1": "assets/portraits/big_trainee_2/nervous1.png",
+    "nervous2": "assets/portraits/big_trainee_2/nervous2.png",
+    "normal": "assets/portraits/big_trainee_2/normal.png",
+    "nervous3": "assets/portraits/big_trainee_2/normal.png"
+   }
+  },
+  "big_trainee_girl_1": {
+   "name": "唐門_唐嬌嬌",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/big_trainee_girl_1/normal.png",
+    "special1": "assets/portraits/big_trainee_girl_1/special1.png",
+    "angry1": "assets/portraits/big_trainee_girl_1/normal.png",
+    "angry2": "assets/portraits/big_trainee_girl_1/normal.png",
+    "angry3": "assets/portraits/big_trainee_girl_1/normal.png",
+    "gloomy2": "assets/portraits/big_trainee_girl_1/normal.png",
+    "laugh1": "assets/portraits/big_trainee_girl_1/normal.png",
+    "nervous1": "assets/portraits/big_trainee_girl_1/normal.png"
+   }
+  },
+  "blacksmith1": {
+   "name": "閒雜_鐵匠1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/blacksmith1/normal.png",
+    "angry1": "assets/portraits/blacksmith1/normal.png",
+    "hurt2": "assets/portraits/blacksmith1/normal.png",
+    "laugh1": "assets/portraits/blacksmith1/normal.png",
+    "nervous1": "assets/portraits/blacksmith1/normal.png",
+    "nervous2": "assets/portraits/blacksmith1/normal.png"
+   }
+  },
+  "blacksmith2": {
+   "name": "閒雜_鐵匠2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/blacksmith2/normal.png",
+    "laugh1": "assets/portraits/blacksmith2/normal.png",
+    "nervous1": "assets/portraits/blacksmith2/normal.png"
+   }
+  },
+  "blacksmith3": {
+   "name": "閒雜_鐵匠3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/blacksmith3/normal.png",
+    "angry1": "assets/portraits/blacksmith3/normal.png"
+   }
+  },
+  "boy1": {
+   "name": "閒雜_少年1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/boy1/normal.png",
+    "angry1": "assets/portraits/boy1/normal.png",
+    "angry2": "assets/portraits/boy1/normal.png",
+    "laugh1": "assets/portraits/boy1/normal.png",
+    "laugh2": "assets/portraits/boy1/normal.png",
+    "nervous1": "assets/portraits/boy1/normal.png",
+    "nervous2": "assets/portraits/boy1/normal.png"
+   }
+  },
+  "brother1": {
+   "name": "唐門_大師兄",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/brother1/angry1.png",
+    "angry2": "assets/portraits/brother1/angry2.png",
+    "angry3": "assets/portraits/brother1/angry3.png",
+    "hurt": "assets/portraits/brother1/hurt.png",
+    "hurt2": "assets/portraits/brother1/hurt.png",
+    "laugh1": "assets/portraits/brother1/laugh1.png",
+    "laugh2": "assets/portraits/brother1/laugh2.png",
+    "nervous1": "assets/portraits/brother1/nervous1.png",
+    "nervous2": "assets/portraits/brother1/nervous2.png",
+    "nervous3": "assets/portraits/brother1/nervous3.png",
+    "normal": "assets/portraits/brother1/normal.png",
+    "serious": "assets/portraits/brother1/serious.png",
+    "shock": "assets/portraits/brother1/shock.png",
+    "special1": "assets/portraits/brother1/special1.png",
+    "special2": "assets/portraits/brother1/special2.png",
+    "special3": "assets/portraits/brother1/special3.png",
+    "special4": "assets/portraits/brother1/special4.png"
+   }
+  },
+  "brother1_0": {
+   "name": "唐門_大師兄_隱",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/brother1_0/normal.png"
+   }
+  },
+  "brother1_1": {
+   "name": "唐門_大師兄_蒙面",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/brother1_1/normal.png",
+    "laugh2": "assets/portraits/brother1_1/normal.png"
+   }
+  },
+  "brother1_2": {
+   "name": "唐門_大師兄2",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/brother1_2/angry1.png",
+    "laugh1": "assets/portraits/brother1_2/laugh1.png",
+    "nervous1": "assets/portraits/brother1_2/nervous1.png",
+    "nervous3": "assets/portraits/brother1_2/nervous3.png",
+    "normal": "assets/portraits/brother1_2/normal.png"
+   }
+  },
+  "brother1_lower": {
+   "name": "唐門_大師兄下",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/brother1_lower/normal.png"
+   }
+  },
+  "brother1_upper": {
+   "name": "唐門_大師兄上",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/brother1_upper/normal.png"
+   }
+  },
+  "brother1_young": {
+   "name": "唐門_大師兄_少年",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/brother1_young/normal.png"
+   }
+  },
+  "brother2": {
+   "name": "唐門_二師兄",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/brother2/angry1.png",
+    "angry2": "assets/portraits/brother2/angry2.png",
+    "gloomy1": "assets/portraits/brother2/gloomy1.png",
+    "gloomy2": "assets/portraits/brother2/gloomy2.png",
+    "hurt": "assets/portraits/brother2/hurt.png",
+    "laugh1": "assets/portraits/brother2/laugh1.png",
+    "laugh2": "assets/portraits/brother2/laugh2.png",
+    "nervous1": "assets/portraits/brother2/nervous1.png",
+    "nervous2": "assets/portraits/brother2/nervous2.png",
+    "normal": "assets/portraits/brother2/normal.png",
+    "special1": "assets/portraits/brother2/special1.png",
+    "special2": "assets/portraits/brother2/special2.png",
+    "shock": "assets/portraits/brother2/normal.png"
+   }
+  },
+  "brother2_young": {
+   "name": "唐門_二師兄_少年",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/brother2_young/normal.png"
+   }
+  },
+  "brother3": {
+   "name": "唐門_三師兄",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/brother3/angry1.png",
+    "angry2": "assets/portraits/brother3/angry1.png",
+    "hurt2": "assets/portraits/brother3/hurt2.png",
+    "laugh1": "assets/portraits/brother3/laugh1.png",
+    "laugh2": "assets/portraits/brother3/laugh1.png",
+    "nervous1": "assets/portraits/brother3/nervous1.png",
+    "nervous2": "assets/portraits/brother3/nervous2.png",
+    "nervous3": "assets/portraits/brother3/nervous3.png",
+    "normal": "assets/portraits/brother3/normal.png",
+    "sad1": "assets/portraits/brother3/sad1.png",
+    "sad2": "assets/portraits/brother3/sad1.png",
+    "shock": "assets/portraits/brother3/nervous2.png"
+   }
+  },
+  "brother3_young": {
+   "name": "唐門_三師兄_年輕",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/brother3_young/angry1.png",
+    "laugh1": "assets/portraits/brother3_young/laugh1.png",
+    "nervous1": "assets/portraits/brother3_young/nervous1.png",
+    "nervous3": "assets/portraits/brother3_young/nervous3.png",
+    "normal": "assets/portraits/brother3_young/normal.png"
+   }
+  },
+  "brother4": {
+   "name": "唐門_四師兄",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/brother4/angry1.png",
+    "angry2": "assets/portraits/brother4/angry1.png",
+    "gloomy2": "assets/portraits/brother4/gloomy2.png",
+    "hurt2": "assets/portraits/brother4/hurt2.png",
+    "laugh1": "assets/portraits/brother4/laugh1.png",
+    "laugh2": "assets/portraits/brother4/laugh1.png",
+    "nervous1": "assets/portraits/brother4/nervous1.png",
+    "nervous2": "assets/portraits/brother4/nervous1.png",
+    "normal": "assets/portraits/brother4/normal.png",
+    "nervous3": "assets/portraits/brother4/normal.png",
+    "sad2": "assets/portraits/brother4/normal.png",
+    "shock": "assets/portraits/brother4/normal.png"
+   }
+  },
+  "bun": {
+   "name": "閒雜_包子",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/bun/normal.png",
+    "special1": "assets/portraits/bun/special1.png",
+    "special2": "assets/portraits/bun/special2.png",
+    "special3": "assets/portraits/bun/special3.png",
+    "special4": "assets/portraits/bun/special4.png"
+   }
+  },
+  "carriage1": {
+   "name": "閒雜_馬車1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/carriage1/normal.png"
+   }
+  },
+  "chao1": {
+   "name": "閒雜_何大媽",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/chao1/normal.png",
+    "nervous1": "assets/portraits/chao1/normal.png",
+    "shock": "assets/portraits/chao1/normal.png"
+   }
+  },
+  "checkerboard": {
+   "name": "雜項_棋盤",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/checkerboard/normal.png"
+   }
+  },
+  "chicken1": {
+   "name": "閒雜_雞1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/chicken1/normal.png",
+    "nervous1": "assets/portraits/chicken1/normal.png"
+   }
+  },
+  "chicken2": {
+   "name": "閒雜_雞2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/chicken2/normal.png",
+    "shock": "assets/portraits/chicken2/normal.png"
+   }
+  },
+  "chicken3": {
+   "name": "閒雜_雞3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/chicken3/normal.png",
+    "shock": "assets/portraits/chicken3/normal.png"
+   }
+  },
+  "child_boy1": {
+   "name": "閒雜_男童1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/child_boy1/normal.png",
+    "laugh1": "assets/portraits/child_boy1/normal.png",
+    "nervous1": "assets/portraits/child_boy1/normal.png"
+   }
+  },
+  "child_boy2": {
+   "name": "閒雜_男童2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/child_boy2/normal.png",
+    "laugh1": "assets/portraits/child_boy2/normal.png"
+   }
+  },
+  "child_girl1": {
+   "name": "閒雜_女童1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/child_girl1/normal.png",
+    "laugh1": "assets/portraits/child_girl1/normal.png",
+    "laugh2": "assets/portraits/child_girl1/normal.png",
+    "nervous1": "assets/portraits/child_girl1/normal.png",
+    "nervous2": "assets/portraits/child_girl1/normal.png"
+   }
+  },
+  "cook_wine1": {
+   "name": "閒雜_煮酒1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/cook_wine1/normal.png"
+   }
+  },
+  "cow_man_1": {
+   "name": "泥教_牛頭",
+   "first": "normal",
+   "portraits": {
+    "black": "assets/portraits/cow_man_1/black.png",
+    "normal": "assets/portraits/cow_man_1/normal.png",
+    "laugh1": "assets/portraits/cow_man_1/normal.png",
+    "nervous1": "assets/portraits/cow_man_1/normal.png",
+    "nervous2": "assets/portraits/cow_man_1/normal.png",
+    "shock": "assets/portraits/cow_man_1/normal.png"
+   }
+  },
+  "daoshi311": {
+   "name": "青城_長老1",
+   "first": "normal",
+   "portraits": {
+    "laugh1": "assets/portraits/daoshi311/laugh1.png",
+    "nervous1": "assets/portraits/daoshi311/nervous1.png",
+    "normal": "assets/portraits/daoshi311/normal.png",
+    "angry1": "assets/portraits/daoshi311/normal.png",
+    "angry2": "assets/portraits/daoshi311/normal.png",
+    "nervous2": "assets/portraits/daoshi311/normal.png",
+    "nervous3": "assets/portraits/daoshi311/normal.png"
+   }
+  },
+  "daoshi312": {
+   "name": "青城_長老2",
+   "first": "normal",
+   "portraits": {
+    "laugh1": "assets/portraits/daoshi312/laugh1.png",
+    "nervous1": "assets/portraits/daoshi312/nervous1.png",
+    "normal": "assets/portraits/daoshi312/normal.png",
+    "angry1": "assets/portraits/daoshi312/normal.png",
+    "angry2": "assets/portraits/daoshi312/normal.png",
+    "laugh2": "assets/portraits/daoshi312/normal.png",
+    "nervous2": "assets/portraits/daoshi312/normal.png",
+    "special1": "assets/portraits/daoshi312/normal.png"
+   }
+  },
+  "daoshi313": {
+   "name": "青城_長老3",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/daoshi313/angry1.png",
+    "angry2": "assets/portraits/daoshi313/angry1.png",
+    "angry3": "assets/portraits/daoshi313/angry3.png",
+    "gloomy1": "assets/portraits/daoshi313/gloomy1.png",
+    "gloomy2": "assets/portraits/daoshi313/gloomy1.png",
+    "nervous1": "assets/portraits/daoshi313/nervous1.png",
+    "nervous2": "assets/portraits/daoshi313/nervous2.png",
+    "normal": "assets/portraits/daoshi313/normal.png",
+    "special1": "assets/portraits/daoshi313/special1.png",
+    "laugh1": "assets/portraits/daoshi313/normal.png",
+    "shock": "assets/portraits/daoshi313/normal.png"
+   }
+  },
+  "daoshi341": {
+   "name": "全真_長老1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/daoshi341/normal.png",
+    "nervous1": "assets/portraits/daoshi341/normal.png"
+   }
+  },
+  "dart1": {
+   "name": "閒雜_飛鏢1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/dart1/normal.png"
+   }
+  },
+  "dart2": {
+   "name": "閒雜_飛鏢2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/dart2/normal.png"
+   }
+  },
+  "dio1": {
+   "name": "峨嵋_狄傲",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/dio1/normal.png",
+    "special1": "assets/portraits/dio1/special1.png",
+    "angry1": "assets/portraits/dio1/normal.png",
+    "angry2": "assets/portraits/dio1/normal.png",
+    "laugh1": "assets/portraits/dio1/normal.png",
+    "nervous1": "assets/portraits/dio1/normal.png"
+   }
+  },
+  "doctor1": {
+   "name": "閒雜_大夫1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/doctor1/normal.png",
+    "laugh1": "assets/portraits/doctor1/normal.png"
+   }
+  },
+  "doctor_flag": {
+   "name": "雜項_郎中旗",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/doctor_flag/normal.png"
+   }
+  },
+  "dog1": {
+   "name": "閒雜_狗1",
+   "first": "normal",
+   "portraits": {
+    "angry2": "assets/portraits/dog1/angry2.png",
+    "normal": "assets/portraits/dog1/normal.png",
+    "laugh1": "assets/portraits/dog1/normal.png",
+    "nervous2": "assets/portraits/dog1/normal.png",
+    "sad2": "assets/portraits/dog1/normal.png"
+   }
+  },
+  "echo": {
+   "name": "回音",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/echo/normal.png"
+   }
+  },
+  "elder1": {
+   "name": "閒雜_老人1",
+   "first": "normal",
+   "portraits": {
+    "angry2": "assets/portraits/elder1/angry2.png",
+    "normal": "assets/portraits/elder1/normal.png",
+    "laugh1": "assets/portraits/elder1/normal.png",
+    "nervous1": "assets/portraits/elder1/normal.png",
+    "nervous2": "assets/portraits/elder1/normal.png"
+   }
+  },
+  "elder101": {
+   "name": "南宮_老人1",
+   "first": "normal",
+   "portraits": {
+    "nervous1": "assets/portraits/elder101/nervous1.png",
+    "nervous2": "assets/portraits/elder101/nervous1.png",
+    "normal": "assets/portraits/elder101/normal.png",
+    "angry1": "assets/portraits/elder101/normal.png",
+    "angry2": "assets/portraits/elder101/normal.png",
+    "gloomy2": "assets/portraits/elder101/normal.png",
+    "laugh1": "assets/portraits/elder101/normal.png",
+    "nervous3": "assets/portraits/elder101/normal.png"
+   }
+  },
+  "fairy1": {
+   "name": "閒雜_仙姑1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/fairy1/normal.png",
+    "nervous1": "assets/portraits/fairy1/normal.png",
+    "shock": "assets/portraits/fairy1/normal.png"
+   }
+  },
+  "female1": {
+   "name": "閒雜_女子1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/female1/normal.png",
+    "angry1": "assets/portraits/female1/normal.png",
+    "angry2": "assets/portraits/female1/normal.png",
+    "laugh1": "assets/portraits/female1/normal.png",
+    "nervous1": "assets/portraits/female1/normal.png",
+    "nervous2": "assets/portraits/female1/normal.png",
+    "nervous3": "assets/portraits/female1/normal.png",
+    "sad2": "assets/portraits/female1/normal.png",
+    "shy": "assets/portraits/female1/normal.png"
+   }
+  },
+  "female2": {
+   "name": "閒雜_女子2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/female2/normal.png",
+    "angry1": "assets/portraits/female2/normal.png",
+    "angry2": "assets/portraits/female2/normal.png",
+    "laugh1": "assets/portraits/female2/normal.png",
+    "nervous1": "assets/portraits/female2/normal.png",
+    "nervous2": "assets/portraits/female2/normal.png",
+    "shy": "assets/portraits/female2/normal.png"
+   }
+  },
+  "female3": {
+   "name": "閒雜_女子3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/female3/normal.png",
+    "angry1": "assets/portraits/female3/normal.png",
+    "laugh1": "assets/portraits/female3/normal.png",
+    "nervous1": "assets/portraits/female3/normal.png",
+    "nervous2": "assets/portraits/female3/normal.png"
+   }
+  },
+  "firebird1": {
+   "name": "崆峒_火閃電",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/firebird1/normal.png",
+    "special1": "assets/portraits/firebird1/special1.png",
+    "nervous2": "assets/portraits/firebird1/normal.png"
+   }
+  },
+  "food_box": {
+   "name": "雜項_食盒",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/food_box/normal.png"
+   }
+  },
+  "ghost1": {
+   "name": "泥教_鬼卒1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/ghost1/normal.png",
+    "angry1": "assets/portraits/ghost1/normal.png",
+    "angry2": "assets/portraits/ghost1/normal.png",
+    "nervous1": "assets/portraits/ghost1/normal.png",
+    "nervous2": "assets/portraits/ghost1/normal.png"
+   }
+  },
+  "ghost2": {
+   "name": "泥教_鬼卒2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/ghost2/normal.png",
+    "angry2": "assets/portraits/ghost2/normal.png",
+    "nervous1": "assets/portraits/ghost2/normal.png",
+    "nervous2": "assets/portraits/ghost2/normal.png"
+   }
+  },
+  "ghost3": {
+   "name": "泥教_鬼卒3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/ghost3/normal.png"
+   }
+  },
+  "girl1": {
+   "name": "瑞杏",
+   "first": "normal",
+   "portraits": {
+    "gloomy1": "assets/portraits/girl1/gloomy1.png",
+    "laugh1": "assets/portraits/girl1/laugh1.png",
+    "laugh2": "assets/portraits/girl1/laugh2.png",
+    "normal": "assets/portraits/girl1/normal.png",
+    "special1": "assets/portraits/girl1/special1.png",
+    "nervous1": "assets/portraits/girl1/normal.png",
+    "shy": "assets/portraits/girl1/normal.png"
+   }
+  },
+  "girl1_1": {
+   "name": "瑞杏_隱",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/girl1_1/normal.png"
+   }
+  },
+  "girl2": {
+   "name": "點蒼_葉雲裳",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/girl2/angry1.png",
+    "angry2": "assets/portraits/girl2/angry2.png",
+    "cry1": "assets/portraits/girl2/cry1.png",
+    "cry2": "assets/portraits/girl2/cry2.png",
+    "cry_laugh": "assets/portraits/girl2/cry_laugh.png",
+    "gamer": "assets/portraits/girl2/gamer.png",
+    "gloomy2": "assets/portraits/girl2/gloomy2.png",
+    "laugh1": "assets/portraits/girl2/laugh1.png",
+    "laugh2": "assets/portraits/girl2/laugh2.png",
+    "nervous1": "assets/portraits/girl2/nervous1.png",
+    "nervous2": "assets/portraits/girl2/nervous2.png",
+    "nervous3": "assets/portraits/girl2/nervous3.png",
+    "normal": "assets/portraits/girl2/normal.png",
+    "revel": "assets/portraits/girl2/revel.png",
+    "sad1": "assets/portraits/girl2/sad1.png",
+    "sad2": "assets/portraits/girl2/sad2.png",
+    "serious": "assets/portraits/girl2/serious.png",
+    "shock": "assets/portraits/girl2/nervous2.png",
+    "shy": "assets/portraits/girl2/shy.png",
+    "sick1": "assets/portraits/girl2/sick1.png",
+    "sick2": "assets/portraits/girl2/sick2.png",
+    "special1": "assets/portraits/girl2/special1.png",
+    "special10": "assets/portraits/girl2/special10.png",
+    "special11": "assets/portraits/girl2/special11.png",
+    "special12": "assets/portraits/girl2/special12.png",
+    "special2": "assets/portraits/girl2/special2.png",
+    "special3": "assets/portraits/girl2/special3.png",
+    "special4": "assets/portraits/girl2/special4.png",
+    "special5": "assets/portraits/girl2/special5.png",
+    "special6": "assets/portraits/girl2/special6.png",
+    "special7": "assets/portraits/girl2/special7.png",
+    "special8": "assets/portraits/girl2/special8.png",
+    "special9": "assets/portraits/girl2/special9.png"
+   }
+  },
+  "girl2_1": {
+   "name": "點蒼_葉雲裳_隱",
+   "first": "normal",
+   "portraits": {
+    "nervous1": "assets/portraits/girl2_1/nervous1.png",
+    "normal": "assets/portraits/girl2_1/normal.png"
+   }
+  },
+  "girl2_2": {
+   "name": "點蒼_葉雲裳_無",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/girl2_2/normal.png"
+   }
+  },
+  "girl2_3": {
+   "name": "點蒼_葉雲啾_問號",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/girl2_3/normal.png",
+    "nervous1": "assets/portraits/girl2_3/normal.png"
+   }
+  },
+  "girl2_4": {
+   "name": "點蒼_葉雲啾",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/girl2_4/normal.png",
+    "angry1": "assets/portraits/girl2_4/normal.png",
+    "laugh1": "assets/portraits/girl2_4/normal.png",
+    "nervous1": "assets/portraits/girl2_4/normal.png",
+    "nervous2": "assets/portraits/girl2_4/normal.png"
+   }
+  },
+  "girl2_5": {
+   "name": "點蒼_葉雲裳_幼年",
+   "first": "normal",
+   "portraits": {
+    "nervous2": "assets/portraits/girl2_5/nervous2.png",
+    "normal": "assets/portraits/girl2_5/normal.png",
+    "special1": "assets/portraits/girl2_5/special1.png",
+    "nervous1": "assets/portraits/girl2_5/normal.png"
+   }
+  },
+  "girl4": {
+   "name": "錦香_龍湘",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/girl4/angry1.png",
+    "angry2": "assets/portraits/girl4/angry1.png",
+    "angry3": "assets/portraits/girl4/angry3.png",
+    "black": "assets/portraits/girl4/black.png",
+    "hurt": "assets/portraits/girl4/hurt.png",
+    "hurt2": "assets/portraits/girl4/hurt.png",
+    "laugh1": "assets/portraits/girl4/laugh1.png",
+    "laugh2": "assets/portraits/girl4/laugh2.png",
+    "nervous1": "assets/portraits/girl4/nervous1.png",
+    "nervous2": "assets/portraits/girl4/nervous2.png",
+    "nervous3": "assets/portraits/girl4/nervous3.png",
+    "normal": "assets/portraits/girl4/normal.png",
+    "sad1": "assets/portraits/girl4/sad1.png",
+    "sad2": "assets/portraits/girl4/sad2.png",
+    "shock": "assets/portraits/girl4/nervous2.png",
+    "shy": "assets/portraits/girl4/shy.png",
+    "special1": "assets/portraits/girl4/special1.png",
+    "special2": "assets/portraits/girl4/special2.png",
+    "special3": "assets/portraits/girl4/special3.png",
+    "special4": "assets/portraits/girl4/special4.png",
+    "special5": "assets/portraits/girl4/special5.png",
+    "special6": "assets/portraits/girl4/special6.png",
+    "special7": "assets/portraits/girl4/special7.png",
+    "special8": "assets/portraits/girl4/special8.png",
+    "special9": "assets/portraits/girl4/special9.png"
+   }
+  },
+  "girl4_1": {
+   "name": "錦香_龍湘_隱",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/girl4_1/normal.png"
+   }
+  },
+  "girl4_2": {
+   "name": "錦香_龍湘_宮裝",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/girl4_2/normal.png",
+    "shy": "assets/portraits/girl4_2/shy.png",
+    "special1": "assets/portraits/girl4_2/special1.png",
+    "nervous1": "assets/portraits/girl4_2/normal.png"
+   }
+  },
+  "girl5": {
+   "name": "崆峒_小梅",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/girl5/angry1.png",
+    "angry2": "assets/portraits/girl5/angry2.png",
+    "angry3": "assets/portraits/girl5/angry3.png",
+    "black": "assets/portraits/girl5/black.png",
+    "hurt": "assets/portraits/girl5/hurt.png",
+    "hurt2": "assets/portraits/girl5/hurt.png",
+    "laugh1": "assets/portraits/girl5/laugh1.png",
+    "laugh2": "assets/portraits/girl5/laugh2.png",
+    "nervous1": "assets/portraits/girl5/nervous1.png",
+    "nervous2": "assets/portraits/girl5/nervous2.png",
+    "nervous3": "assets/portraits/girl5/nervous3.png",
+    "normal": "assets/portraits/girl5/normal.png",
+    "sad2": "assets/portraits/girl5/sad2.png",
+    "shock": "assets/portraits/girl5/nervous2.png",
+    "shy": "assets/portraits/girl5/shy.png",
+    "special1": "assets/portraits/girl5/special1.png",
+    "special2": "assets/portraits/girl5/special2.png",
+    "special3": "assets/portraits/girl5/special3.png",
+    "special4": "assets/portraits/girl5/special4.png",
+    "gloomy1": "assets/portraits/girl5/normal.png",
+    "gloomy2": "assets/portraits/girl5/normal.png"
+   }
+  },
+  "girl5_2": {
+   "name": "崆峒_小梅_夜行",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/girl5_2/normal.png",
+    "nervous1": "assets/portraits/girl5_2/normal.png"
+   }
+  },
+  "girl5_3": {
+   "name": "崆峒_小梅_飛賊",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/girl5_3/normal.png",
+    "angry1": "assets/portraits/girl5_3/normal.png",
+    "laugh1": "assets/portraits/girl5_3/normal.png",
+    "nervous1": "assets/portraits/girl5_3/normal.png",
+    "nervous2": "assets/portraits/girl5_3/normal.png"
+   }
+  },
+  "girl5_4": {
+   "name": "崆峒_小梅_幼年",
+   "first": "normal",
+   "portraits": {
+    "nervous1": "assets/portraits/girl5_4/nervous1.png",
+    "normal": "assets/portraits/girl5_4/normal.png"
+   }
+  },
+  "girl5_5": {
+   "name": "崆峒_小梅_大師兄",
+   "first": "normal",
+   "portraits": {
+    "hurt2": "assets/portraits/girl5_5/hurt2.png",
+    "normal": "assets/portraits/girl5_5/normal.png",
+    "laugh1": "assets/portraits/girl5_5/normal.png",
+    "nervous1": "assets/portraits/girl5_5/normal.png",
+    "nervous2": "assets/portraits/girl5_5/normal.png"
+   }
+  },
+  "girl6": {
+   "name": "崆峒_小蘭",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/girl6/angry1.png",
+    "angry2": "assets/portraits/girl6/angry2.png",
+    "gloomy1": "assets/portraits/girl6/gloomy1.png",
+    "gloomy2": "assets/portraits/girl6/gloomy2.png",
+    "laugh1": "assets/portraits/girl6/laugh1.png",
+    "laugh2": "assets/portraits/girl6/laugh1.png",
+    "love": "assets/portraits/girl6/love.png",
+    "nervous1": "assets/portraits/girl6/nervous1.png",
+    "nervous2": "assets/portraits/girl6/nervous2.png",
+    "normal": "assets/portraits/girl6/normal.png",
+    "sad2": "assets/portraits/girl6/sad2.png",
+    "special1": "assets/portraits/girl6/special1.png",
+    "special2": "assets/portraits/girl6/special2.png",
+    "special3": "assets/portraits/girl6/special3.png",
+    "angry3": "assets/portraits/girl6/normal.png",
+    "nervous3": "assets/portraits/girl6/normal.png",
+    "shy": "assets/portraits/girl6/normal.png"
+   }
+  },
+  "girl6_1": {
+   "name": "崆峒_小蘭_早",
+   "first": "normal",
+   "portraits": {
+    "nervous1": "assets/portraits/girl6_1/nervous1.png",
+    "nervous2": "assets/portraits/girl6_1/nervous2.png",
+    "normal": "assets/portraits/girl6_1/normal.png",
+    "sad2": "assets/portraits/girl6_1/sad2.png",
+    "special1": "assets/portraits/girl6_1/special1.png"
+   }
+  },
+  "girl6_2": {
+   "name": "崆峒_小蘭_魂",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/girl6_2/normal.png",
+    "angry2": "assets/portraits/girl6_2/normal.png",
+    "nervous1": "assets/portraits/girl6_2/normal.png",
+    "nervous2": "assets/portraits/girl6_2/normal.png"
+   }
+  },
+  "girl7": {
+   "name": "崆峒_小竹",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/girl7/angry1.png",
+    "angry2": "assets/portraits/girl7/angry2.png",
+    "hurt2": "assets/portraits/girl7/hurt2.png",
+    "laugh1": "assets/portraits/girl7/laugh1.png",
+    "laugh2": "assets/portraits/girl7/laugh2.png",
+    "nervous1": "assets/portraits/girl7/nervous1.png",
+    "nervous2": "assets/portraits/girl7/nervous2.png",
+    "nervous3": "assets/portraits/girl7/nervous3.png",
+    "normal": "assets/portraits/girl7/normal.png",
+    "sad2": "assets/portraits/girl7/sad2.png",
+    "shy": "assets/portraits/girl7/shy.png",
+    "special1": "assets/portraits/girl7/special1.png",
+    "special2": "assets/portraits/girl7/special2.png",
+    "special3": "assets/portraits/girl7/special3.png",
+    "special4": "assets/portraits/girl7/special4.png",
+    "shock": "assets/portraits/girl7/normal.png"
+   }
+  },
+  "girl7_1": {
+   "name": "崆峒_小竹_幼年",
+   "first": "normal",
+   "portraits": {
+    "nervous1": "assets/portraits/girl7_1/nervous1.png",
+    "normal": "assets/portraits/girl7_1/normal.png"
+   }
+  },
+  "girl7_2": {
+   "name": "崆峒_小竹_眼鏡",
+   "first": "normal",
+   "portraits": {
+    "laugh1": "assets/portraits/girl7_2/laugh1.png",
+    "nervous1": "assets/portraits/girl7_2/nervous1.png",
+    "nervous2": "assets/portraits/girl7_2/nervous2.png",
+    "nervous3": "assets/portraits/girl7_2/nervous3.png",
+    "normal": "assets/portraits/girl7_2/normal.png",
+    "sad2": "assets/portraits/girl7_2/sad2.png",
+    "shy": "assets/portraits/girl7_2/shy.png",
+    "special1": "assets/portraits/girl7_2/special1.png",
+    "special2": "assets/portraits/girl7_2/special2.png",
+    "special3": "assets/portraits/girl7_2/special3.png",
+    "special4": "assets/portraits/girl7_2/special4.png"
+   }
+  },
+  "girl8": {
+   "name": "崆峒_小菊",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/girl8/angry1.png",
+    "gloomy2": "assets/portraits/girl8/gloomy2.png",
+    "laugh1": "assets/portraits/girl8/laugh1.png",
+    "laugh2": "assets/portraits/girl8/laugh1.png",
+    "nervous1": "assets/portraits/girl8/nervous1.png",
+    "nervous2": "assets/portraits/girl8/nervous2.png",
+    "nervous3": "assets/portraits/girl8/nervous3.png",
+    "normal": "assets/portraits/girl8/normal.png",
+    "sad2": "assets/portraits/girl8/sad2.png",
+    "shock": "assets/portraits/girl8/shock.png",
+    "shy": "assets/portraits/girl8/shy.png",
+    "special1": "assets/portraits/girl8/special1.png",
+    "special2": "assets/portraits/girl8/special2.png",
+    "special3": "assets/portraits/girl8/special3.png",
+    "angry2": "assets/portraits/girl8/normal.png",
+    "gloomy1": "assets/portraits/girl8/normal.png"
+   }
+  },
+  "girl8_0": {
+   "name": "崆峒_小菊_隱",
+   "first": "normal",
+   "portraits": {
+    "laugh1": "assets/portraits/girl8_0/laugh1.png",
+    "nervous1": "assets/portraits/girl8_0/nervous1.png",
+    "normal": "assets/portraits/girl8_0/normal.png"
+   }
+  },
+  "girl9": {
+   "name": "上官_上官螢",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/girl9/angry1.png",
+    "angry2": "assets/portraits/girl9/angry2.png",
+    "hurt2": "assets/portraits/girl9/hurt2.png",
+    "laugh1": "assets/portraits/girl9/laugh1.png",
+    "laugh2": "assets/portraits/girl9/laugh2.png",
+    "nervous1": "assets/portraits/girl9/nervous1.png",
+    "nervous2": "assets/portraits/girl9/hurt2.png",
+    "nervous3": "assets/portraits/girl9/nervous3.png",
+    "normal": "assets/portraits/girl9/normal.png",
+    "revel": "assets/portraits/girl9/revel.png",
+    "sad2": "assets/portraits/girl9/sad2.png",
+    "shy": "assets/portraits/girl9/shy.png",
+    "special1": "assets/portraits/girl9/special1.png",
+    "special2": "assets/portraits/girl9/special2.png",
+    "special3": "assets/portraits/girl9/special3.png",
+    "special4": "assets/portraits/girl9/special4.png",
+    "gloomy1": "assets/portraits/girl9/normal.png",
+    "shock": "assets/portraits/girl9/normal.png"
+   }
+  },
+  "girl_group1": {
+   "name": "崆峒_四姝",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/girl_group1/normal.png"
+   }
+  },
+  "grappling_hook_1": {
+   "name": "閒雜_壯士飛爪1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/grappling_hook_1/normal.png"
+   }
+  },
+  "grappling_hook_2": {
+   "name": "閒雜_壯士飛爪2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/grappling_hook_2/normal.png"
+   }
+  },
+  "grappling_hook_3": {
+   "name": "閒雜_壯士飛爪3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/grappling_hook_3/normal.png"
+   }
+  },
+  "grappling_hook_4": {
+   "name": "閒雜_壯士飛爪4",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/grappling_hook_4/normal.png"
+   }
+  },
+  "guard1": {
+   "name": "宋朝_捕快1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/guard1/normal.png",
+    "angry1": "assets/portraits/guard1/normal.png"
+   }
+  },
+  "guest1": {
+   "name": "閒雜_賓客1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/guest1/normal.png"
+   }
+  },
+  "hero1": {
+   "name": "閒雜_少俠1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/hero1/normal.png",
+    "angry1": "assets/portraits/hero1/normal.png",
+    "angry2": "assets/portraits/hero1/normal.png",
+    "laugh1": "assets/portraits/hero1/normal.png",
+    "laugh2": "assets/portraits/hero1/normal.png",
+    "nervous1": "assets/portraits/hero1/normal.png",
+    "nervous2": "assets/portraits/hero1/normal.png",
+    "nervous3": "assets/portraits/hero1/normal.png",
+    "shock": "assets/portraits/hero1/normal.png",
+    "shy": "assets/portraits/hero1/normal.png"
+   }
+  },
+  "hero2": {
+   "name": "閒雜_少俠2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/hero2/normal.png",
+    "angry1": "assets/portraits/hero2/normal.png",
+    "angry2": "assets/portraits/hero2/normal.png",
+    "laugh1": "assets/portraits/hero2/normal.png",
+    "nervous1": "assets/portraits/hero2/normal.png",
+    "nervous2": "assets/portraits/hero2/normal.png",
+    "shy": "assets/portraits/hero2/normal.png"
+   }
+  },
+  "horse1": {
+   "name": "閒雜_馬1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/horse1/normal.png"
+   }
+  },
+  "horse_man_1": {
+   "name": "泥教_馬面",
+   "first": "normal",
+   "portraits": {
+    "black": "assets/portraits/horse_man_1/black.png",
+    "nervous1": "assets/portraits/horse_man_1/nervous1.png",
+    "normal": "assets/portraits/horse_man_1/normal.png",
+    "angry1": "assets/portraits/horse_man_1/normal.png",
+    "laugh1": "assets/portraits/horse_man_1/normal.png",
+    "nervous2": "assets/portraits/horse_man_1/normal.png"
+   }
+  },
+  "jewelry_box": {
+   "name": "雜項_珠寶盒",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/jewelry_box/normal.png"
+   }
+  },
+  "judgment1": {
+   "name": "宋朝_通判1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/judgment1/normal.png",
+    "angry1": "assets/portraits/judgment1/normal.png"
+   }
+  },
+  "lady1": {
+   "name": "閒雜_店家娘子",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/lady1/normal.png"
+   }
+  },
+  "lee1": {
+   "name": "閒雜_李大夫",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/lee1/angry1.png",
+    "angry2": "assets/portraits/lee1/angry1.png",
+    "normal": "assets/portraits/lee1/normal.png",
+    "shock": "assets/portraits/lee1/normal.png"
+   }
+  },
+  "letter1": {
+   "name": "閒雜_信紙1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/letter1/normal.png"
+   }
+  },
+  "letter2": {
+   "name": "閒雜_信紙2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/letter2/normal.png"
+   }
+  },
+  "letter3": {
+   "name": "閒雜_信紙3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/letter3/normal.png"
+   }
+  },
+  "letter4": {
+   "name": "閒雜_信紙4",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/letter4/normal.png"
+   }
+  },
+  "letter5": {
+   "name": "閒雜_信紙5",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/letter5/normal.png"
+   }
+  },
+  "letter6": {
+   "name": "閒雜_信紙6",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/letter6/normal.png"
+   }
+  },
+  "letter7": {
+   "name": "閒雜_信紙7",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/letter7/normal.png"
+   }
+  },
+  "letter8": {
+   "name": "閒雜_信紙8",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/letter8/normal.png"
+   }
+  },
+  "magistrate1": {
+   "name": "宋朝_知縣1",
+   "first": "normal",
+   "portraits": {
+    "nervous1": "assets/portraits/magistrate1/nervous1.png",
+    "nervous2": "assets/portraits/magistrate1/nervous1.png",
+    "normal": "assets/portraits/magistrate1/normal.png",
+    "angry2": "assets/portraits/magistrate1/normal.png",
+    "shock": "assets/portraits/magistrate1/normal.png"
+   }
+  },
+  "mask1": {
+   "name": "閒雜_蒙面人1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/mask1/normal.png",
+    "angry1": "assets/portraits/mask1/normal.png",
+    "angry2": "assets/portraits/mask1/normal.png",
+    "laugh1": "assets/portraits/mask1/normal.png",
+    "nervous1": "assets/portraits/mask1/normal.png",
+    "nervous2": "assets/portraits/mask1/normal.png"
+   }
+  },
+  "mask2": {
+   "name": "閒雜_蒙面人2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/mask2/normal.png",
+    "laugh1": "assets/portraits/mask2/normal.png",
+    "laugh2": "assets/portraits/mask2/normal.png"
+   }
+  },
+  "master": {
+   "name": "唐門_掌門人",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/master/angry1.png",
+    "angry2": "assets/portraits/master/angry2.png",
+    "angry3": "assets/portraits/master/angry2.png",
+    "hurt2": "assets/portraits/master/hurt2.png",
+    "laugh1": "assets/portraits/master/laugh1.png",
+    "nervous1": "assets/portraits/master/nervous1.png",
+    "normal": "assets/portraits/master/normal.png",
+    "sad1": "assets/portraits/master/sad1.png",
+    "sad2": "assets/portraits/master/sad1.png",
+    "laugh2": "assets/portraits/master/normal.png",
+    "nervous3": "assets/portraits/master/normal.png",
+    "shock": "assets/portraits/master/normal.png"
+   }
+  },
+  "master99": {
+   "name": "閒雜_絕世高手",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/master99/normal.png"
+   }
+  },
+  "mega_player": {
+   "name": "百萬趙活",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/mega_player/normal.png",
+    "angry2": "assets/portraits/mega_player/normal.png"
+   }
+  },
+  "merchant1": {
+   "name": "閒雜_商人1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/merchant1/normal.png",
+    "laugh1": "assets/portraits/merchant1/normal.png"
+   }
+  },
+  "mom1": {
+   "name": "主角媽",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/mom1/normal.png",
+    "angry1": "assets/portraits/mom1/normal.png",
+    "angry2": "assets/portraits/mom1/normal.png",
+    "laugh1": "assets/portraits/mom1/normal.png"
+   }
+  },
+  "money_dart1": {
+   "name": "閒雜_金錢標1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/money_dart1/normal.png"
+   }
+  },
+  "money_dart2": {
+   "name": "閒雜_金錢標2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/money_dart2/normal.png"
+   }
+  },
+  "monk2": {
+   "name": "嵩山_老和尚2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/monk2/normal.png",
+    "angry1": "assets/portraits/monk2/normal.png",
+    "angry2": "assets/portraits/monk2/normal.png",
+    "laugh1": "assets/portraits/monk2/normal.png",
+    "nervous1": "assets/portraits/monk2/normal.png",
+    "nervous2": "assets/portraits/monk2/normal.png",
+    "shock": "assets/portraits/monk2/normal.png"
+   }
+  },
+  "monkey1": {
+   "name": "閒雜_猴子1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/monkey1/normal.png"
+   }
+  },
+  "oldbeggar1": {
+   "name": "丐幫_老乞丐1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/oldbeggar1/normal.png",
+    "angry1": "assets/portraits/oldbeggar1/normal.png",
+    "angry2": "assets/portraits/oldbeggar1/normal.png",
+    "laugh1": "assets/portraits/oldbeggar1/normal.png",
+    "nervous1": "assets/portraits/oldbeggar1/normal.png",
+    "nervous2": "assets/portraits/oldbeggar1/normal.png",
+    "nervous3": "assets/portraits/oldbeggar1/normal.png"
+   }
+  },
+  "oldbeggar2": {
+   "name": "丐幫_老乞丐2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/oldbeggar2/normal.png"
+   }
+  },
+  "parrot1": {
+   "name": "閒雜_鸚鵡1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/parrot1/normal.png"
+   }
+  },
+  "peach1": {
+   "name": "閒雜_桃子1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/peach1/normal.png"
+   }
+  },
+  "people1": {
+   "name": "閒雜_眾人1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/people1/normal.png",
+    "laugh2": "assets/portraits/people1/normal.png"
+   }
+  },
+  "pig1": {
+   "name": "閒雜_野豬1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/pig1/normal.png",
+    "angry2": "assets/portraits/pig1/normal.png",
+    "nervous2": "assets/portraits/pig1/normal.png"
+   }
+  },
+  "pigeon": {
+   "name": "閒雜_鴿子",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/pigeon/normal.png",
+    "shock": "assets/portraits/pigeon/normal.png"
+   }
+  },
+  "pirate1": {
+   "name": "白鯊_海盜1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/pirate1/normal.png",
+    "angry2": "assets/portraits/pirate1/normal.png",
+    "laugh1": "assets/portraits/pirate1/normal.png",
+    "nervous1": "assets/portraits/pirate1/normal.png",
+    "nervous2": "assets/portraits/pirate1/normal.png",
+    "shock": "assets/portraits/pirate1/normal.png"
+   }
+  },
+  "pirate2": {
+   "name": "白鯊_海盜2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/pirate2/normal.png",
+    "angry2": "assets/portraits/pirate2/normal.png",
+    "laugh1": "assets/portraits/pirate2/normal.png",
+    "nervous1": "assets/portraits/pirate2/normal.png"
+   }
+  },
+  "pirate3": {
+   "name": "白鯊_海盜3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/pirate3/normal.png",
+    "angry1": "assets/portraits/pirate3/normal.png",
+    "angry2": "assets/portraits/pirate3/normal.png",
+    "laugh1": "assets/portraits/pirate3/normal.png"
+   }
+  },
+  "player": {
+   "name": "唐門_主角",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/player/angry1.png",
+    "angry2": "assets/portraits/player/angry2.png",
+    "angry3": "assets/portraits/player/angry3.png",
+    "close_eye_laugh": "assets/portraits/player/close_eye_laugh.png",
+    "die": "assets/portraits/player/die.png",
+    "doubt": "assets/portraits/player/doubt.png",
+    "gloomy1": "assets/portraits/player/gloomy1.png",
+    "gloomy2": "assets/portraits/player/gloomy1.png",
+    "hurt": "assets/portraits/player/hurt.png",
+    "hurt2": "assets/portraits/player/hurt2.png",
+    "laugh1": "assets/portraits/player/laugh1.png",
+    "laugh2": "assets/portraits/player/laugh2.png",
+    "nervous1": "assets/portraits/player/nervous1.png",
+    "nervous2": "assets/portraits/player/nervous2.png",
+    "nervous3": "assets/portraits/player/nervous3.png",
+    "normal": "assets/portraits/player/normal.png",
+    "revel": "assets/portraits/player/revel.png",
+    "sad1": "assets/portraits/player/sad1.png",
+    "sad2": "assets/portraits/player/sad1.png",
+    "shock": "assets/portraits/player/shock.png",
+    "shy": "assets/portraits/player/nervous3.png",
+    "silent": "assets/portraits/player/nervous1.png",
+    "special1": "assets/portraits/player/special1.png",
+    "special10": "assets/portraits/player/special10.png",
+    "special11": "assets/portraits/player/special11.png",
+    "special12": "assets/portraits/player/special12.png",
+    "special13": "assets/portraits/player/special13.png",
+    "special14": "assets/portraits/player/special14.png",
+    "special16": "assets/portraits/player/special16.png",
+    "special17": "assets/portraits/player/special17.png",
+    "special18": "assets/portraits/player/special18.png",
+    "special2": "assets/portraits/player/special2.png",
+    "special3": "assets/portraits/player/special3.png",
+    "special4": "assets/portraits/player/special4.png",
+    "special5": "assets/portraits/player/special5.png",
+    "special6": "assets/portraits/player/special6.png",
+    "special7": "assets/portraits/player/special7.png",
+    "special8": "assets/portraits/player/special8.png",
+    "special9": "assets/portraits/player/special9.png",
+    "suck1": "assets/portraits/player/suck1.png",
+    "suck2": "assets/portraits/player/revel.png",
+    "suck3": "assets/portraits/player/suck3.png",
+    "suck4": "assets/portraits/player/suck1.png",
+    "handsome": "assets/portraits/player/normal.png"
+   }
+  },
+  "playerLeft": {
+   "name": "主角_左",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/playerLeft/normal.png"
+   }
+  },
+  "playerRight": {
+   "name": "主角_右",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/playerRight/normal.png"
+   }
+  },
+  "player_ass": {
+   "name": "唐門_主角屁股",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/player_ass/normal.png"
+   }
+  },
+  "player_child": {
+   "name": "唐門_主角_幼年",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/player_child/normal.png",
+    "sad2": "assets/portraits/player_child/sad2.png",
+    "special1": "assets/portraits/player_child/special1.png",
+    "nervous1": "assets/portraits/player_child/normal.png",
+    "nervous2": "assets/portraits/player_child/normal.png"
+   }
+  },
+  "player_imagine": {
+   "name": "主角_魔",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/player_imagine/normal.png",
+    "angry1": "assets/portraits/player_imagine/normal.png",
+    "angry2": "assets/portraits/player_imagine/normal.png",
+    "laugh1": "assets/portraits/player_imagine/normal.png",
+    "nervous1": "assets/portraits/player_imagine/normal.png"
+   }
+  },
+  "player_old": {
+   "name": "主角_老",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/player_old/normal.png",
+    "angry1": "assets/portraits/player_old/normal.png",
+    "nervous1": "assets/portraits/player_old/normal.png",
+    "sad2": "assets/portraits/player_old/normal.png"
+   }
+  },
+  "player_section": {
+   "name": "主角_門派",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/player_section/normal.png",
+    "special1": "assets/portraits/player_section/special1.png",
+    "special2": "assets/portraits/player_section/special2.png",
+    "special3": "assets/portraits/player_section/special3.png",
+    "special4": "assets/portraits/player_section/special4.png",
+    "special5": "assets/portraits/player_section/special5.png",
+    "special6": "assets/portraits/player_section/special6.png",
+    "special7": "assets/portraits/player_section/special7.png",
+    "special8": "assets/portraits/player_section/special8.png"
+   }
+  },
+  "player_soul": {
+   "name": "主角_魂",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/player_soul/normal.png",
+    "nervous1": "assets/portraits/player_soul/normal.png"
+   }
+  },
+  "player_young": {
+   "name": "唐門_主角_少年",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/player_young/normal.png"
+   }
+  },
+  "pot1": {
+   "name": "閒雜_大鍋1",
+   "first": "pot1",
+   "portraits": {
+    "normal": "assets/portraits/pot1/pot1.png"
+   }
+  },
+  "ranger1": {
+   "name": "閒雜_路人俠1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/ranger1/normal.png",
+    "angry1": "assets/portraits/ranger1/normal.png",
+    "angry2": "assets/portraits/ranger1/normal.png",
+    "laugh1": "assets/portraits/ranger1/normal.png",
+    "laugh2": "assets/portraits/ranger1/normal.png",
+    "nervous1": "assets/portraits/ranger1/normal.png",
+    "nervous2": "assets/portraits/ranger1/normal.png",
+    "nervous3": "assets/portraits/ranger1/normal.png",
+    "revel": "assets/portraits/ranger1/normal.png",
+    "sad2": "assets/portraits/ranger1/normal.png",
+    "shock": "assets/portraits/ranger1/normal.png"
+   }
+  },
+  "ranger2": {
+   "name": "閒雜_路人俠2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/ranger2/normal.png",
+    "angry1": "assets/portraits/ranger2/normal.png",
+    "angry2": "assets/portraits/ranger2/normal.png",
+    "laugh1": "assets/portraits/ranger2/normal.png",
+    "laugh2": "assets/portraits/ranger2/normal.png",
+    "nervous1": "assets/portraits/ranger2/normal.png",
+    "nervous2": "assets/portraits/ranger2/normal.png",
+    "nervous3": "assets/portraits/ranger2/normal.png",
+    "shock": "assets/portraits/ranger2/normal.png"
+   }
+  },
+  "ranger3": {
+   "name": "閒雜_路人俠3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/ranger3/normal.png",
+    "angry1": "assets/portraits/ranger3/normal.png",
+    "angry2": "assets/portraits/ranger3/normal.png",
+    "laugh1": "assets/portraits/ranger3/normal.png",
+    "laugh2": "assets/portraits/ranger3/normal.png",
+    "nervous1": "assets/portraits/ranger3/normal.png",
+    "nervous2": "assets/portraits/ranger3/normal.png",
+    "shock": "assets/portraits/ranger3/normal.png"
+   }
+  },
+  "ranger4": {
+   "name": "閒雜_路人俠4",
+   "first": "normal",
+   "portraits": {
+    "hurt": "assets/portraits/ranger4/hurt.png",
+    "normal": "assets/portraits/ranger4/normal.png",
+    "angry1": "assets/portraits/ranger4/normal.png",
+    "angry2": "assets/portraits/ranger4/normal.png",
+    "angry3": "assets/portraits/ranger4/normal.png",
+    "gloomy2": "assets/portraits/ranger4/normal.png",
+    "laugh1": "assets/portraits/ranger4/normal.png",
+    "laugh2": "assets/portraits/ranger4/normal.png",
+    "nervous1": "assets/portraits/ranger4/normal.png",
+    "nervous2": "assets/portraits/ranger4/normal.png",
+    "nervous3": "assets/portraits/ranger4/normal.png",
+    "sad2": "assets/portraits/ranger4/normal.png"
+   }
+  },
+  "ranger5": {
+   "name": "閒雜_路人俠5",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/ranger5/normal.png",
+    "angry1": "assets/portraits/ranger5/normal.png",
+    "angry2": "assets/portraits/ranger5/normal.png",
+    "nervous1": "assets/portraits/ranger5/normal.png",
+    "nervous2": "assets/portraits/ranger5/normal.png",
+    "sad2": "assets/portraits/ranger5/normal.png",
+    "shock": "assets/portraits/ranger5/normal.png"
+   }
+  },
+  "ranger_girl1": {
+   "name": "閒雜_女俠1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/ranger_girl1/normal.png",
+    "angry1": "assets/portraits/ranger_girl1/normal.png",
+    "angry2": "assets/portraits/ranger_girl1/normal.png",
+    "laugh1": "assets/portraits/ranger_girl1/normal.png",
+    "nervous1": "assets/portraits/ranger_girl1/normal.png",
+    "nervous2": "assets/portraits/ranger_girl1/normal.png",
+    "shock": "assets/portraits/ranger_girl1/normal.png",
+    "shy": "assets/portraits/ranger_girl1/normal.png"
+   }
+  },
+  "ranger_group": {
+   "name": "閒雜_武林盟群俠",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/ranger_group/normal.png"
+   }
+  },
+  "retainer1": {
+   "name": "閒雜_家丁1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/retainer1/normal.png",
+    "angry1": "assets/portraits/retainer1/normal.png",
+    "laugh1": "assets/portraits/retainer1/normal.png",
+    "nervous1": "assets/portraits/retainer1/normal.png",
+    "nervous2": "assets/portraits/retainer1/normal.png",
+    "sad2": "assets/portraits/retainer1/normal.png"
+   }
+  },
+  "retainer2": {
+   "name": "閒雜_家丁2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/retainer2/normal.png"
+   }
+  },
+  "retainer3": {
+   "name": "閒雜_家丁3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/retainer3/normal.png"
+   }
+  },
+  "scholar1": {
+   "name": "閒雜_書生1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/scholar1/normal.png",
+    "laugh1": "assets/portraits/scholar1/normal.png",
+    "nervous1": "assets/portraits/scholar1/normal.png"
+   }
+  },
+  "scholar2": {
+   "name": "閒雜_書生2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/scholar2/normal.png"
+   }
+  },
+  "sedan1": {
+   "name": "閒雜_轎子1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/sedan1/normal.png"
+   }
+  },
+  "sedan2": {
+   "name": "閒雜_轎子2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/sedan2/normal.png"
+   }
+  },
+  "sedan_talker_1": {
+   "name": "閒雜_轎中人",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/sedan_talker_1/normal.png"
+   }
+  },
+  "shopman1": {
+   "name": "閒雜_掌櫃1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/shopman1/normal.png",
+    "angry1": "assets/portraits/shopman1/normal.png",
+    "laugh1": "assets/portraits/shopman1/normal.png",
+    "nervous1": "assets/portraits/shopman1/normal.png",
+    "nervous3": "assets/portraits/shopman1/normal.png"
+   }
+  },
+  "showgirl1": {
+   "name": "閒雜_女樂1",
+   "first": "normal",
+   "portraits": {
+    "laugh1": "assets/portraits/showgirl1/laugh1.png",
+    "normal": "assets/portraits/showgirl1/normal.png",
+    "nervous1": "assets/portraits/showgirl1/normal.png"
+   }
+  },
+  "sir1": {
+   "name": "閒雜_先生1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/sir1/normal.png",
+    "angry1": "assets/portraits/sir1/normal.png",
+    "laugh1": "assets/portraits/sir1/normal.png",
+    "nervous1": "assets/portraits/sir1/normal.png",
+    "nervous2": "assets/portraits/sir1/normal.png",
+    "nervous3": "assets/portraits/sir1/normal.png",
+    "shock": "assets/portraits/sir1/normal.png"
+   }
+  },
+  "sister1": {
+   "name": "唐門_小師妹",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/sister1/angry1.png",
+    "angry2": "assets/portraits/sister1/angry1.png",
+    "close_eye_laugh": "assets/portraits/sister1/close_eye_laugh.png",
+    "gamer": "assets/portraits/sister1/gamer.png",
+    "laugh1": "assets/portraits/sister1/laugh1.png",
+    "laugh2": "assets/portraits/sister1/laugh1.png",
+    "nervous1": "assets/portraits/sister1/nervous1.png",
+    "nervous2": "assets/portraits/sister1/nervous2.png",
+    "normal": "assets/portraits/sister1/normal.png",
+    "sad2": "assets/portraits/sister1/sad2.png",
+    "shock": "assets/portraits/sister1/nervous2.png",
+    "shy": "assets/portraits/sister1/shy.png",
+    "special1": "assets/portraits/sister1/special1.png",
+    "special3": "assets/portraits/sister1/special3.png",
+    "special4": "assets/portraits/sister1/special4.png",
+    "nervous3": "assets/portraits/sister1/normal.png"
+   }
+  },
+  "snake1": {
+   "name": "閒雜_蛇",
+   "first": "normal",
+   "portraits": {
+    "angry2": "assets/portraits/snake1/angry2.png",
+    "normal": "assets/portraits/snake1/normal.png"
+   }
+  },
+  "soldier1": {
+   "name": "宋朝_官兵1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/soldier1/normal.png",
+    "angry1": "assets/portraits/soldier1/normal.png",
+    "angry2": "assets/portraits/soldier1/normal.png",
+    "laugh1": "assets/portraits/soldier1/normal.png",
+    "laugh2": "assets/portraits/soldier1/normal.png",
+    "nervous1": "assets/portraits/soldier1/normal.png",
+    "nervous2": "assets/portraits/soldier1/normal.png"
+   }
+  },
+  "soldier2": {
+   "name": "宋朝_官兵2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/soldier2/normal.png",
+    "laugh1": "assets/portraits/soldier2/normal.png",
+    "nervous1": "assets/portraits/soldier2/normal.png",
+    "nervous2": "assets/portraits/soldier2/normal.png"
+   }
+  },
+  "soldier21": {
+   "name": "金國_士兵1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/soldier21/normal.png",
+    "angry1": "assets/portraits/soldier21/normal.png",
+    "nervous1": "assets/portraits/soldier21/normal.png",
+    "nervous2": "assets/portraits/soldier21/normal.png"
+   }
+  },
+  "soldier22": {
+   "name": "金國_士兵2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/soldier22/normal.png"
+   }
+  },
+  "soldier23": {
+   "name": "金國_士兵3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/soldier23/normal.png"
+   }
+  },
+  "soldier3": {
+   "name": "宋朝_官兵3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/soldier3/normal.png",
+    "laugh1": "assets/portraits/soldier3/normal.png"
+   }
+  },
+  "soldier31": {
+   "name": "宋朝_老將軍1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/soldier31/normal.png"
+   }
+  },
+  "soldier4": {
+   "name": "宋朝_官兵4",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/soldier4/normal.png"
+   }
+  },
+  "soldier61": {
+   "name": "西夏_士兵1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/soldier61/normal.png"
+   }
+  },
+  "soldier62": {
+   "name": "西夏_士兵2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/soldier62/normal.png"
+   }
+  },
+  "soldier63": {
+   "name": "西夏_士兵3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/soldier63/normal.png"
+   }
+  },
+  "soldier71": {
+   "name": "大理_士兵1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/soldier71/normal.png",
+    "nervous1": "assets/portraits/soldier71/normal.png"
+   }
+  },
+  "soldier72": {
+   "name": "大理_士兵2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/soldier72/normal.png",
+    "angry1": "assets/portraits/soldier72/normal.png",
+    "nervous2": "assets/portraits/soldier72/normal.png"
+   }
+  },
+  "soldier81": {
+   "name": "吐蕃_士兵1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/soldier81/normal.png"
+   }
+  },
+  "soldier82": {
+   "name": "吐蕃_士兵2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/soldier82/normal.png",
+    "laugh1": "assets/portraits/soldier82/normal.png"
+   }
+  },
+  "special1": {
+   "name": "白鯊_劉顎",
+   "first": "normal",
+   "portraits": {
+    "angry2": "assets/portraits/special1/angry2.png",
+    "angry3": "assets/portraits/special1/angry3.png",
+    "hurt2": "assets/portraits/special1/hurt2.png",
+    "laugh1": "assets/portraits/special1/laugh1.png",
+    "laugh2": "assets/portraits/special1/laugh2.png",
+    "nervous1": "assets/portraits/special1/nervous1.png",
+    "normal": "assets/portraits/special1/normal.png"
+   }
+  },
+  "special101": {
+   "name": "南宮_南宮遠",
+   "first": "normal",
+   "portraits": {
+    "angry2": "assets/portraits/special101/angry2.png",
+    "hurt": "assets/portraits/special101/hurt.png",
+    "hurt2": "assets/portraits/special101/hurt.png",
+    "laugh1": "assets/portraits/special101/laugh1.png",
+    "nervous1": "assets/portraits/special101/nervous1.png",
+    "nervous2": "assets/portraits/special101/nervous1.png",
+    "normal": "assets/portraits/special101/normal.png",
+    "sad2": "assets/portraits/special101/sad2.png",
+    "special1": "assets/portraits/special101/special1.png",
+    "special2": "assets/portraits/special101/special2.png",
+    "angry1": "assets/portraits/special101/normal.png",
+    "laugh2": "assets/portraits/special101/normal.png",
+    "nervous3": "assets/portraits/special101/normal.png"
+   }
+  },
+  "special102": {
+   "name": "南宮_南宮深",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/special102/angry1.png",
+    "angry2": "assets/portraits/special102/angry2.png",
+    "gloomy2": "assets/portraits/special102/gloomy2.png",
+    "hurt2": "assets/portraits/special102/hurt2.png",
+    "nervous1": "assets/portraits/special102/nervous1.png",
+    "nervous2": "assets/portraits/special102/nervous1.png",
+    "normal": "assets/portraits/special102/normal.png",
+    "sad2": "assets/portraits/special102/sad2.png",
+    "laugh1": "assets/portraits/special102/normal.png",
+    "laugh2": "assets/portraits/special102/normal.png",
+    "nervous3": "assets/portraits/special102/normal.png",
+    "shock": "assets/portraits/special102/normal.png"
+   }
+  },
+  "special102_1": {
+   "name": "南宮_南宮深_鳳凰",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/special102_1/angry1.png",
+    "angry2": "assets/portraits/special102_1/angry2.png",
+    "hurt2": "assets/portraits/special102_1/hurt2.png",
+    "nervous1": "assets/portraits/special102_1/nervous1.png",
+    "nervous2": "assets/portraits/special102_1/nervous1.png",
+    "normal": "assets/portraits/special102_1/normal.png",
+    "gloomy1": "assets/portraits/special102_1/normal.png",
+    "gloomy2": "assets/portraits/special102_1/normal.png",
+    "nervous3": "assets/portraits/special102_1/normal.png"
+   }
+  },
+  "special103": {
+   "name": "南宮_南宮淺",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/special103/angry1.png",
+    "angry2": "assets/portraits/special103/angry1.png",
+    "laugh1": "assets/portraits/special103/laugh1.png",
+    "laugh2": "assets/portraits/special103/laugh2.png",
+    "nervous1": "assets/portraits/special103/nervous1.png",
+    "nervous2": "assets/portraits/special103/nervous2.png",
+    "nervous3": "assets/portraits/special103/nervous3.png",
+    "normal": "assets/portraits/special103/normal.png",
+    "sad2": "assets/portraits/special103/sad2.png",
+    "shock": "assets/portraits/special103/nervous2.png",
+    "special1": "assets/portraits/special103/special1.png",
+    "special2": "assets/portraits/special103/special2.png",
+    "hurt2": "assets/portraits/special103/normal.png"
+   }
+  },
+  "special104": {
+   "name": "南宮_南宮橫",
+   "first": "normal",
+   "portraits": {
+    "nervous1": "assets/portraits/special104/nervous1.png",
+    "normal": "assets/portraits/special104/normal.png",
+    "angry1": "assets/portraits/special104/normal.png",
+    "angry2": "assets/portraits/special104/normal.png",
+    "laugh1": "assets/portraits/special104/normal.png",
+    "laugh2": "assets/portraits/special104/normal.png",
+    "nervous2": "assets/portraits/special104/normal.png",
+    "sad2": "assets/portraits/special104/normal.png"
+   }
+  },
+  "special2": {
+   "name": "丐幫_龍大俠",
+   "first": "normal",
+   "portraits": {
+    "laugh1": "assets/portraits/special2/laugh1.png",
+    "laugh2": "assets/portraits/special2/laugh1.png",
+    "nervous1": "assets/portraits/special2/nervous1.png",
+    "normal": "assets/portraits/special2/normal.png",
+    "angry1": "assets/portraits/special2/normal.png",
+    "angry2": "assets/portraits/special2/normal.png",
+    "nervous3": "assets/portraits/special2/normal.png"
+   }
+  },
+  "special201": {
+   "name": "青城_鄒博",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/special201/angry1.png",
+    "angry2": "assets/portraits/special201/angry2.png",
+    "hurt2": "assets/portraits/special201/hurt2.png",
+    "laugh1": "assets/portraits/special201/laugh1.png",
+    "nervous1": "assets/portraits/special201/nervous1.png",
+    "nervous2": "assets/portraits/special201/nervous1.png",
+    "normal": "assets/portraits/special201/normal.png",
+    "nervous3": "assets/portraits/special201/normal.png"
+   }
+  },
+  "special202": {
+   "name": "點蒼_觀雲客",
+   "first": "normal",
+   "portraits": {
+    "nervous1": "assets/portraits/special202/nervous1.png",
+    "nervous2": "assets/portraits/special202/nervous1.png",
+    "normal": "assets/portraits/special202/normal.png",
+    "angry1": "assets/portraits/special202/normal.png",
+    "laugh1": "assets/portraits/special202/normal.png",
+    "laugh2": "assets/portraits/special202/normal.png"
+   }
+  },
+  "special203": {
+   "name": "點蒼_聽海生",
+   "first": "normal",
+   "portraits": {
+    "hurt": "assets/portraits/special203/hurt.png",
+    "normal": "assets/portraits/special203/normal.png",
+    "angry1": "assets/portraits/special203/normal.png",
+    "laugh1": "assets/portraits/special203/normal.png",
+    "nervous1": "assets/portraits/special203/normal.png",
+    "nervous2": "assets/portraits/special203/normal.png",
+    "nervous3": "assets/portraits/special203/normal.png"
+   }
+  },
+  "special204": {
+   "name": "崆峒_火龍仙君",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special204/normal.png",
+    "angry1": "assets/portraits/special204/normal.png",
+    "angry2": "assets/portraits/special204/normal.png",
+    "laugh1": "assets/portraits/special204/normal.png",
+    "nervous1": "assets/portraits/special204/normal.png",
+    "nervous2": "assets/portraits/special204/normal.png",
+    "nervous3": "assets/portraits/special204/normal.png",
+    "shock": "assets/portraits/special204/normal.png"
+   }
+  },
+  "special205": {
+   "name": "全真_尹志平",
+   "first": "normal",
+   "portraits": {
+    "laugh1": "assets/portraits/special205/laugh1.png",
+    "nervous1": "assets/portraits/special205/nervous1.png",
+    "nervous3": "assets/portraits/special205/nervous3.png",
+    "normal": "assets/portraits/special205/normal.png",
+    "angry1": "assets/portraits/special205/normal.png"
+   }
+  },
+  "special206": {
+   "name": "嵩山_福韞",
+   "first": "normal",
+   "portraits": {
+    "hurt2": "assets/portraits/special206/hurt2.png",
+    "laugh1": "assets/portraits/special206/laugh1.png",
+    "nervous1": "assets/portraits/special206/nervous1.png",
+    "nervous2": "assets/portraits/special206/nervous2.png",
+    "normal": "assets/portraits/special206/normal.png",
+    "special1": "assets/portraits/special206/special1.png",
+    "special2": "assets/portraits/special206/special2.png",
+    "angry1": "assets/portraits/special206/normal.png",
+    "angry2": "assets/portraits/special206/normal.png",
+    "gloomy2": "assets/portraits/special206/normal.png",
+    "nervous3": "assets/portraits/special206/normal.png"
+   }
+  },
+  "special206_2": {
+   "name": "嵩山_福韞_金",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special206_2/normal.png",
+    "angry1": "assets/portraits/special206_2/normal.png",
+    "laugh1": "assets/portraits/special206_2/normal.png"
+   }
+  },
+  "special207": {
+   "name": "崆峒_金烏上人",
+   "first": "normal",
+   "portraits": {
+    "angry2": "assets/portraits/special207/angry2.png",
+    "gloomy2": "assets/portraits/special207/gloomy2.png",
+    "laugh1": "assets/portraits/special207/laugh1.png",
+    "nervous1": "assets/portraits/special207/nervous1.png",
+    "nervous2": "assets/portraits/special207/nervous2.png",
+    "normal": "assets/portraits/special207/normal.png",
+    "angry1": "assets/portraits/special207/normal.png",
+    "hurt2": "assets/portraits/special207/normal.png",
+    "nervous3": "assets/portraits/special207/normal.png"
+   }
+  },
+  "special207_1": {
+   "name": "崆峒_金烏上人_真",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special207_1/normal.png",
+    "laugh1": "assets/portraits/special207_1/normal.png",
+    "nervous1": "assets/portraits/special207_1/normal.png",
+    "nervous2": "assets/portraits/special207_1/normal.png"
+   }
+  },
+  "special208": {
+   "name": "唐門_晁和",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/special208/angry1.png",
+    "angry2": "assets/portraits/special208/angry1.png",
+    "laugh1": "assets/portraits/special208/laugh1.png",
+    "nervous1": "assets/portraits/special208/nervous1.png",
+    "nervous2": "assets/portraits/special208/nervous2.png",
+    "normal": "assets/portraits/special208/normal.png",
+    "sad2": "assets/portraits/special208/sad2.png",
+    "shock": "assets/portraits/special208/nervous2.png",
+    "special1": "assets/portraits/special208/special1.png",
+    "gloomy2": "assets/portraits/special208/normal.png",
+    "nervous3": "assets/portraits/special208/normal.png"
+   }
+  },
+  "special208_1": {
+   "name": "嶺南_晁和",
+   "first": "normal",
+   "portraits": {
+    "special1": "assets/portraits/special208_1/special1.png"
+   }
+  },
+  "special211": {
+   "name": "大理_李紫穹",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special211/normal.png",
+    "nervous2": "assets/portraits/special211/normal.png"
+   }
+  },
+  "special211_1": {
+   "name": "大理_李紫穹_異色",
+   "first": "normal",
+   "portraits": {
+    "laugh1": "assets/portraits/special211_1/normal.png",
+    "nervous1": "assets/portraits/special211_1/normal.png",
+    "special1": "assets/portraits/special211_1/normal.png"
+   }
+  },
+  "special212": {
+   "name": "青城_鐵冠道人",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/special212/angry1.png",
+    "angry2": "assets/portraits/special212/angry1.png",
+    "angry3": "assets/portraits/special212/angry3.png",
+    "gloomy1": "assets/portraits/special212/gloomy1.png",
+    "gloomy2": "assets/portraits/special212/gloomy1.png",
+    "hurt2": "assets/portraits/special212/hurt2.png",
+    "nervous1": "assets/portraits/special212/nervous1.png",
+    "nervous2": "assets/portraits/special212/nervous2.png",
+    "normal": "assets/portraits/special212/normal.png",
+    "special1": "assets/portraits/special212/special1.png",
+    "laugh1": "assets/portraits/special212/normal.png",
+    "laugh2": "assets/portraits/special212/normal.png"
+   }
+  },
+  "special212_1": {
+   "name": "極樂_無相祖師",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special212_1/normal.png"
+   }
+  },
+  "special212_2": {
+   "name": "極樂_吳鄉",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special212_2/normal.png"
+   }
+  },
+  "special213_0": {
+   "name": "極樂_李元棄_問號",
+   "first": "normal",
+   "portraits": {
+    "laugh1": "assets/portraits/special213_0/laugh1.png",
+    "normal": "assets/portraits/special213_0/normal.png"
+   }
+  },
+  "special2_1": {
+   "name": "丐幫_龍大俠_隱",
+   "first": "normal",
+   "portraits": {
+    "laugh1": "assets/portraits/special2_1/laugh1.png",
+    "laugh2": "assets/portraits/special2_1/laugh1.png",
+    "nervous1": "assets/portraits/special2_1/nervous1.png",
+    "normal": "assets/portraits/special2_1/normal.png",
+    "angry1": "assets/portraits/special2_1/normal.png",
+    "angry2": "assets/portraits/special2_1/normal.png",
+    "nervous3": "assets/portraits/special2_1/normal.png"
+   }
+  },
+  "special3": {
+   "name": "點蒼_葉雲舟",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/special3/angry1.png",
+    "angry2": "assets/portraits/special3/angry2.png",
+    "angry3": "assets/portraits/special3/angry2.png",
+    "hurt2": "assets/portraits/special3/hurt2.png",
+    "laugh1": "assets/portraits/special3/laugh1.png",
+    "laugh2": "assets/portraits/special3/laugh1.png",
+    "nervous1": "assets/portraits/special3/nervous1.png",
+    "nervous2": "assets/portraits/special3/nervous2.png",
+    "nervous3": "assets/portraits/special3/nervous3.png",
+    "normal": "assets/portraits/special3/normal.png",
+    "sad2": "assets/portraits/special3/sad2.png",
+    "shock": "assets/portraits/special3/nervous2.png",
+    "special1": "assets/portraits/special3/special1.png",
+    "special2": "assets/portraits/special3/special2.png",
+    "special3": "assets/portraits/special3/special3.png",
+    "nervous4": "assets/portraits/special3/normal.png"
+   }
+  },
+  "special3_1": {
+   "name": "點蒼_葉雲舟_隱",
+   "first": "normal",
+   "portraits": {
+    "special1": "assets/portraits/special3_1/normal.png"
+   }
+  },
+  "special3_2": {
+   "name": "點蒼_葉雲舟_異色",
+   "first": "normal",
+   "portraits": {
+    "laugh1": "assets/portraits/special3_2/laugh1.png",
+    "nervous1": "assets/portraits/special3_2/nervous1.png",
+    "nervous3": "assets/portraits/special3_2/nervous3.png",
+    "normal": "assets/portraits/special3_2/normal.png",
+    "special1": "assets/portraits/special3_2/special1.png"
+   }
+  },
+  "special4": {
+   "name": "丐幫_樊嘯天",
+   "first": "normal",
+   "portraits": {
+    "angry2": "assets/portraits/special4/angry2.png",
+    "angry3": "assets/portraits/special4/angry2.png",
+    "hurt2": "assets/portraits/special4/hurt2.png",
+    "laugh1": "assets/portraits/special4/laugh1.png",
+    "laugh2": "assets/portraits/special4/laugh1.png",
+    "nervous1": "assets/portraits/special4/nervous1.png",
+    "nervous2": "assets/portraits/special4/nervous2.png",
+    "normal": "assets/portraits/special4/normal.png",
+    "sad2": "assets/portraits/special4/sad2.png",
+    "shock": "assets/portraits/special4/nervous2.png",
+    "angry1": "assets/portraits/special4/normal.png",
+    "nervous3": "assets/portraits/special4/normal.png",
+    "shy": "assets/portraits/special4/normal.png"
+   }
+  },
+  "special401": {
+   "name": "丐幫_王二壯",
+   "first": "normal",
+   "portraits": {
+    "hurt2": "assets/portraits/special401/hurt2.png",
+    "laugh1": "assets/portraits/special401/laugh1.png",
+    "laugh2": "assets/portraits/special401/laugh2.png",
+    "nervous1": "assets/portraits/special401/nervous1.png",
+    "nervous2": "assets/portraits/special401/nervous1.png",
+    "nervous3": "assets/portraits/special401/nervous3.png",
+    "normal": "assets/portraits/special401/normal.png",
+    "special1": "assets/portraits/special401/special1.png",
+    "angry1": "assets/portraits/special401/normal.png",
+    "angry2": "assets/portraits/special401/normal.png",
+    "shock": "assets/portraits/special401/normal.png"
+   }
+  },
+  "special402": {
+   "name": "錦香_溫夫人",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/special402/angry1.png",
+    "angry3": "assets/portraits/special402/angry3.png",
+    "gloomy1": "assets/portraits/special402/gloomy1.png",
+    "gloomy2": "assets/portraits/special402/gloomy1.png",
+    "hurt": "assets/portraits/special402/hurt.png",
+    "laugh1": "assets/portraits/special402/laugh1.png",
+    "nervous1": "assets/portraits/special402/nervous1.png",
+    "normal": "assets/portraits/special402/normal.png",
+    "sad1": "assets/portraits/special402/sad1.png",
+    "sad2": "assets/portraits/special402/sad1.png",
+    "special1": "assets/portraits/special402/special1.png",
+    "special2": "assets/portraits/special402/special2.png",
+    "special3": "assets/portraits/special402/special3.png",
+    "special4": "assets/portraits/special402/special4.png",
+    "nervous2": "assets/portraits/special402/normal.png",
+    "nervous3": "assets/portraits/special402/normal.png"
+   }
+  },
+  "special402_1": {
+   "name": "錦香_溫夫人_假",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/special402_1/angry1.png",
+    "nervous1": "assets/portraits/special402_1/nervous1.png",
+    "normal": "assets/portraits/special402_1/normal.png",
+    "sad2": "assets/portraits/special402_1/sad2.png",
+    "nervous2": "assets/portraits/special402_1/normal.png"
+   }
+  },
+  "special402_2": {
+   "name": "錦香_溫夫人_半",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special402_2/normal.png",
+    "nervous3": "assets/portraits/special402_2/normal.png"
+   }
+  },
+  "special402_3": {
+   "name": "錦香_蘇迎香",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special402_3/normal.png",
+    "laugh1": "assets/portraits/special402_3/normal.png"
+   }
+  },
+  "special403": {
+   "name": "陰曹_趙逵",
+   "first": "normal",
+   "portraits": {
+    "angry2": "assets/portraits/special403/angry2.png",
+    "hurt2": "assets/portraits/special403/hurt2.png",
+    "laugh1": "assets/portraits/special403/laugh1.png",
+    "laugh2": "assets/portraits/special403/laugh2.png",
+    "nervous1": "assets/portraits/special403/nervous1.png",
+    "normal": "assets/portraits/special403/normal.png",
+    "angry1": "assets/portraits/special403/normal.png",
+    "gloomy2": "assets/portraits/special403/normal.png"
+   }
+  },
+  "special404": {
+   "name": "崆峒_丹霞子",
+   "first": "normal",
+   "portraits": {
+    "laugh1": "assets/portraits/special404/laugh1.png",
+    "laugh2": "assets/portraits/special404/laugh2.png",
+    "nervous1": "assets/portraits/special404/nervous1.png",
+    "nervous2": "assets/portraits/special404/nervous2.png",
+    "normal": "assets/portraits/special404/normal.png",
+    "special1": "assets/portraits/special404/special1.png",
+    "angry1": "assets/portraits/special404/normal.png",
+    "angry3": "assets/portraits/special404/normal.png",
+    "nervous3": "assets/portraits/special404/normal.png"
+   }
+  },
+  "special405": {
+   "name": "青城_申屠龍",
+   "first": "normal",
+   "portraits": {
+    "angry2": "assets/portraits/special405/angry2.png",
+    "angry3": "assets/portraits/special405/angry2.png",
+    "hurt2": "assets/portraits/special405/hurt2.png",
+    "laugh1": "assets/portraits/special405/laugh1.png",
+    "laugh2": "assets/portraits/special405/laugh2.png",
+    "nervous1": "assets/portraits/special405/nervous1.png",
+    "nervous3": "assets/portraits/special405/nervous3.png",
+    "normal": "assets/portraits/special405/normal.png",
+    "angry1": "assets/portraits/special405/normal.png",
+    "gloomy1": "assets/portraits/special405/normal.png",
+    "gloomy2": "assets/portraits/special405/normal.png",
+    "nervous2": "assets/portraits/special405/normal.png",
+    "sad2": "assets/portraits/special405/normal.png"
+   }
+  },
+  "special406": {
+   "name": "點蒼_無名",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special406/normal.png"
+   }
+  },
+  "special407": {
+   "name": "上官_上官隼",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/special407/angry1.png",
+    "angry2": "assets/portraits/special407/angry2.png",
+    "gloomy2": "assets/portraits/special407/gloomy2.png",
+    "laugh1": "assets/portraits/special407/laugh1.png",
+    "nervous1": "assets/portraits/special407/nervous1.png",
+    "normal": "assets/portraits/special407/normal.png",
+    "special1": "assets/portraits/special407/special1.png",
+    "angry3": "assets/portraits/special407/normal.png",
+    "gloomy1": "assets/portraits/special407/normal.png",
+    "hurt2": "assets/portraits/special407/normal.png",
+    "laugh2": "assets/portraits/special407/normal.png",
+    "nervous2": "assets/portraits/special407/normal.png",
+    "shock": "assets/portraits/special407/normal.png",
+    "special2": "assets/portraits/special407/normal.png"
+   }
+  },
+  "special408": {
+   "name": "峨嵋_向無憂",
+   "first": "normal",
+   "portraits": {
+    "laugh1": "assets/portraits/special408/laugh1.png",
+    "nervous1": "assets/portraits/special408/nervous1.png",
+    "nervous2": "assets/portraits/special408/nervous2.png",
+    "normal": "assets/portraits/special408/normal.png",
+    "angry1": "assets/portraits/special408/normal.png",
+    "angry2": "assets/portraits/special408/normal.png",
+    "angry3": "assets/portraits/special408/normal.png"
+   }
+  },
+  "special410": {
+   "name": "嵩山_方丈",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special410/normal.png",
+    "laugh1": "assets/portraits/special410/normal.png",
+    "nervous1": "assets/portraits/special410/normal.png"
+   }
+  },
+  "special6": {
+   "name": "嵩山_萬里鵬程",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special6/normal.png",
+    "angry2": "assets/portraits/special6/normal.png",
+    "laugh1": "assets/portraits/special6/normal.png",
+    "nervous1": "assets/portraits/special6/normal.png"
+   }
+  },
+  "special6_1": {
+   "name": "嵩山_萬里鵬程_隱",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special6_1/normal.png"
+   }
+  },
+  "special7": {
+   "name": "飛石幫_石公遠",
+   "first": "normal",
+   "portraits": {
+    "hurt2": "assets/portraits/special7/hurt2.png",
+    "laugh1": "assets/portraits/special7/laugh1.png",
+    "laugh2": "assets/portraits/special7/laugh1.png",
+    "nervous1": "assets/portraits/special7/nervous1.png",
+    "nervous2": "assets/portraits/special7/nervous2.png",
+    "nervous3": "assets/portraits/special7/nervous3.png",
+    "normal": "assets/portraits/special7/normal.png",
+    "angry1": "assets/portraits/special7/normal.png",
+    "angry2": "assets/portraits/special7/normal.png",
+    "angry3": "assets/portraits/special7/normal.png"
+   }
+  },
+  "special800": {
+   "name": "宋朝_宋悲",
+   "first": "normal",
+   "portraits": {
+    "angry2": "assets/portraits/special800/angry2.png",
+    "laugh1": "assets/portraits/special800/laugh1.png",
+    "nervous1": "assets/portraits/special800/nervous1.png",
+    "nervous2": "assets/portraits/special800/nervous2.png",
+    "normal": "assets/portraits/special800/normal.png",
+    "special1": "assets/portraits/special800/special1.png",
+    "angry1": "assets/portraits/special800/normal.png",
+    "laugh2": "assets/portraits/special800/normal.png",
+    "nervous3": "assets/portraits/special800/normal.png",
+    "shock": "assets/portraits/special800/normal.png"
+   }
+  },
+  "special801": {
+   "name": "閒雜_譚霸刀",
+   "first": "normal",
+   "portraits": {
+    "hurt": "assets/portraits/special801/hurt.png",
+    "laugh1": "assets/portraits/special801/laugh1.png",
+    "laugh2": "assets/portraits/special801/laugh1.png",
+    "nervous1": "assets/portraits/special801/nervous1.png",
+    "nervous2": "assets/portraits/special801/nervous1.png",
+    "normal": "assets/portraits/special801/normal.png",
+    "angry1": "assets/portraits/special801/normal.png",
+    "angry2": "assets/portraits/special801/normal.png",
+    "gloomy2": "assets/portraits/special801/normal.png",
+    "shock": "assets/portraits/special801/normal.png"
+   }
+  },
+  "special802": {
+   "name": "閒雜_辛儒",
+   "first": "normal",
+   "portraits": {
+    "laugh1": "assets/portraits/special802/laugh1.png",
+    "nervous1": "assets/portraits/special802/nervous1.png",
+    "normal": "assets/portraits/special802/normal.png",
+    "angry2": "assets/portraits/special802/normal.png",
+    "nervous3": "assets/portraits/special802/normal.png",
+    "shy": "assets/portraits/special802/normal.png"
+   }
+  },
+  "special802_0": {
+   "name": "閒雜_辛儒_隱",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special802_0/normal.png"
+   }
+  },
+  "special803": {
+   "name": "閒雜_江行老",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special803/normal.png",
+    "angry2": "assets/portraits/special803/normal.png",
+    "laugh1": "assets/portraits/special803/normal.png",
+    "nervous1": "assets/portraits/special803/normal.png",
+    "nervous2": "assets/portraits/special803/normal.png",
+    "nervous3": "assets/portraits/special803/normal.png",
+    "sad2": "assets/portraits/special803/normal.png"
+   }
+  },
+  "special803_0": {
+   "name": "閒雜_江行老_隱",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special803_0/normal.png",
+    "nervous1": "assets/portraits/special803_0/normal.png"
+   }
+  },
+  "special804": {
+   "name": "崆峒_雷謙",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special804/normal.png",
+    "angry1": "assets/portraits/special804/normal.png",
+    "angry2": "assets/portraits/special804/normal.png",
+    "laugh1": "assets/portraits/special804/normal.png",
+    "laugh2": "assets/portraits/special804/normal.png",
+    "nervous1": "assets/portraits/special804/normal.png",
+    "nervous3": "assets/portraits/special804/normal.png"
+   }
+  },
+  "special805": {
+   "name": "崆峒_鶴手",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special805/normal.png",
+    "special1": "assets/portraits/special805/special1.png",
+    "laugh1": "assets/portraits/special805/normal.png",
+    "nervous1": "assets/portraits/special805/normal.png",
+    "nervous2": "assets/portraits/special805/normal.png"
+   }
+  },
+  "special805_0": {
+   "name": "崆峒_鶴手_隱",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special805_0/normal.png"
+   }
+  },
+  "special806": {
+   "name": "崆峒_勾魂叟",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special806/normal.png",
+    "angry1": "assets/portraits/special806/normal.png",
+    "nervous1": "assets/portraits/special806/normal.png"
+   }
+  },
+  "special807": {
+   "name": "閒雜_呂翁",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special807/normal.png",
+    "angry1": "assets/portraits/special807/normal.png",
+    "laugh1": "assets/portraits/special807/normal.png",
+    "nervous1": "assets/portraits/special807/normal.png",
+    "nervous2": "assets/portraits/special807/normal.png"
+   }
+  },
+  "special808": {
+   "name": "峨嵋_解無塵",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/special808/angry1.png",
+    "angry2": "assets/portraits/special808/angry1.png",
+    "laugh1": "assets/portraits/special808/laugh1.png",
+    "laugh2": "assets/portraits/special808/laugh1.png",
+    "nervous1": "assets/portraits/special808/nervous1.png",
+    "nervous2": "assets/portraits/special808/nervous2.png",
+    "nervous3": "assets/portraits/special808/nervous3.png",
+    "normal": "assets/portraits/special808/normal.png",
+    "angry3": "assets/portraits/special808/normal.png",
+    "hurt": "assets/portraits/special808/normal.png",
+    "hurt2": "assets/portraits/special808/normal.png",
+    "sad2": "assets/portraits/special808/normal.png"
+   }
+  },
+  "special808_0": {
+   "name": "峨嵋_解無塵_隱",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special808_0/normal.png"
+   }
+  },
+  "special809": {
+   "name": "丐幫_李富貴",
+   "first": "normal",
+   "portraits": {
+    "laugh1": "assets/portraits/special809/laugh1.png",
+    "laugh2": "assets/portraits/special809/laugh2.png",
+    "nervous2": "assets/portraits/special809/nervous2.png",
+    "normal": "assets/portraits/special809/normal.png",
+    "sad2": "assets/portraits/special809/sad2.png",
+    "angry1": "assets/portraits/special809/normal.png",
+    "angry2": "assets/portraits/special809/normal.png",
+    "gloomy2": "assets/portraits/special809/normal.png",
+    "nervous1": "assets/portraits/special809/normal.png",
+    "nervous3": "assets/portraits/special809/normal.png",
+    "shock": "assets/portraits/special809/normal.png"
+   }
+  },
+  "special810": {
+   "name": "南宮_樂屏",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special810/normal.png"
+   }
+  },
+  "special811": {
+   "name": "唐門_唐衫",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/special811/angry1.png",
+    "angry2": "assets/portraits/special811/angry1.png",
+    "laugh1": "assets/portraits/special811/laugh1.png",
+    "laugh2": "assets/portraits/special811/laugh1.png",
+    "nervous1": "assets/portraits/special811/nervous1.png",
+    "nervous2": "assets/portraits/special811/nervous2.png",
+    "nervous3": "assets/portraits/special811/nervous3.png",
+    "normal": "assets/portraits/special811/normal.png",
+    "sad2": "assets/portraits/special811/sad2.png"
+   }
+  },
+  "special812": {
+   "name": "唐門_唐守鴻",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/special812/angry1.png",
+    "nervous1": "assets/portraits/special812/nervous1.png",
+    "normal": "assets/portraits/special812/normal.png",
+    "special1": "assets/portraits/special812/special1.png",
+    "hurt2": "assets/portraits/special812/normal.png",
+    "laugh1": "assets/portraits/special812/normal.png",
+    "nervous3": "assets/portraits/special812/normal.png"
+   }
+  },
+  "special812_1": {
+   "name": "唐門_唐守鴻_受傷",
+   "first": "normal",
+   "portraits": {
+    "angry2": "assets/portraits/special812_1/angry2.png",
+    "nervous1": "assets/portraits/special812_1/nervous1.png",
+    "nervous2": "assets/portraits/special812_1/nervous1.png",
+    "normal": "assets/portraits/special812_1/normal.png",
+    "laugh1": "assets/portraits/special812_1/normal.png"
+   }
+  },
+  "special813": {
+   "name": "錦香_畫中仙",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special813/normal.png",
+    "angry1": "assets/portraits/special813/normal.png",
+    "angry2": "assets/portraits/special813/normal.png",
+    "gloomy2": "assets/portraits/special813/normal.png",
+    "laugh1": "assets/portraits/special813/normal.png",
+    "nervous1": "assets/portraits/special813/normal.png",
+    "nervous2": "assets/portraits/special813/normal.png",
+    "nervous3": "assets/portraits/special813/normal.png",
+    "sad2": "assets/portraits/special813/normal.png",
+    "shock": "assets/portraits/special813/normal.png"
+   }
+  },
+  "special813_1": {
+   "name": "錦香_畫中仙_真",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special813_1/normal.png",
+    "angry1": "assets/portraits/special813_1/normal.png",
+    "laugh1": "assets/portraits/special813_1/normal.png",
+    "nervous1": "assets/portraits/special813_1/normal.png",
+    "nervous3": "assets/portraits/special813_1/normal.png"
+   }
+  },
+  "special813_2": {
+   "name": "錦香_畫中仙_半",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special813_2/normal.png",
+    "laugh1": "assets/portraits/special813_2/normal.png",
+    "nervous3": "assets/portraits/special813_2/normal.png"
+   }
+  },
+  "special814": {
+   "name": "閒雜_萬勝",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special814/normal.png"
+   }
+  },
+  "special815": {
+   "name": "飛石幫_石夫人",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/special815/angry1.png",
+    "angry2": "assets/portraits/special815/angry1.png",
+    "normal": "assets/portraits/special815/normal.png",
+    "sad2": "assets/portraits/special815/sad2.png",
+    "shy": "assets/portraits/special815/shy.png",
+    "laugh1": "assets/portraits/special815/normal.png",
+    "nervous1": "assets/portraits/special815/normal.png",
+    "nervous2": "assets/portraits/special815/normal.png",
+    "nervous3": "assets/portraits/special815/normal.png"
+   }
+  },
+  "special816": {
+   "name": "閒雜_破戒僧",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special816/normal.png",
+    "angry1": "assets/portraits/special816/normal.png",
+    "nervous1": "assets/portraits/special816/normal.png",
+    "nervous2": "assets/portraits/special816/normal.png"
+   }
+  },
+  "special817": {
+   "name": "宋朝_趙擴",
+   "first": "normal",
+   "portraits": {
+    "nervous1": "assets/portraits/special817/nervous1.png",
+    "nervous2": "assets/portraits/special817/nervous1.png",
+    "normal": "assets/portraits/special817/normal.png",
+    "nervous3": "assets/portraits/special817/normal.png"
+   }
+  },
+  "special818": {
+   "name": "杏花_書蓉",
+   "first": "normal",
+   "portraits": {
+    "nervous1": "assets/portraits/special818/nervous1.png",
+    "normal": "assets/portraits/special818/normal.png",
+    "sad2": "assets/portraits/special818/normal.png"
+   }
+  },
+  "special819": {
+   "name": "金國_完顏珣",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special819/normal.png",
+    "angry1": "assets/portraits/special819/normal.png",
+    "laugh1": "assets/portraits/special819/normal.png",
+    "nervous1": "assets/portraits/special819/normal.png",
+    "nervous2": "assets/portraits/special819/normal.png",
+    "nervous3": "assets/portraits/special819/normal.png",
+    "sad2": "assets/portraits/special819/normal.png"
+   }
+  },
+  "special820": {
+   "name": "崆峒_第三香",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special820/normal.png",
+    "angry1": "assets/portraits/special820/normal.png",
+    "angry2": "assets/portraits/special820/normal.png",
+    "hurt2": "assets/portraits/special820/normal.png",
+    "laugh1": "assets/portraits/special820/normal.png",
+    "nervous1": "assets/portraits/special820/normal.png",
+    "nervous3": "assets/portraits/special820/normal.png"
+   }
+  },
+  "special821": {
+   "name": "崆峒_夏侯梅",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special821/normal.png"
+   }
+  },
+  "special822": {
+   "name": "崆峒_呼延菊",
+   "first": "normal",
+   "portraits": {
+    "laugh1": "assets/portraits/special822/laugh1.png",
+    "normal": "assets/portraits/special822/normal.png",
+    "angry1": "assets/portraits/special822/normal.png"
+   }
+  },
+  "special823": {
+   "name": "宋朝_袁無憲",
+   "first": "normal",
+   "portraits": {
+    "gloomy2": "assets/portraits/special823/gloomy2.png",
+    "nervous1": "assets/portraits/special823/nervous1.png",
+    "nervous2": "assets/portraits/special823/nervous1.png",
+    "normal": "assets/portraits/special823/normal.png",
+    "angry1": "assets/portraits/special823/normal.png",
+    "angry2": "assets/portraits/special823/normal.png",
+    "laugh1": "assets/portraits/special823/normal.png",
+    "nervous3": "assets/portraits/special823/normal.png"
+   }
+  },
+  "special824": {
+   "name": "宋朝_荊紅",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special824/normal.png",
+    "gloomy2": "assets/portraits/special824/normal.png",
+    "laugh1": "assets/portraits/special824/normal.png",
+    "nervous1": "assets/portraits/special824/normal.png"
+   }
+  },
+  "special825": {
+   "name": "孤雲_夏靈犀",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/special825/angry1.png",
+    "angry2": "assets/portraits/special825/angry2.png",
+    "gloomy1": "assets/portraits/special825/gloomy1.png",
+    "gloomy2": "assets/portraits/special825/gloomy1.png",
+    "nervous1": "assets/portraits/special825/nervous1.png",
+    "nervous2": "assets/portraits/special825/nervous2.png",
+    "normal": "assets/portraits/special825/normal.png",
+    "laugh1": "assets/portraits/special825/normal.png"
+   }
+  },
+  "special826": {
+   "name": "嵩山_釋明",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/special826/angry1.png",
+    "angry2": "assets/portraits/special826/angry1.png",
+    "laugh1": "assets/portraits/special826/laugh1.png",
+    "laugh2": "assets/portraits/special826/laugh1.png",
+    "nervous1": "assets/portraits/special826/nervous1.png",
+    "nervous2": "assets/portraits/special826/nervous2.png",
+    "normal": "assets/portraits/special826/normal.png",
+    "gloomy2": "assets/portraits/special826/normal.png",
+    "hurt2": "assets/portraits/special826/normal.png",
+    "nervous3": "assets/portraits/special826/normal.png",
+    "sad2": "assets/portraits/special826/normal.png",
+    "shock": "assets/portraits/special826/normal.png",
+    "shy": "assets/portraits/special826/normal.png"
+   }
+  },
+  "special827": {
+   "name": "滄幫_幫主",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special827/normal.png",
+    "angry1": "assets/portraits/special827/normal.png",
+    "angry2": "assets/portraits/special827/normal.png",
+    "nervous1": "assets/portraits/special827/normal.png",
+    "nervous2": "assets/portraits/special827/normal.png"
+   }
+  },
+  "special828": {
+   "name": "閒雜_余公子",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special828/normal.png",
+    "shock": "assets/portraits/special828/normal.png"
+   }
+  },
+  "special829": {
+   "name": "孤雲_南溪",
+   "first": "normal",
+   "portraits": {
+    "laugh1": "assets/portraits/special829/laugh1.png",
+    "nervous1": "assets/portraits/special829/nervous1.png",
+    "nervous2": "assets/portraits/special829/nervous2.png",
+    "normal": "assets/portraits/special829/normal.png",
+    "angry1": "assets/portraits/special829/normal.png",
+    "angry3": "assets/portraits/special829/normal.png",
+    "hurt2": "assets/portraits/special829/normal.png"
+   }
+  },
+  "special830": {
+   "name": "孤雲_梁有詩",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/special830/angry1.png",
+    "nervous1": "assets/portraits/special830/nervous1.png",
+    "normal": "assets/portraits/special830/normal.png",
+    "shy": "assets/portraits/special830/shy.png",
+    "nervous2": "assets/portraits/special830/normal.png",
+    "nervous3": "assets/portraits/special830/normal.png"
+   }
+  },
+  "special831": {
+   "name": "孤雲_孟仙謠",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/special831/angry1.png",
+    "nervous1": "assets/portraits/special831/nervous1.png",
+    "normal": "assets/portraits/special831/normal.png",
+    "laugh1": "assets/portraits/special831/normal.png"
+   }
+  },
+  "special832": {
+   "name": "唐門_唐芳",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/special832/angry1.png",
+    "angry2": "assets/portraits/special832/angry1.png",
+    "laugh1": "assets/portraits/special832/laugh1.png",
+    "laugh2": "assets/portraits/special832/laugh1.png",
+    "nervous1": "assets/portraits/special832/nervous1.png",
+    "nervous2": "assets/portraits/special832/nervous2.png",
+    "nervous3": "assets/portraits/special832/nervous3.png",
+    "normal": "assets/portraits/special832/normal.png",
+    "special1": "assets/portraits/special832/special1.png",
+    "gloomy1": "assets/portraits/special832/normal.png",
+    "sad2": "assets/portraits/special832/normal.png",
+    "shock": "assets/portraits/special832/normal.png",
+    "shy": "assets/portraits/special832/normal.png"
+   }
+  },
+  "special833": {
+   "name": "閒雜_南宮秀",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special833/normal.png",
+    "angry1": "assets/portraits/special833/normal.png",
+    "laugh1": "assets/portraits/special833/normal.png"
+   }
+  },
+  "special834": {
+   "name": "點蒼_段智秀",
+   "first": "normal",
+   "portraits": {
+    "angry2": "assets/portraits/special834/angry2.png",
+    "gloomy1": "assets/portraits/special834/gloomy1.png",
+    "hurt2": "assets/portraits/special834/hurt2.png",
+    "nervous1": "assets/portraits/special834/nervous1.png",
+    "nervous2": "assets/portraits/special834/nervous2.png",
+    "nervous3": "assets/portraits/special834/nervous3.png",
+    "normal": "assets/portraits/special834/normal.png",
+    "sad2": "assets/portraits/special834/sad2.png",
+    "special1": "assets/portraits/special834/special1.png",
+    "special2": "assets/portraits/special834/special2.png",
+    "angry1": "assets/portraits/special834/normal.png",
+    "gloomy2": "assets/portraits/special834/normal.png",
+    "laugh1": "assets/portraits/special834/normal.png",
+    "laugh2": "assets/portraits/special834/normal.png",
+    "sad1": "assets/portraits/special834/normal.png",
+    "shock": "assets/portraits/special834/normal.png"
+   }
+  },
+  "special834_1": {
+   "name": "點蒼_段智瞪",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special834_1/normal.png"
+   }
+  },
+  "special835": {
+   "name": "南宮_南宮己",
+   "first": "normal",
+   "portraits": {
+    "angry2": "assets/portraits/special835/angry2.png",
+    "normal": "assets/portraits/special835/normal.png",
+    "special4": "assets/portraits/special835/special4.png",
+    "laugh1": "assets/portraits/special835/normal.png",
+    "nervous1": "assets/portraits/special835/normal.png",
+    "nervous2": "assets/portraits/special835/normal.png",
+    "nervous3": "assets/portraits/special835/normal.png",
+    "shock": "assets/portraits/special835/normal.png"
+   }
+  },
+  "special835_1": {
+   "name": "南宮_南宮己_綁",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special835_1/normal.png",
+    "angry1": "assets/portraits/special835_1/normal.png",
+    "hurt": "assets/portraits/special835_1/normal.png",
+    "laugh1": "assets/portraits/special835_1/normal.png",
+    "laugh2": "assets/portraits/special835_1/normal.png",
+    "nervous1": "assets/portraits/special835_1/normal.png",
+    "nervous2": "assets/portraits/special835_1/normal.png",
+    "nervous3": "assets/portraits/special835_1/normal.png",
+    "sad2": "assets/portraits/special835_1/normal.png",
+    "shock": "assets/portraits/special835_1/normal.png"
+   }
+  },
+  "special836": {
+   "name": "點蒼_段婉清",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special836/normal.png",
+    "angry1": "assets/portraits/special836/normal.png",
+    "laugh1": "assets/portraits/special836/normal.png"
+   }
+  },
+  "special837": {
+   "name": "孤雲_方獨弱",
+   "first": "normal",
+   "portraits": {
+    "nervous1": "assets/portraits/special837/nervous1.png",
+    "normal": "assets/portraits/special837/normal.png",
+    "nervous3": "assets/portraits/special837/normal.png"
+   }
+  },
+  "special999": {
+   "name": "孤雲_瑞笙",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/special999/angry1.png",
+    "angry2": "assets/portraits/special999/angry2.png",
+    "angry3": "assets/portraits/special999/angry2.png",
+    "hurt2": "assets/portraits/special999/hurt2.png",
+    "laugh1": "assets/portraits/special999/laugh1.png",
+    "laugh2": "assets/portraits/special999/laugh2.png",
+    "nervous2": "assets/portraits/special999/nervous2.png",
+    "nervous3": "assets/portraits/special999/nervous3.png",
+    "normal": "assets/portraits/special999/normal.png",
+    "special1": "assets/portraits/special999/special1.png",
+    "special2": "assets/portraits/special999/special2.png",
+    "special3": "assets/portraits/special999/special3.png",
+    "special4": "assets/portraits/special999/special4.png",
+    "special6": "assets/portraits/special999/special6.png",
+    "special7": "assets/portraits/special999/special7.png",
+    "special8": "assets/portraits/special999/special8.png",
+    "nervous1": "assets/portraits/special999/normal.png",
+    "sad2": "assets/portraits/special999/normal.png"
+   }
+  },
+  "special999_0": {
+   "name": "孤雲_瑞笙_隱",
+   "first": "normal",
+   "portraits": {
+    "laugh1": "assets/portraits/special999_0/laugh1.png",
+    "normal": "assets/portraits/special999_0/normal.png",
+    "nervous1": "assets/portraits/special999_0/normal.png"
+   }
+  },
+  "special999_1": {
+   "name": "孤雲_瑞笙_少年",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/special999_1/normal.png"
+   }
+  },
+  "stone1": {
+   "name": "閒雜_石頭1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/stone1/normal.png",
+    "angry1": "assets/portraits/stone1/normal.png",
+    "laugh1": "assets/portraits/stone1/normal.png",
+    "nervous1": "assets/portraits/stone1/normal.png"
+   }
+  },
+  "stone_trainee_1": {
+   "name": "飛石幫_弟子1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/stone_trainee_1/normal.png",
+    "angry1": "assets/portraits/stone_trainee_1/normal.png",
+    "angry2": "assets/portraits/stone_trainee_1/normal.png",
+    "laugh1": "assets/portraits/stone_trainee_1/normal.png",
+    "nervous1": "assets/portraits/stone_trainee_1/normal.png",
+    "nervous2": "assets/portraits/stone_trainee_1/normal.png",
+    "sad2": "assets/portraits/stone_trainee_1/normal.png"
+   }
+  },
+  "stone_trainee_2": {
+   "name": "飛石幫_弟子2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/stone_trainee_2/normal.png",
+    "angry1": "assets/portraits/stone_trainee_2/normal.png",
+    "angry2": "assets/portraits/stone_trainee_2/normal.png",
+    "nervous1": "assets/portraits/stone_trainee_2/normal.png",
+    "nervous2": "assets/portraits/stone_trainee_2/normal.png",
+    "sad2": "assets/portraits/stone_trainee_2/normal.png"
+   }
+  },
+  "stone_trainee_3": {
+   "name": "飛石幫_弟子3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/stone_trainee_3/normal.png",
+    "nervous1": "assets/portraits/stone_trainee_3/normal.png",
+    "nervous2": "assets/portraits/stone_trainee_3/normal.png",
+    "sad2": "assets/portraits/stone_trainee_3/normal.png"
+   }
+  },
+  "stone_trainee_4": {
+   "name": "飛石幫_弟子4",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/stone_trainee_4/normal.png"
+   }
+  },
+  "stone_trainees": {
+   "name": "飛石幫_幫眾",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/stone_trainees/normal.png"
+   }
+  },
+  "stranger1": {
+   "name": "閒雜_路人1",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/stranger1/angry1.png",
+    "angry2": "assets/portraits/stranger1/angry1.png",
+    "nervous1": "assets/portraits/stranger1/nervous1.png",
+    "normal": "assets/portraits/stranger1/normal.png",
+    "laugh1": "assets/portraits/stranger1/normal.png",
+    "nervous2": "assets/portraits/stranger1/normal.png",
+    "nervous3": "assets/portraits/stranger1/normal.png",
+    "shock": "assets/portraits/stranger1/normal.png"
+   }
+  },
+  "stranger2": {
+   "name": "閒雜_路人2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/stranger2/normal.png",
+    "angry2": "assets/portraits/stranger2/normal.png",
+    "laugh1": "assets/portraits/stranger2/normal.png",
+    "laugh2": "assets/portraits/stranger2/normal.png",
+    "nervous1": "assets/portraits/stranger2/normal.png",
+    "nervous2": "assets/portraits/stranger2/normal.png",
+    "nervous3": "assets/portraits/stranger2/normal.png"
+   }
+  },
+  "stranger3": {
+   "name": "閒雜_路人3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/stranger3/normal.png",
+    "angry1": "assets/portraits/stranger3/normal.png",
+    "angry2": "assets/portraits/stranger3/normal.png",
+    "laugh1": "assets/portraits/stranger3/normal.png",
+    "nervous1": "assets/portraits/stranger3/normal.png",
+    "nervous3": "assets/portraits/stranger3/normal.png"
+   }
+  },
+  "sword1": {
+   "name": "雜項_雷霆劍",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/sword1/normal.png"
+   }
+  },
+  "table1": {
+   "name": "閒雜_桌子1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/table1/normal.png"
+   }
+  },
+  "tanghulu": {
+   "name": "雜項_糖葫蘆",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/tanghulu/normal.png"
+   }
+  },
+  "tank1": {
+   "name": "崆峒_虎戰車1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/tank1/normal.png",
+    "special1": "assets/portraits/tank1/special1.png",
+    "special2": "assets/portraits/tank1/special2.png"
+   }
+  },
+  "tent1": {
+   "name": "閒雜_帳棚1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/tent1/normal.png"
+   }
+  },
+  "trainee010": {
+   "name": "唐門_弟子10",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee010/normal.png",
+    "angry1": "assets/portraits/trainee010/normal.png",
+    "laugh1": "assets/portraits/trainee010/normal.png",
+    "nervous1": "assets/portraits/trainee010/normal.png",
+    "nervous2": "assets/portraits/trainee010/normal.png",
+    "nervous3": "assets/portraits/trainee010/normal.png",
+    "sad2": "assets/portraits/trainee010/normal.png"
+   }
+  },
+  "trainee011": {
+   "name": "唐門_弟子11",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee011/normal.png",
+    "angry1": "assets/portraits/trainee011/normal.png",
+    "angry2": "assets/portraits/trainee011/normal.png",
+    "laugh1": "assets/portraits/trainee011/normal.png",
+    "laugh2": "assets/portraits/trainee011/normal.png",
+    "nervous1": "assets/portraits/trainee011/normal.png",
+    "nervous2": "assets/portraits/trainee011/normal.png",
+    "nervous3": "assets/portraits/trainee011/normal.png",
+    "sad2": "assets/portraits/trainee011/normal.png",
+    "shock": "assets/portraits/trainee011/normal.png"
+   }
+  },
+  "trainee012": {
+   "name": "唐門_弟子12",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee012/normal.png",
+    "angry1": "assets/portraits/trainee012/normal.png",
+    "laugh1": "assets/portraits/trainee012/normal.png",
+    "nervous1": "assets/portraits/trainee012/normal.png",
+    "nervous2": "assets/portraits/trainee012/normal.png"
+   }
+  },
+  "trainee020": {
+   "name": "唐門_弟子20",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee020/normal.png",
+    "angry2": "assets/portraits/trainee020/normal.png",
+    "laugh1": "assets/portraits/trainee020/normal.png",
+    "laugh2": "assets/portraits/trainee020/normal.png",
+    "nervous1": "assets/portraits/trainee020/normal.png",
+    "nervous3": "assets/portraits/trainee020/normal.png"
+   }
+  },
+  "trainee021": {
+   "name": "唐門_弟子21",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee021/normal.png",
+    "angry1": "assets/portraits/trainee021/normal.png",
+    "laugh1": "assets/portraits/trainee021/normal.png",
+    "nervous3": "assets/portraits/trainee021/normal.png"
+   }
+  },
+  "trainee022": {
+   "name": "唐門_弟子22",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee022/normal.png",
+    "angry1": "assets/portraits/trainee022/normal.png",
+    "laugh1": "assets/portraits/trainee022/normal.png",
+    "laugh2": "assets/portraits/trainee022/normal.png",
+    "nervous1": "assets/portraits/trainee022/normal.png"
+   }
+  },
+  "trainee023": {
+   "name": "唐門_弟子23",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee023/normal.png",
+    "laugh1": "assets/portraits/trainee023/normal.png",
+    "nervous1": "assets/portraits/trainee023/normal.png"
+   }
+  },
+  "trainee024": {
+   "name": "唐門_弟子24",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee024/normal.png",
+    "angry2": "assets/portraits/trainee024/normal.png",
+    "laugh1": "assets/portraits/trainee024/normal.png",
+    "nervous1": "assets/portraits/trainee024/normal.png",
+    "nervous2": "assets/portraits/trainee024/normal.png",
+    "nervous3": "assets/portraits/trainee024/normal.png"
+   }
+  },
+  "trainee030": {
+   "name": "唐門_弟子30",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee030/normal.png",
+    "angry1": "assets/portraits/trainee030/normal.png",
+    "laugh1": "assets/portraits/trainee030/normal.png",
+    "nervous1": "assets/portraits/trainee030/normal.png"
+   }
+  },
+  "trainee1": {
+   "name": "唐門_弟子1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee1/normal.png",
+    "angry1": "assets/portraits/trainee1/normal.png",
+    "angry2": "assets/portraits/trainee1/normal.png",
+    "laugh1": "assets/portraits/trainee1/normal.png",
+    "laugh2": "assets/portraits/trainee1/normal.png",
+    "nervous1": "assets/portraits/trainee1/normal.png",
+    "nervous2": "assets/portraits/trainee1/normal.png",
+    "nervous3": "assets/portraits/trainee1/normal.png",
+    "sad2": "assets/portraits/trainee1/normal.png",
+    "shock": "assets/portraits/trainee1/normal.png"
+   }
+  },
+  "trainee101": {
+   "name": "南宮_家丁1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee101/normal.png",
+    "angry1": "assets/portraits/trainee101/normal.png",
+    "angry2": "assets/portraits/trainee101/normal.png",
+    "laugh1": "assets/portraits/trainee101/normal.png",
+    "nervous1": "assets/portraits/trainee101/normal.png",
+    "nervous2": "assets/portraits/trainee101/normal.png"
+   }
+  },
+  "trainee102": {
+   "name": "南宮_家丁2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee102/normal.png",
+    "angry2": "assets/portraits/trainee102/normal.png",
+    "laugh1": "assets/portraits/trainee102/normal.png",
+    "nervous1": "assets/portraits/trainee102/normal.png",
+    "nervous2": "assets/portraits/trainee102/normal.png"
+   }
+  },
+  "trainee103": {
+   "name": "南宮_家丁3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee103/normal.png",
+    "angry1": "assets/portraits/trainee103/normal.png",
+    "angry2": "assets/portraits/trainee103/normal.png",
+    "laugh1": "assets/portraits/trainee103/normal.png",
+    "nervous1": "assets/portraits/trainee103/normal.png",
+    "nervous2": "assets/portraits/trainee103/normal.png",
+    "nervous3": "assets/portraits/trainee103/normal.png"
+   }
+  },
+  "trainee104": {
+   "name": "南宮_家丁4",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/trainee104/angry1.png",
+    "angry2": "assets/portraits/trainee104/angry1.png",
+    "normal": "assets/portraits/trainee104/normal.png",
+    "special1": "assets/portraits/trainee104/special1.png",
+    "special2": "assets/portraits/trainee104/special2.png",
+    "special3": "assets/portraits/trainee104/special3.png",
+    "laugh1": "assets/portraits/trainee104/normal.png",
+    "nervous1": "assets/portraits/trainee104/normal.png",
+    "nervous2": "assets/portraits/trainee104/normal.png",
+    "nervous3": "assets/portraits/trainee104/normal.png",
+    "shock": "assets/portraits/trainee104/normal.png"
+   }
+  },
+  "trainee111": {
+   "name": "滄幫_弟子1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee111/normal.png",
+    "angry1": "assets/portraits/trainee111/normal.png",
+    "angry2": "assets/portraits/trainee111/normal.png",
+    "laugh1": "assets/portraits/trainee111/normal.png",
+    "laugh2": "assets/portraits/trainee111/normal.png",
+    "nervous1": "assets/portraits/trainee111/normal.png",
+    "nervous2": "assets/portraits/trainee111/normal.png",
+    "nervous3": "assets/portraits/trainee111/normal.png"
+   }
+  },
+  "trainee112": {
+   "name": "滄幫_弟子2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee112/normal.png",
+    "angry2": "assets/portraits/trainee112/normal.png",
+    "laugh1": "assets/portraits/trainee112/normal.png",
+    "nervous1": "assets/portraits/trainee112/normal.png",
+    "nervous2": "assets/portraits/trainee112/normal.png",
+    "shock": "assets/portraits/trainee112/normal.png"
+   }
+  },
+  "trainee113": {
+   "name": "滄幫_弟子3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee113/normal.png",
+    "laugh1": "assets/portraits/trainee113/normal.png",
+    "nervous1": "assets/portraits/trainee113/normal.png",
+    "nervous2": "assets/portraits/trainee113/normal.png",
+    "shock": "assets/portraits/trainee113/normal.png"
+   }
+  },
+  "trainee121": {
+   "name": "泥教_弟子1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee121/normal.png",
+    "angry1": "assets/portraits/trainee121/normal.png",
+    "laugh1": "assets/portraits/trainee121/normal.png",
+    "nervous1": "assets/portraits/trainee121/normal.png",
+    "nervous2": "assets/portraits/trainee121/normal.png"
+   }
+  },
+  "trainee122": {
+   "name": "泥教_弟子2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee122/normal.png",
+    "angry1": "assets/portraits/trainee122/normal.png",
+    "laugh1": "assets/portraits/trainee122/normal.png",
+    "nervous1": "assets/portraits/trainee122/normal.png",
+    "nervous2": "assets/portraits/trainee122/normal.png"
+   }
+  },
+  "trainee2": {
+   "name": "唐門_弟子2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee2/normal.png",
+    "angry1": "assets/portraits/trainee2/normal.png",
+    "angry2": "assets/portraits/trainee2/normal.png",
+    "laugh1": "assets/portraits/trainee2/normal.png",
+    "laugh2": "assets/portraits/trainee2/normal.png",
+    "nervous1": "assets/portraits/trainee2/normal.png",
+    "nervous2": "assets/portraits/trainee2/normal.png",
+    "nervous3": "assets/portraits/trainee2/normal.png",
+    "sad2": "assets/portraits/trainee2/normal.png"
+   }
+  },
+  "trainee201": {
+   "name": "崆峒_飛天弟子1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee201/normal.png",
+    "angry1": "assets/portraits/trainee201/normal.png",
+    "angry2": "assets/portraits/trainee201/normal.png",
+    "laugh1": "assets/portraits/trainee201/normal.png",
+    "laugh2": "assets/portraits/trainee201/normal.png",
+    "nervous1": "assets/portraits/trainee201/normal.png",
+    "nervous2": "assets/portraits/trainee201/normal.png",
+    "nervous3": "assets/portraits/trainee201/normal.png"
+   }
+  },
+  "trainee202": {
+   "name": "崆峒_飛天弟子2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee202/normal.png",
+    "angry2": "assets/portraits/trainee202/normal.png",
+    "laugh1": "assets/portraits/trainee202/normal.png",
+    "nervous1": "assets/portraits/trainee202/normal.png",
+    "nervous2": "assets/portraits/trainee202/normal.png"
+   }
+  },
+  "trainee204": {
+   "name": "崆峒_飛天弟子4",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee204/normal.png",
+    "angry1": "assets/portraits/trainee204/normal.png",
+    "angry2": "assets/portraits/trainee204/normal.png",
+    "hurt2": "assets/portraits/trainee204/normal.png",
+    "laugh1": "assets/portraits/trainee204/normal.png",
+    "laugh2": "assets/portraits/trainee204/normal.png",
+    "nervous1": "assets/portraits/trainee204/normal.png",
+    "nervous2": "assets/portraits/trainee204/normal.png",
+    "shy": "assets/portraits/trainee204/normal.png"
+   }
+  },
+  "trainee211": {
+   "name": "崆峒_鐵拳弟子1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee211/normal.png",
+    "angry2": "assets/portraits/trainee211/normal.png",
+    "laugh1": "assets/portraits/trainee211/normal.png",
+    "laugh2": "assets/portraits/trainee211/normal.png",
+    "nervous1": "assets/portraits/trainee211/normal.png",
+    "nervous2": "assets/portraits/trainee211/normal.png"
+   }
+  },
+  "trainee212": {
+   "name": "崆峒_鐵拳弟子2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee212/normal.png",
+    "angry1": "assets/portraits/trainee212/normal.png",
+    "angry2": "assets/portraits/trainee212/normal.png",
+    "laugh1": "assets/portraits/trainee212/normal.png",
+    "laugh2": "assets/portraits/trainee212/normal.png",
+    "nervous1": "assets/portraits/trainee212/normal.png",
+    "nervous2": "assets/portraits/trainee212/normal.png"
+   }
+  },
+  "trainee213": {
+   "name": "崆峒_鐵拳弟子3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee213/normal.png",
+    "nervous1": "assets/portraits/trainee213/normal.png",
+    "nervous2": "assets/portraits/trainee213/normal.png"
+   }
+  },
+  "trainee214": {
+   "name": "崆峒_鐵拳弟子4",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee214/normal.png",
+    "angry1": "assets/portraits/trainee214/normal.png",
+    "angry2": "assets/portraits/trainee214/normal.png",
+    "laugh1": "assets/portraits/trainee214/normal.png",
+    "nervous1": "assets/portraits/trainee214/normal.png",
+    "nervous2": "assets/portraits/trainee214/normal.png",
+    "nervous3": "assets/portraits/trainee214/normal.png"
+   }
+  },
+  "trainee215": {
+   "name": "崆峒_鐵拳弟子5",
+   "first": "normal",
+   "portraits": {
+    "hurt": "assets/portraits/trainee215/hurt.png",
+    "normal": "assets/portraits/trainee215/normal.png",
+    "angry1": "assets/portraits/trainee215/normal.png",
+    "angry2": "assets/portraits/trainee215/normal.png",
+    "laugh1": "assets/portraits/trainee215/normal.png",
+    "laugh2": "assets/portraits/trainee215/normal.png",
+    "nervous1": "assets/portraits/trainee215/normal.png",
+    "nervous2": "assets/portraits/trainee215/normal.png",
+    "shock": "assets/portraits/trainee215/normal.png"
+   }
+  },
+  "trainee215_1": {
+   "name": "崆峒_鐵拳弟子5_受傷",
+   "first": "hurt",
+   "portraits": {
+    "hurt": "assets/portraits/trainee215_1/hurt.png",
+    "normal": "assets/portraits/trainee215_1/hurt.png",
+    "angry1": "assets/portraits/trainee215_1/hurt.png",
+    "angry2": "assets/portraits/trainee215_1/hurt.png",
+    "nervous1": "assets/portraits/trainee215_1/hurt.png",
+    "nervous2": "assets/portraits/trainee215_1/hurt.png",
+    "shock": "assets/portraits/trainee215_1/hurt.png"
+   }
+  },
+  "trainee221": {
+   "name": "崆峒_奪魄弟子1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee221/normal.png",
+    "angry1": "assets/portraits/trainee221/normal.png",
+    "angry2": "assets/portraits/trainee221/normal.png",
+    "laugh1": "assets/portraits/trainee221/normal.png",
+    "nervous1": "assets/portraits/trainee221/normal.png",
+    "nervous2": "assets/portraits/trainee221/normal.png",
+    "nervous3": "assets/portraits/trainee221/normal.png"
+   }
+  },
+  "trainee222": {
+   "name": "崆峒_奪魄弟子2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee222/normal.png",
+    "angry1": "assets/portraits/trainee222/normal.png",
+    "angry2": "assets/portraits/trainee222/normal.png",
+    "laugh1": "assets/portraits/trainee222/normal.png",
+    "nervous1": "assets/portraits/trainee222/normal.png",
+    "nervous2": "assets/portraits/trainee222/normal.png"
+   }
+  },
+  "trainee223": {
+   "name": "崆峒_奪魄弟子3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee223/normal.png"
+   }
+  },
+  "trainee224": {
+   "name": "崆峒_奪魄弟子4",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee224/normal.png",
+    "angry1": "assets/portraits/trainee224/normal.png",
+    "angry2": "assets/portraits/trainee224/normal.png",
+    "laugh1": "assets/portraits/trainee224/normal.png",
+    "nervous1": "assets/portraits/trainee224/normal.png",
+    "nervous2": "assets/portraits/trainee224/normal.png"
+   }
+  },
+  "trainee231": {
+   "name": "崆峒_玄功弟子1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee231/normal.png",
+    "angry1": "assets/portraits/trainee231/normal.png",
+    "angry2": "assets/portraits/trainee231/normal.png",
+    "laugh1": "assets/portraits/trainee231/normal.png",
+    "nervous1": "assets/portraits/trainee231/normal.png",
+    "nervous2": "assets/portraits/trainee231/normal.png"
+   }
+  },
+  "trainee232": {
+   "name": "崆峒_玄功弟子2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee232/normal.png",
+    "angry1": "assets/portraits/trainee232/normal.png",
+    "angry2": "assets/portraits/trainee232/normal.png",
+    "nervous1": "assets/portraits/trainee232/normal.png"
+   }
+  },
+  "trainee233": {
+   "name": "崆峒_玄功弟子3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee233/normal.png"
+   }
+  },
+  "trainee234": {
+   "name": "崆峒_玄功弟子4",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee234/normal.png",
+    "angry1": "assets/portraits/trainee234/normal.png",
+    "laugh1": "assets/portraits/trainee234/normal.png",
+    "nervous1": "assets/portraits/trainee234/normal.png",
+    "nervous2": "assets/portraits/trainee234/normal.png",
+    "nervous3": "assets/portraits/trainee234/normal.png"
+   }
+  },
+  "trainee3": {
+   "name": "唐門_弟子3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee3/normal.png",
+    "angry1": "assets/portraits/trainee3/normal.png",
+    "angry2": "assets/portraits/trainee3/normal.png",
+    "laugh1": "assets/portraits/trainee3/normal.png",
+    "laugh2": "assets/portraits/trainee3/normal.png",
+    "nervous1": "assets/portraits/trainee3/normal.png",
+    "nervous2": "assets/portraits/trainee3/normal.png",
+    "nervous3": "assets/portraits/trainee3/normal.png",
+    "sad2": "assets/portraits/trainee3/normal.png"
+   }
+  },
+  "trainee301": {
+   "name": "點蒼_弟子1",
+   "first": "normal",
+   "portraits": {
+    "hurt": "assets/portraits/trainee301/hurt.png",
+    "normal": "assets/portraits/trainee301/normal.png",
+    "angry1": "assets/portraits/trainee301/normal.png",
+    "angry2": "assets/portraits/trainee301/normal.png",
+    "laugh1": "assets/portraits/trainee301/normal.png",
+    "laugh2": "assets/portraits/trainee301/normal.png",
+    "nervous1": "assets/portraits/trainee301/normal.png",
+    "nervous2": "assets/portraits/trainee301/normal.png",
+    "nervous3": "assets/portraits/trainee301/normal.png"
+   }
+  },
+  "trainee302": {
+   "name": "點蒼_弟子2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee302/normal.png",
+    "angry1": "assets/portraits/trainee302/normal.png",
+    "angry2": "assets/portraits/trainee302/normal.png",
+    "laugh1": "assets/portraits/trainee302/normal.png",
+    "nervous1": "assets/portraits/trainee302/normal.png",
+    "nervous2": "assets/portraits/trainee302/normal.png",
+    "nervous3": "assets/portraits/trainee302/normal.png"
+   }
+  },
+  "trainee303": {
+   "name": "點蒼_弟子3",
+   "first": "normal",
+   "portraits": {
+    "hurt": "assets/portraits/trainee303/hurt.png",
+    "normal": "assets/portraits/trainee303/normal.png",
+    "angry1": "assets/portraits/trainee303/normal.png",
+    "angry2": "assets/portraits/trainee303/normal.png",
+    "laugh1": "assets/portraits/trainee303/normal.png",
+    "nervous1": "assets/portraits/trainee303/normal.png",
+    "nervous2": "assets/portraits/trainee303/normal.png",
+    "nervous3": "assets/portraits/trainee303/normal.png"
+   }
+  },
+  "trainee304": {
+   "name": "點蒼_弟子4",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee304/normal.png",
+    "angry2": "assets/portraits/trainee304/normal.png",
+    "laugh1": "assets/portraits/trainee304/normal.png",
+    "nervous1": "assets/portraits/trainee304/normal.png",
+    "nervous2": "assets/portraits/trainee304/normal.png",
+    "nervous3": "assets/portraits/trainee304/normal.png"
+   }
+  },
+  "trainee305": {
+   "name": "點蒼_弟子5",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee305/normal.png",
+    "angry2": "assets/portraits/trainee305/normal.png",
+    "nervous2": "assets/portraits/trainee305/normal.png"
+   }
+  },
+  "trainee311": {
+   "name": "青城_弟子1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee311/normal.png",
+    "special1": "assets/portraits/trainee311/special1.png",
+    "angry2": "assets/portraits/trainee311/normal.png",
+    "laugh1": "assets/portraits/trainee311/normal.png",
+    "nervous1": "assets/portraits/trainee311/normal.png",
+    "nervous2": "assets/portraits/trainee311/normal.png",
+    "nervous3": "assets/portraits/trainee311/normal.png"
+   }
+  },
+  "trainee312": {
+   "name": "青城_弟子2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee312/normal.png",
+    "special1": "assets/portraits/trainee312/special1.png",
+    "angry1": "assets/portraits/trainee312/normal.png",
+    "angry2": "assets/portraits/trainee312/normal.png",
+    "laugh1": "assets/portraits/trainee312/normal.png",
+    "nervous1": "assets/portraits/trainee312/normal.png",
+    "nervous2": "assets/portraits/trainee312/normal.png",
+    "nervous3": "assets/portraits/trainee312/normal.png",
+    "sad2": "assets/portraits/trainee312/normal.png",
+    "shock": "assets/portraits/trainee312/normal.png"
+   }
+  },
+  "trainee313": {
+   "name": "青城_弟子3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee313/normal.png",
+    "angry1": "assets/portraits/trainee313/normal.png",
+    "angry2": "assets/portraits/trainee313/normal.png",
+    "laugh1": "assets/portraits/trainee313/normal.png",
+    "laugh2": "assets/portraits/trainee313/normal.png",
+    "nervous1": "assets/portraits/trainee313/normal.png",
+    "nervous2": "assets/portraits/trainee313/normal.png",
+    "nervous3": "assets/portraits/trainee313/normal.png"
+   }
+  },
+  "trainee314": {
+   "name": "青城_弟子4",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee314/normal.png",
+    "angry1": "assets/portraits/trainee314/normal.png",
+    "laugh1": "assets/portraits/trainee314/normal.png",
+    "nervous1": "assets/portraits/trainee314/normal.png",
+    "nervous2": "assets/portraits/trainee314/normal.png",
+    "nervous3": "assets/portraits/trainee314/normal.png",
+    "shock": "assets/portraits/trainee314/normal.png"
+   }
+  },
+  "trainee315": {
+   "name": "青城_弟子5",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee315/normal.png",
+    "angry1": "assets/portraits/trainee315/normal.png",
+    "laugh1": "assets/portraits/trainee315/normal.png",
+    "nervous1": "assets/portraits/trainee315/normal.png",
+    "nervous2": "assets/portraits/trainee315/normal.png",
+    "nervous3": "assets/portraits/trainee315/normal.png",
+    "shock": "assets/portraits/trainee315/normal.png"
+   }
+  },
+  "trainee316": {
+   "name": "青城_弟子6",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee316/normal.png",
+    "angry1": "assets/portraits/trainee316/normal.png",
+    "laugh1": "assets/portraits/trainee316/normal.png",
+    "nervous1": "assets/portraits/trainee316/normal.png"
+   }
+  },
+  "trainee317": {
+   "name": "青城_弟子7",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee317/normal.png",
+    "nervous1": "assets/portraits/trainee317/normal.png"
+   }
+  },
+  "trainee321": {
+   "name": "峨嵋_弟子1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee321/normal.png",
+    "angry1": "assets/portraits/trainee321/normal.png",
+    "angry2": "assets/portraits/trainee321/normal.png",
+    "laugh1": "assets/portraits/trainee321/normal.png",
+    "laugh2": "assets/portraits/trainee321/normal.png",
+    "nervous1": "assets/portraits/trainee321/normal.png",
+    "nervous2": "assets/portraits/trainee321/normal.png",
+    "nervous3": "assets/portraits/trainee321/normal.png",
+    "sad2": "assets/portraits/trainee321/normal.png"
+   }
+  },
+  "trainee322": {
+   "name": "峨嵋_弟子2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee322/normal.png",
+    "laugh1": "assets/portraits/trainee322/normal.png",
+    "nervous1": "assets/portraits/trainee322/normal.png",
+    "shock": "assets/portraits/trainee322/normal.png"
+   }
+  },
+  "trainee323": {
+   "name": "峨嵋_弟子3",
+   "first": "normal",
+   "portraits": {
+    "hurt": "assets/portraits/trainee323/hurt.png",
+    "normal": "assets/portraits/trainee323/normal.png",
+    "angry1": "assets/portraits/trainee323/normal.png",
+    "angry2": "assets/portraits/trainee323/normal.png",
+    "laugh1": "assets/portraits/trainee323/normal.png",
+    "laugh2": "assets/portraits/trainee323/normal.png",
+    "nervous1": "assets/portraits/trainee323/normal.png",
+    "nervous2": "assets/portraits/trainee323/normal.png",
+    "shock": "assets/portraits/trainee323/normal.png"
+   }
+  },
+  "trainee323_1": {
+   "name": "峨嵋_弟子3_受傷",
+   "first": "hurt",
+   "portraits": {
+    "hurt": "assets/portraits/trainee323_1/hurt.png",
+    "normal": "assets/portraits/trainee323_1/hurt.png",
+    "angry1": "assets/portraits/trainee323_1/hurt.png",
+    "angry2": "assets/portraits/trainee323_1/hurt.png",
+    "nervous1": "assets/portraits/trainee323_1/hurt.png",
+    "nervous2": "assets/portraits/trainee323_1/hurt.png",
+    "shock": "assets/portraits/trainee323_1/hurt.png"
+   }
+  },
+  "trainee324": {
+   "name": "峨嵋_弟子4",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee324/normal.png",
+    "nervous1": "assets/portraits/trainee324/normal.png"
+   }
+  },
+  "trainee331": {
+   "name": "嵩山_弟子1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee331/normal.png",
+    "angry1": "assets/portraits/trainee331/normal.png",
+    "angry2": "assets/portraits/trainee331/normal.png",
+    "laugh1": "assets/portraits/trainee331/normal.png",
+    "laugh2": "assets/portraits/trainee331/normal.png",
+    "nervous1": "assets/portraits/trainee331/normal.png",
+    "nervous2": "assets/portraits/trainee331/normal.png",
+    "nervous3": "assets/portraits/trainee331/normal.png",
+    "sad2": "assets/portraits/trainee331/normal.png"
+   }
+  },
+  "trainee332": {
+   "name": "嵩山_弟子2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee332/normal.png",
+    "angry1": "assets/portraits/trainee332/normal.png",
+    "angry2": "assets/portraits/trainee332/normal.png",
+    "laugh1": "assets/portraits/trainee332/normal.png",
+    "nervous1": "assets/portraits/trainee332/normal.png",
+    "nervous2": "assets/portraits/trainee332/normal.png",
+    "shock": "assets/portraits/trainee332/normal.png"
+   }
+  },
+  "trainee333": {
+   "name": "嵩山_弟子3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee333/normal.png",
+    "nervous1": "assets/portraits/trainee333/normal.png",
+    "nervous2": "assets/portraits/trainee333/normal.png"
+   }
+  },
+  "trainee335": {
+   "name": "嵩山_弟子5",
+   "first": "normal",
+   "portraits": {
+    "hurt": "assets/portraits/trainee335/hurt.png",
+    "normal": "assets/portraits/trainee335/normal.png",
+    "angry1": "assets/portraits/trainee335/normal.png",
+    "angry2": "assets/portraits/trainee335/normal.png",
+    "laugh1": "assets/portraits/trainee335/normal.png",
+    "laugh2": "assets/portraits/trainee335/normal.png",
+    "nervous1": "assets/portraits/trainee335/normal.png",
+    "nervous2": "assets/portraits/trainee335/normal.png",
+    "shock": "assets/portraits/trainee335/normal.png"
+   }
+  },
+  "trainee335_1": {
+   "name": "嵩山_弟子5_受傷",
+   "first": "hurt",
+   "portraits": {
+    "hurt": "assets/portraits/trainee335_1/hurt.png",
+    "normal": "assets/portraits/trainee335_1/hurt.png",
+    "angry1": "assets/portraits/trainee335_1/hurt.png",
+    "angry2": "assets/portraits/trainee335_1/hurt.png",
+    "laugh2": "assets/portraits/trainee335_1/hurt.png",
+    "nervous1": "assets/portraits/trainee335_1/hurt.png",
+    "nervous2": "assets/portraits/trainee335_1/hurt.png",
+    "shock": "assets/portraits/trainee335_1/hurt.png"
+   }
+  },
+  "trainee341": {
+   "name": "全真_弟子1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee341/normal.png",
+    "angry1": "assets/portraits/trainee341/normal.png",
+    "angry2": "assets/portraits/trainee341/normal.png",
+    "laugh1": "assets/portraits/trainee341/normal.png",
+    "laugh2": "assets/portraits/trainee341/normal.png",
+    "nervous1": "assets/portraits/trainee341/normal.png",
+    "nervous2": "assets/portraits/trainee341/normal.png"
+   }
+  },
+  "trainee342": {
+   "name": "全真_弟子2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee342/normal.png",
+    "angry1": "assets/portraits/trainee342/normal.png",
+    "angry2": "assets/portraits/trainee342/normal.png",
+    "laugh1": "assets/portraits/trainee342/normal.png",
+    "nervous1": "assets/portraits/trainee342/normal.png",
+    "nervous2": "assets/portraits/trainee342/normal.png"
+   }
+  },
+  "trainee343": {
+   "name": "全真_弟子3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee343/normal.png",
+    "angry1": "assets/portraits/trainee343/normal.png",
+    "angry2": "assets/portraits/trainee343/normal.png",
+    "laugh1": "assets/portraits/trainee343/normal.png",
+    "nervous1": "assets/portraits/trainee343/normal.png",
+    "nervous2": "assets/portraits/trainee343/normal.png",
+    "nervous3": "assets/portraits/trainee343/normal.png",
+    "shock": "assets/portraits/trainee343/normal.png"
+   }
+  },
+  "trainee345": {
+   "name": "全真_弟子5",
+   "first": "normal",
+   "portraits": {
+    "hurt": "assets/portraits/trainee345/hurt.png",
+    "normal": "assets/portraits/trainee345/normal.png",
+    "angry1": "assets/portraits/trainee345/normal.png",
+    "angry2": "assets/portraits/trainee345/normal.png",
+    "laugh1": "assets/portraits/trainee345/normal.png",
+    "laugh2": "assets/portraits/trainee345/normal.png",
+    "nervous1": "assets/portraits/trainee345/normal.png",
+    "nervous2": "assets/portraits/trainee345/normal.png"
+   }
+  },
+  "trainee345_1": {
+   "name": "全真_弟子5_受傷",
+   "first": "hurt",
+   "portraits": {
+    "hurt": "assets/portraits/trainee345_1/hurt.png",
+    "normal": "assets/portraits/trainee345_1/hurt.png",
+    "angry2": "assets/portraits/trainee345_1/hurt.png",
+    "nervous1": "assets/portraits/trainee345_1/hurt.png",
+    "nervous2": "assets/portraits/trainee345_1/hurt.png",
+    "shock": "assets/portraits/trainee345_1/hurt.png"
+   }
+  },
+  "trainee351": {
+   "name": "嵩山_銅人1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee351/normal.png",
+    "angry1": "assets/portraits/trainee351/normal.png"
+   }
+  },
+  "trainee352": {
+   "name": "嵩山_銅人2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee352/normal.png",
+    "angry1": "assets/portraits/trainee352/normal.png"
+   }
+  },
+  "trainee353": {
+   "name": "嵩山_銅人3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee353/normal.png",
+    "angry1": "assets/portraits/trainee353/normal.png"
+   }
+  },
+  "trainee361": {
+   "name": "嶺南_弟子1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee361/normal.png",
+    "special1": "assets/portraits/trainee361/special1.png",
+    "angry1": "assets/portraits/trainee361/normal.png",
+    "angry2": "assets/portraits/trainee361/normal.png",
+    "laugh1": "assets/portraits/trainee361/normal.png",
+    "laugh2": "assets/portraits/trainee361/normal.png",
+    "nervous1": "assets/portraits/trainee361/normal.png",
+    "nervous2": "assets/portraits/trainee361/normal.png",
+    "shock": "assets/portraits/trainee361/normal.png"
+   }
+  },
+  "trainee362": {
+   "name": "嶺南_弟子2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee362/normal.png",
+    "angry1": "assets/portraits/trainee362/normal.png",
+    "laugh1": "assets/portraits/trainee362/normal.png",
+    "laugh2": "assets/portraits/trainee362/normal.png",
+    "nervous1": "assets/portraits/trainee362/normal.png",
+    "nervous2": "assets/portraits/trainee362/normal.png",
+    "nervous3": "assets/portraits/trainee362/normal.png",
+    "shock": "assets/portraits/trainee362/normal.png"
+   }
+  },
+  "trainee363": {
+   "name": "嶺南_弟子3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee363/normal.png",
+    "angry1": "assets/portraits/trainee363/normal.png",
+    "laugh1": "assets/portraits/trainee363/normal.png",
+    "laugh2": "assets/portraits/trainee363/normal.png",
+    "nervous1": "assets/portraits/trainee363/normal.png",
+    "nervous2": "assets/portraits/trainee363/normal.png",
+    "nervous3": "assets/portraits/trainee363/normal.png",
+    "shock": "assets/portraits/trainee363/normal.png"
+   }
+  },
+  "trainee371": {
+   "name": "嶺南_女弟子1",
+   "first": "normal",
+   "portraits": {
+    "hurt": "assets/portraits/trainee371/hurt.png",
+    "normal": "assets/portraits/trainee371/normal.png",
+    "special1": "assets/portraits/trainee371/special1.png",
+    "angry1": "assets/portraits/trainee371/normal.png",
+    "angry2": "assets/portraits/trainee371/normal.png",
+    "laugh1": "assets/portraits/trainee371/normal.png",
+    "laugh2": "assets/portraits/trainee371/normal.png",
+    "nervous1": "assets/portraits/trainee371/normal.png",
+    "nervous2": "assets/portraits/trainee371/normal.png",
+    "nervous3": "assets/portraits/trainee371/normal.png",
+    "shock": "assets/portraits/trainee371/normal.png"
+   }
+  },
+  "trainee4": {
+   "name": "唐門_弟子4",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee4/normal.png",
+    "angry1": "assets/portraits/trainee4/normal.png",
+    "angry2": "assets/portraits/trainee4/normal.png",
+    "laugh1": "assets/portraits/trainee4/normal.png",
+    "laugh2": "assets/portraits/trainee4/normal.png",
+    "nervous1": "assets/portraits/trainee4/normal.png",
+    "nervous2": "assets/portraits/trainee4/normal.png",
+    "nervous3": "assets/portraits/trainee4/normal.png"
+   }
+  },
+  "trainee401": {
+   "name": "點蒼_女弟子1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee401/normal.png"
+   }
+  },
+  "trainee402": {
+   "name": "點蒼_女弟子2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee402/normal.png"
+   }
+  },
+  "trainee421": {
+   "name": "峨嵋_女弟子1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee421/normal.png",
+    "angry1": "assets/portraits/trainee421/normal.png",
+    "angry2": "assets/portraits/trainee421/normal.png",
+    "laugh1": "assets/portraits/trainee421/normal.png",
+    "nervous1": "assets/portraits/trainee421/normal.png",
+    "nervous2": "assets/portraits/trainee421/normal.png",
+    "shock": "assets/portraits/trainee421/normal.png"
+   }
+  },
+  "trainee431": {
+   "name": "峨嵋_女弟子2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee431/normal.png"
+   }
+  },
+  "trainee491": {
+   "name": "錦香_弟子1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee491/normal.png",
+    "angry1": "assets/portraits/trainee491/normal.png",
+    "angry2": "assets/portraits/trainee491/normal.png",
+    "laugh1": "assets/portraits/trainee491/normal.png",
+    "laugh2": "assets/portraits/trainee491/normal.png",
+    "nervous1": "assets/portraits/trainee491/normal.png",
+    "nervous3": "assets/portraits/trainee491/normal.png",
+    "sad2": "assets/portraits/trainee491/normal.png",
+    "shock": "assets/portraits/trainee491/normal.png",
+    "shy": "assets/portraits/trainee491/normal.png"
+   }
+  },
+  "trainee492": {
+   "name": "錦香_弟子2",
+   "first": "normal",
+   "portraits": {
+    "hurt2": "assets/portraits/trainee492/hurt2.png",
+    "normal": "assets/portraits/trainee492/normal.png",
+    "angry1": "assets/portraits/trainee492/normal.png",
+    "laugh1": "assets/portraits/trainee492/normal.png",
+    "nervous1": "assets/portraits/trainee492/normal.png",
+    "nervous2": "assets/portraits/trainee492/normal.png",
+    "nervous3": "assets/portraits/trainee492/normal.png"
+   }
+  },
+  "trainee493": {
+   "name": "錦香_弟子3",
+   "first": "normal",
+   "portraits": {
+    "laugh1": "assets/portraits/trainee493/laugh1.png",
+    "nervous1": "assets/portraits/trainee493/nervous1.png",
+    "nervous2": "assets/portraits/trainee493/nervous1.png",
+    "normal": "assets/portraits/trainee493/normal.png",
+    "angry1": "assets/portraits/trainee493/normal.png",
+    "angry2": "assets/portraits/trainee493/normal.png",
+    "nervous3": "assets/portraits/trainee493/normal.png",
+    "sad2": "assets/portraits/trainee493/normal.png",
+    "shock": "assets/portraits/trainee493/normal.png",
+    "shy": "assets/portraits/trainee493/normal.png"
+   }
+  },
+  "trainee494": {
+   "name": "錦香_弟子4",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee494/normal.png",
+    "angry2": "assets/portraits/trainee494/normal.png",
+    "laugh1": "assets/portraits/trainee494/normal.png",
+    "nervous1": "assets/portraits/trainee494/normal.png",
+    "nervous3": "assets/portraits/trainee494/normal.png",
+    "sad2": "assets/portraits/trainee494/normal.png",
+    "shock": "assets/portraits/trainee494/normal.png",
+    "shy": "assets/portraits/trainee494/normal.png"
+   }
+  },
+  "trainee495": {
+   "name": "錦香_弟子5",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee495/normal.png",
+    "angry1": "assets/portraits/trainee495/normal.png",
+    "laugh1": "assets/portraits/trainee495/normal.png",
+    "nervous1": "assets/portraits/trainee495/normal.png",
+    "sad2": "assets/portraits/trainee495/normal.png",
+    "shock": "assets/portraits/trainee495/normal.png",
+    "shy": "assets/portraits/trainee495/normal.png"
+   }
+  },
+  "trainee496": {
+   "name": "錦香_弟子6",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee496/normal.png",
+    "angry1": "assets/portraits/trainee496/normal.png",
+    "laugh1": "assets/portraits/trainee496/normal.png",
+    "nervous1": "assets/portraits/trainee496/normal.png",
+    "nervous3": "assets/portraits/trainee496/normal.png",
+    "sad2": "assets/portraits/trainee496/normal.png",
+    "shock": "assets/portraits/trainee496/normal.png",
+    "shy": "assets/portraits/trainee496/normal.png"
+   }
+  },
+  "trainee5": {
+   "name": "唐門_弟子5",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee5/normal.png",
+    "angry2": "assets/portraits/trainee5/normal.png",
+    "laugh1": "assets/portraits/trainee5/normal.png",
+    "nervous1": "assets/portraits/trainee5/normal.png",
+    "nervous2": "assets/portraits/trainee5/normal.png"
+   }
+  },
+  "trainee6": {
+   "name": "唐門_弟子6",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee6/normal.png",
+    "angry1": "assets/portraits/trainee6/normal.png",
+    "angry2": "assets/portraits/trainee6/normal.png",
+    "laugh1": "assets/portraits/trainee6/normal.png",
+    "nervous1": "assets/portraits/trainee6/normal.png",
+    "nervous2": "assets/portraits/trainee6/normal.png"
+   }
+  },
+  "trainee7": {
+   "name": "唐門_弟子7",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee7/normal.png",
+    "angry1": "assets/portraits/trainee7/normal.png",
+    "angry2": "assets/portraits/trainee7/normal.png",
+    "laugh1": "assets/portraits/trainee7/normal.png",
+    "laugh2": "assets/portraits/trainee7/normal.png",
+    "nervous1": "assets/portraits/trainee7/normal.png",
+    "nervous2": "assets/portraits/trainee7/normal.png",
+    "nervous3": "assets/portraits/trainee7/normal.png"
+   }
+  },
+  "trainee8": {
+   "name": "唐門_弟子8",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee8/normal.png",
+    "angry1": "assets/portraits/trainee8/normal.png",
+    "angry2": "assets/portraits/trainee8/normal.png",
+    "laugh1": "assets/portraits/trainee8/normal.png",
+    "laugh2": "assets/portraits/trainee8/normal.png",
+    "nervous1": "assets/portraits/trainee8/normal.png",
+    "nervous2": "assets/portraits/trainee8/normal.png",
+    "nervous3": "assets/portraits/trainee8/normal.png",
+    "shock": "assets/portraits/trainee8/normal.png"
+   }
+  },
+  "trainee9": {
+   "name": "唐門_弟子9",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee9/normal.png",
+    "angry2": "assets/portraits/trainee9/normal.png",
+    "laugh1": "assets/portraits/trainee9/normal.png",
+    "laugh2": "assets/portraits/trainee9/normal.png",
+    "nervous1": "assets/portraits/trainee9/normal.png",
+    "nervous2": "assets/portraits/trainee9/normal.png"
+   }
+  },
+  "trainee_girl1": {
+   "name": "唐門_女弟子1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee_girl1/normal.png",
+    "angry1": "assets/portraits/trainee_girl1/normal.png",
+    "angry2": "assets/portraits/trainee_girl1/normal.png",
+    "laugh1": "assets/portraits/trainee_girl1/normal.png",
+    "laugh2": "assets/portraits/trainee_girl1/normal.png",
+    "nervous1": "assets/portraits/trainee_girl1/normal.png",
+    "nervous2": "assets/portraits/trainee_girl1/normal.png",
+    "nervous3": "assets/portraits/trainee_girl1/normal.png",
+    "sad2": "assets/portraits/trainee_girl1/normal.png",
+    "shock": "assets/portraits/trainee_girl1/normal.png",
+    "shy": "assets/portraits/trainee_girl1/normal.png"
+   }
+  },
+  "trainee_girl10": {
+   "name": "唐門_女弟子10",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee_girl10/normal.png",
+    "angry2": "assets/portraits/trainee_girl10/normal.png",
+    "laugh1": "assets/portraits/trainee_girl10/normal.png",
+    "laugh2": "assets/portraits/trainee_girl10/normal.png",
+    "nervous1": "assets/portraits/trainee_girl10/normal.png",
+    "nervous2": "assets/portraits/trainee_girl10/normal.png"
+   }
+  },
+  "trainee_girl2": {
+   "name": "唐門_女弟子2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee_girl2/normal.png",
+    "angry1": "assets/portraits/trainee_girl2/normal.png",
+    "angry2": "assets/portraits/trainee_girl2/normal.png",
+    "laugh1": "assets/portraits/trainee_girl2/normal.png",
+    "laugh2": "assets/portraits/trainee_girl2/normal.png",
+    "nervous1": "assets/portraits/trainee_girl2/normal.png",
+    "nervous2": "assets/portraits/trainee_girl2/normal.png",
+    "nervous3": "assets/portraits/trainee_girl2/normal.png",
+    "sad2": "assets/portraits/trainee_girl2/normal.png",
+    "shock": "assets/portraits/trainee_girl2/normal.png"
+   }
+  },
+  "trainee_girl3": {
+   "name": "唐門_女弟子3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee_girl3/normal.png",
+    "angry1": "assets/portraits/trainee_girl3/normal.png",
+    "angry2": "assets/portraits/trainee_girl3/normal.png",
+    "laugh1": "assets/portraits/trainee_girl3/normal.png",
+    "nervous1": "assets/portraits/trainee_girl3/normal.png",
+    "nervous2": "assets/portraits/trainee_girl3/normal.png",
+    "sad2": "assets/portraits/trainee_girl3/normal.png"
+   }
+  },
+  "trainee_girl4": {
+   "name": "唐門_女弟子4",
+   "first": "normal",
+   "portraits": {
+    "laugh1": "assets/portraits/trainee_girl4/normal.png",
+    "shy": "assets/portraits/trainee_girl4/normal.png"
+   }
+  },
+  "trainee_girl5": {
+   "name": "唐門_女弟子5",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee_girl5/normal.png",
+    "angry2": "assets/portraits/trainee_girl5/normal.png",
+    "nervous1": "assets/portraits/trainee_girl5/normal.png",
+    "nervous2": "assets/portraits/trainee_girl5/normal.png",
+    "shy": "assets/portraits/trainee_girl5/normal.png"
+   }
+  },
+  "trainee_girl6": {
+   "name": "唐門_女弟子6",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee_girl6/normal.png",
+    "angry1": "assets/portraits/trainee_girl6/normal.png",
+    "angry2": "assets/portraits/trainee_girl6/normal.png",
+    "laugh1": "assets/portraits/trainee_girl6/normal.png",
+    "nervous1": "assets/portraits/trainee_girl6/normal.png",
+    "nervous2": "assets/portraits/trainee_girl6/normal.png",
+    "nervous3": "assets/portraits/trainee_girl6/normal.png"
+   }
+  },
+  "trainee_girl7": {
+   "name": "唐門_女弟子7",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee_girl7/normal.png",
+    "angry1": "assets/portraits/trainee_girl7/normal.png",
+    "angry2": "assets/portraits/trainee_girl7/normal.png",
+    "laugh1": "assets/portraits/trainee_girl7/normal.png",
+    "laugh2": "assets/portraits/trainee_girl7/normal.png",
+    "nervous1": "assets/portraits/trainee_girl7/normal.png",
+    "nervous2": "assets/portraits/trainee_girl7/normal.png",
+    "nervous3": "assets/portraits/trainee_girl7/normal.png",
+    "sad2": "assets/portraits/trainee_girl7/normal.png",
+    "shy": "assets/portraits/trainee_girl7/normal.png"
+   }
+  },
+  "trainee_girl8": {
+   "name": "唐門_女弟子8",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee_girl8/normal.png",
+    "angry1": "assets/portraits/trainee_girl8/normal.png",
+    "angry2": "assets/portraits/trainee_girl8/normal.png",
+    "laugh1": "assets/portraits/trainee_girl8/normal.png",
+    "laugh2": "assets/portraits/trainee_girl8/normal.png",
+    "nervous1": "assets/portraits/trainee_girl8/normal.png",
+    "nervous2": "assets/portraits/trainee_girl8/normal.png",
+    "nervous3": "assets/portraits/trainee_girl8/normal.png",
+    "sad2": "assets/portraits/trainee_girl8/normal.png",
+    "shock": "assets/portraits/trainee_girl8/normal.png",
+    "shy": "assets/portraits/trainee_girl8/normal.png"
+   }
+  },
+  "trainee_girl9": {
+   "name": "唐門_女弟子9",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainee_girl9/normal.png",
+    "angry1": "assets/portraits/trainee_girl9/normal.png",
+    "laugh1": "assets/portraits/trainee_girl9/normal.png",
+    "laugh2": "assets/portraits/trainee_girl9/normal.png",
+    "nervous2": "assets/portraits/trainee_girl9/normal.png",
+    "shock": "assets/portraits/trainee_girl9/normal.png"
+   }
+  },
+  "trainees": {
+   "name": "唐門_眾弟子",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/trainees/normal.png"
+   }
+  },
+  "unknown": {
+   "name": "問號",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/unknown/normal.png"
+   }
+  },
+  "waiter1": {
+   "name": "閒雜_店小二",
+   "first": "normal",
+   "portraits": {
+    "hurt2": "assets/portraits/waiter1/hurt2.png",
+    "normal": "assets/portraits/waiter1/normal.png",
+    "angry1": "assets/portraits/waiter1/normal.png",
+    "angry2": "assets/portraits/waiter1/normal.png",
+    "laugh1": "assets/portraits/waiter1/normal.png",
+    "laugh2": "assets/portraits/waiter1/normal.png",
+    "nervous1": "assets/portraits/waiter1/normal.png",
+    "nervous2": "assets/portraits/waiter1/normal.png",
+    "nervous3": "assets/portraits/waiter1/normal.png"
+   }
+  },
+  "waiter2": {
+   "name": "閒雜_店小二2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/waiter2/normal.png",
+    "angry1": "assets/portraits/waiter2/normal.png",
+    "laugh1": "assets/portraits/waiter2/normal.png",
+    "nervous1": "assets/portraits/waiter2/normal.png",
+    "nervous2": "assets/portraits/waiter2/normal.png"
+   }
+  },
+  "waiter3": {
+   "name": "閒雜_店小二3",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/waiter3/angry1.png",
+    "nervous1": "assets/portraits/waiter3/nervous1.png",
+    "normal": "assets/portraits/waiter3/normal.png",
+    "special1": "assets/portraits/waiter3/special1.png",
+    "special2": "assets/portraits/waiter3/special2.png",
+    "laugh1": "assets/portraits/waiter3/normal.png",
+    "nervous2": "assets/portraits/waiter3/normal.png",
+    "nervous3": "assets/portraits/waiter3/normal.png"
+   }
+  },
+  "wolf1": {
+   "name": "閒雜_狼1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/wolf1/normal.png"
+   }
+  },
+  "women1": {
+   "name": "閒雜_婦人1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/women1/normal.png",
+    "angry1": "assets/portraits/women1/normal.png",
+    "angry2": "assets/portraits/women1/normal.png",
+    "laugh1": "assets/portraits/women1/normal.png",
+    "nervous1": "assets/portraits/women1/normal.png",
+    "nervous2": "assets/portraits/women1/normal.png",
+    "nervous3": "assets/portraits/women1/normal.png",
+    "sad2": "assets/portraits/women1/normal.png",
+    "shock": "assets/portraits/women1/normal.png"
+   }
+  },
+  "women2": {
+   "name": "閒雜_婦人2",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/women2/normal.png",
+    "angry1": "assets/portraits/women2/normal.png",
+    "laugh1": "assets/portraits/women2/normal.png",
+    "nervous1": "assets/portraits/women2/normal.png"
+   }
+  },
+  "women3": {
+   "name": "閒雜_婦人3",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/women3/normal.png",
+    "angry1": "assets/portraits/women3/normal.png",
+    "laugh1": "assets/portraits/women3/normal.png",
+    "nervous1": "assets/portraits/women3/normal.png",
+    "nervous2": "assets/portraits/women3/normal.png",
+    "nervous3": "assets/portraits/women3/normal.png",
+    "shy": "assets/portraits/women3/normal.png"
+   }
+  },
+  "women4": {
+   "name": "閒雜_婦人4",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/women4/normal.png",
+    "angry1": "assets/portraits/women4/normal.png",
+    "angry2": "assets/portraits/women4/normal.png",
+    "laugh1": "assets/portraits/women4/normal.png",
+    "nervous1": "assets/portraits/women4/normal.png"
+   }
+  },
+  "women411": {
+   "name": "南宮_婦人1",
+   "first": "normal",
+   "portraits": {
+    "normal": "assets/portraits/women411/normal.png",
+    "angry1": "assets/portraits/women411/normal.png",
+    "angry2": "assets/portraits/women411/normal.png",
+    "laugh1": "assets/portraits/women411/normal.png",
+    "nervous1": "assets/portraits/women411/normal.png",
+    "nervous2": "assets/portraits/women411/normal.png",
+    "shy": "assets/portraits/women411/normal.png"
+   }
+  },
+  "woodcutter1": {
+   "name": "閒雜_樵夫1",
+   "first": "normal",
+   "portraits": {
+    "angry1": "assets/portraits/woodcutter1/angry1.png",
+    "nervous1": "assets/portraits/woodcutter1/nervous1.png",
+    "normal": "assets/portraits/woodcutter1/normal.png"
+   }
+  }
+ },
+ "views": {
+  "alchemy": "assets/views/alchemy.png",
+  "alchemy_night": "assets/views/alchemy_night.png",
+  "backmountain2": "assets/views/backmountain2.png",
+  "backmountain2_night": "assets/views/backmountain2_night.png",
+  "backmountain_road1": "assets/views/backmountain_road1.png",
+  "backmountain_road1_night": "assets/views/backmountain_road1_night.png",
+  "backmountain_road2": "assets/views/backmountain_road2.png",
+  "backmountain_road2_night": "assets/views/backmountain_road2_night.png",
+  "backyard1": "assets/views/backyard1.png",
+  "banquet": "assets/views/banquet.png",
+  "battlefield": "assets/views/battlefield.png",
+  "black": "assets/views/black.png",
+  "blossom": "assets/views/blossom.png",
+  "boat2": "assets/views/boat2.png",
+  "boat_night1": "assets/views/boat_night1.png",
+  "boat_night2": "assets/views/boat_night2.png",
+  "carriage": "assets/views/carriage.png",
+  "cellar": "assets/views/cellar.png",
+  "center": "assets/views/center.png",
+  "center_evening": "assets/views/center_evening.png",
+  "center_morning": "assets/views/center_morning.png",
+  "center_night": "assets/views/center_night.png",
+  "center_party": "assets/views/center_party.png",
+  "champaign": "assets/views/champaign.png",
+  "champaign_night": "assets/views/champaign_night.png",
+  "citygate": "assets/views/citygate.png",
+  "cliff_night": "assets/views/cliff_night.png",
+  "club1": "assets/views/club1.png",
+  "coastal": "assets/views/coastal.png",
+  "dead": "assets/views/dead.png",
+  "farm1": "assets/views/farm1.png",
+  "farm1_dust": "assets/views/farm1_dust.png",
+  "farm1_night": "assets/views/farm1_night.png",
+  "ferry_day": "assets/views/ferry_day.png",
+  "firewood_room": "assets/views/firewood_room.png",
+  "foodstalls_night": "assets/views/foodstalls_night.png",
+  "forest": "assets/views/forest.png",
+  "forest_dust": "assets/views/forest_dust.png",
+  "forest_night": "assets/views/forest_night.png",
+  "forge": "assets/views/forge.png",
+  "forge2": "assets/views/forge2.png",
+  "forge_dust": "assets/views/forge_dust.png",
+  "forge_night": "assets/views/forge_night.png",
+  "fortress": "assets/views/fortress.png",
+  "fortress_and_mountain": "assets/views/fortress_and_mountain.png",
+  "fortress_dusk": "assets/views/fortress_dusk.png",
+  "fortress_night": "assets/views/fortress_night.png",
+  "fortress_room2": "assets/views/fortress_room2.png",
+  "fortress_room2_dusk": "assets/views/fortress_room2_dusk.png",
+  "grassland": "assets/views/grassland.png",
+  "guest1": "assets/views/backyard1.png",
+  "house1": "assets/views/house1.png",
+  "house1_night": "assets/views/house1_night.png",
+  "inn1": "assets/views/inn1.png",
+  "inn1_night": "assets/views/inn1_night.png",
+  "inn2": "assets/views/inn2.png",
+  "inn2_night": "assets/views/inn2_night.png",
+  "inn_room1": "assets/views/inn_room1.png",
+  "inn_room1_night": "assets/views/inn_room1_night.png",
+  "kitchen": "assets/views/kitchen.png",
+  "kitchen_night": "assets/views/kitchen_night.png",
+  "lake1": "assets/views/lake1.png",
+  "mall1": "assets/views/mall1.png",
+  "map": "assets/views/map.png",
+  "martial": "assets/views/martial.png",
+  "mountain1": "assets/views/mountain1.png",
+  "mountain1_dust": "assets/views/mountain1_dust.png",
+  "mountain1_night": "assets/views/mountain1_night.png",
+  "mountain2": "assets/views/mountain2.png",
+  "mountain_road1": "assets/views/mountain_road1.png",
+  "mountain_road1_dusk": "assets/views/mountain_road1.png",
+  "mountain_road1_night": "assets/views/mountain_road1_night.png",
+  "mountain_road3": "assets/views/backmountain_road2.png",
+  "mountain_stream": "assets/views/mountain2.png",
+  "outsideshop": "assets/views/outsideshop.png",
+  "outsideshop_night": "assets/views/outsideshop_night.png",
+  "paddy": "assets/views/paddy.png",
+  "pharmacy1": "assets/views/pharmacy1.png",
+  "princess _room1": "assets/views/princess _room1.png",
+  "prison": "assets/views/prison.png",
+  "riverside1": "assets/views/riverside1.png",
+  "riverside_night1": "assets/views/riverside_night1.png",
+  "road1": "assets/views/club1.png",
+  "road1_evening": "assets/views/road1_evening.png",
+  "road1_night": "assets/views/road1_night.png",
+  "road2": "assets/views/road2.png",
+  "road2_dust": "assets/views/road2_dust.png",
+  "road2_night": "assets/views/road2_night.png",
+  "road3": "assets/views/road2.png",
+  "road3_dusk": "assets/views/road2_dust.png",
+  "room": "assets/views/room.png",
+  "room_night": "assets/views/room_night.png",
+  "section_001_cave": "assets/views/section_001_cave.png",
+  "section_001_center": "assets/views/section_001_center.png",
+  "section_001_door": "assets/views/section_001_door.png",
+  "section_001_fist": "assets/views/section_001_fist.png",
+  "section_001_fist_dusk": "assets/views/section_001_fist_dusk.png",
+  "section_001_map": "assets/views/section_001_map.png",
+  "section_001_market": "assets/views/section_001_market.png",
+  "section_001_mountain": "assets/views/mountain1.png",
+  "section_001_temple_mall": "assets/views/section_001_temple_mall.png",
+  "section_002": "assets/views/section_002.png",
+  "section_002_dusk": "assets/views/section_002.png",
+  "section_002_mall": "assets/views/section_002_mall.png",
+  "section_002_map": "assets/views/section_002_map.png",
+  "section_002_night": "assets/views/section_002_night.png",
+  "section_003": "assets/views/section_003.png",
+  "section_004": "assets/views/section_004.png",
+  "section_005": "assets/views/section_005.png",
+  "section_006": "assets/views/section_006.png",
+  "section_100": "assets/views/section_100.png",
+  "section_100_mall": "assets/views/section_100_mall.png",
+  "section_100_mall2": "assets/views/section_100.png",
+  "section_100_night": "assets/views/section_100_night.png",
+  "section_outside": "assets/views/section_outside.png",
+  "section_room1": "assets/views/section_room1.png",
+  "section_room1_dusk": "assets/views/section_room1_dusk.png",
+  "section_room1_night": "assets/views/section_room1_night.png",
+  "ship": "assets/views/ship.png",
+  "sky": "assets/views/sky.png",
+  "sky_dust": "assets/views/sky_dust.png",
+  "sky_night": "assets/views/sky_night.png",
+  "snow_mountain": "assets/views/snow_mountain.png",
+  "snow_mountain_night": "assets/views/snow_mountain_night.png",
+  "snow_mountain_sum": "assets/views/snow_mountain_sum.png",
+  "snow_road": "assets/views/snow_road.png",
+  "spa": "assets/views/spa.png",
+  "stream": "assets/views/stream.png",
+  "stream_dusk": "assets/views/stream_dusk.png",
+  "stream_night": "assets/views/stream_night.png",
+  "study": "assets/views/study.png",
+  "study2": "assets/views/study2.png",
+  "styx_river": "assets/views/styx_river.png",
+  "styx_river_dusk": "assets/views/styx_river_dusk.png",
+  "tang_mall": "assets/views/tang_mall.png",
+  "tang_mall_night": "assets/views/tang_mall_night.png",
+  "tang_map": "assets/views/tang_map.png",
+  "tang_tower": "assets/views/tang_tower.png",
+  "teashop": "assets/views/teashop.png",
+  "teashop_dust": "assets/views/teashop.png",
+  "temple_day": "assets/views/temple_day.png",
+  "temple_night": "assets/views/temple_night.png",
+  "temple_night_rainy": "assets/views/temple_night_rainy.png",
+  "tree_top": "assets/views/tree_top.png",
+  "underground_lake": "assets/views/underground_lake.png",
+  "underground_lake_night": "assets/views/underground_lake_night.png",
+  "underworld": "assets/views/underworld.png",
+  "walled": "assets/views/walled.png",
+  "white": "assets/views/white.png",
+  "white_tiger": "assets/views/white_tiger.png",
+  "wild_dusk": "assets/views/wild_dusk.png",
+  "window": "assets/views/window.png",
+  "yamen": "assets/views/road2.png",
+  "yamen_night": "assets/views/road2_night.png"
+ }
+}

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 离线冒烟测试：不依赖 BepInEx/Unity，直接编译 src 下可独立测试的三个文件。
+       仅开发期验证用，产物不进游戏。 -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <AssemblyName>MortalModHost.SmokeTest</AssemblyName>
+    <RootNamespace>MortalModHost</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\MiniJson.cs" />
+    <Compile Include="..\..\src\ModPackage.cs" />
+    <Compile Include="..\..\src\ModLoader.cs" />
+    <Compile Include="..\..\src\ModRegistry.cs" />
+    <Compile Include="..\..\src\HotkeyMigration.cs" />
+    <Compile Include="..\..\src\CampaignConfig.cs" />
+    <Compile Include="..\..\src\PositionNameMap.cs" />
+  </ItemGroup>
+
+</Project>

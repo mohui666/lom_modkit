@@ -1,0 +1,46 @@
+using System.Collections.Generic;
+
+namespace MortalModHost
+{
+    /// <summary>
+    /// 一个已解析的 .lommod 包：manifest 元信息 + lua/ 目录全部脚本（内存常驻，不落盘）。
+    /// 契约见 docs/mod_format.md §1/§2。
+    /// </summary>
+    internal sealed class ModPackage
+    {
+        /// <summary>mod 唯一 id（manifest.id），注册脚本时用作前缀防冲突。</summary>
+        public string Id;
+
+        /// <summary>显示名（manifest.name）。</summary>
+        public string Name;
+
+        /// <summary>版本号（manifest.version）。</summary>
+        public string Version;
+
+        /// <summary>作者（manifest.author，可空）。</summary>
+        public string Author;
+
+        /// <summary>简介（manifest.description，可空）。</summary>
+        public string Description;
+
+        /// <summary>入口剧情脚本 id（manifest.entry），必须存在于 <see cref="LuaScripts"/>。</summary>
+        public string Entry;
+
+        /// <summary>lua/ 目录全部脚本：键 = 脚本 id（文件名去 .lua），值 = Lua 源码文本。</summary>
+        public readonly Dictionary<string, string> LuaScripts = new Dictionary<string, string>();
+
+        /// <summary>战役模式配置（manifest.campaign，契约 §2）；null 表示本包无战役模式。</summary>
+        public CampaignConfig Campaign;
+
+        /// <summary>.lommod 文件完整路径（仅用于日志定位，内容已全部读入内存）。</summary>
+        public string PackagePath;
+
+        /// <summary>
+        /// 按契约 §6.3 生成注册到游戏 LuaManager 的脚本名：MOD_&lt;modid&gt;_&lt;scriptid&gt;。
+        /// </summary>
+        public string GetRegisteredScriptName(string scriptId)
+        {
+            return "MOD_" + Id + "_" + scriptId;
+        }
+    }
+}

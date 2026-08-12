@@ -1,0 +1,16 @@
+{
+  "id": "second",
+  "title": "示例剧情·续：下山办事",
+  "start": "s1",
+  "nodes": [
+    { "id": "s1", "type": "scene", "view": "center" },
+    { "id": "s1b", "type": "transition", "phase": "in", "dir": "lr" },
+    { "id": "s2", "type": "show", "character": "player", "position": "M" },
+    {
+      "id": "s3", "type": "say", "mode": "narrative",
+      "text": "按照四师兄的嘱咐，你来到山下的集市。"
+    },
+    { "id": "s4", "type": "flag", "flag": "DEMO_MOD_SECOND_DONE" },
+    { "id": "s5", "type": "end" }
+  ]
+}

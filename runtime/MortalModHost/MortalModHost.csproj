@@ -1,0 +1,94 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- 目标框架与现有插件 MortalInstantWin 一致（net48），BepInEx 6 Mono + Unity 2020.3 实测可加载 -->
+    <TargetFramework>net48</TargetFramework>
+    <AssemblyName>MortalModHost</AssemblyName>
+    <RootNamespace>MortalModHost</RootNamespace>
+    <LangVersion>7.3</LangVersion>
+    <!-- 游戏目录路径（只读引用，绝不写入） -->
+    <GameDir>C:\Program Files (x86)\Steam\steamapps\common\LegendOfMortal</GameDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 让 dotnet 8 SDK 能编译 net48（自带 .NET Framework 参考程序集） -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <!-- test/ 是离线冒烟测试工程，别编进插件 DLL -->
+  <ItemGroup>
+    <Compile Remove="test/**/*.cs" />
+  </ItemGroup>
+
+  <!-- net48 默认引用集不含压缩程序集，ZipArchive 需要显式引用 -->
+  <ItemGroup>
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+  </ItemGroup>
+
+  <!-- 以下引用全部 Private=false：游戏目录已自带这些 DLL，不随产物拷贝 -->
+  <ItemGroup>
+    <!-- BepInEx 6 核心（插件特性、日志、Paths） -->
+    <Reference Include="BepInEx.Core">
+      <HintPath>$(GameDir)\BepInEx\core\BepInEx.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- BepInEx 6 Unity Mono 宿主（BaseUnityPlugin 在这里） -->
+    <Reference Include="BepInEx.Unity.Mono">
+      <HintPath>$(GameDir)\BepInEx\core\BepInEx.Unity.Mono.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- Harmony（下轮 hook 用，本轮仅引用备着） -->
+    <Reference Include="0Harmony">
+      <HintPath>$(GameDir)\BepInEx\core\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- Unity 引擎程序集 -->
+    <Reference Include="UnityEngine">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- 游戏程序集：SceneController / PlayerStatManagerData（场景控制与剧情脚本切换） -->
+    <Reference Include="Mortal.Core">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\Mortal.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- 游戏程序集：LuaManager（剧情演出宿主） -->
+    <Reference Include="Mortal.Story">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\Mortal.Story.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- 游戏程序集：FreePositionData / PositionController（自由模式位置触发器） -->
+    <Reference Include="Mortal.Free">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\Mortal.Free.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- Fungus（LuaEnvironment；MoonSharp.Interpreter 已 ILRepack 合进本 DLL） -->
+    <Reference Include="Fungus">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\Fungus.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- 新 InputSystem（本游戏启用了新输入系统，旧 UnityEngine.Input 运行时会抛异常，热键判定必须走这里） -->
+    <Reference Include="Unity.InputSystem">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\Unity.InputSystem.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- IMGUI（mod 菜单窗口）与 InputLegacy（仅为编译期解析 KeyboardShortcut 里的 KeyCode 枚举，运行时绝不调旧 Input API） -->
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "id": "demo_mod",
+  "name": "示例 Mod",
+  "version": "1.0.0",
+  "author": "lom_modkit",
+  "description": "演示 lomc 编译器的示例剧情：覆盖全部节点类型",
+  "entry": "main"
+}

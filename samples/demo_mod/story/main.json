@@ -1,0 +1,86 @@
+{
+  "id": "main",
+  "title": "示例剧情：四师兄的委托",
+  "start": "n1",
+  "nodes": [
+    { "id": "n1", "type": "music", "name": "普通_001" },
+    { "id": "n2", "type": "scene", "view": "center" },
+    { "id": "n3", "type": "show", "character": "player", "position": "M" },
+    { "id": "n4", "type": "show", "character": "brother4", "position": "R2", "facing": "left", "moveDuration": 1 },
+    { "id": "n5", "type": "show", "character": "trainee1", "position": "L2", "portrait": "nervous1", "fadeDuration": 0.5 },
+    { "id": "n6", "type": "intro", "character": "brother4" },
+    {
+      "id": "n7", "type": "say", "mode": "character",
+      "character": "brother4", "portrait": "normal",
+      "text": "师弟，可算找到你了。我有件事，非得你帮忙不可。"
+    },
+    {
+      "id": "n8", "type": "say", "mode": "think",
+      "character": "player", "portrait": "nervous3",
+      "text": "四师兄难得这么严肃……希望别又是什么麻烦事。"
+    },
+    {
+      "id": "n9", "type": "say", "mode": "narrative",
+      "text": "午后的唐门练武场，阳光正好。\n你放下手中的扫帚，看向四师兄。"
+    },
+    { "id": "n10", "type": "shock", "character": "brother4", "duration": 0.5 },
+    { "id": "n10a", "type": "sound", "name": "揍人_001" },
+    { "id": "n10b", "type": "effect", "name": "Hit_001", "x": 2 },
+    {
+      "id": "n11", "type": "choice",
+      "options": [
+        { "text": "行，师兄你说。", "goto": "n12" },
+        { "text": "我先考虑考虑。", "goto": "n16" },
+        { "text": "上次借的钱还没还我呢。", "goto": "n20" }
+      ]
+    },
+    { "id": "n12", "type": "stat", "key": "mental", "delta": -5 },
+    { "id": "n12b", "type": "talent", "talent": "3004", "level": 1 },
+    { "id": "n12c", "type": "item", "kind": "misc", "item": "5001", "count": 1 },
+    { "id": "n13", "type": "mask", "show": true },
+    {
+      "id": "n14", "type": "say", "mode": "think",
+      "character": "player", "portrait": "nervous1",
+      "text": "答应得这么干脆，我是不是有点草率了。"
+    },
+    { "id": "n15", "type": "mask", "show": false, "goto": "n23" },
+    { "id": "n16", "type": "affinity", "character": "brother4", "delta": 1 },
+    { "id": "n17", "type": "flag", "flag": "DEMO_MOD_HESITATED" },
+    { "id": "n18", "type": "move", "character": "player", "from": "M", "to": "R1", "duration": 1 },
+    { "id": "n19", "type": "face", "character": "player", "facing": "right", "goto": "n23" },
+    { "id": "n20", "type": "stat", "key": "money", "delta": 100, "waitDisplay": false },
+    {
+      "id": "n21", "type": "branch", "source": "game", "flag": "S0003_01_001",
+      "cases": [
+        { "value": 1, "goto": "n23" },
+        { "value": 2, "goto": "n22" }
+      ]
+    },
+    { "id": "n22", "type": "wait", "seconds": 1.5 },
+    { "id": "n23", "type": "hide", "character": "trainee1", "fadeDuration": 0.5 },
+    { "id": "n24", "type": "focus", "character": "player" },
+    {
+      "id": "n25", "type": "say", "mode": "character",
+      "character": "player", "portrait": "laugh1",
+      "text": "放心吧师兄，包在我身上！"
+    },
+    { "id": "n25d", "type": "autosave", "kind": "story" },
+    {
+      "id": "n25b", "type": "branch", "flag": "DEMO_MOD_HESITATED",
+      "cases": [
+        { "value": 1, "goto": "n25c" }
+      ]
+    },
+    {
+      "id": "n26a", "type": "say", "mode": "narrative",
+      "text": "约定既定，第二天一早你便下山去了。"
+    },
+    { "id": "n26", "type": "end", "next_script": "second" },
+    {
+      "id": "n25c", "type": "say", "mode": "character",
+      "character": "brother4", "portrait": "laugh1",
+      "text": "刚才还犹犹豫豫的，这会儿倒爽快。放心，亏待不了你。",
+      "goto": "n26a"
+    }
+  ]
+}

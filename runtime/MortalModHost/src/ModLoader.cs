@@ -1,0 +1,191 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.IO.Compression;
+using System.Text;
+
+namespace MortalModHost
+{
+    /// <summary>
+    /// mod 包扫描与解析（纯静态、无 BepInEx/Unity 依赖，便于离线单测）。
+    /// 行为契约见 docs/mod_format.md §6：扫描 mods/*.lommod，解出 manifest.json 与 lua/*.lua。
+    /// 单个包损坏只警告跳过，绝不抛出让插件崩溃。
+    /// </summary>
+    internal static class ModLoader
+    {
+        /// <summary>
+        /// 扫描 modsDir 下全部 *.lommod。目录不存在则创建。
+        /// 返回成功解析的包列表；坏包经 logWarn 报告后跳过。
+        /// </summary>
+        public static List<ModPackage> ScanMods(string modsDir, Action<string> logInfo, Action<string> logWarn)
+        {
+            var result = new List<ModPackage>();
+            if (!Directory.Exists(modsDir))
+            {
+                Directory.CreateDirectory(modsDir);
+                if (logInfo != null) logInfo("mods 目录不存在，已创建：" + modsDir);
+                return result;
+            }
+
+            string[] files = Directory.GetFiles(modsDir, "*.lommod");
+            Array.Sort(files, StringComparer.OrdinalIgnoreCase); // 按文件名排序，加载顺序稳定
+            foreach (string file in files)
+            {
+                try
+                {
+                    result.Add(LoadPackage(file, logWarn));
+                }
+                catch (Exception ex)
+                {
+                    // 坏 zip / 缺 manifest / 缺 entry lua / JSON 非法等都走这里
+                    if (logWarn != null)
+                        logWarn("跳过损坏的 mod 包 " + Path.GetFileName(file) + "：" + ex.Message);
+                }
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// 解析单个 .lommod（zip 全程只走内存流，不解到磁盘）。校验失败抛异常，由调用方兜底。
+        /// </summary>
+        private static ModPackage LoadPackage(string path, Action<string> logWarn)
+        {
+            using (var stream = File.OpenRead(path))
+            using (var zip = new ZipArchive(stream, ZipArchiveMode.Read))
+            {
+                var manifestEntry = zip.GetEntry("manifest.json");
+                if (manifestEntry == null)
+                    throw new FormatException("包内缺少 manifest.json");
+
+                var package = ParseManifest(ReadEntryText(manifestEntry));
+                package.PackagePath = path;
+
+                // 收集 lua/<id>.lua（仅 lua/ 直接子项，契约 §1）
+                foreach (var entry in zip.Entries)
+                {
+                    if (!entry.FullName.StartsWith("lua/", StringComparison.Ordinal)) continue;
+                    string rest = entry.FullName.Substring(4);
+                    if (rest.Length == 0 || rest.IndexOf('/') >= 0) continue;       // 跳过子目录
+                    if (!rest.EndsWith(".lua", StringComparison.OrdinalIgnoreCase)) continue;
+                    string scriptId = rest.Substring(0, rest.Length - 4);
+                    if (scriptId.Length == 0) continue;
+                    package.LuaScripts[scriptId] = ReadEntryText(entry);
+                }
+
+                if (package.LuaScripts.Count == 0)
+                    throw new FormatException("包内 lua/ 目录没有任何 .lua 脚本");
+                if (!package.LuaScripts.ContainsKey(package.Entry))
+                    throw new FormatException("入口脚本 lua/" + package.Entry + ".lua 不存在");
+
+                // 触发器 script 必须指向包内已有脚本；指向不存在脚本的触发器警告后丢弃（不拖垮整包）
+                if (package.Campaign != null)
+                {
+                    for (int i = package.Campaign.Triggers.Count - 1; i >= 0; i--)
+                    {
+                        if (!package.LuaScripts.ContainsKey(package.Campaign.Triggers[i].Script))
+                        {
+                            if (logWarn != null)
+                                logWarn("mod " + package.Id + " 的触发器脚本 " + package.Campaign.Triggers[i].Script + " 不存在，已丢弃该触发器");
+                            package.Campaign.Triggers.RemoveAt(i);
+                        }
+                    }
+                }
+
+                return package;
+            }
+        }
+
+        /// <summary>解析 manifest.json，校验契约 §2 的必填字段。</summary>
+        private static ModPackage ParseManifest(string json)
+        {
+            var root = MiniJson.Parse(json) as Dictionary<string, object>;
+            if (root == null)
+                throw new FormatException("manifest.json 顶层必须是 JSON 对象");
+
+            // format 固定为 1，不符说明是未知格式版本，跳过比误加载安全
+            object formatObj;
+            double format;
+            if (!root.TryGetValue("format", out formatObj) || !(formatObj is double) || (format = (double)formatObj) != 1.0)
+                throw new FormatException("manifest.format 不是 1（本插件只支持格式 v1）");
+
+            var package = new ModPackage
+            {
+                Id = GetString(root, "id", required: true),
+                Name = GetString(root, "name", required: false) ?? "",
+                Version = GetString(root, "version", required: false) ?? "",
+                Author = GetString(root, "author", required: false) ?? "",
+                Description = GetString(root, "description", required: false) ?? "",
+                Entry = GetString(root, "entry", required: true),
+                Campaign = ParseCampaign(root)
+            };
+            return package;
+        }
+
+        /// <summary>解析可选的 campaign 段（契约 §2）；无该段返回 null，结构非法抛 FormatException。</summary>
+        private static CampaignConfig ParseCampaign(Dictionary<string, object> root)
+        {
+            object campaignObj;
+            if (!root.TryGetValue("campaign", out campaignObj) || campaignObj == null)
+                return null;
+            var dict = campaignObj as Dictionary<string, object>;
+            if (dict == null)
+                throw new FormatException("manifest.campaign 必须是对象");
+
+            var campaign = new CampaignConfig();
+            object newGameObj;
+            if (dict.TryGetValue("new_game", out newGameObj) && newGameObj != null)
+            {
+                if (!(newGameObj is bool))
+                    throw new FormatException("manifest.campaign.new_game 必须是布尔值");
+                campaign.NewGame = (bool)newGameObj;
+            }
+
+            object triggersObj;
+            if (dict.TryGetValue("triggers", out triggersObj) && triggersObj != null)
+            {
+                var list = triggersObj as List<object>;
+                if (list == null)
+                    throw new FormatException("manifest.campaign.triggers 必须是数组");
+                foreach (object item in list)
+                {
+                    var triggerDict = item as Dictionary<string, object>;
+                    if (triggerDict == null)
+                        throw new FormatException("manifest.campaign.triggers 元素必须是对象");
+                    string type = GetString(triggerDict, "type", required: true);
+                    if (type != "position")
+                        throw new FormatException("不支持的 trigger type：" + type);
+                    campaign.Triggers.Add(new CampaignTrigger
+                    {
+                        Position = GetString(triggerDict, "position", required: true),
+                        Script = GetString(triggerDict, "script", required: true),
+                        WhenFlagSet = GetString(triggerDict, "when_flag_set", required: false),
+                        WhenFlagClear = GetString(triggerDict, "when_flag_clear", required: false)
+                    });
+                }
+            }
+            return campaign;
+        }
+
+        private static string GetString(Dictionary<string, object> dict, string key, bool required)
+        {
+            object value;
+            if (!dict.TryGetValue(key, out value) || value == null)
+            {
+                if (required) throw new FormatException("manifest 缺少必填字段 \"" + key + "\"");
+                return null;
+            }
+            var text = value as string;
+            if (text == null)
+                throw new FormatException("manifest 字段 \"" + key + "\" 必须是字符串");
+            if (required && text.Length == 0)
+                throw new FormatException("manifest 字段 \"" + key + "\" 不能为空");
+            return text;
+        }
+
+        private static string ReadEntryText(ZipArchiveEntry entry)
+        {
+            using (var reader = new StreamReader(entry.Open(), Encoding.UTF8))
+                return reader.ReadToEnd();
+        }
+    }
+}

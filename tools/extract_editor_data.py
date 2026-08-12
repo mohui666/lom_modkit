@@ -1,0 +1,269 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""从 lom_unpack 解包产物提取编辑器数据，生成 data/editor_data.json。
+
+格式契约见 docs/mod_format.md §5。仅用 Python 标准库。
+"""
+import csv
+import json
+import os
+import re
+import sys
+
+UNPACK_DIR = r"C:/Users/mohui666/lom_unpack"
+SCRIPTS_DIR = os.path.join(UNPACK_DIR, "raw_scripts")
+CSV_CHAR = os.path.join(UNPACK_DIR, "output", "csv", "11_人物.csv")
+RAW_CHAR = os.path.join(UNPACK_DIR, "raw", "Character_zh-cn.txt")
+CSV_STAT = os.path.join(UNPACK_DIR, "output", "csv", "14_属性与Flag.csv")
+RAW_STAT = os.path.join(UNPACK_DIR, "raw", "Stat_zh-cn.txt")
+CSV_TALENT = os.path.join(UNPACK_DIR, "output", "csv", "08_天赋技能.csv")
+RAW_TALENT = os.path.join(UNPACK_DIR, "raw", "Talent_zh-cn.txt")
+CSV_BOOK = os.path.join(UNPACK_DIR, "output", "csv", "05_武学秘籍书籍.csv")
+RAW_BOOK = os.path.join(UNPACK_DIR, "raw", "ItemBook_zh-cn.txt")
+CSV_ITEM = os.path.join(UNPACK_DIR, "output", "csv", "10_物品.csv")
+RAW_MISC = os.path.join(UNPACK_DIR, "raw", "ItemMisc_zh-cn.txt")
+RAW_SPECIAL = os.path.join(UNPACK_DIR, "raw", "ItemSpecial_zh-cn.txt")
+CSV_MESSAGE = os.path.join(UNPACK_DIR, "output", "csv", "03_剧情系统提示.csv")
+RAW_MESSAGE = os.path.join(UNPACK_DIR, "raw", "Story_Message_zh-cn.txt")
+RAW_FLAG = os.path.join(UNPACK_DIR, "raw", "Flag_zh-cn.txt")
+RAW_POSITION = os.path.join(UNPACK_DIR, "raw", "Position_zh-cn.txt")
+VIEW_MAP_JSON = os.path.join(r"C:/Users/mohui666/lom_modkit", "data", "assets", "_probe", "view_map.json")
+OUT_PATH = os.path.join(r"C:/Users/mohui666/lom_modkit", "data", "editor_data.json")
+
+# 契约 §5 固定值
+MODES = ["character", "think", "narrative", "center"]
+
+# 自由模式地图地点（Mortal.Core PositionType 枚举，顺序按 Position 文本表）
+FREE_POSITION_TYPES = ["Mall", "Center", "Room1", "Room2", "Alchemy", "Forge",
+                       "Kitchen", "Door", "BackMountain", "Study", "Secret"]
+
+# 舞台站位字母代码 -> 中文（无官方中文名，规则化标注；数字=纵深层级）
+_POSITION_LETTERS = {"S": "屏外", "L": "左", "M": "中", "R": "右", "B": "后", "C": "央"}
+_POSITION_SPECIAL = {"Talk": "对话位"}
+
+
+def position_label(pid):
+    """站位代码 -> 规则化中文标注，如 SL->屏外左、RM2->右中2；无法解析的原样返回。"""
+    if pid in _POSITION_SPECIAL:
+        return _POSITION_SPECIAL[pid]
+    out = []
+    for ch in pid:
+        if ch in _POSITION_LETTERS:
+            out.append(_POSITION_LETTERS[ch])
+        elif ch.isdigit():
+            out.append(ch)
+        else:
+            return pid
+    return "".join(out)
+
+RE_CHARACTER = re.compile(r'characters\.Get\("([^"]+)"\)')
+RE_PORTRAIT = re.compile(r'GetPortrait\("([^"]+)",\s*"([^"]+)"\)')
+RE_VIEW = re.compile(r'getvar\(flowcharts\.view,\s*"ViewName"\)\.value\s*=\s*"([^"]+)"')
+RE_MUSIC = re.compile(r'luamanager\.PlayMusic\("([^"]+)"\)')
+RE_STAT = re.compile(r'statmodifymanager\.Player\("([^"]+)"')
+RE_AFFINITY = re.compile(r'statmodifymanager\.Character\("([^"]+)"')
+RE_STAGE_SHOW = re.compile(r'stage\.show\{(.*?)\}', re.S)
+RE_FROM_POS = re.compile(r'fromPosition\s*=\s*"([^"]+)"')
+RE_TO_POS = re.compile(r'toPosition\s*=\s*"([^"]+)"')
+RE_MENU_DIALOG = re.compile(r'setmenudialog\(menudialogs\.([A-Za-z0-9_]+)')
+RE_EFFECT = re.compile(r'effects\.SetupEffect\("([^"]+)"')
+RE_DICE = re.compile(r'checkpointmanager\.(?:Dice|Switch)\("([^"]+)"')
+RE_COMBAT = re.compile(r'ChangeScene\("Combat",\s*"([^"]+)"')
+RE_BATTLE = re.compile(r'ChangeScene\("Battle",\s*"([^"]+)"')
+RE_ENDING = re.compile(r'ChangeScene\("(?:GameOver|End)",\s*"([^"]+)"|endgamepanel\.Open\("([^"]+)"')
+RE_FLAG = re.compile(r'statmodifymanager\.(?:SetFlag|AddFlag)\("([^"]+)"')
+RE_TALENT = re.compile(r'AddTalent\("([^"]+)"')
+RE_BOOK = re.compile(r'AddBook\("([^"]+)"')
+RE_MISC = re.compile(r'AddMisc\("([^"]+)"')
+RE_SPECIAL = re.compile(r'AddSpecial\("([^"]+)"')
+RE_MESSAGE = re.compile(r'mainui\.DisplayMessage\("([^"]+)"')
+
+
+def _load_prefixed_kv(csv_path, raw_path, prefix):
+    """加载 <prefix>/<id> 形式的中文名表：优先 CSV（utf-8-sig，第 3 列简体），退回 raw key=value。"""
+    names = {}
+    if os.path.isfile(csv_path):
+        with open(csv_path, "r", encoding="utf-8-sig", newline="") as f:
+            for row in csv.reader(f):
+                if len(row) < 3 or not row[0].startswith(prefix + "/"):
+                    continue
+                cid, name = row[0][len(prefix) + 1:], row[2].strip()
+                if cid and name:
+                    names.setdefault(cid, name)
+        if names:
+            return names
+    if os.path.isfile(raw_path):
+        with open(raw_path, "r", encoding="utf-8-sig") as f:
+            for line in f:
+                if not line.startswith(prefix + "/") or "=" not in line:
+                    continue
+                key, _, val = line.partition("=")
+                cid = key.strip()[len(prefix) + 1:]
+                name = val.strip()
+                if cid and name:
+                    names.setdefault(cid, name)
+    return names
+
+
+def load_names():
+    """人物显示名：key 格式 Character/<id>。"""
+    return _load_prefixed_kv(CSV_CHAR, RAW_CHAR, "Character")
+
+
+def load_stat_names():
+    """属性显示名：key 格式 PlayerStat/<id>。"""
+    return _load_prefixed_kv(CSV_STAT, RAW_STAT, "PlayerStat")
+
+
+def load_free_position_names():
+    """自由模式地点中文名：raw/Position_zh-cn.txt，key 格式 Position/Name/<Type>。"""
+    names = {}
+    if os.path.isfile(RAW_POSITION):
+        with open(RAW_POSITION, "r", encoding="utf-8-sig") as f:
+            for line in f:
+                if not line.startswith("Position/Name/") or "=" not in line:
+                    continue
+                key, _, val = line.partition("=")
+                pid = key.strip()[len("Position/Name/"):]
+                name = val.strip()
+                if pid and name:
+                    names.setdefault(pid, name)
+    return names
+
+
+def load_view_names():
+    """场景显示名：探测产物 view_map.json 的 name 字段（游戏内 m_Name）。"""
+    if not os.path.isfile(VIEW_MAP_JSON):
+        return {}
+    vm = json.load(open(VIEW_MAP_JSON, encoding="utf-8"))
+    return {k: v["name"] for k, v in vm.items() if v.get("name")}
+
+
+def main():
+    names = load_names()
+    stat_names = load_stat_names()
+    view_names = load_view_names()
+    free_pos_names = load_free_position_names()
+    flag_names = _load_prefixed_kv(CSV_STAT, RAW_FLAG, "Flag/Name")
+    talent_names = _load_prefixed_kv(CSV_TALENT, RAW_TALENT, "PlayerTalent/Name")
+    book_names = _load_prefixed_kv(CSV_BOOK, RAW_BOOK, "Book/Name")
+    misc_names = _load_prefixed_kv(CSV_ITEM, RAW_MISC, "Misc/Name")
+    special_names = _load_prefixed_kv(CSV_ITEM, RAW_SPECIAL, "Special/Name")
+    message_names = _load_prefixed_kv(CSV_MESSAGE, RAW_MESSAGE, "Story")
+
+    char_ids = set()
+    portraits = {}  # id -> set
+    views = set()
+    music = set()
+    positions = set()
+    stats = set()
+    affinity_chars = set()
+    menu_dialogs = set()
+    effects_found = set()
+    dice_checks = set()
+    combat_ids = set()
+    battle_ids = set()
+    ending_ids = set()
+    game_flags = set()
+    talents = set()
+    items_book = set()
+    items_misc = set()
+    items_special = set()
+    messages = set()
+
+    files = sorted(fn for fn in os.listdir(SCRIPTS_DIR) if fn.endswith(".lua.txt"))
+    for fn in files:
+        path = os.path.join(SCRIPTS_DIR, fn)
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as f:
+                text = f.read()
+        except OSError:
+            continue
+
+        char_ids.update(RE_CHARACTER.findall(text))
+        for cid, port in RE_PORTRAIT.findall(text):
+            portraits.setdefault(cid, set()).add(port)
+        views.update(RE_VIEW.findall(text))
+        music.update(RE_MUSIC.findall(text))
+        stats.update(RE_STAT.findall(text))
+        affinity_chars.update(RE_AFFINITY.findall(text))
+        for block in RE_STAGE_SHOW.findall(text):
+            positions.update(RE_FROM_POS.findall(block))
+            positions.update(RE_TO_POS.findall(block))
+        menu_dialogs.update(RE_MENU_DIALOG.findall(text))
+        effects_found.update(RE_EFFECT.findall(text))
+        dice_checks.update(RE_DICE.findall(text))
+        combat_ids.update(RE_COMBAT.findall(text))
+        battle_ids.update(RE_BATTLE.findall(text))
+        for a, b in RE_ENDING.findall(text):
+            ending_ids.add(a or b)
+        game_flags.update(RE_FLAG.findall(text))
+        talents.update(RE_TALENT.findall(text))
+        items_book.update(RE_BOOK.findall(text))
+        items_misc.update(RE_MISC.findall(text))
+        items_special.update(RE_SPECIAL.findall(text))
+        messages.update(RE_MESSAGE.findall(text))
+
+    # 表情只在 stage.show / GetPortrait 出现的人物也收进 characters
+    char_ids.update(portraits.keys())
+
+    characters = [
+        {
+            "id": cid,
+            "name": names.get(cid, cid),
+            "portraits": sorted(portraits.get(cid, ())),
+        }
+        for cid in sorted(char_ids)
+    ]
+
+    data = {
+        "schema": 2,
+        "characters": characters,
+        "views": [{"id": v, "name": view_names.get(v, v)} for v in sorted(views)],
+        "music": [{"id": m, "name": m} for m in sorted(music)],  # 音乐 id 本身已是中文名
+        "positions": [{"id": p, "name": position_label(p)} for p in sorted(positions)],
+        "stats": [{"id": s, "name": stat_names.get(s, s)} for s in sorted(stats)],
+        "modes": MODES,
+        "menu_dialogs": sorted(menu_dialogs),
+        "effects": [{"id": e, "name": e} for e in sorted(effects_found)],  # 特效 id 即资源名
+        "dice_checks": sorted(dice_checks),
+        "combat_ids": sorted(combat_ids),
+        "battle_ids": sorted(battle_ids),
+        "ending_ids": sorted(ending_ids),
+        "game_flags": [{"id": g, "name": flag_names.get(g, g)} for g in sorted(game_flags)],
+        "talents": [{"id": t, "name": talent_names.get(t, t)} for t in sorted(talents)],
+        "items_book": [{"id": i, "name": book_names.get(i, i)} for i in sorted(items_book)],
+        "items_misc": [{"id": i, "name": misc_names.get(i, i)} for i in sorted(items_misc)],
+        "items_special": [{"id": i, "name": special_names.get(i, i)} for i in sorted(items_special)],
+        "messages": [{"id": m, "name": message_names.get(m, m)} for m in sorted(messages)],
+        "affinity_characters": sorted(affinity_chars),
+        "free_positions": [{"id": p, "name": free_pos_names.get(p, p)} for p in FREE_POSITION_TYPES],
+    }
+
+    os.makedirs(os.path.dirname(OUT_PATH), exist_ok=True)
+    with open(OUT_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+    hit = lambda ids, table: "%d（名称命中 %d）" % (len(ids), sum(1 for i in ids if i in table))
+    print("脚本数: %d" % len(files))
+    print("人物数: %d" % len(characters))
+    print("场景数: %s" % hit(views, view_names))
+    print("音乐数: %d" % len(music))
+    print("站位数: %d" % len(positions))
+    print("属性数: %s" % hit(stats, stat_names))
+    print("菜单对话框数: %d" % len(menu_dialogs))
+    print("特效数: %d" % len(effects_found))
+    print("骰子检查点数: %d" % len(dice_checks))
+    print("Combat ids: %d, Battle ids: %d, Ending ids: %d" % (len(combat_ids), len(battle_ids), len(ending_ids)))
+    print("游戏 Flag 数: %s" % hit(game_flags, flag_names))
+    print("天赋数: %s" % hit(talents, talent_names))
+    print("书籍: %s, 杂物: %s, 特殊物品: %s" % (hit(items_book, book_names), hit(items_misc, misc_names), hit(items_special, special_names)))
+    print("系统消息数: %s" % hit(messages, message_names))
+    print("好感度目标人物数: %d" % len(affinity_chars))
+    print("自由模式地点数: %s" % hit(FREE_POSITION_TYPES, free_pos_names))
+    print("人物名称命中: %d / %d" % (sum(1 for c in characters if c["name"] != c["id"]), len(characters)))
+    print("输出: %s" % OUT_PATH)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

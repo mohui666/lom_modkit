@@ -1,0 +1,13 @@
+# 大文件素材（可用 tools/extract_preview_assets.py 从游戏重新生成）
+data/assets/
+# Python
+__pycache__/
+*.pyc
+editor/.venv/
+editor/crash.log
+editor/tests/out/
+# .NET 构建产物
+runtime/MortalModHost/bin/
+runtime/MortalModHost/obj/
+runtime/MortalModHost/test/SmokeTest/bin/
+runtime/MortalModHost/test/SmokeTest/obj/
