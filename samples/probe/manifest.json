@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "id": "probe",
+  "name": "诊断探针",
+  "version": "0.1.0",
+  "author": "lom_modkit",
+  "description": "定位 snack_case 开局黑屏的诊断脚本，逐节点打日志标记",
+  "entry": "main"
+}

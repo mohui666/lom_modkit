@@ -1,0 +1,119 @@
+{
+  "id": "main",
+  "title": "点心大盗疑案·第一章：甩锅",
+  "start": "m1",
+  "nodes": [
+    { "id": "m1", "type": "music", "name": "普通_001" },
+    { "id": "m2", "type": "scene", "view": "black" },
+    { "id": "m3", "type": "cg", "action": "show", "kind": "title", "key": "第一章　点心大盗疑案" },
+    {
+      "id": "m4", "type": "say", "mode": "center",
+      "text": "我叫赵活。\n唐门弟子，外姓，男的，活的。"
+    },
+    {
+      "id": "m5", "type": "say", "mode": "center",
+      "text": "蜀中唐门，以暗器和毒闻名江湖。\n而你，是门中负责扫地、挑水、挨骂的那一个。"
+    },
+    { "id": "m6", "type": "transition", "phase": "in", "dir": "lr" },
+    { "id": "m7", "type": "scene", "view": "center" },
+    { "id": "m8", "type": "show", "character": "player", "position": "M", "portrait": "normal" },
+    {
+      "id": "m9", "type": "say", "mode": "character",
+      "character": "player", "portrait": "gloomy1",
+      "text": "长相平平，武功平平，运气平平。\n掌门看我的眼神，就像看一件会自己走路的家具。"
+    },
+    { "id": "m10", "type": "show", "character": "brother4", "position": "SR", "portrait": "angry1", "facing": "left" },
+    { "id": "m11", "type": "move", "character": "brother4", "from": "SR", "to": "R1", "duration": 0.5 },
+    { "id": "m12", "type": "shock", "character": "brother4", "duration": 0.5 },
+    { "id": "m13", "type": "intro", "character": "brother4" },
+    {
+      "id": "m14", "type": "say", "mode": "character",
+      "character": "brother4", "portrait": "angry1",
+      "text": "赵活！出大事了！天大的事！"
+    },
+    {
+      "id": "m15", "type": "say", "mode": "character",
+      "character": "player", "portrait": "nervous2",
+      "text": "四师兄，你踩到我刚扫好的叶子堆了。"
+    },
+    {
+      "id": "m16", "type": "say", "mode": "character",
+      "character": "brother4", "portrait": "angry2",
+      "text": "还管什么叶子！伙房供奉祖师爷的点心，昨夜让人偷了个精光！"
+    },
+    {
+      "id": "m17", "type": "say", "mode": "narrative",
+      "text": "唐惟元，唐门四师兄。\n平生两大绝技：把事情说得很大，把事情推给别人。"
+    },
+    {
+      "id": "m18", "type": "say", "mode": "character",
+      "character": "brother4", "portrait": "nervous1",
+      "text": "掌门大发雷霆，下令彻查。我身为师兄，日理万机，查案这种小事嘛……"
+    },
+    {
+      "id": "m19", "type": "say", "mode": "character",
+      "character": "player", "portrait": "doubt",
+      "text": "……就交给我了，是吧。"
+    },
+    {
+      "id": "m20", "type": "say", "mode": "character",
+      "character": "brother4", "portrait": "laugh1",
+      "text": "聪明！查不出来也不要紧，顶多给你收尸。去吧！"
+    },
+    {
+      "id": "m21", "type": "say", "mode": "think",
+      "character": "player", "portrait": "doubt",
+      "text": "等等……他嘴角那点红渣子，是豆沙吗。\n……算了，准是我眼花了。"
+    },
+    {
+      "id": "m22", "type": "say", "mode": "character",
+      "character": "brother4", "portrait": "normal",
+      "text": "查案之前，师兄我倒是好奇——你说你这种人，靠什么在唐门立足？"
+    },
+    {
+      "id": "m23", "type": "choice", "dialog": "Options",
+      "options": [
+        { "text": "靠一张嘴。", "goto": "mt1" },
+        { "text": "靠跑得快。", "goto": "md1" },
+        { "text": "靠一对拳头。", "goto": "mf1" }
+      ]
+    },
+    { "id": "mt1", "type": "stat", "key": "talking", "delta": 2 },
+    { "id": "mt2", "type": "talent", "talent": "0000", "level": 1 },
+    {
+      "id": "mt3", "type": "say", "mode": "character",
+      "character": "brother4", "portrait": "laugh1",
+      "text": "也是。武功没了还能练，嘴要是没了，你就真不剩什么了。",
+      "goto": "mg1"
+    },
+    { "id": "md1", "type": "stat", "key": "dexterity", "delta": 2 },
+    { "id": "md2", "type": "talent", "talent": "4011", "level": 1 },
+    {
+      "id": "md3", "type": "say", "mode": "character",
+      "character": "brother4", "portrait": "laugh1",
+      "text": "打不过就跑，确实是你一贯的风格。好，逃跑更快了。",
+      "goto": "mg1"
+    },
+    { "id": "mf1", "type": "stat", "key": "m-fist", "delta": 2 },
+    { "id": "mf2", "type": "talent", "talent": "3107", "level": 1 },
+    {
+      "id": "mf3", "type": "say", "mode": "character",
+      "character": "brother4", "portrait": "laugh2",
+      "text": "你那套苦恼拳，敌人看了都替你苦恼。行，挺配你。",
+      "goto": "mg1"
+    },
+    { "id": "mg1", "type": "panel", "panel": "martial", "mode": 0 },
+    {
+      "id": "mg2", "type": "say", "mode": "think",
+      "character": "player", "portrait": "gloomy1",
+      "text": "翻开武学面板看了一眼。\n……合上吧。有些东西，不看也罢。"
+    },
+    { "id": "mg3", "type": "hide", "character": "brother4", "fadeDuration": 0.5 },
+    { "id": "mg4", "type": "autosave", "kind": "story" },
+    {
+      "id": "mg5", "type": "say", "mode": "narrative",
+      "text": "四师兄甩着袖子走了，背影透着一股说不出来的心虚。\n先去哪儿呢——去练功场转转吧。"
+    },
+    { "id": "mg6", "type": "end" }
+  ]
+}

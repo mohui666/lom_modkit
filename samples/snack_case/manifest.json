@@ -1,0 +1,16 @@
+{
+  "format": 1,
+  "id": "snack_case",
+  "name": "点心大盗疑案",
+  "version": "1.0.0",
+  "author": "lom_modkit",
+  "description": "唐门伙房供奉祖师爷的点心一夜失窃，四师兄唐惟元贼喊捉贼，把查案甩给了赵活。武侠日常喜剧悬疑短剧：开局加点、骰子判定、五个结局。",
+  "entry": "main",
+  "campaign": {
+    "new_game": true,
+    "triggers": [
+      { "type": "position", "position": "Center", "script": "clue", "when_flag_clear": "SNACK_CASE_SOLVED" },
+      { "type": "position", "position": "Kitchen", "script": "kitchen" }
+    ]
+  }
+}

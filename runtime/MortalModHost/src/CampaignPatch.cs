@@ -11,7 +11,9 @@ namespace MortalModHost
     /// Harmony postfix：<c>SaveSystem.NewGameData()</c>（契约 §6.4）。
     /// 官方方法硬编码首脚本 ch1_1（Mortal.Core.decompiled.cs:4807）；点击"开始新战役"时
     /// Plugin 先把 mod 记入 <see cref="PendingCampaign"/>，这里在官方初始化完成后把首个剧情脚本
-    /// 替换为该 mod 的入口注册名，并清空挂起状态。
+    /// 替换为该 mod 的入口注册名，再调一次 <c>SaveGameData()</c> 把修正后的状态重写进隔离槽存档
+    /// （官方在 postfix 之前落盘的那份存档里首脚本仍是 ch1_1，不重写会导致读档被拉回官方序章），
+    /// 最后清空挂起状态。
     /// </summary>
     [HarmonyPatch(typeof(SaveSystem), "NewGameData")]
     internal static class NewGameDataPatch
@@ -22,7 +24,7 @@ namespace MortalModHost
         /// <summary>待开局的战役 mod；null 表示本次 NewGameData 是官方正常开局，不干预。</summary>
         internal static ModPackage PendingCampaign;
 
-        private static void Postfix()
+        private static void Postfix(SaveSystem __instance)
         {
             ModPackage mod = PendingCampaign;
             if (mod == null) return;
@@ -39,6 +41,14 @@ namespace MortalModHost
                 stat.SetStoryScript(registered);
                 stat.SetStartScript(registered);
                 Log.LogInfo("新战役首脚本已替换：" + registered + "（mod " + mod.Id + "）");
+
+                // 存档污染修复：NewGameData 内部在本 postfix 之前已 CreateSaveData() 落盘，
+                // 存档里 StartStoryScript 仍是官方 ch1_1（读档会被拉回官方序章）。
+                // 这里重存一次当前槽（_currentSlot 已是 "mod_<modid>" 隔离槽）。
+                // 无递归风险：SaveGameData 只做 CreateSaveData+ExecuteSaveData，不会回调 NewGameData；
+                // 双写也只是同槽顺序覆盖（先官方 ch1_1 后本修正），无并发冲突。
+                __instance.SaveGameData();
+                Log.LogInfo("隔离槽存档已重写，StartStoryScript = " + registered);
             }
             catch (Exception ex)
             {
