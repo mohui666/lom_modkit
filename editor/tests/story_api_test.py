@@ -85,7 +85,7 @@ ALL_TYPES = [
 ]
 
 # 官方元数据检查点（data/editor_data.json 的 dice_meta）
-DICE_2BAND = "Travel_601_101_001"  # 2 个结果带：无独立大成功档
+DICE_2BAND = "S0205_01_001"  # 2 个结果带：无独立大成功档（故事检查点）
 DICE_3BAND = "Ch_6_8_2_Break_01_001"  # 3 个结果带：必填 goto_大成功
 
 
@@ -128,7 +128,9 @@ class TestNewStory(unittest.TestCase):
         self.assertIs(s3["mood"], True, "mood=True 应写入 story")
         with self.assertRaises(ValueError, msg="mood 非 bool 应抛 ValueError"):
             story_api.new_story(
-                story_id="case_c", title="坏", mood="yes"  # type: ignore[reportArgumentType] 故意传非法类型
+                story_id="case_c",
+                title="坏",
+                mood="yes",  # type: ignore[reportArgumentType] 故意传非法类型
             )
 
 
@@ -376,7 +378,9 @@ class TestAddDeath(unittest.TestCase):
     def test_empty_text_rejected(self):
         story = base_story()
         for bad in ("", "   ", None, 123):
-            with self.assertRaises(ValueError, msg=f"空/非法 text 应抛 ValueError: {bad!r}"):
+            with self.assertRaises(
+                ValueError, msg=f"空/非法 text 应抛 ValueError: {bad!r}"
+            ):
                 # 故意传非法类型验证校验层
                 story_api.add_death(story, bad)  # type: ignore[reportArgumentType]
 
@@ -396,9 +400,7 @@ class TestAddDeath(unittest.TestCase):
         node = story_api.add_death(story, "命数已尽。", next="Title")
         lua, errors, _warnings = story_api.compile_story(story)
         assert lua is not None, f"death 剧情应编译成功：{errors}"
-        self.assertIn(
-            'luamanager.GetStoryText("MOD_MOD_main_%s")' % node["id"], lua
-        )
+        self.assertIn('luamanager.GetStoryText("MOD_MOD_main_%s")' % node["id"], lua)
         self.assertIn('luamanager.ChangeScene("Title", "", "")', lua)
 
 
@@ -515,7 +517,8 @@ class TestPackMod(unittest.TestCase):
                 self.assertIn("function", lua, "包内 Lua 应为编译产物")
                 texts = json.loads(zf.read("texts.json").decode("utf-8"))
                 self.assertEqual(
-                    texts.get("MOD_api_test_mod_main_n2"), "打包测试文本。",
+                    texts.get("MOD_api_test_mod_main_n2"),
+                    "打包测试文本。",
                     "texts.json 应含 say 文本（key=MOD_<modid>_<scriptid>_<nodeid>）",
                 )
                 self.assertIn("MOD_api_test_mod_main_n1", texts, "起始 say 也应入表")

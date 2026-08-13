@@ -4,7 +4,8 @@
 - 每个节点编译为 node_<id>() 函数；文件头前向声明
   `local node_n1, node_n2, ...`，然后 `node_nX = function() ... end`；
   流转用尾调用 `return node_<goto>()`；顶层 `return node_<start>()`。
-- 脚本开头 emit `modflags = modflags or {}`（mod 内 flag 表）。
+- 脚本开头 emit `modflags = modflags or {}`（mod 内 flag 表）与
+  `mod_set_mood(true/false)`（story 顶层 mood 声明，默认 false）。
 - 各节点 emit 范式逐条对应契约 §4（官方脚本实证，raw_scripts/ 可参考）。
 - choice/branch/dice/end/goto_scene 自带流转，不追加顺序/goto 行；
   其余节点末尾追加 return node_<goto 或顺序下一节点>()。
@@ -781,6 +782,10 @@ def story_to_lua(story, mod_info=None, source=None):
     # 契约 §4：每个脚本开头初始化 mod 内 flag 表（全局表，链式脚本间共享）
     lines.append("-- mod 内剧情 flag 表（不存档，重进游戏清零）")
     lines.append("modflags = modflags or {}")
+    # 契约 §4：mood 声明——每个脚本开头声明本脚本心情气泡开关（story 顶层
+    # mood 字段，默认 false）；运行时插件注册 mod_set_mood 全局并硬控 ShowMood，
+    # 与 mod_hide_mood 双保险防官方情绪面板干扰剧情演出。
+    lines.append("mod_set_mood(%s)" % ("true" if ctx["mood"] else "false"))
     lines.append("")
 
     # 前向声明全部节点函数：Lua 的 local function 无法引用后定义的 local，

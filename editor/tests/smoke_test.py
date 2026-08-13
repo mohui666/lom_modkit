@@ -182,9 +182,7 @@ def main_fn() -> int:
     # v3：汉化覆盖 + schema 2 + 新节点表单 + manifest campaign 对话框
     # ------------------------------------------------------------------
     # 39 种节点类型中文名全覆盖；菜单分组与类型表一一对应
-    assert len(models.NODE_TYPES) == 39, (
-        f"契约应有 39 种节点：{len(models.NODE_TYPES)}"
-    )
+    assert len(models.NODE_TYPES) == 39, f"契约应有 39 种节点：{len(models.NODE_TYPES)}"
     assert set(models.NODE_TYPE_CN) == set(models.NODE_TYPES), "NODE_TYPE_CN 未全覆盖"
     grouped = [t for _g, ts in models.NODE_GROUPS for t in ts]
     assert sorted(grouped) == sorted(models.NODE_TYPES), "NODE_GROUPS 与类型表不一致"

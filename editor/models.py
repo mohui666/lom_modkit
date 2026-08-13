@@ -103,7 +103,10 @@ NODE_GROUPS: list[tuple[str, list[str]]] = [
             "autosave",
         ],
     ),
-    ("流程类", ["branch", "dice", "goto_scene", "panel", "wait", "end", "death", "raw"]),
+    (
+        "流程类",
+        ["branch", "dice", "goto_scene", "panel", "wait", "end", "death", "raw"],
+    ),
 ]
 
 # ---------------------------------------------------------------------------

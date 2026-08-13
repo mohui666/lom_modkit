@@ -62,5 +62,38 @@ namespace MortalModHost
                     translation.Data = pair.Value;
             }
         }
+
+        /// <summary>
+        /// 契约 §A 自检（Plugin.Awake 首次注册后调一次）：报告注册条数，并取第一条文本做样本
+        /// 校验——GetTranslationText("Story/"+key) 与原文不一致说明注册未生效（台词会退化显示 key
+        /// 本身）。只取第一条避免逐条刷日志；replaceTokens=false 保证与原文逐字符比对。
+        /// </summary>
+        public static void SelfCheck(Action<string> logInfo, Action<string> logWarn)
+        {
+            if (logInfo != null)
+                logInfo("已读文本已注册：" + Count + " 条");
+            if (_texts.Count == 0) return;
+            using (var enumerator = _texts.GetEnumerator())
+            {
+                enumerator.MoveNext();
+                KeyValuePair<string, string> first = enumerator.Current;
+                string actual;
+                try
+                {
+                    actual = LeanLocalization.GetTranslationText(Prefix + first.Key, null, false);
+                }
+                catch (Exception ex)
+                {
+                    if (logWarn != null)
+                        logWarn("已读文本注册自检失败：" + first.Key + "（GetTranslationText 抛异常：" + ex.Message + "）");
+                    return;
+                }
+                if (actual != first.Value)
+                {
+                    if (logWarn != null)
+                        logWarn("已读文本注册自检失败：" + first.Key + " 解析为 " + (actual == null ? "(null)" : actual));
+                }
+            }
+        }
     }
 }

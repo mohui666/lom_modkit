@@ -65,12 +65,13 @@ namespace MortalModHost
             try
             {
                 ReadTextRegistry.Apply();
-                Logger.LogInfo("已读文本注册完成：" + ReadTextRegistry.Count + " 条（LeanLocalization 解析名 Story/MOD_...）。");
             }
             catch (Exception ex)
             {
                 Logger.LogError("已读文本注册进 LeanLocalization 失败（mod 台词将退化为裸文本）：" + ex);
             }
+            // 契约 §A 自检：报告注册条数 + 第一条文本样本比对（不一致说明 wipe 后未恢复，台词会退化显示 key）
+            ReadTextRegistry.SelfCheck(msg => Logger.LogInfo(msg), msg => Logger.LogWarning(msg));
 
             foreach (var mod in LoadedMods)
                 Logger.LogInfo(FormatModSummary(mod));
@@ -122,6 +123,8 @@ namespace MortalModHost
             LuaManagerPatch.Log = Logger;
             NewGameDataPatch.Log = Logger;
             FreePositionPatch.Log = Logger;
+            MoodControl.Log = Logger;
+            ReadTextPatch.Log = Logger;
 
             bool ok = true;
             ok &= CheckTarget("LuaManager.ExecuteLuaScript",
@@ -134,13 +137,17 @@ namespace MortalModHost
                 AccessTools.Field(typeof(PositionController), "_positionData"));
             ok &= CheckTarget("PositionController._position",
                 AccessTools.Field(typeof(PositionController), "_position"));
+            ok &= CheckTarget("LeanLocalization.UpdateTranslations(bool)",
+                AccessTools.Method(typeof(Lean.Localization.LeanLocalization), "UpdateTranslations", new Type[] { typeof(bool) }));
+            ok &= CheckTarget("StoryCharacterController.ShowMood",
+                AccessTools.Method(typeof(StoryCharacterController), "ShowMood", new Type[0]));
             if (!ok)
             {
                 Logger.LogError("部分 Harmony 目标缺失（游戏版本可能已变更），战役/触发器功能可能不可用");
                 return;
             }
             new Harmony(GUID).PatchAll(); // patch 本程序集全部 [HarmonyPatch] 类
-            Logger.LogInfo("Harmony patch 已挂载：ExecuteLuaScript prefix / NewGameData postfix / GetExecuteScript postfix");
+            Logger.LogInfo("Harmony patch 已挂载：ExecuteLuaScript prefix / NewGameData postfix / GetExecuteScript postfix / UpdateTranslations postfix / StoryCharacterController.ShowMood postfix");
         }
 
         private bool CheckTarget(string name, MemberInfo member)

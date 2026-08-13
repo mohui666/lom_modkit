@@ -682,7 +682,7 @@
     {
       "id": "pd_dice",
       "type": "dice",
-      "check": "Travel_601_503_001",
+      "check": "S0120_01_001",
       "options": [
         {
           "goto_大成功": "pd_win",

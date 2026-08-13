@@ -135,13 +135,13 @@ assets/                # 预留（自定义图片/音频），v1 运行时忽略
 
 - 每个节点编译为一个 Lua 函数；文件头前向声明 `local node_n1, node_n2, ...`，然后 `node_nX = function() ... end`；流转尾调用 `return node_<goto>()`；顶层 `return node_<start>()`。
 - 文本转义：`\`→`\\`，`"`→`\"`，换行→`\n`，`\r`→`\r`。
-- 每个脚本开头 emit `modflags = modflags or {}`（全局表，Story 场景会话内持续，链式脚本共享；不存档）。
+- 每个脚本开头 emit `modflags = modflags or {}`（全局表，Story 场景会话内持续，链式脚本共享；不存档），紧跟一行 `mod_set_mood(true|false)`（story 顶层 mood 声明，默认 false；见 §6）。
 - `flag` 节点双 emit：`AddStory` + `modflags[flag]=true`。
 - **分支兜底**：choice 外任何多路结构不允许静默落空——未命中 case 时 else 落顺序下一节点；无法兜底（branch 为末节点且未覆盖全部返回值）视为校验错误。
 - 节点 id 字符集 `[a-zA-Z0-9_]+`（脚本 id 允许 `-`）。
 - story 顶层 `title` 可选。
 - **已读 key 规则**：所有 say（character/think/narrative/center）与 death 节点的文本一律发射 `say(luamanager.GetStoryText(key))`，key = `MOD_<modid>_<scriptid>_<nodeid>`；modid 来自 manifest（打包时），独立 build/编辑器预览缺省时用 "MOD" 兜底（预览显示兜底 key 可接受）。key 与文本本体（包内 texts.json）由打包器同步生成。
-- **mood 规则**：story.mood（可选 bool，默认 false）为 false 时，show 节点末尾（Focus 之后）与 say 节点 say(...) 前后各发射一次 `mod_hide_mood()`（运行时插件注册的全局函数，隐藏官方圆形情绪面板）；true 时不发射。
+- **mood 规则**：story.mood（可选 bool，默认 false）。每个脚本头部（modflags 行之后）必发射 `mod_set_mood(false)` 或 `mod_set_mood(true)`（运行时插件注册的全局声明，硬控心情面板，见 §6）；mood=false 时另在 show 节点末尾（Focus 之后）与 say 节点 say(...) 前后各发射一次 `mod_hide_mood()`（隐藏官方圆形情绪面板）；true 时不发射 mod_hide_mood。
 - **death 发射**：见 §3.1 death 行（runblock out → ViewName="black" → runblock view → setsaydialog(center) → sayoptions 两行 → setcharacter(narrative) → say(GetStoryText(key)) → ChangeScene(next,"","")）。
 - 最后一个节点不是 `end`/`death`/`goto_scene`/`raw` 且无 goto → 校验错误。
 - `choice`/`branch`/`dice`/`end`/`death`/`goto_scene` 写显式 `goto` → 校验错误。
@@ -204,16 +204,16 @@ if modflags["SOME_FLAG_ID"] then return node_a() else return node_b() end
 -- branch（source="game"，else 兜底）
 local branch1 = checkpointmanager.Switch("S0003_01_001")
 if branch1 == 1 then return node_a() elseif branch1 == 2 then return node_b() else return node_next() end
--- dice（check 必须是带官方元数据的检查点；范围/带数/带文本来自 dice_meta）
+-- dice（check 必须是带官方元数据的检查点；范围/带数/带文本来自 dice_meta，仅故事场景检查点）
 setmenudialog(menudialogs.Dice)
-local dice_rand1 = math.random(60)
-dicemenudialog.SetRandom(60, dice_rand1)
-local dice_result1 = checkpointmanager.Dice("Travel_601_101_001", dice_rand1)
+local dice_rand1 = math.random(99)
+dicemenudialog.SetRandom(99, dice_rand1)
+local dice_result1 = checkpointmanager.Dice("S0205_01_001", dice_rand1)
 local dice_opts1 = {}
-dice_opts1[1] = "O_Travel_601_101_004|<60"
-dice_opts1[2] = "O_Travel_601_101_005|>=60"
+dice_opts1[1] = "O_S0205_01_001|<40"
+dice_opts1[2] = "O_S0205_01_002|>=40"
 dicemenudialog.Setup(dice_result1.ResultCount, dice_result1.Result, dice_result1.Header, dice_result1.Additions)
-runwait(dicemenudialog.ExecuteRoll(dice_opts1, 1, "Travel_601_101_001"))
+runwait(dicemenudialog.ExecuteRoll(dice_opts1, 1, "S0205_01_001"))
 local dice_sel1 = dicemenudialog.ResultSelection
 -- 分支按带质量：最差带→失败，最优带→大成功（2带→成功）
 if dice_sel1 == 1 then return node_fail() else return node_ok() end
@@ -247,7 +247,7 @@ luamanager.ChangeScene("Title", "", "")
 
 ## 5. data/editor_data.json — 编辑器数据契约（schema 3）
 
-由 `tools/extract_editor_data.py` 生成。schema 2 起 `characters`/`stats`/`positions`/`views`/`music`/`free_positions` 均为 `{id, name}` 对象数组（characters 另有 portraits）；schema 3 新增 `dice_meta`（骰子检查点元数据，从官方脚本调用点提取：`{check: {max, bands: [{text, cond}]}}`，bands 按官方展示顺序）：
+由 `tools/extract_editor_data.py` 生成。schema 2 起 `characters`/`stats`/`positions`/`views`/`music`/`free_positions` 均为 `{id, name}` 对象数组（characters 另有 portraits）；schema 3 新增 `dice_meta`（骰子检查点元数据，从官方脚本调用点提取：`{check: {max, bands: [{text, cond}]}}`，bands 按官方展示顺序）。**dice_meta 仅含故事场景检查点**：旅行系统检查点（Travel_*，只存在于旅行系统配置，故事场景的 CheckPointManager 查不到会崩）已剔除——提取时排除旅行脚本（文件名含 travel_ 前缀/_travel 子串，或被 SetCurrentTravelScript/SetTempScript 引用的脚本）。`dice_checks` 是全名清单，保留全部调用点（含旅行）：
 
 ```json
 {
@@ -261,8 +261,8 @@ luamanager.ChangeScene("Title", "", "")
   "modes": ["character", "think", "narrative", "center"],
   "menu_dialogs": ["Options", "Talk", "Meet", "Center", "..."],
   "effects": [{"id": "Hit_001", "name": "Hit_001"}],
-  "dice_checks": ["Travel_601_101_001"],
-  "dice_meta": {"Travel_601_101_001": {"max": 60, "bands": [{"text": "O_Travel_601_101_004", "cond": "<60"}, {"text": "O_Travel_601_101_005", "cond": ">=60"}]}},
+  "dice_checks": ["S0205_01_001", "Travel_601_101_001"],
+  "dice_meta": {"S0205_01_001": {"max": 99, "bands": [{"text": "O_S0205_01_001", "cond": "<40"}, {"text": "O_S0205_01_002", "cond": ">=40"}]}},
   "combat_ids": ["5102_01"],
   "battle_ids": ["A0001_01"],
   "ending_ids": ["20003"],
@@ -287,6 +287,8 @@ luamanager.ChangeScene("Title", "", "")
 7. mod 不修改官方脚本与文本表；mod 的 flag 进 StoryKeyList，存档兼容。
 8. **texts.json 注册**：加载 .lommod 时把包内 texts.json 的 key→文本注册进 LeanLocalization，key 解析为 `Story/`+key 的本地化文本；`GetStoryText` 按 key 查已读系统：已读→黄色+可快进，未读→正常色+记入已读，查不到返回 key 本身。
 9. **mod_hide_mood**：注册全局 Lua 函数 `mod_hide_mood()`（无参），隐藏全场角色圆形情绪面板（CharacterMoodPanel）；编译器按 story.mood 开关在 show/say 处发射（见 §4）。
+10. **mod_set_mood**：注册全局 Lua 函数 `mod_set_mood(bool)`，按脚本头部声明（story 顶层 mood，默认 false）硬控官方心情面板开关（ShowMood）——每个 mod 脚本入口处发射一次（见 §4），链式脚本逐脚本切换生效；与 mod_hide_mood 双保险防官方情绪面板干扰剧情演出。
+11. **UpdateTranslations 防 wipe**：官方文本刷新（UpdateTranslations / LeanLocalization 重建）会清掉插件注册的 mod 文本，必须 hook 并在刷新后重放 texts.json 的 key→文本注册（加载时缓存全部注册项），保证 GetStoryText 的 mod key 永不失效。
 
 ## 7. AI 工具接口（story_api）
 

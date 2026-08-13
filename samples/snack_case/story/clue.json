@@ -181,7 +181,7 @@
     {
       "id": "c30",
       "type": "dice",
-      "check": "Travel_601_101_001",
+      "check": "S0205_01_001",
       "options": [
         {
           "goto_大成功": "c31",

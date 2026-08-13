@@ -86,6 +86,12 @@ class TestCompileValid(unittest.TestCase):
             lines.index("modflags = modflags or {}"),
             lines.index("local node_n1, node_nend"),
         )
+        # 契约 §4：mood 声明（story 顶层 mood 默认 false）紧跟 modflags 行
+        self.assertIn("mod_set_mood(false)", lines)
+        self.assertEqual(
+            lines.index("mod_set_mood(false)"),
+            lines.index("modflags = modflags or {}") + 1,
+        )
 
     def test_implicit_and_explicit_goto(self):
         lua = compile_story(
@@ -311,17 +317,25 @@ class TestNodeCodegen(unittest.TestCase):
         self.assertIn('\tsay(luamanager.GetStoryText("MOD_testmod_main_n1"))', lua)
 
     def test_mood_hide_default(self):
-        # story.mood 缺省 false：show 末尾 / say 前后各发射一次 mod_hide_mood()
+        # story.mood 缺省 false：发射 mod_set_mood(false)；show 末尾 / say 前后各发射一次 mod_hide_mood()
         lua = compile_story(
             make_story(
                 [
-                    {"id": "n1", "type": "show", "character": "player", "position": "M"},
+                    {
+                        "id": "n1",
+                        "type": "show",
+                        "character": "player",
+                        "position": "M",
+                    },
                     {"id": "n2", "type": "say", "mode": "narrative", "text": "台词"},
                     {"id": "nend", "type": "end"},
                 ]
             )
         )
         self.assertEqual(lua.count("mod_hide_mood()"), 3)
+        # mood 声明：默认 false 发射在脚本头部（与 modflags 相邻）
+        self.assertIn("mod_set_mood(false)", lua)
+        self.assertNotIn("mod_set_mood(true)", lua)
         # show：Focus 之后（首个 hide 在 show 块里）
         self.assertLess(
             lua.index('characters.Focus("player")'),
@@ -333,7 +347,7 @@ class TestNodeCodegen(unittest.TestCase):
         self.assertGreater(lua.index("mod_hide_mood()", i), i)
 
     def test_mood_true_keeps_bubbles(self):
-        # story.mood=true：不发射 mod_hide_mood
+        # story.mood=true：发射 mod_set_mood(true)，不发射 mod_hide_mood
         story = make_story(
             [
                 {"id": "n1", "type": "show", "character": "player", "position": "M"},
@@ -344,6 +358,8 @@ class TestNodeCodegen(unittest.TestCase):
         story["mood"] = True
         lua = compile_story(story)
         self.assertNotIn("mod_hide_mood", lua)
+        self.assertIn("mod_set_mood(true)", lua)
+        self.assertNotIn("mod_set_mood(false)", lua)
 
     def test_death(self):
         # 死亡文本节点：黑屏 + 居中旁白（已读 key）+ 场景跳转；自带收尾不加流转行
@@ -351,7 +367,12 @@ class TestNodeCodegen(unittest.TestCase):
             make_story(
                 [
                     {"id": "n1", "type": "music", "name": "普通_001"},
-                    {"id": "n2", "type": "death", "text": "你坠入山崖，万事休矣。", "next": "Title"},
+                    {
+                        "id": "n2",
+                        "type": "death",
+                        "text": "你坠入山崖，万事休矣。",
+                        "next": "Title",
+                    },
                 ]
             )
         )
@@ -988,7 +1009,12 @@ class TestPack(unittest.TestCase):
         main = make_story(
             [
                 {"id": "n1", "type": "music", "name": "普通_001"},
-                {"id": "n2", "type": "say", "mode": "narrative", "text": "打包对话文本"},
+                {
+                    "id": "n2",
+                    "type": "say",
+                    "mode": "narrative",
+                    "text": "打包对话文本",
+                },
                 {"id": "n3", "type": "end", "next_script": "extra"},
             ]
         )
@@ -1545,12 +1571,12 @@ class TestNewNodeCodegen(unittest.TestCase):
         self.assertIn("\tluamanager.ToggleSaveButton(1)", lua)
 
     def test_dice(self):
-        # Travel_601_101_001：官方 2 结果带、骰子范围 60（travel_result_601_101 实证）
+        # S0205_01_001：官方 2 结果带、骰子范围 99（S0205_01 故事脚本实证）
         lua = self.lua_of(
             {
                 "id": "n1",
                 "type": "dice",
-                "check": "Travel_601_101_001",
+                "check": "S0205_01_001",
                 "options": [
                     {
                         "goto_大成功": "",  # 2 带无独立大成功档，允许空
@@ -1563,18 +1589,18 @@ class TestNewNodeCodegen(unittest.TestCase):
             {"id": "nb", "type": "focus", "character": "brother4"},
         )
         self.assertIn("\tsetmenudialog(menudialogs.Dice)", lua)
-        self.assertIn("\tlocal dice_rand1 = math.random(60)", lua)
-        self.assertIn("\tdicemenudialog.SetRandom(60, dice_rand1)", lua)
+        self.assertIn("\tlocal dice_rand1 = math.random(99)", lua)
+        self.assertIn("\tdicemenudialog.SetRandom(99, dice_rand1)", lua)
         self.assertIn(
-            '\tlocal dice_result1 = checkpointmanager.Dice("Travel_601_101_001", dice_rand1)',
+            '\tlocal dice_result1 = checkpointmanager.Dice("S0205_01_001", dice_rand1)',
             lua,
         )
         self.assertIn("\tlocal dice_opts1 = {}", lua)
         # 官方结果带（差→好）：文本+条件逐带发射
-        self.assertIn('\tdice_opts1[1] = "O_Travel_601_101_004|<60"', lua)
-        self.assertIn('\tdice_opts1[2] = "O_Travel_601_101_005|>=60"', lua)
+        self.assertIn('\tdice_opts1[1] = "O_S0205_01_001|<40"', lua)
+        self.assertIn('\tdice_opts1[2] = "O_S0205_01_002|>=40"', lua)
         self.assertIn(
-            '\trunwait(dicemenudialog.ExecuteRoll(dice_opts1, 1, "Travel_601_101_001"))',
+            '\trunwait(dicemenudialog.ExecuteRoll(dice_opts1, 1, "S0205_01_001"))',
             lua,
         )
         self.assertIn("\tlocal dice_sel1 = dicemenudialog.ResultSelection", lua)
@@ -1742,7 +1768,7 @@ class TestNewNodeCodegen(unittest.TestCase):
             {
                 "id": "n2",
                 "type": "dice",
-                "check": "Travel_601_101_001",
+                "check": "S0205_01_001",
                 "options": [
                     {
                         "goto_大成功": "",
@@ -1942,7 +1968,7 @@ class TestNewNodeValidationErrors(unittest.TestCase):
                     {
                         "id": "n1",
                         "type": "dice",
-                        "check": "Travel_601_101_001",
+                        "check": "S0205_01_001",
                         "options": options,
                     }
                 ),
@@ -1975,7 +2001,7 @@ class TestNewNodeValidationErrors(unittest.TestCase):
                 {
                     "id": "n1",
                     "type": "dice",
-                    "check": "Travel_601_101_001",
+                    "check": "S0205_01_001",
                     "options": [
                         {"goto_大成功": "", "goto_成功": "", "goto_失败": "nend"}
                     ],
@@ -2005,7 +2031,7 @@ class TestNewNodeValidationErrors(unittest.TestCase):
                 {
                     "id": "n1",
                     "type": "dice",
-                    "check": "Travel_601_101_001",
+                    "check": "S0205_01_001",
                     "options": [
                         {"goto_大成功": "", "goto_成功": "ghost", "goto_失败": "nend"}
                     ],
@@ -2037,7 +2063,7 @@ class TestNewNodeValidationErrors(unittest.TestCase):
                 {
                     "id": "n1",
                     "type": "dice",
-                    "check": "Travel_601_101_001",
+                    "check": "S0205_01_001",
                     "goto": "nend",
                     "options": [
                         {"goto_大成功": "", "goto_成功": "nend", "goto_失败": "nend"}
@@ -2160,7 +2186,7 @@ class TestWarnings(unittest.TestCase):
                 {
                     "id": "n1",
                     "type": "dice",
-                    "check": "Travel_601_101_001",
+                    "check": "S0205_01_001",
                     "options": [
                         {"goto_大成功": "na", "goto_成功": "nb", "goto_失败": "nb"}
                     ],

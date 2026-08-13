@@ -38,7 +38,8 @@ def pack_mod(mod_dir, output=None):
         raise LomcError("mod 目录缺少 story/ 子目录: %s" % mod_dir)
     try:
         story_files = sorted(
-            f for f in os.listdir(story_dir)
+            f
+            for f in os.listdir(story_dir)
             if f.endswith(".json") and os.path.isfile(os.path.join(story_dir, f))
         )
     except OSError as e:

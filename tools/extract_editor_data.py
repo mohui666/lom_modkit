@@ -110,13 +110,50 @@ def _to_int(text):
         return 0
 
 
-def extract_dice_meta(text):
+def collect_travel_scripts(files):
+    """扫出旅行脚本集合（骰子元数据提取必须排除），返回 {脚本名（不含 .lua.txt）}。
+
+    旅行系统的检查点（Travel_*）只存在于旅行系统配置里，故事场景的
+    CheckPointManager 查不到（用户实测骰子菜单崩溃）。旅行脚本由两条规则识别：
+    1. 文件名：travel_ 前缀或 _travel 子串（travel_result_* 等旅行系统配置脚本）；
+    2. 引用：被任意脚本 SetCurrentTravelScript("X") / SetTempScript(..., "X")
+       引用的脚本（如 S0208_04_01_02、S2501_01_travel、section_01_free_start_01），
+       这些脚本由旅行系统注册运行，检查点同样进旅行配置而非故事场景。
+    """
+    re_cur = re.compile(r'SetCurrentTravelScript\(')
+    re_ref = re.compile(r'SetCurrentTravelScript\("([^"]+)"\)|SetTempScript\([^,]+,\s*"([^"]+)"\)')
+    referred = set()
+    for fn in files:
+        try:
+            with open(os.path.join(SCRIPTS_DIR, fn), "r", encoding="utf-8", errors="replace") as f:
+                text = f.read()
+        except OSError:
+            continue
+        if not re_cur.search(text) and "SetTempScript" not in text:
+            continue  # 无旅行引用，跳过正则扫描
+        for a, b in re_ref.findall(text):
+            referred.add(a or b)
+    return {
+        fn[: -len(".lua.txt")]
+        for fn in files
+        if fn[: -len(".lua.txt")].lower().startswith("travel_")
+        or "_travel" in fn[: -len(".lua.txt")].lower()
+        or fn[: -len(".lua.txt")] in referred
+    }
+
+
+def extract_dice_meta(text, travel=False):
     """从一个官方脚本里提取骰子检查点元数据：{check: {max, bands}}。
 
     每个 checkpointmanager.Dice("X", ...) 调用点：向前 12 行找骰子范围
     （math.random(N) / SetRandom(N, ...)），向后到 ExecuteRoll 收集结果带
     （dice_xxx[i] = "文本|条件"）。同检查点多次出现时保留首次提取的结果。
+
+    travel=True 时整个脚本的 dice 调用点都不提取：旅行检查点只存在于旅行系统
+    配置，故事场景查不到（骰子菜单会崩），见 collect_travel_scripts。
     """
+    if travel:
+        return {}
     meta = {}
     lines = text.splitlines()
     for i, line in enumerate(lines):
@@ -264,8 +301,11 @@ def main():
     except OSError as e:
         print("无法读取脚本目录 %s: %s" % (SCRIPTS_DIR, e), file=sys.stderr)
         return 1
+    # 旅行脚本集合：骰子检查点元数据只提取故事场景可用的（旅行检查点剔除）
+    travel_scripts = collect_travel_scripts(files)
     for fn in files:
         path = os.path.join(SCRIPTS_DIR, fn)
+        base = fn[: -len(".lua.txt")]
         try:
             with open(path, "r", encoding="utf-8", errors="replace") as f:
                 text = f.read()
@@ -284,8 +324,8 @@ def main():
             positions.update(RE_TO_POS.findall(block))
         menu_dialogs.update(RE_MENU_DIALOG.findall(text))
         effects_found.update(RE_EFFECT.findall(text))
-        dice_checks.update(RE_DICE.findall(text))
-        for check, meta in extract_dice_meta(text).items():
+        dice_checks.update(RE_DICE.findall(text))  # 全名清单保留（含旅行检查点）
+        for check, meta in extract_dice_meta(text, travel=base in travel_scripts).items():
             dice_meta.setdefault(check, meta)
         combat_ids.update(RE_COMBAT.findall(text))
         battle_ids.update(RE_BATTLE.findall(text))
@@ -364,6 +404,7 @@ def main():
         sum(1 for i in ids if i in table),
     )
     print("脚本数: %d" % len(files))
+    print("旅行脚本数（骰子元数据剔除）: %d" % len(travel_scripts))
     print("人物数: %d" % len(characters))
     print("场景数: %s" % hit(views, view_names))
     print("音乐数: %d" % len(music))
