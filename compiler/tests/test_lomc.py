@@ -561,6 +561,60 @@ class TestValidationErrors(unittest.TestCase):
             'goto 指向不存在的节点 "ghost"',
         )
 
+    def test_choice_dialog_restricted_to_options(self):
+        # 其余皮肤是自由场景 break 格式菜单，纯文本选项会崩溃（BreakOptionButton）
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "choice",
+                    "dialog": "Talk",
+                    "options": [
+                        {"text": "甲", "goto": "nend"},
+                        {"text": "乙", "goto": "nend"},
+                    ],
+                }
+            ),
+            'dialog 只支持 "Options"',
+            "BreakOptionButton",
+        )
+        # Options 正常通过
+        validate_story(
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "choice",
+                    "options": [
+                        {"text": "甲", "goto": "nend"},
+                        {"text": "乙", "goto": "nend"},
+                    ],
+                }
+            )
+        )
+
+    def test_say_loads_character_portrait(self):
+        # 表情差分：say/show 必须发射 LoadCharacterPortrait（官方 93% 用法实证），
+        # 否则台上人物立绘不随表情切换，只有气泡变
+        lua = compile_story(
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "say",
+                    "character": "player",
+                    "portrait": "nervous1",
+                    "text": "对话",
+                }
+            )
+        )
+        self.assertIn('	characters.LoadCharacterPortrait("player", "nervous1")', lua)
+        lua_show = compile_story(
+            linear_story(
+                {"id": "n1", "type": "show", "character": "player", "position": "M"}
+            )
+        )
+        self.assertIn('	characters.LoadCharacterPortrait("player", "normal")', lua_show)
+
     def test_choice_option_count(self):
         for options in (
             [{"text": "一", "goto": "nend"}],
@@ -1497,9 +1551,16 @@ class TestNewNodeCodegen(unittest.TestCase):
             self.assertIn('dice_opts1[3] = "C|<=40"', lua)
             # 分支按质量：selection 1（>80 最优）→ 大成功；2（>40）→ 成功；3（<=40）→ 失败
             tab, nl = chr(9), chr(10)
-            self.assertIn(tab + "if dice_sel1 == 1 then" + nl + tab * 2 + "return node_na()", lua)
-            self.assertIn(tab + "elseif dice_sel1 == 2 then" + nl + tab * 2 + "return node_nb()", lua)
-            self.assertIn(tab + "else" + nl + tab * 2 + "return node_nc()" + nl + tab + "end", lua)
+            self.assertIn(
+                tab + "if dice_sel1 == 1 then" + nl + tab * 2 + "return node_na()", lua
+            )
+            self.assertIn(
+                tab + "elseif dice_sel1 == 2 then" + nl + tab * 2 + "return node_nb()",
+                lua,
+            )
+            self.assertIn(
+                tab + "else" + nl + tab * 2 + "return node_nc()" + nl + tab + "end", lua
+            )
         finally:
             dd._META = saved
 
@@ -1557,13 +1618,13 @@ class TestNewNodeCodegen(unittest.TestCase):
         self.assertNotIn("showPortrait", lua)
 
     def test_choice_dialog_skin(self):
+        # 契约 v3.3：choice 皮肤只允许 Options（其余为自由场景 break 格式菜单）
         lua = compile_story(
             make_story(
                 [
                     {
                         "id": "n1",
                         "type": "choice",
-                        "dialog": "Talk",
                         "options": [
                             {"text": "甲", "goto": "nend"},
                             {"text": "乙", "goto": "nend"},
@@ -1573,8 +1634,8 @@ class TestNewNodeCodegen(unittest.TestCase):
                 ]
             )
         )
-        self.assertIn("\tsetmenudialog(menudialogs.Talk)", lua)
-        self.assertIn("\tmenudialogs.Talk.SetActive(false)", lua)
+        self.assertIn("\tsetmenudialog(menudialogs.Options)", lua)
+        self.assertIn("\tmenudialogs.Options.SetActive(false)", lua)
 
     def test_terminal_node_types(self):
         # goto_scene / raw / dice 可作最后一个节点收尾（契约 §4）
@@ -1752,7 +1813,11 @@ class TestNewNodeValidationErrors(unittest.TestCase):
                     "type": "dice",
                     "check": "NOT_A_REAL_CHECK",
                     "options": [
-                        {"goto_大成功": "nend", "goto_成功": "nend", "goto_失败": "nend"}
+                        {
+                            "goto_大成功": "nend",
+                            "goto_成功": "nend",
+                            "goto_失败": "nend",
+                        }
                     ],
                 }
             ),
@@ -1766,7 +1831,9 @@ class TestNewNodeValidationErrors(unittest.TestCase):
                     "id": "n1",
                     "type": "dice",
                     "check": "Travel_601_101_001",
-                    "options": [{"goto_大成功": "", "goto_成功": "", "goto_失败": "nend"}],
+                    "options": [
+                        {"goto_大成功": "", "goto_成功": "", "goto_失败": "nend"}
+                    ],
                 }
             ),
             '必填字段 "goto_成功"',
@@ -1779,7 +1846,9 @@ class TestNewNodeValidationErrors(unittest.TestCase):
                     "id": "n1",
                     "type": "dice",
                     "check": "Ch_6_8_2_Break_01_001",
-                    "options": [{"goto_大成功": "", "goto_成功": "nend", "goto_失败": "nend"}],
+                    "options": [
+                        {"goto_大成功": "", "goto_成功": "nend", "goto_失败": "nend"}
+                    ],
                 }
             ),
             '必填字段 "goto_大成功"',
@@ -1925,7 +1994,11 @@ class TestWarnings(unittest.TestCase):
                         "type": "dice",
                         "check": "Test_Check",
                         "options": [
-                            {"goto_大成功": "", "goto_成功": "nend", "goto_失败": "nend"}
+                            {
+                                "goto_大成功": "",
+                                "goto_成功": "nend",
+                                "goto_失败": "nend",
+                            }
                         ],
                     }
                 )

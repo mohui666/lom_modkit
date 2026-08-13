@@ -166,10 +166,9 @@ class NodeForm(QScrollArea):
             )
             return w
         if kind == "menu_dialog":
-            items = models.list_items(self._editor_data, "menu_dialogs") or [
-                ("Options", "Options")
-            ]
-            return self._combo_from_items(node, key, items, value or "Options")
+            # choice 皮肤只有 Options 安全：其余（Talk/Section_*/Kitchen 等）是自由
+            # 场景 break 格式菜单，纯文本选项会触发 BreakOptionButton 越界崩溃
+            return self._combo_from_items(node, key, [("Options", "Options")], value or "Options")
         if kind == "effect":
             return self._combo_from_items(
                 node, key, models.list_items(self._editor_data, "effects"), value
@@ -560,9 +559,7 @@ class NodeForm(QScrollArea):
             try:
                 for r, row in enumerate(rows):
                     table.insertRow(r)
-                    for c, gkey in enumerate(
-                        ("goto_失败", "goto_成功", "goto_大成功")
-                    ):
+                    for c, gkey in enumerate(("goto_失败", "goto_成功", "goto_大成功")):
                         combo = self._make_goto_combo(
                             str(row.get(gkey, "")), allow_empty=True
                         )

@@ -113,7 +113,7 @@
     {
       "id": "x15",
       "type": "choice",
-      "dialog": "Talk",
+      "dialog": "Options",
       "options": [
         {
           "text": "点心就是你偷的！",

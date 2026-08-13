@@ -100,6 +100,9 @@ def _emit_show(node, ctx):
     move = lua_num(node.get("moveDuration", 0))
     return [
         "\trunwait(characters.LoadCharacterAsset(%s))" % c,
+        # 表情差分：先加载该表情的立绘差分（官方 93% show/say 均如此；
+        # 不加载则台上人物立绘永远停在默认表情，只有气泡变）
+        "\tcharacters.LoadCharacterPortrait(%s, %s)" % (c, portrait),
         "\tstage.show{character=%s, portrait=%s, fromPosition=%s, toPosition=%s, "
         "facing=%s, fadeDuration=%s, moveDuration=%s, useDefaultSettings=false}"
         % (_get(c), _portrait(c, portrait), pos, pos, facing, fade, move),
@@ -167,6 +170,9 @@ def _emit_say(node, ctx):
     portrait = lua_str(node.get("portrait", "normal"))
     lines = [
         "\tsetsaydialog(saydialogs.%s)" % mode,
+        # 表情差分：先加载该表情的立绘差分（官方 93% say 块均如此；
+        # 不加载则台上人物立绘不换，只有气泡变）
+        "\tcharacters.LoadCharacterPortrait(%s, %s)" % (c, portrait),
         "\tsayoptions.waitforinput = true",
         "\tsayoptions.fadewhendone  = true",
         "\tstage.showPortrait(%s, %s)" % (_get(c), _portrait(c, portrait)),
@@ -583,6 +589,7 @@ def _emit_dice(node, ctx):
         lines.append("		return node_%s()" % goto_for_rank(ranks[n - 1]))
         lines.append("	end")
     return lines
+
 
 def _emit_goto_scene(node, ctx):
     return [

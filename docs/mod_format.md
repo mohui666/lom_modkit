@@ -124,7 +124,7 @@ assets/                # 预留（自定义图片/音频），v1 运行时忽略
 
 ### 3.3 选项菜单皮肤（choice.dialog）
 
-`Options`(默认) / `Talk` / `Meet` / `Dice`(骰子专用,勿选) / `Center` / `Kitchen` / `Alchemy` / `Forge` / `Back` / `Door` / `Downtown` / `Farm` / `Fortress` / `GirlRoom` / `Mall` / `Pharmacy` / `Room` / `Spa` / `Study` / `Teashop` / `Section_*` 等。发射：`setmenudialog(menudialogs.<dialog>)` → `choose()` → `menudialogs.<dialog>.SetActive(false)`。
+**仅 `Options` 可用**（默认，纯文本选项）。官方脚本实证：全部 589 处 story 场景 choose 都用 Options（Dice 为骰子节点内部专用）。其余皮肤（Talk/Meet/Door/Section_*/Kitchen/Alchemy/Forge/Center 等）是自由场景的 break 格式菜单，选项文本格式为 `类型+key+行动点+贡献` 四段 `+` 分隔，纯文本选项会触发 `BreakOptionButton.UpdateContent` 的 IndexOutOfRange 崩溃（菜单冻结无法点击）——编译器直接报错拒绝。发射：`setmenudialog(menudialogs.Options)` → `choose()` → `menudialogs.Options.SetActive(false)`。
 
 ## 4. story.json → Lua 编译约定（lomc 实现）
 

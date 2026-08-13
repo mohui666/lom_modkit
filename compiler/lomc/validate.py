@@ -327,6 +327,14 @@ def _check_node_extra(node, ntype, label):
         _check_options(
             node, label, 2, 4, ("text", "goto"), {"text": "str", "goto": "str"}
         )
+        dialog = node.get("dialog", "Options")
+        if dialog != "Options":
+            raise LomcError(
+                '%s(choice): dialog 只支持 "Options"。"%s" 是自由场景的 break '
+                "格式菜单（选项文本为 类型+key+行动点+贡献 四段 + 分隔），"
+                "纯文本选项会触发 BreakOptionButton 解析崩溃（IndexOutOfRange，"
+                "菜单冻结无法点击）。" % (label, dialog)
+            )
     elif ntype == "dice":
         _check_options(
             node,
@@ -547,8 +555,11 @@ def _collect_warnings(story, warnings):
                 "文本、条件以官方检查点元数据为准），已忽略，可删除。" % label
             )
         meta = get_dice_meta(check) or {}
-        if len(meta.get("bands") or []) == 2 and opt.get("goto_大成功") \
-                and opt.get("goto_大成功") != opt.get("goto_成功"):
+        if (
+            len(meta.get("bands") or []) == 2
+            and opt.get("goto_大成功")
+            and opt.get("goto_大成功") != opt.get("goto_成功")
+        ):
             warnings.append(
                 '节点 "%s"(dice): 检查点 "%s" 只有 2 个结果带（无独立大成功档），'
                 "goto_大成功 会被忽略（最优带按 goto_成功 分支）。" % (label, check)
