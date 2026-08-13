@@ -98,7 +98,7 @@
       "id": "n9",
       "type": "death",
       "title": "少侠留步",
-      "text": "【自定义死亡文本】你选择不玩了。\n四师兄叹了口气：「那按剧本，你自己下去吧。」\n（第二幕完：next=Free 回自由模式。）",
+      "text": "刻意的游戏设计",
       "death_id": "910021",
       "next": "Free"
     },
@@ -138,7 +138,7 @@
       "id": "n12",
       "type": "death",
       "title": "坠崖谢幕",
-      "text": "【自定义死亡文本】你选了坠崖谢幕。\n脚下一滑，赵活坠入万丈深渊。\n（死亡文本节点：黑屏 → mod_set_death_text(title, text) → 官方 GameOver死亡画面，回标题画面）",
+      "text": "刻意的游戏设计",
       "death_id": "910021",
       "next": "Title"
     }

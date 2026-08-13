@@ -515,9 +515,7 @@ def build_second(ed: dict) -> dict:
     )
     death_fail = story_api.add_death(
         st,
-        "【自定义死亡文本】你选择不玩了。\n"
-        "四师兄叹了口气：「那按剧本，你自己下去吧。」\n"
-        "（第二幕完：next=Free 回自由模式。）",
+        "刻意的游戏设计",
         death_id="910021",  # mod 专属 id（9+官方 10021 乱战中被践踏而死）
         next="Free",
         title="少侠留步",
@@ -541,10 +539,7 @@ def build_second(ed: dict) -> dict:
     )
     death_suc = story_api.add_death(
         st,
-        "【自定义死亡文本】你选了坠崖谢幕。\n"
-        "脚下一滑，赵活坠入万丈深渊。\n"
-        "（死亡文本节点：黑屏 → mod_set_death_text(title, text) → 官方 GameOver"
-        "死亡画面，回标题画面）",
+        "刻意的游戏设计",
         death_id="910021",  # mod 专属 id（9+官方 10021 乱战中被践踏而死）
         next="Title",
         title="坠崖谢幕",
