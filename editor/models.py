@@ -476,6 +476,8 @@ NODE_SCHEMAS: dict[str, dict] = {
             ("scene", "目标场景", "enum:goto_scene", False),
             ("key", "场景参数", "goto_scene_key", True),
             ("next", "结束后回到", "line", True),
+            ("title", "结局标题", "line", True),
+            ("desc", "结局描述", "multiline", True),
         ],
     },
     "panel": {
@@ -930,8 +932,9 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
         return f"{tcn}·{node.get('check', '')}({len(node.get('options', []))}项)"
     if t == "goto_scene":
         key = node.get("key") or ""
+        title = node.get("title") or ""
         return f"{tcn}·{enum_label('goto_scene', node.get('scene', 'Free'))}" + (
-            f" {key}" if key else ""
+            (f" {key}" if key else "") + (f"「{_short(title)}」" if title else "")
         )
     if t == "panel":
         return f"{tcn}·{enum_label('panel', node.get('panel', ''))}"

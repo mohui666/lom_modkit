@@ -17,7 +17,7 @@ assets/                # 预留（自定义图片/音频），v1 运行时忽略
 - `<id>` 规则：`[a-zA-Z0-9_\-]+`，包内唯一，即"剧情脚本 id"。
 - 导出（打包）时必须重新编译：story/*.json → lua/*.lua，二者同名。
 - 运行时插件**只读 manifest.json 和 lua/ 目录**；story/*.json 给编辑器回读/再编辑用。
-- texts.json 由打包时自动生成：收集每个 story 的全部 say/death 节点文本，key 与 lua 里 `GetStoryText` 的 key 一一对应；运行时插件把它注册进 LeanLocalization（已读系统按 key 查文本，见 §4/§6）。
+- texts.json 由打包时自动生成：收集每个 story 的全部 **say** 节点文本，key 与 lua 里 `GetStoryText` 的 key 一一对应；运行时插件把它注册进 LeanLocalization（已读系统按 key 查文本，见 §4/§6）。**death 文本不进 texts.json**：由 codegen 发射 `mod_set_death_text(<文本>)` 字面量（官方死亡画面中央显示，见 §3.1/§6）。
 
 ## 2. manifest.json
 
@@ -44,7 +44,24 @@ assets/                # 预留（自定义图片/音频），v1 运行时忽略
 - `entry`：入口剧情脚本 id，必须存在。
 - `campaign`（可选）：战役模式。
   - `new_game`：true 时本 mod 出现在游戏内 mod 菜单的"开始新战役"区，点击后**隔离存档槽**（`SetSlot("mod_<modid>")`，不覆盖玩家正常存档）开新游戏，首个剧情脚本替换为本 mod 的 `entry`。
-  - `triggers`：自由模式触发器数组。`type="position"`：点击地图位置 `position`（PositionType 枚举 id：Mall/Center/Alchemy/Forge/BackMountain/Room1/Door/Study/Kitchen/Room2/Secret）时，该位置的默认活动脚本替换为 `script`（同包脚本 id）。可选条件 `when_flag_set` / `when_flag_clear`：剧情 flag（即 `flag` 节点 AddStory 的 key，存档持久化）已设置/未设置时才生效。无官方主线/支线占用该位置时触发器才生效（官方事件优先）。
+  - `triggers`：自由模式触发器数组。`type="position"`：点击地图位置 `position`（PositionType 枚举 id：Mall/Center/Alchemy/Forge/BackMountain/Room1/Door/Study/Kitchen/Room2/Secret）时，该位置的默认活动脚本替换为 `script`（同包脚本 id）。可选条件（全部命中才生效，多个条件之间是 AND；**数组顺序=优先级**，运行时取第一个全部命中的触发器）：
+    - `when_flag_set` / `when_flag_clear`：剧情 flag（即 `flag` 节点 AddStory 的 key，存档持久化）已设置/未设置时才生效。
+    - `when_month`：整数 1~12，仅该月份生效。
+    - `when_stage`：整数 1~3（旬：上/中/下），仅该旬生效。
+    - `when_affinity`：`{"character": <人物 id>, "min": <整数>}`，该人物好感度 ≥ min 才生效。
+  - 无官方主线/支线占用该位置时触发器才生效（官方事件优先）。
+  - 触发器示例（练武场：好感事件 > 下旬晚练 > 默认闲逛）：
+
+```json
+"campaign": {
+  "new_game": true,
+  "triggers": [
+    {"type": "position", "position": "Center", "script": "train_affinity", "when_affinity": {"character": "brother4", "min": 3}},
+    {"type": "position", "position": "Center", "script": "train_dusk", "when_stage": 3},
+    {"type": "position", "position": "Center", "script": "train_any"}
+  ]
+}
+```
 
 ## 3. story/*.json — 剧情脚本格式
 
@@ -113,11 +130,11 @@ assets/                # 预留（自定义图片/音频），v1 运行时忽略
 | --- | --- | --- |
 | `branch` | `flag`, `cases`: `[{"value","goto"}]`, 可选 `source`(默认 "mod") | mod：按 modflags 是否已设（value 1=已设置 2=未设置）；game：`checkpointmanager.Switch(flag)` 官方检查点数值分支 |
 | `dice` | `check`, `options`: `[{"goto_大成功","goto_成功","goto_失败","band_texts"?}]`（恰好 1 条） | 骰子检定。**check 必须是带官方元数据的检查点**（editor_data 的 dice_meta：骰子范围 max 与结果带 bands，由官方脚本提取；无元数据的检查点会在游戏内骰子菜单 NRE 崩溃）。发射官方五步链 + 按结果带数逐带发射选项（文本+条件）；分支按带质量名次映射：最差带→goto_失败，中间带→goto_成功，最优带→3带及以上 goto_大成功 / 2带 goto_成功（2带无独立大成功档）。带质量按条件数值推断（同值 >系优于 <系；官方有 34 个倒序检查点）。**band_texts**（可选）：逐带覆写骰子菜单选项文本（条数必须等于结果带数，每项非空字符串，否则 LomcError）；发射 `<作者文本> | <官方cond>`（作者文本为字面量，游戏 GetStoryText 查不到时原样显示，不进 texts.json；文本内 ASCII \| 净化为全角｜；cond 永远用官方元数据）。缺省时用官方结果带文本 |
-| `goto_scene` | `scene`("Free"/"Title"/"Combat"/"Battle"/"GameOver"/"End"/"Story"/"DemoEnd")；可选 `key`(Combat=战斗id/Battle=战役id/GameOver=死亡画面id/End=结局id), `next`(默认"Story") | 场景跳转 `luamanager.ChangeScene(scene, key, next)`。Combat/Battle 后回 Story 重入当前脚本，注意用 game 检查点防重入。**GameOver/End 的 key 必须用 mod 专属 id**（见下方「死亡/结局 id 约定」）；命中官方 death_ids/ending_ids 时编译器给出非致命警告（官方 id 会触发官方结局解锁与记录 LibraryItemData.Add，污染玩家存档） |
+| `goto_scene` | `scene`("Free"/"Title"/"Combat"/"Battle"/"GameOver"/"End"/"Story"/"DemoEnd")；可选 `key`(Combat=战斗id/Battle=战役id/GameOver=死亡画面id/End=结局id), `next`(默认"Story"), `title`, `desc`(均为 str，仅 End/GameOver 用) | 场景跳转 `luamanager.ChangeScene(scene, key, next)`。Combat/Battle 后回 Story 重入当前脚本，注意用 game 检查点防重入。**结局/死亡卡片**：scene=End/GameOver 且给了 title/desc 时，ChangeScene 前发射 `mod_set_ending_text(title, desc)`（desc 缺省空串，运行时插件 patch EndGameController/GameOverController 用官方布局绘制，见 §6）。End 给了 title 但 desc 为空时编译器给出非致命建议（结局画面描述区会空白）。**GameOver/End 的 key 必须用 mod 专属 id**（见下方「死亡/结局 id 约定」）；命中官方 death_ids/ending_ids 时编译器给出非致命警告（官方 id 会触发官方结局解锁与记录 LibraryItemData.Add，污染玩家存档） |
 | `panel` | `panel`("martial"/"weapon"/"poison"/"cg"/"cgvideo"/"shop"/"newshop"/"credit"/"endgame")；可选 `key`(cg/cgvideo/endgame 的 id), `discount`(shop 用, 默认0), `mode`(martial 用, 默认0) | 打开系统面板，除 newshop 外均 `runwait`：`martialpanel.Open(mode)`/`weaponupgradepanel.Open()`/`poisonupgradepanel.Open()`/`cgpanel.Open(key)`/`cgvideopanel.Open(key,0)`/`shoppanel.Open(discount)`/`shoppanel.NewShop()`/`creditpanel.Open()`/`endgamepanel.Open(key)` |
 | `wait` | `seconds` | `wait(seconds)` |
 | `end` | 可选 `next_script` | 有：`SetNextScript("MOD_<modid>_<id>")`+`Init()` 链到同包脚本；无：`ChangeScene("Free","","")` 回自由模式 |
-| `death` | `text`（必填非空，多行合法）、`death_id`（必填）；可选 `next`("Title"默认/"Free") | **死亡文本**：黑屏（view="black"）+ 居中旁白（走已读 key 机制，同 say）+ `luamanager.ChangeScene("GameOver", death_id, next)` 进**官方 GameOver 死亡画面**（黑底红字 + 返回按钮）。`death_id` 必须是 ≥900000 的 mod 专属数字 id（否则 LomcError，见下方「死亡/结局 id 约定」）。终止节点（自带流转，不允许显式 goto，可作末节点收尾） |
+| `death` | `text`（必填非空，多行合法）、`death_id`（必填）；可选 `next`("Title"默认/"Free") | **死亡文本**：黑屏过渡（view="black"）→ `mod_set_death_text(text)`（文本 lua_str 字面量，**不进 texts.json / 已读系统**）→ `luamanager.ChangeScene("GameOver", death_id, next)` 进**官方 GameOver 死亡画面**（黑底红字 + 返回按钮）；运行时插件 patch GameOverController 把自定文本显示在死亡画面中央（官方布局，见 §6）。`death_id` 必须是 ≥900000 的 mod 专属数字 id（否则 LomcError，见下方「死亡/结局 id 约定」）。终止节点（自带流转，不允许显式 goto，可作末节点收尾） |
 | `raw` | `code` | 原生 Lua 逃逸口：原样插入代码（多行合法）。**机制兜底**：任何节点表达不了的官方机制用它 |
 
 ### 3.2 常用取值（以 data/editor_data.json 为权威清单，schema 2 起带中文名）
@@ -140,9 +157,10 @@ assets/                # 预留（自定义图片/音频），v1 运行时忽略
 - **分支兜底**：choice 外任何多路结构不允许静默落空——未命中 case 时 else 落顺序下一节点；无法兜底（branch 为末节点且未覆盖全部返回值）视为校验错误。
 - 节点 id 字符集 `[a-zA-Z0-9_]+`（脚本 id 允许 `-`）。
 - story 顶层 `title` 可选。
-- **已读 key 规则**：所有 say（character/think/narrative/center）与 death 节点的文本一律发射 `say(luamanager.GetStoryText(key))`，key = `MOD_<modid>_<scriptid>_<nodeid>`；modid 来自 manifest（打包时），独立 build/编辑器预览缺省时用 "MOD" 兜底（预览显示兜底 key 可接受）。key 与文本本体（包内 texts.json）由打包器同步生成。
+- **已读 key 规则**：所有 say（character/think/narrative/center）节点的文本一律发射 `say(luamanager.GetStoryText(key))`，key = `MOD_<modid>_<scriptid>_<nodeid>`；modid 来自 manifest（打包时），独立 build/编辑器预览缺省时用 "MOD" 兜底（预览显示兜底 key 可接受）。key 与文本本体（包内 texts.json）由打包器同步生成。**death 文本不走已读 key**：发射 `mod_set_death_text(<文本字面量>)`（lua_str 转义），文本不进 texts.json。
+- **结局/死亡卡片规则**：goto_scene scene=End/GameOver 且带 title/desc 时，ChangeScene 前发射 `mod_set_ending_text(<title>, <desc>)`（均 lua_str；desc 缺省空串）；death 节点在 ChangeScene 前发射 `mod_set_death_text(<text>)`。两个全局调用由运行时插件注册（§6）。
 - **mood 规则**：story.mood（可选 bool，默认 false）。每个脚本头部（modflags 行之后）必发射 `mod_set_mood(false)` 或 `mod_set_mood(true)`（运行时插件注册的全局声明，硬控心情面板，见 §6）；mood=false 时另在 show 节点末尾（Focus 之后）与 say 节点 say(...) 前后各发射一次 `mod_hide_mood()`（隐藏官方圆形情绪面板）；true 时不发射 mod_hide_mood。
-- **death 发射**：见 §3.1 death 行（runblock out → ViewName="black" → runblock view → setsaydialog(center) → sayoptions 两行 → setcharacter(narrative) → say(GetStoryText(key)) → ChangeScene("GameOver", death_id, next)）。
+- **death 发射**：见 §3.1 death 行（runblock out → ViewName="black" → runblock view → `mod_set_death_text(text)` → ChangeScene("GameOver", death_id, next)）。
 - 最后一个节点不是 `end`/`death`/`goto_scene`/`raw` 且无 goto → 校验错误。
 - `choice`/`branch`/`dice`/`end`/`death`/`goto_scene` 写显式 `goto` → 校验错误。
 - `say` 的 narrative/center 模式给 character 允许但忽略。
@@ -221,6 +239,9 @@ local dice_sel1 = dicemenudialog.ResultSelection
 if dice_sel1 == 1 then return node_fail() else return node_ok() end
 -- goto_scene（GameOver/End 的 key 用 mod 专属 id：9+官方 id，如 920003/910021）
 luamanager.ChangeScene("Combat", "5102_01", "Story")
+-- 结局/死亡卡片（scene=End/GameOver 且带 title/desc 时，ChangeScene 前发射）
+mod_set_ending_text("武林传奇", "你的名字，从今往后便是传说。")
+luamanager.ChangeScene("End", "920047", "Story")
 -- panel（除 newshop 外 runwait）
 runwait(martialpanel.Open(0))
 runwait(shoppanel.Open(10))
@@ -235,15 +256,11 @@ runblock(flowcharts.common, "flash")
 luamanager.SetNextScript("MOD_<modid>_<scriptid>")
 luamanager.Init()
 luamanager.ChangeScene("Free", "", "")
--- death（死亡文本：黑屏 + 居中旁白 + 官方 GameOver 死亡画面）
+-- death（死亡文本：黑屏过渡 → mod_set_death_text → 官方 GameOver 死亡画面）
 runblock(flowcharts.view, "out")
 getvar(flowcharts.view, "ViewName").value = "black"
 runblock(flowcharts.view, "view")
-setsaydialog(saydialogs.center)
-sayoptions.waitforinput = true
-sayoptions.fadewhendone  = true
-setcharacter(narrative)
-say(luamanager.GetStoryText("MOD_<modid>_<scriptid>_<nodeid>"))
+mod_set_death_text("你坠入山崖，万事休矣。")
 luamanager.ChangeScene("GameOver", "910021", "Title")
 ```
 
@@ -301,6 +318,10 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 9. **mod_hide_mood**：注册全局 Lua 函数 `mod_hide_mood()`（无参），隐藏全场角色圆形情绪面板（CharacterMoodPanel）；编译器按 story.mood 开关在 show/say 处发射（见 §4）。
 10. **mod_set_mood**：注册全局 Lua 函数 `mod_set_mood(bool)`，按脚本头部声明（story 顶层 mood，默认 false）硬控官方心情面板开关（ShowMood）——每个 mod 脚本入口处发射一次（见 §4），链式脚本逐脚本切换生效；与 mod_hide_mood 双保险防官方情绪面板干扰剧情演出。
 11. **UpdateTranslations 防 wipe**：官方文本刷新（UpdateTranslations / LeanLocalization 重建）会清掉插件注册的 mod 文本，必须 hook 并在刷新后重放 texts.json 的 key→文本注册（加载时缓存全部注册项），保证 GetStoryText 的 mod key 永不失效。
+12. **结局/死亡卡片绘制**：注册两个全局 Lua 函数，供编译产物调用（见 §3.1/§4）：
+    - `mod_set_death_text(string)`：缓存自定死亡文本；Harmony postfix `GameOverController`（官方死亡画面已有 `_titleText`/`_descTextPrefab` 文本控制器）把缓存文本写入官方标题/描述控制器，用官方布局显示在死亡画面中央（黑底红字 + 返回按钮不变）。
+    - `mod_set_ending_text(title, desc)`：缓存结局标题/描述；postfix `EndGameController`（结局画面已有 `_titleText`/`_descText`）写入官方控制器，用官方布局绘制 mod 结局卡片。
+    - 二者在 ChangeScene 之前发射（先设文本再进画面）；自造 id（≥900000）查不到官方条目时官方画面照常显示，卡片文本即来自上述调用——解决「mod 用自造 id 进 GameOver/End 时画面无内容」的黑屏/空屏问题。
 
 ## 7. AI 工具接口（story_api）
 

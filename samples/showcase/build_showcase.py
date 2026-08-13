@@ -3,9 +3,13 @@
 """全功能展示 mod 构建脚本（samples/showcase/build_showcase.py）。
 
 剧本梗概：元叙事喜剧——赵活发现自己被「编剧」折腾，与四师兄逐一吐槽
-演出/数值/流程三大类共 39 种节点，最后掷骰子打赌，按检定结果进入三种
-结局（链式第二幕 / 回自由模式 / 认输离场）；第二幕经 end.next_script
-链式接力，用自定义死亡文本演出「坠崖梗」收尾。
+演出/数值/流程三大类共 39 种节点，最后掷骰子打赌：大成功直接链第二幕；
+成功/失败/认输则汇入收尾三选（回自由模式逛练武场 / 睡到下月下旬再逛 /
+继续第二幕），成功线四师兄好感 +3，解锁练武场好感事件。第二幕经
+end.next_script 链式接力：2 带骰子失败回环重试（不再直接结束），成功
+可选自定义死亡文本（910021）或结局卡片（End 920047 + title/desc）。
+练武场另有三个条件触发器事件（train_affinity 好感≥3 / train_dusk 下旬 /
+train_any 默认闲逛），全部 end 回自由模式。
 
 一切剧情构建都经 story_api（editor/story_api.py，AI 与编辑器共用的
 受控写入口），不手写 story JSON / Lua；随后本脚本自带硬性自查：
@@ -62,9 +66,30 @@ MANIFEST = {
     "author": "lom_modkit",
     "description": (
         "演示全部自定义功能：39 种节点、表情差分、已读变黄快进、"
-        "自定义死亡文本、心情气泡开关、多剧情链式"
+        "自定义死亡文本、心情气泡开关、多剧情链式、战役模式、"
+        "练武场时间/好感条件触发器"
     ),
     "entry": "main",
+    # 战役化：标题画面开新战役（隔离存档槽）；练武场（Center）三个触发器，
+    # 数组顺序=优先级（取第一个全部命中的）：好感≥3 → 下旬(旬3) → 默认闲逛。
+    "campaign": {
+        "new_game": True,
+        "triggers": [
+            {
+                "type": "position",
+                "position": "Center",
+                "script": "train_affinity",
+                "when_affinity": {"character": "brother4", "min": 3},
+            },
+            {
+                "type": "position",
+                "position": "Center",
+                "script": "train_dusk",
+                "when_stage": 3,
+            },
+            {"type": "position", "position": "Center", "script": "train_any"},
+        ],
+    },
 }
 
 # 骰子检查点选择（构建期动态验证，见 validate_dice_check）：
@@ -318,8 +343,14 @@ def build_main(ed: dict) -> dict:
     node("music", {"name": "快樂_001", "op": "stop"})
     say("立刻 stop——戛然而止。play、fadeout、stop 三变体齐活。", "player")
     node("hide", {"character": "trainee1", "fadeDuration": 0.4})
+    node("stat", {"key": "fate", "delta": 2})
     say(
-        "铺垫完毕！赵师弟，敢不敢掷骰子？三带检定——大成功、成功、失败，三个结局。",
+        "【旁白】命运 +2：一路行善攒下的命运点已入账——掷骰子时，它可以逆天改命。",
+        mode="narrative",
+    )
+    say(
+        "铺垫完毕！赵师弟，敢不敢掷骰子？三带检定——大成功、成功、失败，三个结局。"
+        "对了，听说多行善事能攒命运点，掷骰子时可以逆天改命——你刚才那两点，可别浪费了。",
         "brother4",
         portrait="laugh1",
     )
@@ -329,7 +360,12 @@ def build_main(ed: dict) -> dict:
     )
 
     # --- 结尾分支块（全部 after=s_last，逆序插入得到目标数组顺序） ---
-    # 目标顺序：[s_last, raw, choice, dice3, big, end2, suc, end1, fail, gv, gsfree]
+    # 目标顺序：[s_last, raw, choice, d3, big, suc, aff, fin_c, end2,
+    #            time_set, fail, gv, gsfree]
+    # 大成功 → 直接链第二幕；成功/失败/认输 → 汇入收尾三选；成功线四师兄
+    # 好感 +3（解锁练武场 when_affinity 事件 train_affinity）；「睡到下月
+    # 下旬」演示时间条件触发器 train_dusk（when_stage=3，回自由模式后
+    # 点练功场可见）。
     gs_free = node("goto_scene", {"scene": "Free"}, after=s_last)
     gv = say("认输保平安。赵活退出赌局，深藏功与名。", "player", after=s_last)
     fail = say(
@@ -338,9 +374,25 @@ def build_main(ed: dict) -> dict:
         portrait="nervous3",
         after=s_last,
     )
-    end1 = node("end", {}, after=s_last)
-    suc = say("【成功】骰面中规中矩。四师兄，你欠我二两银子。", "player", after=s_last)
+    time_set = node(
+        "time", {"op": "set", "year": 1, "month": 4, "stage": 3}, after=s_last
+    )
     end2 = node("end", {"next_script": "second"}, after=s_last)
+    fin_c = story_api.add_choice(
+        st,
+        [
+            ("回自由模式逛逛练武场", gs_free),
+            ("睡到下月下旬再去（演示时间条件触发器）", time_set),
+            ("继续第二幕（坠崖加演）", end2),
+        ],
+        after=s_last,
+    )["id"]
+    aff = node("affinity", {"character": "brother4", "delta": 3}, after=s_last)
+    suc = say(
+        "【成功】骰面中规中矩。四师兄，你欠我二两银子——他嘴上认输，心里服气。",
+        "player",
+        after=s_last,
+    )
     big = say(
         "【大成功】骰面六十往上！四师兄，把你炼丹房的丹炉输给我！",
         "player",
@@ -371,14 +423,22 @@ def build_main(ed: dict) -> dict:
         after=s_last,
     )
     story_api.update_node(st, big, {"goto": end2})
-    story_api.update_node(st, suc, {"goto": end1})
-    story_api.update_node(st, fail, {"goto": gs_free})
-    story_api.update_node(st, gv, {"goto": gs_free})
+    story_api.update_node(st, suc, {"goto": aff})
+    story_api.update_node(st, aff, {"goto": fin_c})
+    story_api.update_node(st, fail, {"goto": fin_c})
+    story_api.update_node(st, gv, {"goto": fin_c})
+    story_api.update_node(st, time_set, {"goto": gs_free})
     return st
 
 
 def build_second(ed: dict) -> dict:
-    """第二幕：end.next_script 链式接力 + 2 带骰子 + 自定义死亡文本（坠崖梗）。"""
+    """第二幕：end.next_script 链式接力 + 2 带骰子回环重试 + 死亡/结局卡片演示。
+
+    2 带骰子失败不再直接坠崖：失败 → 四师兄安慰 → 二选一（回环重试 /
+    认命坠崖）；成功 → 二选一（自定义死亡文本 910021 演示 / 结局卡片演示：
+    goto_scene End 920047 + title/desc，运行时 mod_set_ending_text 由官方
+    结局画面绘制）。
+    """
     st = story_api.new_story("second", "全功能展示·第二幕（坠崖加演）")
     st.pop("mood", None)  # 同 main：顶层不设 mood，演示默认 false
 
@@ -405,42 +465,81 @@ def build_second(ed: dict) -> dict:
     node("music", {"name": "陰森_001"})
     s_last = say(
         "四师兄的声音从身后飘来——「赵师弟，再来一局？这回是二带检定，"
-        "只有成功和失败，没有大成功。」",
+        "只有成功和失败，没有大成功。而且……这次没有别的结局，只有坠崖。」",
         "player",
         portrait="nervous1",
     )
 
-    # 结尾分支块（after=s_last 逆序插入）：
-    # 目标顺序：[s_last, d2, suc2, death_suc, fail2, death_fail]
-    death_fail = story_api.add_death(
-        st,
-        "【自定义死亡文本】检定失败，赵活自己跳了下去。\n"
-        "（第二幕完：next=Free 回自由模式。重玩时已读文本会变黄、可快进。）",
-        death_id="910021",  # mod 专属 id（9+官方 10021 乱战中被践踏而死）
-        next="Free",
-        after=s_last,
-    )["id"]
+    # --- 失败支线：不直接坠崖——安慰后二选一，可回环重试（goto 回 s_last 骰子前） ---
     fail2 = say(
-        "【失败】手一抖，骰子掉下悬崖……人也跟着下去了。",
+        "【失败】手一抖，骰子掉下悬崖……人也差点跟着下去了。",
         "player",
         portrait="suck2",
         after=s_last,
     )
-    death_suc = story_api.add_death(
+    f_say = say(
+        "四师兄探出头来：「别急别急！掉的是骰子，不是你。师兄我再给你一次机会——」",
+        "player",
+        portrait="nervous2",
+        after=fail2,
+    )
+    death_fail = story_api.add_death(
         st,
-        "【自定义死亡文本】你赢了骰子，却输给了剧本。\n"
-        "脚下一滑，赵活坠入万丈深渊。\n"
-        "（死亡文本节点：黑屏 + 居中旁白 + 官方 GameOver 死亡画面，回标题画面）",
+        "【自定义死亡文本】你选择不玩了。\n"
+        "四师兄叹了口气：「那按剧本，你自己下去吧。」\n"
+        "（第二幕完：next=Free 回自由模式。）",
         death_id="910021",  # mod 专属 id（9+官方 10021 乱战中被践踏而死）
-        next="Title",
-        after=s_last,
+        next="Free",
+        after=f_say,
     )["id"]
+    story_api.add_choice(
+        st,
+        [
+            ("再来一局！谁怕谁", s_last),
+            ("不玩了，认命坠崖", death_fail),
+        ],
+        after=f_say,
+    )
+
+    # --- 成功支线：二选一演示死亡文本（910021）与结局卡片（End 920047） ---
     suc2 = say(
-        "【成功】我稳稳接住了骰子！……然后编剧说：「坠崖是加演的保留节目。」不——！",
+        "【成功】我稳稳接住了骰子！……然后编剧说：「恭喜通关，请选择你的谢幕方式。」",
         "player",
         portrait="nervous3",
-        after=s_last,
+        after=death_fail,
     )
+    death_suc = story_api.add_death(
+        st,
+        "【自定义死亡文本】你选了坠崖谢幕。\n"
+        "脚下一滑，赵活坠入万丈深渊。\n"
+        "（死亡文本节点：黑屏 → mod_set_death_text → 官方 GameOver 死亡画面，回标题画面）",
+        death_id="910021",  # mod 专属 id（9+官方 10021 乱战中被践踏而死）
+        next="Title",
+        after=suc2,
+    )["id"]
+    end_demo = node(
+        "goto_scene",
+        {
+            "scene": "End",
+            "key": "920047",  # mod 专属结局 id（9+官方 20047 武林传奇）
+            "next": "Story",
+            "title": "全功能展示·武林传奇",
+            "desc": "耕阳读书斋将你的事迹编撰成书，发行于市。\n"
+            "唐门活侠——一个被编剧折腾了三幕的倒霉蛋——大名一朝传遍中原。\n"
+            "（结局卡片：title/desc 由 mod_set_ending_text 交给官方结局画面绘制。）",
+        },
+        after=suc2,
+    )
+    story_api.add_choice(
+        st,
+        [
+            ("坠崖谢幕（死亡演示 910021）", death_suc),
+            ("直接播结局卡（End 920047）", end_demo),
+        ],
+        after=suc2,
+    )
+
+    # 2 带骰子：成功→suc2，失败→fail2（失败回环重试，不再直接结束）
     story_api.add_dice(
         st,
         DICE_2BAND,
@@ -449,8 +548,193 @@ def build_second(ed: dict) -> dict:
         goto_大成功="",  # 2 带检查点：无独立大成功档，留空
         after=s_last,
     )
-    story_api.update_node(st, suc2, {"goto": death_suc})
-    story_api.update_node(st, fail2, {"goto": death_fail})
+    return st
+
+
+def build_train_affinity(ed: dict) -> dict:
+    """练武场·四师兄好感≥3 特殊事件（when_affinity 触发器）：他主动找你吹牛。
+
+    结尾 affinity +1 呼应「好感涨」——每来听一次，好感再涨，事件常来常新。
+    """
+    st = story_api.new_story("train_affinity", "练武场·四师兄吹牛会（好感≥3）")
+    st.pop("mood", None)
+
+    def say(text, character=None, mode="character", portrait="normal", after=None):
+        return story_api.add_say(
+            st, text, character=character, mode=mode, portrait=portrait, after=after
+        )["id"]
+
+    def node(t, fields=None, after=None):
+        return story_api.add_node(st, t, fields, after=after)["id"]
+
+    n1 = story_api.update_node(
+        st,
+        "n1",
+        {
+            "text": "【旁白】练武场。四师兄见你路过，眼睛一亮，蹿了过来。",
+            "mode": "narrative",
+        },
+    )
+    n1.pop("character", None)
+    node("scene", {"view": "center_evening"})
+    node("show", {"character": "brother4", "position": "R1", "portrait": "laugh1"})
+    s_b4 = say(
+        "赵师弟！来得好不如来得巧！师兄我昨日新悟出一招「飞星赶月」，"
+        "今日心情好，免费讲给你听！",
+        "brother4",
+        portrait="laugh1",
+    )
+    s_p = say(
+        "（四师兄主动找我吹牛？太阳打西边出来了……）",
+        "player",
+        mode="think",
+        portrait="doubt",
+    )
+    interrupt = say(
+        "啊？！我、我这就去擦！赵师弟你先忙，咱们改日再论剑！",
+        "brother4",
+        portrait="nervous2",
+        after=s_p,
+    )
+    end1 = node("end", {}, after=interrupt)
+    aff = node("affinity", {"character": "brother4", "delta": 1}, after=s_p)
+    listen = say(
+        "听好了！这一招讲究腰马合一、气沉丹田——那晚我梦游追月，"
+        "一脚踩空，人没飞起来，倒把厨房的瓦踩出个人形窟窿！",
+        "brother4",
+        portrait="laugh2",
+        after=s_p,
+    )
+    story_api.add_choice(
+        st,
+        [
+            ("愿闻其详", listen),
+            ("师兄，掌门的供桌擦完了？", interrupt),
+        ],
+        after=s_p,
+    )
+    # 收尾：吹牛听得四师兄心花怒放，好感 +1（affinity 节点）后回自由模式
+    story_api.update_node(st, aff, {"goto": end1})
+    return st
+
+
+def build_train_dusk(ed: dict) -> dict:
+    """练武场·下旬晚练事件（when_stage=3 触发器）：撞见弟子们摸鱼。
+
+    时间条件演示：只有旬=3（下旬）点击练武场才命中本脚本；其它旬走
+    train_any 默认闲逛（或好感达标时的 train_affinity）。
+    """
+    st = story_api.new_story("train_dusk", "练武场·下旬晚练（旬=3）")
+    st.pop("mood", None)
+
+    def say(text, character=None, mode="character", portrait="normal", after=None):
+        return story_api.add_say(
+            st, text, character=character, mode=mode, portrait=portrait, after=after
+        )["id"]
+
+    def node(t, fields=None, after=None):
+        return story_api.add_node(st, t, fields, after=after)["id"]
+
+    n1 = story_api.update_node(
+        st,
+        "n1",
+        {
+            "text": "【旁白】下旬的夜晚，你信步走到练武场——本该苦练的弟子们"
+            "正三三两两开小差。",
+            "mode": "narrative",
+        },
+    )
+    n1.pop("character", None)
+    node("scene", {"view": "center_night"})
+    node("show", {"character": "trainee1", "position": "L1", "portrait": "normal"})
+    s_t = say(
+        "赵、赵师兄！这么晚您怎么来了！",
+        "trainee1",
+        portrait="nervous1",
+    )
+    s_p = say("路过。倒是你们，晚课练完了？", "player")
+    caught = say(
+        "【旁白】你佯装没看见，踱去了伙房方向。弟子们长出一口气。",
+        mode="narrative",
+        after=s_p,
+    )
+    practice = say(
+        "多谢赵师兄陪练！我们这就认真练！",
+        "trainee1",
+        portrait="laugh1",
+        after=caught,
+    )
+    stat_n = node(
+        "stat",
+        {"key": "mental", "delta": 2, "waitDisplay": False},
+        after=practice,
+    )
+    end1 = node("end", {}, after=stat_n)
+    story_api.add_choice(
+        st,
+        [
+            ("睁一只眼闭一只眼", caught),
+            ("陪他们再练一轮", practice),
+        ],
+        after=s_p,
+    )
+    story_api.update_node(st, caught, {"goto": end1})
+    return st
+
+
+def build_train_any(ed: dict) -> dict:
+    """练武场·默认闲逛事件（无条件触发器，优先级最低）。
+
+    任意时间点击练武场都会命中（除非被前两个条件触发器抢先）。
+    """
+    st = story_api.new_story("train_any", "练武场·闲逛")
+    st.pop("mood", None)
+
+    def say(text, character=None, mode="character", portrait="normal", after=None):
+        return story_api.add_say(
+            st, text, character=character, mode=mode, portrait=portrait, after=after
+        )["id"]
+
+    def node(t, fields=None, after=None):
+        return story_api.add_node(st, t, fields, after=after)["id"]
+
+    n1 = story_api.update_node(
+        st,
+        "n1",
+        {
+            "text": "【旁白】练武场今日没有旁的事。日头正好，正是闲逛的好时候。",
+            "mode": "narrative",
+        },
+    )
+    n1.pop("character", None)
+    node("scene", {"view": "center"})
+    node("show", {"character": "player", "position": "M", "portrait": "normal"})
+    s_t = say("（来都来了，活动活动筋骨。）", "player", mode="think")
+    stance = say(
+        "【旁白】你扎了半个时辰马步。腿很酸，心相很满。",
+        mode="narrative",
+        after=s_t,
+    )
+    stat_n = node(
+        "stat",
+        {"key": "mental", "delta": 1, "waitDisplay": False},
+        after=stance,
+    )
+    wall = say(
+        "【旁白】你蹲在墙根，看弟子们把一套唐门刀法舞得虎虎生风。",
+        mode="narrative",
+        after=stat_n,
+    )
+    end1 = node("end", {}, after=wall)
+    story_api.add_choice(
+        st,
+        [
+            ("扎个马步，练练基础功", stance),
+            ("蹲在墙根看人练功", wall),
+        ],
+        after=s_t,
+    )
+    story_api.update_node(st, stat_n, {"goto": end1})
     return st
 
 
@@ -746,10 +1030,26 @@ def main() -> int:
     print("\n--- 1/5 构建剧情（story_api） ---")
     main_story = build_main(ed)
     second_story = build_second(ed)
-    stories = [main_story, second_story]
+    train_affinity_story = build_train_affinity(ed)
+    train_dusk_story = build_train_dusk(ed)
+    train_any_story = build_train_any(ed)
+    stories = [
+        main_story,
+        second_story,
+        train_affinity_story,
+        train_dusk_story,
+        train_any_story,
+    ]
     print(
-        "[信息] main：%d 个节点；second：%d 个节点"
-        % (len(main_story["nodes"]), len(second_story["nodes"]))
+        "[信息] main：%d 个节点；second：%d 个节点；"
+        "train_affinity：%d；train_dusk：%d；train_any：%d"
+        % (
+            len(main_story["nodes"]),
+            len(second_story["nodes"]),
+            len(train_affinity_story["nodes"]),
+            len(train_dusk_story["nodes"]),
+            len(train_any_story["nodes"]),
+        )
     )
 
     print("\n--- 2/5 清单校验（规则 4/7） ---")
@@ -764,11 +1064,12 @@ def main() -> int:
 
     print("\n--- 5/5 可达性自检 + story_api 全量校验编译 ---")
     validate_reachability(stories)
-    say_death_count = 0
+    say_count = 0
     for story in stories:
         for n in story["nodes"]:
-            if n["type"] in ("say", "death"):
-                say_death_count += 1
+            # texts.json 只收 say：death 文本由 mod_set_death_text 直接进 Lua
+            if n["type"] == "say":
+                say_count += 1
         errors, warnings = story_api.check_story(story)
         check(
             not errors,
@@ -786,8 +1087,8 @@ def main() -> int:
         for w in cwarns:
             check(False, "story=%s 编译警告不应出现：%s" % (story["id"], w))
     print(
-        "[信息] say+death 节点共 %d 个 → 打包后 texts.json 应恰好 %d 条"
-        % (say_death_count, say_death_count)
+        "[信息] say 节点共 %d 个 → 打包后 texts.json 应恰好 %d 条（death 文本不进 texts.json）"
+        % (say_count, say_count)
     )
 
     print("\n--- 写出产物 ---")
@@ -804,7 +1105,9 @@ def main() -> int:
         story_api.save_story_json(story, STORY_DIR / ("%s.json" % story["id"]))
         print("[写出] %s" % (STORY_DIR / ("%s.json" % story["id"])))
     print("[写出] %s" % (SHOWCASE_DIR / "manifest.json"))
-    print("\n构建成功：全部自查通过（39 种节点、骰子检查点、可达性 100%）。")
+    print(
+        "\n构建成功：全部自查通过（39 种节点、骰子检查点、可达性 100%、5 个剧情脚本）。"
+    )
     print(
         "下一步：PYTHONPATH=compiler python -m lomc pack samples/showcase -o samples/showcase.lommod"
     )

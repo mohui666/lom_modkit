@@ -217,7 +217,7 @@ def main_fn() -> int:
     assert s == "场景跳转·战斗 5102_01", s
     print("[8b] 汉化/schema 2 助手抽查 OK（39 类型中文名、三组分组、清单显示）")
 
-    # ManifestDialog：campaign 区读写 + 空行跳过 + 无内容不写出
+    # ManifestDialog：campaign 区读写 + 空行跳过 + 无内容不写出 + 新条件列
     dlg = main.ManifestDialog(
         "main",
         editor_data,
@@ -231,6 +231,9 @@ def main_fn() -> int:
                         "position": "Center",
                         "script": "second",
                         "when_flag_set": "F1",
+                        "when_month": 4,
+                        "when_stage": 3,
+                        "when_affinity": {"character": "brother4", "min": 3},
                     }
                 ],
             }
@@ -238,6 +241,7 @@ def main_fn() -> int:
     )
     assert dlg.new_game_check.isChecked(), "应回填 new_game"
     assert dlg.triggers_table.rowCount() == 1, "应回填 1 行触发器"
+    assert dlg.triggers_table.columnCount() == 7, "触发器表应为 7 列"
     m = dlg.manifest()
     assert m["campaign"]["new_game"]
     trig = m["campaign"]["triggers"][0]
@@ -246,15 +250,42 @@ def main_fn() -> int:
         and trig["script"] == "second"
         and trig["when_flag_set"] == "F1"
     ), f"触发器回填错误：{trig!r}"
+    # 新条件列：月份/旬（int）与好感（"角色:数值" → {character, min}）往返
+    assert trig["when_month"] == 4 and trig["when_stage"] == 3, f"时间条件错误：{trig!r}"
+    assert trig["when_affinity"] == {
+        "character": "brother4",
+        "min": 3,
+    }, f"好感条件错误：{trig!r}"
     dlg._add_trigger_row({})  # 空行：位置/脚本缺失，应被跳过
     assert len(dlg.manifest()["campaign"]["triggers"]) == 1
+    # 新行填位置+脚本+好感文本：解析写回
+    table = dlg.triggers_table
+    last_row = table.rowCount() - 1
+    pos_combo = table.cellWidget(last_row, 0)
+    script_combo = table.cellWidget(last_row, 1)
+    assert isinstance(pos_combo, QComboBox), "位置列应是下拉框"
+    assert isinstance(script_combo, QComboBox), "脚本列应是下拉框"
+    pos_combo.setCurrentText("Kitchen")
+    script_combo.setCurrentText("main")
+    month_item = table.item(last_row, 4)
+    aff_item = table.item(last_row, 6)
+    assert month_item is not None and aff_item is not None, "新列应有 item"
+    month_item.setText("6")
+    aff_item.setText("girl2:5")
+    trigs = dlg.manifest()["campaign"]["triggers"]
+    new_trig = next(t for t in trigs if t["position"] == "Kitchen")
+    assert new_trig["when_month"] == 6 and new_trig["when_affinity"] == {
+        "character": "girl2",
+        "min": 5,
+    }, f"新列解析错误：{new_trig!r}"
+    assert "when_stage" not in new_trig, "空旬列不应写出 when_stage"
     dlg.new_game_check.setChecked(False)
-    dlg._del_trigger_row()
-    dlg._del_trigger_row()
+    while dlg.triggers_table.rowCount():
+        dlg._del_trigger_row()
     assert not dlg.manifest().get("campaign"), (
         "无 new_game 且无有效触发器不应写 campaign"
     )
-    print("[8c] ManifestDialog campaign 区 OK（回填/跳过空行/空则不写）")
+    print("[8c] ManifestDialog campaign 区 OK（回填/新条件列/跳过空行/空则不写）")
 
     # 新节点类型：建表 → 表单构建 → 字段写回 → 预览渲染不崩
     win.new_story()

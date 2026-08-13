@@ -645,14 +645,24 @@ def _emit_dice(node, ctx):
 
 
 def _emit_goto_scene(node, ctx):
-    return [
+    lines = []
+    # End/GameOver 结局卡片：可选 title/desc（校验已保证为 str）交给运行时插件
+    # patch EndGameController/GameOverController 用官方布局绘制（契约 §6）；
+    # desc 缺省空串。
+    if node["scene"] in ("End", "GameOver") and ("title" in node or "desc" in node):
+        lines.append(
+            "\tmod_set_ending_text(%s, %s)"
+            % (lua_str(node.get("title", "")), lua_str(node.get("desc", "")))
+        )
+    lines.append(
         "\tluamanager.ChangeScene(%s, %s, %s)"
         % (
             lua_str(node["scene"]),
             lua_str(node.get("key", "")),
             lua_str(node.get("next", "Story")),
         )
-    ]
+    )
+    return lines
 
 
 def _emit_panel(node, ctx):
@@ -700,22 +710,20 @@ def _emit_end(node, ctx):
 
 
 def _emit_death(node, ctx):
-    """死亡文本节点：黑屏 + 居中旁白（走已读 key）+ 官方 GameOver 死亡画面。
+    """死亡文本节点：黑屏过渡 → mod_set_death_text → 官方 GameOver 死亡画面。
 
-    展示自定死亡文本后 ChangeScene("GameOver", death_id, next) 进官方死亡画面
-    （黑底红字 + 返回按钮）。death_id 必须是 ≥900000 的 mod 专属 id：官方
-    GameOver 场景用 id 查 LibrarySystem 并解锁/记录官方结局，mod 专属 id
-    查不到 → 无副作用，但死亡画面本身照常显示（校验见 validate.py）。
+    自定死亡文本不再走对话框 say，改发射全局调用 mod_set_death_text(text)
+    （文本 lua_str 字面量，不进 texts.json / 已读系统）；运行时插件 patch
+    GameOverController 把文本显示在官方死亡画面中央（黑底红字 + 返回按钮，
+    契约 §6）。death_id 必须是 ≥900000 的 mod 专属 id：官方 GameOver 场景
+    用 id 查 LibrarySystem 并解锁/记录官方结局，mod 专属 id 查不到 →
+    无副作用，但死亡画面本身照常显示（校验见 validate.py）。
     """
     return [
         '\trunblock(flowcharts.view, "out")',
         '\tgetvar(flowcharts.view, "ViewName").value = "black"',
         '\trunblock(flowcharts.view, "view")',
-        "\tsetsaydialog(saydialogs.center)",
-        "\tsayoptions.waitforinput = true",
-        "\tsayoptions.fadewhendone  = true",
-        "\tsetcharacter(narrative)",
-        "\tsay(luamanager.GetStoryText(%s))" % lua_str(_say_key(node, ctx)),
+        "\tmod_set_death_text(%s)" % lua_str(node["text"]),
         "\tluamanager.ChangeScene(%s, %s, %s)"
         % (
             lua_str("GameOver"),

@@ -90,7 +90,7 @@ namespace MortalModHost
                 infos.ForEach(Console.WriteLine);
                 Console.WriteLine("--- 坏包/容错警告（预期 4 条） ---");
                 warnings.ForEach(Console.WriteLine);
-                Console.WriteLine("PASS: 2 个好包解析正确（texts.json 含中文/转义文本 + 坏 texts.json 容错），4 个坏包/坏文件警告跳过，注册表查找/冲突处理正确，热键迁移改写正确，campaign 解析/触发器条件正确。");
+                Console.WriteLine("PASS: 2 个好包解析正确（texts.json 含中文/转义文本 + 坏 texts.json 容错），4 个坏包/坏文件警告跳过，注册表查找/冲突处理正确，热键迁移改写正确，campaign 解析/触发器条件（含 when_month/when_stage/when_affinity）正确。");
                 return 0;
             }
             finally
@@ -106,9 +106,9 @@ namespace MortalModHost
             Directory.CreateDirectory(modsDir);
             try
             {
-                // 好包：new_game + 两个触发器（一个带 when_flag_set，一个带 when_flag_clear）
+                // 好包：new_game + 两个触发器（一个带 when_flag_set + 时间/好感条件，一个带 when_flag_clear）
                 WriteZip(Path.Combine(modsDir, "campaign_ok.lommod"),
-                    ("manifest.json", "{\"format\":1,\"id\":\"camp\",\"name\":\"战役\",\"version\":\"1.0\",\"entry\":\"main\",\"campaign\":{\"new_game\":true,\"triggers\":[{\"type\":\"position\",\"position\":\"Center\",\"script\":\"train\",\"when_flag_set\":\"F_A\"},{\"type\":\"position\",\"position\":\"Door\",\"script\":\"gate\",\"when_flag_clear\":\"F_B\"}]}}"),
+                    ("manifest.json", "{\"format\":1,\"id\":\"camp\",\"name\":\"战役\",\"version\":\"1.0\",\"entry\":\"main\",\"campaign\":{\"new_game\":true,\"triggers\":[{\"type\":\"position\",\"position\":\"Center\",\"script\":\"train\",\"when_flag_set\":\"F_A\",\"when_month\":4,\"when_stage\":1,\"when_affinity\":{\"character\":\"brother4\",\"min\":3}},{\"type\":\"position\",\"position\":\"Door\",\"script\":\"gate\",\"when_flag_clear\":\"F_B\"}]}}"),
                     ("lua/main.lua", "say(\"m\")"),
                     ("lua/train.lua", "say(\"t\")"),
                     ("lua/gate.lua", "say(\"g\")"));
@@ -120,6 +120,10 @@ namespace MortalModHost
                 WriteZip(Path.Combine(modsDir, "campaign_badtype.lommod"),
                     ("manifest.json", "{\"format\":1,\"id\":\"badtype\",\"entry\":\"main\",\"campaign\":{\"triggers\":[{\"type\":\"time\",\"position\":\"Mall\",\"script\":\"main\"}]}}"),
                     ("lua/main.lua", "say(\"m\")"));
+                // when_month 越界（13）→ 整包拒绝 + 1 警告（契约 §2.1 校验）
+                WriteZip(Path.Combine(modsDir, "campaign_badmonth.lommod"),
+                    ("manifest.json", "{\"format\":1,\"id\":\"badmonth\",\"entry\":\"main\",\"campaign\":{\"triggers\":[{\"type\":\"position\",\"position\":\"Mall\",\"script\":\"main\",\"when_month\":13}]}}"),
+                    ("lua/main.lua", "say(\"m\")"));
                 // campaign.new_game 非布尔 → 整包拒绝 + 1 警告
                 WriteZip(Path.Combine(modsDir, "campaign_badbool.lommod"),
                     ("manifest.json", "{\"format\":1,\"id\":\"badbool\",\"entry\":\"main\",\"campaign\":{\"new_game\":\"yes\"}}"),
@@ -128,7 +132,7 @@ namespace MortalModHost
                 var warnings = new List<string>();
                 var mods = ModLoader.ScanMods(modsDir, _ => { }, warnings.Add);
                 Assert(mods.Count == 2, "应加载 2 个包，实际 " + mods.Count + "：" + string.Join(" | ", warnings));
-                Assert(warnings.Count == 3, "应有 3 条警告，实际 " + warnings.Count + "：" + string.Join(" | ", warnings));
+                Assert(warnings.Count == 4, "应有 4 条警告，实际 " + warnings.Count + "：" + string.Join(" | ", warnings));
 
                 var ok = mods[0].Id == "badtrig" ? mods[1] : mods[0];
                 Assert(ok.Id == "camp", "campaign_ok 应加载，实际 " + ok.Id);
@@ -137,9 +141,16 @@ namespace MortalModHost
                 var t0 = ok.Campaign.Triggers[0];
                 Assert(t0.Position == "Center" && t0.Script == "train" && t0.WhenFlagSet == "F_A" && t0.WhenFlagClear == null,
                     "触发器 0 字段错误：" + t0.Position + "/" + t0.Script + "/" + t0.WhenFlagSet + "/" + t0.WhenFlagClear);
+                Assert(t0.WhenMonth == 4, "触发器 0 when_month 应为 4，实际 " + (t0.WhenMonth == null ? "null" : t0.WhenMonth.Value.ToString()));
+                Assert(t0.WhenStage == 1, "触发器 0 when_stage 应为 1");
+                Assert(t0.WhenAffinity != null && t0.WhenAffinity.Character == "brother4" && t0.WhenAffinity.Min == 3,
+                    "触发器 0 when_affinity 解析错误");
+                // 无条件触发器的 when_month/when_stage/when_affinity 应为 null（未写字段不解析）
                 var t1 = ok.Campaign.Triggers[1];
                 Assert(t1.Position == "Door" && t1.Script == "gate" && t1.WhenFlagClear == "F_B" && t1.WhenFlagSet == null,
                     "触发器 1 字段错误");
+                Assert(t1.WhenMonth == null && t1.WhenStage == null && t1.WhenAffinity == null,
+                    "触发器 1 不应有时间/好感条件");
                 Assert(ok.GetRegisteredScriptName(t0.Script) == "MOD_camp_train", "触发器脚本注册名错误");
 
                 var badTrig = mods[0].Id == "badtrig" ? mods[0] : mods[1];
@@ -164,7 +175,7 @@ namespace MortalModHost
                 Assert(PositionNameMap.ToContractId("無") == null, "無 不应有映射");
                 Assert(PositionNameMap.ToContractId("不存在的") == null && PositionNameMap.ToContractId(null) == null, "未知名应返回 null");
 
-                Console.WriteLine("--- campaign 警告（预期 3 条） ---");
+                Console.WriteLine("--- campaign 警告（预期 4 条） ---");
                 warnings.ForEach(Console.WriteLine);
             }
             finally

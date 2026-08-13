@@ -175,11 +175,53 @@ namespace MortalModHost
                         Position = GetString(triggerDict, "position", required: true),
                         Script = GetString(triggerDict, "script", required: true),
                         WhenFlagSet = GetString(triggerDict, "when_flag_set", required: false),
-                        WhenFlagClear = GetString(triggerDict, "when_flag_clear", required: false)
+                        WhenFlagClear = GetString(triggerDict, "when_flag_clear", required: false),
+                        WhenMonth = GetOptionalInt(triggerDict, "when_month", 1, 12),
+                        WhenStage = GetOptionalInt(triggerDict, "when_stage", 1, 3),
+                        WhenAffinity = ParseAffinity(triggerDict)
                     });
                 }
             }
             return campaign;
+        }
+
+        /// <summary>
+        /// 可选整数条件字段（契约 §2.1）：缺省返回 null；值必须是整数且在 [min,max] 内，
+        /// 否则按 manifest 结构错误拒绝整包（与 when_flag_set 类型错误的行为一致）。
+        /// </summary>
+        private static int? GetOptionalInt(Dictionary<string, object> dict, string key, int min, int max)
+        {
+            object value;
+            if (!dict.TryGetValue(key, out value) || value == null)
+                return null;
+            if (!(value is double) || (double)value % 1 != 0)
+                throw new FormatException("manifest 字段 \"" + key + "\" 必须是整数");
+            int n = (int)(double)value;
+            if (n < min || n > max)
+                throw new FormatException("manifest 字段 \"" + key + "\" 必须在 " + min + "~" + max + " 之间");
+            return n;
+        }
+
+        /// <summary>
+        /// 解析 when_affinity（契约 §2.1）：{ character: string, min: int }，缺省返回 null。
+        /// character 用 RelationshipStatType 的 StringValue 契约 id（如 brother4），运行时解析。
+        /// </summary>
+        private static AffinityCondition ParseAffinity(Dictionary<string, object> dict)
+        {
+            object affinityObj;
+            if (!dict.TryGetValue("when_affinity", out affinityObj) || affinityObj == null)
+                return null;
+            var affinity = affinityObj as Dictionary<string, object>;
+            if (affinity == null)
+                throw new FormatException("manifest 触发器 when_affinity 必须是对象");
+            object minObj;
+            if (!affinity.TryGetValue("min", out minObj) || !(minObj is double) || (double)minObj % 1 != 0 || (double)minObj < 0)
+                throw new FormatException("manifest 触发器 when_affinity.min 必须是非负整数");
+            return new AffinityCondition
+            {
+                Character = GetString(affinity, "character", required: true),
+                Min = (int)(double)minObj
+            };
         }
 
         private static string GetString(Dictionary<string, object> dict, string key, bool required)

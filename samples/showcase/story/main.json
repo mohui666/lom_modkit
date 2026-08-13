@@ -681,14 +681,29 @@
     },
     {
       "id": "n91",
+      "type": "stat",
+      "key": "fate",
+      "delta": 2,
+      "waitDisplay": true,
+      "display": 1
+    },
+    {
+      "id": "n92",
       "type": "say",
-      "text": "铺垫完毕！赵师弟，敢不敢掷骰子？三带检定——大成功、成功、失败，三个结局。",
+      "text": "【旁白】命运 +2：一路行善攒下的命运点已入账——掷骰子时，它可以逆天改命。",
+      "portrait": "normal",
+      "mode": "narrative"
+    },
+    {
+      "id": "n93",
+      "type": "say",
+      "text": "铺垫完毕！赵师弟，敢不敢掷骰子？三带检定——大成功、成功、失败，三个结局。对了，听说多行善事能攒命运点，掷骰子时可以逆天改命——你刚才那两点，可别浪费了。",
       "character": "brother4",
       "portrait": "laugh1",
       "mode": "character"
     },
     {
-      "id": "n92",
+      "id": "n94",
       "type": "say",
       "text": "掷！……等等，这骰子怎么是官方检查点 Ch_1_1_1_001？编剧你盗用主线骰子！",
       "character": "player",
@@ -696,84 +711,115 @@
       "mode": "character"
     },
     {
-      "id": "n102",
+      "id": "n106",
       "type": "raw",
       "code": "-- [raw 逃逸口演示] 原生 Lua 原样插入编译产物（本行仅为注释，任何官方机制都能在这里直接写）"
     },
     {
-      "id": "n101",
+      "id": "n105",
       "type": "choice",
       "options": [
         {
           "text": "掷！三带检定（官方检查点）",
-          "goto": "n100"
+          "goto": "n104"
         },
         {
           "text": "我不掷，认输直接走",
-          "goto": "n94"
+          "goto": "n96"
         }
       ],
       "dialog": "Options"
     },
     {
-      "id": "n100",
+      "id": "n104",
       "type": "dice",
       "check": "Ch_1_1_1_001",
       "options": [
         {
-          "goto_大成功": "n99",
-          "goto_成功": "n97",
-          "goto_失败": "n95"
+          "goto_大成功": "n103",
+          "goto_成功": "n102",
+          "goto_失败": "n97"
         }
       ]
     },
     {
-      "id": "n99",
+      "id": "n103",
       "type": "say",
       "text": "【大成功】骰面六十往上！四师兄，把你炼丹房的丹炉输给我！",
       "character": "player",
       "portrait": "laugh1",
       "mode": "character",
-      "goto": "n98"
+      "goto": "n99"
     },
     {
-      "id": "n98",
+      "id": "n102",
+      "type": "say",
+      "text": "【成功】骰面中规中矩。四师兄，你欠我二两银子——他嘴上认输，心里服气。",
+      "character": "player",
+      "portrait": "normal",
+      "mode": "character",
+      "goto": "n101"
+    },
+    {
+      "id": "n101",
+      "type": "affinity",
+      "character": "brother4",
+      "delta": 3,
+      "goto": "n100"
+    },
+    {
+      "id": "n100",
+      "type": "choice",
+      "options": [
+        {
+          "text": "回自由模式逛逛练武场",
+          "goto": "n95"
+        },
+        {
+          "text": "睡到下月下旬再去（演示时间条件触发器）",
+          "goto": "n98"
+        },
+        {
+          "text": "继续第二幕（坠崖加演）",
+          "goto": "n99"
+        }
+      ],
+      "dialog": "Options"
+    },
+    {
+      "id": "n99",
       "type": "end",
       "next_script": "second"
     },
     {
+      "id": "n98",
+      "type": "time",
+      "op": "set",
+      "year": 1,
+      "month": 4,
+      "stage": 3,
+      "goto": "n95"
+    },
+    {
       "id": "n97",
-      "type": "say",
-      "text": "【成功】骰面中规中矩。四师兄，你欠我二两银子。",
-      "character": "player",
-      "portrait": "normal",
-      "mode": "character",
-      "goto": "n96"
-    },
-    {
-      "id": "n96",
-      "type": "end"
-    },
-    {
-      "id": "n95",
       "type": "say",
       "text": "【失败】骰面丢人。四师兄笑到打鸣。",
       "character": "player",
       "portrait": "nervous3",
       "mode": "character",
-      "goto": "n93"
+      "goto": "n100"
     },
     {
-      "id": "n94",
+      "id": "n96",
       "type": "say",
       "text": "认输保平安。赵活退出赌局，深藏功与名。",
       "character": "player",
       "portrait": "normal",
       "mode": "character",
-      "goto": "n93"
+      "goto": "n100"
     },
     {
-      "id": "n93",
+      "id": "n95",
       "type": "goto_scene",
       "scene": "Free",
       "next": "Story"

@@ -377,7 +377,9 @@ class TestAddDice(unittest.TestCase):
         story = base_story()
         n1 = story["start"]
         with self.assertRaises(ValueError, msg="band_texts 空条目应抛 ValueError"):
-            story_api.add_dice(story, DICE_3BAND, n1, n1, n1, band_texts=["", "二", "三"])
+            story_api.add_dice(
+                story, DICE_3BAND, n1, n1, n1, band_texts=["", "二", "三"]
+            )
 
 
 class TestAddSay(unittest.TestCase):
@@ -463,13 +465,36 @@ class TestAddDeath(unittest.TestCase):
         self.assertEqual(node["text"], "第一行\n第二行", "多行文本应保留换行")
 
     def test_compiles(self):
-        # death 走已读 key + 官方 GameOver 死亡画面（mod 专属 death_id）
+        # death：黑屏 → mod_set_death_text（字面量）→ 官方 GameOver 死亡画面
+        # （mod 专属 death_id）；死亡文本不走已读 key（死亡节点的 key 不入 Lua）
         story = base_story()
         node = story_api.add_death(story, "命数已尽。", "910021", next="Title")
         lua, errors, _warnings = story_api.compile_story(story)
         assert lua is not None, f"death 剧情应编译成功：{errors}"
-        self.assertIn('luamanager.GetStoryText("MOD_MOD_main_%s")' % node["id"], lua)
+        self.assertIn('\tmod_set_death_text("命数已尽。")', lua)
+        self.assertNotIn("MOD_MOD_main_%s" % node["id"], lua)
         self.assertIn('luamanager.ChangeScene("GameOver", "910021", "Title")', lua)
+
+    def test_goto_scene_title_desc(self):
+        # goto_scene 的 title/desc 字段（结局卡片）经 add_node/update_node 写入
+        story = base_story()
+        node = story_api.add_node(
+            story,
+            "goto_scene",
+            {"scene": "End", "key": "920047", "title": "武林传奇", "desc": "传说。"},
+        )
+        self.assertEqual(node["title"], "武林传奇", "title 应写入")
+        self.assertEqual(node["desc"], "传说。", "desc 应写入")
+        lua, errors, _warnings = story_api.compile_story(story)
+        assert lua is not None, f"goto_scene 剧情应编译成功：{errors}"
+        self.assertIn('\tmod_set_ending_text("武林传奇", "传说。")', lua)
+        # 非法类型（title 非 str）被字段校验拒绝
+        with self.assertRaises(ValueError, msg="title 非 str 应抛 ValueError"):
+            story_api.add_node(
+                story,
+                "goto_scene",
+                {"scene": "End", "title": 42},  # type: ignore[reportArgumentType]
+            )
 
 
 class TestCheckStory(unittest.TestCase):

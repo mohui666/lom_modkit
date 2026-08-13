@@ -6,7 +6,8 @@
     story/<id>.json        剧情源文件（原样拷贝，供编辑器回读）
     lua/<id>.lua           编译产物（导出时重新编译）
     texts.json             已读文本表 {MOD_<modid>_<scriptid>_<nodeid>: 文本}
-                           （say/death 节点文本，运行时注册进 LeanLocalization）
+                           （仅 say 节点文本；death 文本由 mod_set_death_text
+                           直接进 Lua，不进 texts.json / 已读系统）
     assets/                预留目录，存在则原样打进包
 
 默认输出：<mod目录> 同级、以目录名命名的 <目录名>.lommod。
@@ -61,7 +62,9 @@ def pack_mod(mod_dir, output=None):
                 "二者必须相同" % (fname, stem, inner_id)
             )
         for node in story.get("nodes", []):
-            if node.get("type") in ("say", "death"):
+            # 已读文本表只收 say：death 文本不再走已读 key，由 codegen 发射
+            # mod_set_death_text 字面量（官方死亡画面中央显示，见 mod_format §3.1/§6）
+            if node.get("type") == "say":
                 key = "MOD_%s_%s_%s" % (mod_id, stem, node["id"])
                 texts[key] = node["text"]
         lua = compile_story(story, mod_info=manifest, source="story/%s" % fname)

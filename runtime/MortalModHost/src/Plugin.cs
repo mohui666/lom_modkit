@@ -49,6 +49,9 @@ namespace MortalModHost
             MigrateLegacyHotkey();
             Logger.LogInfo("菜单热键：" + _menuHotkey.Value + "（Free 场景左下角也有常驻入口按钮）");
 
+            // 契约 §C：死亡/结局文本覆盖的静态初始态（重复启动时防止残留上次会话的文本）
+            ModOverlay.Clear();
+
             // mods 目录：BepInEx/plugins/MortalModHost/mods/（契约 §6.1）
             string modsDir = Path.Combine(Paths.PluginPath, "MortalModHost", "mods");
             Logger.LogInfo("MortalModHost " + VERSION + " 启动，扫描 mods 目录：" + modsDir);
@@ -125,6 +128,10 @@ namespace MortalModHost
             FreePositionPatch.Log = Logger;
             MoodControl.Log = Logger;
             ReadTextPatch.Log = Logger;
+            GameOverOverlayPatch.Log = Logger;
+            EndGameOverlayPatch.Log = Logger;
+            NewGamePlusPatch.Log = Logger;
+            DiceRevolutionPatch.Log = Logger;
 
             bool ok = true;
             ok &= CheckTarget("LuaManager.ExecuteLuaScript",
@@ -141,13 +148,21 @@ namespace MortalModHost
                 AccessTools.Method(typeof(Lean.Localization.LeanLocalization), "UpdateTranslations", new Type[] { typeof(bool) }));
             ok &= CheckTarget("StoryCharacterController.ShowMood",
                 AccessTools.Method(typeof(StoryCharacterController), "ShowMood", new Type[0]));
+            ok &= CheckTarget("GameOverController.Start",
+                AccessTools.Method(typeof(GameOverController), "Start"));
+            ok &= CheckTarget("EndGameController.Start",
+                AccessTools.Method(typeof(EndGameController), "Start"));
+            ok &= CheckTarget("PlayerStatManagerData.get_NewGamePlus",
+                AccessTools.Method(typeof(PlayerStatManagerData), "get_NewGamePlus"));
+            ok &= CheckTarget("DiceMenuDialog.CheckRevolution",
+                AccessTools.Method(typeof(DiceMenuDialog), "CheckRevolution"));
             if (!ok)
             {
                 Logger.LogError("部分 Harmony 目标缺失（游戏版本可能已变更），战役/触发器功能可能不可用");
                 return;
             }
             new Harmony(GUID).PatchAll(); // patch 本程序集全部 [HarmonyPatch] 类
-            Logger.LogInfo("Harmony patch 已挂载：ExecuteLuaScript prefix / NewGameData postfix / GetExecuteScript postfix / UpdateTranslations postfix / StoryCharacterController.ShowMood postfix");
+            Logger.LogInfo("Harmony patch 已挂载：ExecuteLuaScript prefix / NewGameData postfix / GetExecuteScript postfix / UpdateTranslations postfix / StoryCharacterController.ShowMood postfix / GameOver/EndGame Start postfix / get_NewGamePlus prefix / CheckRevolution postfix");
         }
 
         private bool CheckTarget(string name, MemberInfo member)
@@ -157,8 +172,11 @@ namespace MortalModHost
             return false;
         }
 
+        private string _previousScene = ""; // 上一帧场景名，用于检测离开 GameOver/End（契约 §C）
+
         private void Update()
         {
+            UpdateOverlaySceneTracking();
             if (!_enabled.Value) return;
             if (!IsHotkeyDown()) return;
 
@@ -176,8 +194,22 @@ namespace MortalModHost
         }
 
         /// <summary>
+        /// 契约 §C：场景切换离开 GameOver/End 时清除 mod 死亡/结局文本覆盖。
+        /// 只盯"上一帧是 GameOver/End 且现在变了"，进入这些场景（含经由 Loading 场景的过渡）不清除。
+        /// </summary>
+        private void UpdateOverlaySceneTracking()
+        {
+            if (SceneController.Instance == null) return;
+            string scene = SceneController.Instance.CurrentScene;
+            if (scene == _previousScene) return;
+            if (_previousScene == "GameOver" || _previousScene == "End")
+                ModOverlay.Clear();
+            _previousScene = scene;
+        }
+
+        /// <summary>
         /// mod 菜单可用场景：Free（自由模式：演出剧情 + 开新战役）与 Title（标题画面：仅开新战役）。
-        /// Story/Battle 等演出场景不出菜单，避免遮挡演出。out isTitle 标识是否标题画面。
+        /// Story/Battle/GameOver/End 等演出场景不出菜单，避免遮挡演出。out isTitle 标识是否标题画面。
         /// </summary>
         private static bool IsMenuScene(out bool isTitle)
         {

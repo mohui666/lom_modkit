@@ -40,8 +40,10 @@ namespace MortalModHost
                     }
                     return false;
                 }
-                // 官方脚本：复位心情气泡硬控状态（契约 §B，官方演出不受 mod 影响）
+                // 官方脚本：复位心情气泡硬控状态（契约 §B，官方演出不受 mod 影响）；
+                // 清空 mod 死亡/结局文本覆盖（契约 §C，官方结局不受影响）
                 MoodControl.Disabled = false;
+                ModOverlay.Clear();
                 return true; // 官方脚本，走原方法
             }
 
@@ -80,10 +82,12 @@ namespace MortalModHost
         }
 
         /// <summary>
-        /// 契约 §B：把 mod 全局函数注册进共享 Lua 环境的全局表（编译器在 mod Lua 里发射裸全局调用）。
+        /// 契约 §B/§C：把 mod 全局函数注册进共享 Lua 环境的全局表（编译器在 mod Lua 里发射裸全局调用）。
         /// mod_hide_mood()：即时隐藏全部圆形情绪面板（实现收敛在 MoodControl.HideAllMoodPanels）。
         /// mod_set_mood(bool)：把心情气泡硬控状态写入 MoodControl.Disabled = !value；
         /// 缺参按 false（禁用气泡）；非布尔参数按契约同样视为缺省 false。
+        /// mod_set_death_text(text)：死亡文本覆盖（ModOverlay，GameOver 画面中央显示）。
+        /// mod_set_ending_text(title, desc)：结局卡片覆盖（ModOverlay，End 画面显示）。
         /// </summary>
         private static void RegisterModGlobals(LuaEnvironment env)
         {
@@ -114,6 +118,35 @@ namespace MortalModHost
                     MoodControl.Disabled = !show;
                     return DynValue.Nil;
                 }, "mod_set_mood");
+                // 契约 §C：死亡文本（1 参，GameOver 画面中央显示）
+                script.Globals["mod_set_death_text"] = new CallbackFunction((ctx, args) =>
+                {
+                    try
+                    {
+                        ModOverlay.SetDeathText(args.Count > 0 ? args[0].CastToString() : "");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.LogWarning("mod_set_death_text 参数转换失败（按空文本处理）：" + ex.Message);
+                        ModOverlay.SetDeathText("");
+                    }
+                    return DynValue.Nil;
+                }, "mod_set_death_text");
+                // 契约 §C：结局卡片（2 参：标题 + 描述，End 画面显示）；参数转换异常吞掉
+                script.Globals["mod_set_ending_text"] = new CallbackFunction((ctx, args) =>
+                {
+                    try
+                    {
+                        string title = args.Count > 0 ? args[0].CastToString() : "";
+                        string desc = args.Count > 1 ? args[1].CastToString() : "";
+                        ModOverlay.SetEnding(title, desc);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.LogWarning("mod_set_ending_text 参数转换失败（本次调用忽略）：" + ex.Message);
+                    }
+                    return DynValue.Nil;
+                }, "mod_set_ending_text");
             }
             catch (Exception ex)
             {

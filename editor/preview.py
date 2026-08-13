@@ -10,6 +10,7 @@
 立绘/背景图来自 <项目根>/data/preview_map.json（路径相对 data/）；
 文件或图片缺失时一律走占位图逻辑。
 """
+
 from __future__ import annotations
 
 import json
@@ -37,34 +38,44 @@ def log_crash(text: str) -> None:
     """追加写崩溃日志；日志本身绝不能再抛异常。"""
     try:
         with open(CRASH_LOG, "a", encoding="utf-8") as f:
-            f.write(f"\n===== {datetime.now():%Y-%m-%d %H:%M:%S} =====\n"
-                    f"{text.rstrip()}\n")
+            f.write(
+                f"\n===== {datetime.now():%Y-%m-%d %H:%M:%S} =====\n{text.rstrip()}\n"
+            )
     except Exception:
         pass
 
+
 # 站位 → 舞台 x 比例（0=左缘，1=右缘；S 系为屏幕外，画一半）
 POSITION_X: dict[str, float] = {
-    "SL": -0.06, "SR": 1.06,
-    "L1": 0.12, "L2": 0.22, "L3": 0.30,
-    "LM1": 0.34, "LM2": 0.40,
-    "M": 0.50, "C": 0.50,
-    "RM2": 0.60, "RM1": 0.66,
-    "R3": 0.70, "R2": 0.78, "R1": 0.88,
+    "SL": -0.06,
+    "SR": 1.06,
+    "L1": 0.12,
+    "L2": 0.22,
+    "L3": 0.30,
+    "LM1": 0.34,
+    "LM2": 0.40,
+    "M": 0.50,
+    "C": 0.50,
+    "RM2": 0.60,
+    "RM1": 0.66,
+    "R3": 0.70,
+    "R2": 0.78,
+    "R1": 0.88,
 }
 
 # 颜色
-BG_FALLBACK = QColor(43, 43, 43)        # 无背景图时的深灰底
-DIALOG_BG = QColor(0, 0, 0, 175)        # 对白栏底色
-PLACEHOLDER_BG = QColor(90, 90, 100, 220)   # 人物占位框底色
+BG_FALLBACK = QColor(43, 43, 43)  # 无背景图时的深灰底
+DIALOG_BG = QColor(0, 0, 0, 175)  # 对白栏底色
+PLACEHOLDER_BG = QColor(90, 90, 100, 220)  # 人物占位框底色
 PLACEHOLDER_EDGE = QColor(180, 180, 190)
-CHOICE_BG = QColor(24, 24, 28, 225)     # 选项按钮底色
+CHOICE_BG = QColor(24, 24, 28, 225)  # 选项按钮底色
 CHOICE_EDGE = QColor(235, 235, 235)
 
 # 图片缓存上限（崩溃修复：原实现缓存无上限，真实素材单张解码约 20MB，
 # 浏览稍多即吃光内存被系统强杀 → pythonw 下无声崩溃）
-MAX_CACHE_ENTRIES = 60                    # LRU 最多缓存张数
-MAX_CACHE_BYTES = 256 * 1024 * 1024       # LRU 解码字节预算（约 256MB）
-MAX_IMAGE_DIM = 1600                      # 加载即降采样到该边长以内
+MAX_CACHE_ENTRIES = 60  # LRU 最多缓存张数
+MAX_CACHE_BYTES = 256 * 1024 * 1024  # LRU 解码字节预算（约 256MB）
+MAX_IMAGE_DIM = 1600  # 加载即降采样到该边长以内
 
 
 # ---------------------------------------------------------------------------
@@ -142,8 +153,10 @@ def _hint_text(node: dict, ed: dict) -> str | None:
     if t == "focus":
         return f"[镜头聚焦] {cname()}"
     if t == "offset":
-        return (f"[人物位移] {cname()} 偏移 ({node.get('x', 0)}, "
-                f"{node.get('y', 0)})，{node.get('duration', 0)} 秒")
+        return (
+            f"[人物位移] {cname()} 偏移 ({node.get('x', 0)}, "
+            f"{node.get('y', 0)})，{node.get('duration', 0)} 秒"
+        )
     if t == "shock":
         return f"[人物震动] {cname()}（{node.get('duration', 0.5)} 秒）"
     if t == "mask":
@@ -153,66 +166,92 @@ def _hint_text(node: dict, ed: dict) -> str | None:
     if t == "effect":
         return f"[屏幕特效] {node.get('name', '')}"
     if t == "transition":
-        return (f"[转场] {models.enum_label('transition_phase', node.get('phase', 'in'))}"
-                f"·{models.enum_label('transition_dir', node.get('dir', 'lr'))}")
+        return (
+            f"[转场] {models.enum_label('transition_phase', node.get('phase', 'in'))}"
+            f"·{models.enum_label('transition_dir', node.get('dir', 'lr'))}"
+        )
     if t == "camera":
-        return (f"[镜头滤镜] {node.get('name', '')} "
-                f"{'启用' if node.get('active') else '关闭'}")
+        return (
+            f"[镜头滤镜] {node.get('name', '')} "
+            f"{'启用' if node.get('active') else '关闭'}"
+        )
     if t == "block":
         return f"[流图块] {node.get('flowchart', '')}.{node.get('name', '')}"
     if t == "cg":
-        return (f"[图片/标题] {models.enum_label('cg_action', node.get('action', 'show'))}"
-                f"{models.enum_label('cg_kind', node.get('kind', 'picture'))}"
-                f" {node.get('key') or ''}")
+        return (
+            f"[图片/标题] {models.enum_label('cg_action', node.get('action', 'show'))}"
+            f"{models.enum_label('cg_kind', node.get('kind', 'picture'))}"
+            f" {node.get('key') or ''}"
+        )
     if t == "stat":
-        return (f"[属性] {models.display_name(ed, 'stats', node.get('key', ''))} "
-                f"{node.get('delta', 0):+d}" if isinstance(node.get('delta'), int)
-                else f"[属性] {node.get('key', '')} {node.get('delta', 0)}")
+        return (
+            f"[属性] {models.display_name(ed, 'stats', node.get('key', ''))} "
+            f"{node.get('delta', 0):+d}"
+            if isinstance(node.get("delta"), int)
+            else f"[属性] {node.get('key', '')} {node.get('delta', 0)}"
+        )
     if t == "stat_set":
-        return (f"[属性设置] {models.display_name(ed, 'stats', node.get('key', ''))} "
-                f"= {node.get('value', 0)}")
+        return (
+            f"[属性设置] {models.display_name(ed, 'stats', node.get('key', ''))} "
+            f"= {node.get('value', 0)}"
+        )
     if t == "affinity":
         delta = node.get("delta", 0)
         sign = f"{delta:+d}" if isinstance(delta, int) else str(delta)
         return f"[好感度] {cname()} {sign}"
     if t == "talent":
-        return (f"[天赋] {models.display_name(ed, 'talents', node.get('talent', ''))} "
-                f"等级 {node.get('level', 0):+d}")
+        return (
+            f"[天赋] {models.display_name(ed, 'talents', node.get('talent', ''))} "
+            f"等级 {node.get('level', 0):+d}"
+        )
     if t == "item":
         verb = "移除" if node.get("remove") else "获得"
-        iname = models.display_name(ed, f"items_{node.get('kind', 'misc')}",
-                                    node.get("item", ""))
+        iname = models.display_name(
+            ed, f"items_{node.get('kind', 'misc')}", node.get("item", "")
+        )
         return f"[物品] {verb} {iname} ×{node.get('count', 1)}"
     if t == "flag":
         return f"[剧情旗标] {node.get('flag', '')}"
     if t == "game_flag":
-        return (f"[任务旗标] {node.get('flag', '')} "
-                f"{models.enum_label('game_flag_op', node.get('op', 'set'))} "
-                f"{node.get('value', 0)}")
+        return (
+            f"[任务旗标] {node.get('flag', '')} "
+            f"{models.enum_label('game_flag_op', node.get('op', 'set'))} "
+            f"{node.get('value', 0)}"
+        )
     if t == "enemy":
-        return (f"[敌方队伍] {models.enum_label('enemy_op', node.get('op', 'team'))}"
-                f" {node.get('enemy', '')} {node.get('value', 0)}")
+        return (
+            f"[敌方队伍] {models.enum_label('enemy_op', node.get('op', 'team'))}"
+            f" {node.get('enemy', '')} {node.get('value', 0)}"
+        )
     if t == "battle_skill":
-        return (f"[战场技能] {models.enum_label('battle_skill_op', node.get('op', 'set'))}"
-                f" {node.get('key', '')}")
+        return (
+            f"[战场技能] {models.enum_label('battle_skill_op', node.get('op', 'set'))}"
+            f" {node.get('key', '')}"
+        )
     if t == "mission":
         return f"[任务] {node.get('name', '')} {node.get('key', '')}"
     if t == "time":
         op = node.get("op", "round")
         if op in ("set", "mission"):
-            return (f"[时间] {models.enum_label('time_op', op)}："
-                    f"{node.get('year', 1)}年{node.get('month', 1)}月"
-                    f"时段{node.get('stage', 1)}")
+            return (
+                f"[时间] {models.enum_label('time_op', op)}："
+                f"{node.get('year', 1)}年{node.get('month', 1)}月"
+                f"时段{node.get('stage', 1)}"
+            )
         return f"[时间] {models.enum_label('time_op', op)}"
     if t == "autosave":
         return f"[自动存档] {models.enum_label('autosave_kind', node.get('kind', 'story'))}"
     if t == "dice":
-        return (f"[骰子检定] {node.get('check', '')}"
-                f"（{len(node.get('options', []))} 个选项，三向分支）")
+        return (
+            f"[骰子检定] {node.get('check', '')}"
+            f"（{len(node.get('options', []))} 个选项，三向分支）"
+        )
     if t == "goto_scene":
         key = node.get("key") or ""
-        return (f"[场景跳转] {models.enum_label('goto_scene', node.get('scene', 'Free'))}"
-                + (f" {key}" if key else ""))
+        return (
+            f"[场景跳转] {models.enum_label('goto_scene', node.get('scene', 'Free'))}"
+            + (f" {key}" if key else "")
+        )
     if t == "panel":
         return f"[系统面板] {models.enum_label('panel', node.get('panel', ''))}"
     if t == "wait":
@@ -304,8 +343,9 @@ def _next_node(node: dict, idx: int, nodes: list) -> str | None:
     return None
 
 
-def simulate_stage(story: dict, target_id: str | None,
-                   editor_data: dict | None = None) -> dict:
+def simulate_stage(
+    story: dict, target_id: str | None, editor_data: dict | None = None
+) -> dict:
     """从 start 推演到 target_id（含目标节点自身效果），返回舞台状态。
 
     返回 dict：
@@ -317,8 +357,15 @@ def simulate_stage(story: dict, target_id: str | None,
       reached  是否在步数上限内到达目标节点
       steps    实际推演步数
     """
-    state = {"view": None, "actors": {}, "dialog": None, "choice": None,
-             "hint": None, "reached": False, "steps": 0}
+    state = {
+        "view": None,
+        "actors": {},
+        "dialog": None,
+        "choice": None,
+        "hint": None,
+        "reached": False,
+        "steps": 0,
+    }
     nodes = story.get("nodes", []) if story else []
     if not nodes or not target_id:
         return state
@@ -403,8 +450,9 @@ class StagePreview(QWidget):
     def _evict_cache(self) -> None:
         """LRU 驱逐：超出条数/字节上限时逐出最久未用的项（至少保留 1 项）。"""
         while len(self._pix_cache) > 1 and (
-                len(self._pix_cache) > MAX_CACHE_ENTRIES
-                or self._cache_bytes > MAX_CACHE_BYTES):
+            len(self._pix_cache) > MAX_CACHE_ENTRIES
+            or self._cache_bytes > MAX_CACHE_BYTES
+        ):
             _key, pix = self._pix_cache.popitem(last=False)
             self._cache_bytes -= self._pix_bytes(pix)
 
@@ -426,9 +474,12 @@ class StagePreview(QWidget):
             # 降到 MAX_IMAGE_DIM 内可把单张缓存压到约 1/4，且后续每次重绘的
             # 缩放开销也大幅降低
             if not pix.isNull() and max(pix.width(), pix.height()) > MAX_IMAGE_DIM:
-                pix = pix.scaled(MAX_IMAGE_DIM, MAX_IMAGE_DIM,
-                                 Qt.AspectRatioMode.KeepAspectRatio,
-                                 Qt.TransformationMode.SmoothTransformation)
+                pix = pix.scaled(
+                    MAX_IMAGE_DIM,
+                    MAX_IMAGE_DIM,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
         except Exception:
             log_crash(f"图片加载异常（{key}）：\n{traceback.format_exc()}")
             pix = QPixmap()
@@ -478,8 +529,11 @@ class StagePreview(QWidget):
                 p.resetTransform()
                 p.fillRect(self.rect(), QColor(24, 24, 24))
                 p.setPen(QColor(255, 160, 120))
-                p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter,
-                           "演出预览绘制异常（详见 crash.log）")
+                p.drawText(
+                    self.rect(),
+                    Qt.AlignmentFlag.AlignCenter,
+                    "演出预览绘制异常（详见 crash.log）",
+                )
             except Exception:
                 pass
         finally:
@@ -490,8 +544,11 @@ class StagePreview(QWidget):
         pix = self._load_pixmap(self._view_path(view))
         if not pix.isNull():
             # 缩放铺满、保比例、居中（超出部分裁掉）
-            scaled = pix.scaled(rect.size(), Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                                Qt.TransformationMode.SmoothTransformation)
+            scaled = pix.scaled(
+                rect.size(),
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                Qt.TransformationMode.SmoothTransformation,
+            )
             x = rect.x() + (rect.width() - scaled.width()) // 2
             y = rect.y() + (rect.height() - scaled.height()) // 2
             p.save()
@@ -508,8 +565,9 @@ class StagePreview(QWidget):
                 p.fillRect(rect, QColor(245, 245, 245))
             else:
                 p.fillRect(rect, BG_FALLBACK)
-            p.setPen(QColor(200, 200, 200) if view != "white"
-                     else QColor(120, 120, 120))
+            p.setPen(
+                QColor(200, 200, 200) if view != "white" else QColor(120, 120, 120)
+            )
             font = QFont(self.font())
             font.setPointSizeF(max(10.0, rect.height() * 0.06))
             font.setBold(True)
@@ -524,8 +582,9 @@ class StagePreview(QWidget):
         baseline = rect.bottom() - floor(rect.height() * 0.02)  # 底部基准线
         h = floor(rect.height() * 0.78)  # 立绘高度
         # 按 x 排序，左边先画，避免右侧人物被左压
-        ordered = sorted(actors.items(),
-                         key=lambda kv: position_x(kv[1].get("position", ""))[0])
+        ordered = sorted(
+            actors.items(), key=lambda kv: position_x(kv[1].get("position", ""))[0]
+        )
         unknown: list[str] = []
         for cid, info in ordered:
             pos = info.get("position", "")
@@ -538,10 +597,13 @@ class StagePreview(QWidget):
             pix = self._load_pixmap(self._portrait_path(cid, portrait))
             if not pix.isNull():
                 scaled = pix.scaledToHeight(
-                    h, Qt.TransformationMode.SmoothTransformation)
+                    h, Qt.TransformationMode.SmoothTransformation
+                )
                 if facing == "left":
                     scaled = scaled.transformed(QTransform().scale(-1, 1))
-                p.drawPixmap(cx - scaled.width() // 2, baseline - scaled.height(), scaled)
+                p.drawPixmap(
+                    cx - scaled.width() // 2, baseline - scaled.height(), scaled
+                )
             else:
                 self._paint_actor_placeholder(p, cx, baseline, h, cid, portrait)
         if unknown:
@@ -551,11 +613,15 @@ class StagePreview(QWidget):
             font.setPointSizeF(max(8.0, rect.height() * 0.022))
             p.setFont(font)
             note = "未识别站位（按中央处理）：" + "、".join(unknown)
-            p.drawText(rect.adjusted(8, 6, -8, 0),
-                       Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft, note)
+            p.drawText(
+                rect.adjusted(8, 6, -8, 0),
+                Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft,
+                note,
+            )
 
-    def _paint_actor_placeholder(self, p: QPainter, cx: int, baseline: int,
-                                 h: int, cid: str, portrait: str) -> None:
+    def _paint_actor_placeholder(
+        self, p: QPainter, cx: int, baseline: int, h: int, cid: str, portrait: str
+    ) -> None:
         w = floor(h * 0.45)
         box = QRect(cx - w // 2, baseline - h, w, h)
         p.fillRect(box, PLACEHOLDER_BG)
@@ -567,9 +633,11 @@ class StagePreview(QWidget):
         font.setPointSizeF(max(9.0, h * 0.045))
         font.setBold(True)
         p.setFont(font)
-        p.drawText(QRectF(box.adjusted(4, 4, -4, -4)),
-                   Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap,
-                   f"{name}\n（{portrait}）")
+        p.drawText(
+            QRectF(box.adjusted(4, 4, -4, -4)),
+            Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap,
+            f"{name}\n（{portrait}）",
+        )
 
     def _paint_dialog(self, p: QPainter, rect: QRect) -> None:
         dialog = self._state.get("dialog")
@@ -580,16 +648,19 @@ class StagePreview(QWidget):
         # center 模式：居中旁白，舞台中部横带、无说话者
         if mode == "center":
             band_h = floor(rect.height() * 0.22)
-            band = QRect(rect.x(), rect.y() + (rect.height() - band_h) // 2,
-                         rect.width(), band_h)
+            band = QRect(
+                rect.x(), rect.y() + (rect.height() - band_h) // 2, rect.width(), band_h
+            )
             p.fillRect(band, QColor(0, 0, 0, 150))
             font = QFont(self.font())
             font.setPointSizeF(max(10.0, band_h * 0.24))
             p.setFont(font)
             p.setPen(QColor(245, 245, 245))
-            p.drawText(QRectF(band.adjusted(24, 8, -24, -8)),
-                       Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap,
-                       dialog.get("text", ""))
+            p.drawText(
+                QRectF(band.adjusted(24, 8, -24, -8)),
+                Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap,
+                dialog.get("text", ""),
+            )
             return
 
         bar_h = floor(rect.height() * 0.24)
@@ -612,18 +683,25 @@ class StagePreview(QWidget):
         name_font.setBold(True)
         p.setFont(name_font)
         p.setPen(QColor(255, 214, 130))
-        p.drawText(QRect(inner.x(), inner.y(), inner.width(), name_h),
-                   Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, speaker)
+        p.drawText(
+            QRect(inner.x(), inner.y(), inner.width(), name_h),
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+            speaker,
+        )
 
         text_font = QFont(self.font())
         text_font.setPointSizeF(max(9.0, bar_h * 0.17))
         p.setFont(text_font)
         p.setPen(QColor(245, 245, 245))
-        p.drawText(QRectF(inner.x(), inner.y() + name_h,
-                          inner.width(), inner.height() - name_h),
-                   Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
-                   | Qt.TextFlag.TextWordWrap,
-                   dialog.get("text", ""))
+        p.drawText(
+            QRectF(
+                inner.x(), inner.y() + name_h, inner.width(), inner.height() - name_h
+            ),
+            Qt.AlignmentFlag.AlignLeft
+            | Qt.AlignmentFlag.AlignTop
+            | Qt.TextFlag.TextWordWrap,
+            dialog.get("text", ""),
+        )
 
     def _paint_hint(self, p: QPainter, rect: QRect) -> None:
         """无法舞台化的节点（stat/item/mission/dice/panel 等）：底部灰字一行说明。"""
@@ -637,9 +715,11 @@ class StagePreview(QWidget):
         font.setPointSizeF(max(9.0, bar_h * 0.34))
         p.setFont(font)
         p.setPen(QColor(170, 170, 170))
-        p.drawText(bar.adjusted(12, 0, -12, 0),
-                   Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
-                   hint)
+        p.drawText(
+            bar.adjusted(12, 0, -12, 0),
+            Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
+            hint,
+        )
 
     def _paint_choices(self, p: QPainter, rect: QRect) -> None:
         choice = self._state.get("choice")
@@ -672,16 +752,25 @@ class StagePreview(QWidget):
         p.setFont(font)
         state = self._state
         if state.get("reached"):
-            node = next((n for n in (self._story or {}).get("nodes", [])
-                         if n.get("id") == self._node_id), {})
+            node = next(
+                (
+                    n
+                    for n in (self._story or {}).get("nodes", [])
+                    if n.get("id") == self._node_id
+                ),
+                {},
+            )
             ntype = node.get("type", "?")
             text = f"{self._node_id} · {models.NODE_TYPE_CN.get(ntype, ntype)}"
             p.setPen(QColor(180, 180, 180, 200))
         else:
             text = f"{self._node_id}：推演未到达（{state.get('steps', 0)} 步上限或路径中断）"
             p.setPen(QColor(255, 160, 120))
-        p.drawText(rect.adjusted(0, 6, -8, 0),
-                   Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight, text)
+        p.drawText(
+            rect.adjusted(0, 6, -8, 0),
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight,
+            text,
+        )
 
     # ------------------------------------------------------------ 交互
     def mousePressEvent(self, event) -> None:  # noqa: N802（Qt 命名）

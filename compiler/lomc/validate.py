@@ -202,7 +202,7 @@ _NODE_FIELDS = {
     "dice": ({"check": "idstr", "options": "list"}, {}),
     "goto_scene": (
         {"scene": "goto_scene"},
-        {"key": "idstr", "next": "str"},
+        {"key": "idstr", "next": "str", "title": "str", "desc": "str"},
     ),
     "panel": (
         {"panel": "panel_kind"},
@@ -622,10 +622,24 @@ def _collect_warnings(story, warnings):
         if scene in ("GameOver", "End") and key and key in official_ids:
             warnings.append(
                 '节点 "%s"(goto_scene): scene="%s" 的 key="%s" 与官方结局 id '
-                "重复，会触发官方结局解锁与记录（LibraryItemData.Add，污染玩家"
+                % (
+                    n.get("id", "?"),
+                    scene,
+                    key,
+                )
+                + "重复，会触发官方结局解锁与记录（LibraryItemData.Add，污染玩家"
                 "存档）；建议改用 ≥900000 的 mod 专属 id（查不到官方条目，仅展示"
-                "对应画面，无副作用）。" % (n.get("id", "?"), scene, key)
+                "对应画面，无副作用）。"
             )
+        # End 结局卡片：给了 title 建议同时给 desc（运行时 mod_set_ending_text
+        # 的 desc 缺省空串，官方结局画面描述区会空白）
+        if scene == "End" and isinstance(n.get("title"), str) and n["title"]:
+            if not isinstance(n.get("desc"), str) or not n["desc"].strip():
+                warnings.append(
+                    '节点 "%s"(goto_scene): scene="End" 给了 title 但未给 desc，'
+                    "结局画面的描述区将显示空白；建议补一个非空 desc。"
+                    % n.get("id", "?")
+                )
 
 
 def _validate_story_inner(story):
@@ -745,5 +759,65 @@ def validate_manifest(manifest, source="manifest.json"):
                 for cond in ("when_flag_set", "when_flag_clear"):
                     if cond in trig and not isinstance(trig[cond], str):
                         raise LomcError('%s: 字段 "%s" 必须是字符串' % (tlabel, cond))
+                # 新可选条件（与 flag 条件并列 AND，数组顺序=优先级）：
+                # when_month 1~12、when_stage 1~3、when_affinity {character, min}
+                wm = trig.get("when_month")
+                if wm is not None and (
+                    not isinstance(wm, int) or isinstance(wm, bool) or not 1 <= wm <= 12
+                ):
+                    raise LomcError(
+                        '%s: 字段 "when_month" 必须是 1~12 的整数，实际为 %r'
+                        % (tlabel, wm)
+                    )
+                ws = trig.get("when_stage")
+                if ws is not None and (
+                    not isinstance(ws, int) or isinstance(ws, bool) or not 1 <= ws <= 3
+                ):
+                    raise LomcError(
+                        '%s: 字段 "when_stage" 必须是 1~3 的整数（旬），实际为 %r'
+                        % (tlabel, ws)
+                    )
+                wa = trig.get("when_affinity")
+                if wa is not None:
+                    if not isinstance(wa, dict):
+                        raise LomcError(
+                            '%s: 字段 "when_affinity" 必须是 {"character": <人物>, '
+                            '"min": <数值>} 对象，实际为 %r' % (tlabel, wa)
+                        )
+                    for k in wa:
+                        if k not in ("character", "min"):
+                            raise LomcError(
+                                '%s: when_affinity 含未知字段 "%s"'
+                                "（允许：character、min）" % (tlabel, k)
+                            )
+                    wc = wa.get("character")
+                    if not isinstance(wc, str) or not wc:
+                        raise LomcError(
+                            "%s: when_affinity.character 必须是非空字符串"
+                            "（人物 id），实际为 %r" % (tlabel, wc)
+                        )
+                    wmin = wa.get("min")
+                    if not isinstance(wmin, int) or isinstance(wmin, bool):
+                        raise LomcError(
+                            "%s: when_affinity.min 必须是整数，实际为 %r"
+                            % (tlabel, wmin)
+                        )
+                # 未知字段一律报错（防拼写错误静默失效）
+                allowed = (
+                    "type",
+                    "position",
+                    "script",
+                    "when_flag_set",
+                    "when_flag_clear",
+                    "when_month",
+                    "when_stage",
+                    "when_affinity",
+                )
+                for k in trig:
+                    if k not in allowed:
+                        raise LomcError(
+                            '%s: 未知字段 "%s"（允许：%s）'
+                            % (tlabel, k, "、".join(allowed))
+                        )
     except LomcError as e:
         raise LomcError("%s: %s" % (source, e))

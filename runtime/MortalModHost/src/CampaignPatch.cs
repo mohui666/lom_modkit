@@ -4,6 +4,7 @@ using BepInEx.Logging;
 using HarmonyLib;
 using Mortal.Core;
 using Mortal.Free;
+using OBB.Framework.Utils;
 
 namespace MortalModHost
 {
@@ -41,6 +42,27 @@ namespace MortalModHost
                 stat.SetStoryScript(registered);
                 stat.SetStartScript(registered);
                 Log.LogInfo("新战役首脚本已替换：" + registered + "（mod " + mod.Id + "）");
+
+                // 契约 §D：mod 新战役发放 2 点命运（GameStatType.命运，StringValue "fate"），
+                // 保证全场景骰子 DiceMenuDialog.CheckRevolution（Stats.Get(命运).FinalValue > 0）
+                // 在 mod 战役里也能走逆天流程（官方新游戏有命运点，mod 隔离存档初始为 0）。
+                try
+                {
+                    GameStat fate = stat.Stats.Get(GameStatType.命運);
+                    if (fate != null)
+                    {
+                        fate.AddValue(2);
+                        Log.LogInfo("mod 新战役已发放 2 点命运（当前值 " + fate.Value + "）");
+                    }
+                    else
+                    {
+                        Log.LogWarning("mod 新战役发放命运点失败：Stats 中没有 命運 属性");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.LogWarning("mod 新战役发放命运点失败：" + ex.Message);
+                }
 
                 // 存档污染修复：NewGameData 内部在本 postfix 之前已 CreateSaveData() 落盘，
                 // 存档里 StartStoryScript 仍是官方 ch1_1（读档会被拉回官方序章）。
@@ -90,6 +112,7 @@ namespace MortalModHost
                     {
                         if (!string.Equals(trigger.Position, positionId, StringComparison.Ordinal)) continue;
                         if (!trigger.IsConditionMet(storyKeys)) continue;
+                        if (!IsTimeAndAffinityMet(trigger)) continue;
                         string registered = mod.GetRegisteredScriptName(trigger.Script);
                         __result = registered;
                         Log.LogInfo("位置触发器命中：" + positionId + " → " + registered);
@@ -100,6 +123,52 @@ namespace MortalModHost
             catch (Exception ex)
             {
                 Log.LogError("位置触发器判定异常：" + ex);
+            }
+        }
+
+        /// <summary>
+        /// 触发器时间/好感条件（契约 §2.1，与 flag 条件全部 AND）：
+        /// <list type="bullet">
+        /// <item>when_month/when_stage：PlayerStatManagerData.GameTime（GameTime.Month 字段 +
+        ///   Stage 枚举，MonthStageType 上旬=1/中旬=2/下旬=3，ilspycmd 实测与 ConvertToRounds 的 (int)Stage 一致）。</item>
+        /// <item>when_affinity：EnumUtils.TryParseByStringValue&lt;RelationshipStatType&gt;(character)（匹配
+        ///   StringValue 契约 id，如 brother4=四師兄）→ Relationships.Get(type).Value（RelationshipStat 当前值
+        ///   属性，IGameStat 是空标记接口不提供取值）≥ min。</item>
+        /// </list>
+        /// API 拿不到/异常一律按条件不满足处理（返回 false），不抛异常。数组顺序即优先级：
+        /// 外层循环按 manifest.triggers 数组顺序逐个判定，第一个条件全部命中的触发器生效。
+        /// </summary>
+        private static bool IsTimeAndAffinityMet(CampaignTrigger trigger)
+        {
+            if (trigger.WhenMonth == null && trigger.WhenStage == null && trigger.WhenAffinity == null)
+                return true;
+            try
+            {
+                PlayerStatManagerData stat = PlayerStatManagerData.Instance;
+                if (trigger.WhenMonth != null || trigger.WhenStage != null)
+                {
+                    if (stat == null) return false;
+                    GameTime time = stat.GameTime;
+                    if (time == null) return false;
+                    if (trigger.WhenMonth != null && time.Month != trigger.WhenMonth.Value) return false;
+                    if (trigger.WhenStage != null && (int)time.Stage != trigger.WhenStage.Value) return false;
+                }
+                if (trigger.WhenAffinity != null)
+                {
+                    if (stat == null) return false;
+                    RelationshipStatType type;
+                    if (!EnumUtils.TryParseByStringValue<RelationshipStatType>(trigger.WhenAffinity.Character, out type))
+                        return false;
+                    RelationshipStat relationship = stat.Relationships.Get(type);
+                    if (relationship == null) return false;
+                    if (relationship.Value < trigger.WhenAffinity.Min) return false;
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.LogWarning("触发器时间/好感条件评估失败（按不满足处理）：" + ex.Message);
+                return false;
             }
         }
 

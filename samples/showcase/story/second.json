@@ -42,54 +42,99 @@
     {
       "id": "n6",
       "type": "say",
-      "text": "四师兄的声音从身后飘来——「赵师弟，再来一局？这回是二带检定，只有成功和失败，没有大成功。」",
+      "text": "四师兄的声音从身后飘来——「赵师弟，再来一局？这回是二带检定，只有成功和失败，没有大成功。而且……这次没有别的结局，只有坠崖。」",
       "character": "player",
       "portrait": "nervous1",
       "mode": "character"
     },
     {
-      "id": "n11",
+      "id": "n15",
       "type": "dice",
       "check": "Talk_Brother4_02_01_01_001",
       "options": [
         {
           "goto_大成功": "",
-          "goto_成功": "n10",
-          "goto_失败": "n8"
+          "goto_成功": "n11",
+          "goto_失败": "n7"
         }
       ]
     },
     {
-      "id": "n10",
+      "id": "n7",
       "type": "say",
-      "text": "【成功】我稳稳接住了骰子！……然后编剧说：「坠崖是加演的保留节目。」不——！",
+      "text": "【失败】手一抖，骰子掉下悬崖……人也差点跟着下去了。",
       "character": "player",
-      "portrait": "nervous3",
-      "mode": "character",
-      "goto": "n9"
-    },
-    {
-      "id": "n9",
-      "type": "death",
-      "text": "【自定义死亡文本】你赢了骰子，却输给了剧本。\n脚下一滑，赵活坠入万丈深渊。\n（死亡文本节点：黑屏 + 居中旁白 + 官方 GameOver 死亡画面，回标题画面）",
-      "death_id": "910021",
-      "next": "Title"
+      "portrait": "suck2",
+      "mode": "character"
     },
     {
       "id": "n8",
       "type": "say",
-      "text": "【失败】手一抖，骰子掉下悬崖……人也跟着下去了。",
+      "text": "四师兄探出头来：「别急别急！掉的是骰子，不是你。师兄我再给你一次机会——」",
       "character": "player",
-      "portrait": "suck2",
-      "mode": "character",
-      "goto": "n7"
+      "portrait": "nervous2",
+      "mode": "character"
     },
     {
-      "id": "n7",
+      "id": "n10",
+      "type": "choice",
+      "options": [
+        {
+          "text": "再来一局！谁怕谁",
+          "goto": "n6"
+        },
+        {
+          "text": "不玩了，认命坠崖",
+          "goto": "n9"
+        }
+      ],
+      "dialog": "Options"
+    },
+    {
+      "id": "n9",
       "type": "death",
-      "text": "【自定义死亡文本】检定失败，赵活自己跳了下去。\n（第二幕完：next=Free 回自由模式。重玩时已读文本会变黄、可快进。）",
+      "text": "【自定义死亡文本】你选择不玩了。\n四师兄叹了口气：「那按剧本，你自己下去吧。」\n（第二幕完：next=Free 回自由模式。）",
       "death_id": "910021",
       "next": "Free"
+    },
+    {
+      "id": "n11",
+      "type": "say",
+      "text": "【成功】我稳稳接住了骰子！……然后编剧说：「恭喜通关，请选择你的谢幕方式。」",
+      "character": "player",
+      "portrait": "nervous3",
+      "mode": "character"
+    },
+    {
+      "id": "n14",
+      "type": "choice",
+      "options": [
+        {
+          "text": "坠崖谢幕（死亡演示 910021）",
+          "goto": "n12"
+        },
+        {
+          "text": "直接播结局卡（End 920047）",
+          "goto": "n13"
+        }
+      ],
+      "dialog": "Options"
+    },
+    {
+      "id": "n13",
+      "type": "goto_scene",
+      "scene": "End",
+      "next": "Story",
+      "key": "920047",
+      "title": "全功能展示·武林传奇",
+      "desc": "耕阳读书斋将你的事迹编撰成书，发行于市。\n唐门活侠——一个被编剧折腾了三幕的倒霉蛋——大名一朝传遍中原。\n（结局卡片：title/desc 由 mod_set_ending_text 交给官方结局画面绘制。）"
+    },
+    {
+      "id": "n12",
+      "type": "death",
+      "text": "【自定义死亡文本】你选了坠崖谢幕。\n脚下一滑，赵活坠入万丈深渊。\n（死亡文本节点：黑屏 → mod_set_death_text → 官方 GameOver 死亡画面，回标题画面）",
+      "death_id": "910021",
+      "next": "Title"
     }
   ]
 }

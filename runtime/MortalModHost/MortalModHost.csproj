@@ -55,7 +55,7 @@
       <HintPath>$(GameDir)\Mortal_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
-    <!-- 游戏程序集：SceneController / PlayerStatManagerData（场景控制与剧情脚本切换） -->
+    <!-- 游戏程序集：Mortal.Core（SceneController / PlayerStatManagerData / GameOver/EndGame 控制器 / MenuToggleButton） -->
     <Reference Include="Mortal.Core">
       <HintPath>$(GameDir)\Mortal_Data\Managed\Mortal.Core.dll</HintPath>
       <Private>false</Private>
@@ -68,6 +68,21 @@
     <!-- 游戏程序集：FreePositionData / PositionController（自由模式位置触发器） -->
     <Reference Include="Mortal.Free">
       <HintPath>$(GameDir)\Mortal_Data\Managed\Mortal.Free.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- OBB.Framework：EnumUtils.TryParseByStringValue（when_affinity 角色契约 id → RelationshipStatType） -->
+    <Reference Include="OBB.Framework">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\OBB.Framework.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- UnityEngine.UI：Text 组件（GameOver/End 官方画面的标题/描述文本写入） -->
+    <Reference Include="UnityEngine.UI">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\UnityEngine.UI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- UnityEngine.UIModule：CanvasGroup（GameOver 描述容器/按钮画布 fade 目标） -->
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\UnityEngine.UIModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <!-- LeanLocalization（契约 §A：texts.json 台词注册进官方本地化表，GetStoryText 已读变黄能力） -->

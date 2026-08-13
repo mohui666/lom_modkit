@@ -169,14 +169,22 @@ class ManifestDialog(QDialog):
         self.new_game_check.setChecked(bool(campaign.get("new_game")))
         cv.addWidget(self.new_game_check)
         cv.addWidget(QLabel("自由模式触发器：点击地图位置时用本包脚本替换默认活动"))
-        self.triggers_table = QTableWidget(0, 4)
+        self.triggers_table = QTableWidget(0, 7)
         self.triggers_table.setHorizontalHeaderLabels(
-            ["地图位置", "脚本 id", "需已设旗标（可选）", "需未设旗标（可选）"]
+            [
+                "地图位置",
+                "脚本 id",
+                "需已设旗标（可选）",
+                "需未设旗标（可选）",
+                "月份 1~12（可选）",
+                "旬 1~3（可选）",
+                "好感 角色:数值（可选）",
+            ]
         )
         self.triggers_table.horizontalHeader().setSectionResizeMode(
             0, QHeaderView.ResizeMode.ResizeToContents
         )
-        for c in (1, 2, 3):
+        for c in (1, 2, 3, 4, 5, 6):
             self.triggers_table.horizontalHeader().setSectionResizeMode(
                 c, QHeaderView.ResizeMode.Stretch
             )
@@ -224,6 +232,17 @@ class ManifestDialog(QDialog):
         table.setCellWidget(r, 1, script)
         table.setItem(r, 2, QTableWidgetItem(str(trig.get("when_flag_set", ""))))
         table.setItem(r, 3, QTableWidgetItem(str(trig.get("when_flag_clear", ""))))
+        # 月份/旬：int 条件；空则不写
+        wm = trig.get("when_month")
+        table.setItem(r, 4, QTableWidgetItem("" if wm is None else str(wm)))
+        ws = trig.get("when_stage")
+        table.setItem(r, 5, QTableWidgetItem("" if ws is None else str(ws)))
+        # 好感：{"character": <人物>, "min": <数值>} → "人物:数值"（如 brother4:3）
+        wa = trig.get("when_affinity")
+        aff_text = ""
+        if isinstance(wa, dict) and wa.get("character"):
+            aff_text = "%s:%s" % (wa["character"], wa.get("min", ""))
+        table.setItem(r, 6, QTableWidgetItem(aff_text))
 
     @staticmethod
     def _set_combo_value(combo: QComboBox, value: str) -> None:
@@ -277,13 +296,42 @@ class ManifestDialog(QDialog):
             ).strip()
             if not position or not script:
                 continue  # 位置/脚本缺一不可，缺了跳过该行
-            trig = {"type": "position", "position": position, "script": script}
+            trig: dict = {"type": "position", "position": position, "script": script}
             flag_set = self._cell_text(table, r, 2)
             flag_clear = self._cell_text(table, r, 3)
             if flag_set:
                 trig["when_flag_set"] = flag_set
             if flag_clear:
                 trig["when_flag_clear"] = flag_clear
+            # 月份/旬：尝试转 int（转不了原样写出，交给 lomc validate 报错）
+            month_text = self._cell_text(table, r, 4)
+            if month_text:
+                try:
+                    trig["when_month"] = int(month_text)
+                except ValueError:
+                    trig["when_month"] = month_text
+            stage_text = self._cell_text(table, r, 5)
+            if stage_text:
+                try:
+                    trig["when_stage"] = int(stage_text)
+                except ValueError:
+                    trig["when_stage"] = stage_text
+            # 好感："角色:数值" 拆 character/min；无冒号时整串当 character
+            aff_text = self._cell_text(table, r, 6)
+            if aff_text:
+                if ":" in aff_text:
+                    char_part, _, min_part = aff_text.partition(":")
+                    min_part = min_part.strip()
+                    try:
+                        min_val = int(min_part)
+                    except ValueError:
+                        min_val = min_part  # 非法值原样给 lomc 报错
+                else:
+                    char_part, min_val = aff_text, ""
+                trig["when_affinity"] = {
+                    "character": char_part.strip(),
+                    "min": min_val,
+                }
             triggers.append(trig)
         campaign: dict = {}
         if self.new_game_check.isChecked():

@@ -362,7 +362,8 @@ class TestNodeCodegen(unittest.TestCase):
         self.assertNotIn("mod_set_mood(false)", lua)
 
     def test_death(self):
-        # 死亡文本节点：黑屏 + 居中旁白（已读 key）+ 官方 GameOver 死亡画面；自带收尾不加流转行
+        # 死亡文本节点：黑屏过渡 → mod_set_death_text（文本字面量进 Lua，不进
+        # texts.json / 已读系统）→ 官方 GameOver 死亡画面；自带收尾不加流转行
         lua = compile_story(
             make_story(
                 [
@@ -380,19 +381,41 @@ class TestNodeCodegen(unittest.TestCase):
         self.assertIn('\trunblock(flowcharts.view, "out")', lua)
         self.assertIn('\tgetvar(flowcharts.view, "ViewName").value = "black"', lua)
         self.assertIn('\trunblock(flowcharts.view, "view")', lua)
-        self.assertIn("\tsetsaydialog(saydialogs.center)", lua)
-        self.assertIn("\tsayoptions.waitforinput = true", lua)
-        self.assertIn("\tsayoptions.fadewhendone  = true", lua)
-        self.assertIn("\tsetcharacter(narrative)", lua)
-        self.assertIn('\tsay(luamanager.GetStoryText("MOD_MOD_main_n2"))', lua)
+        # 不再走对话框 say：文本由 mod_set_death_text 交给官方死亡画面中央显示
+        self.assertIn('\tmod_set_death_text("你坠入山崖，万事休矣。")', lua)
+        self.assertNotIn("setsaydialog", lua)
+        self.assertNotIn("GetStoryText", lua)
         self.assertIn('\tluamanager.ChangeScene("GameOver", "910021", "Title")', lua)
+        # mod_set_death_text 必须在 ChangeScene 之前（先设文本再进死亡画面）
+        self.assertLess(
+            lua.index("mod_set_death_text"),
+            lua.index('ChangeScene("GameOver", "910021", "Title")'),
+        )
         # death 自带流转，不追加 return（ChangeScene 后直接收束函数）
         self.assertNotIn('ChangeScene("GameOver", "910021", "Title")\n\treturn', lua)
+
+    def test_death_text_escape(self):
+        # mod_set_death_text 参数走 lua_str：反斜杠/引号/换行按契约 §4 转义
+        lua = compile_story(
+            make_story(
+                [
+                    {
+                        "id": "n1",
+                        "type": "death",
+                        "text": '第一行\n引号"反斜杠\\',
+                        "death_id": "910021",
+                        "next": "Title",
+                    }
+                ]
+            )
+        )
+        self.assertIn('\tmod_set_death_text("第一行\\n引号\\"反斜杠\\\\")', lua)
 
     def test_death_default_next_title(self):
         lua = self.lua_of(
             {"id": "n1", "type": "death", "text": "命数已尽。", "death_id": "910021"}
         )
+        self.assertIn('\tmod_set_death_text("命数已尽。")', lua)
         self.assertIn('\tluamanager.ChangeScene("GameOver", "910021", "Title")', lua)
 
     def test_death_free_next(self):
@@ -405,6 +428,7 @@ class TestNodeCodegen(unittest.TestCase):
                 "next": "Free",
             }
         )
+        self.assertIn('\tmod_set_death_text("命数已尽。")', lua)
         self.assertIn('\tluamanager.ChangeScene("GameOver", "910021", "Free")', lua)
 
     def test_choice(self):
@@ -989,6 +1013,108 @@ class TestValidationErrors(unittest.TestCase):
         self.assertIn('"id"', str(cm.exception))
 
 
+class TestManifestTriggerConditions(unittest.TestCase):
+    """campaign.triggers 的新可选条件：when_month / when_stage / when_affinity。"""
+
+    def trig_manifest(self, extra):
+        m = dict(MANIFEST)
+        m["campaign"] = {
+            "new_game": True,
+            "triggers": [
+                {
+                    "type": "position",
+                    "position": "Center",
+                    "script": "train",
+                    **extra,
+                }
+            ],
+        }
+        return m
+
+    def test_valid_conditions(self):
+        # 三种新条件全部合法（可共存，与 flag 条件并列 AND）
+        m = self.trig_manifest(
+            {
+                "when_flag_set": "F1",
+                "when_flag_clear": "F2",
+                "when_month": 12,
+                "when_stage": 3,
+                "when_affinity": {"character": "brother4", "min": 3},
+            }
+        )
+        validate_manifest(m)
+        # 边界值：月份 1/12、旬 1/3
+        for wm in (1, 12):
+            validate_manifest(self.trig_manifest({"when_month": wm}))
+        for ws in (1, 3):
+            validate_manifest(self.trig_manifest({"when_stage": ws}))
+        # min 允许 0 / 负数
+        validate_manifest(
+            self.trig_manifest({"when_affinity": {"character": "girl2", "min": -2}})
+        )
+
+    def test_invalid_month(self):
+        for bad in (0, 13, "4", 4.5, True):
+            with self.assertRaises(LomcError) as cm:
+                validate_manifest(self.trig_manifest({"when_month": bad}))
+            self.assertIn('"when_month"', str(cm.exception))
+
+    def test_invalid_stage(self):
+        for bad in (0, 4, "3", True):
+            with self.assertRaises(LomcError) as cm:
+                validate_manifest(self.trig_manifest({"when_stage": bad}))
+            self.assertIn('"when_stage"', str(cm.exception))
+
+    def test_invalid_affinity(self):
+        # 非对象
+        with self.assertRaises(LomcError) as cm:
+            validate_manifest(self.trig_manifest({"when_affinity": "brother4:3"}))
+        self.assertIn('"when_affinity"', str(cm.exception))
+        # character 缺失/非 str
+        with self.assertRaises(LomcError) as cm:
+            validate_manifest(self.trig_manifest({"when_affinity": {"min": 3}}))
+        self.assertIn("when_affinity.character", str(cm.exception))
+        with self.assertRaises(LomcError) as cm:
+            validate_manifest(
+                self.trig_manifest({"when_affinity": {"character": "", "min": 3}})
+            )
+        self.assertIn("when_affinity.character", str(cm.exception))
+        # min 缺失/非 int（bool 不算数值）
+        with self.assertRaises(LomcError) as cm:
+            validate_manifest(
+                self.trig_manifest({"when_affinity": {"character": "brother4"}})
+            )
+        self.assertIn("when_affinity.min", str(cm.exception))
+        with self.assertRaises(LomcError) as cm:
+            validate_manifest(
+                self.trig_manifest({"when_affinity": {"character": "b", "min": "3"}})
+            )
+        self.assertIn("when_affinity.min", str(cm.exception))
+        with self.assertRaises(LomcError) as cm:
+            validate_manifest(
+                self.trig_manifest({"when_affinity": {"character": "b", "min": True}})
+            )
+        self.assertIn("when_affinity.min", str(cm.exception))
+        # 未知子字段
+        with self.assertRaises(LomcError) as cm:
+            validate_manifest(
+                self.trig_manifest(
+                    {"when_affinity": {"character": "b", "min": 3, "max": 9}}
+                )
+            )
+        self.assertIn('未知字段 "max"', str(cm.exception))
+
+    def test_unknown_condition_field(self):
+        # 拼写错误的条件字段必须报错（防静默失效）
+        with self.assertRaises(LomcError) as cm:
+            validate_manifest(self.trig_manifest({"when_moth": 4}))
+        self.assertIn('未知字段 "when_moth"', str(cm.exception))
+        # 现有 flag 条件校验仍生效
+        with self.assertRaises(LomcError) as cm:
+            validate_manifest(self.trig_manifest({"when_flag_set": 7}))
+        self.assertIn('"when_flag_set" 必须是字符串', str(cm.exception))
+
+
 # ---------------------------------------------------------------------------
 # pack 打包 + 解压往返
 # ---------------------------------------------------------------------------
@@ -1067,14 +1193,12 @@ class TestPack(unittest.TestCase):
             self.assertEqual(story_back, main)
             lua_main = zf.read("lua/main.lua").decode("utf-8")
             lua_extra = zf.read("lua/extra.lua").decode("utf-8")
-            # 已读文本表（契约 §1）：say/death 节点的 key → 文本
+            # 已读文本表（契约 §1）：仅 say 节点的 key → 文本（death 文本由
+            # mod_set_death_text 直接进 Lua，不进 texts.json）
             texts = json.loads(zf.read("texts.json").decode("utf-8"))
             self.assertEqual(
                 texts,
-                {
-                    "MOD_testmod_main_n2": "打包对话文本",
-                    "MOD_testmod_extra_x1": "死亡文本演示",
-                },
+                {"MOD_testmod_main_n2": "打包对话文本"},
             )
 
         # 包内 lua 与直接编译结果一致
@@ -1085,9 +1209,13 @@ class TestPack(unittest.TestCase):
         self.assertIn('luamanager.GetStoryText("MOD_testmod_main_n2")', lua_main)
         self.assertIn("return node_n1()", lua_main)
         self.assertIn("return node_x1()", lua_extra)
-        # extra 的 death 自带场景跳转收尾（key 走已读机制，官方 GameOver 死亡画面）
-        self.assertIn('luamanager.GetStoryText("MOD_testmod_extra_x1")', lua_extra)
-        self.assertIn('luamanager.ChangeScene("GameOver", "910021", "Title")', lua_extra)
+        # extra 的 death：黑屏 → mod_set_death_text（字面量）→ 官方 GameOver
+        # 死亡画面收尾；不再走已读 key
+        self.assertIn('\tmod_set_death_text("死亡文本演示")', lua_extra)
+        self.assertNotIn("GetStoryText", lua_extra)
+        self.assertIn(
+            'luamanager.ChangeScene("GameOver", "910021", "Title")', lua_extra
+        )
         self.assertNotIn("luamanager.Init()", lua_extra)
 
     def test_pack_missing_manifest(self):
@@ -1715,6 +1843,51 @@ class TestNewNodeCodegen(unittest.TestCase):
         # goto_scene 自带跳转，不追加流转行
         self.assertNotIn("return node_nend()", lua2)
 
+    def test_goto_scene_ending_card(self):
+        # End/GameOver + title/desc：ChangeScene 前发射 mod_set_ending_text
+        # （desc 缺省空串）；无 title/desc 时不发射。
+        lua = self.lua_of(
+            {
+                "id": "n1",
+                "type": "goto_scene",
+                "scene": "End",
+                "key": "920047",
+                "title": "武林传奇",
+                "desc": "你的名字，从今往后便是传说。",
+            }
+        )
+        self.assertIn(
+            '\tmod_set_ending_text("武林传奇", "你的名字，从今往后便是传说。")',
+            lua,
+        )
+        self.assertIn('\tluamanager.ChangeScene("End", "920047", "Story")', lua)
+        # mod_set_ending_text 必须在 ChangeScene 之前（先设文本再进结局画面）
+        self.assertLess(
+            lua.index("mod_set_ending_text"),
+            lua.index('ChangeScene("End", "920047", "Story")'),
+        )
+        # 只有 title：desc 缺省空串
+        lua2 = self.lua_of(
+            {"id": "n1", "type": "goto_scene", "scene": "GameOver", "title": "只标题"}
+        )
+        self.assertIn('\tmod_set_ending_text("只标题", "")', lua2)
+        # 无 title/desc 不发射
+        lua3 = self.lua_of(
+            {"id": "n1", "type": "goto_scene", "scene": "End", "key": "920003"}
+        )
+        self.assertNotIn("mod_set_ending_text", lua3)
+        # 非 End/GameOver 场景即使有 title/desc 也不发射（卡片仅结局/死亡画面用）
+        lua4 = self.lua_of(
+            {
+                "id": "n1",
+                "type": "goto_scene",
+                "scene": "Free",
+                "title": "无关",
+                "desc": "无关",
+            }
+        )
+        self.assertNotIn("mod_set_ending_text", lua4)
+
     def test_panel(self):
         self.assertIn(
             "\trunwait(martialpanel.Open(0))",
@@ -1906,6 +2079,44 @@ class TestNewNodeValidationErrors(unittest.TestCase):
             self,
             linear_story({"id": "n1", "type": "panel", "panel": "cg"}),
             '必填字段 "key"',
+        )
+
+    def test_goto_scene_title_desc_type(self):
+        # title/desc 若存在必须是 str
+        assert_compile_error(
+            self,
+            linear_story(
+                {"id": "n1", "type": "goto_scene", "scene": "End", "title": 42}
+            ),
+            '可选字段 "title" 必须是字符串',
+            "n1",
+        )
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "goto_scene",
+                    "scene": "End",
+                    "title": "武林传奇",
+                    "desc": True,
+                }
+            ),
+            '可选字段 "desc" 必须是字符串',
+            "n1",
+        )
+        # 合法：title+desc 均 str 通过
+        validate_story(
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "goto_scene",
+                    "scene": "End",
+                    "key": "920047",
+                    "title": "武林传奇",
+                    "desc": "你的名字，从今往后便是传说。",
+                }
+            )
         )
 
     def test_death_rules(self):
@@ -2335,7 +2546,11 @@ class TestWarnings(unittest.TestCase):
                         "type": "dice",
                         "check": "Ch_6_8_2_Break_01_001",
                         "options": [
-                            {"goto_大成功": "nend", "goto_成功": "nend", "goto_失败": "nend"}
+                            {
+                                "goto_大成功": "nend",
+                                "goto_成功": "nend",
+                                "goto_失败": "nend",
+                            }
                         ],
                     },
                     {"id": "nend", "type": "end"},
@@ -2478,12 +2693,54 @@ class TestWarnings(unittest.TestCase):
         story = make_story(
             [
                 {"id": "n1", "type": "goto_scene", "scene": "End", "key": "920003"},
-                {"id": "n2", "type": "goto_scene", "scene": "GameOver", "key": "910021"},
+                {
+                    "id": "n2",
+                    "type": "goto_scene",
+                    "scene": "GameOver",
+                    "key": "910021",
+                },
             ]
         )
         warns = []
         validate_story(story, warnings=warns)
         self.assertFalse(any("与官方结局 id 重复" in w for w in warns), warns)
+
+    def test_goto_scene_end_title_without_desc_warns(self):
+        # End 给了 title 但缺 desc：非致命建议（结局画面描述区会空白）
+        story = make_story(
+            [
+                {
+                    "id": "n1",
+                    "type": "goto_scene",
+                    "scene": "End",
+                    "key": "920047",
+                    "title": "武林传奇",
+                }
+            ]
+        )
+        warns = []
+        validate_story(story, warnings=warns)
+        self.assertTrue(
+            any("建议补一个非空 desc" in w for w in warns),
+            "End 有 title 无 desc 应建议：%s" % warns,
+        )
+        # title + desc 齐全 / 无 title：不警告
+        story2 = make_story(
+            [
+                {
+                    "id": "n1",
+                    "type": "goto_scene",
+                    "scene": "End",
+                    "key": "920047",
+                    "title": "武林传奇",
+                    "desc": "传说。",
+                },
+                {"id": "n2", "type": "goto_scene", "scene": "End", "key": "920003"},
+            ]
+        )
+        warns2 = []
+        validate_story(story2, warnings=warns2)
+        self.assertFalse(any("建议补一个非空 desc" in w for w in warns2), warns2)
 
 
 if __name__ == "__main__":

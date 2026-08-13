@@ -1,0 +1,79 @@
+{
+  "id": "train_any",
+  "title": "练武场·闲逛",
+  "start": "n1",
+  "nodes": [
+    {
+      "id": "n1",
+      "type": "say",
+      "text": "【旁白】练武场今日没有旁的事。日头正好，正是闲逛的好时候。",
+      "portrait": "normal",
+      "mode": "narrative"
+    },
+    {
+      "id": "n2",
+      "type": "scene",
+      "view": "center"
+    },
+    {
+      "id": "n3",
+      "type": "show",
+      "character": "player",
+      "position": "M",
+      "portrait": "normal",
+      "facing": "right",
+      "fadeDuration": 0,
+      "moveDuration": 0
+    },
+    {
+      "id": "n4",
+      "type": "say",
+      "text": "（来都来了，活动活动筋骨。）",
+      "character": "player",
+      "portrait": "normal",
+      "mode": "think"
+    },
+    {
+      "id": "n9",
+      "type": "choice",
+      "options": [
+        {
+          "text": "扎个马步，练练基础功",
+          "goto": "n5"
+        },
+        {
+          "text": "蹲在墙根看人练功",
+          "goto": "n7"
+        }
+      ],
+      "dialog": "Options"
+    },
+    {
+      "id": "n5",
+      "type": "say",
+      "text": "【旁白】你扎了半个时辰马步。腿很酸，心相很满。",
+      "portrait": "normal",
+      "mode": "narrative"
+    },
+    {
+      "id": "n6",
+      "type": "stat",
+      "key": "mental",
+      "delta": 1,
+      "waitDisplay": false,
+      "display": 1,
+      "goto": "n8"
+    },
+    {
+      "id": "n7",
+      "type": "say",
+      "text": "【旁白】你蹲在墙根，看弟子们把一套唐门刀法舞得虎虎生风。",
+      "portrait": "normal",
+      "mode": "narrative"
+    },
+    {
+      "id": "n8",
+      "type": "end"
+    }
+  ]
+}
