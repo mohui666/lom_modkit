@@ -546,8 +546,6 @@ _NODE_DEFAULTS: dict[str, dict] = {
         "check": "",
         "options": [
             {
-                "text": "选项一",
-                "threshold": 50,
                 "goto_大成功": "",
                 "goto_成功": "",
                 "goto_失败": "",
@@ -575,7 +573,7 @@ DEFAULT_PORTRAITS = [
 
 # editor_data.json 不存在时的兜底数据（契约 §5 schema 2 同构，{id,name} 对象数组）
 FALLBACK_EDITOR_DATA: dict = {
-    "schema": 2,
+    "schema": 3,
     "characters": [
         {"id": "player", "name": "主角", "portraits": list(DEFAULT_PORTRAITS)},
         {"id": "brother4", "name": "四师兄", "portraits": list(DEFAULT_PORTRAITS)},
@@ -601,6 +599,7 @@ FALLBACK_EDITOR_DATA: dict = {
     "menu_dialogs": ["Options", "Talk", "Meet", "Center"],
     "effects": [{"id": "Hit_001", "name": "Hit_001"}],
     "dice_checks": [],
+    "dice_meta": {},
     "combat_ids": [],
     "battle_ids": [],
     "ending_ids": [],
@@ -650,6 +649,23 @@ def list_items(editor_data: dict, key: str) -> list[tuple[str, str]]:
     if not isinstance(items, list):
         return []
     return [(entry_id(e), entry_display(e)) for e in items]
+
+
+def dice_check_items(editor_data: dict) -> list[tuple[str, str]]:
+    """骰子检查点下拉清单：仅含带官方元数据的检查点（schema 3 dice_meta）。
+
+    无元数据的检查点会在游戏内导致骰子菜单崩溃（选项条数不足时
+    UpdateSelection 索引越界 NRE），因此不在清单中提供。
+    """
+    meta = editor_data.get("dice_meta") or {}
+    items = []
+    for cid, disp in list_items(editor_data, "dice_checks"):
+        if cid not in meta:
+            continue
+        bands = meta[cid].get("bands") or []
+        dice_max = meta[cid].get("max", "?")
+        items.append((cid, "%s（骰子%s·%d带）" % (disp, dice_max, len(bands))))
+    return items
 
 
 def display_name(editor_data: dict, key: str, item_id: str) -> str:
@@ -728,7 +744,12 @@ def new_story(story_id: str = "main", editor_data: dict | None = None) -> dict:
 
 def load_story(path: Path) -> dict:
     """读取 story.json 并做最基本结构校验。"""
-    story = json.loads(Path(path).read_text(encoding="utf-8"))
+    try:
+        story = json.loads(Path(path).read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise ValueError("story.json 读取失败: %s" % exc) from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError("story.json 不是合法 JSON: %s" % exc) from exc
     if not isinstance(story, dict) or not isinstance(story.get("nodes"), list):
         raise ValueError("story.json 结构非法：缺少 nodes 数组")
     story.setdefault("id", "main")

@@ -11,6 +11,7 @@
 
 import re
 
+from .dice_data import get_dice_meta
 from .errors import LomcError
 
 # §1：剧情脚本 id 规则
@@ -212,8 +213,7 @@ _NO_GOTO_TYPES = ("choice", "branch", "dice", "end", "goto_scene")
 # 可以作最后一个节点收尾的类型（其余类型在末位且无 goto → 校验错误）
 _TERMINAL_TYPES = ("end", "choice", "branch", "dice", "goto_scene", "raw")
 
-# dice 选项的字段（§3.1：每项 text/threshold + 三向 goto）
-_DICE_OPTION_FIELDS = ("text", "threshold", "goto_大成功", "goto_成功", "goto_失败")
+# dice 选项的字段(§3.1)：三向 goto 载体（text/threshold 已废弃，以官方结果带元数据为准）
 _DICE_OPTION_GOTOS = ("goto_大成功", "goto_成功", "goto_失败")
 
 
@@ -270,8 +270,12 @@ def _check_goto(node, label, id_set):
     for opt in node.get("options", []):
         if isinstance(opt, dict):
             for key in ("goto",) + _DICE_OPTION_GOTOS:
-                if isinstance(opt.get(key), str):
-                    targets.append(opt[key])
+                val = opt.get(key)
+                if not isinstance(val, str):
+                    continue
+                if val == "" and key in _DICE_OPTION_GOTOS:
+                    continue  # dice 的 goto_大成功 允许空（2 带检查点回退 goto_成功）
+                targets.append(val)
     for case in node.get("cases", []):
         if isinstance(case, dict) and isinstance(case.get("goto"), str):
             targets.append(case["goto"])
@@ -328,16 +332,40 @@ def _check_node_extra(node, ntype, label):
             node,
             label,
             1,
-            4,
-            _DICE_OPTION_FIELDS,
-            {
-                "text": "str",
-                "threshold": "num",
-                "goto_大成功": "str",
-                "goto_成功": "str",
-                "goto_失败": "str",
-            },
+            1,
+            _DICE_OPTION_GOTOS,
+            {key: "str" for key in _DICE_OPTION_GOTOS},
         )
+        check = node["check"]
+        meta = get_dice_meta(check)
+        if meta is None:
+            raise LomcError(
+                '%s(dice): 骰子检查点 "%s" 缺少官方元数据（骰子范围与结果带未知，'
+                "游戏内骰子菜单会因此崩溃：选项条数不足时 UpdateSelection 索引越界 NRE，"
+                "继续按钮永不出现）。请改用编辑器清单里带元数据的检查点，"
+                "或运行 tools/extract_editor_data.py 重新提取数据。" % (label, check)
+            )
+        n_bands = len(meta.get("bands") or [])
+        if not n_bands:
+            raise LomcError(
+                '%s(dice): 骰子检查点 "%s" 的官方元数据没有结果带（提取数据异常）'
+                % (label, check)
+            )
+        opt = node["options"][0]
+        if n_bands < 3 and not opt.get("goto_成功"):
+            raise LomcError(
+                '%s(dice): 检查点 "%s" 只有 %d 个结果带，必填字段 "goto_成功"（最优带）'
+                % (label, check, n_bands)
+            )
+        if not opt.get("goto_失败"):
+            raise LomcError(
+                '%s(dice): 必填字段 "goto_失败"（结果带 1，最差带）' % label
+            )
+        if n_bands >= 3 and not opt.get("goto_大成功"):
+            raise LomcError(
+                '%s(dice): 检查点 "%s" 有 %d 个结果带，必填字段 "goto_大成功"（最优带）'
+                % (label, check, n_bands)
+            )
     elif ntype == "sound":
         if node.get("op", "play") == "fadeout" and node.get("kind", "sound") != "env":
             raise LomcError(
@@ -486,7 +514,7 @@ def _collect_warnings(story, warnings):
         if n.get("phase") == "in":
             # 黑幕必须被一个更靠后的 out 解除。黑幕跨脚本持续：SetNextScript+Init
             # 不重置场景，in 在结尾会让链式脚本也全程黑屏。
-            lifted = any(is_transition(m, "out") for m in nodes[idx + 1:])
+            lifted = any(is_transition(m, "out") for m in nodes[idx + 1 :])
             if not lifted:
                 warnings.append(
                     '节点 "%s"(transition, phase=in) 之后没有 phase=out 解除：'
@@ -503,6 +531,28 @@ def _collect_warnings(story, warnings):
                     "无黑幕可撤（官方用法永远是先 in 后 out），该节点不会产生任何视觉"
                     "效果，可删除。" % label
                 )
+
+    # dice 节点：text/threshold 已废弃；2 带检查点无独立大成功档
+    for n in nodes:
+        if not isinstance(n, dict) or n.get("type") != "dice":
+            continue
+        label = n.get("id", "?")
+        check = n.get("check", "")
+        opt = (n.get("options") or [{}])[0]
+        if not isinstance(opt, dict):
+            continue
+        if opt.get("text") or "threshold" in opt:
+            warnings.append(
+                '节点 "%s"(dice): text/threshold 字段已废弃（骰子范围与结果带'
+                "文本、条件以官方检查点元数据为准），已忽略，可删除。" % label
+            )
+        meta = get_dice_meta(check) or {}
+        if len(meta.get("bands") or []) == 2 and opt.get("goto_大成功") \
+                and opt.get("goto_大成功") != opt.get("goto_成功"):
+            warnings.append(
+                '节点 "%s"(dice): 检查点 "%s" 只有 2 个结果带（无独立大成功档），'
+                "goto_大成功 会被忽略（最优带按 goto_成功 分支）。" % (label, check)
+            )
 
 
 def _validate_story_inner(story):

@@ -4,6 +4,7 @@
 
 格式契约见 docs/mod_format.md §5。仅用 Python 标准库。
 """
+
 import csv
 import json
 import os
@@ -27,15 +28,28 @@ CSV_MESSAGE = os.path.join(UNPACK_DIR, "output", "csv", "03_剧情系统提示.c
 RAW_MESSAGE = os.path.join(UNPACK_DIR, "raw", "Story_Message_zh-cn.txt")
 RAW_FLAG = os.path.join(UNPACK_DIR, "raw", "Flag_zh-cn.txt")
 RAW_POSITION = os.path.join(UNPACK_DIR, "raw", "Position_zh-cn.txt")
-VIEW_MAP_JSON = os.path.join(r"C:/Users/mohui666/lom_modkit", "data", "assets", "_probe", "view_map.json")
+VIEW_MAP_JSON = os.path.join(
+    r"C:/Users/mohui666/lom_modkit", "data", "assets", "_probe", "view_map.json"
+)
 OUT_PATH = os.path.join(r"C:/Users/mohui666/lom_modkit", "data", "editor_data.json")
 
 # 契约 §5 固定值
 MODES = ["character", "think", "narrative", "center"]
 
 # 自由模式地图地点（Mortal.Core PositionType 枚举，顺序按 Position 文本表）
-FREE_POSITION_TYPES = ["Mall", "Center", "Room1", "Room2", "Alchemy", "Forge",
-                       "Kitchen", "Door", "BackMountain", "Study", "Secret"]
+FREE_POSITION_TYPES = [
+    "Mall",
+    "Center",
+    "Room1",
+    "Room2",
+    "Alchemy",
+    "Forge",
+    "Kitchen",
+    "Door",
+    "BackMountain",
+    "Study",
+    "Secret",
+]
 
 # 舞台站位字母代码 -> 中文（无官方中文名，规则化标注；数字=纵深层级）
 _POSITION_LETTERS = {"S": "屏外", "L": "左", "M": "中", "R": "右", "B": "后", "C": "央"}
@@ -56,21 +70,24 @@ def position_label(pid):
             return pid
     return "".join(out)
 
+
 RE_CHARACTER = re.compile(r'characters\.Get\("([^"]+)"\)')
 RE_PORTRAIT = re.compile(r'GetPortrait\("([^"]+)",\s*"([^"]+)"\)')
 RE_VIEW = re.compile(r'getvar\(flowcharts\.view,\s*"ViewName"\)\.value\s*=\s*"([^"]+)"')
 RE_MUSIC = re.compile(r'luamanager\.PlayMusic\("([^"]+)"\)')
 RE_STAT = re.compile(r'statmodifymanager\.Player\("([^"]+)"')
 RE_AFFINITY = re.compile(r'statmodifymanager\.Character\("([^"]+)"')
-RE_STAGE_SHOW = re.compile(r'stage\.show\{(.*?)\}', re.S)
+RE_STAGE_SHOW = re.compile(r"stage\.show\{(.*?)\}", re.S)
 RE_FROM_POS = re.compile(r'fromPosition\s*=\s*"([^"]+)"')
 RE_TO_POS = re.compile(r'toPosition\s*=\s*"([^"]+)"')
-RE_MENU_DIALOG = re.compile(r'setmenudialog\(menudialogs\.([A-Za-z0-9_]+)')
+RE_MENU_DIALOG = re.compile(r"setmenudialog\(menudialogs\.([A-Za-z0-9_]+)")
 RE_EFFECT = re.compile(r'effects\.SetupEffect\("([^"]+)"')
 RE_DICE = re.compile(r'checkpointmanager\.(?:Dice|Switch)\("([^"]+)"')
 RE_COMBAT = re.compile(r'ChangeScene\("Combat",\s*"([^"]+)"')
 RE_BATTLE = re.compile(r'ChangeScene\("Battle",\s*"([^"]+)"')
-RE_ENDING = re.compile(r'ChangeScene\("(?:GameOver|End)",\s*"([^"]+)"|endgamepanel\.Open\("([^"]+)"')
+RE_ENDING = re.compile(
+    r'ChangeScene\("(?:GameOver|End)",\s*"([^"]+)"|endgamepanel\.Open\("([^"]+)"'
+)
 RE_FLAG = re.compile(r'statmodifymanager\.(?:SetFlag|AddFlag)\("([^"]+)"')
 RE_TALENT = re.compile(r'AddTalent\("([^"]+)"')
 RE_BOOK = re.compile(r'AddBook\("([^"]+)"')
@@ -79,29 +96,91 @@ RE_SPECIAL = re.compile(r'AddSpecial\("([^"]+)"')
 RE_MESSAGE = re.compile(r'mainui\.DisplayMessage\("([^"]+)"')
 
 
+RE_DICE_CALL = re.compile(r'checkpointmanager\.Dice\("([A-Za-z0-9_]+)"')
+RE_DICE_MAX = re.compile(r"math\.random\((\d+)\)|SetRandom\((\d+),")
+RE_DICE_BAND = re.compile(r'(\w+)\[(\d+)\]\s*=\s*"([^"]*)\|([^"]*)"')
+
+
+def _to_int(text):
+    """regex \d+ 捕获组转 int（防御性：非法时返回 0，不抛）。"""
+    try:
+        return int(text)
+    except (TypeError, ValueError):
+        return 0
+
+
+def extract_dice_meta(text):
+    """从一个官方脚本里提取骰子检查点元数据：{check: {max, bands}}。
+
+    每个 checkpointmanager.Dice("X", ...) 调用点：向前 12 行找骰子范围
+    （math.random(N) / SetRandom(N, ...)），向后到 ExecuteRoll 收集结果带
+    （dice_xxx[i] = "文本|条件"）。同检查点多次出现时保留首次提取的结果。
+    """
+    meta = {}
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        m = RE_DICE_CALL.search(line)
+        if not m:
+            continue
+        check = m.group(1)
+        if check in meta:
+            continue
+        # 骰子范围：向前找最近的 math.random/SetRandom
+        dice_max = None
+        for back in lines[max(0, i - 12) : i + 1][::-1]:
+            mm = RE_DICE_MAX.search(back)
+            if mm:
+                dice_max = _to_int(mm.group(1) or mm.group(2))
+                break
+        if dice_max is None:
+            continue
+        # 结果带：向后到 ExecuteRoll 之前的 dice_xxx[n] = "文本|条件"
+        bands = []
+        for fwd in lines[i + 1 : i + 20]:
+            if "ExecuteRoll" in fwd:
+                break
+            bm = RE_DICE_BAND.search(fwd)
+            if bm:
+                bands.append((_to_int(bm.group(2)), bm.group(3), bm.group(4)))
+        bands.sort()
+        # 索引必须从 1 连续递增（官方均如此），否则视为解析失败
+        if bands and [b[0] for b in bands] == list(range(1, len(bands) + 1)):
+            meta[check] = {
+                "max": dice_max,
+                "bands": [{"text": t, "cond": c} for _i, t, c in bands],
+            }
+    return meta
+
+
 def _load_prefixed_kv(csv_path, raw_path, prefix):
     """加载 <prefix>/<id> 形式的中文名表：优先 CSV（utf-8-sig，第 3 列简体），退回 raw key=value。"""
     names = {}
     if os.path.isfile(csv_path):
-        with open(csv_path, "r", encoding="utf-8-sig", newline="") as f:
-            for row in csv.reader(f):
-                if len(row) < 3 or not row[0].startswith(prefix + "/"):
-                    continue
-                cid, name = row[0][len(prefix) + 1:], row[2].strip()
-                if cid and name:
-                    names.setdefault(cid, name)
+        try:
+            with open(csv_path, "r", encoding="utf-8-sig", newline="") as f:
+                for row in csv.reader(f):
+                    if len(row) < 3 or not row[0].startswith(prefix + "/"):
+                        continue
+                    cid, name = row[0][len(prefix) + 1 :], row[2].strip()
+                    if cid and name:
+                        names.setdefault(cid, name)
+        except OSError:
+            pass
         if names:
             return names
     if os.path.isfile(raw_path):
-        with open(raw_path, "r", encoding="utf-8-sig") as f:
-            for line in f:
-                if not line.startswith(prefix + "/") or "=" not in line:
-                    continue
-                key, _, val = line.partition("=")
-                cid = key.strip()[len(prefix) + 1:]
-                name = val.strip()
-                if cid and name:
-                    names.setdefault(cid, name)
+        try:
+            with open(raw_path, "r", encoding="utf-8-sig") as f:
+                for line in f:
+                    if not line.startswith(prefix + "/") or "=" not in line:
+                        continue
+                    key, _, val = line.partition("=")
+                    cid = key.strip()[len(prefix) + 1 :]
+                    name = val.strip()
+                    if cid and name:
+                        names.setdefault(cid, name)
+        except OSError:
+            pass
     return names
 
 
@@ -119,15 +198,18 @@ def load_free_position_names():
     """自由模式地点中文名：raw/Position_zh-cn.txt，key 格式 Position/Name/<Type>。"""
     names = {}
     if os.path.isfile(RAW_POSITION):
-        with open(RAW_POSITION, "r", encoding="utf-8-sig") as f:
-            for line in f:
-                if not line.startswith("Position/Name/") or "=" not in line:
-                    continue
-                key, _, val = line.partition("=")
-                pid = key.strip()[len("Position/Name/"):]
-                name = val.strip()
-                if pid and name:
-                    names.setdefault(pid, name)
+        try:
+            with open(RAW_POSITION, "r", encoding="utf-8-sig") as f:
+                for line in f:
+                    if not line.startswith("Position/Name/") or "=" not in line:
+                        continue
+                    key, _, val = line.partition("=")
+                    pid = key.strip()[len("Position/Name/") :]
+                    name = val.strip()
+                    if pid and name:
+                        names.setdefault(pid, name)
+        except OSError:
+            pass
     return names
 
 
@@ -135,7 +217,11 @@ def load_view_names():
     """场景显示名：探测产物 view_map.json 的 name 字段（游戏内 m_Name）。"""
     if not os.path.isfile(VIEW_MAP_JSON):
         return {}
-    vm = json.load(open(VIEW_MAP_JSON, encoding="utf-8"))
+    try:
+        with open(VIEW_MAP_JSON, encoding="utf-8") as f:
+            vm = json.load(f)
+    except (OSError, ValueError):
+        return {}
     return {k: v["name"] for k, v in vm.items() if v.get("name")}
 
 
@@ -161,6 +247,7 @@ def main():
     menu_dialogs = set()
     effects_found = set()
     dice_checks = set()
+    dice_meta = {}
     combat_ids = set()
     battle_ids = set()
     ending_ids = set()
@@ -171,7 +258,11 @@ def main():
     items_special = set()
     messages = set()
 
-    files = sorted(fn for fn in os.listdir(SCRIPTS_DIR) if fn.endswith(".lua.txt"))
+    try:
+        files = sorted(fn for fn in os.listdir(SCRIPTS_DIR) if fn.endswith(".lua.txt"))
+    except OSError as e:
+        print("无法读取脚本目录 %s: %s" % (SCRIPTS_DIR, e), file=sys.stderr)
+        return 1
     for fn in files:
         path = os.path.join(SCRIPTS_DIR, fn)
         try:
@@ -193,6 +284,8 @@ def main():
         menu_dialogs.update(RE_MENU_DIALOG.findall(text))
         effects_found.update(RE_EFFECT.findall(text))
         dice_checks.update(RE_DICE.findall(text))
+        for check, meta in extract_dice_meta(text).items():
+            dice_meta.setdefault(check, meta)
         combat_ids.update(RE_COMBAT.findall(text))
         battle_ids.update(RE_BATTLE.findall(text))
         for a, b in RE_ENDING.findall(text):
@@ -217,34 +310,58 @@ def main():
     ]
 
     data = {
-        "schema": 2,
+        "schema": 3,
         "characters": characters,
         "views": [{"id": v, "name": view_names.get(v, v)} for v in sorted(views)],
-        "music": [{"id": m, "name": m} for m in sorted(music)],  # 音乐 id 本身已是中文名
+        "music": [
+            {"id": m, "name": m} for m in sorted(music)
+        ],  # 音乐 id 本身已是中文名
         "positions": [{"id": p, "name": position_label(p)} for p in sorted(positions)],
         "stats": [{"id": s, "name": stat_names.get(s, s)} for s in sorted(stats)],
         "modes": MODES,
         "menu_dialogs": sorted(menu_dialogs),
-        "effects": [{"id": e, "name": e} for e in sorted(effects_found)],  # 特效 id 即资源名
+        "effects": [
+            {"id": e, "name": e} for e in sorted(effects_found)
+        ],  # 特效 id 即资源名
         "dice_checks": sorted(dice_checks),
+        "dice_meta": dice_meta,
         "combat_ids": sorted(combat_ids),
         "battle_ids": sorted(battle_ids),
         "ending_ids": sorted(ending_ids),
-        "game_flags": [{"id": g, "name": flag_names.get(g, g)} for g in sorted(game_flags)],
+        "game_flags": [
+            {"id": g, "name": flag_names.get(g, g)} for g in sorted(game_flags)
+        ],
         "talents": [{"id": t, "name": talent_names.get(t, t)} for t in sorted(talents)],
-        "items_book": [{"id": i, "name": book_names.get(i, i)} for i in sorted(items_book)],
-        "items_misc": [{"id": i, "name": misc_names.get(i, i)} for i in sorted(items_misc)],
-        "items_special": [{"id": i, "name": special_names.get(i, i)} for i in sorted(items_special)],
-        "messages": [{"id": m, "name": message_names.get(m, m)} for m in sorted(messages)],
+        "items_book": [
+            {"id": i, "name": book_names.get(i, i)} for i in sorted(items_book)
+        ],
+        "items_misc": [
+            {"id": i, "name": misc_names.get(i, i)} for i in sorted(items_misc)
+        ],
+        "items_special": [
+            {"id": i, "name": special_names.get(i, i)} for i in sorted(items_special)
+        ],
+        "messages": [
+            {"id": m, "name": message_names.get(m, m)} for m in sorted(messages)
+        ],
         "affinity_characters": sorted(affinity_chars),
-        "free_positions": [{"id": p, "name": free_pos_names.get(p, p)} for p in FREE_POSITION_TYPES],
+        "free_positions": [
+            {"id": p, "name": free_pos_names.get(p, p)} for p in FREE_POSITION_TYPES
+        ],
     }
 
-    os.makedirs(os.path.dirname(OUT_PATH), exist_ok=True)
-    with open(OUT_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    try:
+        os.makedirs(os.path.dirname(OUT_PATH), exist_ok=True)
+        with open(OUT_PATH, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except OSError as e:
+        print("无法写入输出文件 %s: %s" % (OUT_PATH, e), file=sys.stderr)
+        return 1
 
-    hit = lambda ids, table: "%d（名称命中 %d）" % (len(ids), sum(1 for i in ids if i in table))
+    hit = lambda ids, table: "%d（名称命中 %d）" % (
+        len(ids),
+        sum(1 for i in ids if i in table),
+    )
     print("脚本数: %d" % len(files))
     print("人物数: %d" % len(characters))
     print("场景数: %s" % hit(views, view_names))
@@ -253,15 +370,28 @@ def main():
     print("属性数: %s" % hit(stats, stat_names))
     print("菜单对话框数: %d" % len(menu_dialogs))
     print("特效数: %d" % len(effects_found))
-    print("骰子检查点数: %d" % len(dice_checks))
-    print("Combat ids: %d, Battle ids: %d, Ending ids: %d" % (len(combat_ids), len(battle_ids), len(ending_ids)))
+    print("骰子检查点数: %d（含元数据 %d）" % (len(dice_checks), len(dice_meta)))
+    print(
+        "Combat ids: %d, Battle ids: %d, Ending ids: %d"
+        % (len(combat_ids), len(battle_ids), len(ending_ids))
+    )
     print("游戏 Flag 数: %s" % hit(game_flags, flag_names))
     print("天赋数: %s" % hit(talents, talent_names))
-    print("书籍: %s, 杂物: %s, 特殊物品: %s" % (hit(items_book, book_names), hit(items_misc, misc_names), hit(items_special, special_names)))
+    print(
+        "书籍: %s, 杂物: %s, 特殊物品: %s"
+        % (
+            hit(items_book, book_names),
+            hit(items_misc, misc_names),
+            hit(items_special, special_names),
+        )
+    )
     print("系统消息数: %s" % hit(messages, message_names))
     print("好感度目标人物数: %d" % len(affinity_chars))
     print("自由模式地点数: %s" % hit(FREE_POSITION_TYPES, free_pos_names))
-    print("人物名称命中: %d / %d" % (sum(1 for c in characters if c["name"] != c["id"]), len(characters)))
+    print(
+        "人物名称命中: %d / %d"
+        % (sum(1 for c in characters if c["name"] != c["id"]), len(characters))
+    )
     print("输出: %s" % OUT_PATH)
 
 

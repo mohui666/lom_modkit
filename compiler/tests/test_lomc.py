@@ -1394,48 +1394,114 @@ class TestNewNodeCodegen(unittest.TestCase):
         self.assertIn("\tluamanager.ToggleSaveButton(1)", lua)
 
     def test_dice(self):
+        # Travel_601_101_001：官方 2 结果带、骰子范围 60（travel_result_601_101 实证）
         lua = self.lua_of(
             {
                 "id": "n1",
                 "type": "dice",
-                "check": "Combat_Result_01",
+                "check": "Travel_601_101_001",
                 "options": [
                     {
-                        "text": "选项一",
-                        "threshold": 33,
-                        "goto_大成功": "na",
+                        "goto_大成功": "",  # 2 带无独立大成功档，允许空
                         "goto_成功": "nb",
-                        "goto_失败": "nend",
+                        "goto_失败": "na",
                     }
                 ],
             },
             {"id": "na", "type": "focus", "character": "player"},
             {"id": "nb", "type": "focus", "character": "brother4"},
         )
-        # 官方五步链（契约 §4）
         self.assertIn("\tsetmenudialog(menudialogs.Dice)", lua)
-        self.assertIn("\tlocal dice_rand1 = math.random(99)", lua)
-        self.assertIn("\tdicemenudialog.SetRandom(99, dice_rand1)", lua)
+        self.assertIn("\tlocal dice_rand1 = math.random(60)", lua)
+        self.assertIn("\tdicemenudialog.SetRandom(60, dice_rand1)", lua)
         self.assertIn(
-            '\tlocal dice_result1 = checkpointmanager.Dice("Combat_Result_01", dice_rand1)',
+            '\tlocal dice_result1 = checkpointmanager.Dice("Travel_601_101_001", dice_rand1)',
             lua,
         )
         self.assertIn("\tlocal dice_opts1 = {}", lua)
-        self.assertIn('\tdice_opts1[1] = "选项一|<33"', lua)
+        # 官方结果带（差→好）：文本+条件逐带发射
+        self.assertIn('\tdice_opts1[1] = "O_Travel_601_101_004|<60"', lua)
+        self.assertIn('\tdice_opts1[2] = "O_Travel_601_101_005|>=60"', lua)
         self.assertIn(
-            "\tdicemenudialog.Setup(dice_result1.ResultCount, dice_result1.Result, "
-            "dice_result1.Header, dice_result1.Additions)",
-            lua,
-        )
-        self.assertIn(
-            '\trunwait(dicemenudialog.ExecuteRoll(dice_opts1, 1, "Combat_Result_01"))',
+            '\trunwait(dicemenudialog.ExecuteRoll(dice_opts1, 1, "Travel_601_101_001"))',
             lua,
         )
         self.assertIn("\tlocal dice_sel1 = dicemenudialog.ResultSelection", lua)
-        # 三向分支：1→大成功，2→成功，else→失败
+        # 2 带分支：1→失败，else→成功（最优带）
         self.assertIn("\tif dice_sel1 == 1 then\n\t\treturn node_na()", lua)
+        self.assertIn("\telse\n\t\treturn node_nb()\n\tend", lua)
+        self.assertNotIn("elseif dice_sel1 == 2", lua)
+
+    def test_dice_three_bands(self):
+        # Ch_6_8_2_Break_01_001：官方 3 结果带、骰子范围 60（ch6_8_2_break_start_01 实证）
+        lua = self.lua_of(
+            {
+                "id": "n1",
+                "type": "dice",
+                "check": "Ch_6_8_2_Break_01_001",
+                "options": [
+                    {
+                        "goto_大成功": "na",
+                        "goto_成功": "nb",
+                        "goto_失败": "nc",
+                    }
+                ],
+            },
+            {"id": "na", "type": "focus", "character": "player"},
+            {"id": "nb", "type": "focus", "character": "brother4"},
+            {"id": "nc", "type": "focus", "character": "brother4"},
+        )
+        self.assertIn("\tlocal dice_rand1 = math.random(60)", lua)
+        self.assertIn('\tdice_opts1[1] = "O_6_8_2_Break_01_002|<20"', lua)
+        self.assertIn('\tdice_opts1[2] = "O_6_8_2_Break_01_003|<80"', lua)
+        self.assertIn('\tdice_opts1[3] = "O_6_8_2_Break_01_004|>=80"', lua)
+        # 3 带分支：1→失败，2→成功，末带→大成功
+        self.assertIn("\tif dice_sel1 == 1 then\n\t\treturn node_nc()", lua)
         self.assertIn("\telseif dice_sel1 == 2 then\n\t\treturn node_nb()", lua)
-        self.assertIn("\telse\n\t\treturn node_nend()\n\tend", lua)
+        self.assertIn("\telse\n\t\treturn node_na()\n\tend", lua)
+
+    def test_dice_inverted_bands(self):
+        # 倒序检查点（官方展示顺序 [">80",">40","<=40"]）：
+        # 带 1 是最优带 -> selection 1 应走 goto_大成功
+        import lomc.dice_data as dd
+
+        saved = dd._META
+        try:
+            dd._META = {
+                "Test_Inv": {
+                    "max": 99,
+                    "bands": [
+                        {"text": "A", "cond": ">80"},
+                        {"text": "B", "cond": ">40"},
+                        {"text": "C", "cond": "<=40"},
+                    ],
+                }
+            }
+            lua = compile_story(
+                linear_story(
+                    {
+                        "id": "n1",
+                        "type": "dice",
+                        "check": "Test_Inv",
+                        "options": [
+                            {"goto_大成功": "na", "goto_成功": "nb", "goto_失败": "nc"}
+                        ],
+                    },
+                    {"id": "na", "type": "focus", "character": "player"},
+                    {"id": "nb", "type": "focus", "character": "brother4"},
+                    {"id": "nc", "type": "focus", "character": "trainee1"},
+                )
+            )
+            # 选项仍按展示顺序发射
+            self.assertIn('dice_opts1[1] = "A|>80"', lua)
+            self.assertIn('dice_opts1[3] = "C|<=40"', lua)
+            # 分支按质量：selection 1（>80 最优）→ 大成功；2（>40）→ 成功；3（<=40）→ 失败
+            tab, nl = chr(9), chr(10)
+            self.assertIn(tab + "if dice_sel1 == 1 then" + nl + tab * 2 + "return node_na()", lua)
+            self.assertIn(tab + "elseif dice_sel1 == 2 then" + nl + tab * 2 + "return node_nb()", lua)
+            self.assertIn(tab + "else" + nl + tab * 2 + "return node_nc()" + nl + tab + "end", lua)
+        finally:
+            dd._META = saved
 
     def test_goto_scene(self):
         lua = self.lua_of(
@@ -1518,12 +1584,10 @@ class TestNewNodeCodegen(unittest.TestCase):
             {
                 "id": "n2",
                 "type": "dice",
-                "check": "Combat_Result_01",
+                "check": "Travel_601_101_001",
                 "options": [
                     {
-                        "text": "x",
-                        "threshold": 50,
-                        "goto_大成功": "n1",
+                        "goto_大成功": "",
                         "goto_成功": "n1",
                         "goto_失败": "n1",
                     }
@@ -1658,18 +1722,12 @@ class TestNewNodeValidationErrors(unittest.TestCase):
         )
 
     def test_dice_options(self):
-        # 0 项 / 5 项
+        # 选项数不是恰好 1 条（三向 goto 载体）
         for options in (
             [],
             [
-                {
-                    "text": str(i),
-                    "threshold": 50,
-                    "goto_大成功": "nend",
-                    "goto_成功": "nend",
-                    "goto_失败": "nend",
-                }
-                for i in range(5)
+                {"goto_大成功": "nend", "goto_成功": "nend", "goto_失败": "nend"}
+                for _ in range(2)
             ],
         ):
             assert_compile_error(
@@ -1678,68 +1736,64 @@ class TestNewNodeValidationErrors(unittest.TestCase):
                     {
                         "id": "n1",
                         "type": "dice",
-                        "check": "Combat_Result_01",
+                        "check": "Travel_601_101_001",
                         "options": options,
                     }
                 ),
-                "选项数必须在 1~4 之间",
+                "选项数必须在 1~1 之间",
                 "n1",
             )
-        # 缺 threshold / 缺三向 goto
+        # 检查点缺少官方元数据 → 报错（游戏内骰子菜单会 NRE 崩溃）
         assert_compile_error(
             self,
             linear_story(
                 {
                     "id": "n1",
                     "type": "dice",
-                    "check": "C",
+                    "check": "NOT_A_REAL_CHECK",
                     "options": [
-                        {
-                            "text": "x",
-                            "goto_大成功": "nend",
-                            "goto_成功": "nend",
-                            "goto_失败": "nend",
-                        }
+                        {"goto_大成功": "nend", "goto_成功": "nend", "goto_失败": "nend"}
                     ],
                 }
             ),
-            '缺少必填字段 "threshold"',
+            "缺少官方元数据",
         )
+        # 2 带检查点：goto_成功 / goto_失败 必填，goto_大成功 可选
         assert_compile_error(
             self,
             linear_story(
                 {
                     "id": "n1",
                     "type": "dice",
-                    "check": "C",
-                    "options": [
-                        {
-                            "text": "x",
-                            "threshold": 50,
-                            "goto_大成功": "nend",
-                            "goto_成功": "nend",
-                        }
-                    ],
+                    "check": "Travel_601_101_001",
+                    "options": [{"goto_大成功": "", "goto_成功": "", "goto_失败": "nend"}],
                 }
             ),
-            '缺少必填字段 "goto_失败"',
+            '必填字段 "goto_成功"',
         )
-        # 三向 goto 指向不存在节点
+        # 3 带检查点：goto_大成功 必填
         assert_compile_error(
             self,
             linear_story(
                 {
                     "id": "n1",
                     "type": "dice",
-                    "check": "C",
+                    "check": "Ch_6_8_2_Break_01_001",
+                    "options": [{"goto_大成功": "", "goto_成功": "nend", "goto_失败": "nend"}],
+                }
+            ),
+            '必填字段 "goto_大成功"',
+        )
+        # goto 指向不存在节点
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "dice",
+                    "check": "Travel_601_101_001",
                     "options": [
-                        {
-                            "text": "x",
-                            "threshold": 50,
-                            "goto_大成功": "ghost",
-                            "goto_成功": "nend",
-                            "goto_失败": "nend",
-                        }
+                        {"goto_大成功": "", "goto_成功": "ghost", "goto_失败": "nend"}
                     ],
                 }
             ),
@@ -1769,16 +1823,10 @@ class TestNewNodeValidationErrors(unittest.TestCase):
                 {
                     "id": "n1",
                     "type": "dice",
-                    "check": "C",
+                    "check": "Travel_601_101_001",
                     "goto": "nend",
                     "options": [
-                        {
-                            "text": "x",
-                            "threshold": 1,
-                            "goto_大成功": "nend",
-                            "goto_成功": "nend",
-                            "goto_失败": "nend",
-                        }
+                        {"goto_大成功": "", "goto_成功": "nend", "goto_失败": "nend"}
                     ],
                 }
             ),
@@ -1855,28 +1903,58 @@ class TestWarnings(unittest.TestCase):
         self.assertTrue(lua.startswith("-- lomc 警告："))
         self.assertIn("node_n1", lua)
 
-    def test_dice_pipe_sanitize(self):
-        # dice 选项文本里的 ASCII | 换成全角｜（游戏用 | 分隔文本与阈值）
-        lua = compile_story(
-            linear_story(
+    def test_dice_band_text_pipe_sanitize(self):
+        # 结果带文本里的 ASCII | 换成全角｜（游戏用 | 分隔文本与条件）
+        import lomc.dice_data as dd
+
+        saved = dd._META
+        try:
+            dd._META = {
+                "Test_Check": {
+                    "max": 60,
+                    "bands": [
+                        {"text": "你|我", "cond": "<60"},
+                        {"text": "好|坏", "cond": ">=60"},
+                    ],
+                }
+            }
+            lua = compile_story(
+                linear_story(
+                    {
+                        "id": "n1",
+                        "type": "dice",
+                        "check": "Test_Check",
+                        "options": [
+                            {"goto_大成功": "", "goto_成功": "nend", "goto_失败": "nend"}
+                        ],
+                    }
+                )
+            )
+            self.assertIn('dice_opts1[1] = "你｜我|<60"', lua)
+            self.assertIn('dice_opts1[2] = "好｜坏|>=60"', lua)
+        finally:
+            dd._META = saved
+
+    def test_dice_two_band_big_success_ignored_warning(self):
+        # 2 带检查点无独立大成功档：goto_大成功 被忽略（最优带按 goto_成功 分支）
+        story = make_story(
+            [
                 {
                     "id": "n1",
                     "type": "dice",
-                    "check": "Combat_Result_01",
+                    "check": "Travel_601_101_001",
                     "options": [
-                        {
-                            "text": "你|我",
-                            "threshold": 33,
-                            "goto_大成功": "nend",
-                            "goto_成功": "nend",
-                            "goto_失败": "nend",
-                        }
+                        {"goto_大成功": "na", "goto_成功": "nb", "goto_失败": "nb"}
                     ],
-                }
-            )
+                },
+                {"id": "na", "type": "focus", "character": "player"},
+                {"id": "nb", "type": "focus", "character": "brother4"},
+                {"id": "nend", "type": "end"},
+            ]
         )
-        self.assertIn('dice_opts1[1] = "你｜我|<33"', lua)
-        self.assertNotIn("你|我|", lua)
+        warns = []
+        validate_story(story, warnings=warns)
+        self.assertTrue(any("goto_大成功 会被忽略" in w for w in warns), warns)
 
 
 if __name__ == "__main__":

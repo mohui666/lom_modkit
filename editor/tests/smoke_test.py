@@ -313,7 +313,7 @@ def main_fn() -> int:
     panel_combo.setCurrentIndex(idx)
     assert panel_node["panel"] == "shop", "panel 枚举写回失败"
     dice_node = next(n for n in win.story["nodes"] if n["type"] == "dice")
-    dice_node["options"][0]["threshold"] = 66
+    dice_node["options"][0]["goto_失败"] = "n1"
     win.form.set_node(dice_node)
     assert "骰子检定" in models.node_summary(dice_node, editor_data)
     print(

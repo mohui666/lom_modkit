@@ -68,7 +68,7 @@ assets/                # 预留（自定义图片/音频），v1 运行时忽略
 | --- | --- | --- |
 | `music` | `name`；可选 `op`("play"默认/"stop"/"fadeout")，fadeout 时 `seconds`(默认2) | `luamanager.PlayMusic(name)` / `StopMusic()` / `FadeOutMusic(seconds)` |
 | `sound` | `name`；可选 `kind`("sound"默认/"env")，`op`("play"默认/"fadeout"仅env，`seconds`默认1) | `luamanager.PlaySound/PlayEnvSound/FadeOutEnvSound` |
-| `scene` | `view` | 切场景：`runblock(flowcharts.view,"out")` 后 `ViewName=view; runblock(...,"view")`。`view="out"` 只淡出；`"black"/"white"` 为纯色 |
+| `scene` | `view` | 切场景：`runblock(flowcharts.view,"out")` 后 `ViewName=view; runblock(...,"view")`。`view="out"` 只淡出；`"black"/"white"` 为纯色。非纯色 view 先 `runwait(flowcharts.LoadView(view))` 预加载背景资产（官方 995/1111 个脚本实证；不预载则背景黑屏） |
 | `show` | `character`, `position`；可选 `portrait`(默认normal), `facing`(默认right), `fadeDuration`(0), `moveDuration`(0) | 加载并显示人物 |
 | `move` | `character`, `from`, `to`；可选 `duration`(默认1) | 移动并 `wait(duration)` |
 | `face` | `character`, `facing` | 转向 |
@@ -108,7 +108,7 @@ assets/                # 预留（自定义图片/音频），v1 运行时忽略
 | type | 字段 | 说明 |
 | --- | --- | --- |
 | `branch` | `flag`, `cases`: `[{"value","goto"}]`, 可选 `source`(默认 "mod") | mod：按 modflags 是否已设（value 1=已设置 2=未设置）；game：`checkpointmanager.Switch(flag)` 官方检查点数值分支 |
-| `dice` | `check`, `options`: `[{"text","threshold"(数值),`goto_大成功`,`goto_成功`,`goto_失败`}]`…见下注 | 骰子检定。**check 必须是官方骰子检查点名**（editor_data 的 dice_checks）。发射官方五步链（math.random/SetRandom/checkpointmanager.Dice/Setup/ExecuteRoll），按 `ResultSelection` 分支：1→大成功 goto、2→成功、3→失败（v1 简化三向） |
+| `dice` | `check`, `options`: `[{"goto_大成功","goto_成功","goto_失败"}]`（恰好 1 条） | 骰子检定。**check 必须是带官方元数据的检查点**（editor_data 的 dice_meta：骰子范围 max 与结果带 bands，由官方脚本提取；无元数据的检查点会在游戏内骰子菜单 NRE 崩溃）。发射官方五步链 + 按结果带数逐带发射选项（官方文本+条件）；分支按带质量名次映射：最差带→goto_失败，中间带→goto_成功，最优带→3带及以上 goto_大成功 / 2带 goto_成功（2带无独立大成功档）。带质量按条件数值推断（同值 >系优于 <系；官方有 34 个倒序检查点） |
 | `goto_scene` | `scene`("Free"/"Title"/"Combat"/"Battle"/"GameOver"/"End"/"Story"/"DemoEnd")；可选 `key`(Combat=战斗id/Battle=战役id/GameOver·End=结局id), `next`(默认"Story") | 场景跳转 `luamanager.ChangeScene(scene, key, next)`。Combat/Battle 后回 Story 重入当前脚本，注意用 game 检查点防重入 |
 | `panel` | `panel`("martial"/"weapon"/"poison"/"cg"/"cgvideo"/"shop"/"newshop"/"credit"/"endgame")；可选 `key`(cg/cgvideo/endgame 的 id), `discount`(shop 用, 默认0), `mode`(martial 用, 默认0) | 打开系统面板，除 newshop 外均 `runwait`：`martialpanel.Open(mode)`/`weaponupgradepanel.Open()`/`poisonupgradepanel.Open()`/`cgpanel.Open(key)`/`cgvideopanel.Open(key,0)`/`shoppanel.Open(discount)`/`shoppanel.NewShop()`/`creditpanel.Open()`/`endgamepanel.Open(key)` |
 | `wait` | `seconds` | `wait(seconds)` |
@@ -194,19 +194,19 @@ if modflags["SOME_FLAG_ID"] then return node_a() else return node_b() end
 -- branch（source="game"，else 兜底）
 local branch1 = checkpointmanager.Switch("S0003_01_001")
 if branch1 == 1 then return node_a() elseif branch1 == 2 then return node_b() else return node_next() end
--- dice（check 必须是官方骰子检查点名；固定五步链）
+-- dice（check 必须是带官方元数据的检查点；范围/带数/带文本来自 dice_meta）
 setmenudialog(menudialogs.Dice)
-local dice_rand1 = math.random(99)
-dicemenudialog.SetRandom(99, dice_rand1)
-local dice_result1 = checkpointmanager.Dice("Combat_Result_01", dice_rand1)
+local dice_rand1 = math.random(60)
+dicemenudialog.SetRandom(60, dice_rand1)
+local dice_result1 = checkpointmanager.Dice("Travel_601_101_001", dice_rand1)
 local dice_opts1 = {}
-dice_opts1[1] = "选项一|<33"
--- dice 选项文本：| 前文本被游戏当作本地化 key 解析（GetStoryText 查不到时原样返回，
--- 故可直接写字面量；但文本中的 ASCII | 会被 lomc 替换成全角｜防分隔符冲突）
+dice_opts1[1] = "O_Travel_601_101_004|<60"
+dice_opts1[2] = "O_Travel_601_101_005|>=60"
 dicemenudialog.Setup(dice_result1.ResultCount, dice_result1.Result, dice_result1.Header, dice_result1.Additions)
-runwait(dicemenudialog.ExecuteRoll(dice_opts1, 1, "Combat_Result_01"))
+runwait(dicemenudialog.ExecuteRoll(dice_opts1, 1, "Travel_601_101_001"))
 local dice_sel1 = dicemenudialog.ResultSelection
-if dice_sel1 == 1 then return node_big() elseif dice_sel1 == 2 then return node_ok() else return node_fail() end
+-- 分支按带质量：最差带→失败，最优带→大成功（2带→成功）
+if dice_sel1 == 1 then return node_fail() else return node_ok() end
 -- goto_scene
 luamanager.ChangeScene("Combat", "5102_01", "Story")
 -- panel（除 newshop 外 runwait）
@@ -225,9 +225,9 @@ luamanager.Init()
 luamanager.ChangeScene("Free", "", "")
 ```
 
-## 5. data/editor_data.json — 编辑器数据契约（schema 2）
+## 5. data/editor_data.json — 编辑器数据契约（schema 3）
 
-由 `tools/extract_editor_data.py` 生成。schema 2 起 `characters`/`stats`/`positions`/`views`/`music`/`free_positions` 均为 `{id, name}` 对象数组（characters 另有 portraits）：
+由 `tools/extract_editor_data.py` 生成。schema 2 起 `characters`/`stats`/`positions`/`views`/`music`/`free_positions` 均为 `{id, name}` 对象数组（characters 另有 portraits）；schema 3 新增 `dice_meta`（骰子检查点元数据，从官方脚本调用点提取：`{check: {max, bands: [{text, cond}]}}`，bands 按官方展示顺序）：
 
 ```json
 {
@@ -241,7 +241,8 @@ luamanager.ChangeScene("Free", "", "")
   "modes": ["character", "think", "narrative", "center"],
   "menu_dialogs": ["Options", "Talk", "Meet", "Center", "..."],
   "effects": [{"id": "Hit_001", "name": "Hit_001"}],
-  "dice_checks": ["Combat_Result_01"],
+  "dice_checks": ["Travel_601_101_001"],
+  "dice_meta": {"Travel_601_101_001": {"max": 60, "bands": [{"text": "O_Travel_601_101_004", "cond": "<60"}, {"text": "O_Travel_601_101_005", "cond": ">=60"}]}},
   "combat_ids": ["5102_01"],
   "battle_ids": ["A0001_01"],
   "ending_ids": ["20003"],

@@ -187,8 +187,9 @@ class NodeForm(QScrollArea):
                 node, key, models.list_items(self._editor_data, "game_flags"), value
             )
         if kind == "dice_check":
+            # 仅含带官方元数据的检查点（无元数据会在游戏内骰子菜单崩溃）
             return self._combo_from_items(
-                node, key, models.list_items(self._editor_data, "dice_checks"), value
+                node, key, models.dice_check_items(self._editor_data), value
             )
         if kind == "item":
             # 物品清单随 kind 字段（book/misc/special）切换；切换时表单已重建
@@ -532,29 +533,24 @@ class NodeForm(QScrollArea):
         return box
 
     def _make_dice_table(self, node: dict, key: str) -> QWidget:
-        """dice.options：文本/阈值/大成功/成功/失败 五列表格（契约 §3.1 三向分支）。"""
+        """dice.options：大成功/成功/失败 三列 goto（结果带按检查点官方元数据发射）。
+
+        骰子范围与结果带文本/条件来自 data/editor_data.json 的 dice_meta，
+        表单底部展示所选检查点的结果带供作者参考。
+        """
         rows: list[dict] = node.setdefault(key, [])
         if not rows:
-            rows.append(
-                {
-                    "text": "选项一",
-                    "threshold": 50,
-                    "goto_大成功": "",
-                    "goto_成功": "",
-                    "goto_失败": "",
-                }
-            )
+            rows.append({"goto_大成功": "", "goto_成功": "", "goto_失败": ""})
         box = QWidget()
         v = QVBoxLayout(box)
         v.setContentsMargins(0, 0, 0, 0)
-        table = QTableWidget(0, 5)
+        table = QTableWidget(0, 3)
         table.setHorizontalHeaderLabels(
-            ["选项文本", "阈值", "大成功 goto", "成功 goto", "失败 goto"]
+            ["失败 goto（最差带）", "成功 goto", "大成功 goto（3带检查点最优带）"]
         )
-        table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        for c in range(1, 5):
+        for c in range(3):
             table.horizontalHeader().setSectionResizeMode(
-                c, QHeaderView.ResizeMode.ResizeToContents
+                c, QHeaderView.ResizeMode.Stretch
             )
         table.setMinimumHeight(min(4, max(2, len(rows))) * 32 + 30)
 
@@ -564,10 +560,8 @@ class NodeForm(QScrollArea):
             try:
                 for r, row in enumerate(rows):
                     table.insertRow(r)
-                    table.setItem(r, 0, QTableWidgetItem(str(row.get("text", ""))))
-                    table.setItem(r, 1, QTableWidgetItem(str(row.get("threshold", 0))))
                     for c, gkey in enumerate(
-                        ("goto_大成功", "goto_成功", "goto_失败"), start=2
+                        ("goto_失败", "goto_成功", "goto_大成功")
                     ):
                         combo = self._make_goto_combo(
                             str(row.get(gkey, "")), allow_empty=True
@@ -581,37 +575,30 @@ class NodeForm(QScrollArea):
             finally:
                 table.blockSignals(False)
 
-        def on_item(item: QTableWidgetItem):
-            if self._loading or not (0 <= item.row() < len(rows)):
-                return
-            row = rows[item.row()]
-            if item.column() == 0:
-                row["text"] = item.text()
-            elif item.column() == 1:
-                try:
-                    row["threshold"] = int(item.text().strip())
-                except ValueError:
-                    row["threshold"] = 0
-            else:
-                return
-            self._emit_changed()
-
         fill()
-        table.itemChanged.connect(on_item)
         v.addWidget(table)
+        # 检查点元数据提示行（官方结果带：差→好）
+        meta = (self._editor_data.get("dice_meta") or {}).get(
+            str(node.get("check", "")), {}
+        )
+        bands = meta.get("bands") or []
+        if bands:
+            hint = "　".join(
+                "带%d: %s｜%s" % (i, b.get("text", ""), b.get("cond", ""))
+                for i, b in enumerate(bands, 1)
+            )
+            hint_label = QLabel(
+                "官方结果带（骰子 0~%s）：%s" % (meta.get("max", "?"), hint)
+            )
+            hint_label.setWordWrap(True)
+            v.addWidget(hint_label)
         v.addLayout(
             self._make_row_buttons(
                 rows,
                 fill,
                 min_rows=1,
-                max_rows=4,
-                new_row=lambda: {
-                    "text": "",
-                    "threshold": 50,
-                    "goto_大成功": "",
-                    "goto_成功": "",
-                    "goto_失败": "",
-                },
+                max_rows=1,
+                new_row=lambda: {"goto_大成功": "", "goto_成功": "", "goto_失败": ""},
             )
         )
         return box
