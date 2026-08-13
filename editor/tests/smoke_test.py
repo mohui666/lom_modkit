@@ -609,11 +609,27 @@ def main_fn() -> int:
     win.node_list.setCurrentRow(win._node_row("n7"))
     assert win.play_from_current_node(), "F5 一键试玩应成功生成临时包"
     assert fake_manager.manifest["id"] == "lom_modkit_preview"
-    assert fake_manager.stories[win._current_id]["start"] == "n7"
     assert fake_manager.request == ("lom_modkit_preview", win._current_id, "n7")
+    # 舞台状态前导：start 指向合成前导链（场景+台上人物），链尾 goto 选中节点
+    played = fake_manager.stories[win._current_id]
+    by_id = {n["id"]: n for n in played["nodes"]}
+    prelude_ids = []
+    cur = played["start"]
+    while cur != "n7":
+        assert cur.startswith("zz_playtest_"), f"前导链应在 n7 收尾，实际走到 {cur}"
+        prelude_ids.append(cur)
+        cur = by_id[cur].get("goto")
+        assert cur, "前导链末端应 goto 到选中节点 n7"
+    assert len(prelude_ids) == 4, f"n7 前导应为 场景+3 人物，实际 {prelude_ids}"
+    head = by_id[prelude_ids[0]]
+    assert head["type"] == "scene" and head["view"] == "center", f"前导应先补场景：{head}"
+    shown = {by_id[i]["character"]: by_id[i] for i in prelude_ids[1:]}
+    assert set(shown) == {"player", "brother4", "trainee1"}, f"前导应补齐台上三人：{shown}"
+    assert shown["brother4"]["position"] == "R2" and shown["brother4"]["facing"] == "left"
+    assert shown["trainee1"]["portrait"] == "nervous1"
     del win._stories["second"]
     win.game_manager = old_manager
-    print("[11b] F5 一键试玩 OK（临时包/选中起点/运行时请求一致）")
+    print("[11b] F5 一键试玩 OK（临时包/舞台前导链/运行时请求一致）")
 
     # 抓图：n2（场景 center）/ n7（brother4 说话）/ n11（三选一）各存一张 PNG
     out_dir = EDITOR_DIR / "tests" / "out"

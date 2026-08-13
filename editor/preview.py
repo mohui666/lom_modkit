@@ -357,9 +357,17 @@ def _next_node(node: dict, idx: int, nodes: list) -> str | None:
 
 
 def simulate_stage(
-    story: dict, target_id: str | None, editor_data: dict | None = None
+    story: dict,
+    target_id: str | None,
+    editor_data: dict | None = None,
+    *,
+    include_target: bool = True,
 ) -> dict:
     """从 start 推演到 target_id（含目标节点自身效果），返回舞台状态。
+
+    include_target=False 时返回目标节点生效【之前】的状态（F5 试玩前导用：
+    目标节点自己可能是 rotate/hide 等依赖台上人物的操作，前导要还原的是
+    它执行前的舞台）。
 
     返回 dict：
       view     当前场景 id（无则 None）
@@ -392,6 +400,9 @@ def simulate_stage(
             break  # goto 悬空，推演中断
         node = nodes[idx]
         state["steps"] = step + 1
+        if cur == target_id and not include_target:
+            state["reached"] = True
+            break  # 只要目标之前的状态，不应用目标自身效果
         _apply_node(state, node, editor_data)
         if cur == target_id:
             state["reached"] = True
@@ -401,6 +412,68 @@ def simulate_stage(
             break
         cur = nxt
     return state
+
+
+# ---------------------------------------------------------------------------
+# F5 试玩舞台前导
+# ---------------------------------------------------------------------------
+PLAYTEST_PRELUDE_PREFIX = "zz_playtest_"  # 前导节点 id 前缀（排序沉底、一眼可辨）
+
+
+def build_playtest_prelude(
+    story: dict, target_id: str, editor_data: dict | None = None
+) -> list[dict]:
+    """为 F5 试玩生成舞台状态前导节点链，末尾 goto 到 target_id。
+
+    从 story 的 start 推演到目标节点（不含其自身效果），把当时的场景与台上
+    人物（站位/表情/朝向）补成 scene/show 节点；这样从依赖前置舞台状态的
+    步骤（如 rotate/hide 一个早前才 show 的人物）进入试玩时，游戏不再因
+    “角色不存在”崩掉剧情协程而黑屏。
+
+    返回合成节点列表（调用方把它 extend 进 nodes 并把 start 指向链头）；
+    空列表表示没有可重建的舞台状态（保持 start=目标节点即可）。
+    只还原舞台视觉状态；音乐、好感、旗标等运行态不在其列。
+    """
+    state = simulate_stage(story, target_id, editor_data, include_target=False)
+    view = state.get("view")
+    actors = state.get("actors") or {}
+
+    stage_nodes: list[dict] = []
+    # view="out" 只是淡出，无可重建的画面，跳过（否则前导反而把屏幕淡出）
+    if view and view != "out":
+        stage_nodes.append({"type": "scene", "view": view})
+    # 按站位 x 从左到右依次上场，id 兜底保证确定性
+    ordered = sorted(
+        actors.items(),
+        key=lambda kv: (position_x(kv[1].get("position", ""))[0], kv[0]),
+    )
+    for cid, info in ordered:
+        stage_nodes.append(
+            {
+                "type": "show",
+                "character": cid,
+                "position": info.get("position") or "M",
+                "portrait": info.get("portrait") or "normal",
+                "facing": info.get("facing") or "right",
+            }
+        )
+    if not stage_nodes:
+        return []
+
+    existing = {n.get("id") for n in (story or {}).get("nodes", [])}
+    prelude: list[dict] = []
+    for seq, stage_node in enumerate(stage_nodes):
+        node_id = "%s%d" % (PLAYTEST_PRELUDE_PREFIX, seq)
+        while node_id in existing:  # 用户节点撞名时顺延（理论上不会）
+            seq += 1
+            node_id = "%s%d" % (PLAYTEST_PRELUDE_PREFIX, seq)
+        existing.add(node_id)
+        stage_node["id"] = node_id
+        prelude.append(stage_node)
+    for i, stage_node in enumerate(prelude):
+        nxt = prelude[i + 1]["id"] if i + 1 < len(prelude) else target_id
+        stage_node["goto"] = nxt
+    return prelude
 
 
 # ---------------------------------------------------------------------------

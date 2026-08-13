@@ -64,7 +64,13 @@ from preflight import PreflightIssue, apply_safe_fixes, run_preflight
 from preflight_dialog import PreflightDialog
 from lua_preview import LuaPreview, compile_story, lomc_available, get_lomc
 from node_form import NodeForm
-from preview import CRASH_LOG, StagePreview, load_preview_map, log_crash
+from preview import (
+    CRASH_LOG,
+    StagePreview,
+    build_playtest_prelude,
+    load_preview_map,
+    log_crash,
+)
 
 EDITOR_DIR = models.editor_dir()
 PROJECT_ROOT = models.project_root()
@@ -1289,7 +1295,17 @@ class MainWindow(QMainWindow):
         node_id = str(node.get("id") or "")
         script_id = self._current_id
         stories = copy.deepcopy(self._stories)
-        stories[script_id]["start"] = node_id
+        # 舞台状态前导：从原 start 推演到目标节点之前，把当时的场景与台上人物
+        # 补成 scene/show 节点链；否则从依赖前置舞台状态的步骤（如 rotate 一个
+        # 早前才上场的人物）进入时，游戏会因"角色不存在"崩掉剧情协程而黑屏。
+        prelude = build_playtest_prelude(
+            self._stories[script_id], node_id, self.editor_data
+        )
+        if prelude:
+            stories[script_id]["nodes"].extend(prelude)
+            stories[script_id]["start"] = prelude[0]["id"]
+        else:
+            stories[script_id]["start"] = node_id
         preview_id = "lom_modkit_preview"
         title = str(self.story.get("title") or script_id)
         manifest = {
