@@ -1,0 +1,15 @@
+{
+  "include": ["editor", "compiler", "tools"],
+  "venvPath": "editor",
+  "venv": ".venv",
+  "extraPaths": ["compiler"],
+  "executionEnvironments": [
+    {
+      "root": "tools",
+      "extraPaths": [
+        "C:/Users/mohui666/.conda/envs/base310/Lib/site-packages",
+        "C:/Users/mohui666/AppData/Roaming/Python/Python310/site-packages"
+      ]
+    }
+  ]
+}

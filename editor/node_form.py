@@ -8,7 +8,7 @@
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import QTimer, Signal
 from PySide6.QtGui import QFontDatabase
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QHBoxLayout,
@@ -31,13 +31,16 @@ class NodeForm(QScrollArea):
         self._node: dict | None = None
         self._editor_data: dict = models.FALLBACK_EDITOR_DATA
         self._node_ids: list[str] = []
+        self._story_ids: list[str] = []  # 包内剧情脚本 id（end.next_script 下拉用）
         self._loading = False  # 重建表单期间屏蔽信号
 
     # ------------------------------------------------------------------ 对外
-    def set_context(self, editor_data: dict, node_ids: list[str]) -> None:
-        """更新下拉框数据来源（editor_data / 全部节点 id）。"""
+    def set_context(self, editor_data: dict, node_ids: list[str],
+                    story_ids: list[str] | None = None) -> None:
+        """更新下拉框数据来源（editor_data / 全部节点 id / 包内剧情脚本 id）。"""
         self._editor_data = editor_data
         self._node_ids = list(node_ids)
+        self._story_ids = list(story_ids or [])
 
     def set_node(self, node: dict | None) -> None:
         """展示并编辑给定节点；None 时清空。"""
@@ -161,6 +164,10 @@ class NodeForm(QScrollArea):
                         "GameOver": "ending_ids", "End": "ending_ids"}.get(scene)
             items = models.list_items(self._editor_data, data_key) if data_key else []
             return self._combo_from_items(node, key, items, value)
+        if kind == "story_ref":
+            # end.next_script：包内剧情脚本 id 下拉（可编辑，允许指向未创建脚本）
+            return self._combo_from_items(
+                node, key, [(sid, sid) for sid in self._story_ids], value)
         if kind == "line":
             w = QLineEdit("" if value is None else str(value))
             w.textChanged.connect(lambda t: self._apply(node, key, t))
@@ -184,15 +191,21 @@ class NodeForm(QScrollArea):
         if kind == "int":
             w = QSpinBox()
             w.setRange(-999999, 999999)
-            w.setValue(int(value or 0))
-            w.valueChanged.connect(lambda v: self._apply(node, key, int(v)))
+            try:
+                w.setValue(int(value or 0))
+            except (TypeError, ValueError):
+                w.setValue(0)
+            w.valueChanged.connect(lambda v: self._apply(node, key, v))  # QSpinBox 发射 int
             return w
         if kind == "float":
             w = QDoubleSpinBox()
             w.setRange(-9999, 9999)
             w.setDecimals(2)
             w.setSingleStep(0.1)
-            w.setValue(float(value or 0))
+            try:
+                w.setValue(float(value or 0))
+            except (TypeError, ValueError):
+                w.setValue(0)
             w.valueChanged.connect(lambda v: self._apply(node, key, v))
             return w
         if kind == "bool":
@@ -309,7 +322,9 @@ class NodeForm(QScrollArea):
                         val = row.get("value", 1)
                         if val not in (1, 2):
                             row["value"] = val = 1  # 容忍旧数据：非法值归一
-                        cb = self._make_combo(list(models.BRANCH_MOD_VALUES), val)
+                        cb = self._make_combo(
+                            [(str(v), cn) for v, cn in models.BRANCH_MOD_VALUES],
+                            str(val))
                         cb.currentTextChanged.connect(
                             lambda _t, row=row, c=cb: self._apply_row(
                                 row, "value", int(c.currentData())))

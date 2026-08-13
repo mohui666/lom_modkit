@@ -339,7 +339,7 @@ NODE_SCHEMAS: dict[str, dict] = {
     },
     "end": {
         "label": "结束脚本",
-        "fields": [("next_script", "下一脚本id", "line", True)],
+        "fields": [("next_script", "下一脚本id", "story_ref", True)],
     },
     "raw": {
         "label": "原生Lua(高级)",
@@ -575,6 +575,16 @@ def make_node_id(story: dict, prefix: str = "n") -> str:
     while f"{prefix}{i}" in used:
         i += 1
     return f"{prefix}{i}"
+
+
+def make_story_id(stories: dict) -> str:
+    """生成项目内唯一的剧情脚本 id：main、story2、story3……"""
+    i = 1
+    while True:
+        candidate = "main" if i == 1 else f"story{i}"
+        if candidate not in stories:
+            return candidate
+        i += 1
 
 
 def _short(text: str, limit: int = TEXT_PREVIEW_LEN) -> str:

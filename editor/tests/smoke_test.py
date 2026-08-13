@@ -6,7 +6,7 @@
 """
 from __future__ import annotations
 
-import json
+import copy
 import os
 import sys
 import tempfile
@@ -17,7 +17,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 EDITOR_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(EDITOR_DIR))
 
-from PySide6.QtWidgets import QApplication  # noqa: E402
+from PySide6.QtCore import QTimer  # noqa: E402  # type: ignore[reportMissingImports]
+from PySide6.QtWidgets import QApplication, QMessageBox  # noqa: E402  # type: ignore[reportMissingImports]
 
 import main  # noqa: E402
 import models  # noqa: E402
@@ -28,6 +29,7 @@ def main_fn() -> int:
 
     editor_data, is_fallback = models.load_editor_data(main.PROJECT_ROOT)
     win = main.MainWindow(editor_data, is_fallback)
+    win._prompt_on_discard = False  # 测试全程关闭未保存确认弹窗（会阻塞 offscreen）
     assert win.node_list.count() == 1, "新建剧情应含 1 个起始节点"
     print(f"[1] 主窗口实例化 OK（{'兜底数据' if is_fallback else 'editor_data.json'}，"
           f"节点数={win.node_list.count()}）")
@@ -36,7 +38,8 @@ def main_fn() -> int:
     win._add_node("choice")
     assert win.node_list.count() == 2
     node = win._current_node()
-    assert node["type"] == "choice" and len(node["options"]) == 2, "choice 默认 2 个选项"
+    assert node is not None and node["type"] == "choice" \
+        and len(node["options"]) == 2, "choice 默认 2 个选项"
     print(f"[2] 新建节点 OK（{node['id']}，summary={models.node_summary(node, editor_data)!r}）")
 
     # 切换节点类型：当前 choice → 换成 branch 工厂产物，并验证表单按 type 重建
@@ -45,7 +48,8 @@ def main_fn() -> int:
     branch["cases"][0]["goto"] = "n1"  # 指向已有节点，保证 story 合法可编译
     win.story["nodes"][win.node_list.currentRow()] = branch
     win._refresh_all(select_row=1)
-    assert win._current_node()["type"] == "branch"
+    cur = win._current_node()
+    assert cur is not None and cur["type"] == "branch"
     assert len(branch["cases"]) >= 1, "branch 至少 1 个 case"
     # 契约更新：branch 新节点默认 source="mod"，摘要带 source 与 flag
     assert branch["source"] == "mod"
@@ -57,7 +61,7 @@ def main_fn() -> int:
     print(f"[3] 切换节点类型 OK（choice → branch，summary={summary!r}）")
 
     # branch.source 切换：game → mod 时非法 value/超行被归一（契约：仅 1/2、≤2 行）
-    from PySide6.QtWidgets import QComboBox
+    from PySide6.QtWidgets import QComboBox  # type: ignore[reportMissingImports]
     branch["source"] = "game"
     branch["cases"] = [{"value": 7, "goto": "n1"}, {"value": 1, "goto": "n1"},
                        {"value": 2, "goto": "n1"}, {"value": 3, "goto": "n1"}]
@@ -73,6 +77,7 @@ def main_fn() -> int:
     # 表单写回：改 say 文本后摘要应更新
     win.node_list.setCurrentRow(0)
     say_node = win._current_node()
+    assert say_node is not None
     say_node["text"] = "这是一段用于冒烟测试的对话文本，长度超过二十个字用于验证截断"
     win._on_node_changed()
     text = win.node_list.item(0).text()
@@ -83,8 +88,11 @@ def main_fn() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         p = Path(tmp) / "story.json"
         models.save_story(win.story, p)
-        back = models.load_story(p)
-    assert json.loads(json.dumps(win.story)) == back, "序列化往返不一致"
+        try:
+            back = models.load_story(p)
+        except Exception as exc:
+            raise AssertionError(f"load_story 失败: {exc}") from exc
+    assert copy.deepcopy(win.story) == back, "序列化往返不一致"
     print(f"[5] story.json 序列化往返 OK（{len(back['nodes'])} 节点）")
 
     # 兜底数据完整性（契约 §5 关键键）
@@ -180,7 +188,7 @@ def main_fn() -> int:
     assert dlg.new_game_check.isChecked(), "应回填 new_game"
     assert dlg.triggers_table.rowCount() == 1, "应回填 1 行触发器"
     m = dlg.manifest()
-    assert m["campaign"]["new_game"] is True
+    assert m["campaign"]["new_game"]
     trig = m["campaign"]["triggers"][0]
     assert trig["position"] == "Center" and trig["script"] == "second" \
         and trig["when_flag_set"] == "F1", f"触发器回填错误：{trig!r}"
@@ -201,22 +209,23 @@ def main_fn() -> int:
     for t in new_types:
         win._add_node(t)
         node = win._current_node()
-        assert node["type"] == t, f"新增 {t} 失败"
+        assert node is not None and node["type"] == t, f"新增 {t} 失败"
         assert win.form._node is node, f"{t} 表单未构建"
         win.stage.grab()  # 演出预览渲染（提示行分支）
     # 字段写回抽查：raw 代码框 / panel 枚举 / dice 阈值
     win.node_list.setCurrentRow(win._node_row(
         [n for n in win.story["nodes"] if n["type"] == "raw"][0]["id"]))
     raw_node = win._current_node()
+    assert raw_node is not None
     win.form.set_node(raw_node)
-    from PySide6.QtWidgets import QPlainTextEdit
+    from PySide6.QtWidgets import QPlainTextEdit  # type: ignore[reportMissingImports]
     code_edit = next(w for w in win.form.findChildren(QPlainTextEdit)
                      if w.property("code_edit"))
     code_edit.setPlainText("say(\"hi\")\nwait(1)")
     assert raw_node["code"] == 'say("hi")\nwait(1)', "raw 代码写回失败"
     panel_node = next(n for n in win.story["nodes"] if n["type"] == "panel")
     win.form.set_node(panel_node)
-    from PySide6.QtWidgets import QComboBox as _CB
+    from PySide6.QtWidgets import QComboBox as _CB  # type: ignore[reportMissingImports]
     panel_combo = next(c for c in win.form.findChildren(_CB)
                        if c.currentData() == "martial")
     idx = panel_combo.findData("shop")
@@ -295,20 +304,113 @@ def main_fn() -> int:
     assert win.stage._choice_rects, "n11 应有选项按钮热区"
     win.stage.choice_activated.emit(win.stage._choice_rects[0][1])
     app.processEvents()
-    assert win._current_node()["id"] == "n12", "点击选项应跳转到 goto 节点 n12"
+    n12_node = win._current_node()
+    assert n12_node is not None and n12_node["id"] == "n12", \
+        "点击选项应跳转到 goto 节点 n12"
     print("[13] 选项点击跳转 OK（n11 → n12）")
 
     # 步进与自动播放：自动播放应在 choice 处自动暂停
     win._goto_start()
-    assert win._current_node()["id"] == demo["start"]
+    start_node = win._current_node()
+    assert start_node is not None and start_node["id"] == demo["start"]
     win.auto_btn.setChecked(True)
     for _ in range(20):
         if not win.auto_btn.isChecked():
             break
         win._auto_step()
-    assert not win.auto_btn.isChecked() and win._current_node()["type"] == "choice", \
-        f"自动播放应在 choice 暂停（当前 {win._current_node()['id']}）"
-    print(f"[14] 步进/自动播放 OK（自动暂停于 {win._current_node()['id']} choice）")
+    stop = win._current_node()
+    assert not win.auto_btn.isChecked() and stop is not None \
+        and stop["type"] == "choice", \
+        f"自动播放应在 choice 暂停（当前 {stop['id'] if stop else '?'}）"
+    print(f"[14] 步进/自动播放 OK（自动暂停于 {stop['id']} choice）")
+
+    # ------------------------------------------------------------------
+    # v4：多剧情脚本管理 + 撤销/重做 + 脏标记
+    # ------------------------------------------------------------------
+    # [15] 多剧情：项目内新建脚本 → 切换 → 节点列表跟随且内容互相隔离
+    win.new_story()
+    assert len(win._stories) == 1 and win._current_id == "main"
+    win._add_story_in_project()  # main 被占 → 自动取 story2
+    assert win.story_combo.count() == 2 and win._current_id == "story2"
+    assert win.node_list.count() == 1, "新脚本应含 1 个起始节点"
+    win._add_node("wait")
+    assert win.node_list.count() == 2
+    win.story_combo.setCurrentIndex(win.story_combo.findData("main"))
+    assert win._current_id == "main" and win.node_list.count() == 1
+    win.story_combo.setCurrentIndex(win.story_combo.findData("story2"))
+    assert win.node_list.count() == 2
+    print("[15] 多剧情脚本管理 OK（新建/切换，列表随切换刷新）")
+
+    # [16] 撤销/重做：跨剧情快照；连续输入合并为一步
+    win._undo()  # 撤销 story2 新增的 wait 节点
+    assert win._current_id == "story2" and win.node_list.count() == 1
+    win._redo()
+    assert win.node_list.count() == 2
+    win.story_title_edit.setText("改名一")  # 连续两次编辑 → 合并一步
+    win.story_title_edit.setText("改名二")
+    win._undo()
+    assert win.story.get("title") == "新剧情", \
+        f"应一步撤销回原标题：{win.story.get('title')!r}"
+    win._redo()
+    assert win.story.get("title") == "改名二"
+    print("[16] 撤销/重做 OK（跨剧情、连续编辑合并为一步）")
+
+    # [17] 脏标记：标题 * + 保存基线 + 撤销/重做联动
+    win.new_story()
+    assert not win._dirty and "*" not in win.windowTitle()
+    win.story_title_edit.setText("改了")
+    assert win._dirty and "*" in win.windowTitle()
+    win._mark_saved()
+    assert not win._dirty
+    win._undo()
+    assert win._dirty, "撤销回未保存状态应恢复脏标记"
+    win._redo()
+    assert not win._dirty, "重做回已保存状态应清除脏标记"
+    print("[17] 脏标记 OK（标题 *、保存基线、撤销/重做联动）")
+
+    # [18] 脚本 id 改名（表单即改）+ 占用冲突回退 + 删除可撤销
+    win._add_story_in_project()
+    assert win._current_id == "story2"
+    win.story_id_edit.setText("case_a")
+    assert win._current_id == "case_a", "改名应同步项目键"
+    win.story_id_edit.setText("main")
+    assert win._current_id == "case_a" and win.story_id_edit.text() == "case_a", \
+        "占用已有 id 应回退并复原文本"
+    win._delete_story_in_project()
+    assert "case_a" not in win._stories and len(win._stories) == 1
+    win._undo()
+    assert "case_a" in win._stories, "删除脚本应可撤销"
+    print("[18] 脚本改名/占用回退/删除撤销 OK")
+
+    # [19] 未保存确认弹窗（offscreen 模拟点击：放弃修改→继续；取消→中止）
+    win._set_dirty(True)
+    win._prompt_on_discard = True
+
+    def click_box_button(text: str) -> None:
+        # 取当前可见的确认框（旧弹窗关闭后仍是子对象，不可见则跳过）
+        boxes = [b for b in win.findChildren(QMessageBox) if b.isVisible()]
+        assert boxes, "应弹出确认框"
+        box = boxes[-1]
+        for b in box.buttons():
+            if b.text() == text:
+                b.click()
+                return
+        raise AssertionError(f"确认框缺少按钮 {text!r}")
+
+    QTimer.singleShot(0, lambda: click_box_button("放弃修改"))
+    assert win._confirm_discard()
+    QTimer.singleShot(0, lambda: click_box_button("取消"))
+    assert not win._confirm_discard()
+    win._prompt_on_discard = False
+    print("[19] 未保存确认弹窗 OK（放弃修改→继续；取消→中止）")
+
+    # [20] ManifestDialog 入口脚本下拉（多剧情回填）
+    dlg = main.ManifestDialog("main", editor_data, ["main", "second"],
+                              {"entry": "second"})
+    assert dlg.manifest()["entry"] == "second", "入口应回填 base manifest"
+    dlg2 = main.ManifestDialog("second", editor_data, ["main", "second"])
+    assert dlg2.manifest()["entry"] == "second", "入口默认当前脚本"
+    print("[20] ManifestDialog 入口下拉 OK")
 
     win.close()
     app.quit()

@@ -23,9 +23,9 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 EDITOR_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(EDITOR_DIR))
 
-from PySide6.QtCore import QEvent, QPointF, Qt  # noqa: E402
-from PySide6.QtGui import QMouseEvent  # noqa: E402
-from PySide6.QtWidgets import QApplication  # noqa: E402
+from PySide6.QtCore import QEvent, QPointF, Qt  # noqa: E402  # type: ignore[reportMissingImports]
+from PySide6.QtGui import QMouseEvent  # noqa: E402  # type: ignore[reportMissingImports]
+from PySide6.QtWidgets import QApplication  # noqa: E402  # type: ignore[reportMissingImports]
 
 import main  # noqa: E402
 import models  # noqa: E402
@@ -90,6 +90,7 @@ def main_fn() -> int:
 
     editor_data, is_fallback = models.load_editor_data(main.PROJECT_ROOT)
     win = main.MainWindow(editor_data, is_fallback)
+    win._prompt_on_discard = False  # 测试全程关闭未保存确认弹窗（会阻塞 offscreen）
     win.resize(1280, 760)
     win.show()
     pmap, data_dir = preview.load_preview_map(main.PROJECT_ROOT)
@@ -223,7 +224,8 @@ def main_fn() -> int:
 
     # 4f 导入 .lommod 再切回 main.json
     manifest, stories = package_io.import_lommod(str(DEMO_LOMMOD))
-    sid = manifest.get("entry") if manifest.get("entry") in stories else sorted(stories)[0]
+    entry = manifest.get("entry")
+    sid = str(entry if entry in stories else sorted(stories)[0])
     win.story = stories[sid]
     win.story_path = None
     win._refresh_all()
