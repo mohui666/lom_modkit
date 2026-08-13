@@ -168,6 +168,14 @@ class ManifestDialog(QDialog):
         )
         self.new_game_check.setChecked(bool(campaign.get("new_game")))
         cv.addWidget(self.new_game_check)
+        self.disable_events_check = QCheckBox(
+            "本战役禁用原版地图事件（只保留本 mod 的位置触发器，见契约 §2 "
+            "disable_official_events）"
+        )
+        self.disable_events_check.setChecked(
+            bool(campaign.get("disable_official_events"))
+        )
+        cv.addWidget(self.disable_events_check)
         cv.addWidget(QLabel("自由模式触发器：点击地图位置时用本包脚本替换默认活动"))
         self.triggers_table = QTableWidget(0, 7)
         self.triggers_table.setHorizontalHeaderLabels(
@@ -336,6 +344,8 @@ class ManifestDialog(QDialog):
         campaign: dict = {}
         if self.new_game_check.isChecked():
             campaign["new_game"] = True
+        if self.disable_events_check.isChecked():
+            campaign["disable_official_events"] = True
         if triggers:
             campaign["triggers"] = triggers
         if campaign:

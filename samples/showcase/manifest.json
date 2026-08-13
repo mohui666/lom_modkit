@@ -4,10 +4,11 @@
   "name": "全功能展示",
   "version": "1.0.0",
   "author": "lom_modkit",
-  "description": "演示全部自定义功能：39 种节点、表情差分、已读变黄快进、自定义死亡文本、心情气泡开关、多剧情链式、战役模式、练武场时间/好感条件触发器",
+  "description": "演示全部自定义功能：43 种节点、表情差分、已读变黄快进、自定义死亡文本、心情气泡开关、多剧情链式、战役模式、练武场时间/好感条件触发器",
   "entry": "main",
   "campaign": {
     "new_game": true,
+    "disable_official_events": true,
     "triggers": [
       {
         "type": "position",

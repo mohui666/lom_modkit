@@ -20,6 +20,7 @@ EDITOR_DATA_PATH = os.path.join(_PROJECT_ROOT, "data", "editor_data.json")
 
 _META = None  # 进程级缓存；测试可赋值覆盖
 _ED_IDS = None  # 官方死亡/结局画面 id 缓存（goto_scene 警告用）
+_PORTRAITS = None  # 角色表情表缓存：{character_id: [portrait, ...]}；缺文件时 None
 
 
 def load_editor_ids(path=None):
@@ -82,3 +83,57 @@ def load_dice_meta(path=None):
 def get_dice_meta(check):
     """单个检查点元数据；查不到返回 None。"""
     return load_dice_meta().get(check)
+
+
+def load_portrait_table(path=None):
+    """读 data/editor_data.json 的 characters[].portraits 角色表情表。
+
+    返回 {character_id: [portrait, ...]}；文件缺失/损坏（OSError/JSON 解析失败）
+    时返回 None（表不可用）。文件存在但无 characters 字段时返回空表 {}。
+
+    用途（练武场卡死修复）：show/say 节点的 (character, portrait) 组合必须落在
+    表内——游戏 CharacterPlaceholder.LoadCharacterPortrait 对无效表情 key 抛
+    KeyNotFoundException → Lua 协程死 → 对话冻结（Player.log 实证）。
+    """
+    global _PORTRAITS
+    if _PORTRAITS is not None:
+        return _PORTRAITS
+    table = None
+    p = path or EDITOR_DATA_PATH
+    try:
+        with open(p, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        table = {}
+        for c in data.get("characters") or []:
+            if not isinstance(c, dict):
+                continue
+            cid = c.get("id")
+            if cid is None:
+                continue
+            table[str(cid)] = [
+                str(x) for x in (c.get("portraits") or []) if isinstance(x, str)
+            ]
+    except (OSError, ValueError):
+        table = None
+    _PORTRAITS = table
+    return table
+
+
+def check_portrait(table, character, portrait):
+    """表情合法性检查（表情表不可用/角色不在表 → 放行）。
+
+    返回 None 表示放行；返回字符串时该串为报错文案（角色存在但表情不在其列表）。
+    """
+    if table is None or character not in table:
+        return None
+    if portrait in table[character]:
+        return None
+    return (
+        '角色 "%s" 没有表情 "%s"（该角色表情：%s）。游戏 LoadCharacterPortrait ' % (
+            character,
+            portrait,
+            "、".join(table[character]) or "无",
+        )
+        + "对无效表情 key 抛 KeyNotFoundException → Lua 协程死 → 对话冻结，"
+        + "请改用清单内表情。"
+    )

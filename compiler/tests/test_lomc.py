@@ -362,8 +362,9 @@ class TestNodeCodegen(unittest.TestCase):
         self.assertNotIn("mod_set_mood(false)", lua)
 
     def test_death(self):
-        # 死亡文本节点：黑屏过渡 → mod_set_death_text（文本字面量进 Lua，不进
-        # texts.json / 已读系统）→ 官方 GameOver 死亡画面；自带收尾不加流转行
+        # 死亡文本节点：黑屏过渡 → mod_set_death_text(title, text)（两段式：短标题
+        # 缺省「勝敗乃兵家常事」+ 多行描述，均 lua_str 字面量进 Lua，不进 texts.json
+        # / 已读系统）→ 官方 GameOver 死亡画面；自带收尾不加流转行
         lua = compile_story(
             make_story(
                 [
@@ -381,8 +382,10 @@ class TestNodeCodegen(unittest.TestCase):
         self.assertIn('\trunblock(flowcharts.view, "out")', lua)
         self.assertIn('\tgetvar(flowcharts.view, "ViewName").value = "black"', lua)
         self.assertIn('\trunblock(flowcharts.view, "view")', lua)
-        # 不再走对话框 say：文本由 mod_set_death_text 交给官方死亡画面中央显示
-        self.assertIn('\tmod_set_death_text("你坠入山崖，万事休矣。")', lua)
+        # 两段式：短标题 + 描述，交给官方死亡画面中央显示
+        self.assertIn(
+            '\tmod_set_death_text("勝敗乃兵家常事", "你坠入山崖，万事休矣。")', lua
+        )
         self.assertNotIn("setsaydialog", lua)
         self.assertNotIn("GetStoryText", lua)
         self.assertIn('\tluamanager.ChangeScene("GameOver", "910021", "Title")', lua)
@@ -394,14 +397,35 @@ class TestNodeCodegen(unittest.TestCase):
         # death 自带流转，不追加 return（ChangeScene 后直接收束函数）
         self.assertNotIn('ChangeScene("GameOver", "910021", "Title")\n\treturn', lua)
 
-    def test_death_text_escape(self):
-        # mod_set_death_text 参数走 lua_str：反斜杠/引号/换行按契约 §4 转义
+    def test_death_custom_title(self):
+        # title 字段覆写缺省标题（两段式短标题）
         lua = compile_story(
             make_story(
                 [
                     {
                         "id": "n1",
                         "type": "death",
+                        "title": "坠崖谢幕",
+                        "text": "脚下一滑，赵活坠入万丈深渊。",
+                        "death_id": "910021",
+                        "next": "Title",
+                    }
+                ]
+            )
+        )
+        self.assertIn(
+            '\tmod_set_death_text("坠崖谢幕", "脚下一滑，赵活坠入万丈深渊。")', lua
+        )
+
+    def test_death_text_escape(self):
+        # mod_set_death_text 参数走 lua_str：反斜杠/引号/换行按契约 §4 转义（title 同样）
+        lua = compile_story(
+            make_story(
+                [
+                    {
+                        "id": "n1",
+                        "type": "death",
+                        "title": '标题"带引号',
                         "text": '第一行\n引号"反斜杠\\',
                         "death_id": "910021",
                         "next": "Title",
@@ -409,13 +433,15 @@ class TestNodeCodegen(unittest.TestCase):
                 ]
             )
         )
-        self.assertIn('\tmod_set_death_text("第一行\\n引号\\"反斜杠\\\\")', lua)
+        self.assertIn(
+            '\tmod_set_death_text("标题\\"带引号", "第一行\\n引号\\"反斜杠\\\\")', lua
+        )
 
     def test_death_default_next_title(self):
         lua = self.lua_of(
             {"id": "n1", "type": "death", "text": "命数已尽。", "death_id": "910021"}
         )
-        self.assertIn('\tmod_set_death_text("命数已尽。")', lua)
+        self.assertIn('\tmod_set_death_text("勝敗乃兵家常事", "命数已尽。")', lua)
         self.assertIn('\tluamanager.ChangeScene("GameOver", "910021", "Title")', lua)
 
     def test_death_free_next(self):
@@ -428,7 +454,7 @@ class TestNodeCodegen(unittest.TestCase):
                 "next": "Free",
             }
         )
-        self.assertIn('\tmod_set_death_text("命数已尽。")', lua)
+        self.assertIn('\tmod_set_death_text("勝敗乃兵家常事", "命数已尽。")', lua)
         self.assertIn('\tluamanager.ChangeScene("GameOver", "910021", "Free")', lua)
 
     def test_choice(self):
@@ -991,6 +1017,273 @@ class TestValidationErrors(unittest.TestCase):
             )
         )
 
+
+class TestBranchNewSources(unittest.TestCase):
+    """branch 三新来源：stat（主角属性）/ flag_value（官方旗标数值）/
+    condition（官方条件检查点）——官方 API 实证（GetStatData/GetFlagData/
+    checkpointmanager.Condition）。
+    """
+
+    def test_branch_stat(self):
+        lua = compile_story(
+            make_story(
+                [
+                    {
+                        "id": "n1",
+                        "type": "branch",
+                        "source": "stat",
+                        "stat": "mental",
+                        "cases": [
+                            {"op": ">=", "value": 50, "goto": "na"},
+                            {"op": "<", "value": 50, "goto": "nend"},
+                        ],
+                    },
+                    {"id": "na", "type": "focus", "character": "player"},
+                    {"id": "nend", "type": "end"},
+                ]
+            )
+        )
+        self.assertIn('\tlocal branch1 = luamanager.GetStatData("mental", 1)', lua)
+        self.assertIn("\tif branch1 >= 50 then\n\t\treturn node_na()", lua)
+        self.assertIn("\telseif branch1 < 50 then\n\t\treturn node_nend()", lua)
+        # else 兜底落顺序下一节点
+        self.assertIn("\telse\n\t\treturn node_na()\n\tend", lua)
+
+    def test_branch_stat_default_op(self):
+        # op 缺省 ">="；单 case：else 落顺序下一节点
+        lua = compile_story(
+            make_story(
+                [
+                    {
+                        "id": "n1",
+                        "type": "branch",
+                        "source": "stat",
+                        "stat": "people",
+                        "cases": [{"value": 3, "goto": "nend"}],
+                    },
+                    {"id": "n2", "type": "focus", "character": "player"},
+                    {"id": "nend", "type": "end"},
+                ]
+            )
+        )
+        self.assertIn('\tlocal branch1 = luamanager.GetStatData("people", 1)', lua)
+        self.assertIn("\tif branch1 >= 3 then\n\t\treturn node_nend()", lua)
+        self.assertIn("\telse\n\t\treturn node_n2()\n\tend", lua)
+
+    def test_branch_flag_value(self):
+        lua = compile_story(
+            make_story(
+                [
+                    {
+                        "id": "n1",
+                        "type": "branch",
+                        "source": "flag_value",
+                        "flag": "50019",
+                        "cases": [{"op": ">=", "value": 1, "goto": "nend"}],
+                    },
+                    {"id": "n2", "type": "focus", "character": "player"},
+                    {"id": "nend", "type": "end"},
+                ]
+            )
+        )
+        self.assertIn(
+            '\tlocal branch1 = tonumber(luamanager.GetFlagData("50019"))', lua
+        )
+        self.assertIn("\tif branch1 >= 1 then\n\t\treturn node_nend()", lua)
+        self.assertIn("\telse\n\t\treturn node_n2()\n\tend", lua)
+
+    def test_branch_condition(self):
+        lua = compile_story(
+            make_story(
+                [
+                    {
+                        "id": "n1",
+                        "type": "branch",
+                        "source": "condition",
+                        "flag": "S0030_01_001",
+                        "cases": [
+                            {"value": 1, "goto": "na"},
+                            {"value": 2, "goto": "nend"},
+                        ],
+                    },
+                    {"id": "na", "type": "focus", "character": "player"},
+                    {"id": "nend", "type": "end"},
+                ]
+            )
+        )
+        self.assertIn(
+            '\tif checkpointmanager.Condition("S0030_01_001") then\n'
+            "\t\treturn node_na()\n\telse\n\t\treturn node_nend()\n\tend",
+            lua,
+        )
+
+    def test_branch_condition_single_case_fallback(self):
+        # 只给真分支：假分支落顺序下一节点
+        lua = compile_story(
+            make_story(
+                [
+                    {
+                        "id": "n1",
+                        "type": "branch",
+                        "source": "condition",
+                        "flag": "S0030_01_001",
+                        "cases": [{"value": 1, "goto": "nend"}],
+                    },
+                    {"id": "n2", "type": "focus", "character": "player"},
+                    {"id": "nend", "type": "end"},
+                ]
+            )
+        )
+        self.assertIn(
+            '\tif checkpointmanager.Condition("S0030_01_001") then\n'
+            "\t\treturn node_nend()\n\telse\n\t\treturn node_n2()\n\tend",
+            lua,
+        )
+
+    def test_branch_stat_rules(self):
+        # stat 来源缺 stat 字段
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "branch",
+                    "source": "stat",
+                    "cases": [{"value": 1, "goto": "nend"}],
+                }
+            ),
+            'source="stat" 时必填字段 "stat"',
+            "n1",
+        )
+        # stat 来源给 flag → 报错
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "branch",
+                    "source": "stat",
+                    "stat": "mental",
+                    "flag": "F",
+                    "cases": [{"value": 1, "goto": "nend"}],
+                }
+            ),
+            '不支持字段 "flag"',
+        )
+        # 非法 op
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "branch",
+                    "source": "stat",
+                    "stat": "mental",
+                    "cases": [{"op": "!=", "value": 1, "goto": "nend"}],
+                }
+            ),
+            '"op" 必须是',
+        )
+        # 重复 (op, value)
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "branch",
+                    "source": "stat",
+                    "stat": "mental",
+                    "cases": [
+                        {"op": ">=", "value": 1, "goto": "nend"},
+                        {"op": ">=", "value": 1, "goto": "nend"},
+                    ],
+                }
+            ),
+            "与其他 case 重复",
+        )
+        # value 必须整数
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "branch",
+                    "source": "stat",
+                    "stat": "mental",
+                    "cases": [{"op": ">=", "value": 1.5, "goto": "nend"}],
+                }
+            ),
+            '"value" 必须是整数',
+        )
+
+    def test_branch_condition_rules(self):
+        # condition 的 value 只能 1/2
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "branch",
+                    "source": "condition",
+                    "flag": "S0030_01_001",
+                    "cases": [{"value": 3, "goto": "nend"}],
+                }
+            ),
+            'value 只能是 1（真）或 2（假',
+        )
+        # condition 不给 flag → 报错
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "branch",
+                    "source": "condition",
+                    "cases": [{"value": 1, "goto": "nend"}],
+                }
+            ),
+            '必填字段 "flag"',
+        )
+        # stat/flag_value/condition 作末节点：永远有未覆盖值 → 报错
+        for src, extra in (
+            ("stat", {"stat": "mental"}),
+            ("flag_value", {"flag": "50019"}),
+        ):
+            node = {
+                "id": "n1",
+                "type": "branch",
+                "source": src,
+                "cases": [
+                    {"op": ">=", "value": 1, "goto": "n2"},
+                    {"op": "<", "value": 1, "goto": "n2"},
+                ],
+            }
+            node.update(extra)
+            assert_compile_error(
+                self,
+                make_story([{"id": "n2", "type": "end"}, node], start="n2"),
+                "else 没有落点",
+                "n1",
+            )
+        # condition 两 case 全覆盖作末节点：合法
+        validate_story(
+            make_story(
+                [
+                    {
+                        "id": "n1",
+                        "type": "branch",
+                        "source": "condition",
+                        "flag": "S0030_01_001",
+                        "cases": [
+                            {"value": 1, "goto": "n2"},
+                            {"value": 2, "goto": "n2"},
+                        ],
+                    },
+                    {"id": "n2", "type": "end"},
+                ]
+            )
+        )
+
     def test_bad_node_id_charset(self):
         assert_compile_error(
             self,
@@ -1011,6 +1304,125 @@ class TestValidationErrors(unittest.TestCase):
         with self.assertRaises(LomcError) as cm:
             validate_manifest(bad2)
         self.assertIn('"id"', str(cm.exception))
+
+    def test_disable_official_events(self):
+        # campaign.disable_official_events：bool，可选（缺省 false）
+        good = dict(MANIFEST)
+        good["campaign"] = {"new_game": True, "disable_official_events": True}
+        validate_manifest(good)  # 不抛即通过
+        validate_manifest(dict(MANIFEST, campaign={}))  # 空 campaign 合法
+        for bad_val in (1, "yes", None):
+            bad = dict(MANIFEST)
+            bad["campaign"] = {"disable_official_events": bad_val}
+            with self.assertRaises(LomcError) as cm:
+                validate_manifest(bad)
+            self.assertIn("disable_official_events", str(cm.exception))
+            self.assertIn("布尔值", str(cm.exception))
+
+
+class TestPortraitValidation(unittest.TestCase):
+    """角色表情校验（练武场卡死修复）：show/say 的 (character, portrait)
+    必须落在 data/editor_data.json 的角色表情表内；表不可用/角色不在表 → 放行。
+    """
+
+    def test_valid_portraits_pass(self):
+        # 真实表情组合（editor_data 实证）应直接通过
+        validate_story(
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "show",
+                    "character": "brother4",
+                    "position": "R1",
+                    "portrait": "laugh1",
+                },
+                {
+                    "id": "n2",
+                    "type": "say",
+                    "character": "player",
+                    "portrait": "doubt",
+                    "text": "（这个人能信吗……）",
+                },
+            )
+        )
+
+    def test_unknown_character_passes(self):
+        # 表情表不可用 / 角色不在表 → 放行（自造角色由编辑器清单管理）
+        validate_story(
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "show",
+                    "character": "my_oc",
+                    "position": "M",
+                    "portrait": "whatever",
+                }
+            )
+        )
+
+    def test_portrait_not_in_character_list(self):
+        # brother4 没有 angry3（editor_data 实证）：必须报 LomcError
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "say",
+                    "character": "brother4",
+                    "portrait": "angry3",
+                    "text": "哼！",
+                }
+            ),
+            '角色 "brother4" 没有表情 "angry3"',
+            "n1",
+        )
+        # show 同样拦截
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "show",
+                    "character": "trainee1",
+                    "position": "L1",
+                    "portrait": "gloomy2",
+                }
+            ),
+            '角色 "trainee1" 没有表情 "gloomy2"',
+        )
+
+    def test_table_unavailable_passes(self):
+        # 表情表不可用（缺文件）时放行，不阻断编译
+        import lomc.dice_data as dd
+
+        old_cache, old_path = dd._PORTRAITS, dd.EDITOR_DATA_PATH
+        try:
+            dd._PORTRAITS = None
+            dd.EDITOR_DATA_PATH = os.path.join(
+                COMPILER_ROOT, "no_such_editor_data.json"
+            )
+            self.assertIsNone(dd.load_portrait_table())
+            validate_story(
+                linear_story(
+                    {
+                        "id": "n1",
+                        "type": "say",
+                        "character": "brother4",
+                        "portrait": "angry3",
+                        "text": "哼！",
+                    }
+                )
+            )
+        finally:
+            dd._PORTRAITS, dd.EDITOR_DATA_PATH = old_cache, old_path
+
+    def test_narrative_say_without_character_passes(self):
+        # 旁白无 character：不查表，直接通过
+        validate_story(
+            linear_story(
+                {"id": "n1", "type": "say", "mode": "narrative", "text": "旁白。"}
+            )
+        )
 
 
 class TestManifestTriggerConditions(unittest.TestCase):
@@ -1211,7 +1623,9 @@ class TestPack(unittest.TestCase):
         self.assertIn("return node_x1()", lua_extra)
         # extra 的 death：黑屏 → mod_set_death_text（字面量）→ 官方 GameOver
         # 死亡画面收尾；不再走已读 key
-        self.assertIn('\tmod_set_death_text("死亡文本演示")', lua_extra)
+        self.assertIn(
+            '\tmod_set_death_text("勝敗乃兵家常事", "死亡文本演示")', lua_extra
+        )
         self.assertNotIn("GetStoryText", lua_extra)
         self.assertIn(
             'luamanager.ChangeScene("GameOver", "910021", "Title")', lua_extra
@@ -1876,6 +2290,142 @@ class TestNewNodeCodegen(unittest.TestCase):
             {"id": "n1", "type": "goto_scene", "scene": "End", "key": "920003"}
         )
         self.assertNotIn("mod_set_ending_text", lua3)
+
+
+class TestFourNewNodes(unittest.TestCase):
+    """四个高价值新节点：dim（压暗）/ message（系统提示）/ rotate（旋转）/
+    dayenv（日夜环境）——官方 API 实参顺序与枚举值均来自反编译与 raw_scripts 实证。
+    """
+
+    def lua_of(self, node):
+        return compile_story(linear_story(node))
+
+    def test_dim(self):
+        # stage.SetDimmed(character, bool)：character 在前、bool 在后（反编译实证）
+        lua = self.lua_of(
+            {"id": "n1", "type": "dim", "character": "trainee1", "dimmed": True}
+        )
+        self.assertIn('\tstage.SetDimmed(characters.Get("trainee1"), true)', lua)
+        lua2 = self.lua_of(
+            {"id": "n1", "type": "dim", "character": "player", "dimmed": False}
+        )
+        self.assertIn('\tstage.SetDimmed(characters.Get("player"), false)', lua2)
+        # 普通节点：末尾追加顺序流转
+        self.assertIn("\treturn node_nend()", lua)
+
+    def test_dim_requires_fields(self):
+        assert_compile_error(
+            self,
+            linear_story({"id": "n1", "type": "dim", "character": "player"}),
+            '缺少必填字段 "dimmed"',
+            "n1",
+        )
+        assert_compile_error(
+            self,
+            linear_story({"id": "n1", "type": "dim", "dimmed": True}),
+            '缺少必填字段 "character"',
+        )
+        assert_compile_error(
+            self,
+            linear_story(
+                {"id": "n1", "type": "dim", "character": "player", "dimmed": 1}
+            ),
+            '字段 "dimmed" 必须是布尔值',
+        )
+
+    def test_message(self):
+        # mainui.DisplayMessageText(text)：原文显示，不走本地化 key（Text 版实证）
+        lua = self.lua_of(
+            {"id": "n1", "type": "message", "text": "【系统提示】欢迎来到全功能展示！"}
+        )
+        self.assertIn(
+            '\tmainui.DisplayMessageText("【系统提示】欢迎来到全功能展示！")', lua
+        )
+        # 多行合法（lua_str 转义）
+        lua2 = self.lua_of(
+            {"id": "n1", "type": "message", "text": "第一行\n引号\"第二行"}
+        )
+        self.assertIn('\tmainui.DisplayMessageText("第一行\\n引号\\"第二行")', lua2)
+
+    def test_message_text_required_nonempty(self):
+        assert_compile_error(
+            self,
+            linear_story({"id": "n1", "type": "message"}),
+            '缺少必填字段 "text"',
+        )
+        assert_compile_error(
+            self,
+            linear_story({"id": "n1", "type": "message", "text": "   "}),
+            '字段 "text" 不能为空',
+            "n1",
+        )
+
+    def test_rotate(self):
+        # characters.Rotate(key, angle, duration)——官方参数序 angle 在前！
+        # （raw_scripts 调用点实证，如 characters.Rotate("player", 90, 0.5)）
+        lua = self.lua_of(
+            {
+                "id": "n1",
+                "type": "rotate",
+                "character": "brother4",
+                "angle": -10,
+                "duration": 0.3,
+            }
+        )
+        self.assertIn('\tcharacters.Rotate("brother4", -10, 0.3)', lua)
+        # 默认值来自 models 契约（angle=180 / duration=1）；这里验给定值发射
+        lua2 = self.lua_of(
+            {"id": "n1", "type": "rotate", "character": "player", "angle": 180, "duration": 1}
+        )
+        self.assertIn('\tcharacters.Rotate("player", 180, 1)', lua2)
+
+    def test_rotate_rules(self):
+        # angle 必须整数（官方调用点均整数角度）
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "rotate",
+                    "character": "player",
+                    "angle": 90.5,
+                    "duration": 1,
+                }
+            ),
+            '"angle" 必须是整数',
+        )
+        # duration 必须正数
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "rotate",
+                    "character": "player",
+                    "angle": 90,
+                    "duration": 0,
+                }
+            ),
+            '"duration" 必须是正数',
+        )
+
+    def test_dayenv(self):
+        # luamanager.SetGameDayEnvironment(day_type)：枚举 1=白天 / 2=晚上
+        # （raw_scripts 调用点实证，ch1_1 等）
+        lua = self.lua_of({"id": "n1", "type": "dayenv", "day_type": 2})
+        self.assertIn("\tluamanager.SetGameDayEnvironment(2)", lua)
+        lua2 = self.lua_of({"id": "n1", "type": "dayenv", "day_type": 1})
+        self.assertIn("\tluamanager.SetGameDayEnvironment(1)", lua2)
+
+    def test_dayenv_rules(self):
+        # day_type 只允许官方枚举两值（1=白天 / 2=晚上）
+        for bad in (0, 3, "1", True):
+            assert_compile_error(
+                self,
+                linear_story({"id": "n1", "type": "dayenv", "day_type": bad}),
+                '"day_type"',
+                "n1",
+            )
         # 非 End/GameOver 场景即使有 title/desc 也不发射（卡片仅结局/死亡画面用）
         lua4 = self.lua_of(
             {

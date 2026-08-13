@@ -18,6 +18,16 @@
     {
       "id": "n3",
       "type": "show",
+      "character": "player",
+      "position": "L2",
+      "portrait": "normal",
+      "facing": "right",
+      "fadeDuration": 0,
+      "moveDuration": 0
+    },
+    {
+      "id": "n4",
+      "type": "show",
       "character": "brother4",
       "position": "R1",
       "portrait": "laugh1",
@@ -26,7 +36,7 @@
       "moveDuration": 0
     },
     {
-      "id": "n4",
+      "id": "n5",
       "type": "say",
       "text": "赵师弟！来得好不如来得巧！师兄我昨日新悟出一招「飞星赶月」，今日心情好，免费讲给你听！",
       "character": "brother4",
@@ -34,7 +44,7 @@
       "mode": "character"
     },
     {
-      "id": "n5",
+      "id": "n6",
       "type": "say",
       "text": "（四师兄主动找我吹牛？太阳打西边出来了……）",
       "character": "player",
@@ -42,22 +52,22 @@
       "mode": "think"
     },
     {
-      "id": "n10",
+      "id": "n11",
       "type": "choice",
       "options": [
         {
           "text": "愿闻其详",
-          "goto": "n9"
+          "goto": "n10"
         },
         {
           "text": "师兄，掌门的供桌擦完了？",
-          "goto": "n6"
+          "goto": "n7"
         }
       ],
       "dialog": "Options"
     },
     {
-      "id": "n9",
+      "id": "n10",
       "type": "say",
       "text": "听好了！这一招讲究腰马合一、气沉丹田——那晚我梦游追月，一脚踩空，人没飞起来，倒把厨房的瓦踩出个人形窟窿！",
       "character": "brother4",
@@ -65,14 +75,14 @@
       "mode": "character"
     },
     {
-      "id": "n8",
+      "id": "n9",
       "type": "affinity",
       "character": "brother4",
       "delta": 1,
-      "goto": "n7"
+      "goto": "n8"
     },
     {
-      "id": "n6",
+      "id": "n7",
       "type": "say",
       "text": "啊？！我、我这就去擦！赵师弟你先忙，咱们改日再论剑！",
       "character": "brother4",
@@ -80,7 +90,7 @@
       "mode": "character"
     },
     {
-      "id": "n7",
+      "id": "n8",
       "type": "end"
     }
   ]

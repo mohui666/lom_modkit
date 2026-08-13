@@ -27,6 +27,16 @@
     },
     {
       "id": "n4",
+      "type": "show",
+      "character": "player",
+      "position": "R1",
+      "portrait": "normal",
+      "facing": "right",
+      "fadeDuration": 0,
+      "moveDuration": 0
+    },
+    {
+      "id": "n5",
       "type": "say",
       "text": "赵、赵师兄！这么晚您怎么来了！",
       "character": "trainee1",
@@ -34,7 +44,7 @@
       "mode": "character"
     },
     {
-      "id": "n5",
+      "id": "n6",
       "type": "say",
       "text": "路过。倒是你们，晚课练完了？",
       "character": "player",
@@ -42,30 +52,30 @@
       "mode": "character"
     },
     {
-      "id": "n10",
+      "id": "n11",
       "type": "choice",
       "options": [
         {
           "text": "睁一只眼闭一只眼",
-          "goto": "n6"
+          "goto": "n7"
         },
         {
           "text": "陪他们再练一轮",
-          "goto": "n7"
+          "goto": "n8"
         }
       ],
       "dialog": "Options"
     },
     {
-      "id": "n6",
+      "id": "n7",
       "type": "say",
       "text": "【旁白】你佯装没看见，踱去了伙房方向。弟子们长出一口气。",
       "portrait": "normal",
       "mode": "narrative",
-      "goto": "n9"
+      "goto": "n10"
     },
     {
-      "id": "n7",
+      "id": "n8",
       "type": "say",
       "text": "多谢赵师兄陪练！我们这就认真练！",
       "character": "trainee1",
@@ -73,7 +83,7 @@
       "mode": "character"
     },
     {
-      "id": "n8",
+      "id": "n9",
       "type": "stat",
       "key": "mental",
       "delta": 2,
@@ -81,7 +91,7 @@
       "display": 1
     },
     {
-      "id": "n9",
+      "id": "n10",
       "type": "end"
     }
   ]

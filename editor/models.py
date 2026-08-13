@@ -16,7 +16,7 @@ from pathlib import Path
 ID_PATTERN = re.compile(r"^[a-zA-Z0-9_\-]+$")
 
 # ---------------------------------------------------------------------------
-# 节点类型中文名（契约 §3.1 全量 39 种）
+# 节点类型中文名（契约 §3.1 全量 43 种）
 # ---------------------------------------------------------------------------
 NODE_TYPE_CN: dict[str, str] = {
     "music": "音乐",
@@ -38,6 +38,10 @@ NODE_TYPE_CN: dict[str, str] = {
     "camera": "镜头滤镜",
     "block": "流图块(高级)",
     "cg": "图片/标题显示",
+    "dim": "压暗",
+    "message": "系统提示",
+    "rotate": "旋转",
+    "dayenv": "日夜环境",
     "stat": "属性增减",
     "stat_set": "属性设置",
     "affinity": "好感度",
@@ -84,6 +88,10 @@ NODE_GROUPS: list[tuple[str, list[str]]] = [
             "camera",
             "block",
             "cg",
+            "dim",
+            "message",
+            "rotate",
+            "dayenv",
         ],
     ),
     (
@@ -358,6 +366,29 @@ NODE_SCHEMAS: dict[str, dict] = {
             ("n2", "数值 n2", "int", True),
         ],
     },
+    "dim": {
+        "label": "人物压暗",
+        "fields": [
+            ("character", "人物", "character", False),
+            ("dimmed", "压暗", "bool", False),
+        ],
+    },
+    "message": {
+        "label": "系统提示",
+        "fields": [("text", "提示文本", "multiline", False)],
+    },
+    "rotate": {
+        "label": "人物旋转",
+        "fields": [
+            ("character", "人物", "character", False),
+            ("angle", "角度（整数，正=逆时针）", "int", False),
+            ("duration", "时长（秒）", "float", False),
+        ],
+    },
+    "dayenv": {
+        "label": "日夜环境",
+        "fields": [("day_type", "环境（1=白天 / 2=晚上）", "int", False)],
+    },
     # ------------------------------------------------------------ 数值状态类
     "stat": {
         "label": "主角属性增减",
@@ -456,9 +487,10 @@ NODE_SCHEMAS: dict[str, dict] = {
     },
     # ---------------------------------------------------------------- 流程类
     "branch": {
-        "label": "按flag分支",
+        "label": "条件分支",
         "fields": [
-            ("flag", "flag 标识", "line", False),
+            ("flag", "flag 标识（mod/game/flag_value/condition）", "line", True),
+            ("stat", "属性（stat 来源）", "stat", True),
             ("source", "分支来源", "branch_source", True),
             ("cases", "分支(≥1个)", "cases", False),
         ],
@@ -500,6 +532,7 @@ NODE_SCHEMAS: dict[str, dict] = {
     "death": {
         "label": "死亡文本",
         "fields": [
+            ("title", "标题", "line", True),
             ("text", "文本", "multiline", False),
             ("death_id", "死亡画面id", "death_id", False),
             ("next", "结束后去向", "enum:death_next", True),
@@ -544,6 +577,10 @@ _NODE_DEFAULTS: dict[str, dict] = {
     "camera": {"name": "stage-memory", "active": True},
     "block": {"flowchart": "common", "name": "", "vars": []},
     "cg": {"action": "show", "kind": "picture"},
+    "dim": {"character": "", "dimmed": True},
+    "message": {"text": ""},
+    "rotate": {"character": "", "angle": 180, "duration": 1},
+    "dayenv": {"day_type": 1},
     "stat": {"key": "", "delta": 0, "waitDisplay": True, "display": 1},
     "stat_set": {"key": "", "value": 0, "update": False},
     "affinity": {"character": "", "delta": 1},
@@ -571,7 +608,7 @@ _NODE_DEFAULTS: dict[str, dict] = {
     "panel": {"panel": "martial"},
     "wait": {"seconds": 1},
     "end": {},
-    "death": {"text": "", "death_id": "900001", "next": "Title"},
+    "death": {"title": "", "text": "", "death_id": "900001", "next": "Title"},
     "raw": {"code": "-- 原生 Lua 代码，原样插入编译产物\n"},
 }
 
@@ -630,10 +667,21 @@ FALLBACK_EDITOR_DATA: dict = {
 }
 
 FACING_OPTIONS = ["left", "right"]
-# branch.source 取值（契约 §3.1）：mod=本 mod 的 flag 状态，game=官方检查点
-BRANCH_SOURCES = [("mod", "本 mod 旗标（mod）"), ("game", "官方检查点（game）")]
+# branch.source 取值（契约 §3.1）：mod=本 mod 的 flag 状态，game=官方检查点，
+# stat=主角属性数值，flag_value=官方旗标数值，condition=官方条件检查点（bool）
+BRANCH_SOURCES = [
+    ("mod", "本 mod 旗标（mod）"),
+    ("game", "官方检查点（game）"),
+    ("stat", "主角属性数值（stat）"),
+    ("flag_value", "官方旗标数值（flag_value）"),
+    ("condition", "官方条件检查点（condition）"),
+]
 # source=mod 时 cases 的 value 只允许 1/2，且最多两行
 BRANCH_MOD_VALUES = [(1, "1=已设置"), (2, "2=未设置")]
+# source=condition 时 cases 的 value 只允许 1/2（真/假）
+BRANCH_COND_VALUES = [(1, "1=真"), (2, "2=假")]
+# source=stat/flag_value 时 cases 的比较运算符（缺省 >=）
+BRANCH_OPS = [(">=", ">="), (">", ">"), ("<=", "<="), ("<", "<"), ("==", "==")]
 TEXT_PREVIEW_LEN = 20  # 节点摘要中文本截断长度
 
 
@@ -888,6 +936,14 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
             f"{enum_label('cg_kind', node.get('kind', 'picture'))}"
             f" {_short(str(node.get('key') or ''))}"
         )
+    if t == "dim":
+        return f"{tcn}·{cname()}{'开' if node.get('dimmed') else '关'}"
+    if t == "message":
+        return f"{tcn}·{_short(node.get('text', ''))}"
+    if t == "rotate":
+        return f"{tcn}·{cname()} {node.get('angle', 0)}°"
+    if t == "dayenv":
+        return f"{tcn}·{'白天' if node.get('day_type') == 1 else '晚上'}"
     if t == "stat":
         return f"{tcn}·{stat_name(node.get('key'))}{_signed(node.get('delta', 0))}"
     if t == "stat_set":
@@ -926,8 +982,15 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
     if t == "autosave":
         return f"{tcn}·{enum_label('autosave_kind', node.get('kind', 'story'))}"
     if t == "branch":
-        src = "本mod" if node.get("source", "mod") == "mod" else "官方"
-        return f"{tcn}·{src}:{node.get('flag', '')}({len(node.get('cases', []))}支)"
+        src = {
+            "mod": "本mod",
+            "game": "官方",
+            "stat": "属性",
+            "flag_value": "官方旗标",
+            "condition": "条件",
+        }.get(node.get("source", "mod"), "?")
+        key = node.get("stat") or node.get("flag", "")
+        return f"{tcn}·{src}:{key}({len(node.get('cases', []))}支)"
     if t == "dice":
         return f"{tcn}·{node.get('check', '')}({len(node.get('options', []))}项)"
     if t == "goto_scene":

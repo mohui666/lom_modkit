@@ -41,7 +41,7 @@ import models  # noqa: E402
 PROJECT_ROOT = EDITOR_DIR.parent
 DEMO_STORY = PROJECT_ROOT / "samples" / "demo_mod" / "story" / "main.json"
 
-# 契约 §3.1 全量 39 种节点类型（与 models.NODE_TYPES 一一对应）
+# 契约 §3.1 全量 43 种节点类型（与 models.NODE_TYPES 一一对应）
 ALL_TYPES = [
     "music",
     "sound",
@@ -62,6 +62,10 @@ ALL_TYPES = [
     "camera",
     "block",
     "cg",
+    "dim",
+    "message",
+    "rotate",
+    "dayenv",
     "stat",
     "stat_set",
     "affinity",
@@ -135,9 +139,9 @@ class TestNewStory(unittest.TestCase):
 
 
 class TestAddNode(unittest.TestCase):
-    def test_39_types(self):
+    def test_43_types(self):
         story = story_api.new_story()
-        self.assertEqual(len(ALL_TYPES), 39, "契约应有 39 种节点类型")
+        self.assertEqual(len(ALL_TYPES), 43, "契约应有 43 种节点类型")
         self.assertEqual(
             set(ALL_TYPES), set(models.NODE_TYPES), "类型表与 models.NODE_TYPES 不一致"
         )
@@ -150,7 +154,7 @@ class TestAddNode(unittest.TestCase):
             ids.add(node["id"])
             found = [n for n in story["nodes"] if n["id"] == node["id"]]
             self.assertEqual(len(found), 1, f"{t} 节点应写入 story.nodes")
-        self.assertEqual(len(story["nodes"]), 1 + 39, "39 种类型应全部追加进 story")
+        self.assertEqual(len(story["nodes"]), 1 + 43, "43 种类型应全部追加进 story")
 
     def test_unknown_type(self):
         story = story_api.new_story()
@@ -405,6 +409,50 @@ class TestAddSay(unittest.TestCase):
         self.assertEqual(node["mode"], "character", "mode 默认应为 character")
 
 
+class TestPortraitValidation(unittest.TestCase):
+    """show/say 的 (character, portrait) 必须落在官方角色表情表内（与编译器同表）。"""
+
+    def test_valid_portrait_ok(self):
+        story = base_story()
+        node = story_api.add_say(
+            story, "听好了！", character="brother4", portrait="laugh1"
+        )
+        self.assertEqual(node["portrait"], "laugh1", "合法表情应写入")
+
+    def test_invalid_portrait_add_say(self):
+        story = base_story()
+        with self.assertRaises(ValueError, msg="非法表情应抛 ValueError"):
+            story_api.add_say(story, "哼！", character="brother4", portrait="angry3")
+
+    def test_invalid_portrait_add_node(self):
+        story = base_story()
+        with self.assertRaises(ValueError, msg="add_node(show) 非法表情应抛 ValueError"):
+            story_api.add_node(
+                story,
+                "show",
+                {"character": "brother4", "position": "R1", "portrait": "angry3"},
+            )
+        with self.assertRaises(ValueError, msg="add_node(say) 非法表情应抛 ValueError"):
+            story_api.add_node(
+                story,
+                "say",
+                {"text": "哼！", "character": "brother4", "portrait": "angry3"},
+            )
+
+    def test_invalid_portrait_update_node(self):
+        story = base_story()
+        node = story_api.add_say(story, "先正常说一句。", character="brother4")
+        with self.assertRaises(ValueError, msg="update_node 非法表情应抛 ValueError"):
+            story_api.update_node(story, node["id"], {"portrait": "angry3"})
+
+    def test_unknown_character_passes(self):
+        story = base_story()
+        node = story_api.add_say(
+            story, "自造角色随便说。", character="my_oc", portrait="whatever"
+        )
+        self.assertEqual(node["portrait"], "whatever", "表外角色应放行")
+
+
 class TestAddScene(unittest.TestCase):
     def test_normal(self):
         story = base_story()
@@ -426,6 +474,18 @@ class TestAddDeath(unittest.TestCase):
         story = base_story()
         node = story_api.add_death(story, "命数已尽。", "910021", next="Free")
         self.assertEqual(node["next"], "Free", "next=Free 应写入")
+
+    def test_title_optional(self):
+        story = base_story()
+        # 不给 title：不写字段（codegen 用缺省「勝敗乃兵家常事」）
+        node = story_api.add_death(story, "命数已尽。", "910021")
+        self.assertNotIn("title", node, "缺省 title 不应写字段")
+        # 给 title：写入字段
+        node2 = story_api.add_death(story, "命数已尽。", "910021", title="坠崖谢幕")
+        self.assertEqual(node2["title"], "坠崖谢幕", "title 应写入")
+        # 非法 title 类型：抛 ValueError
+        with self.assertRaises(ValueError, msg="非法 title 应抛 ValueError"):
+            story_api.add_death(story, "命数已尽。", "910021", title=123)  # type: ignore[reportArgumentType]
 
     def test_death_id_required(self):
         story = base_story()
@@ -465,13 +525,13 @@ class TestAddDeath(unittest.TestCase):
         self.assertEqual(node["text"], "第一行\n第二行", "多行文本应保留换行")
 
     def test_compiles(self):
-        # death：黑屏 → mod_set_death_text（字面量）→ 官方 GameOver 死亡画面
-        # （mod 专属 death_id）；死亡文本不走已读 key（死亡节点的 key 不入 Lua）
+        # death：黑屏 → mod_set_death_text(title, text)（两段式，字面量）→ 官方 GameOver
+        # 死亡画面（mod 专属 death_id）；死亡文本不走已读 key（死亡节点的 key 不入 Lua）
         story = base_story()
         node = story_api.add_death(story, "命数已尽。", "910021", next="Title")
         lua, errors, _warnings = story_api.compile_story(story)
         assert lua is not None, f"death 剧情应编译成功：{errors}"
-        self.assertIn('\tmod_set_death_text("命数已尽。")', lua)
+        self.assertIn('\tmod_set_death_text("勝敗乃兵家常事", "命数已尽。")', lua)
         self.assertNotIn("MOD_MOD_main_%s" % node["id"], lua)
         self.assertIn('luamanager.ChangeScene("GameOver", "910021", "Title")', lua)
 
@@ -650,6 +710,94 @@ class TestLuaMarkers(unittest.TestCase):
             ("menudialogs.Options", "choice 应使用 Options 皮肤"),
         ):
             self.assertIn(marker, lua, f"Lua 产物应包含 {marker}（{why}）")
+
+
+class TestBranchSources(unittest.TestCase):
+    """branch 五来源（mod/game/stat/flag_value/condition）经 story_api 往返。"""
+
+    def test_stat_source(self):
+        story = base_story()
+        node = story_api.add_node(
+            story,
+            "branch",
+            {
+                "source": "stat",
+                "stat": "mental",
+                "cases": [{"op": ">=", "value": 50, "goto": story["start"]}],
+            },
+        )
+        story_api.add_node(story, "end")
+        self.assertEqual(node["source"], "stat", "source 应写入")
+        self.assertEqual(node["stat"], "mental", "stat 字段应写入")
+        self.assertNotIn("flag", node, "stat 来源不应残留 flag 键")
+        errors, _ = story_api.check_story(story)
+        self.assertEqual(errors, [], f"stat 分支应校验通过：{errors}")
+        lua, _, _ = story_api.compile_story(story)
+        self.assertIn('luamanager.GetStatData("mental", 1)', lua or "")
+
+    def test_flag_value_source(self):
+        story = base_story()
+        story_api.add_node(
+            story,
+            "branch",
+            {
+                "source": "flag_value",
+                "flag": "50019",
+                "cases": [{"op": "==", "value": 1, "goto": story["start"]}],
+            },
+        )
+        story_api.add_node(story, "end")
+        errors, _ = story_api.check_story(story)
+        self.assertEqual(errors, [], f"flag_value 分支应校验通过：{errors}")
+        lua, _, _ = story_api.compile_story(story)
+        self.assertIn('tonumber(luamanager.GetFlagData("50019"))', lua or "")
+
+    def test_condition_source(self):
+        story = base_story()
+        story_api.add_node(
+            story,
+            "branch",
+            {
+                "source": "condition",
+                "flag": "S0030_01_001",
+                "cases": [
+                    {"value": 1, "goto": story["start"]},
+                    {"value": 2, "goto": story["start"]},
+                ],
+            },
+        )
+        story_api.add_node(story, "end")
+        errors, _ = story_api.check_story(story)
+        self.assertEqual(errors, [], f"condition 分支应校验通过：{errors}")
+        lua, _, _ = story_api.compile_story(story)
+        self.assertIn('checkpointmanager.Condition("S0030_01_001")', lua or "")
+
+    def test_bad_stat_missing(self):
+        story = base_story()
+        story_api.add_node(
+            story,
+            "branch",
+            {"source": "stat", "cases": [{"value": 1, "goto": story["start"]}]},
+        )
+        story_api.add_node(story, "end")
+        errors, _ = story_api.check_story(story)
+        self.assertTrue(errors, "stat 来源缺 stat 字段应报错")
+        self.assertTrue(any('必填字段 "stat"' in e for e in errors), str(errors))
+
+    def test_bad_op_rejected(self):
+        story = base_story()
+        story_api.add_node(
+            story,
+            "branch",
+            {
+                "source": "stat",
+                "stat": "mental",
+                "cases": [{"op": "!=", "value": 1, "goto": story["start"]}],
+            },
+        )
+        story_api.add_node(story, "end")
+        errors, _ = story_api.check_story(story)
+        self.assertTrue(any('"op" 必须是' in e for e in errors), str(errors))
 
 
 class TestLoadEditorData(unittest.TestCase):

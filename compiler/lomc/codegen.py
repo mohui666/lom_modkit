@@ -342,6 +342,45 @@ def _emit_cg(node, ctx):
     return ["\t" + fmt % tuple(args)]
 
 
+def _emit_dim(node, ctx):
+    """人物压暗：stage.SetDimmed(character, dimmedState)（官方 API，实参顺序
+    character 在前、bool 在后）。dimmed=true 时官方实现还会隐藏该角色心情气泡。
+    """
+    return [
+        "\tstage.SetDimmed(%s, %s)"
+        % (_get(lua_str(node["character"])), "true" if node["dimmed"] else "false")
+    ]
+
+
+def _emit_message(node, ctx):
+    """系统提示：mainui.DisplayMessageText(text) 显示原文（DisplayMessage 走
+    key 解析，用 Text 版避免自定文本被当本地化 key）。
+    """
+    return ["\tmainui.DisplayMessageText(%s)" % lua_str(node["text"])]
+
+
+def _emit_rotate(node, ctx):
+    """人物旋转：characters.Rotate(key, angle, duration)——注意官方参数序
+    angle 在前、duration 在后（StoryCharacterController.Rotate(duration, angle)
+    内部再交换，raw_scripts 调用点实证）。
+    """
+    return [
+        "\tcharacters.Rotate(%s, %s, %s)"
+        % (
+            lua_str(node["character"]),
+            lua_num(node["angle"]),
+            lua_num(node["duration"]),
+        )
+    ]
+
+
+def _emit_dayenv(node, ctx):
+    """日夜环境：luamanager.SetGameDayEnvironment(day_type)。DayEnvironmentType
+    枚举（raw_scripts 调用点实证）：1=白天，2=晚上。
+    """
+    return ["\tluamanager.SetGameDayEnvironment(%s)" % lua_num(node["day_type"])]
+
+
 # ---------------------------------------------------------------------------
 # 数值/状态类
 # ---------------------------------------------------------------------------
@@ -503,13 +542,13 @@ def _emit_autosave(node, ctx):
 
 
 def _emit_branch(node, ctx):
-    """分支（契约 §4，两种 source；未命中必须有 else 兜底）。
+    """分支（契约 §4，五种 source；未命中必须有 else 兜底）。
 
     ctx["next_id"] 为顺序下一节点 id，作为 else 的默认落点；
     校验已保证需要兜底时 next_id 一定存在。
     """
     source = node.get("source", "mod")
-    flag = lua_str(node["flag"])
+    flag = lua_str(node["flag"]) if "flag" in node else None
     next_id = ctx.get("next_id")
     if source == "mod":
         # 按 modflags[flag] 是否已设置二分：value 1=已设置(then)，2=未设置(else)；
@@ -524,6 +563,52 @@ def _emit_branch(node, ctx):
             "\t\treturn node_%s()" % else_goto,
             "\tend",
         ]
+    if source == "condition":
+        # 官方条件检查点：checkpointmanager.Condition(flag) 返回 bool；
+        # value 1=真(then)，2=假(else)，缺某一路时该路落顺序下一节点。
+        cases = {c["value"]: c["goto"] for c in node["cases"]}
+        then_goto = cases.get(1, next_id)
+        else_goto = cases.get(2, next_id)
+        return [
+            "\tif checkpointmanager.Condition(%s) then" % flag,
+            "\t\treturn node_%s()" % then_goto,
+            "\telse",
+            "\t\treturn node_%s()" % else_goto,
+            "\tend",
+        ]
+    if source == "stat":
+        # 主角属性数值分支：GetStatData(stat, 1)（sign=1 取正值）；
+        # 按 case 的 op/value 逐项比较，未命中 else 兜底。
+        lines = [
+            "\tlocal branch1 = luamanager.GetStatData(%s, 1)" % lua_str(node["stat"])
+        ]
+        for i, case in enumerate(node["cases"]):
+            kw = "if" if i == 0 else "elseif"
+            lines.append(
+                "\t%s branch1 %s %s then"
+                % (kw, case.get("op", ">="), lua_num(case["value"]))
+            )
+            lines.append("\t\treturn node_%s()" % case["goto"])
+        lines.append("\telse")
+        lines.append("\t\treturn node_%s()" % next_id)
+        lines.append("\tend")
+        return lines
+    if source == "flag_value":
+        # 官方任务旗标数值分支：tonumber(GetFlagData(flag)) + 同 stat 的比较
+        lines = [
+            "\tlocal branch1 = tonumber(luamanager.GetFlagData(%s))" % flag
+        ]
+        for i, case in enumerate(node["cases"]):
+            kw = "if" if i == 0 else "elseif"
+            lines.append(
+                "\t%s branch1 %s %s then"
+                % (kw, case.get("op", ">="), lua_num(case["value"]))
+            )
+            lines.append("\t\treturn node_%s()" % case["goto"])
+        lines.append("\telse")
+        lines.append("\t\treturn node_%s()" % next_id)
+        lines.append("\tend")
+        return lines
     # source="game"：读官方检查点，Switch 找不到时返回 0，else 兜底落顺序下一节点
     lines = ["\tlocal branch1 = checkpointmanager.Switch(%s)" % flag]
     for i, case in enumerate(node["cases"]):
@@ -710,20 +795,21 @@ def _emit_end(node, ctx):
 
 
 def _emit_death(node, ctx):
-    """死亡文本节点：黑屏过渡 → mod_set_death_text → 官方 GameOver 死亡画面。
+    """死亡文本节点：黑屏过渡 → mod_set_death_text(title, text) → 官方 GameOver 死亡画面。
 
-    自定死亡文本不再走对话框 say，改发射全局调用 mod_set_death_text(text)
-    （文本 lua_str 字面量，不进 texts.json / 已读系统）；运行时插件 patch
-    GameOverController 把文本显示在官方死亡画面中央（黑底红字 + 返回按钮，
-    契约 §6）。death_id 必须是 ≥900000 的 mod 专属 id：官方 GameOver 场景
-    用 id 查 LibrarySystem 并解锁/记录官方结局，mod 专属 id 查不到 →
-    无副作用，但死亡画面本身照常显示（校验见 validate.py）。
+    自定死亡文本两段式：短标题（缺省「勝敗乃兵家常事」）+ 多行描述，均 lua_str
+    字面量（不进 texts.json / 已读系统）；运行时插件 patch GameOverController
+    把两段文本显示在官方死亡画面中央（标题栏 + 黑底红字 + 返回按钮，契约 §6）。
+    death_id 必须是 ≥900000 的 mod 专属 id：官方 GameOver 场景用 id 查
+    LibrarySystem 并解锁/记录官方结局，mod 专属 id 查不到 → 无副作用，但
+    死亡画面本身照常显示（校验见 validate.py）。
     """
+    title = node.get("title") or "勝敗乃兵家常事"
     return [
         '\trunblock(flowcharts.view, "out")',
         '\tgetvar(flowcharts.view, "ViewName").value = "black"',
         '\trunblock(flowcharts.view, "view")',
-        "\tmod_set_death_text(%s)" % lua_str(node["text"]),
+        "\tmod_set_death_text(%s, %s)" % (lua_str(title), lua_str(node["text"])),
         "\tluamanager.ChangeScene(%s, %s, %s)"
         % (
             lua_str("GameOver"),
@@ -759,6 +845,10 @@ _EMITTERS = {
     "camera": _emit_camera,
     "block": _emit_block,
     "cg": _emit_cg,
+    "dim": _emit_dim,
+    "message": _emit_message,
+    "rotate": _emit_rotate,
+    "dayenv": _emit_dayenv,
     "stat": _emit_stat,
     "stat_set": _emit_stat_set,
     "affinity": _emit_affinity,

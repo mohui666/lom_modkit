@@ -34,45 +34,101 @@
       "mode": "think"
     },
     {
+      "id": "n14",
+      "type": "branch",
+      "source": "stat",
+      "cases": [
+        {
+          "op": ">=",
+          "value": 50,
+          "goto": "n12"
+        }
+      ],
+      "stat": "mental"
+    },
+    {
+      "id": "n13",
+      "type": "branch",
+      "flag": "S0030_01_001",
+      "source": "condition",
+      "cases": [
+        {
+          "value": 1,
+          "goto": "n11"
+        },
+        {
+          "value": 2,
+          "goto": "n10"
+        }
+      ]
+    },
+    {
+      "id": "n12",
+      "type": "say",
+      "text": "【心相≥50 事件】心情正好，你顺手多打了两套拳——branch（source=stat）读到心相过关，编剧说这叫数值分支。",
+      "character": "player",
+      "portrait": "normal",
+      "mode": "character",
+      "goto": "n9"
+    },
+    {
+      "id": "n11",
+      "type": "say",
+      "text": "【condition 真】官方条件检查点 S0030_01_001 点头了——branch（source=condition）真分支。",
+      "character": "player",
+      "portrait": "normal",
+      "mode": "character",
+      "goto": "n9"
+    },
+    {
+      "id": "n10",
+      "type": "say",
+      "text": "【condition 假】官方条件检查点 S0030_01_001 摇头了——branch（source=condition）假分支。",
+      "character": "player",
+      "portrait": "normal",
+      "mode": "character",
+      "goto": "n9"
+    },
+    {
       "id": "n9",
       "type": "choice",
       "options": [
         {
           "text": "扎个马步，练练基础功",
-          "goto": "n5"
+          "goto": "n8"
         },
         {
           "text": "蹲在墙根看人练功",
-          "goto": "n7"
+          "goto": "n6"
         }
       ],
       "dialog": "Options"
     },
     {
-      "id": "n5",
+      "id": "n8",
       "type": "say",
       "text": "【旁白】你扎了半个时辰马步。腿很酸，心相很满。",
       "portrait": "normal",
       "mode": "narrative"
     },
     {
-      "id": "n6",
+      "id": "n7",
       "type": "stat",
       "key": "mental",
       "delta": 1,
       "waitDisplay": false,
       "display": 1,
-      "goto": "n8"
+      "goto": "n5"
     },
     {
-      "id": "n7",
+      "id": "n6",
       "type": "say",
       "text": "【旁白】你蹲在墙根，看弟子们把一套唐门刀法舞得虎虎生风。",
       "portrait": "normal",
       "mode": "narrative"
     },
     {
-      "id": "n8",
+      "id": "n5",
       "type": "end"
     }
   ]

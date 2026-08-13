@@ -3,7 +3,7 @@
 """全功能展示 mod 构建脚本（samples/showcase/build_showcase.py）。
 
 剧本梗概：元叙事喜剧——赵活发现自己被「编剧」折腾，与四师兄逐一吐槽
-演出/数值/流程三大类共 39 种节点，最后掷骰子打赌：大成功直接链第二幕；
+演出/数值/流程三大类共 43 种节点，最后掷骰子打赌：大成功直接链第二幕；
 成功/失败/认输则汇入收尾三选（回自由模式逛练武场 / 睡到下月下旬再逛 /
 继续第二幕），成功线四师兄好感 +3，解锁练武场好感事件。第二幕经
 end.next_script 链式接力：2 带骰子失败回环重试（不再直接结束），成功
@@ -13,7 +13,7 @@ train_any 默认闲逛），全部 end 回自由模式。
 
 一切剧情构建都经 story_api（editor/story_api.py，AI 与编辑器共用的
 受控写入口），不手写 story JSON / Lua；随后本脚本自带硬性自查：
-  1) 39 种节点全覆盖清单；
+  1) 43 种节点全覆盖清单；
   2) 清单校验：music/effect/view/position/character/portrait/stat/
      talent/item/game_flag 全部来自 data/editor_data.json（不编造）；
   3) 骰子检查点验证：check 在 dice_meta 中、非 Travel_*、官方调用点
@@ -65,15 +65,17 @@ MANIFEST = {
     "version": "1.0.0",
     "author": "lom_modkit",
     "description": (
-        "演示全部自定义功能：39 种节点、表情差分、已读变黄快进、"
+        "演示全部自定义功能：43 种节点、表情差分、已读变黄快进、"
         "自定义死亡文本、心情气泡开关、多剧情链式、战役模式、"
         "练武场时间/好感条件触发器"
     ),
     "entry": "main",
-    # 战役化：标题画面开新战役（隔离存档槽）；练武场（Center）三个触发器，
-    # 数组顺序=优先级（取第一个全部命中的）：好感≥3 → 下旬(旬3) → 默认闲逛。
+    # 战役化：标题画面开新战役（隔离存档槽）；禁用原版地图事件（只保留本 mod
+    # 触发器）；练武场（Center）三个触发器，数组顺序=优先级（取第一个全部命中
+    # 的）：好感≥3 → 下旬(旬3) → 默认闲逛。
     "campaign": {
         "new_game": True,
+        "disable_official_events": True,
         "triggers": [
             {
                 "type": "position",
@@ -183,7 +185,7 @@ def build_main(ed: dict) -> dict:
         "player",
         portrait="nervous2",
     )
-    say("没错。他说这出戏里藏着三十九种节点，一样都不能少。", "brother4")
+    say("没错。他说这出戏里藏着四十三种节点，一样都不能少。", "brother4")
     node("move", {"character": "player", "from": "M", "to": "L2", "duration": 1.2})
     node("face", {"character": "brother4", "facing": "left"})
     node("focus", {"character": "brother4"})
@@ -244,6 +246,27 @@ def build_main(ed: dict) -> dict:
     say("那个……我是被编剧临时拉来凑数演示的师弟。", "trainee1")
     say("好家伙，连路人都是编制内的。", "player")
     say("别贫了。下面是数值状态环节，编剧说一共十二种。", "brother4")
+
+    # --- 四个高价值新节点：dim（压暗）/ message（系统提示）/ rotate（旋转）/ dayenv（日夜环境） ---
+    node("dim", {"character": "trainee1", "dimmed": True})
+    say(
+        "【旁白】dim 节点：师弟被压暗成背景板——配角让戏，主角高光。",
+        mode="narrative",
+    )
+    node(
+        "message",
+        {"text": "【系统提示】message 节点：系统提示条显示原文（DisplayMessageText，不走本地化 key）。"},
+    )
+    say("系统提示也演了一出——message 原文直出，编剧改词都不怕。", "player")
+    node("rotate", {"character": "brother4", "angle": -10, "duration": 0.3})
+    say("rotate 节点——我怎么突然歪了？", "brother4", portrait="shock")
+    node("rotate", {"character": "brother4", "angle": 10, "duration": 0.3})
+    say("又转回来了。角度在前、时长在后，编剧说这是官方参数序。", "player")
+    node("dayenv", {"day_type": 1})
+    say(
+        "【旁白】dayenv 节点：日夜环境切到白天（1=白天 / 2=晚上，官方枚举实证）。",
+        mode="narrative",
+    )
 
     # --- 数值状态类 12 种 ---
     node("stat", {"key": "mental", "delta": 5})
@@ -405,6 +428,13 @@ def build_main(ed: dict) -> dict:
         goto_成功=suc,
         goto_失败=fail,
         goto_大成功=big,
+        # band_texts 逐带覆写骰子菜单选项文本（顺序=官方结果带展示顺序：
+        # 最差带 → 最优带），条数必须等于检查点带数（3）
+        band_texts=[
+            "骰面三十往下——赵活的丢人时刻",
+            "骰面中规中矩，四师兄捏把汗",
+            "骰面六十往上——丹炉拿来！",
+        ],
         after=s_last,
     )["id"]
     story_api.add_choice(
@@ -490,6 +520,7 @@ def build_second(ed: dict) -> dict:
         "（第二幕完：next=Free 回自由模式。）",
         death_id="910021",  # mod 专属 id（9+官方 10021 乱战中被践踏而死）
         next="Free",
+        title="少侠留步",
         after=f_say,
     )["id"]
     story_api.add_choice(
@@ -512,9 +543,11 @@ def build_second(ed: dict) -> dict:
         st,
         "【自定义死亡文本】你选了坠崖谢幕。\n"
         "脚下一滑，赵活坠入万丈深渊。\n"
-        "（死亡文本节点：黑屏 → mod_set_death_text → 官方 GameOver 死亡画面，回标题画面）",
+        "（死亡文本节点：黑屏 → mod_set_death_text(title, text) → 官方 GameOver"
+        "死亡画面，回标题画面）",
         death_id="910021",  # mod 专属 id（9+官方 10021 乱战中被践踏而死）
         next="Title",
+        title="坠崖谢幕",
         after=suc2,
     )["id"]
     end_demo = node(
@@ -539,13 +572,18 @@ def build_second(ed: dict) -> dict:
         after=suc2,
     )
 
-    # 2 带骰子：成功→suc2，失败→fail2（失败回环重试，不再直接结束）
+    # 2 带骰子：成功→suc2，失败→fail2（失败回环重试，不再直接结束）；
+    # band_texts 逐带覆写（2 条：最差带 → 最优带）
     story_api.add_dice(
         st,
         DICE_2BAND,
         goto_成功=suc2,
         goto_失败=fail2,
         goto_大成功="",  # 2 带检查点：无独立大成功档，留空
+        band_texts=[
+            "手一抖，骰子向悬崖飞去——",
+            "稳如老狗，骰子稳稳接住！",
+        ],
         after=s_last,
     )
     return st
@@ -577,6 +615,9 @@ def build_train_affinity(ed: dict) -> dict:
     )
     n1.pop("character", None)
     node("scene", {"view": "center_evening"})
+    # 修复练武场卡死：s_p（player 内心独白）引用 player，必须先 show 上台——
+    # 未上台就 say/show 时 LoadCharacterPortrait 抛 KeyNotFoundException → 对话冻结
+    node("show", {"character": "player", "position": "L2", "portrait": "normal"})
     node("show", {"character": "brother4", "position": "R1", "portrait": "laugh1"})
     s_b4 = say(
         "赵师弟！来得好不如来得巧！师兄我昨日新悟出一招「飞星赶月」，"
@@ -647,6 +688,8 @@ def build_train_dusk(ed: dict) -> dict:
     n1.pop("character", None)
     node("scene", {"view": "center_night"})
     node("show", {"character": "trainee1", "position": "L1", "portrait": "normal"})
+    # 修复练武场卡死：s_p（player 对话）引用 player，必须先 show 上台
+    node("show", {"character": "player", "position": "R1", "portrait": "normal"})
     s_t = say(
         "赵、赵师兄！这么晚您怎么来了！",
         "trainee1",
@@ -686,6 +729,8 @@ def build_train_any(ed: dict) -> dict:
     """练武场·默认闲逛事件（无条件触发器，优先级最低）。
 
     任意时间点击练武场都会命中（除非被前两个条件触发器抢先）。
+    含两个新 branch 来源演示：source=stat（心相≥50 数值分支，else 落顺序
+    下一节点）与 source=condition（官方条件检查点 S0030_01_001，真/假两路）。
     """
     st = story_api.new_story("train_any", "练武场·闲逛")
     st.pop("mood", None)
@@ -710,30 +755,72 @@ def build_train_any(ed: dict) -> dict:
     node("scene", {"view": "center"})
     node("show", {"character": "player", "position": "M", "portrait": "normal"})
     s_t = say("（来都来了，活动活动筋骨。）", "player", mode="think")
-    stance = say(
-        "【旁白】你扎了半个时辰马步。腿很酸，心相很满。",
+
+    # --- 目标数组顺序（after=s_t 逆序插入）：
+    # [s_t, b_stat, b_cond, b_high, b_true, b_false, choice, stance, stat_n, wall, end1]
+    end1 = node("end", {}, after=s_t)
+    wall = say(
+        "【旁白】你蹲在墙根，看弟子们把一套唐门刀法舞得虎虎生风。",
         mode="narrative",
         after=s_t,
     )
     stat_n = node(
         "stat",
         {"key": "mental", "delta": 1, "waitDisplay": False},
-        after=stance,
+        after=s_t,
     )
-    wall = say(
-        "【旁白】你蹲在墙根，看弟子们把一套唐门刀法舞得虎虎生风。",
+    stance = say(
+        "【旁白】你扎了半个时辰马步。腿很酸，心相很满。",
         mode="narrative",
-        after=stat_n,
+        after=s_t,
     )
-    end1 = node("end", {}, after=wall)
-    story_api.add_choice(
+    choice = story_api.add_choice(
         st,
         [
             ("扎个马步，练练基础功", stance),
             ("蹲在墙根看人练功", wall),
         ],
         after=s_t,
+    )["id"]
+    b_false = say(
+        "【condition 假】官方条件检查点 S0030_01_001 摇头了——"
+        "branch（source=condition）假分支。",
+        "player",
+        after=s_t,
     )
+    b_true = say(
+        "【condition 真】官方条件检查点 S0030_01_001 点头了——"
+        "branch（source=condition）真分支。",
+        "player",
+        after=s_t,
+    )
+    b_high = say(
+        "【心相≥50 事件】心情正好，你顺手多打了两套拳——"
+        "branch（source=stat）读到心相过关，编剧说这叫数值分支。",
+        "player",
+        after=s_t,
+    )
+    b_cond = node(
+        "branch",
+        {
+            "source": "condition",
+            "flag": "S0030_01_001",  # 官方条件检查点名（S0030_01.lua.txt 实证）
+            "cases": [{"value": 1, "goto": b_true}, {"value": 2, "goto": b_false}],
+        },
+        after=s_t,
+    )
+    b_stat = node(
+        "branch",
+        {
+            "source": "stat",
+            "stat": "mental",  # 心相（editor_data stats 清单）
+            "cases": [{"op": ">=", "value": 50, "goto": b_high}],
+        },
+        after=s_t,
+    )
+    story_api.update_node(st, b_high, {"goto": choice})
+    story_api.update_node(st, b_true, {"goto": choice})
+    story_api.update_node(st, b_false, {"goto": choice})
     story_api.update_node(st, stat_n, {"goto": end1})
     return st
 
@@ -898,7 +985,7 @@ def validate_catalog(ed: dict, stories: list[dict]) -> None:
 
 
 def validate_structure(ed: dict, raw: dict[str, str], stories: list[dict]) -> None:
-    """transition 成对 / 末节点收尾 / mood 缺省 / 39 种节点覆盖 / 官方 Switch 名实证。"""
+    """transition 成对 / 末节点收尾 / mood 缺省 / 43 种节点覆盖 / 官方 Switch 名实证。"""
     all_types: dict[str, int] = {}
     for story in stories:
         sid = story["id"]
@@ -946,10 +1033,28 @@ def validate_structure(ed: dict, raw: dict[str, str], stories: list[dict]) -> No
                         "story=%s choice 节点 %s 的 goto=%s 指向真实节点"
                         % (sid, n["id"], o["goto"]),
                     )
-    # 39 种节点全覆盖（models.NODE_TYPES 即契约全量）
+        # 练武场卡死修复的防回归自检：say/show 引用的角色必须先 show 上台。
+        # 未上台就 LoadCharacterPortrait 会抛 KeyNotFoundException → 对话冻结。
+        # （graph 遍历按控制流顺序：无 goto 的非跳转节点隐式流向下一个）
+        on_stage: set[str] = set()
+        for i, n in enumerate(nodes):
+            t = n["type"]
+            if t == "show" and n.get("character"):
+                on_stage.add(n["character"])
+            elif t == "hide" and n.get("character"):
+                on_stage.discard(n["character"])
+            elif t in ("say", "shock", "focus", "offset", "move", "face", "intro", "rotate", "dim") and n.get("character"):
+                check(
+                    n["character"] in on_stage,
+                    "story=%s 节点 %s(%s): 角色 %s 已上台（先 show 后引用，防 LoadCharacterPortrait KeyNotFound 冻结）"
+                    % (sid, n["id"], t, n["character"]),
+                )
+            if t in ("choice", "branch", "dice", "end", "death", "goto_scene"):
+                on_stage = set(on_stage)  # 汇合点：控制流分叉后无法静态推断，宽限处理
+    # 43 种节点全覆盖（models.NODE_TYPES 即契约全量）
     missing = [t for t in story_api.models.NODE_TYPES if t not in all_types]
-    check(not missing, "39 种节点全覆盖（缺失：%s）" % (", ".join(missing) or "无"))
-    print("\n--- 节点覆盖清单（%d 种 / 契约 39 种）---" % len(all_types))
+    check(not missing, "43 种节点全覆盖（缺失：%s）" % (", ".join(missing) or "无"))
+    print("\n--- 节点覆盖清单（%d 种 / 契约 43 种）---" % len(all_types))
     for t in story_api.models.NODE_TYPES:
         cnt = all_types.get(t, 0)
         print("  %-14s %-12s ×%d" % (t, story_api.models.NODE_TYPE_CN.get(t, t), cnt))
@@ -1059,7 +1164,7 @@ def main() -> int:
     validate_dice_check(ed, raw, DICE_3BAND, expect_bands=3)
     validate_dice_check(ed, raw, DICE_2BAND, expect_bands=2)
 
-    print("\n--- 4/5 结构校验（transition 成对 / 末节点 / mood 缺省 / 39 种覆盖） ---")
+    print("\n--- 4/5 结构校验（transition 成对 / 末节点 / mood 缺省 / 43 种覆盖） ---")
     validate_structure(ed, raw, stories)
 
     print("\n--- 5/5 可达性自检 + story_api 全量校验编译 ---")
@@ -1106,7 +1211,7 @@ def main() -> int:
         print("[写出] %s" % (STORY_DIR / ("%s.json" % story["id"])))
     print("[写出] %s" % (SHOWCASE_DIR / "manifest.json"))
     print(
-        "\n构建成功：全部自查通过（39 种节点、骰子检查点、可达性 100%、5 个剧情脚本）。"
+        "\n构建成功：全部自查通过（43 种节点、骰子检查点、可达性 100%、5 个剧情脚本）。"
     )
     print(
         "下一步：PYTHONPATH=compiler python -m lomc pack samples/showcase -o samples/showcase.lommod"

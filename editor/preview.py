@@ -183,6 +183,15 @@ def _hint_text(node: dict, ed: dict) -> str | None:
             f"{models.enum_label('cg_kind', node.get('kind', 'picture'))}"
             f" {node.get('key') or ''}"
         )
+    if t == "dim":
+        return f"[人物压暗] {cname()} {'开' if node.get('dimmed') else '关'}"
+    if t == "message":
+        text = str(node.get("text") or "").replace("\n", " ").strip()
+        return f"[系统提示] {text[:20]}{'…' if len(text) > 20 else ''}"
+    if t == "rotate":
+        return f"[人物旋转] {cname()} {node.get('angle', 0)}°"
+    if t == "dayenv":
+        return f"[日夜环境] {'白天' if node.get('day_type') == 1 else '晚上'}"
     if t == "stat":
         return (
             f"[属性] {models.display_name(ed, 'stats', node.get('key', ''))} "

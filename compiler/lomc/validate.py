@@ -3,7 +3,7 @@
 
 严格遵循 docs/mod_format.md（v3 契约）：
 - §2 manifest.json 字段
-- §3 story/*.json 结构与 §3.1 全量 39 种节点类型表（字段除标注"可选"外均为必填）
+- §3 story/*.json 结构与 §3.1 全量 43 种节点类型表（字段除标注"可选"外均为必填）
 - §4 补充规则（末节点收尾、禁止显式 goto 的类型、分支兜底等）
 
 所有错误抛出 LomcError，消息带节点 id / 字段名。
@@ -11,7 +11,12 @@
 
 import re
 
-from .dice_data import get_dice_meta, get_official_scene_ids
+from .dice_data import (
+    check_portrait,
+    get_dice_meta,
+    get_official_scene_ids,
+    load_portrait_table,
+)
 from .errors import LomcError
 
 # §1：剧情脚本 id 规则
@@ -23,7 +28,9 @@ NODE_ID_RE = re.compile(r"^[a-zA-Z0-9_]+$")
 
 SAY_MODES = ("character", "think", "narrative", "center")
 FACINGS = ("left", "right")
-BRANCH_SOURCES = ("mod", "game")
+BRANCH_SOURCES = ("mod", "game", "stat", "flag_value", "condition")
+# stat/flag_value 来源的数值比较运算符（缺省 ">="）
+BRANCH_OPS = (">=", ">", "<=", "<", "==")
 
 # 枚举字段的合法值（§3.1）
 _ENUMS = {
@@ -169,6 +176,12 @@ _NODE_FIELDS = {
         {"action": "cg_action", "kind": "cg_kind"},
         {"key": "str", "key2": "str", "n1": "num", "n2": "num"},
     ),
+    "dim": ({"character": "str", "dimmed": "bool"}, {}),
+    "message": ({"text": "str"}, {}),
+    "rotate": ({"character": "str", "angle": "num", "duration": "num"}, {}),
+    # dayenv 环境字段名 day_type：字段名 "type" 与节点通用键 "type"（节点类型）
+    # 冲突（dict 无法同名共存），故契约命名 day_type
+    "dayenv": ({"day_type": "num"}, {}),
     # ---- 数值/状态类 ----
     "stat": (
         {"key": "str", "delta": "num"},
@@ -198,7 +211,10 @@ _NODE_FIELDS = {
     ),
     "autosave": ({}, {"kind": "autosave_kind", "save_button": "save_button"}),
     # ---- 流程类 ----
-    "branch": ({"flag": "idstr", "cases": "list"}, {"source": "branch_source"}),
+    "branch": (
+        {"cases": "list"},
+        {"source": "branch_source", "flag": "str", "stat": "str"},
+    ),
     "dice": ({"check": "idstr", "options": "list"}, {}),
     "goto_scene": (
         {"scene": "goto_scene"},
@@ -210,7 +226,10 @@ _NODE_FIELDS = {
     ),
     "wait": ({"seconds": "num"}, {}),
     "end": ({}, {"next_script": "script_id"}),
-    "death": ({"text": "str", "death_id": "idstr"}, {"next": "death_next"}),
+    "death": (
+        {"text": "str", "death_id": "idstr"},
+        {"title": "str", "next": "death_next"},
+    ),
     "raw": ({"code": "str"}, {}),
 }
 
@@ -327,6 +346,20 @@ def _check_options(node, label, min_n, max_n, fields, type_map, optional_fields=
 
 def _check_node_extra(node, ntype, label):
     """各节点类型的跨字段 / 结构性规则。"""
+    # 角色表情校验（练武场卡死修复）：show/say 的 (character, portrait) 组合必须
+    # 落在 editor_data 角色表情表内（表不可用/角色不在表 → 放行）。
+    if ntype in ("show", "say"):
+        character = node.get("character")
+        portrait = node.get("portrait")
+        if (
+            isinstance(character, str)
+            and character
+            and isinstance(portrait, str)
+            and portrait
+        ):
+            msg = check_portrait(load_portrait_table(), character, portrait)
+            if msg:
+                raise LomcError("%s(%s): %s" % (label, ntype, msg))
     if ntype == "say":
         mode = node.get("mode", "character")
         if mode in ("character", "think") and "character" not in node:
@@ -408,6 +441,37 @@ def _check_node_extra(node, ntype, label):
         if node.get("op", "play") == "fadeout" and node.get("kind", "sound") != "env":
             raise LomcError(
                 '%s(sound): op="fadeout" 仅支持 kind="env"（契约 §3.1）' % label
+            )
+    elif ntype == "message":
+        # 系统提示文本必须非空（mainui.DisplayMessageText 显示原文）
+        if not node["text"].strip():
+            raise LomcError('%s(message): 字段 "text" 不能为空' % label)
+    elif ntype == "rotate":
+        # angle 契约要求整数（官方调用点均整数角度）；duration 可为小数（默认 1）
+        angle = node["angle"]
+        if isinstance(angle, bool) or not isinstance(angle, int):
+            raise LomcError(
+                '%s(rotate): 字段 "angle" 必须是整数（官方调用点均整数角度），实际为 %r'
+                % (label, angle)
+            )
+        duration = node["duration"]
+        if not _check_type("num", duration) or duration <= 0:
+            raise LomcError(
+                '%s(rotate): 字段 "duration" 必须是正数（秒），实际为 %r'
+                % (label, duration)
+            )
+    elif ntype == "dayenv":
+        # DayEnvironmentType 枚举实证（raw_scripts 调用点）：白天=1，晚上=2
+        dtype = node["day_type"]
+        if (
+            isinstance(dtype, bool)
+            or not isinstance(dtype, int)
+            or dtype not in (1, 2)
+        ):
+            raise LomcError(
+                '%s(dayenv): 字段 "day_type" 必须是 1（白天）或 2（晚上）——官方 '
+                "DayEnvironmentType 枚举仅两值（raw_scripts 的 "
+                "SetGameDayEnvironment 调用点实证），实际为 %r" % (label, dtype)
             )
     elif ntype == "cg":
         action, kind = node["action"], node["kind"]
@@ -507,29 +571,70 @@ def _check_node_extra(node, ntype, label):
         cases = node["cases"]
         if len(cases) < 1:
             raise LomcError("%s(branch): cases 至少需要 1 个分支" % label)
+        # 各来源的必填键字段：mod/game/flag_value/condition 用 flag，stat 用 stat
+        if source == "stat":
+            if not isinstance(node.get("stat"), str) or not node["stat"]:
+                raise LomcError(
+                    '%s(branch): source="stat" 时必填字段 "stat"'
+                    "（editor_data stats 属性 id，如 mental/people/contribution）" % label
+                )
+            if "flag" in node:
+                raise LomcError(
+                    '%s(branch): source="stat" 时不支持字段 "flag"（改用 "stat"）'
+                    % label
+                )
+        else:
+            if not isinstance(node.get("flag"), str) or not node["flag"]:
+                raise LomcError(
+                    '%s(branch): source="%s" 时必填字段 "flag"' % (label, source)
+                )
+            if "stat" in node:
+                raise LomcError(
+                    '%s(branch): source="%s" 时不支持字段 "stat"' % (label, source)
+                )
         seen = set()
         for i, case in enumerate(cases):
             case_label = "%s(branch) 第 %d 个 case" % (label, i + 1)
             if not isinstance(case, dict):
                 raise LomcError("%s: 必须是对象" % case_label)
+            # 各来源的 case 字段：stat/flag_value 带 op；mod/condition 只带 value
+            allowed = (
+                ("op", "value", "goto")
+                if source in ("stat", "flag_value")
+                else ("value", "goto")
+            )
             for key in case:
-                if key not in ("value", "goto"):
+                if key not in allowed:
                     raise LomcError(
-                        '%s: 未知字段 "%s"（允许：value、goto）' % (case_label, key)
+                        '%s: 未知字段 "%s"（允许：%s）'
+                        % (case_label, key, "、".join(allowed))
                     )
             value = case.get("value")
             if not isinstance(value, int) or isinstance(value, bool):
                 raise LomcError(
                     '%s: 字段 "value" 必须是整数，实际为 %r' % (case_label, value)
                 )
-            if source == "mod" and value not in (1, 2):
+            if source in ("mod", "condition") and value not in (1, 2):
+                what = "已设置）或 2（未设置" if source == "mod" else "真）或 2（假"
                 raise LomcError(
-                    '%s: source="mod" 时 value 只能是 1（已设置）或 2（未设置），实际为 %d'
-                    % (case_label, value)
+                    '%s: source="%s" 时 value 只能是 1（%s），实际为 %d'
+                    % (case_label, source, what, value)
                 )
-            if value in seen:
-                raise LomcError("%s: value=%d 与其他 case 重复" % (case_label, value))
-            seen.add(value)
+            op = ""
+            if source in ("stat", "flag_value"):
+                op = case.get("op", ">=")
+                if op not in BRANCH_OPS:
+                    raise LomcError(
+                        '%s: 字段 "op" 必须是 %s 之一（缺省 ">="），实际为 %r'
+                        % (case_label, "、".join('"%s"' % o for o in BRANCH_OPS), op)
+                    )
+            key_id = (op, value)
+            if key_id in seen:
+                raise LomcError(
+                    "%s: %s 与其他 case 重复"
+                    % (case_label, "op=%s value=%d" % (op, value) if op else "value=%d" % value)
+                )
+            seen.add(key_id)
             if not isinstance(case.get("goto"), str):
                 raise LomcError(
                     '%s: 缺少必填字段 "goto"（节点 id 字符串）' % case_label
@@ -704,9 +809,13 @@ def _validate_story_inner(story):
         # 分支兜底（契约 §4）：branch 未命中任何 case 时 else 落顺序下一节点；
         # branch 为最后一个节点且存在未覆盖返回值 → else 无落点，报错
         if ntype == "branch" and is_last:
-            if node.get("source", "mod") == "mod":
+            source = node.get("source", "mod")
+            if source in ("mod", "condition"):
+                # 两路都覆盖时无 else 需要
                 covered = {c["value"] for c in node["cases"]} == {1, 2}
-            else:  # game：Switch 可返回任意整数（含查不到的 0），永远有未覆盖值
+            else:
+                # game：Switch 可返回任意整数（含查不到的 0）；
+                # stat/flag_value：属性/旗标数值无上限，永远有未覆盖值
                 covered = False
             if not covered:
                 raise LomcError(
@@ -743,6 +852,13 @@ def validate_manifest(manifest, source="manifest.json"):
                 raise LomcError('可选字段 "campaign" 必须是对象')
             if "new_game" in campaign and not isinstance(campaign["new_game"], bool):
                 raise LomcError('字段 "campaign.new_game" 必须是布尔值')
+            if "disable_official_events" in campaign and not isinstance(
+                campaign["disable_official_events"], bool
+            ):
+                raise LomcError(
+                    '字段 "campaign.disable_official_events" 必须是布尔值'
+                    "（true=本战役禁用原版地图事件，仅 mod 自己的触发器生效）"
+                )
             triggers = campaign.get("triggers", [])
             if not isinstance(triggers, list):
                 raise LomcError('字段 "campaign.triggers" 必须是数组')

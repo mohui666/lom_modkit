@@ -88,6 +88,13 @@ class NodeForm(QScrollArea):
             return form
 
         for key, label, kind, optional in schema["fields"]:
+            # branch 的键字段按 source 显示：stat 来源显示属性下拉，其余显示 flag
+            if node_type == "branch":
+                src = node.get("source", "mod")
+                if key == "stat" and src != "stat":
+                    continue
+                if key == "flag" and src == "stat":
+                    continue
             widget = self._make_widget(node, key, kind)
             form.addRow(label + ("（可选）" if optional else ""), widget)
 
@@ -223,11 +230,17 @@ class NodeForm(QScrollArea):
             )
         if kind == "line":
             w = QLineEdit("" if value is None else str(value))
+            if node.get("type") == "death" and key == "title":
+                # 死亡文本两段式：短标题缺省「勝敗乃兵家常事」
+                w.setPlaceholderText("缺省「勝敗乃兵家常事」")
             w.textChanged.connect(lambda t: self._apply(node, key, t))
             return w
         if kind == "multiline":
             w = QPlainTextEdit("" if value is None else str(value))
-            w.setPlaceholderText("对话/独白/旁白文本")
+            if node.get("type") == "message":
+                w.setPlaceholderText("系统提示文本（原文显示，不走本地化 key）")
+            else:
+                w.setPlaceholderText("对话/独白/旁白文本")
             w.textChanged.connect(lambda: self._apply(node, key, w.toPlainText()))
             return w
         if kind == "code":
@@ -273,15 +286,7 @@ class NodeForm(QScrollArea):
                 node, key, columns=("text", "goto"), min_rows=2, max_rows=4
             )
         if kind == "cases":
-            # source=mod 时 value 只能 1/2 且最多两行（契约 §3.1）
-            mod_mode = node.get("source", "mod") == "mod"
-            return self._make_goto_table(
-                node,
-                key,
-                columns=("value", "goto"),
-                min_rows=1,
-                max_rows=2 if mod_mode else None,
-            )
+            return self._make_branch_cases_table(node, key)
         if kind == "vars":
             return self._make_vars_table(node, key)
         if kind == "dice_options":
@@ -508,6 +513,124 @@ class NodeForm(QScrollArea):
         remove.clicked.connect(on_remove)
         v.addWidget(table)
         v.addLayout(btns)
+        return box
+
+    def _make_branch_cases_table(self, node: dict, key: str) -> QWidget:
+        """branch.cases 表格：列布局随 source 动态切换（契约 §3.1）。
+
+        - mod：value 列 1/2 下拉（已设置/未设置），最多两行
+        - condition：value 列 1/2 下拉（真/假），最多两行
+        - game：value 列整数 spinbox（官方 Switch 数值返回值）
+        - stat/flag_value：op 下拉（>=/>/<=/</==）+ value 整数 spinbox
+        """
+        rows: list[dict] = node.setdefault(key, [])
+        if not rows:
+            rows.append({"value": 1, "goto": ""})
+        source = node.get("source", "mod")
+        numeric = source in ("stat", "flag_value", "game")
+        with_op = source in ("stat", "flag_value")
+        two_value = source in ("mod", "condition")
+        max_rows = 2 if two_value else None
+
+        def new_row() -> dict:
+            row: dict = {"value": len(rows) + 1, "goto": ""}
+            if with_op:
+                row["op"] = ">="
+            return row
+
+        def norm_value(row: dict):
+            # 归一旧数据：mod/condition 只允许 1/2
+            v = row.get("value")
+            if two_value and v not in (1, 2):
+                row["value"] = 1
+            if with_op and row.get("op") not in (">=", ">", "<=", "<", "=="):
+                row["op"] = ">="
+
+        box = QWidget()
+        v = QVBoxLayout(box)
+        v.setContentsMargins(0, 0, 0, 0)
+        n_cols = 3 if with_op else 2
+        table = QTableWidget(len(rows), n_cols)
+        headers = (
+            ["运算符", "数值", "goto 目标"]
+            if with_op
+            else (["分支值(value)", "goto 目标"] if numeric else ["真/假(value)", "goto 目标"])
+        )
+        table.setHorizontalHeaderLabels(headers)
+        table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for c in range(1, n_cols):
+            table.horizontalHeader().setSectionResizeMode(
+                c, QHeaderView.ResizeMode.ResizeToContents
+            )
+        table.setMinimumHeight(min(4, max(2, len(rows))) * 32 + 30)
+
+        def fill():
+            table.setRowCount(0)
+            table.blockSignals(True)
+            try:
+                for r, row in enumerate(rows):
+                    norm_value(row)
+                    table.insertRow(r)
+                    if with_op:
+                        cb = self._make_combo(
+                            list(models.BRANCH_OPS), str(row.get("op", ">="))
+                        )
+                        cb.currentTextChanged.connect(
+                            lambda _t, row=row, c=cb: self._apply_row(
+                                row, "op", str(c.currentData() or c.currentText())
+                            )
+                        )
+                        table.setCellWidget(r, 0, cb)
+                    elif two_value:
+                        items = (
+                            models.BRANCH_MOD_VALUES
+                            if source == "mod"
+                            else models.BRANCH_COND_VALUES
+                        )
+                        cb = self._make_combo(
+                            [(str(val), cn) for val, cn in items], str(row["value"])
+                        )
+                        cb.currentTextChanged.connect(
+                            lambda _t, row=row, c=cb: self._apply_row(
+                                row, "value", int(c.currentData())
+                            )
+                        )
+                        table.setCellWidget(r, 0, cb)
+                    else:
+                        sp = QSpinBox()
+                        sp.setRange(-999999, 999999)
+                        sp.setValue(int(row.get("value", 0)))
+                        sp.valueChanged.connect(
+                            lambda val, row=row: self._apply_row(row, "value", int(val))
+                        )
+                        table.setCellWidget(r, 0, sp)
+                    if with_op:
+                        sp = QSpinBox()
+                        sp.setRange(-999999, 999999)
+                        sp.setValue(int(row.get("value", 0)))
+                        sp.valueChanged.connect(
+                            lambda val, row=row: self._apply_row(row, "value", int(val))
+                        )
+                        table.setCellWidget(r, 1, sp)
+                    combo = self._make_goto_combo(
+                        str(row.get("goto", "")), allow_empty=True
+                    )
+                    combo.currentTextChanged.connect(
+                        lambda t, row=row, c=combo: self._apply_row(
+                            row, "goto", self._combo_value(c, t).strip()
+                        )
+                    )
+                    table.setCellWidget(r, n_cols - 1, combo)
+            finally:
+                table.blockSignals(False)
+
+        fill()
+        v.addWidget(table)
+        v.addLayout(
+            self._make_row_buttons(
+                rows, fill, min_rows=1, max_rows=max_rows, new_row=new_row
+            )
+        )
         return box
 
     def _make_row_buttons(
@@ -754,23 +877,34 @@ class NodeForm(QScrollArea):
                 self._apply(node, pkey, new_p)
 
     def _on_source_changed(self, node: dict, key: str, combo: QComboBox) -> None:
-        """branch.source 切换：写回并重建表单（cases 的 value 列控件随模式切换）。"""
+        """branch.source 切换：写回、归一 cases 并重建表单（列布局随来源切换）。"""
         if self._loading:
             return
         src = combo.currentData() or combo.currentText()
         if src == node.get(key, "mod"):
             return
         node[key] = src
-        if src == "mod":
-            # 契约：mod 模式下 value 只能 1/2、最多两行，丢弃其它取值
+        if src in ("mod", "condition"):
+            # 契约：mod/condition 的 value 只能 1/2、最多两行，丢弃其它取值
             seen: set[int] = set()
             norm: list[dict] = []
             for c in node.get("cases", []):
                 v = c.get("value")
+                c.pop("op", None)  # 这两类来源没有 op 字段
                 if v in (1, 2) and v not in seen:
                     seen.add(v)
                     norm.append(c)
             node["cases"] = (norm or [{"value": 1, "goto": ""}])[:2]
+        elif src in ("stat", "flag_value"):
+            # 数值比较来源：case 带 op（缺省 >=）；value 保持整数
+            for c in node.get("cases", []):
+                if c.get("op") not in (">=", ">", "<=", "<", "=="):
+                    c["op"] = ">="
+            if not node.get("cases"):
+                node["cases"] = [{"op": ">=", "value": 0, "goto": ""}]
+        elif src == "game":
+            for c in node.get("cases", []):
+                c.pop("op", None)
         self._rebuild_current()  # 延迟重建，避免删除正在发信号的控件
         self._emit_changed()
 

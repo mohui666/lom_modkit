@@ -84,7 +84,7 @@
     {
       "id": "n11",
       "type": "say",
-      "text": "没错。他说这出戏里藏着三十九种节点，一样都不能少。",
+      "text": "没错。他说这出戏里藏着四十三种节点，一样都不能少。",
       "character": "brother4",
       "portrait": "normal",
       "mode": "character"
@@ -388,6 +388,74 @@
     },
     {
       "id": "n53",
+      "type": "dim",
+      "character": "trainee1",
+      "dimmed": true
+    },
+    {
+      "id": "n54",
+      "type": "say",
+      "text": "【旁白】dim 节点：师弟被压暗成背景板——配角让戏，主角高光。",
+      "portrait": "normal",
+      "mode": "narrative"
+    },
+    {
+      "id": "n55",
+      "type": "message",
+      "text": "【系统提示】message 节点：系统提示条显示原文（DisplayMessageText，不走本地化 key）。"
+    },
+    {
+      "id": "n56",
+      "type": "say",
+      "text": "系统提示也演了一出——message 原文直出，编剧改词都不怕。",
+      "character": "player",
+      "portrait": "normal",
+      "mode": "character"
+    },
+    {
+      "id": "n57",
+      "type": "rotate",
+      "character": "brother4",
+      "angle": -10,
+      "duration": 0.3
+    },
+    {
+      "id": "n58",
+      "type": "say",
+      "text": "rotate 节点——我怎么突然歪了？",
+      "character": "brother4",
+      "portrait": "shock",
+      "mode": "character"
+    },
+    {
+      "id": "n59",
+      "type": "rotate",
+      "character": "brother4",
+      "angle": 10,
+      "duration": 0.3
+    },
+    {
+      "id": "n60",
+      "type": "say",
+      "text": "又转回来了。角度在前、时长在后，编剧说这是官方参数序。",
+      "character": "player",
+      "portrait": "normal",
+      "mode": "character"
+    },
+    {
+      "id": "n61",
+      "type": "dayenv",
+      "day_type": 1
+    },
+    {
+      "id": "n62",
+      "type": "say",
+      "text": "【旁白】dayenv 节点：日夜环境切到白天（1=白天 / 2=晚上，官方枚举实证）。",
+      "portrait": "normal",
+      "mode": "narrative"
+    },
+    {
+      "id": "n63",
       "type": "stat",
       "key": "mental",
       "delta": 5,
@@ -395,7 +463,7 @@
       "display": 1
     },
     {
-      "id": "n54",
+      "id": "n64",
       "type": "stat",
       "key": "money",
       "delta": 50,
@@ -403,26 +471,26 @@
       "display": 1
     },
     {
-      "id": "n55",
+      "id": "n65",
       "type": "stat_set",
       "key": "talking",
       "value": 66,
       "update": false
     },
     {
-      "id": "n56",
+      "id": "n66",
       "type": "affinity",
       "character": "brother4",
       "delta": 1
     },
     {
-      "id": "n57",
+      "id": "n67",
       "type": "talent",
       "talent": "1010",
       "level": 1
     },
     {
-      "id": "n58",
+      "id": "n68",
       "type": "item",
       "kind": "misc",
       "item": "2001",
@@ -430,7 +498,7 @@
       "remove": false
     },
     {
-      "id": "n59",
+      "id": "n69",
       "type": "item",
       "kind": "book",
       "item": "2001",
@@ -438,7 +506,7 @@
       "remove": false
     },
     {
-      "id": "n60",
+      "id": "n70",
       "type": "item",
       "kind": "misc",
       "item": "2001",
@@ -446,7 +514,7 @@
       "remove": true
     },
     {
-      "id": "n61",
+      "id": "n71",
       "type": "item",
       "kind": "special",
       "item": "2001",
@@ -454,7 +522,7 @@
       "remove": false
     },
     {
-      "id": "n62",
+      "id": "n72",
       "type": "say",
       "text": "心相加五、银两加五十、嘴力拉到六十六、四师兄好感加一、学会金钟罩、两瓶黄酒、一本流星剑谱、又丢了一瓶、白捡一个机巧飞蝗……",
       "character": "player",
@@ -462,7 +530,7 @@
       "mode": "character"
     },
     {
-      "id": "n63",
+      "id": "n73",
       "type": "say",
       "text": "师兄，你赚麻了。",
       "character": "trainee1",
@@ -470,53 +538,53 @@
       "mode": "character"
     },
     {
-      "id": "n64",
+      "id": "n74",
       "type": "flag",
       "flag": "SHOWCASE_MET_BRO4"
     },
     {
-      "id": "n65",
+      "id": "n75",
       "type": "say",
       "text": "【旁白】剧情 flag「SHOWCASE_MET_BRO4」已写入：AddStory 记录经历 + modflags 供分支读取。",
       "portrait": "normal",
       "mode": "narrative"
     },
     {
-      "id": "n69",
+      "id": "n79",
       "type": "branch",
       "flag": "SHOWCASE_MET_BRO4",
       "source": "mod",
       "cases": [
         {
           "value": 1,
-          "goto": "n68"
+          "goto": "n78"
         },
         {
           "value": 2,
-          "goto": "n67"
+          "goto": "n77"
         }
       ]
     },
     {
-      "id": "n68",
+      "id": "n78",
       "type": "say",
       "text": "branch（source=mod）case 1：flag 已设置——此路必通。",
       "character": "player",
       "portrait": "normal",
       "mode": "character",
-      "goto": "n66"
+      "goto": "n76"
     },
     {
-      "id": "n67",
+      "id": "n77",
       "type": "say",
       "text": "branch（source=mod）case 2：flag 未设置才会来这（静态可达，演出中走不到）。",
       "character": "player",
       "portrait": "normal",
       "mode": "character",
-      "goto": "n66"
+      "goto": "n76"
     },
     {
-      "id": "n66",
+      "id": "n76",
       "type": "say",
       "text": "【汇合点】mod 分支两条路在此相会。",
       "character": "brother4",
@@ -524,55 +592,55 @@
       "mode": "character"
     },
     {
-      "id": "n70",
+      "id": "n80",
       "type": "game_flag",
       "flag": "50019",
       "value": 1,
       "op": "set"
     },
     {
-      "id": "n71",
+      "id": "n81",
       "type": "say",
       "text": "【旁白】官方任务 flag「50019」已写入（game_flag 节点，id 取自 editor_data.game_flags 清单）。",
       "portrait": "normal",
       "mode": "narrative"
     },
     {
-      "id": "n75",
+      "id": "n85",
       "type": "branch",
       "flag": "Ch_1_1_1_001",
       "source": "game",
       "cases": [
         {
           "value": 1,
-          "goto": "n74"
+          "goto": "n84"
         },
         {
           "value": 2,
-          "goto": "n73"
+          "goto": "n83"
         }
       ]
     },
     {
-      "id": "n74",
+      "id": "n84",
       "type": "say",
       "text": "branch（source=game）读到官方检查点 Ch_1_1_1_001 == 1。",
       "character": "player",
       "portrait": "normal",
       "mode": "character",
-      "goto": "n72"
+      "goto": "n82"
     },
     {
-      "id": "n73",
+      "id": "n83",
       "type": "say",
       "text": "branch（source=game）读到 == 2。",
       "character": "player",
       "portrait": "normal",
       "mode": "character",
-      "goto": "n72"
+      "goto": "n82"
     },
     {
-      "id": "n72",
+      "id": "n82",
       "type": "say",
       "text": "官方检查点分支：Switch 读不到（0）或读到 3 时，会走 else 兜底直接落到这里。",
       "character": "trainee1",
@@ -580,7 +648,7 @@
       "mode": "character"
     },
     {
-      "id": "n76",
+      "id": "n86",
       "type": "enemy",
       "op": "team",
       "enemy": "400",
@@ -588,7 +656,7 @@
       "display": 1
     },
     {
-      "id": "n77",
+      "id": "n87",
       "type": "battle_skill",
       "op": "set",
       "key": "special3",
@@ -596,37 +664,37 @@
       "active": 1
     },
     {
-      "id": "n78",
+      "id": "n88",
       "type": "mission",
       "name": "Main",
       "key": "M0001"
     },
     {
-      "id": "n79",
+      "id": "n89",
       "type": "time",
       "op": "round"
     },
     {
-      "id": "n80",
+      "id": "n90",
       "type": "autosave",
       "kind": "story",
       "save_button": 1
     },
     {
-      "id": "n81",
+      "id": "n91",
       "type": "say",
       "text": "【旁白】敌方队伍削弱、战场技能装载、主线推进 M0001、时间过旬、自动存档——数值状态十二连全部演完。",
       "portrait": "normal",
       "mode": "narrative"
     },
     {
-      "id": "n82",
+      "id": "n92",
       "type": "panel",
       "panel": "martial",
       "mode": 0
     },
     {
-      "id": "n83",
+      "id": "n93",
       "type": "say",
       "text": "武学面板（martial）被强制打开。这是演示，看完记得关。",
       "character": "player",
@@ -634,25 +702,25 @@
       "mode": "character"
     },
     {
-      "id": "n84",
+      "id": "n94",
       "type": "wait",
       "seconds": 0.8
     },
     {
-      "id": "n85",
+      "id": "n95",
       "type": "music",
       "name": "古怪_001",
       "op": "fadeout",
       "seconds": 2
     },
     {
-      "id": "n86",
+      "id": "n96",
       "type": "music",
       "name": "快樂_001",
       "op": "play"
     },
     {
-      "id": "n87",
+      "id": "n97",
       "type": "say",
       "text": "音乐淡出变体（fadeout）——两秒后切新曲。",
       "character": "brother4",
@@ -660,13 +728,13 @@
       "mode": "character"
     },
     {
-      "id": "n88",
+      "id": "n98",
       "type": "music",
       "name": "快樂_001",
       "op": "stop"
     },
     {
-      "id": "n89",
+      "id": "n99",
       "type": "say",
       "text": "立刻 stop——戛然而止。play、fadeout、stop 三变体齐活。",
       "character": "player",
@@ -674,13 +742,13 @@
       "mode": "character"
     },
     {
-      "id": "n90",
+      "id": "n100",
       "type": "hide",
       "character": "trainee1",
       "fadeDuration": 0.4
     },
     {
-      "id": "n91",
+      "id": "n101",
       "type": "stat",
       "key": "fate",
       "delta": 2,
@@ -688,14 +756,14 @@
       "display": 1
     },
     {
-      "id": "n92",
+      "id": "n102",
       "type": "say",
       "text": "【旁白】命运 +2：一路行善攒下的命运点已入账——掷骰子时，它可以逆天改命。",
       "portrait": "normal",
       "mode": "narrative"
     },
     {
-      "id": "n93",
+      "id": "n103",
       "type": "say",
       "text": "铺垫完毕！赵师弟，敢不敢掷骰子？三带检定——大成功、成功、失败，三个结局。对了，听说多行善事能攒命运点，掷骰子时可以逆天改命——你刚才那两点，可别浪费了。",
       "character": "brother4",
@@ -703,7 +771,7 @@
       "mode": "character"
     },
     {
-      "id": "n94",
+      "id": "n104",
       "type": "say",
       "text": "掷！……等等，这骰子怎么是官方检查点 Ch_1_1_1_001？编剧你盗用主线骰子！",
       "character": "player",
@@ -711,115 +779,120 @@
       "mode": "character"
     },
     {
-      "id": "n106",
+      "id": "n116",
       "type": "raw",
       "code": "-- [raw 逃逸口演示] 原生 Lua 原样插入编译产物（本行仅为注释，任何官方机制都能在这里直接写）"
     },
     {
-      "id": "n105",
+      "id": "n115",
       "type": "choice",
       "options": [
         {
           "text": "掷！三带检定（官方检查点）",
-          "goto": "n104"
+          "goto": "n114"
         },
         {
           "text": "我不掷，认输直接走",
-          "goto": "n96"
+          "goto": "n106"
         }
       ],
       "dialog": "Options"
     },
     {
-      "id": "n104",
+      "id": "n114",
       "type": "dice",
       "check": "Ch_1_1_1_001",
       "options": [
         {
-          "goto_大成功": "n103",
-          "goto_成功": "n102",
-          "goto_失败": "n97"
+          "goto_大成功": "n113",
+          "goto_成功": "n112",
+          "goto_失败": "n107",
+          "band_texts": [
+            "骰面三十往下——赵活的丢人时刻",
+            "骰面中规中矩，四师兄捏把汗",
+            "骰面六十往上——丹炉拿来！"
+          ]
         }
       ]
     },
     {
-      "id": "n103",
+      "id": "n113",
       "type": "say",
       "text": "【大成功】骰面六十往上！四师兄，把你炼丹房的丹炉输给我！",
       "character": "player",
       "portrait": "laugh1",
       "mode": "character",
-      "goto": "n99"
+      "goto": "n109"
     },
     {
-      "id": "n102",
+      "id": "n112",
       "type": "say",
       "text": "【成功】骰面中规中矩。四师兄，你欠我二两银子——他嘴上认输，心里服气。",
       "character": "player",
       "portrait": "normal",
       "mode": "character",
-      "goto": "n101"
+      "goto": "n111"
     },
     {
-      "id": "n101",
+      "id": "n111",
       "type": "affinity",
       "character": "brother4",
       "delta": 3,
-      "goto": "n100"
+      "goto": "n110"
     },
     {
-      "id": "n100",
+      "id": "n110",
       "type": "choice",
       "options": [
         {
           "text": "回自由模式逛逛练武场",
-          "goto": "n95"
+          "goto": "n105"
         },
         {
           "text": "睡到下月下旬再去（演示时间条件触发器）",
-          "goto": "n98"
+          "goto": "n108"
         },
         {
           "text": "继续第二幕（坠崖加演）",
-          "goto": "n99"
+          "goto": "n109"
         }
       ],
       "dialog": "Options"
     },
     {
-      "id": "n99",
+      "id": "n109",
       "type": "end",
       "next_script": "second"
     },
     {
-      "id": "n98",
+      "id": "n108",
       "type": "time",
       "op": "set",
       "year": 1,
       "month": 4,
       "stage": 3,
-      "goto": "n95"
+      "goto": "n105"
     },
     {
-      "id": "n97",
+      "id": "n107",
       "type": "say",
       "text": "【失败】骰面丢人。四师兄笑到打鸣。",
       "character": "player",
       "portrait": "nervous3",
       "mode": "character",
-      "goto": "n100"
+      "goto": "n110"
     },
     {
-      "id": "n96",
+      "id": "n106",
       "type": "say",
       "text": "认输保平安。赵活退出赌局，深藏功与名。",
       "character": "player",
       "portrait": "normal",
       "mode": "character",
-      "goto": "n100"
+      "goto": "n110"
     },
     {
-      "id": "n95",
+      "id": "n105",
       "type": "goto_scene",
       "scene": "Free",
       "next": "Story"

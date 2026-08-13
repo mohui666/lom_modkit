@@ -23,6 +23,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox  # noqa: E402  # type: i
 
 import main  # noqa: E402
 import models  # noqa: E402
+import story_api  # noqa: E402
 
 
 def main_fn() -> int:
@@ -181,8 +182,8 @@ def main_fn() -> int:
     # ------------------------------------------------------------------
     # v3：汉化覆盖 + schema 2 + 新节点表单 + manifest campaign 对话框
     # ------------------------------------------------------------------
-    # 39 种节点类型中文名全覆盖；菜单分组与类型表一一对应
-    assert len(models.NODE_TYPES) == 39, f"契约应有 39 种节点：{len(models.NODE_TYPES)}"
+    # 43 种节点类型中文名全覆盖；菜单分组与类型表一一对应
+    assert len(models.NODE_TYPES) == 43, f"契约应有 43 种节点：{len(models.NODE_TYPES)}"
     assert set(models.NODE_TYPE_CN) == set(models.NODE_TYPES), "NODE_TYPE_CN 未全覆盖"
     grouped = [t for _g, ts in models.NODE_GROUPS for t in ts]
     assert sorted(grouped) == sorted(models.NODE_TYPES), "NODE_GROUPS 与类型表不一致"
@@ -215,7 +216,7 @@ def main_fn() -> int:
         editor_data,
     )
     assert s == "场景跳转·战斗 5102_01", s
-    print("[8b] 汉化/schema 2 助手抽查 OK（39 类型中文名、三组分组、清单显示）")
+    print("[8b] 汉化/schema 2 助手抽查 OK（43 类型中文名、三组分组、清单显示）")
 
     # ManifestDialog：campaign 区读写 + 空行跳过 + 无内容不写出 + 新条件列
     dlg = main.ManifestDialog(
@@ -225,6 +226,7 @@ def main_fn() -> int:
         {
             "campaign": {
                 "new_game": True,
+                "disable_official_events": True,
                 "triggers": [
                     {
                         "type": "position",
@@ -240,10 +242,12 @@ def main_fn() -> int:
         },
     )
     assert dlg.new_game_check.isChecked(), "应回填 new_game"
+    assert dlg.disable_events_check.isChecked(), "应回填 disable_official_events"
     assert dlg.triggers_table.rowCount() == 1, "应回填 1 行触发器"
     assert dlg.triggers_table.columnCount() == 7, "触发器表应为 7 列"
     m = dlg.manifest()
     assert m["campaign"]["new_game"]
+    assert m["campaign"]["disable_official_events"], "勾选框应写出 disable_official_events"
     trig = m["campaign"]["triggers"][0]
     assert (
         trig["position"] == "Center"
@@ -251,7 +255,9 @@ def main_fn() -> int:
         and trig["when_flag_set"] == "F1"
     ), f"触发器回填错误：{trig!r}"
     # 新条件列：月份/旬（int）与好感（"角色:数值" → {character, min}）往返
-    assert trig["when_month"] == 4 and trig["when_stage"] == 3, f"时间条件错误：{trig!r}"
+    assert trig["when_month"] == 4 and trig["when_stage"] == 3, (
+        f"时间条件错误：{trig!r}"
+    )
     assert trig["when_affinity"] == {
         "character": "brother4",
         "min": 3,
@@ -280,6 +286,7 @@ def main_fn() -> int:
     }, f"新列解析错误：{new_trig!r}"
     assert "when_stage" not in new_trig, "空旬列不应写出 when_stage"
     dlg.new_game_check.setChecked(False)
+    dlg.disable_events_check.setChecked(False)
     while dlg.triggers_table.rowCount():
         dlg._del_trigger_row()
     assert not dlg.manifest().get("campaign"), (
@@ -317,6 +324,22 @@ def main_fn() -> int:
         assert node is not None and node["type"] == t, f"新增 {t} 失败"
         assert win.form._node is node, f"{t} 表单未构建"
         win.stage.grab()  # 演出预览渲染（提示行分支）
+    # branch 三新来源的 cases 表：动态列布局（stat 三列 op/数值/goto；condition 两列真/假）
+    for src, fields in (
+        ("stat", {"stat": "mental", "cases": [{"op": ">=", "value": 50, "goto": ""}]}),
+        ("flag_value", {"flag": "50019", "cases": [{"op": "==", "value": 1, "goto": ""}]}),
+        ("condition", {"flag": "S0030_01_001", "cases": [{"value": 1, "goto": ""}, {"value": 2, "goto": ""}]}),
+    ):
+        b = story_api.add_node(win.story, "branch", dict(fields, source=src))
+        win._refresh_all()
+        win.node_list.setCurrentRow(win._node_row(b["id"]))
+        assert win.form._node is b, f"branch {src} 表单未构建"
+        from PySide6.QtWidgets import QTableWidget  # type: ignore[reportMissingImports]
+
+        tables = [w for w in win.form.findChildren(QTableWidget) if w.rowCount()]
+        assert tables, f"branch {src} 应有 cases 表格"
+        win.stage.grab()
+    print("[8c2] branch 三新来源 cases 表格（stat/flag_value/condition）OK")
     # 字段写回抽查：raw 代码框 / panel 枚举 / dice 阈值
     win.node_list.setCurrentRow(
         win._node_row([n for n in win.story["nodes"] if n["type"] == "raw"][0]["id"])

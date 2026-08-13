@@ -166,8 +166,48 @@ def _make_node(story: dict, node_type: str, fields: dict, after: str | None) -> 
     node_id = models.make_node_id(story)
     node = models.new_node(node_type, node_id, _get_ed())
     node.update(fields)
+    _normalize_branch(node)
+    _check_portrait_node(node)  # 角色表情校验（与编译器同一张表）
     _insert_after(story, node, after)
     return node
+
+
+def _normalize_branch(node: dict) -> None:
+    """branch 键字段归一：source=stat 用 stat，其余来源用 flag。
+
+    清掉与当前来源冲突的键（契约默认值自带 flag:""，stat 来源必须去 flag，
+    否则编译器报「不支持字段 flag」）。
+    """
+    if node.get("type") != "branch":
+        return
+    if node.get("source", "mod") == "stat":
+        node.pop("flag", None)
+    else:
+        node.pop("stat", None)
+
+
+def _check_portrait_node(node: dict) -> None:
+    """show/say 节点的 (character, portrait) 必须落在官方角色表情表内。
+
+    表情表不可用（lomc 缺失/editor_data 缺文件）或角色不在表 → 放行；
+    角色在表但表情不在其列表 → ValueError（游戏 LoadCharacterPortrait 对无效
+    表情 key 抛 KeyNotFoundException → Lua 协程死 → 对话冻结）。
+    """
+    if node.get("type") not in ("show", "say"):
+        return
+    character = node.get("character")
+    portrait = node.get("portrait")
+    if not (isinstance(character, str) and character) or not (
+        isinstance(portrait, str) and portrait
+    ):
+        return
+    lomc, _err = get_lomc()
+    if lomc is None:
+        return  # 编译器不可用时校验下沉到 check_story
+    table = lomc.dice_data.load_portrait_table()
+    msg = lomc.dice_data.check_portrait(table, character, portrait)
+    if msg:
+        raise ValueError(msg)
 
 
 # ---------------------------------------------------------------------------
@@ -229,6 +269,8 @@ def update_node(story: dict, node_id: str, fields: dict) -> dict:
     node = get_node(story, node_id)
     checked = _check_fields(node["type"], fields)
     node.update(checked)
+    _normalize_branch(node)  # branch 键字段归一（合并后的最终状态）
+    _check_portrait_node(node)  # 角色表情校验（合并默认值后的最终状态）
     return node
 
 
@@ -301,13 +343,15 @@ def add_death(
     text: str,
     death_id: str,
     next: str = "Title",
+    title: str | None = None,
     after: str | None = None,
 ) -> dict:
-    """新增死亡文本节点（第 39 种节点类型）：黑屏 + 居中旁白 + 官方死亡画面。
+    """新增死亡文本节点：黑屏 + 两段式死亡文本 + 官方死亡画面。
 
     text 必填非空（多行合法）；death_id 必填 ≥900000 的 mod 专属数字 id
     （约定 9+官方 id：官方 10021 乱战中被践踏而死 → 910021；官方 id 会触发
-    官方结局解锁与记录，污染存档）；next 只能是 "Free"/"Title"（默认回标题）。
+    官方结局解锁与记录，污染存档）；next 只能是 "Free"/"Title"（默认回标题）；
+    title 可选（短标题，缺省/空串时用「勝敗乃兵家常事」）。
     """
     if not isinstance(text, str) or not text.strip():
         raise ValueError(f"death 文本必须是非空字符串，实际为 {text!r}")
@@ -325,9 +369,16 @@ def add_death(
         )
     if next not in ("Free", "Title"):
         raise ValueError(f"death next 非法: {next!r}（允许 Free/Title）")
-    return _make_node(
-        story, "death", {"text": text, "death_id": death_id, "next": next}, after
-    )
+    fields: dict = {"text": text, "death_id": death_id, "next": next}
+    if title is not None:
+        if not isinstance(title, str):
+            raise ValueError(f"death title 必须是字符串，实际为 {title!r}")
+        if title:
+            fields["title"] = title
+    node = _make_node(story, "death", fields, after)
+    if not node.get("title"):  # 空标题不写（codegen 用缺省「勝敗乃兵家常事」）
+        node.pop("title", None)
+    return node
 
 
 def add_scene(story: dict, view: str, after: str | None = None) -> dict:

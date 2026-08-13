@@ -14,3 +14,4 @@ runtime/MortalModHost/bin/
 runtime/MortalModHost/obj/
 runtime/MortalModHost/test/SmokeTest/bin/
 runtime/MortalModHost/test/SmokeTest/obj/
+.pi/
