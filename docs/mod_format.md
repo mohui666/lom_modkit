@@ -11,12 +11,12 @@ manifest.json          # 必填，包元信息
 story/<id>.json        # 必填≥1，剧情源文件（编辑器可编辑的源格式）
 lua/<id>.lua           # 必填≥1，编译产物（运行时只读这里）；每个 story/<id>.json 对应一个
 texts.json             # 必填，已读文本表：{MOD_<modid>_<scriptid>_<nodeid>: 文本}（say/death 节点文本）
-assets/                # 可选，自定义资源（目前：结局卡图片 PNG/JPG）；原样打进包
+assets/                # 可选，自定义资源（结局插图/人物介绍图 PNG/JPG）
 ```
 
 - `<id>` 规则：`[a-zA-Z0-9_\-]+`，包内唯一，即"剧情脚本 id"。
 - 导出（打包）时必须重新编译：story/*.json → lua/*.lua，二者同名。
-- 运行时插件**只读 manifest.json、lua/ 目录与 assets/ 下的图片**；story/*.json 给编辑器回读/再编辑用。assets/ 里运行时用不到的条目（音频等）也原样打进包，插件只挑图片读入内存（单张 ≤8MB，超限警告跳过）。
+- 运行时插件**只读 manifest.json、lua/ 目录与 assets/ 下的图片**；story/*.json 给编辑器回读/再编辑用。编译器只打入剧情明确引用的 PNG/JPG（单张 ≤8MB），不会把目录中的未使用文件意外分发。
 - texts.json 由打包时自动生成：收集每个 story 的全部 **say** 节点文本，key 与 lua 里 `GetStoryText` 的 key 一一对应；运行时插件把它注册进 LeanLocalization（已读系统按 key 查文本，见 §4/§6）。**death 文本不进 texts.json**：由 codegen 发射 `mod_set_death_text(<标题>, <文本>)` 两参 lua_str 字面量（官方死亡画面中央两段式显示，见 §3.1/§6）。
 
 ## 2. manifest.json
@@ -104,7 +104,7 @@ assets/                # 可选，自定义资源（目前：结局卡图片 PNG
 | `choice` | `options`: `[{"text","goto"}]`（2~4 项）；可选 `dialog`(默认"Options"，皮肤见 §3.3) | 选项菜单 `choose()` |
 | `shock` | `character`；可选 `duration`(默认0.5) | 人物震动（flowcharts.common "shock"） |
 | `mask` | `show`(bool) | 独白遮罩 `os_mask.Show` |
-| `intro` | `character` | 人物介绍卡 `runwait(intropanel.Show(...))` |
+| `intro` | 可选 `intro_source`(`official` 默认/`custom`)。official 必填 `character`；custom 必填 `name`,`text`，可选 `title`,`image`（包内 `assets/` PNG/JPG，≤8MB）、`image_scale`(40~160，默认100)、`image_x`/`image_y`(-30~30，默认0) | official 直接调用原版 `runwait(intropanel.Show(character))`；custom 调用 `mod_prepare_character_intro(title,name,text,image,scale,x,y)`，复用同一个 CharacterIntroPanel。图片按屏幕安全区独立布局并保持比例；x 正数向右、y 正数向上，无图时隐藏头像区域 |
 | `effect` | `name`；可选 `x`,`y`,`a`,`b`,`c`(数值，默认0/0/1/1/1)，`play`(bool，默认true) | 屏幕特效 `effects.SetupEffect(name,x,y,a,b,c,play)`，如 Hit_001/Blood_002/Sword_001。`play=false` 发射停止调用（末参 0）：**循环类特效播放后不会自动销毁**（官方实证 EventBubble_001/Glow_001 均有成对的 play=0 停止调用），如 EventBubble/Glow 必须后接 play=false 的同参节点停止，否则常驻画面（旧数据的 `d` 字段仍兼容：无 play 时用 d） |
 | `transition` | `phase`("in"/"out")；可选 `dir`(默认"lr"，lr/rl/tb/bt) | 黑场转场 `runwait(transitionblack.TransitionIn/Out(dir))`。**官方必须成对使用**：TransitionIn 会隐藏剧情 UI 并盖满黑幕，TransitionOut 才恢复；同一脚本有 in 无 out 时编译器给出警告（画面会一直黑屏，ch1_1 实测距离十几行） |
 | `camera` | `name`, `active`(bool) | 镜头滤镜 `maincamera.ActiveVolume(name, 0 | 1)`，如 stage-memory/stage-dream/stage-fire/stage-blurdim |
@@ -345,10 +345,12 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 9. **mod_hide_mood**：注册全局 Lua 函数 `mod_hide_mood()`（无参），隐藏全场角色圆形情绪面板（CharacterMoodPanel）；编译器按 story.mood 开关在 show/say 处发射（见 §4）。
 10. **mod_set_mood**：注册全局 Lua 函数 `mod_set_mood(bool)`，按脚本头部声明（story 顶层 mood，默认 false）硬控官方心情面板开关（ShowMood）——每个 mod 脚本入口处发射一次（见 §4），链式脚本逐脚本切换生效；与 mod_hide_mood 双保险防官方情绪面板干扰剧情演出。
 11. **UpdateTranslations 防 wipe**：官方文本刷新（UpdateTranslations / LeanLocalization 重建）会清掉插件注册的 mod 文本，必须 hook 并在刷新后重放 texts.json 的 key→文本注册（加载时缓存全部注册项），保证 GetStoryText 的 mod key 永不失效。
-12. **结局/死亡卡片绘制**：注册两个全局 Lua 函数，供编译产物调用（见 §3.1/§4）：
+12. **人物介绍卡**：官方人物保持原始 `CharacterIntroPanel.Show(key)` 行为（仅首次激活关系时显示）；自定义人物只在特殊 key 上由 Harmony 接管，使用官方面板、关闭按钮和版式，写入自定义称号/姓名/正文。可选 `image` 从当前 `.lommod` 的 `assets/` 解码后放入独立安全布局：默认中心为屏幕 `(31%,50%)`，最大宽/高为屏幕 `(30%,62%)`，保持比例；`image_scale` 在自动适配尺寸上缩放，`image_x/image_y` 以屏幕百分比微调。关闭时销毁临时纹理并完整恢复原版 Image 与 RectTransform；无图时隐藏头像区域，不修改官方本地化表或关系数据。
+13. **结局/死亡卡片绘制**：注册两个全局 Lua 函数，供编译产物调用（见 §3.1/§4）：
     - `mod_set_death_text(title, desc)`：缓存自定死亡标题/描述（两段式：短标题 + 多行描述）；Harmony postfix `GameOverController`（官方死亡画面已有 `_titleText`/`_descTextPrefab` 文本控制器）把两段文本写入官方标题/描述控制器，用官方布局显示在死亡画面中央（黑底红字 + 返回按钮不变）。单参调用按旧契约当 desc、标题留空（旧 mod 包兼容）。
     - `mod_set_ending_text(title, desc[, image])`：缓存结局标题/描述与可选包内图片。Harmony postfix 包装真正的 `EndGamePanel.Open`，在官方第一次画布 fade 前把标题/正文写入 `_titleText/_descText`，把图片写入左页 `_picImage`；未给图片时直接借用游戏内官方结局 20047 的 Picture 作占位（不复制游戏资源）。官方渐显、等待确认与淡出全保留；为避免 mod key 进入无法解析的传奇存档槽，本次显示临时关闭 `_saveLibrary`，结束后恢复。
     - 新编译器的自定义 End 不再进入简化 `EndGameController` 场景；旧包仍保留原 End 场景覆盖兼容。GameOver 自造 id 无文字与 End 自造 id 无内容均在编译期阻止，解决空屏回归。
+14. **编辑器单次试玩协议**：编辑器把入口章节的 `start` 临时改为当前选中节点，安装为固定包 `__lom_modkit_preview.lommod`（manifest id `lom_modkit_preview`），随后原子写入插件目录 `preview-request.json`。运行时每 0.35 秒检查一次：Free 场景直接演出，Title 场景用 `mod_lom_modkit_preview` 隔离槽开局，其它场景等待到安全场景；消费后删除请求与固定临时包。请求只接受 format=1 及 `[A-Za-z0-9_-]+` 的 mod/script/node id，正式 Mod 包不在自动删除范围内。
 
 ## 7. AI 工具接口（story_api）
 

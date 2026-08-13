@@ -18,6 +18,7 @@
     <Compile Include="..\..\src\HotkeyMigration.cs" />
     <Compile Include="..\..\src\CampaignConfig.cs" />
     <Compile Include="..\..\src\PositionNameMap.cs" />
+    <Compile Include="..\..\src\PreviewRequest.cs" />
   </ItemGroup>
 
 </Project>

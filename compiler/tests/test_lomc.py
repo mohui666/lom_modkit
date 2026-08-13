@@ -511,6 +511,69 @@ class TestNodeCodegen(unittest.TestCase):
         lua = self.lua_of({"id": "n1", "type": "intro", "character": "brother4"})
         self.assertIn('\trunwait(intropanel.Show("brother4"))', lua)
 
+    def test_intro_custom(self):
+        lua = self.lua_of(
+            {
+                "id": "n1",
+                "type": "intro",
+                "intro_source": "custom",
+                "title": "江湖新秀",
+                "name": "墨小侠",
+                "text": "来历不明，却熟知唐门旧事。",
+                "image": "assets/moxia.png",
+            }
+        )
+        self.assertIn(
+            '\tmod_prepare_character_intro("江湖新秀", "墨小侠", "来历不明，却熟知唐门旧事。", "assets/moxia.png", 100, 0, 0)',
+            lua,
+        )
+        self.assertIn(
+            '\trunwait(intropanel.Show("__lommod_custom_intro__"))', lua
+        )
+
+    def test_intro_custom_requires_name_and_text(self):
+        with self.assertRaises(LomcError):
+            self.lua_of(
+                {
+                    "id": "n1",
+                    "type": "intro",
+                    "intro_source": "custom",
+                    "name": "",
+                    "text": "介绍",
+                }
+            )
+
+    def test_intro_custom_image_layout(self):
+        lua = self.lua_of(
+            {
+                "id": "n1",
+                "type": "intro",
+                "intro_source": "custom",
+                "name": "墨小侠",
+                "text": "来历不明。",
+                "image": "assets/moxia.png",
+                "image_scale": 85,
+                "image_x": -4,
+                "image_y": 7,
+            }
+        )
+        self.assertIn(
+            'mod_prepare_character_intro("", "墨小侠", "来历不明。", '
+            '"assets/moxia.png", 85, -4, 7)',
+            lua,
+        )
+        for field, value in (("image_scale", 20), ("image_x", 31), ("image_y", -31)):
+            node = {
+                "id": "n1",
+                "type": "intro",
+                "intro_source": "custom",
+                "name": "墨小侠",
+                "text": "介绍",
+                field: value,
+            }
+            with self.assertRaises(LomcError):
+                self.lua_of(node)
+
     def test_stat(self):
         lua = self.lua_of({"id": "n1", "type": "stat", "key": "mental", "delta": -5})
         self.assertIn('\tstatmodifymanager.Player("mental", -5, "", 1)', lua)
@@ -1362,6 +1425,22 @@ class TestPortraitValidation(unittest.TestCase):
             )
         )
 
+    def test_character_display_label_is_rejected(self):
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "show",
+                    "character": "鸡（chicken1）",
+                    "position": "LB2",
+                    "portrait": "normal",
+                }
+            ),
+            "人物必须保存内部 ID",
+            "chicken1",
+        )
+
     def test_portrait_not_in_character_list(self):
         # brother4 没有 angry3（editor_data 实证）：必须报 LomcError
         assert_compile_error(
@@ -1732,6 +1811,32 @@ class TestPack(unittest.TestCase):
         with self.assertRaises(LomcError) as cm:
             pack_mod(self.mod_dir)
         self.assertIn("image 指向的文件不存在", str(cm.exception))
+
+    def test_pack_custom_intro_image_ok(self):
+        os.makedirs(os.path.join(self.mod_dir, "assets"))
+        with open(os.path.join(self.mod_dir, "assets", "hero.png"), "wb") as f:
+            f.write(b"\x89PNG\r\n\x1a\n" + b"hero")
+        self.write_story(
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "intro",
+                    "intro_source": "custom",
+                    "title": "无名游侠",
+                    "name": "墨小侠",
+                    "text": "来历不明。",
+                    "image": "assets/hero.png",
+                }
+            )
+        )
+        out = pack_mod(self.mod_dir)
+        with zipfile.ZipFile(out) as zf:
+            self.assertIn("assets/hero.png", zf.namelist())
+            lua = zf.read("lua/main.lua").decode("utf-8")
+            self.assertIn(
+                'mod_prepare_character_intro("无名游侠", "墨小侠", "来历不明。", "assets/hero.png", 100, 0, 0)',
+                lua,
+            )
 
 
 # ---------------------------------------------------------------------------

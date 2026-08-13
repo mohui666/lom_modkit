@@ -18,6 +18,9 @@ a_gui = Analysis(
     datas=[
         ("../data/editor_data.json", "data"),
         ("../data/preview_map.json", "data"),
+        ("assets/lom_editor_icon.png", "assets"),
+        ("assets/combo_arrow.svg", "assets"),
+        ("../runtime/MortalModHost/bin/Release/net48/MortalModHost.dll", "runtime"),
     ],
     hiddenimports=[
         "lomc",
@@ -53,6 +56,7 @@ exe_gui = EXE(
     exclude_binaries=True,
     name="lom_editor",
     console=False,  # 图形界面：无控制台窗口
+    icon="assets/lom_editor.ico",
 )
 
 exe_cli = EXE(

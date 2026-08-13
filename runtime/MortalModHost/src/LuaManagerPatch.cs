@@ -44,6 +44,7 @@ namespace MortalModHost
                 // 清空 mod 死亡/结局文本覆盖（契约 §C，官方结局不受影响）
                 MoodControl.Disabled = false;
                 ModOverlay.Clear();
+                CharacterIntroSupport.Clear();
                 return true; // 官方脚本，走原方法
             }
 
@@ -63,6 +64,7 @@ namespace MortalModHost
                 {
                     ModOverlay.CurrentPackage = package;
                 }
+                CharacterIntroSupport.Clear();
 
                 // 契约 §B：演出前把 mod_hide_mood / mod_set_mood 注册进共享 MoonSharp 环境（幂等重设；官方脚本不调用它们，无副作用）
                 RegisterModGlobals(env);
@@ -168,6 +170,32 @@ namespace MortalModHost
                     }
                     return DynValue.Nil;
                 }, "mod_set_ending_text");
+                // 自定义人物介绍卡：下一次特殊 key 的 intropanel.Show 由
+                // CharacterIntroPanelPatch 接管；官方人物节点不调用本函数。
+                script.Globals["mod_prepare_character_intro"] = new CallbackFunction((ctx, args) =>
+                {
+                    try
+                    {
+                        string title = args.Count > 0 ? args[0].CastToString() : "";
+                        string name = args.Count > 1 ? args[1].CastToString() : "";
+                        string intro = args.Count > 2 ? args[2].CastToString() : "";
+                        string image = args.Count > 3 ? args[3].CastToString() : "";
+                        float imageScale = args.Count > 4 && args[4].Type == DataType.Number
+                            ? (float)args[4].Number : 100f;
+                        float imageX = args.Count > 5 && args[5].Type == DataType.Number
+                            ? (float)args[5].Number : 0f;
+                        float imageY = args.Count > 6 && args[6].Type == DataType.Number
+                            ? (float)args[6].Number : 0f;
+                        CharacterIntroSupport.Prepare(
+                            title, name, intro, image, imageScale, imageX, imageY);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.LogWarning("mod_prepare_character_intro 参数转换失败：" + ex.Message);
+                        CharacterIntroSupport.Clear();
+                    }
+                    return DynValue.Nil;
+                }, "mod_prepare_character_intro");
             }
             catch (Exception ex)
             {

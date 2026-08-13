@@ -9,17 +9,21 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from PySide6.QtCore import QTimer, Signal
 from PySide6.QtGui import QFontDatabase
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
+    QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
@@ -30,6 +34,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from asset_store import AssetStoreError, import_image_file
 import models
 
 
@@ -124,6 +129,20 @@ class NodeForm(QScrollArea):
         """按当前选择隐藏无效字段，避免让新手填写游戏根本不会读取的值。"""
         if node_type == "say" and key in ("character", "portrait"):
             return node.get("mode", "character") not in ("narrative", "center")
+        if node_type == "intro":
+            custom = node.get("intro_source", "official") == "custom"
+            if key == "character":
+                return not custom
+            if key in (
+                "title",
+                "name",
+                "text",
+                "image",
+                "image_scale",
+                "image_x",
+                "image_y",
+            ):
+                return custom
         if node_type == "goto_scene":
             scene = node.get("scene", "Free")
             if key == "key":
@@ -149,7 +168,7 @@ class NodeForm(QScrollArea):
                 editable=True,
             )
             w.currentTextChanged.connect(
-                lambda t: self._on_character_changed(node, key, t)
+                lambda t, c=w: self._on_character_changed(node, key, c, t)
             )
             return w
         if kind == "portrait":
@@ -170,6 +189,18 @@ class NodeForm(QScrollArea):
                 "music": "music",
                 "stat": "stats",
             }[kind]
+            if kind == "position":
+                items = models.list_items(self._editor_data, data_key)
+                items = [
+                    (
+                        item_id,
+                        display + "（靠后，可能被遮挡）"
+                        if item_id in ("LB2", "RB2")
+                        else display,
+                    )
+                    for item_id, display in items
+                ]
+                return self._combo_from_items(node, key, items, value)
             return self._list_combo(node, key, data_key, value)
         if kind == "mode":
             items = [
@@ -266,14 +297,29 @@ class NodeForm(QScrollArea):
                 w.setPlaceholderText("缺省「勝敗乃兵家常事」")
             elif node.get("type") == "goto_scene" and key == "title":
                 w.setPlaceholderText("例如：浪迹江湖")
+            elif node.get("type") == "intro" and key == "title":
+                w.setPlaceholderText("例如：无名游侠（可选）")
+            elif node.get("type") == "intro" and key == "name":
+                w.setPlaceholderText("填写人物姓名")
             w.textChanged.connect(lambda t: self._apply(node, key, t))
             return w
-        if kind == "ending_image":
-            # 官方 EndGamePanel 的 _picImage（汗青书左页插图）：包内 assets/ 相对路径
-            w = QLineEdit("" if value is None else str(value))
-            w.setPlaceholderText("assets/ending.png（可选；留空时游戏内用原版图占位）")
-            w.textChanged.connect(lambda t: self._apply(node, key, t))
+        if kind == "affinity_character":
+            w = self._make_combo(
+                models.affinity_character_items(self._editor_data),
+                value or "",
+                editable=False,
+            )
+            w.currentTextChanged.connect(
+                lambda t, c=w: self._apply(node, key, self._combo_value(c, t))
+            )
             return w
+        if kind in ("ending_image", "intro_image"):
+            placeholder = (
+                "assets/ending.png（可选；留空时游戏内用原版图占位）"
+                if kind == "ending_image"
+                else "选择 PNG/JPG 人物图片（可选；建议透明背景立绘）"
+            )
+            return self._make_image_picker(node, key, value, placeholder)
         if kind == "multiline":
             w = QPlainTextEdit("" if value is None else str(value))
             if node.get("type") == "death" and key == "text":
@@ -282,6 +328,8 @@ class NodeForm(QScrollArea):
                 w.setPlaceholderText("填写汗青书或死亡画面的正文，可以换行")
             elif node.get("type") == "message":
                 w.setPlaceholderText("系统提示文本（原文显示，不走本地化 key）")
+            elif node.get("type") == "intro" and key == "text":
+                w.setPlaceholderText("填写人物介绍，可以换行")
             else:
                 w.setPlaceholderText("对话/独白/旁白文本")
             w.textChanged.connect(lambda: self._apply(node, key, w.toPlainText()))
@@ -319,6 +367,24 @@ class NodeForm(QScrollArea):
                 w.setValue(0)
             w.valueChanged.connect(lambda v: self._apply(node, key, v))
             return w
+        if kind == "percent_scale":
+            w = QSpinBox()
+            w.setRange(40, 160)
+            w.setSingleStep(5)
+            w.setSuffix(" %")
+            w.setValue(int(value if value is not None else 100))
+            w.setToolTip("100% 是自动适配后的推荐大小；可在 40%～160% 间调整")
+            w.valueChanged.connect(lambda v: self._apply(node, key, int(v)))
+            return w
+        if kind == "percent_offset":
+            w = QSpinBox()
+            w.setRange(-30, 30)
+            w.setSingleStep(1)
+            w.setSuffix(" %")
+            w.setValue(int(value or 0))
+            w.setToolTip("相对屏幕位置微调；正数向右或向上，负数向左或向下")
+            w.valueChanged.connect(lambda v: self._apply(node, key, int(v)))
+            return w
         if kind == "bool":
             w = QCheckBox("是")
             w.setChecked(bool(value))
@@ -351,6 +417,40 @@ class NodeForm(QScrollArea):
         else:
             w.setCurrentText(current)
         return w
+
+    def _make_image_picker(
+        self, node: dict, key: str, value, placeholder: str
+    ) -> QWidget:
+        """图片路径输入框 + 新手友好的文件选择；选中后托管到 AppData。"""
+        box = QWidget()
+        row = QHBoxLayout(box)
+        row.setContentsMargins(0, 0, 0, 0)
+        edit = QLineEdit("" if value is None else str(value))
+        edit.setPlaceholderText(placeholder)
+        choose = QPushButton("选择图片…")
+        choose.setMinimumHeight(28)
+        edit.textChanged.connect(lambda text: self._apply(node, key, text))
+
+        def pick() -> None:
+            path, _ = QFileDialog.getOpenFileName(
+                self,
+                "选择人物图片" if node.get("type") == "intro" else "选择结局插图",
+                str(Path.home()),
+                "图片 (*.png *.jpg *.jpeg)",
+            )
+            if not path:
+                return
+            try:
+                relative, _stored = import_image_file(Path(path))
+            except AssetStoreError as exc:
+                QMessageBox.critical(self, "无法使用图片", str(exc))
+                return
+            edit.setText(relative)
+
+        choose.clicked.connect(pick)
+        row.addWidget(edit, 1)
+        row.addWidget(choose)
+        return box
 
     def _list_combo(self, node: dict, key: str, data_key: str, current) -> QComboBox:
         """schema 2 清单下拉框（{id,name} 显示 "名字（id）"，可编辑容错）。"""
@@ -897,12 +997,13 @@ class NodeForm(QScrollArea):
         row[key] = value
         self._emit_changed()
 
-    def _on_character_changed(self, node: dict, key: str, text: str) -> None:
+    def _on_character_changed(
+        self, node: dict, key: str, combo: QComboBox, text: str
+    ) -> None:
         """人物变化：写回，并就地刷新同节点内表情下拉框的清单（不重建表单，避免打断输入）。"""
-        sender = self.sender()
-        char_id = (
-            self._combo_value(sender, text) if isinstance(sender, QComboBox) else text
-        )
+        # 经 Python lambda 转发信号时 QObject.sender() 不可靠，必须显式传入
+        # combo；否则会把“鸡（chicken1）”这类显示文本写进 JSON，游戏加载失败。
+        char_id = self._combo_value(combo, text)
         if char_id == node.get(key):
             return
         self._apply(node, key, char_id)

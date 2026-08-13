@@ -30,6 +30,21 @@ OUTPUTS = (
 
 
 def main() -> int:
+    runtime_dll = (
+        EDITOR_DIR.parent
+        / "runtime"
+        / "MortalModHost"
+        / "bin"
+        / "Release"
+        / "net48"
+        / "MortalModHost.dll"
+    )
+    if not runtime_dll.is_file():
+        print(
+            f"缺少内置运行时 {runtime_dll}：请先构建 runtime/MortalModHost",
+            file=sys.stderr,
+        )
+        return 2
     try:
         import PyInstaller  # noqa: F401
     except ImportError:
@@ -63,8 +78,8 @@ def main() -> int:
         ok = ok and good
         print(f"{'OK  ' if good else 'MISS'} {p}")
     if ok:
-        # 冻结产物必须能真正 import 内置 lomc 并编译一份剧情。过去只做启动
-        # 自检会漏掉“窗口正常、Lua 预览空白”的 hidden-import/资源路径问题。
+        # 冻结产物必须能真正 import 内置 lomc、编译剧情，并找到自动安装所需
+        # 的 runtime DLL / 应用图标 / 下拉箭头资源。
         sample = EDITOR_DIR.parent / "samples" / "snack_case" / "story" / "confront.json"
         env = os.environ.copy()
         env["QT_QPA_PLATFORM"] = "offscreen"

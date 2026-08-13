@@ -25,7 +25,7 @@ namespace MortalModHost
     {
         public const string GUID = "com.mohui666.mortalmodhost";
         public const string NAME = "MortalModHost";
-        public const string VERSION = "0.2.2";
+        public const string VERSION = "0.5.0";
 
         private const int WindowId = 886310; // IMGUI 窗口 id，取个不易与其他插件撞车的数
 
@@ -40,6 +40,9 @@ namespace MortalModHost
         private bool _inTitleScene; // 当前菜单是否处于标题画面（Title 场景仅提供战役区）
         private Rect _windowRect = new Rect(40f, 40f, 460f, 420f);
         private Vector2 _scroll;
+        private float _nextPreviewPoll;
+        private long _loadedPreviewStamp = -1L;
+        private string _previewWaitingScene = "";
 
         private void Awake()
         {
@@ -61,29 +64,7 @@ namespace MortalModHost
             string modsDir = Path.Combine(Paths.PluginPath, "MortalModHost", "mods");
             Logger.LogInfo("MortalModHost " + VERSION + " 启动，扫描 mods 目录：" + modsDir);
 
-            LoadedMods = ModLoader.ScanMods(
-                modsDir,
-                msg => Logger.LogInfo(msg),
-                msg => Logger.LogWarning(msg));
-            ModRegistry.Rebuild(LoadedMods, msg => Logger.LogWarning(msg));
-
-            // 契约 §A：texts.json → LeanLocalization，Awake 扫描完立即注册（演出开始前）。
-            // 演出前 LuaManagerPatch 还会幂等重注册兜底（LeanLocalization 切语言/OnEnable 会清空运行时注册）。
-            ReadTextRegistry.Rebuild(LoadedMods, msg => Logger.LogWarning(msg));
-            try
-            {
-                ReadTextRegistry.Apply();
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError("已读文本注册进 LeanLocalization 失败（mod 台词将退化为裸文本）：" + ex);
-            }
-            // 契约 §A 自检：报告注册条数 + 第一条文本样本比对（不一致说明 wipe 后未恢复，台词会退化显示 key）
-            ReadTextRegistry.SelfCheck(msg => Logger.LogInfo(msg), msg => Logger.LogWarning(msg));
-
-            foreach (var mod in LoadedMods)
-                Logger.LogInfo(FormatModSummary(mod));
-            Logger.LogInfo("mod 扫描完成：成功 " + LoadedMods.Count + " 个，注册脚本 " + ModRegistry.Count + " 个。");
+            ReloadMods();
 
             ApplyHarmonyPatch();
         }
@@ -140,6 +121,7 @@ namespace MortalModHost
             NewGamePlusPatch.Log = Logger;
             DiceRevolutionPatch.Log = Logger;
             VanillaStorySwitch.Log = Logger;
+            CharacterIntroSupport.Log = Logger;
 
             bool ok = true;
             ok &= CheckTarget("LuaManager.ExecuteLuaScript",
@@ -176,13 +158,15 @@ namespace MortalModHost
                 AccessTools.Method(typeof(PlayerStatManagerData), "get_NewGamePlus"));
             ok &= CheckTarget("DiceMenuDialog.CheckRevolution",
                 AccessTools.Method(typeof(DiceMenuDialog), "CheckRevolution"));
+            ok &= CheckTarget("CharacterIntroPanel.Show",
+                AccessTools.Method(typeof(CharacterIntroPanel), "Show"));
             if (!ok)
             {
                 Logger.LogError("部分 Harmony 目标缺失（游戏版本可能已变更），战役/触发器功能可能不可用");
                 return;
             }
             new Harmony(GUID).PatchAll(); // patch 本程序集全部 [HarmonyPatch] 类
-            Logger.LogInfo("Harmony patch 已挂载：ExecuteLuaScript / NewGameData / Free 自动与地点剧情抑制 / GetExecuteScript / UpdateTranslations / ShowMood / GameOver/EndGamePanel/EndGame / NewGamePlus / DiceRevolution");
+            Logger.LogInfo("Harmony patch 已挂载：ExecuteLuaScript / NewGameData / Free 自动与地点剧情抑制 / GetExecuteScript / UpdateTranslations / ShowMood / CharacterIntroPanel / GameOver/EndGamePanel/EndGame / NewGamePlus / DiceRevolution");
         }
 
         private bool CheckTarget(string name, MemberInfo member)
@@ -198,6 +182,8 @@ namespace MortalModHost
         {
             UpdateOverlaySceneTracking();
             if (!_enabled.Value) return;
+
+            HandlePreviewRequest();
 
             // F7：任意场景可切换，返回 Free 的自动任务与下一次地点点击都会生效；独立于 F8 菜单分支。
             HandleVanillaStoryHotkey();
@@ -215,6 +201,116 @@ namespace MortalModHost
             _showMenu = !_showMenu;
             if (_showMenu) ClampWindowToScreen();
             Logger.LogInfo("检测到菜单热键按下（当前场景：" + scene + "），" + (_showMenu ? "已打开菜单。" : "已关闭菜单。"));
+        }
+
+        /// <summary>重新扫描包并原子替换注册表；编辑器热更新试玩包时使用。</summary>
+        private void ReloadMods()
+        {
+            string modsDir = Path.Combine(Paths.PluginPath, "MortalModHost", "mods");
+            LoadedMods = ModLoader.ScanMods(
+                modsDir,
+                msg => Logger.LogInfo(msg),
+                msg => Logger.LogWarning(msg));
+            ModRegistry.Rebuild(LoadedMods, msg => Logger.LogWarning(msg));
+            ReadTextRegistry.Rebuild(LoadedMods, msg => Logger.LogWarning(msg));
+            try
+            {
+                ReadTextRegistry.Apply();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError("已读文本注册进 LeanLocalization 失败（mod 台词将退化为裸文本）：" + ex);
+            }
+            ReadTextRegistry.SelfCheck(msg => Logger.LogInfo(msg), msg => Logger.LogWarning(msg));
+            foreach (var mod in LoadedMods)
+                Logger.LogInfo(FormatModSummary(mod));
+            Logger.LogInfo("mod 扫描完成：成功 " + LoadedMods.Count + " 个，注册脚本 " + ModRegistry.Count + " 个。");
+        }
+
+        /// <summary>
+        /// 消费编辑器的单次试玩请求。Free 场景直接演出；Title 场景使用隔离存档开局；
+        /// 其它演出场景暂存请求，回到安全场景后自动继续。
+        /// </summary>
+        private void HandlePreviewRequest()
+        {
+            if (Time.unscaledTime < _nextPreviewPoll) return;
+            _nextPreviewPoll = Time.unscaledTime + 0.35f;
+            string pluginDir = Path.Combine(Paths.PluginPath, "MortalModHost");
+            string requestPath = Path.Combine(pluginDir, "preview-request.json");
+            if (!File.Exists(requestPath)) return;
+
+            PreviewRequest request;
+            string error;
+            if (!PreviewRequest.TryRead(requestPath, out request, out error))
+            {
+                Logger.LogWarning("试玩请求无效，已删除：" + error);
+                TryDelete(requestPath, "无效试玩请求");
+                return;
+            }
+
+            long stamp;
+            try { stamp = File.GetLastWriteTimeUtc(requestPath).Ticks; }
+            catch (IOException) { return; }
+            if (_loadedPreviewStamp != stamp)
+            {
+                ReloadMods();
+                _loadedPreviewStamp = stamp;
+                _previewWaitingScene = "";
+            }
+
+            ModPackage target = null;
+            foreach (var mod in LoadedMods)
+                if (string.Equals(mod.Id, request.ModId, StringComparison.Ordinal))
+                {
+                    target = mod;
+                    break;
+                }
+            if (target == null || !string.Equals(target.Entry, request.ScriptId, StringComparison.Ordinal))
+            {
+                Logger.LogWarning("试玩包尚未加载或入口不匹配，将继续等待：" + request.ModId + "/" + request.ScriptId);
+                return;
+            }
+
+            string scene = SceneController.Instance != null ? SceneController.Instance.CurrentScene : "";
+            if (scene == "Free")
+            {
+                Logger.LogInfo("收到编辑器试玩请求：" + request.ScriptId + "/" + request.NodeId + "（自由场景直接演出）");
+                PlayMod(target);
+                CompletePreviewRequest(requestPath, target);
+            }
+            else if (scene == "Title")
+            {
+                Logger.LogInfo("收到编辑器试玩请求：" + request.ScriptId + "/" + request.NodeId + "（隔离存档开局）");
+                StartCampaign(target);
+                CompletePreviewRequest(requestPath, target);
+            }
+            else if (!string.Equals(_previewWaitingScene, scene, StringComparison.Ordinal))
+            {
+                _previewWaitingScene = scene;
+                Logger.LogInfo("试玩请求正在等待 Title/Free 安全场景，当前场景：" + (scene.Length > 0 ? scene : "未就绪"));
+            }
+        }
+
+        private void CompletePreviewRequest(string requestPath, ModPackage package)
+        {
+            TryDelete(requestPath, "已完成试玩请求");
+            // 仅删除编辑器固定临时包；Lua、文本和图片已经加载进内存，不影响本次演出。
+            if (package.Id == "lom_modkit_preview"
+                && string.Equals(Path.GetFileName(package.PackagePath), "__lom_modkit_preview.lommod", StringComparison.OrdinalIgnoreCase))
+                TryDelete(package.PackagePath, "编辑器临时试玩包");
+            _loadedPreviewStamp = -1L;
+        }
+
+        private void TryDelete(string path, string label)
+        {
+            try
+            {
+                if (File.Exists(path)) File.Delete(path);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning("无法删除" + label + "：" + ex.Message);
+            }
         }
 
         /// <summary>

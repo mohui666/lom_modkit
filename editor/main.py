@@ -2,7 +2,7 @@
 """活侠传 Mod 剧情编辑器（PySide6）— 主窗口与入口。
 
 三栏布局：左=剧情章节与步骤，中=当前步骤属性，右=画面预览与高级编译结果。
-工具栏覆盖新手主流程（新建/打开/检查/导出/帮助）。
+工具栏只保留高频操作（新建/导入/体检/试玩/导出/帮助），其余入口在菜单。
 无论从仓库根还是 editor/ 启动，路径都基于本文件所在目录推导项目根。
 
 v4 起支持多剧情脚本管理（项目 = 多个 story + manifest，对应 .lommod 包）、
@@ -14,11 +14,12 @@ from __future__ import annotations
 import copy
 import faulthandler
 import sys
+import tempfile
 import traceback
 from pathlib import Path
 
 from PySide6.QtCore import QTimer, Qt
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtGui import QAction, QIcon, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -49,9 +50,18 @@ from PySide6.QtWidgets import (
 )
 
 from glass_theme import apply_glass_theme, mark_primary
+from game_install import (
+    PREVIEW_PACKAGE_NAME,
+    GameInstallError,
+    GameInstallManager,
+)
+from flow_graph import FlowGraphPanel
 from help_content import HELP_HTML
 import models
+from mod_manager_dialog import ModManagerDialog
 import package_io
+from preflight import PreflightIssue, apply_safe_fixes, run_preflight
+from preflight_dialog import PreflightDialog
 from lua_preview import LuaPreview, compile_story, lomc_available, get_lomc
 from node_form import NodeForm
 from preview import CRASH_LOG, StagePreview, load_preview_map, log_crash
@@ -139,7 +149,7 @@ class HelpDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("使用帮助 — 活侠传 Mod 剧情编辑器")
+        self.setWindowTitle("帮助 — 活侠传 Mod 剧情编辑器")
         self.resize(760, 620)
         layout = QVBoxLayout(self)
         browser = QTextBrowser()
@@ -456,6 +466,7 @@ class MainWindow(QMainWindow):
         self.resize(1280, 760)
 
         self.editor_data = editor_data
+        self.game_manager = GameInstallManager()
         # 多剧情项目状态：_stories = {脚本id: story dict}，story 是当前脚本的引用
         self._stories: dict[str, dict] = {}
         self._current_id = ""
@@ -489,6 +500,14 @@ class MainWindow(QMainWindow):
             src += f"；lomc 不可用（{get_lomc()[1]}）"
         if not self.stage.has_assets():
             src += "；无预览素材，使用占位图"
+        try:
+            game_dir = self.game_manager.require_game_dir()
+            if self.game_manager.bepinex_installed(game_dir):
+                src += f"；已连接游戏：{game_dir.name}"
+            else:
+                src += "；已找到游戏，尚未安装 BepInEx"
+        except GameInstallError:
+            src += "；尚未连接游戏（可在“文件 → 安装管理”中设置）"
         self.statusBar().showMessage(src)
 
     # -------------------------------------------------------------- 项目模型
@@ -535,10 +554,10 @@ class MainWindow(QMainWindow):
         story_row.addWidget(self.del_story_btn)
         lv.addLayout(story_row)
         quick_tip = QLabel(
-            "按顺序制作：添加步骤 → 填写内容 → 检查剧情 → 导出 Mod"
+            "按顺序制作：添加步骤 → 填写内容 → 体检 → 导出 Mod"
         )
         quick_tip.setWordWrap(True)
-        quick_tip.setToolTip("按 F1 随时打开完整使用帮助")
+        quick_tip.setToolTip("按 F1 随时打开完整帮助")
         lv.addWidget(quick_tip)
         props = QFormLayout()
         self.story_id_edit = QLineEdit()
@@ -609,6 +628,9 @@ class MainWindow(QMainWindow):
 
         self.right_tabs = QTabWidget()
         self.right_tabs.addTab(stage_tab, "画面预览")
+        self.flow_graph = FlowGraphPanel()
+        self.flow_graph.node_activated.connect(self._on_flow_node_activated)
+        self.right_tabs.addTab(self.flow_graph, "流程图")
         self.right_tabs.addTab(self.preview, "编译结果（高级）")
         self.right_tabs.currentChanged.connect(self._on_right_tab_changed)
 
@@ -623,6 +645,11 @@ class MainWindow(QMainWindow):
         self._preview_timer.setSingleShot(True)
         self._preview_timer.setInterval(300)
         self._preview_timer.timeout.connect(self._refresh_preview)
+
+        self._graph_timer = QTimer(self)
+        self._graph_timer.setSingleShot(True)
+        self._graph_timer.setInterval(180)
+        self._graph_timer.timeout.connect(self._refresh_flow_graph)
 
         # 撤销合并：连续编辑暂停 600ms 后提交为一步
         self._commit_timer = QTimer(self)
@@ -656,26 +683,38 @@ class MainWindow(QMainWindow):
 
     def _build_menu(self) -> None:
         menu = self.menuBar().addMenu("文件(&F)")
-        menu.addAction("新建项目", self.new_story, QKeySequence.StandardKey.New)
+        menu.addAction("新建", self.new_story, QKeySequence.StandardKey.New)
         menu.addAction(
-            "打开单个章节（story.json）…", self.open_story, QKeySequence.StandardKey.Open
+            "打开…", self.open_story, QKeySequence.StandardKey.Open
         )
         menu.addAction(
-            "保存当前章节（story.json）…", self.save_story, QKeySequence.StandardKey.Save
+            "保存", self.save_story, QKeySequence.StandardKey.Save
+        )
+        menu.addAction(
+            "另存为…",
+            self.save_story_as,
+            QKeySequence.StandardKey.SaveAs,
         )
         menu.addSeparator()
-        menu.addAction("打开 Mod（.lommod）…", self.import_lommod)
-        menu.addAction("导出 Mod（.lommod）…", self.export_lommod)
+        menu.addAction("导入 Mod…", self.import_lommod)
+        menu.addAction("导出 Mod…", self.export_lommod)
+        menu.addAction("安装管理…", self._show_mod_manager)
         menu.addSeparator()
         menu.addAction("退出", self.close)
         edit = self.menuBar().addMenu("编辑(&E)")
         edit.addAction("撤销", self._undo, QKeySequence.StandardKey.Undo)
         edit.addAction("重做", self._redo, QKeySequence.StandardKey.Redo)
+        run_menu = self.menuBar().addMenu("试玩(&R)")
+        run_menu.addAction(
+            "试玩",
+            self.play_from_current_node,
+        )
+        run_menu.addAction("流程图", self._show_flow_graph, QKeySequence("F7"))
         help_menu = self.menuBar().addMenu("帮助(&H)")
-        help_menu.addAction("使用指南", self._show_help)
+        help_menu.addAction("帮助", self._show_help)
 
     def _build_toolbar(self) -> None:
-        """只放新手主流程，减少在菜单里寻找常用动作。"""
+        """只放高频操作；流程图有专属页签、安装管理在文件菜单，不再重复占位。"""
         bar = QToolBar("常用操作", self)
         bar.setMovable(False)
         bar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
@@ -689,15 +728,21 @@ class MainWindow(QMainWindow):
             bar.addAction(action)
             return action
 
-        add("新建项目", self.new_story, "创建一段可直接检查的示例剧情")
-        add("打开 Mod", self.import_lommod, "打开已有 .lommod 继续编辑")
+        add("新建", self.new_story, "创建一段可直接检查的示例剧情")
+        add("导入 Mod", self.import_lommod, "打开已有 .lommod 继续编辑")
         bar.addSeparator()
         self.check_action = add(
-            "检查剧情", self._check_project, "检查全部章节的错误和可能问题", QKeySequence("F6")
+            "体检", self._check_project, "检查错误、断路、占位文字和图片素材", QKeySequence("F6")
+        )
+        add(
+            "试玩",
+            self.play_from_current_node,
+            "临时安装当前项目并自动从选中的步骤进入游戏（F5）",
+            QKeySequence("F5"),
         )
         export_action = add("导出 Mod", self.export_lommod, "检查并生成可安装的 .lommod")
         bar.addSeparator()
-        add("使用帮助", self._show_help, "打开快速入门、结局写法和排错说明", QKeySequence("F1"))
+        add("帮助", self._show_help, "打开快速入门、结局写法和排错说明", QKeySequence("F1"))
         self.addToolBar(bar)
         export_btn = bar.widgetForAction(export_action)
         if export_btn is not None:
@@ -707,61 +752,78 @@ class MainWindow(QMainWindow):
     def _show_help(self) -> None:
         HelpDialog(self).exec()
 
+    def _show_mod_manager(self) -> None:
+        ModManagerDialog(self.game_manager, self).exec()
+
+    def _show_flow_graph(self) -> None:
+        self._refresh_flow_graph()
+        self.right_tabs.setCurrentWidget(self.flow_graph)
+
+    def _refresh_flow_graph(self) -> None:
+        self.flow_graph.set_story(self.story, self.editor_data)
+
+    def _on_flow_node_activated(self, node_id: str) -> None:
+        row = self._node_row(node_id)
+        if row < 0:
+            return
+        self.node_list.setCurrentRow(row)
+        self.node_list.scrollToItem(self.node_list.item(row))
+        self.statusBar().showMessage(f"已定位到步骤 {node_id}", 2500)
+
     def _check_project(self) -> bool:
-        """检查全部章节，并用普通用户能照着修改的方式汇总结果。"""
-        lomc, err = get_lomc()
-        if lomc is None:
-            QMessageBox.critical(self, APP_TITLE, f"无法检查剧情：编译器不可用\n{err}")
-            return False
-
-        errors: list[tuple[str, str]] = []
-        warnings: list[str] = []
-        story_ids = set(self._stories)
-        for sid in sorted(self._stories):
-            story = self._stories[sid]
-            local_warnings: list[str] = []
-            try:
-                lomc.validate_story(story, f"章节 {sid}", local_warnings)
-            except Exception as exc:
-                errors.append((sid, str(exc)))
-                continue
-            warnings.extend(f"{sid}：{item}" for item in local_warnings)
-            for node in story.get("nodes", []):
-                target = node.get("next_script") if node.get("type") == "end" else None
-                if target and target not in story_ids:
-                    errors.append(
-                        (sid, f'步骤 {node.get("id", "?")} 的“下一章节”{target!r} 不存在')
-                    )
-
-        if errors:
-            first_sid = errors[0][0]
-            if first_sid in self._stories and first_sid != self._current_id:
-                self._current_id = first_sid
-                self._refresh_all()
-            body = "\n\n".join(message for _sid, message in errors[:10])
-            if len(errors) > 10:
-                body += f"\n\n另有 {len(errors) - 10} 个错误，请先修改以上问题后再次检查。"
-            QMessageBox.critical(self, "剧情需要修改", body)
-            self.statusBar().showMessage(f"检查完成：发现 {len(errors)} 个错误", 5000)
-            return False
-
-        if warnings:
-            body = "\n\n".join(warnings[:10])
-            if len(warnings) > 10:
-                body += f"\n\n另有 {len(warnings) - 10} 条提醒。"
-            QMessageBox.warning(
-                self,
-                "剧情可以导出，但建议确认",
-                f"已检查 {len(self._stories)} 个章节，没有阻止导出的错误。\n\n{body}",
+        """打开可定位、可保守修复的体检报告。"""
+        self._flush_pending()
+        issues = self._preflight_issues()
+        dialog = PreflightDialog(
+            issues,
+            self._locate_preflight_issue,
+            self._apply_preflight_fixes,
+            self,
+        )
+        dialog.exec()
+        remaining_errors = sum(issue.severity == "error" for issue in dialog.issues)
+        if remaining_errors:
+            self.statusBar().showMessage(
+                f"体检完成：还有 {remaining_errors} 个错误需要修改", 5000
             )
-        else:
-            QMessageBox.information(
-                self,
-                "剧情检查通过",
-                f"已检查 {len(self._stories)} 个章节，没有发现错误或提醒。\n可以继续导出 Mod。",
-            )
-        self.statusBar().showMessage("剧情检查通过，可以导出 Mod", 5000)
+            return False
+        self.statusBar().showMessage("体检通过，可以导出 Mod", 5000)
         return True
+
+    def _preflight_issues(self) -> list[PreflightIssue]:
+        entry = self.manifest_base.get("entry") or self.manifest.get("entry")
+        if entry not in self._stories:
+            entry = self._current_id
+        return run_preflight(self._stories, self.editor_data, str(entry))
+
+    def _locate_preflight_issue(self, issue: PreflightIssue) -> None:
+        if issue.story_id not in self._stories:
+            return
+        self._current_id = issue.story_id
+        row = 0
+        if issue.node_id:
+            for index, node in enumerate(self.story.get("nodes", [])):
+                if node.get("id") == issue.node_id:
+                    row = index
+                    break
+        self._refresh_all(select_row=row)
+        self.node_list.setFocus()
+        self.statusBar().showMessage(
+            f"已定位：章节 {issue.story_id} / 步骤 {issue.node_id or '剧情设置'}",
+            5000,
+        )
+
+    def _apply_preflight_fixes(self) -> tuple[list[str], list[PreflightIssue]]:
+        before = self._snapshot()
+        fixes = apply_safe_fixes(self._stories, self.editor_data)
+        if fixes:
+            self._flush_pending()
+            self._undo_stack.append((before, self._current_id))
+            self._trim_undo()
+            self._redo_stack.clear()
+            self._refresh_all(select_row=max(0, self.node_list.currentRow()))
+            self._set_dirty(True)
+        return fixes, self._preflight_issues()
 
     # -------------------------------------------------------------- 刷新
     def _refresh_all(self, select_row: int = 0) -> None:
@@ -778,6 +840,7 @@ class MainWindow(QMainWindow):
             self._loading = False
         self._load_form()
         self._refresh_stage()
+        self._refresh_flow_graph()
         self._schedule_preview()
         self._prev_snapshot = self._snapshot()
         self._set_dirty(self._stories != self._saved_snapshot)
@@ -1179,6 +1242,7 @@ class MainWindow(QMainWindow):
         self.story["start"] = text
         self._prev_snapshot = self._snapshot()
         self._refresh_stage()  # 推演起点变了
+        self._graph_timer.start()
         self._schedule_preview()
 
     def _on_story_mood_changed(self, checked: bool) -> None:
@@ -1199,7 +1263,77 @@ class MainWindow(QMainWindow):
         self._reload_node_list()
         self._reload_start_combo_keep()
         self._refresh_stage()
+        self._graph_timer.start()
         self._schedule_preview()
+
+    # -------------------------------------------------------------- 一键试玩
+    def play_from_current_node(self) -> bool:
+        """临时打包、安装并请求运行时从当前步骤进入游戏。"""
+        self._flush_pending()
+        node = self._current_node()
+        if node is None:
+            QMessageBox.warning(self, APP_TITLE, "请先在左侧选择一个剧情步骤。")
+            return False
+        errors = [issue for issue in self._preflight_issues() if issue.severity == "error"]
+        if errors:
+            dialog = PreflightDialog(
+                self._preflight_issues(),
+                self._locate_preflight_issue,
+                self._apply_preflight_fixes,
+                self,
+            )
+            dialog.exec()
+            self.statusBar().showMessage("试玩已停止：请先修复体检中的错误", 5000)
+            return False
+
+        node_id = str(node.get("id") or "")
+        script_id = self._current_id
+        stories = copy.deepcopy(self._stories)
+        stories[script_id]["start"] = node_id
+        preview_id = "lom_modkit_preview"
+        title = str(self.story.get("title") or script_id)
+        manifest = {
+            "format": 1,
+            "id": preview_id,
+            "name": f"编辑器临时试玩：{title}",
+            "version": "0.0.0-preview",
+            "author": "lom_modkit",
+            "description": f"从 {script_id}/{node_id} 开始的临时测试包",
+            "entry": script_id,
+            "campaign": {
+                "new_game": True,
+                "disable_official_events": True,
+            },
+        }
+        try:
+            game_dir = self.game_manager.require_game_dir()
+            self.game_manager.validate_bepinex(game_dir)
+            was_running = self.game_manager.is_game_running()
+            _runtime_path, runtime_changed = self.game_manager.install_runtime()
+            with tempfile.TemporaryDirectory(prefix="lom_modkit_preview_") as tmp:
+                package = Path(tmp) / PREVIEW_PACKAGE_NAME
+                package_io.export_lommod(package, manifest, stories)
+                self.game_manager.install_mod(package, enabled=True)
+            self.game_manager.request_preview(preview_id, script_id, node_id)
+            started = self.game_manager.launch_game()
+        except (GameInstallError, package_io.PackError, OSError) as exc:
+            QMessageBox.critical(self, APP_TITLE, f"无法开始试玩：{exc}")
+            return False
+
+        if runtime_changed and was_running:
+            QMessageBox.information(
+                self,
+                "试玩已经准备好",
+                "运行时刚刚更新，但当前游戏仍加载着旧版本。\n\n"
+                "请完整退出游戏后重新启动；启动后会自动进入这个步骤。",
+            )
+            message = "试玩已准备：请重启游戏，随后会自动进入选中步骤"
+        elif started:
+            message = f"游戏正在启动，将自动进入 {script_id}/{node_id}"
+        else:
+            message = f"试玩请求已发送，将在游戏进入标题或自由场景后跳到 {script_id}/{node_id}"
+        self.statusBar().showMessage(message, 10000)
+        return True
 
     def _reload_start_combo_keep(self) -> None:
         """节点 id 可能变了，刷新起始节点下拉框但保留选择。"""
@@ -1236,7 +1370,7 @@ class MainWindow(QMainWindow):
         if not self._confirm_discard():
             return
         path, _ = QFileDialog.getOpenFileName(
-            self, "打开 story.json", str(WORK_DIR), "story JSON (*.json)"
+            self, "打开", str(WORK_DIR), "story JSON (*.json)"
         )
         if not path:
             return
@@ -1248,6 +1382,7 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             QMessageBox.critical(self, APP_TITLE, f"打开失败：{exc}")
             return
+        repaired = models.normalize_character_ids([story], self.editor_data)
         self._stories = {story["id"]: story}
         self._current_id = story["id"]
         self.manifest = {}
@@ -1259,25 +1394,39 @@ class MainWindow(QMainWindow):
         self._pending_before = None
         self._commit_timer.stop()
         self._refresh_all()
-        self.statusBar().showMessage(f"已打开 {path}", 3000)
+        if repaired:
+            self._set_dirty(True)
+        repair_note = f"；已自动修复 {repaired} 个人物内部 ID" if repaired else ""
+        self.statusBar().showMessage(f"已打开 {path}{repair_note}", 5000)
 
     def save_story(self) -> bool:
-        """保存当前剧情脚本为 story.json（多剧情时只保存当前脚本）。"""
-        path = str(self.story_path) if self.story_path else ""
+        """Ctrl+S：已有路径直接覆盖；第一次保存才询问路径。"""
+        path = self.story_path
+        if path is None:
+            return self.save_story_as()
+        return self._write_current_story(path)
+
+    def save_story_as(self) -> bool:
+        """另存为当前章节；无论是否已有路径都显示文件选择框。"""
+        current = str(self.story_path) if self.story_path else ""
         path, _ = QFileDialog.getSaveFileName(
             self,
-            "保存 story.json",
-            path or str(WORK_DIR / f"{self._current_id}.json"),
+            "另存为",
+            current or str(WORK_DIR / f"{self._current_id}.json"),
             "story JSON (*.json)",
         )
         if not path:
             return False
+        return self._write_current_story(Path(path))
+
+    def _write_current_story(self, path: Path) -> bool:
+        """写入已确定的路径，不弹出对话框。"""
         try:
-            models.save_story(self.story, Path(path))
+            models.save_story(self.story, path)
         except Exception as exc:
             QMessageBox.critical(self, APP_TITLE, f"保存失败：{exc}")
             return False
-        self._story_paths[self._current_id] = Path(path)
+        self._story_paths[self._current_id] = path
         self._mark_saved()
         self.statusBar().showMessage(f"已保存 {path}", 3000)
         return True
@@ -1286,7 +1435,7 @@ class MainWindow(QMainWindow):
         if not self._confirm_discard():
             return
         path, _ = QFileDialog.getOpenFileName(
-            self, "导入 .lommod", str(WORK_DIR), "LoM Mod 包 (*.lommod)"
+            self, "导入 Mod", str(WORK_DIR), "LoM Mod 包 (*.lommod)"
         )
         if not path:
             return
@@ -1297,6 +1446,7 @@ class MainWindow(QMainWindow):
             return
         # 包内全部剧情进项目（键以 story 内部 id 为准）
         self._stories = {str(st.get("id") or s): st for s, st in stories.items()}
+        repaired = models.normalize_character_ids(self._stories, self.editor_data)
         entry = manifest.get("entry")
         self._current_id = entry if entry in self._stories else sorted(self._stories)[0]
         self.manifest = manifest
@@ -1308,6 +1458,8 @@ class MainWindow(QMainWindow):
         self._pending_before = None
         self._commit_timer.stop()
         self._refresh_all()
+        if repaired:
+            self._set_dirty(True)
         extra = (
             ""
             if len(self._stories) == 1
@@ -1315,12 +1467,46 @@ class MainWindow(QMainWindow):
         )
         if manifest.get("campaign"):
             extra += "（含战役 campaign 配置）"
+        if repaired:
+            extra += f"（已自动修复 {repaired} 个人物内部 ID）"
         self.statusBar().showMessage(
             f"已导入 {manifest.get('name', manifest.get('id'))}{extra}", 5000
         )
 
     def export_lommod(self) -> bool:
         """导出 .lommod：包内全部剧情脚本 + manifest；成功返回 True。"""
+        self._flush_pending()
+        issues = self._preflight_issues()
+        errors = [issue for issue in issues if issue.severity == "error"]
+        if errors:
+            dialog = PreflightDialog(
+                issues,
+                self._locate_preflight_issue,
+                self._apply_preflight_fixes,
+                self,
+            )
+            dialog.exec()
+            errors = [
+                issue for issue in self._preflight_issues() if issue.severity == "error"
+            ]
+            if errors:
+                self.statusBar().showMessage(
+                    f"导出已停止：请先处理 {len(errors)} 个体检错误", 5000
+                )
+                return False
+            issues = self._preflight_issues()
+        warnings = [issue for issue in issues if issue.severity == "warning"]
+        if warnings:
+            answer = QMessageBox.question(
+                self,
+                "发布前还有提醒",
+                f"体检没有发现错误，但还有 {len(warnings)} 条提醒。\n\n"
+                "建议先打开“体检”逐条确认。仍然继续导出吗？",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return False
         dlg = ManifestDialog(
             self._current_id,
             self.editor_data,
@@ -1340,7 +1526,7 @@ class MainWindow(QMainWindow):
             return False
         path, _ = QFileDialog.getSaveFileName(
             self,
-            "导出 .lommod",
+            "导出 Mod",
             str(WORK_DIR / f"{manifest['id']}.lommod"),
             "LoM Mod 包 (*.lommod)",
         )
@@ -1355,8 +1541,27 @@ class MainWindow(QMainWindow):
         self.manifest_base = manifest  # 导出成功后回填，下次导出保留 campaign 等配置
         self._saved_snapshot = self._snapshot()
         self._set_dirty(False)
+        install_note = ""
+        if self.game_manager.load_game_dir() is not None:
+            try:
+                installed = self.game_manager.install_mod(Path(path), enabled=True)
+                install_note = (
+                    f"\n\n已自动安装并启用：{installed}\n重启游戏后生效。"
+                )
+            except GameInstallError as exc:
+                install_note = (
+                    "\n\nMod 已成功导出，但自动安装失败："
+                    f"{exc}\n可在“安装管理”中修复游戏目录后重试。"
+                )
+        else:
+            install_note = (
+                "\n\n尚未连接游戏，因此只生成了文件。"
+                "在“文件 → 安装管理”配置一次后，以后导出会自动安装。"
+            )
         QMessageBox.information(
-            self, APP_TITLE, f"导出成功：{path}\n\n" + "\n".join(report)
+            self,
+            APP_TITLE,
+            f"导出成功：{path}\n\n" + "\n".join(report) + install_note,
         )
         self.statusBar().showMessage(f"已导出 {path}", 5000)
         return True
@@ -1377,6 +1582,14 @@ def main() -> int:
         smoke_preview = Path(args[at + 1])
         del args[at : at + 2]
     app = QApplication(args)
+    app.setApplicationName("活侠传 Mod 剧情编辑器")
+    app.setOrganizationName("lom_modkit")
+    icon_base = (
+        Path(getattr(sys, "_MEIPASS")) if models.FROZEN else EDITOR_DIR
+    )
+    icon_path = icon_base / "assets" / "lom_editor_icon.png"
+    if icon_path.is_file():
+        app.setWindowIcon(QIcon(str(icon_path)))
     apply_glass_theme(app)  # 纯样式注入：不改任何控件行为
     editor_data, is_fallback = models.load_editor_data(PROJECT_ROOT)
     win = MainWindow(editor_data, is_fallback)
@@ -1387,9 +1600,21 @@ def main() -> int:
         win._preview_timer.stop()
         win._refresh_preview()
         preview_text = win.preview.toPlainText()
-        preview_ok = preview_text.startswith("-- Generated by lomc") and " = function()" in preview_text
+        resource_ok = (
+            win.game_manager.runtime_dll.is_file()
+            and icon_path.is_file()
+            and (icon_base / "assets" / "combo_arrow.svg").is_file()
+        )
+        preview_ok = (
+            preview_text.startswith("-- Generated by lomc")
+            and " = function()" in preview_text
+            and resource_ok
+        )
         if not preview_ok:
-            log_crash("冻结版 Lua 预览自检失败：\n" + preview_text)
+            log_crash(
+                "冻结版 Lua 预览/安装资源自检失败"
+                f"（resource_ok={resource_ok}）：\n" + preview_text
+            )
         QTimer.singleShot(0, lambda: app.exit(0 if preview_ok else 3))
     elif smoke_exit:
         QTimer.singleShot(1500, app.quit)

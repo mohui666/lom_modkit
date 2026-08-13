@@ -13,6 +13,9 @@ Qt Widgets 无真实背景模糊（backdrop-filter），这里用 QSS 渐变底 
 """
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication, QWidget
 
@@ -34,6 +37,13 @@ ACCENT = "#0a84ff"  # 系统蓝（深色外观）
 ACCENT_BORDER = "rgba(96, 168, 255, 200)"
 ACCENT_FILL = "rgba(10, 132, 255, 72)"  # 选中/勾选态染色玻璃
 DANGER_TEXT = "#ff6b61"  # 编译错误红字（深色背景可读版）
+
+_ASSET_ROOT = (
+    Path(getattr(sys, "_MEIPASS"))
+    if getattr(sys, "frozen", False)
+    else Path(__file__).resolve().parent
+)
+COMBO_ARROW = (_ASSET_ROOT / "assets" / "combo_arrow.svg").as_posix()
 
 QSS = f"""
 /* ========== 基底：窗体深色渐变，子控件默认透明让玻璃叠在渐变上 ========== */
@@ -177,21 +187,28 @@ QComboBox {{
     padding: 5px 9px;
     selection-background-color: rgba(10, 132, 255, 120);
 }}
+QComboBox {{
+    padding-right: 34px;
+}}
 QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus, QTextBrowser:focus,
 QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {{
     border-color: {ACCENT_BORDER};
 }}
 QComboBox::drop-down {{
     border: none;
-    width: 26px;
+    border-left: 1px solid {CONTENT_BORDER};
+    width: 30px;
+    background: rgba(255, 255, 255, 8);
+    border-top-right-radius: 8px;
+    border-bottom-right-radius: 8px;
+}}
+QComboBox::drop-down:hover {{
+    background: {GLASS_FILL_HOVER};
 }}
 QComboBox::down-arrow {{
-    width: 0;
-    height: 0;
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-top: 6px solid {TEXT_SECONDARY};
-    margin-right: 10px;
+    image: url({COMBO_ARROW});
+    width: 12px;
+    height: 8px;
 }}
 QComboBox QAbstractItemView {{
     background: {SURFACE_RAISED};

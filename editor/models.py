@@ -17,6 +17,7 @@ from pathlib import Path
 ID_PATTERN = re.compile(r"^[a-zA-Z0-9_\-]+$")
 # manifest mod id 比 story id 更严格：运行时注册名与包格式只接受小写。
 MOD_ID_PATTERN = re.compile(r"^[a-z0-9_\-]+$")
+CHARACTER_DISPLAY_PATTERN = re.compile(r"^.*（([a-zA-Z0-9_\-]+)）$")
 
 # ---------------------------------------------------------------------------
 # 节点类型中文名（契约 §3.1 全量 43 种）
@@ -73,6 +74,7 @@ COMMON_NODE_TYPES: list[str] = [
     "say",
     "show",
     "hide",
+    "intro",
     "scene",
     "choice",
     "dice",
@@ -92,6 +94,7 @@ NODE_HELP: dict[str, str] = {
     "goto_scene": "离开当前剧情并进入战斗、标题、死亡或汗青书结局等场景。",
     "end": "结束当前章节。留空“下一章节”时回到自由模式。",
     "death": "显示官方样式的死亡画面。正文必填，专用编号使用 900000 以上。",
+    "intro": "官方人物会直接使用游戏内介绍和头像；自定义人物可填写称号、姓名与正文。",
     "raw": "高级功能：代码会原样进入 Lua。普通剧情不需要使用。",
 }
 
@@ -205,6 +208,10 @@ ENUM_SETS: dict[str, list[tuple[str, str]]] = {
     # 原版 GameOverController 的按钮固定为“读档 / 标题画面”，没有自定义去向。
     # 保留该枚举名供旧 JSON 兼容，但编辑器只提供真实有效的 Title。
     "death_next": [("Title", "标题画面")],
+    "intro_source": [
+        ("official", "使用原版人物资料"),
+        ("custom", "自定义人物资料"),
+    ],
     "panel": [
         ("martial", "武学面板"),
         ("weapon", "武器强化"),
@@ -218,7 +225,7 @@ ENUM_SETS: dict[str, list[tuple[str, str]]] = {
     ],
 }
 # 切换后需要重建表单的枚举（其它字段或可见字段随它变化）
-REBUILD_ENUMS = {"item_kind", "goto_scene", "mode"}
+REBUILD_ENUMS = {"item_kind", "goto_scene", "mode", "intro_source"}
 
 # say mode 中文标注（清单本身来自 editor_data.modes）
 MODE_CN = {
@@ -352,7 +359,17 @@ NODE_SCHEMAS: dict[str, dict] = {
     },
     "intro": {
         "label": "人物介绍卡",
-        "fields": [("character", "人物", "character", False)],
+        "fields": [
+            ("intro_source", "资料来源", "enum:intro_source", False),
+            ("character", "原版人物", "affinity_character", False),
+            ("title", "人物称号", "line", True),
+            ("name", "人物姓名", "line", False),
+            ("text", "人物介绍", "multiline", False),
+            ("image", "人物图片", "intro_image", True),
+            ("image_scale", "图片大小", "percent_scale", True),
+            ("image_x", "左右微调", "percent_offset", True),
+            ("image_y", "上下微调", "percent_offset", True),
+        ],
     },
     "effect": {
         "label": "屏幕特效",
@@ -605,7 +622,17 @@ _NODE_DEFAULTS: dict[str, dict] = {
     },
     "shock": {"character": "", "duration": 0.5},
     "mask": {"show": True},
-    "intro": {"character": ""},
+    "intro": {
+        "intro_source": "official",
+        "character": "",
+        "title": "",
+        "name": "",
+        "text": "",
+        "image": "",
+        "image_scale": 100,
+        "image_x": 0,
+        "image_y": 0,
+    },
     "effect": {"name": "", "x": 0, "y": 0, "a": 1, "b": 1, "c": 1, "play": True},
     "transition": {"phase": "in", "dir": "lr"},
     "camera": {"name": "stage-memory", "active": True},
@@ -697,7 +724,7 @@ FALLBACK_EDITOR_DATA: dict = {
     "items_misc": [],
     "items_special": [],
     "messages": [],
-    "affinity_characters": ["player", "brother4", "trainee1"],
+    "affinity_characters": ["sister1", "brother1", "brother4"],
 }
 
 FACING_OPTIONS = ["left", "right"]
@@ -748,6 +775,36 @@ def list_items(editor_data: dict, key: str) -> list[tuple[str, str]]:
     if not isinstance(items, list):
         return []
     return [(entry_id(e), entry_display(e)) for e in items]
+
+
+def affinity_character_items(editor_data: dict) -> list[tuple[str, str]]:
+    """原版人物介绍卡支持的 RelationshipStatType 人物清单。"""
+    result = []
+    for entry in editor_data.get("affinity_characters") or []:
+        char_id = entry_id(entry)
+        name = character_name(editor_data, char_id)
+        display = char_id if name == char_id else f"{name}（{char_id}）"
+        result.append((char_id, display))
+    return result
+
+
+def normalize_character_ids(stories, editor_data: dict) -> int:
+    """修复旧编辑器误存的“名称（内部ID）”人物值，返回修复数量。"""
+    valid_ids = {
+        entry_id(entry) for entry in editor_data.get("characters") or [] if entry_id(entry)
+    }
+    changed = 0
+    iterable = stories.values() if isinstance(stories, dict) else stories
+    for story in iterable:
+        for node in story.get("nodes") or []:
+            value = node.get("character")
+            if not isinstance(value, str):
+                continue
+            match = CHARACTER_DISPLAY_PATTERN.fullmatch(value.strip())
+            if match and match.group(1) in valid_ids:
+                node["character"] = match.group(1)
+                changed += 1
+    return changed
 
 
 def dice_check_items(editor_data: dict) -> list[tuple[str, str]]:
@@ -862,6 +919,9 @@ def new_node(node_type: str, node_id: str, editor_data: dict | None = None) -> d
     for key, _label, kind, _opt in NODE_SCHEMAS[node_type]["fields"]:
         if kind == "character" and not node.get(key):
             node[key] = default_char
+        elif kind == "affinity_character" and not node.get(key):
+            affinity = affinity_character_items(editor_data or {})
+            node[key] = affinity[0][0] if affinity else ""
     return node
 
 
@@ -981,7 +1041,9 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
     if t == "mask":
         return f"{tcn}·{'开' if node.get('show') else '关'}"
     if t == "intro":
-        return f"{tcn}·{cname()}"
+        if node.get("intro_source", "official") == "custom":
+            return f"{tcn}·自定义·{node.get('name') or '未填写姓名'}"
+        return f"{tcn}·原版·{cname()}"
     if t == "effect":
         name = node.get("name", "")
         return f"{tcn}·{name}" + ("（停止）" if node.get("play") is False else "")

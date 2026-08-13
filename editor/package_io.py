@@ -9,14 +9,31 @@
 from __future__ import annotations
 
 import json
+import shutil
 import zipfile
 from pathlib import Path
 
+from asset_store import AssetStoreError, resolve_image_asset, store_image_bytes
 from lua_preview import compile_story, get_lomc
 
 
 class PackError(Exception):
     """导入/导出失败，message 面向用户可读。"""
+
+
+def _referenced_images(stories: dict[str, dict]) -> set[str]:
+    refs: set[str] = set()
+    for story in stories.values():
+        for node in story.get("nodes") or []:
+            image = node.get("image")
+            if not image:
+                continue
+            if (
+                node.get("type") == "intro"
+                and node.get("intro_source", "official") == "custom"
+            ) or (node.get("type") == "goto_scene" and node.get("scene") == "End"):
+                refs.add(str(image).replace("\\", "/"))
+    return refs
 
 
 def _read_json_from_zip(zf: zipfile.ZipFile, name: str) -> dict:
@@ -50,6 +67,26 @@ def import_lommod(path: str | Path) -> tuple[dict, dict[str, dict]]:
                 stories[story_id] = story
         if not stories:
             raise PackError("包内没有 story/*.json（契约要求 ≥1）")
+        asset_map: dict[str, str] = {}
+        for name in zf.namelist():
+            normalized = name.replace("\\", "/")
+            if not normalized.startswith("assets/") or normalized.endswith("/"):
+                continue
+            if Path(normalized).suffix.lower() not in (".png", ".jpg", ".jpeg"):
+                continue
+            try:
+                replacement, _stored = store_image_bytes(
+                    Path(normalized).name, zf.read(name)
+                )
+            except (AssetStoreError, OSError, KeyError) as exc:
+                raise PackError(f"无法导入包内图片 {normalized}：{exc}") from exc
+            asset_map[normalized] = replacement
+        if asset_map:
+            for story in stories.values():
+                for node in story.get("nodes") or []:
+                    image = str(node.get("image") or "").replace("\\", "/")
+                    if image in asset_map:
+                        node["image"] = asset_map[image]
     return manifest, stories
 
 
@@ -65,6 +102,14 @@ def export_lommod(
     path = Path(path)
     manifest = dict(manifest)
     manifest.setdefault("format", 1)
+    asset_sources: dict[str, Path] = {}
+    for rel in sorted(_referenced_images(stories)):
+        source = resolve_image_asset(rel)
+        if source is None:
+            raise PackError(
+                f"找不到图片 {rel}。请在对应步骤中点击“选择图片…”重新选择。"
+            )
+        asset_sources[rel] = source
 
     lomc, _err = get_lomc()
     if lomc is not None and hasattr(lomc, "pack_mod"):
@@ -83,6 +128,10 @@ def export_lommod(
                     json.dumps(story, ensure_ascii=False, indent=2) + "\n",
                     encoding="utf-8",
                 )
+            for rel, source in sorted(asset_sources.items()):
+                target = tmp_path / Path(rel)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, target)
             try:
                 lomc.pack_mod(str(tmp_path), output=str(path))
             except Exception as exc:
@@ -114,4 +163,6 @@ def export_lommod(
             )
         for sid, lua in compiled.items():
             zf.writestr(f"lua/{sid}.lua", lua)
+        for rel, source in sorted(asset_sources.items()):
+            zf.write(source, rel)
     return [f"{sid}.json → lua/{sid}.lua 编译成功" for sid in stories]

@@ -8,9 +8,11 @@
 from __future__ import annotations
 
 import copy
+import json
 import os
 import sys
 import tempfile
+import zipfile
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -19,7 +21,7 @@ EDITOR_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(EDITOR_DIR))
 
 from PySide6.QtCore import QTimer  # noqa: E402  # type: ignore[reportMissingImports]
-from PySide6.QtWidgets import QApplication, QMessageBox  # noqa: E402  # type: ignore[reportMissingImports]
+from PySide6.QtWidgets import QApplication, QComboBox, QMessageBox  # noqa: E402  # type: ignore[reportMissingImports]
 
 import main  # noqa: E402
 import models  # noqa: E402
@@ -39,18 +41,64 @@ def main_fn() -> int:
 
     # 新手主流程：工具栏、内置帮助、项目检查都必须离线可用。
     toolbar_texts = [a.text() for bar in win.findChildren(main.QToolBar) for a in bar.actions()]
-    for label in ("新建项目", "打开 Mod", "检查剧情", "导出 Mod", "使用帮助"):
+    for label in (
+        "新建",
+        "导入 Mod",
+        "体检",
+        "试玩",
+        "导出 Mod",
+        "帮助",
+    ):
         assert label in toolbar_texts, f"工具栏缺少 {label}"
     help_dlg = main.HelpDialog(win)
     help_text = help_dlg.findChild(main.QTextBrowser).toPlainText()
     assert "五分钟做出第一段剧情" in help_text and "汗青书结局怎么写" in help_text
     help_dlg.close()
-    original_info = main.QMessageBox.information
+    manager_dlg = main.ModManagerDialog(win.game_manager, win)
+    manager_buttons = [
+        button.text() for button in manager_dlg.findChildren(main.QPushButton)
+    ]
+    assert any("BepInEx" in text for text in manager_buttons), (
+        "安装管理器缺少一键安装 BepInEx 按钮"
+    )
+    manager_dlg.close()
+    original_save_dialog = main.QFileDialog.getSaveFileName
     try:
-        main.QMessageBox.information = lambda *args, **kwargs: None
+        with tempfile.TemporaryDirectory() as save_tmp:
+            save_target = Path(save_tmp) / "first-save.json"
+            save_dialog_calls = []
+
+            def choose_save_path(*_args, **_kwargs):
+                save_dialog_calls.append(True)
+                return str(save_target), "story JSON (*.json)"
+
+            main.QFileDialog.getSaveFileName = choose_save_path
+            win.story_path = None
+            assert win.save_story() and save_target.is_file()
+            win.story["title"] = "第二次直接保存"
+            assert win.save_story()
+            assert len(save_dialog_calls) == 1, "第二次 Ctrl+S 不应再次弹出路径选择"
+            assert models.load_story(save_target)["title"] == "第二次直接保存"
+    finally:
+        main.QFileDialog.getSaveFileName = original_save_dialog
+    original_preflight_exec = main.PreflightDialog.exec
+    try:
+        main.PreflightDialog.exec = lambda _self: 0
         assert win._check_project(), "默认新手项目应直接通过剧情检查"
     finally:
-        main.QMessageBox.information = original_info
+        main.PreflightDialog.exec = original_preflight_exec
+    report = win._preflight_issues()
+    assert any(issue.code == "placeholder_text" for issue in report), (
+        "发布前体检应提醒新手模板中的占位文字"
+    )
+    report_dlg = main.PreflightDialog(
+        report,
+        win._locate_preflight_issue,
+        win._apply_preflight_fixes,
+        win,
+    )
+    assert report_dlg.table.rowCount() == len(report), "体检报告应完整显示问题"
+    report_dlg.close()
     assert not main.NodeForm._field_visible(
         "say", "character", {"mode": "narrative"}
     ), "旁白不应显示无效人物字段"
@@ -63,6 +111,50 @@ def main_fn() -> int:
     assert not main.NodeForm._field_visible(
         "death", "next", {"type": "death"}
     ), "死亡画面不应显示无效 next 字段"
+    assert main.NodeForm._field_visible(
+        "intro", "character", {"intro_source": "official"}
+    ), "原版介绍卡应显示原版人物选择"
+    assert not main.NodeForm._field_visible(
+        "intro", "name", {"intro_source": "official"}
+    ), "原版介绍卡不应要求重复填写姓名"
+    assert main.NodeForm._field_visible(
+        "intro", "name", {"intro_source": "custom"}
+    ), "自定义介绍卡应显示姓名字段"
+    assert main.NodeForm._field_visible(
+        "intro", "image", {"intro_source": "custom"}
+    ), "自定义介绍卡应显示人物图片选择"
+    assert main.NodeForm._field_visible(
+        "intro", "image_scale", {"intro_source": "custom"}
+    ), "自定义介绍卡应显示图片缩放"
+    assert main.NodeForm._field_visible(
+        "intro", "image_x", {"intro_source": "custom"}
+    ), "自定义介绍卡应显示图片位置微调"
+    assert not main.NodeForm._field_visible(
+        "intro", "character", {"intro_source": "custom"}
+    ), "自定义介绍卡不应显示无效的原版人物字段"
+    combo_node = {
+        "id": "combo_character",
+        "type": "show",
+        "character": "brother4",
+        "position": "LB2",
+        "portrait": "normal",
+        "facing": "right",
+        "fadeDuration": 0,
+        "moveDuration": 0,
+    }
+    combo_form = main.NodeForm()
+    combo_form.set_context(editor_data, ["combo_character"])
+    combo_form.set_node(combo_node)
+    character_combo = next(
+        combo
+        for combo in combo_form.findChildren(QComboBox)
+        if combo.findData("chicken1") >= 0
+    )
+    character_combo.setCurrentIndex(character_combo.findData("chicken1"))
+    app.processEvents()
+    assert combo_node["character"] == "chicken1", (
+        "人物下拉必须保存内部 ID，不能保存“鸡（chicken1）”显示文字"
+    )
     print(
         f"[1] 主窗口/新手流程 OK（{'兜底数据' if is_fallback else 'editor_data.json'}，"
         f"节点数={win.node_list.count()}，内置帮助与检查可用）"
@@ -98,8 +190,6 @@ def main_fn() -> int:
     print(f"[3] 切换节点类型 OK（choice → branch，summary={summary!r}）")
 
     # branch.source 切换：game → mod 时非法 value/超行被归一（契约：仅 1/2、≤2 行）
-    from PySide6.QtWidgets import QComboBox  # type: ignore[reportMissingImports]
-
     branch["source"] = "game"
     branch["cases"] = [
         {"value": 7, "goto": "n1"},
@@ -451,7 +541,7 @@ def main_fn() -> int:
 
     # 渲染：主窗口载入 demo，逐节点渲染不崩
     win._load_story_path(demo_path)
-    assert win.right_tabs.count() == 2, "右栏应为演出预览/Lua 两个页签"
+    assert win.right_tabs.count() == 3, "右栏应为演出预览/剧情流程图/Lua 三个页签"
     for nid in ("n1", "n2", "n7", "n11", "n23"):
         row = win._node_row(nid)
         win.node_list.setCurrentRow(row)
@@ -463,13 +553,77 @@ def main_fn() -> int:
     assert preview_text.startswith("-- Generated by lomc") and " = function()" in preview_text, (
         "切到 Lua 页应立即产生真实编译预览，而不是等待定时器或保持空白"
     )
-    print("[11] 主窗口集成 OK（演出预览/Lua 立即编译、选中刷新、paintEvent 无异常）")
+    win.right_tabs.setCurrentWidget(win.flow_graph)
+    graph = win.flow_graph.set_story(win.story, editor_data)
+    app.processEvents()
+    assert graph.node_order and not graph.dead_ends, "demo 流程图应包含节点且没有断路"
+    assert win.flow_graph.view.scene().items(), "流程图场景不应为空"
+    win.flow_graph.node_activated.emit("n11")
+    assert win._current_node()["id"] == "n11", "点击流程图节点应定位左侧步骤"
+    print("[11] 主窗口集成 OK（演出预览/流程图/Lua 立即编译、选中刷新、paintEvent 无异常）")
+
+    # F5 一键试玩：用假的游戏管理器截获临时包，验证真正从选中节点重写 start。
+    class FakeGameManager:
+        def __init__(self):
+            self.manifest = None
+            self.stories = {}
+            self.request = None
+
+        def require_game_dir(self):
+            return Path("C:/fake/LegendOfMortal")
+
+        def validate_bepinex(self, _root):
+            return None
+
+        def is_game_running(self):
+            return False
+
+        def install_runtime(self):
+            return Path("C:/fake/MortalModHost.dll"), False
+
+        def install_mod(self, package, enabled=True):
+            assert enabled
+            with zipfile.ZipFile(package) as archive:
+                self.manifest = json.loads(archive.read("manifest.json"))
+                for name in archive.namelist():
+                    if name.startswith("story/") and name.endswith(".json"):
+                        self.stories[Path(name).stem] = json.loads(archive.read(name))
+            return Path("C:/fake/__lom_modkit_preview.lommod")
+
+        def request_preview(self, mod_id, script_id, node_id):
+            self.request = (mod_id, script_id, node_id)
+            return Path("C:/fake/preview-request.json")
+
+        def launch_game(self):
+            return True
+
+    old_manager = win.game_manager
+    fake_manager = FakeGameManager()
+    win.game_manager = fake_manager
+    win._stories["second"] = {
+        "id": "second",
+        "title": "试玩收尾",
+        "start": "end1",
+        "nodes": [{"id": "end1", "type": "end"}],
+    }
+    win.node_list.setCurrentRow(win._node_row("n7"))
+    assert win.play_from_current_node(), "F5 一键试玩应成功生成临时包"
+    assert fake_manager.manifest["id"] == "lom_modkit_preview"
+    assert fake_manager.stories[win._current_id]["start"] == "n7"
+    assert fake_manager.request == ("lom_modkit_preview", win._current_id, "n7")
+    del win._stories["second"]
+    win.game_manager = old_manager
+    print("[11b] F5 一键试玩 OK（临时包/选中起点/运行时请求一致）")
 
     # 抓图：n2（场景 center）/ n7（brother4 说话）/ n11（三选一）各存一张 PNG
     out_dir = EDITOR_DIR / "tests" / "out"
     out_dir.mkdir(parents=True, exist_ok=True)
     win.resize(1280, 760)
     win.show()
+    win.right_tabs.setCurrentWidget(win.flow_graph)
+    app.processEvents()
+    graph_out = out_dir / "story_flow_graph.png"
+    win.flow_graph.grab().save(str(graph_out))
     win.right_tabs.setCurrentIndex(0)
     for nid in ("n2", "n7", "n11"):
         win.node_list.setCurrentRow(win._node_row(nid))
@@ -503,6 +657,34 @@ def main_fn() -> int:
     assert not end_img.isNull() and end_img.save(str(end_out))
     assert end_out.stat().st_size > 0
     print(f"[12b] 汗青书 EndGamePanel 预览 OK：{end_out}")
+
+    intro_story = {
+        "id": "intro_preview",
+        "title": "自定义人物介绍",
+        "start": "intro1",
+        "nodes": [
+            {
+                "id": "intro1",
+                "type": "intro",
+                "intro_source": "custom",
+                "title": "江湖新秀",
+                "name": "墨小侠",
+                "text": "来历不明，却熟知唐门旧事。",
+                "image": "assets/lom_editor_icon.png",
+            },
+            {"id": "end1", "type": "end"},
+        ],
+    }
+    intro_lua, intro_err = main.compile_story(intro_story)
+    assert intro_err is None and "mod_prepare_character_intro" in intro_lua
+    win.stage.set_story_root(EDITOR_DIR)
+    win.stage.show_node(intro_story, "intro1")
+    app.processEvents()
+    intro_img = win.stage.grab()
+    intro_out = out_dir / "preview_custom_intro.png"
+    assert not intro_img.isNull() and intro_img.save(str(intro_out))
+    assert intro_out.stat().st_size > 0
+    print(f"[12c] 自定义人物介绍卡预览/编译 OK：{intro_out}")
 
     # 后续交互测试恢复 demo。
     win._load_story_path(demo_path)

@@ -102,6 +102,7 @@ namespace MortalModHost
                 Assert(!HotkeyMigration.TryRewriteLegacyHotkey("", out migrated), "空文本不应动");
 
                 TestCampaign();
+                TestPreviewRequest(modsDir);
 
                 Console.WriteLine("--- 扫描信息 ---");
                 infos.ForEach(Console.WriteLine);
@@ -114,6 +115,22 @@ namespace MortalModHost
             {
                 Directory.Delete(modsDir, recursive: true);
             }
+        }
+
+        private static void TestPreviewRequest(string tempDir)
+        {
+            string path = Path.Combine(tempDir, "preview-request.json");
+            File.WriteAllText(path,
+                "{\"format\":1,\"mod_id\":\"lom_modkit_preview\",\"script_id\":\"main\",\"node_id\":\"n3\"}");
+            PreviewRequest request;
+            string error;
+            Assert(PreviewRequest.TryRead(path, out request, out error), "合法试玩请求应解析成功：" + error);
+            Assert(request.ModId == "lom_modkit_preview" && request.ScriptId == "main" && request.NodeId == "n3",
+                "试玩请求字段解析错误");
+            File.WriteAllText(path,
+                "{\"format\":1,\"mod_id\":\"bad id\",\"script_id\":\"main\",\"node_id\":\"n3\"}");
+            Assert(!PreviewRequest.TryRead(path, out request, out error) && error.Contains("mod_id"),
+                "含空格的试玩 id 应被拒绝");
         }
 
         /// <summary>契约 §2 campaign 段：解析、触发器 script 校验、条件判定、位置名映射。独立临时目录不影响上面的断言。</summary>

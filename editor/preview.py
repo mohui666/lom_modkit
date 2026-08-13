@@ -24,6 +24,7 @@ from PySide6.QtCore import QRect, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPen, QPixmap, QTransform
 from PySide6.QtWidgets import QWidget
 
+from asset_store import resolve_image_asset
 import models
 
 EDITOR_DIR = models.editor_dir()
@@ -163,7 +164,9 @@ def _hint_text(node: dict, ed: dict) -> str | None:
     if t == "mask":
         return f"[独白遮罩] {'显示' if node.get('show') else '隐藏'}"
     if t == "intro":
-        return f"[人物介绍卡] {cname()}"
+        if node.get("intro_source", "official") == "custom":
+            return f"[人物介绍卡] {node.get('name') or '未填写姓名'}：{node.get('text') or ''}"
+        return f"[人物介绍卡] 原版资料 · {cname()}"
     if t == "effect":
         return f"[屏幕特效] {node.get('name', '')}"
     if t == "transition":
@@ -506,6 +509,19 @@ class StagePreview(QWidget):
         self._evict_cache()
         return pix
 
+    def _load_story_image(self, image_path: str) -> QPixmap:
+        """先找当前项目 assets/，再找编辑器托管的用户图片仓库。"""
+        if image_path and self._story_root is not None:
+            source = (self._story_root / image_path).resolve()
+            try:
+                source.relative_to(self._story_root.resolve())
+                if source.is_file():
+                    return self._load_pixmap(str(source))
+            except (ValueError, OSError):
+                pass
+        managed = resolve_image_asset(image_path)
+        return self._load_pixmap(str(managed)) if managed is not None else QPixmap()
+
     def _portrait_path(self, char_id: str, portrait: str) -> str | None:
         c = self._pmap.get("characters", {}).get(char_id, {})
         return (c.get("portraits") or {}).get(portrait)
@@ -536,6 +552,9 @@ class StagePreview(QWidget):
             if rect.width() <= 0 or rect.height() <= 0:
                 return
             if self._paint_ending_card(p, rect):
+                self._paint_caption(p, rect)
+                return
+            if self._paint_intro_card(p, rect):
                 self._paint_caption(p, rect)
                 return
             self._paint_background(p, rect)
@@ -609,14 +628,7 @@ class StagePreview(QWidget):
         p.drawRect(cover)
 
         image_path = str(node.get("image") or "").strip()
-        pix = QPixmap()
-        if image_path and self._story_root is not None:
-            source = (self._story_root / image_path).resolve()
-            try:
-                source.relative_to(self._story_root.resolve())
-                pix = self._load_pixmap(str(source))
-            except (ValueError, OSError):
-                pix = QPixmap()
+        pix = self._load_story_image(image_path) if image_path else QPixmap()
         art = cover.adjusted(
             floor(cover.width() * 0.09),
             floor(cover.height() * 0.12),
@@ -679,6 +691,212 @@ class StagePreview(QWidget):
             | Qt.AlignmentFlag.AlignTop
             | Qt.TextFlag.TextWordWrap,
             str(node.get("desc") or "在这里填写自定义结局正文。"),
+        )
+        return True
+
+    def _paint_intro_card(self, p: QPainter, rect: QRect) -> bool:
+        """按游戏 CharacterIntroPanel 的全屏构图预览人物介绍卡。
+
+        预览不打包游戏原始 UI 素材，但尺寸、层级和安全区域与运行时保持一致：
+        背景压暗、左侧人物、中央水墨装饰、右侧文字、右上关闭、底部继续。
+        """
+        node = self._current_node()
+        if node.get("type") != "intro":
+            return False
+        custom = node.get("intro_source", "official") == "custom"
+
+        # 原版面板覆盖在当前场景上，不是独立的米色卡片。
+        self._paint_background(p, rect)
+        p.fillRect(rect, QColor(4, 6, 9, 112))
+
+        # 下半部半透明宣纸框，对应官方 _frameImage / _brushImage 所在区域。
+        panel = QRect(
+            rect.x() + floor(rect.width() * 0.35),
+            rect.y() + floor(rect.height() * 0.50),
+            floor(rect.width() * 0.49),
+            floor(rect.height() * 0.29),
+        )
+        p.fillRect(panel, QColor(220, 207, 178, 86))
+        edge = max(1, floor(rect.height() * 0.003))
+        p.setPen(QPen(QColor(221, 209, 183, 148), edge))
+        p.drawRect(panel)
+        inner = panel.adjusted(
+            floor(panel.width() * 0.015),
+            floor(panel.height() * 0.05),
+            -floor(panel.width() * 0.015),
+            -floor(panel.height() * 0.05),
+        )
+        p.setPen(QPen(QColor(184, 170, 143, 116), edge))
+        p.drawRect(inner)
+
+        # 左侧水墨圆与横向笔刷。这里只复刻轮廓，不携带游戏原始纹理。
+        ink_center_x = rect.x() + floor(rect.width() * 0.36)
+        ink_center_y = rect.y() + floor(rect.height() * 0.49)
+        ink_w = floor(rect.width() * 0.25)
+        ink_h = floor(rect.height() * 0.50)
+        p.setPen(QPen(QColor(28, 23, 20, 112), max(2, floor(rect.height() * 0.010))))
+        p.drawEllipse(
+            QRect(
+                ink_center_x - ink_w // 2,
+                ink_center_y - ink_h // 2,
+                ink_w,
+                ink_h,
+            )
+        )
+        brush = QRect(
+            rect.x() + floor(rect.width() * 0.49),
+            rect.y() + floor(rect.height() * 0.46),
+            floor(rect.width() * 0.18),
+            floor(rect.height() * 0.075),
+        )
+        p.fillRect(brush, QColor(20, 19, 18, 190))
+        for offset, alpha in ((-5, 90), (5, 115), (10, 62)):
+            p.setPen(QPen(QColor(29, 25, 22, alpha), max(1, edge)))
+            p.drawLine(
+                brush.x() - floor(brush.width() * 0.06),
+                brush.center().y() + offset,
+                brush.right() + floor(brush.width() * 0.08),
+                brush.center().y() + offset,
+            )
+
+        def number(key: str, default: float, low: float, high: float) -> float:
+            try:
+                value = float(node.get(key, default))
+            except (TypeError, ValueError):
+                value = default
+            return max(low, min(high, value))
+
+        image_scale = number("image_scale", 100, 40, 160) if custom else 100
+        image_x = number("image_x", 0, -30, 30) if custom else 0
+        image_y = number("image_y", 0, -30, 30) if custom else 0
+        box_width = floor(rect.width() * 0.30 * image_scale / 100.0)
+        box_height = floor(rect.height() * 0.62 * image_scale / 100.0)
+        center_x = rect.x() + floor(rect.width() * (0.31 + image_x / 100.0))
+        # Qt 向下为正；游戏字段的正数约定为向上。
+        center_y = rect.y() + floor(rect.height() * (0.50 - image_y / 100.0))
+        avatar = QRect(
+            center_x - box_width // 2,
+            center_y - box_height // 2,
+            box_width,
+            box_height,
+        )
+        image_path = str(node.get("image") or "").strip() if custom else ""
+        if custom:
+            avatar_pix = self._load_story_image(image_path) if image_path else QPixmap()
+        else:
+            character = str(node.get("character") or "")
+            portraits = models.character_portraits(self._editor_data, character)
+            portrait = "normal" if "normal" in portraits else (portraits[0] if portraits else "")
+            avatar_pix = self._load_pixmap(self._portrait_path(character, portrait))
+        if not avatar_pix.isNull():
+            scaled = avatar_pix.scaled(
+                avatar.size(),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            x = avatar.x() + (avatar.width() - scaled.width()) // 2
+            y = avatar.y() + (avatar.height() - scaled.height()) // 2
+            p.drawPixmap(x, y, scaled)
+        else:
+            p.fillRect(avatar, QColor(24, 27, 30, 112))
+            p.setPen(QColor(220, 210, 187))
+            avatar_font = QFont(self.font())
+            avatar_font.setPointSizeF(max(10.0, rect.height() * 0.027))
+            p.setFont(avatar_font)
+            avatar_text = "自定义人物\n未选择人物图片" if custom else "游戏内显示\n原版关系头像"
+            p.drawText(
+                QRectF(avatar),
+                Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap,
+                avatar_text,
+            )
+
+        text_rect = QRect(
+            rect.x() + floor(rect.width() * 0.52),
+            rect.y() + floor(rect.height() * 0.42),
+            floor(rect.width() * 0.29),
+            floor(rect.height() * 0.31),
+        )
+        if custom:
+            title = str(node.get("title") or "")
+            name = str(node.get("name") or "自定义人物姓名")
+            intro = str(node.get("text") or "在这里填写人物介绍。")
+        else:
+            name = models.character_name(self._editor_data, str(node.get("character") or ""))
+            title = "原版人物资料"
+            intro = "游戏内直接读取原版称号、姓名、介绍与头像。"
+        # 官方层级：金色小称号、红色大姓名、浅色正文。
+        p.setPen(QColor(213, 184, 122))
+        title_font = QFont(self.font())
+        title_font.setPointSizeF(max(10.0, rect.height() * 0.033))
+        title_font.setBold(True)
+        p.setFont(title_font)
+        title_rect = QRect(
+            text_rect.x(), text_rect.y(), text_rect.width(), floor(text_rect.height() * 0.22)
+        )
+        p.drawText(title_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, title)
+        name_font = QFont(self.font())
+        name_font.setPointSizeF(max(16.0, rect.height() * 0.070))
+        name_font.setBold(True)
+        p.setFont(name_font)
+        p.setPen(QColor(235, 78, 56))
+        name_rect = QRect(
+            text_rect.x(),
+            text_rect.y() + floor(text_rect.height() * 0.18),
+            text_rect.width(),
+            floor(text_rect.height() * 0.31),
+        )
+        p.drawText(name_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, name)
+        body_font = QFont(self.font())
+        body_font.setPointSizeF(max(10.0, rect.height() * 0.030))
+        p.setFont(body_font)
+        p.setPen(QColor(235, 229, 216))
+        body_rect = QRect(
+            text_rect.x(),
+            text_rect.y() + floor(text_rect.height() * 0.49),
+            text_rect.width(),
+            floor(text_rect.height() * 0.49),
+        )
+        p.drawText(
+            QRectF(body_rect),
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft | Qt.TextFlag.TextWordWrap,
+            intro,
+        )
+
+        # 右上关闭按钮：官方菱形轮廓；预览不做点击，仅表达实际构图。
+        close_size = max(18, floor(rect.height() * 0.075))
+        close_center_x = rect.x() + floor(rect.width() * 0.84)
+        close_center_y = rect.y() + floor(rect.height() * 0.42)
+        p.save()
+        p.translate(close_center_x, close_center_y)
+        p.rotate(45)
+        p.fillRect(
+            QRect(-close_size // 2, -close_size // 2, close_size, close_size),
+            QColor(43, 39, 43, 218),
+        )
+        p.setPen(QPen(QColor(224, 202, 153), max(1, edge)))
+        p.drawRect(QRect(-close_size // 2, -close_size // 2, close_size, close_size))
+        p.rotate(-45)
+        p.setPen(QPen(QColor(241, 235, 224), max(1, edge)))
+        cross = floor(close_size * 0.20)
+        p.drawLine(-cross, -cross, cross, cross)
+        p.drawLine(-cross, cross, cross, -cross)
+        p.restore()
+
+        continue_font = QFont(self.font())
+        continue_font.setPointSizeF(max(9.0, rect.height() * 0.025))
+        continue_font.setBold(True)
+        p.setFont(continue_font)
+        p.setPen(QColor(214, 185, 124))
+        continue_rect = QRect(
+            rect.x() + floor(rect.width() * 0.69),
+            rect.y() + floor(rect.height() * 0.78),
+            floor(rect.width() * 0.15),
+            floor(rect.height() * 0.07),
+        )
+        p.drawText(
+            continue_rect,
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+            "点击继续……  ▼",
         )
         return True
 
@@ -887,7 +1105,7 @@ class StagePreview(QWidget):
             y += btn_h + gap
 
     def _paint_caption(self, p: QPainter, rect: QRect) -> None:
-        """右上角小字：当前节点 id 与类型；推演未到达时给提示。"""
+        """右上角小字：当前节点 id 与类型；默认路线未经过时给普通提示。"""
         if not self._node_id:
             return
         font = QFont(self.font())
@@ -900,8 +1118,11 @@ class StagePreview(QWidget):
             text = f"{self._node_id} · {models.NODE_TYPE_CN.get(ntype, ntype)}"
             p.setPen(QColor(180, 180, 180, 200))
         else:
-            text = f"{self._node_id}：推演未到达（{state.get('steps', 0)} 步上限或路径中断）"
-            p.setPen(QColor(255, 160, 120))
+            text = (
+                f"当前预览按默认分支没有经过 {self._node_id}"
+                "（不影响游戏，请检查前面的选项或分支）"
+            )
+            p.setPen(QColor(210, 185, 125))
         p.drawText(
             rect.adjusted(0, 6, -8, 0),
             Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight,

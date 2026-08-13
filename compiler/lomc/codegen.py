@@ -259,6 +259,20 @@ def _emit_mask(node, ctx):
 
 
 def _emit_intro(node, ctx):
+    if node.get("intro_source", "official") == "custom":
+        return [
+            "\tmod_prepare_character_intro(%s, %s, %s, %s, %s, %s, %s)"
+            % (
+                lua_str(node.get("title", "")),
+                lua_str(node.get("name", "")),
+                lua_str(node.get("text", "")),
+                lua_str(node.get("image", "")),
+                lua_num(node.get("image_scale", 100)),
+                lua_num(node.get("image_x", 0)),
+                lua_num(node.get("image_y", 0)),
+            ),
+            '\trunwait(intropanel.Show("__lommod_custom_intro__"))',
+        ]
     return ["\trunwait(intropanel.Show(%s))" % lua_str(node["character"])]
 
 

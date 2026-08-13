@@ -1,0 +1,82 @@
+# -*- coding: utf-8 -*-
+"""自定义人物/结局图片的托管、打包和回读测试。"""
+
+from __future__ import annotations
+
+import os
+import sys
+import tempfile
+import unittest
+import zipfile
+from pathlib import Path
+
+EDITOR_DIR = Path(__file__).resolve().parent.parent
+COMPILER_DIR = EDITOR_DIR.parent / "compiler"
+sys.path[:0] = [str(EDITOR_DIR), str(COMPILER_DIR)]
+
+from asset_store import import_image_file, resolve_image_asset  # noqa: E402
+import package_io  # noqa: E402
+
+
+class AssetStoreTest(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.old_appdata = os.environ.get("APPDATA")
+        os.environ["APPDATA"] = self.temp.name
+
+    def tearDown(self):
+        if self.old_appdata is None:
+            os.environ.pop("APPDATA", None)
+        else:
+            os.environ["APPDATA"] = self.old_appdata
+        self.temp.cleanup()
+
+    def test_custom_intro_image_roundtrip(self):
+        source = Path(self.temp.name) / "侠客.png"
+        source.write_bytes(b"\x89PNG\r\n\x1a\n" + b"portrait")
+        relative, stored = import_image_file(source)
+        self.assertTrue(stored.is_file())
+        self.assertEqual(resolve_image_asset(relative), stored)
+
+        manifest = {
+            "format": 1,
+            "id": "image_test",
+            "name": "图片测试",
+            "version": "1.0.0",
+            "author": "tester",
+            "description": "test",
+            "entry": "main",
+        }
+        stories = {
+            "main": {
+                "id": "main",
+                "title": "图片测试",
+                "start": "n1",
+                "nodes": [
+                    {
+                        "id": "n1",
+                        "type": "intro",
+                        "intro_source": "custom",
+                        "title": "游侠",
+                        "name": "墨小侠",
+                        "text": "来历不明。",
+                        "image": relative,
+                    },
+                    {"id": "n2", "type": "end"},
+                ],
+            }
+        }
+        package = Path(self.temp.name) / "image_test.lommod"
+        package_io.export_lommod(package, manifest, stories)
+        with zipfile.ZipFile(package) as archive:
+            self.assertIn(relative, archive.namelist())
+            lua = archive.read("lua/main.lua").decode("utf-8")
+            self.assertIn(relative, lua)
+        loaded_manifest, loaded_stories = package_io.import_lommod(package)
+        self.assertEqual(loaded_manifest["id"], "image_test")
+        loaded_image = loaded_stories["main"]["nodes"][0]["image"]
+        self.assertIsNotNone(resolve_image_asset(loaded_image))
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

@@ -25,6 +25,8 @@ SCRIPT_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]+$")
 MOD_ID_RE = re.compile(r"^[a-z0-9_\-]+$")
 # 节点 id 会拼进 Lua 函数名 node_<id>，必须落在 Lua 标识符安全字符集内
 NODE_ID_RE = re.compile(r"^[a-zA-Z0-9_]+$")
+# 编辑器显示标签是“名称（内部ID）”，游戏接口只能接收括号内的内部 ID。
+CHARACTER_DISPLAY_RE = re.compile(r"^.+（[a-zA-Z0-9_\-]+）$")
 
 SAY_MODES = ("character", "think", "narrative", "center")
 FACINGS = ("left", "right")
@@ -73,6 +75,7 @@ _ENUMS = {
     "mode": SAY_MODES,
     "facing": FACINGS,
     "death_next": ("Free", "Title"),
+    "intro_source": ("official", "custom"),
 }
 
 # 字段类型标签 -> 中文类型名（用于报错）
@@ -153,7 +156,20 @@ _NODE_FIELDS = {
     "choice": ({"options": "list"}, {"dialog": "idstr"}),
     "shock": ({"character": "str"}, {"duration": "num"}),
     "mask": ({"show": "bool"}, {}),
-    "intro": ({"character": "str"}, {}),
+    "intro": (
+        {},
+        {
+            "intro_source": "intro_source",
+            "character": "str",
+            "title": "str",
+            "name": "str",
+            "text": "str",
+            "image": "str",
+            "image_scale": "num",
+            "image_x": "num",
+            "image_y": "num",
+        },
+    ),
     "effect": (
         {"name": "str"},
         {
@@ -344,8 +360,44 @@ def _check_options(node, label, min_n, max_n, fields, type_map, optional_fields=
                 )
 
 
+def _check_asset_image_path(image, label, ntype):
+    if not isinstance(image, str) or not image.strip():
+        raise LomcError(
+            '%s(%s): 字段 "image" 必须是非空字符串（包内图片路径），实际为 %r'
+            % (label, ntype, image)
+        )
+    normalized = image.replace("\\", "/")
+    if not image.lower().endswith((".png", ".jpg", ".jpeg")):
+        raise LomcError(
+            '%s(%s): 字段 "image" 必须是包内 assets/ 下的 '
+            ".png/.jpg/.jpeg 图片，实际为 %r" % (label, ntype, image)
+        )
+    if (
+        not normalized.startswith("assets/")
+        or normalized == "assets/"
+        or ".." in normalized.split("/")
+    ):
+        raise LomcError(
+            '%s(%s): 字段 "image" 必须是包内 assets/ 相对路径'
+            "（不得指向包外），实际为 %r" % (label, ntype, image)
+        )
+
+
 def _check_node_extra(node, ntype, label):
     """各节点类型的跨字段 / 结构性规则。"""
+    character = node.get("character")
+    character_is_used = not (
+        ntype == "intro" and node.get("intro_source", "official") == "custom"
+    )
+    if (
+        character_is_used
+        and isinstance(character, str)
+        and CHARACTER_DISPLAY_RE.fullmatch(character.strip())
+    ):
+        raise LomcError(
+            "%s(%s): 人物必须保存内部 ID，不能使用下拉显示文字 %r；"
+            "请重新选择该人物（例如 chicken1）" % (label, ntype, character)
+        )
     # 角色表情校验（练武场卡死修复）：show/say 的 (character, portrait) 组合必须
     # 落在 editor_data 角色表情表内（表不可用/角色不在表 → 放行）。
     if ntype in ("show", "say"):
@@ -367,6 +419,36 @@ def _check_node_extra(node, ntype, label):
                 '%s(say): mode="%s" 时必填字段 "character"（narrative/center 可省略）'
                 % (label, mode)
             )
+    elif ntype == "intro":
+        source = node.get("intro_source", "official")
+        if source == "official":
+            if not isinstance(node.get("character"), str) or not node["character"].strip():
+                raise LomcError(
+                    '%s(intro): 使用原版人物资料时必填字段 "character"' % label
+                )
+        else:
+            if not isinstance(node.get("name"), str) or not node["name"].strip():
+                raise LomcError(
+                    '%s(intro): 使用自定义人物资料时“人物姓名”不能为空' % label
+                )
+            if not isinstance(node.get("text"), str) or not node["text"].strip():
+                raise LomcError(
+                    '%s(intro): 使用自定义人物资料时“人物介绍”不能为空' % label
+                )
+            if node.get("image"):
+                _check_asset_image_path(node["image"], label, ntype)
+            image_scale = node.get("image_scale", 100)
+            if image_scale < 40 or image_scale > 160:
+                raise LomcError(
+                    '%s(intro): 字段 "image_scale" 必须在 40~160 之间' % label
+                )
+            for field in ("image_x", "image_y"):
+                value = node.get(field, 0)
+                if value < -30 or value > 30:
+                    raise LomcError(
+                        '%s(intro): 字段 "%s" 必须在 -30~30 之间'
+                        % (label, field)
+                    )
     elif ntype == "choice":
         _check_options(
             node, label, 2, 4, ("text", "goto"), {"text": "str", "goto": "str"}
