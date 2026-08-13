@@ -265,3 +265,31 @@ luamanager.ChangeScene("Free", "", "")
 5. **位置触发器**：postfix `FreePositionData.GetExecuteScript`，manifest.triggers 命中且 flag 条件满足（查 StoryKeyList）时返回 mod 脚本注册名；官方主线/支线优先。
 6. **兜底**：Story 场景请求的 MOD_ 脚本未注册（mod 被删）时，不执行并 `ChangeScene("Free","","")` 防软锁。
 7. mod 不修改官方脚本与文本表；mod 的 flag 进 StoryKeyList，存档兼容。
+
+## 7. AI 工具接口（story_api）
+
+editor/story_api.py 是 AI/编辑器共用的受控写入口。规则：**AI 不直接手写 story JSON 或 Lua**，
+一切剧情构建经 story_api（models 契约默认值 + lomc 校验/警告），防止骰子菜单崩溃、
+transition 黑幕、choice 皮肤崩溃、背景黑屏等已知坑。
+
+- Python API：
+  - `load_editor_data()`：读取编辑器数据（含 dice_meta 等清单），返回 (editor_data, is_fallback)
+  - `new_story(story_id="main", title="新剧情")`：新建剧情脚本（含 1 个起始节点）
+  - `add_node(story, node_type, fields=None, after=None)`：按 models 默认值新增节点（38 种类型），未知类型/字段/类型不符→ValueError，节点 id 自动生成，after 指定插入位置（节点 id 或 None=末尾）
+  - `update_node(story, node_id, fields)`：更新节点字段（同 add 的字段校验），节点不存在→ValueError
+  - `get_node(story, node_id)`：读取节点，不存在→ValueError
+  - `list_nodes(story)`：返回 [{"id","type","summary"}] 清单
+  - `delete_node(story, node_id)`：删除节点，不存在→ValueError
+  - `move_node(story, node_id, delta)`：按相对位移调整节点顺序
+  - `set_start(story, node_id)`：设置起始节点
+  - `add_choice(story, options, after=None)`：新增选项分支（2~4 项，dialog 固定 Options）
+  - `add_dice(story, check, goto_成功, goto_失败, goto_大成功="", after=None)`：新增骰子检定（check 必须有官方元数据，按结果带数校验 goto）
+  - `add_say(story, text, character=None, mode="character", portrait="normal", after=None)`：新增对白（character 模式必填 character；narrative/center 不写 character）
+  - `add_scene(story, view, after=None)`：新增场景切换
+  - `check_story(story)`：只校验，返回 (errors: list[str], warnings: list[str])
+  - `compile_story(story)`：校验+编译，返回 (lua|None, errors, warnings)，失败时 lua 为 None
+  - `load_story_json(path)` / `save_story_json(story, path)`：story.json 读写（UTF-8）
+  - `pack_mod(mod_dir, output=None)`：校验 manifest + 全部编译 + 打 .lommod，返回产物路径
+- CLI：python editor/story_api.py check|compile|pack|new-story（AI 子进程友好，退出码 0/1，中文错误）
+- 关键不变量（编译器强制，API 透传）：choice.dialog 仅 Options；dice.check 必须有官方元数据
+  （骰子范围+结果带）；transition in/out 成对；scene 自动预载背景；say/show 自动加载表情差分。

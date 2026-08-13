@@ -613,7 +613,9 @@ class TestValidationErrors(unittest.TestCase):
                 {"id": "n1", "type": "show", "character": "player", "position": "M"}
             )
         )
-        self.assertIn('	characters.LoadCharacterPortrait("player", "normal")', lua_show)
+        self.assertIn(
+            '	characters.LoadCharacterPortrait("player", "normal")', lua_show
+        )
 
     def test_choice_option_count(self):
         for options in (

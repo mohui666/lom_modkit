@@ -168,7 +168,9 @@ class NodeForm(QScrollArea):
         if kind == "menu_dialog":
             # choice 皮肤只有 Options 安全：其余（Talk/Section_*/Kitchen 等）是自由
             # 场景 break 格式菜单，纯文本选项会触发 BreakOptionButton 越界崩溃
-            return self._combo_from_items(node, key, [("Options", "Options")], value or "Options")
+            return self._combo_from_items(
+                node, key, [("Options", "Options")], value or "Options"
+            )
         if kind == "effect":
             return self._combo_from_items(
                 node, key, models.list_items(self._editor_data, "effects"), value
