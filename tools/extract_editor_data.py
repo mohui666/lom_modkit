@@ -11,7 +11,8 @@ import os
 import re
 import sys
 
-UNPACK_DIR = r"C:/Users/mohui666/lom_unpack"
+# 解包产物目录：优先环境变量 LOM_UNPACK_DIR，缺省为本机开发路径
+UNPACK_DIR = os.environ.get("LOM_UNPACK_DIR", r"C:/Users/mohui666/lom_unpack")
 SCRIPTS_DIR = os.path.join(UNPACK_DIR, "raw_scripts")
 CSV_CHAR = os.path.join(UNPACK_DIR, "output", "csv", "11_人物.csv")
 RAW_CHAR = os.path.join(UNPACK_DIR, "raw", "Character_zh-cn.txt")

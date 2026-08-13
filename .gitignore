@@ -1,5 +1,8 @@
 # 大文件素材（可用 tools/extract_preview_assets.py 从游戏重新生成）
 data/assets/
+# 反编译的游戏源码：版权原因不随开源仓库公开，仅留在本地研究
+# （可用 ilspycmd 从游戏 DLL 重新生成）
+docs/research/decompiled/
 # Python
 __pycache__/
 *.pyc
