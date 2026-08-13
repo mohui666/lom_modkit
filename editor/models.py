@@ -4,6 +4,7 @@
 格式契约见 docs/mod_format.md §3（节点类型）与 §5（editor_data.json）。
 节点在编辑器内部就是普通 dict（与 JSON 结构一致），本模块只管结构约束与默认值。
 """
+
 from __future__ import annotations
 
 import copy
@@ -18,27 +19,89 @@ ID_PATTERN = re.compile(r"^[a-zA-Z0-9_\-]+$")
 # 节点类型中文名（契约 §3.1 全量 38 种）
 # ---------------------------------------------------------------------------
 NODE_TYPE_CN: dict[str, str] = {
-    "music": "音乐", "sound": "音效", "scene": "场景切换", "show": "人物登场",
-    "move": "人物移动", "face": "人物转向", "hide": "人物退场", "focus": "镜头聚焦",
-    "offset": "人物位移", "say": "对白", "choice": "选项分支", "shock": "人物震动",
-    "mask": "独白遮罩", "intro": "人物介绍卡", "effect": "屏幕特效",
-    "transition": "转场", "camera": "镜头滤镜", "block": "流图块(高级)",
-    "cg": "图片/标题显示", "stat": "属性增减", "stat_set": "属性设置",
-    "affinity": "好感度", "talent": "天赋", "item": "物品", "flag": "剧情旗标",
-    "game_flag": "游戏任务旗标", "enemy": "敌方队伍", "battle_skill": "战场技能",
-    "mission": "任务", "time": "时间", "autosave": "自动存档",
-    "branch": "条件分支", "dice": "骰子检定", "goto_scene": "场景跳转",
-    "panel": "系统面板", "wait": "等待", "end": "结束", "raw": "原生Lua(高级)",
+    "music": "音乐",
+    "sound": "音效",
+    "scene": "场景切换",
+    "show": "人物登场",
+    "move": "人物移动",
+    "face": "人物转向",
+    "hide": "人物退场",
+    "focus": "镜头聚焦",
+    "offset": "人物位移",
+    "say": "对白",
+    "choice": "选项分支",
+    "shock": "人物震动",
+    "mask": "独白遮罩",
+    "intro": "人物介绍卡",
+    "effect": "屏幕特效",
+    "transition": "转场",
+    "camera": "镜头滤镜",
+    "block": "流图块(高级)",
+    "cg": "图片/标题显示",
+    "stat": "属性增减",
+    "stat_set": "属性设置",
+    "affinity": "好感度",
+    "talent": "天赋",
+    "item": "物品",
+    "flag": "剧情旗标",
+    "game_flag": "游戏任务旗标",
+    "enemy": "敌方队伍",
+    "battle_skill": "战场技能",
+    "mission": "任务",
+    "time": "时间",
+    "autosave": "自动存档",
+    "branch": "条件分支",
+    "dice": "骰子检定",
+    "goto_scene": "场景跳转",
+    "panel": "系统面板",
+    "wait": "等待",
+    "end": "结束",
+    "raw": "原生Lua(高级)",
 }
 
 # 契约 §3.1 分组（新增节点菜单按此分组显示）
 NODE_GROUPS: list[tuple[str, list[str]]] = [
-    ("演出类", ["music", "sound", "scene", "show", "move", "face", "hide",
-               "focus", "offset", "say", "choice", "shock", "mask", "intro",
-               "effect", "transition", "camera", "block", "cg"]),
-    ("数值状态类", ["stat", "stat_set", "affinity", "talent", "item", "flag",
-                  "game_flag", "enemy", "battle_skill", "mission", "time",
-                  "autosave"]),
+    (
+        "演出类",
+        [
+            "music",
+            "sound",
+            "scene",
+            "show",
+            "move",
+            "face",
+            "hide",
+            "focus",
+            "offset",
+            "say",
+            "choice",
+            "shock",
+            "mask",
+            "intro",
+            "effect",
+            "transition",
+            "camera",
+            "block",
+            "cg",
+        ],
+    ),
+    (
+        "数值状态类",
+        [
+            "stat",
+            "stat_set",
+            "affinity",
+            "talent",
+            "item",
+            "flag",
+            "game_flag",
+            "enemy",
+            "battle_skill",
+            "mission",
+            "time",
+            "autosave",
+        ],
+    ),
     ("流程类", ["branch", "dice", "goto_scene", "panel", "wait", "end", "raw"]),
 ]
 
@@ -50,36 +113,74 @@ ENUM_SETS: dict[str, list[tuple[str, str]]] = {
     "sound_kind": [("sound", "音效"), ("env", "环境音")],
     "sound_op": [("play", "播放"), ("fadeout", "淡出")],
     "transition_phase": [("in", "淡入"), ("out", "淡出")],
-    "transition_dir": [("lr", "从左到右"), ("rl", "从右到左"),
-                      ("tb", "从上到下"), ("bt", "从下到上")],
+    "transition_dir": [
+        ("lr", "从左到右"),
+        ("rl", "从右到左"),
+        ("tb", "从上到下"),
+        ("bt", "从下到上"),
+    ],
     "cg_action": [("show", "显示"), ("hide", "隐藏")],
-    "cg_kind": [("picture", "图片"), ("item", "物品图"), ("big", "大图"),
-               ("map", "地图"), ("family", "家谱"), ("title", "标题")],
+    "cg_kind": [
+        ("picture", "图片"),
+        ("item", "物品图"),
+        ("big", "大图"),
+        ("map", "地图"),
+        ("family", "家谱"),
+        ("title", "标题"),
+    ],
     "block_flowchart": [("view", "view（场景）"), ("common", "common（通用）")],
     "item_kind": [("book", "秘籍"), ("misc", "杂物"), ("special", "特殊物品")],
     "game_flag_op": [("set", "设置"), ("add", "增减")],
-    "enemy_op": [("team", "队伍"), ("level", "等级"), ("people", "人数"),
-                ("id", "替换 id")],
+    "enemy_op": [
+        ("team", "队伍"),
+        ("level", "等级"),
+        ("people", "人数"),
+        ("id", "替换 id"),
+    ],
     "battle_skill_op": [("set", "设置"), ("active", "激活"), ("reset", "重置")],
-    "time_op": [("set", "设置时间"), ("round", "进入下一旬"),
-               ("month", "进入下一月"), ("mission", "设置任务时间")],
-    "autosave_kind": [("story", "剧情存档"), ("free", "自由存档"),
-                     ("prologue", "序章存档")],
-    "goto_scene": [("Free", "自由模式"), ("Title", "标题画面"),
-                  ("Combat", "战斗"), ("Battle", "战役"),
-                  ("GameOver", "游戏结束"), ("End", "结局"),
-                  ("Story", "剧情演出"), ("DemoEnd", "Demo 结束")],
-    "panel": [("martial", "武学面板"), ("weapon", "武器强化"),
-             ("poison", "毒药强化"), ("cg", "回忆画廊"), ("cgvideo", "过场动画"),
-             ("shop", "商店"), ("newshop", "新商店"), ("credit", "制作名单"),
-             ("endgame", "结算面板")],
+    "time_op": [
+        ("set", "设置时间"),
+        ("round", "进入下一旬"),
+        ("month", "进入下一月"),
+        ("mission", "设置任务时间"),
+    ],
+    "autosave_kind": [
+        ("story", "剧情存档"),
+        ("free", "自由存档"),
+        ("prologue", "序章存档"),
+    ],
+    "goto_scene": [
+        ("Free", "自由模式"),
+        ("Title", "标题画面"),
+        ("Combat", "战斗"),
+        ("Battle", "战役"),
+        ("GameOver", "游戏结束"),
+        ("End", "结局"),
+        ("Story", "剧情演出"),
+        ("DemoEnd", "Demo 结束"),
+    ],
+    "panel": [
+        ("martial", "武学面板"),
+        ("weapon", "武器强化"),
+        ("poison", "毒药强化"),
+        ("cg", "回忆画廊"),
+        ("cgvideo", "过场动画"),
+        ("shop", "商店"),
+        ("newshop", "新商店"),
+        ("credit", "制作名单"),
+        ("endgame", "结算面板"),
+    ],
 }
 # 切换后需要重建表单的枚举（其它字段的下拉清单随它变化）
 REBUILD_ENUMS = {"item_kind", "goto_scene"}
 
 # say mode 中文标注（清单本身来自 editor_data.modes）
-MODE_CN = {"character": "对话", "think": "内心独白", "narrative": "旁白",
-           "center": "居中旁白"}
+MODE_CN = {
+    "character": "对话",
+    "think": "内心独白",
+    "narrative": "旁白",
+    "center": "居中旁白",
+}
 FACING_CN = [("left", "朝左"), ("right", "朝右")]
 # 镜头滤镜常见预设（契约 §3.1 示例）
 CAMERA_PRESETS = ["stage-memory", "stage-dream", "stage-fire", "stage-blurdim"]
@@ -91,6 +192,7 @@ def enum_label(set_name: str, value: str) -> str:
         if val == value:
             return cn
     return str(value)
+
 
 # ---------------------------------------------------------------------------
 # 节点类型表（契约 §3.1）
@@ -109,16 +211,20 @@ NODE_SCHEMAS: dict[str, dict] = {
     # ---------------------------------------------------------------- 演出类
     "music": {
         "label": "播放音乐",
-        "fields": [("name", "音乐", "music", False),
-                   ("op", "操作", "enum:music_op", True),
-                   ("seconds", "淡出秒数", "float", True)],
+        "fields": [
+            ("name", "音乐", "music", False),
+            ("op", "操作", "enum:music_op", True),
+            ("seconds", "淡出秒数", "float", True),
+        ],
     },
     "sound": {
         "label": "播放音效",
-        "fields": [("name", "音效名", "line", False),
-                   ("kind", "声道", "enum:sound_kind", True),
-                   ("op", "操作", "enum:sound_op", True),
-                   ("seconds", "淡出秒数", "float", True)],
+        "fields": [
+            ("name", "音效名", "line", False),
+            ("kind", "声道", "enum:sound_kind", True),
+            ("op", "操作", "enum:sound_op", True),
+            ("seconds", "淡出秒数", "float", True),
+        ],
     },
     "scene": {
         "label": "切换场景",
@@ -182,8 +288,10 @@ NODE_SCHEMAS: dict[str, dict] = {
     },
     "choice": {
         "label": "选项菜单",
-        "fields": [("options", "选项(2~4个)", "options", False),
-                   ("dialog", "菜单皮肤", "menu_dialog", True)],
+        "fields": [
+            ("options", "选项(2~4个)", "options", False),
+            ("dialog", "菜单皮肤", "menu_dialog", True),
+        ],
     },
     "shock": {
         "label": "震动特效",
@@ -202,49 +310,67 @@ NODE_SCHEMAS: dict[str, dict] = {
     },
     "effect": {
         "label": "屏幕特效",
-        "fields": [("name", "特效名", "effect", False),
-                   ("x", "x 偏移", "int", True), ("y", "y 偏移", "int", True),
-                   ("a", "参数 a", "float", True), ("b", "参数 b", "float", True),
-                   ("c", "参数 c", "float", True), ("d", "参数 d", "float", True)],
+        "fields": [
+            ("name", "特效名", "effect", False),
+            ("x", "x 偏移", "int", True),
+            ("y", "y 偏移", "int", True),
+            ("a", "参数 a", "float", True),
+            ("b", "参数 b", "float", True),
+            ("c", "参数 c", "float", True),
+            ("d", "参数 d", "float", True),
+        ],
     },
     "transition": {
         "label": "黑场转场",
-        "fields": [("phase", "淡入/淡出", "enum:transition_phase", False),
-                   ("dir", "扫动方向", "enum:transition_dir", True)],
+        "fields": [
+            ("phase", "淡入/淡出", "enum:transition_phase", False),
+            ("dir", "扫动方向", "enum:transition_dir", True),
+        ],
     },
     "camera": {
         "label": "镜头滤镜",
-        "fields": [("name", "滤镜名", "camera", False),
-                   ("active", "启用", "bool", False)],
+        "fields": [
+            ("name", "滤镜名", "camera", False),
+            ("active", "启用", "bool", False),
+        ],
     },
     "block": {
         "label": "流图块(高级)",
-        "fields": [("flowchart", "流图", "enum:block_flowchart", False),
-                   ("name", "块名", "line", False),
-                   ("vars", "变量", "vars", True)],
+        "fields": [
+            ("flowchart", "流图", "enum:block_flowchart", False),
+            ("name", "块名", "line", False),
+            ("vars", "变量", "vars", True),
+        ],
     },
     "cg": {
         "label": "图片/标题显示",
-        "fields": [("action", "动作", "enum:cg_action", False),
-                   ("kind", "类别", "enum:cg_kind", False),
-                   ("key", "参数 key", "line", True),
-                   ("key2", "参数 key2", "line", True),
-                   ("n1", "数值 n1", "int", True), ("n2", "数值 n2", "int", True)],
+        "fields": [
+            ("action", "动作", "enum:cg_action", False),
+            ("kind", "类别", "enum:cg_kind", False),
+            ("key", "参数 key", "line", True),
+            ("key2", "参数 key2", "line", True),
+            ("n1", "数值 n1", "int", True),
+            ("n2", "数值 n2", "int", True),
+        ],
     },
     # ------------------------------------------------------------ 数值状态类
     "stat": {
         "label": "主角属性增减",
-        "fields": [("key", "属性", "stat", False),
-                   ("delta", "变化量", "int", False),
-                   ("waitDisplay", "等待显示", "bool", True),
-                   ("display", "显示样式", "int", True),
-                   ("mode", "模式参数", "line", True)],
+        "fields": [
+            ("key", "属性", "stat", False),
+            ("delta", "变化量", "int", False),
+            ("waitDisplay", "等待显示", "bool", True),
+            ("display", "显示样式", "int", True),
+            ("mode", "模式参数", "line", True),
+        ],
     },
     "stat_set": {
         "label": "主角属性设置",
-        "fields": [("key", "属性", "stat", False),
-                   ("value", "数值", "int", False),
-                   ("update", "用 Update 接口", "bool", True)],
+        "fields": [
+            ("key", "属性", "stat", False),
+            ("value", "数值", "int", False),
+            ("update", "用 Update 接口", "bool", True),
+        ],
     },
     "affinity": {
         "label": "好感度增减",
@@ -255,15 +381,19 @@ NODE_SCHEMAS: dict[str, dict] = {
     },
     "talent": {
         "label": "天赋增减",
-        "fields": [("talent", "天赋", "talent", False),
-                   ("level", "等级变化（±）", "int", False)],
+        "fields": [
+            ("talent", "天赋", "talent", False),
+            ("level", "等级变化（±）", "int", False),
+        ],
     },
     "item": {
         "label": "物品增减",
-        "fields": [("kind", "类别", "enum:item_kind", False),
-                   ("item", "物品", "item", False),
-                   ("count", "数量", "int", False),
-                   ("remove", "移除而非获得", "bool", True)],
+        "fields": [
+            ("kind", "类别", "enum:item_kind", False),
+            ("item", "物品", "item", False),
+            ("count", "数量", "int", False),
+            ("remove", "移除而非获得", "bool", True),
+        ],
     },
     "flag": {
         "label": "记录剧情flag",
@@ -271,40 +401,53 @@ NODE_SCHEMAS: dict[str, dict] = {
     },
     "game_flag": {
         "label": "游戏任务旗标",
-        "fields": [("flag", "旗标 id", "game_flag", False),
-                   ("value", "数值", "int", False),
-                   ("op", "操作", "enum:game_flag_op", True)],
+        "fields": [
+            ("flag", "旗标 id", "game_flag", False),
+            ("value", "数值", "int", False),
+            ("op", "操作", "enum:game_flag_op", True),
+        ],
     },
     "enemy": {
         "label": "敌方队伍修改",
-        "fields": [("op", "操作", "enum:enemy_op", False),
-                   ("enemy", "敌方队伍 id", "line", False),
-                   ("value", "数值", "int", True),
-                   ("display", "显示样式", "int", True)],
+        "fields": [
+            ("op", "操作", "enum:enemy_op", False),
+            ("enemy", "敌方队伍 id", "line", False),
+            ("value", "数值", "int", True),
+            ("display", "显示样式", "int", True),
+        ],
     },
     "battle_skill": {
         "label": "战场技能",
-        "fields": [("op", "操作", "enum:battle_skill_op", False),
-                   ("key", "技能 id", "line", True),
-                   ("index", "槽位", "int", True),
-                   ("active", "激活（1/0）", "int", True)],
+        "fields": [
+            ("op", "操作", "enum:battle_skill_op", False),
+            ("key", "技能 id", "line", True),
+            ("index", "槽位", "int", True),
+            ("active", "激活（1/0）", "int", True),
+        ],
     },
     "mission": {
         "label": "任务操作",
-        "fields": [("name", "任务名", "line", False),
-                   ("key", "操作 key", "line", False)],
+        "fields": [
+            ("name", "任务名", "line", False),
+            ("key", "操作 key", "line", False),
+        ],
     },
     "time": {
         "label": "时间操作",
-        "fields": [("op", "操作", "enum:time_op", False),
-                   ("year", "年", "int", True), ("month", "月", "int", True),
-                   ("stage", "时段", "int", True),
-                   ("name", "任务名", "line", True)],
+        "fields": [
+            ("op", "操作", "enum:time_op", False),
+            ("year", "年", "int", True),
+            ("month", "月", "int", True),
+            ("stage", "时段", "int", True),
+            ("name", "任务名", "line", True),
+        ],
     },
     "autosave": {
         "label": "自动存档",
-        "fields": [("kind", "存档类型", "enum:autosave_kind", True),
-                   ("save_button", "存档按钮（0/1）", "int", True)],
+        "fields": [
+            ("kind", "存档类型", "enum:autosave_kind", True),
+            ("save_button", "存档按钮（0/1）", "int", True),
+        ],
     },
     # ---------------------------------------------------------------- 流程类
     "branch": {
@@ -317,21 +460,27 @@ NODE_SCHEMAS: dict[str, dict] = {
     },
     "dice": {
         "label": "骰子检定",
-        "fields": [("check", "骰子检查点", "dice_check", False),
-                   ("options", "检定选项", "dice_options", False)],
+        "fields": [
+            ("check", "骰子检查点", "dice_check", False),
+            ("options", "检定选项", "dice_options", False),
+        ],
     },
     "goto_scene": {
         "label": "场景跳转",
-        "fields": [("scene", "目标场景", "enum:goto_scene", False),
-                   ("key", "场景参数", "goto_scene_key", True),
-                   ("next", "结束后回到", "line", True)],
+        "fields": [
+            ("scene", "目标场景", "enum:goto_scene", False),
+            ("key", "场景参数", "goto_scene_key", True),
+            ("next", "结束后回到", "line", True),
+        ],
     },
     "panel": {
         "label": "系统面板",
-        "fields": [("panel", "面板", "enum:panel", False),
-                   ("key", "参数 id", "line", True),
-                   ("discount", "折扣", "int", True),
-                   ("mode", "模式", "int", True)],
+        "fields": [
+            ("panel", "面板", "enum:panel", False),
+            ("key", "参数 id", "line", True),
+            ("discount", "折扣", "int", True),
+            ("mode", "模式", "int", True),
+        ],
     },
     "wait": {
         "label": "等待",
@@ -355,8 +504,12 @@ _NODE_DEFAULTS: dict[str, dict] = {
     "sound": {"name": "", "kind": "sound", "op": "play"},
     "scene": {"view": ""},
     "show": {
-        "character": "", "position": "M", "portrait": "normal",
-        "facing": "right", "fadeDuration": 0, "moveDuration": 0,
+        "character": "",
+        "position": "M",
+        "portrait": "normal",
+        "facing": "right",
+        "fadeDuration": 0,
+        "moveDuration": 0,
     },
     "move": {"character": "", "from": "L1", "to": "M", "duration": 1},
     "face": {"character": "", "facing": "right"},
@@ -364,8 +517,10 @@ _NODE_DEFAULTS: dict[str, dict] = {
     "focus": {"character": ""},
     "offset": {"character": "", "x": 0, "y": 0, "duration": 0.5},
     "say": {"text": "", "character": "", "portrait": "normal", "mode": "character"},
-    "choice": {"options": [{"text": "选项一", "goto": ""}, {"text": "选项二", "goto": ""}],
-               "dialog": "Options"},
+    "choice": {
+        "options": [{"text": "选项一", "goto": ""}, {"text": "选项二", "goto": ""}],
+        "dialog": "Options",
+    },
     "shock": {"character": "", "duration": 0.5},
     "mask": {"show": True},
     "intro": {"character": ""},
@@ -387,9 +542,18 @@ _NODE_DEFAULTS: dict[str, dict] = {
     "time": {"op": "round"},
     "autosave": {"kind": "story"},
     "branch": {"flag": "", "source": "mod", "cases": [{"value": 1, "goto": ""}]},
-    "dice": {"check": "", "options": [
-        {"text": "选项一", "threshold": 50,
-         "goto_大成功": "", "goto_成功": "", "goto_失败": ""}]},
+    "dice": {
+        "check": "",
+        "options": [
+            {
+                "text": "选项一",
+                "threshold": 50,
+                "goto_大成功": "",
+                "goto_成功": "",
+                "goto_失败": "",
+            }
+        ],
+    },
     "goto_scene": {"scene": "Free", "next": "Story"},
     "panel": {"panel": "martial"},
     "wait": {"seconds": 1},
@@ -398,8 +562,16 @@ _NODE_DEFAULTS: dict[str, dict] = {
 }
 
 # 新节点可用的默认人物（editor_data 的第一个人物），由 new_node 调用方注入
-DEFAULT_PORTRAITS = ["normal", "nervous1", "nervous2", "nervous3",
-                     "angry1", "angry2", "laugh1", "gloomy2"]
+DEFAULT_PORTRAITS = [
+    "normal",
+    "nervous1",
+    "nervous2",
+    "nervous3",
+    "angry1",
+    "angry2",
+    "laugh1",
+    "gloomy2",
+]
 
 # editor_data.json 不存在时的兜底数据（契约 §5 schema 2 同构，{id,name} 对象数组）
 FALLBACK_EDITOR_DATA: dict = {
@@ -411,12 +583,19 @@ FALLBACK_EDITOR_DATA: dict = {
     ],
     "views": [{"id": v, "name": v} for v in ("out", "center", "paddy")],
     "music": [{"id": "普通_001", "name": "普通_001"}],
-    "positions": [{"id": p, "name": p}
-                  for p in ("SL", "L1", "L2", "M", "R1", "R2", "RM2", "SR")],
-    "stats": [{"id": "mental", "name": "心相"}, {"id": "money", "name": "银两"},
-              {"id": "disposition", "name": "处世"}, {"id": "behaviour", "name": "行为"},
-              {"id": "karma", "name": "业力"}, {"id": "fame", "name": "名声"},
-              {"id": "talking", "name": "口才"}, {"id": "team", "name": "队伍"}],
+    "positions": [
+        {"id": p, "name": p} for p in ("SL", "L1", "L2", "M", "R1", "R2", "RM2", "SR")
+    ],
+    "stats": [
+        {"id": "mental", "name": "心相"},
+        {"id": "money", "name": "银两"},
+        {"id": "disposition", "name": "处世"},
+        {"id": "behaviour", "name": "行为"},
+        {"id": "karma", "name": "业力"},
+        {"id": "fame", "name": "名声"},
+        {"id": "talking", "name": "口才"},
+        {"id": "team", "name": "队伍"},
+    ],
     "free_positions": [{"id": "Center", "name": "练功场"}],
     "modes": ["character", "think", "narrative", "center"],
     "menu_dialogs": ["Options", "Talk", "Meet", "Center"],
@@ -615,7 +794,8 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
     if t == "say":
         mode = node.get("mode", "character")
         who = {"narrative": "旁白", "think": "内心", "center": "居中旁白"}.get(
-            mode, cname())
+            mode, cname()
+        )
         return f"{tcn}·{who}: {_short(node.get('text', ''))}"
     if t == "music":
         op = node.get("op", "play")
@@ -648,16 +828,20 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
     if t == "effect":
         return f"{tcn}·{node.get('name', '')}"
     if t == "transition":
-        return (f"{tcn}·{enum_label('transition_phase', node.get('phase', 'in'))}"
-                f"（{enum_label('transition_dir', node.get('dir', 'lr'))}）")
+        return (
+            f"{tcn}·{enum_label('transition_phase', node.get('phase', 'in'))}"
+            f"（{enum_label('transition_dir', node.get('dir', 'lr'))}）"
+        )
     if t == "camera":
         return f"{tcn}·{node.get('name', '')}{'开' if node.get('active') else '关'}"
     if t == "block":
         return f"{tcn}·{node.get('flowchart', '')}.{node.get('name', '')}"
     if t == "cg":
-        return (f"{tcn}·{enum_label('cg_action', node.get('action', 'show'))}"
-                f"{enum_label('cg_kind', node.get('kind', 'picture'))}"
-                f" {_short(str(node.get('key') or ''))}")
+        return (
+            f"{tcn}·{enum_label('cg_action', node.get('action', 'show'))}"
+            f"{enum_label('cg_kind', node.get('kind', 'picture'))}"
+            f" {_short(str(node.get('key') or ''))}"
+        )
     if t == "stat":
         return f"{tcn}·{stat_name(node.get('key'))}{_signed(node.get('delta', 0))}"
     if t == "stat_set":
@@ -665,23 +849,30 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
     if t == "affinity":
         return f"{tcn}·{cname()}{_signed(node.get('delta', 0))}"
     if t == "talent":
-        return (f"{tcn}·{display_name(ed, 'talents', node.get('talent', ''))}"
-                f"{_signed(node.get('level', 0))}")
+        return (
+            f"{tcn}·{display_name(ed, 'talents', node.get('talent', ''))}"
+            f"{_signed(node.get('level', 0))}"
+        )
     if t == "item":
         verb = "移除" if node.get("remove") else "获得"
-        iname = display_name(ed, f"items_{node.get('kind', 'misc')}",
-                             node.get("item", ""))
+        iname = display_name(
+            ed, f"items_{node.get('kind', 'misc')}", node.get("item", "")
+        )
         return f"{tcn}·{verb} {iname}×{node.get('count', 1)}"
     if t == "flag":
         return f"{tcn}·{node.get('flag', '')}"
     if t == "game_flag":
         return f"{tcn}·{node.get('flag', '')}={node.get('value', 0)}"
     if t == "enemy":
-        return (f"{tcn}·{enum_label('enemy_op', node.get('op', 'team'))}"
-                f" {node.get('enemy', '')} {_signed(node.get('value', 0))}")
+        return (
+            f"{tcn}·{enum_label('enemy_op', node.get('op', 'team'))}"
+            f" {node.get('enemy', '')} {_signed(node.get('value', 0))}"
+        )
     if t == "battle_skill":
-        return (f"{tcn}·{enum_label('battle_skill_op', node.get('op', 'set'))}"
-                f" {node.get('key', '')}")
+        return (
+            f"{tcn}·{enum_label('battle_skill_op', node.get('op', 'set'))}"
+            f" {node.get('key', '')}"
+        )
     if t == "mission":
         return f"{tcn}·{node.get('name', '')} {node.get('key', '')}"
     if t == "time":
@@ -695,8 +886,9 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
         return f"{tcn}·{node.get('check', '')}({len(node.get('options', []))}项)"
     if t == "goto_scene":
         key = node.get("key") or ""
-        return (f"{tcn}·{enum_label('goto_scene', node.get('scene', 'Free'))}"
-                + (f" {key}" if key else ""))
+        return f"{tcn}·{enum_label('goto_scene', node.get('scene', 'Free'))}" + (
+            f" {key}" if key else ""
+        )
     if t == "panel":
         return f"{tcn}·{enum_label('panel', node.get('panel', ''))}"
     if t == "wait":

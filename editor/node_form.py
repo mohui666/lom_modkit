@@ -6,14 +6,27 @@
 - choice.options / branch.cases → 可增删行的表格，goto 列为节点 id 下拉框
 任何编辑都会把值写回节点 dict 并发出 node_changed 信号。
 """
+
 from __future__ import annotations
 
 from PySide6.QtCore import QTimer, Signal
 from PySide6.QtGui import QFontDatabase
 from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QHBoxLayout,
-    QHeaderView, QLabel, QLineEdit, QPlainTextEdit, QPushButton,
-    QScrollArea, QSpinBox, QTableWidget, QTableWidgetItem, QVBoxLayout,
+    QCheckBox,
+    QComboBox,
+    QDoubleSpinBox,
+    QFormLayout,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QPlainTextEdit,
+    QPushButton,
+    QScrollArea,
+    QSpinBox,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
     QWidget,
 )
 
@@ -35,8 +48,9 @@ class NodeForm(QScrollArea):
         self._loading = False  # 重建表单期间屏蔽信号
 
     # ------------------------------------------------------------------ 对外
-    def set_context(self, editor_data: dict, node_ids: list[str],
-                    story_ids: list[str] | None = None) -> None:
+    def set_context(
+        self, editor_data: dict, node_ids: list[str], story_ids: list[str] | None = None
+    ) -> None:
         """更新下拉框数据来源（editor_data / 全部节点 id / 包内剧情脚本 id）。"""
         self._editor_data = editor_data
         self._node_ids = list(node_ids)
@@ -82,7 +96,9 @@ class NodeForm(QScrollArea):
             goto = self._make_goto_combo(node.get("goto", ""), allow_empty=True)
             goto.currentTextChanged.connect(
                 lambda text, c=goto: self._apply(
-                    node, "goto", self._combo_value(c, text).strip() or None))
+                    node, "goto", self._combo_value(c, text).strip() or None
+                )
+            )
             form.addRow("goto（可选）", goto)
         return form
 
@@ -91,39 +107,54 @@ class NodeForm(QScrollArea):
         if kind == "character":
             w = self._make_combo(
                 models.list_items(self._editor_data, "characters"),
-                value or "", editable=True)
-            w.currentTextChanged.connect(lambda t: self._on_character_changed(node, key, t))
+                value or "",
+                editable=True,
+            )
+            w.currentTextChanged.connect(
+                lambda t: self._on_character_changed(node, key, t)
+            )
             return w
         if kind == "portrait":
             char_id = node.get("character", "")
             items = models.character_portraits(self._editor_data, char_id)
-            w = self._make_combo([(p, p) for p in items], value or "normal", editable=True)
+            w = self._make_combo(
+                [(p, p) for p in items], value or "normal", editable=True
+            )
             w.currentTextChanged.connect(lambda t: self._apply(node, key, t))
             # 记录起来，人物变化时刷新表情清单
             w.setProperty("portrait_for", key)
             return w
         if kind in ("position", "view", "music", "stat"):
             # schema 2 清单：{id,name} 对象数组，显示 "名字（id）"
-            data_key = {"position": "positions", "view": "views",
-                        "music": "music", "stat": "stats"}[kind]
+            data_key = {
+                "position": "positions",
+                "view": "views",
+                "music": "music",
+                "stat": "stats",
+            }[kind]
             return self._list_combo(node, key, data_key, value)
         if kind == "mode":
-            items = [(m, f"{models.MODE_CN.get(m, m)}（{m}）")
-                     for m in self._editor_data.get("modes") or models.MODE_CN]
+            items = [
+                (m, f"{models.MODE_CN.get(m, m)}（{m}）")
+                for m in self._editor_data.get("modes") or models.MODE_CN
+            ]
             w = self._make_combo(items, value or "character", editable=True)
             w.currentTextChanged.connect(
-                lambda t, c=w: self._apply(node, key, self._combo_value(c, t)))
+                lambda t, c=w: self._apply(node, key, self._combo_value(c, t))
+            )
             return w
         if kind == "facing":
             items = [(v, f"{cn}（{v}）") for v, cn in models.FACING_CN]
             w = self._make_combo(items, value or "right")
             w.currentTextChanged.connect(
-                lambda _t, c=w: self._apply(node, key, c.currentData()))
+                lambda _t, c=w: self._apply(node, key, c.currentData())
+            )
             return w
         if kind == "branch_source":
             w = self._make_combo(list(models.BRANCH_SOURCES), value or "mod")
             w.currentTextChanged.connect(
-                lambda _t, c=w: self._on_source_changed(node, key, c))
+                lambda _t, c=w: self._on_source_changed(node, key, c)
+            )
             return w
         if kind.startswith("enum:"):
             # 固定枚举：显示 "中文（值）"；部分枚举切换后要重建表单
@@ -131,43 +162,56 @@ class NodeForm(QScrollArea):
             options = [(v, f"{cn}（{v}）") for v, cn in models.ENUM_SETS[set_name]]
             w = self._make_combo(options, value or (options[0][0] if options else ""))
             w.currentTextChanged.connect(
-                lambda _t, c=w, s=set_name: self._on_enum_changed(node, key, s, c))
+                lambda _t, c=w, s=set_name: self._on_enum_changed(node, key, s, c)
+            )
             return w
         if kind == "menu_dialog":
-            items = models.list_items(self._editor_data, "menu_dialogs") \
-                or [("Options", "Options")]
+            items = models.list_items(self._editor_data, "menu_dialogs") or [
+                ("Options", "Options")
+            ]
             return self._combo_from_items(node, key, items, value or "Options")
         if kind == "effect":
             return self._combo_from_items(
-                node, key, models.list_items(self._editor_data, "effects"), value)
+                node, key, models.list_items(self._editor_data, "effects"), value
+            )
         if kind == "camera":
             return self._combo_from_items(
-                node, key, [(p, p) for p in models.CAMERA_PRESETS], value)
+                node, key, [(p, p) for p in models.CAMERA_PRESETS], value
+            )
         if kind == "talent":
             return self._combo_from_items(
-                node, key, models.list_items(self._editor_data, "talents"), value)
+                node, key, models.list_items(self._editor_data, "talents"), value
+            )
         if kind == "game_flag":
             return self._combo_from_items(
-                node, key, models.list_items(self._editor_data, "game_flags"), value)
+                node, key, models.list_items(self._editor_data, "game_flags"), value
+            )
         if kind == "dice_check":
             return self._combo_from_items(
-                node, key, models.list_items(self._editor_data, "dice_checks"), value)
+                node, key, models.list_items(self._editor_data, "dice_checks"), value
+            )
         if kind == "item":
             # 物品清单随 kind 字段（book/misc/special）切换；切换时表单已重建
             data_key = f"items_{node.get('kind', 'misc')}"
             return self._combo_from_items(
-                node, key, models.list_items(self._editor_data, data_key), value)
+                node, key, models.list_items(self._editor_data, data_key), value
+            )
         if kind == "goto_scene_key":
             # 场景参数清单随 scene 字段切换（战斗/战役/结局 id）
             scene = node.get("scene", "Free")
-            data_key = {"Combat": "combat_ids", "Battle": "battle_ids",
-                        "GameOver": "ending_ids", "End": "ending_ids"}.get(scene)
+            data_key = {
+                "Combat": "combat_ids",
+                "Battle": "battle_ids",
+                "GameOver": "ending_ids",
+                "End": "ending_ids",
+            }.get(scene)
             items = models.list_items(self._editor_data, data_key) if data_key else []
             return self._combo_from_items(node, key, items, value)
         if kind == "story_ref":
             # end.next_script：包内剧情脚本 id 下拉（可编辑，允许指向未创建脚本）
             return self._combo_from_items(
-                node, key, [(sid, sid) for sid in self._story_ids], value)
+                node, key, [(sid, sid) for sid in self._story_ids], value
+            )
         if kind == "line":
             w = QLineEdit("" if value is None else str(value))
             w.textChanged.connect(lambda t: self._apply(node, key, t))
@@ -195,7 +239,9 @@ class NodeForm(QScrollArea):
                 w.setValue(int(value or 0))
             except (TypeError, ValueError):
                 w.setValue(0)
-            w.valueChanged.connect(lambda v: self._apply(node, key, v))  # QSpinBox 发射 int
+            w.valueChanged.connect(
+                lambda v: self._apply(node, key, v)
+            )  # QSpinBox 发射 int
             return w
         if kind == "float":
             w = QDoubleSpinBox()
@@ -214,13 +260,19 @@ class NodeForm(QScrollArea):
             w.toggled.connect(lambda b: self._apply(node, key, bool(b)))
             return w
         if kind == "options":
-            return self._make_goto_table(node, key, columns=("text", "goto"),
-                                         min_rows=2, max_rows=4)
+            return self._make_goto_table(
+                node, key, columns=("text", "goto"), min_rows=2, max_rows=4
+            )
         if kind == "cases":
             # source=mod 时 value 只能 1/2 且最多两行（契约 §3.1）
             mod_mode = node.get("source", "mod") == "mod"
-            return self._make_goto_table(node, key, columns=("value", "goto"),
-                                         min_rows=1, max_rows=2 if mod_mode else None)
+            return self._make_goto_table(
+                node,
+                key,
+                columns=("value", "goto"),
+                min_rows=1,
+                max_rows=2 if mod_mode else None,
+            )
         if kind == "vars":
             return self._make_vars_table(node, key)
         if kind == "dice_options":
@@ -228,8 +280,9 @@ class NodeForm(QScrollArea):
         return QLabel(f"（暂不支持的字段类型 {kind}）")
 
     # ------------------------------------------------------------ 基础控件
-    def _make_combo(self, items: list[tuple[str, str]], current: str,
-                    editable: bool = False) -> QComboBox:
+    def _make_combo(
+        self, items: list[tuple[str, str]], current: str, editable: bool = False
+    ) -> QComboBox:
         """items 为 (值, 显示文本)；可编辑下拉框允许填入清单外的值。"""
         w = QComboBox()
         w.setEditable(editable)
@@ -242,17 +295,19 @@ class NodeForm(QScrollArea):
             w.setCurrentText(current)
         return w
 
-    def _list_combo(self, node: dict, key: str, data_key: str,
-                    current) -> QComboBox:
+    def _list_combo(self, node: dict, key: str, data_key: str, current) -> QComboBox:
         """schema 2 清单下拉框（{id,name} 显示 "名字（id）"，可编辑容错）。"""
         return self._combo_from_items(
-            node, key, models.list_items(self._editor_data, data_key), current)
+            node, key, models.list_items(self._editor_data, data_key), current
+        )
 
-    def _combo_from_items(self, node: dict, key: str,
-                          items: list[tuple[str, str]], current) -> QComboBox:
+    def _combo_from_items(
+        self, node: dict, key: str, items: list[tuple[str, str]], current
+    ) -> QComboBox:
         w = self._make_combo(items, str(current or ""), editable=True)
         w.currentTextChanged.connect(
-            lambda t, c=w: self._apply(node, key, self._combo_value(c, t)))
+            lambda t, c=w: self._apply(node, key, self._combo_value(c, t))
+        )
         return w
 
     def _rebuild_current(self) -> None:
@@ -263,8 +318,9 @@ class NodeForm(QScrollArea):
         """
         QTimer.singleShot(0, lambda: self.set_node(self._node))
 
-    def _on_enum_changed(self, node: dict, key: str, set_name: str,
-                         combo: QComboBox) -> None:
+    def _on_enum_changed(
+        self, node: dict, key: str, set_name: str, combo: QComboBox
+    ) -> None:
         """固定枚举写回；item.kind / goto_scene.scene 等切换后重建表单刷新联动清单。"""
         if self._loading:
             return
@@ -290,22 +346,36 @@ class NodeForm(QScrollArea):
         data = combo.currentData()
         return str(data) if data is not None else text
 
-    def _make_goto_table(self, node: dict, key: str, columns: tuple[str, str],
-                         min_rows: int, max_rows: int | None) -> QWidget:
+    def _make_goto_table(
+        self,
+        node: dict,
+        key: str,
+        columns: tuple[str, str],
+        min_rows: int,
+        max_rows: int | None,
+    ) -> QWidget:
         """choice.options / branch.cases 的表格编辑器。"""
         rows: list[dict] = node.setdefault(key, [])
         while len(rows) < min_rows:  # 契约下限：options≥2、cases≥1
-            rows.append({"text": "", "goto": ""} if key == "options"
-                        else {"value": len(rows) + 1, "goto": ""})
+            rows.append(
+                {"text": "", "goto": ""}
+                if key == "options"
+                else {"value": len(rows) + 1, "goto": ""}
+            )
 
         box = QWidget()
         v = QVBoxLayout(box)
         v.setContentsMargins(0, 0, 0, 0)
         table = QTableWidget(len(rows), 2)
         table.setHorizontalHeaderLabels(
-            ["选项文本", "goto 目标"] if key == "options" else ["分支值(value)", "goto 目标"])
+            ["选项文本", "goto 目标"]
+            if key == "options"
+            else ["分支值(value)", "goto 目标"]
+        )
         table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        table.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.ResizeMode.ResizeToContents
+        )
         table.setMinimumHeight(min(4, max(2, len(rows))) * 32 + 30)
 
         def fill():
@@ -324,10 +394,13 @@ class NodeForm(QScrollArea):
                             row["value"] = val = 1  # 容忍旧数据：非法值归一
                         cb = self._make_combo(
                             [(str(v), cn) for v, cn in models.BRANCH_MOD_VALUES],
-                            str(val))
+                            str(val),
+                        )
                         cb.currentTextChanged.connect(
                             lambda _t, row=row, c=cb: self._apply_row(
-                                row, "value", int(c.currentData())))
+                                row, "value", int(c.currentData())
+                            )
+                        )
                         table.setCellWidget(r, 0, cb)
                     else:
                         # game 模式：value 是官方 Switch 数值返回值，保持数值输入
@@ -335,12 +408,17 @@ class NodeForm(QScrollArea):
                         sp.setRange(-999999, 999999)
                         sp.setValue(int(row.get("value", 0)))
                         sp.valueChanged.connect(
-                            lambda val, row=row: self._apply_row(row, "value", int(val)))
+                            lambda val, row=row: self._apply_row(row, "value", int(val))
+                        )
                         table.setCellWidget(r, 0, sp)
-                    combo = self._make_goto_combo(str(row.get("goto", "")), allow_empty=True)
+                    combo = self._make_goto_combo(
+                        str(row.get("goto", "")), allow_empty=True
+                    )
                     combo.currentTextChanged.connect(
                         lambda t, row=row, c=combo: self._apply_row(
-                            row, "goto", self._combo_value(c, t).strip()))
+                            row, "goto", self._combo_value(c, t).strip()
+                        )
+                    )
                     table.setCellWidget(r, 1, combo)
             finally:
                 table.blockSignals(False)
@@ -360,8 +438,11 @@ class NodeForm(QScrollArea):
         def on_add():
             if max_rows is not None and len(rows) >= max_rows:
                 return
-            rows.append({"text": "", "goto": ""} if key == "options"
-                        else {"value": len(rows) + 1, "goto": ""})
+            rows.append(
+                {"text": "", "goto": ""}
+                if key == "options"
+                else {"value": len(rows) + 1, "goto": ""}
+            )
             fill()
             self._emit_changed()
 
@@ -378,8 +459,9 @@ class NodeForm(QScrollArea):
         v.addLayout(btns)
         return box
 
-    def _make_row_buttons(self, rows: list, fill, min_rows: int,
-                          max_rows: int | None, new_row) -> QHBoxLayout:
+    def _make_row_buttons(
+        self, rows: list, fill, min_rows: int, max_rows: int | None, new_row
+    ) -> QHBoxLayout:
         """表格通用的 添加行/删除末行 按钮行。"""
         btns = QHBoxLayout()
         add = QPushButton("添加行")
@@ -438,27 +520,42 @@ class NodeForm(QScrollArea):
         fill()
         table.itemChanged.connect(on_item)
         v.addWidget(table)
-        v.addLayout(self._make_row_buttons(
-            rows, fill, min_rows=0, max_rows=None,
-            new_row=lambda: {"name": "", "value": ""}))
+        v.addLayout(
+            self._make_row_buttons(
+                rows,
+                fill,
+                min_rows=0,
+                max_rows=None,
+                new_row=lambda: {"name": "", "value": ""},
+            )
+        )
         return box
 
     def _make_dice_table(self, node: dict, key: str) -> QWidget:
         """dice.options：文本/阈值/大成功/成功/失败 五列表格（契约 §3.1 三向分支）。"""
         rows: list[dict] = node.setdefault(key, [])
         if not rows:
-            rows.append({"text": "选项一", "threshold": 50,
-                         "goto_大成功": "", "goto_成功": "", "goto_失败": ""})
+            rows.append(
+                {
+                    "text": "选项一",
+                    "threshold": 50,
+                    "goto_大成功": "",
+                    "goto_成功": "",
+                    "goto_失败": "",
+                }
+            )
         box = QWidget()
         v = QVBoxLayout(box)
         v.setContentsMargins(0, 0, 0, 0)
         table = QTableWidget(0, 5)
         table.setHorizontalHeaderLabels(
-            ["选项文本", "阈值", "大成功 goto", "成功 goto", "失败 goto"])
+            ["选项文本", "阈值", "大成功 goto", "成功 goto", "失败 goto"]
+        )
         table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         for c in range(1, 5):
             table.horizontalHeader().setSectionResizeMode(
-                c, QHeaderView.ResizeMode.ResizeToContents)
+                c, QHeaderView.ResizeMode.ResizeToContents
+            )
         table.setMinimumHeight(min(4, max(2, len(rows))) * 32 + 30)
 
         def fill():
@@ -470,12 +567,16 @@ class NodeForm(QScrollArea):
                     table.setItem(r, 0, QTableWidgetItem(str(row.get("text", ""))))
                     table.setItem(r, 1, QTableWidgetItem(str(row.get("threshold", 0))))
                     for c, gkey in enumerate(
-                            ("goto_大成功", "goto_成功", "goto_失败"), start=2):
-                        combo = self._make_goto_combo(str(row.get(gkey, "")),
-                                                      allow_empty=True)
+                        ("goto_大成功", "goto_成功", "goto_失败"), start=2
+                    ):
+                        combo = self._make_goto_combo(
+                            str(row.get(gkey, "")), allow_empty=True
+                        )
                         combo.currentTextChanged.connect(
                             lambda t, row=row, c=combo, g=gkey: self._apply_row(
-                                row, g, self._combo_value(c, t).strip()))
+                                row, g, self._combo_value(c, t).strip()
+                            )
+                        )
                         table.setCellWidget(r, c, combo)
             finally:
                 table.blockSignals(False)
@@ -498,10 +599,21 @@ class NodeForm(QScrollArea):
         fill()
         table.itemChanged.connect(on_item)
         v.addWidget(table)
-        v.addLayout(self._make_row_buttons(
-            rows, fill, min_rows=1, max_rows=4,
-            new_row=lambda: {"text": "", "threshold": 50,
-                             "goto_大成功": "", "goto_成功": "", "goto_失败": ""}))
+        v.addLayout(
+            self._make_row_buttons(
+                rows,
+                fill,
+                min_rows=1,
+                max_rows=4,
+                new_row=lambda: {
+                    "text": "",
+                    "threshold": 50,
+                    "goto_大成功": "",
+                    "goto_成功": "",
+                    "goto_失败": "",
+                },
+            )
+        )
         return box
 
     # ------------------------------------------------------------------ 写回
@@ -535,7 +647,9 @@ class NodeForm(QScrollArea):
     def _on_character_changed(self, node: dict, key: str, text: str) -> None:
         """人物变化：写回，并就地刷新同节点内表情下拉框的清单（不重建表单，避免打断输入）。"""
         sender = self.sender()
-        char_id = self._combo_value(sender, text) if isinstance(sender, QComboBox) else text
+        char_id = (
+            self._combo_value(sender, text) if isinstance(sender, QComboBox) else text
+        )
         if char_id == node.get(key):
             return
         self._apply(node, key, char_id)
@@ -545,7 +659,9 @@ class NodeForm(QScrollArea):
             if not pkey:
                 continue
             cur = combo.currentText()
-            new_p = cur if cur in portraits else (portraits[0] if portraits else "normal")
+            new_p = (
+                cur if cur in portraits else (portraits[0] if portraits else "normal")
+            )
             combo.blockSignals(True)
             combo.clear()
             for p in portraits:

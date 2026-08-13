@@ -12,6 +12,7 @@
 用法（在 editor/ 目录下）：
     .venv/Scripts/python tests/stress_test.py
 """
+
 from __future__ import annotations
 
 import os
@@ -39,9 +40,14 @@ DEMO_LOMMOD = main.PROJECT_ROOT / "samples" / "demo_mod.lommod"
 
 def click_at(widget, pos) -> None:
     """向控件发送真实鼠标按下事件（走 mousePressEvent 完整链路）。"""
-    ev = QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(pos), QPointF(pos),
-                     Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton,
-                     Qt.KeyboardModifier.NoModifier)
+    ev = QMouseEvent(
+        QEvent.Type.MouseButtonPress,
+        QPointF(pos),
+        QPointF(pos),
+        Qt.MouseButton.LeftButton,
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+    )
     QApplication.sendEvent(widget, ev)
 
 
@@ -68,8 +74,11 @@ def walk_branches(win, app, node, depth=0, seen=None):
     elif t == "branch":
         gotos = [c.get("goto") for c in node.get("cases", [])]
     elif t == "dice":
-        gotos = [g for o in node.get("options", [])
-                 for g in (o.get("goto_大成功"), o.get("goto_成功"), o.get("goto_失败"))]
+        gotos = [
+            g
+            for o in node.get("options", [])
+            for g in (o.get("goto_大成功"), o.get("goto_成功"), o.get("goto_失败"))
+        ]
     else:
         return
     for g in gotos:
@@ -95,8 +104,10 @@ def main_fn() -> int:
     win.show()
     pmap, data_dir = preview.load_preview_map(main.PROJECT_ROOT)
     real_assets = bool(pmap)
-    print(f"[0] 环境就绪（素材={'真实图片' if real_assets else '占位图'}，"
-          f"editor_data={'兜底' if is_fallback else 'json'}）")
+    print(
+        f"[0] 环境就绪（素材={'真实图片' if real_assets else '占位图'}，"
+        f"editor_data={'兜底' if is_fallback else 'json'}）"
+    )
 
     # ------------------------------------------------------------------
     # [1] 逐节点渲染：main.json / second.json 全部节点选中 + grab
@@ -109,9 +120,11 @@ def main_fn() -> int:
             app.processEvents()
             img = win.stage.grab()
             assert not img.isNull(), f"grab 失败: {path.name} {n['id']}"
-        print(f"[1] 逐节点渲染 OK（{path.name}，{len(win.story['nodes'])} 节点，"
-              f"缓存 {len(win.stage._pix_cache)} 张/"
-              f"{win.stage._cache_bytes // (1 << 20)}MB）")
+        print(
+            f"[1] 逐节点渲染 OK（{path.name}，{len(win.story['nodes'])} 节点，"
+            f"缓存 {len(win.stage._pix_cache)} 张/"
+            f"{win.stage._cache_bytes // (1 << 20)}MB）"
+        )
 
     # ------------------------------------------------------------------
     # [1b] v3 全量 38 种节点类型：建表 + 渲染不崩（提示行/舞台两条路径都走）
@@ -126,12 +139,17 @@ def main_fn() -> int:
     all_nodes.append({"id": "a99", "type": "end"})
     # end/goto_scene 是终止节点（推演到此为止），排到末尾保证其余节点可达
     all_nodes.sort(key=lambda n: 1 if n["type"] in ("end", "goto_scene") else 0)
-    win.story = {"id": "all_types", "title": "全类型", "start": "a01",
-                 "nodes": all_nodes}
+    win.story = {
+        "id": "all_types",
+        "title": "全类型",
+        "start": "a01",
+        "nodes": all_nodes,
+    }
     win._refresh_all()
     app.processEvents()
-    first_term = next(i for i, n in enumerate(all_nodes)
-                      if n["type"] in ("end", "goto_scene"))
+    first_term = next(
+        i for i, n in enumerate(all_nodes) if n["type"] in ("end", "goto_scene")
+    )
     for i, n in enumerate(all_nodes):
         win.node_list.setCurrentRow(i)
         app.processEvents()
@@ -142,8 +160,11 @@ def main_fn() -> int:
         else:
             # 终止节点（end/goto_scene）之后的节点不可达是正确语义
             assert not win.stage._state["reached"], f"{n['id']} 不应越过终止节点"
-    hints = sum(1 for n in all_nodes
-                if preview.simulate_stage(win.story, n["id"], editor_data)["hint"])
+    hints = sum(
+        1
+        for n in all_nodes
+        if preview.simulate_stage(win.story, n["id"], editor_data)["hint"]
+    )
     assert hints >= 20, f"数值/流程类节点应有提示行：{hints}"
     print(f"[1b] 全量 38 类型渲染 OK（{len(all_nodes)} 节点，{hints} 个提示行）")
 
@@ -164,8 +185,9 @@ def main_fn() -> int:
         click_at(win.stage, box.center())
         app.processEvents()
         cur = win._current_node()
-        assert cur and cur["id"] == opt["goto"], \
+        assert cur and cur["id"] == opt["goto"], (
             f"点击选项 {k} 应选中 {opt['goto']}，实际 {cur and cur['id']}"
+        )
     print("[2] 选项按钮真实点击 OK（n11 三个选项均正确跳转）")
 
     # ------------------------------------------------------------------
@@ -174,8 +196,9 @@ def main_fn() -> int:
     win._goto_start()
     app.processEvents()
     stop = auto_to_halt(win, app)
-    assert stop and stop["id"] == "n11" and stop["type"] == "choice", \
+    assert stop and stop["id"] == "n11" and stop["type"] == "choice", (
         f"自动播放应暂停在 n11 choice，实际 {stop and stop['id']}"
+    )
     # n11 三分支：n12 线、n16→n21(branch,两case)线、n20→n21 线；n25b 还有一层 branch
     walk_branches(win, app, stop)
     # 确认 branch 两个 case 的目标都被踩过（n22=n21 的 value2 分支，n25c=n25b 分支）
@@ -246,20 +269,41 @@ def main_fn() -> int:
 
     # 5b 坏图片路径 + 缺失人物 id + portrait 缺 key + 怪站位
     weird = {
-        "id": "weird", "title": "异常输入", "start": "w1",
+        "id": "weird",
+        "title": "异常输入",
+        "start": "w1",
         "nodes": [
             {"id": "w1", "type": "scene", "view": "__no_such_view__"},
-            {"id": "w2", "type": "show", "character": "ghost999",
-             "position": "Talk", "portrait": "normal"},
-            {"id": "w3", "type": "show", "character": "brother4",
-             "position": "LB1", "portrait": "__no_such_emotion__"},
-            {"id": "w4", "type": "show", "character": "player",
-             "position": "BCB2", "facing": "left"},
-            {"id": "w5", "type": "show", "character": "trainee1",
-             "position": "RS2"},
-            {"id": "w6", "type": "say", "character": "ghost999",
-             "portrait": "normal", "mode": "character",
-             "text": "不存在的人物在说话"},
+            {
+                "id": "w2",
+                "type": "show",
+                "character": "ghost999",
+                "position": "Talk",
+                "portrait": "normal",
+            },
+            {
+                "id": "w3",
+                "type": "show",
+                "character": "brother4",
+                "position": "LB1",
+                "portrait": "__no_such_emotion__",
+            },
+            {
+                "id": "w4",
+                "type": "show",
+                "character": "player",
+                "position": "BCB2",
+                "facing": "left",
+            },
+            {"id": "w5", "type": "show", "character": "trainee1", "position": "RS2"},
+            {
+                "id": "w6",
+                "type": "say",
+                "character": "ghost999",
+                "portrait": "normal",
+                "mode": "character",
+                "text": "不存在的人物在说话",
+            },
             {"id": "w7", "type": "end"},
         ],
     }
@@ -275,10 +319,17 @@ def main_fn() -> int:
 
     # 5c 素材映射整体损坏：preview_map 指向不存在的目录
     win.stage.set_assets(
-        {"views": {"center": "assets/views/__missing__.png"},
-         "characters": {"player": {"name": "主角", "portraits":
-                                   {"normal": "assets/portraits/__missing__.png"}}}},
-        data_dir)
+        {
+            "views": {"center": "assets/views/__missing__.png"},
+            "characters": {
+                "player": {
+                    "name": "主角",
+                    "portraits": {"normal": "assets/portraits/__missing__.png"},
+                }
+            },
+        },
+        data_dir,
+    )
     win._load_story_path(DEMO_MAIN)
     win.node_list.setCurrentRow(win._node_row("n7"))
     app.processEvents()
@@ -304,10 +355,13 @@ def main_fn() -> int:
         n = len(win.stage._pix_cache)
         mb = win.stage._cache_bytes / (1 << 20)
         assert n <= preview.MAX_CACHE_ENTRIES, f"缓存条数超上限: {n}"
-        assert win.stage._cache_bytes <= preview.MAX_CACHE_BYTES, \
+        assert win.stage._cache_bytes <= preview.MAX_CACHE_BYTES, (
             f"缓存字节超上限: {mb:.0f}MB"
-        print(f"[6] 缓存上限 OK（灌入 {len(paths)} 张 → LRU 留住 {n} 张，"
-              f"{mb:.0f}MB ≤ {preview.MAX_CACHE_BYTES // (1 << 20)}MB）")
+        )
+        print(
+            f"[6] 缓存上限 OK（灌入 {len(paths)} 张 → LRU 留住 {n} 张，"
+            f"{mb:.0f}MB ≤ {preview.MAX_CACHE_BYTES // (1 << 20)}MB）"
+        )
     else:
         print("[6] 无真实素材，跳过缓存上限断言")
 

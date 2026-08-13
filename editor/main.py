@@ -8,6 +8,7 @@
 v4 起支持多剧情脚本管理（项目 = 多个 story + manifest，对应 .lommod 包）、
 快照式撤销/重做（连续输入合并为一步）与脏标记（标题 * + 关闭/破坏操作确认）。
 """
+
 from __future__ import annotations
 
 import copy
@@ -19,11 +20,30 @@ from pathlib import Path
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import (
-    QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox,
-    QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel,
-    QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMenu,
-    QMessageBox, QPushButton, QSplitter, QTabWidget, QTableWidget,
-    QTableWidgetItem, QVBoxLayout, QWidget,
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFileDialog,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMainWindow,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+    QSplitter,
+    QTabWidget,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
 
 EDITOR_DIR = Path(__file__).resolve().parent
@@ -49,8 +69,9 @@ _crash_logging_installed = False
 def _excepthook(exc_type, exc, tb) -> None:
     """未捕获异常 → crash.log（PySide6 槽/虚函数里的异常经 PyErr_Print 也会走这里）。"""
     try:
-        log_crash("未捕获异常：\n"
-                  + "".join(traceback.format_exception(exc_type, exc, tb)))
+        log_crash(
+            "未捕获异常：\n" + "".join(traceback.format_exception(exc_type, exc, tb))
+        )
     except Exception:
         pass
     try:
@@ -75,8 +96,11 @@ def install_crash_logging() -> None:
         if sys.stderr is None:
             sys.stderr = open(CRASH_LOG, "a", encoding="utf-8", buffering=1)
         if sys.stdout is None:
-            sys.stdout = sys.stderr if sys.stderr is not None else \
-                open(CRASH_LOG, "a", encoding="utf-8", buffering=1)
+            sys.stdout = (
+                sys.stderr
+                if sys.stderr is not None
+                else open(CRASH_LOG, "a", encoding="utf-8", buffering=1)
+            )
     except Exception:
         pass
     try:
@@ -98,9 +122,14 @@ class ManifestDialog(QDialog):
     base_manifest：导入 .lommod 时读到的原 manifest，用于回填（campaign 往返）。
     """
 
-    def __init__(self, story_id: str, editor_data: dict,
-                 story_ids: list[str], base_manifest: dict | None = None,
-                 parent=None):
+    def __init__(
+        self,
+        story_id: str,
+        editor_data: dict,
+        story_ids: list[str],
+        base_manifest: dict | None = None,
+        parent=None,
+    ):
         super().__init__(parent)
         base = base_manifest or {}
         campaign = base.get("campaign") or {}
@@ -135,18 +164,22 @@ class ManifestDialog(QDialog):
         camp_box = QGroupBox("战役模式（可选）")
         cv = QVBoxLayout(camp_box)
         self.new_game_check = QCheckBox(
-            "出现在游戏内「开始新战役」区（隔离存档槽开新游戏，入口=上面的脚本）")
+            "出现在游戏内「开始新战役」区（隔离存档槽开新游戏，入口=上面的脚本）"
+        )
         self.new_game_check.setChecked(bool(campaign.get("new_game")))
         cv.addWidget(self.new_game_check)
         cv.addWidget(QLabel("自由模式触发器：点击地图位置时用本包脚本替换默认活动"))
         self.triggers_table = QTableWidget(0, 4)
         self.triggers_table.setHorizontalHeaderLabels(
-            ["地图位置", "脚本 id", "需已设旗标（可选）", "需未设旗标（可选）"])
+            ["地图位置", "脚本 id", "需已设旗标（可选）", "需未设旗标（可选）"]
+        )
         self.triggers_table.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.ResizeMode.ResizeToContents)
+            0, QHeaderView.ResizeMode.ResizeToContents
+        )
         for c in (1, 2, 3):
             self.triggers_table.horizontalHeader().setSectionResizeMode(
-                c, QHeaderView.ResizeMode.Stretch)
+                c, QHeaderView.ResizeMode.Stretch
+            )
         self.triggers_table.setMinimumHeight(120)
         cv.addWidget(self.triggers_table)
         btns = QHBoxLayout()
@@ -163,8 +196,9 @@ class ManifestDialog(QDialog):
             if isinstance(trig, dict):
                 self._add_trigger_row(trig)
 
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok
-                                   | QDialogButtonBox.StandardButton.Cancel)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -220,8 +254,12 @@ class ManifestDialog(QDialog):
             "version": self.version_edit.text().strip() or "1.0.0",
             "author": self.author_edit.text().strip(),
             "description": self.desc_edit.text().strip(),
-            "entry": (str(self.entry_combo.currentData()
-                         or self.entry_combo.currentText()).strip() or "main"),
+            "entry": (
+                str(
+                    self.entry_combo.currentData() or self.entry_combo.currentText()
+                ).strip()
+                or "main"
+            ),
         }
         # campaign：勾了 new_game 或有有效触发器时才写出（契约 §2 可选段）
         triggers = []
@@ -229,13 +267,14 @@ class ManifestDialog(QDialog):
         for r in range(table.rowCount()):
             pos_combo = table.cellWidget(r, 0)
             script_combo = table.cellWidget(r, 1)
-            if not (isinstance(pos_combo, QComboBox)
-                    and isinstance(script_combo, QComboBox)):
+            if not (
+                isinstance(pos_combo, QComboBox) and isinstance(script_combo, QComboBox)
+            ):
                 continue  # 异常行防御（cellWidget 静态类型是 QWidget）
-            position = str(pos_combo.currentData()
-                           or pos_combo.currentText()).strip()
-            script = str(script_combo.currentData()
-                         or script_combo.currentText()).strip()
+            position = str(pos_combo.currentData() or pos_combo.currentText()).strip()
+            script = str(
+                script_combo.currentData() or script_combo.currentText()
+            ).strip()
             if not position or not script:
                 continue  # 位置/脚本缺一不可，缺了跳过该行
             trig = {"type": "position", "position": position, "script": script}
@@ -267,8 +306,8 @@ class MainWindow(QMainWindow):
         self._stories: dict[str, dict] = {}
         self._current_id = ""
         self.story = models.new_story(editor_data=editor_data)
-        self.manifest: dict = {}        # 当前项目 manifest（导入 .lommod 后生效）
-        self.manifest_base: dict = {}   # 导入的原 manifest（campaign 往返用）
+        self.manifest: dict = {}  # 当前项目 manifest（导入 .lommod 后生效）
+        self.manifest_base: dict = {}  # 导入的原 manifest（campaign 往返用）
         self._story_paths: dict[str, Path | None] = {}
         self._loading = False
         # 撤销/重做：整项目快照式；连续输入暂停 600ms 合并为一步
@@ -286,8 +325,11 @@ class MainWindow(QMainWindow):
         self._refresh_all()
 
         # 状态栏：数据来源提示
-        src = "使用兜底数据（未找到 data/editor_data.json）" if is_fallback \
+        src = (
+            "使用兜底数据（未找到 data/editor_data.json）"
+            if is_fallback
             else "已加载 data/editor_data.json"
+        )
         if not lomc_available():
             src += f"；lomc 不可用（{get_lomc()[1]}）"
         if not self.stage.has_assets():
@@ -361,8 +403,9 @@ class MainWindow(QMainWindow):
             sub = add_menu.addMenu(group_name)
             for t in types:
                 cn = models.NODE_TYPE_CN.get(t, t)
-                sub.addAction(f"{cn}（{t}）",
-                              lambda checked=False, t=t: self._add_node(t))
+                sub.addAction(
+                    f"{cn}（{t}）", lambda checked=False, t=t: self._add_node(t)
+                )
         add_btn.setMenu(add_menu)
         del_btn = QPushButton("删除")
         up_btn = QPushButton("上移")
@@ -437,10 +480,12 @@ class MainWindow(QMainWindow):
     def _build_menu(self) -> None:
         menu = self.menuBar().addMenu("文件(&F)")
         menu.addAction("新建剧情", self.new_story, QKeySequence.StandardKey.New)
-        menu.addAction("打开 story.json…", self.open_story,
-                       QKeySequence.StandardKey.Open)
-        menu.addAction("保存 story.json…", self.save_story,
-                       QKeySequence.StandardKey.Save)
+        menu.addAction(
+            "打开 story.json…", self.open_story, QKeySequence.StandardKey.Open
+        )
+        menu.addAction(
+            "保存 story.json…", self.save_story, QKeySequence.StandardKey.Save
+        )
         menu.addSeparator()
         menu.addAction("导入 .lommod…", self.import_lommod)
         menu.addAction("导出 .lommod…", self.export_lommod)
@@ -529,7 +574,9 @@ class MainWindow(QMainWindow):
         self.node_list.blockSignals(True)
         self.node_list.clear()
         for n in self.story.get("nodes", []):
-            item = QListWidgetItem(f"{n.get('id', '')}  {models.node_summary(n, self.editor_data)}")
+            item = QListWidgetItem(
+                f"{n.get('id', '')}  {models.node_summary(n, self.editor_data)}"
+            )
             self.node_list.addItem(item)
         row = select_row if select_row >= 0 else cur
         if self.node_list.count():
@@ -543,8 +590,7 @@ class MainWindow(QMainWindow):
 
     def _load_form(self) -> None:
         node_ids = [n.get("id", "") for n in self.story.get("nodes", [])]
-        self.form.set_context(self.editor_data, node_ids,
-                              sorted(self._stories.keys()))
+        self.form.set_context(self.editor_data, node_ids, sorted(self._stories.keys()))
         self.form.set_node(self._current_node())
 
     def _schedule_preview(self) -> None:
@@ -611,7 +657,8 @@ class MainWindow(QMainWindow):
             if node and node.get("type") in ("choice", "branch", "dice"):
                 self._stop_auto()
                 self.statusBar().showMessage(
-                    f"自动播放：遇到 {node['type']} 节点 {node.get('id')}，已暂停", 3000)
+                    f"自动播放：遇到 {node['type']} 节点 {node.get('id')}，已暂停", 3000
+                )
         except Exception:
             log_crash("自动播放步进异常：\n" + traceback.format_exc())
             self._stop_auto()
@@ -699,8 +746,12 @@ class MainWindow(QMainWindow):
         self._update_title()
 
     def _update_title(self) -> None:
-        name = (self.manifest.get("name") or self.manifest.get("id")
-                or self._current_id or "未命名")
+        name = (
+            self.manifest.get("name")
+            or self.manifest.get("id")
+            or self._current_id
+            or "未命名"
+        )
         star = " *" if self._dirty else ""
         self.setWindowTitle(f"{APP_TITLE} — {name}{star}")
 
@@ -721,8 +772,7 @@ class MainWindow(QMainWindow):
         box.setText("有未保存的修改，如何处理？")
         box.setInformativeText("导出 .lommod 保存全部剧情脚本，或放弃修改继续。")
         save_btn = box.addButton("导出保存…", QMessageBox.ButtonRole.AcceptRole)
-        discard_btn = box.addButton(
-            "放弃修改", QMessageBox.ButtonRole.DestructiveRole)
+        discard_btn = box.addButton("放弃修改", QMessageBox.ButtonRole.DestructiveRole)
         box.addButton("取消", QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(save_btn)
         box.exec()
@@ -742,8 +792,9 @@ class MainWindow(QMainWindow):
     # -------------------------------------------------------------- 节点操作
     def _add_node(self, node_type: str) -> None:
         self._record_discrete()
-        node = models.new_node(node_type, models.make_node_id(self.story),
-                               self.editor_data)
+        node = models.new_node(
+            node_type, models.make_node_id(self.story), self.editor_data
+        )
         nodes = self.story.setdefault("nodes", [])
         row = self.node_list.currentRow()
         at = row + 1 if 0 <= row < len(nodes) else len(nodes)
@@ -779,8 +830,8 @@ class MainWindow(QMainWindow):
     def _on_node_selected(self, _row: int) -> None:
         if not self._loading:
             self._load_form()
-            self._refresh_stage()      # 演出预览随选中刷新
-            self._schedule_preview()   # Lua 页签也刷新（防抖）
+            self._refresh_stage()  # 演出预览随选中刷新
+            self._schedule_preview()  # Lua 页签也刷新（防抖）
 
     def _on_story_props_changed(self) -> None:
         """脚本 id/标题编辑：写回 story（id 变化时同步项目键），记录撤销点。"""
@@ -792,9 +843,9 @@ class MainWindow(QMainWindow):
         if new_id == old_id and new_title == self.story.get("title", ""):
             return
         if new_id != old_id and (
-                not models.ID_PATTERN.match(new_id)
-                or (new_id in self._stories
-                    and self._stories[new_id] is not self.story)):
+            not models.ID_PATTERN.match(new_id)
+            or (new_id in self._stories and self._stories[new_id] is not self.story)
+        ):
             # 非法 id 或已被其它剧情占用：回退文本
             self._loading = True
             try:
@@ -802,7 +853,8 @@ class MainWindow(QMainWindow):
             finally:
                 self._loading = False
             self.statusBar().showMessage(
-                f"脚本 id {new_id!r} 不可用（格式 [a-zA-Z0-9_-]+ 且包内唯一）", 3000)
+                f"脚本 id {new_id!r} 不可用（格式 [a-zA-Z0-9_-]+ 且包内唯一）", 3000
+            )
             return
         self._record_continuous()
         cur_story = self.story  # 局部引用：换键期间不经过 property（避免读到已删键）
@@ -840,8 +892,11 @@ class MainWindow(QMainWindow):
         self._loading = True
         try:
             self._reload_start_combo()
-            self.story["start"] = cur if self.start_combo.findText(cur) >= 0 \
+            self.story["start"] = (
+                cur
+                if self.start_combo.findText(cur) >= 0
                 else self.start_combo.currentText()
+            )
         finally:
             self._loading = False
 
@@ -866,7 +921,8 @@ class MainWindow(QMainWindow):
         if not self._confirm_discard():
             return
         path, _ = QFileDialog.getOpenFileName(
-            self, "打开 story.json", str(PROJECT_ROOT), "story JSON (*.json)")
+            self, "打开 story.json", str(PROJECT_ROOT), "story JSON (*.json)"
+        )
         if not path:
             return
         self._load_story_path(Path(path))
@@ -894,9 +950,11 @@ class MainWindow(QMainWindow):
         """保存当前剧情脚本为 story.json（多剧情时只保存当前脚本）。"""
         path = str(self.story_path) if self.story_path else ""
         path, _ = QFileDialog.getSaveFileName(
-            self, "保存 story.json",
+            self,
+            "保存 story.json",
             path or str(PROJECT_ROOT / f"{self._current_id}.json"),
-            "story JSON (*.json)")
+            "story JSON (*.json)",
+        )
         if not path:
             return False
         try:
@@ -913,7 +971,8 @@ class MainWindow(QMainWindow):
         if not self._confirm_discard():
             return
         path, _ = QFileDialog.getOpenFileName(
-            self, "导入 .lommod", str(PROJECT_ROOT), "LoM Mod 包 (*.lommod)")
+            self, "导入 .lommod", str(PROJECT_ROOT), "LoM Mod 包 (*.lommod)"
+        )
         if not path:
             return
         try:
@@ -924,8 +983,7 @@ class MainWindow(QMainWindow):
         # 包内全部剧情进项目（键以 story 内部 id 为准）
         self._stories = {str(st.get("id") or s): st for s, st in stories.items()}
         entry = manifest.get("entry")
-        self._current_id = entry if entry in self._stories \
-            else sorted(self._stories)[0]
+        self._current_id = entry if entry in self._stories else sorted(self._stories)[0]
         self.manifest = manifest
         self.manifest_base = manifest  # 保留 campaign 等，导出时回填
         self._story_paths = {}
@@ -935,29 +993,42 @@ class MainWindow(QMainWindow):
         self._pending_before = None
         self._commit_timer.stop()
         self._refresh_all()
-        extra = "" if len(self._stories) == 1 else \
-            f"（包内共 {len(self._stories)} 个剧情，当前打开入口 {self._current_id}）"
+        extra = (
+            ""
+            if len(self._stories) == 1
+            else f"（包内共 {len(self._stories)} 个剧情，当前打开入口 {self._current_id}）"
+        )
         if manifest.get("campaign"):
             extra += "（含战役 campaign 配置）"
         self.statusBar().showMessage(
-            f"已导入 {manifest.get('name', manifest.get('id'))}{extra}", 5000)
+            f"已导入 {manifest.get('name', manifest.get('id'))}{extra}", 5000
+        )
 
     def export_lommod(self) -> bool:
         """导出 .lommod：包内全部剧情脚本 + manifest；成功返回 True。"""
-        dlg = ManifestDialog(self._current_id, self.editor_data,
-                             sorted(self._stories.keys()),
-                             self.manifest_base, self)
+        dlg = ManifestDialog(
+            self._current_id,
+            self.editor_data,
+            sorted(self._stories.keys()),
+            self.manifest_base,
+            self,
+        )
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return False
         manifest = dlg.manifest()
         if not models.ID_PATTERN.match(manifest["id"]):
             QMessageBox.warning(
-                self, APP_TITLE,
-                f"mod id {manifest['id']!r} 非法（应为 [a-zA-Z0-9_\\-]+）")
+                self,
+                APP_TITLE,
+                f"mod id {manifest['id']!r} 非法（应为 [a-zA-Z0-9_\\-]+）",
+            )
             return False
         path, _ = QFileDialog.getSaveFileName(
-            self, "导出 .lommod", str(PROJECT_ROOT / f"{manifest['id']}.lommod"),
-            "LoM Mod 包 (*.lommod)")
+            self,
+            "导出 .lommod",
+            str(PROJECT_ROOT / f"{manifest['id']}.lommod"),
+            "LoM Mod 包 (*.lommod)",
+        )
         if not path:
             return False
         try:
@@ -970,10 +1041,11 @@ class MainWindow(QMainWindow):
         self._saved_snapshot = self._snapshot()
         self._set_dirty(False)
         QMessageBox.information(
-            self, APP_TITLE,
-            f"导出成功：{path}\n\n" + "\n".join(report))
+            self, APP_TITLE, f"导出成功：{path}\n\n" + "\n".join(report)
+        )
         self.statusBar().showMessage(f"已导出 {path}", 5000)
         return True
+
 
 def main() -> int:
     app = QApplication(sys.argv)

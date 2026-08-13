@@ -36,6 +36,7 @@ namespace MortalModHost
         private ConfigEntry<KeyboardShortcut> _menuHotkey;
 
         private bool _showMenu;
+        private bool _inTitleScene; // 当前菜单是否处于标题画面（Title 场景仅提供战役区）
         private Rect _windowRect = new Rect(40f, 40f, 460f, 420f);
         private Vector2 _scroll;
 
@@ -143,9 +144,10 @@ namespace MortalModHost
 
             // 诊断日志：热键按下时无条件记录场景名与门控结果，方便定位"热键被抢/场景不符"类反馈
             string scene = SceneController.Instance != null ? SceneController.Instance.CurrentScene : "(SceneController 未就绪)";
-            if (!IsInFreeScene())
+            bool isTitle;
+            if (!IsMenuScene(out isTitle))
             {
-                Logger.LogInfo("检测到菜单热键按下（当前场景：" + scene + "），当前场景不是 Free，已忽略。");
+                Logger.LogInfo("检测到菜单热键按下（当前场景：" + scene + "），当前场景不支持 mod 菜单，已忽略。");
                 return;
             }
             _showMenu = !_showMenu;
@@ -153,10 +155,22 @@ namespace MortalModHost
             Logger.LogInfo("检测到菜单热键按下（当前场景：" + scene + "），" + (_showMenu ? "已打开菜单。" : "已关闭菜单。"));
         }
 
-        /// <summary>仅 Free 自由场景显示菜单（Story/Battle 等场景不出，避免遮挡演出）。</summary>
-        private static bool IsInFreeScene()
+        /// <summary>
+        /// mod 菜单可用场景：Free（自由模式：演出剧情 + 开新战役）与 Title（标题画面：仅开新战役）。
+        /// Story/Battle 等演出场景不出菜单，避免遮挡演出。out isTitle 标识是否标题画面。
+        /// </summary>
+        private static bool IsMenuScene(out bool isTitle)
         {
-            return SceneController.Instance != null && SceneController.Instance.CurrentScene == "Free";
+            isTitle = false;
+            if (SceneController.Instance == null) return false;
+            string scene = SceneController.Instance.CurrentScene;
+            if (scene == "Free") return true;
+            if (scene == "Title")
+            {
+                isTitle = true;
+                return true;
+            }
+            return false;
         }
 
         /// <summary>
@@ -192,11 +206,13 @@ namespace MortalModHost
 
         private void OnGUI()
         {
-            if (!_enabled.Value || !IsInFreeScene())
+            bool isTitle;
+            if (!_enabled.Value || !IsMenuScene(out isTitle))
             {
                 _showMenu = false; // 切场景/禁用时自动关窗，按钮也随之隐藏
                 return;
             }
+            _inTitleScene = isTitle;
             DrawEntryButton();
             if (_showMenu)
                 _windowRect = GUI.Window(WindowId, _windowRect, DrawWindow, "MortalModHost — Mod 菜单（" + _menuHotkey.Value + " 开关）");
@@ -223,6 +239,15 @@ namespace MortalModHost
             if (LoadedMods.Count == 0)
             {
                 GUILayout.Label("未发现任何 mod。把 .lommod 包放进 BepInEx/plugins/MortalModHost/mods/ 后重启游戏。");
+            }
+            else if (_inTitleScene)
+            {
+                // 标题画面：尚无已加载的存档，演出剧情会缺玩家状态；只提供"开始新战役"（独立开局）
+                _scroll = GUILayout.BeginScrollView(_scroll);
+                GUILayout.Label("—— 开始新战役 ——");
+                DrawCampaignSection();
+                GUILayout.EndScrollView();
+                GUILayout.Label("进入自由场景后，本菜单还可演出 mod 剧情。");
             }
             else
             {
@@ -264,8 +289,9 @@ namespace MortalModHost
         /// <summary>
         /// 开始新战役（契约 §6.4）：隔离存档槽 SetSlot("mod_&lt;modid&gt;") → 官方 NewGameData()
         /// （NewGameDataPatch postfix 把首脚本替换为本 mod 入口）→ LoadStory。
-        /// 等价于 TitleManager.NewGame() 的调用序列（Mortal.Core.decompiled.cs:8377），
-        /// 但 TitleManager 只在 Title 场景存在，Free 场景里直接复刻这三步。
+        /// 等价于 TitleManager.NewGame() 的调用序列（Mortal.Core.decompiled.cs:8377）。
+        /// Free 自由场景与 Title 标题画面均可调用（SaveSystem/SceneController 是常驻单例）；
+        /// 标题画面直接可开新战役，无需先进自由模式。
         /// </summary>
         private void StartCampaign(ModPackage mod)
         {

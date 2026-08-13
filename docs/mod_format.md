@@ -65,7 +65,7 @@ assets/                # 预留（自定义图片/音频），v1 运行时忽略
 **演出类**
 
 | type | 字段 | 说明 |
-|---|---|---|
+| --- | --- | --- |
 | `music` | `name`；可选 `op`("play"默认/"stop"/"fadeout")，fadeout 时 `seconds`(默认2) | `luamanager.PlayMusic(name)` / `StopMusic()` / `FadeOutMusic(seconds)` |
 | `sound` | `name`；可选 `kind`("sound"默认/"env")，`op`("play"默认/"fadeout"仅env，`seconds`默认1) | `luamanager.PlaySound/PlayEnvSound/FadeOutEnvSound` |
 | `scene` | `view` | 切场景：`runblock(flowcharts.view,"out")` 后 `ViewName=view; runblock(...,"view")`。`view="out"` 只淡出；`"black"/"white"` 为纯色 |
@@ -82,14 +82,14 @@ assets/                # 预留（自定义图片/音频），v1 运行时忽略
 | `intro` | `character` | 人物介绍卡 `runwait(intropanel.Show(...))` |
 | `effect` | `name`；可选 `x`,`y`,`a`,`b`,`c`,`d`(数值，默认0/0/1/1/1/1) | 屏幕特效 `effects.SetupEffect(name,x,y,a,b,c,d)`，如 Hit_001/Blood_002/Sword_001 |
 | `transition` | `phase`("in"/"out")；可选 `dir`(默认"lr"，lr/rl/tb/bt) | 黑场转场 `runwait(transitionblack.TransitionIn/Out(dir))` |
-| `camera` | `name`, `active`(bool) | 镜头滤镜 `maincamera.ActiveVolume(name, 0|1)`，如 stage-memory/stage-dream/stage-fire/stage-blurdim |
+| `camera` | `name`, `active`(bool) | 镜头滤镜 `maincamera.ActiveVolume(name, 0 | 1)`，如 stage-memory/stage-dream/stage-fire/stage-blurdim |
 | `block` | `flowchart`("view"/"common"), `name`；可选 `vars`: `[{"name","value"}]` | 通用 flowchart 块调用：`getvar` 逐个赋值后 `runblock(fc, name)`。覆盖 out_white/shake/flash/vshock 等 |
 | `cg` | `action`("show"/"hide"), `kind`("picture"/"item"/"big"/"map"/"family"/"title")；可选 `key`, `key2`, `n1`, `n2` | mainui 图片/地图/家谱/标题：`ShowPicture(key)`/`HidePicture`/`ShowItemPicture`/`ShowBigPicture`/`ShowMap(key,key2)`/`ShowFamilyTree(key,key2,n1,n2)`/`DisplayTitle(key)` 等 |
 
 **数值/状态类**
 
 | type | 字段 | 说明 |
-|---|---|---|
+| --- | --- | --- |
 | `stat` | `key`, `delta`；可选 `waitDisplay`(默认true), `display`(默认1), `mode`(默认"") | 主角属性增减 `statmodifymanager.Player(key, delta, mode, display)` |
 | `stat_set` | `key`, `value`；可选 `update`(bool默认false) | 绝对设置 `SetPlayer(key, value)`；update=true 用 `UpdateSetPlayerStat`（title 等用） |
 | `affinity` | `character`, `delta` | 人物好感度 `statmodifymanager.Character(character, delta, 1)` |
@@ -106,7 +106,7 @@ assets/                # 预留（自定义图片/音频），v1 运行时忽略
 **流程类**
 
 | type | 字段 | 说明 |
-|---|---|---|
+| --- | --- | --- |
 | `branch` | `flag`, `cases`: `[{"value","goto"}]`, 可选 `source`(默认 "mod") | mod：按 modflags 是否已设（value 1=已设置 2=未设置）；game：`checkpointmanager.Switch(flag)` 官方检查点数值分支 |
 | `dice` | `check`, `options`: `[{"text","threshold"(数值),`goto_大成功`,`goto_成功`,`goto_失败`}]`…见下注 | 骰子检定。**check 必须是官方骰子检查点名**（editor_data 的 dice_checks）。发射官方五步链（math.random/SetRandom/checkpointmanager.Dice/Setup/ExecuteRoll），按 `ResultSelection` 分支：1→大成功 goto、2→成功、3→失败（v1 简化三向） |
 | `goto_scene` | `scene`("Free"/"Title"/"Combat"/"Battle"/"GameOver"/"End"/"Story"/"DemoEnd")；可选 `key`(Combat=战斗id/Battle=战役id/GameOver·End=结局id), `next`(默认"Story") | 场景跳转 `luamanager.ChangeScene(scene, key, next)`。Combat/Battle 后回 Story 重入当前脚本，注意用 game 检查点防重入 |
@@ -256,8 +256,8 @@ luamanager.ChangeScene("Free", "", "")
 
 1. 启动扫描 `BepInEx/plugins/MortalModHost/mods/*.lommod`，注册 `MOD_<modid>_<scriptid>` → lua 文本。
 2. Harmony prefix `LuaManager.ExecuteLuaScript()`：注册名命中时用 mod lua 执行并跳过原方法。
-3. 入口：Free 场景左下角"活侠MOD"按钮 + F8（可配）打开菜单；菜单分"演出 mod 剧情"与"开始新战役"两区。
-4. **战役**：点击"开始新战役"→ `SetSlot("mod_<modid>")`（隔离存档槽）→ 官方 `NewGameData()` → postfix 把首个剧情脚本替换为该 mod 的 entry → LoadStory。
+3. 入口：Free 自由场景与 Title 标题画面左下角"活侠MOD"按钮 + F8（可配）打开菜单。Free 菜单分"演出 mod 剧情"与"开始新战役"两区；Title 菜单仅"开始新战役"区（演出剧情需要已加载的存档玩家状态，只在 Free 提供）。即开新战役可直接从标题画面独立开启，无需先进自由模式。
+4. **战役**：在 Free 或 Title 点击"开始新战役"→ `SetSlot("mod_<modid>")`（隔离存档槽）→ 官方 `NewGameData()` → postfix 把首个剧情脚本替换为该 mod 的 entry → LoadStory。
 5. **位置触发器**：postfix `FreePositionData.GetExecuteScript`，manifest.triggers 命中且 flag 条件满足（查 StoryKeyList）时返回 mod 脚本注册名；官方主线/支线优先。
 6. **兜底**：Story 场景请求的 MOD_ 脚本未注册（mod 被删）时，不执行并 `ChangeScene("Free","","")` 防软锁。
 7. mod 不修改官方脚本与文本表；mod 的 flag 进 StoryKeyList，存档兼容。
