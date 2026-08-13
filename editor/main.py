@@ -383,12 +383,17 @@ class MainWindow(QMainWindow):
         self.story_id_edit = QLineEdit()
         self.story_title_edit = QLineEdit()
         self.start_combo = QComboBox()
+        self.mood_check = QCheckBox(
+            "保留官方心情气泡（关闭时每次登场/对白自动隐藏圆形情绪面板）"
+        )
         self.story_id_edit.textChanged.connect(self._on_story_props_changed)
         self.story_title_edit.textChanged.connect(self._on_story_props_changed)
         self.start_combo.currentTextChanged.connect(self._on_start_changed)
+        self.mood_check.toggled.connect(self._on_story_mood_changed)
         props.addRow("脚本 id", self.story_id_edit)
         props.addRow("标题", self.story_title_edit)
         props.addRow("起始节点", self.start_combo)
+        props.addRow("心情气泡", self.mood_check)
         lv.addLayout(props)
 
         self.node_list = QListWidget()
@@ -503,6 +508,7 @@ class MainWindow(QMainWindow):
             self._refresh_story_combo()
             self.story_id_edit.setText(self.story.get("id", ""))
             self.story_title_edit.setText(self.story.get("title", ""))
+            self.mood_check.setChecked(bool(self.story.get("mood", False)))
             self._reload_start_combo()
             self._reload_node_list(select_row)
         finally:
@@ -874,6 +880,16 @@ class MainWindow(QMainWindow):
         self.story["start"] = text
         self._prev_snapshot = self._snapshot()
         self._refresh_stage()  # 推演起点变了
+        self._schedule_preview()
+
+    def _on_story_mood_changed(self, checked: bool) -> None:
+        """心情气泡开关：写回 story["mood"]（bool），记录撤销点并刷新 Lua 预览。"""
+        if self._loading:
+            return
+        if bool(checked) == bool(self.story.get("mood", False)):
+            return
+        self._record_continuous()
+        self.story["mood"] = bool(checked)
         self._schedule_preview()
 
     def _on_node_changed(self) -> None:

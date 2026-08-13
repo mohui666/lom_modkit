@@ -52,6 +52,19 @@ namespace MortalModHost
                     Log.LogError("mod 脚本 " + scriptName + " 无法演出：LuaManager._luaEnvironment 为 null");
                     return false;
                 }
+
+                // 契约 §B：演出前把 mod_hide_mood 注册进共享 MoonSharp 环境（幂等重设；官方脚本不调用它，无副作用）
+                RegisterModGlobals(env);
+                // 契约 §A 兜底：LeanLocalization 切语言/OnEnable 会清空 CurrentTranslations，每次演出前重注册一遍
+                try
+                {
+                    ReadTextRegistry.Apply();
+                }
+                catch (Exception ex)
+                {
+                    Log.LogWarning("演出前已读文本重注册失败（mod 台词将退化为裸文本）：" + ex);
+                }
+
                 // 与原方法保持一致：friendlyName = 脚本名 + ".LuaScript"，协程方式运行
                 Closure fn = env.LoadLuaFunction(lua, scriptName + ".LuaScript");
                 env.RunLuaFunction(fn, true);
@@ -62,6 +75,51 @@ namespace MortalModHost
                 Log.LogError("mod 脚本 " + scriptName + " 演出失败：" + ex);
             }
             return false; // 该脚本名归 mod 管，成败都跳过原方法
+        }
+
+        /// <summary>
+        /// 契约 §B：把 mod_hide_mood() 注册进共享 Lua 环境的全局表（编译器在 mod Lua 里发射裸全局调用）。
+        /// 回调：FindObjectsOfType&lt;StoryCharacterController&gt; 逐个 Mood.Hide()；Mood 可能为 null
+        /// （角色未 SetupMood 时），失败只 LogWarning 不中断演出。
+        /// </summary>
+        private static void RegisterModGlobals(LuaEnvironment env)
+        {
+            try
+            {
+                Script script = env.Interpreter;
+                if (script == null)
+                {
+                    Log.LogWarning("LuaEnvironment.Interpreter 为 null，跳过 mod_hide_mood 注册");
+                    return;
+                }
+                script.Globals["mod_hide_mood"] = new CallbackFunction((ctx, args) =>
+                {
+                    HideAllMoodPanels();
+                    return DynValue.Nil;
+                }, "mod_hide_mood");
+            }
+            catch (Exception ex)
+            {
+                Log.LogWarning("注册 mod_hide_mood 失败：" + ex);
+            }
+        }
+
+        /// <summary>隐藏全部角色的圆形情绪气泡（StoryStageController.Show 在 fade/move≈0 时 ShowMood 唤出的常驻面板）。</summary>
+        private static void HideAllMoodPanels()
+        {
+            try
+            {
+                StoryCharacterController[] controllers = UnityEngine.Object.FindObjectsOfType<StoryCharacterController>();
+                for (int i = 0; i < controllers.Length; i++)
+                {
+                    CharacterMoodPanel mood = controllers[i].Mood;
+                    if (mood != null) mood.Hide();
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.LogWarning("mod_hide_mood 隐藏情绪气泡失败：" + ex);
+            }
         }
     }
 }

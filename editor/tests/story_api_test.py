@@ -41,18 +41,51 @@ import models  # noqa: E402
 PROJECT_ROOT = EDITOR_DIR.parent
 DEMO_STORY = PROJECT_ROOT / "samples" / "demo_mod" / "story" / "main.json"
 
-# 契约 §3.1 全量 38 种节点类型（与 models.NODE_TYPES 一一对应）
+# 契约 §3.1 全量 39 种节点类型（与 models.NODE_TYPES 一一对应）
 ALL_TYPES = [
-    "music", "sound", "scene", "show", "move", "face", "hide", "focus",
-    "offset", "say", "choice", "shock", "mask", "intro", "effect",
-    "transition", "camera", "block", "cg",
-    "stat", "stat_set", "affinity", "talent", "item", "flag", "game_flag",
-    "enemy", "battle_skill", "mission", "time", "autosave",
-    "branch", "dice", "goto_scene", "panel", "wait", "end", "raw",
+    "music",
+    "sound",
+    "scene",
+    "show",
+    "move",
+    "face",
+    "hide",
+    "focus",
+    "offset",
+    "say",
+    "choice",
+    "shock",
+    "mask",
+    "intro",
+    "effect",
+    "transition",
+    "camera",
+    "block",
+    "cg",
+    "stat",
+    "stat_set",
+    "affinity",
+    "talent",
+    "item",
+    "flag",
+    "game_flag",
+    "enemy",
+    "battle_skill",
+    "mission",
+    "time",
+    "autosave",
+    "branch",
+    "dice",
+    "goto_scene",
+    "panel",
+    "wait",
+    "end",
+    "death",
+    "raw",
 ]
 
 # 官方元数据检查点（data/editor_data.json 的 dice_meta）
-DICE_2BAND = "Travel_601_101_001"     # 2 个结果带：无独立大成功档
+DICE_2BAND = "Travel_601_101_001"  # 2 个结果带：无独立大成功档
 DICE_3BAND = "Ch_6_8_2_Break_01_001"  # 3 个结果带：必填 goto_大成功
 
 
@@ -86,13 +119,23 @@ class TestNewStory(unittest.TestCase):
         s2 = story_api.new_story(story_id="case_a", title="自定义标题")
         self.assertEqual(s2["id"], "case_a", "自定义 story id 应生效")
         self.assertEqual(s2["title"], "自定义标题", "自定义标题应生效")
-        self.assertEqual(s2["start"], s2["nodes"][0]["id"], "s2 start 应指向自身起始节点")
+        self.assertEqual(
+            s2["start"], s2["nodes"][0]["id"], "s2 start 应指向自身起始节点"
+        )
+        # mood：默认 false；可显式开启；非 bool 拒绝
+        self.assertIs(s2["mood"], False, "mood 默认应为 False")
+        s3 = story_api.new_story(story_id="case_b", title="带气泡", mood=True)
+        self.assertIs(s3["mood"], True, "mood=True 应写入 story")
+        with self.assertRaises(ValueError, msg="mood 非 bool 应抛 ValueError"):
+            story_api.new_story(
+                story_id="case_c", title="坏", mood="yes"  # type: ignore[reportArgumentType] 故意传非法类型
+            )
 
 
 class TestAddNode(unittest.TestCase):
-    def test_38_types(self):
+    def test_39_types(self):
         story = story_api.new_story()
-        self.assertEqual(len(ALL_TYPES), 38, "契约应有 38 种节点类型")
+        self.assertEqual(len(ALL_TYPES), 39, "契约应有 39 种节点类型")
         self.assertEqual(
             set(ALL_TYPES), set(models.NODE_TYPES), "类型表与 models.NODE_TYPES 不一致"
         )
@@ -105,7 +148,7 @@ class TestAddNode(unittest.TestCase):
             ids.add(node["id"])
             found = [n for n in story["nodes"] if n["id"] == node["id"]]
             self.assertEqual(len(found), 1, f"{t} 节点应写入 story.nodes")
-        self.assertEqual(len(story["nodes"]), 1 + 38, "38 种类型应全部追加进 story")
+        self.assertEqual(len(story["nodes"]), 1 + 39, "39 种类型应全部追加进 story")
 
     def test_unknown_type(self):
         story = story_api.new_story()
@@ -125,7 +168,7 @@ class TestAddNode(unittest.TestCase):
     def test_after_insert(self):
         story = story_api.new_story()
         first_id = story["start"]
-        tail = story_api.add_node(story, "wait")                      # 追加到末尾
+        tail = story_api.add_node(story, "wait")  # 追加到末尾
         mid = story_api.add_node(story, "wait", {"seconds": 5}, after=first_id)
         order = [n["id"] for n in story["nodes"]]
         self.assertEqual(
@@ -191,9 +234,7 @@ class TestListGetDelete(unittest.TestCase):
         w = story_api.add_node(story, "wait")
         ret = story_api.delete_node(story, w["id"])
         self.assertIsInstance(ret, dict, "delete_node 应返回 dict")
-        self.assertNotIn(
-            w["id"], [n["id"] for n in story["nodes"]], "节点应被删除"
-        )
+        self.assertNotIn(w["id"], [n["id"] for n in story["nodes"]], "节点应被删除")
         with self.assertRaises(ValueError, msg="delete_node 不存在应抛 ValueError"):
             story_api.delete_node(story, "no_such")
 
@@ -202,10 +243,12 @@ class TestMoveSetStart(unittest.TestCase):
     def test_move_node(self):
         story = base_story()  # n1(say)
         w = story_api.add_node(story, "wait")  # n2
-        e = story_api.add_node(story, "end")   # n3
+        e = story_api.add_node(story, "end")  # n3
         order = lambda: [n["id"] for n in story["nodes"]]  # noqa: E731
         story_api.move_node(story, story["start"], 1)  # 向后移一格
-        self.assertEqual(order(), [w["id"], story["start"], e["id"]], "+1 应向后移动一格")
+        self.assertEqual(
+            order(), [w["id"], story["start"], e["id"]], "+1 应向后移动一格"
+        )
         story_api.move_node(story, story["start"], -1)  # 移回
         self.assertEqual(order(), [story["start"], w["id"], e["id"]], "-1 应移回原位")
         with self.assertRaises(ValueError, msg="move 不存在节点应抛 ValueError"):
@@ -242,7 +285,9 @@ class TestAddChoice(unittest.TestCase):
 
     def test_dialog_forced_options(self):
         story = base_story()
-        node = story_api.add_choice(story, [("甲", story["start"]), ("乙", story["start"])])
+        node = story_api.add_choice(
+            story, [("甲", story["start"]), ("乙", story["start"])]
+        )
         self.assertEqual(
             node["dialog"], "Options", "choice.dialog 必须强制为 Options（契约 §3.3）"
         )
@@ -287,7 +332,9 @@ class TestAddDice(unittest.TestCase):
 class TestAddSay(unittest.TestCase):
     def test_character_mode_requires_character(self):
         story = base_story()
-        with self.assertRaises(ValueError, msg="character 模式缺 character 应抛 ValueError"):
+        with self.assertRaises(
+            ValueError, msg="character 模式缺 character 应抛 ValueError"
+        ):
             story_api.add_say(story, "你好", mode="character")
 
     def test_narrative_mode_no_character(self):
@@ -311,6 +358,48 @@ class TestAddScene(unittest.TestCase):
         node = story_api.add_scene(story, "center")
         self.assertEqual(node["type"], "scene", "应生成 scene 节点")
         self.assertEqual(node["view"], "center", "view 应写入")
+
+
+class TestAddDeath(unittest.TestCase):
+    def test_success_default_title(self):
+        story = base_story()
+        node = story_api.add_death(story, "你坠入山崖，万事休矣。")
+        self.assertEqual(node["type"], "death", "应生成 death 节点")
+        self.assertEqual(node["text"], "你坠入山崖，万事休矣。", "text 应写入")
+        self.assertEqual(node["next"], "Title", "next 默认应为 Title")
+
+    def test_next_free(self):
+        story = base_story()
+        node = story_api.add_death(story, "命数已尽。", next="Free")
+        self.assertEqual(node["next"], "Free", "next=Free 应写入")
+
+    def test_empty_text_rejected(self):
+        story = base_story()
+        for bad in ("", "   ", None, 123):
+            with self.assertRaises(ValueError, msg=f"空/非法 text 应抛 ValueError: {bad!r}"):
+                # 故意传非法类型验证校验层
+                story_api.add_death(story, bad)  # type: ignore[reportArgumentType]
+
+    def test_bad_next_rejected(self):
+        story = base_story()
+        with self.assertRaises(ValueError, msg="非法 next 应抛 ValueError"):
+            story_api.add_death(story, "命数已尽。", next="Story")
+
+    def test_multiline_text(self):
+        story = base_story()
+        node = story_api.add_death(story, "第一行\n第二行")
+        self.assertEqual(node["text"], "第一行\n第二行", "多行文本应保留换行")
+
+    def test_compiles(self):
+        # death 走已读 key + 场景跳转，编译产物应含 GetStoryText 与 ChangeScene
+        story = base_story()
+        node = story_api.add_death(story, "命数已尽。", next="Title")
+        lua, errors, _warnings = story_api.compile_story(story)
+        assert lua is not None, f"death 剧情应编译成功：{errors}"
+        self.assertIn(
+            'luamanager.GetStoryText("MOD_MOD_main_%s")' % node["id"], lua
+        )
+        self.assertIn('luamanager.ChangeScene("Title", "", "")', lua)
 
 
 class TestCheckStory(unittest.TestCase):
@@ -355,7 +444,7 @@ class TestCompileStory(unittest.TestCase):
         story_api.add_choice(story, [("去", n1), ("留", n1)])
         story_api.add_node(story, "end")
         lua, errors, warnings = story_api.compile_story(story)
-        self.assertIsNotNone(lua, "合法剧情应编译成功")
+        assert lua is not None, "合法剧情应编译成功"
         self.assertEqual(errors, [], f"合法剧情应无编译错误：{errors}")
         self.assertIsInstance(warnings, list, "warnings 应为 list")
         self.assertIn("function", lua, "Lua 产物应含 node 函数")
@@ -379,9 +468,7 @@ class TestSaveLoad(unittest.TestCase):
             p = Path(tmp) / "story.json"
             self.assertIsNone(story_api.save_story_json(story, p), "save 应无返回值")
             back = story_api.load_story_json(p)
-        self.assertEqual(
-            copy.deepcopy(story), back, "save→load 往返应保持一致"
-        )
+        self.assertEqual(copy.deepcopy(story), back, "save→load 往返应保持一致")
         self.assertEqual(back["id"], "main", "往返后 id 应保留")
 
 
@@ -423,8 +510,15 @@ class TestPackMod(unittest.TestCase):
                 self.assertIn("manifest.json", names, "zip 应含 manifest.json")
                 self.assertIn("story/main.json", names, "zip 应含 story/main.json")
                 self.assertIn("lua/main.lua", names, "zip 应含 lua/main.lua")
+                self.assertIn("texts.json", names, "zip 应含 texts.json（已读文本表）")
                 lua = zf.read("lua/main.lua").decode("utf-8")
                 self.assertIn("function", lua, "包内 Lua 应为编译产物")
+                texts = json.loads(zf.read("texts.json").decode("utf-8"))
+                self.assertEqual(
+                    texts.get("MOD_api_test_mod_main_n2"), "打包测试文本。",
+                    "texts.json 应含 say 文本（key=MOD_<modid>_<scriptid>_<nodeid>）",
+                )
+                self.assertIn("MOD_api_test_mod_main_n1", texts, "起始 say 也应入表")
 
     def test_missing_manifest(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -441,18 +535,22 @@ class TestLuaMarkers(unittest.TestCase):
         story = base_story()
         n1 = story["start"]
         story_api.add_node(
-            story, "show", {"character": "player", "position": "M", "portrait": "nervous1"}
+            story,
+            "show",
+            {"character": "player", "position": "M", "portrait": "nervous1"},
         )
         story_api.add_scene(story, "center")
         story_api.add_say(story, "关键点检查。", character="player")
         story_api.add_choice(story, [("去", n1), ("留", n1)])
         story_api.add_node(story, "end")
         lua, errors, _warnings = story_api.compile_story(story)
-        self.assertIsNotNone(lua, f"应编译成功：{errors}")
+        assert lua is not None, f"应编译成功：{errors}"
         for marker, why in (
             ("LoadCharacterPortrait", "show/say 应自动加载表情差分"),
             ("flowcharts.LoadView", "scene 应预载背景防黑屏"),
             ("sayoptions.waitforinput", "say 前应设等待输入"),
+            ("luamanager.GetStoryText", "say 文本应走已读 key 机制"),
+            ("mod_hide_mood", "story.mood 默认 false 应隐藏官方心情气泡"),
             ("menudialogs.Options", "choice 应使用 Options 皮肤"),
         ):
             self.assertIn(marker, lua, f"Lua 产物应包含 {marker}（{why}）")
@@ -465,9 +563,7 @@ class TestLoadEditorData(unittest.TestCase):
         self.assertIn("characters", editor_data, "editor_data 应含 characters")
         self.assertFalse(is_fallback, "项目自带 data/editor_data.json，不应兜底")
         self.assertIn("dice_meta", editor_data, "editor_data 应含 dice_meta")
-        self.assertIn(
-            DICE_2BAND, editor_data["dice_meta"], "官方元数据应含 2 带检查点"
-        )
+        self.assertIn(DICE_2BAND, editor_data["dice_meta"], "官方元数据应含 2 带检查点")
 
 
 def main_fn() -> int:

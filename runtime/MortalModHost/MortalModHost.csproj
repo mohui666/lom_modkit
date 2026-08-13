@@ -70,6 +70,11 @@
       <HintPath>$(GameDir)\Mortal_Data\Managed\Mortal.Free.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <!-- LeanLocalization（契约 §A：texts.json 台词注册进官方本地化表，GetStoryText 已读变黄能力） -->
+    <Reference Include="LeanLocalization">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\LeanLocalization.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <!-- Fungus（LuaEnvironment；MoonSharp.Interpreter 已 ILRepack 合进本 DLL） -->
     <Reference Include="Fungus">
       <HintPath>$(GameDir)\Mortal_Data\Managed\Fungus.dll</HintPath>

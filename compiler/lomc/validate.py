@@ -3,7 +3,7 @@
 
 严格遵循 docs/mod_format.md（v3 契约）：
 - §2 manifest.json 字段
-- §3 story/*.json 结构与 §3.1 全量 38 种节点类型表（字段除标注"可选"外均为必填）
+- §3 story/*.json 结构与 §3.1 全量 39 种节点类型表（字段除标注"可选"外均为必填）
 - §4 补充规则（末节点收尾、禁止显式 goto 的类型、分支兜底等）
 
 所有错误抛出 LomcError，消息带节点 id / 字段名。
@@ -65,6 +65,7 @@ _ENUMS = {
     "branch_source": BRANCH_SOURCES,
     "mode": SAY_MODES,
     "facing": FACINGS,
+    "death_next": ("Free", "Title"),
 }
 
 # 字段类型标签 -> 中文类型名（用于报错）
@@ -201,6 +202,7 @@ _NODE_FIELDS = {
     ),
     "wait": ({"seconds": "num"}, {}),
     "end": ({}, {"next_script": "script_id"}),
+    "death": ({"text": "str"}, {"next": "death_next"}),
     "raw": ({"code": "str"}, {}),
 }
 
@@ -208,10 +210,10 @@ _NODE_FIELDS = {
 _COMMON_FIELDS = ("id", "type", "goto")
 
 # 不允许显式 goto 的节点类型（契约 §4：流转由自身结构/场景跳转决定）
-_NO_GOTO_TYPES = ("choice", "branch", "dice", "end", "goto_scene")
+_NO_GOTO_TYPES = ("choice", "branch", "dice", "end", "goto_scene", "death")
 
 # 可以作最后一个节点收尾的类型（其余类型在末位且无 goto → 校验错误）
-_TERMINAL_TYPES = ("end", "choice", "branch", "dice", "goto_scene", "raw")
+_TERMINAL_TYPES = ("end", "choice", "branch", "dice", "goto_scene", "raw", "death")
 
 # dice 选项的字段(§3.1)：三向 goto 载体（text/threshold 已废弃，以官方结果带元数据为准）
 _DICE_OPTION_GOTOS = ("goto_大成功", "goto_成功", "goto_失败")
@@ -455,6 +457,10 @@ def _check_node_extra(node, ntype, label):
     elif ntype == "raw":
         if not node["code"].strip():
             raise LomcError('%s(raw): 字段 "code" 不能为空' % label)
+    elif ntype == "death":
+        # 死亡文本必须是非空文本（契约 §3.1：text 必填非空，多行合法）
+        if not node["text"].strip():
+            raise LomcError('%s(death): 字段 "text" 不能为空' % label)
     elif ntype == "branch":
         source = node.get("source", "mod")
         cases = node["cases"]
@@ -575,6 +581,11 @@ def _validate_story_inner(story):
         raise LomcError('缺少必填字段 "id"（剧情脚本 id，规则 [a-zA-Z0-9_-]+）')
     if "title" in story and not isinstance(story["title"], str):
         raise LomcError('字段 "title" 必须是字符串')
+    # 顶层可选字段 mood（bool）：false=每次 show/say 前后隐藏官方心情气泡
+    if "mood" in story and not isinstance(story["mood"], bool):
+        raise LomcError(
+            '字段 "mood" 必须是布尔值（true=保留官方心情气泡，false=自动隐藏）'
+        )
     start = story.get("start")
     if not isinstance(start, str):
         raise LomcError('缺少必填字段 "start"（起始节点 id）')

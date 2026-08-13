@@ -5,11 +5,14 @@
     manifest.json          包元信息（先校验 §2）
     story/<id>.json        剧情源文件（原样拷贝，供编辑器回读）
     lua/<id>.lua           编译产物（导出时重新编译）
+    texts.json             已读文本表 {MOD_<modid>_<scriptid>_<nodeid>: 文本}
+                           （say/death 节点文本，运行时注册进 LeanLocalization）
     assets/                预留目录，存在则原样打进包
 
 默认输出：<mod目录> 同级、以目录名命名的 <目录名>.lommod。
 """
 
+import json
 import os
 import zipfile
 
@@ -33,15 +36,20 @@ def pack_mod(mod_dir, output=None):
     story_dir = os.path.join(mod_dir, "story")
     if not os.path.isdir(story_dir):
         raise LomcError("mod 目录缺少 story/ 子目录: %s" % mod_dir)
-    story_files = sorted(
-        f for f in os.listdir(story_dir)
-        if f.endswith(".json") and os.path.isfile(os.path.join(story_dir, f))
-    )
+    try:
+        story_files = sorted(
+            f for f in os.listdir(story_dir)
+            if f.endswith(".json") and os.path.isfile(os.path.join(story_dir, f))
+        )
+    except OSError as e:
+        raise LomcError("story/ 目录读取失败: %s" % e)
     if not story_files:
         raise LomcError("story/ 目录下没有任何 .json 剧情脚本（至少 1 个）")
 
-    # 逐个校验 + 编译；同时收集脚本 id 集用于 entry / next_script 交叉校验
+    # 逐个校验 + 编译；同时收集脚本 id 集与 texts.json 的已读文本表
     compiled = {}  # 脚本 id -> lua 源码
+    texts = {}  # 已读 key -> 文本（契约 §1：say/death 节点文本）
+    mod_id = manifest["id"]  # 打包时必有（validate_manifest 已保证）
     for fname in story_files:
         stem = fname[: -len(".json")]
         story = load_json_file(os.path.join(story_dir, fname))
@@ -51,6 +59,10 @@ def pack_mod(mod_dir, output=None):
                 'story/%s: 文件名与内部 id 不一致（文件 "%s" vs id %r），'
                 "二者必须相同" % (fname, stem, inner_id)
             )
+        for node in story.get("nodes", []):
+            if node.get("type") in ("say", "death"):
+                key = "MOD_%s_%s_%s" % (mod_id, stem, node["id"])
+                texts[key] = node["text"]
         lua = compile_story(story, mod_info=manifest, source="story/%s" % fname)
         compiled[stem] = lua
 
@@ -83,6 +95,11 @@ def pack_mod(mod_dir, output=None):
             zf.write(os.path.join(story_dir, fname), "story/%s" % fname)
         for stem, lua in compiled.items():
             zf.writestr("lua/%s.lua" % stem, lua)
+        # 已读文本表（契约 §1/§4）：key 与 lua 里 GetStoryText 的 key 一一对应
+        zf.writestr(
+            "texts.json",
+            json.dumps(texts, ensure_ascii=False, indent=2) + "\n",
+        )
         assets_dir = os.path.join(mod_dir, "assets")
         if os.path.isdir(assets_dir):
             for root, _dirs, files in os.walk(assets_dir):

@@ -12,6 +12,7 @@
    另带 argparse CLI（check / compile / pack / new-story），退出码 0/1，
    适合 AI 以子进程方式调用。
 """
+
 from __future__ import annotations
 
 import sys
@@ -46,6 +47,7 @@ def get_lomc():
     try:
         import lomc  # noqa: F401
         import lomc.dice_data  # noqa: F401  显式加载骰子元数据子模块
+
         if not hasattr(lomc, "compile_story"):
             raise AttributeError("lomc 缺少 compile_story(story) 接口")
         _lomc = lomc
@@ -113,8 +115,12 @@ def _check_fields(node_type: str, fields: dict | None) -> dict:
     if fields is None:
         return {}
     if not isinstance(fields, dict):
-        raise ValueError(f"fields 必须是 dict（字段名→值），实际为 {type(fields).__name__}")
-    legal = {key for key, _label, _kind, _opt in models.NODE_SCHEMAS[node_type]["fields"]}
+        raise ValueError(
+            f"fields 必须是 dict（字段名→值），实际为 {type(fields).__name__}"
+        )
+    legal = {
+        key for key, _label, _kind, _opt in models.NODE_SCHEMAS[node_type]["fields"]
+    }
     legal |= set(_COMMON_FIELDS)
     bad = sorted(k for k in fields if k not in legal)
     if bad:
@@ -125,12 +131,12 @@ def _check_fields(node_type: str, fields: dict | None) -> dict:
     # 通用字段类型
     for key in _COMMON_FIELDS:
         if key in fields and not isinstance(fields[key], str):
-            raise ValueError(f"通用字段 \"{key}\" 必须是字符串，实际为 {fields[key]!r}")
+            raise ValueError(f'通用字段 "{key}" 必须是字符串，实际为 {fields[key]!r}')
     # 类型表字段类型
     for key, _label, kind, _opt in models.NODE_SCHEMAS[node_type]["fields"]:
         if key in fields and not _check_kind(kind, fields[key]):
             raise ValueError(
-                f"节点类型 {node_type} 字段 \"{key}\" 类型不符（kind={kind}，"
+                f'节点类型 {node_type} 字段 "{key}" 类型不符（kind={kind}，'
                 f"应为 {'数值' if kind in ('int', 'float') else ('布尔' if kind == 'bool' else ('数组' if kind in _LIST_KINDS else '字符串'))}），"
                 f"实际为 {fields[key]!r}"
             )
@@ -167,16 +173,20 @@ def _make_node(story: dict, node_type: str, fields: dict, after: str | None) -> 
 # ---------------------------------------------------------------------------
 # 公开接口（契约固定，勿改签名/语义）
 # ---------------------------------------------------------------------------
-def new_story(story_id: str = "main", title: str = "新剧情") -> dict:
-    """新建空剧情：含一个 say 起始节点 n1。"""
+def new_story(
+    story_id: str = "main", title: str = "新剧情", mood: bool = False
+) -> dict:
+    """新建空剧情：含一个 say 起始节点 n1；mood=false 时每次 show/say
+    前后自动发射 mod_hide_mood() 隐藏官方心情气泡。"""
     if not isinstance(story_id, str) or not models.ID_PATTERN.match(story_id):
-        raise ValueError(
-            f"剧情脚本 id 非法: {story_id!r}（规则 [a-zA-Z0-9_-]+）"
-        )
+        raise ValueError(f"剧情脚本 id 非法: {story_id!r}（规则 [a-zA-Z0-9_-]+）")
     if not isinstance(title, str):
         raise ValueError(f"title 必须是字符串，实际为 {title!r}")
+    if not isinstance(mood, bool):
+        raise ValueError(f"mood 必须是布尔值，实际为 {mood!r}")
     story = models.new_story(story_id=story_id, editor_data=_get_ed())
     story["title"] = title
+    story["mood"] = mood
     return story
 
 
@@ -201,8 +211,9 @@ def list_nodes(story: dict) -> list[dict]:
     ]
 
 
-def add_node(story: dict, node_type: str, fields: dict | None = None,
-             after: str | None = None) -> dict:
+def add_node(
+    story: dict, node_type: str, fields: dict | None = None, after: str | None = None
+) -> dict:
     """新增节点：node_type 必须合法、fields 走字段校验、id 自动生成，返回新节点。"""
     if node_type not in models.NODE_TYPES:
         raise ValueError(
@@ -252,9 +263,14 @@ def set_start(story: dict, node_id: str) -> dict:
     return node
 
 
-def add_say(story: dict, text: str, character: str | None = None,
-            mode: str = "character", portrait: str = "normal",
-            after: str | None = None) -> dict:
+def add_say(
+    story: dict,
+    text: str,
+    character: str | None = None,
+    mode: str = "character",
+    portrait: str = "normal",
+    after: str | None = None,
+) -> dict:
     """新增对白/独白/旁白节点。
 
     mode=character/think 时 character 必填；narrative/center 忽略 character
@@ -278,6 +294,20 @@ def add_say(story: dict, text: str, character: str | None = None,
     if mode in ("narrative", "center"):
         node.pop("character", None)
     return node
+
+
+def add_death(
+    story: dict, text: str, next: str = "Title", after: str | None = None
+) -> dict:
+    """新增死亡文本节点（第 39 种节点类型）：黑屏 + 居中旁白 + 场景跳转。
+
+    text 必填非空（多行合法）；next 只能是 "Free"/"Title"（默认回标题画面）。
+    """
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError(f"death 文本必须是非空字符串，实际为 {text!r}")
+    if next not in ("Free", "Title"):
+        raise ValueError(f"death next 非法: {next!r}（允许 Free/Title）")
+    return _make_node(story, "death", {"text": text, "next": next}, after)
 
 
 def add_scene(story: dict, view: str, after: str | None = None) -> dict:
@@ -308,8 +338,14 @@ def add_choice(story: dict, options, after: str | None = None) -> dict:
     return _make_node(story, "choice", {"options": opts, "dialog": "Options"}, after)
 
 
-def add_dice(story: dict, check: str, goto_成功: str, goto_失败: str,
-             goto_大成功: str = "", after: str | None = None) -> dict:
+def add_dice(
+    story: dict,
+    check: str,
+    goto_成功: str,
+    goto_失败: str,
+    goto_大成功: str = "",
+    after: str | None = None,
+) -> dict:
     """新增骰子检定节点。
 
     check 必须在官方元数据表（lomc.dice_data.get_dice_meta，无元数据会在游戏内
@@ -345,7 +381,9 @@ def add_dice(story: dict, check: str, goto_成功: str, goto_失败: str,
         raise ValueError(
             f'检查点 "{check}" 有 {n_bands} 个结果带，goto_大成功 必填（最优带）'
         )
-    options = [{"goto_大成功": goto_大成功, "goto_成功": goto_成功, "goto_失败": goto_失败}]
+    options = [
+        {"goto_大成功": goto_大成功, "goto_成功": goto_成功, "goto_失败": goto_失败}
+    ]
     return _make_node(story, "dice", {"check": check, "options": options}, after)
 
 
@@ -424,28 +462,37 @@ def main(argv: list[str] | None = None) -> int:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p_check = sub.add_parser("check", help="校验 story.json（退出码 0/1；错误与警告打 stderr）")
+    p_check = sub.add_parser(
+        "check", help="校验 story.json（退出码 0/1；错误与警告打 stderr）"
+    )
     p_check.add_argument("story_json", help="story.json 路径")
 
     p_compile = sub.add_parser("compile", help="编译 story.json → Lua")
     p_compile.add_argument("story_json", help="story.json 路径")
     p_compile.add_argument(
-        "-o", "--output", dest="output", default=None,
+        "-o",
+        "--output",
+        dest="output",
+        default=None,
         help="输出 .lua 路径（默认与输入同目录、同名 .lua）",
     )
 
     p_pack = sub.add_parser("pack", help="打包 mod 目录 → .lommod")
     p_pack.add_argument("mod_dir", help="mod 目录（含 manifest.json 与 story/）")
     p_pack.add_argument(
-        "-o", "--output", dest="output", default=None,
+        "-o",
+        "--output",
+        dest="output",
+        default=None,
         help="输出 .lommod 路径（默认 <mod目录> 同名 .lommod）",
     )
 
     p_new = sub.add_parser("new-story", help="新建剧情脚本 story.json")
     p_new.add_argument("story_id", help="剧情脚本 id（[a-zA-Z0-9_-]+）")
     p_new.add_argument("--title", default="新剧情", help="标题（默认：新剧情）")
-    p_new.add_argument("-o", "--output", dest="output", required=True,
-                       help="输出 story.json 路径")
+    p_new.add_argument(
+        "-o", "--output", dest="output", required=True, help="输出 story.json 路径"
+    )
 
     args = parser.parse_args(argv)
 
@@ -471,7 +518,11 @@ def main(argv: list[str] | None = None) -> int:
                 return 1
             if lua is None:
                 return 1
-            out = Path(args.output) if args.output else Path(args.story_json).with_suffix(".lua")
+            out = (
+                Path(args.output)
+                if args.output
+                else Path(args.story_json).with_suffix(".lua")
+            )
             out.write_text(lua, encoding="utf-8")
             print(str(out))
             return 0

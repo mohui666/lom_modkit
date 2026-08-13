@@ -59,6 +59,19 @@ namespace MortalModHost
                 msg => Logger.LogWarning(msg));
             ModRegistry.Rebuild(LoadedMods, msg => Logger.LogWarning(msg));
 
+            // 契约 §A：texts.json → LeanLocalization，Awake 扫描完立即注册（演出开始前）。
+            // 演出前 LuaManagerPatch 还会幂等重注册兜底（LeanLocalization 切语言/OnEnable 会清空运行时注册）。
+            ReadTextRegistry.Rebuild(LoadedMods, msg => Logger.LogWarning(msg));
+            try
+            {
+                ReadTextRegistry.Apply();
+                Logger.LogInfo("已读文本注册完成：" + ReadTextRegistry.Count + " 条（LeanLocalization 解析名 Story/MOD_...）。");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError("已读文本注册进 LeanLocalization 失败（mod 台词将退化为裸文本）：" + ex);
+            }
+
             foreach (var mod in LoadedMods)
                 Logger.LogInfo(FormatModSummary(mod));
             Logger.LogInfo("mod 扫描完成：成功 " + LoadedMods.Count + " 个，注册脚本 " + ModRegistry.Count + " 个。");

@@ -27,14 +27,19 @@ namespace MortalModHost
                 WriteZip(Path.Combine(modsDir, "noentry.lommod"),                                // 缺 entry lua
                     ("manifest.json", "{\"format\":1,\"id\":\"noentry\",\"name\":\"缺入口\",\"version\":\"0.1\",\"entry\":\"main\"}"),
                     ("lua/other.lua", "say(\"other\")"));
+                // texts.json 非法 → 包仍加载，文本忽略 + 1 警告（契约 §A 可选文件容错）
+                WriteZip(Path.Combine(modsDir, "badtexts.lommod"),
+                    ("manifest.json", "{\"format\":1,\"id\":\"badtexts\",\"entry\":\"main\"}"),
+                    ("lua/main.lua", "say(\"m\")"),
+                    ("texts.json", "{\"MOD_badtexts_main_n1\": 123}"));
 
                 var warnings = new List<string>();
                 var infos = new List<string>();
                 var mods = ModLoader.ScanMods(modsDir, infos.Add, warnings.Add);
 
-                // 只应加载出 demo_mod 一个好包
-                Assert(mods.Count == 1, "应加载 1 个好包，实际 " + mods.Count);
-                var mod = mods[0];
+                // 应加载出 2 个好包（badtexts 的 texts.json 容错 + demo_mod）
+                Assert(mods.Count == 2, "应加载 2 个好包，实际 " + mods.Count);
+                var mod = mods.First(m => m.Id == "demo_mod");
                 Assert(mod.Id == "demo_mod", "id 解析错误：" + mod.Id);
                 Assert(mod.Name == "示例 Mod", "name 解析错误（含中文）：" + mod.Name);
                 Assert(mod.Version == "1.0.0", "version 解析错误：" + mod.Version);
@@ -44,7 +49,13 @@ namespace MortalModHost
                 Assert(mod.LuaScripts.ContainsKey("main") && mod.LuaScripts.ContainsKey("extra"), "脚本 id 清单错误");
                 Assert(mod.LuaScripts["main"].Contains("node_n1"), "lua 内容未读入内存");
                 Assert(mod.GetRegisteredScriptName("main") == "MOD_demo_mod_main", "注册名前缀错误：" + mod.GetRegisteredScriptName("main"));
-                Assert(warnings.Count == 3, "应有 3 条坏包警告，实际 " + warnings.Count + "：" + string.Join(" | ", warnings));
+                // 契约 §A：texts.json 解析（含中文文本）
+                Assert(mod.Texts.Count == 2, "texts.json 应含 2 条文本，实际 " + mod.Texts.Count);
+                Assert(mod.Texts.ContainsKey("MOD_demo_mod_main_n1") && mod.Texts["MOD_demo_mod_main_n1"] == "你好", "texts.json 条目 n1 解析错误");
+                Assert(mod.Texts.ContainsKey("MOD_demo_mod_main_n2") && mod.Texts["MOD_demo_mod_main_n2"] == "第二句\"带引号\"", "texts.json 条目 n2 解析错误");
+                var badTexts = mods.First(m => m.Id == "badtexts");
+                Assert(badTexts.Texts.Count == 0, "坏 texts.json 应被忽略，实际 " + badTexts.Texts.Count);
+                Assert(warnings.Count == 4, "应有 4 条坏包警告（含 texts.json 容错），实际 " + warnings.Count + "：" + string.Join(" | ", warnings));
 
                 // ModRegistry：注册名命中/未命中/冲突时保留先加载者
                 var dup = new ModPackage { Id = "demo_mod", Entry = "main" }; // 与好包同 id，制造注册名冲突
@@ -58,7 +69,7 @@ namespace MortalModHost
                 Assert(!ModRegistry.TryGetLuaByRegisteredName("act1", out lua), "官方脚本名不应命中");
                 Assert(!ModRegistry.TryGetLuaByRegisteredName(null, out lua), "null 不应命中");
                 Assert(ModRegistry.Count == 2, "注册表应含 2 个脚本，实际 " + ModRegistry.Count);
-                Assert(warnings.Count == 4, "注册名冲突应新增 1 条警告，实际共 " + warnings.Count + "：" + string.Join(" | ", warnings));
+                Assert(warnings.Count == 5, "注册名冲突应新增 1 条警告，实际共 " + warnings.Count + "：" + string.Join(" | ", warnings));
 
                 // HotkeyMigration：cfg 里旧默认 F9 → F8，其余内容一律不动
                 string migrated;
@@ -77,9 +88,9 @@ namespace MortalModHost
 
                 Console.WriteLine("--- 扫描信息 ---");
                 infos.ForEach(Console.WriteLine);
-                Console.WriteLine("--- 坏包警告（预期 3 条） ---");
+                Console.WriteLine("--- 坏包/容错警告（预期 4 条） ---");
                 warnings.ForEach(Console.WriteLine);
-                Console.WriteLine("PASS: 1 个好包解析正确，3 个坏包均警告跳过，注册表查找/冲突处理正确，热键迁移改写正确，campaign 解析/触发器条件正确。");
+                Console.WriteLine("PASS: 2 个好包解析正确（texts.json 含中文/转义文本 + 坏 texts.json 容错），4 个坏包/坏文件警告跳过，注册表查找/冲突处理正确，热键迁移改写正确，campaign 解析/触发器条件正确。");
                 return 0;
             }
             finally
@@ -162,7 +173,7 @@ namespace MortalModHost
             }
         }
 
-        /// <summary>按契约 §1/§2 造一个完整好包（含 story/ 源文件，运行时应忽略它）。</summary>
+        /// <summary>按契约 §1/§2/§A 造一个完整好包（含 story/ 源文件，运行时应忽略它）。</summary>
         private static void WriteGoodPackage(string path)
         {
             WriteZip(path,
@@ -170,7 +181,8 @@ namespace MortalModHost
                 ("story/main.json", "{\"id\":\"main\"}"),
                 ("story/extra.json", "{\"id\":\"extra\"}"),
                 ("lua/main.lua", "local function node_n1() say(\"你好\") end\nreturn node_n1()"),
-                ("lua/extra.lua", "say(\"extra\")"));
+                ("lua/extra.lua", "say(\"extra\")"),
+                ("texts.json", "{\"MOD_demo_mod_main_n1\": \"你好\", \"MOD_demo_mod_main_n2\": \"第二句\\\"带引号\\\"\"}"));
         }
 
         private static void WriteZip(string path, params (string name, string content)[] entries)

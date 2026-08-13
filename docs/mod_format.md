@@ -10,12 +10,14 @@
 manifest.json          # 必填，包元信息
 story/<id>.json        # 必填≥1，剧情源文件（编辑器可编辑的源格式）
 lua/<id>.lua           # 必填≥1，编译产物（运行时只读这里）；每个 story/<id>.json 对应一个
+texts.json             # 必填，已读文本表：{MOD_<modid>_<scriptid>_<nodeid>: 文本}（say/death 节点文本）
 assets/                # 预留（自定义图片/音频），v1 运行时忽略
 ```
 
 - `<id>` 规则：`[a-zA-Z0-9_\-]+`，包内唯一，即"剧情脚本 id"。
 - 导出（打包）时必须重新编译：story/*.json → lua/*.lua，二者同名。
 - 运行时插件**只读 manifest.json 和 lua/ 目录**；story/*.json 给编辑器回读/再编辑用。
+- texts.json 由打包时自动生成：收集每个 story 的全部 say/death 节点文本，key 与 lua 里 `GetStoryText` 的 key 一一对应；运行时插件把它注册进 LeanLocalization（已读系统按 key 查文本，见 §4/§6）。
 
 ## 2. manifest.json
 
@@ -50,17 +52,19 @@ assets/                # 预留（自定义图片/音频），v1 运行时忽略
 {
   "id": "main",
   "title": "显示给玩家的标题",
+  "mood": false,
   "start": "n1",
   "nodes": [ ... ]
 }
 ```
 
+- `mood`（可选，bool，默认 false）：心情气泡开关。false=每次 show 节点末尾与每次 say 节点前后发射 `mod_hide_mood()`（隐藏官方圆形情绪面板）；true=保留官方心情气泡。
 - `nodes` 为节点数组；默认按数组顺序依次执行（隐式 goto 下一个节点）。
 - 每个节点有唯一 `id`；任何节点可显式写 `"goto": "<nodeId>"` 覆盖顺序流。
 - `choice` / `branch` / `dice` 的分支必须用 `goto` 指到目标节点 id。
 - 多个前驱汇入同一节点（汇合点）合法。
 
-### 3.1 节点类型（全量 38 种）
+### 3.1 节点类型（全量 39 种）
 
 **演出类**
 
@@ -69,13 +73,13 @@ assets/                # 预留（自定义图片/音频），v1 运行时忽略
 | `music` | `name`；可选 `op`("play"默认/"stop"/"fadeout")，fadeout 时 `seconds`(默认2) | `luamanager.PlayMusic(name)` / `StopMusic()` / `FadeOutMusic(seconds)` |
 | `sound` | `name`；可选 `kind`("sound"默认/"env")，`op`("play"默认/"fadeout"仅env，`seconds`默认1) | `luamanager.PlaySound/PlayEnvSound/FadeOutEnvSound` |
 | `scene` | `view` | 切场景：`runblock(flowcharts.view,"out")` 后 `ViewName=view; runblock(...,"view")`。`view="out"` 只淡出；`"black"/"white"` 为纯色。非纯色 view 先 `runwait(flowcharts.LoadView(view))` 预加载背景资产（官方 995/1111 个脚本实证；不预载则背景黑屏） |
-| `show` | `character`, `position`；可选 `portrait`(默认normal), `facing`(默认right), `fadeDuration`(0), `moveDuration`(0) | 加载并显示人物 |
+| `show` | `character`, `position`；可选 `portrait`(默认normal), `facing`(默认right), `fadeDuration`(0), `moveDuration`(0) | 加载并显示人物。**心情气泡**：story.mood 为 false 时末尾（Focus 后）追加 `mod_hide_mood()` |
 | `move` | `character`, `from`, `to`；可选 `duration`(默认1) | 移动并 `wait(duration)` |
 | `face` | `character`, `facing` | 转向 |
 | `hide` | `character`；可选 `fadeDuration`(默认0) | 隐藏人物 |
 | `focus` | `character` | `characters.Focus` |
 | `offset` | `character`, `x`, `y`, `duration` | 人物偏移演出 `runwait(characters.MoveOffsetCoroutine(id,x,y,t))` |
-| `say` | `text`；可选 `character`, `portrait`(默认normal), `mode`("character"默认/"think"/"narrative"/"center") | 对话/内心独白(带os_mask)/旁白/居中旁白。narrative 与 center 忽略 character |
+| `say` | `text`；可选 `character`, `portrait`(默认normal), `mode`("character"默认/"think"/"narrative"/"center") | 对话/内心独白(带os_mask)/旁白/居中旁白。narrative 与 center 忽略 character。**已读机制**：文本不再裸字面量进 Lua，改发射 `say(luamanager.GetStoryText("MOD_<modid>_<scriptid>_<nodeid>"))`（独立 build/编辑器预览无 modid 时用 "MOD" 兜底），文本本体进包内 texts.json 由运行时注册 |
 | `choice` | `options`: `[{"text","goto"}]`（2~4 项）；可选 `dialog`(默认"Options"，皮肤见 §3.3) | 选项菜单 `choose()` |
 | `shock` | `character`；可选 `duration`(默认0.5) | 人物震动（flowcharts.common "shock"） |
 | `mask` | `show`(bool) | 独白遮罩 `os_mask.Show` |
@@ -113,6 +117,7 @@ assets/                # 预留（自定义图片/音频），v1 运行时忽略
 | `panel` | `panel`("martial"/"weapon"/"poison"/"cg"/"cgvideo"/"shop"/"newshop"/"credit"/"endgame")；可选 `key`(cg/cgvideo/endgame 的 id), `discount`(shop 用, 默认0), `mode`(martial 用, 默认0) | 打开系统面板，除 newshop 外均 `runwait`：`martialpanel.Open(mode)`/`weaponupgradepanel.Open()`/`poisonupgradepanel.Open()`/`cgpanel.Open(key)`/`cgvideopanel.Open(key,0)`/`shoppanel.Open(discount)`/`shoppanel.NewShop()`/`creditpanel.Open()`/`endgamepanel.Open(key)` |
 | `wait` | `seconds` | `wait(seconds)` |
 | `end` | 可选 `next_script` | 有：`SetNextScript("MOD_<modid>_<id>")`+`Init()` 链到同包脚本；无：`ChangeScene("Free","","")` 回自由模式 |
+| `death` | `text`（必填非空，多行合法）；可选 `next`("Title"默认/"Free") | **死亡文本**：黑屏（view="black"）+ 居中旁白（走已读 key 机制，同 say）+ `luamanager.ChangeScene(next, "", "")` 场景跳转。终止节点（自带流转，不允许显式 goto，可作末节点收尾） |
 | `raw` | `code` | 原生 Lua 逃逸口：原样插入代码（多行合法）。**机制兜底**：任何节点表达不了的官方机制用它 |
 
 ### 3.2 常用取值（以 data/editor_data.json 为权威清单，schema 2 起带中文名）
@@ -135,8 +140,11 @@ assets/                # 预留（自定义图片/音频），v1 运行时忽略
 - **分支兜底**：choice 外任何多路结构不允许静默落空——未命中 case 时 else 落顺序下一节点；无法兜底（branch 为末节点且未覆盖全部返回值）视为校验错误。
 - 节点 id 字符集 `[a-zA-Z0-9_]+`（脚本 id 允许 `-`）。
 - story 顶层 `title` 可选。
-- 最后一个节点不是 `end`/`goto_scene`/`raw` 且无 goto → 校验错误。
-- `choice`/`branch`/`dice`/`end`/`goto_scene` 写显式 `goto` → 校验错误。
+- **已读 key 规则**：所有 say（character/think/narrative/center）与 death 节点的文本一律发射 `say(luamanager.GetStoryText(key))`，key = `MOD_<modid>_<scriptid>_<nodeid>`；modid 来自 manifest（打包时），独立 build/编辑器预览缺省时用 "MOD" 兜底（预览显示兜底 key 可接受）。key 与文本本体（包内 texts.json）由打包器同步生成。
+- **mood 规则**：story.mood（可选 bool，默认 false）为 false 时，show 节点末尾（Focus 之后）与 say 节点 say(...) 前后各发射一次 `mod_hide_mood()`（运行时插件注册的全局函数，隐藏官方圆形情绪面板）；true 时不发射。
+- **death 发射**：见 §3.1 death 行（runblock out → ViewName="black" → runblock view → setsaydialog(center) → sayoptions 两行 → setcharacter(narrative) → say(GetStoryText(key)) → ChangeScene(next,"","")）。
+- 最后一个节点不是 `end`/`death`/`goto_scene`/`raw` 且无 goto → 校验错误。
+- `choice`/`branch`/`dice`/`end`/`death`/`goto_scene` 写显式 `goto` → 校验错误。
 - `say` 的 narrative/center 模式给 character 允许但忽略。
 - `raw` 节点内容原样插入（编译器不做语法检查）；其后流转照常（顺序/goto）。
 - **非致命警告**：以 `-- lomc 警告：` 注释形式插在 Lua 头部（如 transition 有 in 无 out），编辑器 Lua 预览与导出产物都能看到；`lomc check` 同步打印到 stderr。
@@ -155,9 +163,11 @@ sayoptions.fadewhendone  = true
 stage.showPortrait(characters.Get("player"), characters.GetPortrait("player", "nervous1"))
 setcharacter(characters.Get("player"), characters.GetPortrait("player", "nervous1"))
 characters.Focus("player")
-say("对话文本")
+mod_hide_mood()
+say(luamanager.GetStoryText("MOD_demo_mod_main_n7"))
+mod_hide_mood()
 -- say (think)：setsaydialog(saydialogs.think)，say 前 os_mask.SetLastPosition(); os_mask.Show(true)，后 os_mask.Show(false)
--- say (narrative/center)：setsaydialog(saydialogs.narrative|saydialogs.center); sayoptions 两行同上; setcharacter(narrative); say("...")（官方 ch1_1 实证：任何 say 前都设 sayoptions）
+-- say (narrative/center)：setsaydialog(saydialogs.narrative|saydialogs.center); sayoptions 两行同上; setcharacter(narrative); say(GetStoryText(...))（官方 ch1_1 实证：任何 say 前都设 sayoptions）
 -- choice（含皮肤）
 setmenudialog(menudialogs.Options)
 local option1 = {}
@@ -223,6 +233,16 @@ runblock(flowcharts.common, "flash")
 luamanager.SetNextScript("MOD_<modid>_<scriptid>")
 luamanager.Init()
 luamanager.ChangeScene("Free", "", "")
+-- death（死亡文本：黑屏 + 居中旁白 + 场景跳转）
+runblock(flowcharts.view, "out")
+getvar(flowcharts.view, "ViewName").value = "black"
+runblock(flowcharts.view, "view")
+setsaydialog(saydialogs.center)
+sayoptions.waitforinput = true
+sayoptions.fadewhendone  = true
+setcharacter(narrative)
+say(luamanager.GetStoryText("MOD_<modid>_<scriptid>_<nodeid>"))
+luamanager.ChangeScene("Title", "", "")
 ```
 
 ## 5. data/editor_data.json — 编辑器数据契约（schema 3）
@@ -265,6 +285,8 @@ luamanager.ChangeScene("Free", "", "")
 5. **位置触发器**：postfix `FreePositionData.GetExecuteScript`，manifest.triggers 命中且 flag 条件满足（查 StoryKeyList）时返回 mod 脚本注册名；官方主线/支线优先。
 6. **兜底**：Story 场景请求的 MOD_ 脚本未注册（mod 被删）时，不执行并 `ChangeScene("Free","","")` 防软锁。
 7. mod 不修改官方脚本与文本表；mod 的 flag 进 StoryKeyList，存档兼容。
+8. **texts.json 注册**：加载 .lommod 时把包内 texts.json 的 key→文本注册进 LeanLocalization，key 解析为 `Story/`+key 的本地化文本；`GetStoryText` 按 key 查已读系统：已读→黄色+可快进，未读→正常色+记入已读，查不到返回 key 本身。
+9. **mod_hide_mood**：注册全局 Lua 函数 `mod_hide_mood()`（无参），隐藏全场角色圆形情绪面板（CharacterMoodPanel）；编译器按 story.mood 开关在 show/say 处发射（见 §4）。
 
 ## 7. AI 工具接口（story_api）
 
@@ -274,8 +296,8 @@ transition 黑幕、choice 皮肤崩溃、背景黑屏等已知坑。
 
 - Python API：
   - `load_editor_data()`：读取编辑器数据（含 dice_meta 等清单），返回 (editor_data, is_fallback)
-  - `new_story(story_id="main", title="新剧情")`：新建剧情脚本（含 1 个起始节点）
-  - `add_node(story, node_type, fields=None, after=None)`：按 models 默认值新增节点（38 种类型），未知类型/字段/类型不符→ValueError，节点 id 自动生成，after 指定插入位置（节点 id 或 None=末尾）
+  - `new_story(story_id="main", title="新剧情", mood=False)`：新建剧情脚本（含 1 个起始节点）；mood 为心情气泡开关（false=自动隐藏官方心情气泡，见 §3）
+  - `add_node(story, node_type, fields=None, after=None)`：按 models 默认值新增节点（39 种类型），未知类型/字段/类型不符→ValueError，节点 id 自动生成，after 指定插入位置（节点 id 或 None=末尾）
   - `update_node(story, node_id, fields)`：更新节点字段（同 add 的字段校验），节点不存在→ValueError
   - `get_node(story, node_id)`：读取节点，不存在→ValueError
   - `list_nodes(story)`：返回 [{"id","type","summary"}] 清单
@@ -285,6 +307,7 @@ transition 黑幕、choice 皮肤崩溃、背景黑屏等已知坑。
   - `add_choice(story, options, after=None)`：新增选项分支（2~4 项，dialog 固定 Options）
   - `add_dice(story, check, goto_成功, goto_失败, goto_大成功="", after=None)`：新增骰子检定（check 必须有官方元数据，按结果带数校验 goto）
   - `add_say(story, text, character=None, mode="character", portrait="normal", after=None)`：新增对白（character 模式必填 character；narrative/center 不写 character）
+  - `add_death(story, text, next="Title", after=None)`：新增死亡文本节点（text 必填非空多行；next 仅 Free/Title）
   - `add_scene(story, view, after=None)`：新增场景切换
   - `check_story(story)`：只校验，返回 (errors: list[str], warnings: list[str])
   - `compile_story(story)`：校验+编译，返回 (lua|None, errors, warnings)，失败时 lua 为 None

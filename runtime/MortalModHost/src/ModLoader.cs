@@ -8,7 +8,7 @@ namespace MortalModHost
 {
     /// <summary>
     /// mod 包扫描与解析（纯静态、无 BepInEx/Unity 依赖，便于离线单测）。
-    /// 行为契约见 docs/mod_format.md §6：扫描 mods/*.lommod，解出 manifest.json 与 lua/*.lua。
+    /// 行为契约见 docs/mod_format.md §6：扫描 mods/*.lommod，解出 manifest.json、lua/*.lua 与可选 texts.json（契约 §A）。
     /// 单个包损坏只警告跳过，绝不抛出让插件崩溃。
     /// </summary>
     internal static class ModLoader
@@ -76,6 +76,22 @@ namespace MortalModHost
                     throw new FormatException("包内 lua/ 目录没有任何 .lua 脚本");
                 if (!package.LuaScripts.ContainsKey(package.Entry))
                     throw new FormatException("入口脚本 lua/" + package.Entry + ".lua 不存在");
+
+                // texts.json（可选，契约 §A）：MOD_<modid>_<scriptid>_<nodeid> → 台词文本。
+                // 老包没有该文件合法；存在但解析失败只警告跳过（不拖垮整包）。
+                var textsEntry = zip.GetEntry("texts.json");
+                if (textsEntry != null)
+                {
+                    try
+                    {
+                        ParseTexts(package, ReadEntryText(textsEntry));
+                    }
+                    catch (Exception ex)
+                    {
+                        if (logWarn != null)
+                            logWarn("mod " + package.Id + " 的 texts.json 解析失败，已忽略：" + ex.Message);
+                    }
+                }
 
                 // 触发器 script 必须指向包内已有脚本；指向不存在脚本的触发器警告后丢弃（不拖垮整包）
                 if (package.Campaign != null)
@@ -180,6 +196,21 @@ namespace MortalModHost
             if (required && text.Length == 0)
                 throw new FormatException("manifest 字段 \"" + key + "\" 不能为空");
             return text;
+        }
+
+        /// <summary>解析 texts.json（契约 §A）：顶层对象，值必须全部是字符串。</summary>
+        private static void ParseTexts(ModPackage package, string json)
+        {
+            var root = MiniJson.Parse(json) as Dictionary<string, object>;
+            if (root == null)
+                throw new FormatException("texts.json 顶层必须是 JSON 对象");
+            foreach (var pair in root)
+            {
+                var text = pair.Value as string;
+                if (text == null)
+                    throw new FormatException("texts.json 键 " + pair.Key + " 的值必须是字符串");
+                package.Texts[pair.Key] = text;
+            }
         }
 
         private static string ReadEntryText(ZipArchiveEntry entry)

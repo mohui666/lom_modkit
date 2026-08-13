@@ -10,6 +10,18 @@
       "text": "按照四师兄的嘱咐，你来到山下的集市。"
     },
     { "id": "s4", "type": "flag", "flag": "DEMO_MOD_SECOND_DONE" },
-    { "id": "s5", "type": "end" }
+    {
+      "id": "s5", "type": "choice",
+      "options": [
+        { "text": "天色不早，回山复命去。", "goto": "s6" },
+        { "text": "（演示）脚下一滑，坠下山崖……", "goto": "s7" }
+      ]
+    },
+    { "id": "s6", "type": "end" },
+    {
+      "id": "s7", "type": "death",
+      "text": "你脚下一滑，径直坠下山崖。\n（演示：死亡文本节点，结束后回到标题画面）",
+      "next": "Title"
+    }
   ]
 }

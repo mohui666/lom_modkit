@@ -29,6 +29,12 @@ namespace MortalModHost
         /// <summary>lua/ 目录全部脚本：键 = 脚本 id（文件名去 .lua），值 = Lua 源码文本。</summary>
         public readonly Dictionary<string, string> LuaScripts = new Dictionary<string, string>();
 
+        /// <summary>
+        /// texts.json（可选，契约 §A）：键 = "MOD_&lt;modid&gt;_&lt;scriptid&gt;_&lt;nodeid&gt;"，值 = 台词文本。
+        /// 运行时注册进 LeanLocalization（解析名 "Story/" + key），让 mod 台词获得官方已读变黄/可快进能力。
+        /// </summary>
+        public readonly Dictionary<string, string> Texts = new Dictionary<string, string>();
+
         /// <summary>战役模式配置（manifest.campaign，契约 §2）；null 表示本包无战役模式。</summary>
         public CampaignConfig Campaign;
 

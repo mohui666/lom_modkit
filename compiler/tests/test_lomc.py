@@ -106,17 +106,17 @@ class TestCompileValid(unittest.TestCase):
         self.assertIn("\treturn node_nend()", lua2)
 
     def test_string_escape(self):
+        # 转义覆盖改在 music 名称上验（say 文本已不再裸字面量进 Lua，改走已读 key）
         lua = compile_story(
             linear_story(
                 {
                     "id": "n1",
-                    "type": "say",
-                    "mode": "narrative",
-                    "text": '反斜杠\\引号"换行\n第二行',
+                    "type": "music",
+                    "name": '反斜杠\\引号"换行\n第二行',
                 }
             )
         )
-        self.assertIn('say("反斜杠\\\\引号\\"换行\\n第二行")', lua)
+        self.assertIn('luamanager.PlayMusic("反斜杠\\\\引号\\"换行\\n第二行")', lua)
 
     def test_number_format(self):
         lua = compile_story(
@@ -258,7 +258,9 @@ class TestNodeCodegen(unittest.TestCase):
             lua,
         )
         self.assertIn('\tcharacters.Focus("player")', lua)
-        self.assertIn('\tsay("对话文本")', lua)
+        # 已读系统：say 发射 GetStoryText(key)，不再裸字面量（key 默认 MOD 兜底）
+        self.assertIn('\tsay(luamanager.GetStoryText("MOD_MOD_main_n1"))', lua)
+        self.assertNotIn("对话文本", lua)
         self.assertNotIn("os_mask", lua)
 
     def test_say_think(self):
@@ -274,11 +276,12 @@ class TestNodeCodegen(unittest.TestCase):
         self.assertIn("\tsetsaydialog(saydialogs.think)", lua)
         self.assertIn("\tos_mask.SetLastPosition()", lua)
         self.assertIn("\tos_mask.Show(true)", lua)
-        self.assertIn('\tsay("内心独白")', lua)
+        self.assertIn('\tsay(luamanager.GetStoryText("MOD_MOD_main_n1"))', lua)
         self.assertIn("\tos_mask.Show(false)", lua)
         # 顺序：Show(true) 在 say 前，Show(false) 在 say 后
-        self.assertLess(lua.index("os_mask.Show(true)"), lua.index('say("内心独白")'))
-        self.assertLess(lua.index('say("内心独白")'), lua.index("os_mask.Show(false)"))
+        say_line = 'say(luamanager.GetStoryText("MOD_MOD_main_n1"))'
+        self.assertLess(lua.index("os_mask.Show(true)"), lua.index(say_line))
+        self.assertLess(lua.index(say_line), lua.index("os_mask.Show(false)"))
 
     def test_say_narrative(self):
         lua = self.lua_of(
@@ -289,7 +292,7 @@ class TestNodeCodegen(unittest.TestCase):
         self.assertIn("\tsayoptions.waitforinput = true", lua)
         self.assertIn("\tsayoptions.fadewhendone  = true", lua)
         self.assertIn("\tsetcharacter(narrative)", lua)
-        self.assertIn('\tsay("旁白")', lua)
+        self.assertIn('\tsay(luamanager.GetStoryText("MOD_MOD_main_n1"))', lua)
         self.assertNotIn("showPortrait", lua)
 
     def test_say_center(self):
@@ -297,7 +300,82 @@ class TestNodeCodegen(unittest.TestCase):
         self.assertIn("\tsetsaydialog(saydialogs.center)", lua)
         self.assertIn("\tsayoptions.waitforinput = true", lua)
         self.assertIn("\tsetcharacter(narrative)", lua)
-        self.assertIn('\tsay("居中")', lua)
+        self.assertIn('\tsay(luamanager.GetStoryText("MOD_MOD_main_n1"))', lua)
+
+    def test_say_key_with_mod_info(self):
+        # 打包时 mod_id 来自 manifest：key = MOD_<modid>_<scriptid>_<nodeid>
+        lua = self.lua_of(
+            {"id": "n1", "type": "say", "mode": "narrative", "text": "打包文本"},
+            mod_info=MANIFEST,
+        )
+        self.assertIn('\tsay(luamanager.GetStoryText("MOD_testmod_main_n1"))', lua)
+
+    def test_mood_hide_default(self):
+        # story.mood 缺省 false：show 末尾 / say 前后各发射一次 mod_hide_mood()
+        lua = compile_story(
+            make_story(
+                [
+                    {"id": "n1", "type": "show", "character": "player", "position": "M"},
+                    {"id": "n2", "type": "say", "mode": "narrative", "text": "台词"},
+                    {"id": "nend", "type": "end"},
+                ]
+            )
+        )
+        self.assertEqual(lua.count("mod_hide_mood()"), 3)
+        # show：Focus 之后（首个 hide 在 show 块里）
+        self.assertLess(
+            lua.index('characters.Focus("player")'),
+            lua.index("mod_hide_mood()"),
+        )
+        # say：hide 在 GetStoryText 前，say 后紧跟 hide
+        i = lua.index('say(luamanager.GetStoryText("MOD_MOD_main_n2"))')
+        self.assertGreater(i, lua.rindex("mod_hide_mood()", 0, i))
+        self.assertGreater(lua.index("mod_hide_mood()", i), i)
+
+    def test_mood_true_keeps_bubbles(self):
+        # story.mood=true：不发射 mod_hide_mood
+        story = make_story(
+            [
+                {"id": "n1", "type": "show", "character": "player", "position": "M"},
+                {"id": "n2", "type": "say", "mode": "narrative", "text": "台词"},
+                {"id": "nend", "type": "end"},
+            ]
+        )
+        story["mood"] = True
+        lua = compile_story(story)
+        self.assertNotIn("mod_hide_mood", lua)
+
+    def test_death(self):
+        # 死亡文本节点：黑屏 + 居中旁白（已读 key）+ 场景跳转；自带收尾不加流转行
+        lua = compile_story(
+            make_story(
+                [
+                    {"id": "n1", "type": "music", "name": "普通_001"},
+                    {"id": "n2", "type": "death", "text": "你坠入山崖，万事休矣。", "next": "Title"},
+                ]
+            )
+        )
+        self.assertIn('\trunblock(flowcharts.view, "out")', lua)
+        self.assertIn('\tgetvar(flowcharts.view, "ViewName").value = "black"', lua)
+        self.assertIn('\trunblock(flowcharts.view, "view")', lua)
+        self.assertIn("\tsetsaydialog(saydialogs.center)", lua)
+        self.assertIn("\tsayoptions.waitforinput = true", lua)
+        self.assertIn("\tsayoptions.fadewhendone  = true", lua)
+        self.assertIn("\tsetcharacter(narrative)", lua)
+        self.assertIn('\tsay(luamanager.GetStoryText("MOD_MOD_main_n2"))', lua)
+        self.assertIn('\tluamanager.ChangeScene("Title", "", "")', lua)
+        # death 自带流转，不追加 return（ChangeScene 后直接收束函数）
+        self.assertNotIn('ChangeScene("Title", "", "")\n\treturn', lua)
+
+    def test_death_default_next_title(self):
+        lua = self.lua_of({"id": "n1", "type": "death", "text": "命数已尽。"})
+        self.assertIn('\tluamanager.ChangeScene("Title", "", "")', lua)
+
+    def test_death_free_next(self):
+        lua = self.lua_of(
+            {"id": "n1", "type": "death", "text": "命数已尽。", "next": "Free"}
+        )
+        self.assertIn('\tluamanager.ChangeScene("Free", "", "")', lua)
 
     def test_choice(self):
         # choice 的 goto 目标必须存在，补一个目标节点 na
@@ -910,10 +988,15 @@ class TestPack(unittest.TestCase):
         main = make_story(
             [
                 {"id": "n1", "type": "music", "name": "普通_001"},
-                {"id": "n2", "type": "end", "next_script": "extra"},
+                {"id": "n2", "type": "say", "mode": "narrative", "text": "打包对话文本"},
+                {"id": "n3", "type": "end", "next_script": "extra"},
             ]
         )
-        extra = make_story([{"id": "x1", "type": "end"}], story_id="extra", start="x1")
+        extra = make_story(
+            [{"id": "x1", "type": "death", "text": "死亡文本演示", "next": "Title"}],
+            story_id="extra",
+            start="x1",
+        )
         self.write_story(main)
         self.write_story(extra)
 
@@ -932,6 +1015,7 @@ class TestPack(unittest.TestCase):
                     "story/extra.json",
                     "lua/main.lua",
                     "lua/extra.lua",
+                    "texts.json",
                 },
             )
             manifest_back = json.loads(zf.read("manifest.json").decode("utf-8"))
@@ -940,16 +1024,27 @@ class TestPack(unittest.TestCase):
             self.assertEqual(story_back, main)
             lua_main = zf.read("lua/main.lua").decode("utf-8")
             lua_extra = zf.read("lua/extra.lua").decode("utf-8")
+            # 已读文本表（契约 §1）：say/death 节点的 key → 文本
+            texts = json.loads(zf.read("texts.json").decode("utf-8"))
+            self.assertEqual(
+                texts,
+                {
+                    "MOD_testmod_main_n2": "打包对话文本",
+                    "MOD_testmod_extra_x1": "死亡文本演示",
+                },
+            )
 
         # 包内 lua 与直接编译结果一致
         self.assertEqual(
             lua_main, compile_story(main, mod_info=MANIFEST, source="story/main.json")
         )
         self.assertIn('luamanager.SetNextScript("MOD_testmod_extra")', lua_main)
+        self.assertIn('luamanager.GetStoryText("MOD_testmod_main_n2")', lua_main)
         self.assertIn("return node_n1()", lua_main)
         self.assertIn("return node_x1()", lua_extra)
-        # extra 的 end 无 next_script：走 ChangeScene 收尾
-        self.assertIn('luamanager.ChangeScene("Free", "", "")', lua_extra)
+        # extra 的 death 自带场景跳转收尾（key 走已读机制）
+        self.assertIn('luamanager.GetStoryText("MOD_testmod_extra_x1")', lua_extra)
+        self.assertIn('luamanager.ChangeScene("Title", "", "")', lua_extra)
         self.assertNotIn("luamanager.Init()", lua_extra)
 
     def test_pack_missing_manifest(self):
@@ -1616,7 +1711,7 @@ class TestNewNodeCodegen(unittest.TestCase):
         )
         self.assertIn("\tsetsaydialog(saydialogs.center)", lua)
         self.assertIn("\tsetcharacter(narrative)", lua)
-        self.assertIn('\tsay("居中旁白")', lua)
+        self.assertIn('\tsay(luamanager.GetStoryText("MOD_MOD_main_n1"))', lua)
         self.assertNotIn("showPortrait", lua)
 
     def test_choice_dialog_skin(self):
@@ -1640,7 +1735,7 @@ class TestNewNodeCodegen(unittest.TestCase):
         self.assertIn("\tmenudialogs.Options.SetActive(false)", lua)
 
     def test_terminal_node_types(self):
-        # goto_scene / raw / dice 可作最后一个节点收尾（契约 §4）
+        # goto_scene / raw / dice / death 可作最后一个节点收尾（契约 §4）
         for last in (
             {"id": "n2", "type": "goto_scene", "scene": "Free"},
             {"id": "n2", "type": "raw", "code": "luamanager.AutoSave()"},
@@ -1656,6 +1751,7 @@ class TestNewNodeCodegen(unittest.TestCase):
                     }
                 ],
             },
+            {"id": "n2", "type": "death", "text": "山崖坠亡。", "next": "Title"},
         ):
             validate_story(
                 make_story(
@@ -1762,6 +1858,53 @@ class TestNewNodeValidationErrors(unittest.TestCase):
             linear_story({"id": "n1", "type": "panel", "panel": "cg"}),
             '必填字段 "key"',
         )
+
+    def test_death_rules(self):
+        # text 必填非空
+        assert_compile_error(
+            self,
+            linear_story({"id": "n1", "type": "death"}),
+            '缺少必填字段 "text"',
+            "n1",
+        )
+        assert_compile_error(
+            self,
+            linear_story({"id": "n1", "type": "death", "text": "   "}),
+            '字段 "text" 不能为空',
+            "n1",
+        )
+        # next 只能是 Free/Title
+        assert_compile_error(
+            self,
+            linear_story({"id": "n1", "type": "death", "text": "死", "next": "Story"}),
+            '字段 "next"',
+            "n1",
+        )
+        # death 自带场景跳转，不允许显式 goto
+        assert_compile_error(
+            self,
+            linear_story({"id": "n1", "type": "death", "text": "死", "goto": "nend"}),
+            '不允许显式 "goto"',
+            "n1",
+        )
+        # 合法：末位 death 可收尾（自带 ChangeScene）
+        validate_story(
+            make_story(
+                [
+                    {"id": "n1", "type": "focus", "character": "p"},
+                    {"id": "n2", "type": "death", "text": "命数已尽。", "next": "Free"},
+                ],
+                start="n1",
+            )
+        )
+
+    def test_story_mood_type(self):
+        # story 顶层 mood 必须是 bool
+        story = linear_story({"id": "n1", "type": "music", "name": "x"})
+        story["mood"] = "yes"
+        assert_compile_error(self, story, '字段 "mood" 必须是布尔值')
+        story["mood"] = False
+        validate_story(story)
 
     def test_talent_level(self):
         assert_compile_error(

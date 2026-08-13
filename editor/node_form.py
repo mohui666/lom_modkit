@@ -91,8 +91,8 @@ class NodeForm(QScrollArea):
             widget = self._make_widget(node, key, kind)
             form.addRow(label + ("（可选）" if optional else ""), widget)
 
-        # choice/branch/dice/end/goto_scene 之外的节点允许显式 goto 覆盖顺序流（契约 §3/§4）
-        if node_type not in ("choice", "branch", "dice", "end", "goto_scene"):
+        # choice/branch/dice/end/death/goto_scene 之外的节点允许显式 goto 覆盖顺序流（契约 §3/§4）
+        if node_type not in ("choice", "branch", "dice", "end", "death", "goto_scene"):
             goto = self._make_goto_combo(node.get("goto", ""), allow_empty=True)
             goto.currentTextChanged.connect(
                 lambda text, c=goto: self._apply(

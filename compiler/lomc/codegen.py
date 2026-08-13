@@ -53,6 +53,16 @@ def _portrait(character, portrait):
     return "characters.GetPortrait(%s, %s)" % (character, portrait)
 
 
+def _say_key(node, ctx):
+    """say/death 文本的已读系统 key：MOD_<modid>_<scriptid>_<nodeid>。
+
+    modid 取 ctx["mod_id"]（打包时来自 manifest）；独立 build / 编辑器
+    预览没有 mod id 时用 "MOD" 兜底。
+    """
+    mod_id = ctx.get("mod_id") or "MOD"
+    return "MOD_%s_%s_%s" % (mod_id, ctx["script_id"], node["id"])
+
+
 # ---------------------------------------------------------------------------
 # 演出类
 # ---------------------------------------------------------------------------
@@ -98,7 +108,7 @@ def _emit_show(node, ctx):
     pos = lua_str(node["position"])
     fade = lua_num(node.get("fadeDuration", 0))
     move = lua_num(node.get("moveDuration", 0))
-    return [
+    lines = [
         "\trunwait(characters.LoadCharacterAsset(%s))" % c,
         # 表情差分：先加载该表情的立绘差分（官方 93% show/say 均如此；
         # 不加载则台上人物立绘永远停在默认表情，只有气泡变）
@@ -108,6 +118,10 @@ def _emit_show(node, ctx):
         % (_get(c), _portrait(c, portrait), pos, pos, facing, fade, move),
         "\tcharacters.Focus(%s)" % c,
     ]
+    # 心情气泡：story mood 关闭时隐藏官方圆形情绪面板（show 后常驻）
+    if not ctx.get("mood", False):
+        lines.append("\tmod_hide_mood()")
+    return lines
 
 
 def _emit_move(node, ctx):
@@ -153,18 +167,38 @@ def _emit_offset(node, ctx):
 
 def _emit_say(node, ctx):
     mode = node.get("mode", "character")
-    text = lua_str(node["text"])
+    # 已读系统：文本不再裸字面量，改发射 key 查表（官方已读变黄/可快进机制）；
+    # 文本本体进包内 texts.json，由运行时插件注册进 LeanLocalization。
+    say_call = "\tsay(luamanager.GetStoryText(%s))" % lua_str(_say_key(node, ctx))
+    hide_mood = "\tmod_hide_mood()" if not ctx.get("mood", False) else None
+
+    def _with_mood(seq):
+        # 心情气泡：story mood 关闭时 say 前/后各隐藏一次（发言会触发情绪面板）
+        out = []
+        for item in seq:
+            if item == say_call:
+                if hide_mood:
+                    out.append(hide_mood)
+                out.append(item)
+                if hide_mood:
+                    out.append(hide_mood)
+            else:
+                out.append(item)
+        return out
+
     if mode in ("narrative", "center"):
         # 旁白/居中旁白：忽略 character（契约 §4）。
         # 官方实证：任何 say 前都要设 sayoptions（ch1_1 的 center 旁白同样如此），
         # 否则等待输入/淡出行为取决于环境默认值。
-        return [
-            "\tsetsaydialog(saydialogs.%s)" % mode,
-            "\tsayoptions.waitforinput = true",
-            "\tsayoptions.fadewhendone  = true",
-            "\tsetcharacter(narrative)",
-            "\tsay(%s)" % text,
-        ]
+        return _with_mood(
+            [
+                "\tsetsaydialog(saydialogs.%s)" % mode,
+                "\tsayoptions.waitforinput = true",
+                "\tsayoptions.fadewhendone  = true",
+                "\tsetcharacter(narrative)",
+                say_call,
+            ]
+        )
 
     c = lua_str(node["character"])
     portrait = lua_str(node.get("portrait", "normal"))
@@ -183,10 +217,10 @@ def _emit_say(node, ctx):
         lines.append("\tos_mask.SetLastPosition()")
         lines.append("\tos_mask.Show(true)")
     lines.append("\tcharacters.Focus(%s)" % c)
-    lines.append("\tsay(%s)" % text)
+    lines.append(say_call)
     if mode == "think":
         lines.append("\tos_mask.Show(false)")
-    return lines
+    return _with_mood(lines)
 
 
 def _emit_choice(node, ctx):
@@ -646,6 +680,22 @@ def _emit_end(node, ctx):
     ]
 
 
+def _emit_death(node, ctx):
+    """死亡文本节点：黑屏 + 居中旁白（走已读 key）+ 场景跳转（自带收尾）。"""
+    return [
+        '\trunblock(flowcharts.view, "out")',
+        '\tgetvar(flowcharts.view, "ViewName").value = "black"',
+        '\trunblock(flowcharts.view, "view")',
+        "\tsetsaydialog(saydialogs.center)",
+        "\tsayoptions.waitforinput = true",
+        "\tsayoptions.fadewhendone  = true",
+        "\tsetcharacter(narrative)",
+        "\tsay(luamanager.GetStoryText(%s))" % lua_str(_say_key(node, ctx)),
+        "\tluamanager.ChangeScene(%s, %s, %s)"
+        % (lua_str(node.get("next", "Title")), lua_str(""), lua_str("")),
+    ]
+
+
 def _emit_raw(node, ctx):
     # 原生 Lua 逃逸口：原样插入（契约 §4）。
     # 不加缩进——code 里可能含 [[...]] 长字符串，改动空白会改变内容。
@@ -690,11 +740,12 @@ _EMITTERS = {
     "panel": _emit_panel,
     "wait": _emit_wait,
     "end": _emit_end,
+    "death": _emit_death,
     "raw": _emit_raw,
 }
 
-# 自带流转（分支/跳转），story_to_lua 不再追加 return node_<goto>() 行
-_NO_FLOW_TYPES = ("end", "choice", "branch", "dice", "goto_scene")
+# 自带流转（分支/跳转/场景切换），story_to_lua 不再追加 return node_<goto>() 行
+_NO_FLOW_TYPES = ("end", "choice", "branch", "dice", "goto_scene", "death")
 
 
 def story_to_lua(story, mod_info=None, source=None):
@@ -704,7 +755,11 @@ def story_to_lua(story, mod_info=None, source=None):
     end 节点 SetNextScript 的 MOD_<modid>_ 前缀。
     source：可选的来源描述（通常是 story/<id>.json），写进文件头注释。
     """
-    ctx = {"mod_id": mod_info.get("id") if mod_info else None}
+    ctx = {
+        "mod_id": mod_info.get("id") if mod_info else None,
+        "script_id": story["id"],
+        "mood": bool(story.get("mood", False)),
+    }
     nodes = story["nodes"]
 
     lines = [GENERATED_MARK]

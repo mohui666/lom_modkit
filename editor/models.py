@@ -16,7 +16,7 @@ from pathlib import Path
 ID_PATTERN = re.compile(r"^[a-zA-Z0-9_\-]+$")
 
 # ---------------------------------------------------------------------------
-# 节点类型中文名（契约 §3.1 全量 38 种）
+# 节点类型中文名（契约 §3.1 全量 39 种）
 # ---------------------------------------------------------------------------
 NODE_TYPE_CN: dict[str, str] = {
     "music": "音乐",
@@ -56,6 +56,7 @@ NODE_TYPE_CN: dict[str, str] = {
     "panel": "系统面板",
     "wait": "等待",
     "end": "结束",
+    "death": "死亡文本",
     "raw": "原生Lua(高级)",
 }
 
@@ -102,7 +103,7 @@ NODE_GROUPS: list[tuple[str, list[str]]] = [
             "autosave",
         ],
     ),
-    ("流程类", ["branch", "dice", "goto_scene", "panel", "wait", "end", "raw"]),
+    ("流程类", ["branch", "dice", "goto_scene", "panel", "wait", "end", "death", "raw"]),
 ]
 
 # ---------------------------------------------------------------------------
@@ -159,6 +160,7 @@ ENUM_SETS: dict[str, list[tuple[str, str]]] = {
         ("Story", "剧情演出"),
         ("DemoEnd", "Demo 结束"),
     ],
+    "death_next": [("Title", "标题画面"), ("Free", "自由模式")],
     "panel": [
         ("martial", "武学面板"),
         ("weapon", "武器强化"),
@@ -490,6 +492,13 @@ NODE_SCHEMAS: dict[str, dict] = {
         "label": "结束脚本",
         "fields": [("next_script", "下一脚本id", "story_ref", True)],
     },
+    "death": {
+        "label": "死亡文本",
+        "fields": [
+            ("text", "文本", "multiline", False),
+            ("next", "结束后去向", "enum:death_next", True),
+        ],
+    },
     "raw": {
         "label": "原生Lua(高级)",
         "fields": [("code", "Lua 代码", "code", False)],
@@ -556,6 +565,7 @@ _NODE_DEFAULTS: dict[str, dict] = {
     "panel": {"panel": "martial"},
     "wait": {"seconds": 1},
     "end": {},
+    "death": {"text": "", "next": "Title"},
     "raw": {"code": "-- 原生 Lua 代码，原样插入编译产物\n"},
 }
 
@@ -737,9 +747,15 @@ def new_node(node_type: str, node_id: str, editor_data: dict | None = None) -> d
 
 
 def new_story(story_id: str = "main", editor_data: dict | None = None) -> dict:
-    """新建空剧情：含一个 say 起始节点。"""
+    """新建空剧情：含一个 say 起始节点；mood 默认 false（隐藏官方心情气泡）。"""
     first = new_node("say", "n1", editor_data)
-    return {"id": story_id, "title": "新剧情", "start": first["id"], "nodes": [first]}
+    return {
+        "id": story_id,
+        "title": "新剧情",
+        "mood": False,
+        "start": first["id"],
+        "nodes": [first],
+    }
 
 
 def load_story(path: Path) -> dict:
@@ -754,6 +770,7 @@ def load_story(path: Path) -> dict:
         raise ValueError("story.json 结构非法：缺少 nodes 数组")
     story.setdefault("id", "main")
     story.setdefault("title", story["id"])
+    story.setdefault("mood", False)
     story.setdefault("start", story["nodes"][0]["id"] if story["nodes"] else "")
     for node in story["nodes"]:
         if "id" not in node or "type" not in node:
@@ -917,6 +934,8 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
     if t == "end":
         nxt = node.get("next_script")
         return f"{tcn}→{nxt}" if nxt else f"{tcn}·结束"
+    if t == "death":
+        return f"{tcn}·{_short(node.get('text', ''))} → {node.get('next', 'Title')}"
     if t == "raw":
         first = (node.get("code") or "").strip().splitlines()
         return f"{tcn}·{_short(first[0] if first else '')}"
