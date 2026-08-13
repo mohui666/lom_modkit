@@ -40,8 +40,27 @@ _ENUMS = {
     "bskill_op": ("set", "active", "reset"),
     "time_op": ("set", "round", "month", "mission"),
     "autosave_kind": ("story", "free", "prologue"),
-    "goto_scene": ("Free", "Title", "Combat", "Battle", "GameOver", "End", "Story", "DemoEnd"),
-    "panel_kind": ("martial", "weapon", "poison", "cg", "cgvideo", "shop", "newshop", "credit", "endgame"),
+    "goto_scene": (
+        "Free",
+        "Title",
+        "Combat",
+        "Battle",
+        "GameOver",
+        "End",
+        "Story",
+        "DemoEnd",
+    ),
+    "panel_kind": (
+        "martial",
+        "weapon",
+        "poison",
+        "cg",
+        "cgvideo",
+        "shop",
+        "newshop",
+        "credit",
+        "endgame",
+    ),
     "branch_source": BRANCH_SOURCES,
     "mode": SAY_MODES,
     "facing": FACINGS,
@@ -306,9 +325,18 @@ def _check_node_extra(node, ntype, label):
         )
     elif ntype == "dice":
         _check_options(
-            node, label, 1, 4, _DICE_OPTION_FIELDS,
-            {"text": "str", "threshold": "num", "goto_大成功": "str",
-             "goto_成功": "str", "goto_失败": "str"},
+            node,
+            label,
+            1,
+            4,
+            _DICE_OPTION_FIELDS,
+            {
+                "text": "str",
+                "threshold": "num",
+                "goto_大成功": "str",
+                "goto_成功": "str",
+                "goto_失败": "str",
+            },
         )
     elif ntype == "sound":
         if node.get("op", "play") == "fadeout" and node.get("kind", "sound") != "env":
@@ -320,8 +348,11 @@ def _check_node_extra(node, ntype, label):
         if action == "show":
             # 各 kind 的必填参数（§3.1 + 官方脚本实证）
             need = {
-                "picture": ("key",), "item": ("key",), "big": ("key",),
-                "title": ("key",), "map": ("key", "key2"),
+                "picture": ("key",),
+                "item": ("key",),
+                "big": ("key",),
+                "title": ("key",),
+                "map": ("key", "key2"),
                 "family": ("key", "key2", "n1", "n2"),
             }[kind]
             for name in need:
@@ -362,9 +393,7 @@ def _check_node_extra(node, ntype, label):
             need = ()
         for name in need:
             if name not in node:
-                raise LomcError(
-                    '%s(time): op="%s" 时必填字段 "%s"' % (label, op, name)
-                )
+                raise LomcError('%s(time): op="%s" 时必填字段 "%s"' % (label, op, name))
     elif ntype == "panel":
         if node["panel"] in ("cg", "cgvideo", "endgame") and "key" not in node:
             raise LomcError(
@@ -372,7 +401,7 @@ def _check_node_extra(node, ntype, label):
             )
     elif ntype == "block":
         for i, var in enumerate(node.get("vars", [])):
-            var_label = '%s(block) 第 %d 个 var' % (label, i + 1)
+            var_label = "%s(block) 第 %d 个 var" % (label, i + 1)
             if not isinstance(var, dict):
                 raise LomcError("%s: 必须是对象" % var_label)
             for key in var:
@@ -419,7 +448,9 @@ def _check_node_extra(node, ntype, label):
                 raise LomcError("%s: value=%d 与其他 case 重复" % (case_label, value))
             seen.add(value)
             if not isinstance(case.get("goto"), str):
-                raise LomcError('%s: 缺少必填字段 "goto"（节点 id 字符串）' % case_label)
+                raise LomcError(
+                    '%s: 缺少必填字段 "goto"（节点 id 字符串）' % case_label
+                )
 
 
 def validate_story(story, source="story.json", warnings=None):
@@ -440,20 +471,38 @@ def validate_story(story, source="story.json", warnings=None):
 def _collect_warnings(story, warnings):
     """非致命问题收集（不中断编译）。"""
     nodes = story.get("nodes", []) if isinstance(story, dict) else []
-    ins = [n for n in nodes
-           if isinstance(n, dict) and n.get("type") == "transition"
-           and n.get("phase") == "in"]
-    has_out = any(isinstance(n, dict) and n.get("type") == "transition"
-                  and n.get("phase") == "out" for n in nodes)
-    if ins and not has_out:
-        for n in ins:
-            warnings.append(
-                '节点 "%s"(transition, phase=in) 没有配对的 phase=out：'
-                "TransitionIn 会隐藏剧情 UI 并盖满黑幕（官方脚本必须成对使用，"
-                "ch1_1 里 TransitionIn/Out 相距仅十几行），演出到该节点后画面会一直黑屏。"
-                "请补一个 phase=out 节点，或改用 scene 节点做转场。"
-                % n.get("id", "?")
-            )
+
+    def is_transition(n, phase=None):
+        return (
+            isinstance(n, dict)
+            and n.get("type") == "transition"
+            and (phase is None or n.get("phase") == phase)
+        )
+
+    for idx, n in enumerate(nodes):
+        if not isinstance(n, dict) or n.get("type") != "transition":
+            continue
+        label = n.get("id", "?")
+        if n.get("phase") == "in":
+            # 黑幕必须被一个更靠后的 out 解除。黑幕跨脚本持续：SetNextScript+Init
+            # 不重置场景，in 在结尾会让链式脚本也全程黑屏。
+            lifted = any(is_transition(m, "out") for m in nodes[idx + 1:])
+            if not lifted:
+                warnings.append(
+                    '节点 "%s"(transition, phase=in) 之后没有 phase=out 解除：'
+                    "TransitionIn 会隐藏剧情 UI 并盖满黑幕（官方脚本必须成对使用，"
+                    "ch1_1 里相距仅十几行），黑幕将一直覆盖到脚本结尾（含链式脚本）。"
+                    "请在其后补一个 phase=out 节点，或改用 scene 节点做转场。" % label
+                )
+        else:
+            # out 之前没有 in：无黑幕可撤，是无效操作（官方用法永远是先 in 后 out）
+            has_cover = any(is_transition(m, "in") for m in nodes[:idx])
+            if not has_cover:
+                warnings.append(
+                    '节点 "%s"(transition, phase=out) 之前没有 phase=in：'
+                    "无黑幕可撤（官方用法永远是先 in 后 out），该节点不会产生任何视觉"
+                    "效果，可删除。" % label
+                )
 
 
 def _validate_story_inner(story):

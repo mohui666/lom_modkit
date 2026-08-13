@@ -183,9 +183,7 @@ class TestNodeCodegen(unittest.TestCase):
         lua = self.lua_of(
             {"id": "n1", "type": "show", "character": "player", "position": "M"}
         )
-        self.assertIn(
-            'portrait=characters.GetPortrait("player", "normal")', lua
-        )
+        self.assertIn('portrait=characters.GetPortrait("player", "normal")', lua)
         self.assertIn('facing="right"', lua)
         self.assertIn("fadeDuration=0, moveDuration=0", lua)
 
@@ -295,9 +293,7 @@ class TestNodeCodegen(unittest.TestCase):
         self.assertNotIn("showPortrait", lua)
 
     def test_say_center(self):
-        lua = self.lua_of(
-            {"id": "n1", "type": "say", "mode": "center", "text": "居中"}
-        )
+        lua = self.lua_of({"id": "n1", "type": "say", "mode": "center", "text": "居中"})
         self.assertIn("\tsetsaydialog(saydialogs.center)", lua)
         self.assertIn("\tsayoptions.waitforinput = true", lua)
         self.assertIn("\tsetcharacter(narrative)", lua)
@@ -483,9 +479,7 @@ class TestNodeCodegen(unittest.TestCase):
                 ]
             )
         )
-        self.assertIn(
-            '\tlocal branch1 = checkpointmanager.Switch("S0003_01_001")', lua
-        )
+        self.assertIn('\tlocal branch1 = checkpointmanager.Switch("S0003_01_001")', lua)
         self.assertIn("\tif branch1 == 1 then\n\t\treturn node_na()", lua)
         self.assertIn("\telseif branch1 == 2 then\n\t\treturn node_nend()", lua)
         # else 兜底：未命中任何 case（含查不到检查点返回 0）落顺序下一节点 na
@@ -497,7 +491,9 @@ class TestNodeCodegen(unittest.TestCase):
 
     def test_end(self):
         # 无 next_script：官方标准收尾 ChangeScene("Free", "", "")，不 emit Init
-        lua = compile_story(linear_story({"id": "n1", "type": "focus", "character": "p"}))
+        lua = compile_story(
+            linear_story({"id": "n1", "type": "focus", "character": "p"})
+        )
         self.assertIn('\tluamanager.ChangeScene("Free", "", "")', lua)
         self.assertNotIn("luamanager.Init()", lua)
         self.assertNotIn("SetNextScript", lua)
@@ -578,9 +574,7 @@ class TestValidationErrors(unittest.TestCase):
             )
 
     def test_start_missing(self):
-        story = make_story(
-            [{"id": "n1", "type": "end"}], start="ghost"
-        )
+        story = make_story([{"id": "n1", "type": "end"}], start="ghost")
         assert_compile_error(self, story, 'start 指向不存在的节点 "ghost"')
 
     def test_duplicate_node_id(self):
@@ -648,7 +642,13 @@ class TestValidationErrors(unittest.TestCase):
         assert_compile_error(
             self,
             linear_story(
-                {"id": "n1", "type": "say", "character": "p", "mode": "shout", "text": "x"}
+                {
+                    "id": "n1",
+                    "type": "say",
+                    "character": "p",
+                    "mode": "shout",
+                    "text": "x",
+                }
             ),
             '字段 "mode"',
         )
@@ -835,7 +835,9 @@ class TestPack(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.mod_dir = os.path.join(self.tmp.name, "testmod")
         os.makedirs(os.path.join(self.mod_dir, "story"))
-        with open(os.path.join(self.mod_dir, "manifest.json"), "w", encoding="utf-8") as f:
+        with open(
+            os.path.join(self.mod_dir, "manifest.json"), "w", encoding="utf-8"
+        ) as f:
             json.dump(MANIFEST, f, ensure_ascii=False, indent=2)
 
     def tearDown(self):
@@ -855,9 +857,7 @@ class TestPack(unittest.TestCase):
                 {"id": "n2", "type": "end", "next_script": "extra"},
             ]
         )
-        extra = make_story(
-            [{"id": "x1", "type": "end"}], story_id="extra", start="x1"
-        )
+        extra = make_story([{"id": "x1", "type": "end"}], story_id="extra", start="x1")
         self.write_story(main)
         self.write_story(extra)
 
@@ -870,8 +870,13 @@ class TestPack(unittest.TestCase):
             names = set(zf.namelist())
             self.assertEqual(
                 names,
-                {"manifest.json", "story/main.json", "story/extra.json",
-                 "lua/main.lua", "lua/extra.lua"},
+                {
+                    "manifest.json",
+                    "story/main.json",
+                    "story/extra.json",
+                    "lua/main.lua",
+                    "lua/extra.lua",
+                },
             )
             manifest_back = json.loads(zf.read("manifest.json").decode("utf-8"))
             self.assertEqual(manifest_back, MANIFEST)
@@ -898,14 +903,18 @@ class TestPack(unittest.TestCase):
         self.assertIn("缺少 manifest.json", str(cm.exception))
 
     def test_pack_entry_missing(self):
-        self.write_story(make_story([{"id": "n1", "type": "end"}], story_id="other", start="n1"))
+        self.write_story(
+            make_story([{"id": "n1", "type": "end"}], story_id="other", start="n1")
+        )
         with self.assertRaises(LomcError) as cm:
             pack_mod(self.mod_dir)
         self.assertIn('entry 指向的入口脚本 "main" 不存在', str(cm.exception))
 
     def test_pack_next_script_missing(self):
         self.write_story(
-            make_story([{"id": "n1", "type": "end", "next_script": "ghost"}], start="n1")
+            make_story(
+                [{"id": "n1", "type": "end", "next_script": "ghost"}], start="n1"
+            )
         )
         with self.assertRaises(LomcError) as cm:
             pack_mod(self.mod_dir)
@@ -913,7 +922,9 @@ class TestPack(unittest.TestCase):
         self.assertIn('节点 "n1"', str(cm.exception))
 
     def test_pack_filename_id_mismatch(self):
-        self.write_story(make_story([{"id": "n1", "type": "end"}], start="n1"), name="zzz")
+        self.write_story(
+            make_story([{"id": "n1", "type": "end"}], start="n1"), name="zzz"
+        )
         with self.assertRaises(LomcError) as cm:
             pack_mod(self.mod_dir)
         self.assertIn("文件名与内部 id 不一致", str(cm.exception))
@@ -952,14 +963,21 @@ class TestCli(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             good = os.path.join(tmp, "good.json")
             with open(good, "w", encoding="utf-8") as f:
-                json.dump(linear_story({"id": "n1", "type": "music", "name": "普通_001"}), f)
+                json.dump(
+                    linear_story({"id": "n1", "type": "music", "name": "普通_001"}), f
+                )
             r = self.run_cli("check", good)
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertIn("校验通过", r.stdout)
 
             bad = os.path.join(tmp, "bad.json")
             with open(bad, "w", encoding="utf-8") as f:
-                json.dump(make_story([{"id": "n1", "type": "wat"}, {"id": "n2", "type": "end"}]), f)
+                json.dump(
+                    make_story(
+                        [{"id": "n1", "type": "wat"}, {"id": "n2", "type": "end"}]
+                    ),
+                    f,
+                )
             r = self.run_cli("check", bad)
             self.assertEqual(r.returncode, 1)
             self.assertIn("错误", r.stderr)
@@ -978,7 +996,9 @@ class TestCli(unittest.TestCase):
 
             mod_dir = os.path.join(tmp, "mymod")
             os.makedirs(os.path.join(mod_dir, "story"))
-            with open(os.path.join(mod_dir, "manifest.json"), "w", encoding="utf-8") as f:
+            with open(
+                os.path.join(mod_dir, "manifest.json"), "w", encoding="utf-8"
+            ) as f:
                 json.dump(MANIFEST, f)
             os.replace(story_path, os.path.join(mod_dir, "story", "main.json"))
             out_pkg = os.path.join(tmp, "mymod.lommod")
@@ -1013,7 +1033,13 @@ class TestNewNodeCodegen(unittest.TestCase):
         self.assertIn(
             "\tluamanager.FadeOutMusic(3.5)",
             self.lua_of(
-                {"id": "n1", "type": "music", "name": "x", "op": "fadeout", "seconds": 3.5}
+                {
+                    "id": "n1",
+                    "type": "music",
+                    "name": "x",
+                    "op": "fadeout",
+                    "seconds": 3.5,
+                }
             ),
         )
 
@@ -1024,26 +1050,42 @@ class TestNewNodeCodegen(unittest.TestCase):
         )
         self.assertIn(
             '\tluamanager.PlayEnvSound("雨天_001")',
-            self.lua_of({"id": "n1", "type": "sound", "name": "雨天_001", "kind": "env"}),
+            self.lua_of(
+                {"id": "n1", "type": "sound", "name": "雨天_001", "kind": "env"}
+            ),
         )
         self.assertIn(
             "\tluamanager.FadeOutEnvSound(1)",
             self.lua_of(
-                {"id": "n1", "type": "sound", "name": "x", "kind": "env", "op": "fadeout"}
+                {
+                    "id": "n1",
+                    "type": "sound",
+                    "name": "x",
+                    "kind": "env",
+                    "op": "fadeout",
+                }
             ),
         )
 
     def test_offset(self):
         lua = self.lua_of(
-            {"id": "n1", "type": "offset", "character": "girl1",
-             "x": 100, "y": 0, "duration": 0.5}
+            {
+                "id": "n1",
+                "type": "offset",
+                "character": "girl1",
+                "x": 100,
+                "y": 0,
+                "duration": 0.5,
+            }
         )
         self.assertIn(
             '\trunwait(characters.MoveOffsetCoroutine("girl1", 100, 0, 0.5))', lua
         )
 
     def test_effect(self):
-        lua = self.lua_of({"id": "n1", "type": "effect", "name": "Hit_001", "x": 10, "y": -5})
+        lua = self.lua_of(
+            {"id": "n1", "type": "effect", "name": "Hit_001", "x": 10, "y": -5}
+        )
         self.assertIn('\teffects.SetupEffect("Hit_001", 10, -5, 1, 1, 1, 1)', lua)
 
     def test_transition(self):
@@ -1053,64 +1095,116 @@ class TestNewNodeCodegen(unittest.TestCase):
         )
         self.assertIn(
             '\trunwait(transitionblack.TransitionOut("bt"))',
-            self.lua_of({"id": "n1", "type": "transition", "phase": "out", "dir": "bt"}),
+            self.lua_of(
+                {"id": "n1", "type": "transition", "phase": "out", "dir": "bt"}
+            ),
         )
 
     def test_camera(self):
         self.assertIn(
             '\tmaincamera.ActiveVolume("stage-memory", 1)',
-            self.lua_of({"id": "n1", "type": "camera", "name": "stage-memory", "active": True}),
+            self.lua_of(
+                {"id": "n1", "type": "camera", "name": "stage-memory", "active": True}
+            ),
         )
         self.assertIn(
             '\tmaincamera.ActiveVolume("stage-memory", 0)',
-            self.lua_of({"id": "n1", "type": "camera", "name": "stage-memory", "active": False}),
+            self.lua_of(
+                {"id": "n1", "type": "camera", "name": "stage-memory", "active": False}
+            ),
         )
 
     def test_block(self):
         lua = self.lua_of(
-            {"id": "n1", "type": "block", "flowchart": "common", "name": "flash",
-             "vars": [{"name": "FlashDuration", "value": 0.1}]}
+            {
+                "id": "n1",
+                "type": "block",
+                "flowchart": "common",
+                "name": "flash",
+                "vars": [{"name": "FlashDuration", "value": 0.1}],
+            }
         )
-        self.assertIn(
-            '\tgetvar(flowcharts.common, "FlashDuration").value = 0.1', lua
-        )
+        self.assertIn('\tgetvar(flowcharts.common, "FlashDuration").value = 0.1', lua)
         self.assertIn('\trunblock(flowcharts.common, "flash")', lua)
         # 无 vars：直接 runblock
-        lua2 = self.lua_of({"id": "n1", "type": "block", "flowchart": "view", "name": "out_white"})
+        lua2 = self.lua_of(
+            {"id": "n1", "type": "block", "flowchart": "view", "name": "out_white"}
+        )
         self.assertIn('\trunblock(flowcharts.view, "out_white")', lua2)
         self.assertNotIn("getvar", lua2)
 
     def test_cg(self):
         self.assertIn(
             '\trunwait(mainui.ShowPicture("forge_work_001"))',
-            self.lua_of({"id": "n1", "type": "cg", "action": "show",
-                         "kind": "picture", "key": "forge_work_001"}),
+            self.lua_of(
+                {
+                    "id": "n1",
+                    "type": "cg",
+                    "action": "show",
+                    "kind": "picture",
+                    "key": "forge_work_001",
+                }
+            ),
         )
         self.assertIn(
             "\trunwait(mainui.HidePicture())",
-            self.lua_of({"id": "n1", "type": "cg", "action": "hide", "kind": "picture"}),
+            self.lua_of(
+                {"id": "n1", "type": "cg", "action": "hide", "kind": "picture"}
+            ),
         )
         self.assertIn(
             '\trunwait(mainui.ShowMap("Home", "A1"))',
-            self.lua_of({"id": "n1", "type": "cg", "action": "show",
-                         "kind": "map", "key": "Home", "key2": "A1"}),
+            self.lua_of(
+                {
+                    "id": "n1",
+                    "type": "cg",
+                    "action": "show",
+                    "kind": "map",
+                    "key": "Home",
+                    "key2": "A1",
+                }
+            ),
         )
         self.assertIn(
             '\trunwait(mainui.ShowFamilyTree("A_10", "A_11", 3, 2))',
-            self.lua_of({"id": "n1", "type": "cg", "action": "show", "kind": "family",
-                         "key": "A_10", "key2": "A_11", "n1": 3, "n2": 2}),
+            self.lua_of(
+                {
+                    "id": "n1",
+                    "type": "cg",
+                    "action": "show",
+                    "kind": "family",
+                    "key": "A_10",
+                    "key2": "A_11",
+                    "n1": 3,
+                    "n2": 2,
+                }
+            ),
         )
         # 官方 DisplayTitle 无 runwait
         self.assertIn(
             '\tmainui.DisplayTitle("練武場")',
-            self.lua_of({"id": "n1", "type": "cg", "action": "show",
-                         "kind": "title", "key": "練武場"}),
+            self.lua_of(
+                {
+                    "id": "n1",
+                    "type": "cg",
+                    "action": "show",
+                    "kind": "title",
+                    "key": "練武場",
+                }
+            ),
         )
 
     def test_stat_mode_display(self):
         lua = self.lua_of(
-            {"id": "n1", "type": "stat", "key": "mental", "delta": -5,
-             "mode": "m", "display": 0, "waitDisplay": False}
+            {
+                "id": "n1",
+                "type": "stat",
+                "key": "mental",
+                "delta": -5,
+                "mode": "m",
+                "display": 0,
+                "waitDisplay": False,
+            }
         )
         self.assertIn('\tstatmodifymanager.Player("mental", -5, "m", 0)', lua)
         self.assertNotIn("GetDisplayTime", lua)
@@ -1122,8 +1216,15 @@ class TestNewNodeCodegen(unittest.TestCase):
         )
         self.assertIn(
             '\tstatmodifymanager.UpdateSetPlayerStat("title", 10)',
-            self.lua_of({"id": "n1", "type": "stat_set", "key": "title",
-                         "value": 10, "update": True}),
+            self.lua_of(
+                {
+                    "id": "n1",
+                    "type": "stat_set",
+                    "key": "title",
+                    "value": 10,
+                    "update": True,
+                }
+            ),
         )
 
     def test_talent(self):
@@ -1143,35 +1244,67 @@ class TestNewNodeCodegen(unittest.TestCase):
         )
         self.assertIn(
             '\tstatmodifymanager.AddMisc("2001", 50)',
-            self.lua_of({"id": "n1", "type": "item", "kind": "misc",
-                         "item": "2001", "count": 50}),
+            self.lua_of(
+                {
+                    "id": "n1",
+                    "type": "item",
+                    "kind": "misc",
+                    "item": "2001",
+                    "count": 50,
+                }
+            ),
         )
         self.assertIn(
             '\tstatmodifymanager.AddSpecial("4005", 1)',
-            self.lua_of({"id": "n1", "type": "item", "kind": "special", "item": "4005"}),
+            self.lua_of(
+                {"id": "n1", "type": "item", "kind": "special", "item": "4005"}
+            ),
         )
         self.assertIn(
             '\tstatmodifymanager.RemoveMisc("5002")',
-            self.lua_of({"id": "n1", "type": "item", "kind": "misc",
-                         "item": "5002", "remove": True}),
+            self.lua_of(
+                {
+                    "id": "n1",
+                    "type": "item",
+                    "kind": "misc",
+                    "item": "5002",
+                    "remove": True,
+                }
+            ),
         )
 
     def test_game_flag(self):
         self.assertIn(
             '\tstatmodifymanager.SetFlag("M0001_00", 1)',
-            self.lua_of({"id": "n1", "type": "game_flag", "flag": "M0001_00", "value": 1}),
+            self.lua_of(
+                {"id": "n1", "type": "game_flag", "flag": "M0001_00", "value": 1}
+            ),
         )
         self.assertIn(
             '\tstatmodifymanager.AddFlag("H00001", -1)',
-            self.lua_of({"id": "n1", "type": "game_flag", "flag": "H00001",
-                         "value": -1, "op": "add"}),
+            self.lua_of(
+                {
+                    "id": "n1",
+                    "type": "game_flag",
+                    "flag": "H00001",
+                    "value": -1,
+                    "op": "add",
+                }
+            ),
         )
 
     def test_enemy(self):
         self.assertIn(
             '\tstatmodifymanager.ModifyEnemyTeam("400", -10, 1)',
-            self.lua_of({"id": "n1", "type": "enemy", "op": "team",
-                         "enemy": "400", "value": -10}),
+            self.lua_of(
+                {
+                    "id": "n1",
+                    "type": "enemy",
+                    "op": "team",
+                    "enemy": "400",
+                    "value": -10,
+                }
+            ),
         )
         self.assertIn(
             '\tstatmodifymanager.ModifyEnemyId("001")',
@@ -1181,11 +1314,15 @@ class TestNewNodeCodegen(unittest.TestCase):
     def test_battle_skill(self):
         self.assertIn(
             '\tluamanager.SetPlayerBattleSkill("special3", 2)',
-            self.lua_of({"id": "n1", "type": "battle_skill", "op": "set", "key": "special3"}),
+            self.lua_of(
+                {"id": "n1", "type": "battle_skill", "op": "set", "key": "special3"}
+            ),
         )
         self.assertIn(
             '\tluamanager.SetBattleSkillActive("special3", 1)',
-            self.lua_of({"id": "n1", "type": "battle_skill", "op": "active", "key": "special3"}),
+            self.lua_of(
+                {"id": "n1", "type": "battle_skill", "op": "active", "key": "special3"}
+            ),
         )
         self.assertIn(
             "\tluamanager.ResetBattleSkill()",
@@ -1195,14 +1332,24 @@ class TestNewNodeCodegen(unittest.TestCase):
     def test_mission(self):
         self.assertIn(
             '\tstatmodifymanager.Mission("Main", "M0001")',
-            self.lua_of({"id": "n1", "type": "mission", "name": "Main", "key": "M0001"}),
+            self.lua_of(
+                {"id": "n1", "type": "mission", "name": "Main", "key": "M0001"}
+            ),
         )
 
     def test_time(self):
         self.assertIn(
             "\tluamanager.SetGameTime(1, 4, 1)",
-            self.lua_of({"id": "n1", "type": "time", "op": "set",
-                         "year": 1, "month": 4, "stage": 1}),
+            self.lua_of(
+                {
+                    "id": "n1",
+                    "type": "time",
+                    "op": "set",
+                    "year": 1,
+                    "month": 4,
+                    "stage": 1,
+                }
+            ),
         )
         self.assertIn(
             "\tluamanager.NextRound()",
@@ -1214,8 +1361,17 @@ class TestNewNodeCodegen(unittest.TestCase):
         )
         self.assertIn(
             '\tluamanager.SetMissionTime("S0106_01", 0, 0, 1)',
-            self.lua_of({"id": "n1", "type": "time", "op": "mission",
-                         "name": "S0106_01", "year": 0, "month": 0, "stage": 1}),
+            self.lua_of(
+                {
+                    "id": "n1",
+                    "type": "time",
+                    "op": "mission",
+                    "name": "S0106_01",
+                    "year": 0,
+                    "month": 0,
+                    "stage": 1,
+                }
+            ),
         )
 
     def test_autosave(self):
@@ -1231,15 +1387,28 @@ class TestNewNodeCodegen(unittest.TestCase):
             "\tluamanager.PrologueSave(0)",
             self.lua_of({"id": "n1", "type": "autosave", "kind": "prologue"}),
         )
-        lua = self.lua_of({"id": "n1", "type": "autosave", "kind": "story", "save_button": 1})
+        lua = self.lua_of(
+            {"id": "n1", "type": "autosave", "kind": "story", "save_button": 1}
+        )
         self.assertIn("\tluamanager.AutoSave()", lua)
         self.assertIn("\tluamanager.ToggleSaveButton(1)", lua)
 
     def test_dice(self):
         lua = self.lua_of(
-            {"id": "n1", "type": "dice", "check": "Combat_Result_01",
-             "options": [{"text": "选项一", "threshold": 33,
-                          "goto_大成功": "na", "goto_成功": "nb", "goto_失败": "nend"}]},
+            {
+                "id": "n1",
+                "type": "dice",
+                "check": "Combat_Result_01",
+                "options": [
+                    {
+                        "text": "选项一",
+                        "threshold": 33,
+                        "goto_大成功": "na",
+                        "goto_成功": "nb",
+                        "goto_失败": "nend",
+                    }
+                ],
+            },
             {"id": "na", "type": "focus", "character": "player"},
             {"id": "nb", "type": "focus", "character": "brother4"},
         )
@@ -1259,7 +1428,8 @@ class TestNewNodeCodegen(unittest.TestCase):
             lua,
         )
         self.assertIn(
-            '\trunwait(dicemenudialog.ExecuteRoll(dice_opts1, 1, "Combat_Result_01"))', lua
+            '\trunwait(dicemenudialog.ExecuteRoll(dice_opts1, 1, "Combat_Result_01"))',
+            lua,
         )
         self.assertIn("\tlocal dice_sel1 = dicemenudialog.ResultSelection", lua)
         # 三向分支：1→大成功，2→成功，else→失败
@@ -1293,11 +1463,15 @@ class TestNewNodeCodegen(unittest.TestCase):
         self.assertNotIn("runwait(shoppanel.NewShop", lua)
         self.assertIn(
             '\trunwait(endgamepanel.Open("20003"))',
-            self.lua_of({"id": "n1", "type": "panel", "panel": "endgame", "key": "20003"}),
+            self.lua_of(
+                {"id": "n1", "type": "panel", "panel": "endgame", "key": "20003"}
+            ),
         )
         self.assertIn(
             '\trunwait(cgvideopanel.Open("hand_001", 0))',
-            self.lua_of({"id": "n1", "type": "panel", "panel": "cgvideo", "key": "hand_001"}),
+            self.lua_of(
+                {"id": "n1", "type": "panel", "panel": "cgvideo", "key": "hand_001"}
+            ),
         )
 
     def test_raw(self):
@@ -1308,7 +1482,9 @@ class TestNewNodeCodegen(unittest.TestCase):
         self.assertIn("\treturn node_nend()", lua)
 
     def test_say_center(self):
-        lua = self.lua_of({"id": "n1", "type": "say", "mode": "center", "text": "居中旁白"})
+        lua = self.lua_of(
+            {"id": "n1", "type": "say", "mode": "center", "text": "居中旁白"}
+        )
         self.assertIn("\tsetsaydialog(saydialogs.center)", lua)
         self.assertIn("\tsetcharacter(narrative)", lua)
         self.assertIn('\tsay("居中旁白")', lua)
@@ -1318,9 +1494,15 @@ class TestNewNodeCodegen(unittest.TestCase):
         lua = compile_story(
             make_story(
                 [
-                    {"id": "n1", "type": "choice", "dialog": "Talk",
-                     "options": [{"text": "甲", "goto": "nend"},
-                                 {"text": "乙", "goto": "nend"}]},
+                    {
+                        "id": "n1",
+                        "type": "choice",
+                        "dialog": "Talk",
+                        "options": [
+                            {"text": "甲", "goto": "nend"},
+                            {"text": "乙", "goto": "nend"},
+                        ],
+                    },
                     {"id": "nend", "type": "end"},
                 ]
             )
@@ -1333,13 +1515,27 @@ class TestNewNodeCodegen(unittest.TestCase):
         for last in (
             {"id": "n2", "type": "goto_scene", "scene": "Free"},
             {"id": "n2", "type": "raw", "code": "luamanager.AutoSave()"},
-            {"id": "n2", "type": "dice", "check": "Combat_Result_01",
-             "options": [{"text": "x", "threshold": 50, "goto_大成功": "n1",
-                          "goto_成功": "n1", "goto_失败": "n1"}]},
+            {
+                "id": "n2",
+                "type": "dice",
+                "check": "Combat_Result_01",
+                "options": [
+                    {
+                        "text": "x",
+                        "threshold": 50,
+                        "goto_大成功": "n1",
+                        "goto_成功": "n1",
+                        "goto_失败": "n1",
+                    }
+                ],
+            },
         ):
             validate_story(
                 make_story(
-                    [{"id": "n1", "type": "focus", "character": "p", "goto": "n2"}, last],
+                    [
+                        {"id": "n1", "type": "focus", "character": "p", "goto": "n2"},
+                        last,
+                    ],
                     start="n1",
                 )
             )
@@ -1364,8 +1560,15 @@ class TestNewNodeValidationErrors(unittest.TestCase):
         # show map 缺 key2
         assert_compile_error(
             self,
-            linear_story({"id": "n1", "type": "cg", "action": "show",
-                          "kind": "map", "key": "Home"}),
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "cg",
+                    "action": "show",
+                    "kind": "map",
+                    "key": "Home",
+                }
+            ),
             '必填字段 "key2"',
             "n1",
         )
@@ -1373,8 +1576,15 @@ class TestNewNodeValidationErrors(unittest.TestCase):
     def test_item_remove_special(self):
         assert_compile_error(
             self,
-            linear_story({"id": "n1", "type": "item", "kind": "special",
-                          "item": "4005", "remove": True}),
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "item",
+                    "kind": "special",
+                    "item": "4005",
+                    "remove": True,
+                }
+            ),
             "remove 仅支持",
             "n1",
         )
@@ -1406,8 +1616,16 @@ class TestNewNodeValidationErrors(unittest.TestCase):
         )
         assert_compile_error(
             self,
-            linear_story({"id": "n1", "type": "time", "op": "mission",
-                          "year": 0, "month": 0, "stage": 1}),
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "time",
+                    "op": "mission",
+                    "year": 0,
+                    "month": 0,
+                    "stage": 1,
+                }
+            ),
             '必填字段 "name"',
         )
 
@@ -1434,50 +1652,104 @@ class TestNewNodeValidationErrors(unittest.TestCase):
         )
         # 不在官方清单里的 id 也放行（编辑器侧管清单）
         validate_story(
-            linear_story({"id": "n1", "type": "game_flag", "flag": "CUSTOM_ID", "value": 1})
+            linear_story(
+                {"id": "n1", "type": "game_flag", "flag": "CUSTOM_ID", "value": 1}
+            )
         )
 
     def test_dice_options(self):
         # 0 项 / 5 项
         for options in (
             [],
-            [{"text": str(i), "threshold": 50, "goto_大成功": "nend",
-              "goto_成功": "nend", "goto_失败": "nend"} for i in range(5)],
+            [
+                {
+                    "text": str(i),
+                    "threshold": 50,
+                    "goto_大成功": "nend",
+                    "goto_成功": "nend",
+                    "goto_失败": "nend",
+                }
+                for i in range(5)
+            ],
         ):
             assert_compile_error(
                 self,
-                linear_story({"id": "n1", "type": "dice",
-                              "check": "Combat_Result_01", "options": options}),
+                linear_story(
+                    {
+                        "id": "n1",
+                        "type": "dice",
+                        "check": "Combat_Result_01",
+                        "options": options,
+                    }
+                ),
                 "选项数必须在 1~4 之间",
                 "n1",
             )
         # 缺 threshold / 缺三向 goto
         assert_compile_error(
             self,
-            linear_story({"id": "n1", "type": "dice", "check": "C",
-                          "options": [{"text": "x", "goto_大成功": "nend",
-                                       "goto_成功": "nend", "goto_失败": "nend"}]}),
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "dice",
+                    "check": "C",
+                    "options": [
+                        {
+                            "text": "x",
+                            "goto_大成功": "nend",
+                            "goto_成功": "nend",
+                            "goto_失败": "nend",
+                        }
+                    ],
+                }
+            ),
             '缺少必填字段 "threshold"',
         )
         assert_compile_error(
             self,
-            linear_story({"id": "n1", "type": "dice", "check": "C",
-                          "options": [{"text": "x", "threshold": 50,
-                                       "goto_大成功": "nend", "goto_成功": "nend"}]}),
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "dice",
+                    "check": "C",
+                    "options": [
+                        {
+                            "text": "x",
+                            "threshold": 50,
+                            "goto_大成功": "nend",
+                            "goto_成功": "nend",
+                        }
+                    ],
+                }
+            ),
             '缺少必填字段 "goto_失败"',
         )
         # 三向 goto 指向不存在节点
         assert_compile_error(
             self,
-            linear_story({"id": "n1", "type": "dice", "check": "C",
-                          "options": [{"text": "x", "threshold": 50, "goto_大成功": "ghost",
-                                       "goto_成功": "nend", "goto_失败": "nend"}]}),
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "dice",
+                    "check": "C",
+                    "options": [
+                        {
+                            "text": "x",
+                            "threshold": 50,
+                            "goto_大成功": "ghost",
+                            "goto_成功": "nend",
+                            "goto_失败": "nend",
+                        }
+                    ],
+                }
+            ),
             'goto 指向不存在的节点 "ghost"',
         )
 
     def test_raw_empty_code(self):
         assert_compile_error(
-            self, linear_story({"id": "n1", "type": "raw", "code": "  \n "}),
+            self,
+            linear_story({"id": "n1", "type": "raw", "code": "  \n "}),
             '"code" 不能为空',
         )
 
@@ -1485,15 +1757,31 @@ class TestNewNodeValidationErrors(unittest.TestCase):
         # dice / goto_scene 也禁止显式 goto（契约 §4）
         assert_compile_error(
             self,
-            linear_story({"id": "n1", "type": "goto_scene", "scene": "Free", "goto": "nend"}),
+            linear_story(
+                {"id": "n1", "type": "goto_scene", "scene": "Free", "goto": "nend"}
+            ),
             '不允许显式 "goto"',
             "n1",
         )
         assert_compile_error(
             self,
-            linear_story({"id": "n1", "type": "dice", "check": "C", "goto": "nend",
-                          "options": [{"text": "x", "threshold": 1, "goto_大成功": "nend",
-                                       "goto_成功": "nend", "goto_失败": "nend"}]}),
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "dice",
+                    "check": "C",
+                    "goto": "nend",
+                    "options": [
+                        {
+                            "text": "x",
+                            "threshold": 1,
+                            "goto_大成功": "nend",
+                            "goto_成功": "nend",
+                            "goto_失败": "nend",
+                        }
+                    ],
+                }
+            ),
             '不允许显式 "goto"',
         )
 
@@ -1538,6 +1826,22 @@ class TestWarnings(unittest.TestCase):
         self.assertEqual(len(warns), 1)
         self.assertIn('"n1"', warns[0])
         self.assertIn("phase=out", warns[0])
+
+    def test_transition_out_before_in_warns_noop(self):
+        # 反序配对（snack_case 黑屏事故实态）：out 无黑幕可撤（无效操作），
+        # in 之后无 out 解除 → 各一条警告，共两条
+        story = make_story(
+            [
+                {"id": "n1", "type": "transition", "phase": "out", "dir": "lr"},
+                {"id": "n2", "type": "transition", "phase": "in", "dir": "rl"},
+                {"id": "nend", "type": "end"},
+            ]
+        )
+        warns = []
+        validate_story(story, warnings=warns)
+        self.assertEqual(len(warns), 2)
+        self.assertIn('"n1"', warns[0])  # out 无 in 在前
+        self.assertIn('"n2"', warns[1])  # in 无 out 在后
 
     def test_transition_warning_embedded_in_lua_and_nonfatal(self):
         # 警告不中断编译，以注释形式插在 Lua 头部（编辑器 Lua 预览可见）

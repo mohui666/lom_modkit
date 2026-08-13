@@ -54,7 +54,9 @@ def main(argv=None):
 
     p_build = sub.add_parser("build", help="校验 story.json 并编译为游戏原生 Lua")
     p_build.add_argument("story", help="story.json 路径")
-    p_build.add_argument("-o", "--output", help="输出 .lua 路径（默认与输入同名换后缀）")
+    p_build.add_argument(
+        "-o", "--output", help="输出 .lua 路径（默认与输入同名换后缀）"
+    )
     p_build.set_defaults(func=_cmd_build)
 
     p_check = sub.add_parser("check", help="只校验 story.json，不生成文件")

@@ -48,7 +48,6 @@
     { "id": "c17", "type": "mask", "show": true },
     { "id": "c18", "type": "camera", "name": "stage-memory", "active": true },
     { "id": "c19", "type": "block", "flowchart": "common", "name": "flash" },
-    { "id": "c20", "type": "transition", "phase": "out", "dir": "lr" },
     { "id": "c21", "type": "scene", "view": "kitchen_night" },
     { "id": "c22", "type": "show", "character": "brother4", "position": "M", "portrait": "gloomy2", "facing": "left" },
     {
@@ -56,7 +55,6 @@
       "text": "深夜的伙房，一道鬼鬼祟祟的黑影摸向供桌。\n那身形、那发带……怎么看怎么眼熟。"
     },
     { "id": "c24", "type": "hide", "character": "brother4", "fadeDuration": 1 },
-    { "id": "c25", "type": "transition", "phase": "in", "dir": "lr" },
     { "id": "c26", "type": "scene", "view": "center" },
     { "id": "c27", "type": "camera", "name": "stage-memory", "active": false },
     { "id": "c28", "type": "mask", "show": false },

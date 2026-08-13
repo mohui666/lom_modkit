@@ -4,7 +4,7 @@
   "start": "m1",
   "nodes": [
     { "id": "m1", "type": "music", "name": "普通_001" },
-    { "id": "m2", "type": "scene", "view": "black" },
+    { "id": "m2", "type": "scene", "view": "center" },
     { "id": "m3", "type": "cg", "action": "show", "kind": "title", "key": "第一章　点心大盗疑案" },
     {
       "id": "m4", "type": "say", "mode": "center",

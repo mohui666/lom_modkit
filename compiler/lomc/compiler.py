@@ -17,7 +17,10 @@ def load_json_file(path):
     except FileNotFoundError:
         raise LomcError("文件不存在: %s" % path)
     except json.JSONDecodeError as e:
-        raise LomcError("%s: JSON 解析失败（第 %d 行第 %d 列: %s）" % (path, e.lineno, e.colno, e.msg))
+        raise LomcError(
+            "%s: JSON 解析失败（第 %d 行第 %d 列: %s）"
+            % (path, e.lineno, e.colno, e.msg)
+        )
     except UnicodeDecodeError as e:
         raise LomcError("%s: 文件不是有效的 UTF-8 编码（%s）" % (path, e))
 
@@ -32,10 +35,7 @@ def compile_story(story, mod_info=None, source=None):
     validate_story(story, source or "story.json", warnings=warnings)
     lua = story_to_lua(story, mod_info=mod_info, source=source)
     if warnings:
-        head = "\n".join(
-            "-- lomc 警告：%s" % w.replace("\n", " ")
-            for w in warnings
-        )
+        head = "\n".join("-- lomc 警告：%s" % w.replace("\n", " ") for w in warnings)
         lua = head + "\n" + lua
     return lua
 

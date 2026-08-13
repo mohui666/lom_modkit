@@ -199,8 +199,10 @@ def _emit_choice(node, ctx):
 def _emit_shock(node, ctx):
     c = lua_str(node["character"])
     return [
-        '\tgetvar(flowcharts.common, "ShockPosition").value = %s.State.holder.gameObject' % _get(c),
-        '\tgetvar(flowcharts.common, "ShockDuration").value = %s' % lua_num(node.get("duration", 0.5)),
+        '\tgetvar(flowcharts.common, "ShockPosition").value = %s.State.holder.gameObject'
+        % _get(c),
+        '\tgetvar(flowcharts.common, "ShockDuration").value = %s'
+        % lua_num(node.get("duration", 0.5)),
         '\trunblock(flowcharts.common, "shock")',
     ]
 
@@ -245,7 +247,8 @@ def _emit_block(node, ctx):
     lines = []
     for var in node.get("vars", []):
         lines.append(
-            "\tgetvar(%s, %s).value = %s" % (fc, lua_str(var["name"]), _lua_value(var["value"]))
+            "\tgetvar(%s, %s).value = %s"
+            % (fc, lua_str(var["name"]), _lua_value(var["value"]))
         )
     lines.append("\trunblock(%s, %s)" % (fc, lua_str(node["name"])))
     return lines
@@ -257,7 +260,10 @@ _CG_SHOW = {
     "item": ("runwait(mainui.ShowItemPicture(%s))", ("key",)),
     "big": ("runwait(mainui.ShowBigPicture(%s))", ("key",)),
     "map": ("runwait(mainui.ShowMap(%s, %s))", ("key", "key2")),
-    "family": ("runwait(mainui.ShowFamilyTree(%s, %s, %s, %s))", ("key", "key2", "n1", "n2")),
+    "family": (
+        "runwait(mainui.ShowFamilyTree(%s, %s, %s, %s))",
+        ("key", "key2", "n1", "n2"),
+    ),
     "title": ("mainui.DisplayTitle(%s)", ("key",)),  # 官方 DisplayTitle 无 runwait
 }
 _CG_HIDE = {
@@ -557,9 +563,7 @@ def _emit_end(node, ctx):
     # 有 next_script：链到同包内另一脚本。运行时注册名带 MOD_<modid>_
     # 前缀（契约 §3.1/§6）；裸 build 不知 mod id 时退化为原始脚本 id。
     target = (
-        "MOD_%s_%s" % (ctx["mod_id"], next_script)
-        if ctx.get("mod_id")
-        else next_script
+        "MOD_%s_%s" % (ctx["mod_id"], next_script) if ctx.get("mod_id") else next_script
     )
     return [
         "\tluamanager.SetNextScript(%s)" % lua_str(target),
