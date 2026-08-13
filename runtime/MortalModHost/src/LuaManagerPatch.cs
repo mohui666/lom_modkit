@@ -40,8 +40,8 @@ namespace MortalModHost
                     }
                     return false;
                 }
-                // 官方脚本：复位心情气泡硬控状态（契约 §B，官方演出不受 mod 影响）；
-                // 清空 mod 死亡/结局文本覆盖（契约 §C，官方结局不受影响）
+                // 官方脚本：复位心情气泡硬控状态（契约 §6.10，官方演出不受 mod 影响）；
+                // 清空 mod 死亡/结局文本覆盖（契约 §6.13，官方结局不受影响）
                 MoodControl.Disabled = false;
                 ModOverlay.Clear();
                 CharacterIntroSupport.Clear();
@@ -66,9 +66,9 @@ namespace MortalModHost
                 }
                 CharacterIntroSupport.Clear();
 
-                // 契约 §B：演出前把 mod_hide_mood / mod_set_mood 注册进共享 MoonSharp 环境（幂等重设；官方脚本不调用它们，无副作用）
+                // 契约 §6.9/§6.10：演出前把 mod_hide_mood / mod_set_mood 注册进共享 MoonSharp 环境（幂等重设；官方脚本不调用它们，无副作用）
                 RegisterModGlobals(env);
-                // 契约 §A 兜底：LeanLocalization 切语言/OnEnable 会清空 CurrentTranslations，每次演出前重注册一遍
+                // 契约 §6.11 兜底：LeanLocalization 切语言/OnEnable 会清空 CurrentTranslations，每次演出前重注册一遍
                 try
                 {
                     ReadTextRegistry.Apply();
@@ -91,7 +91,7 @@ namespace MortalModHost
         }
 
         /// <summary>
-        /// 契约 §B/§C：把 mod 全局函数注册进共享 Lua 环境的全局表（编译器在 mod Lua 里发射裸全局调用）。
+        /// 契约 §6.9/§6.10/§6.13：把 mod 全局函数注册进共享 Lua 环境的全局表（编译器在 mod Lua 里发射裸全局调用）。
         /// mod_hide_mood()：即时隐藏全部圆形情绪面板（实现收敛在 MoodControl.HideAllMoodPanels）。
         /// mod_set_mood(bool)：把心情气泡硬控状态写入 MoodControl.Disabled = !value；
         /// 缺参按 false（禁用气泡）；非布尔参数按契约同样视为缺省 false。
@@ -128,7 +128,7 @@ namespace MortalModHost
                     MoodControl.Disabled = !show;
                     return DynValue.Nil;
                 }, "mod_set_mood");
-                // 契约 §C：死亡文本（2 参：短标题 + 多行描述，GameOver 画面两段式显示）。
+                // 契约 §6.13：死亡文本（2 参：短标题 + 多行描述，GameOver 画面两段式显示）。
                 // 单参调用兼容（旧编译器/老 mod 包）：参数当描述、标题留空。
                 script.Globals["mod_set_death_text"] = new CallbackFunction((ctx, args) =>
                 {
@@ -154,7 +154,7 @@ namespace MortalModHost
                     }
                     return DynValue.Nil;
                 }, "mod_set_death_text");
-                // 契约 §C/§3.1：结局卡片（2/3 参：标题 + 描述 [+ 包内图片路径]，End 画面显示）；参数转换异常吞掉
+                // 契约 §6.13/§3.1：结局卡片（2/3 参：标题 + 描述 [+ 包内图片路径]，End 画面显示）；参数转换异常吞掉
                 script.Globals["mod_set_ending_text"] = new CallbackFunction((ctx, args) =>
                 {
                     try

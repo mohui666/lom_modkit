@@ -13,6 +13,7 @@ import re
 from asset_store import MAX_IMAGE_BYTES, resolve_image_asset
 from lua_preview import get_lomc
 import models
+import stage_guard
 from story_graph import analyze_story
 
 
@@ -167,6 +168,19 @@ def run_preflight(
             continue
         graph = analyze_story(story)
         reached = set(graph.reachable)
+        for stage_node_id, stage_cid in stage_guard.find_stage_issues(story):
+            cname = models.character_name(editor_data, stage_cid)
+            issues.append(
+                PreflightIssue(
+                    "warning",
+                    "stage_missing",
+                    sid,
+                    stage_node_id,
+                    f"人物 {cname} 执行到这里时可能还没登场（或已退场），"
+                    "游戏会因角色不存在而黑屏。自动修复会在该步骤前插入人物登场。",
+                    fixable=True,
+                )
+            )
         for node in nodes:
             if not isinstance(node, dict):
                 continue
@@ -312,6 +326,19 @@ def apply_safe_fixes(stories: dict[str, dict], editor_data: dict) -> list[str]:
         nodes = story.get("nodes") if isinstance(story, dict) else None
         if not isinstance(nodes, list) or not nodes:
             continue
+        # 登场防线：动作人物在某条路径上未登场/已退场时，在该步骤前补登场。
+        # 每修一个都可能连带修好后续步骤，修完重新分析直到没有遗漏。
+        for _ in range(len(nodes) + 1):
+            stage_issues = stage_guard.find_stage_issues(story)
+            if not stage_issues:
+                break
+            stage_node_id, stage_cid = stage_issues[0]
+            if stage_guard.ensure_stage(story, stage_node_id) is None:
+                break
+            cname = models.character_name(editor_data, stage_cid)
+            fixes.append(
+                f"章节 {sid} / 步骤 {stage_node_id}：在前面自动插入 {cname} 的登场"
+            )
         ids = [n.get("id") for n in nodes if isinstance(n, dict)]
         if story.get("start") not in ids and isinstance(ids[0], str):
             story["start"] = ids[0]

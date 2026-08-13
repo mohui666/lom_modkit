@@ -926,14 +926,20 @@ def new_node(node_type: str, node_id: str, editor_data: dict | None = None) -> d
 
 
 def new_story(story_id: str = "main", editor_data: dict | None = None) -> dict:
-    """新建空剧情：含一个 say 起始节点；mood 默认 false（隐藏官方心情气泡）。"""
-    first = new_node("say", "n1", editor_data)
+    """新建空剧情：登场 + 对白开场；mood 默认 false（隐藏官方心情气泡）。
+
+    动作人物必须先登场再做动作，否则游戏会因“角色不存在”崩掉剧情协程
+    （黑屏），所以起始结构固定为 show → say。
+    """
+    entrance = new_node("show", "n1", editor_data)
+    entrance["position"] = "M"
+    first = new_node("say", "n2", editor_data)
     return {
         "id": story_id,
         "title": "新剧情",
         "mood": False,
-        "start": first["id"],
-        "nodes": [first],
+        "start": entrance["id"],
+        "nodes": [entrance, first],
     }
 
 

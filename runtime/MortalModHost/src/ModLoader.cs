@@ -8,7 +8,7 @@ namespace MortalModHost
 {
     /// <summary>
     /// mod 包扫描与解析（纯静态、无 BepInEx/Unity 依赖，便于离线单测）。
-    /// 行为契约见 docs/mod_format.md §6：扫描 mods/*.lommod，解出 manifest.json、lua/*.lua、可选 texts.json（契约 §A）
+    /// 行为契约见 docs/mod_format.md §6：扫描 mods/*.lommod，解出 manifest.json、lua/*.lua、可选 texts.json（契约 §1）
     /// 与 assets/ 下图片（契约 §3.1）。单个包损坏只警告跳过，绝不抛出让插件崩溃。
     /// </summary>
     internal static class ModLoader
@@ -94,7 +94,7 @@ namespace MortalModHost
                 if (!package.LuaScripts.ContainsKey(package.Entry))
                     throw new FormatException("入口脚本 lua/" + package.Entry + ".lua 不存在");
 
-                // texts.json（可选，契约 §A）：MOD_<modid>_<scriptid>_<nodeid> → 台词文本。
+                // texts.json（可选，契约 §1）：MOD_<modid>_<scriptid>_<nodeid> → 台词文本。
                 // 老包没有该文件合法；存在但解析失败只警告跳过（不拖垮整包）。
                 var textsEntry = zip.GetEntry("texts.json");
                 if (textsEntry != null)
@@ -241,7 +241,7 @@ namespace MortalModHost
         }
 
         /// <summary>
-        /// 可选整数条件字段（契约 §2.1）：缺省返回 null；值必须是整数且在 [min,max] 内，
+        /// 可选整数条件字段（契约 §2）：缺省返回 null；值必须是整数且在 [min,max] 内，
         /// 否则按 manifest 结构错误拒绝整包（与 when_flag_set 类型错误的行为一致）。
         /// </summary>
         private static int? GetOptionalInt(Dictionary<string, object> dict, string key, int min, int max)
@@ -258,7 +258,7 @@ namespace MortalModHost
         }
 
         /// <summary>
-        /// 解析 when_affinity（契约 §2.1）：{ character: string, min: int }，缺省返回 null。
+        /// 解析 when_affinity（契约 §2）：{ character: string, min: int }，缺省返回 null。
         /// character 用 RelationshipStatType 的 StringValue 契约 id（如 brother4），运行时解析。
         /// </summary>
         private static AffinityCondition ParseAffinity(Dictionary<string, object> dict)
@@ -295,7 +295,7 @@ namespace MortalModHost
             return text;
         }
 
-        /// <summary>解析 texts.json（契约 §A）：顶层对象，值必须全部是字符串。</summary>
+        /// <summary>解析 texts.json（契约 §1）：顶层对象，值必须全部是字符串。</summary>
         private static void ParseTexts(ModPackage package, string json)
         {
             var root = MiniJson.Parse(json) as Dictionary<string, object>;

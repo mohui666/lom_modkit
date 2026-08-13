@@ -30,6 +30,7 @@ CARD_W = 300.0
 CARD_H = 76.0
 ROW_GAP = 48.0
 LEFT = 36.0
+LANE_GAP = 26.0  # 侧边车道间距（每条边独占一条车道，互不重叠）
 
 # 同一节点发出多条出边时的区分色（与深色背景 #12161d 协调；红色留给缺失目标）。
 MULTI_EDGE_COLORS = (
@@ -102,29 +103,85 @@ class FlowGraphView(QGraphicsView):
             node_id: QPointF(LEFT, 30.0 + index * (CARD_H + ROW_GAP))
             for index, node_id in enumerate(analysis.node_order)
         }
-        missing_ids = sorted({edge.target for edge in analysis.edges if edge.missing})
-        for offset, target in enumerate(missing_ids):
-            positions[f"?{target}"] = QPointF(
-                LEFT + CARD_W + 245.0, 30.0 + offset * (CARD_H + ROW_GAP)
-            )
 
-        # 先画边，让卡片始终盖在线条上方。按源节点分组，同一节点的多条出边
-        # 用组内序号错开车道、颜色和标签位置，避免曲线与标签互相叠合。
+        # 按源节点分组出边（用于颜色与出口错层）；指向下一行的边画直线，
+        # 其余一律走右侧“肘形通道”：每条边独占一条全局车道（互不重叠），
+        # 标签贴在源卡片右缘按行堆叠（不同源的标签天然不会撞车）。
         out_edges: dict[str, list[GraphEdge]] = {}
+        drawable: list[GraphEdge] = []
         for edge in analysis.edges:
-            target_key = f"?{edge.target}" if edge.missing else edge.target
-            if edge.source not in positions or target_key not in positions:
+            if edge.source not in positions:
+                continue
+            if not edge.missing and edge.target not in positions:
                 continue
             out_edges.setdefault(edge.source, []).append(edge)
-        for source_edges in out_edges.values():
+            drawable.append(edge)
+
+        def is_straight(edge: GraphEdge) -> bool:
+            if edge.missing:
+                return False
+            source = positions[edge.source]
+            target = positions[edge.target]
+            return target.y() > source.y() and abs(
+                target.y() - source.y() - CARD_H - ROW_GAP
+            ) < 3
+
+        side_edges = [edge for edge in drawable if not is_straight(edge)]
+        side_edges.sort(key=lambda e: (positions[e.source].y(), self._sort_y(positions, e)))
+        side_lane = {
+            id(edge): LEFT + CARD_W + 42.0 + lane_index * LANE_GAP
+            for lane_index, edge in enumerate(side_edges)
+        }
+
+        missing_ids = sorted({edge.target for edge in analysis.edges if edge.missing})
+        placeholder_x = LEFT + CARD_W + 42.0 + len(side_edges) * LANE_GAP + 130.0
+        for offset, target in enumerate(missing_ids):
+            positions[f"?{target}"] = QPointF(
+                placeholder_x, 30.0 + offset * (CARD_H + ROW_GAP)
+            )
+
+        # 先画边，让卡片始终盖在线条上方。出口/入口高度分别按源、按目标错层；
+        # 同一对相邻节点之间的多条直线边（如 goto 与隐式下一步撞车）水平排开。
+        exit_counts: dict[str, int] = {}
+        entry_counts: dict[str, int] = {}
+        straight_counts: dict[tuple[str, str], int] = {}
+        for edge in side_edges:
+            exit_counts[edge.source] = exit_counts.get(edge.source, 0) + 1
+            key = f"?{edge.target}" if edge.missing else edge.target
+            entry_counts[key] = entry_counts.get(key, 0) + 1
+        for edge in drawable:
+            if is_straight(edge):
+                pair = (edge.source, edge.target)
+                straight_counts[pair] = straight_counts.get(pair, 0) + 1
+        exit_seen: dict[str, int] = {}
+        entry_seen: dict[str, int] = {}
+        straight_seen: dict[tuple[str, str], int] = {}
+
+        for source, source_edges in out_edges.items():
             for out_index, edge in enumerate(source_edges):
                 target_key = f"?{edge.target}" if edge.missing else edge.target
-                self._draw_edge(
+                if is_straight(edge):
+                    pair = (source, edge.target)
+                    straight_seen[pair] = straight_seen.get(pair, 0) + 1
+                    self._draw_straight_edge(
+                        edge, positions[source], positions[target_key],
+                        out_index, len(source_edges),
+                        straight_seen[pair] - 1, straight_counts[pair],
+                    )
+                    continue
+                exit_seen[source] = exit_seen.get(source, 0) + 1
+                entry_seen[target_key] = entry_seen.get(target_key, 0) + 1
+                self._draw_side_edge(
                     edge,
-                    positions[edge.source],
+                    positions[source],
                     positions[target_key],
+                    side_lane[id(edge)],
                     out_index,
                     len(source_edges),
+                    exit_seen[source] - 1,
+                    exit_counts[source],
+                    entry_seen[target_key] - 1,
+                    entry_counts[target_key],
                 )
 
         for node_id in analysis.node_order:
@@ -142,67 +199,124 @@ class FlowGraphView(QGraphicsView):
         scene.setSceneRect(scene.itemsBoundingRect().adjusted(-30, -30, 80, 30))
         return analysis
 
-    def _draw_edge(
+    @staticmethod
+    def _sort_y(positions: dict, edge: GraphEdge) -> float:
+        """侧边排序用的目标纵坐标；缺失目标排最后。"""
+        if edge.missing:
+            return float("inf")
+        return positions[edge.target].y()
+
+    @staticmethod
+    def _edge_color(edge: GraphEdge, out_index: int, out_count: int) -> QColor:
+        if edge.missing:
+            return QColor("#ff6b6b")
+        if out_count > 1:
+            return QColor(MULTI_EDGE_COLORS[out_index % len(MULTI_EDGE_COLORS)])
+        return QColor("#7f8aa3")
+
+    def _pen_for(self, edge: GraphEdge, color: QColor) -> QPen:
+        pen = QPen(color, 2.0)
+        if edge.kind != "fallthrough":
+            pen.setStyle(Qt.PenStyle.DashLine)
+        return pen
+
+    def _add_arrow(self, tip: QPointF, angle: float, color: QColor) -> None:
+        arrow = QPolygonF(
+            [
+                tip,
+                tip + QPointF(math.cos(angle + 0.55) * 10, math.sin(angle + 0.55) * 10),
+                tip + QPointF(math.cos(angle - 0.55) * 10, math.sin(angle - 0.55) * 10),
+            ]
+        )
+        item = QGraphicsPolygonItem(arrow)
+        item.setPen(QPen(color))
+        item.setBrush(QBrush(color))
+        item.setZValue(-1)
+        self.scene().addItem(item)
+
+    def _add_label(self, text: str, pos: QPointF, color: QColor) -> None:
+        """带深色底衬的标签，压在线条之上仍可读。"""
+        label = QGraphicsTextItem(text)
+        label.setDefaultTextColor(color)
+        label.setFont(QFont("Microsoft YaHei UI", 8))
+        label.setPos(pos)
+        label.setZValue(1)
+        self.scene().addItem(label)
+        rect = label.boundingRect().translated(pos).adjusted(-2, -1, 2, 1)
+        backdrop = QGraphicsRectItem(rect)
+        backdrop.setPen(QPen(Qt.PenStyle.NoPen))
+        backdrop.setBrush(QBrush(QColor("#12161d")))
+        backdrop.setZValue(0.9)
+        self.scene().addItem(backdrop)
+
+    def _draw_straight_edge(
         self,
         edge: GraphEdge,
         source: QPointF,
         target: QPointF,
         out_index: int,
         out_count: int,
+        parallel_index: int,
+        parallel_count: int,
     ) -> None:
-        start = QPointF(source.x() + CARD_W / 2, source.y() + CARD_H)
-        end = QPointF(target.x() + CARD_W / 2, target.y())
-        if target.y() > source.y() and abs(target.y() - source.y() - CARD_H - ROW_GAP) < 3:
-            path = QPainterPath(start)
-            path.lineTo(end)
-        else:
-            side = source.x() + CARD_W + 42 + out_index * 20
-            # 多条曲线从卡片右缘的不同高度发出/汇入，避免从同一点叠合。
-            start_y = source.y() + CARD_H * (out_index + 1) / (out_count + 1)
-            end_y = target.y() + CARD_H * (out_index + 1) / (out_count + 1)
-            path = QPainterPath(QPointF(source.x() + CARD_W, start_y))
-            path.cubicTo(
-                QPointF(side, start_y),
-                QPointF(side, end_y),
-                QPointF(target.x() + CARD_W, end_y),
-            )
-            end = QPointF(target.x() + CARD_W, end_y)
-        if edge.missing:
-            color = QColor("#ff6b6b")
-        elif out_count > 1:
-            color = QColor(MULTI_EDGE_COLORS[out_index % len(MULTI_EDGE_COLORS)])
-        else:
-            color = QColor("#7f8aa3")
-        pen = QPen(color, 2.0)
-        if edge.kind != "fallthrough":
-            pen.setStyle(Qt.PenStyle.DashLine)
+        """指向下一行的竖直直线（最常见的“下一步”）；同一对节点间多条时水平排开。"""
+        color = self._edge_color(edge, out_index, out_count)
+        offset = (parallel_index - (parallel_count - 1) / 2) * 14.0
+        start = QPointF(source.x() + CARD_W / 2 + offset, source.y() + CARD_H)
+        end = QPointF(target.x() + CARD_W / 2 + offset, target.y())
+        path = QPainterPath(start)
+        path.lineTo(end)
         item = QGraphicsPathItem(path)
-        item.setPen(pen)
+        item.setPen(self._pen_for(edge, color))
         item.setZValue(-2)
         self.scene().addItem(item)
+        self._add_arrow(end, math.pi / 2, color)
+        label_color = color if (edge.missing or out_count > 1) else QColor("#c5cad6")
+        label_pos = QPointF(end.x() + 4, start.y() + 6 + parallel_index * 13)
+        self._add_label(edge.label, label_pos, label_color)
 
-        angle = math.atan2(path.pointAtPercent(0.98).y() - end.y(), path.pointAtPercent(0.98).x() - end.x())
-        arrow = QPolygonF(
-            [
-                end,
-                end + QPointF(math.cos(angle + 0.55) * 10, math.sin(angle + 0.55) * 10),
-                end + QPointF(math.cos(angle - 0.55) * 10, math.sin(angle - 0.55) * 10),
-            ]
+    def _draw_side_edge(
+        self,
+        edge: GraphEdge,
+        source: QPointF,
+        target: QPointF,
+        lane: float,
+        out_index: int,
+        out_count: int,
+        exit_index: int,
+        exit_count: int,
+        entry_index: int,
+        entry_count: int,
+    ) -> None:
+        """右侧肘形通道：出卡 → 独占车道 → 进卡，车道全局唯一所以互不重叠。"""
+        color = self._edge_color(edge, out_index, out_count)
+        exit_y = source.y() + CARD_H * (exit_index + 1) / (exit_count + 1)
+        entry_y = target.y() + CARD_H * (entry_index + 1) / (entry_count + 1)
+        start = QPointF(source.x() + CARD_W, exit_y)
+        # 真实目标从卡片右缘进（箭头朝左）；缺失占位卡在最右侧，从左缘进（箭头朝右）。
+        if edge.missing:
+            end = QPointF(target.x(), entry_y)
+            angle = 0.0
+        else:
+            end = QPointF(target.x() + CARD_W, entry_y)
+            angle = math.pi
+        path = QPainterPath(start)
+        path.lineTo(QPointF(lane, exit_y))
+        path.lineTo(QPointF(lane, entry_y))
+        path.lineTo(end)
+        item = QGraphicsPathItem(path)
+        item.setPen(self._pen_for(edge, color))
+        item.setZValue(-2)
+        self.scene().addItem(item)
+        self._add_arrow(end, angle, color)
+
+        # 标签按源卡片右缘纵向堆叠：同色同序对应各出口，不同源之间不会重叠。
+        text = edge.label if len(edge.label) <= 14 else edge.label[:14] + "…"
+        label_color = color if (edge.missing or out_count > 1) else QColor("#c5cad6")
+        label_pos = QPointF(
+            source.x() + CARD_W + 8, source.y() + 2 + exit_index * 14
         )
-        arrow_item = QGraphicsPolygonItem(arrow)
-        arrow_item.setPen(QPen(color))
-        arrow_item.setBrush(QBrush(color))
-        arrow_item.setZValue(-1)
-        self.scene().addItem(arrow_item)
-
-        label = QGraphicsTextItem(edge.label)
-        label.setDefaultTextColor(QColor("#c5cad6") if not edge.missing else color)
-        label.setFont(QFont("Microsoft YaHei UI", 8))
-        # 多条出边时标签沿路径错开，避免彼此以及直线“下一步”标签叠在一起。
-        label_t = 0.48 if out_count <= 1 else 0.30 + 0.36 * out_index / (out_count - 1)
-        label.setPos(path.pointAtPercent(label_t) + QPointF(5, -10))
-        label.setZValue(1)
-        self.scene().addItem(label)
+        self._add_label(text, label_pos, label_color)
 
     def _draw_node(
         self,

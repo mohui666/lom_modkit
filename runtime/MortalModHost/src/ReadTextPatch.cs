@@ -5,7 +5,7 @@ using Lean.Localization;
 namespace MortalModHost
 {
     /// <summary>
-    /// 契约 §A 防 wipe：LeanLocalization.UpdateTranslations（源码签名
+    /// 契约 §6.11 防 wipe：LeanLocalization.UpdateTranslations（源码签名
     /// <c>public static void UpdateTranslations(bool forceUpdate = true)</c>，可选参数编译后即
     /// <c>UpdateTranslations(bool)</c>，用参数类型锁定匹配）会遍历 CurrentTranslations 逐个
     /// Clear()（LeanTranslation.Clear 把 Data 置 null）、CurrentTranslations.Clear()，然后只重建

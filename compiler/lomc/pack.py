@@ -8,7 +8,9 @@
     texts.json             已读文本表 {MOD_<modid>_<scriptid>_<nodeid>: 文本}
                            （仅 say 节点文本；death 文本由 mod_set_death_text
                            直接进 Lua，不进 texts.json / 已读系统）
-    assets/                预留目录，存在则原样打进包
+    assets/                仅收 End.image / 自定义 intro.image 明确引用且通过
+                           路径/大小校验（包内 assets/、≤8MB）的文件；未引用的
+                           本机素材不会打进包，避免意外分发
 
 默认输出：<mod目录> 同级、以目录名命名的 <目录名>.lommod。
 """

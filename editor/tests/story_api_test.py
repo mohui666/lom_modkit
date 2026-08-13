@@ -28,14 +28,7 @@ EDITOR_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(EDITOR_DIR))
 sys.path.insert(0, str(EDITOR_DIR.parent))  # compiler/lomc 与 data/ 在项目根
 
-try:
-    # story_api.py 由并行 agent 落地；落地后该 ignore 可去掉
-    import story_api  # noqa: E402  # type: ignore[reportMissingImports]
-except ImportError as exc:  # 并行 agent 尚未落地时给出明确提示
-    raise SystemExit(
-        "无法导入 editor/story_api.py（%s）——story_api 可能尚未实现，请稍后重试" % exc
-    ) from exc
-
+import story_api  # noqa: E402  # type: ignore[reportMissingImports]
 import models  # noqa: E402
 
 PROJECT_ROOT = EDITOR_DIR.parent
@@ -94,9 +87,11 @@ DICE_3BAND = "Ch_6_8_2_Break_01_001"  # 3 个结果带：必填 goto_大成功
 
 
 def fixed_start_say(story: dict, nid: str | None = None) -> str:
-    """把起始 say 节点填成合法可编译状态（text + character），返回节点 id。"""
-    node_id = nid or story["start"]
-    story_api.update_node(story, node_id, {"text": "开场白", "character": "player"})
+    """把起始 say 节点填成合法可编译状态（保留默认人物，其已在开场 show 登场）。"""
+    node_id = nid or next(
+        n["id"] for n in story["nodes"] if n.get("type") == "say"
+    )
+    story_api.update_node(story, node_id, {"text": "开场白"})
     return node_id
 
 
@@ -116,9 +111,10 @@ class TestNewStory(unittest.TestCase):
         self.assertIn("start", story, "应含 start 字段")
         nodes = story["nodes"]
         self.assertIsInstance(nodes, list, "nodes 应为数组")
-        self.assertEqual(len(nodes), 1, "新建剧情应恰好含 1 个起始节点")
+        self.assertEqual(len(nodes), 2, "新建剧情应为 登场+对白 两个起始节点")
         self.assertEqual(nodes[0]["id"], story["start"], "start 应指向起始节点")
-        self.assertEqual(nodes[0]["type"], "say", "起始节点应为 say（models 契约）")
+        self.assertEqual(nodes[0]["type"], "show", "起始节点应为 show（先登场再动作）")
+        self.assertEqual(nodes[1]["type"], "say", "第二个节点应为 say（models 契约）")
 
         s2 = story_api.new_story(story_id="case_a", title="自定义标题")
         self.assertEqual(s2["id"], "case_a", "自定义 story id 应生效")
@@ -154,7 +150,9 @@ class TestAddNode(unittest.TestCase):
             ids.add(node["id"])
             found = [n for n in story["nodes"] if n["id"] == node["id"]]
             self.assertEqual(len(found), 1, f"{t} 节点应写入 story.nodes")
-        self.assertEqual(len(story["nodes"]), 1 + 43, "43 种类型应全部追加进 story")
+        # 2 个开场节点（show+say）+ 43 种各一个 + hide 之后的首个动作节点
+        # 触发登场防线自动补 1 个 show
+        self.assertEqual(len(story["nodes"]), 2 + 43 + 1, "43 种类型应全部追加进 story（含自动补登场）")
 
     def test_unknown_type(self):
         story = story_api.new_story()
@@ -174,12 +172,13 @@ class TestAddNode(unittest.TestCase):
     def test_after_insert(self):
         story = story_api.new_story()
         first_id = story["start"]
+        say_id = story["nodes"][1]["id"]  # 开场 say（show 之后）
         tail = story_api.add_node(story, "wait")  # 追加到末尾
         mid = story_api.add_node(story, "wait", {"seconds": 5}, after=first_id)
         order = [n["id"] for n in story["nodes"]]
         self.assertEqual(
             order,
-            [first_id, mid["id"], tail["id"]],
+            [first_id, mid["id"], say_id, tail["id"]],
             f"after=应插到指定节点之后：{order}",
         )
         mid_node = story_api.get_node(story, mid["id"])
@@ -219,12 +218,12 @@ class TestListGetDelete(unittest.TestCase):
         w = story_api.add_node(story, "wait")
         lst = story_api.list_nodes(story)
         self.assertIsInstance(lst, list, "list_nodes 应返回 list")
-        self.assertEqual(len(lst), 2, "应有 2 个节点")
+        self.assertEqual(len(lst), 3, "应有 3 个节点（开场 show+say + wait）")
         for entry, node in zip(lst, story["nodes"]):
             self.assertEqual(entry["id"], node["id"], "清单 id 应与节点一致")
             self.assertEqual(entry["type"], node["type"], "清单 type 应与节点一致")
             self.assertIsInstance(entry["summary"], str, "summary 应为字符串")
-        self.assertEqual(lst[1]["id"], w["id"], "清单顺序应跟随节点顺序")
+        self.assertEqual(lst[-1]["id"], w["id"], "清单顺序应跟随节点顺序")
 
     def test_get_node(self):
         story = base_story()
@@ -247,16 +246,23 @@ class TestListGetDelete(unittest.TestCase):
 
 class TestMoveSetStart(unittest.TestCase):
     def test_move_node(self):
-        story = base_story()  # n1(say)
-        w = story_api.add_node(story, "wait")  # n2
-        e = story_api.add_node(story, "end")  # n3
+        story = base_story()  # n1(show) + n2(say)
+        say_id = story["nodes"][1]["id"]
+        w = story_api.add_node(story, "wait")
+        e = story_api.add_node(story, "end")
         order = lambda: [n["id"] for n in story["nodes"]]  # noqa: E731
         story_api.move_node(story, story["start"], 1)  # 向后移一格
         self.assertEqual(
-            order(), [w["id"], story["start"], e["id"]], "+1 应向后移动一格"
+            order(),
+            [say_id, story["start"], w["id"], e["id"]],
+            "+1 应向后移动一格",
         )
         story_api.move_node(story, story["start"], -1)  # 移回
-        self.assertEqual(order(), [story["start"], w["id"], e["id"]], "-1 应移回原位")
+        self.assertEqual(
+            order(),
+            [story["start"], say_id, w["id"], e["id"]],
+            "-1 应移回原位",
+        )
         with self.assertRaises(ValueError, msg="move 不存在节点应抛 ValueError"):
             story_api.move_node(story, "no_such", 1)
 
@@ -670,11 +676,11 @@ class TestPackMod(unittest.TestCase):
                 self.assertIn("function", lua, "包内 Lua 应为编译产物")
                 texts = json.loads(zf.read("texts.json").decode("utf-8"))
                 self.assertEqual(
-                    texts.get("MOD_api_test_mod_main_n2"),
+                    texts.get("MOD_api_test_mod_main_n3"),
                     "打包测试文本。",
                     "texts.json 应含 say 文本（key=MOD_<modid>_<scriptid>_<nodeid>）",
                 )
-                self.assertIn("MOD_api_test_mod_main_n1", texts, "起始 say 也应入表")
+                self.assertIn("MOD_api_test_mod_main_n2", texts, "起始 say 也应入表")
 
     def test_missing_manifest(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -7,7 +7,7 @@ using UnityEngine;
 namespace MortalModHost
 {
     /// <summary>
-    /// 心情气泡硬控（契约 §B）：编译器在每个 mod 脚本开头发射裸全局调用
+    /// 心情气泡硬控（契约 §6.10）：编译器在每个 mod 脚本开头发射裸全局调用
     /// mod_set_mood(false/true)（story 顶层 mood 字段，默认 false），LuaManagerPatch 注册的
     /// MoonSharp 全局函数把状态写进 <see cref="Disabled"/>；官方脚本演出前会复位为 false。
     /// Disabled=true 时，任何角色 ShowMood 显示出的圆形情绪面板立即被全量隐藏。

@@ -38,13 +38,13 @@ namespace MortalModHost
         /// <summary>可空：该剧情 flag 不在 StoryKeyList 时触发器才生效。</summary>
         public string WhenFlagClear;
 
-        /// <summary>可空：仅指定月份（1~12）时触发器才生效（契约 §2.1，与 flag 条件全部 AND）。</summary>
+        /// <summary>可空：仅指定月份（1~12）时触发器才生效（契约 §2，与 flag 条件全部 AND）。</summary>
         public int? WhenMonth;
 
-        /// <summary>可空：仅指定月份阶段（1=上旬 2=中旬 3=下旬）时触发器才生效（契约 §2.1）。</summary>
+        /// <summary>可空：仅指定月份阶段（1=上旬 2=中旬 3=下旬）时触发器才生效（契约 §2）。</summary>
         public int? WhenStage;
 
-        /// <summary>可空：角色好感度下限条件（character+min，契约 §2.1）。</summary>
+        /// <summary>可空：角色好感度下限条件（character+min，契约 §2）。</summary>
         public AffinityCondition WhenAffinity;
 
         /// <summary>
@@ -64,7 +64,7 @@ namespace MortalModHost
     }
 
     /// <summary>
-    /// 触发器好感度条件（契约 §2.1）：character 为 RelationshipStatType 的 StringValue 契约 id
+    /// 触发器好感度条件（契约 §2）：character 为 RelationshipStatType 的 StringValue 契约 id
     /// （sister1 / brother1~4 / master / girl1 等），min 为好感最低值（当前值 ≥ min 才生效）。
     /// </summary>
     internal sealed class AffinityCondition

@@ -131,9 +131,10 @@ usage: story_api check [-h] [--json] story_json
 # exit=1
 ```
 
-> 注意：刚 `new-story` 出来的剧情直接 check 是**不过的**——起始 say 是最后一个
-> 节点且没有显式 goto。这是正常现象，补一个 end 节点即可（见 §4 工作流）：
-> `{"ok": false, "errors": ["story.json: 节点 \"n1\"(say): 是最后一个节点且没有显式 goto，脚本无法正常结束（请改用 end/goto_scene/raw 节点或显式 goto）"], "warnings": []}`
+> 注意：刚 `new-story` 出来的剧情直接 check 是**不过的**——开场是 show 登场 +
+> 空 say，say 是最后一个节点且没有显式 goto。这是正常现象，补一个 end 节点即可
+> （见 §4 工作流）：
+> `{"ok": false, "errors": ["story.json: 节点 \"n2\"(say): 是最后一个节点且没有显式 goto，脚本无法正常结束（请改用 end/goto_scene/raw 节点或显式 goto）"], "warnings": []}`
 
 ### 2.2 compile — 编译 story.json → Lua
 
@@ -252,9 +253,10 @@ usage: story_api new-story [-h] [--title TITLE] -o OUTPUT [--json] story_id
 # exit=2
 ```
 
-生成的文件（UTF-8、缩进 2、保留中文）：含一个 say 起始节点 n1，`mood=false`
-（每次 show/say 前后自动发射 `mod_hide_mood()` 隐藏官方心情气泡），人物字段
-默认取 editor_data 第一个人物：
+生成的文件（UTF-8、缩进 2、保留中文）：开场固定为 **show 登场 + 空 say** 两个
+节点（动作人物必须先登场再做动作，否则游戏会因“角色不存在”崩掉剧情协程而
+黑屏），`mood=false`（每次 show/say 前后自动发射 `mod_hide_mood()` 隐藏官方
+心情气泡），人物字段默认取 editor_data 第一个人物：
 
 ```json
 {
@@ -265,6 +267,16 @@ usage: story_api new-story [-h] [--title TITLE] -o OUTPUT [--json] story_id
   "nodes": [
     {
       "id": "n1",
+      "type": "show",
+      "character": "artist1",
+      "position": "M",
+      "portrait": "normal",
+      "facing": "right",
+      "fadeDuration": 0,
+      "moveDuration": 0
+    },
+    {
+      "id": "n2",
       "type": "say",
       "text": "",
       "character": "artist1",
@@ -311,11 +323,11 @@ import story_api
 
 | 函数 | 关键约束 |
 | --- | --- |
-| `new_story(story_id="main", title="新剧情", mood=False) -> dict` | story_id 须匹配 `[a-zA-Z0-9_-]+`；title 须 str；mood 须 bool。返回含 1 个 say 起始节点 n1 的剧情 dict |
+| `new_story(story_id="main", title="新剧情", mood=False) -> dict` | story_id 须匹配 `[a-zA-Z0-9_-]+`；title 须 str；mood 须 bool。返回 show 登场(n1) + 空 say(n2) 开场的剧情 dict（先登场再动作，见 §4 硬性规则 4） |
 | `get_node(story, node_id) -> dict` | 不存在 → ValueError。返回的是 story 内的**原对象**（可随 update 生效） |
 | `list_nodes(story) -> list[dict]` | 每项 `{"id", "type", "summary"}`，summary 为中文摘要（如 `对白·唐惟元: 师弟，你来了。`） |
-| `add_node(story, node_type, fields=None, after=None) -> dict` | node_type 限 43 种（`models.NODE_TYPES`）；fields 键限 NODE_SCHEMAS 合法字段+通用字段（id/type/goto），类型按 kind 宽松校验；未知类型/字段/类型不符 → ValueError。id 自动生成（n1、n2…），after=节点 id 插到其后、None 追加末尾 |
-| `update_node(story, node_id, fields) -> dict` | 同 add_node 的字段校验；节点不存在 → ValueError。合并后做 branch 归一与表情校验 |
+| `add_node(story, node_type, fields=None, after=None) -> dict` | node_type 限 43 种（`models.NODE_TYPES`）；fields 键限 NODE_SCHEMAS 合法字段+通用字段（id/type/goto），类型按 kind 宽松校验；未知类型/字段/类型不符 → ValueError。id 自动生成（n1、n2…），after=节点 id 插到其后、None 追加末尾。**登场防线**：动作类节点的目标人物在前面未登场/已退场时，自动在它前面插一个 show 节点（见 §4 硬性规则 4） |
+| `update_node(story, node_id, fields) -> dict` | 同 add_node 的字段校验；节点不存在 → ValueError。合并后做 branch 归一与表情校验。**登场防线**：更新后若动作人物未登场/已退场，自动在该节点前插入 show，并把指向它的 goto/选项/分支跳转改指新节点（见 §4 硬性规则 4） |
 | `delete_node(story, node_id) -> dict` | 返回被删节点；**悬空 goto 不拦截**，交给 check_story 报告 |
 | `move_node(story, node_id, delta) -> dict` | delta 只能 ±1；越界（已在开头/末尾）→ ValueError |
 | `set_start(story, node_id) -> dict` | 设置 story["start"]；节点不存在 → ValueError |
@@ -347,15 +359,16 @@ dice_options 字段收 list；其余一律 str。不修改值，只做校验。
 ```python
 import story_api
 
-# 1. 新建（起始节点是空 say，先填文本和人物）
+# 1. 新建（开场是 show 登场 + 空 say；先填 say 文本，默认人物已在 n1 登场）
 story = story_api.new_story("my_tale", "测试剧情")
-n1 = story["start"]
-story_api.update_node(story, n1, {"text": "山门前，风很大。", "character": "player"})
+say_id = story["nodes"][1]["id"]
+story_api.update_node(story, say_id, {"text": "山门前，风很大。"})
 
 # 2. 加节点（id 自动分配；choice/dice 的 goto 用节点 id 字符串）
 story_api.add_scene(story, "center")
 story_api.add_say(story, "师弟，你来了。", character="brother4")
-story_api.add_choice(story, [("迎上去", n1), ("转身离开", n1)])
+#   ↑ brother4 此前未登场：登场防线自动在它前面插一个 show·唐惟元（§4 规则 4）
+story_api.add_choice(story, [("迎上去", say_id), ("转身离开", say_id)])
 story_api.add_node(story, "end")          # 别忘收尾，否则 check 报「无法正常结束」
 
 # 3. 校验
@@ -372,14 +385,17 @@ out = story_api.pack_mod("path/to/my_mod")
 ```
 
 list_nodes 输出样例（真实运行；人物/场景显示名来自 editor_data 清单，
-player=赵活、center=校場_白天）：
+artist1=武师、brother4=唐惟元、center=校場_白天；n5 是登场防线自动补的
+show，插在 n4 前面）：
 
 ```python
-[{'id': 'n1', 'type': 'say',    'summary': '对白·赵活: 山门前，风很大。'},
- {'id': 'n2', 'type': 'scene',  'summary': '切换背景·校場_白天'},
- {'id': 'n3', 'type': 'say',    'summary': '对白·唐惟元: 师弟，你来了。'},
- {'id': 'n4', 'type': 'choice', 'summary': '选项分支·2个选项'},
- {'id': 'n5', 'type': 'end',    'summary': '结束剧情·结束'}]
+[{'id': 'n1', 'type': 'show',   'summary': '人物登场·武师@M'},
+ {'id': 'n2', 'type': 'say',    'summary': '对白·武师: 山门前，风很大。'},
+ {'id': 'n3', 'type': 'scene',  'summary': '切换背景·校場_白天'},
+ {'id': 'n5', 'type': 'show',   'summary': '人物登场·唐惟元@M'},
+ {'id': 'n4', 'type': 'say',    'summary': '对白·唐惟元: 师弟，你来了。'},
+ {'id': 'n6', 'type': 'choice', 'summary': '选项分支·2个选项'},
+ {'id': 'n7', 'type': 'end',    'summary': '结束剧情·结束'}]
 ```
 
 对应的 CLI 链（全部验证通过）：
@@ -411,20 +427,27 @@ check_story/compile_story 拦下）：
    goto_大成功 也必填。band_texts 覆写条数必须等于结果带数。
 3. **say 模式与人物联动**。mode=character/think 必须给 character（人物 id）；
    narrative/center 不写 character 字段（给了也会被移除）。
-4. **(character, portrait) 必须在官方角色表情表内**。show/say 节点的角色在表
+4. **动作人物必须先登场（登场防线）**。对不在台上的人物做动作（say 对话/独白、
+   move/face/hide/focus/offset/shock/dim/rotate）会让游戏因“角色不存在”崩掉
+   剧情协程而黑屏。`add_node`/`add_say`/`update_node` 写入时会线性检查该人物
+   在前面是否已登场且未退场，缺失就自动在该节点前面插入一个 `show` 节点
+   （update_node 还会把指向它的 goto/选项/分支跳转改指新 show）。多路径汇合等
+   复杂情况由编辑器「体检」用图级分析兜底，同样可一键自动修复。不要手删这些
+   自动补的 show——删了黑屏风险就回来了。
+5. **(character, portrait) 必须在官方角色表情表内**。show/say 节点的角色在表
    且表情不在其列表 → ValueError（游戏 LoadCharacterPortrait 对无效表情 key
    抛 KeyNotFoundException → Lua 协程死 → 对话冻结）。角色不在表（自造角色）
    → 放行。表情表不可用（lomc 缺失）时校验下沉到 check_story。
-5. **未知字段一律拒绝**。fields 只允许 NODE_SCHEMAS 声明的字段 + 通用字段
+6. **未知字段一律拒绝**。fields 只允许 NODE_SCHEMAS 声明的字段 + 通用字段
    （id/type/goto），多一个键就 ValueError 并列出允许集合；类型按 kind 校验
    （数值字段拒 bool，bool 字段拒数值，列表字段拒字符串，反之亦然）。
-6. **death_id 必须 ≥900000**（约定 9+官方 id，如官方 10021 → 910021）。官方
+7. **death_id 必须 ≥900000**（约定 9+官方 id，如官方 10021 → 910021）。官方
    id 会触发官方结局解锁与记录，污染存档。death 的 next 只允许 "Title"
    （原版死亡画面固定提供读档/标题按钮）。
-7. **branch 键字段归一**。source=stat 用 stat 字段并清掉 flag；其余来源
+8. **branch 键字段归一**。source=stat 用 stat 字段并清掉 flag；其余来源
    （mod/game/flag_value/condition）用 flag 并清掉 stat。add_node/update_node
    自动处理，调用方不用管，但不要手写两个键。
-8. **删除/移动不保证图完整**。delete_node 产生的悬空 goto、最后一个节点无
+9. **删除/移动不保证图完整**。delete_node 产生的悬空 goto、最后一个节点无
    goto 等问题不在写入口拦截，一律由 check_story 报告——**改完必须 check**。
 
 ## 5. 常见错误消息对照表

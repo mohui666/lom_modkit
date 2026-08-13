@@ -6,7 +6,8 @@
    字段按 NODE_SCHEMAS 做宽松类型校验，未知字段一律拒绝；调用方只提供语义值，
    不可能绕过规则手写 story JSON 或 Lua。
 2. 防写坏：把游戏侧已知崩溃坑挡在写入口（choice 皮肤锁死 Options、dice 检查点
-   必须命中官方元数据、say 模式与人物联动），编译期剩余问题交给 lomc 校验
+   必须命中官方元数据、say 模式与人物联动、动作人物必须先登场——未登场/已退场
+   时自动在该节点前插入 show 登场节点），编译期剩余问题交给 lomc 校验
    （check_story / compile_story），编辑器与 AI 共用同一套防线。
 3. AI 友好：函数小而语义明确、错误消息全中文、错误与警告都是字符串列表；
    另带 argparse CLI（check / compile / pack / new-story，可加 --json 输出
@@ -29,6 +30,7 @@ if str(EDITOR_DIR) not in sys.path:
     sys.path.insert(0, str(EDITOR_DIR))
 
 import models  # noqa: E402
+import stage_guard  # noqa: E402
 
 # 冻结（PyInstaller）态：__file__ 指向解包目录，改用 models 的 _MEIPASS 推导；
 # data/editor_data.json 由打包 spec 打进包内，import lomc 由冻结导入器解析（PYZ）
@@ -177,7 +179,24 @@ def _make_node(story: dict, node_type: str, fields: dict, after: str | None) -> 
     _normalize_branch(node)
     _check_portrait_node(node)  # 角色表情校验（与编译器同一张表）
     _insert_after(story, node, after)
+    _guard_stage(story, node)  # 登场防线：动作人物未登场时自动补 show
     return node
+
+
+def _guard_stage(story: dict, node: dict) -> None:
+    """线性登场防线：node 的动作人物在前面未登场/已退场时，紧挨它补一个 show。
+
+    新节点 id 是新生成的，不存在指向它的显式跳转，直接前插即可（顺序衔接
+    自动经过新 show）；图级多路径的精确兜底在 preflight 体检（find_stage_issues
+    + ensure_stage）。
+    """
+    nodes = story.get("nodes") or []
+    for index, item in enumerate(nodes):
+        if item is node:
+            cid = stage_guard.missing_stage_linear(nodes, index)
+            if cid:
+                nodes.insert(index, stage_guard.make_show_node(story, cid))
+            return
 
 
 def _normalize_branch(node: dict) -> None:
@@ -224,8 +243,8 @@ def _check_portrait_node(node: dict) -> None:
 def new_story(
     story_id: str = "main", title: str = "新剧情", mood: bool = False
 ) -> dict:
-    """新建空剧情：含一个 say 起始节点 n1；mood=false 时每次 show/say
-    前后自动发射 mod_hide_mood() 隐藏官方心情气泡。"""
+    """新建空剧情：show 登场 + say 对白开场（先登场再动作，否则游戏黑屏）；
+    mood=false 时每次 show/say 前后自动发射 mod_hide_mood() 隐藏官方心情气泡。"""
     if not isinstance(story_id, str) or not models.ID_PATTERN.match(story_id):
         raise ValueError(f"剧情脚本 id 非法: {story_id!r}（规则 [a-zA-Z0-9_-]+）")
     if not isinstance(title, str):
@@ -273,12 +292,22 @@ def add_node(
 
 
 def update_node(story: dict, node_id: str, fields: dict) -> dict:
-    """更新节点字段（同 add_node 的字段校验），返回更新后的节点。"""
+    """更新节点字段（同 add_node 的字段校验），返回更新后的节点。
+
+    登场防线：更新后若动作人物在前面未登场/已退场（线性判断），自动在该
+    节点前插入 show 登场节点，并把指向它的 goto/选项/分支跳转改指新节点。
+    """
     node = get_node(story, node_id)
     checked = _check_fields(node["type"], fields)
     node.update(checked)
     _normalize_branch(node)  # branch 键字段归一（合并后的最终状态）
     _check_portrait_node(node)  # 角色表情校验（合并默认值后的最终状态）
+    nodes = story.get("nodes") or []
+    for index, item in enumerate(nodes):
+        if item is node:
+            if stage_guard.missing_stage_linear(nodes, index):
+                stage_guard.ensure_stage(story, node_id)
+            break
     return node
 
 

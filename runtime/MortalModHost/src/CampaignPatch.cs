@@ -53,7 +53,7 @@ namespace MortalModHost
                 stat.SetStartScript(registered);
                 Log.LogInfo("新战役首脚本已替换：" + registered + "（mod " + mod.Id + "）");
 
-                // 契约 §D：mod 新战役发放 2 点命运（GameStatType.命运，StringValue "fate"），
+                // 契约 §6.15：mod 新战役发放 2 点命运（GameStatType.命运，StringValue "fate"），
                 // 保证全场景骰子 DiceMenuDialog.CheckRevolution（Stats.Get(命运).FinalValue > 0）
                 // 在 mod 战役里也能走逆天流程（官方新游戏有命运点，mod 隔离存档初始为 0）。
                 try
@@ -171,7 +171,7 @@ namespace MortalModHost
         }
 
         /// <summary>
-        /// 触发器时间/好感条件（契约 §2.1，与 flag 条件全部 AND）：
+        /// 触发器时间/好感条件（契约 §2，与 flag 条件全部 AND）：
         /// <list type="bullet">
         /// <item>when_month/when_stage：PlayerStatManagerData.GameTime（GameTime.Month 字段 +
         ///   Stage 枚举，MonthStageType 上旬=1/中旬=2/下旬=3，ilspycmd 实测与 ConvertToRounds 的 (int)Stage 一致）。</item>

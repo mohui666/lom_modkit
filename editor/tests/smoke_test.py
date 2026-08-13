@@ -34,7 +34,7 @@ def main_fn() -> int:
     editor_data, is_fallback = models.load_editor_data(main.PROJECT_ROOT)
     win = main.MainWindow(editor_data, is_fallback)
     win._prompt_on_discard = False  # 测试全程关闭未保存确认弹窗（会阻塞 offscreen）
-    assert win.node_list.count() == 2, "新建项目应含示例对白和结束剧情"
+    assert win.node_list.count() == 3, "新建项目应含登场、示例对白和结束剧情"
     assert win.story["nodes"][-1]["type"] == "end", "新手模板应可直接通过收尾校验"
     starter_lua, starter_err = main.compile_story(win.story)
     assert starter_err is None and starter_lua, f"新手模板应可直接编译：{starter_err}"
@@ -162,7 +162,7 @@ def main_fn() -> int:
 
     # 新建节点：在起始节点后插入一个 choice
     win._add_node("choice")
-    assert win.node_list.count() == 3
+    assert win.node_list.count() == 4
     node = win._current_node()
     assert (
         node is not None and node["type"] == "choice" and len(node["options"]) == 2
@@ -207,12 +207,13 @@ def main_fn() -> int:
     print(f"[3b] branch.source game→mod 归一化 OK（cases value={vals}）")
 
     # 表单写回：改 say 文本后摘要应更新
-    win.node_list.setCurrentRow(0)
+    say_row = win._node_row("n2")  # 新手模板：n1 登场、n2 对白
+    win.node_list.setCurrentRow(say_row)
     say_node = win._current_node()
-    assert say_node is not None
+    assert say_node is not None and say_node["type"] == "say"
     say_node["text"] = "这是一段用于冒烟测试的对话文本，长度超过二十个字用于验证截断"
     win._on_node_changed()
-    text = win.node_list.item(0).text()
+    text = win.node_list.item(say_row).text()
     assert "…" in text, f"摘要应截断：{text!r}"
     print(f"[4] 摘要刷新 OK（{text!r}）")
 
@@ -742,20 +743,20 @@ def main_fn() -> int:
     assert len(win._stories) == 1 and win._current_id == "main"
     win._add_story_in_project()  # main 被占 → 自动取 story2
     assert win.story_combo.count() == 2 and win._current_id == "story2"
-    assert win.node_list.count() == 2, "新章节应含示例对白和结束剧情"
+    assert win.node_list.count() == 3, "新章节应含登场、示例对白和结束剧情"
     win._add_node("wait")
-    assert win.node_list.count() == 3
+    assert win.node_list.count() == 4
     win.story_combo.setCurrentIndex(win.story_combo.findData("main"))
-    assert win._current_id == "main" and win.node_list.count() == 2
+    assert win._current_id == "main" and win.node_list.count() == 3
     win.story_combo.setCurrentIndex(win.story_combo.findData("story2"))
-    assert win.node_list.count() == 3
+    assert win.node_list.count() == 4
     print("[15] 多剧情脚本管理 OK（新建/切换，列表随切换刷新）")
 
     # [16] 撤销/重做：跨剧情快照；连续输入合并为一步
     win._undo()  # 撤销 story2 新增的 wait 节点
-    assert win._current_id == "story2" and win.node_list.count() == 2
+    assert win._current_id == "story2" and win.node_list.count() == 3
     win._redo()
-    assert win.node_list.count() == 3
+    assert win.node_list.count() == 4
     win.story_title_edit.setText("改名一")  # 连续两次编辑 → 合并一步
     win.story_title_edit.setText("改名二")
     win._undo()

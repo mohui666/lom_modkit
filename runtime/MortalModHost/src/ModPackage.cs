@@ -30,7 +30,7 @@ namespace MortalModHost
         public readonly Dictionary<string, string> LuaScripts = new Dictionary<string, string>();
 
         /// <summary>
-        /// texts.json（可选，契约 §A）：键 = "MOD_&lt;modid&gt;_&lt;scriptid&gt;_&lt;nodeid&gt;"，值 = 台词文本。
+        /// texts.json（可选，契约 §1）：键 = "MOD_&lt;modid&gt;_&lt;scriptid&gt;_&lt;nodeid&gt;"，值 = 台词文本。
         /// 运行时注册进 LeanLocalization（解析名 "Story/" + key），让 mod 台词获得官方已读变黄/可快进能力。
         /// </summary>
         public readonly Dictionary<string, string> Texts = new Dictionary<string, string>();
@@ -49,7 +49,7 @@ namespace MortalModHost
         public string PackagePath;
 
         /// <summary>
-        /// 按契约 §6.3 生成注册到游戏 LuaManager 的脚本名：MOD_&lt;modid&gt;_&lt;scriptid&gt;。
+        /// 按契约 §6.1 生成注册到游戏 LuaManager 的脚本名：MOD_&lt;modid&gt;_&lt;scriptid&gt;。
         /// </summary>
         public string GetRegisteredScriptName(string scriptId)
         {

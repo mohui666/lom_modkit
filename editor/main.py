@@ -62,6 +62,7 @@ from mod_manager_dialog import ModManagerDialog
 import package_io
 from preflight import PreflightIssue, apply_safe_fixes, run_preflight
 from preflight_dialog import PreflightDialog
+import stage_guard
 from lua_preview import LuaPreview, compile_story, lomc_available, get_lomc
 from node_form import NodeForm
 from preview import (
@@ -91,12 +92,13 @@ _crash_logging_installed = False
 def new_editor_story(story_id: str = "main", editor_data: dict | None = None) -> dict:
     """创建可立即通过编译检查的新手项目模板。
 
-    models.new_story 的单节点结构是 story_api 的既有契约；图形编辑器在其后补一个
-    “结束剧情”，避免新用户什么都没做就先看到“最后节点无法结束”的红色错误。
+    models.new_story 的 登场+对白 双节点结构是 story_api 的既有契约（先登场再
+    动作，否则游戏黑屏）；图形编辑器在其后补一个“结束剧情”，避免新用户什么都
+    没做就先看到“最后节点无法结束”的红色错误。
     """
     story = models.new_story(story_id, editor_data)
-    story["nodes"][0]["text"] = "在这里填写第一句对白。"
-    story["nodes"].append(models.new_node("end", "n2", editor_data))
+    story["nodes"][1]["text"] = "在这里填写第一句对白。"  # nodes[1] 是 say
+    story["nodes"].append(models.new_node("end", models.make_node_id(story), editor_data))
     return story
 
 
@@ -1170,11 +1172,22 @@ class MainWindow(QMainWindow):
         row = self.node_list.currentRow()
         at = row + 1 if 0 <= row < len(nodes) else len(nodes)
         nodes.insert(at, node)
+        # 登场防线：动作人物在前面未登场/已退场时，自动在它前面补一个人物登场，
+        # 否则游戏会因“角色不存在”崩掉剧情协程（黑屏）。
+        auto_show = None
+        cid = stage_guard.missing_stage_linear(nodes, at)
+        if cid:
+            auto_show = stage_guard.make_show_node(self.story, cid)
+            nodes.insert(at, auto_show)
+            at += 1
         self._refresh_all(select_row=at)
         type_cn = models.NODE_TYPE_CN.get(node.get("type", ""), node.get("type", ""))
-        self.statusBar().showMessage(
-            message or f"已添加 {type_cn}（{node.get('id', '')}）", 3000
-        )
+        if message is None:
+            message = f"已添加 {type_cn}（{node.get('id', '')}）"
+            if auto_show is not None:
+                cname = models.character_name(self.editor_data, auto_show["character"])
+                message += f"；已自动在前面补 {cname} 的登场"
+        self.statusBar().showMessage(message, 3000)
 
     def _delete_node(self) -> None:
         nodes = self.story.get("nodes", [])

@@ -8,7 +8,7 @@ using UnityEngine;
 namespace MortalModHost
 {
     /// <summary>
-    /// 契约 §D：mod 剧情中放开骰子范围修改（官方剧情完全不受影响）。
+    /// 契约 §6.16：mod 剧情中放开骰子范围修改（官方剧情完全不受影响）。
     /// 根因（ilspycmd 反编译核实）：
     /// <list type="number">
     /// <item>逆天：DiceMenuDialog.CheckRevolution()（private bool）需要

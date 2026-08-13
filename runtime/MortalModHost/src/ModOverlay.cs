@@ -9,7 +9,7 @@ using UnityEngine.UI;
 namespace MortalModHost
 {
     /// <summary>
-    /// mod 死亡/结局文本覆盖（契约 §C/§3.1）：mod 用自造 id（9+官方id，如 910021）进官方 GameOver
+    /// mod 死亡/结局文本覆盖（契约 §6.13/§3.1）：mod 用自造 id（9+官方id，如 910021）进官方 GameOver
     /// 场景，或在 Story 场景打开汗青书 EndGamePanel 时，LibrarySystem 查不到自造 key，画面没有文本。编译器在 mod Lua 里
     /// 发射裸全局调用 mod_set_death_text(title, desc) / mod_set_ending_text(title, desc[, image])，LuaManagerPatch 把
     /// 参数写进本类；随后进入 GameOver 或打开 EndGamePanel 时，对应 patch 用
@@ -81,7 +81,7 @@ namespace MortalModHost
         }
 
         /// <summary>
-        /// 死亡文本两段式（契约 §C）：title 短标题、desc 多行描述。
+        /// 死亡文本两段式（契约 §6.13）：title 短标题、desc 多行描述。
         /// 单参调用兼容（老编译器/老 mod 包）：title 留空、参数当 desc——标题栏保持官方清空态，
         /// 不会把整段文本塞进大字号标题。
         /// </summary>
@@ -253,7 +253,7 @@ namespace MortalModHost
         /// 把 mod 文本写进官方组件：标题写 _titleText 与 _horizontalTitleText（官方两条路都设）；
         /// 描述按官方同款方式 Instantiate(_descTextPrefab) 到容器（与官方一致按 IsChineseLanguage
         /// 二选一：中文纵向容器拆 \n 多行，非中文横排容器整段一行）。
-        /// 优先级（契约 §C 两段式）：标题 = 结局 title &gt; 死亡 title（都空则标题栏留空）；
+        /// 优先级（契约 §6.13 两段式）：标题 = 结局 title &gt; 死亡 title（都空则标题栏留空）；
         /// 描述 = 结局 desc &gt; 死亡 desc；死亡只有 desc 时只显示描述行，不塞标题。
         /// </summary>
         private static void ApplyGameOverText(GameOverController controller)
@@ -267,7 +267,7 @@ namespace MortalModHost
                 CanvasGroup descContainer = traverse.Field("_descContainer").GetValue<CanvasGroup>();
                 CanvasGroup horizontalDescContainer = traverse.Field("_horizontalDescContainer").GetValue<CanvasGroup>();
 
-                // GameOver 优先级（契约 §C 两段式）：标题 = 结局 title > 死亡 title；描述 = 结局 desc > 死亡 desc。
+                // GameOver 优先级（契约 §6.13 两段式）：标题 = 结局 title > 死亡 title；描述 = 结局 desc > 死亡 desc。
                 // 死亡只有 desc 时标题留空只显示描述行（避免整段塞标题）。
                 string titleText = !string.IsNullOrEmpty(ModOverlay.EndingTitle)
                     ? ModOverlay.EndingTitle

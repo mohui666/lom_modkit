@@ -9,12 +9,12 @@ MIT 许可。本工具为粉丝自制工具，与游戏开发商无关，不包�
 ## 组件
 
 - `compiler/`（`lomc`）— JSON 剧情 → 游戏原生 Lua 编译器（Python 标准库，包格式契约见 `docs/mod_format.md`）
-- `editor/` — PySide6 图形编辑器（三栏：章节与步骤 / 属性 / 画面预览；F5 从当前步骤进游戏试玩、可交互剧情流程图、发布前体检与安全自动修复、自动安装与 Mod 启停管理、内置使用指南、多章节、撤销/重做）
+- `editor/` — PySide6 图形编辑器（三栏：章节与步骤 / 属性 / 画面预览；F5 从当前步骤进游戏试玩、可交互流程图、体检与安全自动修复（含人物未登场黑屏风险）、自动安装与 Mod 启停管理、内置帮助、多章节、撤销/重做）
 - `editor/story_api.py` — AI/脚本可用的受控工具接口（Python API + CLI）：所有写操作经固定规则校验，AI 不直接手写 story JSON/Lua
 - `runtime/MortalModHost/` — BepInEx 游戏内插件（C# net48）：扫描 `.lommod`、Harmony 拦截演出 mod Lua、战役模式（隔离存档槽）、位置触发器、已读文本注册、带可选自定义立绘的人物介绍卡与死亡/结局文本
 - `tools/` — 从解包产物提取编辑器数据 / 预览素材 / 屏幕截图辅助脚本
 - `data/` — 编辑器数据（`editor_data.json`：人物/表情/场景/音乐/属性/骰子检查点清单，schema 3）
-- `samples/` — 示例 mod（demo_mod 全节点演示、snack_case 战役短剧《点心大盗疑案》、probe 诊断探针）
+- `samples/` — 示例 mod（demo_mod 全节点演示、showcase 全功能展示、snack_case 战役短剧《点心大盗疑案》、probe 诊断探针）
 
 ## 快速开始
 
@@ -33,20 +33,19 @@ PYTHONPATH=compiler python -m lomc pack  mod目录 -o 我的mod.lommod
 cd editor
 python -m venv .venv
 .venv/Scripts/pip install PySide6
-.venv/Scripts/python -m pip install imageio imageio-ffmpeg   # 可选：录制流程视频
-.venv/Scripts/python editor/run_editor.bat                   # 或直接运行 run_editor.bat
+run_editor.bat          # 或直接双击运行
 ```
 
 ### 3. 游戏内插件（BepInEx）
 
-1. 编辑器点“安装与管理”，选择包含 `Mortal.exe` 的游戏文件夹。
+1. 编辑器菜单“文件 → 安装管理”，选择包含 `Mortal.exe` 的游戏文件夹。
 2. 点击“安装 BepInEx”，编辑器会从官方下载站安装并校验兼容的 BepInEx 6 Mono x86 build 692；随后自动安装运行时。之后导出的 `.lommod` 也会自动复制并启用。
 3. 同一窗口可勾选启用/停用已安装 Mod。手动路径仍为 `BepInEx/plugins/MortalModHost/mods/`。
 4. 进游戏：自由场景/标题画面左下角「活侠MOD」按钮或 F8 打开菜单 →「演出 mod 剧情」或「开始新战役」。
 
-导出前可按 F6 打开“发布前体检”。它会检查编译错误、断路与不可达步骤、占位文字和图片素材；双击问题可定位到对应步骤。“安全自动修复”只处理不会改变剧情含义的机械问题，并支持撤销。
+导出前可按 F6 打开“体检”。它会检查编译错误、断路与不可达步骤、占位文字、图片素材，以及“人物未登场就做动作/说话”的黑屏风险；双击问题可定位到对应步骤。“安全自动修复”只处理不会改变剧情含义的机械问题（含自动补人物登场），并支持撤销。
 
-调试长剧情时，选中步骤后按 F5：编辑器会生成并安装独立临时包，游戏到达 Title/Free 安全场景后自动从该步骤开始；进入前会自动补上该步骤之前的舞台状态（当前场景、台上人物的站位/表情/朝向），因此从剧情中途进入不会再因"角色不存在"黑屏。临时包不会覆盖正式 Mod，读入后自动删除。右侧“剧情流程图”显示真实跳转连线，断路、无法结束的死循环和不可达步骤会用红框与文字同时标出。
+调试长剧情时，选中步骤后按 F5：编辑器会生成并安装独立临时包，游戏到达 Title/Free 安全场景后自动从该步骤开始；进入前会自动补上该步骤之前的舞台状态（当前场景、台上人物的站位/表情/朝向），因此从剧情中途进入不会再因"角色不存在"黑屏。临时包不会覆盖正式 Mod，读入后自动删除。右侧“流程图”显示真实跳转连线（一对多分支用不同颜色区分），断路、无法结束的死循环和不可达步骤会用红框与文字同时标出。
 
 ### 4. 独立可执行文件（PyInstaller 打包，可选）
 
@@ -82,15 +81,16 @@ story_api_cli new-story my_story -o story.json
 ## 开发
 
 ```bash
-# 编译器测试（94+ 例）
+# 编译器测试（160 例）
 cd compiler && python -m unittest tests.test_lomc
 
 # 编辑器测试（冒烟/压力，offscreen 无头运行）
 cd editor && .venv/Scripts/python tests/smoke_test.py
 cd editor && .venv/Scripts/python tests/stress_test.py
 
-# story_api 测试（36+ 例）
+# story_api / 登场防线测试（61 + 18 例）
 cd editor && .venv/Scripts/python tests/story_api_test.py
+cd editor && .venv/Scripts/python tests/stage_guard_test.py
 
 # 插件构建
 cd runtime/MortalModHost && dotnet build -c Release
@@ -105,7 +105,7 @@ cd runtime/MortalModHost && dotnet run --project test/SmokeTest -c Release
 
 ## 说明与致谢
 
-- `docs/mod_format.md` 是全部组件的契约（包格式、38+ 种节点、运行时行为），改代码先改它。
+- `docs/mod_format.md` 是全部组件的契约（包格式、43 种节点、运行时行为），改代码先改它。
 - `data/editor_data.json` 由 `tools/extract_editor_data.py` 从游戏的解包产物生成
   （解包目录用环境变量 `LOM_UNPACK_DIR` 指定）；仓库不包含解包产物与游戏文件。
 - 游戏机制调研基于对官方脚本的实证分析（1814 个剧情脚本），反编译的游戏源码

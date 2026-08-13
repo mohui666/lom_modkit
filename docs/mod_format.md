@@ -138,7 +138,7 @@ assets/                # 可选，自定义资源（结局插图/人物介绍图
 | --- | --- | --- |
 | `branch` | `cases`(≥1)；可选 `source`("mod"默认/"game"/"stat"/"flag_value"/"condition")。键字段：source=stat 时用 `stat`（属性 id，editor_data stats 清单），其余来源用 `flag`（非空） | 条件分支，五来源：mod=按 modflags 是否已设；game=官方检查点 `checkpointmanager.Switch(flag)`；stat=主角属性 `luamanager.GetStatData(stat, 1)`；flag_value=官方任务旗标 `tonumber(luamanager.GetFlagData(flag))`；condition=官方条件检查点 `checkpointmanager.Condition(flag)`（bool）。case 结构按来源：mod/condition 用 `[{"value","goto"}]`（value 仅 1/2：mod=已设/未设，condition=真/假）；game 用 `[{"value","goto"}]`（任意整数）；stat/flag_value 用 `[{"op","value","goto"}]`（op 缺省 ">="，允许 >=/>/<=/</==）。未命中一律 else 落顺序下一节点（末节点且未覆盖全部取值 → LomcError；mod/condition 两 case 齐则覆盖） |
 | `dice` | `check`, `options`: `[{"goto_大成功","goto_成功","goto_失败","band_texts"?}]`（恰好 1 条） | 骰子检定。**check 必须是带官方元数据的检查点**（editor_data 的 dice_meta：骰子范围 max 与结果带 bands，由官方脚本提取；无元数据的检查点会在游戏内骰子菜单 NRE 崩溃）。发射官方五步链 + 按结果带数逐带发射选项（文本+条件）；分支按带质量名次映射：最差带→goto_失败，中间带→goto_成功，最优带→3带及以上 goto_大成功 / 2带 goto_成功（2带无独立大成功档）。带质量按条件数值推断（同值 >系优于 <系；官方有 34 个倒序检查点）。**band_texts**（可选）：逐带覆写骰子菜单选项文本（条数必须等于结果带数，每项非空字符串，否则 LomcError）；发射 `<作者文本> | <官方cond>`（作者文本为字面量，游戏 GetStoryText 查不到时原样显示，不进 texts.json；文本内 ASCII \| 净化为全角｜；cond 永远用官方元数据）。缺省时用官方结果带文本 |
-| `goto_scene` | `scene`("Free"/"Title"/"Combat"/"Battle"/"GameOver"/"End"/"Story"/"DemoEnd")；可选 `key`(Combat=战斗id/Battle=战役id/GameOver=死亡画面id/End=结局标识), `next`, `title`, `desc`(均为 str，仅 End/GameOver 用), `image`(str，**仅 End 用**：包内图片相对路径，如 `assets/ending.png`) | 普通场景仍为 `luamanager.ChangeScene(scene,key,next)`。**End 特例按原版汗青书流程**：缓存自定义标题/正文/插图 → `runwait(endgamepanel.Open("__MORTAL_MOD_END__"))` → 玩家确认 → 黑幕 → Title。运行时 patch 真正的 `EndGamePanel`，完整复用官方书卷版式、渐显和输入；`image` 写入官方左页 `_picImage`，留空时暂借原版结局 20047 的 Picture 占位。图片缺失/损坏只警告并回退占位，不中断。旧文件中的 End next 非 Title 值会被忽略并给出警告。GameOver 的 next 同样无效，因为原版按钮固定为读档/标题。只有不带任何自定义内容且给官方 key 时才直接打开官方结局条目（会按原版解锁/记录并给警告）。mod 专属 End key/空 key 若无 title/desc/image、mod 专属 GameOver key 若无 title/desc，均直接校验失败，避免空白卡。 |
+| `goto_scene` | `scene`("Free"/"Title"/"Combat"/"Battle"/"GameOver"/"End"/"Story"/"DemoEnd")；可选 `key`(Combat=战斗id/Battle=战役id/GameOver=死亡画面id/End=结局标识), `next`, `title`, `desc`(均为 str，仅 End/GameOver 用), `image`(str，**仅 End 用**：包内图片相对路径，如 `assets/ending.png`) | 普通场景仍为 `luamanager.ChangeScene(scene,key,next)`。**End 特例按原版汗青书流程**：缓存自定义标题/正文/插图 → `runwait(endgamepanel.Open("__MORTAL_MOD_END__"))` → 玩家确认 → 黑幕 → Title。运行时 patch 真正的 `EndGamePanel`，完整复用官方书卷版式、渐显和输入；`image` 写入官方左页 `_picImage`，留空时暂借原版结局 20047 的 Picture 占位。图片缺失/损坏只警告并回退占位，不中断。旧文件中的 End next 非 Title 值会被忽略并给出警告（旧版兼容值 Story 按 Title 处理、不警告）。GameOver 的 next 同样无效，因为原版按钮固定为读档/标题。只有不带任何自定义内容且给官方 key 时才直接打开官方结局条目（会按原版解锁/记录并给警告）。mod 专属 End key/空 key 若无 title/desc/image、mod 专属 GameOver key 若无 title/desc，均直接校验失败，避免空白卡。 |
 | `panel` | `panel`("martial"/"weapon"/"poison"/"cg"/"cgvideo"/"shop"/"newshop"/"credit"/"endgame")；可选 `key`(cg/cgvideo/endgame 的 id), `discount`(shop 用, 默认0), `mode`(martial 用, 默认0) | 打开系统面板，除 newshop 外均 `runwait`：`martialpanel.Open(mode)`/`weaponupgradepanel.Open()`/`poisonupgradepanel.Open()`/`cgpanel.Open(key)`/`cgvideopanel.Open(key,0)`/`shoppanel.Open(discount)`/`shoppanel.NewShop()`/`creditpanel.Open()`/`endgamepanel.Open(key)` |
 | `wait` | `seconds` | `wait(seconds)` |
 | `end` | 可选 `next_script` | 有：`SetNextScript("MOD_<modid>_<id>")`+`Init()` 链到同包脚本；无：`ChangeScene("Free","","")` 回自由模式 |
@@ -297,7 +297,7 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 
 ```json
 {
-  "schema": 2,
+  "schema": 3,
   "characters": [{"id": "brother4", "name": "唐惟元", "portraits": ["normal", "nervous1"]}],
   "views": [{"id": "center", "name": "校場_白天"}],
   "music": [{"id": "普通_001", "name": "普通_001"}],
@@ -351,18 +351,20 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
     - `mod_set_ending_text(title, desc[, image])`：缓存结局标题/描述与可选包内图片。Harmony postfix 包装真正的 `EndGamePanel.Open`，在官方第一次画布 fade 前把标题/正文写入 `_titleText/_descText`，把图片写入左页 `_picImage`；未给图片时直接借用游戏内官方结局 20047 的 Picture 作占位（不复制游戏资源）。官方渐显、等待确认与淡出全保留；为避免 mod key 进入无法解析的传奇存档槽，本次显示临时关闭 `_saveLibrary`，结束后恢复。
     - 新编译器的自定义 End 不再进入简化 `EndGameController` 场景；旧包仍保留原 End 场景覆盖兼容。GameOver 自造 id 无文字与 End 自造 id 无内容均在编译期阻止，解决空屏回归。
 14. **编辑器单次试玩协议**：编辑器把入口章节的 `start` 临时改为当前选中节点，安装为固定包 `__lom_modkit_preview.lommod`（manifest id `lom_modkit_preview`），随后原子写入插件目录 `preview-request.json`。运行时每 0.35 秒检查一次：Free 场景直接演出，Title 场景用 `mod_lom_modkit_preview` 隔离槽开局，其它场景等待到安全场景；消费后删除请求与固定临时包。请求只接受 format=1 及 `[A-Za-z0-9_-]+` 的 mod/script/node id，正式 Mod 包不在自动删除范围内。
+15. **mod 新战役发放 2 点命运**：官方新游戏初始带命运点，mod 隔离存档初始为 0，导致骰子「逆天」流程（`DiceMenuDialog.CheckRevolution` 要求 命运>0 等）在 mod 战役中不可用；NewGameData postfix 在替换首脚本后给 mod 战役 `GameStatType.命運` 加 2 点。官方新游戏不受影响。
+16. **mod 剧情放开骰子范围修改**：官方「修改范围」按钮要求二周目且持有成就 30016；mod 剧情中（`CurrentStoryScript` 以 `MOD_` 开头）`get_NewGamePlus` prefix 返 true，且 `CheckRevolution` 原返 true 时直接激活 `_rangeButton`，绕开成就门槛（不在 mod 里解锁官方成就 30016，避免污染官方存档）。官方剧情完全不受影响。
 
 ## 7. AI 工具接口（story_api）
 
 editor/story_api.py 是 AI/编辑器共用的受控写入口。规则：**AI 不直接手写 story JSON 或 Lua**，
 一切剧情构建经 story_api（models 契约默认值 + lomc 校验/警告），防止骰子菜单崩溃、
-transition 黑幕、choice 皮肤崩溃、背景黑屏等已知坑。
+transition 黑幕、choice 皮肤崩溃、背景黑屏、人物未登场就做动作等已知坑。
 
 - Python API：
   - `load_editor_data()`：读取编辑器数据（含 dice_meta 等清单），返回 (editor_data, is_fallback)
-  - `new_story(story_id="main", title="新剧情", mood=False)`：新建剧情脚本（含 1 个起始节点）；mood 为心情气泡开关（false=自动隐藏官方心情气泡，见 §3）
-  - `add_node(story, node_type, fields=None, after=None)`：按 models 默认值新增节点（43 种类型），未知类型/字段/类型不符→ValueError，节点 id 自动生成，after 指定插入位置（节点 id 或 None=末尾）
-  - `update_node(story, node_id, fields)`：更新节点字段（同 add 的字段校验），节点不存在→ValueError
+  - `new_story(story_id="main", title="新剧情", mood=False)`：新建剧情脚本（show 登场 + 空 say 双节点开场，先登场再动作）；mood 为心情气泡开关（false=自动隐藏官方心情气泡，见 §3）
+  - `add_node(story, node_type, fields=None, after=None)`：按 models 默认值新增节点（43 种类型），未知类型/字段/类型不符→ValueError，节点 id 自动生成，after 指定插入位置（节点 id 或 None=末尾）。登场防线：动作类节点的目标人物在前面未登场/已退场时，自动在它前面插入 show
+  - `update_node(story, node_id, fields)`：更新节点字段（同 add 的字段校验），节点不存在→ValueError。登场防线：更新后若动作人物未登场/已退场，自动在该节点前插入 show 并把指向它的 goto/选项/分支跳转改指新节点
   - `get_node(story, node_id)`：读取节点，不存在→ValueError
   - `list_nodes(story)`：返回 [{"id","type","summary"}] 清单
   - `delete_node(story, node_id)`：删除节点，不存在→ValueError
@@ -384,4 +386,5 @@ transition 黑幕、choice 皮肤崩溃、背景黑屏等已知坑。
   （表不可用/角色不在表 → 放行；角色在表但表情不在其列表 → LomcError/ValueError——
   游戏 LoadCharacterPortrait 对无效表情 key 抛 KeyNotFoundException → Lua 协程死 → 对话冻结，
   练武场卡死即此因）。另注意：say/show 引用的人物必须先 show 上台（未上台同样抛
-  KeyNotFoundException），showcase 构建脚本已带防回归自检。
+  KeyNotFoundException），写入口的登场防线会自动补 show（见上文 add_node/update_node），
+  编辑器体检对多路径汇合做图级兜底，showcase 构建脚本已带防回归自检。

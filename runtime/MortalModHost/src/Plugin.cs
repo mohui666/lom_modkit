@@ -49,13 +49,13 @@ namespace MortalModHost
             _enabled = Config.Bind("General", "Enabled", true,
                 "总开关。false 时禁用热键、mod 菜单与 LuaManager 注入。");
             _menuHotkey = Config.Bind("General", "MenuHotkey", new KeyboardShortcut(KeyCode.F8),
-                "打开/关闭 mod 菜单的快捷键（仅在 Free 自由场景生效）。旧默认 F9 与同机 MortalInstantWin 冲突，启动时自动迁移为 F8。");
+                "打开/关闭 mod 菜单的快捷键（Free 自由场景与 Title 标题画面生效，契约 §6.3）。旧默认 F9 与同机 MortalInstantWin 冲突，启动时自动迁移为 F8。");
             _vanillaStoryHotkey = Config.Bind("General", "VanillaStoryHotkey", new KeyboardShortcut(KeyCode.F7),
                 "切换「禁用原版游戏剧情」的全局临时开关（任意场景可切换；会话级，不持久化）。开启后跳过返回 Free 时自动触发及地点点击触发的官方主线、支线和默认脚本，mod 触发器仍优先。");
             MigrateLegacyHotkey();
             Logger.LogInfo("菜单热键：" + _menuHotkey.Value + "（Free 场景左下角也有常驻入口按钮）；原版剧情开关热键：" + _vanillaStoryHotkey.Value);
 
-            // 契约 §C：死亡/结局文本覆盖的静态初始态（重复启动时防止残留上次会话的文本）
+            // 契约 §6.13：死亡/结局文本覆盖的静态初始态（重复启动时防止残留上次会话的文本）
             ModOverlay.Clear();
             // 契约 §2：mod 战役运行态同样重置（插件重载后不残留旧战役的禁原版事件状态）
             ModCampaignState.Clear();
@@ -176,7 +176,7 @@ namespace MortalModHost
             return false;
         }
 
-        private string _previousScene = ""; // 上一帧场景名，用于检测离开 GameOver/End（契约 §C）
+        private string _previousScene = ""; // 上一帧场景名，用于检测离开 GameOver/End（契约 §6.13）
 
         private void Update()
         {
@@ -314,7 +314,7 @@ namespace MortalModHost
         }
 
         /// <summary>
-        /// 契约 §C：场景切换离开 GameOver/End 时清除 mod 死亡/结局文本覆盖。
+        /// 契约 §6.13：场景切换离开 GameOver/End 时清除 mod 死亡/结局文本覆盖。
         /// 只盯"上一帧是 GameOver/End 且现在变了"，进入这些场景（含经由 Loading 场景的过渡）不清除。
         /// </summary>
         private void UpdateOverlaySceneTracking()

@@ -5,7 +5,7 @@ using Lean.Localization;
 namespace MortalModHost
 {
     /// <summary>
-    /// 已读文本注册（契约 §A）：把全部 mod 包的 texts.json 条目注册进 LeanLocalization，
+    /// 已读文本注册（契约 §6.8）：把全部 mod 包的 texts.json 条目注册进 LeanLocalization，
     /// 解析名为 "Story/" + key。官方链路（ilspycmd 反编译实证）：
     /// LuaManager.GetStoryText(key) → Mortal.Core.LeanLocalizationResolver.GetStoryText(key)
     /// → LeanLocalization.GetTranslationText("Story/" + key)，查不到时回退显示 key 本身。
@@ -64,7 +64,7 @@ namespace MortalModHost
         }
 
         /// <summary>
-        /// 契约 §A 自检（Plugin.Awake 首次注册后调一次）：报告注册条数，并取第一条文本做样本
+        /// 契约 §6.8 自检（Plugin.Awake 首次注册后调一次）：报告注册条数，并取第一条文本做样本
         /// 校验——GetTranslationText("Story/"+key) 与原文不一致说明注册未生效（台词会退化显示 key
         /// 本身）。只取第一条避免逐条刷日志；replaceTokens=false 保证与原文逐字符比对。
         /// </summary>
