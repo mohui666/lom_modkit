@@ -422,15 +422,38 @@ def _check_node_extra(node, ntype, label):
                 raise LomcError('%s: 缺少必填字段 "goto"（节点 id 字符串）' % case_label)
 
 
-def validate_story(story, source="story.json"):
+def validate_story(story, source="story.json", warnings=None):
     """校验一个 story.json（已解析为 dict）。不通过则抛 LomcError。
 
     source 仅用于报错前缀，方便 CLI 指出是哪个文件。
+    warnings：可选的 list，传入时把非致命问题（编译仍会成功）追加进去，
+    每条都是完整可读的中文句子（不含 source 前缀）。
     """
     try:
         _validate_story_inner(story)
     except LomcError as e:
         raise LomcError("%s: %s" % (source, e))
+    if warnings is not None:
+        _collect_warnings(story, warnings)
+
+
+def _collect_warnings(story, warnings):
+    """非致命问题收集（不中断编译）。"""
+    nodes = story.get("nodes", []) if isinstance(story, dict) else []
+    ins = [n for n in nodes
+           if isinstance(n, dict) and n.get("type") == "transition"
+           and n.get("phase") == "in"]
+    has_out = any(isinstance(n, dict) and n.get("type") == "transition"
+                  and n.get("phase") == "out" for n in nodes)
+    if ins and not has_out:
+        for n in ins:
+            warnings.append(
+                '节点 "%s"(transition, phase=in) 没有配对的 phase=out：'
+                "TransitionIn 会隐藏剧情 UI 并盖满黑幕（官方脚本必须成对使用，"
+                "ch1_1 里 TransitionIn/Out 相距仅十几行），演出到该节点后画面会一直黑屏。"
+                "请补一个 phase=out 节点，或改用 scene 节点做转场。"
+                % n.get("id", "?")
+            )
 
 
 def _validate_story_inner(story):

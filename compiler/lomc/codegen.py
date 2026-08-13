@@ -146,9 +146,13 @@ def _emit_say(node, ctx):
     mode = node.get("mode", "character")
     text = lua_str(node["text"])
     if mode in ("narrative", "center"):
-        # 旁白/居中旁白：忽略 character（契约 §4）
+        # 旁白/居中旁白：忽略 character（契约 §4）。
+        # 官方实证：任何 say 前都要设 sayoptions（ch1_1 的 center 旁白同样如此），
+        # 否则等待输入/淡出行为取决于环境默认值。
         return [
             "\tsetsaydialog(saydialogs.%s)" % mode,
+            "\tsayoptions.waitforinput = true",
+            "\tsayoptions.fadewhendone  = true",
             "\tsetcharacter(narrative)",
             "\tsay(%s)" % text,
         ]
@@ -484,8 +488,11 @@ def _emit_dice(node, ctx):
         "\tlocal dice_opts1 = {}",
     ]
     for i, opt in enumerate(node["options"], 1):
-        # 契约 §4 菜单项格式："选项一|<33"
-        entry = "%s|<%s" % (opt["text"], lua_num(opt["threshold"]))
+        # 契约 §4 菜单项格式："选项一|<33"。游戏把 | 前文本当作本地化 key
+        # 解析（DiceOption.UpdateContent → GetStoryText，查不到时原样返回），
+        # 分隔符必须保留；文本里的 ASCII 竖线换成全角 "｜" 防格式破坏。
+        text = str(opt["text"]).replace("|", "｜")
+        entry = "%s|<%s" % (text, lua_num(opt["threshold"]))
         lines.append("\tdice_opts1[%d] = %s" % (i, lua_str(entry)))
     lines += [
         "\tdicemenudialog.Setup(dice_result1.ResultCount, dice_result1.Result, "

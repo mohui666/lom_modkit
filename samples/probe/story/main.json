@@ -6,8 +6,6 @@
     { "id": "p0", "type": "raw", "code": "luamanager.SetCurrentStoryScript(\"MK0_START\")" },
     { "id": "p1", "type": "scene", "view": "black" },
     { "id": "p2", "type": "raw", "code": "luamanager.SetCurrentStoryScript(\"MK1_BLACK_OK\")" },
-    { "id": "p3", "type": "transition", "phase": "in", "dir": "lr" },
-    { "id": "p4", "type": "raw", "code": "luamanager.SetCurrentStoryScript(\"MK2_TRANS_OK\")" },
     { "id": "p5", "type": "music", "name": "普通_001" },
     { "id": "p6", "type": "raw", "code": "luamanager.SetCurrentStoryScript(\"MK3_MUSIC_OK\")" },
     { "id": "p7", "type": "scene", "view": "center" },

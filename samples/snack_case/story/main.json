@@ -14,7 +14,6 @@
       "id": "m5", "type": "say", "mode": "center",
       "text": "蜀中唐门，以暗器和毒闻名江湖。\n而你，是门中负责扫地、挑水、挨骂的那一个。"
     },
-    { "id": "m6", "type": "transition", "phase": "in", "dir": "lr" },
     { "id": "m7", "type": "scene", "view": "center" },
     { "id": "m8", "type": "show", "character": "player", "position": "M", "portrait": "normal" },
     {

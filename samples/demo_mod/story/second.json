@@ -4,7 +4,6 @@
   "start": "s1",
   "nodes": [
     { "id": "s1", "type": "scene", "view": "center" },
-    { "id": "s1b", "type": "transition", "phase": "in", "dir": "lr" },
     { "id": "s2", "type": "show", "character": "player", "position": "M" },
     {
       "id": "s3", "type": "say", "mode": "narrative",

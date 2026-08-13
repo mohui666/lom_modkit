@@ -20,15 +20,21 @@ from .validate import validate_story
 def _cmd_build(args):
     lua = compile_story_file(args.story)
     output = args.output or default_lua_path(args.story)
-    with open(output, "w", encoding="utf-8", newline="\n") as f:
-        f.write(lua)
+    try:
+        with open(output, "w", encoding="utf-8", newline="\n") as f:
+            f.write(lua)
+    except OSError as e:
+        raise LomcError("无法写入输出文件 %s: %s" % (output, e)) from e
     print("编译成功: %s -> %s" % (args.story, output))
     return 0
 
 
 def _cmd_check(args):
     story = load_json_file(args.story)
-    validate_story(story, source=args.story)
+    warnings = []
+    validate_story(story, source=args.story, warnings=warnings)
+    for w in warnings:
+        print("警告: %s" % w, file=sys.stderr)
     print("校验通过: %s（%d 个节点）" % (args.story, len(story["nodes"])))
     return 0
 

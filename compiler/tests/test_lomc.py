@@ -20,7 +20,6 @@ from lomc import (
     validate_manifest,
     validate_story,
 )
-from lomc.compiler import compile_story_file
 
 COMPILER_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -288,9 +287,21 @@ class TestNodeCodegen(unittest.TestCase):
             {"id": "n1", "type": "say", "mode": "narrative", "text": "旁白"}
         )
         self.assertIn("\tsetsaydialog(saydialogs.narrative)", lua)
+        # 官方 ch1_1 实证：任何 say 前都设 sayoptions（否则等待输入行为取决于环境默认）
+        self.assertIn("\tsayoptions.waitforinput = true", lua)
+        self.assertIn("\tsayoptions.fadewhendone  = true", lua)
         self.assertIn("\tsetcharacter(narrative)", lua)
         self.assertIn('\tsay("旁白")', lua)
         self.assertNotIn("showPortrait", lua)
+
+    def test_say_center(self):
+        lua = self.lua_of(
+            {"id": "n1", "type": "say", "mode": "center", "text": "居中"}
+        )
+        self.assertIn("\tsetsaydialog(saydialogs.center)", lua)
+        self.assertIn("\tsayoptions.waitforinput = true", lua)
+        self.assertIn("\tsetcharacter(narrative)", lua)
+        self.assertIn('\tsay("居中")', lua)
 
     def test_choice(self):
         # choice 的 goto 目标必须存在，补一个目标节点 na
@@ -1485,6 +1496,83 @@ class TestNewNodeValidationErrors(unittest.TestCase):
                                        "goto_成功": "nend", "goto_失败": "nend"}]}),
             '不允许显式 "goto"',
         )
+
+
+class TestWarnings(unittest.TestCase):
+    """非致命警告：transition 黑幕隐患（官方 TransitionIn/Out 必须成对）。"""
+
+    def test_transition_in_out_pair_no_warning(self):
+        story = make_story(
+            [
+                {"id": "n1", "type": "transition", "phase": "in", "dir": "lr"},
+                {"id": "n2", "type": "transition", "phase": "out", "dir": "rl"},
+                {"id": "nend", "type": "end"},
+            ]
+        )
+        warns = []
+        validate_story(story, warnings=warns)
+        self.assertEqual(warns, [])
+
+    def test_transition_pair_need_not_be_adjacent(self):
+        story = make_story(
+            [
+                {"id": "n1", "type": "transition", "phase": "in", "dir": "lr"},
+                {"id": "n2", "type": "say", "mode": "center", "text": "中间"},
+                {"id": "n3", "type": "transition", "phase": "out", "dir": "rl"},
+                {"id": "nend", "type": "end"},
+            ]
+        )
+        warns = []
+        validate_story(story, warnings=warns)
+        self.assertEqual(warns, [])
+
+    def test_transition_in_without_out_warning(self):
+        story = make_story(
+            [
+                {"id": "n1", "type": "transition", "phase": "in", "dir": "lr"},
+                {"id": "nend", "type": "end"},
+            ]
+        )
+        warns = []
+        validate_story(story, warnings=warns)
+        self.assertEqual(len(warns), 1)
+        self.assertIn('"n1"', warns[0])
+        self.assertIn("phase=out", warns[0])
+
+    def test_transition_warning_embedded_in_lua_and_nonfatal(self):
+        # 警告不中断编译，以注释形式插在 Lua 头部（编辑器 Lua 预览可见）
+        story = make_story(
+            [
+                {"id": "n1", "type": "transition", "phase": "in", "dir": "lr"},
+                {"id": "nend", "type": "end"},
+            ]
+        )
+        lua = compile_story(story)
+        self.assertTrue(lua.startswith("-- lomc 警告："))
+        self.assertIn("node_n1", lua)
+
+    def test_dice_pipe_sanitize(self):
+        # dice 选项文本里的 ASCII | 换成全角｜（游戏用 | 分隔文本与阈值）
+        lua = compile_story(
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "dice",
+                    "check": "Combat_Result_01",
+                    "options": [
+                        {
+                            "text": "你|我",
+                            "threshold": 33,
+                            "goto_大成功": "nend",
+                            "goto_成功": "nend",
+                            "goto_失败": "nend",
+                        }
+                    ],
+                }
+            )
+        )
+        self.assertIn('dice_opts1[1] = "你｜我|<33"', lua)
+        self.assertNotIn("你|我|", lua)
 
 
 if __name__ == "__main__":

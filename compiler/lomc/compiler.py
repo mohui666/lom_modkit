@@ -23,9 +23,21 @@ def load_json_file(path):
 
 
 def compile_story(story, mod_info=None, source=None):
-    """校验 + 编译单个 story dict，返回 Lua 源码字符串。"""
-    validate_story(story, source or "story.json")
-    return story_to_lua(story, mod_info=mod_info, source=source)
+    """校验 + 编译单个 story dict，返回 Lua 源码字符串。
+
+    非致命问题（如 transition 黑幕隐患）以 "-- lomc 警告：" 注释形式
+    插在 Lua 头部，编辑器 Lua 预览与导出产物都能直接看到。
+    """
+    warnings = []
+    validate_story(story, source or "story.json", warnings=warnings)
+    lua = story_to_lua(story, mod_info=mod_info, source=source)
+    if warnings:
+        head = "\n".join(
+            "-- lomc 警告：%s" % w.replace("\n", " ")
+            for w in warnings
+        )
+        lua = head + "\n" + lua
+    return lua
 
 
 def compile_story_file(story_path, mod_info=None):

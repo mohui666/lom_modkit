@@ -81,7 +81,7 @@ assets/                # 预留（自定义图片/音频），v1 运行时忽略
 | `mask` | `show`(bool) | 独白遮罩 `os_mask.Show` |
 | `intro` | `character` | 人物介绍卡 `runwait(intropanel.Show(...))` |
 | `effect` | `name`；可选 `x`,`y`,`a`,`b`,`c`,`d`(数值，默认0/0/1/1/1/1) | 屏幕特效 `effects.SetupEffect(name,x,y,a,b,c,d)`，如 Hit_001/Blood_002/Sword_001 |
-| `transition` | `phase`("in"/"out")；可选 `dir`(默认"lr"，lr/rl/tb/bt) | 黑场转场 `runwait(transitionblack.TransitionIn/Out(dir))` |
+| `transition` | `phase`("in"/"out")；可选 `dir`(默认"lr"，lr/rl/tb/bt) | 黑场转场 `runwait(transitionblack.TransitionIn/Out(dir))`。**官方必须成对使用**：TransitionIn 会隐藏剧情 UI 并盖满黑幕，TransitionOut 才恢复；同一脚本有 in 无 out 时编译器给出警告（画面会一直黑屏，ch1_1 实测距离十几行） |
 | `camera` | `name`, `active`(bool) | 镜头滤镜 `maincamera.ActiveVolume(name, 0 | 1)`，如 stage-memory/stage-dream/stage-fire/stage-blurdim |
 | `block` | `flowchart`("view"/"common"), `name`；可选 `vars`: `[{"name","value"}]` | 通用 flowchart 块调用：`getvar` 逐个赋值后 `runblock(fc, name)`。覆盖 out_white/shake/flash/vshock 等 |
 | `cg` | `action`("show"/"hide"), `kind`("picture"/"item"/"big"/"map"/"family"/"title")；可选 `key`, `key2`, `n1`, `n2` | mainui 图片/地图/家谱/标题：`ShowPicture(key)`/`HidePicture`/`ShowItemPicture`/`ShowBigPicture`/`ShowMap(key,key2)`/`ShowFamilyTree(key,key2,n1,n2)`/`DisplayTitle(key)` 等 |
@@ -139,6 +139,7 @@ assets/                # 预留（自定义图片/音频），v1 运行时忽略
 - `choice`/`branch`/`dice`/`end`/`goto_scene` 写显式 `goto` → 校验错误。
 - `say` 的 narrative/center 模式给 character 允许但忽略。
 - `raw` 节点内容原样插入（编译器不做语法检查）；其后流转照常（顺序/goto）。
+- **非致命警告**：以 `-- lomc 警告：` 注释形式插在 Lua 头部（如 transition 有 in 无 out），编辑器 Lua 预览与导出产物都能看到；`lomc check` 同步打印到 stderr。
 
 关键 API 范式（官方脚本实证，raw_scripts/ 下有 1814 个可参考）：
 
@@ -156,7 +157,7 @@ setcharacter(characters.Get("player"), characters.GetPortrait("player", "nervous
 characters.Focus("player")
 say("对话文本")
 -- say (think)：setsaydialog(saydialogs.think)，say 前 os_mask.SetLastPosition(); os_mask.Show(true)，后 os_mask.Show(false)
--- say (narrative/center)：setsaydialog(saydialogs.narrative|saydialogs.center); setcharacter(narrative); say("...")
+-- say (narrative/center)：setsaydialog(saydialogs.narrative|saydialogs.center); sayoptions 两行同上; setcharacter(narrative); say("...")（官方 ch1_1 实证：任何 say 前都设 sayoptions）
 -- choice（含皮肤）
 setmenudialog(menudialogs.Options)
 local option1 = {}
@@ -200,6 +201,8 @@ dicemenudialog.SetRandom(99, dice_rand1)
 local dice_result1 = checkpointmanager.Dice("Combat_Result_01", dice_rand1)
 local dice_opts1 = {}
 dice_opts1[1] = "选项一|<33"
+-- dice 选项文本：| 前文本被游戏当作本地化 key 解析（GetStoryText 查不到时原样返回，
+-- 故可直接写字面量；但文本中的 ASCII | 会被 lomc 替换成全角｜防分隔符冲突）
 dicemenudialog.Setup(dice_result1.ResultCount, dice_result1.Result, dice_result1.Header, dice_result1.Additions)
 runwait(dicemenudialog.ExecuteRoll(dice_opts1, 1, "Combat_Result_01"))
 local dice_sel1 = dicemenudialog.ResultSelection
