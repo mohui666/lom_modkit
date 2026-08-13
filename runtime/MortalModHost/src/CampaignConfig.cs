@@ -10,6 +10,13 @@ namespace MortalModHost
         /// <summary>true 时出现在 mod 菜单"开始新战役"区（隔离存档槽开新游戏）。</summary>
         public bool NewGame;
 
+        /// <summary>
+        /// true 时该 mod 战役期间禁用原版事件：Free 场景位置点击不再触发官方默认故事脚本
+        /// （manifest.campaign.disable_official_events，契约 §2，缺省 false；只有 mod 自己的位置触发器命中）。
+        /// 运行态由 <see cref="ModCampaignState"/> 记录，FreePositionPatch 据此抑制官方脚本。
+        /// </summary>
+        public bool DisableOfficialEvents;
+
         /// <summary>自由模式位置触发器（type="position"）。</summary>
         public readonly List<CampaignTrigger> Triggers = new List<CampaignTrigger>();
     }

@@ -90,7 +90,7 @@ namespace MortalModHost
                 infos.ForEach(Console.WriteLine);
                 Console.WriteLine("--- 坏包/容错警告（预期 4 条） ---");
                 warnings.ForEach(Console.WriteLine);
-                Console.WriteLine("PASS: 2 个好包解析正确（texts.json 含中文/转义文本 + 坏 texts.json 容错），4 个坏包/坏文件警告跳过，注册表查找/冲突处理正确，热键迁移改写正确，campaign 解析/触发器条件（含 when_month/when_stage/when_affinity）正确。");
+                Console.WriteLine("PASS: 2 个好包解析正确（texts.json 含中文/转义文本 + 坏 texts.json 容错），4 个坏包/坏文件警告跳过，注册表查找/冲突处理正确，热键迁移改写正确，campaign 解析/触发器条件（含 when_month/when_stage/when_affinity/disable_official_events）正确。");
                 return 0;
             }
             finally
@@ -106,9 +106,9 @@ namespace MortalModHost
             Directory.CreateDirectory(modsDir);
             try
             {
-                // 好包：new_game + 两个触发器（一个带 when_flag_set + 时间/好感条件，一个带 when_flag_clear）
+                // 好包：new_game + disable_official_events + 两个触发器（一个带 when_flag_set + 时间/好感条件，一个带 when_flag_clear）
                 WriteZip(Path.Combine(modsDir, "campaign_ok.lommod"),
-                    ("manifest.json", "{\"format\":1,\"id\":\"camp\",\"name\":\"战役\",\"version\":\"1.0\",\"entry\":\"main\",\"campaign\":{\"new_game\":true,\"triggers\":[{\"type\":\"position\",\"position\":\"Center\",\"script\":\"train\",\"when_flag_set\":\"F_A\",\"when_month\":4,\"when_stage\":1,\"when_affinity\":{\"character\":\"brother4\",\"min\":3}},{\"type\":\"position\",\"position\":\"Door\",\"script\":\"gate\",\"when_flag_clear\":\"F_B\"}]}}"),
+                    ("manifest.json", "{\"format\":1,\"id\":\"camp\",\"name\":\"战役\",\"version\":\"1.0\",\"entry\":\"main\",\"campaign\":{\"new_game\":true,\"disable_official_events\":true,\"triggers\":[{\"type\":\"position\",\"position\":\"Center\",\"script\":\"train\",\"when_flag_set\":\"F_A\",\"when_month\":4,\"when_stage\":1,\"when_affinity\":{\"character\":\"brother4\",\"min\":3}},{\"type\":\"position\",\"position\":\"Door\",\"script\":\"gate\",\"when_flag_clear\":\"F_B\"}]}}"),
                     ("lua/main.lua", "say(\"m\")"),
                     ("lua/train.lua", "say(\"t\")"),
                     ("lua/gate.lua", "say(\"g\")"));
@@ -128,15 +128,20 @@ namespace MortalModHost
                 WriteZip(Path.Combine(modsDir, "campaign_badbool.lommod"),
                     ("manifest.json", "{\"format\":1,\"id\":\"badbool\",\"entry\":\"main\",\"campaign\":{\"new_game\":\"yes\"}}"),
                     ("lua/main.lua", "say(\"m\")"));
+                // campaign.disable_official_events 非布尔 → 整包拒绝 + 1 警告（契约 §2）
+                WriteZip(Path.Combine(modsDir, "campaign_baddisable.lommod"),
+                    ("manifest.json", "{\"format\":1,\"id\":\"baddisable\",\"entry\":\"main\",\"campaign\":{\"disable_official_events\":\"yes\"}}"),
+                    ("lua/main.lua", "say(\"m\")"));
 
                 var warnings = new List<string>();
                 var mods = ModLoader.ScanMods(modsDir, _ => { }, warnings.Add);
                 Assert(mods.Count == 2, "应加载 2 个包，实际 " + mods.Count + "：" + string.Join(" | ", warnings));
-                Assert(warnings.Count == 4, "应有 4 条警告，实际 " + warnings.Count + "：" + string.Join(" | ", warnings));
+                Assert(warnings.Count == 5, "应有 5 条警告，实际 " + warnings.Count + "：" + string.Join(" | ", warnings));
 
                 var ok = mods[0].Id == "badtrig" ? mods[1] : mods[0];
                 Assert(ok.Id == "camp", "campaign_ok 应加载，实际 " + ok.Id);
                 Assert(ok.Campaign != null && ok.Campaign.NewGame, "new_game 解析错误");
+                Assert(ok.Campaign.DisableOfficialEvents, "disable_official_events 解析错误（应为 true）");
                 Assert(ok.Campaign.Triggers.Count == 2, "应有 2 个触发器，实际 " + ok.Campaign.Triggers.Count);
                 var t0 = ok.Campaign.Triggers[0];
                 Assert(t0.Position == "Center" && t0.Script == "train" && t0.WhenFlagSet == "F_A" && t0.WhenFlagClear == null,
@@ -156,6 +161,7 @@ namespace MortalModHost
                 var badTrig = mods[0].Id == "badtrig" ? mods[0] : mods[1];
                 Assert(badTrig.Campaign != null && badTrig.Campaign.Triggers.Count == 0, "坏触发器应被丢弃");
                 Assert(!badTrig.Campaign.NewGame, "未写 new_game 应为 false");
+                Assert(!badTrig.Campaign.DisableOfficialEvents, "未写 disable_official_events 应为 false");
 
                 // 无 campaign 段的包 → Campaign 为 null（沿用首个目录的 demo_mod 验证过，这里直接测解析容错）
                 var bare = new CampaignTrigger { Position = "Center", Script = "s" };
@@ -175,7 +181,7 @@ namespace MortalModHost
                 Assert(PositionNameMap.ToContractId("無") == null, "無 不应有映射");
                 Assert(PositionNameMap.ToContractId("不存在的") == null && PositionNameMap.ToContractId(null) == null, "未知名应返回 null");
 
-                Console.WriteLine("--- campaign 警告（预期 4 条） ---");
+                Console.WriteLine("--- campaign 警告（预期 5 条） ---");
                 warnings.ForEach(Console.WriteLine);
             }
             finally

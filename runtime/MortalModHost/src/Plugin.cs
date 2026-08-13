@@ -51,6 +51,8 @@ namespace MortalModHost
 
             // 契约 §C：死亡/结局文本覆盖的静态初始态（重复启动时防止残留上次会话的文本）
             ModOverlay.Clear();
+            // 契约 §2：mod 战役运行态同样重置（插件重载后不残留旧战役的禁原版事件状态）
+            ModCampaignState.Clear();
 
             // mods 目录：BepInEx/plugins/MortalModHost/mods/（契约 §6.1）
             string modsDir = Path.Combine(Paths.PluginPath, "MortalModHost", "mods");
@@ -341,6 +343,9 @@ namespace MortalModHost
         /// <summary>
         /// 开始新战役（契约 §6.4）：隔离存档槽 SetSlot("mod_&lt;modid&gt;") → 官方 NewGameData()
         /// （NewGameDataPatch postfix 把首脚本替换为本 mod 入口）→ LoadStory。
+        /// 同时记录 ModCampaignState（该 mod 的 campaign.disable_official_events），战役期间
+        /// Free 场景位置点击的官方默认脚本由 FreePositionPatch 据其抑制；官方开局时由
+        /// NewGameDataPatch 清除。
         /// 等价于 TitleManager.NewGame() 的调用序列（Mortal.Core.decompiled.cs:8377）。
         /// Free 自由场景与 Title 标题画面均可调用（SaveSystem/SceneController 是常驻单例）；
         /// 标题画面直接可开新战役，无需先进自由模式。
@@ -357,6 +362,11 @@ namespace MortalModHost
             string slot = "mod_" + mod.Id;
             Logger.LogInfo("开始新战役：" + mod.Id + "（隔离存档槽 " + slot + "）");
             NewGameDataPatch.PendingCampaign = mod;
+            // 契约 §2：记录 mod 战役运行态——该战役期间 Free 位置点击是否禁用原版事件
+            // 由本 mod 的 disable_official_events 决定（官方开局时 NewGameDataPatch 清除）。
+            ModCampaignState.Enter(mod.Campaign.DisableOfficialEvents);
+            if (mod.Campaign.DisableOfficialEvents)
+                Logger.LogInfo("该战役已声明 disable_official_events：Free 场景位置点击不再触发原版故事脚本（仅 mod 触发器命中）。");
             saves.SetSlot(slot);
             saves.NewGameData();
             scenes.LoadStory();

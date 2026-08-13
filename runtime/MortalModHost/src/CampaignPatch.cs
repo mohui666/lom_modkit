@@ -15,6 +15,9 @@ namespace MortalModHost
     /// 替换为该 mod 的入口注册名，再调一次 <c>SaveGameData()</c> 把修正后的状态重写进隔离槽存档
     /// （官方在 postfix 之前落盘的那份存档里首脚本仍是 ch1_1，不重写会导致读档被拉回官方序章），
     /// 最后清空挂起状态。
+    /// 无 mod 挂起（玩家用官方方式开局）时清除 <see cref="ModCampaignState"/>（契约 §2
+    /// disable_official_events 的清除时机）；mod 战役开局失败（单例未就绪）同样回退为无战役态。
+    /// 注意 LuaManagerPatch 官方脚本分支不重置该状态（战役期间可能穿插官方脚本演出）。
     /// </summary>
     [HarmonyPatch(typeof(SaveSystem), "NewGameData")]
     internal static class NewGameDataPatch
@@ -28,7 +31,13 @@ namespace MortalModHost
         private static void Postfix(SaveSystem __instance)
         {
             ModPackage mod = PendingCampaign;
-            if (mod == null) return;
+            if (mod == null)
+            {
+                // 官方方式开局（无 mod 挂起）：上一场 mod 战役结束，禁用原版事件状态随之清除。
+                // （LuaManagerPatch 官方脚本分支不重置本状态——战役期间可能穿插官方脚本演出。）
+                ModCampaignState.Clear();
+                return;
+            }
             PendingCampaign = null;
             try
             {
@@ -36,6 +45,7 @@ namespace MortalModHost
                 if (stat == null)
                 {
                     Log.LogError("新战役开局失败：PlayerStatManagerData 单例未就绪（mod " + mod.Id + "）");
+                    ModCampaignState.Clear(); // 战役未真正开始，回退为无 mod 战役态（不再抑制原版事件）
                     return;
                 }
                 string registered = mod.GetRegisteredScriptName(mod.Entry);
@@ -82,7 +92,13 @@ namespace MortalModHost
     /// <summary>
     /// Harmony postfix：<c>FreePositionData.GetExecuteScript(float)</c>（契约 §6.5）。
     /// 命中 manifest.triggers（position 匹配 + flag 条件满足）时把返回值替换为 mod 脚本注册名。
-    /// 官方主线/支线优先是官方调用链天然行为：PositionController 只在无任务占用该位置时才走到本方法。
+    /// 官方主线/支线优先是官方调用链天然行为：PositionController 只在无主线/支线任务占用该位置
+    /// 时才走到本方法（主线/支线分支不受下方抑制逻辑影响）。
+    /// mod 战役声明 disable_official_events（<see cref="ModCampaignState"/>）且未命中任何 mod 触发器时，
+    /// 把返回值置 null 抑制官方默认故事脚本。反编译结论（ilspycmd，Mortal.Free.dll）：唯一调用方
+    /// PositionController.OnPositionClick 拿到返回值先 <c>string.IsNullOrEmpty(_scriptName)</c> 判断，
+    /// 空值走 Debug.Log("自由模式：X, 无脚本") 分支——不扣行动点、不 SetStoryScript、不切场景，
+    /// 是安全 no-op（官方 SetConditionFlag 在 GetExecuteScript 之前执行，属位置自身状态刷新，无剧情副作用）。
     /// </summary>
     [HarmonyPatch(typeof(FreePositionData), "GetExecuteScript")]
     internal static class FreePositionPatch
@@ -99,25 +115,38 @@ namespace MortalModHost
             try
             {
                 string positionId = GetPositionId(__instance);
-                if (positionId == null) return;
-
-                List<string> storyKeys = null;
-                PlayerStatManagerData stat = PlayerStatManagerData.Instance;
-                if (stat != null) storyKeys = stat.StoryKeyList;
-
-                foreach (ModPackage mod in Plugin.LoadedMods)
+                if (positionId != null)
                 {
-                    if (mod.Campaign == null) continue;
-                    foreach (CampaignTrigger trigger in mod.Campaign.Triggers)
+                    List<string> storyKeys = null;
+                    PlayerStatManagerData stat = PlayerStatManagerData.Instance;
+                    if (stat != null) storyKeys = stat.StoryKeyList;
+
+                    foreach (ModPackage mod in Plugin.LoadedMods)
                     {
-                        if (!string.Equals(trigger.Position, positionId, StringComparison.Ordinal)) continue;
-                        if (!trigger.IsConditionMet(storyKeys)) continue;
-                        if (!IsTimeAndAffinityMet(trigger)) continue;
-                        string registered = mod.GetRegisteredScriptName(trigger.Script);
-                        __result = registered;
-                        Log.LogInfo("位置触发器命中：" + positionId + " → " + registered);
-                        return; // 先加载的 mod 优先（与注册表冲突策略一致）
+                        if (mod.Campaign == null) continue;
+                        foreach (CampaignTrigger trigger in mod.Campaign.Triggers)
+                        {
+                            if (!string.Equals(trigger.Position, positionId, StringComparison.Ordinal)) continue;
+                            if (!trigger.IsConditionMet(storyKeys)) continue;
+                            if (!IsTimeAndAffinityMet(trigger)) continue;
+                            string registered = mod.GetRegisteredScriptName(trigger.Script);
+                            __result = registered;
+                            Log.LogInfo("位置触发器命中：" + positionId + " → " + registered);
+                            return; // 先加载的 mod 优先（与注册表冲突策略一致）
+                        }
                     }
+                }
+
+                // 契约 §2：mod 战役声明 disable_official_events 且没有任何 mod 触发器命中时，
+                // 抑制该位置的官方默认故事脚本（返回 null）。
+                // 反编译结论（ilspycmd，Mortal.Free.dll PositionController.OnPositionClick）：
+                // 调用方拿到返回值先判 string.IsNullOrEmpty，空值走 Debug.Log 分支——安全 no-op，
+                // 不消耗行动点、不设置剧情脚本、不切场景。
+                if (ModCampaignState.Active && ModCampaignState.DisableOfficialEvents)
+                {
+                    if (!string.IsNullOrEmpty(__result))
+                        Log.LogInfo("战役禁用原版事件：位置 " + (positionId ?? "?") + " 的官方默认脚本已抑制");
+                    __result = null;
                 }
             }
             catch (Exception ex)

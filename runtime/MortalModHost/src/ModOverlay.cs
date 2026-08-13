@@ -11,27 +11,36 @@ namespace MortalModHost
     /// <summary>
     /// mod 死亡/结局文本覆盖（契约 §C）：mod 用自造 id（9+官方id，如 910021）进官方 GameOver/End
     /// 场景时，LibrarySystem 查不到该 id，画面没有文本（死亡没文本、结局黑屏）。编译器在 mod Lua 里
-    /// 发射裸全局调用 mod_set_death_text(text) / mod_set_ending_text(title, desc)，LuaManagerPatch 把
+    /// 发射裸全局调用 mod_set_death_text(title, desc) / mod_set_ending_text(title, desc)，LuaManagerPatch 把
     /// 参数写进本类；随后进入 GameOver/End 场景时，GameOverOverlayPatch / EndGameOverlayPatch 用
     /// Harmony postfix 包一层官方 Start 协程，在官方"查表失败、清空文本"之后、"fade 序列开始之前"
     /// 把 mod 文本写进官方画面组件（Text/描述行 prefab），文本随官方 DOFade 渐显——布局 100% 官方。
+    /// 死亡文本是官方同款"短标题 + 描述行"两段式：标题写官方标题 Text，描述按 \n 拆行注入
+    /// _descContainer——绝不把整段死亡文本塞进大字号标题。
     /// 官方脚本分支演出时 Clear()（官方结局不受影响）；场景切换离开 GameOver/End 时由 Plugin.Update 清除。
     /// </summary>
     internal static class ModOverlay
     {
-        /// <summary>死亡文本（GameOver 画面中央显示）。</summary>
-        internal static string DeathText;
+        /// <summary>死亡短标题（写入官方 GameOver 标题 Text；可空——只有描述时标题栏留空）。</summary>
+        internal static string DeathTitle;
 
-        /// <summary>结局卡片标题（End 画面；GameOver 场景优先于死亡文本显示）。</summary>
+        /// <summary>死亡描述（可多行，中文按官方同款 \n 拆行注入 _descContainer）。</summary>
+        internal static string DeathDesc;
+
+        /// <summary>结局卡片标题（End 画面；GameOver 场景优先于死亡标题显示）。</summary>
         internal static string EndingTitle;
 
         /// <summary>结局卡片描述（可多行，中文按 \n 拆行）。</summary>
         internal static string EndingDesc;
 
-        /// <summary>GameOver 画面是否有 mod 文本可画（结局优先，其次死亡文本）。</summary>
+        /// <summary>GameOver 画面是否有 mod 文本可画（结局优先，其次死亡标题/描述；只有死亡描述也要画）。</summary>
         internal static bool HasGameOverContent
         {
-            get { return !string.IsNullOrEmpty(EndingTitle) || !string.IsNullOrEmpty(DeathText); }
+            get
+            {
+                return !string.IsNullOrEmpty(EndingTitle) || !string.IsNullOrEmpty(EndingDesc)
+                    || !string.IsNullOrEmpty(DeathTitle) || !string.IsNullOrEmpty(DeathDesc);
+            }
         }
 
         /// <summary>End 画面是否有 mod 结局文本可画（只看结局标题）。</summary>
@@ -40,9 +49,15 @@ namespace MortalModHost
             get { return !string.IsNullOrEmpty(EndingTitle); }
         }
 
-        internal static void SetDeathText(string text)
+        /// <summary>
+        /// 死亡文本两段式（契约 §C）：title 短标题、desc 多行描述。
+        /// 单参调用兼容（老编译器/老 mod 包）：title 留空、参数当 desc——标题栏保持官方清空态，
+        /// 不会把整段文本塞进大字号标题。
+        /// </summary>
+        internal static void SetDeathText(string title, string desc)
         {
-            DeathText = string.IsNullOrEmpty(text) ? null : text;
+            DeathTitle = string.IsNullOrEmpty(title) ? null : title;
+            DeathDesc = string.IsNullOrEmpty(desc) ? null : desc;
         }
 
         internal static void SetEnding(string title, string desc)
@@ -53,7 +68,8 @@ namespace MortalModHost
 
         internal static void Clear()
         {
-            DeathText = null;
+            DeathTitle = null;
+            DeathDesc = null;
             EndingTitle = null;
             EndingDesc = null;
         }
@@ -141,6 +157,8 @@ namespace MortalModHost
         /// 把 mod 文本写进官方组件：标题写 _titleText 与 _horizontalTitleText（官方两条路都设）；
         /// 描述按官方同款方式 Instantiate(_descTextPrefab) 到容器（与官方一致按 IsChineseLanguage
         /// 二选一：中文纵向容器拆 \n 多行，非中文横排容器整段一行）。
+        /// 优先级（契约 §C 两段式）：标题 = 结局 title &gt; 死亡 title（都空则标题栏留空）；
+        /// 描述 = 结局 desc &gt; 死亡 desc；死亡只有 desc 时只显示描述行，不塞标题。
         /// </summary>
         private static void ApplyGameOverText(GameOverController controller)
         {
@@ -153,14 +171,17 @@ namespace MortalModHost
                 CanvasGroup descContainer = traverse.Field("_descContainer").GetValue<CanvasGroup>();
                 CanvasGroup horizontalDescContainer = traverse.Field("_horizontalDescContainer").GetValue<CanvasGroup>();
 
-                // GameOver 优先级：结局 title/desc &gt; 死亡文本当标题（契约 §C）
+                // GameOver 优先级（契约 §C 两段式）：标题 = 结局 title > 死亡 title；描述 = 结局 desc > 死亡 desc。
+                // 死亡只有 desc 时标题留空只显示描述行（避免整段塞标题）。
                 string titleText = !string.IsNullOrEmpty(ModOverlay.EndingTitle)
                     ? ModOverlay.EndingTitle
-                    : ModOverlay.DeathText;
-                if (title != null) title.text = titleText;
-                if (horizontalTitle != null) horizontalTitle.text = titleText;
+                    : ModOverlay.DeathTitle;
+                if (title != null) title.text = titleText ?? "";
+                if (horizontalTitle != null) horizontalTitle.text = titleText ?? "";
 
-                string desc = ModOverlay.EndingDesc;
+                string desc = !string.IsNullOrEmpty(ModOverlay.EndingDesc)
+                    ? ModOverlay.EndingDesc
+                    : ModOverlay.DeathDesc;
                 if (string.IsNullOrEmpty(desc) || prefab == null) return;
                 if (SystemSettings.IsChineseLanguage)
                 {

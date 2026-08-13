@@ -86,7 +86,8 @@ namespace MortalModHost
         /// mod_hide_mood()：即时隐藏全部圆形情绪面板（实现收敛在 MoodControl.HideAllMoodPanels）。
         /// mod_set_mood(bool)：把心情气泡硬控状态写入 MoodControl.Disabled = !value；
         /// 缺参按 false（禁用气泡）；非布尔参数按契约同样视为缺省 false。
-        /// mod_set_death_text(text)：死亡文本覆盖（ModOverlay，GameOver 画面中央显示）。
+        /// mod_set_death_text(title, desc)：死亡文本两段式覆盖（ModOverlay，短标题 + 多行描述，
+        /// GameOver 画面官方同款布局显示）；单参调用按旧契约当 desc、title 留空（标题栏保持官方清空态）。
         /// mod_set_ending_text(title, desc)：结局卡片覆盖（ModOverlay，End 画面显示）。
         /// </summary>
         private static void RegisterModGlobals(LuaEnvironment env)
@@ -118,17 +119,29 @@ namespace MortalModHost
                     MoodControl.Disabled = !show;
                     return DynValue.Nil;
                 }, "mod_set_mood");
-                // 契约 §C：死亡文本（1 参，GameOver 画面中央显示）
+                // 契约 §C：死亡文本（2 参：短标题 + 多行描述，GameOver 画面两段式显示）。
+                // 单参调用兼容（旧编译器/老 mod 包）：参数当描述、标题留空。
                 script.Globals["mod_set_death_text"] = new CallbackFunction((ctx, args) =>
                 {
                     try
                     {
-                        ModOverlay.SetDeathText(args.Count > 0 ? args[0].CastToString() : "");
+                        string title = "";
+                        string desc = "";
+                        if (args.Count == 1)
+                        {
+                            desc = args[0].CastToString();
+                        }
+                        else if (args.Count >= 2)
+                        {
+                            title = args[0].CastToString();
+                            desc = args[1].CastToString();
+                        }
+                        ModOverlay.SetDeathText(title, desc);
                     }
                     catch (Exception ex)
                     {
                         Log.LogWarning("mod_set_death_text 参数转换失败（按空文本处理）：" + ex.Message);
-                        ModOverlay.SetDeathText("");
+                        ModOverlay.SetDeathText("", "");
                     }
                     return DynValue.Nil;
                 }, "mod_set_death_text");

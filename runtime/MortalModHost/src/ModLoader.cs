@@ -156,6 +156,16 @@ namespace MortalModHost
                 campaign.NewGame = (bool)newGameObj;
             }
 
+            // 契约 §2：disable_official_events（可选布尔，缺省 false）：该 mod 战役期间 Free 场景
+            // 位置点击不再触发官方默认故事脚本，只允许 mod 自己的位置触发器命中。
+            object disableObj;
+            if (dict.TryGetValue("disable_official_events", out disableObj) && disableObj != null)
+            {
+                if (!(disableObj is bool))
+                    throw new FormatException("manifest.campaign.disable_official_events 必须是布尔值");
+                campaign.DisableOfficialEvents = (bool)disableObj;
+            }
+
             object triggersObj;
             if (dict.TryGetValue("triggers", out triggersObj) && triggersObj != null)
             {
