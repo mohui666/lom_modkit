@@ -16,6 +16,7 @@ import json
 import traceback
 from collections import OrderedDict
 from datetime import datetime
+from math import floor
 from pathlib import Path
 
 from PySide6.QtCore import QRect, QRectF, Qt, Signal
@@ -119,7 +120,7 @@ def _hint_text(node: dict, ed: dict) -> str | None:
 
     返回 None 表示该类型有真实的舞台呈现（show/move/face/hide/scene/say/choice）。
     """
-    t = node.get("type")
+    t = str(node.get("type") or "")
     if t in ("show", "move", "face", "hide", "scene", "say", "choice"):
         return None
 
@@ -449,9 +450,9 @@ class StagePreview(QWidget):
     def _stage_rect(self) -> QRect:
         """控件内居中的 16:9 舞台区。"""
         w, h = self.width(), self.height()
-        tw, th = w, int(w * 9 / 16)
+        tw, th = w, floor(w * 9 / 16)
         if th > h:
-            th, tw = h, int(h * 16 / 9)
+            th, tw = h, floor(h * 16 / 9)
         return QRect((w - tw) // 2, (h - th) // 2, max(0, tw), max(0, th))
 
     def paintEvent(self, _event) -> None:  # noqa: N802（Qt 命名）
@@ -520,8 +521,8 @@ class StagePreview(QWidget):
         actors = self._state.get("actors", {})
         if not actors:
             return
-        baseline = rect.bottom() - int(rect.height() * 0.02)  # 底部基准线
-        h = int(rect.height() * 0.78)  # 立绘高度
+        baseline = rect.bottom() - floor(rect.height() * 0.02)  # 底部基准线
+        h = floor(rect.height() * 0.78)  # 立绘高度
         # 按 x 排序，左边先画，避免右侧人物被左压
         ordered = sorted(actors.items(),
                          key=lambda kv: position_x(kv[1].get("position", ""))[0])
@@ -531,7 +532,7 @@ class StagePreview(QWidget):
             frac, known = position_x(pos)
             if not known:
                 unknown.append(pos or "（空）")
-            cx = rect.x() + int(rect.width() * frac)
+            cx = rect.x() + floor(rect.width() * frac)
             facing = info.get("facing", "right")
             portrait = info.get("portrait", "normal")
             pix = self._load_pixmap(self._portrait_path(cid, portrait))
@@ -555,7 +556,7 @@ class StagePreview(QWidget):
 
     def _paint_actor_placeholder(self, p: QPainter, cx: int, baseline: int,
                                  h: int, cid: str, portrait: str) -> None:
-        w = int(h * 0.45)
+        w = floor(h * 0.45)
         box = QRect(cx - w // 2, baseline - h, w, h)
         p.fillRect(box, PLACEHOLDER_BG)
         p.setPen(QPen(PLACEHOLDER_EDGE, 2))
@@ -578,7 +579,7 @@ class StagePreview(QWidget):
 
         # center 模式：居中旁白，舞台中部横带、无说话者
         if mode == "center":
-            band_h = int(rect.height() * 0.22)
+            band_h = floor(rect.height() * 0.22)
             band = QRect(rect.x(), rect.y() + (rect.height() - band_h) // 2,
                          rect.width(), band_h)
             p.fillRect(band, QColor(0, 0, 0, 150))
@@ -591,10 +592,10 @@ class StagePreview(QWidget):
                        dialog.get("text", ""))
             return
 
-        bar_h = int(rect.height() * 0.24)
+        bar_h = floor(rect.height() * 0.24)
         bar = QRect(rect.x(), rect.bottom() - bar_h, rect.width(), bar_h)
         p.fillRect(bar, DIALOG_BG)
-        pad = int(bar_h * 0.16)
+        pad = floor(bar_h * 0.16)
         inner = bar.adjusted(pad, pad, -pad, -pad)
 
         cid = dialog.get("character") or ""
@@ -605,7 +606,7 @@ class StagePreview(QWidget):
             if mode == "think":
                 speaker += "（内心）"
 
-        name_h = int(inner.height() * 0.34)
+        name_h = floor(inner.height() * 0.34)
         name_font = QFont(self.font())
         name_font.setPointSizeF(max(9.0, bar_h * 0.20))
         name_font.setBold(True)
@@ -629,7 +630,7 @@ class StagePreview(QWidget):
         hint = self._state.get("hint")
         if not hint or self._state.get("dialog"):
             return
-        bar_h = max(24, int(rect.height() * 0.10))
+        bar_h = max(24, floor(rect.height() * 0.10))
         bar = QRect(rect.x(), rect.bottom() - bar_h, rect.width(), bar_h)
         p.fillRect(bar, QColor(0, 0, 0, 140))
         font = QFont(self.font())
@@ -644,11 +645,11 @@ class StagePreview(QWidget):
         choice = self._state.get("choice")
         if not choice:
             return
-        btn_w = int(rect.width() * 0.56)
-        btn_h = max(26, int(rect.height() * 0.085))
-        gap = int(btn_h * 0.3)
+        btn_w = floor(rect.width() * 0.56)
+        btn_h = max(26, floor(rect.height() * 0.085))
+        gap = floor(btn_h * 0.3)
         total = len(choice) * btn_h + (len(choice) - 1) * gap
-        y = rect.bottom() - int(rect.height() * 0.06) - total
+        y = rect.bottom() - floor(rect.height() * 0.06) - total
         font = QFont(self.font())
         font.setPointSizeF(max(9.0, btn_h * 0.32))
         p.setFont(font)

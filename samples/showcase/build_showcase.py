@@ -148,8 +148,16 @@ def build_main(ed: dict) -> dict:
     node("show", {"character": "brother4", "position": "R1", "portrait": "normal"})
     say("赵师弟，冷静。那个声音——我也能听见它。", "brother4")
     say("四师兄你也能听见？！这到底是怎么回事！", "player", portrait="nervous1")
-    say("哈哈，我们被一个叫「编剧」的家伙抓来，演出这出《全功能展示》了。", "brother4", portrait="laugh1")
-    say("编剧……所以刚才的旁白、音乐、场景，全是他的手笔？", "player", portrait="nervous2")
+    say(
+        "哈哈，我们被一个叫「编剧」的家伙抓来，演出这出《全功能展示》了。",
+        "brother4",
+        portrait="laugh1",
+    )
+    say(
+        "编剧……所以刚才的旁白、音乐、场景，全是他的手笔？",
+        "player",
+        portrait="nervous2",
+    )
     say("没错。他说这出戏里藏着三十九种节点，一样都不能少。", "brother4")
     node("move", {"character": "player", "from": "M", "to": "L2", "duration": 1.2})
     node("face", {"character": "brother4", "facing": "left"})
@@ -160,9 +168,16 @@ def build_main(ed: dict) -> dict:
     node("offset", {"character": "player", "x": 20, "y": -10, "duration": 0.4})
     say("我、我被弹飞了？！", "player", portrait="suck1")
     node("effect", {"name": "Hit_001", "x": 10, "y": -5})
-    say("【旁白】shock 震动、offset 位移、effect 特效——三连击。赵活，撑住。", mode="narrative")
+    say(
+        "【旁白】shock 震动、offset 位移、effect 特效——三连击。赵活，撑住。",
+        mode="narrative",
+    )
     node("camera", {"name": "stage-memory", "active": True})
-    say("（think·内心独白）这回忆滤镜……我好像看见了自己被编剧反复改稿的人生走马灯。", "player", mode="think")
+    say(
+        "（think·内心独白）这回忆滤镜……我好像看见了自己被编剧反复改稿的人生走马灯。",
+        "player",
+        mode="think",
+    )
     node("camera", {"name": "stage-memory", "active": False})
 
     # --- transition in/out 成对 + 第二场景 ---
@@ -179,7 +194,11 @@ def build_main(ed: dict) -> dict:
     node("sound", {"name": "鳥_001", "kind": "env", "op": "fadeout", "seconds": 1})
     node("block", {"flowchart": "common", "name": "flash"})
     node("block", {"flowchart": "common", "name": "shake"})
-    say("白屏、地震！flowchart 通用块 flash 和 shake，一次看够！", "player", portrait="shock")
+    say(
+        "白屏、地震！flowchart 通用块 flash 和 shake，一次看够！",
+        "player",
+        portrait="shock",
+    )
     node("cg", {"action": "show", "kind": "title", "key": "P_Back_01"})
     say("【居中旁白】大标题字卡——「後山」二字高悬。", mode="center")
     say("【旁白】接下来请欣赏：人物介绍卡。", mode="narrative")
@@ -191,7 +210,11 @@ def build_main(ed: dict) -> dict:
     node("hide", {"character": "brother4", "fadeDuration": 0.5})
     say("四师兄消失了。编剧的 hide 节点来无影去无踪。", "player")
     node("show", {"character": "brother4", "position": "L1", "portrait": "laugh1"})
-    say("我又回来了！看我的笑脸——show 节点直接加载表情差分。", "brother4", portrait="laugh1")
+    say(
+        "我又回来了！看我的笑脸——show 节点直接加载表情差分。",
+        "brother4",
+        portrait="laugh1",
+    )
     node("show", {"character": "trainee1", "position": "R1", "portrait": "normal"})
     say("那个……我是被编剧临时拉来凑数演示的师弟。", "trainee1")
     say("好家伙，连路人都是编制内的。", "player")
@@ -256,9 +279,7 @@ def build_main(ed: dict) -> dict:
         portrait="nervous1",
         after=s_gf_say,
     )
-    bg2 = say(
-        "branch（source=game）读到 == 2。", "player", after=s_gf_say
-    )
+    bg2 = say("branch（source=game）读到 == 2。", "player", after=s_gf_say)
     bg1 = say(
         "branch（source=game）读到官方检查点 Ch_1_1_1_001 == 1。",
         "player",
@@ -297,7 +318,11 @@ def build_main(ed: dict) -> dict:
     node("music", {"name": "快樂_001", "op": "stop"})
     say("立刻 stop——戛然而止。play、fadeout、stop 三变体齐活。", "player")
     node("hide", {"character": "trainee1", "fadeDuration": 0.4})
-    say("铺垫完毕！赵师弟，敢不敢掷骰子？三带检定——大成功、成功、失败，三个结局。", "brother4", portrait="laugh1")
+    say(
+        "铺垫完毕！赵师弟，敢不敢掷骰子？三带检定——大成功、成功、失败，三个结局。",
+        "brother4",
+        portrait="laugh1",
+    )
     s_last = say(
         "掷！……等等，这骰子怎么是官方检查点 Ch_1_1_1_001？编剧你盗用主线骰子！",
         "player",
@@ -307,11 +332,21 @@ def build_main(ed: dict) -> dict:
     # 目标顺序：[s_last, raw, choice, dice3, big, end2, suc, end1, fail, gv, gsfree]
     gs_free = node("goto_scene", {"scene": "Free"}, after=s_last)
     gv = say("认输保平安。赵活退出赌局，深藏功与名。", "player", after=s_last)
-    fail = say("【失败】骰面丢人。四师兄笑到打鸣。", "player", portrait="nervous3", after=s_last)
+    fail = say(
+        "【失败】骰面丢人。四师兄笑到打鸣。",
+        "player",
+        portrait="nervous3",
+        after=s_last,
+    )
     end1 = node("end", {}, after=s_last)
     suc = say("【成功】骰面中规中矩。四师兄，你欠我二两银子。", "player", after=s_last)
     end2 = node("end", {"next_script": "second"}, after=s_last)
-    big = say("【大成功】骰面六十往上！四师兄，把你炼丹房的丹炉输给我！", "player", portrait="laugh1", after=s_last)
+    big = say(
+        "【大成功】骰面六十往上！四师兄，把你炼丹房的丹炉输给我！",
+        "player",
+        portrait="laugh1",
+        after=s_last,
+    )
     d3 = story_api.add_dice(
         st,
         DICE_3BAND,
@@ -330,7 +365,9 @@ def build_main(ed: dict) -> dict:
     )
     node(
         "raw",
-        {"code": "-- [raw 逃逸口演示] 原生 Lua 原样插入编译产物（本行仅为注释，任何官方机制都能在这里直接写）"},
+        {
+            "code": "-- [raw 逃逸口演示] 原生 Lua 原样插入编译产物（本行仅为注释，任何官方机制都能在这里直接写）"
+        },
         after=s_last,
     )
     story_api.update_node(st, big, {"goto": end2})
@@ -379,15 +416,22 @@ def build_second(ed: dict) -> dict:
         st,
         "【自定义死亡文本】检定失败，赵活自己跳了下去。\n"
         "（第二幕完：next=Free 回自由模式。重玩时已读文本会变黄、可快进。）",
+        death_id="910021",  # mod 专属 id（9+官方 10021 乱战中被践踏而死）
         next="Free",
         after=s_last,
     )["id"]
-    fail2 = say("【失败】手一抖，骰子掉下悬崖……人也跟着下去了。", "player", portrait="suck2", after=s_last)
+    fail2 = say(
+        "【失败】手一抖，骰子掉下悬崖……人也跟着下去了。",
+        "player",
+        portrait="suck2",
+        after=s_last,
+    )
     death_suc = story_api.add_death(
         st,
         "【自定义死亡文本】你赢了骰子，却输给了剧本。\n"
         "脚下一滑，赵活坠入万丈深渊。\n"
-        "（死亡文本节点：黑屏 + 居中旁白 + 已读系统联动，回标题画面）",
+        "（死亡文本节点：黑屏 + 居中旁白 + 官方 GameOver 死亡画面，回标题画面）",
+        death_id="910021",  # mod 专属 id（9+官方 10021 乱战中被践踏而死）
         next="Title",
         after=s_last,
     )["id"]
@@ -413,30 +457,51 @@ def build_second(ed: dict) -> dict:
 # ---------------------------------------------------------------------------
 # 自查
 # ---------------------------------------------------------------------------
-def validate_dice_check(ed: dict, raw: dict[str, str], check_id: str, expect_bands: int) -> None:
+def validate_dice_check(
+    ed: dict, raw: dict[str, str], check_id: str, expect_bands: int
+) -> None:
     """硬性规则 2：骰子检查点必须在 dice_meta 中、非旅行检查点、调用点文件安全。"""
     meta = ed.get("dice_meta") or {}
-    check(check_id in meta, "骰子检查点 %s 在 editor_data.dice_meta 中（缺元数据会致骰子菜单 NRE）" % check_id)
-    check(not check_id.startswith("Travel_"), "骰子检查点 %s 不是 Travel_* 旅行检查点" % check_id)
+    check(
+        check_id in meta,
+        "骰子检查点 %s 在 editor_data.dice_meta 中（缺元数据会致骰子菜单 NRE）"
+        % check_id,
+    )
+    check(
+        not check_id.startswith("Travel_"),
+        "骰子检查点 %s 不是 Travel_* 旅行检查点" % check_id,
+    )
     bands = (meta.get(check_id) or {}).get("bands") or []
-    check(len(bands) == expect_bands, "骰子检查点 %s 结果带数 = %d（预期 %d）" % (check_id, len(bands), expect_bands))
+    check(
+        len(bands) == expect_bands,
+        "骰子检查点 %s 结果带数 = %d（预期 %d）" % (check_id, len(bands), expect_bands),
+    )
     # 官方调用点文件（checkpointmanager.Dice("check" ...)）
     callers = [
-        f for f, c in raw.items()
-        if 'checkpointmanager.Dice("%s"' % check_id in c
+        f for f, c in raw.items() if 'checkpointmanager.Dice("%s"' % check_id in c
     ]
-    check(bool(callers), "骰子检查点 %s 在官方脚本中有调用点：%s" % (check_id, ", ".join(callers)))
+    check(
+        bool(callers),
+        "骰子检查点 %s 在官方脚本中有调用点：%s" % (check_id, ", ".join(callers)),
+    )
     for cf in callers:
         stem = cf[: -len(".lua.txt")]
         is_travel = "travel" in stem.lower()
         check(not is_travel, "调用点文件 %s 不是旅行脚本（travel_*/*_travel*）" % cf)
         refs = [
-            f for f, c in raw.items()
+            f
+            for f, c in raw.items()
             if re.search(
-                r'Set(?:Temp|CurrentTravel)Script\([^)]*"%s(_travel)?"' % re.escape(stem), c
+                r'Set(?:Temp|CurrentTravel)Script\([^)]*"%s(_travel)?"'
+                % re.escape(stem),
+                c,
             )
         ]
-        check(not refs, "调用点文件 %s 未被 SetCurrentTravelScript/SetTempScript 引用（引用自 %s）" % (cf, ", ".join(refs) or "无"))
+        check(
+            not refs,
+            "调用点文件 %s 未被 SetCurrentTravelScript/SetTempScript 引用（引用自 %s）"
+            % (cf, ", ".join(refs) or "无"),
+        )
 
 
 def validate_catalog(ed: dict, stories: list[dict]) -> None:
@@ -460,10 +525,17 @@ def validate_catalog(ed: dict, stories: list[dict]) -> None:
     def char_ok(n, story_id):
         c = n["character"]
         if c not in chars:
-            return 'story=%s 节点 %s: 人物 "%s" 不在 editor_data.characters' % (story_id, n["id"], c)
+            return 'story=%s 节点 %s: 人物 "%s" 不在 editor_data.characters' % (
+                story_id,
+                n["id"],
+                c,
+            )
         used_chars.add(c)
         if c not in ("player", "brother4", "trainee1"):
-            return "story=%s 节点 %s: 人物 \"%s\" 超出建议范围（player/brother4/trainee1）" % (story_id, n["id"], c)
+            return (
+                'story=%s 节点 %s: 人物 "%s" 超出建议范围（player/brother4/trainee1）'
+                % (story_id, n["id"], c)
+            )
         return None
 
     bad = []
@@ -486,7 +558,10 @@ def validate_catalog(ed: dict, stories: list[dict]) -> None:
                 if not err and n["position"] not in positions:
                     err = "站位 %s 不在 editor_data.positions" % n["position"]
                 if not err and n.get("portrait") not in chars[n["character"]]:
-                    err = '表情 "%s" 不是人物 %s 拥有的立绘差分' % (n.get("portrait"), n["character"])
+                    err = '表情 "%s" 不是人物 %s 拥有的立绘差分' % (
+                        n.get("portrait"),
+                        n["character"],
+                    )
             elif t == "move":
                 err = char_ok(n, sid)
                 if not err and (n["from"] not in positions or n["to"] not in positions):
@@ -498,14 +573,20 @@ def validate_catalog(ed: dict, stories: list[dict]) -> None:
                     err = char_ok(n, sid)
                 char = n.get("character")
                 if not err and char and n.get("portrait") not in chars[char]:
-                    err = '表情 "%s" 不是人物 %s 拥有的立绘差分' % (n.get("portrait"), char)
+                    err = '表情 "%s" 不是人物 %s 拥有的立绘差分' % (
+                        n.get("portrait"),
+                        char,
+                    )
             elif t in ("stat", "stat_set"):
                 if n["key"] not in stats:
                     err = "属性 %s 不在 editor_data.stats" % n["key"]
             elif t == "affinity":
                 err = char_ok(n, sid)
                 if not err and n["character"] not in affinity_chars:
-                    err = "好感度人物 %s 不在 editor_data.affinity_characters" % n["character"]
+                    err = (
+                        "好感度人物 %s 不在 editor_data.affinity_characters"
+                        % n["character"]
+                    )
             elif t == "talent":
                 if n["talent"] not in talents:
                     err = "天赋 %s 不在 editor_data.talents" % n["talent"]
@@ -514,7 +595,10 @@ def validate_catalog(ed: dict, stories: list[dict]) -> None:
                     err = "物品 %s 不在 editor_data.items_%s" % (n["item"], n["kind"])
             elif t == "game_flag":
                 if n["flag"] not in game_flags:
-                    err = "官方 flag %s 不在 editor_data.game_flags（游戏会静默忽略）" % n["flag"]
+                    err = (
+                        "官方 flag %s 不在 editor_data.game_flags（游戏会静默忽略）"
+                        % n["flag"]
+                    )
             elif t == "choice":
                 if n.get("dialog") != "Options":
                     err = "choice 皮肤必须是 Options（其它皮肤是自由场景 break 菜单，会崩）"
@@ -523,7 +607,9 @@ def validate_catalog(ed: dict, stories: list[dict]) -> None:
     for b in bad:
         check(False, b)
     if not bad:
-        print("[通过] 清单校验：全部 music/effect/view/position/character/portrait/stat/talent/item/game_flag 均取自 editor_data.json")
+        print(
+            "[通过] 清单校验：全部 music/effect/view/position/character/portrait/stat/talent/item/game_flag 均取自 editor_data.json"
+        )
         print("[通过] 人物只使用：%s" % "、".join(sorted(used_chars)))
 
 
@@ -540,28 +626,41 @@ def validate_structure(ed: dict, raw: dict[str, str], stories: list[dict]) -> No
                 if n["phase"] == "in":
                     lifted = any(
                         m.get("type") == "transition" and m.get("phase") == "out"
-                        for m in nodes[i + 1:]
+                        for m in nodes[i + 1 :]
                     )
-                    check(lifted, "story=%s 节点 %s(transition in) 之后有成对 out（否则黑幕盖满全场）" % (sid, n["id"]))
+                    check(
+                        lifted,
+                        "story=%s 节点 %s(transition in) 之后有成对 out（否则黑幕盖满全场）"
+                        % (sid, n["id"]),
+                    )
                 else:
                     covered = any(
                         m.get("type") == "transition" and m.get("phase") == "in"
                         for m in nodes[:i]
                     )
-                    check(covered, "story=%s 节点 %s(transition out) 之前有成对 in" % (sid, n["id"]))
+                    check(
+                        covered,
+                        "story=%s 节点 %s(transition out) 之前有成对 in"
+                        % (sid, n["id"]),
+                    )
         last = nodes[-1]
         check(
-            last["type"] in ("end", "death", "goto_scene", "raw", "choice", "branch", "dice"),
+            last["type"]
+            in ("end", "death", "goto_scene", "raw", "choice", "branch", "dice"),
             "story=%s 末节点 %s(%s) 是合法收尾类型" % (sid, last["id"], last["type"]),
         )
-        check("mood" not in story, "story=%s 顶层未设 mood（默认 false=隐藏心情气泡）" % sid)
+        check(
+            "mood" not in story,
+            "story=%s 顶层未设 mood（默认 false=隐藏心情气泡）" % sid,
+        )
         # choice 的每个 goto 都指向真实节点
         for n in nodes:
             if n["type"] == "choice":
                 for o in n["options"]:
                     check(
                         any(m["id"] == o["goto"] for m in nodes),
-                        "story=%s choice 节点 %s 的 goto=%s 指向真实节点" % (sid, n["id"], o["goto"]),
+                        "story=%s choice 节点 %s 的 goto=%s 指向真实节点"
+                        % (sid, n["id"], o["goto"]),
                     )
     # 39 种节点全覆盖（models.NODE_TYPES 即契约全量）
     missing = [t for t in story_api.models.NODE_TYPES if t not in all_types]
@@ -574,7 +673,10 @@ def validate_structure(ed: dict, raw: dict[str, str], stories: list[dict]) -> No
     switch_names: set[str] = set()
     for c in raw.values():
         switch_names.update(re.findall(r'checkpointmanager\.Switch\("([^"]+)"\)', c))
-    check(SWITCH_GAME in switch_names, "branch source=game 的 Switch 名 %s 来自官方脚本实证" % SWITCH_GAME)
+    check(
+        SWITCH_GAME in switch_names,
+        "branch source=game 的 Switch 名 %s 来自官方脚本实证" % SWITCH_GAME,
+    )
 
 
 def validate_reachability(stories: list[dict]) -> None:
@@ -596,7 +698,10 @@ def validate_reachability(stories: list[dict]) -> None:
             elif t == "branch":
                 tgt += [c["goto"] for c in n["cases"]]
                 src = n.get("source", "mod")
-                need_fallback = src == "game" or {c["value"] for c in n["cases"]} != {1, 2}
+                need_fallback = src == "game" or {c["value"] for c in n["cases"]} != {
+                    1,
+                    2,
+                }
                 if need_fallback and i + 1 < len(nodes):
                     tgt.append(nodes[i + 1]["id"])  # else 兜底
             else:
@@ -614,7 +719,16 @@ def validate_reachability(stories: list[dict]) -> None:
                     stack.append(nxt)
         unreachable = [n["id"] for n in nodes if n["id"] not in seen]
         total = len(nodes)
-        check(not unreachable, "story=%s 可达性 %d/%d（100%%；不可达：%s）" % (story["id"], total - len(unreachable), total, ", ".join(unreachable) or "无"))
+        check(
+            not unreachable,
+            "story=%s 可达性 %d/%d（100%%；不可达：%s）"
+            % (
+                story["id"],
+                total - len(unreachable),
+                total,
+                ", ".join(unreachable) or "无",
+            ),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -633,7 +747,10 @@ def main() -> int:
     main_story = build_main(ed)
     second_story = build_second(ed)
     stories = [main_story, second_story]
-    print("[信息] main：%d 个节点；second：%d 个节点" % (len(main_story["nodes"]), len(second_story["nodes"])))
+    print(
+        "[信息] main：%d 个节点；second：%d 个节点"
+        % (len(main_story["nodes"]), len(second_story["nodes"]))
+    )
 
     print("\n--- 2/5 清单校验（规则 4/7） ---")
     validate_catalog(ed, stories)
@@ -653,14 +770,25 @@ def main() -> int:
             if n["type"] in ("say", "death"):
                 say_death_count += 1
         errors, warnings = story_api.check_story(story)
-        check(not errors, "story=%s check_story 无错误（%s）" % (story["id"], "; ".join(errors) or "0 条"))
+        check(
+            not errors,
+            "story=%s check_story 无错误（%s）"
+            % (story["id"], "; ".join(errors) or "0 条"),
+        )
         for w in warnings:
             check(False, "story=%s 编译警告不应出现：%s" % (story["id"], w))
         lua, cerrs, cwarns = story_api.compile_story(story)
-        check(lua is not None and not cerrs, "story=%s compile_story 成功（%s）" % (story["id"], "; ".join(cerrs) or "0 条"))
+        check(
+            lua is not None and not cerrs,
+            "story=%s compile_story 成功（%s）"
+            % (story["id"], "; ".join(cerrs) or "0 条"),
+        )
         for w in cwarns:
             check(False, "story=%s 编译警告不应出现：%s" % (story["id"], w))
-    print("[信息] say+death 节点共 %d 个 → 打包后 texts.json 应恰好 %d 条" % (say_death_count, say_death_count))
+    print(
+        "[信息] say+death 节点共 %d 个 → 打包后 texts.json 应恰好 %d 条"
+        % (say_death_count, say_death_count)
+    )
 
     print("\n--- 写出产物 ---")
     if ERRORS:
@@ -677,7 +805,9 @@ def main() -> int:
         print("[写出] %s" % (STORY_DIR / ("%s.json" % story["id"])))
     print("[写出] %s" % (SHOWCASE_DIR / "manifest.json"))
     print("\n构建成功：全部自查通过（39 种节点、骰子检查点、可达性 100%）。")
-    print("下一步：PYTHONPATH=compiler python -m lomc pack samples/showcase -o samples/showcase.lommod")
+    print(
+        "下一步：PYTHONPATH=compiler python -m lomc pack samples/showcase -o samples/showcase.lommod"
+    )
     return 0
 
 

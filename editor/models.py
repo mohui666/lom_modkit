@@ -322,7 +322,7 @@ NODE_SCHEMAS: dict[str, dict] = {
             ("a", "参数 a", "float", True),
             ("b", "参数 b", "float", True),
             ("c", "参数 c", "float", True),
-            ("d", "参数 d", "float", True),
+            ("play", "停止特效", "bool", True),
         ],
     },
     "transition": {
@@ -499,6 +499,7 @@ NODE_SCHEMAS: dict[str, dict] = {
         "label": "死亡文本",
         "fields": [
             ("text", "文本", "multiline", False),
+            ("death_id", "死亡画面id", "death_id", False),
             ("next", "结束后去向", "enum:death_next", True),
         ],
     },
@@ -536,7 +537,7 @@ _NODE_DEFAULTS: dict[str, dict] = {
     "shock": {"character": "", "duration": 0.5},
     "mask": {"show": True},
     "intro": {"character": ""},
-    "effect": {"name": "", "x": 0, "y": 0, "a": 1, "b": 1, "c": 1, "d": 1},
+    "effect": {"name": "", "x": 0, "y": 0, "a": 1, "b": 1, "c": 1, "play": True},
     "transition": {"phase": "in", "dir": "lr"},
     "camera": {"name": "stage-memory", "active": True},
     "block": {"flowchart": "common", "name": "", "vars": []},
@@ -568,7 +569,7 @@ _NODE_DEFAULTS: dict[str, dict] = {
     "panel": {"panel": "martial"},
     "wait": {"seconds": 1},
     "end": {},
-    "death": {"text": "", "next": "Title"},
+    "death": {"text": "", "death_id": "900001", "next": "Title"},
     "raw": {"code": "-- 原生 Lua 代码，原样插入编译产物\n"},
 }
 
@@ -615,6 +616,7 @@ FALLBACK_EDITOR_DATA: dict = {
     "dice_meta": {},
     "combat_ids": [],
     "battle_ids": [],
+    "death_ids": [],
     "ending_ids": [],
     "game_flags": [],
     "talents": [],
@@ -867,7 +869,8 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
     if t == "intro":
         return f"{tcn}·{cname()}"
     if t == "effect":
-        return f"{tcn}·{node.get('name', '')}"
+        name = node.get("name", "")
+        return f"{tcn}·{name}" + ("（停止）" if node.get("play") == False else "")
     if t == "transition":
         return (
             f"{tcn}·{enum_label('transition_phase', node.get('phase', 'in'))}"
@@ -938,7 +941,10 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
         nxt = node.get("next_script")
         return f"{tcn}→{nxt}" if nxt else f"{tcn}·结束"
     if t == "death":
-        return f"{tcn}·{_short(node.get('text', ''))} → {node.get('next', 'Title')}"
+        return (
+            f"{tcn}·{_short(node.get('text', ''))} → GameOver("
+            f"{node.get('death_id', '')})/{node.get('next', 'Title')}"
+        )
     if t == "raw":
         first = (node.get("code") or "").strip().splitlines()
         return f"{tcn}·{_short(first[0] if first else '')}"

@@ -113,6 +113,12 @@
       "text": "你闭上眼，试着在脑中还原昨夜的现场——"
     },
     {
+      "id": "c16b",
+      "type": "effect",
+      "name": "EventBubble_001",
+      "play": false
+    },
+    {
       "id": "c17",
       "type": "mask",
       "show": true
@@ -186,7 +192,11 @@
         {
           "goto_大成功": "c31",
           "goto_成功": "c31",
-          "goto_失败": "fail1"
+          "goto_失败": "fail1",
+          "band_texts": [
+            "一无所获，脸上无光",
+            "翻出关键线索"
+          ]
         }
       ]
     },
@@ -225,6 +235,12 @@
       "text": "毛发乌黑油亮，保养得极好。\n整个唐门，只有一个人天天偷用掌门的发油。"
     },
     {
+      "id": "big3b",
+      "type": "effect",
+      "name": "Glow_001",
+      "play": false
+    },
+    {
       "id": "big4",
       "type": "flag",
       "flag": "CLUE_GOLD"
@@ -254,6 +270,12 @@
       "type": "say",
       "mode": "narrative",
       "text": "你在碟子后面找到一点豆沙残渣，还没干透。\n作案时间，就是昨夜。"
+    },
+    {
+      "id": "ok2b",
+      "type": "effect",
+      "name": "Glow_001",
+      "play": false
     },
     {
       "id": "ok3",

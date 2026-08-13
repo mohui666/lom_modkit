@@ -189,9 +189,16 @@ class NodeForm(QScrollArea):
             )
         if kind == "dice_check":
             # 仅含带官方元数据的检查点（无元数据会在游戏内骰子菜单崩溃）
-            return self._combo_from_items(
-                node, key, models.dice_check_items(self._editor_data), value
+            w = self._make_combo(
+                models.dice_check_items(self._editor_data), value or "", editable=True
             )
+            w.currentTextChanged.connect(
+                lambda t, c=w: self._on_dice_check_changed(node, key, c, t)
+            )
+            return w
+        if kind == "death_id":
+            # mod 专属死亡画面 id（9+官方 id，如 910021）：官方 id 会触发结局解锁与记录
+            return self._make_death_id_widget(node, key, value)
         if kind == "item":
             # 物品清单随 kind 字段（book/misc/special）切换；切换时表单已重建
             data_key = f"items_{node.get('kind', 'misc')}"
@@ -199,12 +206,12 @@ class NodeForm(QScrollArea):
                 node, key, models.list_items(self._editor_data, data_key), value
             )
         if kind == "goto_scene_key":
-            # 场景参数清单随 scene 字段切换（战斗/战役/结局 id）
+            # 场景参数清单随 scene 字段切换（战斗/战役/死亡画面/结局 id）
             scene = node.get("scene", "Free")
             data_key = {
                 "Combat": "combat_ids",
                 "Battle": "battle_ids",
-                "GameOver": "ending_ids",
+                "GameOver": "death_ids",
                 "End": "ending_ids",
             }.get(scene)
             items = models.list_items(self._editor_data, data_key) if data_key else []
@@ -334,6 +341,48 @@ class NodeForm(QScrollArea):
         node[key] = val
         if set_name in models.REBUILD_ENUMS:
             self._rebuild_current()
+        self._emit_changed()
+
+    def _make_death_id_widget(self, node: dict, key: str, value) -> QWidget:
+        """death.death_id：mod 专属死亡画面 id（9+官方 id，如 910021）。
+
+        输入框 + 官方参考只读标签：官方 id 仅供查死亡画面标题参考，
+        直接用官方 id 会触发官方结局解锁与记录（污染玩家存档）。
+        """
+        box = QWidget()
+        v = QVBoxLayout(box)
+        v.setContentsMargins(0, 0, 0, 0)
+        w = QLineEdit("910021" if value in (None, "") else str(value))
+        official = models.list_items(self._editor_data, "death_ids")
+        ref = "　".join("%s %s" % (i, n) for i, n in official[:5])
+        w.setToolTip(
+            "mod 专属死亡画面 id：官方 id + 前綴 9（官方 10021 → 910021），"
+            "保证与官方 1xxxx/2xxxx/4xxxx 不撞。官方 id 仅供参考（用官方 id 会"
+            "触发官方结局解锁与记录，污染存档）。官方参考：%s" % (ref or "无")
+        )
+        w.setPlaceholderText("910021")
+        w.textChanged.connect(lambda t: self._apply(node, key, t))
+        v.addWidget(w)
+        if official:
+            label = QLabel(
+                "官方参考：" + " / ".join("%s %s" % (i, n) for i, n in official[:5])
+            )
+            label.setWordWrap(True)
+            label.setStyleSheet("color: gray;")
+            v.addWidget(label)
+        return box
+
+    def _on_dice_check_changed(
+        self, node: dict, key: str, combo: QComboBox, text: str
+    ) -> None:
+        """骰子检查点变化：写回并重建表单（结果带数变化 → band_texts 行数/提示刷新）。"""
+        if self._loading:
+            return
+        val = self._combo_value(combo, text)
+        if val == node.get(key):
+            return
+        self._apply(node, key, val)
+        self._rebuild_current()
         self._emit_changed()
 
     def _make_goto_combo(self, current: str, allow_empty: bool = True) -> QComboBox:
@@ -534,17 +583,40 @@ class NodeForm(QScrollArea):
         return box
 
     def _make_dice_table(self, node: dict, key: str) -> QWidget:
-        """dice.options：大成功/成功/失败 三列 goto（结果带按检查点官方元数据发射）。
+        """dice.options：选项文本覆写（band_texts）+ 大成功/成功/失败 三列 goto。
 
-        骰子范围与结果带文本/条件来自 data/editor_data.json 的 dice_meta，
-        表单底部展示所选检查点的结果带供作者参考。
+        骰子范围与结果带文本/条件来自 data/editor_data.json 的 dice_meta。
+        band_texts（可选）：按当前检查点带数显示 N 个文本框，逐带覆写骰子
+        菜单选项文本（留空用官方结果带文本）；全空时不写该字段。
         """
         rows: list[dict] = node.setdefault(key, [])
         if not rows:
             rows.append({"goto_大成功": "", "goto_成功": "", "goto_失败": ""})
+        meta = (self._editor_data.get("dice_meta") or {}).get(
+            str(node.get("check", "")), {}
+        )
+        bands = meta.get("bands") or []
+        opt0 = rows[0]
         box = QWidget()
         v = QVBoxLayout(box)
         v.setContentsMargins(0, 0, 0, 0)
+
+        if bands:
+            v.addWidget(QLabel("选项文本（可选，留空用官方文本）："))
+            current = opt0.get("band_texts") or []
+            for i, band in enumerate(bands):
+                txt = (
+                    current[i]
+                    if i < len(current) and isinstance(current[i], str)
+                    else ""
+                )
+                le = QLineEdit(txt)
+                le.setPlaceholderText("带%d 官方：%s" % (i + 1, band.get("text", "")))
+                le.textChanged.connect(
+                    lambda t, idx=i, c=le: self._apply_band_text(idx, t, c)
+                )
+                v.addWidget(le)
+
         table = QTableWidget(0, 3)
         table.setHorizontalHeaderLabels(
             ["失败 goto（最差带）", "成功 goto", "大成功 goto（3带检查点最优带）"]
@@ -577,10 +649,6 @@ class NodeForm(QScrollArea):
         fill()
         v.addWidget(table)
         # 检查点元数据提示行（官方结果带：差→好）
-        meta = (self._editor_data.get("dice_meta") or {}).get(
-            str(node.get("check", "")), {}
-        )
-        bands = meta.get("bands") or []
         if bands:
             hint = "　".join(
                 "带%d: %s｜%s" % (i, b.get("text", ""), b.get("cond", ""))
@@ -601,6 +669,34 @@ class NodeForm(QScrollArea):
             )
         )
         return box
+
+    def _apply_band_text(self, index: int, text: str, edit: QLineEdit) -> None:
+        """band_texts 写回：任一非空才写字段（全空则不写）；条目数补齐到带数。
+
+        空条目由编译器校验报错（非空 str），作者要么全填要么全空。
+        """
+        if self._loading or not self._node:
+            return
+        node = self._node
+        options = node.get("options") or []
+        if not options or not isinstance(options[0], dict):
+            options[:] = [{}]
+        opt0 = options[0]
+        meta = (self._editor_data.get("dice_meta") or {}).get(
+            str(node.get("check", "")), {}
+        )
+        n_bands = len(meta.get("bands") or [])
+        cur = list(opt0.get("band_texts") or [])
+        while len(cur) <= index:
+            cur.append("")
+        cur[index] = text
+        while len(cur) < n_bands:
+            cur.append("")
+        if any(t.strip() for t in cur):
+            opt0["band_texts"] = cur
+        else:
+            opt0.pop("band_texts", None)
+        self._emit_changed()
 
     # ------------------------------------------------------------------ 写回
     def _on_table_item(self, item: QTableWidgetItem) -> None:

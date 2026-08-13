@@ -11,7 +11,7 @@
 
 import re
 
-from .dice_data import get_dice_meta
+from .dice_data import get_dice_meta, get_official_scene_ids
 from .errors import LomcError
 
 # §1：剧情脚本 id 规则
@@ -149,7 +149,15 @@ _NODE_FIELDS = {
     "intro": ({"character": "str"}, {}),
     "effect": (
         {"name": "str"},
-        {"x": "num", "y": "num", "a": "num", "b": "num", "c": "num", "d": "num"},
+        {
+            "x": "num",
+            "y": "num",
+            "a": "num",
+            "b": "num",
+            "c": "num",
+            "d": "num",
+            "play": "bool",
+        },
     ),
     "transition": ({"phase": "transition_phase"}, {"dir": "transition_dir"}),
     "camera": ({"name": "str", "active": "bool"}, {}),
@@ -202,7 +210,7 @@ _NODE_FIELDS = {
     ),
     "wait": ({"seconds": "num"}, {}),
     "end": ({}, {"next_script": "script_id"}),
-    "death": ({"text": "str"}, {"next": "death_next"}),
+    "death": ({"text": "str", "death_id": "idstr"}, {"next": "death_next"}),
     "raw": ({"code": "str"}, {}),
 }
 
@@ -286,7 +294,7 @@ def _check_goto(node, label, id_set):
             raise LomcError('%s: goto 指向不存在的节点 "%s"' % (label, t))
 
 
-def _check_options(node, label, min_n, max_n, fields, type_map):
+def _check_options(node, label, min_n, max_n, fields, type_map, optional_fields=()):
     """choice / dice 的 options 数组结构校验（共用）。"""
     options = node["options"]
     ntype = node["type"]
@@ -299,11 +307,12 @@ def _check_options(node, label, min_n, max_n, fields, type_map):
         opt_label = "%s(%s) 第 %d 个选项" % (label, ntype, i + 1)
         if not isinstance(opt, dict):
             raise LomcError("%s: 必须是对象" % opt_label)
+        allowed = set(fields) | set(optional_fields)
         for key in opt:
-            if key not in fields:
+            if key not in allowed:
                 raise LomcError(
                     '%s: 未知字段 "%s"（允许：%s）'
-                    % (opt_label, key, "、".join(fields))
+                    % (opt_label, key, "、".join(sorted(allowed)))
                 )
         for name in fields:
             if name not in opt:
@@ -345,6 +354,7 @@ def _check_node_extra(node, ntype, label):
             1,
             _DICE_OPTION_GOTOS,
             {key: "str" for key in _DICE_OPTION_GOTOS},
+            optional_fields=("band_texts",),
         )
         check = node["check"]
         meta = get_dice_meta(check)
@@ -362,6 +372,24 @@ def _check_node_extra(node, ntype, label):
                 % (label, check)
             )
         opt = node["options"][0]
+        band_texts = opt.get("band_texts")
+        if band_texts is not None:
+            if not isinstance(band_texts, list):
+                raise LomcError(
+                    '%s(dice): 可选字段 "band_texts" 必须是数组（逐带覆写选项文本，'
+                    "条数等于结果带数），实际为 %r" % (label, band_texts)
+                )
+            if len(band_texts) != n_bands:
+                raise LomcError(
+                    '%s(dice): "band_texts" 条数必须等于检查点 "%s" 的结果带数'
+                    "（%d 条），实际为 %d 条" % (label, check, n_bands, len(band_texts))
+                )
+            for bi, bt in enumerate(band_texts, 1):
+                if not isinstance(bt, str) or not bt:
+                    raise LomcError(
+                        '%s(dice): "band_texts" 第 %d 条必须是非空字符串，实际为 %r'
+                        % (label, bi, bt)
+                    )
         if n_bands < 3 and not opt.get("goto_成功"):
             raise LomcError(
                 '%s(dice): 检查点 "%s" 只有 %d 个结果带，必填字段 "goto_成功"（最优带）'
@@ -461,6 +489,19 @@ def _check_node_extra(node, ntype, label):
         # 死亡文本必须是非空文本（契约 §3.1：text 必填非空，多行合法）
         if not node["text"].strip():
             raise LomcError('%s(death): 字段 "text" 不能为空' % label)
+        # death_id 必须是 ≥900000 的 mod 专属 id：官方 GameOver 场景会拿 id 查
+        # LibrarySystem 并解锁/记录官方结局，复用官方 id 会污染玩家存档
+        did = node["death_id"]
+        try:
+            ok = did.isdigit() and int(did) >= 900000
+        except ValueError:  # 超长数字串 int() 会抛（防御）
+            ok = False
+        if not ok:
+            raise LomcError(
+                '%s(death): 字段 "death_id" 必须是 ≥900000 的 mod 专属数字 id'
+                "（官方死亡画面 id 会触发官方结局解锁与记录，见 editor_data "
+                "death_ids 仅作参考），实际为 %r" % (label, did)
+            )
     elif ntype == "branch":
         source = node.get("source", "mod")
         cases = node["cases"]
@@ -569,6 +610,21 @@ def _collect_warnings(story, warnings):
             warnings.append(
                 '节点 "%s"(dice): 检查点 "%s" 只有 2 个结果带（无独立大成功档），'
                 "goto_大成功 会被忽略（最优带按 goto_成功 分支）。" % (label, check)
+            )
+
+    # goto_scene：GameOver/End 用官方 id 会触发结局解锁与记录（污染存档）
+    official_ids = get_official_scene_ids()
+    for n in nodes:
+        if not isinstance(n, dict) or n.get("type") != "goto_scene":
+            continue
+        scene = n.get("scene")
+        key = str(n.get("key") or "")
+        if scene in ("GameOver", "End") and key and key in official_ids:
+            warnings.append(
+                '节点 "%s"(goto_scene): scene="%s" 的 key="%s" 与官方结局 id '
+                "重复，会触发官方结局解锁与记录（LibraryItemData.Add，污染玩家"
+                "存档）；建议改用 ≥900000 的 mod 专属 id（查不到官方条目，仅展示"
+                "对应画面，无副作用）。" % (n.get("id", "?"), scene, key)
             )
 
 

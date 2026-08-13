@@ -19,6 +19,48 @@ _PROJECT_ROOT = os.path.dirname(os.path.dirname(_HERE))
 EDITOR_DATA_PATH = os.path.join(_PROJECT_ROOT, "data", "editor_data.json")
 
 _META = None  # 进程级缓存；测试可赋值覆盖
+_ED_IDS = None  # 官方死亡/结局画面 id 缓存（goto_scene 警告用）
+
+
+def load_editor_ids(path=None):
+    """读 data/editor_data.json 的官方 death_ids/ending_ids（schema 3）。
+
+    goto_scene 校验警告用：scene=GameOver/End 且 key 命中官方 id 时提示改用
+    ≥900000 的 mod 专属 id（官方 id 会触发结局解锁与记录，污染存档）。
+    """
+    global _ED_IDS
+    if _ED_IDS is not None:
+        return _ED_IDS
+    ids = {"death_ids": [], "ending_ids": []}
+    p = path or EDITOR_DATA_PATH
+    try:
+        with open(p, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        ids["death_ids"] = list(data.get("death_ids") or [])
+        ids["ending_ids"] = list(data.get("ending_ids") or [])
+    except (OSError, ValueError):
+        pass
+    _ED_IDS = ids
+    return ids
+
+
+def get_official_scene_ids():
+    """官方死亡/结局画面 id 集合（death_ids ∪ ending_ids），字符串集合。
+
+    schema 3 起 death_ids/ending_ids 为 [{id, name}] 对象数组（兼容旧裸字符串）。
+    """
+    ids = load_editor_ids()
+
+    def flat(lst):
+        out = set()
+        for e in lst:
+            if isinstance(e, dict):
+                out.add(str(e.get("id", "")))
+            else:
+                out.add(str(e))
+        return out
+
+    return flat(ids["death_ids"]) | flat(ids["ending_ids"])
 
 
 def load_dice_meta(path=None):

@@ -263,6 +263,16 @@ def _emit_intro(node, ctx):
 
 
 def _emit_effect(node, ctx):
+    """屏幕特效。play=False 时发射停止调用（官方循环特效不会自动销毁）。
+
+    SetupEffect 最后一个参数 play：1=播放（循环类不自动销毁，官方实证
+    EventBubble_001 / Glow_001 均有成对的 play=0 停止调用）、0=停止。
+    优先用 play 字段；旧数据无 play 时用 d 字段（向后兼容）。
+    """
+    if "play" in node:
+        play = 1 if node["play"] else 0
+    else:
+        play = node.get("d", 1)
     return [
         "\teffects.SetupEffect(%s, %s, %s, %s, %s, %s, %s)"
         % (
@@ -272,7 +282,7 @@ def _emit_effect(node, ctx):
             lua_num(node.get("a", 1)),
             lua_num(node.get("b", 1)),
             lua_num(node.get("c", 1)),
-            lua_num(node.get("d", 1)),
+            lua_num(play),
         )
     ]
 
@@ -568,6 +578,10 @@ def _emit_dice(node, ctx):
     选项按官方提取顺序发射（菜单高亮按此索引），分支按带的质量名次映射：
     最差带→goto_失败；3 带及以上时最优带→goto_大成功、中间带→goto_成功；
     2 带时最优带→goto_成功（无独立大成功档）。
+
+    options[0]["band_texts"]（可选，列表）：逐带覆写选项文本（作者自定义
+    文本字面量，游戏 GetStoryText 查不到 key 时原样显示，无需进 texts.json）；
+    缺省时用官方结果带文本。条件部分永远用官方元数据。
     """
     check = node["check"]
     meta = get_dice_meta(check) or {}
@@ -576,6 +590,7 @@ def _emit_dice(node, ctx):
     ]
     dice_max = meta.get("max", 99)
     opt = node["options"][0]
+    band_texts = opt.get("band_texts")
     lines = [
         "	setmenudialog(menudialogs.Dice)",
         "	local dice_rand1 = math.random(%d)" % dice_max,
@@ -587,7 +602,10 @@ def _emit_dice(node, ctx):
     for i, band in enumerate(bands, 1):
         # 文本会被游戏当本地化 key 解析（GetStoryText 查不到时原样返回）；
         # ASCII | 换成全角｜防分隔符冲突（条件部分紧随其后）
-        text = str(band.get("text", "")).replace("|", "｜")
+        if isinstance(band_texts, list) and len(band_texts) == len(bands):
+            text = str(band_texts[i - 1]).replace("|", "｜")
+        else:
+            text = str(band.get("text", "")).replace("|", "｜")
         entry = "%s|%s" % (text, band.get("cond", ""))
         lines.append("	dice_opts1[%d] = %s" % (i, lua_str(entry)))
     lines += [
@@ -682,7 +700,13 @@ def _emit_end(node, ctx):
 
 
 def _emit_death(node, ctx):
-    """死亡文本节点：黑屏 + 居中旁白（走已读 key）+ 场景跳转（自带收尾）。"""
+    """死亡文本节点：黑屏 + 居中旁白（走已读 key）+ 官方 GameOver 死亡画面。
+
+    展示自定死亡文本后 ChangeScene("GameOver", death_id, next) 进官方死亡画面
+    （黑底红字 + 返回按钮）。death_id 必须是 ≥900000 的 mod 专属 id：官方
+    GameOver 场景用 id 查 LibrarySystem 并解锁/记录官方结局，mod 专属 id
+    查不到 → 无副作用，但死亡画面本身照常显示（校验见 validate.py）。
+    """
     return [
         '\trunblock(flowcharts.view, "out")',
         '\tgetvar(flowcharts.view, "ViewName").value = "black"',
@@ -693,7 +717,11 @@ def _emit_death(node, ctx):
         "\tsetcharacter(narrative)",
         "\tsay(luamanager.GetStoryText(%s))" % lua_str(_say_key(node, ctx)),
         "\tluamanager.ChangeScene(%s, %s, %s)"
-        % (lua_str(node.get("next", "Title")), lua_str(""), lua_str("")),
+        % (
+            lua_str("GameOver"),
+            lua_str(node["death_id"]),
+            lua_str(node.get("next", "Title")),
+        ),
     ]
 
 

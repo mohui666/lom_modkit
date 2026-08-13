@@ -330,6 +330,55 @@ class TestAddDice(unittest.TestCase):
         with self.assertRaises(ValueError, msg="无官方元数据检查点应抛 ValueError"):
             story_api.add_dice(story, "No_Such_Dice_Check", n1, n1, n1)
 
+    def test_band_texts_override_3band(self):
+        # band_texts：逐带覆写骰子菜单选项文本（条数等于结果带数）
+        story = base_story()
+        n1 = story["start"]
+        node = story_api.add_dice(
+            story, DICE_3BAND, n1, n1, n1, band_texts=["失败", "成功", "大成功"]
+        )
+        self.assertEqual(
+            node["options"][0]["band_texts"],
+            ["失败", "成功", "大成功"],
+            "3 带检查点 band_texts 应逐带写入",
+        )
+
+    def test_band_texts_override_2band(self):
+        story = base_story()
+        n1 = story["start"]
+        node = story_api.add_dice(
+            story, "S0120_01_001", n1, n1, band_texts=["失手", "得手"]
+        )
+        self.assertEqual(
+            node["options"][0]["band_texts"], ["失手", "得手"], "2 带 band_texts 应写入"
+        )
+
+    def test_band_texts_len_mismatch(self):
+        story = base_story()
+        n1 = story["start"]
+        with self.assertRaises(ValueError, msg="band_texts 条数不符应抛 ValueError"):
+            story_api.add_dice(story, DICE_3BAND, n1, n1, n1, band_texts=["只有一条"])
+
+    def test_band_texts_not_list(self):
+        story = base_story()
+        n1 = story["start"]
+        with self.assertRaises(ValueError, msg="band_texts 非数组应抛 ValueError"):
+            # 故意传非法类型验证校验层
+            story_api.add_dice(
+                story,
+                DICE_3BAND,
+                n1,
+                n1,
+                n1,
+                band_texts="不是数组",  # type: ignore[reportArgumentType]
+            )
+
+    def test_band_texts_empty_item(self):
+        story = base_story()
+        n1 = story["start"]
+        with self.assertRaises(ValueError, msg="band_texts 空条目应抛 ValueError"):
+            story_api.add_dice(story, DICE_3BAND, n1, n1, n1, band_texts=["", "二", "三"])
+
 
 class TestAddSay(unittest.TestCase):
     def test_character_mode_requires_character(self):
@@ -365,15 +414,34 @@ class TestAddScene(unittest.TestCase):
 class TestAddDeath(unittest.TestCase):
     def test_success_default_title(self):
         story = base_story()
-        node = story_api.add_death(story, "你坠入山崖，万事休矣。")
+        node = story_api.add_death(story, "你坠入山崖，万事休矣。", "910021")
         self.assertEqual(node["type"], "death", "应生成 death 节点")
         self.assertEqual(node["text"], "你坠入山崖，万事休矣。", "text 应写入")
+        self.assertEqual(node["death_id"], "910021", "death_id 应写入")
         self.assertEqual(node["next"], "Title", "next 默认应为 Title")
 
     def test_next_free(self):
         story = base_story()
-        node = story_api.add_death(story, "命数已尽。", next="Free")
+        node = story_api.add_death(story, "命数已尽。", "910021", next="Free")
         self.assertEqual(node["next"], "Free", "next=Free 应写入")
+
+    def test_death_id_required(self):
+        story = base_story()
+        with self.assertRaises(TypeError, msg="缺 death_id 应抛 TypeError"):
+            story_api.add_death(story, "命数已尽。")  # type: ignore[reportCallIssue]
+        for bad in ("", None, 123):
+            with self.assertRaises(
+                ValueError, msg=f"非法 death_id 应抛 ValueError: {bad!r}"
+            ):
+                story_api.add_death(story, "命数已尽。", bad)  # type: ignore[reportArgumentType]
+
+    def test_death_id_official_rejected(self):
+        story = base_story()
+        for bad in ("10021", "20003", "899999", "abc", "91002x"):
+            with self.assertRaises(
+                ValueError, msg=f"<900000 的 death_id 应抛 ValueError: {bad!r}"
+            ):
+                story_api.add_death(story, "命数已尽。", bad)
 
     def test_empty_text_rejected(self):
         story = base_story()
@@ -382,26 +450,26 @@ class TestAddDeath(unittest.TestCase):
                 ValueError, msg=f"空/非法 text 应抛 ValueError: {bad!r}"
             ):
                 # 故意传非法类型验证校验层
-                story_api.add_death(story, bad)  # type: ignore[reportArgumentType]
+                story_api.add_death(story, bad, "910021")  # type: ignore[reportArgumentType]
 
     def test_bad_next_rejected(self):
         story = base_story()
         with self.assertRaises(ValueError, msg="非法 next 应抛 ValueError"):
-            story_api.add_death(story, "命数已尽。", next="Story")
+            story_api.add_death(story, "命数已尽。", "910021", next="Story")
 
     def test_multiline_text(self):
         story = base_story()
-        node = story_api.add_death(story, "第一行\n第二行")
+        node = story_api.add_death(story, "第一行\n第二行", "910021")
         self.assertEqual(node["text"], "第一行\n第二行", "多行文本应保留换行")
 
     def test_compiles(self):
-        # death 走已读 key + 场景跳转，编译产物应含 GetStoryText 与 ChangeScene
+        # death 走已读 key + 官方 GameOver 死亡画面（mod 专属 death_id）
         story = base_story()
-        node = story_api.add_death(story, "命数已尽。", next="Title")
+        node = story_api.add_death(story, "命数已尽。", "910021", next="Title")
         lua, errors, _warnings = story_api.compile_story(story)
         assert lua is not None, f"death 剧情应编译成功：{errors}"
         self.assertIn('luamanager.GetStoryText("MOD_MOD_main_%s")' % node["id"], lua)
-        self.assertIn('luamanager.ChangeScene("Title", "", "")', lua)
+        self.assertIn('luamanager.ChangeScene("GameOver", "910021", "Title")', lua)
 
 
 class TestCheckStory(unittest.TestCase):

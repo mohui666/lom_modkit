@@ -84,7 +84,7 @@ assets/                # 预留（自定义图片/音频），v1 运行时忽略
 | `shock` | `character`；可选 `duration`(默认0.5) | 人物震动（flowcharts.common "shock"） |
 | `mask` | `show`(bool) | 独白遮罩 `os_mask.Show` |
 | `intro` | `character` | 人物介绍卡 `runwait(intropanel.Show(...))` |
-| `effect` | `name`；可选 `x`,`y`,`a`,`b`,`c`,`d`(数值，默认0/0/1/1/1/1) | 屏幕特效 `effects.SetupEffect(name,x,y,a,b,c,d)`，如 Hit_001/Blood_002/Sword_001 |
+| `effect` | `name`；可选 `x`,`y`,`a`,`b`,`c`(数值，默认0/0/1/1/1)，`play`(bool，默认true) | 屏幕特效 `effects.SetupEffect(name,x,y,a,b,c,play)`，如 Hit_001/Blood_002/Sword_001。`play=false` 发射停止调用（末参 0）：**循环类特效播放后不会自动销毁**（官方实证 EventBubble_001/Glow_001 均有成对的 play=0 停止调用），如 EventBubble/Glow 必须后接 play=false 的同参节点停止，否则常驻画面（旧数据的 `d` 字段仍兼容：无 play 时用 d） |
 | `transition` | `phase`("in"/"out")；可选 `dir`(默认"lr"，lr/rl/tb/bt) | 黑场转场 `runwait(transitionblack.TransitionIn/Out(dir))`。**官方必须成对使用**：TransitionIn 会隐藏剧情 UI 并盖满黑幕，TransitionOut 才恢复；同一脚本有 in 无 out 时编译器给出警告（画面会一直黑屏，ch1_1 实测距离十几行） |
 | `camera` | `name`, `active`(bool) | 镜头滤镜 `maincamera.ActiveVolume(name, 0 | 1)`，如 stage-memory/stage-dream/stage-fire/stage-blurdim |
 | `block` | `flowchart`("view"/"common"), `name`；可选 `vars`: `[{"name","value"}]` | 通用 flowchart 块调用：`getvar` 逐个赋值后 `runblock(fc, name)`。覆盖 out_white/shake/flash/vshock 等 |
@@ -112,12 +112,12 @@ assets/                # 预留（自定义图片/音频），v1 运行时忽略
 | type | 字段 | 说明 |
 | --- | --- | --- |
 | `branch` | `flag`, `cases`: `[{"value","goto"}]`, 可选 `source`(默认 "mod") | mod：按 modflags 是否已设（value 1=已设置 2=未设置）；game：`checkpointmanager.Switch(flag)` 官方检查点数值分支 |
-| `dice` | `check`, `options`: `[{"goto_大成功","goto_成功","goto_失败"}]`（恰好 1 条） | 骰子检定。**check 必须是带官方元数据的检查点**（editor_data 的 dice_meta：骰子范围 max 与结果带 bands，由官方脚本提取；无元数据的检查点会在游戏内骰子菜单 NRE 崩溃）。发射官方五步链 + 按结果带数逐带发射选项（官方文本+条件）；分支按带质量名次映射：最差带→goto_失败，中间带→goto_成功，最优带→3带及以上 goto_大成功 / 2带 goto_成功（2带无独立大成功档）。带质量按条件数值推断（同值 >系优于 <系；官方有 34 个倒序检查点） |
-| `goto_scene` | `scene`("Free"/"Title"/"Combat"/"Battle"/"GameOver"/"End"/"Story"/"DemoEnd")；可选 `key`(Combat=战斗id/Battle=战役id/GameOver·End=结局id), `next`(默认"Story") | 场景跳转 `luamanager.ChangeScene(scene, key, next)`。Combat/Battle 后回 Story 重入当前脚本，注意用 game 检查点防重入 |
+| `dice` | `check`, `options`: `[{"goto_大成功","goto_成功","goto_失败","band_texts"?}]`（恰好 1 条） | 骰子检定。**check 必须是带官方元数据的检查点**（editor_data 的 dice_meta：骰子范围 max 与结果带 bands，由官方脚本提取；无元数据的检查点会在游戏内骰子菜单 NRE 崩溃）。发射官方五步链 + 按结果带数逐带发射选项（文本+条件）；分支按带质量名次映射：最差带→goto_失败，中间带→goto_成功，最优带→3带及以上 goto_大成功 / 2带 goto_成功（2带无独立大成功档）。带质量按条件数值推断（同值 >系优于 <系；官方有 34 个倒序检查点）。**band_texts**（可选）：逐带覆写骰子菜单选项文本（条数必须等于结果带数，每项非空字符串，否则 LomcError）；发射 `<作者文本> | <官方cond>`（作者文本为字面量，游戏 GetStoryText 查不到时原样显示，不进 texts.json；文本内 ASCII \| 净化为全角｜；cond 永远用官方元数据）。缺省时用官方结果带文本 |
+| `goto_scene` | `scene`("Free"/"Title"/"Combat"/"Battle"/"GameOver"/"End"/"Story"/"DemoEnd")；可选 `key`(Combat=战斗id/Battle=战役id/GameOver=死亡画面id/End=结局id), `next`(默认"Story") | 场景跳转 `luamanager.ChangeScene(scene, key, next)`。Combat/Battle 后回 Story 重入当前脚本，注意用 game 检查点防重入。**GameOver/End 的 key 必须用 mod 专属 id**（见下方「死亡/结局 id 约定」）；命中官方 death_ids/ending_ids 时编译器给出非致命警告（官方 id 会触发官方结局解锁与记录 LibraryItemData.Add，污染玩家存档） |
 | `panel` | `panel`("martial"/"weapon"/"poison"/"cg"/"cgvideo"/"shop"/"newshop"/"credit"/"endgame")；可选 `key`(cg/cgvideo/endgame 的 id), `discount`(shop 用, 默认0), `mode`(martial 用, 默认0) | 打开系统面板，除 newshop 外均 `runwait`：`martialpanel.Open(mode)`/`weaponupgradepanel.Open()`/`poisonupgradepanel.Open()`/`cgpanel.Open(key)`/`cgvideopanel.Open(key,0)`/`shoppanel.Open(discount)`/`shoppanel.NewShop()`/`creditpanel.Open()`/`endgamepanel.Open(key)` |
 | `wait` | `seconds` | `wait(seconds)` |
 | `end` | 可选 `next_script` | 有：`SetNextScript("MOD_<modid>_<id>")`+`Init()` 链到同包脚本；无：`ChangeScene("Free","","")` 回自由模式 |
-| `death` | `text`（必填非空，多行合法）；可选 `next`("Title"默认/"Free") | **死亡文本**：黑屏（view="black"）+ 居中旁白（走已读 key 机制，同 say）+ `luamanager.ChangeScene(next, "", "")` 场景跳转。终止节点（自带流转，不允许显式 goto，可作末节点收尾） |
+| `death` | `text`（必填非空，多行合法）、`death_id`（必填）；可选 `next`("Title"默认/"Free") | **死亡文本**：黑屏（view="black"）+ 居中旁白（走已读 key 机制，同 say）+ `luamanager.ChangeScene("GameOver", death_id, next)` 进**官方 GameOver 死亡画面**（黑底红字 + 返回按钮）。`death_id` 必须是 ≥900000 的 mod 专属数字 id（否则 LomcError，见下方「死亡/结局 id 约定」）。终止节点（自带流转，不允许显式 goto，可作末节点收尾） |
 | `raw` | `code` | 原生 Lua 逃逸口：原样插入代码（多行合法）。**机制兜底**：任何节点表达不了的官方机制用它 |
 
 ### 3.2 常用取值（以 data/editor_data.json 为权威清单，schema 2 起带中文名）
@@ -142,7 +142,7 @@ assets/                # 预留（自定义图片/音频），v1 运行时忽略
 - story 顶层 `title` 可选。
 - **已读 key 规则**：所有 say（character/think/narrative/center）与 death 节点的文本一律发射 `say(luamanager.GetStoryText(key))`，key = `MOD_<modid>_<scriptid>_<nodeid>`；modid 来自 manifest（打包时），独立 build/编辑器预览缺省时用 "MOD" 兜底（预览显示兜底 key 可接受）。key 与文本本体（包内 texts.json）由打包器同步生成。
 - **mood 规则**：story.mood（可选 bool，默认 false）。每个脚本头部（modflags 行之后）必发射 `mod_set_mood(false)` 或 `mod_set_mood(true)`（运行时插件注册的全局声明，硬控心情面板，见 §6）；mood=false 时另在 show 节点末尾（Focus 之后）与 say 节点 say(...) 前后各发射一次 `mod_hide_mood()`（隐藏官方圆形情绪面板）；true 时不发射 mod_hide_mood。
-- **death 发射**：见 §3.1 death 行（runblock out → ViewName="black" → runblock view → setsaydialog(center) → sayoptions 两行 → setcharacter(narrative) → say(GetStoryText(key)) → ChangeScene(next,"","")）。
+- **death 发射**：见 §3.1 death 行（runblock out → ViewName="black" → runblock view → setsaydialog(center) → sayoptions 两行 → setcharacter(narrative) → say(GetStoryText(key)) → ChangeScene("GameOver", death_id, next)）。
 - 最后一个节点不是 `end`/`death`/`goto_scene`/`raw` 且无 goto → 校验错误。
 - `choice`/`branch`/`dice`/`end`/`death`/`goto_scene` 写显式 `goto` → 校验错误。
 - `say` 的 narrative/center 模式给 character 允许但忽略。
@@ -184,8 +184,9 @@ runblock(flowcharts.view, "view")
 getvar(flowcharts.common, "ShockPosition").value = characters.Get("brother4").State.holder.gameObject
 getvar(flowcharts.common, "ShockDuration").value = 0.5
 runblock(flowcharts.common, "shock")
--- effect / transition / camera
+-- effect / transition / camera（循环特效必须成对 play=0 停止，如 EventBubble/Glow）
 effects.SetupEffect("Hit_001", 10, -5, 1, 1, 1, 1)
+effects.SetupEffect("Glow_001", -4.5, 0, 1, 1, 1, 0)
 runwait(transitionblack.TransitionIn("lr"))
 maincamera.ActiveVolume("stage-memory", 1)
 -- stat / affinity / talent / item / flag / game_flag / enemy / mission
@@ -204,20 +205,21 @@ if modflags["SOME_FLAG_ID"] then return node_a() else return node_b() end
 -- branch（source="game"，else 兜底）
 local branch1 = checkpointmanager.Switch("S0003_01_001")
 if branch1 == 1 then return node_a() elseif branch1 == 2 then return node_b() else return node_next() end
--- dice（check 必须是带官方元数据的检查点；范围/带数/带文本来自 dice_meta，仅故事场景检查点）
+-- dice（check 必须是带官方元数据的检查点；范围/带数/带文本来自 dice_meta，仅故事场景检查点；band_texts 可选逐带覆写）
 setmenudialog(menudialogs.Dice)
 local dice_rand1 = math.random(99)
 dicemenudialog.SetRandom(99, dice_rand1)
 local dice_result1 = checkpointmanager.Dice("S0205_01_001", dice_rand1)
 local dice_opts1 = {}
-dice_opts1[1] = "O_S0205_01_001|<40"
+dice_opts1[1] = "O_S0205_01_001|<40"        -- 缺省：官方结果带文本
 dice_opts1[2] = "O_S0205_01_002|>=40"
+-- band_texts 存在时：dice_opts1[i] = "<作者文本>|<官方cond>"（作者文本为字面量，GetStoryText 查不到时原样显示）
 dicemenudialog.Setup(dice_result1.ResultCount, dice_result1.Result, dice_result1.Header, dice_result1.Additions)
 runwait(dicemenudialog.ExecuteRoll(dice_opts1, 1, "S0205_01_001"))
 local dice_sel1 = dicemenudialog.ResultSelection
 -- 分支按带质量：最差带→失败，最优带→大成功（2带→成功）
 if dice_sel1 == 1 then return node_fail() else return node_ok() end
--- goto_scene
+-- goto_scene（GameOver/End 的 key 用 mod 专属 id：9+官方 id，如 920003/910021）
 luamanager.ChangeScene("Combat", "5102_01", "Story")
 -- panel（除 newshop 外 runwait）
 runwait(martialpanel.Open(0))
@@ -233,7 +235,7 @@ runblock(flowcharts.common, "flash")
 luamanager.SetNextScript("MOD_<modid>_<scriptid>")
 luamanager.Init()
 luamanager.ChangeScene("Free", "", "")
--- death（死亡文本：黑屏 + 居中旁白 + 场景跳转）
+-- death（死亡文本：黑屏 + 居中旁白 + 官方 GameOver 死亡画面）
 runblock(flowcharts.view, "out")
 getvar(flowcharts.view, "ViewName").value = "black"
 runblock(flowcharts.view, "view")
@@ -242,12 +244,12 @@ sayoptions.waitforinput = true
 sayoptions.fadewhendone  = true
 setcharacter(narrative)
 say(luamanager.GetStoryText("MOD_<modid>_<scriptid>_<nodeid>"))
-luamanager.ChangeScene("Title", "", "")
+luamanager.ChangeScene("GameOver", "910021", "Title")
 ```
 
 ## 5. data/editor_data.json — 编辑器数据契约（schema 3）
 
-由 `tools/extract_editor_data.py` 生成。schema 2 起 `characters`/`stats`/`positions`/`views`/`music`/`free_positions` 均为 `{id, name}` 对象数组（characters 另有 portraits）；schema 3 新增 `dice_meta`（骰子检查点元数据，从官方脚本调用点提取：`{check: {max, bands: [{text, cond}]}}`，bands 按官方展示顺序）。**dice_meta 仅含故事场景检查点**：旅行系统检查点（Travel_*，只存在于旅行系统配置，故事场景的 CheckPointManager 查不到会崩）已剔除——提取时排除旅行脚本（文件名含 travel_ 前缀/_travel 子串，或被 SetCurrentTravelScript/SetTempScript 引用的脚本）。`dice_checks` 是全名清单，保留全部调用点（含旅行）：
+由 `tools/extract_editor_data.py` 生成。schema 2 起 `characters`/`stats`/`positions`/`views`/`music`/`free_positions` 均为 `{id, name}` 对象数组（characters 另有 portraits）；schema 3 新增 `dice_meta`（骰子检查点元数据，从官方脚本调用点提取：`{check: {max, bands: [{text, cond}]}}`，bands 按官方展示顺序）与 `death_ids`/`ending_ids` 富化对象数组（`{id, name}`，name 取自权威参考文件 `data/ref/death_ending_ids.json`，见下方「死亡/结局 id 约定」）。**dice_meta 仅含故事场景检查点**：旅行系统检查点（Travel_*，只存在于旅行系统配置，故事场景的 CheckPointManager 查不到会崩）已剔除——提取时排除旅行脚本（文件名含 travel_ 前缀/_travel 子串，或被 SetCurrentTravelScript/SetTempScript 引用的脚本）。`dice_checks` 是全名清单，保留全部调用点（含旅行）：
 
 ```json
 {
@@ -265,7 +267,8 @@ luamanager.ChangeScene("Title", "", "")
   "dice_meta": {"S0205_01_001": {"max": 99, "bands": [{"text": "O_S0205_01_001", "cond": "<40"}, {"text": "O_S0205_01_002", "cond": ">=40"}]}},
   "combat_ids": ["5102_01"],
   "battle_ids": ["A0001_01"],
-  "ending_ids": ["20003"],
+  "death_ids": [{"id": "10021", "name": "乱战中被践踏而死"}],
+  "ending_ids": [{"id": "20003", "name": "唐门叛徒"}],
   "game_flags": [{"id": "M0001_00", "name": "…"}],
   "talents": [{"id": "1010", "name": "…"}],
   "items_book": [{"id": "6002", "name": "…"}],
@@ -275,6 +278,15 @@ luamanager.ChangeScene("Title", "", "")
   "affinity_characters": ["brother4"]
 }
 ```
+
+### 死亡/结局 id 约定（mod 专属区间）
+
+官方 GameOver/End 场景会用 id 查 LibrarySystem 并执行 LibraryItemData.Add()（解锁/记录官方结局），**mod 复用官方 id 会污染玩家官方存档**。因此：
+
+- **mod 死亡/结局 id = `9<官方id>`**（900000 区段）：官方死亡 10021 → mod 910021；官方结局 20003 → mod 920003。与官方 1xxxx（死亡）/2xxxx（结局）/4xxxx（后日谈）全区间不撞。
+- 自造 id 查不到官方条目 → 无副作用，但官方死亡/结局画面本身（场景、风格、返回按钮）照常显示。
+- `death` 节点的 `death_id` 校验 ≥900000 整数（否则 LomcError）；`goto_scene` scene=GameOver/End 时 key 命中官方 death_ids/ending_ids 给出非致命警告（不阻断编译）。
+- 权威参考：`data/ref/death_ending_ids.json`（由 lom-save-analyzer 仓库 mappings.js 提取）：`death` 106 个（10000~10104、11000，带标题+描述）、`ending` 54 个（20000~20053）、`epilogue` 4 个（40000~40003）。提取器用其标题富化 editor_data 的 death_ids/ending_ids；编辑器 death_id 输入框列出前 5 个官方参考。
 
 ## 6. 运行时插件行为（MortalModHost）
 
@@ -307,9 +319,9 @@ transition 黑幕、choice 皮肤崩溃、背景黑屏等已知坑。
   - `move_node(story, node_id, delta)`：按相对位移调整节点顺序
   - `set_start(story, node_id)`：设置起始节点
   - `add_choice(story, options, after=None)`：新增选项分支（2~4 项，dialog 固定 Options）
-  - `add_dice(story, check, goto_成功, goto_失败, goto_大成功="", after=None)`：新增骰子检定（check 必须有官方元数据，按结果带数校验 goto）
+  - `add_dice(story, check, goto_成功, goto_失败, goto_大成功="", band_texts=None, after=None)`：新增骰子检定（check 必须有官方元数据，按结果带数校验 goto；band_texts 可选逐带覆写选项文本，条数必须等于结果带数且每项非空）
   - `add_say(story, text, character=None, mode="character", portrait="normal", after=None)`：新增对白（character 模式必填 character；narrative/center 不写 character）
-  - `add_death(story, text, next="Title", after=None)`：新增死亡文本节点（text 必填非空多行；next 仅 Free/Title）
+  - `add_death(story, text, death_id, next="Title", after=None)`：新增死亡文本节点（text 必填非空多行；death_id 必填 ≥900000 的 mod 专属数字 id，约定 9+官方 id；next 仅 Free/Title）
   - `add_scene(story, view, after=None)`：新增场景切换
   - `check_story(story)`：只校验，返回 (errors: list[str], warnings: list[str])
   - `compile_story(story)`：校验+编译，返回 (lua|None, errors, warnings)，失败时 lua 为 None

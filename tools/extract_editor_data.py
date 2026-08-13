@@ -32,6 +32,10 @@ RAW_POSITION = os.path.join(UNPACK_DIR, "raw", "Position_zh-cn.txt")
 VIEW_MAP_JSON = os.path.join(
     r"C:/Users/mohui666/lom_modkit", "data", "assets", "_probe", "view_map.json"
 )
+# 死亡/结局 id 权威参考（由 lom-save-analyzer 仓库 mappings.js 提取）
+REF_IDS_JSON = os.path.join(
+    r"C:/Users/mohui666/lom_modkit", "data", "ref", "death_ending_ids.json"
+)
 OUT_PATH = os.path.join(r"C:/Users/mohui666/lom_modkit", "data", "editor_data.json")
 
 # 契约 §5 固定值
@@ -86,9 +90,9 @@ RE_EFFECT = re.compile(r'effects\.SetupEffect\("([^"]+)"')
 RE_DICE = re.compile(r'checkpointmanager\.(?:Dice|Switch)\("([^"]+)"')
 RE_COMBAT = re.compile(r'ChangeScene\("Combat",\s*"([^"]+)"')
 RE_BATTLE = re.compile(r'ChangeScene\("Battle",\s*"([^"]+)"')
-RE_ENDING = re.compile(
-    r'ChangeScene\("(?:GameOver|End)",\s*"([^"]+)"|endgamepanel\.Open\("([^"]+)"'
-)
+# 死亡画面 id（GameOver）与结局 id（End/endgamepanel）分开提取（契约 §5）
+RE_DEATH = re.compile(r'ChangeScene\("GameOver",\s*"([^"]+)"')
+RE_ENDING = re.compile(r'ChangeScene\("End",\s*"([^"]+)"|endgamepanel\.Open\("([^"]+)"')
 RE_FLAG = re.compile(r'statmodifymanager\.(?:SetFlag|AddFlag)\("([^"]+)"')
 RE_TALENT = re.compile(r'AddTalent\("([^"]+)"')
 RE_BOOK = re.compile(r'AddBook\("([^"]+)"')
@@ -120,12 +124,16 @@ def collect_travel_scripts(files):
        引用的脚本（如 S0208_04_01_02、S2501_01_travel、section_01_free_start_01），
        这些脚本由旅行系统注册运行，检查点同样进旅行配置而非故事场景。
     """
-    re_cur = re.compile(r'SetCurrentTravelScript\(')
-    re_ref = re.compile(r'SetCurrentTravelScript\("([^"]+)"\)|SetTempScript\([^,]+,\s*"([^"]+)"\)')
+    re_cur = re.compile(r"SetCurrentTravelScript\(")
+    re_ref = re.compile(
+        r'SetCurrentTravelScript\("([^"]+)"\)|SetTempScript\([^,]+,\s*"([^"]+)"\)'
+    )
     referred = set()
     for fn in files:
         try:
-            with open(os.path.join(SCRIPTS_DIR, fn), "r", encoding="utf-8", errors="replace") as f:
+            with open(
+                os.path.join(SCRIPTS_DIR, fn), "r", encoding="utf-8", errors="replace"
+            ) as f:
                 text = f.read()
         except OSError:
             continue
@@ -263,11 +271,32 @@ def load_view_names():
     return {k: v["name"] for k, v in vm.items() if v.get("name")}
 
 
+def load_ref_ids():
+    """读死亡/结局 id 权威参考（data/ref/death_ending_ids.json）：
+
+    {death: {id: {name, desc}}, ending: {...}, epilogue: {...}}，由
+    lom-save-analyzer 仓库 mappings.js（LIBRARY_NAMES/DESCS）提取。
+    """
+    if not os.path.isfile(REF_IDS_JSON):
+        return {}
+    try:
+        with open(REF_IDS_JSON, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def enrich_id_list(ids, ref_table):
+    """裸 id 列表 → [{id, name}] 对象数组（name 取参考文件标题，无则回退 id）。"""
+    return [{"id": i, "name": ref_table.get(i, {}).get("name", i)} for i in sorted(ids)]
+
+
 def main():
     names = load_names()
     stat_names = load_stat_names()
     view_names = load_view_names()
     free_pos_names = load_free_position_names()
+    ref_ids = load_ref_ids()  # 死亡/结局 id 标题参考（death/ending/epilogue）
     flag_names = _load_prefixed_kv(CSV_STAT, RAW_FLAG, "Flag/Name")
     talent_names = _load_prefixed_kv(CSV_TALENT, RAW_TALENT, "PlayerTalent/Name")
     book_names = _load_prefixed_kv(CSV_BOOK, RAW_BOOK, "Book/Name")
@@ -288,6 +317,7 @@ def main():
     dice_meta = {}
     combat_ids = set()
     battle_ids = set()
+    death_ids = set()
     ending_ids = set()
     game_flags = set()
     talents = set()
@@ -325,10 +355,13 @@ def main():
         menu_dialogs.update(RE_MENU_DIALOG.findall(text))
         effects_found.update(RE_EFFECT.findall(text))
         dice_checks.update(RE_DICE.findall(text))  # 全名清单保留（含旅行检查点）
-        for check, meta in extract_dice_meta(text, travel=base in travel_scripts).items():
+        for check, meta in extract_dice_meta(
+            text, travel=base in travel_scripts
+        ).items():
             dice_meta.setdefault(check, meta)
         combat_ids.update(RE_COMBAT.findall(text))
         battle_ids.update(RE_BATTLE.findall(text))
+        death_ids.update(RE_DEATH.findall(text))
         for a, b in RE_ENDING.findall(text):
             ending_ids.add(a or b)
         game_flags.update(RE_FLAG.findall(text))
@@ -368,7 +401,8 @@ def main():
         "dice_meta": dice_meta,
         "combat_ids": sorted(combat_ids),
         "battle_ids": sorted(battle_ids),
-        "ending_ids": sorted(ending_ids),
+        "death_ids": enrich_id_list(death_ids, ref_ids.get("death", {})),
+        "ending_ids": enrich_id_list(ending_ids, ref_ids.get("ending", {})),
         "game_flags": [
             {"id": g, "name": flag_names.get(g, g)} for g in sorted(game_flags)
         ],
@@ -414,8 +448,22 @@ def main():
     print("特效数: %d" % len(effects_found))
     print("骰子检查点数: %d（含元数据 %d）" % (len(dice_checks), len(dice_meta)))
     print(
-        "Combat ids: %d, Battle ids: %d, Ending ids: %d"
-        % (len(combat_ids), len(battle_ids), len(ending_ids))
+        "Combat ids: %d, Battle ids: %d, Death ids: %d, Ending ids: %d"
+        % (len(combat_ids), len(battle_ids), len(death_ids), len(ending_ids))
+    )
+    death_names = sum(
+        1
+        for i in enrich_id_list(death_ids, ref_ids.get("death", {}))
+        if i["name"] != i["id"]
+    )
+    ending_names = sum(
+        1
+        for i in enrich_id_list(ending_ids, ref_ids.get("ending", {}))
+        if i["name"] != i["id"]
+    )
+    print(
+        "死亡/结局 id 标题命中: %d/%d, %d/%d"
+        % (death_names, len(death_ids), ending_names, len(ending_ids))
     )
     print("游戏 Flag 数: %s" % hit(game_flags, flag_names))
     print("天赋数: %s" % hit(talents, talent_names))

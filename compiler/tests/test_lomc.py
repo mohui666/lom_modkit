@@ -362,7 +362,7 @@ class TestNodeCodegen(unittest.TestCase):
         self.assertNotIn("mod_set_mood(false)", lua)
 
     def test_death(self):
-        # 死亡文本节点：黑屏 + 居中旁白（已读 key）+ 场景跳转；自带收尾不加流转行
+        # 死亡文本节点：黑屏 + 居中旁白（已读 key）+ 官方 GameOver 死亡画面；自带收尾不加流转行
         lua = compile_story(
             make_story(
                 [
@@ -371,6 +371,7 @@ class TestNodeCodegen(unittest.TestCase):
                         "id": "n2",
                         "type": "death",
                         "text": "你坠入山崖，万事休矣。",
+                        "death_id": "910021",
                         "next": "Title",
                     },
                 ]
@@ -384,19 +385,27 @@ class TestNodeCodegen(unittest.TestCase):
         self.assertIn("\tsayoptions.fadewhendone  = true", lua)
         self.assertIn("\tsetcharacter(narrative)", lua)
         self.assertIn('\tsay(luamanager.GetStoryText("MOD_MOD_main_n2"))', lua)
-        self.assertIn('\tluamanager.ChangeScene("Title", "", "")', lua)
+        self.assertIn('\tluamanager.ChangeScene("GameOver", "910021", "Title")', lua)
         # death 自带流转，不追加 return（ChangeScene 后直接收束函数）
-        self.assertNotIn('ChangeScene("Title", "", "")\n\treturn', lua)
+        self.assertNotIn('ChangeScene("GameOver", "910021", "Title")\n\treturn', lua)
 
     def test_death_default_next_title(self):
-        lua = self.lua_of({"id": "n1", "type": "death", "text": "命数已尽。"})
-        self.assertIn('\tluamanager.ChangeScene("Title", "", "")', lua)
+        lua = self.lua_of(
+            {"id": "n1", "type": "death", "text": "命数已尽。", "death_id": "910021"}
+        )
+        self.assertIn('\tluamanager.ChangeScene("GameOver", "910021", "Title")', lua)
 
     def test_death_free_next(self):
         lua = self.lua_of(
-            {"id": "n1", "type": "death", "text": "命数已尽。", "next": "Free"}
+            {
+                "id": "n1",
+                "type": "death",
+                "text": "命数已尽。",
+                "death_id": "910021",
+                "next": "Free",
+            }
         )
-        self.assertIn('\tluamanager.ChangeScene("Free", "", "")', lua)
+        self.assertIn('\tluamanager.ChangeScene("GameOver", "910021", "Free")', lua)
 
     def test_choice(self):
         # choice 的 goto 目标必须存在，补一个目标节点 na
@@ -1019,7 +1028,15 @@ class TestPack(unittest.TestCase):
             ]
         )
         extra = make_story(
-            [{"id": "x1", "type": "death", "text": "死亡文本演示", "next": "Title"}],
+            [
+                {
+                    "id": "x1",
+                    "type": "death",
+                    "text": "死亡文本演示",
+                    "death_id": "910021",
+                    "next": "Title",
+                }
+            ],
             story_id="extra",
             start="x1",
         )
@@ -1068,9 +1085,9 @@ class TestPack(unittest.TestCase):
         self.assertIn('luamanager.GetStoryText("MOD_testmod_main_n2")', lua_main)
         self.assertIn("return node_n1()", lua_main)
         self.assertIn("return node_x1()", lua_extra)
-        # extra 的 death 自带场景跳转收尾（key 走已读机制）
+        # extra 的 death 自带场景跳转收尾（key 走已读机制，官方 GameOver 死亡画面）
         self.assertIn('luamanager.GetStoryText("MOD_testmod_extra_x1")', lua_extra)
-        self.assertIn('luamanager.ChangeScene("Title", "", "")', lua_extra)
+        self.assertIn('luamanager.ChangeScene("GameOver", "910021", "Title")', lua_extra)
         self.assertNotIn("luamanager.Init()", lua_extra)
 
     def test_pack_missing_manifest(self):
@@ -1777,7 +1794,13 @@ class TestNewNodeCodegen(unittest.TestCase):
                     }
                 ],
             },
-            {"id": "n2", "type": "death", "text": "山崖坠亡。", "next": "Title"},
+            {
+                "id": "n2",
+                "type": "death",
+                "text": "山崖坠亡。",
+                "death_id": "910021",
+                "next": "Title",
+            },
         ):
             validate_story(
                 make_story(
@@ -1896,29 +1919,75 @@ class TestNewNodeValidationErrors(unittest.TestCase):
         assert_compile_error(
             self,
             linear_story({"id": "n1", "type": "death", "text": "   "}),
+            '缺少必填字段 "death_id"',
+            "n1",
+        )
+        assert_compile_error(
+            self,
+            linear_story(
+                {"id": "n1", "type": "death", "text": "   ", "death_id": "910021"}
+            ),
             '字段 "text" 不能为空',
             "n1",
         )
+        # death_id 必填且 ≥900000（mod 专属区间；官方 id 会触发结局解锁与记录）
+        assert_compile_error(
+            self,
+            linear_story({"id": "n1", "type": "death", "text": "死"}),
+            '缺少必填字段 "death_id"',
+            "n1",
+        )
+        for bad in ("10021", "899999", "abc", "", "91002x"):
+            assert_compile_error(
+                self,
+                linear_story(
+                    {"id": "n1", "type": "death", "text": "死", "death_id": bad}
+                ),
+                '字段 "death_id"',
+                "n1",
+            )
         # next 只能是 Free/Title
         assert_compile_error(
             self,
-            linear_story({"id": "n1", "type": "death", "text": "死", "next": "Story"}),
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "death",
+                    "text": "死",
+                    "death_id": "910021",
+                    "next": "Story",
+                }
+            ),
             '字段 "next"',
             "n1",
         )
         # death 自带场景跳转，不允许显式 goto
         assert_compile_error(
             self,
-            linear_story({"id": "n1", "type": "death", "text": "死", "goto": "nend"}),
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "death",
+                    "text": "死",
+                    "death_id": "910021",
+                    "goto": "nend",
+                }
+            ),
             '不允许显式 "goto"',
             "n1",
         )
-        # 合法：末位 death 可收尾（自带 ChangeScene）
+        # 合法：末位 death 可收尾（自带 ChangeScene → 官方 GameOver 死亡画面）
         validate_story(
             make_story(
                 [
                     {"id": "n1", "type": "focus", "character": "p"},
-                    {"id": "n2", "type": "death", "text": "命数已尽。", "next": "Free"},
+                    {
+                        "id": "n2",
+                        "type": "death",
+                        "text": "命数已尽。",
+                        "death_id": "910021",
+                        "next": "Free",
+                    },
                 ],
                 start="n1",
             )
@@ -2199,6 +2268,222 @@ class TestWarnings(unittest.TestCase):
         warns = []
         validate_story(story, warnings=warns)
         self.assertTrue(any("goto_大成功 会被忽略" in w for w in warns), warns)
+
+    def test_dice_band_texts_override(self):
+        # band_texts：逐带覆写骰子菜单选项文本（条件永远用官方元数据）
+        lua = compile_story(
+            make_story(
+                [
+                    {
+                        "id": "n1",
+                        "type": "dice",
+                        "check": "Ch_6_8_2_Break_01_001",
+                        "options": [
+                            {
+                                "goto_大成功": "na",
+                                "goto_成功": "nb",
+                                "goto_失败": "nc",
+                                "band_texts": ["败一", "成二", "大成三"],
+                            }
+                        ],
+                    },
+                    {"id": "na", "type": "focus", "character": "player"},
+                    {"id": "nb", "type": "focus", "character": "brother4"},
+                    {"id": "nc", "type": "focus", "character": "brother4"},
+                    {"id": "nend", "type": "end"},
+                ]
+            )
+        )
+        # 作者文本 + 官方条件；作者文本里的 ASCII | 也要净化成全角｜
+        self.assertIn('\tdice_opts1[1] = "败一|<20"', lua)
+        self.assertIn('\tdice_opts1[2] = "成二|<80"', lua)
+        self.assertIn('\tdice_opts1[3] = "大成三|>=80"', lua)
+        self.assertNotIn('"O_6_8_2_Break_01_002|<20"', lua)
+
+    def test_dice_band_texts_pipe_sanitize(self):
+        lua = compile_story(
+            make_story(
+                [
+                    {
+                        "id": "n1",
+                        "type": "dice",
+                        "check": "Ch_6_8_2_Break_01_001",
+                        "options": [
+                            {
+                                "goto_大成功": "nend",
+                                "goto_成功": "nend",
+                                "goto_失败": "nend",
+                                "band_texts": ["你|我", "好|坏", "对|错"],
+                            }
+                        ],
+                    },
+                    {"id": "nend", "type": "end"},
+                ]
+            )
+        )
+        self.assertIn('\tdice_opts1[1] = "你｜我|<20"', lua)
+        self.assertIn('\tdice_opts1[2] = "好｜坏|<80"', lua)
+        self.assertIn('\tdice_opts1[3] = "对｜错|>=80"', lua)
+
+    def test_dice_no_band_texts_uses_official(self):
+        # 缺省（无 band_texts）：继续用官方结果带文本
+        lua = compile_story(
+            make_story(
+                [
+                    {
+                        "id": "n1",
+                        "type": "dice",
+                        "check": "Ch_6_8_2_Break_01_001",
+                        "options": [
+                            {"goto_大成功": "nend", "goto_成功": "nend", "goto_失败": "nend"}
+                        ],
+                    },
+                    {"id": "nend", "type": "end"},
+                ]
+            )
+        )
+        self.assertIn('\tdice_opts1[1] = "O_6_8_2_Break_01_002|<20"', lua)
+        self.assertIn('\tdice_opts1[2] = "O_6_8_2_Break_01_003|<80"', lua)
+        self.assertIn('\tdice_opts1[3] = "O_6_8_2_Break_01_004|>=80"', lua)
+
+    def test_dice_band_texts_len_mismatch(self):
+        for bad in (["只有一条"], ["一", "二", "三", "四"], []):
+            assert_compile_error(
+                self,
+                make_story(
+                    [
+                        {
+                            "id": "n1",
+                            "type": "dice",
+                            "check": "Ch_6_8_2_Break_01_001",
+                            "options": [
+                                {
+                                    "goto_大成功": "nend",
+                                    "goto_成功": "nend",
+                                    "goto_失败": "nend",
+                                    "band_texts": bad,
+                                }
+                            ],
+                        },
+                        {"id": "nend", "type": "end"},
+                    ]
+                ),
+                '"band_texts" 条数必须等于',
+            )
+
+    def test_dice_band_texts_bad_items(self):
+        # 非数组 / 空条目 → 编译错误
+        assert_compile_error(
+            self,
+            make_story(
+                [
+                    {
+                        "id": "n1",
+                        "type": "dice",
+                        "check": "Ch_6_8_2_Break_01_001",
+                        "options": [
+                            {
+                                "goto_大成功": "nend",
+                                "goto_成功": "nend",
+                                "goto_失败": "nend",
+                                "band_texts": "不是数组",
+                            }
+                        ],
+                    },
+                    {"id": "nend", "type": "end"},
+                ]
+            ),
+            '"band_texts" 必须是数组',
+        )
+        assert_compile_error(
+            self,
+            make_story(
+                [
+                    {
+                        "id": "n1",
+                        "type": "dice",
+                        "check": "Ch_6_8_2_Break_01_001",
+                        "options": [
+                            {
+                                "goto_大成功": "nend",
+                                "goto_成功": "nend",
+                                "goto_失败": "nend",
+                                "band_texts": ["一", "", "三"],
+                            }
+                        ],
+                    },
+                    {"id": "nend", "type": "end"},
+                ]
+            ),
+            '"band_texts" 第 2 条必须是非空字符串',
+        )
+
+    def test_effect_play_field(self):
+        # play 字段（bool）：true→1 播放；false→0 停止（循环特效不自动销毁）
+        lua = compile_story(
+            make_story(
+                [
+                    {"id": "n1", "type": "effect", "name": "Glow_001"},
+                    {"id": "n2", "type": "effect", "name": "Glow_001", "play": False},
+                    {"id": "n3", "type": "effect", "name": "Hit_001", "play": True},
+                    {"id": "nend", "type": "end"},
+                ]
+            )
+        )
+        self.assertIn('\teffects.SetupEffect("Glow_001", 0, 0, 1, 1, 1, 1)', lua)
+        self.assertIn('\teffects.SetupEffect("Glow_001", 0, 0, 1, 1, 1, 0)', lua)
+        self.assertIn('\teffects.SetupEffect("Hit_001", 0, 0, 1, 1, 1, 1)', lua)
+        # 旧数据：无 play 时继续用 d 字段（向后兼容）
+        lua2 = compile_story(
+            make_story(
+                [
+                    {"id": "n1", "type": "effect", "name": "Glow_001", "d": 0},
+                    {"id": "nend", "type": "end"},
+                ]
+            )
+        )
+        self.assertIn('\teffects.SetupEffect("Glow_001", 0, 0, 1, 1, 1, 0)', lua2)
+        # play 非 bool → 编译错误
+        assert_compile_error(
+            self,
+            make_story(
+                [
+                    {"id": "n1", "type": "effect", "name": "x", "play": 1},
+                    {"id": "nend", "type": "end"},
+                ]
+            ),
+            '可选字段 "play" 必须是布尔值',
+        )
+
+    def test_goto_scene_official_id_warning(self):
+        # GameOver/End 用官方 id：非致命警告（触发官方结局解锁与记录，污染存档）
+        for scene, key in (("GameOver", "10021"), ("End", "20003")):
+            story = make_story(
+                [
+                    {
+                        "id": "n1",
+                        "type": "goto_scene",
+                        "scene": scene,
+                        "key": key,
+                    }
+                ]
+            )
+            warns = []
+            validate_story(story, warnings=warns)
+            self.assertTrue(
+                any("与官方结局 id 重复" in w for w in warns),
+                "scene=%s key=%s 应警告: %s" % (scene, key, warns),
+            )
+        # mod 专属 id（≥900000）不警告
+        story = make_story(
+            [
+                {"id": "n1", "type": "goto_scene", "scene": "End", "key": "920003"},
+                {"id": "n2", "type": "goto_scene", "scene": "GameOver", "key": "910021"},
+            ]
+        )
+        warns = []
+        validate_story(story, warnings=warns)
+        self.assertFalse(any("与官方结局 id 重复" in w for w in warns), warns)
 
 
 if __name__ == "__main__":

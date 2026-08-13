@@ -297,17 +297,37 @@ def add_say(
 
 
 def add_death(
-    story: dict, text: str, next: str = "Title", after: str | None = None
+    story: dict,
+    text: str,
+    death_id: str,
+    next: str = "Title",
+    after: str | None = None,
 ) -> dict:
-    """新增死亡文本节点（第 39 种节点类型）：黑屏 + 居中旁白 + 场景跳转。
+    """新增死亡文本节点（第 39 种节点类型）：黑屏 + 居中旁白 + 官方死亡画面。
 
-    text 必填非空（多行合法）；next 只能是 "Free"/"Title"（默认回标题画面）。
+    text 必填非空（多行合法）；death_id 必填 ≥900000 的 mod 专属数字 id
+    （约定 9+官方 id：官方 10021 乱战中被践踏而死 → 910021；官方 id 会触发
+    官方结局解锁与记录，污染存档）；next 只能是 "Free"/"Title"（默认回标题）。
     """
     if not isinstance(text, str) or not text.strip():
         raise ValueError(f"death 文本必须是非空字符串，实际为 {text!r}")
+    try:
+        ok_id = (
+            isinstance(death_id, str) and death_id.isdigit() and int(death_id) >= 900000
+        )
+    except ValueError:  # 超长数字串 int() 会抛（防御）
+        ok_id = False
+    if not ok_id:
+        raise ValueError(
+            f"death_id 必须是 ≥900000 的 mod 专属数字 id（约定 9+官方 id，"
+            f"如官方 10021 → 910021；官方 id 会触发官方结局解锁与记录，污染存档），"
+            f"实际为 {death_id!r}"
+        )
     if next not in ("Free", "Title"):
         raise ValueError(f"death next 非法: {next!r}（允许 Free/Title）")
-    return _make_node(story, "death", {"text": text, "next": next}, after)
+    return _make_node(
+        story, "death", {"text": text, "death_id": death_id, "next": next}, after
+    )
 
 
 def add_scene(story: dict, view: str, after: str | None = None) -> dict:
@@ -344,6 +364,7 @@ def add_dice(
     goto_成功: str,
     goto_失败: str,
     goto_大成功: str = "",
+    band_texts: list | None = None,
     after: str | None = None,
 ) -> dict:
     """新增骰子检定节点。
@@ -351,6 +372,8 @@ def add_dice(
     check 必须在官方元数据表（lomc.dice_data.get_dice_meta，无元数据会在游戏内
     骰子菜单崩溃）。2 带检查点：goto_成功/goto_失败 必填，goto_大成功 可空
     （非空且 ≠ goto_成功 也接受，编译警告会提示被忽略）；3 带及以上三个都要填。
+    band_texts（可选）：逐带覆写骰子菜单选项文本（条数必须等于结果带数，每项
+    非空字符串）；缺省时用官方结果带文本。
     """
     if not isinstance(check, str) or not check:
         raise ValueError(f"dice 检查点 check 必须是非空字符串，实际为 {check!r}")
@@ -381,9 +404,25 @@ def add_dice(
         raise ValueError(
             f'检查点 "{check}" 有 {n_bands} 个结果带，goto_大成功 必填（最优带）'
         )
-    options = [
+    options: list[dict] = [
         {"goto_大成功": goto_大成功, "goto_成功": goto_成功, "goto_失败": goto_失败}
     ]
+    if band_texts is not None:
+        if not isinstance(band_texts, list):
+            raise ValueError(
+                f"dice band_texts 必须是数组（逐带覆写选项文本），实际为 {band_texts!r}"
+            )
+        if len(band_texts) != n_bands:
+            raise ValueError(
+                f'dice band_texts 条数必须等于检查点 "{check}" 的结果带数'
+                f"（{n_bands} 条），实际为 {len(band_texts)} 条"
+            )
+        for i, bt in enumerate(band_texts, 1):
+            if not isinstance(bt, str) or not bt:
+                raise ValueError(
+                    f"dice band_texts 第 {i} 条必须是非空字符串，实际为 {bt!r}"
+                )
+        options[0]["band_texts"] = list(band_texts)
     return _make_node(story, "dice", {"check": check, "options": options}, after)
 
 
