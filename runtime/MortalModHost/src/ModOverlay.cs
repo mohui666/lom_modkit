@@ -9,18 +9,24 @@ using UnityEngine.UI;
 namespace MortalModHost
 {
     /// <summary>
-    /// mod 死亡/结局文本覆盖（契约 §C）：mod 用自造 id（9+官方id，如 910021）进官方 GameOver/End
-    /// 场景时，LibrarySystem 查不到该 id，画面没有文本（死亡没文本、结局黑屏）。编译器在 mod Lua 里
-    /// 发射裸全局调用 mod_set_death_text(title, desc) / mod_set_ending_text(title, desc)，LuaManagerPatch 把
-    /// 参数写进本类；随后进入 GameOver/End 场景时，GameOverOverlayPatch / EndGameOverlayPatch 用
+    /// mod 死亡/结局文本覆盖（契约 §C/§3.1）：mod 用自造 id（9+官方id，如 910021）进官方 GameOver
+    /// 场景，或在 Story 场景打开汗青书 EndGamePanel 时，LibrarySystem 查不到自造 key，画面没有文本。编译器在 mod Lua 里
+    /// 发射裸全局调用 mod_set_death_text(title, desc) / mod_set_ending_text(title, desc[, image])，LuaManagerPatch 把
+    /// 参数写进本类；随后进入 GameOver 或打开 EndGamePanel 时，对应 patch 用
     /// Harmony postfix 包一层官方 Start 协程，在官方"查表失败、清空文本"之后、"fade 序列开始之前"
     /// 把 mod 文本写进官方画面组件（Text/描述行 prefab），文本随官方 DOFade 渐显——布局 100% 官方。
     /// 死亡文本是官方同款"短标题 + 描述行"两段式：标题写官方标题 Text，描述按 \n 拆行注入
     /// _descContainer——绝不把整段死亡文本塞进大字号标题。
+    /// 结局卡插图（契约 §3.1）：三参 mod_set_ending_text 的第三参是包内图片路径，按
+    /// CurrentPackage（当前演出 mod）的 assets 表解码成 Texture2D；EndGamePanelOverlayPatch
+    /// 把它写入官方汗青书左页 _picImage。
     /// 官方脚本分支演出时 Clear()（官方结局不受影响）；场景切换离开 GameOver/End 时由 Plugin.Update 清除。
     /// </summary>
     internal static class ModOverlay
     {
+        /// <summary>日志通道，由 Plugin.Awake 注入（静态类拿不到插件实例的 Logger）。</summary>
+        internal static ManualLogSource Log;
+
         /// <summary>死亡短标题（写入官方 GameOver 标题 Text；可空——只有描述时标题栏留空）。</summary>
         internal static string DeathTitle;
 
@@ -33,6 +39,27 @@ namespace MortalModHost
         /// <summary>结局卡片描述（可多行，中文按 \n 拆行）。</summary>
         internal static string EndingDesc;
 
+        /// <summary>结局卡片背景图路径（包内 assets/ 相对路径，正斜杠；可空）。</summary>
+        internal static string EndingImagePath;
+
+        /// <summary>结局卡片背景图已解码的纹理（由 SetEnding 从包内字节解码；可空）。</summary>
+        internal static Texture2D EndingTexture;
+
+        /// <summary>本次脚本已请求显示自定义 End；即使图片损坏也要打开官方面板并回退占位图。</summary>
+        internal static bool EndingRequested;
+
+        /// <summary>由自定义纹理创建、挂到官方 EndGamePanel._picImage 的临时 Sprite。</summary>
+        internal static Sprite EndingSprite;
+
+        /// <summary>End 场景上自绘的全屏 Image（渐显完成后保留引用，Clear 时销毁）。</summary>
+        internal static Image EndingImageObject;
+
+        /// <summary>
+        /// 当前演出的 mod 包（LuaManagerPatch 在 mod 脚本开演时按注册名设置）：
+        /// mod_set_ending_text 的 image 参数相对它解析 assets。官方脚本演出/离开结局画面时置 null。
+        /// </summary>
+        internal static ModPackage CurrentPackage;
+
         /// <summary>GameOver 画面是否有 mod 文本可画（结局优先，其次死亡标题/描述；只有死亡描述也要画）。</summary>
         internal static bool HasGameOverContent
         {
@@ -43,10 +70,14 @@ namespace MortalModHost
             }
         }
 
-        /// <summary>End 画面是否有 mod 结局文本可画（只看结局标题）。</summary>
+        /// <summary>End 画面是否有 mod 结局卡可画（标题/描述/背景图任一即可）。</summary>
         internal static bool HasEndingContent
         {
-            get { return !string.IsNullOrEmpty(EndingTitle); }
+            get
+            {
+                return !string.IsNullOrEmpty(EndingTitle) || !string.IsNullOrEmpty(EndingDesc)
+                    || EndingTexture != null || EndingRequested;
+            }
         }
 
         /// <summary>
@@ -60,18 +91,83 @@ namespace MortalModHost
             DeathDesc = string.IsNullOrEmpty(desc) ? null : desc;
         }
 
-        internal static void SetEnding(string title, string desc)
+        internal static void SetEnding(string title, string desc, string imagePath)
         {
+            EndingRequested = true;
             EndingTitle = string.IsNullOrEmpty(title) ? null : title;
             EndingDesc = string.IsNullOrEmpty(desc) ? null : desc;
+            EndingImagePath = null;
+            DestroyEndingTexture();
+            if (string.IsNullOrEmpty(imagePath)) return;
+            // 契约 §3.1：image 按"当前演出 mod"的包内 assets 解析（正斜杠统一）
+            string key = imagePath.Replace('\\', '/');
+            if (CurrentPackage == null)
+            {
+                Log?.LogWarning("mod_set_ending_text 收到 image 参数，但当前没有演出中的 mod 包（忽略图片）：" + key);
+                return;
+            }
+            byte[] bytes;
+            if (!CurrentPackage.Assets.TryGetValue(key, out bytes))
+            {
+                Log?.LogWarning("mod " + CurrentPackage.Id + " 的包内找不到结局卡图片 " + key + "（忽略图片，纯文字卡）");
+                return;
+            }
+            try
+            {
+                var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                if (tex.LoadImage(bytes))
+                {
+                    EndingTexture = tex;
+                    EndingImagePath = key;
+                }
+                else
+                {
+                    UnityEngine.Object.Destroy(tex);
+                    Log?.LogWarning("mod " + CurrentPackage.Id + " 的结局卡图片解码失败（忽略图片）：" + key);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log?.LogWarning("mod " + CurrentPackage.Id + " 的结局卡图片解码异常（忽略图片）：" + ex.Message);
+            }
         }
 
         internal static void Clear()
         {
             DeathTitle = null;
             DeathDesc = null;
+            ClearEnding();
+            CurrentPackage = null;
+        }
+
+        /// <summary>只清理本次结局卡，EndGamePanel 关闭后调用；不影响仍在运行的 mod 包上下文。</summary>
+        internal static void ClearEnding()
+        {
             EndingTitle = null;
             EndingDesc = null;
+            EndingImagePath = null;
+            EndingRequested = false;
+            DestroyEndingTexture();
+        }
+
+        /// <summary>销毁自建纹理与 End 场景自绘 Image（Unity 假 null 由重载 == 防御，场景卸载后的对象安全跳过）。</summary>
+        private static void DestroyEndingTexture()
+        {
+            if (EndingImageObject != null)
+            {
+                UnityEngine.Object.Destroy(EndingImageObject);
+                EndingImageObject = null;
+            }
+            if (EndingSprite != null)
+            {
+                UnityEngine.Object.Destroy(EndingSprite);
+                EndingSprite = null;
+            }
+            if (EndingTexture != null)
+            {
+                UnityEngine.Object.Destroy(EndingTexture);
+                EndingTexture = null;
+            }
         }
     }
 
@@ -205,6 +301,125 @@ namespace MortalModHost
     }
 
     /// <summary>
+    /// 原版“汗青书”结局卡 patch。官方剧情不是切换到 End 场景来画这张卡，而是在 Story
+    /// 场景中执行 <c>runwait(endgamepanel.Open("200xx"))</c>：EndGamePanel 自带书卷版式、
+    /// 插图槽、标题/正文渐显和等待确认。编译器给 mod 传固定的不存在 key，官方查表不会
+    /// 解锁/写入任何官方结局；本包装协程在第一次 yield（画布渐显）前注入自定义内容。
+    /// 未指定 image 时临时借用官方 20047 的 Picture 作占位，不复制或分发游戏资源。
+    /// </summary>
+    [HarmonyPatch(typeof(EndGamePanel), "Open")]
+    internal static class EndGamePanelOverlayPatch
+    {
+        internal static ManualLogSource Log;
+        private const string PlaceholderEndingKey = "20047";
+
+        private static void Postfix(EndGamePanel __instance, ref IEnumerator __result)
+        {
+            if (!ModOverlay.HasEndingContent) return;
+            try
+            {
+                IEnumerator original = __result;
+                __result = ApplyAfterOfficial(__instance, original);
+            }
+            catch (Exception ex)
+            {
+                Log?.LogWarning("汗青书 mod 结局卡注入失败：" + ex.Message);
+            }
+        }
+
+        private static IEnumerator ApplyAfterOfficial(EndGamePanel panel, IEnumerator original)
+        {
+            bool restoreSaveLibrary = false;
+            bool saveLibrary = false;
+            try
+            {
+                // Open 首次 MoveNext 前会清空文字、查 LibrarySystem、设置交互，
+                // 然后停在 _canvasGroup.DOFade。此处写入即可完整沿用后续官方渐显。
+                if (!Step(original)) yield break;
+                try
+                {
+                    var traverse = Traverse.Create(panel);
+                    saveLibrary = traverse.Field("_saveLibrary").GetValue<bool>();
+                    if (saveLibrary)
+                    {
+                        // mod key 不在 LibrarySystem，禁止打开无法解析条目的存档槽面板。
+                        traverse.Field("_saveLibrary").SetValue(false);
+                        restoreSaveLibrary = true;
+                    }
+                    ApplyEnding(panel);
+                }
+                catch (Exception ex)
+                {
+                    Log?.LogWarning("汗青书 mod 标题/图片写入失败：" + ex);
+                }
+                yield return original.Current;
+                while (Step(original))
+                    yield return original.Current;
+            }
+            finally
+            {
+                if (restoreSaveLibrary)
+                {
+                    try
+                    {
+                        Traverse.Create(panel).Field("_saveLibrary").SetValue(saveLibrary);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log?.LogWarning("恢复 EndGamePanel._saveLibrary 失败：" + ex.Message);
+                    }
+                }
+                (original as IDisposable)?.Dispose();
+                ModOverlay.ClearEnding();
+            }
+        }
+
+        private static bool Step(IEnumerator enumerator)
+        {
+            try
+            {
+                return enumerator.MoveNext();
+            }
+            catch (Exception ex)
+            {
+                Log?.LogWarning("汗青书官方 Open 步进异常（终止本次结局卡）：" + ex.Message);
+                return false;
+            }
+        }
+
+        private static void ApplyEnding(EndGamePanel panel)
+        {
+            var traverse = Traverse.Create(panel);
+            Text title = traverse.Field("_titleText").GetValue<Text>();
+            Text desc = traverse.Field("_descText").GetValue<Text>();
+            Image picture = traverse.Field("_picImage").GetValue<Image>();
+            if (title != null) title.text = ModOverlay.EndingTitle ?? "";
+            if (desc != null) desc.text = ModOverlay.EndingDesc ?? "";
+            if (picture == null) return;
+
+            Sprite sprite = null;
+            if (ModOverlay.EndingTexture != null)
+            {
+                sprite = Sprite.Create(
+                    ModOverlay.EndingTexture,
+                    new Rect(0f, 0f, ModOverlay.EndingTexture.width, ModOverlay.EndingTexture.height),
+                    new Vector2(0.5f, 0.5f));
+                ModOverlay.EndingSprite = sprite;
+            }
+            else
+            {
+                // 本地直接借用已加载的原版 LibraryItemData 图片，只作开发占位。
+                LibraryItemData placeholder = LibrarySystem.Instance.EndGame.Get(PlaceholderEndingKey);
+                if (placeholder != null) sprite = placeholder.Picture;
+                if (sprite == null)
+                    Log?.LogWarning("找不到原版结局 " + PlaceholderEndingKey + " 的插图，占位图将留空");
+            }
+            picture.sprite = sprite;
+            picture.preserveAspect = true;
+        }
+    }
+
+    /// <summary>
     /// Harmony patch：<c>EndGameController.Start()</c>（private IEnumerator，结局画面）。
     ///
     /// 反编译结论（ilspycmd 8.2，Mortal.Core.dll，与游戏当前版本一致）：
@@ -289,6 +504,24 @@ namespace MortalModHost
                 Text desc = traverse.Field("_descText").GetValue<Text>();
                 if (title != null) title.text = ModOverlay.EndingTitle;
                 if (desc != null) desc.text = ModOverlay.EndingDesc ?? "";
+                // 结局卡背景图（契约 §3.1）：官方 End 场景 Canvas 上垫底全屏 Image，
+                // alpha 初始 0，由 FadeInEndingText 与文字同速渐显。
+                if (ModOverlay.EndingTexture != null)
+                {
+                    try
+                    {
+                        ApplyEndingImage(controller, title);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log?.LogWarning("End 结局卡背景图创建失败（纯文字卡）：" + ex.Message);
+                        if (ModOverlay.EndingImageObject != null)
+                        {
+                            UnityEngine.Object.Destroy(ModOverlay.EndingImageObject);
+                            ModOverlay.EndingImageObject = null;
+                        }
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -296,7 +529,42 @@ namespace MortalModHost
             }
         }
 
-        /// <summary>标题+描述 alpha 0→1 渐变（官方查表命中路径的 DOFade 替代品，不引用 DOTween）。</summary>
+        /// <summary>
+        /// 在官方 End 场景 Canvas 上创建全屏 Image 垫底：挂在 Canvas 根下并 SetAsFirstSibling
+        /// （渲染在全部 UI 之后，标题/描述文字在上）；锚点拉伸填满画布、preserveAspect 保持比例；
+        /// raycastTarget=false 不拦截「回主選單」按钮点击。返回的 Image 引用存 ModOverlay.EndingImageObject。
+        /// </summary>
+        private static void ApplyEndingImage(EndGameController controller, Text title)
+        {
+            Transform root = null;
+            if (title != null && title.canvas != null) root = title.canvas.transform;
+            if (root == null && title != null) root = title.transform.parent;
+            if (root == null)
+            {
+                Log?.LogWarning("End 结局卡背景图：找不到可用的 Canvas（_titleText 不在 Canvas 下）");
+                return;
+            }
+            var go = new GameObject("mod_ending_image", typeof(RectTransform));
+            var rect = (RectTransform)go.transform;
+            rect.SetParent(root, false);
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+            go.transform.SetAsFirstSibling();
+            var image = go.AddComponent<Image>();
+            image.sprite = Sprite.Create(
+                ModOverlay.EndingTexture,
+                new Rect(0f, 0f, ModOverlay.EndingTexture.width, ModOverlay.EndingTexture.height),
+                new Vector2(0.5f, 0.5f));
+            ModOverlay.EndingSprite = image.sprite;
+            image.color = new Color(1f, 1f, 1f, 0f);
+            image.raycastTarget = false;
+            image.preserveAspect = true;
+            ModOverlay.EndingImageObject = image;
+        }
+
+        /// <summary>标题+描述 alpha 0→1 渐变（官方查表命中路径的 DOFade 替代品，不引用 DOTween）；有背景图时图同速渐显。</summary>
         private static IEnumerator FadeInEndingText(EndGameController controller)
         {
             Text title = null;
@@ -324,6 +592,13 @@ namespace MortalModHost
                 c.a = 0f;
                 desc.color = c;
             }
+            Image endingImage = ModOverlay.EndingImageObject;
+            if (endingImage != null)
+            {
+                Color c = endingImage.color;
+                c.a = 0f;
+                endingImage.color = c;
+            }
             float elapsed = 0f;
             while (elapsed < FadeDuration)
             {
@@ -341,6 +616,12 @@ namespace MortalModHost
                     c.a = alpha;
                     desc.color = c;
                 }
+                if (endingImage != null)
+                {
+                    Color c = endingImage.color;
+                    c.a = alpha;
+                    endingImage.color = c;
+                }
                 yield return null;
             }
             if (title != null)
@@ -354,6 +635,12 @@ namespace MortalModHost
                 Color c = desc.color;
                 c.a = 1f;
                 desc.color = c;
+            }
+            if (endingImage != null)
+            {
+                Color c = endingImage.color;
+                c.a = 1f;
+                endingImage.color = c;
             }
         }
     }

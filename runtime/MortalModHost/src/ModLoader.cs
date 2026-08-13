@@ -8,11 +8,28 @@ namespace MortalModHost
 {
     /// <summary>
     /// mod 包扫描与解析（纯静态、无 BepInEx/Unity 依赖，便于离线单测）。
-    /// 行为契约见 docs/mod_format.md §6：扫描 mods/*.lommod，解出 manifest.json、lua/*.lua 与可选 texts.json（契约 §A）。
-    /// 单个包损坏只警告跳过，绝不抛出让插件崩溃。
+    /// 行为契约见 docs/mod_format.md §6：扫描 mods/*.lommod，解出 manifest.json、lua/*.lua、可选 texts.json（契约 §A）
+    /// 与 assets/ 下图片（契约 §3.1）。单个包损坏只警告跳过，绝不抛出让插件崩溃。
     /// </summary>
     internal static class ModLoader
     {
+        /// <summary>结局卡背景图单张上限（字节，契约 §3.1，与编译器 pack 校验一致）。</summary>
+        private const long MaxEndingImageBytes = 8L * 1024 * 1024;
+
+        /// <summary>结局卡背景图允许的扩展名（契约 §3.1）。</summary>
+        private static bool IsImageAsset(string path)
+        {
+            return path.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
+                || path.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase)
+                || path.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>统一包内路径分隔符为正斜杠（与编译器打包/lua 传参一致）。</summary>
+        private static string NormalizeAssetPath(string path)
+        {
+            return path.Replace('\\', '/');
+        }
+
         /// <summary>
         /// 扫描 modsDir 下全部 *.lommod。目录不存在则创建。
         /// 返回成功解析的包列表；坏包经 logWarn 报告后跳过。
@@ -93,6 +110,34 @@ namespace MortalModHost
                     }
                 }
 
+                // assets/ 下的图片（契约 §3.1 结局卡背景图）：只收 .png/.jpg/.jpeg，
+                // 单张 ≤8MB（超限警告跳过）；其余条目（音频等）运行时用不到，不读入内存。
+                foreach (var entry in zip.Entries)
+                {
+                    if (!entry.FullName.StartsWith("assets/", StringComparison.Ordinal)) continue;
+                    if (!IsImageAsset(entry.FullName)) continue;
+                    if (entry.Length > MaxEndingImageBytes)
+                    {
+                        if (logWarn != null)
+                            logWarn("mod " + package.Id + " 的资源 " + entry.FullName + " 超过 8MB，已忽略（结局卡背景图上限）");
+                        continue;
+                    }
+                    try
+                    {
+                        using (var input = entry.Open())
+                        using (var ms = new MemoryStream())
+                        {
+                            input.CopyTo(ms);
+                            package.Assets[NormalizeAssetPath(entry.FullName)] = ms.ToArray();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        if (logWarn != null)
+                            logWarn("mod " + package.Id + " 的资源 " + entry.FullName + " 读取失败，已忽略：" + ex.Message);
+                    }
+                }
+
                 // 触发器 script 必须指向包内已有脚本；指向不存在脚本的触发器警告后丢弃（不拖垮整包）
                 if (package.Campaign != null)
                 {
@@ -156,8 +201,8 @@ namespace MortalModHost
                 campaign.NewGame = (bool)newGameObj;
             }
 
-            // 契约 §2：disable_official_events（可选布尔，缺省 false）：该 mod 战役期间 Free 场景
-            // 位置点击不再触发官方默认故事脚本，只允许 mod 自己的位置触发器命中。
+            // 契约 §2：disable_official_events（可选布尔，缺省 false）：该 mod 战役期间返回
+            // Free 的自动任务与位置点击不再触发官方故事，只允许 mod 自己的位置触发器命中。
             object disableObj;
             if (dict.TryGetValue("disable_official_events", out disableObj) && disableObj != null)
             {

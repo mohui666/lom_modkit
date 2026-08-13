@@ -470,10 +470,10 @@ class TestAddDeath(unittest.TestCase):
         self.assertEqual(node["death_id"], "910021", "death_id 应写入")
         self.assertEqual(node["next"], "Title", "next 默认应为 Title")
 
-    def test_next_free(self):
+    def test_next_free_rejected_because_game_ignores_it(self):
         story = base_story()
-        node = story_api.add_death(story, "命数已尽。", "910021", next="Free")
-        self.assertEqual(node["next"], "Free", "next=Free 应写入")
+        with self.assertRaises(ValueError, msg="原版死亡画面不支持 next=Free"):
+            story_api.add_death(story, "命数已尽。", "910021", next="Free")
 
     def test_title_optional(self):
         story = base_story()

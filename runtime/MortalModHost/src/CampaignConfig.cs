@@ -11,7 +11,7 @@ namespace MortalModHost
         public bool NewGame;
 
         /// <summary>
-        /// true 时该 mod 战役期间禁用原版事件：Free 场景位置点击不再触发官方默认故事脚本
+        /// true 时该 mod 战役期间禁用原版事件：返回 Free 时及位置点击不再触发官方故事脚本
         /// （manifest.campaign.disable_official_events，契约 §2，缺省 false；只有 mod 自己的位置触发器命中）。
         /// 运行态由 <see cref="ModCampaignState"/> 记录，FreePositionPatch 据此抑制官方脚本。
         /// </summary>

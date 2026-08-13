@@ -12,10 +12,16 @@ _resultSelection - 1 做下标），选项条数少于结果带数时索引越�
 
 import json
 import os
+import sys
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
-# compiler/lomc -> 项目根
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(_HERE))
+# 源码态 compiler/lomc -> 项目根；PyInstaller 冻结态的数据文件位于
+# sys._MEIPASS/data，不能再从 PYZ 内的 lomc.__file__ 反推目录。
+_PROJECT_ROOT = (
+    getattr(sys, "_MEIPASS")
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS")
+    else os.path.dirname(os.path.dirname(_HERE))
+)
 EDITOR_DATA_PATH = os.path.join(_PROJECT_ROOT, "data", "editor_data.json")
 
 _META = None  # 进程级缓存；测试可赋值覆盖
@@ -129,7 +135,8 @@ def check_portrait(table, character, portrait):
     if portrait in table[character]:
         return None
     return (
-        '角色 "%s" 没有表情 "%s"（该角色表情：%s）。游戏 LoadCharacterPortrait ' % (
+        '角色 "%s" 没有表情 "%s"（该角色表情：%s）。游戏 LoadCharacterPortrait '
+        % (
             character,
             portrait,
             "、".join(table[character]) or "无",

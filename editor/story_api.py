@@ -9,12 +9,13 @@
    必须命中官方元数据、say 模式与人物联动），编译期剩余问题交给 lomc 校验
    （check_story / compile_story），编辑器与 AI 共用同一套防线。
 3. AI 友好：函数小而语义明确、错误消息全中文、错误与警告都是字符串列表；
-   另带 argparse CLI（check / compile / pack / new-story），退出码 0/1，
-   适合 AI 以子进程方式调用。
+   另带 argparse CLI（check / compile / pack / new-story，可加 --json 输出
+   单行结构化 JSON），退出码 0/1，适合 AI 以子进程方式调用。
 """
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -28,6 +29,13 @@ if str(EDITOR_DIR) not in sys.path:
     sys.path.insert(0, str(EDITOR_DIR))
 
 import models  # noqa: E402
+
+# 冻结（PyInstaller）态：__file__ 指向解包目录，改用 models 的 _MEIPASS 推导；
+# data/editor_data.json 由打包 spec 打进包内，import lomc 由冻结导入器解析（PYZ）
+if models.FROZEN:
+    EDITOR_DIR = models.editor_dir()
+    PROJECT_ROOT = models.project_root()
+    COMPILER_DIR = PROJECT_ROOT / "compiler"
 
 # ---------------------------------------------------------------------------
 # lomc 懒加载（契约方式引入，见 editor/lua_preview.py 的 get_lomc 写法）
@@ -350,7 +358,8 @@ def add_death(
 
     text 必填非空（多行合法）；death_id 必填 ≥900000 的 mod 专属数字 id
     （约定 9+官方 id：官方 10021 乱战中被践踏而死 → 910021；官方 id 会触发
-    官方结局解锁与记录，污染存档）；next 只能是 "Free"/"Title"（默认回标题）；
+    官方结局解锁与记录，污染存档）；原版死亡画面固定提供读档/标题按钮，
+    next 只接受 "Title"（保留参数是为了兼容既有调用签名）；
     title 可选（短标题，缺省/空串时用「勝敗乃兵家常事」）。
     """
     if not isinstance(text, str) or not text.strip():
@@ -367,8 +376,10 @@ def add_death(
             f"如官方 10021 → 910021；官方 id 会触发官方结局解锁与记录，污染存档），"
             f"实际为 {death_id!r}"
         )
-    if next not in ("Free", "Title"):
-        raise ValueError(f"death next 非法: {next!r}（允许 Free/Title）")
+    if next != "Title":
+        raise ValueError(
+            f"death next 非法: {next!r}（原版死亡画面固定返回标题，只允许 Title）"
+        )
     fields: dict = {"text": text, "death_id": death_id, "next": next}
     if title is not None:
         if not isinstance(title, str):
@@ -540,8 +551,36 @@ def pack_mod(mod_dir, output=None) -> str:
 
 
 # ---------------------------------------------------------------------------
-# CLI（AI 子进程友好：退出码 0/1，错误与警告打 stderr）
+# CLI（AI 子进程友好：退出码 0/1；文本模式错误与警告打 stderr，
+# --json 模式 stdout 打单行 JSON，stderr 保持干净）
 # ---------------------------------------------------------------------------
+def _print_json(payload: dict) -> None:
+    """结构化结果：单行 JSON 直写 stdout 的 UTF-8 字节流（绕开控制台编码）。"""
+    text = json.dumps(payload, ensure_ascii=False) + "\n"
+    buf = getattr(sys.stdout, "buffer", None)
+    if buf is not None:
+        try:
+            buf.write(text.encode("utf-8"))
+            buf.flush()
+            return
+        except Exception:  # buffer 不可写时退回 print（防御，不影响结果语义）
+            pass
+    print(text)
+
+
+def _add_json_flag(sub_parser) -> None:
+    sub_parser.add_argument(
+        "--json",
+        dest="json",
+        action="store_true",
+        default=False,
+        help=(
+            "结构化 JSON 输出：stdout 打单行 {\"ok\": bool, ...}，"
+            "errors/warnings 数组随附；退出码约定不变"
+        ),
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     """argparse 子命令入口：check / compile / pack / new-story。"""
     import argparse
@@ -550,12 +589,18 @@ def main(argv: list[str] | None = None) -> int:
         prog="story_api",
         description="活侠传 mod 剧情工具接口：校验/编译/打包/新建（AI 子进程友好）",
     )
+    # 主解析器也接受 --json（子命令前使用同样生效）；与子命令的 dest 错开再合并
+    parser.add_argument(
+        "--json", dest="json_global", action="store_true",
+        default=False, help=argparse.SUPPRESS,
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_check = sub.add_parser(
         "check", help="校验 story.json（退出码 0/1；错误与警告打 stderr）"
     )
     p_check.add_argument("story_json", help="story.json 路径")
+    _add_json_flag(p_check)
 
     p_compile = sub.add_parser("compile", help="编译 story.json → Lua")
     p_compile.add_argument("story_json", help="story.json 路径")
@@ -566,6 +611,7 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="输出 .lua 路径（默认与输入同目录、同名 .lua）",
     )
+    _add_json_flag(p_compile)
 
     p_pack = sub.add_parser("pack", help="打包 mod 目录 → .lommod")
     p_pack.add_argument("mod_dir", help="mod 目录（含 manifest.json 与 story/）")
@@ -576,6 +622,7 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="输出 .lommod 路径（默认 <mod目录> 同名 .lommod）",
     )
+    _add_json_flag(p_pack)
 
     p_new = sub.add_parser("new-story", help="新建剧情脚本 story.json")
     p_new.add_argument("story_id", help="剧情脚本 id（[a-zA-Z0-9_-]+）")
@@ -583,13 +630,20 @@ def main(argv: list[str] | None = None) -> int:
     p_new.add_argument(
         "-o", "--output", dest="output", required=True, help="输出 story.json 路径"
     )
+    _add_json_flag(p_new)
 
     args = parser.parse_args(argv)
+    use_json = bool(
+        getattr(args, "json", False) or getattr(args, "json_global", False)
+    )
 
     try:
         if args.command == "check":
             story = load_story_json(args.story_json)
             errors, warnings = check_story(story)
+            if use_json:
+                _print_json({"ok": not errors, "errors": errors, "warnings": warnings})
+                return 0 if not errors else 1
             for w in warnings:
                 print(f"警告：{w}", file=sys.stderr)
             if errors:
@@ -600,6 +654,18 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "compile":
             story = load_story_json(args.story_json)
             lua, errors, warnings = compile_story(story)
+            out = (
+                Path(args.output)
+                if args.output
+                else Path(args.story_json).with_suffix(".lua")
+            )
+            if use_json:
+                if errors or lua is None:
+                    _print_json({"ok": False, "errors": errors or ["编译失败：无输出"]})
+                    return 1
+                out.write_text(lua, encoding="utf-8")
+                _print_json({"ok": True, "output": str(out), "warnings": warnings})
+                return 0
             for w in warnings:
                 print(f"警告：{w}", file=sys.stderr)
             if errors:
@@ -608,25 +674,29 @@ def main(argv: list[str] | None = None) -> int:
                 return 1
             if lua is None:
                 return 1
-            out = (
-                Path(args.output)
-                if args.output
-                else Path(args.story_json).with_suffix(".lua")
-            )
             out.write_text(lua, encoding="utf-8")
             print(str(out))
             return 0
         if args.command == "pack":
             out_path = pack_mod(args.mod_dir, args.output)
-            print(out_path)
+            if use_json:
+                _print_json({"ok": True, "output": out_path})
+            else:
+                print(out_path)
             return 0
         if args.command == "new-story":
             story = new_story(args.story_id, args.title)
             save_story_json(story, args.output)
-            print(str(Path(args.output)))
+            if use_json:
+                _print_json({"ok": True, "output": str(Path(args.output))})
+            else:
+                print(str(Path(args.output)))
             return 0
     except (ValueError, OSError) as exc:
-        print(f"错误：{exc}", file=sys.stderr)
+        if use_json:
+            _print_json({"ok": False, "errors": [str(exc)]})
+        else:
+            print(f"错误：{exc}", file=sys.stderr)
         return 1
     return 1
 
@@ -636,5 +706,8 @@ if __name__ == "__main__":
     for stream in (sys.stdout, sys.stderr):
         reconfigure = getattr(stream, "reconfigure", None)
         if reconfigure is not None:
-            reconfigure(encoding="utf-8")
+            try:
+                reconfigure(encoding="utf-8")
+            except Exception:
+                pass
     sys.exit(main())

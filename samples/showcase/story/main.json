@@ -894,8 +894,7 @@
     {
       "id": "n105",
       "type": "goto_scene",
-      "scene": "Free",
-      "next": "Story"
+      "scene": "Free"
     }
   ]
 }

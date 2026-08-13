@@ -11,6 +11,8 @@ namespace MortalModHost
     {
         private static readonly Dictionary<string, string> _luaByRegisteredName = new Dictionary<string, string>();
 
+        private static readonly Dictionary<string, ModPackage> _packageByRegisteredName = new Dictionary<string, ModPackage>();
+
         /// <summary>已注册脚本总数（日志/自检用）。</summary>
         public static int Count
         {
@@ -21,6 +23,7 @@ namespace MortalModHost
         public static void Rebuild(IEnumerable<ModPackage> mods, Action<string> logWarn = null)
         {
             _luaByRegisteredName.Clear();
+            _packageByRegisteredName.Clear();
             foreach (var mod in mods)
             {
                 foreach (var pair in mod.LuaScripts)
@@ -33,6 +36,7 @@ namespace MortalModHost
                         continue;
                     }
                     _luaByRegisteredName[registeredName] = pair.Value;
+                    _packageByRegisteredName[registeredName] = mod;
                 }
             }
         }
@@ -46,6 +50,20 @@ namespace MortalModHost
                 return false;
             }
             return _luaByRegisteredName.TryGetValue(registeredName, out lua);
+        }
+
+        /// <summary>
+        /// 按注册名查所属 mod 包（契约 §3.1 结局卡背景图：mod_set_ending_text 的 image
+        /// 参数按"当前演出 mod"的包内 assets 解析）。未命中返回 false。
+        /// </summary>
+        public static bool TryGetPackageByRegisteredName(string registeredName, out ModPackage package)
+        {
+            if (string.IsNullOrEmpty(registeredName))
+            {
+                package = null;
+                return false;
+            }
+            return _packageByRegisteredName.TryGetValue(registeredName, out package);
         }
     }
 }

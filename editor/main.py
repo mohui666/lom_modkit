@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """活侠传 Mod 剧情编辑器（PySide6）— 主窗口与入口。
 
-三栏布局：左=剧情大纲（脚本切换 + 剧情属性 + 节点列表），中=节点属性表单，
-右=预览页签（Tab1 演出预览：舞台画面 + 步进工具条；Tab2 Lua 实时预览）。
+三栏布局：左=剧情章节与步骤，中=当前步骤属性，右=画面预览与高级编译结果。
+工具栏覆盖新手主流程（新建/打开/检查/导出/帮助）。
 无论从仓库根还是 editor/ 启动，路径都基于本文件所在目录推导项目根。
 
 v4 起支持多剧情脚本管理（项目 = 多个 story + manifest，对应 .lommod 包）、
@@ -18,7 +18,7 @@ import traceback
 from pathlib import Path
 
 from PySide6.QtCore import QTimer, Qt
-from PySide6.QtGui import QKeySequence
+from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -42,28 +42,46 @@ from PySide6.QtWidgets import (
     QTabWidget,
     QTableWidget,
     QTableWidgetItem,
+    QTextBrowser,
+    QToolBar,
     QVBoxLayout,
     QWidget,
 )
 
-EDITOR_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = EDITOR_DIR.parent
-if str(EDITOR_DIR) not in sys.path:
-    sys.path.insert(0, str(EDITOR_DIR))
-# lomc 编译器：sys.path 引入 <项目根>/compiler（不 pip 安装）
-if str(PROJECT_ROOT / "compiler") not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT / "compiler"))
-
+from glass_theme import apply_glass_theme, mark_primary
+from help_content import HELP_HTML
 import models
 import package_io
 from lua_preview import LuaPreview, compile_story, lomc_available, get_lomc
 from node_form import NodeForm
 from preview import CRASH_LOG, StagePreview, load_preview_map, log_crash
 
+EDITOR_DIR = models.editor_dir()
+PROJECT_ROOT = models.project_root()
+if str(EDITOR_DIR) not in sys.path:
+    sys.path.insert(0, str(EDITOR_DIR))
+# lomc 编译器：sys.path 引入 <项目根>/compiler（不 pip 安装；冻结态由 PYZ 解析）
+if str(PROJECT_ROOT / "compiler") not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT / "compiler"))
+# 文件对话框默认目录：冻结态用用户 CWD（解包目录/ exe 目录不可当作工作目录）
+WORK_DIR = Path.cwd() if models.FROZEN else PROJECT_ROOT
+
 APP_TITLE = "活侠传 Mod 剧情编辑器"
 UNDO_LIMIT = 100  # 撤销栈最大步数（快照式，超限丢最旧）
 
 _crash_logging_installed = False
+
+
+def new_editor_story(story_id: str = "main", editor_data: dict | None = None) -> dict:
+    """创建可立即通过编译检查的新手项目模板。
+
+    models.new_story 的单节点结构是 story_api 的既有契约；图形编辑器在其后补一个
+    “结束剧情”，避免新用户什么都没做就先看到“最后节点无法结束”的红色错误。
+    """
+    story = models.new_story(story_id, editor_data)
+    story["nodes"][0]["text"] = "在这里填写第一句对白。"
+    story["nodes"].append(models.new_node("end", "n2", editor_data))
+    return story
 
 
 def _excepthook(exc_type, exc, tb) -> None:
@@ -116,6 +134,26 @@ def install_crash_logging() -> None:
 install_crash_logging()  # 模块导入即生效（测试脚本直接 import main 也有取证）
 
 
+class HelpDialog(QDialog):
+    """离线内置的快速入门与排错文档。"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("使用帮助 — 活侠传 Mod 剧情编辑器")
+        self.resize(760, 620)
+        layout = QVBoxLayout(self)
+        browser = QTextBrowser()
+        browser.setOpenExternalLinks(False)
+        browser.setHtml(HELP_HTML)
+        layout.addWidget(browser)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(self.reject)
+        close_btn = buttons.button(QDialogButtonBox.StandardButton.Close)
+        if close_btn is not None:
+            close_btn.setText("关闭")
+        layout.addWidget(buttons)
+
+
 class ManifestDialog(QDialog):
     """导出 .lommod 时填写 manifest 元信息（契约 §2，含 campaign 战役区）。
 
@@ -136,57 +174,68 @@ class ManifestDialog(QDialog):
         self._editor_data = editor_data
         self._story_ids = list(story_ids)
 
-        self.setWindowTitle("导出 .lommod — 包信息")
+        self.setWindowTitle("导出 Mod")
+        self.resize(920, 560)
         layout = QVBoxLayout(self)
+        intro = QLabel("填写玩家能看到的信息。带“可选”的战役设置不需要时可以保持关闭。")
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
         form = QFormLayout()
         self.id_edit = QLineEdit(str(base.get("id") or "my_mod"))
         self.name_edit = QLineEdit(str(base.get("name") or "我的剧情 Mod"))
         self.version_edit = QLineEdit(str(base.get("version") or "1.0.0"))
         self.author_edit = QLineEdit(str(base.get("author") or ""))
         self.desc_edit = QLineEdit(str(base.get("description") or ""))
-        form.addRow("mod id", self.id_edit)
-        form.addRow("名称", self.name_edit)
+        self.id_edit.setPlaceholderText("例如：my_story（小写英文、数字、_ 或 -）")
+        self.author_edit.setPlaceholderText("作者名")
+        self.desc_edit.setPlaceholderText("用一句话介绍这段剧情")
+        form.addRow("Mod 标识（英文）", self.id_edit)
+        form.addRow("Mod 名称", self.name_edit)
         form.addRow("版本", self.version_edit)
         form.addRow("作者", self.author_edit)
         form.addRow("简介", self.desc_edit)
         # 多剧情：入口脚本从包内全部剧情脚本里选（回填 base entry / 当前 story）
         self.entry_combo = QComboBox()
-        self.entry_combo.setEditable(True)
+        self.entry_combo.setEditable(False)
         for sid in self._story_ids:
             self.entry_combo.addItem(sid, sid)
         default_entry = str(base.get("entry") or story_id)
         idx = self.entry_combo.findData(default_entry)
         self.entry_combo.setCurrentIndex(idx if idx >= 0 else 0)
-        form.addRow("入口脚本", self.entry_combo)
+        form.addRow("开始章节", self.entry_combo)
         layout.addLayout(form)
 
         # ------------------------------------------------------ campaign 区
-        camp_box = QGroupBox("战役模式（可选）")
+        camp_box = QGroupBox("新战役与地图触发（可选）")
         cv = QVBoxLayout(camp_box)
         self.new_game_check = QCheckBox(
-            "出现在游戏内「开始新战役」区（隔离存档槽开新游戏，入口=上面的脚本）"
+            "允许从游戏内“开始新战役”启动（使用独立存档，不影响普通存档）"
         )
         self.new_game_check.setChecked(bool(campaign.get("new_game")))
         cv.addWidget(self.new_game_check)
         self.disable_events_check = QCheckBox(
-            "本战役禁用原版地图事件（只保留本 mod 的位置触发器，见契约 §2 "
-            "disable_official_events）"
+            "本战役关闭原版剧情事件（只触发这个 Mod 设置的地图剧情）"
         )
         self.disable_events_check.setChecked(
             bool(campaign.get("disable_official_events"))
         )
         cv.addWidget(self.disable_events_check)
-        cv.addWidget(QLabel("自由模式触发器：点击地图位置时用本包脚本替换默认活动"))
+        trigger_help = QLabel(
+            "地图触发：玩家在自由模式点击指定地点并满足条件时，播放所选章节。"
+            "只填地点和章节即可；其余条件都可留空。"
+        )
+        trigger_help.setWordWrap(True)
+        cv.addWidget(trigger_help)
         self.triggers_table = QTableWidget(0, 7)
         self.triggers_table.setHorizontalHeaderLabels(
             [
                 "地图位置",
-                "脚本 id",
-                "需已设旗标（可选）",
-                "需未设旗标（可选）",
-                "月份 1~12（可选）",
-                "旬 1~3（可选）",
-                "好感 角色:数值（可选）",
+                "播放章节",
+                "需要已有标记",
+                "需要没有标记",
+                "月份 1～12",
+                "时段 1～3",
+                "好感条件（人物:数值）",
             ]
         )
         self.triggers_table.horizontalHeader().setSectionResizeMode(
@@ -199,8 +248,8 @@ class ManifestDialog(QDialog):
         self.triggers_table.setMinimumHeight(120)
         cv.addWidget(self.triggers_table)
         btns = QHBoxLayout()
-        add_btn = QPushButton("添加触发器")
-        del_btn = QPushButton("删除末行")
+        add_btn = QPushButton("添加地图触发")
+        del_btn = QPushButton("删除最后一行")
         add_btn.clicked.connect(lambda: self._add_trigger_row({}))
         del_btn.clicked.connect(self._del_trigger_row)
         btns.addWidget(add_btn)
@@ -217,6 +266,13 @@ class ManifestDialog(QDialog):
         )
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
+        ok_btn = buttons.button(QDialogButtonBox.StandardButton.Ok)
+        cancel_btn = buttons.button(QDialogButtonBox.StandardButton.Cancel)
+        if ok_btn is not None:
+            ok_btn.setText("继续导出")
+            mark_primary(ok_btn)  # 对话框唯一主操作：accent 染色玻璃
+        if cancel_btn is not None:
+            cancel_btn.setText("取消")
         layout.addWidget(buttons)
 
     # ---------------------------------------------------------- triggers 表
@@ -233,7 +289,7 @@ class ManifestDialog(QDialog):
         table.setCellWidget(r, 0, pos)
         # 脚本：包内 story id
         script = QComboBox()
-        script.setEditable(True)
+        script.setEditable(False)
         for sid in self._story_ids:
             script.addItem(sid, sid)
         self._set_combo_value(script, str(trig.get("script", "")))
@@ -258,8 +314,10 @@ class ManifestDialog(QDialog):
         idx = combo.findData(value)
         if idx >= 0:
             combo.setCurrentIndex(idx)
-        elif value:
+        elif value and combo.isEditable():
             combo.setCurrentText(value)
+        elif value:
+            combo.setCurrentIndex(-1)
         else:
             combo.setCurrentIndex(-1)
 
@@ -281,12 +339,7 @@ class ManifestDialog(QDialog):
             "version": self.version_edit.text().strip() or "1.0.0",
             "author": self.author_edit.text().strip(),
             "description": self.desc_edit.text().strip(),
-            "entry": (
-                str(
-                    self.entry_combo.currentData() or self.entry_combo.currentText()
-                ).strip()
-                or "main"
-            ),
+            "entry": self.entry_combo.currentText().strip() or "main",
         }
         # campaign：勾了 new_game 或有有效触发器时才写出（契约 §2 可选段）
         triggers = []
@@ -299,9 +352,7 @@ class ManifestDialog(QDialog):
             ):
                 continue  # 异常行防御（cellWidget 静态类型是 QWidget）
             position = str(pos_combo.currentData() or pos_combo.currentText()).strip()
-            script = str(
-                script_combo.currentData() or script_combo.currentText()
-            ).strip()
+            script = script_combo.currentText().strip()
             if not position or not script:
                 continue  # 位置/脚本缺一不可，缺了跳过该行
             trig: dict = {"type": "position", "position": position, "script": script}
@@ -352,6 +403,51 @@ class ManifestDialog(QDialog):
             m["campaign"] = campaign
         return m
 
+    def accept(self) -> None:
+        """在关闭窗口前指出可修正的问题，避免选完保存位置后才打包失败。"""
+        mod_id = self.id_edit.text().strip()
+        if not models.MOD_ID_PATTERN.fullmatch(mod_id):
+            QMessageBox.warning(
+                self,
+                "Mod 标识需要修改",
+                "只使用小写英文字母、数字、下划线或短横线，例如 my_story。",
+            )
+            self.id_edit.setFocus()
+            return
+        for widget, label in (
+            (self.name_edit, "Mod 名称"),
+            (self.author_edit, "作者"),
+            (self.desc_edit, "简介"),
+        ):
+            if not widget.text().strip():
+                QMessageBox.warning(self, "信息没有填完", f"请填写“{label}”。")
+                widget.setFocus()
+                return
+        entry = self.entry_combo.currentText().strip()
+        if entry not in self._story_ids:
+            QMessageBox.warning(self, "开始章节不存在", "请从项目中的剧情章节里选择开始章节。")
+            self.entry_combo.setFocus()
+            return
+        manifest = self.manifest()
+        for trig in (manifest.get("campaign") or {}).get("triggers", []):
+            if trig.get("script") not in self._story_ids:
+                QMessageBox.warning(
+                    self,
+                    "地图触发章节不存在",
+                    f"地图触发中的章节 {trig.get('script')!r} 不在当前项目里。",
+                )
+                return
+        lomc, err = get_lomc()
+        if lomc is None:
+            QMessageBox.warning(self, "无法检查导出信息", f"编译器不可用：{err}")
+            return
+        try:
+            lomc.validate_manifest(manifest, "导出设置")
+        except Exception as exc:
+            QMessageBox.warning(self, "导出信息需要修改", str(exc))
+            return
+        super().accept()
+
 
 class MainWindow(QMainWindow):
     def __init__(self, editor_data: dict, is_fallback: bool, parent=None):
@@ -363,7 +459,7 @@ class MainWindow(QMainWindow):
         # 多剧情项目状态：_stories = {脚本id: story dict}，story 是当前脚本的引用
         self._stories: dict[str, dict] = {}
         self._current_id = ""
-        self.story = models.new_story(editor_data=editor_data)
+        self.story = new_editor_story(editor_data=editor_data)
         self.manifest: dict = {}  # 当前项目 manifest（导入 .lommod 后生效）
         self.manifest_base: dict = {}  # 导入的原 manifest（campaign 往返用）
         self._story_paths: dict[str, Path | None] = {}
@@ -379,6 +475,7 @@ class MainWindow(QMainWindow):
 
         self._build_ui()
         self._build_menu()
+        self._build_toolbar()
         self.form.node_changed.connect(self._on_node_changed)
         self._refresh_all()
 
@@ -421,22 +518,28 @@ class MainWindow(QMainWindow):
     def _build_ui(self) -> None:
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        # 左栏：剧情脚本切换 + 剧情属性 + 节点列表 + 操作按钮
+        # 左栏：章节切换 + 剧情属性 + 步骤列表 + 操作按钮
         left = QWidget()
         lv = QVBoxLayout(left)
         lv.setContentsMargins(4, 4, 4, 4)
         story_row = QHBoxLayout()
-        story_row.addWidget(QLabel("剧情脚本"))
+        story_row.addWidget(QLabel("剧情章节"))
         self.story_combo = QComboBox()
         self.story_combo.currentIndexChanged.connect(self._on_story_switched)
         story_row.addWidget(self.story_combo, stretch=1)
-        self.add_story_btn = QPushButton("新建")
-        self.del_story_btn = QPushButton("删除")
+        self.add_story_btn = QPushButton("新建章节")
+        self.del_story_btn = QPushButton("删除章节")
         self.add_story_btn.clicked.connect(self._add_story_in_project)
         self.del_story_btn.clicked.connect(self._delete_story_in_project)
         story_row.addWidget(self.add_story_btn)
         story_row.addWidget(self.del_story_btn)
         lv.addLayout(story_row)
+        quick_tip = QLabel(
+            "按顺序制作：添加步骤 → 填写内容 → 检查剧情 → 导出 Mod"
+        )
+        quick_tip.setWordWrap(True)
+        quick_tip.setToolTip("按 F1 随时打开完整使用帮助")
+        lv.addWidget(quick_tip)
         props = QFormLayout()
         self.story_id_edit = QLineEdit()
         self.story_title_edit = QLineEdit()
@@ -448,9 +551,11 @@ class MainWindow(QMainWindow):
         self.story_title_edit.textChanged.connect(self._on_story_props_changed)
         self.start_combo.currentTextChanged.connect(self._on_start_changed)
         self.mood_check.toggled.connect(self._on_story_mood_changed)
-        props.addRow("脚本 id", self.story_id_edit)
-        props.addRow("标题", self.story_title_edit)
-        props.addRow("起始节点", self.start_combo)
+        self.story_id_edit.setPlaceholderText("例如：main")
+        self.story_title_edit.setPlaceholderText("玩家易懂的章节名称")
+        props.addRow("章节编号", self.story_id_edit)
+        props.addRow("章节名称", self.story_title_edit)
+        props.addRow("从这里开始", self.start_combo)
         props.addRow("心情气泡", self.mood_check)
         lv.addLayout(props)
 
@@ -459,24 +564,31 @@ class MainWindow(QMainWindow):
         lv.addWidget(self.node_list, stretch=1)
 
         btns = QHBoxLayout()
-        add_btn = QPushButton("新增 ▾")
+        add_btn = QPushButton("添加剧情步骤 ▾")
         add_menu = QMenu(add_btn)
-        # 按契约 §3.1 分三组：演出类 / 数值状态类 / 流程类
+        common = add_menu.addMenu("常用步骤")
+        for t in models.COMMON_NODE_TYPES:
+            cn = models.NODE_TYPE_CN.get(t, t)
+            common.addAction(cn, lambda checked=False, t=t: self._add_node(t))
+        common.addSeparator()
+        common.addAction("汗青书结局", self._add_ending_card)
+        add_menu.addSeparator()
+        # 完整功能按用途分组；内部英文类型只放在提示中，不挤占菜单文案。
         for group_name, types in models.NODE_GROUPS:
             sub = add_menu.addMenu(group_name)
             for t in types:
                 cn = models.NODE_TYPE_CN.get(t, t)
-                sub.addAction(
-                    f"{cn}（{t}）", lambda checked=False, t=t: self._add_node(t)
-                )
+                action = sub.addAction(cn, lambda checked=False, t=t: self._add_node(t))
+                action.setToolTip(f"内部类型：{t}")
         add_btn.setMenu(add_menu)
-        del_btn = QPushButton("删除")
+        del_btn = QPushButton("删除步骤")
         up_btn = QPushButton("上移")
         down_btn = QPushButton("下移")
         del_btn.clicked.connect(self._delete_node)
         up_btn.clicked.connect(lambda: self._move_node(-1))
         down_btn.clicked.connect(lambda: self._move_node(1))
         for b in (add_btn, del_btn, up_btn, down_btn):
+            b.setMinimumHeight(30)
             btns.addWidget(b)
         lv.addLayout(btns)
 
@@ -496,13 +608,14 @@ class MainWindow(QMainWindow):
         sv.addWidget(self.stage, stretch=1)
 
         self.right_tabs = QTabWidget()
-        self.right_tabs.addTab(stage_tab, "演出预览")
-        self.right_tabs.addTab(self.preview, "Lua")
+        self.right_tabs.addTab(stage_tab, "画面预览")
+        self.right_tabs.addTab(self.preview, "编译结果（高级）")
+        self.right_tabs.currentChanged.connect(self._on_right_tab_changed)
 
         splitter.addWidget(left)
         splitter.addWidget(self.form)
         splitter.addWidget(self.right_tabs)
-        splitter.setSizes([280, 480, 520])
+        splitter.setSizes([320, 460, 500])
         self.setCentralWidget(splitter)
 
         # 预览刷新防抖
@@ -536,27 +649,119 @@ class MainWindow(QMainWindow):
         next_btn.clicked.connect(lambda: self._step_selection(1))
         self.auto_btn.toggled.connect(self._on_auto_toggled)
         for b in (home_btn, prev_btn, next_btn, self.auto_btn):
+            b.setMinimumHeight(30)
             bar.addWidget(b)
         bar.addStretch(1)
         return bar
 
     def _build_menu(self) -> None:
         menu = self.menuBar().addMenu("文件(&F)")
-        menu.addAction("新建剧情", self.new_story, QKeySequence.StandardKey.New)
+        menu.addAction("新建项目", self.new_story, QKeySequence.StandardKey.New)
         menu.addAction(
-            "打开 story.json…", self.open_story, QKeySequence.StandardKey.Open
+            "打开单个章节（story.json）…", self.open_story, QKeySequence.StandardKey.Open
         )
         menu.addAction(
-            "保存 story.json…", self.save_story, QKeySequence.StandardKey.Save
+            "保存当前章节（story.json）…", self.save_story, QKeySequence.StandardKey.Save
         )
         menu.addSeparator()
-        menu.addAction("导入 .lommod…", self.import_lommod)
-        menu.addAction("导出 .lommod…", self.export_lommod)
+        menu.addAction("打开 Mod（.lommod）…", self.import_lommod)
+        menu.addAction("导出 Mod（.lommod）…", self.export_lommod)
         menu.addSeparator()
         menu.addAction("退出", self.close)
         edit = self.menuBar().addMenu("编辑(&E)")
         edit.addAction("撤销", self._undo, QKeySequence.StandardKey.Undo)
         edit.addAction("重做", self._redo, QKeySequence.StandardKey.Redo)
+        help_menu = self.menuBar().addMenu("帮助(&H)")
+        help_menu.addAction("使用指南", self._show_help)
+
+    def _build_toolbar(self) -> None:
+        """只放新手主流程，减少在菜单里寻找常用动作。"""
+        bar = QToolBar("常用操作", self)
+        bar.setMovable(False)
+        bar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+
+        def add(text: str, slot, tip: str, shortcut=None) -> QAction:
+            action = QAction(text, self)
+            action.setToolTip(tip)
+            if shortcut is not None:
+                action.setShortcut(shortcut)
+            action.triggered.connect(slot)
+            bar.addAction(action)
+            return action
+
+        add("新建项目", self.new_story, "创建一段可直接检查的示例剧情")
+        add("打开 Mod", self.import_lommod, "打开已有 .lommod 继续编辑")
+        bar.addSeparator()
+        self.check_action = add(
+            "检查剧情", self._check_project, "检查全部章节的错误和可能问题", QKeySequence("F6")
+        )
+        export_action = add("导出 Mod", self.export_lommod, "检查并生成可安装的 .lommod")
+        bar.addSeparator()
+        add("使用帮助", self._show_help, "打开快速入门、结局写法和排错说明", QKeySequence("F1"))
+        self.addToolBar(bar)
+        export_btn = bar.widgetForAction(export_action)
+        if export_btn is not None:
+            # 液态玻璃：工具栏内唯一 accent 主操作（规范：每屏最多一个染色背景按钮）
+            mark_primary(export_btn)
+
+    def _show_help(self) -> None:
+        HelpDialog(self).exec()
+
+    def _check_project(self) -> bool:
+        """检查全部章节，并用普通用户能照着修改的方式汇总结果。"""
+        lomc, err = get_lomc()
+        if lomc is None:
+            QMessageBox.critical(self, APP_TITLE, f"无法检查剧情：编译器不可用\n{err}")
+            return False
+
+        errors: list[tuple[str, str]] = []
+        warnings: list[str] = []
+        story_ids = set(self._stories)
+        for sid in sorted(self._stories):
+            story = self._stories[sid]
+            local_warnings: list[str] = []
+            try:
+                lomc.validate_story(story, f"章节 {sid}", local_warnings)
+            except Exception as exc:
+                errors.append((sid, str(exc)))
+                continue
+            warnings.extend(f"{sid}：{item}" for item in local_warnings)
+            for node in story.get("nodes", []):
+                target = node.get("next_script") if node.get("type") == "end" else None
+                if target and target not in story_ids:
+                    errors.append(
+                        (sid, f'步骤 {node.get("id", "?")} 的“下一章节”{target!r} 不存在')
+                    )
+
+        if errors:
+            first_sid = errors[0][0]
+            if first_sid in self._stories and first_sid != self._current_id:
+                self._current_id = first_sid
+                self._refresh_all()
+            body = "\n\n".join(message for _sid, message in errors[:10])
+            if len(errors) > 10:
+                body += f"\n\n另有 {len(errors) - 10} 个错误，请先修改以上问题后再次检查。"
+            QMessageBox.critical(self, "剧情需要修改", body)
+            self.statusBar().showMessage(f"检查完成：发现 {len(errors)} 个错误", 5000)
+            return False
+
+        if warnings:
+            body = "\n\n".join(warnings[:10])
+            if len(warnings) > 10:
+                body += f"\n\n另有 {len(warnings) - 10} 条提醒。"
+            QMessageBox.warning(
+                self,
+                "剧情可以导出，但建议确认",
+                f"已检查 {len(self._stories)} 个章节，没有阻止导出的错误。\n\n{body}",
+            )
+        else:
+            QMessageBox.information(
+                self,
+                "剧情检查通过",
+                f"已检查 {len(self._stories)} 个章节，没有发现错误或提醒。\n可以继续导出 Mod。",
+            )
+        self.statusBar().showMessage("剧情检查通过，可以导出 Mod", 5000)
+        return True
 
     # -------------------------------------------------------------- 刷新
     def _refresh_all(self, select_row: int = 0) -> None:
@@ -599,28 +804,28 @@ class MainWindow(QMainWindow):
             return
         self._current_id = sid
         self._refresh_all()
-        self.statusBar().showMessage(f"已切换到剧情脚本 {sid}", 2000)
+        self.statusBar().showMessage(f"已切换到剧情章节 {sid}", 2000)
 
     def _add_story_in_project(self) -> None:
         """项目内新建剧情脚本（多剧情），并切换到它。"""
         sid = models.make_story_id(self._stories)
         self._record_discrete()
-        self._stories[sid] = models.new_story(sid, self.editor_data)
+        self._stories[sid] = new_editor_story(sid, self.editor_data)
         self._current_id = sid
         self._refresh_all()
-        self.statusBar().showMessage(f"已新建剧情脚本 {sid}", 3000)
+        self.statusBar().showMessage(f"已新建剧情章节 {sid}", 3000)
 
     def _delete_story_in_project(self) -> None:
         """从项目删除当前剧情脚本（可撤销）。"""
         if len(self._stories) <= 1:
-            QMessageBox.warning(self, APP_TITLE, "至少保留一个剧情脚本")
+            QMessageBox.warning(self, APP_TITLE, "项目中至少要保留一个剧情章节")
             return
         self._record_discrete()
         sid = self._current_id
         del self._stories[sid]
         self._current_id = next(iter(sorted(self._stories)))
         self._refresh_all()
-        self.statusBar().showMessage(f"已删除剧情脚本 {sid}（可撤销）", 3000)
+        self.statusBar().showMessage(f"已删除剧情章节 {sid}（可撤销）", 3000)
 
     def _reload_start_combo(self) -> None:
         self.start_combo.clear()
@@ -660,16 +865,32 @@ class MainWindow(QMainWindow):
     def _schedule_preview(self) -> None:
         self._preview_timer.start()
 
+    def _on_right_tab_changed(self, _index: int) -> None:
+        """切到 Lua 页立即编译，避免防抖定时器尚未触发时看到空白预览。"""
+        if self.right_tabs.currentWidget() is not self.preview:
+            return
+        self._preview_timer.stop()
+        self._refresh_preview()
+
     def _refresh_preview(self) -> None:
-        lua, err = compile_story(self.story)
-        if err is not None or lua is None:
-            self.preview.show_error(err or "编译失败：无输出")
-        else:
-            self.preview.show_lua(lua)
+        try:
+            lua, err = compile_story(self.story)
+            if err is not None or lua is None:
+                self.preview.show_error(err or "编译失败：无输出")
+            else:
+                self.preview.show_lua(lua)
+        except Exception:
+            # 定时器槽抛异常在 GUI/冻结版里通常只表现为“预览空白”；把完整错误
+            # 留在预览框中，用户和打包自检都能直接看到真正原因。
+            self.preview.show_error(traceback.format_exc(limit=8))
 
     def _refresh_stage(self) -> None:
         """演出预览：按当前选中节点重新推演舞台状态并重绘。"""
         node = self._current_node()
+        story_path = self.story_path
+        self.stage.set_story_root(
+            story_path.parent.parent if story_path is not None else None
+        )
         self.stage.show_node(self.story, node.get("id") if node else None)
 
     # ---------------------------------------------------------- 演出预览步进
@@ -834,8 +1055,8 @@ class MainWindow(QMainWindow):
         box = QMessageBox(self)
         box.setWindowTitle(APP_TITLE)
         box.setText("有未保存的修改，如何处理？")
-        box.setInformativeText("导出 .lommod 保存全部剧情脚本，或放弃修改继续。")
-        save_btn = box.addButton("导出保存…", QMessageBox.ButtonRole.AcceptRole)
+        box.setInformativeText("导出 Mod 会保存全部章节；也可以放弃这次修改。")
+        save_btn = box.addButton("导出 Mod…", QMessageBox.ButtonRole.AcceptRole)
         discard_btn = box.addButton("放弃修改", QMessageBox.ButtonRole.DestructiveRole)
         box.addButton("取消", QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(save_btn)
@@ -855,16 +1076,36 @@ class MainWindow(QMainWindow):
 
     # -------------------------------------------------------------- 节点操作
     def _add_node(self, node_type: str) -> None:
-        self._record_discrete()
         node = models.new_node(
             node_type, models.make_node_id(self.story), self.editor_data
         )
+        self._insert_node(node)
+
+    def _add_ending_card(self) -> None:
+        """新手预设：原版 EndGamePanel 汗青书样式，确认后回标题画面。"""
+        node = models.new_node(
+            "goto_scene", models.make_node_id(self.story), self.editor_data
+        )
+        node.update(
+            {
+                "scene": "End",
+                "title": "新的结局",
+                "desc": "在这里填写这段故事最后留下的文字。",
+            }
+        )
+        self._insert_node(node, "已添加汗青书结局；请填写标题和正文")
+
+    def _insert_node(self, node: dict, message: str | None = None) -> None:
+        self._record_discrete()
         nodes = self.story.setdefault("nodes", [])
         row = self.node_list.currentRow()
         at = row + 1 if 0 <= row < len(nodes) else len(nodes)
         nodes.insert(at, node)
         self._refresh_all(select_row=at)
-        self.statusBar().showMessage(f"已新增节点 {node['id']}（{node_type}）", 3000)
+        type_cn = models.NODE_TYPE_CN.get(node.get("type", ""), node.get("type", ""))
+        self.statusBar().showMessage(
+            message or f"已添加 {type_cn}（{node.get('id', '')}）", 3000
+        )
 
     def _delete_node(self) -> None:
         nodes = self.story.get("nodes", [])
@@ -979,7 +1220,7 @@ class MainWindow(QMainWindow):
         if not self._confirm_discard():
             return
         self._stories = {}
-        self.story = models.new_story(editor_data=self.editor_data)
+        self.story = new_editor_story(editor_data=self.editor_data)
         self.manifest = {}
         self.manifest_base = {}
         self._story_paths = {}
@@ -989,13 +1230,13 @@ class MainWindow(QMainWindow):
         self._pending_before = None
         self._commit_timer.stop()
         self._refresh_all()
-        self.statusBar().showMessage("已新建剧情", 3000)
+        self.statusBar().showMessage("已新建项目：修改示例对白后即可继续添加步骤", 4000)
 
     def open_story(self) -> None:
         if not self._confirm_discard():
             return
         path, _ = QFileDialog.getOpenFileName(
-            self, "打开 story.json", str(PROJECT_ROOT), "story JSON (*.json)"
+            self, "打开 story.json", str(WORK_DIR), "story JSON (*.json)"
         )
         if not path:
             return
@@ -1026,7 +1267,7 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getSaveFileName(
             self,
             "保存 story.json",
-            path or str(PROJECT_ROOT / f"{self._current_id}.json"),
+            path or str(WORK_DIR / f"{self._current_id}.json"),
             "story JSON (*.json)",
         )
         if not path:
@@ -1045,7 +1286,7 @@ class MainWindow(QMainWindow):
         if not self._confirm_discard():
             return
         path, _ = QFileDialog.getOpenFileName(
-            self, "导入 .lommod", str(PROJECT_ROOT), "LoM Mod 包 (*.lommod)"
+            self, "导入 .lommod", str(WORK_DIR), "LoM Mod 包 (*.lommod)"
         )
         if not path:
             return
@@ -1090,17 +1331,17 @@ class MainWindow(QMainWindow):
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return False
         manifest = dlg.manifest()
-        if not models.ID_PATTERN.match(manifest["id"]):
+        if not models.MOD_ID_PATTERN.fullmatch(manifest["id"]):
             QMessageBox.warning(
                 self,
                 APP_TITLE,
-                f"mod id {manifest['id']!r} 非法（应为 [a-zA-Z0-9_\\-]+）",
+                f"Mod 标识 {manifest['id']!r} 不可用（只允许小写英文、数字、_ 和 -）",
             )
             return False
         path, _ = QFileDialog.getSaveFileName(
             self,
             "导出 .lommod",
-            str(PROJECT_ROOT / f"{manifest['id']}.lommod"),
+            str(WORK_DIR / f"{manifest['id']}.lommod"),
             "LoM Mod 包 (*.lommod)",
         )
         if not path:
@@ -1122,12 +1363,38 @@ class MainWindow(QMainWindow):
 
 
 def main() -> int:
-    app = QApplication(sys.argv)
+    # --smoke-exit：启动级自检（显示窗口 1.5 秒后自动退出，退出码 0）；
+    # 供打包产物在 QT_QPA_PLATFORM=offscreen 下验证“能启动不崩”。
+    args = list(sys.argv)
+    smoke_exit = "--smoke-exit" in args
+    if smoke_exit:
+        args.remove("--smoke-exit")
+    smoke_preview: Path | None = None
+    if "--smoke-preview" in args:
+        at = args.index("--smoke-preview")
+        if at + 1 >= len(args):
+            return 2
+        smoke_preview = Path(args[at + 1])
+        del args[at : at + 2]
+    app = QApplication(args)
+    apply_glass_theme(app)  # 纯样式注入：不改任何控件行为
     editor_data, is_fallback = models.load_editor_data(PROJECT_ROOT)
     win = MainWindow(editor_data, is_fallback)
     win.show()
-    if len(sys.argv) > 1:  # 支持命令行直接打开 story.json
-        win._load_story_path(Path(sys.argv[1]))
+    if smoke_preview is not None:
+        win._load_story_path(smoke_preview)
+        win.right_tabs.setCurrentWidget(win.preview)
+        win._preview_timer.stop()
+        win._refresh_preview()
+        preview_text = win.preview.toPlainText()
+        preview_ok = preview_text.startswith("-- Generated by lomc") and " = function()" in preview_text
+        if not preview_ok:
+            log_crash("冻结版 Lua 预览自检失败：\n" + preview_text)
+        QTimer.singleShot(0, lambda: app.exit(0 if preview_ok else 3))
+    elif smoke_exit:
+        QTimer.singleShot(1500, app.quit)
+    elif len(args) > 1:  # 支持命令行直接打开 story.json
+        win._load_story_path(Path(args[1]))
     return app.exec()
 
 

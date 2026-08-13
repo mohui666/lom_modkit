@@ -55,7 +55,18 @@ namespace MortalModHost
                 Assert(mod.Texts.ContainsKey("MOD_demo_mod_main_n2") && mod.Texts["MOD_demo_mod_main_n2"] == "第二句\"带引号\"", "texts.json 条目 n2 解析错误");
                 var badTexts = mods.First(m => m.Id == "badtexts");
                 Assert(badTexts.Texts.Count == 0, "坏 texts.json 应被忽略，实际 " + badTexts.Texts.Count);
-                Assert(warnings.Count == 4, "应有 4 条坏包警告（含 texts.json 容错），实际 " + warnings.Count + "：" + string.Join(" | ", warnings));
+                // 契约 §3.1：assets/ 下图片读入内存（键=包内正斜杠路径、字节逐位对比）；
+                // 非图片条目不读；超 8MB 图片警告跳过（本包含 1 张有效 png + 1 张 9MB png + 1 个 ogg）
+                Assert(mod.Assets.Count == 1, "assets 应只读入 1 张图片，实际 " + mod.Assets.Count);
+                byte[] endingPng;
+                byte[] expectedPng = Convert.FromBase64String(PngBase64);
+                Assert(mod.Assets.TryGetValue("assets/ending.png", out endingPng)
+                    && endingPng.Length == expectedPng.Length
+                    && endingPng.SequenceEqual(expectedPng),
+                    "assets/ending.png 未读入或字节不一致（长度 " + (endingPng == null ? -1 : endingPng.Length) + "）");
+                Assert(!mod.Assets.ContainsKey("assets/bgm.ogg"), "非图片条目不应读入内存");
+                Assert(!mod.Assets.ContainsKey("assets/huge.png"), "超 8MB 图片应被跳过");
+                Assert(warnings.Count == 5, "应有 5 条坏包警告（含 texts.json 容错 + 超限图片跳过），实际 " + warnings.Count + "：" + string.Join(" | ", warnings));
 
                 // ModRegistry：注册名命中/未命中/冲突时保留先加载者
                 var dup = new ModPackage { Id = "demo_mod", Entry = "main" }; // 与好包同 id，制造注册名冲突
@@ -68,8 +79,14 @@ namespace MortalModHost
                 Assert(!ModRegistry.TryGetLuaByRegisteredName("MOD_demo_mod_nope", out lua), "不存在的脚本不应命中");
                 Assert(!ModRegistry.TryGetLuaByRegisteredName("act1", out lua), "官方脚本名不应命中");
                 Assert(!ModRegistry.TryGetLuaByRegisteredName(null, out lua), "null 不应命中");
+                // 契约 §3.1：按注册名查所属 mod 包（结局卡背景图按当前演出 mod 的 assets 解析）
+                ModPackage byName;
+                Assert(ModRegistry.TryGetPackageByRegisteredName("MOD_demo_mod_main", out byName) && byName == mod,
+                    "注册名 MOD_demo_mod_main 应查到 demo_mod 包");
+                Assert(!ModRegistry.TryGetPackageByRegisteredName("MOD_demo_mod_nope", out byName), "不存在的脚本不应查到包");
+                Assert(!ModRegistry.TryGetPackageByRegisteredName(null, out byName), "null 不应查到包");
                 Assert(ModRegistry.Count == 2, "注册表应含 2 个脚本，实际 " + ModRegistry.Count);
-                Assert(warnings.Count == 5, "注册名冲突应新增 1 条警告，实际共 " + warnings.Count + "：" + string.Join(" | ", warnings));
+                Assert(warnings.Count == 6, "注册名冲突应新增 1 条警告，实际共 " + warnings.Count + "：" + string.Join(" | ", warnings));
 
                 // HotkeyMigration：cfg 里旧默认 F9 → F8，其余内容一律不动
                 string migrated;
@@ -88,9 +105,9 @@ namespace MortalModHost
 
                 Console.WriteLine("--- 扫描信息 ---");
                 infos.ForEach(Console.WriteLine);
-                Console.WriteLine("--- 坏包/容错警告（预期 4 条） ---");
+                Console.WriteLine("--- 坏包/容错警告（预期 5 条，另 1 条注册冲突） ---");
                 warnings.ForEach(Console.WriteLine);
-                Console.WriteLine("PASS: 2 个好包解析正确（texts.json 含中文/转义文本 + 坏 texts.json 容错），4 个坏包/坏文件警告跳过，注册表查找/冲突处理正确，热键迁移改写正确，campaign 解析/触发器条件（含 when_month/when_stage/when_affinity/disable_official_events）正确。");
+                Console.WriteLine("PASS: 2 个好包解析正确（texts.json 含中文/转义文本 + 坏 texts.json 容错 + assets/ 图片读入与超限跳过），4 个坏包/坏文件警告跳过，注册表查找/包查找/冲突处理正确，热键迁移改写正确，campaign 解析/触发器条件（含 when_month/when_stage/when_affinity/disable_official_events）正确。");
                 return 0;
             }
             finally
@@ -190,7 +207,11 @@ namespace MortalModHost
             }
         }
 
-        /// <summary>按契约 §1/§2/§A 造一个完整好包（含 story/ 源文件，运行时应忽略它）。</summary>
+        /// <summary>1x1 透明 PNG（契约 §3.1 结局卡背景图冒烟：读入字节逐位对比）。</summary>
+        private const string PngBase64 =
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+
+        /// <summary>按契约 §1/§2/§A/§3.1 造一个完整好包（含 story/ 源文件，运行时应忽略它）。</summary>
         private static void WriteGoodPackage(string path)
         {
             WriteZip(path,
@@ -200,6 +221,26 @@ namespace MortalModHost
                 ("lua/main.lua", "local function node_n1() say(\"你好\") end\nreturn node_n1()"),
                 ("lua/extra.lua", "say(\"extra\")"),
                 ("texts.json", "{\"MOD_demo_mod_main_n1\": \"你好\", \"MOD_demo_mod_main_n2\": \"第二句\\\"带引号\\\"\"}"));
+            // 二进制条目：1 张有效 png、1 张 9MB 超限 png（zip 压缩后很小，但未压缩长度>8MB）、1 个非图片
+            AppendBinaryEntries(path,
+                ("assets/ending.png", Convert.FromBase64String(PngBase64)),
+                ("assets/huge.png", new byte[9 * 1024 * 1024]),
+                ("assets/bgm.ogg", new byte[] { 1, 2, 3, 4 }));
+        }
+
+        /// <summary>往已存在的 zip 追加二进制条目（Assets 图片测试用）。</summary>
+        private static void AppendBinaryEntries(string path, params (string name, byte[] data)[] entries)
+        {
+            using (var stream = File.Open(path, FileMode.Open))
+            using (var zip = new ZipArchive(stream, ZipArchiveMode.Update))
+            {
+                foreach (var (name, data) in entries)
+                {
+                    var entry = zip.CreateEntry(name);
+                    using (var writer = entry.Open())
+                        writer.Write(data, 0, data.Length);
+                }
+            }
         }
 
         private static void WriteZip(string path, params (string name, string content)[] entries)

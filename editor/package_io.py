@@ -5,6 +5,7 @@
 编译优先调 lomc.pack_mod（编译器官方打包入口），否则编辑器自行
 逐个调 lomc.compile_story 并写 zip。
 """
+
 from __future__ import annotations
 
 import json
@@ -52,8 +53,9 @@ def import_lommod(path: str | Path) -> tuple[dict, dict[str, dict]]:
     return manifest, stories
 
 
-def export_lommod(path: str | Path, manifest: dict,
-                  stories: dict[str, dict]) -> list[str]:
+def export_lommod(
+    path: str | Path, manifest: dict, stories: dict[str, dict]
+) -> list[str]:
     """编译并打包为 .lommod。返回报告行（每个 story 一行编译结果）。
 
     优先调 lomc.pack_mod（编译器官方打包入口，内部自动编译 lua）；
@@ -68,16 +70,19 @@ def export_lommod(path: str | Path, manifest: dict,
     if lomc is not None and hasattr(lomc, "pack_mod"):
         # 官方打包：先把 manifest + story 落到临时目录，再交给 lomc 编译打包
         import tempfile
+
         with tempfile.TemporaryDirectory(prefix="lom_export_") as tmp:
             tmp_path = Path(tmp)
             (tmp_path / "story").mkdir()
             (tmp_path / "manifest.json").write_text(
                 json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
-                encoding="utf-8")
+                encoding="utf-8",
+            )
             for sid, story in stories.items():
                 (tmp_path / "story" / f"{sid}.json").write_text(
                     json.dumps(story, ensure_ascii=False, indent=2) + "\n",
-                    encoding="utf-8")
+                    encoding="utf-8",
+                )
             try:
                 lomc.pack_mod(str(tmp_path), output=str(path))
             except Exception as exc:
@@ -89,7 +94,7 @@ def export_lommod(path: str | Path, manifest: dict,
     errors: list[str] = []
     for sid, story in stories.items():
         lua, err = compile_story(story)
-        if err is not None:
+        if err is not None or lua is None:
             errors.append(f"[{sid}] {err.splitlines()[-1] if err else '未知错误'}")
         else:
             compiled[sid] = lua
@@ -99,11 +104,14 @@ def export_lommod(path: str | Path, manifest: dict,
         raise PackError(f"入口脚本 {manifest.get('entry')!r} 不在 story 列表中")
 
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("manifest.json",
-                    json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
+        zf.writestr(
+            "manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2) + "\n"
+        )
         for sid, story in stories.items():
-            zf.writestr(f"story/{sid}.json",
-                        json.dumps(story, ensure_ascii=False, indent=2) + "\n")
+            zf.writestr(
+                f"story/{sid}.json",
+                json.dumps(story, ensure_ascii=False, indent=2) + "\n",
+            )
         for sid, lua in compiled.items():
             zf.writestr(f"lua/{sid}.lua", lua)
     return [f"{sid}.json → lua/{sid}.lua 编译成功" for sid in stories]

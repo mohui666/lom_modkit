@@ -57,6 +57,13 @@ namespace MortalModHost
                     return false;
                 }
 
+                // 契约 §3.1：结局卡背景图按"当前演出 mod"解析——开演前把包写入 ModOverlay.CurrentPackage
+                ModPackage package;
+                if (ModRegistry.TryGetPackageByRegisteredName(scriptName, out package))
+                {
+                    ModOverlay.CurrentPackage = package;
+                }
+
                 // 契约 §B：演出前把 mod_hide_mood / mod_set_mood 注册进共享 MoonSharp 环境（幂等重设；官方脚本不调用它们，无副作用）
                 RegisterModGlobals(env);
                 // 契约 §A 兜底：LeanLocalization 切语言/OnEnable 会清空 CurrentTranslations，每次演出前重注册一遍
@@ -145,14 +152,15 @@ namespace MortalModHost
                     }
                     return DynValue.Nil;
                 }, "mod_set_death_text");
-                // 契约 §C：结局卡片（2 参：标题 + 描述，End 画面显示）；参数转换异常吞掉
+                // 契约 §C/§3.1：结局卡片（2/3 参：标题 + 描述 [+ 包内图片路径]，End 画面显示）；参数转换异常吞掉
                 script.Globals["mod_set_ending_text"] = new CallbackFunction((ctx, args) =>
                 {
                     try
                     {
                         string title = args.Count > 0 ? args[0].CastToString() : "";
                         string desc = args.Count > 1 ? args[1].CastToString() : "";
-                        ModOverlay.SetEnding(title, desc);
+                        string image = args.Count > 2 ? args[2].CastToString() : "";
+                        ModOverlay.SetEnding(title, desc, image);
                     }
                     catch (Exception ex)
                     {

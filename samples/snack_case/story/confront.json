@@ -318,7 +318,7 @@
       "type": "goto_scene",
       "scene": "End",
       "key": "920047",
-      "next": "Story",
+      "next": "Title",
       "title": "真相大白",
       "desc": "人赃并获，铁证如山。四师兄瘫坐在地，哭诉供品闻香不能吃之苦——点心大盗案，就此真相大白。"
     },
@@ -406,7 +406,7 @@
       "type": "goto_scene",
       "scene": "End",
       "key": "920007",
-      "next": "Story",
+      "next": "Title",
       "title": "背锅侠",
       "desc": "查案不成，反被倒打一耙。锅，稳稳当当落在了你的背上——唐门惯例：谁查案，谁背锅。"
     },
@@ -518,7 +518,7 @@
       "type": "goto_scene",
       "scene": "End",
       "key": "920020",
-      "next": "Story",
+      "next": "Title",
       "title": "扫厕所的众人",
       "desc": "弟子们排着队扫厕所去了。案子算是破了，又好像没完全破。"
     },
@@ -700,7 +700,7 @@
       "type": "goto_scene",
       "scene": "End",
       "key": "920012",
-      "next": "Story",
+      "next": "Title",
       "title": "乌龙",
       "desc": "一场乌龙，众人都笑了。只有四师兄笑不出来。"
     },
@@ -822,7 +822,7 @@
       "type": "goto_scene",
       "scene": "End",
       "key": "920025",
-      "next": "Story",
+      "next": "Title",
       "title": "带恶人",
       "desc": "一拳下去，案子破了。赵活悟了：原来这就是江湖人称的「以理服人」。"
     },
@@ -889,9 +889,11 @@
     },
     {
       "id": "pe_11",
-      "type": "goto_scene",
-      "scene": "GameOver",
-      "key": "910000"
+      "type": "death",
+      "title": "暗器难防",
+      "text": "一拳未成，反中暗器。点心大盗未曾伏法，你却先倒下了。",
+      "death_id": "910000",
+      "next": "Title"
     }
   ]
 }

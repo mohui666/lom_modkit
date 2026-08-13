@@ -10,10 +10,13 @@ from __future__ import annotations
 import copy
 import json
 import re
+import sys
 from pathlib import Path
 
 # story 脚本 id / 节点 id 规则（契约 §1）
 ID_PATTERN = re.compile(r"^[a-zA-Z0-9_\-]+$")
+# manifest mod id 比 story id 更严格：运行时注册名与包格式只接受小写。
+MOD_ID_PATTERN = re.compile(r"^[a-z0-9_\-]+$")
 
 # ---------------------------------------------------------------------------
 # 节点类型中文名（契约 §3.1 全量 43 种）
@@ -21,7 +24,7 @@ ID_PATTERN = re.compile(r"^[a-zA-Z0-9_\-]+$")
 NODE_TYPE_CN: dict[str, str] = {
     "music": "音乐",
     "sound": "音效",
-    "scene": "场景切换",
+    "scene": "切换背景",
     "show": "人物登场",
     "move": "人物移动",
     "face": "人物转向",
@@ -56,18 +59,46 @@ NODE_TYPE_CN: dict[str, str] = {
     "autosave": "自动存档",
     "branch": "条件分支",
     "dice": "骰子检定",
-    "goto_scene": "场景跳转",
+    "goto_scene": "进入其他场景",
     "panel": "系统面板",
     "wait": "等待",
-    "end": "结束",
-    "death": "死亡文本",
-    "raw": "原生Lua(高级)",
+    "end": "结束剧情",
+    "death": "死亡画面",
+    "raw": "原生 Lua（高级）",
+}
+
+# 新手菜单最先展示的高频步骤。特殊的“汗青书结局”由主窗口用 goto_scene
+# 预设创建，不在这里重复列出。
+COMMON_NODE_TYPES: list[str] = [
+    "say",
+    "show",
+    "hide",
+    "scene",
+    "choice",
+    "dice",
+    "wait",
+    "end",
+    "death",
+]
+
+# 节点表单顶部的上下文提示。只解释当前动作，不复述控件名称；完整流程见内置帮助。
+NODE_HELP: dict[str, str] = {
+    "say": "写人物对白、内心独白或旁白。旁白模式不需要选择人物。",
+    "show": "让人物立绘出现在画面中。先登场再对白，游戏效果更稳定。",
+    "hide": "让指定人物退出画面。",
+    "scene": "切换剧情背景。编辑器预览只用于确认构图，不包含原版素材。",
+    "choice": "给玩家 2～4 个选项；每个选项都要选择后续步骤。",
+    "dice": "使用官方骰子检查点，并分别指定成功、失败等结果的后续步骤。",
+    "goto_scene": "离开当前剧情并进入战斗、标题、死亡或汗青书结局等场景。",
+    "end": "结束当前章节。留空“下一章节”时回到自由模式。",
+    "death": "显示官方样式的死亡画面。正文必填，专用编号使用 900000 以上。",
+    "raw": "高级功能：代码会原样进入 Lua。普通剧情不需要使用。",
 }
 
 # 契约 §3.1 分组（新增节点菜单按此分组显示）
 NODE_GROUPS: list[tuple[str, list[str]]] = [
     (
-        "演出类",
+        "画面与声音",
         [
             "music",
             "sound",
@@ -95,7 +126,7 @@ NODE_GROUPS: list[tuple[str, list[str]]] = [
         ],
     ),
     (
-        "数值状态类",
+        "数值、物品与任务",
         [
             "stat",
             "stat_set",
@@ -112,7 +143,7 @@ NODE_GROUPS: list[tuple[str, list[str]]] = [
         ],
     ),
     (
-        "流程类",
+        "流程与高级功能",
         ["branch", "dice", "goto_scene", "panel", "wait", "end", "death", "raw"],
     ),
 ]
@@ -171,7 +202,9 @@ ENUM_SETS: dict[str, list[tuple[str, str]]] = {
         ("Story", "剧情演出"),
         ("DemoEnd", "Demo 结束"),
     ],
-    "death_next": [("Title", "标题画面"), ("Free", "自由模式")],
+    # 原版 GameOverController 的按钮固定为“读档 / 标题画面”，没有自定义去向。
+    # 保留该枚举名供旧 JSON 兼容，但编辑器只提供真实有效的 Title。
+    "death_next": [("Title", "标题画面")],
     "panel": [
         ("martial", "武学面板"),
         ("weapon", "武器强化"),
@@ -184,8 +217,8 @@ ENUM_SETS: dict[str, list[tuple[str, str]]] = {
         ("endgame", "结算面板"),
     ],
 }
-# 切换后需要重建表单的枚举（其它字段的下拉清单随它变化）
-REBUILD_ENUMS = {"item_kind", "goto_scene"}
+# 切换后需要重建表单的枚举（其它字段或可见字段随它变化）
+REBUILD_ENUMS = {"item_kind", "goto_scene", "mode"}
 
 # say mode 中文标注（清单本身来自 editor_data.modes）
 MODE_CN = {
@@ -503,13 +536,14 @@ NODE_SCHEMAS: dict[str, dict] = {
         ],
     },
     "goto_scene": {
-        "label": "场景跳转",
+        "label": "进入其他场景",
         "fields": [
             ("scene", "目标场景", "enum:goto_scene", False),
-            ("key", "场景参数", "goto_scene_key", True),
+            ("key", "场景或战斗编号", "goto_scene_key", True),
             ("next", "结束后回到", "line", True),
             ("title", "结局标题", "line", True),
             ("desc", "结局描述", "multiline", True),
+            ("image", "汗青书左页插图", "ending_image", True),
         ],
     },
     "panel": {
@@ -526,20 +560,20 @@ NODE_SCHEMAS: dict[str, dict] = {
         "fields": [("seconds", "秒数", "float", False)],
     },
     "end": {
-        "label": "结束脚本",
-        "fields": [("next_script", "下一脚本id", "story_ref", True)],
+        "label": "结束剧情",
+        "fields": [("next_script", "下一章节", "story_ref", True)],
     },
     "death": {
-        "label": "死亡文本",
+        "label": "死亡画面",
         "fields": [
             ("title", "标题", "line", True),
-            ("text", "文本", "multiline", False),
-            ("death_id", "死亡画面id", "death_id", False),
+            ("text", "死亡正文", "multiline", False),
+            ("death_id", "专用编号", "death_id", False),
             ("next", "结束后去向", "enum:death_next", True),
         ],
     },
     "raw": {
-        "label": "原生Lua(高级)",
+        "label": "原生 Lua（高级）",
         "fields": [("code", "Lua 代码", "code", False)],
     },
 }
@@ -604,7 +638,7 @@ _NODE_DEFAULTS: dict[str, dict] = {
             }
         ],
     },
-    "goto_scene": {"scene": "Free", "next": "Story"},
+    "goto_scene": {"scene": "Free"},
     "panel": {"panel": "martial"},
     "wait": {"seconds": 1},
     "end": {},
@@ -741,9 +775,39 @@ def display_name(editor_data: dict, key: str, item_id: str) -> str:
     return item_id
 
 
-def project_root(editor_dir: Path) -> Path:
-    """由 editor/ 源文件目录推导项目根。"""
-    return editor_dir.resolve().parent
+# PyInstaller 冻结态路径推导（源码态行为与打包前完全一致）
+FROZEN = bool(getattr(sys, "frozen", False))
+
+
+def _meipass() -> Path:
+    """冻结态打包数据解包目录（onedir 下 dist/<bundle>/_internal）。"""
+    return Path(getattr(sys, "_MEIPASS", None) or Path(sys.executable).parent).resolve()
+
+
+def project_root(editor_dir: Path | None = None) -> Path:
+    """项目根：源码态由 editor 目录推导为上一级；冻结态返回打包解包根 _MEIPASS。
+
+    editor_dir 参数保留给旧调用方（源码态 = 其上一级）；冻结态忽略参数。
+    """
+    if FROZEN:
+        return _meipass()
+    if editor_dir is not None:
+        return Path(editor_dir).resolve().parent
+    return Path(__file__).resolve().parent.parent
+
+
+def editor_dir() -> Path:
+    """editor/ 目录：源码态 <仓库根>/editor；冻结态 _MEIPASS（模块平铺在解包根）。"""
+    if FROZEN:
+        return _meipass()
+    return Path(__file__).resolve().parent
+
+
+def crash_log_path() -> Path:
+    """崩溃日志位置：冻结态写当前工作目录（解包目录不应被写入）。"""
+    if FROZEN:
+        return Path.cwd() / "crash.log"
+    return Path(__file__).resolve().parent / "crash.log"
 
 
 def load_editor_data(proj_root: Path) -> tuple[dict, bool]:
@@ -920,7 +984,7 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
         return f"{tcn}·{cname()}"
     if t == "effect":
         name = node.get("name", "")
-        return f"{tcn}·{name}" + ("（停止）" if node.get("play") == False else "")
+        return f"{tcn}·{name}" + ("（停止）" if node.get("play") is False else "")
     if t == "transition":
         return (
             f"{tcn}·{enum_label('transition_phase', node.get('phase', 'in'))}"

@@ -38,6 +38,13 @@ namespace MortalModHost
         /// <summary>战役模式配置（manifest.campaign，契约 §2）；null 表示本包无战役模式。</summary>
         public CampaignConfig Campaign;
 
+        /// <summary>
+        /// assets/ 目录下的图片（契约 §3.1）：键 = 包内相对路径（"assets/xxx.png"，正斜杠），
+        /// 值 = 原始字节（仅 .png/.jpg/.jpeg，单张 ≤8MB，超限的加载时已警告跳过）。
+        /// 运行时结局卡背景图按 Lua 传来的路径在此查表，Texture2D 解码由 Unity 侧完成。
+        /// </summary>
+        public readonly Dictionary<string, byte[]> Assets = new Dictionary<string, byte[]>();
+
         /// <summary>.lommod 文件完整路径（仅用于日志定位，内容已全部读入内存）。</summary>
         public string PackagePath;
 

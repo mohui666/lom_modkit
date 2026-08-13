@@ -444,7 +444,7 @@ class TestNodeCodegen(unittest.TestCase):
         self.assertIn('\tmod_set_death_text("勝敗乃兵家常事", "命数已尽。")', lua)
         self.assertIn('\tluamanager.ChangeScene("GameOver", "910021", "Title")', lua)
 
-    def test_death_free_next(self):
+    def test_death_legacy_free_next_is_normalized_to_title(self):
         lua = self.lua_of(
             {
                 "id": "n1",
@@ -455,7 +455,9 @@ class TestNodeCodegen(unittest.TestCase):
             }
         )
         self.assertIn('\tmod_set_death_text("勝敗乃兵家常事", "命数已尽。")', lua)
-        self.assertIn('\tluamanager.ChangeScene("GameOver", "910021", "Free")', lua)
+        self.assertIn('\tluamanager.ChangeScene("GameOver", "910021", "Title")', lua)
+        self.assertIn("next='Free'", lua)
+        self.assertIn("不会生效", lua)
 
     def test_choice(self):
         # choice 的 goto 目标必须存在，补一个目标节点 na
@@ -1229,7 +1231,7 @@ class TestBranchNewSources(unittest.TestCase):
                     "cases": [{"value": 3, "goto": "nend"}],
                 }
             ),
-            'value 只能是 1（真）或 2（假',
+            "value 只能是 1（真）或 2（假",
         )
         # condition 不给 flag → 报错
         assert_compile_error(
@@ -1674,6 +1676,62 @@ class TestPack(unittest.TestCase):
         self.assertIn('未知节点类型 "explode"', str(cm.exception))
         # 失败的 pack 不应留下产物
         self.assertFalse(os.path.exists(os.path.join(self.tmp.name, "testmod.lommod")))
+
+    def test_pack_ending_image_ok(self):
+        # 契约 §3.1：End 结局卡引用 assets/ 图片 → 打包成功、图片进包、lua 三参发射
+        os.makedirs(os.path.join(self.mod_dir, "assets"))
+        with open(os.path.join(self.mod_dir, "assets", "ending.png"), "wb") as f:
+            f.write(b"\x89PNG\r\n\x1a\n" + b"0" * 64)
+        with open(os.path.join(self.mod_dir, "assets", "unused.png"), "wb") as f:
+            f.write(b"\x89PNG\r\n\x1a\n" + b"unused")
+        self.write_story(
+            make_story(
+                [
+                    {
+                        "id": "n1",
+                        "type": "goto_scene",
+                        "scene": "End",
+                        "key": "920047",
+                        "title": "武林传奇",
+                        "desc": "传说",
+                        "image": "assets/ending.png",
+                    }
+                ],
+                start="n1",
+            )
+        )
+        out = pack_mod(self.mod_dir)
+        with zipfile.ZipFile(out) as zf:
+            self.assertIn("assets/ending.png", zf.namelist())
+            self.assertNotIn(
+                "assets/unused.png",
+                zf.namelist(),
+                "未被 story 引用的本地素材不得误打进发布包",
+            )
+            lua = zf.read("lua/main.lua").decode("utf-8")
+            self.assertIn(
+                'mod_set_ending_text("武林传奇", "传说", "assets/ending.png")', lua
+            )
+
+    def test_pack_ending_image_missing(self):
+        # 引用的图片不存在 → 打包报错（契约 §3.1：fail fast，运行时不会黑图）
+        self.write_story(
+            make_story(
+                [
+                    {
+                        "id": "n1",
+                        "type": "goto_scene",
+                        "scene": "End",
+                        "key": "920047",
+                        "image": "assets/nope.png",
+                    }
+                ],
+                start="n1",
+            )
+        )
+        with self.assertRaises(LomcError) as cm:
+            pack_mod(self.mod_dir)
+        self.assertIn("image 指向的文件不存在", str(cm.exception))
 
 
 # ---------------------------------------------------------------------------
@@ -2258,8 +2316,8 @@ class TestNewNodeCodegen(unittest.TestCase):
         self.assertNotIn("return node_nend()", lua2)
 
     def test_goto_scene_ending_card(self):
-        # End/GameOver + title/desc：ChangeScene 前发射 mod_set_ending_text
-        # （desc 缺省空串）；无 title/desc 时不发射。
+        # End + title/desc：发射 mod_set_ending_text 后按原版汗青书流程调用
+        # EndGamePanel，确认后黑幕回 Title；GameOver 走死亡文字通道再切场景。
         lua = self.lua_of(
             {
                 "id": "n1",
@@ -2274,22 +2332,79 @@ class TestNewNodeCodegen(unittest.TestCase):
             '\tmod_set_ending_text("武林传奇", "你的名字，从今往后便是传说。")',
             lua,
         )
-        self.assertIn('\tluamanager.ChangeScene("End", "920047", "Story")', lua)
-        # mod_set_ending_text 必须在 ChangeScene 之前（先设文本再进结局画面）
+        self.assertIn('\trunwait(endgamepanel.Open("__MORTAL_MOD_END__"))', lua)
+        self.assertIn('\tluamanager.ChangeScene("Title", "", "")', lua)
+        # mod_set_ending_text 必须在 EndGamePanel.Open 之前
         self.assertLess(
             lua.index("mod_set_ending_text"),
-            lua.index('ChangeScene("End", "920047", "Story")'),
+            lua.index('endgamepanel.Open("__MORTAL_MOD_END__")'),
         )
         # 只有 title：desc 缺省空串
         lua2 = self.lua_of(
             {"id": "n1", "type": "goto_scene", "scene": "GameOver", "title": "只标题"}
         )
-        self.assertIn('\tmod_set_ending_text("只标题", "")', lua2)
-        # 无 title/desc 不发射
+        self.assertIn('\tmod_set_death_text("只标题", "")', lua2)
+        # 无自定义内容时允许直接展示官方 key，且不发射覆盖函数
         lua3 = self.lua_of(
-            {"id": "n1", "type": "goto_scene", "scene": "End", "key": "920003"}
+            {"id": "n1", "type": "goto_scene", "scene": "End", "key": "20003"}
         )
         self.assertNotIn("mod_set_ending_text", lua3)
+        self.assertIn('\trunwait(endgamepanel.Open("20003"))', lua3)
+        lua3b = self.lua_of(
+            {
+                "id": "n1",
+                "type": "goto_scene",
+                "scene": "End",
+                "key": "20003",
+                "title": "",
+            }
+        )
+        self.assertIn('\trunwait(endgamepanel.Open("20003"))', lua3b)
+        # End + image：三参发射（第三参=包内图片路径，契约 §3.1 结局卡背景图）
+        lua4 = self.lua_of(
+            {
+                "id": "n1",
+                "type": "goto_scene",
+                "scene": "End",
+                "key": "920047",
+                "title": "武林传奇",
+                "desc": "你的名字，从今往后便是传说。",
+                "image": "assets/ending.png",
+            }
+        )
+        self.assertIn(
+            '\tmod_set_ending_text("武林传奇", "你的名字，从今往后便是传说。", '
+            '"assets/ending.png")',
+            lua4,
+        )
+        self.assertIn('\trunwait(endgamepanel.Open("__MORTAL_MOD_END__"))', lua4)
+        # 只有 image（无 title/desc）：仍发射三参（title/desc 缺省空串），图-only 结局卡合法
+        lua5 = self.lua_of(
+            {
+                "id": "n1",
+                "type": "goto_scene",
+                "scene": "End",
+                "key": "920047",
+                "image": "assets/ending.png",
+            }
+        )
+        self.assertIn('\tmod_set_ending_text("", "", "assets/ending.png")', lua5)
+
+        # 自造 GameOver/End id 没有官方文案，编译期阻止空白卡再次进入包。
+        assert_compile_error(
+            self,
+            make_story(
+                [{"id": "n1", "type": "goto_scene", "scene": "GameOver", "key": "910021"}]
+            ),
+            "必须提供 title/desc",
+        )
+        assert_compile_error(
+            self,
+            make_story(
+                [{"id": "n1", "type": "goto_scene", "scene": "End", "key": "920003"}]
+            ),
+            "汗青书结局卡没有内容",
+        )
 
 
 class TestFourNewNodes(unittest.TestCase):
@@ -2343,7 +2458,7 @@ class TestFourNewNodes(unittest.TestCase):
         )
         # 多行合法（lua_str 转义）
         lua2 = self.lua_of(
-            {"id": "n1", "type": "message", "text": "第一行\n引号\"第二行"}
+            {"id": "n1", "type": "message", "text": '第一行\n引号"第二行'}
         )
         self.assertIn('\tmainui.DisplayMessageText("第一行\\n引号\\"第二行")', lua2)
 
@@ -2375,7 +2490,13 @@ class TestFourNewNodes(unittest.TestCase):
         self.assertIn('\tcharacters.Rotate("brother4", -10, 0.3)', lua)
         # 默认值来自 models 契约（angle=180 / duration=1）；这里验给定值发射
         lua2 = self.lua_of(
-            {"id": "n1", "type": "rotate", "character": "player", "angle": 180, "duration": 1}
+            {
+                "id": "n1",
+                "type": "rotate",
+                "character": "player",
+                "angle": 180,
+                "duration": 1,
+            }
         )
         self.assertIn('\tcharacters.Rotate("player", 180, 1)', lua2)
 
@@ -2667,6 +2788,84 @@ class TestNewNodeValidationErrors(unittest.TestCase):
                     "desc": "你的名字，从今往后便是传说。",
                 }
             )
+        )
+
+    def test_goto_scene_image_rules(self):
+        # image 仅 End 支持（GameOver 死亡画面暂不支持自定义图）
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "goto_scene",
+                    "scene": "GameOver",
+                    "key": "910021",
+                    "title": "测试死亡",
+                    "image": "assets/x.png",
+                }
+            ),
+            '仅 scene="End" 支持',
+            "n1",
+        )
+        # image 必须是包内 assets/ 相对路径
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "goto_scene",
+                    "scene": "End",
+                    "key": "920047",
+                    "image": "ending.png",
+                }
+            ),
+            "必须是包内 assets/ 相对路径",
+            "n1",
+        )
+        # 不得指向包外（.. 段）
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "goto_scene",
+                    "scene": "End",
+                    "key": "920047",
+                    "image": "assets/../evil.png",
+                }
+            ),
+            "不得指向包外",
+            "n1",
+        )
+        # 扩展名白名单 .png/.jpg/.jpeg
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "goto_scene",
+                    "scene": "End",
+                    "key": "920047",
+                    "image": "assets/ending.gif",
+                }
+            ),
+            ".png/.jpg/.jpeg",
+            "n1",
+        )
+        # image 必须是 str（可选字段类型检查）
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "goto_scene",
+                    "scene": "End",
+                    "key": "920047",
+                    "image": 123,
+                }
+            ),
+            '可选字段 "image" 必须是字符串',
+            "n1",
         )
 
     def test_death_rules(self):
@@ -3239,15 +3438,23 @@ class TestWarnings(unittest.TestCase):
                 any("与官方结局 id 重复" in w for w in warns),
                 "scene=%s key=%s 应警告: %s" % (scene, key, warns),
             )
-        # mod 专属 id（≥900000）不警告
+        # mod 专属 id（≥900000）带自定义内容时不警告
         story = make_story(
             [
-                {"id": "n1", "type": "goto_scene", "scene": "End", "key": "920003"},
+                {
+                    "id": "n1",
+                    "type": "goto_scene",
+                    "scene": "End",
+                    "key": "920003",
+                    "title": "自定义结局",
+                    "desc": "自定义正文。",
+                },
                 {
                     "id": "n2",
                     "type": "goto_scene",
                     "scene": "GameOver",
                     "key": "910021",
+                    "title": "自定义死亡",
                 },
             ]
         )
@@ -3285,7 +3492,7 @@ class TestWarnings(unittest.TestCase):
                     "title": "武林传奇",
                     "desc": "传说。",
                 },
-                {"id": "n2", "type": "goto_scene", "scene": "End", "key": "920003"},
+                {"id": "n2", "type": "goto_scene", "scene": "End", "key": "20003"},
             ]
         )
         warns2 = []

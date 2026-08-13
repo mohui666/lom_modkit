@@ -13,14 +13,17 @@ from __future__ import annotations
 
 import sys
 import traceback
-from pathlib import Path
 
 from PySide6.QtGui import QFontDatabase
 from PySide6.QtWidgets import QPlainTextEdit
 
-# 编辑器源文件所在目录 → 项目根（无论从仓库根还是 editor/ 启动都成立）
-EDITOR_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = EDITOR_DIR.parent
+from glass_theme import DANGER_TEXT
+import models
+
+# 编辑器源文件所在目录 → 项目根（冻结态走 models 的 _MEIPASS 推导，见 lom_bundle.spec）
+EDITOR_DIR = models.editor_dir()
+PROJECT_ROOT = models.project_root()
+# 冻结态该目录在包内不存在：import lomc 由 PyInstaller 冻结导入器解析（PYZ）
 COMPILER_DIR = PROJECT_ROOT / "compiler"
 
 _lomc = None
@@ -70,7 +73,8 @@ class LuaPreview(QPlainTextEdit):
         font.setPointSize(10)
         self.setFont(font)
         self._ok_style = ""
-        self._err_style = "QPlainTextEdit { color: #c0392b; }"
+        # 深色玻璃主题下的可读错误红（与 glass_theme 令牌一致）
+        self._err_style = f"QPlainTextEdit {{ color: {DANGER_TEXT}; }}"
 
     def show_lua(self, lua: str) -> None:
         self.setStyleSheet(self._ok_style)

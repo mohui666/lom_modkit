@@ -1,5 +1,8 @@
 # 大文件素材（可用 tools/extract_preview_assets.py 从游戏重新生成）
 data/assets/
+# showcase 结局卡背景图：官方图仅本地测试用（不随仓库发布，仓库政策：
+# 不包含游戏文件）；缺失时 build_showcase.py 自动生成原创占位图
+samples/showcase/assets/
 # 反编译的游戏源码：版权原因不随开源仓库公开，仅留在本地研究
 # （可用 ilspycmd 从游戏 DLL 重新生成）
 docs/research/decompiled/
@@ -9,9 +12,14 @@ __pycache__/
 editor/.venv/
 editor/crash.log
 editor/tests/out/
+# PyInstaller 构建产物（editor/build_exe.py + lom_bundle.spec 生成）
+editor/build/
+editor/dist/
 # .NET 构建产物
 runtime/MortalModHost/bin/
 runtime/MortalModHost/obj/
 runtime/MortalModHost/test/SmokeTest/bin/
 runtime/MortalModHost/test/SmokeTest/obj/
+# tools/ 临时截图（已跟踪的历史截图不受影响）
+tools/tmp_*.png
 .pi/

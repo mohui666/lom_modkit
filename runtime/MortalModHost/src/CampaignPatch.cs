@@ -92,10 +92,13 @@ namespace MortalModHost
     /// <summary>
     /// Harmony postfix：<c>FreePositionData.GetExecuteScript(float)</c>（契约 §6.5）。
     /// 命中 manifest.triggers（position 匹配 + flag 条件满足）时把返回值替换为 mod 脚本注册名。
-    /// 官方主线/支线优先是官方调用链天然行为：PositionController 只在无主线/支线任务占用该位置
-    /// 时才走到本方法（主线/支线分支不受下方抑制逻辑影响）。
-    /// mod 战役声明 disable_official_events（<see cref="ModCampaignState"/>）且未命中任何 mod 触发器时，
-    /// 把返回值置 null 抑制官方默认故事脚本。反编译结论（ilspycmd，Mortal.Free.dll）：唯一调用方
+    /// 有活跃战役时只匹配当前战役 mod 的触发器（契约 §2「只保留本 mod 的位置触发器」）；无战役时
+    /// 全部 mod、先加载者优先。禁用原版剧情时，PositionClickStorySuppressionPatch
+    /// 会先让官方点击链跳过主线/支线，因此 mod 位置触发器仍能在本方法命中。
+    /// mod 战役声明 disable_official_events（<see cref="ModCampaignState"/>）或 F7 全局临时开关
+    /// （<see cref="VanillaStorySwitch"/>）且未命中任何 mod 触发器时，把返回值置 null 抑制官方默认
+    /// 故事脚本。mod 触发器匹配在抑制判定前执行，因此命中仍优先；无 mod 命中时返回 null。
+    /// 开关关闭后一切恢复原状，战役级开关语义不变。反编译结论（ilspycmd，Mortal.Free.dll）：唯一调用方
     /// PositionController.OnPositionClick 拿到返回值先 <c>string.IsNullOrEmpty(_scriptName)</c> 判断，
     /// 空值走 Debug.Log("自由模式：X, 无脚本") 分支——不扣行动点、不 SetStoryScript、不切场景，
     /// 是安全 no-op（官方 SetConditionFlag 在 GetExecuteScript 之前执行，属位置自身状态刷新，无剧情副作用）。
@@ -124,6 +127,13 @@ namespace MortalModHost
                     foreach (ModPackage mod in Plugin.LoadedMods)
                     {
                         if (mod.Campaign == null) continue;
+                        // 契约 §2：有活跃战役时位置触发器只匹配当前战役 mod——否则其他已安装
+                        // mod 的无条件触发器会跨战役抢占（实证：showcase 的无条件 Center 兜底
+                        // 触发器永远抢在 snack_case 战役的 Center→clue 之前命中）。无战役时维持
+                        // 全部 mod、先加载者优先（与注册表冲突策略一致）。
+                        if (ModCampaignState.Active
+                            && !string.Equals(mod.Id, ModCampaignState.ActiveModId, StringComparison.Ordinal))
+                            continue;
                         foreach (CampaignTrigger trigger in mod.Campaign.Triggers)
                         {
                             if (!string.Equals(trigger.Position, positionId, StringComparison.Ordinal)) continue;
@@ -137,15 +147,20 @@ namespace MortalModHost
                     }
                 }
 
-                // 契约 §2：mod 战役声明 disable_official_events 且没有任何 mod 触发器命中时，
-                // 抑制该位置的官方默认故事脚本（返回 null）。
+                // 契约 §2：mod 战役声明 disable_official_events，或 F7 全局临时开关
+                // （VanillaStorySwitch.Enabled，会话级、不依赖战役）生效时，且没有任何 mod 触发器
+                // 命中（触发器匹配在上方先执行，命中即提前 return），抑制该位置的官方默认故事脚本。
+                // 全局开关语义：只压「无 mod 触发器命中时的官方默认故事脚本」，关闭后一切恢复原状。
                 // 反编译结论（ilspycmd，Mortal.Free.dll PositionController.OnPositionClick）：
                 // 调用方拿到返回值先判 string.IsNullOrEmpty，空值走 Debug.Log 分支——安全 no-op，
                 // 不消耗行动点、不设置剧情脚本、不切场景。
-                if (ModCampaignState.Active && ModCampaignState.DisableOfficialEvents)
+                if (VanillaStorySwitch.ShouldSuppress)
                 {
                     if (!string.IsNullOrEmpty(__result))
-                        Log.LogInfo("战役禁用原版事件：位置 " + (positionId ?? "?") + " 的官方默认脚本已抑制");
+                    {
+                        string source = VanillaStorySwitch.Enabled ? "F7 全局开关" : "战役开关";
+                        Log.LogInfo(source + "禁用原版事件：位置 " + (positionId ?? "?") + " 的官方默认脚本已抑制");
+                    }
                     __result = null;
                 }
             }

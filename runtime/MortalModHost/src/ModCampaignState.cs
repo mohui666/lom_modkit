@@ -3,7 +3,8 @@ namespace MortalModHost
     /// <summary>
     /// mod 战役运行态（契约 §2 disable_official_events）：
     /// 当前是否正处于某个 mod 的新战役（隔离存档槽 mod_&lt;modid&gt;），以及该战役 mod 是否声明了
-    /// 禁用原版事件——FreePositionPatch 据此把未命中 mod 触发器的位置点击的官方默认脚本抑制掉。
+    /// 禁用原版事件——自动任务与 PositionClickStorySuppressionPatch 跳过官方主线/支线，
+    /// FreePositionPatch 再把未命中 mod 触发器的官方地点默认脚本抑制掉。
     ///
     /// 设置时机：Plugin.StartCampaign（点击"开始新战役"按钮时，用该 mod 的 campaign.disable_official_events 值）。
     /// 清除时机：NewGameDataPatch 观察到官方开局（PendingCampaign 为空，即玩家用官方方式新开游戏）
@@ -15,18 +16,23 @@ namespace MortalModHost
         /// <summary>true 表示当前正处于某个 mod 新战役。</summary>
         internal static bool Active;
 
+        /// <summary>当前战役 mod 的 id（仅 Active 时有意义；触发器按此隔离，见契约 §2）。</summary>
+        internal static string ActiveModId;
+
         /// <summary>当前战役 mod 的 manifest.campaign.disable_official_events 值（仅 Active 时有意义）。</summary>
         internal static bool DisableOfficialEvents;
 
-        internal static void Enter(bool disableOfficialEvents)
+        internal static void Enter(ModPackage mod)
         {
             Active = true;
-            DisableOfficialEvents = disableOfficialEvents;
+            ActiveModId = mod.Id;
+            DisableOfficialEvents = mod.Campaign != null && mod.Campaign.DisableOfficialEvents;
         }
 
         internal static void Clear()
         {
             Active = false;
+            ActiveModId = null;
             DisableOfficialEvents = false;
         }
     }

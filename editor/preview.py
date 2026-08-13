@@ -26,12 +26,13 @@ from PySide6.QtWidgets import QWidget
 
 import models
 
-EDITOR_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = EDITOR_DIR.parent
+EDITOR_DIR = models.editor_dir()
+PROJECT_ROOT = models.project_root()
 
 MAX_STEPS = 500  # 推演步数上限（防 goto 死循环）
 
-CRASH_LOG = EDITOR_DIR / "crash.log"  # 崩溃取证日志（main.py 的 excepthook 也写这里）
+# 崩溃取证日志（main.py 的 excepthook 也写这里）；冻结态写 CWD（见 models）
+CRASH_LOG = models.crash_log_path()
 
 
 def log_crash(text: str) -> None:
@@ -414,6 +415,7 @@ class StagePreview(QWidget):
         self._editor_data: dict = models.FALLBACK_EDITOR_DATA
         self._pmap: dict = {}
         self._data_dir: Path = PROJECT_ROOT / "data"
+        self._story_root: Path | None = None
         self._story: dict | None = None
         self._node_id: str | None = None
         self._state: dict = simulate_stage({}, None)
@@ -434,6 +436,10 @@ class StagePreview(QWidget):
         self._pix_cache.clear()
         self._cache_bytes = 0
         self.update()
+
+    def set_story_root(self, root: Path | None) -> None:
+        """设置 story/ 所属 mod 根目录，供 End 节点预览 assets/ 自定义插图。"""
+        self._story_root = Path(root) if root is not None else None
 
     def has_assets(self) -> bool:
         """是否有任何预览素材（否则全走占位图）。"""
@@ -478,7 +484,10 @@ class StagePreview(QWidget):
             self._pix_cache.move_to_end(key)
             return hit
         try:
-            pix = QPixmap(str(self._data_dir / key))
+            source = Path(key)
+            if not source.is_absolute():
+                source = self._data_dir / source
+            pix = QPixmap(str(source))
             # 加载即降采样：原图最大约 3000px/20MB 解码，控件绘制最多几百 px，
             # 降到 MAX_IMAGE_DIM 内可把单张缓存压到约 1/4，且后续每次重绘的
             # 缩放开销也大幅降低
@@ -526,6 +535,9 @@ class StagePreview(QWidget):
             self._choice_rects.clear()
             if rect.width() <= 0 or rect.height() <= 0:
                 return
+            if self._paint_ending_card(p, rect):
+                self._paint_caption(p, rect)
+                return
             self._paint_background(p, rect)
             self._paint_actors(p, rect)
             self._paint_dialog(p, rect)
@@ -547,6 +559,128 @@ class StagePreview(QWidget):
                 pass
         finally:
             p.end()
+
+    def _current_node(self) -> dict:
+        return next(
+            (
+                n
+                for n in (self._story or {}).get("nodes", [])
+                if n.get("id") == self._node_id
+            ),
+            {},
+        )
+
+    def _paint_ending_card(self, p: QPainter, rect: QRect) -> bool:
+        """预览官方 EndGamePanel 的汗青书构图，而不是只显示一行场景跳转提示。"""
+        node = self._current_node()
+        if node.get("type") != "goto_scene" or node.get("scene") != "End":
+            return False
+
+        p.fillRect(rect, QColor(9, 12, 12))
+        band = QRect(
+            rect.x(),
+            rect.y() + floor(rect.height() * 0.22),
+            rect.width(),
+            floor(rect.height() * 0.57),
+        )
+        p.fillRect(band, QColor(229, 213, 177))
+        p.setPen(QPen(QColor(102, 72, 44), max(1, floor(rect.height() * 0.004))))
+        p.drawLine(band.topLeft(), band.topRight())
+        p.drawLine(band.bottomLeft(), band.bottomRight())
+
+        # 左侧书封与书脊；自定义 image 对应官方 _picImage 槽。没有文件时画清楚的
+        # 开发占位，游戏内则由运行时直接借用原版 20047.Picture。
+        book = QRect(
+            rect.x() + floor(rect.width() * 0.15),
+            rect.y() + floor(rect.height() * 0.10),
+            floor(rect.width() * 0.38),
+            floor(rect.height() * 0.78),
+        )
+        p.fillRect(book, QColor(200, 166, 107))
+        cover = book.adjusted(
+            floor(book.width() * 0.06),
+            floor(book.height() * 0.04),
+            -floor(book.width() * 0.18),
+            -floor(book.height() * 0.04),
+        )
+        p.fillRect(cover, QColor(224, 204, 163))
+        p.setPen(QPen(QColor(111, 77, 42), max(1, floor(rect.height() * 0.004))))
+        p.drawRect(book)
+        p.drawRect(cover)
+
+        image_path = str(node.get("image") or "").strip()
+        pix = QPixmap()
+        if image_path and self._story_root is not None:
+            source = (self._story_root / image_path).resolve()
+            try:
+                source.relative_to(self._story_root.resolve())
+                pix = self._load_pixmap(str(source))
+            except (ValueError, OSError):
+                pix = QPixmap()
+        art = cover.adjusted(
+            floor(cover.width() * 0.09),
+            floor(cover.height() * 0.12),
+            -floor(cover.width() * 0.09),
+            -floor(cover.height() * 0.12),
+        )
+        if not pix.isNull():
+            scaled = pix.scaled(
+                art.size(),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            p.drawPixmap(
+                art.x() + (art.width() - scaled.width()) // 2,
+                art.y() + (art.height() - scaled.height()) // 2,
+                scaled,
+            )
+        else:
+            p.fillRect(art, QColor(238, 225, 196))
+            p.setPen(QColor(80, 64, 45))
+            placeholder_font = QFont(self.font())
+            placeholder_font.setPointSizeF(max(8.0, rect.height() * 0.026))
+            p.setFont(placeholder_font)
+            p.drawText(
+                QRectF(art),
+                Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap,
+                "原版结局插图占位\n（游戏内借用 20047）",
+            )
+
+        text_area = QRect(
+            rect.x() + floor(rect.width() * 0.56),
+            band.y() + floor(band.height() * 0.12),
+            floor(rect.width() * 0.37),
+            floor(band.height() * 0.72),
+        )
+        title_font = QFont(self.font())
+        title_font.setPointSizeF(max(14.0, rect.height() * 0.075))
+        title_font.setBold(True)
+        p.setFont(title_font)
+        p.setPen(QColor(151, 48, 38))
+        title_h = floor(text_area.height() * 0.34)
+        p.drawText(
+            QRectF(text_area.x(), text_area.y(), text_area.width(), title_h),
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter,
+            str(node.get("title") or "自定义结局标题"),
+        )
+        body_font = QFont(self.font())
+        body_font.setPointSizeF(max(9.0, rect.height() * 0.032))
+        body_font.setBold(True)
+        p.setFont(body_font)
+        p.setPen(QColor(37, 31, 24))
+        p.drawText(
+            QRectF(
+                text_area.x(),
+                text_area.y() + title_h,
+                text_area.width(),
+                text_area.height() - title_h,
+            ),
+            Qt.AlignmentFlag.AlignHCenter
+            | Qt.AlignmentFlag.AlignTop
+            | Qt.TextFlag.TextWordWrap,
+            str(node.get("desc") or "在这里填写自定义结局正文。"),
+        )
+        return True
 
     def _paint_background(self, p: QPainter, rect: QRect) -> None:
         view = self._state.get("view")
@@ -761,14 +895,7 @@ class StagePreview(QWidget):
         p.setFont(font)
         state = self._state
         if state.get("reached"):
-            node = next(
-                (
-                    n
-                    for n in (self._story or {}).get("nodes", [])
-                    if n.get("id") == self._node_id
-                ),
-                {},
-            )
+            node = self._current_node()
             ntype = node.get("type", "?")
             text = f"{self._node_id} · {models.NODE_TYPE_CN.get(ntype, ntype)}"
             p.setPen(QColor(180, 180, 180, 200))

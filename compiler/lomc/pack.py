@@ -21,6 +21,12 @@ from .compiler import compile_story, load_json_file
 from .errors import LomcError
 from .validate import validate_manifest
 
+# 汗青书左页插图上限（字节，与运行时插件 §6 一致）：超过则打包报错
+_MAX_ENDING_IMAGE_BYTES = 8 * 1024 * 1024
+
+# 汗青书左页插图允许的扩展名（契约 §3.1）
+_IMAGE_EXTS = (".png", ".jpg", ".jpeg")
+
 
 def pack_mod(mod_dir, output=None):
     """校验并打包 mod 目录，返回生成的 .lommod 路径。"""
@@ -52,6 +58,7 @@ def pack_mod(mod_dir, output=None):
     compiled = {}  # 脚本 id -> lua 源码
     texts = {}  # 已读 key -> 文本（契约 §1：say/death 节点文本）
     mod_id = manifest["id"]  # 打包时必有（validate_manifest 已保证）
+    referenced_assets = set()
     for fname in story_files:
         stem = fname[: -len(".json")]
         story = load_json_file(os.path.join(story_dir, fname))
@@ -87,6 +94,42 @@ def pack_mod(mod_dir, output=None):
                         'story/%s 节点 "%s"(end): next_script 指向包内不存在的脚本 "%s"'
                         % (fname, node["id"], target)
                     )
+            # 汗青书左页插图（契约 §3.1）：引用必须指向 mod 目录下存在的
+            # assets/ 图片，且 ≤8MB（运行时插件读取上限）
+            if (
+                node.get("type") == "goto_scene"
+                and node.get("scene") == "End"
+                and node.get("image")
+            ):
+                image = node["image"]
+                # 防御：image 虽经 validate 限定为包内 assets/ 路径，pack 仍再兜一层
+                # 路径解析（normpath + 前缀检测，防任何目录逃逸）
+                full = os.path.normpath(
+                    os.path.join(mod_dir, image.replace("/", os.sep))
+                )
+                if full != mod_dir and not full.startswith(mod_dir + os.sep):
+                    raise LomcError(
+                        'story/%s 节点 "%s"(goto_scene): image 不得指向包外：%s'
+                        % (fname, node["id"], image)
+                    )
+                if not os.path.isfile(full):
+                    raise LomcError(
+                        'story/%s 节点 "%s"(goto_scene): image 指向的文件不存在：'
+                        "%s（请放到 mod 目录的 assets/ 下）"
+                        % (fname, node["id"], image)
+                    )
+                if not image.lower().endswith(_IMAGE_EXTS):
+                    raise LomcError(
+                        'story/%s 节点 "%s"(goto_scene): image 必须是 '
+                        ".png/.jpg/.jpeg 图片，实际为 %s" % (fname, node["id"], image)
+                    )
+                if os.path.getsize(full) > _MAX_ENDING_IMAGE_BYTES:
+                    raise LomcError(
+                        'story/%s 节点 "%s"(goto_scene): image 超过 8MB '
+                        "（运行时插件读取上限），请压缩图片：%s"
+                        % (fname, node["id"], image)
+                    )
+                referenced_assets.add(image.replace("\\", "/"))
 
     if output is None:
         output = os.path.join(
@@ -104,12 +147,10 @@ def pack_mod(mod_dir, output=None):
             "texts.json",
             json.dumps(texts, ensure_ascii=False, indent=2) + "\n",
         )
-        assets_dir = os.path.join(mod_dir, "assets")
-        if os.path.isdir(assets_dir):
-            for root, _dirs, files in os.walk(assets_dir):
-                for f in sorted(files):
-                    full = os.path.join(root, f)
-                    rel = os.path.relpath(full, mod_dir).replace(os.sep, "/")
-                    zf.write(full, rel)
+        # 目前 assets 的受控用途只有 End.image。只收剧情明确引用且已通过
+        # 路径/大小校验的文件，避免把本机 assets/ 中未使用的原版素材意外分发。
+        for rel in sorted(referenced_assets):
+            full = os.path.join(mod_dir, rel.replace("/", os.sep))
+            zf.write(full, rel)
 
     return output

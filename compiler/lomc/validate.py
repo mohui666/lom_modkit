@@ -218,7 +218,7 @@ _NODE_FIELDS = {
     "dice": ({"check": "idstr", "options": "list"}, {}),
     "goto_scene": (
         {"scene": "goto_scene"},
-        {"key": "idstr", "next": "str", "title": "str", "desc": "str"},
+        {"key": "idstr", "next": "str", "title": "str", "desc": "str", "image": "str"},
     ),
     "panel": (
         {"panel": "panel_kind"},
@@ -463,11 +463,7 @@ def _check_node_extra(node, ntype, label):
     elif ntype == "dayenv":
         # DayEnvironmentType 枚举实证（raw_scripts 调用点）：白天=1，晚上=2
         dtype = node["day_type"]
-        if (
-            isinstance(dtype, bool)
-            or not isinstance(dtype, int)
-            or dtype not in (1, 2)
-        ):
+        if isinstance(dtype, bool) or not isinstance(dtype, int) or dtype not in (1, 2):
             raise LomcError(
                 '%s(dayenv): 字段 "day_type" 必须是 1（白天）或 2（晚上）——官方 '
                 "DayEnvironmentType 枚举仅两值（raw_scripts 的 "
@@ -529,6 +525,65 @@ def _check_node_extra(node, ntype, label):
             raise LomcError(
                 '%s(panel): panel="%s" 时必填字段 "key"' % (label, node["panel"])
             )
+    elif ntype == "goto_scene":
+        # 自造 GameOver id 在官方 LibrarySystem 中没有条目；若又不提供文本，
+        # GameOverController 会把标题/描述清空，最终得到“死亡但没有文字”的空画面。
+        # 直接报错阻止再次打出这种包，优先建议使用语义更明确的 death 节点。
+        if node["scene"] == "GameOver":
+            key = str(node.get("key") or "")
+            is_mod_key = key.isdigit() and int(key) >= 900000
+            has_text = any(
+                isinstance(node.get(name), str) and node[name].strip()
+                for name in ("title", "desc")
+            )
+            if is_mod_key and not has_text:
+                raise LomcError(
+                    '%s(goto_scene): scene="GameOver" 使用 mod 专属 key="%s" 时必须提供 '
+                    'title/desc，否则官方死亡画面没有文字；建议改用 death 节点'
+                    % (label, key)
+                )
+        if node["scene"] == "End":
+            key = str(node.get("key") or "")
+            is_mod_key = key.isdigit() and int(key) >= 900000
+            has_content = any(
+                isinstance(node.get(name), str) and node[name].strip()
+                for name in ("title", "desc", "image")
+            )
+            if (not key or is_mod_key) and not has_content:
+                raise LomcError(
+                    '%s(goto_scene): scene="End" 使用空 key 或 mod 专属 key="%s" 时必须提供 '
+                    'title/desc/image，否则汗青书结局卡没有内容'
+                    % (label, key)
+                )
+        # 汗青书左页插图（契约 §3.1）：仅 End 支持，包内 assets/ 图片相对路径
+        if "image" in node:
+            image = node["image"]
+            if not isinstance(image, str) or not image.strip():
+                raise LomcError(
+                    '%s(goto_scene): 字段 "image" 必须是非空字符串（包内图片路径），'
+                    "实际为 %r" % (label, image)
+                )
+            if node["scene"] != "End":
+                raise LomcError(
+                    '%s(goto_scene): 字段 "image" 仅 scene="End" 支持（结局卡背景图），'
+                    "scene=%r 不支持（GameOver 死亡画面暂不支持自定义图）"
+                    % (label, node["scene"])
+                )
+            if not image.lower().endswith((".png", ".jpg", ".jpeg")):
+                raise LomcError(
+                    '%s(goto_scene): 字段 "image" 必须是包内 assets/ 下的 '
+                    ".png/.jpg/.jpeg 图片（如 assets/ending.png），实际为 %r"
+                    % (label, image)
+                )
+            if (
+                not image.startswith("assets/")
+                or image == "assets/"
+                or ".." in image.replace("\\", "/").split("/")
+            ):
+                raise LomcError(
+                    '%s(goto_scene): 字段 "image" 必须是包内 assets/ 相对路径'
+                    "（不得指向包外），实际为 %r" % (label, image)
+                )
     elif ntype == "block":
         for i, var in enumerate(node.get("vars", [])):
             var_label = "%s(block) 第 %d 个 var" % (label, i + 1)
@@ -576,7 +631,8 @@ def _check_node_extra(node, ntype, label):
             if not isinstance(node.get("stat"), str) or not node["stat"]:
                 raise LomcError(
                     '%s(branch): source="stat" 时必填字段 "stat"'
-                    "（editor_data stats 属性 id，如 mental/people/contribution）" % label
+                    "（editor_data stats 属性 id，如 mental/people/contribution）"
+                    % label
                 )
             if "flag" in node:
                 raise LomcError(
@@ -632,7 +688,10 @@ def _check_node_extra(node, ntype, label):
             if key_id in seen:
                 raise LomcError(
                     "%s: %s 与其他 case 重复"
-                    % (case_label, "op=%s value=%d" % (op, value) if op else "value=%d" % value)
+                    % (
+                        case_label,
+                        "op=%s value=%d" % (op, value) if op else "value=%d" % value,
+                    )
                 )
             seen.add(key_id)
             if not isinstance(case.get("goto"), str):
@@ -724,7 +783,16 @@ def _collect_warnings(story, warnings):
             continue
         scene = n.get("scene")
         key = str(n.get("key") or "")
-        if scene in ("GameOver", "End") and key and key in official_ids:
+        end_uses_custom_panel = scene == "End" and any(
+            isinstance(n.get(name), str) and n[name].strip()
+            for name in ("title", "desc", "image")
+        )
+        if (
+            scene in ("GameOver", "End")
+            and key
+            and key in official_ids
+            and not end_uses_custom_panel
+        ):
             warnings.append(
                 '节点 "%s"(goto_scene): scene="%s" 的 key="%s" 与官方结局 id '
                 % (
@@ -745,6 +813,28 @@ def _collect_warnings(story, warnings):
                     "结局画面的描述区将显示空白；建议补一个非空 desc。"
                     % n.get("id", "?")
                 )
+        if scene == "End" and n.get("next") not in (None, "", "Title", "Story"):
+            warnings.append(
+                '节点 "%s"(goto_scene): 汗青书结局的 next=%r 不会生效；'
+                "原版 EndGamePanel 确认后固定返回标题画面，编译器已按 Title 处理。"
+                % (n.get("id", "?"), n.get("next"))
+            )
+        if scene == "GameOver" and n.get("next") not in (None, "", "Title"):
+            warnings.append(
+                '节点 "%s"(goto_scene): 死亡画面的 next=%r 不会生效；'
+                "原版按钮固定为读档或标题画面，编译器已按 Title 处理。"
+                % (n.get("id", "?"), n.get("next"))
+            )
+
+    for n in nodes:
+        if not isinstance(n, dict) or n.get("type") != "death":
+            continue
+        if n.get("next") not in (None, "", "Title"):
+            warnings.append(
+                '节点 "%s"(death): next=%r 不会生效；原版 GameOverController '
+                "只提供读档和返回标题按钮，编译器已按 Title 处理。"
+                % (n.get("id", "?"), n.get("next"))
+            )
 
 
 def _validate_story_inner(story):

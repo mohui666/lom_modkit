@@ -595,9 +595,7 @@ def _emit_branch(node, ctx):
         return lines
     if source == "flag_value":
         # 官方任务旗标数值分支：tonumber(GetFlagData(flag)) + 同 stat 的比较
-        lines = [
-            "\tlocal branch1 = tonumber(luamanager.GetFlagData(%s))" % flag
-        ]
+        lines = ["\tlocal branch1 = tonumber(luamanager.GetFlagData(%s))" % flag]
         for i, case in enumerate(node["cases"]):
             kw = "if" if i == 0 else "elseif"
             lines.append(
@@ -731,20 +729,53 @@ def _emit_dice(node, ctx):
 
 def _emit_goto_scene(node, ctx):
     lines = []
-    # End/GameOver 结局卡片：可选 title/desc（校验已保证为 str）交给运行时插件
-    # patch EndGameController/GameOverController 用官方布局绘制（契约 §6）；
-    # desc 缺省空串。
-    if node["scene"] in ("End", "GameOver") and ("title" in node or "desc" in node):
+    # End 不是跳进简化 End 场景：原版真正的“汗青书结局卡”流程是
+    # endgamepanel.Open(key) -> 玩家确认 -> 黑幕 -> Title。运行时 patch 在官方
+    # EndGamePanel 第一次 yield 前写入 mod 标题/正文/插图，因此完整复用官方版式、
+    # 渐显和确认输入。原版所有 EndGamePanel 结局在玩家确认后都回 Title；旧格式的
+    # next 字段继续允许读取，但不再制造一个游戏本身不存在的自定义返回去向。
+    if node["scene"] == "End" and "image" in node:
+        lines.append(
+            "\tmod_set_ending_text(%s, %s, %s)"
+            % (
+                lua_str(node.get("title", "")),
+                lua_str(node.get("desc", "")),
+                lua_str(node["image"]),
+            )
+        )
+    elif node["scene"] == "End" and ("title" in node or "desc" in node):
         lines.append(
             "\tmod_set_ending_text(%s, %s)"
             % (lua_str(node.get("title", "")), lua_str(node.get("desc", "")))
         )
+    elif node["scene"] == "GameOver" and ("title" in node or "desc" in node):
+        # GameOver 使用死亡覆盖通道，避免把 EndingRequested/结局图片状态带进
+        # 死亡场景；显示布局仍由同一个官方 GameOverController patch 完成。
+        lines.append(
+            "\tmod_set_death_text(%s, %s)"
+            % (lua_str(node.get("title", "")), lua_str(node.get("desc", "")))
+        )
+    if node["scene"] == "End":
+        has_mod_content = any(
+            isinstance(node.get(name), str) and node[name].strip()
+            for name in ("title", "desc", "image")
+        )
+        panel_key = "__MORTAL_MOD_END__" if has_mod_content else node.get("key", "")
+        lines += [
+            "\tluamanager.SetEnableActions(0)",
+            "\trunwait(endgamepanel.Open(%s))" % lua_str(panel_key),
+            "\tluamanager.SetEnableActions(1)",
+            '\trunwait(transitionblack.TransitionIn("lr"))',
+            '\tluamanager.ChangeScene("Title", "", "")',
+        ]
+        return lines
+    next_scene = "Title" if node["scene"] == "GameOver" else node.get("next", "Story")
     lines.append(
         "\tluamanager.ChangeScene(%s, %s, %s)"
         % (
             lua_str(node["scene"]),
             lua_str(node.get("key", "")),
-            lua_str(node.get("next", "Story")),
+            lua_str(next_scene),
         )
     )
     return lines
@@ -814,7 +845,9 @@ def _emit_death(node, ctx):
         % (
             lua_str("GameOver"),
             lua_str(node["death_id"]),
-            lua_str(node.get("next", "Title")),
+            # 原版 GameOverController 的按钮固定为读档 / Title，不读取
+            # CurrentNextScene；统一写 Title，避免生成看似可配置但实际无效的数据。
+            lua_str("Title"),
         ),
     ]
 

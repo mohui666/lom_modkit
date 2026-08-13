@@ -80,8 +80,16 @@ class NodeForm(QScrollArea):
         schema = models.NODE_SCHEMAS.get(node_type)
 
         type_cn = models.NODE_TYPE_CN.get(node_type, node_type)
-        head = QLabel(f"<b>{node.get('id', '')}</b>　类型：{type_cn}（{node_type}）")
+        head = QLabel(f"<b>{node.get('id', '')}</b>　{type_cn}")
+        head.setToolTip(f"内部类型：{node_type}")
         form.addRow(head)
+
+        help_text = models.NODE_HELP.get(node_type)
+        if help_text:
+            hint = QLabel(help_text)
+            hint.setWordWrap(True)
+            hint.setProperty("context_help", True)
+            form.addRow(hint)
 
         if schema is None:
             form.addRow(QLabel("未知节点类型，无法编辑"))
@@ -95,6 +103,8 @@ class NodeForm(QScrollArea):
                     continue
                 if key == "flag" and src == "stat":
                     continue
+            if not self._field_visible(node_type, key, node):
+                continue
             widget = self._make_widget(node, key, kind)
             form.addRow(label + ("（可选）" if optional else ""), widget)
 
@@ -106,8 +116,29 @@ class NodeForm(QScrollArea):
                     node, "goto", self._combo_value(c, text).strip() or None
                 )
             )
-            form.addRow("goto（可选）", goto)
+            form.addRow("跳到指定步骤（高级，可选）", goto)
         return form
+
+    @staticmethod
+    def _field_visible(node_type: str, key: str, node: dict) -> bool:
+        """按当前选择隐藏无效字段，避免让新手填写游戏根本不会读取的值。"""
+        if node_type == "say" and key in ("character", "portrait"):
+            return node.get("mode", "character") not in ("narrative", "center")
+        if node_type == "goto_scene":
+            scene = node.get("scene", "Free")
+            if key == "key":
+                return scene in ("Combat", "Battle", "GameOver", "End")
+            if key == "next":
+                # 仅战斗/战役会读取 CurrentNextScene；GameOver 与汗青书结局
+                # 的返回按钮/标准收尾都由原版固定。
+                return scene in ("Combat", "Battle")
+            if key in ("title", "desc"):
+                return scene in ("GameOver", "End")
+            if key == "image":
+                return scene == "End"
+        if node_type == "death" and key == "next":
+            return False
+        return True
 
     def _make_widget(self, node: dict, key: str, kind: str) -> QWidget:
         value = node.get(key)
@@ -233,11 +264,23 @@ class NodeForm(QScrollArea):
             if node.get("type") == "death" and key == "title":
                 # 死亡文本两段式：短标题缺省「勝敗乃兵家常事」
                 w.setPlaceholderText("缺省「勝敗乃兵家常事」")
+            elif node.get("type") == "goto_scene" and key == "title":
+                w.setPlaceholderText("例如：浪迹江湖")
+            w.textChanged.connect(lambda t: self._apply(node, key, t))
+            return w
+        if kind == "ending_image":
+            # 官方 EndGamePanel 的 _picImage（汗青书左页插图）：包内 assets/ 相对路径
+            w = QLineEdit("" if value is None else str(value))
+            w.setPlaceholderText("assets/ending.png（可选；留空时游戏内用原版图占位）")
             w.textChanged.connect(lambda t: self._apply(node, key, t))
             return w
         if kind == "multiline":
             w = QPlainTextEdit("" if value is None else str(value))
-            if node.get("type") == "message":
+            if node.get("type") == "death" and key == "text":
+                w.setPlaceholderText("填写死亡原因或人物最后的结局")
+            elif node.get("type") == "goto_scene" and key == "desc":
+                w.setPlaceholderText("填写汗青书或死亡画面的正文，可以换行")
+            elif node.get("type") == "message":
                 w.setPlaceholderText("系统提示文本（原文显示，不走本地化 key）")
             else:
                 w.setPlaceholderText("对话/独白/旁白文本")
@@ -373,7 +416,8 @@ class NodeForm(QScrollArea):
                 "官方参考：" + " / ".join("%s %s" % (i, n) for i, n in official[:5])
             )
             label.setWordWrap(True)
-            label.setStyleSheet("color: gray;")
+            # 玻璃主题的次要文字色（原 gray 在深色背景下偏暗）
+            label.setStyleSheet("color: rgba(242, 242, 247, 160);")
             v.addWidget(label)
         return box
 
@@ -554,7 +598,11 @@ class NodeForm(QScrollArea):
         headers = (
             ["运算符", "数值", "goto 目标"]
             if with_op
-            else (["分支值(value)", "goto 目标"] if numeric else ["真/假(value)", "goto 目标"])
+            else (
+                ["分支值(value)", "goto 目标"]
+                if numeric
+                else ["真/假(value)", "goto 目标"]
+            )
         )
         table.setHorizontalHeaderLabels(headers)
         table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)

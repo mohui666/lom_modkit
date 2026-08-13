@@ -7,7 +7,7 @@
 成功/失败/认输则汇入收尾三选（回自由模式逛练武场 / 睡到下月下旬再逛 /
 继续第二幕），成功线四师兄好感 +3，解锁练武场好感事件。第二幕经
 end.next_script 链式接力：2 带骰子失败回环重试（不再直接结束），成功
-可选自定义死亡文本（910021）或结局卡片（End 920047 + title/desc）。
+可选自定义死亡文本（910021）或官方汗青书式结局卡（End 920047 + title/desc）。
 练武场另有三个条件触发器事件（train_affinity 好感≥3 / train_dusk 下旬 /
 train_any 默认闲逛），全部 end 回自由模式。
 
@@ -255,7 +255,9 @@ def build_main(ed: dict) -> dict:
     )
     node(
         "message",
-        {"text": "【系统提示】message 节点：系统提示条显示原文（DisplayMessageText，不走本地化 key）。"},
+        {
+            "text": "【系统提示】message 节点：系统提示条显示原文（DisplayMessageText，不走本地化 key）。"
+        },
     )
     say("系统提示也演了一出——message 原文直出，编剧改词都不怕。", "player")
     node("rotate", {"character": "brother4", "angle": -10, "duration": 0.3})
@@ -465,9 +467,9 @@ def build_second(ed: dict) -> dict:
     """第二幕：end.next_script 链式接力 + 2 带骰子回环重试 + 死亡/结局卡片演示。
 
     2 带骰子失败不再直接坠崖：失败 → 四师兄安慰 → 二选一（回环重试 /
-    认命坠崖）；成功 → 二选一（自定义死亡文本 910021 演示 / 结局卡片演示：
-    goto_scene End 920047 + title/desc，运行时 mod_set_ending_text 由官方
-    结局画面绘制）。
+    认命坠崖）；成功 → 二选一（自定义死亡文本 910021 演示 / 结局卡演示：
+    goto_scene End 920047 + title/desc，运行时打开官方 EndGamePanel；未给图片时
+    借用游戏内官方 20047 的插图作占位）。
     """
     st = story_api.new_story("second", "全功能展示·第二幕（坠崖加演）")
     st.pop("mood", None)  # 同 main：顶层不设 mood，演示默认 false
@@ -517,7 +519,7 @@ def build_second(ed: dict) -> dict:
         st,
         "刻意的游戏设计",
         death_id="910021",  # mod 专属 id（9+官方 10021 乱战中被践踏而死）
-        next="Free",
+        next="Title",
         title="少侠留步",
         after=f_say,
     )["id"]
@@ -550,11 +552,10 @@ def build_second(ed: dict) -> dict:
         {
             "scene": "End",
             "key": "920047",  # mod 专属结局 id（9+官方 20047 武林传奇）
-            "next": "Story",
+            "next": "Title",
             "title": "全功能展示·武林传奇",
             "desc": "耕阳读书斋将你的事迹编撰成书，发行于市。\n"
-            "唐门活侠——一个被编剧折腾了三幕的倒霉蛋——大名一朝传遍中原。\n"
-            "（结局卡片：title/desc 由 mod_set_ending_text 交给官方结局画面绘制。）",
+            "唐门活侠——一个被编剧折腾了三幕的倒霉蛋——大名一朝传遍中原。",
         },
         after=suc2,
     )
@@ -1038,7 +1039,17 @@ def validate_structure(ed: dict, raw: dict[str, str], stories: list[dict]) -> No
                 on_stage.add(n["character"])
             elif t == "hide" and n.get("character"):
                 on_stage.discard(n["character"])
-            elif t in ("say", "shock", "focus", "offset", "move", "face", "intro", "rotate", "dim") and n.get("character"):
+            elif t in (
+                "say",
+                "shock",
+                "focus",
+                "offset",
+                "move",
+                "face",
+                "intro",
+                "rotate",
+                "dim",
+            ) and n.get("character"):
                 check(
                     n["character"] in on_stage,
                     "story=%s 节点 %s(%s): 角色 %s 已上台（先 show 后引用，防 LoadCharacterPortrait KeyNotFound 冻结）"

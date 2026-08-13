@@ -9,7 +9,7 @@ MIT 许可。本工具为粉丝自制工具，与游戏开发商无关，不包�
 ## 组件
 
 - `compiler/`（`lomc`）— JSON 剧情 → 游戏原生 Lua 编译器（Python 标准库，包格式契约见 `docs/mod_format.md`）
-- `editor/` — PySide6 图形编辑器（三栏：脚本切换+节点列表 / 属性表单 / 演出预览+Lua 预览；多剧情项目、撤销/重做、脏标记）
+- `editor/` — PySide6 图形编辑器（三栏：章节与步骤 / 属性 / 画面预览；常用操作工具栏、剧情检查、内置使用指南、多章节、撤销/重做）
 - `editor/story_api.py` — AI/脚本可用的受控工具接口（Python API + CLI）：所有写操作经固定规则校验，AI 不直接手写 story JSON/Lua
 - `runtime/MortalModHost/` — BepInEx 游戏内插件（C# net48）：扫描 `.lommod`、Harmony 拦截演出 mod Lua、战役模式（隔离存档槽）、位置触发器、已读文本注册（台词变黄/快进）、自定义死亡文本
 - `tools/` — 从解包产物提取编辑器数据 / 预览素材 / 屏幕截图辅助脚本
@@ -44,6 +44,35 @@ python -m venv .venv
 2. `.lommod` 包放进 `BepInEx/plugins/MortalModHost/mods/`
 3. 进游戏：自由场景/标题画面左下角「活侠MOD」按钮或 F8 打开菜单 →「演出 mod 剧情」或「开始新战役」
 
+### 4. 独立可执行文件（PyInstaller 打包，可选）
+
+编辑器与 AI 命令行各出一个 exe，共享同一运行时目录，目标机器无需 Python：
+
+```bash
+cd editor
+.venv/Scripts/pip install pyinstaller
+.venv/Scripts/python build_exe.py
+```
+
+产物在 `editor/dist/lom_modkit/`（`build/`、`dist/` 已被 gitignore）：
+
+| 文件 | 说明 |
+| --- | --- |
+| `lom_editor.exe` | 图形编辑器（无控制台窗口；数据清单内置，缺素材时用占位图；打开/保存默认从当前工作目录开始） |
+| `story_api_cli.exe` | AI / 脚本友好的命令行（check / compile / pack / new-story） |
+
+`story_api_cli` 用法（退出码 0/1，UTF-8；AI 建议加 `--json` 拿单行结构化结果）：
+
+```bash
+story_api_cli check story.json
+story_api_cli check --json story.json            # {"ok": true, "errors": [], "warnings": []}
+story_api_cli compile story.json -o out.lua
+story_api_cli pack mod目录 -o 我的mod.lommod
+story_api_cli new-story my_story -o story.json
+```
+
+`--json` 可放在子命令前或后；失败时同样输出 `{"ok": false, "errors": [...]}` 且退出码仍为 1。
+
 ## 开发
 
 ```bash
@@ -59,7 +88,14 @@ cd editor && .venv/Scripts/python tests/story_api_test.py
 
 # 插件构建
 cd runtime/MortalModHost && dotnet build -c Release
+
+# 插件冒烟测试（ModLoader/MiniJson/ModRegistry 离线验证）
+cd runtime/MortalModHost && dotnet run --project test/SmokeTest -c Release
 ```
+
+游戏内调试：任意场景按 F7 切换「禁用原版剧情」全局临时开关（会话级，不持久化）。
+开启后会跳过返回 Free 时自动触发、以及地点点击触发的官方主线、支线和地点默认脚本；mod 触发器仍优先。该开关只在本次游戏会话有效，再按 F7 或重启游戏即可恢复。
+已经开始的 Story 演出不会被强制中断，F8 菜单不受影响。
 
 ## 说明与致谢
 

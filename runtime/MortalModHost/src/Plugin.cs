@@ -25,7 +25,7 @@ namespace MortalModHost
     {
         public const string GUID = "com.mohui666.mortalmodhost";
         public const string NAME = "MortalModHost";
-        public const string VERSION = "0.2.0";
+        public const string VERSION = "0.2.2";
 
         private const int WindowId = 886310; // IMGUI 窗口 id，取个不易与其他插件撞车的数
 
@@ -34,6 +34,7 @@ namespace MortalModHost
 
         private ConfigEntry<bool> _enabled;
         private ConfigEntry<KeyboardShortcut> _menuHotkey;
+        private ConfigEntry<KeyboardShortcut> _vanillaStoryHotkey;
 
         private bool _showMenu;
         private bool _inTitleScene; // 当前菜单是否处于标题画面（Title 场景仅提供战役区）
@@ -46,8 +47,10 @@ namespace MortalModHost
                 "总开关。false 时禁用热键、mod 菜单与 LuaManager 注入。");
             _menuHotkey = Config.Bind("General", "MenuHotkey", new KeyboardShortcut(KeyCode.F8),
                 "打开/关闭 mod 菜单的快捷键（仅在 Free 自由场景生效）。旧默认 F9 与同机 MortalInstantWin 冲突，启动时自动迁移为 F8。");
+            _vanillaStoryHotkey = Config.Bind("General", "VanillaStoryHotkey", new KeyboardShortcut(KeyCode.F7),
+                "切换「禁用原版游戏剧情」的全局临时开关（任意场景可切换；会话级，不持久化）。开启后跳过返回 Free 时自动触发及地点点击触发的官方主线、支线和默认脚本，mod 触发器仍优先。");
             MigrateLegacyHotkey();
-            Logger.LogInfo("菜单热键：" + _menuHotkey.Value + "（Free 场景左下角也有常驻入口按钮）");
+            Logger.LogInfo("菜单热键：" + _menuHotkey.Value + "（Free 场景左下角也有常驻入口按钮）；原版剧情开关热键：" + _vanillaStoryHotkey.Value);
 
             // 契约 §C：死亡/结局文本覆盖的静态初始态（重复启动时防止残留上次会话的文本）
             ModOverlay.Clear();
@@ -131,9 +134,12 @@ namespace MortalModHost
             MoodControl.Log = Logger;
             ReadTextPatch.Log = Logger;
             GameOverOverlayPatch.Log = Logger;
+            EndGamePanelOverlayPatch.Log = Logger;
             EndGameOverlayPatch.Log = Logger;
+            ModOverlay.Log = Logger;
             NewGamePlusPatch.Log = Logger;
             DiceRevolutionPatch.Log = Logger;
+            VanillaStorySwitch.Log = Logger;
 
             bool ok = true;
             ok &= CheckTarget("LuaManager.ExecuteLuaScript",
@@ -142,6 +148,16 @@ namespace MortalModHost
                 AccessTools.Method(typeof(SaveSystem), "NewGameData"));
             ok &= CheckTarget("FreePositionData.GetExecuteScript",
                 AccessTools.Method(typeof(FreePositionData), "GetExecuteScript"));
+            ok &= CheckTarget("PositionController.OnPositionClick",
+                AccessTools.Method(typeof(PositionController), "OnPositionClick"));
+            ok &= CheckTarget("PositionController.HasTriggerSubMissions",
+                AccessTools.Method(typeof(PositionController), "HasTriggerSubMissions"));
+            ok &= CheckTarget("MissionManagerData.get_MainMissionStart",
+                AccessTools.Method(typeof(MissionManagerData), "get_MainMissionStart"));
+            ok &= CheckTarget("MissionManagerData.UpdateCheckMissions",
+                AccessTools.Method(typeof(MissionManagerData), "UpdateCheckMissions"));
+            ok &= CheckTarget("MissionManagerData.HasAnyMissionTrigger",
+                AccessTools.Method(typeof(MissionManagerData), "HasAnyMissionTrigger"));
             ok &= CheckTarget("PositionController._positionData",
                 AccessTools.Field(typeof(PositionController), "_positionData"));
             ok &= CheckTarget("PositionController._position",
@@ -152,6 +168,8 @@ namespace MortalModHost
                 AccessTools.Method(typeof(StoryCharacterController), "ShowMood", new Type[0]));
             ok &= CheckTarget("GameOverController.Start",
                 AccessTools.Method(typeof(GameOverController), "Start"));
+            ok &= CheckTarget("EndGamePanel.Open",
+                AccessTools.Method(typeof(EndGamePanel), "Open"));
             ok &= CheckTarget("EndGameController.Start",
                 AccessTools.Method(typeof(EndGameController), "Start"));
             ok &= CheckTarget("PlayerStatManagerData.get_NewGamePlus",
@@ -164,7 +182,7 @@ namespace MortalModHost
                 return;
             }
             new Harmony(GUID).PatchAll(); // patch 本程序集全部 [HarmonyPatch] 类
-            Logger.LogInfo("Harmony patch 已挂载：ExecuteLuaScript prefix / NewGameData postfix / GetExecuteScript postfix / UpdateTranslations postfix / StoryCharacterController.ShowMood postfix / GameOver/EndGame Start postfix / get_NewGamePlus prefix / CheckRevolution postfix");
+            Logger.LogInfo("Harmony patch 已挂载：ExecuteLuaScript / NewGameData / Free 自动与地点剧情抑制 / GetExecuteScript / UpdateTranslations / ShowMood / GameOver/EndGamePanel/EndGame / NewGamePlus / DiceRevolution");
         }
 
         private bool CheckTarget(string name, MemberInfo member)
@@ -180,7 +198,11 @@ namespace MortalModHost
         {
             UpdateOverlaySceneTracking();
             if (!_enabled.Value) return;
-            if (!IsHotkeyDown()) return;
+
+            // F7：任意场景可切换，返回 Free 的自动任务与下一次地点点击都会生效；独立于 F8 菜单分支。
+            HandleVanillaStoryHotkey();
+
+            if (!IsHotkeyDown(_menuHotkey.Value)) return;
 
             // 诊断日志：热键按下时无条件记录场景名与门控结果，方便定位"热键被抢/场景不符"类反馈
             string scene = SceneController.Instance != null ? SceneController.Instance.CurrentScene : "(SceneController 未就绪)";
@@ -228,19 +250,32 @@ namespace MortalModHost
         }
 
         /// <summary>
+        /// F7 全局临时开关：切换 <see cref="VanillaStorySwitch.Enabled"/>。
+        /// 任意场景都可切换；开关不会强制中断已经开始的 Story 演出，而是在下一次
+        /// Free 场景地点点击时生效。
+        /// 开关状态是会话级的，不进 cfg：重载插件即复位。
+        /// </summary>
+        private void HandleVanillaStoryHotkey()
+        {
+            if (!IsHotkeyDown(_vanillaStoryHotkey.Value)) return;
+            VanillaStorySwitch.Toggle();
+        }
+
+        /// <summary>
         /// 用新 InputSystem 判定快捷键。不能用 BepInEx 自带的 KeyboardShortcut.IsDown()——
         /// 它走旧 UnityEngine.Input，本游戏只启用新输入系统，运行时会抛 InvalidOperationException。
+        /// 接受 KeyboardShortcut 参数：菜单（F8）与原版剧情开关（F7）共用同一判定逻辑。
         /// </summary>
-        private bool IsHotkeyDown()
+        private bool IsHotkeyDown(KeyboardShortcut shortcut)
         {
             Keyboard keyboard = Keyboard.current;
             if (keyboard == null) return false;
             Key mainKey;
-            if (!TryConvertKeyCode(_menuHotkey.Value.MainKey, out mainKey) || mainKey == Key.None)
+            if (!TryConvertKeyCode(shortcut.MainKey, out mainKey) || mainKey == Key.None)
                 return false;
             if (!keyboard[mainKey].wasPressedThisFrame)
                 return false;
-            foreach (KeyCode modifier in _menuHotkey.Value.Modifiers)
+            foreach (KeyCode modifier in shortcut.Modifiers)
             {
                 Key modifierKey;
                 if (!TryConvertKeyCode(modifier, out modifierKey) || !keyboard[modifierKey].isPressed)
@@ -344,7 +379,7 @@ namespace MortalModHost
         /// 开始新战役（契约 §6.4）：隔离存档槽 SetSlot("mod_&lt;modid&gt;") → 官方 NewGameData()
         /// （NewGameDataPatch postfix 把首脚本替换为本 mod 入口）→ LoadStory。
         /// 同时记录 ModCampaignState（该 mod 的 campaign.disable_official_events），战役期间
-        /// Free 场景位置点击的官方默认脚本由 FreePositionPatch 据其抑制；官方开局时由
+        /// Free 场景自动任务与位置点击的官方脚本由对应 patch 据其抑制；官方开局时由
         /// NewGameDataPatch 清除。
         /// 等价于 TitleManager.NewGame() 的调用序列（Mortal.Core.decompiled.cs:8377）。
         /// Free 自由场景与 Title 标题画面均可调用（SaveSystem/SceneController 是常驻单例）；
@@ -362,11 +397,12 @@ namespace MortalModHost
             string slot = "mod_" + mod.Id;
             Logger.LogInfo("开始新战役：" + mod.Id + "（隔离存档槽 " + slot + "）");
             NewGameDataPatch.PendingCampaign = mod;
-            // 契约 §2：记录 mod 战役运行态——该战役期间 Free 位置点击是否禁用原版事件
-            // 由本 mod 的 disable_official_events 决定（官方开局时 NewGameDataPatch 清除）。
-            ModCampaignState.Enter(mod.Campaign.DisableOfficialEvents);
+            // 契约 §2：记录 mod 战役运行态——该战役期间 Free 自动任务与位置点击是否禁用原版事件
+            // 由本 mod 的 disable_official_events 决定（官方开局时 NewGameDataPatch 清除）；
+            // 同时记录战役 mod id，位置触发器按当前战役 mod 隔离（见 FreePositionPatch）。
+            ModCampaignState.Enter(mod);
             if (mod.Campaign.DisableOfficialEvents)
-                Logger.LogInfo("该战役已声明 disable_official_events：Free 场景位置点击不再触发原版故事脚本（仅 mod 触发器命中）。");
+                Logger.LogInfo("该战役已声明 disable_official_events：返回 Free 的自动任务与位置点击不再触发原版故事脚本（仅 mod 触发器命中）。");
             saves.SetSlot(slot);
             saves.NewGameData();
             scenes.LoadStory();
