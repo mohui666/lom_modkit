@@ -28,6 +28,22 @@ from PySide6.QtWidgets import (
 from game_install import GameInstallError, GameInstallManager
 
 
+def apply_steam_launch_fix_ui(parent, manager: GameInstallManager) -> None:
+    """帮助 / 安装管理共用：把 Steam 普通启动修进当前游戏目录。"""
+    try:
+        actions = manager.apply_steam_launch_fix()
+    except GameInstallError as exc:
+        QMessageBox.warning(parent, "无法修复 Steam 启动", str(exc))
+        return
+    QMessageBox.information(
+        parent,
+        "Steam 启动修复已写入",
+        "\n".join("· " + line for line in actions)
+        + "\n\n请完全退出游戏后，从 Steam 普通点「开始」（不要管理员）。"
+        "进游戏按 F8 打开 Mod 菜单。",
+    )
+
+
 class ModManagerDialog(QDialog):
     """配置一次游戏目录，之后自动安装运行时并管理 Mod 启停。"""
 
@@ -68,7 +84,14 @@ class ModManagerDialog(QDialog):
         self.bepinex_btn = QPushButton("安装 BepInEx")
         self.bepinex_btn.setToolTip("从 BepInEx 官方下载站安装已验证的 Mono x86 版本")
         self.bepinex_btn.clicked.connect(self._install_bepinex)
+        self.steam_fix_btn = QPushButton("修复 Steam 无法加载")
+        self.steam_fix_btn.setToolTip(
+            "Steam 普通启动时 Doorstop 可能被环境变量跳过。"
+            "此按钮会改 doorstop 配置并把代理换成 version.dll。"
+        )
+        self.steam_fix_btn.clicked.connect(self._apply_steam_fix)
         status_row.addWidget(self.status_label, 1)
+        status_row.addWidget(self.steam_fix_btn)
         status_row.addWidget(self.bepinex_btn)
         status_row.addWidget(self.install_btn)
         game_layout.addLayout(status_row)
@@ -127,6 +150,7 @@ class ModManagerDialog(QDialog):
                 )
                 self.bepinex_btn.setEnabled(False)
                 self.bepinex_btn.setText("安装 BepInEx")
+                self.steam_fix_btn.setEnabled(False)
                 self.install_btn.setEnabled(False)
                 self.table.setRowCount(0)
                 return
@@ -136,6 +160,7 @@ class ModManagerDialog(QDialog):
             self.bepinex_btn.setText(
                 "重新安装 / 更新 BepInEx" if has_bepinex else "安装 BepInEx"
             )
+            self.steam_fix_btn.setEnabled(has_bepinex)
             self.install_btn.setEnabled(has_bepinex)
             if not has_bepinex:
                 self.status_label.setText(
@@ -145,7 +170,12 @@ class ModManagerDialog(QDialog):
                 return
             runtime_target = self.manager.plugin_dir() / "MortalModHost.dll"
             state = "运行时已安装" if runtime_target.is_file() else "运行时尚未安装"
-            self.status_label.setText(f"已连接：{state}。Mod 目录由编辑器自动管理。")
+            steam = (
+                "Steam 普通启动修复已就绪"
+                if self.manager.steam_launch_fix_applied(root)
+                else "若 Steam 点开始没有 Mod，点“修复 Steam 无法加载”"
+            )
+            self.status_label.setText(f"已连接：{state}。{steam}。")
             records = self.manager.list_mods()
             self.table.setRowCount(len(records))
             for row, record in enumerate(records):
@@ -271,8 +301,13 @@ class ModManagerDialog(QDialog):
             self,
             "安装完成",
             f"已安装 BepInEx {version} 和 MortalModHost。\n"
-            f"运行时位置：{target}\n\n官方来源：{source}",
+            f"运行时位置：{target}\n\n官方来源：{source}\n\n"
+            "已同时写入 Steam 普通启动修复（ignore_disable_switch + version.dll）。",
         )
+        self.refresh()
+
+    def _apply_steam_fix(self) -> None:
+        apply_steam_launch_fix_ui(self, self.manager)
         self.refresh()
 
     def _install_runtime(self) -> None:

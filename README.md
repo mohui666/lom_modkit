@@ -9,12 +9,12 @@ MIT 许可。本工具为粉丝自制工具，与游戏开发商无关，不包�
 ## 组件
 
 - `compiler/`（`lomc`）— JSON 剧情 → 游戏原生 Lua 编译器（Python 标准库，包格式契约见 `docs/mod_format.md`）
-- `editor/` — PySide6 图形编辑器（三栏：章节与步骤 / 属性 / 画面预览；F5 从当前步骤进游戏试玩、可交互流程图、体检与安全自动修复（含人物未登场黑屏风险）、自动安装与 Mod 启停管理、内置帮助、多章节、撤销/重做）
+- `editor/` — PySide6 图形编辑器（三栏：剧情结构 / 当前对象 / 预览；工具栏只留试玩与导出；F5 从当前步骤进游戏、流程图、体检、安装管理、已读重置、多章节、撤销/重做）
 - `editor/story_api.py` — AI/脚本可用的受控工具接口（Python API + CLI）：所有写操作经固定规则校验，AI 不直接手写 story JSON/Lua
-- `runtime/MortalModHost/` — BepInEx 游戏内插件（C# net48）：扫描 `.lommod`、Harmony 拦截演出 mod Lua、战役模式（隔离存档槽）、位置触发器、已读文本注册、带可选自定义立绘的人物介绍卡与死亡/结局文本
+- `runtime/MortalModHost/` — BepInEx 游戏内插件（C# net48）：扫描 `.lommod`、Harmony 拦截演出、战役隔离存档、位置触发器、已读文本、人物介绍卡与死亡/结局文本；Steam 普通启动可用
 - `tools/` — 从解包产物提取编辑器数据 / 预览素材 / 屏幕截图辅助脚本
 - `data/` — 编辑器数据（`editor_data.json`：人物/表情/场景/音乐/属性/骰子检查点清单，schema 3）
-- `samples/` — 示例 mod（demo_mod 全节点演示、showcase 全功能展示、snack_case 战役短剧《点心大盗疑案》、probe 诊断探针）
+- `samples/` — 示例 mod（demo_mod、showcase、showcase2 全节点演示 2.0、snack_case《点心大盗疑案》、probe）
 
 ## 快速开始
 
@@ -39,9 +39,12 @@ run_editor.bat          # 或直接双击运行
 ### 3. 游戏内插件（BepInEx）
 
 1. 编辑器菜单“文件 → 安装管理”，选择包含 `Mortal.exe` 的游戏文件夹。
-2. 点击“安装 BepInEx”，编辑器会从官方下载站安装并校验兼容的 BepInEx 6 Mono x86 build 692；随后自动安装运行时。之后导出的 `.lommod` 也会自动复制并启用。
-3. 同一窗口可勾选启用/停用已安装 Mod。手动路径仍为 `BepInEx/plugins/MortalModHost/mods/`。
-4. 进游戏：自由场景/标题画面左下角「活侠MOD」按钮或 F8 打开菜单 →「演出 mod 剧情」或「开始新战役」。
+2. 点击“安装 BepInEx”，编辑器会从官方下载站安装并校验兼容的 BepInEx 6 Mono x86 build 692；随后自动安装运行时，并写入 Steam 普通启动修复（`version.dll` + `ignore_disable_switch`）。之后导出的 `.lommod` 也会自动复制并启用。
+3. 若 Steam 点「开始」后标题没有「活侠MOD」、F8 没反应：在安装管理里点「修复 Steam 无法加载」，然后从 Steam **普通启动**（不要管理员）。
+4. 同一窗口可勾选启用/停用已安装 Mod。手动路径仍为 `BepInEx/plugins/MortalModHost/mods/`。
+5. 进游戏：自由场景/标题画面左下角「活侠MOD」按钮或 F8 打开菜单 →「演出 mod 剧情」或「开始新战役」。
+
+复测已读变黄时：先退出游戏，再在编辑器「试玩 → 重置剧情已读状态」。它会同时清当前 mod 与 F5 试玩包（`lom_modkit_preview`）的记录。
 
 导出前可按 F6 打开“体检”。它会检查编译错误、断路与不可达步骤、占位文字、图片素材，以及“人物未登场就做动作/说话”的黑屏风险；双击问题可定位到对应步骤。“安全自动修复”只处理不会改变剧情含义的机械问题（含自动补人物登场），并支持撤销。
 
@@ -102,6 +105,14 @@ cd runtime/MortalModHost && dotnet run --project test/SmokeTest -c Release
 游戏内调试：任意场景按 F7 切换「禁用原版剧情」全局临时开关（会话级，不持久化）。
 开启后会跳过返回 Free 时自动触发、以及地点点击触发的官方主线、支线和地点默认脚本；mod 触发器仍优先。该开关只在本次游戏会话有效，再按 F7 或重启游戏即可恢复。
 已经开始的 Story 演出不会被强制中断，F8 菜单不受影响。
+
+## 0.6.0
+
+- 编辑器信息架构：菜单管低频，工具栏只留试玩/导出；左栏只管章节与步骤，章节属性进中栏；步骤两行文案、右键删除/移动；预览对白按字数撑开并可中文换行。
+- 已读重置同时改 `Save_universe.dat` 与 `.json`，并清 F5 试玩包 `lom_modkit_preview` 的记录。
+- 音乐/环境音 `fadeout` 之后会 `wait` 满淡出时长，避免下一句 `PlayMusic` 把音量瞬间拉回。
+- Steam 普通启动可加载 BepInEx（`version.dll` + `ignore_disable_switch`）。
+- 样例 `showcase2`：场景一后半旁白与对话拆开；魏菊在切场/进第二幕前退场。
 
 ## 说明与致谢
 

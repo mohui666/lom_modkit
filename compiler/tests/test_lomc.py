@@ -1925,22 +1925,22 @@ class TestNewNodeCodegen(unittest.TestCase):
             "\tluamanager.StopMusic()",
             self.lua_of({"id": "n1", "type": "music", "name": "x", "op": "stop"}),
         )
-        self.assertIn(
-            "\tluamanager.FadeOutMusic(2)",
-            self.lua_of({"id": "n1", "type": "music", "name": "x", "op": "fadeout"}),
+        fade_default = self.lua_of(
+            {"id": "n1", "type": "music", "name": "x", "op": "fadeout"}
         )
-        self.assertIn(
-            "\tluamanager.FadeOutMusic(3.5)",
-            self.lua_of(
-                {
-                    "id": "n1",
-                    "type": "music",
-                    "name": "x",
-                    "op": "fadeout",
-                    "seconds": 3.5,
-                }
-            ),
+        self.assertIn("\tluamanager.FadeOutMusic(2)", fade_default)
+        self.assertIn("\twait(2)", fade_default)
+        fade_custom = self.lua_of(
+            {
+                "id": "n1",
+                "type": "music",
+                "name": "x",
+                "op": "fadeout",
+                "seconds": 3.5,
+            }
         )
+        self.assertIn("\tluamanager.FadeOutMusic(3.5)", fade_custom)
+        self.assertIn("\twait(3.5)", fade_custom)
 
     def test_sound(self):
         self.assertIn(
@@ -1953,18 +1953,17 @@ class TestNewNodeCodegen(unittest.TestCase):
                 {"id": "n1", "type": "sound", "name": "雨天_001", "kind": "env"}
             ),
         )
-        self.assertIn(
-            "\tluamanager.FadeOutEnvSound(1)",
-            self.lua_of(
-                {
-                    "id": "n1",
-                    "type": "sound",
-                    "name": "x",
-                    "kind": "env",
-                    "op": "fadeout",
-                }
-            ),
+        env_fade = self.lua_of(
+            {
+                "id": "n1",
+                "type": "sound",
+                "name": "x",
+                "kind": "env",
+                "op": "fadeout",
+            }
         )
+        self.assertIn("\tluamanager.FadeOutEnvSound(1)", env_fade)
+        self.assertIn("\twait(1)", env_fade)
 
     def test_offset(self):
         lua = self.lua_of(

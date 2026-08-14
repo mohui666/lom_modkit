@@ -34,22 +34,25 @@ def main_fn() -> int:
     editor_data, is_fallback = models.load_editor_data(main.PROJECT_ROOT)
     win = main.MainWindow(editor_data, is_fallback)
     win._prompt_on_discard = False  # 测试全程关闭未保存确认弹窗（会阻塞 offscreen）
-    assert win.node_list.count() == 3, "新建项目应含登场、示例对白和结束剧情"
+    assert len(win.story["nodes"]) == 3, "新建项目应含登场、示例对白和结束剧情"
+    assert win.node_list.count() == 4, "列表 = 章节设置 + 3 个步骤"
     assert win.story["nodes"][-1]["type"] == "end", "新手模板应可直接通过收尾校验"
     starter_lua, starter_err = main.compile_story(win.story)
     assert starter_err is None and starter_lua, f"新手模板应可直接编译：{starter_err}"
 
-    # 新手主流程：工具栏、内置帮助、项目检查都必须离线可用。
+    # 新手主流程：工具栏只留高频；完整入口在菜单；帮助/体检离线可用。
     toolbar_texts = [a.text() for bar in win.findChildren(main.QToolBar) for a in bar.actions()]
-    for label in (
-        "新建",
-        "导入 Mod",
-        "体检",
-        "试玩",
-        "导出 Mod",
-        "帮助",
-    ):
-        assert label in toolbar_texts, f"工具栏缺少 {label}"
+    assert any("试玩" in t for t in toolbar_texts), f"工具栏应有试玩：{toolbar_texts}"
+    assert any("导出" in t for t in toolbar_texts), f"工具栏应有导出：{toolbar_texts}"
+    for noise in ("新建", "导入 Mod", "体检", "帮助"):
+        assert noise not in toolbar_texts, f"工具栏不应再放 {noise}（已收进菜单）"
+    # 左栏步骤树：第 0 行是章节设置，其后才是步骤
+    assert win.node_list.count() == 4, "章节设置 + 3 个新手步骤"
+    assert win._is_chapter_item(win.node_list.item(0))
+    # 选中首个步骤后列表文案应为两行（类型 + 详情）
+    win._select_node_index(0)
+    step_text = win.node_list.currentItem().text()
+    assert "\n" in step_text, f"步骤列表应为两行文案：{step_text!r}"
     help_dlg = main.HelpDialog(win)
     help_text = help_dlg.findChild(main.QTextBrowser).toPlainText()
     assert "五分钟做出第一段剧情" in help_text and "汗青书结局怎么写" in help_text
@@ -157,12 +160,13 @@ def main_fn() -> int:
     )
     print(
         f"[1] 主窗口/新手流程 OK（{'兜底数据' if is_fallback else 'editor_data.json'}，"
-        f"节点数={win.node_list.count()}，内置帮助与检查可用）"
+        f"节点数={len(win.story['nodes'])}，内置帮助与检查可用）"
     )
 
     # 新建节点：在起始节点后插入一个 choice
     win._add_node("choice")
-    assert win.node_list.count() == 4
+    assert len(win.story["nodes"]) == 4
+    assert win.node_list.count() == 5  # 章节设置 + 4 步骤
     node = win._current_node()
     assert (
         node is not None and node["type"] == "choice" and len(node["options"]) == 2
@@ -175,7 +179,7 @@ def main_fn() -> int:
     branch = models.new_node("branch", node["id"], editor_data)
     branch["flag"] = "SMOKE_FLAG"
     branch["cases"][0]["goto"] = "n1"  # 指向已有节点，保证 story 合法可编译
-    win.story["nodes"][win.node_list.currentRow()] = branch
+    win.story["nodes"][win._selected_node_index()] = branch
     win._refresh_all(select_row=1)
     cur = win._current_node()
     assert cur is not None and cur["type"] == "branch"
@@ -208,12 +212,12 @@ def main_fn() -> int:
 
     # 表单写回：改 say 文本后摘要应更新
     say_row = win._node_row("n2")  # 新手模板：n1 登场、n2 对白
-    win.node_list.setCurrentRow(say_row)
+    win._select_node_index(say_row)
     say_node = win._current_node()
     assert say_node is not None and say_node["type"] == "say"
     say_node["text"] = "这是一段用于冒烟测试的对话文本，长度超过二十个字用于验证截断"
     win._on_node_changed()
-    text = win.node_list.item(say_row).text()
+    text = win.node_list.item(win._list_row_for_node_index(say_row)).text()
     assert "…" in text, f"摘要应截断：{text!r}"
     print(f"[4] 摘要刷新 OK（{text!r}）")
 
@@ -457,7 +461,7 @@ def main_fn() -> int:
     ):
         b = story_api.add_node(win.story, "branch", dict(fields, source=src))
         win._refresh_all()
-        win.node_list.setCurrentRow(win._node_row(b["id"]))
+        win._select_node_index(win._node_row(b["id"]))
         assert win.form._node is b, f"branch {src} 表单未构建"
         from PySide6.QtWidgets import QTableWidget  # type: ignore[reportMissingImports]
 
@@ -466,7 +470,7 @@ def main_fn() -> int:
         win.stage.grab()
     print("[8c2] branch 三新来源 cases 表格（stat/flag_value/condition）OK")
     # 字段写回抽查：raw 代码框 / panel 枚举 / dice 阈值
-    win.node_list.setCurrentRow(
+    win._select_node_index(
         win._node_row([n for n in win.story["nodes"] if n["type"] == "raw"][0]["id"])
     )
     raw_node = win._current_node()
@@ -544,8 +548,7 @@ def main_fn() -> int:
     win._load_story_path(demo_path)
     assert win.right_tabs.count() == 3, "右栏应为演出预览/剧情流程图/Lua 三个页签"
     for nid in ("n1", "n2", "n7", "n11", "n23"):
-        row = win._node_row(nid)
-        win.node_list.setCurrentRow(row)
+        win._select_node_index(win._node_row(nid))
         assert win.stage._state["reached"], f"主窗口预览 {nid} 应到达"
         win.stage.repaint()  # offscreen 下强制重绘，验证 paintEvent 不崩
     win.right_tabs.setCurrentWidget(win.preview)
@@ -607,7 +610,7 @@ def main_fn() -> int:
         "start": "end1",
         "nodes": [{"id": "end1", "type": "end"}],
     }
-    win.node_list.setCurrentRow(win._node_row("n7"))
+    win._select_node_index(win._node_row("n7"))
     assert win.play_from_current_node(), "F5 一键试玩应成功生成临时包"
     assert fake_manager.manifest["id"] == "lom_modkit_preview"
     assert fake_manager.request == ("lom_modkit_preview", win._current_id, "n7")
@@ -643,7 +646,7 @@ def main_fn() -> int:
     win.flow_graph.grab().save(str(graph_out))
     win.right_tabs.setCurrentIndex(0)
     for nid in ("n2", "n7", "n11"):
-        win.node_list.setCurrentRow(win._node_row(nid))
+        win._select_node_index(win._node_row(nid))
         app.processEvents()
         img = win.stage.grab()
         out = out_dir / f"preview_{nid}.png"
@@ -708,7 +711,7 @@ def main_fn() -> int:
     win.right_tabs.setCurrentIndex(0)
 
     # 选项点击交互：模拟点击 n11 第一个选项 → 主窗口应选中 n12
-    win.node_list.setCurrentRow(win._node_row("n11"))
+    win._select_node_index(win._node_row("n11"))
     win.stage.repaint()  # 强制重绘以生成选项热区
     app.processEvents()
     assert win.stage._choice_rects, "n11 应有选项按钮热区"
@@ -743,20 +746,21 @@ def main_fn() -> int:
     assert len(win._stories) == 1 and win._current_id == "main"
     win._add_story_in_project()  # main 被占 → 自动取 story2
     assert win.story_combo.count() == 2 and win._current_id == "story2"
-    assert win.node_list.count() == 3, "新章节应含登场、示例对白和结束剧情"
+    assert len(win.story["nodes"]) == 3, "新章节应含登场、示例对白和结束剧情"
+    assert win.node_list.count() == 4  # + 章节设置行
     win._add_node("wait")
-    assert win.node_list.count() == 4
+    assert len(win.story["nodes"]) == 4 and win.node_list.count() == 5
     win.story_combo.setCurrentIndex(win.story_combo.findData("main"))
-    assert win._current_id == "main" and win.node_list.count() == 3
+    assert win._current_id == "main" and len(win.story["nodes"]) == 3
     win.story_combo.setCurrentIndex(win.story_combo.findData("story2"))
-    assert win.node_list.count() == 4
+    assert len(win.story["nodes"]) == 4 and win.node_list.count() == 5
     print("[15] 多剧情脚本管理 OK（新建/切换，列表随切换刷新）")
 
     # [16] 撤销/重做：跨剧情快照；连续输入合并为一步
     win._undo()  # 撤销 story2 新增的 wait 节点
-    assert win._current_id == "story2" and win.node_list.count() == 3
+    assert win._current_id == "story2" and len(win.story["nodes"]) == 3
     win._redo()
-    assert win.node_list.count() == 4
+    assert len(win.story["nodes"]) == 4
     win.story_title_edit.setText("改名一")  # 连续两次编辑 → 合并一步
     win.story_title_edit.setText("改名二")
     win._undo()

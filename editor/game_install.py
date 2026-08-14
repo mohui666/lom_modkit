@@ -88,10 +88,49 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+_IGNORE_DISABLE_RE = re.compile(
+    r"(?im)^([ \t]*ignore_disable_switch[ \t]*=[ \t]*)(\S+)"
+)
+
+
+def _bundled_doorstop_dll() -> Path:
+    name = "win-x86-doorstop.dll"
+    if getattr(sys, "frozen", False):
+        return Path(getattr(sys, "_MEIPASS")) / "assets" / "doorstop" / name
+    return Path(__file__).resolve().parent / "assets" / "doorstop" / name
+
+
+def _system_version_dll() -> Path | None:
+    windir = Path(os.environ.get("SystemRoot", r"C:\Windows"))
+    for rel in ("SysWOW64/version.dll", "System32/version.dll"):
+        candidate = windir / rel
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _ensure_ignore_disable_switch(text: str) -> tuple[str, bool]:
+    """Return (new_text, changed). Forces ignore_disable_switch = true."""
+    match = _IGNORE_DISABLE_RE.search(text)
+    if match:
+        if match.group(2).strip().lower() == "true":
+            return text, False
+        new = _IGNORE_DISABLE_RE.sub(r"\1true", text, count=1)
+        return new, True
+    suffix = "" if not text or text.endswith("\n") else "\n"
+    return text + suffix + "ignore_disable_switch = true\n", True
+
+
 class GameInstallManager:
-    def __init__(self, settings_path: Path | None = None, runtime_dll: Path | None = None):
+    def __init__(
+        self,
+        settings_path: Path | None = None,
+        runtime_dll: Path | None = None,
+        doorstop_dll: Path | None = None,
+    ):
         self.settings_path = settings_path or _settings_path()
         self.runtime_dll = runtime_dll or _runtime_dll_path()
+        self.doorstop_dll = doorstop_dll if doorstop_dll is not None else _bundled_doorstop_dll()
 
     # ------------------------------------------------------------ 配置
     def load_game_dir(self) -> Path | None:
@@ -102,13 +141,48 @@ class GameInstallManager:
         except (OSError, ValueError, TypeError):
             return None
 
+    def load_pref(self, key: str) -> str | None:
+        """读取任意偏好键（如 last_open_dir）；不存在返回 None。"""
+        try:
+            raw = json.loads(self.settings_path.read_text(encoding="utf-8"))
+            value = raw.get(key)
+            return str(value) if value else None
+        except (OSError, ValueError, TypeError):
+            return None
+
+    def save_pref(self, key: str, value: str) -> None:
+        """合并写入偏好键（不动 game_dir 等其它键）。失败静默——偏好不关键。"""
+        try:
+            raw = json.loads(self.settings_path.read_text(encoding="utf-8"))
+            if not isinstance(raw, dict):
+                raw = {}
+        except (OSError, ValueError, TypeError):
+            raw = {}
+        raw[key] = value
+        try:
+            self.settings_path.parent.mkdir(parents=True, exist_ok=True)
+            temp = self.settings_path.with_suffix(".tmp")
+            temp.write_text(
+                json.dumps(raw, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            temp.replace(self.settings_path)
+        except OSError:
+            pass
+
     def save_game_dir(self, game_dir: Path) -> None:
         root = game_dir.resolve()
         self.validate_game_root(root)
+        try:
+            raw = json.loads(self.settings_path.read_text(encoding="utf-8"))
+            if not isinstance(raw, dict):
+                raw = {}
+        except (OSError, ValueError, TypeError):
+            raw = {}
+        raw["game_dir"] = str(root)
         self.settings_path.parent.mkdir(parents=True, exist_ok=True)
         temp = self.settings_path.with_suffix(".tmp")
         temp.write_text(
-            json.dumps({"game_dir": str(root)}, ensure_ascii=False, indent=2),
+            json.dumps(raw, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
         temp.replace(self.settings_path)
@@ -287,6 +361,7 @@ class GameInstallManager:
             raise GameInstallError(f"BepInEx 下载或安装失败：{exc}") from exc
 
         self.validate_bepinex(root)
+        self.apply_steam_launch_fix(root)
         if progress:
             progress("BepInEx 安装完成", 1, 1)
         return BEPINEX_VERSION, BEPINEX_URL
@@ -333,6 +408,89 @@ class GameInstallManager:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(source, target)
 
+    def apply_steam_launch_fix(self, game_dir: Path | None = None) -> list[str]:
+        """让 Steam 普通启动也能加载 Doorstop / BepInEx。
+
+        1. doorstop_config.ini 打开 ignore_disable_switch（忽略继承的
+           DOORSTOP_DISABLE / 配合补丁后的 DOORSTOP_INITIALIZED）。
+        2. 代理改为 version.dll，避免 Steam overlay 抢系统 winhttp.dll。
+        3. 若编辑器自带修补过的 Doorstop，覆盖 version.dll。
+        """
+        root = Path(game_dir) if game_dir is not None else self.require_game_dir()
+        self.validate_game_root(root)
+        self.validate_bepinex(root)
+        if self.is_game_running():
+            raise GameInstallError("游戏正在运行。请先退出《活侠传》，再应用修复。")
+
+        actions: list[str] = []
+        try:
+            ini = root / "doorstop_config.ini"
+            if ini.is_file():
+                original = ini.read_text(encoding="utf-8", errors="replace")
+            else:
+                original = (
+                    "[General]\n"
+                    "enabled = true\n"
+                    "target_assembly = BepInEx\\core\\BepInEx.Unity.Mono.Preloader.dll\n"
+                )
+                actions.append("已新建 doorstop_config.ini")
+            patched, changed = _ensure_ignore_disable_switch(original)
+            if changed:
+                ini.write_text(patched, encoding="utf-8")
+                actions.append("已打开 ignore_disable_switch（忽略 Steam 传入的 Doorstop 环境变量）")
+
+            winhttp = root / "winhttp.dll"
+            version = root / "version.dll"
+            patched_doorstop = self.doorstop_dll if self.doorstop_dll.is_file() else None
+            if patched_doorstop is not None:
+                if not version.is_file() or _sha256(version) != _sha256(patched_doorstop):
+                    shutil.copy2(patched_doorstop, version)
+                    actions.append("已安装修补过的 Doorstop 为 version.dll")
+            elif winhttp.is_file() and not version.is_file():
+                shutil.copy2(winhttp, version)
+                actions.append("已将 winhttp.dll 复制为 version.dll（Steam overlay 不会抢这个名字）")
+            elif not version.is_file():
+                raise GameInstallError(
+                    "游戏目录没有 version.dll / winhttp.dll，也没有内置 Doorstop 补丁。"
+                    "请先点击“安装 BepInEx”。"
+                )
+
+            if winhttp.is_file():
+                bak = root / "winhttp.dll.lom_bak"
+                if not bak.exists():
+                    winhttp.replace(bak)
+                    actions.append("已移走 winhttp.dll（避免与 Steam overlay 冲突）")
+                else:
+                    winhttp.unlink()
+                    actions.append("已删除多余的 winhttp.dll")
+
+            alt = root / "version_alt.dll"
+            if not alt.is_file():
+                system_ver = _system_version_dll()
+                if system_ver is not None:
+                    shutil.copy2(system_ver, alt)
+                    actions.append("已复制系统 VERSION.dll 为 version_alt.dll")
+        except OSError as exc:
+            raise GameInstallError(
+                "无法写入游戏目录。请确认游戏已退出，并检查目录写入权限：" + str(exc)
+            ) from exc
+
+        if not actions:
+            actions.append("Steam 启动修复已经就绪，无需再改。")
+        return actions
+
+    def steam_launch_fix_applied(self, game_dir: Path | None = None) -> bool:
+        root = Path(game_dir) if game_dir is not None else self.require_game_dir()
+        ini = root / "doorstop_config.ini"
+        if not (root / "version.dll").is_file() or not ini.is_file():
+            return False
+        try:
+            text = ini.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return False
+        match = _IGNORE_DISABLE_RE.search(text)
+        return bool(match and match.group(2).strip().lower() == "true")
+
     def install_mod(self, package: Path, enabled: bool = True) -> Path:
         source = Path(package)
         if source.suffix.lower() != ".lommod" or not source.is_file():
@@ -371,13 +529,16 @@ class GameInstallManager:
                 ["tasklist", "/FI", "IMAGENAME eq Mortal.exe", "/FO", "CSV", "/NH"],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=5,
                 check=False,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
+            stdout = result.stdout or ""
             return any(
                 line.lstrip().lower().startswith('"mortal.exe"')
-                for line in result.stdout.splitlines()
+                for line in stdout.splitlines()
             )
         except (OSError, subprocess.SubprocessError):
             return False
@@ -491,3 +652,167 @@ class GameInstallManager:
                 "无法切换 Mod 状态。请确认游戏已退出，并检查目录写入权限：" + str(exc)
             ) from exc
         return target
+
+
+# ------------------------------------------------------------ 剧情已读状态重置
+def find_universe_saves() -> list[Path]:
+    """定位全局存档 Save_universe.dat（已读文本清单所在）。
+
+    路径：%USERPROFILE%\\AppData\\LocalLow\\Obb Studio\\Mortal\\<steamid>\\Save_universe.dat。
+    返回全部命中（多账号时逐个处理）。同目录下的 Save_universe.json 由
+    reset_story_read_state 作为 dat 的兄弟文件一并处理。
+    """
+    base = Path.home() / "AppData" / "LocalLow" / "Obb Studio" / "Mortal"
+    if not base.is_dir():
+        return []
+    return sorted(base.glob("*/Save_universe.dat"))
+
+
+def _iter_zombie_prefixes():
+    """等长 4 字符僵尸前缀（含尾部下划线），避开运行时 live 前缀 MOD_。"""
+    seen: set[str] = set()
+    for prefix in ("mod_", "xod_", "yod_", "zod_", "wod_", "vod_"):
+        seen.add(prefix)
+        yield prefix
+    for digit in "0123456789":
+        prefix = f"{digit}od_"
+        if prefix not in seen:
+            seen.add(prefix)
+            yield prefix
+    alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
+    for a in alphabet:
+        for b in alphabet:
+            for c in alphabet:
+                prefix = f"{a}{b}{c}_"
+                if prefix == "MOD_" or prefix in seen:
+                    continue
+                yield prefix
+
+
+def _choose_zombie_prefix(raw: bytes, mod_id: str) -> bytes:
+    """选一个文件中尚未出现为 ``{prefix}{modid}_`` 的等长 4 字符前缀。"""
+    for prefix in _iter_zombie_prefixes():
+        candidate = f"{prefix}{mod_id}_".encode("utf-8")
+        if candidate not in raw:
+            return candidate
+    raise GameInstallError(
+        f"无法为 mod「{mod_id}」找到可用的等长僵尸前缀（存档中变体重名过多）"
+    )
+
+
+def _is_mod_read_story_key(key: str, mod_id: str) -> bool:
+    """是否为该 mod 的已读 key：``XXXX{modid}_...``（4 字符前缀，大小写不敏感）。"""
+    if not isinstance(key, str):
+        return False
+    marker = f"{mod_id}_"
+    if len(key) < 4 + len(marker) or key[3] != "_":
+        return False
+    return key[4 : 4 + len(marker)].casefold() == marker.casefold()
+
+
+def _backup_once(path: Path, data: bytes) -> None:
+    backup = path.with_suffix(path.suffix + ".lomkit_bak")
+    if not backup.exists():
+        backup.write_bytes(data)
+
+
+def _reset_universe_dat(save: Path, mod_id: str) -> int:
+    """等长改写 .dat 内 live 前缀 MOD_<modid>_ → 未占用的僵尸前缀。返回改写次数。"""
+    try:
+        raw = save.read_bytes()
+    except OSError:
+        return 0
+    needle = f"MOD_{mod_id}_".encode("utf-8")
+    count = raw.count(needle)
+    if count == 0:
+        return 0
+    zombie = _choose_zombie_prefix(raw, mod_id)
+    try:
+        _backup_once(save, raw)
+        save.write_bytes(raw.replace(needle, zombie))
+    except OSError as exc:
+        raise GameInstallError(f"写入存档失败：{exc}") from exc
+    return count
+
+
+def _reset_universe_json(path: Path, mod_id: str) -> int:
+    """从 Save_universe.json 的 ReadStoryData 中移除该 mod 的已读条目。返回移除条数。"""
+    if not path.is_file():
+        return 0
+    try:
+        original = path.read_bytes()
+        data = json.loads(original.decode("utf-8-sig"))
+    except (OSError, UnicodeError, ValueError, TypeError):
+        return 0
+    if not isinstance(data, dict):
+        return 0
+    stories = data.get("ReadStoryData")
+    if not isinstance(stories, list):
+        return 0
+    kept: list = []
+    removed = 0
+    for item in stories:
+        if _is_mod_read_story_key(item, mod_id):
+            removed += 1
+        else:
+            kept.append(item)
+    if removed == 0:
+        return 0
+    data["ReadStoryData"] = kept
+    try:
+        _backup_once(path, original)
+        path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    except OSError as exc:
+        raise GameInstallError(f"写入存档失败：{exc}") from exc
+    return removed
+
+
+def reset_story_read_state(
+    mod_id: str,
+    saves: list[Path] | None = None,
+    extra_ids: list[str] | None = None,
+) -> list[tuple[Path, int]]:
+    """把指定 mod 的全部已读文本记录重置为未读（对话不再变黄/可快进）。
+
+    实现：
+    - ``Save_universe.dat``（.NET BinaryFormatter）：已读 key 形如
+      ``MOD_<modid>_<script>_<node>``。把 live 前缀 ``MOD_<modid>_`` 等长改写为
+      文件中尚未出现的 4 字符僵尸前缀（``mod_`` / ``xod_`` / ``yod_`` …）——游戏查不到
+      即视为未读。等长替换不动结构；每次重重置选用未占用前缀，避免 Dictionary.Add
+      因重复 key 崩溃。无需解析 BinaryFormatter。
+    - 同目录 ``Save_universe.json``（JsonUtility 转储）：从 ``ReadStoryData`` 列表中
+      **移除** 匹配该 mod 的条目（``MOD_`` 及任意僵尸前缀，大小写不敏感），干净清空。
+
+    写入前各写一次 ``.lomkit_bak`` 备份（已存在则不覆盖）。
+
+    ``saves`` 可注入 dat 路径列表（测试用）；默认 ``find_universe_saves()``。
+    每个 dat 的兄弟 json 会一并处理。
+
+    extra_ids：额外一并清理的 mod id（编辑器 F5 试玩包 ``lom_modkit_preview``）。
+
+    注意：必须在游戏关闭后调用——运行中的游戏会在下次存档时把内存里的旧清单写回。
+    返回 [(路径, 重置/移除条数)]，含 dat 与 json；无改动时返回空列表。
+    """
+    ids: list[str] = []
+    for candidate in [mod_id, *(extra_ids or [])]:
+        if not candidate or candidate in ids:
+            continue
+        if not re.fullmatch(r"[a-z0-9_\-]+", candidate):
+            raise GameInstallError(
+                f"Mod 标识 {candidate!r} 不可用（只允许小写英文、数字、_ 和 -）"
+            )
+        ids.append(candidate)
+    if not ids:
+        raise GameInstallError("Mod 标识不可用（只允许小写英文、数字、_ 和 -）")
+    results: list[tuple[Path, int]] = []
+    dat_paths = saves if saves is not None else find_universe_saves()
+    for mid in ids:
+        for save in dat_paths:
+            dat_count = _reset_universe_dat(save, mid)
+            if dat_count:
+                results.append((save, dat_count))
+            json_path = save.with_suffix(".json")
+            json_count = _reset_universe_json(json_path, mid)
+            if json_count:
+                results.append((json_path, json_count))
+    return results

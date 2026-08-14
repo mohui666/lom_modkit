@@ -1,0 +1,99 @@
+{
+  "id": "train_dusk",
+  "title": "练武场·下旬晚锻（旬=3）",
+  "start": "n1",
+  "nodes": [
+    {
+      "id": "n2",
+      "type": "say",
+      "text": "【旁白】下旬的夜晚，练武场一角叮当作响——郁竹还在打铁。",
+      "portrait": "normal",
+      "mode": "narrative"
+    },
+    {
+      "id": "n1",
+      "type": "scene",
+      "view": "center_night"
+    },
+    {
+      "id": "n3",
+      "type": "show",
+      "character": "girl7",
+      "position": "L1",
+      "portrait": "normal",
+      "facing": "right",
+      "fadeDuration": 0,
+      "moveDuration": 0
+    },
+    {
+      "id": "n4",
+      "type": "show",
+      "character": "player",
+      "position": "R1",
+      "portrait": "normal",
+      "facing": "left",
+      "fadeDuration": 0,
+      "moveDuration": 0
+    },
+    {
+      "id": "n5",
+      "type": "say",
+      "text": "……看什么看，赵郎。晚上没人，我才来打会儿铁。",
+      "character": "girl7",
+      "portrait": "angry1",
+      "mode": "character"
+    },
+    {
+      "id": "n6",
+      "type": "say",
+      "text": "小竹，下旬了还不休息？你这锤子比我的剑都沉。",
+      "character": "player",
+      "portrait": "normal",
+      "mode": "character"
+    },
+    {
+      "id": "n11",
+      "type": "choice",
+      "options": [
+        {
+          "text": "坐着看会儿",
+          "goto": "n7"
+        },
+        {
+          "text": "上去搭把手",
+          "goto": "n8"
+        }
+      ],
+      "dialog": "Options"
+    },
+    {
+      "id": "n8",
+      "type": "say",
+      "text": "给、给你搭把手……哇这锤子真沉！（心相 +2）",
+      "character": "player",
+      "portrait": "suck1",
+      "mode": "character"
+    },
+    {
+      "id": "n9",
+      "type": "stat",
+      "key": "mental",
+      "delta": 2,
+      "waitDisplay": false,
+      "display": 1,
+      "goto": "n10"
+    },
+    {
+      "id": "n7",
+      "type": "say",
+      "text": "【旁白】你坐在一旁看她抡锤。火星四溅，倒也好看。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "n10"
+    },
+    {
+      "id": "n10",
+      "type": "end"
+    }
+  ]
+}

@@ -88,11 +88,11 @@ QMenu::separator {{
     margin: 5px 10px;
 }}
 QToolBar {{
-    background: {GLASS_FILL};
-    border: 1px solid {GLASS_BORDER_SOFT};
-    border-radius: 10px;
-    padding: 4px;
-    margin: 4px 6px 0px 6px;
+    background: transparent;
+    border: none;
+    padding: 2px 6px;
+    margin: 2px 4px 0px 4px;
+    spacing: 6px;
 }}
 QToolBar::separator {{
     background: {GLASS_BORDER_SOFT};
@@ -222,21 +222,27 @@ QComboBox QLineEdit {{
 }}
 QListWidget, QTableWidget {{
     background: {CONTENT_FILL};
-    border: 1px solid {CONTENT_BORDER};
+    border: none;
     border-radius: 10px;
     padding: 4px;
     outline: none;
 }}
+QListWidget#stepTree {{
+    background: transparent;
+    border: none;
+    padding: 2px;
+}}
 QListWidget::item {{
     border-radius: 6px;
     padding: 5px 8px;
+    border: none;
 }}
 QListWidget::item:hover {{
     background: rgba(255, 255, 255, 14);
 }}
 QListWidget::item:selected {{
     background: {ACCENT_FILL};
-    border: 1px solid rgba(96, 168, 255, 120);
+    border: none;
 }}
 QTableWidget {{
     gridline-color: rgba(255, 255, 255, 18);

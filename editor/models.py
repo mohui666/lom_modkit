@@ -1002,6 +1002,48 @@ def _signed(value) -> str:
     return f"+{v}" if v > 0 else str(v)
 
 
+def node_bullet(node_type: str) -> str:
+    """步骤列表前缀符号：分支/结局与普通步骤区分开。"""
+    if node_type in ("choice", "branch", "dice"):
+        return "◆"
+    if node_type in ("end", "death", "goto_scene"):
+        return "■"
+    return "●"
+
+
+def node_list_caption(node: dict, editor_data: dict | None = None) -> tuple[str, str]:
+    """步骤列表两行文案：(标题行, 详情行)。
+
+    标题：类型中文名；详情：人物/站位/摘要，不再用 n1·武师@M 这种程序员串。
+    """
+    ed = editor_data or FALLBACK_EDITOR_DATA
+    t = node.get("type", "?")
+    tcn = NODE_TYPE_CN.get(t, t)
+    summary = node_summary(node, ed)
+    # node_summary 形如 "对白·武师: 文本…"——拆成类型 + 其余
+    if summary.startswith(tcn + "·"):
+        detail = summary[len(tcn) + 1 :].strip()
+    elif summary.startswith(tcn):
+        detail = summary[len(tcn) :].lstrip("· ").strip()
+    else:
+        detail = summary
+    # 站位代号换成中文名（show 的 "武师@M" → "武师 · 中"）
+    if t == "show":
+        pos = display_name(ed, "positions", node.get("position", "")) or node.get(
+            "position", ""
+        )
+        who = character_name(ed, node.get("character", "")) or "（未选）"
+        detail = f"{who} · {pos}" if pos else who
+    elif t == "say":
+        mode = node.get("mode", "character")
+        who = {"narrative": "旁白", "think": "内心", "center": "居中旁白"}.get(
+            mode, character_name(ed, node.get("character", "")) or "（未选）"
+        )
+        text = _short(node.get("text", ""), 28)
+        detail = f"{who} · {text}" if text else who
+    return tcn, detail or "（未填写）"
+
+
 def node_summary(node: dict, editor_data: dict | None = None) -> str:
     """节点列表里的一行中文摘要，如 "对白·唐惟元: 文本前20字…"。"""
     ed = editor_data or FALLBACK_EDITOR_DATA

@@ -1,0 +1,1243 @@
+{
+  "id": "main",
+  "title": "全节点演示2.0·九姝篇 第一幕",
+  "start": "n1",
+  "nodes": [
+    {
+      "id": "n2",
+      "type": "say",
+      "text": "唐门校场，风和日丽。",
+      "portrait": "normal",
+      "mode": "narrative"
+    },
+    {
+      "id": "n1",
+      "type": "say",
+      "text": "赵活今日眼皮直跳——总觉得今天要出事。",
+      "portrait": "normal",
+      "mode": "narrative"
+    },
+    {
+      "id": "n3",
+      "type": "music",
+      "name": "古怪_001",
+      "op": "play"
+    },
+    {
+      "id": "n4",
+      "type": "scene",
+      "view": "center"
+    },
+    {
+      "id": "n5",
+      "type": "show",
+      "character": "player",
+      "position": "M",
+      "portrait": "normal",
+      "facing": "right",
+      "fadeDuration": 0,
+      "moveDuration": 0
+    },
+    {
+      "id": "n6",
+      "type": "say",
+      "text": "宣传视频？拍我干嘛，我这张脸又卖不出去……",
+      "character": "player",
+      "portrait": "nervous1",
+      "mode": "character"
+    },
+    {
+      "id": "n7",
+      "type": "show",
+      "character": "sister1",
+      "position": "R1",
+      "portrait": "normal",
+      "facing": "left",
+      "fadeDuration": 0,
+      "moveDuration": 0
+    },
+    {
+      "id": "n8",
+      "type": "say",
+      "text": "……师兄，早。",
+      "character": "sister1",
+      "portrait": "normal",
+      "mode": "character"
+    },
+    {
+      "id": "n9",
+      "type": "say",
+      "text": "小师妹？！连你也被抓来演示了？",
+      "character": "player",
+      "portrait": "shock",
+      "mode": "character"
+    },
+    {
+      "id": "n10",
+      "type": "say",
+      "text": "嗯。",
+      "character": "sister1",
+      "portrait": "close_eye_laugh",
+      "mode": "character"
+    },
+    {
+      "id": "n11",
+      "type": "say",
+      "text": "编剧说，女主先行。",
+      "character": "sister1",
+      "portrait": "close_eye_laugh",
+      "mode": "character"
+    },
+    {
+      "id": "n12",
+      "type": "say",
+      "text": "小师妹还是老样子，三句话不超过十个字。",
+      "character": "player",
+      "portrait": "normal",
+      "mode": "think"
+    },
+    {
+      "id": "n13",
+      "type": "say",
+      "text": "校场中央，日影偏了一寸。",
+      "portrait": "normal",
+      "mode": "center"
+    },
+    {
+      "id": "n14",
+      "type": "move",
+      "character": "player",
+      "from": "M",
+      "to": "L2",
+      "duration": 1.2
+    },
+    {
+      "id": "n15",
+      "type": "face",
+      "character": "sister1",
+      "facing": "left"
+    },
+    {
+      "id": "n16",
+      "type": "focus",
+      "character": "sister1"
+    },
+    {
+      "id": "n17",
+      "type": "say",
+      "text": "赵活往旁边挪了一步，镜头跟着小师妹转过去。",
+      "portrait": "normal",
+      "mode": "narrative"
+    },
+    {
+      "id": "n18",
+      "type": "say",
+      "text": "师兄，你挡我折纸了。",
+      "character": "sister1",
+      "portrait": "normal",
+      "mode": "character"
+    },
+    {
+      "id": "n19",
+      "type": "shock",
+      "character": "sister1",
+      "duration": 0.4
+    },
+    {
+      "id": "n20",
+      "type": "say",
+      "text": "……哇。",
+      "character": "sister1",
+      "portrait": "shock",
+      "mode": "character"
+    },
+    {
+      "id": "n21",
+      "type": "say",
+      "text": "连被摇都面无表情吗？！",
+      "character": "player",
+      "portrait": "nervous2",
+      "mode": "character"
+    },
+    {
+      "id": "n22",
+      "type": "offset",
+      "character": "player",
+      "x": 20,
+      "y": -10,
+      "duration": 0.4
+    },
+    {
+      "id": "n23",
+      "type": "say",
+      "text": "我、我又被弹飞了？！",
+      "character": "player",
+      "portrait": "suck1",
+      "mode": "character"
+    },
+    {
+      "id": "n24",
+      "type": "effect",
+      "name": "Hit_001",
+      "x": 10,
+      "y": -5,
+      "a": 1,
+      "b": 1,
+      "c": 1,
+      "play": true
+    },
+    {
+      "id": "n25",
+      "type": "camera",
+      "name": "stage-memory",
+      "active": true
+    },
+    {
+      "id": "n26",
+      "type": "say",
+      "text": "回忆滤镜一开，这张丑脸都朦胧出了几分诗意。",
+      "character": "player",
+      "portrait": "normal",
+      "mode": "think"
+    },
+    {
+      "id": "n27",
+      "type": "camera",
+      "name": "stage-memory",
+      "active": false
+    },
+    {
+      "id": "n28",
+      "type": "say",
+      "text": "……我去折纸了。",
+      "character": "sister1",
+      "portrait": "normal",
+      "mode": "character"
+    },
+    {
+      "id": "n29",
+      "type": "say",
+      "text": "师兄，加油。",
+      "character": "sister1",
+      "portrait": "normal",
+      "mode": "character"
+    },
+    {
+      "id": "n30",
+      "type": "transition",
+      "phase": "in",
+      "dir": "lr"
+    },
+    {
+      "id": "n31",
+      "type": "hide",
+      "character": "sister1",
+      "fadeDuration": 0.3
+    },
+    {
+      "id": "n32",
+      "type": "scene",
+      "view": "backmountain2"
+    },
+    {
+      "id": "n33",
+      "type": "transition",
+      "phase": "out",
+      "dir": "lr"
+    },
+    {
+      "id": "n34",
+      "type": "show",
+      "character": "girl2",
+      "position": "R1",
+      "portrait": "laugh1",
+      "facing": "left",
+      "fadeDuration": 0,
+      "moveDuration": 0
+    },
+    {
+      "id": "n35",
+      "type": "say",
+      "text": "赵哥哥～黑幕一拉一合，我们就从校场瞬移到后山啦。",
+      "character": "girl2",
+      "portrait": "laugh1",
+      "mode": "character"
+    },
+    {
+      "id": "n36",
+      "type": "say",
+      "text": "云裳身子弱，慢些走……不对，你怎么比我还精神？",
+      "character": "player",
+      "portrait": "normal",
+      "mode": "character"
+    },
+    {
+      "id": "n37",
+      "type": "say",
+      "text": "人家一高兴，发烧都退了三分。对了对了，听——",
+      "character": "girl2",
+      "portrait": "normal",
+      "mode": "character"
+    },
+    {
+      "id": "n38",
+      "type": "sound",
+      "name": "鈴鐺_001",
+      "kind": "sound",
+      "op": "play"
+    },
+    {
+      "id": "n39",
+      "type": "say",
+      "text": "铃铛声？小师妹的铃铛从来不响，这串是哪个的？",
+      "character": "player",
+      "portrait": "doubt",
+      "mode": "character"
+    },
+    {
+      "id": "n40",
+      "type": "sound",
+      "name": "鳥_001",
+      "kind": "env",
+      "op": "play"
+    },
+    {
+      "id": "n41",
+      "type": "say",
+      "text": "环境音起。鸟鸣山更幽，适合野餐，不适合练武。",
+      "portrait": "normal",
+      "mode": "narrative"
+    },
+    {
+      "id": "n42",
+      "type": "sound",
+      "name": "鳥_001",
+      "kind": "env",
+      "op": "fadeout",
+      "seconds": 1
+    },
+    {
+      "id": "n43",
+      "type": "block",
+      "flowchart": "common",
+      "name": "flash",
+      "vars": []
+    },
+    {
+      "id": "n44",
+      "type": "block",
+      "flowchart": "common",
+      "name": "shake",
+      "vars": []
+    },
+    {
+      "id": "n45",
+      "type": "say",
+      "text": "白屏加地震！通用块 flash、shake——嘻嘻，好玩吧？",
+      "character": "girl2",
+      "portrait": "laugh2",
+      "mode": "character"
+    },
+    {
+      "id": "n46",
+      "type": "cg",
+      "action": "show",
+      "kind": "title",
+      "key": "P_Back_01"
+    },
+    {
+      "id": "n47",
+      "type": "say",
+      "text": "标题字卡高悬——这一景，名唤「後山」。",
+      "portrait": "normal",
+      "mode": "center"
+    },
+    {
+      "id": "n48",
+      "type": "say",
+      "text": "接下来是人家的官方资料卡，睁大眼睛看好了。",
+      "character": "girl2",
+      "portrait": "normal",
+      "mode": "character"
+    },
+    {
+      "id": "n49",
+      "type": "intro",
+      "intro_source": "official",
+      "character": "girl2",
+      "title": "",
+      "name": "",
+      "text": "",
+      "image": "",
+      "image_scale": 100,
+      "image_x": 0,
+      "image_y": 0
+    },
+    {
+      "id": "n50",
+      "type": "say",
+      "text": "点苍明珠，叶云裳——虽然走快两步就喘，但可爱是不打折的。",
+      "character": "girl2",
+      "portrait": "shy",
+      "mode": "character"
+    },
+    {
+      "id": "n51",
+      "type": "mask",
+      "show": true
+    },
+    {
+      "id": "n52",
+      "type": "say",
+      "text": "（mask 遮罩下的独白）……其实人家下山，是想看看山下的糖葫芦。",
+      "character": "girl2",
+      "portrait": "normal",
+      "mode": "think"
+    },
+    {
+      "id": "n53",
+      "type": "mask",
+      "show": false
+    },
+    {
+      "id": "n54",
+      "type": "hide",
+      "character": "girl2",
+      "fadeDuration": 0.5
+    },
+    {
+      "id": "n55",
+      "type": "say",
+      "text": "云裳消失了？！",
+      "character": "player",
+      "portrait": "shock",
+      "mode": "character"
+    },
+    {
+      "id": "n56",
+      "type": "show",
+      "character": "girl2",
+      "position": "L1",
+      "portrait": "laugh1",
+      "facing": "right",
+      "fadeDuration": 0,
+      "moveDuration": 0
+    },
+    {
+      "id": "n57",
+      "type": "say",
+      "text": "骗你的～hide 再 show，人家换个表情就回来了。",
+      "character": "girl2",
+      "portrait": "laugh1",
+      "mode": "character"
+    },
+    {
+      "id": "n58",
+      "type": "hide",
+      "character": "girl2",
+      "fadeDuration": 0.4
+    },
+    {
+      "id": "n59",
+      "type": "show",
+      "character": "girl4",
+      "position": "R1",
+      "portrait": "normal",
+      "facing": "left",
+      "fadeDuration": 0,
+      "moveDuration": 0
+    },
+    {
+      "id": "n60",
+      "type": "say",
+      "text": "让一让！轮到我了——在下锦香宫龙湘，剑法……大概、可能、还算不错。",
+      "character": "girl4",
+      "portrait": "normal",
+      "mode": "character"
+    },
+    {
+      "id": "n61",
+      "type": "say",
+      "text": "湘姐客气。听说你昨天又把问路的骗去了后山深处？",
+      "character": "player",
+      "portrait": "normal",
+      "mode": "character"
+    },
+    {
+      "id": "n62",
+      "type": "say",
+      "text": "那是他们自己不认路！看招——",
+      "character": "girl4",
+      "portrait": "angry1",
+      "mode": "character"
+    },
+    {
+      "id": "n63",
+      "type": "dim",
+      "character": "player",
+      "dimmed": true
+    },
+    {
+      "id": "n64",
+      "type": "say",
+      "text": "dim 节点——弟，你被压暗了。主角让戏，女侠高光。",
+      "character": "girl4",
+      "portrait": "laugh1",
+      "mode": "character"
+    },
+    {
+      "id": "n65",
+      "type": "message",
+      "text": "【系统提示】message 节点：系统提示条原文直出（DisplayMessageText）。"
+    },
+    {
+      "id": "n66",
+      "type": "say",
+      "text": "系统提示条也归我们调用——这可是宣传视频的重点。",
+      "character": "girl4",
+      "portrait": "normal",
+      "mode": "character"
+    },
+    {
+      "id": "n67",
+      "type": "rotate",
+      "character": "girl4",
+      "angle": -10,
+      "duration": 0.3
+    },
+    {
+      "id": "n68",
+      "type": "say",
+      "text": "rotate？！我的剑歪了——不是我走位歪，是节点歪！",
+      "character": "girl4",
+      "portrait": "shock",
+      "mode": "character"
+    },
+    {
+      "id": "n69",
+      "type": "rotate",
+      "character": "girl4",
+      "angle": 10,
+      "duration": 0.3
+    },
+    {
+      "id": "n70",
+      "type": "say",
+      "text": "又正回来了。角度在前、时长在后，官方参数序。",
+      "character": "player",
+      "portrait": "normal",
+      "mode": "character"
+    },
+    {
+      "id": "n71",
+      "type": "dayenv",
+      "day_type": 1
+    },
+    {
+      "id": "n72",
+      "type": "say",
+      "text": "日夜一转，校场上的影子矮了一截。",
+      "portrait": "normal",
+      "mode": "narrative"
+    },
+    {
+      "id": "n73",
+      "type": "dim",
+      "character": "player",
+      "dimmed": false
+    },
+    {
+      "id": "n74",
+      "type": "hide",
+      "character": "girl4",
+      "fadeDuration": 0.4
+    },
+    {
+      "id": "n75",
+      "type": "show",
+      "character": "girl5",
+      "position": "R1",
+      "portrait": "laugh1",
+      "facing": "left",
+      "fadeDuration": 0,
+      "moveDuration": 0
+    },
+    {
+      "id": "n76",
+      "type": "say",
+      "text": "阿活～到我了到我了！本梅给你带了好多礼物哦。",
+      "character": "girl5",
+      "portrait": "laugh1",
+      "mode": "character"
+    },
+    {
+      "id": "n77",
+      "type": "say",
+      "text": "小梅，你笑得这么甜，我怎么有点发毛……",
+      "character": "player",
+      "portrait": "nervous1",
+      "mode": "character"
+    },
+    {
+      "id": "n78",
+      "type": "stat",
+      "key": "mental",
+      "delta": 5,
+      "waitDisplay": true,
+      "display": 1
+    },
+    {
+      "id": "n79",
+      "type": "stat",
+      "key": "money",
+      "delta": 50,
+      "waitDisplay": true,
+      "display": 1
+    },
+    {
+      "id": "n80",
+      "type": "stat_set",
+      "key": "talking",
+      "value": 66,
+      "update": false
+    },
+    {
+      "id": "n81",
+      "type": "affinity",
+      "character": "girl5",
+      "delta": 1
+    },
+    {
+      "id": "n82",
+      "type": "talent",
+      "talent": "1010",
+      "level": 1
+    },
+    {
+      "id": "n83",
+      "type": "item",
+      "kind": "misc",
+      "item": "2001",
+      "count": 2,
+      "remove": false
+    },
+    {
+      "id": "n84",
+      "type": "item",
+      "kind": "book",
+      "item": "2001",
+      "count": 1,
+      "remove": false
+    },
+    {
+      "id": "n85",
+      "type": "item",
+      "kind": "misc",
+      "item": "2001",
+      "count": 1,
+      "remove": true
+    },
+    {
+      "id": "n86",
+      "type": "item",
+      "kind": "special",
+      "item": "2001",
+      "count": 1,
+      "remove": false
+    },
+    {
+      "id": "n87",
+      "type": "say",
+      "text": "心相、银两、嘴力、好感、天赋，黄酒两瓶、剑谱一本、回收一瓶、再送你个机巧小玩意儿——一共十二连，数清楚了吗？",
+      "character": "girl5",
+      "portrait": "laugh2",
+      "mode": "character"
+    },
+    {
+      "id": "n88",
+      "type": "say",
+      "text": "回收的那瓶，你没下毒吧？",
+      "character": "player",
+      "portrait": "doubt",
+      "mode": "character"
+    },
+    {
+      "id": "n89",
+      "type": "say",
+      "text": "讨厌，人家是那种人吗？（笑）火闪电，你说是不是？",
+      "character": "girl5",
+      "portrait": "laugh1",
+      "mode": "character"
+    },
+    {
+      "id": "n90",
+      "type": "flag",
+      "flag": "SHOWCASE2_MET_GIRLS"
+    },
+    {
+      "id": "n91",
+      "type": "say",
+      "text": "一枚看不见的印记落下——「见过她们了」。",
+      "portrait": "normal",
+      "mode": "narrative"
+    },
+    {
+      "id": "n95",
+      "type": "branch",
+      "flag": "SHOWCASE2_MET_GIRLS",
+      "source": "mod",
+      "cases": [
+        {
+          "value": 1,
+          "goto": "n94"
+        },
+        {
+          "value": 2,
+          "goto": "n93"
+        }
+      ]
+    },
+    {
+      "id": "n94",
+      "type": "say",
+      "text": "branch（source=mod）case 1：flag 已设置——此路必通，跟紧本梅哦。",
+      "character": "girl5",
+      "portrait": "normal",
+      "mode": "character",
+      "goto": "n92"
+    },
+    {
+      "id": "n93",
+      "type": "say",
+      "text": "branch（source=mod）case 2：flag 未设置才会来这（静态可达，演出中走不到）。",
+      "character": "player",
+      "portrait": "normal",
+      "mode": "character",
+      "goto": "n92"
+    },
+    {
+      "id": "n92",
+      "type": "say",
+      "text": "【汇合点】mod 分支两条路在此相会。",
+      "character": "girl5",
+      "portrait": "normal",
+      "mode": "character"
+    },
+    {
+      "id": "n96",
+      "type": "hide",
+      "character": "girl5",
+      "fadeDuration": 0.4
+    },
+    {
+      "id": "n97",
+      "type": "show",
+      "character": "girl6",
+      "position": "R1",
+      "portrait": "normal",
+      "facing": "left",
+      "fadeDuration": 0,
+      "moveDuration": 0
+    },
+    {
+      "id": "n98",
+      "type": "say",
+      "text": "吵吵闹闹，成何体统。弟子，轮到为师讲课了。",
+      "character": "girl6",
+      "portrait": "normal",
+      "mode": "character"
+    },
+    {
+      "id": "n99",
+      "type": "say",
+      "text": "师父？！您怎么也来了……",
+      "character": "player",
+      "portrait": "nervous2",
+      "mode": "character"
+    },
+    {
+      "id": "n100",
+      "type": "say",
+      "text": "哼，宣传片少了为师，像什么话。看仔细，这是官方任务旗标。",
+      "character": "girl6",
+      "portrait": "angry1",
+      "mode": "character"
+    },
+    {
+      "id": "n101",
+      "type": "game_flag",
+      "flag": "50019",
+      "value": 1,
+      "op": "set"
+    },
+    {
+      "id": "n102",
+      "type": "say",
+      "text": "官方名册上，多了一笔为师的课业印记。",
+      "portrait": "normal",
+      "mode": "narrative"
+    },
+    {
+      "id": "n106",
+      "type": "branch",
+      "flag": "Ch_1_1_1_001",
+      "source": "game",
+      "cases": [
+        {
+          "value": 1,
+          "goto": "n105"
+        },
+        {
+          "value": 2,
+          "goto": "n104"
+        }
+      ]
+    },
+    {
+      "id": "n105",
+      "type": "say",
+      "text": "branch（source=game）读到官方检查点 Ch_1_1_1_001 == 1。",
+      "character": "player",
+      "portrait": "normal",
+      "mode": "character",
+      "goto": "n103"
+    },
+    {
+      "id": "n104",
+      "type": "say",
+      "text": "branch（source=game）读到 == 2。",
+      "character": "player",
+      "portrait": "normal",
+      "mode": "character",
+      "goto": "n103"
+    },
+    {
+      "id": "n103",
+      "type": "say",
+      "text": "官方检查点分支：读不到或读到 3，走 else 兜底落到这里。孺子可教。",
+      "character": "girl6",
+      "portrait": "normal",
+      "mode": "character"
+    },
+    {
+      "id": "n107",
+      "type": "say",
+      "text": "branch 四种来源，为师今日先讲两种；剩下两种，去练武场触发器里找。",
+      "character": "girl6",
+      "portrait": "normal",
+      "mode": "character"
+    },
+    {
+      "id": "n108",
+      "type": "hide",
+      "character": "girl6",
+      "fadeDuration": 0.4
+    },
+    {
+      "id": "n109",
+      "type": "show",
+      "character": "girl7",
+      "position": "R1",
+      "portrait": "normal",
+      "facing": "left",
+      "fadeDuration": 0,
+      "moveDuration": 0
+    },
+    {
+      "id": "n110",
+      "type": "say",
+      "text": "……别盯着我看，赵郎。我眯着眼不是瞪你，是眼力不好。",
+      "character": "girl7",
+      "portrait": "angry1",
+      "mode": "character"
+    },
+    {
+      "id": "n111",
+      "type": "say",
+      "text": "小竹！听说你新打了一把好刀？",
+      "character": "player",
+      "portrait": "normal",
+      "mode": "character"
+    },
+    {
+      "id": "n112",
+      "type": "say",
+      "text": "嗯。给你的。……别多想，是顺手打的，不是特意。",
+      "character": "girl7",
+      "portrait": "shy",
+      "mode": "character"
+    },
+    {
+      "id": "n113",
+      "type": "enemy",
+      "op": "team",
+      "enemy": "400",
+      "value": -10,
+      "display": 1
+    },
+    {
+      "id": "n114",
+      "type": "battle_skill",
+      "op": "set",
+      "key": "special3",
+      "index": 2,
+      "active": 1
+    },
+    {
+      "id": "n115",
+      "type": "mission",
+      "name": "Main",
+      "key": "M0001"
+    },
+    {
+      "id": "n116",
+      "type": "time",
+      "op": "round"
+    },
+    {
+      "id": "n117",
+      "type": "autosave",
+      "kind": "story",
+      "save_button": 1
+    },
+    {
+      "id": "n118",
+      "type": "say",
+      "text": "锻造锤一挥：敌势削弱、战场技能上膛、主线往前一格、时辰过旬，顺手存了一档。",
+      "portrait": "normal",
+      "mode": "narrative"
+    },
+    {
+      "id": "n119",
+      "type": "panel",
+      "panel": "martial",
+      "mode": 0
+    },
+    {
+      "id": "n120",
+      "type": "say",
+      "text": "武学面板被强制打开。看完记得关——不然铁铺要着火。",
+      "character": "girl7",
+      "portrait": "nervous1",
+      "mode": "character"
+    },
+    {
+      "id": "n121",
+      "type": "wait",
+      "seconds": 0.8
+    },
+    {
+      "id": "n122",
+      "type": "music",
+      "name": "古怪_001",
+      "op": "fadeout",
+      "seconds": 2
+    },
+    {
+      "id": "n123",
+      "type": "music",
+      "name": "快樂_001",
+      "op": "play"
+    },
+    {
+      "id": "n124",
+      "type": "say",
+      "text": "音乐淡出再切新曲，跟拉风箱一个道理，得匀。",
+      "character": "girl7",
+      "portrait": "normal",
+      "mode": "character"
+    },
+    {
+      "id": "n125",
+      "type": "music",
+      "name": "快樂_001",
+      "op": "stop"
+    },
+    {
+      "id": "n126",
+      "type": "say",
+      "text": "立刻 stop——戛然而止。play、fadeout、stop 三变体齐活。",
+      "character": "player",
+      "portrait": "normal",
+      "mode": "character"
+    },
+    {
+      "id": "n127",
+      "type": "hide",
+      "character": "girl7",
+      "fadeDuration": 0.4
+    },
+    {
+      "id": "n128",
+      "type": "show",
+      "character": "girl9",
+      "position": "R1",
+      "portrait": "normal",
+      "facing": "left",
+      "fadeDuration": 0,
+      "moveDuration": 0
+    },
+    {
+      "id": "n129",
+      "type": "say",
+      "text": "都让让。赵郎，前面那些都是花销，接下来该算算账了。",
+      "character": "girl9",
+      "portrait": "normal",
+      "mode": "character"
+    },
+    {
+      "id": "n130",
+      "type": "say",
+      "text": "萤儿！连宣传片你都要谈生意？",
+      "character": "player",
+      "portrait": "nervous1",
+      "mode": "character"
+    },
+    {
+      "id": "n131",
+      "type": "say",
+      "text": "当然。choice 选项菜单、介绍卡，哪样不是门面？我们上官家的门面，从不马虎。",
+      "character": "girl9",
+      "portrait": "laugh1",
+      "mode": "character"
+    },
+    {
+      "id": "n132",
+      "type": "say",
+      "text": "对了，给诸位介绍一位……特别的客人。",
+      "character": "girl9",
+      "portrait": "normal",
+      "mode": "character"
+    },
+    {
+      "id": "n133",
+      "type": "intro",
+      "intro_source": "custom",
+      "character": "brother1",
+      "title": "传说中的第十位女主",
+      "name": "夏玉莲（暂）",
+      "text": "官方数据总表里有名有姓，却连一张立绘都没有的隐藏人物。\n尚未实装，身价待定——这张介绍卡与立绘，皆由 mod 自定义。",
+      "image": "assets/xia_yulian.png",
+      "image_scale": 100,
+      "image_x": 0,
+      "image_y": 0
+    },
+    {
+      "id": "n134",
+      "type": "say",
+      "text": "看见没？custom 介绍卡：称号、姓名、正文、立绘全可自定义。未实装的女主，也能先登场造势。",
+      "character": "girl9",
+      "portrait": "revel",
+      "mode": "character"
+    },
+    {
+      "id": "n135",
+      "type": "say",
+      "text": "（连不存在的人都能请上台……上官家的手段，可怕。）",
+      "character": "player",
+      "portrait": "normal",
+      "mode": "think"
+    },
+    {
+      "id": "n136",
+      "type": "stat",
+      "key": "fate",
+      "delta": 2,
+      "waitDisplay": true,
+      "display": 1
+    },
+    {
+      "id": "n137",
+      "type": "say",
+      "text": "行善攒下两点命运。掷骰子时，它可以逆天改命。",
+      "portrait": "normal",
+      "mode": "narrative"
+    },
+    {
+      "id": "n138",
+      "type": "hide",
+      "character": "girl9",
+      "fadeDuration": 0.4
+    },
+    {
+      "id": "n139",
+      "type": "show",
+      "character": "girl8",
+      "position": "R1",
+      "portrait": "normal",
+      "facing": "left",
+      "fadeDuration": 0,
+      "moveDuration": 0
+    },
+    {
+      "id": "n140",
+      "type": "say",
+      "text": "诸位闹够了，该收个尾了。赵郎，小菊出个对子助兴。",
+      "character": "girl8",
+      "portrait": "normal",
+      "mode": "character"
+    },
+    {
+      "id": "n141",
+      "type": "say",
+      "text": "小菊出题？我先说好，我对不上来……",
+      "character": "player",
+      "portrait": "nervous2",
+      "mode": "character"
+    },
+    {
+      "id": "n142",
+      "type": "say",
+      "text": "无妨。胜负交给骰子，风雅留给自己。三带检定——大成功、成功、失败，各有一句签词。",
+      "character": "girl8",
+      "portrait": "laugh1",
+      "mode": "character"
+    },
+    {
+      "id": "n143",
+      "type": "say",
+      "text": "「骰落惊风雨，签成泣鬼神」——赵郎，请。",
+      "character": "girl8",
+      "portrait": "laugh2",
+      "mode": "character"
+    },
+    {
+      "id": "n155",
+      "type": "raw",
+      "code": "-- [raw 逃逸口演示] 原生 Lua 原样插入编译产物（本行仅为注释，任何官方机制都能在这里直接写）"
+    },
+    {
+      "id": "n154",
+      "type": "choice",
+      "options": [
+        {
+          "text": "掷！三带检定（官方检查点）",
+          "goto": "n153"
+        },
+        {
+          "text": "我不掷，认输直接走",
+          "goto": "n145"
+        }
+      ],
+      "dialog": "Options"
+    },
+    {
+      "id": "n153",
+      "type": "dice",
+      "check": "Ch_1_1_1_001",
+      "options": [
+        {
+          "goto_大成功": "n152",
+          "goto_成功": "n151",
+          "goto_失败": "n146",
+          "band_texts": [
+            "擀面杖吹火——一窍不通（失败）",
+            "平平仄仄——稳稳当当（成功）",
+            "一掷乾坤定——红颜尽展颜（大成功）"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "n152",
+      "type": "say",
+      "text": "【大成功】签词曰：「一掷乾坤定，红颜尽展颜。」第二幕，杏花仙有请。",
+      "character": "girl8",
+      "portrait": "laugh2",
+      "mode": "character",
+      "goto": "n156"
+    },
+    {
+      "id": "n151",
+      "type": "say",
+      "text": "【成功】签词曰：「平平仄仄，稳稳当当。」小梅对你刮目相看（虞小梅好感 +3）。",
+      "character": "girl8",
+      "portrait": "laugh1",
+      "mode": "character",
+      "goto": "n150"
+    },
+    {
+      "id": "n150",
+      "type": "affinity",
+      "character": "girl5",
+      "delta": 3,
+      "goto": "n149"
+    },
+    {
+      "id": "n149",
+      "type": "choice",
+      "options": [
+        {
+          "text": "回自由模式逛逛练武场",
+          "goto": "n157"
+        },
+        {
+          "text": "睡到下月下旬再去（演示时间条件触发器）",
+          "goto": "n147"
+        },
+        {
+          "text": "继续第二幕（杏花仙加演）",
+          "goto": "n156"
+        }
+      ],
+      "dialog": "Options"
+    },
+    {
+      "id": "n148",
+      "type": "end",
+      "next_script": "second"
+    },
+    {
+      "id": "n147",
+      "type": "time",
+      "op": "set",
+      "year": 1,
+      "month": 4,
+      "stage": 3,
+      "goto": "n157"
+    },
+    {
+      "id": "n146",
+      "type": "say",
+      "text": "【失败】签词曰：「擀面杖吹火，一窍不通。」魏菊别过头去偷笑。",
+      "character": "player",
+      "portrait": "suck2",
+      "mode": "character",
+      "goto": "n149"
+    },
+    {
+      "id": "n145",
+      "type": "say",
+      "text": "认输保平安。赵活拱手告辞，深藏功与名。",
+      "character": "player",
+      "portrait": "normal",
+      "mode": "character",
+      "goto": "n149"
+    },
+    {
+      "id": "n144",
+      "type": "goto_scene",
+      "scene": "Free"
+    },
+    {
+      "id": "n156",
+      "type": "hide",
+      "character": "girl8",
+      "fadeDuration": 0.3,
+      "goto": "n148"
+    },
+    {
+      "id": "n158",
+      "type": "show",
+      "character": "girl8",
+      "position": "M"
+    },
+    {
+      "id": "n157",
+      "type": "hide",
+      "character": "girl8",
+      "fadeDuration": 0.3,
+      "goto": "n144"
+    }
+  ]
+}
