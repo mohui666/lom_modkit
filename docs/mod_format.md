@@ -355,7 +355,7 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 14. **编辑器单次试玩协议**：编辑器把入口章节的 `start` 临时改为当前选中节点，安装为固定包 `__lom_modkit_preview.lommod`（manifest id `lom_modkit_preview`），随后原子写入插件目录 `preview-request.json`。运行时每 0.35 秒检查一次：Free 场景直接演出，Title 场景用 `mod_lom_modkit_preview` 隔离槽开局，其它场景等待到安全场景；消费后删除请求与固定临时包。请求只接受 format=1 及 `[A-Za-z0-9_-]+` 的 mod/script/node id，正式 Mod 包不在自动删除范围内。
 15. **mod 新战役发放 2 点命运**：官方新游戏初始带命运点，mod 隔离存档初始为 0，导致骰子「逆天」流程（`DiceMenuDialog.CheckRevolution` 要求 命运>0 等）在 mod 战役中不可用；NewGameData postfix 在替换首脚本后给 mod 战役 `GameStatType.命運` 加 2 点。官方新游戏不受影响。
 16. **mod 剧情放开骰子范围修改**：官方「修改范围」按钮要求二周目且持有成就 30016；mod 剧情中（`CurrentStoryScript` 以 `MOD_` 开头）`get_NewGamePlus` prefix 返 true，且 `CheckRevolution` 原返 true 时直接激活 `_rangeButton`，绕开成就门槛（不在 mod 里解锁官方成就 30016，避免污染官方存档）。官方剧情完全不受影响。
-17. **用户音频**：`LuaManager.PlayMusic/PlaySound/PlayEnvSound` 在参数以 `user:` 开头时由插件接管，从**当前演出 Mod 包**的 `UserContents` 解析（`assets/user/audio/<id>/content.json` + 主文件），用 Unity `AudioSource` 播放。官方名字一律放行给原版 Wwise。运行时禁止读取 `%APPDATA%/lom_modkit/repository`。两个 Mod 即使 ID 相同也只解析自身包。支持格式仅 `.ogg` / `.wav`，单条 ≤20MB。自定义 fadeout 是 AudioSource 音量淡出（随后仍有编译器发射的 `wait`）；切到自定义音乐会先停官方 Wwise 音乐（官方 `StopMusic` 会同时清环境音）。
+17. **用户音频**：`LuaManager.PlayMusic/PlaySound/PlayEnvSound` 在参数以 `user:` 开头时由插件接管，从**当前演出 Mod 包**的 `UserContents` 解析（`assets/user/audio/<id>/content.json` + 主文件）。解码后用 Windows `waveOut` 播放（本游戏主混音是 Wwise，Unity `AudioSource` 经常无声）。官方名字一律放行给原版 Wwise。运行时禁止读取 `%APPDATA%/lom_modkit/repository`。两个 Mod 即使 ID 相同也只解析自身包。支持格式仅 `.ogg` / `.wav`，单条 ≤20MB。自定义 fadeout 是输出音量淡出（随后仍有编译器发射的 `wait`）；切到自定义音乐会先停官方 Wwise 音乐（官方 `StopMusic` 会同时清环境音）。
 
 ## 7. AI 工具接口（story_api）
 

@@ -82,6 +82,9 @@ assets/user/audio/mohui.battle/battle.ogg
 
 - 官方名字：原版 Wwise，行为与以前完全相同。
 - `user:`：只从**当前正在演出的那个 .lommod** 里找。另一个 Mod 登记了同名 ID 也不会串音。
-- 自定义音乐的淡出是音量渐弱（随后仍会按节点等待），不是官方 Wwise RTPC。
+- 自定义音频用 Windows `waveOut` 播放，不走 Unity `AudioSource`，也不走 Wwise。本游戏主混音是 Wwise，Unity 播了经常没声。
+- 音量大致跟随游戏的主音量 × 音乐/音效滑条；不是 Wwise RTPC，不能做到完全一致。
+- 自定义 fadeout 是输出音量渐弱（随后仍会按节点等待）。
 - 切到自定义音乐时会先停官方背景乐；官方 `StopMusic` 本来就会把环境音一起清掉。
 - 本版本不实现自定义角色立绘运行时；仓库的 `type` 已预留 `character`。
+- 可用 `samples/audio_test/` 做验收：自己导入 `user:test.bgm` / `user:test.sfx` / `user:test.env`。

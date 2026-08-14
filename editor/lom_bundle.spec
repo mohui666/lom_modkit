@@ -22,6 +22,7 @@ a_gui = Analysis(
         ("assets/combo_arrow.svg", "assets"),
         ("assets/doorstop/win-x86-doorstop.dll", "assets/doorstop"),
         ("../runtime/MortalModHost/bin/Release/net48/MortalModHost.dll", "runtime"),
+        ("../runtime/MortalModHost/bin/Release/net48/NVorbis.dll", "runtime"),
     ],
     hiddenimports=[
         "lomc",
@@ -32,6 +33,8 @@ a_gui = Analysis(
         "lomc.pack",
         "lomc.validate",
         "lomc.content",
+        "content_registry",
+        "content_library_dialog",
     ],
 )
 

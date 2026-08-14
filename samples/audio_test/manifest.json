@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "id": "audio_test",
+  "name": "自定义音频测试",
+  "version": "1.0.0",
+  "author": "lom_modkit",
+  "description": "检验 user: 音乐/音效/环境音是否真正出声。请先在用户内容库按 README 导入自己的 ogg/wav。",
+  "entry": "main"
+}

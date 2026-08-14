@@ -305,9 +305,22 @@ class GameInstallManager:
         self.mods_dir(False).mkdir(parents=True, exist_ok=True)
         target = target_dir / RUNTIME_DLL_NAME
         changed = not target.exists() or _sha256(target) != _sha256(self.runtime_dll)
+        extras = [
+            src
+            for src in self.runtime_dll.parent.glob("*.dll")
+            if src.name != RUNTIME_DLL_NAME
+        ]
+        if not changed:
+            for src in extras:
+                dest = target_dir / src.name
+                if not dest.exists() or _sha256(dest) != _sha256(src):
+                    changed = True
+                    break
         if changed:
             try:
                 shutil.copy2(self.runtime_dll, target)
+                for src in extras:
+                    shutil.copy2(src, target_dir / src.name)
             except OSError as exc:
                 raise GameInstallError(
                     "无法安装运行时。请确认游戏已退出，并检查目录写入权限：" + str(exc)

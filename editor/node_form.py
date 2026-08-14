@@ -503,8 +503,8 @@ class NodeForm(QScrollArea):
 
     def _make_audio_combo(
         self, node: dict, key: str, current, audio_kind: str
-    ) -> QComboBox:
-        """官方内容与用户内容分组显示；选中用户项时只写入 user: ID。"""
+    ) -> QWidget:
+        """官方 / 用户内容分组；空列表时仍可下拉，并带导入按钮。"""
         user_items: list[tuple[str, str]] = []
         try:
             for rec in content_registry.list_contents(
@@ -522,12 +522,19 @@ class NodeForm(QScrollArea):
         items: list[tuple[str, str]] = []
         if user_items:
             items.extend(user_items)
+        elif audio_kind != "music":
+            items.append(("", "（还没有自定义音效，点右侧导入）"))
         items.extend(official_items)
         w = self._make_combo(items, str(current or ""), editable=True)
         if user_items and official_items:
             w.insertSeparator(len(user_items))
-        if audio_kind != "music":
-            w.setEditable(True)
+        if not user_items and audio_kind != "music":
+            model = w.model()
+            if model is not None and model.rowCount() > 0:
+                item = model.item(0)
+                if item is not None:
+                    item.setEnabled(False)
+        if audio_kind != "music" and w.lineEdit() is not None:
             if not current:
                 w.setCurrentText("")
             w.lineEdit().setPlaceholderText(
@@ -536,7 +543,40 @@ class NodeForm(QScrollArea):
         w.currentTextChanged.connect(
             lambda t, c=w: self._apply(node, key, self._combo_value(c, t))
         )
-        return w
+
+        box = QWidget()
+        row = QHBoxLayout(box)
+        row.setContentsMargins(0, 0, 0, 0)
+        import_btn = QPushButton("导入…")
+        import_btn.setMinimumHeight(28)
+        import_btn.setToolTip("导入本地 ogg/wav 到用户内容库，并填入此步骤")
+
+        def pick() -> None:
+            path, _ = QFileDialog.getOpenFileName(
+                self,
+                "选择音频",
+                str(Path.home()),
+                "音频 (*.ogg *.wav)",
+            )
+            if not path:
+                return
+            try:
+                rec = content_registry.register_audio(
+                    Path(path),
+                    content_registry.suggest_content_id(Path(path).name),
+                    Path(path).stem,
+                    audio_kind,
+                )
+            except content_registry.ContentRegistryError as exc:
+                QMessageBox.critical(self, "无法导入音频", str(exc))
+                return
+            self._apply(node, key, rec.ref)
+            self._rebuild_current()
+
+        import_btn.clicked.connect(pick)
+        row.addWidget(w, 1)
+        row.addWidget(import_btn)
+        return box
 
     def _list_combo(self, node: dict, key: str, data_key: str, current) -> QComboBox:
         """schema 2 清单下拉框（{id,name} 显示 "名字（id）"，可编辑容错）。"""

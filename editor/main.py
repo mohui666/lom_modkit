@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import copy
 import faulthandler
+import json
+import os
 import sys
 import tempfile
 import traceback
@@ -763,6 +765,8 @@ class MainWindow(QMainWindow):
         menu.addAction(
             "打开…", self.open_story, QKeySequence.StandardKey.Open
         )
+        self._recent_menu = menu.addMenu("最近打开")
+        self._rebuild_recent_menu()
         menu.addAction(
             "保存", self.save_story, QKeySequence.StandardKey.Save
         )
@@ -945,6 +949,7 @@ class MainWindow(QMainWindow):
         if not sid or sid == self._current_id:
             return
         self._current_id = sid
+        self._remember_current_chapter()
         self._refresh_all()
         self.statusBar().showMessage(f"已切换到剧情章节 {sid}", 2000)
 
@@ -1664,6 +1669,137 @@ class MainWindow(QMainWindow):
         self._remember_dir("last_story_dir", path)
         self._load_story_path(Path(path))
 
+    _RECENT_MAX = 10
+
+    def _should_persist_session(self) -> bool:
+        """测试/无头打包自检不要改用户的最近记录。"""
+        if not getattr(self, "_prompt_on_discard", True):
+            return False
+        return os.environ.get("QT_QPA_PLATFORM") != "offscreen"
+
+    def _load_recents(self) -> list[dict]:
+        raw = self.game_manager.load_pref("recent_projects")
+        if not raw:
+            return []
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            return []
+        if not isinstance(data, list):
+            return []
+        out = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            if item.get("kind") not in ("story", "lommod"):
+                continue
+            if not item.get("path"):
+                continue
+            out.append(item)
+        return out
+
+    def _remember_project(self, kind: str, path: Path, name: str = "") -> None:
+        if not self._should_persist_session():
+            return
+        resolved = str(Path(path).resolve())
+        self.game_manager.save_pref("last_open_kind", kind)
+        self.game_manager.save_pref("last_open_path", resolved)
+        if self._current_id:
+            self.game_manager.save_pref("last_open_story_id", self._current_id)
+        recents = [item for item in self._load_recents() if item.get("path") != resolved]
+        recents.insert(
+            0,
+            {
+                "kind": kind,
+                "path": resolved,
+                "name": name or Path(resolved).stem,
+            },
+        )
+        self.game_manager.save_pref(
+            "recent_projects",
+            json.dumps(recents[: self._RECENT_MAX], ensure_ascii=False),
+        )
+        self._rebuild_recent_menu()
+
+    def _remember_current_chapter(self) -> None:
+        if not self._should_persist_session() or not self._current_id:
+            return
+        self.game_manager.save_pref("last_open_story_id", self._current_id)
+
+    def _rebuild_recent_menu(self) -> None:
+        menu = getattr(self, "_recent_menu", None)
+        if menu is None:
+            return
+        menu.clear()
+        recents = self._load_recents()
+        if not recents:
+            empty = QAction("（没有最近记录）", self)
+            empty.setEnabled(False)
+            menu.addAction(empty)
+            return
+        for item in recents:
+            kind = item["kind"]
+            path = item["path"]
+            name = item.get("name") or Path(path).stem
+            tag = "Mod" if kind == "lommod" else "剧本"
+            action = QAction(f"{name}（{tag}）", self)
+            action.setToolTip(path)
+            action.triggered.connect(
+                lambda _checked=False, k=kind, p=path: self._open_recent(k, p)
+            )
+            menu.addAction(action)
+        menu.addSeparator()
+        menu.addAction("清除最近记录", self._clear_recents)
+
+    def _clear_recents(self) -> None:
+        self.game_manager.save_pref("recent_projects", "[]")
+        self._rebuild_recent_menu()
+        self.statusBar().showMessage("已清除最近打开记录", 2500)
+
+    def _open_recent(self, kind: str, path: str) -> None:
+        target = Path(path)
+        if not target.is_file():
+            recents = [item for item in self._load_recents() if item.get("path") != path]
+            self.game_manager.save_pref(
+                "recent_projects",
+                json.dumps(recents, ensure_ascii=False),
+            )
+            self._rebuild_recent_menu()
+            QMessageBox.warning(
+                self,
+                APP_TITLE,
+                f"找不到文件，已从最近列表移除：\n{path}",
+            )
+            return
+        if not self._confirm_discard():
+            return
+        if kind == "lommod":
+            self._import_lommod_path(target)
+        else:
+            self._load_story_path(target)
+
+    def restore_last_project(self) -> bool:
+        """启动时打开上次的剧本或 Mod；文件不在则保持新建项目。"""
+        kind = self.game_manager.load_pref("last_open_kind")
+        path = self.game_manager.load_pref("last_open_path")
+        if kind not in ("story", "lommod") or not path:
+            return False
+        target = Path(path)
+        if not target.is_file():
+            return False
+        if kind == "lommod":
+            ok = self._import_lommod_path(target)
+        else:
+            self._load_story_path(target)
+            ok = bool(self._story_paths)
+        if not ok:
+            return False
+        story_id = self.game_manager.load_pref("last_open_story_id")
+        if story_id and story_id in self._stories and story_id != self._current_id:
+            self._current_id = story_id
+            self._refresh_all()
+        return True
+
     def _load_story_path(self, path: Path) -> None:
         try:
             story = models.load_story(path)
@@ -1684,6 +1820,7 @@ class MainWindow(QMainWindow):
         self._refresh_all()
         if repaired:
             self._set_dirty(True)
+        self._remember_project("story", path, str(story.get("title") or path.stem))
         repair_note = f"；已自动修复 {repaired} 个人物内部 ID" if repaired else ""
         self.statusBar().showMessage(f"已打开 {path}{repair_note}", 5000)
 
@@ -1721,6 +1858,7 @@ class MainWindow(QMainWindow):
             return False
         self._story_paths[self._current_id] = path
         self._mark_saved()
+        self._remember_project("story", path, str(self.story.get("title") or path.stem))
         self.statusBar().showMessage(f"已保存 {path}", 3000)
         return True
 
@@ -1733,11 +1871,14 @@ class MainWindow(QMainWindow):
         if not path:
             return
         self._remember_dir("last_mod_dir", path)
+        self._import_lommod_path(Path(path))
+
+    def _import_lommod_path(self, path: Path) -> bool:
         try:
             manifest, stories = package_io.import_lommod(path)
         except package_io.PackError as exc:
             QMessageBox.critical(self, APP_TITLE, str(exc))
-            return
+            return False
         # 包内全部剧情进项目（键以 story 内部 id 为准）
         self._stories = {str(st.get("id") or s): st for s, st in stories.items()}
         repaired = models.normalize_character_ids(self._stories, self.editor_data)
@@ -1763,9 +1904,10 @@ class MainWindow(QMainWindow):
             extra += "（含战役 campaign 配置）"
         if repaired:
             extra += f"（已自动修复 {repaired} 个人物内部 ID）"
-        self.statusBar().showMessage(
-            f"已导入 {manifest.get('name', manifest.get('id'))}{extra}", 5000
-        )
+        title = str(manifest.get("name") or manifest.get("id") or path.stem)
+        self._remember_project("lommod", path, title)
+        self.statusBar().showMessage(f"已导入 {title}{extra}", 5000)
+        return True
 
     def export_lommod(self) -> bool:
         """导出 .lommod：包内全部剧情脚本 + manifest；成功返回 True。"""
@@ -1858,6 +2000,7 @@ class MainWindow(QMainWindow):
             APP_TITLE,
             f"导出成功：{path}\n\n" + "\n".join(report) + install_note,
         )
+        self._remember_project("lommod", Path(path), str(manifest.get("name") or Path(path).stem))
         self.statusBar().showMessage(f"已导出 {path}", 5000)
         return True
 
@@ -1915,6 +2058,12 @@ def main() -> int:
         QTimer.singleShot(1500, app.quit)
     elif len(args) > 1:  # 支持命令行直接打开 story.json
         win._load_story_path(Path(args[1]))
+    else:
+        if win.restore_last_project():
+            win.statusBar().showMessage(
+                win.statusBar().currentMessage() or "已恢复上次打开的项目",
+                5000,
+            )
     return app.exec()
 
 

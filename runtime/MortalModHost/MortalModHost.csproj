@@ -16,6 +16,8 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageReference>
+    <!-- OGG 解码：纯托管、无额外 native 依赖，供自定义音频走 winmm 输出 -->
+    <PackageReference Include="NVorbis" Version="0.8.6" />
   </ItemGroup>
 
   <!-- test/ 是离线冒烟测试工程，别编进插件 DLL -->
