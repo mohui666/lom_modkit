@@ -1,7 +1,7 @@
 {
   "id": "main",
   "title": "全节点演示2.0·九姝篇 第一幕",
-  "start": "n1",
+  "start": "n2",
   "nodes": [
     {
       "id": "n2",
@@ -1072,7 +1072,7 @@
     {
       "id": "n140",
       "type": "say",
-      "text": "诸位闹够了，该收个尾了。赵郎，小菊出个对子助兴。",
+      "text": "诸位闹够了，该收个尾了。",
       "character": "girl8",
       "portrait": "normal",
       "mode": "character"
@@ -1080,164 +1080,216 @@
     {
       "id": "n141",
       "type": "say",
-      "text": "小菊出题？我先说好，我对不上来……",
-      "character": "player",
-      "portrait": "nervous2",
+      "text": "赵郎，小菊出个对子助兴。",
+      "character": "girl8",
+      "portrait": "normal",
       "mode": "character"
     },
     {
       "id": "n142",
       "type": "say",
-      "text": "无妨。胜负交给骰子，风雅留给自己。三带检定——大成功、成功、失败，各有一句签词。",
-      "character": "girl8",
-      "portrait": "laugh1",
+      "text": "小菊出题？我对不上来……",
+      "character": "player",
+      "portrait": "nervous2",
       "mode": "character"
     },
     {
       "id": "n143",
       "type": "say",
-      "text": "「骰落惊风雨，签成泣鬼神」——赵郎，请。",
+      "text": "无妨。胜负交给骰子。",
+      "character": "girl8",
+      "portrait": "laugh1",
+      "mode": "character"
+    },
+    {
+      "id": "n144",
+      "type": "say",
+      "text": "赵郎，请。",
       "character": "girl8",
       "portrait": "laugh2",
       "mode": "character"
     },
     {
-      "id": "n155",
+      "id": "n162",
       "type": "raw",
-      "code": "-- [raw 逃逸口演示] 原生 Lua 原样插入编译产物（本行仅为注释，任何官方机制都能在这里直接写）"
+      "code": "-- [raw 逃逸口演示] 原生 Lua 原样插入编译产物（本行仅为注释）"
     },
     {
-      "id": "n154",
+      "id": "n161",
       "type": "choice",
       "options": [
         {
-          "text": "掷！三带检定（官方检查点）",
-          "goto": "n153"
+          "text": "掷骰子",
+          "goto": "n160"
         },
         {
-          "text": "我不掷，认输直接走",
-          "goto": "n145"
+          "text": "不掷了",
+          "goto": "n146"
         }
       ],
       "dialog": "Options"
     },
     {
-      "id": "n153",
+      "id": "n160",
       "type": "dice",
       "check": "Ch_1_1_1_001",
       "options": [
         {
-          "goto_大成功": "n152",
-          "goto_成功": "n151",
-          "goto_失败": "n146",
+          "goto_大成功": "n159",
+          "goto_成功": "n156",
+          "goto_失败": "n149",
           "band_texts": [
-            "擀面杖吹火——一窍不通（失败）",
-            "平平仄仄——稳稳当当（成功）",
-            "一掷乾坤定——红颜尽展颜（大成功）"
+            "擀面杖吹火——一窍不通",
+            "平平仄仄——稳稳当当",
+            "一掷乾坤定——红颜尽展颜"
           ]
         }
       ]
     },
     {
-      "id": "n152",
+      "id": "n159",
       "type": "say",
-      "text": "【大成功】签词曰：「一掷乾坤定，红颜尽展颜。」第二幕，杏花仙有请。",
+      "text": "签词：「一掷乾坤定，红颜尽展颜。」",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "n158"
+    },
+    {
+      "id": "n158",
+      "type": "say",
+      "text": "好。这一卦乾坤已定。",
       "character": "girl8",
       "portrait": "laugh2",
       "mode": "character",
-      "goto": "n156"
+      "goto": "n157"
     },
     {
-      "id": "n151",
+      "id": "n157",
       "type": "say",
-      "text": "【成功】签词曰：「平平仄仄，稳稳当当。」小梅对你刮目相看（虞小梅好感 +3）。",
+      "text": "第二幕，杏花仙有请。",
+      "character": "girl8",
+      "portrait": "laugh2",
+      "mode": "character",
+      "goto": "n163"
+    },
+    {
+      "id": "n156",
+      "type": "say",
+      "text": "签词：「平平仄仄，稳稳当当。」",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "n155"
+    },
+    {
+      "id": "n155",
+      "type": "say",
+      "text": "稳稳当当，不算难看。",
       "character": "girl8",
       "portrait": "laugh1",
       "mode": "character",
-      "goto": "n150"
+      "goto": "n154"
     },
     {
-      "id": "n150",
+      "id": "n154",
+      "type": "say",
+      "text": "一旁的小梅多看了你一眼。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "n153"
+    },
+    {
+      "id": "n153",
       "type": "affinity",
       "character": "girl5",
       "delta": 3,
-      "goto": "n149"
+      "goto": "n152"
     },
     {
-      "id": "n149",
+      "id": "n152",
       "type": "choice",
       "options": [
         {
-          "text": "回自由模式逛逛练武场",
-          "goto": "n157"
+          "text": "去练武场看看",
+          "goto": "n164"
         },
         {
-          "text": "睡到下月下旬再去（演示时间条件触发器）",
-          "goto": "n147"
+          "text": "先睡到下月下旬",
+          "goto": "n150"
         },
         {
-          "text": "继续第二幕（杏花仙加演）",
-          "goto": "n156"
+          "text": "继续第二幕",
+          "goto": "n163"
         }
       ],
       "dialog": "Options"
     },
     {
-      "id": "n148",
+      "id": "n151",
       "type": "end",
       "next_script": "second"
     },
     {
-      "id": "n147",
+      "id": "n150",
       "type": "time",
       "op": "set",
       "year": 1,
       "month": 4,
       "stage": 3,
-      "goto": "n157"
+      "goto": "n164"
+    },
+    {
+      "id": "n149",
+      "type": "say",
+      "text": "签词：「擀面杖吹火，一窍不通。」",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "n148"
+    },
+    {
+      "id": "n148",
+      "type": "say",
+      "text": "……我对不上。",
+      "character": "player",
+      "portrait": "suck2",
+      "mode": "character",
+      "goto": "n147"
+    },
+    {
+      "id": "n147",
+      "type": "say",
+      "text": "……对不上，也挺有趣。",
+      "character": "girl8",
+      "portrait": "laugh1",
+      "mode": "character",
+      "goto": "n152"
     },
     {
       "id": "n146",
       "type": "say",
-      "text": "【失败】签词曰：「擀面杖吹火，一窍不通。」魏菊别过头去偷笑。",
-      "character": "player",
-      "portrait": "suck2",
-      "mode": "character",
-      "goto": "n149"
-    },
-    {
-      "id": "n145",
-      "type": "say",
-      "text": "认输保平安。赵活拱手告辞，深藏功与名。",
+      "text": "我不掷了。告辞。",
       "character": "player",
       "portrait": "normal",
       "mode": "character",
-      "goto": "n149"
+      "goto": "n152"
     },
     {
-      "id": "n144",
+      "id": "n145",
       "type": "goto_scene",
       "scene": "Free"
     },
     {
-      "id": "n156",
+      "id": "n163",
       "type": "hide",
       "character": "girl8",
       "fadeDuration": 0.3,
-      "goto": "n148"
+      "goto": "n151"
     },
     {
-      "id": "n158",
-      "type": "show",
-      "character": "girl8",
-      "position": "M"
-    },
-    {
-      "id": "n157",
+      "id": "n164",
       "type": "hide",
       "character": "girl8",
       "fadeDuration": 0.3,
-      "goto": "n144"
+      "goto": "n145"
     }
   ]
 }

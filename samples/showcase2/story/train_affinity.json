@@ -1,12 +1,12 @@
 {
   "id": "train_affinity",
   "title": "练武场·小梅的邀约（好感≥3）",
-  "start": "n1",
+  "start": "n2",
   "nodes": [
     {
       "id": "n2",
       "type": "say",
-      "text": "【旁白】练武场。虞小梅提着裙摆，笑吟吟地小跑过来。",
+      "text": "练武场。虞小梅提着裙摆，笑吟吟地小跑过来。",
       "portrait": "normal",
       "mode": "narrative"
     },

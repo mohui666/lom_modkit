@@ -26,6 +26,7 @@ from PySide6.QtWidgets import QWidget
 
 from asset_store import resolve_image_asset
 import models
+import story_graph
 
 EDITOR_DIR = models.editor_dir()
 PROJECT_ROOT = models.project_root()
@@ -356,6 +357,42 @@ def _next_node(node: dict, idx: int, nodes: list) -> str | None:
     return None
 
 
+def _path_to_target(story: dict, target_id: str) -> list[str] | None:
+    """从 start 找任意一条通向 target 的节点 id 链（含两端）。找不到返回 None。"""
+    try:
+        graph = story_graph.analyze_story(story)
+    except Exception:
+        return None
+    start = str(story.get("start") or "")
+    if not start or not target_id:
+        return None
+    adj: dict[str, list[str]] = {nid: [] for nid in graph.node_order}
+    for edge in graph.edges:
+        if not edge.missing:
+            adj.setdefault(edge.source, []).append(edge.target)
+    if start == target_id:
+        return [start]
+    prev: dict[str, str | None] = {start: None}
+    queue = [start]
+    while queue:
+        cur = queue.pop(0)
+        for nxt in adj.get(cur, ()):
+            if nxt in prev:
+                continue
+            prev[nxt] = cur
+            if nxt == target_id:
+                path = [target_id]
+                while path[-1] != start:
+                    parent = prev[path[-1]]
+                    if parent is None:
+                        return None
+                    path.append(parent)
+                path.reverse()
+                return path
+            queue.append(nxt)
+    return None
+
+
 def simulate_stage(
     story: dict,
     target_id: str | None,
@@ -365,18 +402,10 @@ def simulate_stage(
 ) -> dict:
     """从 start 推演到 target_id（含目标节点自身效果），返回舞台状态。
 
-    include_target=False 时返回目标节点生效【之前】的状态（F5 试玩前导用：
-    目标节点自己可能是 rotate/hide 等依赖台上人物的操作，前导要还原的是
-    它执行前的舞台）。
+    默认路线走不到时，改走「任意一条通向此步的分支」，保证选中失败/选项
+    支线时仍能看到当时的场景、立绘和对白。实在连不上，也至少应用本步本身。
 
-    返回 dict：
-      view     当前场景 id（无则 None）
-      actors   {characterId: {position, portrait, facing}}（在台上的人物）
-      dialog   当前节点为 say 时 {character, mode, text}，否则 None
-      choice   当前节点为 choice 时 [{text, goto}]，否则 None
-      hint     当前节点无法舞台化时的一行中文说明，否则 None
-      reached  是否在步数上限内到达目标节点
-      steps    实际推演步数
+    include_target=False 时返回目标节点生效【之前】的状态（F5 试玩前导用）。
     """
     state = {
         "view": None,
@@ -385,6 +414,7 @@ def simulate_stage(
         "choice": None,
         "hint": None,
         "reached": False,
+        "via_branch": False,
         "steps": 0,
     }
     nodes = story.get("nodes", []) if story else []
@@ -393,24 +423,56 @@ def simulate_stage(
     by_id = {n.get("id"): i for i, n in enumerate(nodes)}
     if target_id not in by_id:
         return state
-    cur = story.get("start") or nodes[0].get("id")
+
+    path = _path_to_target(story, target_id)
+    start = story.get("start") or nodes[0].get("id")
+
+    if path:
+        walk = path if include_target else path[:-1]
+        for step, nid in enumerate(walk, 1):
+            idx = by_id.get(nid)
+            if idx is None:
+                break
+            _apply_node(state, nodes[idx], editor_data)
+            state["steps"] = step
+        state["reached"] = True
+        # 默认路线（遇选项走第一项）到不了，才标「沿通向此步的分支」
+        default_ids: list[str] = []
+        cur = start
+        for _ in range(MAX_STEPS):
+            default_ids.append(cur)
+            if cur == target_id:
+                break
+            idx = by_id.get(cur)
+            if idx is None:
+                break
+            nxt = _next_node(nodes[idx], idx, nodes)
+            if nxt is None or nxt not in by_id:
+                break
+            cur = nxt
+        state["via_branch"] = target_id not in default_ids
+        if not include_target:
+            state["dialog"] = None
+            state["choice"] = None
+            state["hint"] = None
+        return state
+
+    # 图上连不到：仍把本步画出来，舞台用开头默认路线推到尽头再叠本步
+    cur = start
     for step in range(MAX_STEPS):
         idx = by_id.get(cur)
         if idx is None:
-            break  # goto 悬空，推演中断
+            break
         node = nodes[idx]
         state["steps"] = step + 1
-        if cur == target_id and not include_target:
-            state["reached"] = True
-            break  # 只要目标之前的状态，不应用目标自身效果
         _apply_node(state, node, editor_data)
-        if cur == target_id:
-            state["reached"] = True
-            break
         nxt = _next_node(node, idx, nodes)
         if nxt is None or nxt not in by_id:
             break
         cur = nxt
+    if include_target:
+        _apply_node(state, nodes[by_id[target_id]], editor_data)
+    state["reached"] = False
     return state
 
 
@@ -1205,15 +1267,17 @@ class StagePreview(QWidget):
         font.setPointSizeF(max(8.0, rect.height() * 0.022))
         p.setFont(font)
         state = self._state
+        node = self._current_node()
+        ntype = node.get("type", "?")
         if state.get("reached"):
-            node = self._current_node()
-            ntype = node.get("type", "?")
             text = f"{self._node_id} · {models.NODE_TYPE_CN.get(ntype, ntype)}"
+            if state.get("via_branch"):
+                text += "（沿通向此步的分支）"
             p.setPen(QColor(180, 180, 180, 200))
         else:
             text = (
-                f"当前预览按默认分支没有经过 {self._node_id}"
-                "（不影响游戏，请检查前面的选项或分支）"
+                f"{self._node_id} · {models.NODE_TYPE_CN.get(ntype, ntype)}"
+                " · 开头连不到此步，只显示本步"
             )
             p.setPen(QColor(210, 185, 125))
         p.drawText(

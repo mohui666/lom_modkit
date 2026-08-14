@@ -1,12 +1,12 @@
 {
   "id": "train_any",
   "title": "练武场·闲逛",
-  "start": "n1",
+  "start": "n2",
   "nodes": [
     {
       "id": "n2",
       "type": "say",
-      "text": "【旁白】练武场今日没有旁的事。小师妹蹲在廊下折纸。",
+      "text": "练武场今日没有旁的事。小师妹蹲在廊下折纸。",
       "portrait": "normal",
       "mode": "narrative"
     },

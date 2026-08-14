@@ -1,12 +1,12 @@
 {
   "id": "train_dusk",
   "title": "练武场·下旬晚锻（旬=3）",
-  "start": "n1",
+  "start": "n2",
   "nodes": [
     {
       "id": "n2",
       "type": "say",
-      "text": "【旁白】下旬的夜晚，练武场一角叮当作响——郁竹还在打铁。",
+      "text": "下旬的夜晚，练武场一角叮当作响——郁竹还在打铁。",
       "portrait": "normal",
       "mode": "narrative"
     },

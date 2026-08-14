@@ -38,6 +38,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 EDITOR_DIR = PROJECT_ROOT / "editor"
 if str(EDITOR_DIR) not in sys.path:
     sys.path.insert(0, str(EDITOR_DIR))
+import models  # type: ignore[reportMissingImports]  # noqa: E402
 import story_api  # type: ignore[reportMissingImports]  # noqa: E402
 
 SHOWCASE_DIR = Path(__file__).resolve().parent
@@ -122,6 +123,7 @@ def build_main(ed: dict) -> dict:
         },
     )
     n2.pop("character", None)
+    st["start"] = "n2"
     say("赵活今日眼皮直跳——总觉得今天要出事。", mode="narrative")
     node("music", {"name": "古怪_001"})
     node("scene", {"view": "center"})
@@ -347,32 +349,18 @@ def build_main(ed: dict) -> dict:
 
     # --- 魏菊：三带骰子 + 收尾三选 ---
     node("show", {"character": "girl8", "position": "R1", "facing": "left", "portrait": "normal"})
-    say("诸位闹够了，该收个尾了。赵郎，小菊出个对子助兴。", "girl8")
-    say("小菊出题？我先说好，我对不上来……", "player", portrait="nervous2")
-    say(
-        "无妨。胜负交给骰子，风雅留给自己。三带检定——"
-        "大成功、成功、失败，各有一句签词。",
-        "girl8",
-        portrait="laugh1",
-    )
-    s_last = say(
-        "「骰落惊风雨，签成泣鬼神」——赵郎，请。",
-        "girl8",
-        portrait="laugh2",
-    )
+    say("诸位闹够了，该收个尾了。", "girl8")
+    say("赵郎，小菊出个对子助兴。", "girl8")
+    say("小菊出题？我对不上来……", "player", portrait="nervous2")
+    say("无妨。胜负交给骰子。", "girl8", portrait="laugh1")
+    s_last = say("赵郎，请。", "girl8", portrait="laugh2")
 
     # --- 结尾分支块（全部 after=s_last，逆序插入得到目标数组顺序） ---
-    # 大成功 → 直接链第二幕；成功/失败/认输 → 汇入收尾三选；
-    # 成功线虞小梅好感 +3（解锁练武场 when_affinity 事件 train_affinity）；
-    # 「睡到下月下旬」演示时间条件触发器 train_dusk（when_stage=3）。
     gs_free = node("goto_scene", {"scene": "Free"}, after=s_last)
-    gv = say("认输保平安。赵活拱手告辞，深藏功与名。", "player", after=s_last)
-    fail = say(
-        "【失败】签词曰：「擀面杖吹火，一窍不通。」魏菊别过头去偷笑。",
-        "player",
-        portrait="suck2",
-        after=s_last,
-    )
+    gv = say("我不掷了。告辞。", "player", after=s_last)
+    fail_ju = say("……对不上，也挺有趣。", "girl8", portrait="laugh1", after=s_last)
+    fail_me = say("……我对不上。", "player", portrait="suck2", after=s_last)
+    fail_lot = say("签词：「擀面杖吹火，一窍不通。」", mode="narrative", after=s_last)
     time_set = node(
         "time", {"op": "set", "year": 1, "month": 4, "stage": 3}, after=s_last
     )
@@ -380,68 +368,79 @@ def build_main(ed: dict) -> dict:
     fin_c = story_api.add_choice(
         st,
         [
-            ("回自由模式逛逛练武场", gs_free),
-            ("睡到下月下旬再去（演示时间条件触发器）", time_set),
-            ("继续第二幕（杏花仙加演）", end2),
+            ("去练武场看看", gs_free),
+            ("先睡到下月下旬", time_set),
+            ("继续第二幕", end2),
         ],
         after=s_last,
     )["id"]
     aff = node("affinity", {"character": "girl5", "delta": 3}, after=s_last)
-    suc = say(
-        "【成功】签词曰：「平平仄仄，稳稳当当。」小梅对你刮目相看（虞小梅好感 +3）。",
-        "girl8",
-        portrait="laugh1",
-        after=s_last,
-    )
-    big = say(
-        "【大成功】签词曰：「一掷乾坤定，红颜尽展颜。」第二幕，杏花仙有请。",
-        "girl8",
-        portrait="laugh2",
-        after=s_last,
-    )
+    suc_note = say("一旁的小梅多看了你一眼。", mode="narrative", after=s_last)
+    suc = say("稳稳当当，不算难看。", "girl8", portrait="laugh1", after=s_last)
+    suc_lot = say("签词：「平平仄仄，稳稳当当。」", mode="narrative", after=s_last)
+    big = say("第二幕，杏花仙有请。", "girl8", portrait="laugh2", after=s_last)
+    big_ju = say("好。这一卦乾坤已定。", "girl8", portrait="laugh2", after=s_last)
+    big_lot = say("签词：「一掷乾坤定，红颜尽展颜。」", mode="narrative", after=s_last)
     d3 = story_api.add_dice(
         st,
         DICE_3BAND,
-        goto_成功=suc,
-        goto_失败=fail,
-        goto_大成功=big,
+        goto_成功=suc_lot,
+        goto_失败=fail_lot,
+        goto_大成功=big_lot,
         band_texts=[
-            "擀面杖吹火——一窍不通（失败）",
-            "平平仄仄——稳稳当当（成功）",
-            "一掷乾坤定——红颜尽展颜（大成功）",
+            "擀面杖吹火——一窍不通",
+            "平平仄仄——稳稳当当",
+            "一掷乾坤定——红颜尽展颜",
         ],
         after=s_last,
     )["id"]
     story_api.add_choice(
         st,
         [
-            ("掷！三带检定（官方检查点）", d3),
-            ("我不掷，认输直接走", gv),
+            ("掷骰子", d3),
+            ("不掷了", gv),
         ],
         after=s_last,
     )
     node(
         "raw",
         {
-            "code": "-- [raw 逃逸口演示] 原生 Lua 原样插入编译产物（本行仅为注释，任何官方机制都能在这里直接写）"
+            "code": "-- [raw 逃逸口演示] 原生 Lua 原样插入编译产物（本行仅为注释）"
         },
         after=s_last,
     )
-    # 切场前先让小菊下场（挂在数组末尾，只靠 goto 进入，避免挡住默认推演）
-    hide_second = node("hide", {"character": "girl8", "fadeDuration": 0.3})
-    hide_free = node("hide", {"character": "girl8", "fadeDuration": 0.3})
-    story_api.update_node(st, hide_second, {"goto": end2})
-    story_api.update_node(st, hide_free, {"goto": gs_free})
+
+    # 切场前下场：直接挂到数组末尾，不走 add_node（避免线性防线误补 show）
+    def _bare_hide(goto: str) -> str:
+        nid = models.make_node_id(st)
+        st.setdefault("nodes", []).append(
+            {
+                "id": nid,
+                "type": "hide",
+                "character": "girl8",
+                "fadeDuration": 0.3,
+                "goto": goto,
+            }
+        )
+        return nid
+
+    hide_second = _bare_hide(end2)
+    hide_free = _bare_hide(gs_free)
+    story_api.update_node(st, big_lot, {"goto": big_ju})
+    story_api.update_node(st, big_ju, {"goto": big})
     story_api.update_node(st, big, {"goto": hide_second})
-    story_api.update_node(st, suc, {"goto": aff})
+    story_api.update_node(st, suc_lot, {"goto": suc})
+    story_api.update_node(st, suc, {"goto": suc_note})
+    story_api.update_node(st, suc_note, {"goto": aff})
     story_api.update_node(st, aff, {"goto": fin_c})
-    story_api.update_node(st, fail, {"goto": fin_c})
+    story_api.update_node(st, fail_lot, {"goto": fail_me})
+    story_api.update_node(st, fail_me, {"goto": fail_ju})
+    story_api.update_node(st, fail_ju, {"goto": fin_c})
     story_api.update_node(st, gv, {"goto": fin_c})
     story_api.update_node(st, time_set, {"goto": hide_free})
     for n in st["nodes"]:
         if n.get("id") == fin_c:
-            opts = n.get("options") or []
-            for opt in opts:
+            for opt in n.get("options") or []:
                 if opt.get("goto") == gs_free:
                     opt["goto"] = hide_free
                 elif opt.get("goto") == end2:
@@ -465,6 +464,7 @@ def build_second(ed: dict) -> dict:
         },
     )
     n2.pop("character", None)
+    st["start"] = "n2"
     node("scene", {"view": "cliff_night"})
     node("show", {"character": "player", "position": "M", "portrait": "normal"})
     node("music", {"name": "陰森_001"})
@@ -572,11 +572,12 @@ def build_train_affinity(ed: dict) -> dict:
         st,
         "n2",
         {
-            "text": "【旁白】练武场。虞小梅提着裙摆，笑吟吟地小跑过来。",
+            "text": "练武场。虞小梅提着裙摆，笑吟吟地小跑过来。",
             "mode": "narrative",
         },
     )
     n2.pop("character", None)
+    st["start"] = "n2"
     node("scene", {"view": "center_evening"})
     node("show", {"character": "player", "position": "L2", "portrait": "normal"})
     node("show", {"character": "girl5", "position": "R1", "facing": "left", "portrait": "laugh1"})
@@ -620,11 +621,12 @@ def build_train_dusk(ed: dict) -> dict:
         st,
         "n2",
         {
-            "text": "【旁白】下旬的夜晚，练武场一角叮当作响——郁竹还在打铁。",
+            "text": "下旬的夜晚，练武场一角叮当作响——郁竹还在打铁。",
             "mode": "narrative",
         },
     )
     n2.pop("character", None)
+    st["start"] = "n2"
     node("scene", {"view": "center_night"})
     node("show", {"character": "girl7", "position": "L1", "portrait": "normal"})
     node("show", {"character": "player", "position": "R1", "facing": "left", "portrait": "normal"})
@@ -667,11 +669,12 @@ def build_train_any(ed: dict) -> dict:
         st,
         "n2",
         {
-            "text": "【旁白】练武场今日没有旁的事。小师妹蹲在廊下折纸。",
+            "text": "练武场今日没有旁的事。小师妹蹲在廊下折纸。",
             "mode": "narrative",
         },
     )
     n2.pop("character", None)
+    st["start"] = "n2"
     node("scene", {"view": "center"})
     node("show", {"character": "sister1", "position": "L1", "portrait": "normal"})
     node("show", {"character": "player", "position": "R1", "facing": "left", "portrait": "normal"})
