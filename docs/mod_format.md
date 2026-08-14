@@ -102,7 +102,7 @@ assets/                # 可选，自定义资源
 | `hide` | `character`；可选 `fadeDuration`(默认0) | 隐藏人物 |
 | `focus` | `character` | `characters.Focus` |
 | `offset` | `character`, `x`, `y`, `duration` | 人物偏移演出 `runwait(characters.MoveOffsetCoroutine(id,x,y,t))` |
-| `say` | `text`；可选 `character`, `portrait`(默认normal), `mode`("character"默认/"think"/"narrative"/"center") | 对话/内心独白(带os_mask)/旁白/居中旁白。narrative 与 center 忽略 character。**已读机制**：文本不再裸字面量进 Lua，改发射 `say(luamanager.GetStoryText("MOD_<modid>_<scriptid>_<nodeid>"))`（独立 build/编辑器预览无 modid 时用 "MOD" 兜底），文本本体进包内 texts.json 由运行时注册 |
+| `say` | `text`；可选 `character`, `portrait`(默认normal), `mode`("character"默认/"think"/"narrative"/"center")，可选 `voice` | 对话/内心独白(带os_mask)/旁白/居中旁白。narrative 与 center 忽略 character。**已读机制**：文本不再裸字面量进 Lua，改发射 `say(luamanager.GetStoryText("MOD_<modid>_<scriptid>_<nodeid>"))`（独立 build/编辑器预览无 modid 时用 "MOD" 兜底），文本本体进包内 texts.json 由运行时注册。**`voice`**（可选）：用户音频引用，如 `user:mohui.line_01`。无该字段时与旧对白完全一致。有则进入本句前 `mod_play_voice`（先停上一句语音），`say()` 返回后 `mod_stop_voice`。语音走独立播放器，`sound` / `StopMusic` 不会停它。禁止绝对路径与官方音效名。 |
 | `choice` | `options`: `[{"text","goto"}]`（2~4 项）；可选 `dialog`(默认"Options"，皮肤见 §3.3) | 选项菜单 `choose()` |
 | `shock` | `character`；可选 `duration`(默认0.5) | 人物震动（flowcharts.common "shock"） |
 | `mask` | `show`(bool) | 独白遮罩 `os_mask.Show` |
@@ -356,6 +356,7 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 15. **mod 新战役发放 2 点命运**：官方新游戏初始带命运点，mod 隔离存档初始为 0，导致骰子「逆天」流程（`DiceMenuDialog.CheckRevolution` 要求 命运>0 等）在 mod 战役中不可用；NewGameData postfix 在替换首脚本后给 mod 战役 `GameStatType.命運` 加 2 点。官方新游戏不受影响。
 16. **mod 剧情放开骰子范围修改**：官方「修改范围」按钮要求二周目且持有成就 30016；mod 剧情中（`CurrentStoryScript` 以 `MOD_` 开头）`get_NewGamePlus` prefix 返 true，且 `CheckRevolution` 原返 true 时直接激活 `_rangeButton`，绕开成就门槛（不在 mod 里解锁官方成就 30016，避免污染官方存档）。官方剧情完全不受影响。
 17. **用户音频**：`LuaManager.PlayMusic/PlaySound/PlayEnvSound` 在参数以 `user:` 开头时由插件接管，从**当前演出 Mod 包**的 `UserContents` 解析（`assets/user/audio/<id>/content.json` + 主文件）。解码后用 Windows `waveOut` 播放（本游戏主混音是 Wwise，Unity `AudioSource` 经常无声）。官方名字一律放行给原版 Wwise。运行时禁止读取 `%APPDATA%/lom_modkit/repository`。两个 Mod 即使 ID 相同也只解析自身包。支持格式仅 `.ogg` / `.wav`，单条 ≤20MB。自定义 fadeout 是输出音量淡出（随后仍有编译器发射的 `wait`）；切到自定义音乐会先停官方 Wwise 音乐（官方 `StopMusic` 会同时清环境音）。
+18. **对白语音**：注册 `mod_play_voice(ref)` / `mod_stop_voice()`。`mod_play_voice` 先停当前语音再播（不循环，走独立 `_voice` 通道）。`sound` 节点、自定义音效、`StopMusic` 都不碰这条通道。剧情中断、切官方脚本、重载 Mod 时 `StopEverything()` 会停语音。无 `voice` 的旧 Lua 不会调用这两个函数，行为不变。
 
 ## 7. AI 工具接口（story_api）
 
@@ -375,7 +376,7 @@ transition 黑幕、choice 皮肤崩溃、背景黑屏、人物未登场就做�
   - `set_start(story, node_id)`：设置起始节点
   - `add_choice(story, options, after=None)`：新增选项分支（2~4 项，dialog 固定 Options）
   - `add_dice(story, check, goto_成功, goto_失败, goto_大成功="", band_texts=None, after=None)`：新增骰子检定（check 必须有官方元数据，按结果带数校验 goto；band_texts 可选逐带覆写选项文本，条数必须等于结果带数且每项非空）
-  - `add_say(story, text, character=None, mode="character", portrait="normal", after=None)`：新增对白（character 模式必填 character；narrative/center 不写 character）
+  - `add_say(story, text, character=None, mode="character", portrait="normal", voice=None, after=None)`：新增对白（character 模式必填 character；narrative/center 不写 character；voice 可选 user: 音频引用）
   - `add_death(story, text, death_id, next="Title", title=None, after=None)`：新增死亡文本节点（text 必填非空多行；death_id 必填 ≥900000 的 mod 专属数字 id，约定 9+官方 id；原版只支持读档/标题按钮，因此 next 仅接受 Title；title 可选短标题，缺省/空串用「勝敗乃兵家常事」）
   - `add_scene(story, view, after=None)`：新增场景切换
   - `check_story(story)`：只校验，返回 (errors: list[str], warnings: list[str])

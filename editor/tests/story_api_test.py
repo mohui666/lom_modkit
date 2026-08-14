@@ -414,6 +414,30 @@ class TestAddSay(unittest.TestCase):
         self.assertEqual(node["portrait"], "normal", "portrait 默认应为 normal")
         self.assertEqual(node["mode"], "character", "mode 默认应为 character")
 
+    def test_voice_optional_and_emitted(self):
+        story = base_story()
+        story_api.add_node(story, "end")
+        bare = story_api.add_say(story, "没语音", mode="narrative", after="n2")
+        self.assertNotIn("voice", bare)
+        lua, errors, _warnings = story_api.compile_story(story)
+        self.assertEqual(errors, [])
+        self.assertIsNotNone(lua)
+        self.assertNotIn("mod_play_voice", lua)
+        voiced = story_api.add_say(
+            story, "有语音", mode="narrative", voice="user:mohui.line_01", after=bare["id"]
+        )
+        self.assertEqual(voiced["voice"], "user:mohui.line_01")
+        lua, errors, _warnings = story_api.compile_story(story)
+        self.assertEqual(errors, [])
+        self.assertIn('mod_play_voice("user:mohui.line_01")', lua)
+
+    def test_voice_must_be_user_ref(self):
+        story = base_story()
+        story_api.add_say(story, "坏", mode="narrative", voice="鈴鐺_001")
+        errors, _warnings = story_api.check_story(story)
+        self.assertTrue(errors)
+        self.assertTrue(any("user:" in e for e in errors))
+
 
 class TestPortraitValidation(unittest.TestCase):
     """show/say 的 (character, portrait) 必须落在官方角色表情表内（与编译器同表）。"""

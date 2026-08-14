@@ -45,7 +45,7 @@ namespace MortalModHost
                 MoodControl.Disabled = false;
                 ModOverlay.Clear();
                 CharacterIntroSupport.Clear();
-                CustomAudioPlayer.StopAllImmediate();
+                CustomAudioPlayer.StopEverything();
                 return true; // 官方脚本，走原方法
             }
 
@@ -66,7 +66,7 @@ namespace MortalModHost
                     ModOverlay.CurrentPackage = package;
                 }
                 CharacterIntroSupport.Clear();
-                CustomAudioPlayer.StopAllImmediate();
+                CustomAudioPlayer.StopEverything();
 
                 // 契约 §6.9/§6.10：演出前把 mod_hide_mood / mod_set_mood 注册进共享 MoonSharp 环境（幂等重设；官方脚本不调用它们，无副作用）
                 RegisterModGlobals(env);
@@ -198,6 +198,24 @@ namespace MortalModHost
                     }
                     return DynValue.Nil;
                 }, "mod_prepare_character_intro");
+                script.Globals["mod_play_voice"] = new CallbackFunction((ctx, args) =>
+                {
+                    try
+                    {
+                        string voice = args.Count > 0 ? args[0].CastToString() : "";
+                        CustomAudioPlayer.PlayVoice(voice);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.LogWarning("mod_play_voice 失败：" + ex.Message);
+                    }
+                    return DynValue.Nil;
+                }, "mod_play_voice");
+                script.Globals["mod_stop_voice"] = new CallbackFunction((ctx, args) =>
+                {
+                    CustomAudioPlayer.StopVoice();
+                    return DynValue.Nil;
+                }, "mod_stop_voice");
             }
             catch (Exception ex)
             {

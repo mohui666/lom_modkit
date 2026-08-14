@@ -85,7 +85,7 @@ COMMON_NODE_TYPES: list[str] = [
 
 # 节点表单顶部的上下文提示。只解释当前动作，不复述控件名称；完整流程见内置帮助。
 NODE_HELP: dict[str, str] = {
-    "say": "写人物对白、内心独白或旁白。旁白模式不需要选择人物。",
+    "say": "写人物对白、内心独白或旁白。旁白模式不需要选择人物。可选绑定用户内容库里的语音，没有语音时与原来完全一样。",
     "show": "让人物立绘出现在画面中。先登场再对白，游戏效果更稳定。",
     "hide": "让指定人物退出画面。",
     "scene": "切换剧情背景。编辑器预览只用于确认构图，不包含原版素材。",
@@ -339,6 +339,7 @@ NODE_SCHEMAS: dict[str, dict] = {
             ("character", "人物", "character", True),
             ("portrait", "表情", "portrait", True),
             ("mode", "模式", "mode", True),
+            ("voice", "对白语音", "voice", True),
         ],
     },
     "choice": {
@@ -1063,7 +1064,8 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
         who = {"narrative": "旁白", "think": "内心", "center": "居中旁白"}.get(
             mode, cname()
         )
-        return f"{tcn}·{who}: {_short(node.get('text', ''))}"
+        extra = " 🔊" if node.get("voice") else ""
+        return f"{tcn}·{who}{extra}: {_short(node.get('text', ''))}"
     if t == "music":
         op = node.get("op", "play")
         extra = "" if op == "play" else f"（{enum_label('music_op', op)}）"

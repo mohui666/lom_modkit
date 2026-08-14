@@ -31,7 +31,14 @@
       "id": "n5",
       "type": "say",
       "mode": "narrative",
-      "text": "上一句应叠在音乐上播了一记自定义音效。下一句开环境音。"
+      "text": "这一句带对白语音，应播 user:test.sfx，点下一句后语音停。",
+      "voice": "user:test.sfx"
+    },
+    {
+      "id": "n5b",
+      "type": "say",
+      "mode": "narrative",
+      "text": "上一句语音应已停。下一句开环境音。"
     },
     {
       "id": "n6",

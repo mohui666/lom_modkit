@@ -176,12 +176,22 @@ def _emit_offset(node, ctx):
     ]
 
 
+def _voice_prefix(node):
+    """对白语音：有 voice 则停上一句并播当前；无则只停残留（旧剧情无副作用）。"""
+    voice = node.get("voice")
+    if isinstance(voice, str) and voice.strip():
+        return ["\tmod_play_voice(%s)" % lua_str(voice)]
+    return ["\tmod_stop_voice()"]
+
+
 def _emit_say(node, ctx):
     mode = node.get("mode", "character")
     # 已读系统：文本不再裸字面量，改发射 key 查表（官方已读变黄/可快进机制）；
     # 文本本体进包内 texts.json，由运行时插件注册进 LeanLocalization。
     say_call = "\tsay(luamanager.GetStoryText(%s))" % lua_str(_say_key(node, ctx))
     hide_mood = "\tmod_hide_mood()" if not ctx.get("mood", False) else None
+    voice = node.get("voice")
+    has_voice = isinstance(voice, str) and bool(voice.strip())
 
     def _with_mood(seq):
         # 心情气泡：story mood 关闭时 say 前/后各隐藏一次（发言会触发情绪面板）
@@ -201,7 +211,7 @@ def _emit_say(node, ctx):
         # 旁白/居中旁白：忽略 character（契约 §4）。
         # 官方实证：任何 say 前都要设 sayoptions（ch1_1 的 center 旁白同样如此），
         # 否则等待输入/淡出行为取决于环境默认值。
-        return _with_mood(
+        lines = _voice_prefix(node) + _with_mood(
             [
                 "\tsetsaydialog(saydialogs.%s)" % mode,
                 "\tsayoptions.waitforinput = true",
@@ -210,6 +220,9 @@ def _emit_say(node, ctx):
                 say_call,
             ]
         )
+        if has_voice:
+            lines.append("\tmod_stop_voice()")
+        return lines
 
     c = lua_str(node["character"])
     portrait = lua_str(node.get("portrait", "normal"))
@@ -231,7 +244,10 @@ def _emit_say(node, ctx):
     lines.append(say_call)
     if mode == "think":
         lines.append("\tos_mask.Show(false)")
-    return _with_mood(lines)
+    out = _voice_prefix(node) + _with_mood(lines)
+    if has_voice:
+        out.append("\tmod_stop_voice()")
+    return out
 
 
 def _emit_choice(node, ctx):
@@ -752,7 +768,7 @@ def _emit_dice(node, ctx):
 
 
 def _emit_goto_scene(node, ctx):
-    lines = []
+    lines = ["\tmod_stop_voice()"]
     # End 不是跳进简化 End 场景：原版真正的“汗青书结局卡”流程是
     # endgamepanel.Open(key) -> 玩家确认 -> 黑幕 -> Title。运行时 patch 在官方
     # EndGamePanel 第一次 yield 前写入 mod 标题/正文/插图，因此完整复用官方版式、
@@ -837,13 +853,17 @@ def _emit_end(node, ctx):
         # 无 next_script：官方标准收尾，返回自由模式（契约 §3.1）。
         # 注意不能 emit luamanager.Init()：无后续脚本时 Init 会重跑当前
         # 脚本，造成死循环。
-        return ['\tluamanager.ChangeScene("Free", "", "")']
+        return [
+            "\tmod_stop_voice()",
+            '\tluamanager.ChangeScene("Free", "", "")',
+        ]
     # 有 next_script：链到同包内另一脚本。运行时注册名带 MOD_<modid>_
     # 前缀（契约 §3.1/§6）；裸 build 不知 mod id 时退化为原始脚本 id。
     target = (
         "MOD_%s_%s" % (ctx["mod_id"], next_script) if ctx.get("mod_id") else next_script
     )
     return [
+        "\tmod_stop_voice()",
         "\tluamanager.SetNextScript(%s)" % lua_str(target),
         "\tluamanager.Init()",
     ]
@@ -861,6 +881,7 @@ def _emit_death(node, ctx):
     """
     title = node.get("title") or "勝敗乃兵家常事"
     return [
+        "\tmod_stop_voice()",
         '\trunblock(flowcharts.view, "out")',
         '\tgetvar(flowcharts.view, "ViewName").value = "black"',
         '\trunblock(flowcharts.view, "view")',

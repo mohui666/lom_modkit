@@ -18,6 +18,7 @@ namespace MortalModHost
         private static NativePcmPlayer _music;
         private static NativePcmPlayer _sfx;
         private static NativePcmPlayer _env;
+        private static NativePcmPlayer _voice;
         private static Coroutine _musicFade;
         private static Coroutine _envFade;
 
@@ -27,6 +28,7 @@ namespace MortalModHost
             if (_music == null) _music = new NativePcmPlayer();
             if (_sfx == null) _sfx = new NativePcmPlayer();
             if (_env == null) _env = new NativePcmPlayer();
+            if (_voice == null) _voice = new NativePcmPlayer();
         }
 
         public static void StopAllImmediate()
@@ -45,9 +47,35 @@ namespace MortalModHost
             }
         }
 
-        public static void ReleaseAll()
+        public static void StopVoice()
+        {
+            try
+            {
+                if (_voice != null) _voice.Stop();
+            }
+            catch (Exception ex)
+            {
+                if (Log != null) Log.LogWarning("停止对白语音失败：" + ex.Message);
+            }
+        }
+
+        public static void StopEverything()
         {
             StopAllImmediate();
+            StopVoice();
+        }
+
+        public static bool PlayVoice(string name)
+        {
+            StopVoice();
+            if (string.IsNullOrEmpty(name))
+                return true;
+            return PlayKeyed(name, _voice, loop: false, isMusic: false);
+        }
+
+        public static void ReleaseAll()
+        {
+            StopEverything();
         }
 
         public static bool PlayMusic(string name)

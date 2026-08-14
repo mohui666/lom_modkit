@@ -348,12 +348,14 @@ def add_say(
     character: str | None = None,
     mode: str = "character",
     portrait: str = "normal",
+    voice: str | None = None,
     after: str | None = None,
 ) -> dict:
     """新增对白/独白/旁白节点。
 
     mode=character/think 时 character 必填；narrative/center 忽略 character
     （不写入该字段）。text 按 kind=multiline 允许换行。
+    voice 可选，必须是 user: 用户音频引用；缺省则与旧对白完全一致。
     """
     if not isinstance(text, str):
         raise ValueError(f"say 文本必须是字符串，实际为 {text!r}")
@@ -368,6 +370,10 @@ def add_say(
         if not isinstance(character, str) or not character:
             raise ValueError(f'mode="{mode}" 时 character 必填（人物 id）')
         fields["character"] = character
+    if voice is not None:
+        if not isinstance(voice, str) or not voice.strip():
+            raise ValueError("voice 必须是非空的 user: 音频引用，不要语音请省略该参数")
+        fields["voice"] = voice
     node = _make_node(story, "say", fields, after)
     # narrative/center 不写入 character（契约默认值里的兜底人物一并去掉）
     if mode in ("narrative", "center"):

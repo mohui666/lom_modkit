@@ -152,7 +152,7 @@ _NODE_FIELDS = {
     ),
     "say": (
         {"text": "str"},
-        {"character": "str", "portrait": "str", "mode": "mode"},
+        {"character": "str", "portrait": "str", "mode": "mode", "voice": "str"},
     ),
     "choice": ({"options": "list"}, {"dialog": "idstr"}),
     "shock": ({"character": "str"}, {"duration": "num"}),
@@ -426,6 +426,19 @@ def _check_node_extra(node, ntype, label):
                 '%s(say): mode="%s" 时必填字段 "character"（narrative/center 可省略）'
                 % (label, mode)
             )
+        if "voice" in node:
+            voice = node["voice"]
+            if not isinstance(voice, str) or not voice.strip():
+                raise LomcError(
+                    '%s(say): 字段 "voice" 必须是非空的用户音频引用（如 user:mohui.line_01），'
+                    "不要语音请删除该字段" % label
+                )
+            if not is_user_ref(voice):
+                raise LomcError(
+                    '%s(say): 字段 "voice" 必须是用户内容引用（以 user: 开头），'
+                    "不能用手填官方音效名。实际为 %r" % (label, voice)
+                )
+            parse_content_ref(voice, label='%s(say) 的 voice' % label)
     elif ntype == "intro":
         source = node.get("intro_source", "official")
         if source == "official":

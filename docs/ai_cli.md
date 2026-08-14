@@ -331,7 +331,7 @@ import story_api
 | `delete_node(story, node_id) -> dict` | 返回被删节点；**悬空 goto 不拦截**，交给 check_story 报告 |
 | `move_node(story, node_id, delta) -> dict` | delta 只能 ±1；越界（已在开头/末尾）→ ValueError |
 | `set_start(story, node_id) -> dict` | 设置 story["start"]；节点不存在 → ValueError |
-| `add_say(story, text, character=None, mode="character", portrait="normal", after=None) -> dict` | mode ∈ character/think/narrative/center；character/think 模式 character 必填（人物 id），narrative/center 不写 character 字段；text 可换行；(character, portrait) 走官方表情表校验 |
+| `add_say(story, text, character=None, mode="character", portrait="normal", voice=None, after=None) -> dict` | mode ∈ character/think/narrative/center；character/think 模式 character 必填（人物 id），narrative/center 不写 character 字段；text 可换行；(character, portrait) 走官方表情表校验；voice 可选 user: 音频引用 |
 | `add_scene(story, view, after=None) -> dict` | view 为非空场景 id 字符串 |
 | `add_choice(story, options, after=None) -> dict` | options 为 [(text, goto), ...] 2~4 项，text 非空 str、goto 为节点 id str；dialog 强制写 "Options"（见 §4 硬性规则） |
 | `add_dice(story, check, goto_成功, goto_失败, goto_大成功="", band_texts=None, after=None) -> dict` | check 必须命中官方元数据（`lomc.dice_data.get_dice_meta`）；2 带检查点 goto_成功/goto_失败 必填、goto_大成功 可空；≥3 带三个都必填；band_texts 可选逐带覆写选项文本，条数=结果带数、每项非空 |

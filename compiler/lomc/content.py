@@ -146,22 +146,35 @@ def collect_story_content_refs(story):
         nid = node.get("id") if isinstance(node.get("id"), str) else "?"
         ntype = node.get("type")
         kind = expected_audio_kind(node)
-        if kind is None:
-            continue
-        raw = node.get("name")
-        ref = parse_content_ref(raw, label='节点 "%s"(%s) 的 name' % (nid, ntype))
-        if ref is None:
-            continue
-        found.append(
-            {
-                "node_id": nid,
-                "node_type": ntype,
-                "field": "name",
-                "raw": ref.raw,
-                "ref": ref,
-                "expected_kind": kind,
-            }
-        )
+        if kind is not None:
+            raw = node.get("name")
+            ref = parse_content_ref(raw, label='节点 "%s"(%s) 的 name' % (nid, ntype))
+            if ref is not None:
+                found.append(
+                    {
+                        "node_id": nid,
+                        "node_type": ntype,
+                        "field": "name",
+                        "raw": ref.raw,
+                        "ref": ref,
+                        "expected_kind": kind,
+                    }
+                )
+        if ntype == "say" and node.get("voice"):
+            ref = parse_content_ref(
+                node.get("voice"), label='节点 "%s"(say) 的 voice' % nid
+            )
+            if ref is not None:
+                found.append(
+                    {
+                        "node_id": nid,
+                        "node_type": ntype,
+                        "field": "voice",
+                        "raw": ref.raw,
+                        "ref": ref,
+                        "expected_kind": None,
+                    }
+                )
     return found
 
 

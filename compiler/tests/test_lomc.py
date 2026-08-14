@@ -3249,6 +3249,66 @@ class TestUserContent(unittest.TestCase):
         )
         self.assertIn('\tluamanager.PlayMusic("user:mohui.boss_theme")', lua)
 
+    def test_say_without_voice_has_no_play(self):
+        lua = compile_story(
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "say",
+                    "mode": "narrative",
+                    "text": "旧对白",
+                }
+            )
+        )
+        self.assertIn("mod_stop_voice()", lua)
+        self.assertNotIn("mod_play_voice", lua)
+        self.assertIn('say(luamanager.GetStoryText("MOD_MOD_main_n1"))', lua)
+
+    def test_say_voice_play_then_stop(self):
+        lua = compile_story(
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "say",
+                    "mode": "narrative",
+                    "text": "带语音",
+                    "voice": "user:mohui.line_01",
+                }
+            )
+        )
+        self.assertIn('\tmod_play_voice("user:mohui.line_01")', lua)
+        self.assertIn('\tmod_stop_voice()', lua)
+        self.assertLess(lua.index("mod_play_voice"), lua.index("GetStoryText"))
+        self.assertLess(lua.index("GetStoryText"), lua.rindex("mod_stop_voice"))
+
+    def test_say_voice_invalid_id(self):
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "say",
+                    "mode": "narrative",
+                    "text": "坏",
+                    "voice": "user:../evil",
+                }
+            ),
+            "非法路径",
+        )
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "say",
+                    "mode": "narrative",
+                    "text": "坏",
+                    "voice": "鈴鐺_001",
+                }
+            ),
+            "user:",
+        )
+
     def test_user_sound_emits_playsound(self):
         lua = compile_story(
             linear_story(
@@ -3355,6 +3415,51 @@ class TestPackUserAudio(unittest.TestCase):
             pack_mod(self.mod_dir)
         self.assertIn("音效", str(cm.exception))
         self.assertIn("音乐", str(cm.exception))
+
+    def test_pack_say_voice_collects_audio(self):
+        _write_user_audio(self.mod_dir, "mohui.line_01", "sound", "line.wav", b"RIFFv")
+        story = make_story(
+            [
+                {
+                    "id": "n1",
+                    "type": "say",
+                    "mode": "narrative",
+                    "text": "有语音",
+                    "voice": "user:mohui.line_01",
+                },
+                {"id": "n2", "type": "end"},
+            ]
+        )
+        with open(
+            os.path.join(self.mod_dir, "story", "main.json"), "w", encoding="utf-8"
+        ) as f:
+            json.dump(story, f, ensure_ascii=False, indent=2)
+        out = pack_mod(self.mod_dir)
+        with zipfile.ZipFile(out) as zf:
+            self.assertIn("assets/user/audio/mohui.line_01/content.json", zf.namelist())
+            lua = zf.read("lua/main.lua").decode("utf-8")
+            self.assertIn('mod_play_voice("user:mohui.line_01")', lua)
+
+    def test_pack_say_voice_missing_fails(self):
+        story = make_story(
+            [
+                {
+                    "id": "n1",
+                    "type": "say",
+                    "mode": "narrative",
+                    "text": "缺文件",
+                    "voice": "user:mohui.ghost",
+                },
+                {"id": "n2", "type": "end"},
+            ]
+        )
+        with open(
+            os.path.join(self.mod_dir, "story", "main.json"), "w", encoding="utf-8"
+        ) as f:
+            json.dump(story, f, ensure_ascii=False, indent=2)
+        with self.assertRaises(LomcError) as cm:
+            pack_mod(self.mod_dir)
+        self.assertIn("找不到用户内容", str(cm.exception))
 
 
 class TestWarnings(unittest.TestCase):

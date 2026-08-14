@@ -221,6 +221,8 @@ class NodeForm(QScrollArea):
             # 记录起来，人物变化时刷新表情清单
             w.setProperty("portrait_for", key)
             return w
+        if kind == "voice":
+            return self._make_voice_picker(node, key, value)
         if kind == "music":
             return self._make_audio_combo(node, key, value, audio_kind="music")
         if kind == "sound_name":
@@ -576,6 +578,70 @@ class NodeForm(QScrollArea):
         import_btn.clicked.connect(pick)
         row.addWidget(w, 1)
         row.addWidget(import_btn)
+        return box
+
+    def _make_voice_picker(self, node: dict, key: str, current) -> QWidget:
+        """对白语音：只列用户音频；空表示本句不配音。"""
+        user_items: list[tuple[str, str]] = [("", "（无语音）")]
+        try:
+            for rec in content_registry.list_contents(content_type="audio"):
+                kind_cn = {"music": "音乐", "sound": "音效", "env": "环境音"}.get(
+                    rec.audio_kind or "", rec.audio_kind or ""
+                )
+                user_items.append(
+                    (rec.ref, "%s · %s（%s）" % (kind_cn, rec.name, rec.ref))
+                )
+        except Exception:
+            pass
+        w = self._make_combo(user_items, str(current or ""), editable=True)
+        if w.lineEdit() is not None:
+            w.lineEdit().setPlaceholderText("选择用户内容库里的音频，或不选")
+        w.currentTextChanged.connect(
+            lambda t, c=w: self._apply(
+                node, key, self._combo_value(c, t).strip() or None
+            )
+        )
+        box = QWidget()
+        row = QHBoxLayout(box)
+        row.setContentsMargins(0, 0, 0, 0)
+        import_btn = QPushButton("导入…")
+        clear_btn = QPushButton("清除")
+        import_btn.setMinimumHeight(28)
+        clear_btn.setMinimumHeight(28)
+        import_btn.setToolTip("导入本地 ogg/wav 并绑到这句对白")
+        clear_btn.setToolTip("这句对白不再播放语音")
+
+        def pick() -> None:
+            path, _ = QFileDialog.getOpenFileName(
+                self,
+                "选择对白语音",
+                str(Path.home()),
+                "音频 (*.ogg *.wav)",
+            )
+            if not path:
+                return
+            try:
+                rec = content_registry.register_audio(
+                    Path(path),
+                    content_registry.suggest_content_id(Path(path).name),
+                    Path(path).stem,
+                    "sound",
+                )
+            except content_registry.ContentRegistryError as exc:
+                QMessageBox.critical(self, "无法导入音频", str(exc))
+                return
+            self._apply(node, key, rec.ref)
+            self._rebuild_current()
+
+        def clear() -> None:
+            self._apply(node, key, None)
+            self._rebuild_current()
+
+        import_btn.clicked.connect(pick)
+        clear_btn.clicked.connect(clear)
+        row.addWidget(w, 1)
+        row.addWidget(import_btn)
+        row.addWidget(clear_btn)
         return box
 
     def _list_combo(self, node: dict, key: str, data_key: str, current) -> QComboBox:

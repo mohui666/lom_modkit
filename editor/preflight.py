@@ -285,6 +285,21 @@ def run_preflight(
                                 str(exc),
                             )
                         )
+            if node.get("type") == "say":
+                voice = node.get("voice")
+                if isinstance(voice, str) and voice.strip():
+                    try:
+                        content_registry.resolve(voice, expected_kind=None)
+                    except content_registry.ContentRegistryError as exc:
+                        issues.append(
+                            PreflightIssue(
+                                "error",
+                                "missing_user_content",
+                                sid,
+                                node_id,
+                                "对白语音无效：%s" % exc,
+                            )
+                        )
             if node.get("type") == "end":
                 target = node.get("next_script")
                 if isinstance(target, str) and target and target not in story_ids:
