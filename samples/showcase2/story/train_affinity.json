@@ -1,0 +1,98 @@
+{
+  "id": "train_affinity",
+  "title": "练武场·小梅的邀约（好感≥3）",
+  "start": "n1",
+  "nodes": [
+    {
+      "id": "n2",
+      "type": "say",
+      "text": "【旁白】练武场。虞小梅提着裙摆，笑吟吟地小跑过来。",
+      "portrait": "normal",
+      "mode": "narrative"
+    },
+    {
+      "id": "n1",
+      "type": "scene",
+      "view": "center_evening"
+    },
+    {
+      "id": "n3",
+      "type": "show",
+      "character": "player",
+      "position": "L2",
+      "portrait": "normal",
+      "facing": "right",
+      "fadeDuration": 0,
+      "moveDuration": 0
+    },
+    {
+      "id": "n4",
+      "type": "show",
+      "character": "girl5",
+      "position": "R1",
+      "portrait": "laugh1",
+      "facing": "left",
+      "fadeDuration": 0,
+      "moveDuration": 0
+    },
+    {
+      "id": "n5",
+      "type": "say",
+      "text": "阿活～好感度攒够三点啦！奖励你陪本梅去后山散步。",
+      "character": "girl5",
+      "portrait": "laugh1",
+      "mode": "character"
+    },
+    {
+      "id": "n6",
+      "type": "say",
+      "text": "（小梅今天心情这么好，葫芦里卖的什么药……）",
+      "character": "player",
+      "portrait": "doubt",
+      "mode": "think"
+    },
+    {
+      "id": "n11",
+      "type": "choice",
+      "options": [
+        {
+          "text": "陪她去（盛情难却）",
+          "goto": "n7"
+        },
+        {
+          "text": "下次吧，今日功课未了",
+          "goto": "n8"
+        }
+      ],
+      "dialog": "Options"
+    },
+    {
+      "id": "n8",
+      "type": "say",
+      "text": "哎，好吧。那本梅就在这儿看你练拳，一样开心。",
+      "character": "girl5",
+      "portrait": "nervous1",
+      "mode": "character",
+      "goto": "n10"
+    },
+    {
+      "id": "n10",
+      "type": "end"
+    },
+    {
+      "id": "n7",
+      "type": "say",
+      "text": "太好啦！走吧走吧，火闪电已经在前面带路了。（好感 +1）",
+      "character": "girl5",
+      "portrait": "laugh2",
+      "mode": "character"
+    },
+    {
+      "id": "n9",
+      "type": "affinity",
+      "character": "girl5",
+      "delta": 1,
+      "goto": "n10"
+    }
+  ]
+}

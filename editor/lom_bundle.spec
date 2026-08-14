@@ -20,6 +20,7 @@ a_gui = Analysis(
         ("../data/preview_map.json", "data"),
         ("assets/lom_editor_icon.png", "assets"),
         ("assets/combo_arrow.svg", "assets"),
+        ("assets/doorstop/win-x86-doorstop.dll", "assets/doorstop"),
         ("../runtime/MortalModHost/bin/Release/net48/MortalModHost.dll", "runtime"),
     ],
     hiddenimports=[

@@ -88,7 +88,7 @@ def walk_branches(win, app, node, depth=0, seen=None):
         row = win._node_row(g)
         if row < 0:
             continue
-        win.node_list.setCurrentRow(row)
+        win._select_node_index(row)
         app.processEvents()
         stop = auto_to_halt(win, app)
         walk_branches(win, app, stop, depth + 1, seen)
@@ -116,7 +116,7 @@ def main_fn() -> int:
         win._load_story_path(path)
         app.processEvents()
         for i, n in enumerate(win.story["nodes"]):
-            win.node_list.setCurrentRow(i)
+            win._select_node_index(i)
             app.processEvents()
             img = win.stage.grab()
             assert not img.isNull(), f"grab 失败: {path.name} {n['id']}"
@@ -151,7 +151,7 @@ def main_fn() -> int:
         i for i, n in enumerate(all_nodes) if n["type"] in ("end", "goto_scene")
     )
     for i, n in enumerate(all_nodes):
-        win.node_list.setCurrentRow(i)
+        win._select_node_index(i)
         app.processEvents()
         img = win.stage.grab()
         assert not img.isNull(), f"渲染失败: {n['type']}"
@@ -175,7 +175,7 @@ def main_fn() -> int:
     app.processEvents()
     row = win._node_row("n11")
     for k, opt in enumerate(win.story["nodes"][row]["options"]):
-        win.node_list.setCurrentRow(row)
+        win._select_node_index(row)
         win.stage.repaint()  # 确保热区已生成
         app.processEvents()
         rects = win.stage._choice_rects
@@ -212,7 +212,7 @@ def main_fn() -> int:
 
     # 4a 改正在预览的 say 节点属性
     r7 = win._node_row("n7")
-    win.node_list.setCurrentRow(r7)
+    win._select_node_index(r7)
     win.story["nodes"][r7]["text"] = "压力测试改写：四师兄递过来一张清单。\n第二行。"
     win.story["nodes"][r7]["portrait"] = "laugh1"
     win._on_node_changed()
@@ -221,20 +221,19 @@ def main_fn() -> int:
 
     # 4b 换正在预览的节点类型（say → show）
     r8 = win._node_row("n8")
-    win.node_list.setCurrentRow(r8)
+    win._select_node_index(r8)
     win.story["nodes"][r8] = models.new_node("show", "n8", editor_data)
     win._refresh_all(select_row=r8)
     app.processEvents()
     win.stage.grab()
 
     # 4c 删除正在预览的节点
-    r = win.node_list.currentRow()
     win._delete_node()
     app.processEvents()
     win.stage.grab()
 
-    # 4d 上移/下移当前节点
-    win.node_list.setCurrentRow(min(3, win.node_list.count() - 1))
+    # 4d 上移/下移当前节点（下标是 nodes[]，不是列表行）
+    win._select_node_index(min(3, len(win.story.get("nodes", [])) - 1))
     win._move_node(1)
     win._move_node(-1)
     app.processEvents()
@@ -310,7 +309,7 @@ def main_fn() -> int:
     win.story = weird
     win._refresh_all()
     for i in range(len(weird["nodes"])):
-        win.node_list.setCurrentRow(i)
+        win._select_node_index(i)
         app.processEvents()
         win.stage.grab()
     x, ok = preview.position_x("Talk")
@@ -331,7 +330,7 @@ def main_fn() -> int:
         data_dir,
     )
     win._load_story_path(DEMO_MAIN)
-    win.node_list.setCurrentRow(win._node_row("n7"))
+    win._select_node_index(win._node_row("n7"))
     app.processEvents()
     win.stage.grab()
     win.stage.set_assets(pmap, data_dir)  # 还原真实素材
@@ -367,7 +366,7 @@ def main_fn() -> int:
 
     # 收尾：主窗口还活着且能正常渲染
     win._load_story_path(DEMO_MAIN)
-    win.node_list.setCurrentRow(win._node_row("n7"))
+    win._select_node_index(win._node_row("n7"))
     app.processEvents()
     assert not win.stage.grab().isNull()
     win.close()

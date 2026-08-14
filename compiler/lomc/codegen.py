@@ -74,7 +74,13 @@ def _emit_music(node, ctx):
     if op == "stop":
         return ["\tluamanager.StopMusic()"]
     if op == "fadeout":
-        return ["\tluamanager.FadeOutMusic(%s)" % lua_num(node.get("seconds", 2))]
+        # FadeOutMusic 只改 Wwise RTPC、不挂起协程；紧接着 PlayMusic 会
+        # ResetMusic + FadeIn(100,0) 把音量瞬间拉回，淡出等于没发生。
+        seconds = node.get("seconds", 2)
+        return [
+            "\tluamanager.FadeOutMusic(%s)" % lua_num(seconds),
+            "\twait(%s)" % lua_num(seconds),
+        ]
     return ["\tluamanager.PlayMusic(%s)" % lua_str(node["name"])]
 
 
@@ -82,7 +88,11 @@ def _emit_sound(node, ctx):
     kind = node.get("kind", "sound")
     op = node.get("op", "play")
     if op == "fadeout":  # 校验已保证 kind="env"
-        return ["\tluamanager.FadeOutEnvSound(%s)" % lua_num(node.get("seconds", 1))]
+        seconds = node.get("seconds", 1)
+        return [
+            "\tluamanager.FadeOutEnvSound(%s)" % lua_num(seconds),
+            "\twait(%s)" % lua_num(seconds),
+        ]
     if kind == "env":
         return ["\tluamanager.PlayEnvSound(%s)" % lua_str(node["name"])]
     return ["\tluamanager.PlaySound(%s)" % lua_str(node["name"])]

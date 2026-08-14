@@ -21,7 +21,7 @@ from math import floor
 from pathlib import Path
 
 from PySide6.QtCore import QRect, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QPainter, QPen, QPixmap, QTransform
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen, QPixmap, QTransform
 from PySide6.QtWidgets import QWidget
 
 from asset_store import resolve_image_asset
@@ -1078,30 +1078,41 @@ class StagePreview(QWidget):
         if not dialog:
             return
         mode = dialog.get("mode", "character")
+        text = dialog.get("text", "")
+        wrap = (
+            Qt.AlignmentFlag.AlignLeft
+            | Qt.AlignmentFlag.AlignTop
+            | Qt.TextFlag.TextWordWrap
+            | Qt.TextFlag.TextWrapAnywhere
+        )
+
+        # 字号跟舞台高度走，不跟字幕栏走，避免栏太矮时字被裁成乱码。
+        name_font = QFont(self.font())
+        name_font.setPointSizeF(max(11.0, rect.height() * 0.036))
+        name_font.setBold(True)
+        text_font = QFont(self.font())
+        text_font.setPointSizeF(max(10.0, rect.height() * 0.030))
 
         # center 模式：居中旁白，舞台中部横带、无说话者
         if mode == "center":
-            band_h = floor(rect.height() * 0.22)
+            pad = max(16, floor(rect.height() * 0.03))
+            max_w = rect.width() - pad * 2
+            fm = QFontMetrics(text_font)
+            body = fm.boundingRect(
+                QRect(0, 0, max(1, max_w), 10000), int(wrap), text
+            )
+            band_h = min(
+                max(body.height() + pad * 2, floor(rect.height() * 0.18)),
+                floor(rect.height() * 0.48),
+            )
             band = QRect(
                 rect.x(), rect.y() + (rect.height() - band_h) // 2, rect.width(), band_h
             )
             p.fillRect(band, QColor(0, 0, 0, 150))
-            font = QFont(self.font())
-            font.setPointSizeF(max(10.0, band_h * 0.24))
-            p.setFont(font)
+            p.setFont(text_font)
             p.setPen(QColor(245, 245, 245))
-            p.drawText(
-                QRectF(band.adjusted(24, 8, -24, -8)),
-                Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap,
-                dialog.get("text", ""),
-            )
+            p.drawText(QRectF(band.adjusted(pad, pad // 2, -pad, -pad // 2)), wrap, text)
             return
-
-        bar_h = floor(rect.height() * 0.24)
-        bar = QRect(rect.x(), rect.bottom() - bar_h, rect.width(), bar_h)
-        p.fillRect(bar, DIALOG_BG)
-        pad = floor(bar_h * 0.16)
-        inner = bar.adjusted(pad, pad, -pad, -pad)
 
         cid = dialog.get("character") or ""
         if mode == "narrative":
@@ -1111,10 +1122,21 @@ class StagePreview(QWidget):
             if mode == "think":
                 speaker += "（内心）"
 
-        name_h = floor(inner.height() * 0.34)
-        name_font = QFont(self.font())
-        name_font.setPointSizeF(max(9.0, bar_h * 0.20))
-        name_font.setBold(True)
+        pad = max(14, floor(rect.height() * 0.028))
+        inner_w = max(1, rect.width() - pad * 2)
+        name_h = QFontMetrics(name_font).height() + 4
+        body = QFontMetrics(text_font).boundingRect(
+            QRect(0, 0, inner_w, 10000), int(wrap), text
+        )
+        needed = name_h + body.height() + pad * 2 + 6
+        bar_h = min(
+            max(needed, floor(rect.height() * 0.22)),
+            floor(rect.height() * 0.48),
+        )
+        bar = QRect(rect.x(), rect.bottom() - bar_h, rect.width(), bar_h)
+        p.fillRect(bar, DIALOG_BG)
+        inner = bar.adjusted(pad, pad, -pad, -pad)
+
         p.setFont(name_font)
         p.setPen(QColor(255, 214, 130))
         p.drawText(
@@ -1122,19 +1144,17 @@ class StagePreview(QWidget):
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
             speaker,
         )
-
-        text_font = QFont(self.font())
-        text_font.setPointSizeF(max(9.0, bar_h * 0.17))
         p.setFont(text_font)
         p.setPen(QColor(245, 245, 245))
         p.drawText(
             QRectF(
-                inner.x(), inner.y() + name_h, inner.width(), inner.height() - name_h
+                inner.x(),
+                inner.y() + name_h,
+                inner.width(),
+                inner.height() - name_h,
             ),
-            Qt.AlignmentFlag.AlignLeft
-            | Qt.AlignmentFlag.AlignTop
-            | Qt.TextFlag.TextWordWrap,
-            dialog.get("text", ""),
+            wrap,
+            text,
         )
 
     def _paint_hint(self, p: QPainter, rect: QRect) -> None:

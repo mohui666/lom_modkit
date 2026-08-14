@@ -11,8 +11,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QTimer, Signal
-from PySide6.QtGui import QFontDatabase
+from PySide6.QtCore import QTimer, Qt, Signal
+from PySide6.QtGui import QFont, QFontDatabase
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -68,37 +69,53 @@ class NodeForm(QScrollArea):
             self._node = node
             body = QWidget()
             layout = QVBoxLayout(body)
+            layout.setContentsMargins(12, 12, 12, 12)
             if node is None:
-                layout.addWidget(QLabel("← 在左侧选择一个节点"))
+                layout.addWidget(QLabel("← 在左侧选择一个步骤"))
                 layout.addStretch(1)
             else:
-                layout.addLayout(self._build_form(node))
+                layout.addWidget(self._build_form(node))
                 layout.addStretch(1)
             self.setWidget(body)
         finally:
             self._loading = False
 
     # ------------------------------------------------------------------ 构建
-    def _build_form(self, node: dict) -> QFormLayout:
+    def _build_form(self, node: dict) -> QWidget:
+        """主参数常驻；高级参数（如跳转）默认折叠。"""
+        wrap = QWidget()
+        outer = QVBoxLayout(wrap)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(8)
+
         form = QFormLayout()
+        form.setSpacing(10)
         node_type = node.get("type", "")
         schema = models.NODE_SCHEMAS.get(node_type)
 
         type_cn = models.NODE_TYPE_CN.get(node_type, node_type)
-        head = QLabel(f"<b>{node.get('id', '')}</b>　{type_cn}")
-        head.setToolTip(f"内部类型：{node_type}")
-        form.addRow(head)
+        head = QLabel(type_cn)
+        hf = QFont(head.font())
+        hf.setBold(True)
+        hf.setPointSize(hf.pointSize() + 2)
+        head.setFont(hf)
+        head.setToolTip(f"{node.get('id', '')} · 内部类型：{node_type}")
+        outer.addWidget(head)
+        id_line = QLabel(f"步骤 {node.get('id', '')}")
+        id_line.setProperty("context_help", True)
+        outer.addWidget(id_line)
 
         help_text = models.NODE_HELP.get(node_type)
         if help_text:
             hint = QLabel(help_text)
             hint.setWordWrap(True)
             hint.setProperty("context_help", True)
-            form.addRow(hint)
+            outer.addWidget(hint)
 
         if schema is None:
             form.addRow(QLabel("未知节点类型，无法编辑"))
-            return form
+            outer.addLayout(form)
+            return wrap
 
         for key, label, kind, optional in schema["fields"]:
             # branch 的键字段按 source 显示：stat 来源显示属性下拉，其余显示 flag
@@ -112,17 +129,39 @@ class NodeForm(QScrollArea):
                 continue
             widget = self._make_widget(node, key, kind)
             form.addRow(label + ("（可选）" if optional else ""), widget)
+        outer.addLayout(form)
 
-        # choice/branch/dice/end/death/goto_scene 之外的节点允许显式 goto 覆盖顺序流（契约 §3/§4）
+        # choice/branch/dice/end/death/goto_scene 之外允许显式 goto（契约 §3/§4）
         if node_type not in ("choice", "branch", "dice", "end", "death", "goto_scene"):
+            adv_btn = QToolButton()
+            adv_btn.setText("▸ 高级设置")
+            adv_btn.setCheckable(True)
+            adv_btn.setAutoRaise(True)
+            adv_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+            adv_body = QWidget()
+            adv_form = QFormLayout(adv_body)
+            adv_form.setContentsMargins(8, 4, 0, 0)
             goto = self._make_goto_combo(node.get("goto", ""), allow_empty=True)
             goto.currentTextChanged.connect(
                 lambda text, c=goto: self._apply(
                     node, "goto", self._combo_value(c, text).strip() or None
                 )
             )
-            form.addRow("跳到指定步骤（高级，可选）", goto)
-        return form
+            adv_form.addRow("跳转步骤", goto)
+            has_goto = bool(node.get("goto"))
+            adv_body.setVisible(has_goto)
+            if has_goto:
+                adv_btn.setChecked(True)
+                adv_btn.setText("▾ 高级设置")
+
+            def _toggle(on: bool, btn=adv_btn, body=adv_body) -> None:
+                body.setVisible(on)
+                btn.setText("▾ 高级设置" if on else "▸ 高级设置")
+
+            adv_btn.toggled.connect(_toggle)
+            outer.addWidget(adv_btn)
+            outer.addWidget(adv_body)
+        return wrap
 
     @staticmethod
     def _field_visible(node_type: str, key: str, node: dict) -> bool:

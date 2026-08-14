@@ -91,8 +91,8 @@ assets/                # 可选，自定义资源（结局插图/人物介绍图
 
 | type | 字段 | 说明 |
 | --- | --- | --- |
-| `music` | `name`；可选 `op`("play"默认/"stop"/"fadeout")，fadeout 时 `seconds`(默认2) | `luamanager.PlayMusic(name)` / `StopMusic()` / `FadeOutMusic(seconds)` |
-| `sound` | `name`；可选 `kind`("sound"默认/"env")，`op`("play"默认/"fadeout"仅env，`seconds`默认1) | `luamanager.PlaySound/PlayEnvSound/FadeOutEnvSound` |
+| `music` | `name`；可选 `op`("play"默认/"stop"/"fadeout")，fadeout 时 `seconds`(默认2) | `PlayMusic` / `StopMusic` / `FadeOutMusic(seconds)` 后 **`wait(seconds)`**（官方 FadeOut 只改 RTPC、不挂起；不 wait 则下一句 PlayMusic 会瞬间拉回音量） |
+| `sound` | `name`；可选 `kind`("sound"默认/"env")，`op`("play"默认/"fadeout"仅env，`seconds`默认1) | `PlaySound` / `PlayEnvSound` / `FadeOutEnvSound(seconds)` 后同样 **`wait(seconds)`** |
 | `scene` | `view` | 切场景：`runblock(flowcharts.view,"out")` 后 `ViewName=view; runblock(...,"view")`。`view="out"` 只淡出；`"black"/"white"` 为纯色。非纯色 view 先 `runwait(flowcharts.LoadView(view))` 预加载背景资产（官方 995/1111 个脚本实证；不预载则背景黑屏） |
 | `show` | `character`, `position`；可选 `portrait`(默认normal), `facing`(默认right), `fadeDuration`(0), `moveDuration`(0) | 加载并显示人物。**心情气泡**：story.mood 为 false 时末尾（Focus 后）追加 `mod_hide_mood()` |
 | `move` | `character`, `from`, `to`；可选 `duration`(默认1) | 移动并 `wait(duration)` |

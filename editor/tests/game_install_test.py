@@ -18,6 +18,10 @@ from game_install import (  # noqa: E402
     PREVIEW_REQUEST_NAME,
     GameInstallError,
     GameInstallManager,
+    _choose_zombie_prefix,
+    _ensure_ignore_disable_switch,
+    _is_mod_read_story_key,
+    reset_story_read_state,
 )
 
 
@@ -40,8 +44,10 @@ class GameInstallManagerTest(unittest.TestCase):
         self._write_pe(self.game / "Mortal.exe", 0x014C)
         self.runtime = base / "MortalModHost.dll"
         self.runtime.write_bytes(b"runtime-v1")
+        self.doorstop = base / "win-x86-doorstop.dll"
+        self.doorstop.write_bytes(b"patched-doorstop")
         self.settings = base / "settings.json"
-        self.manager = GameInstallManager(self.settings, self.runtime)
+        self.manager = GameInstallManager(self.settings, self.runtime, self.doorstop)
 
     @staticmethod
     def _write_pe(path: Path, machine: int) -> None:
@@ -145,6 +151,196 @@ class GameInstallManagerTest(unittest.TestCase):
         with self.assertRaises(GameInstallError):
             self.manager.request_preview("bad id", "main", "n3")
 
+    def test_ensure_ignore_disable_switch(self):
+        text, changed = _ensure_ignore_disable_switch(
+            "enabled = true\nignore_disable_switch = false\n"
+        )
+        self.assertTrue(changed)
+        self.assertIn("ignore_disable_switch = true", text)
+        again, changed_again = _ensure_ignore_disable_switch(text)
+        self.assertFalse(changed_again)
+        self.assertEqual(again, text)
+        appended, added = _ensure_ignore_disable_switch("[General]\nenabled = true\n")
+        self.assertTrue(added)
+        self.assertTrue(appended.endswith("ignore_disable_switch = true\n"))
+
+    def test_apply_steam_launch_fix_rewrites_proxy_and_ini(self):
+        self.manager.save_game_dir(self.game)
+        (self.game / "winhttp.dll").write_bytes(b"official-proxy")
+        (self.game / "doorstop_config.ini").write_text(
+            "[General]\nenabled = true\nignore_disable_switch = false\n",
+            encoding="utf-8",
+        )
+        actions = self.manager.apply_steam_launch_fix()
+        self.assertTrue(any("ignore_disable_switch" in item for item in actions))
+        self.assertTrue((self.game / "version.dll").is_file())
+        self.assertEqual((self.game / "version.dll").read_bytes(), b"patched-doorstop")
+        self.assertFalse((self.game / "winhttp.dll").is_file())
+        self.assertTrue((self.game / "winhttp.dll.lom_bak").is_file())
+        self.assertTrue(self.manager.steam_launch_fix_applied())
+        second = self.manager.apply_steam_launch_fix()
+        self.assertEqual(second, ["Steam 启动修复已经就绪，无需再改。"])
+
+    def test_apply_steam_launch_fix_requires_bepinex(self):
+        bare = Path(self.temp.name) / "bare_no_bep"
+        self._write_pe(bare / "Mortal.exe", 0x014C)
+        (bare / "Mortal_Data" / "Managed").mkdir(parents=True)
+        self.manager.save_game_dir(bare)
+        with self.assertRaises(GameInstallError):
+            self.manager.apply_steam_launch_fix()
+
+
+class ResetStoryReadStateTest(unittest.TestCase):
+    """reset_story_read_state：仅用临时文件，不碰真实 LocalLow 存档。"""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.slot = Path(self.temp.name) / "76561198000000000"
+        self.slot.mkdir(parents=True)
+        self.dat = self.slot / "Save_universe.dat"
+        self.json_path = self.slot / "Save_universe.json"
+        self.mod_id = "showcase2"
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def _write_dat(self, *keys: str) -> None:
+        # 模拟 BinaryFormatter 里夹杂的 UTF-8 key 字节（等长替换只依赖子串）
+        blob = b"\x00HEADER\x00" + b"\x00".join(k.encode("utf-8") for k in keys) + b"\x00TAIL"
+        self.dat.write_bytes(blob)
+
+    def _write_json(self, keys: list[str], **extra) -> None:
+        payload = {"Version": "1", "ReadStoryData": keys, **extra}
+        self.json_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+    def test_rejects_invalid_mod_id(self):
+        with self.assertRaises(GameInstallError):
+            reset_story_read_state("Bad Id", saves=[self.dat])
+
+    def test_dat_equal_length_rename_and_backup(self):
+        live = [
+            f"MOD_{self.mod_id}_main_n1",
+            f"MOD_{self.mod_id}_main_n2",
+            "vanilla_key",
+        ]
+        self._write_dat(*live)
+        results = reset_story_read_state(self.mod_id, saves=[self.dat])
+        self.assertEqual(results, [(self.dat, 2)])
+        raw = self.dat.read_bytes()
+        self.assertNotIn(f"MOD_{self.mod_id}_".encode("utf-8"), raw)
+        self.assertIn(f"mod_{self.mod_id}_".encode("utf-8"), raw)
+        self.assertIn(b"vanilla_key", raw)
+        bak = self.dat.with_suffix(self.dat.suffix + ".lomkit_bak")
+        self.assertTrue(bak.is_file())
+        self.assertIn(f"MOD_{self.mod_id}_".encode("utf-8"), bak.read_bytes())
+
+    def test_dat_rereset_uses_free_zombie_prefix(self):
+        # 首次重置后的僵尸 + 重玩产生的新 live key
+        keys = [
+            f"mod_{self.mod_id}_main_n1",
+            f"mod_{self.mod_id}_main_n2",
+            f"MOD_{self.mod_id}_main_n1",
+            f"MOD_{self.mod_id}_main_n3",
+        ]
+        self._write_dat(*keys)
+        results = reset_story_read_state(self.mod_id, saves=[self.dat])
+        self.assertEqual(results, [(self.dat, 2)])
+        raw = self.dat.read_bytes()
+        # live 已改成未占用前缀（mod_ 已被占用 → xod_）
+        self.assertNotIn(f"MOD_{self.mod_id}_".encode("utf-8"), raw)
+        self.assertIn(f"mod_{self.mod_id}_".encode("utf-8"), raw)
+        self.assertIn(f"xod_{self.mod_id}_".encode("utf-8"), raw)
+        # 不应出现两份相同的 mod_ 重复 live 改名（n1 只有 zombie 一份 + 原 zombie）
+        self.assertEqual(raw.count(f"mod_{self.mod_id}_main_n1".encode("utf-8")), 1)
+        self.assertEqual(raw.count(f"xod_{self.mod_id}_main_n1".encode("utf-8")), 1)
+
+    def test_json_removes_live_and_zombie_keys(self):
+        keys = [
+            f"MOD_{self.mod_id}_main_n1",
+            f"mod_{self.mod_id}_main_n2",
+            f"xod_{self.mod_id}_second_a",
+            "other_story_key",
+            f"MOD_other_mod_main_n1",
+        ]
+        self._write_json(keys)
+        # 无 dat 改动时仍应处理 json
+        self._write_dat("unrelated")
+        results = reset_story_read_state(self.mod_id, saves=[self.dat])
+        self.assertEqual(results, [(self.json_path, 3)])
+        data = json.loads(self.json_path.read_text(encoding="utf-8"))
+        self.assertEqual(
+            data["ReadStoryData"],
+            ["other_story_key", "MOD_other_mod_main_n1"],
+        )
+        bak = self.json_path.with_suffix(self.json_path.suffix + ".lomkit_bak")
+        self.assertTrue(bak.is_file())
+        bak_data = json.loads(bak.read_bytes().decode("utf-8"))
+        self.assertEqual(len(bak_data["ReadStoryData"]), 5)
+
+    def test_dat_and_json_together(self):
+        self._write_dat(f"MOD_{self.mod_id}_main_n1", "keep_me")
+        self._write_json(
+            [f"MOD_{self.mod_id}_main_n1", f"MOD_{self.mod_id}_main_n2", "keep_me"]
+        )
+        results = reset_story_read_state(self.mod_id, saves=[self.dat])
+        by_name = {path.name: count for path, count in results}
+        self.assertEqual(by_name["Save_universe.dat"], 1)
+        self.assertEqual(by_name["Save_universe.json"], 2)
+        data = json.loads(self.json_path.read_text(encoding="utf-8"))
+        self.assertEqual(data["ReadStoryData"], ["keep_me"])
+
+    def test_backup_not_overwritten_on_second_reset(self):
+        self._write_dat(f"MOD_{self.mod_id}_main_n1")
+        reset_story_read_state(self.mod_id, saves=[self.dat])
+        bak = self.dat.with_suffix(self.dat.suffix + ".lomkit_bak")
+        first_bak = bak.read_bytes()
+        # 模拟重玩后再重置
+        raw = self.dat.read_bytes()
+        self.dat.write_bytes(raw + f"MOD_{self.mod_id}_main_n2".encode("utf-8"))
+        reset_story_read_state(self.mod_id, saves=[self.dat])
+        self.assertEqual(bak.read_bytes(), first_bak)
+
+    def test_empty_when_no_matching_keys(self):
+        self._write_dat("vanilla_only")
+        self._write_json(["vanilla_only"])
+        self.assertEqual(reset_story_read_state(self.mod_id, saves=[self.dat]), [])
+
+    def test_is_mod_read_story_key_casefold_and_prefix(self):
+        self.assertTrue(_is_mod_read_story_key(f"MOD_{self.mod_id}_main_n1", self.mod_id))
+        self.assertTrue(_is_mod_read_story_key(f"mod_{self.mod_id}_main_n1", self.mod_id))
+        self.assertTrue(_is_mod_read_story_key(f"XOD_{self.mod_id}_main_n1", self.mod_id))
+        self.assertFalse(_is_mod_read_story_key(f"MOD_other_main_n1", self.mod_id))
+        self.assertFalse(_is_mod_read_story_key("short", self.mod_id))
+        self.assertFalse(_is_mod_read_story_key(None, self.mod_id))  # type: ignore[arg-type]
+
+    def test_choose_zombie_skips_occupied(self):
+        raw = f"mod_{self.mod_id}_a\x00xod_{self.mod_id}_b".encode("utf-8")
+        chosen = _choose_zombie_prefix(raw, self.mod_id)
+        self.assertEqual(chosen, f"yod_{self.mod_id}_".encode("utf-8"))
+
+    def test_extra_ids_resets_preview_keys(self):
+        preview = "lom_modkit_preview"
+        self._write_dat(
+            f"MOD_{self.mod_id}_main_n1",
+            f"MOD_{preview}_main_n2",
+            "vanilla",
+        )
+        self._write_json(
+            [f"MOD_{self.mod_id}_main_n1", f"MOD_{preview}_main_n2", "vanilla"]
+        )
+        results = reset_story_read_state(
+            self.mod_id, saves=[self.dat], extra_ids=[preview]
+        )
+        raw = self.dat.read_bytes()
+        self.assertNotIn(f"MOD_{self.mod_id}_".encode("utf-8"), raw)
+        self.assertNotIn(f"MOD_{preview}_".encode("utf-8"), raw)
+        data = json.loads(self.json_path.read_text(encoding="utf-8"))
+        self.assertEqual(data["ReadStoryData"], ["vanilla"])
+        # 两个 id 各改 dat 一次、各清 json 一次
+        self.assertEqual(sum(n for path, n in results if path.name.endswith(".dat")), 2)
+        self.assertEqual(sum(n for path, n in results if path.name.endswith(".json")), 2)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+

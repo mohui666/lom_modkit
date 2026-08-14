@@ -25,7 +25,7 @@ namespace MortalModHost
     {
         public const string GUID = "com.mohui666.mortalmodhost";
         public const string NAME = "MortalModHost";
-        public const string VERSION = "0.5.0";
+        public const string VERSION = "0.6.0";
 
         private const int WindowId = 886310; // IMGUI 窗口 id，取个不易与其他插件撞车的数
 
@@ -65,6 +65,10 @@ namespace MortalModHost
             Logger.LogInfo("MortalModHost " + VERSION + " 启动，扫描 mods 目录：" + modsDir);
 
             ReloadMods();
+
+            // 官方播放器默认失焦暂停：标题画面试玩请求等 Update 逻辑在后台也照常运行。
+            Application.runInBackground = true;
+            Logger.LogInfo("已开启 runInBackground（失焦时 Update 仍跑）");
 
             ApplyHarmonyPatch();
         }
@@ -166,7 +170,31 @@ namespace MortalModHost
                 return;
             }
             new Harmony(GUID).PatchAll(); // patch 本程序集全部 [HarmonyPatch] 类
+            PatchSteamRestart();
             Logger.LogInfo("Harmony patch 已挂载：ExecuteLuaScript / NewGameData / Free 自动与地点剧情抑制 / GetExecuteScript / UpdateTranslations / ShowMood / CharacterIntroPanel / GameOver/EndGamePanel/EndGame / NewGamePlus / DiceRevolution");
+        }
+
+        /// <summary>
+        /// Steam 从非 steam.exe 子进程拉起时会 RestartAppIfNecessary 自杀。
+        /// 前缀直接返回 false，已经挂上 BepInEx 的那局就能留在标题画面。
+        /// </summary>
+        private void PatchSteamRestart()
+        {
+            MethodInfo method = AccessTools.Method("Steamworks.SteamAPI:RestartAppIfNecessary");
+            if (method == null)
+            {
+                Logger.LogWarning("未找到 SteamAPI.RestartAppIfNecessary，跳过防重启补丁");
+                return;
+            }
+            new Harmony(GUID + ".steamrestart").Patch(method,
+                prefix: new HarmonyMethod(typeof(Plugin), nameof(SkipSteamRestart)));
+            Logger.LogInfo("已拦截 SteamAPI.RestartAppIfNecessary（非 Steam 直启也不会自杀）");
+        }
+
+        private static bool SkipSteamRestart(ref bool __result)
+        {
+            __result = false;
+            return false;
         }
 
         private bool CheckTarget(string name, MemberInfo member)
