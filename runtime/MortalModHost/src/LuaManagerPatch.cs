@@ -45,6 +45,7 @@ namespace MortalModHost
                 MoodControl.Disabled = false;
                 ModOverlay.Clear();
                 CharacterIntroSupport.Clear();
+                CustomAudioPlayer.StopAllImmediate();
                 return true; // 官方脚本，走原方法
             }
 
@@ -65,6 +66,7 @@ namespace MortalModHost
                     ModOverlay.CurrentPackage = package;
                 }
                 CharacterIntroSupport.Clear();
+                CustomAudioPlayer.StopAllImmediate();
 
                 // 契约 §6.9/§6.10：演出前把 mod_hide_mood / mod_set_mood 注册进共享 MoonSharp 环境（幂等重设；官方脚本不调用它们，无副作用）
                 RegisterModGlobals(env);

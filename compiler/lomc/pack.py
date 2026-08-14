@@ -8,9 +8,10 @@
     texts.json             已读文本表 {MOD_<modid>_<scriptid>_<nodeid>: 文本}
                            （仅 say 节点文本；death 文本由 mod_set_death_text
                            直接进 Lua，不进 texts.json / 已读系统）
-    assets/                仅收 End.image / 自定义 intro.image 明确引用且通过
-                           路径/大小校验（包内 assets/、≤8MB）的文件；未引用的
-                           本机素材不会打进包，避免意外分发
+    assets/                仅收剧情明确引用的资源：
+                           - End.image / 自定义 intro.image（包内 assets/ 图片，≤8MB）
+                           - user: 用户音频（assets/user/audio/<id>/，仅实际引用）
+                           未引用的本机素材不会打进包，避免意外分发
 
 默认输出：<mod目录> 同级、以目录名命名的 <目录名>.lommod。
 """
@@ -20,6 +21,12 @@ import os
 import zipfile
 
 from .compiler import compile_story, load_json_file
+from .content import (
+    check_content_matches_kind,
+    collect_story_content_refs,
+    package_content_dir,
+    resolve_content,
+)
 from .errors import LomcError
 from .validate import validate_manifest
 
@@ -61,6 +68,7 @@ def pack_mod(mod_dir, output=None):
     texts = {}  # 已读 key -> 文本（契约 §1：say/death 节点文本）
     mod_id = manifest["id"]  # 打包时必有（validate_manifest 已保证）
     referenced_assets = set()
+    referenced_user_audio = {}  # content_id -> (meta, main_abs)
     for fname in story_files:
         stem = fname[: -len(".json")]
         story = load_json_file(os.path.join(story_dir, fname))
@@ -138,6 +146,17 @@ def pack_mod(mod_dir, output=None):
                         % (fname, node["id"], node.get("type"), image)
                     )
                 referenced_assets.add(image.replace("\\", "/"))
+        for item in collect_story_content_refs(story):
+            ref = item["ref"]
+            try:
+                meta, main_path = resolve_content(mod_dir, "audio", ref.content_id)
+                check_content_matches_kind(meta, item["expected_kind"], ref.raw)
+            except LomcError as exc:
+                raise LomcError(
+                    'story/%s 节点 "%s"(%s): %s'
+                    % (fname, item["node_id"], item["node_type"], exc)
+                )
+            referenced_user_audio[ref.content_id] = (meta, main_path)
 
     if output is None:
         output = os.path.join(
@@ -155,10 +174,15 @@ def pack_mod(mod_dir, output=None):
             "texts.json",
             json.dumps(texts, ensure_ascii=False, indent=2) + "\n",
         )
-        # assets 只收 End.image / 自定义 intro.image 明确引用且已通过
-        # 路径/大小校验的文件，避免把本机 assets/ 中未使用的原版素材意外分发。
+        # assets 只收剧情明确引用的图片与用户音频，避免把本机未使用素材意外分发。
         for rel in sorted(referenced_assets):
             full = os.path.join(mod_dir, rel.replace("/", os.sep))
             zf.write(full, rel)
+        for content_id in sorted(referenced_user_audio):
+            meta, main_path = referenced_user_audio[content_id]
+            rel_dir = package_content_dir("audio", content_id)
+            meta_src = os.path.join(os.path.dirname(main_path), "content.json")
+            zf.write(meta_src, rel_dir + "/content.json")
+            zf.write(main_path, rel_dir + "/" + meta["files"]["main"])
 
     return output

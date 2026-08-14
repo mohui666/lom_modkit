@@ -16,6 +16,9 @@ namespace MortalModHost
         /// <summary>结局卡背景图单张上限（字节，契约 §3.1，与编译器 pack 校验一致）。</summary>
         private const long MaxEndingImageBytes = 8L * 1024 * 1024;
 
+        /// <summary>用户音频单条上限（与 compiler/lomc/content.py 一致）。</summary>
+        private const long MaxAudioBytes = ContentRef.MaxAudioBytes;
+
         /// <summary>结局卡背景图允许的扩展名（契约 §3.1）。</summary>
         private static bool IsImageAsset(string path)
         {
@@ -111,7 +114,7 @@ namespace MortalModHost
                 }
 
                 // assets/ 下的图片（契约 §3.1 结局卡背景图）：只收 .png/.jpg/.jpeg，
-                // 单张 ≤8MB（超限警告跳过）；其余条目（音频等）运行时用不到，不读入内存。
+                // 单张 ≤8MB（超限警告跳过）。用户音频走 assets/user/，见 LoadUserContents。
                 foreach (var entry in zip.Entries)
                 {
                     if (!entry.FullName.StartsWith("assets/", StringComparison.Ordinal)) continue;
@@ -137,6 +140,8 @@ namespace MortalModHost
                             logWarn("mod " + package.Id + " 的资源 " + entry.FullName + " 读取失败，已忽略：" + ex.Message);
                     }
                 }
+
+                LoadUserContents(package, zip, logWarn);
 
                 // 触发器 script 必须指向包内已有脚本；指向不存在脚本的触发器警告后丢弃（不拖垮整包）
                 if (package.Campaign != null)
@@ -308,6 +313,138 @@ namespace MortalModHost
                     throw new FormatException("texts.json 键 " + pair.Key + " 的值必须是字符串");
                 package.Texts[pair.Key] = text;
             }
+        }
+
+        /// <summary>
+        /// 读取 assets/user/&lt;type&gt;/&lt;id&gt;/content.json 与主文件。
+        /// 路径不合法、metadata 损坏或文件缺失只警告跳过，不拖垮整包。
+        /// </summary>
+        private static void LoadUserContents(ModPackage package, ZipArchive zip, Action<string> logWarn)
+        {
+            var entries = new Dictionary<string, ZipArchiveEntry>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in zip.Entries)
+            {
+                string path = NormalizeAssetPath(entry.FullName);
+                if (!path.StartsWith(ContentRef.PackageUserRoot + "/", StringComparison.Ordinal))
+                    continue;
+                if (path.EndsWith("/"))
+                    continue;
+                if (!ContentRef.IsSafePackageRelative(path))
+                {
+                    if (logWarn != null)
+                        logWarn("mod " + package.Id + " 拒绝非法用户内容路径：" + path);
+                    continue;
+                }
+                entries[path] = entry;
+            }
+
+            foreach (var pair in entries)
+            {
+                if (!pair.Key.EndsWith("/content.json", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                try
+                {
+                    UserContent content = ParseUserContent(package, pair.Key, ReadEntryText(pair.Value), entries, logWarn);
+                    if (content != null)
+                        package.UserContents[content.Id] = content;
+                }
+                catch (Exception ex)
+                {
+                    if (logWarn != null)
+                        logWarn("mod " + package.Id + " 的用户内容 " + pair.Key + " 解析失败，已忽略：" + ex.Message);
+                }
+            }
+        }
+
+        private static UserContent ParseUserContent(
+            ModPackage package,
+            string metaPath,
+            string json,
+            Dictionary<string, ZipArchiveEntry> entries,
+            Action<string> logWarn)
+        {
+            var root = MiniJson.Parse(json) as Dictionary<string, object>;
+            if (root == null)
+                throw new FormatException("content.json 顶层必须是对象");
+
+            object schemaObj;
+            if (!root.TryGetValue("schema", out schemaObj) || !(schemaObj is double) || (double)schemaObj != 1.0)
+                throw new FormatException("content.json schema 必须是 1");
+
+            string id = GetString(root, "id", required: true);
+            string idError;
+            if (!ContentRef.IsValidContentId(id, out idError))
+                throw new FormatException(idError);
+
+            string expectedDir = metaPath.Substring(0, metaPath.Length - "/content.json".Length);
+            string expectedPrefix = ContentRef.PackageUserRoot + "/";
+            if (!expectedDir.StartsWith(expectedPrefix, StringComparison.Ordinal))
+                throw new FormatException("content.json 不在 assets/user/ 下");
+            string rest = expectedDir.Substring(expectedPrefix.Length);
+            int slash = rest.IndexOf('/');
+            if (slash <= 0 || slash != rest.LastIndexOf('/'))
+                throw new FormatException("用户内容目录结构必须是 assets/user/<type>/<id>/");
+            string typeFromPath = rest.Substring(0, slash);
+            string idFromPath = rest.Substring(slash + 1);
+            if (!string.Equals(idFromPath, id, StringComparison.Ordinal))
+                throw new FormatException("content.json 的 id 与目录名不一致");
+
+            string type = GetString(root, "type", required: true);
+            if (type != typeFromPath)
+                throw new FormatException("content.json 的 type 与目录类型不一致");
+            if (type != "audio")
+            {
+                if (logWarn != null)
+                    logWarn("mod " + package.Id + " 的用户内容 " + id + " 类型 " + type + " 本版本不加载");
+                return null;
+            }
+
+            string name = GetString(root, "name", required: true);
+            string audioKind = GetString(root, "audio_kind", required: true);
+            if (audioKind != "music" && audioKind != "sound" && audioKind != "env")
+                throw new FormatException("audio_kind 必须是 music / sound / env");
+
+            object filesObj;
+            if (!root.TryGetValue("files", out filesObj))
+                throw new FormatException("content.json 缺少 files");
+            var files = filesObj as Dictionary<string, object>;
+            if (files == null)
+                throw new FormatException("content.json files 必须是对象");
+            string mainFile = GetString(files, "main", required: true);
+            if (mainFile.IndexOf('/') >= 0 || mainFile.IndexOf('\\') >= 0 || mainFile.IndexOf("..", StringComparison.Ordinal) >= 0)
+                throw new FormatException("files.main 必须是同目录文件名");
+            string ext = Path.GetExtension(mainFile);
+            if (!ext.Equals(".ogg", StringComparison.OrdinalIgnoreCase)
+                && !ext.Equals(".wav", StringComparison.OrdinalIgnoreCase))
+                throw new FormatException("用户音频只支持 .ogg / .wav");
+
+            string audioPath = expectedDir + "/" + mainFile;
+            ZipArchiveEntry audioEntry;
+            if (!entries.TryGetValue(audioPath, out audioEntry))
+                throw new FormatException("缺少音频文件 " + audioPath);
+            if (audioEntry.Length > MaxAudioBytes)
+                throw new FormatException("音频超过 20MB：" + audioPath);
+
+            byte[] bytes;
+            using (var input = audioEntry.Open())
+            using (var ms = new MemoryStream())
+            {
+                input.CopyTo(ms);
+                bytes = ms.ToArray();
+            }
+            if (bytes.Length == 0)
+                throw new FormatException("音频文件为空：" + audioPath);
+
+            return new UserContent
+            {
+                Id = id,
+                Type = type,
+                Name = name,
+                AudioKind = audioKind,
+                MainFile = mainFile,
+                PackagePath = audioPath,
+                Bytes = bytes
+            };
         }
 
         private static string ReadEntryText(ZipArchiveEntry entry)

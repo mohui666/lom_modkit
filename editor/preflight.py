@@ -11,6 +11,7 @@ from dataclasses import dataclass
 import re
 
 from asset_store import MAX_IMAGE_BYTES, resolve_image_asset
+import content_registry
 from lua_preview import get_lomc
 import models
 import stage_guard
@@ -264,6 +265,26 @@ def run_preflight(
                             f"图片 {image!r} 超过 8MB，请压缩后重新选择。",
                         )
                     )
+            if node.get("type") in ("music", "sound"):
+                name = node.get("name")
+                if isinstance(name, str) and name.startswith("user:"):
+                    expected = (
+                        "env"
+                        if node.get("type") == "sound" and node.get("kind") == "env"
+                        else ("sound" if node.get("type") == "sound" else "music")
+                    )
+                    try:
+                        content_registry.resolve(name, expected_kind=expected)
+                    except content_registry.ContentRegistryError as exc:
+                        issues.append(
+                            PreflightIssue(
+                                "error",
+                                "missing_user_content",
+                                sid,
+                                node_id,
+                                str(exc),
+                            )
+                        )
             if node.get("type") == "end":
                 target = node.get("next_script")
                 if isinstance(target, str) and target and target not in story_ids:

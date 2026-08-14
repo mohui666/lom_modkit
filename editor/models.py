@@ -96,6 +96,8 @@ NODE_HELP: dict[str, str] = {
     "death": "显示官方样式的死亡画面。正文必填，专用编号使用 900000 以上。",
     "intro": "官方人物会直接使用游戏内介绍和头像；自定义人物可填写称号、姓名与正文。",
     "raw": "高级功能：代码会原样进入 Lua。普通剧情不需要使用。",
+    "music": "播放官方曲目或用户内容库里导入的自定义音乐。自定义项会保存为 user: 编号。",
+    "sound": "播放官方音效名，或用户内容库里导入的自定义音效/环境音。",
 }
 
 # 契约 §3.1 分组（新增节点菜单按此分组显示）
@@ -225,7 +227,7 @@ ENUM_SETS: dict[str, list[tuple[str, str]]] = {
     ],
 }
 # 切换后需要重建表单的枚举（其它字段或可见字段随它变化）
-REBUILD_ENUMS = {"item_kind", "goto_scene", "mode", "intro_source"}
+REBUILD_ENUMS = {"item_kind", "goto_scene", "mode", "intro_source", "sound_kind"}
 
 # say mode 中文标注（清单本身来自 editor_data.modes）
 MODE_CN = {
@@ -273,7 +275,7 @@ NODE_SCHEMAS: dict[str, dict] = {
     "sound": {
         "label": "播放音效",
         "fields": [
-            ("name", "音效名", "line", False),
+            ("name", "音效", "sound_name", False),
             ("kind", "声道", "enum:sound_kind", True),
             ("op", "操作", "enum:sound_op", True),
             ("seconds", "淡出秒数", "float", True),

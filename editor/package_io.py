@@ -14,6 +14,7 @@ import zipfile
 from pathlib import Path
 
 from asset_store import AssetStoreError, resolve_image_asset, store_image_bytes
+import content_registry
 from lua_preview import compile_story, get_lomc
 
 
@@ -87,7 +88,31 @@ def import_lommod(path: str | Path) -> tuple[dict, dict[str, dict]]:
                     image = str(node.get("image") or "").replace("\\", "/")
                     if image in asset_map:
                         node["image"] = asset_map[image]
+        _import_user_audio_from_zip(zf)
     return manifest, stories
+
+
+def _import_user_audio_from_zip(zf: zipfile.ZipFile) -> None:
+    """把包内 assets/user/audio/ 登记进本地仓库，便于再编辑。同 ID 已存在则跳过。"""
+    import tempfile
+
+    names = [
+        name.replace("\\", "/")
+        for name in zf.namelist()
+        if name.replace("\\", "/").startswith("assets/user/") and not name.endswith("/")
+    ]
+    if not names:
+        return
+    with tempfile.TemporaryDirectory(prefix="lom_user_import_") as tmp:
+        tmp_path = Path(tmp)
+        for name in names:
+            target = tmp_path / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(zf.read(name))
+        try:
+            content_registry.import_package_audio(tmp_path)
+        except Exception as exc:
+            raise PackError("无法导入包内用户音频：%s" % exc) from exc
 
 
 def export_lommod(
@@ -110,6 +135,23 @@ def export_lommod(
                 f"找不到图片 {rel}。请在对应步骤中点击“选择图片…”重新选择。"
             )
         asset_sources[rel] = source
+    user_audio_ids: list[str] = []
+    seen_audio = set()
+    lomc_mod, lomc_err = get_lomc()
+    if lomc_mod is None:
+        raise PackError("编译器不可用，无法收集用户音频：%s" % lomc_err)
+    from lomc.content import collect_stories_content_refs
+
+    for item in collect_stories_content_refs(stories):
+        cid = item["ref"].content_id
+        if cid in seen_audio:
+            continue
+        seen_audio.add(cid)
+        try:
+            content_registry.resolve(cid, expected_kind=item["expected_kind"])
+        except content_registry.ContentRegistryError as exc:
+            raise PackError(str(exc)) from exc
+        user_audio_ids.append(cid)
 
     lomc, _err = get_lomc()
     if lomc is not None and hasattr(lomc, "pack_mod"):
@@ -132,6 +174,11 @@ def export_lommod(
                 target = tmp_path / Path(rel)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(source, target)
+            for content_id in user_audio_ids:
+                try:
+                    content_registry.copy_into_mod(tmp_path, content_id)
+                except content_registry.ContentRegistryError as exc:
+                    raise PackError(str(exc)) from exc
             try:
                 lomc.pack_mod(str(tmp_path), output=str(path))
             except Exception as exc:
@@ -165,4 +212,9 @@ def export_lommod(
             zf.writestr(f"lua/{sid}.lua", lua)
         for rel, source in sorted(asset_sources.items()):
             zf.write(source, rel)
+        for content_id in user_audio_ids:
+            rec, main_path = content_registry.resolve(content_id)
+            rel_dir = "assets/user/audio/" + content_id
+            zf.write(rec.folder / "content.json", rel_dir + "/content.json")
+            zf.write(main_path, rel_dir + "/" + rec.main_file)
     return [f"{sid}.json → lua/{sid}.lua 编译成功" for sid in stories]

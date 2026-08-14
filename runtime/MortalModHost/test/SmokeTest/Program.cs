@@ -103,6 +103,7 @@ namespace MortalModHost
 
                 TestCampaign();
                 TestPreviewRequest(modsDir);
+                TestUserContent();
 
                 Console.WriteLine("--- 扫描信息 ---");
                 infos.ForEach(Console.WriteLine);
@@ -271,6 +272,77 @@ namespace MortalModHost
                     using (var writer = new StreamWriter(entry.Open(), new UTF8Encoding(false)))
                         writer.Write(content);
                 }
+            }
+        }
+
+        /// <summary>用户内容协议与包内解析：合法加载、非法路径拒绝、Mod 间隔离。</summary>
+        private static void TestUserContent()
+        {
+            string error;
+            ContentRef parsed;
+            Assert(ContentRef.IsUserRef("user:mohui.boss_theme"), "user: 前缀应识别");
+            Assert(!ContentRef.IsUserRef("普通_001"), "官方 ID 不应识别为 user:");
+            Assert(ContentRef.TryParse("user:mohui.boss_theme", out parsed, out error)
+                && parsed.ContentId == "mohui.boss_theme"
+                && parsed.Namespace == "mohui"
+                && parsed.LocalId == "boss_theme",
+                "合法引用解析失败：" + error);
+            Assert(!ContentRef.TryParse("user:../evil", out parsed, out error) && error != null,
+                "路径穿越 ID 应被拒绝");
+            Assert(!ContentRef.TryParse("user:MOHUI.Boss", out parsed, out error),
+                "大写 ID 应被拒绝");
+            Assert(!ContentRef.TryParse("user:mohui/boss", out parsed, out error),
+                "含斜杠 ID 应被拒绝");
+            Assert(!ContentRef.IsSafePackageRelative("assets/user/audio/../evil/content.json"),
+                "包内穿越路径应拒绝");
+            Assert(!ContentRef.IsSafePackageRelative("assets/bgm.ogg"),
+                "非 assets/user 路径应拒绝");
+            Assert(ContentRef.IsSafePackageRelative("assets/user/audio/mohui.boss_theme/boss_theme.ogg"),
+                "合法包内音频路径应接受");
+
+            string modsDir = Path.Combine(Path.GetTempPath(), "lommod_usercontent_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(modsDir);
+            try
+            {
+                string contentJson =
+                    "{\"schema\":1,\"id\":\"mohui.boss_theme\",\"type\":\"audio\",\"name\":\"决战曲\",\"audio_kind\":\"music\",\"files\":{\"main\":\"boss_theme.ogg\"}}";
+                string contentJsonB =
+                    "{\"schema\":1,\"id\":\"mohui.boss_theme\",\"type\":\"audio\",\"name\":\"另一首\",\"audio_kind\":\"music\",\"files\":{\"main\":\"boss_theme.ogg\"}}";
+                WriteZip(Path.Combine(modsDir, "mod_a.lommod"),
+                    ("manifest.json", "{\"format\":1,\"id\":\"mod_a\",\"name\":\"A\",\"version\":\"1\",\"author\":\"t\",\"description\":\"t\",\"entry\":\"main\"}"),
+                    ("lua/main.lua", "say(\"a\")"),
+                    ("assets/user/audio/mohui.boss_theme/content.json", contentJson));
+                WriteZip(Path.Combine(modsDir, "mod_b.lommod"),
+                    ("manifest.json", "{\"format\":1,\"id\":\"mod_b\",\"name\":\"B\",\"version\":\"1\",\"author\":\"t\",\"description\":\"t\",\"entry\":\"main\"}"),
+                    ("lua/main.lua", "say(\"b\")"),
+                    ("assets/user/audio/mohui.boss_theme/content.json", contentJsonB));
+                AppendBinaryEntries(Path.Combine(modsDir, "mod_a.lommod"),
+                    ("assets/user/audio/mohui.boss_theme/boss_theme.ogg", new byte[] { 1, 2, 3, 4 }));
+                AppendBinaryEntries(Path.Combine(modsDir, "mod_b.lommod"),
+                    ("assets/user/audio/mohui.boss_theme/boss_theme.ogg", new byte[] { 9, 9, 9, 9 }),
+                    ("assets/user/audio/../evil/content.json", Encoding.UTF8.GetBytes("{\"schema\":1}")),
+                    ("assets/user/audio/Bad.Id/content.json", Encoding.UTF8.GetBytes("{\"schema\":1,\"id\":\"Bad.Id\"}")));
+
+                var warnings = new List<string>();
+                var mods = ModLoader.ScanMods(modsDir, _ => { }, warnings.Add);
+                Assert(mods.Count == 2, "应加载 2 个含用户音频的包，实际 " + mods.Count + "：" + string.Join(" | ", warnings));
+                var a = mods[0].Id == "mod_a" ? mods[0] : mods[1];
+                var b = mods[0].Id == "mod_b" ? mods[0] : mods[1];
+                UserContent ca;
+                UserContent cb;
+                Assert(a.TryGetUserContent("mohui.boss_theme", out ca) && ca.Bytes != null && ca.Bytes[0] == 1,
+                    "mod_a 应解析到自己的音频字节");
+                Assert(b.TryGetUserContent("mohui.boss_theme", out cb) && cb.Bytes != null && cb.Bytes[0] == 9,
+                    "mod_b 应解析到自己的音频字节（不得串用 mod_a）");
+                Assert(ca.Name == "决战曲" && ca.AudioKind == "music", "mod_a metadata 解析错误");
+                Assert(!a.Assets.ContainsKey("assets/user/audio/mohui.boss_theme/boss_theme.ogg"),
+                    "用户音频不应进入图片 Assets 表");
+                Assert(warnings.Exists(w => w.Contains("非法用户内容路径") || w.Contains("Bad.Id") || w.Contains("解析失败")),
+                    "非法路径/非法 ID 应产生警告，实际：" + string.Join(" | ", warnings));
+            }
+            finally
+            {
+                Directory.Delete(modsDir, recursive: true);
             }
         }
 

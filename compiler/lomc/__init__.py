@@ -5,6 +5,13 @@
 """
 
 from .compiler import compile_story, compile_story_file, load_json_file
+from .content import (
+    collect_stories_content_refs,
+    collect_story_content_refs,
+    is_user_ref,
+    parse_content_ref,
+    validate_story_content_refs,
+)
 from .errors import LomcError
 from .pack import pack_mod
 from .validate import validate_manifest, validate_story
@@ -19,5 +26,10 @@ __all__ = [
     "pack_mod",
     "validate_manifest",
     "validate_story",
+    "is_user_ref",
+    "parse_content_ref",
+    "collect_story_content_refs",
+    "collect_stories_content_refs",
+    "validate_story_content_refs",
     "__version__",
 ]

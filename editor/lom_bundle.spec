@@ -31,6 +31,7 @@ a_gui = Analysis(
         "lomc.errors",
         "lomc.pack",
         "lomc.validate",
+        "lomc.content",
     ],
 )
 
@@ -45,6 +46,7 @@ b_cli = Analysis(
         "lomc.errors",
         "lomc.pack",
         "lomc.validate",
+        "lomc.content",
     ],
 )
 

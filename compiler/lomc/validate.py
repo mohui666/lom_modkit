@@ -11,6 +11,7 @@
 
 import re
 
+from .content import is_user_ref, parse_content_ref
 from .dice_data import (
     check_portrait,
     get_dice_meta,
@@ -360,6 +361,12 @@ def _check_options(node, label, min_n, max_n, fields, type_map, optional_fields=
                 )
 
 
+def _check_audio_name(name, label, ntype):
+    """官方音频名保持原样；user: 引用必须是合法内容 ID（存在性由 pack/preflight 查）。"""
+    if is_user_ref(name):
+        parse_content_ref(name, label='%s(%s) 的 name' % (label, ntype))
+
+
 def _check_asset_image_path(image, label, ntype):
     if not isinstance(image, str) or not image.strip():
         raise LomcError(
@@ -519,7 +526,10 @@ def _check_node_extra(node, ntype, label):
                 '%s(dice): 检查点 "%s" 有 %d 个结果带，必填字段 "goto_大成功"（最优带）'
                 % (label, check, n_bands)
             )
+    elif ntype == "music":
+        _check_audio_name(node.get("name"), label, ntype)
     elif ntype == "sound":
+        _check_audio_name(node.get("name"), label, ntype)
         if node.get("op", "play") == "fadeout" and node.get("kind", "sound") != "env":
             raise LomcError(
                 '%s(sound): op="fadeout" 仅支持 kind="env"（契约 §3.1）' % label

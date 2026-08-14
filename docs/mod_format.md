@@ -11,12 +11,14 @@ manifest.json          # 必填，包元信息
 story/<id>.json        # 必填≥1，剧情源文件（编辑器可编辑的源格式）
 lua/<id>.lua           # 必填≥1，编译产物（运行时只读这里）；每个 story/<id>.json 对应一个
 texts.json             # 必填，已读文本表：{MOD_<modid>_<scriptid>_<nodeid>: 文本}（say/death 节点文本）
-assets/                # 可选，自定义资源（结局插图/人物介绍图 PNG/JPG）
+assets/                # 可选，自定义资源
+                       #   图片：结局插图 / 人物介绍图 PNG/JPG
+                       #   用户音频：assets/user/audio/<content_id>/
 ```
 
 - `<id>` 规则：`[a-zA-Z0-9_\-]+`，包内唯一，即"剧情脚本 id"。
 - 导出（打包）时必须重新编译：story/*.json → lua/*.lua，二者同名。
-- 运行时插件**只读 manifest.json、lua/ 目录与 assets/ 下的图片**；story/*.json 给编辑器回读/再编辑用。编译器只打入剧情明确引用的 PNG/JPG（单张 ≤8MB），不会把目录中的未使用文件意外分发。
+- 运行时插件**只读 manifest.json、lua/ 目录与 assets/**；story/*.json 给编辑器回读/再编辑用。编译器只打入剧情明确引用的 PNG/JPG（单张 ≤8MB）以及明确引用的 `user:` 音频，不会把目录中的未使用文件或整个本机内容库意外分发。导出后的 `.lommod` 自包含，玩家机器不需要编辑器仓库。
 - texts.json 由打包时自动生成：收集每个 story 的全部 **say** 节点文本，key 与 lua 里 `GetStoryText` 的 key 一一对应；运行时插件把它注册进 LeanLocalization（已读系统按 key 查文本，见 §4/§6）。**death 文本不进 texts.json**：由 codegen 发射 `mod_set_death_text(<标题>, <文本>)` 两参 lua_str 字面量（官方死亡画面中央两段式显示，见 §3.1/§6）。
 
 ## 2. manifest.json
@@ -91,8 +93,8 @@ assets/                # 可选，自定义资源（结局插图/人物介绍图
 
 | type | 字段 | 说明 |
 | --- | --- | --- |
-| `music` | `name`；可选 `op`("play"默认/"stop"/"fadeout")，fadeout 时 `seconds`(默认2) | `PlayMusic` / `StopMusic` / `FadeOutMusic(seconds)` 后 **`wait(seconds)`**（官方 FadeOut 只改 RTPC、不挂起；不 wait 则下一句 PlayMusic 会瞬间拉回音量） |
-| `sound` | `name`；可选 `kind`("sound"默认/"env")，`op`("play"默认/"fadeout"仅env，`seconds`默认1) | `PlaySound` / `PlayEnvSound` / `FadeOutEnvSound(seconds)` 后同样 **`wait(seconds)`** |
+| `music` | `name`；可选 `op`("play"默认/"stop"/"fadeout")，fadeout 时 `seconds`(默认2) | 官方名继续 `PlayMusic` / `StopMusic` / `FadeOutMusic(seconds)` 后 **`wait(seconds)`**。`name` 以 `user:` 开头时是用户内容引用（如 `user:mohui.boss_theme`），Lua 仍发射同一 API，由运行时从**当前包** `assets/user/` 解析并播放。禁止写本机绝对路径。 |
+| `sound` | `name`；可选 `kind`("sound"默认/"env")，`op`("play"默认/"fadeout"仅env，`seconds`默认1) | 官方名继续 `PlaySound` / `PlayEnvSound` / `FadeOutEnvSound(seconds)` 后同样 **`wait(seconds)`**。`user:` 引用规则与 music 相同，且 `audio_kind` 必须与节点匹配（music 节点不能引用 sound/env 内容）。 |
 | `scene` | `view` | 切场景：`runblock(flowcharts.view,"out")` 后 `ViewName=view; runblock(...,"view")`。`view="out"` 只淡出；`"black"/"white"` 为纯色。非纯色 view 先 `runwait(flowcharts.LoadView(view))` 预加载背景资产（官方 995/1111 个脚本实证；不预载则背景黑屏） |
 | `show` | `character`, `position`；可选 `portrait`(默认normal), `facing`(默认right), `fadeDuration`(0), `moveDuration`(0) | 加载并显示人物。**心情气泡**：story.mood 为 false 时末尾（Focus 后）追加 `mod_hide_mood()` |
 | `move` | `character`, `from`, `to`；可选 `duration`(默认1) | 移动并 `wait(duration)` |
@@ -353,6 +355,7 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 14. **编辑器单次试玩协议**：编辑器把入口章节的 `start` 临时改为当前选中节点，安装为固定包 `__lom_modkit_preview.lommod`（manifest id `lom_modkit_preview`），随后原子写入插件目录 `preview-request.json`。运行时每 0.35 秒检查一次：Free 场景直接演出，Title 场景用 `mod_lom_modkit_preview` 隔离槽开局，其它场景等待到安全场景；消费后删除请求与固定临时包。请求只接受 format=1 及 `[A-Za-z0-9_-]+` 的 mod/script/node id，正式 Mod 包不在自动删除范围内。
 15. **mod 新战役发放 2 点命运**：官方新游戏初始带命运点，mod 隔离存档初始为 0，导致骰子「逆天」流程（`DiceMenuDialog.CheckRevolution` 要求 命运>0 等）在 mod 战役中不可用；NewGameData postfix 在替换首脚本后给 mod 战役 `GameStatType.命運` 加 2 点。官方新游戏不受影响。
 16. **mod 剧情放开骰子范围修改**：官方「修改范围」按钮要求二周目且持有成就 30016；mod 剧情中（`CurrentStoryScript` 以 `MOD_` 开头）`get_NewGamePlus` prefix 返 true，且 `CheckRevolution` 原返 true 时直接激活 `_rangeButton`，绕开成就门槛（不在 mod 里解锁官方成就 30016，避免污染官方存档）。官方剧情完全不受影响。
+17. **用户音频**：`LuaManager.PlayMusic/PlaySound/PlayEnvSound` 在参数以 `user:` 开头时由插件接管，从**当前演出 Mod 包**的 `UserContents` 解析（`assets/user/audio/<id>/content.json` + 主文件），用 Unity `AudioSource` 播放。官方名字一律放行给原版 Wwise。运行时禁止读取 `%APPDATA%/lom_modkit/repository`。两个 Mod 即使 ID 相同也只解析自身包。支持格式仅 `.ogg` / `.wav`，单条 ≤20MB。自定义 fadeout 是 AudioSource 音量淡出（随后仍有编译器发射的 `wait`）；切到自定义音乐会先停官方 Wwise 音乐（官方 `StopMusic` 会同时清环境音）。
 
 ## 7. AI 工具接口（story_api）
 
@@ -388,3 +391,41 @@ transition 黑幕、choice 皮肤崩溃、背景黑屏、人物未登场就做�
   练武场卡死即此因）。另注意：say/show 引用的人物必须先 show 上台（未上台同样抛
   KeyNotFoundException），写入口的登场防线会自动补 show（见上文 add_node/update_node），
   编辑器体检对多路径汇合做图级兜底，showcase 构建脚本已带防回归自检。
+
+## 8. 用户内容（User Content，v1 仅音频）
+
+开发环境仓库在 `%APPDATA%/lom_modkit/repository/`，**不是**运行时依赖。剧情只保存稳定引用：
+
+```text
+user:<namespace>.<content_id>     例如 user:mohui.boss_theme
+```
+
+官方 ID（`普通_001`、`brother4`）保持原样，不改成 `official:`。
+
+包内结构（仅打包实际引用）：
+
+```text
+assets/user/audio/mohui.boss_theme/content.json
+assets/user/audio/mohui.boss_theme/boss_theme.ogg
+```
+
+`content.json` schema 1：
+
+```json
+{
+  "schema": 1,
+  "id": "mohui.boss_theme",
+  "type": "audio",
+  "name": "决战曲",
+  "audio_kind": "music",
+  "files": { "main": "boss_theme.ogg" }
+}
+```
+
+- `type` 预留 `character`（本版本不实现角色运行时）。
+- `audio_kind`：`music` / `sound` / `env`。
+- 内容 ID：`[a-z][a-z0-9_]{0,31}.[a-z0-9][a-z0-9_]{0,47}`，禁止 `..`、`/`、`\`、`:`。
+- 缺失、类型不匹配、metadata 损坏、文件不存在、扩展名不支持、超过 20MB：pack 直接失败，不得 silently skip。
+- Python 侧唯一解析入口：`compiler/lomc/content.py`。C# 侧契约实现：`ContentRef.cs` + `ModLoader`。
+
+使用说明见 `docs/user_content.md`。

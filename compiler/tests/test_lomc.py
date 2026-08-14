@@ -3207,6 +3207,156 @@ class TestNewNodeValidationErrors(unittest.TestCase):
         )
 
 
+# ---------------------------------------------------------------------------
+# 用户内容 user: 协议 / 校验 / 打包收集
+# ---------------------------------------------------------------------------
+
+
+def _write_user_audio(mod_dir, content_id, audio_kind="music", filename="track.wav", payload=b"RIFF"):
+    from lomc.content import package_content_dir, write_content_metadata
+
+    folder = os.path.join(mod_dir, package_content_dir("audio", content_id).replace("/", os.sep))
+    os.makedirs(folder, exist_ok=True)
+    with open(os.path.join(folder, filename), "wb") as f:
+        f.write(payload)
+    write_content_metadata(
+        os.path.join(folder, "content.json"),
+        {
+            "schema": 1,
+            "id": content_id,
+            "type": "audio",
+            "name": content_id,
+            "audio_kind": audio_kind,
+            "files": {"main": filename},
+        },
+    )
+    return folder
+
+
+class TestUserContent(unittest.TestCase):
+    def test_official_music_still_emits_playmusic(self):
+        lua = compile_story(
+            linear_story({"id": "n1", "type": "music", "name": "普通_001"})
+        )
+        self.assertIn('\tluamanager.PlayMusic("普通_001")', lua)
+        self.assertNotIn("user:", lua)
+
+    def test_user_music_emits_same_api_with_stable_id(self):
+        lua = compile_story(
+            linear_story(
+                {"id": "n1", "type": "music", "name": "user:mohui.boss_theme"}
+            )
+        )
+        self.assertIn('\tluamanager.PlayMusic("user:mohui.boss_theme")', lua)
+
+    def test_user_sound_emits_playsound(self):
+        lua = compile_story(
+            linear_story(
+                {"id": "n1", "type": "sound", "name": "user:mohui.door_knock"}
+            )
+        )
+        self.assertIn('\tluamanager.PlaySound("user:mohui.door_knock")', lua)
+
+    def test_invalid_user_id_rejected(self):
+        assert_compile_error(
+            self,
+            linear_story({"id": "n1", "type": "music", "name": "user:../evil"}),
+            "非法路径",
+        )
+        assert_compile_error(
+            self,
+            linear_story({"id": "n1", "type": "music", "name": "user:MOHUI.Boss"}),
+            "不合法",
+        )
+        assert_compile_error(
+            self,
+            linear_story({"id": "n1", "type": "sound", "name": "user:no-dot"}),
+            "不合法",
+        )
+
+    def test_parse_helpers(self):
+        from lomc.content import is_user_ref, parse_content_ref, validate_content_id
+        from lomc.errors import LomcError
+
+        self.assertTrue(is_user_ref("user:mohui.boss_theme"))
+        self.assertFalse(is_user_ref("普通_001"))
+        ref = parse_content_ref("user:mohui.boss_theme")
+        self.assertEqual(ref.content_id, "mohui.boss_theme")
+        self.assertIsNone(parse_content_ref("普通_001"))
+        with self.assertRaises(LomcError):
+            validate_content_id("mohui/../x")
+        with self.assertRaises(LomcError):
+            validate_content_id("a" * 80 + ".x")
+
+
+class TestPackUserAudio(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.mod_dir = os.path.join(self.tmp.name, "usermod")
+        os.makedirs(os.path.join(self.mod_dir, "story"))
+        with open(
+            os.path.join(self.mod_dir, "manifest.json"), "w", encoding="utf-8"
+        ) as f:
+            json.dump(MANIFEST, f, ensure_ascii=False, indent=2)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_pack_collects_referenced_user_audio_only(self):
+        _write_user_audio(self.mod_dir, "mohui.boss_theme", "music", "boss.ogg", b"OggSused")
+        _write_user_audio(self.mod_dir, "mohui.unused", "music", "unused.ogg", b"OggSunused")
+        story = make_story(
+            [
+                {"id": "n1", "type": "music", "name": "user:mohui.boss_theme"},
+                {"id": "n2", "type": "end"},
+            ]
+        )
+        with open(
+            os.path.join(self.mod_dir, "story", "main.json"), "w", encoding="utf-8"
+        ) as f:
+            json.dump(story, f, ensure_ascii=False, indent=2)
+        out = pack_mod(self.mod_dir)
+        with zipfile.ZipFile(out) as zf:
+            names = zf.namelist()
+            self.assertIn("assets/user/audio/mohui.boss_theme/content.json", names)
+            self.assertIn("assets/user/audio/mohui.boss_theme/boss.ogg", names)
+            self.assertNotIn("assets/user/audio/mohui.unused/unused.ogg", names)
+            self.assertNotIn("assets/user/audio/mohui.unused/content.json", names)
+            self.assertEqual(zf.read("assets/user/audio/mohui.boss_theme/boss.ogg"), b"OggSused")
+
+    def test_pack_missing_user_audio_fails(self):
+        story = make_story(
+            [
+                {"id": "n1", "type": "music", "name": "user:mohui.missing"},
+                {"id": "n2", "type": "end"},
+            ]
+        )
+        with open(
+            os.path.join(self.mod_dir, "story", "main.json"), "w", encoding="utf-8"
+        ) as f:
+            json.dump(story, f, ensure_ascii=False, indent=2)
+        with self.assertRaises(LomcError) as cm:
+            pack_mod(self.mod_dir)
+        self.assertIn("找不到用户内容", str(cm.exception))
+
+    def test_pack_wrong_audio_kind_fails(self):
+        _write_user_audio(self.mod_dir, "mohui.door", "sound", "door.wav", b"RIFF")
+        story = make_story(
+            [
+                {"id": "n1", "type": "music", "name": "user:mohui.door"},
+                {"id": "n2", "type": "end"},
+            ]
+        )
+        with open(
+            os.path.join(self.mod_dir, "story", "main.json"), "w", encoding="utf-8"
+        ) as f:
+            json.dump(story, f, ensure_ascii=False, indent=2)
+        with self.assertRaises(LomcError) as cm:
+            pack_mod(self.mod_dir)
+        self.assertIn("音效", str(cm.exception))
+        self.assertIn("音乐", str(cm.exception))
+
+
 class TestWarnings(unittest.TestCase):
     """非致命警告：transition 黑幕隐患（官方 TransitionIn/Out 必须成对）。"""
 

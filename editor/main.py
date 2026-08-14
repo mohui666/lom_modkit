@@ -52,6 +52,17 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+import models
+
+EDITOR_DIR = models.editor_dir()
+PROJECT_ROOT = models.project_root()
+if str(EDITOR_DIR) not in sys.path:
+    sys.path.insert(0, str(EDITOR_DIR))
+# lomc 编译器：sys.path 引入 <项目根>/compiler（不 pip 安装；冻结态由 PYZ 解析）
+# 必须在 import package_io / node_form 之前，因为它们会加载 content_registry → lomc.content。
+if str(PROJECT_ROOT / "compiler") not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT / "compiler"))
+
 from glass_theme import apply_glass_theme, mark_primary
 from game_install import (
     PREVIEW_PACKAGE_NAME,
@@ -61,7 +72,6 @@ from game_install import (
 )
 from flow_graph import FlowGraphPanel
 from help_content import HELP_HTML
-import models
 from mod_manager_dialog import ModManagerDialog, apply_steam_launch_fix_ui
 import package_io
 from preflight import PreflightIssue, apply_safe_fixes, run_preflight
@@ -76,14 +86,6 @@ from preview import (
     load_preview_map,
     log_crash,
 )
-
-EDITOR_DIR = models.editor_dir()
-PROJECT_ROOT = models.project_root()
-if str(EDITOR_DIR) not in sys.path:
-    sys.path.insert(0, str(EDITOR_DIR))
-# lomc 编译器：sys.path 引入 <项目根>/compiler（不 pip 安装；冻结态由 PYZ 解析）
-if str(PROJECT_ROOT / "compiler") not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT / "compiler"))
 # 文件对话框默认目录：冻结态用用户 CWD（解包目录/ exe 目录不可当作工作目录）
 WORK_DIR = Path.cwd() if models.FROZEN else PROJECT_ROOT
 
@@ -773,6 +775,7 @@ class MainWindow(QMainWindow):
         menu.addAction("导入 Mod…", self.import_lommod)
         menu.addAction("导出 Mod…", self.export_lommod)
         menu.addAction("安装管理…", self._show_mod_manager)
+        menu.addAction("用户内容库…", self._show_content_library)
         menu.addSeparator()
         menu.addAction("退出", self.close)
         edit = self.menuBar().addMenu("编辑(&E)")
@@ -822,6 +825,12 @@ class MainWindow(QMainWindow):
 
     def _show_mod_manager(self) -> None:
         ModManagerDialog(self.game_manager, self).exec()
+
+    def _show_content_library(self) -> None:
+        from content_library_dialog import ContentLibraryDialog
+
+        ContentLibraryDialog(self._stories, self).exec()
+        self._load_form()
 
     def _show_flow_graph(self) -> None:
         self._refresh_flow_graph()

@@ -45,8 +45,25 @@ namespace MortalModHost
         /// </summary>
         public readonly Dictionary<string, byte[]> Assets = new Dictionary<string, byte[]>();
 
+        /// <summary>
+        /// 包内用户内容（契约：assets/user/&lt;type&gt;/&lt;id&gt;/）。
+        /// 键 = 裸内容 ID（如 mohui.boss_theme），只含本包资源。
+        /// </summary>
+        public readonly Dictionary<string, UserContent> UserContents = new Dictionary<string, UserContent>();
+
         /// <summary>.lommod 文件完整路径（仅用于日志定位，内容已全部读入内存）。</summary>
         public string PackagePath;
+
+        /// <summary>只解析本包内的用户内容；找不到返回 false。绝不回读编辑器仓库。</summary>
+        public bool TryGetUserContent(string contentId, out UserContent content)
+        {
+            if (string.IsNullOrEmpty(contentId))
+            {
+                content = null;
+                return false;
+            }
+            return UserContents.TryGetValue(contentId, out content);
+        }
 
         /// <summary>
         /// 按契约 §6.1 生成注册到游戏 LuaManager 的脚本名：MOD_&lt;modid&gt;_&lt;scriptid&gt;。

@@ -126,6 +126,8 @@ namespace MortalModHost
             DiceRevolutionPatch.Log = Logger;
             VanillaStorySwitch.Log = Logger;
             CharacterIntroSupport.Log = Logger;
+            CustomAudioPlayer.Log = Logger;
+            CustomAudioPlayer.Init(this);
 
             bool ok = true;
             ok &= CheckTarget("LuaManager.ExecuteLuaScript",
@@ -164,6 +166,18 @@ namespace MortalModHost
                 AccessTools.Method(typeof(DiceMenuDialog), "CheckRevolution"));
             ok &= CheckTarget("CharacterIntroPanel.Show",
                 AccessTools.Method(typeof(CharacterIntroPanel), "Show"));
+            ok &= CheckTarget("LuaManager.PlayMusic",
+                AccessTools.Method(typeof(LuaManager), "PlayMusic", new Type[] { typeof(string) }));
+            ok &= CheckTarget("LuaManager.PlaySound",
+                AccessTools.Method(typeof(LuaManager), "PlaySound", new Type[] { typeof(string) }));
+            ok &= CheckTarget("LuaManager.PlayEnvSound",
+                AccessTools.Method(typeof(LuaManager), "PlayEnvSound", new Type[] { typeof(string) }));
+            ok &= CheckTarget("LuaManager.StopMusic",
+                AccessTools.Method(typeof(LuaManager), "StopMusic", Type.EmptyTypes));
+            ok &= CheckTarget("LuaManager.FadeOutMusic",
+                AccessTools.Method(typeof(LuaManager), "FadeOutMusic", new Type[] { typeof(float) }));
+            ok &= CheckTarget("LuaManager.FadeOutEnvSound",
+                AccessTools.Method(typeof(LuaManager), "FadeOutEnvSound", new Type[] { typeof(float) }));
             if (!ok)
             {
                 Logger.LogError("部分 Harmony 目标缺失（游戏版本可能已变更），战役/触发器功能可能不可用");
@@ -171,7 +185,7 @@ namespace MortalModHost
             }
             new Harmony(GUID).PatchAll(); // patch 本程序集全部 [HarmonyPatch] 类
             PatchSteamRestart();
-            Logger.LogInfo("Harmony patch 已挂载：ExecuteLuaScript / NewGameData / Free 自动与地点剧情抑制 / GetExecuteScript / UpdateTranslations / ShowMood / CharacterIntroPanel / GameOver/EndGamePanel/EndGame / NewGamePlus / DiceRevolution");
+            Logger.LogInfo("Harmony patch 已挂载：ExecuteLuaScript / NewGameData / Free 自动与地点剧情抑制 / GetExecuteScript / UpdateTranslations / ShowMood / CharacterIntroPanel / GameOver/EndGamePanel/EndGame / NewGamePlus / DiceRevolution / CustomAudio");
         }
 
         /// <summary>
@@ -234,6 +248,7 @@ namespace MortalModHost
         /// <summary>重新扫描包并原子替换注册表；编辑器热更新试玩包时使用。</summary>
         private void ReloadMods()
         {
+            CustomAudioPlayer.ReleaseAll();
             string modsDir = Path.Combine(Paths.PluginPath, "MortalModHost", "mods");
             LoadedMods = ModLoader.ScanMods(
                 modsDir,

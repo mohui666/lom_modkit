@@ -90,6 +90,19 @@
       <HintPath>$(GameDir)\Mortal_Data\Managed\UnityEngine.ImageConversionModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <!-- 自定义用户音频：AudioSource / AudioClip / UnityWebRequestMultimedia -->
+    <Reference Include="UnityEngine.AudioModule">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\UnityEngine.AudioModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestModule">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\UnityEngine.UnityWebRequestModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestAudioModule">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\UnityEngine.UnityWebRequestAudioModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <!-- LeanLocalization（契约 §A：texts.json 台词注册进官方本地化表，GetStoryText 已读变黄能力） -->
     <Reference Include="LeanLocalization">
       <HintPath>$(GameDir)\Mortal_Data\Managed\LeanLocalization.dll</HintPath>

@@ -36,6 +36,7 @@ from PySide6.QtWidgets import (
 )
 
 from asset_store import AssetStoreError, import_image_file
+import content_registry
 import models
 
 
@@ -220,12 +221,21 @@ class NodeForm(QScrollArea):
             # 记录起来，人物变化时刷新表情清单
             w.setProperty("portrait_for", key)
             return w
-        if kind in ("position", "view", "music", "stat"):
+        if kind == "music":
+            return self._make_audio_combo(node, key, value, audio_kind="music")
+        if kind == "sound_name":
+            sound_kind = node.get("kind", "sound")
+            return self._make_audio_combo(
+                node,
+                key,
+                value,
+                audio_kind="env" if sound_kind == "env" else "sound",
+            )
+        if kind in ("position", "view", "stat"):
             # schema 2 清单：{id,name} 对象数组，显示 "名字（id）"
             data_key = {
                 "position": "positions",
                 "view": "views",
-                "music": "music",
                 "stat": "stats",
             }[kind]
             if kind == "position":
@@ -490,6 +500,43 @@ class NodeForm(QScrollArea):
         row.addWidget(edit, 1)
         row.addWidget(choose)
         return box
+
+    def _make_audio_combo(
+        self, node: dict, key: str, current, audio_kind: str
+    ) -> QComboBox:
+        """官方内容与用户内容分组显示；选中用户项时只写入 user: ID。"""
+        user_items: list[tuple[str, str]] = []
+        try:
+            for rec in content_registry.list_contents(
+                content_type="audio", audio_kind=audio_kind
+            ):
+                user_items.append((rec.ref, "用户 · %s（%s）" % (rec.name, rec.ref)))
+        except Exception:
+            user_items = []
+        official_items: list[tuple[str, str]] = []
+        if audio_kind == "music":
+            official_items = [
+                (item_id, "官方 · %s" % display)
+                for item_id, display in models.list_items(self._editor_data, "music")
+            ]
+        items: list[tuple[str, str]] = []
+        if user_items:
+            items.extend(user_items)
+        items.extend(official_items)
+        w = self._make_combo(items, str(current or ""), editable=True)
+        if user_items and official_items:
+            w.insertSeparator(len(user_items))
+        if audio_kind != "music":
+            w.setEditable(True)
+            if not current:
+                w.setCurrentText("")
+            w.lineEdit().setPlaceholderText(
+                "选择用户内容，或手填官方音效名（例如 鈴鐺_001）"
+            )
+        w.currentTextChanged.connect(
+            lambda t, c=w: self._apply(node, key, self._combo_value(c, t))
+        )
+        return w
 
     def _list_combo(self, node: dict, key: str, data_key: str, current) -> QComboBox:
         """schema 2 清单下拉框（{id,name} 显示 "名字（id）"，可编辑容错）。"""
