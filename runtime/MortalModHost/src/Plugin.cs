@@ -77,6 +77,9 @@ namespace MortalModHost
             ModCampaignState.Clear();
             GameplaySession.Reset();
             ModQuestSession.Reset();
+            PersistentModState.Log = Logger;
+            PersistentModState.Initialize(Path.Combine(
+                Paths.ConfigPath, "MortalModHost", "campaign_state"));
 
             // mods 目录：BepInEx/plugins/MortalModHost/mods/（契约 §6.1）
             string modsDir = Path.Combine(Paths.PluginPath, "MortalModHost", "mods");
@@ -131,6 +134,7 @@ namespace MortalModHost
             ModCampaignState.Clear();
             GameplaySession.Reset();
             ModQuestSession.Reset();
+            PersistentModState.ResetMemory();
             ModOverlay.Clear();
             ModDisclosure.Disable();
             CustomAudioPlayer.ReleaseAll();
@@ -207,6 +211,10 @@ namespace MortalModHost
                 AccessTools.Method(typeof(LuaManager), "ExecuteLuaScript"));
             ok &= CheckTarget("SaveSystem.NewGameData",
                 AccessTools.Method(typeof(SaveSystem), "NewGameData"));
+            ok &= CheckTarget("SaveSystem.SetSlot",
+                AccessTools.Method(typeof(SaveSystem), "SetSlot", new Type[] { typeof(string) }));
+            ok &= CheckTarget("SaveSystem.SaveGameData",
+                AccessTools.Method(typeof(SaveSystem), "SaveGameData"));
             ok &= CheckTarget("FreePositionData.GetExecuteScript",
                 AccessTools.Method(typeof(FreePositionData), "GetExecuteScript"));
             ok &= CheckTarget("PositionController.OnPositionClick",
@@ -275,7 +283,7 @@ namespace MortalModHost
                 PatchSteamRestart();
                 _harmonyPatched = true;
                 _runtimeReady = true;
-                Logger.LogInfo("Harmony patch 已挂载：ExecuteLuaScript / NewGameData / Free 自动与地点剧情抑制 / GetExecuteScript / UpdateTranslations / ShowMood / CharacterIntroPanel / GameOver/EndGamePanel/EndGame / NewGamePlus / DiceRevolution / CustomAudio / SoundManager / LoadNewScene / Combat/Battle 结果回流");
+                Logger.LogInfo("Harmony patch 已挂载：ExecuteLuaScript / NewGameData / SetSlot / SaveGameData sidecar / Free 自动与地点剧情抑制 / GetExecuteScript / UpdateTranslations / ShowMood / CharacterIntroPanel / GameOver/EndGamePanel/EndGame / NewGamePlus / DiceRevolution / CustomAudio / SoundManager / LoadNewScene / Combat/Battle 结果回流");
             }
             catch (Exception ex)
             {
@@ -884,6 +892,18 @@ namespace MortalModHost
             }
             string slot = "mod_" + mod.Id;
             Logger.LogInfo("开始新战役：" + mod.Id + "（隔离存档槽 " + slot + "）");
+            saves.SetSlot(slot);
+            try
+            {
+                // SetSlot postfix 会丢弃上一槽的内存快照；新战役随后以空 sidecar 开局。
+                // NewGameData 内的原版 SaveGameData 会通过 postfix 原子写出这份空状态。
+                PersistentModState.BeginNewCampaign(mod);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError("无法初始化 MOD 隔离槽持久变量，已拒绝开始战役：" + ex);
+                return;
+            }
             NewGameDataPatch.PendingCampaign = mod;
             // 契约 §2：记录 mod 战役运行态——该战役期间 Free 自动任务与位置点击是否禁用原版事件
             // 由本 mod 的 disable_official_events 决定（官方开局时 NewGameDataPatch 清除）；
@@ -892,7 +912,6 @@ namespace MortalModHost
             ModQuestSession.Reset();
             if (mod.Campaign.DisableOfficialEvents)
                 Logger.LogInfo("该战役已声明 disable_official_events：返回 Free 的自动任务与位置点击不再触发原版故事脚本（仅 mod 触发器命中）。");
-            saves.SetSlot(slot);
             saves.NewGameData();
             scenes.LoadStory();
             _showMenu = false;

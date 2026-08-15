@@ -140,7 +140,7 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `zh_CN`、
 - `choice` / `branch` / `dice` 的分支必须用 `goto` 指到目标节点 id。
 - 多个前驱汇入同一节点（汇合点）合法。
 
-### 3.1 节点类型（全量 60 种）
+### 3.1 节点类型（全量 62 种）
 
 此表是当前全部合法节点。`combat` / `battle` 是基于原版模板的高层编排；战斗能力只调用已反编译核验的原版接口，`mod_quest` 则是明确不接触原版 Mission ID 的宿主状态机。
 
@@ -202,6 +202,8 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `zh_CN`、
 | `activity` | `kind`=training/study/forge/alchemy/custom，`stat`,`op`,`value`,`success`,`failure`；可选 `message`,`time`=none/round/month、成功/失败奖励表 | 编译期组合现有系统提示、`GetStatData` 检定、`NextRound/NextMonth` 与 `reward` 原子接口，不引入新活动引擎 |
 | `mod_quest` | `quest`(安全 id), `op`=start/update/complete/fail；可选 `message` | 操作 Host 自有任务状态机；按包 id + 完整 SHA-256 隔离，不调用 `MissionManager`，不占用官方 Mission ID。当前是战役会话态，跨 Story/Free、但不跨重启/新战役 |
 | `quest_check` | `quest`,`state`=inactive/active/completed/failed,`success`,`failure` | 读取同包任务状态并二分；未知任务为 inactive，非法状态迁移在运行时拒绝 |
+| `persistent_var` | `key`(安全 id), `op`=set/add, `value`(Int32) | 设置或增减当前 MOD 隔离槽的 Host sidecar 整数变量。只允许 `SaveSystem.CurrentSlot == "mod_<id>"`；修改先留在内存，原版 `SaveGameData` 成功返回后原子写入，不修改 GameSave schema |
+| `persistent_check` | `key`,`op`(>=/>/<=/</==),`value`(Int32),`success`,`failure` | 读取同一 sidecar 后二分；缺失变量为 0。普通存档槽、F5 试玩槽、其他 MOD 槽一律拒绝访问 |
 | `mission` | `name`, `key` | 任务操作 `statmodifymanager.Mission(name, key)`：`Mission("Main","M0001")` 推进主线 / `Mission("S2200","clear")` 清支线 |
 | `time` | `op`("set"/"round"/"month"/"mission")；set 用 `year,month,stage`；mission 用 `name,year,month,stage` | 时间 `SetGameTime/NextRound/NextMonth/SetMissionTime` |
 | `autosave` | 可选 `kind`("story"默认/"free"/"prologue")；可选 `save_button`(0/1，单独控制存档按钮) | `AutoSave()/AutoFreeSave()/PrologueSave(mode)`；`save_button` 单独 emit `ToggleSaveButton(n)` |
@@ -451,7 +453,7 @@ transition 黑幕、choice 皮肤崩溃、背景黑屏、人物未登场就做�
 - Python API：
   - `load_editor_data()`：读取编辑器数据（含 dice_meta 等清单），返回 (editor_data, is_fallback)
   - `new_story(story_id="main", title="新剧情", mood=False)`：新建剧情脚本（show 登场 + 空 say 双节点开场，先登场再动作）
-  - `add_node(story, node_type, fields=None, after=None)`：按 models 默认值新增节点（60 种类型），未知类型/字段/类型不符→ValueError，节点 id 自动生成，after 指定插入位置（节点 id 或 None=末尾）。登场防线：动作类节点的目标人物在前面未登场/已退场时，自动在它前面插入 show
+  - `add_node(story, node_type, fields=None, after=None)`：按 models 默认值新增节点（62 种类型），未知类型/字段/类型不符→ValueError，节点 id 自动生成，after 指定插入位置（节点 id 或 None=末尾）。登场防线：动作类节点的目标人物在前面未登场/已退场时，自动在它前面插入 show
   - `update_node(story, node_id, fields)`：更新节点字段（同 add 的字段校验），节点不存在→ValueError。登场防线：更新后若动作人物未登场/已退场，自动在该节点前插入 show 并把指向它的 goto/选项/分支跳转改指新节点
   - `get_node(story, node_id)`：读取节点，不存在→ValueError
   - `list_nodes(story)`：返回 [{"id","type","summary"}] 清单

@@ -21,6 +21,35 @@ def story(node):
 
 
 class GameplayCheckCompilerTest(unittest.TestCase):
+    def test_persistent_integer_state_emits_host_sidecar_bridge(self):
+        lua = compile_story({
+            "id": "main", "start": "set_state",
+            "nodes": [
+                {"id": "set_state", "type": "persistent_var", "key": "chapter",
+                 "op": "set", "value": 4},
+                {"id": "add_state", "type": "persistent_var", "key": "bandit_killed",
+                 "op": "add", "value": 1},
+                {"id": "check", "type": "persistent_check", "key": "chapter",
+                 "op": ">=", "value": 4, "success": "ok", "failure": "bad"},
+                {"id": "ok", "type": "end"}, {"id": "bad", "type": "end"},
+            ],
+        })
+        self.assertIn('mod_persistent_set("chapter", 4)', lua)
+        self.assertIn('mod_persistent_add("bandit_killed", 1)', lua)
+        self.assertIn('if mod_persistent_get("chapter") >= 4 then', lua)
+
+    def test_persistent_state_rejects_non_integer_and_bad_keys(self):
+        bad_nodes = [
+            {"id": "c", "type": "persistent_var", "key": "bad key", "op": "set", "value": 1},
+            {"id": "c", "type": "persistent_var", "key": "x", "op": "set", "value": 1.5},
+            {"id": "c", "type": "persistent_var", "key": "x", "op": "set", "value": 2147483648},
+            {"id": "c", "type": "persistent_check", "key": "x", "op": ">=", "value": True,
+             "success": "ok", "failure": "bad"},
+        ]
+        for node in bad_nodes:
+            with self.subTest(node=node), self.assertRaises(LomcError):
+                compile_story(story(node))
+
     def test_mod_quest_and_state_check_use_host_owned_state_machine(self):
         lua = compile_story({
             "id": "main", "start": "start_quest",

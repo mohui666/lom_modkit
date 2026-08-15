@@ -105,7 +105,7 @@ assets/                # 可选，自定义资源
 - `choice` / `branch` / `dice` の分岐は必ず `goto` で対象ノード id を指します。
 - 複数の先行ノードが同一ノードに合流（合流点）するのは合法です。
 
-### 3.1 ノードタイプ（全 60 種）
+### 3.1 ノードタイプ（全 62 種）
 
 この表が現在の合法ノードすべてです。`combat` / `battle` は原作テンプレートを使う高レベル編成です。戦闘機能は逆コンパイル確認済み原作 API だけを呼び、`mod_quest` は原作 Mission ID に触れない Host 状態機を使います。
 
@@ -162,6 +162,7 @@ assets/                # 可选，自定义资源
 | `stat_check` / `affinity_check` / `item_check` / `talent_check` / `flag_check` | 判定対象、成功先、失敗先。数値判定は比較演算子としきい値も指定 | 検証済み原作 API / 読み取り専用 Host bridge だけで二分します |
 | `activity` | 活動種別、能力値判定、成功／失敗先。任意で表示、時間進行、両側の報酬 | 既存の表示、能力、時間、報酬 API にコンパイル時展開し、新しい活動エンジンは追加しません |
 | `mod_quest` / `quest_check` | 安全なクエスト id、状態操作、または対象状態と二分先 | package id + 完全 SHA-256 で分離された Host キャンペーンセッション状態。原作 Mission ID を使わず、Story/Free を跨ぎますが再起動は跨ぎません |
+| `persistent_var` / `persistent_check` | 安全な変数名、set/add、または整数比較と二分先 | Int32 状態を現在の `mod_<id>` 専用スロットにのみ結び付け、原作 `SaveGameData` 成功後に Host sidecar へ原子的に保存します。GameSave は変更せず、未定義値は 0 です |
 | `mission` | `name`, `key` | クエスト操作 `statmodifymanager.Mission(name, key)`：`Mission("Main","M0001")` でメイン進行 / `Mission("S2200","clear")` でサブクリア |
 | `time` | `op`("set"/"round"/"month"/"mission")；set は `year,month,stage`；mission は `name,year,month,stage` | 時間 `SetGameTime/NextRound/NextMonth/SetMissionTime` |
 | `autosave` | 任意 `kind`("story"既定/"free"/"prologue")；任意 `save_button`(0/1、セーブボタンを個別制御) | `AutoSave()/AutoFreeSave()/PrologueSave(mode)`。`save_button` は単独で `ToggleSaveButton(n)` を emit |
@@ -402,7 +403,7 @@ transition の黒幕、choice スキンクラッシュ、背景の黒画面、�
 - Python API：
   - `load_editor_data()`：エディターデータ（dice_meta などの一覧を含む）を読み、(editor_data, is_fallback) を返す
   - `new_story(story_id="main", title="新剧情", mood=False)`：新規シナリオスクリプト（show 登場 + 空 say の 2 ノード開場。先に登場させてから動作）
-  - `add_node(story, node_type, fields=None, after=None)`：models 既定値でノードを追加（60 種）。未知のタイプ／フィールド／型不一致→ValueError。ノード id は自動生成。after で挿入位置を指定（ノード id または None=末尾）。登場防線：動作系ノードの対象人物がそれ以前に未登場／退場済みの場合、その前に show を自動挿入
+  - `add_node(story, node_type, fields=None, after=None)`：models 既定値でノードを追加（62 種）。未知のタイプ／フィールド／型不一致→ValueError。ノード id は自動生成。after で挿入位置を指定（ノード id または None=末尾）。登場防線：動作系ノードの対象人物がそれ以前に未登場／退場済みの場合、その前に show を自動挿入
   - `update_node(story, node_id, fields)`：ノードフィールドを更新（add と同じフィールド検証）。ノード不存在→ValueError。登場防線：更新後に動作人物が未登場／退場済みなら、そのノードの前に show を自動挿入し、それを指す goto／選択肢／分岐ジャンプを新ノードへ付け替え
   - `get_node(story, node_id)`：ノードを読む。不存在→ValueError
   - `list_nodes(story)`：[{"id","type","summary"}] の一覧を返す

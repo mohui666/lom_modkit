@@ -81,6 +81,8 @@ NODE_TYPE_CN_SRC: dict[str, str] = {
     "activity": "训练 / 活动",
     "mod_quest": "MOD 任务",
     "quest_check": "任务状态检定",
+    "persistent_var": "持久变量",
+    "persistent_check": "持久变量检定",
     "mission": "任务",
     "time": "时间",
     "autosave": "自动存档",
@@ -145,6 +147,8 @@ NODE_HELP_KEYS = {
     "activity": "help.activity",
     "mod_quest": "help.mod_quest",
     "quest_check": "help.quest_check",
+    "persistent_var": "help.persistent_var",
+    "persistent_check": "help.persistent_check",
 }
 NODE_HELP: dict[str, str] = {}
 
@@ -204,7 +208,7 @@ NODE_GROUPS_SRC: list[tuple[str, list[str]]] = [
             "battle_setup", "combat", "battle", "battle_result", "reward", "custom_shop",
             "stat_check", "affinity_check", "item_check", "talent_check", "flag_check",
             "activity",
-            "mod_quest", "quest_check",
+            "mod_quest", "quest_check", "persistent_var", "persistent_check",
         ],
     ),
     (
@@ -298,6 +302,7 @@ ENUM_SETS_SRC: dict[str, list[tuple[str, str]]] = {
         ("inactive", "未开始"), ("active", "进行中"),
         ("completed", "已完成"), ("failed", "已失败"),
     ],
+    "persistent_op": [("set", "设置"), ("add", "增减")],
     "time_op": [
         ("set", "设置时间"),
         ("round", "进入下一旬"),
@@ -849,6 +854,24 @@ NODE_SCHEMAS: dict[str, dict] = {
             ("failure", "未命中", "node_ref", False),
         ],
     },
+    "persistent_var": {
+        "label": "持久变量",
+        "fields": [
+            ("key", "变量名", "line", False),
+            ("op", "操作", "enum:persistent_op", False),
+            ("value", "整数值", "int", False),
+        ],
+    },
+    "persistent_check": {
+        "label": "持久变量检定",
+        "fields": [
+            ("key", "变量名", "line", False),
+            ("op", "比较", "enum:check_op", False),
+            ("value", "目标值", "int", False),
+            ("success", "成功后", "node_ref", False),
+            ("failure", "失败后", "node_ref", False),
+        ],
+    },
     "mission": {
         "label": "任务操作",
         "fields": [
@@ -1041,6 +1064,10 @@ _NODE_DEFAULTS: dict[str, dict] = {
     "mod_quest": {"quest": "", "op": "start", "message": ""},
     "quest_check": {
         "quest": "", "state": "active", "success": "", "failure": "",
+    },
+    "persistent_var": {"key": "", "op": "set", "value": 0},
+    "persistent_check": {
+        "key": "", "op": ">=", "value": 1, "success": "", "failure": "",
     },
     "mission": {"name": "Main", "key": ""},
     "time": {"op": "round"},
@@ -1566,7 +1593,7 @@ def node_bullet(node_type: str) -> str:
     """步骤列表前缀符号：分支/结局与普通步骤区分开。"""
     if node_type in (
         "choice", "branch", "dice", "stat_check", "affinity_check", "item_check",
-        "talent_check", "flag_check", "activity", "quest_check",
+        "talent_check", "flag_check", "activity", "quest_check", "persistent_check",
     ):
         return "◆"
     if node_type in ("end", "death", "goto_scene", "combat", "battle"):
@@ -1808,6 +1835,16 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
         return (
             f"{tcn}·{node.get('quest', '')}={enum_label('quest_state', node.get('state', 'active'))}"
             f"（命中→{node.get('success', '')} / 未命中→{node.get('failure', '')}）"
+        )
+    if nt == "persistent_var":
+        return (
+            f"{tcn}·{node.get('key', '')} "
+            f"{enum_label('persistent_op', node.get('op', 'set'))} {node.get('value', 0)}"
+        )
+    if nt == "persistent_check":
+        return (
+            f"{tcn}·{node.get('key', '')} {node.get('op', '>=')} {node.get('value', 1)}"
+            f"（成功→{node.get('success', '')} / 失败→{node.get('failure', '')}）"
         )
     if nt == "mission":
         return f"{tcn}·{node.get('name', '')} {node.get('key', '')}"

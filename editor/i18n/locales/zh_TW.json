@@ -205,6 +205,8 @@
   "node.activity": "訓練 / 活動",
   "node.mod_quest": "MOD 任務",
   "node.quest_check": "任務狀態檢定",
+  "node.persistent_var": "持久變數",
+  "node.persistent_check": "持久變數檢定",
   "node.mission": "任務",
   "node.time": "時間",
   "node.autosave": "自動存檔",
@@ -353,6 +355,8 @@
   "help.activity": "用既有系統提示、屬性檢定、時間推進與獎勵介面組合練武、讀書、鍛造、煉丹或自訂活動。",
   "help.mod_quest": "操作宿主隔離的 MOD 任務狀態，不占用或修改原版 Mission ID。",
   "help.quest_check": "檢查目前套件的 MOD 任務狀態，並按命中或未命中分支。",
+  "help.persistent_var": "設定或增減目前 MOD 隔離存檔槽中的整數變數；普通／F5 官方槽會拒絕寫入。",
+  "help.persistent_check": "讀取目前 MOD 隔離存檔槽中的整數變數，缺少時視為 0，並按結果分支。",
 
   "enum.play": "播放",
   "enum.stop": "停止",

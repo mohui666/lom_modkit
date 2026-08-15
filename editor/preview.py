@@ -427,7 +427,7 @@ def _next_node(node: dict, idx: int, nodes: list) -> str | None:
     if t in (
         "end", "goto_scene", "death", "combat", "battle", "battle_result",
         "stat_check", "affinity_check", "item_check", "talent_check", "flag_check", "activity",
-        "quest_check",
+        "quest_check", "persistent_check",
     ):
         return None  # 脚本终止/跳离当前场景：推演到此为止
     if t == "choice":

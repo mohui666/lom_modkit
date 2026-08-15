@@ -191,6 +191,7 @@ _ENUMS = {
     "activity_time": ("none", "round", "month"),
     "quest_op": ("start", "update", "complete", "fail"),
     "quest_state": ("inactive", "active", "completed", "failed"),
+    "persistent_op": ("set", "add"),
     "time_op": ("set", "round", "month", "mission"),
     "autosave_kind": ("story", "free", "prologue"),
     "goto_scene": (
@@ -442,6 +443,11 @@ _NODE_FIELDS = {
         {"quest": "idstr", "state": "quest_state", "success": "idstr", "failure": "idstr"},
         {},
     ),
+    "persistent_var": ({"key": "idstr", "op": "persistent_op", "value": "num"}, {}),
+    "persistent_check": (
+        {"key": "idstr", "op": "check_op", "value": "num", "success": "idstr", "failure": "idstr"},
+        {},
+    ),
     "mission": ({"name": "idstr", "key": "idstr"}, {}),
     "time": (
         {"op": "time_op"},
@@ -477,7 +483,7 @@ _COMMON_FIELDS = ("id", "type", "goto")
 # 不允许显式 goto 的节点类型（契约 §4：流转由自身结构/场景跳转决定）
 _CHECK_TYPES = (
     "stat_check", "affinity_check", "item_check", "talent_check", "flag_check", "activity",
-    "quest_check",
+    "quest_check", "persistent_check",
 )
 _NO_GOTO_TYPES = (
     "choice", "branch", "dice", "end", "goto_scene", "death", "combat", "battle",
@@ -1162,6 +1168,15 @@ def _check_node_extra(node, ntype, label, battle_presets=None):
             raise LomcError(
                 '%s(%s): quest 必须符合 [A-Za-z0-9_-]{1,64}' % (label, ntype)
             )
+    elif ntype in ("persistent_var", "persistent_check"):
+        if SCRIPT_ID_RE.fullmatch(node["key"]) is None:
+            raise LomcError(
+                '%s(%s): key 必须符合 [A-Za-z0-9_-]{1,64}' % (label, ntype)
+            )
+        if isinstance(node["value"], bool) or not isinstance(node["value"], int):
+            raise LomcError('%s(%s): value 必须是 Int32 整数' % (label, ntype))
+        if node["value"] < -2147483648 or node["value"] > 2147483647:
+            raise LomcError('%s(%s): value 必须在 Int32 范围内' % (label, ntype))
     elif ntype == "time":
         op = node["op"]
         if op == "set":

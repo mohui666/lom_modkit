@@ -145,6 +145,7 @@ namespace MortalModHost
                 TestProvenanceWatermarkCodec();
                 TestGameplaySession();
                 TestModQuestSession();
+                TestPersistentStateStore(Path.Combine(modsDir, "campaign_state"));
 
                 Console.WriteLine("--- 扫描信息 ---");
                 infos.ForEach(Console.WriteLine);
@@ -1068,6 +1069,60 @@ namespace MortalModHost
             Assert(badOwner, "活动战役期间其他包不得读取或接管任务状态");
             ModCampaignState.Clear();
             ModQuestSession.Reset();
+        }
+
+        private static void TestPersistentStateStore(string root)
+        {
+            var package = new ModPackage
+            {
+                Id = "state_mod", Entry = "main",
+                PackageFingerprint = new string('E', 64)
+            };
+            const string slot = "mod_state_mod";
+            var store = new PersistentStateStore(root);
+            Assert(store.Get(package, slot, "missing") == 0,
+                "未定义持久变量必须读取为 0");
+            store.Set(package, slot, "chapter", 4);
+            Assert(store.Add(package, slot, "bandit_killed", 1) == 1,
+                "add 必须从缺省 0 开始并返回新值");
+            string stateFile = Path.Combine(root, "mod_state_mod.state.json");
+            Assert(!File.Exists(stateFile), "未调用 Flush 前不得提前写 sidecar");
+            store.Flush();
+            Assert(File.Exists(stateFile), "Flush 必须原子写出 sidecar");
+            string serialized = File.ReadAllText(stateFile);
+            Assert(serialized.IndexOf("bandit_killed", StringComparison.Ordinal)
+                    < serialized.IndexOf("chapter", StringComparison.Ordinal),
+                "sidecar 变量键必须稳定排序");
+
+            var updatedPackage = new ModPackage
+            {
+                Id = package.Id, Entry = "main", PackageFingerprint = new string('F', 64)
+            };
+            var reloaded = new PersistentStateStore(root);
+            Assert(reloaded.Get(updatedPackage, slot, "chapter") == 4
+                    && reloaded.Get(updatedPackage, slot, "bandit_killed") == 1,
+                "同 mod id 更新包后必须从同一隔离槽恢复持久变量");
+            bool wrongSlot = false;
+            try { reloaded.Get(updatedPackage, "universe", "chapter"); }
+            catch (InvalidOperationException) { wrongSlot = true; }
+            Assert(wrongSlot, "官方/其他存档槽不得读取 MOD 持久变量");
+            bool badIdentity = false;
+            try
+            {
+                reloaded.Get(new ModPackage
+                {
+                    Id = "../escape", Entry = "main", PackageFingerprint = new string('G', 64)
+                }, "mod_../escape", "chapter");
+            }
+            catch (InvalidOperationException) { badIdentity = true; }
+            Assert(badIdentity, "sidecar 必须独立拒绝路径型 id 与非十六进制指纹");
+
+            reloaded.BeginNewCampaign(updatedPackage, slot);
+            Assert(reloaded.Get(updatedPackage, slot, "chapter") == 0,
+                "开始新战役必须清空旧 sidecar 的内存状态");
+            reloaded.Flush();
+            Assert(new PersistentStateStore(root).Get(updatedPackage, slot, "chapter") == 0,
+                "新战役空状态必须覆盖旧 sidecar");
         }
 
         private static bool IsUpperHex(char c)

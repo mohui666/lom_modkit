@@ -205,6 +205,8 @@
   "node.activity": "訓練 / 活動",
   "node.mod_quest": "MOD クエスト",
   "node.quest_check": "クエスト状態判定",
+  "node.persistent_var": "永続変数",
+  "node.persistent_check": "永続変数判定",
   "node.mission": "任務",
   "node.time": "時間",
   "node.autosave": "自動セーブ",
@@ -353,6 +355,8 @@
   "help.activity": "既存の表示、能力判定、時間進行、報酬 API で修練、読書、鍛冶、錬丹、独自活動を構成します。",
   "help.mod_quest": "ホストが分離管理する MOD クエスト状態を操作し、原作 Mission ID は変更しません。",
   "help.quest_check": "現在のパッケージの MOD クエスト状態を確認して分岐します。",
+  "help.persistent_var": "現在の MOD 専用セーブスロットの整数変数を設定・加算します。通常／F5 スロットでは拒否されます。",
+  "help.persistent_check": "MOD 専用セーブスロットの整数変数を読み、未定義は 0 として分岐します。",
 
   "enum.play": "再生",
   "enum.stop": "停止",

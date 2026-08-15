@@ -1,6 +1,6 @@
 # 当前能力与边界
 
-本文按仓库当前代码描述能力，不把研究计划写成已实现功能。节点的唯一权威集合是 `editor/models.py` 的 `NODE_SCHEMAS`，当前共 60 种。
+本文按仓库当前代码描述能力，不把研究计划写成已实现功能。节点的唯一权威集合是 `editor/models.py` 的 `NODE_SCHEMAS`，当前共 62 种。
 
 ## 已实现
 
@@ -31,11 +31,16 @@
 
 这意味着工具是在编排原版战斗系统，不包含自研 Battle Engine。高层 `combat` / `battle` 已有经反编译确认的结果回流，但尚未实机验证；`draw` / `escape` 没有可用结果接口。
 
+## MOD 战役状态
+
+- `mod_quest` / `quest_check` 提供按包完整指纹隔离的任务状态机；它不调用、不污染原版 Mission 系统，并在同一 MOD 战役会话内跨 Story / Free 保留。
+- `persistent_var` / `persistent_check` 提供 Int32 持久变量：只允许当前 `mod_<id>` 隔离槽，Host sidecar 与该槽同名绑定，并在原版 `SaveGameData` 成功返回后原子落盘；不修改 GameSave schema。缺失值为 0，每包最多 256 项。
+- `modflags` / `modvars` 仍是 Story 会话表，不写存档；需要跨重启保存的数值应显式使用 `persistent_var`。
+
 ## 尚未实现
 
 - 消耗品目录或逐商品自定义价格；当前 `custom_shop` 严格限于原版 `ShopPanel` 实际展示的三类库存及统一折扣。
-- `mod_quest` / `quest_check` 已提供按包完整指纹隔离的任务状态机；它不调用原版 Mission 系统，当前只在同一 MOD 战役会话内跨 Story/Free 保留，尚不跨重启持久化。
-- 任意持久化 Mod 变量。`modflags` / `modvars` 是 Story 会话表，不写存档；`game_flag` 写原版已存在的 FlagData。新战役的存档槽虽然隔离，但不会自动把任意 Lua 表持久化。
+- `mod_quest` 跨重启持久化，以及任意 Lua 对象和字符串持久化；普通/F5 官方槽始终不会写入 MOD sidecar。
 - `result_screen` 等更高层结算封装；`activity` 已可组合提示、属性检定、时间推进和奖励。
 - 自定义战斗地图、模型、AI、战斗动画、机制或战斗引擎。
 - 联网社区内容库、自动上传或发布。

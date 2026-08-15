@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 CHECK_TYPES = {
     "stat_check", "affinity_check", "item_check", "talent_check", "flag_check", "activity",
-    "quest_check",
+    "quest_check", "persistent_check",
 }
 TERMINAL_TYPES = {
     "end", "goto_scene", "death", "combat", "battle", "battle_result", *CHECK_TYPES,

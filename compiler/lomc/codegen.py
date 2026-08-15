@@ -979,6 +979,22 @@ def _emit_quest_check(node, ctx):
     )
 
 
+def _emit_persistent_var(node, ctx):
+    function = "mod_persistent_set" if node["op"] == "set" else "mod_persistent_add"
+    return [
+        "\t%s(%s, %s)" % (function, lua_str(node["key"]), lua_num(node["value"]))
+    ]
+
+
+def _emit_persistent_check(node, ctx):
+    return _check_branch(
+        "mod_persistent_get(%s) %s %s" % (
+            lua_str(node["key"]), node["op"], lua_num(node["value"]),
+        ),
+        node,
+    )
+
+
 def _emit_mission(node, ctx):
     return [
         "\tstatmodifymanager.Mission(%s, %s)"
@@ -1404,6 +1420,8 @@ _EMITTERS = {
     "activity": _emit_activity,
     "mod_quest": _emit_mod_quest,
     "quest_check": _emit_quest_check,
+    "persistent_var": _emit_persistent_var,
+    "persistent_check": _emit_persistent_check,
     "mission": _emit_mission,
     "time": _emit_time,
     "autosave": _emit_autosave,
@@ -1421,7 +1439,7 @@ _EMITTERS = {
 _NO_FLOW_TYPES = (
     "end", "choice", "branch", "dice", "goto_scene", "death", "combat", "battle",
     "battle_result", "stat_check", "affinity_check", "item_check", "talent_check",
-    "flag_check", "activity", "quest_check",
+    "flag_check", "activity", "quest_check", "persistent_check",
 )
 
 

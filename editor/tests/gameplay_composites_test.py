@@ -144,6 +144,23 @@ class GameplayCompositeEditorTest(unittest.TestCase):
             {("ok", "命中"), ("bad", "未命中")},
         )
 
+    def test_persistent_state_nodes_are_typed_and_branch_in_graph(self):
+        value = models.new_node("persistent_var", "set", models.FALLBACK_EDITOR_DATA)
+        value.update({"key": "chapter", "op": "set", "value": 4})
+        self.assertIn("chapter", models.node_summary(value))
+        check = models.new_node("persistent_check", "check", models.FALLBACK_EDITOR_DATA)
+        check.update({"key": "chapter", "op": ">=", "value": 4,
+                      "success": "ok", "failure": "bad"})
+        graph = analyze_story({
+            "start": "check",
+            "nodes": [check, {"id": "ok", "type": "end"}, {"id": "bad", "type": "end"}],
+        })
+        self.assertEqual(
+            {(edge.target, edge.label) for edge in graph.edges if edge.source == "check"},
+            {("ok", "成功"), ("bad", "失败")},
+        )
+        self.assertIn("persistent_op", models.ENUM_SETS)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

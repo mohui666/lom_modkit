@@ -205,6 +205,8 @@
   "node.activity": "훈련 / 활동",
   "node.mod_quest": "MOD 퀘스트",
   "node.quest_check": "퀘스트 상태 판정",
+  "node.persistent_var": "영속 변수",
+  "node.persistent_check": "영속 변수 판정",
   "node.mission": "임무",
   "node.time": "시간",
   "node.autosave": "자동 저장",
@@ -353,6 +355,8 @@
   "help.activity": "기존 안내, 능력치 판정, 시간 진행, 보상 API로 수련, 독서, 단조, 연단 또는 사용자 활동을 구성합니다.",
   "help.mod_quest": "호스트가 격리한 MOD 퀘스트 상태를 조작하며 원작 Mission ID는 건드리지 않습니다.",
   "help.quest_check": "현재 패키지의 MOD 퀘스트 상태를 확인해 분기합니다.",
+  "help.persistent_var": "현재 MOD 전용 저장 슬롯의 정수 변수를 설정하거나 더합니다. 일반/F5 슬롯에서는 거부됩니다.",
+  "help.persistent_check": "MOD 전용 저장 슬롯의 정수 변수를 읽고 누락 값은 0으로 처리해 분기합니다.",
 
   "enum.play": "재생",
   "enum.stop": "정지",

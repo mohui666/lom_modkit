@@ -31,6 +31,7 @@
     <Compile Include="..\..\src\GameplaySession.cs" />
     <Compile Include="..\..\src\ModCampaignState.cs" />
     <Compile Include="..\..\src\ModQuestSession.cs" />
+    <Compile Include="..\..\src\PersistentStateStore.cs" />
   </ItemGroup>
 
 </Project>

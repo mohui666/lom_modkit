@@ -621,6 +621,22 @@ namespace MortalModHost
                     return DynValue.NewString(ModQuestSession.Read(
                         ModOverlay.CurrentPackage, ArgString(args, 0)));
                 }, "mod_quest_state");
+                script.Globals["mod_persistent_get"] = new CallbackFunction((ctx, args) =>
+                {
+                    return DynValue.NewNumber(PersistentModState.Get(
+                        ModOverlay.CurrentPackage, ArgString(args, 0)));
+                }, "mod_persistent_get");
+                script.Globals["mod_persistent_set"] = new CallbackFunction((ctx, args) =>
+                {
+                    PersistentModState.Set(
+                        ModOverlay.CurrentPackage, ArgString(args, 0), RequireArgInt(args, 1));
+                    return DynValue.Nil;
+                }, "mod_persistent_set");
+                script.Globals["mod_persistent_add"] = new CallbackFunction((ctx, args) =>
+                {
+                    return DynValue.NewNumber(PersistentModState.Add(
+                        ModOverlay.CurrentPackage, ArgString(args, 0), RequireArgInt(args, 1)));
+                }, "mod_persistent_add");
                 RegisterCharacterGlobals(script);
             }
             catch (Exception ex)

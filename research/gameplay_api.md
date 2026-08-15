@@ -20,7 +20,7 @@ python tools/verify_gameplay_api.py --json
 | 商店库存 | `ShopDatabase` 公共 Books/Miscs/Specials 列表、`ShopItem(ItemData,int)`；`ShopPanel.Init()` 只枚举这三类 | Host 在包指纹绑定的受控会话中临时替换库存并复用官方 ShopPanel；结束或故障恢复原库存。Consumables 不在该面板买入列表中 |
 | 单品价格 | `ShopPanel.AddBuyPanel` 调 `ItemData.GetBuyPrice(discount)`；`Open(int)` 只把 0/非0 映射为原版关系折扣/统一 50% 折扣 | 原版没有公共逐商品改价入口；`custom_shop` 只暴露 0/1 原版折扣，拒绝 `price` |
 | 属性/好感/物品/天赋检定 | `LuaManager.GetStatData`、`Relationships.Get(type).Value`、`ItemDatabase.HasItem`、`Talents.Get(id).Level` | `stat_check` 直接调用原版 LuaManager；其余缺少 Story Lua 入口的读操作由 Host 提供严格只读 bridge，未知 id fail-closed |
-| 存档 | `SaveSystem.CurrentSlot` / `SetSlot` / `SaveGameData` | 不修改 GameSave schema；Mod 持久变量应使用与 `mod_<id>` 槽绑定的 Host 原子 sidecar |
+| 存档 | `SaveSystem.CurrentSlot` / `SetSlot` / `SaveGameData` | 已实现与 `mod_<id>` 槽绑定的 Host 原子 sidecar；只保存有界 Int32 状态，并在原版 SaveGameData 成功返回后落盘，不修改 GameSave schema |
 
 ## 明确不支持
 
