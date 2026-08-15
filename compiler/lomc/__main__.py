@@ -46,6 +46,26 @@ def _cmd_pack(args):
     return 0
 
 
+def _cmd_detect_watermark(args):
+    from .watermark_detector import detect_image
+
+    result = detect_image(args.image)
+    if args.json:
+        print(result.to_json())
+    else:
+        print("detected: %s" % ("yes" if result.detected else "no"))
+        print("confidence: %.6f" % result.confidence)
+        print("protocol_version: %s" % result.protocol_version)
+        print("algorithm_version: %s" % result.algorithm_version)
+        print("mod_hash: %s" % result.mod_hash)
+        print("checksum_status: %s" % result.checksum_status)
+        print("ecc_status: %s" % result.ecc_status)
+        print("ecc_corrections: %s" % result.ecc_corrections)
+        print("scale_factor: %s" % result.scale_factor)
+        print("message: %s" % result.message)
+    return 0 if result.detected else 2
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         prog="lomc", description="活侠传 mod 剧情编译器（契约：docs/zh_CN/mod_format.md）"
@@ -69,6 +89,15 @@ def main(argv=None):
         "-o", "--output", help="输出路径（默认 <mod目录> 同级的 <目录名>.lommod）"
     )
     p_pack.set_defaults(func=_cmd_pack)
+
+    p_detect = sub.add_parser(
+        "detect-watermark", help="离线检测 PNG/JPG 截图中的来源水印"
+    )
+    p_detect.add_argument("image", help="PNG/JPG 截图路径")
+    p_detect.add_argument(
+        "--json", action="store_true", help="输出单行 JSON 检测结果"
+    )
+    p_detect.set_defaults(func=_cmd_detect_watermark)
 
     args = parser.parse_args(argv)
     try:
