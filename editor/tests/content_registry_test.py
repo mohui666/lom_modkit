@@ -74,6 +74,26 @@ class ContentRegistryTest(unittest.TestCase):
         self.assertEqual(got.content_id, "mohui.battle")
         self.assertTrue(main.is_file())
 
+    def test_listing_migrates_legacy_content_with_backup(self):
+        src = self._write_wav("legacy.wav")
+        rec = content_registry.register_audio(
+            src, "mohui.legacy", "旧内容", "sound"
+        )
+        meta_path = rec.folder / "content.json"
+        legacy = json.loads(meta_path.read_text(encoding="utf-8"))
+        legacy.pop("content_schema")
+        legacy["vendor_extension"] = {"keep": True}
+        original = json.dumps(legacy, ensure_ascii=False).encode("utf-8")
+        meta_path.write_bytes(original)
+
+        listed = content_registry.list_contents(content_type="audio")
+        self.assertEqual([item.content_id for item in listed], ["mohui.legacy"])
+        current = json.loads(meta_path.read_text(encoding="utf-8"))
+        self.assertEqual(current["content_schema"], 1)
+        self.assertEqual(current["vendor_extension"], {"keep": True})
+        backup = meta_path.with_name(meta_path.name + ".pre-migration-v1.bak")
+        self.assertEqual(backup.read_bytes(), original)
+
     def test_generic_image_register_thumbnail_source_and_references(self):
         src = self._write_png("moon.jpeg")
         rec = content_registry.register_image(src, "mohui.moon_bg", "月夜")

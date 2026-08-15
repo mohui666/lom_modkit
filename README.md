@@ -234,6 +234,7 @@ SHA-256 前 16 个十六进制字符，可用来核对具体文件，但**不是
 - `tools/` — 从解包产物提取编辑器数据/素材的脚本
 - `data/` — 编辑器数据（`editor_data.json`，schema 3）
 - 新导出的包显式声明 `package_format`、`story_schema`、`content_schema`；三端统一拒绝未知或冲突版本，旧 `format: 1` 包继续兼容读取。
+- 编辑器会把缺少显式声明的旧 v1 Story / 用户内容迁移到当前格式；覆盖前保留 `*.pre-migration-v1.bak` 原始字节，写入使用同目录原子替换，迁移失败不会破坏源文件。
 - `samples/` — 示例 mod（demo_mod、showcase、showcase2 全节点演示 2.0、snack_case《点心大盗疑案》、probe）
 
 ### 从源码运行

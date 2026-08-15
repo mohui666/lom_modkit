@@ -17,6 +17,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from asset_store import AssetStoreError, resolve_image_asset, store_image_bytes
 import content_registry
 from lua_preview import compile_story, get_lomc
+from migration import MigrationError, migrate_manifest, migrate_story
 from schema_versions import (
     CONTENT_SCHEMA,
     PACKAGE_FORMAT,
@@ -143,6 +144,7 @@ def _import_lommod(path: str | Path) -> tuple[dict, dict[str, dict]]:
             raise PackError(f"无法检查包内容：{exc}") from exc
         manifest = _read_json_from_zip(zf, entries, "manifest.json")
         try:
+            manifest = migrate_manifest(manifest).document
             assert_supported_version(
                 manifest, "package_format", PACKAGE_FORMAT, legacy="format"
             )
@@ -152,17 +154,18 @@ def _import_lommod(path: str | Path) -> tuple[dict, dict[str, dict]]:
             assert_supported_version(
                 manifest, "content_schema", CONTENT_SCHEMA, allow_missing=True
             )
-        except ValueError as exc:
+        except (MigrationError, ValueError) as exc:
             raise PackError(str(exc)) from exc
         stories: dict[str, dict] = {}
         for name in entries:
             if name.startswith("story/") and name.endswith(".json"):
                 story = _read_json_from_zip(zf, entries, name)
                 try:
+                    story = migrate_story(story).document
                     assert_supported_version(
                         story, "story_schema", STORY_SCHEMA, allow_missing=True
                     )
-                except ValueError as exc:
+                except (MigrationError, ValueError) as exc:
                     raise PackError(f"包内 {name}：{exc}") from exc
                 story_id = Path(name).stem
                 story.setdefault("id", story_id)

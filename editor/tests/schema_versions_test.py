@@ -60,9 +60,15 @@ class SchemaVersionsTest(unittest.TestCase):
             root = Path(tmp)
             old_package = root / "old.lommod"
             self._package(old_package, legacy, story)
+            original_package = old_package.read_bytes()
             manifest, stories = package_io.import_lommod(old_package)
+            self.assertEqual(old_package.read_bytes(), original_package)
             self.assertEqual(manifest["id"], "legacy")
+            self.assertEqual(manifest["package_format"], PACKAGE_FORMAT)
+            self.assertEqual(manifest["story_schema"], STORY_SCHEMA)
+            self.assertEqual(manifest["content_schema"], CONTENT_SCHEMA)
             self.assertEqual(stories["main"]["id"], "main")
+            self.assertEqual(stories["main"]["story_schema"], STORY_SCHEMA)
 
             cases = (
                 ({**legacy, "package_format": 2}, story),

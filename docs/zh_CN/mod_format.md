@@ -80,6 +80,7 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `zh_CN`、
 - `story_schema`：包内 `story/*.json` 源格式版本，当前固定 `1`。
 - `content_schema`：包内 `assets/user/*/*/content.json` 格式版本，当前固定 `1`。
 - `format`：旧 v1 reader 的兼容字段，值必须与 `package_format` 一致。新导出的包同时写出四个字段；旧包只有 `format: 1` 时仍可读取，未知版本或互相冲突的声明会被编辑器、编译器和 Runtime 拒绝。
+- 编辑器迁移管线对缺少显式字段的旧 v1 manifest、Story 与 `content.json` 做纯数据迁移，未知字段按原结构保留。打开磁盘上的旧 Story 或扫描旧用户内容时，先写入逐字节原始备份 `原文件名.pre-migration-v1.bak`，再用同目录临时文件原子替换；校验、备份或替换任一步失败都不覆盖源文件。`migration.restore_migration_backup(source, backup)` 可显式恢复，恢复前还会保留当前文件的 recovery 备份。导入旧 `.lommod` 只迁移内存副本，不修改原压缩包。
 - `id`：mod 唯一 id（`[a-z0-9_\-]{1,64}`），运行时也会独立复验，作为注册名前缀与隔离存档槽的一部分。
 - `entry`：入口剧情脚本 id（`[A-Za-z0-9_\-]{1,64}`），必须存在；`lua/` 下所有脚本 id 同样由运行时复验。
 - `name`、`version`、`author`、`description` 都是**作者自报元数据**，不能声明官方身份。运行时展示前会单行化、限长，并移除控制字符、双向覆盖/零宽格式字符与富文本尖括号。

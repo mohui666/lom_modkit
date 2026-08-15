@@ -734,11 +734,12 @@ class TestSaveLoad(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             target = root / "story.json"
-            target.write_text("old-content", encoding="utf-8")
+            old_content = json.dumps(base_story(), ensure_ascii=False)
+            target.write_text(old_content, encoding="utf-8")
             with mock.patch.object(models.os, "replace", side_effect=OSError("boom")):
                 with self.assertRaises(OSError):
                     models.save_story(story, target)
-            self.assertEqual(target.read_text(encoding="utf-8"), "old-content")
+            self.assertEqual(target.read_text(encoding="utf-8"), old_content)
             self.assertEqual(list(root.glob("story.json.*.tmp")), [])
 
 

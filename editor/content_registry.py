@@ -41,6 +41,7 @@ from lomc.content import (
     load_content_metadata,
     make_content_ref,
     normalize_audio_character,
+    normalize_content_metadata,
     package_content_dir,
     resolve_content,
     resolve_content_dir,
@@ -52,6 +53,7 @@ from lomc.content import (
     write_content_metadata,
 )
 from lomc.errors import LomcError
+from migration import MigrationError, migrate_json_file
 
 
 class ContentRegistryError(ValueError):
@@ -227,6 +229,17 @@ def list_contents(
     """列出仓库中的内容。优先扫盘，registry.json 只作索引缓存。"""
     records = []
     for meta, folder in scan_repository(str(repository_root()), content_type):
+        try:
+            migrated, _backup = migrate_json_file(
+                Path(folder) / "content.json",
+                "content",
+                validator=normalize_content_metadata,
+            )
+            meta = normalize_content_metadata(migrated.document)
+        except (MigrationError, LomcError, OSError, ValueError):
+            # The scanner already proved legacy metadata usable. Migration failures
+            # leave it untouched and must not hide an otherwise usable asset.
+            pass
         rec = _record_from_meta(meta, Path(folder))
         if audio_kind and rec.audio_kind != audio_kind:
             continue

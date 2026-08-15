@@ -16,6 +16,7 @@ import tempfile
 from pathlib import Path
 
 from i18n import t, term
+from migration import MigrationError, migrate_json_file, migrate_story
 from schema_versions import STORY_SCHEMA, assert_supported_version
 
 # story 脚本 id 规则（契约 §1）
@@ -1161,34 +1162,45 @@ def new_story(story_id: str = "main", editor_data: dict | None = None) -> dict:
     }
 
 
-def load_story(path: Path) -> dict:
-    """读取 story.json 并做最基本结构校验。"""
-    try:
-        story = json.loads(Path(path).read_text(encoding="utf-8"))
-    except OSError as exc:
-        raise ValueError("story.json 读取失败: %s" % exc) from exc
-    except json.JSONDecodeError as exc:
-        raise ValueError("story.json 不是合法 JSON: %s" % exc) from exc
+def _validate_story_shape(story: dict) -> None:
     if not isinstance(story, dict) or not isinstance(story.get("nodes"), list):
         raise ValueError("story.json 结构非法：缺少 nodes 数组")
     assert_supported_version(
         story, "story_schema", STORY_SCHEMA, allow_missing=True
     )
+    for node in story["nodes"]:
+        if not isinstance(node, dict) or "id" not in node or "type" not in node:
+            raise ValueError("story.json 结构非法：节点缺少 id/type")
+
+
+def load_story(path: Path) -> dict:
+    """读取 Story；旧 v1 文件先备份并原子迁移，再返回当前 schema。"""
+    try:
+        result, _backup = migrate_json_file(
+            Path(path), "story", validator=_validate_story_shape
+        )
+    except MigrationError as exc:
+        raise ValueError(str(exc)) from exc
+    story = result.document
     story.setdefault("id", "main")
     story.setdefault("title", story["id"])
     story.setdefault("mood", False)
     story.setdefault("start", story["nodes"][0]["id"] if story["nodes"] else "")
-    for node in story["nodes"]:
-        if "id" not in node or "type" not in node:
-            raise ValueError("story.json 结构非法：节点缺少 id/type")
     return story
 
 
 def save_story(story: dict, path: Path) -> None:
-    """原子写出 story.json；失败时保留原文件并清理临时文件。"""
+    """写当前 Story schema；覆盖旧文件前先完成可恢复迁移。"""
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps(story, ensure_ascii=False, indent=2) + "\n"
+    try:
+        migrated = migrate_story(story)
+        _validate_story_shape(migrated.document)
+        if target.exists():
+            migrate_json_file(target, "story", validator=_validate_story_shape)
+    except MigrationError as exc:
+        raise ValueError(str(exc)) from exc
+    payload = json.dumps(migrated.document, ensure_ascii=False, indent=2) + "\n"
     temp_path = None
     try:
         fd, raw_temp = tempfile.mkstemp(

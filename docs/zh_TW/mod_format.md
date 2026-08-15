@@ -49,6 +49,7 @@ assets/                # 可选，自定义资源
 ```
 
 - `package_format` / `story_schema` / `content_schema`：分別是包、Story 與使用者內容格式版本，目前皆固定為 `1`。`format: 1` 僅保留給舊版讀取器；新包會同時寫出明確欄位，未知版本或衝突宣告一律拒絕。
+- 舊 v1 Story 與使用者內容會先保留逐位元組備份 `*.pre-migration-v1.bak`，再以同目錄暫存檔原子遷移；失敗不覆蓋來源，未知欄位會保留。舊 `.lommod` 僅遷移記憶體副本，不修改原包，並可用 `migration.restore_migration_backup` 明確復原磁碟檔案。
 - `id`：mod 唯一 id（`[a-z0-9_\-]+`），執行階段註冊名前綴，防衝突。
 - `entry`：入口劇情腳本 id，必須存在。
 - `campaign`（可選）：戰役模式。
