@@ -798,7 +798,7 @@ class ManifestDialog(QDialog):
         trigger_help = QLabel(t("export.trigger_help"))
         trigger_help.setWordWrap(True)
         cv.addWidget(trigger_help)
-        self.triggers_table = QTableWidget(0, 7)
+        self.triggers_table = QTableWidget(0, 8)
         self.triggers_table.setHorizontalHeaderLabels(
             [
                 t("export.col.position"),
@@ -807,13 +807,14 @@ class ManifestDialog(QDialog):
                 t("export.col.flag_clear"),
                 t("export.col.month"),
                 t("export.col.stage"),
-                t("export.col.affinity"),
+                t("export.col.affinity_character"),
+                t("export.col.affinity_min"),
             ]
         )
         self.triggers_table.horizontalHeader().setSectionResizeMode(
             0, QHeaderView.ResizeMode.ResizeToContents
         )
-        for c in (1, 2, 3, 4, 5, 6):
+        for c in (1, 2, 3, 4, 5, 6, 7):
             self.triggers_table.horizontalHeader().setSectionResizeMode(
                 c, QHeaderView.ResizeMode.Stretch
             )
@@ -866,24 +867,48 @@ class ManifestDialog(QDialog):
             script.addItem(sid, sid)
         self._set_combo_value(script, str(trig.get("script", "")))
         table.setCellWidget(r, 1, script)
-        table.setItem(r, 2, QTableWidgetItem(str(trig.get("when_flag_set", ""))))
-        table.setItem(r, 3, QTableWidgetItem(str(trig.get("when_flag_clear", ""))))
-        # 月份/旬：int 条件；空则不写
+        for column, field in ((2, "when_flag_set"), (3, "when_flag_clear")):
+            flag = QComboBox()
+            flag.setEditable(True)
+            flag.addItem("", "")
+            for flag_id, display in models.list_items(self._editor_data, "game_flags"):
+                flag.addItem(display, flag_id)
+            self._set_combo_value(flag, str(trig.get(field, "")))
+            table.setCellWidget(r, column, flag)
+        # 月份/旬：有界下拉；空则不写，杜绝手填 0/13 等无效值
         wm = trig.get("when_month")
-        table.setItem(r, 4, QTableWidgetItem("" if wm is None else str(wm)))
+        month = QComboBox()
+        month.addItem(t("export.any_month"), None)
+        for value in range(1, 13):
+            month.addItem(t("export.month_value", value=value), value)
+        self._set_combo_value(month, "" if wm is None else str(wm))
+        table.setCellWidget(r, 4, month)
         ws = trig.get("when_stage")
-        table.setItem(r, 5, QTableWidgetItem("" if ws is None else str(ws)))
-        # 好感：{"character": <人物>, "min": <数值>} → "人物:数值"（如 brother4:3）
+        stage = QComboBox()
+        stage.addItem(t("export.any_stage"), None)
+        for value, label in ((1, t("export.stage_early")), (2, t("export.stage_mid")), (3, t("export.stage_late"))):
+            stage.addItem(label, value)
+        self._set_combo_value(stage, "" if ws is None else str(ws))
+        table.setCellWidget(r, 5, stage)
+        # 好感拆为人物下拉 + 最低值，作者无需记忆 "人物:数值" 文本语法
         wa = trig.get("when_affinity")
-        aff_text = ""
-        if isinstance(wa, dict) and wa.get("character"):
-            aff_text = "%s:%s" % (wa["character"], wa.get("min", ""))
-        table.setItem(r, 6, QTableWidgetItem(aff_text))
+        affinity = QComboBox()
+        affinity.setEditable(True)
+        affinity.addItem("", "")
+        for character, display in models.affinity_character_items(self._editor_data):
+            affinity.addItem(display, character)
+        affinity_value = wa.get("character", "") if isinstance(wa, dict) else ""
+        self._set_combo_value(affinity, str(affinity_value))
+        table.setCellWidget(r, 6, affinity)
+        affinity_min = wa.get("min", "") if isinstance(wa, dict) else ""
+        table.setItem(r, 7, QTableWidgetItem(str(affinity_min)))
 
     @staticmethod
     def _set_combo_value(combo: QComboBox, value: str) -> None:
         """可编辑下拉框回填：空值显式置空（否则默认停在第一项，空行变有效行）。"""
         idx = combo.findData(value)
+        if idx < 0 and value.lstrip("-").isdigit():
+            idx = combo.findData(int(value))
         if idx >= 0:
             combo.setCurrentIndex(idx)
         elif value and combo.isEditable():
@@ -902,6 +927,14 @@ class ManifestDialog(QDialog):
     def _cell_text(table: QTableWidget, row: int, col: int) -> str:
         item = table.item(row, col)
         return item.text().strip() if item else ""
+
+    @staticmethod
+    def _combo_value(table: QTableWidget, row: int, col: int):
+        combo = table.cellWidget(row, col)
+        if not isinstance(combo, QComboBox):
+            return None
+        data = combo.currentData()
+        return data if data is not None else combo.currentText().strip()
 
     def manifest(self) -> dict:
         m = {
@@ -928,39 +961,27 @@ class ManifestDialog(QDialog):
             if not position or not script:
                 continue  # 位置/脚本缺一不可，缺了跳过该行
             trig: dict = {"type": "position", "position": position, "script": script}
-            flag_set = self._cell_text(table, r, 2)
-            flag_clear = self._cell_text(table, r, 3)
+            flag_set = str(self._combo_value(table, r, 2) or "").strip()
+            flag_clear = str(self._combo_value(table, r, 3) or "").strip()
             if flag_set:
                 trig["when_flag_set"] = flag_set
             if flag_clear:
                 trig["when_flag_clear"] = flag_clear
-            # 月份/旬：尝试转 int（转不了原样写出，交给 lomc validate 报错）
-            month_text = self._cell_text(table, r, 4)
-            if month_text:
+            month_value = self._combo_value(table, r, 4)
+            if isinstance(month_value, int):
+                trig["when_month"] = month_value
+            stage_value = self._combo_value(table, r, 5)
+            if isinstance(stage_value, int):
+                trig["when_stage"] = stage_value
+            affinity_character = str(self._combo_value(table, r, 6) or "").strip()
+            if affinity_character:
+                min_text = self._cell_text(table, r, 7)
                 try:
-                    trig["when_month"] = int(month_text)
+                    min_val = int(min_text)
                 except ValueError:
-                    trig["when_month"] = month_text
-            stage_text = self._cell_text(table, r, 5)
-            if stage_text:
-                try:
-                    trig["when_stage"] = int(stage_text)
-                except ValueError:
-                    trig["when_stage"] = stage_text
-            # 好感："角色:数值" 拆 character/min；无冒号时整串当 character
-            aff_text = self._cell_text(table, r, 6)
-            if aff_text:
-                if ":" in aff_text:
-                    char_part, _, min_part = aff_text.partition(":")
-                    min_part = min_part.strip()
-                    try:
-                        min_val = int(min_part)
-                    except ValueError:
-                        min_val = min_part  # 非法值原样给 lomc 报错
-                else:
-                    char_part, min_val = aff_text, ""
+                    min_val = min_text  # 非法值原样给 lomc 报错
                 trig["when_affinity"] = {
-                    "character": char_part.strip(),
+                    "character": affinity_character,
                     "min": min_val,
                 }
             triggers.append(trig)

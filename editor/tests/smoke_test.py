@@ -387,7 +387,7 @@ def main_fn() -> int:
     assert dlg.new_game_check.isChecked(), "应回填 new_game"
     assert dlg.disable_events_check.isChecked(), "应回填 disable_official_events"
     assert dlg.triggers_table.rowCount() == 1, "应回填 1 行触发器"
-    assert dlg.triggers_table.columnCount() == 7, "触发器表应为 7 列"
+    assert dlg.triggers_table.columnCount() == 8, "触发器表应为 8 列"
     m = dlg.manifest()
     assert m["tested_host_version"] == "0.6.0", "新导出应记录随附 Host 测试版本"
     dlg.min_host_version_edit.setText("0.5.0")
@@ -414,7 +414,7 @@ def main_fn() -> int:
     }, f"好感条件错误：{trig!r}"
     dlg._add_trigger_row({})  # 空行：位置/脚本缺失，应被跳过
     assert len(dlg.manifest()["campaign"]["triggers"]) == 1
-    # 新行填位置+脚本+好感文本：解析写回
+    # 新行填位置+脚本+有界月份下拉+好感人物/数值：解析写回
     table = dlg.triggers_table
     last_row = table.rowCount() - 1
     pos_combo = table.cellWidget(last_row, 0)
@@ -423,11 +423,14 @@ def main_fn() -> int:
     assert isinstance(script_combo, QComboBox), "脚本列应是下拉框"
     pos_combo.setCurrentText("Kitchen")
     script_combo.setCurrentText("main")
-    month_item = table.item(last_row, 4)
-    aff_item = table.item(last_row, 6)
-    assert month_item is not None and aff_item is not None, "新列应有 item"
-    month_item.setText("6")
-    aff_item.setText("girl2:5")
+    month_combo = table.cellWidget(last_row, 4)
+    affinity_combo = table.cellWidget(last_row, 6)
+    aff_min_item = table.item(last_row, 7)
+    assert isinstance(month_combo, QComboBox) and isinstance(affinity_combo, QComboBox)
+    assert aff_min_item is not None, "最低好感列应有 item"
+    month_combo.setCurrentIndex(month_combo.findData(6))
+    affinity_combo.setCurrentIndex(affinity_combo.findData("girl2"))
+    aff_min_item.setText("5")
     trigs = dlg.manifest()["campaign"]["triggers"]
     new_trig = next(t for t in trigs if t["position"] == "Kitchen")
     assert new_trig["when_month"] == 6 and new_trig["when_affinity"] == {
