@@ -35,6 +35,12 @@ namespace MortalModHost
                     ("manifest.json", "{\"format\":1,\"id\":\"badtexts\",\"entry\":\"main\"}"),
                     ("lua/main.lua", "say(\"m\")"),
                     ("texts.json", "{\"MOD_badtexts_main_n1\": 123}"));
+                WriteZip(Path.Combine(modsDir, "future-format.lommod"),
+                    ("manifest.json", "{\"format\":1,\"package_format\":2,\"id\":\"future\",\"entry\":\"main\"}"),
+                    ("lua/main.lua", "say(\"m\")"));
+                WriteZip(Path.Combine(modsDir, "future-story.lommod"),
+                    ("manifest.json", "{\"format\":1,\"package_format\":1,\"story_schema\":2,\"id\":\"futurestory\",\"entry\":\"main\"}"),
+                    ("lua/main.lua", "say(\"m\")"));
 
                 var warnings = new List<string>();
                 var infos = new List<string>();
@@ -73,7 +79,7 @@ namespace MortalModHost
                     "assets/ending.png 未读入或字节不一致（长度 " + (endingPng == null ? -1 : endingPng.Length) + "）");
                 Assert(!mod.Assets.ContainsKey("assets/bgm.ogg"), "非图片条目不应读入内存");
                 Assert(!mod.Assets.ContainsKey("assets/huge.png"), "超 8MB 图片应被跳过");
-                Assert(warnings.Count == 5, "应有 5 条坏包警告（含 texts.json 容错 + 超限图片跳过），实际 " + warnings.Count + "：" + string.Join(" | ", warnings));
+                Assert(warnings.Count == 7, "应有 7 条坏包警告（含版本拒绝、texts.json 容错 + 超限图片跳过），实际 " + warnings.Count + "：" + string.Join(" | ", warnings));
 
                 // ModRegistry：注册名命中/未命中/冲突时保留先加载者
                 var dup = new ModPackage { Id = "demo_mod", Entry = "main" }; // 与好包同 id，制造注册名冲突
@@ -93,7 +99,7 @@ namespace MortalModHost
                 Assert(!ModRegistry.TryGetPackageByRegisteredName("MOD_demo_mod_nope", out byName), "不存在的脚本不应查到包");
                 Assert(!ModRegistry.TryGetPackageByRegisteredName(null, out byName), "null 不应查到包");
                 Assert(ModRegistry.Count == 2, "注册表应含 2 个脚本，实际 " + ModRegistry.Count);
-                Assert(warnings.Count == 6, "注册名冲突应新增 1 条警告，实际共 " + warnings.Count + "：" + string.Join(" | ", warnings));
+                Assert(warnings.Count == 8, "注册名冲突应新增 1 条警告，实际共 " + warnings.Count + "：" + string.Join(" | ", warnings));
 
                 // 分隔符碰撞也必须按整包拒绝：a_b/c 与 a/b_c 都会生成 MOD_a_b_c。
                 var left = new ModPackage { Id = "a_b", Entry = "c" };
@@ -134,9 +140,9 @@ namespace MortalModHost
 
                 Console.WriteLine("--- 扫描信息 ---");
                 infos.ForEach(Console.WriteLine);
-                Console.WriteLine("--- 坏包/容错警告（预期 5 条，另 1 条注册冲突） ---");
+                Console.WriteLine("--- 坏包/容错警告（预期 7 条，另 1 条注册冲突） ---");
                 warnings.ForEach(Console.WriteLine);
-                Console.WriteLine("PASS: 2 个好包解析正确（texts.json 含中文/转义文本 + 坏 texts.json 容错 + assets/ 图片读入与超限跳过），4 个坏包/坏文件警告跳过，注册表查找/包查找/冲突处理正确，热键迁移改写正确，campaign 解析/触发器条件（含 when_month/when_stage/when_affinity/disable_official_events）正确，非官方剧情披露场景策略与结构化 Runtime 错误兜底正确。");
+                Console.WriteLine("PASS: 2 个好包解析正确（显式 Schema + texts.json 中文/转义文本 + 坏 texts.json 容错 + assets/ 图片读入与超限跳过），6 个坏包/坏文件与未来版本安全跳过，注册表查找/包查找/冲突处理正确，热键迁移改写正确，campaign 解析/触发器条件（含 when_month/when_stage/when_affinity/disable_official_events）正确，非官方剧情披露场景策略与结构化 Runtime 错误兜底正确。");
                 return 0;
             }
             finally
@@ -582,7 +588,7 @@ namespace MortalModHost
         private static void WriteGoodPackage(string path)
         {
             WriteZip(path,
-                ("manifest.json", "{\"format\":1,\"id\":\"demo_mod\",\"name\":\"示例 Mod\",\"version\":\"1.0.0\",\"author\":\"somebody\",\"description\":\"一句话简介\",\"entry\":\"main\"}"),
+                ("manifest.json", "{\"format\":1,\"package_format\":1,\"story_schema\":1,\"content_schema\":1,\"id\":\"demo_mod\",\"name\":\"示例 Mod\",\"version\":\"1.0.0\",\"author\":\"somebody\",\"description\":\"一句话简介\",\"entry\":\"main\"}"),
                 ("story/main.json", "{\"id\":\"main\"}"),
                 ("story/extra.json", "{\"id\":\"extra\"}"),
                 ("lua/main.lua", "local function node_n1() say(\"你好\") end\nreturn node_n1()"),
@@ -658,7 +664,7 @@ namespace MortalModHost
             try
             {
                 string contentJson =
-                    "{\"schema\":1,\"id\":\"mohui.boss_theme\",\"type\":\"audio\",\"name\":\"决战曲\",\"audio_kind\":\"music\",\"files\":{\"main\":\"boss_theme.ogg\"},\"character\":\"user:mohui.luoxue\"}";
+                    "{\"schema\":1,\"content_schema\":1,\"id\":\"mohui.boss_theme\",\"type\":\"audio\",\"name\":\"决战曲\",\"audio_kind\":\"music\",\"files\":{\"main\":\"boss_theme.ogg\"},\"character\":\"user:mohui.luoxue\"}";
                 string contentJsonB =
                     "{\"schema\":1,\"id\":\"mohui.boss_theme\",\"type\":\"audio\",\"name\":\"另一首\",\"audio_kind\":\"music\",\"files\":{\"main\":\"boss_theme.ogg\"}}";
                 WriteZip(Path.Combine(modsDir, "mod_a.lommod"),
@@ -703,9 +709,9 @@ namespace MortalModHost
             try
             {
                 string charJson =
-                    "{\"schema\":1,\"id\":\"mohui.luoxue\",\"type\":\"character\",\"name\":\"洛雪\",\"scale\":80,\"art_facing\":\"right\",\"files\":{\"main\":\"normal.png\"},\"portraits\":{\"normal\":\"normal.png\",\"happy\":\"happy.png\"}}";
+                    "{\"schema\":1,\"content_schema\":1,\"id\":\"mohui.luoxue\",\"type\":\"character\",\"name\":\"洛雪\",\"scale\":80,\"art_facing\":\"right\",\"files\":{\"main\":\"normal.png\"},\"portraits\":{\"normal\":\"normal.png\",\"happy\":\"happy.png\"}}";
                 string imageJson =
-                    "{\"schema\":1,\"id\":\"mohui.moon_bg\",\"type\":\"image\",\"name\":\"月夜\",\"files\":{\"main\":\"moon.jpg\"}}";
+                    "{\"schema\":1,\"content_schema\":1,\"id\":\"mohui.moon_bg\",\"type\":\"image\",\"name\":\"月夜\",\"files\":{\"main\":\"moon.jpg\"}}";
                 byte[] png = new byte[] {
                     0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A,0x00,0x00,0x00,0x0D,0x49,0x48,0x44,0x52,
                     0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01,0x08,0x02,0x00,0x00,0x00,0x90,0x77,0x53,

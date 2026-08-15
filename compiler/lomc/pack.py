@@ -25,13 +25,15 @@ from .content import (
     check_character_portrait,
     check_content_matches_kind,
     collect_story_content_refs,
+    content_metadata_payload,
     listed_content_files,
     package_content_dir,
     resolve_content,
 )
 from .errors import LomcError
 from .localization import SUPPORTED_LOCALES, apply_story_locale, localization_config
-from .validate import validate_manifest
+from .validate import validate_manifest, validate_story
+from .schema_versions import STORY_SCHEMA, version_declarations
 
 # 汗青书左页插图上限（字节，与运行时插件 §6 一致）：超过则打包报错
 _MAX_ENDING_IMAGE_BYTES = 8 * 1024 * 1024
@@ -51,6 +53,9 @@ def pack_mod(mod_dir, output=None):
         raise LomcError("mod 目录缺少 manifest.json: %s" % mod_dir)
     manifest = load_json_file(manifest_path)
     validate_manifest(manifest)
+    manifest = dict(manifest)
+    manifest.update(version_declarations())
+    manifest["format"] = manifest["package_format"]  # legacy v1 readers
 
     story_dir = os.path.join(mod_dir, "story")
     if not os.path.isdir(story_dir):
@@ -80,6 +85,9 @@ def pack_mod(mod_dir, output=None):
     for fname in story_files:
         stem = fname[: -len(".json")]
         story = load_json_file(os.path.join(story_dir, fname))
+        validate_story(story, source="story/%s" % fname)
+        story = dict(story)
+        story["story_schema"] = STORY_SCHEMA
         inner_id = story.get("id") if isinstance(story, dict) else None
         if inner_id != stem:
             raise LomcError(
@@ -242,9 +250,16 @@ def pack_mod(mod_dir, output=None):
         )
 
     with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.write(manifest_path, "manifest.json")
+        zf.writestr(
+            "manifest.json",
+            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+        )
         for fname in story_files:
-            zf.write(os.path.join(story_dir, fname), "story/%s" % fname)
+            stem = fname[: -len(".json")]
+            zf.writestr(
+                "story/%s" % fname,
+                json.dumps(loaded_stories[stem], ensure_ascii=False, indent=2) + "\n",
+            )
         for stem, lua in compiled.items():
             zf.writestr("lua/%s.lua" % stem, lua)
         # 已读文本表（契约 §1/§4）：key 与 lua 里 GetStoryText 的 key 一一对应
@@ -281,7 +296,11 @@ def pack_mod(mod_dir, output=None):
         for ctype, content_id in sorted(referenced_user_content):
             meta, folder = referenced_user_content[(ctype, content_id)]
             rel_dir = package_content_dir(ctype, content_id)
-            zf.write(os.path.join(folder, "content.json"), rel_dir + "/content.json")
+            zf.writestr(
+                rel_dir + "/content.json",
+                json.dumps(content_metadata_payload(meta), ensure_ascii=False, indent=2)
+                + "\n",
+            )
             for fname in listed_content_files(meta):
                 zf.write(os.path.join(folder, fname), rel_dir + "/" + fname)
 

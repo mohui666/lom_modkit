@@ -233,6 +233,7 @@ SHA-256 前 16 个十六进制字符，可用来核对具体文件，但**不是
 - `runtime/MortalModHost/` — BepInEx 游戏内插件
 - `tools/` — 从解包产物提取编辑器数据/素材的脚本
 - `data/` — 编辑器数据（`editor_data.json`，schema 3）
+- 新导出的包显式声明 `package_format`、`story_schema`、`content_schema`；三端统一拒绝未知或冲突版本，旧 `format: 1` 包继续兼容读取。
 - `samples/` — 示例 mod（demo_mod、showcase、showcase2 全节点演示 2.0、snack_case《点心大盗疑案》、probe）
 
 ### 从源码运行

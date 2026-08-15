@@ -89,6 +89,7 @@ import stage_guard
 from lua_preview import LuaPreview, compile_story, lomc_available, get_lomc
 from node_form import NodeForm
 from story_localization import StoryLocalizationDialog, apply_localization_settings
+from schema_versions import manifest_versions
 from preview import (
     CRASH_LOG,
     StagePreview,
@@ -472,7 +473,7 @@ class ManifestDialog(QDialog):
 
     def manifest(self) -> dict:
         m = {
-            "format": 1,
+            **manifest_versions(),
             "id": self.id_edit.text().strip() or "my_mod",
             "name": self.name_edit.text().strip(),
             "version": self.version_edit.text().strip() or "1.0.0",
@@ -2112,7 +2113,7 @@ class MainWindow(QMainWindow):
         preview_id = "lom_modkit_preview"
         title = str(self.story.get("title") or script_id)
         manifest = {
-            "format": 1,
+            **manifest_versions(),
             "id": preview_id,
             "name": f"编辑器临时试玩：{title}",
             "version": "0.0.0-preview",

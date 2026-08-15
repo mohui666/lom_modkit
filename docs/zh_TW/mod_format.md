@@ -29,6 +29,9 @@ assets/                # 可选，自定义资源
 ```json
 {
   "format": 1,
+  "package_format": 1,
+  "story_schema": 1,
+  "content_schema": 1,
   "id": "demo_mod",
   "name": "示例 Mod",
   "version": "1.0.0",
@@ -45,7 +48,7 @@ assets/                # 可选，自定义资源
 }
 ```
 
-- `format`：固定 `1`。
+- `package_format` / `story_schema` / `content_schema`：分別是包、Story 與使用者內容格式版本，目前皆固定為 `1`。`format: 1` 僅保留給舊版讀取器；新包會同時寫出明確欄位，未知版本或衝突宣告一律拒絕。
 - `id`：mod 唯一 id（`[a-z0-9_\-]+`），執行階段註冊名前綴，防衝突。
 - `entry`：入口劇情腳本 id，必須存在。
 - `campaign`（可選）：戰役模式。
@@ -76,6 +79,7 @@ assets/                # 可选，自定义资源
 
 ```json
 {
+  "story_schema": 1,
   "id": "main",
   "title": "显示给玩家的标题",
   "mood": false,
@@ -424,6 +428,7 @@ assets/user/audio/mohui.boss_theme/boss_theme.ogg
 ```json
 {
   "schema": 1,
+  "content_schema": 1,
   "id": "mohui.boss_theme",
   "type": "audio",
   "name": "决战曲",

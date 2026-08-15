@@ -1,4 +1,5 @@
 {
+  "story_schema": 1,
   "id": "train_affinity",
   "title": "练武场·小梅的邀约（好感≥3）",
   "start": "n2",

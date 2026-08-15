@@ -47,6 +47,9 @@ STORY_DIR = SHOWCASE_DIR / "story"
 MOD_ID = "showcase2"
 MANIFEST = {
     "format": 1,
+    "package_format": 1,
+    "story_schema": 1,
+    "content_schema": 1,
     "id": MOD_ID,
     "name": "全节点演示2.0·九姝篇",
     "version": "2.0.0",

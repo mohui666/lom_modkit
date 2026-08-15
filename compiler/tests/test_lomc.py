@@ -21,6 +21,7 @@ from lomc import (
     validate_story,
 )
 from lomc.codegen import lua_num
+from lomc.schema_versions import CONTENT_SCHEMA, PACKAGE_FORMAT, STORY_SCHEMA
 
 COMPILER_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -1518,7 +1519,7 @@ class TestBranchNewSources(unittest.TestCase):
     def test_manifest_errors(self):
         with self.assertRaises(LomcError) as cm:
             validate_manifest({"format": 2, "id": "x"})
-        self.assertIn('"format" 必须固定为 1', str(cm.exception))
+        self.assertIn('"package_format" 必须固定为 1', str(cm.exception))
         bad = dict(MANIFEST)
         del bad["author"]
         with self.assertRaises(LomcError) as cm:
@@ -1551,6 +1552,32 @@ class TestBranchNewSources(unittest.TestCase):
         with self.assertRaises(LomcError) as cm:
             validate_manifest(bad)
         self.assertIn("不能超过 80", str(cm.exception))
+
+    def test_explicit_schema_versions_are_checked(self):
+        explicit = dict(
+            MANIFEST,
+            package_format=PACKAGE_FORMAT,
+            story_schema=STORY_SCHEMA,
+            content_schema=CONTENT_SCHEMA,
+        )
+        validate_manifest(explicit)
+        for field in ("package_format", "story_schema", "content_schema"):
+            for value in (999, None, True):
+                bad = dict(explicit)
+                bad[field] = value
+                with self.subTest(field=field, value=value), self.assertRaises(LomcError):
+                    validate_manifest(bad)
+        inconsistent = dict(explicit, format=999)
+        with self.assertRaises(LomcError) as cm:
+            validate_manifest(inconsistent)
+        self.assertIn("不一致", str(cm.exception))
+
+        validate_story(dict(linear_story(), story_schema=STORY_SCHEMA))
+        with self.assertRaises(LomcError) as cm:
+            validate_story(dict(linear_story(), story_schema=999))
+        self.assertIn("story_schema", str(cm.exception))
+        with self.assertRaises(LomcError):
+            validate_story(dict(linear_story(), story_schema=None))
 
     def test_disable_official_events(self):
         # campaign.disable_official_events：bool，可选（缺省 false）
@@ -1884,9 +1911,13 @@ class TestPack(unittest.TestCase):
                 },
             )
             manifest_back = json.loads(zf.read("manifest.json").decode("utf-8"))
-            self.assertEqual(manifest_back, MANIFEST)
+            self.assertEqual({key: manifest_back[key] for key in MANIFEST}, MANIFEST)
+            self.assertEqual(manifest_back["package_format"], PACKAGE_FORMAT)
+            self.assertEqual(manifest_back["story_schema"], STORY_SCHEMA)
+            self.assertEqual(manifest_back["content_schema"], CONTENT_SCHEMA)
             story_back = json.loads(zf.read("story/main.json").decode("utf-8"))
-            self.assertEqual(story_back, main)
+            self.assertEqual(story_back["story_schema"], STORY_SCHEMA)
+            self.assertEqual({key: story_back[key] for key in main}, main)
             lua_main = zf.read("lua/main.lua").decode("utf-8")
             lua_extra = zf.read("lua/extra.lua").decode("utf-8")
             # 已读文本表（契约 §1）：仅 say 节点的 key → 文本（death 文本由
@@ -1921,6 +1952,12 @@ class TestPack(unittest.TestCase):
         with self.assertRaises(LomcError) as cm:
             pack_mod(self.mod_dir)
         self.assertIn("缺少 manifest.json", str(cm.exception))
+
+    def test_pack_does_not_silently_downgrade_future_story(self):
+        self.write_story(dict(linear_story(), story_schema=999))
+        with self.assertRaises(LomcError) as cm:
+            pack_mod(self.mod_dir)
+        self.assertIn("story_schema", str(cm.exception))
 
     def test_pack_entry_missing(self):
         self.write_story(
@@ -4218,10 +4255,32 @@ class TestPackUserAudio(unittest.TestCase):
             self.assertIn("assets/user/audio/mohui.line_used/content.json", names)
             self.assertNotIn("assets/user/audio/mohui.line_unused/content.json", names)
             meta = json.loads(zf.read("assets/user/audio/mohui.line_used/content.json"))
+            self.assertEqual(meta["content_schema"], CONTENT_SCHEMA)
             self.assertEqual(meta.get("character"), "user:mohui.luoxue")
 
 
 class TestAudioCharacterMetadata(unittest.TestCase):
+    def test_explicit_content_schema_is_checked(self):
+        from lomc.content import normalize_content_metadata
+
+        base = {
+            "schema": 1,
+            "content_schema": CONTENT_SCHEMA,
+            "id": "mohui.line_01",
+            "type": "audio",
+            "name": "语音",
+            "audio_kind": "sound",
+            "files": {"main": "line.wav"},
+        }
+        self.assertEqual(
+            normalize_content_metadata(base)["content_schema"], CONTENT_SCHEMA
+        )
+        with self.assertRaises(LomcError):
+            normalize_content_metadata(dict(base, content_schema=999))
+        with self.assertRaises(LomcError) as cm:
+            normalize_content_metadata(dict(base, schema=999))
+        self.assertIn("不一致", str(cm.exception))
+
     def test_old_audio_without_character_still_loads(self):
         from lomc.content import normalize_content_metadata, write_content_metadata
 

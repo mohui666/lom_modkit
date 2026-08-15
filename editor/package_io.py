@@ -17,6 +17,13 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from asset_store import AssetStoreError, resolve_image_asset, store_image_bytes
 import content_registry
 from lua_preview import compile_story, get_lomc
+from schema_versions import (
+    CONTENT_SCHEMA,
+    PACKAGE_FORMAT,
+    STORY_SCHEMA,
+    assert_supported_version,
+    manifest_versions,
+)
 
 
 class PackError(Exception):
@@ -135,12 +142,28 @@ def _import_lommod(path: str | Path) -> tuple[dict, dict[str, dict]]:
         except (ValueError, OSError, zipfile.BadZipFile) as exc:
             raise PackError(f"无法检查包内容：{exc}") from exc
         manifest = _read_json_from_zip(zf, entries, "manifest.json")
-        if manifest.get("format") != 1:
-            raise PackError(f"不支持的 format：{manifest.get('format')!r}（仅支持 1）")
+        try:
+            assert_supported_version(
+                manifest, "package_format", PACKAGE_FORMAT, legacy="format"
+            )
+            assert_supported_version(
+                manifest, "story_schema", STORY_SCHEMA, allow_missing=True
+            )
+            assert_supported_version(
+                manifest, "content_schema", CONTENT_SCHEMA, allow_missing=True
+            )
+        except ValueError as exc:
+            raise PackError(str(exc)) from exc
         stories: dict[str, dict] = {}
         for name in entries:
             if name.startswith("story/") and name.endswith(".json"):
                 story = _read_json_from_zip(zf, entries, name)
+                try:
+                    assert_supported_version(
+                        story, "story_schema", STORY_SCHEMA, allow_missing=True
+                    )
+                except ValueError as exc:
+                    raise PackError(f"包内 {name}：{exc}") from exc
                 story_id = Path(name).stem
                 story.setdefault("id", story_id)
                 stories[story_id] = story
@@ -222,7 +245,31 @@ def export_lommod(
     """
     path = Path(path)
     manifest = dict(manifest)
-    manifest.setdefault("format", 1)
+    try:
+        assert_supported_version(
+            manifest,
+            "package_format",
+            PACKAGE_FORMAT,
+            legacy="format",
+            allow_missing=True,
+        )
+        assert_supported_version(
+            manifest, "story_schema", STORY_SCHEMA, allow_missing=True
+        )
+        assert_supported_version(
+            manifest, "content_schema", CONTENT_SCHEMA, allow_missing=True
+        )
+        for sid, story in stories.items():
+            assert_supported_version(
+                story, "story_schema", STORY_SCHEMA, allow_missing=True
+            )
+    except ValueError as exc:
+        raise PackError("无法导出未知格式：%s" % exc) from exc
+    manifest.update(manifest_versions())
+    stories = {
+        sid: {**story, "story_schema": STORY_SCHEMA}
+        for sid, story in stories.items()
+    }
     asset_sources: dict[str, Path] = {}
     for rel in sorted(_referenced_images(stories)):
         source = resolve_image_asset(rel)
@@ -322,8 +369,20 @@ def export_lommod(
                 content_id, expected_type=content_type
             )
             rel_dir = "assets/user/%s/%s" % (rec.type, content_id)
-            zf.write(rec.folder / "content.json", rel_dir + "/content.json")
-            from lomc.content import listed_content_files
+            from lomc.content import (
+                content_metadata_payload,
+                listed_content_files,
+                load_content_metadata,
+            )
+
+            metadata = load_content_metadata(str(rec.folder / "content.json"))
+            zf.writestr(
+                rel_dir + "/content.json",
+                json.dumps(
+                    content_metadata_payload(metadata), ensure_ascii=False, indent=2
+                )
+                + "\n",
+            )
 
             for fname in listed_content_files(
                 {

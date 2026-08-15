@@ -26,6 +26,7 @@ from .dice_data import (
     load_portrait_table,
 )
 from .errors import LomcError
+from .schema_versions import CONTENT_SCHEMA, PACKAGE_FORMAT, STORY_SCHEMA
 
 # §1：剧情脚本 id 规则
 SCRIPT_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,64}$")
@@ -1131,6 +1132,15 @@ def _validate_story_inner(story):
     if not isinstance(story, dict):
         raise LomcError("顶层必须是 JSON 对象")
 
+    story_schema = story.get("story_schema")
+    if "story_schema" in story and (
+        story_schema != STORY_SCHEMA or isinstance(story_schema, bool)
+    ):
+        raise LomcError(
+            '字段 "story_schema" 必须固定为 %d，实际为 %r'
+            % (STORY_SCHEMA, story_schema)
+        )
+
     sid = story.get("id")
     if not isinstance(sid, str) or SCRIPT_ID_RE.fullmatch(sid) is None:
         raise LomcError('缺少必填字段 "id"（剧情脚本 id，规则 [a-zA-Z0-9_-]{1,64}）')
@@ -1209,9 +1219,26 @@ def validate_manifest(manifest, source="manifest.json"):
     try:
         if not isinstance(manifest, dict):
             raise LomcError("顶层必须是 JSON 对象")
-        fmt = manifest.get("format")
-        if fmt != 1 or isinstance(fmt, bool):
-            raise LomcError('字段 "format" 必须固定为 1（格式版本号）')
+        fmt = manifest.get("package_format", manifest.get("format"))
+        if fmt != PACKAGE_FORMAT or isinstance(fmt, bool):
+            raise LomcError(
+                '字段 "package_format" 必须固定为 %d（包格式版本号）'
+                % PACKAGE_FORMAT
+            )
+        if "package_format" in manifest and "format" in manifest:
+            legacy_format = manifest.get("format")
+            if legacy_format != fmt or isinstance(legacy_format, bool):
+                raise LomcError('字段 "package_format" 与旧字段 "format" 的声明不一致')
+        for field, current in (
+            ("story_schema", STORY_SCHEMA),
+            ("content_schema", CONTENT_SCHEMA),
+        ):
+            value = manifest.get(field)
+            if field in manifest and (value != current or isinstance(value, bool)):
+                raise LomcError(
+                    '字段 "%s" 必须固定为 %d，实际为 %r'
+                    % (field, current, value)
+                )
         mid = manifest.get("id")
         if not isinstance(mid, str) or MOD_ID_RE.fullmatch(mid) is None:
             raise LomcError(

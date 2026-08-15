@@ -16,6 +16,7 @@ import tempfile
 from pathlib import Path
 
 from i18n import t, term
+from schema_versions import STORY_SCHEMA, assert_supported_version
 
 # story 脚本 id 规则（契约 §1）
 ID_PATTERN = re.compile(r"^[a-zA-Z0-9_\-]{1,64}$")
@@ -1151,6 +1152,7 @@ def new_story(story_id: str = "main", editor_data: dict | None = None) -> dict:
     draft["nodes"].append(entrance)
     first = new_node("say", make_node_id(draft, "say"), editor_data)
     return {
+        "story_schema": STORY_SCHEMA,
         "id": story_id,
         "title": t("new_story_title", default="新剧情"),
         "mood": False,
@@ -1169,6 +1171,9 @@ def load_story(path: Path) -> dict:
         raise ValueError("story.json 不是合法 JSON: %s" % exc) from exc
     if not isinstance(story, dict) or not isinstance(story.get("nodes"), list):
         raise ValueError("story.json 结构非法：缺少 nodes 数组")
+    assert_supported_version(
+        story, "story_schema", STORY_SCHEMA, allow_missing=True
+    )
     story.setdefault("id", "main")
     story.setdefault("title", story["id"])
     story.setdefault("mood", False)

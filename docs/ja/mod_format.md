@@ -29,6 +29,9 @@ assets/                # 可选，自定义资源
 ```json
 {
   "format": 1,
+  "package_format": 1,
+  "story_schema": 1,
+  "content_schema": 1,
   "id": "demo_mod",
   "name": "示例 Mod",
   "version": "1.0.0",
@@ -44,6 +47,8 @@ assets/                # 可选，自定义资源
   }
 }
 ```
+
+`package_format` / `story_schema` / `content_schema` は、それぞれパッケージ、Story、ユーザーコンテンツの明示的な形式バージョンで、現在はすべて `1` 固定です。`format: 1` は旧 reader 互換用です。未知のバージョンや矛盾する宣言はエディター、コンパイラー、Runtime のすべてで拒否されます。
 
 - `format`：固定で `1`。
 - `id`：mod の一意な id（`[a-z0-9_\-]+`）。ランタイムの登録名プレフィックスとして衝突を防ぎます。
@@ -76,6 +81,7 @@ assets/                # 可选，自定义资源
 
 ```json
 {
+  "story_schema": 1,
   "id": "main",
   "title": "显示给玩家的标题",
   "mood": false,
@@ -424,6 +430,7 @@ assets/user/audio/mohui.boss_theme/boss_theme.ogg
 ```json
 {
   "schema": 1,
+  "content_schema": 1,
   "id": "mohui.boss_theme",
   "type": "audio",
   "name": "决战曲",

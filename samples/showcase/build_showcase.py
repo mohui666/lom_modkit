@@ -60,6 +60,9 @@ RAW_SCRIPTS_DIR = Path(r"C:/Users/mohui666/lom_unpack/raw_scripts")
 MOD_ID = "showcase"
 MANIFEST = {
     "format": 1,
+    "package_format": 1,
+    "story_schema": 1,
+    "content_schema": 1,
     "id": MOD_ID,
     "name": "全功能展示",
     "version": "1.0.0",

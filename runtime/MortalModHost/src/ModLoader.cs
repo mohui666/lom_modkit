@@ -14,6 +14,10 @@ namespace MortalModHost
     /// </summary>
     internal static class ModLoader
     {
+        internal const int PackageFormat = 1;
+        internal const int StorySchema = 1;
+        internal const int ContentSchema = 1;
+
         /// <summary>结局卡背景图单张上限（字节，契约 §3.1，与编译器 pack 校验一致）。</summary>
         private const long MaxEndingImageBytes = 8L * 1024 * 1024;
 
@@ -217,11 +221,10 @@ namespace MortalModHost
             if (root == null)
                 throw new FormatException("manifest.json 顶层必须是 JSON 对象");
 
-            // format 固定为 1，不符说明是未知格式版本，跳过比误加载安全
-            object formatObj;
-            double format;
-            if (!root.TryGetValue("format", out formatObj) || !(formatObj is double) || (format = (double)formatObj) != 1.0)
-                throw new FormatException("manifest.format 不是 1（本插件只支持格式 v1）");
+            // 新包使用含义明确的三个版本字段；format 仅供旧 v1 reader 兼容。
+            RequireVersion(root, "package_format", PackageFormat, "format", false);
+            RequireVersion(root, "story_schema", StorySchema, null, true);
+            RequireVersion(root, "content_schema", ContentSchema, null, true);
 
             string id = GetString(root, "id", required: true);
             string entry = GetString(root, "entry", required: true);
@@ -241,6 +244,31 @@ namespace MortalModHost
                 Campaign = ParseCampaign(root)
             };
             return package;
+        }
+
+        private static void RequireVersion(
+            Dictionary<string, object> root,
+            string field,
+            int current,
+            string legacyField,
+            bool allowMissing)
+        {
+            object valueObj;
+            bool hasExplicit = root.TryGetValue(field, out valueObj);
+            object legacyObj = null;
+            bool hasLegacy = legacyField != null && root.TryGetValue(legacyField, out legacyObj);
+            if (!hasExplicit)
+                valueObj = hasLegacy ? legacyObj : null;
+            if (!hasExplicit && !hasLegacy && allowMissing)
+                return;
+            if (!(valueObj is double) || (double)valueObj != current)
+                throw new FormatException(
+                    "manifest." + field + " 不是 " + current
+                    + "（本插件不支持该版本）");
+            if (hasExplicit && hasLegacy
+                && (!(legacyObj is double) || (double)legacyObj != (double)valueObj))
+                throw new FormatException(
+                    "manifest." + field + " 与旧字段 " + legacyField + " 不一致");
         }
 
         private static bool IsValidModId(string value)
@@ -522,8 +550,16 @@ namespace MortalModHost
                 throw new FormatException("content.json 顶层必须是对象");
 
             object schemaObj;
-            if (!root.TryGetValue("schema", out schemaObj) || !(schemaObj is double) || (double)schemaObj != 1.0)
-                throw new FormatException("content.json schema 必须是 1");
+            bool hasExplicitSchema = root.TryGetValue("content_schema", out schemaObj);
+            object legacySchemaObj = null;
+            bool hasLegacySchema = root.TryGetValue("schema", out legacySchemaObj);
+            if (!hasExplicitSchema)
+                schemaObj = hasLegacySchema ? legacySchemaObj : null;
+            if (!(schemaObj is double) || (double)schemaObj != ContentSchema)
+                throw new FormatException("content.json content_schema 必须是 " + ContentSchema);
+            if (hasExplicitSchema && hasLegacySchema
+                && (!(legacySchemaObj is double) || (double)legacySchemaObj != (double)schemaObj))
+                throw new FormatException("content.json content_schema 与旧字段 schema 不一致");
 
             string id = GetString(root, "id", required: true);
             string idError;

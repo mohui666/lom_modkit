@@ -16,9 +16,9 @@ import os
 import re
 
 from .errors import LomcError
+from .schema_versions import CONTENT_SCHEMA
 
 USER_PREFIX = "user:"
-CONTENT_SCHEMA = 1
 CONTENT_TYPES = ("audio", "character", "image")
 AUDIO_KINDS = ("music", "sound", "env")
 ART_FACINGS = ("left", "right")
@@ -357,12 +357,16 @@ def normalize_content_metadata(data, source="content.json"):
     """校验 content.json 对象并补齐缺省。"""
     if not isinstance(data, dict):
         raise LomcError("%s：顶层必须是 JSON 对象" % source)
-    schema = data.get("schema")
+    schema = data.get("content_schema", data.get("schema"))
     if schema != CONTENT_SCHEMA or isinstance(schema, bool):
         raise LomcError(
-            "%s：schema 必须是 %d（当前用户内容格式版本），实际为 %r"
+            "%s：content_schema 必须是 %d（当前用户内容格式版本），实际为 %r"
             % (source, CONTENT_SCHEMA, schema)
         )
+    if "content_schema" in data and "schema" in data:
+        legacy_schema = data.get("schema")
+        if legacy_schema != schema or isinstance(legacy_schema, bool):
+            raise LomcError("%s：content_schema 与旧字段 schema 的版本声明不一致" % source)
     content_id = data.get("id")
     validate_content_id(content_id, label="%s 的 id" % source)
     ctype = data.get("type")
@@ -412,6 +416,7 @@ def normalize_content_metadata(data, source="content.json"):
         art_facing = normalize_art_facing(data.get("art_facing"), source)
     return {
         "schema": CONTENT_SCHEMA,
+        "content_schema": CONTENT_SCHEMA,
         "id": content_id,
         "type": ctype,
         "name": name.strip(),
@@ -534,11 +539,11 @@ def listed_content_files(meta):
     return names
 
 
-def write_content_metadata(meta_path, metadata):
-    """把规范化 metadata 写成 content.json。"""
-    normalized = normalize_content_metadata(metadata, source=meta_path)
+def content_metadata_payload(normalized):
+    """Build the stable on-disk representation from normalized metadata."""
     payload = {
         "schema": normalized["schema"],
+        "content_schema": normalized["content_schema"],
         "id": normalized["id"],
         "type": normalized["type"],
         "name": normalized["name"],
@@ -565,6 +570,13 @@ def write_content_metadata(meta_path, metadata):
         payload["art_facing"] = normalized["art_facing"]
     if normalized["type"] == "character" and normalized.get("intro"):
         payload["intro"] = dict(normalized["intro"])
+    return payload
+
+
+def write_content_metadata(meta_path, metadata):
+    """把规范化 metadata 写成 content.json。"""
+    normalized = normalize_content_metadata(metadata, source=meta_path)
+    payload = content_metadata_payload(normalized)
     parent = os.path.dirname(meta_path)
     if parent:
         os.makedirs(parent, exist_ok=True)

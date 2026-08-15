@@ -29,6 +29,9 @@ assets/                # 可选，自定义资源
 ```json
 {
   "format": 1,
+  "package_format": 1,
+  "story_schema": 1,
+  "content_schema": 1,
   "id": "demo_mod",
   "name": "示例 Mod",
   "version": "1.0.0",
@@ -44,6 +47,8 @@ assets/                # 可选，自定义资源
   }
 }
 ```
+
+`package_format` / `story_schema` / `content_schema`는 각각 패키지, Story, 사용자 콘텐츠의 명시적 형식 버전이며 현재 모두 `1`입니다. `format: 1`은 구형 reader 호환용입니다. 알 수 없는 버전이나 서로 충돌하는 선언은 에디터, 컴파일러, Runtime에서 모두 거부됩니다.
 
 - `format`: 고정값 `1`.
 - `id`: mod 고유 id(`[a-z0-9_\-]+`), 런타임 등록 이름의 접두사로 충돌을 방지합니다.
@@ -76,6 +81,7 @@ assets/                # 可选，自定义资源
 
 ```json
 {
+  "story_schema": 1,
   "id": "main",
   "title": "显示给玩家的标题",
   "mood": false,
@@ -424,6 +430,7 @@ assets/user/audio/mohui.boss_theme/boss_theme.ogg
 ```json
 {
   "schema": 1,
+  "content_schema": 1,
   "id": "mohui.boss_theme",
   "type": "audio",
   "name": "决战曲",

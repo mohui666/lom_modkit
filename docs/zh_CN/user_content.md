@@ -79,6 +79,7 @@ user:mohui.luoxue
 ```json
 {
   "schema": 1,
+  "content_schema": 1,
   "id": "mohui.moon_bg",
   "type": "image",
   "name": "月夜",
@@ -93,6 +94,7 @@ user:mohui.luoxue
 ```json
 {
   "schema": 1,
+  "content_schema": 1,
   "id": "mohui.luoxue",
   "type": "character",
   "name": "洛雪",
@@ -149,6 +151,7 @@ assets/user/character/mohui.luoxue/happy.png
 ```json
 {
   "schema": 1,
+  "content_schema": 1,
   "id": "mohui.line_01",
   "type": "audio",
   "name": "师兄早",

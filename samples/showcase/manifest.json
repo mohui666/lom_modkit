@@ -1,5 +1,8 @@
 {
   "format": 1,
+  "package_format": 1,
+  "story_schema": 1,
+  "content_schema": 1,
   "id": "showcase",
   "name": "全功能展示",
   "version": "1.0.0",

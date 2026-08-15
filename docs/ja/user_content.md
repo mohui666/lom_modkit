@@ -99,6 +99,7 @@ assets/user/audio/mohui.battle/battle.ogg
 ```json
 {
   "schema": 1,
+  "content_schema": 1,
   "id": "mohui.line_01",
   "type": "audio",
   "name": "师兄早",
