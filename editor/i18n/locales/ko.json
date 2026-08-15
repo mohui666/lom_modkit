@@ -642,5 +642,18 @@
   "conditions.subject.stat": "주인공 속성 {name}",
   "conditions.proof.always_true": "항상 참", "conditions.proof.always_false": "항상 거짓",
   "conditions.proof.unknown": "정적 판정 불가",
-  "conditions.proof.dominating_write": "챕터 시작점에서 여기까지 모든 경로가 먼저 Mod Flag {name}을 설정합니다."
+  "conditions.proof.dominating_write": "챕터 시작점에서 여기까지 모든 경로가 먼저 Mod Flag {name}을 설정합니다.",
+  "menu.path_simulator": "스토리 경로 시뮬레이터…", "paths.title": "스토리 경로 시뮬레이터",
+  "paths.summary": "{stories}개 챕터 / {nodes}개 노드 분석: 확정 문제 {issues}개. 알 수 없는 Runtime 상태에 의존하는 조건 {unknown}개는 확정 결과로 만들지 않았습니다.",
+  "paths.col.severity": "등급", "paths.col.code": "문제", "paths.col.detail": "설명",
+  "paths.code.unreachable": "도달 불가", "paths.code.broken_target": "끊어진 대상",
+  "paths.code.no_exit_scc": "출구 없는 순환", "paths.code.dead_branch": "죽은 분기",
+  "paths.code.missing_ending": "결말 없음", "paths.code.malformed_cross_story": "챕터 간 이동 오류",
+  "paths.detail.unreachable": "챕터 시작점에서 이 노드에 도달할 수 없습니다.", "paths.detail.broken": "{label}이 존재하지 않는 노드 {target}을 가리킵니다.",
+  "paths.detail.no_exit": "도달 가능하지만 어떤 결말에도 도달하지 못하는 순환에 있습니다.",
+  "paths.detail.dead_branch": "조건이 증명되어 value={value} → {target}은 실행될 수 없습니다.",
+  "paths.detail.missing_ending": "최종 end, 장면 종점 또는 사망 결말에 도달할 수 없습니다. Raw Lua는 추측하지 않습니다.",
+  "paths.detail.bad_story": "next_script가 존재하지 않는 챕터 {target}을 가리킵니다.",
+  "paths.detail.bad_entry": "manifest.entry가 존재하지 않는 챕터 {target}을 가리킵니다.",
+  "paths.detail.bad_trigger": "campaign trigger #{index}가 존재하지 않는 챕터 {target}을 가리킵니다."
 }

@@ -642,5 +642,18 @@
   "conditions.subject.stat": "主角屬性 {name}",
   "conditions.proof.always_true": "恆真", "conditions.proof.always_false": "恆假",
   "conditions.proof.unknown": "無法靜態判定",
-  "conditions.proof.dominating_write": "所有從章節起點到此處的路徑都先設定了 Mod Flag {name}。"
+  "conditions.proof.dominating_write": "所有從章節起點到此處的路徑都先設定了 Mod Flag {name}。",
+  "menu.path_simulator": "劇情路徑模擬器…", "paths.title": "劇情路徑模擬器",
+  "paths.summary": "分析 {stories} 個章節 / {nodes} 個節點：{issues} 個確定問題；另有 {unknown} 個條件依賴未知 Runtime 狀態，未模擬成確定結果。",
+  "paths.col.severity": "等級", "paths.col.code": "問題", "paths.col.detail": "說明",
+  "paths.code.unreachable": "無法到達", "paths.code.broken_target": "斷裂目標",
+  "paths.code.no_exit_scc": "無出口循環", "paths.code.dead_branch": "死分支",
+  "paths.code.missing_ending": "缺少結局", "paths.code.malformed_cross_story": "跨章節跳轉錯誤",
+  "paths.detail.unreachable": "從章節起點無法到達此節點。", "paths.detail.broken": "{label} 指向不存在的節點 {target}。",
+  "paths.detail.no_exit": "此節點位於可到達但無法抵達任何結局的循環中。",
+  "paths.detail.dead_branch": "條件已證明，value={value} → {target} 不可能執行。",
+  "paths.detail.missing_ending": "本章無法抵達最終 end、場景終點或死亡結局；不猜測原生 Lua。",
+  "paths.detail.bad_story": "next_script 指向不存在的章節 {target}。",
+  "paths.detail.bad_entry": "manifest.entry 指向不存在的章節 {target}。",
+  "paths.detail.bad_trigger": "campaign trigger #{index} 指向不存在的章節 {target}。"
 }

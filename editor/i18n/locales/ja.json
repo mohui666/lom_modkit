@@ -642,5 +642,18 @@
   "conditions.subject.stat": "主人公属性 {name}",
   "conditions.proof.always_true": "常に真", "conditions.proof.always_false": "常に偽",
   "conditions.proof.unknown": "静的判定不可",
-  "conditions.proof.dominating_write": "チャプター開始点からここまでの全経路で Mod Flag {name} が先に設定されます。"
+  "conditions.proof.dominating_write": "チャプター開始点からここまでの全経路で Mod Flag {name} が先に設定されます。",
+  "menu.path_simulator": "ストーリーパスシミュレーター…", "paths.title": "ストーリーパスシミュレーター",
+  "paths.summary": "{stories} チャプター / {nodes} ノードを解析：確定問題 {issues} 件。未知の Runtime 状態に依存する条件 {unknown} 件は確定結果にしていません。",
+  "paths.col.severity": "レベル", "paths.col.code": "問題", "paths.col.detail": "説明",
+  "paths.code.unreachable": "到達不能", "paths.code.broken_target": "リンク切れ",
+  "paths.code.no_exit_scc": "出口なしループ", "paths.code.dead_branch": "デッド分岐",
+  "paths.code.missing_ending": "終端なし", "paths.code.malformed_cross_story": "チャプター間遷移エラー",
+  "paths.detail.unreachable": "チャプター開始点から到達できません。", "paths.detail.broken": "{label} が存在しないノード {target} を参照します。",
+  "paths.detail.no_exit": "到達可能ですが、どの終端にも到達できないループ内です。",
+  "paths.detail.dead_branch": "条件が証明済みのため value={value} → {target} は実行されません。",
+  "paths.detail.missing_ending": "最終 end、シーン終端、死亡終端に到達できません。Raw Lua は推測しません。",
+  "paths.detail.bad_story": "next_script が存在しないチャプター {target} を参照します。",
+  "paths.detail.bad_entry": "manifest.entry が存在しないチャプター {target} を参照します。",
+  "paths.detail.bad_trigger": "campaign trigger #{index} が存在しないチャプター {target} を参照します。"
 }

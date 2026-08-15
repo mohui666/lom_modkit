@@ -923,6 +923,7 @@ class MainWindow(QMainWindow):
             QKeySequence("F6"),
         )
         run_menu.addAction(t("menu.flow"), self._show_flow_graph, QKeySequence("F7"))
+        run_menu.addAction(t("menu.path_simulator"), self._show_path_simulator)
         run_menu.addSeparator()
         run_menu.addAction(t("menu.reset_read"), self._reset_read_state)
         lang_menu = self.menuBar().addMenu(t("lang.menu"))
@@ -1145,6 +1146,15 @@ class MainWindow(QMainWindow):
 
         self._flush_pending()
         ConditionInspectorDialog(
+            self._stories, self._locate_search_result, self,
+            manifest=self.manifest_base,
+        ).exec()
+
+    def _show_path_simulator(self) -> None:
+        from path_simulator import PathSimulatorDialog
+
+        self._flush_pending()
+        PathSimulatorDialog(
             self._stories, self._locate_search_result, self,
             manifest=self.manifest_base,
         ).exec()
