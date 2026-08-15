@@ -611,5 +611,13 @@
   "sections.collapse_all": "全部折叠", "sections.manage": "管理分组…",
   "sections.section": "段落", "sections.group": "小组",
   "sections.header_tip": "双击折叠或展开；分组不改变真实剧情流程。",
-  "sections.updated": "已更新剧情分组（CFG 与编译语义不变）"
+  "sections.updated": "已更新剧情分组（CFG 与编译语义不变）",
+  "menu.cross_story_transfer": "跨章节复制 / 粘贴…", "transfer.title": "跨章节复制 / 粘贴",
+  "transfer.intro": "复制一个连续节点范围到另一章节。内部跳转自动重映射，范围外引用保持原值并明确告警。",
+  "transfer.source": "来源章节", "transfer.start": "起始步骤序号",
+  "transfer.end": "结束步骤序号", "transfer.target": "目标章节",
+  "transfer.insert_after": "插入到前 N 个步骤之后", "transfer.same_story": "来源与目标必须不同。",
+  "transfer.ready": "用户内容引用会原样保留；确认后整次操作可撤销。",
+  "transfer.need_two": "项目至少需要两个章节。", "transfer.done": "已复制 {count} 个节点到 {story}",
+  "transfer.warning_title": "复制完成，但有引用需要确认", "transfer.warning_intro": "以下引用无法安全推断，工具没有静默改写："
 }

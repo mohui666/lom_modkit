@@ -908,6 +908,7 @@ class MainWindow(QMainWindow):
         edit.addAction(t("menu.bulk_edit"), self._show_bulk_edit)
         edit.addAction(t("menu.node_templates"), self._show_node_templates)
         edit.addAction(t("menu.story_sections"), self._show_story_sections)
+        edit.addAction(t("menu.cross_story_transfer"), self._show_cross_story_transfer)
         run_menu = self.menuBar().addMenu(t("menu.run"))
         run_menu.addAction(
             t("menu.play"),
@@ -1097,6 +1098,36 @@ class MainWindow(QMainWindow):
         set_sections(self.story, updated)
         self._refresh_all(select_row=selected)
         self.statusBar().showMessage(t("sections.updated"), 3000)
+
+    def _show_cross_story_transfer(self) -> None:
+        from cross_story_transfer import CrossStoryTransferDialog, copy_nodes_between_stories
+
+        self._flush_pending()
+        if len(self._stories) < 2:
+            QMessageBox.information(self, t("transfer.title"), t("transfer.need_two"))
+            return
+        dialog = CrossStoryTransferDialog(self._stories, self._current_id, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        params = dialog.parameters()
+        try:
+            copy_nodes_between_stories(copy.deepcopy(self._stories), *params)
+            self._record_discrete()
+            result = copy_nodes_between_stories(self._stories, *params)
+        except ValueError as exc:
+            QMessageBox.warning(self, t("transfer.title"), str(exc))
+            return
+        self._current_id = result.target_story
+        self._refresh_all(select_row=result.first_index)
+        self.statusBar().showMessage(
+            t("transfer.done", count=result.count, story=result.target_story), 4000
+        )
+        if result.warnings:
+            QMessageBox.warning(
+                self,
+                t("transfer.warning_title"),
+                t("transfer.warning_intro") + "\n\n" + "\n".join("• " + warning for warning in result.warnings),
+            )
 
     def _locate_search_result(self, story_id: str, node_id: str | None) -> None:
         if story_id not in self._stories:

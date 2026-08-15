@@ -611,5 +611,13 @@
   "sections.collapse_all": "すべて折りたたむ", "sections.manage": "グループ管理…",
   "sections.section": "セクション", "sections.group": "グループ",
   "sections.header_tip": "ダブルクリックで折りたたみます。実際のストーリーフローは変わりません。",
-  "sections.updated": "ストーリーグループを更新しました（CFG とコンパイル意味論は不変）"
+  "sections.updated": "ストーリーグループを更新しました（CFG とコンパイル意味論は不変）",
+  "menu.cross_story_transfer": "チャプター間コピー / 貼り付け…", "transfer.title": "チャプター間コピー / 貼り付け",
+  "transfer.intro": "連続したノード範囲を別チャプターへコピーします。内部遷移は再マップし、範囲外参照は保持して警告します。",
+  "transfer.source": "コピー元", "transfer.start": "開始ステップ番号",
+  "transfer.end": "終了ステップ番号", "transfer.target": "コピー先",
+  "transfer.insert_after": "先頭 N ステップの後へ挿入", "transfer.same_story": "コピー元とコピー先は別にしてください。",
+  "transfer.ready": "ユーザーコンテンツ参照は保持され、操作全体を元に戻せます。",
+  "transfer.need_two": "プロジェクトには 2 つ以上のチャプターが必要です。", "transfer.done": "{count} ノードを {story} へコピーしました",
+  "transfer.warning_title": "コピー完了：確認が必要な参照があります", "transfer.warning_intro": "次の参照は安全に推測できないため、自動変更していません："
 }

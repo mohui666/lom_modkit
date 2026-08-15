@@ -611,5 +611,13 @@
   "sections.collapse_all": "모두 접기", "sections.manage": "그룹 관리…",
   "sections.section": "섹션", "sections.group": "그룹",
   "sections.header_tip": "두 번 클릭해 접거나 펼칩니다. 실제 스토리 흐름은 바뀌지 않습니다.",
-  "sections.updated": "스토리 그룹을 갱신했습니다(CFG 및 컴파일 의미 불변)"
+  "sections.updated": "스토리 그룹을 갱신했습니다(CFG 및 컴파일 의미 불변)",
+  "menu.cross_story_transfer": "챕터 간 복사 / 붙여넣기…", "transfer.title": "챕터 간 복사 / 붙여넣기",
+  "transfer.intro": "연속된 노드 범위를 다른 챕터로 복사합니다. 내부 이동은 다시 연결하고 범위 밖 참조는 유지하며 경고합니다.",
+  "transfer.source": "원본 챕터", "transfer.start": "시작 단계 번호",
+  "transfer.end": "끝 단계 번호", "transfer.target": "대상 챕터",
+  "transfer.insert_after": "앞 N단계 뒤에 삽입", "transfer.same_story": "원본과 대상은 달라야 합니다.",
+  "transfer.ready": "사용자 콘텐츠 참조는 그대로 유지되며 전체 작업을 되돌릴 수 있습니다.",
+  "transfer.need_two": "프로젝트에 챕터가 두 개 이상 필요합니다.", "transfer.done": "노드 {count}개를 {story}에 복사했습니다",
+  "transfer.warning_title": "복사 완료: 확인할 참조가 있습니다", "transfer.warning_intro": "다음 참조는 안전하게 추론할 수 없어 자동 변경하지 않았습니다:"
 }

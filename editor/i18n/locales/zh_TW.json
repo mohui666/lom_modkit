@@ -611,5 +611,13 @@
   "sections.collapse_all": "全部收合", "sections.manage": "管理分組…",
   "sections.section": "段落", "sections.group": "小組",
   "sections.header_tip": "按兩下收合或展開；分組不改變真正劇情流程。",
-  "sections.updated": "已更新劇情分組（CFG 與編譯語義不變）"
+  "sections.updated": "已更新劇情分組（CFG 與編譯語義不變）",
+  "menu.cross_story_transfer": "跨章節複製 / 貼上…", "transfer.title": "跨章節複製 / 貼上",
+  "transfer.intro": "將連續節點範圍複製到另一章節。內部跳轉自動重新對應，範圍外引用保留原值並明確警告。",
+  "transfer.source": "來源章節", "transfer.start": "起始步驟序號",
+  "transfer.end": "結束步驟序號", "transfer.target": "目標章節",
+  "transfer.insert_after": "插入前 N 個步驟之後", "transfer.same_story": "來源與目標必須不同。",
+  "transfer.ready": "使用者內容引用會原樣保留；整次操作可復原。",
+  "transfer.need_two": "專案至少需要兩個章節。", "transfer.done": "已複製 {count} 個節點到 {story}",
+  "transfer.warning_title": "複製完成，但有引用需確認", "transfer.warning_intro": "下列引用無法安全推斷，工具沒有靜默改寫："
 }
