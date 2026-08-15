@@ -329,6 +329,7 @@ import story_api
 | `add_node(story, node_type, fields=None, after=None) -> dict` | node_type 限 43 种（`models.NODE_TYPES`）；fields 键限 NODE_SCHEMAS 合法字段+通用字段（id/type/goto），类型按 kind 宽松校验；未知类型/字段/类型不符 → ValueError。id 自动生成（n1、n2…），after=节点 id 插到其后、None 追加末尾。**登场防线**：动作类节点的目标人物在前面未登场/已退场时，自动在它前面插一个 show 节点（见 §4 硬性规则 4） |
 | `update_node(story, node_id, fields) -> dict` | 同 add_node 的字段校验；节点不存在 → ValueError。合并后做 branch 归一与表情校验。**登场防线**：更新后若动作人物未登场/已退场，自动在该节点前插入 show，并把指向它的 goto/选项/分支跳转改指新节点（见 §4 硬性规则 4） |
 | `delete_node(story, node_id) -> dict` | 返回被删节点；**悬空 goto 不拦截**，交给 check_story 报告 |
+| `rename_node(story, node_id, new_id) -> dict` | 重命名节点 id 并同步 start 与全部跳转引用（goto / choice 选项 / branch cases / dice 去向），返回改名后的节点。新 id 限 `[A-Za-z0-9_-]+`（去首尾空白）；old==new 为空操作；编号被占用或原节点不存在 → ValueError |
 | `move_node(story, node_id, delta) -> dict` | delta 只能 ±1；越界（已在开头/末尾）→ ValueError |
 | `set_start(story, node_id) -> dict` | 设置 story["start"]；节点不存在 → ValueError |
 | `add_say(story, text, character=None, mode="character", portrait="normal", voice=None, after=None) -> dict` | mode ∈ character/think/narrative/center；character/think 模式 character 必填（人物 id），narrative/center 不写 character 字段；text 可换行；(character, portrait) 走官方表情表校验；voice 可选 user: 音频引用 |
@@ -462,7 +463,8 @@ check_story/compile_story 拦下）：
 | `节点类型 wait 字段 "seconds" 类型不符（kind=float，应为 数值），实际为 'abc'` | add_node/update_node | 字段类型错；注意 `True` 也会被数值字段拒绝 |
 | `通用字段 "goto" 必须是字符串` | add_node/update_node | goto/id/type 只收字符串 |
 | `after 指定的节点不存在: no_such` | add_* 系列 | after 必须是已有节点 id 或 None |
-| `节点不存在: no_such` | get/update/delete/move/set_start | node_id 拼错或已删；先 list_nodes 核对 |
+| `节点不存在: no_such` | get/update/delete/move/rename/set_start | node_id 拼错或已删；先 list_nodes 核对 |
+| `节点编号已被占用: n5` / `节点编号只使用英文字母、数字、下划线或短横线` | rename_node | 新 id 与现有节点冲突或含非法字符 |
 | `delta 只能是 ±1，实际为 2` | move_node | 只支持逐格移动，多次调用即可 |
 | `节点 n1 已在开头，无法再移动` | move_node | 越界移动 |
 | `choice 选项必须是 2~4 项，实际 1 项` | add_choice | 选项数 2~4；每项是 (text, goto) 二元组 |

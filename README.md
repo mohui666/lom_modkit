@@ -127,6 +127,8 @@ cd runtime/MortalModHost && dotnet run --project test/SmokeTest -c Release
 
 官方游戏界面只有繁中、简中、韩语，**没有日语**。日语人物名与属性名来自 wiki 日文页；韩语全文来自官方解包。游戏内 Mod 菜单会跟随游戏当前语言。
 
+实现细节（目录结构、回退规则、名词再生成、如何加新语言）见 `docs/i18n.md`。
+
 ## 说明与致谢
 
 - `docs/mod_format.md` 是全部组件的契约（包格式、43 种节点、用户内容、运行时行为），改代码先改它。自定义音频用法见 `docs/user_content.md`。
