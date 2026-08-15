@@ -45,6 +45,7 @@ namespace MortalModHost
             {
                 bool continuation = development && _active && package != null
                     && string.Equals(_modId, package.Id, StringComparison.Ordinal);
+                RuntimeDebugControl.Begin(development, continuation);
                 _active = development;
                 _nodeId = "";
                 _nodeType = "";
@@ -146,6 +147,7 @@ namespace MortalModHost
                 Entries.Clear();
                 Variables.Clear();
                 Flags.Clear();
+                RuntimeDebugControl.Reset();
                 _active = false;
                 _modId = _storyId = _nodeId = _nodeType = "";
             }

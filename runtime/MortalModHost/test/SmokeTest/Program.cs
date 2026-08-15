@@ -129,6 +129,15 @@ namespace MortalModHost
                 PackagePath = Path.Combine(Path.GetTempPath(), "__lom_modkit_preview.lommod")
             };
             RuntimeTrace.BeginScript(preview, "MOD_lom_modkit_preview_main");
+            Assert(RuntimeDebugControl.Active && !RuntimeDebugControl.Paused, "F5 调试控制应启用且默认继续运行");
+            RuntimeDebugControl.PauseBeforeNextNode();
+            Assert(RuntimeDebugControl.PausePending && RuntimeDebugControl.BeforeNode() && RuntimeDebugControl.Paused,
+                "Pause 必须在下一节点体执行前生效");
+            RuntimeDebugControl.Step();
+            Assert(!RuntimeDebugControl.Paused && RuntimeDebugControl.PausePending && RuntimeDebugControl.BeforeNode(),
+                "Step 应放行当前节点并在再下一节点前暂停");
+            RuntimeDebugControl.Continue();
+            Assert(!RuntimeDebugControl.Paused && !RuntimeDebugControl.PausePending, "Continue 应清除暂停请求");
             RuntimeTrace.NodeEnter("c1", "choice");
             RuntimeTrace.Choice("c1", 1, "b1");
             RuntimeTrace.NodeEnter("b1", "branch");
@@ -156,7 +165,8 @@ namespace MortalModHost
             int retained = RuntimeTrace.Snapshot().Count;
             RuntimeTrace.BeginScript(new ModPackage { Id = "ordinary", Entry = "main", PackagePath = "ordinary.lommod" }, "MOD_ordinary_main");
             RuntimeTrace.Record("node_enter", "should_not_record", "");
-            Assert(!RuntimeTrace.Active && RuntimeTrace.Snapshot().Count == retained, "普通 Mod 默认不得记录 trace");
+            Assert(!RuntimeTrace.Active && !RuntimeDebugControl.Active && RuntimeTrace.Snapshot().Count == retained,
+                "普通 Mod 默认不得记录 trace 或改变执行路径");
             RuntimeTrace.Reset();
         }
 

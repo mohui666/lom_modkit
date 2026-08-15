@@ -395,6 +395,7 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 21. **游戏内 Mod 菜单多语言**：菜单文案（`src/I18n.cs` 内嵌 zh_CN/zh_TW/ja/ko 四语言目录）跟随游戏当前语言——反射读 LeanLocalization `CurrentLanguage` 并模糊匹配语言名；官方游戏本身没有日语选项，日语目录实际不会触发；检测失败一律回退 zh_CN。详见 `i18n.md`。
 22. **F5 Runtime Trace v1**：只对编辑器固定的 `lom_modkit_preview` / `__lom_modkit_preview.lommod` 开发包启用。记录 `mod_enter`、`story_enter`、`node_enter`、`choice`、`condition_result`、`goto`、`end`、`death`、`runtime_error`；普通玩家加载的正式 Mod 默认不记录。Trace 使用 256 条内存 ring buffer，满后丢弃最旧条目，不写入存档且不会无限增长。新编译器只增加 `if mod_trace_node then ... end` 可选钩子，旧 Runtime 没有该函数时仍按原流程运行。
 23. **F5 Runtime Debugger v1**：开发 trace 激活后显示独立 IMGUI 调试窗，列出当前 Mod/Story/Node、`modvars`、`modflags`、可见自定义角色、当前自定义音乐/语音及最近 24 条 trace；F10 可隐藏/重新显示。正式 `.lommod` 不激活该窗口。变量与 Flag 由节点入口处的真实 Lua table 快照取得；尚未使用 `modvars` 的旧剧情会明确显示为空，不伪造状态。
+24. **Pause / Step / Continue**：F5 调试窗的「暂停」只设置“下一节点前暂停”，不会把正在显示的官方对话/面板冻结在半个 API 调用中。节点第一行的可选 trace 回调通过 MoonSharp `YieldRequest` 在节点体执行前挂起；「单步」放行当前节点，并在再下一节点体之前重新挂起；「继续」清除请求。宿主协程在暂停期间不调用 `Resume()`。该控制器仅在固定 F5 包激活，正式 Mod 即使包含相同可选节点钩子也始终直接返回，不改变执行路径。
 
 ## 7. AI 工具接口（story_api）
 

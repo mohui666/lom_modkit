@@ -111,6 +111,8 @@ namespace MortalModHost
                 { "debug.variables", "变量" }, { "debug.flags", "Flags" }, { "debug.characters", "自定义角色" },
                 { "debug.music", "自定义音乐" }, { "debug.voice", "当前语音" }, { "debug.trace", "最近 Trace" },
                 { "debug.none", "（无）" }, { "debug.hide", "隐藏调试器" }, { "debug.draw_error", "调试器绘制失败" },
+                { "debug.state", "执行" }, { "debug.state.running", "运行中" }, { "debug.state.pending", "将在下一节点前暂停" }, { "debug.state.paused", "已暂停（节点体尚未执行）" },
+                { "debug.pause", "下一节点前暂停" }, { "debug.step", "单步" }, { "debug.continue", "继续" },
             };
         }
 
@@ -134,6 +136,8 @@ namespace MortalModHost
                 { "debug.variables", "變數" }, { "debug.flags", "Flags" }, { "debug.characters", "自訂角色" },
                 { "debug.music", "自訂音樂" }, { "debug.voice", "目前語音" }, { "debug.trace", "最近 Trace" },
                 { "debug.none", "（無）" }, { "debug.hide", "隱藏偵錯器" }, { "debug.draw_error", "偵錯器繪製失敗" },
+                { "debug.state", "執行" }, { "debug.state.running", "執行中" }, { "debug.state.pending", "將在下一節點前暫停" }, { "debug.state.paused", "已暫停（節點內容尚未執行）" },
+                { "debug.pause", "下一節點前暫停" }, { "debug.step", "單步" }, { "debug.continue", "繼續" },
             };
         }
 
@@ -157,6 +161,8 @@ namespace MortalModHost
                 { "debug.variables", "変数" }, { "debug.flags", "Flags" }, { "debug.characters", "カスタムキャラクター" },
                 { "debug.music", "カスタム音楽" }, { "debug.voice", "現在のボイス" }, { "debug.trace", "最近の Trace" },
                 { "debug.none", "（なし）" }, { "debug.hide", "デバッガーを隠す" }, { "debug.draw_error", "デバッガー描画エラー" },
+                { "debug.state", "実行" }, { "debug.state.running", "実行中" }, { "debug.state.pending", "次のノード直前で一時停止" }, { "debug.state.paused", "一時停止中（ノード本体は未実行）" },
+                { "debug.pause", "次ノード前で停止" }, { "debug.step", "ステップ" }, { "debug.continue", "続行" },
             };
         }
 
@@ -180,6 +186,8 @@ namespace MortalModHost
                 { "debug.variables", "변수" }, { "debug.flags", "Flags" }, { "debug.characters", "사용자 캐릭터" },
                 { "debug.music", "사용자 음악" }, { "debug.voice", "현재 음성" }, { "debug.trace", "최근 Trace" },
                 { "debug.none", "（없음）" }, { "debug.hide", "디버거 숨기기" }, { "debug.draw_error", "디버거 그리기 실패" },
+                { "debug.state", "실행" }, { "debug.state.running", "실행 중" }, { "debug.state.pending", "다음 노드 전에 일시정지" }, { "debug.state.paused", "일시정지됨（노드 본문 실행 전）" },
+                { "debug.pause", "다음 노드 전 정지" }, { "debug.step", "한 단계" }, { "debug.continue", "계속" },
             };
         }
     }

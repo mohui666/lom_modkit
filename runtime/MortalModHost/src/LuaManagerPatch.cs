@@ -125,6 +125,11 @@ namespace MortalModHost
             }
             while (coroutine.Coroutine.State != CoroutineState.Dead)
             {
+                if (RuntimeDebugControl.Paused)
+                {
+                    yield return null;
+                    continue;
+                }
                 failure = null;
                 try { coroutine.Coroutine.Resume(); }
                 catch (Exception ex) { failure = ex; }
@@ -161,6 +166,8 @@ namespace MortalModHost
                 {
                     CaptureTraceState(script);
                     RuntimeTrace.NodeEnter(ArgString(args, 0), ArgString(args, 1));
+                    if (RuntimeDebugControl.BeforeNode())
+                        return DynValue.NewYieldReq(new DynValue[0]);
                     return DynValue.Nil;
                 }, "mod_trace_node");
                 script.Globals["mod_trace_choice"] = new CallbackFunction((ctx, args) =>

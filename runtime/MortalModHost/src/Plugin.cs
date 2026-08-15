@@ -495,6 +495,17 @@ namespace MortalModHost
         {
             try
             {
+                GUILayout.BeginHorizontal();
+                string state = RuntimeDebugControl.Paused ? I18n.T("debug.state.paused")
+                    : RuntimeDebugControl.PausePending ? I18n.T("debug.state.pending") : I18n.T("debug.state.running");
+                GUILayout.Label(I18n.T("debug.state") + ": " + state);
+                if (GUILayout.Button(I18n.T("debug.pause"))) RuntimeDebugControl.PauseBeforeNextNode();
+                bool oldEnabled = GUI.enabled;
+                GUI.enabled = RuntimeDebugControl.Paused;
+                if (GUILayout.Button(I18n.T("debug.step"))) RuntimeDebugControl.Step();
+                GUI.enabled = oldEnabled;
+                if (GUILayout.Button(I18n.T("debug.continue"))) RuntimeDebugControl.Continue();
+                GUILayout.EndHorizontal();
                 _debugScroll = GUILayout.BeginScrollView(_debugScroll);
                 GUILayout.Label(I18n.T("debug.mod") + ": " + RuntimeTrace.CurrentMod);
                 GUILayout.Label(I18n.T("debug.story") + ": " + RuntimeTrace.CurrentStory);
