@@ -59,6 +59,7 @@ from PySide6.QtWidgets import (
 
 import models
 from app_version import RUNTIME_VERSION
+from app_version import EDITOR_VERSION
 
 EDITOR_DIR = models.editor_dir()
 PROJECT_ROOT = models.project_root()
@@ -100,6 +101,7 @@ from preview import (
     load_preview_map,
     log_crash,
 )
+from recovery_store import RecoveryError, RecoverySession
 # 文件对话框默认目录：冻结态用用户 CWD（解包目录/ exe 目录不可当作工作目录）
 WORK_DIR = Path.cwd() if models.FROZEN else PROJECT_ROOT
 
@@ -650,12 +652,23 @@ class MainWindow(QMainWindow):
         self._prev_snapshot: dict = self._snapshot()
         self._dirty = False
         self._prompt_on_discard = True  # 测试可关：有未保存修改时的确认弹窗
+        self._source_kind = "untitled"
+        self._source_path: Path | None = None
+        self._recovery_session: RecoverySession | None = None
+        self._recovery_error_logged = False
 
         self._build_ui()
         self._build_menu()
         self._build_toolbar()
         self.form.node_changed.connect(self._on_node_changed)
         self._refresh_all()
+
+        if self._should_persist_session():
+            try:
+                self._recovery_session = RecoverySession(editor_version=EDITOR_VERSION)
+                self._recovery_timer.start()
+            except RecoveryError:
+                log_crash("无法启动自动恢复会话：\n" + traceback.format_exc())
 
         # 状态栏：数据来源提示
         src = (
@@ -842,6 +855,10 @@ class MainWindow(QMainWindow):
         self._auto_timer = QTimer(self)
         self._auto_timer.setInterval(1500)
         self._auto_timer.timeout.connect(self._auto_step)
+
+        self._recovery_timer = QTimer(self)
+        self._recovery_timer.setInterval(30_000)
+        self._recovery_timer.timeout.connect(self._autosave_recovery)
 
     def _build_chapter_panel(self) -> QWidget:
         """中栏「章节设置」：编号 / 名称 / 起始步骤 / 心情气泡。"""
@@ -1806,6 +1823,43 @@ class MainWindow(QMainWindow):
     def _set_dirty(self, dirty: bool) -> None:
         self._dirty = bool(dirty)
         self._update_title()
+        if not self._dirty:
+            self._clear_recovery_snapshot()
+
+    def _autosave_recovery(self) -> None:
+        """Write a separate recovery bundle; never touch story.json/.lommod."""
+        session = self._recovery_session
+        if session is None or not self._dirty:
+            return
+        try:
+            session.write_snapshot(
+                stories=self._snapshot(),
+                current_story_id=self._current_id,
+                manifest=copy.deepcopy(self.manifest),
+                story_paths=dict(self._story_paths),
+                source_kind=self._source_kind,
+                source_path=str(self._source_path) if self._source_path else None,
+            )
+            self._recovery_error_logged = False
+        except Exception:
+            if not self._recovery_error_logged:
+                log_crash("写入自动恢复副本失败：\n" + traceback.format_exc())
+                self._recovery_error_logged = True
+
+    def _clear_recovery_snapshot(self) -> None:
+        session = getattr(self, "_recovery_session", None)
+        if session is None:
+            return
+        try:
+            session.clear_snapshot()
+        except RecoveryError:
+            if not self._recovery_error_logged:
+                log_crash("清除自动恢复副本失败：\n" + traceback.format_exc())
+                self._recovery_error_logged = True
+
+    def _set_project_source(self, kind: str, path: Path | None) -> None:
+        self._source_kind = kind
+        self._source_path = Path(path).resolve() if path is not None else None
 
     def _update_title(self) -> None:
         name = (
@@ -1847,6 +1901,12 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event) -> None:
         if self._confirm_discard():
             self._commit_timer.stop()
+            self._recovery_timer.stop()
+            if self._recovery_session is not None:
+                try:
+                    self._recovery_session.mark_closed()
+                except RecoveryError:
+                    log_crash("关闭自动恢复会话失败：\n" + traceback.format_exc())
             event.accept()
         else:
             event.ignore()
@@ -2269,6 +2329,7 @@ class MainWindow(QMainWindow):
         self.manifest = {}
         self.manifest_base = {}
         self._story_paths = {}
+        self._set_project_source("untitled", None)
         self._saved_snapshot = self._snapshot()
         self._undo_stack.clear()
         self._redo_stack.clear()
@@ -2442,6 +2503,7 @@ class MainWindow(QMainWindow):
         self.manifest = {}
         self.manifest_base = {}
         self._story_paths = {story["id"]: path}
+        self._set_project_source("story", path)
         self._saved_snapshot = self._snapshot()
         self._undo_stack.clear()
         self._redo_stack.clear()
@@ -2487,6 +2549,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, _app_title(), f"保存失败：{exc}")
             return False
         self._story_paths[self._current_id] = path
+        self._set_project_source("story", path)
         self._mark_saved()
         self._remember_project("story", path, str(self.story.get("title") or path.stem))
         self.statusBar().showMessage(f"已保存 {path}", 3000)
@@ -2535,6 +2598,7 @@ class MainWindow(QMainWindow):
         self.manifest = manifest
         self.manifest_base = manifest  # 保留 campaign 等，导出时回填
         self._story_paths = {}
+        self._set_project_source("lommod", path)
         self._saved_snapshot = self._snapshot()
         self._undo_stack.clear()
         self._redo_stack.clear()
@@ -2626,6 +2690,7 @@ class MainWindow(QMainWindow):
         self.manifest_base = manifest  # 导出成功后回填，下次导出保留 campaign 等配置
         self._saved_snapshot = self._snapshot()
         self._set_dirty(False)
+        self._set_project_source("lommod", Path(path))
         install_note = ""
         if self.game_manager.load_game_dir() is not None:
             try:
