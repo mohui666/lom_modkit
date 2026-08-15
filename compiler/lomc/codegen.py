@@ -140,6 +140,26 @@ def _emit_background(node, ctx):
     return lines
 
 
+def _emit_custom_cg(node, ctx):
+    fade = node.get("fade", 0.5)
+    if node["action"] == "hide":
+        lines = ["\tmod_cg_hide(%s)" % lua_num(fade)]
+    else:
+        lines = [
+            "\tmod_cg_show(%s, %s, %s, %s, %s)"
+            % (
+                lua_str(node["image"]),
+                lua_num(fade),
+                lua_num(node.get("scale", 100)),
+                lua_num(node.get("x", 0)),
+                lua_num(node.get("y", 0)),
+            )
+        ]
+    if fade > 0:
+        lines.append("\twait(%s)" % lua_num(fade))
+    return lines
+
+
 def _emit_show(node, ctx):
     user = _user_char(node)
     c = lua_str(node["character"])
@@ -1054,6 +1074,7 @@ _EMITTERS = {
     "sound": _emit_sound,
     "scene": _emit_scene,
     "background": _emit_background,
+    "custom_cg": _emit_custom_cg,
     "show": _emit_show,
     "move": _emit_move,
     "face": _emit_face,

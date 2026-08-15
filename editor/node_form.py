@@ -302,6 +302,9 @@ class NodeForm(QScrollArea):
                 return action not in ("fadeout", "clear")
             if key == "fade":
                 return action not in ("set", "clear")
+        if node_type == "custom_cg":
+            if key in ("image", "scale", "x", "y"):
+                return node.get("action", "show") == "show"
         if node_type == "goto_scene":
             scene = node.get("scene", "Free")
             if key == "key":
@@ -584,6 +587,24 @@ class NodeForm(QScrollArea):
             w.setSuffix(" %")
             w.setValue(int(value or 0))
             w.setToolTip("相对屏幕位置微调；正数向右或向上，负数向左或向下")
+            w.valueChanged.connect(lambda v: self._apply(node, key, int(v)))
+            return w
+        if kind == "percent_cg_scale":
+            w = QSpinBox()
+            w.setRange(10, 300)
+            w.setSingleStep(5)
+            w.setSuffix(" %")
+            w.setValue(int(value if value is not None else 100))
+            w.setToolTip("100% 自动适配屏幕；10%～300% 可缩放全屏 CG")
+            w.valueChanged.connect(lambda v: self._apply(node, key, int(v)))
+            return w
+        if kind == "percent_position":
+            w = QSpinBox()
+            w.setRange(-100, 100)
+            w.setSingleStep(5)
+            w.setSuffix(" %")
+            w.setValue(int(value or 0))
+            w.setToolTip("相对屏幕中心偏移；x 正数向右，y 正数向上")
             w.valueChanged.connect(lambda v: self._apply(node, key, int(v)))
             return w
         if kind == "bool":

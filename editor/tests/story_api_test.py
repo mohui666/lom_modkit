@@ -34,12 +34,13 @@ import models  # noqa: E402
 PROJECT_ROOT = EDITOR_DIR.parent
 DEMO_STORY = PROJECT_ROOT / "samples" / "demo_mod" / "story" / "main.json"
 
-# 契约 §3.1 全量 44 种节点类型（与 models.NODE_TYPES 一一对应）
+# 契约 §3.1 全量 45 种节点类型（与 models.NODE_TYPES 一一对应）
 ALL_TYPES = [
     "music",
     "sound",
     "scene",
     "background",
+    "custom_cg",
     "show",
     "move",
     "face",
@@ -138,9 +139,9 @@ class TestNewStory(unittest.TestCase):
 
 
 class TestAddNode(unittest.TestCase):
-    def test_44_types(self):
+    def test_45_types(self):
         story = story_api.new_story()
-        self.assertEqual(len(ALL_TYPES), 44, "契约应有 44 种节点类型")
+        self.assertEqual(len(ALL_TYPES), 45, "契约应有 45 种节点类型")
         self.assertEqual(
             set(ALL_TYPES), set(models.NODE_TYPES), "类型表与 models.NODE_TYPES 不一致"
         )
@@ -153,9 +154,9 @@ class TestAddNode(unittest.TestCase):
             ids.add(node["id"])
             found = [n for n in story["nodes"] if n["id"] == node["id"]]
             self.assertEqual(len(found), 1, f"{t} 节点应写入 story.nodes")
-        # 2 个开场节点（show+say）+ 44 种各一个 + hide 之后的首个动作节点
+        # 2 个开场节点（show+say）+ 45 种各一个 + hide 之后的首个动作节点
         # 触发登场防线自动补 1 个 show
-        self.assertEqual(len(story["nodes"]), 2 + 44 + 1, "44 种类型应全部追加进 story（含自动补登场）")
+        self.assertEqual(len(story["nodes"]), 2 + 45 + 1, "45 种类型应全部追加进 story（含自动补登场）")
 
     def test_unknown_type(self):
         story = story_api.new_story()

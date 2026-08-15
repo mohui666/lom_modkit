@@ -279,7 +279,7 @@ import story_api
 | `new_story(story_id="main", title="新剧情", mood=False) -> dict` | story_id 须匹配 `[a-zA-Z0-9_-]+`；title 须 str；mood 须 bool。返回 show 登场(n1) + 空 say(n2) 开场的剧情 dict（先登场再动作，见 §4 规则 4） |
 | `get_node(story, node_id) -> dict` | 不存在 → ValueError。返回的是 story 内的**原对象**（可随 update 生效） |
 | `list_nodes(story) -> list[dict]` | 每项 `{"id", "type", "summary"}`，summary 为中文摘要（如 `对白·唐惟元: 师弟，你来了。`） |
-| `add_node(story, node_type, fields=None, after=None) -> dict` | node_type 限 44 种（`models.NODE_TYPES`）；fields 键限 NODE_SCHEMAS 合法字段+通用字段（id/type/goto），类型按 kind 宽松校验；未知类型/字段/类型不符 → ValueError。id 自动生成（say1、show2、choice1…），after=节点 id 插到其后、None 追加末尾。**登场防线**：动作类节点的目标人物在前面未登场/已退场时，自动在它前面插一个 show 节点（见 §4 规则 4） |
+| `add_node(story, node_type, fields=None, after=None) -> dict` | node_type 限 45 种（`models.NODE_TYPES`）；fields 键限 NODE_SCHEMAS 合法字段+通用字段（id/type/goto），类型按 kind 宽松校验；未知类型/字段/类型不符 → ValueError。id 自动生成（say1、show2、choice1…），after=节点 id 插到其后、None 追加末尾。**登场防线**：动作类节点的目标人物在前面未登场/已退场时，自动在它前面插一个 show 节点（见 §4 规则 4） |
 | `update_node(story, node_id, fields) -> dict` | 同 add_node 的字段校验；节点不存在 → ValueError。合并后做 branch 归一与表情校验。**登场防线**：更新后若动作人物未登场/已退场，自动在该节点前插入 show，并把指向它的 goto/选项/分支跳转改指新节点（见 §4 规则 4） |
 | `delete_node(story, node_id) -> dict` | 返回被删节点；**悬空 goto 不拦截**，交给 check_story 报告 |
 | `rename_node(story, node_id, new_id) -> dict` | 重命名节点 id 并同步 start 与全部跳转引用（goto / choice 选项 / branch cases / dice 去向），返回改名后的节点。新 id 限 `[A-Za-z0-9_-]+`（去首尾空白）；old==new 为空操作；编号被占用或原节点不存在 → ValueError |
@@ -396,7 +396,7 @@ check_story/compile_story 拦下）。各规则的游戏侧机理详见契约 `m
 
 | 错误消息（样例） | 来源 | 原因与处理 |
 | --- | --- | --- |
-| `未知节点类型: no_such_type（支持 44 种，见 models.NODE_TYPES）` | add_node | 类型名拼错；用 `models.NODE_TYPES` 或契约 §3.1 的 44 种 |
+| `未知节点类型: no_such_type（支持 45 种，见 models.NODE_TYPES）` | add_node | 类型名拼错；用 `models.NODE_TYPES` 或契约 §3.1 的 45 种 |
 | `节点类型 wait 不支持字段: bogus（允许: goto, id, seconds, type）` | add_node/update_node | 字段名不在类型表；按消息里的允许集合改 |
 | `节点类型 wait 字段 "seconds" 类型不符（kind=float，应为 数值），实际为 'abc'` | add_node/update_node | 字段类型错；注意 `True` 也会被数值字段拒绝 |
 | `通用字段 "goto" 必须是字符串` | add_node/update_node | goto/id/type 只收字符串 |

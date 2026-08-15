@@ -90,7 +90,7 @@ assets/                # 可选，自定义资源
 - `choice` / `branch` / `dice`의 분기는 반드시 `goto`로 대상 노드 id를 가리켜야 합니다.
 - 여러 선행 노드가 같은 노드로 합류(합류점)하는 것은 합법입니다.
 
-### 3.1 노드 타입(전체 44종)
+### 3.1 노드 타입(전체 45종)
 
 **연출류**
 
@@ -100,6 +100,7 @@ assets/                # 可选，自定义资源
 | `sound` | `name`; 선택 `kind`("sound"기본/"env"), `op`("play"기본/"fadeout"은 env만, `seconds`기본1) | 공식 이름 그대로 `PlaySound` / `PlayEnvSound` / `FadeOutEnvSound(seconds)` 후 마찬가지로 **`wait(seconds)`**. `user:` 참조 규칙은 music과 같고, `audio_kind`는 반드시 노드와 일치해야 합니다 |
 | `scene` | `view` | 장면 전환: `runblock(flowcharts.view,"out")` 후 `ViewName=view; runblock(...,"view")`. `view="out"`은 페이드아웃만; `"black"/"white"`는 단색. 단색이 아닌 view는 먼저 `runwait(flowcharts.LoadView(view))`로 배경 에셋을 미리 로드합니다(미리 로드하지 않으면 배경이 검은 화면) |
 | `background` | `action`(`set`/`show`/`replace`/`fadein`/`fadeout`/`clear`), 표시 동작은 `image`(`user:` 이미지) 필수, `fade`(기본0.5) 선택 | 현재 패키지의 사용자 이미지를 사용자 배경으로 표시합니다. 챕터·공식 `scene`·장면 전환·재로딩 시 자동 정리하며 원작 View 리소스는 수정하지 않습니다 |
+| `custom_cg` | `action`(`show`/`hide`), show는 `image` 필수, `fade`·`scale`·`x/y` 선택 | 인물 레이어 앞에 사용자 이미지 CG를 표시합니다. 확대와 중심 위치를 조절하고 hide·챕터·장면 전환 시 정리합니다. 공식 `cg`는 변경하지 않습니다 |
 | `show` | `character`, `position`; 선택 `portrait`(기본normal), `facing`(기본right), `fadeDuration`(0), `moveDuration`(0) | 인물을 로드하고 표시. story.mood가 false이면 끝(Focus 후)에 `mod_hide_mood()`를 추가 |
 | `move` | `character`, `from`, `to`; 선택 `duration`(기본1) | 이동하고 `wait(duration)` |
 | `face` | `character`, `facing` | 방향 전환 |
@@ -372,7 +373,7 @@ transition 검은 막, choice 스킨 크래시, 배경 검은 화면, 인물이 
 - Python API:
   - `load_editor_data()`: 에디터 데이터 읽기(dice_meta 등 목록 포함), (editor_data, is_fallback) 반환
   - `new_story(story_id="main", title="新剧情", mood=False)`: 새 스토리 스크립트 작성(show 등장 + 빈 say 두 노드 오프닝, 등장 후 동작)
-  - `add_node(story, node_type, fields=None, after=None)`: models 기본값으로 노드 추가(44종), 알 수 없는 타입/필드/타입 불일치→ValueError, 노드 id 자동 생성, after로 삽입 위치 지정(노드 id 또는 None=끝). 등장 방어선: 동작류 노드의 대상 인물이 앞에서 등장하지 않았거나 이미 퇴장했으면 그 앞에 자동으로 show 삽입
+  - `add_node(story, node_type, fields=None, after=None)`: models 기본값으로 노드 추가(45종), 알 수 없는 타입/필드/타입 불일치→ValueError, 노드 id 자동 생성, after로 삽입 위치 지정(노드 id 또는 None=끝). 등장 방어선: 동작류 노드의 대상 인물이 앞에서 등장하지 않았거나 이미 퇴장했으면 그 앞에 자동으로 show 삽입
   - `update_node(story, node_id, fields)`: 노드 필드 업데이트(add와 같은 필드 검증), 노드 없음→ValueError. 등장 방어선: 업데이트 후 동작 인물이 미등장/퇴장 상태이면 해당 노드 앞에 자동으로 show를 삽입하고, 그곳을 가리키는 goto/옵션/분기 점프를 새 노드로 변경
   - `get_node(story, node_id)`: 노드 읽기, 없음→ValueError
   - `list_nodes(story)`: [{"id","type","summary"}] 목록 반환

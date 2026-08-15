@@ -245,6 +245,26 @@ namespace MortalModHost
                     catch (Exception ex) { Log.LogWarning("mod_background_clear 失败：" + ex.Message); }
                     return DynValue.Nil;
                 }, "mod_background_clear");
+                script.Globals["mod_cg_show"] = new CallbackFunction((ctx, args) =>
+                {
+                    try
+                    {
+                        CustomImageRuntime.ShowCg(
+                            ArgString(args, 0),
+                            ArgFloat(args, 1, 0f),
+                            ArgFloat(args, 2, 100f),
+                            ArgFloat(args, 3, 0f),
+                            ArgFloat(args, 4, 0f));
+                    }
+                    catch (Exception ex) { Log.LogWarning("mod_cg_show 失败：" + ex.Message); }
+                    return DynValue.Nil;
+                }, "mod_cg_show");
+                script.Globals["mod_cg_hide"] = new CallbackFunction((ctx, args) =>
+                {
+                    try { CustomImageRuntime.HideCg(ArgFloat(args, 0, 0f)); }
+                    catch (Exception ex) { Log.LogWarning("mod_cg_hide 失败：" + ex.Message); }
+                    return DynValue.Nil;
+                }, "mod_cg_hide");
                 RegisterCharacterGlobals(script);
             }
             catch (Exception ex)

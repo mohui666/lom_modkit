@@ -43,6 +43,37 @@ class PreviewStageActionTest(unittest.TestCase):
         cleared = preview.simulate_stage(story, "n5")
         self.assertIsNone(cleared["background"])
 
+    def test_custom_cg_state_and_playtest_prelude(self):
+        story = {
+            "id": "main",
+            "title": "cg",
+            "start": "n1",
+            "nodes": [
+                {
+                    "id": "n1",
+                    "type": "custom_cg",
+                    "action": "show",
+                    "image": "user:mohui.memory_cg",
+                    "fade": 0.5,
+                    "scale": 120,
+                    "x": -10,
+                    "y": 15,
+                },
+                {"id": "n2", "type": "say", "mode": "narrative", "text": "回忆"},
+                {"id": "n3", "type": "custom_cg", "action": "hide", "fade": 0.2},
+                {"id": "n4", "type": "end"},
+            ],
+        }
+        state = preview.simulate_stage(story, "n2")
+        self.assertEqual(state["custom_cg"]["image"], "user:mohui.memory_cg")
+        self.assertEqual(state["custom_cg"]["scale"], 120)
+        prelude = preview.build_playtest_prelude(story, "n2")
+        self.assertEqual(len(prelude), 1)
+        self.assertEqual(prelude[0]["type"], "custom_cg")
+        self.assertEqual(prelude[0]["fade"], 0)
+        cleared = preview.simulate_stage(story, "n4")
+        self.assertIsNone(cleared["custom_cg"])
+
     def test_custom_character_actions_update_visual_state(self):
         raw = "user:mohui.luoxue"
         story = {

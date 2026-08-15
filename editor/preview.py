@@ -143,6 +143,7 @@ def _hint_text(node: dict, ed: dict) -> str | None:
         "hide",
         "scene",
         "background",
+        "custom_cg",
         "say",
         "choice",
         "offset",
@@ -311,6 +312,16 @@ def _apply_node(state: dict, node: dict, ed: dict | None = None) -> None:
             state["background"] = None
         else:
             state["background"] = node.get("image") or None
+    elif t == "custom_cg":
+        if node.get("action", "show") == "hide":
+            state["custom_cg"] = None
+        else:
+            state["custom_cg"] = {
+                "image": node.get("image") or None,
+                "scale": node.get("scale", 100),
+                "x": node.get("x", 0),
+                "y": node.get("y", 0),
+            }
     elif t == "show":
         cid = node.get("character") or ""
         if cid:
@@ -454,6 +465,7 @@ def simulate_stage(
     state = {
         "view": None,
         "background": None,
+        "custom_cg": None,
         "actors": {},
         "dialog": None,
         "choice": None,
@@ -544,6 +556,7 @@ def build_playtest_prelude(
     state = simulate_stage(story, target_id, editor_data, include_target=False)
     view = state.get("view")
     background = state.get("background")
+    custom_cg = state.get("custom_cg")
     actors = state.get("actors") or {}
 
     stage_nodes: list[dict] = []
@@ -567,6 +580,18 @@ def build_playtest_prelude(
                 "position": info.get("position") or "M",
                 "portrait": info.get("portrait") or "normal",
                 "facing": info.get("facing") or "right",
+            }
+        )
+    if custom_cg and custom_cg.get("image"):
+        stage_nodes.append(
+            {
+                "type": "custom_cg",
+                "action": "show",
+                "image": custom_cg["image"],
+                "fade": 0,
+                "scale": custom_cg.get("scale", 100),
+                "x": custom_cg.get("x", 0),
+                "y": custom_cg.get("y", 0),
             }
         )
     if not stage_nodes:
@@ -811,6 +836,7 @@ class StagePreview(QWidget):
                 return
             self._paint_background(p, rect)
             self._paint_actors(p, rect)
+            self._paint_custom_cg(p, rect)
             self._paint_dialog(p, rect)
             self._paint_hint(p, rect)
             self._paint_choices(p, rect)
@@ -1267,6 +1293,48 @@ class StagePreview(QWidget):
                 Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft,
                 note,
             )
+
+    def _paint_custom_cg(self, p: QPainter, rect: QRect) -> None:
+        data = self._state.get("custom_cg")
+        if not isinstance(data, dict) or not data.get("image"):
+            return
+        raw = str(data["image"])
+        try:
+            _record, source = content_registry.resolve(raw, expected_type="image")
+            pix = self._load_pixmap(source)
+        except content_registry.ContentRegistryError:
+            pix = QPixmap()
+        if pix.isNull():
+            p.save()
+            p.fillRect(rect, QColor(15, 15, 18, 210))
+            p.setPen(QColor(255, 150, 120))
+            p.drawText(rect, Qt.AlignmentFlag.AlignCenter, f"缺失用户 CG：{raw}")
+            p.restore()
+            return
+        scale_factor = max(0.1, min(3.0, float(data.get("scale", 100)) / 100.0))
+        base = pix.scaled(
+            rect.size(),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        target_w = max(1, floor(base.width() * scale_factor))
+        target_h = max(1, floor(base.height() * scale_factor))
+        shown = base.scaled(
+            target_w,
+            target_h,
+            Qt.AspectRatioMode.IgnoreAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        x = rect.center().x() - shown.width() // 2
+        y = rect.center().y() - shown.height() // 2
+        x += floor(rect.width() * float(data.get("x", 0)) / 100.0)
+        y -= floor(rect.height() * float(data.get("y", 0)) / 100.0)
+        p.save()
+        try:
+            p.setClipRect(rect)
+            p.drawPixmap(x, y, shown)
+        finally:
+            p.restore()
 
     def _paint_actor_placeholder(
         self, p: QPainter, cx: int, baseline: int, h: int, cid: str, portrait: str

@@ -293,7 +293,14 @@ def collect_story_content_refs(story):
                     )
         # 统一图片协议：所有图片型节点都把稳定引用放在 image 字段。
         # 当前及后续 background / CG / overlay 共用这一条收集路径，不各建 Store。
-        raw_image = node.get("image")
+        image_is_active = not (
+            (ntype == "custom_cg" and node.get("action", "show") == "hide")
+            or (
+                ntype == "background"
+                and node.get("action", "show") in ("fadeout", "clear")
+            )
+        )
+        raw_image = node.get("image") if image_is_active else None
         if raw_image:
             ref = parse_content_ref(
                 raw_image, label='节点 "%s"(%s) 的 image' % (nid, ntype)

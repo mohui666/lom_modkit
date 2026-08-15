@@ -9,7 +9,7 @@
 
 | 文件 | 讀者 | 內容 |
 | --- | --- | --- |
-| [mod_format](mod_format.md) | 全部元件開發者 | **v3 契約**：包結構、44 種節點、story→Lua 編譯約定、editor_data、執行階段行為、story_api 契約、使用者內容協定。改程式碼先改它 |
+| [mod_format](mod_format.md) | 全部元件開發者 | **v3 契約**：包結構、45 種節點、story→Lua 編譯約定、editor_data、執行階段行為、story_api 契約、使用者內容協定。改程式碼先改它 |
 | [ai_cli](ai_cli.md) | AI 代理 / 腳本作者 | story_api 操作手冊：CLI 子命令、--json 欄位、Python API 速查、硬性規則、錯誤對照表 |
 | [user_content](user_content.md) | mod 作者 | 使用者內容庫：匯入自訂音訊、對白語音、匯出與分享、執行階段行為 |
 | [i18n](i18n.md) | 維護者 | 多語言架構：編輯器介面、遊戲內 Mod 選單、名詞對照表再產生、文件翻譯約定 |

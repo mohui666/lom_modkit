@@ -246,6 +246,13 @@ def run_preflight(
                     )
                 )
             image = node.get("image")
+            if node.get("type") == "custom_cg" and node.get("action", "show") == "hide":
+                image = None
+            if node.get("type") == "background" and node.get("action", "show") in (
+                "fadeout",
+                "clear",
+            ):
+                image = None
             if isinstance(image, str) and image:
                 if image.startswith("user:"):
                     try:

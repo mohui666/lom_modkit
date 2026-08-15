@@ -21,6 +21,11 @@ namespace MortalModHost
         private static Sprite _sprite;
         private static Texture2D _texture;
         private static Coroutine _fade;
+        private static GameObject _cgRoot;
+        private static Image _cgImage;
+        private static Sprite _cgSprite;
+        private static Texture2D _cgTexture;
+        private static Coroutine _cgFade;
 
         public static void Init(MonoBehaviour host)
         {
@@ -114,10 +119,114 @@ namespace MortalModHost
                 DestroyVisual();
         }
 
+        public static bool ShowCg(
+            string raw, float seconds, float scalePercent, float xPercent, float yPercent)
+        {
+            ContentRef parsed;
+            string error;
+            if (!ContentRef.TryParse(raw, out parsed, out error))
+            {
+                Warn("自定义 CG 引用无效：" + error);
+                return false;
+            }
+            ModPackage package = ModOverlay.CurrentPackage;
+            UserContent content;
+            if (package == null || !package.TryGetUserContent(parsed.ContentId, out content)
+                || content == null || !string.Equals(content.Type, "image", StringComparison.Ordinal)
+                || content.Bytes == null || content.Bytes.Length == 0)
+            {
+                Warn("自定义 CG 不存在或不是图片：" + raw);
+                return false;
+            }
+            Stage stage = Stage.GetActiveStage();
+            if (stage == null || stage.PortraitCanvas == null)
+            {
+                Warn("当前没有可用的剧情舞台，无法显示自定义 CG：" + raw);
+                return false;
+            }
+
+            StopCgFade();
+            DestroyCgVisual();
+            Texture2D texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+            if (!texture.LoadImage(content.Bytes))
+            {
+                UnityEngine.Object.Destroy(texture);
+                Warn("自定义 CG 解码失败：" + raw);
+                return false;
+            }
+            texture.wrapMode = TextureWrapMode.Clamp;
+            texture.filterMode = FilterMode.Bilinear;
+            Sprite sprite = Sprite.Create(
+                texture,
+                new Rect(0f, 0f, texture.width, texture.height),
+                new Vector2(0.5f, 0.5f),
+                100f);
+
+            GameObject root = new GameObject("lom_custom_cg", typeof(RectTransform));
+            root.transform.SetParent(stage.PortraitCanvas.transform, false);
+            root.transform.SetAsLastSibling();
+            RectTransform rootRect = root.GetComponent<RectTransform>();
+            rootRect.anchorMin = Vector2.zero;
+            rootRect.anchorMax = Vector2.one;
+            rootRect.offsetMin = Vector2.zero;
+            rootRect.offsetMax = Vector2.zero;
+            rootRect.pivot = new Vector2(0.5f, 0.5f);
+            float scale = Mathf.Clamp(scalePercent, 10f, 300f) / 100f;
+            rootRect.localScale = new Vector3(scale, scale, 1f);
+            Rect parentRect = ((RectTransform)stage.PortraitCanvas.transform).rect;
+            rootRect.anchoredPosition = new Vector2(
+                parentRect.width * Mathf.Clamp(xPercent, -100f, 100f) / 100f,
+                parentRect.height * Mathf.Clamp(yPercent, -100f, 100f) / 100f);
+
+            GameObject imageObject = new GameObject(
+                "image", typeof(RectTransform), typeof(CanvasRenderer),
+                typeof(Image), typeof(AspectRatioFitter));
+            imageObject.transform.SetParent(root.transform, false);
+            RectTransform imageRect = imageObject.GetComponent<RectTransform>();
+            imageRect.anchorMin = Vector2.zero;
+            imageRect.anchorMax = Vector2.one;
+            imageRect.offsetMin = Vector2.zero;
+            imageRect.offsetMax = Vector2.zero;
+            Image image = imageObject.GetComponent<Image>();
+            image.sprite = sprite;
+            image.type = Image.Type.Simple;
+            image.preserveAspect = false;
+            image.raycastTarget = false;
+            image.material = null;
+            AspectRatioFitter fitter = imageObject.GetComponent<AspectRatioFitter>();
+            fitter.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
+            fitter.aspectRatio = texture.height > 0 ? (float)texture.width / texture.height : 16f / 9f;
+
+            _cgRoot = root;
+            _cgImage = image;
+            _cgSprite = sprite;
+            _cgTexture = texture;
+            float duration = Mathf.Max(0f, seconds);
+            SetAlpha(image, duration > 0f ? 0f : 1f);
+            if (_host != null && duration > 0f)
+                _cgFade = _host.StartCoroutine(FadeCgTo(1f, duration, false));
+            if (Log != null) Log.LogInfo("显示自定义 CG：" + raw);
+            return true;
+        }
+
+        public static void HideCg(float seconds)
+        {
+            if (_cgRoot == null)
+                return;
+            StopCgFade();
+            float duration = Mathf.Max(0f, seconds);
+            if (_host != null && duration > 0f && _cgImage != null)
+                _cgFade = _host.StartCoroutine(FadeCgTo(0f, duration, true));
+            else
+                DestroyCgVisual();
+        }
+
         public static void ClearAll()
         {
             StopFade();
             DestroyVisual();
+            StopCgFade();
+            DestroyCgVisual();
         }
 
         private static IEnumerator FadeTo(float target, float seconds, bool destroy)
@@ -137,11 +246,35 @@ namespace MortalModHost
             if (destroy) DestroyVisual();
         }
 
+        private static IEnumerator FadeCgTo(float target, float seconds, bool destroy)
+        {
+            if (_cgImage == null)
+                yield break;
+            float start = _cgImage.color.a;
+            float elapsed = 0f;
+            while (elapsed < seconds && _cgImage != null)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                SetAlpha(_cgImage, Mathf.Lerp(start, target, Mathf.Clamp01(elapsed / seconds)));
+                yield return null;
+            }
+            if (_cgImage != null) SetAlpha(_cgImage, target);
+            _cgFade = null;
+            if (destroy) DestroyCgVisual();
+        }
+
         private static void StopFade()
         {
             if (_fade != null && _host != null)
                 _host.StopCoroutine(_fade);
             _fade = null;
+        }
+
+        private static void StopCgFade()
+        {
+            if (_cgFade != null && _host != null)
+                _host.StopCoroutine(_cgFade);
+            _cgFade = null;
         }
 
         private static void DestroyVisual()
@@ -153,6 +286,17 @@ namespace MortalModHost
             _image = null;
             _sprite = null;
             _texture = null;
+        }
+
+        private static void DestroyCgVisual()
+        {
+            if (_cgRoot != null) UnityEngine.Object.Destroy(_cgRoot);
+            if (_cgSprite != null) UnityEngine.Object.Destroy(_cgSprite);
+            if (_cgTexture != null) UnityEngine.Object.Destroy(_cgTexture);
+            _cgRoot = null;
+            _cgImage = null;
+            _cgSprite = null;
+            _cgTexture = null;
         }
 
         private static void SetAlpha(Image image, float alpha)

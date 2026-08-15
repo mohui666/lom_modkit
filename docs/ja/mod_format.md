@@ -90,7 +90,7 @@ assets/                # 可选，自定义资源
 - `choice` / `branch` / `dice` の分岐は必ず `goto` で対象ノード id を指します。
 - 複数の先行ノードが同一ノードに合流（合流点）するのは合法です。
 
-### 3.1 ノードタイプ（全 44 種）
+### 3.1 ノードタイプ（全 45 種）
 
 **演出系**
 
@@ -100,6 +100,7 @@ assets/                # 可选，自定义资源
 | `sound` | `name`；任意 `kind`("sound"既定/"env")、`op`("play"既定/"fadeout"は env のみ、`seconds`既定1) | 公式名に従い `PlaySound` / `PlayEnvSound` / `FadeOutEnvSound(seconds)` の後に同様に **`wait(seconds)`**。`user:` 参照ルールは music と同じで、`audio_kind` がノードと一致している必要があります |
 | `scene` | `view` | シーン切替：`runblock(flowcharts.view,"out")` の後 `ViewName=view; runblock(...,"view")`。`view="out"` はフェードアウトのみ。`"black"/"white"` は単色。単色以外の view は先に `runwait(flowcharts.LoadView(view))` で背景アセットをプリロードします（プリロードしないと背景が真っ黒になります） |
 | `background` | `action`(`set`/`show`/`replace`/`fadein`/`fadeout`/`clear`)。表示系は `image`(`user:` 画像)必須、`fade`(既定0.5)任意 | 現在のパッケージ内ユーザー画像をカスタム背景として表示。章・公式 `scene`・シーン切替・再読込時に自動消去し、原版 View 資源は変更しません |
+| `custom_cg` | `action`(`show`/`hide`)。show は `image` 必須、`fade`・`scale`・`x/y` 任意 | 人物レイヤー前にユーザー画像 CG を表示。拡大率と中心位置を調整でき、hide・章・シーン切替時に消去します。公式 `cg` は変更しません |
 | `show` | `character`, `position`；任意 `portrait`(既定normal), `facing`(既定right), `fadeDuration`(0), `moveDuration`(0) | 人物を読み込んで表示。story.mood が false のとき末尾（Focus の後）に `mod_hide_mood()` を追加 |
 | `move` | `character`, `from`, `to`；任意 `duration`(既定1) | 移動して `wait(duration)` |
 | `face` | `character`, `facing` | 向き変更 |
@@ -372,7 +373,7 @@ transition の黒幕、choice スキンクラッシュ、背景の黒画面、�
 - Python API：
   - `load_editor_data()`：エディターデータ（dice_meta などの一覧を含む）を読み、(editor_data, is_fallback) を返す
   - `new_story(story_id="main", title="新剧情", mood=False)`：新規シナリオスクリプト（show 登場 + 空 say の 2 ノード開場。先に登場させてから動作）
-  - `add_node(story, node_type, fields=None, after=None)`：models 既定値でノードを追加（44 種）。未知のタイプ／フィールド／型不一致→ValueError。ノード id は自動生成。after で挿入位置を指定（ノード id または None=末尾）。登場防線：動作系ノードの対象人物がそれ以前に未登場／退場済みの場合、その前に show を自動挿入
+  - `add_node(story, node_type, fields=None, after=None)`：models 既定値でノードを追加（45 種）。未知のタイプ／フィールド／型不一致→ValueError。ノード id は自動生成。after で挿入位置を指定（ノード id または None=末尾）。登場防線：動作系ノードの対象人物がそれ以前に未登場／退場済みの場合、その前に show を自動挿入
   - `update_node(story, node_id, fields)`：ノードフィールドを更新（add と同じフィールド検証）。ノード不存在→ValueError。登場防線：更新後に動作人物が未登場／退場済みなら、そのノードの前に show を自動挿入し、それを指す goto／選択肢／分岐ジャンプを新ノードへ付け替え
   - `get_node(story, node_id)`：ノードを読む。不存在→ValueError
   - `list_nodes(story)`：[{"id","type","summary"}] の一覧を返す

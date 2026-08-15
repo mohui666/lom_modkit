@@ -223,6 +223,59 @@ class TestNodeCodegen(unittest.TestCase):
             "不能小于 0",
         )
 
+    def test_custom_cg_codegen_and_validation(self):
+        shown = self.lua_of(
+            {
+                "id": "n1",
+                "type": "custom_cg",
+                "action": "show",
+                "image": "user:mohui.memory_cg",
+                "fade": 0.8,
+                "scale": 125,
+                "x": -10,
+                "y": 15,
+            }
+        )
+        self.assertIn(
+            'mod_cg_show("user:mohui.memory_cg", 0.8, 125, -10, 15)', shown
+        )
+        self.assertIn("\twait(0.8)", shown)
+        hidden = self.lua_of(
+            {"id": "n1", "type": "custom_cg", "action": "hide", "fade": 0.25}
+        )
+        self.assertIn("mod_cg_hide(0.25)", hidden)
+        assert_compile_error(
+            self,
+            linear_story({"id": "n1", "type": "custom_cg", "action": "show"}),
+            "image",
+        )
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "custom_cg",
+                    "action": "show",
+                    "image": "user:mohui.memory_cg",
+                    "scale": 301,
+                }
+            ),
+            "10~300",
+        )
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "custom_cg",
+                    "action": "show",
+                    "image": "user:mohui.memory_cg",
+                    "x": 101,
+                }
+            ),
+            "-100~100",
+        )
+
     def test_show(self):
         lua = self.lua_of(
             {
@@ -3498,6 +3551,29 @@ class TestUserContent(unittest.TestCase):
         self.assertEqual(refs[0]["expected_type"], "image")
         self.assertEqual(refs[0]["field"], "image")
 
+    def test_hidden_image_nodes_do_not_collect_stale_refs(self):
+        from lomc.content import collect_story_content_refs
+
+        refs = collect_story_content_refs(
+            {
+                "nodes": [
+                    {
+                        "id": "n1",
+                        "type": "custom_cg",
+                        "action": "hide",
+                        "image": "user:mohui.stale_cg",
+                    },
+                    {
+                        "id": "n2",
+                        "type": "background",
+                        "action": "clear",
+                        "image": "user:mohui.stale_bg",
+                    },
+                ]
+            }
+        )
+        self.assertEqual(refs, [])
+
     def test_generic_image_rejects_bad_extension(self):
         from lomc.content import normalize_content_metadata
 
@@ -3815,6 +3891,40 @@ class TestPackUserAudio(unittest.TestCase):
             self.assertNotIn("assets/user/image/mohui.unused_bg/unused.png", names)
             lua = zf.read("lua/main.lua").decode("utf-8")
             self.assertIn('mod_background_show("user:mohui.moon_bg", 0.5)', lua)
+
+    def test_pack_collects_referenced_custom_cg_image_only(self):
+        _write_user_image(self.mod_dir, "mohui.memory_cg", "memory.png")
+        _write_user_image(self.mod_dir, "mohui.unused_cg", "unused.png")
+        story = make_story(
+            [
+                {
+                    "id": "n1",
+                    "type": "custom_cg",
+                    "action": "show",
+                    "image": "user:mohui.memory_cg",
+                    "fade": 0.4,
+                    "scale": 110,
+                    "x": 5,
+                    "y": -5,
+                },
+                {"id": "n2", "type": "custom_cg", "action": "hide", "fade": 0.2},
+                {"id": "n3", "type": "end"},
+            ]
+        )
+        with open(
+            os.path.join(self.mod_dir, "story", "main.json"), "w", encoding="utf-8"
+        ) as f:
+            json.dump(story, f, ensure_ascii=False, indent=2)
+        out = pack_mod(self.mod_dir)
+        with zipfile.ZipFile(out) as zf:
+            names = zf.namelist()
+            self.assertIn("assets/user/image/mohui.memory_cg/memory.png", names)
+            self.assertNotIn("assets/user/image/mohui.unused_cg/unused.png", names)
+            lua = zf.read("lua/main.lua").decode("utf-8")
+            self.assertIn(
+                'mod_cg_show("user:mohui.memory_cg", 0.4, 110, 5, -5)', lua
+            )
+            self.assertIn("mod_cg_hide(0.2)", lua)
 
     def test_pack_missing_user_audio_fails(self):
         story = make_story(

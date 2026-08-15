@@ -30,6 +30,7 @@ NODE_TYPE_CN_SRC: dict[str, str] = {
     "sound": "音效",
     "scene": "切换官方背景",
     "background": "自定义背景",
+    "custom_cg": "自定义全屏 CG",
     "show": "人物登场",
     "move": "人物移动",
     "face": "人物转向",
@@ -82,6 +83,7 @@ COMMON_NODE_TYPES: list[str] = [
     "intro",
     "scene",
     "background",
+    "custom_cg",
     "choice",
     "dice",
     "wait",
@@ -96,6 +98,7 @@ NODE_HELP_KEYS = {
     "hide": "help.hide",
     "scene": "help.scene",
     "background": "help.background",
+    "custom_cg": "help.custom_cg",
     "choice": "help.choice",
     "dice": "help.dice",
     "goto_scene": "help.goto_scene",
@@ -117,6 +120,7 @@ NODE_GROUPS_SRC: list[tuple[str, list[str]]] = [
             "sound",
             "scene",
             "background",
+            "custom_cg",
             "show",
             "move",
             "face",
@@ -254,6 +258,7 @@ REBUILD_ENUMS = {
     "intro_source",
     "sound_kind",
     "background_action",
+    "cg_action",
 }
 
 # say mode 中文标注（清单本身来自 editor_data.modes）
@@ -371,6 +376,17 @@ NODE_SCHEMAS: dict[str, dict] = {
             ("action", "动作", "enum:background_action", False),
             ("image", "用户图片", "user_image", True),
             ("fade", "淡入/淡出秒数", "float", True),
+        ],
+    },
+    "custom_cg": {
+        "label": "自定义全屏 CG",
+        "fields": [
+            ("action", "动作", "enum:cg_action", False),
+            ("image", "用户图片", "user_image", True),
+            ("fade", "淡入/淡出秒数", "float", True),
+            ("scale", "缩放百分比", "percent_cg_scale", True),
+            ("x", "横向位置百分比", "percent_position", True),
+            ("y", "纵向位置百分比", "percent_position", True),
         ],
     },
     "show": {
@@ -694,6 +710,14 @@ _NODE_DEFAULTS: dict[str, dict] = {
     "sound": {"name": "", "kind": "sound", "op": "play"},
     "scene": {"view": ""},
     "background": {"action": "show", "image": "", "fade": 0.5},
+    "custom_cg": {
+        "action": "show",
+        "image": "",
+        "fade": 0.5,
+        "scale": 100,
+        "x": 0,
+        "y": 0,
+    },
     "show": {
         "character": "",
         "position": "M",
@@ -1312,6 +1336,10 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
         return f"{tcn}·{display_name(ed, 'views', node.get('view', ''))}"
     if nt == "background":
         action = enum_label("background_action", node.get("action", "show"))
+        image = node.get("image") or ""
+        return f"{tcn}·{action}" + (f" {image}" if image else "")
+    if nt == "custom_cg":
+        action = enum_label("cg_action", node.get("action", "show"))
         image = node.get("image") or ""
         return f"{tcn}·{action}" + (f" {image}" if image else "")
     if nt == "show":

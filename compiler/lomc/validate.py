@@ -140,6 +140,10 @@ _NODE_FIELDS = {
         {"action": "background_action"},
         {"image": "str", "fade": "num"},
     ),
+    "custom_cg": (
+        {"action": "cg_action"},
+        {"image": "str", "fade": "num", "scale": "num", "x": "num", "y": "num"},
+    ),
     "show": (
         {"character": "str", "position": "str"},
         {
@@ -486,6 +490,28 @@ def _check_node_extra(node, ntype, label):
             raise LomcError(
                 '%s(background): action="%s" 时不能填写 "image"' % (label, action)
             )
+    elif ntype == "custom_cg":
+        action = node["action"]
+        image = node.get("image")
+        fade = node.get("fade", 0.5)
+        scale = node.get("scale", 100)
+        x = node.get("x", 0)
+        y = node.get("y", 0)
+        if fade < 0:
+            raise LomcError('%s(custom_cg): 字段 "fade" 不能小于 0' % label)
+        if scale < 10 or scale > 300:
+            raise LomcError('%s(custom_cg): 字段 "scale" 必须在 10~300 之间' % label)
+        if x < -100 or x > 100 or y < -100 or y > 100:
+            raise LomcError('%s(custom_cg): 字段 "x/y" 必须在 -100~100 之间' % label)
+        if action == "show":
+            if not isinstance(image, str) or not image.strip():
+                raise LomcError('%s(custom_cg): action="show" 时必填字段 "image"' % label)
+            if not is_user_ref(image):
+                raise LomcError(
+                    '%s(custom_cg): 字段 "image" 必须是 user: 图片引用，实际为 %r'
+                    % (label, image)
+                )
+            parse_content_ref(image, label='%s(custom_cg) 的 image' % label)
     elif ntype == "say":
         mode = node.get("mode", "character")
         if mode in ("character", "think") and "character" not in node:

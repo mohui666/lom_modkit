@@ -91,7 +91,7 @@ assets/                # 可选，自定义资源
 - `choice` / `branch` / `dice` 的分支必须用 `goto` 指到目标节点 id。
 - 多个前驱汇入同一节点（汇合点）合法。
 
-### 3.1 节点类型（全量 44 种）
+### 3.1 节点类型（全量 45 种）
 
 **演出类**
 
@@ -101,6 +101,7 @@ assets/                # 可选，自定义资源
 | `sound` | `name`；可选 `kind`("sound"默认/"env")，`op`("play"默认/"fadeout"仅env，`seconds`默认1) | 官方名继续 `PlaySound` / `PlayEnvSound` / `FadeOutEnvSound(seconds)` 后同样 **`wait(seconds)`**。`user:` 引用规则同 music，且 `audio_kind` 必须与节点匹配 |
 | `scene` | `view` | 切换**原版官方背景**：先清除自定义背景，再 `runblock(flowcharts.view,"out")`；其余原版预载与切换行为不变。`view="out"` 只淡出；`"black"/"white"` 为纯色 |
 | `background` | `action`(`set`/`show`/`replace`/`fadein`/`fadeout`/`clear`)；显示类必填 `image`(`user:` 图片)，可选 `fade`(默认0.5) | 使用当前包 `assets/user/image/` 的图片覆盖为舞台背景。`set/clear` 立即执行；其余动作按 `fade` 淡入/淡出并等待。换章、`goto_scene`、官方 `scene`、场景切换与热重载都会清理，不修改原版 View 资源 |
+| `custom_cg` | `action`(`show`/`hide`)；show 必填 `image`(`user:` 图片)；可选 `fade`(默认0.5)、`scale`(10~300，默认100)、`x/y`(-100~100，默认0) | 在人物层前显示全屏 CG，保持图片比例；`scale` 为自动适配后的百分比，`x` 正向右、`y` 正向上。show 替换上一张，hide 淡出并销毁；换章、换场景、换包自动清理。官方 `cg` 节点保持原样 |
 | `show` | `character`, `position`；可选 `portrait`(默认normal), `facing`(默认right), `fadeDuration`(0), `moveDuration`(0) | 加载并显示人物。story.mood 为 false 时末尾（Focus 后）追加 `mod_hide_mood()` |
 | `move` | `character`, `from`, `to`；可选 `duration`(默认1) | 移动并 `wait(duration)` |
 | `face` | `character`, `facing` | 转向 |
@@ -375,7 +376,7 @@ transition 黑幕、choice 皮肤崩溃、背景黑屏、人物未登场就做�
 - Python API：
   - `load_editor_data()`：读取编辑器数据（含 dice_meta 等清单），返回 (editor_data, is_fallback)
   - `new_story(story_id="main", title="新剧情", mood=False)`：新建剧情脚本（show 登场 + 空 say 双节点开场，先登场再动作）
-  - `add_node(story, node_type, fields=None, after=None)`：按 models 默认值新增节点（44 种类型），未知类型/字段/类型不符→ValueError，节点 id 自动生成，after 指定插入位置（节点 id 或 None=末尾）。登场防线：动作类节点的目标人物在前面未登场/已退场时，自动在它前面插入 show
+  - `add_node(story, node_type, fields=None, after=None)`：按 models 默认值新增节点（45 种类型），未知类型/字段/类型不符→ValueError，节点 id 自动生成，after 指定插入位置（节点 id 或 None=末尾）。登场防线：动作类节点的目标人物在前面未登场/已退场时，自动在它前面插入 show
   - `update_node(story, node_id, fields)`：更新节点字段（同 add 的字段校验），节点不存在→ValueError。登场防线：更新后若动作人物未登场/已退场，自动在该节点前插入 show 并把指向它的 goto/选项/分支跳转改指新节点
   - `get_node(story, node_id)`：读取节点，不存在→ValueError
   - `list_nodes(story)`：返回 [{"id","type","summary"}] 清单
