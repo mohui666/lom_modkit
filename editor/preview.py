@@ -144,6 +144,7 @@ def _hint_text(node: dict, ed: dict) -> str | None:
         "scene",
         "background",
         "custom_cg",
+        "overlay",
         "say",
         "choice",
         "offset",
@@ -322,6 +323,18 @@ def _apply_node(state: dict, node: dict, ed: dict | None = None) -> None:
                 "x": node.get("x", 0),
                 "y": node.get("y", 0),
             }
+    elif t == "overlay":
+        slot = str(node.get("slot") or "main")
+        if node.get("action", "show") == "hide":
+            state["overlays"].pop(slot, None)
+        else:
+            state["overlays"][slot] = {
+                "image": node.get("image") or None,
+                "position": node.get("position", "center"),
+                "scale": node.get("scale", 100),
+                "opacity": node.get("opacity", 100),
+                "layer": node.get("layer", "front"),
+            }
     elif t == "show":
         cid = node.get("character") or ""
         if cid:
@@ -466,6 +479,7 @@ def simulate_stage(
         "view": None,
         "background": None,
         "custom_cg": None,
+        "overlays": {},
         "actors": {},
         "dialog": None,
         "choice": None,
@@ -557,6 +571,7 @@ def build_playtest_prelude(
     view = state.get("view")
     background = state.get("background")
     custom_cg = state.get("custom_cg")
+    overlays = state.get("overlays") or {}
     actors = state.get("actors") or {}
 
     stage_nodes: list[dict] = []
@@ -567,6 +582,21 @@ def build_playtest_prelude(
         stage_nodes.append(
             {"type": "background", "action": "set", "image": background}
         )
+    for slot, overlay in sorted(overlays.items()):
+        if overlay.get("image"):
+            stage_nodes.append(
+                {
+                    "type": "overlay",
+                    "action": "show",
+                    "slot": slot,
+                    "image": overlay["image"],
+                    "position": overlay.get("position", "center"),
+                    "scale": overlay.get("scale", 100),
+                    "opacity": overlay.get("opacity", 100),
+                    "layer": overlay.get("layer", "front"),
+                    "fade": 0,
+                }
+            )
     # 按站位 x 从左到右依次上场，id 兜底保证确定性
     ordered = sorted(
         actors.items(),
@@ -835,8 +865,10 @@ class StagePreview(QWidget):
                 self._paint_caption(p, rect)
                 return
             self._paint_background(p, rect)
+            self._paint_overlays(p, rect, "back")
             self._paint_actors(p, rect)
             self._paint_custom_cg(p, rect)
+            self._paint_overlays(p, rect, "front")
             self._paint_dialog(p, rect)
             self._paint_hint(p, rect)
             self._paint_choices(p, rect)
@@ -1335,6 +1367,52 @@ class StagePreview(QWidget):
             p.drawPixmap(x, y, shown)
         finally:
             p.restore()
+
+    def _paint_overlays(self, p: QPainter, rect: QRect, layer: str) -> None:
+        overlays = self._state.get("overlays") or {}
+        positions = {
+            "center": (0.50, 0.50), "top": (0.50, 0.18),
+            "bottom": (0.50, 0.82), "left": (0.18, 0.50),
+            "right": (0.82, 0.50), "top_left": (0.18, 0.18),
+            "top_right": (0.82, 0.18), "bottom_left": (0.18, 0.82),
+            "bottom_right": (0.82, 0.82),
+        }
+        for slot, data in sorted(overlays.items()):
+            if data.get("layer", "front") != layer or not data.get("image"):
+                continue
+            raw = str(data["image"])
+            try:
+                _record, source = content_registry.resolve(raw, expected_type="image")
+                pix = self._load_pixmap(source)
+            except content_registry.ContentRegistryError:
+                pix = QPixmap()
+            if pix.isNull():
+                p.save()
+                p.setPen(QColor(255, 150, 120))
+                p.drawText(rect, Qt.AlignmentFlag.AlignCenter, f"缺失插图 {slot}：{raw}")
+                p.restore()
+                continue
+            scale = max(0.1, min(3.0, float(data.get("scale", 100)) / 100.0))
+            base = pix.scaled(
+                rect.size(), Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            shown = base.scaled(
+                max(1, floor(base.width() * scale)),
+                max(1, floor(base.height() * scale)),
+                Qt.AspectRatioMode.IgnoreAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            px, py = positions.get(str(data.get("position")), positions["center"])
+            x = rect.x() + floor(rect.width() * px) - shown.width() // 2
+            y = rect.y() + floor(rect.height() * py) - shown.height() // 2
+            p.save()
+            try:
+                p.setClipRect(rect)
+                p.setOpacity(max(0.0, min(1.0, float(data.get("opacity", 100)) / 100.0)))
+                p.drawPixmap(x, y, shown)
+            finally:
+                p.restore()
 
     def _paint_actor_placeholder(
         self, p: QPainter, cx: int, baseline: int, h: int, cid: str, portrait: str

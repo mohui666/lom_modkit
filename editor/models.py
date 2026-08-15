@@ -31,6 +31,7 @@ NODE_TYPE_CN_SRC: dict[str, str] = {
     "scene": "切换官方背景",
     "background": "自定义背景",
     "custom_cg": "自定义全屏 CG",
+    "overlay": "前景 / 插图",
     "show": "人物登场",
     "move": "人物移动",
     "face": "人物转向",
@@ -84,6 +85,7 @@ COMMON_NODE_TYPES: list[str] = [
     "scene",
     "background",
     "custom_cg",
+    "overlay",
     "choice",
     "dice",
     "wait",
@@ -99,6 +101,7 @@ NODE_HELP_KEYS = {
     "scene": "help.scene",
     "background": "help.background",
     "custom_cg": "help.custom_cg",
+    "overlay": "help.overlay",
     "choice": "help.choice",
     "dice": "help.dice",
     "goto_scene": "help.goto_scene",
@@ -121,6 +124,7 @@ NODE_GROUPS_SRC: list[tuple[str, list[str]]] = [
             "scene",
             "background",
             "custom_cg",
+            "overlay",
             "show",
             "move",
             "face",
@@ -190,6 +194,19 @@ ENUM_SETS_SRC: dict[str, list[tuple[str, str]]] = {
         ("bt", "从下到上"),
     ],
     "cg_action": [("show", "显示"), ("hide", "隐藏")],
+    "overlay_action": [("show", "显示 / 替换"), ("hide", "隐藏")],
+    "overlay_position": [
+        ("center", "中央"),
+        ("top", "上方"),
+        ("bottom", "下方"),
+        ("left", "左侧"),
+        ("right", "右侧"),
+        ("top_left", "左上"),
+        ("top_right", "右上"),
+        ("bottom_left", "左下"),
+        ("bottom_right", "右下"),
+    ],
+    "overlay_layer": [("back", "人物后方"), ("front", "人物前方")],
     "cg_kind": [
         ("picture", "图片"),
         ("item", "物品图"),
@@ -259,6 +276,7 @@ REBUILD_ENUMS = {
     "sound_kind",
     "background_action",
     "cg_action",
+    "overlay_action",
 }
 
 # say mode 中文标注（清单本身来自 editor_data.modes）
@@ -387,6 +405,19 @@ NODE_SCHEMAS: dict[str, dict] = {
             ("scale", "缩放百分比", "percent_cg_scale", True),
             ("x", "横向位置百分比", "percent_position", True),
             ("y", "纵向位置百分比", "percent_position", True),
+        ],
+    },
+    "overlay": {
+        "label": "前景 / 插图",
+        "fields": [
+            ("action", "动作", "enum:overlay_action", False),
+            ("slot", "槽位 id", "line", False),
+            ("image", "用户图片", "user_image", True),
+            ("position", "位置", "enum:overlay_position", True),
+            ("scale", "缩放百分比", "percent_cg_scale", True),
+            ("opacity", "不透明度", "percent_opacity", True),
+            ("layer", "层级", "enum:overlay_layer", True),
+            ("fade", "淡入/淡出秒数", "float", True),
         ],
     },
     "show": {
@@ -717,6 +748,16 @@ _NODE_DEFAULTS: dict[str, dict] = {
         "scale": 100,
         "x": 0,
         "y": 0,
+    },
+    "overlay": {
+        "action": "show",
+        "slot": "main",
+        "image": "",
+        "position": "center",
+        "scale": 100,
+        "opacity": 100,
+        "layer": "front",
+        "fade": 0.25,
     },
     "show": {
         "character": "",
@@ -1342,6 +1383,9 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
         action = enum_label("cg_action", node.get("action", "show"))
         image = node.get("image") or ""
         return f"{tcn}·{action}" + (f" {image}" if image else "")
+    if nt == "overlay":
+        action = enum_label("overlay_action", node.get("action", "show"))
+        return f"{tcn}·{node.get('slot', 'main')} {action}"
     if nt == "show":
         return f"{tcn}·{cname()}@{node.get('position', '')}"
     if nt == "move":

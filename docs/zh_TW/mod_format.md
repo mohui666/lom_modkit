@@ -90,7 +90,7 @@ assets/                # 可选，自定义资源
 - `choice` / `branch` / `dice` 的分支必須用 `goto` 指到目標節點 id。
 - 多個前驅匯入同一節點（匯合點）合法。
 
-### 3.1 節點類型（全量 45 種）
+### 3.1 節點類型（全量 46 種）
 
 **演出類**
 
@@ -101,6 +101,7 @@ assets/                # 可选，自定义资源
 | `scene` | `view` | 切場景：`runblock(flowcharts.view,"out")` 後 `ViewName=view; runblock(...,"view")`。`view="out"` 只淡出；`"black"/"white"` 為純色。非純色 view 先 `runwait(flowcharts.LoadView(view))` 預先載入背景資產（不預載則背景黑畫面） |
 | `background` | `action`(`set`/`show`/`replace`/`fadein`/`fadeout`/`clear`)；顯示類必填 `image`(`user:` 圖片)，可選 `fade`(預設0.5) | 以目前套件的使用者圖片顯示自訂背景；換章、官方 `scene`、換場景與熱重載都會清理，不修改原版 View 資源 |
 | `custom_cg` | `action`(`show`/`hide`)；show 必填 `image`；可選 `fade`、`scale`、`x/y` | 在人物層前顯示使用者圖片 CG；可縮放與調整中心位置，hide/換章/換場景時清理。官方 `cg` 不變 |
+| `overlay` | 必填 `action`(`show`/`hide`) 與 `slot`；show 必填 `image`；可選九宮格 `position`、`scale`、`opacity`、`layer`、`fade` | 多槽位前景/道具/插圖/遮罩；同槽替換或獨立隱藏，換章與換場景統一清理 |
 | `show` | `character`, `position`；可選 `portrait`(預設normal), `facing`(預設right), `fadeDuration`(0), `moveDuration`(0) | 載入並顯示人物。story.mood 為 false 時末尾（Focus 後）追加 `mod_hide_mood()` |
 | `move` | `character`, `from`, `to`；可選 `duration`(預設1) | 移動並 `wait(duration)` |
 | `face` | `character`, `facing` | 轉向 |
@@ -373,7 +374,7 @@ transition 黑幕、choice 外觀崩潰、背景黑畫面、人物未登場就�
 - Python API：
   - `load_editor_data()`：讀取編輯器資料（含 dice_meta 等清單），返回 (editor_data, is_fallback)
   - `new_story(story_id="main", title="新剧情", mood=False)`：新建劇情腳本（show 登場 + 空 say 雙節點開場，先登場再動作）
-  - `add_node(story, node_type, fields=None, after=None)`：按 models 預設值新增節點（45 種類型），未知類型/欄位/類型不符→ValueError，節點 id 自動產生，after 指定插入位置（節點 id 或 None=末尾）。登場防線：動作類節點的目標人物在前面未登場/已退場時，自動在它前面插入 show
+  - `add_node(story, node_type, fields=None, after=None)`：按 models 預設值新增節點（46 種類型），未知類型/欄位/類型不符→ValueError，節點 id 自動產生，after 指定插入位置（節點 id 或 None=末尾）。登場防線：動作類節點的目標人物在前面未登場/已退場時，自動在它前面插入 show
   - `update_node(story, node_id, fields)`：更新節點欄位（同 add 的欄位驗證），節點不存在→ValueError。登場防線：更新後若動作人物未登場/已退場，自動在該節點前插入 show 並把指向它的 goto/選項/分支跳轉改指新節點
   - `get_node(story, node_id)`：讀取節點，不存在→ValueError
   - `list_nodes(story)`：返回 [{"id","type","summary"}] 清單

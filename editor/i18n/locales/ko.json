@@ -552,5 +552,15 @@
   "discard.discard": "수정 버리기",
   "discard.cancel": "취소",
   "new_story_text": "여기에 첫 대사를 적으세요.",
-  "new_story_title": "새 시나리오"
+  "new_story_title": "새 시나리오",
+  "node.overlay": "전경 / 삽화",
+  "field.slot": "슬롯 id",
+  "field.opacity": "불투명도",
+  "field.layer": "레이어",
+  "help.overlay": "독립 슬롯에 전경, 소품, 삽화 또는 마스크를 표시하고 위치, 레이어, 크기와 불투명도를 지정합니다.",
+  "enum.center": "가운데", "enum.top": "위", "enum.bottom": "아래",
+  "enum.left": "왼쪽", "enum.right": "오른쪽",
+  "enum.top_left": "왼쪽 위", "enum.top_right": "오른쪽 위",
+  "enum.bottom_left": "왼쪽 아래", "enum.bottom_right": "오른쪽 아래",
+  "enum.back": "인물 뒤", "enum.front": "인물 앞"
 }

@@ -74,6 +74,31 @@ class PreviewStageActionTest(unittest.TestCase):
         cleared = preview.simulate_stage(story, "n4")
         self.assertIsNone(cleared["custom_cg"])
 
+    def test_overlay_slots_layers_hide_and_playtest_prelude(self):
+        story = {
+            "id": "main", "title": "overlay", "start": "n1",
+            "nodes": [
+                {"id": "n1", "type": "overlay", "action": "show", "slot": "prop",
+                 "image": "user:mohui.lantern", "position": "left", "scale": 80,
+                 "opacity": 70, "layer": "back", "fade": 0.2},
+                {"id": "n2", "type": "overlay", "action": "show", "slot": "mask",
+                 "image": "user:mohui.vignette", "position": "center", "scale": 100,
+                 "opacity": 40, "layer": "front", "fade": 0},
+                {"id": "n3", "type": "say", "mode": "narrative", "text": "test"},
+                {"id": "n4", "type": "overlay", "action": "hide", "slot": "prop", "fade": 0.1},
+                {"id": "n5", "type": "end"},
+            ],
+        }
+        state = preview.simulate_stage(story, "n3")
+        self.assertEqual(set(state["overlays"]), {"prop", "mask"})
+        self.assertEqual(state["overlays"]["prop"]["layer"], "back")
+        prelude = preview.build_playtest_prelude(story, "n3")
+        self.assertEqual([n["slot"] for n in prelude], ["mask", "prop"])
+        self.assertTrue(all(n["fade"] == 0 for n in prelude))
+        hidden = preview.simulate_stage(story, "n5")
+        self.assertNotIn("prop", hidden["overlays"])
+        self.assertIn("mask", hidden["overlays"])
+
     def test_custom_character_actions_update_visual_state(self):
         raw = "user:mohui.luoxue"
         story = {

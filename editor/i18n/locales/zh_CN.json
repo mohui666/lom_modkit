@@ -552,5 +552,15 @@
   "discard.discard": "放弃修改",
   "discard.cancel": "取消",
   "new_story_text": "在这里填写第一句对白。",
-  "new_story_title": "新剧情"
+  "new_story_title": "新剧情",
+  "node.overlay": "前景 / 插图",
+  "field.slot": "槽位 id",
+  "field.opacity": "不透明度",
+  "field.layer": "层级",
+  "help.overlay": "用独立槽位显示前景、道具、插图或遮罩；可选择九宫格位置、层级、缩放和透明度。",
+  "enum.center": "中央", "enum.top": "上方", "enum.bottom": "下方",
+  "enum.left": "左侧", "enum.right": "右侧",
+  "enum.top_left": "左上", "enum.top_right": "右上",
+  "enum.bottom_left": "左下", "enum.bottom_right": "右下",
+  "enum.back": "人物后方", "enum.front": "人物前方"
 }

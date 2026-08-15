@@ -295,6 +295,7 @@ def collect_story_content_refs(story):
         # 当前及后续 background / CG / overlay 共用这一条收集路径，不各建 Store。
         image_is_active = not (
             (ntype == "custom_cg" and node.get("action", "show") == "hide")
+            or (ntype == "overlay" and node.get("action", "show") == "hide")
             or (
                 ntype == "background"
                 and node.get("action", "show") in ("fadeout", "clear")

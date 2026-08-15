@@ -276,6 +276,32 @@ class TestNodeCodegen(unittest.TestCase):
             "-100~100",
         )
 
+    def test_overlay_codegen_and_validation(self):
+        shown = self.lua_of(
+            {
+                "id": "n1", "type": "overlay", "action": "show",
+                "slot": "prop_1", "image": "user:mohui.lantern",
+                "position": "top_right", "scale": 75, "opacity": 60,
+                "layer": "front", "fade": 0.3,
+            }
+        )
+        self.assertIn(
+            'mod_overlay_show("prop_1", "user:mohui.lantern", "top_right", 75, 60, "front", 0.3)',
+            shown,
+        )
+        self.assertIn("\twait(0.3)", shown)
+        hidden = self.lua_of(
+            {"id": "n1", "type": "overlay", "action": "hide", "slot": "prop_1", "fade": 0.2}
+        )
+        self.assertIn('mod_overlay_hide("prop_1", 0.2)', hidden)
+        for bad, message in (
+            ({"slot": "bad slot", "image": "user:mohui.lantern"}, "槽位 id"),
+            ({"slot": "main"}, "image"),
+            ({"slot": "main", "image": "user:mohui.lantern", "opacity": 101}, "0~100"),
+        ):
+            node = {"id": "n1", "type": "overlay", "action": "show", **bad}
+            assert_compile_error(self, linear_story(node), message)
+
     def test_show(self):
         lua = self.lua_of(
             {
@@ -3925,6 +3951,29 @@ class TestPackUserAudio(unittest.TestCase):
                 'mod_cg_show("user:mohui.memory_cg", 0.4, 110, 5, -5)', lua
             )
             self.assertIn("mod_cg_hide(0.2)", lua)
+
+    def test_pack_collects_referenced_overlay_image_only(self):
+        _write_user_image(self.mod_dir, "mohui.lantern", "lantern.png")
+        _write_user_image(self.mod_dir, "mohui.unused_overlay", "unused.png")
+        story = make_story(
+            [
+                {"id": "n1", "type": "overlay", "action": "show", "slot": "prop",
+                 "image": "user:mohui.lantern", "position": "left", "scale": 80,
+                 "opacity": 90, "layer": "back", "fade": 0},
+                {"id": "n2", "type": "overlay", "action": "hide", "slot": "prop", "fade": 0},
+                {"id": "n3", "type": "end"},
+            ]
+        )
+        with open(os.path.join(self.mod_dir, "story", "main.json"), "w", encoding="utf-8") as f:
+            json.dump(story, f, ensure_ascii=False, indent=2)
+        out = pack_mod(self.mod_dir)
+        with zipfile.ZipFile(out) as zf:
+            names = zf.namelist()
+            self.assertIn("assets/user/image/mohui.lantern/lantern.png", names)
+            self.assertNotIn("assets/user/image/mohui.unused_overlay/unused.png", names)
+            lua = zf.read("lua/main.lua").decode("utf-8")
+            self.assertIn('mod_overlay_show("prop", "user:mohui.lantern", "left", 80, 90, "back", 0)', lua)
+            self.assertIn('mod_overlay_hide("prop", 0)', lua)
 
     def test_pack_missing_user_audio_fails(self):
         story = make_story(

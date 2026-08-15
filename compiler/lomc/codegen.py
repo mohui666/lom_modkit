@@ -160,6 +160,29 @@ def _emit_custom_cg(node, ctx):
     return lines
 
 
+def _emit_overlay(node, ctx):
+    fade = node.get("fade", 0.25)
+    slot = lua_str(node["slot"])
+    if node["action"] == "hide":
+        lines = ["\tmod_overlay_hide(%s, %s)" % (slot, lua_num(fade))]
+    else:
+        lines = [
+            "\tmod_overlay_show(%s, %s, %s, %s, %s, %s, %s)"
+            % (
+                slot,
+                lua_str(node["image"]),
+                lua_str(node.get("position", "center")),
+                lua_num(node.get("scale", 100)),
+                lua_num(node.get("opacity", 100)),
+                lua_str(node.get("layer", "front")),
+                lua_num(fade),
+            )
+        ]
+    if fade > 0:
+        lines.append("\twait(%s)" % lua_num(fade))
+    return lines
+
+
 def _emit_show(node, ctx):
     user = _user_char(node)
     c = lua_str(node["character"])
@@ -1075,6 +1098,7 @@ _EMITTERS = {
     "scene": _emit_scene,
     "background": _emit_background,
     "custom_cg": _emit_custom_cg,
+    "overlay": _emit_overlay,
     "show": _emit_show,
     "move": _emit_move,
     "face": _emit_face,

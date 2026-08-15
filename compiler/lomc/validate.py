@@ -46,6 +46,12 @@ _ENUMS = {
     "sound_kind": ("sound", "env"),
     "sound_op": ("play", "fadeout"),
     "background_action": ("set", "show", "replace", "fadein", "fadeout", "clear"),
+    "overlay_action": ("show", "hide"),
+    "overlay_position": (
+        "center", "top", "bottom", "left", "right",
+        "top_left", "top_right", "bottom_left", "bottom_right",
+    ),
+    "overlay_layer": ("back", "front"),
     "transition_phase": ("in", "out"),
     "transition_dir": ("lr", "rl", "tb", "bt"),
     "block_fc": ("view", "common"),
@@ -143,6 +149,13 @@ _NODE_FIELDS = {
     "custom_cg": (
         {"action": "cg_action"},
         {"image": "str", "fade": "num", "scale": "num", "x": "num", "y": "num"},
+    ),
+    "overlay": (
+        {"action": "overlay_action", "slot": "str"},
+        {
+            "image": "str", "position": "overlay_position", "scale": "num",
+            "opacity": "num", "layer": "overlay_layer", "fade": "num",
+        },
     ),
     "show": (
         {"character": "str", "position": "str"},
@@ -512,6 +525,32 @@ def _check_node_extra(node, ntype, label):
                     % (label, image)
                 )
             parse_content_ref(image, label='%s(custom_cg) 的 image' % label)
+    elif ntype == "overlay":
+        action = node["action"]
+        slot = node["slot"]
+        image = node.get("image")
+        fade = node.get("fade", 0.25)
+        scale = node.get("scale", 100)
+        opacity = node.get("opacity", 100)
+        if not slot.strip() or SCRIPT_ID_RE.fullmatch(slot) is None:
+            raise LomcError(
+                '%s(overlay): 字段 "slot" 必须是 [A-Za-z0-9_-]+ 的非空槽位 id' % label
+            )
+        if fade < 0:
+            raise LomcError('%s(overlay): 字段 "fade" 不能小于 0' % label)
+        if scale < 10 or scale > 300:
+            raise LomcError('%s(overlay): 字段 "scale" 必须在 10~300 之间' % label)
+        if opacity < 0 or opacity > 100:
+            raise LomcError('%s(overlay): 字段 "opacity" 必须在 0~100 之间' % label)
+        if action == "show":
+            if not isinstance(image, str) or not image.strip():
+                raise LomcError('%s(overlay): action="show" 时必填字段 "image"' % label)
+            if not is_user_ref(image):
+                raise LomcError(
+                    '%s(overlay): 字段 "image" 必须是 user: 图片引用，实际为 %r'
+                    % (label, image)
+                )
+            parse_content_ref(image, label='%s(overlay) 的 image' % label)
     elif ntype == "say":
         mode = node.get("mode", "character")
         if mode in ("character", "think") and "character" not in node:

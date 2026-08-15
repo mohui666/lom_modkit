@@ -552,5 +552,15 @@
   "discard.discard": "変更を捨てる",
   "discard.cancel": "キャンセル",
   "new_story_text": "ここに最初の台詞を書いてください。",
-  "new_story_title": "新しいシナリオ"
+  "new_story_title": "新しいシナリオ",
+  "node.overlay": "前景 / 挿絵",
+  "field.slot": "スロット id",
+  "field.opacity": "不透明度",
+  "field.layer": "レイヤー",
+  "help.overlay": "独立スロットで前景・小道具・挿絵・マスクを表示し、位置・レイヤー・拡大率・不透明度を指定します。",
+  "enum.center": "中央", "enum.top": "上", "enum.bottom": "下",
+  "enum.left": "左", "enum.right": "右",
+  "enum.top_left": "左上", "enum.top_right": "右上",
+  "enum.bottom_left": "左下", "enum.bottom_right": "右下",
+  "enum.back": "人物の後ろ", "enum.front": "人物の前"
 }

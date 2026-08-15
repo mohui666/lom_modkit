@@ -305,6 +305,9 @@ class NodeForm(QScrollArea):
         if node_type == "custom_cg":
             if key in ("image", "scale", "x", "y"):
                 return node.get("action", "show") == "show"
+        if node_type == "overlay":
+            if key in ("image", "position", "scale", "opacity", "layer"):
+                return node.get("action", "show") == "show"
         if node_type == "goto_scene":
             scene = node.get("scene", "Free")
             if key == "key":
@@ -605,6 +608,13 @@ class NodeForm(QScrollArea):
             w.setSuffix(" %")
             w.setValue(int(value or 0))
             w.setToolTip("相对屏幕中心偏移；x 正数向右，y 正数向上")
+            w.valueChanged.connect(lambda v: self._apply(node, key, int(v)))
+            return w
+        if kind == "percent_opacity":
+            w = QSpinBox()
+            w.setRange(0, 100)
+            w.setSuffix(" %")
+            w.setValue(int(value if value is not None else 100))
             w.valueChanged.connect(lambda v: self._apply(node, key, int(v)))
             return w
         if kind == "bool":

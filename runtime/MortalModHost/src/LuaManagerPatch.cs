@@ -265,6 +265,24 @@ namespace MortalModHost
                     catch (Exception ex) { Log.LogWarning("mod_cg_hide 失败：" + ex.Message); }
                     return DynValue.Nil;
                 }, "mod_cg_hide");
+                script.Globals["mod_overlay_show"] = new CallbackFunction((ctx, args) =>
+                {
+                    try
+                    {
+                        CustomImageRuntime.ShowOverlay(
+                            ArgString(args, 0), ArgString(args, 1), ArgString(args, 2, "center"),
+                            ArgFloat(args, 3, 100f), ArgFloat(args, 4, 100f),
+                            ArgString(args, 5, "front"), ArgFloat(args, 6, 0f));
+                    }
+                    catch (Exception ex) { Log.LogWarning("mod_overlay_show 失败：" + ex.Message); }
+                    return DynValue.Nil;
+                }, "mod_overlay_show");
+                script.Globals["mod_overlay_hide"] = new CallbackFunction((ctx, args) =>
+                {
+                    try { CustomImageRuntime.HideOverlay(ArgString(args, 0), ArgFloat(args, 1, 0f)); }
+                    catch (Exception ex) { Log.LogWarning("mod_overlay_hide 失败：" + ex.Message); }
+                    return DynValue.Nil;
+                }, "mod_overlay_hide");
                 RegisterCharacterGlobals(script);
             }
             catch (Exception ex)
