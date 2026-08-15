@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "content_schema": 1,
+  "id": "showcase.courier_station",
+  "type": "image",
+  "name": "暮色驿站",
+  "files": {"main": "courier_station.png"}
+}

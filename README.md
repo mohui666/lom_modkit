@@ -208,6 +208,7 @@ SHA-256 前 16 个十六进制字符，可用来核对具体文件，但**不是
 | [Runtime Installation Doctor](docs/zh_CN/runtime_installation_doctor.md) | 离线诊断 BepInEx、MortalModHost、NVorbis、重复 DLL 与 Mod 目录，仅执行确定性的安全修复 |
 | [Runtime Rollback](docs/zh_CN/runtime_rollback.md) | Runtime 更新前保留经 SHA-256 核对的上一版，失败自动恢复，也可在安装管理中手工回滚 |
 | [Test Matrix](docs/zh_CN/test_matrix.md) | 一个离线入口覆盖 Compiler、Editor unit/smoke/stress 与 Runtime build/smoke，并可输出 JSON 结果 |
+| [功能 Showcase](samples/feature_showcase/README.md) | 可直接打包的原创自包含项目，覆盖自定义角色/语音/BGM/图片、流程、本地化与结局 |
 | [Mod 包格式契约](docs/zh_CN/mod_format.md) | 包结构、43 种节点、编译约定、运行时行为 |
 | [AI / CLI 手册](docs/zh_CN/ai_cli.md) | story_api 命令行与 Python API |
 | [多语言](docs/zh_CN/i18n.md) | 界面与文档的 i18n 架构 |
