@@ -7,6 +7,7 @@
 
 import json
 import os
+from pathlib import Path
 import subprocess
 import sys
 import tempfile
@@ -21,6 +22,10 @@ from lomc import (
     validate_story,
 )
 from lomc.codegen import lua_num
+from lomc.deterministic_zip import (
+    PACKAGE_CONTENT_HASH_ENTRY,
+    package_content_hash,
+)
 from lomc.schema_versions import CONTENT_SCHEMA, PACKAGE_FORMAT, STORY_SCHEMA
 
 COMPILER_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -1936,6 +1941,7 @@ class TestPack(unittest.TestCase):
                     "lua/main.lua",
                     "lua/extra.lua",
                     "texts.json",
+                    PACKAGE_CONTENT_HASH_ENTRY,
                 },
             )
             manifest_back = json.loads(zf.read("manifest.json").decode("utf-8"))
@@ -1974,6 +1980,27 @@ class TestPack(unittest.TestCase):
             'luamanager.ChangeScene("GameOver", "910021", "Title")', lua_extra
         )
         self.assertNotIn("luamanager.Init()", lua_extra)
+
+    def test_pack_is_byte_stable_and_content_hash_verifies(self):
+        story_path = self.write_story(linear_story())
+        first = os.path.join(self.tmp.name, "first.lommod")
+        second = os.path.join(self.tmp.name, "second.lommod")
+        pack_mod(self.mod_dir, first)
+        os.utime(story_path, (1900000000, 1900000000))
+        os.utime(os.path.join(self.mod_dir, "manifest.json"), (1800000000, 1800000000))
+        pack_mod(self.mod_dir, second)
+        self.assertEqual(Path(first).read_bytes(), Path(second).read_bytes())
+        computed = package_content_hash(first)
+        with zipfile.ZipFile(first) as archive:
+            infos = archive.infolist()
+            self.assertEqual(
+                [info.filename for info in infos[:-1]],
+                sorted(info.filename for info in infos[:-1]),
+            )
+            self.assertEqual(infos[-1].filename, PACKAGE_CONTENT_HASH_ENTRY)
+            self.assertTrue(all(info.date_time == (1980, 1, 1, 0, 0, 0) for info in infos))
+            record = archive.read(PACKAGE_CONTENT_HASH_ENTRY).decode("ascii")
+        self.assertIn("sha256=" + computed, record)
 
     def test_pack_missing_manifest(self):
         os.remove(os.path.join(self.mod_dir, "manifest.json"))

@@ -14,6 +14,7 @@ manifest.json          # 必填，包元信息
 story/<id>.json        # 必填≥1，剧情源文件（编辑器可编辑的源格式）
 lua/<id>.lua           # 必填≥1，编译产物（运行时只读这里）；每个 story/<id>.json 对应一个
 texts.json             # 必填，已读文本表：{MOD_<modid>_<scriptid>_<nodeid>: 文本}（say 节点文本）
+package-content.sha256 # 必須。圧縮に依存しない論理コンテンツ SHA-256
 assets/                # 可选，自定义资源
                        #   图片：结局插图 / 人物介绍图 PNG/JPG
                        #   用户音频：assets/user/audio/<content_id>/
@@ -23,6 +24,7 @@ assets/                # 可选，自定义资源
 - エクスポート（パッケージング）時は必ず再コンパイルします：story/*.json → lua/*.lua。両者は同名です。
 - ランタイムプラグインが読むのは **manifest.json、lua/ ディレクトリと assets/ のみ**です。story/*.json はエディターが再読込／再編集するためのものです。コンパイラーはシナリオが明示的に参照する PNG/JPG（1 枚 ≤8MB）と明示的に参照される `user:` 音声のみを同梱します。エクスポートされた `.lommod` は自己完結しており、プレイヤーのマシンにエディターのリポジトリは不要です。
 - texts.json はパッケージング時に自動生成されます：各 story の全 **say** ノードのテキストを収集し、key は lua 内の `GetStoryText` の key と一対一で対応します。ランタイムで LeanLocalization に登録されます（§4/§6 参照）。**death テキストは texts.json に入りません**：codegen が `mod_set_death_text(<タイトル>, <テキスト>)` の 2 引数 lua_str リテラルとして出力します（§3.1/§6 参照）。
+- エントリー、JSON、Lua、ZIP の時刻／権限を固定し、同一 Python/zlib ツールチェーンでは同一入力をバイト単位で再現します。`package-content.sha256` は圧縮結果に依存しない論理内容ハッシュです。異なるツールチェーン間の完全な reproducible build は保証せず、このハッシュも署名や公式認証ではありません。
 
 ## 2. manifest.json
 

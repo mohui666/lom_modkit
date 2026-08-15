@@ -354,47 +354,39 @@ def export_lommod(
     if manifest.get("entry") not in compiled:
         raise PackError(f"入口脚本 {manifest.get('entry')!r} 不在 story 列表中")
 
-    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr(
-            "manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2) + "\n"
+    from lomc.content import (
+        content_metadata_payload,
+        listed_content_files,
+        load_content_metadata,
+    )
+    from lomc.deterministic_zip import DeterministicPackageBuilder
+
+    package = DeterministicPackageBuilder()
+    package.add_json("manifest.json", manifest)
+    for sid, story in stories.items():
+        package.add_json(f"story/{sid}.json", story)
+    for sid, lua in compiled.items():
+        package.add_bytes(f"lua/{sid}.lua", lua)
+    for rel, source in sorted(asset_sources.items()):
+        package.add_file(rel, source)
+    for content_type, content_id in user_content:
+        rec, _main_path = content_registry.resolve(
+            content_id, expected_type=content_type
         )
-        for sid, story in stories.items():
-            zf.writestr(
-                f"story/{sid}.json",
-                json.dumps(story, ensure_ascii=False, indent=2) + "\n",
-            )
-        for sid, lua in compiled.items():
-            zf.writestr(f"lua/{sid}.lua", lua)
-        for rel, source in sorted(asset_sources.items()):
-            zf.write(source, rel)
-        for content_type, content_id in user_content:
-            rec, _main_path = content_registry.resolve(
-                content_id, expected_type=content_type
-            )
-            rel_dir = "assets/user/%s/%s" % (rec.type, content_id)
-            from lomc.content import (
-                content_metadata_payload,
-                listed_content_files,
-                load_content_metadata,
-            )
-
-            metadata = load_content_metadata(str(rec.folder / "content.json"))
-            zf.writestr(
-                rel_dir + "/content.json",
-                json.dumps(
-                    content_metadata_payload(metadata), ensure_ascii=False, indent=2
-                )
-                + "\n",
-            )
-
-            for fname in listed_content_files(
-                {
-                    "files": {"main": rec.main_file},
-                    "portraits": rec.portraits or {},
-                    "intro": rec.intro or {},
-                }
-            ):
-                src = rec.folder / fname
-                if src.is_file():
-                    zf.write(src, rel_dir + "/" + fname)
+        rel_dir = "assets/user/%s/%s" % (rec.type, content_id)
+        metadata = load_content_metadata(str(rec.folder / "content.json"))
+        package.add_json(
+            rel_dir + "/content.json", content_metadata_payload(metadata)
+        )
+        for fname in listed_content_files(
+            {
+                "files": {"main": rec.main_file},
+                "portraits": rec.portraits or {},
+                "intro": rec.intro or {},
+            }
+        ):
+            src = rec.folder / fname
+            if src.is_file():
+                package.add_file(rel_dir + "/" + fname, src)
+    package.write(path)
     return [f"{sid}.json → lua/{sid}.lua 编译成功" for sid in stories]

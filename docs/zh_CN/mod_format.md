@@ -17,6 +17,7 @@ texts.json             # 必填，已读文本表：{MOD_<modid>_<scriptid>_<nod
 localization.json      # 可选，Story 内容语言元数据（schema/default/fallback/locales）
 lua/<locale>/<id>.lua  # 本地化包必填，完整的 locale 专用编译产物
 texts/<locale>.json    # 本地化包必填，locale 专用已读文本表
+package-content.sha256 # 必填，压缩无关的逻辑包内容 SHA-256
 assets/                # 可选，自定义资源
                        #   图片：结局插图 / 人物介绍图 PNG/JPG
                        #   用户音频：assets/user/audio/<content_id>/
@@ -28,6 +29,8 @@ assets/                # 可选，自定义资源
 - 运行时插件**只读 manifest.json、lua/、texts、可选 localization.json 与 assets/**；story/*.json 给编辑器回读/再编辑用。编译器只打入剧情明确引用的 PNG/JPG（单张 ≤8MB）、明确引用的 `user:` 音频，以及明确引用的自定义角色立绘。导出的 `.lommod` 自包含，玩家机器不需要编辑器仓库。
 - texts.json 由打包时自动生成：收集每个 story 的全部 **say** 节点文本，key 与 lua 里 `GetStoryText` 的 key 一一对应；运行时注册进 LeanLocalization（见 §4/§6）。**death 文本不进 texts.json**：由 codegen 发射 `mod_set_death_text(<标题>, <文本>)` 两参 lua_str 字面量（见 §3.1/§6）。
 - 运行时先拒绝物理文件超过 160 MiB 的包，再从读取该包的同一个文件句柄计算最终 `.lommod` **全部原始字节**的 SHA-256，保存完整 64 个十六进制字符，并在强制披露中显示前 16 个字符。重新压缩、修改任一字节都会改变指纹；改文件名或逐字节复制不会改变。该指纹用于核对具体包，不是作者签名或官方认证。编辑器安装器同样以 160 MiB / 4 MiB 分别限制包文件与 `manifest.json`。
+- 打包器按包内规范路径排序条目，JSON 使用稳定键顺序，Lua 编译顺序固定，并把 ZIP 时间戳固定为 1980-01-01、权限固定为普通只读元数据；同一 lom_modkit/Python/zlib 工具链下，相同项目连续导出的 `.lommod` 应逐字节一致。不同 Python 或 zlib 实现的压缩字节可能不同，因此**不宣称跨工具链 reproducible build**。
+- `package-content.sha256` 是 `lom-entry-sha256-v1` 记录：对除它自身外的全部条目按名称排序，以「名称长度 + UTF-8 名称 + 内容长度 + 原始内容」计算 SHA-256。它不依赖 ZIP 时间戳、权限或压缩结果，可由 `lomc.package_content_hash(path)` 复算；它是构建一致性校验，不是签名或官方认证，也不替代 Runtime 对整包原始字节计算的 Host 指纹。
 
 ### 1.1 Story 内容本地化（可选）
 

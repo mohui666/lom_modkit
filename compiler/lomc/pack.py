@@ -16,9 +16,7 @@
 默认输出：<mod目录> 同级、以目录名命名的 <目录名>.lommod。
 """
 
-import json
 import os
-import zipfile
 
 from .compiler import compile_story, load_json_file
 from .content import (
@@ -31,6 +29,7 @@ from .content import (
     resolve_content,
 )
 from .errors import LomcError
+from .deterministic_zip import DeterministicPackageBuilder
 from .localization import SUPPORTED_LOCALES, apply_story_locale, localization_config
 from .validate import validate_manifest, validate_story
 from .schema_versions import STORY_SCHEMA, version_declarations
@@ -249,59 +248,39 @@ def pack_mod(mod_dir, output=None):
             os.path.dirname(mod_dir) or ".", os.path.basename(mod_dir) + ".lommod"
         )
 
-    with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr(
-            "manifest.json",
-            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+    package = DeterministicPackageBuilder()
+    package.add_json("manifest.json", manifest)
+    for fname in story_files:
+        stem = fname[: -len(".json")]
+        package.add_json("story/%s" % fname, loaded_stories[stem])
+    for stem, lua in compiled.items():
+        package.add_bytes("lua/%s.lua" % stem, lua)
+    package.add_json("texts.json", texts)
+    if package_localization is not None:
+        default_locale, fallback_locale = package_localization
+        package.add_json(
+            "localization.json",
+            {
+                "schema": 1,
+                "default_locale": default_locale,
+                "fallback_locale": fallback_locale,
+                "locales": list(SUPPORTED_LOCALES),
+            },
         )
-        for fname in story_files:
-            stem = fname[: -len(".json")]
-            zf.writestr(
-                "story/%s" % fname,
-                json.dumps(loaded_stories[stem], ensure_ascii=False, indent=2) + "\n",
-            )
-        for stem, lua in compiled.items():
-            zf.writestr("lua/%s.lua" % stem, lua)
-        # 已读文本表（契约 §1/§4）：key 与 lua 里 GetStoryText 的 key 一一对应
-        zf.writestr(
-            "texts.json",
-            json.dumps(texts, ensure_ascii=False, indent=2) + "\n",
-        )
-        if package_localization is not None:
-            default_locale, fallback_locale = package_localization
-            zf.writestr(
-                "localization.json",
-                json.dumps(
-                    {
-                        "schema": 1,
-                        "default_locale": default_locale,
-                        "fallback_locale": fallback_locale,
-                        "locales": list(SUPPORTED_LOCALES),
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                ) + "\n",
-            )
-            for locale in SUPPORTED_LOCALES:
-                for stem, lua in localized_compiled[locale].items():
-                    zf.writestr("lua/%s/%s.lua" % (locale, stem), lua)
-                zf.writestr(
-                    "texts/%s.json" % locale,
-                    json.dumps(localized_texts[locale], ensure_ascii=False, indent=2) + "\n",
-                )
-        # assets 只收剧情明确引用的图片与用户内容，避免把本机未使用素材意外分发。
-        for rel in sorted(referenced_assets):
-            full = os.path.join(mod_dir, rel.replace("/", os.sep))
-            zf.write(full, rel)
-        for ctype, content_id in sorted(referenced_user_content):
-            meta, folder = referenced_user_content[(ctype, content_id)]
-            rel_dir = package_content_dir(ctype, content_id)
-            zf.writestr(
-                rel_dir + "/content.json",
-                json.dumps(content_metadata_payload(meta), ensure_ascii=False, indent=2)
-                + "\n",
-            )
-            for fname in listed_content_files(meta):
-                zf.write(os.path.join(folder, fname), rel_dir + "/" + fname)
+        for locale in SUPPORTED_LOCALES:
+            for stem, lua in localized_compiled[locale].items():
+                package.add_bytes("lua/%s/%s.lua" % (locale, stem), lua)
+            package.add_json("texts/%s.json" % locale, localized_texts[locale])
+    # assets 只收剧情明确引用的图片与用户内容，避免把本机未使用素材意外分发。
+    for rel in sorted(referenced_assets):
+        full = os.path.join(mod_dir, rel.replace("/", os.sep))
+        package.add_file(rel, full)
+    for ctype, content_id in sorted(referenced_user_content):
+        meta, folder = referenced_user_content[(ctype, content_id)]
+        rel_dir = package_content_dir(ctype, content_id)
+        package.add_json(rel_dir + "/content.json", content_metadata_payload(meta))
+        for fname in listed_content_files(meta):
+            package.add_file(rel_dir + "/" + fname, os.path.join(folder, fname))
 
-    return output
+    final_path, _content_hash = package.write(output)
+    return final_path

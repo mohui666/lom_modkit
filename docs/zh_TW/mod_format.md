@@ -14,6 +14,7 @@ manifest.json          # 必填，包元信息
 story/<id>.json        # 必填≥1，剧情源文件（编辑器可编辑的源格式）
 lua/<id>.lua           # 必填≥1，编译产物（运行时只读这里）；每个 story/<id>.json 对应一个
 texts.json             # 必填，已读文本表：{MOD_<modid>_<scriptid>_<nodeid>: 文本}（say 节点文本）
+package-content.sha256 # 必填，與壓縮無關的邏輯內容 SHA-256
 assets/                # 可选，自定义资源
                        #   图片：结局插图 / 人物介绍图 PNG/JPG
                        #   用户音频：assets/user/audio/<content_id>/
@@ -23,6 +24,7 @@ assets/                # 可选，自定义资源
 - 匯出（打包）時必須重新編譯：story/*.json → lua/*.lua，二者同名。
 - 執行階段外掛**只讀 manifest.json、lua/ 目錄與 assets/**；story/*.json 給編輯器回讀/再編輯用。編譯器只打入劇情明確引用的 PNG/JPG（單張 ≤8MB）與明確引用的 `user:` 音訊。匯出的 `.lommod` 自包含，玩家機器不需要編輯器倉庫。
 - texts.json 由打包時自動產生：收集每個 story 的全部 **say** 節點文字，key 與 lua 裡 `GetStoryText` 的 key 一一對應；執行階段註冊進 LeanLocalization（見 §4/§6）。**death 文字不進 texts.json**：由 codegen 發射 `mod_set_death_text(<標題>, <文字>)` 兩參 lua_str 字面量（見 §3.1/§6）。
+- 打包器固定條目/JSON/Lua 順序、ZIP 時間戳與權限；同一 Python/zlib 工具鏈的相同輸入可逐位元組重現。`package-content.sha256` 可跨壓縮結果核對邏輯內容；跨工具鏈不宣稱二進位完全 reproducible，內容雜湊也不是簽章或官方認證。
 
 ## 2. manifest.json
 

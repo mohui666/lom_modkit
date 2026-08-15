@@ -13,6 +13,7 @@ from .content import (
     validate_story_content_refs,
 )
 from .errors import LomcError
+from .deterministic_zip import PACKAGE_CONTENT_HASH_ENTRY, package_content_hash
 from .localization import (
     SUPPORTED_LOCALES, apply_story_locale, available_locales,
     iter_localizable_texts, resolved_catalog, validate_story_localization,
@@ -45,5 +46,7 @@ __all__ = [
     "PACKAGE_FORMAT",
     "STORY_SCHEMA",
     "CONTENT_SCHEMA",
+    "PACKAGE_CONTENT_HASH_ENTRY",
+    "package_content_hash",
     "__version__",
 ]
