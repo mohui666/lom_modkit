@@ -240,6 +240,7 @@ namespace MortalModHost
 
             try
             {
+                CustomShopSession.Restore();
                 ModOverlay.Clear();
                 CharacterIntroSupport.Clear();
                 CustomAudioPlayer.StopEverything();
@@ -287,6 +288,8 @@ namespace MortalModHost
 
         internal static void ResetAbortGuard()
         {
+            try { CustomShopSession.Restore(); }
+            catch (Exception ex) { Log?.LogError("可信场景边界恢复原版商店库存失败：" + ex); }
             _abortRequested = false;
             _abortBusyLogged = false;
             _pendingAbortReason = null;
@@ -577,6 +580,23 @@ namespace MortalModHost
                         ModOverlay.CurrentPackage, ArgString(args, 0), ArgString(args, 1, ""));
                     return DynValue.NewString(result);
                 }, "mod_gameplay_last_result");
+                script.Globals["mod_custom_shop_begin"] = new CallbackFunction((ctx, args) =>
+                {
+                    CustomShopSession.Begin(ModOverlay.CurrentPackage);
+                    return DynValue.Nil;
+                }, "mod_custom_shop_begin");
+                script.Globals["mod_custom_shop_add"] = new CallbackFunction((ctx, args) =>
+                {
+                    CustomShopSession.Add(
+                        ModOverlay.CurrentPackage,
+                        ArgString(args, 0), ArgString(args, 1), RequireArgInt(args, 2));
+                    return DynValue.Nil;
+                }, "mod_custom_shop_add");
+                script.Globals["mod_custom_shop_end"] = new CallbackFunction((ctx, args) =>
+                {
+                    CustomShopSession.Complete(ModOverlay.CurrentPackage);
+                    return DynValue.Nil;
+                }, "mod_custom_shop_end");
                 RegisterCharacterGlobals(script);
             }
             catch (Exception ex)
@@ -711,6 +731,19 @@ namespace MortalModHost
             }
             catch { }
             return fallback;
+        }
+
+        private static int RequireArgInt(
+            MoonSharp.Interpreter.CallbackArguments args, int index)
+        {
+            if (args.Count <= index || args[index].Type != DataType.Number)
+                throw new ArgumentException("参数 " + index + " 必须是整数");
+            double value = args[index].Number;
+            if (double.IsNaN(value) || double.IsInfinity(value)
+                || value != Math.Truncate(value)
+                || value < int.MinValue || value > int.MaxValue)
+                throw new ArgumentException("参数 " + index + " 必须是整数");
+            return (int)value;
         }
 
         private static void CaptureTraceState(Script script)

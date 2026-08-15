@@ -1,6 +1,6 @@
 # 目前能力與邊界
 
-本文只描述目前倉庫程式碼。節點權威集合是 `editor/models.py` 的 `NODE_SCHEMAS`，目前共 51 種。
+本文只描述目前倉庫程式碼。節點權威集合是 `editor/models.py` 的 `NODE_SCHEMAS`，目前共 52 種。
 
 ## 已實作
 
@@ -13,6 +13,6 @@
 
 `enemy`、`battle_skill` 和 `goto_scene` 的 `Combat` / `Battle` 會呼叫已驗證的《活俠傳》原版 API。高層 `combat` / `battle` 可選原版模板；前者取得 Combat win/lose，後者只接受 finish=true 的 FriendWin/EnemyWin。這不是自製戰鬥引擎，且新增流程尚未實機驗證。
 
-章節設定已支援 Battle Preset，可重用原版 `combat` / `battle` 模板及已驗證敵方參數；`battle_result` 只按同包同劇情的真實 win/lose 分支；`battle_setup` 與 `reward` 只聚合既有原版／原子介面。仍沒有 draw/escape 回呼、任意商品 Custom Shop、獨立 `mod_quest` 或任意持久化 Mod 變數。`modflags` / `modvars` 僅在 Story 工作階段存在；`game_flag` 只可寫原版已存在的 FlagData。也不支援自訂戰鬥地圖、模型、AI、動畫或機制。
+章節設定已支援 Battle Preset，可重用原版 `combat` / `battle` 模板及已驗證敵方參數；`battle_result` 只按同包同劇情的真實 win/lose 分支；`battle_setup` 與 `reward` 只聚合既有原版／原子介面。`custom_shop` 可暫時替換原版三類商店庫存並使用數量、條件與統一折扣，但不偽造逐商品價格。仍沒有 draw/escape 回呼、獨立 `mod_quest` 或任意持久化 Mod 變數。`modflags` / `modvars` 僅在 Story 工作階段存在；`game_flag` 只可寫原版已存在的 FlagData。也不支援自訂戰鬥地圖、模型、AI、動畫或機制。
 
 尚未由反編譯與實機驗證確認的遊戲介面不得靠猜測實作。

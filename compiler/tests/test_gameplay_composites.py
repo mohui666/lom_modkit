@@ -79,5 +79,59 @@ class RewardTest(unittest.TestCase):
                 compile_story(story({"id": "reward", "type": "reward", "entries": entries}))
 
 
+class CustomShopTest(unittest.TestCase):
+    def test_emits_scoped_original_shop_inventory_and_conditions(self):
+        lua = compile_story(story({
+            "id": "shop", "type": "custom_shop", "discount": 1,
+            "items": [
+                {"category": "book", "item": "Book_A", "count": 2},
+                {
+                    "category": "misc", "item": "Misc_B", "count": 3,
+                    "condition": {"source": "mod", "key": "SHOP_OPEN"},
+                },
+                {
+                    "category": "special", "item": "Special_C", "count": 1,
+                    "condition": {
+                        "source": "condition", "key": "CP_SECRET", "invert": True,
+                    },
+                },
+            ],
+        }))
+        self.assertIn("mod_custom_shop_begin()", lua)
+        self.assertIn('mod_custom_shop_add("book", "Book_A", 2)', lua)
+        self.assertIn('if modflags["SHOP_OPEN"] then', lua)
+        self.assertIn('if not (checkpointmanager.Condition("CP_SECRET")) then', lua)
+        self.assertIn("runwait(shoppanel.Open(1))", lua)
+        self.assertIn("mod_custom_shop_end()", lua)
+        self.assertLess(lua.index("mod_custom_shop_begin"), lua.index("shoppanel.Open"))
+        self.assertLess(lua.index("shoppanel.Open"), lua.index("mod_custom_shop_end"))
+
+    def test_rejects_unverified_price_and_malformed_inventory(self):
+        bad_items = [
+            [],
+            [{"category": "consume", "item": "C", "count": 1}],
+            [{"category": "book", "item": "", "count": 1}],
+            [{"category": "book", "item": "B", "count": 0}],
+            [{"category": "book", "item": "B", "count": 1, "price": 10}],
+            [
+                {"category": "book", "item": "B", "count": 1},
+                {"category": "book", "item": "B", "count": 2},
+            ],
+            [{
+                "category": "misc", "item": "M", "count": 1,
+                "condition": {"source": "stat", "key": "Money"},
+            }],
+        ]
+        for items in bad_items:
+            with self.subTest(items=items), self.assertRaises(LomcError):
+                compile_story(story({"id": "shop", "type": "custom_shop", "items": items}))
+        for discount in (-1, 2, 0.5, True):
+            with self.subTest(discount=discount), self.assertRaises(LomcError):
+                compile_story(story({
+                    "id": "shop", "type": "custom_shop", "discount": discount,
+                    "items": [{"category": "book", "item": "B", "count": 1}],
+                }))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

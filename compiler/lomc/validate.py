@@ -183,6 +183,8 @@ _ENUMS = {
     "bskill_op": ("set", "active", "reset"),
     "gameplay_kind": ("any", "combat", "battle"),
     "reward_kind": ("stat", "affinity", "talent", "item", "flag"),
+    "shop_item_kind": ("book", "misc", "special"),
+    "shop_condition_source": ("mod", "condition"),
     "time_op": ("set", "round", "month", "mission"),
     "autosave_kind": ("story", "free", "prologue"),
     "goto_scene": (
@@ -398,6 +400,7 @@ _NODE_FIELDS = {
         {"kind": "gameplay_kind"},
     ),
     "reward": ({"entries": "list"}, {}),
+    "custom_shop": ({"items": "list"}, {"discount": "num"}),
     "mission": ({"name": "idstr", "key": "idstr"}, {}),
     "time": (
         {"op": "time_op"},
@@ -1023,6 +1026,56 @@ def _check_node_extra(node, ntype, label, battle_presets=None):
                     raise LomcError('%s: item amount 必须是正整数' % entry_label)
                 if entry.get("category") not in _ENUMS["item_kind"]:
                     raise LomcError('%s: item category 必须是 book/misc/special' % entry_label)
+    elif ntype == "custom_shop":
+        items = node["items"]
+        if not 1 <= len(items) <= 64:
+            raise LomcError('%s(custom_shop): items 必须有 1~64 条' % label)
+        discount = node.get("discount", 0)
+        if isinstance(discount, bool) or not isinstance(discount, int) or discount not in (0, 1):
+            raise LomcError(
+                '%s(custom_shop): discount 只能是 0（原价）或 1（原版统一折扣）' % label
+            )
+        seen = set()
+        for index, item in enumerate(items, 1):
+            item_label = '%s(custom_shop) 第 %d 件商品' % (label, index)
+            if not isinstance(item, dict):
+                raise LomcError('%s: 必须是对象' % item_label)
+            unknown = set(item) - {"category", "item", "count", "condition"}
+            if unknown:
+                raise LomcError(
+                    '%s: 未知字段 %s；原版没有公开的逐商品自定义价格接口'
+                    % (item_label, "、".join(sorted(unknown)))
+                )
+            category = item.get("category")
+            item_id = item.get("item")
+            if category not in _ENUMS["shop_item_kind"]:
+                raise LomcError('%s: category 必须是 book/misc/special' % item_label)
+            if not _check_type("idstr", item_id):
+                raise LomcError('%s: item 必须是非空原版物品 id' % item_label)
+            count = item.get("count", 1)
+            if isinstance(count, bool) or not isinstance(count, int) or not 1 <= count <= 9999:
+                raise LomcError('%s: count 必须是 1~9999 的整数' % item_label)
+            identity = (category, item_id)
+            if identity in seen:
+                raise LomcError('%s: 同一类别和 item id 不能重复' % item_label)
+            seen.add(identity)
+            condition = item.get("condition")
+            if condition is None:
+                continue
+            if not isinstance(condition, dict):
+                raise LomcError('%s: condition 必须是对象' % item_label)
+            condition_unknown = set(condition) - {"source", "key", "invert"}
+            if condition_unknown:
+                raise LomcError(
+                    '%s: condition 未知字段 %s'
+                    % (item_label, "、".join(sorted(condition_unknown)))
+                )
+            if condition.get("source") not in _ENUMS["shop_condition_source"]:
+                raise LomcError('%s: condition.source 必须是 mod/condition' % item_label)
+            if not _check_type("idstr", condition.get("key")):
+                raise LomcError('%s: condition.key 必须是非空 id' % item_label)
+            if "invert" in condition and not isinstance(condition["invert"], bool):
+                raise LomcError('%s: condition.invert 必须是布尔值' % item_label)
     elif ntype == "time":
         op = node["op"]
         if op == "set":

@@ -51,6 +51,17 @@
       ]
     },
     {
+      "assembly": "Mortal.Story.dll",
+      "type": "Mortal.Story.ShopPanel",
+      "required_fragments": [
+        "public IEnumerator Open(int discount = 0)",
+        "foreach (ShopItem book in instance2.Books)",
+        "foreach (ShopItem misc in instance2.Miscs)",
+        "foreach (ShopItem special in instance2.Specials)",
+        "component.Setup(shopItem.Data, count, shopItem.Data.GetBuyPrice(discount))"
+      ]
+    },
+    {
       "assembly": "Mortal.Combat.dll",
       "type": "Mortal.Combat.CombatLevel",
       "required_fragments": [
@@ -134,7 +145,7 @@
     "battle_draw_escape": "not_exposed",
     "dynamic_battle_map_model_ai": "not_exposed",
     "battle_skill_setup": "verified_decompile",
-    "custom_shop_inventory": "verified_decompile_requires_host_scope",
+    "custom_shop_inventory": "verified_decompile_host_scope_implemented",
     "custom_shop_per_item_price": "requires_host_patch",
     "item_talent_checks": "verified_decompile_requires_host_bridge",
     "mod_persistent_state": "requires_host_sidecar",

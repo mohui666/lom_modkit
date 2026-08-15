@@ -46,7 +46,7 @@ def _read(path: Path) -> str:
 class DocumentationConsistencyTest(unittest.TestCase):
     def test_public_node_count_matches_schema(self) -> None:
         count = len(models.NODE_SCHEMAS)
-        self.assertEqual(count, 51)
+        self.assertEqual(count, 52)
         for path in README_FILES + DOC_INDEXES + CAPABILITY_DOCS:
             text = _read(path)
             self.assertIn(str(count), text, str(path.relative_to(ROOT)))
@@ -65,7 +65,10 @@ class DocumentationConsistencyTest(unittest.TestCase):
                 )
 
     def test_capability_boundary_tracks_gameplay_wrappers(self) -> None:
-        required = ("enemy", "battle_skill", "Combat", "Battle", "combat", "reward", "mod_quest")
+        required = (
+            "enemy", "battle_skill", "Combat", "Battle", "combat", "reward",
+            "custom_shop", "mod_quest",
+        )
         for path in CAPABILITY_DOCS:
             text = _read(path)
             for term in required:

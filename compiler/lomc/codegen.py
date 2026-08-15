@@ -855,6 +855,33 @@ def _emit_reward(node, ctx):
     return lines
 
 
+def _emit_custom_shop(node, ctx):
+    """临时替换原版 ShopDatabase 库存，关闭官方 ShopPanel 后立即恢复。"""
+    lines = ["\tmod_custom_shop_begin()"]
+    for item in node["items"]:
+        add = "\tmod_custom_shop_add(%s, %s, %s)" % (
+            lua_str(item["category"]),
+            lua_str(item["item"]),
+            lua_num(item.get("count", 1)),
+        )
+        condition = item.get("condition")
+        if condition:
+            if condition["source"] == "mod":
+                expression = "modflags[%s]" % lua_str(condition["key"])
+            else:
+                expression = "checkpointmanager.Condition(%s)" % lua_str(condition["key"])
+            if condition.get("invert", False):
+                expression = "not (" + expression + ")"
+            lines.extend(("\tif %s then" % expression, "\t" + add, "\tend"))
+        else:
+            lines.append(add)
+    lines.extend((
+        "\trunwait(shoppanel.Open(%s))" % lua_num(node.get("discount", 0)),
+        "\tmod_custom_shop_end()",
+    ))
+    return lines
+
+
 def _emit_mission(node, ctx):
     return [
         "\tstatmodifymanager.Mission(%s, %s)"
@@ -1271,6 +1298,7 @@ _EMITTERS = {
     "battle": _emit_battle,
     "battle_result": _emit_battle_result,
     "reward": _emit_reward,
+    "custom_shop": _emit_custom_shop,
     "mission": _emit_mission,
     "time": _emit_time,
     "autosave": _emit_autosave,

@@ -72,6 +72,7 @@ NODE_TYPE_CN_SRC: dict[str, str] = {
     "battle": "战役",
     "battle_result": "战斗结果",
     "reward": "战斗奖励",
+    "custom_shop": "自定义商店",
     "mission": "任务",
     "time": "时间",
     "autosave": "自动存档",
@@ -127,6 +128,7 @@ NODE_HELP_KEYS = {
     "battle_result": "help.battle_result",
     "battle_setup": "help.battle_setup",
     "reward": "help.reward",
+    "custom_shop": "help.custom_shop",
 }
 NODE_HELP: dict[str, str] = {}
 
@@ -180,7 +182,10 @@ NODE_GROUPS_SRC: list[tuple[str, list[str]]] = [
             "autosave",
         ],
     ),
-    ("group.gameplay", ["battle_setup", "combat", "battle", "battle_result", "reward"]),
+    (
+        "group.gameplay",
+        ["battle_setup", "combat", "battle", "battle_result", "reward", "custom_shop"],
+    ),
     (
         "group.flow",
         ["branch", "dice", "goto_scene", "panel", "wait", "end", "death", "raw"],
@@ -246,6 +251,13 @@ ENUM_SETS_SRC: dict[str, list[tuple[str, str]]] = {
     "reward_kind": [
         ("stat", "属性 / 银两"), ("affinity", "好感"),
         ("talent", "天赋"), ("item", "物品 / 秘籍"), ("flag", "剧情旗标"),
+    ],
+    "shop_item_kind": [
+        ("book", "秘籍"), ("misc", "杂物"), ("special", "贵重品"),
+    ],
+    "shop_condition_source": [
+        ("always", "始终出售"), ("mod", "本 MOD 旗标"),
+        ("condition", "原版条件检查点"),
     ],
     "time_op": [
         ("set", "设置时间"),
@@ -718,6 +730,13 @@ NODE_SCHEMAS: dict[str, dict] = {
         "label": "战斗奖励",
         "fields": [("entries", "奖励内容", "reward_entries", False)],
     },
+    "custom_shop": {
+        "label": "自定义商店",
+        "fields": [
+            ("discount", "原版统一折扣（0/1）", "discount_toggle", True),
+            ("items", "商品库存与上架条件", "custom_shop_items", False),
+        ],
+    },
     "mission": {
         "label": "任务操作",
         "fields": [
@@ -885,6 +904,10 @@ _NODE_DEFAULTS: dict[str, dict] = {
     "battle": {"key": "", "win": "", "lose": ""},
     "battle_result": {"kind": "any", "win": "", "lose": ""},
     "reward": {"entries": [{"kind": "stat", "key": "", "amount": 1}]},
+    "custom_shop": {
+        "discount": 0,
+        "items": [{"category": "misc", "item": "", "count": 1}],
+    },
     "mission": {"name": "Main", "key": ""},
     "time": {"op": "round"},
     "autosave": {"kind": "story"},
@@ -1617,6 +1640,9 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
         return f"{tcn}·胜→{node.get('win', '')} / 败→{node.get('lose', '')}"
     if nt == "reward":
         return f"{tcn}·{len(node.get('entries', []))} 项"
+    if nt == "custom_shop":
+        discount = " / 原版折扣" if node.get("discount") else ""
+        return f"{tcn}·{len(node.get('items', []))} 件{discount}"
     if nt == "mission":
         return f"{tcn}·{node.get('name', '')} {node.get('key', '')}"
     if nt == "time":

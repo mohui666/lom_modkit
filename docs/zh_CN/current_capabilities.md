@@ -1,6 +1,6 @@
 # 当前能力与边界
 
-本文按仓库当前代码描述能力，不把研究计划写成已实现功能。节点的唯一权威集合是 `editor/models.py` 的 `NODE_SCHEMAS`，当前共 51 种。
+本文按仓库当前代码描述能力，不把研究计划写成已实现功能。节点的唯一权威集合是 `editor/models.py` 的 `NODE_SCHEMAS`，当前共 52 种。
 
 ## 已实现
 
@@ -26,12 +26,13 @@
 - `battle_result`：按包完整 SHA-256、剧情 id 和可选 Combat/Battle 类型读取 Host 的最后真实结果，只提供已验证的 win/lose 分支。
 - `battle_setup`：把 `ModifyEnemy*` 与 `SetPlayerBattleSkill` / `SetBattleSkillActive` / `ResetBattleSkill` 组合为战前表格配置。
 - `reward`：把现有 `stat` / `affinity` / `talent` / `item` / `flag` 原子接口聚合为 1~32 项奖励。
+- `custom_shop`：临时替换原版 `ShopDatabase` 的书籍、杂物、贵重品库存并复用 `ShopPanel`；支持数量、MOD/原版条件和原版统一折扣，关闭或故障时恢复原库存。原版没有公开逐商品价格接口，因此不支持 `price`。
 
 这意味着工具是在编排原版战斗系统，不包含自研 Battle Engine。高层 `combat` / `battle` 已有经反编译确认的结果回流，但尚未实机验证；`draw` / `escape` 没有可用结果接口。
 
 ## 尚未实现
 
-- 任意商品目录的 Custom Shop；目前只能打开已验证的原版 `shop` / `newshop` panel。
+- 消耗品目录或逐商品自定义价格；当前 `custom_shop` 严格限于原版 `ShopPanel` 实际展示的三类库存及统一折扣。
 - 独立 `mod_quest` 状态机；`mission` 操作的是原版 Mission 系统。
 - 任意持久化 Mod 变量。`modflags` / `modvars` 是 Story 会话表，不写存档；`game_flag` 写原版已存在的 FlagData。新战役的存档槽虽然隔离，但不会自动把任意 Lua 表持久化。
 - 高层 `stat_check`、`activity`、`result_screen` 等组合节点。作者可用现有原子节点表达其中一部分，但编辑器尚未提供这些封装。

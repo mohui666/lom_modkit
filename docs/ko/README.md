@@ -9,7 +9,7 @@
 
 | 문서 | 독자 | 내용 |
 | --- | --- | --- |
-| [mod_format](mod_format.md) | 모든 구성 요소 개발자 | **v3 규약**: 패키지 구조, 51종 노드, story→Lua 컴파일 규약, editor_data, 런타임 동작, story_api 규약, 사용자 콘텐츠 프로토콜. 코드를 바꾸기 전에 먼저 이 문서를 수정 |
+| [mod_format](mod_format.md) | 모든 구성 요소 개발자 | **v3 규약**: 패키지 구조, 52종 노드, story→Lua 컴파일 규약, editor_data, 런타임 동작, story_api 규약, 사용자 콘텐츠 프로토콜. 코드를 바꾸기 전에 먼저 이 문서를 수정 |
 | [ai_cli](ai_cli.md) | AI 에이전트 / 스크립트 작성자 | story_api 작동 매뉴얼: CLI 하위 명령, --json 필드, Python API 요약, 엄격한 규칙, 오류 대조표 |
 | [user_content](user_content.md) | mod 작성자 | 사용자 콘텐츠 라이브러리: 사용자 지정 오디오 가져오기, 대사 음성, 보내기와 공유, 런타임 동작 |
 | [current_capabilities](current_capabilities.md) | 작성자 / 유지관리자 | 구현됨, 저수준만 제공, 미구현 기능의 경계 |

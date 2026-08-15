@@ -670,6 +670,17 @@ class NodeForm(QScrollArea):
             return self._make_battle_setup_skills_table(node, key)
         if kind == "reward_entries":
             return self._make_reward_entries_table(node, key)
+        if kind == "custom_shop_items":
+            return self._make_custom_shop_items_table(node, key)
+        if kind == "discount_toggle":
+            w = QComboBox()
+            w.addItem("原价", 0)
+            w.addItem("原版统一折扣（50%）", 1)
+            w.setCurrentIndex(1 if int(value or 0) else 0)
+            w.currentIndexChanged.connect(
+                lambda _index: self._apply(node, key, int(w.currentData()))
+            )
+            return w
         return QLabel(f"（暂不支持的字段类型 {kind}）")
 
     # ------------------------------------------------------------ 基础控件
@@ -1610,6 +1621,110 @@ class NodeForm(QScrollArea):
         remove = QPushButton("删除末项")
         add.clicked.connect(
             lambda: (rows.append({"kind": "stat", "key": "", "amount": 1}), fill(), self._emit_changed())
+        )
+        remove.clicked.connect(
+            lambda: (rows.pop(), fill(), self._emit_changed()) if len(rows) > 1 else None
+        )
+        buttons.addWidget(add)
+        buttons.addWidget(remove)
+        buttons.addStretch(1)
+        fill()
+        layout.addWidget(table)
+        layout.addLayout(buttons)
+        return box
+
+    def _make_custom_shop_items_table(self, node: dict, key: str) -> QWidget:
+        rows: list[dict] = node.setdefault(key, [])
+        if not rows:
+            rows.append({"category": "misc", "item": "", "count": 1})
+        box = QWidget()
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(0, 0, 0, 0)
+        table = QTableWidget(0, 6)
+        table.setHorizontalHeaderLabels(
+            ("类别", "原版物品 id", "库存", "上架条件", "条件 key", "取反")
+        )
+        table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
+
+        def fill() -> None:
+            table.setRowCount(0)
+            for row_index, row in enumerate(rows):
+                table.insertRow(row_index)
+                condition = row.get("condition") if isinstance(row.get("condition"), dict) else None
+                source_value = str(condition.get("source", "always")) if condition else "always"
+                category = self._make_combo(
+                    list(models.ENUM_SETS["shop_item_kind"]), str(row.get("category", "misc"))
+                )
+                item_id = QLineEdit(str(row.get("item", "")))
+                count = QSpinBox()
+                count.setRange(1, 9999)
+                count.setValue(int(row.get("count", 1)))
+                source = self._make_combo(
+                    list(models.ENUM_SETS["shop_condition_source"]), source_value
+                )
+                condition_key = QLineEdit(str(condition.get("key", "")) if condition else "")
+                condition_key.setEnabled(source_value != "always")
+                invert = QCheckBox()
+                invert.setChecked(bool(condition.get("invert", False)) if condition else False)
+                invert.setEnabled(source_value != "always")
+
+                def change_source(_text: str, target_row=row, combo=source) -> None:
+                    value = str(combo.currentData() or "always")
+                    if value == "always":
+                        target_row.pop("condition", None)
+                    else:
+                        old = target_row.get("condition")
+                        old_key = old.get("key", "") if isinstance(old, dict) else ""
+                        old_invert = bool(old.get("invert", False)) if isinstance(old, dict) else False
+                        target_row["condition"] = {
+                            "source": value, "key": old_key, "invert": old_invert,
+                        }
+                    self._emit_changed()
+                    QTimer.singleShot(0, fill)
+
+                def change_condition_key(text: str, target_row=row) -> None:
+                    target = target_row.get("condition")
+                    if isinstance(target, dict):
+                        target["key"] = text.strip()
+                        self._emit_changed()
+
+                def change_invert(checked: bool, target_row=row) -> None:
+                    target = target_row.get("condition")
+                    if isinstance(target, dict):
+                        target["invert"] = bool(checked)
+                        self._emit_changed()
+
+                category.currentTextChanged.connect(
+                    lambda _text, target_row=row, combo=category: self._apply_row(
+                        target_row, "category", str(combo.currentData() or "misc")
+                    )
+                )
+                item_id.textChanged.connect(
+                    lambda text, target_row=row: self._apply_row(target_row, "item", text.strip())
+                )
+                count.valueChanged.connect(
+                    lambda value, target_row=row: self._apply_row(target_row, "count", int(value))
+                )
+                source.currentTextChanged.connect(change_source)
+                condition_key.textChanged.connect(change_condition_key)
+                invert.toggled.connect(change_invert)
+                table.setCellWidget(row_index, 0, category)
+                table.setCellWidget(row_index, 1, item_id)
+                table.setCellWidget(row_index, 2, count)
+                table.setCellWidget(row_index, 3, source)
+                table.setCellWidget(row_index, 4, condition_key)
+                table.setCellWidget(row_index, 5, invert)
+            table.setMinimumHeight(min(7, max(2, len(rows))) * 32 + 30)
+
+        buttons = QHBoxLayout()
+        add = QPushButton("添加商品")
+        remove = QPushButton("删除末项")
+        add.clicked.connect(
+            lambda: (
+                rows.append({"category": "misc", "item": "", "count": 1}),
+                fill(), self._emit_changed(),
+            )
         )
         remove.clicked.connect(
             lambda: (rows.pop(), fill(), self._emit_changed()) if len(rows) > 1 else None

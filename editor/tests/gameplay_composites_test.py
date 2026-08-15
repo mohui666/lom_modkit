@@ -60,6 +60,30 @@ class GameplayCompositeEditorTest(unittest.TestCase):
         form.set_node(node)
         self.assertTrue(any(table.columnCount() == 4 for table in form.findChildren(QTableWidget)))
 
+    def test_custom_shop_schema_table_summary_and_ai_list_kind(self):
+        node = models.new_node("custom_shop", "shop", models.FALLBACK_EDITOR_DATA)
+        node.update({
+            "discount": 1,
+            "items": [
+                {"category": "book", "item": "Book_A", "count": 2},
+                {
+                    "category": "misc", "item": "Misc_B", "count": 1,
+                    "condition": {"source": "mod", "key": "OPEN"},
+                },
+            ],
+            "goto": "end",
+        })
+        fields = {
+            key: kind for key, _label, kind, _optional
+            in models.NODE_SCHEMAS["custom_shop"]["fields"]
+        }
+        self.assertEqual(fields["items"], "custom_shop_items")
+        self.assertIn("2 件", models.node_summary(node))
+        form = NodeForm()
+        form.set_context(models.FALLBACK_EDITOR_DATA, ["shop", "end"])
+        form.set_node(node)
+        self.assertTrue(any(table.columnCount() == 6 for table in form.findChildren(QTableWidget)))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

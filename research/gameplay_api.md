@@ -17,8 +17,8 @@ python tools/verify_gameplay_api.py --json
 | Battle 结果 | `GameLevelManager.ShowGameOver(GameOverType,bool)` | `finish=true` 的 `FriendWin` / `EnemyWin` 可继续；`PlayerDie` 只给重试/标题，不伪造可继续分支 |
 | Battle 模板 | `GameLevelManager.Setup()` 查找 `BL_<CurrentSceneKey>` | 只能引用游戏内已有 BattleLevel，不动态造地图、Prefab 或 AI |
 | 战斗技能 | `SetPlayerBattleSkill` / `SetBattleSkillActive` / `SetBattleSkillLevel` / `ResetBattleSkill` | 可做战前技能配置；尚无已确认的通用临时状态效果 API |
-| 商店库存 | `ShopDatabase` 公共 Books/Miscs/Specials 列表、`ShopItem(ItemData,int)` | Host 可在受控会话中临时替换库存并复用官方 ShopPanel |
-| 单品价格 | `ShopPanel` 私有 `AddBuyPanel` 最终调用 `ItemData.GetBuyPrice(discount)` | 原版没有公共逐商品改价入口；需要 Host 限域 patch，不能宣称已有 API |
+| 商店库存 | `ShopDatabase` 公共 Books/Miscs/Specials 列表、`ShopItem(ItemData,int)`；`ShopPanel.Init()` 只枚举这三类 | Host 在包指纹绑定的受控会话中临时替换库存并复用官方 ShopPanel；结束或故障恢复原库存。Consumables 不在该面板买入列表中 |
+| 单品价格 | `ShopPanel.AddBuyPanel` 调 `ItemData.GetBuyPrice(discount)`；`Open(int)` 只把 0/非0 映射为原版关系折扣/统一 50% 折扣 | 原版没有公共逐商品改价入口；`custom_shop` 只暴露 0/1 原版折扣，拒绝 `price` |
 | 物品/天赋检定 | `ItemDatabase.HasItem`、`PlayerStatManagerData.Talents` / `PlayerTalentData.Level` | 可由 Host 提供只读 Lua bridge |
 | 存档 | `SaveSystem.CurrentSlot` / `SetSlot` / `SaveGameData` | 不修改 GameSave schema；Mod 持久变量应使用与 `mod_<id>` 槽绑定的 Host 原子 sidecar |
 
