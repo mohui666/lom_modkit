@@ -40,6 +40,7 @@ from content_registry import (
     ContentRecord,
     ContentRegistryError,
     default_namespace,
+    find_references,
     get,
     list_character_voices,
     list_contents,
@@ -89,13 +90,26 @@ class ContentLibraryDialog(QDialog):
         path.setProperty("context_help", True)
         layout.addWidget(path)
 
-        self.table = QTableWidget(0, 4)
+        filters = QHBoxLayout()
+        self.search_edit = QLineEdit()
+        self.search_edit.setPlaceholderText(t("library.search"))
+        self.type_filter = QComboBox()
+        self.type_filter.addItem(t("library.filter_all"), "")
+        self.type_filter.addItem(t("library.filter_character"), "character")
+        self.type_filter.addItem(t("library.filter_audio"), "audio")
+        self.type_filter.addItem(t("library.filter_image"), "image")
+        filters.addWidget(self.search_edit, 1)
+        filters.addWidget(self.type_filter)
+        layout.addLayout(filters)
+
+        self.table = QTableWidget(0, 5)
         self.table.setHorizontalHeaderLabels(
             [
                 t("library.col.name"),
                 t("library.col.id"),
                 t("library.col.kind"),
                 t("library.col.file"),
+                t("library.col.usage"),
             ]
         )
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -107,7 +121,14 @@ class ContentLibraryDialog(QDialog):
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         layout.addWidget(self.table, 1)
+
+        self.metadata_view = QPlainTextEdit()
+        self.metadata_view.setReadOnly(True)
+        self.metadata_view.setMaximumHeight(82)
+        self.metadata_view.setPlaceholderText(t("library.metadata_empty"))
+        layout.addWidget(self.metadata_view)
 
         buttons = QHBoxLayout()
         import_btn = QPushButton(t("library.import"))
@@ -115,16 +136,22 @@ class ContentLibraryDialog(QDialog):
         import_image_btn = QPushButton(t("library.import_image"))
         delete_btn = QPushButton(t("library.delete"))
         edit_btn = QPushButton(t("library.edit"))
+        preview_btn = QPushButton(t("library.preview"))
+        references_btn = QPushButton(t("library.references"))
         import_btn.clicked.connect(self._import_audio)
         import_char_btn.clicked.connect(self._import_character)
         import_image_btn.clicked.connect(self._import_image)
         edit_btn.clicked.connect(self._edit_selected)
         delete_btn.clicked.connect(self._delete_selected)
+        preview_btn.clicked.connect(self._preview_selected)
+        references_btn.clicked.connect(self._show_references)
         self.table.cellDoubleClicked.connect(lambda *_: self._edit_selected())
         buttons.addWidget(import_btn)
         buttons.addWidget(import_char_btn)
         buttons.addWidget(import_image_btn)
         buttons.addWidget(edit_btn)
+        buttons.addWidget(preview_btn)
+        buttons.addWidget(references_btn)
         buttons.addWidget(delete_btn)
         buttons.addStretch(1)
         layout.addLayout(buttons)
@@ -134,6 +161,10 @@ class ContentLibraryDialog(QDialog):
         close.accepted.connect(self.accept)
         layout.addWidget(close)
 
+        self._all_records: list[ContentRecord] = []
+        self.search_edit.textChanged.connect(self._apply_filters)
+        self.type_filter.currentIndexChanged.connect(self._apply_filters)
+        self.table.itemSelectionChanged.connect(self._update_metadata)
         self._reload()
 
     def closeEvent(self, event) -> None:
@@ -141,9 +172,25 @@ class ContentLibraryDialog(QDialog):
         super().closeEvent(event)
 
     def _reload(self) -> None:
-        records = list_contents()
+        self._all_records = list_contents()
+        self._apply_filters()
+
+    def _apply_filters(self, *_args) -> None:
+        query = self.search_edit.text().strip().casefold()
+        wanted_type = str(self.type_filter.currentData() or "")
         self.table.setRowCount(0)
-        for rec in records:
+        for rec in self._all_records:
+            if wanted_type and rec.type != wanted_type:
+                continue
+            searchable = " ".join(
+                [
+                    rec.name, rec.ref, rec.type, rec.audio_kind or "",
+                    rec.main_file, rec.character or "", rec.title or "",
+                    " ".join(rec.portrait_ids()) if rec.type == "character" else "",
+                ]
+            ).casefold()
+            if query and query not in searchable:
+                continue
             row = self.table.rowCount()
             self.table.insertRow(row)
             name_item = QTableWidgetItem(rec.name)
@@ -166,7 +213,93 @@ class ContentLibraryDialog(QDialog):
                     extra = "%s · %s" % (extra, rec.character)
             self.table.setItem(row, 2, QTableWidgetItem(kind))
             self.table.setItem(row, 3, QTableWidgetItem(extra))
+            refs = find_references(rec.content_id, self._stories)
+            usage = (
+                t("library.usage.used", count=len(refs))
+                if refs else t("library.usage.unused")
+            )
+            usage_item = QTableWidgetItem(usage)
+            usage_item.setData(Qt.ItemDataRole.UserRole, len(refs))
+            self.table.setItem(row, 4, usage_item)
             self.table.item(row, 1).setData(Qt.ItemDataRole.UserRole, rec.content_id)
+        self._update_metadata()
+
+    def _selected_record(self) -> ContentRecord | None:
+        content_id = self._selected_id()
+        if not content_id:
+            return None
+        try:
+            return get(content_id)
+        except ContentRegistryError:
+            return None
+
+    def _update_metadata(self) -> None:
+        rec = self._selected_record()
+        if rec is None:
+            self.metadata_view.clear()
+            return
+        parts = [
+            "type=%s" % rec.type, "id=%s" % rec.ref,
+            "name=%s" % rec.name, "file=%s" % rec.main_file,
+        ]
+        if rec.audio_kind:
+            parts.append("audio_kind=%s" % rec.audio_kind)
+        if rec.character:
+            parts.append("character=%s" % rec.character)
+        if rec.type == "character":
+            parts.append("portraits=%s" % ", ".join(rec.portrait_ids()))
+            parts.append("scale=%s%%" % rec.scale)
+            parts.append("art_facing=%s" % rec.art_facing)
+            if rec.title:
+                parts.append("title=%s" % rec.title)
+            if rec.intro:
+                parts.append("intro=yes")
+        self.metadata_view.setPlainText(" · ".join(parts))
+
+    def _preview_selected(self) -> None:
+        rec = self._selected_record()
+        if rec is None:
+            QMessageBox.information(
+                self, t("library.preview"), t("library.select_content")
+            )
+            return
+        if rec.type != "audio":
+            QMessageBox.information(
+                self, t("library.preview"), t("library.preview_audio_only")
+            )
+            return
+        try:
+            play_audio_file(rec.folder / rec.main_file)
+        except (ContentRegistryError, AudioPreviewError) as exc:
+            QMessageBox.warning(self, t("library.preview_fail"), str(exc))
+
+    def _show_references(self) -> None:
+        rec = self._selected_record()
+        if rec is None:
+            QMessageBox.information(
+                self, t("library.references"), t("library.select_content")
+            )
+            return
+        refs = find_references(rec.content_id, self._stories)
+        lines = [
+            "%s → %s (%s.%s)"
+            % (
+                item.get("story_id", "?"), item.get("node_id", "?"),
+                item.get("node_type", "?"), item.get("field", "?"),
+            )
+            for item in refs
+        ] or [t("library.no_references")]
+        dlg = QDialog(self)
+        dlg.setWindowTitle(t("library.references_title", id=rec.ref))
+        dlg.resize(560, 320)
+        box = QVBoxLayout(dlg)
+        view = QPlainTextEdit("\n".join(lines))
+        view.setReadOnly(True)
+        box.addWidget(view)
+        close = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        close.rejected.connect(dlg.reject)
+        box.addWidget(close)
+        dlg.exec()
 
     def _selected_id(self) -> str | None:
         row = self.table.currentRow()

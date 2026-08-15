@@ -562,5 +562,15 @@
   "enum.left": "左", "enum.right": "右",
   "enum.top_left": "左上", "enum.top_right": "右上",
   "enum.bottom_left": "左下", "enum.bottom_right": "右下",
-  "enum.back": "人物の後ろ", "enum.front": "人物の前"
+  "enum.back": "人物の後ろ", "enum.front": "人物の前",
+  "library.search": "名前・ID・ファイル・メタデータを検索…",
+  "library.filter_all": "すべて", "library.filter_character": "キャラクター",
+  "library.filter_audio": "音声", "library.filter_image": "画像",
+  "library.col.usage": "参照", "library.usage.used": "使用中 {count}",
+  "library.usage.unused": "未使用", "library.metadata_empty": "コンテンツを選択するとメタデータを表示します。",
+  "library.preview": "試聴", "library.references": "参照を検索",
+  "library.select_content": "ユーザーコンテンツを選択してください。",
+  "library.preview_audio_only": "音声コンテンツだけ試聴できます。",
+  "library.no_references": "現在のプロジェクトから参照されていません。",
+  "library.references_title": "参照位置：{id}"
 }

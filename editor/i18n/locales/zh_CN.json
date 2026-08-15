@@ -562,5 +562,15 @@
   "enum.left": "左侧", "enum.right": "右侧",
   "enum.top_left": "左上", "enum.top_right": "右上",
   "enum.bottom_left": "左下", "enum.bottom_right": "右下",
-  "enum.back": "人物后方", "enum.front": "人物前方"
+  "enum.back": "人物后方", "enum.front": "人物前方",
+  "library.search": "搜索名称、ID、文件或元数据…",
+  "library.filter_all": "全部类型", "library.filter_character": "角色",
+  "library.filter_audio": "音频", "library.filter_image": "图片",
+  "library.col.usage": "项目引用", "library.usage.used": "已使用 {count}",
+  "library.usage.unused": "未使用", "library.metadata_empty": "选择一条内容查看 metadata。",
+  "library.preview": "试听", "library.references": "查找引用",
+  "library.select_content": "请先选择一条用户内容。",
+  "library.preview_audio_only": "只有音频内容可以试听。",
+  "library.no_references": "当前项目没有引用这条内容。",
+  "library.references_title": "引用位置：{id}"
 }

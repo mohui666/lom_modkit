@@ -562,5 +562,15 @@
   "enum.left": "左側", "enum.right": "右側",
   "enum.top_left": "左上", "enum.top_right": "右上",
   "enum.bottom_left": "左下", "enum.bottom_right": "右下",
-  "enum.back": "人物後方", "enum.front": "人物前方"
+  "enum.back": "人物後方", "enum.front": "人物前方",
+  "library.search": "搜尋名稱、ID、檔案或 metadata…",
+  "library.filter_all": "全部類型", "library.filter_character": "角色",
+  "library.filter_audio": "音訊", "library.filter_image": "圖片",
+  "library.col.usage": "專案引用", "library.usage.used": "已使用 {count}",
+  "library.usage.unused": "未使用", "library.metadata_empty": "選擇一項內容查看 metadata。",
+  "library.preview": "試聽", "library.references": "尋找引用",
+  "library.select_content": "請先選擇一項使用者內容。",
+  "library.preview_audio_only": "只有音訊內容可以試聽。",
+  "library.no_references": "目前專案沒有引用這項內容。",
+  "library.references_title": "引用位置：{id}"
 }
