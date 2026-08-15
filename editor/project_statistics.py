@@ -54,7 +54,11 @@ def _references(stories: dict[str, dict]):
         return []
 
 
-def _referenced_asset_paths(stories: dict[str, dict], bundled: set[str]) -> set[str]:
+def referenced_asset_paths(stories: dict[str, dict], bundled_assets) -> set[str]:
+    bundled = {
+        str(path).replace("\\", "/").lstrip("/") for path in bundled_assets
+        if str(path).replace("\\", "/").lstrip("/").startswith("assets/")
+    }
     direct = set()
     for story in stories.values():
         for node in story.get("nodes") or []:
@@ -71,6 +75,14 @@ def _referenced_asset_paths(stories: dict[str, dict], bundled: set[str]) -> set[
         marker = "/%s/" % content_id
         referenced.update(path for path in bundled if marker in "/" + path)
     return referenced
+
+
+def unused_asset_paths(stories: dict[str, dict], bundled_assets) -> tuple[str, ...]:
+    bundled = {
+        str(path).replace("\\", "/").lstrip("/") for path in bundled_assets
+        if str(path).replace("\\", "/").lstrip("/").startswith("assets/")
+    }
+    return tuple(sorted(bundled - referenced_asset_paths(stories, bundled)))
 
 
 def calculate_project_statistics(
@@ -113,7 +125,7 @@ def calculate_project_statistics(
             str(path).replace("\\", "/").lstrip("/") for path in bundled_assets
             if str(path).replace("\\", "/").lstrip("/").startswith("assets/")
         }
-        unused = len(bundled - _referenced_asset_paths(valid_stories, bundled))
+        unused = len(unused_asset_paths(valid_stories, bundled))
     coverage = (voiced / len(dialogue) * 100.0) if dialogue else 0.0
     return ProjectStatistics(
         stories=len(valid_stories),

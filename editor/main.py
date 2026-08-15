@@ -105,6 +105,7 @@ from preview import (
 from project_templates import TEMPLATES, create_project_template, template_info
 from project_statistics import ProjectStatistics, calculate_project_statistics
 from voice_coverage import VoiceCoverageReport, calculate_voice_coverage
+from release_preflight import apply_release_profile
 from recovery_store import (
     RecoveryCandidate,
     RecoveryError,
@@ -1242,9 +1243,14 @@ class MainWindow(QMainWindow):
             QKeySequence("F5"),
         )
         run_menu.addAction(
-            t("menu.preflight"),
-            self._check_project,
+            t("menu.preflight") + "（Editing）",
+            lambda: self._check_project("editing"),
             QKeySequence("F6"),
+        )
+        run_menu.addAction(
+            "严格发布体检（Release）",
+            lambda: self._check_project("release"),
+            QKeySequence("Ctrl+F6"),
         )
         run_menu.addAction(t("menu.flow"), self._show_flow_graph, QKeySequence("F7"))
         run_menu.addAction(t("menu.path_simulator"), self._show_path_simulator)
@@ -1641,15 +1647,16 @@ class MainWindow(QMainWindow):
         self._select_node_index(row)
         self.statusBar().showMessage(f"已定位到步骤 {node_id}", 2500)
 
-    def _check_project(self) -> bool:
+    def _check_project(self, profile: str = "editing") -> bool:
         """打开可定位、可保守修复的体检报告。"""
         self._flush_pending()
-        issues = self._preflight_issues()
+        issues = self._preflight_issues(profile)
         dialog = PreflightDialog(
             issues,
             self._locate_preflight_issue,
-            self._apply_preflight_fixes,
+            lambda: self._apply_preflight_fixes(profile),
             self,
+            profile=profile,
         )
         dialog.exec()
         remaining_errors = sum(issue.severity == "error" for issue in dialog.issues)
@@ -1661,19 +1668,30 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(t("preflight.passed"), 5000)
         return True
 
-    def _preflight_issues(self) -> list[PreflightIssue]:
+    def _preflight_issues(self, profile: str = "editing") -> list[PreflightIssue]:
         entry = self.manifest_base.get("entry") or self.manifest.get("entry")
         if not entry:
             entry = self._current_id
         effective_manifest = dict(self.manifest_base or self.manifest or {})
         effective_manifest["entry"] = entry
-        return run_preflight(
+        issues = run_preflight(
             self._stories,
             self.editor_data,
             str(entry),
             manifest=effective_manifest,
             content_root=content_registry.repository_root(),
         )
+        if profile == "release":
+            return apply_release_profile(
+                issues,
+                self._stories,
+                effective_manifest,
+                RUNTIME_VERSION,
+                self._project_bundled_assets(),
+            )
+        if profile != "editing":
+            raise ValueError("未知体检 profile：%s" % profile)
+        return issues
 
     def _locate_preflight_issue(self, issue: PreflightIssue) -> None:
         if issue.story_id not in self._stories:
@@ -1699,7 +1717,9 @@ class MainWindow(QMainWindow):
             5000,
         )
 
-    def _apply_preflight_fixes(self) -> tuple[list[str], list[PreflightIssue]]:
+    def _apply_preflight_fixes(
+        self, profile: str = "editing"
+    ) -> tuple[list[str], list[PreflightIssue]]:
         before = self._snapshot()
         fixes = apply_safe_fixes(self._stories, self.editor_data)
         if fixes:
@@ -1709,7 +1729,7 @@ class MainWindow(QMainWindow):
             self._redo_stack.clear()
             self._refresh_all(select_row=max(0, self.node_list.currentRow()))
             self._set_dirty(True)
-        return fixes, self._preflight_issues()
+        return fixes, self._preflight_issues(profile)
 
     # -------------------------------------------------------------- 刷新
     def _refresh_all(self, select_row: int = 0) -> None:

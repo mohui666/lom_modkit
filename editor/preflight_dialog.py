@@ -30,12 +30,15 @@ class PreflightDialog(QDialog):
         on_locate: Callable[[PreflightIssue], None],
         on_fix: Callable[[], tuple[list[str], list[PreflightIssue]]],
         parent=None,
+        profile: str = "editing",
     ):
         super().__init__(parent)
         self._issues = list(issues)
         self._on_locate = on_locate
         self._on_fix = on_fix
-        self.setWindowTitle(t("preflight.title"))
+        self.profile = profile
+        profile_name = "Release" if profile == "release" else "Editing"
+        self.setWindowTitle("%s — %s" % (t("preflight.title"), profile_name))
         self.resize(920, 560)
 
         layout = QVBoxLayout(self)
@@ -97,9 +100,13 @@ class PreflightDialog(QDialog):
         errors = sum(issue.severity == "error" for issue in self._issues)
         warnings = len(self._issues) - errors
         if not self._issues:
-            self.summary.setText(t("preflight.ok"))
+            self.summary.setText(("Release" if self.profile == "release" else "Editing")
+                                 + " · " + t("preflight.ok"))
         else:
-            self.summary.setText(t("preflight.summary", errors=errors, warnings=warnings))
+            self.summary.setText(
+                ("Release" if self.profile == "release" else "Editing") + " · "
+                + t("preflight.summary", errors=errors, warnings=warnings)
+            )
         self.table.setRowCount(len(self._issues))
         for row, issue in enumerate(self._issues):
             values = (
