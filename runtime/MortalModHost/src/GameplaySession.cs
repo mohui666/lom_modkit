@@ -21,6 +21,8 @@ namespace MortalModHost
         private static string _result = "";
         private static string _lastKind = "";
         private static string _lastResult = "";
+        private static string _lastOwner = "";
+        private static string _lastStory = "";
 
         internal static bool HasPending { get { return _owner.Length > 0; } }
         internal static bool PendingCombat
@@ -61,6 +63,8 @@ namespace MortalModHost
             _result = "";
             _lastKind = "";
             _lastResult = "";
+            _lastOwner = "";
+            _lastStory = "";
         }
 
         internal static bool RecordResult(string kind, string result)
@@ -75,7 +79,23 @@ namespace MortalModHost
             _result = result;
             _lastKind = kind;
             _lastResult = result;
+            _lastOwner = _owner;
+            _lastStory = _story;
             return true;
+        }
+
+        internal static string ReadLastResult(ModPackage package, string story, string kind)
+        {
+            string owner = Owner(package);
+            RequireSegment("story", story);
+            if (!string.IsNullOrEmpty(kind)) RequireSegment("kind", kind);
+            if (!string.Equals(_lastOwner, owner, StringComparison.Ordinal)
+                || !string.Equals(_lastStory, story, StringComparison.Ordinal))
+                return "";
+            if (!string.IsNullOrEmpty(kind)
+                && !string.Equals(_lastKind, kind, StringComparison.Ordinal))
+                return "";
+            return _lastResult;
         }
 
         internal static string ConsumeResume(ModPackage package, string story)
@@ -97,6 +117,8 @@ namespace MortalModHost
             ClearPending();
             _lastKind = "";
             _lastResult = "";
+            _lastOwner = "";
+            _lastStory = "";
         }
 
         private static void ClearPending()

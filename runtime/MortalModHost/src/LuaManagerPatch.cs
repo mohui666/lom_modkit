@@ -571,6 +571,12 @@ namespace MortalModHost
                         ModOverlay.CurrentPackage, ArgString(args, 0));
                     return DynValue.NewString(target);
                 }, "mod_gameplay_consume_resume");
+                script.Globals["mod_gameplay_last_result"] = new CallbackFunction((ctx, args) =>
+                {
+                    string result = GameplaySession.ReadLastResult(
+                        ModOverlay.CurrentPackage, ArgString(args, 0), ArgString(args, 1, ""));
+                    return DynValue.NewString(result);
+                }, "mod_gameplay_last_result");
                 RegisterCharacterGlobals(script);
             }
             catch (Exception ex)

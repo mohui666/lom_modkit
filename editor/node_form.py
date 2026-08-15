@@ -249,7 +249,7 @@ class NodeForm(QScrollArea):
         outer.addLayout(form)
 
         # 自带分支/跨场景流转的节点不再提供额外 goto。
-        if node_type not in ("choice", "branch", "dice", "end", "death", "goto_scene", "combat", "battle"):
+        if node_type not in ("choice", "branch", "dice", "end", "death", "goto_scene", "combat", "battle", "battle_result"):
             adv_btn = QToolButton()
             adv_btn.setText(t("form.advanced"))
             adv_btn.setCheckable(True)

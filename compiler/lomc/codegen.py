@@ -772,6 +772,19 @@ def _emit_battle(node, ctx):
     ]
 
 
+def _emit_battle_result(node, ctx):
+    """按 Host 记录的真实结果分支；当前游戏接口只确认 win / lose。"""
+    kind = node.get("kind", "any")
+    kind_filter = kind if kind != "any" else ""
+    return [
+        "\tlocal gameplay_result = mod_gameplay_last_result(%s, %s)"
+        % (lua_str(ctx["script_id"]), lua_str(kind_filter)),
+        '\tif gameplay_result == "win" then return node_%s()' % node["win"],
+        '\telseif gameplay_result == "lose" then return node_%s()' % node["lose"],
+        '\telse error("没有可供 battle_result 消费的已验证战斗结果") end',
+    ]
+
+
 def _emit_mission(node, ctx):
     return [
         "\tstatmodifymanager.Mission(%s, %s)"
@@ -1185,6 +1198,7 @@ _EMITTERS = {
     "battle_skill": _emit_battle_skill,
     "combat": _emit_combat,
     "battle": _emit_battle,
+    "battle_result": _emit_battle_result,
     "mission": _emit_mission,
     "time": _emit_time,
     "autosave": _emit_autosave,
@@ -1199,7 +1213,7 @@ _EMITTERS = {
 }
 
 # 自带流转（分支/跳转/场景切换），story_to_lua 不再追加 return node_<goto>() 行
-_NO_FLOW_TYPES = ("end", "choice", "branch", "dice", "goto_scene", "death", "combat", "battle")
+_NO_FLOW_TYPES = ("end", "choice", "branch", "dice", "goto_scene", "death", "combat", "battle", "battle_result")
 
 
 def story_to_lua(story, mod_info=None, source=None, content_root=None):

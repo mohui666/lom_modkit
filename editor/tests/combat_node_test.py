@@ -75,6 +75,18 @@ class CombatEditorTest(unittest.TestCase):
         self.assertEqual(labels, {"友军胜利", "敌军胜利"})
         self.assertIn("友军胜→friend", models.node_summary(story["nodes"][0]))
 
+    def test_battle_result_has_only_verified_win_lose_edges(self):
+        node = models.new_node("battle_result", "result", models.FALLBACK_EDITOR_DATA)
+        node.update({"kind": "combat", "win": "win", "lose": "lose"})
+        story = {
+            "start": "result",
+            "nodes": [node, {"id": "win", "type": "end"}, {"id": "lose", "type": "end"}],
+        }
+        fields = {key for key, *_rest in models.NODE_SCHEMAS["battle_result"]["fields"]}
+        self.assertEqual(fields, {"kind", "win", "lose"})
+        edges = {(edge.target, edge.label) for edge in analyze_story(story).edges if edge.source == "result"}
+        self.assertEqual(edges, {("win", "胜利"), ("lose", "失败")})
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

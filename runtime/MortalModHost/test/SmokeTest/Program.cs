@@ -986,6 +986,15 @@ namespace MortalModHost
             Assert(GameplaySession.ConsumeResume(package, "main") == "win1"
                     && !GameplaySession.HasPending,
                 "win 结果必须一次性映射到作者目标并清除待决态");
+            Assert(GameplaySession.ReadLastResult(package, "main", "combat") == "win",
+                "消费后应保留同包同剧情的真实 Combat 结果供 battle_result 读取");
+            Assert(GameplaySession.ReadLastResult(package, "main", "battle") == "",
+                "结果 kind 不匹配时必须返回空值");
+            Assert(GameplaySession.ReadLastResult(new ModPackage
+                {
+                    Id = package.Id, Entry = "main", PackageFingerprint = new string('B', 64)
+                }, "main", "combat") == "",
+                "同 id 不同完整 SHA-256 的包不得读取最后结果");
             Assert(GameplaySession.ConsumeResume(package, "main") == "",
                 "同一结果不得被重复消费");
 

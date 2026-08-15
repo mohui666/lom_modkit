@@ -141,7 +141,7 @@ lom_modkit 讓你用《活俠傳》**原有的人物、場景、音樂、特效�
 | [文件索引](docs/zh_TW/README.md) | 語言導覽與讀者導引 |
 | [使用者內容庫](docs/zh_TW/user_content.md) | 自訂音訊 / 對白語音用法 |
 | [目前能力與邊界](docs/zh_TW/current_capabilities.md) | 已實作、僅有底層介面和尚未實作的功能邊界 |
-| [Mod 包格式契約](docs/zh_TW/mod_format.md) | 包結構、48 種節點、編譯約定、執行階段行為 |
+| [Mod 包格式契約](docs/zh_TW/mod_format.md) | 包結構、49 種節點、編譯約定、執行階段行為 |
 | [AI / CLI 手冊](docs/zh_TW/ai_cli.md) | story_api 命令列與 Python API |
 | [多語言](docs/zh_TW/i18n.md) | 介面與文件的 i18n 架構 |
 

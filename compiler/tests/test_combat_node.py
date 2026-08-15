@@ -155,5 +155,35 @@ class BattlePresetTest(unittest.TestCase):
                 compile_story(document)
 
 
+class BattleResultNodeTest(unittest.TestCase):
+    def test_emits_host_verified_win_lose_branch(self):
+        document = story({
+            "id": "fight", "type": "combat", "key": "5102_01",
+            "win": "result", "lose": "result",
+        })
+        document["nodes"].insert(1, {
+            "id": "result", "type": "battle_result", "kind": "combat",
+            "win": "win", "lose": "lose",
+        })
+        lua = compile_story(document)
+        self.assertIn('mod_gameplay_last_result("main", "combat")', lua)
+        self.assertIn('gameplay_result == "win" then return node_win()', lua)
+        self.assertIn('gameplay_result == "lose" then return node_lose()', lua)
+        self.assertNotIn("draw", lua)
+        self.assertNotIn("escape", lua)
+
+    def test_rejects_unverified_result_kinds_and_missing_targets(self):
+        document = story({
+            "id": "fight", "type": "battle_result", "kind": "draw",
+            "win": "win", "lose": "lose",
+        })
+        with self.assertRaises(LomcError):
+            compile_story(document)
+        document["nodes"][0]["kind"] = "any"
+        document["nodes"][0]["win"] = "missing"
+        with self.assertRaisesRegex(LomcError, "missing"):
+            compile_story(document)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

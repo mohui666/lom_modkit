@@ -105,7 +105,7 @@ assets/                # 可选，自定义资源
 - `choice` / `branch` / `dice` の分岐は必ず `goto` で対象ノード id を指します。
 - 複数の先行ノードが同一ノードに合流（合流点）するのは合法です。
 
-### 3.1 ノードタイプ（全 48 種）
+### 3.1 ノードタイプ（全 49 種）
 
 この表が現在の合法ノードすべてです。`combat` / `battle` は原作テンプレートを使う高レベル編成です。`reward`、`quest_*` はまだノードではなく、戦闘機能は逆コンパイル確認済み原作 API だけを呼びます。
 
@@ -155,6 +155,7 @@ assets/                # 可选，自定义资源
 | `battle_skill` | `op`("set"/"active"/"reset"), `key`(reset は不要), `index`(set 用、既定2), `active`(active 用、既定1) | 戦場スキル `SetPlayerBattleSkill/SetBattleSkillActive/ResetBattleSkill` |
 | `combat` | `win`, `lose`。原作 Combat `key` と `preset` は二者択一。直接設定では任意 `enemy`, `team`, `level`, `people`, `display` | 原作の敵設定を組み合わせて Combat へ入り、Host が `CombatManager.GameOver(bool)` の win/lose を指定ノードへ戻します。draw/escape と追加 goto は非対応 |
 | `battle` | `win`, `lose`。原作 Battle `key` と `preset` は二者択一 | 原作 Battle へ入り、finish=true の `FriendWin/EnemyWin` だけを win/lose に対応させます。`PlayerDie(false)` は原作の再試行／タイトルのままです |
+| `battle_result` | `win`, `lose`。任意 `kind`("any"/"combat"/"battle") | 完全なパッケージ指紋とシナリオ id に結び付いた Host の実結果を読み、確認済み win/lose だけを分岐します。結果なし／型不一致は fail-closed |
 | `mission` | `name`, `key` | クエスト操作 `statmodifymanager.Mission(name, key)`：`Mission("Main","M0001")` でメイン進行 / `Mission("S2200","clear")` でサブクリア |
 | `time` | `op`("set"/"round"/"month"/"mission")；set は `year,month,stage`；mission は `name,year,month,stage` | 時間 `SetGameTime/NextRound/NextMonth/SetMissionTime` |
 | `autosave` | 任意 `kind`("story"既定/"free"/"prologue")；任意 `save_button`(0/1、セーブボタンを個別制御) | `AutoSave()/AutoFreeSave()/PrologueSave(mode)`。`save_button` は単独で `ToggleSaveButton(n)` を emit |
@@ -395,7 +396,7 @@ transition の黒幕、choice スキンクラッシュ、背景の黒画面、�
 - Python API：
   - `load_editor_data()`：エディターデータ（dice_meta などの一覧を含む）を読み、(editor_data, is_fallback) を返す
   - `new_story(story_id="main", title="新剧情", mood=False)`：新規シナリオスクリプト（show 登場 + 空 say の 2 ノード開場。先に登場させてから動作）
-  - `add_node(story, node_type, fields=None, after=None)`：models 既定値でノードを追加（48 種）。未知のタイプ／フィールド／型不一致→ValueError。ノード id は自動生成。after で挿入位置を指定（ノード id または None=末尾）。登場防線：動作系ノードの対象人物がそれ以前に未登場／退場済みの場合、その前に show を自動挿入
+  - `add_node(story, node_type, fields=None, after=None)`：models 既定値でノードを追加（49 種）。未知のタイプ／フィールド／型不一致→ValueError。ノード id は自動生成。after で挿入位置を指定（ノード id または None=末尾）。登場防線：動作系ノードの対象人物がそれ以前に未登場／退場済みの場合、その前に show を自動挿入
   - `update_node(story, node_id, fields)`：ノードフィールドを更新（add と同じフィールド検証）。ノード不存在→ValueError。登場防線：更新後に動作人物が未登場／退場済みなら、そのノードの前に show を自動挿入し、それを指す goto／選択肢／分岐ジャンプを新ノードへ付け替え
   - `get_node(story, node_id)`：ノードを読む。不存在→ValueError
   - `list_nodes(story)`：[{"id","type","summary"}] の一覧を返す

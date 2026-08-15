@@ -1,6 +1,6 @@
 # 当前能力与边界
 
-本文按仓库当前代码描述能力，不把研究计划写成已实现功能。节点的唯一权威集合是 `editor/models.py` 的 `NODE_SCHEMAS`，当前共 48 种。
+本文按仓库当前代码描述能力，不把研究计划写成已实现功能。节点的唯一权威集合是 `editor/models.py` 的 `NODE_SCHEMAS`，当前共 49 种。
 
 ## 已实现
 
@@ -23,6 +23,7 @@
 - `combat`：选择原版 Combat key，可选组合敌方 id/队伍/等级/人数设置；Host 从原版 `CombatManager.GameOver(bool)` 取得真实 win/lose，并一次性续接作者指定节点。失败时仅在该 MOD 战斗会话内把 `DeadEnd` 视为 false，以走原版 `LoadNextScene()` 回 Story。
 - `battle`：选择原版 Battle key；Host 只把 `ShowGameOver(FriendWin/EnemyWin, finish:true)` 映射为 win/lose。`PlayerDie(false)` 保持原版重试/标题流程。
 - Battle Preset：章节设置中可保存 `combat` / `battle` 原版模板与已验证敌方参数，剧情节点按 ID 复用；编译时展开，不引入新的运行时接口。
+- `battle_result`：按包完整 SHA-256、剧情 id 和可选 Combat/Battle 类型读取 Host 的最后真实结果，只提供已验证的 win/lose 分支。
 
 这意味着工具是在编排原版战斗系统，不包含自研 Battle Engine。高层 `combat` / `battle` 已有经反编译确认的结果回流，但尚未实机验证；`draw` / `escape` 没有可用结果接口。我方配置编辑器和战后奖励聚合节点仍未实现。
 

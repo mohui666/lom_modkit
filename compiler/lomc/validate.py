@@ -181,6 +181,7 @@ _ENUMS = {
     "gameflag_op": ("set", "add"),
     "enemy_op": ("team", "level", "people", "id"),
     "bskill_op": ("set", "active", "reset"),
+    "gameplay_kind": ("any", "combat", "battle"),
     "time_op": ("set", "round", "month", "mission"),
     "autosave_kind": ("story", "free", "prologue"),
     "goto_scene": (
@@ -383,6 +384,10 @@ _NODE_FIELDS = {
         {"win": "idstr", "lose": "idstr"},
         {"preset": "idstr", "key": "idstr"},
     ),
+    "battle_result": (
+        {"win": "idstr", "lose": "idstr"},
+        {"kind": "gameplay_kind"},
+    ),
     "mission": ({"name": "idstr", "key": "idstr"}, {}),
     "time": (
         {"op": "time_op"},
@@ -416,10 +421,10 @@ _NODE_FIELDS = {
 _COMMON_FIELDS = ("id", "type", "goto")
 
 # 不允许显式 goto 的节点类型（契约 §4：流转由自身结构/场景跳转决定）
-_NO_GOTO_TYPES = ("choice", "branch", "dice", "end", "goto_scene", "death", "combat", "battle")
+_NO_GOTO_TYPES = ("choice", "branch", "dice", "end", "goto_scene", "death", "combat", "battle", "battle_result")
 
 # 可以作最后一个节点收尾的类型（其余类型在末位且无 goto → 校验错误）
-_TERMINAL_TYPES = ("end", "choice", "branch", "dice", "goto_scene", "raw", "death", "combat", "battle")
+_TERMINAL_TYPES = ("end", "choice", "branch", "dice", "goto_scene", "raw", "death", "combat", "battle", "battle_result")
 
 # dice 选项的字段(§3.1)：三向 goto 载体（text/threshold 已废弃，以官方结果带元数据为准）
 _DICE_OPTION_GOTOS = ("goto_大成功", "goto_成功", "goto_失败")
@@ -487,7 +492,7 @@ def _check_goto(node, label, id_set):
     for case in node.get("cases", []):
         if isinstance(case, dict) and isinstance(case.get("goto"), str):
             targets.append(case["goto"])
-    if node.get("type") in ("combat", "battle"):
+    if node.get("type") in ("combat", "battle", "battle_result"):
         targets.extend((node["win"], node["lose"]))
     for t in targets:
         if t not in id_set:

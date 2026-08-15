@@ -14,7 +14,7 @@ story_api の契約条項です。本ドキュメントはその操作マニュ�
 story_api 経由——ノードは models 契約の既定値で生成、フィールドは NODE_SCHEMAS で検証、未知フィールドは
 一律拒否され、コンパイル時の残存問題は lomc 検証がフォールバックします。エディターと AI は同一の防線を共有します。
 
-インターフェースが受け付けるのは `models.NODE_SCHEMAS` の現行 48 種だけです。`combat` / `battle` は原作テンプレートの確認済み結果編成として実装済みです。未実装の `reward`、`quest_*` は生成させないでください。
+インターフェースが受け付けるのは `models.NODE_SCHEMAS` の現行 49 種だけです。`combat` / `battle` / `battle_result` は原作テンプレートの確認済み結果編成として実装済みです。未実装の `reward`、`quest_*` は生成させないでください。
 
 ## 1. 環境要件と呼び出し方法
 
@@ -278,7 +278,7 @@ import story_api
 | `new_story(story_id="main", title="新剧情", mood=False) -> dict` | story_id は `[a-zA-Z0-9_-]+` に一致。title は str。mood は bool。show 登場(n1) + 空 say(n2) の開場を持つシナリオ dict を返す（先に登場させてから動作。§4 ルール 4 参照） |
 | `get_node(story, node_id) -> dict` | 不存在 → ValueError。返すのは story 内の**元オブジェクト**（update でそのまま反映される） |
 | `list_nodes(story) -> list[dict]` | 各項目は `{"id", "type", "summary"}`。summary は中文の要約（例：`对白·唐惟元: 师弟，你来了。`） |
-| `add_node(story, node_type, fields=None, after=None) -> dict` | node_type は 48 種限定（`models.NODE_TYPES`）。fields のキーは NODE_SCHEMAS の合法フィールド+汎用フィールド（id/type/goto）に限定。型は kind に従い緩く検証。未知タイプ／フィールド／型不一致 → ValueError。id は自動生成（say1、show2、choice1…）。after=ノード id でその後ろに挿入、None で末尾に追加。**登場防線**：動作系ノードの対象人物がそれ以前に未登場／退場済みの場合、その前に show ノードを自動挿入（§4 ルール 4 参照） |
+| `add_node(story, node_type, fields=None, after=None) -> dict` | node_type は 49 種限定（`models.NODE_TYPES`）。fields のキーは NODE_SCHEMAS の合法フィールド+汎用フィールド（id/type/goto）に限定。型は kind に従い緩く検証。未知タイプ／フィールド／型不一致 → ValueError。id は自動生成（say1、show2、choice1…）。after=ノード id でその後ろに挿入、None で末尾に追加。**登場防線**：動作系ノードの対象人物がそれ以前に未登場／退場済みの場合、その前に show ノードを自動挿入（§4 ルール 4 参照） |
 | `update_node(story, node_id, fields) -> dict` | add_node と同じフィールド検証。ノード不存在 → ValueError。マージ後に branch 正規化と表情検証を実施。**登場防線**：更新後に動作人物が未登場／退場済みなら、そのノードの前に show を自動挿入し、それを指す goto／選択肢／分岐ジャンプを新ノードへ付け替え（§4 ルール 4 参照） |
 | `delete_node(story, node_id) -> dict` | 削除したノードを返す。**ダングリング goto は遮断せず**、check_story の報告に委ねる |
 | `rename_node(story, node_id, new_id) -> dict` | ノード id を改名し、start と全ジャンプ参照（goto / choice 選択肢 / branch cases / dice 行き先）を同期。改名後のノードを返す。新 id は `[A-Za-z0-9_-]+` 限定（前後空白は除去）。old==new は空操作。番号占用または元ノード不存在 → ValueError |
@@ -395,7 +395,7 @@ check_story/compile_story が遮断します）。各ルールのゲーム側の
 
 | エラーメッセージ（例） | 出所 | 原因と対処 |
 | --- | --- | --- |
-| `未知节点类型: no_such_type（支持 48 种，见 models.NODE_TYPES）` | add_node | タイプ名の綴り間違い。`models.NODE_TYPES` または契約 §3.1 の 48 種を使用 |
+| `未知节点类型: no_such_type（支持 49 种，见 models.NODE_TYPES）` | add_node | タイプ名の綴り間違い。`models.NODE_TYPES` または契約 §3.1 の 49 種を使用 |
 | `节点类型 wait 不支持字段: bogus（允许: goto, id, seconds, type）` | add_node/update_node | フィールド名がタイプ表にない。メッセージ内の許可集合に従って修正 |
 | `节点类型 wait 字段 "seconds" 类型不符（kind=float，应为 数值），实际为 'abc'` | add_node/update_node | フィールド型の誤り。`True` も数値フィールドに拒否されることに注意 |
 | `通用字段 "goto" 必须是字符串` | add_node/update_node | goto/id/type は文字列のみ受付 |
