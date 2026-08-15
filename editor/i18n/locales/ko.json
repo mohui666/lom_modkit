@@ -583,5 +583,10 @@
   "search.category.portrait": "표정", "search.category.voice": "음성",
   "search.category.image": "이미지", "search.category.variable": "변수",
   "search.category.flag": "Flag", "search.category.goto": "이동",
-  "search.category.content_ref": "사용자 콘텐츠", "search.located": "{story} → {node}(으)로 이동했습니다"
+  "search.category.content_ref": "사용자 콘텐츠", "search.located": "{story} → {node}(으)로 이동했습니다",
+  "references.action": "누가 참조하나요?", "references.title": "참조: {symbol}",
+  "references.summary": "{kind} {symbol}: 참조 {count}개.",
+  "references.kind.content": "사용자 콘텐츠", "references.kind.character": "인물",
+  "references.kind.variable": "변수", "references.kind.flag": "Flag",
+  "references.kind.story": "챕터", "references.kind.node": "노드"
 }

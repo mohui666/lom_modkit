@@ -1012,7 +1012,10 @@ class MainWindow(QMainWindow):
         from global_search import GlobalSearchDialog
 
         self._flush_pending()
-        GlobalSearchDialog(self._stories, self._locate_search_result, self).exec()
+        GlobalSearchDialog(
+            self._stories, self._locate_search_result, self,
+            manifest=self.manifest_base,
+        ).exec()
 
     def _locate_search_result(self, story_id: str, node_id: str | None) -> None:
         if story_id not in self._stories:

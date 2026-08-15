@@ -583,5 +583,10 @@
   "search.category.portrait": "表情", "search.category.voice": "音声",
   "search.category.image": "画像", "search.category.variable": "変数",
   "search.category.flag": "Flag", "search.category.goto": "遷移",
-  "search.category.content_ref": "ユーザーコンテンツ", "search.located": "{story} → {node} に移動しました"
+  "search.category.content_ref": "ユーザーコンテンツ", "search.located": "{story} → {node} に移動しました",
+  "references.action": "参照元を表示", "references.title": "参照：{symbol}",
+  "references.summary": "{kind} {symbol}：{count} 件の参照。",
+  "references.kind.content": "ユーザーコンテンツ", "references.kind.character": "人物",
+  "references.kind.variable": "変数", "references.kind.flag": "Flag",
+  "references.kind.story": "チャプター", "references.kind.node": "ノード"
 }

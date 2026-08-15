@@ -79,7 +79,7 @@ def _category(node: dict, field: str, value: str) -> str | None:
         return "voice"
     if leaf == "image":
         return "image"
-    if leaf == "goto" or leaf.startswith("goto_") or leaf in ("next_script", "next"):
+    if leaf == "goto" or leaf.startswith("goto_") or leaf == "next_script":
         return "goto"
     if leaf == "flag" or node_type in ("flag", "game_flag"):
         return "flag"
@@ -140,9 +140,12 @@ class GlobalSearchDialog(QDialog):
         stories: dict,
         locate: Callable[[str, str | None], None],
         parent=None,
+        manifest: dict | None = None,
     ):
         super().__init__(parent)
         self._hits = index_project(stories)
+        self._stories = stories
+        self._manifest = manifest or {}
         self._locate = locate
         self.setWindowTitle(t("search.title"))
         self.resize(900, 560)
@@ -176,6 +179,9 @@ class GlobalSearchDialog(QDialog):
         jump = QPushButton(t("search.jump"))
         jump.clicked.connect(self._jump_selected)
         row.addWidget(jump)
+        references = QPushButton(t("references.action"))
+        references.clicked.connect(self._show_references)
+        row.addWidget(references)
         row.addStretch(1)
         close = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         close.rejected.connect(self.reject)
@@ -203,9 +209,7 @@ class GlobalSearchDialog(QDialog):
             )
             for column, value in enumerate(values):
                 self.table.setItem(row, column, QTableWidgetItem(value))
-            self.table.item(row, 0).setData(
-                Qt.ItemDataRole.UserRole, (hit.story_id, hit.node_id)
-            )
+            self.table.item(row, 0).setData(Qt.ItemDataRole.UserRole, hit)
         if self.table.rowCount():
             self.table.selectRow(0)
 
@@ -213,8 +217,25 @@ class GlobalSearchDialog(QDialog):
         item = self.table.item(self.table.currentRow(), 0)
         if item is None:
             return
-        target = item.data(Qt.ItemDataRole.UserRole)
-        if not isinstance(target, tuple) or len(target) != 2:
+        hit = item.data(Qt.ItemDataRole.UserRole)
+        if not isinstance(hit, SearchHit):
             return
-        self._locate(str(target[0]), str(target[1]) if target[1] else None)
+        self._locate(hit.story_id, hit.node_id)
         self.accept()
+
+    def _show_references(self) -> None:
+        from reference_inspector import ReferenceDialog, target_for_search_hit
+
+        item = self.table.item(self.table.currentRow(), 0)
+        if item is None:
+            return
+        hit = item.data(Qt.ItemDataRole.UserRole)
+        if not isinstance(hit, SearchHit):
+            return
+        target = target_for_search_hit(hit)
+        if target is None:
+            return
+        ReferenceDialog(
+            self._stories, target, self._locate, self,
+            manifest=self._manifest,
+        ).exec()

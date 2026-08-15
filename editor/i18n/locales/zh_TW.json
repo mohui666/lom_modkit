@@ -583,5 +583,10 @@
   "search.category.portrait": "表情", "search.category.voice": "語音",
   "search.category.image": "圖片", "search.category.variable": "變數",
   "search.category.flag": "Flag", "search.category.goto": "跳轉",
-  "search.category.content_ref": "使用者內容", "search.located": "已定位到 {story} → {node}"
+  "search.category.content_ref": "使用者內容", "search.located": "已定位到 {story} → {node}",
+  "references.action": "誰引用了它？", "references.title": "引用：{symbol}",
+  "references.summary": "{kind} {symbol}：找到 {count} 處引用。",
+  "references.kind.content": "使用者內容", "references.kind.character": "人物",
+  "references.kind.variable": "變數", "references.kind.flag": "Flag",
+  "references.kind.story": "章節", "references.kind.node": "步驟"
 }

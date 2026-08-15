@@ -27,7 +27,7 @@ STORIES = {
                          {"text": "离开", "goto": "end1"}]},
             {"id": "flag1", "type": "flag", "flag": "ROUTE_A", "value": 1,
              "goto": "end1"},
-            {"id": "end1", "type": "end"},
+            {"id": "end1", "type": "end", "next_script": "side"},
         ],
     },
     "side": {
