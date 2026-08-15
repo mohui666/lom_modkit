@@ -182,6 +182,7 @@ _ENUMS = {
     "enemy_op": ("team", "level", "people", "id"),
     "bskill_op": ("set", "active", "reset"),
     "gameplay_kind": ("any", "combat", "battle"),
+    "reward_kind": ("stat", "affinity", "talent", "item", "flag"),
     "time_op": ("set", "round", "month", "mission"),
     "autosave_kind": ("story", "free", "prologue"),
     "goto_scene": (
@@ -372,6 +373,14 @@ _NODE_FIELDS = {
         {"op": "bskill_op"},
         {"key": "idstr", "index": "num", "active": "num"},
     ),
+    "battle_setup": (
+        {},
+        {
+            "enemy": "idstr", "team": "num", "level": "num",
+            "people": "num", "display": "num", "reset_skills": "bool",
+            "skills": "list",
+        },
+    ),
     "combat": (
         {"win": "idstr", "lose": "idstr"},
         {
@@ -388,6 +397,7 @@ _NODE_FIELDS = {
         {"win": "idstr", "lose": "idstr"},
         {"kind": "gameplay_kind"},
     ),
+    "reward": ({"entries": "list"}, {}),
     "mission": ({"name": "idstr", "key": "idstr"}, {}),
     "time": (
         {"op": "time_op"},
@@ -899,6 +909,37 @@ def _check_node_extra(node, ntype, label, battle_presets=None):
                 '%s(battle_skill): op="%s" 时必填字段 "key"（仅 reset 不需要）'
                 % (label, node["op"])
             )
+    elif ntype == "battle_setup":
+        if not node.get("enemy") and not node.get("reset_skills") and not node.get("skills"):
+            raise LomcError(
+                '%s(battle_setup): 至少需要 enemy、reset_skills=true 或一条 skills 配置'
+                % label
+            )
+        if not node.get("enemy") and any(name in node for name in ("team", "level", "people")):
+            raise LomcError(
+                '%s(battle_setup): team/level/people 必须与 enemy 一起使用' % label
+            )
+        for name in ("team", "level", "people", "display"):
+            if name in node and (isinstance(node[name], bool) or not isinstance(node[name], int)):
+                raise LomcError('%s(battle_setup): 字段 "%s" 必须是整数' % (label, name))
+        skills = node.get("skills", [])
+        if len(skills) > 16:
+            raise LomcError('%s(battle_setup): skills 最多 16 条' % label)
+        for index, skill in enumerate(skills, 1):
+            skill_label = '%s(battle_setup) 第 %d 条技能' % (label, index)
+            if not isinstance(skill, dict):
+                raise LomcError('%s: 必须是对象' % skill_label)
+            unknown = set(skill) - {"key", "index", "active"}
+            if unknown:
+                raise LomcError('%s: 未知字段 %s' % (skill_label, "、".join(sorted(unknown))))
+            if not _check_type("idstr", skill.get("key")):
+                raise LomcError('%s: key 必须是非空技能 id' % skill_label)
+            slot = skill.get("index", 2)
+            if isinstance(slot, bool) or not isinstance(slot, int):
+                raise LomcError('%s: index 必须是整数' % skill_label)
+            active = skill.get("active", 1)
+            if isinstance(active, bool) or active not in (0, 1):
+                raise LomcError('%s: active 必须是 0 或 1' % skill_label)
     elif ntype == "combat":
         direct = bool(node.get("key"))
         preset_id = node.get("preset")
@@ -949,6 +990,39 @@ def _check_node_extra(node, ntype, label, battle_presets=None):
                     '%s(battle): 预设 "%s" 的 kind=%r，不是 battle'
                     % (label, preset_id, preset["kind"])
                 )
+    elif ntype == "reward":
+        entries = node["entries"]
+        if not 1 <= len(entries) <= 32:
+            raise LomcError('%s(reward): entries 必须有 1~32 条' % label)
+        for index, entry in enumerate(entries, 1):
+            entry_label = '%s(reward) 第 %d 条奖励' % (label, index)
+            if not isinstance(entry, dict):
+                raise LomcError('%s: 必须是对象' % entry_label)
+            kind = entry.get("kind")
+            if kind not in _ENUMS["reward_kind"]:
+                raise LomcError('%s: kind 必须是 stat/affinity/talent/item/flag' % entry_label)
+            allowed = {"kind", "key"}
+            if kind != "flag":
+                allowed.add("amount")
+            if kind == "item":
+                allowed.add("category")
+            unknown = set(entry) - allowed
+            if unknown:
+                raise LomcError('%s: 未知字段 %s' % (entry_label, "、".join(sorted(unknown))))
+            if not _check_type("idstr", entry.get("key")):
+                raise LomcError('%s: key 必须是非空 id' % entry_label)
+            if kind == "flag":
+                continue
+            amount = entry.get("amount")
+            if not _check_type("num", amount):
+                raise LomcError('%s: amount 必须是有限数值' % entry_label)
+            if kind == "talent" and amount not in (-1, 1):
+                raise LomcError('%s: talent amount 只能是 1 或 -1' % entry_label)
+            if kind == "item":
+                if isinstance(amount, bool) or not isinstance(amount, int) or amount <= 0:
+                    raise LomcError('%s: item amount 必须是正整数' % entry_label)
+                if entry.get("category") not in _ENUMS["item_kind"]:
+                    raise LomcError('%s: item category 必须是 book/misc/special' % entry_label)
     elif ntype == "time":
         op = node["op"]
         if op == "set":

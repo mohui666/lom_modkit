@@ -721,6 +721,38 @@ def _emit_battle_skill(node, ctx):
     ]
 
 
+def _emit_battle_setup(node, ctx):
+    lines = []
+    enemy = node.get("enemy")
+    if enemy:
+        lines.append("\tstatmodifymanager.ModifyEnemyId(%s)" % lua_str(enemy))
+        for field, api in (
+            ("team", "ModifyEnemyTeam"),
+            ("level", "ModifyEnemyLevel"),
+            ("people", "ModifyEnemyPeople"),
+        ):
+            if node.get(field, 0):
+                lines.append(
+                    "\tstatmodifymanager.%s(%s, %s, %s)"
+                    % (
+                        api, lua_str(enemy), lua_num(node[field]),
+                        lua_num(node.get("display", 1)),
+                    )
+                )
+    if node.get("reset_skills", False):
+        lines.append("\tluamanager.ResetBattleSkill()")
+    for skill in node.get("skills", []):
+        lines.append(
+            "\tluamanager.SetPlayerBattleSkill(%s, %s)"
+            % (lua_str(skill["key"]), lua_num(skill.get("index", 2)))
+        )
+        lines.append(
+            "\tluamanager.SetBattleSkillActive(%s, %s)"
+            % (lua_str(skill["key"]), lua_num(skill.get("active", 1)))
+        )
+    return lines
+
+
 def _emit_combat(node, ctx):
     """编排一场原版 Combat，并把已验证的 win/lose 结果带回本剧情。"""
     config = ctx["battle_presets"].get(node.get("preset"), node)
@@ -783,6 +815,44 @@ def _emit_battle_result(node, ctx):
         '\telseif gameplay_result == "lose" then return node_%s()' % node["lose"],
         '\telse error("没有可供 battle_result 消费的已验证战斗结果") end',
     ]
+
+
+def _emit_reward(node, ctx):
+    lines = []
+    for entry in node["entries"]:
+        kind, key = entry["kind"], entry["key"]
+        if kind == "stat":
+            qkey = lua_str(key)
+            lines.append(
+                "\tstatmodifymanager.Player(%s, %s, %s, %s)"
+                % (qkey, lua_num(entry["amount"]), lua_str(""), lua_num(1))
+            )
+            lines.append("\twait(statmodifymanager.GetDisplayTime(%s))" % qkey)
+        elif kind == "affinity":
+            lines.append(
+                "\tstatmodifymanager.Character(%s, %s, 1)"
+                % (lua_str(key), lua_num(entry["amount"]))
+            )
+        elif kind == "talent":
+            lines.append(
+                "\tstatmodifymanager.AddTalent(%s, %s)"
+                % (lua_str(key), lua_num(entry["amount"]))
+            )
+        elif kind == "item":
+            lines.append(
+                "\tstatmodifymanager.Add%s(%s, %s)"
+                % (
+                    _ITEM_API[entry["category"]], lua_str(key),
+                    lua_num(entry["amount"]),
+                )
+            )
+        else:
+            qkey = lua_str(key)
+            lines.extend((
+                "\tstatmodifymanager.AddStory(%s)" % qkey,
+                "\tmodflags[%s] = true" % qkey,
+            ))
+    return lines
 
 
 def _emit_mission(node, ctx):
@@ -1196,9 +1266,11 @@ _EMITTERS = {
     "game_flag": _emit_game_flag,
     "enemy": _emit_enemy,
     "battle_skill": _emit_battle_skill,
+    "battle_setup": _emit_battle_setup,
     "combat": _emit_combat,
     "battle": _emit_battle,
     "battle_result": _emit_battle_result,
+    "reward": _emit_reward,
     "mission": _emit_mission,
     "time": _emit_time,
     "autosave": _emit_autosave,

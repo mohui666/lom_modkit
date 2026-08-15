@@ -1,6 +1,6 @@
 # 現在の機能と境界
 
-この文書は現在のリポジトリコードだけを説明します。ノードの正規集合は `editor/models.py` の `NODE_SCHEMAS` で、現在 49 種です。
+この文書は現在のリポジトリコードだけを説明します。ノードの正規集合は `editor/models.py` の `NODE_SCHEMAS` で、現在 51 種です。
 
 ## 実装済み
 
@@ -13,6 +13,6 @@
 
 `enemy`、`battle_skill`、`goto_scene` の `Combat` / `Battle` は検証済み原作 API を呼びます。高レベル `combat` / `battle` は原作テンプレートを選び、前者は Combat win/lose、後者は finish=true の FriendWin/EnemyWin だけを戻します。独自 Battle Engine ではなく、実機未検証です。
 
-章設定で Battle Preset を管理し、原作 `combat` / `battle` テンプレートと検証済み敵設定を再利用できます。`battle_result` は同一パッケージ・同一シナリオの実 win/lose だけで分岐します。draw/escape コールバック、`reward` 集約ノード、任意商品 Custom Shop、独立 `mod_quest`、任意の永続 Mod 変数は未実装です。`modflags` / `modvars` は Story セッション限定で、`game_flag` は原作に存在する FlagData だけを書きます。戦闘マップ、モデル、AI、アニメーション、機構のカスタムにも対応しません。
+章設定で Battle Preset を管理し、原作 `combat` / `battle` テンプレートと検証済み敵設定を再利用できます。`battle_result` は同一パッケージ・同一シナリオの実 win/lose だけで分岐し、`battle_setup` と `reward` は既存の原作／原子 API だけを集約します。draw/escape コールバック、任意商品 Custom Shop、独立 `mod_quest`、任意の永続 Mod 変数は未実装です。`modflags` / `modvars` は Story セッション限定で、`game_flag` は原作に存在する FlagData だけを書きます。戦闘マップ、モデル、AI、アニメーション、機構のカスタムにも対応しません。
 
 逆コンパイルと実機確認で確定していないゲーム API は推測で実装しません。

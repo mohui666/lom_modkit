@@ -666,6 +666,10 @@ class NodeForm(QScrollArea):
             return self._make_vars_table(node, key)
         if kind == "dice_options":
             return self._make_dice_table(node, key)
+        if kind == "battle_setup_skills":
+            return self._make_battle_setup_skills_table(node, key)
+        if kind == "reward_entries":
+            return self._make_reward_entries_table(node, key)
         return QLabel(f"（暂不支持的字段类型 {kind}）")
 
     # ------------------------------------------------------------ 基础控件
@@ -1487,6 +1491,135 @@ class NodeForm(QScrollArea):
                 new_row=lambda: {"name": "", "value": ""},
             )
         )
+        return box
+
+    def _make_battle_setup_skills_table(self, node: dict, key: str) -> QWidget:
+        rows: list[dict] = node.setdefault(key, [])
+        box = QWidget()
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(0, 0, 0, 0)
+        table = QTableWidget(0, 3)
+        table.setHorizontalHeaderLabels(("技能 id", "槽位", "激活"))
+        table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+
+        def fill() -> None:
+            table.setRowCount(0)
+            for row_index, row in enumerate(rows):
+                table.insertRow(row_index)
+                edit = QLineEdit(str(row.get("key", "")))
+                edit.textChanged.connect(
+                    lambda text, target=row: self._apply_row(target, "key", text.strip())
+                )
+                slot = QSpinBox()
+                slot.setRange(-999999, 999999)
+                slot.setValue(int(row.get("index", 2)))
+                slot.valueChanged.connect(
+                    lambda value, target=row: self._apply_row(target, "index", int(value))
+                )
+                active = self._make_combo((("1", "启用"), ("0", "禁用")), str(row.get("active", 1)))
+                active.currentTextChanged.connect(
+                    lambda _text, target=row, combo=active: self._apply_row(
+                        target, "active", int(combo.currentData())
+                    )
+                )
+                table.setCellWidget(row_index, 0, edit)
+                table.setCellWidget(row_index, 1, slot)
+                table.setCellWidget(row_index, 2, active)
+            table.setMinimumHeight(min(5, max(2, len(rows))) * 32 + 30)
+
+        buttons = QHBoxLayout()
+        add = QPushButton("添加技能")
+        remove = QPushButton("删除末项")
+        add.clicked.connect(
+            lambda: (rows.append({"key": "", "index": 2, "active": 1}), fill(), self._emit_changed())
+        )
+        remove.clicked.connect(
+            lambda: (rows.pop(), fill(), self._emit_changed()) if rows else None
+        )
+        buttons.addWidget(add)
+        buttons.addWidget(remove)
+        buttons.addStretch(1)
+        fill()
+        layout.addWidget(table)
+        layout.addLayout(buttons)
+        return box
+
+    def _make_reward_entries_table(self, node: dict, key: str) -> QWidget:
+        rows: list[dict] = node.setdefault(key, [])
+        if not rows:
+            rows.append({"kind": "stat", "key": "", "amount": 1})
+        box = QWidget()
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(0, 0, 0, 0)
+        table = QTableWidget(0, 4)
+        table.setHorizontalHeaderLabels(("类别", "子类", "目标 id", "数量"))
+        table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+
+        def fill() -> None:
+            table.setRowCount(0)
+            for row_index, row in enumerate(rows):
+                table.insertRow(row_index)
+                kind = self._make_combo(
+                    list(models.ENUM_SETS["reward_kind"]), str(row.get("kind", "stat"))
+                )
+                category = self._make_combo(
+                    list(models.ENUM_SETS["item_kind"]), str(row.get("category", "misc"))
+                )
+                category.setEnabled(row.get("kind") == "item")
+                target = QLineEdit(str(row.get("key", "")))
+                amount = QSpinBox()
+                amount.setRange(-999999, 999999)
+                amount.setValue(int(row.get("amount", 1)))
+                amount.setEnabled(row.get("kind") != "flag")
+
+                def change_kind(_text: str, target_row=row, combo=kind) -> None:
+                    value = str(combo.currentData() or "stat")
+                    target_row["kind"] = value
+                    if value == "flag":
+                        target_row.pop("amount", None)
+                        target_row.pop("category", None)
+                    else:
+                        target_row.setdefault("amount", 1)
+                        if value == "item":
+                            target_row.setdefault("category", "misc")
+                        else:
+                            target_row.pop("category", None)
+                    self._emit_changed()
+                    QTimer.singleShot(0, fill)
+
+                kind.currentTextChanged.connect(change_kind)
+                category.currentTextChanged.connect(
+                    lambda _text, target_row=row, combo=category: self._apply_row(
+                        target_row, "category", str(combo.currentData() or "misc")
+                    )
+                )
+                target.textChanged.connect(
+                    lambda text, target_row=row: self._apply_row(target_row, "key", text.strip())
+                )
+                amount.valueChanged.connect(
+                    lambda value, target_row=row: self._apply_row(target_row, "amount", int(value))
+                )
+                table.setCellWidget(row_index, 0, kind)
+                table.setCellWidget(row_index, 1, category)
+                table.setCellWidget(row_index, 2, target)
+                table.setCellWidget(row_index, 3, amount)
+            table.setMinimumHeight(min(6, max(2, len(rows))) * 32 + 30)
+
+        buttons = QHBoxLayout()
+        add = QPushButton("添加奖励")
+        remove = QPushButton("删除末项")
+        add.clicked.connect(
+            lambda: (rows.append({"kind": "stat", "key": "", "amount": 1}), fill(), self._emit_changed())
+        )
+        remove.clicked.connect(
+            lambda: (rows.pop(), fill(), self._emit_changed()) if len(rows) > 1 else None
+        )
+        buttons.addWidget(add)
+        buttons.addWidget(remove)
+        buttons.addStretch(1)
+        fill()
+        layout.addWidget(table)
+        layout.addLayout(buttons)
         return box
 
     def _make_dice_table(self, node: dict, key: str) -> QWidget:

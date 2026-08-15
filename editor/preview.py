@@ -258,6 +258,11 @@ def _hint_text(node: dict, ed: dict) -> str | None:
             f"[战场技能] {models.enum_label('battle_skill_op', node.get('op', 'set'))}"
             f" {node.get('key', '')}"
         )
+    if t == "battle_setup":
+        return (
+            f"[战前配置] 敌方 {node.get('enemy', '') or '不变'}｜"
+            f"我方技能 {len(node.get('skills', []))} 项"
+        )
     if t == "combat":
         return (
             f"[战斗] 原版 Combat {node.get('preset') or node.get('key', '')}｜"
@@ -273,6 +278,8 @@ def _hint_text(node: dict, ed: dict) -> str | None:
             f"[战斗结果] {node.get('kind', 'any')}｜"
             f"胜利→{node.get('win', '')}｜失败→{node.get('lose', '')}"
         )
+    if t == "reward":
+        return f"[战斗奖励] {len(node.get('entries', []))} 项"
     if t == "mission":
         return f"[任务] {node.get('name', '')} {node.get('key', '')}"
     if t == "time":

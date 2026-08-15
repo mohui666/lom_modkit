@@ -67,9 +67,11 @@ NODE_TYPE_CN_SRC: dict[str, str] = {
     "game_flag": "游戏任务旗标",
     "enemy": "敌方队伍",
     "battle_skill": "战场技能",
+    "battle_setup": "战前配置",
     "combat": "战斗",
     "battle": "战役",
     "battle_result": "战斗结果",
+    "reward": "战斗奖励",
     "mission": "任务",
     "time": "时间",
     "autosave": "自动存档",
@@ -123,6 +125,8 @@ NODE_HELP_KEYS = {
     "combat": "help.combat",
     "battle": "help.battle",
     "battle_result": "help.battle_result",
+    "battle_setup": "help.battle_setup",
+    "reward": "help.reward",
 }
 NODE_HELP: dict[str, str] = {}
 
@@ -176,7 +180,7 @@ NODE_GROUPS_SRC: list[tuple[str, list[str]]] = [
             "autosave",
         ],
     ),
-    ("group.gameplay", ["combat", "battle", "battle_result"]),
+    ("group.gameplay", ["battle_setup", "combat", "battle", "battle_result", "reward"]),
     (
         "group.flow",
         ["branch", "dice", "goto_scene", "panel", "wait", "end", "death", "raw"],
@@ -239,6 +243,10 @@ ENUM_SETS_SRC: dict[str, list[tuple[str, str]]] = {
     ],
     "battle_skill_op": [("set", "设置"), ("active", "激活"), ("reset", "重置")],
     "gameplay_kind": [("any", "任意战斗"), ("combat", "Combat"), ("battle", "Battle")],
+    "reward_kind": [
+        ("stat", "属性 / 银两"), ("affinity", "好感"),
+        ("talent", "天赋"), ("item", "物品 / 秘籍"), ("flag", "剧情旗标"),
+    ],
     "time_op": [
         ("set", "设置时间"),
         ("round", "进入下一旬"),
@@ -663,6 +671,18 @@ NODE_SCHEMAS: dict[str, dict] = {
             ("active", "激活（1/0）", "int", True),
         ],
     },
+    "battle_setup": {
+        "label": "战前配置",
+        "fields": [
+            ("enemy", "敌方队伍 id", "line", True),
+            ("team", "敌方队伍增量", "int", True),
+            ("level", "敌方等级增量", "int", True),
+            ("people", "敌方人数增量", "int", True),
+            ("display", "显示样式", "int", True),
+            ("reset_skills", "先重置战场技能", "bool", True),
+            ("skills", "我方战场技能", "battle_setup_skills", True),
+        ],
+    },
     "combat": {
         "label": "原版战斗编排",
         "fields": [
@@ -693,6 +713,10 @@ NODE_SCHEMAS: dict[str, dict] = {
             ("win", "胜利后", "node_ref", False),
             ("lose", "失败后", "node_ref", False),
         ],
+    },
+    "reward": {
+        "label": "战斗奖励",
+        "fields": [("entries", "奖励内容", "reward_entries", False)],
     },
     "mission": {
         "label": "任务操作",
@@ -853,12 +877,14 @@ _NODE_DEFAULTS: dict[str, dict] = {
     "game_flag": {"flag": "", "value": 1, "op": "set"},
     "enemy": {"op": "team", "enemy": "", "value": 0, "display": 1},
     "battle_skill": {"op": "set", "key": "", "index": 2, "active": 1},
+    "battle_setup": {"reset_skills": False, "skills": []},
     "combat": {
         "key": "", "enemy": "", "team": 0, "level": 0, "people": 0,
         "display": 1, "win": "", "lose": "",
     },
     "battle": {"key": "", "win": "", "lose": ""},
     "battle_result": {"kind": "any", "win": "", "lose": ""},
+    "reward": {"entries": [{"kind": "stat", "key": "", "amount": 1}]},
     "mission": {"name": "Main", "key": ""},
     "time": {"op": "round"},
     "autosave": {"kind": "story"},
@@ -1579,6 +1605,8 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
             f"{tcn}·{enum_label('battle_skill_op', node.get('op', 'set'))}"
             f" {node.get('key', '')}"
         )
+    if nt == "battle_setup":
+        return f"{tcn}·敌方 {node.get('enemy', '') or '不变'} / 技能 {len(node.get('skills', []))}"
     if nt == "combat":
         key = node.get("preset") or node.get("key", "") or t("form.unselected", default="（未选）")
         return f"{tcn}·{key}（胜利→{node.get('win', '')} / 失败→{node.get('lose', '')}）"
@@ -1587,6 +1615,8 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
         return f"{tcn}·{key}（友军胜→{node.get('win', '')} / 敌军胜→{node.get('lose', '')}）"
     if nt == "battle_result":
         return f"{tcn}·胜→{node.get('win', '')} / 败→{node.get('lose', '')}"
+    if nt == "reward":
+        return f"{tcn}·{len(node.get('entries', []))} 项"
     if nt == "mission":
         return f"{tcn}·{node.get('name', '')} {node.get('key', '')}"
     if nt == "time":

@@ -14,7 +14,7 @@ story_api 的契約條款；本文件是其操作手冊，二者衝突時以契�
 story_api——節點由 models 契約預設值產生、欄位按 NODE_SCHEMAS 驗證、未知欄位
 一律拒絕，編譯期剩餘問題由 lomc 驗證保底。編輯器與 AI 共用同一套防線。
 
-介面只接受 `models.NODE_SCHEMAS` 目前列出的 49 種節點。`combat` / `battle` / `battle_result` 已實作為原版模板的已驗證結果編排；不要讓 AI 發明尚不存在的 `reward`、`quest_*`。
+介面只接受 `models.NODE_SCHEMAS` 目前列出的 51 種節點。`combat` / `battle` / `battle_result` / `battle_setup` / `reward` 只組合已驗證的原版或既有原子介面；不要讓 AI 發明尚不存在的 `quest_*`。
 
 ## 1. 環境要求與呼叫方式
 
@@ -281,7 +281,7 @@ import story_api
 | `new_story(story_id="main", title="新剧情", mood=False) -> dict` | story_id 須匹配 `[a-zA-Z0-9_-]+`；title 須 str；mood 須 bool。返回 show 登場(n1) + 空 say(n2) 開場的劇情 dict（先登場再動作，見 §4 規則 4） |
 | `get_node(story, node_id) -> dict` | 不存在 → ValueError。返回的是 story 內的**原物件**（可隨 update 生效） |
 | `list_nodes(story) -> list[dict]` | 每項 `{"id", "type", "summary"}`，summary 為中文摘要（如 `对白·唐惟元: 师弟，你来了。`） |
-| `add_node(story, node_type, fields=None, after=None) -> dict` | node_type 限 49 種（`models.NODE_TYPES`）；fields 鍵限 NODE_SCHEMAS 合法欄位+通用欄位（id/type/goto），類型按 kind 寬鬆驗證；未知類型/欄位/類型不符 → ValueError。id 自動產生（say1、show2、choice1…），after=節點 id 插到其後、None 追加末尾。**登場防線**：動作類節點的目標人物在前面未登場/已退場時，自動在它前面插一個 show 節點（見 §4 規則 4） |
+| `add_node(story, node_type, fields=None, after=None) -> dict` | node_type 限 51 種（`models.NODE_TYPES`）；fields 鍵限 NODE_SCHEMAS 合法欄位+通用欄位（id/type/goto），類型按 kind 寬鬆驗證；未知類型/欄位/類型不符 → ValueError。id 自動產生（say1、show2、choice1…），after=節點 id 插到其後、None 追加末尾。**登場防線**：動作類節點的目標人物在前面未登場/已退場時，自動在它前面插一個 show 節點（見 §4 規則 4） |
 | `update_node(story, node_id, fields) -> dict` | 同 add_node 的欄位驗證；節點不存在 → ValueError。合併後做 branch 歸一與表情驗證。**登場防線**：更新後若動作人物未登場/已退場，自動在該節點前插入 show，並把指向它的 goto/選項/分支跳轉改指新節點（見 §4 規則 4） |
 | `delete_node(story, node_id) -> dict` | 返回被刪節點；**懸空 goto 不攔截**，交給 check_story 報告 |
 | `rename_node(story, node_id, new_id) -> dict` | 重新命名節點 id 並同步 start 與全部跳轉引用（goto / choice 選項 / branch cases / dice 去向），返回改名後的節點。新 id 限 `[A-Za-z0-9_-]+`（去首尾空白）；old==new 為空操作；編號被占用或原節點不存在 → ValueError |
@@ -398,7 +398,7 @@ check_story/compile_story 攔下）。各規則的遊戲側機理詳見契約 `m
 
 | 錯誤訊息（樣例） | 來源 | 原因與處理 |
 | --- | --- | --- |
-| `未知节点类型: no_such_type（支持 49 种，见 models.NODE_TYPES）` | add_node | 類型名拼錯；用 `models.NODE_TYPES` 或契約 §3.1 的 49 種 |
+| `未知节点类型: no_such_type（支持 51 种，见 models.NODE_TYPES）` | add_node | 類型名拼錯；用 `models.NODE_TYPES` 或契約 §3.1 的 51 種 |
 | `节点类型 wait 不支持字段: bogus（允许: goto, id, seconds, type）` | add_node/update_node | 欄位名不在類型表；按訊息裡的允許集合改 |
 | `节点类型 wait 字段 "seconds" 类型不符（kind=float，应为 数值），实际为 'abc'` | add_node/update_node | 欄位類型錯；注意 `True` 也會被數值欄位拒絕 |
 | `通用字段 "goto" 必须是字符串` | add_node/update_node | goto/id/type 只收字串 |

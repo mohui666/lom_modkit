@@ -1,0 +1,83 @@
+# -*- coding: utf-8 -*-
+import sys
+import unittest
+from pathlib import Path
+
+COMPILER = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(COMPILER))
+
+from lomc import LomcError, compile_story
+
+
+def story(node):
+    return {
+        "id": "main", "start": node["id"],
+        "nodes": [node, {"id": "end", "type": "end"}],
+    }
+
+
+class BattleSetupTest(unittest.TestCase):
+    def test_emits_only_verified_enemy_and_skill_calls(self):
+        lua = compile_story(story({
+            "id": "setup", "type": "battle_setup", "enemy": "Bandit",
+            "team": 2, "level": 10, "people": 3, "display": 1,
+            "reset_skills": True,
+            "skills": [
+                {"key": "Skill_A", "index": 2, "active": 1},
+                {"key": "Skill_B", "index": 3, "active": 0},
+            ],
+        }))
+        self.assertIn('ModifyEnemyId("Bandit")', lua)
+        self.assertIn('ModifyEnemyTeam("Bandit", 2, 1)', lua)
+        self.assertIn('ModifyEnemyLevel("Bandit", 10, 1)', lua)
+        self.assertIn('ModifyEnemyPeople("Bandit", 3, 1)', lua)
+        self.assertIn("luamanager.ResetBattleSkill()", lua)
+        self.assertIn('SetPlayerBattleSkill("Skill_A", 2)', lua)
+        self.assertIn('SetBattleSkillActive("Skill_B", 0)', lua)
+
+    def test_rejects_empty_and_malformed_setup(self):
+        bad_nodes = [
+            {"id": "setup", "type": "battle_setup"},
+            {"id": "setup", "type": "battle_setup", "level": 2},
+            {"id": "setup", "type": "battle_setup", "skills": [{}]},
+            {"id": "setup", "type": "battle_setup", "skills": [{"key": "A", "active": 2}]},
+        ]
+        for node in bad_nodes:
+            with self.subTest(node=node), self.assertRaises(LomcError):
+                compile_story(story(node))
+
+
+class RewardTest(unittest.TestCase):
+    def test_expands_to_existing_atomic_reward_apis(self):
+        lua = compile_story(story({
+            "id": "reward", "type": "reward", "entries": [
+                {"kind": "stat", "key": "Money", "amount": 500},
+                {"kind": "affinity", "key": "chicken1", "amount": 1},
+                {"kind": "talent", "key": "Talent_A", "amount": 1},
+                {"kind": "item", "category": "book", "key": "Book_A", "amount": 1},
+                {"kind": "flag", "key": "bandit_rewarded"},
+            ],
+        }))
+        self.assertIn('Player("Money", 500, "", 1)', lua)
+        self.assertIn('Character("chicken1", 1, 1)', lua)
+        self.assertIn('AddTalent("Talent_A", 1)', lua)
+        self.assertIn('AddBook("Book_A", 1)', lua)
+        self.assertIn('AddStory("bandit_rewarded")', lua)
+        self.assertIn('modflags["bandit_rewarded"] = true', lua)
+
+    def test_rejects_malformed_rewards(self):
+        bad_entries = [
+            [],
+            [{"kind": "money", "key": "Money", "amount": 1}],
+            [{"kind": "talent", "key": "T", "amount": 2}],
+            [{"kind": "item", "category": "book", "key": "B", "amount": 0}],
+            [{"kind": "item", "category": "weapon", "key": "B", "amount": 1}],
+            [{"kind": "flag", "key": "F", "amount": 1}],
+        ]
+        for entries in bad_entries:
+            with self.subTest(entries=entries), self.assertRaises(LomcError):
+                compile_story(story({"id": "reward", "type": "reward", "entries": entries}))
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

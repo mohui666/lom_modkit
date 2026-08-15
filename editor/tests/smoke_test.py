@@ -320,8 +320,8 @@ def main_fn() -> int:
     # ------------------------------------------------------------------
     # v3：汉化覆盖 + schema 2 + 新节点表单 + manifest campaign 对话框
     # ------------------------------------------------------------------
-    # 49 种节点类型中文名全覆盖；菜单分组与类型表一一对应
-    assert len(models.NODE_TYPES) == 49, f"契约应有 49 种节点：{len(models.NODE_TYPES)}"
+    # 51 种节点类型中文名全覆盖；菜单分组与类型表一一对应
+    assert len(models.NODE_TYPES) == 51, f"契约应有 51 种节点：{len(models.NODE_TYPES)}"
     assert set(models.NODE_TYPE_CN) == set(models.NODE_TYPES), "NODE_TYPE_CN 未全覆盖"
     grouped = [t for _g, ts in models.NODE_GROUPS for t in ts]
     assert sorted(grouped) == sorted(models.NODE_TYPES), "NODE_GROUPS 与类型表不一致"
@@ -359,7 +359,7 @@ def main_fn() -> int:
         editor_data,
     )
     assert s == "进入其他场景·战斗 5102_01", s
-    print("[8b] 汉化/schema 2 助手抽查 OK（49 类型中文名、四组分组、清单显示）")
+    print("[8b] 汉化/schema 2 助手抽查 OK（51 类型中文名、四组分组、清单显示）")
 
     # ManifestDialog：campaign 区读写 + 空行跳过 + 无内容不写出 + 新条件列
     dlg = main.ManifestDialog(

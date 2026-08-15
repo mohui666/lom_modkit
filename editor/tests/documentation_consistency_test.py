@@ -46,7 +46,7 @@ def _read(path: Path) -> str:
 class DocumentationConsistencyTest(unittest.TestCase):
     def test_public_node_count_matches_schema(self) -> None:
         count = len(models.NODE_SCHEMAS)
-        self.assertEqual(count, 49)
+        self.assertEqual(count, 51)
         for path in README_FILES + DOC_INDEXES + CAPABILITY_DOCS:
             text = _read(path)
             self.assertIn(str(count), text, str(path.relative_to(ROOT)))
