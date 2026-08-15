@@ -196,6 +196,7 @@ SHA-256 前 16 个十六进制字符，可用来核对具体文件，但**不是
 | --- | --- |
 | [文档索引](docs/README.md) | 语言导航与读者向导 |
 | [用户内容库](docs/zh_CN/user_content.md) | 自定义音频 / 对白语音用法 |
+| [来源水印协议 v1](docs/zh_CN/watermark_protocol.md) | 跨 Python/C# 的 payload、CRC 与版本规则（不是签名或 DRM） |
 | [Mod 包格式契约](docs/zh_CN/mod_format.md) | 包结构、43 种节点、编译约定、运行时行为 |
 | [AI / CLI 手册](docs/zh_CN/ai_cli.md) | story_api 命令行与 Python API |
 | [多语言](docs/zh_CN/i18n.md) | 界面与文档的 i18n 架构 |

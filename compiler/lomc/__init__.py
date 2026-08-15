@@ -14,6 +14,11 @@ from .content import (
 )
 from .errors import LomcError
 from .deterministic_zip import PACKAGE_CONTENT_HASH_ENTRY, package_content_hash
+from .watermark_protocol import (
+    PROTOCOL_VERSION as WATERMARK_PROTOCOL_VERSION,
+    decode_packet as decode_watermark_packet,
+    encode_packet as encode_watermark_packet,
+)
 from .localization import (
     SUPPORTED_LOCALES, apply_story_locale, available_locales,
     iter_localizable_texts, resolved_catalog, validate_story_localization,

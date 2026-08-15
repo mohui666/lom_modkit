@@ -141,6 +141,7 @@ namespace MortalModHost
                 TestPreviewRequest(modsDir);
                 TestUserContent();
                 TestDisclosurePolicy();
+                TestProvenanceWatermarkProtocol();
 
                 Console.WriteLine("--- 扫描信息 ---");
                 infos.ForEach(Console.WriteLine);
@@ -887,6 +888,47 @@ namespace MortalModHost
             hostile.Name = " \r\n ";
             Assert(ModDisclosurePolicy.SafePackageName(hostile) == "safe_id",
                 "空名称必须回退到已验证的 mod id");
+        }
+
+        private static void TestProvenanceWatermarkProtocol()
+        {
+            const string goldenPacket = "4C4F4D5701010000720435D441F942141A10BE8AA833C8741C08EE6D";
+            const string goldenHash = "720435D441F942141A10BE8AA833C874";
+            byte[] encoded = ProvenanceWatermarkProtocol.Encode("demo_mod", 1);
+            Assert(BitConverter.ToString(encoded).Replace("-", "") == goldenPacket,
+                "水印协议 C#/Python 黄金 payload 必须一致");
+            Assert(BitConverter.ToString(ProvenanceWatermarkProtocol.HashModId("demo_mod"))
+                    .Replace("-", "") == goldenHash,
+                "水印协议 C#/Python mod_id hash 必须一致");
+            ProvenanceWatermarkProtocol.Packet packet;
+            string error;
+            Assert(ProvenanceWatermarkProtocol.TryDecode(encoded, out packet, out error)
+                    && packet.Protocol == 1 && packet.Algorithm == 1
+                    && packet.ModIdHashHex == goldenHash && packet.ChecksumValid,
+                "合法水印 payload 应通过结构与 CRC-32 校验：" + error);
+            byte[] bits = ProvenanceWatermarkProtocol.ToBits(encoded);
+            Assert(bits.Length == 224 && bits[0] == 0 && bits[1] == 1,
+                "水印 bit 序必须固定为逐字节 MSB-first");
+            Assert(ProvenanceWatermarkProtocol.FromBits(bits).SequenceEqual(encoded),
+                "水印 payload 与 bit 序列必须无损往返");
+
+            byte[] corrupted = (byte[])encoded.Clone();
+            corrupted[12] ^= 1;
+            Assert(ProvenanceWatermarkProtocol.TryParse(corrupted, out packet, out error)
+                    && packet != null && !packet.ChecksumValid,
+                "结构解析应保留 CRC 失败状态供离线检测器报告");
+            Assert(!ProvenanceWatermarkProtocol.TryDecode(corrupted, out packet, out error)
+                    && error.Contains("CRC-32"),
+                "严格解码必须拒绝 CRC 损坏 payload");
+            corrupted = (byte[])encoded.Clone();
+            corrupted[0] = 0;
+            Assert(!ProvenanceWatermarkProtocol.TryParse(corrupted, out packet, out error)
+                    && error.Contains("magic"),
+                "错误 magic 必须拒绝");
+            bool invalidIdRejected = false;
+            try { ProvenanceWatermarkProtocol.Encode("Official.Mod", 1); }
+            catch (ArgumentException) { invalidIdRejected = true; }
+            Assert(invalidIdRejected, "非法 mod id 不得进入水印身份哈希");
         }
 
         private static bool IsUpperHex(char c)
