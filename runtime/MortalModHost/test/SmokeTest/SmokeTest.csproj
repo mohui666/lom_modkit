@@ -23,6 +23,7 @@
     <Compile Include="..\..\src\UserContent.cs" />
     <Compile Include="..\..\src\RuntimeTrace.cs" />
     <Compile Include="..\..\src\RuntimeDebugControl.cs" />
+    <Compile Include="..\..\src\ModDisclosurePolicy.cs" />
   </ItemGroup>
 
 </Project>

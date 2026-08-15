@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 
 namespace MortalModHost
 {
@@ -61,9 +60,7 @@ namespace MortalModHost
 
         internal static bool IsDevelopmentPackage(ModPackage package)
         {
-            return package != null
-                && string.Equals(package.Id, "lom_modkit_preview", StringComparison.Ordinal)
-                && string.Equals(Path.GetFileName(package.PackagePath), "__lom_modkit_preview.lommod", StringComparison.OrdinalIgnoreCase);
+            return ModDisclosurePolicy.IsDevelopmentPreviewPackage(package);
         }
 
         internal static void NodeEnter(string nodeId, string nodeType)

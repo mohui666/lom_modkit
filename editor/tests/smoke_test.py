@@ -179,7 +179,8 @@ def main_fn() -> int:
     # 切换节点类型：当前 choice → 换成 branch 工厂产物，并验证表单按 type 重建
     branch = models.new_node("branch", node["id"], editor_data)
     branch["flag"] = "SMOKE_FLAG"
-    branch["cases"][0]["goto"] = "show1"  # 指向已有节点，保证 story 合法可编译
+    existing_target = win.story["start"]
+    branch["cases"][0]["goto"] = existing_target  # 指向已有节点，保证 story 合法可编译
     win.story["nodes"][win._selected_node_index()] = branch
     win._refresh_all(select_row=1)
     cur = win._current_node()
@@ -197,10 +198,10 @@ def main_fn() -> int:
     # branch.source 切换：game → mod 时非法 value/超行被归一（契约：仅 1/2、≤2 行）
     branch["source"] = "game"
     branch["cases"] = [
-        {"value": 7, "goto": "show1"},
-        {"value": 1, "goto": "show1"},
-        {"value": 2, "goto": "show1"},
-        {"value": 3, "goto": "show1"},
+        {"value": 7, "goto": existing_target},
+        {"value": 1, "goto": existing_target},
+        {"value": 2, "goto": existing_target},
+        {"value": 3, "goto": existing_target},
     ]
     win._refresh_all(select_row=1)
     cb = QComboBox()

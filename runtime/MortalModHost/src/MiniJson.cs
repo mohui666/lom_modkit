@@ -12,26 +12,28 @@ namespace MortalModHost
     /// </summary>
     internal static class MiniJson
     {
+        private const int MaxNestingDepth = 128;
+
         public static object Parse(string json)
         {
             if (json == null) throw new FormatException("JSON 文本为 null");
             int pos = 0;
-            object result = ParseValue(json, ref pos);
+            object result = ParseValue(json, ref pos, 0);
             SkipWhitespace(json, ref pos);
             if (pos != json.Length)
                 throw new FormatException("JSON 末尾存在多余内容，位置 " + pos);
             return result;
         }
 
-        private static object ParseValue(string s, ref int pos)
+        private static object ParseValue(string s, ref int pos, int depth)
         {
             SkipWhitespace(s, ref pos);
             if (pos >= s.Length) throw new FormatException("JSON 意外结束");
             char c = s[pos];
             switch (c)
             {
-                case '{': return ParseObject(s, ref pos);
-                case '[': return ParseArray(s, ref pos);
+                case '{': return ParseObject(s, ref pos, depth + 1);
+                case '[': return ParseArray(s, ref pos, depth + 1);
                 case '"': return ParseString(s, ref pos);
                 case 't': return ParseLiteral(s, ref pos, "true", true);
                 case 'f': return ParseLiteral(s, ref pos, "false", false);
@@ -40,8 +42,9 @@ namespace MortalModHost
             }
         }
 
-        private static Dictionary<string, object> ParseObject(string s, ref int pos)
+        private static Dictionary<string, object> ParseObject(string s, ref int pos, int depth)
         {
+            CheckDepth(depth);
             var dict = new Dictionary<string, object>();
             pos++; // 跳过 '{'
             SkipWhitespace(s, ref pos);
@@ -58,7 +61,7 @@ namespace MortalModHost
                 string key = ParseString(s, ref pos);
                 SkipWhitespace(s, ref pos);
                 Expect(s, ref pos, ':');
-                dict[key] = ParseValue(s, ref pos);
+                dict[key] = ParseValue(s, ref pos, depth);
                 SkipWhitespace(s, ref pos);
                 if (pos >= s.Length) throw new FormatException("对象未闭合");
                 if (s[pos] == ',') { pos++; continue; }
@@ -67,8 +70,9 @@ namespace MortalModHost
             }
         }
 
-        private static List<object> ParseArray(string s, ref int pos)
+        private static List<object> ParseArray(string s, ref int pos, int depth)
         {
+            CheckDepth(depth);
             var list = new List<object>();
             pos++; // 跳过 '['
             SkipWhitespace(s, ref pos);
@@ -79,7 +83,7 @@ namespace MortalModHost
             }
             while (true)
             {
-                list.Add(ParseValue(s, ref pos));
+                list.Add(ParseValue(s, ref pos, depth));
                 SkipWhitespace(s, ref pos);
                 if (pos >= s.Length) throw new FormatException("数组未闭合");
                 if (s[pos] == ',') { pos++; continue; }
@@ -128,9 +132,16 @@ namespace MortalModHost
             while (pos < s.Length && "0123456789+-.eE".IndexOf(s[pos]) >= 0) pos++;
             string text = s.Substring(start, pos - start);
             double value;
-            if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value))
+            if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value)
+                || double.IsNaN(value) || double.IsInfinity(value))
                 throw new FormatException("非法数字 '" + text + "'，位置 " + start);
             return value;
+        }
+
+        private static void CheckDepth(int depth)
+        {
+            if (depth > MaxNestingDepth)
+                throw new FormatException("JSON 嵌套层数超过 " + MaxNestingDepth + " 上限");
         }
 
         private static object ParseLiteral(string s, ref int pos, string literal, object value)

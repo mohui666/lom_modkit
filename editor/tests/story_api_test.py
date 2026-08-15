@@ -23,6 +23,7 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from unittest import mock
 
 EDITOR_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(EDITOR_DIR))
@@ -106,6 +107,10 @@ def base_story() -> dict:
 
 
 class TestNewStory(unittest.TestCase):
+    def test_rejects_trailing_newline_in_story_id(self):
+        with self.assertRaises(ValueError):
+            story_api.new_story("main\n")
+
     def test_structure(self):
         story = story_api.new_story()
         self.assertIsInstance(story, dict, "new_story 应返回 dict")
@@ -723,6 +728,18 @@ class TestSaveLoad(unittest.TestCase):
             back = story_api.load_story_json(p)
         self.assertEqual(copy.deepcopy(story), back, "save→load 往返应保持一致")
         self.assertEqual(back["id"], "main", "往返后 id 应保留")
+
+    def test_save_failure_preserves_old_file_and_cleans_temp(self):
+        story = base_story()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / "story.json"
+            target.write_text("old-content", encoding="utf-8")
+            with mock.patch.object(models.os, "replace", side_effect=OSError("boom")):
+                with self.assertRaises(OSError):
+                    models.save_story(story, target)
+            self.assertEqual(target.read_text(encoding="utf-8"), "old-content")
+            self.assertEqual(list(root.glob("story.json.*.tmp")), [])
 
 
 class TestPackMod(unittest.TestCase):

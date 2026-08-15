@@ -20,6 +20,7 @@ from lomc import (
     validate_manifest,
     validate_story,
 )
+from lomc.codegen import lua_num
 
 COMPILER_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -886,6 +887,20 @@ class TestNodeCodegen(unittest.TestCase):
 
 
 class TestValidationErrors(unittest.TestCase):
+    def test_ids_reject_trailing_newlines(self):
+        story = linear_story({"id": "n1", "type": "music", "name": "普通_001"})
+        story["id"] = "main\n"
+        assert_compile_error(self, story, "剧情脚本 id")
+
+        story = linear_story({"id": "n1\n", "type": "music", "name": "普通_001"})
+        assert_compile_error(self, story, "节点 id")
+
+        for field in ("id", "entry"):
+            manifest = dict(MANIFEST)
+            manifest[field] += "\n"
+            with self.subTest(field=field), self.assertRaises(LomcError):
+                validate_manifest(manifest)
+
     def test_unknown_node_type(self):
         assert_compile_error(
             self,
@@ -1514,6 +1529,29 @@ class TestBranchNewSources(unittest.TestCase):
             validate_manifest(bad2)
         self.assertIn('"id"', str(cm.exception))
 
+        for field, value in (("id", "a" * 65), ("entry", "a" * 65)):
+            bad = dict(MANIFEST)
+            bad[field] = value
+            with self.subTest(field=field), self.assertRaises(LomcError):
+                validate_manifest(bad)
+
+        for field, value in (
+            ("name", "伪造\n下一行"),
+            ("author", "作者\u202e官方"),
+            ("version", "1.0\u200b"),
+            ("description", "说明\x00尾部"),
+        ):
+            bad = dict(MANIFEST)
+            bad[field] = value
+            with self.subTest(field=field), self.assertRaises(LomcError) as cm:
+                validate_manifest(bad)
+            self.assertIn("单行可见文本", str(cm.exception))
+
+        bad = dict(MANIFEST, name="名" * 81)
+        with self.assertRaises(LomcError) as cm:
+            validate_manifest(bad)
+        self.assertIn("不能超过 80", str(cm.exception))
+
     def test_disable_official_events(self):
         # campaign.disable_official_events：bool，可选（缺省 false）
         good = dict(MANIFEST)
@@ -1527,6 +1565,17 @@ class TestBranchNewSources(unittest.TestCase):
                 validate_manifest(bad)
             self.assertIn("disable_official_events", str(cm.exception))
             self.assertIn("布尔值", str(cm.exception))
+
+    def test_campaign_position_must_be_known_enum(self):
+        bad = dict(MANIFEST)
+        bad["campaign"] = {
+            "triggers": [
+                {"type": "position", "position": "Nowhere", "script": "main"}
+            ]
+        }
+        with self.assertRaises(LomcError) as cm:
+            validate_manifest(bad)
+        self.assertIn('字段 "position" 必须是合法位置 id', str(cm.exception))
 
 
 class TestPortraitValidation(unittest.TestCase):
@@ -1689,6 +1738,16 @@ class TestManifestTriggerConditions(unittest.TestCase):
         validate_manifest(
             self.trig_manifest({"when_affinity": {"character": "girl2", "min": -2}})
         )
+
+    def test_affinity_min_outside_runtime_int32_range(self):
+        for value in (-(2**31) - 1, 2**31):
+            with self.subTest(value=value), self.assertRaises(LomcError) as cm:
+                validate_manifest(
+                    self.trig_manifest(
+                        {"when_affinity": {"character": "girl2", "min": value}}
+                    )
+                )
+            self.assertIn("Int32", str(cm.exception))
 
     def test_invalid_month(self):
         for bad in (0, 13, "4", 4.5, True):
@@ -1881,6 +1940,23 @@ class TestPack(unittest.TestCase):
             pack_mod(self.mod_dir)
         self.assertIn('next_script 指向包内不存在的脚本 "ghost"', str(cm.exception))
         self.assertIn('节点 "n1"', str(cm.exception))
+
+    def test_pack_campaign_trigger_script_missing(self):
+        manifest = dict(MANIFEST)
+        manifest["campaign"] = {
+            "triggers": [
+                {"type": "position", "position": "Center", "script": "ghost"}
+            ]
+        }
+        with open(
+            os.path.join(self.mod_dir, "manifest.json"), "w", encoding="utf-8"
+        ) as f:
+            json.dump(manifest, f, ensure_ascii=False, indent=2)
+        self.write_story(make_story([{"id": "n1", "type": "end"}]))
+        with self.assertRaises(LomcError) as cm:
+            pack_mod(self.mod_dir)
+        self.assertIn('campaign.triggers 第 1 项', str(cm.exception))
+        self.assertIn('不存在的脚本 "ghost"', str(cm.exception))
 
     def test_pack_filename_id_mismatch(self):
         self.write_story(
@@ -2896,7 +2972,7 @@ class TestFourNewNodes(unittest.TestCase):
                 "next": "Title",
             },
         ):
-            validate_story(
+            lua = compile_story(
                 make_story(
                     [
                         {"id": "n1", "type": "focus", "character": "p", "goto": "n2"},
@@ -2905,6 +2981,7 @@ class TestFourNewNodes(unittest.TestCase):
                     start="n1",
                 )
             )
+            self.assertIn("node_n2 = function()", lua)
 
 
 class TestNewNodeValidationErrors(unittest.TestCase):
@@ -3217,6 +3294,28 @@ class TestNewNodeValidationErrors(unittest.TestCase):
             linear_story({"id": "n1", "type": "talent", "talent": "3004", "level": 2}),
             '字段 "level" 必须是1 或 -1',
         )
+        assert_compile_error(
+            self,
+            linear_story(
+                {"id": "n1", "type": "talent", "talent": "3004", "level": True}
+            ),
+            '字段 "level" 必须是1 或 -1',
+        )
+
+    def test_numbers_must_be_finite(self):
+        for value in (float("nan"), float("inf"), float("-inf")):
+            assert_compile_error(
+                self,
+                linear_story(
+                    {"id": "n1", "type": "wait", "seconds": value}
+                ),
+                '字段 "seconds" 必须是数值',
+            )
+        validate_story(
+            linear_story({"id": "n1", "type": "wait", "seconds": 10**400})
+        )
+        with self.assertRaises(LomcError):
+            lua_num(float("nan"))
 
     def test_official_id_nonempty(self):
         # dice.check / game_flag.flag / branch.flag 只校验非空，不查表

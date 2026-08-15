@@ -23,10 +23,11 @@ assets/                # 可选，自定义资源
                        #   自定义角色：assets/user/character/<content_id>/
 ```
 
-- `<id>` 规则：`[a-zA-Z0-9_\-]+`，包内唯一，即"剧情脚本 id"。
+- `<id>` 规则：`[a-zA-Z0-9_\-]{1,64}`，包内唯一，即"剧情脚本 id"。
 - 导出（打包）时必须重新编译：story/*.json → lua/*.lua，二者同名。
 - 运行时插件**只读 manifest.json、lua/、texts、可选 localization.json 与 assets/**；story/*.json 给编辑器回读/再编辑用。编译器只打入剧情明确引用的 PNG/JPG（单张 ≤8MB）、明确引用的 `user:` 音频，以及明确引用的自定义角色立绘。导出的 `.lommod` 自包含，玩家机器不需要编辑器仓库。
 - texts.json 由打包时自动生成：收集每个 story 的全部 **say** 节点文本，key 与 lua 里 `GetStoryText` 的 key 一一对应；运行时注册进 LeanLocalization（见 §4/§6）。**death 文本不进 texts.json**：由 codegen 发射 `mod_set_death_text(<标题>, <文本>)` 两参 lua_str 字面量（见 §3.1/§6）。
+- 运行时先拒绝物理文件超过 160 MiB 的包，再从读取该包的同一个文件句柄计算最终 `.lommod` **全部原始字节**的 SHA-256，保存完整 64 个十六进制字符，并在强制披露中显示前 16 个字符。重新压缩、修改任一字节都会改变指纹；改文件名或逐字节复制不会改变。该指纹用于核对具体包，不是作者签名或官方认证。编辑器安装器同样以 160 MiB / 4 MiB 分别限制包文件与 `manifest.json`。
 
 ### 1.1 Story 内容本地化（可选）
 
@@ -73,8 +74,10 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `zh_CN`、
 ```
 
 - `format`：固定 `1`。
-- `id`：mod 唯一 id（`[a-z0-9_\-]+`），运行时注册名前缀，防冲突。
-- `entry`：入口剧情脚本 id，必须存在。
+- `id`：mod 唯一 id（`[a-z0-9_\-]{1,64}`），运行时也会独立复验，作为注册名前缀与隔离存档槽的一部分。
+- `entry`：入口剧情脚本 id（`[A-Za-z0-9_\-]{1,64}`），必须存在；`lua/` 下所有脚本 id 同样由运行时复验。
+- `name`、`version`、`author`、`description` 都是**作者自报元数据**，不能声明官方身份。运行时展示前会单行化、限长，并移除控制字符、双向覆盖/零宽格式字符与富文本尖括号。
+- 未定义 `official`、`verified`、`signature`、`sha256` 等信任字段；手工向 manifest 添加这些字段不会影响 Host 计算的包指纹，也不会显示为官方内容。
 - `campaign`（可选）：战役模式。
   - `new_game`：true 时本 mod 出现在游戏内 mod 菜单的"开始新战役"区，点击后**隔离存档槽**（`SetSlot("mod_<modid>")`，不覆盖玩家正常存档）开新游戏，首个剧情脚本替换为本 mod 的 `entry`。
   - `disable_official_events`（可选，bool，缺省 false）：true 时本战役**禁用原版剧情事件**——返回 Free 时不自动启动无地点主线/支线，地图位置只保留本 mod 触发器（未命中则该位置默认活动不可用，需 mod 自带兜底触发器）。
@@ -369,12 +372,12 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 
 ## 6. 运行时插件行为（MortalModHost）
 
-1. 启动扫描 `BepInEx/plugins/MortalModHost/mods/*.lommod`，注册 `MOD_<modid>_<scriptid>` → lua 文本。
+1. 启动扫描 `BepInEx/plugins/MortalModHost/mods/*.lommod`，限制物理包大小、ZIP 条目数/单项/总解压大小，复验 id 与脚本 id，并从同一文件句柄计算 SHA-256；随后注册 `MOD_<modid>_<scriptid>` → lua 文本。重复 mod id 或任一注册名碰撞时保留先加载者并按整包拒绝后加载者，菜单不会展示未完整注册的包。
 2. Harmony prefix `LuaManager.ExecuteLuaScript()`：注册名命中时用 mod lua 执行并跳过原方法。
 3. 入口：Free 自由场景与 Title 标题画面左下角"活侠MOD"按钮 + F8（可配）打开菜单。Free 菜单分"演出 mod 剧情"与"开始新战役"两区；Title 菜单仅"开始新战役"区（演出剧情需要已加载的存档玩家状态，只在 Free 提供）。
 4. **战役**：点击"开始新战役"→ `SetSlot("mod_<modid>")`（隔离存档槽）→ 官方 `NewGameData()` → postfix 把首个剧情脚本替换为该 mod 的 entry → LoadStory。
 5. **原版剧情抑制与位置触发器**：`disable_official_events` 或 F7 生效时，`UpdateCheckMissions` 内暂时隐藏主线触发状态，`HasAnyMissionTrigger` 返回 false，避免返回 Free 时自动启动官方主线/支线；地点点击 postfix `FreePositionData.GetExecuteScript` 优先匹配 manifest.triggers，无 mod 命中时抑制官方地点默认脚本。
-6. **兜底**：Story 场景请求的 MOD_ 脚本未注册（mod 被删）时，不执行并 `ChangeScene("Free","","")` 防软锁。
+6. **兜底**：Story 场景请求的 MOD_ 脚本未注册、包身份/指纹缺失、Lua 编译/运行失败时，不执行或立即停止 `LuaEnvironment` 协程，绕过任务判定直接 `SceneController.LoadFree()` 防软锁。若场景正在切换则保持安全遮罩，待可安全转场时重试，禁止并发启动第二条转场协程。
 7. mod 不修改官方脚本与文本表；mod 的 flag 进 StoryKeyList，存档兼容。
 8. **texts.json 注册**：加载 .lommod 时把 texts.json 的 key→文本注册进 LeanLocalization（`Story/`+key）；`GetStoryText` 按 key 查已读系统：已读→黄色+可快进，未读→正常色+记入已读，查不到返回 key 本身。
 9. **mod_hide_mood**：注册全局 Lua 函数 `mod_hide_mood()`（无参），隐藏全场角色圆形情绪面板（CharacterMoodPanel）；编译器按 story.mood 开关在 show/say 处发射（见 §4）。
@@ -393,10 +396,11 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 19. **离场清台**：脚本开头、`end` / `goto_scene` / `death` 发射 `mod_hide_all()`，立刻隐藏官方台上人物并清掉自定义立绘。换背景 `scene` 不自动退场。切到下一章（`end.next_script`）时下一章开场也会再清一次，避免上一幕角色带到下一章。
 20. **自定义角色立绘朝向与体型**：原版立绘朝左。自定义角色默认 `art_facing=left`，节点 `facing=left` 不翻、`right` 才水平翻转；原图朝右时把 `art_facing` 标成 `right`。`scale` 是 50–130 的体型百分比（默认 100），从脚底缩放，大约 80 接近小师妹。
 21. **游戏内 Mod 菜单多语言**：菜单文案（`src/I18n.cs` 内嵌 zh_CN/zh_TW/ja/ko 四语言目录）跟随游戏当前语言——反射读 LeanLocalization `CurrentLanguage` 并模糊匹配语言名；官方游戏本身没有日语选项，日语目录实际不会触发；检测失败一律回退 zh_CN。详见 `i18n.md`。
-22. **F5 Runtime Trace v1**：只对编辑器固定的 `lom_modkit_preview` / `__lom_modkit_preview.lommod` 开发包启用。记录 `mod_enter`、`story_enter`、`node_enter`、`choice`、`condition_result`、`goto`、`end`、`death`、`runtime_error`；普通玩家加载的正式 Mod 默认不记录。Trace 使用 256 条内存 ring buffer，满后丢弃最旧条目，不写入存档且不会无限增长。新编译器只增加 `if mod_trace_node then ... end` 可选钩子，旧 Runtime 没有该函数时仍按原流程运行。
-23. **F5 Runtime Debugger v1**：开发 trace 激活后显示独立 IMGUI 调试窗，列出当前 Mod/Story/Node、`modvars`、`modflags`、可见自定义角色、当前自定义音乐/语音及最近 24 条 trace；F10 可隐藏/重新显示。正式 `.lommod` 不激活该窗口。变量与 Flag 由节点入口处的真实 Lua table 快照取得；尚未使用 `modvars` 的旧剧情会明确显示为空，不伪造状态。
-24. **Pause / Step / Continue**：F5 调试窗的「暂停」只设置“下一节点前暂停”，不会把正在显示的官方对话/面板冻结在半个 API 调用中。节点第一行的可选 trace 回调通过 MoonSharp `YieldRequest` 在节点体执行前挂起；「单步」放行当前节点，并在再下一节点体之前重新挂起；「继续」清除请求。宿主协程在暂停期间不调用 `Resume()`。该控制器仅在固定 F5 包激活，正式 Mod 即使包含相同可选节点钩子也始终直接返回，不改变执行路径。
-25. **F5 Hot Reload v1**：开发演出仍在 Story 场景时再次按 F5，宿主会停止旧 `LuaEnvironment` 与 `LuaManager` 协程，丢弃旧 MoonSharp Interpreter（含 `modvars` / `modflags` / 注册回调），并释放人物介绍暂存、死亡/结局覆盖、角色立绘与纹理、背景/CG/Overlay、自定义音乐/环境音/音效/语音及旧包引用。随后重新扫描固定试玩包、卸载并重载 Story，从编辑器本次选中的节点重新开始；不尝试恢复 Lua 指令指针。Trace 保留 256 条有界历史，并插入 `hot_reload` 分隔事件，但清空旧变量、Flag 和暂停状态。正式 Mod 与普通场景请求行为不变。
+22. **强制玩家内容披露与失败停播**：注册表命中的 Mod 首次开演前，Host 必须同步创建固定的「玩家制作 MOD｜非官方内容 / UNOFFICIAL」主标签，并以独立次级 Text 显示清洗后的作品名、作者自报信息和 SHA-256 前 16 字符。屏幕右上角常驻标签、独立 IMGUI 固定章、对白框内标签、GameOver/EndGamePanel/End/人物介绍卡标签同时覆盖全屏录像、裁对白截图和关键单卡；标签无 Lua/cfg 关闭接口。来源按整段会话污染：Mod 链入官方脚本仍保持原包标签；活动期间嵌套切到另一包会被拒绝；只有实际抵达 Title/Free 才解除。独立于 BepInEx 宿主对象的 guardian 在 Update/LateUpdate、`Canvas.willRenderCanvases` 与 `Camera.onPreCull` 复验对象父级、几何、字体、文案、alpha、材质、显示器与最高排序，被删除/禁用/移出屏幕后自动重建；Lua 篡改 `ActiveSayDialog` 时仍扫描并维护所有可见对白宿主。任何必须标签无法创建/恢复时，立即停止由 Host 推进的 LuaEnvironment 协程、用不依赖 Canvas 的 IMGUI 黑屏显示固定警示并直接返回 Free；异步 Lua 异常不会被 Fungus 吞掉。演出中关闭 Host 总开关只关闭菜单/热键，补丁与披露延迟到 Title/Free 后卸载。
+23. **F5 Runtime Trace v1**：只对编辑器固定的 `lom_modkit_preview` / `__lom_modkit_preview.lommod` 开发包启用。记录 `mod_enter`、`story_enter`、`node_enter`、`choice`、`condition_result`、`goto`、`end`、`death`、`runtime_error`；普通玩家加载的正式 Mod 默认不记录。Trace 使用 256 条内存 ring buffer，满后丢弃最旧条目，不写入存档且不会无限增长。新编译器只增加 `if mod_trace_node then ... end` 可选钩子，旧 Runtime 没有该函数时仍按原流程运行。
+24. **F5 Runtime Debugger v1**：开发 trace 激活后显示独立 IMGUI 调试窗，列出当前 Mod/Story/Node、`modvars`、`modflags`、可见自定义角色、当前自定义音乐/语音及最近 24 条 trace；F10 可隐藏/重新显示。正式 `.lommod` 不激活该窗口。变量与 Flag 由节点入口处的真实 Lua table 快照取得；尚未使用 `modvars` 的旧剧情会明确显示为空，不伪造状态。
+25. **Pause / Step / Continue**：F5 调试窗的「暂停」只设置“下一节点前暂停”，不会把正在显示的官方对话/面板冻结在半个 API 调用中。节点第一行的可选 trace 回调通过 MoonSharp `YieldRequest` 在节点体执行前挂起；「单步」放行当前节点，并在再下一节点体之前重新挂起；「继续」清除请求。宿主协程在暂停期间不调用 `Resume()`。该控制器仅在固定 F5 包激活，正式 Mod 即使包含相同可选节点钩子也始终直接返回，不改变执行路径。
+26. **F5 Hot Reload v1**：开发演出仍在 Story 场景时再次按 F5，宿主会停止旧 `LuaEnvironment` 与 `LuaManager` 协程，丢弃旧 MoonSharp Interpreter（含 `modvars` / `modflags` / 注册回调），并释放人物介绍暂存、死亡/结局覆盖、角色立绘与纹理、背景/CG/Overlay、自定义音乐/环境音/音效/语音及旧包引用。强制披露在重载期间保持，且仅允许 Host 将固定 F5 试玩包的身份原子更新为新 SHA-256；随后重新扫描固定试玩包、卸载并重载 Story，从编辑器本次选中的节点重新开始，不恢复 Lua 指令指针。Trace 保留 256 条有界历史并插入 `hot_reload` 分隔事件，但清空旧变量、Flag 和暂停状态。正式 Mod 与普通场景请求行为不变。
 
 ## 7. AI 工具接口（story_api）
 

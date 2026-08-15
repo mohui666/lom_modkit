@@ -5,7 +5,9 @@ using BepInEx.Logging;
 using Fungus;
 using HarmonyLib;
 using MoonSharp.Interpreter;
+using Mortal.Core;
 using Mortal.Story;
+using UnityEngine;
 
 namespace MortalModHost
 {
@@ -20,6 +22,15 @@ namespace MortalModHost
     {
         /// <summary>日志通道，由 Plugin.Awake 注入（patch 类是静态的，拿不到插件实例的 Logger）。</summary>
         internal static ManualLogSource Log;
+        private static LuaEnvironment _activeModEnvironment;
+        private static bool _abortRequested;
+        private static bool _abortBusyLogged;
+        private static string _pendingAbortReason;
+
+        internal static bool HasPendingAbort
+        {
+            get { return !string.IsNullOrEmpty(_pendingAbortReason); }
+        }
 
         // Only the fixed F5 preview owns these references. They let a subsequent F5
         // request stop the old host coroutine before its Story scene is reloaded.
@@ -37,14 +48,7 @@ namespace MortalModHost
                 if (scriptName != null && scriptName.StartsWith("MOD_", StringComparison.Ordinal))
                 {
                     Log.LogWarning("mod 脚本 " + scriptName + " 未注册（对应 mod 可能已删除），跳过演出并返回 Free 场景");
-                    try
-                    {
-                        __instance.ChangeScene("Free", "", "");
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.LogError("防软锁 ChangeScene 失败：" + ex);
-                    }
+                    AbortActivePlayback("MOD 脚本未注册：" + scriptName, __instance, null);
                     return false;
                 }
                 // 官方脚本：复位心情气泡硬控状态（契约 §6.10，官方演出不受 mod 影响）；
@@ -55,6 +59,15 @@ namespace MortalModHost
                 CustomAudioPlayer.StopEverything();
                 CustomCharacterRuntime.HideAllOnStage();
                 CustomImageRuntime.ClearAll();
+                // 来源按整段演出会话污染，而不是按“当前脚本名”判断。MOD 可以链入官方脚本，
+                // 此时仍必须保留披露；只有真正抵达 Title / Free 可信边界才由 Plugin 关闭。
+                if (!ModDisclosure.Active)
+                {
+                    ModDisclosure.Disable();
+                    _activeModEnvironment = null;
+                }
+                else
+                    Log.LogInfo("MOD 来源会话进入官方脚本 " + (scriptName ?? "(null)") + "：继续保持玩家内容披露");
                 return true; // 官方脚本，走原方法
             }
 
@@ -63,29 +76,28 @@ namespace MortalModHost
                 // _luaEnvironment 是 private 字段（[SerializeField]），用 Harmony Traverse 取
                 var env = Traverse.Create(__instance).Field("_luaEnvironment").GetValue<LuaEnvironment>();
                 if (env == null)
-                {
-                    Log.LogError("mod 脚本 " + scriptName + " 无法演出：LuaManager._luaEnvironment 为 null");
-                    return false;
-                }
+                    throw new InvalidOperationException("LuaManager._luaEnvironment 为 null");
+                _activeModEnvironment = env;
 
                 // 契约 §3.1：结局卡背景图按"当前演出 mod"解析——开演前把包写入 ModOverlay.CurrentPackage
                 ModPackage package;
-                if (ModRegistry.TryGetPackageByRegisteredName(scriptName, out package))
-                {
-                    ModOverlay.CurrentPackage = package;
-                }
+                if (!ModRegistry.TryGetPackageByRegisteredName(scriptName, out package) || package == null)
+                    throw new InvalidOperationException("注册表命中了 Lua，但找不到对应的 mod 包身份");
+                ModOverlay.CurrentPackage = package;
+                ModDisclosure.Enable(package);
                 RuntimeTrace.BeginScript(package, scriptName);
                 CharacterIntroSupport.Clear();
                 CustomAudioPlayer.StopEverything();
                 CustomCharacterRuntime.HideAllOnStage();
                 CustomImageRuntime.ClearAll();
 
-                // LoadLuaFunction 会初始化共享 Interpreter；编译错误可能被 Fungus 吞掉并返回 null。
+                // LoadLuaFunction 会确保 MoonSharp Interpreter 已初始化；它在编译错误时可能
+                // 吞异常并返回 null，因此必须显式判空，不能把空演出误报为成功。
                 Closure fn = env.LoadLuaFunction(lua, scriptName + ".LuaScript");
                 if (fn == null)
                     throw new InvalidOperationException("Lua 编译失败，LoadLuaFunction 返回 null");
 
-                // 契约 §6.9/§6.10：演出前把 mod_hide_mood / mod_set_mood 注册进共享 MoonSharp 环境（幂等重设；官方脚本不调用它们，无副作用）
+                // 契约 §6.9/§6.10：编译后、执行前把 mod 全局函数注册进共享 MoonSharp 环境。
                 RegisterModGlobals(env);
                 // 契约 §6.11 兜底：LeanLocalization 切语言/OnEnable 会清空 CurrentTranslations，每次演出前重注册一遍
                 try
@@ -97,7 +109,8 @@ namespace MortalModHost
                     Log.LogWarning("演出前已读文本重注册失败（mod 台词将退化为裸文本）：" + ex);
                 }
 
-                // Fungus 会吞掉异步 InterpreterException；宿主自行推进，才能记录 runtime_error。
+                // Fungus.RunLuaFunction 会吞掉异步异常；宿主自行推进，既记录 trace，
+                // 又在任何失败时走强制披露的 fail-closed 中止路径。
                 if (RuntimeTrace.Active)
                 {
                     _activeDevelopmentEnvironment = env;
@@ -109,48 +122,9 @@ namespace MortalModHost
             catch (Exception ex)
             {
                 RuntimeTrace.RuntimeError(ex.ToString());
-                Log.LogError("mod 脚本 " + scriptName + " 演出失败：" + ex);
+                AbortActivePlayback("mod 脚本 " + scriptName + " 演出失败", __instance, ex);
             }
             return false; // 该脚本名归 mod 管，成败都跳过原方法
-        }
-
-        private static IEnumerator HostRunModLua(LuaEnvironment env, Closure fn, string scriptName)
-        {
-            DynValue coroutine = null;
-            Exception failure = null;
-            try
-            {
-                Script script = env != null ? env.Interpreter : null;
-                if (script == null) throw new InvalidOperationException("LuaEnvironment.Interpreter 为 null");
-                coroutine = script.CreateCoroutine(fn);
-                if (coroutine == null || coroutine.Type != DataType.Thread || coroutine.Coroutine == null)
-                    throw new InvalidOperationException("无法创建 MoonSharp 协程");
-            }
-            catch (Exception ex) { failure = ex; }
-            if (failure != null)
-            {
-                RuntimeTrace.RuntimeError("启动失败：" + failure);
-                Log.LogError("mod 脚本 " + scriptName + " 启动失败：" + failure);
-                yield break;
-            }
-            while (coroutine.Coroutine.State != CoroutineState.Dead)
-            {
-                if (RuntimeDebugControl.Paused)
-                {
-                    yield return null;
-                    continue;
-                }
-                failure = null;
-                try { coroutine.Coroutine.Resume(); }
-                catch (Exception ex) { failure = ex; }
-                if (failure != null)
-                {
-                    RuntimeTrace.RuntimeError(failure.ToString());
-                    Log.LogError("mod 脚本 " + scriptName + " 运行异常：" + failure);
-                    yield break;
-                }
-                yield return null;
-            }
         }
 
         /// <summary>
@@ -167,14 +141,21 @@ namespace MortalModHost
             LuaManager manager = _activeDevelopmentManager;
             _activeDevelopmentEnvironment = null;
             _activeDevelopmentManager = null;
+            _activeModEnvironment = null;
+
+            if (env == null)
+                throw new InvalidOperationException("F5 热重载找不到活动 LuaEnvironment");
+
+            Exception cleanupFailure = null;
 
             try
             {
-                if (env != null) env.StopAllCoroutines();
+                env.StopAllCoroutines();
             }
             catch (Exception ex)
             {
-                if (Log != null) Log.LogWarning("F5 热重载停止 LuaEnvironment 协程失败：" + ex.Message);
+                cleanupFailure = ex;
+                if (Log != null) Log.LogError("F5 热重载停止 LuaEnvironment 协程失败：" + ex);
             }
             try
             {
@@ -182,10 +163,10 @@ namespace MortalModHost
             }
             catch (Exception ex)
             {
-                if (Log != null) Log.LogWarning("F5 热重载停止 LuaManager 协程失败：" + ex.Message);
+                if (cleanupFailure == null) cleanupFailure = ex;
+                if (Log != null) Log.LogError("F5 热重载停止 LuaManager 协程失败：" + ex);
             }
 
-            if (env == null) return;
             try
             {
                 Traverse fields = Traverse.Create(env);
@@ -194,7 +175,158 @@ namespace MortalModHost
             }
             catch (Exception ex)
             {
-                if (Log != null) Log.LogWarning("F5 热重载清空 MoonSharp 环境失败：" + ex.Message);
+                if (cleanupFailure == null) cleanupFailure = ex;
+                if (Log != null) Log.LogError("F5 热重载清空 MoonSharp 环境失败：" + ex);
+            }
+
+            if (cleanupFailure != null)
+                throw new InvalidOperationException("F5 热重载未能完整清理旧 Lua 环境", cleanupFailure);
+        }
+
+        /// <summary>
+        /// 统一 fail-closed：先停当前 LuaManager 的全部协程，再绕过任务判定直接回官方 Free。
+        /// 已经建立的披露保持到 Free 场景真正抵达；若转场失败，Plugin 的 IMGUI 安全遮罩继续覆盖。
+        /// </summary>
+        internal static bool AbortActivePlayback(string reason, LuaManager instance = null, Exception error = null)
+        {
+            bool firstAttempt = string.IsNullOrEmpty(_pendingAbortReason);
+            if (firstAttempt)
+            {
+                _pendingAbortReason = string.IsNullOrEmpty(reason) ? "未知 MOD 演出故障" : reason;
+                if (error == null)
+                    Log?.LogError(_pendingAbortReason);
+                else
+                    Log?.LogError(_pendingAbortReason + "：" + error);
+            }
+            reason = _pendingAbortReason;
+
+            if (ModDisclosure.Active)
+                ModDisclosure.ReportMandatorySurfaceFailure(reason);
+            try
+            {
+                if (instance == null)
+                    instance = UnityEngine.Object.FindObjectOfType<LuaManager>();
+                LuaEnvironment env = _activeModEnvironment;
+                if (env == null && instance != null)
+                    env = Traverse.Create(instance).Field("_luaEnvironment").GetValue<LuaEnvironment>();
+                if (env != null)
+                    env.StopAllCoroutines();
+                if (instance != null)
+                    instance.StopAllCoroutines();
+                _activeModEnvironment = null;
+            }
+            catch (Exception ex)
+            {
+                Log?.LogError("终止 MOD Lua 协程失败：" + ex);
+            }
+
+            try
+            {
+                ModOverlay.Clear();
+                CharacterIntroSupport.Clear();
+                CustomAudioPlayer.StopEverything();
+                CustomCharacterRuntime.HideAllOnStage();
+                CustomImageRuntime.ClearAll();
+                SceneController scenes = SceneController.Instance;
+                if (scenes == null)
+                    throw new InvalidOperationException("SceneController.Instance 为 null");
+                string currentScene = scenes.CurrentScene;
+                if (string.Equals(currentScene, "Title", StringComparison.Ordinal)
+                    || string.Equals(currentScene, "Free", StringComparison.Ordinal))
+                    return true;
+                if (scenes.IsPrepare || scenes.IsLoading)
+                {
+                    _abortRequested = true;
+                    if (!_abortBusyLogged)
+                    {
+                        _abortBusyLogged = true;
+                        Log?.LogWarning("场景正在切换，保持安全遮罩并等待可安全返回 Free");
+                    }
+                    return true;
+                }
+                _abortBusyLogged = false;
+                // LoadFree 是异步请求。若上一条请求已结束，但仍未抵达
+                // Title / Free，说明转场失败或被拦截；本次重试，而不是永久 fail-open。
+                if (_abortRequested)
+                    Log?.LogWarning("上一次返回 Free 未抵达可信边界，正在重试");
+                _abortRequested = true;
+                scenes.LoadFree();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _abortRequested = false;
+                _abortBusyLogged = false;
+                Log?.LogError("强制返回 Free 场景失败，将保持安全遮罩并重试：" + ex);
+                return false;
+            }
+        }
+
+        internal static bool RetryPendingAbort()
+        {
+            return !HasPendingAbort || AbortActivePlayback(_pendingAbortReason);
+        }
+
+        internal static void ResetAbortGuard()
+        {
+            _abortRequested = false;
+            _abortBusyLogged = false;
+            _pendingAbortReason = null;
+            _activeModEnvironment = null;
+        }
+
+        /// <summary>
+        /// 取代 Fungus 会吞异常的 RunLuaCoroutine。协程仍由 LuaEnvironment 持有，
+        /// AbortActivePlayback 因此可以用 StopAllCoroutines 立即停掉它。
+        /// </summary>
+        private static IEnumerator HostRunModLua(LuaEnvironment env, Closure fn, string scriptName)
+        {
+            DynValue coroutine = null;
+            Exception failure = null;
+            try
+            {
+                Script script = env != null ? env.Interpreter : null;
+                if (script == null)
+                    throw new InvalidOperationException("LuaEnvironment.Interpreter 为 null");
+                coroutine = script.CreateCoroutine(fn);
+                if (coroutine == null || coroutine.Type != DataType.Thread || coroutine.Coroutine == null)
+                    throw new InvalidOperationException("无法创建 MoonSharp 协程");
+            }
+            catch (Exception ex)
+            {
+                failure = ex;
+            }
+
+            if (failure != null)
+            {
+                RuntimeTrace.RuntimeError("启动失败：" + failure);
+                AbortActivePlayback("mod 脚本 " + scriptName + " 启动失败", null, failure);
+                yield break;
+            }
+
+            while (coroutine.Coroutine.State != CoroutineState.Dead)
+            {
+                if (RuntimeDebugControl.Paused)
+                {
+                    yield return null;
+                    continue;
+                }
+                failure = null;
+                try
+                {
+                    coroutine.Coroutine.Resume();
+                }
+                catch (Exception ex)
+                {
+                    failure = ex;
+                }
+                if (failure != null)
+                {
+                    RuntimeTrace.RuntimeError(failure.ToString());
+                    AbortActivePlayback("mod 脚本 " + scriptName + " 运行异常", null, failure);
+                    yield break;
+                }
+                yield return null;
             }
         }
 
@@ -213,10 +345,7 @@ namespace MortalModHost
             {
                 Script script = env.Interpreter;
                 if (script == null)
-                {
-                    Log.LogWarning("LuaEnvironment.Interpreter 为 null，跳过 mod 全局函数注册");
-                    return;
-                }
+                    throw new InvalidOperationException("LuaEnvironment.Interpreter 为 null");
                 script.Globals["mod_trace_node"] = new CallbackFunction((ctx, args) =>
                 {
                     CaptureTraceState(script);
@@ -408,7 +537,7 @@ namespace MortalModHost
             }
             catch (Exception ex)
             {
-                Log.LogWarning("注册 mod 全局函数失败：" + ex);
+                throw new InvalidOperationException("注册 mod 全局函数失败", ex);
             }
         }
 

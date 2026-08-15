@@ -17,6 +17,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import unicodedata
 import urllib.error
 import urllib.request
 import zipfile
@@ -37,6 +38,16 @@ BEPINEX_URL = (
 )
 BEPINEX_SHA256 = "97720c5f5c70abfb2ae19dba6000529049ae67f053303b3ce2b49e6ad6c0eca6"
 BEPINEX_MAX_BYTES = 32 * 1024 * 1024
+MOD_PACKAGE_MAX_BYTES = 160 * 1024 * 1024
+MOD_MANIFEST_MAX_BYTES = 4 * 1024 * 1024
+MOD_ID_RE = re.compile(r"[a-z0-9_-]{1,64}")
+SCRIPT_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
+MANIFEST_TEXT_LIMITS = {
+    "name": 80,
+    "version": 32,
+    "author": 80,
+    "description": 500,
+}
 
 ProgressCallback = Callable[[str, int, int], None]
 
@@ -608,15 +619,41 @@ class GameInstallManager:
     @staticmethod
     def _read_manifest(path: Path) -> dict:
         try:
+            if path.stat().st_size > MOD_PACKAGE_MAX_BYTES:
+                raise ValueError("Mod 包文件超过 160 MiB 上限")
             with zipfile.ZipFile(path, "r") as archive:
-                raw = archive.read("manifest.json")
+                info = archive.getinfo("manifest.json")
+                if info.file_size < 0 or info.file_size > MOD_MANIFEST_MAX_BYTES:
+                    raise ValueError("manifest.json 超过 4 MiB 上限")
+                with archive.open(info, "r") as stream:
+                    raw = stream.read(MOD_MANIFEST_MAX_BYTES + 1)
+                if len(raw) > MOD_MANIFEST_MAX_BYTES:
+                    raise ValueError("manifest.json 超过 4 MiB 上限")
             manifest = json.loads(raw.decode("utf-8-sig"))
             if not isinstance(manifest, dict):
                 raise ValueError("manifest.json 不是对象")
-            if not manifest.get("id"):
-                raise ValueError("manifest.json 缺少 id")
+            mod_id = manifest.get("id")
+            if not isinstance(mod_id, str) or MOD_ID_RE.fullmatch(mod_id) is None:
+                raise ValueError("manifest.id 必须匹配 [a-z0-9_-]{1,64}")
+            entry = manifest.get("entry")
+            if not isinstance(entry, str) or SCRIPT_ID_RE.fullmatch(entry) is None:
+                raise ValueError("manifest.entry 必须匹配 [A-Za-z0-9_-]{1,64}")
+            for field, limit in MANIFEST_TEXT_LIMITS.items():
+                value = manifest.get(field)
+                if value is None:
+                    continue
+                if not isinstance(value, str) or len(value) > limit:
+                    raise ValueError(f"manifest.{field} 必须是不超过 {limit} 字符的文本")
+                if any(
+                    char in "\r\n"
+                    or unicodedata.category(char) in ("Cc", "Cf", "Zl", "Zp")
+                    for char in value
+                ):
+                    raise ValueError(
+                        f"manifest.{field} 不能含换行、控制、零宽或双向格式字符"
+                    )
             return manifest
-        except (OSError, KeyError, ValueError, zipfile.BadZipFile) as exc:
+        except (OSError, KeyError, ValueError, RuntimeError, zipfile.BadZipFile) as exc:
             raise GameInstallError(f"{path.name} 不是有效的 .lommod：{exc}") from exc
 
     def list_mods(self) -> list[ModRecord]:
@@ -713,14 +750,54 @@ def _choose_zombie_prefix(raw: bytes, mod_id: str) -> bytes:
     )
 
 
-def _is_mod_read_story_key(key: str, mod_id: str) -> bool:
-    """是否为该 mod 的已读 key：``XXXX{modid}_...``（4 字符前缀，大小写不敏感）。"""
+def _validated_read_story_keys(mod_id: str, read_keys: list[str]) -> tuple[str, ...]:
+    """校验并去重由当前项目实际生成的完整已读 key。"""
+    live_prefix = f"MOD_{mod_id}_"
+    valid: set[str] = set()
+    for key in read_keys:
+        if (
+            not isinstance(key, str)
+            or not key.startswith(live_prefix)
+            or not re.fullmatch(r"[A-Za-z0-9_\-]+", key[len(live_prefix) :])
+        ):
+            raise GameInstallError(
+                f"已读记录键 {key!r} 不属于 mod「{mod_id}」或格式非法"
+            )
+        valid.add(key)
+    # 长 key 优先，配合末尾边界检查避免 n1 抢先命中 n10。
+    return tuple(sorted(valid, key=lambda value: (-len(value), value)))
+
+
+def build_story_read_keys(mod_id: str, stories: dict[str, dict]) -> list[str]:
+    """从当前项目的 say 节点生成该 mod 会写入存档的完整已读 key。"""
+    keys: list[str] = []
+    for fallback_id, story in stories.items():
+        if not isinstance(story, dict):
+            continue
+        script_id = str(story.get("id") or fallback_id)
+        for node in story.get("nodes") or []:
+            if not isinstance(node, dict) or node.get("type") != "say":
+                continue
+            node_id = node.get("id")
+            if isinstance(node_id, str) and node_id:
+                keys.append(f"MOD_{mod_id}_{script_id}_{node_id}")
+    return list(_validated_read_story_keys(mod_id, keys))
+
+
+def _is_mod_read_story_key(
+    key: str, mod_id: str, read_keys: tuple[str, ...] | list[str]
+) -> bool:
+    """是否与给定完整 key 相同（允许 MOD_ 被等长僵尸前缀替换）。"""
     if not isinstance(key, str):
         return False
-    marker = f"{mod_id}_"
-    if len(key) < 4 + len(marker) or key[3] != "_":
+    if len(key) < 5 or key[3] != "_":
         return False
-    return key[4 : 4 + len(marker)].casefold() == marker.casefold()
+    suffix = key[4:].casefold()
+    return any(
+        candidate.startswith(f"MOD_{mod_id}_")
+        and suffix == candidate[4:].casefold()
+        for candidate in read_keys
+    )
 
 
 def _backup_once(path: Path, data: bytes) -> None:
@@ -729,26 +806,102 @@ def _backup_once(path: Path, data: bytes) -> None:
         backup.write_bytes(data)
 
 
-def _reset_universe_dat(save: Path, mod_id: str) -> int:
-    """等长改写 .dat 内 live 前缀 MOD_<modid>_ → 未占用的僵尸前缀。返回改写次数。"""
+def _atomic_write_bytes(path: Path, data: bytes) -> None:
+    """同目录落盘并原子替换，失败时保留原存档。"""
+    temp_path: Path | None = None
+    try:
+        fd, raw_temp = tempfile.mkstemp(
+            prefix=path.name + ".", suffix=".tmp", dir=str(path.parent)
+        )
+        temp_path = Path(raw_temp)
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temp_path, path)
+        temp_path = None
+    except OSError as exc:
+        raise GameInstallError(f"写入存档失败：{exc}") from exc
+    finally:
+        if temp_path is not None:
+            try:
+                temp_path.unlink()
+            except OSError:
+                pass
+
+
+def _has_binary_formatter_string_prefix(raw: bytes, start: int, length: int) -> bool:
+    """识别 BinaryObjectString 的 ``record + objectId + 7-bit 长度`` 前缀。"""
+    for width in range(1, min(5, start) + 1):
+        prefix_start = start - width
+        encoded = raw[prefix_start:start]
+        if any(byte & 0x80 == 0 for byte in encoded[:-1]) or encoded[-1] & 0x80:
+            continue
+        value = 0
+        for index, byte in enumerate(encoded):
+            value |= (byte & 0x7F) << (7 * index)
+        # BinaryFormatter BinaryObjectString：record type 6 + Int32 object id。
+        if (
+            value == length
+            and prefix_start >= 5
+            and raw[prefix_start - 5] == 6
+        ):
+            return True
+    return False
+
+
+def _exact_key_offsets(raw: bytes, needle: bytes) -> list[int]:
+    """返回完整字符串 key 的偏移，拒绝任何字符串内部的同名子串。"""
+    pattern = re.compile(re.escape(needle))
+    offsets: list[int] = []
+    for match in pattern.finditer(raw):
+        start = match.start()
+        end = match.end()
+        # 真实 Save_universe.dat 使用 BinaryFormatter BinaryObjectString；只有
+        # 声明的 UTF-8 字节长度恰好等于 key，才能证明命中的是完整字符串。
+        binary_formatter_string = _has_binary_formatter_string_prefix(
+            raw, start, len(needle)
+        )
+        # 保留旧测试夹具/简单转储的兼容路径，但边界必须是明确的 NUL（或文件
+        # 首尾），不能把标点、Unicode 尾字节等任意非标识符字节当成字符串边界。
+        nul_delimited = (start == 0 or raw[start - 1] == 0) and (
+            end == len(raw) or raw[end] == 0
+        )
+        if binary_formatter_string or nul_delimited:
+            offsets.append(start)
+    return offsets
+
+
+def _reset_universe_dat(
+    save: Path, mod_id: str, read_keys: tuple[str, ...]
+) -> int:
+    """仅等长改写 .dat 内给定的完整 live key，返回改写次数。"""
     try:
         raw = save.read_bytes()
     except OSError:
         return 0
-    needle = f"MOD_{mod_id}_".encode("utf-8")
-    count = raw.count(needle)
+    offsets: set[int] = set()
+    for key in read_keys:
+        needle = key.encode("utf-8")
+        offsets.update(_exact_key_offsets(raw, needle))
+    count = len(offsets)
     if count == 0:
         return 0
     zombie = _choose_zombie_prefix(raw, mod_id)
+    updated = bytearray(raw)
+    for start in offsets:
+        updated[start : start + 4] = zombie[:4]
     try:
         _backup_once(save, raw)
-        save.write_bytes(raw.replace(needle, zombie))
+        _atomic_write_bytes(save, bytes(updated))
     except OSError as exc:
         raise GameInstallError(f"写入存档失败：{exc}") from exc
     return count
 
 
-def _reset_universe_json(path: Path, mod_id: str) -> int:
+def _reset_universe_json(
+    path: Path, mod_id: str, read_keys: tuple[str, ...]
+) -> int:
     """从 Save_universe.json 的 ReadStoryData 中移除该 mod 的已读条目。返回移除条数。"""
     if not path.is_file():
         return 0
@@ -765,7 +918,7 @@ def _reset_universe_json(path: Path, mod_id: str) -> int:
     kept: list = []
     removed = 0
     for item in stories:
-        if _is_mod_read_story_key(item, mod_id):
+        if _is_mod_read_story_key(item, mod_id, read_keys):
             removed += 1
         else:
             kept.append(item)
@@ -774,7 +927,9 @@ def _reset_universe_json(path: Path, mod_id: str) -> int:
     data["ReadStoryData"] = kept
     try:
         _backup_once(path, original)
-        path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        _atomic_write_bytes(
+            path, json.dumps(data, ensure_ascii=False).encode("utf-8")
+        )
     except OSError as exc:
         raise GameInstallError(f"写入存档失败：{exc}") from exc
     return removed
@@ -784,17 +939,17 @@ def reset_story_read_state(
     mod_id: str,
     saves: list[Path] | None = None,
     extra_ids: list[str] | None = None,
+    read_keys_by_id: dict[str, list[str]] | None = None,
 ) -> list[tuple[Path, int]]:
     """把指定 mod 的全部已读文本记录重置为未读（对话不再变黄/可快进）。
 
     实现：
     - ``Save_universe.dat``（.NET BinaryFormatter）：已读 key 形如
-      ``MOD_<modid>_<script>_<node>``。把 live 前缀 ``MOD_<modid>_`` 等长改写为
-      文件中尚未出现的 4 字符僵尸前缀（``mod_`` / ``xod_`` / ``yod_`` …）——游戏查不到
-      即视为未读。等长替换不动结构；每次重重置选用未占用前缀，避免 Dictionary.Add
-      因重复 key 崩溃。无需解析 BinaryFormatter。
+      ``MOD_<modid>_<script>_<node>``。仅把 ``read_keys_by_id`` 给出的完整 live key
+      等长改写为文件中尚未出现的 4 字符僵尸前缀（``mod_`` / ``xod_`` / ``yod_`` …）。
+      BinaryFormatter 声明长度校验确保只改完整字符串，避免误伤内嵌或更长的 key。
     - 同目录 ``Save_universe.json``（JsonUtility 转储）：从 ``ReadStoryData`` 列表中
-      **移除** 匹配该 mod 的条目（``MOD_`` 及任意僵尸前缀，大小写不敏感），干净清空。
+       **移除** 与完整 key 匹配的条目（``MOD_`` 及任意僵尸前缀，大小写不敏感）。
 
     写入前各写一次 ``.lomkit_bak`` 备份（已存在则不覆盖）。
 
@@ -802,6 +957,8 @@ def reset_story_read_state(
     每个 dat 的兄弟 json 会一并处理。
 
     extra_ids：额外一并清理的 mod id（编辑器 F5 试玩包 ``lom_modkit_preview``）。
+
+    read_keys_by_id：每个 mod id 对应的完整已读 key；这是防止前缀碰撞所必需的。
 
     注意：必须在游戏关闭后调用——运行中的游戏会在下次存档时把内存里的旧清单写回。
     返回 [(路径, 重置/移除条数)]，含 dat 与 json；无改动时返回空列表。
@@ -817,15 +974,25 @@ def reset_story_read_state(
         ids.append(candidate)
     if not ids:
         raise GameInstallError("Mod 标识不可用（只允许小写英文、数字、_ 和 -）")
+    if read_keys_by_id is None:
+        raise GameInstallError("重置已读状态需要当前项目的完整对白 key 清单")
+    validated: dict[str, tuple[str, ...]] = {}
+    for mid in ids:
+        if mid not in read_keys_by_id:
+            raise GameInstallError(f"缺少 mod「{mid}」的完整对白 key 清单")
+        validated[mid] = _validated_read_story_keys(mid, read_keys_by_id[mid])
     results: list[tuple[Path, int]] = []
     dat_paths = saves if saves is not None else find_universe_saves()
     for mid in ids:
+        read_keys = validated[mid]
+        if not read_keys:
+            continue
         for save in dat_paths:
-            dat_count = _reset_universe_dat(save, mid)
+            dat_count = _reset_universe_dat(save, mid, read_keys)
             if dat_count:
                 results.append((save, dat_count))
             json_path = save.with_suffix(".json")
-            json_count = _reset_universe_json(json_path, mid)
+            json_count = _reset_universe_json(json_path, mid, read_keys)
             if json_count:
                 results.append((json_path, json_count))
     return results

@@ -113,6 +113,10 @@ namespace MortalModHost
                 { "debug.none", "（无）" }, { "debug.hide", "隐藏调试器" }, { "debug.draw_error", "调试器绘制失败" },
                 { "debug.state", "执行" }, { "debug.state.running", "运行中" }, { "debug.state.pending", "将在下一节点前暂停" }, { "debug.state.paused", "已暂停（节点体尚未执行）" },
                 { "debug.pause", "下一节点前暂停" }, { "debug.step", "单步" }, { "debug.continue", "继续" },
+                { "disclosure.label", "玩家制作 MOD｜非官方内容" },
+                { "disclosure.detail_author", "包指纹 {2} · 作品：{0} · 作者自报：{1}" },
+                { "disclosure.detail", "包指纹 {1} · 作品：{0} · 未署名" },
+                { "disclosure.blocked", "为防止未标识的玩家内容继续显示，本次演出已被阻止。正在返回自由模式。" },
             };
         }
 
@@ -138,6 +142,10 @@ namespace MortalModHost
                 { "debug.none", "（無）" }, { "debug.hide", "隱藏偵錯器" }, { "debug.draw_error", "偵錯器繪製失敗" },
                 { "debug.state", "執行" }, { "debug.state.running", "執行中" }, { "debug.state.pending", "將在下一節點前暫停" }, { "debug.state.paused", "已暫停（節點內容尚未執行）" },
                 { "debug.pause", "下一節點前暫停" }, { "debug.step", "單步" }, { "debug.continue", "繼續" },
+                { "disclosure.label", "玩家製作 MOD｜非官方內容" },
+                { "disclosure.detail_author", "包指紋 {2} · 作品：{0} · 作者自報：{1}" },
+                { "disclosure.detail", "包指紋 {1} · 作品：{0} · 未署名" },
+                { "disclosure.blocked", "為防止未標示的玩家內容繼續顯示，本次演出已被阻止。正在返回自由模式。" },
             };
         }
 
@@ -163,6 +171,10 @@ namespace MortalModHost
                 { "debug.none", "（なし）" }, { "debug.hide", "デバッガーを隠す" }, { "debug.draw_error", "デバッガー描画エラー" },
                 { "debug.state", "実行" }, { "debug.state.running", "実行中" }, { "debug.state.pending", "次のノード直前で一時停止" }, { "debug.state.paused", "一時停止中（ノード本体は未実行）" },
                 { "debug.pause", "次ノード前で停止" }, { "debug.step", "ステップ" }, { "debug.continue", "続行" },
+                { "disclosure.label", "ユーザー制作 MOD｜非公式コンテンツ" },
+                { "disclosure.detail_author", "パッケージ指紋 {2}・作品：{0}・作者申告：{1}" },
+                { "disclosure.detail", "パッケージ指紋 {1}・作品：{0}・作者未記載" },
+                { "disclosure.blocked", "表示元を確認できないユーザーコンテンツを防ぐため、再生を中止しました。フリー画面へ戻ります。" },
             };
         }
 
@@ -188,6 +200,10 @@ namespace MortalModHost
                 { "debug.none", "（없음）" }, { "debug.hide", "디버거 숨기기" }, { "debug.draw_error", "디버거 그리기 실패" },
                 { "debug.state", "실행" }, { "debug.state.running", "실행 중" }, { "debug.state.pending", "다음 노드 전에 일시정지" }, { "debug.state.paused", "일시정지됨（노드 본문 실행 전）" },
                 { "debug.pause", "다음 노드 전 정지" }, { "debug.step", "한 단계" }, { "debug.continue", "계속" },
+                { "disclosure.label", "사용자 제작 MOD｜비공식 콘텐츠" },
+                { "disclosure.detail_author", "패키지 지문 {2} · 작품: {0} · 작성자 표기: {1}" },
+                { "disclosure.detail", "패키지 지문 {1} · 작품: {0} · 작성자 미표기" },
+                { "disclosure.blocked", "표시되지 않은 사용자 콘텐츠가 계속 보이지 않도록 재생을 중단했습니다. 자유 화면으로 돌아갑니다." },
             };
         }
     }

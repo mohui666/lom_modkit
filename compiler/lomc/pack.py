@@ -140,6 +140,14 @@ def pack_mod(mod_dir, output=None):
         raise LomcError(
             'manifest.json: entry 指向的入口脚本 "%s" 不存在于 story/ 目录' % entry
         )
+    triggers = (manifest.get("campaign") or {}).get("triggers", [])
+    for index, trigger in enumerate(triggers):
+        target = trigger["script"]
+        if target not in compiled:
+            raise LomcError(
+                'manifest.json: campaign.triggers 第 %d 项的 script '
+                '指向包内不存在的脚本 "%s"' % (index + 1, target)
+            )
     # end 节点 next_script 必须指向包内已有脚本
     for fname in story_files:
         stem = fname[: -len(".json")]

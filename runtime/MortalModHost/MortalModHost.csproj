@@ -82,6 +82,11 @@
       <HintPath>$(GameDir)\Mortal_Data\Managed\UnityEngine.UI.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <!-- Font.CreateDynamicFontFromOSFont（披露芯片在找不到游戏字体时回退系统中文字体） -->
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <!-- UnityEngine.UIModule：CanvasGroup（GameOver 描述容器/按钮画布 fade 目标） -->
     <Reference Include="UnityEngine.UIModule">
       <HintPath>$(GameDir)\Mortal_Data\Managed\UnityEngine.UIModule.dll</HintPath>

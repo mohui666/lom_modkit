@@ -751,6 +751,7 @@ def copy_into_mod(
         {
             "files": {"main": rec.main_file},
             "portraits": rec.portraits or {},
+            "intro": rec.intro or {},
         }
     ):
         src = rec.folder / fname

@@ -65,6 +65,12 @@ namespace MortalModHost
         /// <summary>.lommod 文件完整路径（仅用于日志定位，内容已全部读入内存）。</summary>
         public string PackagePath;
 
+        /// <summary>
+        /// 整个 .lommod 文件字节的 SHA-256（64 个大写十六进制字符）。
+        /// 由 Host 在解析同一个已打开文件句柄时计算，manifest 无法自行声明或伪造。
+        /// </summary>
+        public string PackageFingerprint;
+
         /// <summary>只解析本包内的用户内容；找不到返回 false。绝不回读编辑器仓库。</summary>
         public bool TryGetUserContent(string contentId, out UserContent content)
         {
