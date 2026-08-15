@@ -14,6 +14,8 @@ story_api 的契约条款；本文档是其操作手册，二者冲突时以契�
 story_api——节点由 models 契约默认值生成、字段按 NODE_SCHEMAS 校验、未知字段
 一律拒绝，编译期剩余问题由 lomc 校验兜底。编辑器与 AI 共用同一套防线。
 
+接口只接受 `models.NODE_SCHEMAS` 当前列出的 46 种节点。不要让 AI 发明 `combat`、`battle`、`reward`、`quest_*` 等尚不存在的节点；现阶段战斗相关能力仅是 `enemy`、`battle_skill` 与 `goto_scene` 的 `Combat` / `Battle`，详见 `current_capabilities.md`。
+
 ## 1. 环境要求与调用方式
 
 - Python 3.10+（仓库自带 venv：`editor/.venv`）。story_api 只依赖标准库 +

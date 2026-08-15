@@ -132,15 +132,16 @@ metadata 和当前项目未使用项。双击问题可定位到对应步骤；�
 
 ## 用户内容
 
-把本机音频导入「用户内容库」（菜单「文件 → 用户内容库」），得到稳定编号
+把本机角色、音频或图片导入「用户内容库」（菜单「文件 → 用户内容库」），得到稳定编号
 （如 `user:mohui.battle`），在剧情步骤里按「用户 / 官方」分组选择。剧情只保存编号；
-导出时只打入当前 Mod 真正引用的音频，玩家机器不依赖作者本机内容库。
+导出时只打入当前 Mod 真正引用的内容，玩家机器不依赖作者本机内容库。
 
 | 内容类型 | 状态 |
 | --- | --- |
 | 自定义音乐 / 音效 / 环境音 | ✅ 已支持 |
 | 角色对白语音 | ✅ 已支持 |
 | 自定义人物立绘 / 称号 / 介绍卡 / 体型 | ✅ 已支持 |
+| 自定义背景 / CG / Overlay 图片 | ✅ 已支持 |
 | 社区内容库 | ◯ Roadmap |
 
 详细用法见 [用户内容库文档](docs/zh_CN/user_content.md)。
@@ -188,7 +189,7 @@ SHA-256 前 16 个十六进制字符，可用来核对具体文件，但**不是
 ## Roadmap
 
 - 社区内容仓库（分享/复用用户内容）
-- 更多用户内容类型（背景等）
+- 面向作者的战斗 / 战役编排层（当前仅有经验证的底层节点）
 
 ## 文档
 
@@ -209,7 +210,9 @@ SHA-256 前 16 个十六进制字符，可用来核对具体文件，但**不是
 | [Runtime Rollback](docs/zh_CN/runtime_rollback.md) | Runtime 更新前保留经 SHA-256 核对的上一版，失败自动恢复，也可在安装管理中手工回滚 |
 | [Test Matrix](docs/zh_CN/test_matrix.md) | 一个离线入口覆盖 Compiler、Editor unit/smoke/stress 与 Runtime build/smoke，并可输出 JSON 结果 |
 | [功能 Showcase](samples/feature_showcase/README.md) | 可直接打包的原创自包含项目，覆盖自定义角色/语音/BGM/图片、流程、本地化与结局 |
-| [Mod 包格式契约](docs/zh_CN/mod_format.md) | 包结构、43 种节点、编译约定、运行时行为 |
+| [当前能力与边界](docs/zh_CN/current_capabilities.md) | 已实现、仅有底层接口和尚未实现的功能边界 |
+| [Runtime 实现说明](runtime/MortalModHost/README.md) | 原版接口接入、反编译验证边界与 fail-closed 策略 |
+| [Mod 包格式契约](docs/zh_CN/mod_format.md) | 包结构、46 种节点、编译约定、运行时行为 |
 | [AI / CLI 手册](docs/zh_CN/ai_cli.md) | story_api 命令行与 Python API |
 | [多语言](docs/zh_CN/i18n.md) | 界面与文档的 i18n 架构 |
 

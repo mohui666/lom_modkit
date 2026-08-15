@@ -107,6 +107,8 @@ assets/                # 可选，自定义资源
 
 ### 3.1 노드 타입(전체 46종)
 
+이 표가 현재 합법 노드 전부입니다. `combat`, `battle`, `reward`, `quest_*` 같은 고수준 Gameplay 이름은 아직 노드가 아닙니다. 전투 기능은 `enemy`, `battle_skill`, `goto_scene`의 `Combat` / `Battle`뿐이며 검증된 원작 API를 호출합니다.
+
 **연출류**
 
 | type | 필드 | 설명 |

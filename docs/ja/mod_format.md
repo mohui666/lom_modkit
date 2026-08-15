@@ -107,6 +107,8 @@ assets/                # 可选，自定义资源
 
 ### 3.1 ノードタイプ（全 46 種）
 
+この表が現在の合法ノードすべてです。`combat`、`battle`、`reward`、`quest_*` などの高レベル Gameplay 名はまだノードではありません。戦闘機能は `enemy`、`battle_skill`、`goto_scene` の `Combat` / `Battle` だけで、検証済み原作 API を呼びます。
+
 **演出系**
 
 | type | フィールド | 説明 |

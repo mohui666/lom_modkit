@@ -104,6 +104,8 @@ assets/                # 可选，自定义资源
 
 ### 3.1 節點類型（全量 46 種）
 
+此表是目前全部合法節點。`combat`、`battle`、`reward`、`quest_*` 等高層 Gameplay 名稱尚不是節點；戰鬥能力僅由 `enemy`、`battle_skill` 與 `goto_scene` 的 `Combat` / `Battle` 組成，均呼叫已驗證的原版介面。
+
 **演出類**
 
 | type | 欄位 | 說明 |

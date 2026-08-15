@@ -14,6 +14,8 @@ story_api の契約条項です。本ドキュメントはその操作マニュ�
 story_api 経由——ノードは models 契約の既定値で生成、フィールドは NODE_SCHEMAS で検証、未知フィールドは
 一律拒否され、コンパイル時の残存問題は lomc 検証がフォールバックします。エディターと AI は同一の防線を共有します。
 
+インターフェースが受け付けるのは `models.NODE_SCHEMAS` の現行 46 種だけです。AI に未実装の `combat`、`battle`、`reward`、`quest_*` を生成させないでください。戦闘関連は現在 `enemy`、`battle_skill`、`goto_scene` の `Combat` / `Battle` だけです。
+
 ## 1. 環境要件と呼び出し方法
 
 - Python 3.10+（リポジトリ付属の venv：`editor/.venv`）。story_api の依存は標準ライブラリ +

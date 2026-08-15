@@ -14,6 +14,8 @@ story_api 的契約條款；本文件是其操作手冊，二者衝突時以契�
 story_api——節點由 models 契約預設值產生、欄位按 NODE_SCHEMAS 驗證、未知欄位
 一律拒絕，編譯期剩餘問題由 lomc 驗證保底。編輯器與 AI 共用同一套防線。
 
+介面只接受 `models.NODE_SCHEMAS` 目前列出的 46 種節點。不要讓 AI 發明尚不存在的 `combat`、`battle`、`reward`、`quest_*`；目前戰鬥能力僅為 `enemy`、`battle_skill` 與 `goto_scene` 的 `Combat` / `Battle`。
+
 ## 1. 環境要求與呼叫方式
 
 - Python 3.10+（倉庫自帶 venv：`editor/.venv`）。story_api 只依賴標準函式庫 +

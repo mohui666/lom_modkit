@@ -14,6 +14,8 @@ story_api의 규약 조항입니다; 이 문서는 그 작동 매뉴얼이며, �
 story_api를 거칩니다 — 노드는 models 규약 기본값으로 생성하고, 필드는 NODE_SCHEMAS로 검증하고, 알 수 없는 필드는
 일률적으로 거부하며, 컴파일 시점의 남은 문제는 lomc 검증이 폴백합니다. 에디터와 AI가 같은 방어선을 공유합니다.
 
+인터페이스는 `models.NODE_SCHEMAS`의 현재 46종만 받습니다. AI가 미구현 `combat`, `battle`, `reward`, `quest_*` 노드를 만들게 하지 마십시오. 현재 전투 관련 기능은 `enemy`, `battle_skill`, `goto_scene`의 `Combat` / `Battle`뿐입니다.
+
 ## 1. 환경 요구 사항과 호출 방식
 
 - Python 3.10+(저장소 자체 venv: `editor/.venv`). story_api는 표준 라이브러리 +

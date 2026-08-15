@@ -142,6 +142,8 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `zh_CN`、
 
 ### 3.1 节点类型（全量 46 种）
 
+此表是当前全部合法节点。`combat`、`battle`、`reward`、`quest_*` 等高层 Gameplay 名称尚不是节点；战斗能力仅由表内 `enemy`、`battle_skill` 与 `goto_scene` 的 `Combat` / `Battle` 组成，均调用已验证的原版接口。
+
 **演出类**
 
 | type | 字段 | 说明 |
