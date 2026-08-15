@@ -321,6 +321,14 @@ namespace MortalModHost
             catch (IOException) { return; }
             if (_loadedPreviewStamp != stamp)
             {
+                bool hotReload = RuntimeTrace.Active
+                    && string.Equals(request.ModId, "lom_modkit_preview", StringComparison.Ordinal);
+                if (hotReload)
+                {
+                    Logger.LogInfo("收到新的 F5 试玩包，清理当前开发演出并从节点 " + request.NodeId + " 重启。");
+                    RuntimeTrace.PrepareHotReload(request.NodeId);
+                    CleanupDevelopmentPlayback();
+                }
                 ReloadMods();
                 _loadedPreviewStamp = stamp;
                 _previewWaitingScene = "";
@@ -340,7 +348,21 @@ namespace MortalModHost
             }
 
             string scene = SceneController.Instance != null ? SceneController.Instance.CurrentScene : "";
-            if (scene == "Free")
+            bool reloadCurrentPreview = RuntimeTrace.Active
+                && RuntimeTrace.IsDevelopmentPackage(target)
+                && scene == "Story";
+            if (reloadCurrentPreview && SceneController.Instance != null
+                && (SceneController.Instance.IsPrepare || SceneController.Instance.IsLoading))
+            {
+                return;
+            }
+            if (reloadCurrentPreview)
+            {
+                Logger.LogInfo("F5 热重载：从节点 " + request.NodeId + " 重新载入 Story 场景");
+                PlayMod(target);
+                CompletePreviewRequest(requestPath, target);
+            }
+            else if (scene == "Free")
             {
                 Logger.LogInfo("收到编辑器试玩请求：" + request.ScriptId + "/" + request.NodeId + "（自由场景直接演出）");
                 PlayMod(target);
@@ -544,6 +566,22 @@ namespace MortalModHost
                 GUILayout.Label("  " + pair.Key + " = " + pair.Value);
                 if (++shown >= 50) { GUILayout.Label("  …"); break; }
             }
+        }
+
+        /// <summary>
+        /// Clears every package-owned runtime surface before replacing the F5 package.
+        /// The Story scene reload removes official dialog UI; this method handles all
+        /// host-owned resources immediately so no old coroutine or asset survives a frame.
+        /// </summary>
+        private static void CleanupDevelopmentPlayback()
+        {
+            LuaManagerPatch.StopActiveDevelopmentPlayback();
+            CharacterIntroSupport.Clear();
+            ModOverlay.Clear();
+            CustomAudioPlayer.ReleaseAll();
+            CustomCharacterRuntime.ClearAll();
+            CustomImageRuntime.ClearAll();
+            MoodControl.Disabled = false;
         }
 
         private static string JoinOrNone(List<string> values)

@@ -129,6 +129,10 @@ namespace MortalModHost
                 PackagePath = Path.Combine(Path.GetTempPath(), "__lom_modkit_preview.lommod")
             };
             RuntimeTrace.BeginScript(preview, "MOD_lom_modkit_preview_main");
+            Assert(RuntimeTrace.IsDevelopmentPackage(preview), "固定包名和 id 应识别为开发试玩包");
+            Assert(!RuntimeTrace.IsDevelopmentPackage(new ModPackage
+                { Id = "lom_modkit_preview", PackagePath = "renamed.lommod" }),
+                "仅伪造开发 id、但包名不匹配时不得启用开发能力");
             Assert(RuntimeDebugControl.Active && !RuntimeDebugControl.Paused, "F5 调试控制应启用且默认继续运行");
             RuntimeDebugControl.PauseBeforeNextNode();
             Assert(RuntimeDebugControl.PausePending && RuntimeDebugControl.BeforeNode() && RuntimeDebugControl.Paused,
@@ -158,6 +162,18 @@ namespace MortalModHost
             Assert(events.Exists(item => item.EventType == "runtime_error"), "缺 runtime_error");
             Assert(RuntimeTrace.VariablesSnapshot()["chapter"] == "2", "变量快照错误");
             Assert(RuntimeTrace.FlagsSnapshot()["READY"] == "true", "Flag 快照错误");
+            RuntimeTrace.PrepareHotReload("selected_2");
+            events = RuntimeTrace.Snapshot();
+            Assert(RuntimeTrace.Active && !RuntimeDebugControl.Paused && !RuntimeDebugControl.PausePending,
+                "热重载边界必须保持 F5 trace 并解除旧暂停状态");
+            Assert(RuntimeTrace.CurrentNode == "", "热重载必须清空旧节点");
+            Assert(RuntimeTrace.VariablesSnapshot().Count == 0 && RuntimeTrace.FlagsSnapshot().Count == 0,
+                "热重载必须清空旧 Lua 变量/Flag 快照");
+            Assert(events.Exists(item => item.EventType == "hot_reload" && item.Detail == "restart=selected_2"),
+                "缺少带目标节点的 hot_reload 事件");
+            RuntimeTrace.BeginScript(preview, "MOD_lom_modkit_preview_main");
+            Assert(RuntimeTrace.Snapshot().Exists(item => item.EventType == "hot_reload"),
+                "热重载后的新脚本必须保留有界历史分隔事件");
             for (int i = 0; i < RuntimeTrace.Capacity + 20; i++)
                 RuntimeTrace.Record("node_enter", "n" + i, "stress");
             Assert(RuntimeTrace.Snapshot().Count == RuntimeTrace.Capacity, "trace ring buffer 必须有界");

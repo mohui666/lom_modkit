@@ -21,6 +21,11 @@ namespace MortalModHost
         /// <summary>日志通道，由 Plugin.Awake 注入（patch 类是静态的，拿不到插件实例的 Logger）。</summary>
         internal static ManualLogSource Log;
 
+        // Only the fixed F5 preview owns these references. They let a subsequent F5
+        // request stop the old host coroutine before its Story scene is reloaded.
+        private static LuaEnvironment _activeDevelopmentEnvironment;
+        private static LuaManager _activeDevelopmentManager;
+
         private static bool Prefix(LuaManager __instance)
         {
             string scriptName = __instance.ScriptName;
@@ -93,6 +98,11 @@ namespace MortalModHost
                 }
 
                 // Fungus 会吞掉异步 InterpreterException；宿主自行推进，才能记录 runtime_error。
+                if (RuntimeTrace.Active)
+                {
+                    _activeDevelopmentEnvironment = env;
+                    _activeDevelopmentManager = __instance;
+                }
                 env.StartCoroutine(HostRunModLua(env, fn, scriptName));
                 Log.LogInfo("mod 脚本开始演出：" + scriptName);
             }
@@ -140,6 +150,51 @@ namespace MortalModHost
                     yield break;
                 }
                 yield return null;
+            }
+        }
+
+        /// <summary>
+        /// Stops and forgets the current F5 execution. Resetting the protected Fungus
+        /// fields is intentional: StopAllCoroutines alone leaves modflags, modvars and
+        /// all host callbacks in the shared MoonSharp global table.
+        /// </summary>
+        internal static void StopActiveDevelopmentPlayback()
+        {
+            if (!RuntimeTrace.Active) return;
+            RuntimeDebugControl.Continue();
+
+            LuaEnvironment env = _activeDevelopmentEnvironment;
+            LuaManager manager = _activeDevelopmentManager;
+            _activeDevelopmentEnvironment = null;
+            _activeDevelopmentManager = null;
+
+            try
+            {
+                if (env != null) env.StopAllCoroutines();
+            }
+            catch (Exception ex)
+            {
+                if (Log != null) Log.LogWarning("F5 热重载停止 LuaEnvironment 协程失败：" + ex.Message);
+            }
+            try
+            {
+                if (manager != null) manager.StopAllCoroutines();
+            }
+            catch (Exception ex)
+            {
+                if (Log != null) Log.LogWarning("F5 热重载停止 LuaManager 协程失败：" + ex.Message);
+            }
+
+            if (env == null) return;
+            try
+            {
+                Traverse fields = Traverse.Create(env);
+                fields.Field("interpreter").SetValue(null);
+                fields.Field("initialised").SetValue(false);
+            }
+            catch (Exception ex)
+            {
+                if (Log != null) Log.LogWarning("F5 热重载清空 MoonSharp 环境失败：" + ex.Message);
             }
         }
 

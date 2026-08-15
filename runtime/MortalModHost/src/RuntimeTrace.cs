@@ -38,9 +38,7 @@ namespace MortalModHost
 
         internal static void BeginScript(ModPackage package, string registeredName)
         {
-            bool development = package != null
-                && string.Equals(package.Id, "lom_modkit_preview", StringComparison.Ordinal)
-                && string.Equals(Path.GetFileName(package.PackagePath), "__lom_modkit_preview.lommod", StringComparison.OrdinalIgnoreCase);
+            bool development = IsDevelopmentPackage(package);
             lock (Gate)
             {
                 bool continuation = development && _active && package != null
@@ -59,6 +57,13 @@ namespace MortalModHost
                 if (!continuation) AddLocked("mod_enter", "", package.Name ?? "");
                 AddLocked("story_enter", "", _storyId);
             }
+        }
+
+        internal static bool IsDevelopmentPackage(ModPackage package)
+        {
+            return package != null
+                && string.Equals(package.Id, "lom_modkit_preview", StringComparison.Ordinal)
+                && string.Equals(Path.GetFileName(package.PackagePath), "__lom_modkit_preview.lommod", StringComparison.OrdinalIgnoreCase);
         }
 
         internal static void NodeEnter(string nodeId, string nodeType)
@@ -94,6 +99,26 @@ namespace MortalModHost
         internal static void RuntimeError(string detail)
         {
             Record("runtime_error", CurrentNode, detail ?? "");
+        }
+
+        /// <summary>
+        /// Marks the boundary between two F5 runs while retaining the bounded history.
+        /// Runtime variables and flags belong to the discarded Lua interpreter and must
+        /// never leak into the freshly compiled preview.
+        /// </summary>
+        internal static void PrepareHotReload(string restartNodeId)
+        {
+            lock (Gate)
+            {
+                if (!_active) return;
+                AddLocked("hot_reload", _nodeId,
+                    "restart=" + (restartNodeId ?? ""));
+                Variables.Clear();
+                Flags.Clear();
+                _nodeId = "";
+                _nodeType = "";
+                RuntimeDebugControl.Continue();
+            }
         }
 
         internal static void Record(string eventType, string nodeId, string detail)
