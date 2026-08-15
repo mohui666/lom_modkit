@@ -588,5 +588,11 @@
   "references.summary": "{kind} {symbol}：找到 {count} 處引用。",
   "references.kind.content": "使用者內容", "references.kind.character": "人物",
   "references.kind.variable": "變數", "references.kind.flag": "Flag",
-  "references.kind.story": "章節", "references.kind.node": "步驟"
+  "references.kind.story": "章節", "references.kind.node": "步驟",
+  "menu.bulk_edit": "批次編輯…", "bulk.title": "批次編輯步驟",
+  "bulk.intro": "至少選兩個節點；只顯示 schema 欄位名稱與類型都一致的安全欄位。",
+  "bulk.field": "共同欄位", "bulk.value": "新值", "bulk.boolean_value": "啟用",
+  "bulk.select_hint": "請至少選擇兩個相容節點。",
+  "bulk.ready": "已選 {nodes} 個節點，可安全批改 {fields} 個共同欄位。",
+  "bulk.done": "已批次修改 {count} 個節點"
 }

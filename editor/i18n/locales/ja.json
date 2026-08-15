@@ -588,5 +588,11 @@
   "references.summary": "{kind} {symbol}：{count} 件の参照。",
   "references.kind.content": "ユーザーコンテンツ", "references.kind.character": "人物",
   "references.kind.variable": "変数", "references.kind.flag": "Flag",
-  "references.kind.story": "チャプター", "references.kind.node": "ノード"
+  "references.kind.story": "チャプター", "references.kind.node": "ノード",
+  "menu.bulk_edit": "一括編集…", "bulk.title": "ノードの一括編集",
+  "bulk.intro": "2 個以上のノードを選択します。schema の名前と型が一致する安全なフィールドだけ表示します。",
+  "bulk.field": "共通フィールド", "bulk.value": "新しい値", "bulk.boolean_value": "有効",
+  "bulk.select_hint": "互換性のあるノードを 2 個以上選択してください。",
+  "bulk.ready": "{nodes} ノードを選択、{fields} 個の共通フィールドを編集できます。",
+  "bulk.done": "{count} ノードを一括変更しました"
 }

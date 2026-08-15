@@ -588,5 +588,11 @@
   "references.summary": "{kind} {symbol}：找到 {count} 处引用。",
   "references.kind.content": "用户内容", "references.kind.character": "人物",
   "references.kind.variable": "变量", "references.kind.flag": "Flag",
-  "references.kind.story": "章节", "references.kind.node": "步骤"
+  "references.kind.story": "章节", "references.kind.node": "步骤",
+  "menu.bulk_edit": "批量编辑…", "bulk.title": "批量编辑步骤",
+  "bulk.intro": "选择至少两个节点；只显示 schema 字段名与类型都一致的安全字段。",
+  "bulk.field": "共同字段", "bulk.value": "新值", "bulk.boolean_value": "启用",
+  "bulk.select_hint": "请选择至少两个兼容节点。",
+  "bulk.ready": "已选 {nodes} 个节点，可安全批改 {fields} 个共同字段。",
+  "bulk.done": "已批量修改 {count} 个节点"
 }

@@ -897,6 +897,7 @@ class MainWindow(QMainWindow):
             t("menu.global_search"), self._show_global_search,
             QKeySequence("Ctrl+Shift+F"),
         )
+        edit.addAction(t("menu.bulk_edit"), self._show_bulk_edit)
         run_menu = self.menuBar().addMenu(t("menu.run"))
         run_menu.addAction(
             t("menu.play"),
@@ -1016,6 +1017,34 @@ class MainWindow(QMainWindow):
             self._stories, self._locate_search_result, self,
             manifest=self.manifest_base,
         ).exec()
+
+    def _show_bulk_edit(self) -> None:
+        from bulk_edit import BulkEditDialog, apply_bulk_edit
+
+        self._flush_pending()
+        dialog = BulkEditDialog(self.story, self.editor_data, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        indices = dialog.selected_indices()
+        try:
+            # Validate against a disposable copy before recording an undo point.
+            # The real mutation below should therefore be unable to leave an
+            # empty/stray undo entry when a malformed value is rejected.
+            apply_bulk_edit(
+                copy.deepcopy(self.story),
+                indices,
+                dialog.selected_field(),
+                dialog.selected_value(),
+            )
+            self._record_discrete()
+            count = apply_bulk_edit(
+                self.story, indices, dialog.selected_field(), dialog.selected_value()
+            )
+        except ValueError as exc:
+            QMessageBox.warning(self, t("bulk.title"), str(exc))
+            return
+        self._refresh_all(select_row=indices[0] if indices else 0)
+        self.statusBar().showMessage(t("bulk.done", count=count), 3500)
 
     def _locate_search_result(self, story_id: str, node_id: str | None) -> None:
         if story_id not in self._stories:
