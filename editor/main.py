@@ -102,6 +102,7 @@ from preview import (
     load_preview_map,
     log_crash,
 )
+from project_templates import TEMPLATES, create_project_template, template_info
 from recovery_store import (
     RecoveryCandidate,
     RecoveryError,
@@ -405,6 +406,59 @@ class RecoveryDialog(QDialog):
         close.rejected.connect(dialog.reject)
         layout.addWidget(close)
         dialog.exec()
+
+
+class ProjectTemplateDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.template_key: str | None = None
+        self.setWindowTitle("从模板新建项目")
+        self.resize(680, 430)
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("模板只使用普通 Story schema；创建后所有节点都可自由编辑。"))
+        self.list = QListWidget()
+        for item in TEMPLATES:
+            row = QListWidgetItem(item.name)
+            row.setData(Qt.ItemDataRole.UserRole, item.key)
+            row.setToolTip(item.description)
+            self.list.addItem(row)
+        self.list.currentRowChanged.connect(self._refresh_description)
+        self.list.itemDoubleClicked.connect(lambda _item: self._accept_selected())
+        layout.addWidget(self.list, stretch=1)
+        self.description = QLabel()
+        self.description.setWordWrap(True)
+        self.description.setMinimumHeight(64)
+        layout.addWidget(self.description)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        ok = buttons.button(QDialogButtonBox.StandardButton.Ok)
+        if ok is not None:
+            ok.setText("创建项目")
+            mark_primary(ok)
+        buttons.accepted.connect(self._accept_selected)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+        self.list.setCurrentRow(0)
+
+    def _refresh_description(self, _row: int) -> None:
+        item = self.list.currentItem()
+        if item is None:
+            self.description.clear()
+            return
+        info = template_info(str(item.data(Qt.ItemDataRole.UserRole)))
+        suffix = (
+            "\n\n此模板含 user:template.* 占位引用；导出前必须在内容库中替换或创建。"
+            if info.placeholder_content else ""
+        )
+        self.description.setText(info.description + suffix)
+
+    def _accept_selected(self) -> None:
+        item = self.list.currentItem()
+        if item is None:
+            return
+        self.template_key = str(item.data(Qt.ItemDataRole.UserRole))
+        self.accept()
 
 
 class ManifestDialog(QDialog):
@@ -1034,6 +1088,7 @@ class MainWindow(QMainWindow):
         self.menuBar().clear()
         menu = self.menuBar().addMenu(t("menu.file"))
         menu.addAction(t("menu.new"), self.new_story, QKeySequence.StandardKey.New)
+        menu.addAction("从模板新建…", self.new_story_from_template)
         menu.addAction(
             t("menu.open"), self.open_story, QKeySequence.StandardKey.Open
         )
@@ -2438,6 +2493,31 @@ class MainWindow(QMainWindow):
         self._commit_timer.stop()
         self._refresh_all()
         self.statusBar().showMessage("已新建项目：修改示例对白后即可继续添加步骤", 4000)
+
+    def new_story_from_template(self) -> None:
+        if not self._confirm_discard():
+            return
+        dialog = ProjectTemplateDialog(self)
+        if dialog.exec() != QDialog.DialogCode.Accepted or not dialog.template_key:
+            return
+        project = create_project_template(dialog.template_key, self.editor_data)
+        self._clear_recovery_snapshot()
+        self._stories = project["stories"]
+        self._current_id = project["current_story_id"]
+        self.manifest = project["manifest"]
+        self.manifest_base = copy.deepcopy(self.manifest)
+        self._story_paths = {story_id: None for story_id in self._stories}
+        self._set_project_source("untitled", None)
+        self._saved_snapshot = {}
+        self._undo_stack.clear()
+        self._redo_stack.clear()
+        self._pending_before = None
+        self._commit_timer.stop()
+        self._refresh_all()
+        self._set_dirty(True)
+        info = template_info(dialog.template_key)
+        suffix = "；请替换 user:template.* 占位内容" if info.placeholder_content else ""
+        self.statusBar().showMessage(f"已从模板创建“{info.name}”{suffix}", 6000)
 
     def _last_dir(self, key: str) -> str:
         """读取记住的上次目录；没有记录或目录已消失则退回工作目录。"""
