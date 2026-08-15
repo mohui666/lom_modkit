@@ -247,8 +247,25 @@ def run_preflight(
                 )
             image = node.get("image")
             if isinstance(image, str) and image:
-                source = resolve_image_asset(image)
-                if source is None:
+                if image.startswith("user:"):
+                    try:
+                        _record, source = content_registry.resolve(
+                            image, expected_type="image"
+                        )
+                    except content_registry.ContentRegistryError as exc:
+                        source = None
+                        issues.append(
+                            PreflightIssue(
+                                "error",
+                                "missing_user_content",
+                                sid,
+                                node_id,
+                                str(exc),
+                            )
+                        )
+                else:
+                    source = resolve_image_asset(image)
+                if source is None and not image.startswith("user:"):
                     issues.append(
                         PreflightIssue(
                             "error",
@@ -258,7 +275,7 @@ def run_preflight(
                             t("preflight.missing_image", image=repr(image)),
                         )
                     )
-                elif source.stat().st_size > MAX_IMAGE_BYTES:
+                elif source is not None and source.stat().st_size > MAX_IMAGE_BYTES:
                     issues.append(
                         PreflightIssue(
                             "error",

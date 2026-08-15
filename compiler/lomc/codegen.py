@@ -113,7 +113,7 @@ def _emit_sound(node, ctx):
 
 def _emit_scene(node, ctx):
     view = node["view"]
-    lines = ['\trunblock(flowcharts.view, "out")']
+    lines = ["\tmod_background_clear(0)", '\trunblock(flowcharts.view, "out")']
     if view != "out":  # view="out" 时只淡出；"black"/"white" 为纯色，照常 emit
         # 官方实证：非纯色 view 必须先 LoadView 预加载背景资产（StoryViewImage
         # 的 Addressables 缓存为空时 view 块只显示空 sprite=黑背景；995/1111
@@ -122,6 +122,21 @@ def _emit_scene(node, ctx):
             lines.append("\trunwait(flowcharts.LoadView(%s))" % lua_str(view))
         lines.append('\tgetvar(flowcharts.view, "ViewName").value = %s' % lua_str(view))
         lines.append('\trunblock(flowcharts.view, "view")')
+    return lines
+
+
+def _emit_background(node, ctx):
+    action = node["action"]
+    fade = 0 if action in ("set", "clear") else node.get("fade", 0.5)
+    if action in ("fadeout", "clear"):
+        lines = ["\tmod_background_clear(%s)" % lua_num(fade)]
+    else:
+        lines = [
+            "\tmod_background_show(%s, %s)"
+            % (lua_str(node["image"]), lua_num(fade))
+        ]
+    if fade > 0:
+        lines.append("\twait(%s)" % lua_num(fade))
     return lines
 
 
@@ -1038,6 +1053,7 @@ _EMITTERS = {
     "music": _emit_music,
     "sound": _emit_sound,
     "scene": _emit_scene,
+    "background": _emit_background,
     "show": _emit_show,
     "move": _emit_move,
     "face": _emit_face,

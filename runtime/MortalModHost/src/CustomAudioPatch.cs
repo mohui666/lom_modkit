@@ -161,6 +161,7 @@ namespace MortalModHost
             {
                 CustomAudioPlayer.StopEverything();
                 CustomCharacterRuntime.ClearAll();
+                CustomImageRuntime.ClearAll();
             }
             catch { }
         }

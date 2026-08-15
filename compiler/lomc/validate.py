@@ -3,7 +3,7 @@
 
 严格遵循 docs/zh_CN/mod_format.md（v3 契约）：
 - §2 manifest.json 字段
-- §3 story/*.json 结构与 §3.1 全量 43 种节点类型表（字段除标注"可选"外均为必填）
+- §3 story/*.json 结构与 §3.1 全量节点类型表（字段除标注"可选"外均为必填）
 - §4 补充规则（末节点收尾、禁止显式 goto 的类型、分支兜底等）
 
 所有错误抛出 LomcError，消息带节点 id / 字段名。
@@ -45,6 +45,7 @@ _ENUMS = {
     "music_op": ("play", "stop", "fadeout"),
     "sound_kind": ("sound", "env"),
     "sound_op": ("play", "fadeout"),
+    "background_action": ("set", "show", "replace", "fadein", "fadeout", "clear"),
     "transition_phase": ("in", "out"),
     "transition_dir": ("lr", "rl", "tb", "bt"),
     "block_fc": ("view", "common"),
@@ -135,6 +136,10 @@ _NODE_FIELDS = {
         {"kind": "sound_kind", "op": "sound_op", "seconds": "num"},
     ),
     "scene": ({"view": "str"}, {}),
+    "background": (
+        {"action": "background_action"},
+        {"image": "str", "fade": "num"},
+    ),
     "show": (
         {"character": "str", "position": "str"},
         {
@@ -460,7 +465,28 @@ def _check_node_extra(node, ntype, label):
         parse_content_ref(
             node.get("character"), label='%s(%s) 的 character' % (label, ntype)
         )
-    if ntype == "say":
+    if ntype == "background":
+        action = node["action"]
+        image = node.get("image")
+        fade = node.get("fade", 0)
+        if fade < 0:
+            raise LomcError('%s(background): 字段 "fade" 不能小于 0' % label)
+        if action in ("set", "show", "replace", "fadein"):
+            if not isinstance(image, str) or not image.strip():
+                raise LomcError(
+                    '%s(background): action="%s" 时必填字段 "image"' % (label, action)
+                )
+            if not is_user_ref(image):
+                raise LomcError(
+                    '%s(background): 字段 "image" 必须是 user: 图片引用，实际为 %r'
+                    % (label, image)
+                )
+            parse_content_ref(image, label='%s(background) 的 image' % label)
+        elif image not in (None, ""):
+            raise LomcError(
+                '%s(background): action="%s" 时不能填写 "image"' % (label, action)
+            )
+    elif ntype == "say":
         mode = node.get("mode", "character")
         if mode in ("character", "think") and "character" not in node:
             raise LomcError(

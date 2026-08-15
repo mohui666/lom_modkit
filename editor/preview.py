@@ -142,6 +142,7 @@ def _hint_text(node: dict, ed: dict) -> str | None:
         "face",
         "hide",
         "scene",
+        "background",
         "say",
         "choice",
         "offset",
@@ -304,6 +305,12 @@ def _apply_node(state: dict, node: dict, ed: dict | None = None) -> None:
 
     if t == "scene":
         state["view"] = node.get("view") or None
+        state["background"] = None
+    elif t == "background":
+        if node.get("action", "show") in ("fadeout", "clear"):
+            state["background"] = None
+        else:
+            state["background"] = node.get("image") or None
     elif t == "show":
         cid = node.get("character") or ""
         if cid:
@@ -446,6 +453,7 @@ def simulate_stage(
     """
     state = {
         "view": None,
+        "background": None,
         "actors": {},
         "dialog": None,
         "choice": None,
@@ -535,12 +543,17 @@ def build_playtest_prelude(
     """
     state = simulate_stage(story, target_id, editor_data, include_target=False)
     view = state.get("view")
+    background = state.get("background")
     actors = state.get("actors") or {}
 
     stage_nodes: list[dict] = []
     # view="out" 只是淡出，无可重建的画面，跳过（否则前导反而把屏幕淡出）
     if view and view != "out":
         stage_nodes.append({"type": "scene", "view": view})
+    if background:
+        stage_nodes.append(
+            {"type": "background", "action": "set", "image": background}
+        )
     # 按站位 x 从左到右依次上场，id 兜底保证确定性
     ordered = sorted(
         actors.items(),
@@ -1148,7 +1161,19 @@ class StagePreview(QWidget):
 
     def _paint_background(self, p: QPainter, rect: QRect) -> None:
         view = self._state.get("view")
-        pix = self._load_pixmap(self._view_path(view))
+        background = self._state.get("background")
+        missing_user = False
+        if background:
+            try:
+                _record, source = content_registry.resolve(
+                    str(background), expected_type="image"
+                )
+                pix = self._load_pixmap(source)
+            except content_registry.ContentRegistryError:
+                pix = QPixmap()
+                missing_user = True
+        else:
+            pix = self._load_pixmap(self._view_path(view))
         if not pix.isNull():
             # 缩放铺满、保比例、居中（超出部分裁掉）
             scaled = pix.scaled(
@@ -1179,7 +1204,10 @@ class StagePreview(QWidget):
             font.setPointSizeF(max(10.0, rect.height() * 0.06))
             font.setBold(True)
             p.setFont(font)
-            label = f"场景：{view}" if view else "（尚未切场景）"
+            if missing_user:
+                label = f"缺失用户图片：{background}"
+            else:
+                label = f"场景：{view}" if view else "（尚未切场景）"
             p.drawText(rect, Qt.AlignmentFlag.AlignCenter, label)
 
     def _paint_actors(self, p: QPainter, rect: QRect) -> None:

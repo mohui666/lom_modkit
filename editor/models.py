@@ -22,13 +22,14 @@ MOD_ID_PATTERN = re.compile(r"^[a-z0-9_\-]+$")
 CHARACTER_DISPLAY_PATTERN = re.compile(r"^.*（([a-zA-Z0-9_\-]+)）$")
 
 # ---------------------------------------------------------------------------
-# 节点类型中文名（契约 §3.1 全量 43 种）
+# 节点类型中文名（契约 §3.1）
 # 源表保持简中，界面显示走 refresh_labels() → i18n。
 # ---------------------------------------------------------------------------
 NODE_TYPE_CN_SRC: dict[str, str] = {
     "music": "音乐",
     "sound": "音效",
-    "scene": "切换背景",
+    "scene": "切换官方背景",
+    "background": "自定义背景",
     "show": "人物登场",
     "move": "人物移动",
     "face": "人物转向",
@@ -80,6 +81,7 @@ COMMON_NODE_TYPES: list[str] = [
     "hide",
     "intro",
     "scene",
+    "background",
     "choice",
     "dice",
     "wait",
@@ -93,6 +95,7 @@ NODE_HELP_KEYS = {
     "show": "help.show",
     "hide": "help.hide",
     "scene": "help.scene",
+    "background": "help.background",
     "choice": "help.choice",
     "dice": "help.dice",
     "goto_scene": "help.goto_scene",
@@ -113,6 +116,7 @@ NODE_GROUPS_SRC: list[tuple[str, list[str]]] = [
             "music",
             "sound",
             "scene",
+            "background",
             "show",
             "move",
             "face",
@@ -166,6 +170,14 @@ ENUM_SETS_SRC: dict[str, list[tuple[str, str]]] = {
     "music_op": [("play", "播放"), ("stop", "停止"), ("fadeout", "淡出")],
     "sound_kind": [("sound", "音效"), ("env", "环境音")],
     "sound_op": [("play", "播放"), ("fadeout", "淡出")],
+    "background_action": [
+        ("set", "立即设置"),
+        ("show", "显示"),
+        ("replace", "替换"),
+        ("fadein", "淡入"),
+        ("fadeout", "淡出并清除"),
+        ("clear", "立即清除"),
+    ],
     "transition_phase": [("in", "淡入"), ("out", "淡出")],
     "transition_dir": [
         ("lr", "从左到右"),
@@ -235,7 +247,14 @@ ENUM_SETS_SRC: dict[str, list[tuple[str, str]]] = {
 }
 ENUM_SETS: dict[str, list[tuple[str, str]]] = {}
 # 切换后需要重建表单的枚举（其它字段或可见字段随它变化）
-REBUILD_ENUMS = {"item_kind", "goto_scene", "mode", "intro_source", "sound_kind"}
+REBUILD_ENUMS = {
+    "item_kind",
+    "goto_scene",
+    "mode",
+    "intro_source",
+    "sound_kind",
+    "background_action",
+}
 
 # say mode 中文标注（清单本身来自 editor_data.modes）
 MODE_CN_SRC = {
@@ -343,8 +362,16 @@ NODE_SCHEMAS: dict[str, dict] = {
         ],
     },
     "scene": {
-        "label": "切换场景",
-        "fields": [("view", "场景", "view", False)],
+        "label": "切换官方背景",
+        "fields": [("view", "官方背景", "view", False)],
+    },
+    "background": {
+        "label": "自定义背景",
+        "fields": [
+            ("action", "动作", "enum:background_action", False),
+            ("image", "用户图片", "user_image", True),
+            ("fade", "淡入/淡出秒数", "float", True),
+        ],
     },
     "show": {
         "label": "显示人物",
@@ -666,6 +693,7 @@ _NODE_DEFAULTS: dict[str, dict] = {
     "music": {"name": "", "op": "play"},
     "sound": {"name": "", "kind": "sound", "op": "play"},
     "scene": {"view": ""},
+    "background": {"action": "show", "image": "", "fade": 0.5},
     "show": {
         "character": "",
         "position": "M",
@@ -1282,6 +1310,10 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
         return f"{tcn}·{node.get('name', '')}"
     if nt == "scene":
         return f"{tcn}·{display_name(ed, 'views', node.get('view', ''))}"
+    if nt == "background":
+        action = enum_label("background_action", node.get("action", "show"))
+        image = node.get("image") or ""
+        return f"{tcn}·{action}" + (f" {image}" if image else "")
     if nt == "show":
         return f"{tcn}·{cname()}@{node.get('position', '')}"
     if nt == "move":

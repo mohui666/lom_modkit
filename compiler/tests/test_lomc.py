@@ -157,6 +157,7 @@ class TestNodeCodegen(unittest.TestCase):
 
     def test_scene(self):
         lua = self.lua_of({"id": "n1", "type": "scene", "view": "center"})
+        self.assertIn("\tmod_background_clear(0)", lua)
         self.assertIn('\trunblock(flowcharts.view, "out")', lua)
         self.assertIn('\tgetvar(flowcharts.view, "ViewName").value = "center"', lua)
         self.assertIn('\trunblock(flowcharts.view, "view")', lua)
@@ -166,6 +167,61 @@ class TestNodeCodegen(unittest.TestCase):
         self.assertIn('\trunblock(flowcharts.view, "out")', lua)
         self.assertNotIn("ViewName", lua)
         self.assertNotIn('runblock(flowcharts.view, "view")', lua)
+
+    def test_custom_background_actions(self):
+        show = self.lua_of(
+            {
+                "id": "n1",
+                "type": "background",
+                "action": "fadein",
+                "image": "user:mohui.moon_bg",
+                "fade": 1.25,
+            }
+        )
+        self.assertIn('mod_background_show("user:mohui.moon_bg", 1.25)', show)
+        self.assertIn("\twait(1.25)", show)
+        clear = self.lua_of(
+            {"id": "n1", "type": "background", "action": "clear"}
+        )
+        self.assertIn("mod_background_clear(0)", clear)
+        fadeout = self.lua_of(
+            {"id": "n1", "type": "background", "action": "fadeout", "fade": 0.75}
+        )
+        self.assertIn("mod_background_clear(0.75)", fadeout)
+        self.assertIn("\twait(0.75)", fadeout)
+
+    def test_custom_background_validation(self):
+        assert_compile_error(
+            self,
+            linear_story({"id": "n1", "type": "background", "action": "show"}),
+            "image",
+        )
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "background",
+                    "action": "show",
+                    "image": "assets/bg.png",
+                }
+            ),
+            "user:",
+        )
+        assert_compile_error(
+            self,
+            linear_story(
+                {"id": "n1", "type": "background", "action": "clear", "image": "user:mohui.bg"}
+            ),
+            "不能填写",
+        )
+        assert_compile_error(
+            self,
+            linear_story(
+                {"id": "n1", "type": "background", "action": "fadeout", "fade": -1}
+            ),
+            "不能小于 0",
+        )
 
     def test_show(self):
         lua = self.lua_of(
@@ -3275,6 +3331,26 @@ def _write_user_audio(mod_dir, content_id, audio_kind="music", filename="track.w
     return folder
 
 
+def _write_user_image(mod_dir, content_id, filename="image.png", payload=TINY_PNG):
+    from lomc.content import package_content_dir, write_content_metadata
+
+    folder = os.path.join(mod_dir, package_content_dir("image", content_id).replace("/", os.sep))
+    os.makedirs(folder, exist_ok=True)
+    with open(os.path.join(folder, filename), "wb") as f:
+        f.write(payload)
+    write_content_metadata(
+        os.path.join(folder, "content.json"),
+        {
+            "schema": 1,
+            "id": content_id,
+            "type": "image",
+            "name": content_id,
+            "files": {"main": filename},
+        },
+    )
+    return folder
+
+
 class TestUserContent(unittest.TestCase):
     def test_official_music_still_emits_playmusic(self):
         lua = compile_story(
@@ -3711,6 +3787,34 @@ class TestPackUserAudio(unittest.TestCase):
             self.assertNotIn("assets/user/audio/mohui.unused/unused.ogg", names)
             self.assertNotIn("assets/user/audio/mohui.unused/content.json", names)
             self.assertEqual(zf.read("assets/user/audio/mohui.boss_theme/boss.ogg"), b"OggSused")
+
+    def test_pack_collects_referenced_background_image_only(self):
+        _write_user_image(self.mod_dir, "mohui.moon_bg", "moon.png")
+        _write_user_image(self.mod_dir, "mohui.unused_bg", "unused.png")
+        story = make_story(
+            [
+                {
+                    "id": "n1",
+                    "type": "background",
+                    "action": "show",
+                    "image": "user:mohui.moon_bg",
+                    "fade": 0.5,
+                },
+                {"id": "n2", "type": "end"},
+            ]
+        )
+        with open(
+            os.path.join(self.mod_dir, "story", "main.json"), "w", encoding="utf-8"
+        ) as f:
+            json.dump(story, f, ensure_ascii=False, indent=2)
+        out = pack_mod(self.mod_dir)
+        with zipfile.ZipFile(out) as zf:
+            names = zf.namelist()
+            self.assertIn("assets/user/image/mohui.moon_bg/content.json", names)
+            self.assertIn("assets/user/image/mohui.moon_bg/moon.png", names)
+            self.assertNotIn("assets/user/image/mohui.unused_bg/unused.png", names)
+            lua = zf.read("lua/main.lua").decode("utf-8")
+            self.assertIn('mod_background_show("user:mohui.moon_bg", 0.5)', lua)
 
     def test_pack_missing_user_audio_fails(self):
         story = make_story(

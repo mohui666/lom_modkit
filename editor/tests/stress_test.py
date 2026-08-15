@@ -127,7 +127,7 @@ def main_fn() -> int:
         )
 
     # ------------------------------------------------------------------
-    # [1b] v3 全量 43 种节点类型：建表 + 渲染不崩（提示行/舞台两条路径都走）
+    # [1b] v3 全量 44 种节点类型：建表 + 渲染不崩（提示行/舞台两条路径都走）
     # ------------------------------------------------------------------
     all_nodes = []
     for i, t in enumerate(models.NODE_TYPES, 1):
@@ -137,8 +137,24 @@ def main_fn() -> int:
             node["text"] = "全类型压测文本"
         all_nodes.append(node)
     all_nodes.append({"id": "a99", "type": "end"})
-    # end/goto_scene 是终止节点（推演到此为止），排到末尾保证其余节点可达
-    all_nodes.sort(key=lambda n: 1 if n["type"] in ("end", "goto_scene") else 0)
+    # end/goto_scene/death 是终止节点（推演到此为止），排到末尾保证其余节点可达
+    terminal_types = ("end", "goto_scene", "death")
+    all_nodes.sort(key=lambda n: 1 if n["type"] in terminal_types else 0)
+    # 控制节点的工厂默认跳转为空；全类型压测要验证后续节点渲染，因此把
+    # choice/branch/dice 的全部出口显式接到排序后的下一步。
+    for index, node in enumerate(all_nodes[:-1]):
+        target = all_nodes[index + 1]["id"]
+        if node["type"] == "choice":
+            for option in node.get("options", []):
+                option["goto"] = target
+        elif node["type"] == "branch":
+            for case in node.get("cases", []):
+                case["goto"] = target
+        elif node["type"] == "dice":
+            for option in node.get("options", []):
+                option["goto_大成功"] = target
+                option["goto_成功"] = target
+                option["goto_失败"] = target
     win.story = {
         "id": "all_types",
         "title": "全类型",
@@ -147,9 +163,7 @@ def main_fn() -> int:
     }
     win._refresh_all()
     app.processEvents()
-    first_term = next(
-        i for i, n in enumerate(all_nodes) if n["type"] in ("end", "goto_scene")
-    )
+    first_term = next(i for i, n in enumerate(all_nodes) if n["type"] in terminal_types)
     for i, n in enumerate(all_nodes):
         win._select_node_index(i)
         app.processEvents()
@@ -158,7 +172,7 @@ def main_fn() -> int:
         if i <= first_term:
             assert win.stage._state["reached"], f"推演应到达 {n['id']}（{n['type']}）"
         else:
-            # 终止节点（end/goto_scene）之后的节点不可达是正确语义
+            # 终止节点（end/goto_scene/death）之后的节点不可达是正确语义
             assert not win.stage._state["reached"], f"{n['id']} 不应越过终止节点"
     hints = sum(
         1
@@ -166,7 +180,7 @@ def main_fn() -> int:
         if preview.simulate_stage(win.story, n["id"], editor_data)["hint"]
     )
     assert hints >= 20, f"数值/流程类节点应有提示行：{hints}"
-    print(f"[1b] 全量 43 类型渲染 OK（{len(all_nodes)} 节点，{hints} 个提示行）")
+    print(f"[1b] 全量 44 类型渲染 OK（{len(all_nodes)} 节点，{hints} 个提示行）")
 
     # ------------------------------------------------------------------
     # [2] 真实鼠标点击 choice 每个选项按钮

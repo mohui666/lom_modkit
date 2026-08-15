@@ -130,6 +130,8 @@ namespace MortalModHost
             CustomAudioPlayer.Init(this);
             CustomCharacterRuntime.Log = Logger;
             CustomCharacterRuntime.Init(this);
+            CustomImageRuntime.Log = Logger;
+            CustomImageRuntime.Init(this);
 
             bool ok = true;
             ok &= CheckTarget("LuaManager.ExecuteLuaScript",
@@ -258,6 +260,7 @@ namespace MortalModHost
         {
             CustomAudioPlayer.ReleaseAll();
             CustomCharacterRuntime.ClearAll();
+            CustomImageRuntime.ClearAll();
             string modsDir = Path.Combine(Paths.PluginPath, "MortalModHost", "mods");
             LoadedMods = ModLoader.ScanMods(
                 modsDir,
@@ -382,6 +385,7 @@ namespace MortalModHost
             {
                 CustomAudioPlayer.StopEverything();
                 CustomCharacterRuntime.ClearAll();
+                CustomImageRuntime.ClearAll();
             }
             _previousScene = scene;
         }
@@ -390,6 +394,7 @@ namespace MortalModHost
         {
             CustomAudioPlayer.ReleaseAll();
             CustomCharacterRuntime.ClearAll();
+            CustomImageRuntime.ClearAll();
         }
 
         /// <summary>

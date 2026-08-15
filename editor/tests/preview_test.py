@@ -16,6 +16,33 @@ import preview  # noqa: E402
 
 
 class PreviewStageActionTest(unittest.TestCase):
+    def test_custom_background_state_cleanup_and_playtest_prelude(self):
+        story = {
+            "id": "main",
+            "title": "background",
+            "start": "n1",
+            "nodes": [
+                {"id": "n1", "type": "scene", "view": "center"},
+                {
+                    "id": "n2",
+                    "type": "background",
+                    "action": "show",
+                    "image": "user:mohui.moon_bg",
+                    "fade": 0.5,
+                },
+                {"id": "n3", "type": "say", "mode": "narrative", "text": "月下"},
+                {"id": "n4", "type": "background", "action": "clear"},
+                {"id": "n5", "type": "end"},
+            ],
+        }
+        state = preview.simulate_stage(story, "n3")
+        self.assertEqual(state["background"], "user:mohui.moon_bg")
+        prelude = preview.build_playtest_prelude(story, "n3")
+        self.assertEqual([n["type"] for n in prelude], ["scene", "background"])
+        self.assertEqual(prelude[1]["action"], "set")
+        cleared = preview.simulate_stage(story, "n5")
+        self.assertIsNone(cleared["background"])
+
     def test_custom_character_actions_update_visual_state(self):
         raw = "user:mohui.luoxue"
         story = {

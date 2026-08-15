@@ -47,6 +47,7 @@ namespace MortalModHost
                 CharacterIntroSupport.Clear();
                 CustomAudioPlayer.StopEverything();
                 CustomCharacterRuntime.HideAllOnStage();
+                CustomImageRuntime.ClearAll();
                 return true; // 官方脚本，走原方法
             }
 
@@ -69,6 +70,7 @@ namespace MortalModHost
                 CharacterIntroSupport.Clear();
                 CustomAudioPlayer.StopEverything();
                 CustomCharacterRuntime.HideAllOnStage();
+                CustomImageRuntime.ClearAll();
 
                 // 契约 §6.9/§6.10：演出前把 mod_hide_mood / mod_set_mood 注册进共享 MoonSharp 环境（幂等重设；官方脚本不调用它们，无副作用）
                 RegisterModGlobals(env);
@@ -221,8 +223,28 @@ namespace MortalModHost
                 script.Globals["mod_hide_all"] = new CallbackFunction((ctx, args) =>
                 {
                     CustomCharacterRuntime.HideAllOnStage();
+                    CustomImageRuntime.ClearAll();
                     return DynValue.Nil;
                 }, "mod_hide_all");
+                script.Globals["mod_background_show"] = new CallbackFunction((ctx, args) =>
+                {
+                    try
+                    {
+                        CustomImageRuntime.ShowBackground(
+                            ArgString(args, 0), ArgFloat(args, 1, 0f));
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.LogWarning("mod_background_show 失败：" + ex.Message);
+                    }
+                    return DynValue.Nil;
+                }, "mod_background_show");
+                script.Globals["mod_background_clear"] = new CallbackFunction((ctx, args) =>
+                {
+                    try { CustomImageRuntime.ClearBackground(ArgFloat(args, 0, 0f)); }
+                    catch (Exception ex) { Log.LogWarning("mod_background_clear 失败：" + ex.Message); }
+                    return DynValue.Nil;
+                }, "mod_background_clear");
                 RegisterCharacterGlobals(script);
             }
             catch (Exception ex)

@@ -23,6 +23,26 @@ EDITOR_DATA = {
 
 
 class PreflightTest(unittest.TestCase):
+    def test_missing_user_background_is_reported(self):
+        stories = {
+            "main": {
+                "id": "main",
+                "title": "背景",
+                "start": "n1",
+                "nodes": [
+                    {
+                        "id": "n1",
+                        "type": "background",
+                        "action": "show",
+                        "image": "user:missing.background_image",
+                    },
+                    {"id": "n2", "type": "end"},
+                ],
+            }
+        }
+        issues = run_preflight(stories, EDITOR_DATA, "main")
+        self.assertIn("missing_user_content", {issue.code for issue in issues})
+
     def test_finds_unreachable_placeholder_and_missing_story(self):
         stories = {
             "main": {

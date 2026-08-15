@@ -279,7 +279,7 @@ ValueError로 변환), 검증/컴파일류 함수는 예외를 던지지 않고 
 | `new_story(story_id="main", title="新剧情", mood=False) -> dict` | story_id는 `[a-zA-Z0-9_-]+` 매칭 필요; title은 str 필요; mood는 bool 필요. show 등장(n1) + 빈 say(n2) 오프닝의 스토리 dict 반환(등장 후 동작, §4 규칙 4 참조) |
 | `get_node(story, node_id) -> dict` | 없음 → ValueError. 반환값은 story 내의 **원본 객체**(update에 따라 유효) |
 | `list_nodes(story) -> list[dict]` | 각 항목 `{"id", "type", "summary"}`, summary는 중국어 요약(예: `对白·唐惟元: 师弟，你来了。`) |
-| `add_node(story, node_type, fields=None, after=None) -> dict` | node_type은 43종으로 제한(`models.NODE_TYPES`); fields 키는 NODE_SCHEMAS 합법 필드+공통 필드(id/type/goto)로 제한, 타입은 kind에 따라 느슨하게 검증; 알 수 없는 타입/필드/타입 불일치 → ValueError. id 자동 생성(say1, show2, choice1…), after=노드 id면 그 뒤에 삽입, None이면 끝에 추가. **등장 방어선**: 동작류 노드의 대상 인물이 앞에서 미등장/퇴장 상태이면 그 앞에 자동으로 show 노드를 하나 삽입(§4 규칙 4 참조) |
+| `add_node(story, node_type, fields=None, after=None) -> dict` | node_type은 44종으로 제한(`models.NODE_TYPES`); fields 키는 NODE_SCHEMAS 합법 필드+공통 필드(id/type/goto)로 제한, 타입은 kind에 따라 느슨하게 검증; 알 수 없는 타입/필드/타입 불일치 → ValueError. id 자동 생성(say1, show2, choice1…), after=노드 id면 그 뒤에 삽입, None이면 끝에 추가. **등장 방어선**: 동작류 노드의 대상 인물이 앞에서 미등장/퇴장 상태이면 그 앞에 자동으로 show 노드를 하나 삽입(§4 규칙 4 참조) |
 | `update_node(story, node_id, fields) -> dict` | add_node와 같은 필드 검증; 노드 없음 → ValueError. 병합 후 branch 정규화와 표정 검증 수행. **등장 방어선**: 업데이트 후 동작 인물이 미등장/퇴장 상태이면 해당 노드 앞에 자동으로 show를 삽입하고, 그곳을 가리키는 goto/옵션/분기 점프를 새 노드로 변경(§4 규칙 4 참조) |
 | `delete_node(story, node_id) -> dict` | 삭제된 노드 반환; **끊어진 goto는 차단하지 않고** check_story가 보고 |
 | `rename_node(story, node_id, new_id) -> dict` | 노드 id 이름 변경 및 start와 모든 점프 참조 동기화(goto / choice 옵션 / branch cases / dice 행선지), 변경된 노드 반환. 새 id는 `[A-Za-z0-9_-]+`로 제한(앞뒤 공백 제거); old==new는 무작업; 번호 점유 또는 원래 노드 없음 → ValueError |
@@ -396,7 +396,7 @@ check_story/compile_story에 걸립니다). 각 규칙의 게임 측 메커니�
 
 | 오류 메시지(예시) | 출처 | 원인과 처리 |
 | --- | --- | --- |
-| `未知节点类型: no_such_type（支持 43 种，见 models.NODE_TYPES）` | add_node | 타입명 철자 오류; `models.NODE_TYPES` 또는 규약 §3.1의 43종 사용 |
+| `未知节点类型: no_such_type（支持 44 种，见 models.NODE_TYPES）` | add_node | 타입명 철자 오류; `models.NODE_TYPES` 또는 규약 §3.1의 44종 사용 |
 | `节点类型 wait 不支持字段: bogus（允许: goto, id, seconds, type）` | add_node/update_node | 필드명이 타입 표에 없음; 메시지의 허용 집합에 따라 수정 |
 | `节点类型 wait 字段 "seconds" 类型不符（kind=float，应为 数值），实际为 'abc'` | add_node/update_node | 필드 타입 오류; `True`도 수치 필드에 거부됨에 주의 |
 | `通用字段 "goto" 必须是字符串` | add_node/update_node | goto/id/type은 문자열만 받음 |

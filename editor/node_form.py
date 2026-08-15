@@ -296,6 +296,12 @@ class NodeForm(QScrollArea):
                 "image_y",
             ):
                 return source == "custom"
+        if node_type == "background":
+            action = node.get("action", "show")
+            if key == "image":
+                return action not in ("fadeout", "clear")
+            if key == "fade":
+                return action not in ("set", "clear")
         if node_type == "goto_scene":
             scene = node.get("scene", "Free")
             if key == "key":
@@ -360,6 +366,8 @@ class NodeForm(QScrollArea):
                 value,
                 audio_kind="env" if sound_kind == "env" else "sound",
             )
+        if kind == "user_image":
+            return self._make_user_image_combo(node, key, value)
         if kind in ("position", "view", "stat"):
             # schema 2 清单：{id,name} 对象数组，显示 "名字（id）"
             data_key = {
@@ -769,6 +777,62 @@ class NodeForm(QScrollArea):
         row.addWidget(import_btn)
         row.addStretch(1)
         col.addLayout(row)
+        return box
+
+    def _make_user_image_combo(self, node: dict, key: str, current) -> QWidget:
+        """用户图片下拉 + 缩略图 + 就地导入；官方背景由 scene 节点单独选择。"""
+        records = []
+        try:
+            records = content_registry.list_contents(content_type="image")
+        except Exception:
+            records = []
+        items = [(rec.ref, "用户图片 · %s（%s）" % (rec.name, rec.ref)) for rec in records]
+        if not items:
+            items = [("", "（还没有用户图片，点右侧导入）")]
+        w = self._make_combo(items, str(current or ""), editable=False)
+        for index, rec in enumerate(records):
+            try:
+                _record, path = content_registry.resolve(rec.ref, expected_type="image")
+                from PySide6.QtGui import QIcon
+                w.setItemIcon(index, QIcon(str(path)))
+            except Exception:
+                pass
+        if not records:
+            item = w.model().item(0) if w.model() is not None else None
+            if item is not None:
+                item.setEnabled(False)
+        w.currentTextChanged.connect(
+            lambda text, c=w: self._apply(node, key, self._combo_value(c, text))
+        )
+
+        box = QWidget()
+        row = QHBoxLayout(box)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.addWidget(w, 1)
+        choose = QPushButton("导入图片…")
+        choose.setMinimumHeight(28)
+
+        def pick() -> None:
+            path, _ = QFileDialog.getOpenFileName(
+                self, "选择背景图片", str(Path.home()), "图片 (*.png *.jpg *.jpeg)"
+            )
+            if not path:
+                return
+            source = Path(path)
+            try:
+                rec = content_registry.register_image(
+                    source,
+                    content_registry.suggest_content_id(source.name),
+                    source.stem,
+                )
+            except content_registry.ContentRegistryError as exc:
+                QMessageBox.critical(self, "无法导入图片", str(exc))
+                return
+            self._apply(node, key, rec.ref)
+            self._rebuild_current()
+
+        choose.clicked.connect(pick)
+        row.addWidget(choose)
         return box
 
     def _voice_label(self, rec) -> str:
