@@ -365,7 +365,8 @@ namespace MortalModHost
             if (ModDisclosure.Tick()) return;
             if (_disclosureAbortRequested) return;
             _disclosureAbortRequested = LuaManagerPatch.AbortActivePlayback(
-                "强制玩家内容披露无法维持：" + (ModDisclosure.FailureReason ?? "未知错误"));
+                "强制玩家内容披露无法维持：" + (ModDisclosure.FailureReason ?? "未知错误"),
+                null, null, "mandatory_disclosure");
         }
 
         private void LateUpdate()
@@ -443,8 +444,8 @@ namespace MortalModHost
                     }
                     catch (Exception ex)
                     {
-                        RuntimeTrace.RuntimeError(ex.ToString());
-                        LuaManagerPatch.AbortActivePlayback("F5 热重载清理失败", null, ex);
+                        LuaManagerPatch.AbortActivePlayback(
+                            "F5 热重载清理失败", null, ex, "hot_reload");
                         return;
                     }
                 }
@@ -558,7 +559,9 @@ namespace MortalModHost
                 _enabled.SettingChanged -= OnEnabledChanged;
             if (ModDisclosure.Active && !_applicationQuitting)
             {
-                LuaManagerPatch.AbortActivePlayback("MortalModHost 正在卸载，已终止活动中的 MOD 演出");
+                LuaManagerPatch.AbortActivePlayback(
+                    "MortalModHost 正在卸载，已终止活动中的 MOD 演出",
+                    null, null, "host_unload");
                 // 恶意 Lua 可通过 UnityEngine.Object.Destroy 销毁 BepInEx 宿主。此时不得
                 // 连带撤下披露：独立 guardian / Canvas 回调会继续自愈、遮罩和重试
                 // 回 Free，只有真正到达 Title / Free 可信边界才会清除。

@@ -365,6 +365,8 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 18. **對白語音**：註冊 `mod_play_voice(ref)` / `mod_stop_voice()`。`mod_play_voice` 先停當前語音再播（不循環，走獨立 `_voice` 通道）。`sound` 節點、自訂音效、`StopMusic` 都不碰這條通道。劇情中斷、切官方腳本、重載 Mod 時 `StopEverything()` 會停語音。無 `voice` 的舊 Lua 不會呼叫這兩個函式，行為不變。
 19. **遊戲內 Mod 選單多語言**：選單文案（`src/I18n.cs` 內嵌 zh_CN/zh_TW/ja/ko 四語言目錄）跟隨遊戲當前語言——反射讀 LeanLocalization `CurrentLanguage` 並模糊匹配語言名；官方遊戲本身沒有日語選項，日語目錄實際不會觸發；偵測失敗一律退回 zh_CN。詳見 `i18n.md`。
 
+20. **結構化 Runtime 錯誤**：所有導致 Mod 演出 fail-closed 中止的故障會寫入單條 `[mod-runtime-error]` JSON 日誌，固定包含 `mod_id`、`mod_name`、`version`、`story`、`node`、`category`、`error`、`recent_trace` 與 UTC 時間。正式 Mod 只保留最多 32 條節點/跳轉級輕量 breadcrumb，不記錄變數值；錯誤快照最多附 16 條且都有長度上限，F5 的 256 條完整開發 trace 規則不變。格式化、快照、序列化或日誌自身再失敗時使用最小兜底報告，不能遮蔽原始錯誤或阻止安全返回 Free；最後一份報告留在記憶體供診斷包使用。
+
 ## 7. AI 工具介面（story_api）
 
 editor/story_api.py 是 AI/編輯器共用的受控寫入口。規則：**AI 不直接手寫 story JSON 或 Lua**，

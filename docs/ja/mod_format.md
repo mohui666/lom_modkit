@@ -365,6 +365,8 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 18. **セリフボイス**：`mod_play_voice(ref)` / `mod_stop_voice()` を登録。`mod_play_voice` は現在のボイスを先に停止してから再生（ループなし、独立 `_voice` チャンネル）。`sound` ノード、カスタム効果音、`StopMusic` はいずれもこのチャンネルに触れません。シナリオ中断、公式スクリプトへの切替、Mod の再読み込み時は `StopEverything()` がボイスを停止します。`voice` のない旧 Lua はこれらの関数を呼ばないため、動作は変わりません。
 19. **ゲーム内 Mod メニューの多言語**：メニュー文案（`src/I18n.cs` に zh_CN/zh_TW/ja/ko の 4 言語カタログを内蔵）はゲームの現在の言語に従います——リフレクションで LeanLocalization の `CurrentLanguage` を読み、言語名を曖昧マッチ。公式ゲーム自体に日本語オプションはないため、日本語カタログが実際に発火することはありません。検出失敗時は一律 zh_CN にフォールバック。詳細は `i18n.md` を参照。
 
+20. **構造化 Runtime エラー**：Mod 再生を fail-closed で中止する障害は、一行の `[mod-runtime-error]` JSON ログとして記録されます。固定項目は `mod_id`、`mod_name`、`version`、`story`、`node`、`category`、`error`、`recent_trace` と UTC 時刻です。通常 Mod は変数値を含まないノード/遷移 breadcrumb を最大 32 件だけ保持し、エラーには最大 16 件を長さ制限付きで添付します。F5 の完全な 256 件開発 trace は従来どおりです。例外整形、trace 取得、JSON 化、ログ出力自体が失敗しても最小レポートへ退避し、元の障害や安全な Free 復帰を妨げません。最後のレポートは診断バンドル用にメモリ保持します。
+
 ## 7. AI ツールインターフェース（story_api）
 
 editor/story_api.py は AI／エディター共用の管理された書き込み入口です。ルール：**AI は story JSON や Lua を直接手書きしません**。

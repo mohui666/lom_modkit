@@ -402,6 +402,8 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 25. **Pause / Step / Continue**：F5 调试窗的「暂停」只设置“下一节点前暂停”，不会把正在显示的官方对话/面板冻结在半个 API 调用中。节点第一行的可选 trace 回调通过 MoonSharp `YieldRequest` 在节点体执行前挂起；「单步」放行当前节点，并在再下一节点体之前重新挂起；「继续」清除请求。宿主协程在暂停期间不调用 `Resume()`。该控制器仅在固定 F5 包激活，正式 Mod 即使包含相同可选节点钩子也始终直接返回，不改变执行路径。
 26. **F5 Hot Reload v1**：开发演出仍在 Story 场景时再次按 F5，宿主会停止旧 `LuaEnvironment` 与 `LuaManager` 协程，丢弃旧 MoonSharp Interpreter（含 `modvars` / `modflags` / 注册回调），并释放人物介绍暂存、死亡/结局覆盖、角色立绘与纹理、背景/CG/Overlay、自定义音乐/环境音/音效/语音及旧包引用。强制披露在重载期间保持，且仅允许 Host 将固定 F5 试玩包的身份原子更新为新 SHA-256；随后重新扫描固定试玩包、卸载并重载 Story，从编辑器本次选中的节点重新开始，不恢复 Lua 指令指针。Trace 保留 256 条有界历史并插入 `hot_reload` 分隔事件，但清空旧变量、Flag 和暂停状态。正式 Mod 与普通场景请求行为不变。
 
+27. **结构化 Runtime 错误**：所有导致 Mod 演出 fail-closed 中止的故障写入单条 `[mod-runtime-error]` JSON 日志，字段固定为 `mod_id`、`mod_name`、`version`、`story`、`node`、`category`、`error`、`recent_trace`（另含 UTC 时间）。正式 Mod 只保留最多 32 条节点/跳转级轻量 breadcrumb，不记录变量值；错误快照最多附 16 条，每条和错误正文均有长度上限。F5 的 256 条完整开发 trace 规则不变。异常格式化、trace 快照、JSON 序列化或日志 sink 自身再次失败时逐层吞掉并生成最小兜底报告，不能遮蔽原始错误或阻止安全返回 Free；最后一份报告保留在内存中供诊断包读取。
+
 ## 7. AI 工具接口（story_api）
 
 editor/story_api.py 是 AI/编辑器共用的受控写入口。规则：**AI 不直接手写 story JSON 或 Lua**，

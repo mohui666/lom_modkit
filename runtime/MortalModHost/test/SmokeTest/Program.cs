@@ -124,6 +124,7 @@ namespace MortalModHost
                 TestCampaign();
                 TestLocalization();
                 TestRuntimeTrace();
+                TestStructuredRuntimeError();
                 TestArchiveLimits();
                 TestManifestIdentifiers();
                 TestPackageFingerprint();
@@ -135,7 +136,7 @@ namespace MortalModHost
                 infos.ForEach(Console.WriteLine);
                 Console.WriteLine("--- 坏包/容错警告（预期 5 条，另 1 条注册冲突） ---");
                 warnings.ForEach(Console.WriteLine);
-                Console.WriteLine("PASS: 2 个好包解析正确（texts.json 含中文/转义文本 + 坏 texts.json 容错 + assets/ 图片读入与超限跳过），4 个坏包/坏文件警告跳过，注册表查找/包查找/冲突处理正确，热键迁移改写正确，campaign 解析/触发器条件（含 when_month/when_stage/when_affinity/disable_official_events）正确，非官方剧情披露场景策略正确。");
+                Console.WriteLine("PASS: 2 个好包解析正确（texts.json 含中文/转义文本 + 坏 texts.json 容错 + assets/ 图片读入与超限跳过），4 个坏包/坏文件警告跳过，注册表查找/包查找/冲突处理正确，热键迁移改写正确，campaign 解析/触发器条件（含 when_month/when_stage/when_affinity/disable_official_events）正确，非官方剧情披露场景策略与结构化 Runtime 错误兜底正确。");
                 return 0;
             }
             finally
@@ -207,6 +208,89 @@ namespace MortalModHost
             RuntimeTrace.Record("node_enter", "should_not_record", "");
             Assert(!RuntimeTrace.Active && !RuntimeDebugControl.Active && RuntimeTrace.Snapshot().Count == retained,
                 "普通 Mod 默认不得记录 trace 或改变执行路径");
+            RuntimeTrace.Reset();
+        }
+
+        private sealed class ThrowingToStringException : Exception
+        {
+            public override string ToString()
+            {
+                throw new InvalidOperationException("secondary formatter failure");
+            }
+        }
+
+        private static void TestStructuredRuntimeError()
+        {
+            RuntimeTrace.Reset();
+            RuntimeErrorReporter.ResetForTests();
+            var package = new ModPackage
+            {
+                Id = "ordinary_mod",
+                Name = "Ordinary \"Mod\"\nName",
+                Version = "2.3.4",
+                Entry = "main",
+                PackagePath = "ordinary.lommod"
+            };
+            RuntimeTrace.BeginScript(package, "MOD_ordinary_mod_chapter_2");
+            RuntimeTrace.NodeEnter("say_7", "say");
+            RuntimeTrace.Choice("choice_1", 2, "say_7");
+            Assert(!RuntimeTrace.Active, "普通 Mod 不得启用完整开发 trace");
+            Assert(RuntimeTrace.DiagnosticSnapshot(16).Count >= 3,
+                "普通 Mod 必须保留有界故障 breadcrumb");
+
+            var logs = new List<string>();
+            StructuredRuntimeError report = RuntimeErrorReporter.Report(
+                "lua_runtime", "演出失败", new InvalidOperationException("boom\nline"),
+                package, "MOD_ordinary_mod_chapter_2", logs.Add);
+            Assert(report.ModId == "ordinary_mod" && report.ModName == package.Name,
+                "结构化错误缺 mod id/name");
+            Assert(report.Version == "2.3.4" && report.Story == "chapter_2"
+                && report.Node == "say_7", "结构化错误缺 version/story/node");
+            Assert(report.Category == "lua_runtime" && report.Error.Contains("boom"),
+                "结构化错误缺 category/error");
+            Assert(report.RecentTrace.Length >= 3 && report.RecentTrace.Length <= 16,
+                "结构化错误 recent trace 必须存在且有界");
+            Assert(logs.Count == 1 && logs[0].StartsWith("[mod-runtime-error] ", StringComparison.Ordinal),
+                "结构化错误必须写单条可识别日志");
+            var json = (Dictionary<string, object>)MiniJson.Parse(report.ToJson());
+            foreach (string key in new[] { "mod_id", "mod_name", "version", "story", "node", "category", "error", "recent_trace" })
+                Assert(json.ContainsKey(key), "结构化错误 JSON 缺字段 " + key);
+            Assert((string)json["mod_id"] == "ordinary_mod"
+                && (string)json["story"] == "chapter_2"
+                && (string)json["node"] == "say_7"
+                && (string)json["category"] == "lua_runtime",
+                "结构化错误 JSON 字段错误");
+            Assert(((List<object>)json["recent_trace"]).Count == report.RecentTrace.Length,
+                "结构化错误 JSON recent_trace 错误");
+            Assert(object.ReferenceEquals(RuntimeErrorReporter.LastSnapshot(), report),
+                "最后一条结构化错误必须可供诊断包读取");
+
+            for (int i = 0; i < RuntimeTrace.DiagnosticCapacity + 9; i++)
+                RuntimeTrace.Record("node_enter", "bounded_" + i, "say");
+            Assert(RuntimeTrace.DiagnosticSnapshot(100).Count == RuntimeTrace.DiagnosticCapacity,
+                "普通 Mod diagnostic breadcrumb 必须有界");
+
+            // Exception.ToString 与日志 sink 同时故障时，报告器仍必须返回且不抛。
+            StructuredRuntimeError fallback = RuntimeErrorReporter.Report(
+                "lua_runtime", new string('x', 10000), new ThrowingToStringException(),
+                package, "MOD_ordinary_mod_chapter_2",
+                delegate(string ignored) { throw new InvalidOperationException("logger failed"); });
+            Assert(fallback != null && fallback.Error.Length <= 8193
+                && MiniJson.Parse(fallback.ToJson()) is Dictionary<string, object>,
+                "错误格式化/日志二次失败不得让报告器崩溃");
+
+            // 未注册脚本不能错误继承上一 Mod 的身份、节点或 breadcrumb。
+            StructuredRuntimeError missing = RuntimeErrorReporter.Report(
+                "script_lookup", "missing", null, null, "MOD_deleted_main");
+            Assert(missing.ModId == "" && missing.ModName == "" && missing.Version == ""
+                && missing.Story == "MOD_deleted_main" && missing.Node == ""
+                && missing.RecentTrace.Length == 0,
+                "未注册脚本结构化错误不得串用上一 Mod 上下文");
+            StructuredRuntimeError mismatched = RuntimeErrorReporter.Report(
+                "script_setup", "broken setup", null, null, "MOD_another_main");
+            Assert(mismatched.ModId == "" && mismatched.Node == ""
+                && mismatched.RecentTrace.Length == 0,
+                "无法核对注册名时不得串用上一 Mod 上下文");
             RuntimeTrace.Reset();
         }
 

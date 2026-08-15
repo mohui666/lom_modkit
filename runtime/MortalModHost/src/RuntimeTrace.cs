@@ -3,10 +3,15 @@ using System.Collections.Generic;
 
 namespace MortalModHost
 {
-    /// <summary>Bounded development trace. It is active only for the fixed F5 preview package.</summary>
+    /// <summary>
+    /// Full bounded development trace plus a smaller node-only diagnostic breadcrumb
+    /// queue. The debugger/full trace remains active only for the fixed F5 package;
+    /// ordinary Mods never expose variables or flags to the breadcrumb queue.
+    /// </summary>
     internal static class RuntimeTrace
     {
         internal const int Capacity = 256;
+        internal const int DiagnosticCapacity = 32;
 
         internal sealed class Entry
         {
@@ -21,9 +26,12 @@ namespace MortalModHost
 
         private static readonly object Gate = new object();
         private static readonly Queue<Entry> Entries = new Queue<Entry>(Capacity);
+        private static readonly Queue<Entry> DiagnosticEntries = new Queue<Entry>(DiagnosticCapacity);
         private static long _sequence;
         private static bool _active;
         private static string _modId = "";
+        private static string _modName = "";
+        private static string _version = "";
         private static string _storyId = "";
         private static string _nodeId = "";
         private static string _nodeType = "";
@@ -32,6 +40,8 @@ namespace MortalModHost
 
         internal static bool Active { get { lock (Gate) return _active; } }
         internal static string CurrentMod { get { lock (Gate) return _modId; } }
+        internal static string CurrentModName { get { lock (Gate) return _modName; } }
+        internal static string CurrentVersion { get { lock (Gate) return _version; } }
         internal static string CurrentStory { get { lock (Gate) return _storyId; } }
         internal static string CurrentNode { get { lock (Gate) return _nodeId; } }
 
@@ -40,19 +50,28 @@ namespace MortalModHost
             bool development = IsDevelopmentPackage(package);
             lock (Gate)
             {
+                string nextModId = package != null ? package.Id ?? "" : "";
+                bool samePackage = package != null
+                    && string.Equals(_modId, nextModId, StringComparison.Ordinal);
                 bool continuation = development && _active && package != null
-                    && string.Equals(_modId, package.Id, StringComparison.Ordinal);
+                    && samePackage;
                 RuntimeDebugControl.Begin(development, continuation);
                 _active = development;
                 _nodeId = "";
                 _nodeType = "";
+                if (!samePackage) DiagnosticEntries.Clear();
+                _modId = nextModId;
+                _modName = package != null ? package.Name ?? "" : "";
+                _version = package != null ? package.Version ?? "" : "";
+                string prefix = "MOD_" + _modId + "_";
+                _storyId = package != null && registeredName != null
+                    && registeredName.StartsWith(prefix, StringComparison.Ordinal)
+                    ? registeredName.Substring(prefix.Length)
+                    : package != null ? package.Entry ?? "" : "";
+                AddDiagnosticLocked("story_enter", "", _storyId);
                 if (!development) return;
                 if (!continuation) Entries.Clear();
                 if (!continuation) { Variables.Clear(); Flags.Clear(); }
-                _modId = package.Id ?? "";
-                string prefix = "MOD_" + _modId + "_";
-                _storyId = registeredName != null && registeredName.StartsWith(prefix, StringComparison.Ordinal)
-                    ? registeredName.Substring(prefix.Length) : package.Entry ?? "";
                 if (!continuation) AddLocked("mod_enter", "", package.Name ?? "");
                 AddLocked("story_enter", "", _storyId);
             }
@@ -67,19 +86,18 @@ namespace MortalModHost
         {
             lock (Gate)
             {
-                if (!_active) return;
                 string next = nodeId ?? "";
                 if (_nodeId.Length > 0 && !string.Equals(_nodeId, next, StringComparison.Ordinal))
                 {
-                    if (_nodeType == "choice") AddLocked("choice", _nodeId, "target=" + next);
-                    else if (_nodeType == "branch") AddLocked("condition_result", _nodeId, "target=" + next);
-                    AddLocked("goto", _nodeId, next);
+                    if (_nodeType == "choice") AddBothLocked("choice", _nodeId, "target=" + next);
+                    else if (_nodeType == "branch") AddBothLocked("condition_result", _nodeId, "target=" + next);
+                    AddBothLocked("goto", _nodeId, next);
                 }
                 _nodeId = next;
                 _nodeType = nodeType ?? "";
-                AddLocked("node_enter", _nodeId, nodeType ?? "");
-                if (nodeType == "end") AddLocked("end", _nodeId, "");
-                else if (nodeType == "death") AddLocked("death", _nodeId, "");
+                AddBothLocked("node_enter", _nodeId, nodeType ?? "");
+                if (nodeType == "end") AddBothLocked("end", _nodeId, "");
+                else if (nodeType == "death") AddBothLocked("death", _nodeId, "");
             }
         }
 
@@ -108,7 +126,7 @@ namespace MortalModHost
             lock (Gate)
             {
                 if (!_active) return;
-                AddLocked("hot_reload", _nodeId,
+                AddBothLocked("hot_reload", _nodeId,
                     "restart=" + (restartNodeId ?? ""));
                 Variables.Clear();
                 Flags.Clear();
@@ -122,14 +140,26 @@ namespace MortalModHost
         {
             lock (Gate)
             {
-                if (!_active) return;
-                AddLocked(eventType ?? "unknown", nodeId ?? "", detail ?? "");
+                AddBothLocked(eventType ?? "unknown", nodeId ?? "", detail ?? "");
             }
         }
 
         internal static List<Entry> Snapshot()
         {
             lock (Gate) return new List<Entry>(Entries);
+        }
+
+        internal static List<Entry> DiagnosticSnapshot(int limit)
+        {
+            lock (Gate)
+            {
+                Entry[] all = DiagnosticEntries.ToArray();
+                int count = limit <= 0 ? 0 : Math.Min(limit, all.Length);
+                var result = new List<Entry>(count);
+                for (int i = all.Length - count; i < all.Length; i++)
+                    result.Add(all[i]);
+                return result;
+            }
         }
 
         internal static Dictionary<string, string> VariablesSnapshot()
@@ -167,12 +197,34 @@ namespace MortalModHost
             lock (Gate)
             {
                 Entries.Clear();
+                DiagnosticEntries.Clear();
                 Variables.Clear();
                 Flags.Clear();
                 RuntimeDebugControl.Reset();
                 _active = false;
-                _modId = _storyId = _nodeId = _nodeType = "";
+                _modId = _modName = _version = _storyId = _nodeId = _nodeType = "";
             }
+        }
+
+        private static void AddBothLocked(string eventType, string nodeId, string detail)
+        {
+            AddDiagnosticLocked(eventType, nodeId, detail);
+            if (_active) AddLocked(eventType, nodeId, detail);
+        }
+
+        private static void AddDiagnosticLocked(string eventType, string nodeId, string detail)
+        {
+            while (DiagnosticEntries.Count >= DiagnosticCapacity) DiagnosticEntries.Dequeue();
+            DiagnosticEntries.Enqueue(new Entry
+            {
+                Sequence = ++_sequence,
+                TimestampUtc = DateTime.UtcNow,
+                EventType = eventType ?? "unknown",
+                ModId = _modId,
+                StoryId = _storyId,
+                NodeId = nodeId ?? "",
+                Detail = detail ?? ""
+            });
         }
 
         private static void AddLocked(string eventType, string nodeId, string detail)

@@ -203,7 +203,9 @@ namespace MortalModHost
                 {
                     (__result as IDisposable)?.Dispose();
                     __result = ModDisclosure.EmptyRoutine();
-                    LuaManagerPatch.AbortActivePlayback("GameOver 卡片无法附加强制玩家内容标记");
+                    LuaManagerPatch.AbortActivePlayback(
+                        "GameOver 卡片无法附加强制玩家内容标记",
+                        null, null, "mandatory_disclosure");
                     return;
                 }
             }
@@ -346,7 +348,9 @@ namespace MortalModHost
                 {
                     (__result as IDisposable)?.Dispose();
                     __result = ModDisclosure.EmptyRoutine();
-                    LuaManagerPatch.AbortActivePlayback("汗青书结局卡无法附加强制玩家内容标记");
+                    LuaManagerPatch.AbortActivePlayback(
+                        "汗青书结局卡无法附加强制玩家内容标记",
+                        null, null, "mandatory_disclosure");
                     return;
                 }
             }
@@ -498,7 +502,9 @@ namespace MortalModHost
                 {
                     (__result as IDisposable)?.Dispose();
                     __result = ModDisclosure.EmptyRoutine();
-                    LuaManagerPatch.AbortActivePlayback("End 结局卡无法附加强制玩家内容标记");
+                    LuaManagerPatch.AbortActivePlayback(
+                        "End 结局卡无法附加强制玩家内容标记",
+                        null, null, "mandatory_disclosure");
                     return;
                 }
             }

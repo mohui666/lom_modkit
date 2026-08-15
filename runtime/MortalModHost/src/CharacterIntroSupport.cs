@@ -380,7 +380,9 @@ namespace MortalModHost
                 {
                     (__result as IDisposable)?.Dispose();
                     __result = ModDisclosure.EmptyRoutine();
-                    LuaManagerPatch.AbortActivePlayback("人物介绍卡无法附加强制玩家内容标记");
+                    LuaManagerPatch.AbortActivePlayback(
+                        "人物介绍卡无法附加强制玩家内容标记",
+                        null, null, "mandatory_disclosure");
                 }
             }
         }

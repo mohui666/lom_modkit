@@ -255,7 +255,8 @@ namespace MortalModHost
             bool healthy = Tick();
             if (!healthy)
                 LuaManagerPatch.AbortActivePlayback(
-                    "强制玩家内容披露无法维持：" + (FailureReason ?? "未知错误"));
+                    "强制玩家内容披露无法维持：" + (FailureReason ?? "未知错误"),
+                    null, null, "mandatory_disclosure");
             return healthy;
         }
 

@@ -48,7 +48,9 @@ namespace MortalModHost
                 if (scriptName != null && scriptName.StartsWith("MOD_", StringComparison.Ordinal))
                 {
                     Log.LogWarning("mod 脚本 " + scriptName + " 未注册（对应 mod 可能已删除），跳过演出并返回 Free 场景");
-                    AbortActivePlayback("MOD 脚本未注册：" + scriptName, __instance, null);
+                    AbortActivePlayback(
+                        "MOD 脚本未注册：" + scriptName,
+                        __instance, null, "script_lookup", null, scriptName);
                     return false;
                 }
                 // 官方脚本：复位心情气泡硬控状态（契约 §6.10，官方演出不受 mod 影响）；
@@ -71,8 +73,16 @@ namespace MortalModHost
                 return true; // 官方脚本，走原方法
             }
 
+            ModPackage package = null;
+            string failureCategory = "script_setup";
             try
             {
+                // 先锁定包身份与诊断上下文；后续即使 Unity/Fungus 尚未就绪，
+                // 结构化错误也不会误借上一段演出的 Mod 身份。
+                if (!ModRegistry.TryGetPackageByRegisteredName(scriptName, out package) || package == null)
+                    throw new InvalidOperationException("注册表命中了 Lua，但找不到对应的 mod 包身份");
+                RuntimeTrace.BeginScript(package, scriptName);
+
                 // _luaEnvironment 是 private 字段（[SerializeField]），用 Harmony Traverse 取
                 var env = Traverse.Create(__instance).Field("_luaEnvironment").GetValue<LuaEnvironment>();
                 if (env == null)
@@ -80,12 +90,9 @@ namespace MortalModHost
                 _activeModEnvironment = env;
 
                 // 契约 §3.1：结局卡背景图按"当前演出 mod"解析——开演前把包写入 ModOverlay.CurrentPackage
-                ModPackage package;
-                if (!ModRegistry.TryGetPackageByRegisteredName(scriptName, out package) || package == null)
-                    throw new InvalidOperationException("注册表命中了 Lua，但找不到对应的 mod 包身份");
                 ModOverlay.CurrentPackage = package;
+                failureCategory = "mandatory_disclosure";
                 ModDisclosure.Enable(package);
-                RuntimeTrace.BeginScript(package, scriptName);
                 CharacterIntroSupport.Clear();
                 CustomAudioPlayer.StopEverything();
                 CustomCharacterRuntime.HideAllOnStage();
@@ -93,11 +100,13 @@ namespace MortalModHost
 
                 // LoadLuaFunction 会确保 MoonSharp Interpreter 已初始化；它在编译错误时可能
                 // 吞异常并返回 null，因此必须显式判空，不能把空演出误报为成功。
+                failureCategory = "lua_compile";
                 Closure fn = env.LoadLuaFunction(lua, scriptName + ".LuaScript");
                 if (fn == null)
                     throw new InvalidOperationException("Lua 编译失败，LoadLuaFunction 返回 null");
 
                 // 契约 §6.9/§6.10：编译后、执行前把 mod 全局函数注册进共享 MoonSharp 环境。
+                failureCategory = "lua_globals";
                 RegisterModGlobals(env);
                 // 契约 §6.11 兜底：LeanLocalization 切语言/OnEnable 会清空 CurrentTranslations，每次演出前重注册一遍
                 try
@@ -116,13 +125,15 @@ namespace MortalModHost
                     _activeDevelopmentEnvironment = env;
                     _activeDevelopmentManager = __instance;
                 }
+                failureCategory = "lua_startup";
                 env.StartCoroutine(HostRunModLua(env, fn, scriptName));
                 Log.LogInfo("mod 脚本开始演出：" + scriptName);
             }
             catch (Exception ex)
             {
-                RuntimeTrace.RuntimeError(ex.ToString());
-                AbortActivePlayback("mod 脚本 " + scriptName + " 演出失败", __instance, ex);
+                AbortActivePlayback(
+                    "mod 脚本 " + scriptName + " 演出失败",
+                    __instance, ex, failureCategory, package, scriptName);
             }
             return false; // 该脚本名归 mod 管，成败都跳过原方法
         }
@@ -187,16 +198,21 @@ namespace MortalModHost
         /// 统一 fail-closed：先停当前 LuaManager 的全部协程，再绕过任务判定直接回官方 Free。
         /// 已经建立的披露保持到 Free 场景真正抵达；若转场失败，Plugin 的 IMGUI 安全遮罩继续覆盖。
         /// </summary>
-        internal static bool AbortActivePlayback(string reason, LuaManager instance = null, Exception error = null)
+        internal static bool AbortActivePlayback(
+            string reason,
+            LuaManager instance = null,
+            Exception error = null,
+            string category = "host_abort",
+            ModPackage package = null,
+            string registeredName = null)
         {
             bool firstAttempt = string.IsNullOrEmpty(_pendingAbortReason);
             if (firstAttempt)
             {
                 _pendingAbortReason = string.IsNullOrEmpty(reason) ? "未知 MOD 演出故障" : reason;
-                if (error == null)
-                    Log?.LogError(_pendingAbortReason);
-                else
-                    Log?.LogError(_pendingAbortReason + "：" + error);
+                RuntimeErrorReporter.Report(
+                    category, _pendingAbortReason, error, package, registeredName,
+                    delegate(string message) { if (Log != null) Log.LogError(message); });
             }
             reason = _pendingAbortReason;
 
@@ -299,8 +315,11 @@ namespace MortalModHost
 
             if (failure != null)
             {
-                RuntimeTrace.RuntimeError("启动失败：" + failure);
-                AbortActivePlayback("mod 脚本 " + scriptName + " 启动失败", null, failure);
+                ModPackage errorPackage;
+                ModRegistry.TryGetPackageByRegisteredName(scriptName, out errorPackage);
+                AbortActivePlayback(
+                    "mod 脚本 " + scriptName + " 启动失败",
+                    null, failure, "lua_startup", errorPackage, scriptName);
                 yield break;
             }
 
@@ -322,8 +341,11 @@ namespace MortalModHost
                 }
                 if (failure != null)
                 {
-                    RuntimeTrace.RuntimeError(failure.ToString());
-                    AbortActivePlayback("mod 脚本 " + scriptName + " 运行异常", null, failure);
+                    ModPackage errorPackage;
+                    ModRegistry.TryGetPackageByRegisteredName(scriptName, out errorPackage);
+                    AbortActivePlayback(
+                        "mod 脚本 " + scriptName + " 运行异常",
+                        null, failure, "lua_runtime", errorPackage, scriptName);
                     yield break;
                 }
                 yield return null;
