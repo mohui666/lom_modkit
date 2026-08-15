@@ -661,5 +661,10 @@
   "tests.run": "全テストを実行", "tests.save": "テスト定義を保存",
   "tests.col.name": "テスト", "tests.col.status": "結果", "tests.col.message": "説明",
   "tests.status.pass": "PASS", "tests.status.fail": "FAIL", "tests.status.unsupported": "UNSUPPORTED",
-  "tests.saved": "{count} 件のストーリーテストを保存しました"
+  "tests.saved": "{count} 件のストーリーテストを保存しました",
+  "menu.story_localization": "ストーリーのローカライズ…", "localization.title": "ストーリーのローカライズ",
+  "localization.hint": "ノード内の原文が既定言語です。ここには他言語だけを保存します。空欄はフォールバック言語、次に原文へ戻ります。旧ストーリーの移行は不要です。",
+  "localization.default": "既定言語", "localization.fallback": "フォールバック言語", "localization.edit_locale": "編集中の言語",
+  "localization.path": "安定パス", "localization.source": "原文", "localization.translation": "翻訳",
+  "localization.remove": "この章のローカライズを無効化", "localization.saved": "ローカライズを保存しました"
 }

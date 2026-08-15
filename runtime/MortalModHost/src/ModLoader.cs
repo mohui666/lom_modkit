@@ -113,6 +113,27 @@ namespace MortalModHost
                     }
                 }
 
+                // Story Localization v1. Invalid optional metadata falls back to the
+                // legacy default scripts/texts without rejecting an otherwise valid mod.
+                var localizationEntry = zip.GetEntry("localization.json");
+                if (localizationEntry != null)
+                {
+                    try
+                    {
+                        ParseLocalization(package, ReadEntryText(localizationEntry));
+                        LoadLocalizedScriptsAndTexts(package, zip);
+                    }
+                    catch (Exception ex)
+                    {
+                        package.LocalizedLuaScripts.Clear();
+                        package.LocalizedTexts.Clear();
+                        package.DefaultLocale = "zh_CN";
+                        package.FallbackLocale = "zh_CN";
+                        if (logWarn != null)
+                            logWarn("mod " + package.Id + " 的 localization.json/locale 资源无效，已回退默认语言：" + ex.Message);
+                    }
+                }
+
                 // assets/ 下的图片（契约 §3.1 结局卡背景图）：只收 .png/.jpg/.jpeg，
                 // 单张 ≤8MB（超限警告跳过）。用户音频走 assets/user/，见 LoadUserContents。
                 foreach (var entry in zip.Entries)
@@ -303,15 +324,75 @@ namespace MortalModHost
         /// <summary>解析 texts.json（契约 §1）：顶层对象，值必须全部是字符串。</summary>
         private static void ParseTexts(ModPackage package, string json)
         {
+            ParseTextsInto(package.Texts, json, "texts.json");
+        }
+
+        private static void ParseTextsInto(Dictionary<string, string> target, string json, string source)
+        {
             var root = MiniJson.Parse(json) as Dictionary<string, object>;
             if (root == null)
-                throw new FormatException("texts.json 顶层必须是 JSON 对象");
+                throw new FormatException(source + " 顶层必须是 JSON 对象");
             foreach (var pair in root)
             {
                 var text = pair.Value as string;
                 if (text == null)
-                    throw new FormatException("texts.json 键 " + pair.Key + " 的值必须是字符串");
-                package.Texts[pair.Key] = text;
+                    throw new FormatException(source + " 键 " + pair.Key + " 的值必须是字符串");
+                target[pair.Key] = text;
+            }
+        }
+
+        private static bool IsStoryLocale(string locale)
+        {
+            return locale == "zh_CN" || locale == "zh_TW" || locale == "ja" || locale == "ko";
+        }
+
+        private static void ParseLocalization(ModPackage package, string json)
+        {
+            var root = MiniJson.Parse(json) as Dictionary<string, object>;
+            if (root == null) throw new FormatException("localization.json 顶层必须是对象");
+            object schema;
+            if (!root.TryGetValue("schema", out schema) || Convert.ToInt32(schema) != 1)
+                throw new FormatException("localization.json schema 必须为 1");
+            object defaultValue, fallbackValue;
+            string defaultLocale = root.TryGetValue("default_locale", out defaultValue) ? defaultValue as string : null;
+            string fallbackLocale = root.TryGetValue("fallback_locale", out fallbackValue) ? fallbackValue as string : defaultLocale;
+            if (!IsStoryLocale(defaultLocale) || !IsStoryLocale(fallbackLocale))
+                throw new FormatException("default_locale/fallback_locale 只支持 zh_CN/zh_TW/ja/ko");
+            package.DefaultLocale = defaultLocale;
+            package.FallbackLocale = fallbackLocale;
+        }
+
+        private static void LoadLocalizedScriptsAndTexts(ModPackage package, ZipArchive zip)
+        {
+            foreach (string locale in new[] { "zh_CN", "zh_TW", "ja", "ko" })
+            {
+                var scripts = new Dictionary<string, string>();
+                string prefix = "lua/" + locale + "/";
+                foreach (var entry in zip.Entries)
+                {
+                    if (!entry.FullName.StartsWith(prefix, StringComparison.Ordinal) ||
+                        !entry.FullName.EndsWith(".lua", StringComparison.OrdinalIgnoreCase)) continue;
+                    string rest = entry.FullName.Substring(prefix.Length);
+                    if (rest.Length <= 4 || rest.IndexOf('/') >= 0) continue;
+                    string scriptId = rest.Substring(0, rest.Length - 4);
+                    if (!package.LuaScripts.ContainsKey(scriptId))
+                        throw new FormatException(entry.FullName + " 没有对应的默认 lua/" + scriptId + ".lua");
+                    scripts[scriptId] = ReadEntryText(entry);
+                }
+                if (scripts.Count != package.LuaScripts.Count)
+                    throw new FormatException(prefix + " 必须为每个默认脚本提供完整变体");
+                package.LocalizedLuaScripts[locale] = scripts;
+                var textsEntry = zip.GetEntry("texts/" + locale + ".json");
+                if (textsEntry == null)
+                    throw new FormatException("缺少 texts/" + locale + ".json");
+                var texts = new Dictionary<string, string>();
+                ParseTextsInto(texts, ReadEntryText(textsEntry), textsEntry.FullName);
+                if (texts.Count != package.Texts.Count)
+                    throw new FormatException(textsEntry.FullName + " 的 key 必须与 texts.json 完全一致");
+                foreach (string key in package.Texts.Keys)
+                    if (!texts.ContainsKey(key))
+                        throw new FormatException(textsEntry.FullName + " 缺少 key " + key);
+                package.LocalizedTexts[locale] = texts;
             }
         }
 

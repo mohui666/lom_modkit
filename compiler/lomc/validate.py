@@ -957,6 +957,8 @@ def validate_story(story, source="story.json", warnings=None):
     """
     try:
         _validate_story_inner(story)
+        from .localization import validate_story_localization
+        validate_story_localization(story)
     except LomcError as e:
         raise LomcError("%s: %s" % (source, e))
     if warnings is not None:

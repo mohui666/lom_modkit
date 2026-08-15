@@ -12,6 +12,7 @@ namespace MortalModHost
         private static readonly Dictionary<string, string> _luaByRegisteredName = new Dictionary<string, string>();
 
         private static readonly Dictionary<string, ModPackage> _packageByRegisteredName = new Dictionary<string, ModPackage>();
+        private static readonly Dictionary<string, string> _scriptIdByRegisteredName = new Dictionary<string, string>();
 
         /// <summary>已注册脚本总数（日志/自检用）。</summary>
         public static int Count
@@ -24,6 +25,7 @@ namespace MortalModHost
         {
             _luaByRegisteredName.Clear();
             _packageByRegisteredName.Clear();
+            _scriptIdByRegisteredName.Clear();
             foreach (var mod in mods)
             {
                 foreach (var pair in mod.LuaScripts)
@@ -37,6 +39,7 @@ namespace MortalModHost
                     }
                     _luaByRegisteredName[registeredName] = pair.Value;
                     _packageByRegisteredName[registeredName] = mod;
+                    _scriptIdByRegisteredName[registeredName] = pair.Key;
                 }
             }
         }
@@ -48,6 +51,14 @@ namespace MortalModHost
             {
                 lua = null;
                 return false;
+            }
+            ModPackage package;
+            string scriptId;
+            if (_packageByRegisteredName.TryGetValue(registeredName, out package) &&
+                _scriptIdByRegisteredName.TryGetValue(registeredName, out scriptId))
+            {
+                lua = package.GetLuaScript(scriptId, I18n.StoryLocale);
+                return lua != null;
             }
             return _luaByRegisteredName.TryGetValue(registeredName, out lua);
         }

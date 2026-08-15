@@ -34,6 +34,12 @@ namespace MortalModHost
             }
         }
 
+        /// <summary>Story localization contract uses underscore locale IDs.</summary>
+        internal static string StoryLocale
+        {
+            get { return Current.Replace('-', '_'); }
+        }
+
         internal static string T(string key)
         {
             Dictionary<string, string> map;

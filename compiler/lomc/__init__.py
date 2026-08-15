@@ -13,6 +13,10 @@ from .content import (
     validate_story_content_refs,
 )
 from .errors import LomcError
+from .localization import (
+    SUPPORTED_LOCALES, apply_story_locale, available_locales,
+    iter_localizable_texts, resolved_catalog, validate_story_localization,
+)
 from .pack import pack_mod
 from .validate import validate_manifest, validate_story
 
@@ -31,5 +35,11 @@ __all__ = [
     "collect_story_content_refs",
     "collect_stories_content_refs",
     "validate_story_content_refs",
+    "SUPPORTED_LOCALES",
+    "apply_story_locale",
+    "available_locales",
+    "iter_localizable_texts",
+    "resolved_catalog",
+    "validate_story_localization",
     "__version__",
 ]

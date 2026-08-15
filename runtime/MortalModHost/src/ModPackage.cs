@@ -29,11 +29,22 @@ namespace MortalModHost
         /// <summary>lua/ 目录全部脚本：键 = 脚本 id（文件名去 .lua），值 = Lua 源码文本。</summary>
         public readonly Dictionary<string, string> LuaScripts = new Dictionary<string, string>();
 
+        /// <summary>locale → (script id → compiled Lua). Old packages leave this empty.</summary>
+        public readonly Dictionary<string, Dictionary<string, string>> LocalizedLuaScripts =
+            new Dictionary<string, Dictionary<string, string>>(System.StringComparer.OrdinalIgnoreCase);
+
+        public string DefaultLocale = "zh_CN";
+        public string FallbackLocale = "zh_CN";
+
         /// <summary>
         /// texts.json（可选，契约 §1）：键 = "MOD_&lt;modid&gt;_&lt;scriptid&gt;_&lt;nodeid&gt;"，值 = 台词文本。
         /// 运行时注册进 LeanLocalization（解析名 "Story/" + key），让 mod 台词获得官方已读变黄/可快进能力。
         /// </summary>
         public readonly Dictionary<string, string> Texts = new Dictionary<string, string>();
+
+        /// <summary>locale → localized read-text table.</summary>
+        public readonly Dictionary<string, Dictionary<string, string>> LocalizedTexts =
+            new Dictionary<string, Dictionary<string, string>>(System.StringComparer.OrdinalIgnoreCase);
 
         /// <summary>战役模式配置（manifest.campaign，契约 §2）；null 表示本包无战役模式。</summary>
         public CampaignConfig Campaign;
@@ -71,6 +82,28 @@ namespace MortalModHost
         public string GetRegisteredScriptName(string scriptId)
         {
             return "MOD_" + Id + "_" + scriptId;
+        }
+
+        public string GetLuaScript(string scriptId, string locale)
+        {
+            Dictionary<string, string> scripts;
+            string lua;
+            if (!string.IsNullOrEmpty(locale) && LocalizedLuaScripts.TryGetValue(locale, out scripts) &&
+                scripts.TryGetValue(scriptId, out lua)) return lua;
+            if (LocalizedLuaScripts.TryGetValue(FallbackLocale, out scripts) &&
+                scripts.TryGetValue(scriptId, out lua)) return lua;
+            if (LocalizedLuaScripts.TryGetValue(DefaultLocale, out scripts) &&
+                scripts.TryGetValue(scriptId, out lua)) return lua;
+            return LuaScripts.TryGetValue(scriptId, out lua) ? lua : null;
+        }
+
+        public IDictionary<string, string> GetTexts(string locale)
+        {
+            Dictionary<string, string> texts;
+            if (!string.IsNullOrEmpty(locale) && LocalizedTexts.TryGetValue(locale, out texts)) return texts;
+            if (LocalizedTexts.TryGetValue(FallbackLocale, out texts)) return texts;
+            if (LocalizedTexts.TryGetValue(DefaultLocale, out texts)) return texts;
+            return Texts;
         }
     }
 }

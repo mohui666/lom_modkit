@@ -102,6 +102,7 @@ namespace MortalModHost
                 Assert(!HotkeyMigration.TryRewriteLegacyHotkey("", out migrated), "空文本不应动");
 
                 TestCampaign();
+                TestLocalization();
                 TestPreviewRequest(modsDir);
                 TestUserContent();
 
@@ -111,6 +112,63 @@ namespace MortalModHost
                 warnings.ForEach(Console.WriteLine);
                 Console.WriteLine("PASS: 2 个好包解析正确（texts.json 含中文/转义文本 + 坏 texts.json 容错 + assets/ 图片读入与超限跳过），4 个坏包/坏文件警告跳过，注册表查找/包查找/冲突处理正确，热键迁移改写正确，campaign 解析/触发器条件（含 when_month/when_stage/when_affinity/disable_official_events）正确。");
                 return 0;
+            }
+            finally
+            {
+                Directory.Delete(modsDir, recursive: true);
+            }
+        }
+
+        /// <summary>Story 本地化包：请求语言 → fallback → default → legacy，且注册表无需重扫。</summary>
+        private static void TestLocalization()
+        {
+            string modsDir = Path.Combine(Path.GetTempPath(), "lommod_localization_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(modsDir);
+            try
+            {
+                WriteZip(Path.Combine(modsDir, "localized.lommod"),
+                    ("manifest.json", "{\"format\":1,\"id\":\"localized\",\"entry\":\"main\"}"),
+                    ("lua/main.lua", "say(\"legacy\")"),
+                    ("texts.json", "{\"MOD_localized_main_s1\":\"legacy\"}"),
+                    ("localization.json", "{\"schema\":1,\"default_locale\":\"zh_CN\",\"fallback_locale\":\"zh_TW\",\"locales\":[\"zh_CN\",\"zh_TW\",\"ja\",\"ko\"]}"),
+                    ("lua/zh_CN/main.lua", "say(\"简中\")"),
+                    ("lua/zh_TW/main.lua", "say(\"繁中\")"),
+                    ("lua/ja/main.lua", "say(\"日本語\")"),
+                    ("lua/ko/main.lua", "say(\"한국어\")"),
+                    ("texts/zh_CN.json", "{\"MOD_localized_main_s1\":\"简中\"}"),
+                    ("texts/zh_TW.json", "{\"MOD_localized_main_s1\":\"繁中\"}"),
+                    ("texts/ja.json", "{\"MOD_localized_main_s1\":\"日本語\"}"),
+                    ("texts/ko.json", "{\"MOD_localized_main_s1\":\"한국어\"}"));
+                var warnings = new List<string>();
+                var mods = ModLoader.ScanMods(modsDir, _ => { }, warnings.Add);
+                Assert(mods.Count == 1 && warnings.Count == 0, "本地化包应无警告加载：" + string.Join(" | ", warnings));
+                var mod = mods[0];
+                Assert(mod.DefaultLocale == "zh_CN" && mod.FallbackLocale == "zh_TW", "locale 元数据解析错误");
+                Assert(mod.GetLuaScript("main", "ja").Contains("日本語"), "ja Lua 选择错误");
+                Assert(mod.GetLuaScript("main", "fr").Contains("繁中"), "未知语言应选择 fallback Lua");
+                Assert(mod.GetTexts("ko")["MOD_localized_main_s1"] == "한국어", "ko texts 选择错误");
+                ModRegistry.Rebuild(mods);
+                string lua;
+                I18n.CurrentStoryLocale = "ja";
+                Assert(ModRegistry.TryGetLuaByRegisteredName("MOD_localized_main", out lua) && lua.Contains("日本語"), "注册表首次语言选择错误");
+                I18n.CurrentStoryLocale = "ko";
+                Assert(ModRegistry.TryGetLuaByRegisteredName("MOD_localized_main", out lua) && lua.Contains("한국어"), "切换语言后不重扫也应选择新脚本");
+                I18n.CurrentStoryLocale = "zh_CN";
+
+                WriteZip(Path.Combine(modsDir, "incomplete.lommod"),
+                    ("manifest.json", "{\"format\":1,\"id\":\"incomplete\",\"entry\":\"main\"}"),
+                    ("lua/main.lua", "say(\"legacy-safe\")"),
+                    ("texts.json", "{}"),
+                    ("localization.json", "{\"schema\":1,\"default_locale\":\"zh_CN\",\"fallback_locale\":\"zh_CN\"}"),
+                    ("lua/zh_CN/main.lua", "say(\"partial\")"),
+                    ("texts/zh_CN.json", "{}"));
+                warnings.Clear();
+                mods = ModLoader.ScanMods(modsDir, _ => { }, warnings.Add);
+                var incomplete = mods.First(item => item.Id == "incomplete");
+                Assert(incomplete.LocalizedLuaScripts.Count == 0 && incomplete.GetLuaScript("main", "ja").Contains("legacy-safe"),
+                    "不完整 locale 资源必须整组回退 legacy");
+                Assert(warnings.Exists(item => item.Contains("incomplete") && item.Contains("已回退默认语言")),
+                    "不完整 locale 资源应明确告警");
             }
             finally
             {

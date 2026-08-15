@@ -14,6 +14,9 @@ manifest.json          # 必填，包元信息
 story/<id>.json        # 必填≥1，剧情源文件（编辑器可编辑的源格式）
 lua/<id>.lua           # 必填≥1，编译产物（运行时只读这里）；每个 story/<id>.json 对应一个
 texts.json             # 必填，已读文本表：{MOD_<modid>_<scriptid>_<nodeid>: 文本}（say 节点文本）
+localization.json      # 可选，Story 内容语言元数据（schema/default/fallback/locales）
+lua/<locale>/<id>.lua  # 本地化包必填，完整的 locale 专用编译产物
+texts/<locale>.json    # 本地化包必填，locale 专用已读文本表
 assets/                # 可选，自定义资源
                        #   图片：结局插图 / 人物介绍图 PNG/JPG
                        #   用户音频：assets/user/audio/<content_id>/
@@ -22,8 +25,29 @@ assets/                # 可选，自定义资源
 
 - `<id>` 规则：`[a-zA-Z0-9_\-]+`，包内唯一，即"剧情脚本 id"。
 - 导出（打包）时必须重新编译：story/*.json → lua/*.lua，二者同名。
-- 运行时插件**只读 manifest.json、lua/ 目录与 assets/**；story/*.json 给编辑器回读/再编辑用。编译器只打入剧情明确引用的 PNG/JPG（单张 ≤8MB）、明确引用的 `user:` 音频，以及明确引用的自定义角色立绘。导出的 `.lommod` 自包含，玩家机器不需要编辑器仓库。
+- 运行时插件**只读 manifest.json、lua/、texts、可选 localization.json 与 assets/**；story/*.json 给编辑器回读/再编辑用。编译器只打入剧情明确引用的 PNG/JPG（单张 ≤8MB）、明确引用的 `user:` 音频，以及明确引用的自定义角色立绘。导出的 `.lommod` 自包含，玩家机器不需要编辑器仓库。
 - texts.json 由打包时自动生成：收集每个 story 的全部 **say** 节点文本，key 与 lua 里 `GetStoryText` 的 key 一一对应；运行时注册进 LeanLocalization（见 §4/§6）。**death 文本不进 texts.json**：由 codegen 发射 `mod_set_death_text(<标题>, <文本>)` 两参 lua_str 字面量（见 §3.1/§6）。
+
+### 1.1 Story 内容本地化（可选）
+
+Story 本地化与编辑器界面语言是两套独立机制。支持 `zh_CN`、`zh_TW`、`ja`、`ko`。未启用本地化的旧 Story 及其 `lua/<id>.lua`、`texts.json` 契约保持不变，不要求迁移。
+
+启用后，节点字段中的作者文本仍是默认语言原文；每个 Story 可增加：
+
+```json
+"localization": {
+  "default_locale": "zh_CN",
+  "fallback_locale": "zh_TW",
+  "translations": {
+    "zh_TW": {"story.title": "章節標題", "say1.text": "你好呀"},
+    "ja": {"story.title": "章タイトル", "say1.text": "こんにちは"}
+  }
+}
+```
+
+翻译键是编译器生成的稳定路径：`story.title`、`<node>.text/title/name/desc`、`<choice>.options.<index>.text`、`<dice>.options.<index>.band_texts.<index>`（人物介绍正文使用 `<intro>.text`）。ID、跳转、资源引用与 raw Lua 不可翻译。未知 locale、未知路径、空译文会在校验时拒绝。
+
+打包器为四种受支持语言生成完整 Lua 与 texts 变体。解析顺序是「当前游戏语言 → fallback_locale → 默认语言原文」。运行时在 LeanLocalization 刷新时重新选择缓存的脚本与文本，不重新扫描或解压 Mod。`localization.json`/语言资源损坏时整组本地化资源被忽略并告警，旧的默认 Lua 仍可运行。
 
 ## 2. manifest.json
 

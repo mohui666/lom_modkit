@@ -84,6 +84,7 @@ from preflight_dialog import PreflightDialog
 import stage_guard
 from lua_preview import LuaPreview, compile_story, lomc_available, get_lomc
 from node_form import NodeForm
+from story_localization import StoryLocalizationDialog, apply_localization_settings
 from preview import (
     CRASH_LOG,
     StagePreview,
@@ -911,6 +912,7 @@ class MainWindow(QMainWindow):
         edit.addAction(t("menu.cross_story_transfer"), self._show_cross_story_transfer)
         edit.addAction(t("menu.variable_manager"), self._show_variable_manager)
         edit.addAction(t("menu.condition_inspector"), self._show_condition_inspector)
+        edit.addAction(t("menu.story_localization"), self._show_story_localization)
         run_menu = self.menuBar().addMenu(t("menu.run"))
         run_menu.addAction(
             t("menu.play"),
@@ -1174,6 +1176,19 @@ class MainWindow(QMainWindow):
         set_story_tests(self.story, tests)
         self._refresh_all(select_row=self._selected_node_index())
         self.statusBar().showMessage(t("tests.saved", count=len(tests)), 3000)
+
+    def _show_story_localization(self) -> None:
+        dialog = StoryLocalizationDialog(self.story, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        config = dialog.result_config()
+        before = copy.deepcopy(self.story.get("localization"))
+        if before == config or ("localization" not in self.story and config is None):
+            return
+        self._record_discrete()
+        apply_localization_settings(self.story, config)
+        self._refresh_all(select_row=max(0, self._selected_node_index()))
+        self.statusBar().showMessage(t("localization.saved"), 3000)
 
     def _locate_search_result(self, story_id: str, node_id: str | None) -> None:
         if story_id not in self._stories:

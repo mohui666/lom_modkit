@@ -661,5 +661,10 @@
   "tests.run": "執行全部測試", "tests.save": "儲存測試定義",
   "tests.col.name": "測試", "tests.col.status": "結果", "tests.col.message": "說明",
   "tests.status.pass": "PASS", "tests.status.fail": "FAIL", "tests.status.unsupported": "UNSUPPORTED",
-  "tests.saved": "已儲存 {count} 個劇情測試"
+  "tests.saved": "已儲存 {count} 個劇情測試",
+  "menu.story_localization": "劇情本地化…", "localization.title": "劇情本地化",
+  "localization.hint": "節點中的原文就是預設語言；此處只儲存其他語言。未填文字會先回退到指定語言，再回退到原文。舊劇情無需遷移。",
+  "localization.default": "預設語言", "localization.fallback": "回退語言", "localization.edit_locale": "正在編輯",
+  "localization.path": "穩定路徑", "localization.source": "原文", "localization.translation": "譯文",
+  "localization.remove": "關閉本章本地化", "localization.saved": "劇情本地化已儲存"
 }

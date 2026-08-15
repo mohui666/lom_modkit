@@ -30,6 +30,7 @@ from .content import (
     resolve_content,
 )
 from .errors import LomcError
+from .localization import SUPPORTED_LOCALES, apply_story_locale, localization_config
 from .validate import validate_manifest
 
 # 汗青书左页插图上限（字节，与运行时插件 §6 一致）：超过则打包报错
@@ -68,6 +69,10 @@ def pack_mod(mod_dir, output=None):
     # 逐个校验 + 编译；同时收集脚本 id 集与 texts.json 的已读文本表
     compiled = {}  # 脚本 id -> lua 源码
     texts = {}  # 已读 key -> 文本（契约 §1：say/death 节点文本）
+    loaded_stories = {}
+    localized_compiled = {locale: {} for locale in SUPPORTED_LOCALES}
+    localized_texts = {locale: {} for locale in SUPPORTED_LOCALES}
+    package_localization = None
     mod_id = manifest["id"]  # 打包时必有（validate_manifest 已保证）
     referenced_assets = set()
     referenced_user_content = {}  # (type, content_id) -> (meta, folder_abs)
@@ -81,6 +86,21 @@ def pack_mod(mod_dir, output=None):
                 'story/%s: 文件名与内部 id 不一致（文件 "%s" vs id %r），'
                 "二者必须相同" % (fname, stem, inner_id)
             )
+        loaded_stories[stem] = story
+        story_localization = localization_config(story)
+        if story_localization is not None:
+            current = (
+                story_localization["default_locale"],
+                story_localization.get("fallback_locale", story_localization["default_locale"]),
+            )
+            if package_localization is None:
+                package_localization = current
+            elif package_localization != current:
+                raise LomcError(
+                    "包内所有本地化 Story 必须使用相同 default_locale/fallback_locale；"
+                    "story/%s 为 %s/%s，之前为 %s/%s"
+                    % ((fname,) + current + package_localization)
+                )
         for node in story.get("nodes", []):
             # 已读文本表只收 say：death 文本不再走已读 key，由 codegen 发射
             # mod_set_death_text 字面量（官方死亡画面中央显示，见 mod_format §3.1/§6）
@@ -94,6 +114,26 @@ def pack_mod(mod_dir, output=None):
             content_root=mod_dir,
         )
         compiled[stem] = lua
+
+    # 本地化包为四种受支持语言各编译完整脚本；未本地化章节原样复用。
+    # 因此语言切换只选择脚本，不需要在 Lua 内引入任何新 API。
+    if package_localization is not None:
+        for locale in SUPPORTED_LOCALES:
+            for stem, story in loaded_stories.items():
+                localized_story = (
+                    apply_story_locale(story, locale)
+                    if localization_config(story) is not None else story
+                )
+                localized_compiled[locale][stem] = compile_story(
+                    localized_story,
+                    mod_info=manifest,
+                    source="story/%s.json" % stem,
+                    content_root=mod_dir,
+                )
+                for node in localized_story.get("nodes", []):
+                    if node.get("type") == "say":
+                        key = "MOD_%s_%s_%s" % (mod_id, stem, node["id"])
+                        localized_texts[locale][key] = node["text"]
 
     entry = manifest["entry"]
     if entry not in compiled:
@@ -204,6 +244,28 @@ def pack_mod(mod_dir, output=None):
             "texts.json",
             json.dumps(texts, ensure_ascii=False, indent=2) + "\n",
         )
+        if package_localization is not None:
+            default_locale, fallback_locale = package_localization
+            zf.writestr(
+                "localization.json",
+                json.dumps(
+                    {
+                        "schema": 1,
+                        "default_locale": default_locale,
+                        "fallback_locale": fallback_locale,
+                        "locales": list(SUPPORTED_LOCALES),
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ) + "\n",
+            )
+            for locale in SUPPORTED_LOCALES:
+                for stem, lua in localized_compiled[locale].items():
+                    zf.writestr("lua/%s/%s.lua" % (locale, stem), lua)
+                zf.writestr(
+                    "texts/%s.json" % locale,
+                    json.dumps(localized_texts[locale], ensure_ascii=False, indent=2) + "\n",
+                )
         # assets 只收剧情明确引用的图片与用户内容，避免把本机未使用素材意外分发。
         for rel in sorted(referenced_assets):
             full = os.path.join(mod_dir, rel.replace("/", os.sep))

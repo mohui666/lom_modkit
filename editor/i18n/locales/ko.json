@@ -661,5 +661,10 @@
   "tests.run": "모든 테스트 실행", "tests.save": "테스트 정의 저장",
   "tests.col.name": "테스트", "tests.col.status": "결과", "tests.col.message": "설명",
   "tests.status.pass": "PASS", "tests.status.fail": "FAIL", "tests.status.unsupported": "UNSUPPORTED",
-  "tests.saved": "스토리 테스트 {count}개를 저장했습니다"
+  "tests.saved": "스토리 테스트 {count}개를 저장했습니다",
+  "menu.story_localization": "스토리 현지화…", "localization.title": "스토리 현지화",
+  "localization.hint": "노드의 원문이 기본 언어입니다. 여기에는 다른 언어만 저장합니다. 빈 번역은 대체 언어를 거쳐 원문으로 돌아갑니다. 기존 스토리는 마이그레이션할 필요가 없습니다.",
+  "localization.default": "기본 언어", "localization.fallback": "대체 언어", "localization.edit_locale": "편집 언어",
+  "localization.path": "안정 경로", "localization.source": "원문", "localization.translation": "번역",
+  "localization.remove": "이 장의 현지화 끄기", "localization.saved": "스토리 현지화를 저장했습니다"
 }
