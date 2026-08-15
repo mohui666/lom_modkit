@@ -909,6 +909,7 @@ class MainWindow(QMainWindow):
         edit.addAction(t("menu.node_templates"), self._show_node_templates)
         edit.addAction(t("menu.story_sections"), self._show_story_sections)
         edit.addAction(t("menu.cross_story_transfer"), self._show_cross_story_transfer)
+        edit.addAction(t("menu.variable_manager"), self._show_variable_manager)
         run_menu = self.menuBar().addMenu(t("menu.run"))
         run_menu.addAction(
             t("menu.play"),
@@ -1128,6 +1129,15 @@ class MainWindow(QMainWindow):
                 t("transfer.warning_title"),
                 t("transfer.warning_intro") + "\n\n" + "\n".join("• " + warning for warning in result.warnings),
             )
+
+    def _show_variable_manager(self) -> None:
+        from variable_manager import VariableManagerDialog
+
+        self._flush_pending()
+        VariableManagerDialog(
+            self._stories, self._locate_search_result, self,
+            manifest=self.manifest_base,
+        ).exec()
 
     def _locate_search_result(self, story_id: str, node_id: str | None) -> None:
         if story_id not in self._stories:

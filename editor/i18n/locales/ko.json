@@ -619,5 +619,15 @@
   "transfer.insert_after": "앞 N단계 뒤에 삽입", "transfer.same_story": "원본과 대상은 달라야 합니다.",
   "transfer.ready": "사용자 콘텐츠 참조는 그대로 유지되며 전체 작업을 되돌릴 수 있습니다.",
   "transfer.need_two": "프로젝트에 챕터가 두 개 이상 필요합니다.", "transfer.done": "노드 {count}개를 {story}에 복사했습니다",
-  "transfer.warning_title": "복사 완료: 확인할 참조가 있습니다", "transfer.warning_intro": "다음 참조는 안전하게 추론할 수 없어 자동 변경하지 않았습니다:"
+  "transfer.warning_title": "복사 완료: 확인할 참조가 있습니다", "transfer.warning_intro": "다음 참조는 안전하게 추론할 수 없어 자동 변경하지 않았습니다:",
+  "menu.variable_manager": "변수 / Flag 관리자…", "variables.title": "변수 / Flag 관리자",
+  "variables.intro": "구조화 노드만 분석하고 Raw Lua는 추측하지 않습니다. 공식 Flag와 Flowchart 변수는 게임이 사용할 수 있어 미사용으로 단정하지 않습니다.",
+  "variables.all": "모든 네임스페이스", "variables.kind.mod_flag": "Mod 세션 Flag",
+  "variables.kind.game_flag": "공식 수치 Flag", "variables.kind.checkpoint": "공식 Checkpoint",
+  "variables.kind.condition": "공식 Condition", "variables.kind.flow_variable": "Flowchart 변수",
+  "variables.col.kind": "유형", "variables.col.name": "이름",
+  "variables.col.reads": "읽기", "variables.col.writes": "쓰기",
+  "variables.col.first_write": "첫 쓰기", "variables.col.unused": "확실히 미사용",
+  "variables.col.before_write": "쓰기 전 읽기 가능", "variables.yes": "예",
+  "variables.no": "아니요", "variables.unknown": "정적 판정 불가"
 }

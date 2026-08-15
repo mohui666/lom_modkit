@@ -619,5 +619,15 @@
   "transfer.insert_after": "插入前 N 個步驟之後", "transfer.same_story": "來源與目標必須不同。",
   "transfer.ready": "使用者內容引用會原樣保留；整次操作可復原。",
   "transfer.need_two": "專案至少需要兩個章節。", "transfer.done": "已複製 {count} 個節點到 {story}",
-  "transfer.warning_title": "複製完成，但有引用需確認", "transfer.warning_intro": "下列引用無法安全推斷，工具沒有靜默改寫："
+  "transfer.warning_title": "複製完成，但有引用需確認", "transfer.warning_intro": "下列引用無法安全推斷，工具沒有靜默改寫：",
+  "menu.variable_manager": "變數 / Flag 管理器…", "variables.title": "變數 / Flag 管理器",
+  "variables.intro": "只分析結構化節點；不猜測原生 Lua。官方 Flag 與 Flowchart 變數可能由原版系統使用，因此不會武斷標成未使用。",
+  "variables.all": "全部命名空間", "variables.kind.mod_flag": "Mod 工作階段 Flag",
+  "variables.kind.game_flag": "官方數值 Flag", "variables.kind.checkpoint": "官方 Checkpoint",
+  "variables.kind.condition": "官方 Condition", "variables.kind.flow_variable": "Flowchart 變數",
+  "variables.col.kind": "類型", "variables.col.name": "名稱",
+  "variables.col.reads": "讀取", "variables.col.writes": "寫入",
+  "variables.col.first_write": "首次寫入", "variables.col.unused": "確定未使用",
+  "variables.col.before_write": "可能先讀後寫", "variables.yes": "是",
+  "variables.no": "否", "variables.unknown": "無法靜態判定"
 }

@@ -619,5 +619,15 @@
   "transfer.insert_after": "先頭 N ステップの後へ挿入", "transfer.same_story": "コピー元とコピー先は別にしてください。",
   "transfer.ready": "ユーザーコンテンツ参照は保持され、操作全体を元に戻せます。",
   "transfer.need_two": "プロジェクトには 2 つ以上のチャプターが必要です。", "transfer.done": "{count} ノードを {story} へコピーしました",
-  "transfer.warning_title": "コピー完了：確認が必要な参照があります", "transfer.warning_intro": "次の参照は安全に推測できないため、自動変更していません："
+  "transfer.warning_title": "コピー完了：確認が必要な参照があります", "transfer.warning_intro": "次の参照は安全に推測できないため、自動変更していません：",
+  "menu.variable_manager": "変数 / Flag マネージャー…", "variables.title": "変数 / Flag マネージャー",
+  "variables.intro": "構造化ノードだけを解析し、Raw Lua は推測しません。公式 Flag と Flowchart 変数はゲーム側で利用される可能性があるため、未使用と断定しません。",
+  "variables.all": "全名前空間", "variables.kind.mod_flag": "Mod セッション Flag",
+  "variables.kind.game_flag": "公式数値 Flag", "variables.kind.checkpoint": "公式 Checkpoint",
+  "variables.kind.condition": "公式 Condition", "variables.kind.flow_variable": "Flowchart 変数",
+  "variables.col.kind": "種類", "variables.col.name": "名前",
+  "variables.col.reads": "読取", "variables.col.writes": "書込",
+  "variables.col.first_write": "初回書込", "variables.col.unused": "確実に未使用",
+  "variables.col.before_write": "書込前に読む可能性", "variables.yes": "はい",
+  "variables.no": "いいえ", "variables.unknown": "静的判定不可"
 }
