@@ -1,11 +1,13 @@
 # AI 代理 CLI / Python API 手册（story_api）
 
+> 语言：简体中文（本文） · [繁體中文](../zh_TW/ai_cli.md) · [日本語](../ja/ai_cli.md) · [한국어](../ko/ai_cli.md)
+
 `editor/story_api.py` 是给 AI 代理与脚本调用的剧情数据接口：受控写操作（Python API）
 + argparse 命令行（check / compile / pack / new-story）。本文档面向**以子进程方式
-调用 CLI 或直接 import 的 AI 代理**，所有命令与输出样例均在仓库真实环境跑通过
-（Windows 10 + Python 3.10.18，editor/.venv）。
+调用 CLI 或直接 import 的 AI 代理**，示例均在仓库真实环境跑通过（Windows + Python
+3.10，editor/.venv）。
 
-格式契约（节点类型、包结构、运行时行为）见 `docs/mod_format.md`，其中 §7 是
+格式契约（节点类型、包结构、运行时行为）见 `mod_format.md`，其中 §7 是
 story_api 的契约条款；本文档是其操作手册，二者冲突时以契约为准。
 
 核心规则（契约 §7）：**AI 不直接手写 story JSON 或 Lua**。一切剧情构建经
@@ -29,7 +31,7 @@ cd editor
 ```
 
 脚本内部会把 `editor/` 与 `<仓库根>/compiler` 插入 `sys.path`，**与当前工作目录
-无关**——从仓库根运行同样成立（已验证）：
+无关**——从仓库根运行同样成立：
 
 ```bash
 editor/.venv/Scripts/python editor/story_api.py check --json samples/demo_mod/story/main.json
@@ -50,17 +52,16 @@ editor/dist/lom_modkit/story_api_cli.exe check story.json --json
 
 与源码态的差异仅在路径推导：`__file__` 指向解包目录，项目根改为 `_MEIPASS`
 （`dist/lom_modkit/_internal`），`data/editor_data.json` 与 lomc 由打包 spec
-打进包内。**子命令、参数、输出格式、退出码与源码态完全一致**（README「独立可
-执行文件」一节有同样说明）。
+打进包内。**子命令、参数、输出格式、退出码与源码态完全一致**。
 
 ### 1.3 通用约定
 
-- **退出码**：`0` 成功；`1` 校验/编译/打包/IO 失败（错误消息已给出）；
-  `2` argparse 用法错误（缺参数、未知选项，usage 打 stderr）。
+- **退出码**：`0` 成功；`1` 校验/编译/打包/IO 失败；`2` argparse 用法错误
+  （缺参数、未知选项，usage 打 stderr）。
 - **文本模式**（默认）：结果路径打 stdout；`警告：...` 与 `错误：...` 一律打
-  **stderr**。check 全部通过时**无任何输出**（stdout/stderr 均空），安静即成功。
+  **stderr**。check 全部通过时**无任何输出**，安静即成功。
 - **--json 模式**：stdout 打**单行**结构化 JSON（UTF-8 直写字节流，绕开 Windows
-  控制台编码），stderr 保持干净。`--json` 放子命令前或后都生效（均已验证）：
+  控制台编码），stderr 保持干净。`--json` 放子命令前或后都生效：
 
 ```bash
 .venv/Scripts/python story_api.py check --json story.json   # 子命令后
@@ -72,9 +73,8 @@ editor/dist/lom_modkit/story_api_cli.exe check story.json --json
 
 ## 2. 子命令详解
 
-以下命令均在 `editor/` 目录下、用 `.venv/Scripts/python story_api.py` 真实运行；
-示例中的临时目录为 `C:/Users/mohui666/AppData/Local/Temp/lom_cli_test`（下文
-简写 `<TMP>`），samples/ 未被改动。
+示例在 `editor/` 目录下用 `.venv/Scripts/python story_api.py` 运行；临时目录
+`C:/Users/mohui666/AppData/Local/Temp/lom_cli_test` 简写 `<TMP>`。
 
 ### 2.1 check — 校验 story.json
 
@@ -91,49 +91,28 @@ usage: story_api check [-h] [--json] story_json
 句子；错误带 `story.json: ` 来源前缀（该前缀固定为 "story.json"，与实际文件名
 无关），警告无前缀。
 
-全部通过（文本模式无输出）：
-
 ```bash
+# 全部通过：文本模式无任何输出，exit=0
 .venv/Scripts/python story_api.py check ../samples/demo_mod/story/main.json
-# （无任何输出，exit=0）
-
 .venv/Scripts/python story_api.py check --json ../samples/demo_mod/story/main.json
-# {"ok": true, "errors": [], "warnings": []}    exit=0
-```
+# {"ok": true, "errors": [], "warnings": []}
 
-有警告（可编译的非致命问题，exit 仍为 0）——transition phase=in 之后没有 out：
-
-```bash
-.venv/Scripts/python story_api.py check <TMP>/warn.json
-# stderr：警告：节点 "n2"(transition, phase=in) 之后没有 phase=out 解除：TransitionIn 会隐藏剧情 UI 并盖满黑幕（官方脚本必须成对使用，ch1_1 里相距仅十几行），黑幕将一直覆盖到脚本结尾（含链式脚本）。请在其后补一个 phase=out 节点，或改用 scene 节点做转场。
-# exit=0
-
+# 有警告（非致命，exit 仍为 0）——transition phase=in 之后没有 out
 .venv/Scripts/python story_api.py check --json <TMP>/warn.json
-# {"ok": true, "errors": [], "warnings": ["节点 \"n2\"(transition, phase=in) 之后没有 phase=out 解除：TransitionIn 会隐藏剧情 UI 并盖满黑幕（官方脚本必须成对使用，ch1_1 里相距仅十几行），黑幕将一直覆盖到脚本结尾（含链式脚本）。请在其后补一个 phase=out 节点，或改用 scene 节点做转场。"]}
-```
+# {"ok": true, "errors": [], "warnings": ["节点 \"n2\"(transition, phase=in) 之后没有 phase=out 解除：TransitionIn 会隐藏剧情 UI 并盖满黑幕……请在其后补一个 phase=out 节点，或改用 scene 节点做转场。"]}
 
-有错误（悬空 goto）：
-
-```bash
-.venv/Scripts/python story_api.py check <TMP>/bad.json
-# stderr：错误：story.json: 节点 "n1": goto 指向不存在的节点 "not_exist"
-# exit=1
-
-.venv/Scripts/python story_api.py --json check <TMP>/bad.json
+# 有错误（悬空 goto），exit=1
+.venv/Scripts/python story_api.py check --json <TMP>/bad.json
 # {"ok": false, "errors": ["story.json: 节点 \"n1\": goto 指向不存在的节点 \"not_exist\""], "warnings": []}
-```
 
-文件不存在：
-
-```bash
+# 文件不存在，exit=1
 .venv/Scripts/python story_api.py check <TMP>/nope.json
 # stderr：错误：story.json 读取失败: [Errno 2] No such file or directory: '...nope.json'
-# exit=1
 ```
 
 > 注意：刚 `new-story` 出来的剧情直接 check 是**不过的**——开场是 show 登场 +
 > 空 say，say 是最后一个节点且没有显式 goto。这是正常现象，补一个 end 节点即可
-> （见 §4 工作流）：
+> （见 §3.4 工作流）：
 > `{"ok": false, "errors": ["story.json: 节点 \"n2\"(say): 是最后一个节点且没有显式 goto，脚本无法正常结束（请改用 end/goto_scene/raw 节点或显式 goto）"], "warnings": []}`
 
 ### 2.2 compile — 编译 story.json → Lua
@@ -148,29 +127,21 @@ usage: story_api compile [-h] [-o OUTPUT] [--json] story_json
 | `-o, --output` | 输出 .lua 路径；默认与输入同目录、同名 `.lua` |
 | `--json` | 单行 JSON 输出 |
 
-成功（文本模式 stdout 打印产物路径）：
-
 ```bash
+# 成功：文本模式 stdout 打印产物路径
 .venv/Scripts/python story_api.py compile <TMP>/ok.json
-# C:\Users\mohui666\AppData\Local\Temp\lom_cli_test\ok.lua    exit=0
+# C:\...\lom_cli_test\ok.lua    exit=0
 
 .venv/Scripts/python story_api.py compile <TMP>/ok.json -o <TMP>/out2.lua --json
-# {"ok": true, "output": "C:\\Users\\mohui666\\AppData\\Local\\Temp\\lom_cli_test\\out2.lua", "warnings": []}
-```
+# {"ok": true, "output": "C:\\...\\out2.lua", "warnings": []}
 
-带警告编译（仍成功，warnings 随附；Lua 头部同时嵌 `-- lomc 警告：` 注释）：
-
-```bash
+# 带警告编译（仍成功；Lua 头部同时嵌 `-- lomc 警告：` 注释）
 .venv/Scripts/python story_api.py compile <TMP>/warn.json -o <TMP>/warn.lua --json
 # {"ok": true, "output": "...\\warn.lua", "warnings": ["节点 \"n2\"(transition, phase=in) 之后没有 phase=out 解除：..."]}
-```
 
-失败（不写文件）：
-
-```bash
+# 失败（不写文件；注意失败时 JSON 只有 ok/errors 两个键，没有 warnings 键）
 .venv/Scripts/python story_api.py compile <TMP>/bad.json --json
-# {"ok": false, "errors": ["story.json: 节点 \"n1\": goto 指向不存在的节点 \"not_exist\""]}
-# exit=1（注意：失败时 JSON 只有 ok/errors 两个键，没有 warnings 键）
+# {"ok": false, "errors": ["story.json: 节点 \"n1\": goto 指向不存在的节点 \"not_exist\""]}    exit=1
 ```
 
 产物头部样例（`-- Generated by lomc, do not edit` 开头）：
@@ -201,24 +172,12 @@ id），失败即整体失败。产物 zip 内含 `manifest.json`、`story/<id>.
 `lua/<id>.lua`、`texts.json`（已读文本表）。
 
 ```bash
-.venv/Scripts/python story_api.py pack <TMP>/my_mod
-# C:\Users\mohui666\AppData\Local\Temp\lom_cli_test\my_mod.lommod    exit=0
-
 .venv/Scripts/python story_api.py pack <TMP>/my_mod -o <TMP>/my_mod_v2.lommod --json
 # {"ok": true, "output": "C:/Users/mohui666/AppData/Local/Temp/lom_cli_test/my_mod_v2.lommod"}
 
-.venv/Scripts/python story_api.py pack ../samples/demo_mod -o <TMP>/demo_mod.lommod --json
-# {"ok": true, "output": "C:\\Users\\mohui666\\AppData\\Local\\Temp\\lom_cli_test\\demo_mod.lommod"}
-```
-
-失败样例：
-
-```bash
+# 失败样例
 .venv/Scripts/python story_api.py pack <TMP>/no_manifest --json
 # {"ok": false, "errors": ["mod 目录缺少 manifest.json: C:\\...\\no_manifest"]}    exit=1
-
-.venv/Scripts/python story_api.py pack <TMP>/ghost_dir
-# stderr：错误：mod 目录不存在: C:\...\ghost_dir    exit=1
 ```
 
 > 对 `samples/` 里的示例 mod 试 pack 时**务必加 `-o` 指到别处**：默认输出是
@@ -238,25 +197,19 @@ usage: story_api new-story [-h] [--title TITLE] -o OUTPUT [--json] story_id
 | `--json` | 单行 JSON 输出 |
 
 ```bash
-.venv/Scripts/python story_api.py new-story my_tale --title "测试剧情" -o <TMP>/story.json
-# C:\Users\mohui666\AppData\Local\Temp\lom_cli_test\story.json    exit=0
-
 .venv/Scripts/python story_api.py new-story my_tale --title "测试剧情" -o <TMP>/story2.json --json
-# {"ok": true, "output": "C:\\Users\\mohui666\\AppData\\Local\\Temp\\lom_cli_test\\story2.json"}
+# {"ok": true, "output": "C:\\...\\story2.json"}
 
 .venv/Scripts/python story_api.py new-story "坏id!" -o <TMP>/bad.json --json
 # {"ok": false, "errors": ["剧情脚本 id 非法: '坏id!'（规则 [a-zA-Z0-9_-]+）"]}    exit=1
 
 .venv/Scripts/python story_api.py new-story my_tale
-# usage: story_api new-story [-h] [--title TITLE] -o OUTPUT [--json] story_id
-# story_api new-story: error: the following arguments are required: -o/--output
-# exit=2
+# story_api new-story: error: the following arguments are required: -o/--output    exit=2
 ```
 
 生成的文件（UTF-8、缩进 2、保留中文）：开场固定为 **show 登场 + 空 say** 两个
-节点（动作人物必须先登场再做动作，否则游戏会因“角色不存在”崩掉剧情协程而
-黑屏），`mood=false`（每次 show/say 前后自动发射 `mod_hide_mood()` 隐藏官方
-心情气泡），人物字段默认取 editor_data 第一个人物：
+节点（先登场再动作，见 §4 规则 4），`mood=false`（每次 show/say 前后自动发射
+`mod_hide_mood()` 隐藏官方心情气泡），人物字段默认取 editor_data 第一个人物：
 
 ```json
 {
@@ -323,18 +276,18 @@ import story_api
 
 | 函数 | 关键约束 |
 | --- | --- |
-| `new_story(story_id="main", title="新剧情", mood=False) -> dict` | story_id 须匹配 `[a-zA-Z0-9_-]+`；title 须 str；mood 须 bool。返回 show 登场(n1) + 空 say(n2) 开场的剧情 dict（先登场再动作，见 §4 硬性规则 4） |
+| `new_story(story_id="main", title="新剧情", mood=False) -> dict` | story_id 须匹配 `[a-zA-Z0-9_-]+`；title 须 str；mood 须 bool。返回 show 登场(n1) + 空 say(n2) 开场的剧情 dict（先登场再动作，见 §4 规则 4） |
 | `get_node(story, node_id) -> dict` | 不存在 → ValueError。返回的是 story 内的**原对象**（可随 update 生效） |
 | `list_nodes(story) -> list[dict]` | 每项 `{"id", "type", "summary"}`，summary 为中文摘要（如 `对白·唐惟元: 师弟，你来了。`） |
-| `add_node(story, node_type, fields=None, after=None) -> dict` | node_type 限 43 种（`models.NODE_TYPES`）；fields 键限 NODE_SCHEMAS 合法字段+通用字段（id/type/goto），类型按 kind 宽松校验；未知类型/字段/类型不符 → ValueError。id 自动生成（n1、n2…），after=节点 id 插到其后、None 追加末尾。**登场防线**：动作类节点的目标人物在前面未登场/已退场时，自动在它前面插一个 show 节点（见 §4 硬性规则 4） |
-| `update_node(story, node_id, fields) -> dict` | 同 add_node 的字段校验；节点不存在 → ValueError。合并后做 branch 归一与表情校验。**登场防线**：更新后若动作人物未登场/已退场，自动在该节点前插入 show，并把指向它的 goto/选项/分支跳转改指新节点（见 §4 硬性规则 4） |
+| `add_node(story, node_type, fields=None, after=None) -> dict` | node_type 限 43 种（`models.NODE_TYPES`）；fields 键限 NODE_SCHEMAS 合法字段+通用字段（id/type/goto），类型按 kind 宽松校验；未知类型/字段/类型不符 → ValueError。id 自动生成（n1、n2…），after=节点 id 插到其后、None 追加末尾。**登场防线**：动作类节点的目标人物在前面未登场/已退场时，自动在它前面插一个 show 节点（见 §4 规则 4） |
+| `update_node(story, node_id, fields) -> dict` | 同 add_node 的字段校验；节点不存在 → ValueError。合并后做 branch 归一与表情校验。**登场防线**：更新后若动作人物未登场/已退场，自动在该节点前插入 show，并把指向它的 goto/选项/分支跳转改指新节点（见 §4 规则 4） |
 | `delete_node(story, node_id) -> dict` | 返回被删节点；**悬空 goto 不拦截**，交给 check_story 报告 |
 | `rename_node(story, node_id, new_id) -> dict` | 重命名节点 id 并同步 start 与全部跳转引用（goto / choice 选项 / branch cases / dice 去向），返回改名后的节点。新 id 限 `[A-Za-z0-9_-]+`（去首尾空白）；old==new 为空操作；编号被占用或原节点不存在 → ValueError |
 | `move_node(story, node_id, delta) -> dict` | delta 只能 ±1；越界（已在开头/末尾）→ ValueError |
 | `set_start(story, node_id) -> dict` | 设置 story["start"]；节点不存在 → ValueError |
 | `add_say(story, text, character=None, mode="character", portrait="normal", voice=None, after=None) -> dict` | mode ∈ character/think/narrative/center；character/think 模式 character 必填（人物 id），narrative/center 不写 character 字段；text 可换行；(character, portrait) 走官方表情表校验；voice 可选 user: 音频引用 |
 | `add_scene(story, view, after=None) -> dict` | view 为非空场景 id 字符串 |
-| `add_choice(story, options, after=None) -> dict` | options 为 [(text, goto), ...] 2~4 项，text 非空 str、goto 为节点 id str；dialog 强制写 "Options"（见 §4 硬性规则） |
+| `add_choice(story, options, after=None) -> dict` | options 为 [(text, goto), ...] 2~4 项，text 非空 str、goto 为节点 id str；dialog 强制写 "Options"（见 §4 规则 1） |
 | `add_dice(story, check, goto_成功, goto_失败, goto_大成功="", band_texts=None, after=None) -> dict` | check 必须命中官方元数据（`lomc.dice_data.get_dice_meta`）；2 带检查点 goto_成功/goto_失败 必填、goto_大成功 可空；≥3 带三个都必填；band_texts 可选逐带覆写选项文本，条数=结果带数、每项非空 |
 | `add_death(story, text, death_id, next="Title", title=None, after=None) -> dict` | text 非空（可多行）；death_id 为 ≥900000 的数字字符串（约定 9+官方 id）；next 只接受 "Title"；title 可选，缺省/空串不写字段（codegen 用「勝敗乃兵家常事」） |
 
@@ -354,8 +307,7 @@ dice_options 字段收 list；其余一律 str。不修改值，只做校验。
 
 ### 3.4 典型工作流（Python）
 
-新建 → 填起始节点 → 加节点 → check → compile → pack（与本文档验证用脚本一致，
-已真实运行）：
+新建 → 填起始节点 → 加节点 → check → compile → pack：
 
 ```python
 import story_api
@@ -377,17 +329,16 @@ errors, warnings = story_api.check_story(story)
 if errors:
     raise SystemExit("\n".join(errors))
 
-# 4. 编译
+# 4. 编译 + 存档（可选）
 lua, errors, warnings = story_api.compile_story(story)
-story_api.save_story_json(story, "my_tale.json")   # 存档（可选）
+story_api.save_story_json(story, "my_tale.json")
 
 # 5. 打包（mod 目录需含 manifest.json 与 story/<id>.json，文件名=内部 id）
 out = story_api.pack_mod("path/to/my_mod")
 ```
 
-list_nodes 输出样例（真实运行；人物/场景显示名来自 editor_data 清单，
-artist1=武师、brother4=唐惟元、center=校場_白天；n5 是登场防线自动补的
-show，插在 n4 前面）：
+list_nodes 输出样例（人物/场景显示名来自 editor_data 清单，artist1=武师、
+brother4=唐惟元、center=校場_白天；n5 是登场防线自动补的 show，插在 n4 前面）：
 
 ```python
 [{'id': 'n1', 'type': 'show',   'summary': '人物登场·武师@M'},
@@ -399,52 +350,39 @@ show，插在 n4 前面）：
  {'id': 'n7', 'type': 'end',    'summary': '结束剧情·结束'}]
 ```
 
-对应的 CLI 链（全部验证通过）：
-
-```bash
-cd editor
-.venv/Scripts/python story_api.py new-story chain_demo --title "工作流演示" -o <TMP>/chain/story/chain_demo.json
-# （用 Python API 加完节点并 save_story_json 后）
-.venv/Scripts/python story_api.py check --json <TMP>/chain/story/chain_demo.json
-.venv/Scripts/python story_api.py compile --json <TMP>/chain/story/chain_demo.json -o <TMP>/chain_demo.lua
-.venv/Scripts/python story_api.py pack --json <TMP>/chain -o <TMP>/chain_demo.lommod
-```
+等价的 CLI 链即 §2 的四个子命令依次调用（new-story → check → compile → pack）。
 
 ## 4. 写操作的硬性规则（防写坏）
 
 这些是把游戏侧已知崩溃坑挡在写入口的规则，**不要试图绕过**（绕过也会被
-check_story/compile_story 拦下）：
+check_story/compile_story 拦下）。各规则的游戏侧机理详见契约 `mod_format.md`
+§3/§4。
 
-1. **choice 皮肤锁死 Options**。`add_choice` 强制 `dialog="Options"`。Talk/Meet
-   等其它皮肤是自由场景的 break 格式菜单（选项文本为「类型+key+行动点+贡献」
-   四段式），纯文本选项会在游戏内触发 BreakOptionButton 解析崩溃
-   （IndexOutOfRange，菜单冻结）。即使用 `update_node` 改成别的皮肤，
-   check_story 也会报错：`dialog 只支持 "Options"...`。
+1. **choice 皮肤锁死 Options**。`add_choice` 强制 `dialog="Options"`；其它皮肤
+   是自由场景的 break 格式菜单，纯文本选项会让游戏内菜单冻结。即使用
+   `update_node` 改成别的皮肤，check_story 也会报错。
 2. **dice 检查点必须命中官方元数据**。`add_dice` 的 check 必须在
    `data/editor_data.json` 的 dice_meta 表里（可用 `load_editor_data()` 查看，
-   测试用例：`S0205_01_001` 为 2 带、`Ch_6_8_2_Break_01_001` 为 3 带）。
-   无元数据的检查点会让游戏内骰子菜单因选项条数不足而 UpdateSelection 索引
-   越界崩溃。结果带数决定 goto 必填项：2 带填 goto_成功/goto_失败；≥3 带
-   goto_大成功 也必填。band_texts 覆写条数必须等于结果带数。
+   测试用例：`S0205_01_001` 为 2 带、`Ch_6_8_2_Break_01_001` 为 3 带），
+   无元数据的检查点会让游戏内骰子菜单崩溃。结果带数决定 goto 必填项：
+   2 带填 goto_成功/goto_失败；≥3 带 goto_大成功 也必填。band_texts 覆写
+   条数必须等于结果带数。
 3. **say 模式与人物联动**。mode=character/think 必须给 character（人物 id）；
    narrative/center 不写 character 字段（给了也会被移除）。
 4. **动作人物必须先登场（登场防线）**。对不在台上的人物做动作（say 对话/独白、
-   move/face/hide/focus/offset/shock/dim/rotate）会让游戏因“角色不存在”崩掉
-   剧情协程而黑屏。`add_node`/`add_say`/`update_node` 写入时会线性检查该人物
-   在前面是否已登场且未退场，缺失就自动在该节点前面插入一个 `show` 节点
-   （update_node 还会把指向它的 goto/选项/分支跳转改指新 show）。多路径汇合等
-   复杂情况由编辑器「体检」用图级分析兜底，同样可一键自动修复。不要手删这些
-   自动补的 show——删了黑屏风险就回来了。
+   move/face/hide/focus/offset/shock/dim/rotate）会让游戏崩掉剧情协程而黑屏。
+   `add_node`/`add_say`/`update_node` 写入时会线性检查该人物在前面是否已登场
+   且未退场，缺失就自动在该节点前面插入一个 `show` 节点（update_node 还会把
+   指向它的 goto/选项/分支跳转改指新 show）。多路径汇合等复杂情况由编辑器
+   「体检」用图级分析兜底。不要手删这些自动补的 show。
 5. **(character, portrait) 必须在官方角色表情表内**。show/say 节点的角色在表
-   且表情不在其列表 → ValueError（游戏 LoadCharacterPortrait 对无效表情 key
-   抛 KeyNotFoundException → Lua 协程死 → 对话冻结）。角色不在表（自造角色）
-   → 放行。表情表不可用（lomc 缺失）时校验下沉到 check_story。
+   且表情不在其列表 → ValueError；角色不在表（自造角色）→ 放行。表情表不可用
+   （lomc 缺失）时校验下沉到 check_story。
 6. **未知字段一律拒绝**。fields 只允许 NODE_SCHEMAS 声明的字段 + 通用字段
    （id/type/goto），多一个键就 ValueError 并列出允许集合；类型按 kind 校验
    （数值字段拒 bool，bool 字段拒数值，列表字段拒字符串，反之亦然）。
-7. **death_id 必须 ≥900000**（约定 9+官方 id，如官方 10021 → 910021）。官方
-   id 会触发官方结局解锁与记录，污染存档。death 的 next 只允许 "Title"
-   （原版死亡画面固定提供读档/标题按钮）。
+7. **death_id 必须 ≥900000**（约定 9+官方 id，如官方 10021 → 910021；官方 id
+   会触发官方结局解锁与记录，污染存档）。death 的 next 只允许 "Title"。
 8. **branch 键字段归一**。source=stat 用 stat 字段并清掉 flag；其余来源
    （mod/game/flag_value/condition）用 flag 并清掉 stat。add_node/update_node
    自动处理，调用方不用管，但不要手写两个键。
@@ -465,16 +403,14 @@ check_story/compile_story 拦下）：
 | `after 指定的节点不存在: no_such` | add_* 系列 | after 必须是已有节点 id 或 None |
 | `节点不存在: no_such` | get/update/delete/move/rename/set_start | node_id 拼错或已删；先 list_nodes 核对 |
 | `节点编号已被占用: n5` / `节点编号只使用英文字母、数字、下划线或短横线` | rename_node | 新 id 与现有节点冲突或含非法字符 |
-| `delta 只能是 ±1，实际为 2` | move_node | 只支持逐格移动，多次调用即可 |
-| `节点 n1 已在开头，无法再移动` | move_node | 越界移动 |
-| `choice 选项必须是 2~4 项，实际 1 项` | add_choice | 选项数 2~4；每项是 (text, goto) 二元组 |
-| `第 1 个选项必须是 (text, goto) 二元组` | add_choice | 选项结构错 |
+| `delta 只能是 ±1，实际为 2` / `节点 n1 已在开头，无法再移动` | move_node | 只支持逐格移动；越界移动 |
+| `choice 选项必须是 2~4 项，实际 1 项` / `第 1 个选项必须是 (text, goto) 二元组` | add_choice | 选项数 2~4；每项是 (text, goto) 二元组 |
 | `骰子检查点 "X" 无官方元数据，请在编辑器清单里选择...` | add_dice | check 不在 dice_meta 表；用 `load_editor_data()["dice_meta"]` 选合法检查点 |
 | `检查点 "Ch_6_8_2_Break_01_001" 有 3 个结果带，goto_大成功 必填（最优带）` | add_dice | ≥3 带检查点必须给大成功跳转 |
 | `dice band_texts 条数必须等于检查点 "X" 的结果带数（N 条），实际为 M 条` | add_dice | 覆写文本条数与结果带数不一致 |
 | `mode="character" 时 character 必填（人物 id）` | add_say | character/think 模式必须给人物 id |
 | `say 模式非法: 'shout'（允许 character/think/narrative/center）` | add_say | mode 拼错 |
-| `角色 "brother4" 没有表情 "angry3"（该角色表情：angry1、angry2、…、shock）。游戏 LoadCharacterPortrait 对无效表情 key 抛 KeyNotFoundException…` | add_say/add_node/update_node | 表情 id 不在该角色列表；按消息列出的合法表情改 |
+| `角色 "brother4" 没有表情 "angry3"（该角色表情：angry1、angry2、…、shock）。…KeyNotFoundException…` | add_say/add_node/update_node | 表情 id 不在该角色列表；按消息列出的合法表情改 |
 | `death_id 必须是 ≥900000 的 mod 专属数字 id…实际为 '10021'` | add_death | 用了官方 id；改成 9+官方 id（910021） |
 | `death next 非法: 'Free'（原版死亡画面固定返回标题，只允许 Title）` | add_death | next 只接受 Title |
 | `剧情脚本 id 非法: '坏id!'（规则 [a-zA-Z0-9_-]+）` | new_story / CLI new-story | id 含非法字符 |

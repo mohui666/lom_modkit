@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """数据模型：story.json 读写、节点工厂、节点摘要、editor_data.json 加载。
 
-格式契约见 docs/mod_format.md §3（节点类型）与 §5（editor_data.json）。
+格式契约见 docs/zh_CN/mod_format.md §3（节点类型）与 §5（editor_data.json）。
 节点在编辑器内部就是普通 dict（与 JSON 结构一致），本模块只管结构约束与默认值。
 """
 

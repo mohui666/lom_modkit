@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""`.lommod` 包的导入/导出（包结构契约见 docs/mod_format.md §1/§2）。
+"""`.lommod` 包的导入/导出（包结构契约见 docs/zh_CN/mod_format.md §1/§2）。
 
 导出时必须重新编译：story/*.json → lua/*.lua，二者同名。
 编译优先调 lomc.pack_mod（编译器官方打包入口），否则编辑器自行

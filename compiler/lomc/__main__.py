@@ -48,7 +48,7 @@ def _cmd_pack(args):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        prog="lomc", description="活侠传 mod 剧情编译器（契约：docs/mod_format.md）"
+        prog="lomc", description="活侠传 mod 剧情编译器（契约：docs/zh_CN/mod_format.md）"
     )
     sub = parser.add_subparsers(dest="command", required=True)
 

@@ -4,7 +4,7 @@ namespace MortalModHost
 {
     /// <summary>
     /// 一个已解析的 .lommod 包：manifest 元信息 + lua/ 目录全部脚本（内存常驻，不落盘）。
-    /// 契约见 docs/mod_format.md §1/§2。
+    /// 契约见 docs/zh_CN/mod_format.md §1/§2。
     /// </summary>
     internal sealed class ModPackage
     {

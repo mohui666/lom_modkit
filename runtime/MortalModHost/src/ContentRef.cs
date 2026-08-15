@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 namespace MortalModHost
 {
     /// <summary>
-    /// 用户内容引用协议（与 compiler/lomc/content.py、docs/user_content.md 一致）。
+    /// 用户内容引用协议（与 compiler/lomc/content.py、docs/zh_CN/user_content.md 一致）。
     /// 官方 ID 不含 user: 前缀，本类型只解析用户内容。无 Unity 依赖，可离线单测。
     /// </summary>
     internal sealed class ContentRef

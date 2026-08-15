@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """story.json / manifest.json 校验。
 
-严格遵循 docs/mod_format.md（v3 契约）：
+严格遵循 docs/zh_CN/mod_format.md（v3 契约）：
 - §2 manifest.json 字段
 - §3 story/*.json 结构与 §3.1 全量 43 种节点类型表（字段除标注"可选"外均为必填）
 - §4 补充规则（末节点收尾、禁止显式 goto 的类型、分支兜底等）

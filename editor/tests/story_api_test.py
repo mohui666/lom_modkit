@@ -4,7 +4,7 @@
 用法（在 editor/ 目录下）：
     .venv/Scripts/python tests/story_api_test.py
 
-覆盖 docs/mod_format.md §7「AI 工具接口」契约的全部函数：
+覆盖 docs/zh_CN/mod_format.md §7「AI 工具接口」契约的全部函数：
 new_story / add_node / update_node / get_node / list_nodes / delete_node /
 move_node / set_start / add_choice / add_dice / add_say / add_scene /
 check_story / compile_story / load_story_json / save_story_json / pack_mod。

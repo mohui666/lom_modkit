@@ -8,7 +8,7 @@ namespace MortalModHost
 {
     /// <summary>
     /// mod 包扫描与解析（纯静态、无 BepInEx/Unity 依赖，便于离线单测）。
-    /// 行为契约见 docs/mod_format.md §6：扫描 mods/*.lommod，解出 manifest.json、lua/*.lua、可选 texts.json（契约 §1）
+    /// 行为契约见 docs/zh_CN/mod_format.md §6：扫描 mods/*.lommod，解出 manifest.json、lua/*.lua、可选 texts.json（契约 §1）
     /// 与 assets/ 下图片（契约 §3.1）。单个包损坏只警告跳过，绝不抛出让插件崩溃。
     /// </summary>
     internal static class ModLoader

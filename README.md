@@ -6,9 +6,11 @@
 
 MIT 许可。本工具为粉丝自制工具，与游戏开发商无关，不包含游戏本体任何文件。
 
+> 语言：简体中文（本文） · [繁體中文](README.zh_TW.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
+
 ## 组件
 
-- `compiler/`（`lomc`）— JSON 剧情 → 游戏原生 Lua 编译器（Python 标准库，包格式契约见 `docs/mod_format.md`）
+- `compiler/`（`lomc`）— JSON 剧情 → 游戏原生 Lua 编译器（Python 标准库，包格式契约见 `docs/zh_CN/mod_format.md`）
 - `editor/` — PySide6 图形编辑器（三栏：剧情结构 / 当前对象 / 预览；工具栏只留试玩与导出；F5 从当前步骤进游戏、流程图、体检、安装管理、已读重置、多章节、撤销/重做）
 - `editor/story_api.py` — AI/脚本可用的受控工具接口（Python API + CLI）：所有写操作经固定规则校验，AI 不直接手写 story JSON/Lua
 - `runtime/MortalModHost/` — BepInEx 游戏内插件（C# net48）：扫描 `.lommod`、Harmony 拦截演出、战役隔离存档、位置触发器、已读文本、人物介绍卡与死亡/结局文本；Steam 普通启动可用
@@ -46,7 +48,7 @@ run_editor.bat          # 或直接双击运行
 
 复测已读变黄时：先退出游戏，再在编辑器「试玩 → 重置剧情已读状态」。它会同时清当前 mod 与 F5 试玩包（`lom_modkit_preview`）的记录。
 
-自定义音乐和音效：菜单「文件 → 用户内容库」导入 `.ogg` / `.wav`（≤20MB），会得到稳定编号如 `user:mohui.battle`。在音乐/音效步骤里按「用户 / 官方」分组选择；对白步骤可绑定「对白语音」。剧情只保存这个编号。导出时只打入当前 Mod 真正引用的音频，换电脑安装后不依赖作者本机内容库。说明见 `docs/user_content.md`。
+自定义音乐和音效：菜单「文件 → 用户内容库」导入 `.ogg` / `.wav`（≤20MB），会得到稳定编号如 `user:mohui.battle`。在音乐/音效步骤里按「用户 / 官方」分组选择；对白步骤可绑定「对白语音」。剧情只保存这个编号。导出时只打入当前 Mod 真正引用的音频，换电脑安装后不依赖作者本机内容库。说明见 `docs/zh_CN/user_content.md`。
 
 导出前可按 F6 打开“体检”。它会检查编译错误、断路与不可达步骤、占位文字、图片素材、用户音频引用，以及“人物未登场就做动作/说话”的黑屏风险；双击问题可定位到对应步骤。“安全自动修复”只处理不会改变剧情含义的机械问题（含自动补人物登场），并支持撤销。
 
@@ -81,7 +83,7 @@ story_api_cli new-story my_story -o story.json
 
 `--json` 可放在子命令前或后；失败时同样输出 `{"ok": false, "errors": [...]}` 且退出码仍为 1。
 
-面向 AI 代理的详细手册（环境要求、各子命令参数/输出/退出码、--json 字段结构、Python API 速查、写操作硬性规则、错误对照表）见 `docs/ai_cli.md`。
+面向 AI 代理的详细手册（环境要求、各子命令参数/输出/退出码、--json 字段结构、Python API 速查、写操作硬性规则、错误对照表）见 `docs/zh_CN/ai_cli.md`。
 
 ## 开发
 
@@ -127,11 +129,11 @@ cd runtime/MortalModHost && dotnet run --project test/SmokeTest -c Release
 
 官方游戏界面只有繁中、简中、韩语，**没有日语**。日语人物名与属性名来自 wiki 日文页；韩语全文来自官方解包。游戏内 Mod 菜单会跟随游戏当前语言。
 
-实现细节（目录结构、回退规则、名词再生成、如何加新语言）见 `docs/i18n.md`。
+实现细节（目录结构、回退规则、名词再生成、如何加新语言）见 `docs/zh_CN/i18n.md`。
 
 ## 说明与致谢
 
-- `docs/mod_format.md` 是全部组件的契约（包格式、43 种节点、用户内容、运行时行为），改代码先改它。自定义音频用法见 `docs/user_content.md`。
+- `docs/zh_CN/mod_format.md` 是全部组件的契约（包格式、43 种节点、用户内容、运行时行为），改代码先改它。自定义音频用法见 `docs/zh_CN/user_content.md`。
 - `data/editor_data.json` 由 `tools/extract_editor_data.py` 从游戏的解包产物生成
   （解包目录用环境变量 `LOM_UNPACK_DIR` 指定）；仓库不包含解包产物与游戏文件。
 - 游戏机制调研基于对官方脚本的实证分析（1814 个剧情脚本），反编译的游戏源码

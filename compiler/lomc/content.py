@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """用户内容引用协议与本地/包内解析。
 
-契约见 docs/mod_format.md「用户内容」与 docs/user_content.md。
+契约见 docs/zh_CN/mod_format.md「用户内容」与 docs/zh_CN/user_content.md。
 
 本模块是 Python 侧唯一的 user: 解析入口。编辑器仓库、编译校验、打包收集
 都走这里，避免 editor / compiler / pack 各自实现一套字符串规则。

@@ -18,7 +18,7 @@ namespace MortalModHost
 {
     /// <summary>
     /// 活侠传 mod 宿主插件入口：发现 .lommod 包 → 解析 → Harmony 注入 LuaManager → Free 场景内 IMGUI 菜单演出。
-    /// 运行行为契约见 docs/mod_format.md §6。
+    /// 运行行为契约见 docs/zh_CN/mod_format.md §6。
     /// </summary>
     [BepInPlugin(GUID, NAME, VERSION)]
     public class Plugin : BaseUnityPlugin

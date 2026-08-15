@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """从 lom_unpack 解包产物提取编辑器数据，生成 data/editor_data.json。
 
-格式契约见 docs/mod_format.md §5。仅用 Python 标准库。
+格式契约见 docs/zh_CN/mod_format.md §5。仅用 Python 标准库。
 """
 
 import csv

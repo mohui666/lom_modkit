@@ -6,7 +6,7 @@
 - 成功 → 等宽字体显示 Lua 源码
 - 失败/lomc 不可用 → 红字显示错误
 
-lomc 期望接口（编译器组实现，见 docs/mod_format.md §4）：
+lomc 期望接口（编译器组实现，见 docs/zh_CN/mod_format.md §4）：
     compile_story(story: dict) -> str   # 返回 Lua 源码；校验/编译失败抛异常
 """
 from __future__ import annotations
