@@ -69,6 +69,8 @@ class ContentPackInfo:
     files: tuple[dict, ...]
     package_sha256: str
     logical_content_hash: str
+    dependencies: tuple[str, ...] = ()
+    missing_dependencies: tuple[str, ...] = ()
     collision_type: str | None = None
 
 
@@ -122,6 +124,14 @@ def _collision_type(content_id: str) -> str | None:
     return None
 
 
+def _dependency_available(content_id: str) -> bool:
+    try:
+        content_registry.get(content_id)
+        return True
+    except ContentRegistryError:
+        return False
+
+
 def _sharing_defaults(record: content_registry.ContentRecord) -> dict:
     path = record.folder / CONTENT_PACK_META_FILE
     if path.is_file():
@@ -134,14 +144,45 @@ def _sharing_defaults(record: content_registry.ContentRecord) -> dict:
     return {}
 
 
-def content_pack_defaults(content_id: str) -> dict[str, str]:
+def content_pack_defaults(content_id: str) -> dict:
     record = content_registry.get(content_id)
     stored = _sharing_defaults(record)
+    try:
+        dependencies = list(
+            _normalize_dependencies(stored.get("dependencies", []), record.content_id)
+        )
+    except ContentRegistryError:
+        dependencies = []
     return {
         "version": str(stored.get("version") or "1.0.0"),
         "author": str(stored.get("author") or content_registry.default_namespace()),
         "license": str(stored.get("license") or "All Rights Reserved"),
+        "dependencies": dependencies,
     }
+
+
+def _normalize_dependencies(raw, self_id: str) -> tuple[str, ...]:
+    if raw is None:
+        return ()
+    if not isinstance(raw, (list, tuple)):
+        raise ContentRegistryError("dependencies 必须是内容 ID 列表")
+    found = set()
+    for value in raw:
+        if not isinstance(value, str):
+            raise ContentRegistryError("dependencies 的每一项必须是内容 ID 文本")
+        content_id = value.strip()
+        if content_id.startswith("user:"):
+            content_id = content_id[5:]
+        try:
+            validate_content_id(content_id)
+        except LomcError as exc:
+            raise ContentRegistryError(f"依赖 {value!r} 无效：{exc}") from exc
+        if content_id == self_id:
+            raise ContentRegistryError("内容包不能依赖自己")
+        found.add(content_id)
+        if len(found) > 128:
+            raise ContentRegistryError("直接依赖不能超过 128 项")
+    return tuple(sorted(found))
 
 
 def export_content_pack(
@@ -151,6 +192,7 @@ def export_content_pack(
     version: str,
     author: str,
     license_name: str,
+    dependencies=(),
 ) -> ContentPackInfo:
     """Export exactly one registry record and only its declared files."""
     version = _validate_version(version)
@@ -158,6 +200,7 @@ def export_content_pack(
     license_name = _visible_text("许可证", license_name, 128)
     record = content_registry.get(content_id)
     display_name = _visible_text("显示名称", record.name, 128)
+    dependencies = _normalize_dependencies(dependencies, record.content_id)
     try:
         metadata = load_content_metadata(str(record.folder / "content.json"))
     except LomcError as exc:
@@ -183,6 +226,7 @@ def export_content_pack(
         "version": version,
         "author": author,
         "license": license_name,
+        "dependencies": list(dependencies),
         "metadata": metadata_payload,
         "files": file_rows,
     }
@@ -193,17 +237,17 @@ def export_content_pack(
     destination, logical_hash = builder.write(path)
     output = Path(destination)
     return ContentPackInfo(
-        output,
-        record.content_id,
-        record.type,
-        version,
-        author,
-        license_name,
-        display_name,
-        tuple(file_rows),
-        _raw_package_sha256(output),
-        logical_hash,
-        None,
+        path=output,
+        content_id=record.content_id,
+        content_type=record.type,
+        version=version,
+        author=author,
+        license=license_name,
+        name=display_name,
+        files=tuple(file_rows),
+        package_sha256=_raw_package_sha256(output),
+        logical_content_hash=logical_hash,
+        dependencies=dependencies,
     )
 
 
@@ -223,7 +267,9 @@ def _load_manifest(archive: zipfile.ZipFile, entries: dict[str, zipfile.ZipInfo]
     return value
 
 
-def _validate_manifest(manifest: dict, entry_names: set[str]) -> tuple[dict, tuple[dict, ...]]:
+def _validate_manifest(
+    manifest: dict, entry_names: set[str]
+) -> tuple[dict, tuple[dict, ...], tuple[str, ...]]:
     if manifest.get("content_pack_format") != CONTENT_PACK_FORMAT or isinstance(
         manifest.get("content_pack_format"), bool
     ):
@@ -252,6 +298,7 @@ def _validate_manifest(manifest: dict, entry_names: set[str]) -> tuple[dict, tup
         raise ContentRegistryError(str(exc)) from exc
     if metadata["id"] != content_id or metadata["type"] != content_type:
         raise ContentRegistryError("内容包 id/type 与 metadata 不一致")
+    dependencies = _normalize_dependencies(manifest.get("dependencies", []), content_id)
     rows = manifest.get("files")
     if not isinstance(rows, list) or not rows:
         raise ContentRegistryError("内容包 files 必须是非空列表")
@@ -298,7 +345,7 @@ def _validate_manifest(manifest: dict, entry_names: set[str]) -> tuple[dict, tup
     unknown = sorted(entry_names - allowed)
     if unknown:
         raise ContentRegistryError("内容包含未声明条目：" + "、".join(unknown))
-    return metadata, tuple(normalized_rows)
+    return metadata, tuple(normalized_rows), dependencies
 
 
 def inspect_content_pack(path: str | Path) -> ContentPackInfo:
@@ -332,7 +379,9 @@ def inspect_content_pack(path: str | Path) -> ContentPackInfo:
             if info.file_size < 0 or total > MAX_ARCHIVE_UNCOMPRESSED:
                 raise ContentRegistryError("内容包解压后总大小超过 128 MiB")
         manifest = _load_manifest(archive, entries)
-        metadata, rows = _validate_manifest(manifest, {name for name, info in entries.items() if not info.is_dir()})
+        metadata, rows, dependencies = _validate_manifest(
+            manifest, {name for name, info in entries.items() if not info.is_dir()}
+        )
         for row in rows:
             info = entries[row["path"]]
             if info.file_size != row["size"]:
@@ -370,18 +419,23 @@ def inspect_content_pack(path: str | Path) -> ContentPackInfo:
     declared = str(fields.get("sha256") or "").upper()
     if fields.get("algorithm") != CONTENT_HASH_ALGORITHM or declared != computed:
         raise ContentRegistryError("内容包逻辑内容哈希无效或不匹配")
+    missing_dependencies = tuple(
+        content_id for content_id in dependencies if not _dependency_available(content_id)
+    )
     return ContentPackInfo(
-        package,
-        manifest["id"],
-        manifest["type"],
-        manifest["version"],
-        manifest["author"].strip(),
-        manifest["license"].strip(),
-        manifest["name"].strip(),
-        rows,
-        _raw_package_sha256(package),
-        computed,
-        _collision_type(manifest["id"]),
+        path=package,
+        content_id=manifest["id"],
+        content_type=manifest["type"],
+        version=manifest["version"],
+        author=manifest["author"].strip(),
+        license=manifest["license"].strip(),
+        name=manifest["name"].strip(),
+        files=rows,
+        package_sha256=_raw_package_sha256(package),
+        logical_content_hash=computed,
+        dependencies=dependencies,
+        missing_dependencies=missing_dependencies,
+        collision_type=_collision_type(manifest["id"]),
     )
 
 
@@ -426,6 +480,7 @@ def import_content_pack(path: str | Path) -> ContentPackInfo:
                         "version": info.version,
                         "author": info.author,
                         "license": info.license,
+                        "dependencies": list(info.dependencies),
                         "package_sha256": info.package_sha256,
                         "logical_content_hash": info.logical_content_hash,
                     }
@@ -477,15 +532,16 @@ def import_content_pack(path: str | Path) -> ContentPackInfo:
         shutil.rmtree(stage_root, ignore_errors=True)
     content_registry.rebuild_index()
     return ContentPackInfo(
-        info.path,
-        info.content_id,
-        info.content_type,
-        info.version,
-        info.author,
-        info.license,
-        info.name,
-        info.files,
-        info.package_sha256,
-        info.logical_content_hash,
-        None,
+        path=info.path,
+        content_id=info.content_id,
+        content_type=info.content_type,
+        version=info.version,
+        author=info.author,
+        license=info.license,
+        name=info.name,
+        files=info.files,
+        package_sha256=info.package_sha256,
+        logical_content_hash=info.logical_content_hash,
+        dependencies=info.dependencies,
+        missing_dependencies=info.missing_dependencies,
     )

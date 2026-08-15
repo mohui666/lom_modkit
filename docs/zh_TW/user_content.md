@@ -137,3 +137,5 @@ assets/user/audio/mohui.battle/battle.ogg
 在「使用者內容庫」選取角色、音訊或圖片後，可匯出離線 `.lomcontent`；不會連線或上傳伺服器。套件記錄穩定 ID、類型、SemVer、作者、授權、metadata，以及每個檔案的大小與 SHA-256。
 
 匯入會驗證安全路徑、大小、metadata、檔案與邏輯內容雜湊，全部通過後才原子安裝。audio / character / image 共用唯一 ID；若 `user:<id>` 已存在便停止且不覆蓋。雜湊不是作者簽章或官方認證。
+
+`dependencies` 只記錄去重排序後的直接內容 ID。匯入時會列出本機缺失項，但仍允許保存；第一版不連網下載、不遞迴安裝、不選版本，也沒有依賴求解器。

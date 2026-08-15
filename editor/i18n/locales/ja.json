@@ -75,7 +75,7 @@
   "content_pack.export_fail": "コンテンツパックを書き出せません",
   "content_pack.collision_title": "コンテンツ ID の競合",
   "content_pack.collision": "{id} は既に存在します（種類 {type}）。暗黙の上書きを避けるため、既存内容を削除するか作者に ID の変更を依頼してください。",
-  "content_pack.confirm": "名前：{name}\nID：{id}\n種類：{type}\nバージョン：{version}\n作者：{author}\nライセンス：{license}\nファイル：{count}\n\nユーザーコンテンツ庫へ読み込みますか？",
+  "content_pack.confirm": "名前：{name}\nID：{id}\n種類：{type}\nバージョン：{version}\n作者：{author}\nライセンス：{license}\nファイル：{count}\n直接依存：{dependencies}\nローカル不足：{missing}\n\n不足分は自動取得しません。ユーザーコンテンツ庫へ読み込みますか？",
   "content_pack.import_done": "{id} を安全に読み込みました。",
   "content_pack.export_done": "書き出しました：\n{path}\n\nファイル：{count}\n論理内容 SHA-256：{hash}",
   "content_pack.metadata_title": "共有メタデータ",
@@ -83,6 +83,9 @@
   "content_pack.version": "バージョン（SemVer）",
   "content_pack.author": "作者",
   "content_pack.license": "ライセンス",
+  "content_pack.dependencies": "直接依存",
+  "content_pack.dependencies_hint": "任意。user:コンテンツID をカンマ区切り",
+  "content_pack.none": "なし",
   "content_pack.hint": "この項目が宣言したファイルだけを同梱し、サーバーへはアップロードしません。ライセンスは素材の利用条件を受信者へ伝えます。",
 
   "toolbar.name": "よく使う操作",

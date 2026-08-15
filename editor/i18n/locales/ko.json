@@ -75,7 +75,7 @@
   "content_pack.export_fail": "콘텐츠 팩을 내보낼 수 없음",
   "content_pack.collision_title": "콘텐츠 ID 충돌",
   "content_pack.collision": "{id}가 이미 있습니다(유형 {type}). 자동 덮어쓰기를 막기 위해 기존 콘텐츠를 삭제하거나 작성자에게 ID 변경을 요청하세요.",
-  "content_pack.confirm": "이름: {name}\nID: {id}\n유형: {type}\n버전: {version}\n작성자: {author}\n라이선스: {license}\n파일: {count}\n\n사용자 콘텐츠 보관함으로 가져올까요?",
+  "content_pack.confirm": "이름: {name}\nID: {id}\n유형: {type}\n버전: {version}\n작성자: {author}\n라이선스: {license}\n파일: {count}\n직접 의존성: {dependencies}\n로컬 누락: {missing}\n\n누락 의존성은 자동 다운로드하지 않습니다. 사용자 콘텐츠 보관함으로 가져올까요?",
   "content_pack.import_done": "{id}를 안전하게 가져왔습니다.",
   "content_pack.export_done": "내보냈습니다:\n{path}\n\n파일: {count}\n논리 콘텐츠 SHA-256: {hash}",
   "content_pack.metadata_title": "공유 메타데이터",
@@ -83,6 +83,9 @@
   "content_pack.version": "버전(SemVer)",
   "content_pack.author": "작성자",
   "content_pack.license": "라이선스",
+  "content_pack.dependencies": "직접 의존성",
+  "content_pack.dependencies_hint": "선택 사항, user:콘텐츠ID를 쉼표로 구분",
+  "content_pack.none": "없음",
   "content_pack.hint": "이 항목이 선언한 파일만 포함하며 서버에 업로드하지 않습니다. 라이선스는 받는 사람에게 에셋 사용 조건을 알려 줍니다.",
 
   "toolbar.name": "자주 쓰는 작업",

@@ -89,7 +89,8 @@ class ContentPackTest(unittest.TestCase):
         self.assertEqual(restored.type, rec.type)
         self.assertTrue((restored.folder / restored.main_file).is_file())
         self.assertEqual(content_pack_defaults(rec.content_id), {
-            "version": "1.2.3", "author": "墨绘", "license": "CC-BY-4.0"
+            "version": "1.2.3", "author": "墨绘", "license": "CC-BY-4.0",
+            "dependencies": [],
         })
         return one, restored
 
@@ -193,6 +194,42 @@ class ContentPackTest(unittest.TestCase):
                 export_content_pack(
                     self.root / (field + ".lomcontent"), rec.content_id, **values
                 )
+
+    def test_direct_dependencies_report_missing_without_solver(self):
+        content_registry.register_audio(
+            self._wav("dep.wav"), "mohui.dep", "依赖", "sound"
+        )
+        rec = content_registry.register_image(
+            self._png("main.png"), "mohui.main", "主内容"
+        )
+        package = self.root / "dependencies.lomcontent"
+        export_content_pack(
+            package,
+            rec.content_id,
+            version="1.0.0",
+            author="tester",
+            license_name="MIT",
+            dependencies=["user:mohui.dep", "mohui.missing", "mohui.dep"],
+        )
+        inspected = inspect_content_pack(package)
+        self.assertEqual(inspected.dependencies, ("mohui.dep", "mohui.missing"))
+        self.assertEqual(inspected.missing_dependencies, ("mohui.missing",))
+        content_registry.remove(rec.content_id)
+        imported = import_content_pack(package)
+        self.assertEqual(imported.missing_dependencies, ("mohui.missing",))
+        self.assertEqual(
+            content_pack_defaults(rec.content_id)["dependencies"],
+            ["mohui.dep", "mohui.missing"],
+        )
+        with self.assertRaises(ContentRegistryError):
+            export_content_pack(
+                self.root / "self.lomcontent",
+                rec.content_id,
+                version="1.0.0",
+                author="tester",
+                license_name="MIT",
+                dependencies=["user:mohui.main"],
+            )
 
     def test_content_library_exposes_offline_import_and_export(self):
         dialog = ContentLibraryDialog()

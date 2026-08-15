@@ -449,6 +449,14 @@ class ContentLibraryDialog(QDialog):
                 author=preview.author,
                 license=preview.license,
                 count=len(preview.files),
+                dependencies=(
+                    ", ".join("user:" + item for item in preview.dependencies)
+                    or t("content_pack.none")
+                ),
+                missing=(
+                    ", ".join("user:" + item for item in preview.missing_dependencies)
+                    or t("content_pack.none")
+                ),
             ),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
@@ -495,6 +503,7 @@ class ContentLibraryDialog(QDialog):
                 version=dialog.version(),
                 author=dialog.author(),
                 license_name=dialog.license_name(),
+                dependencies=dialog.dependencies(),
             )
         except ContentRegistryError as exc:
             QMessageBox.critical(self, t("content_pack.export_fail"), str(exc))
@@ -590,7 +599,7 @@ class ContentLibraryDialog(QDialog):
 
 
 class _ContentPackExportDialog(QDialog):
-    def __init__(self, rec: ContentRecord, defaults: dict[str, str], parent=None):
+    def __init__(self, rec: ContentRecord, defaults: dict, parent=None):
         super().__init__(parent)
         self.setWindowTitle(t("content_pack.metadata_title"))
         layout = QFormLayout(self)
@@ -599,10 +608,15 @@ class _ContentPackExportDialog(QDialog):
         self._version = QLineEdit(defaults.get("version", "1.0.0"))
         self._author = QLineEdit(defaults.get("author", ""))
         self._license = QLineEdit(defaults.get("license", "All Rights Reserved"))
+        self._dependencies = QLineEdit(
+            ", ".join("user:" + item for item in defaults.get("dependencies", []))
+        )
+        self._dependencies.setPlaceholderText(t("content_pack.dependencies_hint"))
         layout.addRow(t("content_pack.content"), identity)
         layout.addRow(t("content_pack.version"), self._version)
         layout.addRow(t("content_pack.author"), self._author)
         layout.addRow(t("content_pack.license"), self._license)
+        layout.addRow(t("content_pack.dependencies"), self._dependencies)
         hint = QLabel(t("content_pack.hint"))
         hint.setWordWrap(True)
         hint.setProperty("context_help", True)
@@ -622,6 +636,10 @@ class _ContentPackExportDialog(QDialog):
 
     def license_name(self) -> str:
         return self._license.text().strip()
+
+    def dependencies(self) -> list[str]:
+        text = self._dependencies.text().replace("，", ",").replace(";", ",")
+        return [item.strip() for item in text.split(",") if item.strip()]
 
 
 def _fill_character_combo(
