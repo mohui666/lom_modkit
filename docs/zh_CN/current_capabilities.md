@@ -1,6 +1,6 @@
 # 当前能力与边界
 
-本文按仓库当前代码描述能力，不把研究计划写成已实现功能。节点的唯一权威集合是 `editor/models.py` 的 `NODE_SCHEMAS`，当前共 62 种。
+本文按仓库当前代码描述能力，不把研究计划写成已实现功能。节点的唯一权威集合是 `editor/models.py` 的 `NODE_SCHEMAS`，当前共 63 种。
 
 ## 已实现
 
@@ -26,6 +26,7 @@
 - `battle_result`：按包完整 SHA-256、剧情 id 和可选 Combat/Battle 类型读取 Host 的最后真实结果，只提供已验证的 win/lose 分支。
 - `battle_setup`：把 `ModifyEnemy*` 与 `SetPlayerBattleSkill` / `SetBattleSkillActive` / `ResetBattleSkill` 组合为战前表格配置。
 - `reward`：把现有 `stat` / `affinity` / `talent` / `item` / `flag` 原子接口聚合为 1~32 项奖励。
+- `result_screen`：用原版 `mainui.DisplayMessageText` 显示作者填写的结算标题与说明，再逐项执行与 `reward` 相同的现有奖励接口；不创建新的结算 UI。
 - `custom_shop`：临时替换原版 `ShopDatabase` 的书籍、杂物、贵重品库存并复用 `ShopPanel`；支持数量、MOD/原版条件和原版统一折扣，关闭或故障时恢复原库存。原版没有公开逐商品价格接口，因此不支持 `price`。
 - `stat_check` / `affinity_check` / `item_check` / `talent_check` / `flag_check`：分别读取原版属性、好感、物品、天赋与 MOD/原版旗标后走成功/失败分支；好感、物品、天赋只使用已验证的只读 Host bridge。
 
@@ -41,7 +42,6 @@
 
 - 消耗品目录或逐商品自定义价格；当前 `custom_shop` 严格限于原版 `ShopPanel` 实际展示的三类库存及统一折扣。
 - `mod_quest` 跨重启持久化，以及任意 Lua 对象和字符串持久化；普通/F5 官方槽始终不会写入 MOD sidecar。
-- `result_screen` 等更高层结算封装；`activity` 已可组合提示、属性检定、时间推进和奖励。
 - 自定义战斗地图、模型、AI、战斗动画、机制或战斗引擎。
 - 联网社区内容库、自动上传或发布。
 

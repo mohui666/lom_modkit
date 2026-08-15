@@ -105,7 +105,7 @@ assets/                # 可选，自定义资源
 - `choice` / `branch` / `dice` の分岐は必ず `goto` で対象ノード id を指します。
 - 複数の先行ノードが同一ノードに合流（合流点）するのは合法です。
 
-### 3.1 ノードタイプ（全 62 種）
+### 3.1 ノードタイプ（全 63 種）
 
 この表が現在の合法ノードすべてです。`combat` / `battle` は原作テンプレートを使う高レベル編成です。戦闘機能は逆コンパイル確認済み原作 API だけを呼び、`mod_quest` は原作 Mission ID に触れない Host 状態機を使います。
 
@@ -158,6 +158,7 @@ assets/                # 可选，自定义资源
 | `battle` | `win`, `lose`。原作 Battle `key` と `preset` は二者択一 | 原作 Battle へ入り、finish=true の `FriendWin/EnemyWin` だけを win/lose に対応させます。`PlayerDie(false)` は原作の再試行／タイトルのままです |
 | `battle_result` | `win`, `lose`。任意 `kind`("any"/"combat"/"battle") | 完全なパッケージ指紋とシナリオ id に結び付いた Host の実結果を読み、確認済み win/lose だけを分岐します。結果なし／型不一致は fail-closed |
 | `reward` | `entries`(1~32)：stat/affinity/talent/item/flag | 既存の能力、好感度、才能、アイテム、フラグ原子 API にコンパイル時展開します |
+| `result_screen` | 非空 `title`、`entries`（reward と同じ）、任意 `text` | 公式 `mainui.DisplayMessageText` でタイトルと説明を表示してから既存の報酬 API を実行します。独自の結果 UI は作りません |
 | `custom_shop` | `items`(1~64)：book/misc/special の原作アイテム id、在庫、任意の MOD/原作条件。任意 `discount`(0/1) | 原作 `ShopDatabase` 在庫を一時置換して `ShopPanel` を開き、終了または障害時に復元します。価格は原作の一括割引のみで、商品別 `price` は非対応です |
 | `stat_check` / `affinity_check` / `item_check` / `talent_check` / `flag_check` | 判定対象、成功先、失敗先。数値判定は比較演算子としきい値も指定 | 検証済み原作 API / 読み取り専用 Host bridge だけで二分します |
 | `activity` | 活動種別、能力値判定、成功／失敗先。任意で表示、時間進行、両側の報酬 | 既存の表示、能力、時間、報酬 API にコンパイル時展開し、新しい活動エンジンは追加しません |
@@ -403,7 +404,7 @@ transition の黒幕、choice スキンクラッシュ、背景の黒画面、�
 - Python API：
   - `load_editor_data()`：エディターデータ（dice_meta などの一覧を含む）を読み、(editor_data, is_fallback) を返す
   - `new_story(story_id="main", title="新剧情", mood=False)`：新規シナリオスクリプト（show 登場 + 空 say の 2 ノード開場。先に登場させてから動作）
-  - `add_node(story, node_type, fields=None, after=None)`：models 既定値でノードを追加（62 種）。未知のタイプ／フィールド／型不一致→ValueError。ノード id は自動生成。after で挿入位置を指定（ノード id または None=末尾）。登場防線：動作系ノードの対象人物がそれ以前に未登場／退場済みの場合、その前に show を自動挿入
+  - `add_node(story, node_type, fields=None, after=None)`：models 既定値でノードを追加（63 種）。未知のタイプ／フィールド／型不一致→ValueError。ノード id は自動生成。after で挿入位置を指定（ノード id または None=末尾）。登場防線：動作系ノードの対象人物がそれ以前に未登場／退場済みの場合、その前に show を自動挿入
   - `update_node(story, node_id, fields)`：ノードフィールドを更新（add と同じフィールド検証）。ノード不存在→ValueError。登場防線：更新後に動作人物が未登場／退場済みなら、そのノードの前に show を自動挿入し、それを指す goto／選択肢／分岐ジャンプを新ノードへ付け替え
   - `get_node(story, node_id)`：ノードを読む。不存在→ValueError
   - `list_nodes(story)`：[{"id","type","summary"}] の一覧を返す

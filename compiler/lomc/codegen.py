@@ -855,6 +855,14 @@ def _emit_reward(node, ctx):
     return lines
 
 
+def _emit_result_screen(node, ctx):
+    """用已验证的系统 Message 显示结算标题/说明，再执行现有奖励原子接口。"""
+    message = node["title"]
+    if node.get("text"):
+        message += "\n" + node["text"]
+    return ["\tmainui.DisplayMessageText(%s)" % lua_str(message)] + _emit_reward(node, ctx)
+
+
 def _emit_custom_shop(node, ctx):
     """临时替换原版 ShopDatabase 库存，关闭官方 ShopPanel 后立即恢复。"""
     lines = ["\tmod_custom_shop_begin()"]
@@ -1411,6 +1419,7 @@ _EMITTERS = {
     "battle": _emit_battle,
     "battle_result": _emit_battle_result,
     "reward": _emit_reward,
+    "result_screen": _emit_result_screen,
     "custom_shop": _emit_custom_shop,
     "stat_check": _emit_stat_check,
     "affinity_check": _emit_affinity_check,

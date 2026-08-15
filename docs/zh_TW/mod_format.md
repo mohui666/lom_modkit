@@ -102,7 +102,7 @@ assets/                # 可选，自定义资源
 - `choice` / `branch` / `dice` 的分支必須用 `goto` 指到目標節點 id。
 - 多個前驅匯入同一節點（匯合點）合法。
 
-### 3.1 節點類型（全量 62 種）
+### 3.1 節點類型（全量 63 種）
 
 此表是目前全部合法節點。`combat` / `battle` 是基於原版模板的高層編排；戰鬥能力只呼叫已反編譯核驗的原版介面，`mod_quest` 則使用不接觸原版 Mission ID 的 Host 狀態機。
 
@@ -155,6 +155,7 @@ assets/                # 可选，自定义资源
 | `battle` | `win`, `lose`；`key`(原版 Battle id) 與 `preset` 二選一 | 進入原版 Battle；只把 `FriendWin/EnemyWin` 且 finish=true 映射為 win/lose。`PlayerDie(false)` 保持原版重試／標題，不偽造續接 |
 | `battle_result` | `win`, `lose`；可選 `kind`("any"/"combat"/"battle") | 按完整包指紋與劇情 id 讀取 Host 真實結果，只支援已驗證的 win/lose；無結果或類型不符會 fail-closed |
 | `reward` | `entries`(1~32)：stat/affinity/talent/item/flag | 編譯期展開為既有屬性、好感、天賦、物品、旗標原子介面 |
+| `result_screen` | `title`（非空）、`entries`（同 reward）；可選 `text` | 先用原版 `mainui.DisplayMessageText` 顯示標題與說明，再執行既有獎勵介面；不建立自訂結算 UI |
 | `custom_shop` | `items`(1~64)：book/misc/special 的原版物品 id、庫存與可選 mod/原版條件；可選 `discount`(0/1) | 暫時替換原版 `ShopDatabase` 庫存並開啟 `ShopPanel`，關閉或故障時恢復。價格只使用原版統一折扣；不支援逐商品 `price` |
 | `stat_check` / `affinity_check` / `item_check` / `talent_check` / `flag_check` | 檢定目標、成功節點、失敗節點；數值檢定另有比較運算與門檻 | 只讀呼叫已驗證原版 API / Host bridge 後二分，不猜測遊戲資料 |
 | `activity` | 活動類型、屬性檢定、成功／失敗節點；可選提示、時間推進與兩側獎勵 | 編譯期組合既有提示、屬性、時間與獎勵介面，不引入新活動引擎 |
@@ -400,7 +401,7 @@ transition 黑幕、choice 外觀崩潰、背景黑畫面、人物未登場就�
 - Python API：
   - `load_editor_data()`：讀取編輯器資料（含 dice_meta 等清單），返回 (editor_data, is_fallback)
   - `new_story(story_id="main", title="新剧情", mood=False)`：新建劇情腳本（show 登場 + 空 say 雙節點開場，先登場再動作）
-  - `add_node(story, node_type, fields=None, after=None)`：按 models 預設值新增節點（62 種類型），未知類型/欄位/類型不符→ValueError，節點 id 自動產生，after 指定插入位置（節點 id 或 None=末尾）。登場防線：動作類節點的目標人物在前面未登場/已退場時，自動在它前面插入 show
+  - `add_node(story, node_type, fields=None, after=None)`：按 models 預設值新增節點（63 種類型），未知類型/欄位/類型不符→ValueError，節點 id 自動產生，after 指定插入位置（節點 id 或 None=末尾）。登場防線：動作類節點的目標人物在前面未登場/已退場時，自動在它前面插入 show
   - `update_node(story, node_id, fields)`：更新節點欄位（同 add 的欄位驗證），節點不存在→ValueError。登場防線：更新後若動作人物未登場/已退場，自動在該節點前插入 show 並把指向它的 goto/選項/分支跳轉改指新節點
   - `get_node(story, node_id)`：讀取節點，不存在→ValueError
   - `list_nodes(story)`：返回 [{"id","type","summary"}] 清單

@@ -407,6 +407,7 @@ _NODE_FIELDS = {
         {"kind": "gameplay_kind"},
     ),
     "reward": ({"entries": "list"}, {}),
+    "result_screen": ({"title": "str", "entries": "list"}, {"text": "str"}),
     "custom_shop": ({"items": "list"}, {"discount": "num"}),
     "stat_check": (
         {"key": "idstr", "op": "check_op", "value": "num", "success": "idstr", "failure": "idstr"},
@@ -1052,12 +1053,14 @@ def _check_node_extra(node, ntype, label, battle_presets=None):
                     '%s(battle): 预设 "%s" 的 kind=%r，不是 battle'
                     % (label, preset_id, preset["kind"])
                 )
-    elif ntype == "reward":
+    elif ntype in ("reward", "result_screen"):
+        if ntype == "result_screen" and not node["title"].strip():
+            raise LomcError('%s(result_screen): title 不能为空或纯空白' % label)
         entries = node["entries"]
         if not 1 <= len(entries) <= 32:
-            raise LomcError('%s(reward): entries 必须有 1~32 条' % label)
+            raise LomcError('%s(%s): entries 必须有 1~32 条' % (label, ntype))
         for index, entry in enumerate(entries, 1):
-            entry_label = '%s(reward) 第 %d 条奖励' % (label, index)
+            entry_label = '%s(%s) 第 %d 条奖励' % (label, ntype, index)
             if not isinstance(entry, dict):
                 raise LomcError('%s: 必须是对象' % entry_label)
             kind = entry.get("kind")

@@ -72,6 +72,7 @@ NODE_TYPE_CN_SRC: dict[str, str] = {
     "battle": "战役",
     "battle_result": "战斗结果",
     "reward": "战斗奖励",
+    "result_screen": "自定义结算",
     "custom_shop": "自定义商店",
     "stat_check": "属性检定",
     "affinity_check": "好感检定",
@@ -138,6 +139,7 @@ NODE_HELP_KEYS = {
     "battle_result": "help.battle_result",
     "battle_setup": "help.battle_setup",
     "reward": "help.reward",
+    "result_screen": "help.result_screen",
     "custom_shop": "help.custom_shop",
     "stat_check": "help.stat_check",
     "affinity_check": "help.affinity_check",
@@ -205,7 +207,8 @@ NODE_GROUPS_SRC: list[tuple[str, list[str]]] = [
     (
         "group.gameplay",
         [
-            "battle_setup", "combat", "battle", "battle_result", "reward", "custom_shop",
+            "battle_setup", "combat", "battle", "battle_result", "reward", "result_screen",
+            "custom_shop",
             "stat_check", "affinity_check", "item_check", "talent_check", "flag_check",
             "activity",
             "mod_quest", "quest_check", "persistent_var", "persistent_check",
@@ -775,6 +778,14 @@ NODE_SCHEMAS: dict[str, dict] = {
         "label": "战斗奖励",
         "fields": [("entries", "奖励内容", "reward_entries", False)],
     },
+    "result_screen": {
+        "label": "自定义结算",
+        "fields": [
+            ("title", "结算标题", "line", False),
+            ("text", "结算说明", "multiline", True),
+            ("entries", "发放奖励", "reward_entries", False),
+        ],
+    },
     "custom_shop": {
         "label": "自定义商店",
         "fields": [
@@ -1039,6 +1050,11 @@ _NODE_DEFAULTS: dict[str, dict] = {
     "battle": {"key": "", "win": "", "lose": ""},
     "battle_result": {"kind": "any", "win": "", "lose": ""},
     "reward": {"entries": [{"kind": "stat", "key": "", "amount": 1}]},
+    "result_screen": {
+        "title": "胜利",
+        "text": "获得以下奖励",
+        "entries": [{"kind": "stat", "key": "", "amount": 1}],
+    },
     "custom_shop": {
         "discount": 0,
         "items": [{"category": "misc", "item": "", "count": 1}],
@@ -1804,6 +1820,11 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
         return f"{tcn}·胜→{node.get('win', '')} / 败→{node.get('lose', '')}"
     if nt == "reward":
         return f"{tcn}·{len(node.get('entries', []))} 项"
+    if nt == "result_screen":
+        return (
+            f"{tcn}·{_short(str(node.get('title', '')))}"
+            f" / {len(node.get('entries', []))} 项"
+        )
     if nt == "custom_shop":
         discount = " / 原版折扣" if node.get("discount") else ""
         return f"{tcn}·{len(node.get('items', []))} 件{discount}"

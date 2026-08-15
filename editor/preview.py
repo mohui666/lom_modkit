@@ -280,6 +280,11 @@ def _hint_text(node: dict, ed: dict) -> str | None:
         )
     if t == "reward":
         return f"[战斗奖励] {len(node.get('entries', []))} 项"
+    if t == "result_screen":
+        return (
+            f"[自定义结算] {node.get('title', '')}｜"
+            f"发放 {len(node.get('entries', []))} 项奖励"
+        )
     if t.endswith("_check") or t == "activity":
         return (
             f"[{models.NODE_TYPE_CN.get(t, t)}] "

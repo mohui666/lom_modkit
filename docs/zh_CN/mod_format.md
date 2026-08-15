@@ -140,7 +140,7 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `zh_CN`、
 - `choice` / `branch` / `dice` 的分支必须用 `goto` 指到目标节点 id。
 - 多个前驱汇入同一节点（汇合点）合法。
 
-### 3.1 节点类型（全量 62 种）
+### 3.1 节点类型（全量 63 种）
 
 此表是当前全部合法节点。`combat` / `battle` 是基于原版模板的高层编排；战斗能力只调用已反编译核验的原版接口，`mod_quest` 则是明确不接触原版 Mission ID 的宿主状态机。
 
@@ -193,6 +193,7 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `zh_CN`、
 | `battle` | `win`, `lose`(节点 id)；`key`(原版 Battle id) 与 `preset` 二选一 | 执行 `ChangeScene("Battle",key,"Story")`；Host 只把原版 `ShowGameOver(FriendWin/EnemyWin, finish:true)` 映射到 win/lose。`PlayerDie(false)` 保持原版重试/标题流程，不伪造为可续接结果。终止节点，不允许额外 goto |
 | `battle_result` | `win`, `lose`；可选 `kind`("any"/"combat"/"battle"，默认 any) | 读取 Host 按完整包指纹和剧情 id 绑定的最后真实结果并分支。当前仅支持反编译确认的 win/lose；无结果、类型不符或伪造 draw/escape 都会 fail-closed。终止节点，不允许额外 goto |
 | `reward` | `entries`(1~32)：`kind`=stat/affinity/talent/item/flag，`key`，非 flag 用 `amount`，item 另用 `category`=book/misc/special | 编译期展开为现有 `Player` / `Character` / `AddTalent` / `AddBook|Misc|Special` / `AddStory` 与 `modflags`，不发明奖励存档系统 |
+| `result_screen` | `title`（非空）、`entries`（同 reward）；可选 `text` | 先用原版 `mainui.DisplayMessageText` 显示作者填写的标题与说明，再按顺序执行 `reward` 的现有原子接口；这是作者友好的组合节点，不创建自定义结算 UI |
 | `custom_shop` | `items`(1~64)：`category`=book/misc/special、`item`(原版物品 id)、`count`(1~9999，默认1)，可选 `condition:{source,key,invert?}`；节点可选 `discount`(0/1，默认0) | Host 临时替换 `ShopDatabase` 三类库存并打开原版 `ShopPanel`，关闭或故障时恢复原库存。source=mod 读取本章 `modflags`，source=condition 调原版 `checkpointmanager.Condition`。discount=1 使用原版统一 50% 折扣；原版没有公开逐商品价格接口，`price` 字段会被拒绝 |
 | `stat_check` | `key`, `op`(>=/>/<=/</==), `value`, `success`, `failure` | 读取 `LuaManager.GetStatData(key,1)` 后二分 |
 | `affinity_check` | `character`, `op`, `value`, `success`, `failure` | Host 只读解析原版 RelationshipStatType 并读取 `Relationships.Get(type).Value` |
@@ -453,7 +454,7 @@ transition 黑幕、choice 皮肤崩溃、背景黑屏、人物未登场就做�
 - Python API：
   - `load_editor_data()`：读取编辑器数据（含 dice_meta 等清单），返回 (editor_data, is_fallback)
   - `new_story(story_id="main", title="新剧情", mood=False)`：新建剧情脚本（show 登场 + 空 say 双节点开场，先登场再动作）
-  - `add_node(story, node_type, fields=None, after=None)`：按 models 默认值新增节点（62 种类型），未知类型/字段/类型不符→ValueError，节点 id 自动生成，after 指定插入位置（节点 id 或 None=末尾）。登场防线：动作类节点的目标人物在前面未登场/已退场时，自动在它前面插入 show
+  - `add_node(story, node_type, fields=None, after=None)`：按 models 默认值新增节点（63 种类型），未知类型/字段/类型不符→ValueError，节点 id 自动生成，after 指定插入位置（节点 id 或 None=末尾）。登场防线：动作类节点的目标人物在前面未登场/已退场时，自动在它前面插入 show
   - `update_node(story, node_id, fields)`：更新节点字段（同 add 的字段校验），节点不存在→ValueError。登场防线：更新后若动作人物未登场/已退场，自动在该节点前插入 show 并把指向它的 goto/选项/分支跳转改指新节点
   - `get_node(story, node_id)`：读取节点，不存在→ValueError
   - `list_nodes(story)`：返回 [{"id","type","summary"}] 清单

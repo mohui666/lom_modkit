@@ -165,6 +165,7 @@
     "item_talent_checks": "verified_decompile_read_only_bridge_implemented",
     "affinity_check": "verified_decompile_read_only_bridge_implemented",
     "mod_persistent_state": "verified_decompile_slot_bound_host_sidecar_implemented",
-    "mod_quest": "host_session_state_machine_implemented"
+    "mod_quest": "host_session_state_machine_implemented",
+    "result_screen": "existing_message_and_reward_apis_implemented"
   }
 }

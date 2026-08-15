@@ -60,6 +60,21 @@ class GameplayCompositeEditorTest(unittest.TestCase):
         form.set_node(node)
         self.assertTrue(any(table.columnCount() == 4 for table in form.findChildren(QTableWidget)))
 
+    def test_result_screen_combines_original_message_and_reward_form(self):
+        node = models.new_node("result_screen", "result", models.FALLBACK_EDITOR_DATA)
+        node.update({"title": "胜利", "text": "获得以下奖励", "goto": "end"})
+        fields = {
+            key: kind for key, _label, kind, _optional
+            in models.NODE_SCHEMAS["result_screen"]["fields"]
+        }
+        self.assertEqual(fields["entries"], "reward_entries")
+        self.assertIn("胜利", models.node_summary(node))
+        self.assertIn("发放 1 项奖励", _hint_text(node, models.FALLBACK_EDITOR_DATA))
+        form = NodeForm()
+        form.set_context(models.FALLBACK_EDITOR_DATA, ["result", "end"])
+        form.set_node(node)
+        self.assertTrue(any(table.columnCount() == 4 for table in form.findChildren(QTableWidget)))
+
     def test_custom_shop_schema_table_summary_and_ai_list_kind(self):
         node = models.new_node("custom_shop", "shop", models.FALLBACK_EDITOR_DATA)
         node.update({

@@ -78,6 +78,30 @@ class RewardTest(unittest.TestCase):
             with self.subTest(entries=entries), self.assertRaises(LomcError):
                 compile_story(story({"id": "reward", "type": "reward", "entries": entries}))
 
+    def test_result_screen_reuses_message_and_reward_apis(self):
+        lua = compile_story(story({
+            "id": "result", "type": "result_screen", "title": "胜利",
+            "text": "获得以下奖励",
+            "entries": [
+                {"kind": "stat", "key": "Money", "amount": 500},
+                {"kind": "flag", "key": "bandit_rewarded"},
+            ],
+        }))
+        self.assertIn('mainui.DisplayMessageText("胜利\\n获得以下奖励")', lua)
+        self.assertIn('Player("Money", 500, "", 1)', lua)
+        self.assertIn('AddStory("bandit_rewarded")', lua)
+        self.assertLess(lua.index("DisplayMessageText"), lua.index("statmodifymanager.Player"))
+
+    def test_result_screen_rejects_blank_title_and_malformed_rewards(self):
+        for node in (
+            {"id": "result", "type": "result_screen", "title": "  ", "entries": [
+                {"kind": "stat", "key": "Money", "amount": 1},
+            ]},
+            {"id": "result", "type": "result_screen", "title": "胜利", "entries": []},
+        ):
+            with self.subTest(node=node), self.assertRaises(LomcError):
+                compile_story(story(node))
+
 
 class CustomShopTest(unittest.TestCase):
     def test_emits_scoped_original_shop_inventory_and_conditions(self):
