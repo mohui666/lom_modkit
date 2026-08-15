@@ -28,6 +28,7 @@ namespace MortalModHost
         public const string VERSION = "0.6.0";
 
         private const int WindowId = 886310; // IMGUI 窗口 id，取个不易与其他插件撞车的数
+        private const int DebugWindowId = 886311;
 
         /// <summary>本轮解析到的全部 mod 包（patch 与菜单共用）。</summary>
         internal static List<ModPackage> LoadedMods { get; private set; }
@@ -35,6 +36,7 @@ namespace MortalModHost
         private ConfigEntry<bool> _enabled;
         private ConfigEntry<KeyboardShortcut> _menuHotkey;
         private ConfigEntry<KeyboardShortcut> _vanillaStoryHotkey;
+        private ConfigEntry<KeyboardShortcut> _debuggerHotkey;
 
         private bool _showMenu;
         private bool _inTitleScene; // 当前菜单是否处于标题画面（Title 场景仅提供战役区）
@@ -43,6 +45,10 @@ namespace MortalModHost
         private float _nextPreviewPoll;
         private long _loadedPreviewStamp = -1L;
         private string _previewWaitingScene = "";
+        private bool _showDebugger = true;
+        private bool _wasTraceActive;
+        private Rect _debugWindowRect = new Rect(20f, 20f, 520f, 680f);
+        private Vector2 _debugScroll;
 
         private void Awake()
         {
@@ -52,6 +58,8 @@ namespace MortalModHost
                 "打开/关闭 mod 菜单的快捷键（Free 自由场景与 Title 标题画面生效，契约 §6.3）。旧默认 F9 与同机 MortalInstantWin 冲突，启动时自动迁移为 F8。");
             _vanillaStoryHotkey = Config.Bind("General", "VanillaStoryHotkey", new KeyboardShortcut(KeyCode.F7),
                 "切换「禁用原版游戏剧情」的全局临时开关（任意场景可切换；会话级，不持久化）。开启后跳过返回 Free 时自动触发及地点点击触发的官方主线、支线和默认脚本，mod 触发器仍优先。");
+            _debuggerHotkey = Config.Bind("Development", "DebuggerHotkey", new KeyboardShortcut(KeyCode.F10),
+                "仅编辑器 F5 开发包生效：显示/隐藏 Runtime Debugger。正式 Mod 不启用调试器。");
             MigrateLegacyHotkey();
             Logger.LogInfo("菜单热键：" + _menuHotkey.Value + "（Free 场景左下角也有常驻入口按钮）；原版剧情开关热键：" + _vanillaStoryHotkey.Value);
 
@@ -233,6 +241,11 @@ namespace MortalModHost
         private void Update()
         {
             UpdateOverlaySceneTracking();
+            bool traceActive = RuntimeTrace.Active;
+            if (traceActive && !_wasTraceActive) _showDebugger = true;
+            _wasTraceActive = traceActive;
+            if (traceActive && IsHotkeyDown(_debuggerHotkey.Value))
+                _showDebugger = !_showDebugger;
             if (!_enabled.Value) return;
 
             HandlePreviewRequest();
@@ -461,6 +474,11 @@ namespace MortalModHost
 
         private void OnGUI()
         {
+            if (_enabled != null && _enabled.Value && RuntimeTrace.Active && _showDebugger)
+            {
+                _debugWindowRect.height = Mathf.Min(680f, Math.Max(240f, Screen.height - 40f));
+                _debugWindowRect = GUI.Window(DebugWindowId, _debugWindowRect, DrawDebuggerWindow, I18n.T("debug.window", _debuggerHotkey.Value));
+            }
             bool isTitle;
             if (!_enabled.Value || !IsMenuScene(out isTitle))
             {
@@ -471,6 +489,60 @@ namespace MortalModHost
             DrawEntryButton();
             if (_showMenu)
                 _windowRect = GUI.Window(WindowId, _windowRect, DrawWindow, I18n.T("window", _menuHotkey.Value));
+        }
+
+        private void DrawDebuggerWindow(int id)
+        {
+            try
+            {
+                _debugScroll = GUILayout.BeginScrollView(_debugScroll);
+                GUILayout.Label(I18n.T("debug.mod") + ": " + RuntimeTrace.CurrentMod);
+                GUILayout.Label(I18n.T("debug.story") + ": " + RuntimeTrace.CurrentStory);
+                GUILayout.Label(I18n.T("debug.node") + ": " + RuntimeTrace.CurrentNode);
+                GUILayout.Label(I18n.T("debug.characters") + ": " + JoinOrNone(CustomCharacterRuntime.ActiveCharacterIds()));
+                GUILayout.Label(I18n.T("debug.music") + ": " + EmptyAsNone(CustomAudioPlayer.CurrentMusic));
+                GUILayout.Label(I18n.T("debug.voice") + ": " + EmptyAsNone(CustomAudioPlayer.CurrentVoice));
+                DrawDebugMap(I18n.T("debug.variables"), RuntimeTrace.VariablesSnapshot());
+                DrawDebugMap(I18n.T("debug.flags"), RuntimeTrace.FlagsSnapshot());
+                GUILayout.Label(I18n.T("debug.trace"));
+                List<RuntimeTrace.Entry> entries = RuntimeTrace.Snapshot();
+                int start = Math.Max(0, entries.Count - 24);
+                for (int i = start; i < entries.Count; i++)
+                {
+                    RuntimeTrace.Entry item = entries[i];
+                    GUILayout.Label("#" + item.Sequence + " " + item.EventType + "  "
+                        + EmptyAsNone(item.NodeId) + (string.IsNullOrEmpty(item.Detail) ? "" : "  " + item.Detail));
+                }
+                GUILayout.EndScrollView();
+                if (GUILayout.Button(I18n.T("debug.hide"))) _showDebugger = false;
+            }
+            catch (Exception ex)
+            {
+                GUILayout.Label(I18n.T("debug.draw_error") + ": " + ex.Message);
+            }
+            GUI.DragWindow(new Rect(0f, 0f, _debugWindowRect.width, 20f));
+        }
+
+        private static void DrawDebugMap(string title, Dictionary<string, string> values)
+        {
+            GUILayout.Label(title + " (" + values.Count + ")");
+            if (values.Count == 0) { GUILayout.Label("  " + I18n.T("debug.none")); return; }
+            int shown = 0;
+            foreach (var pair in values)
+            {
+                GUILayout.Label("  " + pair.Key + " = " + pair.Value);
+                if (++shown >= 50) { GUILayout.Label("  …"); break; }
+            }
+        }
+
+        private static string JoinOrNone(List<string> values)
+        {
+            return values == null || values.Count == 0 ? I18n.T("debug.none") : string.Join(", ", values.ToArray());
+        }
+
+        private static string EmptyAsNone(string value)
+        {
+            return string.IsNullOrEmpty(value) ? I18n.T("debug.none") : value;
         }
 
         /// <summary>Free 场景左下角常驻小按钮：不依赖热键的菜单入口；菜单打开时隐藏，避免重复。</summary>

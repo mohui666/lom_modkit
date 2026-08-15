@@ -28,6 +28,8 @@ namespace MortalModHost
         private static string _storyId = "";
         private static string _nodeId = "";
         private static string _nodeType = "";
+        private static readonly Dictionary<string, string> Variables = new Dictionary<string, string>(StringComparer.Ordinal);
+        private static readonly Dictionary<string, string> Flags = new Dictionary<string, string>(StringComparer.Ordinal);
 
         internal static bool Active { get { lock (Gate) return _active; } }
         internal static string CurrentMod { get { lock (Gate) return _modId; } }
@@ -48,6 +50,7 @@ namespace MortalModHost
                 _nodeType = "";
                 if (!development) return;
                 if (!continuation) Entries.Clear();
+                if (!continuation) { Variables.Clear(); Flags.Clear(); }
                 _modId = package.Id ?? "";
                 string prefix = "MOD_" + _modId + "_";
                 _storyId = registeredName != null && registeredName.StartsWith(prefix, StringComparison.Ordinal)
@@ -106,11 +109,43 @@ namespace MortalModHost
             lock (Gate) return new List<Entry>(Entries);
         }
 
+        internal static Dictionary<string, string> VariablesSnapshot()
+        {
+            lock (Gate) return new Dictionary<string, string>(Variables, StringComparer.Ordinal);
+        }
+
+        internal static Dictionary<string, string> FlagsSnapshot()
+        {
+            lock (Gate) return new Dictionary<string, string>(Flags, StringComparer.Ordinal);
+        }
+
+        internal static void ReplaceVariables(IDictionary<string, string> values)
+        {
+            lock (Gate)
+            {
+                if (!_active) return;
+                Variables.Clear();
+                if (values != null) foreach (var pair in values) Variables[pair.Key] = pair.Value;
+            }
+        }
+
+        internal static void ReplaceFlags(IDictionary<string, string> values)
+        {
+            lock (Gate)
+            {
+                if (!_active) return;
+                Flags.Clear();
+                if (values != null) foreach (var pair in values) Flags[pair.Key] = pair.Value;
+            }
+        }
+
         internal static void Reset()
         {
             lock (Gate)
             {
                 Entries.Clear();
+                Variables.Clear();
+                Flags.Clear();
                 _active = false;
                 _modId = _storyId = _nodeId = _nodeType = "";
             }

@@ -135,6 +135,8 @@ namespace MortalModHost
             RuntimeTrace.Condition("b1", "true", "e1");
             RuntimeTrace.NodeEnter("e1", "end");
             RuntimeTrace.RuntimeError("synthetic");
+            RuntimeTrace.ReplaceVariables(new Dictionary<string, string> { { "chapter", "2" } });
+            RuntimeTrace.ReplaceFlags(new Dictionary<string, string> { { "READY", "true" } });
             var events = RuntimeTrace.Snapshot();
             Assert(RuntimeTrace.Active, "固定 F5 试玩包应启用 trace");
             Assert(events.Exists(item => item.EventType == "mod_enter"), "缺 mod_enter");
@@ -145,6 +147,8 @@ namespace MortalModHost
             Assert(events.Exists(item => item.EventType == "goto" && item.Detail == "b1"), "缺推断 goto");
             Assert(events.Exists(item => item.EventType == "end"), "缺 end");
             Assert(events.Exists(item => item.EventType == "runtime_error"), "缺 runtime_error");
+            Assert(RuntimeTrace.VariablesSnapshot()["chapter"] == "2", "变量快照错误");
+            Assert(RuntimeTrace.FlagsSnapshot()["READY"] == "true", "Flag 快照错误");
             for (int i = 0; i < RuntimeTrace.Capacity + 20; i++)
                 RuntimeTrace.Record("node_enter", "n" + i, "stress");
             Assert(RuntimeTrace.Snapshot().Count == RuntimeTrace.Capacity, "trace ring buffer 必须有界");

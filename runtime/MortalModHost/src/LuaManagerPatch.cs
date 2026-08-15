@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using BepInEx.Logging;
 using Fungus;
 using HarmonyLib;
@@ -158,6 +159,7 @@ namespace MortalModHost
                 }
                 script.Globals["mod_trace_node"] = new CallbackFunction((ctx, args) =>
                 {
+                    CaptureTraceState(script);
                     RuntimeTrace.NodeEnter(ArgString(args, 0), ArgString(args, 1));
                     return DynValue.Nil;
                 }, "mod_trace_node");
@@ -474,6 +476,26 @@ namespace MortalModHost
             }
             catch { }
             return fallback;
+        }
+
+        private static void CaptureTraceState(Script script)
+        {
+            if (!RuntimeTrace.Active || script == null) return;
+            RuntimeTrace.ReplaceFlags(ReadDebugTable(script.Globals.Get("modflags")));
+            RuntimeTrace.ReplaceVariables(ReadDebugTable(script.Globals.Get("modvars")));
+        }
+
+        private static Dictionary<string, string> ReadDebugTable(DynValue value)
+        {
+            var result = new Dictionary<string, string>(StringComparer.Ordinal);
+            if (value == null || value.Type != DataType.Table || value.Table == null) return result;
+            foreach (TablePair pair in value.Table.Pairs)
+            {
+                string key = pair.Key != null ? pair.Key.ToPrintString() : "";
+                if (key.Length == 0) continue;
+                result[key] = pair.Value != null ? pair.Value.ToPrintString() : "nil";
+            }
+            return result;
         }
 
         private static bool ArgBool(MoonSharp.Interpreter.CallbackArguments args, int index, bool fallback)

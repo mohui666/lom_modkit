@@ -170,6 +170,16 @@ namespace MortalModHost
             return true;
         }
 
+        internal static List<string> ActiveCharacterIds()
+        {
+            var result = new List<string>();
+            foreach (var pair in Actors)
+                if (pair.Value != null && pair.Value.Visible)
+                    result.Add(pair.Key);
+            result.Sort(StringComparer.Ordinal);
+            return result;
+        }
+
         /// <summary>按原版 MoveOffsetCoroutine 语义累加 anchoredPosition。</summary>
         public static bool Offset(string raw, float x, float y, float duration)
         {

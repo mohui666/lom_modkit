@@ -106,6 +106,11 @@ namespace MortalModHost
                 { "play", "演出" },
                 { "close", "关闭" },
                 { "entry.scripts", "入口：{0}（{1} 个脚本）" },
+                { "debug.window", "F5 Runtime Debugger（{0} 隐藏/显示）" },
+                { "debug.mod", "当前 Mod" }, { "debug.story", "当前剧情" }, { "debug.node", "当前节点" },
+                { "debug.variables", "变量" }, { "debug.flags", "Flags" }, { "debug.characters", "自定义角色" },
+                { "debug.music", "自定义音乐" }, { "debug.voice", "当前语音" }, { "debug.trace", "最近 Trace" },
+                { "debug.none", "（无）" }, { "debug.hide", "隐藏调试器" }, { "debug.draw_error", "调试器绘制失败" },
             };
         }
 
@@ -124,6 +129,11 @@ namespace MortalModHost
                 { "play", "演出" },
                 { "close", "關閉" },
                 { "entry.scripts", "入口：{0}（{1} 個腳本）" },
+                { "debug.window", "F5 Runtime Debugger（{0} 隱藏/顯示）" },
+                { "debug.mod", "目前 Mod" }, { "debug.story", "目前劇情" }, { "debug.node", "目前節點" },
+                { "debug.variables", "變數" }, { "debug.flags", "Flags" }, { "debug.characters", "自訂角色" },
+                { "debug.music", "自訂音樂" }, { "debug.voice", "目前語音" }, { "debug.trace", "最近 Trace" },
+                { "debug.none", "（無）" }, { "debug.hide", "隱藏偵錯器" }, { "debug.draw_error", "偵錯器繪製失敗" },
             };
         }
 
@@ -142,6 +152,11 @@ namespace MortalModHost
                 { "play", "再生" },
                 { "close", "閉じる" },
                 { "entry.scripts", "入口：{0}（スクリプト {1}）" },
+                { "debug.window", "F5 Runtime Debugger（{0} 表示切替）" },
+                { "debug.mod", "現在の Mod" }, { "debug.story", "現在のストーリー" }, { "debug.node", "現在のノード" },
+                { "debug.variables", "変数" }, { "debug.flags", "Flags" }, { "debug.characters", "カスタムキャラクター" },
+                { "debug.music", "カスタム音楽" }, { "debug.voice", "現在のボイス" }, { "debug.trace", "最近の Trace" },
+                { "debug.none", "（なし）" }, { "debug.hide", "デバッガーを隠す" }, { "debug.draw_error", "デバッガー描画エラー" },
             };
         }
 
@@ -160,6 +175,11 @@ namespace MortalModHost
                 { "play", "재생" },
                 { "close", "닫기" },
                 { "entry.scripts", "입구：{0}（스크립트 {1}개）" },
+                { "debug.window", "F5 Runtime Debugger（{0} 숨기기/표시）" },
+                { "debug.mod", "현재 Mod" }, { "debug.story", "현재 스토리" }, { "debug.node", "현재 노드" },
+                { "debug.variables", "변수" }, { "debug.flags", "Flags" }, { "debug.characters", "사용자 캐릭터" },
+                { "debug.music", "사용자 음악" }, { "debug.voice", "현재 음성" }, { "debug.trace", "최근 Trace" },
+                { "debug.none", "（없음）" }, { "debug.hide", "디버거 숨기기" }, { "debug.draw_error", "디버거 그리기 실패" },
             };
         }
     }
