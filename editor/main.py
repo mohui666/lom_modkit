@@ -898,6 +898,7 @@ class MainWindow(QMainWindow):
             QKeySequence("Ctrl+Shift+F"),
         )
         edit.addAction(t("menu.bulk_edit"), self._show_bulk_edit)
+        edit.addAction(t("menu.node_templates"), self._show_node_templates)
         run_menu = self.menuBar().addMenu(t("menu.run"))
         run_menu.addAction(
             t("menu.play"),
@@ -1045,6 +1046,32 @@ class MainWindow(QMainWindow):
             return
         self._refresh_all(select_row=indices[0] if indices else 0)
         self.statusBar().showMessage(t("bulk.done", count=count), 3500)
+
+    def _show_node_templates(self) -> None:
+        from node_templates import NodeTemplateDialog, instantiate_template
+
+        self._flush_pending()
+        current = self._selected_node_index()
+        dialog = NodeTemplateDialog(self.story, current, self.editor_data, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        template = dialog.chosen_template()
+        if template is None:
+            return
+        nodes = self.story.get("nodes") or []
+        insert_at = current + 1 if 0 <= current < len(nodes) else len(nodes)
+        try:
+            # Validate and allocate on a copy before the undo checkpoint.
+            instantiate_template(copy.deepcopy(self.story), template, insert_at)
+            self._record_discrete()
+            first, count, _mapping = instantiate_template(self.story, template, insert_at)
+        except ValueError as exc:
+            QMessageBox.warning(self, t("template.title"), str(exc))
+            return
+        self._refresh_all(select_row=first)
+        self.statusBar().showMessage(
+            t("template.inserted", name=template.get("name", ""), count=count), 4000
+        )
 
     def _locate_search_result(self, story_id: str, node_id: str | None) -> None:
         if story_id not in self._stories:

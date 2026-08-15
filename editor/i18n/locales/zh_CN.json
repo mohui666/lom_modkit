@@ -594,5 +594,12 @@
   "bulk.field": "共同字段", "bulk.value": "新值", "bulk.boolean_value": "启用",
   "bulk.select_hint": "请选择至少两个兼容节点。",
   "bulk.ready": "已选 {nodes} 个节点，可安全批改 {fields} 个共同字段。",
-  "bulk.done": "已批量修改 {count} 个节点"
+  "bulk.done": "已批量修改 {count} 个节点",
+  "menu.node_templates": "节点模板…", "template.title": "节点模板",
+  "template.intro": "把一个或一段连续步骤保存为本机模板；插入时总会生成新 ID，并重映射模板内部跳转。",
+  "template.name": "模板名称", "template.start": "起始步骤序号",
+  "template.end": "结束步骤序号", "template.save_range": "保存所选范围",
+  "template.delete": "删除模板", "template.insert": "插入到当前步骤后",
+  "template.item": "{name}（{count} 个步骤）",
+  "template.inserted": "已插入模板“{name}”，新增 {count} 个步骤"
 }

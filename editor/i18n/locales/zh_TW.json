@@ -594,5 +594,12 @@
   "bulk.field": "共同欄位", "bulk.value": "新值", "bulk.boolean_value": "啟用",
   "bulk.select_hint": "請至少選擇兩個相容節點。",
   "bulk.ready": "已選 {nodes} 個節點，可安全批改 {fields} 個共同欄位。",
-  "bulk.done": "已批次修改 {count} 個節點"
+  "bulk.done": "已批次修改 {count} 個節點",
+  "menu.node_templates": "節點範本…", "template.title": "節點範本",
+  "template.intro": "將單一或一段連續步驟儲存為本機範本；插入時一律產生新 ID，並重新對應範本內部跳轉。",
+  "template.name": "範本名稱", "template.start": "起始步驟序號",
+  "template.end": "結束步驟序號", "template.save_range": "儲存所選範圍",
+  "template.delete": "刪除範本", "template.insert": "插入目前步驟之後",
+  "template.item": "{name}（{count} 個步驟）",
+  "template.inserted": "已插入範本「{name}」，新增 {count} 個步驟"
 }
