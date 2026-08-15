@@ -104,6 +104,7 @@ from preview import (
 )
 from project_templates import TEMPLATES, create_project_template, template_info
 from project_statistics import ProjectStatistics, calculate_project_statistics
+from voice_coverage import VoiceCoverageReport, calculate_voice_coverage
 from recovery_store import (
     RecoveryCandidate,
     RecoveryError,
@@ -491,6 +492,79 @@ class ProjectStatisticsDialog(QDialog):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+
+class VoiceCoverageDialog(QDialog):
+    def __init__(self, report: VoiceCoverageReport, locate, parent=None):
+        super().__init__(parent)
+        self.report = report
+        self._locate_callback = locate
+        self.setWindowTitle("语音覆盖")
+        self.resize(820, 650)
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("按项目、Story 与人物统计 voiced / unvoiced 对白。"))
+
+        coverage_rows = (report.total,) + report.stories + report.characters
+        self.coverage_table = QTableWidget(len(coverage_rows), 5)
+        self.coverage_table.setHorizontalHeaderLabels(
+            ("范围", "名称", "已配音", "未配音", "覆盖率")
+        )
+        self.coverage_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        scope_names = {"total": "总计", "story": "Story", "character": "人物"}
+        for row, item in enumerate(coverage_rows):
+            values = (
+                scope_names[item.scope], item.label, str(item.voiced),
+                str(item.unvoiced), f"{item.percent:.1f}%",
+            )
+            for column, value in enumerate(values):
+                self.coverage_table.setItem(row, column, QTableWidgetItem(value))
+        self.coverage_table.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.ResizeMode.Stretch
+        )
+        layout.addWidget(self.coverage_table, stretch=1)
+
+        layout.addWidget(QLabel(f"未配音对白（{len(report.unvoiced_dialogues)}）"))
+        self.unvoiced_table = QTableWidget(len(report.unvoiced_dialogues), 4)
+        self.unvoiced_table.setHorizontalHeaderLabels(("Story", "节点", "人物", "文本"))
+        self.unvoiced_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.unvoiced_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.unvoiced_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        for row, item in enumerate(report.unvoiced_dialogues):
+            values = (item.story_title, item.node_id, item.character_label,
+                      item.text.replace("\n", " "))
+            for column, value in enumerate(values):
+                cell = QTableWidgetItem(value)
+                cell.setToolTip(value)
+                if column == 0:
+                    cell.setData(Qt.ItemDataRole.UserRole, (item.story_id, item.node_id))
+                self.unvoiced_table.setItem(row, column, cell)
+        self.unvoiced_table.horizontalHeader().setSectionResizeMode(
+            3, QHeaderView.ResizeMode.Stretch
+        )
+        if report.unvoiced_dialogues:
+            self.unvoiced_table.selectRow(0)
+        self.unvoiced_table.itemDoubleClicked.connect(lambda _item: self._locate_unvoiced())
+        layout.addWidget(self.unvoiced_table, stretch=1)
+
+        buttons = QHBoxLayout()
+        buttons.addStretch(1)
+        locate_btn = QPushButton("定位未配音节点")
+        locate_btn.setEnabled(bool(report.unvoiced_dialogues))
+        locate_btn.clicked.connect(self._locate_unvoiced)
+        buttons.addWidget(locate_btn)
+        close_btn = QPushButton("关闭")
+        close_btn.clicked.connect(self.reject)
+        buttons.addWidget(close_btn)
+        layout.addLayout(buttons)
+
+    def _locate_unvoiced(self) -> None:
+        row = self.unvoiced_table.currentRow()
+        item = self.unvoiced_table.item(row, 0) if row >= 0 else None
+        target = item.data(Qt.ItemDataRole.UserRole) if item is not None else None
+        if not isinstance(target, tuple) or len(target) != 2:
+            return
+        self.accept()
+        self._locate_callback(target[0], target[1])
 
 
 class ManifestDialog(QDialog):
@@ -1176,6 +1250,7 @@ class MainWindow(QMainWindow):
         run_menu.addAction(t("menu.path_simulator"), self._show_path_simulator)
         run_menu.addAction(t("menu.story_tests"), self._show_story_tests)
         run_menu.addAction("项目统计…", self._show_project_statistics)
+        run_menu.addAction("语音覆盖…", self._show_voice_coverage)
         run_menu.addSeparator()
         run_menu.addAction(t("menu.reset_read"), self._reset_read_state)
         lang_menu = self.menuBar().addMenu(t("lang.menu"))
@@ -1511,6 +1586,14 @@ class MainWindow(QMainWindow):
             self._stories, self._project_bundled_assets()
         )
         ProjectStatisticsDialog(statistics, self).exec()
+
+    def _show_voice_coverage(self) -> None:
+        self._flush_pending()
+        VoiceCoverageDialog(
+            calculate_voice_coverage(self._stories),
+            self._locate_search_result,
+            self,
+        ).exec()
 
     def _show_story_localization(self) -> None:
         dialog = StoryLocalizationDialog(self.story, self)

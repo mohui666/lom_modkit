@@ -202,6 +202,7 @@ SHA-256 前 16 个十六进制字符，可用来核对具体文件，但**不是
 | [编辑器自动恢复](docs/zh_CN/editor_recovery.md) | 脏项目每 30 秒写独立原子恢复副本，绝不覆盖正式项目文件 |
 | [项目模板](docs/zh_CN/project_templates.md) | 空项目、线性对白、分支、自定义人物与用户内容五种普通 Story 起点 |
 | [项目统计](docs/zh_CN/project_statistics.md) | 只读表格汇总 Story、节点、资源、语音覆盖、不可达与未使用资产 |
+| [语音覆盖](docs/zh_CN/voice_coverage.md) | 按总计、Story、人物统计配音并定位每个未配音对白节点 |
 | [Mod 包格式契约](docs/zh_CN/mod_format.md) | 包结构、43 种节点、编译约定、运行时行为 |
 | [AI / CLI 手册](docs/zh_CN/ai_cli.md) | story_api 命令行与 Python API |
 | [多语言](docs/zh_CN/i18n.md) | 界面与文档的 i18n 架构 |
