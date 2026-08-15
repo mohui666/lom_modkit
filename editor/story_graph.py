@@ -10,7 +10,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-CHECK_TYPES = {"stat_check", "affinity_check", "item_check", "talent_check", "flag_check"}
+CHECK_TYPES = {
+    "stat_check", "affinity_check", "item_check", "talent_check", "flag_check", "activity",
+    "quest_check",
+}
 TERMINAL_TYPES = {
     "end", "goto_scene", "death", "combat", "battle", "battle_result", *CHECK_TYPES,
 }
@@ -87,7 +90,12 @@ def _explicit_edges(node: dict) -> list[tuple[str, str, str]]:
             if isinstance(target, str) and target:
                 result.append((target, label, node_type))
     elif node_type in CHECK_TYPES:
-        for key, label in (("success", "成功"), ("failure", "失败")):
+        labels = (
+            (("success", "命中"), ("failure", "未命中"))
+            if node_type == "quest_check"
+            else (("success", "成功"), ("failure", "失败"))
+        )
+        for key, label in labels:
             target = node.get(key)
             if isinstance(target, str) and target:
                 result.append((target, label, node_type))

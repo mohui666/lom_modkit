@@ -76,6 +76,7 @@ namespace MortalModHost
             // 契约 §2：mod 战役运行态同样重置（插件重载后不残留旧战役的禁原版事件状态）
             ModCampaignState.Clear();
             GameplaySession.Reset();
+            ModQuestSession.Reset();
 
             // mods 目录：BepInEx/plugins/MortalModHost/mods/（契约 §6.1）
             string modsDir = Path.Combine(Paths.PluginPath, "MortalModHost", "mods");
@@ -129,6 +130,7 @@ namespace MortalModHost
             _showMenu = false;
             ModCampaignState.Clear();
             GameplaySession.Reset();
+            ModQuestSession.Reset();
             ModOverlay.Clear();
             ModDisclosure.Disable();
             CustomAudioPlayer.ReleaseAll();
@@ -572,6 +574,7 @@ namespace MortalModHost
                 _disclosureAbortRequested = false;
                 LuaManagerPatch.ResetAbortGuard();
                 GameplaySession.Reset();
+                if (scene == "Title") ModQuestSession.Reset();
             }
             // waveOut 不跟场景走：回标题/自由/死亡/结局/Loading 时再兜一层停播。
             if (scene == "Title" || scene == "Free" || scene == "GameOver"
@@ -886,6 +889,7 @@ namespace MortalModHost
             // 由本 mod 的 disable_official_events 决定（官方开局时 NewGameDataPatch 清除）；
             // 同时记录战役 mod id，位置触发器按当前战役 mod 隔离（见 FreePositionPatch）。
             ModCampaignState.Enter(mod);
+            ModQuestSession.Reset();
             if (mod.Campaign.DisableOfficialEvents)
                 Logger.LogInfo("该战役已声明 disable_official_events：返回 Free 的自动任务与位置点击不再触发原版故事脚本（仅 mod 触发器命中）。");
             saves.SetSlot(slot);

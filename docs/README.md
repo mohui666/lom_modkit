@@ -9,7 +9,7 @@
 
 | 文档 | 读者 | 内容 |
 | --- | --- | --- |
-| [mod_format](zh_CN/mod_format.md) | 全部组件开发者 | **v3 契约**：包结构、57 种节点、story→Lua 编译约定、editor_data、运行时行为、story_api 契约、用户内容协议。改代码先改它 |
+| [mod_format](zh_CN/mod_format.md) | 全部组件开发者 | **v3 契约**：包结构、60 种节点、story→Lua 编译约定、editor_data、运行时行为、story_api 契约、用户内容协议。改代码先改它 |
 | [ai_cli](zh_CN/ai_cli.md) | AI 代理 / 脚本作者 | story_api 操作手册：CLI 子命令、--json 字段、Python API 速查、硬性规则、错误对照表 |
 | [user_content](zh_CN/user_content.md) | mod 作者 | 用户内容库：导入自定义音频、对白语音、导出与分享、运行时行为 |
 | [current_capabilities](zh_CN/current_capabilities.md) | 作者 / 维护者 | 当前已实现能力、仅有底层接口的能力和尚未实现的边界 |

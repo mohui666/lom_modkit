@@ -187,6 +187,10 @@ _ENUMS = {
     "shop_condition_source": ("mod", "condition"),
     "check_op": BRANCH_OPS,
     "flag_check_source": ("mod", "condition", "flag_value"),
+    "activity_kind": ("training", "study", "forge", "alchemy", "custom"),
+    "activity_time": ("none", "round", "month"),
+    "quest_op": ("start", "update", "complete", "fail"),
+    "quest_state": ("inactive", "active", "completed", "failed"),
     "time_op": ("set", "round", "month", "mission"),
     "autosave_kind": ("story", "free", "prologue"),
     "goto_scene": (
@@ -423,6 +427,21 @@ _NODE_FIELDS = {
         {"source": "flag_check_source", "flag": "idstr", "success": "idstr", "failure": "idstr"},
         {"op": "check_op", "value": "num", "invert": "bool"},
     ),
+    "activity": (
+        {
+            "kind": "activity_kind", "stat": "idstr", "op": "check_op", "value": "num",
+            "success": "idstr", "failure": "idstr",
+        },
+        {
+            "message": "str", "time": "activity_time",
+            "success_rewards": "list", "failure_rewards": "list",
+        },
+    ),
+    "mod_quest": ({"quest": "idstr", "op": "quest_op"}, {"message": "str"}),
+    "quest_check": (
+        {"quest": "idstr", "state": "quest_state", "success": "idstr", "failure": "idstr"},
+        {},
+    ),
     "mission": ({"name": "idstr", "key": "idstr"}, {}),
     "time": (
         {"op": "time_op"},
@@ -456,7 +475,10 @@ _NODE_FIELDS = {
 _COMMON_FIELDS = ("id", "type", "goto")
 
 # 不允许显式 goto 的节点类型（契约 §4：流转由自身结构/场景跳转决定）
-_CHECK_TYPES = ("stat_check", "affinity_check", "item_check", "talent_check", "flag_check")
+_CHECK_TYPES = (
+    "stat_check", "affinity_check", "item_check", "talent_check", "flag_check", "activity",
+    "quest_check",
+)
 _NO_GOTO_TYPES = (
     "choice", "branch", "dice", "end", "goto_scene", "death", "combat", "battle",
     "battle_result",
@@ -1125,6 +1147,20 @@ def _check_node_extra(node, ntype, label, battle_presets=None):
             raise LomcError(
                 '%s(flag_check): source="%s" 只使用 invert，不接受 op/value'
                 % (label, source)
+            )
+    elif ntype == "activity":
+        if isinstance(node["value"], bool) or not isinstance(node["value"], int):
+            raise LomcError('%s(activity): value 必须是整数' % label)
+        for field in ("success_rewards", "failure_rewards"):
+            entries = node.get(field, [])
+            if len(entries) > 16:
+                raise LomcError('%s(activity): %s 最多 16 项' % (label, field))
+            if entries:
+                _check_node_extra({"entries": entries}, "reward", label + "." + field)
+    elif ntype in ("mod_quest", "quest_check"):
+        if SCRIPT_ID_RE.fullmatch(node["quest"]) is None:
+            raise LomcError(
+                '%s(%s): quest 必须符合 [A-Za-z0-9_-]{1,64}' % (label, ntype)
             )
     elif ntype == "time":
         op = node["op"]

@@ -280,7 +280,7 @@ def _hint_text(node: dict, ed: dict) -> str | None:
         )
     if t == "reward":
         return f"[战斗奖励] {len(node.get('entries', []))} 项"
-    if t.endswith("_check"):
+    if t.endswith("_check") or t == "activity":
         return (
             f"[{models.NODE_TYPE_CN.get(t, t)}] "
             f"成功→{node.get('success', '')}｜失败→{node.get('failure', '')}"
@@ -426,7 +426,8 @@ def _next_node(node: dict, idx: int, nodes: list) -> str | None:
     t = node.get("type")
     if t in (
         "end", "goto_scene", "death", "combat", "battle", "battle_result",
-        "stat_check", "affinity_check", "item_check", "talent_check", "flag_check",
+        "stat_check", "affinity_check", "item_check", "talent_check", "flag_check", "activity",
+        "quest_check",
     ):
         return None  # 脚本终止/跳离当前场景：推演到此为止
     if t == "choice":

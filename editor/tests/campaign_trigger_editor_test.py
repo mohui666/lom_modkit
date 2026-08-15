@@ -59,6 +59,22 @@ class CampaignTriggerEditorTest(unittest.TestCase):
         trigger = dialog.manifest()["campaign"]["triggers"][0]
         self.assertEqual(set(trigger), {"type", "position", "script"})
 
+    def test_unknown_but_valid_editable_ids_round_trip(self):
+        dialog = main.ManifestDialog(
+            "main", models.FALLBACK_EDITOR_DATA, ["main"],
+            {"campaign": {"triggers": [{
+                "type": "position", "position": "CustomPlace", "script": "main",
+                "when_flag_set": "FUTURE_FLAG",
+                "when_affinity": {"character": "future_character", "min": 7},
+            }]}},
+        )
+        trigger = dialog.manifest()["campaign"]["triggers"][0]
+        self.assertEqual(trigger["position"], "CustomPlace")
+        self.assertEqual(trigger["when_flag_set"], "FUTURE_FLAG")
+        self.assertEqual(
+            trigger["when_affinity"], {"character": "future_character", "min": 7}
+        )
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

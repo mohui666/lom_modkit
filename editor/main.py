@@ -933,8 +933,16 @@ class ManifestDialog(QDialog):
         combo = table.cellWidget(row, col)
         if not isinstance(combo, QComboBox):
             return None
+        text = combo.currentText().strip()
+        index = combo.currentIndex()
+        # 可编辑清单必须保留作者手填但尚未出现在 editor_data 的合法 id。
+        # Qt 在这种情况下可能仍保留旧 index/data，不能让空 data 覆盖编辑文字。
+        if combo.isEditable() and (
+            index < 0 or combo.currentText() != combo.itemText(index)
+        ):
+            return text
         data = combo.currentData()
-        return data if data is not None else combo.currentText().strip()
+        return data if data is not None else text
 
     def manifest(self) -> dict:
         m = {
@@ -956,7 +964,7 @@ class ManifestDialog(QDialog):
                 isinstance(pos_combo, QComboBox) and isinstance(script_combo, QComboBox)
             ):
                 continue  # 异常行防御（cellWidget 静态类型是 QWidget）
-            position = str(pos_combo.currentData() or pos_combo.currentText()).strip()
+            position = str(self._combo_value(table, r, 0) or "").strip()
             script = script_combo.currentText().strip()
             if not position or not script:
                 continue  # 位置/脚本缺一不可，缺了跳过该行

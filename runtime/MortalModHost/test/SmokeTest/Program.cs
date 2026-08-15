@@ -144,6 +144,7 @@ namespace MortalModHost
                 TestProvenanceWatermarkProtocol();
                 TestProvenanceWatermarkCodec();
                 TestGameplaySession();
+                TestModQuestSession();
 
                 Console.WriteLine("--- 扫描信息 ---");
                 infos.ForEach(Console.WriteLine);
@@ -1027,6 +1028,46 @@ namespace MortalModHost
             Assert(GameplaySession.ConsumeResume(package, "main") == "enemy",
                 "EnemyWin 必须映射到作者的 battle 失败目标");
             GameplaySession.Reset();
+        }
+
+        private static void TestModQuestSession()
+        {
+            var package = new ModPackage
+            {
+                Id = "quest_mod", Entry = "main",
+                PackageFingerprint = new string('C', 64)
+            };
+            ModCampaignState.Clear();
+            ModQuestSession.Reset();
+            Assert(ModQuestSession.Read(package, "find_student") == "inactive",
+                "不存在的 MOD 任务必须读取为 inactive");
+            ModQuestSession.Apply(package, "find_student", "start");
+            Assert(ModQuestSession.Read(package, "find_student") == "active",
+                "start 必须把 MOD 任务推进为 active");
+            ModQuestSession.Apply(package, "find_student", "update");
+            ModQuestSession.Apply(package, "find_student", "complete");
+            Assert(ModQuestSession.Read(package, "find_student") == "completed",
+                "complete 必须把 active 任务推进为 completed");
+
+            bool badTransition = false;
+            try { ModQuestSession.Apply(package, "find_student", "complete"); }
+            catch (InvalidOperationException) { badTransition = true; }
+            Assert(badTransition, "已结束任务不得再次 complete");
+
+            ModCampaignState.Enter(package);
+            bool badOwner = false;
+            try
+            {
+                ModQuestSession.Read(new ModPackage
+                {
+                    Id = "other_mod", Entry = "main",
+                    PackageFingerprint = new string('D', 64)
+                }, "find_student");
+            }
+            catch (InvalidOperationException) { badOwner = true; }
+            Assert(badOwner, "活动战役期间其他包不得读取或接管任务状态");
+            ModCampaignState.Clear();
+            ModQuestSession.Reset();
         }
 
         private static bool IsUpperHex(char c)

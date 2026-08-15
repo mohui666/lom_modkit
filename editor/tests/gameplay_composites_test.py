@@ -104,6 +104,46 @@ class GameplayCompositeEditorTest(unittest.TestCase):
                 self.assertIn(("check", "bad", "失败"), edges)
                 self.assertIn("成功→ok", models.node_summary(node))
 
+    def test_activity_uses_optional_reward_tables_and_two_edges(self):
+        node = models.new_node("activity", "activity", models.FALLBACK_EDITOR_DATA)
+        node.update({"stat": "stamina", "success": "ok", "failure": "bad"})
+        fields = {
+            key: kind for key, _label, kind, _optional
+            in models.NODE_SCHEMAS["activity"]["fields"]
+        }
+        self.assertEqual(fields["success_rewards"], "reward_entries_optional")
+        form = NodeForm()
+        form.set_context(models.FALLBACK_EDITOR_DATA, ["activity", "ok", "bad"])
+        form.set_node(node)
+        self.assertEqual(node["success_rewards"], [])
+        self.assertEqual(node["failure_rewards"], [])
+        graph = analyze_story({
+            "start": "activity",
+            "nodes": [node, {"id": "ok", "type": "end"}, {"id": "bad", "type": "end"}],
+        })
+        self.assertEqual(
+            {(edge.target, edge.label) for edge in graph.edges if edge.source == "activity"},
+            {("ok", "成功"), ("bad", "失败")},
+        )
+
+    def test_mod_quest_schema_and_state_check_edges(self):
+        action = models.new_node("mod_quest", "quest", models.FALLBACK_EDITOR_DATA)
+        action.update({"quest": "find_student", "op": "start"})
+        self.assertIn("find_student", models.node_summary(action))
+        check = models.new_node("quest_check", "check", models.FALLBACK_EDITOR_DATA)
+        check.update({
+            "quest": "find_student", "state": "active",
+            "success": "ok", "failure": "bad",
+        })
+        graph = analyze_story({
+            "start": "check",
+            "nodes": [check, {"id": "ok", "type": "end"}, {"id": "bad", "type": "end"}],
+        })
+        self.assertEqual(
+            {(edge.target, edge.label) for edge in graph.edges if edge.source == "check"},
+            {("ok", "命中"), ("bad", "未命中")},
+        )
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

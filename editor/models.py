@@ -78,6 +78,9 @@ NODE_TYPE_CN_SRC: dict[str, str] = {
     "item_check": "物品检定",
     "talent_check": "天赋检定",
     "flag_check": "旗标检定",
+    "activity": "训练 / 活动",
+    "mod_quest": "MOD 任务",
+    "quest_check": "任务状态检定",
     "mission": "任务",
     "time": "时间",
     "autosave": "自动存档",
@@ -139,6 +142,9 @@ NODE_HELP_KEYS = {
     "item_check": "help.item_check",
     "talent_check": "help.talent_check",
     "flag_check": "help.flag_check",
+    "activity": "help.activity",
+    "mod_quest": "help.mod_quest",
+    "quest_check": "help.quest_check",
 }
 NODE_HELP: dict[str, str] = {}
 
@@ -197,6 +203,8 @@ NODE_GROUPS_SRC: list[tuple[str, list[str]]] = [
         [
             "battle_setup", "combat", "battle", "battle_result", "reward", "custom_shop",
             "stat_check", "affinity_check", "item_check", "talent_check", "flag_check",
+            "activity",
+            "mod_quest", "quest_check",
         ],
     ),
     (
@@ -276,6 +284,19 @@ ENUM_SETS_SRC: dict[str, list[tuple[str, str]]] = {
     "flag_check_source": [
         ("mod", "本 MOD 旗标"), ("condition", "原版条件检查点"),
         ("flag_value", "原版数值旗标"),
+    ],
+    "activity_kind": [
+        ("training", "练武"), ("study", "读书"), ("forge", "锻造"),
+        ("alchemy", "炼丹"), ("custom", "自定义活动"),
+    ],
+    "activity_time": [("none", "不推进"), ("round", "下一旬"), ("month", "下一月")],
+    "quest_op": [
+        ("start", "开始任务"), ("update", "更新任务"),
+        ("complete", "完成任务"), ("fail", "任务失败"),
+    ],
+    "quest_state": [
+        ("inactive", "未开始"), ("active", "进行中"),
+        ("completed", "已完成"), ("failed", "已失败"),
     ],
     "time_op": [
         ("set", "设置时间"),
@@ -798,6 +819,36 @@ NODE_SCHEMAS: dict[str, dict] = {
             ("success", "成功后", "node_ref", False), ("failure", "失败后", "node_ref", False),
         ],
     },
+    "activity": {
+        "label": "训练 / 活动",
+        "fields": [
+            ("kind", "活动类型", "enum:activity_kind", False),
+            ("message", "开始提示", "line", True),
+            ("stat", "检定属性", "stat", False),
+            ("op", "比较", "enum:check_op", False), ("value", "目标值", "int", False),
+            ("time", "时间推进", "enum:activity_time", True),
+            ("success_rewards", "成功奖励", "reward_entries_optional", True),
+            ("failure_rewards", "失败结果", "reward_entries_optional", True),
+            ("success", "成功后", "node_ref", False), ("failure", "失败后", "node_ref", False),
+        ],
+    },
+    "mod_quest": {
+        "label": "MOD 任务",
+        "fields": [
+            ("quest", "任务 id", "line", False),
+            ("op", "操作", "enum:quest_op", False),
+            ("message", "玩家提示", "line", True),
+        ],
+    },
+    "quest_check": {
+        "label": "任务状态检定",
+        "fields": [
+            ("quest", "任务 id", "line", False),
+            ("state", "目标状态", "enum:quest_state", False),
+            ("success", "命中后", "node_ref", False),
+            ("failure", "未命中", "node_ref", False),
+        ],
+    },
     "mission": {
         "label": "任务操作",
         "fields": [
@@ -981,6 +1032,15 @@ _NODE_DEFAULTS: dict[str, dict] = {
     },
     "flag_check": {
         "source": "mod", "flag": "", "invert": False, "success": "", "failure": "",
+    },
+    "activity": {
+        "kind": "training", "message": "", "stat": "", "op": ">=", "value": 0,
+        "time": "round", "success_rewards": [], "failure_rewards": [],
+        "success": "", "failure": "",
+    },
+    "mod_quest": {"quest": "", "op": "start", "message": ""},
+    "quest_check": {
+        "quest": "", "state": "active", "success": "", "failure": "",
     },
     "mission": {"name": "Main", "key": ""},
     "time": {"op": "round"},
@@ -1506,7 +1566,7 @@ def node_bullet(node_type: str) -> str:
     """步骤列表前缀符号：分支/结局与普通步骤区分开。"""
     if node_type in (
         "choice", "branch", "dice", "stat_check", "affinity_check", "item_check",
-        "talent_check", "flag_check",
+        "talent_check", "flag_check", "activity", "quest_check",
     ):
         return "◆"
     if node_type in ("end", "death", "goto_scene", "combat", "battle"):
@@ -1735,6 +1795,19 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
         return (
             f"{tcn}·{node.get('source', 'mod')}:{node.get('flag', '')}"
             f"（成功→{node.get('success', '')} / 失败→{node.get('failure', '')}）"
+        )
+    if nt == "activity":
+        return (
+            f"{tcn}·{enum_label('activity_kind', node.get('kind', 'training'))} / "
+            f"{node.get('stat', '')} {node.get('op', '>=')} {node.get('value', 0)}"
+            f"（成功→{node.get('success', '')} / 失败→{node.get('failure', '')}）"
+        )
+    if nt == "mod_quest":
+        return f"{tcn}·{enum_label('quest_op', node.get('op', 'start'))} {node.get('quest', '')}"
+    if nt == "quest_check":
+        return (
+            f"{tcn}·{node.get('quest', '')}={enum_label('quest_state', node.get('state', 'active'))}"
+            f"（命中→{node.get('success', '')} / 未命中→{node.get('failure', '')}）"
         )
     if nt == "mission":
         return f"{tcn}·{node.get('name', '')} {node.get('key', '')}"

@@ -937,6 +937,48 @@ def _emit_flag_check(node, ctx):
     return _check_branch(expression, node)
 
 
+def _emit_activity(node, ctx):
+    lines = []
+    if node.get("message"):
+        lines.append("\tmainui.DisplayMessageText(%s)" % lua_str(node["message"]))
+    if node.get("time") == "round":
+        lines.append("\tluamanager.NextRound()")
+    elif node.get("time") == "month":
+        lines.append("\tluamanager.NextMonth()")
+    expression = "luamanager.GetStatData(%s, 1) %s %s" % (
+        lua_str(node["stat"]), node["op"], lua_num(node["value"]),
+    )
+    lines.append("\tif %s then" % expression)
+    for reward in _emit_reward({"entries": node.get("success_rewards", [])}, ctx):
+        lines.append("\t" + reward)
+    lines.append("\t\treturn node_%s()" % node["success"])
+    lines.append("\telse")
+    for reward in _emit_reward({"entries": node.get("failure_rewards", [])}, ctx):
+        lines.append("\t" + reward)
+    lines.append("\t\treturn node_%s()" % node["failure"])
+    lines.append("\tend")
+    return lines
+
+
+def _emit_mod_quest(node, ctx):
+    lines = []
+    if node.get("message"):
+        lines.append("\tmainui.DisplayMessageText(%s)" % lua_str(node["message"]))
+    lines.append(
+        "\tmod_quest_set(%s, %s)" % (lua_str(node["quest"]), lua_str(node["op"]))
+    )
+    return lines
+
+
+def _emit_quest_check(node, ctx):
+    return _check_branch(
+        "mod_quest_state(%s) == %s" % (
+            lua_str(node["quest"]), lua_str(node["state"]),
+        ),
+        node,
+    )
+
+
 def _emit_mission(node, ctx):
     return [
         "\tstatmodifymanager.Mission(%s, %s)"
@@ -1359,6 +1401,9 @@ _EMITTERS = {
     "item_check": _emit_item_check,
     "talent_check": _emit_talent_check,
     "flag_check": _emit_flag_check,
+    "activity": _emit_activity,
+    "mod_quest": _emit_mod_quest,
+    "quest_check": _emit_quest_check,
     "mission": _emit_mission,
     "time": _emit_time,
     "autosave": _emit_autosave,
@@ -1376,7 +1421,7 @@ _EMITTERS = {
 _NO_FLOW_TYPES = (
     "end", "choice", "branch", "dice", "goto_scene", "death", "combat", "battle",
     "battle_result", "stat_check", "affinity_check", "item_check", "talent_check",
-    "flag_check",
+    "flag_check", "activity", "quest_check",
 )
 
 

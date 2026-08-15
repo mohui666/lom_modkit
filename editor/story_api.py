@@ -104,7 +104,7 @@ _COMMON_FIELDS = ("id", "type", "goto")
 # kind 为数组型的字段
 _LIST_KINDS = {
     "options", "cases", "vars", "dice_options", "battle_setup_skills",
-    "reward_entries", "custom_shop_items",
+    "reward_entries", "reward_entries_optional", "custom_shop_items",
 }
 
 

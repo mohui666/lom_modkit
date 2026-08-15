@@ -670,6 +670,8 @@ class NodeForm(QScrollArea):
             return self._make_battle_setup_skills_table(node, key)
         if kind == "reward_entries":
             return self._make_reward_entries_table(node, key)
+        if kind == "reward_entries_optional":
+            return self._make_reward_entries_table(node, key, allow_empty=True)
         if kind == "custom_shop_items":
             return self._make_custom_shop_items_table(node, key)
         if kind == "discount_toggle":
@@ -1555,9 +1557,11 @@ class NodeForm(QScrollArea):
         layout.addLayout(buttons)
         return box
 
-    def _make_reward_entries_table(self, node: dict, key: str) -> QWidget:
+    def _make_reward_entries_table(
+        self, node: dict, key: str, allow_empty: bool = False
+    ) -> QWidget:
         rows: list[dict] = node.setdefault(key, [])
-        if not rows:
+        if not rows and not allow_empty:
             rows.append({"kind": "stat", "key": "", "amount": 1})
         box = QWidget()
         layout = QVBoxLayout(box)
@@ -1623,7 +1627,8 @@ class NodeForm(QScrollArea):
             lambda: (rows.append({"kind": "stat", "key": "", "amount": 1}), fill(), self._emit_changed())
         )
         remove.clicked.connect(
-            lambda: (rows.pop(), fill(), self._emit_changed()) if len(rows) > 1 else None
+            lambda: (rows.pop(), fill(), self._emit_changed())
+            if rows and (allow_empty or len(rows) > 1) else None
         )
         buttons.addWidget(add)
         buttons.addWidget(remove)

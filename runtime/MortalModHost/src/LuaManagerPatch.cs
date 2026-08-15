@@ -610,6 +610,17 @@ namespace MortalModHost
                 {
                     return DynValue.NewNumber(GameplayChecks.TalentLevel(ArgString(args, 0)));
                 }, "mod_talent_level");
+                script.Globals["mod_quest_set"] = new CallbackFunction((ctx, args) =>
+                {
+                    ModQuestSession.Apply(
+                        ModOverlay.CurrentPackage, ArgString(args, 0), ArgString(args, 1));
+                    return DynValue.Nil;
+                }, "mod_quest_set");
+                script.Globals["mod_quest_state"] = new CallbackFunction((ctx, args) =>
+                {
+                    return DynValue.NewString(ModQuestSession.Read(
+                        ModOverlay.CurrentPackage, ArgString(args, 0)));
+                }, "mod_quest_state");
                 RegisterCharacterGlobals(script);
             }
             catch (Exception ex)

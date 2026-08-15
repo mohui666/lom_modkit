@@ -36,6 +36,7 @@ namespace MortalModHost
                 // 官方方式开局（无 mod 挂起）：上一场 mod 战役结束，禁用原版事件状态随之清除。
                 // （LuaManagerPatch 官方脚本分支不重置本状态——战役期间可能穿插官方脚本演出。）
                 ModCampaignState.Clear();
+                ModQuestSession.Reset();
                 return;
             }
             PendingCampaign = null;
@@ -46,6 +47,7 @@ namespace MortalModHost
                 {
                     Log.LogError("新战役开局失败：PlayerStatManagerData 单例未就绪（mod " + mod.Id + "）");
                     ModCampaignState.Clear(); // 战役未真正开始，回退为无 mod 战役态（不再抑制原版事件）
+                    ModQuestSession.Reset();
                     return;
                 }
                 string registered = mod.GetRegisteredScriptName(mod.Entry);
