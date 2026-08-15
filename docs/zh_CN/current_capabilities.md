@@ -22,8 +22,9 @@
 - `goto_scene`：通过 `LuaManager.ChangeScene` 进入原版 `Combat` / `Battle`，并传入作者选择的官方 key。
 - `combat`：选择原版 Combat key，可选组合敌方 id/队伍/等级/人数设置；Host 从原版 `CombatManager.GameOver(bool)` 取得真实 win/lose，并一次性续接作者指定节点。失败时仅在该 MOD 战斗会话内把 `DeadEnd` 视为 false，以走原版 `LoadNextScene()` 回 Story。
 - `battle`：选择原版 Battle key；Host 只把 `ShowGameOver(FriendWin/EnemyWin, finish:true)` 映射为 win/lose。`PlayerDie(false)` 保持原版重试/标题流程。
+- Battle Preset：章节设置中可保存 `combat` / `battle` 原版模板与已验证敌方参数，剧情节点按 ID 复用；编译时展开，不引入新的运行时接口。
 
-这意味着工具是在编排原版战斗系统，不包含自研 Battle Engine。高层 `combat` / `battle` 已有经反编译确认的结果回流，但尚未实机验证；`draw` / `escape` 没有可用结果接口。Battle Preset、我方配置编辑器和战后奖励聚合节点仍未实现。
+这意味着工具是在编排原版战斗系统，不包含自研 Battle Engine。高层 `combat` / `battle` 已有经反编译确认的结果回流，但尚未实机验证；`draw` / `escape` 没有可用结果接口。我方配置编辑器和战后奖励聚合节点仍未实现。
 
 ## 尚未实现
 

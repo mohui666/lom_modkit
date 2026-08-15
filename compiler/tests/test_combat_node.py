@@ -88,5 +88,72 @@ class BattleNodeTest(unittest.TestCase):
             compile_story(document)
 
 
+class BattlePresetTest(unittest.TestCase):
+    def test_combat_preset_expands_to_verified_original_calls(self):
+        document = story({
+            "id": "fight", "type": "combat", "preset": "bandit_ambush",
+            "win": "win", "lose": "lose",
+        })
+        document["battle_presets"] = {
+            "bandit_ambush": {
+                "kind": "combat", "key": "5102_01", "enemy": "Bandit",
+                "level": 20, "people": 3, "display": 1,
+            }
+        }
+        lua = compile_story(document)
+        self.assertIn('ModifyEnemyId("Bandit")', lua)
+        self.assertIn('ModifyEnemyLevel("Bandit", 20, 1)', lua)
+        self.assertIn('ChangeScene("Combat", "5102_01", "Story")', lua)
+
+    def test_battle_preset_expands_to_verified_original_battle(self):
+        document = story({
+            "id": "fight", "type": "battle", "preset": "final_war",
+            "win": "win", "lose": "lose",
+        })
+        document["battle_presets"] = {
+            "final_war": {"kind": "battle", "key": "1001"}
+        }
+        lua = compile_story(document)
+        self.assertIn('ChangeScene("Battle", "1001", "Story")', lua)
+
+    def test_rejects_missing_wrong_kind_and_mixed_configuration(self):
+        document = story({
+            "id": "fight", "type": "combat", "preset": "missing",
+            "win": "win", "lose": "lose",
+        })
+        with self.assertRaisesRegex(LomcError, "不存在"):
+            compile_story(document)
+
+        document["battle_presets"] = {
+            "missing": {"kind": "battle", "key": "1001"}
+        }
+        with self.assertRaisesRegex(LomcError, "不是 combat"):
+            compile_story(document)
+
+        document["battle_presets"]["missing"] = {
+            "kind": "combat", "key": "5102_01"
+        }
+        document["nodes"][0]["key"] = "5102_02"
+        with self.assertRaisesRegex(LomcError, "只能填写"):
+            compile_story(document)
+
+    def test_rejects_malformed_preset_contract(self):
+        document = story({
+            "id": "fight", "type": "combat", "preset": "bad",
+            "win": "win", "lose": "lose",
+        })
+        bad_values = [
+            [],
+            {"bad id": {"kind": "combat", "key": "5102_01"}},
+            {"bad": {"kind": "combat", "key": ""}},
+            {"bad": {"kind": "combat", "key": "5102_01", "level": 1.5}},
+            {"bad": {"kind": "battle", "key": "1001", "enemy": "x"}},
+        ]
+        for value in bad_values:
+            document["battle_presets"] = value
+            with self.subTest(value=value), self.assertRaises(LomcError):
+                compile_story(document)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

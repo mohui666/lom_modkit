@@ -153,8 +153,8 @@ assets/                # 可选，自定义资源
 | `game_flag` | `flag`, `value`; 선택 `op`("set"기본/"add") | 공식 퀘스트 flag: `SetFlag(id, 상태)` / `AddFlag(id, ±증분)`. **id는 반드시 게임에 이미 있는 FlagData여야 합니다**(14_속성과Flag 표), 그렇지 않으면 게임이 조용히 무시 |
 | `enemy` | `op`("team"/"level"/"people"/"id"), `enemy`, `value`(수치, id의 op는 불필요), `display`(기본1) | 적 팀 수정 `ModifyEnemyTeam/Level/People/Id` |
 | `battle_skill` | `op`("set"/"active"/"reset"), `key`(reset 불필요), `index`(set용, 기본2), `active`(active용, 기본1) | 전장 스킬 `SetPlayerBattleSkill/SetBattleSkillActive/ResetBattleSkill` |
-| `combat` | `key`(원작 Combat id), `win`, `lose`(노드 id), 선택 `enemy`, `team`, `level`, `people`, `display` | 원작 적 설정을 조합해 Combat에 들어가고 Host가 `CombatManager.GameOver(bool)`의 win/lose를 지정 노드로 돌려보냅니다. draw/escape와 추가 goto는 지원하지 않습니다 |
-| `battle` | `key`(원작 Battle id), `win`, `lose`(노드 id) | 원작 Battle에 들어가 finish=true인 `FriendWin/EnemyWin`만 win/lose로 연결합니다. `PlayerDie(false)`는 원작 재시도/타이틀 흐름을 유지합니다 |
+| `combat` | `win`, `lose`; 원작 Combat `key`와 `preset` 중 하나, 직접 설정 시 선택 `enemy`, `team`, `level`, `people`, `display` | 원작 적 설정을 조합해 Combat에 들어가고 Host가 `CombatManager.GameOver(bool)`의 win/lose를 지정 노드로 돌려보냅니다. draw/escape와 추가 goto는 지원하지 않습니다 |
+| `battle` | `win`, `lose`; 원작 Battle `key`와 `preset` 중 하나 | 원작 Battle에 들어가 finish=true인 `FriendWin/EnemyWin`만 win/lose로 연결합니다. `PlayerDie(false)`는 원작 재시도/타이틀 흐름을 유지합니다 |
 | `mission` | `name`, `key` | 퀘스트 조작 `statmodifymanager.Mission(name, key)`: `Mission("Main","M0001")` 메인 진행 / `Mission("S2200","clear")` 서브 클리어 |
 | `time` | `op`("set"/"round"/"month"/"mission"); set은 `year,month,stage` 사용; mission은 `name,year,month,stage` 사용 | 시간 `SetGameTime/NextRound/NextMonth/SetMissionTime` |
 | `autosave` | 선택 `kind`("story"기본/"free"/"prologue"); 선택 `save_button`(0/1, 세이브 버튼 별도 제어) | `AutoSave()/AutoFreeSave()/PrologueSave(mode)`; `save_button`은 별도로 `ToggleSaveButton(n)` 방출 |

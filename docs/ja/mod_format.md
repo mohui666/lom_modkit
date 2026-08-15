@@ -153,8 +153,8 @@ assets/                # 可选，自定义资源
 | `game_flag` | `flag`, `value`；任意 `op`("set"既定/"add") | 公式クエスト flag：`SetFlag(id, 状態)` / `AddFlag(id, ±増分)`。**id はゲーム既存の FlagData でなければなりません**（14_属性とFlag 表）。さもないとゲームが黙って無視します |
 | `enemy` | `op`("team"/"level"/"people"/"id"), `enemy`, `value`(数値、id の op は不要), `display`(既定1) | 敵パーティー変更 `ModifyEnemyTeam/Level/People/Id` |
 | `battle_skill` | `op`("set"/"active"/"reset"), `key`(reset は不要), `index`(set 用、既定2), `active`(active 用、既定1) | 戦場スキル `SetPlayerBattleSkill/SetBattleSkillActive/ResetBattleSkill` |
-| `combat` | `key`(原作 Combat id), `win`, `lose`(ノード id)。任意 `enemy`, `team`, `level`, `people`, `display` | 原作の敵設定を組み合わせて Combat へ入り、Host が `CombatManager.GameOver(bool)` の win/lose を指定ノードへ戻します。draw/escape と追加 goto は非対応 |
-| `battle` | `key`(原作 Battle id), `win`, `lose`(ノード id) | 原作 Battle へ入り、finish=true の `FriendWin/EnemyWin` だけを win/lose に対応させます。`PlayerDie(false)` は原作の再試行／タイトルのままです |
+| `combat` | `win`, `lose`。原作 Combat `key` と `preset` は二者択一。直接設定では任意 `enemy`, `team`, `level`, `people`, `display` | 原作の敵設定を組み合わせて Combat へ入り、Host が `CombatManager.GameOver(bool)` の win/lose を指定ノードへ戻します。draw/escape と追加 goto は非対応 |
+| `battle` | `win`, `lose`。原作 Battle `key` と `preset` は二者択一 | 原作 Battle へ入り、finish=true の `FriendWin/EnemyWin` だけを win/lose に対応させます。`PlayerDie(false)` は原作の再試行／タイトルのままです |
 | `mission` | `name`, `key` | クエスト操作 `statmodifymanager.Mission(name, key)`：`Mission("Main","M0001")` でメイン進行 / `Mission("S2200","clear")` でサブクリア |
 | `time` | `op`("set"/"round"/"month"/"mission")；set は `year,month,stage`；mission は `name,year,month,stage` | 時間 `SetGameTime/NextRound/NextMonth/SetMissionTime` |
 | `autosave` | 任意 `kind`("story"既定/"free"/"prologue")；任意 `save_button`(0/1、セーブボタンを個別制御) | `AutoSave()/AutoFreeSave()/PrologueSave(mode)`。`save_button` は単独で `ToggleSaveButton(n)` を emit |

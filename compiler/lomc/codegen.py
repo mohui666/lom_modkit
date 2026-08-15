@@ -723,8 +723,9 @@ def _emit_battle_skill(node, ctx):
 
 def _emit_combat(node, ctx):
     """编排一场原版 Combat，并把已验证的 win/lose 结果带回本剧情。"""
+    config = ctx["battle_presets"].get(node.get("preset"), node)
     lines = []
-    enemy = node.get("enemy")
+    enemy = config.get("enemy")
     if enemy:
         lines.append("\tstatmodifymanager.ModifyEnemyId(%s)" % lua_str(enemy))
         api = {
@@ -733,13 +734,13 @@ def _emit_combat(node, ctx):
             "people": "ModifyEnemyPeople",
         }
         for field in ("team", "level", "people"):
-            value = node.get(field, 0)
+            value = config.get(field, 0)
             if value:
                 lines.append(
                     "\tstatmodifymanager.%s(%s, %s, %s)"
                     % (
                         api[field], lua_str(enemy), lua_num(value),
-                        lua_num(node.get("display", 1)),
+                        lua_num(config.get("display", 1)),
                     )
                 )
     lines.extend(
@@ -751,13 +752,14 @@ def _emit_combat(node, ctx):
             ),
             "\tmod_stop_voice()",
             "\tmod_hide_all()",
-            '\tluamanager.ChangeScene("Combat", %s, "Story")' % lua_str(node["key"]),
+            '\tluamanager.ChangeScene("Combat", %s, "Story")' % lua_str(config["key"]),
         ]
     )
     return lines
 
 
 def _emit_battle(node, ctx):
+    config = ctx["battle_presets"].get(node.get("preset"), node)
     return [
         "\tmod_gameplay_prepare(%s, %s, %s, %s, %s)"
         % (
@@ -766,7 +768,7 @@ def _emit_battle(node, ctx):
         ),
         "\tmod_stop_voice()",
         "\tmod_hide_all()",
-        '\tluamanager.ChangeScene("Battle", %s, "Story")' % lua_str(node["key"]),
+        '\tluamanager.ChangeScene("Battle", %s, "Story")' % lua_str(config["key"]),
     ]
 
 
@@ -1212,6 +1214,7 @@ def story_to_lua(story, mod_info=None, source=None, content_root=None):
         "script_id": story["id"],
         "mood": bool(story.get("mood", False)),
         "content_root": content_root or default_repository_root(),
+        "battle_presets": story.get("battle_presets", {}),
     }
     nodes = story["nodes"]
 

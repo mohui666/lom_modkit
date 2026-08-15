@@ -663,7 +663,8 @@ NODE_SCHEMAS: dict[str, dict] = {
     "combat": {
         "label": "原版战斗编排",
         "fields": [
-            ("key", "战斗场景", "combat_id", False),
+            ("preset", "战斗预设", "battle_preset", True),
+            ("key", "战斗场景", "combat_id", True),
             ("enemy", "敌方队伍 id", "line", True),
             ("team", "敌方队伍增量", "int", True),
             ("level", "敌方等级增量", "int", True),
@@ -676,7 +677,8 @@ NODE_SCHEMAS: dict[str, dict] = {
     "battle": {
         "label": "原版大规模战役",
         "fields": [
-            ("key", "战役场景", "battle_id", False),
+            ("preset", "战斗预设", "battle_preset", True),
+            ("key", "战役场景", "battle_id", True),
             ("win", "友军胜利后", "node_ref", False),
             ("lose", "敌军胜利后", "node_ref", False),
         ],

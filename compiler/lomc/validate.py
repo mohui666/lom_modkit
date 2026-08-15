@@ -372,13 +372,17 @@ _NODE_FIELDS = {
         {"key": "idstr", "index": "num", "active": "num"},
     ),
     "combat": (
-        {"key": "idstr", "win": "idstr", "lose": "idstr"},
+        {"win": "idstr", "lose": "idstr"},
         {
+            "preset": "idstr", "key": "idstr",
             "enemy": "idstr", "team": "num", "level": "num",
             "people": "num", "display": "num",
         },
     ),
-    "battle": ({"key": "idstr", "win": "idstr", "lose": "idstr"}, {}),
+    "battle": (
+        {"win": "idstr", "lose": "idstr"},
+        {"preset": "idstr", "key": "idstr"},
+    ),
     "mission": ({"name": "idstr", "key": "idstr"}, {}),
     "time": (
         {"op": "time_op"},
@@ -550,7 +554,7 @@ def _check_asset_image_path(image, label, ntype):
         )
 
 
-def _check_node_extra(node, ntype, label):
+def _check_node_extra(node, ntype, label, battle_presets=None):
     """各节点类型的跨字段 / 结构性规则。"""
     character = node.get("character")
     character_is_used = not (
@@ -891,11 +895,54 @@ def _check_node_extra(node, ntype, label):
                 % (label, node["op"])
             )
     elif ntype == "combat":
+        direct = bool(node.get("key"))
+        preset_id = node.get("preset")
+        if direct == bool(preset_id):
+            raise LomcError(
+                '%s(combat): 必须且只能填写 "key" 或 "preset" 其中一个' % label
+            )
+        if preset_id:
+            preset = (battle_presets or {}).get(preset_id)
+            if preset is None:
+                raise LomcError(
+                    '%s(combat): preset 指向不存在的战斗预设 "%s"'
+                    % (label, preset_id)
+                )
+            if preset["kind"] != "combat":
+                raise LomcError(
+                    '%s(combat): 预设 "%s" 的 kind=%r，不是 combat'
+                    % (label, preset_id, preset["kind"])
+                )
+            mixed = set(node) & {"enemy", "team", "level", "people", "display"}
+            if mixed:
+                raise LomcError(
+                    '%s(combat): 使用 preset 时不能再填写 %s；请在预设中统一配置'
+                    % (label, "、".join(sorted(mixed)))
+                )
         for name in ("team", "level", "people", "display"):
             if name in node and (isinstance(node[name], bool) or not isinstance(node[name], int)):
                 raise LomcError(
                     '%s(combat): 字段 "%s" 必须是整数，实际为 %r'
                     % (label, name, node[name])
+                )
+    elif ntype == "battle":
+        direct = bool(node.get("key"))
+        preset_id = node.get("preset")
+        if direct == bool(preset_id):
+            raise LomcError(
+                '%s(battle): 必须且只能填写 "key" 或 "preset" 其中一个' % label
+            )
+        if preset_id:
+            preset = (battle_presets or {}).get(preset_id)
+            if preset is None:
+                raise LomcError(
+                    '%s(battle): preset 指向不存在的战斗预设 "%s"'
+                    % (label, preset_id)
+                )
+            if preset["kind"] != "battle":
+                raise LomcError(
+                    '%s(battle): 预设 "%s" 的 kind=%r，不是 battle'
+                    % (label, preset_id, preset["kind"])
                 )
     elif ntype == "time":
         op = node["op"]
@@ -1227,6 +1274,43 @@ def _collect_warnings(story, warnings):
             )
 
 
+def _validate_battle_presets(raw):
+    """校验章节级战斗预设；运行时只接收这里已约束的原版模板参数。"""
+    if not isinstance(raw, dict):
+        raise LomcError('字段 "battle_presets" 必须是对象（预设 id -> 配置）')
+    if len(raw) > 64:
+        raise LomcError('字段 "battle_presets" 最多允许 64 个预设')
+    validated = {}
+    for preset_id, preset in raw.items():
+        label = '战斗预设 "%s"' % preset_id
+        if not isinstance(preset_id, str) or SCRIPT_ID_RE.fullmatch(preset_id) is None:
+            raise LomcError(
+                '战斗预设 id 必须符合 [a-zA-Z0-9_-]{1,64}，实际为 %r' % preset_id
+            )
+        if not isinstance(preset, dict):
+            raise LomcError('%s: 配置必须是对象' % label)
+        kind = preset.get("kind")
+        if kind not in ("combat", "battle"):
+            raise LomcError('%s: kind 必须是 "combat" 或 "battle"' % label)
+        allowed = {"kind", "key"}
+        if kind == "combat":
+            allowed.update(("enemy", "team", "level", "people", "display"))
+        unknown = set(preset) - allowed
+        if unknown:
+            raise LomcError('%s: 未知字段 %s' % (label, "、".join(sorted(unknown))))
+        if not _check_type("idstr", preset.get("key")):
+            raise LomcError('%s: key 必须是非空的原版场景 id' % label)
+        if "enemy" in preset and not _check_type("idstr", preset["enemy"]):
+            raise LomcError('%s: enemy 必须是非空字符串' % label)
+        for name in ("team", "level", "people", "display"):
+            if name in preset and (
+                isinstance(preset[name], bool) or not isinstance(preset[name], int)
+            ):
+                raise LomcError('%s: %s 必须是整数' % (label, name))
+        validated[preset_id] = preset
+    return validated
+
+
 def _validate_story_inner(story):
     if not isinstance(story, dict):
         raise LomcError("顶层必须是 JSON 对象")
@@ -1257,6 +1341,8 @@ def _validate_story_inner(story):
     if not isinstance(nodes, list) or not nodes:
         raise LomcError('缺少必填字段 "nodes"（非空节点数组）')
 
+    battle_presets = _validate_battle_presets(story.get("battle_presets", {}))
+
     # 第一遍：节点 id 唯一性与基本结构
     id_set = set()
     for i, node in enumerate(nodes):
@@ -1280,7 +1366,7 @@ def _validate_story_inner(story):
     for i, node in enumerate(nodes):
         label = _node_label(node, i)
         ntype = _check_node_fields(node, label)
-        _check_node_extra(node, ntype, label)
+        _check_node_extra(node, ntype, label, battle_presets)
         _check_goto(node, label, id_set)
         if ntype in _NO_GOTO_TYPES and "goto" in node:
             raise LomcError(

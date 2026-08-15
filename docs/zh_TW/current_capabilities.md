@@ -13,6 +13,6 @@
 
 `enemy`、`battle_skill` 和 `goto_scene` 的 `Combat` / `Battle` 會呼叫已驗證的《活俠傳》原版 API。高層 `combat` / `battle` 可選原版模板；前者取得 Combat win/lose，後者只接受 finish=true 的 FriendWin/EnemyWin。這不是自製戰鬥引擎，且新增流程尚未實機驗證。
 
-目前沒有 Battle Preset、draw/escape 回呼、`reward` 聚合節點、任意商品 Custom Shop、獨立 `mod_quest` 或任意持久化 Mod 變數。`modflags` / `modvars` 僅在 Story 工作階段存在；`game_flag` 只可寫原版已存在的 FlagData。也不支援自訂戰鬥地圖、模型、AI、動畫或機制。
+章節設定已支援 Battle Preset，可重用原版 `combat` / `battle` 模板及已驗證敵方參數。仍沒有 draw/escape 回呼、`reward` 聚合節點、任意商品 Custom Shop、獨立 `mod_quest` 或任意持久化 Mod 變數。`modflags` / `modvars` 僅在 Story 工作階段存在；`game_flag` 只可寫原版已存在的 FlagData。也不支援自訂戰鬥地圖、模型、AI、動畫或機制。
 
 尚未由反編譯與實機驗證確認的遊戲介面不得靠猜測實作。

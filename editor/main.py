@@ -465,6 +465,145 @@ class ProjectTemplateDialog(QDialog):
         self.accept()
 
 
+class BattlePresetDialog(QDialog):
+    """章节级 Combat/Battle 预设编辑器；只暴露已验证的原版模板参数。"""
+
+    COLUMNS = ("id", "kind", "key", "enemy", "team", "level", "people", "display")
+
+    def __init__(self, presets: dict, editor_data: dict, parent=None):
+        super().__init__(parent)
+        self.presets: dict[str, dict] | None = None
+        self.editor_data = editor_data
+        self.setWindowTitle(t("preset.title"))
+        self.resize(920, 460)
+        layout = QVBoxLayout(self)
+        note = QLabel(t("preset.note"))
+        note.setWordWrap(True)
+        layout.addWidget(note)
+        self.table = QTableWidget(0, len(self.COLUMNS))
+        self.table.setHorizontalHeaderLabels(
+            ("ID", "类型", "原版模板", "敌方 ID", "队伍", "等级", "人数", "显示")
+        )
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        layout.addWidget(self.table, stretch=1)
+        row_buttons = QHBoxLayout()
+        add = QPushButton(t("preset.add"))
+        remove = QPushButton(t("preset.remove"))
+        add.clicked.connect(lambda: self.add_preset_row())
+        remove.clicked.connect(self._remove_selected)
+        row_buttons.addWidget(add)
+        row_buttons.addWidget(remove)
+        row_buttons.addStretch(1)
+        layout.addLayout(row_buttons)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self._accept_presets)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+        for preset_id, config in sorted((presets or {}).items()):
+            if isinstance(config, dict):
+                self.add_preset_row(str(preset_id), config)
+
+    def _template_items(self, kind: str) -> list[tuple[str, str]]:
+        data_key = "combat_ids" if kind == "combat" else "battle_ids"
+        return models.list_items(self.editor_data, data_key)
+
+    def add_preset_row(self, preset_id: str = "", config: dict | None = None) -> None:
+        config = dict(config or {})
+        row = self.table.rowCount()
+        self.table.insertRow(row)
+        self.table.setItem(row, 0, QTableWidgetItem(preset_id))
+        kind = QComboBox()
+        kind.addItem("Combat", "combat")
+        kind.addItem("Battle", "battle")
+        kind.setCurrentIndex(1 if config.get("kind") == "battle" else 0)
+        self.table.setCellWidget(row, 1, kind)
+        key = QComboBox()
+        key.setEditable(True)
+        self.table.setCellWidget(row, 2, key)
+        for column, name in enumerate(self.COLUMNS[3:], start=3):
+            value = config.get(name, "")
+            self.table.setItem(row, column, QTableWidgetItem(str(value)))
+        kind.currentIndexChanged.connect(
+            lambda _index, widget=kind: self._refresh_preset_kind_widget(widget)
+        )
+        self._refresh_preset_row(row, str(config.get("key") or ""))
+
+    def _refresh_preset_kind_widget(self, widget: QComboBox) -> None:
+        for row in range(self.table.rowCount()):
+            if self.table.cellWidget(row, 1) is widget:
+                self._refresh_preset_row(row)
+                return
+
+    def _refresh_preset_row(self, row: int, current_key: str | None = None) -> None:
+        kind = self.table.cellWidget(row, 1)
+        key = self.table.cellWidget(row, 2)
+        if not isinstance(kind, QComboBox) or not isinstance(key, QComboBox):
+            return
+        selected = current_key
+        if selected is None:
+            selected = str(key.currentData() or key.currentText()).strip()
+        key.blockSignals(True)
+        key.clear()
+        for item_id, display in self._template_items(str(kind.currentData())):
+            key.addItem(display, item_id)
+        index = key.findData(selected)
+        if index >= 0:
+            key.setCurrentIndex(index)
+        else:
+            key.setCurrentText(selected)
+        key.blockSignals(False)
+        combat = kind.currentData() == "combat"
+        for column in range(3, len(self.COLUMNS)):
+            item = self.table.item(row, column)
+            if item is not None:
+                flags = item.flags()
+                item.setFlags(
+                    flags | Qt.ItemFlag.ItemIsEditable
+                    if combat else flags & ~Qt.ItemFlag.ItemIsEditable
+                )
+
+    def _remove_selected(self) -> None:
+        rows = sorted({item.row() for item in self.table.selectedItems()}, reverse=True)
+        for row in rows:
+            self.table.removeRow(row)
+
+    def _accept_presets(self) -> None:
+        result: dict[str, dict] = {}
+        try:
+            for row in range(self.table.rowCount()):
+                preset_id = (self.table.item(row, 0).text() if self.table.item(row, 0) else "").strip()
+                if not models.ID_PATTERN.fullmatch(preset_id):
+                    raise ValueError(t("preset.bad_id", id=preset_id or "（空）"))
+                if preset_id in result:
+                    raise ValueError(t("preset.duplicate", id=preset_id))
+                kind_widget = self.table.cellWidget(row, 1)
+                key_widget = self.table.cellWidget(row, 2)
+                kind = str(kind_widget.currentData())
+                key = str(key_widget.currentData() or key_widget.currentText()).strip()
+                if not key:
+                    raise ValueError(t("preset.missing_key", id=preset_id))
+                config: dict = {"kind": kind, "key": key}
+                if kind == "combat":
+                    enemy_item = self.table.item(row, 3)
+                    enemy = enemy_item.text().strip() if enemy_item else ""
+                    if enemy:
+                        config["enemy"] = enemy
+                    for column, name in enumerate(self.COLUMNS[4:], start=4):
+                        item = self.table.item(row, column)
+                        text = item.text().strip() if item else ""
+                        if text:
+                            config[name] = int(text)
+                result[preset_id] = config
+        except (TypeError, ValueError) as exc:
+            QMessageBox.warning(self, t("preset.title"), str(exc))
+            return
+        self.presets = result
+        self.accept()
+
+
 class ProjectStatisticsDialog(QDialog):
     def __init__(self, statistics: ProjectStatistics, parent=None):
         super().__init__(parent)
@@ -1153,6 +1292,9 @@ class MainWindow(QMainWindow):
         props.addRow(t("chapter.name"), self.story_title_edit)
         props.addRow(t("chapter.start"), self.start_combo)
         props.addRow(t("chapter.mood"), self.mood_check)
+        self.battle_presets_btn = QPushButton()
+        self.battle_presets_btn.clicked.connect(self._edit_battle_presets)
+        props.addRow(t("chapter.battle_presets"), self.battle_presets_btn)
         self._chapter_form = props
         root.addLayout(props)
         root.addStretch(1)
@@ -1742,6 +1884,7 @@ class MainWindow(QMainWindow):
             self.story_id_edit.setText(self.story.get("id", ""))
             self.story_title_edit.setText(self.story.get("title", ""))
             self.mood_check.setChecked(bool(self.story.get("mood", False)))
+            self._refresh_battle_presets_button()
             self._reload_start_combo()
             self._reload_node_list(select_row)
         finally:
@@ -1972,7 +2115,10 @@ class MainWindow(QMainWindow):
             return
         self.inspector.setCurrentWidget(self.form)
         node_ids = [n.get("id", "") for n in self.story.get("nodes", [])]
-        self.form.set_context(self.editor_data, node_ids, sorted(self._stories.keys()))
+        self.form.set_context(
+            self.editor_data, node_ids, sorted(self._stories.keys()),
+            self.story.get("battle_presets", {}),
+        )
         self.form.set_node(self._current_node())
 
     def _schedule_preview(self) -> None:
@@ -2495,6 +2641,27 @@ class MainWindow(QMainWindow):
             return
         self._record_continuous()
         self.story["mood"] = bool(checked)
+        self._schedule_preview()
+
+    def _refresh_battle_presets_button(self) -> None:
+        count = len(self.story.get("battle_presets", {}))
+        self.battle_presets_btn.setText(t("preset.manage", count=count))
+
+    def _edit_battle_presets(self) -> None:
+        dialog = BattlePresetDialog(
+            self.story.get("battle_presets", {}), self.editor_data, self
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted or dialog.presets is None:
+            return
+        if dialog.presets == self.story.get("battle_presets", {}):
+            return
+        self._record_discrete()
+        if dialog.presets:
+            self.story["battle_presets"] = dialog.presets
+        else:
+            self.story.pop("battle_presets", None)
+        self._refresh_battle_presets_button()
+        self._load_form()
         self._schedule_preview()
 
     def _on_node_changed(self) -> None:

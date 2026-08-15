@@ -188,11 +188,13 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `zh_CN`、
 | `game_flag` | `flag`, `value`；可选 `op`("set"默认/"add") | 官方任务 flag：`SetFlag(id, 状态)` / `AddFlag(id, ±增量)`。**id 必须是游戏已有 FlagData**（14_属性与Flag 表），否则游戏静默忽略 |
 | `enemy` | `op`("team"/"level"/"people"/"id"), `enemy`, `value`(数值, id 的 op 不需要), `display`(默认1) | 敌方队伍修改 `ModifyEnemyTeam/Level/People/Id` |
 | `battle_skill` | `op`("set"/"active"/"reset"), `key`(reset 不需要), `index`(set 用, 默认2), `active`(active 用, 默认1) | 战场技能 `SetPlayerBattleSkill/SetBattleSkillActive/ResetBattleSkill` |
-| `combat` | `key`(原版 Combat id), `win`, `lose`(节点 id)；可选 `enemy`, `team`, `level`, `people`, `display` | 可选组合 `ModifyEnemy*`，随后 Host 建立包指纹绑定的一次性结果会话并执行 `ChangeScene("Combat",key,"Story")`。原版 `CombatManager.GameOver(bool)` 的 win/lose 回到对应节点；不支持 draw/escape。终止节点，不允许额外 goto |
-| `battle` | `key`(原版 Battle id), `win`, `lose`(节点 id) | 执行 `ChangeScene("Battle",key,"Story")`；Host 只把原版 `ShowGameOver(FriendWin/EnemyWin, finish:true)` 映射到 win/lose。`PlayerDie(false)` 保持原版重试/标题流程，不伪造为可续接结果。终止节点，不允许额外 goto |
+| `combat` | `win`, `lose`(节点 id)；`key`(原版 Combat id) 与 `preset` 二选一；直接配置时可选 `enemy`, `team`, `level`, `people`, `display` | 可选组合 `ModifyEnemy*`，随后 Host 建立包指纹绑定的一次性结果会话并执行 `ChangeScene("Combat",key,"Story")`。原版 `CombatManager.GameOver(bool)` 的 win/lose 回到对应节点；不支持 draw/escape。终止节点，不允许额外 goto |
+| `battle` | `win`, `lose`(节点 id)；`key`(原版 Battle id) 与 `preset` 二选一 | 执行 `ChangeScene("Battle",key,"Story")`；Host 只把原版 `ShowGameOver(FriendWin/EnemyWin, finish:true)` 映射到 win/lose。`PlayerDie(false)` 保持原版重试/标题流程，不伪造为可续接结果。终止节点，不允许额外 goto |
 | `mission` | `name`, `key` | 任务操作 `statmodifymanager.Mission(name, key)`：`Mission("Main","M0001")` 推进主线 / `Mission("S2200","clear")` 清支线 |
 | `time` | `op`("set"/"round"/"month"/"mission")；set 用 `year,month,stage`；mission 用 `name,year,month,stage` | 时间 `SetGameTime/NextRound/NextMonth/SetMissionTime` |
 | `autosave` | 可选 `kind`("story"默认/"free"/"prologue")；可选 `save_button`(0/1，单独控制存档按钮) | `AutoSave()/AutoFreeSave()/PrologueSave(mode)`；`save_button` 单独 emit `ToggleSaveButton(n)` |
+
+章节顶层可选 `battle_presets` 对象，用安全 id 保存可复用配置：`{"bandit_ambush":{"kind":"combat","key":"5102_01","enemy":"Bandit","level":20,"people":3}}`。`kind` 只允许 `combat` / `battle`；节点写 `preset:"bandit_ambush"` 后不得混填 `key` 或敌方参数。编译器会把它展开为上表同一组原版调用，预设本身不会进入运行时或扩展战斗引擎。
 
 **流程类**
 

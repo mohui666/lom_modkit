@@ -18,6 +18,7 @@ class CombatEditorTest(unittest.TestCase):
         self.assertIn("combat", models.NODE_SCHEMAS)
         fields = {key: kind for key, _label, kind, _optional in models.NODE_SCHEMAS["combat"]["fields"]}
         self.assertEqual(fields["key"], "combat_id")
+        self.assertEqual(fields["preset"], "battle_preset")
         self.assertEqual(fields["win"], "node_ref")
         node = models.new_node("combat", "fight", {"combat_ids": ["5102_01"]})
         node.update({"key": "5102_01", "win": "win", "lose": "lose"})
@@ -61,6 +62,7 @@ class CombatEditorTest(unittest.TestCase):
             in models.NODE_SCHEMAS["battle"]["fields"]
         }
         self.assertEqual(fields["key"], "battle_id")
+        self.assertEqual(fields["preset"], "battle_preset")
         story = {
             "start": "war",
             "nodes": [

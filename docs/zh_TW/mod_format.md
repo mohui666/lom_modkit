@@ -150,8 +150,8 @@ assets/                # 可选，自定义资源
 | `game_flag` | `flag`, `value`；可選 `op`("set"預設/"add") | 官方任務 flag：`SetFlag(id, 狀態)` / `AddFlag(id, ±增量)`。**id 必須是遊戲已有 FlagData**（14_屬性與Flag 表），否則遊戲靜默忽略 |
 | `enemy` | `op`("team"/"level"/"people"/"id"), `enemy`, `value`(數值, id 的 op 不需要), `display`(預設1) | 敵方隊伍修改 `ModifyEnemyTeam/Level/People/Id` |
 | `battle_skill` | `op`("set"/"active"/"reset"), `key`(reset 不需要), `index`(set 用, 預設2), `active`(active 用, 預設1) | 戰場技能 `SetPlayerBattleSkill/SetBattleSkillActive/ResetBattleSkill` |
-| `combat` | `key`(原版 Combat id), `win`, `lose`(節點 id)；可選 `enemy`, `team`, `level`, `people`, `display` | 組合原版敵方設定後進入 Combat；Host 從 `CombatManager.GameOver(bool)` 取得 win/lose 並回到指定節點。不支援 draw/escape，且不允許額外 goto |
-| `battle` | `key`(原版 Battle id), `win`, `lose`(節點 id) | 進入原版 Battle；只把 `FriendWin/EnemyWin` 且 finish=true 映射為 win/lose。`PlayerDie(false)` 保持原版重試／標題，不偽造續接 |
+| `combat` | `win`, `lose`；`key`(原版 Combat id) 與 `preset` 二選一；直接設定可選 `enemy`, `team`, `level`, `people`, `display` | 組合原版敵方設定後進入 Combat；Host 從 `CombatManager.GameOver(bool)` 取得 win/lose 並回到指定節點。不支援 draw/escape，且不允許額外 goto |
+| `battle` | `win`, `lose`；`key`(原版 Battle id) 與 `preset` 二選一 | 進入原版 Battle；只把 `FriendWin/EnemyWin` 且 finish=true 映射為 win/lose。`PlayerDie(false)` 保持原版重試／標題，不偽造續接 |
 | `mission` | `name`, `key` | 任務操作 `statmodifymanager.Mission(name, key)`：`Mission("Main","M0001")` 推進主線 / `Mission("S2200","clear")` 清支線 |
 | `time` | `op`("set"/"round"/"month"/"mission")；set 用 `year,month,stage`；mission 用 `name,year,month,stage` | 時間 `SetGameTime/NextRound/NextMonth/SetMissionTime` |
 | `autosave` | 可選 `kind`("story"預設/"free"/"prologue")；可選 `save_button`(0/1，單獨控制存檔按鈕) | `AutoSave()/AutoFreeSave()/PrologueSave(mode)`；`save_button` 單獨 emit `ToggleSaveButton(n)` |

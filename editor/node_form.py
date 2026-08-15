@@ -129,16 +129,19 @@ class NodeForm(QScrollArea):
         self._editor_data: dict = models.FALLBACK_EDITOR_DATA
         self._node_ids: list[str] = []
         self._story_ids: list[str] = []  # 包内剧情脚本 id（end.next_script 下拉用）
+        self._battle_presets: dict[str, dict] = {}
         self._loading = False  # 重建表单期间屏蔽信号
 
     # ------------------------------------------------------------------ 对外
     def set_context(
-        self, editor_data: dict, node_ids: list[str], story_ids: list[str] | None = None
+        self, editor_data: dict, node_ids: list[str], story_ids: list[str] | None = None,
+        battle_presets: dict[str, dict] | None = None,
     ) -> None:
         """更新下拉框数据来源（editor_data / 全部节点 id / 包内剧情脚本 id）。"""
         self._editor_data = editor_data
         self._node_ids = list(node_ids)
         self._story_ids = list(story_ids or [])
+        self._battle_presets = dict(battle_presets or {})
 
     def _emit_id_change(self, edit: QLineEdit, original: str) -> None:
         if self._loading or self._node is None:
@@ -322,6 +325,8 @@ class NodeForm(QScrollArea):
                 return scene == "End"
         if node_type == "death" and key == "next":
             return False
+        if node_type in ("combat", "battle") and node.get("preset"):
+            return key not in ("key", "enemy", "team", "level", "people", "display")
         return True
 
     def _make_widget(self, node: dict, key: str, kind: str) -> QWidget:
@@ -485,6 +490,19 @@ class NodeForm(QScrollArea):
             return self._combo_from_items(
                 node, key, models.list_items(self._editor_data, "battle_ids"), value
             )
+        if kind == "battle_preset":
+            node_type = str(node.get("type") or "")
+            items = [("", "（直接配置原版模板）")]
+            items.extend(
+                (preset_id, "%s（%s）" % (preset_id, preset.get("key", "")))
+                for preset_id, preset in sorted(self._battle_presets.items())
+                if isinstance(preset, dict) and preset.get("kind") == node_type
+            )
+            w = self._make_combo(items, str(value or ""))
+            w.currentTextChanged.connect(
+                lambda _text, c=w: self._on_battle_preset_changed(node, key, c)
+            )
+            return w
         if kind == "node_ref":
             w = self._make_goto_combo(str(value or ""), allow_empty=False)
             w.currentTextChanged.connect(
@@ -1047,6 +1065,25 @@ class NodeForm(QScrollArea):
         node[key] = val
         if set_name in models.REBUILD_ENUMS:
             self._rebuild_current()
+        self._emit_changed()
+
+    def _on_battle_preset_changed(
+        self, node: dict, key: str, combo: QComboBox
+    ) -> None:
+        if self._loading:
+            return
+        value = combo.currentData()
+        value = str(value or "")
+        if value == str(node.get(key) or ""):
+            return
+        if value:
+            node[key] = value
+            for direct_key in ("key", "enemy", "team", "level", "people", "display"):
+                node.pop(direct_key, None)
+        else:
+            node.pop(key, None)
+            node.setdefault("key", "")
+        self._rebuild_current()
         self._emit_changed()
 
     def _make_death_id_widget(self, node: dict, key: str, value) -> QWidget:

@@ -13,6 +13,6 @@
 
 `enemy`, `battle_skill`, `goto_scene`의 `Combat` / `Battle`은 검증된 원작 API를 호출합니다. 고수준 `combat` / `battle`은 원작 템플릿을 선택하고 전자는 Combat win/lose, 후자는 finish=true인 FriendWin/EnemyWin만 돌려보냅니다. 독자 Battle Engine이 아니며 실기 미검증입니다.
 
-Battle Preset, draw/escape 콜백, `reward` 집계 노드, 임의 상품 Custom Shop, 독립 `mod_quest`, 임의의 영속 Mod 변수는 미구현입니다. `modflags` / `modvars`는 Story 세션에만 있고 `game_flag`는 원작에 존재하는 FlagData만 기록합니다. 전투 지도, 모델, AI, 애니메이션, 메커니즘의 사용자 지정도 지원하지 않습니다.
+장 설정에서 Battle Preset을 관리하여 원작 `combat` / `battle` 템플릿과 검증된 적 설정을 재사용할 수 있습니다. draw/escape 콜백, `reward` 집계 노드, 임의 상품 Custom Shop, 독립 `mod_quest`, 임의의 영속 Mod 변수는 미구현입니다. `modflags` / `modvars`는 Story 세션에만 있고 `game_flag`는 원작에 존재하는 FlagData만 기록합니다. 전투 지도, 모델, AI, 애니메이션, 메커니즘의 사용자 지정도 지원하지 않습니다.
 
 디컴파일과 실제 게임 검증으로 확인되지 않은 API는 추측해서 구현하지 않습니다.
