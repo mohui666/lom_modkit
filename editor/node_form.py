@@ -239,7 +239,16 @@ class NodeForm(QScrollArea):
             w.currentTextChanged.connect(
                 lambda t, c=w: self._on_character_changed(node, key, c, t)
             )
-            return w
+            box = QWidget()
+            row = QHBoxLayout(box)
+            row.setContentsMargins(0, 0, 0, 0)
+            manage = QPushButton(t("library.manage"))
+            manage.setMinimumHeight(28)
+            manage.setToolTip(t("toolbar.library_tip"))
+            manage.clicked.connect(self._open_content_library)
+            row.addWidget(w, 1)
+            row.addWidget(manage)
+            return box
         if kind == "portrait":
             char_id = node.get("character", "")
             items = models.character_portraits(self._editor_data, char_id)
@@ -1217,6 +1226,15 @@ class NodeForm(QScrollArea):
             return
         row[key] = value
         self._emit_changed()
+
+    def _open_content_library(self) -> None:
+        from content_library_dialog import ContentLibraryDialog
+
+        window = self.window()
+        stories = getattr(window, "_stories", {}) if window is not None else {}
+        ContentLibraryDialog(stories, self).exec()
+        if self._node is not None:
+            self._rebuild_current()
 
     def _on_character_changed(
         self, node: dict, key: str, combo: QComboBox, text: str

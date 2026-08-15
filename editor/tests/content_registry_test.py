@@ -189,6 +189,16 @@ class ContentRegistryTest(unittest.TestCase):
             content_registry.resolve(
                 "user:mohui.luoxue", expected_type="character", portrait="angry"
             )
+        sad = Path(self.temp.name) / "sad.png"
+        sad.write_bytes(png)
+        updated = content_registry.update_character(
+            "mohui.luoxue",
+            name="洛雪改",
+            portraits={"sad": sad},
+        )
+        self.assertEqual(updated.name, "洛雪改")
+        self.assertIn("sad", updated.portrait_ids())
+        self.assertIn("happy", updated.portrait_ids())
 
         manifest = {
             "format": 1,

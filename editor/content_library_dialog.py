@@ -26,8 +26,10 @@ from PySide6.QtWidgets import (
 
 from i18n import t
 from content_registry import (
+    ContentRecord,
     ContentRegistryError,
     default_namespace,
+    get,
     list_contents,
     register_audio,
     register_character,
@@ -35,6 +37,7 @@ from content_registry import (
     repository_root,
     set_default_namespace,
     suggest_content_id,
+    update_character,
 )
 
 
@@ -51,7 +54,7 @@ class ContentLibraryDialog(QDialog):
         super().__init__(parent)
         self._stories = stories or {}
         self.setWindowTitle(t("library.title"))
-        self.resize(760, 460)
+        self.resize(820, 500)
 
         layout = QVBoxLayout(self)
         intro = QLabel(t("library.intro"))
@@ -86,11 +89,15 @@ class ContentLibraryDialog(QDialog):
         import_btn = QPushButton(t("library.import"))
         import_char_btn = QPushButton(t("library.import_character"))
         delete_btn = QPushButton(t("library.delete"))
+        edit_btn = QPushButton(t("library.edit"))
         import_btn.clicked.connect(self._import_audio)
         import_char_btn.clicked.connect(self._import_character)
+        edit_btn.clicked.connect(self._edit_selected)
         delete_btn.clicked.connect(self._delete_selected)
+        self.table.cellDoubleClicked.connect(lambda *_: self._edit_selected())
         buttons.addWidget(import_btn)
         buttons.addWidget(import_char_btn)
+        buttons.addWidget(edit_btn)
         buttons.addWidget(delete_btn)
         buttons.addStretch(1)
         layout.addLayout(buttons)
@@ -181,6 +188,36 @@ class ContentLibraryDialog(QDialog):
             "编号：%s\n在登场/对白步骤的人物列表里选择即可。" % rec.ref,
         )
 
+    def _edit_selected(self) -> None:
+        content_id = self._selected_id()
+        if not content_id:
+            QMessageBox.information(self, t("library.edit"), "请先选中一条用户内容。")
+            return
+        try:
+            rec = get(content_id)
+        except ContentRegistryError as exc:
+            QMessageBox.warning(self, t("library.edit_fail"), str(exc))
+            return
+        if rec.type != "character":
+            QMessageBox.information(
+                self, t("library.edit"), "音频目前只能删除后重新导入。请选中自定义角色。"
+            )
+            return
+        dlg = _ImportCharacterDialog(self, existing=rec)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        try:
+            update_character(
+                rec.content_id,
+                name=dlg.display_name(),
+                portraits=dlg.portraits(),
+                remove_portraits=dlg.removed_portraits(),
+            )
+        except ContentRegistryError as exc:
+            QMessageBox.critical(self, t("library.edit_fail"), str(exc))
+            return
+        self._reload()
+
     def _delete_selected(self) -> None:
         content_id = self._selected_id()
         if not content_id:
@@ -248,20 +285,31 @@ class _ImportAudioDialog(QDialog):
 
 
 class _ImportCharacterDialog(QDialog):
-    """导入自定义角色：显示名、ID、至少 normal + 可选更多表情。"""
+    """导入或编辑自定义角色。编辑时编号锁定，可换图、加表情、改显示名。"""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, existing: ContentRecord | None = None):
         super().__init__(parent)
-        self.setWindowTitle(t("library.import_char_title"))
+        self._existing = existing
+        self._removed: list[str] = []
+        self.setWindowTitle(
+            t("library.edit_char_title") if existing else t("library.import_char_title")
+        )
         self.resize(560, 360)
-        self._rows: list[tuple[QLineEdit, QLabel, Path | None]] = []
         layout = QVBoxLayout(self)
         form = QFormLayout()
-        suggested = suggest_content_id("luoxue")
-        ns, local = suggested.split(".", 1)
-        self._name = QLineEdit("洛雪")
-        self._namespace = QLineEdit(ns)
-        self._local = QLineEdit(local)
+        if existing:
+            ns, local = existing.content_id.split(".", 1)
+            self._name = QLineEdit(existing.name)
+            self._namespace = QLineEdit(ns)
+            self._local = QLineEdit(local)
+            self._namespace.setReadOnly(True)
+            self._local.setReadOnly(True)
+        else:
+            suggested = suggest_content_id("luoxue")
+            ns, local = suggested.split(".", 1)
+            self._name = QLineEdit("洛雪")
+            self._namespace = QLineEdit(ns)
+            self._local = QLineEdit(local)
         form.addRow("显示名称", self._name)
         form.addRow("命名空间", self._namespace)
         form.addRow("内部名称", self._local)
@@ -276,8 +324,16 @@ class _ImportCharacterDialog(QDialog):
         layout.addWidget(QLabel(t("library.char_portraits")))
         self._portrait_box = QVBoxLayout()
         layout.addLayout(self._portrait_box)
-        self._add_portrait_row("normal", required=True)
-        self._add_portrait_row("happy")
+        if existing and existing.portraits:
+            for key in existing.portrait_ids():
+                self._add_portrait_row(
+                    key,
+                    required=key == "normal",
+                    current_file=(existing.portraits or {}).get(key, ""),
+                )
+        else:
+            self._add_portrait_row("normal", required=True)
+            self._add_portrait_row("happy")
         add_btn = QPushButton(t("library.add_portrait"))
         add_btn.clicked.connect(lambda: self._add_portrait_row(""))
         layout.addWidget(add_btn)
@@ -295,7 +351,9 @@ class _ImportCharacterDialog(QDialog):
             % (self.namespace(), self._local.text().strip().lower())
         )
 
-    def _add_portrait_row(self, key: str, required: bool = False) -> None:
+    def _add_portrait_row(
+        self, key: str, required: bool = False, current_file: str = ""
+    ) -> None:
         row = QWidget()
         box = QHBoxLayout(row)
         box.setContentsMargins(0, 0, 0, 0)
@@ -303,7 +361,7 @@ class _ImportCharacterDialog(QDialog):
         key_edit.setPlaceholderText("normal")
         if required:
             key_edit.setReadOnly(True)
-        path_label = QLabel(t("library.no_file"))
+        path_label = QLabel(current_file or t("library.no_file"))
         path_label.setMinimumWidth(180)
         pick = QPushButton(t("library.choose_image"))
 
@@ -323,8 +381,17 @@ class _ImportCharacterDialog(QDialog):
         box.addWidget(key_edit, 1)
         box.addWidget(path_label, 2)
         box.addWidget(pick)
+        if self._existing and key and key != "normal":
+            drop = QPushButton(t("library.remove_portrait"))
+
+            def drop_row(_checked=False, holder=row, portrait_key=key) -> None:
+                self._removed.append(portrait_key)
+                holder.hide()
+                holder.setProperty("dropped", True)
+
+            drop.clicked.connect(drop_row)
+            box.addWidget(drop)
         self._portrait_box.addWidget(row)
-        self._rows.append((key_edit, path_label, None))
 
     def display_name(self) -> str:
         return self._name.text().strip()
@@ -346,14 +413,19 @@ class _ImportCharacterDialog(QDialog):
                 continue
             key = key_edit.text().strip()
             path = widget.property("source_path")
+            if widget.property("dropped"):
+                continue
             if not key or not path:
                 continue
             result[key] = Path(str(path))
         return result
 
+    def removed_portraits(self) -> list[str]:
+        return list(self._removed)
+
     def _accept(self) -> None:
         portraits = self.portraits()
-        if "normal" not in portraits:
+        if self._existing is None and "normal" not in portraits:
             QMessageBox.warning(self, t("library.import_char_fail"), "必须选择 normal 默认立绘。")
             return
         self.accept()

@@ -103,7 +103,10 @@ namespace MortalModHost
             if (_host != null && duration > 0f)
                 _host.StartCoroutine(MoveTo(actor, dest, duration));
             else
-                CopyRect(actor.HolderRect, dest);
+            {
+                actor.HolderRect.position = dest.position;
+                FitHolderToSprite(actor);
+            }
             return true;
         }
 
@@ -190,23 +193,23 @@ namespace MortalModHost
             holder.transform.SetParent(stage.PortraitCanvas.transform, false);
             actor.Holder = holder;
             actor.HolderRect = holder.GetComponent<RectTransform>();
-            RectTransform template = stage.DefaultPosition != null
-                ? stage.DefaultPosition.rectTransform
-                : null;
-            if (template != null)
-                CopyRect(actor.HolderRect, template);
+            holder.SetActive(false);
 
             GameObject imageObj = new GameObject("portrait", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
             imageObj.transform.SetParent(holder.transform, false);
             actor.Image = imageObj.GetComponent<Image>();
             actor.Image.preserveAspect = true;
-            actor.Image.color = Color.white;
+            actor.Image.raycastTarget = false;
+            actor.Image.material = null;
+            actor.Image.type = Image.Type.Simple;
+            actor.Image.color = new Color(1f, 1f, 1f, 0f);
+            actor.Image.enabled = false;
             RectTransform imageRect = imageObj.GetComponent<RectTransform>();
             imageRect.anchorMin = Vector2.zero;
             imageRect.anchorMax = Vector2.one;
+            imageRect.offsetMin = Vector2.zero;
+            imageRect.offsetMax = Vector2.zero;
             imageRect.pivot = new Vector2(0.5f, 0.5f);
-            imageRect.sizeDelta = Vector2.zero;
-            imageRect.anchoredPosition = Vector2.zero;
 
             Actors[parsed.Raw] = actor;
             return true;
@@ -224,7 +227,9 @@ namespace MortalModHost
             {
                 actor.Image.sprite = sprite;
                 actor.Image.enabled = true;
+                actor.Image.color = Color.white;
             }
+            FitHolderToSprite(actor);
             return true;
         }
 
@@ -271,10 +276,13 @@ namespace MortalModHost
                 if (Log != null) Log.LogWarning("自定义角色立绘解码失败：" + actor.RawId + "/" + portrait);
                 return null;
             }
+            texture.wrapMode = TextureWrapMode.Clamp;
+            texture.filterMode = FilterMode.Bilinear;
             Sprite sprite = Sprite.Create(
                 texture,
                 new Rect(0f, 0f, texture.width, texture.height),
-                new Vector2(0.5f, 0.5f));
+                new Vector2(0.5f, 0f),
+                100f);
             actor.Textures.Add(texture);
             actor.Sprites[portrait] = sprite;
             return sprite;
@@ -286,9 +294,49 @@ namespace MortalModHost
             if (dest == null)
             {
                 if (Log != null) Log.LogWarning("自定义角色找不到站位 " + position + "，使用默认位");
+                FitHolderToSprite(actor);
                 return;
             }
-            CopyRect(actor.HolderRect, dest);
+            // 站位只当落点，不把 Image 拉伸成整块舞台。官方 DefaultPosition
+            // 经常是铺满画布的 Rect，照抄 size/stretch 会出一张白幕。
+            actor.HolderRect.position = dest.position;
+            actor.HolderRect.rotation = dest.rotation;
+            FitHolderToSprite(actor);
+        }
+
+        private static void FitHolderToSprite(Actor actor)
+        {
+            if (actor == null || actor.HolderRect == null || actor.Image == null)
+                return;
+            Sprite sprite = actor.Image.sprite;
+            float sw = sprite != null ? sprite.rect.width : 531f;
+            float sh = sprite != null ? sprite.rect.height : 1039f;
+            if (sw < 1f) sw = 531f;
+            if (sh < 1f) sh = 1039f;
+
+            float canvasH = Screen.height;
+            Stage stage = Stage.GetActiveStage();
+            if (stage != null && stage.PortraitCanvas != null)
+            {
+                Rect pixel = stage.PortraitCanvas.pixelRect;
+                if (pixel.height > 1f)
+                    canvasH = pixel.height;
+            }
+            if (canvasH < 1f)
+                canvasH = 1080f;
+
+            float maxH = canvasH * 0.92f;
+            float maxW = canvasH * 0.42f;
+            float scale = Mathf.Min(maxW / sw, maxH / sh);
+            if (scale <= 0f)
+                scale = 1f;
+
+            Vector3 world = actor.HolderRect.position;
+            actor.HolderRect.anchorMin = new Vector2(0.5f, 0f);
+            actor.HolderRect.anchorMax = new Vector2(0.5f, 0f);
+            actor.HolderRect.pivot = new Vector2(0.5f, 0f);
+            actor.HolderRect.sizeDelta = new Vector2(sw * scale, sh * scale);
+            actor.HolderRect.position = world;
         }
 
         private static RectTransform FindPosition(string position)
@@ -314,19 +362,6 @@ namespace MortalModHost
             Vector3 scale = actor.HolderRect.localScale;
             scale.x = sx * Mathf.Abs(scale.x < 0.001f ? 1f : scale.x);
             actor.HolderRect.localScale = scale;
-        }
-
-        private static void CopyRect(RectTransform dest, RectTransform src)
-        {
-            if (dest == null || src == null)
-                return;
-            dest.anchorMin = src.anchorMin;
-            dest.anchorMax = src.anchorMax;
-            dest.pivot = src.pivot;
-            dest.anchoredPosition = src.anchoredPosition;
-            dest.sizeDelta = src.sizeDelta;
-            dest.localRotation = src.localRotation;
-            dest.localScale = Vector3.one;
         }
 
         private static void SetAlpha(Image image, float alpha)
@@ -365,16 +400,17 @@ namespace MortalModHost
         {
             if (actor.HolderRect == null || dest == null)
                 yield break;
-            Vector2 start = actor.HolderRect.anchoredPosition;
-            Vector2 end = dest.anchoredPosition;
+            Vector3 start = actor.HolderRect.position;
+            Vector3 end = dest.position;
             float elapsed = 0f;
             while (elapsed < seconds && actor.HolderRect != null)
             {
                 elapsed += Time.unscaledDeltaTime;
-                actor.HolderRect.anchoredPosition = Vector2.Lerp(start, end, Mathf.Clamp01(elapsed / seconds));
+                actor.HolderRect.position = Vector3.Lerp(start, end, Mathf.Clamp01(elapsed / seconds));
                 yield return null;
             }
-            CopyRect(actor.HolderRect, dest);
+            actor.HolderRect.position = dest.position;
+            FitHolderToSprite(actor);
             ApplyFacing(actor, actor.Facing);
         }
 

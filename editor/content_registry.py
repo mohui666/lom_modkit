@@ -358,6 +358,69 @@ def register_character(
     return get(content_id)
 
 
+def update_character(
+    content_id: str,
+    name: str | None = None,
+    portraits: dict[str, Path] | None = None,
+    remove_portraits: list[str] | None = None,
+) -> ContentRecord:
+    """改已有角色的显示名 / 增改表情 / 删表情。编号不变。"""
+    rec = get(content_id)
+    if rec.type != "character":
+        raise ContentRegistryError("%s 不是自定义角色。" % rec.ref)
+    display = (name or rec.name).strip() or rec.name
+    current = dict(rec.portraits or {"normal": rec.main_file})
+    for key in remove_portraits or []:
+        if key == "normal":
+            raise ContentRegistryError("不能删除默认立绘 normal，只能换图。")
+        current.pop(key, None)
+    written: dict[str, str] = dict(current)
+    for raw_key, source in (portraits or {}).items():
+        try:
+            key = validate_portrait_id(str(raw_key))
+        except LomcError as exc:
+            raise ContentRegistryError(str(exc)) from exc
+        src = Path(source)
+        try:
+            data = src.read_bytes()
+        except OSError as exc:
+            raise ContentRegistryError("无法读取立绘 %s：%s" % (key, exc)) from exc
+        if not data:
+            raise ContentRegistryError("立绘 %s 是空文件。" % key)
+        if len(data) > MAX_IMAGE_BYTES:
+            raise ContentRegistryError("立绘 %s 超过 8MB，请压缩后再导入。" % key)
+        try:
+            filename = safe_image_filename(src.name)
+        except LomcError as exc:
+            raise ContentRegistryError(str(exc)) from exc
+        if filename in set(written.values()) and written.get(key) != filename:
+            stem, ext = Path(filename).stem, Path(filename).suffix
+            filename = "%s_%s%s" % (stem[:48], key, ext)
+        (rec.folder / filename).write_bytes(data)
+        written[key] = filename
+    if "normal" not in written:
+        raise ContentRegistryError("必须保留 normal 默认立绘。")
+    keep = set(written.values())
+    write_content_metadata(
+        str(rec.folder / "content.json"),
+        {
+            "schema": CONTENT_SCHEMA,
+            "id": content_id,
+            "type": "character",
+            "name": display,
+            "files": {"main": written["normal"]},
+            "portraits": written,
+        },
+    )
+    for leftover in rec.folder.iterdir():
+        if leftover.name in ("content.json",) or leftover.name in keep:
+            continue
+        if leftover.is_file():
+            leftover.unlink()
+    _rebuild_index(list_contents())
+    return get(content_id)
+
+
 def remove(content_id: str, stories: dict | None = None) -> None:
     """删除未使用的用户内容。仍被当前项目引用时拒绝。"""
     rec = get(content_id)

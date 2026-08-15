@@ -882,7 +882,11 @@ class MainWindow(QMainWindow):
         menu.addAction(t("menu.import_mod"), self.import_lommod)
         menu.addAction(t("menu.export_mod"), self.export_lommod)
         menu.addAction(t("menu.install"), self._show_mod_manager)
-        menu.addAction(t("menu.content_library"), self._show_content_library)
+        menu.addAction(
+            t("menu.content_library"),
+            self._show_content_library,
+            QKeySequence("Ctrl+L"),
+        )
         menu.addSeparator()
         menu.addAction(t("menu.quit"), self.close)
         edit = self.menuBar().addMenu(t("menu.edit"))
@@ -924,6 +928,12 @@ class MainWindow(QMainWindow):
         play.setShortcut(QKeySequence("F5"))
         play.triggered.connect(self.play_from_current_node)
         bar.addAction(play)
+
+        library = QAction(t("toolbar.library"), self)
+        library.setToolTip(t("toolbar.library_tip"))
+        library.setShortcut(QKeySequence("Ctrl+L"))
+        library.triggered.connect(self._show_content_library)
+        bar.addAction(library)
 
         export_action = QAction(t("toolbar.export"), self)
         export_action.setToolTip(t("toolbar.export_tip"))
