@@ -237,6 +237,7 @@ SHA-256 前 16 个十六进制字符，可用来核对具体文件，但**不是
 - 编辑器会把缺少显式声明的旧 v1 Story / 用户内容迁移到当前格式；覆盖前保留 `*.pre-migration-v1.bak` 原始字节，写入使用同目录原子替换，迁移失败不会破坏源文件。
 - manifest 可声明最低/已测试 Host 版本及要求/已测试游戏版本；Host 在注册脚本前按真实 `Application.version` 给出明确拒载或兼容性警告，旧包无字段时不受影响。
 - 打包输出使用稳定条目顺序、JSON、ZIP 时间戳/权限和 Lua，并附 `package-content.sha256`；同一工具链相同输入可逐字节复现，逻辑内容哈希不依赖 ZIP 压缩元数据。
+- 「文件 → 检查 Mod 包」可只读查看陌生 `.lommod` 的 Manifest、Story、Lua、Texts、资源/用户内容、大小与逐文件哈希，并报告格式、兼容性、逻辑哈希和资源引用问题；检查不会导入或执行包内内容。
 - `samples/` — 示例 mod（demo_mod、showcase、showcase2 全节点演示 2.0、snack_case《点心大盗疑案》、probe）
 
 ### 从源码运行

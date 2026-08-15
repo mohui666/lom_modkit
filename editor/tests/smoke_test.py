@@ -46,6 +46,8 @@ def main_fn() -> int:
     assert any("导出" in t for t in toolbar_texts), f"工具栏应有导出：{toolbar_texts}"
     for noise in ("新建", "导入 Mod", "体检", "帮助"):
         assert noise not in toolbar_texts, f"工具栏不应再放 {noise}（已收进菜单）"
+    menu_texts = [action.text() for action in win.menuBar().findChildren(main.QAction)]
+    assert any("检查 Mod 包" in text for text in menu_texts), "文件菜单缺少只读包检查器"
     # 左栏步骤树：第 0 行是章节设置，其后才是步骤
     assert win.node_list.count() == 4, "章节设置 + 3 个新手步骤"
     assert win._is_chapter_item(win.node_list.item(0))
@@ -301,9 +303,18 @@ def main_fn() -> int:
             assert m2.get("campaign") == campaign, (
                 f"campaign 往返不一致：{m2.get('campaign')!r}"
             )
+            from package_inspector import inspect_lommod
+            from package_inspector_dialog import PackageInspectorDialog
+
+            inspected = inspect_lommod(out)
+            assert inspected.content_hash_valid and not inspected.errors
+            inspector_dialog = PackageInspectorDialog(inspected, win)
+            assert inspector_dialog.table.rowCount() == len(inspected.entries)
+            assert "smoke_mod" in inspector_dialog.summary.toPlainText()
+            inspector_dialog.close()
             print(
                 f"[8] .lommod 导出→导入往返 OK（{out.stat().st_size} 字节，"
-                f"campaign 往返一致）"
+                f"campaign 往返一致；包检查器 OK）"
             )
 
     # ------------------------------------------------------------------

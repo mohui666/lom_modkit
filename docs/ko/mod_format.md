@@ -25,6 +25,7 @@ assets/                # 可选，自定义资源
 - 런타임 플러그인은 **manifest.json, lua/ 디렉터리와 assets/만 읽습니다**; story/*.json은 에디터가 다시 읽어 편집하는 용도입니다. 컴파일러는 스토리가 명시적으로 참조하는 PNG/JPG(장당 ≤8MB)와 명시적으로 참조하는 `user:` 오디오만 패키지에 넣습니다.보낸 `.lommod`는 자체 완결적이며, 플레이어 컴퓨터에 에디터 저장소가 필요하지 않습니다.
 - texts.json은 패키징 시 자동 생성됩니다: 각 story의 모든 **say** 노드 텍스트를 수집하며, key는 lua의 `GetStoryText` key와 일대일로 대응합니다; 런타임에 LeanLocalization에 등록됩니다(§4/§6 참조). **death 텍스트는 texts.json에 들어가지 않습니다**: codegen이 `mod_set_death_text(<제목>, <텍스트>)` 두 인자 lua_str 리터럴을 방출합니다(§3.1/§6 참조).
 - 항목/JSON/Lua 순서와 ZIP 시간/권한을 고정하여 동일 Python/zlib 도구 체인에서는 같은 입력을 바이트 단위로 재현합니다. `package-content.sha256`은 압축 결과와 무관한 논리 콘텐츠 해시입니다. 서로 다른 도구 체인 사이의 완전한 reproducible build는 보장하지 않으며, 이 해시는 서명이나 공식 인증이 아닙니다.
+- 에디터의 “파일 → Mod 패키지 검사”는 Manifest, Story, Lua, Texts, 에셋, 사용자 콘텐츠, 크기와 항목별 SHA-256을 읽기 전용으로 보여 주고 호환성, 형식, 논리 해시 및 참조 차이를 검사합니다. Lua 실행, 디스크 추출 또는 콘텐츠 가져오기는 하지 않습니다.
 
 ## 2. manifest.json
 

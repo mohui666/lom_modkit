@@ -25,6 +25,7 @@ assets/                # 可选，自定义资源
 - 執行階段外掛**只讀 manifest.json、lua/ 目錄與 assets/**；story/*.json 給編輯器回讀/再編輯用。編譯器只打入劇情明確引用的 PNG/JPG（單張 ≤8MB）與明確引用的 `user:` 音訊。匯出的 `.lommod` 自包含，玩家機器不需要編輯器倉庫。
 - texts.json 由打包時自動產生：收集每個 story 的全部 **say** 節點文字，key 與 lua 裡 `GetStoryText` 的 key 一一對應；執行階段註冊進 LeanLocalization（見 §4/§6）。**death 文字不進 texts.json**：由 codegen 發射 `mod_set_death_text(<標題>, <文字>)` 兩參 lua_str 字面量（見 §3.1/§6）。
 - 打包器固定條目/JSON/Lua 順序、ZIP 時間戳與權限；同一 Python/zlib 工具鏈的相同輸入可逐位元組重現。`package-content.sha256` 可跨壓縮結果核對邏輯內容；跨工具鏈不宣稱二進位完全 reproducible，內容雜湊也不是簽章或官方認證。
+- 編輯器「檔案 → 檢查 Mod 套件」會唯讀顯示 Manifest、Story、Lua、Texts、資源、使用者內容、大小與各條目 SHA-256，並檢查相容性、格式、邏輯內容雜湊及資源引用差異；不會執行 Lua、解包到磁碟或匯入內容。
 
 ## 2. manifest.json
 

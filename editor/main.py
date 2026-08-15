@@ -84,6 +84,8 @@ from mod_manager_dialog import ModManagerDialog, apply_steam_launch_fix_ui
 import content_registry
 from diagnostic_bundle import export_diagnostic_bundle
 import package_io
+from package_inspector import inspect_lommod
+from package_inspector_dialog import PackageInspectorDialog
 from preflight import PreflightIssue, apply_safe_fixes, run_preflight
 from preflight_dialog import PreflightDialog
 import stage_guard
@@ -929,6 +931,7 @@ class MainWindow(QMainWindow):
         )
         menu.addSeparator()
         menu.addAction(t("menu.import_mod"), self.import_lommod)
+        menu.addAction(t("menu.inspect_mod"), self.inspect_lommod)
         menu.addAction(t("menu.export_mod"), self.export_lommod)
         menu.addAction(t("menu.install"), self._show_mod_manager)
         menu.addAction(
@@ -2499,6 +2502,24 @@ class MainWindow(QMainWindow):
             return
         self._remember_dir("last_mod_dir", path)
         self._import_lommod_path(Path(path))
+
+    def inspect_lommod(self) -> None:
+        """Open an untrusted package read-only without changing this project."""
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            t("inspector.choose"),
+            self._last_dir("last_mod_dir"),
+            "LoM Mod 包 (*.lommod)",
+        )
+        if not path:
+            return
+        self._remember_dir("last_mod_dir", path)
+        try:
+            inspection = inspect_lommod(path)
+        except package_io.PackError as exc:
+            QMessageBox.critical(self, _app_title(), str(exc))
+            return
+        PackageInspectorDialog(inspection, self).exec()
 
     def _import_lommod_path(self, path: Path) -> bool:
         try:
