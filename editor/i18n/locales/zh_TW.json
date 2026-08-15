@@ -30,6 +30,11 @@
   "menu.reset_read": "重設劇情已讀狀態…",
   "menu.help": "說明(&H)",
   "menu.help_item": "說明",
+  "menu.diagnostic_bundle": "匯出診斷包…",
+  "diagnostics.title": "匯出診斷包",
+  "diagnostics.filter": "診斷 ZIP (*.zip)",
+  "diagnostics.done": "診斷包已匯出：\n{path}\n\n只包含版本、Manifest、專案統計、F6 結果和脫敏後的相關日誌。",
+  "diagnostics.failed": "無法匯出診斷包：{error}",
 
   "toolbar.name": "常用操作",
   "toolbar.play": "▶ 試玩",

@@ -30,6 +30,11 @@
   "menu.reset_read": "既読状態をリセット…",
   "menu.help": "ヘルプ(&H)",
   "menu.help_item": "ヘルプ",
+  "menu.diagnostic_bundle": "診断バンドルを書き出す…",
+  "diagnostics.title": "診断バンドルを書き出す",
+  "diagnostics.filter": "診断 ZIP (*.zip)",
+  "diagnostics.done": "診断バンドルを書き出しました：\n{path}\n\nバージョン、Manifest、プロジェクト統計、F6 結果、匿名化済み関連ログだけを含みます。",
+  "diagnostics.failed": "診断バンドルを書き出せません：{error}",
 
   "toolbar.name": "よく使う操作",
   "toolbar.play": "▶ 試遊",

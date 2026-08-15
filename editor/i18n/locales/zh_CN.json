@@ -30,6 +30,11 @@
   "menu.reset_read": "重置剧情已读状态…",
   "menu.help": "帮助(&H)",
   "menu.help_item": "帮助",
+  "menu.diagnostic_bundle": "导出诊断包…",
+  "diagnostics.title": "导出诊断包",
+  "diagnostics.filter": "诊断 ZIP (*.zip)",
+  "diagnostics.done": "诊断包已导出：\n{path}\n\n仅包含版本、Manifest、项目统计、F6 结果和脱敏后的相关日志。",
+  "diagnostics.failed": "无法导出诊断包：{error}",
 
   "toolbar.name": "常用操作",
   "toolbar.play": "▶ 试玩",

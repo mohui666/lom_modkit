@@ -30,6 +30,11 @@
   "menu.reset_read": "시나리오 읽음 상태 초기화…",
   "menu.help": "도움말(&H)",
   "menu.help_item": "도움말",
+  "menu.diagnostic_bundle": "진단 번들 내보내기…",
+  "diagnostics.title": "진단 번들 내보내기",
+  "diagnostics.filter": "진단 ZIP (*.zip)",
+  "diagnostics.done": "진단 번들을 내보냈습니다：\n{path}\n\n버전, Manifest, 프로젝트 통계, F6 결과와 익명화된 관련 로그만 포함합니다.",
+  "diagnostics.failed": "진단 번들을 내보낼 수 없습니다：{error}",
 
   "toolbar.name": "자주 쓰는 작업",
   "toolbar.play": "▶ 시연",

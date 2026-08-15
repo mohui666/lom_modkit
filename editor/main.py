@@ -12,6 +12,7 @@ v4 起支持多剧情脚本管理（项目 = 多个 story + manifest，对应 .l
 from __future__ import annotations
 
 import copy
+from datetime import datetime
 import faulthandler
 import json
 import os
@@ -80,6 +81,7 @@ from game_install import (
 from flow_graph import FlowGraphPanel
 from mod_manager_dialog import ModManagerDialog, apply_steam_launch_fix_ui
 import content_registry
+from diagnostic_bundle import export_diagnostic_bundle
 import package_io
 from preflight import PreflightIssue, apply_safe_fixes, run_preflight
 from preflight_dialog import PreflightDialog
@@ -939,6 +941,7 @@ class MainWindow(QMainWindow):
             action.triggered.connect(lambda checked=False, c=code: self._change_language(c))
         help_menu = self.menuBar().addMenu(t("menu.help"))
         help_menu.addAction(t("menu.help_item"), self._show_help, QKeySequence("F1"))
+        help_menu.addAction(t("menu.diagnostic_bundle"), self._export_diagnostic_bundle)
 
     def _build_toolbar(self) -> None:
         """工具栏只留高频：试玩 + 导出。其余走菜单。"""
@@ -1018,6 +1021,51 @@ class MainWindow(QMainWindow):
 
     def _show_help(self) -> None:
         HelpDialog(self, self.game_manager).exec()
+
+    def _export_diagnostic_bundle(self) -> None:
+        """Export only the fixed, privacy-sanitized diagnostic allowlist."""
+        self._flush_pending()
+        default_name = "lom_modkit_diagnostics_%s.zip" % datetime.now().strftime(
+            "%Y%m%d_%H%M%S"
+        )
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            t("diagnostics.title"),
+            str(Path(self._last_dir("last_diagnostic_dir")) / default_name),
+            t("diagnostics.filter"),
+        )
+        if not path:
+            return
+        self._remember_dir("last_diagnostic_dir", path)
+        manifest = dict(self.manifest_base or self.manifest or {})
+        manifest.setdefault("entry", self._current_id)
+        try:
+            issues = self._preflight_issues()
+        except Exception as exc:
+            issues = [PreflightIssue(
+                "error", "validation_crash", "", "",
+                "F6 validation crashed while collecting diagnostics: " + str(exc),
+            )]
+        try:
+            result = export_diagnostic_bundle(
+                Path(path),
+                self._stories,
+                self.editor_data,
+                manifest,
+                issues,
+                game_manager=self.game_manager,
+                crash_log=CRASH_LOG,
+            )
+        except Exception as exc:
+            QMessageBox.critical(
+                self, t("diagnostics.title"),
+                t("diagnostics.failed", error=str(exc)),
+            )
+            return
+        QMessageBox.information(
+            self, t("diagnostics.title"),
+            t("diagnostics.done", path=str(result)),
+        )
 
     def _show_mod_manager(self) -> None:
         ModManagerDialog(self.game_manager, self).exec()
