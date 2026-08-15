@@ -263,6 +263,11 @@ def _hint_text(node: dict, ed: dict) -> str | None:
             f"[战斗] 原版 Combat {node.get('key', '')}｜"
             f"胜利→{node.get('win', '')}｜失败→{node.get('lose', '')}"
         )
+    if t == "battle":
+        return (
+            f"[战役] 原版 Battle {node.get('key', '')}｜"
+            f"友军胜→{node.get('win', '')}｜敌军胜→{node.get('lose', '')}"
+        )
     if t == "mission":
         return f"[任务] {node.get('name', '')} {node.get('key', '')}"
     if t == "time":
@@ -402,7 +407,7 @@ def _apply_node(state: dict, node: dict, ed: dict | None = None) -> None:
 def _next_node(node: dict, idx: int, nodes: list) -> str | None:
     """决定下一步节点 id：choice/branch/dice 走分支，显式 goto 优先，否则顺序。"""
     t = node.get("type")
-    if t in ("end", "goto_scene", "death", "combat"):
+    if t in ("end", "goto_scene", "death", "combat", "battle"):
         return None  # 脚本终止/跳离当前场景：推演到此为止
     if t == "choice":
         for opt in node.get("options", []):

@@ -1,6 +1,6 @@
 # 当前能力与边界
 
-本文按仓库当前代码描述能力，不把研究计划写成已实现功能。节点的唯一权威集合是 `editor/models.py` 的 `NODE_SCHEMAS`，当前共 47 种。
+本文按仓库当前代码描述能力，不把研究计划写成已实现功能。节点的唯一权威集合是 `editor/models.py` 的 `NODE_SCHEMAS`，当前共 48 种。
 
 ## 已实现
 
@@ -21,8 +21,9 @@
 - `battle_skill`：`SetPlayerBattleSkill` / `SetBattleSkillActive` / `ResetBattleSkill`；
 - `goto_scene`：通过 `LuaManager.ChangeScene` 进入原版 `Combat` / `Battle`，并传入作者选择的官方 key。
 - `combat`：选择原版 Combat key，可选组合敌方 id/队伍/等级/人数设置；Host 从原版 `CombatManager.GameOver(bool)` 取得真实 win/lose，并一次性续接作者指定节点。失败时仅在该 MOD 战斗会话内把 `DeadEnd` 视为 false，以走原版 `LoadNextScene()` 回 Story。
+- `battle`：选择原版 Battle key；Host 只把 `ShowGameOver(FriendWin/EnemyWin, finish:true)` 映射为 win/lose。`PlayerDie(false)` 保持原版重试/标题流程。
 
-这意味着工具是在编排原版战斗系统，不包含自研 Battle Engine。高层 `combat` 已有经反编译确认的 win/lose 回流，但尚未实机验证；`draw` / `escape` 没有可用的原版 Combat 结果接口。`battle`、Battle Preset、我方配置编辑器和战后奖励聚合节点仍未实现。
+这意味着工具是在编排原版战斗系统，不包含自研 Battle Engine。高层 `combat` / `battle` 已有经反编译确认的结果回流，但尚未实机验证；`draw` / `escape` 没有可用结果接口。Battle Preset、我方配置编辑器和战后奖励聚合节点仍未实现。
 
 ## 尚未实现
 

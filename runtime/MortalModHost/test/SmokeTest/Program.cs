@@ -1008,6 +1008,16 @@ namespace MortalModHost
             Assert(rejected && GameplaySession.HasPending,
                 "同 id 不同完整 SHA-256 的包不得消费旧包战斗结果");
             GameplaySession.Reset();
+
+            GameplaySession.Prepare(package, "battle", "main", "war1", "friend", "enemy");
+            Assert(GameplaySession.PendingBattle && !GameplaySession.PendingCombat,
+                "battle 待决态必须与 combat 区分");
+            Assert(!GameplaySession.RecordResult("combat", "win")
+                    && GameplaySession.RecordResult("battle", "lose"),
+                "battle 结果只能由匹配类型记录");
+            Assert(GameplaySession.ConsumeResume(package, "main") == "enemy",
+                "EnemyWin 必须映射到作者的 battle 失败目标");
+            GameplaySession.Reset();
         }
 
         private static bool IsUpperHex(char c)

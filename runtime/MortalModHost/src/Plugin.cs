@@ -9,6 +9,8 @@ using BepInEx.Unity.Mono;
 using BepInEx.Unity.Mono.Configuration;
 using HarmonyLib;
 using Mortal.Combat;
+using BattleGameLevelManager = Mortal.Battle.GameLevelManager;
+using BattleGameOverType = Mortal.Battle.GameOverType;
 using Mortal.Core;
 using Mortal.Free;
 using Mortal.Story;
@@ -257,6 +259,9 @@ namespace MortalModHost
                 AccessTools.Method(typeof(CombatManager), "GameOver", new Type[] { typeof(bool) }));
             ok &= CheckTarget("CombatLevel.get_DeadEnd",
                 AccessTools.Method(typeof(CombatLevel), "get_DeadEnd", Type.EmptyTypes));
+            ok &= CheckTarget("GameLevelManager.ShowGameOver(GameOverType,bool)",
+                AccessTools.Method(typeof(BattleGameLevelManager), "ShowGameOver",
+                    new Type[] { typeof(BattleGameOverType), typeof(bool) }));
             if (!ok)
             {
                 Logger.LogError("部分 Harmony 目标缺失（游戏版本可能已变更）：为保证玩家内容披露，已禁用全部 MOD 演出入口");
@@ -268,7 +273,7 @@ namespace MortalModHost
                 PatchSteamRestart();
                 _harmonyPatched = true;
                 _runtimeReady = true;
-                Logger.LogInfo("Harmony patch 已挂载：ExecuteLuaScript / NewGameData / Free 自动与地点剧情抑制 / GetExecuteScript / UpdateTranslations / ShowMood / CharacterIntroPanel / GameOver/EndGamePanel/EndGame / NewGamePlus / DiceRevolution / CustomAudio / SoundManager / LoadNewScene / Combat 结果回流");
+                Logger.LogInfo("Harmony patch 已挂载：ExecuteLuaScript / NewGameData / Free 自动与地点剧情抑制 / GetExecuteScript / UpdateTranslations / ShowMood / CharacterIntroPanel / GameOver/EndGamePanel/EndGame / NewGamePlus / DiceRevolution / CustomAudio / SoundManager / LoadNewScene / Combat/Battle 结果回流");
             }
             catch (Exception ex)
             {

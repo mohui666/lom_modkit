@@ -96,7 +96,7 @@ def _reachable_node_ids(story: dict) -> set[str]:
     if start not in by_id:
         return set()
     edges: dict[str, set[str]] = {}
-    no_fallthrough = {"choice", "dice", "end", "goto_scene", "death", "combat"}
+    no_fallthrough = {"choice", "dice", "end", "goto_scene", "death", "combat", "battle"}
     for index, node in enumerate(valid_nodes):
         node_id = node.get("id")
         if node_id not in by_id:

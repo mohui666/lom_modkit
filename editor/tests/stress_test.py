@@ -127,7 +127,7 @@ def main_fn() -> int:
         )
 
     # ------------------------------------------------------------------
-    # [1b] v3 全量 47 种节点类型：建表 + 渲染不崩（提示行/舞台两条路径都走）
+    # [1b] v3 全量 48 种节点类型：建表 + 渲染不崩（提示行/舞台两条路径都走）
     # ------------------------------------------------------------------
     all_nodes = []
     for i, t in enumerate(models.NODE_TYPES, 1):
@@ -138,7 +138,7 @@ def main_fn() -> int:
         all_nodes.append(node)
     all_nodes.append({"id": "a99", "type": "end"})
     # end/goto_scene/death/combat 是终止节点（推演到此为止），排到末尾保证其余节点可达
-    terminal_types = ("end", "goto_scene", "death", "combat")
+    terminal_types = ("end", "goto_scene", "death", "combat", "battle")
     all_nodes.sort(key=lambda n: 1 if n["type"] in terminal_types else 0)
     # 控制节点的工厂默认跳转为空；全类型压测要验证后续节点渲染，因此把
     # choice/branch/dice 的全部出口显式接到排序后的下一步。
@@ -180,7 +180,7 @@ def main_fn() -> int:
         if preview.simulate_stage(win.story, n["id"], editor_data)["hint"]
     )
     assert hints >= 20, f"数值/流程类节点应有提示行：{hints}"
-    print(f"[1b] 全量 47 类型渲染 OK（{len(all_nodes)} 节点，{hints} 个提示行）")
+    print(f"[1b] 全量 48 类型渲染 OK（{len(all_nodes)} 节点，{hints} 个提示行）")
 
     # ------------------------------------------------------------------
     # [2] 真实鼠标点击 choice 每个选项按钮

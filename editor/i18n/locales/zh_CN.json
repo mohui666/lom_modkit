@@ -183,6 +183,7 @@
   "node.enemy": "敌方队伍",
   "node.battle_skill": "战场技能",
   "node.combat": "战斗",
+  "node.battle": "战役",
   "node.mission": "任务",
   "node.time": "时间",
   "node.autosave": "自动存档",
@@ -318,6 +319,7 @@
   "help.music": "播放官方曲目或用户内容库里导入的自定义音乐。自定义项会保存为 user: 编号。",
   "help.sound": "播放官方音效名，或用户内容库里导入的自定义音效/环境音。",
   "help.combat": "选择原版 Combat 模板，可选调整敌方队伍，并把原版真实胜负结果接回本剧情。",
+  "help.battle": "选择原版 Battle 模板；仅友军胜利/敌军胜利会续接，主角死亡仍使用原版重试/标题流程。",
 
   "enum.play": "播放",
   "enum.stop": "停止",

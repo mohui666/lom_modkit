@@ -183,6 +183,7 @@
   "node.enemy": "적 편성",
   "node.battle_skill": "전장 스킬",
   "node.combat": "전투",
+  "node.battle": "전역",
   "node.mission": "임무",
   "node.time": "시간",
   "node.autosave": "자동 저장",
@@ -318,6 +319,7 @@
   "help.music": "공식 곡 또는 사용자 콘텐츠 보관함의 자체 음악을 재생합니다. 자체 항목은 user: 번호로 저장됩니다.",
   "help.sound": "공식 효과음 이름, 또는 사용자 콘텐츠 보관함의 자체 효과음／환경음을 재생합니다.",
   "help.combat": "공식 Combat 템플릿을 선택하고 필요하면 적 구성을 조정한 뒤 실제 승패 결과를 이 스토리로 돌려보냅니다.",
+  "help.battle": "공식 Battle 템플릿을 선택합니다. 아군 승리/적군 승리만 이어지고 주인공 사망은 원작의 재시도/타이틀 흐름을 유지합니다.",
 
   "enum.play": "재생",
   "enum.stop": "정지",

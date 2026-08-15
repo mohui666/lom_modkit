@@ -72,6 +72,10 @@
       <HintPath>$(GameDir)\Mortal_Data\Managed\Mortal.Combat.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="Mortal.Battle">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\Mortal.Battle.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <!-- 游戏程序集：FreePositionData / PositionController（自由模式位置触发器） -->
     <Reference Include="Mortal.Free">
       <HintPath>$(GameDir)\Mortal_Data\Managed\Mortal.Free.dll</HintPath>

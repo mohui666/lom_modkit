@@ -68,6 +68,7 @@ NODE_TYPE_CN_SRC: dict[str, str] = {
     "enemy": "敌方队伍",
     "battle_skill": "战场技能",
     "combat": "战斗",
+    "battle": "战役",
     "mission": "任务",
     "time": "时间",
     "autosave": "自动存档",
@@ -119,6 +120,7 @@ NODE_HELP_KEYS = {
     "music": "help.music",
     "sound": "help.sound",
     "combat": "help.combat",
+    "battle": "help.battle",
 }
 NODE_HELP: dict[str, str] = {}
 
@@ -172,7 +174,7 @@ NODE_GROUPS_SRC: list[tuple[str, list[str]]] = [
             "autosave",
         ],
     ),
-    ("group.gameplay", ["combat"]),
+    ("group.gameplay", ["combat", "battle"]),
     (
         "group.flow",
         ["branch", "dice", "goto_scene", "panel", "wait", "end", "death", "raw"],
@@ -671,6 +673,14 @@ NODE_SCHEMAS: dict[str, dict] = {
             ("lose", "失败后", "node_ref", False),
         ],
     },
+    "battle": {
+        "label": "原版大规模战役",
+        "fields": [
+            ("key", "战役场景", "battle_id", False),
+            ("win", "友军胜利后", "node_ref", False),
+            ("lose", "敌军胜利后", "node_ref", False),
+        ],
+    },
     "mission": {
         "label": "任务操作",
         "fields": [
@@ -834,6 +844,7 @@ _NODE_DEFAULTS: dict[str, dict] = {
         "key": "", "enemy": "", "team": 0, "level": 0, "people": 0,
         "display": 1, "win": "", "lose": "",
     },
+    "battle": {"key": "", "win": "", "lose": ""},
     "mission": {"name": "Main", "key": ""},
     "time": {"op": "round"},
     "autosave": {"kind": "story"},
@@ -1358,7 +1369,7 @@ def node_bullet(node_type: str) -> str:
     """步骤列表前缀符号：分支/结局与普通步骤区分开。"""
     if node_type in ("choice", "branch", "dice"):
         return "◆"
-    if node_type in ("end", "death", "goto_scene", "combat"):
+    if node_type in ("end", "death", "goto_scene", "combat", "battle"):
         return "■"
     return "●"
 
@@ -1557,6 +1568,9 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
     if nt == "combat":
         key = node.get("key", "") or t("form.unselected", default="（未选）")
         return f"{tcn}·{key}（胜利→{node.get('win', '')} / 失败→{node.get('lose', '')}）"
+    if nt == "battle":
+        key = node.get("key", "") or t("form.unselected", default="（未选）")
+        return f"{tcn}·{key}（友军胜→{node.get('win', '')} / 敌军胜→{node.get('lose', '')}）"
     if nt == "mission":
         return f"{tcn}·{node.get('name', '')} {node.get('key', '')}"
     if nt == "time":

@@ -55,6 +55,24 @@ class CombatEditorTest(unittest.TestCase):
         models.rename_node(story, "win", "victory")
         self.assertEqual(story["nodes"][0]["win"], "victory")
 
+    def test_battle_schema_and_graph_use_verified_result_names(self):
+        fields = {
+            key: kind for key, _label, kind, _optional
+            in models.NODE_SCHEMAS["battle"]["fields"]
+        }
+        self.assertEqual(fields["key"], "battle_id")
+        story = {
+            "start": "war",
+            "nodes": [
+                {"id": "war", "type": "battle", "key": "1001", "win": "friend", "lose": "enemy"},
+                {"id": "friend", "type": "end"},
+                {"id": "enemy", "type": "end"},
+            ],
+        }
+        labels = {edge.label for edge in analyze_story(story).edges if edge.source == "war"}
+        self.assertEqual(labels, {"友军胜利", "敌军胜利"})
+        self.assertIn("友军胜→friend", models.node_summary(story["nodes"][0]))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

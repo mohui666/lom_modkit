@@ -183,6 +183,7 @@
   "node.enemy": "敵チーム",
   "node.battle_skill": "戦場スキル",
   "node.combat": "戦闘",
+  "node.battle": "戦役",
   "node.mission": "任務",
   "node.time": "時間",
   "node.autosave": "自動セーブ",
@@ -318,6 +319,7 @@
   "help.music": "公式曲、またはユーザーコンテンツ庫の自作音楽を再生します。自作は user: 番号で保存されます。",
   "help.sound": "公式効果音、またはユーザーコンテンツ庫の自作効果音／環境音を再生します。",
   "help.combat": "公式 Combat テンプレートを選び、必要なら敵編成を調整し、実際の勝敗結果をこのシナリオへ戻します。",
+  "help.battle": "公式 Battle テンプレートを選びます。友軍勝利／敵軍勝利だけが続行し、主人公死亡は原作の再試行／タイトル画面になります。",
 
   "enum.play": "再生",
   "enum.stop": "停止",

@@ -16,7 +16,7 @@ from i18n import t
 
 
 _GOTO_KEYS = ("goto", "goto_大成功", "goto_成功", "goto_失败")
-_TERMINAL_TYPES = {"end", "choice", "branch", "dice", "goto_scene", "raw", "death", "combat"}
+_TERMINAL_TYPES = {"end", "choice", "branch", "dice", "goto_scene", "raw", "death", "combat", "battle"}
 
 
 @dataclass(frozen=True)

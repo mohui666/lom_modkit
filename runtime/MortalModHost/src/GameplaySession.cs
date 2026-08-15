@@ -27,6 +27,10 @@ namespace MortalModHost
         {
             get { return HasPending && string.Equals(_kind, "combat", StringComparison.Ordinal); }
         }
+        internal static bool PendingBattle
+        {
+            get { return HasPending && string.Equals(_kind, "battle", StringComparison.Ordinal); }
+        }
         internal static bool ShouldForceCombatReturn { get { return PendingCombat; } }
         internal static string LastKind { get { return _lastKind; } }
         internal static string LastResult { get { return _lastResult; } }
@@ -41,7 +45,8 @@ namespace MortalModHost
             RequireSegment("node", node);
             RequireSegment("win", winTarget);
             RequireSegment("lose", loseTarget);
-            if (!string.Equals(kind, "combat", StringComparison.Ordinal))
+            if (!string.Equals(kind, "combat", StringComparison.Ordinal)
+                && !string.Equals(kind, "battle", StringComparison.Ordinal))
                 throw new InvalidOperationException("尚未支持的 Gameplay 类型：" + kind);
             if (HasPending)
                 throw new InvalidOperationException(

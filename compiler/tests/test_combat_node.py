@@ -64,5 +64,29 @@ class CombatNodeTest(unittest.TestCase):
             compile_story(story(combat))
 
 
+class BattleNodeTest(unittest.TestCase):
+    def test_emits_verified_original_battle_resume(self):
+        document = story({
+            "id": "fight", "type": "battle", "key": "1001",
+            "win": "win", "lose": "lose",
+        })
+        lua = compile_story(document)
+        self.assertIn('mod_gameplay_prepare("battle", "main", "fight", "win", "lose")', lua)
+        self.assertIn('luamanager.ChangeScene("Battle", "1001", "Story")', lua)
+        self.assertIn('mod_gameplay_consume_resume("main")', lua)
+
+    def test_rejects_missing_target_and_extra_goto(self):
+        document = story({
+            "id": "fight", "type": "battle", "key": "1001",
+            "win": "win", "lose": "missing",
+        })
+        with self.assertRaises(LomcError):
+            compile_story(document)
+        document["nodes"][0]["lose"] = "lose"
+        document["nodes"][0]["goto"] = "end"
+        with self.assertRaises(LomcError):
+            compile_story(document)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
