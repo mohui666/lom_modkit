@@ -223,6 +223,11 @@ def _rebuild_index(records: list[ContentRecord]) -> None:
     _write_index(data)
 
 
+def rebuild_index() -> None:
+    """Refresh the on-disk cache after an atomic external content import."""
+    _rebuild_index(list_contents())
+
+
 def list_contents(
     content_type: str | None = None, audio_kind: str | None = None
 ) -> list[ContentRecord]:

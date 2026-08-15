@@ -132,3 +132,8 @@ assets/user/audio/mohui.battle/battle.ogg
 - カスタムキャラは独立 Runtime（`mod_char_*`）で、公式 Addressables には登録しません。show / say / hide / move / face / focus / offset / shock / dim / rotate に対応し、公式キャラの経路は変わりません。体型は `scale`（50–130、既定 100）で足元基準に縮小し、向きは `art_facing`（既定は左）の上にノードの `facing` を重ねます。
 - `affinity` は純粋な演出ではなく公式 CharacterData の好感度を書き換えるため、カスタムキャラでは引き続き非対応です。長期状態には Mod 隔離変数を使用してください。
 - 受け入れ確認には `samples/audio_test/` が使えます：自分で `user:test.bgm` / `user:test.sfx` / `user:test.env` をインポートしてください。
+## 単体共有：Content Pack v1
+
+「ユーザーコンテンツ庫」でキャラクター、音声、画像を選び、オフラインの `.lomcontent` として書き出せます。サーバーへの接続やアップロードは行いません。安定 ID、種類、SemVer、作者、ライセンス、metadata、各ファイルのサイズと SHA-256 を記録します。
+
+読み込み時は安全なパス、サイズ、metadata、ファイルと論理内容ハッシュを検証し、すべて合格してからアトミックに導入します。audio / character / image で ID は共通して一意です。`user:<id>` が既にあれば上書きせず停止します。ハッシュは作者署名や公式認証ではありません。

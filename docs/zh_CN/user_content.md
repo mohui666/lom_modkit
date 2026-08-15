@@ -132,6 +132,14 @@ assets/user/character/mohui.luoxue/happy.png
 
 用编辑器「导入 Mod」打开别人的包时，包内用户音频会登记进你的本地仓库，方便继续改。
 
+## 独立分享：Content Pack v1
+
+在「用户内容库」选中一条角色、音频或图片，点「分享所选…」即可导出 `.lomcontent`。它是离线 ZIP 格式，不连接或上传到任何服务器，包含：`content-pack.json`、`files/` 和 `package-content.sha256`。
+
+`content-pack.json` 固定记录 `content_pack_format=1`、content id/type、SemVer 版本、作者、许可证、规范化 metadata，以及每个声明文件的大小和 SHA-256。导入时会检查安全路径、总大小、类型/ID、metadata、文件清单、逐文件哈希和逻辑内容哈希，全部通过后才原子安装。
+
+内容 ID 在 audio / character / image 三种类型之间全局唯一。若 `user:<id>` 已存在，导入会明确报告冲突并停止，绝不静默覆盖。Content Pack 的哈希用于传输和构建一致性校验，不是作者签名或官方认证。
+
 ## 删除资源有什么限制
 
 用户内容库里可以删。如果当前项目的某个音乐/音效步骤，或某句对白的 `say.voice` 还在用这条内容，删除会被阻止，并指出是哪一章哪一步。

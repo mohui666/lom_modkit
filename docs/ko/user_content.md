@@ -132,3 +132,8 @@ assets/user/audio/mohui.battle/battle.ogg
 - 커스텀 캐릭터는 독립 Runtime(`mod_char_*`)이며 공식 Addressables에 등록하지 않습니다. show / say / hide / move / face / focus / offset / shock / dim / rotate를 지원하고 공식 캐릭터 경로는 바뀌지 않습니다. 체형은 `scale`(50–130, 기본 100)로 발끝을 기준으로 줄이고, 방향은 `art_facing`(기본 왼쪽) 위에 노드 `facing`을 겹칩니다.
 - `affinity`는 순수 연출이 아니라 공식 CharacterData 호감도 시스템을 수정하므로 커스텀 캐릭터에서는 계속 지원하지 않습니다. 장기 상태는 Mod 격리 변수를 사용하세요.
 - `samples/audio_test/`로 인수 테스트를 할 수 있습니다: 직접 `user:test.bgm` / `user:test.sfx` / `user:test.env`를 가져와 보세요.
+## 독립 공유: Content Pack v1
+
+“사용자 콘텐츠 보관함”에서 캐릭터, 오디오 또는 이미지를 골라 오프라인 `.lomcontent`로 내보낼 수 있습니다. 서버에 연결하거나 업로드하지 않습니다. 안정 ID, 유형, SemVer, 작성자, 라이선스, metadata와 각 파일의 크기/SHA-256을 기록합니다.
+
+가져올 때 안전한 경로, 크기, metadata, 파일 및 논리 콘텐츠 해시를 모두 검증한 뒤 원자적으로 설치합니다. audio / character / image는 하나의 ID 공간을 사용합니다. `user:<id>`가 이미 있으면 덮어쓰지 않고 중단합니다. 해시는 작성자 서명이나 공식 인증이 아닙니다.

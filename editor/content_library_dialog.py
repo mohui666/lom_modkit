@@ -35,6 +35,12 @@ from PySide6.QtWidgets import (
 )
 
 from audio_preview import AudioPreviewError, play_audio_file, stop_audio
+from content_pack import (
+    content_pack_defaults,
+    export_content_pack,
+    import_content_pack,
+    inspect_content_pack,
+)
 from i18n import t
 from content_registry import (
     ContentRecord,
@@ -134,6 +140,8 @@ class ContentLibraryDialog(QDialog):
         import_btn = QPushButton(t("library.import"))
         import_char_btn = QPushButton(t("library.import_character"))
         import_image_btn = QPushButton(t("library.import_image"))
+        import_pack_btn = QPushButton(t("content_pack.import"))
+        export_pack_btn = QPushButton(t("content_pack.export"))
         delete_btn = QPushButton(t("library.delete"))
         edit_btn = QPushButton(t("library.edit"))
         preview_btn = QPushButton(t("library.preview"))
@@ -141,6 +149,8 @@ class ContentLibraryDialog(QDialog):
         import_btn.clicked.connect(self._import_audio)
         import_char_btn.clicked.connect(self._import_character)
         import_image_btn.clicked.connect(self._import_image)
+        import_pack_btn.clicked.connect(self._import_content_pack)
+        export_pack_btn.clicked.connect(self._export_content_pack)
         edit_btn.clicked.connect(self._edit_selected)
         delete_btn.clicked.connect(self._delete_selected)
         preview_btn.clicked.connect(self._preview_selected)
@@ -155,6 +165,11 @@ class ContentLibraryDialog(QDialog):
         buttons.addWidget(delete_btn)
         buttons.addStretch(1)
         layout.addLayout(buttons)
+        sharing = QHBoxLayout()
+        sharing.addWidget(import_pack_btn)
+        sharing.addWidget(export_pack_btn)
+        sharing.addStretch(1)
+        layout.addLayout(sharing)
 
         close = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         close.rejected.connect(self.reject)
@@ -397,6 +412,104 @@ class ContentLibraryDialog(QDialog):
             "编号：%s\n背景、CG 与 Overlay 共用这条图片内容。" % rec.ref,
         )
 
+    def _import_content_pack(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            t("content_pack.import_title"),
+            str(Path.home()),
+            "lom_modkit Content Pack (*.lomcontent)",
+        )
+        if not path:
+            return
+        try:
+            preview = inspect_content_pack(path)
+        except ContentRegistryError as exc:
+            QMessageBox.critical(self, t("content_pack.import_fail"), str(exc))
+            return
+        if preview.collision_type is not None:
+            QMessageBox.warning(
+                self,
+                t("content_pack.collision_title"),
+                t(
+                    "content_pack.collision",
+                    id="user:" + preview.content_id,
+                    type=preview.collision_type,
+                ),
+            )
+            return
+        answer = QMessageBox.question(
+            self,
+            t("content_pack.import_title"),
+            t(
+                "content_pack.confirm",
+                name=preview.name,
+                id="user:" + preview.content_id,
+                type=preview.content_type,
+                version=preview.version,
+                author=preview.author,
+                license=preview.license,
+                count=len(preview.files),
+            ),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            imported = import_content_pack(path)
+        except ContentRegistryError as exc:
+            QMessageBox.critical(self, t("content_pack.import_fail"), str(exc))
+            return
+        self._reload()
+        QMessageBox.information(
+            self,
+            t("content_pack.import_title"),
+            t("content_pack.import_done", id="user:" + imported.content_id),
+        )
+
+    def _export_content_pack(self) -> None:
+        rec = self._selected_record()
+        if rec is None:
+            QMessageBox.information(
+                self, t("content_pack.export"), t("library.select_content")
+            )
+            return
+        defaults = content_pack_defaults(rec.content_id)
+        dialog = _ContentPackExportDialog(rec, defaults, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            t("content_pack.export_title"),
+            str(Path.home() / f"{rec.content_id}-{dialog.version()}.lomcontent"),
+            "lom_modkit Content Pack (*.lomcontent)",
+        )
+        if not path:
+            return
+        if not path.lower().endswith(".lomcontent"):
+            path += ".lomcontent"
+        try:
+            info = export_content_pack(
+                path,
+                rec.content_id,
+                version=dialog.version(),
+                author=dialog.author(),
+                license_name=dialog.license_name(),
+            )
+        except ContentRegistryError as exc:
+            QMessageBox.critical(self, t("content_pack.export_fail"), str(exc))
+            return
+        QMessageBox.information(
+            self,
+            t("content_pack.export_title"),
+            t(
+                "content_pack.export_done",
+                path=info.path,
+                count=len(info.files),
+                hash=info.logical_content_hash,
+            ),
+        )
+
     def _edit_selected(self) -> None:
         content_id = self._selected_id()
         if not content_id:
@@ -474,6 +587,41 @@ class ContentLibraryDialog(QDialog):
             QMessageBox.warning(self, "无法删除", str(exc))
             return
         self._reload()
+
+
+class _ContentPackExportDialog(QDialog):
+    def __init__(self, rec: ContentRecord, defaults: dict[str, str], parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(t("content_pack.metadata_title"))
+        layout = QFormLayout(self)
+        identity = QLabel(f"{rec.name}（{rec.ref} · {rec.type}）")
+        identity.setWordWrap(True)
+        self._version = QLineEdit(defaults.get("version", "1.0.0"))
+        self._author = QLineEdit(defaults.get("author", ""))
+        self._license = QLineEdit(defaults.get("license", "All Rights Reserved"))
+        layout.addRow(t("content_pack.content"), identity)
+        layout.addRow(t("content_pack.version"), self._version)
+        layout.addRow(t("content_pack.author"), self._author)
+        layout.addRow(t("content_pack.license"), self._license)
+        hint = QLabel(t("content_pack.hint"))
+        hint.setWordWrap(True)
+        hint.setProperty("context_help", True)
+        layout.addRow(hint)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addRow(buttons)
+
+    def version(self) -> str:
+        return self._version.text().strip()
+
+    def author(self) -> str:
+        return self._author.text().strip()
+
+    def license_name(self) -> str:
+        return self._license.text().strip()
 
 
 def _fill_character_combo(

@@ -39,6 +39,7 @@ a_gui = Analysis(
         "lomc.pack",
         "lomc.validate",
         "lomc.content",
+        "lomc.deterministic_zip",
         "content_registry",
         "content_library_dialog",
         "audio_preview",
@@ -58,6 +59,7 @@ b_cli = Analysis(
         "lomc.pack",
         "lomc.validate",
         "lomc.content",
+        "lomc.deterministic_zip",
     ],
 )
 
