@@ -13,6 +13,8 @@ import re
 import sys
 from pathlib import Path
 
+from i18n import t, term
+
 # story 脚本 id / 节点 id 规则（契约 §1）
 ID_PATTERN = re.compile(r"^[a-zA-Z0-9_\-]+$")
 # manifest mod id 比 story id 更严格：运行时注册名与包格式只接受小写。
@@ -21,8 +23,9 @@ CHARACTER_DISPLAY_PATTERN = re.compile(r"^.*（([a-zA-Z0-9_\-]+)）$")
 
 # ---------------------------------------------------------------------------
 # 节点类型中文名（契约 §3.1 全量 43 种）
+# 源表保持简中，界面显示走 refresh_labels() → i18n。
 # ---------------------------------------------------------------------------
-NODE_TYPE_CN: dict[str, str] = {
+NODE_TYPE_CN_SRC: dict[str, str] = {
     "music": "音乐",
     "sound": "音效",
     "scene": "切换背景",
@@ -67,6 +70,7 @@ NODE_TYPE_CN: dict[str, str] = {
     "death": "死亡画面",
     "raw": "原生 Lua（高级）",
 }
+NODE_TYPE_CN: dict[str, str] = dict(NODE_TYPE_CN_SRC)
 
 # 新手菜单最先展示的高频步骤。特殊的“汗青书结局”由主窗口用 goto_scene
 # 预设创建，不在这里重复列出。
@@ -84,26 +88,27 @@ COMMON_NODE_TYPES: list[str] = [
 ]
 
 # 节点表单顶部的上下文提示。只解释当前动作，不复述控件名称；完整流程见内置帮助。
-NODE_HELP: dict[str, str] = {
-    "say": "写人物对白、内心独白或旁白。旁白模式不需要选择人物。可选绑定用户内容库里的语音，没有语音时与原来完全一样。",
-    "show": "让人物立绘出现在画面中。先登场再对白，游戏效果更稳定。",
-    "hide": "让指定人物退出画面。",
-    "scene": "切换剧情背景。编辑器预览只用于确认构图，不包含原版素材。",
-    "choice": "给玩家 2～4 个选项；每个选项都要选择后续步骤。",
-    "dice": "使用官方骰子检查点，并分别指定成功、失败等结果的后续步骤。",
-    "goto_scene": "离开当前剧情并进入战斗、标题、死亡或汗青书结局等场景。",
-    "end": "结束当前章节。留空“下一章节”时回到自由模式。",
-    "death": "显示官方样式的死亡画面。正文必填，专用编号使用 900000 以上。",
-    "intro": "官方人物会直接使用游戏内介绍和头像；自定义人物可填写称号、姓名与正文。",
-    "raw": "高级功能：代码会原样进入 Lua。普通剧情不需要使用。",
-    "music": "播放官方曲目或用户内容库里导入的自定义音乐。自定义项会保存为 user: 编号。",
-    "sound": "播放官方音效名，或用户内容库里导入的自定义音效/环境音。",
+NODE_HELP_KEYS = {
+    "say": "help.say",
+    "show": "help.show",
+    "hide": "help.hide",
+    "scene": "help.scene",
+    "choice": "help.choice",
+    "dice": "help.dice",
+    "goto_scene": "help.goto_scene",
+    "end": "help.end",
+    "death": "help.death",
+    "intro": "help.intro",
+    "raw": "help.raw",
+    "music": "help.music",
+    "sound": "help.sound",
 }
+NODE_HELP: dict[str, str] = {}
 
 # 契约 §3.1 分组（新增节点菜单按此分组显示）
-NODE_GROUPS: list[tuple[str, list[str]]] = [
+NODE_GROUPS_SRC: list[tuple[str, list[str]]] = [
     (
-        "画面与声音",
+        "group.visual",
         [
             "music",
             "sound",
@@ -131,7 +136,7 @@ NODE_GROUPS: list[tuple[str, list[str]]] = [
         ],
     ),
     (
-        "数值、物品与任务",
+        "group.stats",
         [
             "stat",
             "stat_set",
@@ -148,15 +153,16 @@ NODE_GROUPS: list[tuple[str, list[str]]] = [
         ],
     ),
     (
-        "流程与高级功能",
+        "group.flow",
         ["branch", "dice", "goto_scene", "panel", "wait", "end", "death", "raw"],
     ),
 ]
+NODE_GROUPS: list[tuple[str, list[str]]] = []
 
 # ---------------------------------------------------------------------------
 # 枚举字段的中文标注（表单 kind="enum:<名字>" 用）
 # ---------------------------------------------------------------------------
-ENUM_SETS: dict[str, list[tuple[str, str]]] = {
+ENUM_SETS_SRC: dict[str, list[tuple[str, str]]] = {
     "music_op": [("play", "播放"), ("stop", "停止"), ("fadeout", "淡出")],
     "sound_kind": [("sound", "音效"), ("env", "环境音")],
     "sound_op": [("play", "播放"), ("fadeout", "淡出")],
@@ -226,19 +232,69 @@ ENUM_SETS: dict[str, list[tuple[str, str]]] = {
         ("endgame", "结算面板"),
     ],
 }
+ENUM_SETS: dict[str, list[tuple[str, str]]] = {}
 # 切换后需要重建表单的枚举（其它字段或可见字段随它变化）
 REBUILD_ENUMS = {"item_kind", "goto_scene", "mode", "intro_source", "sound_kind"}
 
 # say mode 中文标注（清单本身来自 editor_data.modes）
-MODE_CN = {
+MODE_CN_SRC = {
     "character": "对话",
     "think": "内心独白",
     "narrative": "旁白",
     "center": "居中旁白",
 }
+MODE_CN = dict(MODE_CN_SRC)
 FACING_CN = [("left", "朝左"), ("right", "朝右")]
 # 镜头滤镜常见预设（契约 §3.1 示例）
 CAMERA_PRESETS = ["stage-memory", "stage-dream", "stage-fire", "stage-blurdim"]
+
+_ENUM_KEY_OVERRIDE = {("time_op", "set"): "enum.set_time"}
+
+
+def refresh_labels() -> None:
+    """语言切换后刷新模块级显示名。"""
+    global NODE_TYPE_CN, NODE_GROUPS, ENUM_SETS, MODE_CN, FACING_CN, NODE_HELP
+    NODE_TYPE_CN = {
+        key: t(f"node.{key}", default=label) for key, label in NODE_TYPE_CN_SRC.items()
+    }
+    NODE_GROUPS = [
+        (t(group_key, default=group_key), types)
+        for group_key, types in NODE_GROUPS_SRC
+    ]
+    rebuilt: dict[str, list[tuple[str, str]]] = {}
+    for set_name, options in ENUM_SETS_SRC.items():
+        rows = []
+        for value, fallback in options:
+            key = _ENUM_KEY_OVERRIDE.get((set_name, value), f"enum.{value}")
+            rows.append((value, t(key, default=fallback)))
+        rebuilt[set_name] = rows
+    ENUM_SETS = rebuilt
+    MODE_CN = {
+        key: t(f"mode.{key}", default=label) for key, label in MODE_CN_SRC.items()
+    }
+    FACING_CN = [
+        ("left", t("facing.left", default="朝左")),
+        ("right", t("facing.right", default="朝右")),
+    ]
+    NODE_HELP = {
+        key: t(i18n_key, default="") for key, i18n_key in NODE_HELP_KEYS.items()
+    }
+    global BRANCH_SOURCES, BRANCH_MOD_VALUES, BRANCH_COND_VALUES
+    if "BRANCH_SOURCES_SRC" in globals():
+        BRANCH_SOURCES = [
+            (value, t(key, default=value)) for value, key in BRANCH_SOURCES_SRC
+        ]
+        BRANCH_MOD_VALUES = [
+            (1, t("branch.set", default="1=已设置")),
+            (2, t("branch.unset", default="2=未设置")),
+        ]
+        BRANCH_COND_VALUES = [
+            (1, t("branch.true", default="1=真")),
+            (2, t("branch.false", default="2=假")),
+        ]
+
+
+refresh_labels()
 
 
 def enum_label(set_name: str, value: str) -> str:
@@ -733,6 +789,13 @@ FALLBACK_EDITOR_DATA: dict = {
 FACING_OPTIONS = ["left", "right"]
 # branch.source 取值（契约 §3.1）：mod=本 mod 的 flag 状态，game=官方检查点，
 # stat=主角属性数值，flag_value=官方旗标数值，condition=官方条件检查点（bool）
+BRANCH_SOURCES_SRC = [
+    ("mod", "branch.mod"),
+    ("game", "branch.game"),
+    ("stat", "branch.stat"),
+    ("flag_value", "branch.flag_value"),
+    ("condition", "branch.condition"),
+]
 BRANCH_SOURCES = [
     ("mod", "本 mod 旗标（mod）"),
     ("game", "官方检查点（game）"),
@@ -744,6 +807,7 @@ BRANCH_SOURCES = [
 BRANCH_MOD_VALUES = [(1, "1=已设置"), (2, "2=未设置")]
 # source=condition 时 cases 的 value 只允许 1/2（真/假）
 BRANCH_COND_VALUES = [(1, "1=真"), (2, "2=假")]
+refresh_labels()
 # source=stat/flag_value 时 cases 的比较运算符（缺省 >=）
 BRANCH_OPS = [(">=", ">="), (">", ">"), ("<=", "<="), ("<", "<"), ("==", "==")]
 TEXT_PREVIEW_LEN = 20  # 节点摘要中文本截断长度
@@ -777,7 +841,13 @@ def list_items(editor_data: dict, key: str) -> list[tuple[str, str]]:
     items = editor_data.get(key) or []
     if not isinstance(items, list):
         return []
-    return [(entry_id(e), entry_display(e)) for e in items]
+    result = []
+    for entry in items:
+        item_id = entry_id(entry)
+        name = term(key, item_id, default=entry_name(entry))
+        display = item_id if not name or name == item_id else f"{name}（{item_id}）"
+        result.append((item_id, display))
+    return result
 
 
 def affinity_character_items(editor_data: dict) -> list[tuple[str, str]]:
@@ -823,16 +893,29 @@ def dice_check_items(editor_data: dict) -> list[tuple[str, str]]:
             continue
         bands = meta[cid].get("bands") or []
         dice_max = meta[cid].get("max", "?")
-        items.append((cid, "%s（骰子%s·%d带）" % (disp, dice_max, len(bands))))
+        items.append(
+            (
+                cid,
+                t(
+                    "summary.dice_meta",
+                    default="%s（骰子%s·%d带）" % (disp, dice_max, len(bands)),
+                    name=disp,
+                    max=dice_max,
+                    bands=len(bands),
+                ),
+            )
+        )
     return items
 
 
 def display_name(editor_data: dict, key: str, item_id: str) -> str:
-    """按清单查某 id 的显示名，查不到返回 id 本身。"""
+    """按清单查某 id 的显示名，查不到返回 id 本身。优先用当前语言的游戏名词。"""
+    base = item_id
     for e in editor_data.get(key) or []:
         if entry_id(e) == item_id:
-            return entry_name(e) or item_id
-    return item_id
+            base = entry_name(e) or item_id
+            break
+    return term(key, item_id, default=base)
 
 
 # PyInstaller 冻结态路径推导（源码态行为与打包前完全一致）
@@ -939,7 +1022,7 @@ def new_story(story_id: str = "main", editor_data: dict | None = None) -> dict:
     first = new_node("say", "n2", editor_data)
     return {
         "id": story_id,
-        "title": "新剧情",
+        "title": t("new_story_title", default="新剧情"),
         "mood": False,
         "start": entrance["id"],
         "nodes": [entrance, first],
@@ -971,6 +1054,80 @@ def save_story(story: dict, path: Path) -> None:
     Path(path).write_text(
         json.dumps(story, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
+
+
+_GOTO_KEYS = ("goto", "goto_大成功", "goto_成功", "goto_失败")
+
+
+def retarget_node_ids(story: dict, mapping: dict[str, str]) -> int:
+    """把 story 内节点 id 与全部跳转引用按 mapping 改写，返回改写次数。"""
+    if not mapping:
+        return 0
+    changed = 0
+    start = story.get("start")
+    if isinstance(start, str) and start in mapping:
+        story["start"] = mapping[start]
+        changed += 1
+    for node in story.get("nodes") or []:
+        if not isinstance(node, dict):
+            continue
+        nid = node.get("id")
+        if isinstance(nid, str) and nid in mapping:
+            node["id"] = mapping[nid]
+            changed += 1
+        value = node.get("goto")
+        if isinstance(value, str) and value in mapping:
+            node["goto"] = mapping[value]
+            changed += 1
+        for option in node.get("options") or []:
+            if not isinstance(option, dict):
+                continue
+            for key in _GOTO_KEYS:
+                target = option.get(key)
+                if isinstance(target, str) and target in mapping:
+                    option[key] = mapping[target]
+                    changed += 1
+        for case in node.get("cases") or []:
+            if not isinstance(case, dict):
+                continue
+            target = case.get("goto")
+            if isinstance(target, str) and target in mapping:
+                case["goto"] = mapping[target]
+                changed += 1
+    return changed
+
+
+def rename_node(story: dict, old_id: str, new_id: str) -> int:
+    """重命名节点 id，并同步 start / goto / 选项 / 分支 / 骰子去向。"""
+    old_id = str(old_id or "").strip()
+    new_id = str(new_id or "").strip()
+    if not old_id:
+        raise ValueError("原节点编号为空")
+    if old_id == new_id:
+        return 0
+    if not ID_PATTERN.fullmatch(new_id):
+        raise ValueError("节点编号只使用英文字母、数字、下划线或短横线")
+    ids = [n.get("id") for n in story.get("nodes") or [] if isinstance(n, dict)]
+    if old_id not in ids:
+        raise ValueError("节点不存在: %s" % old_id)
+    if new_id in ids:
+        raise ValueError("节点编号已被占用: %s" % new_id)
+    return retarget_node_ids(story, {old_id: new_id})
+
+
+def reorder_node(story: dict, from_index: int, to_index: int) -> int:
+    """把 nodes[from_index] 挪到插入点 to_index（移动前下标），返回最终下标。"""
+    nodes = story.setdefault("nodes", [])
+    if not (0 <= from_index < len(nodes)):
+        raise ValueError("源步骤下标越界")
+    dest = max(0, min(int(to_index), len(nodes)))
+    if dest == from_index or dest == from_index + 1:
+        return from_index
+    node = nodes.pop(from_index)
+    if dest > from_index:
+        dest -= 1
+    nodes.insert(dest, node)
+    return dest
 
 
 def make_node_id(story: dict, prefix: str = "n") -> str:
@@ -1020,8 +1177,8 @@ def node_list_caption(node: dict, editor_data: dict | None = None) -> tuple[str,
     标题：类型中文名；详情：人物/站位/摘要，不再用 n1·武师@M 这种程序员串。
     """
     ed = editor_data or FALLBACK_EDITOR_DATA
-    t = node.get("type", "?")
-    tcn = NODE_TYPE_CN.get(t, t)
+    nt = node.get("type", "?")
+    tcn = NODE_TYPE_CN.get(nt, nt)
     summary = node_summary(node, ed)
     # node_summary 形如 "对白·武师: 文本…"——拆成类型 + 其余
     if summary.startswith(tcn + "·"):
@@ -1031,165 +1188,216 @@ def node_list_caption(node: dict, editor_data: dict | None = None) -> tuple[str,
     else:
         detail = summary
     # 站位代号换成中文名（show 的 "武师@M" → "武师 · 中"）
-    if t == "show":
+    if nt == "show":
         pos = display_name(ed, "positions", node.get("position", "")) or node.get(
             "position", ""
         )
-        who = character_name(ed, node.get("character", "")) or "（未选）"
+        who = character_name(ed, node.get("character", "")) or t(
+            "form.unselected", default="（未选）"
+        )
         detail = f"{who} · {pos}" if pos else who
-    elif t == "say":
+    elif nt == "say":
         mode = node.get("mode", "character")
-        who = {"narrative": "旁白", "think": "内心", "center": "居中旁白"}.get(
-            mode, character_name(ed, node.get("character", "")) or "（未选）"
+        who = {
+            "narrative": MODE_CN.get("narrative", "旁白"),
+            "think": t("summary.think_short", default="内心"),
+            "center": MODE_CN.get("center", "居中旁白"),
+        }.get(
+            mode,
+            character_name(ed, node.get("character", ""))
+            or t("form.unselected", default="（未选）"),
         )
         text = _short(node.get("text", ""), 28)
         detail = f"{who} · {text}" if text else who
-    return tcn, detail or "（未填写）"
+    return tcn, detail or t("form.empty", default="（未填写）")
 
 
 def node_summary(node: dict, editor_data: dict | None = None) -> str:
     """节点列表里的一行中文摘要，如 "对白·唐惟元: 文本前20字…"。"""
     ed = editor_data or FALLBACK_EDITOR_DATA
-    t = node.get("type", "?")
-    tcn = NODE_TYPE_CN.get(t, t)
+    nt = node.get("type", "?")
+    tcn = NODE_TYPE_CN.get(nt, nt)
 
     def cname() -> str:
-        return character_name(ed, node.get("character", "")) or "（未选）"
+        return character_name(ed, node.get("character", "")) or t(
+            "form.unselected", default="（未选）"
+        )
 
     def stat_name(key) -> str:
         return display_name(ed, "stats", str(key or ""))
 
-    if t == "say":
+    if nt == "say":
         mode = node.get("mode", "character")
-        who = {"narrative": "旁白", "think": "内心", "center": "居中旁白"}.get(
-            mode, cname()
-        )
+        who = {
+            "narrative": MODE_CN.get("narrative", "旁白"),
+            "think": t("summary.think_short", default="内心"),
+            "center": MODE_CN.get("center", "居中旁白"),
+        }.get(mode, cname())
         extra = " 🔊" if node.get("voice") else ""
         return f"{tcn}·{who}{extra}: {_short(node.get('text', ''))}"
-    if t == "music":
+    if nt == "music":
         op = node.get("op", "play")
         extra = "" if op == "play" else f"（{enum_label('music_op', op)}）"
         return f"{tcn}·{node.get('name', '')}{extra}"
-    if t == "sound":
+    if nt == "sound":
         return f"{tcn}·{node.get('name', '')}"
-    if t == "scene":
+    if nt == "scene":
         return f"{tcn}·{display_name(ed, 'views', node.get('view', ''))}"
-    if t == "show":
+    if nt == "show":
         return f"{tcn}·{cname()}@{node.get('position', '')}"
-    if t == "move":
+    if nt == "move":
         return f"{tcn}·{cname()} {node.get('from', '')}→{node.get('to', '')}"
-    if t == "face":
+    if nt == "face":
         return f"{tcn}·{cname()}→{node.get('facing', '')}"
-    if t == "hide":
+    if nt == "hide":
         return f"{tcn}·{cname()}"
-    if t == "focus":
+    if nt == "focus":
         return f"{tcn}·{cname()}"
-    if t == "offset":
+    if nt == "offset":
         return f"{tcn}·{cname()} ({node.get('x', 0)},{node.get('y', 0)})"
-    if t == "choice":
-        return f"{tcn}·{len(node.get('options', []))}个选项"
-    if t == "shock":
+    if nt == "choice":
+        return f"{tcn}·" + t(
+            "summary.options",
+            default="{n}个选项",
+            n=len(node.get("options", [])),
+        )
+    if nt == "shock":
         return f"{tcn}·{cname()}"
-    if t == "mask":
-        return f"{tcn}·{'开' if node.get('show') else '关'}"
-    if t == "intro":
+    if nt == "mask":
+        return f"{tcn}·" + (
+            t("summary.on", default="开")
+            if node.get("show")
+            else t("summary.off", default="关")
+        )
+    if nt == "intro":
         if node.get("intro_source", "official") == "custom":
-            return f"{tcn}·自定义·{node.get('name') or '未填写姓名'}"
-        return f"{tcn}·原版·{cname()}"
-    if t == "effect":
+            return (
+                f"{tcn}·{t('summary.custom', default='自定义')}·"
+                f"{node.get('name') or t('summary.no_name', default='未填写姓名')}"
+            )
+        return f"{tcn}·{t('summary.official', default='原版')}·{cname()}"
+    if nt == "effect":
         name = node.get("name", "")
-        return f"{tcn}·{name}" + ("（停止）" if node.get("play") is False else "")
-    if t == "transition":
+        return f"{tcn}·{name}" + (
+            t("summary.stop", default="（停止）") if node.get("play") is False else ""
+        )
+    if nt == "transition":
         return (
             f"{tcn}·{enum_label('transition_phase', node.get('phase', 'in'))}"
             f"（{enum_label('transition_dir', node.get('dir', 'lr'))}）"
         )
-    if t == "camera":
-        return f"{tcn}·{node.get('name', '')}{'开' if node.get('active') else '关'}"
-    if t == "block":
+    if nt == "camera":
+        return f"{tcn}·{node.get('name', '')}" + (
+            t("summary.on", default="开")
+            if node.get("active")
+            else t("summary.off", default="关")
+        )
+    if nt == "block":
         return f"{tcn}·{node.get('flowchart', '')}.{node.get('name', '')}"
-    if t == "cg":
+    if nt == "cg":
         return (
             f"{tcn}·{enum_label('cg_action', node.get('action', 'show'))}"
             f"{enum_label('cg_kind', node.get('kind', 'picture'))}"
             f" {_short(str(node.get('key') or ''))}"
         )
-    if t == "dim":
-        return f"{tcn}·{cname()}{'开' if node.get('dimmed') else '关'}"
-    if t == "message":
+    if nt == "dim":
+        return f"{tcn}·{cname()}" + (
+            t("summary.on", default="开")
+            if node.get("dimmed")
+            else t("summary.off", default="关")
+        )
+    if nt == "message":
         return f"{tcn}·{_short(node.get('text', ''))}"
-    if t == "rotate":
+    if nt == "rotate":
         return f"{tcn}·{cname()} {node.get('angle', 0)}°"
-    if t == "dayenv":
-        return f"{tcn}·{'白天' if node.get('day_type') == 1 else '晚上'}"
-    if t == "stat":
+    if nt == "dayenv":
+        return f"{tcn}·" + (
+            t("summary.day", default="白天")
+            if node.get("day_type") == 1
+            else t("summary.night", default="晚上")
+        )
+    if nt == "stat":
         return f"{tcn}·{stat_name(node.get('key'))}{_signed(node.get('delta', 0))}"
-    if t == "stat_set":
+    if nt == "stat_set":
         return f"{tcn}·{stat_name(node.get('key'))}={node.get('value', 0)}"
-    if t == "affinity":
+    if nt == "affinity":
         return f"{tcn}·{cname()}{_signed(node.get('delta', 0))}"
-    if t == "talent":
+    if nt == "talent":
         return (
             f"{tcn}·{display_name(ed, 'talents', node.get('talent', ''))}"
             f"{_signed(node.get('level', 0))}"
         )
-    if t == "item":
-        verb = "移除" if node.get("remove") else "获得"
+    if nt == "item":
+        verb = (
+            t("summary.remove", default="移除")
+            if node.get("remove")
+            else t("summary.gain", default="获得")
+        )
         iname = display_name(
             ed, f"items_{node.get('kind', 'misc')}", node.get("item", "")
         )
         return f"{tcn}·{verb} {iname}×{node.get('count', 1)}"
-    if t == "flag":
+    if nt == "flag":
         return f"{tcn}·{node.get('flag', '')}"
-    if t == "game_flag":
+    if nt == "game_flag":
         return f"{tcn}·{node.get('flag', '')}={node.get('value', 0)}"
-    if t == "enemy":
+    if nt == "enemy":
         return (
             f"{tcn}·{enum_label('enemy_op', node.get('op', 'team'))}"
             f" {node.get('enemy', '')} {_signed(node.get('value', 0))}"
         )
-    if t == "battle_skill":
+    if nt == "battle_skill":
         return (
             f"{tcn}·{enum_label('battle_skill_op', node.get('op', 'set'))}"
             f" {node.get('key', '')}"
         )
-    if t == "mission":
+    if nt == "mission":
         return f"{tcn}·{node.get('name', '')} {node.get('key', '')}"
-    if t == "time":
+    if nt == "time":
         return f"{tcn}·{enum_label('time_op', node.get('op', 'round'))}"
-    if t == "autosave":
+    if nt == "autosave":
         return f"{tcn}·{enum_label('autosave_kind', node.get('kind', 'story'))}"
-    if t == "branch":
+    if nt == "branch":
         src = {
-            "mod": "本mod",
-            "game": "官方",
-            "stat": "属性",
-            "flag_value": "官方旗标",
-            "condition": "条件",
+            "mod": t("branch.src.mod", default="本mod"),
+            "game": t("branch.src.game", default="官方"),
+            "stat": t("branch.src.stat", default="属性"),
+            "flag_value": t("branch.src.flag_value", default="官方旗标"),
+            "condition": t("branch.src.condition", default="条件"),
         }.get(node.get("source", "mod"), "?")
         key = node.get("stat") or node.get("flag", "")
-        return f"{tcn}·{src}:{key}({len(node.get('cases', []))}支)"
-    if t == "dice":
-        return f"{tcn}·{node.get('check', '')}({len(node.get('options', []))}项)"
-    if t == "goto_scene":
+        return f"{tcn}·{src}:{key}(" + t(
+            "summary.branches",
+            default="{n}支",
+            n=len(node.get("cases", [])),
+        ) + ")"
+    if nt == "dice":
+        return f"{tcn}·{node.get('check', '')}(" + t(
+            "summary.items",
+            default="{n}项",
+            n=len(node.get("options", [])),
+        ) + ")"
+    if nt == "goto_scene":
         key = node.get("key") or ""
         title = node.get("title") or ""
         return f"{tcn}·{enum_label('goto_scene', node.get('scene', 'Free'))}" + (
             (f" {key}" if key else "") + (f"「{_short(title)}」" if title else "")
         )
-    if t == "panel":
+    if nt == "panel":
         return f"{tcn}·{enum_label('panel', node.get('panel', ''))}"
-    if t == "wait":
-        return f"{tcn}·{node.get('seconds', 0)}秒"
-    if t == "end":
+    if nt == "wait":
+        return f"{tcn}·" + t(
+            "summary.seconds", default="{n}秒", n=node.get("seconds", 0)
+        )
+    if nt == "end":
         nxt = node.get("next_script")
-        return f"{tcn}→{nxt}" if nxt else f"{tcn}·结束"
-    if t == "death":
+        return f"{tcn}→{nxt}" if nxt else f"{tcn}·{t('summary.end', default='结束')}"
+    if nt == "death":
         return (
             f"{tcn}·{_short(node.get('text', ''))} → GameOver("
             f"{node.get('death_id', '')})/{node.get('next', 'Title')}"
         )
-    if t == "raw":
+    if nt == "raw":
         first = (node.get("code") or "").strip().splitlines()
         return f"{tcn}·{_short(first[0] if first else '')}"
     return f"{tcn}·{node.get('id', '')}"

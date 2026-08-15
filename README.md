@@ -116,6 +116,17 @@ cd runtime/MortalModHost && dotnet run --project test/SmokeTest -c Release
 - Steam 普通启动可加载 BepInEx（`version.dll` + `ignore_disable_switch`）。
 - 样例 `showcase2`：场景一后半旁白与对话拆开；魏菊在切场/进第二幕前退场。
 
+## 语言
+
+编辑器菜单「语言」可切换简体中文、繁体中文、日语、韩语，偏好会记住。
+
+游戏内名词按这个顺序取：
+
+1. [LoM-wiki](https://github.com/mohui666/LoM-wiki-CNS)（人物、门派、汗青书 / 生死簿、属性等）
+2. wiki 没有的条目，用游戏解包官方语言表（`lom_unpack/raw/*_zh-cn.txt` / `*_zh-tw.txt` / `*_kr.txt`）
+
+官方游戏界面只有繁中、简中、韩语，**没有日语**。日语人物名与属性名来自 wiki 日文页；韩语全文来自官方解包。游戏内 Mod 菜单会跟随游戏当前语言。
+
 ## 说明与致谢
 
 - `docs/mod_format.md` 是全部组件的契约（包格式、43 种节点、用户内容、运行时行为），改代码先改它。自定义音频用法见 `docs/user_content.md`。

@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from i18n import t
 from content_registry import (
     ContentRegistryError,
     default_namespace,
@@ -35,36 +36,40 @@ from content_registry import (
 )
 
 
-_KIND_LABELS = {
-    "music": "音乐",
-    "sound": "音效",
-    "env": "环境音",
-}
+def _kind_labels() -> dict[str, str]:
+    return {
+        "music": t("library.kind.music"),
+        "sound": t("library.kind.sound"),
+        "env": t("library.kind.env"),
+    }
 
 
 class ContentLibraryDialog(QDialog):
     def __init__(self, stories: dict | None = None, parent=None):
         super().__init__(parent)
         self._stories = stories or {}
-        self.setWindowTitle("用户内容库")
+        self.setWindowTitle(t("library.title"))
         self.resize(760, 460)
 
         layout = QVBoxLayout(self)
-        intro = QLabel(
-            "导入的音频会得到稳定编号（例如 user:mohui.boss_theme），"
-            "剧情里只保存这个编号，不保存你电脑上的文件路径。"
-            "导出 Mod 时只会打入当前剧情真正用到的音频。"
-        )
+        intro = QLabel(t("library.intro"))
         intro.setWordWrap(True)
         layout.addWidget(intro)
 
-        path = QLabel("存放位置：" + str(repository_root()))
+        path = QLabel(t("library.path", path=repository_root()))
         path.setWordWrap(True)
         path.setProperty("context_help", True)
         layout.addWidget(path)
 
         self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(["显示名称", "编号", "用途", "文件"])
+        self.table.setHorizontalHeaderLabels(
+            [
+                t("library.col.name"),
+                t("library.col.id"),
+                t("library.col.kind"),
+                t("library.col.file"),
+            ]
+        )
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -76,8 +81,8 @@ class ContentLibraryDialog(QDialog):
         layout.addWidget(self.table, 1)
 
         buttons = QHBoxLayout()
-        import_btn = QPushButton("导入音频…")
-        delete_btn = QPushButton("删除所选")
+        import_btn = QPushButton(t("library.import"))
+        delete_btn = QPushButton(t("library.delete"))
         import_btn.clicked.connect(self._import_audio)
         delete_btn.clicked.connect(self._delete_selected)
         buttons.addWidget(import_btn)
@@ -100,7 +105,11 @@ class ContentLibraryDialog(QDialog):
             self.table.insertRow(row)
             self.table.setItem(row, 0, QTableWidgetItem(rec.name))
             self.table.setItem(row, 1, QTableWidgetItem(rec.ref))
-            self.table.setItem(row, 2, QTableWidgetItem(_KIND_LABELS.get(rec.audio_kind or "", rec.audio_kind or "")))
+            self.table.setItem(
+                row,
+                2,
+                QTableWidgetItem(_kind_labels().get(rec.audio_kind or "", rec.audio_kind or "")),
+            )
             self.table.setItem(row, 3, QTableWidgetItem(rec.main_file))
             self.table.item(row, 1).setData(Qt.ItemDataRole.UserRole, rec.content_id)
 
@@ -160,7 +169,7 @@ class ContentLibraryDialog(QDialog):
 class _ImportAudioDialog(QDialog):
     def __init__(self, source: Path, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("导入音频")
+        self.setWindowTitle(t("library.import_title"))
         layout = QFormLayout(self)
         suggested = suggest_content_id(source.name)
         ns, local = suggested.split(".", 1)

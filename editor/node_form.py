@@ -37,6 +37,7 @@ from PySide6.QtWidgets import (
 
 from asset_store import AssetStoreError, import_image_file
 import content_registry
+from i18n import t
 import models
 
 
@@ -44,6 +45,7 @@ class NodeForm(QScrollArea):
     """中栏：单个节点的属性编辑表单。"""
 
     node_changed = Signal()  # 当前节点内容被用户修改
+    id_change_requested = Signal(str)  # 用户改了步骤编号，由主窗口同步全部引用
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -63,6 +65,16 @@ class NodeForm(QScrollArea):
         self._node_ids = list(node_ids)
         self._story_ids = list(story_ids or [])
 
+    def _emit_id_change(self, edit: QLineEdit, original: str) -> None:
+        if self._loading or self._node is None:
+            return
+        new_id = edit.text().strip()
+        if not new_id or new_id == original:
+            if new_id != original:
+                edit.setText(original)
+            return
+        self.id_change_requested.emit(new_id)
+
     def set_node(self, node: dict | None) -> None:
         """展示并编辑给定节点；None 时清空。"""
         self._loading = True
@@ -72,7 +84,7 @@ class NodeForm(QScrollArea):
             layout = QVBoxLayout(body)
             layout.setContentsMargins(12, 12, 12, 12)
             if node is None:
-                layout.addWidget(QLabel("← 在左侧选择一个步骤"))
+                layout.addWidget(QLabel(t("form.select_step")))
                 layout.addStretch(1)
             else:
                 layout.addWidget(self._build_form(node))
@@ -102,9 +114,21 @@ class NodeForm(QScrollArea):
         head.setFont(hf)
         head.setToolTip(f"{node.get('id', '')} · 内部类型：{node_type}")
         outer.addWidget(head)
-        id_line = QLabel(f"步骤 {node.get('id', '')}")
-        id_line.setProperty("context_help", True)
-        outer.addWidget(id_line)
+        id_row = QHBoxLayout()
+        id_row.setContentsMargins(0, 0, 0, 0)
+        id_label = QLabel(t("field.node_id"))
+        id_label.setProperty("context_help", True)
+        id_edit = QLineEdit(str(node.get("id", "")))
+        id_edit.setObjectName("nodeIdEdit")
+        id_edit.setPlaceholderText(t("nav.rename_prompt"))
+        id_edit.editingFinished.connect(
+            lambda edit=id_edit, original=str(node.get("id", "")): self._emit_id_change(
+                edit, original
+            )
+        )
+        id_row.addWidget(id_label)
+        id_row.addWidget(id_edit, 1)
+        outer.addLayout(id_row)
 
         help_text = models.NODE_HELP.get(node_type)
         if help_text:
@@ -114,7 +138,7 @@ class NodeForm(QScrollArea):
             outer.addWidget(hint)
 
         if schema is None:
-            form.addRow(QLabel("未知节点类型，无法编辑"))
+            form.addRow(QLabel(t("form.unknown_type")))
             outer.addLayout(form)
             return wrap
 
@@ -129,13 +153,16 @@ class NodeForm(QScrollArea):
             if not self._field_visible(node_type, key, node):
                 continue
             widget = self._make_widget(node, key, kind)
-            form.addRow(label + ("（可选）" if optional else ""), widget)
+            shown = t(f"field.{key}", default=label)
+            if optional:
+                shown += t("field.optional")
+            form.addRow(shown, widget)
         outer.addLayout(form)
 
         # choice/branch/dice/end/death/goto_scene 之外允许显式 goto（契约 §3/§4）
         if node_type not in ("choice", "branch", "dice", "end", "death", "goto_scene"):
             adv_btn = QToolButton()
-            adv_btn.setText("▸ 高级设置")
+            adv_btn.setText(t("form.advanced"))
             adv_btn.setCheckable(True)
             adv_btn.setAutoRaise(True)
             adv_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
@@ -148,16 +175,16 @@ class NodeForm(QScrollArea):
                     node, "goto", self._combo_value(c, text).strip() or None
                 )
             )
-            adv_form.addRow("跳转步骤", goto)
+            adv_form.addRow(t("field.goto"), goto)
             has_goto = bool(node.get("goto"))
             adv_body.setVisible(has_goto)
             if has_goto:
                 adv_btn.setChecked(True)
-                adv_btn.setText("▾ 高级设置")
+                adv_btn.setText(t("form.advanced_on"))
 
             def _toggle(on: bool, btn=adv_btn, body=adv_body) -> None:
                 body.setVisible(on)
-                btn.setText("▾ 高级设置" if on else "▸ 高级设置")
+                btn.setText(t("form.advanced_on") if on else t("form.advanced"))
 
             adv_btn.toggled.connect(_toggle)
             outer.addWidget(adv_btn)
@@ -245,7 +272,7 @@ class NodeForm(QScrollArea):
                 items = [
                     (
                         item_id,
-                        display + "（靠后，可能被遮挡）"
+                        display + t("form.back_position")
                         if item_id in ("LB2", "RB2")
                         else display,
                     )

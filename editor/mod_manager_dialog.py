@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from game_install import GameInstallError, GameInstallManager
+from i18n import t
 
 
 def apply_steam_launch_fix_ui(parent, manager: GameInstallManager) -> None:
@@ -33,14 +34,12 @@ def apply_steam_launch_fix_ui(parent, manager: GameInstallManager) -> None:
     try:
         actions = manager.apply_steam_launch_fix()
     except GameInstallError as exc:
-        QMessageBox.warning(parent, "无法修复 Steam 启动", str(exc))
+        QMessageBox.warning(parent, t("install.steam_fail"), str(exc))
         return
     QMessageBox.information(
         parent,
-        "Steam 启动修复已写入",
-        "\n".join("· " + line for line in actions)
-        + "\n\n请完全退出游戏后，从 Steam 普通点「开始」（不要管理员）。"
-        "进游戏按 F8 打开 Mod 菜单。",
+        t("install.steam_ok_title"),
+        "\n".join("· " + line for line in actions) + "\n\n" + t("install.steam_ok_msg"),
     )
 
 
@@ -51,25 +50,22 @@ class ModManagerDialog(QDialog):
         super().__init__(parent)
         self.manager = manager
         self._loading = False
-        self.setWindowTitle("安装管理")
+        self.setWindowTitle(t("install.title"))
         self.resize(900, 600)
 
         layout = QVBoxLayout(self)
-        intro = QLabel(
-            "首次选择《活侠传》文件夹后，可一键安装 BepInEx 和 Mod 运行时。"
-            "启用的 Mod 会在下次启动游戏时加载。"
-        )
+        intro = QLabel(t("install.intro"))
         intro.setWordWrap(True)
         layout.addWidget(intro)
 
-        game_box = QGroupBox("游戏位置")
+        game_box = QGroupBox(t("install.game_box"))
         game_layout = QVBoxLayout(game_box)
         path_row = QHBoxLayout()
         self.path_edit = QLineEdit()
         self.path_edit.setReadOnly(True)
-        self.path_edit.setPlaceholderText("尚未选择游戏文件夹")
-        choose_btn = QPushButton("选择游戏文件夹…")
-        detect_btn = QPushButton("自动查找")
+        self.path_edit.setPlaceholderText(t("install.path_ph"))
+        choose_btn = QPushButton(t("install.choose"))
+        detect_btn = QPushButton(t("install.detect"))
         choose_btn.clicked.connect(self._choose_game_dir)
         detect_btn.clicked.connect(self._detect_game_dir)
         path_row.addWidget(self.path_edit, 1)
@@ -77,18 +73,15 @@ class ModManagerDialog(QDialog):
         path_row.addWidget(detect_btn)
         game_layout.addLayout(path_row)
         status_row = QHBoxLayout()
-        self.status_label = QLabel("未配置")
+        self.status_label = QLabel(t("install.unconfigured"))
         self.status_label.setWordWrap(True)
-        self.install_btn = QPushButton("重新安装运行时")
+        self.install_btn = QPushButton(t("install.reinstall_runtime"))
         self.install_btn.clicked.connect(self._install_runtime)
-        self.bepinex_btn = QPushButton("安装 BepInEx")
-        self.bepinex_btn.setToolTip("从 BepInEx 官方下载站安装已验证的 Mono x86 版本")
+        self.bepinex_btn = QPushButton(t("install.bepinex"))
+        self.bepinex_btn.setToolTip(t("install.bepinex_tip"))
         self.bepinex_btn.clicked.connect(self._install_bepinex)
-        self.steam_fix_btn = QPushButton("修复 Steam 无法加载")
-        self.steam_fix_btn.setToolTip(
-            "Steam 普通启动时 Doorstop 可能被环境变量跳过。"
-            "此按钮会改 doorstop 配置并把代理换成 version.dll。"
-        )
+        self.steam_fix_btn = QPushButton(t("install.steam_fix"))
+        self.steam_fix_btn.setToolTip(t("install.steam_fix_tip"))
         self.steam_fix_btn.clicked.connect(self._apply_steam_fix)
         status_row.addWidget(self.status_label, 1)
         status_row.addWidget(self.steam_fix_btn)
@@ -97,13 +90,21 @@ class ModManagerDialog(QDialog):
         game_layout.addLayout(status_row)
         layout.addWidget(game_box)
 
-        mods_box = QGroupBox("已安装 Mod")
+        mods_box = QGroupBox(t("install.mods_box"))
         mods_layout = QVBoxLayout(mods_box)
-        tip = QLabel("勾选表示启用；取消勾选会保留文件，但游戏不再加载。切换后请重启游戏。")
+        tip = QLabel(t("install.mods_tip"))
         tip.setWordWrap(True)
         mods_layout.addWidget(tip)
         self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(["启用", "名称", "版本", "作者", "文件"])
+        self.table.setHorizontalHeaderLabels(
+            [
+                t("install.col.enabled"),
+                t("install.col.name"),
+                t("install.col.version"),
+                t("install.col.author"),
+                t("install.col.file"),
+            ]
+        )
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
@@ -114,8 +115,8 @@ class ModManagerDialog(QDialog):
         self.table.itemChanged.connect(self._toggle_mod)
         mods_layout.addWidget(self.table, 1)
         action_row = QHBoxLayout()
-        add_btn = QPushButton("安装已有 .lommod…")
-        refresh_btn = QPushButton("刷新列表")
+        add_btn = QPushButton(t("install.add_mod"))
+        refresh_btn = QPushButton(t("install.refresh"))
         add_btn.clicked.connect(self._add_mod)
         refresh_btn.clicked.connect(self.refresh)
         action_row.addWidget(add_btn)
@@ -128,7 +129,7 @@ class ModManagerDialog(QDialog):
         buttons.rejected.connect(self.reject)
         close_btn = buttons.button(QDialogButtonBox.StandardButton.Close)
         if close_btn is not None:
-            close_btn.setText("完成")
+            close_btn.setText(t("install.done"))
         layout.addWidget(buttons)
         self.refresh()
 
@@ -145,11 +146,9 @@ class ModManagerDialog(QDialog):
             root = self.manager.load_game_dir()
             self.path_edit.setText(str(root) if root else "")
             if not self._configured():
-                self.status_label.setText(
-                    "未连接：请选择包含 Mortal.exe 的《活侠传》游戏目录。"
-                )
+                self.status_label.setText(t("install.not_connected"))
                 self.bepinex_btn.setEnabled(False)
-                self.bepinex_btn.setText("安装 BepInEx")
+                self.bepinex_btn.setText(t("install.bepinex"))
                 self.steam_fix_btn.setEnabled(False)
                 self.install_btn.setEnabled(False)
                 self.table.setRowCount(0)
@@ -158,28 +157,32 @@ class ModManagerDialog(QDialog):
             root = self.manager.require_game_dir()
             has_bepinex = self.manager.bepinex_installed(root)
             self.bepinex_btn.setText(
-                "重新安装 / 更新 BepInEx" if has_bepinex else "安装 BepInEx"
+                t("install.reinstall_bepinex") if has_bepinex else t("install.bepinex")
             )
             self.steam_fix_btn.setEnabled(has_bepinex)
             self.install_btn.setEnabled(has_bepinex)
             if not has_bepinex:
-                self.status_label.setText(
-                    "已找到游戏；尚未安装兼容的 BepInEx。点击“安装 BepInEx”即可继续。"
-                )
+                self.status_label.setText(t("install.need_bepinex"))
                 self.table.setRowCount(0)
                 return
             runtime_target = self.manager.plugin_dir() / "MortalModHost.dll"
-            state = "运行时已安装" if runtime_target.is_file() else "运行时尚未安装"
-            steam = (
-                "Steam 普通启动修复已就绪"
-                if self.manager.steam_launch_fix_applied(root)
-                else "若 Steam 点开始没有 Mod，点“修复 Steam 无法加载”"
+            state = (
+                t("install.runtime_ok")
+                if runtime_target.is_file()
+                else t("install.runtime_missing")
             )
-            self.status_label.setText(f"已连接：{state}。{steam}。")
+            steam = (
+                t("install.steam_ok")
+                if self.manager.steam_launch_fix_applied(root)
+                else t("install.steam_need")
+            )
+            self.status_label.setText(t("install.connected", state=state, steam=steam))
             records = self.manager.list_mods()
             self.table.setRowCount(len(records))
             for row, record in enumerate(records):
-                enabled_item = QTableWidgetItem("启用" if record.enabled else "停用")
+                enabled_item = QTableWidgetItem(
+                    t("install.enabled") if record.enabled else t("install.disabled")
+                )
                 enabled_item.setFlags(
                     Qt.ItemFlag.ItemIsEnabled
                     | Qt.ItemFlag.ItemIsSelectable
@@ -198,12 +201,12 @@ class ModManagerDialog(QDialog):
                         item.setToolTip(detail)
                     self.table.setItem(row, col, item)
                 if record.error:
-                    enabled_item.setText("损坏")
+                    enabled_item.setText(t("install.broken"))
                     enabled_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
                     for col in range(5):
                         self.table.item(row, col).setToolTip(record.error)
         except GameInstallError as exc:
-            self.status_label.setText(f"无法读取安装状态：{exc}")
+            self.status_label.setText(t("install.read_fail", err=exc))
             self.table.setRowCount(0)
         finally:
             self._loading = False
@@ -211,7 +214,7 @@ class ModManagerDialog(QDialog):
     def _choose_game_dir(self) -> None:
         current = self.manager.load_game_dir()
         path = QFileDialog.getExistingDirectory(
-            self, "选择《活侠传》游戏文件夹", str(current or Path.home())
+            self, t("install.choose_dir"), str(current or Path.home())
         )
         if path:
             self._configure(Path(path))
@@ -221,8 +224,8 @@ class ModManagerDialog(QDialog):
         if found is None:
             QMessageBox.warning(
                 self,
-                "没有自动找到游戏",
-                "请点击“选择游戏文件夹”，选择包含 Mortal.exe 的目录。",
+                t("install.not_found"),
+                t("install.not_found_msg"),
             )
             return
         self._configure(found)

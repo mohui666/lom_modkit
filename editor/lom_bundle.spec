@@ -23,8 +23,13 @@ a_gui = Analysis(
         ("assets/doorstop/win-x86-doorstop.dll", "assets/doorstop"),
         ("../runtime/MortalModHost/bin/Release/net48/MortalModHost.dll", "runtime"),
         ("../runtime/MortalModHost/bin/Release/net48/NVorbis.dll", "runtime"),
+        ("i18n/locales", "i18n/locales"),
+        ("i18n/terms", "i18n/terms"),
+        ("i18n/help", "i18n/help"),
     ],
     hiddenimports=[
+        "i18n",
+        "i18n.core",
         "lomc",
         "lomc.codegen",
         "lomc.compiler",

@@ -12,6 +12,7 @@ import re
 
 from asset_store import MAX_IMAGE_BYTES, resolve_image_asset
 import content_registry
+from i18n import t
 from lua_preview import get_lomc
 import models
 import stage_guard
@@ -38,7 +39,7 @@ class PreflightIssue:
 
     @property
     def severity_text(self) -> str:
-        return "错误" if self.severity == "error" else "提醒"
+        return t("preflight.error") if self.severity == "error" else t("preflight.warning")
 
 
 def _message_node_id(message: str) -> str:
@@ -132,7 +133,11 @@ def run_preflight(
     if lomc is None:
         return [
             PreflightIssue(
-                "error", "compiler_missing", "", "", f"编译器不可用：{lomc_error}"
+                "error",
+                "compiler_missing",
+                "",
+                "",
+                t("preflight.compiler_missing", err=lomc_error),
             )
         ]
 
@@ -177,8 +182,7 @@ def run_preflight(
                     "stage_missing",
                     sid,
                     stage_node_id,
-                    f"人物 {cname} 执行到这里时可能还没登场（或已退场），"
-                    "游戏会因角色不存在而黑屏。自动修复会在该步骤前插入人物登场。",
+                    t("preflight.stage_missing", name=cname),
                     fixable=True,
                 )
             )
@@ -193,7 +197,7 @@ def run_preflight(
                         "unreachable_node",
                         sid,
                         node_id,
-                        "这个步骤从剧情开头无法到达。若不是备用内容，请检查前面的跳转。",
+                        t("preflight.unreachable_node"),
                     )
                 )
             if node_id in graph.dead_ends:
@@ -203,7 +207,7 @@ def run_preflight(
                         "broken_flow",
                         sid,
                         node_id,
-                        "剧情走到这里后没有下一步，也不是结局。请添加后续步骤或改为结束剧情。",
+                        t("preflight.broken_flow"),
                     )
                 )
             if node_id in graph.infinite_loops:
@@ -213,7 +217,7 @@ def run_preflight(
                         "infinite_loop",
                         sid,
                         node_id,
-                        "这个步骤位于无法走到任何结局的循环中，玩家会被困住。",
+                        t("preflight.infinite_loop"),
                     )
                 )
             if _uses_placeholder(node):
@@ -223,7 +227,7 @@ def run_preflight(
                         "placeholder_text",
                         sid,
                         node_id,
-                        "仍含有示例或占位文字，发布前建议改成正式内容。",
+                        t("preflight.placeholder"),
                     )
                 )
             if (
@@ -238,8 +242,7 @@ def run_preflight(
                         "back_stage_position",
                         sid,
                         node_id,
-                        f"人物直接登场在 {node.get('position')}（靠后站位），可能被前景遮挡。"
-                        "普通登场建议改用 L2、M 或 R2。",
+                        t("preflight.back_pos", pos=node.get("position")),
                     )
                 )
             image = node.get("image")
@@ -252,7 +255,7 @@ def run_preflight(
                             "missing_image",
                             sid,
                             node_id,
-                            f"找不到图片 {image!r}，请重新选择图片。",
+                            t("preflight.missing_image", image=repr(image)),
                         )
                     )
                 elif source.stat().st_size > MAX_IMAGE_BYTES:
@@ -262,7 +265,7 @@ def run_preflight(
                             "large_image",
                             sid,
                             node_id,
-                            f"图片 {image!r} 超过 8MB，请压缩后重新选择。",
+                            t("preflight.large_image", image=repr(image)),
                         )
                     )
             if node.get("type") in ("music", "sound"):
@@ -297,7 +300,7 @@ def run_preflight(
                                 "missing_user_content",
                                 sid,
                                 node_id,
-                                "对白语音无效：%s" % exc,
+                                t("preflight.bad_voice", err=exc),
                             )
                         )
             if node.get("type") == "end":
@@ -309,7 +312,7 @@ def run_preflight(
                             "missing_story",
                             sid,
                             node_id,
-                            f"下一章节 {target!r} 不存在。",
+                            t("preflight.missing_story", target=repr(target)),
                         )
                     )
 
@@ -334,7 +337,11 @@ def run_preflight(
                     "unreachable_story",
                     sid,
                     "",
-                    f"章节 {sid!r} 无法从开始章节 {entry_story!r} 到达。",
+                    t(
+                        "preflight.unreachable_story",
+                        story=repr(sid),
+                        entry=repr(entry_story),
+                    ),
                 )
             )
 

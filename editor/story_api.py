@@ -318,6 +318,12 @@ def delete_node(story: dict, node_id: str) -> dict:
     return node
 
 
+def rename_node(story: dict, node_id: str, new_id: str) -> dict:
+    """重命名节点 id，并同步 start 与全部跳转引用，返回改名后的节点。"""
+    models.rename_node(story, node_id, new_id)
+    return get_node(story, new_id.strip())
+
+
 def move_node(story: dict, node_id: str, delta: int) -> dict:
     """节点在节点列表中前后移动（delta=±1），返回移动后的节点。"""
     if delta not in (-1, 1):

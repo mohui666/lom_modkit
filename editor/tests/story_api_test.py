@@ -266,6 +266,17 @@ class TestMoveSetStart(unittest.TestCase):
         with self.assertRaises(ValueError, msg="move 不存在节点应抛 ValueError"):
             story_api.move_node(story, "no_such", 1)
 
+    def test_rename_node(self):
+        story = base_story()
+        say_id = story["nodes"][1]["id"]
+        story["nodes"][0]["goto"] = say_id
+        node = story_api.rename_node(story, say_id, "talk")
+        self.assertEqual(node["id"], "talk")
+        self.assertEqual(story["nodes"][0]["goto"], "talk")
+        self.assertEqual(story["start"], story["nodes"][0]["id"])
+        with self.assertRaises(ValueError):
+            story_api.rename_node(story, "talk", story["nodes"][0]["id"])
+
     def test_set_start(self):
         story = base_story()
         w = story_api.add_node(story, "wait")

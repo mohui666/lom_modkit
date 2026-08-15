@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from i18n import t
 from preflight import PreflightIssue
 
 
@@ -34,7 +35,7 @@ class PreflightDialog(QDialog):
         self._issues = list(issues)
         self._on_locate = on_locate
         self._on_fix = on_fix
-        self.setWindowTitle("体检")
+        self.setWindowTitle(t("preflight.title"))
         self.resize(920, 560)
 
         layout = QVBoxLayout(self)
@@ -43,7 +44,14 @@ class PreflightDialog(QDialog):
         layout.addWidget(self.summary)
 
         self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(["级别", "章节", "步骤", "问题与建议"])
+        self.table.setHorizontalHeaderLabels(
+            [
+                t("preflight.col.level"),
+                t("preflight.col.story"),
+                t("preflight.col.step"),
+                t("preflight.col.issue"),
+            ]
+        )
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -59,13 +67,13 @@ class PreflightDialog(QDialog):
         self.table.cellDoubleClicked.connect(lambda _row, _col: self._locate())
         layout.addWidget(self.table, 1)
 
-        hint = QLabel("双击一行可回到对应步骤。自动修复只处理无需猜测剧情内容的项目，且可以撤销。")
+        hint = QLabel(t("preflight.hint"))
         hint.setWordWrap(True)
         layout.addWidget(hint)
 
         actions = QHBoxLayout()
-        self.locate_btn = QPushButton("定位所选问题")
-        self.fix_btn = QPushButton("安全自动修复")
+        self.locate_btn = QPushButton(t("preflight.locate"))
+        self.fix_btn = QPushButton(t("preflight.fix"))
         self.locate_btn.clicked.connect(self._locate)
         self.fix_btn.clicked.connect(self._fix)
         actions.addWidget(self.locate_btn)
@@ -77,7 +85,7 @@ class PreflightDialog(QDialog):
         buttons.rejected.connect(self.reject)
         close_btn = buttons.button(QDialogButtonBox.StandardButton.Close)
         if close_btn is not None:
-            close_btn.setText("关闭")
+            close_btn.setText(t("help.close"))
         layout.addWidget(buttons)
         self._refresh_table()
 
@@ -89,11 +97,9 @@ class PreflightDialog(QDialog):
         errors = sum(issue.severity == "error" for issue in self._issues)
         warnings = len(self._issues) - errors
         if not self._issues:
-            self.summary.setText("体检通过：没有发现错误或提醒，可以导出 Mod。")
+            self.summary.setText(t("preflight.ok"))
         else:
-            self.summary.setText(
-                f"共发现 {errors} 个错误、{warnings} 条提醒。错误必须修复；提醒请确认是否符合预期。"
-            )
+            self.summary.setText(t("preflight.summary", errors=errors, warnings=warnings))
         self.table.setRowCount(len(self._issues))
         for row, issue in enumerate(self._issues):
             values = (

@@ -2,10 +2,12 @@
 """编辑器内置帮助内容。
 
 保持为纯 Python 字符串，PyInstaller 会随程序一起打包；离线使用不依赖浏览器、
-网络或仓库里的外部文档文件。
+网络或仓库里的外部文档文件。多语言优先读 i18n/help/<lang>.html。
 """
 
-HELP_HTML = r"""
+from i18n import help_html as _help_html
+
+HELP_HTML_ZH_CN = r"""
 <h1>活侠传 Mod 剧情编辑器使用指南</h1>
 <p>第一次使用，只要记住一件事：<b>左边排步骤，中间改内容，右边看效果，最后检查并导出。</b></p>
 
@@ -126,3 +128,14 @@ HELP_HTML = r"""
 <h3>什么时候使用高级功能</h3>
 <p>“原生 Lua”“流图块”和“编译结果（高级）”主要用于排错或复刻特殊官方演出。普通剧情不需要使用。</p>
 """
+
+HELP_HTML = HELP_HTML_ZH_CN
+
+
+def current_help_html() -> str:
+    from i18n import current_language
+
+    if current_language() == "zh_CN":
+        return HELP_HTML_ZH_CN
+    return _help_html() or HELP_HTML_ZH_CN
+

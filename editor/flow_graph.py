@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from i18n import t
 import models
 from story_graph import GraphEdge, StoryGraphAnalysis, analyze_story
 
@@ -49,7 +50,7 @@ class _NodeCard(QGraphicsRectItem):
         self.node_id = node_id
         self._callback = callback
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setToolTip("点击后在左侧步骤列表中定位")
+        self.setToolTip(t("flow.card_tip"))
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsFocusable, True)
 
     def mousePressEvent(self, event) -> None:  # noqa: N802 - Qt API
@@ -69,8 +70,8 @@ class FlowGraphView(QGraphicsView):
         self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self.setAccessibleName("剧情流程图")
-        self.setToolTip("拖动空白处平移；Ctrl+滚轮缩放；点击节点可定位")
+        self.setAccessibleName(t("flow.name"))
+        self.setToolTip(t("flow.tooltip"))
         self.setStyleSheet("QGraphicsView { background: #12161d; border: 1px solid #3d4658; }")
 
     def wheelEvent(self, event) -> None:  # noqa: N802 - Qt API
@@ -421,9 +422,9 @@ class FlowGraphPanel(QWidget):
         ]
         problems = [f"{count}{label}" for count, label in counts if count]
         if problems:
-            self.summary.setText("⚠ " + "，".join(problems) + "。点击红色节点即可定位。")
+            self.summary.setText(t("flow.problems", text="，".join(problems)))
             self.summary.setStyleSheet("color: #ff8b8b; font-weight: 600;")
         else:
-            self.summary.setText("✓ 流程正常：所有步骤可到达，并且能走到结局。")
+            self.summary.setText(t("flow.ok"))
             self.summary.setStyleSheet("color: #70d7a6; font-weight: 600;")
         return analysis

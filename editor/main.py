@@ -20,9 +20,10 @@ import tempfile
 import traceback
 from pathlib import Path
 
-from PySide6.QtCore import QSize, QTimer, Qt
-from PySide6.QtGui import QAction, QFont, QIcon, QKeySequence
+from PySide6.QtCore import QSize, QTimer, Qt, Signal
+from PySide6.QtGui import QAction, QDrag, QFont, QIcon, QKeySequence
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QApplication,
     QCheckBox,
     QComboBox,
@@ -33,6 +34,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -65,6 +67,8 @@ if str(EDITOR_DIR) not in sys.path:
 if str(PROJECT_ROOT / "compiler") not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT / "compiler"))
 
+from help_content import current_help_html
+from i18n import LANGUAGES, current_language, init_language, install_qt_translator, set_language, t
 from glass_theme import apply_glass_theme, mark_primary
 from game_install import (
     PREVIEW_PACKAGE_NAME,
@@ -73,7 +77,6 @@ from game_install import (
     reset_story_read_state,
 )
 from flow_graph import FlowGraphPanel
-from help_content import HELP_HTML
 from mod_manager_dialog import ModManagerDialog, apply_steam_launch_fix_ui
 import package_io
 from preflight import PreflightIssue, apply_safe_fixes, run_preflight
@@ -91,8 +94,102 @@ from preview import (
 # 文件对话框默认目录：冻结态用用户 CWD（解包目录/ exe 目录不可当作工作目录）
 WORK_DIR = Path.cwd() if models.FROZEN else PROJECT_ROOT
 
-APP_TITLE = "活侠传 Mod 剧情编辑器"
+def _app_title() -> str:
+    return t("app.title")
+
+
 UNDO_LIMIT = 100  # 撤销栈最大步数（快照式，超限丢最旧）
+_ROLE_KIND = Qt.ItemDataRole.UserRole
+
+
+class StepListWidget(QListWidget):
+    """步骤树：可拖动重排；第 0 行「章节设置」固定不参与拖动。"""
+
+    steps_moved = Signal(int, int)  # from_index, insert_index（均为 nodes[] 下标语义）
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setDragEnabled(True)
+        self.setAcceptDrops(True)
+        self.setDropIndicatorShown(True)
+        self.setDefaultDropAction(Qt.DropAction.MoveAction)
+        self.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+
+    @staticmethod
+    def _is_chapter(item: QListWidgetItem | None) -> bool:
+        return item is not None and item.data(_ROLE_KIND) == "chapter"
+
+    def startDrag(self, supported_actions) -> None:  # noqa: N802
+        item = self.currentItem()
+        if self._is_chapter(item) or item is None:
+            return
+        src = item.data(_ROLE_KIND)
+        if not isinstance(src, int):
+            return
+        indexes = self.selectedIndexes()
+        mime = self.model().mimeData(indexes) if indexes else None
+        if mime is None:
+            return
+        drag = QDrag(self)
+        drag.setMimeData(mime)
+        rect = self.visualItemRect(item)
+        grabbed = self.viewport().grab(rect)
+        if not grabbed.isNull():
+            drag.setPixmap(grabbed)
+            drag.setHotSpot(rect.center() - rect.topLeft())
+        # 自己 exec，不要走 QListWidget.startDrag：它在 MoveAction 成功后会删源行。
+        drag.exec(Qt.DropAction.MoveAction, Qt.DropAction.MoveAction)
+
+    def dragEnterEvent(self, event) -> None:  # noqa: N802
+        if event.source() is self:
+            event.setDropAction(Qt.DropAction.MoveAction)
+            event.accept()
+            return
+        event.ignore()
+
+    def dragMoveEvent(self, event) -> None:  # noqa: N802
+        super().dragMoveEvent(event)
+        if event.source() is self:
+            event.setDropAction(Qt.DropAction.MoveAction)
+            event.accept()
+            return
+        event.ignore()
+
+    def dropEvent(self, event) -> None:  # noqa: N802
+        if event.source() is not self:
+            event.ignore()
+            return
+        src_item = self.currentItem()
+        if self._is_chapter(src_item) or src_item is None:
+            event.ignore()
+            return
+        src = src_item.data(_ROLE_KIND)
+        if not isinstance(src, int):
+            event.ignore()
+            return
+        dest = self._drop_insert_index(event)
+        if dest is None:
+            dest = src
+        event.setDropAction(Qt.DropAction.MoveAction)
+        event.accept()
+        QTimer.singleShot(0, lambda s=src, d=dest: self.steps_moved.emit(s, d))
+
+    def _drop_insert_index(self, event) -> int | None:
+        pos = event.position().toPoint()
+        item = self.itemAt(pos)
+        node_count = max(0, self.count() - 1)
+        if item is None:
+            return node_count
+        if self._is_chapter(item):
+            return 0
+        idx = item.data(_ROLE_KIND)
+        if not isinstance(idx, int):
+            return node_count
+        indicator = self.dropIndicatorPosition()
+        if indicator == QAbstractItemView.DropIndicatorPosition.BelowItem:
+            return idx + 1
+        return idx
 
 _crash_logging_installed = False
 
@@ -105,7 +202,7 @@ def new_editor_story(story_id: str = "main", editor_data: dict | None = None) ->
     没做就先看到“最后节点无法结束”的红色错误。
     """
     story = models.new_story(story_id, editor_data)
-    story["nodes"][1]["text"] = "在这里填写第一句对白。"  # nodes[1] 是 say
+    story["nodes"][1]["text"] = t("new_story_text")  # nodes[1] 是 say
     story["nodes"].append(models.new_node("end", models.make_node_id(story), editor_data))
     return story
 
@@ -166,23 +263,21 @@ class HelpDialog(QDialog):
     def __init__(self, parent=None, manager: GameInstallManager | None = None):
         super().__init__(parent)
         self._manager = manager
-        self.setWindowTitle("帮助 — 活侠传 Mod 剧情编辑器")
+        self.setWindowTitle(t("app.help_title"))
         self.resize(760, 620)
         layout = QVBoxLayout(self)
         browser = QTextBrowser()
         browser.setOpenExternalLinks(False)
-        browser.setHtml(HELP_HTML)
+        browser.setHtml(current_help_html())
         layout.addWidget(browser)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(self.reject)
         close_btn = buttons.button(QDialogButtonBox.StandardButton.Close)
         if close_btn is not None:
-            close_btn.setText("关闭")
+            close_btn.setText(t("help.close"))
         if self._manager is not None:
-            fix_btn = QPushButton("修复 Steam 无法加载")
-            fix_btn.setToolTip(
-                "Steam 普通启动时 Doorstop 可能被环境变量跳过，Mod 菜单不会出现。"
-            )
+            fix_btn = QPushButton(t("help.steam_fix"))
+            fix_btn.setToolTip(t("help.steam_fix_tip"))
             fix_btn.clicked.connect(self._apply_steam_fix)
             buttons.addButton(fix_btn, QDialogButtonBox.ButtonRole.ActionRole)
         layout.addWidget(buttons)
@@ -213,26 +308,26 @@ class ManifestDialog(QDialog):
         self._editor_data = editor_data
         self._story_ids = list(story_ids)
 
-        self.setWindowTitle("导出 Mod")
+        self.setWindowTitle(t("export.title"))
         self.resize(920, 560)
         layout = QVBoxLayout(self)
-        intro = QLabel("填写玩家能看到的信息。带“可选”的战役设置不需要时可以保持关闭。")
+        intro = QLabel(t("export.intro"))
         intro.setWordWrap(True)
         layout.addWidget(intro)
         form = QFormLayout()
         self.id_edit = QLineEdit(str(base.get("id") or "my_mod"))
-        self.name_edit = QLineEdit(str(base.get("name") or "我的剧情 Mod"))
+        self.name_edit = QLineEdit(str(base.get("name") or t("export.default_name")))
         self.version_edit = QLineEdit(str(base.get("version") or "1.0.0"))
         self.author_edit = QLineEdit(str(base.get("author") or ""))
         self.desc_edit = QLineEdit(str(base.get("description") or ""))
-        self.id_edit.setPlaceholderText("例如：my_story（小写英文、数字、_ 或 -）")
-        self.author_edit.setPlaceholderText("作者名")
-        self.desc_edit.setPlaceholderText("用一句话介绍这段剧情")
-        form.addRow("Mod 标识（英文）", self.id_edit)
-        form.addRow("Mod 名称", self.name_edit)
-        form.addRow("版本", self.version_edit)
-        form.addRow("作者", self.author_edit)
-        form.addRow("简介", self.desc_edit)
+        self.id_edit.setPlaceholderText(t("export.id_ph"))
+        self.author_edit.setPlaceholderText(t("export.author_ph"))
+        self.desc_edit.setPlaceholderText(t("export.desc_ph"))
+        form.addRow(t("export.id"), self.id_edit)
+        form.addRow(t("export.name"), self.name_edit)
+        form.addRow(t("export.version"), self.version_edit)
+        form.addRow(t("export.author"), self.author_edit)
+        form.addRow(t("export.desc"), self.desc_edit)
         # 多剧情：入口脚本从包内全部剧情脚本里选（回填 base entry / 当前 story）
         self.entry_combo = QComboBox()
         self.entry_combo.setEditable(False)
@@ -241,40 +336,33 @@ class ManifestDialog(QDialog):
         default_entry = str(base.get("entry") or story_id)
         idx = self.entry_combo.findData(default_entry)
         self.entry_combo.setCurrentIndex(idx if idx >= 0 else 0)
-        form.addRow("开始章节", self.entry_combo)
+        form.addRow(t("export.entry"), self.entry_combo)
         layout.addLayout(form)
 
         # ------------------------------------------------------ campaign 区
-        camp_box = QGroupBox("新战役与地图触发（可选）")
+        camp_box = QGroupBox(t("export.campaign"))
         cv = QVBoxLayout(camp_box)
-        self.new_game_check = QCheckBox(
-            "允许从游戏内“开始新战役”启动（使用独立存档，不影响普通存档）"
-        )
+        self.new_game_check = QCheckBox(t("export.new_game"))
         self.new_game_check.setChecked(bool(campaign.get("new_game")))
         cv.addWidget(self.new_game_check)
-        self.disable_events_check = QCheckBox(
-            "本战役关闭原版剧情事件（只触发这个 Mod 设置的地图剧情）"
-        )
+        self.disable_events_check = QCheckBox(t("export.disable_events"))
         self.disable_events_check.setChecked(
             bool(campaign.get("disable_official_events"))
         )
         cv.addWidget(self.disable_events_check)
-        trigger_help = QLabel(
-            "地图触发：玩家在自由模式点击指定地点并满足条件时，播放所选章节。"
-            "只填地点和章节即可；其余条件都可留空。"
-        )
+        trigger_help = QLabel(t("export.trigger_help"))
         trigger_help.setWordWrap(True)
         cv.addWidget(trigger_help)
         self.triggers_table = QTableWidget(0, 7)
         self.triggers_table.setHorizontalHeaderLabels(
             [
-                "地图位置",
-                "播放章节",
-                "需要已有标记",
-                "需要没有标记",
-                "月份 1～12",
-                "时段 1～3",
-                "好感条件（人物:数值）",
+                t("export.col.position"),
+                t("export.col.script"),
+                t("export.col.flag_set"),
+                t("export.col.flag_clear"),
+                t("export.col.month"),
+                t("export.col.stage"),
+                t("export.col.affinity"),
             ]
         )
         self.triggers_table.horizontalHeader().setSectionResizeMode(
@@ -287,8 +375,8 @@ class ManifestDialog(QDialog):
         self.triggers_table.setMinimumHeight(120)
         cv.addWidget(self.triggers_table)
         btns = QHBoxLayout()
-        add_btn = QPushButton("添加地图触发")
-        del_btn = QPushButton("删除最后一行")
+        add_btn = QPushButton(t("export.add_trigger"))
+        del_btn = QPushButton(t("export.del_trigger"))
         add_btn.clicked.connect(lambda: self._add_trigger_row({}))
         del_btn.clicked.connect(self._del_trigger_row)
         btns.addWidget(add_btn)
@@ -308,10 +396,10 @@ class ManifestDialog(QDialog):
         ok_btn = buttons.button(QDialogButtonBox.StandardButton.Ok)
         cancel_btn = buttons.button(QDialogButtonBox.StandardButton.Cancel)
         if ok_btn is not None:
-            ok_btn.setText("继续导出")
+            ok_btn.setText(t("export.continue"))
             mark_primary(ok_btn)  # 对话框唯一主操作：accent 染色玻璃
         if cancel_btn is not None:
-            cancel_btn.setText("取消")
+            cancel_btn.setText(t("export.cancel"))
         layout.addWidget(buttons)
 
     # ---------------------------------------------------------- triggers 表
@@ -448,23 +536,23 @@ class ManifestDialog(QDialog):
         if not models.MOD_ID_PATTERN.fullmatch(mod_id):
             QMessageBox.warning(
                 self,
-                "Mod 标识需要修改",
-                "只使用小写英文字母、数字、下划线或短横线，例如 my_story。",
+                t("export.bad_id"),
+                t("export.bad_id_msg"),
             )
             self.id_edit.setFocus()
             return
         for widget, label in (
-            (self.name_edit, "Mod 名称"),
-            (self.author_edit, "作者"),
-            (self.desc_edit, "简介"),
+            (self.name_edit, t("export.name")),
+            (self.author_edit, t("export.author")),
+            (self.desc_edit, t("export.desc")),
         ):
             if not widget.text().strip():
-                QMessageBox.warning(self, "信息没有填完", f"请填写“{label}”。")
+                QMessageBox.warning(self, t("export.incomplete"), t("export.fill", label=label))
                 widget.setFocus()
                 return
         entry = self.entry_combo.currentText().strip()
         if entry not in self._story_ids:
-            QMessageBox.warning(self, "开始章节不存在", "请从项目中的剧情章节里选择开始章节。")
+            QMessageBox.warning(self, t("export.bad_entry"), t("export.bad_entry_msg"))
             self.entry_combo.setFocus()
             return
         manifest = self.manifest()
@@ -472,18 +560,18 @@ class ManifestDialog(QDialog):
             if trig.get("script") not in self._story_ids:
                 QMessageBox.warning(
                     self,
-                    "地图触发章节不存在",
-                    f"地图触发中的章节 {trig.get('script')!r} 不在当前项目里。",
+                    t("export.bad_trigger"),
+                    t("export.bad_trigger_msg", script=repr(trig.get("script"))),
                 )
                 return
         lomc, err = get_lomc()
         if lomc is None:
-            QMessageBox.warning(self, "无法检查导出信息", f"编译器不可用：{err}")
+            QMessageBox.warning(self, t("export.no_compiler"), t("export.compiler_err", err=err))
             return
         try:
             lomc.validate_manifest(manifest, "导出设置")
         except Exception as exc:
-            QMessageBox.warning(self, "导出信息需要修改", str(exc))
+            QMessageBox.warning(self, t("export.need_fix"), str(exc))
             return
         super().accept()
 
@@ -491,7 +579,7 @@ class ManifestDialog(QDialog):
 class MainWindow(QMainWindow):
     def __init__(self, editor_data: dict, is_fallback: bool, parent=None):
         super().__init__(parent)
-        self.setWindowTitle(APP_TITLE)
+        self.setWindowTitle(_app_title())
         self.resize(1280, 760)
 
         self.editor_data = editor_data
@@ -576,7 +664,8 @@ class MainWindow(QMainWindow):
         lv.setContentsMargins(8, 8, 8, 8)
         lv.setSpacing(6)
 
-        head = QLabel("剧情")
+        head = QLabel(t("nav.story"))
+        self._nav_head = head
         head_font = QFont(head.font())
         head_font.setBold(True)
         head.setFont(head_font)
@@ -592,52 +681,65 @@ class MainWindow(QMainWindow):
         story_row.addWidget(self.story_combo, stretch=1)
         self.add_story_btn = QToolButton()
         self.add_story_btn.setText("+")
-        self.add_story_btn.setToolTip("新建章节")
+        self.add_story_btn.setToolTip(t("nav.new_chapter"))
         self.add_story_btn.clicked.connect(self._add_story_in_project)
         self.story_more_btn = QToolButton()
         self.story_more_btn.setText("…")
-        self.story_more_btn.setToolTip("章节操作")
+        self.story_more_btn.setToolTip(t("nav.chapter_ops"))
         story_menu = QMenu(self.story_more_btn)
-        story_menu.addAction("章节设置…", self._select_chapter_settings)
-        story_menu.addAction("复制章节", self._duplicate_story_in_project)
+        story_menu.addAction(t("nav.chapter_settings"), self._select_chapter_settings)
+        story_menu.addAction(t("nav.duplicate_chapter"), self._duplicate_story_in_project)
         story_menu.addSeparator()
-        story_menu.addAction("删除章节", self._delete_story_in_project)
+        story_menu.addAction(t("nav.delete_chapter"), self._delete_story_in_project)
+        self._story_menu = story_menu
         self.story_more_btn.setMenu(story_menu)
         self.story_more_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         story_row.addWidget(self.add_story_btn)
         story_row.addWidget(self.story_more_btn)
         lv.addLayout(story_row)
 
-        self.node_list = QListWidget()
+        self.node_list = StepListWidget()
         self.node_list.setObjectName("stepTree")
         self.node_list.setUniformItemSizes(False)
         self.node_list.setSpacing(2)
         self.node_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.node_list.customContextMenuRequested.connect(self._on_node_context_menu)
         self.node_list.currentRowChanged.connect(self._on_node_selected)
+        self.node_list.steps_moved.connect(self._on_steps_moved)
+        self.node_list.setToolTip(t("nav.drag_tip"))
+        rename_shortcut = QAction(self)
+        rename_shortcut.setShortcut(QKeySequence("F2"))
+        rename_shortcut.setShortcutContext(Qt.ShortcutContext.WidgetShortcut)
+        rename_shortcut.triggered.connect(self._rename_current_node)
+        self.node_list.addAction(rename_shortcut)
         lv.addWidget(self.node_list, stretch=1)
 
-        add_btn = QPushButton("+ 添加步骤")
+        add_btn = QPushButton(t("nav.add_step"))
+        self._add_step_btn = add_btn
         add_menu = QMenu(add_btn)
-        common = add_menu.addMenu("常用步骤")
-        for t in models.COMMON_NODE_TYPES:
-            cn = models.NODE_TYPE_CN.get(t, t)
-            common.addAction(cn, lambda checked=False, t=t: self._add_node(t))
+        common = add_menu.addMenu(t("nav.common_steps"))
+        for node_type in models.COMMON_NODE_TYPES:
+            cn = models.NODE_TYPE_CN.get(node_type, node_type)
+            common.addAction(cn, lambda checked=False, t=node_type: self._add_node(t))
         common.addSeparator()
-        common.addAction("汗青书结局", self._add_ending_card)
+        common.addAction(t("nav.ending_card"), self._add_ending_card)
         add_menu.addSeparator()
         for group_name, types in models.NODE_GROUPS:
             sub = add_menu.addMenu(group_name)
-            for t in types:
-                cn = models.NODE_TYPE_CN.get(t, t)
-                action = sub.addAction(cn, lambda checked=False, t=t: self._add_node(t))
-                action.setToolTip(f"内部类型：{t}")
+            for node_type in types:
+                cn = models.NODE_TYPE_CN.get(node_type, node_type)
+                action = sub.addAction(
+                    cn, lambda checked=False, t=node_type: self._add_node(t)
+                )
+                action.setToolTip(t("nav.internal_type", type=node_type))
         add_btn.setMenu(add_menu)
+        self._add_step_menu = add_menu
         add_btn.setMinimumHeight(32)
         lv.addWidget(add_btn)
 
         # 中栏：Inspector（章节设置 / 步骤属性）
         self.form = NodeForm()
+        self.form.id_change_requested.connect(self._on_id_change_requested)
         self.chapter_panel = self._build_chapter_panel()
         self.inspector = QStackedWidget()
         self.inspector.addWidget(self.chapter_panel)  # 0
@@ -658,11 +760,11 @@ class MainWindow(QMainWindow):
         sv.addLayout(self._build_stage_toolbar())
 
         self.right_tabs = QTabWidget()
-        self.right_tabs.addTab(stage_tab, "画面预览")
+        self.right_tabs.addTab(stage_tab, t("tab.preview"))
         self.flow_graph = FlowGraphPanel()
         self.flow_graph.node_activated.connect(self._on_flow_node_activated)
-        self.right_tabs.addTab(self.flow_graph, "流程图")
-        self.right_tabs.addTab(self.preview, "编译")
+        self.right_tabs.addTab(self.flow_graph, t("tab.flow"))
+        self.right_tabs.addTab(self.preview, t("tab.compile"))
         self.right_tabs.currentChanged.connect(self._on_right_tab_changed)
 
         splitter.addWidget(left)
@@ -695,7 +797,8 @@ class MainWindow(QMainWindow):
         panel = QWidget()
         root = QVBoxLayout(panel)
         root.setContentsMargins(12, 12, 12, 12)
-        title = QLabel("章节设置")
+        title = QLabel(t("chapter.title"))
+        self._chapter_title = title
         tf = QFont(title.font())
         tf.setBold(True)
         tf.setPointSize(tf.pointSize() + 2)
@@ -707,20 +810,19 @@ class MainWindow(QMainWindow):
         self.story_id_edit = QLineEdit()
         self.story_title_edit = QLineEdit()
         self.start_combo = QComboBox()
-        self.mood_check = QCheckBox("保留官方心情气泡")
-        self.mood_check.setToolTip(
-            "关闭时每次登场/对白自动隐藏圆形情绪面板（默认关闭，适合 mod 剧情）"
-        )
+        self.mood_check = QCheckBox(t("chapter.mood_check"))
+        self.mood_check.setToolTip(t("chapter.mood_tip"))
         self.story_id_edit.textChanged.connect(self._on_story_props_changed)
         self.story_title_edit.textChanged.connect(self._on_story_props_changed)
         self.start_combo.currentTextChanged.connect(self._on_start_changed)
         self.mood_check.toggled.connect(self._on_story_mood_changed)
-        self.story_id_edit.setPlaceholderText("例如：main")
-        self.story_title_edit.setPlaceholderText("玩家易懂的章节名称")
-        props.addRow("章节编号", self.story_id_edit)
-        props.addRow("章节名称", self.story_title_edit)
-        props.addRow("起始步骤", self.start_combo)
-        props.addRow("心情气泡", self.mood_check)
+        self.story_id_edit.setPlaceholderText(t("chapter.id_placeholder"))
+        self.story_title_edit.setPlaceholderText(t("chapter.name_placeholder"))
+        props.addRow(t("chapter.id"), self.story_id_edit)
+        props.addRow(t("chapter.name"), self.story_title_edit)
+        props.addRow(t("chapter.start"), self.start_combo)
+        props.addRow(t("chapter.mood"), self.mood_check)
+        self._chapter_form = props
         root.addLayout(props)
         root.addStretch(1)
         return panel
@@ -739,14 +841,14 @@ class MainWindow(QMainWindow):
             b.setMinimumWidth(56)
             return b
 
-        home_btn = text_btn("开头", "回到起始步骤")
-        prev_btn = text_btn("上一步", "上一个步骤")
+        home_btn = text_btn(t("stage.home"), t("stage.home_tip"))
+        prev_btn = text_btn(t("stage.prev"), t("stage.prev_tip"))
         self.stage_pos_label = QLabel("– / –")
         self.stage_pos_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.stage_pos_label.setMinimumWidth(48)
-        next_btn = text_btn("下一步", "下一个步骤")
-        self.auto_btn = QPushButton("播放")
-        self.auto_btn.setToolTip("自动播放（遇选项/分支/骰子暂停）")
+        next_btn = text_btn(t("stage.next"), t("stage.next_tip"))
+        self.auto_btn = QPushButton(t("stage.play"))
+        self.auto_btn.setToolTip(t("stage.play_tip"))
         self.auto_btn.setCheckable(True)
         self.auto_btn.setMinimumHeight(28)
         self.auto_btn.setMinimumWidth(64)
@@ -760,62 +862,71 @@ class MainWindow(QMainWindow):
         return bar
 
     def _build_menu(self) -> None:
-        menu = self.menuBar().addMenu("文件(&F)")
-        menu.addAction("新建", self.new_story, QKeySequence.StandardKey.New)
+        self.menuBar().clear()
+        menu = self.menuBar().addMenu(t("menu.file"))
+        menu.addAction(t("menu.new"), self.new_story, QKeySequence.StandardKey.New)
         menu.addAction(
-            "打开…", self.open_story, QKeySequence.StandardKey.Open
+            t("menu.open"), self.open_story, QKeySequence.StandardKey.Open
         )
-        self._recent_menu = menu.addMenu("最近打开")
+        self._recent_menu = menu.addMenu(t("menu.recent"))
         self._rebuild_recent_menu()
         menu.addAction(
-            "保存", self.save_story, QKeySequence.StandardKey.Save
+            t("menu.save"), self.save_story, QKeySequence.StandardKey.Save
         )
         menu.addAction(
-            "另存为…",
+            t("menu.save_as"),
             self.save_story_as,
             QKeySequence.StandardKey.SaveAs,
         )
         menu.addSeparator()
-        menu.addAction("导入 Mod…", self.import_lommod)
-        menu.addAction("导出 Mod…", self.export_lommod)
-        menu.addAction("安装管理…", self._show_mod_manager)
-        menu.addAction("用户内容库…", self._show_content_library)
+        menu.addAction(t("menu.import_mod"), self.import_lommod)
+        menu.addAction(t("menu.export_mod"), self.export_lommod)
+        menu.addAction(t("menu.install"), self._show_mod_manager)
+        menu.addAction(t("menu.content_library"), self._show_content_library)
         menu.addSeparator()
-        menu.addAction("退出", self.close)
-        edit = self.menuBar().addMenu("编辑(&E)")
-        edit.addAction("撤销", self._undo, QKeySequence.StandardKey.Undo)
-        edit.addAction("重做", self._redo, QKeySequence.StandardKey.Redo)
-        run_menu = self.menuBar().addMenu("试玩(&R)")
+        menu.addAction(t("menu.quit"), self.close)
+        edit = self.menuBar().addMenu(t("menu.edit"))
+        edit.addAction(t("menu.undo"), self._undo, QKeySequence.StandardKey.Undo)
+        edit.addAction(t("menu.redo"), self._redo, QKeySequence.StandardKey.Redo)
+        run_menu = self.menuBar().addMenu(t("menu.run"))
         run_menu.addAction(
-            "试玩",
+            t("menu.play"),
             self.play_from_current_node,
             QKeySequence("F5"),
         )
         run_menu.addAction(
-            "体检…",
+            t("menu.preflight"),
             self._check_project,
             QKeySequence("F6"),
         )
-        run_menu.addAction("流程图", self._show_flow_graph, QKeySequence("F7"))
+        run_menu.addAction(t("menu.flow"), self._show_flow_graph, QKeySequence("F7"))
         run_menu.addSeparator()
-        run_menu.addAction("重置剧情已读状态…", self._reset_read_state)
-        help_menu = self.menuBar().addMenu("帮助(&H)")
-        help_menu.addAction("帮助", self._show_help, QKeySequence("F1"))
+        run_menu.addAction(t("menu.reset_read"), self._reset_read_state)
+        lang_menu = self.menuBar().addMenu(t("lang.menu"))
+        for code, _native in LANGUAGES:
+            action = lang_menu.addAction(t(f"lang.{code}"))
+            action.setCheckable(True)
+            action.setChecked(current_language() == code)
+            action.triggered.connect(lambda checked=False, c=code: self._change_language(c))
+        help_menu = self.menuBar().addMenu(t("menu.help"))
+        help_menu.addAction(t("menu.help_item"), self._show_help, QKeySequence("F1"))
 
     def _build_toolbar(self) -> None:
         """工具栏只留高频：试玩 + 导出。其余走菜单。"""
-        bar = QToolBar("常用操作", self)
+        for old in list(self.findChildren(QToolBar)):
+            self.removeToolBar(old)
+        bar = QToolBar(t("toolbar.name"), self)
         bar.setMovable(False)
         bar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
 
-        play = QAction("▶ 试玩", self)
-        play.setToolTip("临时安装当前项目并从选中步骤进入游戏（F5）")
+        play = QAction(t("toolbar.play"), self)
+        play.setToolTip(t("toolbar.play_tip"))
         play.setShortcut(QKeySequence("F5"))
         play.triggered.connect(self.play_from_current_node)
         bar.addAction(play)
 
-        export_action = QAction("导出 Mod", self)
-        export_action.setToolTip("检查并生成可安装的 .lommod")
+        export_action = QAction(t("toolbar.export"), self)
+        export_action.setToolTip(t("toolbar.export_tip"))
         export_action.triggered.connect(self.export_lommod)
         bar.addAction(export_action)
 
@@ -823,6 +934,52 @@ class MainWindow(QMainWindow):
         export_btn = bar.widgetForAction(export_action)
         if export_btn is not None:
             mark_primary(export_btn)
+
+    def _change_language(self, code: str) -> None:
+        if code == current_language():
+            return
+        set_language(code)
+        models.refresh_labels()
+        self.game_manager.save_pref("language", code)
+        app = QApplication.instance()
+        if app is not None:
+            install_qt_translator(app)
+            app.setApplicationName(_app_title())
+        self._build_menu()
+        self._build_toolbar()
+        if hasattr(self, "_nav_head"):
+            self._nav_head.setText(t("nav.story"))
+        if hasattr(self, "_add_step_btn"):
+            self._add_step_btn.setText(t("nav.add_step"))
+            add_menu = QMenu(self._add_step_btn)
+            common = add_menu.addMenu(t("nav.common_steps"))
+            for node_type in models.COMMON_NODE_TYPES:
+                cn = models.NODE_TYPE_CN.get(node_type, node_type)
+                common.addAction(cn, lambda checked=False, nt=node_type: self._add_node(nt))
+            common.addSeparator()
+            common.addAction(t("nav.ending_card"), self._add_ending_card)
+            add_menu.addSeparator()
+            for group_name, types in models.NODE_GROUPS:
+                sub = add_menu.addMenu(group_name)
+                for node_type in types:
+                    cn = models.NODE_TYPE_CN.get(node_type, node_type)
+                    action = sub.addAction(
+                        cn, lambda checked=False, nt=node_type: self._add_node(nt)
+                    )
+                    action.setToolTip(t("nav.internal_type", type=node_type))
+            self._add_step_btn.setMenu(add_menu)
+        if hasattr(self, "_chapter_title"):
+            self._chapter_title.setText(t("chapter.title"))
+        self.mood_check.setText(t("chapter.mood_check"))
+        self.mood_check.setToolTip(t("chapter.mood_tip"))
+        self.right_tabs.setTabText(0, t("tab.preview"))
+        self.right_tabs.setTabText(1, t("tab.flow"))
+        self.right_tabs.setTabText(2, t("tab.compile"))
+        self.node_list.setToolTip(t("nav.drag_tip"))
+        keep = self._selected_node_index()
+        self._refresh_all(select_row=keep)
+        self._update_title()
+        self.statusBar().showMessage(t("lang.restart_hint"), 4000)
 
     def _show_help(self) -> None:
         HelpDialog(self, self.game_manager).exec()
@@ -864,10 +1021,10 @@ class MainWindow(QMainWindow):
         remaining_errors = sum(issue.severity == "error" for issue in dialog.issues)
         if remaining_errors:
             self.statusBar().showMessage(
-                f"体检完成：还有 {remaining_errors} 个错误需要修改", 5000
+                t("preflight.done_errors", n=remaining_errors), 5000
             )
             return False
-        self.statusBar().showMessage("体检通过，可以导出 Mod", 5000)
+        self.statusBar().showMessage(t("preflight.passed"), 5000)
         return True
 
     def _preflight_issues(self) -> list[PreflightIssue]:
@@ -892,7 +1049,11 @@ class MainWindow(QMainWindow):
             self._select_chapter_settings()
         self.node_list.setFocus()
         self.statusBar().showMessage(
-            f"已定位：章节 {issue.story_id} / 步骤 {issue.node_id or '剧情设置'}",
+            t(
+                "preflight.located",
+                story=issue.story_id,
+                node=issue.node_id or t("preflight.chapter_settings"),
+            ),
             5000,
         )
 
@@ -980,12 +1141,12 @@ class MainWindow(QMainWindow):
     def _delete_story_in_project(self) -> None:
         """从项目删除当前剧情脚本（可撤销）。"""
         if len(self._stories) <= 1:
-            QMessageBox.warning(self, APP_TITLE, "项目中至少要保留一个剧情章节")
+            QMessageBox.warning(self, _app_title(), "项目中至少要保留一个剧情章节")
             return
         if self._prompt_on_discard:
             answer = QMessageBox.question(
                 self,
-                APP_TITLE,
+                _app_title(),
                 f"确定删除章节「{self._current_id}」？可撤销。",
             )
             if answer != QMessageBox.StandardButton.Yes:
@@ -1041,9 +1202,12 @@ class MainWindow(QMainWindow):
         self.node_list.blockSignals(True)
         self.node_list.clear()
 
-        chapter = QListWidgetItem("  章节设置")
+        chapter = QListWidgetItem("  " + t("chapter.title"))
         chapter.setData(self._ROLE_KIND, "chapter")
-        chapter.setToolTip("编辑章节编号、名称、起始步骤与心情气泡")
+        chapter.setToolTip(t("nav.chapter_tip"))
+        chapter.setFlags(
+            Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+        )
         chapter.setSizeHint(QSize(0, 28))
         self.node_list.addItem(chapter)
 
@@ -1054,6 +1218,11 @@ class MainWindow(QMainWindow):
             item = QListWidgetItem(f"{bullet} {nid}  {title}\n      {detail}")
             item.setData(self._ROLE_KIND, index)
             item.setToolTip(models.node_summary(n, self.editor_data))
+            item.setFlags(
+                Qt.ItemFlag.ItemIsEnabled
+                | Qt.ItemFlag.ItemIsSelectable
+                | Qt.ItemFlag.ItemIsDragEnabled
+            )
             item.setSizeHint(QSize(0, 44))
             self.node_list.addItem(item)
 
@@ -1293,7 +1462,7 @@ class MainWindow(QMainWindow):
             or "未命名"
         )
         star = " *" if self._dirty else ""
-        self.setWindowTitle(f"{APP_TITLE} — {name}{star}")
+        self.setWindowTitle(f"{_app_title()} — {name}{star}")
 
     def _mark_saved(self) -> None:
         """当前剧情脚本已保存：仅更新该脚本的基线（多剧情各自独立）。"""
@@ -1308,12 +1477,12 @@ class MainWindow(QMainWindow):
         if not self._dirty or not self._prompt_on_discard:
             return True
         box = QMessageBox(self)
-        box.setWindowTitle(APP_TITLE)
-        box.setText("有未保存的修改，如何处理？")
+        box.setWindowTitle(_app_title())
+        box.setText(t("discard.title"))
         box.setInformativeText("导出 Mod 会保存全部章节；也可以放弃这次修改。")
-        save_btn = box.addButton("导出 Mod…", QMessageBox.ButtonRole.AcceptRole)
-        discard_btn = box.addButton("放弃修改", QMessageBox.ButtonRole.DestructiveRole)
-        box.addButton("取消", QMessageBox.ButtonRole.RejectRole)
+        save_btn = box.addButton(t("discard.save"), QMessageBox.ButtonRole.AcceptRole)
+        discard_btn = box.addButton(t("discard.discard"), QMessageBox.ButtonRole.DestructiveRole)
+        box.addButton(t("discard.cancel"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(save_btn)
         box.exec()
         clicked = box.clickedButton()
@@ -1379,7 +1548,7 @@ class MainWindow(QMainWindow):
         if not (0 <= row < len(nodes)):
             return
         if len(nodes) <= 1:
-            QMessageBox.warning(self, APP_TITLE, "至少保留一个节点")
+            QMessageBox.warning(self, _app_title(), "至少保留一个节点")
             return
         self._record_discrete()
         removed = nodes.pop(row)
@@ -1397,6 +1566,62 @@ class MainWindow(QMainWindow):
         nodes[row], nodes[to] = nodes[to], nodes[row]
         self._refresh_all(select_row=to)
 
+    def _on_steps_moved(self, from_index: int, insert_index: int) -> None:
+        nodes = self.story.get("nodes", [])
+        if not nodes:
+            return
+        if not (0 <= from_index < len(nodes)):
+            self._reload_node_list(-1)
+            self._load_form()
+            return
+        if insert_index == from_index or insert_index == from_index + 1:
+            self._reload_node_list(from_index)
+            self._load_form()
+            return
+        self._record_discrete()
+        dest = models.reorder_node(self.story, from_index, insert_index)
+        self._refresh_all(select_row=dest)
+        self.statusBar().showMessage(t("nav.moved", n=dest + 1), 2500)
+
+    def _rename_current_node(self) -> None:
+        node = self._current_node()
+        if node is None:
+            return
+        old_id = str(node.get("id") or "")
+        new_id, ok = QInputDialog.getText(
+            self,
+            t("nav.rename_title"),
+            t("nav.rename_prompt"),
+            QLineEdit.EchoMode.Normal,
+            old_id,
+        )
+        if not ok:
+            return
+        self._apply_node_rename(old_id, new_id)
+
+    def _on_id_change_requested(self, new_id: str) -> None:
+        node = self._current_node()
+        if node is None:
+            return
+        self._apply_node_rename(str(node.get("id") or ""), new_id)
+
+    def _apply_node_rename(self, old_id: str, new_id: str) -> None:
+        new_id = (new_id or "").strip()
+        if not old_id or new_id == old_id:
+            return
+        try:
+            self._record_discrete()
+            changed = models.rename_node(self.story, old_id, new_id)
+        except ValueError as exc:
+            QMessageBox.warning(self, t("nav.rename_title"), str(exc))
+            self._load_form()
+            return
+        idx = self._selected_node_index()
+        self._refresh_all(select_row=idx)
+        self.statusBar().showMessage(
+            t("nav.rename_ok", old=old_id, new=new_id, n=changed), 4000
+        )
+
     def _copy_node(self) -> None:
         """复制当前步骤并插入到其后。"""
         node = self._current_node()
@@ -1412,11 +1637,12 @@ class MainWindow(QMainWindow):
             return
         self.node_list.setCurrentItem(item)
         menu = QMenu(self)
-        menu.addAction("复制", self._copy_node)
-        menu.addAction("删除", self._delete_node)
+        menu.addAction(t("nav.rename"), self._rename_current_node)
+        menu.addAction(t("nav.copy"), self._copy_node)
+        menu.addAction(t("nav.delete"), self._delete_node)
         menu.addSeparator()
-        menu.addAction("上移", lambda: self._move_node(-1))
-        menu.addAction("下移", lambda: self._move_node(1))
+        menu.addAction(t("nav.move_up"), lambda: self._move_node(-1))
+        menu.addAction(t("nav.move_down"), lambda: self._move_node(1))
         menu.exec(self.node_list.mapToGlobal(pos))
 
     # -------------------------------------------------------------- 信号槽
@@ -1498,7 +1724,7 @@ class MainWindow(QMainWindow):
         self._flush_pending()
         node = self._current_node()
         if node is None:
-            QMessageBox.warning(self, APP_TITLE, "请先在左侧选择一个剧情步骤。")
+            QMessageBox.warning(self, _app_title(), "请先在左侧选择一个剧情步骤。")
             return False
         errors = [issue for issue in self._preflight_issues() if issue.severity == "error"]
         if errors:
@@ -1553,7 +1779,7 @@ class MainWindow(QMainWindow):
             self.game_manager.request_preview(preview_id, script_id, node_id)
             started = self.game_manager.launch_game()
         except (GameInstallError, package_io.PackError, OSError) as exc:
-            QMessageBox.critical(self, APP_TITLE, f"无法开始试玩：{exc}")
+            QMessageBox.critical(self, _app_title(), f"无法开始试玩：{exc}")
             return False
 
         if runtime_changed and was_running:
@@ -1580,14 +1806,14 @@ class MainWindow(QMainWindow):
         if self.game_manager.is_game_running():
             QMessageBox.warning(
                 self,
-                APP_TITLE,
+                _app_title(),
                 "游戏正在运行。运行中的游戏会把内存里的旧已读清单写回存档，"
                 "重置会失效。\n\n请先退出游戏，再执行此操作。",
             )
             return
         answer = QMessageBox.question(
             self,
-            APP_TITLE,
+            _app_title(),
             f"将把 mod「{mod_id}」以及 F5 试玩包的全部已读文本记录重置为未读"
             "（游戏全局存档 Save_universe.dat / .json 会被修改，自动留 .lomkit_bak 备份）。\n\n继续？",
         )
@@ -1599,19 +1825,19 @@ class MainWindow(QMainWindow):
         try:
             results = reset_story_read_state(mod_id, extra_ids=extra)
         except GameInstallError as exc:
-            QMessageBox.critical(self, APP_TITLE, f"重置失败：{exc}")
+            QMessageBox.critical(self, _app_title(), f"重置失败：{exc}")
             return
         if not results:
             QMessageBox.information(
                 self,
-                APP_TITLE,
+                _app_title(),
                 f"没有找到 mod「{mod_id}」或试玩包的已读记录（或尚未安装/游玩过）。",
             )
             return
         total = sum(count for _path, count in results)
         QMessageBox.information(
             self,
-            APP_TITLE,
+            _app_title(),
             f"已重置 {total} 条已读记录（mod「{mod_id}」及 F5 试玩包）。\n"
             "下次进入剧情时对话将显示为未读（不变黄）。",
         )
@@ -1733,7 +1959,7 @@ class MainWindow(QMainWindow):
         menu.clear()
         recents = self._load_recents()
         if not recents:
-            empty = QAction("（没有最近记录）", self)
+            empty = QAction(t("menu.recent_empty"), self)
             empty.setEnabled(False)
             menu.addAction(empty)
             return
@@ -1767,7 +1993,7 @@ class MainWindow(QMainWindow):
             self._rebuild_recent_menu()
             QMessageBox.warning(
                 self,
-                APP_TITLE,
+                _app_title(),
                 f"找不到文件，已从最近列表移除：\n{path}",
             )
             return
@@ -1804,7 +2030,7 @@ class MainWindow(QMainWindow):
         try:
             story = models.load_story(path)
         except Exception as exc:
-            QMessageBox.critical(self, APP_TITLE, f"打开失败：{exc}")
+            QMessageBox.critical(self, _app_title(), f"打开失败：{exc}")
             return
         repaired = models.normalize_character_ids([story], self.editor_data)
         self._stories = {story["id"]: story}
@@ -1854,7 +2080,7 @@ class MainWindow(QMainWindow):
         try:
             models.save_story(self.story, path)
         except Exception as exc:
-            QMessageBox.critical(self, APP_TITLE, f"保存失败：{exc}")
+            QMessageBox.critical(self, _app_title(), f"保存失败：{exc}")
             return False
         self._story_paths[self._current_id] = path
         self._mark_saved()
@@ -1877,7 +2103,7 @@ class MainWindow(QMainWindow):
         try:
             manifest, stories = package_io.import_lommod(path)
         except package_io.PackError as exc:
-            QMessageBox.critical(self, APP_TITLE, str(exc))
+            QMessageBox.critical(self, _app_title(), str(exc))
             return False
         # 包内全部剧情进项目（键以 story 内部 id 为准）
         self._stories = {str(st.get("id") or s): st for s, st in stories.items()}
@@ -1956,7 +2182,7 @@ class MainWindow(QMainWindow):
         if not models.MOD_ID_PATTERN.fullmatch(manifest["id"]):
             QMessageBox.warning(
                 self,
-                APP_TITLE,
+                _app_title(),
                 f"Mod 标识 {manifest['id']!r} 不可用（只允许小写英文、数字、_ 和 -）",
             )
             return False
@@ -1972,7 +2198,7 @@ class MainWindow(QMainWindow):
         try:
             report = package_io.export_lommod(path, manifest, self._stories)
         except package_io.PackError as exc:
-            QMessageBox.critical(self, APP_TITLE, str(exc))
+            QMessageBox.critical(self, _app_title(), str(exc))
             return False
         self.manifest = manifest
         self.manifest_base = manifest  # 导出成功后回填，下次导出保留 campaign 等配置
@@ -1997,7 +2223,7 @@ class MainWindow(QMainWindow):
             )
         QMessageBox.information(
             self,
-            APP_TITLE,
+            _app_title(),
             f"导出成功：{path}\n\n" + "\n".join(report) + install_note,
         )
         self._remember_project("lommod", Path(path), str(manifest.get("name") or Path(path).stem))
@@ -2020,8 +2246,12 @@ def main() -> int:
         smoke_preview = Path(args[at + 1])
         del args[at : at + 2]
     app = QApplication(args)
-    app.setApplicationName("活侠传 Mod 剧情编辑器")
     app.setOrganizationName("lom_modkit")
+    _pref_lang = GameInstallManager().load_pref("language")
+    init_language(_pref_lang)
+    models.refresh_labels()
+    install_qt_translator(app)
+    app.setApplicationName(_app_title())
     icon_base = (
         Path(getattr(sys, "_MEIPASS")) if models.FROZEN else EDITOR_DIR
     )

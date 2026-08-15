@@ -443,7 +443,7 @@ namespace MortalModHost
             _inTitleScene = isTitle;
             DrawEntryButton();
             if (_showMenu)
-                _windowRect = GUI.Window(WindowId, _windowRect, DrawWindow, "MortalModHost — Mod 菜单（" + _menuHotkey.Value + " 开关）");
+                _windowRect = GUI.Window(WindowId, _windowRect, DrawWindow, I18n.T("window", _menuHotkey.Value));
         }
 
         /// <summary>Free 场景左下角常驻小按钮：不依赖热键的菜单入口；菜单打开时隐藏，避免重复。</summary>
@@ -452,7 +452,7 @@ namespace MortalModHost
             if (_showMenu) return;
             Color oldColor = GUI.color;
             GUI.color = new Color(1f, 1f, 1f, 0.8f); // 半透明，尽量不显眼
-            if (GUI.Button(new Rect(10f, Screen.height - 38f, 100f, 28f), "活侠MOD"))
+            if (GUI.Button(new Rect(10f, Screen.height - 38f, 100f, 28f), I18n.T("entry")))
             {
                 _showMenu = true;
                 ClampWindowToScreen();
@@ -466,29 +466,29 @@ namespace MortalModHost
             GUILayout.BeginVertical();
             if (LoadedMods.Count == 0)
             {
-                GUILayout.Label("未发现任何 mod。把 .lommod 包放进 BepInEx/plugins/MortalModHost/mods/ 后重启游戏。");
+                GUILayout.Label(I18n.T("empty"));
             }
             else if (_inTitleScene)
             {
                 // 标题画面：尚无已加载的存档，演出剧情会缺玩家状态；只提供"开始新战役"（独立开局）
                 _scroll = GUILayout.BeginScrollView(_scroll);
-                GUILayout.Label("—— 开始新战役 ——");
+                GUILayout.Label(I18n.T("section.campaign"));
                 DrawCampaignSection();
                 GUILayout.EndScrollView();
-                GUILayout.Label("进入自由场景后，本菜单还可演出 mod 剧情。");
+                GUILayout.Label(I18n.T("title.hint"));
             }
             else
             {
                 _scroll = GUILayout.BeginScrollView(_scroll);
-                GUILayout.Label("—— 演出 mod 剧情 ——");
+                GUILayout.Label(I18n.T("section.play"));
                 foreach (var mod in LoadedMods)
                     DrawModEntry(mod);
-                GUILayout.Label("—— 开始新战役 ——");
+                GUILayout.Label(I18n.T("section.campaign"));
                 DrawCampaignSection();
                 GUILayout.EndScrollView();
             }
             GUILayout.Space(6f);
-            if (GUILayout.Button("关闭"))
+            if (GUILayout.Button(I18n.T("close")))
                 _showMenu = false;
             GUILayout.EndVertical();
             GUI.DragWindow(new Rect(0f, 0f, _windowRect.width, 20f)); // 仅标题栏可拖动，避免与关闭按钮/滚动区抢点击
@@ -506,12 +506,12 @@ namespace MortalModHost
                 GUILayout.Label(mod.Name + "  v" + mod.Version + "  by " + mod.Author);
                 if (!string.IsNullOrEmpty(mod.Description))
                     GUILayout.Label(mod.Description);
-                if (GUILayout.Button("开始新战役"))
+                if (GUILayout.Button(I18n.T("campaign.start")))
                     StartCampaign(mod);
                 GUILayout.EndVertical();
             }
             if (!any)
-                GUILayout.Label("（没有声明 campaign.new_game 的 mod）");
+                GUILayout.Label(I18n.T("campaign.none"));
         }
 
         /// <summary>
@@ -554,8 +554,8 @@ namespace MortalModHost
             GUILayout.Label(mod.Name + "  v" + mod.Version + "  by " + mod.Author);
             if (!string.IsNullOrEmpty(mod.Description))
                 GUILayout.Label(mod.Description);
-            GUILayout.Label("入口：" + mod.Entry + "（" + mod.LuaScripts.Count + " 个脚本）");
-            if (GUILayout.Button("演出"))
+            GUILayout.Label(I18n.T("entry.scripts", mod.Entry, mod.LuaScripts.Count));
+            if (GUILayout.Button(I18n.T("play")))
                 PlayMod(mod);
             GUILayout.EndVertical();
         }
