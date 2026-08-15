@@ -11,6 +11,8 @@
   其余节点末尾追加 return node_<goto 或顺序下一节点>()。
 """
 
+import math
+
 from .content import (
     default_repository_root,
     is_user_ref,
@@ -43,6 +45,8 @@ def lua_num(n):
     if isinstance(n, int):
         return str(n)
     f = float(n)
+    if not math.isfinite(f):
+        raise LomcError("内部错误：数值必须是有限值")
     if f.is_integer() and abs(f) < 1e15:
         return str(int(f))
     return repr(f)
@@ -1112,8 +1116,9 @@ def story_to_lua(story, mod_info=None, source=None, content_root=None):
             # 显式 goto 覆盖顺序流（契约 §3）；校验已保证目标存在
             goto = node.get("goto")
             if goto is None:
-                goto = nodes[i + 1]["id"]
-            lines.append("\treturn node_%s()" % goto)
+                goto = nodes[i + 1]["id"] if i + 1 < len(nodes) else None
+            if goto is not None:
+                lines.append("\treturn node_%s()" % goto)
         lines.append("end")
         lines.append("")
 

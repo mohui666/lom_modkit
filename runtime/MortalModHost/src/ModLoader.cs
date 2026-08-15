@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace MortalModHost
@@ -18,6 +19,14 @@ namespace MortalModHost
 
         /// <summary>用户音频单条上限（与 compiler/lomc/content.py 一致）。</summary>
         private const long MaxAudioBytes = ContentRef.MaxAudioBytes;
+
+        /// <summary>包结构防护：避免畸形 zip 以海量条目或超高解压比耗尽内存。</summary>
+        private const int MaxArchiveEntries = 2048;
+        private const long MaxEntryBytes = 32L * 1024 * 1024;
+        private const long MaxArchiveBytes = 128L * 1024 * 1024;
+        private const long MaxTextBytes = 4L * 1024 * 1024;
+        private const long MaxPackageFileBytes = 160L * 1024 * 1024;
+        private const int MaxIdentifierLength = 64;
 
         /// <summary>结局卡背景图允许的扩展名（契约 §3.1）。</summary>
         private static bool IsImageAsset(string path)
@@ -71,14 +80,24 @@ namespace MortalModHost
         private static ModPackage LoadPackage(string path, Action<string> logWarn)
         {
             using (var stream = File.OpenRead(path))
-            using (var zip = new ZipArchive(stream, ZipArchiveMode.Read))
             {
-                var manifestEntry = zip.GetEntry("manifest.json");
-                if (manifestEntry == null)
-                    throw new FormatException("包内缺少 manifest.json");
+                if (stream.Length > MaxPackageFileBytes)
+                    throw new FormatException("mod 包文件超过 160MB 上限");
+                string fingerprint;
+                using (var sha256 = SHA256.Create())
+                    fingerprint = ToUpperHex(sha256.ComputeHash(stream));
+                stream.Position = 0;
 
-                var package = ParseManifest(ReadEntryText(manifestEntry));
-                package.PackagePath = path;
+                using (var zip = new ZipArchive(stream, ZipArchiveMode.Read))
+                {
+                    ValidateArchiveLimits(zip);
+                    var manifestEntry = zip.GetEntry("manifest.json");
+                    if (manifestEntry == null)
+                        throw new FormatException("包内缺少 manifest.json");
+
+                    var package = ParseManifest(ReadEntryText(manifestEntry));
+                    package.PackagePath = path;
+                    package.PackageFingerprint = fingerprint;
 
                 // 收集 lua/<id>.lua（仅 lua/ 直接子项，契约 §1）
                 foreach (var entry in zip.Entries)
@@ -89,6 +108,8 @@ namespace MortalModHost
                     if (!rest.EndsWith(".lua", StringComparison.OrdinalIgnoreCase)) continue;
                     string scriptId = rest.Substring(0, rest.Length - 4);
                     if (scriptId.Length == 0) continue;
+                    if (!IsValidScriptId(scriptId))
+                        throw new FormatException("lua 脚本 id 非法：" + scriptId);
                     package.LuaScripts[scriptId] = ReadEntryText(entry);
                 }
 
@@ -128,10 +149,8 @@ namespace MortalModHost
                     try
                     {
                         using (var input = entry.Open())
-                        using (var ms = new MemoryStream())
                         {
-                            input.CopyTo(ms);
-                            package.Assets[NormalizeAssetPath(entry.FullName)] = ms.ToArray();
+                            package.Assets[NormalizeAssetPath(entry.FullName)] = ReadBoundedBytes(input, MaxEndingImageBytes, entry.FullName);
                         }
                     }
                     catch (Exception ex)
@@ -157,8 +176,17 @@ namespace MortalModHost
                     }
                 }
 
-                return package;
+                    return package;
+                }
             }
+        }
+
+        private static string ToUpperHex(byte[] bytes)
+        {
+            var text = new StringBuilder(bytes.Length * 2);
+            for (int i = 0; i < bytes.Length; i++)
+                text.Append(bytes[i].ToString("X2"));
+            return text.ToString();
         }
 
         /// <summary>解析 manifest.json，校验契约 §2 的必填字段。</summary>
@@ -174,17 +202,49 @@ namespace MortalModHost
             if (!root.TryGetValue("format", out formatObj) || !(formatObj is double) || (format = (double)formatObj) != 1.0)
                 throw new FormatException("manifest.format 不是 1（本插件只支持格式 v1）");
 
+            string id = GetString(root, "id", required: true);
+            string entry = GetString(root, "entry", required: true);
+            if (!IsValidModId(id))
+                throw new FormatException("manifest.id 必须匹配 [a-z0-9_-]{1,64}");
+            if (!IsValidScriptId(entry))
+                throw new FormatException("manifest.entry 必须匹配 [A-Za-z0-9_-]{1,64}");
+
             var package = new ModPackage
             {
-                Id = GetString(root, "id", required: true),
+                Id = id,
                 Name = GetString(root, "name", required: false) ?? "",
                 Version = GetString(root, "version", required: false) ?? "",
                 Author = GetString(root, "author", required: false) ?? "",
                 Description = GetString(root, "description", required: false) ?? "",
-                Entry = GetString(root, "entry", required: true),
+                Entry = entry,
                 Campaign = ParseCampaign(root)
             };
             return package;
+        }
+
+        private static bool IsValidModId(string value)
+        {
+            if (string.IsNullOrEmpty(value) || value.Length > MaxIdentifierLength) return false;
+            for (int i = 0; i < value.Length; i++)
+            {
+                char c = value[i];
+                if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' || c == '-'))
+                    return false;
+            }
+            return true;
+        }
+
+        private static bool IsValidScriptId(string value)
+        {
+            if (string.IsNullOrEmpty(value) || value.Length > MaxIdentifierLength) return false;
+            for (int i = 0; i < value.Length; i++)
+            {
+                char c = value[i];
+                if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+                    || (c >= '0' && c <= '9') || c == '_' || c == '-'))
+                    return false;
+            }
+            return true;
         }
 
         /// <summary>解析可选的 campaign 段（契约 §2）；无该段返回 null，结构非法抛 FormatException。</summary>
@@ -275,12 +335,15 @@ namespace MortalModHost
             if (affinity == null)
                 throw new FormatException("manifest 触发器 when_affinity 必须是对象");
             object minObj;
-            if (!affinity.TryGetValue("min", out minObj) || !(minObj is double) || (double)minObj % 1 != 0 || (double)minObj < 0)
-                throw new FormatException("manifest 触发器 when_affinity.min 必须是非负整数");
+            double min;
+            if (!affinity.TryGetValue("min", out minObj) || !(minObj is double)
+                || double.IsNaN(min = (double)minObj) || double.IsInfinity(min)
+                || min % 1 != 0 || min < int.MinValue || min > int.MaxValue)
+                throw new FormatException("manifest 触发器 when_affinity.min 必须是 Int32 范围内的整数");
             return new AffinityCondition
             {
                 Character = GetString(affinity, "character", required: true),
-                Min = (int)(double)minObj
+                Min = (int)min
             };
         }
 
@@ -431,7 +494,7 @@ namespace MortalModHost
                 throw new FormatException("用户音频只支持 .ogg / .wav");
 
             string audioPath = expectedDir + "/" + mainFile;
-            byte[] bytes = ReadZipBytes(entries, audioPath, MaxAudioBytes, "音频");
+            byte[] bytes = ReadZipBytes(package, entries, audioPath, MaxAudioBytes, "音频");
             return new UserContent
             {
                 Id = id,
@@ -481,12 +544,12 @@ namespace MortalModHost
             {
                 string path = expectedDir + "/" + pair.Value;
                 if (!fileBytes.ContainsKey(pair.Value))
-                    fileBytes[pair.Value] = ReadZipBytes(entries, path, 8L * 1024 * 1024, "立绘");
+                    fileBytes[pair.Value] = ReadZipBytes(package, entries, path, 8L * 1024 * 1024, "立绘");
             }
             byte[] mainBytes;
             if (!fileBytes.TryGetValue(mainFile, out mainBytes))
             {
-                mainBytes = ReadZipBytes(entries, expectedDir + "/" + mainFile, 8L * 1024 * 1024, "立绘");
+                mainBytes = ReadZipBytes(package, entries, expectedDir + "/" + mainFile, 8L * 1024 * 1024, "立绘");
                 fileBytes[mainFile] = mainBytes;
             }
 
@@ -560,21 +623,29 @@ namespace MortalModHost
         }
 
         private static byte[] ReadZipBytes(
+            ModPackage package,
             Dictionary<string, ZipArchiveEntry> entries,
             string path,
             long maxBytes,
             string label)
         {
+            byte[] cached;
+            if (package.Assets.TryGetValue(NormalizeAssetPath(path), out cached))
+            {
+                if (cached.LongLength > maxBytes)
+                    throw new FormatException(label + "超过上限：" + path);
+                if (cached.Length == 0)
+                    throw new FormatException(label + "文件为空：" + path);
+                return cached;
+            }
             ZipArchiveEntry entry;
             if (!entries.TryGetValue(path, out entry))
                 throw new FormatException("缺少" + label + "文件 " + path);
             if (entry.Length > maxBytes)
                 throw new FormatException(label + "超过上限：" + path);
             using (var input = entry.Open())
-            using (var ms = new MemoryStream())
             {
-                input.CopyTo(ms);
-                byte[] bytes = ms.ToArray();
+                byte[] bytes = ReadBoundedBytes(input, maxBytes, path);
                 if (bytes.Length == 0)
                     throw new FormatException(label + "文件为空：" + path);
                 return bytes;
@@ -583,8 +654,55 @@ namespace MortalModHost
 
         private static string ReadEntryText(ZipArchiveEntry entry)
         {
-            using (var reader = new StreamReader(entry.Open(), Encoding.UTF8))
-                return reader.ReadToEnd();
+            if (entry.Length > MaxTextBytes)
+                throw new FormatException("文本条目超过 4MB 上限：" + entry.FullName);
+            using (var input = entry.Open())
+            {
+                byte[] bytes = ReadBoundedBytes(input, MaxTextBytes, entry.FullName);
+                try
+                {
+                    string text = new UTF8Encoding(false, true).GetString(bytes);
+                    return text.Length > 0 && text[0] == '\uFEFF' ? text.Substring(1) : text;
+                }
+                catch (DecoderFallbackException)
+                {
+                    throw new FormatException("文本条目不是合法 UTF-8：" + entry.FullName);
+                }
+            }
+        }
+
+        private static void ValidateArchiveLimits(ZipArchive zip)
+        {
+            if (zip.Entries.Count > MaxArchiveEntries)
+                throw new FormatException("包内条目数超过 " + MaxArchiveEntries + " 上限");
+            long total = 0;
+            foreach (var entry in zip.Entries)
+            {
+                if (entry.Length < 0 || entry.Length > MaxEntryBytes)
+                    throw new FormatException("包内条目超过 32MB 上限：" + entry.FullName);
+                if (total > MaxArchiveBytes - entry.Length)
+                    throw new FormatException("包内总未压缩大小超过 128MB 上限");
+                total += entry.Length;
+            }
+        }
+
+        private static byte[] ReadBoundedBytes(Stream input, long maxBytes, string path)
+        {
+            using (var ms = new MemoryStream())
+            {
+                var buffer = new byte[81920];
+                long total = 0;
+                while (true)
+                {
+                    int read = input.Read(buffer, 0, buffer.Length);
+                    if (read == 0) break;
+                    if (total > maxBytes - read)
+                        throw new FormatException("条目读取超过大小上限：" + path);
+                    ms.Write(buffer, 0, read);
+                    total += read;
+                }
+                return ms.ToArray();
+            }
         }
     }
 }

@@ -9,16 +9,20 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 from i18n import t, term
 
-# story 脚本 id / 节点 id 规则（契约 §1）
-ID_PATTERN = re.compile(r"^[a-zA-Z0-9_\-]+$")
+# story 脚本 id 规则（契约 §1）
+ID_PATTERN = re.compile(r"^[a-zA-Z0-9_\-]{1,64}$")
+# 节点 id 会拼进 Lua 函数名，不能包含短横线。
+NODE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_]+$")
 # manifest mod id 比 story id 更严格：运行时注册名与包格式只接受小写。
-MOD_ID_PATTERN = re.compile(r"^[a-z0-9_\-]+$")
+MOD_ID_PATTERN = re.compile(r"^[a-z0-9_\-]{1,64}$")
 CHARACTER_DISPLAY_PATTERN = re.compile(r"^.*（([a-zA-Z0-9_\-]+)）$")
 
 # ---------------------------------------------------------------------------
@@ -1083,10 +1087,28 @@ def load_story(path: Path) -> dict:
 
 
 def save_story(story: dict, path: Path) -> None:
-    """写出 story.json（UTF-8、缩进 2、保留中文）。"""
-    Path(path).write_text(
-        json.dumps(story, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-    )
+    """原子写出 story.json；失败时保留原文件并清理临时文件。"""
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(story, ensure_ascii=False, indent=2) + "\n"
+    temp_path = None
+    try:
+        fd, raw_temp = tempfile.mkstemp(
+            prefix=target.name + ".", suffix=".tmp", dir=str(target.parent)
+        )
+        temp_path = Path(raw_temp)
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temp_path, target)
+        temp_path = None
+    finally:
+        if temp_path is not None:
+            try:
+                temp_path.unlink()
+            except OSError:
+                pass
 
 
 _GOTO_KEYS = ("goto", "goto_大成功", "goto_成功", "goto_失败")
@@ -1138,8 +1160,8 @@ def rename_node(story: dict, old_id: str, new_id: str) -> int:
         raise ValueError("原节点编号为空")
     if old_id == new_id:
         return 0
-    if not ID_PATTERN.fullmatch(new_id):
-        raise ValueError("节点编号只使用英文字母、数字、下划线或短横线")
+    if not NODE_ID_PATTERN.fullmatch(new_id):
+        raise ValueError("节点编号只使用英文字母、数字或下划线")
     ids = [n.get("id") for n in story.get("nodes") or [] if isinstance(n, dict)]
     if old_id not in ids:
         raise ValueError("节点不存在: %s" % old_id)
@@ -1169,7 +1191,7 @@ def make_node_id(story: dict, node_type: str | None = None, prefix: str | None =
     旧故事里的 n1/n2 保持不动。prefix 仍可用，便于试玩前导等特殊编号。
     """
     stem = (prefix or node_type or "n").strip()
-    if not ID_PATTERN.fullmatch(stem):
+    if not NODE_ID_PATTERN.fullmatch(stem):
         stem = "n"
     used = {n.get("id") for n in story.get("nodes", [])}
     i = 1

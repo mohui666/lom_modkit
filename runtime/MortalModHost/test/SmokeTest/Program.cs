@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace MortalModHost
@@ -20,7 +22,8 @@ namespace MortalModHost
             Directory.CreateDirectory(modsDir);
             try
             {
-                WriteGoodPackage(Path.Combine(modsDir, "demo_mod.lommod"));
+                string demoPackagePath = Path.Combine(modsDir, "demo_mod.lommod");
+                WriteGoodPackage(demoPackagePath);
                 File.WriteAllText(Path.Combine(modsDir, "badzip.lommod"), "这不是 zip");            // 坏 zip
                 WriteZip(Path.Combine(modsDir, "nomanifest.lommod"),                             // 缺 manifest
                     ("lua/main.lua", "say(\"hi\")"));
@@ -41,6 +44,10 @@ namespace MortalModHost
                 Assert(mods.Count == 2, "应加载 2 个好包，实际 " + mods.Count);
                 var mod = mods.First(m => m.Id == "demo_mod");
                 Assert(mod.Id == "demo_mod", "id 解析错误：" + mod.Id);
+                Assert(mod.PackageFingerprint == ComputeFileSha256(demoPackagePath),
+                    "包指纹必须等于最终 .lommod 原始字节的 SHA-256");
+                Assert(mod.PackageFingerprint.Length == 64 && mod.PackageFingerprint.All(IsUpperHex),
+                    "包指纹必须是 64 位大写十六进制");
                 Assert(mod.Name == "示例 Mod", "name 解析错误（含中文）：" + mod.Name);
                 Assert(mod.Version == "1.0.0", "version 解析错误：" + mod.Version);
                 Assert(mod.Author == "somebody", "author 解析错误：" + mod.Author);
@@ -88,6 +95,19 @@ namespace MortalModHost
                 Assert(ModRegistry.Count == 2, "注册表应含 2 个脚本，实际 " + ModRegistry.Count);
                 Assert(warnings.Count == 6, "注册名冲突应新增 1 条警告，实际共 " + warnings.Count + "：" + string.Join(" | ", warnings));
 
+                // 分隔符碰撞也必须按整包拒绝：a_b/c 与 a/b_c 都会生成 MOD_a_b_c。
+                var left = new ModPackage { Id = "a_b", Entry = "c" };
+                left.LuaScripts["c"] = "say(\"left\")";
+                var right = new ModPackage { Id = "a", Entry = "b_c" };
+                right.LuaScripts["b_c"] = "say(\"right\")";
+                var collisionWarnings = new List<string>();
+                ModRegistry.Rebuild(new ModPackage[] { left, right }, collisionWarnings.Add);
+                Assert(ModRegistry.Count == 1 && ModRegistry.IsPackageFullyRegistered(left)
+                    && !ModRegistry.IsPackageFullyRegistered(right),
+                    "跨 id/script 的注册名碰撞必须原子拒绝后加载整包");
+                Assert(collisionWarnings.Count == 1 && collisionWarnings[0].Contains("整包忽略"),
+                    "原子拒绝注册名碰撞应给出明确警告");
+
                 // HotkeyMigration：cfg 里旧默认 F9 → F8，其余内容一律不动
                 string migrated;
                 Assert(HotkeyMigration.TryRewriteLegacyHotkey("[General]\nMenuHotkey = F9\n", out migrated)
@@ -102,14 +122,18 @@ namespace MortalModHost
                 Assert(!HotkeyMigration.TryRewriteLegacyHotkey("", out migrated), "空文本不应动");
 
                 TestCampaign();
+                TestArchiveLimits();
+                TestManifestIdentifiers();
+                TestPackageFingerprint();
                 TestPreviewRequest(modsDir);
                 TestUserContent();
+                TestDisclosurePolicy();
 
                 Console.WriteLine("--- 扫描信息 ---");
                 infos.ForEach(Console.WriteLine);
                 Console.WriteLine("--- 坏包/容错警告（预期 5 条，另 1 条注册冲突） ---");
                 warnings.ForEach(Console.WriteLine);
-                Console.WriteLine("PASS: 2 个好包解析正确（texts.json 含中文/转义文本 + 坏 texts.json 容错 + assets/ 图片读入与超限跳过），4 个坏包/坏文件警告跳过，注册表查找/包查找/冲突处理正确，热键迁移改写正确，campaign 解析/触发器条件（含 when_month/when_stage/when_affinity/disable_official_events）正确。");
+                Console.WriteLine("PASS: 2 个好包解析正确（texts.json 含中文/转义文本 + 坏 texts.json 容错 + assets/ 图片读入与超限跳过），4 个坏包/坏文件警告跳过，注册表查找/包查找/冲突处理正确，热键迁移改写正确，campaign 解析/触发器条件（含 when_month/when_stage/when_affinity/disable_official_events）正确，非官方剧情披露场景策略正确。");
                 return 0;
             }
             finally
@@ -143,7 +167,7 @@ namespace MortalModHost
             {
                 // 好包：new_game + disable_official_events + 两个触发器（一个带 when_flag_set + 时间/好感条件，一个带 when_flag_clear）
                 WriteZip(Path.Combine(modsDir, "campaign_ok.lommod"),
-                    ("manifest.json", "{\"format\":1,\"id\":\"camp\",\"name\":\"战役\",\"version\":\"1.0\",\"entry\":\"main\",\"campaign\":{\"new_game\":true,\"disable_official_events\":true,\"triggers\":[{\"type\":\"position\",\"position\":\"Center\",\"script\":\"train\",\"when_flag_set\":\"F_A\",\"when_month\":4,\"when_stage\":1,\"when_affinity\":{\"character\":\"brother4\",\"min\":3}},{\"type\":\"position\",\"position\":\"Door\",\"script\":\"gate\",\"when_flag_clear\":\"F_B\"}]}}"),
+                    ("manifest.json", "{\"format\":1,\"id\":\"camp\",\"name\":\"战役\",\"version\":\"1.0\",\"entry\":\"main\",\"campaign\":{\"new_game\":true,\"disable_official_events\":true,\"triggers\":[{\"type\":\"position\",\"position\":\"Center\",\"script\":\"train\",\"when_flag_set\":\"F_A\",\"when_month\":4,\"when_stage\":1,\"when_affinity\":{\"character\":\"brother4\",\"min\":-3}},{\"type\":\"position\",\"position\":\"Door\",\"script\":\"gate\",\"when_flag_clear\":\"F_B\"}]}}"),
                     ("lua/main.lua", "say(\"m\")"),
                     ("lua/train.lua", "say(\"t\")"),
                     ("lua/gate.lua", "say(\"g\")"));
@@ -167,11 +191,17 @@ namespace MortalModHost
                 WriteZip(Path.Combine(modsDir, "campaign_baddisable.lommod"),
                     ("manifest.json", "{\"format\":1,\"id\":\"baddisable\",\"entry\":\"main\",\"campaign\":{\"disable_official_events\":\"yes\"}}"),
                     ("lua/main.lua", "say(\"m\")"));
+                WriteZip(Path.Combine(modsDir, "campaign_fractionalaffinity.lommod"),
+                    ("manifest.json", "{\"format\":1,\"id\":\"fractional\",\"entry\":\"main\",\"campaign\":{\"triggers\":[{\"type\":\"position\",\"position\":\"Mall\",\"script\":\"main\",\"when_affinity\":{\"character\":\"brother4\",\"min\":1.5}}]}}"),
+                    ("lua/main.lua", "say(\"m\")"));
+                WriteZip(Path.Combine(modsDir, "campaign_overflowaffinity.lommod"),
+                    ("manifest.json", "{\"format\":1,\"id\":\"overflow\",\"entry\":\"main\",\"campaign\":{\"triggers\":[{\"type\":\"position\",\"position\":\"Mall\",\"script\":\"main\",\"when_affinity\":{\"character\":\"brother4\",\"min\":2147483648}}]}}"),
+                    ("lua/main.lua", "say(\"m\")"));
 
                 var warnings = new List<string>();
                 var mods = ModLoader.ScanMods(modsDir, _ => { }, warnings.Add);
                 Assert(mods.Count == 2, "应加载 2 个包，实际 " + mods.Count + "：" + string.Join(" | ", warnings));
-                Assert(warnings.Count == 5, "应有 5 条警告，实际 " + warnings.Count + "：" + string.Join(" | ", warnings));
+                Assert(warnings.Count == 7, "应有 7 条警告，实际 " + warnings.Count + "：" + string.Join(" | ", warnings));
 
                 var ok = mods[0].Id == "badtrig" ? mods[1] : mods[0];
                 Assert(ok.Id == "camp", "campaign_ok 应加载，实际 " + ok.Id);
@@ -183,7 +213,7 @@ namespace MortalModHost
                     "触发器 0 字段错误：" + t0.Position + "/" + t0.Script + "/" + t0.WhenFlagSet + "/" + t0.WhenFlagClear);
                 Assert(t0.WhenMonth == 4, "触发器 0 when_month 应为 4，实际 " + (t0.WhenMonth == null ? "null" : t0.WhenMonth.Value.ToString()));
                 Assert(t0.WhenStage == 1, "触发器 0 when_stage 应为 1");
-                Assert(t0.WhenAffinity != null && t0.WhenAffinity.Character == "brother4" && t0.WhenAffinity.Min == 3,
+                Assert(t0.WhenAffinity != null && t0.WhenAffinity.Character == "brother4" && t0.WhenAffinity.Min == -3,
                     "触发器 0 when_affinity 解析错误");
                 // 无条件触发器的 when_month/when_stage/when_affinity 应为 null（未写字段不解析）
                 var t1 = ok.Campaign.Triggers[1];
@@ -216,8 +246,118 @@ namespace MortalModHost
                 Assert(PositionNameMap.ToContractId("無") == null, "無 不应有映射");
                 Assert(PositionNameMap.ToContractId("不存在的") == null && PositionNameMap.ToContractId(null) == null, "未知名应返回 null");
 
-                Console.WriteLine("--- campaign 警告（预期 5 条） ---");
+                Console.WriteLine("--- campaign 警告（预期 7 条） ---");
                 warnings.ForEach(Console.WriteLine);
+            }
+            finally
+            {
+                Directory.Delete(modsDir, recursive: true);
+            }
+        }
+
+        private static void TestArchiveLimits()
+        {
+            string modsDir = Path.Combine(Path.GetTempPath(), "lommod_limits_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(modsDir);
+            try
+            {
+                string tooMany = Path.Combine(modsDir, "too_many.lommod");
+                using (var stream = File.Create(tooMany))
+                using (var zip = new ZipArchive(stream, ZipArchiveMode.Create))
+                {
+                    for (int i = 0; i < 2049; i++)
+                        zip.CreateEntry("empty/" + i);
+                }
+
+                string hugeText = Path.Combine(modsDir, "huge_text.lommod");
+                using (var stream = File.Create(hugeText))
+                using (var zip = new ZipArchive(stream, ZipArchiveMode.Create))
+                {
+                    var manifest = zip.CreateEntry("manifest.json");
+                    using (var writer = new StreamWriter(manifest.Open(), new UTF8Encoding(false)))
+                        writer.Write("{\"format\":1,\"id\":\"huge\",\"entry\":\"main\"}");
+                    var lua = zip.CreateEntry("lua/main.lua", CompressionLevel.Optimal);
+                    using (var output = lua.Open())
+                    {
+                        byte[] block = new byte[8192];
+                        for (int i = 0; i < 513; i++) output.Write(block, 0, block.Length);
+                    }
+                }
+
+                string deepJson = Path.Combine(modsDir, "deep_json.lommod");
+                string nested = new string('[', 129) + "0" + new string(']', 129);
+                WriteZip(deepJson,
+                    ("manifest.json", "{\"format\":1,\"id\":\"deep\",\"entry\":\"main\",\"extra\":" + nested + "}"),
+                    ("lua/main.lua", "say(\"m\")"));
+
+                var warnings = new List<string>();
+                var mods = ModLoader.ScanMods(modsDir, _ => { }, warnings.Add);
+                Assert(mods.Count == 0, "超限包不应加载");
+                Assert(warnings.Count == 3, "三种包结构上限应各产生一条警告：" + string.Join(" | ", warnings));
+                Assert(warnings.Any(x => x.Contains("条目数超过")), "应报告条目数上限");
+                Assert(warnings.Any(x => x.Contains("文本条目超过")), "应报告文本条目上限");
+                Assert(warnings.Any(x => x.Contains("JSON 嵌套层数超过")), "应报告 JSON 嵌套上限");
+            }
+            finally
+            {
+                Directory.Delete(modsDir, recursive: true);
+            }
+        }
+
+        private static void TestManifestIdentifiers()
+        {
+            string modsDir = Path.Combine(Path.GetTempPath(), "lommod_ids_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(modsDir);
+            try
+            {
+                WriteZip(Path.Combine(modsDir, "bad_id.lommod"),
+                    ("manifest.json", "{\"format\":1,\"id\":\"Official/../fake\",\"entry\":\"main\"}"),
+                    ("lua/main.lua", "say(\"x\")"));
+                WriteZip(Path.Combine(modsDir, "bad_entry.lommod"),
+                    ("manifest.json", "{\"format\":1,\"id\":\"safe_id\",\"entry\":\"../main\"}"),
+                    ("lua/main.lua", "say(\"x\")"));
+                WriteZip(Path.Combine(modsDir, "bad_script.lommod"),
+                    ("manifest.json", "{\"format\":1,\"id\":\"safe_id2\",\"entry\":\"main\"}"),
+                    ("lua/main.lua", "say(\"x\")"),
+                    ("lua/bad name.lua", "say(\"y\")"));
+
+                var warnings = new List<string>();
+                var mods = ModLoader.ScanMods(modsDir, _ => { }, warnings.Add);
+                Assert(mods.Count == 0, "运行时必须拒绝绕过编译器的非法 id/entry/script id");
+                Assert(warnings.Count == 3, "三个非法标识包应各报告一次：" + string.Join(" | ", warnings));
+            }
+            finally
+            {
+                Directory.Delete(modsDir, recursive: true);
+            }
+        }
+
+        private static void TestPackageFingerprint()
+        {
+            string modsDir = Path.Combine(Path.GetTempPath(), "lommod_sha_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(modsDir);
+            try
+            {
+                string first = Path.Combine(modsDir, "a.lommod");
+                WriteZip(first,
+                    ("manifest.json", "{\"format\":1,\"id\":\"sha_a\",\"name\":\"A\",\"entry\":\"main\",\"official\":true,\"verified\":true,\"sha256\":\"FAKE\"}"),
+                    ("lua/main.lua", "say(\"one\")"));
+                string copied = Path.Combine(modsDir, "b.lommod");
+                File.Copy(first, copied);
+                string changed = Path.Combine(modsDir, "c.lommod");
+                WriteZip(changed,
+                    ("manifest.json", "{\"format\":1,\"id\":\"sha_c\",\"name\":\"C\",\"entry\":\"main\"}"),
+                    ("lua/main.lua", "say(\"two\")"));
+
+                var mods = ModLoader.ScanMods(modsDir, _ => { }, _ => { });
+                Assert(mods.Count == 3, "指纹测试包应全部加载");
+                ModPackage a = mods.First(x => x.Id == "sha_a");
+                ModPackage b = mods.First(x => x.PackagePath.EndsWith("b.lommod", StringComparison.OrdinalIgnoreCase));
+                ModPackage c = mods.First(x => x.Id == "sha_c");
+                Assert(a.PackageFingerprint == b.PackageFingerprint, "逐字节复制或改文件名不能改变内容指纹");
+                Assert(a.PackageFingerprint != c.PackageFingerprint, "包内容改变后指纹必须改变");
+                Assert(a.PackageFingerprint == ComputeFileSha256(first), "Host 指纹应与独立 SHA-256 计算一致");
+                Assert(a.PackageFingerprint != "FAKE", "manifest 自报 official/verified/sha256 不得覆盖 Host 指纹");
             }
             finally
             {
@@ -379,11 +519,88 @@ namespace MortalModHost
                     && ch.Scale == 80
                     && ch.ArtFacing == "right",
                     "自定义角色应解析 portraits、立绘字节、体型与原图朝向");
+                Assert(object.ReferenceEquals(
+                        ch.Files["normal.png"],
+                        charMods[0].Assets["assets/user/character/mohui.luoxue/normal.png"])
+                    && object.ReferenceEquals(
+                        ch.Files["happy.png"],
+                        charMods[0].Assets["assets/user/character/mohui.luoxue/happy.png"]),
+                    "用户角色图片在 Assets 与 Files 间应复用同一字节数组，不能重复占用内存");
             }
             finally
             {
                 Directory.Delete(charDir, recursive: true);
             }
+        }
+
+        /// <summary>
+        /// 可见披露只在官方枢纽（Title / Free）关掉；Loading 必须保持，否则进死亡/结局卡时标已经没了。
+        /// </summary>
+        private static void TestDisclosurePolicy()
+        {
+            Assert(ModDisclosurePolicy.ShouldKeepOnScene("Story"), "Story 应保持披露");
+            Assert(ModDisclosurePolicy.ShouldKeepOnScene("GameOver"), "GameOver 应保持披露");
+            Assert(ModDisclosurePolicy.ShouldKeepOnScene("End"), "End 应保持披露");
+            Assert(ModDisclosurePolicy.ShouldKeepOnScene("Loading"), "Loading 应保持披露");
+            Assert(ModDisclosurePolicy.ShouldKeepOnScene("Battle"), "Battle 应保持披露");
+            Assert(ModDisclosurePolicy.ShouldKeepOnScene(null), "未知场景应保持披露");
+            Assert(ModDisclosurePolicy.ShouldKeepOnScene(""), "空场景名应保持披露");
+            Assert(!ModDisclosurePolicy.ShouldKeepOnScene("Title"), "Title 应关闭披露");
+            Assert(!ModDisclosurePolicy.ShouldKeepOnScene("Free"), "Free 应关闭披露");
+            Assert(ModDisclosurePolicy.ShouldDeferHostDisable(true), "披露活动时必须延迟总开关禁用");
+            Assert(!ModDisclosurePolicy.ShouldDeferHostDisable(false), "无披露时应立即允许禁用");
+            Assert(ModDisclosurePolicy.LabelKey == "disclosure.label", "文案 key 应变");
+
+            const string fingerprint = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
+            Assert(ModDisclosurePolicy.IsValidPackageFingerprint(fingerprint), "64 位十六进制 SHA-256 应合法");
+            Assert(!ModDisclosurePolicy.IsValidPackageFingerprint("abcdef")
+                && !ModDisclosurePolicy.IsValidPackageFingerprint(new string('Z', 64)),
+                "短指纹和非十六进制指纹必须拒绝");
+            Assert(ModDisclosurePolicy.ShortFingerprint(fingerprint) == "ABCDEF0123456789",
+                "界面必须显示 SHA-256 前 16 位，不能退回过短指纹");
+
+            string dirty = "  ＜color=red＞官\r\n\t方\0\u202E\u2066\u200B  名＜/color＞  ";
+            string clean = ModDisclosurePolicy.SanitizeDisplayText(dirty, 40);
+            Assert(!clean.Contains('<') && !clean.Contains('>') && !clean.Any(char.IsControl)
+                && !clean.Any(c => CharUnicodeInfo.GetUnicodeCategory(c) == UnicodeCategory.Format)
+                && clean.IndexOf('\r') < 0 && clean.IndexOf('\n') < 0,
+                "显示身份必须清除富文本尖括号、换行、控制与双向/零宽格式字符：" + clean);
+
+            string emoji = ModDisclosurePolicy.SanitizeDisplayText("A😀B", 3);
+            Assert(emoji == "A😀B", "合法 emoji 代理对必须完整保留：" + emoji);
+            new UTF8Encoding(false, true).GetBytes(emoji); // 孤立代理会抛异常
+            string supplementaryFormat = char.ConvertFromUtf32(0xE0001); // LANGUAGE TAG，Unicode Cf
+            Assert(ModDisclosurePolicy.SanitizeDisplayText("A" + supplementaryFormat + "B", 3) == "AB",
+                "辅助平面 Format 字符也必须被移除");
+            string truncated = ModDisclosurePolicy.SanitizeDisplayText(new string('名', 40), 5);
+            Assert(truncated == "名名名名名…", "超长显示字段应按文本元素截断并加省略号：" + truncated);
+
+            var hostile = new ModPackage
+            {
+                Id = "safe_id",
+                Name = "\r\n\u202E＜b＞官方续作＜/b＞",
+                Author = "作者\n\u2066伪造",
+                PackageFingerprint = fingerprint
+            };
+            Assert(ModDisclosurePolicy.SafePackageName(hostile) == "b官方续作/b",
+                "名称只可作为清洗后的次要身份显示");
+            Assert(ModDisclosurePolicy.SafePackageAuthor(hostile) == "作者 伪造",
+                "作者自报字段必须单行并移除方向控制字符");
+            hostile.Name = " \r\n ";
+            Assert(ModDisclosurePolicy.SafePackageName(hostile) == "safe_id",
+                "空名称必须回退到已验证的 mod id");
+        }
+
+        private static bool IsUpperHex(char c)
+        {
+            return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F');
+        }
+
+        private static string ComputeFileSha256(string path)
+        {
+            using (var stream = File.OpenRead(path))
+            using (var sha = SHA256.Create())
+                return string.Concat(sha.ComputeHash(stream).Select(b => b.ToString("X2")));
         }
 
         private static void Assert(bool condition, string message)

@@ -223,6 +223,9 @@ class ContentRegistryTest(unittest.TestCase):
         self.assertEqual(with_intro.title, "江湖新秀")
         self.assertEqual(with_intro.scale, 80)
         self.assertEqual(with_intro.art_facing, "right")
+        copied = Path(self.temp.name) / "copied_mod"
+        copied_dir = content_registry.copy_into_mod(copied, "mohui.luoxue")
+        self.assertTrue((copied_dir / with_intro.intro["image"]).is_file())
         cleared = content_registry.update_character_intro("mohui.luoxue", clear=True)
         self.assertIsNone(cleared.intro)
         # 称号仍保留

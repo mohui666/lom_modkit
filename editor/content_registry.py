@@ -648,6 +648,7 @@ def copy_into_mod(mod_dir: Path, content_id: str) -> Path:
         {
             "files": {"main": rec.main_file},
             "portraits": rec.portraits or {},
+            "intro": rec.intro or {},
         }
     ):
         src = rec.folder / fname

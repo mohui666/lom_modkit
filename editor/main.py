@@ -74,6 +74,7 @@ from game_install import (
     PREVIEW_PACKAGE_NAME,
     GameInstallError,
     GameInstallManager,
+    build_story_read_keys,
     reset_story_read_state,
 )
 from flow_graph import FlowGraphPanel
@@ -1673,7 +1674,7 @@ class MainWindow(QMainWindow):
         if new_id == old_id and new_title == self.story.get("title", ""):
             return
         if new_id != old_id and (
-            not models.ID_PATTERN.match(new_id)
+            not models.ID_PATTERN.fullmatch(new_id)
             or (new_id in self._stories and self._stories[new_id] is not self.story)
         ):
             # 非法 id 或已被其它剧情占用：回退文本
@@ -1833,7 +1834,15 @@ class MainWindow(QMainWindow):
         if not mod_id:
             extra = []
         try:
-            results = reset_story_read_state(mod_id, extra_ids=extra)
+            read_keys_by_id = {
+                mid: build_story_read_keys(mid, self._stories)
+                for mid in [mod_id, *extra]
+            }
+            results = reset_story_read_state(
+                mod_id,
+                extra_ids=extra,
+                read_keys_by_id=read_keys_by_id,
+            )
         except GameInstallError as exc:
             QMessageBox.critical(self, _app_title(), f"重置失败：{exc}")
             return

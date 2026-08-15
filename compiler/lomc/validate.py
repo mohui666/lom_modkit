@@ -9,7 +9,9 @@
 所有错误抛出 LomcError，消息带节点 id / 字段名。
 """
 
+import math
 import re
+import unicodedata
 
 from .content import (
     UNSUPPORTED_USER_CHAR_TYPES,
@@ -26,19 +28,54 @@ from .dice_data import (
 from .errors import LomcError
 
 # §1：剧情脚本 id 规则
-SCRIPT_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]+$")
+SCRIPT_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,64}$")
 # §2：mod id 规则
-MOD_ID_RE = re.compile(r"^[a-z0-9_\-]+$")
+MOD_ID_RE = re.compile(r"^[a-z0-9_\-]{1,64}$")
 # 节点 id 会拼进 Lua 函数名 node_<id>，必须落在 Lua 标识符安全字符集内
 NODE_ID_RE = re.compile(r"^[a-zA-Z0-9_]+$")
 # 编辑器显示标签是“名称（内部ID）”，游戏接口只能接收括号内的内部 ID。
 CHARACTER_DISPLAY_RE = re.compile(r"^.+（[a-zA-Z0-9_\-]+）$")
+
+_MANIFEST_TEXT_LIMITS = {
+    "name": 80,
+    "version": 32,
+    "author": 80,
+    "description": 500,
+}
+
+
+def _validate_manifest_display_text(field, value):
+    limit = _MANIFEST_TEXT_LIMITS[field]
+    if not isinstance(value, str) or not value:
+        raise LomcError('缺少必填字段 "%s"（非空字符串）' % field)
+    if len(value) > limit:
+        raise LomcError('字段 "%s" 不能超过 %d 个字符' % (field, limit))
+    for char in value:
+        category = unicodedata.category(char)
+        if char in "\r\n" or category in ("Cc", "Cf", "Zl", "Zp"):
+            raise LomcError(
+                '字段 "%s" 必须是单行可见文本，不能含控制、零宽或双向格式字符'
+                % field
+            )
 
 SAY_MODES = ("character", "think", "narrative", "center")
 FACINGS = ("left", "right")
 BRANCH_SOURCES = ("mod", "game", "stat", "flag_value", "condition")
 # stat/flag_value 来源的数值比较运算符（缺省 ">="）
 BRANCH_OPS = (">=", ">", "<=", "<", "==")
+CAMPAIGN_POSITIONS = (
+    "Mall",
+    "Center",
+    "Alchemy",
+    "Forge",
+    "BackMountain",
+    "Room1",
+    "Door",
+    "Study",
+    "Kitchen",
+    "Room2",
+    "Secret",
+)
 
 # 枚举字段的合法值（§3.1）
 _ENUMS = {
@@ -108,17 +145,20 @@ def _check_type(tag, value):
         return isinstance(value, str) and value != ""
     if tag == "num":
         # bool 是 int 的子类，数值字段不接受 true/false
-        return isinstance(value, (int, float)) and not isinstance(value, bool)
+        return (
+            (isinstance(value, int) and not isinstance(value, bool))
+            or (isinstance(value, float) and math.isfinite(value))
+        )
     if tag == "bool":
         return isinstance(value, bool)
     if tag == "list":
         return isinstance(value, list)
     if tag == "talent_level":
-        return value in (1, -1)
+        return not isinstance(value, bool) and value in (1, -1)
     if tag == "save_button":
         return value in (0, 1) and not isinstance(value, bool)
     if tag == "script_id":
-        return isinstance(value, str) and SCRIPT_ID_RE.match(value) is not None
+        return isinstance(value, str) and SCRIPT_ID_RE.fullmatch(value) is not None
     if tag in _ENUMS:
         return value in _ENUMS[tag]
     raise AssertionError("未知字段类型标签: %r" % tag)
@@ -995,8 +1035,8 @@ def _validate_story_inner(story):
         raise LomcError("顶层必须是 JSON 对象")
 
     sid = story.get("id")
-    if not isinstance(sid, str) or not SCRIPT_ID_RE.match(sid):
-        raise LomcError('缺少必填字段 "id"（剧情脚本 id，规则 [a-zA-Z0-9_-]+）')
+    if not isinstance(sid, str) or SCRIPT_ID_RE.fullmatch(sid) is None:
+        raise LomcError('缺少必填字段 "id"（剧情脚本 id，规则 [a-zA-Z0-9_-]{1,64}）')
     if "title" in story and not isinstance(story["title"], str):
         raise LomcError('字段 "title" 必须是字符串')
     # 顶层可选字段 mood（bool）：false=每次 show/say 前后隐藏官方心情气泡
@@ -1018,7 +1058,7 @@ def _validate_story_inner(story):
         if not isinstance(node, dict):
             raise LomcError("%s: 节点必须是 JSON 对象" % label)
         nid = node.get("id")
-        if not isinstance(nid, str) or not NODE_ID_RE.match(nid):
+        if not isinstance(nid, str) or NODE_ID_RE.fullmatch(nid) is None:
             raise LomcError(
                 "%s: 节点 id 必须是 [a-zA-Z0-9_]+（会拼进 Lua 函数名 node_<id>），实际为 %r"
                 % (label, nid)
@@ -1076,15 +1116,14 @@ def validate_manifest(manifest, source="manifest.json"):
         if fmt != 1 or isinstance(fmt, bool):
             raise LomcError('字段 "format" 必须固定为 1（格式版本号）')
         mid = manifest.get("id")
-        if not isinstance(mid, str) or not MOD_ID_RE.match(mid):
+        if not isinstance(mid, str) or MOD_ID_RE.fullmatch(mid) is None:
             raise LomcError(
-                '缺少必填字段 "id"（mod 唯一 id，规则 [a-z0-9_-]+），实际为 %r' % (mid,)
+                '缺少必填字段 "id"（mod 唯一 id，规则 [a-z0-9_-]{1,64}），实际为 %r' % (mid,)
             )
         for name in ("name", "version", "author", "description"):
-            if not isinstance(manifest.get(name), str) or not manifest[name]:
-                raise LomcError('缺少必填字段 "%s"（非空字符串）' % name)
+            _validate_manifest_display_text(name, manifest.get(name))
         entry = manifest.get("entry")
-        if not isinstance(entry, str) or not SCRIPT_ID_RE.match(entry):
+        if not isinstance(entry, str) or SCRIPT_ID_RE.fullmatch(entry) is None:
             raise LomcError(
                 '缺少必填字段 "entry"（入口剧情脚本 id），实际为 %r' % (entry,)
             )
@@ -1111,10 +1150,18 @@ def validate_manifest(manifest, source="manifest.json"):
                     raise LomcError("%s: 必须是对象" % tlabel)
                 if trig.get("type") != "position":
                     raise LomcError('%s: 字段 "type" 目前只支持 "position"' % tlabel)
-                if not isinstance(trig.get("position"), str) or not trig["position"]:
-                    raise LomcError('%s: 缺少必填字段 "position"' % tlabel)
-                if not isinstance(trig.get("script"), str) or not trig["script"]:
-                    raise LomcError('%s: 缺少必填字段 "script"（同包脚本 id）' % tlabel)
+                position = trig.get("position")
+                if position not in CAMPAIGN_POSITIONS:
+                    raise LomcError(
+                        '%s: 字段 "position" 必须是合法位置 id（%s），实际为 %r'
+                        % (tlabel, "/".join(CAMPAIGN_POSITIONS), position)
+                    )
+                script = trig.get("script")
+                if not isinstance(script, str) or SCRIPT_ID_RE.fullmatch(script) is None:
+                    raise LomcError(
+                        '%s: 字段 "script" 必须是合法的同包脚本 id，实际为 %r'
+                        % (tlabel, script)
+                    )
                 for cond in ("when_flag_set", "when_flag_clear"):
                     if cond in trig and not isinstance(trig[cond], str):
                         raise LomcError('%s: 字段 "%s" 必须是字符串' % (tlabel, cond))
@@ -1156,9 +1203,13 @@ def validate_manifest(manifest, source="manifest.json"):
                             "（人物 id），实际为 %r" % (tlabel, wc)
                         )
                     wmin = wa.get("min")
-                    if not isinstance(wmin, int) or isinstance(wmin, bool):
+                    if (
+                        not isinstance(wmin, int)
+                        or isinstance(wmin, bool)
+                        or not -(2**31) <= wmin <= 2**31 - 1
+                    ):
                         raise LomcError(
-                            "%s: when_affinity.min 必须是整数，实际为 %r"
+                            "%s: when_affinity.min 必须是 Int32 范围内的整数，实际为 %r"
                             % (tlabel, wmin)
                         )
                 # 未知字段一律报错（防拼写错误静默失效）

@@ -363,5 +363,26 @@ namespace MortalModHost
             __result = CharacterIntroSupport.ShowCustom(__instance, data);
             return false;
         }
+
+        private static void Postfix(CharacterIntroPanel __instance, ref IEnumerator __result)
+        {
+            if (ModDisclosure.Active)
+            {
+                Transform anchor = __instance.transform;
+                try
+                {
+                    Text title = Traverse.Create(__instance).Field("_titleText").GetValue<Text>();
+                    if (title != null)
+                        anchor = title.rectTransform.parent != null ? title.rectTransform.parent : title.rectTransform;
+                }
+                catch { }
+                if (ModDisclosure.AttachToPanel(anchor) == null)
+                {
+                    (__result as IDisposable)?.Dispose();
+                    __result = ModDisclosure.EmptyRoutine();
+                    LuaManagerPatch.AbortActivePlayback("人物介绍卡无法附加强制玩家内容标记");
+                }
+            }
+        }
     }
 }

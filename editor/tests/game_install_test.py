@@ -10,6 +10,7 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from unittest import mock
 
 EDITOR_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(EDITOR_DIR))
@@ -21,6 +22,7 @@ from game_install import (  # noqa: E402
     _choose_zombie_prefix,
     _ensure_ignore_disable_switch,
     _is_mod_read_story_key,
+    build_story_read_keys,
     reset_story_read_state,
 )
 
@@ -107,6 +109,40 @@ class GameInstallManagerTest(unittest.TestCase):
         bad.write_text("not zip", encoding="utf-8")
         with self.assertRaises(GameInstallError):
             self.manager.install_mod(bad)
+
+    def test_manifest_reader_rejects_runtime_bypasses_and_oversize(self):
+        def write_manifest(filename: str, manifest: dict | None = None, raw: bytes | None = None) -> Path:
+            path = Path(self.temp.name) / filename
+            payload = raw if raw is not None else json.dumps(manifest, ensure_ascii=False).encode("utf-8")
+            with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                archive.writestr("manifest.json", payload)
+                archive.writestr("lua/main.lua", "return nil")
+            return path
+
+        base = {
+            "format": 1,
+            "id": "safe_mod",
+            "name": "测试",
+            "version": "1",
+            "author": "作者",
+            "description": "简介",
+            "entry": "main",
+        }
+        bad_id = dict(base, id="official/../fake")
+        bad_entry = dict(base, entry="../main")
+        bad_name = dict(base, name="伪装\u202e官方")
+        for filename, manifest in (
+            ("bad_id.lommod", bad_id),
+            ("bad_entry.lommod", bad_entry),
+            ("bad_name.lommod", bad_name),
+        ):
+            with self.subTest(filename=filename):
+                with self.assertRaises(GameInstallError):
+                    self.manager._read_manifest(write_manifest(filename, manifest))
+
+        oversized = b"{" + b" " * (4 * 1024 * 1024) + b"}"
+        with self.assertRaises(GameInstallError):
+            self.manager._read_manifest(write_manifest("huge_manifest.lommod", raw=oversized))
 
     def test_bare_game_can_be_configured_then_bepinex_archive_installed(self):
         bare = Path(self.temp.name) / "bare_game"
@@ -213,6 +249,26 @@ class ResetStoryReadStateTest(unittest.TestCase):
         payload = {"Version": "1", "ReadStoryData": keys, **extra}
         self.json_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
 
+    def _keys(self, mod_id: str | None = None) -> list[str]:
+        mid = mod_id or self.mod_id
+        return [
+            f"MOD_{mid}_main_n1",
+            f"MOD_{mid}_main_n2",
+            f"MOD_{mid}_main_n3",
+            f"MOD_{mid}_second_a",
+        ]
+
+    def _reset(self, *, extra_ids: list[str] | None = None):
+        ids = extra_ids or []
+        key_map = {self.mod_id: self._keys()}
+        key_map.update({mid: self._keys(mid) for mid in ids})
+        return reset_story_read_state(
+            self.mod_id,
+            saves=[self.dat],
+            extra_ids=ids,
+            read_keys_by_id=key_map,
+        )
+
     def test_rejects_invalid_mod_id(self):
         with self.assertRaises(GameInstallError):
             reset_story_read_state("Bad Id", saves=[self.dat])
@@ -224,7 +280,7 @@ class ResetStoryReadStateTest(unittest.TestCase):
             "vanilla_key",
         ]
         self._write_dat(*live)
-        results = reset_story_read_state(self.mod_id, saves=[self.dat])
+        results = self._reset()
         self.assertEqual(results, [(self.dat, 2)])
         raw = self.dat.read_bytes()
         self.assertNotIn(f"MOD_{self.mod_id}_".encode("utf-8"), raw)
@@ -243,7 +299,7 @@ class ResetStoryReadStateTest(unittest.TestCase):
             f"MOD_{self.mod_id}_main_n3",
         ]
         self._write_dat(*keys)
-        results = reset_story_read_state(self.mod_id, saves=[self.dat])
+        results = self._reset()
         self.assertEqual(results, [(self.dat, 2)])
         raw = self.dat.read_bytes()
         # live 已改成未占用前缀（mod_ 已被占用 → xod_）
@@ -265,7 +321,7 @@ class ResetStoryReadStateTest(unittest.TestCase):
         self._write_json(keys)
         # 无 dat 改动时仍应处理 json
         self._write_dat("unrelated")
-        results = reset_story_read_state(self.mod_id, saves=[self.dat])
+        results = self._reset()
         self.assertEqual(results, [(self.json_path, 3)])
         data = json.loads(self.json_path.read_text(encoding="utf-8"))
         self.assertEqual(
@@ -282,7 +338,7 @@ class ResetStoryReadStateTest(unittest.TestCase):
         self._write_json(
             [f"MOD_{self.mod_id}_main_n1", f"MOD_{self.mod_id}_main_n2", "keep_me"]
         )
-        results = reset_story_read_state(self.mod_id, saves=[self.dat])
+        results = self._reset()
         by_name = {path.name: count for path, count in results}
         self.assertEqual(by_name["Save_universe.dat"], 1)
         self.assertEqual(by_name["Save_universe.json"], 2)
@@ -291,27 +347,36 @@ class ResetStoryReadStateTest(unittest.TestCase):
 
     def test_backup_not_overwritten_on_second_reset(self):
         self._write_dat(f"MOD_{self.mod_id}_main_n1")
-        reset_story_read_state(self.mod_id, saves=[self.dat])
+        self._reset()
         bak = self.dat.with_suffix(self.dat.suffix + ".lomkit_bak")
         first_bak = bak.read_bytes()
         # 模拟重玩后再重置
         raw = self.dat.read_bytes()
         self.dat.write_bytes(raw + f"MOD_{self.mod_id}_main_n2".encode("utf-8"))
-        reset_story_read_state(self.mod_id, saves=[self.dat])
+        self._reset()
         self.assertEqual(bak.read_bytes(), first_bak)
 
     def test_empty_when_no_matching_keys(self):
         self._write_dat("vanilla_only")
         self._write_json(["vanilla_only"])
-        self.assertEqual(reset_story_read_state(self.mod_id, saves=[self.dat]), [])
+        self.assertEqual(self._reset(), [])
 
     def test_is_mod_read_story_key_casefold_and_prefix(self):
-        self.assertTrue(_is_mod_read_story_key(f"MOD_{self.mod_id}_main_n1", self.mod_id))
-        self.assertTrue(_is_mod_read_story_key(f"mod_{self.mod_id}_main_n1", self.mod_id))
-        self.assertTrue(_is_mod_read_story_key(f"XOD_{self.mod_id}_main_n1", self.mod_id))
-        self.assertFalse(_is_mod_read_story_key(f"MOD_other_main_n1", self.mod_id))
-        self.assertFalse(_is_mod_read_story_key("short", self.mod_id))
-        self.assertFalse(_is_mod_read_story_key(None, self.mod_id))  # type: ignore[arg-type]
+        keys = self._keys()
+        self.assertTrue(
+            _is_mod_read_story_key(f"MOD_{self.mod_id}_main_n1", self.mod_id, keys)
+        )
+        self.assertTrue(
+            _is_mod_read_story_key(f"mod_{self.mod_id}_main_n1", self.mod_id, keys)
+        )
+        self.assertTrue(
+            _is_mod_read_story_key(f"XOD_{self.mod_id}_main_n1", self.mod_id, keys)
+        )
+        self.assertFalse(_is_mod_read_story_key(f"MOD_other_main_n1", self.mod_id, keys))
+        self.assertFalse(_is_mod_read_story_key("short", self.mod_id, keys))
+        self.assertFalse(  # type: ignore[arg-type]
+            _is_mod_read_story_key(None, self.mod_id, keys)
+        )
 
     def test_choose_zombie_skips_occupied(self):
         raw = f"mod_{self.mod_id}_a\x00xod_{self.mod_id}_b".encode("utf-8")
@@ -328,9 +393,7 @@ class ResetStoryReadStateTest(unittest.TestCase):
         self._write_json(
             [f"MOD_{self.mod_id}_main_n1", f"MOD_{preview}_main_n2", "vanilla"]
         )
-        results = reset_story_read_state(
-            self.mod_id, saves=[self.dat], extra_ids=[preview]
-        )
+        results = self._reset(extra_ids=[preview])
         raw = self.dat.read_bytes()
         self.assertNotIn(f"MOD_{self.mod_id}_".encode("utf-8"), raw)
         self.assertNotIn(f"MOD_{preview}_".encode("utf-8"), raw)
@@ -339,6 +402,125 @@ class ResetStoryReadStateTest(unittest.TestCase):
         # 两个 id 各改 dat 一次、各清 json 一次
         self.assertEqual(sum(n for path, n in results if path.name.endswith(".dat")), 2)
         self.assertEqual(sum(n for path, n in results if path.name.endswith(".json")), 2)
+
+    def test_exact_keys_do_not_collide_with_longer_mod_or_node_ids(self):
+        short_id = "foo"
+        target = f"MOD_{short_id}_main_n1"
+        longer_node = f"MOD_{short_id}_main_n10"
+        longer_mod = "MOD_foo_bar_main_n1"
+        embedded = "MOD_other_XMOD_foo_main_n1"
+        self._write_dat(target, longer_node, longer_mod, embedded)
+        self._write_json([target, longer_node, longer_mod, embedded])
+
+        results = reset_story_read_state(
+            short_id,
+            saves=[self.dat],
+            read_keys_by_id={short_id: [target]},
+        )
+
+        self.assertEqual(sum(count for _path, count in results), 2)
+        raw = self.dat.read_bytes()
+        self.assertNotIn(b"\x00" + target.encode("utf-8") + b"\x00", raw)
+        self.assertIn(b"\x00mod_foo_main_n1\x00", raw)
+        self.assertIn(longer_node.encode("utf-8"), raw)
+        self.assertIn(longer_mod.encode("utf-8"), raw)
+        self.assertIn(embedded.encode("utf-8"), raw)
+        data = json.loads(self.json_path.read_text(encoding="utf-8"))
+        self.assertEqual(
+            data["ReadStoryData"], [longer_node, longer_mod, embedded]
+        )
+
+    def test_binaryformatter_ascii_length_prefix_is_not_mistaken_for_left_text(self):
+        base = "MOD_foo_main_"
+        target = base + "x" * (48 - len(base))
+        self.assertEqual(len(target.encode("utf-8")), 48)
+        # BinaryObjectString = record type 6 + Int32 object id + 7-bit byte length + UTF-8。
+        self.dat.write_bytes(
+            b"\x06" + (123).to_bytes(4, "little") + b"0" + target.encode("utf-8") + b"\x00"
+        )
+        results = reset_story_read_state(
+            "foo",
+            saves=[self.dat],
+            read_keys_by_id={"foo": [target]},
+        )
+        self.assertEqual(results, [(self.dat, 1)])
+        self.assertIn(b"mod_foo_main_", self.dat.read_bytes())
+
+    def test_binaryformatter_key_substring_inside_other_string_is_untouched(self):
+        target = "MOD_foo_main_n1"
+        payload = ("note." + target).encode("utf-8")
+        # 合法 BinaryObjectString，但声明长度覆盖 note.<key> 整串；目标 key
+        # 只是其内部子串，不能因左侧句点被误判成独立已读记录。
+        original = (
+            b"\x06"
+            + (123).to_bytes(4, "little")
+            + bytes([len(payload)])
+            + payload
+            + b"\x0b"
+        )
+        self.dat.write_bytes(original)
+
+        results = reset_story_read_state(
+            "foo",
+            saves=[self.dat],
+            read_keys_by_id={"foo": [target]},
+        )
+
+        self.assertEqual(results, [])
+        self.assertEqual(self.dat.read_bytes(), original)
+
+    def test_build_story_read_keys_only_uses_say_nodes(self):
+        stories = {
+            "main": {
+                "id": "main",
+                "nodes": [
+                    {"id": "say1", "type": "say", "text": "你好"},
+                    {"id": "show1", "type": "show"},
+                ],
+            },
+            "part-two": {
+                "id": "part-two",
+                "nodes": [{"id": "say2", "type": "say", "text": "再见"}],
+            },
+        }
+        self.assertEqual(
+            set(build_story_read_keys("foo", stories)),
+            {"MOD_foo_main_say1", "MOD_foo_part-two_say2"},
+        )
+
+    def test_build_story_read_keys_rejects_invalid_legacy_ids(self):
+        stories = {
+            "main": {
+                "id": "bad script",
+                "nodes": [{"id": "say1", "type": "say", "text": "你好"}],
+            }
+        }
+        with self.assertRaises(GameInstallError):
+            build_story_read_keys("foo", stories)
+
+    def test_requires_exact_key_map(self):
+        self._write_dat(f"MOD_{self.mod_id}_main_n1")
+        with self.assertRaises(GameInstallError):
+            reset_story_read_state(self.mod_id, saves=[self.dat])
+
+    def test_atomic_save_failure_preserves_dat_and_json(self):
+        target = f"MOD_{self.mod_id}_main_n1"
+        self._write_dat(target, "keep")
+        original_dat = self.dat.read_bytes()
+        with mock.patch("game_install.os.replace", side_effect=OSError("blocked")):
+            with self.assertRaises(GameInstallError):
+                self._reset()
+        self.assertEqual(self.dat.read_bytes(), original_dat)
+        self.assertFalse(list(self.slot.glob("Save_universe.dat.*.tmp")))
+
+        self._write_dat("unrelated")
+        self._write_json([target, "keep"])
+        original_json = self.json_path.read_bytes()
+        with mock.patch("game_install.os.replace", side_effect=OSError("blocked")):
+            with self.assertRaises(GameInstallError):
+                self._reset()
+        self.assertEqual(self.json_path.read_bytes(), original_json)
+        self.assertFalse(list(self.slot.glob("Save_universe.json.*.tmp")))
 
 
 if __name__ == "__main__":

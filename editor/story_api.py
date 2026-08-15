@@ -264,8 +264,8 @@ def new_story(
 ) -> dict:
     """新建空剧情：show 登场 + say 对白开场（先登场再动作，否则游戏黑屏）；
     mood=false 时每次 show/say 前后自动发射 mod_hide_mood() 隐藏官方心情气泡。"""
-    if not isinstance(story_id, str) or not models.ID_PATTERN.match(story_id):
-        raise ValueError(f"剧情脚本 id 非法: {story_id!r}（规则 [a-zA-Z0-9_-]+）")
+    if not isinstance(story_id, str) or not models.ID_PATTERN.fullmatch(story_id):
+        raise ValueError(f"剧情脚本 id 非法: {story_id!r}（规则 [a-zA-Z0-9_-]{{1,64}}）")
     if not isinstance(title, str):
         raise ValueError(f"title 必须是字符串，实际为 {title!r}")
     if not isinstance(mood, bool):
@@ -685,7 +685,7 @@ def main(argv: list[str] | None = None) -> int:
     _add_json_flag(p_pack)
 
     p_new = sub.add_parser("new-story", help="新建剧情脚本 story.json")
-    p_new.add_argument("story_id", help="剧情脚本 id（[a-zA-Z0-9_-]+）")
+    p_new.add_argument("story_id", help="剧情脚本 id（[a-zA-Z0-9_-]{1,64}）")
     p_new.add_argument("--title", default="新剧情", help="标题（默认：新剧情）")
     p_new.add_argument(
         "-o", "--output", dest="output", required=True, help="输出 story.json 路径"

@@ -137,8 +137,22 @@ def main_fn() -> int:
             node["text"] = "全类型压测文本"
         all_nodes.append(node)
     all_nodes.append({"id": "a99", "type": "end"})
-    # end/goto_scene 是终止节点（推演到此为止），排到末尾保证其余节点可达
-    all_nodes.sort(key=lambda n: 1 if n["type"] in ("end", "goto_scene") else 0)
+    terminal_types = ("end", "goto_scene", "death")
+    # 终止节点排到末尾；choice/dice 默认没有目标，显式接到下一步以保证类型表可达。
+    all_nodes.sort(key=lambda n: 1 if n["type"] in terminal_types else 0)
+    for index, node in enumerate(all_nodes[:-1]):
+        next_id = all_nodes[index + 1]["id"]
+        if node["type"] == "choice":
+            for option in node.get("options", []):
+                option["goto"] = next_id
+        elif node["type"] == "branch":
+            for case in node.get("cases", []):
+                case["goto"] = next_id
+        elif node["type"] == "dice":
+            for option in node.get("options", []):
+                option["goto_大成功"] = next_id
+                option["goto_成功"] = next_id
+                option["goto_失败"] = next_id
     win.story = {
         "id": "all_types",
         "title": "全类型",
@@ -148,7 +162,7 @@ def main_fn() -> int:
     win._refresh_all()
     app.processEvents()
     first_term = next(
-        i for i, n in enumerate(all_nodes) if n["type"] in ("end", "goto_scene")
+        i for i, n in enumerate(all_nodes) if n["type"] in terminal_types
     )
     for i, n in enumerate(all_nodes):
         win._select_node_index(i)
@@ -158,7 +172,7 @@ def main_fn() -> int:
         if i <= first_term:
             assert win.stage._state["reached"], f"推演应到达 {n['id']}（{n['type']}）"
         else:
-            # 终止节点（end/goto_scene）之后的节点不可达是正确语义
+            # 第一个终止节点之后的节点不可达是正确语义
             assert not win.stage._state["reached"], f"{n['id']} 不应越过终止节点"
     hints = sum(
         1

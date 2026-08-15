@@ -35,6 +35,11 @@ namespace MortalModHost
         private ConfigEntry<bool> _enabled;
         private ConfigEntry<KeyboardShortcut> _menuHotkey;
         private ConfigEntry<KeyboardShortcut> _vanillaStoryHotkey;
+        private bool _harmonyPatched;
+        private bool _runtimeReady;
+        private bool _disablePendingForDisclosure;
+        private bool _disclosureAbortRequested;
+        private bool _applicationQuitting;
 
         private bool _showMenu;
         private bool _inTitleScene; // 当前菜单是否处于标题画面（Title 场景仅提供战役区）
@@ -47,7 +52,7 @@ namespace MortalModHost
         private void Awake()
         {
             _enabled = Config.Bind("General", "Enabled", true,
-                "总开关。false 时禁用热键、mod 菜单与 LuaManager 注入。");
+                "总开关。false 时禁用热键、mod 菜单与 LuaManager 注入；若 mod 剧情正在演出，为保持强制披露，会延迟到回到官方枢纽后卸载补丁。");
             _menuHotkey = Config.Bind("General", "MenuHotkey", new KeyboardShortcut(KeyCode.F8),
                 "打开/关闭 mod 菜单的快捷键（Free 自由场景与 Title 标题画面生效，契约 §6.3）。旧默认 F9 与同机 MortalInstantWin 冲突，启动时自动迁移为 F8。");
             _vanillaStoryHotkey = Config.Bind("General", "VanillaStoryHotkey", new KeyboardShortcut(KeyCode.F7),
@@ -70,7 +75,50 @@ namespace MortalModHost
             Application.runInBackground = true;
             Logger.LogInfo("已开启 runInBackground（失焦时 Update 仍跑）");
 
-            ApplyHarmonyPatch();
+            if (_enabled.Value)
+                ApplyHarmonyPatch();
+            else
+                Logger.LogInfo("MortalModHost 已禁用：未挂载 Harmony 补丁");
+            _enabled.SettingChanged += OnEnabledChanged;
+        }
+
+        private void OnEnabledChanged(object sender, EventArgs args)
+        {
+            if (_enabled.Value)
+            {
+                _disablePendingForDisclosure = false;
+                ApplyHarmonyPatch();
+                if (_runtimeReady)
+                    Logger.LogInfo("MortalModHost 已启用");
+                else
+                    Logger.LogError("MortalModHost 无法安全挂载运行时，MOD 演出入口保持关闭");
+                return;
+            }
+
+            _showMenu = false;
+            if (ModDisclosurePolicy.ShouldDeferHostDisable(ModDisclosure.Active))
+            {
+                // 已开演的 mod 协程不会因 Unpatch 自动停止。此时强拆补丁/台标会给出
+                // 一键隐藏「非官方剧情」披露的路径，因此延迟到官方 Title/Free 再完成禁用。
+                _disablePendingForDisclosure = true;
+                Logger.LogWarning("当前 mod 剧情仍在演出：已关闭菜单/热键，将在回到 Title/Free 后卸载补丁；非官方剧情披露会保持。");
+                return;
+            }
+
+            CompleteDisable();
+        }
+
+        private void CompleteDisable()
+        {
+            _disablePendingForDisclosure = false;
+            RemoveHarmonyPatches();
+            _showMenu = false;
+            ModCampaignState.Clear();
+            ModOverlay.Clear();
+            ModDisclosure.Disable();
+            CustomAudioPlayer.ReleaseAll();
+            CustomCharacterRuntime.ClearAll();
+            Logger.LogInfo("MortalModHost 已禁用：Harmony 补丁及运行态效果已清除");
         }
 
         /// <summary>
@@ -113,6 +161,8 @@ namespace MortalModHost
         /// <summary>挂 Harmony patch。目标方法/字段找不到时明确报错而不是静默失效。</summary>
         private void ApplyHarmonyPatch()
         {
+            if (_harmonyPatched) return;
+            _runtimeReady = false;
             LuaManagerPatch.Log = Logger;
             NewGameDataPatch.Log = Logger;
             FreePositionPatch.Log = Logger;
@@ -130,6 +180,7 @@ namespace MortalModHost
             CustomAudioPlayer.Init(this);
             CustomCharacterRuntime.Log = Logger;
             CustomCharacterRuntime.Init(this);
+            ModDisclosure.Log = Logger;
 
             bool ok = true;
             ok &= CheckTarget("LuaManager.ExecuteLuaScript",
@@ -188,12 +239,36 @@ namespace MortalModHost
                 AccessTools.Method(typeof(SceneController), "LoadNewScene", new Type[] { typeof(string) }));
             if (!ok)
             {
-                Logger.LogError("部分 Harmony 目标缺失（游戏版本可能已变更），战役/触发器功能可能不可用");
+                Logger.LogError("部分 Harmony 目标缺失（游戏版本可能已变更）：为保证玩家内容披露，已禁用全部 MOD 演出入口");
                 return;
             }
-            new Harmony(GUID).PatchAll(); // patch 本程序集全部 [HarmonyPatch] 类
-            PatchSteamRestart();
-            Logger.LogInfo("Harmony patch 已挂载：ExecuteLuaScript / NewGameData / Free 自动与地点剧情抑制 / GetExecuteScript / UpdateTranslations / ShowMood / CharacterIntroPanel / GameOver/EndGamePanel/EndGame / NewGamePlus / DiceRevolution / CustomAudio / SoundManager / LoadNewScene");
+            try
+            {
+                new Harmony(GUID).PatchAll(); // patch 本程序集全部 [HarmonyPatch] 类
+                PatchSteamRestart();
+                _harmonyPatched = true;
+                _runtimeReady = true;
+                Logger.LogInfo("Harmony patch 已挂载：ExecuteLuaScript / NewGameData / Free 自动与地点剧情抑制 / GetExecuteScript / UpdateTranslations / ShowMood / CharacterIntroPanel / GameOver/EndGamePanel/EndGame / NewGamePlus / DiceRevolution / CustomAudio / SoundManager / LoadNewScene");
+            }
+            catch (Exception ex)
+            {
+                new Harmony(GUID).UnpatchSelf();
+                new Harmony(GUID + ".steamrestart").UnpatchSelf();
+                _harmonyPatched = false;
+                _runtimeReady = false;
+                Logger.LogError("Harmony 挂载失败：为保证玩家内容披露，已回滚补丁并关闭全部 MOD 演出入口。" + ex);
+            }
+        }
+
+        private void RemoveHarmonyPatches()
+        {
+            if (_harmonyPatched)
+            {
+                new Harmony(GUID).UnpatchSelf();
+                new Harmony(GUID + ".steamrestart").UnpatchSelf();
+            }
+            _harmonyPatched = false;
+            _runtimeReady = false;
         }
 
         /// <summary>
@@ -230,8 +305,19 @@ namespace MortalModHost
 
         private void Update()
         {
+            if (LuaManagerPatch.HasPendingAbort)
+                LuaManagerPatch.RetryPendingAbort();
+            if (_disablePendingForDisclosure)
+            {
+                UpdateOverlaySceneTracking();
+                MaintainModDisclosure();
+                if (!ModDisclosure.Active)
+                    CompleteDisable();
+                return;
+            }
+            if (!_enabled.Value || !_runtimeReady) return;
             UpdateOverlaySceneTracking();
-            if (!_enabled.Value) return;
+            MaintainModDisclosure();
 
             HandlePreviewRequest();
 
@@ -253,17 +339,39 @@ namespace MortalModHost
             Logger.LogInfo("检测到菜单热键按下（当前场景：" + scene + "），" + (_showMenu ? "已打开菜单。" : "已关闭菜单。"));
         }
 
+        private void MaintainModDisclosure()
+        {
+            if (!ModDisclosure.Active)
+            {
+                _disclosureAbortRequested = false;
+                return;
+            }
+            if (ModDisclosure.Tick()) return;
+            if (_disclosureAbortRequested) return;
+            _disclosureAbortRequested = LuaManagerPatch.AbortActivePlayback(
+                "强制玩家内容披露无法维持：" + (ModDisclosure.FailureReason ?? "未知错误"));
+        }
+
+        private void LateUpdate()
+        {
+            // Fungus/MoonSharp 协程通常在 Update 阶段推进；LateUpdate 再校验一次，
+            // 缩短第三方脚本或组件在同帧改动披露 UI 后的可见窗口。
+            if (ModDisclosure.Active)
+                MaintainModDisclosure();
+        }
+
         /// <summary>重新扫描包并原子替换注册表；编辑器热更新试玩包时使用。</summary>
         private void ReloadMods()
         {
             CustomAudioPlayer.ReleaseAll();
             CustomCharacterRuntime.ClearAll();
             string modsDir = Path.Combine(Paths.PluginPath, "MortalModHost", "mods");
-            LoadedMods = ModLoader.ScanMods(
+            List<ModPackage> scannedMods = ModLoader.ScanMods(
                 modsDir,
                 msg => Logger.LogInfo(msg),
                 msg => Logger.LogWarning(msg));
-            ModRegistry.Rebuild(LoadedMods, msg => Logger.LogWarning(msg));
+            ModRegistry.Rebuild(scannedMods, msg => Logger.LogWarning(msg));
+            LoadedMods = scannedMods.FindAll(ModRegistry.IsPackageFullyRegistered);
             ReadTextRegistry.Rebuild(LoadedMods, msg => Logger.LogWarning(msg));
             try
             {
@@ -376,6 +484,14 @@ namespace MortalModHost
             if (scene == _previousScene) return;
             if (_previousScene == "GameOver" || _previousScene == "End")
                 ModOverlay.Clear();
+            // 可见披露：Title / Free 是官方枢纽，强制关；Loading / GameOver / End 保持，
+            // 否则进死亡/结局卡时标已经没了。
+            if (!ModDisclosurePolicy.ShouldKeepOnScene(scene))
+            {
+                ModDisclosure.Disable();
+                _disclosureAbortRequested = false;
+                LuaManagerPatch.ResetAbortGuard();
+            }
             // waveOut 不跟场景走：回标题/自由/死亡/结局/Loading 时再兜一层停播。
             if (scene == "Title" || scene == "Free" || scene == "GameOver"
                 || scene == "End" || scene == "Loading")
@@ -388,8 +504,25 @@ namespace MortalModHost
 
         private void OnDestroy()
         {
+            if (_enabled != null)
+                _enabled.SettingChanged -= OnEnabledChanged;
+            if (ModDisclosure.Active && !_applicationQuitting)
+            {
+                LuaManagerPatch.AbortActivePlayback("MortalModHost 正在卸载，已终止活动中的 MOD 演出");
+                // 恶意 Lua 可通过 UnityEngine.Object.Destroy 销毁 BepInEx 宿主。此时不得
+                // 连带撤下披露：独立 guardian / Canvas 回调会继续自愈、遮罩和重试
+                // 回 Free，只有真正到达 Title / Free 可信边界才会清除。
+            }
+            RemoveHarmonyPatches();
             CustomAudioPlayer.ReleaseAll();
             CustomCharacterRuntime.ClearAll();
+            if (_applicationQuitting || !ModDisclosure.Active)
+                ModDisclosure.Disable();
+        }
+
+        private void OnApplicationQuit()
+        {
+            _applicationQuitting = true;
         }
 
         /// <summary>
@@ -456,8 +589,13 @@ namespace MortalModHost
 
         private void OnGUI()
         {
+            if (DrawDisclosureFailureGuard())
+            {
+                _showMenu = false;
+                return;
+            }
             bool isTitle;
-            if (!_enabled.Value || !IsMenuScene(out isTitle))
+            if (!_enabled.Value || !_runtimeReady || !IsMenuScene(out isTitle))
             {
                 _showMenu = false; // 切场景/禁用时自动关窗，按钮也随之隐藏
                 return;
@@ -466,6 +604,15 @@ namespace MortalModHost
             DrawEntryButton();
             if (_showMenu)
                 _windowRect = GUI.Window(WindowId, _windowRect, DrawWindow, I18n.T("window", _menuHotkey.Value));
+        }
+
+        /// <summary>
+        /// Canvas 披露本身故障时的独立安全层。IMGUI 不依赖被破坏的 Canvas/Text 对象；
+        /// 在 StopAllCoroutines→LoadFree 的过渡期间全屏遮住任何可能继续渲染的 MOD 内容。
+        /// </summary>
+        private bool DrawDisclosureFailureGuard()
+        {
+            return ModDisclosure.DrawFailureGuard();
         }
 
         /// <summary>Free 场景左下角常驻小按钮：不依赖热键的菜单入口；菜单打开时隐藏，避免重复。</summary>
@@ -525,9 +672,10 @@ namespace MortalModHost
                 if (mod.Campaign == null || !mod.Campaign.NewGame) continue;
                 any = true;
                 GUILayout.BeginVertical("box");
-                GUILayout.Label(mod.Name + "  v" + mod.Version + "  by " + mod.Author);
-                if (!string.IsNullOrEmpty(mod.Description))
-                    GUILayout.Label(mod.Description);
+                GUILayout.Label(FormatModHeading(mod));
+                string description = ModDisclosurePolicy.SafePackageDescription(mod);
+                if (!string.IsNullOrEmpty(description))
+                    GUILayout.Label(description);
                 if (GUILayout.Button(I18n.T("campaign.start")))
                     StartCampaign(mod);
                 GUILayout.EndVertical();
@@ -548,6 +696,11 @@ namespace MortalModHost
         /// </summary>
         private void StartCampaign(ModPackage mod)
         {
+            if (!_runtimeReady)
+            {
+                Logger.LogError("运行时未安全就绪：已拒绝开始 MOD 战役");
+                return;
+            }
             SaveSystem saves = SaveSystem.Instance;
             SceneController scenes = SceneController.Instance;
             if (saves == null || scenes == null)
@@ -573,9 +726,10 @@ namespace MortalModHost
         private void DrawModEntry(ModPackage mod)
         {
             GUILayout.BeginVertical("box");
-            GUILayout.Label(mod.Name + "  v" + mod.Version + "  by " + mod.Author);
-            if (!string.IsNullOrEmpty(mod.Description))
-                GUILayout.Label(mod.Description);
+            GUILayout.Label(FormatModHeading(mod));
+            string description = ModDisclosurePolicy.SafePackageDescription(mod);
+            if (!string.IsNullOrEmpty(description))
+                GUILayout.Label(description);
             GUILayout.Label(I18n.T("entry.scripts", mod.Entry, mod.LuaScripts.Count));
             if (GUILayout.Button(I18n.T("play")))
                 PlayMod(mod);
@@ -585,6 +739,11 @@ namespace MortalModHost
         /// <summary>演出入口脚本：写入 CurrentStoryScript（注册名）后切 Story 场景，由 Harmony prefix 接管实际加载。</summary>
         private void PlayMod(ModPackage mod)
         {
+            if (!_runtimeReady)
+            {
+                Logger.LogError("运行时未安全就绪：已拒绝演出 MOD");
+                return;
+            }
             PlayerStatManagerData stat = PlayerStatManagerData.Instance;
             SceneController scenes = SceneController.Instance;
             if (stat == null || scenes == null)
@@ -610,10 +769,11 @@ namespace MortalModHost
         {
             var sb = new StringBuilder();
             sb.Append("已加载 mod：").Append(mod.Id)
-              .Append("\n  名称：").Append(mod.Name)
-              .Append("\n  版本：").Append(mod.Version)
-              .Append("\n  作者：").Append(mod.Author)
-              .Append("\n  简介：").Append(mod.Description)
+              .Append("\n  名称：").Append(ModDisclosurePolicy.SafePackageName(mod))
+              .Append("\n  版本：").Append(ModDisclosurePolicy.SafePackageVersion(mod))
+              .Append("\n  作者（自报）：").Append(ModDisclosurePolicy.SafePackageAuthor(mod))
+              .Append("\n  简介：").Append(ModDisclosurePolicy.SafePackageDescription(mod))
+              .Append("\n  SHA-256：").Append(mod.PackageFingerprint)
               .Append("\n  入口脚本：").Append(mod.Entry)
               .Append("（注册名 ").Append(mod.GetRegisteredScriptName(mod.Entry)).Append("）")
               .Append("\n  Lua 脚本（").Append(mod.LuaScripts.Count).Append(" 个）：");
@@ -626,6 +786,16 @@ namespace MortalModHost
                   .Append("（").Append(mod.LuaScripts[scriptId].Length).Append(" 字符）");
             }
             return sb.ToString();
+        }
+
+        private static string FormatModHeading(ModPackage mod)
+        {
+            string heading = ModDisclosurePolicy.SafePackageName(mod);
+            string version = ModDisclosurePolicy.SafePackageVersion(mod);
+            string author = ModDisclosurePolicy.SafePackageAuthor(mod);
+            if (!string.IsNullOrEmpty(version)) heading += "  v" + version;
+            if (!string.IsNullOrEmpty(author)) heading += "  by " + author;
+            return heading;
         }
     }
 }
