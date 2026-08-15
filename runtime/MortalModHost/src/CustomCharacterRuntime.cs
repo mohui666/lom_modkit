@@ -25,6 +25,7 @@ namespace MortalModHost
             public string Name;
             public string Portrait = "normal";
             public string Facing = "right";
+            public string Slot;
             public GameObject Holder;
             public RectTransform HolderRect;
             public Image Image;
@@ -100,13 +101,11 @@ namespace MortalModHost
                 if (Log != null) Log.LogWarning("自定义角色找不到站位 " + to);
                 return false;
             }
+            actor.Slot = to;
             if (_host != null && duration > 0f)
                 _host.StartCoroutine(MoveTo(actor, dest, duration));
             else
-            {
-                actor.HolderRect.position = dest.position;
-                FitHolderToSprite(actor);
-            }
+                FitHolderToSprite(actor, dest);
             return true;
         }
 
@@ -290,21 +289,24 @@ namespace MortalModHost
 
         private static void Place(Actor actor, string position)
         {
+            actor.Slot = position;
             RectTransform dest = FindPosition(position);
             if (dest == null)
             {
                 if (Log != null) Log.LogWarning("自定义角色找不到站位 " + position + "，使用默认位");
-                FitHolderToSprite(actor);
+                FitHolderToSprite(actor, null);
                 return;
             }
-            // 站位只当落点，不把 Image 拉伸成整块舞台。官方 DefaultPosition
-            // 经常是铺满画布的 Rect，照抄 size/stretch 会出一张白幕。
-            actor.HolderRect.position = dest.position;
             actor.HolderRect.rotation = dest.rotation;
-            FitHolderToSprite(actor);
+            FitHolderToSprite(actor, dest);
         }
 
         private static void FitHolderToSprite(Actor actor)
+        {
+            FitHolderToSprite(actor, string.IsNullOrEmpty(actor.Slot) ? null : FindPosition(actor.Slot));
+        }
+
+        private static void FitHolderToSprite(Actor actor, RectTransform dest)
         {
             if (actor == null || actor.HolderRect == null || actor.Image == null)
                 return;
@@ -325,18 +327,35 @@ namespace MortalModHost
             if (canvasH < 1f)
                 canvasH = 1080f;
 
-            float maxH = canvasH * 0.92f;
-            float maxW = canvasH * 0.42f;
-            float scale = Mathf.Min(maxW / sw, maxH / sh);
+            // 官方立绘是塞进站位槽里的，槽大约半个画面高。不能按原图像素
+            // 或 90% 屏高来摆，师姐那张 1039px 图会顶满整个舞台。
+            float boxH = canvasH * 0.56f;
+            float boxW = boxH * (sw / sh);
+            Vector2 pivot = new Vector2(0.5f, 0f);
+            if (dest != null)
+            {
+                float slotH = Mathf.Abs(dest.rect.height);
+                float slotW = Mathf.Abs(dest.rect.width);
+                bool usable = slotH >= canvasH * 0.2f && slotH <= canvasH * 0.72f
+                    && slotW >= 80f && slotW <= canvasH * 0.5f;
+                if (usable)
+                {
+                    boxH = slotH;
+                    boxW = slotW;
+                    pivot = dest.pivot;
+                }
+            }
+
+            float scale = Mathf.Min(boxW / sw, boxH / sh);
             if (scale <= 0f)
                 scale = 1f;
 
-            Vector3 world = actor.HolderRect.position;
-            actor.HolderRect.anchorMin = new Vector2(0.5f, 0f);
-            actor.HolderRect.anchorMax = new Vector2(0.5f, 0f);
-            actor.HolderRect.pivot = new Vector2(0.5f, 0f);
+            actor.HolderRect.anchorMin = pivot;
+            actor.HolderRect.anchorMax = pivot;
+            actor.HolderRect.pivot = pivot;
             actor.HolderRect.sizeDelta = new Vector2(sw * scale, sh * scale);
-            actor.HolderRect.position = world;
+            if (dest != null)
+                actor.HolderRect.position = dest.position;
         }
 
         private static RectTransform FindPosition(string position)
