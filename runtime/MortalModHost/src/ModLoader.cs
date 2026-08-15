@@ -346,7 +346,17 @@ namespace MortalModHost
                 {
                     UserContent content = ParseUserContent(package, pair.Key, ReadEntryText(pair.Value), entries, logWarn);
                     if (content != null)
+                    {
+                        UserContent existing;
+                        if (package.UserContents.TryGetValue(content.Id, out existing))
+                        {
+                            if (logWarn != null)
+                                logWarn("mod " + package.Id + " 的用户内容 ID " + content.Id
+                                    + " 重复（" + existing.Type + " / " + content.Type + "），已保留先加载项");
+                            continue;
+                        }
                         package.UserContents[content.Id] = content;
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -408,6 +418,8 @@ namespace MortalModHost
                 return ParseAudioContent(package, expectedDir, id, name, mainFile, root, entries);
             if (type == "character")
                 return ParseCharacterContent(package, expectedDir, id, name, mainFile, root, entries);
+            if (type == "image")
+                return ParseImageContent(expectedDir, id, name, mainFile, entries);
             if (logWarn != null)
                 logWarn("mod " + package.Id + " 的用户内容 " + id + " 类型 " + type + " 本版本不加载");
             return null;
@@ -520,6 +532,28 @@ namespace MortalModHost
                 Bytes = mainBytes,
                 Portraits = portraits,
                 Files = fileBytes
+            };
+        }
+
+        private static UserContent ParseImageContent(
+            string expectedDir,
+            string id,
+            string name,
+            string mainFile,
+            Dictionary<string, ZipArchiveEntry> entries)
+        {
+            if (!IsImageExt(Path.GetExtension(mainFile)))
+                throw new FormatException("用户图片只支持 .png / .jpg / .jpeg");
+            string imagePath = expectedDir + "/" + mainFile;
+            byte[] bytes = ReadZipBytes(entries, imagePath, ContentRef.MaxImageBytes, "图片");
+            return new UserContent
+            {
+                Id = id,
+                Type = "image",
+                Name = name,
+                MainFile = mainFile,
+                PackagePath = imagePath,
+                Bytes = bytes
             };
         }
 

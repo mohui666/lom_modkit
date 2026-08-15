@@ -116,6 +116,8 @@ assets/user/audio/mohui.battle/battle.ogg
 
 ## ランタイムの動作
 
+- 共通画像は `type=image` と安定した `user:` 番号を使い、PNG/JPG/JPEG（8MB 以下）に対応します。背景・CG・Overlay は同じコンテンツ庫を共有し、一覧にはサムネイル、削除時には参照箇所を表示し、パックには実際の参照だけを収録します。
+
 - 公式名：原版 Wwise。動作は従来とまったく同じです。
 - `user:`：**現在演出中の .lommod** の中だけを探します。別の Mod が同名 ID を登録していても混線しません。
 - カスタム音声は Windows `waveOut` で再生し、Unity `AudioSource` も Wwise も通りません。本ゲームのメインミックスは Wwise で、Unity で再生するとしばしば無音になります。

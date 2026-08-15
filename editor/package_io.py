@@ -135,23 +135,30 @@ def export_lommod(
                 f"找不到图片 {rel}。请在对应步骤中点击“选择图片…”重新选择。"
             )
         asset_sources[rel] = source
-    user_audio_ids: list[str] = []
-    seen_audio = set()
+    user_content: list[tuple[str, str]] = []
+    seen_content: set[tuple[str, str]] = set()
     lomc_mod, lomc_err = get_lomc()
     if lomc_mod is None:
-        raise PackError("编译器不可用，无法收集用户音频：%s" % lomc_err)
+        raise PackError("编译器不可用，无法收集用户内容：%s" % lomc_err)
     from lomc.content import collect_stories_content_refs
 
     for item in collect_stories_content_refs(stories):
         cid = item["ref"].content_id
-        if cid in seen_audio:
+        expected_type = item.get("expected_type") or "audio"
+        identity = (expected_type, cid)
+        if identity in seen_content:
             continue
-        seen_audio.add(cid)
+        seen_content.add(identity)
         try:
-            content_registry.resolve(cid, expected_kind=item["expected_kind"])
+            content_registry.resolve(
+                cid,
+                expected_kind=item["expected_kind"],
+                expected_type=expected_type,
+                portrait=item.get("portrait"),
+            )
         except content_registry.ContentRegistryError as exc:
             raise PackError(str(exc)) from exc
-        user_audio_ids.append(cid)
+        user_content.append(identity)
 
     lomc, _err = get_lomc()
     if lomc is not None and hasattr(lomc, "pack_mod"):
@@ -174,9 +181,11 @@ def export_lommod(
                 target = tmp_path / Path(rel)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(source, target)
-            for content_id in user_audio_ids:
+            for content_type, content_id in user_content:
                 try:
-                    content_registry.copy_into_mod(tmp_path, content_id)
+                    content_registry.copy_into_mod(
+                        tmp_path, content_id, expected_type=content_type
+                    )
                 except content_registry.ContentRegistryError as exc:
                     raise PackError(str(exc)) from exc
             try:
@@ -212,8 +221,10 @@ def export_lommod(
             zf.writestr(f"lua/{sid}.lua", lua)
         for rel, source in sorted(asset_sources.items()):
             zf.write(source, rel)
-        for content_id in user_audio_ids:
-            rec, _main_path = content_registry.resolve(content_id)
+        for content_type, content_id in user_content:
+            rec, _main_path = content_registry.resolve(
+                content_id, expected_type=content_type
+            )
             rel_dir = "assets/user/%s/%s" % (rec.type, content_id)
             zf.write(rec.folder / "content.json", rel_dir + "/content.json")
             from lomc.content import listed_content_files

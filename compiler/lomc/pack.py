@@ -71,6 +71,7 @@ def pack_mod(mod_dir, output=None):
     mod_id = manifest["id"]  # 打包时必有（validate_manifest 已保证）
     referenced_assets = set()
     referenced_user_content = {}  # (type, content_id) -> (meta, folder_abs)
+    referenced_id_types = {}  # content_id -> type（user: 引用本身不携带类型）
     for fname in story_files:
         stem = fname[: -len(".json")]
         story = load_json_file(os.path.join(story_dir, fname))
@@ -156,11 +157,26 @@ def pack_mod(mod_dir, output=None):
         for item in collect_story_content_refs(story):
             ref = item["ref"]
             ctype = item.get("expected_type") or "audio"
+            previous_type = referenced_id_types.get(ref.content_id)
+            if previous_type is not None and previous_type != ctype:
+                raise LomcError(
+                    'story/%s 节点 "%s"(%s): 用户内容 %s 同时被当作 %s / %s；'
+                    "稳定 user: ID 在一个包内只能属于一种类型"
+                    % (
+                        fname,
+                        item["node_id"],
+                        item["node_type"],
+                        ref.raw,
+                        previous_type,
+                        ctype,
+                    )
+                )
+            referenced_id_types[ref.content_id] = ctype
             try:
                 meta, main_path = resolve_content(mod_dir, ctype, ref.content_id)
                 if ctype == "character":
                     check_character_portrait(meta, item.get("portrait"), ref.raw)
-                else:
+                elif ctype == "audio":
                     check_content_matches_kind(meta, item["expected_kind"], ref.raw)
             except LomcError as exc:
                 raise LomcError(

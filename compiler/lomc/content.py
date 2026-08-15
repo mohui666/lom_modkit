@@ -19,7 +19,7 @@ from .errors import LomcError
 
 USER_PREFIX = "user:"
 CONTENT_SCHEMA = 1
-CONTENT_TYPES = ("audio", "character")
+CONTENT_TYPES = ("audio", "character", "image")
 AUDIO_KINDS = ("music", "sound", "env")
 ART_FACINGS = ("left", "right")
 ART_FACING_DEFAULT = "left"
@@ -291,6 +291,25 @@ def collect_story_content_refs(story):
                             else None,
                         }
                     )
+        # 统一图片协议：所有图片型节点都把稳定引用放在 image 字段。
+        # 当前及后续 background / CG / overlay 共用这一条收集路径，不各建 Store。
+        raw_image = node.get("image")
+        if raw_image:
+            ref = parse_content_ref(
+                raw_image, label='节点 "%s"(%s) 的 image' % (nid, ntype)
+            )
+            if ref is not None:
+                found.append(
+                    {
+                        "node_id": nid,
+                        "node_type": ntype,
+                        "field": "image",
+                        "raw": ref.raw,
+                        "ref": ref,
+                        "expected_kind": None,
+                        "expected_type": "image",
+                    }
+                )
     return found
 
 
@@ -601,6 +620,8 @@ def resolve_content(root, content_type, content_id):
             _check_file_size(
                 image_path, USER_PREFIX + content_id + "/" + fname, MAX_IMAGE_BYTES, "立绘", 8
             )
+    elif meta["type"] == "image":
+        _check_file_size(main_path, USER_PREFIX + content_id, MAX_IMAGE_BYTES, "图片", 8)
     return meta, main_path
 
 

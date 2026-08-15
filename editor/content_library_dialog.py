@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""用户内容库对话框：导入/查看/删除本地自定义音频与角色。
+"""用户内容库对话框：导入/查看/删除自定义音频、角色与统一图片。
 
 自定义角色详情用「基础信息 / 立绘 / 语音」页签管理语音归属；
 语音文件仍是独立 audio 资源，不写进角色 content.json。
@@ -9,7 +9,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -18,6 +19,7 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QHBoxLayout,
     QHeaderView,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QMessageBox,
@@ -43,6 +45,7 @@ from content_registry import (
     list_contents,
     register_audio,
     register_character,
+    register_image,
     remove,
     repository_root,
     set_default_namespace,
@@ -50,6 +53,7 @@ from content_registry import (
     update_audio,
     update_character,
     update_character_intro,
+    update_image,
 )
 import models
 
@@ -97,6 +101,7 @@ class ContentLibraryDialog(QDialog):
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table.setIconSize(QSize(64, 48))
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
@@ -107,15 +112,18 @@ class ContentLibraryDialog(QDialog):
         buttons = QHBoxLayout()
         import_btn = QPushButton(t("library.import"))
         import_char_btn = QPushButton(t("library.import_character"))
+        import_image_btn = QPushButton(t("library.import_image"))
         delete_btn = QPushButton(t("library.delete"))
         edit_btn = QPushButton(t("library.edit"))
         import_btn.clicked.connect(self._import_audio)
         import_char_btn.clicked.connect(self._import_character)
+        import_image_btn.clicked.connect(self._import_image)
         edit_btn.clicked.connect(self._edit_selected)
         delete_btn.clicked.connect(self._delete_selected)
         self.table.cellDoubleClicked.connect(lambda *_: self._edit_selected())
         buttons.addWidget(import_btn)
         buttons.addWidget(import_char_btn)
+        buttons.addWidget(import_image_btn)
         buttons.addWidget(edit_btn)
         buttons.addWidget(delete_btn)
         buttons.addStretch(1)
@@ -138,11 +146,19 @@ class ContentLibraryDialog(QDialog):
         for rec in records:
             row = self.table.rowCount()
             self.table.insertRow(row)
-            self.table.setItem(row, 0, QTableWidgetItem(rec.name))
+            name_item = QTableWidgetItem(rec.name)
+            if rec.type in ("character", "image"):
+                preview_file = rec.main_file
+                name_item.setIcon(QIcon(str(rec.folder / preview_file)))
+                self.table.setRowHeight(row, 52)
+            self.table.setItem(row, 0, name_item)
             self.table.setItem(row, 1, QTableWidgetItem(rec.ref))
             if rec.type == "character":
                 kind = t("library.kind.character")
                 extra = "、".join(rec.portrait_ids())
+            elif rec.type == "image":
+                kind = t("library.kind.image")
+                extra = rec.main_file
             else:
                 kind = _kind_labels().get(rec.audio_kind or "", rec.audio_kind or "")
                 extra = rec.main_file
@@ -221,6 +237,33 @@ class ContentLibraryDialog(QDialog):
             "编号：%s\n在登场/对白步骤的人物列表里选择即可。" % rec.ref,
         )
 
+    def _import_image(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            t("library.import_image_title"),
+            str(Path.home()),
+            "图片 (*.png *.jpg *.jpeg)",
+        )
+        if not path:
+            return
+        dlg = _ImportImageDialog(Path(path), self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        try:
+            rec = register_image(
+                Path(path), dlg.content_id(), dlg.display_name()
+            )
+        except ContentRegistryError as exc:
+            QMessageBox.critical(self, t("library.import_image_fail"), str(exc))
+            return
+        set_default_namespace(dlg.namespace())
+        self._reload()
+        QMessageBox.information(
+            self,
+            t("library.import_image_title"),
+            "编号：%s\n背景、CG 与 Overlay 共用这条图片内容。" % rec.ref,
+        )
+
     def _edit_selected(self) -> None:
         content_id = self._selected_id()
         if not content_id:
@@ -241,6 +284,19 @@ class ContentLibraryDialog(QDialog):
                     name=dlg.display_name(),
                     character=dlg.character(),
                 )
+            except ContentRegistryError as exc:
+                QMessageBox.critical(self, t("library.edit_fail"), str(exc))
+                return
+            self._reload()
+            return
+        if rec.type == "image":
+            name, ok = QInputDialog.getText(
+                self, t("library.edit"), t("library.col.name"), text=rec.name
+            )
+            if not ok:
+                return
+            try:
+                update_image(rec.content_id, name)
             except ContentRegistryError as exc:
                 QMessageBox.critical(self, t("library.edit_fail"), str(exc))
                 return
@@ -399,6 +455,42 @@ class _ImportAudioDialog(QDialog):
         if not text or text == t("library.character_none"):
             return None
         return text
+
+
+class _ImportImageDialog(QDialog):
+    """统一图片导入：稳定 ID + 显示名称，文件类型由选择器限定。"""
+
+    def __init__(self, source: Path, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(t("library.import_image_title"))
+        layout = QFormLayout(self)
+        suggested = suggest_content_id(source.name)
+        ns, local = suggested.split(".", 1)
+        self._name = QLineEdit(source.stem)
+        self._namespace = QLineEdit(ns)
+        self._local = QLineEdit(local)
+        layout.addRow(t("library.col.name"), self._name)
+        layout.addRow("命名空间", self._namespace)
+        layout.addRow("内部名称", self._local)
+        self._preview = QLabel()
+        self._preview.setPixmap(QIcon(str(source)).pixmap(QSize(240, 135)))
+        self._preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addRow("缩略图", self._preview)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addRow(buttons)
+
+    def display_name(self) -> str:
+        return self._name.text().strip()
+
+    def namespace(self) -> str:
+        return self._namespace.text().strip().lower() or default_namespace()
+
+    def content_id(self) -> str:
+        return "%s.%s" % (self.namespace(), self._local.text().strip().lower())
 
 
 class _ImportCharacterDialog(QDialog):

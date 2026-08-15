@@ -7,10 +7,11 @@
 ## 怎么导入
 
 1. 编辑器菜单 **文件 → 用户内容库**。
-2. 点「导入音频…」或「导入角色…」。
+2. 点「导入音频…」「导入角色…」或「导入图片…」。
 3. 音频：选择本机 `.ogg` 或 `.wav`（单条不超过 20MB），填写显示名称、命名空间、内部名称和用途。
 4. 角色：填写显示名称与编号，至少选择 `normal` 默认立绘，可再加 `happy` / `angry` 等表情 PNG。
-5. 得到稳定编号，例如：
+5. 图片：选择 `.png` / `.jpg` / `.jpeg`，填写显示名称和稳定编号；列表会显示缩略图。
+6. 得到稳定编号，例如：
 
 ```text
 user:mohui.battle
@@ -49,11 +50,14 @@ user:mohui.luoxue
   content.json
   normal.png
   happy.png
+%APPDATA%/lom_modkit/repository/image/<id>/
+  content.json
+  moon.jpg
 ```
 
 这只是编辑器仓库。换电脑、只拷 `.lommod` 的玩家不需要这个目录。
 
-人物介绍图 / 结局插图仍在 `%APPDATA%/lom_modkit/assets/`，剧情里写 `assets/文件名.png`，与本系统分开，以免破坏已有 Mod。
+旧人物介绍图 / 结局插图的 `assets/文件名.png` 路径继续兼容。新背景、CG、Overlay 统一引用 `type=image`，不分别创建 BackgroundStore / CGStore / OverlayStore。
 
 ## Story 保存的是什么
 
@@ -65,6 +69,20 @@ user:mohui.luoxue
 ```
 
 禁止保存 `C:\Users\...\battle.ogg` 或立绘绝对路径。
+
+统一图片的 metadata：
+
+```json
+{
+  "schema": 1,
+  "id": "mohui.moon_bg",
+  "type": "image",
+  "name": "月夜",
+  "files": { "main": "moon.jpg" }
+}
+```
+
+图片只允许 PNG/JPG/JPEG，单张不超过 8MB。引用扫描按节点的 `image` 字段定位章节与步骤；删除仍被引用的图片会被阻止。
 
 ## 自定义角色数据格式
 
@@ -88,12 +106,14 @@ user:mohui.luoxue
 
 ## 导出后还依赖本机内容库吗？
 
-不依赖。导出只复制**当前剧情真正引用**的用户音频进 `.lommod`：
+不依赖。导出只复制**当前剧情真正引用**的用户内容进 `.lommod`：
 
 ```text
 assets/user/audio/mohui.battle/content.json
 assets/user/audio/mohui.battle/battle.ogg
 assets/user/character/mohui.luoxue/content.json
+assets/user/image/mohui.moon_bg/content.json
+assets/user/image/mohui.moon_bg/moon.jpg
 assets/user/character/mohui.luoxue/normal.png
 assets/user/character/mohui.luoxue/happy.png
 ```

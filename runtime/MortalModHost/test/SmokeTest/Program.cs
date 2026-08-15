@@ -301,6 +301,8 @@ namespace MortalModHost
                 "合法包内音频路径应接受");
             Assert(ContentRef.IsSafePackageRelative("assets/user/character/mohui.luoxue/normal.png"),
                 "合法包内角色立绘路径应接受");
+            Assert(ContentRef.IsSafePackageRelative("assets/user/image/mohui.moon_bg/moon.jpg"),
+                "合法包内统一图片路径应接受");
 
             string modsDir = Path.Combine(Path.GetTempPath(), "lommod_usercontent_" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(modsDir);
@@ -353,6 +355,8 @@ namespace MortalModHost
             {
                 string charJson =
                     "{\"schema\":1,\"id\":\"mohui.luoxue\",\"type\":\"character\",\"name\":\"洛雪\",\"scale\":80,\"art_facing\":\"right\",\"files\":{\"main\":\"normal.png\"},\"portraits\":{\"normal\":\"normal.png\",\"happy\":\"happy.png\"}}";
+                string imageJson =
+                    "{\"schema\":1,\"id\":\"mohui.moon_bg\",\"type\":\"image\",\"name\":\"月夜\",\"files\":{\"main\":\"moon.jpg\"}}";
                 byte[] png = new byte[] {
                     0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A,0x00,0x00,0x00,0x0D,0x49,0x48,0x44,0x52,
                     0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01,0x08,0x02,0x00,0x00,0x00,0x90,0x77,0x53,
@@ -363,10 +367,12 @@ namespace MortalModHost
                 WriteZip(Path.Combine(charDir, "mod_c.lommod"),
                     ("manifest.json", "{\"format\":1,\"id\":\"mod_c\",\"name\":\"C\",\"version\":\"1\",\"author\":\"t\",\"description\":\"t\",\"entry\":\"main\"}"),
                     ("lua/main.lua", "say(\"c\")"),
-                    ("assets/user/character/mohui.luoxue/content.json", charJson));
+                    ("assets/user/character/mohui.luoxue/content.json", charJson),
+                    ("assets/user/image/mohui.moon_bg/content.json", imageJson));
                 AppendBinaryEntries(Path.Combine(charDir, "mod_c.lommod"),
                     ("assets/user/character/mohui.luoxue/normal.png", png),
-                    ("assets/user/character/mohui.luoxue/happy.png", png));
+                    ("assets/user/character/mohui.luoxue/happy.png", png),
+                    ("assets/user/image/mohui.moon_bg/moon.jpg", png));
                 var charMods = ModLoader.ScanMods(charDir, _ => { }, _ => { });
                 Assert(charMods.Count == 1, "应加载含自定义角色的包");
                 UserContent ch;
@@ -379,6 +385,13 @@ namespace MortalModHost
                     && ch.Scale == 80
                     && ch.ArtFacing == "right",
                     "自定义角色应解析 portraits、立绘字节、体型与原图朝向");
+                UserContent image;
+                Assert(charMods[0].TryGetUserContent("mohui.moon_bg", out image)
+                    && image.Type == "image"
+                    && image.Bytes != null
+                    && image.Bytes.Length == png.Length
+                    && image.PackagePath == "assets/user/image/mohui.moon_bg/moon.jpg",
+                    "统一图片应从当前 ModPackage 读取 metadata、路径与字节");
             }
             finally
             {

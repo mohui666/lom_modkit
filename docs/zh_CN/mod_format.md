@@ -400,7 +400,7 @@ transition 黑幕、choice 皮肤崩溃、背景黑屏、人物未登场就做�
   say/show 引用的人物必须先 show 上台（未上台同样抛 KeyNotFoundException），
   写入口的登场防线会自动补 show（见 add_node/update_node），编辑器体检对多路径汇合做图级兜底。
 
-## 8. 用户内容（User Content，v1 仅音频）
+## 8. 用户内容（User Content）
 
 开发环境仓库在 `%APPDATA%/lom_modkit/repository/`，**不是**运行时依赖。剧情只保存稳定引用：
 
@@ -415,6 +415,8 @@ user:<namespace>.<content_id>     例如 user:mohui.boss_theme
 ```text
 assets/user/audio/mohui.boss_theme/content.json
 assets/user/audio/mohui.boss_theme/boss_theme.ogg
+assets/user/image/mohui.moon_bg/content.json
+assets/user/image/mohui.moon_bg/moon.jpg
 ```
 
 `content.json` schema 1：
@@ -434,11 +436,11 @@ assets/user/audio/mohui.boss_theme/boss_theme.ogg
 
 自定义角色 `content.json` 还可选：`title`（对话短称号）、`scale`（体型 50–130，默认 100，脚底对齐）、`art_facing`（原图朝向 `left` 默认 / `right`）。缺省与旧包按 100 / 朝左处理。
 
-- `type`：`audio` / `character`。
+- `type`：`audio` / `character` / `image`。`image` 是背景、CG、Overlay 共用的统一图片内容，不建立三个独立仓库。
 - `audio_kind`：`music` / `sound` / `env`。
 - `character`（仅音频、可选）：用户角色引用或官方人物 id；省略表示旁白/系统/未关联。
 - 内容 ID：`[a-z][a-z0-9_]{0,31}.[a-z0-9][a-z0-9_]{0,47}`，禁止 `..`、`/`、`\`、`:`。
-- 缺失、类型不匹配、metadata 损坏、文件不存在、扩展名不支持、超过 20MB：pack 直接失败，不得 silently skip。
+- 缺失、类型不匹配、metadata 损坏、文件不存在、扩展名不支持、音频超过 20MB 或图片超过 8MB：pack 直接失败，不得 silently skip。
 - Python 侧唯一解析入口：`compiler/lomc/content.py`。C# 侧契约实现：`ContentRef.cs` + `ModLoader`。
 
 使用说明见 `user_content.md`。

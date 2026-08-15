@@ -5,8 +5,8 @@
 不保存本机绝对路径。导出 .lommod 时由 package_io 把实际引用复制进包；
 运行时只读包内 assets/user/，绝不回读本仓库。
 
-图片仍走 ``asset_store``（story 保存 ``assets/<文件名>``，兼容已有 Mod）。
-本 Registry 按类型扩展：audio 与 character（自定义立绘角色）。
+旧 story 的包内图片路径仍走 ``asset_store``，保持兼容。新图片内容统一使用
+``type=image`` + ``user:`` 稳定引用；背景、CG、Overlay 共用本 Registry。
 """
 
 from __future__ import annotations
@@ -189,10 +189,28 @@ def _record_from_meta(meta: dict, folder: Path) -> ContentRecord:
 
 def _infer_type(content_id: str) -> str:
     root = str(repository_root())
-    for ctype in ("audio", "character"):
+    found = []
+    for ctype in ("audio", "character", "image"):
         if resolve_content_dir(root, ctype, content_id) is not None:
-            return ctype
+            found.append(ctype)
+    if len(found) > 1:
+        raise LomcError(
+            "内容 ID %s 同时存在于多个类型（%s），请删除冲突条目。"
+            % (USER_PREFIX + content_id, " / ".join(found))
+        )
+    if found:
+        return found[0]
     return "audio"
+
+
+def _ensure_id_available(content_id: str) -> None:
+    root = str(repository_root())
+    for ctype in ("audio", "character", "image"):
+        if resolve_content_dir(root, ctype, content_id) is not None:
+            raise ContentRegistryError(
+                "内容 ID %s 已存在（类型 %s）。用户内容 ID 在所有类型之间必须唯一。"
+                % (USER_PREFIX + content_id, ctype)
+            )
 
 
 def _rebuild_index(records: list[ContentRecord]) -> None:
@@ -267,6 +285,7 @@ def register_audio(
     except LomcError as exc:
         raise ContentRegistryError(str(exc)) from exc
     display = (name or "").strip() or Path(source).stem
+    _ensure_id_available(content_id)
     src = Path(source)
     try:
         data = src.read_bytes()
@@ -309,6 +328,87 @@ def register_audio(
         raise
     _rebuild_index(list_contents())
     return get(content_id)
+
+
+def register_image(
+    source: Path,
+    content_id: str,
+    name: str,
+) -> ContentRecord:
+    """导入 PNG/JPG/JPEG 为统一 ``type=image`` 内容。"""
+    try:
+        validate_content_id(content_id)
+    except LomcError as exc:
+        raise ContentRegistryError(str(exc)) from exc
+    _ensure_id_available(content_id)
+    src = Path(source)
+    try:
+        data = src.read_bytes()
+    except OSError as exc:
+        raise ContentRegistryError("无法读取图片文件：%s" % exc) from exc
+    if not data:
+        raise ContentRegistryError("图片文件是空的。")
+    if len(data) > MAX_IMAGE_BYTES:
+        raise ContentRegistryError("图片超过 8MB，请压缩后再导入。")
+    try:
+        filename = safe_image_filename(src.name)
+    except LomcError as exc:
+        raise ContentRegistryError(str(exc)) from exc
+    if Path(filename).suffix.lower() not in IMAGE_EXTENSIONS:
+        raise ContentRegistryError("图片只支持 PNG / JPG / JPEG。")
+
+    folder = repository_root() / Path(package_content_dir("image", content_id))
+    if folder.exists():
+        raise ContentRegistryError(
+            "内容 ID %s 已存在。请换一个 ID，或先删除旧内容。"
+            % (USER_PREFIX + content_id)
+        )
+    folder.mkdir(parents=True, exist_ok=False)
+    try:
+        (folder / filename).write_bytes(data)
+        write_content_metadata(
+            str(folder / "content.json"),
+            {
+                "schema": CONTENT_SCHEMA,
+                "id": content_id,
+                "type": "image",
+                "name": (name or "").strip() or src.stem,
+                "files": {"main": filename},
+            },
+        )
+    except Exception:
+        shutil.rmtree(folder, ignore_errors=True)
+        raise
+    _rebuild_index(list_contents())
+    return get(content_id)
+
+
+def update_image(content_id: str, name: str) -> ContentRecord:
+    """更新统一图片的显示名称；稳定 id 和原文件保持不变。"""
+    rec = get(content_id)
+    if rec.type != "image":
+        raise ContentRegistryError("%s 不是图片。" % rec.ref)
+    write_content_metadata(
+        str(rec.folder / "content.json"),
+        {
+            "schema": CONTENT_SCHEMA,
+            "id": rec.content_id,
+            "type": "image",
+            "name": (name or "").strip() or rec.name,
+            "files": {"main": rec.main_file},
+        },
+    )
+    _rebuild_index(list_contents())
+    return get(content_id)
+
+
+def find_references(content_id: str, stories: dict) -> list[dict]:
+    """返回该稳定 ID 在所有章节中的基础引用位置。"""
+    return [
+        item
+        for item in collect_stories_content_refs(stories or {})
+        if item["ref"].content_id == content_id
+    ]
 
 
 def update_audio(
@@ -385,6 +485,7 @@ def register_character(
         validate_content_id(content_id)
     except LomcError as exc:
         raise ContentRegistryError(str(exc)) from exc
+    _ensure_id_available(content_id)
     if not isinstance(portraits, dict) or not portraits:
         raise ContentRegistryError("至少导入一张默认立绘（normal）。")
     display = (name or "").strip() or content_id
@@ -638,9 +739,11 @@ def remove(content_id: str, stories: dict | None = None) -> None:
     _rebuild_index(list_contents())
 
 
-def copy_into_mod(mod_dir: Path, content_id: str) -> Path:
+def copy_into_mod(
+    mod_dir: Path, content_id: str, expected_type: str | None = None
+) -> Path:
     """把仓库中的一条内容复制到 mod 目录的 assets/user/，供 pack 收集。"""
-    rec, _main_path = resolve(content_id)
+    rec, _main_path = resolve(content_id, expected_type=expected_type)
     dest_dir = Path(mod_dir) / package_content_dir(rec.type, content_id)
     dest_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy2(rec.folder / "content.json", dest_dir / "content.json")

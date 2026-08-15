@@ -3390,6 +3390,51 @@ class TestUserContent(unittest.TestCase):
         with self.assertRaises(LomcError):
             validate_content_id("a" * 80 + ".x")
 
+    def test_generic_image_metadata_and_reference_collection(self):
+        from lomc.content import (
+            collect_story_content_refs,
+            normalize_content_metadata,
+        )
+
+        meta = normalize_content_metadata(
+            {
+                "schema": 1,
+                "id": "mohui.moon_bg",
+                "type": "image",
+                "name": "月夜",
+                "files": {"main": "moon.JPEG"},
+            }
+        )
+        self.assertEqual(meta["type"], "image")
+        self.assertEqual(meta["files"]["main"], "moon.JPEG")
+        refs = collect_story_content_refs(
+            {
+                "nodes": [
+                    {
+                        "id": "n1",
+                        "type": "future_image_node",
+                        "image": "user:mohui.moon_bg",
+                    }
+                ]
+            }
+        )
+        self.assertEqual(len(refs), 1)
+        self.assertEqual(refs[0]["expected_type"], "image")
+        self.assertEqual(refs[0]["field"], "image")
+
+    def test_generic_image_rejects_bad_extension(self):
+        from lomc.content import normalize_content_metadata
+
+        with self.assertRaises(LomcError):
+            normalize_content_metadata(
+                {
+                    "schema": 1,
+                    "id": "mohui.bad_image",
+                    "type": "image",
+                    "name": "坏图",
+                    "files": {"main": "bad.webp"},
+                }
+            )
     def test_official_show_still_uses_stage(self):
         lua = compile_story(
             linear_story(

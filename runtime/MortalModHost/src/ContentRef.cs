@@ -12,6 +12,7 @@ namespace MortalModHost
         public const string UserPrefix = "user:";
         public const string PackageUserRoot = "assets/user";
         public const long MaxAudioBytes = 20L * 1024 * 1024;
+        public const long MaxImageBytes = 8L * 1024 * 1024;
 
         private static readonly Regex ContentIdRegex = new Regex(
             @"^[a-z][a-z0-9_]{0,31}\.[a-z0-9][a-z0-9_]{0,47}$",

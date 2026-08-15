@@ -116,6 +116,8 @@ assets/user/audio/mohui.battle/battle.ogg
 
 ## 執行階段行為
 
+- 統一圖片內容使用 `type=image` 與穩定 `user:` 編號，支援 PNG/JPG/JPEG（≤8MB）。背景、CG、Overlay 共用同一內容庫；清單顯示縮圖，刪除前會檢查章節/步驟引用，封包只收集實際引用。
+
 - 官方名字：原版 Wwise，行為與以前完全相同。
 - `user:`：只從**當前正在演出的那個 .lommod** 裡找。另一個 Mod 登記了同名 ID 也不會串音。
 - 自訂音訊用 Windows `waveOut` 播放，不走 Unity `AudioSource`，也不走 Wwise。本遊戲主混音是 Wwise，Unity 播了經常沒聲。
