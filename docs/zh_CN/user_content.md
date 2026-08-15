@@ -100,5 +100,6 @@ assets/user/audio/mohui.battle/battle.ogg
 - 音量大致跟随游戏的主音量 × 音乐/音效滑条；不是 Wwise RTPC，不能做到完全一致。
 - 自定义 fadeout 是输出音量渐弱（随后仍会按节点等待）。
 - 切到自定义音乐时会先停官方背景乐；官方 `StopMusic` 本来就会把环境音一起清掉。
+- 回标题、进自由/死亡/结局时自定义音频（含对白语音）会立刻停；官方再播一首 BGM 时会先停自定义 BGM，避免两轨叠在一起。
 - 本版本不实现自定义角色立绘运行时；仓库的 `type` 已预留 `character`。
 - 可用 `samples/audio_test/` 做验收：自己导入 `user:test.bgm` / `user:test.sfx` / `user:test.env`。

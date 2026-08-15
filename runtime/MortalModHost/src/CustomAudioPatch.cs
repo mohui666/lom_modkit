@@ -1,5 +1,6 @@
 using System;
 using HarmonyLib;
+using Mortal.Core;
 using Mortal.Story;
 
 namespace MortalModHost
@@ -111,6 +112,52 @@ namespace MortalModHost
                 if (CustomAudioPlayer.IsCustomEnvPlaying())
                     CustomAudioPlayer.FadeOutEnv(second);
             }
+            catch { }
+        }
+    }
+
+    /// <summary>
+    /// 标题 / 自由模式 / 读档等走 <see cref="SoundManager"/>，不经过 LuaManager。
+    /// 官方 BGM 一起就必须掐掉自定义 waveOut，否则两轨叠播。
+    /// </summary>
+    [HarmonyPatch(typeof(SoundManager), "PlayMusic")]
+    internal static class SoundManagerPlayMusicPatch
+    {
+        private static void Prefix()
+        {
+            try { CustomAudioPlayer.StopMusicImmediate(); }
+            catch { }
+        }
+    }
+
+    /// <summary>
+    /// 官方 <c>StopMusic</c> 实际是停掉全部 Wwise（含环境音）。自定义 waveOut 不在
+    /// Wwise 里，音乐/环境/音效必须一并清掉。对白语音单独通道，留给切场景处理，
+    /// 避免剧情里的 StopMusic 误杀正在说的那句。
+    /// 自定义切歌主动调用时由 <see cref="CustomAudioPlayer.SuppressOfficialStopHook"/> 跳过。
+    /// </summary>
+    [HarmonyPatch(typeof(SoundManager), "StopMusic")]
+    internal static class SoundManagerStopMusicPatch
+    {
+        private static void Prefix()
+        {
+            if (CustomAudioPlayer.SuppressOfficialStopHook)
+                return;
+            try { CustomAudioPlayer.StopAllImmediate(); }
+            catch { }
+        }
+    }
+
+    /// <summary>
+    /// 切场景（回标题、进自由、战斗、死亡、结局）立刻停自定义音频。
+    /// 不能等目标场景 Start 再停：Loading 期间 waveOut 会继续响。
+    /// </summary>
+    [HarmonyPatch(typeof(SceneController), "LoadNewScene")]
+    internal static class LoadNewSceneAudioPatch
+    {
+        private static void Prefix()
+        {
+            try { CustomAudioPlayer.StopEverything(); }
             catch { }
         }
     }

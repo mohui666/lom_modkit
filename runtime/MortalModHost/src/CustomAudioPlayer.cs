@@ -22,6 +22,12 @@ namespace MortalModHost
         private static Coroutine _musicFade;
         private static Coroutine _envFade;
 
+        /// <summary>
+        /// 自定义切歌时会主动调 <c>SoundManager.StopMusic</c> 清官方 BGM。
+        /// 该调用必须只停 Wwise，不能反过来把即将开播的自定义通道也掐掉。
+        /// </summary>
+        internal static bool SuppressOfficialStopHook;
+
         public static void Init(MonoBehaviour host)
         {
             _host = host;
@@ -80,6 +86,8 @@ namespace MortalModHost
 
         public static bool PlayMusic(string name)
         {
+            // 先掐掉本通道残留（含 fade），再停官方 BGM，避免两轨叠在一起。
+            StopMusicImmediate();
             return PlayKeyed(name, _music, loop: true, isMusic: true);
         }
 
@@ -242,6 +250,8 @@ namespace MortalModHost
 
         private static void StopOfficialMusic()
         {
+            bool previous = SuppressOfficialStopHook;
+            SuppressOfficialStopHook = true;
             try
             {
                 if (SoundManager.Instance != null)
@@ -250,6 +260,10 @@ namespace MortalModHost
             catch (Exception ex)
             {
                 if (Log != null) Log.LogDebug("停止官方音乐失败：" + ex.Message);
+            }
+            finally
+            {
+                SuppressOfficialStopHook = previous;
             }
         }
 

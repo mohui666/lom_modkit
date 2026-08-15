@@ -178,6 +178,12 @@ namespace MortalModHost
                 AccessTools.Method(typeof(LuaManager), "FadeOutMusic", new Type[] { typeof(float) }));
             ok &= CheckTarget("LuaManager.FadeOutEnvSound",
                 AccessTools.Method(typeof(LuaManager), "FadeOutEnvSound", new Type[] { typeof(float) }));
+            ok &= CheckTarget("SoundManager.PlayMusic",
+                AccessTools.Method(typeof(SoundManager), "PlayMusic", new Type[] { typeof(string) }));
+            ok &= CheckTarget("SoundManager.StopMusic",
+                AccessTools.Method(typeof(SoundManager), "StopMusic", Type.EmptyTypes));
+            ok &= CheckTarget("SceneController.LoadNewScene",
+                AccessTools.Method(typeof(SceneController), "LoadNewScene", new Type[] { typeof(string) }));
             if (!ok)
             {
                 Logger.LogError("部分 Harmony 目标缺失（游戏版本可能已变更），战役/触发器功能可能不可用");
@@ -185,7 +191,7 @@ namespace MortalModHost
             }
             new Harmony(GUID).PatchAll(); // patch 本程序集全部 [HarmonyPatch] 类
             PatchSteamRestart();
-            Logger.LogInfo("Harmony patch 已挂载：ExecuteLuaScript / NewGameData / Free 自动与地点剧情抑制 / GetExecuteScript / UpdateTranslations / ShowMood / CharacterIntroPanel / GameOver/EndGamePanel/EndGame / NewGamePlus / DiceRevolution / CustomAudio");
+            Logger.LogInfo("Harmony patch 已挂载：ExecuteLuaScript / NewGameData / Free 自动与地点剧情抑制 / GetExecuteScript / UpdateTranslations / ShowMood / CharacterIntroPanel / GameOver/EndGamePanel/EndGame / NewGamePlus / DiceRevolution / CustomAudio / SoundManager / LoadNewScene");
         }
 
         /// <summary>
@@ -367,7 +373,16 @@ namespace MortalModHost
             if (scene == _previousScene) return;
             if (_previousScene == "GameOver" || _previousScene == "End")
                 ModOverlay.Clear();
+            // waveOut 不跟场景走：回标题/自由/死亡/结局/Loading 时再兜一层停播。
+            if (scene == "Title" || scene == "Free" || scene == "GameOver"
+                || scene == "End" || scene == "Loading")
+                CustomAudioPlayer.StopEverything();
             _previousScene = scene;
+        }
+
+        private void OnDestroy()
+        {
+            CustomAudioPlayer.ReleaseAll();
         }
 
         /// <summary>
