@@ -1,0 +1,143 @@
+{
+  "format": 1,
+  "observed_utc": "2026-08-16",
+  "verification_tool": "ilspycmd 8.2.0.7535",
+  "game_build_note": "Mortal.exe exposes Unity product version 2020.3.49f1 only; assembly hashes are the authoritative observed-build identity.",
+  "assemblies": [
+    {
+      "file": "Mortal.Story.dll",
+      "size": 109568,
+      "sha256": "ED5C318DB14868B03EEF3CC345B5FF9DD32C557CA9DB88CE7E07ACCFC5F47020"
+    },
+    {
+      "file": "Mortal.Core.dll",
+      "size": 331776,
+      "sha256": "9A76F508BC069A4F9BEB1A2E798A002A0D4B20D1210FE0CD2EA98C7B6FFC0FB1"
+    },
+    {
+      "file": "Mortal.Combat.dll",
+      "size": 472576,
+      "sha256": "65D64D0BA936D90B8FF405A27477C1C3F5D65805AB900411C92481A638B103DD"
+    },
+    {
+      "file": "Mortal.Battle.dll",
+      "size": 294912,
+      "sha256": "BE9025D12D75A6E6B70EE00FAFA0C3744F4E67A774427233CCA29CF0E79C3DAD"
+    }
+  ],
+  "probes": [
+    {
+      "assembly": "Mortal.Story.dll",
+      "type": "Mortal.Story.LuaManager",
+      "required_fragments": [
+        "public void ChangeScene(string name, string key, string nextScene)",
+        "PlayerStatManagerData.Instance.SetNextScene(nextScene)",
+        "PlayerStatManagerData.Instance.SetSceneKey(key)",
+        "SceneController.Instance.LoadNewScene(name)",
+        "public void SetPlayerBattleSkill(string key, int index)",
+        "public void SetBattleSkillActive(string key, int active)",
+        "public void SetBattleSkillLevel(string key, int level)"
+      ]
+    },
+    {
+      "assembly": "Mortal.Combat.dll",
+      "type": "Mortal.Combat.CombatManager",
+      "required_fragments": [
+        "public IEnumerator GameOver(bool win)",
+        "yield return GameOver(win: true)",
+        "yield return GameOver(win: false)",
+        "yield return LoadNextScene()",
+        "SceneController.Instance.LoadNextScene()"
+      ]
+    },
+    {
+      "assembly": "Mortal.Combat.dll",
+      "type": "Mortal.Combat.CombatLevel",
+      "required_fragments": [
+        "public CombatResultFlag[] WinResult",
+        "public CombatResultFlag[] LoseResult",
+        "public bool DeadEnd"
+      ]
+    },
+    {
+      "assembly": "Mortal.Battle.dll",
+      "type": "Mortal.Battle.GameLevelManager",
+      "required_fragments": [
+        "string text = \"BL_\" + currentSceneKey",
+        "public void ShowGameOver(GameOverType type, bool finish)",
+        "ShowGameOver(GameOverType.FriendWin, finish: true)",
+        "ShowGameOver(GameOverType.EnemyWin, finish: true)",
+        "ShowGameOver(GameOverType.PlayerDie, finish: false)"
+      ]
+    },
+    {
+      "assembly": "Mortal.Battle.dll",
+      "type": "Mortal.Battle.GameOverType",
+      "required_fragments": [
+        "PlayerDie = 1",
+        "FriendWin",
+        "EnemyWin",
+        "Timeout"
+      ]
+    },
+    {
+      "assembly": "Mortal.Core.dll",
+      "type": "Mortal.Core.ShopDatabase",
+      "required_fragments": [
+        "public List<ShopItem> Books",
+        "public List<ShopItem> Miscs",
+        "public List<ShopItem> Specials",
+        "public void NewShop()",
+        "private void AddShopItem(ShopItemsData itemData)"
+      ]
+    },
+    {
+      "assembly": "Mortal.Core.dll",
+      "type": "Mortal.Core.ShopItem",
+      "required_fragments": [
+        "public ShopItem(ItemData item, int count)",
+        "public int Count { get; private set; }"
+      ]
+    },
+    {
+      "assembly": "Mortal.Core.dll",
+      "type": "Mortal.Core.ItemDatabase",
+      "required_fragments": [
+        "public IGameItem GetItem(GameItemType type, string id)",
+        "public bool HasItem(GameItemType type, string id)"
+      ]
+    },
+    {
+      "assembly": "Mortal.Core.dll",
+      "type": "Mortal.Core.PlayerStatManagerData",
+      "required_fragments": [
+        "public PlayerTalentDataCollection Talents",
+        "public void SetBattleSkillLevel(string key, int level)",
+        "public void Save(GameSave gameSave)"
+      ]
+    },
+    {
+      "assembly": "Mortal.Core.dll",
+      "type": "Mortal.Core.SaveSystem",
+      "required_fragments": [
+        "public string CurrentSlot",
+        "public void SetSlot(string slot)",
+        "public void SaveGameData()"
+      ]
+    }
+  ],
+  "capabilities": {
+    "combat_official_template": "verified_decompile",
+    "combat_result_win_lose": "verified_decompile",
+    "battle_official_template": "verified_decompile",
+    "battle_result_friend_enemy_win": "verified_decompile",
+    "battle_draw_escape": "not_exposed",
+    "dynamic_battle_map_model_ai": "not_exposed",
+    "battle_skill_setup": "verified_decompile",
+    "custom_shop_inventory": "verified_decompile_requires_host_scope",
+    "custom_shop_per_item_price": "requires_host_patch",
+    "item_talent_checks": "verified_decompile_requires_host_bridge",
+    "mod_persistent_state": "requires_host_sidecar",
+    "mod_quest": "requires_mod_owned_state_machine"
+  }
+}
