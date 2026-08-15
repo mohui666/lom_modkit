@@ -202,6 +202,33 @@ class TestAddNode(unittest.TestCase):
         with self.assertRaises(ValueError, msg="after 指向不存在节点应抛 ValueError"):
             story_api.add_node(story, "wait", after="no_such")
 
+    def test_custom_character_stage_actions_compile(self):
+        story = base_story()
+        raw = "user:mohui.luoxue"
+        story_api.add_node(story, "show", {"character": raw, "position": "M"})
+        story_api.add_node(
+            story,
+            "offset",
+            {"character": raw, "x": 10, "y": -2, "duration": 0.2},
+        )
+        story_api.add_node(story, "shock", {"character": raw, "duration": 0.4})
+        story_api.add_node(story, "dim", {"character": raw, "dimmed": True})
+        story_api.add_node(
+            story,
+            "rotate",
+            {"character": raw, "angle": 30, "duration": 0.3},
+        )
+        story_api.add_node(story, "end")
+
+        lua, _warnings, _texts = story_api.compile_story(story)
+        for global_name in (
+            "mod_char_offset",
+            "mod_char_shock",
+            "mod_char_dim",
+            "mod_char_rotate",
+        ):
+            self.assertIn(global_name, lua)
+
 
 class TestUpdateNode(unittest.TestCase):
     def test_normal(self):

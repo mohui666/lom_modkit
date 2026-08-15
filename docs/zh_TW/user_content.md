@@ -122,5 +122,6 @@ assets/user/audio/mohui.battle/battle.ogg
 - 音量大致跟隨遊戲的主音量 × 音樂/音效滑桿；不是 Wwise RTPC，不能做到完全一致。
 - 自訂 fadeout 是輸出音量漸弱（隨後仍會按節點等待）。
 - 切到自訂音樂時會先停官方背景樂；官方 `StopMusic` 本來就會把環境音一起清掉。
-- 自訂角色走獨立 Runtime（`mod_char_*`），不註冊進原版 Addressables。第一版支援 show / say / hide / move / face / focus。體型用 `scale`（50–130，預設 100）從腳底縮放；朝向依 `art_facing`（預設朝左）再疊節點 `facing`。詳見簡中文檔。
+- 自訂角色走獨立 Runtime（`mod_char_*`），不註冊進原版 Addressables。支援 show / say / hide / move / face / focus / offset / shock / dim / rotate；官方角色路徑不變。體型用 `scale`（50–130，預設 100）從腳底縮放；朝向依 `art_facing`（預設朝左）再疊節點 `facing`。
+- `affinity` 仍不支援自訂角色，因為它會寫入官方 CharacterData 好感系統，而非純演出；請改用 Mod 隔離變數保存長期狀態。
 - 可用 `samples/audio_test/` 做驗收：自己匯入 `user:test.bgm` / `user:test.sfx` / `user:test.env`。

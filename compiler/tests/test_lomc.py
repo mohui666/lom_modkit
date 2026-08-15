@@ -3549,17 +3549,83 @@ class TestUserContent(unittest.TestCase):
             "不合法",
         )
 
-    def test_user_character_unsupported_offset(self):
+    def test_user_character_stage_actions(self):
+        cases = (
+            (
+                {
+                    "id": "n1",
+                    "type": "offset",
+                    "character": "user:mohui.luoxue",
+                    "x": 10,
+                    "y": -4,
+                    "duration": 0.2,
+                },
+                'mod_char_offset("user:mohui.luoxue", 10, -4, 0.2)',
+                "MoveOffsetCoroutine",
+            ),
+            (
+                {
+                    "id": "n1",
+                    "type": "shock",
+                    "character": "user:mohui.luoxue",
+                    "duration": 0.6,
+                },
+                'mod_char_shock("user:mohui.luoxue", 0.6)',
+                "ShockPosition",
+            ),
+            (
+                {
+                    "id": "n1",
+                    "type": "dim",
+                    "character": "user:mohui.luoxue",
+                    "dimmed": True,
+                },
+                'mod_char_dim("user:mohui.luoxue", true)',
+                "stage.SetDimmed",
+            ),
+            (
+                {
+                    "id": "n1",
+                    "type": "rotate",
+                    "character": "user:mohui.luoxue",
+                    "angle": 45,
+                    "duration": 0.3,
+                },
+                'mod_char_rotate("user:mohui.luoxue", 45, 0.3)',
+                "characters.Rotate",
+            ),
+        )
+        for node, expected, forbidden in cases:
+            with self.subTest(node=node["type"]):
+                lua = compile_story(linear_story(node))
+                self.assertIn(expected, lua)
+                self.assertNotIn(forbidden, lua)
+
+    def test_user_character_stage_action_rejects_illegal_ref(self):
         assert_compile_error(
             self,
             linear_story(
                 {
                     "id": "n1",
                     "type": "offset",
-                    "character": "user:mohui.luoxue",
+                    "character": "user:../evil",
                     "x": 10,
                     "y": 0,
                     "duration": 0.2,
+                }
+            ),
+            "非法路径",
+        )
+
+    def test_user_character_affinity_remains_unsupported(self):
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "affinity",
+                    "character": "user:mohui.luoxue",
+                    "delta": 1,
                 }
             ),
             "暂不支持",
@@ -3938,6 +4004,27 @@ class TestPackUserCharacter(unittest.TestCase):
                     "type": "show",
                     "character": "user:mohui.ghost",
                     "position": "M",
+                },
+                {"id": "n2", "type": "end"},
+            ]
+        )
+        with open(
+            os.path.join(self.mod_dir, "story", "main.json"), "w", encoding="utf-8"
+        ) as f:
+            json.dump(story, f, ensure_ascii=False, indent=2)
+        with self.assertRaises(LomcError) as cm:
+            pack_mod(self.mod_dir)
+        self.assertIn("找不到用户内容", str(cm.exception))
+
+    def test_pack_stage_action_alone_still_resolves_character(self):
+        story = make_story(
+            [
+                {
+                    "id": "n1",
+                    "type": "rotate",
+                    "character": "user:mohui.ghost",
+                    "angle": 15,
+                    "duration": 0.2,
                 },
                 {"id": "n2", "type": "end"},
             ]

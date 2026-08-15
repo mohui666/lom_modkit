@@ -34,7 +34,15 @@ namespace MortalModHost
             public GameObject Holder;
             public RectTransform HolderRect;
             public Image Image;
+            public RectTransform ImageRect;
             public bool Visible;
+            public bool Dimmed;
+            public Coroutine MotionRoutine;
+            public Coroutine ShockRoutine;
+            public Coroutine DimRoutine;
+            public Coroutine RotateRoutine;
+            public Vector2 ShockOrigin;
+            public bool Shocking;
             public readonly Dictionary<string, Sprite> Sprites = new Dictionary<string, Sprite>(StringComparer.Ordinal);
             public readonly List<Texture2D> Textures = new List<Texture2D>();
         }
@@ -154,10 +162,79 @@ namespace MortalModHost
                 return false;
             }
             actor.Slot = to;
+            StopRoutine(ref actor.MotionRoutine);
             if (_host != null && duration > 0f)
-                _host.StartCoroutine(MoveTo(actor, dest, duration));
+                actor.MotionRoutine = _host.StartCoroutine(MoveTo(actor, dest, duration));
             else
                 FitHolderToSprite(actor, dest);
+            return true;
+        }
+
+        /// <summary>按原版 MoveOffsetCoroutine 语义累加 anchoredPosition。</summary>
+        public static bool Offset(string raw, float x, float y, float duration)
+        {
+            Actor actor;
+            if (!Actors.TryGetValue(raw ?? "", out actor) || actor == null
+                || actor.HolderRect == null || !actor.Visible)
+                return false;
+            StopRoutine(ref actor.MotionRoutine);
+            Vector2 target = actor.HolderRect.anchoredPosition + new Vector2(x, y);
+            if (_host != null && duration > 0f)
+                actor.MotionRoutine = _host.StartCoroutine(OffsetTo(actor, target, duration));
+            else
+                actor.HolderRect.anchoredPosition = target;
+            return true;
+        }
+
+        /// <summary>对立绘子层做衰减抖动，结束时精确恢复位置。</summary>
+        public static bool Shock(string raw, float duration)
+        {
+            Actor actor;
+            if (!Actors.TryGetValue(raw ?? "", out actor) || actor == null
+                || actor.ImageRect == null || !actor.Visible)
+                return false;
+            StopShock(actor);
+            actor.ShockOrigin = actor.ImageRect.anchoredPosition;
+            actor.Shocking = true;
+            if (_host != null && duration > 0f)
+                actor.ShockRoutine = _host.StartCoroutine(ShakeImage(actor, duration));
+            else
+                StopShock(actor);
+            return true;
+        }
+
+        /// <summary>使用当前官方舞台的 DimColor / FadeDuration 压暗立绘。</summary>
+        public static bool Dim(string raw, bool dimmed)
+        {
+            Actor actor;
+            if (!Actors.TryGetValue(raw ?? "", out actor) || actor == null || actor.Image == null)
+                return false;
+            actor.Dimmed = dimmed;
+            Stage stage = Stage.GetActiveStage();
+            Color target = dimmed && stage != null ? stage.DimColor : Color.white;
+            target.a = actor.Image.color.a;
+            float duration = stage != null ? stage.FadeDuration : 0f;
+            StopRoutine(ref actor.DimRoutine);
+            if (_host != null && duration > 0f)
+                actor.DimRoutine = _host.StartCoroutine(FadeColor(actor, target, duration));
+            else
+                actor.Image.color = target;
+            return true;
+        }
+
+        /// <summary>按原版 Rotate 语义旋转到绝对 Z 角度。</summary>
+        public static bool Rotate(string raw, float angle, float duration)
+        {
+            Actor actor;
+            if (!Actors.TryGetValue(raw ?? "", out actor) || actor == null
+                || actor.HolderRect == null || !actor.Visible)
+                return false;
+            StopRoutine(ref actor.RotateRoutine);
+            Quaternion target = Quaternion.Euler(0f, 0f, angle);
+            if (_host != null && duration > 0f)
+                actor.RotateRoutine = _host.StartCoroutine(RotateTo(actor, target, duration));
+            else
+                actor.HolderRect.localRotation = target;
             return true;
         }
 
@@ -271,13 +348,14 @@ namespace MortalModHost
             GameObject imageObj = new GameObject("portrait", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
             imageObj.transform.SetParent(holder.transform, false);
             actor.Image = imageObj.GetComponent<Image>();
+            actor.ImageRect = imageObj.GetComponent<RectTransform>();
             actor.Image.preserveAspect = true;
             actor.Image.raycastTarget = false;
             actor.Image.material = null;
             actor.Image.type = Image.Type.Simple;
             actor.Image.color = new Color(1f, 1f, 1f, 0f);
             actor.Image.enabled = false;
-            RectTransform imageRect = imageObj.GetComponent<RectTransform>();
+            RectTransform imageRect = actor.ImageRect;
             imageRect.anchorMin = Vector2.zero;
             imageRect.anchorMax = Vector2.one;
             imageRect.offsetMin = Vector2.zero;
@@ -300,7 +378,10 @@ namespace MortalModHost
             {
                 actor.Image.sprite = sprite;
                 actor.Image.enabled = true;
-                actor.Image.color = Color.white;
+                Stage stage = Stage.GetActiveStage();
+                Color color = actor.Dimmed && stage != null ? stage.DimColor : Color.white;
+                color.a = 1f;
+                actor.Image.color = color;
             }
             FitHolderToSprite(actor);
             return true;
@@ -512,6 +593,95 @@ namespace MortalModHost
             actor.HolderRect.position = dest.position;
             FitHolderToSprite(actor);
             ApplyFacing(actor, actor.Facing);
+            actor.MotionRoutine = null;
+        }
+
+        private static IEnumerator OffsetTo(Actor actor, Vector2 target, float seconds)
+        {
+            if (actor.HolderRect == null)
+                yield break;
+            Vector2 start = actor.HolderRect.anchoredPosition;
+            float elapsed = 0f;
+            while (elapsed < seconds && actor.HolderRect != null)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                actor.HolderRect.anchoredPosition = Vector2.Lerp(
+                    start, target, Mathf.Clamp01(elapsed / seconds));
+                yield return null;
+            }
+            if (actor.HolderRect != null)
+                actor.HolderRect.anchoredPosition = target;
+            actor.MotionRoutine = null;
+        }
+
+        private static IEnumerator ShakeImage(Actor actor, float seconds)
+        {
+            float elapsed = 0f;
+            while (elapsed < seconds && actor.ImageRect != null)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float strength = 12f * (1f - Mathf.Clamp01(elapsed / seconds));
+                float phase = elapsed * 70f;
+                actor.ImageRect.anchoredPosition = actor.ShockOrigin
+                    + new Vector2(Mathf.Sin(phase) * strength, Mathf.Cos(phase * 0.73f) * strength * 0.45f);
+                yield return null;
+            }
+            if (actor.ImageRect != null)
+                actor.ImageRect.anchoredPosition = actor.ShockOrigin;
+            actor.Shocking = false;
+            actor.ShockRoutine = null;
+        }
+
+        private static IEnumerator FadeColor(Actor actor, Color target, float seconds)
+        {
+            if (actor.Image == null)
+                yield break;
+            Color start = actor.Image.color;
+            float elapsed = 0f;
+            while (elapsed < seconds && actor.Image != null)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                actor.Image.color = Color.Lerp(start, target, Mathf.Clamp01(elapsed / seconds));
+                yield return null;
+            }
+            if (actor.Image != null)
+                actor.Image.color = target;
+            actor.DimRoutine = null;
+        }
+
+        private static IEnumerator RotateTo(Actor actor, Quaternion target, float seconds)
+        {
+            if (actor.HolderRect == null)
+                yield break;
+            Quaternion start = actor.HolderRect.localRotation;
+            float elapsed = 0f;
+            while (elapsed < seconds && actor.HolderRect != null)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                actor.HolderRect.localRotation = Quaternion.Slerp(
+                    start, target, Mathf.Clamp01(elapsed / seconds));
+                yield return null;
+            }
+            if (actor.HolderRect != null)
+                actor.HolderRect.localRotation = target;
+            actor.RotateRoutine = null;
+        }
+
+        private static void StopRoutine(ref Coroutine routine)
+        {
+            if (routine != null && _host != null)
+                _host.StopCoroutine(routine);
+            routine = null;
+        }
+
+        private static void StopShock(Actor actor)
+        {
+            if (actor == null)
+                return;
+            StopRoutine(ref actor.ShockRoutine);
+            if (actor.Shocking && actor.ImageRect != null)
+                actor.ImageRect.anchoredPosition = actor.ShockOrigin;
+            actor.Shocking = false;
         }
 
         private static void DestroyActor(string key)
@@ -519,6 +689,10 @@ namespace MortalModHost
             Actor actor;
             if (!Actors.TryGetValue(key, out actor) || actor == null)
                 return;
+            StopRoutine(ref actor.MotionRoutine);
+            StopShock(actor);
+            StopRoutine(ref actor.DimRoutine);
+            StopRoutine(ref actor.RotateRoutine);
             foreach (var pair in actor.Sprites)
             {
                 if (pair.Value != null)
@@ -535,6 +709,7 @@ namespace MortalModHost
                 UnityEngine.Object.Destroy(actor.Holder);
             actor.Holder = null;
             actor.Image = null;
+            actor.ImageRect = null;
             Actors.Remove(key);
         }
     }

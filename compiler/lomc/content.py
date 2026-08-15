@@ -31,8 +31,22 @@ IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg")
 MAX_AUDIO_BYTES = 20 * 1024 * 1024
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 PACKAGE_USER_ROOT = "assets/user"
-CHARACTER_NODE_TYPES = ("show", "say", "hide", "move", "face", "focus", "intro")
-UNSUPPORTED_USER_CHAR_TYPES = ("offset", "shock", "dim", "rotate", "affinity")
+CHARACTER_NODE_TYPES = (
+    "show",
+    "say",
+    "hide",
+    "move",
+    "face",
+    "focus",
+    "offset",
+    "shock",
+    "dim",
+    "rotate",
+    "intro",
+)
+# affinity 会写入官方 CharacterData / 好感数值，不是纯舞台演出。自定义角色
+# 没有官方好感数据槽，因此必须继续显式拒绝，不能把 user: id 传给原版 API。
+UNSUPPORTED_USER_CHAR_TYPES = ("affinity",)
 
 # 内容 ID：<namespace>.<local>，只允许小写字母、数字、下划线；禁止路径分隔。
 # namespace 以字母开头，避免与纯数字/点号路径混淆。

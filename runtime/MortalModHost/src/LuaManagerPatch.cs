@@ -282,6 +282,43 @@ namespace MortalModHost
                 catch (Exception ex) { Log.LogWarning("mod_char_focus 失败：" + ex.Message); }
                 return DynValue.Nil;
             }, "mod_char_focus");
+            script.Globals["mod_char_offset"] = new CallbackFunction((ctx, args) =>
+            {
+                try
+                {
+                    CustomCharacterRuntime.Offset(
+                        ArgString(args, 0),
+                        ArgFloat(args, 1, 0f),
+                        ArgFloat(args, 2, 0f),
+                        ArgFloat(args, 3, 0.5f));
+                }
+                catch (Exception ex) { Log.LogWarning("mod_char_offset 失败：" + ex.Message); }
+                return DynValue.Nil;
+            }, "mod_char_offset");
+            script.Globals["mod_char_shock"] = new CallbackFunction((ctx, args) =>
+            {
+                try { CustomCharacterRuntime.Shock(ArgString(args, 0), ArgFloat(args, 1, 0.5f)); }
+                catch (Exception ex) { Log.LogWarning("mod_char_shock 失败：" + ex.Message); }
+                return DynValue.Nil;
+            }, "mod_char_shock");
+            script.Globals["mod_char_dim"] = new CallbackFunction((ctx, args) =>
+            {
+                try { CustomCharacterRuntime.Dim(ArgString(args, 0), ArgBool(args, 1, true)); }
+                catch (Exception ex) { Log.LogWarning("mod_char_dim 失败：" + ex.Message); }
+                return DynValue.Nil;
+            }, "mod_char_dim");
+            script.Globals["mod_char_rotate"] = new CallbackFunction((ctx, args) =>
+            {
+                try
+                {
+                    CustomCharacterRuntime.Rotate(
+                        ArgString(args, 0),
+                        ArgFloat(args, 1, 180f),
+                        ArgFloat(args, 2, 1f));
+                }
+                catch (Exception ex) { Log.LogWarning("mod_char_rotate 失败：" + ex.Message); }
+                return DynValue.Nil;
+            }, "mod_char_rotate");
             script.Globals["mod_char_portrait"] = new CallbackFunction((ctx, args) =>
             {
                 try { CustomCharacterRuntime.SetPortrait(ArgString(args, 0), ArgString(args, 1, "normal")); }
@@ -317,6 +354,17 @@ namespace MortalModHost
             {
                 if (args.Count > index && args[index].Type == DataType.Number)
                     return (float)args[index].Number;
+            }
+            catch { }
+            return fallback;
+        }
+
+        private static bool ArgBool(MoonSharp.Interpreter.CallbackArguments args, int index, bool fallback)
+        {
+            try
+            {
+                if (args.Count > index && args[index].Type == DataType.Boolean)
+                    return args[index].Boolean;
             }
             catch { }
             return fallback;

@@ -136,7 +136,19 @@ def _hint_text(node: dict, ed: dict) -> str | None:
     返回 None 表示该类型有真实的舞台呈现（show/move/face/hide/scene/say/choice）。
     """
     t = str(node.get("type") or "")
-    if t in ("show", "move", "face", "hide", "scene", "say", "choice"):
+    if t in (
+        "show",
+        "move",
+        "face",
+        "hide",
+        "scene",
+        "say",
+        "choice",
+        "offset",
+        "shock",
+        "dim",
+        "rotate",
+    ):
         return None
 
     def cname() -> str:
@@ -287,6 +299,8 @@ def _apply_node(state: dict, node: dict, ed: dict | None = None) -> None:
     state["dialog"] = None
     state["choice"] = None
     state["hint"] = None
+    for actor in actors.values():
+        actor["shocked"] = False
 
     if t == "scene":
         state["view"] = node.get("view") or None
@@ -297,6 +311,11 @@ def _apply_node(state: dict, node: dict, ed: dict | None = None) -> None:
                 "position": node.get("position") or "M",
                 "portrait": node.get("portrait") or "normal",
                 "facing": node.get("facing") or "right",
+                "offset_x": 0,
+                "offset_y": 0,
+                "rotation": 0,
+                "dimmed": False,
+                "shocked": False,
             }
     elif t == "move":
         cid = node.get("character") or ""
@@ -306,6 +325,23 @@ def _apply_node(state: dict, node: dict, ed: dict | None = None) -> None:
         cid = node.get("character") or ""
         if cid in actors and node.get("facing"):
             actors[cid]["facing"] = node["facing"]
+    elif t == "offset":
+        cid = node.get("character") or ""
+        if cid in actors:
+            actors[cid]["offset_x"] = actors[cid].get("offset_x", 0) + node.get("x", 0)
+            actors[cid]["offset_y"] = actors[cid].get("offset_y", 0) + node.get("y", 0)
+    elif t == "shock":
+        cid = node.get("character") or ""
+        if cid in actors:
+            actors[cid]["shocked"] = True
+    elif t == "dim":
+        cid = node.get("character") or ""
+        if cid in actors:
+            actors[cid]["dimmed"] = bool(node.get("dimmed"))
+    elif t == "rotate":
+        cid = node.get("character") or ""
+        if cid in actors:
+            actors[cid]["rotation"] = node.get("angle", 0)
     elif t == "hide":
         actors.pop(node.get("character") or "", None)
     elif t == "say":
@@ -1163,11 +1199,20 @@ class StagePreview(QWidget):
             if not known:
                 unknown.append(pos or "（空）")
             cx = rect.x() + floor(rect.width() * frac)
+            cx += floor(float(info.get("offset_x", 0)))
+            actor_baseline = baseline - floor(float(info.get("offset_y", 0)))
             facing = info.get("facing", "right")
             portrait = info.get("portrait", "normal")
             body_scale, art_facing = self._character_look(cid)
             draw_h = max(8, floor(h * body_scale / 100.0))
             pix = self._load_pixmap(self._portrait_path(cid, portrait))
+            p.save()
+            p.translate(cx, actor_baseline)
+            p.rotate(float(info.get("rotation", 0)))
+            if info.get("shocked"):
+                p.translate(5, -3)
+            if info.get("dimmed"):
+                p.setOpacity(0.52)
             if not pix.isNull():
                 scaled = pix.scaledToHeight(
                     draw_h, Qt.TransformationMode.SmoothTransformation
@@ -1177,10 +1222,11 @@ class StagePreview(QWidget):
                 if want_left != art_left:
                     scaled = scaled.transformed(QTransform().scale(-1, 1))
                 p.drawPixmap(
-                    cx - scaled.width() // 2, baseline - scaled.height(), scaled
+                    -scaled.width() // 2, -scaled.height(), scaled
                 )
             else:
-                self._paint_actor_placeholder(p, cx, baseline, draw_h, cid, portrait)
+                self._paint_actor_placeholder(p, 0, 0, draw_h, cid, portrait)
+            p.restore()
         if unknown:
             # 未识别站位：角落小字标注原值
             p.setPen(QColor(255, 200, 120))

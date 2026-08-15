@@ -105,10 +105,10 @@ assets/                # 可选，自定义资源
 | `face` | `character`, `facing` | 转向 |
 | `hide` | `character`；可选 `fadeDuration`(默认0) | 隐藏人物 |
 | `focus` | `character` | `characters.Focus` |
-| `offset` | `character`, `x`, `y`, `duration` | 人物偏移演出 `runwait(characters.MoveOffsetCoroutine(id,x,y,t))` |
+| `offset` | `character`, `x`, `y`, `duration` | 人物偏移演出。官方角色走 `runwait(characters.MoveOffsetCoroutine(id,x,y,t))`；`user:` 角色走 `mod_char_offset` 后等待相同时长 |
 | `say` | `text`；可选 `character`, `portrait`(默认normal), `mode`("character"默认/"think"/"narrative"/"center")，可选 `voice` | 对话/内心独白(带os_mask)/旁白/居中旁白。narrative 与 center 忽略 character。**已读机制**：文本不裸进 Lua，发射 `say(luamanager.GetStoryText("MOD_<modid>_<scriptid>_<nodeid>"))`（无 modid 时兜底 "MOD"），文本本体进 texts.json 由运行时注册。**`voice`**（可选）：用户音频引用，如 `user:mohui.line_01`；进入本句前 `mod_play_voice`（先停上一句），`say()` 返回后 `mod_stop_voice`。语音走独立通道，`sound` / `StopMusic` 不停它。禁止绝对路径与官方音效名 |
 | `choice` | `options`: `[{"text","goto"}]`（2~4 项）；可选 `dialog`(默认"Options"，皮肤见 §3.3) | 选项菜单 `choose()` |
-| `shock` | `character`；可选 `duration`(默认0.5) | 人物震动（flowcharts.common "shock"） |
+| `shock` | `character`；可选 `duration`(默认0.5) | 人物震动。官方角色走 flowcharts.common `shock`；`user:` 角色走独立立绘抖动并在结束后恢复位置 |
 | `mask` | `show`(bool) | 独白遮罩 `os_mask.Show` |
 | `intro` | 可选 `intro_source`(`official` 默认/`custom`)。official 必填 `character`；custom 必填 `name`,`text`，可选 `title`,`image`（包内 `assets/` PNG/JPG，≤8MB）、`image_scale`(40~160，默认100)、`image_x`/`image_y`(-30~30，默认0) | official 调用原版 `runwait(intropanel.Show(character))`；custom 调用 `mod_prepare_character_intro(title,name,text,image,scale,x,y)`，复用同一 CharacterIntroPanel。图片按屏幕安全区独立布局并保持比例；x 正数向右、y 正数向上，无图时隐藏头像区域 |
 | `effect` | `name`；可选 `x`,`y`,`a`,`b`,`c`(数值，默认0/0/1/1/1)，`play`(bool，默认true) | 屏幕特效 `effects.SetupEffect(name,x,y,a,b,c,play)`，如 Hit_001/Blood_002/Sword_001。`play=false` 发射停止调用（末参 0）：**循环类特效不会自动销毁**（如 EventBubble/Glow），必须后接 play=false 的同参节点停止，否则常驻画面（旧数据的 `d` 字段仍兼容：无 play 时用 d） |
@@ -116,9 +116,9 @@ assets/                # 可选，自定义资源
 | `camera` | `name`, `active`(bool) | 镜头滤镜 `maincamera.ActiveVolume(name, 0 | 1)`，如 stage-memory/stage-dream/stage-fire/stage-blurdim |
 | `block` | `flowchart`("view"/"common"), `name`；可选 `vars`: `[{"name","value"}]` | 通用 flowchart 块调用：`getvar` 逐个赋值后 `runblock(fc, name)`。覆盖 out_white/shake/flash/vshock 等 |
 | `cg` | `action`("show"/"hide"), `kind`("picture"/"item"/"big"/"map"/"family"/"title")；可选 `key`, `key2`, `n1`, `n2` | mainui 图片/地图/家谱/标题：`ShowPicture(key)`/`HidePicture`/`ShowItemPicture`/`ShowBigPicture`/`ShowMap(key,key2)`/`ShowFamilyTree(key,key2,n1,n2)`/`DisplayTitle(key)` 等 |
-| `dim` | `character`, `dimmed`(bool 必填，默认 true) | 人物压暗 `stage.SetDimmed(character, dimmedState)`（实参 character 在前、bool 在后；dimmed=true 时官方实现还会隐藏该角色心情气泡） |
+| `dim` | `character`, `dimmed`(bool 必填，默认 true) | 人物压暗。官方角色走 `stage.SetDimmed(character, dimmedState)`；`user:` 角色复用当前舞台的 `DimColor` / `FadeDuration` |
 | `message` | `text`（必填非空，多行合法） | 系统提示 `mainui.DisplayMessageText(text)` 显示**原文**（DisplayMessage 走本地化 key 解析，用 Text 版避免自定文本被当 key 查空） |
-| `rotate` | `character`, `angle`(int 必填，默认 180), `duration`(float 必填，默认 1，>0) | 人物旋转 `characters.Rotate(key, angle, duration)`——**官方参数序 angle 在前、duration 在后** |
+| `rotate` | `character`, `angle`(int 必填，默认 180), `duration`(float 必填，默认 1，>0) | 人物旋转到绝对 Z 角度。官方角色走 `characters.Rotate(key, angle, duration)`；`user:` 角色走 `mod_char_rotate` 后等待相同时长 |
 | `dayenv` | `day_type`（int 必填，1=白天 / 2=晚上） | 日夜环境 `luamanager.SetGameDayEnvironment(day_type)`。**字段名 day_type**：避免与节点通用键 "type" 冲突 |
 
 **数值/状态类**

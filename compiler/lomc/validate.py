@@ -438,7 +438,7 @@ def _check_node_extra(node, ntype, label):
     if ntype in UNSUPPORTED_USER_CHAR_TYPES and is_user_ref(node.get("character")):
         raise LomcError(
             "%s(%s): 自定义角色暂不支持该步骤，请改用官方角色，"
-            "或用 show / say / hide / move / face / focus。" % (label, ntype)
+            "或用纯演出节点。" % (label, ntype)
         )
     if (
         isinstance(node.get("character"), str)
@@ -451,6 +451,10 @@ def _check_node_extra(node, ntype, label):
             "move",
             "face",
             "focus",
+            "offset",
+            "shock",
+            "dim",
+            "rotate",
         )
     ):
         parse_content_ref(

@@ -203,6 +203,17 @@ def _emit_focus(node, ctx):
 
 
 def _emit_offset(node, ctx):
+    if _user_char(node):
+        return [
+            "\tmod_char_offset(%s, %s, %s, %s)"
+            % (
+                lua_str(node["character"]),
+                lua_num(node["x"]),
+                lua_num(node["y"]),
+                lua_num(node["duration"]),
+            ),
+            "\twait(%s)" % lua_num(node["duration"]),
+        ]
     return [
         "\trunwait(characters.MoveOffsetCoroutine(%s, %s, %s, %s))"
         % (
@@ -321,6 +332,12 @@ def _emit_choice(node, ctx):
 
 def _emit_shock(node, ctx):
     c = lua_str(node["character"])
+    if _user_char(node):
+        duration = lua_num(node.get("duration", 0.5))
+        return [
+            "\tmod_char_shock(%s, %s)" % (c, duration),
+            "\twait(%s)" % duration,
+        ]
     return [
         '\tgetvar(flowcharts.common, "ShockPosition").value = %s.State.holder.gameObject'
         % _get(c),
@@ -479,6 +496,14 @@ def _emit_dim(node, ctx):
     """人物压暗：stage.SetDimmed(character, dimmedState)（官方 API，实参顺序
     character 在前、bool 在后）。dimmed=true 时官方实现还会隐藏该角色心情气泡。
     """
+    if _user_char(node):
+        return [
+            "\tmod_char_dim(%s, %s)"
+            % (
+                lua_str(node["character"]),
+                "true" if node["dimmed"] else "false",
+            )
+        ]
     return [
         "\tstage.SetDimmed(%s, %s)"
         % (_get(lua_str(node["character"])), "true" if node["dimmed"] else "false")
@@ -497,6 +522,16 @@ def _emit_rotate(node, ctx):
     angle 在前、duration 在后（StoryCharacterController.Rotate(duration, angle)
     内部再交换，raw_scripts 调用点实证）。
     """
+    if _user_char(node):
+        return [
+            "\tmod_char_rotate(%s, %s, %s)"
+            % (
+                lua_str(node["character"]),
+                lua_num(node["angle"]),
+                lua_num(node["duration"]),
+            ),
+            "\twait(%s)" % lua_num(node["duration"]),
+        ]
     return [
         "\tcharacters.Rotate(%s, %s, %s)"
         % (
