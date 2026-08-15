@@ -924,6 +924,7 @@ class MainWindow(QMainWindow):
         )
         run_menu.addAction(t("menu.flow"), self._show_flow_graph, QKeySequence("F7"))
         run_menu.addAction(t("menu.path_simulator"), self._show_path_simulator)
+        run_menu.addAction(t("menu.story_tests"), self._show_story_tests)
         run_menu.addSeparator()
         run_menu.addAction(t("menu.reset_read"), self._reset_read_state)
         lang_menu = self.menuBar().addMenu(t("lang.menu"))
@@ -1158,6 +1159,21 @@ class MainWindow(QMainWindow):
             self._stories, self._locate_search_result, self,
             manifest=self.manifest_base,
         ).exec()
+
+    def _show_story_tests(self) -> None:
+        from story_test_runner import StoryTestRunnerDialog, get_story_tests, set_story_tests
+
+        self._flush_pending()
+        dialog = StoryTestRunnerDialog(self._stories, self._current_id, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        tests = dialog.saved_tests()
+        if tests is None or tests == get_story_tests(self.story):
+            return
+        self._record_discrete()
+        set_story_tests(self.story, tests)
+        self._refresh_all(select_row=self._selected_node_index())
+        self.statusBar().showMessage(t("tests.saved", count=len(tests)), 3000)
 
     def _locate_search_result(self, story_id: str, node_id: str | None) -> None:
         if story_id not in self._stories:

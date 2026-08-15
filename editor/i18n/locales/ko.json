@@ -655,5 +655,11 @@
   "paths.detail.missing_ending": "최종 end, 장면 종점 또는 사망 결말에 도달할 수 없습니다. Raw Lua는 추측하지 않습니다.",
   "paths.detail.bad_story": "next_script가 존재하지 않는 챕터 {target}을 가리킵니다.",
   "paths.detail.bad_entry": "manifest.entry가 존재하지 않는 챕터 {target}을 가리킵니다.",
-  "paths.detail.bad_trigger": "campaign trigger #{index}가 존재하지 않는 챕터 {target}을 가리킵니다."
+  "paths.detail.bad_trigger": "campaign trigger #{index}가 존재하지 않는 챕터 {target}을 가리킵니다.",
+  "menu.story_tests": "스토리 테스트 러너…", "tests.title": "스토리 테스트 러너",
+  "tests.intro": "JSON으로 initial.variables/flags, choice 동작 및 단언을 선언합니다. 확정된 Story 의미만 실행하며 게임 상태가 필요한 노드는 UNSUPPORTED를 반환합니다.",
+  "tests.run": "모든 테스트 실행", "tests.save": "테스트 정의 저장",
+  "tests.col.name": "테스트", "tests.col.status": "결과", "tests.col.message": "설명",
+  "tests.status.pass": "PASS", "tests.status.fail": "FAIL", "tests.status.unsupported": "UNSUPPORTED",
+  "tests.saved": "스토리 테스트 {count}개를 저장했습니다"
 }

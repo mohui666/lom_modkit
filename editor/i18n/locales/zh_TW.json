@@ -655,5 +655,11 @@
   "paths.detail.missing_ending": "本章無法抵達最終 end、場景終點或死亡結局；不猜測原生 Lua。",
   "paths.detail.bad_story": "next_script 指向不存在的章節 {target}。",
   "paths.detail.bad_entry": "manifest.entry 指向不存在的章節 {target}。",
-  "paths.detail.bad_trigger": "campaign trigger #{index} 指向不存在的章節 {target}。"
+  "paths.detail.bad_trigger": "campaign trigger #{index} 指向不存在的章節 {target}。",
+  "menu.story_tests": "劇情測試執行器…", "tests.title": "劇情測試執行器",
+  "tests.intro": "以 JSON 宣告 initial.variables/flags、choice 動作與斷言。只執行確定的 Story 語義；需要遊戲狀態的節點回傳 UNSUPPORTED。",
+  "tests.run": "執行全部測試", "tests.save": "儲存測試定義",
+  "tests.col.name": "測試", "tests.col.status": "結果", "tests.col.message": "說明",
+  "tests.status.pass": "PASS", "tests.status.fail": "FAIL", "tests.status.unsupported": "UNSUPPORTED",
+  "tests.saved": "已儲存 {count} 個劇情測試"
 }

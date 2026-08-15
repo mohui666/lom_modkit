@@ -655,5 +655,11 @@
   "paths.detail.missing_ending": "最終 end、シーン終端、死亡終端に到達できません。Raw Lua は推測しません。",
   "paths.detail.bad_story": "next_script が存在しないチャプター {target} を参照します。",
   "paths.detail.bad_entry": "manifest.entry が存在しないチャプター {target} を参照します。",
-  "paths.detail.bad_trigger": "campaign trigger #{index} が存在しないチャプター {target} を参照します。"
+  "paths.detail.bad_trigger": "campaign trigger #{index} が存在しないチャプター {target} を参照します。",
+  "menu.story_tests": "ストーリーテストランナー…", "tests.title": "ストーリーテストランナー",
+  "tests.intro": "JSON で initial.variables/flags、choice 操作、アサーションを宣言します。確定した Story 意味論だけを実行し、ゲーム状態が必要なノードは UNSUPPORTED を返します。",
+  "tests.run": "全テストを実行", "tests.save": "テスト定義を保存",
+  "tests.col.name": "テスト", "tests.col.status": "結果", "tests.col.message": "説明",
+  "tests.status.pass": "PASS", "tests.status.fail": "FAIL", "tests.status.unsupported": "UNSUPPORTED",
+  "tests.saved": "{count} 件のストーリーテストを保存しました"
 }

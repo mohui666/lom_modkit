@@ -656,5 +656,11 @@
   "paths.detail.missing_ending": "从本章无法抵达最终 end、场景终点或死亡结局；原生 Lua 未被猜测。",
   "paths.detail.bad_story": "next_script 指向不存在的章节 {target}。",
   "paths.detail.bad_entry": "manifest.entry 指向不存在的章节 {target}。",
-  "paths.detail.bad_trigger": "campaign trigger #{index} 指向不存在的章节 {target}。"
+  "paths.detail.bad_trigger": "campaign trigger #{index} 指向不存在的章节 {target}。",
+  "menu.story_tests": "剧情测试运行器…", "tests.title": "剧情测试运行器",
+  "tests.intro": "用 JSON 声明 initial.variables/flags、choice 动作和断言。只执行确定的 Story 语义；需要游戏状态的节点返回 UNSUPPORTED。",
+  "tests.run": "运行全部测试", "tests.save": "保存测试定义",
+  "tests.col.name": "测试", "tests.col.status": "结果", "tests.col.message": "说明",
+  "tests.status.pass": "PASS", "tests.status.fail": "FAIL", "tests.status.unsupported": "UNSUPPORTED",
+  "tests.saved": "已保存 {count} 个剧情测试"
 }
