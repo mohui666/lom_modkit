@@ -1,6 +1,6 @@
 # 現在の機能と境界
 
-この文書は現在のリポジトリコードだけを説明します。ノードの正規集合は `editor/models.py` の `NODE_SCHEMAS` で、現在 46 種です。
+この文書は現在のリポジトリコードだけを説明します。ノードの正規集合は `editor/models.py` の `NODE_SCHEMAS` で、現在 47 種です。
 
 ## 実装済み
 
@@ -11,8 +11,8 @@
 
 ## 戦闘の境界
 
-`enemy`、`battle_skill`、`goto_scene` の `Combat` / `Battle` は、検証済みの原作《活侠传》API を呼びます。原作戦闘システムの低レベル編成であり、独自 Battle Engine ではありません。
+`enemy`、`battle_skill`、`goto_scene` の `Combat` / `Battle` は、検証済みの原作《活侠传》API を呼びます。高レベル `combat` は原作 Combat key と敵設定を組み合わせ、`CombatManager.GameOver(bool)` の実際の win/lose を作者ノードへ戻します。独自 Battle Engine ではなく、新しい流れは実機未検証です。
 
-高レベル `combat` / `battle`、Battle Preset、信頼できる勝敗コールバック、`reward` 集約ノード、任意商品 Custom Shop、独立 `mod_quest`、任意の永続 Mod 変数は未実装です。`modflags` / `modvars` は Story セッション限定で、`game_flag` は原作に存在する FlagData だけを書きます。戦闘マップ、モデル、AI、アニメーション、機構のカスタムにも対応しません。
+高レベル `battle`、Battle Preset、draw/escape コールバック、`reward` 集約ノード、任意商品 Custom Shop、独立 `mod_quest`、任意の永続 Mod 変数は未実装です。`modflags` / `modvars` は Story セッション限定で、`game_flag` は原作に存在する FlagData だけを書きます。戦闘マップ、モデル、AI、アニメーション、機構のカスタムにも対応しません。
 
 逆コンパイルと実機確認で確定していないゲーム API は推測で実装しません。

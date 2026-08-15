@@ -16,7 +16,7 @@ from i18n import t
 
 
 _GOTO_KEYS = ("goto", "goto_大成功", "goto_成功", "goto_失败")
-_TERMINAL_TYPES = {"end", "choice", "branch", "dice", "goto_scene", "raw", "death"}
+_TERMINAL_TYPES = {"end", "choice", "branch", "dice", "goto_scene", "raw", "death", "combat"}
 
 
 @dataclass(frozen=True)
@@ -33,6 +33,10 @@ def _local_targets(node: dict):
     target = node.get("goto")
     if isinstance(target, str) and target:
         yield "goto", target
+    for key in ("win", "lose"):
+        target = node.get(key)
+        if isinstance(target, str) and target:
+            yield key, target
     for option_index, option in enumerate(node.get("options") or []):
         if not isinstance(option, dict):
             continue

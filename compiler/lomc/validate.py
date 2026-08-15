@@ -371,6 +371,13 @@ _NODE_FIELDS = {
         {"op": "bskill_op"},
         {"key": "idstr", "index": "num", "active": "num"},
     ),
+    "combat": (
+        {"key": "idstr", "win": "idstr", "lose": "idstr"},
+        {
+            "enemy": "idstr", "team": "num", "level": "num",
+            "people": "num", "display": "num",
+        },
+    ),
     "mission": ({"name": "idstr", "key": "idstr"}, {}),
     "time": (
         {"op": "time_op"},
@@ -404,10 +411,10 @@ _NODE_FIELDS = {
 _COMMON_FIELDS = ("id", "type", "goto")
 
 # 不允许显式 goto 的节点类型（契约 §4：流转由自身结构/场景跳转决定）
-_NO_GOTO_TYPES = ("choice", "branch", "dice", "end", "goto_scene", "death")
+_NO_GOTO_TYPES = ("choice", "branch", "dice", "end", "goto_scene", "death", "combat")
 
 # 可以作最后一个节点收尾的类型（其余类型在末位且无 goto → 校验错误）
-_TERMINAL_TYPES = ("end", "choice", "branch", "dice", "goto_scene", "raw", "death")
+_TERMINAL_TYPES = ("end", "choice", "branch", "dice", "goto_scene", "raw", "death", "combat")
 
 # dice 选项的字段(§3.1)：三向 goto 载体（text/threshold 已废弃，以官方结果带元数据为准）
 _DICE_OPTION_GOTOS = ("goto_大成功", "goto_成功", "goto_失败")
@@ -475,6 +482,8 @@ def _check_goto(node, label, id_set):
     for case in node.get("cases", []):
         if isinstance(case, dict) and isinstance(case.get("goto"), str):
             targets.append(case["goto"])
+    if node.get("type") == "combat":
+        targets.extend((node["win"], node["lose"]))
     for t in targets:
         if t not in id_set:
             raise LomcError('%s: goto 指向不存在的节点 "%s"' % (label, t))
@@ -880,6 +889,13 @@ def _check_node_extra(node, ntype, label):
                 '%s(battle_skill): op="%s" 时必填字段 "key"（仅 reset 不需要）'
                 % (label, node["op"])
             )
+    elif ntype == "combat":
+        for name in ("team", "level", "people", "display"):
+            if name in node and (isinstance(node[name], bool) or not isinstance(node[name], int)):
+                raise LomcError(
+                    '%s(combat): 字段 "%s" 必须是整数，实际为 %r'
+                    % (label, name, node[name])
+                )
     elif ntype == "time":
         op = node["op"]
         if op == "set":

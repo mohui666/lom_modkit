@@ -8,6 +8,7 @@ using BepInEx.Configuration;
 using BepInEx.Unity.Mono;
 using BepInEx.Unity.Mono.Configuration;
 using HarmonyLib;
+using Mortal.Combat;
 using Mortal.Core;
 using Mortal.Free;
 using Mortal.Story;
@@ -72,6 +73,7 @@ namespace MortalModHost
             ModOverlay.Clear();
             // 契约 §2：mod 战役运行态同样重置（插件重载后不残留旧战役的禁原版事件状态）
             ModCampaignState.Clear();
+            GameplaySession.Reset();
 
             // mods 目录：BepInEx/plugins/MortalModHost/mods/（契约 §6.1）
             string modsDir = Path.Combine(Paths.PluginPath, "MortalModHost", "mods");
@@ -124,6 +126,7 @@ namespace MortalModHost
             RemoveHarmonyPatches();
             _showMenu = false;
             ModCampaignState.Clear();
+            GameplaySession.Reset();
             ModOverlay.Clear();
             ModDisclosure.Disable();
             CustomAudioPlayer.ReleaseAll();
@@ -250,6 +253,10 @@ namespace MortalModHost
                 AccessTools.Method(typeof(SoundManager), "StopMusic", Type.EmptyTypes));
             ok &= CheckTarget("SceneController.LoadNewScene",
                 AccessTools.Method(typeof(SceneController), "LoadNewScene", new Type[] { typeof(string) }));
+            ok &= CheckTarget("CombatManager.GameOver(bool)",
+                AccessTools.Method(typeof(CombatManager), "GameOver", new Type[] { typeof(bool) }));
+            ok &= CheckTarget("CombatLevel.get_DeadEnd",
+                AccessTools.Method(typeof(CombatLevel), "get_DeadEnd", Type.EmptyTypes));
             if (!ok)
             {
                 Logger.LogError("部分 Harmony 目标缺失（游戏版本可能已变更）：为保证玩家内容披露，已禁用全部 MOD 演出入口");
@@ -261,7 +268,7 @@ namespace MortalModHost
                 PatchSteamRestart();
                 _harmonyPatched = true;
                 _runtimeReady = true;
-                Logger.LogInfo("Harmony patch 已挂载：ExecuteLuaScript / NewGameData / Free 自动与地点剧情抑制 / GetExecuteScript / UpdateTranslations / ShowMood / CharacterIntroPanel / GameOver/EndGamePanel/EndGame / NewGamePlus / DiceRevolution / CustomAudio / SoundManager / LoadNewScene");
+                Logger.LogInfo("Harmony patch 已挂载：ExecuteLuaScript / NewGameData / Free 自动与地点剧情抑制 / GetExecuteScript / UpdateTranslations / ShowMood / CharacterIntroPanel / GameOver/EndGamePanel/EndGame / NewGamePlus / DiceRevolution / CustomAudio / SoundManager / LoadNewScene / Combat 结果回流");
             }
             catch (Exception ex)
             {
@@ -559,6 +566,7 @@ namespace MortalModHost
                 ModDisclosure.Disable();
                 _disclosureAbortRequested = false;
                 LuaManagerPatch.ResetAbortGuard();
+                GameplaySession.Reset();
             }
             // waveOut 不跟场景走：回标题/自由/死亡/结局/Loading 时再兜一层停播。
             if (scene == "Title" || scene == "Free" || scene == "GameOver"

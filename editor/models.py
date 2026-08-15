@@ -67,6 +67,7 @@ NODE_TYPE_CN_SRC: dict[str, str] = {
     "game_flag": "游戏任务旗标",
     "enemy": "敌方队伍",
     "battle_skill": "战场技能",
+    "combat": "战斗",
     "mission": "任务",
     "time": "时间",
     "autosave": "自动存档",
@@ -117,6 +118,7 @@ NODE_HELP_KEYS = {
     "raw": "help.raw",
     "music": "help.music",
     "sound": "help.sound",
+    "combat": "help.combat",
 }
 NODE_HELP: dict[str, str] = {}
 
@@ -170,6 +172,7 @@ NODE_GROUPS_SRC: list[tuple[str, list[str]]] = [
             "autosave",
         ],
     ),
+    ("group.gameplay", ["combat"]),
     (
         "group.flow",
         ["branch", "dice", "goto_scene", "panel", "wait", "end", "death", "raw"],
@@ -655,6 +658,19 @@ NODE_SCHEMAS: dict[str, dict] = {
             ("active", "激活（1/0）", "int", True),
         ],
     },
+    "combat": {
+        "label": "原版战斗编排",
+        "fields": [
+            ("key", "战斗场景", "combat_id", False),
+            ("enemy", "敌方队伍 id", "line", True),
+            ("team", "敌方队伍增量", "int", True),
+            ("level", "敌方等级增量", "int", True),
+            ("people", "敌方人数增量", "int", True),
+            ("display", "显示样式", "int", True),
+            ("win", "胜利后", "node_ref", False),
+            ("lose", "失败后", "node_ref", False),
+        ],
+    },
     "mission": {
         "label": "任务操作",
         "fields": [
@@ -814,6 +830,10 @@ _NODE_DEFAULTS: dict[str, dict] = {
     "game_flag": {"flag": "", "value": 1, "op": "set"},
     "enemy": {"op": "team", "enemy": "", "value": 0, "display": 1},
     "battle_skill": {"op": "set", "key": "", "index": 2, "active": 1},
+    "combat": {
+        "key": "", "enemy": "", "team": 0, "level": 0, "people": 0,
+        "display": 1, "win": "", "lose": "",
+    },
     "mission": {"name": "Main", "key": ""},
     "time": {"op": "round"},
     "autosave": {"kind": "story"},
@@ -1221,7 +1241,7 @@ def save_story(story: dict, path: Path) -> None:
                 pass
 
 
-_GOTO_KEYS = ("goto", "goto_大成功", "goto_成功", "goto_失败")
+_GOTO_KEYS = ("goto", "goto_大成功", "goto_成功", "goto_失败", "win", "lose")
 
 
 def retarget_node_ids(story: dict, mapping: dict[str, str]) -> int:
@@ -1240,10 +1260,11 @@ def retarget_node_ids(story: dict, mapping: dict[str, str]) -> int:
         if isinstance(nid, str) and nid in mapping:
             node["id"] = mapping[nid]
             changed += 1
-        value = node.get("goto")
-        if isinstance(value, str) and value in mapping:
-            node["goto"] = mapping[value]
-            changed += 1
+        for key in ("goto", "win", "lose"):
+            value = node.get(key)
+            if isinstance(value, str) and value in mapping:
+                node[key] = mapping[value]
+                changed += 1
         for option in node.get("options") or []:
             if not isinstance(option, dict):
                 continue
@@ -1337,7 +1358,7 @@ def node_bullet(node_type: str) -> str:
     """步骤列表前缀符号：分支/结局与普通步骤区分开。"""
     if node_type in ("choice", "branch", "dice"):
         return "◆"
-    if node_type in ("end", "death", "goto_scene"):
+    if node_type in ("end", "death", "goto_scene", "combat"):
         return "■"
     return "●"
 
@@ -1533,6 +1554,9 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
             f"{tcn}·{enum_label('battle_skill_op', node.get('op', 'set'))}"
             f" {node.get('key', '')}"
         )
+    if nt == "combat":
+        key = node.get("key", "") or t("form.unselected", default="（未选）")
+        return f"{tcn}·{key}（胜利→{node.get('win', '')} / 失败→{node.get('lose', '')}）"
     if nt == "mission":
         return f"{tcn}·{node.get('name', '')} {node.get('key', '')}"
     if nt == "time":

@@ -67,6 +67,11 @@
       <HintPath>$(GameDir)\Mortal_Data\Managed\Mortal.Story.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <!-- Gameplay 高层 combat：仅观察原版胜负并让 MOD lose 分支返回 Story。 -->
+    <Reference Include="Mortal.Combat">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\Mortal.Combat.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <!-- 游戏程序集：FreePositionData / PositionController（自由模式位置触发器） -->
     <Reference Include="Mortal.Free">
       <HintPath>$(GameDir)\Mortal_Data\Managed\Mortal.Free.dll</HintPath>

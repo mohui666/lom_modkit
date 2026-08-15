@@ -1,6 +1,6 @@
 # 현재 기능과 경계
 
-이 문서는 현재 저장소 코드만 설명합니다. 노드의 정식 집합은 `editor/models.py`의 `NODE_SCHEMAS`이며 현재 46종입니다.
+이 문서는 현재 저장소 코드만 설명합니다. 노드의 정식 집합은 `editor/models.py`의 `NODE_SCHEMAS`이며 현재 47종입니다.
 
 ## 구현됨
 
@@ -11,8 +11,8 @@
 
 ## 전투 경계
 
-`enemy`, `battle_skill`, `goto_scene`의 `Combat` / `Battle`은 검증된 원작 《활협전》 API를 호출합니다. 원작 전투 시스템의 저수준 편성이며 독자 Battle Engine이 아닙니다.
+`enemy`, `battle_skill`, `goto_scene`의 `Combat` / `Battle`은 검증된 원작 《활협전》 API를 호출합니다. 고수준 `combat`은 원작 Combat key와 적 설정을 조합하고 `CombatManager.GameOver(bool)`의 실제 win/lose를 작성자 노드로 돌려보냅니다. 독자 Battle Engine이 아니며 새 흐름은 실기 미검증입니다.
 
-고수준 `combat` / `battle`, Battle Preset, 신뢰 가능한 승패 콜백, `reward` 집계 노드, 임의 상품 Custom Shop, 독립 `mod_quest`, 임의의 영속 Mod 변수는 미구현입니다. `modflags` / `modvars`는 Story 세션에만 있고 `game_flag`는 원작에 존재하는 FlagData만 기록합니다. 전투 지도, 모델, AI, 애니메이션, 메커니즘의 사용자 지정도 지원하지 않습니다.
+고수준 `battle`, Battle Preset, draw/escape 콜백, `reward` 집계 노드, 임의 상품 Custom Shop, 독립 `mod_quest`, 임의의 영속 Mod 변수는 미구현입니다. `modflags` / `modvars`는 Story 세션에만 있고 `game_flag`는 원작에 존재하는 FlagData만 기록합니다. 전투 지도, 모델, AI, 애니메이션, 메커니즘의 사용자 지정도 지원하지 않습니다.
 
 디컴파일과 실제 게임 검증으로 확인되지 않은 API는 추측해서 구현하지 않습니다.

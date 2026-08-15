@@ -721,6 +721,42 @@ def _emit_battle_skill(node, ctx):
     ]
 
 
+def _emit_combat(node, ctx):
+    """编排一场原版 Combat，并把已验证的 win/lose 结果带回本剧情。"""
+    lines = []
+    enemy = node.get("enemy")
+    if enemy:
+        lines.append("\tstatmodifymanager.ModifyEnemyId(%s)" % lua_str(enemy))
+        api = {
+            "team": "ModifyEnemyTeam",
+            "level": "ModifyEnemyLevel",
+            "people": "ModifyEnemyPeople",
+        }
+        for field in ("team", "level", "people"):
+            value = node.get(field, 0)
+            if value:
+                lines.append(
+                    "\tstatmodifymanager.%s(%s, %s, %s)"
+                    % (
+                        api[field], lua_str(enemy), lua_num(value),
+                        lua_num(node.get("display", 1)),
+                    )
+                )
+    lines.extend(
+        [
+            "\tmod_gameplay_prepare(%s, %s, %s, %s, %s)"
+            % (
+                lua_str("combat"), lua_str(ctx["script_id"]), lua_str(node["id"]),
+                lua_str(node["win"]), lua_str(node["lose"]),
+            ),
+            "\tmod_stop_voice()",
+            "\tmod_hide_all()",
+            '\tluamanager.ChangeScene("Combat", %s, "Story")' % lua_str(node["key"]),
+        ]
+    )
+    return lines
+
+
 def _emit_mission(node, ctx):
     return [
         "\tstatmodifymanager.Mission(%s, %s)"
@@ -1132,6 +1168,7 @@ _EMITTERS = {
     "game_flag": _emit_game_flag,
     "enemy": _emit_enemy,
     "battle_skill": _emit_battle_skill,
+    "combat": _emit_combat,
     "mission": _emit_mission,
     "time": _emit_time,
     "autosave": _emit_autosave,
@@ -1146,7 +1183,7 @@ _EMITTERS = {
 }
 
 # 自带流转（分支/跳转/场景切换），story_to_lua 不再追加 return node_<goto>() 行
-_NO_FLOW_TYPES = ("end", "choice", "branch", "dice", "goto_scene", "death")
+_NO_FLOW_TYPES = ("end", "choice", "branch", "dice", "goto_scene", "death", "combat")
 
 
 def story_to_lua(story, mod_info=None, source=None, content_root=None):
@@ -1222,5 +1259,17 @@ def story_to_lua(story, mod_info=None, source=None, content_root=None):
         lines.append("end")
         lines.append("")
 
+    if any(node.get("type") == "combat" for node in nodes):
+        lines.append("-- 原版战斗返回 Story 后，由 Host 一次性消费已记录的结果目标。")
+        lines.append("local mod_resume_target = mod_gameplay_consume_resume(%s)" % lua_str(story["id"]))
+        lines.append("if mod_resume_target ~= nil and mod_resume_target ~= \"\" then")
+        for index, node in enumerate(nodes):
+            keyword = "if" if index == 0 else "elseif"
+            lines.append(
+                "\t%s mod_resume_target == %s then return node_%s()"
+                % (keyword, lua_str(node["id"]), node["id"])
+            )
+        lines.append("\telse error(\"Host 返回了未知战斗续接节点: \" .. tostring(mod_resume_target)) end")
+        lines.append("end")
     lines.append("return node_%s()" % story["start"])
     return "\n".join(lines) + "\n"

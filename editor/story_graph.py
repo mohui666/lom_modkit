@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-TERMINAL_TYPES = {"end", "goto_scene", "death"}
+TERMINAL_TYPES = {"end", "goto_scene", "death", "combat"}
 NO_FALLTHROUGH_TYPES = {"choice", "dice", *TERMINAL_TYPES}
 
 
@@ -77,6 +77,11 @@ def _explicit_edges(node: dict) -> list[tuple[str, str, str]]:
                 target = option.get(key)
                 if isinstance(target, str) and target:
                     result.append((target, f"第{index}项·{result_name}", "dice"))
+    elif node_type == "combat":
+        for key, label in (("win", "胜利"), ("lose", "失败")):
+            target = node.get(key)
+            if isinstance(target, str) and target:
+                result.append((target, label, "combat"))
 
     seen: set[tuple[str, str, str]] = set()
     return [item for item in result if not (item in seen or seen.add(item))]

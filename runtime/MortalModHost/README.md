@@ -5,7 +5,7 @@ MortalModHost 是 BepInEx 6 / Harmony 宿主，负责加载 `.lommod`、把编�
 ## 接口原则
 
 - 能调用原版系统的节点使用已经由反编译确认、并由 Host 构建/SmokeTest 覆盖的真实方法签名；完整映射以 `docs/zh_CN/mod_format.md` 为准。
-- `enemy`、`battle_skill`、`goto_scene Combat/Battle` 只调用原版战斗 API。Runtime 不包含自定义 Battle Engine，也不假定尚未确认的战斗结果回调。
+- `enemy`、`battle_skill`、`goto_scene Combat/Battle` 与高层 `combat` 只调用原版战斗 API。`combat` 观察已核验的 `CombatManager.GameOver(bool)`，把 win/lose 一次性回流到同包同剧情；结果所有权绑定包 id + 完整 SHA-256。Runtime 不包含自定义 Battle Engine，也不伪造 draw/escape。
 - 自定义角色和媒体是独立 Mod Runtime 对象，不伪造或覆盖原版 Addressables 条目。
 - Manifest、路径、包大小、哈希和脚本注册名在 Runtime 再次验证，不能只信编辑器导出的包。
 

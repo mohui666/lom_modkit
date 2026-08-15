@@ -39,14 +39,25 @@ def _editor_python(root: Path) -> Path:
     return next((path for path in candidates if path.is_file()), Path(sys.executable))
 
 
+def _compiler_python(root: Path) -> Path:
+    """水印测试需要 numpy/Pillow；允许 CI 指定独立于 Qt 编辑器的 Python。"""
+    configured = os.environ.get("LOM_MODKIT_COMPILER_PYTHON", "").strip()
+    if configured:
+        candidate = Path(configured)
+        if candidate.is_file():
+            return candidate
+    return _editor_python(root)
+
+
 def build_matrix(root: str | Path) -> tuple[MatrixStep, ...]:
     project = Path(root).resolve()
     python = str(_editor_python(project))
+    compiler_python = str(_compiler_python(project))
     runtime = project / "runtime" / "MortalModHost"
     return (
         MatrixStep(
             "compiler-tests",
-            (python, "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py", "-v"),
+            (compiler_python, "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py", "-v"),
             project / "compiler",
             ("compiler tests", "localization tests", "watermark tests"),
         ),

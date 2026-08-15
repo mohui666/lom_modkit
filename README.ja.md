@@ -141,7 +141,7 @@ PC 上のキャラクター、音声、画像を「ユーザーコンテンツ�
 | [ドキュメント索引](docs/ja/README.md) | 言語ナビゲーションと読者ガイド |
 | [ユーザーコンテンツ庫](docs/ja/user_content.md) | カスタム音声 / 台詞ボイスの使い方 |
 | [現在の機能と境界](docs/ja/current_capabilities.md) | 実装済み、低レベルのみ、未実装の境界 |
-| [Mod パッケージ形式の契約](docs/ja/mod_format.md) | パッケージ構造、46 種のノード、コンパイル規約、ランタイムの挙動 |
+| [Mod パッケージ形式の契約](docs/ja/mod_format.md) | パッケージ構造、47 種のノード、コンパイル規約、ランタイムの挙動 |
 | [AI / CLI マニュアル](docs/ja/ai_cli.md) | story_api コマンドラインと Python API |
 | [多言語対応](docs/ja/i18n.md) | UI とドキュメントの i18n アーキテクチャ |
 

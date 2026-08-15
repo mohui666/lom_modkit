@@ -17,7 +17,7 @@ from i18n import t
 
 _UNSUPPORTED_TYPES = {
     "raw", "dice", "block", "panel", "enemy", "battle_skill", "mission",
-    "time", "autosave", "affinity", "talent", "item",
+    "time", "autosave", "affinity", "talent", "item", "combat",
 }
 _TERMINAL_TYPES = {"goto_scene", "death"}
 

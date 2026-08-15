@@ -33,7 +33,7 @@ class ProjectStatistics:
             ("节点", str(self.nodes), "全部章节节点总数"),
             ("对白", str(self.dialogue_count), "say 节点"),
             ("选项", f"{self.choice_nodes} 节点 / {self.choice_options} 项", "choice 节点及选项"),
-            ("结尾", str(self.endings), "end / death / goto_scene 终止节点"),
+            ("结尾", str(self.endings), "end / death / goto_scene / combat 终止节点"),
             ("人物", str(self.characters), "节点中引用的不同 character"),
             ("图片", str(self.images), "不同图片引用"),
             ("音频", str(self.audio), "不同 BGM / 音效 / 配音引用"),
@@ -100,7 +100,7 @@ def calculate_project_statistics(
     dialogue = [node for node in nodes if node.get("type") == "say"]
     choices = [node for node in nodes if node.get("type") == "choice"]
     endings = sum(
-        1 for node in nodes if node.get("type") in ("end", "death", "goto_scene")
+        1 for node in nodes if node.get("type") in ("end", "death", "goto_scene", "combat")
     )
     characters = {
         node.get("character")

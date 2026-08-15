@@ -182,6 +182,7 @@
   "node.game_flag": "게임 임무 깃발",
   "node.enemy": "적 편성",
   "node.battle_skill": "전장 스킬",
+  "node.combat": "전투",
   "node.mission": "임무",
   "node.time": "시간",
   "node.autosave": "자동 저장",
@@ -196,6 +197,7 @@
 
   "group.visual": "화면과 소리",
   "group.stats": "수치·아이템·임무",
+  "group.gameplay": "전투와 게임 시스템",
   "group.flow": "진행과 고급 기능",
 
   "field.optional": "（선택）",
@@ -275,6 +277,10 @@
   "field.death_id": "전용 번호",
   "field.code": "Lua 코드",
   "field.goto": "이동 단계",
+  "field.team": "적 팀 증분",
+  "field.people": "적 인원 증분",
+  "field.win": "승리 후",
+  "field.lose": "패배 후",
 
   "form.select_step": "← 왼쪽에서 단계를 고르세요",
   "form.step_id": "단계 {id}",
@@ -311,6 +317,7 @@
   "help.raw": "고급 기능입니다. 코드는 그대로 Lua 에 들어갑니다. 일반 시나리오에는 필요 없습니다.",
   "help.music": "공식 곡 또는 사용자 콘텐츠 보관함의 자체 음악을 재생합니다. 자체 항목은 user: 번호로 저장됩니다.",
   "help.sound": "공식 효과음 이름, 또는 사용자 콘텐츠 보관함의 자체 효과음／환경음을 재생합니다.",
+  "help.combat": "공식 Combat 템플릿을 선택하고 필요하면 적 구성을 조정한 뒤 실제 승패 결과를 이 스토리로 돌려보냅니다.",
 
   "enum.play": "재생",
   "enum.stop": "정지",

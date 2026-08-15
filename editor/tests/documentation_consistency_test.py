@@ -46,7 +46,7 @@ def _read(path: Path) -> str:
 class DocumentationConsistencyTest(unittest.TestCase):
     def test_public_node_count_matches_schema(self) -> None:
         count = len(models.NODE_SCHEMAS)
-        self.assertEqual(count, 46)
+        self.assertEqual(count, 47)
         for path in README_FILES + DOC_INDEXES + CAPABILITY_DOCS:
             text = _read(path)
             self.assertIn(str(count), text, str(path.relative_to(ROOT)))
@@ -64,7 +64,7 @@ class DocumentationConsistencyTest(unittest.TestCase):
                     "%s -> %s" % (path.relative_to(ROOT), raw_target),
                 )
 
-    def test_capability_boundary_does_not_promise_gameplay_wrappers(self) -> None:
+    def test_capability_boundary_tracks_gameplay_wrappers(self) -> None:
         required = ("enemy", "battle_skill", "Combat", "Battle", "combat", "reward", "mod_quest")
         for path in CAPABILITY_DOCS:
             text = _read(path)
@@ -72,7 +72,9 @@ class DocumentationConsistencyTest(unittest.TestCase):
                 self.assertIn(term, text, "%s: %s" % (path.relative_to(ROOT), term))
 
         authoritative = _read(CAPABILITY_DOCS[0])
-        self.assertIn("不等于完整的战斗编排层", authoritative)
+        self.assertIn("高层 `combat`", authoritative)
+        self.assertIn("尚未实机验证", authoritative)
+        self.assertIn("draw", authoritative)
         self.assertIn("不写存档", authoritative)
         self.assertIn("不是数字签名", authoritative)
         self.assertNotIn("更多用户内容类型（背景等）", _read(ROOT / "README.md"))

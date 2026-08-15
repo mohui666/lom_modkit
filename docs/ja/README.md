@@ -9,7 +9,7 @@
 
 | ドキュメント | 読者 | 内容 |
 | --- | --- | --- |
-| [mod_format](mod_format.md) | 全コンポーネント開発者 | **v3 契約**：パッケージ構造、46 種のノード、story→Lua コンパイル規約、editor_data、ランタイム動作、story_api 契約、ユーザーコンテンツプロトコル。コードを変える前にまずこれを変更 |
+| [mod_format](mod_format.md) | 全コンポーネント開発者 | **v3 契約**：パッケージ構造、47 種のノード、story→Lua コンパイル規約、editor_data、ランタイム動作、story_api 契約、ユーザーコンテンツプロトコル。コードを変える前にまずこれを変更 |
 | [ai_cli](ai_cli.md) | AI エージェント / スクリプト作者 | story_api 操作マニュアル：CLI サブコマンド、--json フィールド、Python API クイックリファレンス、硬性ルール、エラー対照表 |
 | [user_content](user_content.md) | mod 作者 | ユーザーコンテンツ庫：カスタム音声のインポート、台詞ボイス、エクスポートと共有、ランタイム動作 |
 | [current_capabilities](current_capabilities.md) | 作者 / メンテナー | 実装済み、低レベルのみ、未実装の機能境界 |

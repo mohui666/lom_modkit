@@ -146,6 +146,7 @@ namespace MortalModHost
         internal static void StopActiveDevelopmentPlayback()
         {
             if (!RuntimeTrace.Active) return;
+            GameplaySession.Reset();
             RuntimeDebugControl.Continue();
 
             LuaEnvironment env = _activeDevelopmentEnvironment;
@@ -209,6 +210,7 @@ namespace MortalModHost
             bool firstAttempt = string.IsNullOrEmpty(_pendingAbortReason);
             if (firstAttempt)
             {
+                GameplaySession.Reset();
                 _pendingAbortReason = string.IsNullOrEmpty(reason) ? "未知 MOD 演出故障" : reason;
                 RuntimeErrorReporter.Report(
                     category, _pendingAbortReason, error, package, registeredName,
@@ -555,6 +557,20 @@ namespace MortalModHost
                     catch (Exception ex) { Log.LogWarning("mod_overlay_hide 失败：" + ex.Message); }
                     return DynValue.Nil;
                 }, "mod_overlay_hide");
+                script.Globals["mod_gameplay_prepare"] = new CallbackFunction((ctx, args) =>
+                {
+                    GameplaySession.Prepare(
+                        ModOverlay.CurrentPackage,
+                        ArgString(args, 0), ArgString(args, 1), ArgString(args, 2),
+                        ArgString(args, 3), ArgString(args, 4));
+                    return DynValue.Nil;
+                }, "mod_gameplay_prepare");
+                script.Globals["mod_gameplay_consume_resume"] = new CallbackFunction((ctx, args) =>
+                {
+                    string target = GameplaySession.ConsumeResume(
+                        ModOverlay.CurrentPackage, ArgString(args, 0));
+                    return DynValue.NewString(target);
+                }, "mod_gameplay_consume_resume");
                 RegisterCharacterGlobals(script);
             }
             catch (Exception ex)

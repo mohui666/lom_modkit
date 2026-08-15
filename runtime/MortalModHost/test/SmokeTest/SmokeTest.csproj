@@ -28,6 +28,7 @@
     <Compile Include="..\..\src\ModDisclosurePolicy.cs" />
     <Compile Include="..\..\src\ProvenanceWatermarkProtocol.cs" />
     <Compile Include="..\..\src\ProvenanceWatermarkCodec.cs" />
+    <Compile Include="..\..\src\GameplaySession.cs" />
   </ItemGroup>
 
 </Project>

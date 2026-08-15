@@ -1,6 +1,6 @@
 # 目前能力與邊界
 
-本文只描述目前倉庫程式碼。節點權威集合是 `editor/models.py` 的 `NODE_SCHEMAS`，目前共 46 種。
+本文只描述目前倉庫程式碼。節點權威集合是 `editor/models.py` 的 `NODE_SCHEMAS`，目前共 47 種。
 
 ## 已實作
 
@@ -11,8 +11,8 @@
 
 ## 戰鬥邊界
 
-`enemy`、`battle_skill` 和 `goto_scene` 的 `Combat` / `Battle` 會呼叫已驗證的《活俠傳》原版 API。這是原版戰鬥系統的底層編排，不是自製戰鬥引擎。
+`enemy`、`battle_skill` 和 `goto_scene` 的 `Combat` / `Battle` 會呼叫已驗證的《活俠傳》原版 API。高層 `combat` 可選原版 Combat key、組合敵方設定，並從 `CombatManager.GameOver(bool)` 取得真實 win/lose 後回到作者節點。這不是自製戰鬥引擎，且新增流程尚未實機驗證。
 
-目前沒有高層 `combat` / `battle`、Battle Preset、可靠的勝敗結果回呼、`reward` 聚合節點、任意商品 Custom Shop、獨立 `mod_quest` 或任意持久化 Mod 變數。`modflags` / `modvars` 僅在 Story 工作階段存在；`game_flag` 只可寫原版已存在的 FlagData。也不支援自訂戰鬥地圖、模型、AI、動畫或機制。
+目前沒有高層 `battle`、Battle Preset、draw/escape 回呼、`reward` 聚合節點、任意商品 Custom Shop、獨立 `mod_quest` 或任意持久化 Mod 變數。`modflags` / `modvars` 僅在 Story 工作階段存在；`game_flag` 只可寫原版已存在的 FlagData。也不支援自訂戰鬥地圖、模型、AI、動畫或機制。
 
 尚未由反編譯與實機驗證確認的遊戲介面不得靠猜測實作。

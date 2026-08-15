@@ -182,6 +182,7 @@
   "node.game_flag": "游戏任务旗标",
   "node.enemy": "敌方队伍",
   "node.battle_skill": "战场技能",
+  "node.combat": "战斗",
   "node.mission": "任务",
   "node.time": "时间",
   "node.autosave": "自动存档",
@@ -196,6 +197,7 @@
 
   "group.visual": "画面与声音",
   "group.stats": "数值、物品与任务",
+  "group.gameplay": "战斗与游戏系统",
   "group.flow": "流程与高级功能",
 
   "field.optional": "（可选）",
@@ -275,6 +277,10 @@
   "field.death_id": "专用编号",
   "field.code": "Lua 代码",
   "field.goto": "跳转步骤",
+  "field.team": "敌方队伍增量",
+  "field.people": "敌方人数增量",
+  "field.win": "胜利后",
+  "field.lose": "失败后",
 
   "form.select_step": "← 在左侧选择一个步骤",
   "form.step_id": "步骤 {id}",
@@ -311,6 +317,7 @@
   "help.raw": "高级功能：代码会原样进入 Lua。普通剧情不需要使用。",
   "help.music": "播放官方曲目或用户内容库里导入的自定义音乐。自定义项会保存为 user: 编号。",
   "help.sound": "播放官方音效名，或用户内容库里导入的自定义音效/环境音。",
+  "help.combat": "选择原版 Combat 模板，可选调整敌方队伍，并把原版真实胜负结果接回本剧情。",
 
   "enum.play": "播放",
   "enum.stop": "停止",

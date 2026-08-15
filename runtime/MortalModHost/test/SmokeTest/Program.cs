@@ -143,6 +143,7 @@ namespace MortalModHost
                 TestDisclosurePolicy();
                 TestProvenanceWatermarkProtocol();
                 TestProvenanceWatermarkCodec();
+                TestGameplaySession();
 
                 Console.WriteLine("--- 扫描信息 ---");
                 infos.ForEach(Console.WriteLine);
@@ -962,6 +963,51 @@ namespace MortalModHost
             Assert(tile.Length == 448 * 224 * 4
                     && tileHash == "D075861FB031C39D390AD27C45C4FF3B858E7804CC0BC8510E3B75D5AA68831C",
                 "C#/Python 中频 RGBA tile 黄金向量必须一致");
+        }
+
+        private static void TestGameplaySession()
+        {
+            var package = new ModPackage
+            {
+                Id = "demo_mod", Entry = "main",
+                PackageFingerprint = new string('A', 64)
+            };
+            GameplaySession.Reset();
+            Assert(!GameplaySession.HasPending && GameplaySession.LastResult == "",
+                "Gameplay 初始态必须为空");
+            GameplaySession.Prepare(package, "combat", "main", "fight1", "win1", "lose1");
+            Assert(GameplaySession.PendingCombat && GameplaySession.ShouldForceCombatReturn,
+                "combat 准备后必须进入有所有者的待决态");
+            Assert(GameplaySession.ConsumeResume(package, "main") == "",
+                "原版战斗尚未回报结果时不得提前续接");
+            Assert(GameplaySession.RecordResult("combat", "win"), "应接受原版 Combat win");
+            Assert(GameplaySession.LastKind == "combat" && GameplaySession.LastResult == "win",
+                "必须保留最后一次真实结果");
+            Assert(GameplaySession.ConsumeResume(package, "main") == "win1"
+                    && !GameplaySession.HasPending,
+                "win 结果必须一次性映射到作者目标并清除待决态");
+            Assert(GameplaySession.ConsumeResume(package, "main") == "",
+                "同一结果不得被重复消费");
+
+            GameplaySession.Prepare(package, "combat", "main", "fight2", "win2", "lose2");
+            Assert(GameplaySession.RecordResult("combat", "lose")
+                    && GameplaySession.ConsumeResume(package, "main") == "lose2",
+                "lose 结果必须映射到失败目标");
+
+            GameplaySession.Prepare(package, "combat", "main", "fight3", "win3", "lose3");
+            Assert(GameplaySession.RecordResult("combat", "win"), "第二次 win 应可记录");
+            bool rejected = false;
+            try
+            {
+                GameplaySession.ConsumeResume(new ModPackage
+                {
+                    Id = package.Id, Entry = "main", PackageFingerprint = new string('B', 64)
+                }, "main");
+            }
+            catch (InvalidOperationException) { rejected = true; }
+            Assert(rejected && GameplaySession.HasPending,
+                "同 id 不同完整 SHA-256 的包不得消费旧包战斗结果");
+            GameplaySession.Reset();
         }
 
         private static bool IsUpperHex(char c)
