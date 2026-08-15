@@ -629,5 +629,18 @@
   "variables.col.reads": "读取", "variables.col.writes": "写入",
   "variables.col.first_write": "首次写入", "variables.col.unused": "确定未使用",
   "variables.col.before_write": "可能先读后写", "variables.yes": "是",
-  "variables.no": "否", "variables.unknown": "不可静态判定"
+  "variables.no": "否", "variables.unknown": "不可静态判定",
+  "menu.condition_inspector": "条件检查器…", "conditions.title": "条件检查器",
+  "conditions.intro": "结构化展示所有 branch；只有存在可证明的支配写入时才标记恒真，其余保持未知，不猜测 Runtime 状态。",
+  "conditions.col.summary": "可读条件", "conditions.col.symbols": "变量 / Flag",
+  "conditions.col.targets": "分支目标", "conditions.col.proof": "静态结论",
+  "conditions.true": "真", "conditions.false": "假",
+  "conditions.subject.mod": "Mod Flag {name} 是否已设置",
+  "conditions.subject.condition": "官方 Condition {name}",
+  "conditions.subject.game": "官方 Checkpoint {name} 的值",
+  "conditions.subject.flag_value": "官方 Flag {name} 的数值",
+  "conditions.subject.stat": "主角属性 {name}",
+  "conditions.proof.always_true": "恒真", "conditions.proof.always_false": "恒假",
+  "conditions.proof.unknown": "不可静态判定",
+  "conditions.proof.dominating_write": "所有从章节起点到此处的路径都先设置了 Mod Flag {name}。"
 }

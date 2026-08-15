@@ -910,6 +910,7 @@ class MainWindow(QMainWindow):
         edit.addAction(t("menu.story_sections"), self._show_story_sections)
         edit.addAction(t("menu.cross_story_transfer"), self._show_cross_story_transfer)
         edit.addAction(t("menu.variable_manager"), self._show_variable_manager)
+        edit.addAction(t("menu.condition_inspector"), self._show_condition_inspector)
         run_menu = self.menuBar().addMenu(t("menu.run"))
         run_menu.addAction(
             t("menu.play"),
@@ -1135,6 +1136,15 @@ class MainWindow(QMainWindow):
 
         self._flush_pending()
         VariableManagerDialog(
+            self._stories, self._locate_search_result, self,
+            manifest=self.manifest_base,
+        ).exec()
+
+    def _show_condition_inspector(self) -> None:
+        from condition_inspector import ConditionInspectorDialog
+
+        self._flush_pending()
+        ConditionInspectorDialog(
             self._stories, self._locate_search_result, self,
             manifest=self.manifest_base,
         ).exec()

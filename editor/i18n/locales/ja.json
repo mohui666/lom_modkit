@@ -629,5 +629,18 @@
   "variables.col.reads": "読取", "variables.col.writes": "書込",
   "variables.col.first_write": "初回書込", "variables.col.unused": "確実に未使用",
   "variables.col.before_write": "書込前に読む可能性", "variables.yes": "はい",
-  "variables.no": "いいえ", "variables.unknown": "静的判定不可"
+  "variables.no": "いいえ", "variables.unknown": "静的判定不可",
+  "menu.condition_inspector": "条件インスペクター…", "conditions.title": "条件インスペクター",
+  "conditions.intro": "すべての branch を構造化表示します。支配的な書込を証明できる場合だけ恒真とし、Runtime 状態は推測しません。",
+  "conditions.col.summary": "可読条件", "conditions.col.symbols": "変数 / Flag",
+  "conditions.col.targets": "分岐先", "conditions.col.proof": "静的結論",
+  "conditions.true": "真", "conditions.false": "偽",
+  "conditions.subject.mod": "Mod Flag {name} が設定済み",
+  "conditions.subject.condition": "公式 Condition {name}",
+  "conditions.subject.game": "公式 Checkpoint {name} の値",
+  "conditions.subject.flag_value": "公式 Flag {name} の数値",
+  "conditions.subject.stat": "主人公属性 {name}",
+  "conditions.proof.always_true": "常に真", "conditions.proof.always_false": "常に偽",
+  "conditions.proof.unknown": "静的判定不可",
+  "conditions.proof.dominating_write": "チャプター開始点からここまでの全経路で Mod Flag {name} が先に設定されます。"
 }

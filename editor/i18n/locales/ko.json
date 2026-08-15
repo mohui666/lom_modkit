@@ -629,5 +629,18 @@
   "variables.col.reads": "읽기", "variables.col.writes": "쓰기",
   "variables.col.first_write": "첫 쓰기", "variables.col.unused": "확실히 미사용",
   "variables.col.before_write": "쓰기 전 읽기 가능", "variables.yes": "예",
-  "variables.no": "아니요", "variables.unknown": "정적 판정 불가"
+  "variables.no": "아니요", "variables.unknown": "정적 판정 불가",
+  "menu.condition_inspector": "조건 검사기…", "conditions.title": "조건 검사기",
+  "conditions.intro": "모든 branch를 구조화해 표시합니다. 지배 쓰기를 증명할 때만 항상 참으로 표시하고 Runtime 상태는 추측하지 않습니다.",
+  "conditions.col.summary": "읽기 쉬운 조건", "conditions.col.symbols": "변수 / Flag",
+  "conditions.col.targets": "분기 대상", "conditions.col.proof": "정적 결론",
+  "conditions.true": "참", "conditions.false": "거짓",
+  "conditions.subject.mod": "Mod Flag {name} 설정 여부",
+  "conditions.subject.condition": "공식 Condition {name}",
+  "conditions.subject.game": "공식 Checkpoint {name} 값",
+  "conditions.subject.flag_value": "공식 Flag {name} 수치",
+  "conditions.subject.stat": "주인공 속성 {name}",
+  "conditions.proof.always_true": "항상 참", "conditions.proof.always_false": "항상 거짓",
+  "conditions.proof.unknown": "정적 판정 불가",
+  "conditions.proof.dominating_write": "챕터 시작점에서 여기까지 모든 경로가 먼저 Mod Flag {name}을 설정합니다."
 }
