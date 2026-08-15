@@ -21,6 +21,7 @@
     <Compile Include="..\..\src\PreviewRequest.cs" />
     <Compile Include="..\..\src\ContentRef.cs" />
     <Compile Include="..\..\src\UserContent.cs" />
+    <Compile Include="..\..\src\RuntimeTrace.cs" />
   </ItemGroup>
 
 </Project>

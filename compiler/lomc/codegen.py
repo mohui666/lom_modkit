@@ -1196,6 +1196,10 @@ def story_to_lua(story, mod_info=None, source=None, content_root=None):
     for i, node in enumerate(nodes):
         lines.append("-- [%s] %s" % (node["id"], node["type"]))
         lines.append("node_%s = function()" % node["id"])
+        lines.append(
+            "\tif mod_trace_node then mod_trace_node(%s, %s) end"
+            % (lua_str(node["id"]), lua_str(node["type"]))
+        )
         emitter = _EMITTERS.get(node["type"])
         if emitter is None:
             raise LomcError(

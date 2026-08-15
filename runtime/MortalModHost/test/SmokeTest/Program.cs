@@ -103,6 +103,7 @@ namespace MortalModHost
 
                 TestCampaign();
                 TestLocalization();
+                TestRuntimeTrace();
                 TestPreviewRequest(modsDir);
                 TestUserContent();
 
@@ -117,6 +118,42 @@ namespace MortalModHost
             {
                 Directory.Delete(modsDir, recursive: true);
             }
+        }
+
+        private static void TestRuntimeTrace()
+        {
+            RuntimeTrace.Reset();
+            var preview = new ModPackage
+            {
+                Id = "lom_modkit_preview", Name = "F5", Entry = "main",
+                PackagePath = Path.Combine(Path.GetTempPath(), "__lom_modkit_preview.lommod")
+            };
+            RuntimeTrace.BeginScript(preview, "MOD_lom_modkit_preview_main");
+            RuntimeTrace.NodeEnter("c1", "choice");
+            RuntimeTrace.Choice("c1", 1, "b1");
+            RuntimeTrace.NodeEnter("b1", "branch");
+            RuntimeTrace.Condition("b1", "true", "e1");
+            RuntimeTrace.NodeEnter("e1", "end");
+            RuntimeTrace.RuntimeError("synthetic");
+            var events = RuntimeTrace.Snapshot();
+            Assert(RuntimeTrace.Active, "固定 F5 试玩包应启用 trace");
+            Assert(events.Exists(item => item.EventType == "mod_enter"), "缺 mod_enter");
+            Assert(events.Exists(item => item.EventType == "story_enter" && item.StoryId == "main"), "缺 story_enter");
+            Assert(events.Exists(item => item.EventType == "node_enter" && item.NodeId == "c1"), "缺 node_enter");
+            Assert(events.Exists(item => item.EventType == "choice"), "缺 choice");
+            Assert(events.Exists(item => item.EventType == "condition_result"), "缺 condition_result");
+            Assert(events.Exists(item => item.EventType == "goto" && item.Detail == "b1"), "缺推断 goto");
+            Assert(events.Exists(item => item.EventType == "end"), "缺 end");
+            Assert(events.Exists(item => item.EventType == "runtime_error"), "缺 runtime_error");
+            for (int i = 0; i < RuntimeTrace.Capacity + 20; i++)
+                RuntimeTrace.Record("node_enter", "n" + i, "stress");
+            Assert(RuntimeTrace.Snapshot().Count == RuntimeTrace.Capacity, "trace ring buffer 必须有界");
+
+            int retained = RuntimeTrace.Snapshot().Count;
+            RuntimeTrace.BeginScript(new ModPackage { Id = "ordinary", Entry = "main", PackagePath = "ordinary.lommod" }, "MOD_ordinary_main");
+            RuntimeTrace.Record("node_enter", "should_not_record", "");
+            Assert(!RuntimeTrace.Active && RuntimeTrace.Snapshot().Count == retained, "普通 Mod 默认不得记录 trace");
+            RuntimeTrace.Reset();
         }
 
         /// <summary>Story 本地化包：请求语言 → fallback → default → legacy，且注册表无需重扫。</summary>

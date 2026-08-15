@@ -393,6 +393,7 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 19. **离场清台**：脚本开头、`end` / `goto_scene` / `death` 发射 `mod_hide_all()`，立刻隐藏官方台上人物并清掉自定义立绘。换背景 `scene` 不自动退场。切到下一章（`end.next_script`）时下一章开场也会再清一次，避免上一幕角色带到下一章。
 20. **自定义角色立绘朝向与体型**：原版立绘朝左。自定义角色默认 `art_facing=left`，节点 `facing=left` 不翻、`right` 才水平翻转；原图朝右时把 `art_facing` 标成 `right`。`scale` 是 50–130 的体型百分比（默认 100），从脚底缩放，大约 80 接近小师妹。
 21. **游戏内 Mod 菜单多语言**：菜单文案（`src/I18n.cs` 内嵌 zh_CN/zh_TW/ja/ko 四语言目录）跟随游戏当前语言——反射读 LeanLocalization `CurrentLanguage` 并模糊匹配语言名；官方游戏本身没有日语选项，日语目录实际不会触发；检测失败一律回退 zh_CN。详见 `i18n.md`。
+22. **F5 Runtime Trace v1**：只对编辑器固定的 `lom_modkit_preview` / `__lom_modkit_preview.lommod` 开发包启用。记录 `mod_enter`、`story_enter`、`node_enter`、`choice`、`condition_result`、`goto`、`end`、`death`、`runtime_error`；普通玩家加载的正式 Mod 默认不记录。Trace 使用 256 条内存 ring buffer，满后丢弃最旧条目，不写入存档且不会无限增长。新编译器只增加 `if mod_trace_node then ... end` 可选钩子，旧 Runtime 没有该函数时仍按原流程运行。
 
 ## 7. AI 工具接口（story_api）
 

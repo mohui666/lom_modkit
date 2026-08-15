@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using BepInEx.Logging;
 using Fungus;
 using HarmonyLib;
@@ -67,10 +68,16 @@ namespace MortalModHost
                 {
                     ModOverlay.CurrentPackage = package;
                 }
+                RuntimeTrace.BeginScript(package, scriptName);
                 CharacterIntroSupport.Clear();
                 CustomAudioPlayer.StopEverything();
                 CustomCharacterRuntime.HideAllOnStage();
                 CustomImageRuntime.ClearAll();
+
+                // LoadLuaFunction 会初始化共享 Interpreter；编译错误可能被 Fungus 吞掉并返回 null。
+                Closure fn = env.LoadLuaFunction(lua, scriptName + ".LuaScript");
+                if (fn == null)
+                    throw new InvalidOperationException("Lua 编译失败，LoadLuaFunction 返回 null");
 
                 // 契约 §6.9/§6.10：演出前把 mod_hide_mood / mod_set_mood 注册进共享 MoonSharp 环境（幂等重设；官方脚本不调用它们，无副作用）
                 RegisterModGlobals(env);
@@ -84,16 +91,50 @@ namespace MortalModHost
                     Log.LogWarning("演出前已读文本重注册失败（mod 台词将退化为裸文本）：" + ex);
                 }
 
-                // 与原方法保持一致：friendlyName = 脚本名 + ".LuaScript"，协程方式运行
-                Closure fn = env.LoadLuaFunction(lua, scriptName + ".LuaScript");
-                env.RunLuaFunction(fn, true);
+                // Fungus 会吞掉异步 InterpreterException；宿主自行推进，才能记录 runtime_error。
+                env.StartCoroutine(HostRunModLua(env, fn, scriptName));
                 Log.LogInfo("mod 脚本开始演出：" + scriptName);
             }
             catch (Exception ex)
             {
+                RuntimeTrace.RuntimeError(ex.ToString());
                 Log.LogError("mod 脚本 " + scriptName + " 演出失败：" + ex);
             }
             return false; // 该脚本名归 mod 管，成败都跳过原方法
+        }
+
+        private static IEnumerator HostRunModLua(LuaEnvironment env, Closure fn, string scriptName)
+        {
+            DynValue coroutine = null;
+            Exception failure = null;
+            try
+            {
+                Script script = env != null ? env.Interpreter : null;
+                if (script == null) throw new InvalidOperationException("LuaEnvironment.Interpreter 为 null");
+                coroutine = script.CreateCoroutine(fn);
+                if (coroutine == null || coroutine.Type != DataType.Thread || coroutine.Coroutine == null)
+                    throw new InvalidOperationException("无法创建 MoonSharp 协程");
+            }
+            catch (Exception ex) { failure = ex; }
+            if (failure != null)
+            {
+                RuntimeTrace.RuntimeError("启动失败：" + failure);
+                Log.LogError("mod 脚本 " + scriptName + " 启动失败：" + failure);
+                yield break;
+            }
+            while (coroutine.Coroutine.State != CoroutineState.Dead)
+            {
+                failure = null;
+                try { coroutine.Coroutine.Resume(); }
+                catch (Exception ex) { failure = ex; }
+                if (failure != null)
+                {
+                    RuntimeTrace.RuntimeError(failure.ToString());
+                    Log.LogError("mod 脚本 " + scriptName + " 运行异常：" + failure);
+                    yield break;
+                }
+                yield return null;
+            }
         }
 
         /// <summary>
@@ -115,6 +156,22 @@ namespace MortalModHost
                     Log.LogWarning("LuaEnvironment.Interpreter 为 null，跳过 mod 全局函数注册");
                     return;
                 }
+                script.Globals["mod_trace_node"] = new CallbackFunction((ctx, args) =>
+                {
+                    RuntimeTrace.NodeEnter(ArgString(args, 0), ArgString(args, 1));
+                    return DynValue.Nil;
+                }, "mod_trace_node");
+                script.Globals["mod_trace_choice"] = new CallbackFunction((ctx, args) =>
+                {
+                    int selected = args.Count > 1 && args[1].Type == DataType.Number ? (int)args[1].Number : 0;
+                    RuntimeTrace.Choice(ArgString(args, 0), selected, ArgString(args, 2));
+                    return DynValue.Nil;
+                }, "mod_trace_choice");
+                script.Globals["mod_trace_condition"] = new CallbackFunction((ctx, args) =>
+                {
+                    RuntimeTrace.Condition(ArgString(args, 0), ArgString(args, 1), ArgString(args, 2));
+                    return DynValue.Nil;
+                }, "mod_trace_condition");
                 script.Globals["mod_hide_mood"] = new CallbackFunction((ctx, args) =>
                 {
                     MoodControl.HideAllMoodPanels();
