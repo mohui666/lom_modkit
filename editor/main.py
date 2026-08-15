@@ -103,6 +103,7 @@ from preview import (
     log_crash,
 )
 from project_templates import TEMPLATES, create_project_template, template_info
+from project_statistics import ProjectStatistics, calculate_project_statistics
 from recovery_store import (
     RecoveryCandidate,
     RecoveryError,
@@ -459,6 +460,37 @@ class ProjectTemplateDialog(QDialog):
             return
         self.template_key = str(item.data(Qt.ItemDataRole.UserRole))
         self.accept()
+
+
+class ProjectStatisticsDialog(QDialog):
+    def __init__(self, statistics: ProjectStatistics, parent=None):
+        super().__init__(parent)
+        self.statistics = statistics
+        self.setWindowTitle("项目统计")
+        self.resize(660, 500)
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("当前内存项目的即时统计（只读）"))
+        rows = statistics.rows()
+        self.table = QTableWidget(len(rows), 3)
+        self.table.setHorizontalHeaderLabels(("项目", "数量 / 覆盖", "口径"))
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        for row, values in enumerate(rows):
+            for column, value in enumerate(values):
+                self.table.setItem(row, column, QTableWidgetItem(value))
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        layout.addWidget(self.table, stretch=1)
+        note = QLabel(
+            "“不可用”表示当前未保存项目没有可扫描的资产目录；"
+            "统计不会修改项目，也不会执行资源。"
+        )
+        note.setWordWrap(True)
+        layout.addWidget(note)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
 
 
 class ManifestDialog(QDialog):
@@ -1143,6 +1175,7 @@ class MainWindow(QMainWindow):
         run_menu.addAction(t("menu.flow"), self._show_flow_graph, QKeySequence("F7"))
         run_menu.addAction(t("menu.path_simulator"), self._show_path_simulator)
         run_menu.addAction(t("menu.story_tests"), self._show_story_tests)
+        run_menu.addAction("项目统计…", self._show_project_statistics)
         run_menu.addSeparator()
         run_menu.addAction(t("menu.reset_read"), self._reset_read_state)
         lang_menu = self.menuBar().addMenu(t("lang.menu"))
@@ -1438,6 +1471,46 @@ class MainWindow(QMainWindow):
         set_story_tests(self.story, tests)
         self._refresh_all(select_row=self._selected_node_index())
         self.statusBar().showMessage(t("tests.saved", count=len(tests)), 3000)
+
+    def _project_bundled_assets(self) -> list[str] | None:
+        source = self._source_path
+        if source is None:
+            source = next(
+                (path for path in self._story_paths.values() if path is not None),
+                None,
+            )
+        if source is None:
+            return None
+        source = Path(source)
+        if self._source_kind == "lommod" and source.is_file():
+            try:
+                return inspect_lommod(source).bundled_assets
+            except Exception as exc:
+                self.statusBar().showMessage(f"资产统计无法检查原 Mod 包：{exc}", 5000)
+                return None
+        root = source.parent.parent if source.parent.name.lower() == "story" else source.parent
+        assets = root / "assets"
+        if not assets.is_dir():
+            return []
+        try:
+            result = []
+            for path in assets.rglob("*"):
+                if path.is_file():
+                    result.append("assets/" + path.relative_to(assets).as_posix())
+                    if len(result) >= 100_000:
+                        self.statusBar().showMessage("资产统计已达到 10 万文件上限", 5000)
+                        break
+            return result
+        except OSError as exc:
+            self.statusBar().showMessage(f"资产目录统计失败：{exc}", 5000)
+            return None
+
+    def _show_project_statistics(self) -> None:
+        self._flush_pending()
+        statistics = calculate_project_statistics(
+            self._stories, self._project_bundled_assets()
+        )
+        ProjectStatisticsDialog(statistics, self).exec()
 
     def _show_story_localization(self) -> None:
         dialog = StoryLocalizationDialog(self.story, self)
