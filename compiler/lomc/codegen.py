@@ -882,6 +882,61 @@ def _emit_custom_shop(node, ctx):
     return lines
 
 
+def _check_branch(expression, node):
+    return [
+        "\tif %s then" % expression,
+        "\t\treturn node_%s()" % node["success"],
+        "\telse",
+        "\t\treturn node_%s()" % node["failure"],
+        "\tend",
+    ]
+
+
+def _emit_stat_check(node, ctx):
+    expression = "luamanager.GetStatData(%s, 1) %s %s" % (
+        lua_str(node["key"]), node["op"], lua_num(node["value"]),
+    )
+    return _check_branch(expression, node)
+
+
+def _emit_affinity_check(node, ctx):
+    expression = "mod_affinity_value(%s) %s %s" % (
+        lua_str(node["character"]), node["op"], lua_num(node["value"]),
+    )
+    return _check_branch(expression, node)
+
+
+def _emit_item_check(node, ctx):
+    expression = "mod_has_item(%s, %s)" % (
+        lua_str(node["category"]), lua_str(node["item"]),
+    )
+    if node.get("invert", False):
+        expression = "not (" + expression + ")"
+    return _check_branch(expression, node)
+
+
+def _emit_talent_check(node, ctx):
+    expression = "mod_talent_level(%s) %s %s" % (
+        lua_str(node["talent"]), node["op"], lua_num(node["value"]),
+    )
+    return _check_branch(expression, node)
+
+
+def _emit_flag_check(node, ctx):
+    source = node["source"]
+    if source == "mod":
+        expression = "modflags[%s]" % lua_str(node["flag"])
+    elif source == "condition":
+        expression = "checkpointmanager.Condition(%s)" % lua_str(node["flag"])
+    else:
+        expression = "tonumber(luamanager.GetFlagData(%s)) %s %s" % (
+            lua_str(node["flag"]), node["op"], lua_num(node["value"]),
+        )
+    if source != "flag_value" and node.get("invert", False):
+        expression = "not (" + expression + ")"
+    return _check_branch(expression, node)
+
+
 def _emit_mission(node, ctx):
     return [
         "\tstatmodifymanager.Mission(%s, %s)"
@@ -1299,6 +1354,11 @@ _EMITTERS = {
     "battle_result": _emit_battle_result,
     "reward": _emit_reward,
     "custom_shop": _emit_custom_shop,
+    "stat_check": _emit_stat_check,
+    "affinity_check": _emit_affinity_check,
+    "item_check": _emit_item_check,
+    "talent_check": _emit_talent_check,
+    "flag_check": _emit_flag_check,
     "mission": _emit_mission,
     "time": _emit_time,
     "autosave": _emit_autosave,
@@ -1313,7 +1373,11 @@ _EMITTERS = {
 }
 
 # 自带流转（分支/跳转/场景切换），story_to_lua 不再追加 return node_<goto>() 行
-_NO_FLOW_TYPES = ("end", "choice", "branch", "dice", "goto_scene", "death", "combat", "battle", "battle_result")
+_NO_FLOW_TYPES = (
+    "end", "choice", "branch", "dice", "goto_scene", "death", "combat", "battle",
+    "battle_result", "stat_check", "affinity_check", "item_check", "talent_check",
+    "flag_check",
+)
 
 
 def story_to_lua(story, mod_info=None, source=None, content_root=None):

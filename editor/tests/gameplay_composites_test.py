@@ -84,6 +84,26 @@ class GameplayCompositeEditorTest(unittest.TestCase):
         form.set_node(node)
         self.assertTrue(any(table.columnCount() == 6 for table in form.findChildren(QTableWidget)))
 
+    def test_five_gameplay_checks_have_two_real_graph_edges(self):
+        check_types = (
+            "stat_check", "affinity_check", "item_check", "talent_check", "flag_check",
+        )
+        for node_type in check_types:
+            with self.subTest(node_type=node_type):
+                node = models.new_node(node_type, "check", models.FALLBACK_EDITOR_DATA)
+                node["success"] = "ok"
+                node["failure"] = "bad"
+                graph = analyze_story({
+                    "start": "check",
+                    "nodes": [
+                        node, {"id": "ok", "type": "end"}, {"id": "bad", "type": "end"},
+                    ],
+                })
+                edges = {(edge.source, edge.target, edge.label) for edge in graph.edges}
+                self.assertIn(("check", "ok", "成功"), edges)
+                self.assertIn(("check", "bad", "失败"), edges)
+                self.assertIn("成功→ok", models.node_summary(node))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

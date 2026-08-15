@@ -467,7 +467,7 @@ class NodeForm(QScrollArea):
             return self._make_death_id_widget(node, key, value)
         if kind == "item":
             # 物品清单随 kind 字段（book/misc/special）切换；切换时表单已重建
-            data_key = f"items_{node.get('kind', 'misc')}"
+            data_key = f"items_{node.get('kind', node.get('category', 'misc'))}"
             return self._combo_from_items(
                 node, key, models.list_items(self._editor_data, data_key), value
             )

@@ -597,6 +597,19 @@ namespace MortalModHost
                     CustomShopSession.Complete(ModOverlay.CurrentPackage);
                     return DynValue.Nil;
                 }, "mod_custom_shop_end");
+                script.Globals["mod_affinity_value"] = new CallbackFunction((ctx, args) =>
+                {
+                    return DynValue.NewNumber(GameplayChecks.AffinityValue(ArgString(args, 0)));
+                }, "mod_affinity_value");
+                script.Globals["mod_has_item"] = new CallbackFunction((ctx, args) =>
+                {
+                    return DynValue.NewBoolean(GameplayChecks.HasItem(
+                        ArgString(args, 0), ArgString(args, 1)));
+                }, "mod_has_item");
+                script.Globals["mod_talent_level"] = new CallbackFunction((ctx, args) =>
+                {
+                    return DynValue.NewNumber(GameplayChecks.TalentLevel(ArgString(args, 0)));
+                }, "mod_talent_level");
                 RegisterCharacterGlobals(script);
             }
             catch (Exception ex)

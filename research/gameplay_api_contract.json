@@ -123,8 +123,23 @@
       "type": "Mortal.Core.PlayerStatManagerData",
       "required_fragments": [
         "public PlayerTalentDataCollection Talents",
+        "public RelationshipData Relationships",
         "public void SetBattleSkillLevel(string key, int level)",
         "public void Save(GameSave gameSave)"
+      ]
+    },
+    {
+      "assembly": "Mortal.Core.dll",
+      "type": "Mortal.Core.PlayerTalentDataCollection",
+      "required_fragments": [
+        "public PlayerTalentData Get(string id)"
+      ]
+    },
+    {
+      "assembly": "Mortal.Core.dll",
+      "type": "Mortal.Core.PlayerTalentData",
+      "required_fragments": [
+        "public int Level => _level;"
       ]
     },
     {
@@ -147,7 +162,8 @@
     "battle_skill_setup": "verified_decompile",
     "custom_shop_inventory": "verified_decompile_host_scope_implemented",
     "custom_shop_per_item_price": "requires_host_patch",
-    "item_talent_checks": "verified_decompile_requires_host_bridge",
+    "item_talent_checks": "verified_decompile_read_only_bridge_implemented",
+    "affinity_check": "verified_decompile_read_only_bridge_implemented",
     "mod_persistent_state": "requires_host_sidecar",
     "mod_quest": "requires_mod_owned_state_machine"
   }

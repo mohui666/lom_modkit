@@ -105,7 +105,7 @@ assets/                # 可选，自定义资源
 - `choice` / `branch` / `dice`의 분기는 반드시 `goto`로 대상 노드 id를 가리켜야 합니다.
 - 여러 선행 노드가 같은 노드로 합류(합류점)하는 것은 합법입니다.
 
-### 3.1 노드 타입(전체 52종)
+### 3.1 노드 타입(전체 57종)
 
 이 표가 현재 합법 노드 전부입니다. `combat` / `battle`은 원작 템플릿을 사용하는 고수준 편성입니다. `reward`, `quest_*`는 아직 노드가 아니며 전투 기능은 디컴파일로 확인한 원작 API만 호출합니다.
 
@@ -159,6 +159,7 @@ assets/                # 可选，自定义资源
 | `battle_result` | `win`, `lose`; 선택 `kind`("any"/"combat"/"battle") | 전체 패키지 지문과 스토리 id에 결합된 Host 실제 결과를 읽고 검증된 win/lose만 분기합니다. 결과 없음/유형 불일치는 fail-closed |
 | `reward` | `entries`(1~32): stat/affinity/talent/item/flag | 기존 능력치, 호감도, 재능, 아이템, 플래그 원자 API로 컴파일 시 펼칩니다 |
 | `custom_shop` | `items`(1~64): book/misc/special 원작 아이템 id, 재고, 선택 MOD/원작 조건. 선택 `discount`(0/1) | 원작 `ShopDatabase` 재고를 일시 교체해 `ShopPanel`을 열고 종료 또는 오류 시 복원합니다. 가격은 원작 일괄 할인만 사용하며 상품별 `price`는 지원하지 않습니다 |
+| `stat_check` / `affinity_check` / `item_check` / `talent_check` / `flag_check` | 판정 대상, 성공/실패 노드. 수치 판정은 비교 연산자와 기준값 포함 | 검증된 원작 API / 읽기 전용 Host bridge로만 이분 분기합니다 |
 | `mission` | `name`, `key` | 퀘스트 조작 `statmodifymanager.Mission(name, key)`: `Mission("Main","M0001")` 메인 진행 / `Mission("S2200","clear")` 서브 클리어 |
 | `time` | `op`("set"/"round"/"month"/"mission"); set은 `year,month,stage` 사용; mission은 `name,year,month,stage` 사용 | 시간 `SetGameTime/NextRound/NextMonth/SetMissionTime` |
 | `autosave` | 선택 `kind`("story"기본/"free"/"prologue"); 선택 `save_button`(0/1, 세이브 버튼 별도 제어) | `AutoSave()/AutoFreeSave()/PrologueSave(mode)`; `save_button`은 별도로 `ToggleSaveButton(n)` 방출 |
@@ -399,7 +400,7 @@ transition 검은 막, choice 스킨 크래시, 배경 검은 화면, 인물이 
 - Python API:
   - `load_editor_data()`: 에디터 데이터 읽기(dice_meta 등 목록 포함), (editor_data, is_fallback) 반환
   - `new_story(story_id="main", title="新剧情", mood=False)`: 새 스토리 스크립트 작성(show 등장 + 빈 say 두 노드 오프닝, 등장 후 동작)
-  - `add_node(story, node_type, fields=None, after=None)`: models 기본값으로 노드 추가(52종), 알 수 없는 타입/필드/타입 불일치→ValueError, 노드 id 자동 생성, after로 삽입 위치 지정(노드 id 또는 None=끝). 등장 방어선: 동작류 노드의 대상 인물이 앞에서 등장하지 않았거나 이미 퇴장했으면 그 앞에 자동으로 show 삽입
+  - `add_node(story, node_type, fields=None, after=None)`: models 기본값으로 노드 추가(57종), 알 수 없는 타입/필드/타입 불일치→ValueError, 노드 id 자동 생성, after로 삽입 위치 지정(노드 id 또는 None=끝). 등장 방어선: 동작류 노드의 대상 인물이 앞에서 등장하지 않았거나 이미 퇴장했으면 그 앞에 자동으로 show 삽입
   - `update_node(story, node_id, fields)`: 노드 필드 업데이트(add와 같은 필드 검증), 노드 없음→ValueError. 등장 방어선: 업데이트 후 동작 인물이 미등장/퇴장 상태이면 해당 노드 앞에 자동으로 show를 삽입하고, 그곳을 가리키는 goto/옵션/분기 점프를 새 노드로 변경
   - `get_node(story, node_id)`: 노드 읽기, 없음→ValueError
   - `list_nodes(story)`: [{"id","type","summary"}] 목록 반환

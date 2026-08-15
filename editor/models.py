@@ -73,6 +73,11 @@ NODE_TYPE_CN_SRC: dict[str, str] = {
     "battle_result": "战斗结果",
     "reward": "战斗奖励",
     "custom_shop": "自定义商店",
+    "stat_check": "属性检定",
+    "affinity_check": "好感检定",
+    "item_check": "物品检定",
+    "talent_check": "天赋检定",
+    "flag_check": "旗标检定",
     "mission": "任务",
     "time": "时间",
     "autosave": "自动存档",
@@ -129,6 +134,11 @@ NODE_HELP_KEYS = {
     "battle_setup": "help.battle_setup",
     "reward": "help.reward",
     "custom_shop": "help.custom_shop",
+    "stat_check": "help.stat_check",
+    "affinity_check": "help.affinity_check",
+    "item_check": "help.item_check",
+    "talent_check": "help.talent_check",
+    "flag_check": "help.flag_check",
 }
 NODE_HELP: dict[str, str] = {}
 
@@ -184,7 +194,10 @@ NODE_GROUPS_SRC: list[tuple[str, list[str]]] = [
     ),
     (
         "group.gameplay",
-        ["battle_setup", "combat", "battle", "battle_result", "reward", "custom_shop"],
+        [
+            "battle_setup", "combat", "battle", "battle_result", "reward", "custom_shop",
+            "stat_check", "affinity_check", "item_check", "talent_check", "flag_check",
+        ],
     ),
     (
         "group.flow",
@@ -259,6 +272,11 @@ ENUM_SETS_SRC: dict[str, list[tuple[str, str]]] = {
         ("always", "始终出售"), ("mod", "本 MOD 旗标"),
         ("condition", "原版条件检查点"),
     ],
+    "check_op": [(op, op) for op in (">=", ">", "<=", "<", "==")],
+    "flag_check_source": [
+        ("mod", "本 MOD 旗标"), ("condition", "原版条件检查点"),
+        ("flag_value", "原版数值旗标"),
+    ],
     "time_op": [
         ("set", "设置时间"),
         ("round", "进入下一旬"),
@@ -311,6 +329,7 @@ REBUILD_ENUMS = {
     "background_action",
     "cg_action",
     "overlay_action",
+    "flag_check_source",
 }
 
 # say mode 中文标注（清单本身来自 editor_data.modes）
@@ -737,6 +756,48 @@ NODE_SCHEMAS: dict[str, dict] = {
             ("items", "商品库存与上架条件", "custom_shop_items", False),
         ],
     },
+    "stat_check": {
+        "label": "属性检定",
+        "fields": [
+            ("key", "主角属性", "stat", False), ("op", "比较", "enum:check_op", False),
+            ("value", "目标值", "int", False), ("success", "成功后", "node_ref", False),
+            ("failure", "失败后", "node_ref", False),
+        ],
+    },
+    "affinity_check": {
+        "label": "好感检定",
+        "fields": [
+            ("character", "人物", "affinity_character", False),
+            ("op", "比较", "enum:check_op", False), ("value", "目标值", "int", False),
+            ("success", "成功后", "node_ref", False), ("failure", "失败后", "node_ref", False),
+        ],
+    },
+    "item_check": {
+        "label": "物品检定",
+        "fields": [
+            ("category", "物品类别", "enum:item_kind", False),
+            ("item", "原版物品", "item", False), ("invert", "检定未持有", "bool", True),
+            ("success", "成功后", "node_ref", False), ("failure", "失败后", "node_ref", False),
+        ],
+    },
+    "talent_check": {
+        "label": "天赋检定",
+        "fields": [
+            ("talent", "原版天赋", "talent", False),
+            ("op", "等级比较", "enum:check_op", False), ("value", "目标等级", "int", False),
+            ("success", "成功后", "node_ref", False), ("failure", "失败后", "node_ref", False),
+        ],
+    },
+    "flag_check": {
+        "label": "旗标检定",
+        "fields": [
+            ("source", "旗标来源", "enum:flag_check_source", False),
+            ("flag", "旗标 / 条件 id", "line", False),
+            ("op", "数值比较", "enum:check_op", True), ("value", "目标值", "int", True),
+            ("invert", "布尔结果取反", "bool", True),
+            ("success", "成功后", "node_ref", False), ("failure", "失败后", "node_ref", False),
+        ],
+    },
     "mission": {
         "label": "任务操作",
         "fields": [
@@ -907,6 +968,19 @@ _NODE_DEFAULTS: dict[str, dict] = {
     "custom_shop": {
         "discount": 0,
         "items": [{"category": "misc", "item": "", "count": 1}],
+    },
+    "stat_check": {"key": "", "op": ">=", "value": 0, "success": "", "failure": ""},
+    "affinity_check": {
+        "character": "", "op": ">=", "value": 0, "success": "", "failure": "",
+    },
+    "item_check": {
+        "category": "misc", "item": "", "invert": False, "success": "", "failure": "",
+    },
+    "talent_check": {
+        "talent": "", "op": ">=", "value": 1, "success": "", "failure": "",
+    },
+    "flag_check": {
+        "source": "mod", "flag": "", "invert": False, "success": "", "failure": "",
     },
     "mission": {"name": "Main", "key": ""},
     "time": {"op": "round"},
@@ -1430,7 +1504,10 @@ def _signed(value) -> str:
 
 def node_bullet(node_type: str) -> str:
     """步骤列表前缀符号：分支/结局与普通步骤区分开。"""
-    if node_type in ("choice", "branch", "dice"):
+    if node_type in (
+        "choice", "branch", "dice", "stat_check", "affinity_check", "item_check",
+        "talent_check", "flag_check",
+    ):
         return "◆"
     if node_type in ("end", "death", "goto_scene", "combat", "battle"):
         return "■"
@@ -1643,6 +1720,22 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
     if nt == "custom_shop":
         discount = " / 原版折扣" if node.get("discount") else ""
         return f"{tcn}·{len(node.get('items', []))} 件{discount}"
+    if nt in ("stat_check", "affinity_check", "talent_check"):
+        key = node.get("key") or node.get("character") or node.get("talent", "")
+        return (
+            f"{tcn}·{key} {node.get('op', '>=')} {node.get('value', 0)}"
+            f"（成功→{node.get('success', '')} / 失败→{node.get('failure', '')}）"
+        )
+    if nt == "item_check":
+        return (
+            f"{tcn}·{node.get('category', 'misc')}:{node.get('item', '')}"
+            f"（成功→{node.get('success', '')} / 失败→{node.get('failure', '')}）"
+        )
+    if nt == "flag_check":
+        return (
+            f"{tcn}·{node.get('source', 'mod')}:{node.get('flag', '')}"
+            f"（成功→{node.get('success', '')} / 失败→{node.get('failure', '')}）"
+        )
     if nt == "mission":
         return f"{tcn}·{node.get('name', '')} {node.get('key', '')}"
     if nt == "time":

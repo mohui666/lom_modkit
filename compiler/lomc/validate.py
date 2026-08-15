@@ -185,6 +185,8 @@ _ENUMS = {
     "reward_kind": ("stat", "affinity", "talent", "item", "flag"),
     "shop_item_kind": ("book", "misc", "special"),
     "shop_condition_source": ("mod", "condition"),
+    "check_op": BRANCH_OPS,
+    "flag_check_source": ("mod", "condition", "flag_value"),
     "time_op": ("set", "round", "month", "mission"),
     "autosave_kind": ("story", "free", "prologue"),
     "goto_scene": (
@@ -401,6 +403,26 @@ _NODE_FIELDS = {
     ),
     "reward": ({"entries": "list"}, {}),
     "custom_shop": ({"items": "list"}, {"discount": "num"}),
+    "stat_check": (
+        {"key": "idstr", "op": "check_op", "value": "num", "success": "idstr", "failure": "idstr"},
+        {},
+    ),
+    "affinity_check": (
+        {"character": "idstr", "op": "check_op", "value": "num", "success": "idstr", "failure": "idstr"},
+        {},
+    ),
+    "item_check": (
+        {"category": "item_kind", "item": "idstr", "success": "idstr", "failure": "idstr"},
+        {"invert": "bool"},
+    ),
+    "talent_check": (
+        {"talent": "idstr", "op": "check_op", "value": "num", "success": "idstr", "failure": "idstr"},
+        {},
+    ),
+    "flag_check": (
+        {"source": "flag_check_source", "flag": "idstr", "success": "idstr", "failure": "idstr"},
+        {"op": "check_op", "value": "num", "invert": "bool"},
+    ),
     "mission": ({"name": "idstr", "key": "idstr"}, {}),
     "time": (
         {"op": "time_op"},
@@ -434,10 +456,17 @@ _NODE_FIELDS = {
 _COMMON_FIELDS = ("id", "type", "goto")
 
 # 不允许显式 goto 的节点类型（契约 §4：流转由自身结构/场景跳转决定）
-_NO_GOTO_TYPES = ("choice", "branch", "dice", "end", "goto_scene", "death", "combat", "battle", "battle_result")
+_CHECK_TYPES = ("stat_check", "affinity_check", "item_check", "talent_check", "flag_check")
+_NO_GOTO_TYPES = (
+    "choice", "branch", "dice", "end", "goto_scene", "death", "combat", "battle",
+    "battle_result",
+) + _CHECK_TYPES
 
 # 可以作最后一个节点收尾的类型（其余类型在末位且无 goto → 校验错误）
-_TERMINAL_TYPES = ("end", "choice", "branch", "dice", "goto_scene", "raw", "death", "combat", "battle", "battle_result")
+_TERMINAL_TYPES = (
+    "end", "choice", "branch", "dice", "goto_scene", "raw", "death", "combat", "battle",
+    "battle_result",
+) + _CHECK_TYPES
 
 # dice 选项的字段(§3.1)：三向 goto 载体（text/threshold 已废弃，以官方结果带元数据为准）
 _DICE_OPTION_GOTOS = ("goto_大成功", "goto_成功", "goto_失败")
@@ -507,6 +536,8 @@ def _check_goto(node, label, id_set):
             targets.append(case["goto"])
     if node.get("type") in ("combat", "battle", "battle_result"):
         targets.extend((node["win"], node["lose"]))
+    if node.get("type") in _CHECK_TYPES:
+        targets.extend((node["success"], node["failure"]))
     for t in targets:
         if t not in id_set:
             raise LomcError('%s: goto 指向不存在的节点 "%s"' % (label, t))
@@ -1076,6 +1107,25 @@ def _check_node_extra(node, ntype, label, battle_presets=None):
                 raise LomcError('%s: condition.key 必须是非空 id' % item_label)
             if "invert" in condition and not isinstance(condition["invert"], bool):
                 raise LomcError('%s: condition.invert 必须是布尔值' % item_label)
+    elif ntype in ("stat_check", "affinity_check", "talent_check"):
+        if isinstance(node["value"], bool) or not isinstance(node["value"], int):
+            raise LomcError('%s(%s): value 必须是整数' % (label, ntype))
+    elif ntype == "flag_check":
+        source = node["source"]
+        if source == "flag_value":
+            if "op" not in node or "value" not in node:
+                raise LomcError(
+                    '%s(flag_check): source="flag_value" 时必须填写 op 和 value' % label
+                )
+            if isinstance(node["value"], bool) or not isinstance(node["value"], int):
+                raise LomcError('%s(flag_check): value 必须是整数' % label)
+            if "invert" in node:
+                raise LomcError('%s(flag_check): flag_value 不使用 invert' % label)
+        elif "op" in node or "value" in node:
+            raise LomcError(
+                '%s(flag_check): source="%s" 只使用 invert，不接受 op/value'
+                % (label, source)
+            )
     elif ntype == "time":
         op = node["op"]
         if op == "set":

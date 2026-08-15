@@ -280,6 +280,11 @@ def _hint_text(node: dict, ed: dict) -> str | None:
         )
     if t == "reward":
         return f"[战斗奖励] {len(node.get('entries', []))} 项"
+    if t.endswith("_check"):
+        return (
+            f"[{models.NODE_TYPE_CN.get(t, t)}] "
+            f"成功→{node.get('success', '')}｜失败→{node.get('failure', '')}"
+        )
     if t == "mission":
         return f"[任务] {node.get('name', '')} {node.get('key', '')}"
     if t == "time":
@@ -419,7 +424,10 @@ def _apply_node(state: dict, node: dict, ed: dict | None = None) -> None:
 def _next_node(node: dict, idx: int, nodes: list) -> str | None:
     """决定下一步节点 id：choice/branch/dice 走分支，显式 goto 优先，否则顺序。"""
     t = node.get("type")
-    if t in ("end", "goto_scene", "death", "combat", "battle", "battle_result"):
+    if t in (
+        "end", "goto_scene", "death", "combat", "battle", "battle_result",
+        "stat_check", "affinity_check", "item_check", "talent_check", "flag_check",
+    ):
         return None  # 脚本终止/跳离当前场景：推演到此为止
     if t == "choice":
         for opt in node.get("options", []):
