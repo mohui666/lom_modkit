@@ -10,7 +10,7 @@
                            直接进 Lua，不进 texts.json / 已读系统）
     assets/                仅收剧情明确引用的资源：
                            - End.image / 自定义 intro.image（包内 assets/ 图片，≤8MB）
-                           - user: 用户音频（assets/user/audio/<id>/，仅实际引用）
+                           - user: 用户音频 / 自定义角色（assets/user/<type>/<id>/，仅实际引用）
                            未引用的本机素材不会打进包，避免意外分发
 
 默认输出：<mod目录> 同级、以目录名命名的 <目录名>.lommod。
@@ -22,8 +22,10 @@ import zipfile
 
 from .compiler import compile_story, load_json_file
 from .content import (
+    check_character_portrait,
     check_content_matches_kind,
     collect_story_content_refs,
+    listed_content_files,
     package_content_dir,
     resolve_content,
 )
@@ -68,7 +70,7 @@ def pack_mod(mod_dir, output=None):
     texts = {}  # 已读 key -> 文本（契约 §1：say/death 节点文本）
     mod_id = manifest["id"]  # 打包时必有（validate_manifest 已保证）
     referenced_assets = set()
-    referenced_user_audio = {}  # content_id -> (meta, main_abs)
+    referenced_user_content = {}  # (type, content_id) -> (meta, folder_abs)
     for fname in story_files:
         stem = fname[: -len(".json")]
         story = load_json_file(os.path.join(story_dir, fname))
@@ -148,15 +150,22 @@ def pack_mod(mod_dir, output=None):
                 referenced_assets.add(image.replace("\\", "/"))
         for item in collect_story_content_refs(story):
             ref = item["ref"]
+            ctype = item.get("expected_type") or "audio"
             try:
-                meta, main_path = resolve_content(mod_dir, "audio", ref.content_id)
-                check_content_matches_kind(meta, item["expected_kind"], ref.raw)
+                meta, main_path = resolve_content(mod_dir, ctype, ref.content_id)
+                if ctype == "character":
+                    check_character_portrait(meta, item.get("portrait"), ref.raw)
+                else:
+                    check_content_matches_kind(meta, item["expected_kind"], ref.raw)
             except LomcError as exc:
                 raise LomcError(
                     'story/%s 节点 "%s"(%s): %s'
                     % (fname, item["node_id"], item["node_type"], exc)
                 )
-            referenced_user_audio[ref.content_id] = (meta, main_path)
+            referenced_user_content[(ctype, ref.content_id)] = (
+                meta,
+                os.path.dirname(main_path),
+            )
 
     if output is None:
         output = os.path.join(
@@ -174,15 +183,15 @@ def pack_mod(mod_dir, output=None):
             "texts.json",
             json.dumps(texts, ensure_ascii=False, indent=2) + "\n",
         )
-        # assets 只收剧情明确引用的图片与用户音频，避免把本机未使用素材意外分发。
+        # assets 只收剧情明确引用的图片与用户内容，避免把本机未使用素材意外分发。
         for rel in sorted(referenced_assets):
             full = os.path.join(mod_dir, rel.replace("/", os.sep))
             zf.write(full, rel)
-        for content_id in sorted(referenced_user_audio):
-            meta, main_path = referenced_user_audio[content_id]
-            rel_dir = package_content_dir("audio", content_id)
-            meta_src = os.path.join(os.path.dirname(main_path), "content.json")
-            zf.write(meta_src, rel_dir + "/content.json")
-            zf.write(main_path, rel_dir + "/" + meta["files"]["main"])
+        for ctype, content_id in sorted(referenced_user_content):
+            meta, folder = referenced_user_content[(ctype, content_id)]
+            rel_dir = package_content_dir(ctype, content_id)
+            zf.write(os.path.join(folder, "content.json"), rel_dir + "/content.json")
+            for fname in listed_content_files(meta):
+                zf.write(os.path.join(folder, fname), rel_dir + "/" + fname)
 
     return output

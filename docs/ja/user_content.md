@@ -100,5 +100,5 @@ assets/user/audio/mohui.battle/battle.ogg
 - 音量はおおよそゲームのマスター音量 × 音楽／効果音スライダーに従います。Wwise RTPC ではないため、完全一致はできません。
 - カスタム fadeout は出力音量のフェードアウトです（その後もノードどおり待機します）。
 - カスタム音楽への切替時は先に公式の背景楽を停止します。公式の `StopMusic` はもともと環境音も一緒にクリアします。
-- 本バージョンではカスタムキャラ立ち絵のランタイムは未実装です。リポジトリの `type` には `character` が予約済みです。
+- カスタムキャラは独立 Runtime（`mod_char_*`）で、公式 Addressables には登録しません。v1 は show / say / hide / move / face / focus に対応。詳細は中国語版を参照。
 - 受け入れ確認には `samples/audio_test/` が使えます：自分で `user:test.bgm` / `user:test.sfx` / `user:test.env` をインポートしてください。

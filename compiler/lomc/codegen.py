@@ -11,6 +11,7 @@
   其余节点末尾追加 return node_<goto 或顺序下一节点>()。
 """
 
+from .content import is_user_ref
 from .dice_data import get_dice_meta
 from .errors import LomcError
 
@@ -52,6 +53,12 @@ def _get(char_expr):
 
 def _portrait(character, portrait):
     return "characters.GetPortrait(%s, %s)" % (character, portrait)
+
+
+def _user_char(node):
+    """节点 character 若是 user: 引用则返回该字符串，否则 None。"""
+    raw = node.get("character")
+    return raw if is_user_ref(raw) else None
 
 
 def _say_key(node, ctx):
@@ -113,22 +120,30 @@ def _emit_scene(node, ctx):
 
 
 def _emit_show(node, ctx):
+    user = _user_char(node)
     c = lua_str(node["character"])
     portrait = lua_str(node.get("portrait", "normal"))
     facing = lua_str(node.get("facing", "right"))
     pos = lua_str(node["position"])
     fade = lua_num(node.get("fadeDuration", 0))
     move = lua_num(node.get("moveDuration", 0))
-    lines = [
-        "\trunwait(characters.LoadCharacterAsset(%s))" % c,
-        # 表情差分：先加载该表情的立绘差分（官方 93% show/say 均如此；
-        # 不加载则台上人物立绘永远停在默认表情，只有气泡变）
-        "\tcharacters.LoadCharacterPortrait(%s, %s)" % (c, portrait),
-        "\tstage.show{character=%s, portrait=%s, fromPosition=%s, toPosition=%s, "
-        "facing=%s, fadeDuration=%s, moveDuration=%s, useDefaultSettings=false}"
-        % (_get(c), _portrait(c, portrait), pos, pos, facing, fade, move),
-        "\tcharacters.Focus(%s)" % c,
-    ]
+    if user:
+        lines = [
+            "\tmod_char_show(%s, %s, %s, %s, %s, %s)"
+            % (c, portrait, pos, facing, fade, move),
+            "\tmod_char_focus(%s)" % c,
+        ]
+    else:
+        lines = [
+            "\trunwait(characters.LoadCharacterAsset(%s))" % c,
+            # 表情差分：先加载该表情的立绘差分（官方 93% show/say 均如此；
+            # 不加载则台上人物立绘永远停在默认表情，只有气泡变）
+            "\tcharacters.LoadCharacterPortrait(%s, %s)" % (c, portrait),
+            "\tstage.show{character=%s, portrait=%s, fromPosition=%s, toPosition=%s, "
+            "facing=%s, fadeDuration=%s, moveDuration=%s, useDefaultSettings=false}"
+            % (_get(c), _portrait(c, portrait), pos, pos, facing, fade, move),
+            "\tcharacters.Focus(%s)" % c,
+        ]
     # 心情气泡：story mood 关闭时隐藏官方圆形情绪面板（show 后常驻）
     if not ctx.get("mood", False):
         lines.append("\tmod_hide_mood()")
@@ -138,6 +153,12 @@ def _emit_show(node, ctx):
 def _emit_move(node, ctx):
     c = lua_str(node["character"])
     duration = node.get("duration", 1)
+    if _user_char(node):
+        return [
+            "\tmod_char_move(%s, %s, %s, %s)"
+            % (c, lua_str(node["from"]), lua_str(node["to"]), lua_num(duration)),
+            "\twait(%s)" % lua_num(duration),
+        ]
     return [
         "\tstage.show{character=%s, fromPosition=%s, toPosition=%s, "
         "moveDuration=%s, useDefaultSettings=false}"
@@ -147,21 +168,32 @@ def _emit_move(node, ctx):
 
 
 def _emit_face(node, ctx):
+    c = lua_str(node["character"])
+    facing = lua_str(node["facing"])
+    if _user_char(node):
+        return ["\tmod_char_face(%s, %s)" % (c, facing)]
     return [
         "\tstage.show{character=%s, facing=%s, useDefaultSettings=false}"
-        % (_get(lua_str(node["character"])), lua_str(node["facing"]))
+        % (_get(c), facing)
     ]
 
 
 def _emit_hide(node, ctx):
+    c = lua_str(node["character"])
+    fade = lua_num(node.get("fadeDuration", 0))
+    if _user_char(node):
+        return ["\tmod_char_hide(%s, %s)" % (c, fade)]
     return [
         "\tstage.hide{character=%s, fadeDuration=%s, useDefaultSettings=false}"
-        % (_get(lua_str(node["character"])), lua_num(node.get("fadeDuration", 0)))
+        % (_get(c), fade)
     ]
 
 
 def _emit_focus(node, ctx):
-    return ["\tcharacters.Focus(%s)" % lua_str(node["character"])]
+    c = lua_str(node["character"])
+    if _user_char(node):
+        return ["\tmod_char_focus(%s)" % c]
+    return ["\tcharacters.Focus(%s)" % c]
 
 
 def _emit_offset(node, ctx):
@@ -226,21 +258,33 @@ def _emit_say(node, ctx):
 
     c = lua_str(node["character"])
     portrait = lua_str(node.get("portrait", "normal"))
-    lines = [
-        "\tsetsaydialog(saydialogs.%s)" % mode,
-        # 表情差分：先加载该表情的立绘差分（官方 93% say 块均如此；
-        # 不加载则台上人物立绘不换，只有气泡变）
-        "\tcharacters.LoadCharacterPortrait(%s, %s)" % (c, portrait),
-        "\tsayoptions.waitforinput = true",
-        "\tsayoptions.fadewhendone  = true",
-        "\tstage.showPortrait(%s, %s)" % (_get(c), _portrait(c, portrait)),
-        "\tsetcharacter(%s, %s)" % (_get(c), _portrait(c, portrait)),
-    ]
+    if _user_char(node):
+        lines = [
+            "\tsetsaydialog(saydialogs.%s)" % mode,
+            "\tmod_char_portrait(%s, %s)" % (c, portrait),
+            "\tsayoptions.waitforinput = true",
+            "\tsayoptions.fadewhendone  = true",
+            "\tmod_char_set_speaker(%s)" % c,
+        ]
+    else:
+        lines = [
+            "\tsetsaydialog(saydialogs.%s)" % mode,
+            # 表情差分：先加载该表情的立绘差分（官方 93% say 块均如此；
+            # 不加载则台上人物立绘不换，只有气泡变）
+            "\tcharacters.LoadCharacterPortrait(%s, %s)" % (c, portrait),
+            "\tsayoptions.waitforinput = true",
+            "\tsayoptions.fadewhendone  = true",
+            "\tstage.showPortrait(%s, %s)" % (_get(c), _portrait(c, portrait)),
+            "\tsetcharacter(%s, %s)" % (_get(c), _portrait(c, portrait)),
+        ]
     if mode == "think":
         # 内心独白：say 前开独白遮罩，say 后关闭（契约 §4）
         lines.append("\tos_mask.SetLastPosition()")
         lines.append("\tos_mask.Show(true)")
-    lines.append("\tcharacters.Focus(%s)" % c)
+    if _user_char(node):
+        lines.append("\tmod_char_focus(%s)" % c)
+    else:
+        lines.append("\tcharacters.Focus(%s)" % c)
     lines.append(say_call)
     if mode == "think":
         lines.append("\tos_mask.Show(false)")

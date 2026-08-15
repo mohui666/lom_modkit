@@ -392,18 +392,8 @@ namespace MortalModHost
             string type = GetString(root, "type", required: true);
             if (type != typeFromPath)
                 throw new FormatException("content.json 的 type 与目录类型不一致");
-            if (type != "audio")
-            {
-                if (logWarn != null)
-                    logWarn("mod " + package.Id + " 的用户内容 " + id + " 类型 " + type + " 本版本不加载");
-                return null;
-            }
 
             string name = GetString(root, "name", required: true);
-            string audioKind = GetString(root, "audio_kind", required: true);
-            if (audioKind != "music" && audioKind != "sound" && audioKind != "env")
-                throw new FormatException("audio_kind 必须是 music / sound / env");
-
             object filesObj;
             if (!root.TryGetValue("files", out filesObj))
                 throw new FormatException("content.json 缺少 files");
@@ -413,38 +403,133 @@ namespace MortalModHost
             string mainFile = GetString(files, "main", required: true);
             if (mainFile.IndexOf('/') >= 0 || mainFile.IndexOf('\\') >= 0 || mainFile.IndexOf("..", StringComparison.Ordinal) >= 0)
                 throw new FormatException("files.main 必须是同目录文件名");
+
+            if (type == "audio")
+                return ParseAudioContent(package, expectedDir, id, name, mainFile, root, entries);
+            if (type == "character")
+                return ParseCharacterContent(package, expectedDir, id, name, mainFile, root, entries);
+            if (logWarn != null)
+                logWarn("mod " + package.Id + " 的用户内容 " + id + " 类型 " + type + " 本版本不加载");
+            return null;
+        }
+
+        private static UserContent ParseAudioContent(
+            ModPackage package,
+            string expectedDir,
+            string id,
+            string name,
+            string mainFile,
+            Dictionary<string, object> root,
+            Dictionary<string, ZipArchiveEntry> entries)
+        {
+            string audioKind = GetString(root, "audio_kind", required: true);
+            if (audioKind != "music" && audioKind != "sound" && audioKind != "env")
+                throw new FormatException("audio_kind 必须是 music / sound / env");
             string ext = Path.GetExtension(mainFile);
             if (!ext.Equals(".ogg", StringComparison.OrdinalIgnoreCase)
                 && !ext.Equals(".wav", StringComparison.OrdinalIgnoreCase))
                 throw new FormatException("用户音频只支持 .ogg / .wav");
 
             string audioPath = expectedDir + "/" + mainFile;
-            ZipArchiveEntry audioEntry;
-            if (!entries.TryGetValue(audioPath, out audioEntry))
-                throw new FormatException("缺少音频文件 " + audioPath);
-            if (audioEntry.Length > MaxAudioBytes)
-                throw new FormatException("音频超过 20MB：" + audioPath);
-
-            byte[] bytes;
-            using (var input = audioEntry.Open())
-            using (var ms = new MemoryStream())
-            {
-                input.CopyTo(ms);
-                bytes = ms.ToArray();
-            }
-            if (bytes.Length == 0)
-                throw new FormatException("音频文件为空：" + audioPath);
-
+            byte[] bytes = ReadZipBytes(entries, audioPath, MaxAudioBytes, "音频");
             return new UserContent
             {
                 Id = id,
-                Type = type,
+                Type = "audio",
                 Name = name,
                 AudioKind = audioKind,
                 MainFile = mainFile,
                 PackagePath = audioPath,
                 Bytes = bytes
             };
+        }
+
+        private static UserContent ParseCharacterContent(
+            ModPackage package,
+            string expectedDir,
+            string id,
+            string name,
+            string mainFile,
+            Dictionary<string, object> root,
+            Dictionary<string, ZipArchiveEntry> entries)
+        {
+            string ext = Path.GetExtension(mainFile);
+            if (!IsImageExt(ext))
+                throw new FormatException("角色主立绘必须是 .png / .jpg / .jpeg");
+
+            var portraits = new Dictionary<string, string>(StringComparer.Ordinal);
+            object portraitsObj;
+            if (root.TryGetValue("portraits", out portraitsObj) && portraitsObj is Dictionary<string, object>)
+            {
+                foreach (var pair in (Dictionary<string, object>)portraitsObj)
+                {
+                    if (string.IsNullOrEmpty(pair.Key) || pair.Value == null)
+                        continue;
+                    string fname = Convert.ToString(pair.Value) ?? "";
+                    if (fname.IndexOf('/') >= 0 || fname.IndexOf('\\') >= 0 || fname.IndexOf("..", StringComparison.Ordinal) >= 0)
+                        throw new FormatException("portraits 文件名不能含路径：" + fname);
+                    if (!IsImageExt(Path.GetExtension(fname)))
+                        throw new FormatException("立绘必须是 .png / .jpg / .jpeg：" + fname);
+                    portraits[pair.Key] = fname;
+                }
+            }
+            if (!portraits.ContainsKey("normal"))
+                portraits["normal"] = mainFile;
+
+            var fileBytes = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in portraits)
+            {
+                string path = expectedDir + "/" + pair.Value;
+                if (!fileBytes.ContainsKey(pair.Value))
+                    fileBytes[pair.Value] = ReadZipBytes(entries, path, 8L * 1024 * 1024, "立绘");
+            }
+            byte[] mainBytes;
+            if (!fileBytes.TryGetValue(mainFile, out mainBytes))
+            {
+                mainBytes = ReadZipBytes(entries, expectedDir + "/" + mainFile, 8L * 1024 * 1024, "立绘");
+                fileBytes[mainFile] = mainBytes;
+            }
+
+            return new UserContent
+            {
+                Id = id,
+                Type = "character",
+                Name = name,
+                MainFile = mainFile,
+                PackagePath = expectedDir + "/" + mainFile,
+                Bytes = mainBytes,
+                Portraits = portraits,
+                Files = fileBytes
+            };
+        }
+
+        private static bool IsImageExt(string ext)
+        {
+            return ext.Equals(".png", StringComparison.OrdinalIgnoreCase)
+                || ext.Equals(".jpg", StringComparison.OrdinalIgnoreCase)
+                || ext.Equals(".jpeg", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static byte[] ReadZipBytes(
+            Dictionary<string, ZipArchiveEntry> entries,
+            string path,
+            long maxBytes,
+            string label)
+        {
+            ZipArchiveEntry entry;
+            if (!entries.TryGetValue(path, out entry))
+                throw new FormatException("缺少" + label + "文件 " + path);
+            if (entry.Length > maxBytes)
+                throw new FormatException(label + "超过上限：" + path);
+            using (var input = entry.Open())
+            using (var ms = new MemoryStream())
+            {
+                input.CopyTo(ms);
+                byte[] bytes = ms.ToArray();
+                if (bytes.Length == 0)
+                    throw new FormatException(label + "文件为空：" + path);
+                return bytes;
+            }
         }
 
         private static string ReadEntryText(ZipArchiveEntry entry)

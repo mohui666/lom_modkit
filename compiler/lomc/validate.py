@@ -11,7 +11,12 @@
 
 import re
 
-from .content import is_user_ref, parse_content_ref
+from .content import (
+    UNSUPPORTED_USER_CHAR_TYPES,
+    is_user_ref,
+    parse_content_ref,
+    validate_portrait_id,
+)
 from .dice_data import (
     check_portrait,
     get_dice_meta,
@@ -407,6 +412,8 @@ def _check_node_extra(node, ntype, label):
         )
     # 角色表情校验（练武场卡死修复）：show/say 的 (character, portrait) 组合必须
     # 落在 editor_data 角色表情表内（表不可用/角色不在表 → 放行）。
+    # 自定义 user: 角色不进官方表：只校验引用格式与表情 id；文件/表情是否存在
+    # 由打包与预检对照 content.json 检查。
     if ntype in ("show", "say"):
         character = node.get("character")
         portrait = node.get("portrait")
@@ -416,9 +423,39 @@ def _check_node_extra(node, ntype, label):
             and isinstance(portrait, str)
             and portrait
         ):
-            msg = check_portrait(load_portrait_table(), character, portrait)
-            if msg:
-                raise LomcError("%s(%s): %s" % (label, ntype, msg))
+            if is_user_ref(character):
+                parse_content_ref(
+                    character, label='%s(%s) 的 character' % (label, ntype)
+                )
+                try:
+                    validate_portrait_id(portrait, label='%s(%s) 的 portrait' % (label, ntype))
+                except LomcError:
+                    raise
+            else:
+                msg = check_portrait(load_portrait_table(), character, portrait)
+                if msg:
+                    raise LomcError("%s(%s): %s" % (label, ntype, msg))
+    if ntype in UNSUPPORTED_USER_CHAR_TYPES and is_user_ref(node.get("character")):
+        raise LomcError(
+            "%s(%s): 自定义角色暂不支持该步骤，请改用官方角色，"
+            "或用 show / say / hide / move / face / focus。" % (label, ntype)
+        )
+    if (
+        isinstance(node.get("character"), str)
+        and is_user_ref(node.get("character"))
+        and ntype
+        in (
+            "show",
+            "say",
+            "hide",
+            "move",
+            "face",
+            "focus",
+        )
+    ):
+        parse_content_ref(
+            node.get("character"), label='%s(%s) 的 character' % (label, ntype)
+        )
     if ntype == "say":
         mode = node.get("mode", "character")
         if mode in ("character", "think") and "character" not in node:

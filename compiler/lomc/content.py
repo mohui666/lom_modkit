@@ -22,13 +22,18 @@ CONTENT_SCHEMA = 1
 CONTENT_TYPES = ("audio", "character")
 AUDIO_KINDS = ("music", "sound", "env")
 AUDIO_EXTENSIONS = (".ogg", ".wav")
+IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg")
 MAX_AUDIO_BYTES = 20 * 1024 * 1024
+MAX_IMAGE_BYTES = 8 * 1024 * 1024
 PACKAGE_USER_ROOT = "assets/user"
+CHARACTER_NODE_TYPES = ("show", "say", "hide", "move", "face", "focus")
+UNSUPPORTED_USER_CHAR_TYPES = ("offset", "shock", "dim", "rotate", "affinity")
 
 # 内容 ID：<namespace>.<local>，只允许小写字母、数字、下划线；禁止路径分隔。
 # namespace 以字母开头，避免与纯数字/点号路径混淆。
 CONTENT_ID_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}\.[a-z0-9][a-z0-9_]{0,47}$")
 CONTENT_TYPE_RE = re.compile(r"^[a-z][a-z0-9_]{0,15}$")
+PORTRAIT_ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,31}$")
 SAFE_FILENAME_RE = re.compile(r"^[A-Za-z0-9_\-\u4e00-\u9fff][A-Za-z0-9_\-\.\u4e00-\u9fff]{0,79}$")
 
 
@@ -105,19 +110,53 @@ def package_content_dir(content_type, content_id):
 
 def safe_audio_filename(name):
     """把导入文件名收成可放进内容目录的安全名（保留扩展名）。"""
+    return _safe_filename(name, AUDIO_EXTENSIONS, "audio", "音频")
+
+
+def safe_image_filename(name):
+    """把导入立绘文件名收成可放进内容目录的安全名（保留扩展名）。"""
+    return _safe_filename(name, IMAGE_EXTENSIONS, "portrait", "立绘")
+
+
+def _safe_filename(name, allowed_exts, fallback_stem, label):
     raw = os.path.basename(str(name or "")).replace("\\", "/")
     stem, ext = os.path.splitext(raw)
     ext = ext.lower()
-    if ext not in AUDIO_EXTENSIONS:
+    if ext not in allowed_exts:
         raise LomcError(
-            "音频只支持 %s，实际为 %r"
-            % (" / ".join(AUDIO_EXTENSIONS), raw or name)
+            "%s只支持 %s，实际为 %r"
+            % (label, " / ".join(allowed_exts), raw or name)
         )
-    stem = re.sub(r"[^A-Za-z0-9_\-\u4e00-\u9fff]+", "_", stem).strip("._") or "audio"
+    stem = re.sub(r"[^A-Za-z0-9_\-\u4e00-\u9fff]+", "_", stem).strip("._") or fallback_stem
     filename = stem[:64] + ext
     if SAFE_FILENAME_RE.match(filename) is None or ".." in filename:
-        raise LomcError("音频文件名不合法：%r" % filename)
+        raise LomcError("%s文件名不合法：%r" % (label, filename))
     return filename
+
+
+def validate_portrait_id(portrait_id, label="表情"):
+    if not isinstance(portrait_id, str) or not portrait_id:
+        raise LomcError("%s不能为空" % label)
+    if PORTRAIT_ID_RE.match(portrait_id) is None:
+        raise LomcError(
+            "%s %r 不合法。表情 id 只能是字母开头、后接字母数字下划线，"
+            "例如 normal / happy / angry。" % (label, portrait_id)
+        )
+    return portrait_id
+
+
+def _safe_same_dir_filename(raw, label, allowed_exts):
+    if not isinstance(raw, str) or not raw.strip():
+        raise LomcError("%s必须是文件名字符串" % label)
+    name = os.path.basename(raw.replace("\\", "/"))
+    if not name or ".." in raw or "/" in raw.replace("\\", "/"):
+        raise LomcError("%s必须是同目录下的文件名，不能含路径：%r" % (label, raw))
+    ext = os.path.splitext(name)[1].lower()
+    if allowed_exts and ext not in allowed_exts:
+        raise LomcError(
+            "%s必须是 %s，实际为 %r" % (label, " / ".join(allowed_exts), name)
+        )
+    return name
 
 
 def expected_audio_kind(node):
@@ -158,6 +197,7 @@ def collect_story_content_refs(story):
                         "raw": ref.raw,
                         "ref": ref,
                         "expected_kind": kind,
+                        "expected_type": "audio",
                     }
                 )
         if ntype == "say" and node.get("voice"):
@@ -173,8 +213,30 @@ def collect_story_content_refs(story):
                         "raw": ref.raw,
                         "ref": ref,
                         "expected_kind": None,
+                        "expected_type": "audio",
                     }
                 )
+        if ntype in CHARACTER_NODE_TYPES:
+            raw = node.get("character")
+            if raw:
+                ref = parse_content_ref(
+                    raw, label='节点 "%s"(%s) 的 character' % (nid, ntype)
+                )
+                if ref is not None:
+                    found.append(
+                        {
+                            "node_id": nid,
+                            "node_type": ntype,
+                            "field": "character",
+                            "raw": ref.raw,
+                            "ref": ref,
+                            "expected_kind": None,
+                            "expected_type": "character",
+                            "portrait": node.get("portrait")
+                            if ntype in ("show", "say")
+                            else None,
+                        }
+                    )
     return found
 
 
@@ -234,25 +296,22 @@ def normalize_content_metadata(data, source="content.json"):
     files = data.get("files")
     if not isinstance(files, dict) or not isinstance(files.get("main"), str):
         raise LomcError('%s：files.main 必须是主文件名字符串' % source)
-    main = os.path.basename(files["main"].replace("\\", "/"))
-    if not main or ".." in files["main"] or "/" in files["main"].replace("\\", "/"):
-        raise LomcError(
-            "%s：files.main 必须是同目录下的文件名，不能含路径：%r"
-            % (source, files["main"])
-        )
+    allowed_main = AUDIO_EXTENSIONS if ctype == "audio" else IMAGE_EXTENSIONS
+    main = _safe_same_dir_filename(
+        files["main"], "%s 的 files.main" % source, allowed_main
+    )
     audio_kind = data.get("audio_kind")
+    portraits = None
     if ctype == "audio":
         if audio_kind not in AUDIO_KINDS:
             raise LomcError(
                 "%s：音频的 audio_kind 必须是 music / sound / env，实际为 %r"
                 % (source, audio_kind)
             )
-        ext = os.path.splitext(main)[1].lower()
-        if ext not in AUDIO_EXTENSIONS:
-            raise LomcError(
-                "%s：音频主文件必须是 %s，实际为 %r"
-                % (source, " / ".join(AUDIO_EXTENSIONS), main)
-            )
+    elif ctype == "character":
+        portraits = _normalize_portraits(data.get("portraits"), main, source)
+        if portraits["normal"] != main and main not in portraits.values():
+            portraits["normal"] = main
     return {
         "schema": CONTENT_SCHEMA,
         "id": content_id,
@@ -260,7 +319,39 @@ def normalize_content_metadata(data, source="content.json"):
         "name": name.strip(),
         "audio_kind": audio_kind if ctype == "audio" else None,
         "files": {"main": main},
+        "portraits": portraits,
     }
+
+
+def _normalize_portraits(raw, main_file, source):
+    if raw is None:
+        raw = {"normal": main_file}
+    if not isinstance(raw, dict) or not raw:
+        raise LomcError("%s：角色必须提供 portraits（表情 id -> 文件名）" % source)
+    portraits = {}
+    for key, filename in raw.items():
+        if not isinstance(key, str):
+            raise LomcError("%s：portraits 的键必须是字符串" % source)
+        validate_portrait_id(key, label="%s 的表情" % source)
+        fname = _safe_same_dir_filename(
+            filename, "%s 的 portraits.%s" % (source, key), IMAGE_EXTENSIONS
+        )
+        portraits[key] = fname
+    if "normal" not in portraits:
+        portraits["normal"] = main_file
+    return portraits
+
+
+def listed_content_files(meta):
+    """content.json 声明的全部同目录文件名（去重，主文件在前）。"""
+    names = []
+    main = meta.get("files", {}).get("main")
+    if main:
+        names.append(main)
+    for fname in (meta.get("portraits") or {}).values():
+        if fname and fname not in names:
+            names.append(fname)
+    return names
 
 
 def write_content_metadata(meta_path, metadata):
@@ -275,6 +366,8 @@ def write_content_metadata(meta_path, metadata):
     }
     if normalized["type"] == "audio":
         payload["audio_kind"] = normalized["audio_kind"]
+    if normalized["type"] == "character" and normalized.get("portraits"):
+        payload["portraits"] = dict(normalized["portraits"])
     parent = os.path.dirname(meta_path)
     if parent:
         os.makedirs(parent, exist_ok=True)
@@ -324,15 +417,32 @@ def resolve_content(root, content_type, content_id):
             % (USER_PREFIX, content_id, meta["files"]["main"])
         )
     if meta["type"] == "audio":
-        size = os.path.getsize(main_path)
-        if size <= 0:
-            raise LomcError("用户内容 %s%s 的音频文件是空的" % (USER_PREFIX, content_id))
-        if size > MAX_AUDIO_BYTES:
-            raise LomcError(
-                "用户内容 %s%s 的音频超过 20MB（当前 %.1fMB），请压缩后再导入。"
-                % (USER_PREFIX, content_id, size / (1024.0 * 1024.0))
+        _check_file_size(main_path, USER_PREFIX + content_id, MAX_AUDIO_BYTES, "音频", 20)
+    elif meta["type"] == "character":
+        for fname in listed_content_files(meta):
+            image_path = os.path.normpath(os.path.join(folder, fname))
+            if image_path != folder_norm and not image_path.startswith(folder_norm + os.sep):
+                raise LomcError("用户内容 %s 的立绘路径逃逸：%s" % (content_id, fname))
+            if not os.path.isfile(image_path):
+                raise LomcError(
+                    "自定义角色 %s%s 的立绘不存在：%s"
+                    % (USER_PREFIX, content_id, fname)
+                )
+            _check_file_size(
+                image_path, USER_PREFIX + content_id + "/" + fname, MAX_IMAGE_BYTES, "立绘", 8
             )
     return meta, main_path
+
+
+def _check_file_size(path, label, limit, kind, limit_mb):
+    size = os.path.getsize(path)
+    if size <= 0:
+        raise LomcError("用户内容 %s 的%s文件是空的" % (label, kind))
+    if size > limit:
+        raise LomcError(
+            "用户内容 %s 的%s超过 %sMB（当前 %.1fMB），请压缩后再导入。"
+            % (label, kind, limit_mb, size / (1024.0 * 1024.0))
+        )
 
 
 def scan_repository(root, content_type=None):
@@ -398,6 +508,25 @@ def validate_story_content_refs(story, resolver, source="story.json"):
         raise LomcError("%s: %s" % (source, exc))
 
 
+def check_character_portrait(meta, portrait, raw):
+    """角色是否包含该表情。portrait 为空时只检查 type。"""
+    if meta.get("type") != "character":
+        raise LomcError(
+            "用户内容 %s 是 %s，不能用在人物步骤。请改用自定义角色。"
+            % (raw, meta.get("type"))
+        )
+    if not portrait:
+        return
+    validate_portrait_id(portrait, label="表情")
+    portraits = meta.get("portraits") or {}
+    if portrait not in portraits:
+        have = "、".join(sorted(portraits)) or "无"
+        raise LomcError(
+            '自定义角色 %s 没有表情 "%s"（已有：%s）。请改用清单内表情，'
+            "或在用户内容库里补这张立绘。" % (raw, portrait, have)
+        )
+
+
 def check_content_matches_kind(meta, expected_kind, raw):
     """音频 type / audio_kind 是否匹配节点。"""
     if expected_kind is None:
@@ -427,9 +556,7 @@ class PackageContentResolver:
         self.mod_dir = mod_dir
 
     def __call__(self, ref, expected_kind, item):
-        meta, _path = resolve_content(self.mod_dir, "audio", ref.content_id)
-        check_content_matches_kind(meta, expected_kind, ref.raw)
-        return meta
+        return _resolve_ref(self.mod_dir, ref, expected_kind, item)
 
 
 class RepositoryContentResolver:
@@ -439,6 +566,14 @@ class RepositoryContentResolver:
         self.root = root or default_repository_root()
 
     def __call__(self, ref, expected_kind, item):
-        meta, _path = resolve_content(self.root, "audio", ref.content_id)
+        return _resolve_ref(self.root, ref, expected_kind, item)
+
+
+def _resolve_ref(root, ref, expected_kind, item):
+    ctype = (item or {}).get("expected_type") or "audio"
+    meta, _path = resolve_content(root, ctype, ref.content_id)
+    if ctype == "character":
+        check_character_portrait(meta, (item or {}).get("portrait"), ref.raw)
+    else:
         check_content_matches_kind(meta, expected_kind, ref.raw)
-        return meta
+    return meta

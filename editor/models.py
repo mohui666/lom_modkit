@@ -983,8 +983,34 @@ def character_name(editor_data: dict, char_id: str) -> str:
     return display_name(editor_data, "characters", char_id)
 
 
+def character_combo_items(editor_data: dict) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
+    """人物下拉：自定义角色 + 官方角色，各自带分组前缀。"""
+    custom: list[tuple[str, str]] = []
+    try:
+        import content_registry
+
+        for rec in content_registry.list_contents(content_type="character"):
+            custom.append((rec.ref, "自定义 · %s（%s）" % (rec.name, rec.ref)))
+    except Exception:
+        custom = []
+    official = [
+        (item_id, "官方 · %s" % display)
+        for item_id, display in list_items(editor_data, "characters")
+    ]
+    return custom, official
+
+
 def character_portraits(editor_data: dict, char_id: str) -> list[str]:
-    """按人物 id 查表情清单，查不到返回通用默认表情。"""
+    """按人物 id 查表情清单。自定义角色读仓库 content.json；官方读 editor_data。"""
+    if isinstance(char_id, str) and char_id.startswith("user:"):
+        try:
+            import content_registry
+
+            rec, _main = content_registry.resolve(char_id, expected_type="character")
+            ids = rec.portrait_ids()
+            return ids or ["normal"]
+        except Exception:
+            return ["normal"]
     for c in editor_data.get("characters", []):
         if entry_id(c) == char_id:
             if isinstance(c, dict):

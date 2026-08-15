@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
+    QWidget,
 )
 
 from i18n import t
@@ -29,6 +30,7 @@ from content_registry import (
     default_namespace,
     list_contents,
     register_audio,
+    register_character,
     remove,
     repository_root,
     set_default_namespace,
@@ -82,10 +84,13 @@ class ContentLibraryDialog(QDialog):
 
         buttons = QHBoxLayout()
         import_btn = QPushButton(t("library.import"))
+        import_char_btn = QPushButton(t("library.import_character"))
         delete_btn = QPushButton(t("library.delete"))
         import_btn.clicked.connect(self._import_audio)
+        import_char_btn.clicked.connect(self._import_character)
         delete_btn.clicked.connect(self._delete_selected)
         buttons.addWidget(import_btn)
+        buttons.addWidget(import_char_btn)
         buttons.addWidget(delete_btn)
         buttons.addStretch(1)
         layout.addLayout(buttons)
@@ -98,19 +103,21 @@ class ContentLibraryDialog(QDialog):
         self._reload()
 
     def _reload(self) -> None:
-        records = list_contents(content_type="audio")
+        records = list_contents()
         self.table.setRowCount(0)
         for rec in records:
             row = self.table.rowCount()
             self.table.insertRow(row)
             self.table.setItem(row, 0, QTableWidgetItem(rec.name))
             self.table.setItem(row, 1, QTableWidgetItem(rec.ref))
-            self.table.setItem(
-                row,
-                2,
-                QTableWidgetItem(_kind_labels().get(rec.audio_kind or "", rec.audio_kind or "")),
-            )
-            self.table.setItem(row, 3, QTableWidgetItem(rec.main_file))
+            if rec.type == "character":
+                kind = t("library.kind.character")
+                extra = "、".join(rec.portrait_ids())
+            else:
+                kind = _kind_labels().get(rec.audio_kind or "", rec.audio_kind or "")
+                extra = rec.main_file
+            self.table.setItem(row, 2, QTableWidgetItem(kind))
+            self.table.setItem(row, 3, QTableWidgetItem(extra))
             self.table.item(row, 1).setData(Qt.ItemDataRole.UserRole, rec.content_id)
 
     def _selected_id(self) -> str | None:
@@ -151,6 +158,27 @@ class ContentLibraryDialog(QDialog):
             self,
             "已导入",
             "编号：%s\n在音乐或音效步骤里选择即可。" % rec.ref,
+        )
+
+    def _import_character(self) -> None:
+        dlg = _ImportCharacterDialog(self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        try:
+            rec = register_character(
+                dlg.portraits(),
+                dlg.content_id(),
+                dlg.display_name(),
+            )
+        except ContentRegistryError as exc:
+            QMessageBox.critical(self, t("library.import_char_fail"), str(exc))
+            return
+        set_default_namespace(dlg.namespace())
+        self._reload()
+        QMessageBox.information(
+            self,
+            "已导入",
+            "编号：%s\n在登场/对白步骤的人物列表里选择即可。" % rec.ref,
         )
 
     def _delete_selected(self) -> None:
@@ -217,3 +245,115 @@ class _ImportAudioDialog(QDialog):
 
     def audio_kind(self) -> str:
         return str(self._kind.currentData() or "music")
+
+
+class _ImportCharacterDialog(QDialog):
+    """导入自定义角色：显示名、ID、至少 normal + 可选更多表情。"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(t("library.import_char_title"))
+        self.resize(560, 360)
+        self._rows: list[tuple[QLineEdit, QLabel, Path | None]] = []
+        layout = QVBoxLayout(self)
+        form = QFormLayout()
+        suggested = suggest_content_id("luoxue")
+        ns, local = suggested.split(".", 1)
+        self._name = QLineEdit("洛雪")
+        self._namespace = QLineEdit(ns)
+        self._local = QLineEdit(local)
+        form.addRow("显示名称", self._name)
+        form.addRow("命名空间", self._namespace)
+        form.addRow("内部名称", self._local)
+        layout.addLayout(form)
+        self._hint = QLabel("完整编号将是 user:%s.%s" % (ns, local))
+        self._hint.setWordWrap(True)
+        self._hint.setProperty("context_help", True)
+        layout.addWidget(self._hint)
+        self._namespace.textChanged.connect(self._refresh_hint)
+        self._local.textChanged.connect(self._refresh_hint)
+
+        layout.addWidget(QLabel(t("library.char_portraits")))
+        self._portrait_box = QVBoxLayout()
+        layout.addLayout(self._portrait_box)
+        self._add_portrait_row("normal", required=True)
+        self._add_portrait_row("happy")
+        add_btn = QPushButton(t("library.add_portrait"))
+        add_btn.clicked.connect(lambda: self._add_portrait_row(""))
+        layout.addWidget(add_btn)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self._accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def _refresh_hint(self) -> None:
+        self._hint.setText(
+            "完整编号将是 user:%s.%s"
+            % (self.namespace(), self._local.text().strip().lower())
+        )
+
+    def _add_portrait_row(self, key: str, required: bool = False) -> None:
+        row = QWidget()
+        box = QHBoxLayout(row)
+        box.setContentsMargins(0, 0, 0, 0)
+        key_edit = QLineEdit(key)
+        key_edit.setPlaceholderText("normal")
+        if required:
+            key_edit.setReadOnly(True)
+        path_label = QLabel(t("library.no_file"))
+        path_label.setMinimumWidth(180)
+        pick = QPushButton(t("library.choose_image"))
+
+        def choose(_checked=False, label=path_label, holder=row) -> None:
+            path, _ = QFileDialog.getOpenFileName(
+                self,
+                t("library.choose_image"),
+                str(Path.home()),
+                "图片 (*.png *.jpg *.jpeg)",
+            )
+            if not path:
+                return
+            holder.setProperty("source_path", path)
+            label.setText(Path(path).name)
+
+        pick.clicked.connect(choose)
+        box.addWidget(key_edit, 1)
+        box.addWidget(path_label, 2)
+        box.addWidget(pick)
+        self._portrait_box.addWidget(row)
+        self._rows.append((key_edit, path_label, None))
+
+    def display_name(self) -> str:
+        return self._name.text().strip()
+
+    def namespace(self) -> str:
+        return self._namespace.text().strip().lower() or default_namespace()
+
+    def content_id(self) -> str:
+        return "%s.%s" % (self.namespace(), self._local.text().strip().lower())
+
+    def portraits(self) -> dict[str, Path]:
+        result: dict[str, Path] = {}
+        for i in range(self._portrait_box.count()):
+            widget = self._portrait_box.itemAt(i).widget()
+            if widget is None:
+                continue
+            key_edit = widget.findChild(QLineEdit)
+            if key_edit is None:
+                continue
+            key = key_edit.text().strip()
+            path = widget.property("source_path")
+            if not key or not path:
+                continue
+            result[key] = Path(str(path))
+        return result
+
+    def _accept(self) -> None:
+        portraits = self.portraits()
+        if "normal" not in portraits:
+            QMessageBox.warning(self, t("library.import_char_fail"), "必须选择 normal 默认立绘。")
+            return
+        self.accept()

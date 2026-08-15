@@ -460,6 +460,18 @@ class TestPortraitValidation(unittest.TestCase):
         )
         self.assertEqual(node["portrait"], "laugh1", "合法表情应写入")
 
+    def test_user_character_portrait_format(self):
+        story = base_story()
+        node = story_api.add_say(
+            story, "自定义", character="user:mohui.luoxue", portrait="happy"
+        )
+        self.assertEqual(node["character"], "user:mohui.luoxue")
+        self.assertEqual(node["portrait"], "happy")
+        with self.assertRaises(ValueError):
+            story_api.add_say(
+                story, "坏表情", character="user:mohui.luoxue", portrait="开心"
+            )
+
     def test_invalid_portrait_add_say(self):
         story = base_story()
         with self.assertRaises(ValueError, msg="非法表情应抛 ValueError"):

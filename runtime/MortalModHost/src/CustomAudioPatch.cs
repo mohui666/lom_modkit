@@ -157,7 +157,11 @@ namespace MortalModHost
     {
         private static void Prefix()
         {
-            try { CustomAudioPlayer.StopEverything(); }
+            try
+            {
+                CustomAudioPlayer.StopEverything();
+                CustomCharacterRuntime.ClearAll();
+            }
             catch { }
         }
     }

@@ -17,11 +17,12 @@ texts.json             # 必填，已读文本表：{MOD_<modid>_<scriptid>_<nod
 assets/                # 可选，自定义资源
                        #   图片：结局插图 / 人物介绍图 PNG/JPG
                        #   用户音频：assets/user/audio/<content_id>/
+                       #   自定义角色：assets/user/character/<content_id>/
 ```
 
 - `<id>` 规则：`[a-zA-Z0-9_\-]+`，包内唯一，即"剧情脚本 id"。
 - 导出（打包）时必须重新编译：story/*.json → lua/*.lua，二者同名。
-- 运行时插件**只读 manifest.json、lua/ 目录与 assets/**；story/*.json 给编辑器回读/再编辑用。编译器只打入剧情明确引用的 PNG/JPG（单张 ≤8MB）与明确引用的 `user:` 音频。导出的 `.lommod` 自包含，玩家机器不需要编辑器仓库。
+- 运行时插件**只读 manifest.json、lua/ 目录与 assets/**；story/*.json 给编辑器回读/再编辑用。编译器只打入剧情明确引用的 PNG/JPG（单张 ≤8MB）、明确引用的 `user:` 音频，以及明确引用的自定义角色立绘。导出的 `.lommod` 自包含，玩家机器不需要编辑器仓库。
 - texts.json 由打包时自动生成：收集每个 story 的全部 **say** 节点文本，key 与 lua 里 `GetStoryText` 的 key 一一对应；运行时注册进 LeanLocalization（见 §4/§6）。**death 文本不进 texts.json**：由 codegen 发射 `mod_set_death_text(<标题>, <文本>)` 两参 lua_str 字面量（见 §3.1/§6）。
 
 ## 2. manifest.json

@@ -214,11 +214,10 @@ def _normalize_branch(node: dict) -> None:
 
 
 def _check_portrait_node(node: dict) -> None:
-    """show/say 节点的 (character, portrait) 必须落在官方角色表情表内。
+    """show/say 的 (character, portrait) 校验。
 
-    表情表不可用（lomc 缺失/editor_data 缺文件）或角色不在表 → 放行；
-    角色在表但表情不在其列表 → ValueError（游戏 LoadCharacterPortrait 对无效
-    表情 key 抛 KeyNotFoundException → Lua 协程死 → 对话冻结）。
+    官方角色：必须落在 editor_data 表情表内（表不可用/角色不在表 → 放行）。
+    自定义 user: 角色：表情 id 格式合法；若仓库里已有该角色，表情必须在其定义里。
     """
     if node.get("type") not in ("show", "say"):
         return
@@ -227,6 +226,26 @@ def _check_portrait_node(node: dict) -> None:
     if not (isinstance(character, str) and character) or not (
         isinstance(portrait, str) and portrait
     ):
+        return
+    if character.startswith("user:"):
+        lomc, _err = get_lomc()
+        if lomc is not None:
+            try:
+                lomc.content.parse_content_ref(character, label="character")
+                lomc.content.validate_portrait_id(portrait, label="portrait")
+            except Exception as exc:
+                raise ValueError(str(exc)) from exc
+        try:
+            import content_registry
+
+            content_registry.resolve(
+                character, expected_type="character", portrait=portrait
+            )
+        except Exception as exc:
+            # 仓库没有这条角色时，只拦非法路径 / 表情；缺失留给预检/打包报。
+            message = str(exc)
+            if "非法" in message or "不合法" in message or "没有表情" in message:
+                raise ValueError(message) from exc
         return
     lomc, _err = get_lomc()
     if lomc is None:

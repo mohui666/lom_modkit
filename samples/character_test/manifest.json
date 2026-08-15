@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "id": "character_test",
+  "name": "自定义角色测试",
+  "version": "1.0.0",
+  "author": "lom_modkit",
+  "description": "自定义立绘角色验收：show / say 换表情 / move / face / focus / hide",
+  "entry": "main"
+}

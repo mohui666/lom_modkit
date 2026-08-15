@@ -299,6 +299,8 @@ namespace MortalModHost
                 "非 assets/user 路径应拒绝");
             Assert(ContentRef.IsSafePackageRelative("assets/user/audio/mohui.boss_theme/boss_theme.ogg"),
                 "合法包内音频路径应接受");
+            Assert(ContentRef.IsSafePackageRelative("assets/user/character/mohui.luoxue/normal.png"),
+                "合法包内角色立绘路径应接受");
 
             string modsDir = Path.Combine(Path.GetTempPath(), "lommod_usercontent_" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(modsDir);
@@ -343,6 +345,42 @@ namespace MortalModHost
             finally
             {
                 Directory.Delete(modsDir, recursive: true);
+            }
+
+            string charDir = Path.Combine(Path.GetTempPath(), "lommod_userchar_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(charDir);
+            try
+            {
+                string charJson =
+                    "{\"schema\":1,\"id\":\"mohui.luoxue\",\"type\":\"character\",\"name\":\"洛雪\",\"files\":{\"main\":\"normal.png\"},\"portraits\":{\"normal\":\"normal.png\",\"happy\":\"happy.png\"}}";
+                byte[] png = new byte[] {
+                    0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A,0x00,0x00,0x00,0x0D,0x49,0x48,0x44,0x52,
+                    0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01,0x08,0x02,0x00,0x00,0x00,0x90,0x77,0x53,
+                    0xDE,0x00,0x00,0x00,0x0C,0x49,0x44,0x41,0x54,0x78,0x9C,0x63,0xF8,0xCF,0xC0,
+                    0x00,0x00,0x00,0x03,0x00,0x01,0x00,0x05,0xFE,0xD4,0xEF,0x00,0x00,0x00,0x00,
+                    0x49,0x45,0x4E,0x44,0xAE,0x42,0x60,0x82
+                };
+                WriteZip(Path.Combine(charDir, "mod_c.lommod"),
+                    ("manifest.json", "{\"format\":1,\"id\":\"mod_c\",\"name\":\"C\",\"version\":\"1\",\"author\":\"t\",\"description\":\"t\",\"entry\":\"main\"}"),
+                    ("lua/main.lua", "say(\"c\")"),
+                    ("assets/user/character/mohui.luoxue/content.json", charJson));
+                AppendBinaryEntries(Path.Combine(charDir, "mod_c.lommod"),
+                    ("assets/user/character/mohui.luoxue/normal.png", png),
+                    ("assets/user/character/mohui.luoxue/happy.png", png));
+                var charMods = ModLoader.ScanMods(charDir, _ => { }, _ => { });
+                Assert(charMods.Count == 1, "应加载含自定义角色的包");
+                UserContent ch;
+                Assert(charMods[0].TryGetUserContent("mohui.luoxue", out ch)
+                    && ch.Type == "character"
+                    && ch.Portraits != null
+                    && ch.Portraits.ContainsKey("happy")
+                    && ch.Files != null
+                    && ch.Files.ContainsKey("happy.png"),
+                    "自定义角色应解析 portraits 与立绘字节");
+            }
+            finally
+            {
+                Directory.Delete(charDir, recursive: true);
             }
         }
 

@@ -229,11 +229,13 @@ class NodeForm(QScrollArea):
     def _make_widget(self, node: dict, key: str, kind: str) -> QWidget:
         value = node.get(key)
         if kind == "character":
-            w = self._make_combo(
-                models.list_items(self._editor_data, "characters"),
-                value or "",
-                editable=True,
-            )
+            custom, official = models.character_combo_items(self._editor_data)
+            items = list(custom) + list(official)
+            if not items:
+                items = [("", "（没有人物）")]
+            w = self._make_combo(items, value or "", editable=True)
+            if custom and official:
+                w.insertSeparator(len(custom))
             w.currentTextChanged.connect(
                 lambda t, c=w: self._on_character_changed(node, key, c, t)
             )

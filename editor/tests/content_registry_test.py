@@ -162,6 +162,69 @@ class ContentRegistryTest(unittest.TestCase):
             self.assertIn("user:mohui.used", lua)
             self.assertNotIn(str(used), lua)
 
+    def test_register_character_and_pack(self):
+        png = (
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+            b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\xcf\xc0"
+            b"\x00\x00\x00\x03\x00\x01\x00\x05\xfe\xd4\xef\x00\x00\x00\x00IEND\xaeB`\x82"
+        )
+        normal = Path(self.temp.name) / "normal.png"
+        happy = Path(self.temp.name) / "happy.png"
+        normal.write_bytes(png)
+        happy.write_bytes(png)
+        rec = content_registry.register_character(
+            {"normal": normal, "happy": happy},
+            "mohui.luoxue",
+            "洛雪",
+        )
+        self.assertEqual(rec.ref, "user:mohui.luoxue")
+        self.assertEqual(rec.portrait_ids()[0], "normal")
+        self.assertIn("happy", rec.portrait_ids())
+        got, main = content_registry.resolve(
+            "user:mohui.luoxue", expected_type="character", portrait="happy"
+        )
+        self.assertEqual(got.name, "洛雪")
+        self.assertTrue(main.is_file())
+        with self.assertRaises(content_registry.ContentRegistryError):
+            content_registry.resolve(
+                "user:mohui.luoxue", expected_type="character", portrait="angry"
+            )
+
+        manifest = {
+            "format": 1,
+            "id": "char_test",
+            "name": "角色测试",
+            "version": "1.0.0",
+            "author": "tester",
+            "description": "test",
+            "entry": "main",
+        }
+        stories = {
+            "main": {
+                "id": "main",
+                "title": "角色",
+                "start": "n1",
+                "nodes": [
+                    {
+                        "id": "n1",
+                        "type": "show",
+                        "character": "user:mohui.luoxue",
+                        "position": "M",
+                        "portrait": "happy",
+                    },
+                    {"id": "n2", "type": "end"},
+                ],
+            }
+        }
+        package = Path(self.temp.name) / "char_test.lommod"
+        package_io.export_lommod(package, manifest, stories)
+        with zipfile.ZipFile(package) as archive:
+            names = archive.namelist()
+            self.assertIn("assets/user/character/mohui.luoxue/content.json", names)
+            self.assertTrue(any(n.endswith("happy.png") for n in names))
+            lua = archive.read("lua/main.lua").decode("utf-8")
+            self.assertIn("mod_char_show", lua)
+
     def test_wrong_kind_on_export(self):
         src = self._write_wav()
         content_registry.register_audio(src, "mohui.sfx", "敲门", "sound")

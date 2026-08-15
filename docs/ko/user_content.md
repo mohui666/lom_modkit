@@ -100,5 +100,5 @@ assets/user/audio/mohui.battle/battle.ogg
 - 볼륨은 대략 게임의 메인 볼륨 × 음악/효과음 슬라이더를 따릅니다; Wwise RTPC가 아니므로 완전히 일치할 수는 없습니다.
 - 사용자 지정 fadeout은 출력 볼륨 페이드아웃(이후에도 노드에 따라 대기).
 - 사용자 지정 음악으로 전환할 때 먼저 공식 배경 음악을 정지합니다; 공식 `StopMusic`은 원래 환경음도 함께 지웁니다.
-- 이 버전은 사용자 지정 캐릭터 입체 일러스트 런타임을 구현하지 않습니다; 저장소의 `type`은 `character`를 예약해 두었습니다.
+- 커스텀 캐릭터는 독립 Runtime(`mod_char_*`)이며 공식 Addressables에 등록하지 않습니다. 1판은 show / say / hide / move / face / focus를 지원합니다. 자세한 내용은 중국어 문서를 보세요.
 - `samples/audio_test/`로 인수 테스트를 할 수 있습니다: 직접 `user:test.bgm` / `user:test.sfx` / `user:test.env`를 가져와 보세요.

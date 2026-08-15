@@ -7,12 +7,14 @@
 ## 怎么导入
 
 1. 编辑器菜单 **文件 → 用户内容库**。
-2. 点「导入音频…」，选择本机 `.ogg` 或 `.wav`（单条不超过 20MB）。
-3. 填写显示名称、命名空间、内部名称和用途（音乐 / 音效 / 环境音）。
-4. 得到稳定编号，例如导入 `battle.ogg` 后：
+2. 点「导入音频…」或「导入角色…」。
+3. 音频：选择本机 `.ogg` 或 `.wav`（单条不超过 20MB），填写显示名称、命名空间、内部名称和用途。
+4. 角色：填写显示名称与编号，至少选择 `normal` 默认立绘，可再加 `happy` / `angry` 等表情 PNG。
+5. 得到稳定编号，例如：
 
 ```text
 user:mohui.battle
+user:mohui.luoxue
 ```
 
 命名空间默认取本机用户名的安全形式，可改。同一编号再导入会被拒绝，避免悄悄覆盖。
@@ -24,7 +26,7 @@ user:mohui.battle
 | `.ogg` | Vorbis。第一次播放可能有很短的加载延迟。 |
 | `.wav` | PCM 8/16 位或 32 位 float。常见 WAV 可立即播放。 |
 
-不支持 mp3 / flac / aac。文件大小上限 20MB。
+不支持 mp3 / flac / aac。音频大小上限 20MB。立绘支持 `.png` / `.jpg` / `.jpeg`，单张不超过 8MB。
 
 ## ID 是什么
 
@@ -43,6 +45,10 @@ user:mohui.battle
 %APPDATA%/lom_modkit/repository/audio/<id>/
   content.json
   音频文件
+%APPDATA%/lom_modkit/repository/character/<id>/
+  content.json
+  normal.png
+  happy.png
 ```
 
 这只是编辑器仓库。换电脑、只拷 `.lommod` 的玩家不需要这个目录。
@@ -55,9 +61,28 @@ user:mohui.battle
 
 ```json
 { "type": "music", "name": "user:mohui.battle" }
+{ "type": "show", "character": "user:mohui.luoxue", "position": "M", "portrait": "normal" }
 ```
 
-禁止保存 `C:\Users\...\battle.ogg`。
+禁止保存 `C:\Users\...\battle.ogg` 或立绘绝对路径。
+
+## 自定义角色数据格式
+
+```json
+{
+  "schema": 1,
+  "id": "mohui.luoxue",
+  "type": "character",
+  "name": "洛雪",
+  "files": { "main": "normal.png" },
+  "portraits": {
+    "normal": "normal.png",
+    "happy": "happy.png"
+  }
+}
+```
+
+剧情里的角色 ID 是 `user:mohui.luoxue`（与音频一样：`user:<命名空间>.<名称>`）。`normal` 必填；其它表情 id 只能是字母开头的 `happy` / `angry` / `sad` 这类英文标识。
 
 ## 导出后还依赖本机内容库吗？
 
@@ -66,9 +91,12 @@ user:mohui.battle
 ```text
 assets/user/audio/mohui.battle/content.json
 assets/user/audio/mohui.battle/battle.ogg
+assets/user/character/mohui.luoxue/content.json
+assets/user/character/mohui.luoxue/normal.png
+assets/user/character/mohui.luoxue/happy.png
 ```
 
-没被引用的导入音频不会打进包。引用缺失、类型不对、文件坏了：导出直接失败。
+没被引用的导入内容不会打进包。角色被引用时会带上它定义过的全部表情。引用缺失、类型不对、表情不存在、文件坏了：导出直接失败。
 
 ## 如何分享 Mod
 
@@ -101,5 +129,7 @@ assets/user/audio/mohui.battle/battle.ogg
 - 自定义 fadeout 是输出音量渐弱（随后仍会按节点等待）。
 - 切到自定义音乐时会先停官方背景乐；官方 `StopMusic` 本来就会把环境音一起清掉。
 - 回标题、进自由/死亡/结局时自定义音频（含对白语音）会立刻停；官方再播一首 BGM 时会先停自定义 BGM，避免两轨叠在一起。
-- 本版本不实现自定义角色立绘运行时；仓库的 `type` 已预留 `character`。
-- 可用 `samples/audio_test/` 做验收：自己导入 `user:test.bgm` / `user:test.sfx` / `user:test.env`。
+- 自定义角色不注册进原版 Addressables。`show` / `say` / `hide` / `move` / `face` / `focus` 在编译时改走 `mod_char_*`，由 `CustomCharacterRuntime` 在官方舞台画布上自建 Image。
+- 官方角色路径完全不变。`offset` / `shock` / `dim` / `rotate` / `affinity` 第一版还不支持自定义角色。
+- 切场景、换脚本时会销毁自定义立绘 GameObject 与 Sprite，避免残留。
+- 可用 `samples/audio_test/` 验收音频；`samples/character_test/` 验收自定义角色（自带两张占位 PNG）。

@@ -3212,6 +3212,37 @@ class TestNewNodeValidationErrors(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
+TINY_PNG = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+    b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\xcf\xc0"
+    b"\x00\x00\x00\x03\x00\x01\x00\x05\xfe\xd4\xef\x00\x00\x00\x00IEND\xaeB`\x82"
+)
+
+
+def _write_user_character(mod_dir, content_id, portraits=None, name=None):
+    from lomc.content import package_content_dir, write_content_metadata
+
+    if portraits is None:
+        portraits = {"normal": "normal.png", "happy": "happy.png"}
+    folder = os.path.join(mod_dir, package_content_dir("character", content_id).replace("/", os.sep))
+    os.makedirs(folder, exist_ok=True)
+    for fname in portraits.values():
+        with open(os.path.join(folder, fname), "wb") as f:
+            f.write(TINY_PNG)
+    write_content_metadata(
+        os.path.join(folder, "content.json"),
+        {
+            "schema": 1,
+            "id": content_id,
+            "type": "character",
+            "name": name or content_id,
+            "files": {"main": portraits["normal"]},
+            "portraits": portraits,
+        },
+    )
+    return folder
+
+
 def _write_user_audio(mod_dir, content_id, audio_kind="music", filename="track.wav", payload=b"RIFF"):
     from lomc.content import package_content_dir, write_content_metadata
 
@@ -3348,6 +3379,130 @@ class TestUserContent(unittest.TestCase):
         with self.assertRaises(LomcError):
             validate_content_id("a" * 80 + ".x")
 
+    def test_official_show_still_uses_stage(self):
+        lua = compile_story(
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "show",
+                    "character": "player",
+                    "position": "M",
+                }
+            )
+        )
+        self.assertIn("characters.LoadCharacterAsset", lua)
+        self.assertIn("stage.show", lua)
+        self.assertNotIn("mod_char_show", lua)
+
+    def test_user_character_show_say_hide_move_face_focus(self):
+        lua = compile_story(
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "show",
+                    "character": "user:mohui.luoxue",
+                    "position": "M",
+                    "portrait": "happy",
+                    "facing": "left",
+                }
+            )
+        )
+        self.assertIn(
+            '\tmod_char_show("user:mohui.luoxue", "happy", "M", "left", 0, 0)', lua
+        )
+        self.assertIn('\tmod_char_focus("user:mohui.luoxue")', lua)
+        self.assertNotIn("LoadCharacterAsset", lua)
+        self.assertNotIn("stage.show{", lua)
+
+        lua = compile_story(
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "say",
+                    "character": "user:mohui.luoxue",
+                    "portrait": "happy",
+                    "text": "你好",
+                }
+            )
+        )
+        self.assertIn('\tmod_char_portrait("user:mohui.luoxue", "happy")', lua)
+        self.assertIn('\tmod_char_set_speaker("user:mohui.luoxue")', lua)
+        self.assertNotIn("stage.showPortrait", lua)
+        self.assertNotIn("characters.Get(", lua)
+
+        lua = compile_story(
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "move",
+                    "character": "user:mohui.luoxue",
+                    "from": "L1",
+                    "to": "M",
+                }
+            )
+        )
+        self.assertIn('\tmod_char_move("user:mohui.luoxue", "L1", "M", 1)', lua)
+
+        lua = compile_story(
+            linear_story({"id": "n1", "type": "face", "character": "user:mohui.luoxue", "facing": "left"})
+        )
+        self.assertIn('\tmod_char_face("user:mohui.luoxue", "left")', lua)
+
+        lua = compile_story(
+            linear_story({"id": "n1", "type": "hide", "character": "user:mohui.luoxue"})
+        )
+        self.assertIn('\tmod_char_hide("user:mohui.luoxue", 0)', lua)
+
+        lua = compile_story(
+            linear_story({"id": "n1", "type": "focus", "character": "user:mohui.luoxue"})
+        )
+        self.assertIn('\tmod_char_focus("user:mohui.luoxue")', lua)
+
+    def test_user_character_illegal_id(self):
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "show",
+                    "character": "user:../evil",
+                    "position": "M",
+                }
+            ),
+            "非法路径",
+        )
+
+    def test_user_character_bad_portrait_id(self):
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "show",
+                    "character": "user:mohui.luoxue",
+                    "position": "M",
+                    "portrait": "开心",
+                }
+            ),
+            "不合法",
+        )
+
+    def test_user_character_unsupported_offset(self):
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "offset",
+                    "character": "user:mohui.luoxue",
+                    "x": 10,
+                    "y": 0,
+                    "duration": 0.2,
+                }
+            ),
+            "暂不支持",
+        )
+
 
 class TestPackUserAudio(unittest.TestCase):
     def setUp(self):
@@ -3460,6 +3615,114 @@ class TestPackUserAudio(unittest.TestCase):
         with self.assertRaises(LomcError) as cm:
             pack_mod(self.mod_dir)
         self.assertIn("找不到用户内容", str(cm.exception))
+
+
+class TestPackUserCharacter(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.mod_dir = os.path.join(self.tmp.name, "charmod")
+        os.makedirs(os.path.join(self.mod_dir, "story"))
+        with open(
+            os.path.join(self.mod_dir, "manifest.json"), "w", encoding="utf-8"
+        ) as f:
+            json.dump(MANIFEST, f, ensure_ascii=False, indent=2)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_pack_collects_referenced_character_portraits(self):
+        _write_user_character(self.mod_dir, "mohui.luoxue")
+        _write_user_character(self.mod_dir, "mohui.unused")
+        story = make_story(
+            [
+                {
+                    "id": "n1",
+                    "type": "show",
+                    "character": "user:mohui.luoxue",
+                    "position": "M",
+                    "portrait": "happy",
+                },
+                {"id": "n2", "type": "end"},
+            ]
+        )
+        with open(
+            os.path.join(self.mod_dir, "story", "main.json"), "w", encoding="utf-8"
+        ) as f:
+            json.dump(story, f, ensure_ascii=False, indent=2)
+        out = pack_mod(self.mod_dir)
+        with zipfile.ZipFile(out) as zf:
+            names = zf.namelist()
+            self.assertIn("assets/user/character/mohui.luoxue/content.json", names)
+            self.assertIn("assets/user/character/mohui.luoxue/normal.png", names)
+            self.assertIn("assets/user/character/mohui.luoxue/happy.png", names)
+            self.assertNotIn("assets/user/character/mohui.unused/content.json", names)
+            lua = zf.read("lua/main.lua").decode("utf-8")
+            self.assertIn('mod_char_show("user:mohui.luoxue"', lua)
+
+    def test_pack_missing_character_fails(self):
+        story = make_story(
+            [
+                {
+                    "id": "n1",
+                    "type": "show",
+                    "character": "user:mohui.ghost",
+                    "position": "M",
+                },
+                {"id": "n2", "type": "end"},
+            ]
+        )
+        with open(
+            os.path.join(self.mod_dir, "story", "main.json"), "w", encoding="utf-8"
+        ) as f:
+            json.dump(story, f, ensure_ascii=False, indent=2)
+        with self.assertRaises(LomcError) as cm:
+            pack_mod(self.mod_dir)
+        self.assertIn("找不到用户内容", str(cm.exception))
+
+    def test_pack_missing_portrait_fails(self):
+        _write_user_character(self.mod_dir, "mohui.luoxue")
+        story = make_story(
+            [
+                {
+                    "id": "n1",
+                    "type": "show",
+                    "character": "user:mohui.luoxue",
+                    "position": "M",
+                    "portrait": "angry",
+                },
+                {"id": "n2", "type": "end"},
+            ]
+        )
+        with open(
+            os.path.join(self.mod_dir, "story", "main.json"), "w", encoding="utf-8"
+        ) as f:
+            json.dump(story, f, ensure_ascii=False, indent=2)
+        with self.assertRaises(LomcError) as cm:
+            pack_mod(self.mod_dir)
+        self.assertIn("没有表情", str(cm.exception))
+
+    def test_pack_missing_image_file_fails(self):
+        folder = _write_user_character(self.mod_dir, "mohui.luoxue")
+        os.remove(os.path.join(folder, "happy.png"))
+        story = make_story(
+            [
+                {
+                    "id": "n1",
+                    "type": "show",
+                    "character": "user:mohui.luoxue",
+                    "position": "M",
+                    "portrait": "happy",
+                },
+                {"id": "n2", "type": "end"},
+            ]
+        )
+        with open(
+            os.path.join(self.mod_dir, "story", "main.json"), "w", encoding="utf-8"
+        ) as f:
+            json.dump(story, f, ensure_ascii=False, indent=2)
+        with self.assertRaises(LomcError) as cm:
+            pack_mod(self.mod_dir)
+        self.assertIn("立绘不存在", str(cm.exception))
 
 
 class TestWarnings(unittest.TestCase):

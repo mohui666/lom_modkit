@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "id": "test.luoxue",
+  "type": "character",
+  "name": "洛雪",
+  "files": {
+    "main": "normal.png"
+  },
+  "portraits": {
+    "normal": "normal.png",
+    "happy": "happy.png"
+  }
+}

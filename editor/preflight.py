@@ -303,6 +303,26 @@ def run_preflight(
                                 t("preflight.bad_voice", err=exc),
                             )
                         )
+            character = node.get("character")
+            if isinstance(character, str) and character.startswith("user:"):
+                try:
+                    content_registry.resolve(
+                        character,
+                        expected_type="character",
+                        portrait=node.get("portrait")
+                        if node.get("type") in ("show", "say")
+                        else None,
+                    )
+                except content_registry.ContentRegistryError as exc:
+                    issues.append(
+                        PreflightIssue(
+                            "error",
+                            "missing_user_character",
+                            sid,
+                            node_id,
+                            str(exc),
+                        )
+                    )
             if node.get("type") == "end":
                 target = node.get("next_script")
                 if isinstance(target, str) and target and target not in story_ids:

@@ -213,8 +213,18 @@ def export_lommod(
         for rel, source in sorted(asset_sources.items()):
             zf.write(source, rel)
         for content_id in user_audio_ids:
-            rec, main_path = content_registry.resolve(content_id)
-            rel_dir = "assets/user/audio/" + content_id
+            rec, _main_path = content_registry.resolve(content_id)
+            rel_dir = "assets/user/%s/%s" % (rec.type, content_id)
             zf.write(rec.folder / "content.json", rel_dir + "/content.json")
-            zf.write(main_path, rel_dir + "/" + rec.main_file)
+            from lomc.content import listed_content_files
+
+            for fname in listed_content_files(
+                {
+                    "files": {"main": rec.main_file},
+                    "portraits": rec.portraits or {},
+                }
+            ):
+                src = rec.folder / fname
+                if src.is_file():
+                    zf.write(src, rel_dir + "/" + fname)
     return [f"{sid}.json → lua/{sid}.lua 编译成功" for sid in stories]

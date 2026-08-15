@@ -128,6 +128,8 @@ namespace MortalModHost
             CharacterIntroSupport.Log = Logger;
             CustomAudioPlayer.Log = Logger;
             CustomAudioPlayer.Init(this);
+            CustomCharacterRuntime.Log = Logger;
+            CustomCharacterRuntime.Init(this);
 
             bool ok = true;
             ok &= CheckTarget("LuaManager.ExecuteLuaScript",
@@ -255,6 +257,7 @@ namespace MortalModHost
         private void ReloadMods()
         {
             CustomAudioPlayer.ReleaseAll();
+            CustomCharacterRuntime.ClearAll();
             string modsDir = Path.Combine(Paths.PluginPath, "MortalModHost", "mods");
             LoadedMods = ModLoader.ScanMods(
                 modsDir,
@@ -376,13 +379,17 @@ namespace MortalModHost
             // waveOut 不跟场景走：回标题/自由/死亡/结局/Loading 时再兜一层停播。
             if (scene == "Title" || scene == "Free" || scene == "GameOver"
                 || scene == "End" || scene == "Loading")
+            {
                 CustomAudioPlayer.StopEverything();
+                CustomCharacterRuntime.ClearAll();
+            }
             _previousScene = scene;
         }
 
         private void OnDestroy()
         {
             CustomAudioPlayer.ReleaseAll();
+            CustomCharacterRuntime.ClearAll();
         }
 
         /// <summary>

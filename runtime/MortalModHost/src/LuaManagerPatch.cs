@@ -46,6 +46,7 @@ namespace MortalModHost
                 ModOverlay.Clear();
                 CharacterIntroSupport.Clear();
                 CustomAudioPlayer.StopEverything();
+                CustomCharacterRuntime.ClearAll();
                 return true; // 官方脚本，走原方法
             }
 
@@ -67,6 +68,7 @@ namespace MortalModHost
                 }
                 CharacterIntroSupport.Clear();
                 CustomAudioPlayer.StopEverything();
+                CustomCharacterRuntime.ClearAll();
 
                 // 契约 §6.9/§6.10：演出前把 mod_hide_mood / mod_set_mood 注册进共享 MoonSharp 环境（幂等重设；官方脚本不调用它们，无副作用）
                 RegisterModGlobals(env);
@@ -216,11 +218,103 @@ namespace MortalModHost
                     CustomAudioPlayer.StopVoice();
                     return DynValue.Nil;
                 }, "mod_stop_voice");
+                RegisterCharacterGlobals(script);
             }
             catch (Exception ex)
             {
                 Log.LogWarning("注册 mod 全局函数失败：" + ex);
             }
+        }
+
+        private static void RegisterCharacterGlobals(Script script)
+        {
+            script.Globals["mod_char_show"] = new CallbackFunction((ctx, args) =>
+            {
+                try
+                {
+                    CustomCharacterRuntime.Show(
+                        ArgString(args, 0),
+                        ArgString(args, 1, "normal"),
+                        ArgString(args, 2, "M"),
+                        ArgString(args, 3, "right"),
+                        ArgFloat(args, 4, 0f),
+                        ArgFloat(args, 5, 0f));
+                }
+                catch (Exception ex)
+                {
+                    Log.LogWarning("mod_char_show 失败：" + ex.Message);
+                }
+                return DynValue.Nil;
+            }, "mod_char_show");
+            script.Globals["mod_char_hide"] = new CallbackFunction((ctx, args) =>
+            {
+                try { CustomCharacterRuntime.Hide(ArgString(args, 0), ArgFloat(args, 1, 0f)); }
+                catch (Exception ex) { Log.LogWarning("mod_char_hide 失败：" + ex.Message); }
+                return DynValue.Nil;
+            }, "mod_char_hide");
+            script.Globals["mod_char_move"] = new CallbackFunction((ctx, args) =>
+            {
+                try
+                {
+                    CustomCharacterRuntime.Move(
+                        ArgString(args, 0),
+                        ArgString(args, 1),
+                        ArgString(args, 2),
+                        ArgFloat(args, 3, 1f));
+                }
+                catch (Exception ex) { Log.LogWarning("mod_char_move 失败：" + ex.Message); }
+                return DynValue.Nil;
+            }, "mod_char_move");
+            script.Globals["mod_char_face"] = new CallbackFunction((ctx, args) =>
+            {
+                try { CustomCharacterRuntime.Face(ArgString(args, 0), ArgString(args, 1, "right")); }
+                catch (Exception ex) { Log.LogWarning("mod_char_face 失败：" + ex.Message); }
+                return DynValue.Nil;
+            }, "mod_char_face");
+            script.Globals["mod_char_focus"] = new CallbackFunction((ctx, args) =>
+            {
+                try { CustomCharacterRuntime.Focus(ArgString(args, 0)); }
+                catch (Exception ex) { Log.LogWarning("mod_char_focus 失败：" + ex.Message); }
+                return DynValue.Nil;
+            }, "mod_char_focus");
+            script.Globals["mod_char_portrait"] = new CallbackFunction((ctx, args) =>
+            {
+                try { CustomCharacterRuntime.SetPortrait(ArgString(args, 0), ArgString(args, 1, "normal")); }
+                catch (Exception ex) { Log.LogWarning("mod_char_portrait 失败：" + ex.Message); }
+                return DynValue.Nil;
+            }, "mod_char_portrait");
+            script.Globals["mod_char_set_speaker"] = new CallbackFunction((ctx, args) =>
+            {
+                try { CustomCharacterRuntime.SetSpeaker(ArgString(args, 0)); }
+                catch (Exception ex) { Log.LogWarning("mod_char_set_speaker 失败：" + ex.Message); }
+                return DynValue.Nil;
+            }, "mod_char_set_speaker");
+        }
+
+        private static string ArgString(MoonSharp.Interpreter.CallbackArguments args, int index, string fallback = "")
+        {
+            try
+            {
+                if (args.Count > index)
+                {
+                    string value = args[index].CastToString();
+                    if (!string.IsNullOrEmpty(value))
+                        return value;
+                }
+            }
+            catch { }
+            return fallback;
+        }
+
+        private static float ArgFloat(MoonSharp.Interpreter.CallbackArguments args, int index, float fallback)
+        {
+            try
+            {
+                if (args.Count > index && args[index].Type == DataType.Number)
+                    return (float)args[index].Number;
+            }
+            catch { }
+            return fallback;
         }
     }
 }
