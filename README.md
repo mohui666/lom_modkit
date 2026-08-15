@@ -205,6 +205,7 @@ SHA-256 前 16 个十六进制字符，可用来核对具体文件，但**不是
 | [语音覆盖](docs/zh_CN/voice_coverage.md) | 按总计、Story、人物统计配音并定位每个未配音对白节点 |
 | [Editing / Release 体检](docs/zh_CN/release_preflight.md) | F6 日常检查与 Ctrl+F6 发布严格检查，按风险分级而非全升 error |
 | [Release Builder](docs/zh_CN/release_builder.md) | 本地完成 Manifest/SemVer 校验、Release 体检、打包与整包 SHA-256，不自动安装或发布 |
+| [Runtime Installation Doctor](docs/zh_CN/runtime_installation_doctor.md) | 离线诊断 BepInEx、MortalModHost、NVorbis、重复 DLL 与 Mod 目录，仅执行确定性的安全修复 |
 | [Mod 包格式契约](docs/zh_CN/mod_format.md) | 包结构、43 种节点、编译约定、运行时行为 |
 | [AI / CLI 手册](docs/zh_CN/ai_cli.md) | story_api 命令行与 Python API |
 | [多语言](docs/zh_CN/i18n.md) | 界面与文档的 i18n 架构 |

@@ -22,11 +22,79 @@ from PySide6.QtWidgets import (
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
+    QTextBrowser,
     QVBoxLayout,
 )
 
 from game_install import GameInstallError, GameInstallManager
 from i18n import t
+
+
+class RuntimeDoctorDialog(QDialog):
+    """Read-only installation report with one explicit safe-repair action."""
+
+    def __init__(self, manager: GameInstallManager, parent=None):
+        super().__init__(parent)
+        self.manager = manager
+        self.setWindowTitle("Runtime 安装诊断")
+        self.resize(820, 580)
+        layout = QVBoxLayout(self)
+        intro = QLabel(
+            "检查 BepInEx、MortalModHost、运行依赖、重复 DLL 和 Mod 目录。"
+            "诊断不会加载 DLL；安全修复不会删除第三方文件。"
+        )
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+        self.report_view = QTextBrowser()
+        self.report_view.setOpenExternalLinks(False)
+        layout.addWidget(self.report_view, 1)
+        action_row = QHBoxLayout()
+        self.repair_btn = QPushButton("应用安全修复")
+        self.repair_btn.clicked.connect(self._repair)
+        refresh_btn = QPushButton("重新检查")
+        refresh_btn.clicked.connect(self.refresh)
+        action_row.addWidget(self.repair_btn)
+        action_row.addWidget(refresh_btn)
+        action_row.addStretch(1)
+        layout.addLayout(action_row)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+        self.refresh()
+
+    def refresh(self) -> None:
+        report = self.manager.diagnose_installation()
+        icons = {"ok": "✓", "warning": "!", "error": "×"}
+        colors = {"ok": "#65c18c", "warning": "#e6b450", "error": "#ef6b73"}
+        lines = []
+        for item in report.findings:
+            paths = "".join(
+                "<br><code>%s</code>" % str(path).replace("&", "&amp;").replace("<", "&lt;")
+                for path in item.paths
+            )
+            fix = " <b>［可安全修复］</b>" if item.fixable else ""
+            lines.append(
+                '<p><span style="color:%s"><b>%s %s</b></span>%s<br>%s%s</p>'
+                % (colors[item.severity], icons[item.severity], item.title, fix,
+                   item.detail.replace("&", "&amp;").replace("<", "&lt;"), paths)
+            )
+        self.report_view.setHtml("".join(lines))
+        self.repair_btn.setEnabled(report.fixable_count > 0)
+        self.repair_btn.setText("应用安全修复（%d）" % report.fixable_count)
+
+    def _repair(self) -> None:
+        try:
+            actions = self.manager.apply_installation_doctor_fixes()
+        except GameInstallError as exc:
+            QMessageBox.critical(self, "安全修复失败", str(exc))
+            self.refresh()
+            return
+        QMessageBox.information(
+            self,
+            "安全修复完成",
+            "\n".join(actions) if actions else "当前没有可自动执行的安全修复。",
+        )
+        self.refresh()
 
 
 def apply_steam_launch_fix_ui(parent, manager: GameInstallManager) -> None:
@@ -77,6 +145,8 @@ class ModManagerDialog(QDialog):
         self.status_label.setWordWrap(True)
         self.install_btn = QPushButton(t("install.reinstall_runtime"))
         self.install_btn.clicked.connect(self._install_runtime)
+        self.doctor_btn = QPushButton("安装诊断…")
+        self.doctor_btn.clicked.connect(self._show_runtime_doctor)
         self.bepinex_btn = QPushButton(t("install.bepinex"))
         self.bepinex_btn.setToolTip(t("install.bepinex_tip"))
         self.bepinex_btn.clicked.connect(self._install_bepinex)
@@ -87,6 +157,7 @@ class ModManagerDialog(QDialog):
         status_row.addWidget(self.steam_fix_btn)
         status_row.addWidget(self.bepinex_btn)
         status_row.addWidget(self.install_btn)
+        status_row.addWidget(self.doctor_btn)
         game_layout.addLayout(status_row)
         layout.addWidget(game_box)
 
@@ -151,6 +222,7 @@ class ModManagerDialog(QDialog):
                 self.bepinex_btn.setText(t("install.bepinex"))
                 self.steam_fix_btn.setEnabled(False)
                 self.install_btn.setEnabled(False)
+                self.doctor_btn.setEnabled(True)
                 self.table.setRowCount(0)
                 return
             self.bepinex_btn.setEnabled(True)
@@ -161,6 +233,7 @@ class ModManagerDialog(QDialog):
             )
             self.steam_fix_btn.setEnabled(has_bepinex)
             self.install_btn.setEnabled(has_bepinex)
+            self.doctor_btn.setEnabled(True)
             if not has_bepinex:
                 self.status_label.setText(t("install.need_bepinex"))
                 self.table.setRowCount(0)
@@ -324,6 +397,10 @@ class ModManagerDialog(QDialog):
             "安装完成",
             ("已更新：" if changed else "无需更新，文件已经一致：") + str(target),
         )
+        self.refresh()
+
+    def _show_runtime_doctor(self) -> None:
+        RuntimeDoctorDialog(self.manager, self).exec()
         self.refresh()
 
     def _add_mod(self) -> None:

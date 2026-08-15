@@ -39,9 +39,14 @@ def main() -> int:
         / "net48"
         / "MortalModHost.dll"
     )
-    if not runtime_dll.is_file():
+    runtime_dependencies = (runtime_dll.parent / "NVorbis.dll",)
+    missing_runtime_files = [
+        path for path in (runtime_dll, *runtime_dependencies) if not path.is_file()
+    ]
+    if missing_runtime_files:
         print(
-            f"缺少内置运行时 {runtime_dll}：请先构建 runtime/MortalModHost",
+            "缺少内置运行时文件：%s。请先构建 runtime/MortalModHost"
+            % "、".join(str(path) for path in missing_runtime_files),
             file=sys.stderr,
         )
         return 2

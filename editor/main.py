@@ -3271,6 +3271,7 @@ def main() -> int:
         preview_text = win.preview.toPlainText()
         resource_ok = (
             win.game_manager.runtime_dll.is_file()
+            and (win.game_manager.runtime_dll.parent / "NVorbis.dll").is_file()
             and icon_path.is_file()
             and (icon_base / "assets" / "combo_arrow.svg").is_file()
         )

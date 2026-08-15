@@ -36,6 +36,7 @@ class GameInstallManagerTest(unittest.TestCase):
             "Mortal_Data/Managed/.keep",
             "BepInEx/core/BepInEx.Core.dll",
             "BepInEx/core/BepInEx.Unity.Mono.dll",
+            "BepInEx/core/0Harmony.dll",
         ):
             path = self.game / rel
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -46,6 +47,7 @@ class GameInstallManagerTest(unittest.TestCase):
         self._write_pe(self.game / "Mortal.exe", 0x014C)
         self.runtime = base / "MortalModHost.dll"
         self.runtime.write_bytes(b"runtime-v1")
+        (base / "NVorbis.dll").write_bytes(b"nvorbis-v1")
         self.doorstop = base / "win-x86-doorstop.dll"
         self.doorstop.write_bytes(b"patched-doorstop")
         self.settings = base / "settings.json"
@@ -100,6 +102,49 @@ class GameInstallManagerTest(unittest.TestCase):
         self.assertFalse(self.manager.list_mods()[0].enabled)
         enabled = self.manager.set_enabled(disabled, True)
         self.assertEqual(enabled.parent.name, "mods")
+
+    def test_installation_doctor_repairs_runtime_dependency_and_mod_dirs(self):
+        self.manager.save_game_dir(self.game)
+        plugin = self.game / "BepInEx" / "plugins" / "MortalModHost"
+        plugin.mkdir(parents=True)
+        (plugin / "MortalModHost.dll").write_bytes(b"runtime-old")
+
+        report = self.manager.diagnose_installation()
+        by_code = {item.code: item for item in report.findings}
+        self.assertTrue(by_code["runtime_obsolete"].fixable)
+        self.assertTrue(by_code["runtime_dependency_missing"].fixable)
+        self.assertEqual(
+            sum(item.code == "mods_directory_missing" for item in report.findings), 2
+        )
+
+        actions = self.manager.apply_installation_doctor_fixes()
+        self.assertTrue(actions)
+        self.assertEqual((plugin / "MortalModHost.dll").read_bytes(), b"runtime-v1")
+        self.assertEqual((plugin / "NVorbis.dll").read_bytes(), b"nvorbis-v1")
+        self.assertTrue((plugin / "mods").is_dir())
+        self.assertTrue((plugin / "mods_disabled").is_dir())
+        repaired = self.manager.diagnose_installation()
+        self.assertTrue(repaired.healthy)
+
+    def test_installation_doctor_reports_duplicate_without_deleting_it(self):
+        self.manager.save_game_dir(self.game)
+        self.manager.install_runtime()
+        duplicate = self.game / "BepInEx" / "plugins" / "Legacy" / "MortalModHost.dll"
+        duplicate.parent.mkdir(parents=True)
+        duplicate.write_bytes(b"legacy")
+
+        report = self.manager.diagnose_installation()
+        finding = next(item for item in report.findings if item.code == "duplicate_runtime_dll")
+        self.assertEqual(finding.paths, (duplicate,))
+        self.assertFalse(finding.fixable)
+        self.assertEqual(self.manager.apply_installation_doctor_fixes(), [])
+        self.assertEqual(duplicate.read_bytes(), b"legacy")
+
+    def test_installation_doctor_handles_unconfigured_editor(self):
+        report = self.manager.diagnose_installation()
+        self.assertIsNone(report.game_root)
+        self.assertEqual(report.findings[0].code, "game_not_configured")
+        self.assertFalse(report.findings[0].fixable)
 
     def test_rejects_wrong_game_dir_and_bad_package(self):
         with self.assertRaises(GameInstallError):

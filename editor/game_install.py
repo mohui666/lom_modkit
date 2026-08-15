@@ -29,6 +29,12 @@ from typing import Callable
 APP_DIR_NAME = "lom_modkit"
 PLUGIN_DIR_NAME = "MortalModHost"
 RUNTIME_DLL_NAME = "MortalModHost.dll"
+RUNTIME_DEPENDENCIES = ("NVorbis.dll",)
+BEPINEX_RUNTIME_FILES = (
+    "BepInEx/core/BepInEx.Core.dll",
+    "BepInEx/core/BepInEx.Unity.Mono.dll",
+    "BepInEx/core/0Harmony.dll",
+)
 PREVIEW_PACKAGE_NAME = "__lom_modkit_preview.lommod"
 PREVIEW_REQUEST_NAME = "preview-request.json"
 BEPINEX_VERSION = "6.0.0-be.692"
@@ -66,6 +72,30 @@ class ModRecord:
     author: str
     description: str
     error: str = ""
+
+
+@dataclass(frozen=True)
+class InstallationDoctorFinding:
+    severity: str  # ok / warning / error
+    code: str
+    title: str
+    detail: str
+    paths: tuple[Path, ...] = ()
+    fixable: bool = False
+
+
+@dataclass(frozen=True)
+class InstallationDoctorReport:
+    game_root: Path | None
+    findings: tuple[InstallationDoctorFinding, ...]
+
+    @property
+    def healthy(self) -> bool:
+        return not any(item.severity != "ok" for item in self.findings)
+
+    @property
+    def fixable_count(self) -> int:
+        return sum(item.fixable for item in self.findings)
 
 
 def _settings_path() -> Path:
@@ -303,11 +333,207 @@ class GameInstallManager:
     def mods_dir(self, enabled: bool = True) -> Path:
         return self.plugin_dir() / ("mods" if enabled else "mods_disabled")
 
+    # ------------------------------------------------------------ 安装诊断
+    @staticmethod
+    def _known_dll_locations(plugins: Path, names: set[str]) -> dict[str, list[Path]]:
+        """Scan regular files below plugins without following directory symlinks."""
+        found = {name.casefold(): [] for name in names}
+        if not plugins.is_dir():
+            return found
+        pending = [plugins]
+        visited = 0
+        while pending and visited < 10000:
+            folder = pending.pop()
+            try:
+                entries = list(os.scandir(folder))
+            except OSError:
+                continue
+            for entry in entries:
+                visited += 1
+                if visited >= 10000:
+                    break
+                try:
+                    if entry.is_dir(follow_symlinks=False):
+                        pending.append(Path(entry.path))
+                    elif entry.is_file(follow_symlinks=False):
+                        key = entry.name.casefold()
+                        if key in found:
+                            found[key].append(Path(entry.path))
+                except OSError:
+                    continue
+        return found
+
+    def diagnose_installation(self) -> InstallationDoctorReport:
+        """Inspect the configured installation without writing to it or launching code."""
+        findings: list[InstallationDoctorFinding] = []
+        root = self.load_game_dir()
+        if root is None:
+            return InstallationDoctorReport(None, (InstallationDoctorFinding(
+                "error", "game_not_configured", "尚未连接游戏",
+                "请先选择《活侠传》游戏目录。",
+            ),))
+        try:
+            self.validate_game_root(root)
+        except GameInstallError as exc:
+            return InstallationDoctorReport(root, (InstallationDoctorFinding(
+                "error", "invalid_game_root", "游戏目录无效", str(exc), (root,),
+            ),))
+
+        findings.append(InstallationDoctorFinding(
+            "ok", "game_root_ok", "游戏目录", "已找到 Mortal.exe 和 Managed 目录。", (root,),
+        ))
+        try:
+            architecture = self.game_architecture(root)
+            architecture_ok = architecture == "x86"
+            findings.append(InstallationDoctorFinding(
+                "ok" if architecture_ok else "error",
+                "architecture_ok" if architecture_ok else "unsupported_architecture",
+                "游戏架构", "%s（当前内置 BepInEx/Runtime 目标为 x86）" % architecture,
+                (root / "Mortal.exe",),
+            ))
+        except GameInstallError as exc:
+            findings.append(InstallationDoctorFinding(
+                "error", "architecture_unknown", "游戏架构无法识别", str(exc),
+                (root / "Mortal.exe",),
+            ))
+
+        missing_bepinex = [rel for rel in BEPINEX_RUNTIME_FILES if not (root / rel).is_file()]
+        bepinex_ready = not missing_bepinex
+        findings.append(InstallationDoctorFinding(
+            "ok" if bepinex_ready else "error",
+            "bepinex_ok" if bepinex_ready else "bepinex_incomplete",
+            "BepInEx 6",
+            "核心、Unity Mono 和 Harmony 依赖齐全。" if bepinex_ready
+            else "缺少：" + "、".join(missing_bepinex),
+            tuple(root / rel for rel in missing_bepinex),
+        ))
+
+        plugin_dir = root / "BepInEx" / "plugins" / PLUGIN_DIR_NAME
+        runtime_target = plugin_dir / RUNTIME_DLL_NAME
+        bundled_ready = self.runtime_dll.is_file()
+        dependencies_ready = all(
+            (self.runtime_dll.parent / name).is_file() for name in RUNTIME_DEPENDENCIES
+        )
+        can_repair_runtime = bepinex_ready and bundled_ready and dependencies_ready
+        if not bundled_ready:
+            findings.append(InstallationDoctorFinding(
+                "error", "bundled_runtime_missing", "编辑器内置 Runtime 缺失",
+                str(self.runtime_dll), (self.runtime_dll,),
+            ))
+        elif not runtime_target.is_file():
+            findings.append(InstallationDoctorFinding(
+                "error", "runtime_missing", "MortalModHost 未安装",
+                "目标目录中没有 MortalModHost.dll。", (runtime_target,), can_repair_runtime,
+            ))
+        else:
+            try:
+                same = _sha256(runtime_target) == _sha256(self.runtime_dll)
+            except OSError as exc:
+                findings.append(InstallationDoctorFinding(
+                    "error", "runtime_unreadable", "MortalModHost 无法核对",
+                    str(exc), (runtime_target,), can_repair_runtime,
+                ))
+            else:
+                findings.append(InstallationDoctorFinding(
+                    "ok" if same else "warning",
+                    "runtime_current" if same else "runtime_obsolete",
+                    "MortalModHost Runtime",
+                    "与编辑器内置版本字节一致。" if same else "已安装 DLL 与当前编辑器内置版本不一致。",
+                    (runtime_target,), (not same and can_repair_runtime),
+                ))
+
+        for name in RUNTIME_DEPENDENCIES:
+            bundled = self.runtime_dll.parent / name
+            target = plugin_dir / name
+            if not bundled.is_file():
+                findings.append(InstallationDoctorFinding(
+                    "error", "bundled_dependency_missing", "编辑器依赖缺失",
+                    "内置发布目录缺少 %s。" % name, (bundled,),
+                ))
+            elif not target.is_file():
+                findings.append(InstallationDoctorFinding(
+                    "error", "runtime_dependency_missing", "Runtime 依赖缺失",
+                    "%s 未安装。" % name, (target,), can_repair_runtime,
+                ))
+            else:
+                try:
+                    same = _sha256(target) == _sha256(bundled)
+                except OSError:
+                    same = False
+                findings.append(InstallationDoctorFinding(
+                    "ok" if same else "warning",
+                    "runtime_dependency_current" if same else "runtime_dependency_obsolete",
+                    "Runtime 依赖 %s" % name,
+                    "与内置版本一致。" if same else "文件与当前编辑器内置版本不一致。",
+                    (target,), (not same and can_repair_runtime),
+                ))
+
+        for enabled, dirname in ((True, "mods"), (False, "mods_disabled")):
+            directory = plugin_dir / dirname
+            findings.append(InstallationDoctorFinding(
+                "ok" if directory.is_dir() else "warning",
+                "mods_directory_ok" if directory.is_dir() else "mods_directory_missing",
+                "Mod 目录 %s" % dirname,
+                "目录已就绪。" if directory.is_dir() else "目录不存在，可安全创建。",
+                (directory,), (bepinex_ready and not directory.is_dir()),
+            ))
+
+        plugins = root / "BepInEx" / "plugins"
+        expected = {RUNTIME_DLL_NAME, *RUNTIME_DEPENDENCIES}
+        locations = self._known_dll_locations(plugins, expected)
+        expected_locations = {
+            RUNTIME_DLL_NAME.casefold(): runtime_target,
+            **{name.casefold(): plugin_dir / name for name in RUNTIME_DEPENDENCIES},
+        }
+        duplicates: list[Path] = []
+        for key, paths in locations.items():
+            expected_path = expected_locations[key]
+            duplicates.extend(path for path in paths if path != expected_path)
+        if duplicates:
+            findings.append(InstallationDoctorFinding(
+                "warning", "duplicate_runtime_dll", "发现重复 Runtime DLL",
+                "不会自动删除第三方目录中的 DLL；请核对后手工处理。",
+                tuple(sorted(duplicates, key=lambda path: str(path).casefold())), False,
+            ))
+        else:
+            findings.append(InstallationDoctorFinding(
+                "ok", "no_duplicate_runtime_dll", "重复 DLL", "未发现已知 Runtime DLL 的重复副本。",
+            ))
+        return InstallationDoctorReport(root, tuple(findings))
+
+    def apply_installation_doctor_fixes(self) -> list[str]:
+        """Apply only deterministic local fixes advertised by the current report."""
+        report = self.diagnose_installation()
+        fixable_codes = {item.code for item in report.findings if item.fixable}
+        actions: list[str] = []
+        runtime_codes = {
+            "runtime_missing", "runtime_obsolete", "runtime_unreadable",
+            "runtime_dependency_missing", "runtime_dependency_obsolete",
+        }
+        if fixable_codes & runtime_codes:
+            target, changed = self.install_runtime()
+            actions.append(("已修复 Runtime：" if changed else "Runtime 已是当前版本：") + str(target))
+        if "mods_directory_missing" in fixable_codes:
+            for enabled in (True, False):
+                directory = self.mods_dir(enabled)
+                if not directory.is_dir():
+                    directory.mkdir(parents=True, exist_ok=True)
+                    actions.append("已创建：" + str(directory))
+        return actions
+
     # ------------------------------------------------------------ 安装
     def install_runtime(self) -> tuple[Path, bool]:
         """安装内置 DLL；返回 (目标路径, 是否实际更新)。"""
         if not self.runtime_dll.is_file():
             raise GameInstallError(f"编辑器内置运行时不存在：{self.runtime_dll}")
+        missing_dependencies = [
+            name for name in RUNTIME_DEPENDENCIES
+            if not (self.runtime_dll.parent / name).is_file()
+        ]
+        if missing_dependencies:
+            raise GameInstallError(
+                "编辑器内置运行时依赖缺失：" + "、".join(missing_dependencies)
+            )
         root = self.require_game_dir()
         self.validate_bepinex(root)
         target_dir = self.plugin_dir()
@@ -316,11 +542,7 @@ class GameInstallManager:
         self.mods_dir(False).mkdir(parents=True, exist_ok=True)
         target = target_dir / RUNTIME_DLL_NAME
         changed = not target.exists() or _sha256(target) != _sha256(self.runtime_dll)
-        extras = [
-            src
-            for src in self.runtime_dll.parent.glob("*.dll")
-            if src.name != RUNTIME_DLL_NAME
-        ]
+        extras = [self.runtime_dll.parent / name for name in RUNTIME_DEPENDENCIES]
         if not changed:
             for src in extras:
                 dest = target_dir / src.name
