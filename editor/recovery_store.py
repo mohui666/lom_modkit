@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from dataclasses import dataclass
+import ctypes
 import json
 import os
 from pathlib import Path
@@ -17,6 +19,20 @@ MAX_SNAPSHOT_BYTES = 64 * 1024 * 1024
 
 class RecoveryError(RuntimeError):
     pass
+
+
+@dataclass(frozen=True)
+class RecoveryCandidate:
+    session_id: str
+    snapshot_path: Path
+    marker_path: Path
+    saved_at: str
+    source_kind: str
+    source_path: str | None
+    current_story_id: str
+    story_ids: tuple[str, ...]
+    project_name: str
+    document: dict
 
 
 def recovery_root() -> Path:
@@ -60,6 +76,142 @@ def _atomic_json(path: Path, value: dict, max_bytes: int) -> None:
                 temporary.unlink()
             except OSError:
                 pass
+
+
+def _read_json(path: Path, max_bytes: int) -> dict:
+    try:
+        size = path.stat().st_size
+        if size <= 0 or size > max_bytes:
+            raise RecoveryError("恢复文件大小无效")
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except RecoveryError:
+        raise
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise RecoveryError(f"无法读取恢复文件 {path.name}：{exc}") from exc
+    if not isinstance(value, dict):
+        raise RecoveryError("恢复文件顶层必须是对象")
+    return value
+
+
+def _process_is_running(pid: int) -> bool:
+    if type(pid) is not int or pid <= 0:
+        return False
+    if pid == os.getpid():
+        return True
+    if os.name == "nt":
+        process_query = 0x1000
+        still_active = 259
+        handle = ctypes.windll.kernel32.OpenProcess(process_query, False, pid)
+        if not handle:
+            return False
+        try:
+            code = ctypes.c_ulong()
+            if not ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+                return False
+            return code.value == still_active
+        finally:
+            ctypes.windll.kernel32.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+        return True
+    except (OSError, ValueError):
+        return False
+
+
+def _candidate_from(directory: Path, include_live: bool) -> RecoveryCandidate | None:
+    marker_path = directory / "session.json"
+    snapshot_path = directory / "snapshot.json"
+    if not marker_path.is_file() or not snapshot_path.is_file():
+        return None
+    marker = _read_json(marker_path, 64 * 1024)
+    if marker.get("recovery_schema") != RECOVERY_SCHEMA:
+        return None
+    if marker.get("status") != "active" or not marker.get("has_snapshot"):
+        return None
+    if not include_live and _process_is_running(marker.get("pid")):
+        return None
+    document = _read_json(snapshot_path, MAX_SNAPSHOT_BYTES)
+    if document.get("recovery_schema") != RECOVERY_SCHEMA:
+        raise RecoveryError("不支持的恢复快照版本")
+    session_id = str(marker.get("session_id") or "")
+    if not session_id or document.get("session_id") != session_id:
+        raise RecoveryError("恢复会话 ID 不一致")
+    stories = document.get("stories")
+    if not isinstance(stories, dict) or not stories or len(stories) > 256:
+        raise RecoveryError("恢复快照的剧情章节集合无效")
+    story_ids = []
+    for key, story in stories.items():
+        if not isinstance(key, str) or not key or not isinstance(story, dict):
+            raise RecoveryError("恢复快照含无效剧情章节")
+        if not isinstance(story.get("nodes"), list):
+            raise RecoveryError("恢复剧情缺少 nodes 数组")
+        story_ids.append(key)
+    current = document.get("current_story_id")
+    if current not in stories:
+        raise RecoveryError("恢复快照当前章节不存在")
+    source = document.get("source")
+    if not isinstance(source, dict):
+        source = {}
+    kind = source.get("kind")
+    if kind not in ("untitled", "story", "lommod"):
+        kind = "untitled"
+    raw_path = source.get("path")
+    source_path = raw_path if isinstance(raw_path, str) and len(raw_path) <= 4096 else None
+    manifest = document.get("manifest")
+    if not isinstance(manifest, dict):
+        manifest = {}
+    project_name = str(manifest.get("name") or manifest.get("id") or current)[:160]
+    return RecoveryCandidate(
+        session_id=session_id,
+        snapshot_path=snapshot_path,
+        marker_path=marker_path,
+        saved_at=str(document.get("saved_at") or marker.get("updated_at") or "")[:64],
+        source_kind=kind,
+        source_path=source_path,
+        current_story_id=str(current),
+        story_ids=tuple(sorted(story_ids)),
+        project_name=project_name,
+        document=document,
+    )
+
+
+def list_recovery_candidates(root: Path | None = None, *,
+                             exclude_session_id: str | None = None,
+                             include_live: bool = False) -> list[RecoveryCandidate]:
+    base = Path(root) if root is not None else recovery_root()
+    if not base.is_dir():
+        return []
+    candidates = []
+    for directory in sorted(base.iterdir(), reverse=True):
+        if not directory.is_dir() or directory.name == exclude_session_id:
+            continue
+        try:
+            candidate = _candidate_from(directory, include_live)
+        except RecoveryError:
+            continue
+        if candidate is not None:
+            candidates.append(candidate)
+        if len(candidates) >= 50:
+            break
+    candidates.sort(key=lambda item: item.saved_at, reverse=True)
+    return candidates
+
+
+def finish_candidate(candidate: RecoveryCandidate, status: str) -> None:
+    if status not in ("recovered", "discarded"):
+        raise RecoveryError("恢复候选结束状态无效")
+    marker = _read_json(candidate.marker_path, 64 * 1024)
+    if marker.get("session_id") != candidate.session_id:
+        raise RecoveryError("恢复候选会话已发生变化")
+    try:
+        candidate.snapshot_path.unlink(missing_ok=True)
+    except OSError as exc:
+        raise RecoveryError(f"无法清除已处理的恢复快照：{exc}") from exc
+    marker["status"] = status
+    marker["has_snapshot"] = False
+    marker["updated_at"] = _now()
+    marker[status + "_at"] = marker["updated_at"]
+    _atomic_json(candidate.marker_path, marker, 64 * 1024)
 
 
 class RecoverySession:

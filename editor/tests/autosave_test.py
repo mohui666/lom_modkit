@@ -14,7 +14,7 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 
 import main  # noqa: E402
 import models  # noqa: E402
-from recovery_store import RecoverySession  # noqa: E402
+from recovery_store import RecoverySession, list_recovery_candidates  # noqa: E402
 
 
 class AutosaveIntegrationTest(unittest.TestCase):
@@ -50,6 +50,48 @@ class AutosaveIntegrationTest(unittest.TestCase):
 
             win._set_dirty(False)
             self.assertFalse(snapshot.exists())
+            win.close()
+
+    def test_restore_loads_memory_without_formal_overwrite_target(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            formal = root / "project" / "main.json"
+            formal.parent.mkdir()
+            formal.write_bytes(b'{"formal":"untouched"}\n')
+            old = RecoverySession(root / "recovery", "old")
+            old.write_snapshot(
+                stories={
+                    "main": {
+                        "id": "main", "title": "crash draft", "start": "end1",
+                        "nodes": [{"id": "end1", "type": "end"}],
+                    }
+                },
+                current_story_id="main",
+                manifest={"id": "demo_mod", "name": "Recovered"},
+                story_paths={"main": formal},
+                source_kind="story",
+                source_path=str(formal),
+            )
+            candidate = list_recovery_candidates(
+                old.root, include_live=True
+            )[0]
+
+            editor_data, fallback = models.load_editor_data(main.PROJECT_ROOT)
+            win = main.MainWindow(editor_data, fallback)
+            win._prompt_on_discard = False
+            dialog = main.RecoveryDialog([candidate], win)
+            self.assertEqual(dialog.table.rowCount(), 1)
+            self.assertIs(dialog._selected(), candidate)
+            dialog.close()
+            win._recovery_session = RecoverySession(root / "recovery", "new")
+            self.assertTrue(win._restore_recovery_candidate(candidate))
+            self.assertEqual(win.story["title"], "crash draft")
+            self.assertTrue(win._dirty)
+            self.assertIsNone(win.story_path)
+            self.assertEqual(formal.read_bytes(), b'{"formal":"untouched"}\n')
+            self.assertTrue(win._recovery_session.snapshot_path.is_file())
+            old_marker = json.loads(old.marker_path.read_text(encoding="utf-8"))
+            self.assertEqual(old_marker["status"], "recovered")
             win.close()
 
 

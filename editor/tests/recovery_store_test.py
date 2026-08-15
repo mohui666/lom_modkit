@@ -4,7 +4,13 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from recovery_store import RECOVERY_SCHEMA, RecoveryError, RecoverySession
+from recovery_store import (
+    RECOVERY_SCHEMA,
+    RecoveryError,
+    RecoverySession,
+    finish_candidate,
+    list_recovery_candidates,
+)
 
 
 class RecoveryStoreTest(unittest.TestCase):
@@ -64,6 +70,24 @@ class RecoveryStoreTest(unittest.TestCase):
                 source_kind="untitled", source_path=None,
             )
         self.assertEqual(snapshot.read_bytes(), before)
+
+    def test_abnormal_candidate_can_be_inspected_and_discarded(self):
+        session = RecoverySession(self.root / "recovery")
+        self._write(session, "crash draft")
+        candidates = list_recovery_candidates(
+            session.root, include_live=True
+        )
+        self.assertEqual(len(candidates), 1)
+        candidate = candidates[0]
+        self.assertEqual(candidate.document["stories"]["main"]["title"], "crash draft")
+        self.assertEqual(candidate.source_kind, "story")
+        finish_candidate(candidate, "discarded")
+        self.assertFalse(candidate.snapshot_path.exists())
+        marker = json.loads(candidate.marker_path.read_text(encoding="utf-8"))
+        self.assertEqual(marker["status"], "discarded")
+        self.assertEqual(
+            list_recovery_candidates(session.root, include_live=True), []
+        )
 
 
 if __name__ == "__main__":
