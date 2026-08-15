@@ -27,6 +27,7 @@
     <Compile Include="..\..\src\RuntimeCompatibility.cs" />
     <Compile Include="..\..\src\ModDisclosurePolicy.cs" />
     <Compile Include="..\..\src\ProvenanceWatermarkProtocol.cs" />
+    <Compile Include="..\..\src\ProvenanceWatermarkCodec.cs" />
   </ItemGroup>
 
 </Project>

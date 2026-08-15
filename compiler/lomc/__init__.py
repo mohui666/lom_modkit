@@ -19,6 +19,7 @@ from .watermark_protocol import (
     decode_packet as decode_watermark_packet,
     encode_packet as encode_watermark_packet,
 )
+from .watermark_codec import ALGORITHM_VERSION as WATERMARK_ALGORITHM_VERSION
 from .localization import (
     SUPPORTED_LOCALES, apply_story_locale, available_locales,
     iter_localizable_texts, resolved_catalog, validate_story_localization,

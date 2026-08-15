@@ -142,6 +142,7 @@ namespace MortalModHost
                 TestUserContent();
                 TestDisclosurePolicy();
                 TestProvenanceWatermarkProtocol();
+                TestProvenanceWatermarkCodec();
 
                 Console.WriteLine("--- 扫描信息 ---");
                 infos.ForEach(Console.WriteLine);
@@ -929,6 +930,38 @@ namespace MortalModHost
             try { ProvenanceWatermarkProtocol.Encode("Official.Mod", 1); }
             catch (ArgumentException) { invalidIdRejected = true; }
             Assert(invalidIdRejected, "非法 mod id 不得进入水印身份哈希");
+        }
+
+        private static void TestProvenanceWatermarkCodec()
+        {
+            byte[] packet = ProvenanceWatermarkProtocol.Encode("demo_mod", 1);
+            byte[] encoded = ProvenanceWatermarkCodec.HammingEncode(packet);
+            for (int offset = 0; offset < encoded.Length; offset += 7)
+                encoded[offset + (offset / 7) % 7] ^= 1;
+            int corrections;
+            byte[] decoded = ProvenanceWatermarkCodec.HammingDecode(encoded, out corrections);
+            Assert(decoded.SequenceEqual(packet) && corrections == 56,
+                "Hamming(7,4) 必须修正每个 codeword 的单 bit 错误");
+
+            int[] cells;
+            sbyte[] polarity;
+            ProvenanceWatermarkCodec.CarrierLayout(out cells, out polarity);
+            Assert(cells.Length == 392 && cells.Distinct().Count() == 392
+                    && cells.Take(8).SequenceEqual(new[] { 388, 301, 111, 85, 164, 305, 22, 72 }),
+                "C#/Python keyed PRNG 载波排列必须一致");
+            sbyte[] signs = ProvenanceWatermarkCodec.CarrierSigns(packet);
+            byte[] recovered = ProvenanceWatermarkCodec.RecoverEccBits(signs);
+            decoded = ProvenanceWatermarkCodec.HammingDecode(recovered, out corrections);
+            Assert(decoded.SequenceEqual(packet) && corrections == 0,
+                "空间载波映射必须无损往返 ECC payload");
+
+            byte[] tile = ProvenanceWatermarkCodec.BuildTileRgba(packet);
+            string tileHash;
+            using (var sha = SHA256.Create())
+                tileHash = string.Concat(sha.ComputeHash(tile).Select(b => b.ToString("X2")));
+            Assert(tile.Length == 448 * 224 * 4
+                    && tileHash == "D075861FB031C39D390AD27C45C4FF3B858E7804CC0BC8510E3B75D5AA68831C",
+                "C#/Python 中频 RGBA tile 黄金向量必须一致");
         }
 
         private static bool IsUpperHex(char c)

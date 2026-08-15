@@ -130,8 +130,12 @@ namespace MortalModHost
                 SubscribeTrustedBoundaryEvents();
                 EnsureEdgeOverlay();
                 RefreshLabels(true);
+                ProvenanceWatermark.Enable(ModId);
                 if (!IsChipStructurallyValid(_edgeChip))
                     throw new InvalidOperationException("屏幕常驻标记未成功创建");
+                if (!ProvenanceWatermark.Maintain())
+                    throw new InvalidOperationException(
+                        "来源水印未成功创建：" + ProvenanceWatermark.LastError);
                 Canvas.willRenderCanvases -= BeforeCanvasRender;
                 Canvas.willRenderCanvases += BeforeCanvasRender;
             }
@@ -155,6 +159,7 @@ namespace MortalModHost
             Camera.onPreCull -= BeforeCameraRender;
             SceneManager.sceneLoaded -= OnSceneLoaded;
             SceneManager.activeSceneChanged -= OnActiveSceneChanged;
+            ProvenanceWatermark.Disable();
             ClearVisuals();
             Active = false;
             ModId = null;
@@ -365,6 +370,7 @@ namespace MortalModHost
                     EnsureGuardian();
                     EnsureEdgeOverlay();
                     RefreshLabels(true);
+                    ProvenanceWatermark.Maintain();
                 }
                 catch (Exception ex)
                 {
@@ -376,6 +382,9 @@ namespace MortalModHost
             {
                 EnsureEdgeOverlay();
                 RefreshLabels(false);
+                if (!ProvenanceWatermark.Maintain())
+                    throw new InvalidOperationException(
+                        "来源水印刷新失败：" + ProvenanceWatermark.LastError);
                 SyncDialogChips();
                 SyncPanelChips();
                 if (!IsChipStructurallyValid(_edgeChip))
