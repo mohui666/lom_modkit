@@ -21,12 +21,17 @@ USER_PREFIX = "user:"
 CONTENT_SCHEMA = 1
 CONTENT_TYPES = ("audio", "character")
 AUDIO_KINDS = ("music", "sound", "env")
+ART_FACINGS = ("left", "right")
+ART_FACING_DEFAULT = "left"
+CHARACTER_SCALE_DEFAULT = 100
+CHARACTER_SCALE_MIN = 50
+CHARACTER_SCALE_MAX = 130
 AUDIO_EXTENSIONS = (".ogg", ".wav")
 IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg")
 MAX_AUDIO_BYTES = 20 * 1024 * 1024
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 PACKAGE_USER_ROOT = "assets/user"
-CHARACTER_NODE_TYPES = ("show", "say", "hide", "move", "face", "focus")
+CHARACTER_NODE_TYPES = ("show", "say", "hide", "move", "face", "focus", "intro")
 UNSUPPORTED_USER_CHAR_TYPES = ("offset", "shock", "dim", "rotate", "affinity")
 
 # 内容 ID：<namespace>.<local>，只允许小写字母、数字、下划线；禁止路径分隔。
@@ -35,6 +40,8 @@ CONTENT_ID_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}\.[a-z0-9][a-z0-9_]{0,47}$")
 CONTENT_TYPE_RE = re.compile(r"^[a-z][a-z0-9_]{0,15}$")
 PORTRAIT_ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,31}$")
 SAFE_FILENAME_RE = re.compile(r"^[A-Za-z0-9_\-\u4e00-\u9fff][A-Za-z0-9_\-\.\u4e00-\u9fff]{0,79}$")
+# 官方人物 id（无 user: 前缀）。仅作音频管理归属，不要求角色存在。
+OFFICIAL_CHARACTER_ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,47}$")
 
 
 class ContentRef:
@@ -143,6 +150,39 @@ def validate_portrait_id(portrait_id, label="表情"):
             "例如 normal / happy / angry。" % (label, portrait_id)
         )
     return portrait_id
+
+
+def normalize_audio_character(value, source="content.json"):
+    """规范化音频上可选的角色归属。
+
+    只是编辑器管理关系，不参与播放、校验 say.voice、也不导致打包。
+    None / 空字符串 → None（旁白、系统语音、未关联）。
+    ``user:`` 引用或裸内容 ID → ``user:<id>``。
+    官方人物 id（如 player / brother4）保持原样，不生成用户角色对象。
+    """
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise LomcError("%s：character 必须是字符串，或省略" % source)
+    text = value.strip()
+    if not text:
+        return None
+    if is_user_ref(text):
+        parse_content_ref(text, label="%s 的 character" % source)
+        return text
+    if CONTENT_ID_RE.match(text):
+        return USER_PREFIX + text
+    if ".." in text or "/" in text or "\\" in text or ":" in text:
+        raise LomcError(
+            "%s：character %r 含有非法路径字符。请填写 user:命名空间.名称，"
+            "或官方人物 id（例如 player）。" % (source, text)
+        )
+    if OFFICIAL_CHARACTER_ID_RE.match(text) is None:
+        raise LomcError(
+            "%s：character %r 不合法。请填写 user:命名空间.名称，"
+            "或官方人物 id（例如 player / brother4）。" % (source, text)
+        )
+    return text
 
 
 def _safe_same_dir_filename(raw, label, allowed_exts):
@@ -302,16 +342,33 @@ def normalize_content_metadata(data, source="content.json"):
     )
     audio_kind = data.get("audio_kind")
     portraits = None
+    character = None
     if ctype == "audio":
         if audio_kind not in AUDIO_KINDS:
             raise LomcError(
                 "%s：音频的 audio_kind 必须是 music / sound / env，实际为 %r"
                 % (source, audio_kind)
             )
+        character = normalize_audio_character(data.get("character"), source)
     elif ctype == "character":
         portraits = _normalize_portraits(data.get("portraits"), main, source)
         if portraits["normal"] != main and main not in portraits.values():
             portraits["normal"] = main
+    intro = None
+    character_title = None
+    character_scale = None
+    art_facing = None
+    if ctype == "character":
+        intro = normalize_character_intro(data.get("intro"), source)
+        raw_title = data.get("title")
+        if raw_title is None:
+            raw_title = (intro or {}).get("title")
+        if isinstance(raw_title, str) and raw_title.strip():
+            character_title = raw_title.strip()
+        elif raw_title not in (None, ""):
+            raise LomcError("%s：title（对话称号）必须是字符串" % source)
+        character_scale = normalize_character_scale(data.get("scale"), source)
+        art_facing = normalize_art_facing(data.get("art_facing"), source)
     return {
         "schema": CONTENT_SCHEMA,
         "id": content_id,
@@ -320,6 +377,11 @@ def normalize_content_metadata(data, source="content.json"):
         "audio_kind": audio_kind if ctype == "audio" else None,
         "files": {"main": main},
         "portraits": portraits,
+        "character": character,
+        "intro": intro,
+        "title": character_title,
+        "scale": character_scale,
+        "art_facing": art_facing,
     }
 
 
@@ -342,6 +404,80 @@ def _normalize_portraits(raw, main_file, source):
     return portraits
 
 
+def normalize_character_scale(value, source="content.json"):
+    """角色体型百分比。缺省 100；超出 50–130 时夹到边界。"""
+    if value is None or value == "":
+        return CHARACTER_SCALE_DEFAULT
+    return _clamp_number(
+        value, CHARACTER_SCALE_DEFAULT, CHARACTER_SCALE_MIN, CHARACTER_SCALE_MAX
+    )
+
+
+def normalize_art_facing(value, source="content.json"):
+    """立绘原图朝向。缺省 left（与原版立绘一致）。"""
+    if value is None or value == "":
+        return ART_FACING_DEFAULT
+    if not isinstance(value, str):
+        raise LomcError("%s：art_facing 必须是 left 或 right" % source)
+    text = value.strip().lower()
+    if text not in ART_FACINGS:
+        raise LomcError(
+            "%s：art_facing 必须是 left 或 right，实际为 %r" % (source, value)
+        )
+    return text
+
+
+def normalize_character_intro(raw, source="content.json"):
+    """角色可选介绍卡。缺省或空对象视为没有介绍卡。"""
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise LomcError("%s：intro 必须是对象，或省略" % source)
+    if not raw:
+        return None
+    name = raw.get("name")
+    text = raw.get("text")
+    if not isinstance(name, str) or not name.strip():
+        raise LomcError("%s：介绍卡 name（姓名）必须是非空字符串" % source)
+    if not isinstance(text, str) or not text.strip():
+        raise LomcError("%s：介绍卡 text（介绍）必须是非空字符串" % source)
+    title = raw.get("title")
+    if title is None:
+        title = ""
+    if not isinstance(title, str):
+        raise LomcError("%s：介绍卡 title 必须是字符串" % source)
+    image = raw.get("image")
+    if image is None or (isinstance(image, str) and not image.strip()):
+        image = None
+    else:
+        image = _safe_same_dir_filename(
+            image, "%s 的 intro.image" % source, IMAGE_EXTENSIONS
+        )
+    return {
+        "title": title.strip(),
+        "name": name.strip(),
+        "text": text.strip(),
+        "image": image,
+        "image_scale": _clamp_number(raw.get("image_scale"), 100, 40, 160),
+        "image_x": _clamp_number(raw.get("image_x"), 0, -30, 30),
+        "image_y": _clamp_number(raw.get("image_y"), 0, -30, 30),
+    }
+
+
+def _clamp_number(value, default, lo, hi):
+    if value is None or isinstance(value, bool):
+        return default
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return default
+    if number < lo:
+        return lo
+    if number > hi:
+        return hi
+    return number
+
+
 def listed_content_files(meta):
     """content.json 声明的全部同目录文件名（去重，主文件在前）。"""
     names = []
@@ -351,6 +487,9 @@ def listed_content_files(meta):
     for fname in (meta.get("portraits") or {}).values():
         if fname and fname not in names:
             names.append(fname)
+    intro_image = (meta.get("intro") or {}).get("image")
+    if intro_image and intro_image not in names:
+        names.append(intro_image)
     return names
 
 
@@ -366,8 +505,25 @@ def write_content_metadata(meta_path, metadata):
     }
     if normalized["type"] == "audio":
         payload["audio_kind"] = normalized["audio_kind"]
+        if normalized.get("character"):
+            payload["character"] = normalized["character"]
     if normalized["type"] == "character" and normalized.get("portraits"):
         payload["portraits"] = dict(normalized["portraits"])
+    if normalized["type"] == "character" and normalized.get("title"):
+        payload["title"] = normalized["title"]
+    if (
+        normalized["type"] == "character"
+        and normalized.get("scale") not in (None, CHARACTER_SCALE_DEFAULT)
+    ):
+        payload["scale"] = normalized["scale"]
+    if (
+        normalized["type"] == "character"
+        and normalized.get("art_facing")
+        and normalized["art_facing"] != ART_FACING_DEFAULT
+    ):
+        payload["art_facing"] = normalized["art_facing"]
+    if normalized["type"] == "character" and normalized.get("intro"):
+        payload["intro"] = dict(normalized["intro"])
     parent = os.path.dirname(meta_path)
     if parent:
         os.makedirs(parent, exist_ok=True)

@@ -114,7 +114,9 @@ class TestNewStory(unittest.TestCase):
         self.assertEqual(len(nodes), 2, "新建剧情应为 登场+对白 两个起始节点")
         self.assertEqual(nodes[0]["id"], story["start"], "start 应指向起始节点")
         self.assertEqual(nodes[0]["type"], "show", "起始节点应为 show（先登场再动作）")
+        self.assertEqual(nodes[0]["id"], "show1", "起始节点编号应为类型+次序")
         self.assertEqual(nodes[1]["type"], "say", "第二个节点应为 say（models 契约）")
+        self.assertEqual(nodes[1]["id"], "say1")
 
         s2 = story_api.new_story(story_id="case_a", title="自定义标题")
         self.assertEqual(s2["id"], "case_a", "自定义 story id 应生效")
@@ -168,6 +170,17 @@ class TestAddNode(unittest.TestCase):
         story = story_api.new_story()
         with self.assertRaises(ValueError, msg="数值字段给字符串应抛 ValueError"):
             story_api.add_node(story, "wait", {"seconds": "abc"})
+
+    def test_ids_are_type_plus_order(self):
+        story = story_api.new_story()
+        a = story_api.add_node(story, "wait")
+        b = story_api.add_node(story, "wait")
+        c = story_api.add_say(story, "第二句", mode="narrative")
+        self.assertEqual(a["id"], "wait1")
+        self.assertEqual(b["id"], "wait2")
+        self.assertEqual(c["id"], "say2")
+        extra_show = [n["id"] for n in story["nodes"] if n["type"] == "show"]
+        self.assertTrue(all(i.startswith("show") for i in extra_show))
 
     def test_after_insert(self):
         story = story_api.new_story()
@@ -428,7 +441,9 @@ class TestAddSay(unittest.TestCase):
     def test_voice_optional_and_emitted(self):
         story = base_story()
         story_api.add_node(story, "end")
-        bare = story_api.add_say(story, "没语音", mode="narrative", after="n2")
+        bare = story_api.add_say(
+            story, "没语音", mode="narrative", after=story["nodes"][1]["id"]
+        )
         self.assertNotIn("voice", bare)
         lua, errors, _warnings = story_api.compile_story(story)
         self.assertEqual(errors, [])
@@ -723,11 +738,11 @@ class TestPackMod(unittest.TestCase):
                 self.assertIn("function", lua, "包内 Lua 应为编译产物")
                 texts = json.loads(zf.read("texts.json").decode("utf-8"))
                 self.assertEqual(
-                    texts.get("MOD_api_test_mod_main_n3"),
+                    texts.get("MOD_api_test_mod_main_say2"),
                     "打包测试文本。",
                     "texts.json 应含 say 文本（key=MOD_<modid>_<scriptid>_<nodeid>）",
                 )
-                self.assertIn("MOD_api_test_mod_main_n2", texts, "起始 say 也应入表")
+                self.assertIn("MOD_api_test_mod_main_say1", texts, "起始 say 也应入表")
 
     def test_missing_manifest(self):
         with tempfile.TemporaryDirectory() as tmp:

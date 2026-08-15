@@ -427,8 +427,13 @@ assets/user/audio/mohui.boss_theme/boss_theme.ogg
 }
 ```
 
-- `type` 預留 `character`（本版本不實作角色執行階段）。
+對白語音仍是 `type=audio`，可另加可選管理欄位 `character`（`user:mohui.luoxue` 或官方人物 id，如 `player`）。沒有該欄位的舊音訊繼續合法。`character` 不改變 `say.voice` 播放協議，也不導致未引用音訊被打包。
+
+自訂角色 `content.json` 還可選：`title`（對話短稱號）、`scale`（體型 50–130，預設 100，腳底對齊）、`art_facing`（原圖朝向 `left` 預設 / `right`）。缺省與舊包按 100 / 朝左處理。
+
+- `type`：`audio` / `character`。
 - `audio_kind`：`music` / `sound` / `env`。
+- `character`（僅音訊、可選）：使用者角色引用或官方人物 id；省略表示旁白/系統/未關聯。
 - 內容 ID：`[a-z][a-z0-9_]{0,31}.[a-z0-9][a-z0-9_]{0,47}`，禁止 `..`、`/`、`\`、`:`。
 - 缺失、類型不匹配、metadata 損壞、檔案不存在、副檔名不支援、超過 20MB：pack 直接失敗，不得 silently skip。
 - Python 側唯一解析入口：`compiler/lomc/content.py`。C# 側契約實作：`ContentRef.cs` + `ModLoader`。

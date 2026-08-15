@@ -3,6 +3,8 @@ using System.Collections;
 using System.Collections.Generic;
 using BepInEx.Logging;
 using Fungus;
+using HarmonyLib;
+using Mortal.Story;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -23,6 +25,9 @@ namespace MortalModHost
         {
             public string RawId;
             public string Name;
+            public string Title;
+            public float BodyScale = 1f;
+            public string ArtFacing = "left";
             public string Portrait = "normal";
             public string Facing = "right";
             public string Slot;
@@ -45,6 +50,53 @@ namespace MortalModHost
             for (int i = 0; i < keys.Count; i++)
                 DestroyActor(keys[i]);
             Actors.Clear();
+        }
+
+        /// <summary>
+        /// 离开当前剧情舞台：清掉自定义立绘，并立刻隐藏官方台上人物。
+        /// 切章 / goto_scene / 脚本开头调用，避免上一幕角色带到下一章。
+        /// </summary>
+        public static void HideAllOnStage()
+        {
+            ClearAll();
+            try
+            {
+                StoryStageController[] stages = Resources.FindObjectsOfTypeAll<StoryStageController>();
+                if (stages == null)
+                    return;
+                for (int s = 0; s < stages.Length; s++)
+                {
+                    StoryStageController stage = stages[s];
+                    if (stage == null || stage.CharactersOnStage == null)
+                        continue;
+                    List<Character> onStage = new List<Character>(stage.CharactersOnStage);
+                    for (int i = 0; i < onStage.Count; i++)
+                    {
+                        Character ch = onStage[i];
+                        if (ch == null)
+                            continue;
+                        PortraitOptions opt = new PortraitOptions();
+                        opt.character = ch;
+                        opt.fadeDuration = 0f;
+                        opt.useDefaultSettings = false;
+                        opt.waitUntilFinished = false;
+                        try
+                        {
+                            stage.Hide(opt);
+                        }
+                        catch (Exception ex)
+                        {
+                            if (Log != null)
+                                Log.LogWarning("隐藏官方角色失败：" + ex.Message);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                if (Log != null)
+                    Log.LogWarning("HideAllOnStage 失败：" + ex.Message);
+            }
         }
 
         public static bool Show(string raw, string portrait, string position, string facing, float fade, float move)
@@ -144,7 +196,20 @@ namespace MortalModHost
             {
                 SayDialog dialog = SayDialog.GetSayDialog();
                 if (dialog != null)
+                {
                     dialog.SetCharacterName(actor.Name, Color.white);
+                    Traverse titleField = Traverse.Create(dialog).Field("_titleText");
+                    if (titleField.FieldExists())
+                    {
+                        Text titleText = titleField.GetValue<Text>();
+                        if (titleText != null)
+                        {
+                            bool hasTitle = !string.IsNullOrEmpty(actor.Title);
+                            titleText.text = hasTitle ? actor.Title : "";
+                            titleText.gameObject.SetActive(hasTitle);
+                        }
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -183,10 +248,19 @@ namespace MortalModHost
                 return false;
             }
 
+            int percent = content.Scale <= 0 ? 100 : content.Scale;
+            if (percent < 50) percent = 50;
+            if (percent > 130) percent = 130;
+            string artFacing = string.Equals(content.ArtFacing, "right", StringComparison.OrdinalIgnoreCase)
+                ? "right"
+                : "left";
             actor = new Actor
             {
                 RawId = parsed.Raw,
-                Name = string.IsNullOrEmpty(content.Name) ? parsed.LocalId : content.Name
+                Name = string.IsNullOrEmpty(content.Name) ? parsed.LocalId : content.Name,
+                Title = content.Title,
+                BodyScale = percent / 100f,
+                ArtFacing = artFacing
             };
             GameObject holder = new GameObject("lom_char_" + parsed.ContentId, typeof(RectTransform));
             holder.transform.SetParent(stage.PortraitCanvas.transform, false);
@@ -349,6 +423,10 @@ namespace MortalModHost
             float scale = Mathf.Min(boxW / sw, boxH / sh);
             if (scale <= 0f)
                 scale = 1f;
+            float body = actor.BodyScale;
+            if (body < 0.5f) body = 0.5f;
+            if (body > 1.3f) body = 1.3f;
+            scale *= body;
 
             actor.HolderRect.anchorMin = pivot;
             actor.HolderRect.anchorMax = pivot;
@@ -377,7 +455,10 @@ namespace MortalModHost
             if (actor == null || actor.HolderRect == null)
                 return;
             actor.Facing = string.Equals(facing, "left", StringComparison.OrdinalIgnoreCase) ? "left" : "right";
-            float sx = actor.Facing == "left" ? -1f : 1f;
+            // 原版立绘默认朝左。原图朝左时，节点 facing=left 不翻、right 才翻。
+            bool wantLeft = actor.Facing == "left";
+            bool artLeft = !string.Equals(actor.ArtFacing, "right", StringComparison.OrdinalIgnoreCase);
+            float sx = wantLeft == artLeft ? 1f : -1f;
             Vector3 scale = actor.HolderRect.localScale;
             scale.x = sx * Mathf.Abs(scale.x < 0.001f ? 1f : scale.x);
             actor.HolderRect.localScale = scale;

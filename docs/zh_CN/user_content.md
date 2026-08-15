@@ -84,6 +84,8 @@ user:mohui.luoxue
 
 剧情里的角色 ID 是 `user:mohui.luoxue`（与音频一样：`user:<命名空间>.<名称>`）。`normal` 必填；其它表情 id 只能是字母开头的 `happy` / `angry` / `sad` 这类英文标识。
 
+可选字段 `title` 是对话上方的短称号（原版对白名牌那种）。可选字段 `scale` 是体型百分比（50–130，默认 100，脚底对齐站位）；大约 80 接近原版小师妹。可选字段 `art_facing` 是立绘原图朝向（`left` 默认 / `right`）；原版立绘朝左，节点 `facing` 再在这张原图上翻。可选块 `intro` 是介绍卡资料（称号/姓名/正文/同目录图片），在角色页「介绍卡」里编辑。`intro` 步骤选「使用自定义角色介绍卡」时只引用角色，不把正文再抄进节点。
+
 ## 导出后还依赖本机内容库吗？
 
 不依赖。导出只复制**当前剧情真正引用**的用户音频进 `.lommod`：
@@ -106,7 +108,7 @@ assets/user/character/mohui.luoxue/happy.png
 
 ## 删除资源有什么限制
 
-用户内容库里可以删。如果当前项目的某个音乐/音效步骤还在用这条内容，删除会被阻止，并指出是哪一章哪一步。
+用户内容库里可以删。如果当前项目的某个音乐/音效步骤，或某句对白的 `say.voice` 还在用这条内容，删除会被阻止，并指出是哪一章哪一步。
 
 ## 对白语音
 
@@ -118,7 +120,29 @@ assets/user/character/mohui.luoxue/happy.png
 
 没有 `voice` 的对白与以前完全一样。有则进入这句时停掉上一句语音并播放，玩家点下一句或剧情结束/中断时停止。普通音效节点不会打断对白语音。
 
-在编辑器对白步骤里选「对白语音」，或点「导入…」；「清除」去掉绑定。
+语音仍是独立的 `audio` 资源，不写进角色的 `content.json`。音频 metadata 可有可选字段 `character`，只表示编辑器里的管理归属：
+
+```json
+{
+  "schema": 1,
+  "id": "mohui.line_01",
+  "type": "audio",
+  "name": "师兄早",
+  "audio_kind": "sound",
+  "files": { "main": "line_01.wav" },
+  "character": "user:mohui.luoxue"
+}
+```
+
+- 自定义角色详情分三个页签：基础信息、立绘、语音。
+- 在「语音」页导入会自动关联当前角色；也可试听、重命名、解除关联、删除。
+- 旁白 / 系统语音可以不写 `character`。旧音频没有这个字段也继续可用。
+- 也可以把用户语音关联到官方人物 id（如 `player`），不会为此生成用户角色对象。
+- 对白步骤的语音选择器：人物对白只能选已绑定到当前说话人的语音；旁白只能选未关联角色的语音。未绑定的人物语音不能选。
+- 删除语音仍走原来的引用检查：若某句 `say.voice` 还在用，删除会被阻止。
+- 打包只收集剧情真正引用的音频。角色下挂了很多未使用语音，也不会打进 `.lommod`。
+
+在编辑器对白步骤里选「对白语音」，或点「导入…」（若当前有说话人，会自动归属到该角色）；「清除」去掉绑定。
 
 ## 运行时行为
 
@@ -129,7 +153,7 @@ assets/user/character/mohui.luoxue/happy.png
 - 自定义 fadeout 是输出音量渐弱（随后仍会按节点等待）。
 - 切到自定义音乐时会先停官方背景乐；官方 `StopMusic` 本来就会把环境音一起清掉。
 - 回标题、进自由/死亡/结局时自定义音频（含对白语音）会立刻停；官方再播一首 BGM 时会先停自定义 BGM，避免两轨叠在一起。
-- 自定义角色不注册进原版 Addressables。`show` / `say` / `hide` / `move` / `face` / `focus` 在编译时改走 `mod_char_*`，由 `CustomCharacterRuntime` 在官方舞台画布上自建 Image。
+- 自定义角色不注册进原版 Addressables。`show` / `say` / `hide` / `move` / `face` / `focus` 在编译时改走 `mod_char_*`，由 `CustomCharacterRuntime` 在官方舞台画布上自建 Image。体型按 `scale` 从脚底缩放；朝向按 `art_facing`（默认朝左）再叠节点 `facing`。
 - 官方角色路径完全不变。`offset` / `shock` / `dim` / `rotate` / `affinity` 第一版还不支持自定义角色。
 - 切场景、换脚本时会销毁自定义立绘 GameObject 与 Sprite，避免残留。
 - 可用 `samples/audio_test/` 验收音频；`samples/character_test/` 验收自定义角色（自带两张占位 PNG）。

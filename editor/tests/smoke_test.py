@@ -158,6 +158,7 @@ def main_fn() -> int:
     assert combo_node["character"] == "chicken1", (
         "人物下拉必须保存内部 ID，不能保存“鸡（chicken1）”显示文字"
     )
+    assert character_combo.maxVisibleItems() <= 16, "人物下拉必须限制可见行数，避免盖住整页"
     print(
         f"[1] 主窗口/新手流程 OK（{'兜底数据' if is_fallback else 'editor_data.json'}，"
         f"节点数={len(win.story['nodes'])}，内置帮助与检查可用）"
@@ -211,7 +212,7 @@ def main_fn() -> int:
     print(f"[3b] branch.source game→mod 归一化 OK（cases value={vals}）")
 
     # 表单写回：改 say 文本后摘要应更新
-    say_row = win._node_row("n2")  # 新手模板：n1 登场、n2 对白
+    say_row = win._node_row("say1")  # 新手模板：show1 登场、say1 对白
     win._select_node_index(say_row)
     say_node = win._current_node()
     assert say_node is not None and say_node["type"] == "say"

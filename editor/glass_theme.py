@@ -215,6 +215,7 @@ QComboBox QAbstractItemView {{
     border: 1px solid {GLASS_BORDER};
     outline: none;
     selection-background-color: {ACCENT_FILL};
+    max-height: 336px;
 }}
 QComboBox QLineEdit {{
     background: transparent;

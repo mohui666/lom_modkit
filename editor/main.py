@@ -203,7 +203,7 @@ def new_editor_story(story_id: str = "main", editor_data: dict | None = None) ->
     """
     story = models.new_story(story_id, editor_data)
     story["nodes"][1]["text"] = t("new_story_text")  # nodes[1] 是 say
-    story["nodes"].append(models.new_node("end", models.make_node_id(story), editor_data))
+    story["nodes"].append(models.new_node("end", models.make_node_id(story, "end"), editor_data))
     return story
 
 
@@ -1000,7 +1000,7 @@ class MainWindow(QMainWindow):
     def _show_content_library(self) -> None:
         from content_library_dialog import ContentLibraryDialog
 
-        ContentLibraryDialog(self._stories, self).exec()
+        ContentLibraryDialog(self._stories, self, self.editor_data).exec()
         self._load_form()
 
     def _show_flow_graph(self) -> None:
@@ -1511,14 +1511,14 @@ class MainWindow(QMainWindow):
     # -------------------------------------------------------------- 节点操作
     def _add_node(self, node_type: str) -> None:
         node = models.new_node(
-            node_type, models.make_node_id(self.story), self.editor_data
+            node_type, models.make_node_id(self.story, node_type), self.editor_data
         )
         self._insert_node(node)
 
     def _add_ending_card(self) -> None:
         """新手预设：原版 EndGamePanel 汗青书样式，确认后回标题画面。"""
         node = models.new_node(
-            "goto_scene", models.make_node_id(self.story), self.editor_data
+            "goto_scene", models.make_node_id(self.story, "goto_scene"), self.editor_data
         )
         node.update(
             {
@@ -1638,7 +1638,7 @@ class MainWindow(QMainWindow):
         if node is None:
             return
         clone = copy.deepcopy(node)
-        clone["id"] = models.make_node_id(self.story)
+        clone["id"] = models.make_node_id(self.story, str(clone.get("type") or "n"))
         self._insert_node(clone, f"已复制步骤为 {clone['id']}")
 
     def _on_node_context_menu(self, pos) -> None:

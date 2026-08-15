@@ -412,7 +412,7 @@ def build_main(ed: dict) -> dict:
 
     # 切场前下场：直接挂到数组末尾，不走 add_node（避免线性防线误补 show）
     def _bare_hide(goto: str) -> str:
-        nid = models.make_node_id(st)
+        nid = models.make_node_id(st, "hide")
         st.setdefault("nodes", []).append(
             {
                 "id": nid,

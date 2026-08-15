@@ -86,7 +86,12 @@ def pack_mod(mod_dir, output=None):
             if node.get("type") == "say":
                 key = "MOD_%s_%s_%s" % (mod_id, stem, node["id"])
                 texts[key] = node["text"]
-        lua = compile_story(story, mod_info=manifest, source="story/%s" % fname)
+        lua = compile_story(
+            story,
+            mod_info=manifest,
+            source="story/%s" % fname,
+            content_root=mod_dir,
+        )
         compiled[stem] = lua
 
     entry = manifest["entry"]

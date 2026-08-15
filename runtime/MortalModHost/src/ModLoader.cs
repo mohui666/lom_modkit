@@ -490,17 +490,66 @@ namespace MortalModHost
                 fileBytes[mainFile] = mainBytes;
             }
 
+            string title = GetString(root, "title", required: false);
+            if (string.IsNullOrEmpty(title) && root.ContainsKey("intro")
+                && root["intro"] is Dictionary<string, object>)
+            {
+                object introTitle;
+                if (((Dictionary<string, object>)root["intro"]).TryGetValue("title", out introTitle)
+                    && introTitle != null)
+                    title = Convert.ToString(introTitle);
+            }
+            string artFacing = GetString(root, "art_facing", required: false);
+            if (string.IsNullOrEmpty(artFacing))
+                artFacing = "left";
+            else if (!artFacing.Equals("left", StringComparison.OrdinalIgnoreCase)
+                && !artFacing.Equals("right", StringComparison.OrdinalIgnoreCase))
+                artFacing = "left";
+            else
+                artFacing = artFacing.Equals("right", StringComparison.OrdinalIgnoreCase) ? "right" : "left";
             return new UserContent
             {
                 Id = id,
                 Type = "character",
                 Name = name,
+                Title = title,
+                Scale = GetClampedInt(root, "scale", 100, 50, 130),
+                ArtFacing = artFacing,
                 MainFile = mainFile,
                 PackagePath = expectedDir + "/" + mainFile,
                 Bytes = mainBytes,
                 Portraits = portraits,
                 Files = fileBytes
             };
+        }
+
+        private static int GetClampedInt(
+            Dictionary<string, object> dict,
+            string key,
+            int defaultValue,
+            int lo,
+            int hi)
+        {
+            object value;
+            if (!dict.TryGetValue(key, out value) || value == null)
+                return defaultValue;
+            int number;
+            if (value is double)
+                number = (int)(double)value;
+            else if (value is long)
+                number = (int)(long)value;
+            else if (value is int)
+                number = (int)value;
+            else if (value is string)
+            {
+                if (!int.TryParse((string)value, out number))
+                    return defaultValue;
+            }
+            else
+                return defaultValue;
+            if (number < lo) return lo;
+            if (number > hi) return hi;
+            return number;
         }
 
         private static bool IsImageExt(string ext)

@@ -81,7 +81,7 @@ _ENUMS = {
     "mode": SAY_MODES,
     "facing": FACINGS,
     "death_next": ("Free", "Title"),
-    "intro_source": ("official", "custom"),
+    "intro_source": ("official", "custom", "character"),
 }
 
 # 字段类型标签 -> 中文类型名（用于报错）
@@ -483,6 +483,17 @@ def _check_node_extra(node, ntype, label):
                 raise LomcError(
                     '%s(intro): 使用原版人物资料时必填字段 "character"' % label
                 )
+        elif source == "character":
+            raw = node.get("character")
+            if not isinstance(raw, str) or not raw.strip():
+                raise LomcError(
+                    '%s(intro): 使用自定义角色介绍卡时必填字段 "character"' % label
+                )
+            if not is_user_ref(raw):
+                raise LomcError(
+                    '%s(intro): 自定义角色介绍卡必须是 user: 引用，实际为 %r' % (label, raw)
+                )
+            parse_content_ref(raw, label='%s(intro) 的 character' % label)
         else:
             if not isinstance(node.get("name"), str) or not node["name"].strip():
                 raise LomcError(

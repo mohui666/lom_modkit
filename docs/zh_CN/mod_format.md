@@ -361,7 +361,9 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 16. **mod 剧情放开骰子范围修改**：官方「修改范围」按钮要求二周目且持有成就 30016；mod 剧情中（`CurrentStoryScript` 以 `MOD_` 开头）`get_NewGamePlus` prefix 返 true，且 `CheckRevolution` 原返 true 时直接激活 `_rangeButton`（不在 mod 里解锁官方成就 30016，避免污染官方存档）。官方剧情完全不受影响。
 17. **用户音频**：`LuaManager.PlayMusic/PlaySound/PlayEnvSound` 参数以 `user:` 开头时由插件接管，从**当前演出 Mod 包**的 `UserContents` 解析（`assets/user/audio/<id>/content.json` + 主文件），解码后用 Windows `waveOut` 播放（本游戏主混音是 Wwise，Unity `AudioSource` 经常无声）。官方名字一律放行给原版 Wwise。运行时禁止读取 `%APPDATA%/lom_modkit/repository`。两个 Mod 即使 ID 相同也只解析自身包。支持格式仅 `.ogg` / `.wav`，单条 ≤20MB。自定义 fadeout 是输出音量淡出（随后仍有编译器发射的 `wait`）；切到自定义音乐会先停官方 Wwise 音乐（官方 `StopMusic` 会同时清环境音）。
 18. **对白语音**：注册 `mod_play_voice(ref)` / `mod_stop_voice()`。`mod_play_voice` 先停当前语音再播（不循环，走独立 `_voice` 通道）。`sound` 节点、自定义音效、`StopMusic` 都不碰这条通道。剧情中断、切官方脚本、重载 Mod 时 `StopEverything()` 会停语音。无 `voice` 的旧 Lua 不会调用这两个函数，行为不变。
-19. **游戏内 Mod 菜单多语言**：菜单文案（`src/I18n.cs` 内嵌 zh_CN/zh_TW/ja/ko 四语言目录）跟随游戏当前语言——反射读 LeanLocalization `CurrentLanguage` 并模糊匹配语言名；官方游戏本身没有日语选项，日语目录实际不会触发；检测失败一律回退 zh_CN。详见 `i18n.md`。
+19. **离场清台**：脚本开头、`end` / `goto_scene` / `death` 发射 `mod_hide_all()`，立刻隐藏官方台上人物并清掉自定义立绘。换背景 `scene` 不自动退场。切到下一章（`end.next_script`）时下一章开场也会再清一次，避免上一幕角色带到下一章。
+20. **自定义角色立绘朝向与体型**：原版立绘朝左。自定义角色默认 `art_facing=left`，节点 `facing=left` 不翻、`right` 才水平翻转；原图朝右时把 `art_facing` 标成 `right`。`scale` 是 50–130 的体型百分比（默认 100），从脚底缩放，大约 80 接近小师妹。
+21. **游戏内 Mod 菜单多语言**：菜单文案（`src/I18n.cs` 内嵌 zh_CN/zh_TW/ja/ko 四语言目录）跟随游戏当前语言——反射读 LeanLocalization `CurrentLanguage` 并模糊匹配语言名；官方游戏本身没有日语选项，日语目录实际不会触发；检测失败一律回退 zh_CN。详见 `i18n.md`。
 
 ## 7. AI 工具接口（story_api）
 
@@ -428,8 +430,13 @@ assets/user/audio/mohui.boss_theme/boss_theme.ogg
 }
 ```
 
-- `type` 预留 `character`（本版本不实现角色运行时）。
+对白语音仍是 `type=audio`，可另加可选管理字段 `character`（`user:mohui.luoxue` 或官方人物 id，如 `player`）。没有该字段的旧音频继续合法。`character` 不改变 `say.voice` 播放协议，也不导致未引用音频被打包。
+
+自定义角色 `content.json` 还可选：`title`（对话短称号）、`scale`（体型 50–130，默认 100，脚底对齐）、`art_facing`（原图朝向 `left` 默认 / `right`）。缺省与旧包按 100 / 朝左处理。
+
+- `type`：`audio` / `character`。
 - `audio_kind`：`music` / `sound` / `env`。
+- `character`（仅音频、可选）：用户角色引用或官方人物 id；省略表示旁白/系统/未关联。
 - 内容 ID：`[a-z][a-z0-9_]{0,31}.[a-z0-9][a-z0-9_]{0,47}`，禁止 `..`、`/`、`\`、`:`。
 - 缺失、类型不匹配、metadata 损坏、文件不存在、扩展名不支持、超过 20MB：pack 直接失败，不得 silently skip。
 - Python 侧唯一解析入口：`compiler/lomc/content.py`。C# 侧契约实现：`ContentRef.cs` + `ModLoader`。

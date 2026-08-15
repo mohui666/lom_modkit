@@ -135,7 +135,7 @@ def find_stage_issues(story: dict) -> list[tuple[str, str]]:
 def make_show_node(story: dict, character: str) -> dict:
     """构造自动补的登场节点（中景中位、无表情覆盖，编译器按契约放行）。"""
     return {
-        "id": models.make_node_id(story),
+        "id": models.make_node_id(story, "show"),
         "type": "show",
         "character": character,
         "position": _DEFAULT_POSITION,

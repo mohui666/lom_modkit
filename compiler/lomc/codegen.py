@@ -11,7 +11,13 @@
   其余节点末尾追加 return node_<goto 或顺序下一节点>()。
 """
 
-from .content import is_user_ref
+from .content import (
+    default_repository_root,
+    is_user_ref,
+    package_content_dir,
+    parse_content_ref,
+    resolve_content,
+)
 from .dice_data import get_dice_meta
 from .errors import LomcError
 
@@ -329,7 +335,23 @@ def _emit_mask(node, ctx):
 
 
 def _emit_intro(node, ctx):
-    if node.get("intro_source", "official") == "custom":
+    source = node.get("intro_source", "official")
+    if source == "character":
+        title, name, text, image, scale, x, y = _resolve_bound_intro(node, ctx)
+        return [
+            "\tmod_prepare_character_intro(%s, %s, %s, %s, %s, %s, %s)"
+            % (
+                lua_str(title),
+                lua_str(name),
+                lua_str(text),
+                lua_str(image),
+                lua_num(scale),
+                lua_num(x),
+                lua_num(y),
+            ),
+            '\trunwait(intropanel.Show("__lommod_custom_intro__"))',
+        ]
+    if source == "custom":
         return [
             "\tmod_prepare_character_intro(%s, %s, %s, %s, %s, %s, %s)"
             % (
@@ -344,6 +366,33 @@ def _emit_intro(node, ctx):
             '\trunwait(intropanel.Show("__lommod_custom_intro__"))',
         ]
     return ["\trunwait(intropanel.Show(%s))" % lua_str(node["character"])]
+
+
+def _resolve_bound_intro(node, ctx):
+    raw = node.get("character")
+    ref = parse_content_ref(raw, label='节点 "%s"(intro) 的 character' % node.get("id", "?"))
+    if ref is None:
+        raise LomcError('intro 的 character 必须是 user: 角色引用，实际为 %r' % raw)
+    root = ctx.get("content_root") or default_repository_root()
+    meta, _path = resolve_content(root, "character", ref.content_id)
+    intro = meta.get("intro")
+    if not intro:
+        raise LomcError(
+            "自定义角色 %s 还没有介绍卡。请先在用户内容库的角色「介绍卡」页填写。"
+            % ref.raw
+        )
+    image = ""
+    if intro.get("image"):
+        image = "%s/%s" % (package_content_dir("character", ref.content_id), intro["image"])
+    return (
+        intro.get("title") or "",
+        intro.get("name") or "",
+        intro.get("text") or "",
+        image,
+        intro.get("image_scale", 100),
+        intro.get("image_x", 0),
+        intro.get("image_y", 0),
+    )
 
 
 def _emit_effect(node, ctx):
@@ -812,7 +861,7 @@ def _emit_dice(node, ctx):
 
 
 def _emit_goto_scene(node, ctx):
-    lines = ["\tmod_stop_voice()"]
+    lines = ["\tmod_stop_voice()", "\tmod_hide_all()"]
     # End 不是跳进简化 End 场景：原版真正的“汗青书结局卡”流程是
     # endgamepanel.Open(key) -> 玩家确认 -> 黑幕 -> Title。运行时 patch 在官方
     # EndGamePanel 第一次 yield 前写入 mod 标题/正文/插图，因此完整复用官方版式、
@@ -899,6 +948,7 @@ def _emit_end(node, ctx):
         # 脚本，造成死循环。
         return [
             "\tmod_stop_voice()",
+            "\tmod_hide_all()",
             '\tluamanager.ChangeScene("Free", "", "")',
         ]
     # 有 next_script：链到同包内另一脚本。运行时注册名带 MOD_<modid>_
@@ -908,6 +958,7 @@ def _emit_end(node, ctx):
     )
     return [
         "\tmod_stop_voice()",
+        "\tmod_hide_all()",
         "\tluamanager.SetNextScript(%s)" % lua_str(target),
         "\tluamanager.Init()",
     ]
@@ -926,6 +977,7 @@ def _emit_death(node, ctx):
     title = node.get("title") or "勝敗乃兵家常事"
     return [
         "\tmod_stop_voice()",
+        "\tmod_hide_all()",
         '\trunblock(flowcharts.view, "out")',
         '\tgetvar(flowcharts.view, "ViewName").value = "black"',
         '\trunblock(flowcharts.view, "view")',
@@ -997,7 +1049,7 @@ _EMITTERS = {
 _NO_FLOW_TYPES = ("end", "choice", "branch", "dice", "goto_scene", "death")
 
 
-def story_to_lua(story, mod_info=None, source=None):
+def story_to_lua(story, mod_info=None, source=None, content_root=None):
     """把已校验的 story dict 编译为 Lua 源码字符串。
 
     mod_info：可选的 manifest dict（pack 时传入），用于文件头注释与
@@ -1008,6 +1060,7 @@ def story_to_lua(story, mod_info=None, source=None):
         "mod_id": mod_info.get("id") if mod_info else None,
         "script_id": story["id"],
         "mood": bool(story.get("mood", False)),
+        "content_root": content_root or default_repository_root(),
     }
     nodes = story["nodes"]
 
@@ -1034,6 +1087,8 @@ def story_to_lua(story, mod_info=None, source=None):
     # mood 字段，默认 false）；运行时插件注册 mod_set_mood 全局并硬控 ShowMood，
     # 与 mod_hide_mood 双保险防官方情绪面板干扰剧情演出。
     lines.append("mod_set_mood(%s)" % ("true" if ctx["mood"] else "false"))
+    # 每章开场清台上人物，避免上一幕（含 end.next_script 切章）把立绘带过来。
+    lines.append("mod_hide_all()")
     lines.append("")
 
     # 前向声明全部节点函数：Lua 的 local function 无法引用后定义的 local，

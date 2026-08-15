@@ -25,6 +25,7 @@ from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen, QPixmap, 
 from PySide6.QtWidgets import QWidget
 
 from asset_store import resolve_image_asset
+import content_registry
 import models
 import story_graph
 
@@ -657,7 +658,74 @@ class StagePreview(QWidget):
         managed = resolve_image_asset(image_path)
         return self._load_pixmap(str(managed)) if managed is not None else QPixmap()
 
+    def _character_title(self, char_id: str) -> str:
+        if not isinstance(char_id, str) or not char_id.startswith("user:"):
+            return ""
+        try:
+            rec, _main = content_registry.resolve(char_id, expected_type="character")
+        except Exception:
+            return ""
+        if rec.title:
+            return rec.title
+        if rec.intro and rec.intro.get("title"):
+            return str(rec.intro["title"])
+        return ""
+
+    def _bound_intro_texts(self, char_id: str) -> tuple[str, str, str]:
+        try:
+            rec, _main = content_registry.resolve(char_id, expected_type="character")
+        except Exception:
+            return "", char_id or "自定义人物", "还没有介绍卡。"
+        intro = rec.intro or {}
+        return (
+            str(intro.get("title") or rec.title or ""),
+            str(intro.get("name") or rec.name or char_id),
+            str(intro.get("text") or "还没有介绍卡。请先在角色「介绍卡」页填写。"),
+        )
+
+    def _load_bound_intro_image(self, char_id: str) -> QPixmap:
+        try:
+            rec, _main = content_registry.resolve(char_id, expected_type="character")
+        except Exception:
+            return QPixmap()
+        fname = (rec.intro or {}).get("image")
+        if not fname:
+            return QPixmap()
+        return self._load_pixmap(str(rec.folder / fname))
+
+    def _character_look(self, char_id: str) -> tuple[int, str]:
+        """自定义角色的体型百分比与原图朝向。官方角色按原版立绘朝左、100%。"""
+        if isinstance(char_id, str) and char_id.startswith("user:"):
+            try:
+                rec, _main = content_registry.resolve(
+                    char_id, expected_type="character"
+                )
+            except Exception:
+                return 100, "left"
+            scale = int(rec.scale or 100)
+            if scale < 50:
+                scale = 50
+            if scale > 130:
+                scale = 130
+            facing = rec.art_facing if rec.art_facing in ("left", "right") else "left"
+            return scale, facing
+        return 100, "left"
+
     def _portrait_path(self, char_id: str, portrait: str) -> str | None:
+        if isinstance(char_id, str) and char_id.startswith("user:"):
+            try:
+                rec, _main = content_registry.resolve(
+                    char_id, expected_type="character"
+                )
+            except Exception:
+                rec = None
+            if rec is not None:
+                portraits = rec.portraits or {}
+                fname = portraits.get(portrait) or portraits.get("normal") or rec.main_file
+                if fname:
+                    path = rec.folder / fname
+                    if path.is_file():
+                        return str(path)
         c = self._pmap.get("characters", {}).get(char_id, {})
         return (c.get("portraits") or {}).get(portrait)
 
@@ -918,11 +986,11 @@ class StagePreview(QWidget):
         image_path = str(node.get("image") or "").strip() if custom else ""
         if custom:
             avatar_pix = self._load_story_image(image_path) if image_path else QPixmap()
+        elif node.get("intro_source") == "character":
+            avatar_pix = self._load_bound_intro_image(str(node.get("character") or ""))
         else:
-            character = str(node.get("character") or "")
-            portraits = models.character_portraits(self._editor_data, character)
-            portrait = "normal" if "normal" in portraits else (portraits[0] if portraits else "")
-            avatar_pix = self._load_pixmap(self._portrait_path(character, portrait))
+            # 官方介绍卡预览不使用游戏原图，避免编辑器展示/误打官方头像。
+            avatar_pix = QPixmap()
         if not avatar_pix.isNull():
             scaled = avatar_pix.scaled(
                 avatar.size(),
@@ -938,7 +1006,12 @@ class StagePreview(QWidget):
             avatar_font = QFont(self.font())
             avatar_font.setPointSizeF(max(10.0, rect.height() * 0.027))
             p.setFont(avatar_font)
-            avatar_text = "自定义人物\n未选择人物图片" if custom else "游戏内显示\n原版关系头像"
+            if custom:
+                avatar_text = "自定义人物\n未选择人物图片"
+            elif node.get("intro_source") == "character":
+                avatar_text = "自定义角色\n未设置介绍图"
+            else:
+                avatar_text = "游戏内显示\n原版关系头像"
             p.drawText(
                 QRectF(avatar),
                 Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap,
@@ -955,10 +1028,12 @@ class StagePreview(QWidget):
             title = str(node.get("title") or "")
             name = str(node.get("name") or "自定义人物姓名")
             intro = str(node.get("text") or "在这里填写人物介绍。")
+        elif node.get("intro_source") == "character":
+            title, name, intro = self._bound_intro_texts(str(node.get("character") or ""))
         else:
             name = models.character_name(self._editor_data, str(node.get("character") or ""))
             title = "原版人物资料"
-            intro = "游戏内直接读取原版称号、姓名、介绍与头像。"
+            intro = "游戏内直接读取原版称号、姓名、介绍与头像。编辑器预览不显示游戏原图。"
         # 官方层级：金色小称号、红色大姓名、浅色正文。
         p.setPen(QColor(213, 184, 122))
         title_font = QFont(self.font())
@@ -1090,18 +1165,22 @@ class StagePreview(QWidget):
             cx = rect.x() + floor(rect.width() * frac)
             facing = info.get("facing", "right")
             portrait = info.get("portrait", "normal")
+            body_scale, art_facing = self._character_look(cid)
+            draw_h = max(8, floor(h * body_scale / 100.0))
             pix = self._load_pixmap(self._portrait_path(cid, portrait))
             if not pix.isNull():
                 scaled = pix.scaledToHeight(
-                    h, Qt.TransformationMode.SmoothTransformation
+                    draw_h, Qt.TransformationMode.SmoothTransformation
                 )
-                if facing == "left":
+                want_left = facing == "left"
+                art_left = art_facing != "right"
+                if want_left != art_left:
                     scaled = scaled.transformed(QTransform().scale(-1, 1))
                 p.drawPixmap(
                     cx - scaled.width() // 2, baseline - scaled.height(), scaled
                 )
             else:
-                self._paint_actor_placeholder(p, cx, baseline, h, cid, portrait)
+                self._paint_actor_placeholder(p, cx, baseline, draw_h, cid, portrait)
         if unknown:
             # 未识别站位：角落小字标注原值
             p.setPen(QColor(255, 200, 120))
@@ -1177,20 +1256,25 @@ class StagePreview(QWidget):
             return
 
         cid = dialog.get("character") or ""
+        speaker_title = ""
         if mode == "narrative":
             speaker = "旁白"
         else:
             speaker = models.character_name(self._editor_data, cid) or cid or "？？"
+            speaker_title = self._character_title(cid)
             if mode == "think":
                 speaker += "（内心）"
 
         pad = max(14, floor(rect.height() * 0.028))
         inner_w = max(1, rect.width() - pad * 2)
+        title_h = (
+            QFontMetrics(text_font).height() + 2 if speaker_title else 0
+        )
         name_h = QFontMetrics(name_font).height() + 4
         body = QFontMetrics(text_font).boundingRect(
             QRect(0, 0, inner_w, 10000), int(wrap), text
         )
-        needed = name_h + body.height() + pad * 2 + 6
+        needed = title_h + name_h + body.height() + pad * 2 + 6
         bar_h = min(
             max(needed, floor(rect.height() * 0.22)),
             floor(rect.height() * 0.48),
@@ -1199,10 +1283,20 @@ class StagePreview(QWidget):
         p.fillRect(bar, DIALOG_BG)
         inner = bar.adjusted(pad, pad, -pad, -pad)
 
+        y = inner.y()
+        if speaker_title:
+            p.setFont(text_font)
+            p.setPen(QColor(213, 184, 122))
+            p.drawText(
+                QRect(inner.x(), y, inner.width(), title_h),
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                speaker_title,
+            )
+            y += title_h
         p.setFont(name_font)
         p.setPen(QColor(255, 214, 130))
         p.drawText(
-            QRect(inner.x(), inner.y(), inner.width(), name_h),
+            QRect(inner.x(), y, inner.width(), name_h),
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
             speaker,
         )
@@ -1211,7 +1305,7 @@ class StagePreview(QWidget):
         p.drawText(
             QRectF(
                 inner.x(),
-                inner.y() + name_h,
+                y + name_h,
                 inner.width(),
                 inner.height() - name_h,
             ),

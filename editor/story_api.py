@@ -173,7 +173,7 @@ def _insert_after(story: dict, node: dict, after: str | None) -> None:
 
 def _make_node(story: dict, node_type: str, fields: dict, after: str | None) -> dict:
     """写操作共用：按契约默认值造节点、覆盖 fields、插到指定位置。"""
-    node_id = models.make_node_id(story)
+    node_id = models.make_node_id(story, node_type)
     node = models.new_node(node_type, node_id, _get_ed())
     node.update(fields)
     _normalize_branch(node)

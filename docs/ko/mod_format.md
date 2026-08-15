@@ -427,8 +427,13 @@ assets/user/audio/mohui.boss_theme/boss_theme.ogg
 }
 ```
 
-- `type`은 `character`를 예약(이 버전은 캐릭터 런타임을 구현하지 않음).
+대사 음성도 `type=audio`입니다. 선택적 관리 필드 `character`(`user:mohui.luoxue` 또는 공식 인물 id, 예: `player`)를 추가할 수 있습니다. 이 필드가 없는 기존 오디오도 그대로 유효합니다. `character`는 `say.voice` 재생 규약을 바꾸지 않으며, 미참조 오디오를 패키지에 넣지 않습니다.
+
+커스텀 캐릭터 `content.json`에는 선택적으로 `title`(대사 짧은 칭호), `scale`(체형 50–130, 기본 100, 발끝 기준), `art_facing`(원본 그림 방향 `left` 기본 / `right`)을 쓸 수 있습니다. 생략과 구패키지는 100 / 왼쪽입니다.
+
+- `type`: `audio` / `character`.
 - `audio_kind`: `music` / `sound` / `env`.
+- `character`(오디오만, 선택): 사용자 캐릭터 참조 또는 공식 인물 id. 생략하면 나레이션/시스템/미연결.
 - 콘텐츠 ID: `[a-z][a-z0-9_]{0,31}.[a-z0-9][a-z0-9_]{0,47}`, `..`, `/`, `\`, `:` 금지.
 - 누락, 타입 불일치, metadata 손상, 파일 없음, 확장자 미지원, 20MB 초과: pack이 바로 실패하며 silently skip하지 않습니다.
 - Python 측 유일 해석 진입구: `compiler/lomc/content.py`. C# 측 규약 구현: `ContentRef.cs` + `ModLoader`.

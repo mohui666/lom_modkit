@@ -218,7 +218,8 @@ ENUM_SETS_SRC: dict[str, list[tuple[str, str]]] = {
     "death_next": [("Title", "标题画面")],
     "intro_source": [
         ("official", "使用原版人物资料"),
-        ("custom", "自定义人物资料"),
+        ("character", "使用自定义角色介绍卡"),
+        ("custom", "本步骤手写资料"),
     ],
     "panel": [
         ("martial", "武学面板"),
@@ -248,7 +249,11 @@ FACING_CN = [("left", "朝左"), ("right", "朝右")]
 # 镜头滤镜常见预设（契约 §3.1 示例）
 CAMERA_PRESETS = ["stage-memory", "stage-dream", "stage-fire", "stage-blurdim"]
 
-_ENUM_KEY_OVERRIDE = {("time_op", "set"): "enum.set_time"}
+_ENUM_KEY_OVERRIDE = {
+    ("time_op", "set"): "enum.set_time",
+    ("intro_source", "character"): "enum.intro_character",
+    ("intro_source", "custom"): "enum.intro_custom",
+}
 
 
 def refresh_labels() -> None:
@@ -1043,9 +1048,11 @@ def new_story(story_id: str = "main", editor_data: dict | None = None) -> dict:
     动作人物必须先登场再做动作，否则游戏会因“角色不存在”崩掉剧情协程
     （黑屏），所以起始结构固定为 show → say。
     """
-    entrance = new_node("show", "n1", editor_data)
+    draft: dict = {"nodes": []}
+    entrance = new_node("show", make_node_id(draft, "show"), editor_data)
     entrance["position"] = "M"
-    first = new_node("say", "n2", editor_data)
+    draft["nodes"].append(entrance)
+    first = new_node("say", make_node_id(draft, "say"), editor_data)
     return {
         "id": story_id,
         "title": t("new_story_title", default="新剧情"),
@@ -1156,13 +1163,19 @@ def reorder_node(story: dict, from_index: int, to_index: int) -> int:
     return dest
 
 
-def make_node_id(story: dict, prefix: str = "n") -> str:
-    """生成 story 内唯一的节点 id：n1、n2……"""
+def make_node_id(story: dict, node_type: str | None = None, prefix: str | None = None) -> str:
+    """生成 story 内唯一节点 id：类型 + 该类型次序，例如 say1、show2、choice1。
+
+    旧故事里的 n1/n2 保持不动。prefix 仍可用，便于试玩前导等特殊编号。
+    """
+    stem = (prefix or node_type or "n").strip()
+    if not ID_PATTERN.fullmatch(stem):
+        stem = "n"
     used = {n.get("id") for n in story.get("nodes", [])}
     i = 1
-    while f"{prefix}{i}" in used:
+    while f"{stem}{i}" in used:
         i += 1
-    return f"{prefix}{i}"
+    return f"{stem}{i}"
 
 
 def make_story_id(stories: dict) -> str:

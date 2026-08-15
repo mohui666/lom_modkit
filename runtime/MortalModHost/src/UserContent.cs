@@ -11,6 +11,9 @@ namespace MortalModHost
         public string Id;
         public string Type;
         public string Name;
+        public string Title;
+        public int Scale = 100;
+        public string ArtFacing;
         public string AudioKind;
         public string MainFile;
         public string PackagePath;

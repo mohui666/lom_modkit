@@ -307,7 +307,7 @@ namespace MortalModHost
             try
             {
                 string contentJson =
-                    "{\"schema\":1,\"id\":\"mohui.boss_theme\",\"type\":\"audio\",\"name\":\"决战曲\",\"audio_kind\":\"music\",\"files\":{\"main\":\"boss_theme.ogg\"}}";
+                    "{\"schema\":1,\"id\":\"mohui.boss_theme\",\"type\":\"audio\",\"name\":\"决战曲\",\"audio_kind\":\"music\",\"files\":{\"main\":\"boss_theme.ogg\"},\"character\":\"user:mohui.luoxue\"}";
                 string contentJsonB =
                     "{\"schema\":1,\"id\":\"mohui.boss_theme\",\"type\":\"audio\",\"name\":\"另一首\",\"audio_kind\":\"music\",\"files\":{\"main\":\"boss_theme.ogg\"}}";
                 WriteZip(Path.Combine(modsDir, "mod_a.lommod"),
@@ -352,7 +352,7 @@ namespace MortalModHost
             try
             {
                 string charJson =
-                    "{\"schema\":1,\"id\":\"mohui.luoxue\",\"type\":\"character\",\"name\":\"洛雪\",\"files\":{\"main\":\"normal.png\"},\"portraits\":{\"normal\":\"normal.png\",\"happy\":\"happy.png\"}}";
+                    "{\"schema\":1,\"id\":\"mohui.luoxue\",\"type\":\"character\",\"name\":\"洛雪\",\"scale\":80,\"art_facing\":\"right\",\"files\":{\"main\":\"normal.png\"},\"portraits\":{\"normal\":\"normal.png\",\"happy\":\"happy.png\"}}";
                 byte[] png = new byte[] {
                     0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A,0x00,0x00,0x00,0x0D,0x49,0x48,0x44,0x52,
                     0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01,0x08,0x02,0x00,0x00,0x00,0x90,0x77,0x53,
@@ -375,8 +375,10 @@ namespace MortalModHost
                     && ch.Portraits != null
                     && ch.Portraits.ContainsKey("happy")
                     && ch.Files != null
-                    && ch.Files.ContainsKey("happy.png"),
-                    "自定义角色应解析 portraits 与立绘字节");
+                    && ch.Files.ContainsKey("happy.png")
+                    && ch.Scale == 80
+                    && ch.ArtFacing == "right",
+                    "自定义角色应解析 portraits、立绘字节、体型与原图朝向");
             }
             finally
             {

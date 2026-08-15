@@ -92,6 +92,11 @@ class TestCompileValid(unittest.TestCase):
             lines.index("mod_set_mood(false)"),
             lines.index("modflags = modflags or {}") + 1,
         )
+        self.assertIn("mod_hide_all()", lines)
+        self.assertEqual(
+            lines.index("mod_hide_all()"),
+            lines.index("mod_set_mood(false)") + 1,
+        )
 
     def test_implicit_and_explicit_goto(self):
         lua = compile_story(
@@ -718,6 +723,8 @@ class TestNodeCodegen(unittest.TestCase):
             linear_story({"id": "n1", "type": "focus", "character": "p"})
         )
         self.assertIn('\tluamanager.ChangeScene("Free", "", "")', lua)
+        self.assertIn("\tmod_hide_all()", lua)
+        self.assertLess(lua.index("\tmod_hide_all()"), lua.index("ChangeScene"))
         self.assertNotIn("luamanager.Init()", lua)
         self.assertNotIn("SetNextScript", lua)
 
@@ -728,6 +735,8 @@ class TestNodeCodegen(unittest.TestCase):
         )
         lua = compile_story(story, mod_info=MANIFEST)
         self.assertIn('\tluamanager.SetNextScript("MOD_testmod_part2")', lua)
+        self.assertIn("\tmod_hide_all()", lua)
+        self.assertLess(lua.index("\tmod_hide_all()"), lua.index("SetNextScript"))
         self.assertIn("\tluamanager.Init()", lua)
         self.assertNotIn("ChangeScene", lua)
         # 裸编译（无 mod 信息）时退化为原始脚本 id
@@ -2413,6 +2422,8 @@ class TestNewNodeCodegen(unittest.TestCase):
             {"id": "n1", "type": "goto_scene", "scene": "Combat", "key": "5102_01"}
         )
         self.assertIn('\tluamanager.ChangeScene("Combat", "5102_01", "Story")', lua)
+        self.assertIn("\tmod_hide_all()", lua)
+        self.assertLess(lua.index("mod_hide_all()"), lua.index("ChangeScene"))
         # 默认 key="" / next="Story"
         lua2 = self.lua_of({"id": "n1", "type": "goto_scene", "scene": "Title"})
         self.assertIn('\tluamanager.ChangeScene("Title", "", "Story")', lua2)
@@ -3394,6 +3405,57 @@ class TestUserContent(unittest.TestCase):
         self.assertIn("stage.show", lua)
         self.assertNotIn("mod_char_show", lua)
 
+    def test_intro_bound_character_profile(self):
+        from lomc.content import package_content_dir, write_content_metadata
+
+        tmp = tempfile.TemporaryDirectory()
+        try:
+            folder = os.path.join(
+                tmp.name,
+                package_content_dir("character", "mohui.luoxue").replace("/", os.sep),
+            )
+            os.makedirs(folder, exist_ok=True)
+            with open(os.path.join(folder, "normal.png"), "wb") as handle:
+                handle.write(TINY_PNG)
+            with open(os.path.join(folder, "intro.png"), "wb") as handle:
+                handle.write(TINY_PNG)
+            write_content_metadata(
+                os.path.join(folder, "content.json"),
+                {
+                    "schema": 1,
+                    "id": "mohui.luoxue",
+                    "type": "character",
+                    "name": "洛雪",
+                    "title": "江湖新秀",
+                    "files": {"main": "normal.png"},
+                    "portraits": {"normal": "normal.png"},
+                    "intro": {
+                        "title": "江湖新秀",
+                        "name": "洛雪",
+                        "text": "来历不明。",
+                        "image": "intro.png",
+                    },
+                },
+            )
+            lua = compile_story(
+                linear_story(
+                    {
+                        "id": "n1",
+                        "type": "intro",
+                        "intro_source": "character",
+                        "character": "user:mohui.luoxue",
+                    }
+                ),
+                content_root=tmp.name,
+            )
+            self.assertIn(
+                'mod_prepare_character_intro("江湖新秀", "洛雪", "来历不明。", '
+                '"assets/user/character/mohui.luoxue/intro.png", 100, 0, 0)',
+                lua,
+            )
+        finally:
+            tmp.cleanup()
+
     def test_user_character_show_say_hide_move_face_focus(self):
         lua = compile_story(
             linear_story(
@@ -3615,6 +3677,215 @@ class TestPackUserAudio(unittest.TestCase):
         with self.assertRaises(LomcError) as cm:
             pack_mod(self.mod_dir)
         self.assertIn("找不到用户内容", str(cm.exception))
+
+    def test_pack_unused_character_voice_not_collected(self):
+        from lomc.content import write_content_metadata, package_content_dir
+
+        _write_user_character(self.mod_dir, "mohui.luoxue", name="洛雪")
+        used = _write_user_audio(
+            self.mod_dir, "mohui.line_used", "sound", "used.wav", b"RIFFu"
+        )
+        unused_folder = os.path.join(
+            self.mod_dir,
+            package_content_dir("audio", "mohui.line_unused").replace("/", os.sep),
+        )
+        os.makedirs(unused_folder, exist_ok=True)
+        with open(os.path.join(unused_folder, "unused.wav"), "wb") as f:
+            f.write(b"RIFFx")
+        write_content_metadata(
+            os.path.join(unused_folder, "content.json"),
+            {
+                "schema": 1,
+                "id": "mohui.line_unused",
+                "type": "audio",
+                "name": "未使用语音",
+                "audio_kind": "sound",
+                "files": {"main": "unused.wav"},
+                "character": "user:mohui.luoxue",
+            },
+        )
+        write_content_metadata(
+            os.path.join(used, "content.json"),
+            {
+                "schema": 1,
+                "id": "mohui.line_used",
+                "type": "audio",
+                "name": "用到的语音",
+                "audio_kind": "sound",
+                "files": {"main": "used.wav"},
+                "character": "user:mohui.luoxue",
+            },
+        )
+        story = make_story(
+            [
+                {
+                    "id": "n1",
+                    "type": "show",
+                    "character": "user:mohui.luoxue",
+                    "position": "M",
+                },
+                {
+                    "id": "n2",
+                    "type": "say",
+                    "character": "user:mohui.luoxue",
+                    "text": "用到的",
+                    "voice": "user:mohui.line_used",
+                },
+                {"id": "n3", "type": "end"},
+            ]
+        )
+        with open(
+            os.path.join(self.mod_dir, "story", "main.json"), "w", encoding="utf-8"
+        ) as f:
+            json.dump(story, f, ensure_ascii=False, indent=2)
+        out = pack_mod(self.mod_dir)
+        with zipfile.ZipFile(out) as zf:
+            names = zf.namelist()
+            self.assertIn("assets/user/character/mohui.luoxue/content.json", names)
+            self.assertIn("assets/user/audio/mohui.line_used/content.json", names)
+            self.assertNotIn("assets/user/audio/mohui.line_unused/content.json", names)
+            meta = json.loads(zf.read("assets/user/audio/mohui.line_used/content.json"))
+            self.assertEqual(meta.get("character"), "user:mohui.luoxue")
+
+
+class TestAudioCharacterMetadata(unittest.TestCase):
+    def test_old_audio_without_character_still_loads(self):
+        from lomc.content import normalize_content_metadata, write_content_metadata
+
+        meta = normalize_content_metadata(
+            {
+                "schema": 1,
+                "id": "mohui.line_01",
+                "type": "audio",
+                "name": "旧语音",
+                "audio_kind": "sound",
+                "files": {"main": "line.wav"},
+            }
+        )
+        self.assertIsNone(meta.get("character"))
+        tmp = tempfile.TemporaryDirectory()
+        try:
+            path = os.path.join(tmp.name, "content.json")
+            written = write_content_metadata(path, meta)
+            self.assertIsNone(written.get("character"))
+            with open(path, encoding="utf-8") as handle:
+                raw = json.loads(handle.read())
+            self.assertNotIn("character", raw)
+        finally:
+            tmp.cleanup()
+
+    def test_character_field_user_and_official(self):
+        from lomc.content import normalize_audio_character, normalize_content_metadata
+        from lomc.errors import LomcError
+
+        self.assertEqual(
+            normalize_audio_character("user:mohui.luoxue"), "user:mohui.luoxue"
+        )
+        self.assertEqual(normalize_audio_character("mohui.luoxue"), "user:mohui.luoxue")
+        self.assertEqual(normalize_audio_character("player"), "player")
+        self.assertEqual(normalize_audio_character("brother4"), "brother4")
+        self.assertIsNone(normalize_audio_character(""))
+        self.assertIsNone(normalize_audio_character(None))
+        with self.assertRaises(LomcError):
+            normalize_audio_character("user:../evil")
+        with self.assertRaises(LomcError):
+            normalize_audio_character("C:\\voice.wav")
+        meta = normalize_content_metadata(
+            {
+                "schema": 1,
+                "id": "mohui.line_01",
+                "type": "audio",
+                "name": "洛雪问候",
+                "audio_kind": "sound",
+                "files": {"main": "line.wav"},
+                "character": "user:mohui.luoxue",
+            }
+        )
+        self.assertEqual(meta["character"], "user:mohui.luoxue")
+
+
+class TestCharacterLookMetadata(unittest.TestCase):
+    def test_old_character_defaults_scale_and_facing(self):
+        from lomc.content import normalize_content_metadata, write_content_metadata
+
+        meta = normalize_content_metadata(
+            {
+                "schema": 1,
+                "id": "mohui.luoxue",
+                "type": "character",
+                "name": "洛雪",
+                "files": {"main": "normal.png"},
+                "portraits": {"normal": "normal.png"},
+            }
+        )
+        self.assertEqual(meta["scale"], 100)
+        self.assertEqual(meta["art_facing"], "left")
+        tmp = tempfile.TemporaryDirectory()
+        try:
+            path = os.path.join(tmp.name, "content.json")
+            written = write_content_metadata(path, meta)
+            self.assertEqual(written["scale"], 100)
+            self.assertEqual(written["art_facing"], "left")
+            with open(path, encoding="utf-8") as handle:
+                raw = json.loads(handle.read())
+            self.assertNotIn("scale", raw)
+            self.assertNotIn("art_facing", raw)
+        finally:
+            tmp.cleanup()
+
+    def test_character_scale_slider_and_art_facing(self):
+        from lomc.content import normalize_content_metadata, write_content_metadata
+        from lomc.errors import LomcError
+
+        meta = normalize_content_metadata(
+            {
+                "schema": 1,
+                "id": "mohui.xiaoshi",
+                "type": "character",
+                "name": "小师妹",
+                "files": {"main": "normal.png"},
+                "portraits": {"normal": "normal.png"},
+                "scale": 80,
+                "art_facing": "right",
+            }
+        )
+        self.assertEqual(meta["scale"], 80)
+        self.assertEqual(meta["art_facing"], "right")
+        clamped = normalize_content_metadata(
+            {
+                "schema": 1,
+                "id": "mohui.xiaoshi",
+                "type": "character",
+                "name": "小师妹",
+                "files": {"main": "normal.png"},
+                "scale": 200,
+            }
+        )
+        self.assertEqual(clamped["scale"], 130)
+        self.assertEqual(clamped["art_facing"], "left")
+        with self.assertRaises(LomcError):
+            normalize_content_metadata(
+                {
+                    "schema": 1,
+                    "id": "mohui.xiaoshi",
+                    "type": "character",
+                    "name": "小师妹",
+                    "files": {"main": "normal.png"},
+                    "art_facing": "up",
+                }
+            )
+        tmp = tempfile.TemporaryDirectory()
+        try:
+            path = os.path.join(tmp.name, "content.json")
+            written = write_content_metadata(path, meta)
+            self.assertEqual(written["scale"], 80)
+            self.assertEqual(written["art_facing"], "right")
+            with open(path, encoding="utf-8") as handle:
+                raw = json.loads(handle.read())
+            self.assertEqual(raw["scale"], 80)
+            self.assertEqual(raw["art_facing"], "right")
+        finally:
+            tmp.cleanup()
 
 
 class TestPackUserCharacter(unittest.TestCase):

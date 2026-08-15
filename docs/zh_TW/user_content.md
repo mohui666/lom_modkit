@@ -90,7 +90,29 @@ assets/user/audio/mohui.battle/battle.ogg
 
 沒有 `voice` 的對白與以前完全一樣。有則進入這句時停掉上一句語音並播放，玩家點下一句或劇情結束/中斷時停止。普通音效節點不會打斷對白語音。
 
-在編輯器對白步驟裡選「對白語音」，或點「匯入…」；「清除」去掉綁定。
+語音仍是獨立的 `audio` 資源，不寫進角色的 `content.json`。音訊 metadata 可有可選欄位 `character`，只表示編輯器裡的管理歸屬：
+
+```json
+{
+  "schema": 1,
+  "id": "mohui.line_01",
+  "type": "audio",
+  "name": "师兄早",
+  "audio_kind": "sound",
+  "files": { "main": "line_01.wav" },
+  "character": "user:mohui.luoxue"
+}
+```
+
+- 自訂角色詳情分三個頁籤：基礎資訊、立繪、語音。
+- 在「語音」頁匯入會自動關聯目前角色；也可試聽、重新命名、解除關聯、刪除。
+- 旁白 / 系統語音可以不寫 `character`。舊音訊沒有這個欄位也繼續可用。
+- 也可以把使用者語音關聯到官方人物 id（如 `player`），不會為此產生使用者角色物件。
+- 對白步驟的語音選擇器：人物對白只能選已綁定到目前說話人的語音；旁白只能選未關聯角色的語音。未綁定的人物語音不能選。
+- 刪除語音仍走原來的引用檢查：若某句 `say.voice` 還在用，刪除會被阻止。
+- 打包只收集劇情真正引用的音訊。角色下掛了很多未使用語音，也不會打進 `.lommod`。
+
+在編輯器對白步驟裡選「對白語音」，或點「匯入…」（若目前有說話人，會自動歸屬到該角色）；「清除」去掉綁定。
 
 ## 執行階段行為
 
@@ -100,5 +122,5 @@ assets/user/audio/mohui.battle/battle.ogg
 - 音量大致跟隨遊戲的主音量 × 音樂/音效滑桿；不是 Wwise RTPC，不能做到完全一致。
 - 自訂 fadeout 是輸出音量漸弱（隨後仍會按節點等待）。
 - 切到自訂音樂時會先停官方背景樂；官方 `StopMusic` 本來就會把環境音一起清掉。
-- 自訂角色走獨立 Runtime（`mod_char_*`），不註冊進原版 Addressables。第一版支援 show / say / hide / move / face / focus。詳見簡中文檔。
+- 自訂角色走獨立 Runtime（`mod_char_*`），不註冊進原版 Addressables。第一版支援 show / say / hide / move / face / focus。體型用 `scale`（50–130，預設 100）從腳底縮放；朝向依 `art_facing`（預設朝左）再疊節點 `facing`。詳見簡中文檔。
 - 可用 `samples/audio_test/` 做驗收：自己匯入 `user:test.bgm` / `user:test.sfx` / `user:test.env`。

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import struct
 import sys
@@ -199,6 +200,33 @@ class ContentRegistryTest(unittest.TestCase):
         self.assertEqual(updated.name, "洛雪改")
         self.assertIn("sad", updated.portrait_ids())
         self.assertIn("happy", updated.portrait_ids())
+        titled = content_registry.update_character("mohui.luoxue", title="江湖新秀")
+        self.assertEqual(titled.title, "江湖新秀")
+        sized = content_registry.update_character(
+            "mohui.luoxue", scale=80, art_facing="right"
+        )
+        self.assertEqual(sized.scale, 80)
+        self.assertEqual(sized.art_facing, "right")
+        self.assertEqual(sized.title, "江湖新秀")
+        intro_img = Path(self.temp.name) / "intro.png"
+        intro_img.write_bytes(png)
+        with_intro = content_registry.update_character_intro(
+            "mohui.luoxue",
+            title="江湖新秀",
+            name="洛雪",
+            text="来历不明。",
+            image=intro_img,
+        )
+        self.assertIsNotNone(with_intro.intro)
+        self.assertEqual(with_intro.intro["name"], "洛雪")
+        self.assertTrue((with_intro.folder / with_intro.intro["image"]).is_file())
+        self.assertEqual(with_intro.title, "江湖新秀")
+        self.assertEqual(with_intro.scale, 80)
+        self.assertEqual(with_intro.art_facing, "right")
+        cleared = content_registry.update_character_intro("mohui.luoxue", clear=True)
+        self.assertIsNone(cleared.intro)
+        # 称号仍保留
+        self.assertEqual(cleared.title, "江湖新秀")
 
         manifest = {
             "format": 1,
@@ -261,6 +289,163 @@ class ContentRegistryTest(unittest.TestCase):
         with self.assertRaises(package_io.PackError) as cm:
             package_io.export_lommod(package, manifest, stories)
         self.assertIn("音效", str(cm.exception))
+
+    def test_audio_character_affiliation_and_compat(self):
+        png = (
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+            b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\xcf\xc0"
+            b"\x00\x00\x00\x03\x00\x01\x00\x05\xfe\xd4\xef\x00\x00\x00\x00IEND\xaeB`\x82"
+        )
+        normal = Path(self.temp.name) / "normal.png"
+        normal.write_bytes(png)
+        content_registry.register_character(
+            {"normal": normal}, "mohui.luoxue", "洛雪"
+        )
+        src = self._write_wav("hello.wav")
+        linked = content_registry.register_audio(
+            src, "mohui.hello", "问候", "sound", character="user:mohui.luoxue"
+        )
+        self.assertEqual(linked.character, "user:mohui.luoxue")
+        narr = content_registry.register_audio(
+            src, "mohui.narrator", "旁白", "sound"
+        )
+        self.assertIsNone(narr.character)
+        official = content_registry.register_audio(
+            src, "mohui.player_hi", "主角", "sound", character="player"
+        )
+        self.assertEqual(official.character, "player")
+        voices = content_registry.list_character_voices("user:mohui.luoxue")
+        self.assertEqual([v.ref for v in voices], ["user:mohui.hello"])
+        mine = content_registry.voices_for_say_picker("user:mohui.luoxue")
+        self.assertEqual([v.ref for v in mine], ["user:mohui.hello"])
+        grouped, others = content_registry.group_voices_for_speaker("user:mohui.luoxue")
+        self.assertEqual([v.ref for v in grouped], ["user:mohui.hello"])
+        self.assertEqual(others, [])
+        narration = content_registry.voices_for_say_picker(None)
+        narr_refs = {v.ref for v in narration}
+        self.assertIn("user:mohui.narrator", narr_refs)
+        self.assertNotIn("user:mohui.hello", narr_refs)
+        self.assertNotIn("user:mohui.player_hi", narr_refs)
+        player = content_registry.voices_for_say_picker("player")
+        self.assertEqual([v.ref for v in player], ["user:mohui.player_hi"])
+        renamed = content_registry.update_audio("mohui.hello", name="问候改")
+        self.assertEqual(renamed.name, "问候改")
+        self.assertEqual(renamed.character, "user:mohui.luoxue")
+        unlinked = content_registry.update_audio("mohui.hello", character=None)
+        self.assertIsNone(unlinked.character)
+        self.assertEqual(content_registry.list_character_voices("user:mohui.luoxue"), [])
+
+    def test_old_voice_metadata_without_character(self):
+        src = self._write_wav("legacy.wav")
+        rec = content_registry.register_audio(src, "mohui.legacy", "旧语音", "sound")
+        raw = json.loads((rec.folder / "content.json").read_text(encoding="utf-8"))
+        self.assertNotIn("character", raw)
+        got = content_registry.get("mohui.legacy")
+        self.assertIsNone(got.character)
+
+    def test_delete_character_unlinks_voices(self):
+        png = (
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+            b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\xcf\xc0"
+            b"\x00\x00\x00\x03\x00\x01\x00\x05\xfe\xd4\xef\x00\x00\x00\x00IEND\xaeB`\x82"
+        )
+        normal = Path(self.temp.name) / "c.png"
+        normal.write_bytes(png)
+        content_registry.register_character({"normal": normal}, "mohui.luoxue", "洛雪")
+        src = self._write_wav("hi.wav")
+        content_registry.register_audio(
+            src, "mohui.hi", "问候", "sound", character="user:mohui.luoxue"
+        )
+        content_registry.remove("mohui.luoxue")
+        leftover = content_registry.get("mohui.hi")
+        self.assertIsNone(leftover.character)
+        raw = json.loads((leftover.folder / "content.json").read_text(encoding="utf-8"))
+        self.assertNotIn("character", raw)
+
+    def test_delete_voice_blocked_by_say_voice(self):
+        src = self._write_wav("used.wav")
+        content_registry.register_audio(src, "mohui.line", "台词", "sound")
+        stories = {
+            "main": {
+                "id": "main",
+                "start": "n1",
+                "nodes": [
+                    {
+                        "id": "n1",
+                        "type": "say",
+                        "mode": "narrative",
+                        "text": "有语音",
+                        "voice": "user:mohui.line",
+                    },
+                    {"id": "n2", "type": "end"},
+                ],
+            }
+        }
+        with self.assertRaises(content_registry.ContentRegistryError) as cm:
+            content_registry.remove("mohui.line", stories=stories)
+        self.assertIn("仍被", str(cm.exception))
+
+    def test_pack_does_not_include_unused_character_voices(self):
+        png = (
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+            b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\xcf\xc0"
+            b"\x00\x00\x00\x03\x00\x01\x00\x05\xfe\xd4\xef\x00\x00\x00\x00IEND\xaeB`\x82"
+        )
+        normal = Path(self.temp.name) / "n.png"
+        normal.write_bytes(png)
+        content_registry.register_character({"normal": normal}, "mohui.luoxue", "洛雪")
+        used = self._write_wav("used.wav")
+        unused = self._write_wav("unused.wav")
+        content_registry.register_audio(
+            used, "mohui.used", "用到", "sound", character="user:mohui.luoxue"
+        )
+        content_registry.register_audio(
+            unused, "mohui.unused", "没用", "sound", character="user:mohui.luoxue"
+        )
+        package = Path(self.temp.name) / "voice_pack.lommod"
+        package_io.export_lommod(
+            package,
+            {
+                "format": 1,
+                "id": "voice_pack",
+                "name": "语音打包",
+                "version": "1.0.0",
+                "author": "tester",
+                "description": "test",
+                "entry": "main",
+            },
+            {
+                "main": {
+                    "id": "main",
+                    "title": "语音",
+                    "start": "n1",
+                    "nodes": [
+                        {
+                            "id": "n1",
+                            "type": "say",
+                            "character": "user:mohui.luoxue",
+                            "text": "用到",
+                            "voice": "user:mohui.used",
+                        },
+                        {"id": "n2", "type": "end"},
+                    ],
+                }
+            },
+        )
+        with zipfile.ZipFile(package) as archive:
+            names = archive.namelist()
+            self.assertIn("assets/user/audio/mohui.used/content.json", names)
+            self.assertFalse(any("mohui.unused" in n for n in names))
+            meta = json.loads(archive.read("assets/user/audio/mohui.used/content.json"))
+            self.assertEqual(meta.get("character"), "user:mohui.luoxue")
+
+
+class AudioPreviewTest(unittest.TestCase):
+    def test_missing_file_raises(self):
+        from audio_preview import AudioPreviewError, play_audio_file
+
+        with self.assertRaises(AudioPreviewError):
+            play_audio_file(Path("C:/definitely-missing-voice.wav"))
 
 
 if __name__ == "__main__":

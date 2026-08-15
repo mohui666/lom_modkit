@@ -25,7 +25,7 @@ def load_json_file(path):
         raise LomcError("%s: 文件不是有效的 UTF-8 编码（%s）" % (path, e))
 
 
-def compile_story(story, mod_info=None, source=None):
+def compile_story(story, mod_info=None, source=None, content_root=None):
     """校验 + 编译单个 story dict，返回 Lua 源码字符串。
 
     非致命问题（如 transition 黑幕隐患）以 "-- lomc 警告：" 注释形式
@@ -33,7 +33,9 @@ def compile_story(story, mod_info=None, source=None):
     """
     warnings = []
     validate_story(story, source or "story.json", warnings=warnings)
-    lua = story_to_lua(story, mod_info=mod_info, source=source)
+    lua = story_to_lua(
+        story, mod_info=mod_info, source=source, content_root=content_root
+    )
     if warnings:
         head = "\n".join("-- lomc 警告：%s" % w.replace("\n", " ") for w in warnings)
         lua = head + "\n" + lua

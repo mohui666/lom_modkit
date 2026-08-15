@@ -40,6 +40,7 @@ a_gui = Analysis(
         "lomc.content",
         "content_registry",
         "content_library_dialog",
+        "audio_preview",
     ],
 )
 

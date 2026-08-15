@@ -12,10 +12,13 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import QTimer, Qt, Signal
-from PySide6.QtGui import QFont, QFontDatabase
+from PySide6.QtGui import QFont, QFontDatabase, QWheelEvent
+from shiboken6 import isValid
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QComboBox,
+    QCompleter,
     QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
@@ -27,6 +30,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,
@@ -40,6 +44,75 @@ import content_registry
 from i18n import t
 import models
 
+COMBO_VISIBLE_ITEMS = 12
+
+
+class _FilterCombo(QComboBox):
+    """可输入筛选的下拉：弹出层只显示匹配项，并限制可见行数。"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._all_items: list[tuple[object, str]] = []
+
+    def remember_items(self) -> None:
+        self._all_items = [(self.itemData(i), self.itemText(i)) for i in range(self.count())]
+
+    def showPopup(self) -> None:  # noqa: N802
+        typed = self.currentText() if self.lineEdit() is not None else ""
+        current = self.currentData()
+        idx = self.findData(current)
+        selected = self.itemText(idx) if idx >= 0 else ""
+        if typed.strip() == selected.strip():
+            typed = ""
+        self._apply_filter(typed)
+        super().showPopup()
+
+    def _apply_filter(self, typed: str) -> None:
+        if not self._all_items:
+            self.remember_items()
+        query = (typed or "").strip().lower()
+        current = self.currentData()
+        if not query:
+            shown = self._all_items
+        else:
+            shown = [
+                (data, text)
+                for data, text in self._all_items
+                if data not in (None, "")
+                and (
+                    query in str(text).lower() or query in str(data or "").lower()
+                )
+            ]
+            if not shown:
+                shown = self._all_items
+        keep = current if any(d == current for d, _t in shown) else None
+        self._rebuild(shown, keep)
+
+    def _rebuild(self, items: list[tuple[object, str]], current) -> None:
+        self.blockSignals(True)
+        self.clear()
+        for data, text in items:
+            self.addItem(text, data)
+        if current is not None:
+            idx = self.findData(current)
+            if idx >= 0:
+                self.setCurrentIndex(idx)
+        self.blockSignals(False)
+
+
+class _GotoCombo(_FilterCombo):
+    """跳转目标：打开时按当前剧情节点刷新清单，点选立刻写回。"""
+
+    def __init__(self, form: NodeForm, allow_empty: bool, parent=None):
+        super().__init__(parent)
+        self._form = form
+        self._allow_empty = allow_empty
+
+    def showPopup(self) -> None:  # noqa: N802
+        if isValid(self._form):
+            self._form.refill_goto_combo(self, self._allow_empty)
+        super().showPopup()
+
 
 class NodeForm(QScrollArea):
     """中栏：单个节点的属性编辑表单。"""
@@ -50,6 +123,8 @@ class NodeForm(QScrollArea):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWidgetResizable(True)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self._node: dict | None = None
         self._editor_data: dict = models.FALLBACK_EDITOR_DATA
         self._node_ids: list[str] = []
@@ -93,6 +168,14 @@ class NodeForm(QScrollArea):
         finally:
             self._loading = False
 
+    def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802
+        """下拉弹出时不要把滚轮抢走，否则长清单既滚不动还把整页表单卷走。"""
+        popup = QApplication.activePopupWidget()
+        if popup is not None:
+            event.ignore()
+            return
+        super().wheelEvent(event)
+
     # ------------------------------------------------------------------ 构建
     def _build_form(self, node: dict) -> QWidget:
         """主参数常驻；高级参数（如跳转）默认折叠。"""
@@ -103,6 +186,9 @@ class NodeForm(QScrollArea):
 
         form = QFormLayout()
         form.setSpacing(10)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         node_type = node.get("type", "")
         schema = models.NODE_SCHEMAS.get(node_type)
 
@@ -197,9 +283,9 @@ class NodeForm(QScrollArea):
         if node_type == "say" and key in ("character", "portrait"):
             return node.get("mode", "character") not in ("narrative", "center")
         if node_type == "intro":
-            custom = node.get("intro_source", "official") == "custom"
+            source = node.get("intro_source", "official")
             if key == "character":
-                return not custom
+                return source in ("official", "character")
             if key in (
                 "title",
                 "name",
@@ -209,7 +295,7 @@ class NodeForm(QScrollArea):
                 "image_x",
                 "image_y",
             ):
-                return custom
+                return source == "custom"
         if node_type == "goto_scene":
             scene = node.get("scene", "Free")
             if key == "key":
@@ -236,6 +322,8 @@ class NodeForm(QScrollArea):
             w = self._make_combo(items, value or "", editable=True)
             if custom and official:
                 w.insertSeparator(len(custom))
+            if hasattr(w, "remember_items"):
+                w.remember_items()
             w.currentTextChanged.connect(
                 lambda t, c=w: self._on_character_changed(node, key, c, t)
             )
@@ -244,6 +332,7 @@ class NodeForm(QScrollArea):
             row.setContentsMargins(0, 0, 0, 0)
             manage = QPushButton(t("library.manage"))
             manage.setMinimumHeight(28)
+            manage.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
             manage.setToolTip(t("toolbar.library_tip"))
             manage.clicked.connect(self._open_content_library)
             row.addWidget(w, 1)
@@ -393,13 +482,25 @@ class NodeForm(QScrollArea):
             w.textChanged.connect(lambda t: self._apply(node, key, t))
             return w
         if kind == "affinity_character":
-            w = self._make_combo(
-                models.affinity_character_items(self._editor_data),
-                value or "",
-                editable=False,
-            )
+            if node.get("type") == "intro" and node.get("intro_source") == "character":
+                items = []
+                try:
+                    for rec in content_registry.list_contents(content_type="character"):
+                        mark = t("form.intro_ready") if rec.intro else t("form.intro_missing")
+                        items.append((rec.ref, "%s · %s（%s）" % (rec.name, mark, rec.ref)))
+                except Exception:
+                    items = []
+                if not items:
+                    items = [("", t("form.intro_no_character"))]
+                w = self._make_combo(items, value or "", editable=False)
+            else:
+                w = self._make_combo(
+                    models.affinity_character_items(self._editor_data),
+                    value or "",
+                    editable=False,
+                )
             w.currentTextChanged.connect(
-                lambda t, c=w: self._apply(node, key, self._combo_value(c, t))
+                lambda text, c=w: self._apply(node, key, self._combo_value(c, text))
             )
             return w
         if kind in ("ending_image", "intro_image"):
@@ -421,6 +522,9 @@ class NodeForm(QScrollArea):
                 w.setPlaceholderText("填写人物介绍，可以换行")
             else:
                 w.setPlaceholderText("对话/独白/旁白文本")
+            w.setMinimumHeight(72)
+            w.setMaximumHeight(140)
+            w.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             w.textChanged.connect(lambda: self._apply(node, key, w.toPlainText()))
             return w
         if kind == "code":
@@ -492,20 +596,61 @@ class NodeForm(QScrollArea):
         return QLabel(f"（暂不支持的字段类型 {kind}）")
 
     # ------------------------------------------------------------ 基础控件
+    @staticmethod
+    def _configure_combo(w: QComboBox, *, filterable: bool = False) -> QComboBox:
+        """限制弹出层高度、允许内部滚动，避免盖住整页。"""
+        w.setMaxVisibleItems(COMBO_VISIBLE_ITEMS)
+        w.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+        )
+        w.setMinimumContentsLength(8)
+        w.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        view = w.view()
+        if view is not None:
+            view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+            view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+            view.setTextElideMode(Qt.TextElideMode.ElideRight)
+            view.setMaximumHeight(COMBO_VISIBLE_ITEMS * 28)
+        if filterable:
+            w.setEditable(True)
+            w.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+            if w.lineEdit() is not None:
+                w.lineEdit().setPlaceholderText(t("form.combo_filter"))
+            completer = w.completer()
+            if completer is not None:
+                completer.setFilterMode(Qt.MatchFlag.MatchContains)
+                completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+                completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+                completer.setMaxVisibleItems(COMBO_VISIBLE_ITEMS)
+        elif w.isEditable():
+            w.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        return w
+
     def _make_combo(
         self, items: list[tuple[str, str]], current: str, editable: bool = False
     ) -> QComboBox:
-        """items 为 (值, 显示文本)；可编辑下拉框允许填入清单外的值。"""
-        w = QComboBox()
-        w.setEditable(editable)
+        """items 为 (值, 显示文本)；可编辑下拉框允许填入清单外的值。
+
+        长清单才用筛选下拉。goto / 表情 / 模式等短清单保持普通点选，
+        否则 hidePopup 重建清单会把刚选的值弹回去。
+        """
+        long_list = len(items) > COMBO_VISIBLE_ITEMS
+        if long_list:
+            w = _FilterCombo()
+            w.setEditable(True)
+        else:
+            w = QComboBox()
+            w.setEditable(editable)
         for val, text in items:
             w.addItem(text, val)
+        if hasattr(w, "remember_items"):
+            w.remember_items()
         idx = w.findData(current)
         if idx >= 0:
             w.setCurrentIndex(idx)
-        else:
+        elif editable or long_list:
             w.setCurrentText(current)
-        return w
+        return self._configure_combo(w, filterable=long_list)
 
     def _make_image_picker(
         self, node: dict, key: str, value, placeholder: str
@@ -568,6 +713,8 @@ class NodeForm(QScrollArea):
         w = self._make_combo(items, str(current or ""), editable=True)
         if user_items and official_items:
             w.insertSeparator(len(user_items))
+        if hasattr(w, "remember_items"):
+            w.remember_items()
         if not user_items and audio_kind != "music":
             model = w.model()
             if model is not None and model.rowCount() > 0:
@@ -585,10 +732,12 @@ class NodeForm(QScrollArea):
         )
 
         box = QWidget()
-        row = QHBoxLayout(box)
-        row.setContentsMargins(0, 0, 0, 0)
+        col = QVBoxLayout(box)
+        col.setContentsMargins(0, 0, 0, 0)
+        col.setSpacing(4)
         import_btn = QPushButton("导入…")
         import_btn.setMinimumHeight(28)
+        import_btn.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
         import_btn.setToolTip("导入本地 ogg/wav 到用户内容库，并填入此步骤")
 
         def pick() -> None:
@@ -614,42 +763,105 @@ class NodeForm(QScrollArea):
             self._rebuild_current()
 
         import_btn.clicked.connect(pick)
-        row.addWidget(w, 1)
+        col.addWidget(w)
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
         row.addWidget(import_btn)
+        row.addStretch(1)
+        col.addLayout(row)
         return box
 
-    def _make_voice_picker(self, node: dict, key: str, current) -> QWidget:
-        """对白语音：只列用户音频；空表示本句不配音。"""
-        user_items: list[tuple[str, str]] = [("", "（无语音）")]
+    def _voice_label(self, rec) -> str:
+        kind_cn = {"music": "音乐", "sound": "音效", "env": "环境音"}.get(
+            rec.audio_kind or "", rec.audio_kind or ""
+        )
+        return "%s · %s（%s）" % (kind_cn, rec.name, rec.ref)
+
+    def _say_speaker(self, node: dict) -> str:
+        if node.get("mode", "character") in ("narrative", "center"):
+            return ""
+        return str(node.get("character") or "").strip()
+
+    def _populate_voice_combo(self, combo: QComboBox, node: dict, current) -> None:
+        speaker = self._say_speaker(node)
+        current_ref = str(current or "").strip()
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem("（无语音）", "")
+        seen: set[str] = set()
+        need_bind = bool(speaker) or node.get("mode", "character") not in (
+            "narrative",
+            "center",
+        )
+
+        def add_hint(text: str) -> None:
+            at = combo.count()
+            combo.addItem(text, None)
+            model = combo.model()
+            if model is not None:
+                item = model.item(at)
+                if item is not None:
+                    item.setEnabled(False)
+
         try:
-            for rec in content_registry.list_contents(content_type="audio"):
-                kind_cn = {"music": "音乐", "sound": "音效", "env": "环境音"}.get(
-                    rec.audio_kind or "", rec.audio_kind or ""
+            if need_bind and not speaker:
+                records = []
+                add_hint(t("form.voice_need_character"))
+            else:
+                records = content_registry.voices_for_say_picker(
+                    speaker if need_bind else None
                 )
-                user_items.append(
-                    (rec.ref, "%s · %s（%s）" % (kind_cn, rec.name, rec.ref))
-                )
+                if not records:
+                    add_hint(
+                        t("form.voice_none_bound")
+                        if need_bind
+                        else t("form.voice_none_narration")
+                    )
+                for rec in records:
+                    combo.addItem(self._voice_label(rec), rec.ref)
+                    seen.add(rec.ref)
         except Exception:
-            pass
-        w = self._make_combo(user_items, str(current or ""), editable=True)
-        if w.lineEdit() is not None:
-            w.lineEdit().setPlaceholderText("选择用户内容库里的音频，或不选")
-        w.currentTextChanged.connect(
-            lambda t, c=w: self._apply(
-                node, key, self._combo_value(c, t).strip() or None
+            records = []
+        if current_ref and current_ref not in seen:
+            combo.addItem(current_ref, current_ref)
+        idx = combo.findData(current_ref)
+        if idx >= 0:
+            combo.setCurrentIndex(idx)
+        combo.blockSignals(False)
+
+    def _make_voice_picker(self, node: dict, key: str, current) -> QWidget:
+        """对白语音：人物对白只能选已绑定该角色的语音；旁白只能选未关联语音。"""
+        w = QComboBox()
+        w.setEditable(False)
+        w.setProperty("voice_for", key)
+        self._configure_combo(w)
+        self._populate_voice_combo(w, node, current)
+        w.currentIndexChanged.connect(
+            lambda _i, c=w: self._apply(
+                node, key, (self._combo_value(c, c.currentText()) or "").strip() or None
             )
         )
         box = QWidget()
-        row = QHBoxLayout(box)
-        row.setContentsMargins(0, 0, 0, 0)
+        col = QVBoxLayout(box)
+        col.setContentsMargins(0, 0, 0, 0)
+        col.setSpacing(4)
         import_btn = QPushButton("导入…")
         clear_btn = QPushButton("清除")
         import_btn.setMinimumHeight(28)
         clear_btn.setMinimumHeight(28)
-        import_btn.setToolTip("导入本地 ogg/wav 并绑到这句对白")
+        import_btn.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+        clear_btn.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+        import_btn.setToolTip(t("form.voice_import_tip"))
         clear_btn.setToolTip("这句对白不再播放语音")
 
         def pick() -> None:
+            speaker = self._say_speaker(node)
+            need_bind = node.get("mode", "character") not in ("narrative", "center")
+            if need_bind and not speaker:
+                QMessageBox.information(
+                    self, t("field.voice"), t("form.voice_need_character")
+                )
+                return
             path, _ = QFileDialog.getOpenFileName(
                 self,
                 "选择对白语音",
@@ -664,6 +876,7 @@ class NodeForm(QScrollArea):
                     content_registry.suggest_content_id(Path(path).name),
                     Path(path).stem,
                     "sound",
+                    character=speaker or None,
                 )
             except content_registry.ContentRegistryError as exc:
                 QMessageBox.critical(self, "无法导入音频", str(exc))
@@ -677,9 +890,13 @@ class NodeForm(QScrollArea):
 
         import_btn.clicked.connect(pick)
         clear_btn.clicked.connect(clear)
-        row.addWidget(w, 1)
+        col.addWidget(w)
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
         row.addWidget(import_btn)
         row.addWidget(clear_btn)
+        row.addStretch(1)
+        col.addLayout(row)
         return box
 
     def _list_combo(self, node: dict, key: str, data_key: str, current) -> QComboBox:
@@ -764,11 +981,52 @@ class NodeForm(QScrollArea):
         self._rebuild_current()
         self._emit_changed()
 
+    def _goto_items(self, allow_empty: bool) -> list[tuple[str, str]]:
+        items = [("", "（无）")] if allow_empty else []
+        items += [(nid, nid) for nid in self._node_ids if nid]
+        return items
+
+    def refill_goto_combo(self, combo: QComboBox, allow_empty: bool) -> None:
+        """用当前剧情的节点编号刷新跳转清单，保留已选值。"""
+        window = self.window()
+        story = getattr(window, "story", None)
+        if isinstance(story, dict):
+            self._node_ids = [
+                str(n.get("id") or "")
+                for n in story.get("nodes", [])
+                if isinstance(n, dict)
+            ]
+        items = self._goto_items(allow_empty)
+        current = combo.currentData()
+        if current is None:
+            current = combo.currentText()
+        combo.blockSignals(True)
+        combo.clear()
+        for val, text in items:
+            combo.addItem(text, val)
+        if hasattr(combo, "remember_items"):
+            combo.remember_items()
+        idx = combo.findData(current)
+        if idx >= 0:
+            combo.setCurrentIndex(idx)
+        elif current not in (None, ""):
+            combo.setCurrentText(str(current))
+        combo.blockSignals(False)
+
     def _make_goto_combo(self, current: str, allow_empty: bool = True) -> QComboBox:
         """goto 目标：节点 id 下拉框（可编辑，允许指向尚未创建的节点）。"""
-        items = [("", "（无）")] if allow_empty else []
-        items += [(nid, nid) for nid in self._node_ids]
-        return self._make_combo(items, current or "", editable=True)
+        items = self._goto_items(allow_empty)
+        w = _GotoCombo(self, allow_empty)
+        w.setEditable(True)
+        for val, text in items:
+            w.addItem(text, val)
+        w.remember_items()
+        idx = w.findData(current)
+        if idx >= 0:
+            w.setCurrentIndex(idx)
+        else:
+            w.setCurrentText(current or "")
+        return self._configure_combo(w, filterable=len(items) > COMBO_VISIBLE_ITEMS)
 
     @staticmethod
     def _combo_value(combo: QComboBox, text: str) -> str:
@@ -1232,7 +1490,8 @@ class NodeForm(QScrollArea):
 
         window = self.window()
         stories = getattr(window, "_stories", {}) if window is not None else {}
-        ContentLibraryDialog(stories, self).exec()
+        editor_data = getattr(window, "editor_data", self._editor_data)
+        ContentLibraryDialog(stories, self, editor_data).exec()
         if self._node is not None:
             self._rebuild_current()
 
@@ -1263,6 +1522,9 @@ class NodeForm(QScrollArea):
             combo.blockSignals(False)
             if node.get(pkey) != new_p:
                 self._apply(node, pkey, new_p)
+        for combo in self.findChildren(QComboBox):
+            if combo.property("voice_for"):
+                self._populate_voice_combo(combo, node, node.get("voice"))
 
     def _on_source_changed(self, node: dict, key: str, combo: QComboBox) -> None:
         """branch.source 切换：写回、归一 cases 并重建表单（列布局随来源切换）。"""

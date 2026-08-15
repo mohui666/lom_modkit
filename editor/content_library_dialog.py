@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
-"""用户内容库对话框：导入/查看/删除本地自定义音频。"""
+"""用户内容库对话框：导入/查看/删除本地自定义音频与角色。
+
+自定义角色详情用「基础信息 / 立绘 / 语音」页签管理语音归属；
+语音文件仍是独立 audio 资源，不写进角色 content.json。
+"""
 
 from __future__ import annotations
 
@@ -17,19 +21,25 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
+    QPlainTextEdit,
     QPushButton,
+    QSlider,
+    QSpinBox,
+    QTabWidget,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
+from audio_preview import AudioPreviewError, play_audio_file, stop_audio
 from i18n import t
 from content_registry import (
     ContentRecord,
     ContentRegistryError,
     default_namespace,
     get,
+    list_character_voices,
     list_contents,
     register_audio,
     register_character,
@@ -37,8 +47,11 @@ from content_registry import (
     repository_root,
     set_default_namespace,
     suggest_content_id,
+    update_audio,
     update_character,
+    update_character_intro,
 )
+import models
 
 
 def _kind_labels() -> dict[str, str]:
@@ -50,9 +63,15 @@ def _kind_labels() -> dict[str, str]:
 
 
 class ContentLibraryDialog(QDialog):
-    def __init__(self, stories: dict | None = None, parent=None):
+    def __init__(
+        self,
+        stories: dict | None = None,
+        parent=None,
+        editor_data: dict | None = None,
+    ):
         super().__init__(parent)
         self._stories = stories or {}
+        self._editor_data = editor_data or {}
         self.setWindowTitle(t("library.title"))
         self.resize(820, 500)
 
@@ -109,6 +128,10 @@ class ContentLibraryDialog(QDialog):
 
         self._reload()
 
+    def closeEvent(self, event) -> None:
+        stop_audio()
+        super().closeEvent(event)
+
     def _reload(self) -> None:
         records = list_contents()
         self.table.setRowCount(0)
@@ -123,6 +146,8 @@ class ContentLibraryDialog(QDialog):
             else:
                 kind = _kind_labels().get(rec.audio_kind or "", rec.audio_kind or "")
                 extra = rec.main_file
+                if rec.character:
+                    extra = "%s · %s" % (extra, rec.character)
             self.table.setItem(row, 2, QTableWidgetItem(kind))
             self.table.setItem(row, 3, QTableWidgetItem(extra))
             self.table.item(row, 1).setData(Qt.ItemDataRole.UserRole, rec.content_id)
@@ -146,7 +171,7 @@ class ContentLibraryDialog(QDialog):
         )
         if not path:
             return
-        dlg = _ImportAudioDialog(Path(path), self)
+        dlg = _ImportAudioDialog(Path(path), self, editor_data=self._editor_data)
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
         try:
@@ -155,6 +180,7 @@ class ContentLibraryDialog(QDialog):
                 dlg.content_id(),
                 dlg.display_name(),
                 dlg.audio_kind(),
+                character=dlg.character(),
             )
         except ContentRegistryError as exc:
             QMessageBox.critical(self, "无法导入音频", str(exc))
@@ -168,7 +194,11 @@ class ContentLibraryDialog(QDialog):
         )
 
     def _import_character(self) -> None:
-        dlg = _ImportCharacterDialog(self)
+        dlg = _ImportCharacterDialog(
+            self,
+            stories=self._stories,
+            editor_data=self._editor_data,
+        )
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
         try:
@@ -176,6 +206,9 @@ class ContentLibraryDialog(QDialog):
                 dlg.portraits(),
                 dlg.content_id(),
                 dlg.display_name(),
+                title=dlg.character_title(),
+                scale=dlg.character_scale(),
+                art_facing=dlg.character_art_facing(),
             )
         except ContentRegistryError as exc:
             QMessageBox.critical(self, t("library.import_char_fail"), str(exc))
@@ -198,12 +231,32 @@ class ContentLibraryDialog(QDialog):
         except ContentRegistryError as exc:
             QMessageBox.warning(self, t("library.edit_fail"), str(exc))
             return
+        if rec.type == "audio":
+            dlg = _EditAudioDialog(rec, self, editor_data=self._editor_data)
+            if dlg.exec() != QDialog.DialogCode.Accepted:
+                return
+            try:
+                update_audio(
+                    rec.content_id,
+                    name=dlg.display_name(),
+                    character=dlg.character(),
+                )
+            except ContentRegistryError as exc:
+                QMessageBox.critical(self, t("library.edit_fail"), str(exc))
+                return
+            self._reload()
+            return
         if rec.type != "character":
             QMessageBox.information(
-                self, t("library.edit"), "音频目前只能删除后重新导入。请选中自定义角色。"
+                self, t("library.edit"), t("library.edit_unsupported")
             )
             return
-        dlg = _ImportCharacterDialog(self, existing=rec)
+        dlg = _ImportCharacterDialog(
+            self,
+            existing=rec,
+            stories=self._stories,
+            editor_data=self._editor_data,
+        )
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
         try:
@@ -212,6 +265,9 @@ class ContentLibraryDialog(QDialog):
                 name=dlg.display_name(),
                 portraits=dlg.portraits(),
                 remove_portraits=dlg.removed_portraits(),
+                title=dlg.character_title(),
+                scale=dlg.character_scale(),
+                art_facing=dlg.character_art_facing(),
             )
         except ContentRegistryError as exc:
             QMessageBox.critical(self, t("library.edit_fail"), str(exc))
@@ -231,8 +287,47 @@ class ContentLibraryDialog(QDialog):
         self._reload()
 
 
+def _fill_character_combo(
+    combo: QComboBox,
+    editor_data: dict | None,
+    current: str | None = None,
+    locked: str | None = None,
+) -> None:
+    combo.clear()
+    combo.addItem(t("library.character_none"), "")
+    if locked:
+        combo.addItem(locked, locked)
+        idx = combo.findData(locked)
+        combo.setCurrentIndex(idx if idx >= 0 else 0)
+        combo.setEnabled(False)
+        return
+    custom, official = models.character_combo_items(editor_data or {})
+    for item_id, label in custom:
+        combo.addItem(label, item_id)
+    if custom and official:
+        combo.insertSeparator(combo.count())
+    for item_id, label in official:
+        combo.addItem(label, item_id)
+    if current:
+        idx = combo.findData(current)
+        if idx >= 0:
+            combo.setCurrentIndex(idx)
+        else:
+            combo.addItem(current, current)
+            combo.setCurrentIndex(combo.findData(current))
+
+
 class _ImportAudioDialog(QDialog):
-    def __init__(self, source: Path, parent=None):
+    def __init__(
+        self,
+        source: Path,
+        parent=None,
+        *,
+        editor_data: dict | None = None,
+        audio_kind: str | None = None,
+        character: str | None = None,
+        lock_character: bool = False,
+    ):
         super().__init__(parent)
         self.setWindowTitle(t("library.import_title"))
         layout = QFormLayout(self)
@@ -246,10 +341,23 @@ class _ImportAudioDialog(QDialog):
         self._kind.addItem("音乐（music 步骤）", "music")
         self._kind.addItem("音效（sound 步骤）", "sound")
         self._kind.addItem("环境音（sound 步骤的环境音声道）", "env")
+        if audio_kind in ("music", "sound", "env"):
+            idx = self._kind.findData(audio_kind)
+            if idx >= 0:
+                self._kind.setCurrentIndex(idx)
+            self._kind.setEnabled(False)
+        self._character = QComboBox()
+        _fill_character_combo(
+            self._character,
+            editor_data,
+            current=character,
+            locked=character if lock_character else None,
+        )
         layout.addRow("显示名称", self._name)
         layout.addRow("命名空间", self._namespace)
         layout.addRow("内部名称", self._local)
         layout.addRow("用途", self._kind)
+        layout.addRow(t("library.col.character"), self._character)
         hint = QLabel("完整编号将是 user:%s.%s" % (ns, local))
         hint.setWordWrap(True)
         hint.setProperty("context_help", True)
@@ -283,23 +391,46 @@ class _ImportAudioDialog(QDialog):
     def audio_kind(self) -> str:
         return str(self._kind.currentData() or "music")
 
+    def character(self) -> str | None:
+        value = self._character.currentData()
+        if value not in (None, ""):
+            return str(value)
+        text = self._character.currentText().strip()
+        if not text or text == t("library.character_none"):
+            return None
+        return text
+
 
 class _ImportCharacterDialog(QDialog):
     """导入或编辑自定义角色。编辑时编号锁定，可换图、加表情、改显示名。"""
 
-    def __init__(self, parent=None, existing: ContentRecord | None = None):
+    def __init__(
+        self,
+        parent=None,
+        existing: ContentRecord | None = None,
+        stories: dict | None = None,
+        editor_data: dict | None = None,
+    ):
         super().__init__(parent)
         self._existing = existing
         self._removed: list[str] = []
+        self._stories = stories or {}
+        self._editor_data = editor_data or {}
         self.setWindowTitle(
             t("library.edit_char_title") if existing else t("library.import_char_title")
         )
-        self.resize(560, 360)
+        self.resize(620, 460)
         layout = QVBoxLayout(self)
+        tabs = QTabWidget()
+        layout.addWidget(tabs, 1)
+
+        basic = QWidget()
+        basic_layout = QVBoxLayout(basic)
         form = QFormLayout()
         if existing:
             ns, local = existing.content_id.split(".", 1)
             self._name = QLineEdit(existing.name)
+            self._title = QLineEdit(existing.title or "")
             self._namespace = QLineEdit(ns)
             self._local = QLineEdit(local)
             self._namespace.setReadOnly(True)
@@ -308,22 +439,57 @@ class _ImportCharacterDialog(QDialog):
             suggested = suggest_content_id("luoxue")
             ns, local = suggested.split(".", 1)
             self._name = QLineEdit("洛雪")
+            self._title = QLineEdit("")
             self._namespace = QLineEdit(ns)
             self._local = QLineEdit(local)
         form.addRow("显示名称", self._name)
+        form.addRow(t("library.char_title"), self._title)
+        self._scale = QSlider(Qt.Orientation.Horizontal)
+        self._scale.setRange(50, 130)
+        self._scale.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self._scale.setTickInterval(10)
+        self._scale.setSingleStep(1)
+        self._scale.setPageStep(5)
+        self._scale.setValue(int(existing.scale) if existing else 100)
+        self._scale_value = QLabel("%d%%" % self._scale.value())
+        self._scale_value.setMinimumWidth(44)
+        self._scale.valueChanged.connect(
+            lambda value: self._scale_value.setText("%d%%" % value)
+        )
+        scale_row = QWidget()
+        scale_layout = QHBoxLayout(scale_row)
+        scale_layout.setContentsMargins(0, 0, 0, 0)
+        scale_layout.addWidget(self._scale, 1)
+        scale_layout.addWidget(self._scale_value)
+        form.addRow(t("library.char_scale"), scale_row)
+        scale_hint = QLabel(t("library.char_scale_hint"))
+        scale_hint.setWordWrap(True)
+        scale_hint.setProperty("context_help", True)
+        form.addRow(scale_hint)
+        self._art_facing = QComboBox()
+        self._art_facing.addItem(t("library.art_facing.left"), "left")
+        self._art_facing.addItem(t("library.art_facing.right"), "right")
+        current_facing = (existing.art_facing if existing else "left") or "left"
+        facing_idx = self._art_facing.findData(current_facing)
+        self._art_facing.setCurrentIndex(facing_idx if facing_idx >= 0 else 0)
+        form.addRow(t("library.art_facing"), self._art_facing)
         form.addRow("命名空间", self._namespace)
         form.addRow("内部名称", self._local)
-        layout.addLayout(form)
+        basic_layout.addLayout(form)
         self._hint = QLabel("完整编号将是 user:%s.%s" % (ns, local))
         self._hint.setWordWrap(True)
         self._hint.setProperty("context_help", True)
-        layout.addWidget(self._hint)
+        basic_layout.addWidget(self._hint)
         self._namespace.textChanged.connect(self._refresh_hint)
         self._local.textChanged.connect(self._refresh_hint)
+        basic_layout.addStretch(1)
+        tabs.addTab(basic, t("library.tab.basic"))
 
-        layout.addWidget(QLabel(t("library.char_portraits")))
+        portraits = QWidget()
+        portraits_layout = QVBoxLayout(portraits)
+        portraits_layout.addWidget(QLabel(t("library.char_portraits")))
         self._portrait_box = QVBoxLayout()
-        layout.addLayout(self._portrait_box)
+        portraits_layout.addLayout(self._portrait_box)
         if existing and existing.portraits:
             for key in existing.portrait_ids():
                 self._add_portrait_row(
@@ -336,7 +502,35 @@ class _ImportCharacterDialog(QDialog):
             self._add_portrait_row("happy")
         add_btn = QPushButton(t("library.add_portrait"))
         add_btn.clicked.connect(lambda: self._add_portrait_row(""))
-        layout.addWidget(add_btn)
+        portraits_layout.addWidget(add_btn)
+        portraits_layout.addStretch(1)
+        tabs.addTab(portraits, t("library.tab.portraits"))
+
+        voices = QWidget()
+        voices_layout = QVBoxLayout(voices)
+        if existing:
+            voices_layout.addWidget(
+                _CharacterVoicePage(existing.ref, self._stories, voices)
+            )
+        else:
+            hint = QLabel(t("library.voice_after_create"))
+            hint.setWordWrap(True)
+            hint.setProperty("context_help", True)
+            voices_layout.addWidget(hint)
+            voices_layout.addStretch(1)
+        tabs.addTab(voices, t("library.tab.voices"))
+
+        intro_tab = QWidget()
+        intro_layout = QVBoxLayout(intro_tab)
+        if existing:
+            intro_layout.addWidget(_CharacterIntroPage(existing, intro_tab))
+        else:
+            hint = QLabel(t("library.intro_after_create"))
+            hint.setWordWrap(True)
+            hint.setProperty("context_help", True)
+            intro_layout.addWidget(hint)
+            intro_layout.addStretch(1)
+        tabs.addTab(intro_tab, t("library.tab.intro"))
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -396,6 +590,15 @@ class _ImportCharacterDialog(QDialog):
     def display_name(self) -> str:
         return self._name.text().strip()
 
+    def character_title(self) -> str:
+        return self._title.text().strip()
+
+    def character_scale(self) -> int:
+        return int(self._scale.value())
+
+    def character_art_facing(self) -> str:
+        return str(self._art_facing.currentData() or "left")
+
     def namespace(self) -> str:
         return self._namespace.text().strip().lower() or default_namespace()
 
@@ -429,3 +632,320 @@ class _ImportCharacterDialog(QDialog):
             QMessageBox.warning(self, t("library.import_char_fail"), "必须选择 normal 默认立绘。")
             return
         self.accept()
+
+    def closeEvent(self, event) -> None:
+        stop_audio()
+        super().closeEvent(event)
+
+
+class _EditAudioDialog(QDialog):
+    """改音频显示名和可选角色归属，不改文件。"""
+
+    def __init__(
+        self,
+        rec: ContentRecord,
+        parent=None,
+        editor_data: dict | None = None,
+        lock_character: str | None = None,
+    ):
+        super().__init__(parent)
+        self._rec = rec
+        self.setWindowTitle(t("library.edit_audio_title"))
+        layout = QFormLayout(self)
+        self._name = QLineEdit(rec.name)
+        self._character = QComboBox()
+        self._character.setEditable(lock_character is None)
+        _fill_character_combo(
+            self._character,
+            editor_data,
+            current=lock_character or rec.character,
+            locked=lock_character,
+        )
+        layout.addRow("显示名称", self._name)
+        layout.addRow(t("library.col.character"), self._character)
+        hint = QLabel(t("library.character_hint"))
+        hint.setWordWrap(True)
+        hint.setProperty("context_help", True)
+        layout.addRow(hint)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addRow(buttons)
+
+    def display_name(self) -> str:
+        return self._name.text().strip()
+
+    def character(self) -> str | None:
+        value = self._character.currentData()
+        if value not in (None, ""):
+            return str(value)
+        text = self._character.currentText().strip()
+        if not text or text == t("library.character_none"):
+            return None
+        return text
+
+
+class _CharacterVoicePage(QWidget):
+    """自定义角色的语音页：列出归属语音，导入时自动关联当前角色。"""
+
+    def __init__(self, character_ref: str, stories: dict, parent=None):
+        super().__init__(parent)
+        self._character_ref = character_ref
+        self._stories = stories
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        intro = QLabel(t("library.voice_intro"))
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+
+        self.table = QTableWidget(0, 3)
+        self.table.setHorizontalHeaderLabels(
+            [
+                t("library.col.name"),
+                t("library.col.id"),
+                t("library.col.file"),
+            ]
+        )
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        layout.addWidget(self.table, 1)
+
+        buttons = QHBoxLayout()
+        import_btn = QPushButton(t("library.import_voice"))
+        preview_btn = QPushButton(t("library.preview_voice"))
+        edit_btn = QPushButton(t("library.edit_voice"))
+        unlink_btn = QPushButton(t("library.unlink_voice"))
+        delete_btn = QPushButton(t("library.delete_voice"))
+        import_btn.clicked.connect(self._import_voice)
+        preview_btn.clicked.connect(self._preview_selected)
+        edit_btn.clicked.connect(self._edit_selected)
+        unlink_btn.clicked.connect(self._unlink_selected)
+        delete_btn.clicked.connect(self._delete_selected)
+        self.table.cellDoubleClicked.connect(lambda *_: self._edit_selected())
+        buttons.addWidget(import_btn)
+        buttons.addWidget(preview_btn)
+        buttons.addWidget(edit_btn)
+        buttons.addWidget(unlink_btn)
+        buttons.addWidget(delete_btn)
+        buttons.addStretch(1)
+        layout.addLayout(buttons)
+        self._reload()
+
+    def _reload(self) -> None:
+        records = list_character_voices(self._character_ref)
+        self.table.setRowCount(0)
+        for rec in records:
+            row = self.table.rowCount()
+            self.table.insertRow(row)
+            self.table.setItem(row, 0, QTableWidgetItem(rec.name))
+            self.table.setItem(row, 1, QTableWidgetItem(rec.ref))
+            self.table.setItem(row, 2, QTableWidgetItem(rec.main_file))
+            self.table.item(row, 1).setData(Qt.ItemDataRole.UserRole, rec.content_id)
+
+    def _selected_id(self) -> str | None:
+        row = self.table.currentRow()
+        if row < 0:
+            return None
+        item = self.table.item(row, 1)
+        if item is None:
+            return None
+        value = item.data(Qt.ItemDataRole.UserRole)
+        return str(value) if value else None
+
+    def _import_voice(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            t("library.choose_voice"),
+            str(Path.home()),
+            "音频 (*.ogg *.wav)",
+        )
+        if not path:
+            return
+        dlg = _ImportAudioDialog(
+            Path(path),
+            self,
+            audio_kind="sound",
+            character=self._character_ref,
+            lock_character=True,
+        )
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        try:
+            register_audio(
+                Path(path),
+                dlg.content_id(),
+                dlg.display_name(),
+                "sound",
+                character=self._character_ref,
+            )
+        except ContentRegistryError as exc:
+            QMessageBox.critical(self, t("library.import_fail"), str(exc))
+            return
+        set_default_namespace(dlg.namespace())
+        self._reload()
+
+    def _preview_selected(self) -> None:
+        content_id = self._selected_id()
+        if not content_id:
+            QMessageBox.information(self, t("library.preview_voice"), t("library.select_voice"))
+            return
+        try:
+            rec = get(content_id)
+            play_audio_file(rec.folder / rec.main_file)
+        except (ContentRegistryError, AudioPreviewError) as exc:
+            QMessageBox.warning(self, t("library.preview_fail"), str(exc))
+
+    def _edit_selected(self) -> None:
+        content_id = self._selected_id()
+        if not content_id:
+            QMessageBox.information(self, t("library.edit_voice"), t("library.select_voice"))
+            return
+        try:
+            rec = get(content_id)
+        except ContentRegistryError as exc:
+            QMessageBox.warning(self, t("library.edit_fail"), str(exc))
+            return
+        dlg = _EditAudioDialog(rec, self, lock_character=self._character_ref)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        try:
+            update_audio(rec.content_id, name=dlg.display_name(), character=self._character_ref)
+        except ContentRegistryError as exc:
+            QMessageBox.critical(self, t("library.edit_fail"), str(exc))
+            return
+        self._reload()
+
+    def _unlink_selected(self) -> None:
+        content_id = self._selected_id()
+        if not content_id:
+            QMessageBox.information(self, t("library.unlink_voice"), t("library.select_voice"))
+            return
+        try:
+            update_audio(content_id, character=None)
+        except ContentRegistryError as exc:
+            QMessageBox.warning(self, t("library.edit_fail"), str(exc))
+            return
+        self._reload()
+
+    def _delete_selected(self) -> None:
+        content_id = self._selected_id()
+        if not content_id:
+            QMessageBox.information(self, t("library.delete_voice"), t("library.select_voice"))
+            return
+        try:
+            remove(content_id, stories=self._stories)
+        except ContentRegistryError as exc:
+            QMessageBox.warning(self, t("library.delete_fail"), str(exc))
+            return
+        self._reload()
+
+
+class _CharacterIntroPage(QWidget):
+    """自定义角色的介绍卡：一对一资料，图片放在角色目录里。"""
+
+    def __init__(self, rec: ContentRecord, parent=None):
+        super().__init__(parent)
+        self._content_id = rec.content_id
+        self._image_path: Path | None = None
+        intro = rec.intro or {}
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        hint = QLabel(t("library.intro_card_hint"))
+        hint.setWordWrap(True)
+        hint.setProperty("context_help", True)
+        layout.addWidget(hint)
+        form = QFormLayout()
+        self._title = QLineEdit(str(intro.get("title") or ""))
+        self._name = QLineEdit(str(intro.get("name") or rec.name))
+        self._text = QPlainTextEdit(str(intro.get("text") or ""))
+        self._text.setMinimumHeight(90)
+        self._text.setMaximumHeight(140)
+        self._image_label = QLabel(str(intro.get("image") or t("library.no_file")))
+        pick = QPushButton(t("library.choose_image"))
+        pick.clicked.connect(self._pick_image)
+        img_row = QWidget()
+        img_box = QHBoxLayout(img_row)
+        img_box.setContentsMargins(0, 0, 0, 0)
+        img_box.addWidget(self._image_label, 1)
+        img_box.addWidget(pick)
+        self._scale = QSpinBox()
+        self._scale.setRange(40, 160)
+        self._scale.setValue(int(intro.get("image_scale") or 100))
+        self._scale.setSuffix(" %")
+        self._x = QSpinBox()
+        self._x.setRange(-30, 30)
+        self._x.setValue(int(intro.get("image_x") or 0))
+        self._y = QSpinBox()
+        self._y.setRange(-30, 30)
+        self._y.setValue(int(intro.get("image_y") or 0))
+        form.addRow(t("field.title"), self._title)
+        form.addRow(t("field.name"), self._name)
+        form.addRow(t("field.text"), self._text)
+        form.addRow(t("field.image"), img_row)
+        form.addRow(t("field.image_scale"), self._scale)
+        form.addRow(t("field.image_x"), self._x)
+        form.addRow(t("field.image_y"), self._y)
+        layout.addLayout(form)
+        buttons = QHBoxLayout()
+        save = QPushButton(t("library.save_intro"))
+        clear = QPushButton(t("library.clear_intro"))
+        save.clicked.connect(self._save)
+        clear.clicked.connect(self._clear)
+        buttons.addWidget(save)
+        buttons.addWidget(clear)
+        buttons.addStretch(1)
+        layout.addLayout(buttons)
+        layout.addStretch(1)
+
+    def _pick_image(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            t("library.choose_image"),
+            str(Path.home()),
+            "图片 (*.png *.jpg *.jpeg)",
+        )
+        if not path:
+            return
+        self._image_path = Path(path)
+        self._image_label.setText(Path(path).name)
+
+    def _save(self) -> None:
+        try:
+            rec = update_character_intro(
+                self._content_id,
+                title=self._title.text(),
+                name=self._name.text(),
+                text=self._text.toPlainText(),
+                image=self._image_path,
+                image_scale=self._scale.value(),
+                image_x=self._x.value(),
+                image_y=self._y.value(),
+            )
+        except ContentRegistryError as exc:
+            QMessageBox.critical(self, t("library.edit_fail"), str(exc))
+            return
+        self._image_path = None
+        if rec.intro and rec.intro.get("image"):
+            self._image_label.setText(str(rec.intro["image"]))
+        QMessageBox.information(self, t("library.save_intro"), t("library.intro_saved"))
+
+    def _clear(self) -> None:
+        try:
+            update_character_intro(self._content_id, clear=True)
+        except ContentRegistryError as exc:
+            QMessageBox.warning(self, t("library.edit_fail"), str(exc))
+            return
+        self._title.clear()
+        self._text.clear()
+        self._image_path = None
+        self._image_label.setText(t("library.no_file"))
+        self._scale.setValue(100)
+        self._x.setValue(0)
+        self._y.setValue(0)

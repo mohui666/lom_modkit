@@ -5,11 +5,11 @@
 Lua를 작성할 필요가 없습니다. 그래픽 에디터로 인물 대사, 장면 연출, 분기 시나리오, 음악·효과음을 편성하고,
 한 번의 클릭으로 `.lommod`를보내 게임에서 바로 실행할 수 있습니다.
 
-[![Release v0.6.0](https://img.shields.io/badge/release-v0.6.0-blue)](https://github.com/mohui666/lom_modkit/releases/latest)
+[![Release v0.7.0](https://img.shields.io/badge/release-v0.7.0-blue)](https://github.com/mohui666/lom_modkit/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)](#호환성)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-**[⬇ Windows 판 다운로드](https://github.com/mohui666/lom_modkit/releases/download/v0.6.0/lom_modkit-v0.6.0_windows_x64.zip)** ·
+**[⬇ Windows 판 다운로드](https://github.com/mohui666/lom_modkit/releases/download/v0.7.0/lom_modkit-v0.7.0_windows_x64.zip)** ·
 [빠른 시작](#빠른-시작) ·
 [문서](docs/ko/README.md)
 
@@ -40,7 +40,7 @@ lom_modkit은 『활협전』의 **기존 인물, 장면, 음악, 특수 효과�
 
 ### 1. 다운로드
 
-[lom_modkit-v0.6.0_windows_x64.zip](https://github.com/mohui666/lom_modkit/releases/download/v0.6.0/lom_modkit-v0.6.0_windows_x64.zip)을 다운로드하고 압축을 풉니다. Python을 설치할 필요가 없습니다.
+[lom_modkit-v0.7.0_windows_x64.zip](https://github.com/mohui666/lom_modkit/releases/download/v0.7.0/lom_modkit-v0.7.0_windows_x64.zip)을 다운로드하고 압축을 풉니다. Python을 설치할 필요가 없습니다.
 
 ### 2. 실행
 
@@ -98,7 +98,7 @@ lom_modkit은 『활협전』의 **기존 인물, 장면, 음악, 특수 효과�
 | --- | --- |
 | 사용자 지정 음악 / 효과음 / 환경음 | ✅ 지원됨 |
 | 캐릭터 대사 음성 | ✅ 지원됨 |
-| 사용자 지정 인물 일러스트 | ◯ Roadmap |
+| 사용자 지정 스탠딩 / 칭호 / 소개 카드 / 체형 | ✅ 지원됨 |
 | 커뮤니티 콘텐츠 보관함 | ◯ Roadmap |
 
 자세한 사용법은 [사용자 콘텐츠 보관함 문서](docs/ko/user_content.md)를 참조하세요.
@@ -122,16 +122,15 @@ lom_modkit은 『활협전』의 **기존 인물, 장면, 음악, 특수 효과�
 
 ## 현재 버전
 
-**v0.6.0**: 에디터 정보 아키텍처 · Steam 일반 실행 지원 · F5 시나리오 중간 시연 ·
-시나리오 점검과 흐름도 · 읽음 초기화 · fadeout 대기.
+**v0.7.0**: 커스텀 스탠딩 · 대사 음성 연결 · 소개 카드와 칭호 · 체형 슬라이더 ·
+퇴장 시 무대 정리 · 노드를 종류로 번호 매김.
 
 전체 변경 사항은 [Release Notes](https://github.com/mohui666/lom_modkit/releases)를 참조하세요.
 
 ## Roadmap
 
 - 커뮤니티 콘텐츠 저장소(사용자 콘텐츠 공유/재사용)
-- 사용자 지정 인물 리소스 런타임
-- 더 많은 사용자 콘텐츠 유형(일러스트, 배경 등)
+- 더 많은 사용자 콘텐츠 유형(배경 등)
 
 ## 문서
 
