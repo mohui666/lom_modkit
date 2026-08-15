@@ -377,6 +377,13 @@ def main_fn() -> int:
     assert dlg.triggers_table.rowCount() == 1, "应回填 1 行触发器"
     assert dlg.triggers_table.columnCount() == 7, "触发器表应为 7 列"
     m = dlg.manifest()
+    assert m["tested_host_version"] == "0.6.0", "新导出应记录随附 Host 测试版本"
+    dlg.min_host_version_edit.setText("0.5.0")
+    dlg.game_version_edit.setText("1.2.3")
+    dlg.tested_game_version_edit.setText("1.2.3")
+    compat = dlg.manifest()
+    assert compat["min_host_version"] == "0.5.0"
+    assert compat["game_version"] == compat["tested_game_version"] == "1.2.3"
     assert m["campaign"]["new_game"]
     assert m["campaign"]["disable_official_events"], "勾选框应写出 disable_official_events"
     trig = m["campaign"]["triggers"][0]

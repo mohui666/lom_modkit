@@ -1579,6 +1579,34 @@ class TestBranchNewSources(unittest.TestCase):
         with self.assertRaises(LomcError):
             validate_story(dict(linear_story(), story_schema=None))
 
+    def test_runtime_compatibility_metadata(self):
+        compatible = dict(
+            MANIFEST,
+            min_host_version="0.5.0",
+            tested_host_version="0.6.0",
+            game_version="1.2.3-steam",
+            tested_game_version="1.2.3-steam",
+        )
+        validate_manifest(compatible)
+        validate_manifest(dict(MANIFEST))  # legacy manifests remain valid
+        for field, value in (
+            ("min_host_version", "v1"),
+            ("tested_host_version", "1.0.0.0"),
+            ("min_host_version", "1.0.0-01"),
+            ("game_version", "bad version\n"),
+            ("tested_game_version", "x" * 65),
+        ):
+            with self.subTest(field=field, value=value), self.assertRaises(LomcError):
+                validate_manifest(dict(MANIFEST, **{field: value}))
+        with self.assertRaises(LomcError):
+            validate_manifest(
+                dict(MANIFEST, min_host_version="2.0.0", tested_host_version="1.0.0")
+            )
+        with self.assertRaises(LomcError):
+            validate_manifest(
+                dict(MANIFEST, game_version="1.0", tested_game_version="1.1")
+            )
+
     def test_disable_official_events(self):
         # campaign.disable_official_events：bool，可选（缺省 false）
         good = dict(MANIFEST)

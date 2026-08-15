@@ -238,6 +238,10 @@ namespace MortalModHost
                 Id = id,
                 Name = GetString(root, "name", required: false) ?? "",
                 Version = GetString(root, "version", required: false) ?? "",
+                MinHostVersion = GetOptionalCompatibilityString(root, "min_host_version"),
+                TestedHostVersion = GetOptionalCompatibilityString(root, "tested_host_version"),
+                GameVersion = GetOptionalCompatibilityString(root, "game_version"),
+                TestedGameVersion = GetOptionalCompatibilityString(root, "tested_game_version"),
                 Author = GetString(root, "author", required: false) ?? "",
                 Description = GetString(root, "description", required: false) ?? "",
                 Entry = entry,
@@ -409,6 +413,18 @@ namespace MortalModHost
                 throw new FormatException("manifest 字段 \"" + key + "\" 必须是字符串");
             if (required && text.Length == 0)
                 throw new FormatException("manifest 字段 \"" + key + "\" 不能为空");
+            return text;
+        }
+
+        private static string GetOptionalCompatibilityString(
+            Dictionary<string, object> dict, string key)
+        {
+            object value;
+            if (!dict.TryGetValue(key, out value)) return null;
+            string text = value as string;
+            if (string.IsNullOrEmpty(text) || text.Length > 64)
+                throw new FormatException("manifest 字段 \"" + key
+                    + "\" 必须是 1~64 位版本字符串");
             return text;
         }
 

@@ -32,6 +32,9 @@ assets/                # 可选，自定义资源
   "package_format": 1,
   "story_schema": 1,
   "content_schema": 1,
+  "min_host_version": "0.6.0",
+  "tested_host_version": "0.6.0",
+  "tested_game_version": "1.2.3",
   "id": "demo_mod",
   "name": "示例 Mod",
   "version": "1.0.0",
@@ -52,6 +55,7 @@ assets/                # 可选，自定义资源
 - 舊 v1 Story 與使用者內容會先保留逐位元組備份 `*.pre-migration-v1.bak`，再以同目錄暫存檔原子遷移；失敗不覆蓋來源，未知欄位會保留。舊 `.lommod` 僅遷移記憶體副本，不修改原包，並可用 `migration.restore_migration_backup` 明確復原磁碟檔案。
 - `id`：mod 唯一 id（`[a-z0-9_\-]+`），執行階段註冊名前綴，防衝突。
 - `entry`：入口劇情腳本 id，必須存在。
+- `min_host_version` 是 SemVer 硬門檻；`tested_host_version` 超出時僅警告。`game_version` 必須與 Unity 的 `Application.version` 精確一致，`tested_game_version` 不同時僅警告。四欄皆可省略，舊 manifest 行為不變；Host 會在註冊腳本前給出明確拒載原因。
 - `campaign`（可選）：戰役模式。
   - `new_game`：true 時本 mod 出現在遊戲內 mod 選單的「開始新戰役」區，點擊後**隔離存檔槽**（`SetSlot("mod_<modid>")`，不覆蓋玩家正常存檔）開新遊戲，首個劇情腳本替換為本 mod 的 `entry`。
   - `disable_official_events`（可選，bool，預設 false）：true 時本戰役**停用原版劇情事件**——返回 Free 時不自動啟動無地點主線/支線，地圖位置只保留本 mod 觸發器（未命中則該位置預設活動不可用，需 mod 自帶保底觸發器）。

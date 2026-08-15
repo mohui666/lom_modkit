@@ -63,6 +63,7 @@ MANIFEST = {
     "package_format": 1,
     "story_schema": 1,
     "content_schema": 1,
+    "tested_host_version": "0.6.0",
     "id": MOD_ID,
     "name": "全功能展示",
     "version": "1.0.0",

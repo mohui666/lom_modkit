@@ -3,6 +3,7 @@
   "package_format": 1,
   "story_schema": 1,
   "content_schema": 1,
+  "tested_host_version": "0.6.0",
   "id": "demo_mod",
   "name": "示例 Mod",
   "version": "1.0.0",

@@ -60,6 +60,9 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `zh_CN`、
   "package_format": 1,
   "story_schema": 1,
   "content_schema": 1,
+  "min_host_version": "0.6.0",
+  "tested_host_version": "0.6.0",
+  "tested_game_version": "1.2.3",
   "id": "demo_mod",
   "name": "示例 Mod",
   "version": "1.0.0",
@@ -83,6 +86,11 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `zh_CN`、
 - 编辑器迁移管线对缺少显式字段的旧 v1 manifest、Story 与 `content.json` 做纯数据迁移，未知字段按原结构保留。打开磁盘上的旧 Story 或扫描旧用户内容时，先写入逐字节原始备份 `原文件名.pre-migration-v1.bak`，再用同目录临时文件原子替换；校验、备份或替换任一步失败都不覆盖源文件。`migration.restore_migration_backup(source, backup)` 可显式恢复，恢复前还会保留当前文件的 recovery 备份。导入旧 `.lommod` 只迁移内存副本，不修改原压缩包。
 - `id`：mod 唯一 id（`[a-z0-9_\-]{1,64}`），运行时也会独立复验，作为注册名前缀与隔离存档槽的一部分。
 - `entry`：入口剧情脚本 id（`[A-Za-z0-9_\-]{1,64}`），必须存在；`lua/` 下所有脚本 id 同样由运行时复验。
+- `min_host_version`（可选 SemVer）：硬门槛。当前 MortalModHost 低于它时，在注册脚本前明确拒载。
+- `tested_host_version`（可选 SemVer）：作者最后测试的 Host 版本；当前 Host 更高时警告但继续加载。编辑器新导出默认填入随附 Runtime 版本。
+- `game_version`（可选版本标识）：硬门槛，必须与 Unity 运行时真实 `Application.version` 精确一致，否则拒载。
+- `tested_game_version`（可选版本标识）：作者测试的游戏版本；与 `Application.version` 不同时警告但继续加载。它与 Steam build id 不是同一字段，当前值可从 Host 启动日志查看。
+- 旧 manifest 不写上述四项时保持原行为。`min_host_version` 不得高于 `tested_host_version`；同时填写 `game_version` 与 `tested_game_version` 时二者不得矛盾。
 - `name`、`version`、`author`、`description` 都是**作者自报元数据**，不能声明官方身份。运行时展示前会单行化、限长，并移除控制字符、双向覆盖/零宽格式字符与富文本尖括号。
 - 未定义 `official`、`verified`、`signature`、`sha256` 等信任字段；手工向 manifest 添加这些字段不会影响 Host 计算的包指纹，也不会显示为官方内容。
 - `campaign`（可选）：战役模式。

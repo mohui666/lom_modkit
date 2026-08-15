@@ -75,7 +75,9 @@ namespace MortalModHost
 
             // mods 目录：BepInEx/plugins/MortalModHost/mods/（契约 §6.1）
             string modsDir = Path.Combine(Paths.PluginPath, "MortalModHost", "mods");
-            Logger.LogInfo("MortalModHost " + VERSION + " 启动，扫描 mods 目录：" + modsDir);
+            Logger.LogInfo("MortalModHost " + VERSION + " 启动；游戏版本 "
+                + (string.IsNullOrEmpty(Application.version) ? "<unknown>" : Application.version)
+                + "；扫描 mods 目录：" + modsDir);
 
             ReloadMods();
 
@@ -388,6 +390,22 @@ namespace MortalModHost
                 modsDir,
                 msg => Logger.LogInfo(msg),
                 msg => Logger.LogWarning(msg));
+            var compatibleMods = new List<ModPackage>();
+            foreach (ModPackage package in scannedMods)
+            {
+                CompatibilityResult compatibility = RuntimeCompatibility.Evaluate(
+                    package, VERSION, Application.version);
+                foreach (string warning in compatibility.Warnings)
+                    Logger.LogWarning("mod " + package.Id + " 兼容性提示：" + warning);
+                if (!compatibility.IsCompatible)
+                {
+                    Logger.LogError("拒绝加载 mod " + package.Id + "："
+                        + compatibility.Error);
+                    continue;
+                }
+                compatibleMods.Add(package);
+            }
+            scannedMods = compatibleMods;
             ModRegistry.Rebuild(scannedMods, msg => Logger.LogWarning(msg));
             LoadedMods = scannedMods.FindAll(ModRegistry.IsPackageFullyRegistered);
             ReadTextRegistry.Rebuild(LoadedMods, msg => Logger.LogWarning(msg));

@@ -44,6 +44,88 @@ _MANIFEST_TEXT_LIMITS = {
     "description": 500,
 }
 
+_SEMVER_RE = re.compile(
+    r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
+    r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
+    r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
+)
+_GAME_VERSION_RE = re.compile(r"^[0-9A-Za-z][0-9A-Za-z._+\-]{0,63}$")
+
+
+def _parse_host_version(field, value):
+    if not isinstance(value, str) or _SEMVER_RE.fullmatch(value) is None:
+        raise LomcError(
+            '字段 "%s" 必须是 SemVer（如 0.6.0 或 0.7.0-beta.1），实际为 %r'
+            % (field, value)
+        )
+    match = _SEMVER_RE.fullmatch(value)
+    core = tuple(int(match.group(i)) for i in (1, 2, 3))
+    prerelease = match.group(4)
+    if any(part > 2147483647 for part in core):
+        raise LomcError('字段 "%s" 的版本数字不能超过 2147483647' % field)
+    for identifier in (prerelease or "").split("."):
+        if identifier.isdigit() and (
+            (len(identifier) > 1 and identifier.startswith("0"))
+            or int(identifier) > 2147483647
+        ):
+            raise LomcError(
+                '字段 "%s" 的预发布数字必须无前导零且不超过 2147483647'
+                % field
+            )
+    return core, prerelease
+
+
+def _host_version_greater(left, right):
+    if left[0] != right[0]:
+        return left[0] > right[0]
+    if left[1] is None:
+        return right[1] is not None
+    if right[1] is None:
+        return False
+    left_parts = left[1].split(".")
+    right_parts = right[1].split(".")
+    for lpart, rpart in zip(left_parts, right_parts):
+        if lpart == rpart:
+            continue
+        lnum = lpart.isdigit()
+        rnum = rpart.isdigit()
+        if lnum and rnum:
+            return int(lpart) > int(rpart)
+        if lnum != rnum:
+            return not lnum  # numeric prerelease identifiers have lower precedence
+        return lpart > rpart
+    return len(left_parts) > len(right_parts)
+
+
+def _validate_compatibility_metadata(manifest):
+    parsed = {}
+    for field in ("min_host_version", "tested_host_version"):
+        if field in manifest:
+            parsed[field] = _parse_host_version(field, manifest.get(field))
+    if (
+        "min_host_version" in parsed
+        and "tested_host_version" in parsed
+        and _host_version_greater(
+            parsed["min_host_version"], parsed["tested_host_version"]
+        )
+    ):
+        raise LomcError("min_host_version 不能高于 tested_host_version")
+    for field in ("game_version", "tested_game_version"):
+        if field in manifest:
+            value = manifest.get(field)
+            if not isinstance(value, str) or _GAME_VERSION_RE.fullmatch(value) is None:
+                raise LomcError(
+                    '字段 "%s" 必须是 1~64 位版本标识（字母、数字、.-_+），实际为 %r'
+                    % (field, value)
+                )
+    if (
+        "game_version" in manifest
+        and "tested_game_version" in manifest
+        and manifest["game_version"].casefold()
+        != manifest["tested_game_version"].casefold()
+    ):
+        raise LomcError("game_version 与 tested_game_version 不能互相矛盾")
+
 
 def _validate_manifest_display_text(field, value):
     limit = _MANIFEST_TEXT_LIMITS[field]
@@ -1246,6 +1328,7 @@ def validate_manifest(manifest, source="manifest.json"):
             )
         for name in ("name", "version", "author", "description"):
             _validate_manifest_display_text(name, manifest.get(name))
+        _validate_compatibility_metadata(manifest)
         entry = manifest.get("entry")
         if not isinstance(entry, str) or SCRIPT_ID_RE.fullmatch(entry) is None:
             raise LomcError(

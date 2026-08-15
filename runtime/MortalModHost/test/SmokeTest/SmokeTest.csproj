@@ -24,6 +24,7 @@
     <Compile Include="..\..\src\RuntimeTrace.cs" />
     <Compile Include="..\..\src\StructuredRuntimeError.cs" />
     <Compile Include="..\..\src\RuntimeDebugControl.cs" />
+    <Compile Include="..\..\src\RuntimeCompatibility.cs" />
     <Compile Include="..\..\src\ModDisclosurePolicy.cs" />
   </ItemGroup>
 

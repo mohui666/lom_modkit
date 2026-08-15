@@ -58,6 +58,7 @@ from PySide6.QtWidgets import (
 )
 
 import models
+from app_version import RUNTIME_VERSION
 
 EDITOR_DIR = models.editor_dir()
 PROJECT_ROOT = models.project_root()
@@ -322,7 +323,7 @@ class ManifestDialog(QDialog):
         self._story_ids = list(story_ids)
 
         self.setWindowTitle(t("export.title"))
-        self.resize(920, 560)
+        self.resize(920, 700)
         layout = QVBoxLayout(self)
         intro = QLabel(t("export.intro"))
         intro.setWordWrap(True)
@@ -351,6 +352,31 @@ class ManifestDialog(QDialog):
         self.entry_combo.setCurrentIndex(idx if idx >= 0 else 0)
         form.addRow(t("export.entry"), self.entry_combo)
         layout.addLayout(form)
+
+        compatibility_box = QGroupBox(t("export.compatibility"))
+        compatibility_form = QFormLayout(compatibility_box)
+        self.min_host_version_edit = QLineEdit(str(base.get("min_host_version") or ""))
+        self.tested_host_version_edit = QLineEdit(
+            str(base.get("tested_host_version") or RUNTIME_VERSION)
+        )
+        self.game_version_edit = QLineEdit(str(base.get("game_version") or ""))
+        self.tested_game_version_edit = QLineEdit(
+            str(base.get("tested_game_version") or "")
+        )
+        self.min_host_version_edit.setPlaceholderText(t("export.compat_optional"))
+        self.game_version_edit.setPlaceholderText(t("export.compat_exact_optional"))
+        self.tested_game_version_edit.setPlaceholderText(t("export.compat_optional"))
+        compatibility_form.addRow(
+            t("export.min_host_version"), self.min_host_version_edit
+        )
+        compatibility_form.addRow(
+            t("export.tested_host_version"), self.tested_host_version_edit
+        )
+        compatibility_form.addRow(t("export.game_version"), self.game_version_edit)
+        compatibility_form.addRow(
+            t("export.tested_game_version"), self.tested_game_version_edit
+        )
+        layout.addWidget(compatibility_box)
 
         # ------------------------------------------------------ campaign 区
         camp_box = QGroupBox(t("export.campaign"))
@@ -541,6 +567,15 @@ class ManifestDialog(QDialog):
             campaign["triggers"] = triggers
         if campaign:
             m["campaign"] = campaign
+        for field, widget in (
+            ("min_host_version", self.min_host_version_edit),
+            ("tested_host_version", self.tested_host_version_edit),
+            ("game_version", self.game_version_edit),
+            ("tested_game_version", self.tested_game_version_edit),
+        ):
+            value = widget.text().strip()
+            if value:
+                m[field] = value
         return m
 
     def accept(self) -> None:

@@ -32,6 +32,9 @@ assets/                # 可选，自定义资源
   "package_format": 1,
   "story_schema": 1,
   "content_schema": 1,
+  "min_host_version": "0.6.0",
+  "tested_host_version": "0.6.0",
+  "tested_game_version": "1.2.3",
   "id": "demo_mod",
   "name": "示例 Mod",
   "version": "1.0.0",
@@ -55,6 +58,7 @@ assets/                # 可选，自定义资源
 - `format`: 고정값 `1`.
 - `id`: mod 고유 id(`[a-z0-9_\-]+`), 런타임 등록 이름의 접두사로 충돌을 방지합니다.
 - `entry`: 진입 스토리 스크립트 id, 반드시 존재해야 합니다.
+- `min_host_version`은 SemVer 하드 요구 사항이며, 현재 Host가 `tested_host_version`보다 높으면 경고만 표시합니다. `game_version`은 Unity의 실제 `Application.version`과 정확히 일치해야 하는 하드 요구 사항이고, `tested_game_version` 불일치는 경고입니다. 네 필드는 모두 선택 사항이며 필드가 없는 구형 manifest는 기존처럼 동작합니다.
 - `campaign`(선택): 캠페인 모드.
   - `new_game`: true이면 이 mod가 게임 내 mod 메뉴의 "새 캠페인 시작" 구역에 표시되며, 클릭하면 **격리 세이브 슬롯**(`SetSlot("mod_<modid>")`, 플레이어의 정상 세이브를 덮어쓰지 않음)으로 새 게임을 시작하고, 첫 번째 스토리 스크립트가 이 mod의 `entry`로 교체됩니다.
   - `disable_official_events`(선택, bool, 기본 false): true이면 이 캠페인에서 **원작 스토리 이벤트를 비활성화**합니다 — Free로 돌아올 때 장소 없는 메인/서브 스토리가 자동으로 시작되지 않으며, 맵 위치에는 이 mod의 트리거만 남습니다(적중하지 않으면 해당 위치의 기본 활동을 사용할 수 없으므로 mod가 자체 폴백 트리거를 준비해야 합니다).

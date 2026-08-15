@@ -57,6 +57,9 @@ namespace MortalModHost
                 Assert(mod.Name == "示例 Mod", "name 解析错误（含中文）：" + mod.Name);
                 Assert(mod.Version == "1.0.0", "version 解析错误：" + mod.Version);
                 Assert(mod.Author == "somebody", "author 解析错误：" + mod.Author);
+                Assert(mod.MinHostVersion == "0.5.0" && mod.TestedHostVersion == "0.6.0"
+                    && mod.TestedGameVersion == "1.2.3",
+                    "兼容性 metadata 解析错误");
                 Assert(mod.Entry == "main", "entry 解析错误：" + mod.Entry);
                 Assert(mod.LuaScripts.Count == 2, "应有 2 个 lua 脚本，实际 " + mod.LuaScripts.Count);
                 Assert(mod.LuaScripts.ContainsKey("main") && mod.LuaScripts.ContainsKey("extra"), "脚本 id 清单错误");
@@ -129,6 +132,7 @@ namespace MortalModHost
 
                 TestCampaign();
                 TestLocalization();
+                TestRuntimeCompatibility();
                 TestRuntimeTrace();
                 TestStructuredRuntimeError();
                 TestArchiveLimits();
@@ -142,7 +146,7 @@ namespace MortalModHost
                 infos.ForEach(Console.WriteLine);
                 Console.WriteLine("--- 坏包/容错警告（预期 7 条，另 1 条注册冲突） ---");
                 warnings.ForEach(Console.WriteLine);
-                Console.WriteLine("PASS: 2 个好包解析正确（显式 Schema + texts.json 中文/转义文本 + 坏 texts.json 容错 + assets/ 图片读入与超限跳过），6 个坏包/坏文件与未来版本安全跳过，注册表查找/包查找/冲突处理正确，热键迁移改写正确，campaign 解析/触发器条件（含 when_month/when_stage/when_affinity/disable_official_events）正确，非官方剧情披露场景策略与结构化 Runtime 错误兜底正确。");
+                Console.WriteLine("PASS: 2 个好包解析正确（显式 Schema + 运行环境兼容 metadata + texts/assets 容错），6 个坏包/坏文件与未来版本安全跳过，Host/游戏版本硬拒载与软警告、注册表冲突、热键迁移、campaign、非官方剧情披露与结构化 Runtime 错误均正确。");
                 return 0;
             }
             finally
@@ -215,6 +219,52 @@ namespace MortalModHost
             Assert(!RuntimeTrace.Active && !RuntimeDebugControl.Active && RuntimeTrace.Snapshot().Count == retained,
                 "普通 Mod 默认不得记录 trace 或改变执行路径");
             RuntimeTrace.Reset();
+        }
+
+        private static void TestRuntimeCompatibility()
+        {
+            var legacy = new ModPackage { Id = "legacy" };
+            CompatibilityResult result = RuntimeCompatibility.Evaluate(legacy, "0.6.0", "1.2.3");
+            Assert(result.IsCompatible && result.Warnings.Count == 0,
+                "旧 manifest 无兼容字段时必须正常工作");
+
+            var supported = new ModPackage
+            {
+                Id = "supported",
+                MinHostVersion = "0.5.0",
+                TestedHostVersion = "0.6.0",
+                GameVersion = "1.2.3",
+                TestedGameVersion = "1.2.3"
+            };
+            result = RuntimeCompatibility.Evaluate(supported, "0.6.0", "1.2.3");
+            Assert(result.IsCompatible && result.Warnings.Count == 0,
+                "匹配的 Host/游戏版本声明应通过");
+
+            supported.MinHostVersion = "0.7.0";
+            result = RuntimeCompatibility.Evaluate(supported, "0.6.0", "1.2.3");
+            Assert(!result.IsCompatible && result.Error.Contains("Host >= 0.7.0"),
+                "Host 低于硬门槛必须给明确错误");
+
+            supported.MinHostVersion = "0.5.0";
+            supported.TestedHostVersion = "0.5.9";
+            supported.GameVersion = null;
+            supported.TestedGameVersion = "1.2.2";
+            result = RuntimeCompatibility.Evaluate(supported, "0.6.0", "1.2.3");
+            Assert(result.IsCompatible && result.Warnings.Count == 2,
+                "超出作者测试的 Host/游戏版本应警告但继续加载");
+
+            supported.TestedHostVersion = "0.6.0";
+            supported.GameVersion = "1.2.2";
+            supported.TestedGameVersion = null;
+            result = RuntimeCompatibility.Evaluate(supported, "0.6.0", "1.2.3");
+            Assert(!result.IsCompatible && result.Error.Contains("需要游戏版本 1.2.2"),
+                "game_version 精确硬门槛不匹配时必须拒绝");
+
+            supported.GameVersion = null;
+            supported.MinHostVersion = "not-semver";
+            result = RuntimeCompatibility.Evaluate(supported, "0.6.0", "1.2.3");
+            Assert(!result.IsCompatible && result.Error.Contains("min_host_version"),
+                "手工包的非法兼容字段必须在运行时明确拒绝");
         }
 
         private sealed class ThrowingToStringException : Exception
@@ -588,7 +638,7 @@ namespace MortalModHost
         private static void WriteGoodPackage(string path)
         {
             WriteZip(path,
-                ("manifest.json", "{\"format\":1,\"package_format\":1,\"story_schema\":1,\"content_schema\":1,\"id\":\"demo_mod\",\"name\":\"示例 Mod\",\"version\":\"1.0.0\",\"author\":\"somebody\",\"description\":\"一句话简介\",\"entry\":\"main\"}"),
+                ("manifest.json", "{\"format\":1,\"package_format\":1,\"story_schema\":1,\"content_schema\":1,\"id\":\"demo_mod\",\"name\":\"示例 Mod\",\"version\":\"1.0.0\",\"author\":\"somebody\",\"description\":\"一句话简介\",\"entry\":\"main\",\"min_host_version\":\"0.5.0\",\"tested_host_version\":\"0.6.0\",\"tested_game_version\":\"1.2.3\"}"),
                 ("story/main.json", "{\"id\":\"main\"}"),
                 ("story/extra.json", "{\"id\":\"extra\"}"),
                 ("lua/main.lua", "local function node_n1() say(\"你好\") end\nreturn node_n1()"),

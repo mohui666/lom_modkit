@@ -32,6 +32,9 @@ assets/                # 可选，自定义资源
   "package_format": 1,
   "story_schema": 1,
   "content_schema": 1,
+  "min_host_version": "0.6.0",
+  "tested_host_version": "0.6.0",
+  "tested_game_version": "1.2.3",
   "id": "demo_mod",
   "name": "示例 Mod",
   "version": "1.0.0",
@@ -55,6 +58,7 @@ assets/                # 可选，自定义资源
 - `format`：固定で `1`。
 - `id`：mod の一意な id（`[a-z0-9_\-]+`）。ランタイムの登録名プレフィックスとして衝突を防ぎます。
 - `entry`：エントリーのシナリオスクリプト id。必ず存在すること。
+- `min_host_version` は SemVer のハード要件、`tested_host_version` を現在の Host が超える場合は警告のみです。`game_version` は Unity の実際の `Application.version` と完全一致するハード要件、`tested_game_version` は不一致時の警告です。4 項目はすべて任意で、未指定の旧 manifest は従来どおり動作します。
 - `campaign`（任意）：キャンペーンモード。
   - `new_game`：true のとき、ゲーム内 mod メニューの「新しいキャンペーンを開始」区に表示され、クリックすると**分離セーブスロット**（`SetSlot("mod_<modid>")`。プレイヤーの通常セーブを上書きしない）で新規ゲームを開始し、最初のシナリオスクリプトを本 mod の `entry` に置き換えます。
   - `disable_official_events`（任意、bool、既定 false）：true のとき本キャンペーンは**公式シナリオイベントを無効化**します——Free に戻っても場所なしメイン／サブイベントを自動開始せず、マップ地点には本 mod のトリガーのみが残ります（未命中の場合その地点の既定アクティビティは使用不可。mod 側でフォールバックトリガーを用意する必要があります）。

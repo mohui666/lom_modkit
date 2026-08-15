@@ -17,6 +17,11 @@ namespace MortalModHost
         /// <summary>版本号（manifest.version）。</summary>
         public string Version;
 
+        public string MinHostVersion;
+        public string TestedHostVersion;
+        public string GameVersion;
+        public string TestedGameVersion;
+
         /// <summary>作者（manifest.author，可空）。</summary>
         public string Author;
 
