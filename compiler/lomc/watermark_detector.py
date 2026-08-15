@@ -260,7 +260,8 @@ def detect_luminance(luminance, scale_factors=DEFAULT_SCALE_FACTORS) -> Detectio
     )
 
 
-def detect_image(path, scale_factors=DEFAULT_SCALE_FACTORS) -> DetectionResult:
+def load_image_luminance(path):
+    """Decode a bounded PNG/JPG and return its float32 luminance matrix."""
     np, Image, ImageOps = _dependencies()
     source = Path(path)
     if not source.is_file():
@@ -278,5 +279,9 @@ def detect_image(path, scale_factors=DEFAULT_SCALE_FACTORS) -> DetectionResult:
     if width * height > MAX_IMAGE_PIXELS:
         raise LomcError("截图像素数超过 5000 万上限")
     rgb = np.asarray(image, dtype=np.float32)
-    luminance = rgb[:, :, 0] * 0.2126 + rgb[:, :, 1] * 0.7152 + rgb[:, :, 2] * 0.0722
+    return rgb[:, :, 0] * 0.2126 + rgb[:, :, 1] * 0.7152 + rgb[:, :, 2] * 0.0722
+
+
+def detect_image(path, scale_factors=DEFAULT_SCALE_FACTORS) -> DetectionResult:
+    luminance = load_image_luminance(path)
     return detect_luminance(luminance, scale_factors=scale_factors)

@@ -198,6 +198,7 @@ SHA-256 前 16 个十六进制字符，可用来核对具体文件，但**不是
 | [用户内容库](docs/zh_CN/user_content.md) | 自定义音频 / 对白语音用法 |
 | [来源水印协议 v1](docs/zh_CN/watermark_protocol.md) | 跨 Python/C# 的 payload、ECC、强制画面嵌入与版本规则（不是签名或 DRM） |
 | [截图来源水印检测器](docs/zh_CN/watermark_detector.md) | 离线检测 PNG/JPG，输出置信度、协议、Mod 哈希与 CRC/ECC 状态 |
+| [视频来源水印检测器 v1](docs/zh_CN/watermark_video_detector.md) | FFmpeg 抽帧与多帧相关累积；真实 OBS/H.264 状态单独标注 |
 | [Mod 包格式契约](docs/zh_CN/mod_format.md) | 包结构、43 种节点、编译约定、运行时行为 |
 | [AI / CLI 手册](docs/zh_CN/ai_cli.md) | story_api 命令行与 Python API |
 | [多语言](docs/zh_CN/i18n.md) | 界面与文档的 i18n 架构 |
@@ -259,6 +260,9 @@ PYTHONPATH=compiler python -m lomc pack mod目录 -o 我的mod.lommod
 # 可选：离线截图来源水印检测器
 python -m pip install -r compiler/requirements-detector.txt
 PYTHONPATH=compiler python -m lomc detect-watermark screenshot.png --json
+
+# 可选：需要另外安装 FFmpeg
+PYTHONPATH=compiler python -m lomc detect-watermark-video capture.mp4 --json
 ```
 
 ### 构建与测试
