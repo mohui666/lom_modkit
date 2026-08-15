@@ -572,5 +572,16 @@
   "library.select_content": "请先选择一条用户内容。",
   "library.preview_audio_only": "只有音频内容可以试听。",
   "library.no_references": "当前项目没有引用这条内容。",
-  "library.references_title": "引用位置：{id}"
+  "library.references_title": "引用位置：{id}",
+  "menu.global_search": "全局搜索…", "search.title": "全局搜索",
+  "search.placeholder": "搜索章节、步骤、台词、人物、素材、变量、flag 或跳转…",
+  "search.all": "全部类别", "search.jump": "跳转到结果",
+  "search.col.type": "类别", "search.col.story": "章节", "search.col.node": "步骤",
+  "search.col.field": "字段", "search.col.match": "匹配内容",
+  "search.category.story": "章节", "search.category.node": "步骤 ID",
+  "search.category.text": "文本", "search.category.character": "人物",
+  "search.category.portrait": "表情", "search.category.voice": "语音",
+  "search.category.image": "图片", "search.category.variable": "变量",
+  "search.category.flag": "Flag", "search.category.goto": "跳转",
+  "search.category.content_ref": "用户内容", "search.located": "已定位到 {story} → {node}"
 }

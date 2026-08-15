@@ -892,6 +892,11 @@ class MainWindow(QMainWindow):
         edit = self.menuBar().addMenu(t("menu.edit"))
         edit.addAction(t("menu.undo"), self._undo, QKeySequence.StandardKey.Undo)
         edit.addAction(t("menu.redo"), self._redo, QKeySequence.StandardKey.Redo)
+        edit.addSeparator()
+        edit.addAction(
+            t("menu.global_search"), self._show_global_search,
+            QKeySequence("Ctrl+Shift+F"),
+        )
         run_menu = self.menuBar().addMenu(t("menu.run"))
         run_menu.addAction(
             t("menu.play"),
@@ -1002,6 +1007,31 @@ class MainWindow(QMainWindow):
 
         ContentLibraryDialog(self._stories, self, self.editor_data).exec()
         self._load_form()
+
+    def _show_global_search(self) -> None:
+        from global_search import GlobalSearchDialog
+
+        self._flush_pending()
+        GlobalSearchDialog(self._stories, self._locate_search_result, self).exec()
+
+    def _locate_search_result(self, story_id: str, node_id: str | None) -> None:
+        if story_id not in self._stories:
+            return
+        self._current_id = story_id
+        row = 0
+        if node_id:
+            for index, node in enumerate(self.story.get("nodes", [])):
+                if node.get("id") == node_id:
+                    row = index
+                    break
+        self._refresh_all(select_row=row)
+        if node_id is None:
+            self._select_chapter_settings()
+        self.node_list.setFocus()
+        self.statusBar().showMessage(
+            t("search.located", story=story_id, node=node_id or t("chapter.title")),
+            3500,
+        )
 
     def _show_flow_graph(self) -> None:
         self._refresh_flow_graph()

@@ -572,5 +572,16 @@
   "library.select_content": "ユーザーコンテンツを選択してください。",
   "library.preview_audio_only": "音声コンテンツだけ試聴できます。",
   "library.no_references": "現在のプロジェクトから参照されていません。",
-  "library.references_title": "参照位置：{id}"
+  "library.references_title": "参照位置：{id}",
+  "menu.global_search": "全体検索…", "search.title": "全体検索",
+  "search.placeholder": "チャプター、ノード、台詞、人物、素材、変数、flag、遷移を検索…",
+  "search.all": "すべて", "search.jump": "結果へ移動",
+  "search.col.type": "種類", "search.col.story": "チャプター", "search.col.node": "ノード",
+  "search.col.field": "フィールド", "search.col.match": "一致内容",
+  "search.category.story": "チャプター", "search.category.node": "ノード ID",
+  "search.category.text": "テキスト", "search.category.character": "人物",
+  "search.category.portrait": "表情", "search.category.voice": "音声",
+  "search.category.image": "画像", "search.category.variable": "変数",
+  "search.category.flag": "Flag", "search.category.goto": "遷移",
+  "search.category.content_ref": "ユーザーコンテンツ", "search.located": "{story} → {node} に移動しました"
 }

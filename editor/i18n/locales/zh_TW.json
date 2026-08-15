@@ -572,5 +572,16 @@
   "library.select_content": "請先選擇一項使用者內容。",
   "library.preview_audio_only": "只有音訊內容可以試聽。",
   "library.no_references": "目前專案沒有引用這項內容。",
-  "library.references_title": "引用位置：{id}"
+  "library.references_title": "引用位置：{id}",
+  "menu.global_search": "全域搜尋…", "search.title": "全域搜尋",
+  "search.placeholder": "搜尋章節、步驟、台詞、人物、素材、變數、flag 或跳轉…",
+  "search.all": "全部類別", "search.jump": "跳到結果",
+  "search.col.type": "類別", "search.col.story": "章節", "search.col.node": "步驟",
+  "search.col.field": "欄位", "search.col.match": "符合內容",
+  "search.category.story": "章節", "search.category.node": "步驟 ID",
+  "search.category.text": "文字", "search.category.character": "人物",
+  "search.category.portrait": "表情", "search.category.voice": "語音",
+  "search.category.image": "圖片", "search.category.variable": "變數",
+  "search.category.flag": "Flag", "search.category.goto": "跳轉",
+  "search.category.content_ref": "使用者內容", "search.located": "已定位到 {story} → {node}"
 }
