@@ -55,6 +55,23 @@ def _greater(left, right) -> bool:
     return len(lp) > len(rp)
 
 
+def validate_release_version(value: object) -> str | None:
+    """Return a human-readable error when the public Mod version is not SemVer."""
+    parsed = _version(value)
+    if parsed is None:
+        return "manifest.version 必须是 SemVer（例如 1.2.3 或 2.0.0-beta.1）"
+    core, prerelease = parsed
+    if any(part > 2147483647 for part in core):
+        return "manifest.version 的版本数字不能超过 2147483647"
+    for identifier in (prerelease or "").split("."):
+        if identifier.isdigit() and (
+            (len(identifier) > 1 and identifier.startswith("0"))
+            or int(identifier) > 2147483647
+        ):
+            return "manifest.version 的预发布数字必须无前导零且不超过 2147483647"
+    return None
+
+
 def apply_release_profile(
     editing_issues: list[PreflightIssue],
     stories: dict[str, dict],
@@ -87,6 +104,12 @@ def apply_release_profile(
             issues.append(PreflightIssue(
                 "error", "invalid_release_manifest", "", "", str(exc)
             ))
+
+    version_error = validate_release_version(manifest.get("version"))
+    if version_error is not None:
+        issues.append(PreflightIssue(
+            "error", "invalid_release_version", "", "", version_error
+        ))
 
     required = _version(manifest.get("min_host_version"))
     current = _version(runtime_version)

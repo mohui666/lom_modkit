@@ -106,6 +106,7 @@ from project_templates import TEMPLATES, create_project_template, template_info
 from project_statistics import ProjectStatistics, calculate_project_statistics
 from voice_coverage import VoiceCoverageReport, calculate_voice_coverage
 from release_preflight import apply_release_profile
+from release_builder import ReleaseBuildBlocked, build_release
 from recovery_store import (
     RecoveryCandidate,
     RecoveryError,
@@ -1213,6 +1214,7 @@ class MainWindow(QMainWindow):
         menu.addAction(t("menu.import_mod"), self.import_lommod)
         menu.addAction(t("menu.inspect_mod"), self.inspect_lommod)
         menu.addAction(t("menu.export_mod"), self.export_lommod)
+        menu.addAction("构建发布包…", self.build_release_package)
         menu.addAction(t("menu.install"), self._show_mod_manager)
         menu.addAction(
             t("menu.content_library"),
@@ -3158,6 +3160,75 @@ class MainWindow(QMainWindow):
         )
         self._remember_project("lommod", Path(path), str(manifest.get("name") or Path(path).stem))
         self.statusBar().showMessage(f"已导出 {path}", 5000)
+        return True
+
+    def build_release_package(self) -> bool:
+        """Build a checked local release artifact without installing or publishing it."""
+        self._flush_pending()
+        dlg = ManifestDialog(
+            self._current_id,
+            self.editor_data,
+            sorted(self._stories.keys()),
+            self.manifest_base,
+            self,
+        )
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return False
+        manifest = dlg.manifest()
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "构建发布包",
+            str(Path(self._last_dir("last_mod_dir")) / f"{manifest['id']}.lommod"),
+            "LoM Mod 包 (*.lommod)",
+        )
+        if not path:
+            return False
+        self._remember_dir("last_mod_dir", path)
+        try:
+            result = build_release(
+                path,
+                manifest,
+                self._stories,
+                self.editor_data,
+                RUNTIME_VERSION,
+                content_root=content_registry.repository_root(),
+                bundled_assets=self._project_bundled_assets(),
+            )
+        except ReleaseBuildBlocked as exc:
+            PreflightDialog(
+                list(exc.issues),
+                self._locate_preflight_issue,
+                lambda: self._apply_preflight_fixes("release"),
+                self,
+                profile="release",
+            ).exec()
+            self.statusBar().showMessage(str(exc), 5000)
+            return False
+        except (package_io.PackError, OSError) as exc:
+            QMessageBox.critical(self, _app_title(), "发布构建失败：%s" % exc)
+            return False
+        self.manifest = manifest
+        self.manifest_base = manifest
+        warning_note = (
+            "无" if not result.warnings else "%d 条（已保留在 Release 体检中）" % len(result.warnings)
+        )
+        QMessageBox.information(
+            self,
+            _app_title(),
+            "发布构建完成（未安装、未上传）\n\n"
+            "包：%s\n校验：%s\n大小：%d bytes\n剧情/节点：%d / %d\n"
+            "SHA-256：%s\n提醒：%s"
+            % (
+                result.package_path,
+                result.checksum_path,
+                result.package_size,
+                result.story_count,
+                result.node_count,
+                result.package_sha256,
+                warning_note,
+            ),
+        )
+        self.statusBar().showMessage("发布构建完成：%s" % result.package_path, 5000)
         return True
 
 

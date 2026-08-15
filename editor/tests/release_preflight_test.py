@@ -74,6 +74,23 @@ class ReleasePreflightTest(unittest.TestCase):
                          {"id", "name", "version", "author", "description"})
         self.assertTrue(all(i.severity == "error" for i in missing))
 
+    def test_public_package_version_must_be_semver(self):
+        stories = {"main": {"id": "main", "start": "end1",
+                            "nodes": [{"id": "end1", "type": "end"}]}}
+        manifest = {
+            "id": "demo", "name": "Demo", "version": "version one",
+            "author": "Author", "description": "Description", "entry": "main",
+        }
+        with tempfile.TemporaryDirectory() as content_root:
+            editing = run_preflight(
+                stories, self.editor_data, "main", manifest=manifest,
+                content_root=content_root,
+            )
+        release = apply_release_profile(editing, stories, manifest, "0.7.0")
+        invalid = [i for i in release if i.code == "invalid_release_version"]
+        self.assertEqual(len(invalid), 1)
+        self.assertEqual(invalid[0].severity, "error")
+
 
 if __name__ == "__main__":
     unittest.main()
