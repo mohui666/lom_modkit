@@ -601,5 +601,15 @@
   "template.end": "끝 단계 번호", "template.save_range": "선택 범위 저장",
   "template.delete": "템플릿 삭제", "template.insert": "현재 단계 뒤에 삽입",
   "template.item": "{name}({count}단계)",
-  "template.inserted": "템플릿 ‘{name}’을 삽입해 {count}단계를 추가했습니다"
+  "template.inserted": "템플릿 ‘{name}’을 삽입해 {count}단계를 추가했습니다",
+  "menu.story_sections": "스토리 그룹…", "sections.title": "스토리 Section / Group",
+  "sections.intro": "편집기 전용 탐색 그룹입니다. nodes 순서, 시작점, 이동 또는 컴파일 의미를 바꾸지 않습니다.",
+  "sections.name": "이름", "sections.kind": "유형", "sections.parent": "상위 Section",
+  "sections.start": "시작 단계 번호", "sections.end": "끝 단계 번호",
+  "sections.add": "그룹 추가", "sections.delete": "그룹 삭제",
+  "sections.toggle": "접기 / 펼치기", "sections.expand_all": "모두 펼치기",
+  "sections.collapse_all": "모두 접기", "sections.manage": "그룹 관리…",
+  "sections.section": "섹션", "sections.group": "그룹",
+  "sections.header_tip": "두 번 클릭해 접거나 펼칩니다. 실제 스토리 흐름은 바뀌지 않습니다.",
+  "sections.updated": "스토리 그룹을 갱신했습니다(CFG 및 컴파일 의미 불변)"
 }

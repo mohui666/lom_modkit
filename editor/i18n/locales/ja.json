@@ -601,5 +601,15 @@
   "template.end": "終了ステップ番号", "template.save_range": "選択範囲を保存",
   "template.delete": "テンプレートを削除", "template.insert": "現在のステップの後に挿入",
   "template.item": "{name}（{count} ステップ）",
-  "template.inserted": "テンプレート「{name}」を挿入し、{count} ステップを追加しました"
+  "template.inserted": "テンプレート「{name}」を挿入し、{count} ステップを追加しました",
+  "menu.story_sections": "ストーリーグループ…", "sections.title": "ストーリー Section / Group",
+  "sections.intro": "エディター専用のナビゲーションです。nodes の順序、開始点、遷移、コンパイル意味論は変更しません。",
+  "sections.name": "名前", "sections.kind": "種類", "sections.parent": "親 Section",
+  "sections.start": "開始ステップ番号", "sections.end": "終了ステップ番号",
+  "sections.add": "グループを追加", "sections.delete": "グループを削除",
+  "sections.toggle": "折りたたみ / 展開", "sections.expand_all": "すべて展開",
+  "sections.collapse_all": "すべて折りたたむ", "sections.manage": "グループ管理…",
+  "sections.section": "セクション", "sections.group": "グループ",
+  "sections.header_tip": "ダブルクリックで折りたたみます。実際のストーリーフローは変わりません。",
+  "sections.updated": "ストーリーグループを更新しました（CFG とコンパイル意味論は不変）"
 }

@@ -178,12 +178,19 @@ class StepListWidget(QListWidget):
     def _drop_insert_index(self, event) -> int | None:
         pos = event.position().toPoint()
         item = self.itemAt(pos)
-        node_count = max(0, self.count() - 1)
+        node_indices = [
+            int(self.item(row).data(_ROLE_KIND))
+            for row in range(self.count())
+            if isinstance(self.item(row).data(_ROLE_KIND), int)
+        ]
+        node_count = max(node_indices, default=-1) + 1
         if item is None:
             return node_count
         if self._is_chapter(item):
             return 0
         idx = item.data(_ROLE_KIND)
+        if isinstance(idx, tuple) and len(idx) >= 4 and idx[0] == "structure":
+            return int(idx[3])
         if not isinstance(idx, int):
             return node_count
         indicator = self.dropIndicatorPosition()
@@ -705,6 +712,7 @@ class MainWindow(QMainWindow):
         self.node_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.node_list.customContextMenuRequested.connect(self._on_node_context_menu)
         self.node_list.currentRowChanged.connect(self._on_node_selected)
+        self.node_list.itemDoubleClicked.connect(self._toggle_structure_item)
         self.node_list.steps_moved.connect(self._on_steps_moved)
         self.node_list.setToolTip(t("nav.drag_tip"))
         rename_shortcut = QAction(self)
@@ -899,6 +907,7 @@ class MainWindow(QMainWindow):
         )
         edit.addAction(t("menu.bulk_edit"), self._show_bulk_edit)
         edit.addAction(t("menu.node_templates"), self._show_node_templates)
+        edit.addAction(t("menu.story_sections"), self._show_story_sections)
         run_menu = self.menuBar().addMenu(t("menu.run"))
         run_menu.addAction(
             t("menu.play"),
@@ -1072,6 +1081,22 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(
             t("template.inserted", name=template.get("name", ""), count=count), 4000
         )
+
+    def _show_story_sections(self) -> None:
+        from story_sections import StorySectionsDialog, get_sections, set_sections
+
+        self._flush_pending()
+        dialog = StorySectionsDialog(self.story, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        updated = copy.deepcopy(get_sections(dialog.story))
+        if updated == get_sections(self.story):
+            return
+        selected = self._selected_node_index()
+        self._record_discrete()
+        set_sections(self.story, updated)
+        self._refresh_all(select_row=selected)
+        self.statusBar().showMessage(t("sections.updated"), 3000)
 
     def _locate_search_result(self, story_id: str, node_id: str | None) -> None:
         if story_id not in self._stories:
@@ -1267,6 +1292,10 @@ class MainWindow(QMainWindow):
     def _is_chapter_item(self, item: QListWidgetItem | None) -> bool:
         return item is not None and item.data(self._ROLE_KIND) == "chapter"
 
+    def _is_structure_item(self, item: QListWidgetItem | None) -> bool:
+        data = item.data(self._ROLE_KIND) if item is not None else None
+        return isinstance(data, tuple) and len(data) >= 3 and data[0] == "structure"
+
     def _selected_node_index(self) -> int:
         """当前选中的步骤在 nodes[] 中的下标；选中章节设置时返回 -1。"""
         item = self.node_list.currentItem()
@@ -1276,10 +1305,18 @@ class MainWindow(QMainWindow):
         return int(data) if isinstance(data, int) else -1
 
     def _list_row_for_node_index(self, node_index: int) -> int:
-        """nodes[] 下标 → 列表行（第 0 行是章节设置）。"""
-        return node_index + 1
+        """nodes[] 下标 → 当前树列表行（折叠时可能不可见）。"""
+        for row in range(self.node_list.count()):
+            if self.node_list.item(row).data(self._ROLE_KIND) == node_index:
+                return row
+        return -1
 
     def _select_node_index(self, node_index: int) -> None:
+        from story_sections import expand_for_node
+
+        if expand_for_node(self.story, node_index):
+            self._reload_node_list(select_row=node_index)
+            return
         row = self._list_row_for_node_index(node_index)
         if 0 <= row < self.node_list.count():
             self.node_list.setCurrentRow(row)
@@ -1296,8 +1333,14 @@ class MainWindow(QMainWindow):
 
         第 0 行固定为「章节设置」；步骤从第 1 行起。
         """
-        prev_kind = "chapter" if self._is_chapter_item(self.node_list.currentItem()) else "node"
+        from story_sections import expand_for_node, structure_rows
+
+        prev_item = self.node_list.currentItem()
+        prev_kind = "chapter" if self._is_chapter_item(prev_item) else "node"
+        prev_structure = prev_item.data(self._ROLE_KIND) if self._is_structure_item(prev_item) else None
         prev_node = self._selected_node_index()
+        if select_row >= 0:
+            expand_for_node(self.story, select_row)
         self.node_list.blockSignals(True)
         self.node_list.clear()
 
@@ -1310,11 +1353,26 @@ class MainWindow(QMainWindow):
         chapter.setSizeHint(QSize(0, 28))
         self.node_list.addItem(chapter)
 
-        for index, n in enumerate(self.story.get("nodes", [])):
+        nodes = self.story.get("nodes", [])
+        for row in structure_rows(self.story):
+            if row.kind != "node":
+                marker = "▸" if row.collapsed else "▾"
+                kind_label = t("sections.section") if row.kind == "section" else t("sections.group")
+                indent = "    " * row.depth
+                item = QListWidgetItem(f"{indent}{marker} {kind_label} · {row.title}")
+                item.setData(self._ROLE_KIND, ("structure", row.kind, row.item_id, row.start, row.end))
+                item.setToolTip(t("sections.header_tip"))
+                item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+                item.setSizeHint(QSize(0, 30))
+                self.node_list.addItem(item)
+                continue
+            index = row.node_index
+            n = nodes[index]
             bullet = models.node_bullet(n.get("type", ""))
             nid = n.get("id", "")
             title, detail = models.node_list_caption(n, self.editor_data)
-            item = QListWidgetItem(f"{bullet} {nid}  {title}\n      {detail}")
+            indent = "    " * row.depth
+            item = QListWidgetItem(f"{indent}{bullet} {nid}  {title}\n{indent}      {detail}")
             item.setData(self._ROLE_KIND, index)
             item.setToolTip(models.node_summary(n, self.editor_data))
             item.setFlags(
@@ -1331,6 +1389,13 @@ class MainWindow(QMainWindow):
             self.node_list.setCurrentRow(self._list_row_for_node_index(target))
         elif prev_kind == "chapter" or not self.story.get("nodes"):
             self.node_list.setCurrentRow(0)
+        elif prev_structure is not None:
+            target_row = next(
+                (row for row in range(self.node_list.count())
+                 if self.node_list.item(row).data(self._ROLE_KIND) == prev_structure),
+                0,
+            )
+            self.node_list.setCurrentRow(target_row)
         elif prev_node >= 0:
             target = min(prev_node, len(self.story.get("nodes", [])) - 1)
             self.node_list.setCurrentRow(self._list_row_for_node_index(target))
@@ -1650,6 +1715,8 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, _app_title(), "至少保留一个节点")
             return
         self._record_discrete()
+        from story_sections import repair_after_delete
+        repair_after_delete(self.story, str(nodes[row].get("id") or ""), nodes)
         removed = nodes.pop(row)
         if self.story.get("start") == removed.get("id"):
             self.story["start"] = nodes[0].get("id", "")
@@ -1711,6 +1778,8 @@ class MainWindow(QMainWindow):
         try:
             self._record_discrete()
             changed = models.rename_node(self.story, old_id, new_id)
+            from story_sections import retarget_structure_ids
+            changed += retarget_structure_ids(self.story, {old_id: new_id})
         except ValueError as exc:
             QMessageBox.warning(self, t("nav.rename_title"), str(exc))
             self._load_form()
@@ -1735,6 +1804,16 @@ class MainWindow(QMainWindow):
         if item is None or self._is_chapter_item(item):
             return
         self.node_list.setCurrentItem(item)
+        if self._is_structure_item(item):
+            data = item.data(self._ROLE_KIND)
+            menu = QMenu(self)
+            menu.addAction(t("sections.toggle"), lambda: self._toggle_structure(data[2]))
+            menu.addAction(t("sections.expand_all"), lambda: self._set_all_structures(False))
+            menu.addAction(t("sections.collapse_all"), lambda: self._set_all_structures(True))
+            menu.addSeparator()
+            menu.addAction(t("sections.manage"), self._show_story_sections)
+            menu.exec(self.node_list.mapToGlobal(pos))
+            return
         menu = QMenu(self)
         menu.addAction(t("nav.rename"), self._rename_current_node)
         menu.addAction(t("nav.copy"), self._copy_node)
@@ -1743,6 +1822,35 @@ class MainWindow(QMainWindow):
         menu.addAction(t("nav.move_up"), lambda: self._move_node(-1))
         menu.addAction(t("nav.move_down"), lambda: self._move_node(1))
         menu.exec(self.node_list.mapToGlobal(pos))
+
+    def _toggle_structure_item(self, item: QListWidgetItem) -> None:
+        if not self._is_structure_item(item):
+            return
+        data = item.data(self._ROLE_KIND)
+        self._toggle_structure(str(data[2]))
+
+    def _toggle_structure(self, item_id: str) -> None:
+        from story_sections import get_sections, set_collapsed
+
+        current = next(
+            (bool(item.get("collapsed"))
+             for section in get_sections(self.story)
+             for item in [section] + list(section.get("groups") or [])
+             if item.get("id") == item_id),
+            False,
+        )
+        self._record_discrete()
+        set_collapsed(self.story, item_id, not current)
+        self._reload_node_list()
+
+    def _set_all_structures(self, collapsed: bool) -> None:
+        from story_sections import set_all_collapsed
+
+        if not set_all_collapsed(copy.deepcopy(self.story), collapsed):
+            return
+        self._record_discrete()
+        set_all_collapsed(self.story, collapsed)
+        self._reload_node_list()
 
     # -------------------------------------------------------------- 信号槽
     def _on_node_selected(self, _row: int) -> None:

@@ -601,5 +601,15 @@
   "template.end": "結束步驟序號", "template.save_range": "儲存所選範圍",
   "template.delete": "刪除範本", "template.insert": "插入目前步驟之後",
   "template.item": "{name}（{count} 個步驟）",
-  "template.inserted": "已插入範本「{name}」，新增 {count} 個步驟"
+  "template.inserted": "已插入範本「{name}」，新增 {count} 個步驟",
+  "menu.story_sections": "劇情分組…", "sections.title": "劇情 Section / Group",
+  "sections.intro": "純編輯器導覽分組，不改變 nodes 順序、起點、跳轉或編譯語義。Section 可包含 Group。",
+  "sections.name": "名稱", "sections.kind": "類型", "sections.parent": "父 Section",
+  "sections.start": "起始步驟序號", "sections.end": "結束步驟序號",
+  "sections.add": "新增分組", "sections.delete": "刪除分組",
+  "sections.toggle": "收合 / 展開", "sections.expand_all": "全部展開",
+  "sections.collapse_all": "全部收合", "sections.manage": "管理分組…",
+  "sections.section": "段落", "sections.group": "小組",
+  "sections.header_tip": "按兩下收合或展開；分組不改變真正劇情流程。",
+  "sections.updated": "已更新劇情分組（CFG 與編譯語義不變）"
 }
