@@ -521,6 +521,119 @@ class GameInstallManager:
                     actions.append("已创建：" + str(directory))
         return actions
 
+    # ------------------------------------------------------------ Runtime 回滚
+    def runtime_rollback_dir(self) -> Path:
+        return self.plugin_dir() / ".runtime_rollback"
+
+    def _runtime_owned_targets(self) -> dict[str, Path]:
+        directory = self.plugin_dir()
+        return {
+            name: directory / name
+            for name in (RUNTIME_DLL_NAME, *RUNTIME_DEPENDENCIES)
+        }
+
+    def _read_runtime_rollback(self) -> dict[str, str | None] | None:
+        metadata = self.runtime_rollback_dir() / "previous.json"
+        try:
+            payload = json.loads(metadata.read_text(encoding="utf-8"))
+        except (OSError, ValueError, TypeError):
+            return None
+        if not isinstance(payload, dict):
+            return None
+        files = payload.get("files")
+        expected = set(self._runtime_owned_targets())
+        if payload.get("format") != 1 or not isinstance(files, dict) or set(files) != expected:
+            return None
+        result: dict[str, str | None] = {}
+        for name in sorted(expected):
+            digest = files.get(name)
+            if digest is not None and (
+                not isinstance(digest, str)
+                or re.fullmatch(r"[0-9a-f]{64}", digest) is None
+            ):
+                return None
+            if digest is not None:
+                backup = self.runtime_rollback_dir() / (name + "." + digest + ".rollback")
+                try:
+                    if not backup.is_file() or _sha256(backup) != digest:
+                        return None
+                except OSError:
+                    return None
+            result[name] = digest
+        return result
+
+    def runtime_rollback_available(self) -> bool:
+        return self._read_runtime_rollback() is not None
+
+    def _save_runtime_rollback(self, targets: dict[str, Path]) -> bool:
+        """Save the current owned files. Returns False for a clean first install."""
+        existing = {name: path for name, path in targets.items() if path.is_file()}
+        if not existing:
+            return False
+        rollback = self.runtime_rollback_dir()
+        rollback.mkdir(parents=True, exist_ok=True)
+        file_map: dict[str, str | None] = {}
+        try:
+            for name, target in targets.items():
+                if name not in existing:
+                    file_map[name] = None
+                    continue
+                digest = _sha256(target)
+                backup = rollback / (name + "." + digest + ".rollback")
+                if not backup.is_file() or _sha256(backup) != digest:
+                    staging = rollback / (backup.name + ".tmp")
+                    shutil.copy2(target, staging)
+                    if _sha256(staging) != digest:
+                        raise OSError("回滚副本写入后校验失败：" + name)
+                    os.replace(staging, backup)
+                file_map[name] = digest
+            metadata = rollback / "previous.json"
+            staging_metadata = rollback / "previous.json.tmp"
+            staging_metadata.write_text(
+                json.dumps(
+                    {"format": 1, "created_at": int(time.time()), "files": file_map},
+                    ensure_ascii=False,
+                    indent=2,
+                ) + "\n",
+                encoding="utf-8",
+            )
+            os.replace(staging_metadata, metadata)
+        except OSError as exc:
+            raise GameInstallError("无法保存 Runtime 回滚副本：%s" % exc) from exc
+        return True
+
+    def restore_previous_runtime(self) -> list[Path]:
+        """Restore exactly the last captured owned files; never touches game originals."""
+        snapshot = self._read_runtime_rollback()
+        if snapshot is None:
+            raise GameInstallError("没有可用且校验通过的 Runtime 回滚副本。")
+        targets = self._runtime_owned_targets()
+        rollback = self.runtime_rollback_dir()
+        staged: dict[str, Path] = {}
+        try:
+            for name, digest in snapshot.items():
+                if digest is None:
+                    continue
+                backup = rollback / (name + "." + digest + ".rollback")
+                temporary = targets[name].with_name(targets[name].name + ".restoring")
+                shutil.copy2(backup, temporary)
+                if _sha256(temporary) != digest:
+                    raise OSError("恢复暂存文件校验失败：" + name)
+                staged[name] = temporary
+            for name, temporary in staged.items():
+                os.replace(temporary, targets[name])
+            for name, digest in snapshot.items():
+                if digest is None and targets[name].is_file():
+                    targets[name].unlink()
+        except OSError as exc:
+            for temporary in staged.values():
+                try:
+                    temporary.unlink()
+                except OSError:
+                    pass
+            raise GameInstallError("恢复 Runtime 失败：%s" % exc) from exc
+        return [targets[name] for name, digest in snapshot.items() if digest is not None]
+
     # ------------------------------------------------------------ 安装
     def install_runtime(self) -> tuple[Path, bool]:
         """安装内置 DLL；返回 (目标路径, 是否实际更新)。"""
@@ -540,23 +653,53 @@ class GameInstallManager:
         target_dir.mkdir(parents=True, exist_ok=True)
         self.mods_dir(True).mkdir(parents=True, exist_ok=True)
         self.mods_dir(False).mkdir(parents=True, exist_ok=True)
-        target = target_dir / RUNTIME_DLL_NAME
-        changed = not target.exists() or _sha256(target) != _sha256(self.runtime_dll)
-        extras = [self.runtime_dll.parent / name for name in RUNTIME_DEPENDENCIES]
-        if not changed:
-            for src in extras:
-                dest = target_dir / src.name
-                if not dest.exists() or _sha256(dest) != _sha256(src):
-                    changed = True
-                    break
+        sources = {
+            RUNTIME_DLL_NAME: self.runtime_dll,
+            **{
+                name: self.runtime_dll.parent / name
+                for name in RUNTIME_DEPENDENCIES
+            },
+        }
+        targets = self._runtime_owned_targets()
+        target = targets[RUNTIME_DLL_NAME]
+        changed = any(
+            not targets[name].is_file()
+            or _sha256(targets[name]) != _sha256(source)
+            for name, source in sources.items()
+        )
         if changed:
+            rollback_saved = self._save_runtime_rollback(targets)
+            staged: dict[str, Path] = {}
             try:
-                shutil.copy2(self.runtime_dll, target)
-                for src in extras:
-                    shutil.copy2(src, target_dir / src.name)
+                for name, source in sources.items():
+                    temporary = target_dir / ("." + name + ".installing")
+                    shutil.copy2(source, temporary)
+                    if _sha256(temporary) != _sha256(source):
+                        raise OSError("Runtime 暂存文件校验失败：" + name)
+                    staged[name] = temporary
+                for name, temporary in staged.items():
+                    os.replace(temporary, targets[name])
+                if any(
+                    _sha256(targets[name]) != _sha256(source)
+                    for name, source in sources.items()
+                ):
+                    raise OSError("Runtime 安装后校验失败")
             except OSError as exc:
+                for temporary in staged.values():
+                    try:
+                        temporary.unlink()
+                    except OSError:
+                        pass
+                rollback_note = ""
+                if rollback_saved:
+                    try:
+                        self.restore_previous_runtime()
+                        rollback_note = "；已自动恢复上一版"
+                    except GameInstallError as rollback_exc:
+                        rollback_note = "；自动恢复也失败：%s" % rollback_exc
                 raise GameInstallError(
-                    "无法安装运行时。请确认游戏已退出，并检查目录写入权限：" + str(exc)
+                    "无法安装运行时。请确认游戏已退出，并检查目录写入权限："
+                    + str(exc) + rollback_note
                 ) from exc
         return target, changed
 

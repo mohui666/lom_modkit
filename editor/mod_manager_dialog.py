@@ -147,6 +147,8 @@ class ModManagerDialog(QDialog):
         self.install_btn.clicked.connect(self._install_runtime)
         self.doctor_btn = QPushButton("安装诊断…")
         self.doctor_btn.clicked.connect(self._show_runtime_doctor)
+        self.rollback_btn = QPushButton("恢复上一版")
+        self.rollback_btn.clicked.connect(self._restore_runtime)
         self.bepinex_btn = QPushButton(t("install.bepinex"))
         self.bepinex_btn.setToolTip(t("install.bepinex_tip"))
         self.bepinex_btn.clicked.connect(self._install_bepinex)
@@ -157,6 +159,7 @@ class ModManagerDialog(QDialog):
         status_row.addWidget(self.steam_fix_btn)
         status_row.addWidget(self.bepinex_btn)
         status_row.addWidget(self.install_btn)
+        status_row.addWidget(self.rollback_btn)
         status_row.addWidget(self.doctor_btn)
         game_layout.addLayout(status_row)
         layout.addWidget(game_box)
@@ -222,6 +225,7 @@ class ModManagerDialog(QDialog):
                 self.bepinex_btn.setText(t("install.bepinex"))
                 self.steam_fix_btn.setEnabled(False)
                 self.install_btn.setEnabled(False)
+                self.rollback_btn.setEnabled(False)
                 self.doctor_btn.setEnabled(True)
                 self.table.setRowCount(0)
                 return
@@ -233,6 +237,7 @@ class ModManagerDialog(QDialog):
             )
             self.steam_fix_btn.setEnabled(has_bepinex)
             self.install_btn.setEnabled(has_bepinex)
+            self.rollback_btn.setEnabled(self.manager.runtime_rollback_available())
             self.doctor_btn.setEnabled(True)
             if not has_bepinex:
                 self.status_label.setText(t("install.need_bepinex"))
@@ -401,6 +406,33 @@ class ModManagerDialog(QDialog):
 
     def _show_runtime_doctor(self) -> None:
         RuntimeDoctorDialog(self.manager, self).exec()
+        self.refresh()
+
+    def _restore_runtime(self) -> None:
+        if self.manager.is_game_running():
+            QMessageBox.warning(self, "无法恢复 Runtime", "请先退出《活侠传》，再恢复上一版。")
+            return
+        answer = QMessageBox.question(
+            self,
+            "恢复上一版 Runtime",
+            "只会恢复 MortalModHost.dll 与其受管依赖，不会修改游戏原始文件。\n\n"
+            "是否继续？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            restored = self.manager.restore_previous_runtime()
+        except GameInstallError as exc:
+            QMessageBox.critical(self, "Runtime 恢复失败", str(exc))
+            self.refresh()
+            return
+        QMessageBox.information(
+            self,
+            "Runtime 已恢复",
+            "已恢复：\n" + "\n".join(str(path) for path in restored),
+        )
         self.refresh()
 
     def _add_mod(self) -> None:

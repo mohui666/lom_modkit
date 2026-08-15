@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 import struct
 import sys
 import tempfile
@@ -145,6 +146,75 @@ class GameInstallManagerTest(unittest.TestCase):
         self.assertIsNone(report.game_root)
         self.assertEqual(report.findings[0].code, "game_not_configured")
         self.assertFalse(report.findings[0].fixable)
+
+    def test_runtime_update_keeps_verified_previous_version_and_restores_it(self):
+        self.manager.save_game_dir(self.game)
+        target, _ = self.manager.install_runtime()
+        plugin = target.parent
+        mortal_before = (self.game / "Mortal.exe").read_bytes()
+        core_before = (self.game / "BepInEx" / "core" / "BepInEx.Core.dll").read_bytes()
+        self.assertFalse(self.manager.runtime_rollback_available())
+
+        self.runtime.write_bytes(b"runtime-v2")
+        (self.runtime.parent / "NVorbis.dll").write_bytes(b"nvorbis-v2")
+        self.manager.install_runtime()
+        self.assertTrue(self.manager.runtime_rollback_available())
+        self.assertEqual((plugin / "MortalModHost.dll").read_bytes(), b"runtime-v2")
+
+        restored = self.manager.restore_previous_runtime()
+        self.assertEqual({path.name for path in restored}, {"MortalModHost.dll", "NVorbis.dll"})
+        self.assertEqual((plugin / "MortalModHost.dll").read_bytes(), b"runtime-v1")
+        self.assertEqual((plugin / "NVorbis.dll").read_bytes(), b"nvorbis-v1")
+        self.assertEqual((self.game / "Mortal.exe").read_bytes(), mortal_before)
+        self.assertEqual(
+            (self.game / "BepInEx" / "core" / "BepInEx.Core.dll").read_bytes(),
+            core_before,
+        )
+
+    def test_failed_runtime_update_automatically_restores_previous_files(self):
+        self.manager.save_game_dir(self.game)
+        target, _ = self.manager.install_runtime()
+        plugin = target.parent
+        self.runtime.write_bytes(b"runtime-v2")
+        (self.runtime.parent / "NVorbis.dll").write_bytes(b"nvorbis-v2")
+        real_replace = os.replace
+        failed = False
+
+        def fail_one_dependency(source, destination):
+            nonlocal failed
+            source_path, destination_path = Path(source), Path(destination)
+            if (
+                not failed
+                and source_path.name == ".NVorbis.dll.installing"
+                and destination_path.name == "NVorbis.dll"
+            ):
+                failed = True
+                raise OSError("simulated locked dependency")
+            return real_replace(source, destination)
+
+        with mock.patch("game_install.os.replace", side_effect=fail_one_dependency):
+            with self.assertRaises(GameInstallError) as caught:
+                self.manager.install_runtime()
+        self.assertIn("已自动恢复上一版", str(caught.exception))
+        self.assertEqual((plugin / "MortalModHost.dll").read_bytes(), b"runtime-v1")
+        self.assertEqual((plugin / "NVorbis.dll").read_bytes(), b"nvorbis-v1")
+
+    def test_tampered_runtime_backup_is_rejected(self):
+        self.manager.save_game_dir(self.game)
+        target, _ = self.manager.install_runtime()
+        self.runtime.write_bytes(b"runtime-v2")
+        self.manager.install_runtime()
+        rollback = self.manager.runtime_rollback_dir()
+        backup = next(rollback.glob("MortalModHost.dll.*.rollback"))
+        backup.write_bytes(b"tampered")
+        current = target.read_bytes()
+        self.assertFalse(self.manager.runtime_rollback_available())
+        with self.assertRaises(GameInstallError):
+            self.manager.restore_previous_runtime()
+        self.assertEqual(target.read_bytes(), current)
+
+        (rollback / "previous.json").write_text("[]", encoding="utf-8")
+        self.assertFalse(self.manager.runtime_rollback_available())
 
     def test_rejects_wrong_game_dir_and_bad_package(self):
         with self.assertRaises(GameInstallError):
