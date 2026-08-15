@@ -79,6 +79,7 @@ from game_install import (
 )
 from flow_graph import FlowGraphPanel
 from mod_manager_dialog import ModManagerDialog, apply_steam_launch_fix_ui
+import content_registry
 import package_io
 from preflight import PreflightIssue, apply_safe_fixes, run_preflight
 from preflight_dialog import PreflightDialog
@@ -1246,9 +1247,17 @@ class MainWindow(QMainWindow):
 
     def _preflight_issues(self) -> list[PreflightIssue]:
         entry = self.manifest_base.get("entry") or self.manifest.get("entry")
-        if entry not in self._stories:
+        if not entry:
             entry = self._current_id
-        return run_preflight(self._stories, self.editor_data, str(entry))
+        effective_manifest = dict(self.manifest_base or self.manifest or {})
+        effective_manifest["entry"] = entry
+        return run_preflight(
+            self._stories,
+            self.editor_data,
+            str(entry),
+            manifest=effective_manifest,
+            content_root=content_registry.repository_root(),
+        )
 
     def _locate_preflight_issue(self, issue: PreflightIssue) -> None:
         if issue.story_id not in self._stories:

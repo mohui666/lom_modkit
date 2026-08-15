@@ -8,15 +8,29 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
+from pathlib import Path
 import re
 
 from asset_store import MAX_IMAGE_BYTES, resolve_image_asset
 import content_registry
 from i18n import t
+from lomc.content import (
+    CONTENT_TYPES,
+    check_character_portrait,
+    check_content_matches_kind,
+    load_content_metadata,
+    parse_content_ref,
+    resolve_content,
+    resolve_content_dir,
+    validate_content_id,
+)
+from lomc.errors import LomcError
 from lua_preview import get_lomc
 import models
 import stage_guard
-from story_graph import analyze_story
+from story_graph import TERMINAL_TYPES, analyze_story
+from symbol_analysis import analyze_symbols, find_read_before_write
 
 
 _NODE_IN_MESSAGE = re.compile(r'节点\s*["“]([^"”]+)["”]')
@@ -122,24 +136,319 @@ def _uses_placeholder(node: dict) -> bool:
     return any(marker in value for marker in _PLACEHOLDER_TEXTS for value in values)
 
 
+def _content_specs(stories: dict[str, dict]):
+    """Yield every field whose ``user:`` value has a statically known role."""
+    for sid in sorted(stories):
+        for node in stories[sid].get("nodes") or []:
+            if not isinstance(node, dict):
+                continue
+            node_id = str(node.get("id") or "")
+            ntype = node.get("type")
+            if ntype in ("music", "sound"):
+                expected_kind = (
+                    "music" if ntype == "music"
+                    else ("env" if node.get("kind", "sound") == "env" else "sound")
+                )
+                yield sid, node_id, "name", node.get("name"), "audio", expected_kind, None
+            if ntype == "say" and node.get("voice"):
+                yield sid, node_id, "voice", node.get("voice"), "audio", None, None
+            if ntype in (
+                "show", "say", "hide", "move", "face", "focus", "offset",
+                "shock", "dim", "rotate", "intro",
+            ) and node.get("character"):
+                portrait = node.get("portrait") if ntype in ("show", "say") else None
+                yield sid, node_id, "character", node.get("character"), "character", None, portrait
+            image_active = not (
+                (ntype in ("custom_cg", "overlay") and node.get("action", "show") == "hide")
+                or (ntype == "background" and node.get("action", "show") in ("fadeout", "clear"))
+            )
+            if image_active and node.get("image"):
+                yield sid, node_id, "image", node.get("image"), "image", None, None
+
+
+def _looks_like_illegal_path(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    text = value.strip().replace("\\", "/")
+    body = text[5:] if text.startswith("user:") else text
+    return (
+        text.startswith(("/", "\\"))
+        or bool(re.match(r"^[A-Za-z]:", text))
+        or any(part == ".." for part in body.split("/"))
+        or (text.startswith("user:") and "/" in body)
+    )
+
+
+def _missing_content_code(field: str, expected_type: str) -> str:
+    if field == "voice":
+        return "missing_voice"
+    if expected_type == "image":
+        return "missing_image"
+    return "impossible_content_reference"
+
+
+def _content_reference_issues(
+    stories: dict[str, dict], content_root: Path
+) -> tuple[list[PreflightIssue], set[tuple[str, str]]]:
+    issues: list[PreflightIssue] = []
+    referenced: set[tuple[str, str]] = set()
+    root = str(content_root)
+    for sid, node_id, field, raw, expected_type, expected_kind, portrait in _content_specs(stories):
+        if not isinstance(raw, str) or not raw.startswith("user:"):
+            if field == "voice" and raw:
+                code = "illegal_content_path" if _looks_like_illegal_path(raw) else "impossible_content_reference"
+                issues.append(PreflightIssue(
+                    "error", code, sid, node_id,
+                    t("preflight.impossible_content", ref=repr(raw)),
+                ))
+            elif _looks_like_illegal_path(raw):
+                issues.append(PreflightIssue(
+                    "error", "illegal_content_path", sid, node_id,
+                    t("preflight.illegal_content_path", ref=repr(raw)),
+                ))
+            continue
+        try:
+            ref = parse_content_ref(raw, label="用户内容引用")
+        except LomcError as exc:
+            code = "illegal_content_path" if _looks_like_illegal_path(raw) else "impossible_content_reference"
+            issues.append(PreflightIssue("error", code, sid, node_id, str(exc)))
+            continue
+        if ref is None:
+            continue
+        referenced.add((expected_type, ref.content_id))
+        found_types = {
+            ctype for ctype in CONTENT_TYPES
+            if resolve_content_dir(root, ctype, ref.content_id) is not None
+        }
+        if expected_type not in found_types:
+            if found_types:
+                issues.append(PreflightIssue(
+                    "error", "wrong_user_content_type", sid, node_id,
+                    t(
+                        "preflight.wrong_content_type", ref=raw,
+                        actual=" / ".join(sorted(found_types)), expected=expected_type,
+                    ),
+                ))
+            else:
+                code = _missing_content_code(field, expected_type)
+                issues.append(PreflightIssue(
+                    "error", code, sid, node_id,
+                    t("preflight.missing_content", ref=raw),
+                ))
+            continue
+        try:
+            meta, _main_path = resolve_content(root, expected_type, ref.content_id)
+            if expected_type == "character":
+                check_character_portrait(meta, portrait, raw)
+            elif expected_kind:
+                check_content_matches_kind(meta, expected_kind, raw)
+        except LomcError as exc:
+            detail = str(exc)
+            if "没有表情" in detail or "立绘不存在" in detail:
+                code = "missing_portrait"
+            elif "文件不存在" in detail or "文件是空的" in detail:
+                code = _missing_content_code(field, expected_type)
+                if expected_type == "character":
+                    code = "missing_portrait"
+            elif "不能用在" in detail:
+                code = "wrong_user_content_type"
+            elif "路径" in detail or "文件名" in detail or "同目录" in detail:
+                code = "illegal_content_path"
+            else:
+                code = "stale_content_metadata"
+            issues.append(PreflightIssue("error", code, sid, node_id, detail))
+    return issues, referenced
+
+
+def _repository_issues(
+    content_root: Path, referenced: set[tuple[str, str]]
+) -> list[PreflightIssue]:
+    """Audit the on-disk registry, including entries normal scans intentionally skip."""
+    issues: list[PreflightIssue] = []
+    valid: dict[tuple[str, str], tuple[dict, Path]] = {}
+    user_root = content_root / "assets" / "user"
+    if not user_root.is_dir():
+        return issues
+    for type_dir in sorted(user_root.iterdir(), key=lambda path: path.name):
+        if not type_dir.is_dir():
+            continue
+        if type_dir.name not in CONTENT_TYPES:
+            issues.append(PreflightIssue(
+                "error", "illegal_content_path", "", "",
+                t("preflight.illegal_content_folder", path=str(type_dir)),
+            ))
+            continue
+        for folder in sorted(type_dir.iterdir(), key=lambda path: path.name):
+            if not folder.is_dir():
+                continue
+            label = "user:%s" % folder.name
+            try:
+                validate_content_id(folder.name)
+            except LomcError as exc:
+                issues.append(PreflightIssue("error", "illegal_content_path", "", "", str(exc)))
+                continue
+            meta_path = folder / "content.json"
+            try:
+                meta = load_content_metadata(str(meta_path))
+                if meta["id"] != folder.name or meta["type"] != type_dir.name:
+                    raise LomcError(
+                        "%s 的 metadata 与目录身份不一致（id=%r, type=%r）"
+                        % (label, meta["id"], meta["type"])
+                    )
+                resolve_content(str(content_root), type_dir.name, folder.name)
+            except LomcError as exc:
+                detail = str(exc)
+                code = (
+                    "illegal_content_path"
+                    if "路径" in detail or "同目录" in detail or "文件名" in detail
+                    else "stale_content_metadata"
+                )
+                issues.append(PreflightIssue("error", code, "", "", detail))
+                continue
+            valid[(type_dir.name, folder.name)] = (meta, folder)
+    for identity, (meta, _folder) in sorted(valid.items()):
+        if identity not in referenced:
+            issues.append(PreflightIssue(
+                "warning", "unused_content", "", "",
+                t("preflight.unused_content", ref="user:" + identity[1], kind=meta["type"]),
+            ))
+
+    index_path = content_root / "registry.json"
+    if index_path.is_file():
+        try:
+            raw_index = json.loads(index_path.read_text(encoding="utf-8-sig"))
+            entries = raw_index.get("contents") if isinstance(raw_index, dict) else None
+            indexed = {
+                (item.get("type"), item.get("id"))
+                for item in entries or [] if isinstance(item, dict)
+            }
+            if not isinstance(entries, list) or indexed != set(valid):
+                issues.append(PreflightIssue(
+                    "warning", "stale_content_metadata", "", "",
+                    t("preflight.stale_registry"),
+                ))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            issues.append(PreflightIssue(
+                "warning", "stale_content_metadata", "", "",
+                t("preflight.stale_registry"),
+            ))
+    return issues
+
+
+def _story_level_no_exit_scc(stories: dict[str, dict]) -> list[tuple[str, str]]:
+    """Return cross-story cycles that cannot reach a project terminal."""
+    edges: dict[str, set[str]] = {sid: set() for sid in stories}
+    edge_node: dict[tuple[str, str], str] = {}
+    final: set[str] = set()
+    uncertain: set[str] = set()
+    for sid, story in stories.items():
+        reachable = set(analyze_story(story).reachable)
+        for node in story.get("nodes") or []:
+            if not isinstance(node, dict) or node.get("id") not in reachable:
+                continue
+            if node.get("type") == "raw":
+                uncertain.add(sid)
+            if node.get("type") not in TERMINAL_TYPES:
+                continue
+            next_script = node.get("next_script")
+            if node.get("type") == "end" and isinstance(next_script, str) and next_script in stories:
+                target = next_script
+                edges[sid].add(target)
+                edge_node[(sid, target)] = str(node.get("id") or "")
+            elif not (node.get("type") == "end" and node.get("next_script")):
+                final.add(sid)
+    can_finish = set(final)
+    changed = True
+    while changed:
+        changed = False
+        for sid, targets in edges.items():
+            if sid not in can_finish and any(target in can_finish for target in targets):
+                can_finish.add(sid)
+                changed = True
+
+    index = 0
+    indices: dict[str, int] = {}
+    low: dict[str, int] = {}
+    stack: list[str] = []
+    on_stack: set[str] = set()
+    components: list[set[str]] = []
+
+    def visit(sid: str) -> None:
+        nonlocal index
+        indices[sid] = low[sid] = index
+        index += 1
+        stack.append(sid)
+        on_stack.add(sid)
+        for target in edges[sid]:
+            if target not in indices:
+                visit(target)
+                low[sid] = min(low[sid], low[target])
+            elif target in on_stack:
+                low[sid] = min(low[sid], indices[target])
+        if low[sid] == indices[sid]:
+            component: set[str] = set()
+            while True:
+                item = stack.pop()
+                on_stack.remove(item)
+                component.add(item)
+                if item == sid:
+                    break
+            components.append(component)
+
+    for sid in sorted(stories):
+        if sid not in indices:
+            visit(sid)
+    result: list[tuple[str, str]] = []
+    for component in components:
+        cyclic = len(component) > 1 or any(sid in edges[sid] for sid in component)
+        if not cyclic or component & can_finish or component & uncertain:
+            continue
+        for sid in sorted(component):
+            target = next((item for item in sorted(edges[sid]) if item in component), "")
+            result.append((sid, edge_node.get((sid, target), "")))
+    return result
+
+
 def run_preflight(
     stories: dict[str, dict],
     editor_data: dict,
     entry_story: str | None = None,
+    *,
+    manifest: dict | None = None,
+    content_root: str | Path | None = None,
 ) -> list[PreflightIssue]:
     """返回稳定排序的完整体检报告，不修改项目。"""
     issues: list[PreflightIssue] = []
+    manifest = manifest if isinstance(manifest, dict) else {}
+    explicit_content_audit = content_root is not None
+    resolved_content_root = (
+        Path(content_root) if content_root is not None else content_registry.repository_root()
+    )
+    if entry_story is None:
+        raw_entry = manifest.get("entry")
+        entry_story = raw_entry if isinstance(raw_entry, str) else None
+    manifest = dict(manifest)
+    manifest["entry"] = entry_story
+    if not isinstance(entry_story, str) or not entry_story or entry_story not in stories:
+        issues.append(PreflightIssue(
+            "error", "invalid_entry", str(entry_story or ""), "",
+            t("preflight.invalid_entry", entry=repr(entry_story)),
+        ))
+
+    content_issues, referenced_content = _content_reference_issues(
+        stories, resolved_content_root
+    )
+    issues.extend(content_issues)
+    if explicit_content_audit:
+        issues.extend(_repository_issues(resolved_content_root, referenced_content))
+
     lomc, lomc_error = get_lomc()
     if lomc is None:
-        return [
-            PreflightIssue(
-                "error",
-                "compiler_missing",
-                "",
-                "",
-                t("preflight.compiler_missing", err=lomc_error),
-            )
-        ]
+        issues.append(PreflightIssue(
+            "error", "compiler_missing", "", "",
+            t("preflight.compiler_missing", err=lomc_error),
+        ))
+        return issues
 
     story_ids = set(stories)
     for sid in sorted(stories):
@@ -213,8 +522,8 @@ def run_preflight(
             if node_id in graph.infinite_loops:
                 issues.append(
                     PreflightIssue(
-                        "warning",
-                        "infinite_loop",
+                        "error",
+                        "no_exit_scc",
                         sid,
                         node_id,
                         t("preflight.infinite_loop"),
@@ -255,21 +564,7 @@ def run_preflight(
                 image = None
             if isinstance(image, str) and image:
                 if image.startswith("user:"):
-                    try:
-                        _record, source = content_registry.resolve(
-                            image, expected_type="image"
-                        )
-                    except content_registry.ContentRegistryError as exc:
-                        source = None
-                        issues.append(
-                            PreflightIssue(
-                                "error",
-                                "missing_user_content",
-                                sid,
-                                node_id,
-                                str(exc),
-                            )
-                        )
+                    source = None  # handled by the typed repository audit above
                 else:
                     source = resolve_image_asset(image)
                 if source is None and not image.startswith("user:"):
@@ -292,68 +587,15 @@ def run_preflight(
                             t("preflight.large_image", image=repr(image)),
                         )
                     )
-            if node.get("type") in ("music", "sound"):
-                name = node.get("name")
-                if isinstance(name, str) and name.startswith("user:"):
-                    expected = (
-                        "env"
-                        if node.get("type") == "sound" and node.get("kind") == "env"
-                        else ("sound" if node.get("type") == "sound" else "music")
-                    )
-                    try:
-                        content_registry.resolve(name, expected_kind=expected)
-                    except content_registry.ContentRegistryError as exc:
-                        issues.append(
-                            PreflightIssue(
-                                "error",
-                                "missing_user_content",
-                                sid,
-                                node_id,
-                                str(exc),
-                            )
-                        )
-            if node.get("type") == "say":
-                voice = node.get("voice")
-                if isinstance(voice, str) and voice.strip():
-                    try:
-                        content_registry.resolve(voice, expected_kind=None)
-                    except content_registry.ContentRegistryError as exc:
-                        issues.append(
-                            PreflightIssue(
-                                "error",
-                                "missing_user_content",
-                                sid,
-                                node_id,
-                                t("preflight.bad_voice", err=exc),
-                            )
-                        )
-            character = node.get("character")
-            if isinstance(character, str) and character.startswith("user:"):
-                try:
-                    content_registry.resolve(
-                        character,
-                        expected_type="character",
-                        portrait=node.get("portrait")
-                        if node.get("type") in ("show", "say")
-                        else None,
-                    )
-                except content_registry.ContentRegistryError as exc:
-                    issues.append(
-                        PreflightIssue(
-                            "error",
-                            "missing_user_character",
-                            sid,
-                            node_id,
-                            str(exc),
-                        )
-                    )
             if node.get("type") == "end":
                 target = node.get("next_script")
-                if isinstance(target, str) and target and target not in story_ids:
+                if target not in (None, "") and (
+                    not isinstance(target, str) or target not in story_ids
+                ):
                     issues.append(
                         PreflightIssue(
                             "error",
-                            "missing_story",
+                            "invalid_cross_story_goto",
                             sid,
                             node_id,
                             t("preflight.missing_story", target=repr(target)),
@@ -389,9 +631,41 @@ def run_preflight(
                 )
             )
 
+    campaign = manifest.get("campaign")
+    triggers = campaign.get("triggers") if isinstance(campaign, dict) else []
+    for index, trigger in enumerate(triggers or []):
+        if not isinstance(trigger, dict):
+            continue
+        target = trigger.get("script")
+        if not isinstance(target, str) or target not in stories:
+            issues.append(PreflightIssue(
+                "error", "invalid_cross_story_goto", str(target or ""), "",
+                t("preflight.invalid_trigger_story", index=index, target=repr(target)),
+            ))
+
+    for sid, node_id in _story_level_no_exit_scc(stories):
+        issues.append(PreflightIssue(
+            "error", "no_exit_scc", sid, node_id,
+            t("preflight.no_exit_scc"),
+        ))
+
+    for report in analyze_symbols(stories, manifest):
+        if report.kind != "mod_flag" or not report.possibly_read_before_write:
+            continue
+        location = find_read_before_write(stories, report.name, manifest)
+        issues.append(PreflightIssue(
+            "warning", "possible_read_before_write",
+            location[0] if location else "", location[1] if location else "",
+            t("preflight.read_before_write", name=report.name),
+        ))
+
     order = {"error": 0, "warning": 1}
+    unique = {
+        (item.severity, item.code, item.story_id, item.node_id, item.message): item
+        for item in issues
+    }
     return sorted(
-        issues,
+        unique.values(),
         key=lambda item: (
             order.get(item.severity, 9),
             item.story_id,
