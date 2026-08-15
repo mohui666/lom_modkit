@@ -666,5 +666,8 @@
   "localization.hint": "節點中的原文就是預設語言；此處只儲存其他語言。未填文字會先回退到指定語言，再回退到原文。舊劇情無需遷移。",
   "localization.default": "預設語言", "localization.fallback": "回退語言", "localization.edit_locale": "正在編輯",
   "localization.path": "穩定路徑", "localization.source": "原文", "localization.translation": "譯文",
-  "localization.remove": "關閉本章本地化", "localization.saved": "劇情本地化已儲存"
+  "localization.remove": "關閉本章本地化", "localization.saved": "劇情本地化已儲存",
+  "localization.status": "狀態", "localization.missing_only": "只看缺漏",
+  "localization.coverage": "共 {total} 條 · 已翻譯 {translated} · 使用回退 {fallback} · 缺漏 {missing}",
+  "localization.status.translated": "已翻譯", "localization.status.fallback": "回退", "localization.status.missing": "缺漏"
 }

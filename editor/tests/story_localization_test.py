@@ -8,7 +8,7 @@ ROOT = EDITOR.parent
 for path in (EDITOR, ROOT / "compiler"):
     if str(path) not in sys.path: sys.path.insert(0, str(path))
 from PySide6.QtWidgets import QApplication
-from story_localization import StoryLocalizationDialog, apply_localization_settings, normalized_localization
+from story_localization import StoryLocalizationDialog, apply_localization_settings, normalized_localization, translation_coverage
 
 
 class StoryLocalizationTest(unittest.TestCase):
@@ -59,6 +59,24 @@ class StoryLocalizationTest(unittest.TestCase):
         dialog.default_combo.setCurrentIndex(dialog.default_combo.findData("ja"))
         dialog._save()
         self.assertNotIn("ja", dialog.result_config()["translations"])
+
+    def test_coverage_is_exclusive_and_missing_filter_preserves_hidden_values(self):
+        story = self.story()
+        config = {"default_locale": "zh_CN", "fallback_locale": "zh_TW", "translations": {
+            "zh_TW": {"story.title": "標題"}, "ja": {"s1.text": "こんにちは"}
+        }}
+        coverage = translation_coverage(story, config, "ja")
+        self.assertEqual((coverage["total"], coverage["translated"], coverage["fallback"], coverage["missing"]), (3, 1, 1, 1))
+        dialog = StoryLocalizationDialog({**story, "localization": config})
+        dialog.locale_combo.setCurrentIndex(dialog.locale_combo.findData("ja"))
+        dialog.missing_only.setChecked(True)
+        self.assertEqual(dialog.table.rowCount(), 1)
+        dialog.table.item(0, 2).setText("進む")
+        self.assertIn("1", dialog.coverage_label.text())
+        dialog._save()
+        result = dialog.result_config()["translations"]["ja"]
+        self.assertEqual(result["s1.text"], "こんにちは")
+        self.assertIn("c1.options.0.text", result)
 
 
 if __name__ == "__main__": unittest.main()

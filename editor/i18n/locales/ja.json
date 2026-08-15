@@ -666,5 +666,8 @@
   "localization.hint": "ノード内の原文が既定言語です。ここには他言語だけを保存します。空欄はフォールバック言語、次に原文へ戻ります。旧ストーリーの移行は不要です。",
   "localization.default": "既定言語", "localization.fallback": "フォールバック言語", "localization.edit_locale": "編集中の言語",
   "localization.path": "安定パス", "localization.source": "原文", "localization.translation": "翻訳",
-  "localization.remove": "この章のローカライズを無効化", "localization.saved": "ローカライズを保存しました"
+  "localization.remove": "この章のローカライズを無効化", "localization.saved": "ローカライズを保存しました",
+  "localization.status": "状態", "localization.missing_only": "未翻訳のみ",
+  "localization.coverage": "全 {total} 件 · 翻訳済み {translated} · フォールバック {fallback} · 未翻訳 {missing}",
+  "localization.status.translated": "翻訳済み", "localization.status.fallback": "フォールバック", "localization.status.missing": "未翻訳"
 }

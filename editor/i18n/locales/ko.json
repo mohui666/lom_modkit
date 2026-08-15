@@ -666,5 +666,8 @@
   "localization.hint": "노드의 원문이 기본 언어입니다. 여기에는 다른 언어만 저장합니다. 빈 번역은 대체 언어를 거쳐 원문으로 돌아갑니다. 기존 스토리는 마이그레이션할 필요가 없습니다.",
   "localization.default": "기본 언어", "localization.fallback": "대체 언어", "localization.edit_locale": "편집 언어",
   "localization.path": "안정 경로", "localization.source": "원문", "localization.translation": "번역",
-  "localization.remove": "이 장의 현지화 끄기", "localization.saved": "스토리 현지화를 저장했습니다"
+  "localization.remove": "이 장의 현지화 끄기", "localization.saved": "스토리 현지화를 저장했습니다",
+  "localization.status": "상태", "localization.missing_only": "누락만 보기",
+  "localization.coverage": "전체 {total}개 · 번역됨 {translated} · 대체 사용 {fallback} · 누락 {missing}",
+  "localization.status.translated": "번역됨", "localization.status.fallback": "대체", "localization.status.missing": "누락"
 }
