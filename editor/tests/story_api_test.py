@@ -196,6 +196,40 @@ class TestAddNode(unittest.TestCase):
         with self.assertRaises(ValueError, msg="数值字段给字符串应抛 ValueError"):
             story_api.add_node(story, "wait", {"seconds": "abc"})
 
+    def test_percent_and_discount_contract_fields_accept_numbers(self):
+        story = story_api.new_story()
+        cg = story_api.add_node(
+            story,
+            "custom_cg",
+            {"image": "user:test.cg", "scale": 68, "x": -5, "y": 10},
+        )
+        overlay = story_api.add_node(
+            story,
+            "overlay",
+            {"image": "user:test.overlay", "scale": 34, "opacity": 88},
+        )
+        shop = story_api.add_node(story, "custom_shop", {"discount": 1})
+        self.assertEqual((cg["scale"], cg["x"], cg["y"]), (68, -5, 10))
+        self.assertEqual((overlay["scale"], overlay["opacity"]), (34, 88))
+        self.assertEqual(shop["discount"], 1)
+
+    def test_battle_preset_removes_direct_mode_defaults(self):
+        story = story_api.new_story()
+        combat = story_api.add_node(
+            story,
+            "combat",
+            {"preset": "ambush", "win": "ok", "lose": "bad"},
+        )
+        battle = story_api.add_node(
+            story,
+            "battle",
+            {"preset": "war", "win": "ok", "lose": "bad"},
+        )
+        self.assertEqual(combat["preset"], "ambush")
+        self.assertEqual(battle["preset"], "war")
+        for node in (combat, battle):
+            self.assertNotIn("key", node)
+
     def test_ids_are_type_plus_order(self):
         story = story_api.new_story()
         a = story_api.add_node(story, "wait")

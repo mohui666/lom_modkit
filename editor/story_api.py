@@ -106,11 +106,15 @@ _LIST_KINDS = {
     "options", "cases", "vars", "dice_options", "battle_setup_skills",
     "reward_entries", "reward_entries_optional", "custom_shop_items",
 }
+_NUMBER_KINDS = {
+    "int", "float", "percent_scale", "percent_cg_scale", "percent_position",
+    "percent_offset", "percent_opacity", "discount_toggle",
+}
 
 
 def _check_kind(kind: str, value) -> bool:
     """按 NODE_SCHEMAS 的 kind 做宽松类型校验（不修改值）。"""
-    if kind in ("int", "float"):
+    if kind in _NUMBER_KINDS:
         # bool 是 int 的子类，数值字段不接受 true/false（与编译器一致）
         return isinstance(value, (int, float)) and not isinstance(value, bool)
     if kind == "bool":
@@ -150,7 +154,7 @@ def _check_fields(node_type: str, fields: dict | None) -> dict:
         if key in fields and not _check_kind(kind, fields[key]):
             raise ValueError(
                 f'节点类型 {node_type} 字段 "{key}" 类型不符（kind={kind}，'
-                f"应为 {'数值' if kind in ('int', 'float') else ('布尔' if kind == 'bool' else ('数组' if kind in _LIST_KINDS else '字符串'))}），"
+                f"应为 {'数值' if kind in _NUMBER_KINDS else ('布尔' if kind == 'bool' else ('数组' if kind in _LIST_KINDS else '字符串'))}），"
                 f"实际为 {fields[key]!r}"
             )
     return dict(fields)
@@ -180,6 +184,7 @@ def _make_node(story: dict, node_type: str, fields: dict, after: str | None) -> 
     node = models.new_node(node_type, node_id, _get_ed())
     node.update(fields)
     _normalize_branch(node)
+    _normalize_battle_preset(node)
     _check_portrait_node(node)  # 角色表情校验（与编译器同一张表）
     _insert_after(story, node, after)
     _guard_stage(story, node)  # 登场防线：动作人物未登场时自动补 show
@@ -214,6 +219,15 @@ def _normalize_branch(node: dict) -> None:
         node.pop("flag", None)
     else:
         node.pop("stat", None)
+
+
+def _normalize_battle_preset(node: dict) -> None:
+    """preset 模式移除 new_node 带入的直填默认字段，保持二选一契约。"""
+    if node.get("type") not in ("combat", "battle") or not node.get("preset"):
+        return
+    direct_fields = ("key", "enemy", "team", "level", "people", "display")
+    for key in direct_fields:
+        node.pop(key, None)
 
 
 def _check_portrait_node(node: dict) -> None:
@@ -323,6 +337,7 @@ def update_node(story: dict, node_id: str, fields: dict) -> dict:
     checked = _check_fields(node["type"], fields)
     node.update(checked)
     _normalize_branch(node)  # branch 键字段归一（合并后的最终状态）
+    _normalize_battle_preset(node)
     _check_portrait_node(node)  # 角色表情校验（合并默认值后的最终状态）
     nodes = story.get("nodes") or []
     for index, item in enumerate(nodes):

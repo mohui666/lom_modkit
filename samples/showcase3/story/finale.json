@@ -1,0 +1,42 @@
+{
+  "story_schema": 1,
+  "id": "finale",
+  "title": "3.0 终章：死亡画面或安全返回",
+  "mood": false,
+  "nodes": [
+    {
+      "id": "message1",
+      "type": "message",
+      "text": "【3.0/5】全部节点均已抵达。请选择死亡卡测试或安全返回 Free。"
+    },
+    {
+      "id": "choice1",
+      "type": "choice",
+      "options": [
+        {
+          "text": "测试死亡画面（回标题）",
+          "goto": "death1"
+        },
+        {
+          "text": "安全返回 Free",
+          "goto": "goto_scene1"
+        }
+      ],
+      "dialog": "Options"
+    },
+    {
+      "id": "death1",
+      "type": "death",
+      "title": "六十三节点·测试谢幕",
+      "text": "全节点样例 3.0：主动选择的死亡画面测试。",
+      "death_id": "930001",
+      "next": "Title"
+    },
+    {
+      "id": "goto_scene1",
+      "type": "goto_scene",
+      "scene": "Free"
+    }
+  ],
+  "start": "message1"
+}
