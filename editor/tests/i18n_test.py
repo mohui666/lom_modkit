@@ -71,6 +71,7 @@ def test_wiki_and_official_terms():
     assert term("common", "death_book") == "生死簿"
     assert term("common", "affinity") == "好感度"
     assert term("common", "lover") == "心上人"
+    assert term("battle_factions", "001") == "飞石帮"
 
     set_language("zh_TW")
     assert term("characters", "sister1") == "唐默鈴"
@@ -78,6 +79,7 @@ def test_wiki_and_official_terms():
     assert term("stats", "training") == "修養"
     assert term("common", "endgame_book") == "汗青書"
     assert term("common", "tang_sect") == "唐門"
+    assert term("battle_factions", "101") == "錦香宮"
 
     # 日语：官方游戏没有日语，人物汉字与属性名来自 wiki 日文页
     set_language("ja")
@@ -86,6 +88,7 @@ def test_wiki_and_official_terms():
     assert term("stats", "team") == "団結"
     assert term("stats", "training") == "品性"
     assert term("common", "endgame_book") == "汗青書"
+    assert term("battle_factions", "102") == "広州唐門"
 
     # 韩语：wiki 无韩语，取自游戏解包官方表
     set_language("ko")
@@ -96,6 +99,7 @@ def test_wiki_and_official_terms():
     assert term("common", "endgame_book") == "한청서"
     assert term("common", "death_book") == "생사부"
     assert term("common", "game_title") == "활협전"
+    assert term("battle_factions", "400") == "무림맹"
     print("[i18n] wiki / 官方游戏名词抽查 OK")
 
 
@@ -108,6 +112,14 @@ def test_language_switch_node_labels():
     models.refresh_labels()
     assert models.NODE_TYPE_CN["say"] == "台詞"
     assert t("nav.ending_card") == "汗青書エンディング"
+    for locale in ("zh_CN", "zh_TW", "ja", "ko"):
+        set_language(locale)
+        models.refresh_labels()
+        combat = models.enum_label("goto_scene", "Combat")
+        battle = models.enum_label("goto_scene", "Battle")
+        assert combat != battle and combat != "Combat" and battle != "Battle", (
+            f"{locale} 必须明确区分 Combat 决斗与 Battle 多人战役"
+        )
     set_language("zh_CN")
     models.refresh_labels()
     print("[i18n] 切换语言后节点名更新")

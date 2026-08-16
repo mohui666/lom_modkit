@@ -655,11 +655,10 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------ UI
     def _build_ui(self) -> None:
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-
         # 左栏：只管理结构——章节切换 + 步骤树 + 添加
         left = QWidget()
         left.setObjectName("leftNav")
+        left.setMinimumWidth(180)
         lv = QVBoxLayout(left)
         lv.setContentsMargins(8, 8, 8, 8)
         lv.setSpacing(6)
@@ -744,6 +743,7 @@ class MainWindow(QMainWindow):
         self.inspector = QStackedWidget()
         self.inspector.addWidget(self.chapter_panel)  # 0
         self.inspector.addWidget(self.form)  # 1
+        self.inspector.setMinimumWidth(280)
 
         # 右栏：预览 / 流程图 / 编译
         self.preview = LuaPreview()
@@ -766,12 +766,53 @@ class MainWindow(QMainWindow):
         self.right_tabs.addTab(self.flow_graph, t("tab.flow"))
         self.right_tabs.addTab(self.preview, t("tab.compile"))
         self.right_tabs.currentChanged.connect(self._on_right_tab_changed)
+        self.right_tabs.setMinimumWidth(320)
 
-        splitter.addWidget(left)
-        splitter.addWidget(self.inspector)
-        splitter.addWidget(self.right_tabs)
-        splitter.setSizes([280, 420, 560])
-        self.setCentralWidget(splitter)
+        # 两级 splitter 保证每根分隔条只改变它两侧的相邻栏：
+        # - 内层拖动“章节 / 属性”时，右侧预览宽度保持不变；
+        # - 外层拖动“属性 / 预览”时，左侧章节宽度保持不变。
+        # 单个三栏 QSplitter 会按三个 stretch factor 重新分配空间，拖动一根
+        # handle 时可能连带改变不相邻栏，尤其在窗口较窄时最明显。
+        navigation_splitter = QSplitter(Qt.Orientation.Horizontal)
+        navigation_splitter.setObjectName("navigationSplitter")
+        navigation_splitter.setChildrenCollapsible(False)
+        navigation_splitter.addWidget(left)
+        navigation_splitter.addWidget(self.inspector)
+        left.setMinimumWidth(220)
+        self.inspector.setMinimumWidth(300)
+        navigation_splitter.setStretchFactor(0, 0)
+        navigation_splitter.setStretchFactor(1, 1)
+        navigation_splitter.setSizes([280, 420])
+
+        def _protect_left_nav(_pos: int = 0, _index: int = 0) -> None:
+            """外层缩小时保留用户刚设置的左栏宽度，让中栏先承担变化。"""
+            sizes = navigation_splitter.sizes()
+            left_width = sizes[0] if sizes and sizes[0] > 0 else 280
+            navigation_splitter.setMinimumWidth(
+                left_width
+                + self.inspector.minimumWidth()
+                + navigation_splitter.handleWidth()
+            )
+
+        navigation_splitter.splitterMoved.connect(_protect_left_nav)
+        _protect_left_nav()
+
+        workspace_splitter = QSplitter(Qt.Orientation.Horizontal)
+        workspace_splitter.setObjectName("workspaceSplitter")
+        workspace_splitter.setChildrenCollapsible(False)
+        workspace_splitter.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
+        workspace_splitter.addWidget(navigation_splitter)
+        workspace_splitter.addWidget(self.right_tabs)
+        workspace_splitter.setStretchFactor(0, 1)
+        workspace_splitter.setStretchFactor(1, 1)
+        workspace_splitter.setSizes([700, 560])
+
+        # 保留引用供窗口状态保存、自动化测试和后续响应式布局使用。
+        self.navigation_splitter = navigation_splitter
+        self.workspace_splitter = workspace_splitter
+        self.setCentralWidget(workspace_splitter)
 
         self._preview_timer = QTimer(self)
         self._preview_timer.setSingleShot(True)

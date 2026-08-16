@@ -34,6 +34,26 @@ def main_fn() -> int:
     editor_data, is_fallback = models.load_editor_data(main.PROJECT_ROOT)
     win = main.MainWindow(editor_data, is_fallback)
     win._prompt_on_discard = False  # 测试全程关闭未保存确认弹窗（会阻塞 offscreen）
+    win.show()
+    app.processEvents()
+
+    # 三栏必须真正独立：拖左侧 handle 不得改变右栏；拖右侧 handle 不得改变左栏。
+    outer_before = win.workspace_splitter.sizes()
+    inner_before = win.navigation_splitter.sizes()
+    right_before = win.right_tabs.width()
+    win.navigation_splitter.moveSplitter(max(180, inner_before[0] - 40), 1)
+    app.processEvents()
+    assert win.right_tabs.width() == right_before, "拖动左侧分隔条不应改变非相邻右栏"
+    left_before = win.navigation_splitter.widget(0).width()
+    # 极限向左挤压外层 handle；过去在中栏耗尽后会继续压缩左栏。
+    win.workspace_splitter.moveSplitter(1, 1)
+    app.processEvents()
+    assert win.navigation_splitter.widget(0).width() == left_before, (
+        "拖动右侧分隔条不应改变非相邻左栏"
+    )
+    assert win.inspector.width() >= win.inspector.minimumWidth(), (
+        "外层分隔条必须在属性栏最小可用宽度处停止"
+    )
     assert len(win.story["nodes"]) == 3, "新建项目应含登场、示例对白和结束剧情"
     assert win.node_list.count() == 4, "列表 = 章节设置 + 3 个步骤"
     assert win.story["nodes"][-1]["type"] == "end", "新手模板应可直接通过收尾校验"
@@ -135,6 +155,28 @@ def main_fn() -> int:
     assert not main.NodeForm._field_visible(
         "intro", "character", {"intro_source": "custom"}
     ), "自定义介绍卡不应显示无效的原版人物字段"
+    assert not main.NodeForm._field_visible(
+        "enemy", "value", {"op": "id"}
+    ), "选择当前敌对门派不应再要求数值"
+    assert not main.NodeForm._field_visible(
+        "enemy", "display", {"op": "level"}
+    ), "原版 ModifyEnemyLevel 不读取显示提示"
+    assert main.NodeForm._field_visible(
+        "enemy", "display", {"op": "people"}
+    ), "修改门派人数可显示原版变更提示"
+
+    enemy_form = main.NodeForm()
+    enemy_node = models.new_node("enemy", "enemy1", editor_data)
+    enemy_form.set_context(editor_data, ["enemy1"])
+    enemy_form.set_node(enemy_node)
+    faction_combo = next(
+        combo
+        for combo in enemy_form.findChildren(QComboBox)
+        if combo.findData("001") >= 0 and combo.findData("500") >= 0
+    )
+    assert "飞石帮" in faction_combo.itemText(faction_combo.findData("001")), (
+        "战役门派必须显示可读名称而不是只暴露数字 ID"
+    )
     combo_node = {
         "id": "combo_character",
         "type": "show",
@@ -179,7 +221,8 @@ def main_fn() -> int:
     # 切换节点类型：当前 choice → 换成 branch 工厂产物，并验证表单按 type 重建
     branch = models.new_node("branch", node["id"], editor_data)
     branch["flag"] = "SMOKE_FLAG"
-    branch["cases"][0]["goto"] = "n1"  # 指向已有节点，保证 story 合法可编译
+    existing_target = win.story["nodes"][0]["id"]
+    branch["cases"][0]["goto"] = existing_target  # 指向真实存在节点
     win.story["nodes"][win._selected_node_index()] = branch
     win._refresh_all(select_row=1)
     cur = win._current_node()
@@ -197,10 +240,10 @@ def main_fn() -> int:
     # branch.source 切换：game → mod 时非法 value/超行被归一（契约：仅 1/2、≤2 行）
     branch["source"] = "game"
     branch["cases"] = [
-        {"value": 7, "goto": "n1"},
-        {"value": 1, "goto": "n1"},
-        {"value": 2, "goto": "n1"},
-        {"value": 3, "goto": "n1"},
+        {"value": 7, "goto": existing_target},
+        {"value": 1, "goto": existing_target},
+        {"value": 2, "goto": existing_target},
+        {"value": 3, "goto": existing_target},
     ]
     win._refresh_all(select_row=1)
     cb = QComboBox()
@@ -345,7 +388,7 @@ def main_fn() -> int:
         {"id": "x", "type": "goto_scene", "scene": "Combat", "key": "5102_01"},
         editor_data,
     )
-    assert s == "进入其他场景·战斗 5102_01", s
+    assert s == "进入其他场景·决斗（一对一） 5102_01", s
     print("[8b] 汉化/schema 2 助手抽查 OK（43 类型中文名、三组分组、清单显示）")
 
     # ManifestDialog：campaign 区读写 + 空行跳过 + 无内容不写出 + 新条件列

@@ -56,7 +56,7 @@ NODE_TYPE_CN_SRC: dict[str, str] = {
     "item": "物品",
     "flag": "剧情旗标",
     "game_flag": "游戏任务旗标",
-    "enemy": "敌方队伍",
+    "enemy": "战役门派状态",
     "battle_skill": "战场技能",
     "mission": "任务",
     "time": "时间",
@@ -102,6 +102,7 @@ NODE_HELP_KEYS = {
     "raw": "help.raw",
     "music": "help.music",
     "sound": "help.sound",
+    "enemy": "help.enemy",
 }
 NODE_HELP: dict[str, str] = {}
 
@@ -253,6 +254,10 @@ _ENUM_KEY_OVERRIDE = {
     ("time_op", "set"): "enum.set_time",
     ("intro_source", "character"): "enum.intro_character",
     ("intro_source", "custom"): "enum.intro_custom",
+    ("enemy_op", "team"): "enum.enemy_cohesion",
+    ("enemy_op", "level"): "enum.enemy_scale",
+    ("enemy_op", "people"): "enum.enemy_people",
+    ("enemy_op", "id"): "enum.enemy_current",
 }
 
 
@@ -558,12 +563,12 @@ NODE_SCHEMAS: dict[str, dict] = {
         ],
     },
     "enemy": {
-        "label": "敌方队伍修改",
+        "label": "战役门派状态修改",
         "fields": [
             ("op", "操作", "enum:enemy_op", False),
-            ("enemy", "敌方队伍 id", "line", False),
-            ("value", "数值", "int", True),
-            ("display", "显示样式", "int", True),
+            ("enemy", "战役门派", "battle_faction", False),
+            ("value", "变化量", "int", True),
+            ("display", "显示提示（1/0）", "int", True),
         ],
     },
     "battle_skill": {
@@ -780,6 +785,32 @@ FALLBACK_EDITOR_DATA: dict = {
     "dice_meta": {},
     "combat_ids": [],
     "battle_ids": [],
+    "battle_factions": [
+        {"id": faction_id, "name": faction_id}
+        for faction_id in (
+            "000",
+            "001",
+            "002",
+            "003",
+            "004",
+            "005",
+            "006",
+            "007",
+            "008",
+            "009",
+            "010",
+            "100",
+            "101",
+            "102",
+            "200",
+            "201",
+            "300",
+            "301",
+            "400",
+            "500",
+            "900",
+        )
+    ],
     "death_ids": [],
     "ending_ids": [],
     "game_flags": [],
@@ -1381,10 +1412,10 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
     if nt == "game_flag":
         return f"{tcn}·{node.get('flag', '')}={node.get('value', 0)}"
     if nt == "enemy":
-        return (
-            f"{tcn}·{enum_label('enemy_op', node.get('op', 'team'))}"
-            f" {node.get('enemy', '')} {_signed(node.get('value', 0))}"
-        )
+        op = node.get("op", "team")
+        faction = display_name(ed, "battle_factions", node.get("enemy", ""))
+        value = "" if op == "id" else f" {_signed(node.get('value', 0))}"
+        return f"{tcn}·{enum_label('enemy_op', op)} {faction}{value}"
     if nt == "battle_skill":
         return (
             f"{tcn}·{enum_label('battle_skill_op', node.get('op', 'set'))}"

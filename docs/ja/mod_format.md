@@ -131,13 +131,15 @@ assets/                # 可选，自定义资源
 | `item` | `kind`("book"/"misc"/"special"), `item`, `count`(既定1)；任意 `remove`(bool既定false) | アイテム増減 `AddBook/AddMisc/AddSpecial(id,count)`。remove 時は `RemoveBook/RemoveMisc(id)`（book/misc のみ） |
 | `flag` | `flag` | mod シナリオ flag：`statmodifymanager.AddStory(flag)` + `modflags[flag]=true` |
 | `game_flag` | `flag`, `value`；任意 `op`("set"既定/"add") | 公式クエスト flag：`SetFlag(id, 状態)` / `AddFlag(id, ±増分)`。**id はゲーム既存の FlagData でなければなりません**（14_属性とFlag 表）。さもないとゲームが黙って無視します |
-| `enemy` | `op`("team"/"level"/"people"/"id"), `enemy`, `value`(数値、id の op は不要), `display`(既定1) | 敵パーティー変更 `ModifyEnemyTeam/Level/People/Id` |
+| `enemy` | `op`("team"=結束力/"level"=門派規模/"people"=門派人数/"id"=現在の敵対門派を選択), `enemy`(戦役門派 id), `value`(変化量、id 操作では不要), `display`(team/people のみ、既定1) | **Battle の多人数戦役**で使う門派状態を変更する `ModifyEnemyTeam/Level/People/Id`。Combat の一対一決闘の敵設定ではありません |
 | `battle_skill` | `op`("set"/"active"/"reset"), `key`(reset は不要), `index`(set 用、既定2), `active`(active 用、既定1) | 戦場スキル `SetPlayerBattleSkill/SetBattleSkillActive/ResetBattleSkill` |
 | `mission` | `name`, `key` | クエスト操作 `statmodifymanager.Mission(name, key)`：`Mission("Main","M0001")` でメイン進行 / `Mission("S2200","clear")` でサブクリア |
 | `time` | `op`("set"/"round"/"month"/"mission")；set は `year,month,stage`；mission は `name,year,month,stage` | 時間 `SetGameTime/NextRound/NextMonth/SetMissionTime` |
 | `autosave` | 任意 `kind`("story"既定/"free"/"prologue")；任意 `save_button`(0/1、セーブボタンを個別制御) | `AutoSave()/AutoFreeSave()/PrologueSave(mode)`。`save_button` は単独で `ToggleSaveButton(n)` を emit |
 
 **フロー系**
+
+> 原作の用語：`Combat` は一対一の決闘、`Battle` は門派人数・陣形・戦場スキルを使う多人数戦役です。両者のステージ ID は混用できません。
 
 | type | フィールド | 説明 |
 | --- | --- | --- |

@@ -234,9 +234,12 @@ def _hint_text(node: dict, ed: dict) -> str | None:
             f"{node.get('value', 0)}"
         )
     if t == "enemy":
+        op = node.get("op", "team")
+        faction = models.display_name(ed, "battle_factions", node.get("enemy", ""))
+        value = "" if op == "id" else f" {node.get('value', 0)}"
         return (
-            f"[敌方队伍] {models.enum_label('enemy_op', node.get('op', 'team'))}"
-            f" {node.get('enemy', '')} {node.get('value', 0)}"
+            f"[{models.NODE_TYPE_CN.get('enemy', 'enemy')}] "
+            f"{models.enum_label('enemy_op', op)} {faction}{value}"
         )
     if t == "battle_skill":
         return (

@@ -131,13 +131,15 @@ assets/                # 可选，自定义资源
 | `item` | `kind`("book"/"misc"/"special"), `item`, `count`(預設1)；可選 `remove`(bool預設false) | 物品增減 `AddBook/AddMisc/AddSpecial(id,count)`；remove 時 `RemoveBook/RemoveMisc(id)`（僅 book/misc） |
 | `flag` | `flag` | mod 劇情 flag：`statmodifymanager.AddStory(flag)` + `modflags[flag]=true` |
 | `game_flag` | `flag`, `value`；可選 `op`("set"預設/"add") | 官方任務 flag：`SetFlag(id, 狀態)` / `AddFlag(id, ±增量)`。**id 必須是遊戲已有 FlagData**（14_屬性與Flag 表），否則遊戲靜默忽略 |
-| `enemy` | `op`("team"/"level"/"people"/"id"), `enemy`, `value`(數值, id 的 op 不需要), `display`(預設1) | 敵方隊伍修改 `ModifyEnemyTeam/Level/People/Id` |
+| `enemy` | `op`("team"=向心力/"level"=門派規模/"people"=門派人數/"id"=選擇目前敵對門派), `enemy`(戰役門派 id), `value`(變化量，id 操作不需要), `display`(僅 team/people 使用，預設1) | 修改 **Battle 多人戰役**使用的門派狀態 `ModifyEnemyTeam/Level/People/Id`；不設定 Combat 一對一決鬥敵人 |
 | `battle_skill` | `op`("set"/"active"/"reset"), `key`(reset 不需要), `index`(set 用, 預設2), `active`(active 用, 預設1) | 戰場技能 `SetPlayerBattleSkill/SetBattleSkillActive/ResetBattleSkill` |
 | `mission` | `name`, `key` | 任務操作 `statmodifymanager.Mission(name, key)`：`Mission("Main","M0001")` 推進主線 / `Mission("S2200","clear")` 清支線 |
 | `time` | `op`("set"/"round"/"month"/"mission")；set 用 `year,month,stage`；mission 用 `name,year,month,stage` | 時間 `SetGameTime/NextRound/NextMonth/SetMissionTime` |
 | `autosave` | 可選 `kind`("story"預設/"free"/"prologue")；可選 `save_button`(0/1，單獨控制存檔按鈕) | `AutoSave()/AutoFreeSave()/PrologueSave(mode)`；`save_button` 單獨 emit `ToggleSaveButton(n)` |
 
 **流程類**
+
+> 原版術語：`Combat` 是一對一決鬥，`Battle` 是帶門派人數、陣型與戰場技能的多人戰役；兩套關卡編號不能混用。
 
 | type | 欄位 | 說明 |
 | --- | --- | --- |

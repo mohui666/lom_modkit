@@ -29,6 +29,8 @@ CSV_MESSAGE = os.path.join(UNPACK_DIR, "output", "csv", "03_剧情系统提示.c
 RAW_MESSAGE = os.path.join(UNPACK_DIR, "raw", "Story_Message_zh-cn.txt")
 RAW_FLAG = os.path.join(UNPACK_DIR, "raw", "Flag_zh-cn.txt")
 RAW_POSITION = os.path.join(UNPACK_DIR, "raw", "Position_zh-cn.txt")
+CSV_OTHER = os.path.join(UNPACK_DIR, "output", "csv", "15_其他.csv")
+RAW_ENEMY_TEAM = os.path.join(UNPACK_DIR, "raw", "EnemyTeam_zh-cn.txt")
 VIEW_MAP_JSON = os.path.join(
     r"C:/Users/mohui666/lom_modkit", "data", "assets", "_probe", "view_map.json"
 )
@@ -303,6 +305,9 @@ def main():
     misc_names = _load_prefixed_kv(CSV_ITEM, RAW_MISC, "Misc/Name")
     special_names = _load_prefixed_kv(CSV_ITEM, RAW_SPECIAL, "Special/Name")
     message_names = _load_prefixed_kv(CSV_MESSAGE, RAW_MESSAGE, "Story")
+    battle_faction_names = _load_prefixed_kv(
+        CSV_OTHER, RAW_ENEMY_TEAM, "EnemyTeam"
+    )
 
     char_ids = set()
     portraits = {}  # id -> set
@@ -401,6 +406,10 @@ def main():
         "dice_meta": dice_meta,
         "combat_ids": sorted(combat_ids),
         "battle_ids": sorted(battle_ids),
+        "battle_factions": [
+            {"id": faction_id, "name": name}
+            for faction_id, name in sorted(battle_faction_names.items())
+        ],
         "death_ids": enrich_id_list(death_ids, ref_ids.get("death", {})),
         "ending_ids": enrich_id_list(ending_ids, ref_ids.get("ending", {})),
         "game_flags": [

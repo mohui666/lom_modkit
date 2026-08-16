@@ -188,7 +188,8 @@ QComboBox {{
     selection-background-color: rgba(10, 132, 255, 120);
 }}
 QComboBox {{
-    padding-right: 34px;
+    /* 箭头区只保留必要宽度；旧值 34px 会在窄属性栏中吃光文字区。 */
+    padding-right: 26px;
 }}
 QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus, QTextBrowser:focus,
 QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {{
@@ -197,7 +198,7 @@ QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {{
 QComboBox::drop-down {{
     border: none;
     border-left: 1px solid {CONTENT_BORDER};
-    width: 30px;
+    width: 24px;
     background: rgba(255, 255, 255, 8);
     border-top-right-radius: 8px;
     border-bottom-right-radius: 8px;
@@ -220,6 +221,8 @@ QComboBox QAbstractItemView {{
 QComboBox QLineEdit {{
     background: transparent;
     border: none;
+    padding: 0;
+    margin: 0;
 }}
 QListWidget, QTableWidget {{
     background: {CONTENT_FILL};

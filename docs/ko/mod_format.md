@@ -131,13 +131,15 @@ assets/                # 可选，自定义资源
 | `item` | `kind`("book"/"misc"/"special"), `item`, `count`(기본1); 선택 `remove`(bool 기본false) | 아이템 증감 `AddBook/AddMisc/AddSpecial(id,count)`; remove 시 `RemoveBook/RemoveMisc(id)`(book/misc만) |
 | `flag` | `flag` | mod 스토리 flag: `statmodifymanager.AddStory(flag)` + `modflags[flag]=true` |
 | `game_flag` | `flag`, `value`; 선택 `op`("set"기본/"add") | 공식 퀘스트 flag: `SetFlag(id, 상태)` / `AddFlag(id, ±증분)`. **id는 반드시 게임에 이미 있는 FlagData여야 합니다**(14_속성과Flag 표), 그렇지 않으면 게임이 조용히 무시 |
-| `enemy` | `op`("team"/"level"/"people"/"id"), `enemy`, `value`(수치, id의 op는 불필요), `display`(기본1) | 적 팀 수정 `ModifyEnemyTeam/Level/People/Id` |
+| `enemy` | `op`("team"=결속력/"level"=문파 규모/"people"=문파 인원/"id"=현재 적대 문파 선택), `enemy`(전장 문파 id), `value`(변화량, id 작업에는 불필요), `display`(team/people에서만 사용, 기본1) | **Battle 다인 전투**에서 쓰는 문파 상태를 변경하는 `ModifyEnemyTeam/Level/People/Id`. Combat 일대일 결투의 적 설정이 아님 |
 | `battle_skill` | `op`("set"/"active"/"reset"), `key`(reset 불필요), `index`(set용, 기본2), `active`(active용, 기본1) | 전장 스킬 `SetPlayerBattleSkill/SetBattleSkillActive/ResetBattleSkill` |
 | `mission` | `name`, `key` | 퀘스트 조작 `statmodifymanager.Mission(name, key)`: `Mission("Main","M0001")` 메인 진행 / `Mission("S2200","clear")` 서브 클리어 |
 | `time` | `op`("set"/"round"/"month"/"mission"); set은 `year,month,stage` 사용; mission은 `name,year,month,stage` 사용 | 시간 `SetGameTime/NextRound/NextMonth/SetMissionTime` |
 | `autosave` | 선택 `kind`("story"기본/"free"/"prologue"); 선택 `save_button`(0/1, 세이브 버튼 별도 제어) | `AutoSave()/AutoFreeSave()/PrologueSave(mode)`; `save_button`은 별도로 `ToggleSaveButton(n)` 방출 |
 
 **흐름류**
+
+> 원작 용어: `Combat`은 일대일 결투이고 `Battle`은 문파 인원·진형·전장 스킬을 쓰는 다인 전투입니다. 두 종류의 스테이지 ID를 섞어 쓸 수 없습니다.
 
 | type | 필드 | 설명 |
 | --- | --- | --- |

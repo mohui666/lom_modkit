@@ -239,7 +239,10 @@ class NodeForm(QScrollArea):
             if not self._field_visible(node_type, key, node):
                 continue
             widget = self._make_widget(node, key, kind)
-            shown = t(f"field.{key}", default=label)
+            shown = t(
+                f"field.{node_type}.{key}",
+                default=t(f"field.{key}", default=label),
+            )
             if optional:
                 shown += t("field.optional")
             form.addRow(shown, widget)
@@ -308,6 +311,14 @@ class NodeForm(QScrollArea):
                 return scene in ("GameOver", "End")
             if key == "image":
                 return scene == "End"
+        if node_type == "enemy":
+            op = node.get("op", "team")
+            if key == "value":
+                return op != "id"
+            if key == "display":
+                # 原版 ModifyEnemyTeam/People 才会读取 display；
+                # ModifyEnemyLevel 与 SetCurrentTeam 都不会显示该提示。
+                return op in ("team", "people")
         if node_type == "death" and key == "next":
             return False
         return True
@@ -360,12 +371,13 @@ class NodeForm(QScrollArea):
                 value,
                 audio_kind="env" if sound_kind == "env" else "sound",
             )
-        if kind in ("position", "view", "stat"):
+        if kind in ("position", "view", "stat", "battle_faction"):
             # schema 2 清单：{id,name} 对象数组，显示 "名字（id）"
             data_key = {
                 "position": "positions",
                 "view": "views",
                 "stat": "stats",
+                "battle_faction": "battle_factions",
             }[kind]
             if kind == "position":
                 items = models.list_items(self._editor_data, data_key)
@@ -598,12 +610,15 @@ class NodeForm(QScrollArea):
     # ------------------------------------------------------------ 基础控件
     @staticmethod
     def _configure_combo(w: QComboBox, *, filterable: bool = False) -> QComboBox:
-        """限制弹出层高度、允许内部滚动，避免盖住整页。"""
+        """让下拉框可随属性栏收缩，同时保留箭头和可读的当前值。"""
         w.setMaxVisibleItems(COMBO_VISIBLE_ITEMS)
         w.setSizeAdjustPolicy(
             QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
         )
-        w.setMinimumContentsLength(8)
+        # 只让 sizeHint 预留一个字符；完整值通过弹出清单和 tooltip 查看。
+        # 若按最长选项计算，长 ID 会反向撑住表单，最后只剩固定箭头槽可见。
+        w.setMinimumContentsLength(1)
+        w.setMinimumWidth(0)
         w.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         view = w.view()
         if view is not None:
@@ -624,6 +639,10 @@ class NodeForm(QScrollArea):
                 completer.setMaxVisibleItems(COMBO_VISIBLE_ITEMS)
         elif w.isEditable():
             w.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        if w.lineEdit() is not None:
+            w.lineEdit().setMinimumWidth(0)
+        w.setToolTip(w.currentText())
+        w.currentTextChanged.connect(w.setToolTip)
         return w
 
     def _make_combo(
