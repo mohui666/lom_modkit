@@ -74,6 +74,11 @@ def _node_targets(node: dict) -> set[str]:
             value = option.get(key)
             if isinstance(value, str) and value:
                 targets.add(value)
+    for band in node.get("bands") or []:
+        if isinstance(band, dict):
+            value = band.get("goto")
+            if isinstance(value, str) and value:
+                targets.add(value)
     for case in node.get("cases") or []:
         if isinstance(case, dict):
             value = case.get("goto")

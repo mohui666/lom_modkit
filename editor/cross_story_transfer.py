@@ -44,6 +44,9 @@ def _local_targets(node: dict):
             target = option.get(key)
             if isinstance(target, str) and target:
                 yield "options[%d].%s" % (option_index, key), target
+    for band_index, band in enumerate(node.get("bands") or []):
+        if isinstance(band, dict) and isinstance(band.get("goto"), str) and band["goto"]:
+            yield "bands[%d].goto" % band_index, band["goto"]
     for case_index, case in enumerate(node.get("cases") or []):
         if isinstance(case, dict) and isinstance(case.get("goto"), str) and case["goto"]:
             yield "cases[%d].goto" % case_index, case["goto"]

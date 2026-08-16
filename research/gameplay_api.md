@@ -25,6 +25,7 @@ python tools/verify_gameplay_api.py --json
 | 存档 | `SaveSystem.CurrentSlot` / `SetSlot` / `SaveGameData()` / 私有 `AutoSaveData(string)` / `AutoLoadGameData(string)` / `SaveUniverseData()` | 手动槽为 `mod_<id>`，三类自动槽重定向为 `mod_<id>_auto*`；Universe 保存时临时隐藏 MOD 槽并保持最后一个原版槽。Host Int32 sidecar 仍与 MOD 槽绑定，不修改 GameSave schema |
 | 标题读档 UI | `TitleManager._slotPanel/OpenSlot()`；`LoadGamePanel._saveSlots/CreateSlot/SetButtonNavigation`；`LoadSlotPanel` 的原版 Text/Button 字段 | 临时接管原版槽位显示已有 MOD 存档和“新战役”入口；关闭时调用原版重建逻辑恢复 001～020，不复制或仿造官方素材 |
 | 结算展示 | 已验证剧情入口 `mainui.DisplayMessageText`，以及 `reward` 已使用的属性/好感/天赋/物品/旗标原子接口 | `result_screen` 仅把标题/说明提示与现有奖励顺序组合；不新增、Patch 或猜测结算 UI |
+| 自定义骰子 | `DiceMenuDialog.ExecuteRoll(string[],...)` 逐项写入 `CachedButtons[i]`，`UpdateSelection` 按结果序号选中按钮；`DiceCheckResult.ResultCount` 是随机点数与加值之和；当前提取的原版检查点结果档数最大为 4 | 作者直接设置 max、标题、固定加值及 2～4 个结果分段。Host 仅为特殊 MOD 检查名构造结果，继续复用原版 DiceMenuDialog。超过 4 档没有原版按钮容量证据，因此不开放 |
 
 ## 明确不支持
 

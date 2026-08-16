@@ -225,22 +225,13 @@ class TestAddNode(unittest.TestCase):
         self.assertEqual(enemy["display"], 1)
         self.assertEqual(combat["talents"][0]["key"], "1010")
 
-    def test_battle_preset_removes_direct_mode_defaults(self):
+    def test_combat_and_battle_reject_obsolete_preset_field(self):
         story = story_api.new_story()
-        combat = story_api.add_node(
-            story,
-            "combat",
-            {"preset": "ambush", "win": "ok", "lose": "bad"},
-        )
-        battle = story_api.add_node(
-            story,
-            "battle",
-            {"preset": "war", "win": "ok", "lose": "bad"},
-        )
-        self.assertEqual(combat["preset"], "ambush")
-        self.assertEqual(battle["preset"], "war")
-        for node in (combat, battle):
-            self.assertNotIn("key", node)
+        for kind in ("combat", "battle"):
+            with self.subTest(kind=kind), self.assertRaises(ValueError):
+                story_api.add_node(
+                    story, kind, {"preset": "obsolete", "win": "ok", "lose": "bad"}
+                )
 
     def test_ids_are_type_plus_order(self):
         story = story_api.new_story()
@@ -428,89 +419,68 @@ class TestAddChoice(unittest.TestCase):
 
 
 class TestAddDice(unittest.TestCase):
-    def test_2band_success(self):
+    def test_direct_two_band_success(self):
         story = base_story()
         n1 = story["start"]
-        node = story_api.add_dice(story, DICE_2BAND, n1, n1)
+        node = story_api.add_dice(
+            story, 99, "命运检定",
+            [{"upper": 49, "text": "失败", "goto": n1}, {"text": "成功", "goto": n1}],
+        )
         self.assertEqual(node["type"], "dice", "应生成 dice 节点")
-        self.assertEqual(node["check"], DICE_2BAND, "check 应原样写入")
-        self.assertEqual(
-            node["options"],
-            [{"goto_大成功": "", "goto_成功": n1, "goto_失败": n1}],
-            "2 带检查点 options[0] 三向 goto 应正确（大成功为空）",
-        )
+        self.assertNotIn("check", node)
+        self.assertEqual(node["max"], 99)
+        self.assertEqual(node["bands"][0]["upper"], 49)
 
-    def test_3band_success(self):
-        story = base_story()
-        n1 = story["start"]
-        node = story_api.add_dice(story, DICE_3BAND, n1, n1, n1)
-        self.assertEqual(
-            node["options"][0],
-            {"goto_大成功": n1, "goto_成功": n1, "goto_失败": n1},
-            "3 带检查点三向 goto 应全部写入",
-        )
-
-    def test_3band_missing_great_success(self):
-        story = base_story()
-        n1 = story["start"]
-        with self.assertRaises(ValueError, msg="3 带缺 goto_大成功 应抛 ValueError"):
-            story_api.add_dice(story, DICE_3BAND, n1, n1)
-
-    def test_no_metadata_check(self):
-        story = base_story()
-        n1 = story["start"]
-        with self.assertRaises(ValueError, msg="无官方元数据检查点应抛 ValueError"):
-            story_api.add_dice(story, "No_Such_Dice_Check", n1, n1, n1)
-
-    def test_band_texts_override_3band(self):
-        # band_texts：逐带覆写骰子菜单选项文本（条数等于结果带数）
+    def test_direct_three_band_all_parameters(self):
         story = base_story()
         n1 = story["start"]
         node = story_api.add_dice(
-            story, DICE_3BAND, n1, n1, n1, band_texts=["失败", "成功", "大成功"]
+            story, 100, "闯阵", [
+                {"upper": 30, "text": "失败", "goto": n1},
+                {"upper": 80, "text": "成功", "goto": n1},
+                {"text": "大成功", "goto": n1},
+            ], bonus=5, bonus_name="轻功", bonus_status="熟练",
         )
-        self.assertEqual(
-            node["options"][0]["band_texts"],
-            ["失败", "成功", "大成功"],
-            "3 带检查点 band_texts 应逐带写入",
-        )
+        self.assertEqual(node["bonus"], 5)
+        self.assertEqual(node["bonus_name"], "轻功")
+        self.assertEqual(len(node["bands"]), 3)
 
-    def test_band_texts_override_2band(self):
+    def test_direct_four_band_supported_by_original_ui(self):
         story = base_story()
         n1 = story["start"]
         node = story_api.add_dice(
-            story, "S0120_01_001", n1, n1, band_texts=["失手", "得手"]
+            story, 99, "四档检定", [
+                {"upper": 19, "text": "大失败", "goto": n1},
+                {"upper": 49, "text": "失败", "goto": n1},
+                {"upper": 79, "text": "成功", "goto": n1},
+                {"text": "大成功", "goto": n1},
+            ],
         )
-        self.assertEqual(
-            node["options"][0]["band_texts"], ["失手", "得手"], "2 带 band_texts 应写入"
-        )
+        self.assertEqual(len(node["bands"]), 4)
 
-    def test_band_texts_len_mismatch(self):
+    def test_bad_band_count(self):
         story = base_story()
         n1 = story["start"]
-        with self.assertRaises(ValueError, msg="band_texts 条数不符应抛 ValueError"):
-            story_api.add_dice(story, DICE_3BAND, n1, n1, n1, band_texts=["只有一条"])
+        with self.assertRaises(ValueError):
+            story_api.add_dice(story, 99, "检定", [{"text": "唯一", "goto": n1}])
 
-    def test_band_texts_not_list(self):
+    def test_maximum_and_header_types(self):
         story = base_story()
         n1 = story["start"]
-        with self.assertRaises(ValueError, msg="band_texts 非数组应抛 ValueError"):
-            # 故意传非法类型验证校验层
+        bands = [{"upper": 49, "text": "失败", "goto": n1}, {"text": "成功", "goto": n1}]
+        with self.assertRaises(ValueError):
+            story_api.add_dice(story, "99", "检定", bands)  # type: ignore[arg-type]
+        with self.assertRaises(ValueError):
+            story_api.add_dice(story, 99, "", bands)
+
+    def test_unreachable_band_is_rejected(self):
+        story = base_story()
+        n1 = story["start"]
+        with self.assertRaisesRegex(ValueError, "可投出的总点数"):
             story_api.add_dice(
-                story,
-                DICE_3BAND,
-                n1,
-                n1,
-                n1,
-                band_texts="不是数组",  # type: ignore[reportArgumentType]
-            )
-
-    def test_band_texts_empty_item(self):
-        story = base_story()
-        n1 = story["start"]
-        with self.assertRaises(ValueError, msg="band_texts 空条目应抛 ValueError"):
-            story_api.add_dice(
-                story, DICE_3BAND, n1, n1, n1, band_texts=["", "二", "三"]
+                story, 99, "检定",
+                [{"upper": 99, "text": "全部", "goto": n1},
+                 {"text": "永远到不了", "goto": n1}],
             )
 
 

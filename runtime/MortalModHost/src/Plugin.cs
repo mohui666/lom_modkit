@@ -263,6 +263,9 @@ namespace MortalModHost
                 AccessTools.Method(typeof(PlayerStatManagerData), "get_NewGamePlus"));
             ok &= CheckTarget("DiceMenuDialog.CheckRevolution",
                 AccessTools.Method(typeof(DiceMenuDialog), "CheckRevolution"));
+            ok &= CheckTarget("CheckPointManager.Dice(string,int)",
+                AccessTools.Method(typeof(CheckPointManager), "Dice",
+                    new Type[] { typeof(string), typeof(int) }));
             ok &= CheckTarget("CharacterIntroPanel.Show",
                 AccessTools.Method(typeof(CharacterIntroPanel), "Show"));
             ok &= CheckTarget("LuaManager.PlayMusic",

@@ -26,6 +26,7 @@ _NODE_TEXT_FIELDS = {
     "intro": ("title", "name", "text"),
     "goto_scene": ("title", "desc"),
     "death": ("title", "text"),
+    "dice": ("header", "bonus_name", "bonus_status"),
 }
 
 
@@ -71,12 +72,20 @@ def iter_localizable_texts(story):
                 if isinstance(option, dict) and isinstance(option.get("text"), str) and option["text"]:
                     yield "%s.options.%d.text" % (node_id, index), option["text"]
         if node_type == "dice":
-            for option_index, option in enumerate(node.get("options") or []):
-                if not isinstance(option, dict):
-                    continue
-                for band_index, value in enumerate(option.get("band_texts") or []):
-                    if isinstance(value, str) and value:
-                        yield "%s.options.%d.band_texts.%d" % (node_id, option_index, band_index), value
+            if "bands" in node:
+                for band_index, band in enumerate(node.get("bands") or []):
+                    if isinstance(band, dict) and isinstance(band.get("text"), str) and band["text"]:
+                        yield "%s.bands.%d.text" % (node_id, band_index), band["text"]
+            else:
+                # 已打包的旧 check/options 剧情仍可由编译器读取；编辑器打开时会迁移。
+                for option_index, option in enumerate(node.get("options") or []):
+                    if not isinstance(option, dict):
+                        continue
+                    for band_index, value in enumerate(option.get("band_texts") or []):
+                        if isinstance(value, str) and value:
+                            yield "%s.options.%d.band_texts.%d" % (
+                                node_id, option_index, band_index,
+                            ), value
 
 
 def validate_story_localization(story):

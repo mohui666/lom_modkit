@@ -184,7 +184,6 @@ def _make_node(story: dict, node_type: str, fields: dict, after: str | None) -> 
     node = models.new_node(node_type, node_id, _get_ed())
     node.update(fields)
     _normalize_branch(node)
-    _normalize_battle_preset(node)
     _check_portrait_node(node)  # 角色表情校验（与编译器同一张表）
     _insert_after(story, node, after)
     _guard_stage(story, node)  # 登场防线：动作人物未登场时自动补 show
@@ -219,28 +218,6 @@ def _normalize_branch(node: dict) -> None:
         node.pop("flag", None)
     else:
         node.pop("stat", None)
-
-
-def _normalize_battle_preset(node: dict) -> None:
-    """preset 模式移除 new_node 带入的直填默认字段，保持二选一契约。"""
-    if node.get("type") not in ("combat", "battle") or not node.get("preset"):
-        return
-    if node.get("type") == "combat":
-        direct_fields = (
-            "key", "max_health", "health", "max_stamina", "stamina", "strength",
-            "internal", "dexterity", "talking", "defence", "sword", "fist",
-            "martial_weapon", "mental", "talents", "ultimate_one", "ultimate_two",
-            "ultimate_three", "talk_rate", "attack_rate", "weapon_rate",
-            "ultimate_rate", "block_rate",
-        )
-    else:
-        direct_fields = (
-            "key", "friend_roster", "enemy_roster", "neutral_roster",
-            "friend_people", "enemy_people", "neutral_people", "friend_health",
-            "enemy_health", "neutral_health", "reset_skills", "skills",
-        )
-    for key in direct_fields:
-        node.pop(key, None)
 
 
 def _check_portrait_node(node: dict) -> None:
@@ -350,7 +327,6 @@ def update_node(story: dict, node_id: str, fields: dict) -> dict:
     checked = _check_fields(node["type"], fields)
     node.update(checked)
     _normalize_branch(node)  # branch 键字段归一（合并后的最终状态）
-    _normalize_battle_preset(node)
     _check_portrait_node(node)  # 角色表情校验（合并默认值后的最终状态）
     nodes = story.get("nodes") or []
     for index, item in enumerate(nodes):
@@ -513,70 +489,71 @@ def add_choice(story: dict, options, after: str | None = None) -> dict:
 
 def add_dice(
     story: dict,
-    check: str,
-    goto_成功: str,
-    goto_失败: str,
-    goto_大成功: str = "",
-    band_texts: list | None = None,
+    maximum: int,
+    header: str,
+    bands: list,
+    bonus: int = 0,
+    bonus_name: str = "",
+    bonus_status: str = "",
     after: str | None = None,
 ) -> dict:
-    """新增骰子检定节点。
+    """Add a fully author-configured dice roll without an original checkpoint ID.
 
-    check 必须在官方元数据表（lomc.dice_data.get_dice_meta，无元数据会在游戏内
-    骰子菜单崩溃）。2 带检查点：goto_成功/goto_失败 必填，goto_大成功 可空
-    （非空且 ≠ goto_成功 也接受，编译警告会提示被忽略）；3 带及以上三个都要填。
-    band_texts（可选）：逐带覆写骰子菜单选项文本（条数必须等于结果带数，每项
-    非空字符串）；缺省时用官方结果带文本。
+    ``bands`` contains 2~4 dictionaries in low-to-high order. Every non-final
+    row has ``upper``; every row has readable ``text`` and a destination ``goto``.
     """
-    if not isinstance(check, str) or not check:
-        raise ValueError(f"dice 检查点 check 必须是非空字符串，实际为 {check!r}")
-    lomc = _require_lomc()
-    meta = lomc.dice_data.get_dice_meta(check)
-    if meta is None:
-        raise ValueError(
-            f'骰子检查点 "{check}" 无官方元数据，请在编辑器清单里选择'
-            "（dice_meta 缺失时游戏内骰子菜单会崩溃：选项条数不足导致"
-            "UpdateSelection 索引越界 NRE）"
-        )
-    n_bands = len(meta.get("bands") or [])
-    if not n_bands:
-        raise ValueError(f'骰子检查点 "{check}" 的官方元数据没有结果带（提取数据异常）')
-
-    def need(name: str, value) -> str:
-        if not isinstance(value, str) or not value:
-            raise ValueError(f"dice {name} 必填（节点 id 字符串），实际为 {value!r}")
-        return value
-
-    goto_成功 = need("goto_成功", goto_成功)
-    goto_失败 = need("goto_失败", goto_失败)
-    if not isinstance(goto_大成功, str):
-        raise ValueError(
-            f"dice goto_大成功 必须是节点 id 字符串（2 带可留空），实际为 {goto_大成功!r}"
-        )
-    if n_bands >= 3 and not goto_大成功:
-        raise ValueError(
-            f'检查点 "{check}" 有 {n_bands} 个结果带，goto_大成功 必填（最优带）'
-        )
-    options: list[dict] = [
-        {"goto_大成功": goto_大成功, "goto_成功": goto_成功, "goto_失败": goto_失败}
-    ]
-    if band_texts is not None:
-        if not isinstance(band_texts, list):
-            raise ValueError(
-                f"dice band_texts 必须是数组（逐带覆写选项文本），实际为 {band_texts!r}"
-            )
-        if len(band_texts) != n_bands:
-            raise ValueError(
-                f'dice band_texts 条数必须等于检查点 "{check}" 的结果带数'
-                f"（{n_bands} 条），实际为 {len(band_texts)} 条"
-            )
-        for i, bt in enumerate(band_texts, 1):
-            if not isinstance(bt, str) or not bt:
+    if isinstance(maximum, bool) or not isinstance(maximum, int) or not 1 <= maximum <= 9999:
+        raise ValueError("dice maximum 必须是 1~9999 的整数")
+    if not isinstance(header, str) or not header.strip() or len(header) > 80:
+        raise ValueError("dice header 必须是 1~80 字符的非空标题")
+    if isinstance(bonus, bool) or not isinstance(bonus, int) or not -9999 <= bonus <= 9999:
+        raise ValueError("dice bonus 必须是 -9999~9999 的整数")
+    for name, value in (("bonus_name", bonus_name), ("bonus_status", bonus_status)):
+        if not isinstance(value, str) or len(value) > 80:
+            raise ValueError("dice %s 必须是最多 80 字符的字符串" % name)
+    if not isinstance(bands, list) or not 2 <= len(bands) <= 4:
+        raise ValueError("dice bands 必须是 2~4 个结果分段")
+    normalized = []
+    previous = None
+    for index, item in enumerate(bands):
+        if not isinstance(item, dict):
+            raise ValueError("dice bands[%d] 必须是对象" % index)
+        allowed = {"upper", "text", "goto"} if index < len(bands) - 1 else {"text", "goto"}
+        unknown = set(item) - allowed
+        if unknown:
+            raise ValueError("dice bands[%d] 含未知字段: %s" % (index, ", ".join(sorted(unknown))))
+        text = item.get("text")
+        target = item.get("goto")
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError("dice bands[%d].text 必须是非空字符串" % index)
+        if not isinstance(target, str) or not target.strip():
+            raise ValueError("dice bands[%d].goto 必须是非空节点 id" % index)
+        row = {"text": text, "goto": target}
+        if index < len(bands) - 1:
+            upper = item.get("upper")
+            if isinstance(upper, bool) or not isinstance(upper, int):
+                raise ValueError("dice bands[%d].upper 必须是整数" % index)
+            if upper < bonus or upper >= maximum + bonus:
                 raise ValueError(
-                    f"dice band_texts 第 {i} 条必须是非空字符串，实际为 {bt!r}"
+                    "dice bands[%d].upper 必须在可投出的总点数 %d~%d 之间，且要给后一档留出点数"
+                    % (index, bonus, maximum + bonus)
                 )
-        options[0]["band_texts"] = list(band_texts)
-    return _make_node(story, "dice", {"check": check, "options": options}, after)
+            if previous is not None and upper <= previous:
+                raise ValueError("dice bands[%d].upper 必须严格递增" % index)
+            row["upper"] = upper
+            previous = upper
+        normalized.append(row)
+    fields = {
+        "max": maximum,
+        "header": header,
+        "bands": normalized,
+        "bonus": bonus,
+    }
+    if bonus_name:
+        fields["bonus_name"] = bonus_name
+    if bonus_status:
+        fields["bonus_status"] = bonus_status
+    return _make_node(story, "dice", fields, after)
 
 
 # ---------------------------------------------------------------------------

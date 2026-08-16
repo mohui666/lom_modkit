@@ -72,6 +72,35 @@ class MigrationPureTest(unittest.TestCase):
             with self.subTest(document=document), self.assertRaises(migration.MigrationError):
                 migrator(document)
 
+    def test_legacy_dice_is_expanded_and_localized_paths_follow_result_bands(self):
+        source = {
+            "id": "main", "start": "roll", "nodes": [
+                {
+                    "id": "roll", "type": "dice", "check": "S0205_01_001",
+                    "options": [{
+                        "goto_大成功": "ok", "goto_成功": "ok", "goto_失败": "bad",
+                        "band_texts": ["失手", "成功"],
+                    }],
+                },
+                {"id": "ok", "type": "end"}, {"id": "bad", "type": "end"},
+            ],
+            "localization": {
+                "default_locale": "chs", "fallback_locale": "chs",
+                "translations": {"ja": {
+                    "roll.options.0.band_texts.0": "失敗",
+                    "roll.options.0.band_texts.1": "成功",
+                }},
+            },
+        }
+        migrated = migration.migrate_story(source).document
+        roll = migrated["nodes"][0]
+        self.assertNotIn("check", roll)
+        self.assertEqual([band["text"] for band in roll["bands"]], ["失手", "成功"])
+        catalog = migrated["localization"]["translations"]["ja"]
+        self.assertEqual(catalog, {
+            "roll.bands.0.text": "失敗", "roll.bands.1.text": "成功",
+        })
+
 
 class MigrationFileTest(unittest.TestCase):
     def test_file_migration_creates_exact_backup_and_is_idempotent(self):

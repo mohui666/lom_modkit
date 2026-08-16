@@ -51,7 +51,6 @@ MANIFEST = {
     "entry": "main",
 }
 
-DICE_CHECK = "Ch_1_1_1_001"
 COMBAT_KEY = "5102_01"
 BATTLE_KEY = "0000"
 
@@ -252,20 +251,28 @@ def build_main() -> dict:
     story_api.update_node(story, branch_yes, {"goto": branch_merge})
     story_api.update_node(story, branch_no, {"goto": branch_merge})
 
-    dice_anchor = _say(story, "下面调用原版三带骰子。任一结果都会继续。", mode="narrative")
+    dice_anchor = _say(story, "下面调用自定义四段骰子。范围、标题、加值、每档文字和去向都可直接编辑。", mode="narrative")
     dice_best = _say(story, "骰子结果：大成功。", mode="narrative")
     dice_success = _say(story, "骰子结果：成功。", mode="narrative")
+    dice_partial = _say(story, "骰子结果：勉强成功。", mode="narrative")
     dice_failure = _say(story, "骰子结果：失败。", mode="narrative")
     dice_merge = _node(story, "message", {"text": "骰子分支已汇合。"})
     story_api.add_dice(
         story,
-        DICE_CHECK,
-        goto_成功=dice_success,
-        goto_失败=dice_failure,
-        goto_大成功=dice_best,
+        99,
+        "灯影下的命运检定",
+        [
+            {"upper": 24, "text": "失手", "goto": dice_failure},
+            {"upper": 49, "text": "勉强成功", "goto": dice_partial},
+            {"upper": 79, "text": "成功", "goto": dice_success},
+            {"text": "大成功", "goto": dice_best},
+        ],
+        bonus=5,
+        bonus_name="准备充分",
+        bonus_status="固定加值",
         after=dice_anchor,
     )
-    for target in (dice_best, dice_success, dice_failure):
+    for target in (dice_best, dice_success, dice_partial, dice_failure):
         story_api.update_node(story, target, {"goto": dice_merge})
 
     _node(story, "raw", {"code": 'local showcase3_raw_marker = "ok"\n'})
@@ -419,28 +426,23 @@ def build_gameplay() -> dict:
 
 def build_combat() -> dict:
     story = _blank_story("combat_demo", "3.0 第三章：原版 Combat 编排")
-    story["battle_presets"] = {
-        "showcase3_combat": {
-            "kind": "combat",
-            "key": COMBAT_KEY,
-            "max_health": 300,
-            "health": 300,
-            "max_stamina": 120,
-            "stamina": 120,
-            "strength": 20,
-            "internal": 20,
-            "dexterity": 20,
-            "talking": 20,
-            "attack_rate": 0.5,
-            "block_rate": 0.25,
-        }
-    }
     start = _node(story, "message", {"text": "【3.0/3】可测试原版 Combat，也可跳过。"})
     _set_start(story, start)
     fight = _node(
         story,
         "combat",
-        {"preset": "showcase3_combat", "win": "", "lose": ""},
+        {
+            "key": COMBAT_KEY,
+            "max_health": 300, "health": 300,
+            "max_stamina": 120, "stamina": 120,
+            "strength": 20, "internal": 20, "dexterity": 20, "talking": 20,
+            "defence": 20, "sword": 20, "fist": 20,
+            "martial_weapon": 20, "mental": 20,
+            "talents": [],
+            "talk_rate": 0.1, "attack_rate": 0.5, "weapon_rate": 0.1,
+            "ultimate_rate": 0.05, "block_rate": 0.25,
+            "win": "", "lose": "",
+        },
     )
     inspect = _node(
         story,
@@ -476,16 +478,6 @@ def build_combat() -> dict:
 
 def build_battle() -> dict:
     story = _blank_story("battle_demo", "3.0 第四章：原版 Battle 编排")
-    story["battle_presets"] = {
-        "showcase3_battle": {
-            "kind": "battle", "key": BATTLE_KEY,
-            "friend_roster": BATTLE_KEY, "enemy_roster": BATTLE_KEY,
-            "friend_people": 3, "enemy_people": 3,
-            "friend_health": 300, "enemy_health": 300,
-            "reset_skills": True,
-            "skills": [{"key": "special3", "index": 2, "active": 1}],
-        }
-    }
     start = _node(
         story,
         "message",
@@ -503,7 +495,17 @@ def build_battle() -> dict:
     war = _node(
         story,
         "battle",
-        {"preset": "showcase3_battle", "win": "", "lose": ""},
+        {
+            "key": BATTLE_KEY,
+            "friend_roster": BATTLE_KEY,
+            "enemy_roster": BATTLE_KEY,
+            "neutral_roster": BATTLE_KEY,
+            "friend_people": 3, "enemy_people": 3, "neutral_people": 0,
+            "friend_health": 300, "enemy_health": 300, "neutral_health": 300,
+            "reset_skills": True,
+            "skills": [{"key": "special3", "index": 2, "active": 1}],
+            "win": "", "lose": "",
+        },
     )
     inspect = _node(
         story,

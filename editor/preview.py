@@ -268,12 +268,12 @@ def _hint_text(node: dict, ed: dict) -> str | None:
         )
     if t == "combat":
         return (
-            f"[战斗] 原版 Combat {node.get('preset') or node.get('key', '')}｜"
+            f"[战斗] 原版 Combat {node.get('key', '')}｜"
             f"胜利→{node.get('win', '')}｜失败→{node.get('lose', '')}"
         )
     if t == "battle":
         return (
-            f"[战役] 原版 Battle {node.get('preset') or node.get('key', '')}｜"
+            f"[战役] 原版 Battle {node.get('key', '')}｜"
             f"友军胜→{node.get('win', '')}｜敌军胜→{node.get('lose', '')}"
         )
     if t == "battle_result":
@@ -308,8 +308,8 @@ def _hint_text(node: dict, ed: dict) -> str | None:
         return f"[自动存档] {models.enum_label('autosave_kind', node.get('kind', 'story'))}"
     if t == "dice":
         return (
-            f"[骰子检定] {node.get('check', '')}"
-            f"（{len(node.get('options', []))} 个选项，三向分支）"
+            f"[骰子检定] {node.get('header', '')} 0~{node.get('max', 99)}"
+            f"（{len(node.get('bands', []))} 个结果分段）"
         )
     if t == "goto_scene":
         key = node.get("key") or ""
@@ -451,12 +451,9 @@ def _next_node(node: dict, idx: int, nodes: list) -> str | None:
                     return c["goto"]
             return cases[0]["goto"]
     elif t == "dice":
-        # 三向分支：推演走第一个选项的"成功"线（无则大成功/失败）
-        opts = node.get("options", [])
-        if opts:
-            for g in ("goto_成功", "goto_大成功", "goto_失败"):
-                if opts[0].get(g):
-                    return opts[0][g]
+        bands = node.get("bands", [])
+        if bands and bands[0].get("goto"):
+            return bands[0]["goto"]
     elif node.get("goto"):
         return node["goto"]
     if idx + 1 < len(nodes):

@@ -74,11 +74,7 @@ def walk_branches(win, app, node, depth=0, seen=None):
     elif t == "branch":
         gotos = [c.get("goto") for c in node.get("cases", [])]
     elif t == "dice":
-        gotos = [
-            g
-            for o in node.get("options", [])
-            for g in (o.get("goto_大成功"), o.get("goto_成功"), o.get("goto_失败"))
-        ]
+        gotos = [band.get("goto") for band in node.get("bands", [])]
     else:
         return
     for g in gotos:
@@ -155,10 +151,8 @@ def main_fn() -> int:
             for case in node.get("cases", []):
                 case["goto"] = target
         elif node["type"] == "dice":
-            for option in node.get("options", []):
-                option["goto_大成功"] = target
-                option["goto_成功"] = target
-                option["goto_失败"] = target
+            for band in node.get("bands", []):
+                band["goto"] = target
     win.story = {
         "id": "all_types",
         "title": "全类型",

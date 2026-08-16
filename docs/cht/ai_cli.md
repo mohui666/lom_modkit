@@ -290,12 +290,12 @@ import story_api
 | `add_say(story, text, character=None, mode="character", portrait="normal", voice=None, after=None) -> dict` | mode ∈ character/think/narrative/center；character/think 模式 character 必填（人物 id），narrative/center 不寫 character 欄位；text 可換行；(character, portrait) 走官方表情表驗證；voice 可選 user: 音訊引用 |
 | `add_scene(story, view, after=None) -> dict` | view 為非空場景 id 字串 |
 | `add_choice(story, options, after=None) -> dict` | options 為 [(text, goto), ...] 2~4 項，text 非空 str、goto 為節點 id str；dialog 強制寫 "Options"（見 §4 規則 1） |
-| `add_dice(story, check, goto_成功, goto_失敗, goto_大成功="", band_texts=None, after=None) -> dict` | check 必須命中官方元資料（`lomc.dice_data.get_dice_meta`）；2 帶檢查點 goto_成功/goto_失敗 必填、goto_大成功 可空；≥3 帶三個都必填；band_texts 可選逐帶覆寫選項文字，條數=結果帶數、每項非空 |
+| `add_dice(story, maximum, header, bands, bonus=0, bonus_name="", bonus_status="", after=None) -> dict` | 直接設定骰子，不使用原版檢查點。maximum 為 1～9999；bands 為 2～4 個由低至高的字典，非末檔含 `upper`，每檔含 `text` 與 `goto`；bonus 可為負數 |
 | `add_death(story, text, death_id, next="Title", title=None, after=None) -> dict` | text 非空（可多行）；death_id 為 ≥900000 的數字字串（約定 9+官方 id）；next 只接受 "Title"；title 可選，預設/空字串不寫欄位（codegen 用「勝敗乃兵家常事」） |
 
 fields 類型驗證約定（`_check_kind`）：int/float 欄位收數值但**拒 bool**
 （`True` 傳給 float 欄位會被拒）；bool 欄位只收 bool；options/cases/vars/
-dice_options 欄位收 list；其餘一律 str。不修改值，只做驗證。
+dice_bands 欄位收 list；其餘一律 str。不修改值，只做驗證。
 
 ### 3.3 驗證 / 編譯 / 打包 / 檔案
 
@@ -363,12 +363,10 @@ check_story/compile_story 攔下）。各規則的遊戲側機理詳見契約 `m
 1. **choice 外觀鎖死 Options**。`add_choice` 強制 `dialog="Options"`；其它外觀
    是自由場景的 break 格式選單，純文字選項會讓遊戲內選單凍結。即使用
    `update_node` 改成別的外觀，check_story 也會報錯。
-2. **dice 檢查點必須命中官方元資料**。`add_dice` 的 check 必須在
-   `data/editor_data.json` 的 dice_meta 表裡（可用 `load_editor_data()` 查看，
-   測試用例：`S0205_01_001` 為 2 帶、`Ch_6_8_2_Break_01_001` 為 3 帶），
-   無元資料的檢查點會讓遊戲內骰子選單崩潰。結果帶數決定 goto 必填項：
-   2 帶填 goto_成功/goto_失敗；≥3 帶 goto_大成功 也必填。band_texts 覆寫
-   條數必須等於結果帶數。
+2. **dice 直接設定結果分段**。`add_dice` 不接受 `CH_*` 檢查點。maximum 必須
+   為 1～9999；bands 必須有 2～4 檔，除最後一檔外 upper 必須嚴格遞增，且位於 bonus～maximum+bonus-1 的實際可達總點數內，
+   每檔 text 與 goto 均必填。執行階段重用原版骰子介面，但隨機範圍、固定加值、
+   顯示文字與跳轉全由目前節點決定。
 3. **say 模式與人物連動**。mode=character/think 必須給 character（人物 id）；
    narrative/center 不寫 character 欄位（給了也會被移除）。
 4. **動作人物必須先登場（登場防線）**。對不在台上的人物做動作（say 對話/獨白、
@@ -407,9 +405,8 @@ check_story/compile_story 攔下）。各規則的遊戲側機理詳見契約 `m
 | `节点编号已被占用: n5` / `节点编号只使用英文字母、数字、下划线或短横线` | rename_node | 新 id 與現有節點衝突或含非法字元 |
 | `delta 只能是 ±1，实际为 2` / `节点 n1 已在开头，无法再移动` | move_node | 只支援逐格移動；越界移動 |
 | `choice 选项必须是 2~4 项，实际 1 项` / `第 1 个选项必须是 (text, goto) 二元组` | add_choice | 選項數 2~4；每項是 (text, goto) 二元組 |
-| `骰子检查点 "X" 无官方元数据，请在编辑器清单里选择...` | add_dice | check 不在 dice_meta 表；用 `load_editor_data()["dice_meta"]` 選合法檢查點 |
-| `检查点 "Ch_6_8_2_Break_01_001" 有 3 个结果带，goto_大成功 必填（最优带）` | add_dice | ≥3 帶檢查點必須給大成功跳轉 |
-| `dice band_texts 条数必须等于检查点 "X" 的结果带数（N 条），实际为 M 条` | add_dice | 覆寫文字條數與結果帶數不一致 |
+| `dice maximum 必须是整数` / `dice bands 必须是 2~4 个结果分段` | add_dice | 隨機範圍類型錯誤，或結果檔數不在 2～4 內 |
+| `dice bands[i] 必须是对象` | add_dice | 每個結果檔必須是含 upper（非末檔）、text、goto 的字典 |
 | `mode="character" 时 character 必填（人物 id）` | add_say | character/think 模式必須給人物 id |
 | `say 模式非法: 'shout'（允许 character/think/narrative/center）` | add_say | mode 拼錯 |
 | `角色 "brother4" 没有表情 "angry3"（该角色表情：angry1、angry2、…、shock）。…KeyNotFoundException…` | add_say/add_node/update_node | 表情 id 不在該角色列表；按訊息列出的合法表情改 |

@@ -399,10 +399,19 @@ def main_fn() -> int:
     )
     assert s.startswith("对白·居中旁白"), s
     s = models.node_summary(
-        {"id": "x", "type": "dice", "check": "C1", "options": [{"text": "a"}]},
+        {
+            "id": "x",
+            "type": "dice",
+            "max": 99,
+            "bands": [
+                {"upper": 24, "text": "失败", "goto": "lose"},
+                {"upper": 74, "text": "成功", "goto": "win"},
+                {"text": "大成功", "goto": "great"},
+            ],
+        },
         editor_data,
     )
-    assert s == "骰子检定·C1(1项)", s
+    assert s == "骰子检定·0~99(3项)", s
     s = models.node_summary(
         {"id": "x", "type": "goto_scene", "scene": "Combat", "key": "5102_01"},
         editor_data,
@@ -567,7 +576,7 @@ def main_fn() -> int:
     panel_combo.setCurrentIndex(idx)
     assert panel_node["panel"] == "shop", "panel 枚举写回失败"
     dice_node = next(n for n in win.story["nodes"] if n["type"] == "dice")
-    dice_node["options"][0]["goto_失败"] = "n1"
+    dice_node["bands"][0]["goto"] = "n1"
     win.form.set_node(dice_node)
     assert "骰子检定" in models.node_summary(dice_node, editor_data)
     print(

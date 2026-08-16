@@ -52,7 +52,7 @@ RUNTIME_API: dict[str, str] = {
     "intro": "CharacterIntroPanel.Show / MortalModHost.mod_prepare_character_intro",
     "effect": "EffectManager.CreateEffect",
     "transition": "TransitionPanel",
-    "camera": "Camera preset / stage camera",
+    "camera": "Original camera filter / stage camera",
     "block": "Fungus Flowchart.RunBlock",
     "cg": "MainUI Show/Hide Picture / Item / Map / FamilyTree",
     "dim": "Stage.SetDimmed",
@@ -89,7 +89,7 @@ RUNTIME_API: dict[str, str] = {
     "time": "LuaManager.NextRound / NextMonth",
     "autosave": "SaveSystem + isolated MOD slot",
     "branch": "modflags / CheckPointManager / StatData",
-    "dice": "Dice / CheckPoint metadata + MenuDialog",
+    "dice": "MortalModHost custom result bridge + original DiceMenuDialog",
     "goto_scene": "SceneController (Free / Combat / Battle / GameOver / End)",
     "panel": "MainUI system panels",
     "wait": "Fungus wait",
@@ -126,8 +126,7 @@ KIND_DOCS: dict[str, str] = {
     "story_ref": "reference.kind.story_ref",
     "options": "reference.kind.target_table",
     "cases": "reference.kind.target_table",
-    "dice_options": "reference.kind.target_table",
-    "dice_check": "reference.kind.game_id",
+    "dice_bands": "reference.kind.target_table",
     "vars": "reference.kind.structured",
     "effect": "reference.kind.game_id",
     "camera": "reference.kind.game_id",
@@ -142,7 +141,6 @@ KIND_DOCS: dict[str, str] = {
     "enemy_team": "reference.kind.game_id",
     "enemy_team_optional": "reference.kind.game_id",
     "battle_skill": "reference.kind.game_id",
-    "battle_preset": "reference.kind.preset_id",
     "goto_scene_key": "reference.kind.game_id",
     "death_id": "reference.kind.mod_id",
     "battle_setup_skills": "reference.kind.structured",
@@ -179,6 +177,79 @@ def _kind_doc(kind: str) -> str:
     return f"{description} [{kind}]"
 
 
+_FLOW_TARGET_FIELDS = {
+    "goto", "win", "lose", "success", "failure", "next_script", "next",
+}
+_COMBAT_VITAL_FIELDS = {"max_health", "health", "max_stamina", "stamina"}
+_COMBAT_STAT_FIELDS = {
+    "strength", "internal", "dexterity", "talking", "defence", "sword",
+    "fist", "martial_weapon", "mental",
+}
+_COMBAT_RATE_FIELDS = {
+    "talk_rate", "attack_rate", "weapon_rate", "ultimate_rate", "block_rate",
+}
+_BATTLE_ROSTER_FIELDS = {"friend_roster", "enemy_roster", "neutral_roster"}
+_BATTLE_PEOPLE_FIELDS = {"friend_people", "enemy_people", "neutral_people"}
+_BATTLE_HEALTH_FIELDS = {"friend_health", "enemy_health", "neutral_health"}
+
+
+def _field_label(node_type: str, key: str, fallback: str) -> str:
+    return t(
+        f"field.{node_type}.{key}",
+        default=t(f"field.{key}", default=fallback),
+    )
+
+
+def _field_effect(node_type: str, key: str, field_label: str, optional: bool) -> str:
+    """Return an author-facing explanation of what the parameter changes."""
+    if key == "id":
+        return t("reference.effect.id")
+    if key == "type":
+        return t("reference.effect.type")
+    if key in _FLOW_TARGET_FIELDS:
+        return t("reference.effect.flow_target", field=field_label)
+    if node_type == "combat":
+        if key == "key":
+            return t("reference.effect.combat_key")
+        if key in _COMBAT_VITAL_FIELDS:
+            return t("reference.effect.combat_vital", field=field_label)
+        if key in _COMBAT_STAT_FIELDS:
+            return t("reference.effect.combat_stat", field=field_label)
+        if key == "talents":
+            return t("reference.effect.combat_talents")
+        if key.startswith("ultimate_"):
+            return t("reference.effect.combat_ultimate", field=field_label)
+        if key in _COMBAT_RATE_FIELDS:
+            return t("reference.effect.combat_rate", field=field_label)
+    if node_type == "battle":
+        if key == "key":
+            return t("reference.effect.battle_key")
+        if key in _BATTLE_ROSTER_FIELDS:
+            return t("reference.effect.battle_roster", field=field_label)
+        if key in _BATTLE_PEOPLE_FIELDS:
+            return t("reference.effect.battle_people", field=field_label)
+        if key in _BATTLE_HEALTH_FIELDS:
+            return t("reference.effect.battle_health", field=field_label)
+        if key == "reset_skills":
+            return t("reference.effect.battle_reset_skills")
+        if key == "skills":
+            return t("reference.effect.battle_skills")
+    if node_type == "dice":
+        special = {
+            "max": "reference.effect.dice_max",
+            "header": "reference.effect.dice_header",
+            "bonus": "reference.effect.dice_bonus",
+            "bonus_name": "reference.effect.dice_bonus_name",
+            "bonus_status": "reference.effect.dice_bonus_status",
+            "bands": "reference.effect.dice_bands",
+        }
+        return t(special[key])
+    return t(
+        "reference.effect.optional" if optional else "reference.effect.required",
+        field=field_label,
+    )
+
+
 def node_reference_html(node_type: str) -> str:
     """生成单个节点的完整离线参考；字段直接来自实际 schema。"""
     if node_type not in models.NODE_SCHEMAS:
@@ -193,7 +264,7 @@ def node_reference_html(node_type: str) -> str:
         ("type", t("reference.node_type", default="Node type"), t("reference.fixed_type", default="Fixed value: {value}", value=node_type), False, node_type),
     ]
     rows.extend(
-        (key, t(f"field.{key}", default=field_label), _kind_doc(kind), optional, example.get(key))
+        (key, _field_label(node_type, key, field_label), _kind_doc(kind), optional, example.get(key))
         for key, field_label, kind, optional in schema["fields"]
     )
     if node_type not in {
@@ -205,9 +276,11 @@ def node_reference_html(node_type: str) -> str:
     table_rows = []
     for key, field_label, contract, optional, default in rows:
         default_text = "—" if default is None else json.dumps(default, ensure_ascii=False)
+        effect = _field_effect(node_type, key, str(field_label), optional)
         table_rows.append(
-            "<tr><td><code>{}</code></td><td>{}</td><td>{}</td><td>{}</td><td><code>{}</code></td></tr>".format(
+            "<tr><td><code>{}</code></td><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td><code>{}</code></td></tr>".format(
                 html.escape(str(key)), html.escape(str(field_label)),
+                html.escape(str(effect)),
                 t("reference.optional", default="Optional") if optional else t("reference.required", default="Required"), html.escape(str(contract)),
                 html.escape(default_text),
             )
@@ -237,7 +310,7 @@ def node_reference_html(node_type: str) -> str:
     <h2>{html.escape(t('reference.runtime_api', default='Runtime API'))}</h2>
     <div class="api"><code>{html.escape(api)}</code><br>{html.escape(t('reference.runtime_note', default='The editor saves Story JSON and lomc generates Lua. Authors do not call this API directly.'))}</div>
     <h2>{html.escape(t('reference.field_api', default='Field contract'))}</h2>
-    <table><tr><th>{html.escape(t('reference.col.key', default='JSON key'))}</th><th>{html.escape(t('reference.col.meaning', default='UI meaning'))}</th><th>{html.escape(t('reference.col.requirement', default='Requirement'))}</th><th>{html.escape(t('reference.col.type', default='Type / values'))}</th><th>{html.escape(t('reference.col.default', default='New default'))}</th></tr>{''.join(table_rows)}</table>
+    <table><tr><th>{html.escape(t('reference.col.key', default='JSON key'))}</th><th>{html.escape(t('reference.col.meaning', default='UI meaning'))}</th><th>{html.escape(t('reference.col.effect', default='What it does'))}</th><th>{html.escape(t('reference.col.requirement', default='Requirement'))}</th><th>{html.escape(t('reference.col.type', default='Type / values'))}</th><th>{html.escape(t('reference.col.default', default='New default'))}</th></tr>{''.join(table_rows)}</table>
     <h2>{html.escape(t('reference.example', default='Minimal example'))}</h2>
     <pre>{sample}</pre>
     <h2>{html.escape(t('reference.compatibility', default='Compatibility and safety'))}</h2>

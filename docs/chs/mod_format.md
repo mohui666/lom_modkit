@@ -189,8 +189,8 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 | `enemy` | `op`("team"=向心力/"level"=门派规模/"people"=门派人数/"id"=选择当前敌对门派), `enemy`(战役门派 id), `value`(变化量，id 操作不需要), `display`(仅 team/people 使用，默认1) | 修改 **Battle 多人战役**使用的门派状态 `ModifyEnemyTeam/Level/People/Id`；不配置 Combat 一对一决斗敌人 |
 | `battle_skill` | `op`("set"/"active"/"reset"), `key`(reset 不需要), `index`(set 用, 默认2), `active`(active 用, 默认1) | 战场技能 `SetPlayerBattleSkill/SetBattleSkillActive/ResetBattleSkill` |
 | `battle_setup` | 可选 `enemy`, `team`, `level`, `people`, `display`, `reset_skills`, `skills:[{key,index,active}]`；至少配置一项 | 战前聚合节点：只按顺序调用已验证的 `ModifyEnemy*`、`ResetBattleSkill`、`SetPlayerBattleSkill`、`SetBattleSkillActive`，不修改地图/AI/战斗机制 |
-| `combat` | `win`, `lose`；`key`（原版一对一人物/场景模板）与 `preset` 二选一；可选对手 `health/stamina` 上限与初值、九项属性、`talents`、三格绝招和五类行动概率 | Host 只在本次 Combat 的原版 `CombatLevel` 数据读取点覆盖对手数值，不修改原版资产；`CombatManager.GameOver(bool)` 的真实 win/lose 回到指定节点。不支持 draw/escape，不允许额外 goto |
-| `battle` | `win`, `lose`；`key`（原版 Battle 场景）与 `preset` 二选一；可选 `friend/enemy/neutral_roster`、三方人数和 NPC 血量、`reset_skills` 与 `skills` | Host 在本次 Battle 读取时分别复用三个原版阵容模板并覆盖生成数量/血量，原版 `ShowGameOver(FriendWin/EnemyWin, finish:true)` 回到指定节点。`PlayerDie(false)` 保持原版流程，不允许额外 goto |
+| `combat` | 必填 `key`, `win`, `lose`；可直接设置对手 `max_health/health/max_stamina/stamina`、九项属性、`talents`、三格绝招和五类行动概率 | `key` 仅选择可读名称对应的原版一对一角色/场景底板。Host 只在本次 Combat 的原版 `CombatLevel` 数据读取点覆盖节点内参数，不修改原版资产；`CombatManager.GameOver(bool)` 的真实 win/lose 回到指定节点。不支持 draw/escape，不允许额外 goto |
+| `battle` | 必填 `key`, `win`, `lose`；可直接设置 `friend/enemy/neutral_roster`、三方人数和 NPC 血量、`reset_skills` 与 `skills` | `key` 仅选择原版 Battle 场景。Host 在本次 Battle 读取时分别复用节点指定的三个原版阵容并覆盖生成数量/血量，原版 `ShowGameOver(FriendWin/EnemyWin, finish:true)` 回到指定节点。`PlayerDie(false)` 保持原版流程，不允许额外 goto |
 | `battle_result` | `win`, `lose`；可选 `kind`("any"/"combat"/"battle"，默认 any) | 读取 Host 按完整包指纹和剧情 id 绑定的最后真实结果并分支。当前仅支持反编译确认的 win/lose；无结果、类型不符或伪造 draw/escape 都会 fail-closed。终止节点，不允许额外 goto |
 | `reward` | `entries`(1~32)：`kind`=stat/affinity/talent/item/flag，`key`，非 flag 用 `amount`，item 另用 `category`=book/misc/special | 编译期展开为现有 `Player` / `Character` / `AddTalent` / `AddBook|Misc|Special` / `AddStory` 与 `modflags`，不发明奖励存档系统 |
 | `result_screen` | `title`（非空）、`entries`（同 reward）；可选 `text` | 先用原版 `mainui.DisplayMessageText` 显示作者填写的标题与说明，再按顺序执行 `reward` 的现有原子接口；这是作者友好的组合节点，不创建自定义结算 UI |
@@ -209,8 +209,6 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 | `time` | `op`("set"/"round"/"month"/"mission")；set 用 `year,month,stage`；mission 用 `name,year,month,stage` | 时间 `SetGameTime/NextRound/NextMonth/SetMissionTime` |
 | `autosave` | 可选 `kind`("story"默认/"free"/"prologue")；可选 `save_button`(0/1，单独控制存档按钮) | `AutoSave()/AutoFreeSave()/PrologueSave(mode)`；`save_button` 单独 emit `ToggleSaveButton(n)` |
 
-章节顶层可选 `battle_presets` 对象，用安全 id 保存可复用配置：`{"bandit_ambush":{"kind":"combat","key":"5102_01","enemy":"Bandit","level":20,"people":3}}`。`kind` 只允许 `combat` / `battle`；节点写 `preset:"bandit_ambush"` 后不得混填 `key` 或敌方参数。编译器会把它展开为上表同一组原版调用，预设本身不会进入运行时或扩展战斗引擎。
-
 **流程类**
 
 > 原版术语：`Combat` 是一对一决斗，`Battle` 是带门派人数、阵型与战场技能的多人战役；两套关卡编号不能混用。
@@ -218,7 +216,7 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 | type | 字段 | 说明 |
 | --- | --- | --- |
 | `branch` | `cases`(≥1)；可选 `source`("mod"默认/"game"/"stat"/"flag_value"/"condition")。键字段：source=stat 时用 `stat`（属性 id，editor_data stats 清单），其余来源用 `flag`（非空） | 条件分支，五来源：mod=按 modflags 是否已设；game=官方检查点 `checkpointmanager.Switch(flag)`；stat=主角属性 `luamanager.GetStatData(stat, 1)`；flag_value=官方任务旗标 `tonumber(luamanager.GetFlagData(flag))`；condition=官方条件检查点 `checkpointmanager.Condition(flag)`（bool）。case 结构按来源：mod/condition 用 `[{"value","goto"}]`（value 仅 1/2：mod=已设/未设，condition=真/假）；game 用 `[{"value","goto"}]`（任意整数）；stat/flag_value 用 `[{"op","value","goto"}]`（op 缺省 ">="，允许 >=/>/<=/</==）。未命中一律 else 落顺序下一节点（末节点且未覆盖全部取值 → LomcError；mod/condition 两 case 齐则覆盖） |
-| `dice` | `check`, `options`: `[{"goto_大成功","goto_成功","goto_失败","band_texts"?}]`（恰好 1 条） | 骰子检定。**check 必须是带官方元数据的检查点**（editor_data 的 dice_meta：骰子范围 max 与结果带 bands；无元数据的检查点会让游戏内骰子菜单 NRE 崩溃）。发射官方五步链 + 按结果带数逐带发射选项（文本+条件）；分支按带质量名次映射：最差带→goto_失败，中间带→goto_成功，最优带→3带及以上 goto_大成功 / 2带 goto_成功。带质量按条件数值推断（同值 >系优于 <系）。**band_texts**（可选）：逐带覆写骰子菜单选项文本（条数=结果带数，每项非空，否则 LomcError）；发射 `<作者文本> \| <官方cond>`（作者文本为字面量，不进 texts.json；ASCII \| 净化为全角｜；cond 永远用官方元数据）。缺省用官方结果带文本 |
+| `dice` | 必填 `max`(1～9999)、`header`、`bands`(2～4 条)；可选 `bonus`、`bonus_name`、`bonus_status`。除最后一档外每档必填递增的 `upper`，且须位于 bonus～max+bonus-1 的可达总点数内；每档必填 `text`,`goto` | 不再选择 `CH_*` 官方检查点。Host 生成 0～max 的随机点数并加固定 bonus，按从低到高的 upper 匹配结果；最后一档接收剩余点数。界面继续复用原版 `DiceMenuDialog`，各档文字和跳转均由作者直接设置 |
 | `goto_scene` | `scene`("Free"/"Title"/"Combat"/"Battle"/"GameOver"/"End"/"Story"/"DemoEnd")；可选 `key`(Combat=战斗id/Battle=战役id/GameOver=死亡画面id/End=结局标识), `next`, `title`, `desc`(均为 str，仅 End/GameOver 用), `image`(str，**仅 End 用**：包内图片相对路径，如 `assets/ending.png`) | 普通场景仍为 `luamanager.ChangeScene(scene,key,next)`。**End 特例按原版汗青书流程**：缓存自定义标题/正文/插图 → `runwait(endgamepanel.Open("__MORTAL_MOD_END__"))` → 玩家确认 → 黑幕 → Title；运行时 patch 真正的 `EndGamePanel`，完整复用官方版式；`image` 写入左页 `_picImage`，留空时借原版结局 20047 的 Picture 占位；图片缺失/损坏只警告并回退占位。End/GameOver 的 next 无效（原版按钮固定为读档/标题），旧值忽略并警告（旧兼容值 Story 按 Title 处理、不警告）。只有不带自定义内容且给官方 key 时才直接打开官方结局条目（按原版解锁/记录并给警告）。mod 专属 End key 若无 title/desc/image、mod 专属 GameOver key 若无 title/desc，直接校验失败，避免空白卡 |
 | `panel` | `panel`("martial"/"weapon"/"poison"/"cg"/"cgvideo"/"shop"/"newshop"/"credit"/"endgame")；可选 `key`(cg/cgvideo/endgame 的 id), `discount`(shop 用, 默认0), `mode`(martial 用, 默认0) | 打开系统面板，除 newshop 外均 `runwait`：`martialpanel.Open(mode)`/`weaponupgradepanel.Open()`/`poisonupgradepanel.Open()`/`cgpanel.Open(key)`/`cgvideopanel.Open(key,0)`/`shoppanel.Open(discount)`/`shoppanel.NewShop()`/`creditpanel.Open()`/`endgamepanel.Open(key)` |
 | `wait` | `seconds` | `wait(seconds)` |
@@ -468,7 +466,7 @@ transition 黑幕、choice 皮肤崩溃、背景黑屏、人物未登场就做�
   - `move_node(story, node_id, delta)`：按相对位移调整节点顺序
   - `set_start(story, node_id)`：设置起始节点
   - `add_choice(story, options, after=None)`：新增选项分支（2~4 项，dialog 固定 Options）
-  - `add_dice(story, check, goto_成功, goto_失败, goto_大成功="", band_texts=None, after=None)`：新增骰子检定（check 必须有官方元数据，按结果带数校验 goto；band_texts 条数必须等于结果带数且每项非空）
+  - `add_dice(story, maximum, header, bands, bonus=0, bonus_name="", bonus_status="", after=None)`：新增直接配置的骰子检定；bands 为 2～4 档，非末档有递增 upper，每档有 text 与 goto
   - `add_say(story, text, character=None, mode="character", portrait="normal", voice=None, after=None)`：新增对白（character 模式必填 character；narrative/center 不写 character；voice 可选 user: 音频引用）
   - `add_death(story, text, death_id, next="Title", title=None, after=None)`：新增死亡文本节点（text 必填非空多行；death_id 必填 ≥900000 的 mod 专属数字 id；next 仅接受 Title；title 可选短标题，缺省/空串用「勝敗乃兵家常事」）
   - `add_scene(story, view, after=None)`：新增场景切换

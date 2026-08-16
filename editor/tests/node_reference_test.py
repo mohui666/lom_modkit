@@ -43,6 +43,7 @@ class NodeReferenceTest(unittest.TestCase):
                 page = node_reference_html(node_type)
                 self.assertIn(node_type, page)
                 self.assertIn("运行时接口", page)
+                self.assertIn("参数作用", page)
                 self.assertIn("<code>id</code>", page)
                 self.assertIn("<code>type</code>", page)
                 for key, _label, kind, _optional in models.NODE_SCHEMAS[node_type]["fields"]:
@@ -75,18 +76,30 @@ class NodeReferenceTest(unittest.TestCase):
 
     def test_reference_chrome_is_localized(self):
         expectations = {
-            "chs": ("作者文档", "运行时接口"),
-            "cht": ("作者文件", "執行階段介面"),
-            "ja": ("作者向けドキュメント", "ランタイム API"),
-            "ko": ("제작자 문서", "런타임 API"),
+            "chs": ("作者文档", "运行时接口", "参数作用"),
+            "cht": ("作者文件", "執行階段介面", "參數作用"),
+            "ja": ("作者向けドキュメント", "ランタイム API", "パラメーターの効果"),
+            "ko": ("제작자 문서", "런타임 API", "매개변수 효과"),
         }
-        for locale, (home_title, api_title) in expectations.items():
+        for locale, (home_title, api_title, effect_title) in expectations.items():
             with self.subTest(locale=locale):
                 set_language(locale)
                 models.refresh_labels()
                 self.assertIn(home_title, documentation_home_html())
                 page = node_reference_html("say")
                 self.assertIn(api_title, page)
+                self.assertIn(effect_title, page)
+
+    def test_combat_battle_and_dice_parameter_effects_are_specific(self):
+        combat = node_reference_html("combat")
+        self.assertIn("原版一对一决斗的角色与场景底板", combat)
+        self.assertIn("原版 AI", combat)
+        battle = node_reference_html("battle")
+        self.assertIn("三方阵容", battle)
+        self.assertIn("上一场配置残留", battle)
+        dice = node_reference_html("dice")
+        self.assertIn("0 到该值之间", dice)
+        self.assertIn("最后一档接收剩余点数", dice)
 
     def test_documentation_is_separate_from_quick_help(self):
         from main import HelpDialog

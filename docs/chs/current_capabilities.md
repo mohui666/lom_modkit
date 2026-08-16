@@ -22,7 +22,7 @@
 - `goto_scene`：通过 `LuaManager.ChangeScene` 进入原版 `Combat` / `Battle`，并传入作者选择的官方 key。
 - `combat`：选择原版一对一人物/场景模板，可在本次读取中覆盖对手 HP、体力、九项能力、天赋、三格绝招及行动概率；Host 从 `CombatManager.GameOver(bool)` 取得真实 win/lose。原版资产不被修改。
 - `battle`：选择原版 Battle 场景，可分别复用我方、敌方、中立阵容模板并覆盖三方人数、NPC HP 与玩家技能；Host 只把 `ShowGameOver(FriendWin/EnemyWin, finish:true)` 映射为 win/lose。`PlayerDie(false)` 保持原版流程。
-- Battle Preset：章节设置中可保存 `combat` / `battle` 原版模板与已验证敌方参数，剧情节点按 ID 复用；编译时展开，不引入新的运行时接口。
+- `combat` / `battle` 节点直接配置全部已验证参数，不再使用工具预设。`key` 只选择原版角色/场景底板，血量、属性、行动概率、三方阵容、人数、NPC 血量与战场技能都写在当前节点。
 - `battle_result`：按包完整 SHA-256、剧情 id 和可选 Combat/Battle 类型读取 Host 的最后真实结果，只提供已验证的 win/lose 分支。
 - `battle_setup`：把 `ModifyEnemy*` 与 `SetPlayerBattleSkill` / `SetBattleSkillActive` / `ResetBattleSkill` 组合为战前表格配置。
 - `reward`：把现有 `stat` / `affinity` / `talent` / `item` / `flag` 原子接口聚合为 1~32 项奖励。

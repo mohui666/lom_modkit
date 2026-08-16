@@ -290,12 +290,12 @@ ValueError로 변환), 검증/컴파일류 함수는 예외를 던지지 않고 
 | `add_say(story, text, character=None, mode="character", portrait="normal", voice=None, after=None) -> dict` | mode ∈ character/think/narrative/center; character/think 모드는 character 필수(인물 id), narrative/center는 character 필드를 쓰지 않음; text는 줄바꿈 가능; (character, portrait)는 공식 표정표로 검증; voice는 선택적 user: 오디오 참조 |
 | `add_scene(story, view, after=None) -> dict` | view는 비어 있지 않은 장면 id 문자열 |
 | `add_choice(story, options, after=None) -> dict` | options는 [(text, goto), ...] 2~4개, text는 비어 있지 않은 str, goto는 노드 id str; dialog는 "Options"로 강제 기록(§4 규칙 1 참조) |
-| `add_dice(story, check, goto_成功, goto_失败, goto_大成功="", band_texts=None, after=None) -> dict` | check는 반드시 공식 메타데이터 적중 필요(`lomc.dice_data.get_dice_meta`); 2대 체크포인트는 goto_成功/goto_失败 필수, goto_大成功 비워 둘 수 있음; ≥3대는 세 개 모두 필수; band_texts는 선택적 대별 옵션 텍스트 덮어쓰기, 개수=결과대 수, 각 항목 비어 있으면 안 됨 |
+| `add_dice(story, maximum, header, bands, bonus=0, bonus_name="", bonus_status="", after=None) -> dict` | 공식 체크포인트 없이 직접 설정. maximum은 1～9999. bands는 낮은 순서의 2～4개 사전이며 마지막 외에는 `upper`, 모든 항목에는 `text`와 `goto`가 필요. bonus는 음수 가능 |
 | `add_death(story, text, death_id, next="Title", title=None, after=None) -> dict` | text 비어 있으면 안 됨(여러 줄 가능); death_id는 ≥900000의 숫자 문자열(약정 9+공식 id); next는 "Title"만 허용; title은 선택, 기본값/빈 문자열이면 필드를 쓰지 않음(codegen은 「勝敗乃兵家常事」 사용) |
 
 fields 타입 검증 약정(`_check_kind`): int/float 필드는 수치를 받지만 **bool은 거부**
 (`True`를 float 필드에 주면 거부됨); bool 필드는 bool만 받음; options/cases/vars/
-dice_options 필드는 list를 받음; 나머지는 일률적으로 str. 값을 수정하지 않고 검증만 합니다.
+dice_bands 필드는 list를 받음; 나머지는 일률적으로 str. 값을 수정하지 않고 검증만 합니다.
 
 ### 3.3 검증 / 컴파일 / 패키징 / 파일
 
@@ -363,12 +363,10 @@ check_story/compile_story에 걸립니다). 각 규칙의 게임 측 메커니�
 1. **choice 스킨은 Options로 고정**. `add_choice`는 `dialog="Options"`를 강제합니다; 다른 스킨은
    자유 장면의 break 형식 메뉴로, 순수 텍스트 옵션은 게임 내 메뉴를 동결시킵니다. 설령
    `update_node`로 다른 스킨으로 바꿔도 check_story가 오류를 냅니다.
-2. **dice 체크포인트는 반드시 공식 메타데이터에 적중해야 합니다**. `add_dice`의 check는 반드시
-   `data/editor_data.json`의 dice_meta 표 안에 있어야 합니다(`load_editor_data()`로 확인 가능,
-   테스트 케이스: `S0205_01_001`은 2대, `Ch_6_8_2_Break_01_001`은 3대),
-   메타데이터가 없는 체크포인트는 게임 내 주사위 메뉴를 크래시시킵니다. 결과대 수가 goto 필수 항목을 결정합니다:
-   2대는 goto_成功/goto_失败 입력; ≥3대는 goto_大成功도 필수. band_texts 덮어쓰기
-   개수는 반드시 결과대 수와 같아야 합니다.
+2. **dice는 결과 구간을 직접 설정**합니다. `add_dice`는 `CH_*` 체크포인트를 받지 않습니다.
+   maximum은 1～9999, bands는 2～4개, 마지막 외의 upper는 엄격한 오름차순이면서 bonus～maximum+bonus-1의 실제 도달 가능한 합계 범위 안이어야 하며
+   모든 text와 goto가 필수입니다. 런타임은 원작 주사위 화면을 재사용하지만 난수 범위,
+   고정 보정, 표시 문구와 이동 대상은 현재 노드가 결정합니다.
 3. **say 모드와 인물 연동**. mode=character/think는 반드시 character(인물 id)를 줘야 합니다;
    narrative/center는 character 필드를 쓰지 않습니다(줘도 제거됨).
 4. **동작 인물은 반드시 먼저 등장해야 합니다(등장 방어선)**. 무대에 없는 인물에게 동작(say 대사/독백,
@@ -407,9 +405,8 @@ check_story/compile_story에 걸립니다). 각 규칙의 게임 측 메커니�
 | `节点编号已被占用: n5` / `节点编号只使用英文字母、数字、下划线或短横线` | rename_node | 새 id가 기존 노드와 충돌하거나 불법 문자 포함 |
 | `delta 只能是 ±1，实际为 2` / `节点 n1 已在开头，无法再移动` | move_node | 한 칸씩 이동만 지원; 범위 초과 이동 |
 | `choice 选项必须是 2~4 项，实际 1 项` / `第 1 个选项必须是 (text, goto) 二元组` | add_choice | 옵션 수 2~4; 각 항목은 (text, goto) 이원조 |
-| `骰子检查点 "X" 无官方元数据，请在编辑器清单里选择...` | add_dice | check가 dice_meta 표에 없음; `load_editor_data()["dice_meta"]`에서 합법 체크포인트 선택 |
-| `检查点 "Ch_6_8_2_Break_01_001" 有 3 个结果带，goto_大成功 必填（最优带）` | add_dice | ≥3대 체크포인트는 대성공 점프 필수 |
-| `dice band_texts 条数必须等于检查点 "X" 的结果带数（N 条），实际为 M 条` | add_dice | 덮어쓰기 텍스트 개수와 결과대 수 불일치 |
+| `dice maximum 必须是整数` / `dice bands 必须是 2~4 个结果分段` | add_dice | 난수 범위 타입 오류 또는 결과 구간 수가 2～4 범위 밖 |
+| `dice bands[i] 必须是对象` | add_dice | 각 결과 구간은 upper(마지막 외), text, goto를 가진 사전이어야 함 |
 | `mode="character" 时 character 必填（人物 id）` | add_say | character/think 모드는 인물 id 필수 |
 | `say 模式非法: 'shout'（允许 character/think/narrative/center）` | add_say | mode 철자 오류 |
 | `角色 "brother4" 没有表情 "angry3"（该角色表情：angry1、angry2、…、shock）。…KeyNotFoundException…` | add_say/add_node/update_node | 표정 id가 해당 캐릭터 목록에 없음; 메시지에 나열된 합법 표정으로 수정 |

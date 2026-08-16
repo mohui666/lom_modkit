@@ -35,9 +35,28 @@
     {
       "id": "combat1",
       "type": "combat",
+      "key": "5102_01",
+      "talents": [],
       "win": "battle_result1",
       "lose": "battle_result1",
-      "preset": "showcase3_combat"
+      "max_health": 300,
+      "health": 300,
+      "max_stamina": 120,
+      "stamina": 120,
+      "strength": 20,
+      "internal": 20,
+      "dexterity": 20,
+      "talking": 20,
+      "defence": 20,
+      "sword": 20,
+      "fist": 20,
+      "martial_weapon": 20,
+      "mental": 20,
+      "talk_rate": 0.1,
+      "attack_rate": 0.5,
+      "weapon_rate": 0.1,
+      "ultimate_rate": 0.05,
+      "block_rate": 0.25
     },
     {
       "id": "battle_result1",
@@ -82,21 +101,5 @@
       "next_script": "battle_demo"
     }
   ],
-  "battle_presets": {
-    "showcase3_combat": {
-      "kind": "combat",
-      "key": "5102_01",
-      "max_health": 300,
-      "health": 300,
-      "max_stamina": 120,
-      "stamina": 120,
-      "strength": 20,
-      "internal": 20,
-      "dexterity": 20,
-      "talking": 20,
-      "attack_rate": 0.5,
-      "block_rate": 0.25
-    }
-  },
   "start": "message1"
 }

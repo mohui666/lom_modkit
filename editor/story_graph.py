@@ -71,18 +71,9 @@ def _explicit_edges(node: dict) -> list[tuple[str, str, str]]:
                 op = str(case.get("op") or "=")
                 result.append((target, f"{op}{case.get('value', '')}", "branch"))
     elif node_type == "dice":
-        result_names = {
-            "goto_大成功": "大成功",
-            "goto_成功": "成功",
-            "goto_失败": "失败",
-        }
-        for index, option in enumerate(node.get("options") or [], 1):
-            if not isinstance(option, dict):
-                continue
-            for key, result_name in result_names.items():
-                target = option.get(key)
-                if isinstance(target, str) and target:
-                    result.append((target, f"第{index}项·{result_name}", "dice"))
+        for index, band in enumerate(node.get("bands") or [], 1):
+            if isinstance(band, dict) and isinstance(band.get("goto"), str):
+                result.append((band["goto"], _short_label(band.get("text"), f"结果 {index}"), "dice"))
     elif node_type in ("combat", "battle", "battle_result"):
         labels = (("win", "友军胜利"), ("lose", "敌军胜利")) if node_type == "battle" else (("win", "胜利"), ("lose", "失败"))
         for key, label in labels:

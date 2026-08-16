@@ -801,7 +801,7 @@ def _encode_gameplay_config(config, scalar_fields, list_fields=()):
 
 def _emit_combat(node, ctx):
     """编排一场原版 Combat，并把已验证的 win/lose 结果带回本剧情。"""
-    config = ctx["battle_presets"].get(node.get("preset"), node)
+    config = node
     encoded = _encode_gameplay_config(
         config,
         (
@@ -832,7 +832,7 @@ def _emit_combat(node, ctx):
 
 
 def _emit_battle(node, ctx):
-    config = ctx["battle_presets"].get(node.get("preset"), node)
+    config = node
     encoded = _encode_gameplay_config(
         config,
         (
@@ -1228,7 +1228,7 @@ def _band_rank(bands):
     return ranks
 
 
-def _emit_dice(node, ctx):
+def _emit_dice_legacy(node, ctx):
     """骰子检定：按检查点官方元数据发射（骰子范围、结果带条数与文本）。
 
     官方实证（travel_result_601_101 / ch6_8_2_break_start_01 等）：骰子菜单
@@ -1300,6 +1300,55 @@ def _emit_dice(node, ctx):
         lines.append("	else")
         lines.append("		return node_%s()" % goto_for_rank(ranks[n - 1]))
         lines.append("	end")
+    return lines
+
+
+def _emit_dice(node, ctx):
+    """Compile author-controlled dice parameters through the original DiceMenuDialog."""
+    if "check" in node:
+        return _emit_dice_legacy(node, ctx)
+    bands = node["bands"]
+    dice_max = node["max"]
+    thresholds = ",".join(str(band["upper"]) for band in bands[:-1])
+    lines = [
+        "\tmod_dice_prepare(%s, %s, %s, %s, %s, %s)" % (
+            lua_num(dice_max), lua_str(node["header"]), lua_str(thresholds),
+            lua_num(node.get("bonus", 0)), lua_str(node.get("bonus_name", "")),
+            lua_str(node.get("bonus_status", "")),
+        ),
+        "\tsetmenudialog(menudialogs.Dice)",
+        "\tlocal dice_rand1 = math.random(0, %d)" % dice_max,
+        "\tdicemenudialog.SetRandom(%d, dice_rand1)" % dice_max,
+        "\tlocal dice_result1 = checkpointmanager.Dice(\"__lom_mod_custom\", dice_rand1)",
+        "\tlocal dice_opts1 = {}",
+    ]
+    for index, band in enumerate(bands, 1):
+        text = str(band["text"]).replace("|", "｜")
+        condition = (
+            "≤ %s" % band["upper"]
+            if index < len(bands)
+            else "> %s" % bands[-2]["upper"]
+        )
+        lines.append(
+            "\tdice_opts1[%d] = %s" % (index, lua_str("%s|%s" % (text, condition)))
+        )
+    lines += [
+        "\tdicemenudialog.Setup(dice_result1.ResultCount, dice_result1.Result, "
+        "dice_result1.Header, dice_result1.Additions)",
+        "\trunwait(dicemenudialog.ExecuteRoll(dice_opts1, 1, \"__lom_mod_custom\"))",
+        "\tlocal dice_sel1 = dicemenudialog.ResultSelection",
+        "\tmod_dice_clear()",
+        "\tif dice_sel1 == 1 then",
+        "\t\treturn node_%s()" % bands[0]["goto"],
+    ]
+    for index in range(1, len(bands) - 1):
+        lines.append("\telseif dice_sel1 == %d then" % (index + 1))
+        lines.append("\t\treturn node_%s()" % bands[index]["goto"])
+    lines += [
+        "\telse",
+        "\t\treturn node_%s()" % bands[-1]["goto"],
+        "\tend",
+    ]
     return lines
 
 
@@ -1528,7 +1577,6 @@ def story_to_lua(story, mod_info=None, source=None, content_root=None):
         "script_id": story["id"],
         "mood": bool(story.get("mood", False)),
         "content_root": content_root or default_repository_root(),
-        "battle_presets": story.get("battle_presets", {}),
     }
     nodes = story["nodes"]
 

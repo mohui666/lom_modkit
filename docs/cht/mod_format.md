@@ -151,8 +151,8 @@ assets/                # 可选，自定义资源
 | `enemy` | `op`("team"=向心力/"level"=門派規模/"people"=門派人數/"id"=選擇目前敵對門派), `enemy`(戰役門派 id), `value`(變化量，id 操作不需要), `display`(僅 team/people 使用，預設1) | 修改 **Battle 多人戰役**使用的門派狀態 `ModifyEnemyTeam/Level/People/Id`；不設定 Combat 一對一決鬥敵人 |
 | `battle_skill` | `op`("set"/"active"/"reset"), `key`(reset 不需要), `index`(set 用, 預設2), `active`(active 用, 預設1) | 戰場技能 `SetPlayerBattleSkill/SetBattleSkillActive/ResetBattleSkill` |
 | `battle_setup` | 可選敵方欄位、`reset_skills`、`skills:[{key,index,active}]`；至少一項 | 只聚合已驗證的原版敵方與戰場技能介面，不修改地圖／AI／機制 |
-| `combat` | `win`, `lose`；`key`（原版一對一人物／場景範本）與 `preset` 二選一；可覆寫對手 HP、體力、九項屬性、天賦、三格絕招與五類行動機率 | 只在本次 Combat 的原版資料讀取點覆寫對手；`CombatManager.GameOver(bool)` 的真實 win/lose 回到指定節點。不支援 draw/escape |
-| `battle` | `win`, `lose`；`key` 與 `preset` 二選一；可選我方／敵方／中立陣容範本、三方人數與 NPC HP、玩家戰役技能 | 本次 Battle 分別重用三個原版陣容；只把 finish=true 的 `FriendWin/EnemyWin` 映射為 win/lose，`PlayerDie(false)` 保持原版流程 |
+| `combat` | 必填 `key`, `win`, `lose`；可直接設定對手 HP／體力上限與初值、九項屬性、`talents`、三格絕招及五類行動機率 | `key` 只選擇可讀名稱對應的原版一對一角色／場景底板。只在本次 Combat 的原版資料讀取點覆寫節點參數；`CombatManager.GameOver(bool)` 的真實 win/lose 回到指定節點。不支援 draw/escape |
+| `battle` | 必填 `key`, `win`, `lose`；可直接設定我方／敵方／中立陣容範本、三方人數與 NPC HP、`reset_skills`、`skills` | `key` 只選擇原版 Battle 場景。本次 Battle 分別重用節點指定的三個原版陣容；只把 finish=true 的 `FriendWin/EnemyWin` 映射為 win/lose，`PlayerDie(false)` 保持原版流程 |
 | `battle_result` | `win`, `lose`；可選 `kind`("any"/"combat"/"battle") | 按完整包指紋與劇情 id 讀取 Host 真實結果，只支援已驗證的 win/lose；無結果或類型不符會 fail-closed |
 | `reward` | `entries`(1~32)：stat/affinity/talent/item/flag | 編譯期展開為既有屬性、好感、天賦、物品、旗標原子介面 |
 | `result_screen` | `title`（非空）、`entries`（同 reward）；可選 `text` | 先用原版 `mainui.DisplayMessageText` 顯示標題與說明，再執行既有獎勵介面；不建立自訂結算 UI |
@@ -172,7 +172,7 @@ assets/                # 可选，自定义资源
 | type | 欄位 | 說明 |
 | --- | --- | --- |
 | `branch` | `cases`(≥1)；可選 `source`("mod"預設/"game"/"stat"/"flag_value"/"condition")。鍵欄位：source=stat 時用 `stat`（屬性 id，editor_data stats 清單），其餘來源用 `flag`（非空） | 條件分支，五來源：mod=按 modflags 是否已設；game=官方檢查點 `checkpointmanager.Switch(flag)`；stat=主角屬性 `luamanager.GetStatData(stat, 1)`；flag_value=官方任務旗標 `tonumber(luamanager.GetFlagData(flag))`；condition=官方條件檢查點 `checkpointmanager.Condition(flag)`（bool）。case 結構按來源：mod/condition 用 `[{"value","goto"}]`（value 僅 1/2：mod=已設/未設，condition=真/假）；game 用 `[{"value","goto"}]`（任意整數）；stat/flag_value 用 `[{"op","value","goto"}]`（op 預設 ">="，允許 >=/>/<=/</==）。未命中一律 else 落順序下一節點（末節點且未覆蓋全部取值 → LomcError；mod/condition 兩 case 齊則覆蓋） |
-| `dice` | `check`, `options`: `[{"goto_大成功","goto_成功","goto_失敗","band_texts"?}]`（恰好 1 條） | 骰子檢定。**check 必須是帶官方元資料的檢查點**（editor_data 的 dice_meta：骰子範圍 max 與結果帶 bands；無元資料的檢查點會讓遊戲內骰子選單 NRE 崩潰）。發射官方五步鏈 + 按結果帶數逐帶發射選項（文字+條件）；分支按帶品質名次映射：最差帶→goto_失敗，中間帶→goto_成功，最優帶→3帶及以上 goto_大成功 / 2帶 goto_成功。帶品質按條件數值推斷（同值 >系優於 <系）。**band_texts**（可選）：逐帶覆寫骰子選單選項文字（條數=結果帶數，每項非空，否則 LomcError）；發射 `<作者文字> \| <官方cond>`（作者文字為字面量，不進 texts.json；ASCII \| 淨化為全形｜；cond 永遠用官方元資料）。預設用官方結果帶文字 |
+| `dice` | 必填 `max`(1～9999)、`header`、`bands`(2～4 條)；可選 `bonus`、`bonus_name`、`bonus_status`。除最後一檔外每檔必填遞增的 `upper`，且須位於 bonus～max+bonus-1 的可達總點數內；每檔必填 `text`,`goto` | 不再選擇 `CH_*` 原版檢查點。Host 產生 0～max 的隨機點數並加入固定 bonus，按由低至高的 upper 匹配結果；最後一檔接收剩餘點數。介面繼續重用原版 `DiceMenuDialog`，各檔文字與跳轉均由作者直接設定 |
 | `goto_scene` | `scene`("Free"/"Title"/"Combat"/"Battle"/"GameOver"/"End"/"Story"/"DemoEnd")；可選 `key`(Combat=戰鬥id/Battle=戰役id/GameOver=死亡畫面id/End=結局標識), `next`, `title`, `desc`(均為 str，僅 End/GameOver 用), `image`(str，**僅 End 用**：包內圖片相對路徑，如 `assets/ending.png`) | 普通場景仍為 `luamanager.ChangeScene(scene,key,next)`。**End 特例按原版汗青書流程**：快取自訂標題/正文/插圖 → `runwait(endgamepanel.Open("__MORTAL_MOD_END__"))` → 玩家確認 → 黑幕 → Title；執行階段 patch 真正的 `EndGamePanel`，完整重用官方版式；`image` 寫入左頁 `_picImage`，留空時借原版結局 20047 的 Picture 佔位；圖片缺失/損壞只警告並退回佔位。End/GameOver 的 next 無效（原版按鈕固定為讀檔/標題），舊值忽略並警告（舊相容值 Story 按 Title 處理、不警告）。只有不帶自訂內容且給官方 key 時才直接開啟官方結局條目（按原版解鎖/記錄並給警告）。mod 專屬 End key 若無 title/desc/image、mod 專屬 GameOver key 若無 title/desc，直接驗證失敗，避免空白卡 |
 | `panel` | `panel`("martial"/"weapon"/"poison"/"cg"/"cgvideo"/"shop"/"newshop"/"credit"/"endgame")；可選 `key`(cg/cgvideo/endgame 的 id), `discount`(shop 用, 預設0), `mode`(martial 用, 預設0) | 開啟系統面板，除 newshop 外均 `runwait`：`martialpanel.Open(mode)`/`weaponupgradepanel.Open()`/`poisonupgradepanel.Open()`/`cgpanel.Open(key)`/`cgvideopanel.Open(key,0)`/`shoppanel.Open(discount)`/`shoppanel.NewShop()`/`creditpanel.Open()`/`endgamepanel.Open(key)` |
 | `wait` | `seconds` | `wait(seconds)` |
@@ -413,7 +413,7 @@ transition 黑幕、choice 外觀崩潰、背景黑畫面、人物未登場就�
   - `move_node(story, node_id, delta)`：按相對位移調整節點順序
   - `set_start(story, node_id)`：設定起始節點
   - `add_choice(story, options, after=None)`：新增選項分支（2~4 項，dialog 固定 Options）
-  - `add_dice(story, check, goto_成功, goto_失敗, goto_大成功="", band_texts=None, after=None)`：新增骰子檢定（check 必須有官方元資料，按結果帶數驗證 goto；band_texts 條數必須等於結果帶數且每項非空）
+  - `add_dice(story, maximum, header, bands, bonus=0, bonus_name="", bonus_status="", after=None)`：新增直接設定的骰子檢定；bands 為 2～4 檔，非末檔有遞增 upper，每檔有 text 與 goto
   - `add_say(story, text, character=None, mode="character", portrait="normal", voice=None, after=None)`：新增對白（character 模式必填 character；narrative/center 不寫 character；voice 可選 user: 音訊引用）
   - `add_death(story, text, death_id, next="Title", title=None, after=None)`：新增死亡文字節點（text 必填非空多行；death_id 必填 ≥900000 的 mod 專屬數字 id；next 僅接受 Title；title 可選短標題，預設/空字串用「勝敗乃兵家常事」）
   - `add_scene(story, view, after=None)`：新增場景切換

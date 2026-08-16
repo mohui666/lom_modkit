@@ -331,21 +331,39 @@
     {
       "id": "say9",
       "type": "say",
-      "text": "下面调用原版三带骰子。任一结果都会继续。",
+      "text": "下面调用自定义四段骰子。范围、标题、加值、每档文字和去向都可直接编辑。",
       "portrait": "normal",
       "mode": "narrative"
     },
     {
       "id": "dice1",
       "type": "dice",
-      "check": "Ch_1_1_1_001",
-      "options": [
+      "max": 99,
+      "header": "灯影下的命运检定",
+      "bonus": 5,
+      "bands": [
         {
-          "goto_大成功": "say10",
-          "goto_成功": "say11",
-          "goto_失败": "say12"
+          "text": "失手",
+          "goto": "say13",
+          "upper": 24
+        },
+        {
+          "text": "勉强成功",
+          "goto": "say12",
+          "upper": 49
+        },
+        {
+          "text": "成功",
+          "goto": "say11",
+          "upper": 79
+        },
+        {
+          "text": "大成功",
+          "goto": "say10"
         }
-      ]
+      ],
+      "bonus_name": "准备充分",
+      "bonus_status": "固定加值"
     },
     {
       "id": "say10",
@@ -365,6 +383,14 @@
     },
     {
       "id": "say12",
+      "type": "say",
+      "text": "骰子结果：勉强成功。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "message3"
+    },
+    {
+      "id": "say13",
       "type": "say",
       "text": "骰子结果：失败。",
       "portrait": "normal",

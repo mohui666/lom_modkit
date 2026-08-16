@@ -99,7 +99,7 @@ NODE_TYPE_CN_SRC: dict[str, str] = {
 NODE_TYPE_CN: dict[str, str] = dict(NODE_TYPE_CN_SRC)
 
 # 新手菜单最先展示的高频步骤。特殊的“汗青书结局”由主窗口用 goto_scene
-# 预设创建，不在这里重复列出。
+# 快捷创建，不在这里重复列出。
 COMMON_NODE_TYPES: list[str] = [
     "say",
     "show",
@@ -377,7 +377,7 @@ MODE_CN_SRC = {
 }
 MODE_CN = dict(MODE_CN_SRC)
 FACING_CN = [("left", "朝左"), ("right", "朝右")]
-# 镜头滤镜常见预设（契约 §3.1 示例）
+# 原版镜头滤镜资源（契约 §3.1 示例）；这是游戏资源选择，不是工具预设。
 CAMERA_PRESETS = ["stage-memory", "stage-dream", "stage-fire", "stage-blurdim"]
 
 _ENUM_KEY_OVERRIDE = {
@@ -761,8 +761,7 @@ NODE_SCHEMAS: dict[str, dict] = {
     "combat": {
         "label": "决斗（一对一）",
         "fields": [
-            ("preset", "战斗预设", "battle_preset", True),
-            ("key", "原版决斗角色与场景模板", "combat_id", True),
+            ("key", "原版决斗角色与场景模板", "combat_id", False),
             ("max_health", "对手最大血量", "int", True),
             ("health", "对手初始血量", "int", True),
             ("max_stamina", "对手最大气力", "int", True),
@@ -792,8 +791,7 @@ NODE_SCHEMAS: dict[str, dict] = {
     "battle": {
         "label": "原版大规模战役",
         "fields": [
-            ("preset", "战斗预设", "battle_preset", True),
-            ("key", "战役场景", "battle_id", True),
+            ("key", "战役场景", "battle_id", False),
             ("friend_roster", "我方阵容模板", "battle_id_optional", True),
             ("enemy_roster", "敌方阵容模板", "battle_id_optional", True),
             ("neutral_roster", "中立阵容模板", "battle_id_optional", True),
@@ -963,8 +961,12 @@ NODE_SCHEMAS: dict[str, dict] = {
     "dice": {
         "label": "骰子检定",
         "fields": [
-            ("check", "骰子检查点", "dice_check", False),
-            ("options", "检定选项", "dice_options", False),
+            ("max", "骰子最大值", "int", False),
+            ("header", "检定标题", "line", False),
+            ("bonus", "固定加值", "int", True),
+            ("bonus_name", "加值名称", "line", True),
+            ("bonus_status", "加值说明", "line", True),
+            ("bands", "结果分段", "dice_bands", False),
         ],
     },
     "goto_scene": {
@@ -1134,13 +1136,12 @@ _NODE_DEFAULTS: dict[str, dict] = {
     "autosave": {"kind": "story"},
     "branch": {"flag": "", "source": "mod", "cases": [{"value": 1, "goto": ""}]},
     "dice": {
-        "check": "",
-        "options": [
-            {
-                "goto_大成功": "",
-                "goto_成功": "",
-                "goto_失败": "",
-            }
+        "max": 99,
+        "header": "命运检定",
+        "bonus": 0,
+        "bands": [
+            {"upper": 49, "text": "失败", "goto": ""},
+            {"text": "成功", "goto": ""},
         ],
     },
     "goto_scene": {"scene": "Free"},
@@ -1363,34 +1364,6 @@ def normalize_character_ids(stories, editor_data: dict) -> int:
                 node["character"] = match.group(1)
                 changed += 1
     return changed
-
-
-def dice_check_items(editor_data: dict) -> list[tuple[str, str]]:
-    """骰子检查点下拉清单：仅含带官方元数据的检查点（schema 3 dice_meta）。
-
-    无元数据的检查点会在游戏内导致骰子菜单崩溃（选项条数不足时
-    UpdateSelection 索引越界 NRE），因此不在清单中提供。
-    """
-    meta = editor_data.get("dice_meta") or {}
-    items = []
-    for cid, disp in list_items(editor_data, "dice_checks"):
-        if cid not in meta:
-            continue
-        bands = meta[cid].get("bands") or []
-        dice_max = meta[cid].get("max", "?")
-        items.append(
-            (
-                cid,
-                t(
-                    "summary.dice_meta",
-                    default="%s（骰子%s·%d带）" % (disp, dice_max, len(bands)),
-                    name=disp,
-                    max=dice_max,
-                    bands=len(bands),
-                ),
-            )
-        )
-    return items
 
 
 def display_name(editor_data: dict, key: str, item_id: str) -> str:
@@ -1659,6 +1632,13 @@ def retarget_node_ids(story: dict, mapping: dict[str, str]) -> int:
                 if isinstance(target, str) and target in mapping:
                     option[key] = mapping[target]
                     changed += 1
+        for band in node.get("bands") or []:
+            if not isinstance(band, dict):
+                continue
+            target = band.get("goto")
+            if isinstance(target, str) and target in mapping:
+                band["goto"] = mapping[target]
+                changed += 1
         for case in node.get("cases") or []:
             if not isinstance(case, dict):
                 continue
@@ -1954,11 +1934,13 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
             count=len(node.get("skills", [])),
         )
     if nt == "combat":
-        key = node.get("preset") or node.get("key", "") or t("form.unselected", default="（未选）")
-        return f"{tcn}·{key}（胜利→{node.get('win', '')} / 失败→{node.get('lose', '')}）"
+        key = node.get("key", "") or t("form.unselected", default="（未选）")
+        template = display_name(ed, "combat_ids", str(key))
+        return f"{tcn}·{template}（胜利→{node.get('win', '')} / 失败→{node.get('lose', '')}）"
     if nt == "battle":
-        key = node.get("preset") or node.get("key", "") or t("form.unselected", default="（未选）")
-        return f"{tcn}·{key}（友军胜→{node.get('win', '')} / 敌军胜→{node.get('lose', '')}）"
+        key = node.get("key", "") or t("form.unselected", default="（未选）")
+        template = display_name(ed, "battle_ids", str(key))
+        return f"{tcn}·{template}（友军胜→{node.get('win', '')} / 敌军胜→{node.get('lose', '')}）"
     if nt == "battle_result":
         return f"{tcn}·胜→{node.get('win', '')} / 败→{node.get('lose', '')}"
     if nt == "reward":
@@ -2031,10 +2013,10 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
             n=len(node.get("cases", [])),
         ) + ")"
     if nt == "dice":
-        return f"{tcn}·{node.get('check', '')}(" + t(
+        return f"{tcn}·0~{node.get('max', 99)}(" + t(
             "summary.items",
             default="{n}项",
-            n=len(node.get("options", [])),
+            n=len(node.get("bands", [])),
         ) + ")"
     if nt == "goto_scene":
         key = node.get("key") or ""

@@ -287,12 +287,12 @@ import story_api
 | `add_say(story, text, character=None, mode="character", portrait="normal", voice=None, after=None) -> dict` | mode ∈ character/think/narrative/center。character/think モードは character 必須（人物 id）。narrative/center は character フィールドを書かない。text は改行可。(character, portrait) は公式表情表で検証。voice は任意の user: 音声参照 |
 | `add_scene(story, view, after=None) -> dict` | view は非空のシーン id 文字列 |
 | `add_choice(story, options, after=None) -> dict` | options は [(text, goto), ...] の 2〜4 項目。text は非空 str、goto はノード id str。dialog は強制的に "Options"（§4 ルール 1 参照） |
-| `add_dice(story, check, goto_成功, goto_失败, goto_大成功="", band_texts=None, after=None) -> dict` | check は公式メタデータに命中必須（`lomc.dice_data.get_dice_meta`）。2 バンドのチェックポイントは goto_成功/goto_失败 必須、goto_大成功 は空可。≥3 バンドは 3 つすべて必須。band_texts は任意のバンドごとの選択肢テキスト上書きで、件数=結果バンド数、各項目非空 |
+| `add_dice(story, maximum, header, bands, bonus=0, bonus_name="", bonus_status="", after=None) -> dict` | 公式チェックポイントを使わず直接設定。maximum は 1～9999。bands は低い順の 2～4 辞書で、最後以外に `upper`、全件に `text` と `goto` が必要。bonus は負数も可 |
 | `add_death(story, text, death_id, next="Title", title=None, after=None) -> dict` | text は非空（複数行可）。death_id は ≥900000 の数字文字列（規約 9+公式 id）。next は "Title" のみ。title は任意。既定／空文字列はフィールドを書かない（codegen が「勝敗乃兵家常事」を使用） |
 
 fields の型検証規約（`_check_kind`）：int/float フィールドは数値を受け付けるが **bool は拒否**
 （`True` を float フィールドに渡すと拒否されます）。bool フィールドは bool のみ。options/cases/vars/
-dice_options フィールドは list を受け付ける。それ以外は一律 str。値は変更せず検証のみ行います。
+dice_bands フィールドは list を受け付ける。それ以外は一律 str。値は変更せず検証のみ行います。
 
 ### 3.3 検証 / コンパイル / パッケージング / ファイル
 
@@ -360,12 +360,10 @@ check_story/compile_story が遮断します）。各ルールのゲーム側の
 1. **choice スキンは Options に固定**。`add_choice` は `dialog="Options"` を強制します。その他のスキン
    はフリーシーンの break 形式メニューで、プレーンテキスト選択肢はゲーム内メニューをフリーズさせます。
    `update_node` で別スキンに変更しても、check_story がエラーを報告します。
-2. **dice チェックポイントは公式メタデータに命中必須**。`add_dice` の check は
-   `data/editor_data.json` の dice_meta 表内になければなりません（`load_editor_data()` で確認可。
-   テスト用例：`S0205_01_001` は 2 バンド、`Ch_6_8_2_Break_01_001` は 3 バンド）。
-   メタデータなしのチェックポイントはゲーム内ダイスメニューをクラッシュさせます。結果バンド数が goto の必須項目を決めます：
-   2 バンドは goto_成功/goto_失败。≥3 バンドは goto_大成功 も必須。band_texts 上書きの
-   件数は結果バンド数と一致必須。
+2. **dice は結果区分を直接設定**します。`add_dice` は `CH_*` チェックポイントを
+   受け付けません。maximum は 1～9999、bands は 2～4 件、最後以外の upper は
+   厳密な昇順かつ bonus～maximum+bonus-1 の到達可能な合計値内、全件の text と goto は必須です。ランタイムは原作ダイス画面を再利用し、
+   乱数範囲、固定補正、表示文言、移動先は現在のノードが決めます。
 3. **say モードと人物の連動**。mode=character/think では character（人物 id）必須。
    narrative/center では character フィールドを書きません（与えても削除されます）。
 4. **動作人物は先に登場必須（登場防線）**。舞台上にいない人物への動作（say 会話／独白、
@@ -404,9 +402,8 @@ check_story/compile_story が遮断します）。各ルールのゲーム側の
 | `节点编号已被占用: n5` / `节点编号只使用英文字母、数字、下划线或短横线` | rename_node | 新 id が既存ノードと衝突、または非法文字を含む |
 | `delta 只能是 ±1，实际为 2` / `节点 n1 已在开头，无法再移动` | move_node | 1 マスずつの移動のみ対応。範囲外の移動 |
 | `choice 选项必须是 2~4 项，实际 1 项` / `第 1 个选项必须是 (text, goto) 二元组` | add_choice | 選択肢は 2〜4 項目。各項目は (text, goto) の 2 要素組 |
-| `骰子检查点 "X" 无官方元数据，请在编辑器清单里选择...` | add_dice | check が dice_meta 表にない。`load_editor_data()["dice_meta"]` で合法なチェックポイントを選択 |
-| `检查点 "Ch_6_8_2_Break_01_001" 有 3 个结果带，goto_大成功 必填（最优带）` | add_dice | ≥3 バンドのチェックポイントは大成功ジャンプ必須 |
-| `dice band_texts 条数必须等于检查点 "X" 的结果带数（N 条），实际为 M 条` | add_dice | 上書きテキスト件数と結果バンド数の不一致 |
+| `dice maximum 必须是整数` / `dice bands 必须是 2~4 个结果分段` | add_dice | 乱数範囲の型が不正、または結果区分数が 2～4 外 |
+| `dice bands[i] 必须是对象` | add_dice | 各結果区分は upper（最後以外）、text、goto を持つ辞書にする |
 | `mode="character" 时 character 必填（人物 id）` | add_say | character/think モードは人物 id 必須 |
 | `say 模式非法: 'shout'（允许 character/think/narrative/center）` | add_say | mode の綴り間違い |
 | `角色 "brother4" 没有表情 "angry3"（该角色表情：angry1、angry2、…、shock）。…KeyNotFoundException…` | add_say/add_node/update_node | 表情 id がそのキャラのリストにない。メッセージに列挙された合法な表情に修正 |

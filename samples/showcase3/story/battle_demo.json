@@ -46,9 +46,26 @@
     {
       "id": "battle1",
       "type": "battle",
+      "key": "0000",
+      "reset_skills": true,
+      "skills": [
+        {
+          "key": "special3",
+          "index": 2,
+          "active": 1
+        }
+      ],
       "win": "battle_result1",
       "lose": "battle_result1",
-      "preset": "showcase3_battle"
+      "friend_roster": "0000",
+      "enemy_roster": "0000",
+      "neutral_roster": "0000",
+      "friend_people": 3,
+      "enemy_people": 3,
+      "neutral_people": 0,
+      "friend_health": 300,
+      "enemy_health": 300,
+      "neutral_health": 300
     },
     {
       "id": "battle_result1",
@@ -79,25 +96,5 @@
       "next_script": "finale"
     }
   ],
-  "battle_presets": {
-    "showcase3_battle": {
-      "kind": "battle",
-      "key": "0000",
-      "friend_roster": "0000",
-      "enemy_roster": "0000",
-      "friend_people": 3,
-      "enemy_people": 3,
-      "friend_health": 300,
-      "enemy_health": 300,
-      "reset_skills": true,
-      "skills": [
-        {
-          "key": "special3",
-          "index": 2,
-          "active": 1
-        }
-      ]
-    }
-  },
   "start": "message1"
 }

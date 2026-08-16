@@ -5187,5 +5187,51 @@ class TestWarnings(unittest.TestCase):
         self.assertFalse(any("建议补一个非空 desc" in w for w in warns2), warns2)
 
 
+class TestDirectDice(unittest.TestCase):
+    def _story(self, bands):
+        targets = [{"id": "result%d" % i, "type": "end"} for i in range(len(bands))]
+        return make_story([{
+            "id": "roll", "type": "dice", "max": 99, "header": "命运检定",
+            "bonus": 5, "bonus_name": "轻功", "bonus_status": "熟练",
+            "bands": bands,
+        }] + targets, start="roll")
+
+    def test_four_result_bands_compile_to_original_dialog_bridge(self):
+        bands = [
+            {"upper": 19, "text": "大失败", "goto": "result0"},
+            {"upper": 49, "text": "失败", "goto": "result1"},
+            {"upper": 79, "text": "成功", "goto": "result2"},
+            {"text": "大成功", "goto": "result3"},
+        ]
+        lua = compile_story(self._story(bands))
+        self.assertIn('mod_dice_prepare(99, "命运检定", "19,49,79", 5, "轻功", "熟练")', lua)
+        self.assertIn("setmenudialog(menudialogs.Dice)", lua)
+        self.assertIn('dicemenudialog.ExecuteRoll(dice_opts1, 1, "__lom_mod_custom")', lua)
+        self.assertIn("elseif dice_sel1 == 3 then", lua)
+        self.assertIn("return node_result3()", lua)
+
+    def test_five_result_bands_are_rejected_by_verified_original_ui_limit(self):
+        bands = [
+            {"upper": 9, "text": "一", "goto": "result0"},
+            {"upper": 19, "text": "二", "goto": "result1"},
+            {"upper": 29, "text": "三", "goto": "result2"},
+            {"upper": 39, "text": "四", "goto": "result3"},
+            {"text": "五", "goto": "result4"},
+        ]
+        assert_compile_error(self, self._story(bands), "bands", "2~4")
+
+    def test_unreachable_result_band_is_rejected(self):
+        too_low = [
+            {"upper": 4, "text": "不可到达", "goto": "result0"},
+            {"text": "其余", "goto": "result1"},
+        ]
+        assert_compile_error(self, self._story(too_low), "可投出的总点数")
+        too_high = [
+            {"upper": 104, "text": "全部", "goto": "result0"},
+            {"text": "不可到达", "goto": "result1"},
+        ]
+        assert_compile_error(self, self._story(too_high), "可投出的总点数")
+
+
 if __name__ == "__main__":
     unittest.main()

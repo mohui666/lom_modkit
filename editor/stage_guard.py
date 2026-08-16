@@ -177,6 +177,9 @@ def ensure_stage(story: dict, node_id: str) -> dict | None:
             for key in ("goto", "goto_大成功", "goto_成功", "goto_失败"):
                 if option.get(key) == old:
                     option[key] = new
+        for band in node.get("bands") or []:
+            if isinstance(band, dict) and band.get("goto") == old:
+                band["goto"] = new
         for case in node.get("cases") or []:
             if isinstance(case, dict) and case.get("goto") == old:
                 case["goto"] = new

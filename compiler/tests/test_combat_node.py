@@ -96,72 +96,26 @@ class BattleNodeTest(unittest.TestCase):
             compile_story(document)
 
 
-class BattlePresetTest(unittest.TestCase):
-    def test_combat_preset_expands_to_verified_original_calls(self):
+class DirectBattleConfigurationTest(unittest.TestCase):
+    def test_old_preset_layer_is_rejected(self):
         document = story({
-            "id": "fight", "type": "combat", "preset": "bandit_ambush",
+            "id": "fight", "type": "combat", "key": "5102_01",
             "win": "win", "lose": "lose",
         })
         document["battle_presets"] = {
-            "bandit_ambush": {
-                "name": "山贼伏击", "kind": "combat", "key": "5102_01",
-                "max_health": 800, "strength": 20,
-            }
+            "old": {"kind": "combat", "key": "5102_01"}
         }
-        lua = compile_story(document)
-        self.assertIn('mod_gameplay_configure("combat", "max_health=800;strength=20")', lua)
-        self.assertIn('ChangeScene("Combat", "5102_01", "Story")', lua)
-
-    def test_battle_preset_expands_to_verified_original_battle(self):
-        document = story({
-            "id": "fight", "type": "battle", "preset": "final_war",
-            "win": "win", "lose": "lose",
-        })
-        document["battle_presets"] = {
-            "final_war": {"kind": "battle", "key": "1001"}
-        }
-        lua = compile_story(document)
-        self.assertIn('ChangeScene("Battle", "1001", "Story")', lua)
-
-    def test_rejects_missing_wrong_kind_and_mixed_configuration(self):
-        document = story({
-            "id": "fight", "type": "combat", "preset": "missing",
-            "win": "win", "lose": "lose",
-        })
-        with self.assertRaisesRegex(LomcError, "不存在"):
+        with self.assertRaisesRegex(LomcError, "battle_presets.*已废弃"):
             compile_story(document)
 
-        document["battle_presets"] = {
-            "missing": {"kind": "battle", "key": "1001"}
-        }
-        with self.assertRaisesRegex(LomcError, "不是 combat"):
-            compile_story(document)
-
-        document["battle_presets"]["missing"] = {
-            "kind": "combat", "key": "5102_01"
-        }
-        document["nodes"][0]["key"] = "5102_02"
-        with self.assertRaisesRegex(LomcError, "只能填写"):
-            compile_story(document)
-
-    def test_rejects_malformed_preset_contract(self):
-        document = story({
-            "id": "fight", "type": "combat", "preset": "bad",
-            "win": "win", "lose": "lose",
-        })
-        bad_values = [
-            [],
-            {"bad id": {"kind": "combat", "key": "5102_01"}},
-            {"bad": {"kind": "combat", "key": ""}},
-            {"bad": {"kind": "combat", "key": "5102_01", "strength": 1.5}},
-            {"bad": {"kind": "combat", "key": "5102_01", "talents": [{"key": "bad:key"}]}},
-            {"bad": {"kind": "battle", "key": "1001", "max_health": 1}},
-            {"bad": {"kind": "battle", "key": "1001", "skills": [{"key": "special3", "active": 2}]}},
-        ]
-        for value in bad_values:
-            document["battle_presets"] = value
-            with self.subTest(value=value), self.assertRaises(LomcError):
-                compile_story(document)
+    def test_nodes_reject_preset_and_require_direct_key(self):
+        for kind in ("combat", "battle"):
+            node = {"id": "fight", "type": kind, "preset": "old", "win": "win", "lose": "lose"}
+            with self.subTest(kind=kind), self.assertRaises(LomcError):
+                compile_story(story(node))
+            node.pop("preset")
+            with self.subTest(kind=kind), self.assertRaises(LomcError):
+                compile_story(story(node))
 
 
 class BattleResultNodeTest(unittest.TestCase):

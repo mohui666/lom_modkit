@@ -290,6 +290,7 @@ namespace MortalModHost
         {
             try { CustomShopSession.Restore(); }
             catch (Exception ex) { Log?.LogError("可信场景边界恢复原版商店库存失败：" + ex); }
+            CustomDiceSession.Clear();
             _abortRequested = false;
             _abortBusyLogged = false;
             _pendingAbortReason = null;
@@ -568,6 +569,18 @@ namespace MortalModHost
                         ArgString(args, 3), ArgString(args, 4));
                     return DynValue.Nil;
                 }, "mod_gameplay_prepare");
+                script.Globals["mod_dice_prepare"] = new CallbackFunction((ctx, args) =>
+                {
+                    CustomDiceSession.Prepare(
+                        RequireArgInt(args, 0), ArgString(args, 1), ArgString(args, 2),
+                        RequireArgInt(args, 3), ArgString(args, 4), ArgString(args, 5));
+                    return DynValue.Nil;
+                }, "mod_dice_prepare");
+                script.Globals["mod_dice_clear"] = new CallbackFunction((ctx, args) =>
+                {
+                    CustomDiceSession.Clear();
+                    return DynValue.Nil;
+                }, "mod_dice_clear");
                 script.Globals["mod_gameplay_configure"] = new CallbackFunction((ctx, args) =>
                 {
                     GameplaySession.Configure(ArgString(args, 0), ArgString(args, 1, ""));

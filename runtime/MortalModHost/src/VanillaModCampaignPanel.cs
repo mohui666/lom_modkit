@@ -189,6 +189,8 @@ namespace MortalModHost
             for (; row < savedLimit; row++)
             {
                 CampaignSave entry = saves[row];
+                Action<ModPackage> loadCampaign = _loadCampaign;
+                ModPackage capturedPackage = entry.Package;
                 string when = "";
                 try { when = new DateTime(entry.Save.TimeTick).ToString("yyyy/MM/dd HH:mm:ss"); }
                 catch { }
@@ -197,7 +199,15 @@ namespace MortalModHost
                     I18n.T("campaign.slot", row + 1),
                     I18n.T("campaign.continue", ModDisclosurePolicy.SafePackageName(entry.Package)),
                     when,
-                    delegate { SelectAndClose(delegate { _loadCampaign(entry.Package); }); });
+                    delegate
+                    {
+                        SelectAndClose(delegate
+                        {
+                            if (loadCampaign == null)
+                                throw new InvalidOperationException("MOD 战役读档回调已经失效");
+                            loadCampaign(capturedPackage);
+                        });
+                    });
             }
 
             ConfigureSlot(
@@ -240,12 +250,21 @@ namespace MortalModHost
                 if (string.IsNullOrEmpty(detail))
                     detail = I18n.T("campaign.author", ModDisclosurePolicy.SafePackageAuthor(package));
                 ModPackage captured = package;
+                Action<ModPackage> startCampaign = _startCampaign;
                 ConfigureSlot(
                     _slots[row],
                     I18n.T("campaign.option", row),
                     ModDisclosurePolicy.SafePackageName(package),
                     detail,
-                    delegate { SelectAndClose(delegate { _startCampaign(captured); }); });
+                    delegate
+                    {
+                        SelectAndClose(delegate
+                        {
+                            if (startCampaign == null)
+                                throw new InvalidOperationException("MOD 新战役回调已经失效");
+                            startCampaign(captured);
+                        });
+                    });
                 row++;
             }
             if (row == 1)

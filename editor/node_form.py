@@ -129,24 +129,16 @@ class NodeForm(QScrollArea):
         self._editor_data: dict = models.FALLBACK_EDITOR_DATA
         self._node_ids: list[str] = []
         self._story_ids: list[str] = []  # 包内剧情脚本 id（end.next_script 下拉用）
-        self._battle_presets: dict[str, dict] = {}
-        self._preset_edit_mode = False
         self._loading = False  # 重建表单期间屏蔽信号
 
     # ------------------------------------------------------------------ 对外
     def set_context(
         self, editor_data: dict, node_ids: list[str], story_ids: list[str] | None = None,
-        battle_presets: dict[str, dict] | None = None,
     ) -> None:
         """更新下拉框数据来源（editor_data / 全部节点 id / 包内剧情脚本 id）。"""
         self._editor_data = editor_data
         self._node_ids = list(node_ids)
         self._story_ids = list(story_ids or [])
-        self._battle_presets = dict(battle_presets or {})
-
-    def set_preset_edit_mode(self, enabled: bool = True) -> None:
-        """Use the same verified Combat/Battle controls without flow-only fields."""
-        self._preset_edit_mode = bool(enabled)
 
     def _emit_id_change(self, edit: QLineEdit, original: str) -> None:
         if self._loading or self._node is None:
@@ -231,9 +223,8 @@ class NodeForm(QScrollArea):
         id_row.addWidget(id_edit, 1)
         tech_body.setVisible(False)
         tech_btn.toggled.connect(tech_body.setVisible)
-        if not self._preset_edit_mode:
-            outer.addWidget(tech_btn)
-            outer.addWidget(tech_body)
+        outer.addWidget(tech_btn)
+        outer.addWidget(tech_body)
 
         help_text = models.NODE_HELP.get(node_type)
         if help_text:
@@ -248,8 +239,6 @@ class NodeForm(QScrollArea):
             return wrap
 
         for key, label, kind, optional in schema["fields"]:
-            if self._preset_edit_mode and key in ("preset", "win", "lose"):
-                continue
             # branch 的键字段按 source 显示：stat 来源显示属性下拉，其余显示 flag
             if node_type == "branch":
                 src = node.get("source", "mod")
@@ -369,8 +358,6 @@ class NodeForm(QScrollArea):
                 return op == "active"
             if key == "level":
                 return op == "level"
-        if node_type in ("combat", "battle") and node.get("preset"):
-            return key not in ("key", "enemy", "team", "level", "people", "display")
         return True
 
     def _make_widget(self, node: dict, key: str, kind: str) -> QWidget:
@@ -498,15 +485,6 @@ class NodeForm(QScrollArea):
             return self._combo_from_items(
                 node, key, models.list_items(self._editor_data, "game_flags"), value
             )
-        if kind == "dice_check":
-            # 仅含带官方元数据的检查点（无元数据会在游戏内骰子菜单崩溃）
-            w = self._make_combo(
-                models.dice_check_items(self._editor_data), value or "", editable=True
-            )
-            w.currentTextChanged.connect(
-                lambda t, c=w: self._on_dice_check_changed(node, key, c, t)
-            )
-            return w
         if kind == "death_id":
             # mod 专属死亡画面 id（9+官方 id，如 910021）：官方 id 会触发结局解锁与记录
             return self._make_death_id_widget(node, key, value)
@@ -554,22 +532,6 @@ class NodeForm(QScrollArea):
             combo = self._combo_from_items(node, key, items, value)
             self._attach_template_id_tooltip(combo)
             return combo
-        if kind == "battle_preset":
-            node_type = str(node.get("type") or "")
-            items = [("", t("form.direct_vanilla_template"))]
-            items.extend(
-                (
-                    preset_id,
-                    "%s（%s）" % (preset.get("name") or preset_id, preset.get("key", "")),
-                )
-                for preset_id, preset in sorted(self._battle_presets.items())
-                if isinstance(preset, dict) and preset.get("kind") == node_type
-            )
-            w = self._make_combo(items, str(value or ""))
-            w.currentTextChanged.connect(
-                lambda _text, c=w: self._on_battle_preset_changed(node, key, c)
-            )
-            return w
         if kind == "node_ref":
             w = self._make_goto_combo(str(value or ""), allow_empty=False)
             w.currentTextChanged.connect(
@@ -731,8 +693,8 @@ class NodeForm(QScrollArea):
             return self._make_branch_cases_table(node, key)
         if kind == "vars":
             return self._make_vars_table(node, key)
-        if kind == "dice_options":
-            return self._make_dice_table(node, key)
+        if kind == "dice_bands":
+            return self._make_dice_bands_table(node, key)
         if kind == "battle_setup_skills":
             return self._make_battle_setup_skills_table(node, key)
         if kind == "combat_talents":
@@ -1180,25 +1142,6 @@ class NodeForm(QScrollArea):
             self._rebuild_current()
         self._emit_changed()
 
-    def _on_battle_preset_changed(
-        self, node: dict, key: str, combo: QComboBox
-    ) -> None:
-        if self._loading:
-            return
-        value = combo.currentData()
-        value = str(value or "")
-        if value == str(node.get(key) or ""):
-            return
-        if value:
-            node[key] = value
-            for direct_key in ("key", "enemy", "team", "level", "people", "display"):
-                node.pop(direct_key, None)
-        else:
-            node.pop(key, None)
-            node.setdefault("key", "")
-        self._rebuild_current()
-        self._emit_changed()
-
     def _make_death_id_widget(self, node: dict, key: str, value) -> QWidget:
         """death.death_id：mod 专属死亡画面 id（9+官方 id，如 910021）。
 
@@ -1228,19 +1171,6 @@ class NodeForm(QScrollArea):
             v.addWidget(label)
         return box
 
-    def _on_dice_check_changed(
-        self, node: dict, key: str, combo: QComboBox, text: str
-    ) -> None:
-        """骰子检查点变化：写回并重建表单（结果带数变化 → band_texts 行数/提示刷新）。"""
-        if self._loading:
-            return
-        val = self._combo_value(combo, text)
-        if val == node.get(key):
-            return
-        self._apply(node, key, val)
-        self._rebuild_current()
-        self._emit_changed()
-
     def _goto_items(self, allow_empty: bool) -> list[tuple[str, str]]:
         items = [("", t("common.none"))] if allow_empty else []
         window = self.window()
@@ -1254,9 +1184,6 @@ class NodeForm(QScrollArea):
                 if not node_id:
                     continue
                 title, detail = models.node_list_caption(node, self._editor_data)
-                preset = self._battle_presets.get(node.get("preset"), {})
-                if isinstance(preset, dict) and preset.get("name"):
-                    detail = str(preset["name"])
                 display = t(
                     "nav.step_option",
                     default="第 {n} 步 · {title} · {detail}",
@@ -1958,128 +1885,100 @@ class NodeForm(QScrollArea):
         layout.addLayout(buttons)
         return box
 
-    def _make_dice_table(self, node: dict, key: str) -> QWidget:
-        """dice.options：选项文本覆写（band_texts）+ 大成功/成功/失败 三列 goto。
-
-        骰子范围与结果带文本/条件来自 data/editor_data.json 的 dice_meta。
-        band_texts（可选）：按当前检查点带数显示 N 个文本框，逐带覆写骰子
-        菜单选项文本（留空用官方结果带文本）；全空时不写该字段。
-        """
+    def _make_dice_bands_table(self, node: dict, key: str) -> QWidget:
+        """Direct, readable dice result ranges; no original checkpoint IDs."""
         rows: list[dict] = node.setdefault(key, [])
-        if not rows:
-            rows.append({"goto_大成功": "", "goto_成功": "", "goto_失败": ""})
-        meta = (self._editor_data.get("dice_meta") or {}).get(
-            str(node.get("check", "")), {}
-        )
-        bands = meta.get("bands") or []
-        opt0 = rows[0]
+        if len(rows) < 2:
+            rows[:] = [
+                {"upper": 49, "text": t("dice.default_failure", default="失败"), "goto": ""},
+                {"text": t("dice.default_success", default="成功"), "goto": ""},
+            ]
+        rows[-1].pop("upper", None)
         box = QWidget()
-        v = QVBoxLayout(box)
-        v.setContentsMargins(0, 0, 0, 0)
-
-        if bands:
-            v.addWidget(QLabel(t("dice.band_text_hint")))
-            current = opt0.get("band_texts") or []
-            for i, band in enumerate(bands):
-                txt = (
-                    current[i]
-                    if i < len(current) and isinstance(current[i], str)
-                    else ""
-                )
-                le = QLineEdit(txt)
-                le.setPlaceholderText(
-                    t("dice.band_placeholder", n=i + 1, text=band.get("text", ""))
-                )
-                le.textChanged.connect(
-                    lambda t, idx=i, c=le: self._apply_band_text(idx, t, c)
-                )
-                v.addWidget(le)
-
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(0, 0, 0, 0)
         table = QTableWidget(0, 3)
-        table.setHorizontalHeaderLabels(
-            [t("dice.goto_failure"), t("dice.goto_success"), t("dice.goto_critical")]
-        )
-        for c in range(3):
+        table.setHorizontalHeaderLabels([
+            t("dice.upper", default="点数上限"),
+            t("dice.result_text", default="显示文字"),
+            t("dice.goto", default="然后前往"),
+        ])
+        for column in range(3):
             table.horizontalHeader().setSectionResizeMode(
-                c, QHeaderView.ResizeMode.Stretch
+                column, QHeaderView.ResizeMode.Stretch
             )
-        table.setMinimumHeight(min(4, max(2, len(rows))) * 32 + 30)
+        table.setMinimumHeight(min(4, len(rows)) * 34 + 32)
 
-        def fill():
+        def fill() -> None:
             table.setRowCount(0)
-            table.blockSignals(True)
-            try:
-                for r, row in enumerate(rows):
-                    table.insertRow(r)
-                    for c, gkey in enumerate(("goto_失败", "goto_成功", "goto_大成功")):
-                        combo = self._make_goto_combo(
-                            str(row.get(gkey, "")), allow_empty=True
-                        )
-                        combo.currentTextChanged.connect(
-                            lambda t, row=row, c=combo, g=gkey: self._apply_row(
-                                row, g, self._combo_value(c, t).strip()
-                            )
-                        )
-                        table.setCellWidget(r, c, combo)
-            finally:
-                table.blockSignals(False)
+            for index, row in enumerate(rows):
+                table.insertRow(index)
+                if index < len(rows) - 1:
+                    upper = QSpinBox()
+                    upper.setRange(-9999, 9999)
+                    upper.setValue(int(row.get("upper", 0)))
+                    upper.valueChanged.connect(
+                        lambda value, target=row: self._apply_row(target, "upper", int(value))
+                    )
+                    table.setCellWidget(index, 0, upper)
+                else:
+                    table.setCellWidget(
+                        index, 0, QLabel(t("dice.remaining", default="高于上一档"))
+                    )
+                text_edit = QLineEdit(str(row.get("text", "")))
+                text_edit.textChanged.connect(
+                    lambda value, target=row: self._apply_row(target, "text", value)
+                )
+                table.setCellWidget(index, 1, text_edit)
+                goto = self._make_goto_combo(str(row.get("goto", "")), allow_empty=False)
+                goto.currentTextChanged.connect(
+                    lambda value, target=row, combo=goto: self._apply_row(
+                        target, "goto", self._combo_value(combo, value).strip()
+                    )
+                )
+                table.setCellWidget(index, 2, goto)
+
+        def add_band() -> None:
+            if len(rows) >= 4:
+                return
+            previous = rows[-1]
+            if "upper" not in previous:
+                bonus = int(node.get("bonus", 0))
+                highest = bonus + int(node.get("max", 99))
+                prior = rows[-2].get("upper", bonus - 1) if len(rows) > 1 else bonus - 1
+                lowest_new_value = int(prior) + 1
+                if lowest_new_value >= highest:
+                    return
+                # Split the old final range in half so both the new band and
+                # the remaining final band have at least one reachable value.
+                previous["upper"] = (lowest_new_value + highest - 1) // 2
+            rows.append({
+                "text": t("dice.default_result", default="新结果"), "goto": ""
+            })
+            fill()
+            self._emit_changed()
+
+        def remove_band() -> None:
+            if len(rows) <= 2:
+                return
+            selected = table.currentRow()
+            rows.pop(selected if 0 <= selected < len(rows) else len(rows) - 1)
+            rows[-1].pop("upper", None)
+            fill()
+            self._emit_changed()
 
         fill()
-        v.addWidget(table)
-        # 检查点元数据提示行（官方结果带：差→好）
-        if bands:
-            hint = "　".join(
-                t(
-                    "dice.band_summary",
-                    n=i,
-                    text=b.get("text", ""),
-                    condition=b.get("cond", ""),
-                )
-                for i, b in enumerate(bands, 1)
-            )
-            hint_label = QLabel(
-                t("dice.official_bands", max=meta.get("max", "?"), bands=hint)
-            )
-            hint_label.setWordWrap(True)
-            v.addWidget(hint_label)
-        v.addLayout(
-            self._make_row_buttons(
-                rows,
-                fill,
-                min_rows=1,
-                max_rows=1,
-                new_row=lambda: {"goto_大成功": "", "goto_成功": "", "goto_失败": ""},
-            )
-        )
+        layout.addWidget(table)
+        buttons = QHBoxLayout()
+        add = QPushButton(t("common.add", default="添加"))
+        remove = QPushButton(t("common.remove", default="删除"))
+        add.clicked.connect(add_band)
+        remove.clicked.connect(remove_band)
+        buttons.addWidget(add)
+        buttons.addWidget(remove)
+        buttons.addStretch(1)
+        layout.addLayout(buttons)
         return box
-
-    def _apply_band_text(self, index: int, text: str, edit: QLineEdit) -> None:
-        """band_texts 写回：任一非空才写字段（全空则不写）；条目数补齐到带数。
-
-        空条目由编译器校验报错（非空 str），作者要么全填要么全空。
-        """
-        if self._loading or not self._node:
-            return
-        node = self._node
-        options = node.get("options") or []
-        if not options or not isinstance(options[0], dict):
-            options[:] = [{}]
-        opt0 = options[0]
-        meta = (self._editor_data.get("dice_meta") or {}).get(
-            str(node.get("check", "")), {}
-        )
-        n_bands = len(meta.get("bands") or [])
-        cur = list(opt0.get("band_texts") or [])
-        while len(cur) <= index:
-            cur.append("")
-        cur[index] = text
-        while len(cur) < n_bands:
-            cur.append("")
-        if any(t.strip() for t in cur):
-            opt0["band_texts"] = cur
-        else:
-            opt0.pop("band_texts", None)
-        self._emit_changed()
 
     # ------------------------------------------------------------------ 写回
     def _on_table_item(self, item: QTableWidgetItem) -> None:

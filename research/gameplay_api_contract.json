@@ -244,6 +244,36 @@
         "SaveSystem.Instance.LoadGameData()",
         "SceneController.Instance.LoadCurrentScene()"
       ]
+    },
+    {
+      "assembly": "Mortal.Story.dll",
+      "type": "Mortal.Story.CheckPointManager",
+      "required_fragments": [
+        "public DiceCheckResult Dice(string name, int random)",
+        "return _dice.GetResult(name, random);"
+      ]
+    },
+    {
+      "assembly": "Mortal.Story.dll",
+      "type": "Mortal.Story.DiceCheckResult",
+      "required_fragments": [
+        "public int Random { get; set; }",
+        "public int Result { get; set; }",
+        "public string Header { get; set; }",
+        "public int ResultCount",
+        "num += addition.Value;"
+      ]
+    },
+    {
+      "assembly": "Mortal.Story.dll",
+      "type": "Mortal.Story.DiceMenuDialog",
+      "required_fragments": [
+        "public IEnumerator ExecuteRoll(string[] options, int destinyPoint, string checkName)",
+        "Button button = CachedButtons[i];",
+        "cachedButtons[_resultSelection - 1].GetComponent<DiceOption>().Select();",
+        "public void Setup(int resultCount, int resultSelection, string header, DiceCheckAddition[] additions)",
+        "public void SetRandom(int count, int value)"
+      ]
     }
   ],
   "capabilities": {
@@ -265,6 +295,8 @@
     "result_screen": "existing_message_and_reward_apis_implemented",
     "title_mod_campaign_entry": "verified_original_start_button_clone",
     "title_mod_campaign_load_panel": "verified_original_load_panel_and_slot_prefab_reuse",
-    "mod_manual_auto_universe_save_isolation": "verified_decompile_host_redirect_implemented"
+    "mod_manual_auto_universe_save_isolation": "verified_decompile_host_redirect_implemented",
+    "custom_dice_direct_parameters": "verified_original_dialog_host_result_bridge_implemented",
+    "custom_dice_result_bands": "verified_2_to_4_original_ui_capacity"
   }
 }
