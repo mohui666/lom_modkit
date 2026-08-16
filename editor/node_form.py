@@ -788,34 +788,37 @@ class NodeForm(QScrollArea):
                 user_items.append((rec.ref, "用户 · %s（%s）" % (rec.name, rec.ref)))
         except Exception:
             user_items = []
-        official_items: list[tuple[str, str]] = []
-        if audio_kind == "music":
-            official_items = [
-                (item_id, "官方 · %s" % display)
-                for item_id, display in models.list_items(self._editor_data, "music")
-            ]
+        data_key = {
+            "music": "music",
+            "sound": "sounds",
+            "env": "env_sounds",
+        }.get(audio_kind, "")
+        official_items = [
+            (item_id, "官方 · %s" % display)
+            for item_id, display in models.list_items(self._editor_data, data_key)
+        ]
         items: list[tuple[str, str]] = []
         if user_items:
             items.extend(user_items)
-        elif audio_kind != "music":
-            items.append(("", "（还没有自定义音效，点右侧导入）"))
         items.extend(official_items)
+        if not items:
+            items.append(("", "（没有可用音频，可点右侧导入或手填资源名）"))
         w = self._make_combo(items, str(current or ""), editable=True)
         if user_items and official_items:
             w.insertSeparator(len(user_items))
         if hasattr(w, "remember_items"):
             w.remember_items()
-        if not user_items and audio_kind != "music":
+        if not user_items and not official_items:
             model = w.model()
             if model is not None and model.rowCount() > 0:
                 item = model.item(0)
                 if item is not None:
                     item.setEnabled(False)
-        if audio_kind != "music" and w.lineEdit() is not None:
+        if w.lineEdit() is not None:
             if not current:
                 w.setCurrentText("")
             w.lineEdit().setPlaceholderText(
-                "选择用户内容，或手填官方音效名（例如 鈴鐺_001）"
+                "搜索/选择原版或用户音频，也可手填资源名"
             )
         w.currentTextChanged.connect(
             lambda t, c=w: self._apply(node, key, self._combo_value(c, t))

@@ -1129,6 +1129,8 @@ FALLBACK_EDITOR_DATA: dict = {
     ],
     "views": [{"id": v, "name": v} for v in ("out", "center", "paddy")],
     "music": [{"id": "普通_001", "name": "普通_001"}],
+    "sounds": [{"id": "巴掌_001", "name": "巴掌_001"}],
+    "env_sounds": [{"id": "雨天_001", "name": "雨天_001"}],
     "positions": [
         {"id": p, "name": p} for p in ("SL", "L1", "L2", "M", "R1", "R2", "RM2", "SR")
     ],

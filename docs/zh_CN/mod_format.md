@@ -372,7 +372,7 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 
 ## 5. data/editor_data.json — 编辑器数据契约（schema 3）
 
-由 `tools/extract_editor_data.py` 生成。schema 2 起 `characters`/`stats`/`positions`/`views`/`music`/`free_positions` 均为 `{id, name}` 对象数组（characters 另有 portraits）；schema 3 新增 `dice_meta`（骰子检查点元数据：`{check: {max, bands: [{text, cond}]}}`，bands 按官方展示顺序）与 `death_ids`/`ending_ids` 富化对象数组（name 取自 `data/ref/death_ending_ids.json`，见下方「死亡/结局 id 约定」）。**dice_meta 仅含故事场景检查点**：旅行系统检查点（Travel_*）在故事场景的 CheckPointManager 查不到会崩，提取时已剔除；`dice_checks` 是全名清单，保留全部调用点（含旅行）：
+由 `tools/extract_editor_data.py` 生成。schema 2 起 `characters`/`stats`/`positions`/`views`/`music`/`sounds`/`env_sounds`/`free_positions` 均为 `{id, name}` 对象数组（characters 另有 portraits）；`sounds` 与 `env_sounds` 分别从原版脚本的 `PlaySound` / `PlayEnvSound` 调用提取，供编辑器区分普通音效和环境音下拉选择。schema 3 新增 `dice_meta`（骰子检查点元数据：`{check: {max, bands: [{text, cond}]}}`，bands 按官方展示顺序）与 `death_ids`/`ending_ids` 富化对象数组（name 取自 `data/ref/death_ending_ids.json`，见下方「死亡/结局 id 约定」）。**dice_meta 仅含故事场景检查点**：旅行系统检查点（Travel_*）在故事场景的 CheckPointManager 查不到会崩，提取时已剔除；`dice_checks` 是全名清单，保留全部调用点（含旅行）：
 
 ```json
 {
@@ -380,6 +380,8 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
   "characters": [{"id": "brother4", "name": "唐惟元", "portraits": ["normal", "nervous1"]}],
   "views": [{"id": "center", "name": "校場_白天"}],
   "music": [{"id": "普通_001", "name": "普通_001"}],
+  "sounds": [{"id": "巴掌_001", "name": "巴掌_001"}],
+  "env_sounds": [{"id": "雨天_001", "name": "雨天_001"}],
   "positions": [{"id": "RM2", "name": "右中2"}],
   "stats": [{"id": "mental", "name": "心相"}],
   "free_positions": [{"id": "Center", "name": "练功场"}],

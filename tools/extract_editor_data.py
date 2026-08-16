@@ -11,6 +11,10 @@ import os
 import re
 import sys
 
+# 当前仓库根目录。输出和随仓数据不能硬编码到某个开发者工作区，否则在
+# 独立 worktree/CI 中运行提取器会误写另一份仓库。
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 # 解包产物目录：优先环境变量 LOM_UNPACK_DIR，缺省为本机开发路径
 UNPACK_DIR = os.environ.get("LOM_UNPACK_DIR", r"C:/Users/mohui666/lom_unpack")
 SCRIPTS_DIR = os.path.join(UNPACK_DIR, "raw_scripts")
@@ -29,14 +33,13 @@ CSV_MESSAGE = os.path.join(UNPACK_DIR, "output", "csv", "03_剧情系统提示.c
 RAW_MESSAGE = os.path.join(UNPACK_DIR, "raw", "Story_Message_zh-cn.txt")
 RAW_FLAG = os.path.join(UNPACK_DIR, "raw", "Flag_zh-cn.txt")
 RAW_POSITION = os.path.join(UNPACK_DIR, "raw", "Position_zh-cn.txt")
-VIEW_MAP_JSON = os.path.join(
-    r"C:/Users/mohui666/lom_modkit", "data", "assets", "_probe", "view_map.json"
+VIEW_MAP_JSON = os.environ.get(
+    "LOM_VIEW_MAP_JSON",
+    os.path.join(REPO_ROOT, "data", "assets", "_probe", "view_map.json"),
 )
 # 死亡/结局 id 权威参考（由 lom-save-analyzer 仓库 mappings.js 提取）
-REF_IDS_JSON = os.path.join(
-    r"C:/Users/mohui666/lom_modkit", "data", "ref", "death_ending_ids.json"
-)
-OUT_PATH = os.path.join(r"C:/Users/mohui666/lom_modkit", "data", "editor_data.json")
+REF_IDS_JSON = os.path.join(REPO_ROOT, "data", "ref", "death_ending_ids.json")
+OUT_PATH = os.path.join(REPO_ROOT, "data", "editor_data.json")
 
 # 契约 §5 固定值
 MODES = ["character", "think", "narrative", "center"]
@@ -80,6 +83,8 @@ RE_CHARACTER = re.compile(r'characters\.Get\("([^"]+)"\)')
 RE_PORTRAIT = re.compile(r'GetPortrait\("([^"]+)",\s*"([^"]+)"\)')
 RE_VIEW = re.compile(r'getvar\(flowcharts\.view,\s*"ViewName"\)\.value\s*=\s*"([^"]+)"')
 RE_MUSIC = re.compile(r'luamanager\.PlayMusic\("([^"]+)"\)')
+RE_SOUND = re.compile(r'luamanager\.PlaySound\("([^"]+)"\)')
+RE_ENV_SOUND = re.compile(r'luamanager\.PlayEnvSound\("([^"]+)"\)')
 RE_STAT = re.compile(r'statmodifymanager\.Player\("([^"]+)"')
 RE_AFFINITY = re.compile(r'statmodifymanager\.Character\("([^"]+)"')
 RE_STAGE_SHOW = re.compile(r"stage\.show\{(.*?)\}", re.S)
@@ -308,6 +313,8 @@ def main():
     portraits = {}  # id -> set
     views = set()
     music = set()
+    sounds = set()
+    env_sounds = set()
     positions = set()
     stats = set()
     affinity_chars = set()
@@ -347,6 +354,8 @@ def main():
             portraits.setdefault(cid, set()).add(port)
         views.update(RE_VIEW.findall(text))
         music.update(RE_MUSIC.findall(text))
+        sounds.update(RE_SOUND.findall(text))
+        env_sounds.update(RE_ENV_SOUND.findall(text))
         stats.update(RE_STAT.findall(text))
         affinity_chars.update(RE_AFFINITY.findall(text))
         for block in RE_STAGE_SHOW.findall(text):
@@ -390,6 +399,12 @@ def main():
         "music": [
             {"id": m, "name": m} for m in sorted(music)
         ],  # 音乐 id 本身已是中文名
+        "sounds": [
+            {"id": sound, "name": sound} for sound in sorted(sounds)
+        ],  # 普通音效 id 来自原版 PlaySound 调用
+        "env_sounds": [
+            {"id": sound, "name": sound} for sound in sorted(env_sounds)
+        ],  # 环境音 id 来自原版 PlayEnvSound 调用
         "positions": [{"id": p, "name": position_label(p)} for p in sorted(positions)],
         "stats": [{"id": s, "name": stat_names.get(s, s)} for s in sorted(stats)],
         "modes": MODES,
@@ -442,6 +457,8 @@ def main():
     print("人物数: %d" % len(characters))
     print("场景数: %s" % hit(views, view_names))
     print("音乐数: %d" % len(music))
+    print("普通音效数: %d" % len(sounds))
+    print("环境音效数: %d" % len(env_sounds))
     print("站位数: %d" % len(positions))
     print("属性数: %s" % hit(stats, stat_names))
     print("菜单对话框数: %d" % len(menu_dialogs))
