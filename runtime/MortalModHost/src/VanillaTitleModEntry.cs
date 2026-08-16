@@ -65,7 +65,7 @@ namespace MortalModHost
                     if (!_missingTemplateLogged && logWarning != null)
                     {
                         _missingTemplateLogged = true;
-                        logWarning("标题画面已加载，但找不到原版开始游戏按钮；保留左下角 MOD 菜单入口作为兼容回退。");
+                        logWarning("标题画面已加载，但找不到原版开始游戏按钮；本次不提供非官方战役 UI 回退。");
                     }
                     return;
                 }
@@ -115,7 +115,7 @@ namespace MortalModHost
                 if (!_missingTemplateLogged && logWarning != null)
                 {
                     _missingTemplateLogged = true;
-                    logWarning("原版标题按钮注入失败；保留左下角 MOD 菜单入口作为兼容回退：" + ex.Message);
+                    logWarning("原版标题按钮注入失败；本次不提供非官方战役 UI 回退：" + ex.Message);
                 }
             }
         }

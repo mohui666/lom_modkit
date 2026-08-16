@@ -29,7 +29,12 @@ class ProjectTemplatesTest(unittest.TestCase):
             with self.subTest(item.key):
                 project = create_project_template(item.key, self.editor_data)
                 self.assertEqual(project["current_story_id"], "main")
-                self.assertEqual(project["manifest"], {})
+                self.assertRegex(
+                    project["manifest"]["campaign_id"], r"^[a-z0-9_-]{1,64}$"
+                )
+                self.assertEqual(
+                    project["manifest"]["campaign"], {"new_game": True}
+                )
                 story = project["stories"]["main"]
                 self.assertEqual(set(story), allowed)
                 validate_story(story, source="template:" + item.key)

@@ -83,7 +83,7 @@ namespace MortalModHost
 
                 // 存档污染修复：NewGameData 内部在本 postfix 之前已 CreateSaveData() 落盘，
                 // 存档里 StartStoryScript 仍是官方 ch1_1（读档会被拉回官方序章）。
-                // 这里重存一次当前槽（_currentSlot 已是 "mod_<modid>" 隔离槽）。
+                // 这里重存一次当前槽（_currentSlot 已是 "mod_campaign_<campaign_id>" 隔离槽）。
                 // 无递归风险：SaveGameData 只做 CreateSaveData+ExecuteSaveData，不会回调 NewGameData；
                 // 双写也只是同槽顺序覆盖（先官方 ch1_1 后本修正），无并发冲突。
                 __instance.SaveGameData();

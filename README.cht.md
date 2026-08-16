@@ -5,11 +5,11 @@
 不用寫 Lua。用圖形編輯器編排人物對白、場景演出、分支劇情、音樂音效，
 一鍵匯出 `.lommod`，直接在遊戲中執行。
 
-[![Release v1.0.0](https://img.shields.io/badge/release-v1.0.0-blue)](https://github.com/mohui666/lom_modkit/releases/latest)
+[![Release v1.0.1](https://img.shields.io/badge/release-v1.0.1-blue)](https://github.com/mohui666/lom_modkit/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)](#相容性)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-**[⬇ 下載 Windows 版](https://github.com/mohui666/lom_modkit/releases/download/v1.0.0/lom_modkit-v1.0.0_windows_x64.zip)** ·
+**[⬇ 下載 Windows 版](https://github.com/mohui666/lom_modkit/releases/download/v1.0.1/lom_modkit-v1.0.1_windows_x64.zip)** ·
 [快速開始](#快速開始) ·
 [文件](docs/cht/README.md)
 
@@ -41,7 +41,7 @@ lom_modkit 讓你用《活俠傳》**原有的人物、場景、音樂、特效�
 
 ### 1. 下載
 
-下載 [lom_modkit-v1.0.0_windows_x64.zip](https://github.com/mohui666/lom_modkit/releases/download/v1.0.0/lom_modkit-v1.0.0_windows_x64.zip) 並解壓縮。無需安裝 Python。
+下載 [lom_modkit-v1.0.1_windows_x64.zip](https://github.com/mohui666/lom_modkit/releases/download/v1.0.1/lom_modkit-v1.0.1_windows_x64.zip) 並解壓縮。無需安裝 Python。
 
 ### 2. 啟動
 
@@ -124,6 +124,9 @@ lom_modkit 讓你用《活俠傳》**原有的人物、場景、音樂、特效�
 
 ## 目前版本
 
+**v1.0.1**：`.lommod` v3 強制穩定 `campaign_id` 與戰役存檔隔離 · MOD 戰役只選取、不誤啟動 ·
+單挑人物只控制動畫並支援 idle 回退 · 修正戰役總人數/官方人物計數與編輯器預覽裁切。
+
 **v1.0.0**：統一 Editor/Runtime 版本 · `.lommod` v2 嚴格驗證與 Story/Lua 一致性 ·
 Lua 環境隔離與完整生命週期清理 · 一次性快捷鍵遷移 · Runtime 自動化測試與 CI。
 
@@ -144,7 +147,7 @@ Lua 環境隔離與完整生命週期清理 · 一次性快捷鍵遷移 · Runti
 | [文件索引](docs/cht/README.md) | 語言導覽與讀者導引 |
 | [使用者內容庫](docs/cht/user_content.md) | 自訂音訊 / 對白語音用法 |
 | [目前能力與邊界](docs/cht/current_capabilities.md) | 已實作、僅有底層介面和尚未實作的功能邊界 |
-| [Mod 包格式契約](docs/cht/mod_format.md) | 包結構、63 種節點、編譯約定、執行階段行為 |
+| [Mod 包格式契約](docs/cht/mod_format.md) | 包結構、62 種節點、編譯約定、執行階段行為 |
 | [AI / CLI 手冊](docs/cht/ai_cli.md) | story_api 命令列與 Python API |
 | [多語言](docs/cht/i18n.md) | 介面與文件的 i18n 架構 |
 
@@ -216,7 +219,7 @@ cd runtime/MortalModHost && dotnet build -c Release
 cd runtime/MortalModHost && dotnet run --project test/SmokeTest -c Release
 ```
 
-打包 Windows 發行版：`cd editor && .venv/Scripts/python build_exe.py`
+建置 Windows 發行版：先正式建置 Runtime，再執行 `editor/.venv/Scripts/python editor/build_exe.py`，最後執行 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1`。腳本會核對版本與必要檔案，並拒絕快取、範例包、使用者設定及符號連結混入；同名產物預設不覆寫，確認替換時才加 `-Force`。
 （產物在 `editor/dist/lom_modkit/`，含 `lom_editor.exe` 與 `story_api_cli.exe`）。
 
 遊戲內除錯：任意場景按 **F7** 切換「停用原版劇情」工作階段級開關（不持久化）；

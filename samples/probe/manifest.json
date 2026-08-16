@@ -1,13 +1,15 @@
 {
-  "format": 2,
-  "package_format": 2,
-  "story_schema": 1,
+  "format": 3,
+  "package_format": 3,
+  "story_schema": 2,
   "content_schema": 1,
-  "tested_host_version": "1.0.0",
+  "tested_host_version": "1.0.1",
   "id": "probe",
+  "campaign_id": "probe",
   "name": "诊断探针",
   "version": "0.1.0",
   "author": "lom_modkit",
   "description": "定位 snack_case 开局黑屏的诊断脚本，逐节点打日志标记",
-  "entry": "main"
+  "entry": "main",
+  "campaign": {"new_game": true}
 }

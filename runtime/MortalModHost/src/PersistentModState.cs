@@ -59,7 +59,7 @@ namespace MortalModHost
             if (_store == null || _package == null) return;
             SaveSystem saves = SaveSystem.Instance;
             if (saves == null || !string.Equals(
-                saves.CurrentSlot, "mod_" + _package.Id, StringComparison.Ordinal)) return;
+                saves.CurrentSlot, CampaignIdentity.SaveSlot(_package.CampaignId), StringComparison.Ordinal)) return;
             _store.Flush();
         }
 

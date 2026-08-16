@@ -17,12 +17,12 @@ class CombatEditorTest(unittest.TestCase):
     def test_schema_default_summary_and_picker_contract(self):
         self.assertIn("combat", models.NODE_SCHEMAS)
         fields = {key: kind for key, _label, kind, _optional in models.NODE_SCHEMAS["combat"]["fields"]}
-        self.assertEqual(fields["key"], "combat_id")
+        self.assertEqual(fields["character"], "character")
         self.assertNotIn("preset", fields)
         self.assertEqual(fields["win"], "node_ref")
-        node = models.new_node("combat", "fight", {"combat_ids": ["5102_01"]})
-        node.update({"key": "5102_01", "win": "win", "lose": "lose"})
-        self.assertIn("5102_01", models.node_summary(node))
+        node = models.new_node("combat", "fight", {"characters": ["special3"]})
+        node.update({"character": "special3", "win": "win", "lose": "lose"})
+        self.assertIn("叶云舟", models.node_summary(node))
         self.assertIn("胜利→win", models.node_summary(node))
         self.assertEqual(models.node_bullet("combat"), "■")
 
@@ -30,7 +30,7 @@ class CombatEditorTest(unittest.TestCase):
         story = {
             "id": "main", "start": "fight",
             "nodes": [
-                {"id": "fight", "type": "combat", "key": "5102_01", "win": "win", "lose": "lose"},
+                {"id": "fight", "type": "combat", "character": "special3", "win": "win", "lose": "lose"},
                 {"id": "unused", "type": "say", "text": "不应顺序到达"},
                 {"id": "win", "type": "end"},
                 {"id": "lose", "type": "end"},
@@ -61,12 +61,16 @@ class CombatEditorTest(unittest.TestCase):
             key: kind for key, _label, kind, _optional
             in models.NODE_SCHEMAS["battle"]["fields"]
         }
-        self.assertEqual(fields["key"], "battle_id")
+        self.assertEqual(fields["friend_faction"], "battle_faction")
+        self.assertEqual(fields["friend_characters"], "official_characters")
         self.assertNotIn("preset", fields)
         story = {
             "start": "war",
             "nodes": [
-                {"id": "war", "type": "battle", "key": "1001", "win": "friend", "lose": "enemy"},
+                {"id": "war", "type": "battle", "friend_faction": "500",
+                 "friend_people": 2, "friend_characters": ["brother4"],
+                 "enemy_faction": "400", "enemy_people": 1,
+                 "enemy_characters": [], "win": "friend", "lose": "enemy"},
                 {"id": "friend", "type": "end"},
                 {"id": "enemy", "type": "end"},
             ],

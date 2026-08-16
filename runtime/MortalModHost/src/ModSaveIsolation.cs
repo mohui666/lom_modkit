@@ -8,7 +8,7 @@ namespace MortalModHost
 {
     /// <summary>
     /// 把 MOD 战役的手动槽、三类自动槽和 universe 当前槽与原版存档完全隔离。
-    /// MOD 自动档写入 Save_mod_&lt;id&gt;_auto*.dat；SaveUniverseData 临时看到的
+    /// MOD 自动档写入 Save_mod_campaign_&lt;campaign_id&gt;_auto*.dat；SaveUniverseData 临时看到的
     /// CurrentSlot 始终是最后一个原版槽，因此标题页的官方继续游戏不会指向 MOD。
     /// </summary>
     internal static class ModSaveIsolation
@@ -75,7 +75,7 @@ namespace MortalModHost
         internal static void RedirectAutoLoad(SaveSystem saves, ref string slot)
         {
             if (!IsActiveModSlot(saves) || string.IsNullOrEmpty(slot)
-                || slot.StartsWith("mod_", StringComparison.Ordinal)) return;
+                || ModSaveSlotPolicy.IsModSlot(slot)) return;
             if (!ModSaveSlotPolicy.IsOfficialAutoSlot(slot)) return;
             slot = ModSaveSlotPolicy.IsolatedAutoSlot(saves.CurrentSlot, slot);
         }
@@ -100,7 +100,7 @@ namespace MortalModHost
             return saves != null && ModCampaignState.Active
                 && string.Equals(
                     saves.CurrentSlot,
-                    "mod_" + ModCampaignState.ActiveModId,
+                    CampaignIdentity.SaveSlot(ModCampaignState.ActiveCampaignId),
                     StringComparison.Ordinal);
         }
     }

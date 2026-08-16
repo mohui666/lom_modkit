@@ -33,26 +33,25 @@ STORY_DIR = SHOWCASE_DIR / "story"
 SOURCE_ASSETS = PROJECT_ROOT / "samples" / "feature_showcase" / "assets" / "user"
 
 MANIFEST = {
-    "format": 2,
-    "package_format": 2,
-    "story_schema": 1,
+    "format": 3,
+    "package_format": 3,
+    "story_schema": 2,
     "content_schema": 1,
-    "min_host_version": "1.0.0",
-    "tested_host_version": "1.0.0",
+    "min_host_version": "1.0.1",
+    "tested_host_version": "1.0.1",
     "id": "showcase3",
-    "name": "全节点样例3.0·六十三节点实机验收",
+    "campaign_id": "showcase3",
+    "name": "全节点样例3.0·六十二节点实机验收",
     "version": "3.0.0",
     "author": "lom_modkit",
     "description": (
-        "面向手动验收的 63 节点完整样例：用户图片/角色/音频、演出、"
+        "面向手动验收的 62 节点完整样例：用户图片/角色/音频、演出、"
         "数值与检定、MOD 任务/持久变量、奖励/商店、原版 Combat/Battle "
         "编排、死亡与安全返回。"
     ),
     "entry": "main",
+    "campaign": {"new_game": True},
 }
-
-COMBAT_KEY = "5102_01"
-BATTLE_KEY = "0000"
 
 
 def _blank_story(story_id: str, title: str) -> dict:
@@ -432,7 +431,7 @@ def build_combat() -> dict:
         story,
         "combat",
         {
-            "key": COMBAT_KEY,
+            "character": "special3",
             "max_health": 300, "health": 300,
             "max_stamina": 120, "stamina": 120,
             "strength": 20, "internal": 20, "dexterity": 20, "talking": 20,
@@ -484,26 +483,14 @@ def build_battle() -> dict:
         {"text": "【3.0/4】Battle 失败中的 PlayerDie 可能按原版进入重试/标题；可选择跳过。"},
     )
     _set_start(story, start)
-    setup = _node(
-        story,
-        "battle_setup",
-        {
-            "enemy": "400", "team": 0, "level": 1, "people": 1,
-            "display": 1,
-        },
-    )
     war = _node(
         story,
         "battle",
         {
-            "key": BATTLE_KEY,
-            "friend_roster": BATTLE_KEY,
-            "enemy_roster": BATTLE_KEY,
-            "neutral_roster": BATTLE_KEY,
-            "friend_people": 3, "enemy_people": 3, "neutral_people": 0,
-            "friend_health": 300, "enemy_health": 300, "neutral_health": 300,
-            "reset_skills": True,
-            "skills": [{"key": "special3", "index": 2, "active": 1}],
+            "friend_faction": "500", "friend_people": 3,
+            "friend_characters": ["brother4"],
+            "enemy_faction": "400", "enemy_people": 3,
+            "enemy_characters": ["special3"],
             "win": "", "lose": "",
         },
     )
@@ -518,7 +505,7 @@ def build_battle() -> dict:
     skip = _say(story, "已跳过 Battle。", mode="narrative", after=start)
     story_api.add_choice(
         story,
-        [("进入原版 Battle", setup), ("跳过 Battle", skip)],
+        [("进入原版 Battle", war), ("跳过 Battle", skip)],
         after=start,
     )
     story_api.update_node(story, war, {"win": inspect, "lose": inspect})
@@ -541,7 +528,7 @@ def build_finale() -> dict:
         story,
         "全节点样例 3.0：主动选择的死亡画面测试。",
         death_id="930001",
-        title="六十三节点·测试谢幕",
+        title="六十二节点·测试谢幕",
         next="Title",
     )["id"]
     safe = _node(story, "goto_scene", {"scene": "Free"})

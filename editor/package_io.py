@@ -41,6 +41,7 @@ from lomc.story_lua_integrity import (
     verify_story_lua_integrity,
 )
 from lomc.deterministic_zip import stable_json_bytes
+from lomc.content import COMBAT_ANIMATION_FIELDS
 
 
 class PackError(Exception):
@@ -138,7 +139,9 @@ def _verify_story_lua_pairs(
     }
     integrity_info = entries.get(STORY_LUA_INTEGRITY_ENTRY)
     if integrity_info is None and require_integrity:
-        raise PackError("package_format=2 的包必须包含 story-lua.sha256")
+        raise PackError(
+            "package_format=%d 的包必须包含 story-lua.sha256" % PACKAGE_FORMAT
+        )
     if integrity_info is not None:
         record = _read_entry(
             zf, integrity_info, MAX_TEXT_BYTES, STORY_LUA_INTEGRITY_ENTRY
@@ -151,6 +154,10 @@ def _verify_story_lua_pairs(
     lomc, lomc_error = get_lomc()
     if lomc is None:
         raise PackError("编译器不可用，无法验证 Story/Lua 一致性：%s" % lomc_error)
+    try:
+        lomc.validate_manifest(manifest, source="包内 manifest.json")
+    except Exception as exc:
+        raise PackError("包内 manifest.json 不符合 v3 契约：%s" % exc) from exc
     for story_id, story in stories.items():
         story_path = f"story/{story_id}.json"
         variants = []
@@ -228,10 +235,10 @@ def _import_lommod(path: str | Path) -> tuple[dict, dict[str, dict]]:
                 manifest, "package_format", PACKAGE_FORMAT, legacy="format"
             )
             assert_supported_version(
-                manifest, "story_schema", STORY_SCHEMA, allow_missing=True
+                manifest, "story_schema", STORY_SCHEMA
             )
             assert_supported_version(
-                manifest, "content_schema", CONTENT_SCHEMA, allow_missing=True
+                manifest, "content_schema", CONTENT_SCHEMA
             )
         except (MigrationError, ValueError) as exc:
             raise PackError(str(exc)) from exc
@@ -242,7 +249,7 @@ def _import_lommod(path: str | Path) -> tuple[dict, dict[str, dict]]:
                 try:
                     story = migrate_story(story).document
                     assert_supported_version(
-                        story, "story_schema", STORY_SCHEMA, allow_missing=True
+                        story, "story_schema", STORY_SCHEMA
                     )
                 except (MigrationError, ValueError) as exc:
                     raise PackError(f"包内 {name}：{exc}") from exc
@@ -342,17 +349,16 @@ def export_lommod(
             PACKAGE_FORMAT,
             legacy="format",
             allow_missing=True,
-            supported=(1, PACKAGE_FORMAT),
         )
         assert_supported_version(
-            manifest, "story_schema", STORY_SCHEMA, allow_missing=True
+            manifest, "story_schema", STORY_SCHEMA
         )
         assert_supported_version(
-            manifest, "content_schema", CONTENT_SCHEMA, allow_missing=True
+            manifest, "content_schema", CONTENT_SCHEMA
         )
         for sid, story in stories.items():
             assert_supported_version(
-                story, "story_schema", STORY_SCHEMA, allow_missing=True
+                story, "story_schema", STORY_SCHEMA
             )
     except ValueError as exc:
         raise PackError("无法导出未知格式：%s" % exc) from exc
@@ -374,6 +380,10 @@ def export_lommod(
     lomc_mod, lomc_err = get_lomc()
     if lomc_mod is None:
         raise PackError("编译器不可用，无法收集用户内容：%s" % lomc_err)
+    try:
+        lomc_mod.validate_manifest(manifest, source="manifest.json")
+    except Exception as exc:
+        raise PackError("manifest.json 不符合 v3 契约：%s" % exc) from exc
     from lomc.content import collect_stories_content_refs
 
     for item in collect_stories_content_refs(stories):
@@ -484,6 +494,10 @@ def export_lommod(
                 "files": {"main": rec.main_file},
                 "portraits": rec.portraits or {},
                 "intro": rec.intro or {},
+                **{
+                    field: getattr(rec, field)
+                    for field in COMBAT_ANIMATION_FIELDS
+                },
             }
         ):
             src = rec.folder / fname

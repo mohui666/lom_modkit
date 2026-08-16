@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """Versions written by the editor; kept dependency-free for frozen builds."""
 
-PACKAGE_FORMAT = 2
-STORY_SCHEMA = 1
+PACKAGE_FORMAT = 3
+STORY_SCHEMA = 2
 CONTENT_SCHEMA = 1
 
 

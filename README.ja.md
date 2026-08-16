@@ -5,11 +5,11 @@
 Lua を書く必要はありません。グラフィカルエディターで人物の台詞、シーン演出、分岐シナリオ、音楽・効果音を組み立て、
 ワンクリックで `.lommod` を書き出し、そのままゲーム内で実行できます。
 
-[![Release v1.0.0](https://img.shields.io/badge/release-v1.0.0-blue)](https://github.com/mohui666/lom_modkit/releases/latest)
+[![Release v1.0.1](https://img.shields.io/badge/release-v1.0.1-blue)](https://github.com/mohui666/lom_modkit/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)](#互換性)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-**[⬇ Windows 版をダウンロード](https://github.com/mohui666/lom_modkit/releases/download/v1.0.0/lom_modkit-v1.0.0_windows_x64.zip)** ·
+**[⬇ Windows 版をダウンロード](https://github.com/mohui666/lom_modkit/releases/download/v1.0.1/lom_modkit-v1.0.1_windows_x64.zip)** ·
 [クイックスタート](#クイックスタート) ·
 [ドキュメント](docs/ja/README.md)
 
@@ -41,7 +41,7 @@ lom_modkit を使うと、『活俠傳』が**本来持つ人物、シーン、�
 
 ### 1. ダウンロード
 
-[lom_modkit-v1.0.0_windows_x64.zip](https://github.com/mohui666/lom_modkit/releases/download/v1.0.0/lom_modkit-v1.0.0_windows_x64.zip) をダウンロードして解凍します。Python のインストールは不要です。
+[lom_modkit-v1.0.1_windows_x64.zip](https://github.com/mohui666/lom_modkit/releases/download/v1.0.1/lom_modkit-v1.0.1_windows_x64.zip) をダウンロードして解凍します。Python のインストールは不要です。
 
 ### 2. 起動
 
@@ -124,6 +124,9 @@ PC 上のキャラクター、音声、画像を「ユーザーコンテンツ�
 
 ## 現在のバージョン
 
+**v1.0.1**：`.lommod` v3 で安定した `campaign_id` と戦役セーブ分離を必須化 · MOD 戦役は選択のみで誤起動しない ·
+一騎討ち人物はアニメーションだけに影響し idle フォールバックに対応 · 戦役人数/公式人物数とエディターのプレビュー切り抜きを修正。
+
 **v1.0.0**：Editor/Runtime バージョン統一 · `.lommod` v2 厳格検証と Story/Lua 整合性 ·
 Lua 環境分離と完全なライフサイクル清掃 · 一度限りのホットキー移行 · Runtime 自動テストと CI。
 
@@ -144,7 +147,7 @@ Lua 環境分離と完全なライフサイクル清掃 · 一度限りのホッ
 | [ドキュメント索引](docs/ja/README.md) | 言語ナビゲーションと読者ガイド |
 | [ユーザーコンテンツ庫](docs/ja/user_content.md) | カスタム音声 / 台詞ボイスの使い方 |
 | [現在の機能と境界](docs/ja/current_capabilities.md) | 実装済み、低レベルのみ、未実装の境界 |
-| [Mod パッケージ形式の契約](docs/ja/mod_format.md) | パッケージ構造、63 種のノード、コンパイル規約、ランタイムの挙動 |
+| [Mod パッケージ形式の契約](docs/ja/mod_format.md) | パッケージ構造、62 種のノード、コンパイル規約、ランタイムの挙動 |
 | [AI / CLI マニュアル](docs/ja/ai_cli.md) | story_api コマンドラインと Python API |
 | [多言語対応](docs/ja/i18n.md) | UI とドキュメントの i18n アーキテクチャ |
 
@@ -216,7 +219,7 @@ cd runtime/MortalModHost && dotnet build -c Release
 cd runtime/MortalModHost && dotnet run --project test/SmokeTest -c Release
 ```
 
-Windows 配布版のパッケージング：`cd editor && .venv/Scripts/python build_exe.py`
+Windows 配布版は Runtime を正式ビルドし、`editor/.venv/Scripts/python editor/build_exe.py`、`powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1` の順に作成します。スクリプトはバージョンと必須ファイルを検証し、キャッシュ、サンプルパッケージ、ユーザー設定、シンボリックリンクの混入を拒否します。同名成果物は既定で上書きせず、確認済みの置換時だけ `-Force` を指定します。
 （成果物は `editor/dist/lom_modkit/` に出力。`lom_editor.exe` と `story_api_cli.exe` を含みます）。
 
 ゲーム内デバッグ：任意のシーンで **F7** を押すと「原版シナリオを無効化」のセッション単位スイッチを切り替えられます（永続化しません）。

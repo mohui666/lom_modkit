@@ -88,13 +88,19 @@ from lua_preview import LuaPreview, compile_story, lomc_available, get_lomc
 from node_form import NodeForm
 from story_localization import StoryLocalizationDialog, apply_localization_settings
 from schema_versions import manifest_versions
+from table_layout import configure_table, configure_table_combo
 from preview import (
     CRASH_LOG,
     StagePreview,
     load_preview_map,
     log_crash,
 )
-from project_templates import TEMPLATES, create_project_template, template_info
+from project_templates import (
+    TEMPLATES,
+    create_project_template,
+    new_project_manifest,
+    template_info,
+)
 from project_statistics import ProjectStatistics, calculate_project_statistics
 from voice_coverage import VoiceCoverageReport, calculate_voice_coverage
 from release_preflight import apply_release_profile
@@ -498,6 +504,7 @@ class ManifestDialog(QDialog):
         layout.addWidget(intro)
         form = QFormLayout()
         self.id_edit = QLineEdit(str(base.get("id") or "my_mod"))
+        self.campaign_id_edit = QLineEdit(str(base.get("campaign_id") or ""))
         self.name_edit = QLineEdit(str(base.get("name") or t("export.default_name")))
         self.version_edit = QLineEdit(str(base.get("version") or "1.0.0"))
         self.author_edit = QLineEdit(str(base.get("author") or ""))
@@ -506,6 +513,7 @@ class ManifestDialog(QDialog):
         self.author_edit.setPlaceholderText(t("export.author_ph"))
         self.desc_edit.setPlaceholderText(t("export.desc_ph"))
         form.addRow(t("export.id"), self.id_edit)
+        form.addRow(t("export.campaign_id"), self.campaign_id_edit)
         form.addRow(t("export.name"), self.name_edit)
         form.addRow(t("export.version"), self.version_edit)
         form.addRow(t("export.author"), self.author_edit)
@@ -549,9 +557,10 @@ class ManifestDialog(QDialog):
         # ------------------------------------------------------ campaign 区
         camp_box = QGroupBox(t("export.campaign"))
         cv = QVBoxLayout(camp_box)
-        self.new_game_check = QCheckBox(t("export.new_game"))
-        self.new_game_check.setChecked(bool(campaign.get("new_game")))
-        cv.addWidget(self.new_game_check)
+        campaign_required = QLabel(t("export.campaign_id_help"))
+        campaign_required.setWordWrap(True)
+        campaign_required.setProperty("context_help", True)
+        cv.addWidget(campaign_required)
         self.disable_events_check = QCheckBox(t("export.disable_events"))
         self.disable_events_check.setChecked(
             bool(campaign.get("disable_official_events"))
@@ -561,6 +570,7 @@ class ManifestDialog(QDialog):
         trigger_help.setWordWrap(True)
         cv.addWidget(trigger_help)
         self.triggers_table = QTableWidget(0, 8)
+        configure_table(self.triggers_table)
         self.triggers_table.setHorizontalHeaderLabels(
             [
                 t("export.col.position"),
@@ -573,13 +583,13 @@ class ManifestDialog(QDialog):
                 t("export.col.affinity_min"),
             ]
         )
-        self.triggers_table.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.ResizeMode.ResizeToContents
-        )
-        for c in (1, 2, 3, 4, 5, 6, 7):
+        for c in range(7):
             self.triggers_table.horizontalHeader().setSectionResizeMode(
-                c, QHeaderView.ResizeMode.Stretch
+                c, QHeaderView.ResizeMode.Interactive
             )
+        self.triggers_table.horizontalHeader().setSectionResizeMode(
+            7, QHeaderView.ResizeMode.Stretch
+        )
         self.triggers_table.setMinimumHeight(120)
         cv.addWidget(self.triggers_table)
         btns = QHBoxLayout()
@@ -622,6 +632,7 @@ class ManifestDialog(QDialog):
             pos.addItem(disp, pid)
         self._set_combo_value(pos, str(trig.get("position", "")))
         table.setCellWidget(r, 0, pos)
+        configure_table_combo(table, pos, 0)
         # 脚本：包内 story id
         script = QComboBox()
         script.setEditable(False)
@@ -629,6 +640,7 @@ class ManifestDialog(QDialog):
             script.addItem(sid, sid)
         self._set_combo_value(script, str(trig.get("script", "")))
         table.setCellWidget(r, 1, script)
+        configure_table_combo(table, script, 1)
         for column, field in ((2, "when_flag_set"), (3, "when_flag_clear")):
             flag = QComboBox()
             flag.setEditable(True)
@@ -637,6 +649,7 @@ class ManifestDialog(QDialog):
                 flag.addItem(display, flag_id)
             self._set_combo_value(flag, str(trig.get(field, "")))
             table.setCellWidget(r, column, flag)
+            configure_table_combo(table, flag, column)
         # 月份/旬：有界下拉；空则不写，杜绝手填 0/13 等无效值
         wm = trig.get("when_month")
         month = QComboBox()
@@ -645,6 +658,7 @@ class ManifestDialog(QDialog):
             month.addItem(t("export.month_value", value=value), value)
         self._set_combo_value(month, "" if wm is None else str(wm))
         table.setCellWidget(r, 4, month)
+        configure_table_combo(table, month, 4)
         ws = trig.get("when_stage")
         stage = QComboBox()
         stage.addItem(t("export.any_stage"), None)
@@ -652,6 +666,7 @@ class ManifestDialog(QDialog):
             stage.addItem(label, value)
         self._set_combo_value(stage, "" if ws is None else str(ws))
         table.setCellWidget(r, 5, stage)
+        configure_table_combo(table, stage, 5)
         # 好感拆为人物下拉 + 最低值，作者无需记忆 "人物:数值" 文本语法
         wa = trig.get("when_affinity")
         affinity = QComboBox()
@@ -662,6 +677,7 @@ class ManifestDialog(QDialog):
         affinity_value = wa.get("character", "") if isinstance(wa, dict) else ""
         self._set_combo_value(affinity, str(affinity_value))
         table.setCellWidget(r, 6, affinity)
+        configure_table_combo(table, affinity, 6)
         affinity_min = wa.get("min", "") if isinstance(wa, dict) else ""
         table.setItem(r, 7, QTableWidgetItem(str(affinity_min)))
 
@@ -710,6 +726,7 @@ class ManifestDialog(QDialog):
         m = {
             **manifest_versions(),
             "id": self.id_edit.text().strip() or "my_mod",
+            "campaign_id": self.campaign_id_edit.text().strip(),
             "name": self.name_edit.text().strip(),
             "version": self.version_edit.text().strip() or "1.0.0",
             "author": self.author_edit.text().strip(),
@@ -755,15 +772,12 @@ class ManifestDialog(QDialog):
                     "min": min_val,
                 }
             triggers.append(trig)
-        campaign: dict = {}
-        if self.new_game_check.isChecked():
-            campaign["new_game"] = True
+        campaign: dict = {"new_game": True}
         if self.disable_events_check.isChecked():
             campaign["disable_official_events"] = True
         if triggers:
             campaign["triggers"] = triggers
-        if campaign:
-            m["campaign"] = campaign
+        m["campaign"] = campaign
         for field, widget in (
             ("min_host_version", self.min_host_version_edit),
             ("tested_host_version", self.tested_host_version_edit),
@@ -785,6 +799,15 @@ class ManifestDialog(QDialog):
                 t("export.bad_id_msg"),
             )
             self.id_edit.setFocus()
+            return
+        campaign_id = self.campaign_id_edit.text().strip()
+        if not models.MOD_ID_PATTERN.fullmatch(campaign_id):
+            QMessageBox.warning(
+                self,
+                t("export.campaign_id_invalid_title"),
+                t("export.campaign_id_invalid"),
+            )
+            self.campaign_id_edit.setFocus()
             return
         for widget, label in (
             (self.name_edit, t("export.name")),
@@ -839,8 +862,9 @@ class MainWindow(
         self._stories: dict[str, dict] = {}
         self._current_id = ""
         self.story = new_editor_story(editor_data=editor_data)
-        self.manifest: dict = {}  # 当前项目 manifest（导入 .lommod 后生效）
-        self.manifest_base: dict = {}  # 导入的原 manifest（campaign 往返用）
+        initial_manifest = new_project_manifest()
+        self.manifest: dict = initial_manifest
+        self.manifest_base: dict = copy.deepcopy(initial_manifest)
         self._story_paths: dict[str, Path | None] = {}
         self._loading = False
         # 撤销/重做：整项目快照式；连续输入暂停 600ms 合并为一步
@@ -2401,8 +2425,8 @@ class MainWindow(
             return
         self._stories = {}
         self.story = new_editor_story(editor_data=self.editor_data)
-        self.manifest = {}
-        self.manifest_base = {}
+        self.manifest = new_project_manifest()
+        self.manifest_base = copy.deepcopy(self.manifest)
         self._story_paths = {}
         self._set_project_source("untitled", None)
         self._saved_snapshot = self._snapshot()

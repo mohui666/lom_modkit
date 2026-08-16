@@ -2,7 +2,7 @@ namespace MortalModHost
 {
     /// <summary>
     /// mod 战役运行态（契约 §2 disable_official_events）：
-    /// 当前是否正处于某个 mod 的新战役（隔离存档槽 mod_&lt;modid&gt;），以及该战役 mod 是否声明了
+    /// 当前是否正处于某个 mod 的新战役（隔离存档槽 mod_campaign_&lt;campaign_id&gt;），以及该战役 mod 是否声明了
     /// 禁用原版事件——自动任务与 PositionClickStorySuppressionPatch 跳过官方主线/支线，
     /// FreePositionPatch 再把未命中 mod 触发器的官方地点默认脚本抑制掉。
     ///
@@ -19,13 +19,21 @@ namespace MortalModHost
         /// <summary>当前战役 mod 的 id（仅 Active 时有意义；触发器按此隔离，见契约 §2）。</summary>
         internal static string ActiveModId;
 
+        /// <summary>当前战役的稳定 campaign_id；存档槽由它生成。</summary>
+        internal static string ActiveCampaignId;
+
         /// <summary>当前战役 mod 的 manifest.campaign.disable_official_events 值（仅 Active 时有意义）。</summary>
         internal static bool DisableOfficialEvents;
 
         internal static void Enter(ModPackage mod)
         {
+            if (mod == null || mod.Campaign == null
+                || !CampaignIdentity.IsValid(mod.CampaignId)
+                || !string.Equals(mod.Campaign.Id, mod.CampaignId, System.StringComparison.Ordinal))
+                throw new System.InvalidOperationException("MOD 缺少有效且一致的 campaign_id");
             Active = true;
             ActiveModId = mod.Id;
+            ActiveCampaignId = mod.CampaignId;
             DisableOfficialEvents = mod.Campaign != null && mod.Campaign.DisableOfficialEvents;
         }
 
@@ -33,6 +41,7 @@ namespace MortalModHost
         {
             Active = false;
             ActiveModId = null;
+            ActiveCampaignId = null;
             DisableOfficialEvents = false;
         }
     }

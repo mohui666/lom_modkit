@@ -28,6 +28,7 @@ from lomc.content import (
     AUDIO_EXTENSIONS,
     AUDIO_KINDS,
     CHARACTER_SCALE_DEFAULT,
+    COMBAT_ANIMATION_FIELDS,
     CONTENT_SCHEMA,
     IMAGE_EXTENSIONS,
     MAX_AUDIO_BYTES,
@@ -78,6 +79,10 @@ class ContentRecord:
     title: str | None = None
     scale: int = CHARACTER_SCALE_DEFAULT
     art_facing: str = ART_FACING_DEFAULT
+    combat_idle: str | None = None
+    combat_attack: str | None = None
+    combat_hurt: str | None = None
+    combat_defence: str | None = None
 
     @property
     def display(self) -> str:
@@ -186,6 +191,10 @@ def _record_from_meta(meta: dict, folder: Path) -> ContentRecord:
         title=meta.get("title"),
         scale=int(meta.get("scale") or CHARACTER_SCALE_DEFAULT),
         art_facing=meta.get("art_facing") or ART_FACING_DEFAULT,
+        combat_idle=meta.get("combat_idle"),
+        combat_attack=meta.get("combat_attack"),
+        combat_hurt=meta.get("combat_hurt"),
+        combat_defence=meta.get("combat_defence"),
     )
 
 
@@ -497,6 +506,7 @@ def register_character(
     title: str | None = None,
     scale: int = CHARACTER_SCALE_DEFAULT,
     art_facing: str = ART_FACING_DEFAULT,
+    combat_images: dict[str, Path] | None = None,
 ) -> ContentRecord:
     """导入自定义角色。portraits 至少包含 normal，值为本机图片路径。"""
     try:
@@ -534,6 +544,28 @@ def register_character(
         normalized[key] = (filename, data)
     if "normal" not in normalized:
         raise ContentRegistryError("必须提供 normal 默认立绘。")
+    normalized_combat: dict[str, tuple[str, bytes]] = {}
+    for field, source in (combat_images or {}).items():
+        if field not in COMBAT_ANIMATION_FIELDS:
+            raise ContentRegistryError("未知战斗图字段：%s" % field)
+        src = Path(source)
+        try:
+            data = src.read_bytes()
+        except OSError as exc:
+            raise ContentRegistryError("无法读取战斗图 %s：%s" % (field, exc)) from exc
+        if not data or len(data) > MAX_IMAGE_BYTES:
+            raise ContentRegistryError("战斗图 %s 为空或超过 8MB。" % field)
+        try:
+            filename = safe_image_filename(src.name)
+        except LomcError as exc:
+            raise ContentRegistryError(str(exc)) from exc
+        used = {item[0] for item in normalized.values()} | {
+            item[0] for item in normalized_combat.values()
+        }
+        if filename in used:
+            stem, ext = Path(filename).stem, Path(filename).suffix
+            filename = "%s_%s%s" % (stem[:42], field.removeprefix("combat_"), ext)
+        normalized_combat[field] = (filename, data)
 
     folder = repository_root() / Path(package_content_dir("character", content_id))
     if folder.exists():
@@ -544,6 +576,8 @@ def register_character(
     folder.mkdir(parents=True, exist_ok=False)
     try:
         for key, (filename, data) in normalized.items():
+            (folder / filename).write_bytes(data)
+        for _field, (filename, data) in normalized_combat.items():
             (folder / filename).write_bytes(data)
         payload = {
             "schema": CONTENT_SCHEMA,
@@ -557,6 +591,8 @@ def register_character(
             payload["title"] = str(title).strip()
         payload["scale"] = scale
         payload["art_facing"] = art_facing
+        for field, (filename, _data) in normalized_combat.items():
+            payload[field] = filename
         write_content_metadata(str(folder / "content.json"), payload)
     except Exception:
         shutil.rmtree(folder, ignore_errors=True)
@@ -573,6 +609,7 @@ def update_character(
     title: object = _UNSET,
     scale: object = _UNSET,
     art_facing: object = _UNSET,
+    combat_images: dict[str, Path] | None = None,
 ) -> ContentRecord:
     """改已有角色的显示名 / 称号 / 体型 / 朝向 / 增改表情 / 删表情。编号不变。"""
     rec = get(content_id)
@@ -616,9 +653,35 @@ def update_character(
             filename = "%s_%s%s" % (stem[:48], key, ext)
         (rec.folder / filename).write_bytes(data)
         written[key] = filename
+    combat_written = {
+        field: getattr(rec, field)
+        for field in COMBAT_ANIMATION_FIELDS
+        if getattr(rec, field)
+    }
+    for field, source in (combat_images or {}).items():
+        if field not in COMBAT_ANIMATION_FIELDS:
+            raise ContentRegistryError("未知战斗图字段：%s" % field)
+        src = Path(source)
+        try:
+            data = src.read_bytes()
+        except OSError as exc:
+            raise ContentRegistryError("无法读取战斗图 %s：%s" % (field, exc)) from exc
+        if not data or len(data) > MAX_IMAGE_BYTES:
+            raise ContentRegistryError("战斗图 %s 为空或超过 8MB。" % field)
+        try:
+            filename = safe_image_filename(src.name)
+        except LomcError as exc:
+            raise ContentRegistryError(str(exc)) from exc
+        used = set(written.values()) | set(combat_written.values())
+        if filename in used and combat_written.get(field) != filename:
+            stem, ext = Path(filename).stem, Path(filename).suffix
+            filename = "%s_%s%s" % (stem[:42], field.removeprefix("combat_"), ext)
+        (rec.folder / filename).write_bytes(data)
+        combat_written[field] = filename
     if "normal" not in written:
         raise ContentRegistryError("必须保留 normal 默认立绘。")
     keep = set(written.values())
+    keep.update(combat_written.values())
     intro = rec.intro
     if intro and intro.get("image"):
         keep.add(intro["image"])
@@ -636,6 +699,8 @@ def update_character(
     payload["art_facing"] = char_art_facing
     if intro:
         payload["intro"] = intro
+    for field, filename in combat_written.items():
+        payload[field] = filename
     write_content_metadata(str(rec.folder / "content.json"), payload)
     for leftover in rec.folder.iterdir():
         if leftover.name in ("content.json",) or leftover.name in keep:
@@ -686,7 +751,15 @@ def update_character_intro(
                 filename = safe_image_filename(src.name)
             except LomcError as exc:
                 raise ContentRegistryError(str(exc)) from exc
-            used = set((rec.portraits or {}).values()) | {rec.main_file}
+            used = (
+                set((rec.portraits or {}).values())
+                | {rec.main_file}
+                | {
+                    getattr(rec, field)
+                    for field in COMBAT_ANIMATION_FIELDS
+                    if getattr(rec, field)
+                }
+            )
             if filename in used:
                 stem, ext = Path(filename).stem, Path(filename).suffix
                 filename = "%s_intro%s" % (stem[:48], ext)
@@ -703,6 +776,11 @@ def update_character_intro(
         keep_image = filename
     portraits = dict(rec.portraits or {"normal": rec.main_file})
     keep = set(portraits.values())
+    keep.update(
+        getattr(rec, field)
+        for field in COMBAT_ANIMATION_FIELDS
+        if getattr(rec, field)
+    )
     if keep_image:
         keep.add(keep_image)
     payload = {
@@ -722,6 +800,10 @@ def update_character_intro(
     payload["art_facing"] = rec.art_facing
     if intro:
         payload["intro"] = intro
+    for field in COMBAT_ANIMATION_FIELDS:
+        value = getattr(rec, field)
+        if value:
+            payload[field] = value
     write_content_metadata(str(rec.folder / "content.json"), payload)
     for leftover in rec.folder.iterdir():
         if leftover.name in ("content.json",) or leftover.name in keep:
@@ -770,6 +852,7 @@ def copy_into_mod(
             "files": {"main": rec.main_file},
             "portraits": rec.portraits or {},
             "intro": rec.intro or {},
+            **{field: getattr(rec, field) for field in COMBAT_ANIMATION_FIELDS},
         }
     ):
         src = rec.folder / fname

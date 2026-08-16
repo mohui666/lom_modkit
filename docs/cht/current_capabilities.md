@@ -1,6 +1,6 @@
 # 目前能力與邊界
 
-本文只描述目前倉庫程式碼。節點權威集合是 `editor/models.py` 的 `NODE_SCHEMAS`，目前共 63 種。
+本文只描述目前倉庫程式碼。節點權威集合是 `editor/models.py` 的 `NODE_SCHEMAS`，目前共 62 種。
 
 ## 已實作
 
@@ -15,6 +15,8 @@
 
 底層 `enemy`、`battle_skill` 與 `goto_scene` 仍保留供相容和進階編排使用。
 
-`combat` / `battle` 節點直接設定所有已驗證參數，不再使用工具預設。`key` 只選擇原版角色／場景底板，血量、屬性、行動機率、三方陣容、人數、NPC 血量與戰場技能均寫在目前節點。`battle_result` 只按同包同劇情的真實 win/lose 分支；`battle_setup`、`reward` 與 `activity` 只聚合既有原版／原子介面。`result_screen` 使用原版 `mainui.DisplayMessageText` 顯示結算標題與說明，再以 `reward` 的既有介面發放獎勵，不建立新 UI。`custom_shop` 可暫時替換原版三類商店庫存並使用數量、條件與統一折扣，但不偽造逐商品價格。`mod_quest` / `quest_check` 是 Host 戰役工作階段狀態；`persistent_var` / `persistent_check` 則把 Int32 狀態原子保存到與 `mod_<id>` 隔離槽綁定的 Host sidecar，不修改原版 GameSave。任意 Lua 物件仍不持久化。也不支援 draw/escape、自訂戰鬥地圖、模型、AI、動畫或機制。
+`combat` 的人物只決定四類戰鬥動畫，血量、屬性、技能與行動機率自由填寫；`battle` 只設定敵我陣營、總人數與已核實的官方具名角色，具名角色計入總人數。舊預設與 `battle_setup` 已刪除。`battle_result` 只按真實 win/lose 分支。`persistent_var` / `persistent_check` 綁定 `mod_campaign_<campaign_id>` 隔離槽；不修改原版 GameSave。
+
+底層 `enemy` / `battle_skill` 仍可獨立使用；Combat / Battle 結果可配合 `reward`、`result_screen`、`custom_shop`、`mod_quest` 等現有節點編排。
 
 尚未由反編譯與實機驗證確認的遊戲介面不得靠猜測實作。

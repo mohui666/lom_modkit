@@ -36,19 +36,25 @@ from lomc.schema_versions import CONTENT_SCHEMA, PACKAGE_FORMAT, STORY_SCHEMA
 COMPILER_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 MANIFEST = {
-    "format": 1,
+    "format": PACKAGE_FORMAT,
+    "package_format": PACKAGE_FORMAT,
+    "story_schema": STORY_SCHEMA,
+    "content_schema": CONTENT_SCHEMA,
     "id": "testmod",
+    "campaign_id": "testmod_campaign",
     "name": "测试 Mod",
     "version": "0.1.0",
     "author": "tester",
     "description": "单元测试用",
     "entry": "main",
+    "campaign": {"new_game": True},
 }
 
 
 def make_story(nodes, story_id="main", start=None, title="测试剧情"):
     """构造合法 story dict 的便捷函数。"""
     return {
+        "story_schema": STORY_SCHEMA,
         "id": story_id,
         "title": title,
         "start": start or nodes[0]["id"],
@@ -1580,8 +1586,8 @@ class TestBranchNewSources(unittest.TestCase):
 
     def test_manifest_errors(self):
         with self.assertRaises(LomcError) as cm:
-            validate_manifest({"format": 3, "id": "x"})
-        self.assertIn('"package_format" 必须是 1 或 2', str(cm.exception))
+            validate_manifest({"format": 2, "id": "x"})
+        self.assertIn('"package_format" 必须是 3', str(cm.exception))
         bad = dict(MANIFEST)
         del bad["author"]
         with self.assertRaises(LomcError) as cm:
@@ -1675,10 +1681,13 @@ class TestBranchNewSources(unittest.TestCase):
         good = dict(MANIFEST)
         good["campaign"] = {"new_game": True, "disable_official_events": True}
         validate_manifest(good)  # 不抛即通过
-        validate_manifest(dict(MANIFEST, campaign={}))  # 空 campaign 合法
+        with self.assertRaisesRegex(LomcError, "new_game"):
+            validate_manifest(dict(MANIFEST, campaign={}))
         for bad_val in (1, "yes", None):
             bad = dict(MANIFEST)
-            bad["campaign"] = {"disable_official_events": bad_val}
+            bad["campaign"] = {
+                "new_game": True, "disable_official_events": bad_val
+            }
             with self.assertRaises(LomcError) as cm:
                 validate_manifest(bad)
             self.assertIn("disable_official_events", str(cm.exception))
@@ -1687,6 +1696,7 @@ class TestBranchNewSources(unittest.TestCase):
     def test_campaign_position_must_be_known_enum(self):
         bad = dict(MANIFEST)
         bad["campaign"] = {
+            "new_game": True,
             "triggers": [
                 {"type": "position", "position": "Nowhere", "script": "main"}
             ]
@@ -2112,6 +2122,7 @@ class TestPack(unittest.TestCase):
     def test_pack_campaign_trigger_script_missing(self):
         manifest = dict(MANIFEST)
         manifest["campaign"] = {
+            "new_game": True,
             "triggers": [
                 {"type": "position", "position": "Center", "script": "ghost"}
             ]
@@ -2843,9 +2854,9 @@ class TestNewNodeCodegen(unittest.TestCase):
 
     def test_goto_scene(self):
         lua = self.lua_of(
-            {"id": "n1", "type": "goto_scene", "scene": "Combat", "key": "5102_01"}
+            {"id": "n1", "type": "goto_scene", "scene": "Title"}
         )
-        self.assertIn('\tluamanager.ChangeScene("Combat", "5102_01", "Story")', lua)
+        self.assertIn('\tluamanager.ChangeScene("Title", "", "Story")', lua)
         self.assertIn("\tmod_hide_all()", lua)
         self.assertLess(lua.index("mod_hide_all()"), lua.index("ChangeScene"))
         # 默认 key="" / next="Story"
@@ -3295,7 +3306,7 @@ class TestNewNodeValidationErrors(unittest.TestCase):
                     {
                         "id": "nfight",
                         "type": "combat",
-                        "key": "5102_01",
+                        "character": "brother4",
                         "win": "nhide",
                         "lose": "nend",
                     },

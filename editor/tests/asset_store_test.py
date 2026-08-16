@@ -17,6 +17,7 @@ sys.path[:0] = [str(EDITOR_DIR), str(COMPILER_DIR)]
 
 from asset_store import import_image_file, resolve_image_asset  # noqa: E402
 import package_io  # noqa: E402
+from schema_versions import manifest_versions, STORY_SCHEMA  # noqa: E402
 
 
 class AssetStoreTest(unittest.TestCase):
@@ -40,16 +41,19 @@ class AssetStoreTest(unittest.TestCase):
         self.assertEqual(resolve_image_asset(relative), stored)
 
         manifest = {
-            "format": 1,
+            **manifest_versions(),
             "id": "image_test",
             "name": "图片测试",
             "version": "1.0.0",
             "author": "tester",
             "description": "test",
             "entry": "main",
+            "campaign_id": "campaign_image_test",
+            "campaign": {"new_game": True},
         }
         stories = {
             "main": {
+                "story_schema": STORY_SCHEMA,
                 "id": "main",
                 "title": "图片测试",
                 "start": "n1",

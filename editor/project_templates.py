@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass
+import uuid
 
 from schema_versions import STORY_SCHEMA
 
@@ -40,6 +41,14 @@ TEMPLATES = (
         True,
     ),
 )
+
+
+def new_project_manifest() -> dict:
+    """Create identity once for a genuinely new project, never for imported data."""
+    return {
+        "campaign_id": "campaign_" + uuid.uuid4().hex[:16],
+        "campaign": {"new_game": True},
+    }
 
 
 def template_info(key: str) -> ProjectTemplateInfo:
@@ -155,5 +164,5 @@ def create_project_template(key: str, editor_data: dict | None = None) -> dict:
     return copy.deepcopy({
         "stories": {"main": story},
         "current_story_id": "main",
-        "manifest": {},
+        "manifest": new_project_manifest(),
     })

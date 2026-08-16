@@ -18,7 +18,7 @@ from lomc.story_lua_integrity import (  # noqa: E402
     STORY_LUA_INTEGRITY_ENTRY,
     build_story_lua_integrity,
 )
-from schema_versions import PACKAGE_FORMAT  # noqa: E402
+from schema_versions import PACKAGE_FORMAT, STORY_SCHEMA  # noqa: E402
 import package_io  # noqa: E402
 from package_inspector import inspect_lommod  # noqa: E402
 
@@ -27,7 +27,7 @@ def _manifest(**extra):
     result = {
         "format": PACKAGE_FORMAT,
         "package_format": PACKAGE_FORMAT,
-        "story_schema": 1,
+        "story_schema": STORY_SCHEMA,
         "content_schema": 1,
         "id": "inspect_test",
         "name": "检查器测试",
@@ -35,6 +35,8 @@ def _manifest(**extra):
         "author": "tester",
         "description": "package inspector",
         "entry": "main",
+        "campaign_id": "campaign_inspect_test",
+        "campaign": {"new_game": True},
     }
     result.update(extra)
     return result
@@ -42,7 +44,7 @@ def _manifest(**extra):
 
 def _story():
     return {
-        "story_schema": 1,
+        "story_schema": STORY_SCHEMA,
         "id": "main",
         "title": "检查器测试",
         "start": "n1",
@@ -116,7 +118,7 @@ class PackageInspectorTest(unittest.TestCase):
         with self.assertRaisesRegex(package_io.PackError, "不是由对应"):
             package_io.import_lommod(package)
 
-    def test_v2_requires_story_lua_integrity_record(self):
+    def test_v3_requires_story_lua_integrity_record(self):
         package = Path(self.temp.name) / "missing-story-lua-hash.lommod"
         manifest = _manifest()
         story = _story()
@@ -135,7 +137,7 @@ class PackageInspectorTest(unittest.TestCase):
     def test_references_compatibility_and_unused_assets_are_visible(self):
         package = Path(self.temp.name) / "refs.lommod"
         story = {
-            "story_schema": 1,
+            "story_schema": STORY_SCHEMA,
             "id": "main",
             "title": "资源",
             "start": "n0",

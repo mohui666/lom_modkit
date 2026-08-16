@@ -5,11 +5,11 @@
 不用写 Lua。用图形编辑器编排人物对白、场景演出、分支剧情、音乐音效，
 一键导出 `.lommod`，直接在游戏中运行。
 
-[![Release v1.0.0](https://img.shields.io/badge/release-v1.0.0-blue)](https://github.com/mohui666/lom_modkit/releases/latest)
+[![Release v1.0.1](https://img.shields.io/badge/release-v1.0.1-blue)](https://github.com/mohui666/lom_modkit/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)](#兼容性)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-**[⬇ 下载 Windows 版](https://github.com/mohui666/lom_modkit/releases/download/v1.0.0/lom_modkit-v1.0.0_windows_x64.zip)** ·
+**[⬇ 下载 Windows 版](https://github.com/mohui666/lom_modkit/releases/download/v1.0.1/lom_modkit-v1.0.1_windows_x64.zip)** ·
 [快速开始](#快速开始) ·
 [文档](docs/README.md)
 
@@ -41,7 +41,7 @@ lom_modkit 让你用《活侠传》**原有的人物、场景、音乐、特效�
 
 ### 1. 下载
 
-下载 [lom_modkit-v1.0.0_windows_x64.zip](https://github.com/mohui666/lom_modkit/releases/download/v1.0.0/lom_modkit-v1.0.0_windows_x64.zip) 并解压。无需安装 Python。
+下载 [lom_modkit-v1.0.1_windows_x64.zip](https://github.com/mohui666/lom_modkit/releases/download/v1.0.1/lom_modkit-v1.0.1_windows_x64.zip) 并解压。无需安装 Python。
 
 ### 2. 启动
 
@@ -181,6 +181,9 @@ SHA-256 前 16 个十六进制字符，可用来核对具体文件，但**不是
 
 ## 当前版本
 
+**v1.0.1**：`.lommod` v3 强制稳定 `campaign_id` 与战役存档隔离 · MOD 战役只选择、不误启动 ·
+单挑角色仅控制动画并支持 idle 回退 · 修正战役总人数/官方人物计数与编辑器预览裁切。
+
 **v1.0.0**：统一 Editor/Runtime 版本 · `.lommod` v2 严格校验与 Story/Lua 一致性 ·
 Lua 环境隔离与完整生命周期清理 · 一次性热键迁移 · Runtime 自动化测试与 CI。
 
@@ -215,7 +218,7 @@ Lua 环境隔离与完整生命周期清理 · 一次性热键迁移 · Runtime 
 | [功能 Showcase](samples/feature_showcase/README.md) | 可直接打包的原创自包含项目，覆盖自定义角色/语音/BGM/图片、流程、本地化与结局 |
 | [当前能力与边界](docs/chs/current_capabilities.md) | 已实现、仅有底层接口和尚未实现的功能边界 |
 | [Runtime 实现说明](runtime/MortalModHost/README.md) | 原版接口接入、反编译验证边界与 fail-closed 策略 |
-| [Mod 包格式契约](docs/chs/mod_format.md) | 包结构、63 种节点、编译约定、运行时行为 |
+| [Mod 包格式契约](docs/chs/mod_format.md) | 包结构、62 种节点、编译约定、运行时行为 |
 | [AI / CLI 手册](docs/chs/ai_cli.md) | story_api 命令行与 Python API |
 | [多语言](docs/chs/i18n.md) | 界面与文档的 i18n 架构 |
 
@@ -300,8 +303,15 @@ cd runtime/MortalModHost && dotnet build -c Release
 cd runtime/MortalModHost && dotnet run --project test/SmokeTest -c Release
 ```
 
-打包 Windows 发行版：`cd editor && .venv/Scripts/python build_exe.py`
-（产物在 `editor/dist/lom_modkit/`，含 `lom_editor.exe` 与 `story_api_cli.exe`）。
+构建 Windows 发行版时，先正式构建 Runtime，再冻结 Editor，最后生成 ZIP 与 SHA-256：
+
+```powershell
+dotnet build runtime/MortalModHost/MortalModHost.csproj -c Release -p:GameDir="C:\path\to\LegendOfMortal"
+editor/.venv/Scripts/python editor/build_exe.py
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1
+```
+
+冻结目录为 `editor/dist/lom_modkit/`，包含 `lom_editor.exe` 与 `story_api_cli.exe`。发布脚本会核对 Compiler、Editor、Runtime 版本和必需文件，并拒绝缓存、样本包、用户配置及符号链接混入。若同名 ZIP 或校验文件已存在，默认终止；只有确认要替换同一版本发布产物时才显式加 `-Force`。
 
 游戏内调试：任意场景按 **F7** 切换「禁用原版剧情」会话级开关（不持久化）；
 复测已读变黄时用编辑器「试玩 → 重置剧情已读状态」。

@@ -160,7 +160,7 @@ def _integer_version(value: object, field: str, current: int) -> int:
 
 
 def migrate_manifest(document: dict) -> MigrationResult:
-    """Migrate a v1 manifest to the current integrity-linked package format."""
+    """Check a v3 manifest; identity-bearing old manifests are never invented."""
     if not isinstance(document, dict):
         raise MigrationError("manifest 顶层必须是 JSON 对象")
     result = copy.deepcopy(document)
@@ -169,20 +169,20 @@ def migrate_manifest(document: dict) -> MigrationResult:
     if not has_explicit and not has_legacy:
         raise MigrationError("manifest 缺少 package_format/format，无法判断来源版本")
     package_version = result.get("package_format") if has_explicit else result.get("format")
-    if isinstance(package_version, bool) or package_version not in (1, PACKAGE_FORMAT):
+    if isinstance(package_version, bool) or package_version != PACKAGE_FORMAT:
         raise MigrationError(
-            "无法迁移 package_format=%r：当前工具仅支持版本 1/%d"
-            % (package_version, PACKAGE_FORMAT)
+            "package_format=%r 与 1.0.1 不兼容：旧包缺少稳定 campaign_id，"
+            "请用 1.0.1 Editor 明确填写后重新导出" % package_version
         )
     if has_explicit and has_legacy:
         legacy = result.get("format")
-        if isinstance(legacy, bool) or legacy not in (1, PACKAGE_FORMAT):
+        if isinstance(legacy, bool) or legacy != PACKAGE_FORMAT:
             raise MigrationError("无法迁移 format=%r" % legacy)
         if legacy != package_version:
             raise MigrationError("package_format 与旧字段 format 不一致")
 
     steps: list[str] = []
-    if package_version != PACKAGE_FORMAT or result.get("package_format") != PACKAGE_FORMAT:
+    if result.get("package_format") != PACKAGE_FORMAT:
         result["package_format"] = PACKAGE_FORMAT
         steps.append("upgrade package_format to %d" % PACKAGE_FORMAT)
     if result.get("format") != PACKAGE_FORMAT:
@@ -195,6 +195,17 @@ def migrate_manifest(document: dict) -> MigrationResult:
         else:
             result[field] = current
             steps.append("add " + field)
+    campaign_id = result.get("campaign_id")
+    campaign = result.get("campaign")
+    if not isinstance(campaign_id, str) or not campaign_id.strip():
+        raise MigrationError(
+            "package_format=3 的 manifest 缺少稳定 campaign_id；"
+            "请用 1.0.1 Editor 明确填写后重新导出"
+        )
+    if not isinstance(campaign, dict) or campaign.get("new_game") is not True:
+        raise MigrationError(
+            "package_format=3 的 manifest 必须包含 campaign.new_game=true"
+        )
     return MigrationResult(
         kind="manifest",
         document=result,
@@ -216,45 +227,17 @@ def migrate_story(document: dict) -> MigrationResult:
             result.get("story_schema"), "story_schema", STORY_SCHEMA
         )
     else:
-        version = STORY_SCHEMA  # pre-declaration Story files are legacy v1
-        result["story_schema"] = STORY_SCHEMA
-        steps.append("add story_schema")
+        raise MigrationError(
+            "Story 缺少 story_schema=2；旧 Story 不会自动改写 Combat/Battle 语义"
+        )
 
-    if "battle_presets" in result:
-        presets = result.get("battle_presets")
-        if not isinstance(presets, dict):
-            raise MigrationError("旧字段 battle_presets 必须是对象，无法自动展开")
-        nodes = result.get("nodes")
-        if not isinstance(nodes, list):
-            raise MigrationError("story 缺少 nodes 数组，无法展开旧战斗预设")
-        for node in nodes:
-            if not isinstance(node, dict) or "preset" not in node:
-                continue
-            preset_id = node.get("preset")
-            preset = presets.get(preset_id)
-            if not isinstance(preset_id, str) or not isinstance(preset, dict):
-                raise MigrationError("节点 %r 引用了不存在的旧战斗预设 %r" % (
-                    node.get("id"), preset_id,
-                ))
-            node_kind = node.get("type")
-            if node_kind not in ("combat", "battle") or preset.get("kind") != node_kind:
-                raise MigrationError(
-                    "节点 %r 与旧战斗预设 %r 的类型不一致" % (node.get("id"), preset_id)
-                )
-            expanded = {
-                key: copy.deepcopy(value)
-                for key, value in preset.items()
-                if key not in ("name", "kind")
-            }
-            expanded.update({
-                key: copy.deepcopy(value)
-                for key, value in node.items()
-                if key != "preset"
-            })
-            node.clear()
-            node.update(expanded)
-        result.pop("battle_presets", None)
-        steps.append("inline battle_presets into combat/battle nodes")
+    if "battle_presets" in result or any(
+        isinstance(node, dict) and "preset" in node
+        for node in result.get("nodes", [])
+    ):
+        raise MigrationError(
+            "旧 Combat/Battle 预设已删除，不能自动迁移；请在 v3 节点中重新明确配置"
+        )
 
     legacy_dice = [
         node for node in result.get("nodes", [])

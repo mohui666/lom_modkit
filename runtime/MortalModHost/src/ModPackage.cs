@@ -12,6 +12,9 @@ namespace MortalModHost
         /// <summary>mod 唯一 id（manifest.id），注册脚本时用作前缀防冲突。</summary>
         public string Id;
 
+        /// <summary>顶层 manifest.campaign_id；v3 包必填且不能回退为 manifest.id。</summary>
+        public string CampaignId;
+
         /// <summary>显示名（manifest.name）。</summary>
         public string Name;
 

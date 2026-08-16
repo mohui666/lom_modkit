@@ -23,26 +23,10 @@ class GameplayCompositeEditorTest(unittest.TestCase):
     def setUpClass(cls):
         cls.app = QApplication.instance() or QApplication([])
 
-    def test_battle_setup_schema_table_summary_and_flow(self):
-        node = models.new_node("battle_setup", "setup", models.FALLBACK_EDITOR_DATA)
-        node.update({
-            "enemy": "Bandit", "skills": [{"key": "Skill_A", "index": 2, "active": 1}],
-            "goto": "end",
-        })
-        self.assertIn("battle_setup_skills", {
-            kind for _key, _label, kind, _optional
-            in models.NODE_SCHEMAS["battle_setup"]["fields"]
-        })
-        self.assertIn("Bandit", models.node_summary(node))
-        self.assertIn("我方技能 1 项", _hint_text(node, models.FALLBACK_EDITOR_DATA))
-        graph = analyze_story({
-            "start": "setup", "nodes": [node, {"id": "end", "type": "end"}],
-        })
-        self.assertIn(("setup", "end"), {(edge.source, edge.target) for edge in graph.edges})
-        form = NodeForm()
-        form.set_context(models.FALLBACK_EDITOR_DATA, ["setup", "end"])
-        form.set_node(node)
-        self.assertTrue(any(table.columnCount() == 3 for table in form.findChildren(QTableWidget)))
+    def test_removed_battle_setup_is_not_author_visible(self):
+        self.assertNotIn("battle_setup", models.NODE_SCHEMAS)
+        with self.assertRaisesRegex(ValueError, "未知节点类型"):
+            models.new_node("battle_setup", "setup", models.FALLBACK_EDITOR_DATA)
 
     def test_reward_schema_table_and_summary(self):
         node = {

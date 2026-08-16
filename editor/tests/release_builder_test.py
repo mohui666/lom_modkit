@@ -11,6 +11,7 @@ sys.path[:0] = [str(EDITOR), str(COMPILER)]
 
 import models
 from release_builder import ReleaseBuildBlocked, build_release
+from schema_versions import STORY_SCHEMA
 
 
 class ReleaseBuilderTest(unittest.TestCase):
@@ -21,6 +22,7 @@ class ReleaseBuilderTest(unittest.TestCase):
     @staticmethod
     def _story(text="完成对白"):
         return {
+            "story_schema": STORY_SCHEMA,
             "id": "main", "title": "发布剧情", "start": "say1", "mood": False,
             "nodes": [
                 {"id": "say1", "type": "say", "character": "player", "text": text},
@@ -33,6 +35,8 @@ class ReleaseBuilderTest(unittest.TestCase):
         return {
             "id": "release_demo", "name": "Release Demo", "version": version,
             "author": "Author", "description": "Offline release", "entry": "main",
+            "campaign_id": "campaign_release_demo",
+            "campaign": {"new_game": True},
         }
 
     def test_builds_package_checksum_and_summary_without_installing(self):

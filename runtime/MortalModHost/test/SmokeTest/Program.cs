@@ -46,8 +46,8 @@ namespace MortalModHost
                     ("manifest.json", "{\"format\":1,\"id\":\"noentry\",\"name\":\"缺入口\",\"version\":\"0.1\",\"entry\":\"main\"}"),
                     ("lua/other.lua", "say(\"other\")"));
                 // texts.json 非法 → 包仍加载，文本忽略 + 1 警告（契约 §A 可选文件容错）
-                WriteZip(Path.Combine(modsDir, "badtexts.lommod"),
-                    ("manifest.json", "{\"format\":1,\"id\":\"badtexts\",\"entry\":\"main\"}"),
+                WriteV3Zip(Path.Combine(modsDir, "badtexts.lommod"),
+                    ("manifest.json", "{\"format\":3,\"package_format\":3,\"story_schema\":2,\"content_schema\":1,\"id\":\"badtexts\",\"campaign_id\":\"badtexts-campaign\",\"entry\":\"main\",\"campaign\":{\"new_game\":true}}"),
                     ("lua/main.lua", "say(\"m\")"),
                     ("texts.json", "{\"MOD_badtexts_main_n1\": 123}"));
                 WriteZip(Path.Combine(modsDir, "future-format.lommod"),
@@ -70,9 +70,9 @@ namespace MortalModHost
                 Assert(mod.PackageFingerprint.Length == 64 && mod.PackageFingerprint.All(IsUpperHex),
                     "包指纹必须是 64 位大写十六进制");
                 Assert(mod.Name == "示例 Mod", "name 解析错误（含中文）：" + mod.Name);
-                Assert(mod.Version == "1.0.0", "version 解析错误：" + mod.Version);
+                Assert(mod.Version == "1.0.1", "version 解析错误：" + mod.Version);
                 Assert(mod.Author == "somebody", "author 解析错误：" + mod.Author);
-                Assert(mod.MinHostVersion == "0.5.0" && mod.TestedHostVersion == "1.0.0"
+                Assert(mod.MinHostVersion == "0.5.0" && mod.TestedHostVersion == "1.0.1"
                     && mod.TestedGameVersion == "1.2.3",
                     "兼容性 metadata 解析错误");
                 Assert(mod.Entry == "main", "entry 解析错误：" + mod.Entry);
@@ -159,6 +159,7 @@ namespace MortalModHost
                     "首次检查即使无需改写也必须落一次性标记");
 
                 TestCampaign();
+                CampaignRegressionTests.Run();
                 TestLocalization();
                 TestRuntimeCompatibility();
                 TestRuntimeTrace();
@@ -464,8 +465,8 @@ namespace MortalModHost
             Directory.CreateDirectory(modsDir);
             try
             {
-                WriteZip(Path.Combine(modsDir, "localized.lommod"),
-                    ("manifest.json", "{\"format\":1,\"id\":\"localized\",\"entry\":\"main\"}"),
+                WriteV3Zip(Path.Combine(modsDir, "localized.lommod"),
+                    ("manifest.json", "{\"format\":3,\"package_format\":3,\"story_schema\":2,\"content_schema\":1,\"id\":\"localized\",\"campaign_id\":\"localized-campaign\",\"entry\":\"main\",\"campaign\":{\"new_game\":true}}"),
                     ("lua/main.lua", "say(\"legacy\")"),
                     ("texts.json", "{\"MOD_localized_main_s1\":\"legacy\"}"),
                     ("localization.json", "{\"schema\":1,\"default_locale\":\"chs\",\"fallback_locale\":\"cht\",\"locales\":[\"chs\",\"cht\",\"ja\",\"ko\"]}"),
@@ -493,8 +494,8 @@ namespace MortalModHost
                 Assert(ModRegistry.TryGetLuaByRegisteredName("MOD_localized_main", out lua) && lua.Contains("한국어"), "切换语言后不重扫也应选择新脚本");
                 I18n.CurrentStoryLocale = "chs";
 
-                WriteZip(Path.Combine(modsDir, "incomplete.lommod"),
-                    ("manifest.json", "{\"format\":1,\"id\":\"incomplete\",\"entry\":\"main\"}"),
+                WriteV3Zip(Path.Combine(modsDir, "incomplete.lommod"),
+                    ("manifest.json", "{\"format\":3,\"package_format\":3,\"story_schema\":2,\"content_schema\":1,\"id\":\"incomplete\",\"campaign_id\":\"incomplete-campaign\",\"entry\":\"main\",\"campaign\":{\"new_game\":true}}"),
                     ("lua/main.lua", "say(\"legacy-safe\")"),
                     ("texts.json", "{}"),
                     ("localization.json", "{\"schema\":1,\"default_locale\":\"chs\",\"fallback_locale\":\"chs\"}"),
@@ -538,36 +539,36 @@ namespace MortalModHost
             try
             {
                 // 好包：new_game + disable_official_events + 两个触发器（一个带 when_flag_set + 时间/好感条件，一个带 when_flag_clear）
-                WriteZip(Path.Combine(modsDir, "campaign_ok.lommod"),
-                    ("manifest.json", "{\"format\":1,\"id\":\"camp\",\"name\":\"战役\",\"version\":\"1.0\",\"entry\":\"main\",\"campaign\":{\"new_game\":true,\"disable_official_events\":true,\"triggers\":[{\"type\":\"position\",\"position\":\"Center\",\"script\":\"train\",\"when_flag_set\":\"F_A\",\"when_month\":4,\"when_stage\":1,\"when_affinity\":{\"character\":\"brother4\",\"min\":-3}},{\"type\":\"position\",\"position\":\"Door\",\"script\":\"gate\",\"when_flag_clear\":\"F_B\"}]}}"),
+                WriteV3Zip(Path.Combine(modsDir, "campaign_ok.lommod"),
+                    ("manifest.json", "{\"format\":3,\"package_format\":3,\"story_schema\":2,\"content_schema\":1,\"id\":\"camp\",\"campaign_id\":\"camp-main\",\"name\":\"战役\",\"version\":\"1.0\",\"entry\":\"main\",\"campaign\":{\"new_game\":true,\"disable_official_events\":true,\"triggers\":[{\"type\":\"position\",\"position\":\"Center\",\"script\":\"train\",\"when_flag_set\":\"F_A\",\"when_month\":4,\"when_stage\":1,\"when_affinity\":{\"character\":\"brother4\",\"min\":-3}},{\"type\":\"position\",\"position\":\"Door\",\"script\":\"gate\",\"when_flag_clear\":\"F_B\"}]}}"),
                     ("lua/main.lua", "say(\"m\")"),
                     ("lua/train.lua", "say(\"t\")"),
                     ("lua/gate.lua", "say(\"g\")"));
                 // 触发器 script 指向不存在的脚本 → 该触发器丢弃 + 1 警告，包仍加载
-                WriteZip(Path.Combine(modsDir, "campaign_badtrigger.lommod"),
-                    ("manifest.json", "{\"format\":1,\"id\":\"badtrig\",\"entry\":\"main\",\"campaign\":{\"triggers\":[{\"type\":\"position\",\"position\":\"Mall\",\"script\":\"ghost\"}]}}"),
+                WriteV3Zip(Path.Combine(modsDir, "campaign_badtrigger.lommod"),
+                    ("manifest.json", "{\"format\":3,\"package_format\":3,\"story_schema\":2,\"content_schema\":1,\"id\":\"badtrig\",\"campaign_id\":\"badtrig-main\",\"entry\":\"main\",\"campaign\":{\"new_game\":true,\"triggers\":[{\"type\":\"position\",\"position\":\"Mall\",\"script\":\"ghost\"}]}}"),
                     ("lua/main.lua", "say(\"m\")"));
                 // 未知 trigger type → 整包拒绝 + 1 警告
                 WriteZip(Path.Combine(modsDir, "campaign_badtype.lommod"),
-                    ("manifest.json", "{\"format\":1,\"id\":\"badtype\",\"entry\":\"main\",\"campaign\":{\"triggers\":[{\"type\":\"time\",\"position\":\"Mall\",\"script\":\"main\"}]}}"),
+                    ("manifest.json", "{\"package_format\":3,\"story_schema\":2,\"content_schema\":1,\"id\":\"badtype\",\"campaign_id\":\"badtype-main\",\"entry\":\"main\",\"campaign\":{\"new_game\":true,\"triggers\":[{\"type\":\"time\",\"position\":\"Mall\",\"script\":\"main\"}]}}"),
                     ("lua/main.lua", "say(\"m\")"));
                 // when_month 越界（13）→ 整包拒绝 + 1 警告（契约 §2.1 校验）
                 WriteZip(Path.Combine(modsDir, "campaign_badmonth.lommod"),
-                    ("manifest.json", "{\"format\":1,\"id\":\"badmonth\",\"entry\":\"main\",\"campaign\":{\"triggers\":[{\"type\":\"position\",\"position\":\"Mall\",\"script\":\"main\",\"when_month\":13}]}}"),
+                    ("manifest.json", "{\"package_format\":3,\"story_schema\":2,\"content_schema\":1,\"id\":\"badmonth\",\"campaign_id\":\"badmonth-main\",\"entry\":\"main\",\"campaign\":{\"new_game\":true,\"triggers\":[{\"type\":\"position\",\"position\":\"Mall\",\"script\":\"main\",\"when_month\":13}]}}"),
                     ("lua/main.lua", "say(\"m\")"));
                 // campaign.new_game 非布尔 → 整包拒绝 + 1 警告
                 WriteZip(Path.Combine(modsDir, "campaign_badbool.lommod"),
-                    ("manifest.json", "{\"format\":1,\"id\":\"badbool\",\"entry\":\"main\",\"campaign\":{\"new_game\":\"yes\"}}"),
+                    ("manifest.json", "{\"package_format\":3,\"story_schema\":2,\"content_schema\":1,\"id\":\"badbool\",\"campaign_id\":\"badbool-main\",\"entry\":\"main\",\"campaign\":{\"new_game\":\"yes\"}}"),
                     ("lua/main.lua", "say(\"m\")"));
                 // campaign.disable_official_events 非布尔 → 整包拒绝 + 1 警告（契约 §2）
                 WriteZip(Path.Combine(modsDir, "campaign_baddisable.lommod"),
-                    ("manifest.json", "{\"format\":1,\"id\":\"baddisable\",\"entry\":\"main\",\"campaign\":{\"disable_official_events\":\"yes\"}}"),
+                    ("manifest.json", "{\"package_format\":3,\"story_schema\":2,\"content_schema\":1,\"id\":\"baddisable\",\"campaign_id\":\"baddisable-main\",\"entry\":\"main\",\"campaign\":{\"new_game\":true,\"disable_official_events\":\"yes\"}}"),
                     ("lua/main.lua", "say(\"m\")"));
                 WriteZip(Path.Combine(modsDir, "campaign_fractionalaffinity.lommod"),
-                    ("manifest.json", "{\"format\":1,\"id\":\"fractional\",\"entry\":\"main\",\"campaign\":{\"triggers\":[{\"type\":\"position\",\"position\":\"Mall\",\"script\":\"main\",\"when_affinity\":{\"character\":\"brother4\",\"min\":1.5}}]}}"),
+                    ("manifest.json", "{\"package_format\":3,\"story_schema\":2,\"content_schema\":1,\"id\":\"fractional\",\"campaign_id\":\"fractional-main\",\"entry\":\"main\",\"campaign\":{\"new_game\":true,\"triggers\":[{\"type\":\"position\",\"position\":\"Mall\",\"script\":\"main\",\"when_affinity\":{\"character\":\"brother4\",\"min\":1.5}}]}}"),
                     ("lua/main.lua", "say(\"m\")"));
                 WriteZip(Path.Combine(modsDir, "campaign_overflowaffinity.lommod"),
-                    ("manifest.json", "{\"format\":1,\"id\":\"overflow\",\"entry\":\"main\",\"campaign\":{\"triggers\":[{\"type\":\"position\",\"position\":\"Mall\",\"script\":\"main\",\"when_affinity\":{\"character\":\"brother4\",\"min\":2147483648}}]}}"),
+                    ("manifest.json", "{\"package_format\":3,\"story_schema\":2,\"content_schema\":1,\"id\":\"overflow\",\"campaign_id\":\"overflow-main\",\"entry\":\"main\",\"campaign\":{\"new_game\":true,\"triggers\":[{\"type\":\"position\",\"position\":\"Mall\",\"script\":\"main\",\"when_affinity\":{\"character\":\"brother4\",\"min\":2147483648}}]}}"),
                     ("lua/main.lua", "say(\"m\")"));
 
                 var warnings = new List<string>();
@@ -597,7 +598,7 @@ namespace MortalModHost
 
                 var badTrig = mods[0].Id == "badtrig" ? mods[0] : mods[1];
                 Assert(badTrig.Campaign != null && badTrig.Campaign.Triggers.Count == 0, "坏触发器应被丢弃");
-                Assert(!badTrig.Campaign.NewGame, "未写 new_game 应为 false");
+                Assert(badTrig.Campaign.NewGame, "v3 campaign.new_game 必须为 true");
                 Assert(!badTrig.Campaign.DisableOfficialEvents, "未写 disable_official_events 应为 false");
 
                 // 无 campaign 段的包 → Campaign 为 null（沿用首个目录的 demo_mod 验证过，这里直接测解析容错）
@@ -722,55 +723,49 @@ namespace MortalModHost
             Directory.CreateDirectory(modsDir);
             try
             {
-                const string manifest = "{\"format\":1,\"id\":\"integrity\",\"entry\":\"main\"}";
+                const string manifest = "{\"format\":3,\"package_format\":3,\"story_schema\":2,\"content_schema\":1,\"id\":\"integrity\",\"campaign_id\":\"integrity-campaign\",\"entry\":\"main\",\"campaign\":{\"new_game\":true}}";
                 const string story = "{\"id\":\"main\",\"start\":\"end\",\"nodes\":[{\"id\":\"end\",\"type\":\"end\"}]}";
                 const string lua = "return mod_end()";
-                string record = "algorithm=lom-story-lua-sha256-v1\n"
+                string valid = Path.Combine(modsDir, "valid.lommod");
+                WriteV3Zip(valid, ("manifest.json", manifest),
+                    ("story/main.json", story), ("lua/main.lua", lua));
+
+                string tamperedStory = Path.Combine(modsDir, "tampered_story.lommod");
+                File.Copy(valid, tamperedStory);
+                ReplaceTextEntry(tamperedStory, "story/main.json", story + " ");
+                RefreshPackageContentOnly(tamperedStory);
+
+                string tamperedLua = Path.Combine(modsDir, "tampered_lua.lommod");
+                File.Copy(valid, tamperedLua);
+                ReplaceTextEntry(tamperedLua, "lua/main.lua", lua + " -- replaced");
+                RefreshPackageContentOnly(tamperedLua);
+
+                string missingRow = Path.Combine(modsDir, "missing_row.lommod");
+                WriteV3Zip(missingRow,
+                    ("manifest.json", manifest.Replace("integrity-campaign", "missing-row-campaign").Replace("\"integrity\"", "\"missing_row\"")),
+                    ("story/main.json", story), ("story/extra.json", story.Replace("main", "extra")),
+                    ("lua/main.lua", lua), ("lua/extra.lua", lua));
+                string mainOnlyRecord = "algorithm=" + ModLoader.StoryLuaHashAlgorithm + "\n"
                     + "story/main.json\t" + ComputeSha256(story)
                     + "\tlua/main.lua\t" + ComputeSha256(lua) + "\n";
-                const string manifestV2 = "{\"format\":2,\"package_format\":2,\"story_schema\":1,\"content_schema\":1,\"id\":\"integrity_v2\",\"entry\":\"main\"}";
-                var v2Content = new (string name, string content)[]
-                {
-                    ("manifest.json", manifestV2),
-                    ("story/main.json", story),
-                    ("lua/main.lua", lua),
-                    ("story-lua.sha256", record),
-                };
-                string packageRecord = "algorithm=lom-entry-sha256-v1\nsha256="
-                    + ComputePackageContentSha256(v2Content) + "\n";
+                ReplaceTextEntry(missingRow, ModLoader.StoryLuaHashEntry, mainOnlyRecord);
+                RefreshPackageContentOnly(missingRow);
 
-                WriteZip(Path.Combine(modsDir, "valid.lommod"),
-                    ("manifest.json", manifest), ("story/main.json", story),
-                    ("lua/main.lua", lua), ("story-lua.sha256", record));
-                WriteZip(Path.Combine(modsDir, "valid_v2.lommod"),
-                    ("manifest.json", manifestV2), ("story/main.json", story),
-                    ("lua/main.lua", lua), ("story-lua.sha256", record),
-                    ("package-content.sha256", packageRecord));
-                WriteZip(Path.Combine(modsDir, "tampered_story.lommod"),
-                    ("manifest.json", manifest.Replace("integrity", "tampered_story")),
-                    ("story/main.json", story + " "),
-                    ("lua/main.lua", lua), ("story-lua.sha256", record));
-                WriteZip(Path.Combine(modsDir, "tampered_lua.lommod"),
-                    ("manifest.json", manifest.Replace("integrity", "tampered_lua")),
-                    ("story/main.json", story),
-                    ("lua/main.lua", lua + " -- replaced"), ("story-lua.sha256", record));
-                WriteZip(Path.Combine(modsDir, "missing_row.lommod"),
-                    ("manifest.json", manifest.Replace("integrity", "missing_row")),
-                    ("story/main.json", story), ("story/extra.json", story.Replace("main", "extra")),
-                    ("lua/main.lua", lua), ("lua/extra.lua", lua), ("story-lua.sha256", record));
-                WriteZip(Path.Combine(modsDir, "v2_missing_integrity.lommod"),
+                WriteZip(Path.Combine(modsDir, "v2_legacy.lommod"),
                     ("manifest.json", "{\"format\":2,\"package_format\":2,\"story_schema\":1,\"content_schema\":1,\"id\":\"v2_missing\",\"entry\":\"main\"}"),
                     ("story/main.json", story), ("lua/main.lua", lua));
 
                 var warnings = new List<string>();
                 var mods = ModLoader.ScanMods(modsDir, _ => { }, warnings.Add);
-                Assert(mods.Count == 2 && mods.Any(x => x.Id == "integrity")
-                        && mods.Any(x => x.Id == "integrity_v2"),
-                    "旧 v1 完整性记录与含双重完整性记录的 v2 包都应加载");
-                Assert(warnings.Count == 4, "三种 Story/Lua 篡改及 v2 缺记录应各产生一条警告：" + string.Join(" | ", warnings));
-                Assert(warnings.Count(x => x.Contains("Story/Lua") || x.Contains("story-lua.sha256")
-                        || x.Contains("package-content.sha256")) == 4,
-                    "Story/Lua 拒载警告应明确指出一致性或内容哈希记录");
+                Assert(mods.Count == 1 && mods[0].Id == "integrity",
+                    "只有完整且未篡改的 v3 包应加载");
+                Assert(warnings.Count == 4,
+                    "三种 Story/Lua 篡改及旧 v2 包应各产生一条警告：" + string.Join(" | ", warnings));
+                Assert(warnings.Count(x => x.Contains("Story/Lua")
+                        || x.Contains("story-lua.sha256")) == 3,
+                    "三种内容替换必须由 Story/Lua 绑定明确拒绝");
+                Assert(warnings.Any(x => x.Contains("package_format")),
+                    "旧 v2 包必须给出版本拒绝提示");
             }
             finally
             {
@@ -813,22 +808,25 @@ namespace MortalModHost
             try
             {
                 string first = Path.Combine(modsDir, "a.lommod");
-                WriteZip(first,
-                    ("manifest.json", "{\"format\":1,\"id\":\"sha_a\",\"name\":\"A\",\"entry\":\"main\",\"official\":true,\"verified\":true,\"sha256\":\"FAKE\"}"),
+                WriteV3Zip(first,
+                    ("manifest.json", "{\"format\":3,\"package_format\":3,\"story_schema\":2,\"content_schema\":1,\"id\":\"sha_a\",\"campaign_id\":\"sha-a-campaign\",\"name\":\"A\",\"entry\":\"main\",\"official\":true,\"verified\":true,\"sha256\":\"FAKE\",\"campaign\":{\"new_game\":true}}"),
                     ("lua/main.lua", "say(\"one\")"));
                 string copied = Path.Combine(modsDir, "b.lommod");
                 File.Copy(first, copied);
                 string changed = Path.Combine(modsDir, "c.lommod");
-                WriteZip(changed,
-                    ("manifest.json", "{\"format\":1,\"id\":\"sha_c\",\"name\":\"C\",\"entry\":\"main\"}"),
+                WriteV3Zip(changed,
+                    ("manifest.json", "{\"format\":3,\"package_format\":3,\"story_schema\":2,\"content_schema\":1,\"id\":\"sha_c\",\"campaign_id\":\"sha-c-campaign\",\"name\":\"C\",\"entry\":\"main\",\"campaign\":{\"new_game\":true}}"),
                     ("lua/main.lua", "say(\"two\")"));
 
-                var mods = ModLoader.ScanMods(modsDir, _ => { }, _ => { });
-                Assert(mods.Count == 3, "指纹测试包应全部加载");
+                var warnings = new List<string>();
+                var mods = ModLoader.ScanMods(modsDir, _ => { }, warnings.Add);
+                Assert(mods.Count == 2, "重复 campaign_id 的逐字节副本必须拒绝");
                 ModPackage a = mods.First(x => x.Id == "sha_a");
-                ModPackage b = mods.First(x => x.PackagePath.EndsWith("b.lommod", StringComparison.OrdinalIgnoreCase));
                 ModPackage c = mods.First(x => x.Id == "sha_c");
-                Assert(a.PackageFingerprint == b.PackageFingerprint, "逐字节复制或改文件名不能改变内容指纹");
+                Assert(ComputeFileSha256(first) == ComputeFileSha256(copied),
+                    "逐字节复制或改文件名不能改变内容指纹");
+                Assert(warnings.Any(x => x.Contains("campaign_id") && x.Contains("冲突")),
+                    "重复 campaign_id 必须明确告警并拒载后一个包");
                 Assert(a.PackageFingerprint != c.PackageFingerprint, "包内容改变后指纹必须改变");
                 Assert(a.PackageFingerprint == ComputeFileSha256(first), "Host 指纹应与独立 SHA-256 计算一致");
                 Assert(a.PackageFingerprint != "FAKE", "manifest 自报 official/verified/sha256 不得覆盖 Host 指纹");
@@ -847,7 +845,7 @@ namespace MortalModHost
         private static void WriteGoodPackage(string path)
         {
             WriteZip(path,
-                ("manifest.json", "{\"format\":1,\"package_format\":1,\"story_schema\":1,\"content_schema\":1,\"id\":\"demo_mod\",\"name\":\"示例 Mod\",\"version\":\"1.0.0\",\"author\":\"somebody\",\"description\":\"一句话简介\",\"entry\":\"main\",\"min_host_version\":\"0.5.0\",\"tested_host_version\":\"1.0.0\",\"tested_game_version\":\"1.2.3\"}"),
+                ("manifest.json", "{\"format\":3,\"package_format\":3,\"story_schema\":2,\"content_schema\":1,\"id\":\"demo_mod\",\"campaign_id\":\"demo-campaign\",\"name\":\"示例 Mod\",\"version\":\"1.0.1\",\"author\":\"somebody\",\"description\":\"一句话简介\",\"entry\":\"main\",\"min_host_version\":\"0.5.0\",\"tested_host_version\":\"1.0.1\",\"tested_game_version\":\"1.2.3\",\"campaign\":{\"new_game\":true}}"),
                 ("story/main.json", "{\"id\":\"main\"}"),
                 ("story/extra.json", "{\"id\":\"extra\"}"),
                 ("lua/main.lua", "local function node_n1() say(\"你好\") end\nreturn node_n1()"),
@@ -858,6 +856,7 @@ namespace MortalModHost
                 ("assets/ending.png", Convert.FromBase64String(PngBase64)),
                 ("assets/huge.png", new byte[9 * 1024 * 1024]),
                 ("assets/bgm.ogg", new byte[] { 1, 2, 3, 4 }));
+            RefreshV3Integrity(path);
         }
 
         /// <summary>往已存在的 zip 追加二进制条目（Assets 图片测试用）。</summary>
@@ -886,6 +885,144 @@ namespace MortalModHost
                     using (var writer = new StreamWriter(entry.Open(), new UTF8Encoding(false)))
                         writer.Write(content);
                 }
+            }
+        }
+
+        /// <summary>
+        /// 为应当成功加载的 fixture 补齐 v3 的 Story/Lua 与全包完整性记录。
+        /// 调用者必须显式提供 v3 manifest；测试不会把旧清单静默升级。
+        /// </summary>
+        private static void WriteV3Zip(
+            string path, params (string name, string content)[] entries)
+        {
+            WriteZip(path, entries);
+            RefreshV3Integrity(path);
+        }
+
+        private static void RefreshV3Integrity(string path)
+        {
+            using (var stream = File.Open(path, FileMode.Open, FileAccess.ReadWrite))
+            using (var zip = new ZipArchive(stream, ZipArchiveMode.Update))
+            {
+                ZipArchiveEntry oldStoryRecord = zip.GetEntry(ModLoader.StoryLuaHashEntry);
+                if (oldStoryRecord != null) oldStoryRecord.Delete();
+                ZipArchiveEntry oldPackageRecord = zip.GetEntry(ModLoader.PackageContentHashEntry);
+                if (oldPackageRecord != null) oldPackageRecord.Delete();
+
+                var luaNames = zip.Entries
+                    .Where(entry => entry.Name.Length != 0
+                        && entry.FullName.StartsWith("lua/", StringComparison.Ordinal)
+                        && entry.FullName.EndsWith(".lua", StringComparison.Ordinal)
+                        && entry.FullName.Substring(4).Split('/').Length <= 2)
+                    .Select(entry => entry.FullName)
+                    .OrderBy(name => name, StringComparer.Ordinal)
+                    .ToList();
+                foreach (string luaName in luaNames)
+                {
+                    string storyId = Path.GetFileNameWithoutExtension(luaName);
+                    string storyName = "story/" + storyId + ".json";
+                    if (zip.GetEntry(storyName) == null)
+                    {
+                        ZipArchiveEntry story = zip.CreateEntry(storyName);
+                        using (var writer = new StreamWriter(
+                            story.Open(), new UTF8Encoding(false)))
+                            writer.Write("{\"id\":\"" + storyId + "\"}");
+                    }
+                }
+
+                var storyRecord = new StringBuilder(
+                    "algorithm=" + ModLoader.StoryLuaHashAlgorithm + "\n");
+                foreach (string luaName in luaNames)
+                {
+                    string storyName = "story/" + Path.GetFileNameWithoutExtension(luaName) + ".json";
+                    storyRecord.Append(storyName).Append('\t')
+                        .Append(HashZipEntry(zip.GetEntry(storyName))).Append('\t')
+                        .Append(luaName).Append('\t')
+                        .Append(HashZipEntry(zip.GetEntry(luaName))).Append('\n');
+                }
+                ZipArchiveEntry storyRecordEntry = zip.CreateEntry(ModLoader.StoryLuaHashEntry);
+                using (var writer = new StreamWriter(
+                    storyRecordEntry.Open(), new UTF8Encoding(false)))
+                    writer.Write(storyRecord.ToString());
+            }
+            // ZipArchiveEntry.Length 在同一 Update 会话写过条目后不可用；关闭并
+            // 重开，确保包内容哈希严格覆盖已经落盘的最终条目字节。
+            using (var stream = File.Open(path, FileMode.Open, FileAccess.ReadWrite))
+            using (var zip = new ZipArchive(stream, ZipArchiveMode.Update))
+            {
+                string packageHash = ComputePackageContentSha256(zip);
+                ZipArchiveEntry packageRecordEntry = zip.CreateEntry(ModLoader.PackageContentHashEntry);
+                using (var writer = new StreamWriter(
+                    packageRecordEntry.Open(), new UTF8Encoding(false)))
+                    writer.Write("algorithm=" + ModLoader.PackageContentHashAlgorithm
+                        + "\nsha256=" + packageHash + "\n");
+            }
+        }
+
+        private static void ReplaceTextEntry(string path, string name, string content)
+        {
+            using (var stream = File.Open(path, FileMode.Open, FileAccess.ReadWrite))
+            using (var zip = new ZipArchive(stream, ZipArchiveMode.Update))
+            {
+                ZipArchiveEntry old = zip.GetEntry(name);
+                if (old == null) throw new InvalidOperationException("fixture 缺少条目 " + name);
+                old.Delete();
+                ZipArchiveEntry replacement = zip.CreateEntry(name);
+                using (var writer = new StreamWriter(
+                    replacement.Open(), new UTF8Encoding(false)))
+                    writer.Write(content);
+            }
+        }
+
+        private static void RefreshPackageContentOnly(string path)
+        {
+            using (var stream = File.Open(path, FileMode.Open, FileAccess.ReadWrite))
+            using (var zip = new ZipArchive(stream, ZipArchiveMode.Update))
+            {
+                ZipArchiveEntry old = zip.GetEntry(ModLoader.PackageContentHashEntry);
+                if (old != null) old.Delete();
+            }
+            using (var stream = File.Open(path, FileMode.Open, FileAccess.ReadWrite))
+            using (var zip = new ZipArchive(stream, ZipArchiveMode.Update))
+            {
+                string packageHash = ComputePackageContentSha256(zip);
+                ZipArchiveEntry record = zip.CreateEntry(ModLoader.PackageContentHashEntry);
+                using (var writer = new StreamWriter(record.Open(), new UTF8Encoding(false)))
+                    writer.Write("algorithm=" + ModLoader.PackageContentHashAlgorithm
+                        + "\nsha256=" + packageHash + "\n");
+            }
+        }
+
+        private static string HashZipEntry(ZipArchiveEntry entry)
+        {
+            using (var sha = SHA256.Create())
+            using (var input = entry.Open())
+                return string.Concat(sha.ComputeHash(input).Select(b => b.ToString("X2")));
+        }
+
+        private static string ComputePackageContentSha256(ZipArchive zip)
+        {
+            using (var sha = SHA256.Create())
+            {
+                foreach (ZipArchiveEntry entry in zip.Entries
+                    .Where(item => item.Name.Length != 0
+                        && item.FullName != ModLoader.PackageContentHashEntry)
+                    .OrderBy(item => item.FullName, StringComparer.Ordinal))
+                {
+                    byte[] name = Encoding.UTF8.GetBytes(entry.FullName);
+                    Transform(sha, BigEndian((ulong)name.Length, 4));
+                    Transform(sha, name);
+                    Transform(sha, BigEndian((ulong)entry.Length, 8));
+                    using (Stream input = entry.Open())
+                    {
+                        var buffer = new byte[81920];
+                        int read;
+                        while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+                            sha.TransformBlock(buffer, 0, read, buffer, 0);
+                    }
+                }
+                sha.TransformFinalBlock(new byte[0], 0, 0);
+                return string.Concat(sha.Hash.Select(b => b.ToString("X2")));
             }
         }
 
@@ -926,12 +1063,12 @@ namespace MortalModHost
                     "{\"schema\":1,\"content_schema\":1,\"id\":\"mohui.boss_theme\",\"type\":\"audio\",\"name\":\"决战曲\",\"audio_kind\":\"music\",\"files\":{\"main\":\"boss_theme.ogg\"},\"character\":\"user:mohui.luoxue\"}";
                 string contentJsonB =
                     "{\"schema\":1,\"id\":\"mohui.boss_theme\",\"type\":\"audio\",\"name\":\"另一首\",\"audio_kind\":\"music\",\"files\":{\"main\":\"boss_theme.ogg\"}}";
-                WriteZip(Path.Combine(modsDir, "mod_a.lommod"),
-                    ("manifest.json", "{\"format\":1,\"id\":\"mod_a\",\"name\":\"A\",\"version\":\"1\",\"author\":\"t\",\"description\":\"t\",\"entry\":\"main\"}"),
+                WriteV3Zip(Path.Combine(modsDir, "mod_a.lommod"),
+                    ("manifest.json", "{\"format\":3,\"package_format\":3,\"story_schema\":2,\"content_schema\":1,\"id\":\"mod_a\",\"campaign_id\":\"audio-a-campaign\",\"name\":\"A\",\"version\":\"1\",\"author\":\"t\",\"description\":\"t\",\"entry\":\"main\",\"campaign\":{\"new_game\":true}}"),
                     ("lua/main.lua", "say(\"a\")"),
                     ("assets/user/audio/mohui.boss_theme/content.json", contentJson));
-                WriteZip(Path.Combine(modsDir, "mod_b.lommod"),
-                    ("manifest.json", "{\"format\":1,\"id\":\"mod_b\",\"name\":\"B\",\"version\":\"1\",\"author\":\"t\",\"description\":\"t\",\"entry\":\"main\"}"),
+                WriteV3Zip(Path.Combine(modsDir, "mod_b.lommod"),
+                    ("manifest.json", "{\"format\":3,\"package_format\":3,\"story_schema\":2,\"content_schema\":1,\"id\":\"mod_b\",\"campaign_id\":\"audio-b-campaign\",\"name\":\"B\",\"version\":\"1\",\"author\":\"t\",\"description\":\"t\",\"entry\":\"main\",\"campaign\":{\"new_game\":true}}"),
                     ("lua/main.lua", "say(\"b\")"),
                     ("assets/user/audio/mohui.boss_theme/content.json", contentJsonB));
                 AppendBinaryEntries(Path.Combine(modsDir, "mod_a.lommod"),
@@ -939,6 +1076,8 @@ namespace MortalModHost
                 AppendBinaryEntries(Path.Combine(modsDir, "mod_b.lommod"),
                     ("assets/user/audio/mohui.boss_theme/boss_theme.ogg", new byte[] { 9, 9, 9, 9 }),
                     ("assets/user/audio/Bad.Id/content.json", Encoding.UTF8.GetBytes("{\"schema\":1,\"id\":\"Bad.Id\"}")));
+                RefreshV3Integrity(Path.Combine(modsDir, "mod_a.lommod"));
+                RefreshV3Integrity(Path.Combine(modsDir, "mod_b.lommod"));
                 WriteZip(Path.Combine(modsDir, "invalid_path.lommod"),
                     ("manifest.json", "{\"format\":1,\"id\":\"invalid_path\",\"entry\":\"main\"}"),
                     ("lua/main.lua", "say(\"invalid\")"),
@@ -981,8 +1120,8 @@ namespace MortalModHost
                     0x00,0x00,0x00,0x03,0x00,0x01,0x00,0x05,0xFE,0xD4,0xEF,0x00,0x00,0x00,0x00,
                     0x49,0x45,0x4E,0x44,0xAE,0x42,0x60,0x82
                 };
-                WriteZip(Path.Combine(charDir, "mod_c.lommod"),
-                    ("manifest.json", "{\"format\":1,\"id\":\"mod_c\",\"name\":\"C\",\"version\":\"1\",\"author\":\"t\",\"description\":\"t\",\"entry\":\"main\"}"),
+                WriteV3Zip(Path.Combine(charDir, "mod_c.lommod"),
+                    ("manifest.json", "{\"format\":3,\"package_format\":3,\"story_schema\":2,\"content_schema\":1,\"id\":\"mod_c\",\"campaign_id\":\"character-c-campaign\",\"name\":\"C\",\"version\":\"1\",\"author\":\"t\",\"description\":\"t\",\"entry\":\"main\",\"campaign\":{\"new_game\":true}}"),
                     ("lua/main.lua", "say(\"c\")"),
                     ("assets/user/character/mohui.luoxue/content.json", charJson),
                     ("assets/user/image/mohui.moon_bg/content.json", imageJson));
@@ -990,6 +1129,7 @@ namespace MortalModHost
                     ("assets/user/character/mohui.luoxue/normal.png", png),
                     ("assets/user/character/mohui.luoxue/happy.png", png),
                     ("assets/user/image/mohui.moon_bg/moon.jpg", png));
+                RefreshV3Integrity(Path.Combine(charDir, "mod_c.lommod"));
                 var charMods = ModLoader.ScanMods(charDir, _ => { }, _ => { });
                 Assert(charMods.Count == 1, "应加载含自定义角色的包");
                 UserContent ch;
@@ -1301,6 +1441,8 @@ namespace MortalModHost
             var package = new ModPackage
             {
                 Id = "quest_mod", Entry = "main",
+                CampaignId = "quest-campaign",
+                Campaign = new CampaignConfig { Id = "quest-campaign", NewGame = true },
                 PackageFingerprint = new string('C', 64)
             };
             ModCampaignState.Clear();
@@ -1341,16 +1483,18 @@ namespace MortalModHost
             var package = new ModPackage
             {
                 Id = "state_mod", Entry = "main",
+                CampaignId = "state-campaign",
+                Campaign = new CampaignConfig { Id = "state-campaign", NewGame = true },
                 PackageFingerprint = new string('E', 64)
             };
-            const string slot = "mod_state_mod";
+            const string slot = "mod_campaign_state-campaign";
             var store = new PersistentStateStore(root);
             Assert(store.Get(package, slot, "missing") == 0,
                 "未定义持久变量必须读取为 0");
             store.Set(package, slot, "chapter", 4);
             Assert(store.Add(package, slot, "bandit_killed", 1) == 1,
                 "add 必须从缺省 0 开始并返回新值");
-            string stateFile = Path.Combine(root, "mod_state_mod.state.json");
+            string stateFile = Path.Combine(root, "mod_campaign_state-campaign.state.json");
             Assert(!File.Exists(stateFile), "未调用 Flush 前不得提前写 sidecar");
             store.Flush();
             Assert(File.Exists(stateFile), "Flush 必须原子写出 sidecar");
@@ -1361,7 +1505,8 @@ namespace MortalModHost
 
             var updatedPackage = new ModPackage
             {
-                Id = package.Id, Entry = "main", PackageFingerprint = new string('F', 64)
+                Id = package.Id, Entry = "main", CampaignId = package.CampaignId,
+                Campaign = package.Campaign, PackageFingerprint = new string('F', 64)
             };
             var reloaded = new PersistentStateStore(root);
             Assert(reloaded.Get(updatedPackage, slot, "chapter") == 4
@@ -1392,19 +1537,20 @@ namespace MortalModHost
 
         private static void TestModSaveSlotPolicy()
         {
-            Assert(ModSaveSlotPolicy.IsModSlot("mod_campaign")
+            Assert(ModSaveSlotPolicy.IsModSlot("mod_campaign_story-one")
+                    && !ModSaveSlotPolicy.IsModSlot("mod_story-one")
                     && !ModSaveSlotPolicy.IsModSlot("001")
                     && !ModSaveSlotPolicy.IsModSlot("auto")
                     && !ModSaveSlotPolicy.IsModSlot(null),
-                "只有 mod_ 前缀槽可以进入 MOD 隔离策略");
-            Assert(ModSaveSlotPolicy.IsolatedAutoSlot("mod_campaign", "auto")
-                    == "mod_campaign_auto"
-                    && ModSaveSlotPolicy.IsolatedAutoSlot("mod_campaign", "auto_free")
-                    == "mod_campaign_auto_free"
-                    && ModSaveSlotPolicy.IsolatedAutoSlot("mod_campaign", "auto_battle")
-                    == "mod_campaign_auto_battle",
+                "只有 v3 mod_campaign_ 前缀槽可以进入 MOD 隔离策略");
+            Assert(ModSaveSlotPolicy.IsolatedAutoSlot("mod_campaign_story-one", "auto")
+                    == "mod_campaign_story-one_auto"
+                    && ModSaveSlotPolicy.IsolatedAutoSlot("mod_campaign_story-one", "auto_free")
+                    == "mod_campaign_story-one_auto_free"
+                    && ModSaveSlotPolicy.IsolatedAutoSlot("mod_campaign_story-one", "auto_battle")
+                    == "mod_campaign_story-one_auto_battle",
                 "三类自动档必须稳定映射到当前 MOD 槽，不能复用原版 auto*");
-            Assert(ModSaveSlotPolicy.ObserveOfficialSlot("007", "mod_campaign") == "007"
+            Assert(ModSaveSlotPolicy.ObserveOfficialSlot("007", "mod_campaign_story-one") == "007"
                     && ModSaveSlotPolicy.ObserveOfficialSlot("007", "012") == "012",
                 "进入 MOD 槽不得覆盖最后原版槽，观察原版槽则必须刷新");
             bool rejected = false;
@@ -1412,7 +1558,7 @@ namespace MortalModHost
             catch (ArgumentException) { rejected = true; }
             Assert(rejected, "官方手动槽不得构造 MOD 自动档名");
             rejected = false;
-            try { ModSaveSlotPolicy.IsolatedAutoSlot("mod_campaign", "quicksave"); }
+            try { ModSaveSlotPolicy.IsolatedAutoSlot("mod_campaign_story-one", "quicksave"); }
             catch (ArgumentException) { rejected = true; }
             Assert(rejected, "未知自动槽必须 fail-closed");
         }

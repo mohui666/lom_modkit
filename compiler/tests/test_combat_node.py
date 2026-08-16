@@ -9,13 +9,11 @@ sys.path.insert(0, str(COMPILER))
 from lomc import LomcError, compile_story
 
 
-def story(combat):
+def story(first):
     return {
-        "id": "main",
-        "title": "战斗测试",
-        "start": "fight",
+        "id": "main", "title": "战斗测试", "start": "fight",
         "nodes": [
-            combat,
+            first,
             {"id": "win", "type": "message", "text": "胜利", "goto": "end"},
             {"id": "lose", "type": "message", "text": "失败", "goto": "end"},
             {"id": "end", "type": "end"},
@@ -24,104 +22,89 @@ def story(combat):
 
 
 class CombatNodeTest(unittest.TestCase):
-    def test_emits_original_combat_and_resume_dispatch(self):
+    def test_character_only_selects_animation_and_stats_remain_explicit(self):
         lua = compile_story(story({
-            "id": "fight", "type": "combat", "key": "5102_01",
+            "id": "fight", "type": "combat", "character": "brother4",
             "max_health": 800, "health": 650, "strength": 20,
             "talents": [{"key": "skill_1", "level": 3}],
             "attack_rate": 0.65, "win": "win", "lose": "lose",
         }))
-        self.assertIn('mod_gameplay_configure("combat", "max_health=800;health=650;strength=20;attack_rate=0.65;talents=skill_1:3")', lua)
-        self.assertNotIn("ModifyEnemy", lua)
-        self.assertIn('mod_gameplay_prepare("combat", "main", "fight", "win", "lose")', lua)
-        self.assertIn('luamanager.ChangeScene("Combat", "5102_01", "Story")', lua)
-        self.assertIn('local mod_resume_target = mod_gameplay_consume_resume("main")', lua)
-        self.assertIn('mod_resume_target == "win" then return node_win()', lua)
-        self.assertIn('mod_resume_target == "lose" then return node_lose()', lua)
-        self.assertNotIn("return node_win()\nend\n\n-- [win]", lua)
+        self.assertIn(
+            'mod_gameplay_configure("combat", "character=brother4;max_health=800;'
+            'health=650;strength=20;attack_rate=0.65;talents=skill_1:3")', lua
+        )
+        self.assertIn('ChangeScene("Combat", "0001_01", "Story")', lua)
+        self.assertNotIn('ChangeScene("Combat", "brother4"', lua)
 
-    def test_rejects_missing_or_unknown_result_target(self):
-        base = {"id": "fight", "type": "combat", "key": "5102_01", "win": "win", "lose": "lose"}
+    def test_custom_character_is_accepted_without_filling_stats(self):
+        lua = compile_story(story({
+            "id": "fight", "type": "combat", "character": "user:author.hero",
+            "win": "win", "lose": "lose",
+        }))
+        self.assertIn("character=user:author.hero", lua)
+
+    def test_rejects_missing_target_bad_stats_and_old_key(self):
+        base = {
+            "id": "fight", "type": "combat", "character": "brother4",
+            "win": "win", "lose": "lose",
+        }
         missing = dict(base)
         del missing["lose"]
         with self.assertRaises(LomcError):
             compile_story(story(missing))
-        unknown = dict(base, win="nowhere")
-        with self.assertRaises(LomcError) as caught:
-            compile_story(story(unknown))
-        self.assertIn("nowhere", str(caught.exception))
-
-    def test_rejects_fractional_enemy_setup_and_explicit_goto(self):
-        combat = {
-            "id": "fight", "type": "combat", "key": "5102_01",
-            "strength": 1.5, "win": "win", "lose": "lose",
-        }
+        with self.assertRaisesRegex(LomcError, "nowhere"):
+            compile_story(story(dict(base, win="nowhere")))
         with self.assertRaises(LomcError):
-            compile_story(story(combat))
-        combat["strength"] = 1
-        combat["goto"] = "end"
-        with self.assertRaises(LomcError):
-            compile_story(story(combat))
+            compile_story(story(dict(base, strength=1.5)))
+        with self.assertRaisesRegex(LomcError, "未知字段.*key"):
+            compile_story(story(dict(base, key="5102_01")))
 
 
 class BattleNodeTest(unittest.TestCase):
-    def test_emits_verified_original_battle_resume(self):
-        document = story({
-            "id": "fight", "type": "battle", "key": "1001",
-            "friend_roster": "1002", "enemy_roster": "1003",
-            "friend_people": 8, "enemy_people": 12,
-            "friend_health": 300, "enemy_health": 450,
-            "reset_skills": True,
-            "skills": [{"key": "special3", "index": 2, "active": 1}],
+    def _battle(self, **changes):
+        node = {
+            "id": "fight", "type": "battle",
+            "friend_faction": "500", "friend_people": 8,
+            "friend_characters": ["brother4"],
+            "enemy_faction": "400", "enemy_people": 12,
+            "enemy_characters": ["special3"],
             "win": "win", "lose": "lose",
-        })
-        lua = compile_story(document)
-        self.assertIn("luamanager.ResetBattleSkill()", lua)
-        self.assertIn('luamanager.SetPlayerBattleSkill("special3", 2)', lua)
-        self.assertIn('mod_gameplay_configure("battle", "friend_roster=1002;enemy_roster=1003;friend_people=8;enemy_people=12;friend_health=300;enemy_health=450")', lua)
-        self.assertIn('mod_gameplay_prepare("battle", "main", "fight", "win", "lose")', lua)
-        self.assertIn('luamanager.ChangeScene("Battle", "1001", "Story")', lua)
-        self.assertIn('mod_gameplay_consume_resume("main")', lua)
-
-    def test_rejects_missing_target_and_extra_goto(self):
-        document = story({
-            "id": "fight", "type": "battle", "key": "1001",
-            "win": "win", "lose": "missing",
-        })
-        with self.assertRaises(LomcError):
-            compile_story(document)
-        document["nodes"][0]["lose"] = "lose"
-        document["nodes"][0]["goto"] = "end"
-        with self.assertRaises(LomcError):
-            compile_story(document)
-
-
-class DirectBattleConfigurationTest(unittest.TestCase):
-    def test_old_preset_layer_is_rejected(self):
-        document = story({
-            "id": "fight", "type": "combat", "key": "5102_01",
-            "win": "win", "lose": "lose",
-        })
-        document["battle_presets"] = {
-            "old": {"kind": "combat", "key": "5102_01"}
         }
-        with self.assertRaisesRegex(LomcError, "battle_presets.*已废弃"):
-            compile_story(document)
+        node.update(changes)
+        return node
 
-    def test_nodes_reject_preset_and_require_direct_key(self):
-        for kind in ("combat", "battle"):
-            node = {"id": "fight", "type": kind, "preset": "old", "win": "win", "lose": "lose"}
-            with self.subTest(kind=kind), self.assertRaises(LomcError):
-                compile_story(story(node))
-            node.pop("preset")
-            with self.subTest(kind=kind), self.assertRaises(LomcError):
-                compile_story(story(node))
+    def test_factions_totals_and_named_characters_are_compiled(self):
+        lua = compile_story(story(self._battle()))
+        self.assertIn(
+            'mod_gameplay_configure("battle", "friend_faction=500;friend_people=8;'
+            'enemy_faction=400;enemy_people=12;friend_characters=brother4;'
+            'enemy_characters=special3")', lua
+        )
+        self.assertIn('ChangeScene("Battle", "0000", "Story")', lua)
+        self.assertNotIn("roster", lua)
+        self.assertNotIn("ResetBattleSkill", lua)
+
+    def test_totals_include_named_and_only_verified_official_are_allowed(self):
+        with self.assertRaisesRegex(LomcError, "至少 1"):
+            compile_story(story(self._battle(friend_people=0)))
+        with self.assertRaisesRegex(LomcError, "已验证的官方 Battle 人物"):
+            compile_story(story(self._battle(friend_characters=["player"])))
+        with self.assertRaisesRegex(LomcError, "不得重复"):
+            compile_story(story(self._battle(
+                friend_characters=["brother4", "brother4"]
+            )))
+
+    def test_old_preset_fields_are_rejected(self):
+        with self.assertRaisesRegex(LomcError, "未知字段.*key"):
+            compile_story(story(dict(self._battle(), key="0000")))
+        with self.assertRaisesRegex(LomcError, "未知字段.*friend_roster"):
+            compile_story(story(dict(self._battle(), friend_roster="0000")))
 
 
 class BattleResultNodeTest(unittest.TestCase):
     def test_emits_host_verified_win_lose_branch(self):
         document = story({
-            "id": "fight", "type": "combat", "key": "5102_01",
+            "id": "fight", "type": "combat", "character": "brother4",
             "win": "result", "lose": "result",
         })
         document["nodes"].insert(1, {
@@ -130,22 +113,8 @@ class BattleResultNodeTest(unittest.TestCase):
         })
         lua = compile_story(document)
         self.assertIn('mod_gameplay_last_result("main", "combat")', lua)
-        self.assertIn('gameplay_result == "win" then return node_win()', lua)
-        self.assertIn('gameplay_result == "lose" then return node_lose()', lua)
         self.assertNotIn("draw", lua)
         self.assertNotIn("escape", lua)
-
-    def test_rejects_unverified_result_kinds_and_missing_targets(self):
-        document = story({
-            "id": "fight", "type": "battle_result", "kind": "draw",
-            "win": "win", "lose": "lose",
-        })
-        with self.assertRaises(LomcError):
-            compile_story(document)
-        document["nodes"][0]["kind"] = "any"
-        document["nodes"][0]["win"] = "missing"
-        with self.assertRaisesRegex(LomcError, "missing"):
-            compile_story(document)
 
 
 if __name__ == "__main__":

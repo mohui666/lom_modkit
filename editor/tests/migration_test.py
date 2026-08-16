@@ -30,24 +30,34 @@ def legacy_story() -> dict:
     }
 
 
+def migratable_story() -> dict:
+    return {
+        "story_schema": STORY_SCHEMA,
+        "id": "main", "start": "roll",
+        "nodes": [
+            {"id": "roll", "type": "dice", "check": "S0205_01_001",
+             "options": [{"goto_大成功": "end1", "goto_成功": "end1",
+                          "goto_失败": "end1"}]},
+            {"id": "end1", "type": "end"},
+        ],
+    }
+
+
 class MigrationPureTest(unittest.TestCase):
     def test_pure_migrations_preserve_unknown_fields_and_input(self):
-        source_story = legacy_story()
+        source_story = {**legacy_story(), "story_schema": STORY_SCHEMA}
         untouched = copy.deepcopy(source_story)
         story = migration.migrate_story(source_story)
-        self.assertTrue(story.changed)
+        self.assertFalse(story.changed)
         self.assertEqual(story.document["story_schema"], STORY_SCHEMA)
         self.assertEqual(story.document["unknown_top"], {"future": [1, 2, 3]})
         self.assertTrue(story.document["nodes"][0]["unknown_node"]["keep"])
         self.assertEqual(source_story, untouched)
 
-        manifest = migration.migrate_manifest(
-            {"format": 1, "id": "old", "entry": "main", "vendor": {"x": 1}}
-        )
-        self.assertEqual(manifest.document["package_format"], PACKAGE_FORMAT)
-        self.assertEqual(manifest.document["story_schema"], STORY_SCHEMA)
-        self.assertEqual(manifest.document["content_schema"], CONTENT_SCHEMA)
-        self.assertEqual(manifest.document["vendor"], {"x": 1})
+        with self.assertRaisesRegex(migration.MigrationError, "不兼容"):
+            migration.migrate_manifest(
+                {"format": 1, "id": "old", "entry": "main"}
+            )
 
         content = migration.migrate_content(
             {
@@ -62,7 +72,6 @@ class MigrationPureTest(unittest.TestCase):
 
     def test_unknown_null_bool_and_conflicting_versions_are_rejected(self):
         for document, migrator in (
-            ({**legacy_story(), "story_schema": 2}, migration.migrate_story),
             ({**legacy_story(), "story_schema": None}, migration.migrate_story),
             ({**legacy_story(), "story_schema": True}, migration.migrate_story),
             ({"format": 1, "package_format": 2}, migration.migrate_manifest),
@@ -74,6 +83,7 @@ class MigrationPureTest(unittest.TestCase):
 
     def test_legacy_dice_is_expanded_and_localized_paths_follow_result_bands(self):
         source = {
+            "story_schema": STORY_SCHEMA,
             "id": "main", "start": "roll", "nodes": [
                 {
                     "id": "roll", "type": "dice", "check": "S0205_01_001",
@@ -124,7 +134,7 @@ class MigrationFileTest(unittest.TestCase):
     def test_file_migration_creates_exact_backup_and_is_idempotent(self):
         with tempfile.TemporaryDirectory() as tmp:
             source = Path(tmp) / "main.json"
-            original = json.dumps(legacy_story(), ensure_ascii=False).encode("utf-8")
+            original = json.dumps(migratable_story(), ensure_ascii=False).encode("utf-8")
             source.write_bytes(original)
             result, backup = migration.migrate_json_file(source, "story")
             self.assertTrue(result.changed)
@@ -139,7 +149,7 @@ class MigrationFileTest(unittest.TestCase):
     def test_validation_or_atomic_replace_failure_preserves_source(self):
         with tempfile.TemporaryDirectory() as tmp:
             source = Path(tmp) / "main.json"
-            original = json.dumps(legacy_story()).encode("utf-8")
+            original = json.dumps(migratable_story()).encode("utf-8")
             source.write_bytes(original)
 
             def reject(_document):
@@ -156,7 +166,7 @@ class MigrationFileTest(unittest.TestCase):
                 with self.assertRaises(migration.MigrationError):
                     migration.migrate_json_file(source, "story")
             self.assertEqual(source.read_bytes(), original)
-            backups = list(source.parent.glob("main.json.pre-migration-v1.bak*"))
+            backups = list(source.parent.glob("main.json.pre-migration-v2.bak*"))
             self.assertEqual(len(backups), 1)
             self.assertEqual(backups[0].read_bytes(), original)
             self.assertEqual(list(source.parent.glob("*.migration.tmp")), [])
@@ -164,23 +174,27 @@ class MigrationFileTest(unittest.TestCase):
     def test_recovery_restores_original_and_keeps_replaced_current_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             source = Path(tmp) / "main.json"
-            source.write_text(json.dumps(legacy_story()), encoding="utf-8")
+            source.write_text(json.dumps(migratable_story()), encoding="utf-8")
             _result, backup = migration.migrate_json_file(source, "story")
             migrated_bytes = source.read_bytes()
             recovery = migration.restore_migration_backup(source, backup)
             restored = json.loads(source.read_text(encoding="utf-8"))
-            self.assertNotIn("story_schema", restored)
+            self.assertIn("check", restored["nodes"][0])
             self.assertEqual(recovery.read_bytes(), migrated_bytes)
 
     def test_models_load_migrates_legacy_story_on_disk(self):
         with tempfile.TemporaryDirectory() as tmp:
             source = Path(tmp) / "main.json"
-            original = json.dumps(legacy_story()).encode("utf-8")
+            original = json.dumps(migratable_story()).encode("utf-8")
             source.write_bytes(original)
             loaded = models.load_story(source)
             self.assertEqual(loaded["story_schema"], STORY_SCHEMA)
-            self.assertEqual(json.loads(source.read_text())["story_schema"], STORY_SCHEMA)
-            backup = source.with_name(source.name + ".pre-migration-v1.bak")
+            self.assertNotIn("check", loaded["nodes"][0])
+            self.assertEqual(
+                json.loads(source.read_text(encoding="utf-8"))["story_schema"],
+                STORY_SCHEMA,
+            )
+            backup = source.with_name(source.name + ".pre-migration-v2.bak")
             self.assertEqual(backup.read_bytes(), original)
 
 

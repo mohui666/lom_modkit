@@ -26,6 +26,9 @@ ART_FACING_DEFAULT = "left"
 CHARACTER_SCALE_DEFAULT = 100
 CHARACTER_SCALE_MIN = 50
 CHARACTER_SCALE_MAX = 130
+COMBAT_ANIMATION_FIELDS = (
+    "combat_idle", "combat_attack", "combat_hurt", "combat_defence"
+)
 AUDIO_EXTENSIONS = (".ogg", ".wav")
 IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg")
 MAX_AUDIO_BYTES = 20 * 1024 * 1024
@@ -43,6 +46,7 @@ CHARACTER_NODE_TYPES = (
     "dim",
     "rotate",
     "intro",
+    "combat",
 )
 # affinity 会写入官方 CharacterData / 好感数值，不是纯舞台演出。自定义角色
 # 没有官方好感数据槽，因此必须继续显式拒绝，不能把 user: id 传给原版 API。
@@ -403,6 +407,7 @@ def normalize_content_metadata(data, source="content.json"):
     character_title = None
     character_scale = None
     art_facing = None
+    combat_animations = None
     if ctype == "character":
         intro = normalize_character_intro(data.get("intro"), source)
         raw_title = data.get("title")
@@ -414,6 +419,14 @@ def normalize_content_metadata(data, source="content.json"):
             raise LomcError("%s：title（对话称号）必须是字符串" % source)
         character_scale = normalize_character_scale(data.get("scale"), source)
         art_facing = normalize_art_facing(data.get("art_facing"), source)
+        idle = _optional_character_image(
+            data.get("combat_idle"), "%s 的 combat_idle" % source
+        ) or portraits["normal"]
+        combat_animations = {"combat_idle": idle}
+        for field in COMBAT_ANIMATION_FIELDS[1:]:
+            combat_animations[field] = _optional_character_image(
+                data.get(field), "%s 的 %s" % (source, field)
+            ) or idle
     return {
         "schema": CONTENT_SCHEMA,
         "content_schema": CONTENT_SCHEMA,
@@ -428,7 +441,14 @@ def normalize_content_metadata(data, source="content.json"):
         "title": character_title,
         "scale": character_scale,
         "art_facing": art_facing,
+        **(combat_animations or {}),
     }
+
+
+def _optional_character_image(raw, label):
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        return None
+    return _safe_same_dir_filename(raw, label, IMAGE_EXTENSIONS)
 
 
 def _normalize_portraits(raw, main_file, source):
@@ -533,6 +553,10 @@ def listed_content_files(meta):
     for fname in (meta.get("portraits") or {}).values():
         if fname and fname not in names:
             names.append(fname)
+    for field in COMBAT_ANIMATION_FIELDS:
+        fname = meta.get(field)
+        if fname and fname not in names:
+            names.append(fname)
     intro_image = (meta.get("intro") or {}).get("image")
     if intro_image and intro_image not in names:
         names.append(intro_image)
@@ -555,6 +579,15 @@ def content_metadata_payload(normalized):
             payload["character"] = normalized["character"]
     if normalized["type"] == "character" and normalized.get("portraits"):
         payload["portraits"] = dict(normalized["portraits"])
+    if normalized["type"] == "character":
+        idle = normalized.get("combat_idle")
+        normal = (normalized.get("portraits") or {}).get("normal")
+        if idle and idle != normal:
+            payload["combat_idle"] = idle
+        for field in COMBAT_ANIMATION_FIELDS[1:]:
+            value = normalized.get(field)
+            if value and value != idle:
+                payload[field] = value
     if normalized["type"] == "character" and normalized.get("title"):
         payload["title"] = normalized["title"]
     if (

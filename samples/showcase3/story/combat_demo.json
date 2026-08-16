@@ -1,5 +1,5 @@
 {
-  "story_schema": 1,
+  "story_schema": 2,
   "id": "combat_demo",
   "title": "3.0 第三章：原版 Combat 编排",
   "mood": false,
@@ -35,7 +35,7 @@
     {
       "id": "combat1",
       "type": "combat",
-      "key": "5102_01",
+      "character": "special3",
       "talents": [],
       "win": "battle_result1",
       "lose": "battle_result1",

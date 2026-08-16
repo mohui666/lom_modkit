@@ -19,6 +19,7 @@ namespace MortalModHost
         public string PackagePath;
         public byte[] Bytes;
         public Dictionary<string, string> Portraits;
+        public Dictionary<string, string> CombatFrames;
         public Dictionary<string, byte[]> Files;
     }
 }

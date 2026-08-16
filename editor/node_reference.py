@@ -68,7 +68,6 @@ RUNTIME_API: dict[str, str] = {
     "game_flag": "LuaManager FlagData",
     "enemy": "EnemyManager setup",
     "battle_skill": "game battle-skill slots",
-    "battle_setup": "MortalModHost battle setup",
     "combat": "SceneController → Combat + verified Host result",
     "battle": "SceneController → Battle + verified Host result",
     "battle_result": "MortalModHost.mod_last_battle_result",
@@ -134,16 +133,13 @@ KIND_DOCS: dict[str, str] = {
     "user_image": "reference.kind.user_id",
     "intro_image": "reference.kind.user_id",
     "ending_image": "reference.kind.game_or_user_id",
-    "combat_id": "reference.kind.game_id",
-    "battle_id": "reference.kind.game_id",
-    "battle_id_optional": "reference.kind.game_id",
     "battle_faction": "reference.kind.game_id",
     "enemy_team": "reference.kind.game_id",
     "enemy_team_optional": "reference.kind.game_id",
     "battle_skill": "reference.kind.game_id",
     "goto_scene_key": "reference.kind.game_id",
     "death_id": "reference.kind.mod_id",
-    "battle_setup_skills": "reference.kind.structured",
+    "official_characters": "reference.kind.structured",
     "combat_talents": "reference.kind.structured",
     "reward_entries": "reference.kind.nonempty_table",
     "reward_entries_optional": "reference.kind.structured",
@@ -188,9 +184,9 @@ _COMBAT_STAT_FIELDS = {
 _COMBAT_RATE_FIELDS = {
     "talk_rate", "attack_rate", "weapon_rate", "ultimate_rate", "block_rate",
 }
-_BATTLE_ROSTER_FIELDS = {"friend_roster", "enemy_roster", "neutral_roster"}
-_BATTLE_PEOPLE_FIELDS = {"friend_people", "enemy_people", "neutral_people"}
-_BATTLE_HEALTH_FIELDS = {"friend_health", "enemy_health", "neutral_health"}
+_BATTLE_PEOPLE_FIELDS = {"friend_people", "enemy_people"}
+_BATTLE_FACTION_FIELDS = {"friend_faction", "enemy_faction"}
+_BATTLE_CHARACTER_FIELDS = {"friend_characters", "enemy_characters"}
 
 
 def _field_label(node_type: str, key: str, fallback: str) -> str:
@@ -209,8 +205,8 @@ def _field_effect(node_type: str, key: str, field_label: str, optional: bool) ->
     if key in _FLOW_TARGET_FIELDS:
         return t("reference.effect.flow_target", field=field_label)
     if node_type == "combat":
-        if key == "key":
-            return t("reference.effect.combat_key")
+        if key == "character":
+            return t("reference.effect.combat_character")
         if key in _COMBAT_VITAL_FIELDS:
             return t("reference.effect.combat_vital", field=field_label)
         if key in _COMBAT_STAT_FIELDS:
@@ -222,18 +218,12 @@ def _field_effect(node_type: str, key: str, field_label: str, optional: bool) ->
         if key in _COMBAT_RATE_FIELDS:
             return t("reference.effect.combat_rate", field=field_label)
     if node_type == "battle":
-        if key == "key":
-            return t("reference.effect.battle_key")
-        if key in _BATTLE_ROSTER_FIELDS:
-            return t("reference.effect.battle_roster", field=field_label)
+        if key in _BATTLE_FACTION_FIELDS:
+            return t("reference.effect.battle_faction", field=field_label)
         if key in _BATTLE_PEOPLE_FIELDS:
             return t("reference.effect.battle_people", field=field_label)
-        if key in _BATTLE_HEALTH_FIELDS:
-            return t("reference.effect.battle_health", field=field_label)
-        if key == "reset_skills":
-            return t("reference.effect.battle_reset_skills")
-        if key == "skills":
-            return t("reference.effect.battle_skills")
+        if key in _BATTLE_CHARACTER_FIELDS:
+            return t("reference.effect.battle_characters", field=field_label)
     if node_type == "dice":
         special = {
             "max": "reference.effect.dice_max",

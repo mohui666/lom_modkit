@@ -747,38 +747,6 @@ def _emit_battle_skill(node, ctx):
     ]
 
 
-def _emit_battle_setup(node, ctx):
-    lines = []
-    enemy = node.get("enemy")
-    if enemy:
-        lines.append("\tstatmodifymanager.ModifyEnemyId(%s)" % lua_str(enemy))
-        for field, api in (
-            ("team", "ModifyEnemyTeam"),
-            ("level", "ModifyEnemyLevel"),
-            ("people", "ModifyEnemyPeople"),
-        ):
-            if node.get(field, 0):
-                lines.append(
-                    "\tstatmodifymanager.%s(%s, %s, %s)"
-                    % (
-                        api, lua_str(enemy), lua_num(node[field]),
-                        lua_num(node.get("display", 1)),
-                    )
-                )
-    if node.get("reset_skills", False):
-        lines.append("\tluamanager.ResetBattleSkill()")
-    for skill in node.get("skills", []):
-        lines.append(
-            "\tluamanager.SetPlayerBattleSkill(%s, %s)"
-            % (lua_str(skill["key"]), lua_num(skill.get("index", 2)))
-        )
-        lines.append(
-            "\tluamanager.SetBattleSkillActive(%s, %s)"
-            % (lua_str(skill["key"]), lua_num(skill.get("active", 1)))
-        )
-    return lines
-
-
 def _encode_gameplay_config(config, scalar_fields, list_fields=()):
     """编码已由 validate 限定的 Gameplay 配置；id 不允许出现分隔字符。"""
     parts = []
@@ -794,7 +762,10 @@ def _encode_gameplay_config(config, scalar_fields, list_fields=()):
             continue
         rows = []
         for item in config.get(field, []):
-            rows.append(":".join(str(item.get(column, "")) for column in columns))
+            if isinstance(item, str) and tuple(columns) == ("id",):
+                rows.append(item)
+            else:
+                rows.append(":".join(str(item.get(column, "")) for column in columns))
         parts.append("%s=%s" % (field, ",".join(rows)))
     return ";".join(parts)
 
@@ -805,6 +776,7 @@ def _emit_combat(node, ctx):
     encoded = _encode_gameplay_config(
         config,
         (
+            "character",
             "max_health", "health", "max_stamina", "stamina", "strength",
             "internal", "dexterity", "talking", "defence", "sword", "fist",
             "martial_weapon", "mental", "ultimate_one", "ultimate_two",
@@ -825,7 +797,9 @@ def _emit_combat(node, ctx):
             % (lua_str("combat"), lua_str(encoded)),
             "\tmod_stop_voice()",
             "\tmod_hide_all()",
-            '\tluamanager.ChangeScene("Combat", %s, "Story")' % lua_str(config["key"]),
+            # CL_0001_01 只作为 Host 注入自定义动画/数值前的稳定原版壳；
+            # 不暴露给作者，也不从它继承作者未填写的战斗参数。
+            '\tluamanager.ChangeScene("Combat", "0001_01", "Story")',
         ]
     )
     return lines
@@ -836,23 +810,14 @@ def _emit_battle(node, ctx):
     encoded = _encode_gameplay_config(
         config,
         (
-            "friend_roster", "enemy_roster", "neutral_roster",
-            "friend_people", "enemy_people", "neutral_people",
-            "friend_health", "enemy_health", "neutral_health",
+            "friend_faction", "friend_people", "enemy_faction", "enemy_people",
+        ),
+        (
+            ("friend_characters", ("id",)),
+            ("enemy_characters", ("id",)),
         ),
     )
     lines = []
-    if config.get("reset_skills", False):
-        lines.append("\tluamanager.ResetBattleSkill()")
-    for skill in config.get("skills", []):
-        lines.append(
-            "\tluamanager.SetPlayerBattleSkill(%s, %s)"
-            % (lua_str(skill["key"]), lua_num(skill.get("index", 2)))
-        )
-        lines.append(
-            "\tluamanager.SetBattleSkillActive(%s, %s)"
-            % (lua_str(skill["key"]), lua_num(skill.get("active", 1)))
-        )
     lines.extend([
         "\tmod_gameplay_prepare(%s, %s, %s, %s, %s)"
         % (
@@ -863,7 +828,8 @@ def _emit_battle(node, ctx):
         % (lua_str("battle"), lua_str(encoded)),
         "\tmod_stop_voice()",
         "\tmod_hide_all()",
-        '\tluamanager.ChangeScene("Battle", %s, "Story")' % lua_str(config["key"]),
+        # BL_0000 是不对作者暴露的稳定场景壳；三方编成完全来自上方配置。
+        '\tluamanager.ChangeScene("Battle", "0000", "Story")',
     ])
     return lines
 
@@ -1527,7 +1493,6 @@ _EMITTERS = {
     "game_flag": _emit_game_flag,
     "enemy": _emit_enemy,
     "battle_skill": _emit_battle_skill,
-    "battle_setup": _emit_battle_setup,
     "combat": _emit_combat,
     "battle": _emit_battle,
     "battle_result": _emit_battle_result,

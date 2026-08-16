@@ -5,11 +5,11 @@
 Lua를 작성할 필요가 없습니다. 그래픽 에디터로 인물 대사, 장면 연출, 분기 시나리오, 음악·효과음을 편성하고,
 한 번의 클릭으로 `.lommod`를보내 게임에서 바로 실행할 수 있습니다.
 
-[![Release v1.0.0](https://img.shields.io/badge/release-v1.0.0-blue)](https://github.com/mohui666/lom_modkit/releases/latest)
+[![Release v1.0.1](https://img.shields.io/badge/release-v1.0.1-blue)](https://github.com/mohui666/lom_modkit/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)](#호환성)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-**[⬇ Windows 판 다운로드](https://github.com/mohui666/lom_modkit/releases/download/v1.0.0/lom_modkit-v1.0.0_windows_x64.zip)** ·
+**[⬇ Windows 판 다운로드](https://github.com/mohui666/lom_modkit/releases/download/v1.0.1/lom_modkit-v1.0.1_windows_x64.zip)** ·
 [빠른 시작](#빠른-시작) ·
 [문서](docs/ko/README.md)
 
@@ -41,7 +41,7 @@ lom_modkit은 『활협전』의 **기존 인물, 장면, 음악, 특수 효과�
 
 ### 1. 다운로드
 
-[lom_modkit-v1.0.0_windows_x64.zip](https://github.com/mohui666/lom_modkit/releases/download/v1.0.0/lom_modkit-v1.0.0_windows_x64.zip)을 다운로드하고 압축을 풉니다. Python을 설치할 필요가 없습니다.
+[lom_modkit-v1.0.1_windows_x64.zip](https://github.com/mohui666/lom_modkit/releases/download/v1.0.1/lom_modkit-v1.0.1_windows_x64.zip)을 다운로드하고 압축을 풉니다. Python을 설치할 필요가 없습니다.
 
 ### 2. 실행
 
@@ -124,6 +124,9 @@ lom_modkit은 『활협전』의 **기존 인물, 장면, 음악, 특수 효과�
 
 ## 현재 버전
 
+**v1.0.1**: `.lommod` v3에서 안정적인 `campaign_id`와 캠페인 저장 분리를 필수화 · MOD 캠페인은 선택만 하고 잘못 시작하지 않음 ·
+결투 인물은 애니메이션에만 영향을 주고 idle 폴백 지원 · 전투 총인원/공식 인물 수와 에디터 미리보기 잘림 수정.
+
 **v1.0.0**: Editor/Runtime 버전 통일 · `.lommod` v2 엄격 검증과 Story/Lua 일관성 ·
 Lua 환경 격리와 전체 수명 주기 정리 · 일회성 단축키 마이그레이션 · Runtime 자동화 테스트와 CI.
 
@@ -144,7 +147,7 @@ Lua 환경 격리와 전체 수명 주기 정리 · 일회성 단축키 마이�
 | [문서 색인](docs/ko/README.md) | 언어 네비게이션과 독자 가이드 |
 | [사용자 콘텐츠 보관함](docs/ko/user_content.md) | 사용자 지정 오디오 / 대사 음성 사용법 |
 | [현재 기능과 경계](docs/ko/current_capabilities.md) | 구현됨, 저수준만 제공, 미구현 기능의 경계 |
-| [Mod 패키지 형식 규약](docs/ko/mod_format.md) | 패키지 구조, 63종 노드, 컴파일 규약, 런타임 동작 |
+| [Mod 패키지 형식 규약](docs/ko/mod_format.md) | 패키지 구조, 62종 노드, 컴파일 규약, 런타임 동작 |
 | [AI / CLI 매뉴얼](docs/ko/ai_cli.md) | story_api 명령줄과 Python API |
 | [다국어](docs/ko/i18n.md) | 인터페이스와 문서의 i18n 아키텍처 |
 
@@ -216,7 +219,7 @@ cd runtime/MortalModHost && dotnet build -c Release
 cd runtime/MortalModHost && dotnet run --project test/SmokeTest -c Release
 ```
 
-Windows 배포판 패키징: `cd editor && .venv/Scripts/python build_exe.py`
+Windows 배포판은 Runtime 정식 빌드 후 `editor/.venv/Scripts/python editor/build_exe.py`, `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1` 순서로 만듭니다. 스크립트는 버전과 필수 파일을 확인하고 캐시, 샘플 패키지, 사용자 설정 및 심볼릭 링크가 섞이면 거부합니다. 같은 이름의 결과물은 기본적으로 덮어쓰지 않으며, 확인된 교체에만 `-Force`를 사용합니다.
 (산출물은 `editor/dist/lom_modkit/`에 있으며, `lom_editor.exe`와 `story_api_cli.exe`를 포함합니다).
 
 게임 내 디버깅: 아무 장면에서나 **F7**을 눌러 「원작 시나리오 비활성화」 세션 단위 스위치를 전환합니다(영구 저장 안 됨).

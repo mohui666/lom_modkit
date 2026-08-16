@@ -9,7 +9,7 @@ using System.Text.RegularExpressions;
 namespace MortalModHost
 {
     /// <summary>
-    /// 与 mod_&lt;id&gt; 隔离槽一一绑定的纯 C# sidecar 存储。
+    /// 与 mod_campaign_&lt;campaign_id&gt; 隔离槽一一绑定的纯 C# sidecar 存储。
     /// 不引用 Unity / BepInEx / Mortal.Core，也不修改游戏 GameSave schema。
     /// </summary>
     internal sealed class PersistentStateStore
@@ -27,6 +27,7 @@ namespace MortalModHost
         private readonly Dictionary<string, int> _values =
             new Dictionary<string, int>(StringComparer.Ordinal);
         private string _modId = "";
+        private string _campaignId = "";
         private string _slot = "";
         private string _fingerprint = "";
         private bool _loaded;
@@ -69,6 +70,7 @@ namespace MortalModHost
         {
             ValidateIdentity(package, slot);
             _modId = package.Id;
+            _campaignId = package.CampaignId;
             _slot = slot;
             _fingerprint = package.PackageFingerprint;
             _values.Clear();
@@ -80,7 +82,7 @@ namespace MortalModHost
         {
             if (!_loaded || !_dirty) return;
             Directory.CreateDirectory(_root);
-            string target = StatePath(_modId);
+            string target = StatePath(_campaignId);
             string temporary = target + ".tmp." + Guid.NewGuid().ToString("N");
             try
             {
@@ -108,6 +110,7 @@ namespace MortalModHost
         internal void ResetMemory()
         {
             _modId = "";
+            _campaignId = "";
             _slot = "";
             _fingerprint = "";
             _values.Clear();
@@ -131,6 +134,7 @@ namespace MortalModHost
             }
             ResetMemory();
             _modId = package.Id;
+            _campaignId = package.CampaignId;
             _slot = slot;
             _fingerprint = package.PackageFingerprint;
             Load();
@@ -139,7 +143,7 @@ namespace MortalModHost
 
         private void Load()
         {
-            string path = StatePath(_modId);
+            string path = StatePath(_campaignId);
             if (!File.Exists(path)) return;
             var info = new FileInfo(path);
             if (info.Length > MaxBytes)
@@ -147,7 +151,9 @@ namespace MortalModHost
             object parsed = MiniJson.Parse(File.ReadAllText(path, new UTF8Encoding(false, true)));
             var root = parsed as Dictionary<string, object>;
             if (root == null || ReadInt(root, "format") != Format
-                || ReadString(root, "mod_id") != _modId || ReadString(root, "slot") != _slot)
+                || ReadString(root, "mod_id") != _modId
+                || ReadString(root, "campaign_id") != _campaignId
+                || ReadString(root, "slot") != _slot)
                 throw new InvalidDataException("持久变量 sidecar 身份或格式不匹配");
             object rawValues;
             var values = root.TryGetValue("values", out rawValues)
@@ -168,6 +174,7 @@ namespace MortalModHost
             var sb = new StringBuilder();
             sb.Append("{\n  \"format\": 1,\n  \"mod_id\": ").Append(Quote(_modId))
               .Append(",\n  \"slot\": ").Append(Quote(_slot))
+              .Append(",\n  \"campaign_id\": ").Append(Quote(_campaignId))
               .Append(",\n  \"package_fingerprint\": ").Append(Quote(_fingerprint))
               .Append(",\n  \"values\": {");
             bool first = true;
@@ -183,9 +190,10 @@ namespace MortalModHost
             return sb.ToString();
         }
 
-        private string StatePath(string modId)
+        private string StatePath(string campaignId)
         {
-            string path = Path.GetFullPath(Path.Combine(_root, "mod_" + modId + ".state.json"));
+            string path = Path.GetFullPath(Path.Combine(
+                _root, "mod_campaign_" + campaignId + ".state.json"));
             string prefix = _root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
                 + Path.DirectorySeparatorChar;
             if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
@@ -197,10 +205,11 @@ namespace MortalModHost
         {
             if (package == null || string.IsNullOrEmpty(package.Id)
                 || !ModId.IsMatch(package.Id)
+                || !CampaignIdentity.IsValid(package.CampaignId)
                 || string.IsNullOrEmpty(package.PackageFingerprint)
                 || !Sha256.IsMatch(package.PackageFingerprint))
                 throw new InvalidOperationException("持久变量缺少可信的包 id / 完整 SHA-256 身份");
-            string expected = "mod_" + package.Id;
+            string expected = CampaignIdentity.SaveSlot(package.CampaignId);
             if (!string.Equals(slot, expected, StringComparison.Ordinal))
                 throw new InvalidOperationException(
                     "持久变量只允许写入当前 MOD 的隔离槽 " + expected);

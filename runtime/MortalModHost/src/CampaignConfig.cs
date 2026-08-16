@@ -7,6 +7,9 @@ namespace MortalModHost
     /// </summary>
     internal sealed class CampaignConfig
     {
+        /// <summary>跨包版本稳定的战役身份；也是隔离存档槽的唯一来源。</summary>
+        public string Id;
+
         /// <summary>true 时出现在 mod 菜单"开始新战役"区（隔离存档槽开新游戏）。</summary>
         public bool NewGame;
 

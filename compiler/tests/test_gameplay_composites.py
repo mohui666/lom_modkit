@@ -17,34 +17,9 @@ def story(node):
 
 
 class BattleSetupTest(unittest.TestCase):
-    def test_emits_only_verified_enemy_and_skill_calls(self):
-        lua = compile_story(story({
-            "id": "setup", "type": "battle_setup", "enemy": "Bandit",
-            "team": 2, "level": 10, "people": 3, "display": 1,
-            "reset_skills": True,
-            "skills": [
-                {"key": "Skill_A", "index": 2, "active": 1},
-                {"key": "Skill_B", "index": 3, "active": 0},
-            ],
-        }))
-        self.assertIn('ModifyEnemyId("Bandit")', lua)
-        self.assertIn('ModifyEnemyTeam("Bandit", 2, 1)', lua)
-        self.assertIn('ModifyEnemyLevel("Bandit", 10, 1)', lua)
-        self.assertIn('ModifyEnemyPeople("Bandit", 3, 1)', lua)
-        self.assertIn("luamanager.ResetBattleSkill()", lua)
-        self.assertIn('SetPlayerBattleSkill("Skill_A", 2)', lua)
-        self.assertIn('SetBattleSkillActive("Skill_B", 0)', lua)
-
-    def test_rejects_empty_and_malformed_setup(self):
-        bad_nodes = [
-            {"id": "setup", "type": "battle_setup"},
-            {"id": "setup", "type": "battle_setup", "level": 2},
-            {"id": "setup", "type": "battle_setup", "skills": [{}]},
-            {"id": "setup", "type": "battle_setup", "skills": [{"key": "A", "active": 2}]},
-        ]
-        for node in bad_nodes:
-            with self.subTest(node=node), self.assertRaises(LomcError):
-                compile_story(story(node))
+    def test_removed_battle_setup_node_is_rejected(self):
+        with self.assertRaisesRegex(LomcError, "未知节点类型"):
+            compile_story(story({"id": "setup", "type": "battle_setup"}))
 
 
 class RewardTest(unittest.TestCase):

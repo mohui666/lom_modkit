@@ -1,5 +1,5 @@
 {
-  "story_schema": 1,
+  "story_schema": 2,
   "id": "finale",
   "title": "3.0 终章：死亡画面或安全返回",
   "mood": false,
@@ -27,7 +27,7 @@
     {
       "id": "death1",
       "type": "death",
-      "title": "六十三节点·测试谢幕",
+      "title": "六十二节点·测试谢幕",
       "text": "全节点样例 3.0：主动选择的死亡画面测试。",
       "death_id": "930001",
       "next": "Title"

@@ -6,10 +6,12 @@ import unittest
 import zipfile
 
 from lomc import LomcError, apply_story_locale, compile_story, pack_mod, validate_story
+from lomc.schema_versions import CONTENT_SCHEMA, PACKAGE_FORMAT, STORY_SCHEMA
 
 
 def story(localized=True):
     value = {
+        "story_schema": STORY_SCHEMA,
         "id": "main", "title": "中文章", "start": "say1", "nodes": [
             {"id": "say1", "type": "say", "character": "player", "text": "你好"},
             {"id": "choice1", "type": "choice", "options": [
@@ -68,7 +70,13 @@ class StoryLocalizationTest(unittest.TestCase):
             validate_story(bad)
 
     def _make_mod(self, folder, localized=True):
-        manifest = {"format": 1, "id": "locdemo", "name": "Loc", "version": "1", "author": "A", "description": "D", "entry": "main"}
+        manifest = {
+            "format": PACKAGE_FORMAT, "package_format": PACKAGE_FORMAT,
+            "story_schema": STORY_SCHEMA, "content_schema": CONTENT_SCHEMA,
+            "id": "locdemo", "campaign_id": "locdemo", "name": "Loc",
+            "version": "1", "author": "A", "description": "D", "entry": "main",
+            "campaign": {"new_game": True},
+        }
         os.makedirs(os.path.join(folder, "story"))
         with open(os.path.join(folder, "manifest.json"), "w", encoding="utf-8") as handle: json.dump(manifest, handle, ensure_ascii=False)
         with open(os.path.join(folder, "story", "main.json"), "w", encoding="utf-8") as handle: json.dump(story(localized), handle, ensure_ascii=False)
@@ -111,7 +119,14 @@ class StoryLocalizationTest(unittest.TestCase):
         self.assertEqual(apply_story_locale(value, "zh_TW")["nodes"][2]["text"], "提示繁")
         with tempfile.TemporaryDirectory() as root:
             mod_dir = os.path.join(root, "mod"); os.makedirs(mod_dir)
-            manifest = {"format": 1, "id": "legacy_locale", "name": "Loc", "version": "1", "author": "A", "description": "D", "entry": "main"}
+            manifest = {
+                "format": PACKAGE_FORMAT, "package_format": PACKAGE_FORMAT,
+                "story_schema": STORY_SCHEMA, "content_schema": CONTENT_SCHEMA,
+                "id": "legacy_locale", "campaign_id": "legacy_locale",
+                "name": "Loc", "version": "1", "author": "A",
+                "description": "D", "entry": "main",
+                "campaign": {"new_game": True},
+            }
             os.makedirs(os.path.join(mod_dir, "story"))
             with open(os.path.join(mod_dir, "manifest.json"), "w", encoding="utf-8") as handle:
                 json.dump(manifest, handle, ensure_ascii=False)

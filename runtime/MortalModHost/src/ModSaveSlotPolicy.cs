@@ -8,12 +8,17 @@ namespace MortalModHost
         internal static bool IsModSlot(string slot)
         {
             return !string.IsNullOrEmpty(slot)
-                && slot.StartsWith("mod_", StringComparison.Ordinal);
+                && slot.StartsWith("mod_campaign_", StringComparison.Ordinal);
         }
 
         internal static bool IsOfficialAutoSlot(string slot)
         {
             return slot == "auto" || slot == "auto_free" || slot == "auto_battle";
+        }
+
+        internal static string CampaignSlot(string campaignId)
+        {
+            return CampaignIdentity.SaveSlot(campaignId);
         }
 
         internal static string IsolatedAutoSlot(string modSlot, string officialAutoSlot)

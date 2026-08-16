@@ -14,7 +14,7 @@ manifest.json          # 必填，包元信息
 story/<id>.json        # 必填≥1，剧情源文件（编辑器可编辑的源格式）
 lua/<id>.lua           # 必填≥1，编译产物（运行时只读这里）；每个 story/<id>.json 对应一个
 texts.json             # 必填，已读文本表：{MOD_<modid>_<scriptid>_<nodeid>: 文本}（say 节点文本）
-story-lua.sha256       # package_format=2 필수, Story/Lua 쌍 SHA-256
+story-lua.sha256       # package_format=3 필수, Story/Lua 쌍 SHA-256
 package-content.sha256 # 필수, 압축과 무관한 논리 콘텐츠 SHA-256
 assets/                # 可选，自定义资源
                        #   图片：结局插图 / 人物介绍图 PNG/JPG
@@ -23,7 +23,7 @@ assets/                # 可选，自定义资源
 
 - `<id>` 규칙: `[a-zA-Z0-9_\-]+`, 패키지 내에서 고유, 즉 "스토리 스크립트 id"입니다.
 -보내기(패키징) 시 반드시 다시 컴파일합니다: story/*.json → lua/*.lua, 둘의 이름이 같습니다.
-- `story-lua.sha256`은 Story 원본 바이트와 해당 기본/로케일 Lua의 SHA-256을 연결합니다. Runtime은 v2에서 반드시 검증하며, v1 기존 패키지는 Editor가 즉석에서 다시 컴파일해 비교합니다.
+- `story-lua.sha256`은 Story 원본 바이트와 해당 기본/로케일 Lua의 SHA-256을 연결합니다. Runtime은 v3에서 반드시 검증합니다. 안정적인 캠페인 ID가 없는 v1/v2는 1.0.1에서 거부되며 `campaign_id`를 설정해 다시 내보내야 합니다.
 - 런타임 플러그인은 **manifest.json, lua/ 디렉터리와 assets/만 읽습니다**; story/*.json은 에디터가 다시 읽어 편집하는 용도입니다. 컴파일러는 스토리가 명시적으로 참조하는 PNG/JPG(장당 ≤8MB)와 명시적으로 참조하는 `user:` 오디오만 패키지에 넣습니다.보낸 `.lommod`는 자체 완결적이며, 플레이어 컴퓨터에 에디터 저장소가 필요하지 않습니다.
 - texts.json은 패키징 시 자동 생성됩니다: 각 story의 모든 **say** 노드 텍스트를 수집하며, key는 lua의 `GetStoryText` key와 일대일로 대응합니다; 런타임에 LeanLocalization에 등록됩니다(§4/§6 참조). **death 텍스트는 texts.json에 들어가지 않습니다**: codegen이 `mod_set_death_text(<제목>, <텍스트>)` 두 인자 lua_str 리터럴을 방출합니다(§3.1/§6 참조).
 - 항목/JSON/Lua 순서와 ZIP 시간/권한을 고정하여 동일 Python/zlib 도구 체인에서는 같은 입력을 바이트 단위로 재현합니다. `package-content.sha256`은 압축 결과와 무관한 논리 콘텐츠 해시입니다. 서로 다른 도구 체인 사이의 완전한 reproducible build는 보장하지 않으며, 이 해시는 서명이나 공식 인증이 아닙니다.
@@ -33,16 +33,17 @@ assets/                # 可选，自定义资源
 
 ```json
 {
-  "format": 2,
-  "package_format": 2,
-  "story_schema": 1,
+  "format": 3,
+  "package_format": 3,
+  "story_schema": 2,
   "content_schema": 1,
   "min_host_version": "1.0.0",
-  "tested_host_version": "1.0.0",
+  "tested_host_version": "1.0.1",
   "tested_game_version": "1.2.3",
   "id": "demo_mod",
+  "campaign_id": "demo_campaign",
   "name": "示例 Mod",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "somebody",
   "description": "一句话简介",
   "entry": "main",
@@ -56,7 +57,7 @@ assets/                # 可选，自定义资源
 }
 ```
 
-`package_format`은 현재 `2`, `story_schema` / `content_schema`는 `1`입니다. v2는 Story/Lua 무결성 레코드를 필수로 요구합니다. `format: 1` 기존 패키지는 입력 호환만 지원하며 알 수 없거나 충돌하는 선언은 거부됩니다.
+`package_format`은 `3`, `story_schema=2`, `content_schema=1`입니다. v3는 두 무결성 레코드와 `campaign_id`, `campaign.new_game=true`를 필수로 요구하며 v1/v2는 거부합니다. `campaign_id`는 `mod_campaign_<campaign_id>`를 만드는 안정적인 저장 ID이며 패키지명이나 `id`에서 추론하지 않습니다.
 
 구형 v1 Story/사용자 콘텐츠는 원본 바이트를 `*.pre-migration-v1.bak`에 먼저 보관한 뒤 같은 디렉터리에서 원자적으로 마이그레이션합니다. 검증, 백업 또는 교체에 실패하면 원본을 덮어쓰지 않으며 알 수 없는 필드는 유지합니다. `migration.restore_migration_backup`으로 명시적으로 복구할 수 있습니다. 구형 `.lommod` 가져오기는 메모리 사본만 변환하고 원본 패키지는 수정하지 않습니다.
 
@@ -92,7 +93,7 @@ assets/                # 可选，自定义资源
 
 ```json
 {
-  "story_schema": 1,
+  "story_schema": 2,
   "id": "main",
   "title": "显示给玩家的标题",
   "mood": false,
@@ -107,7 +108,7 @@ assets/                # 可选，自定义资源
 - `choice` / `branch` / `dice`의 분기는 반드시 `goto`로 대상 노드 id를 가리켜야 합니다.
 - 여러 선행 노드가 같은 노드로 합류(합류점)하는 것은 합법입니다.
 
-### 3.1 노드 타입(전체 63종)
+### 3.1 노드 타입(전체 62종)
 
 이 표가 현재 합법 노드 전부입니다. `combat` / `battle`은 원작 템플릿을 사용하는 고수준 편성입니다. 전투 기능은 디컴파일로 확인한 원작 API만 호출하고 `mod_quest`는 원작 Mission ID를 건드리지 않는 Host 상태 머신을 사용합니다.
 
@@ -155,7 +156,6 @@ assets/                # 可选，自定义资源
 | `game_flag` | `flag`, `value`; 선택 `op`("set"기본/"add") | 공식 퀘스트 flag: `SetFlag(id, 상태)` / `AddFlag(id, ±증분)`. **id는 반드시 게임에 이미 있는 FlagData여야 합니다**(14_속성과Flag 표), 그렇지 않으면 게임이 조용히 무시 |
 | `enemy` | `op`("team"=결속력/"level"=문파 규모/"people"=문파 인원/"id"=현재 적대 문파 선택), `enemy`(전장 문파 id), `value`(변화량, id 작업에는 불필요), `display`(team/people에서만 사용, 기본1) | **Battle 다인 전투**에서 쓰는 문파 상태를 변경하는 `ModifyEnemyTeam/Level/People/Id`. Combat 일대일 결투의 적 설정이 아님 |
 | `battle_skill` | `op`("set"/"active"/"reset"), `key`(reset 불필요), `index`(set용, 기본2), `active`(active용, 기본1) | 전장 스킬 `SetPlayerBattleSkill/SetBattleSkillActive/ResetBattleSkill` |
-| `battle_setup` | 선택 적 설정, `reset_skills`, `skills:[{key,index,active}]`; 최소 1개 | 검증된 원작 적/전장 스킬 API만 묶고 지도/AI/메커니즘은 바꾸지 않습니다 |
 | `combat` | `key`, `win`, `lose` 필수. 상대 HP／기력의 최대·초기값, 9개 능력, `talents`, 3개 필살기, 5개 행동 확률을 직접 설정 | `key`는 읽기 쉬운 이름에 해당하는 원작 일대일 캐릭터／장면 기반만 선택합니다. 이번 Combat이 원작 데이터를 읽을 때만 노드 값으로 덮어쓰고 `CombatManager.GameOver(bool)`의 실제 결과를 반환합니다. draw/escape는 지원하지 않습니다 |
 | `battle` | `key`, `win`, `lose` 필수. 아군／적군／중립 roster, 각 인원과 NPC HP, `reset_skills`, `skills`를 직접 설정 | `key`는 원작 Battle 장면만 선택합니다. 이번 Battle에서 노드가 지정한 세 원작 편성을 따로 재사용하며 finish=true인 `FriendWin/EnemyWin`만 반환합니다. `PlayerDie(false)`는 원작 흐름을 유지합니다 |
 | `battle_result` | `win`, `lose`; 선택 `kind`("any"/"combat"/"battle") | 전체 패키지 지문과 스토리 id에 결합된 Host 실제 결과를 읽고 검증된 win/lose만 분기합니다. 결과 없음/유형 불일치는 fail-closed |
@@ -165,7 +165,7 @@ assets/                # 可选，自定义资源
 | `stat_check` / `affinity_check` / `item_check` / `talent_check` / `flag_check` | 판정 대상, 성공/실패 노드. 수치 판정은 비교 연산자와 기준값 포함 | 검증된 원작 API / 읽기 전용 Host bridge로만 이분 분기합니다 |
 | `activity` | 활동 종류, 능력치 판정, 성공/실패 노드. 선택 안내, 시간 진행, 양쪽 보상 | 기존 안내, 능력치, 시간, 보상 API로 컴파일 시 펼치며 새 활동 엔진은 만들지 않습니다 |
 | `mod_quest` / `quest_check` | 안전한 퀘스트 id, 상태 조작 또는 목표 상태와 분기 노드 | package id + 전체 SHA-256으로 격리된 Host 캠페인 세션 상태. 원작 Mission ID를 쓰지 않고 Story/Free를 넘지만 재시작은 넘지 않습니다 |
-| `persistent_var` / `persistent_check` | 안전한 변수명, set/add 또는 정수 비교와 분기 노드 | Int32 상태를 현재 `mod_<id>` 전용 슬롯에만 결합하고 원작 `SaveGameData` 성공 뒤 Host sidecar에 원자 저장합니다. GameSave를 바꾸지 않으며 누락 값은 0입니다 |
+| `persistent_var` / `persistent_check` | 안전한 변수명, set/add 또는 정수 비교와 분기 노드 | Int32 상태를 현재 `mod_campaign_<campaign_id>` 전용 슬롯에만 결합하고 원작 `SaveGameData` 성공 뒤 Host sidecar에 원자 저장합니다. GameSave를 바꾸지 않으며 누락 값은 0입니다 |
 | `mission` | `name`, `key` | 퀘스트 조작 `statmodifymanager.Mission(name, key)`: `Mission("Main","M0001")` 메인 진행 / `Mission("S2200","clear")` 서브 클리어 |
 | `time` | `op`("set"/"round"/"month"/"mission"); set은 `year,month,stage` 사용; mission은 `name,year,month,stage` 사용 | 시간 `SetGameTime/NextRound/NextMonth/SetMissionTime` |
 | `autosave` | 선택 `kind`("story"기본/"free"/"prologue"); 선택 `save_button`(0/1, 세이브 버튼 별도 제어) | `AutoSave()/AutoFreeSave()/PrologueSave(mode)`; `save_button`은 별도로 `ToggleSaveButton(n)` 방출 |
@@ -377,7 +377,7 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 1. 시작 시 `BepInEx/plugins/MortalModHost/mods/*.lommod`를 스캔해 `MOD_<modid>_<scriptid>` → lua 텍스트를 등록합니다.
 2. Harmony prefix `LuaManager.ExecuteLuaScript()`: 등록 이름이 적중하면 mod lua로 실행하고 원래 메서드를 건너뜁니다.
 3. 진입: Free에서는 "活侠MOD"와 F8을 유지합니다. Title에서는 원작 "게임 시작" 위에 같은 외형의 "MOD 캠페인 시작"을 표시합니다. 원작 로드 슬롯을 재사용해 기존 MOD 저장을 이어 하고, 고정 "새 캠페인" 빈 슬롯에서 Mod를 선택합니다. 닫으면 원작 001～020을 다시 만듭니다.
-   - **완전 저장 격리**: MOD 수동 슬롯은 `mod_<id>`, 세 자동 슬롯은 `mod_<id>_auto*`입니다. Universe 최근 슬롯은 마지막 원작 슬롯만 기록하므로 원작 "계속하기"가 MOD로 들어가지 않습니다.
+   - **완전 저장 격리**: MOD 수동 슬롯은 `mod_campaign_<campaign_id>`, 자동 슬롯은 `_auto` / `_auto_free` / `_auto_battle`입니다. 기존 `mod_<id>`는 탐색하지 않습니다.
 4. **캠페인**: "새 캠페인 시작" 클릭 → `SetSlot("mod_<modid>")`(격리 세이브 슬롯) → 공식 `NewGameData()` → postfix가 첫 번째 스토리 스크립트를 해당 mod의 entry로 교체 → LoadStory.
 5. **원작 스토리 억제와 위치 트리거**: `disable_official_events` 또는 F7이 유효할 때, `UpdateCheckMissions` 내에서 메인 트리거 상태를 잠시 숨기고 `HasAnyMissionTrigger`가 false를 반환해, Free로 돌아올 때 공식 메인/서브가 자동으로 시작되는 것을 막습니다; 장소 클릭 postfix `FreePositionData.GetExecuteScript`는 manifest.triggers를 우선 매칭하고, mod 적중이 없으면 공식 장소 기본 스크립트를 억제합니다.
 6. **폴백**: Story 장면이 요청한 MOD_ 스크립트가 미등록(mod 삭제됨)이면 실행하지 않고 `ChangeScene("Free","","")`로 소프트락을 방지합니다.
@@ -409,7 +409,7 @@ transition 검은 막, choice 스킨 크래시, 배경 검은 화면, 인물이 
 - Python API:
   - `load_editor_data()`: 에디터 데이터 읽기(dice_meta 등 목록 포함), (editor_data, is_fallback) 반환
   - `new_story(story_id="main", title="新剧情", mood=False)`: 새 스토리 스크립트 작성(show 등장 + 빈 say 두 노드 오프닝, 등장 후 동작)
-  - `add_node(story, node_type, fields=None, after=None)`: models 기본값으로 노드 추가(63종), 알 수 없는 타입/필드/타입 불일치→ValueError, 노드 id 자동 생성, after로 삽입 위치 지정(노드 id 또는 None=끝). 등장 방어선: 동작류 노드의 대상 인물이 앞에서 등장하지 않았거나 이미 퇴장했으면 그 앞에 자동으로 show 삽입
+  - `add_node(story, node_type, fields=None, after=None)`: models 기본값으로 노드 추가(62종), 알 수 없는 타입/필드/타입 불일치→ValueError, 노드 id 자동 생성, after로 삽입 위치 지정(노드 id 또는 None=끝). 등장 방어선: 동작류 노드의 대상 인물이 앞에서 등장하지 않았거나 이미 퇴장했으면 그 앞에 자동으로 show 삽입
   - `update_node(story, node_id, fields)`: 노드 필드 업데이트(add와 같은 필드 검증), 노드 없음→ValueError. 등장 방어선: 업데이트 후 동작 인물이 미등장/퇴장 상태이면 해당 노드 앞에 자동으로 show를 삽입하고, 그곳을 가리키는 goto/옵션/분기 점프를 새 노드로 변경
   - `get_node(story, node_id)`: 노드 읽기, 없음→ValueError
   - `list_nodes(story)`: [{"id","type","summary"}] 목록 반환

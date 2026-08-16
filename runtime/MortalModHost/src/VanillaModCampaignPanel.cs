@@ -40,12 +40,24 @@ namespace MortalModHost
             AccessTools.Field(typeof(LoadSlotPanel), "_focusObj");
         private static readonly FieldInfo PlusIconField =
             AccessTools.Field(typeof(LoadSlotPanel), "_newGamePlusIcon");
-
-        private sealed class CampaignSave
-        {
-            public ModPackage Package;
-            public GameSave Save;
-        }
+        private static readonly FieldInfo RecentSlotLabelField =
+            AccessTools.Field(typeof(RecentSaveSlotPanel), "_slotText");
+        private static readonly FieldInfo RecentTitleField =
+            AccessTools.Field(typeof(RecentSaveSlotPanel), "_titleText");
+        private static readonly FieldInfo RecentTimeField =
+            AccessTools.Field(typeof(RecentSaveSlotPanel), "_timeText");
+        private static readonly FieldInfo RecentButtonField =
+            AccessTools.Field(typeof(RecentSaveSlotPanel), "_slotButton");
+        private static readonly FieldInfo AutoSlotLabelField =
+            AccessTools.Field(typeof(AutoSaveSlotPanel), "_slotText");
+        private static readonly FieldInfo AutoTitleField =
+            AccessTools.Field(typeof(AutoSaveSlotPanel), "_titleText");
+        private static readonly FieldInfo AutoTimeField =
+            AccessTools.Field(typeof(AutoSaveSlotPanel), "_timeText");
+        private static readonly FieldInfo AutoDeleteField =
+            AccessTools.Field(typeof(AutoSaveSlotPanel), "_deleteButton");
+        private static readonly FieldInfo AutoPlusIconField =
+            AccessTools.Field(typeof(AutoSaveSlotPanel), "_newGamePlusIcon");
 
         private static LoadGamePanel _panel;
         private static CommonPanel _commonPanel;
@@ -57,8 +69,11 @@ namespace MortalModHost
         private static readonly List<ModPackage> Campaigns = new List<ModPackage>();
         private static Action<ModPackage> _startCampaign;
         private static Action<ModPackage> _loadCampaign;
+        private static Action<ModPackage, string> _loadAutoCampaign;
         private static Action<string> _logInfo;
         private static Action<string> _logWarning;
+        private static Action<string> _campaignSelected;
+        private static CampaignMenuFlow _flow;
         private static bool _active;
 
         internal static bool IsActive { get { return _active; } }
@@ -67,12 +82,16 @@ namespace MortalModHost
             IList<ModPackage> packages,
             Action<ModPackage> startCampaign,
             Action<ModPackage> loadCampaign,
+            Action<ModPackage, string> loadAutoCampaign,
+            string recentCampaignId,
+            Action<string> campaignSelected,
             Action<string> logInfo,
             Action<string> logWarning)
         {
             Remove();
             if (startCampaign == null) throw new ArgumentNullException(nameof(startCampaign));
             if (loadCampaign == null) throw new ArgumentNullException(nameof(loadCampaign));
+            if (loadAutoCampaign == null) throw new ArgumentNullException(nameof(loadAutoCampaign));
             Campaigns.Clear();
             if (packages != null)
             {
@@ -127,11 +146,17 @@ namespace MortalModHost
 
                 _startCampaign = startCampaign;
                 _loadCampaign = loadCampaign;
+                _loadAutoCampaign = loadAutoCampaign;
+                _campaignSelected = campaignSelected;
+                _flow = new CampaignMenuFlow(Campaigns, recentCampaignId);
+                if (!string.IsNullOrEmpty(recentCampaignId) && _flow.RecentPackage == null
+                    && _campaignSelected != null)
+                    _campaignSelected("");
                 _logInfo = logInfo;
                 _logWarning = logWarning;
                 _active = true;
                 _panel.enabled = false;
-                RenderSaveSlots();
+                RenderCampaignList();
                 if (_logInfo != null)
                     _logInfo("已用原版 LoadGamePanel 打开 MOD 战役存档页。");
                 return true;
@@ -139,7 +164,7 @@ namespace MortalModHost
             catch (Exception ex)
             {
                 if (logWarning != null)
-                    logWarning("原版 MOD 战役存档页建立失败，将使用兼容菜单：" + ex.Message);
+                    logWarning("原版 MOD 战役存档页建立失败；为避免混用非官方 UI，本次不打开战役页：" + ex.Message);
                 Remove();
                 return false;
             }
@@ -163,122 +188,189 @@ namespace MortalModHost
             }
         }
 
-        private static void RenderSaveSlots()
+        private static void RenderCampaignList()
         {
-            var saves = new List<CampaignSave>();
-            SaveSystem saveSystem = SaveSystem.Instance;
-            for (int i = 0; i < Campaigns.Count; i++)
-            {
-                GameSave data = null;
-                try { data = saveSystem != null ? saveSystem.GetSaveData("mod_" + Campaigns[i].Id) : null; }
-                catch (Exception ex)
-                {
-                    if (_logWarning != null)
-                        _logWarning("读取 MOD 战役槽失败（" + Campaigns[i].Id + "）：" + ex.Message);
-                }
-                if (data != null)
-                    saves.Add(new CampaignSave { Package = Campaigns[i], Save = data });
-            }
-            saves.Sort(delegate(CampaignSave left, CampaignSave right)
-            {
-                return right.Save.TimeTick.CompareTo(left.Save.TimeTick);
-            });
-
+            if (!_active) return;
+            HideCustomAutoSlots();
             int row = 0;
-            int savedLimit = Math.Min(saves.Count, _slots.Length - 1);
-            for (; row < savedLimit; row++)
+            for (int i = 0; i < Campaigns.Count && row < _slots.Length; i++, row++)
             {
-                CampaignSave entry = saves[row];
-                Action<ModPackage> loadCampaign = _loadCampaign;
-                ModPackage capturedPackage = entry.Package;
-                string when = "";
-                try { when = new DateTime(entry.Save.TimeTick).ToString("yyyy/MM/dd HH:mm:ss"); }
-                catch { }
+                ModPackage package = Campaigns[i];
+                ModPackage captured = package;
+                string detail = ModDisclosurePolicy.SafePackageDescription(package);
+                if (string.IsNullOrEmpty(detail))
+                    detail = I18n.T("campaign.author", ModDisclosurePolicy.SafePackageAuthor(package));
                 ConfigureSlot(
                     _slots[row],
-                    I18n.T("campaign.slot", row + 1),
-                    I18n.T("campaign.continue", ModDisclosurePolicy.SafePackageName(entry.Package)),
-                    when,
-                    delegate
-                    {
-                        SelectAndClose(delegate
-                        {
-                            if (loadCampaign == null)
-                                throw new InvalidOperationException("MOD 战役读档回调已经失效");
-                            loadCampaign(capturedPackage);
-                        });
-                    });
+                    I18n.T("campaign.option", row + 1),
+                    ModDisclosurePolicy.SafePackageName(package),
+                    detail,
+                    delegate { SelectCampaign(captured); });
             }
-
-            ConfigureSlot(
-                _slots[row++],
-                I18n.T("campaign.new_slot"),
-                I18n.T("campaign.choose_new"),
-                I18n.T("campaign.choose_hint"),
-                ShowCampaignPicker);
             HideRemaining(row);
+            ConfigureRecentEntry();
             SelectFirstSlot();
         }
 
-        private static void ShowCampaignPicker()
+        private static void SelectCampaign(ModPackage package)
         {
-            if (!_active) return;
+            if (!_active || package == null || _flow == null
+                || !_flow.Select(package.CampaignId)) return;
+            if (_campaignSelected != null) _campaignSelected(package.CampaignId);
+            RenderSelectedCampaign();
+        }
+
+        private static void RenderSelectedCampaign()
+        {
+            if (!_active || _flow == null || _flow.SelectedPackage == null) return;
+            HideCustomAutoSlots();
+            ModPackage package = _flow.SelectedPackage;
             int row = 0;
             ConfigureSlot(
                 _slots[row++],
                 I18n.T("campaign.back"),
                 I18n.T("campaign.back_to_saves"),
                 "",
-                RenderSaveSlots);
+                delegate { _flow.Back(); RenderCampaignList(); });
 
             SaveSystem saveSystem = SaveSystem.Instance;
-            for (int i = 0; i < Campaigns.Count && row < _slots.Length; i++)
+            GameSave save = null;
+            try
             {
-                ModPackage package = Campaigns[i];
-                bool hasSave = false;
-                try { hasSave = saveSystem != null && saveSystem.GetSaveData("mod_" + package.Id) != null; }
-                catch (Exception ex)
-                {
-                    // 损坏或旧版本存档不能把战役从新建列表永久隐藏。新建时原版
-                    // SaveGameData 会覆盖该 MOD 自己的隔离槽，不会碰到官方槽。
-                    if (_logWarning != null)
-                        _logWarning("读取 MOD 战役槽失败，将允许重建（" + package.Id + "）：" + ex.Message);
-                    hasSave = false;
-                }
-                if (hasSave) continue;
-                string detail = ModDisclosurePolicy.SafePackageDescription(package);
-                if (string.IsNullOrEmpty(detail))
-                    detail = I18n.T("campaign.author", ModDisclosurePolicy.SafePackageAuthor(package));
-                ModPackage captured = package;
-                Action<ModPackage> startCampaign = _startCampaign;
+                save = saveSystem != null
+                    ? saveSystem.GetSaveData(CampaignIdentity.SaveSlot(package.CampaignId)) : null;
+            }
+            catch (Exception ex)
+            {
+                if (_logWarning != null)
+                    _logWarning("读取 MOD 战役槽失败（" + package.CampaignId + "）：" + ex.Message);
+            }
+
+            ModPackage captured = package;
+            if (save != null)
+            {
+                string when = "";
+                try { when = new DateTime(save.TimeTick).ToString("yyyy/MM/dd HH:mm:ss"); }
+                catch { }
+                Action<ModPackage> load = _loadCampaign;
                 ConfigureSlot(
-                    _slots[row],
-                    I18n.T("campaign.option", row),
-                    ModDisclosurePolicy.SafePackageName(package),
-                    detail,
+                    _slots[row++], I18n.T("campaign.slot", 1),
+                    I18n.T("campaign.continue", ModDisclosurePolicy.SafePackageName(package)), when,
                     delegate
                     {
                         SelectAndClose(delegate
                         {
-                            if (startCampaign == null)
-                                throw new InvalidOperationException("MOD 新战役回调已经失效");
-                            startCampaign(captured);
+                            if (load == null) throw new InvalidOperationException("MOD 战役读档回调已经失效");
+                            load(captured);
                         });
                     });
-                row++;
             }
-            if (row == 1)
+            string[] autoKinds = { "auto", "auto_free", "auto_battle" };
+            for (int i = 0; i < autoKinds.Length && _autoSlots != null
+                && i < _autoSlots.Length; i++)
             {
-                ConfigureSlot(
-                    _slots[row++],
-                    I18n.T("campaign.new_slot"),
-                    I18n.T("campaign.no_unused"),
-                    I18n.T("campaign.no_unused_hint"),
-                    RenderSaveSlots,
-                    false);
+                string kind = autoKinds[i];
+                AutoGameSave auto = null;
+                try
+                {
+                    string isolated = ModSaveSlotPolicy.IsolatedAutoSlot(
+                        CampaignIdentity.SaveSlot(package.CampaignId), kind);
+                    auto = saveSystem != null ? saveSystem.GetAutoSaveData(isolated) : null;
+                }
+                catch (Exception ex)
+                {
+                    if (_logWarning != null)
+                        _logWarning("读取 MOD 隔离自动槽失败（" + kind + "）：" + ex.Message);
+                }
+                if (auto == null || auto.GameSave == null)
+                {
+                    if (_autoSlots[i] != null) _autoSlots[i].gameObject.SetActive(false);
+                    continue;
+                }
+                if (!string.Equals(auto.Slot,
+                    CampaignIdentity.SaveSlot(package.CampaignId), StringComparison.Ordinal))
+                {
+                    if (_logWarning != null)
+                        _logWarning("隔离自动槽身份不匹配，已拒绝显示：" + kind);
+                    if (_autoSlots[i] != null) _autoSlots[i].gameObject.SetActive(false);
+                    continue;
+                }
+                ConfigureAutoSlot(_autoSlots[i], captured, kind, auto.GameSave);
             }
+            Action<ModPackage> start = _startCampaign;
+            ConfigureSlot(
+                _slots[row++], I18n.T("campaign.new_slot"),
+                save == null ? I18n.T("campaign.start") : I18n.T("campaign.restart"),
+                I18n.T("campaign.choose_hint"),
+                delegate
+                {
+                    SelectAndClose(delegate
+                    {
+                        if (start == null) throw new InvalidOperationException("MOD 新战役回调已经失效");
+                        start(captured);
+                    });
+                });
             HideRemaining(row);
+            ConfigureRecentEntry();
             SelectFirstSlot();
+        }
+
+        private static void ConfigureAutoSlot(
+            AutoSaveSlotPanel slot, ModPackage package, string kind, GameSave save)
+        {
+            if (slot == null || save == null) return;
+            slot.gameObject.SetActive(true);
+            SetTextObject(AutoSlotLabelField != null ? AutoSlotLabelField.GetValue(slot) : null,
+                I18n.T("campaign.auto." + kind));
+            SetTextObject(AutoTitleField != null ? AutoTitleField.GetValue(slot) : null,
+                ModDisclosurePolicy.SafePackageName(package));
+            string when = "";
+            try { when = new DateTime(save.TimeTick).ToString("yyyy/MM/dd HH:mm:ss"); }
+            catch { }
+            SetTextObject(AutoTimeField != null ? AutoTimeField.GetValue(slot) : null, when);
+            SetActive(AutoDeleteField != null ? AutoDeleteField.GetValue(slot) as Component : null, false);
+            SetActive(AutoPlusIconField != null ? AutoPlusIconField.GetValue(slot) as GameObject : null, false);
+            Button button = slot.SlotButton;
+            if (button == null) throw new InvalidOperationException("原版 AutoSaveSlotPanel 缺少 SlotButton");
+            Action<ModPackage, string> load = _loadAutoCampaign;
+            button.onClick = new Button.ButtonClickedEvent();
+            button.onClick.AddListener(delegate
+            {
+                SelectAndClose(delegate
+                {
+                    if (load == null) throw new InvalidOperationException("MOD 自动存档回调已经失效");
+                    load(package, kind);
+                });
+            });
+            button.interactable = true;
+        }
+
+        private static void ConfigureRecentEntry()
+        {
+            if (_recentSlot == null) return;
+            ModPackage recent = _flow != null ? _flow.RecentPackage : null;
+            _recentSlot.gameObject.SetActive(recent != null);
+            if (recent == null) return;
+            SetTextObject(RecentSlotLabelField != null ? RecentSlotLabelField.GetValue(_recentSlot) : null,
+                I18n.T("campaign.recent"));
+            SetTextObject(RecentTitleField != null ? RecentTitleField.GetValue(_recentSlot) : null,
+                ModDisclosurePolicy.SafePackageName(recent));
+            SetTextObject(RecentTimeField != null ? RecentTimeField.GetValue(_recentSlot) : null,
+                recent.CampaignId);
+            Button button = RecentButtonField != null
+                ? RecentButtonField.GetValue(_recentSlot) as Button : null;
+            if (button == null) return;
+            ModPackage captured = recent;
+            button.onClick = new Button.ButtonClickedEvent();
+            button.onClick.AddListener(delegate { SelectCampaign(captured); });
+            button.interactable = true;
+        }
+
+        private static void HideCustomAutoSlots()
+        {
+            if (_autoSlots == null) return;
+            for (int i = 0; i < _autoSlots.Length; i++)
+                if (_autoSlots[i] != null) _autoSlots[i].gameObject.SetActive(false);
         }
 
         private static void ConfigureSlot(
@@ -375,6 +467,9 @@ namespace MortalModHost
             _autoVisibility = null;
             _startCampaign = null;
             _loadCampaign = null;
+            _loadAutoCampaign = null;
+            _campaignSelected = null;
+            _flow = null;
             _logInfo = null;
             _logWarning = null;
             Campaigns.Clear();
@@ -389,6 +484,13 @@ namespace MortalModHost
         {
             if (labels == null) return;
             for (int i = 0; i < labels.Length; i++) SetText(labels[i], value);
+        }
+
+        private static void SetTextObject(object labels, string value)
+        {
+            Text one = labels as Text;
+            if (one != null) { SetText(one, value); return; }
+            SetTexts(labels as Text[], value);
         }
 
         private static void SetActive(Component component, bool active)

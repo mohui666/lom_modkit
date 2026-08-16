@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """Authoritative versions for the public lom_modkit file contracts."""
 
-PACKAGE_FORMAT = 2
-STORY_SCHEMA = 1
+PACKAGE_FORMAT = 3
+STORY_SCHEMA = 2
 CONTENT_SCHEMA = 1
 
 

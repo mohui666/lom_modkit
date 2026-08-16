@@ -14,7 +14,7 @@ manifest.json          # 必填，包元信息
 story/<id>.json        # 必填≥1，剧情源文件（编辑器可编辑的源格式）
 lua/<id>.lua           # 必填≥1，编译产物（运行时只读这里）；每个 story/<id>.json 对应一个
 texts.json             # 必填，已读文本表：{MOD_<modid>_<scriptid>_<nodeid>: 文本}（say 节点文本）
-story-lua.sha256       # package_format=2 必填，Story/Lua 成對 SHA-256
+story-lua.sha256       # package_format=3 必填，Story/Lua 成對 SHA-256
 package-content.sha256 # 必填，與壓縮無關的邏輯內容 SHA-256
 assets/                # 可选，自定义资源
                        #   图片：结局插图 / 人物介绍图 PNG/JPG
@@ -23,7 +23,7 @@ assets/                # 可选，自定义资源
 
 - `<id>` 規則：`[a-zA-Z0-9_\-]+`，包內唯一，即「劇情腳本 id」。
 - 匯出（打包）時必須重新編譯：story/*.json → lua/*.lua，二者同名。
-- `story-lua.sha256` 逐項連結 Story 原始位元組與對應預設/語系 Lua 的 SHA-256；Runtime 對 v2 強制核對，v1 舊包可缺少並由 Editor 現場重新編譯比對。
+- `story-lua.sha256` 逐項連結 Story 原始位元組與對應預設/語系 Lua 的 SHA-256；Runtime 對 v3 強制核對。v1/v2 缺少穩定戰役身份，1.0.1 會拒絕，必須設定 `campaign_id` 後重新匯出。
 - 執行階段外掛**只讀 manifest.json、lua/ 目錄與 assets/**；story/*.json 給編輯器回讀/再編輯用。編譯器只打入劇情明確引用的 PNG/JPG（單張 ≤8MB）與明確引用的 `user:` 音訊。匯出的 `.lommod` 自包含，玩家機器不需要編輯器倉庫。
 - texts.json 由打包時自動產生：收集每個 story 的全部 **say** 節點文字，key 與 lua 裡 `GetStoryText` 的 key 一一對應；執行階段註冊進 LeanLocalization（見 §4/§6）。**death 文字不進 texts.json**：由 codegen 發射 `mod_set_death_text(<標題>, <文字>)` 兩參 lua_str 字面量（見 §3.1/§6）。
 - 打包器固定條目/JSON/Lua 順序、ZIP 時間戳與權限；同一 Python/zlib 工具鏈的相同輸入可逐位元組重現。`package-content.sha256` 可跨壓縮結果核對邏輯內容；跨工具鏈不宣稱二進位完全 reproducible，內容雜湊也不是簽章或官方認證。
@@ -33,16 +33,17 @@ assets/                # 可选，自定义资源
 
 ```json
 {
-  "format": 2,
-  "package_format": 2,
-  "story_schema": 1,
+  "format": 3,
+  "package_format": 3,
+  "story_schema": 2,
   "content_schema": 1,
   "min_host_version": "1.0.0",
-  "tested_host_version": "1.0.0",
+  "tested_host_version": "1.0.1",
   "tested_game_version": "1.2.3",
   "id": "demo_mod",
+  "campaign_id": "demo_campaign",
   "name": "示例 Mod",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "somebody",
   "description": "一句话简介",
   "entry": "main",
@@ -56,13 +57,13 @@ assets/                # 可选，自定义资源
 }
 ```
 
-- `package_format` 目前為 `2`，`story_schema` / `content_schema` 仍為 `1`。v2 強制 Story/Lua 完整性記錄；`format: 1` 的舊包只作輸入相容，未知版本或衝突宣告一律拒絕。
-- 舊 v1 Story 與使用者內容會先保留逐位元組備份 `*.pre-migration-v1.bak`，再以同目錄暫存檔原子遷移；失敗不覆蓋來源，未知欄位會保留。舊 `.lommod` 僅遷移記憶體副本，不修改原包，並可用 `migration.restore_migration_backup` 明確復原磁碟檔案。
+- `package_format` 目前固定為 `3`，`story_schema=2`、`content_schema=1`。v3 強制雙完整性記錄、`campaign_id` 與 `campaign.new_game=true`；v1/v2 一律拒絕。
+- `campaign_id` 是跨版本穩定的戰役/存檔身份，產生 `mod_campaign_<campaign_id>`；不會從包名或 `id` 推斷。舊專案須由作者明確填寫並用 1.0.1 重新匯出。
 - `id`：mod 唯一 id（`[a-z0-9_\-]+`），執行階段註冊名前綴，防衝突。
 - `entry`：入口劇情腳本 id，必須存在。
 - `min_host_version` 是 SemVer 硬門檻；`tested_host_version` 超出時僅警告。`game_version` 必須與 Unity 的 `Application.version` 精確一致，`tested_game_version` 不同時僅警告。四欄皆可省略，舊 manifest 行為不變；Host 會在註冊腳本前給出明確拒載原因。
 - `campaign`（可選）：戰役模式。
-  - `new_game`：true 時本 mod 出現在遊戲內 mod 選單的「開始新戰役」區，點擊後**隔離存檔槽**（`SetSlot("mod_<modid>")`，不覆蓋玩家正常存檔）開新遊戲，首個劇情腳本替換為本 mod 的 `entry`。
+  - `new_game`：v3 固定為 true。選取戰役只切換存檔頁，不會直接開始；明確點擊開始後才使用 `SetSlot("mod_campaign_<campaign_id>")`。
   - `disable_official_events`（可選，bool，預設 false）：true 時本戰役**停用原版劇情事件**——返回 Free 時不自動啟動無地點主線/支線，地圖位置只保留本 mod 觸發器（未命中則該位置預設活動不可用，需 mod 自帶保底觸發器）。
   - `triggers`：自由模式觸發器陣列。`type="position"`：點擊地圖位置 `position`（PositionType 列舉 id：Mall/Center/Alchemy/Forge/BackMountain/Room1/Door/Study/Kitchen/Room2/Secret）時，該位置預設活動腳本替換為 `script`（同包腳本 id）。可選條件全部命中才生效（多條件 AND；**陣列順序=優先級**，執行階段取第一個全部命中的觸發器）：
     - `when_flag_set` / `when_flag_clear`：劇情 flag（即 `flag` 節點 AddStory 的 key，存檔持久化）已設定/未設定。
@@ -89,7 +90,7 @@ assets/                # 可选，自定义资源
 
 ```json
 {
-  "story_schema": 1,
+  "story_schema": 2,
   "id": "main",
   "title": "显示给玩家的标题",
   "mood": false,
@@ -104,7 +105,7 @@ assets/                # 可选，自定义资源
 - `choice` / `branch` / `dice` 的分支必須用 `goto` 指到目標節點 id。
 - 多個前驅匯入同一節點（匯合點）合法。
 
-### 3.1 節點類型（全量 63 種）
+### 3.1 節點類型（全量 62 種）
 
 此表是目前全部合法節點。`combat` / `battle` 是基於原版模板的高層編排；戰鬥能力只呼叫已反編譯核驗的原版介面，`mod_quest` 則使用不接觸原版 Mission ID 的 Host 狀態機。
 
@@ -152,7 +153,6 @@ assets/                # 可选，自定义资源
 | `game_flag` | `flag`, `value`；可選 `op`("set"預設/"add") | 官方任務 flag：`SetFlag(id, 狀態)` / `AddFlag(id, ±增量)`。**id 必須是遊戲已有 FlagData**（14_屬性與Flag 表），否則遊戲靜默忽略 |
 | `enemy` | `op`("team"=向心力/"level"=門派規模/"people"=門派人數/"id"=選擇目前敵對門派), `enemy`(戰役門派 id), `value`(變化量，id 操作不需要), `display`(僅 team/people 使用，預設1) | 修改 **Battle 多人戰役**使用的門派狀態 `ModifyEnemyTeam/Level/People/Id`；不設定 Combat 一對一決鬥敵人 |
 | `battle_skill` | `op`("set"/"active"/"reset"), `key`(reset 不需要), `index`(set 用, 預設2), `active`(active 用, 預設1) | 戰場技能 `SetPlayerBattleSkill/SetBattleSkillActive/ResetBattleSkill` |
-| `battle_setup` | 可選敵方欄位、`reset_skills`、`skills:[{key,index,active}]`；至少一項 | 只聚合已驗證的原版敵方與戰場技能介面，不修改地圖／AI／機制 |
 | `combat` | 必填 `key`, `win`, `lose`；可直接設定對手 HP／體力上限與初值、九項屬性、`talents`、三格絕招及五類行動機率 | `key` 只選擇可讀名稱對應的原版一對一角色／場景底板。只在本次 Combat 的原版資料讀取點覆寫節點參數；`CombatManager.GameOver(bool)` 的真實 win/lose 回到指定節點。不支援 draw/escape |
 | `battle` | 必填 `key`, `win`, `lose`；可直接設定我方／敵方／中立陣容範本、三方人數與 NPC HP、`reset_skills`、`skills` | `key` 只選擇原版 Battle 場景。本次 Battle 分別重用節點指定的三個原版陣容；只把 finish=true 的 `FriendWin/EnemyWin` 映射為 win/lose，`PlayerDie(false)` 保持原版流程 |
 | `battle_result` | `win`, `lose`；可選 `kind`("any"/"combat"/"battle") | 按完整包指紋與劇情 id 讀取 Host 真實結果，只支援已驗證的 win/lose；無結果或類型不符會 fail-closed |
@@ -162,7 +162,7 @@ assets/                # 可选，自定义资源
 | `stat_check` / `affinity_check` / `item_check` / `talent_check` / `flag_check` | 檢定目標、成功節點、失敗節點；數值檢定另有比較運算與門檻 | 只讀呼叫已驗證原版 API / Host bridge 後二分，不猜測遊戲資料 |
 | `activity` | 活動類型、屬性檢定、成功／失敗節點；可選提示、時間推進與兩側獎勵 | 編譯期組合既有提示、屬性、時間與獎勵介面，不引入新活動引擎 |
 | `mod_quest` / `quest_check` | 安全任務 id、狀態操作，或目標狀態與二分節點 | 按包 id + 完整 SHA-256 隔離的 Host 戰役工作階段狀態；不占用官方 Mission ID，跨 Story/Free，但不跨重啟 |
-| `persistent_var` / `persistent_check` | 安全變數名、set/add 或整數比較與二分節點 | Int32 狀態只綁定目前 `mod_<id>` 隔離槽；原版 `SaveGameData` 成功後原子寫入 Host sidecar，不修改 GameSave。缺少值為 0 |
+| `persistent_var` / `persistent_check` | 安全變數名、set/add 或整數比較與二分節點 | Int32 狀態只綁定目前 `mod_campaign_<campaign_id>` 隔離槽；原版 `SaveGameData` 成功後原子寫入 Host sidecar，不修改 GameSave。缺少值為 0 |
 | `mission` | `name`, `key` | 任務操作 `statmodifymanager.Mission(name, key)`：`Mission("Main","M0001")` 推進主線 / `Mission("S2200","clear")` 清支線 |
 | `time` | `op`("set"/"round"/"month"/"mission")；set 用 `year,month,stage`；mission 用 `name,year,month,stage` | 時間 `SetGameTime/NextRound/NextMonth/SetMissionTime` |
 | `autosave` | 可選 `kind`("story"預設/"free"/"prologue")；可選 `save_button`(0/1，單獨控制存檔按鈕) | `AutoSave()/AutoFreeSave()/PrologueSave(mode)`；`save_button` 單獨 emit `ToggleSaveButton(n)` |
@@ -374,8 +374,8 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 1. 啟動掃描 `BepInEx/plugins/MortalModHost/mods/*.lommod`，註冊 `MOD_<modid>_<scriptid>` → lua 文字。
 2. Harmony prefix `LuaManager.ExecuteLuaScript()`：註冊名命中時用 mod lua 執行並跳過原方法。
 3. 入口：Free 保留「活俠MOD」與 F8；Title 在原版「開始遊戲」上方顯示同風格「開始 MOD 戰役」。點擊後重用原版讀檔槽：既有 MOD 槽可繼續，固定「新戰役」空白槽開啟戰役選擇，關閉時還原原版 001～020。
-   - **完整存檔隔離**：MOD 手動槽為 `mod_<id>`，三類自動槽為 `mod_<id>_auto*`；Universe 最近槽只記最後一個原版槽，不會讓原版「繼續遊戲」進入 MOD。
-4. **戰役**：點擊「開始新戰役」→ `SetSlot("mod_<modid>")`（隔離存檔槽）→ 官方 `NewGameData()` → postfix 把首個劇情腳本替換為該 mod 的 entry → LoadStory。
+   - **完整存檔隔離**：MOD 手動槽為 `mod_campaign_<campaign_id>`，三類自動槽使用 `_auto` / `_auto_free` / `_auto_battle` 後綴；Universe 最近槽只記最後一個原版槽，不會讓原版「繼續遊戲」進入 MOD。
+4. **戰役**：選取只顯示存檔頁；明確點擊「開始新戰役」→ `SetSlot("mod_campaign_<campaign_id>")`（不探測舊 `mod_<id>`）→ 官方 `NewGameData()` → postfix 替換 entry → LoadStory。三類自動槽後綴為 `_auto`、`_auto_free`、`_auto_battle`。
 5. **原版劇情抑制與位置觸發器**：`disable_official_events` 或 F7 生效時，`UpdateCheckMissions` 內暫時隱藏主線觸發狀態，`HasAnyMissionTrigger` 返回 false，避免返回 Free 時自動啟動官方主線/支線；地點點擊 postfix `FreePositionData.GetExecuteScript` 優先匹配 manifest.triggers，無 mod 命中時抑制官方地點預設腳本。
 6. **保底**：Story 場景請求的 MOD_ 腳本未註冊（mod 被刪）時，不執行並 `ChangeScene("Free","","")` 防軟鎖。
 7. mod 不修改官方腳本與文字表；mod 的 flag 進 StoryKeyList，存檔相容。
@@ -406,7 +406,7 @@ transition 黑幕、choice 外觀崩潰、背景黑畫面、人物未登場就�
 - Python API：
   - `load_editor_data()`：讀取編輯器資料（含 dice_meta 等清單），返回 (editor_data, is_fallback)
   - `new_story(story_id="main", title="新剧情", mood=False)`：新建劇情腳本（show 登場 + 空 say 雙節點開場，先登場再動作）
-  - `add_node(story, node_type, fields=None, after=None)`：按 models 預設值新增節點（63 種類型），未知類型/欄位/類型不符→ValueError，節點 id 自動產生，after 指定插入位置（節點 id 或 None=末尾）。登場防線：動作類節點的目標人物在前面未登場/已退場時，自動在它前面插入 show
+  - `add_node(story, node_type, fields=None, after=None)`：按 models 預設值新增節點（62 種類型），未知類型/欄位/類型不符→ValueError，節點 id 自動產生，after 指定插入位置（節點 id 或 None=末尾）。登場防線：動作類節點的目標人物在前面未登場/已退場時，自動在它前面插入 show
   - `update_node(story, node_id, fields)`：更新節點欄位（同 add 的欄位驗證），節點不存在→ValueError。登場防線：更新後若動作人物未登場/已退場，自動在該節點前插入 show 並把指向它的 goto/選項/分支跳轉改指新節點
   - `get_node(story, node_id)`：讀取節點，不存在→ValueError
   - `list_nodes(story)`：返回 [{"id","type","summary"}] 清單

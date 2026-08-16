@@ -14,8 +14,8 @@ namespace MortalModHost
     /// </summary>
     internal static class ModLoader
     {
-        internal const int PackageFormat = 2;
-        internal const int StorySchema = 1;
+        internal const int PackageFormat = 3;
+        internal const int StorySchema = 2;
         internal const int ContentSchema = 1;
 
         /// <summary>结局卡背景图单张上限（字节，契约 §3.1，与编译器 pack 校验一致）。</summary>
@@ -58,6 +58,7 @@ namespace MortalModHost
         public static List<ModPackage> ScanMods(string modsDir, Action<string> logInfo, Action<string> logWarn)
         {
             var result = new List<ModPackage>();
+            var campaignOwners = new Dictionary<string, string>(StringComparer.Ordinal);
             if (!Directory.Exists(modsDir))
             {
                 Directory.CreateDirectory(modsDir);
@@ -71,7 +72,13 @@ namespace MortalModHost
             {
                 try
                 {
-                    result.Add(LoadPackage(file, logWarn));
+                    ModPackage package = LoadPackage(file, logWarn);
+                    string existingOwner;
+                    if (campaignOwners.TryGetValue(package.CampaignId, out existingOwner))
+                        throw new FormatException(
+                            "campaign_id 与已加载 MOD " + existingOwner + " 冲突：" + package.CampaignId);
+                    campaignOwners.Add(package.CampaignId, package.Id);
+                    result.Add(package);
                 }
                 catch (Exception ex)
                 {
@@ -108,9 +115,8 @@ namespace MortalModHost
                     package.PackagePath = path;
                     package.PackageFingerprint = fingerprint;
 
-                    bool requiresV2Integrity = package.PackageFormatVersion >= 2;
-                    ValidatePackageContentHash(zip, requiresV2Integrity);
-                    ValidateStoryLuaIntegrity(zip, requiresV2Integrity);
+                    ValidatePackageContentHash(zip, true);
+                    ValidateStoryLuaIntegrity(zip, true);
 
                 // 收集 lua/<id>.lua（仅 lua/ 直接子项，契约 §1）
                 foreach (var entry in zip.Entries)
@@ -230,21 +236,26 @@ namespace MortalModHost
             if (root == null)
                 throw new FormatException("manifest.json 顶层必须是 JSON 对象");
 
-            // 新包使用含义明确的三个版本字段；format 仅供旧 v1 reader 兼容。
-            int packageFormat = RequireVersion(root, "package_format", PackageFormat, "format", false, true);
-            RequireVersion(root, "story_schema", StorySchema, null, true);
-            RequireVersion(root, "content_schema", ContentSchema, null, true);
+            // 1.0.1 起只接受 v3。v1/v2 没有稳定 campaign_id，禁止用 manifest.id
+            // 猜测或迁移存档身份，否则同名/改名包会误读另一战役的存档。
+            int packageFormat = RequireVersion(root, "package_format", PackageFormat, null, false);
+            RequireVersion(root, "story_schema", StorySchema, null, false);
+            RequireVersion(root, "content_schema", ContentSchema, null, false);
 
             string id = GetString(root, "id", required: true);
+            string campaignId = GetString(root, "campaign_id", required: true);
             string entry = GetString(root, "entry", required: true);
             if (!IsValidModId(id))
                 throw new FormatException("manifest.id 必须匹配 [a-z0-9_-]{1,64}");
             if (!IsValidScriptId(entry))
                 throw new FormatException("manifest.entry 必须匹配 [A-Za-z0-9_-]{1,64}");
+            if (!CampaignIdentity.IsValid(campaignId))
+                throw new FormatException("manifest.campaign_id 必须匹配 [a-z0-9_-]{1,64}");
 
             var package = new ModPackage
             {
                 Id = id,
+                CampaignId = campaignId,
                 PackageFormatVersion = packageFormat,
                 Name = GetString(root, "name", required: false) ?? "",
                 Version = GetString(root, "version", required: false) ?? "",
@@ -255,7 +266,7 @@ namespace MortalModHost
                 Author = GetString(root, "author", required: false) ?? "",
                 Description = GetString(root, "description", required: false) ?? "",
                 Entry = entry,
-                Campaign = ParseCampaign(root)
+                Campaign = ParseCampaign(root, campaignId)
             };
             return package;
         }
@@ -314,24 +325,22 @@ namespace MortalModHost
             return true;
         }
 
-        /// <summary>解析可选的 campaign 段（契约 §2）；无该段返回 null，结构非法抛 FormatException。</summary>
-        private static CampaignConfig ParseCampaign(Dictionary<string, object> root)
+        /// <summary>解析 v3 必填的 campaign 段；每包恰好一个稳定 campaign_id。</summary>
+        private static CampaignConfig ParseCampaign(Dictionary<string, object> root, string campaignId)
         {
             object campaignObj;
             if (!root.TryGetValue("campaign", out campaignObj) || campaignObj == null)
-                return null;
+                throw new FormatException("manifest 缺少必填 campaign 对象；该包不是 v3 自定义战役");
             var dict = campaignObj as Dictionary<string, object>;
             if (dict == null)
                 throw new FormatException("manifest.campaign 必须是对象");
 
-            var campaign = new CampaignConfig();
+            var campaign = new CampaignConfig { Id = campaignId };
             object newGameObj;
-            if (dict.TryGetValue("new_game", out newGameObj) && newGameObj != null)
-            {
-                if (!(newGameObj is bool))
-                    throw new FormatException("manifest.campaign.new_game 必须是布尔值");
-                campaign.NewGame = (bool)newGameObj;
-            }
+            if (!dict.TryGetValue("new_game", out newGameObj) || !(newGameObj is bool)
+                || !(bool)newGameObj)
+                throw new FormatException("manifest.campaign.new_game 在 v3 中必须为 true");
+            campaign.NewGame = true;
 
             // 契约 §2：disable_official_events（可选布尔，缺省 false）：该 mod 战役期间返回
             // Free 的自动任务与位置点击不再触发官方故事，只允许 mod 自己的位置触发器命中。
@@ -716,12 +725,32 @@ namespace MortalModHost
             if (!portraits.ContainsKey("normal"))
                 portraits["normal"] = mainFile;
 
+            var combatFrames = new Dictionary<string, string>(StringComparer.Ordinal);
+            string[] combatNames = { "idle", "attack", "hurt", "defence" };
+            for (int i = 0; i < combatNames.Length; i++)
+            {
+                string field = "combat_" + combatNames[i];
+                string fname = GetString(root, field, required: false);
+                if (string.IsNullOrEmpty(fname)) continue;
+                if (fname.IndexOf('/') >= 0 || fname.IndexOf('\\') >= 0
+                    || fname.IndexOf("..", StringComparison.Ordinal) >= 0
+                    || !IsImageExt(Path.GetExtension(fname)))
+                    throw new FormatException(field + " 必须是同一角色目录下的图片文件名");
+                combatFrames[combatNames[i]] = fname;
+            }
+
             var fileBytes = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
             foreach (var pair in portraits)
             {
                 string path = expectedDir + "/" + pair.Value;
                 if (!fileBytes.ContainsKey(pair.Value))
                     fileBytes[pair.Value] = ReadZipBytes(package, entries, path, 8L * 1024 * 1024, "立绘");
+            }
+            foreach (var pair in combatFrames)
+            {
+                string path = expectedDir + "/" + pair.Value;
+                if (!fileBytes.ContainsKey(pair.Value))
+                    fileBytes[pair.Value] = ReadZipBytes(package, entries, path, 8L * 1024 * 1024, "决斗动画");
             }
             byte[] mainBytes;
             if (!fileBytes.TryGetValue(mainFile, out mainBytes))
@@ -759,6 +788,7 @@ namespace MortalModHost
                 PackagePath = expectedDir + "/" + mainFile,
                 Bytes = mainBytes,
                 Portraits = portraits,
+                CombatFrames = combatFrames,
                 Files = fileBytes
             };
         }
@@ -951,8 +981,29 @@ namespace MortalModHost
             {
                 if (part.Length == 0 || part == "." || part == "..")
                     throw new FormatException("包内包含不安全或非规范路径：" + path);
+                if (part.IndexOf(':') >= 0)
+                    throw new FormatException("包内路径段禁止冒号（Windows ADS 风险）：" + path);
+                if (part.EndsWith(".", StringComparison.Ordinal)
+                    || part.EndsWith(" ", StringComparison.Ordinal))
+                    throw new FormatException("包内路径段禁止尾随点或空格：" + path);
+                if (IsWindowsDeviceName(part))
+                    throw new FormatException("包内路径使用 Windows 保留设备名：" + path);
             }
             return directory ? body + "/" : body;
+        }
+
+        private static bool IsWindowsDeviceName(string segment)
+        {
+            string stem = segment;
+            int dot = stem.IndexOf('.');
+            if (dot >= 0) stem = stem.Substring(0, dot);
+            stem = stem.ToUpperInvariant();
+            if (stem == "CON" || stem == "PRN" || stem == "AUX" || stem == "NUL")
+                return true;
+            if (stem.Length == 4 && (stem.StartsWith("COM", StringComparison.Ordinal)
+                || stem.StartsWith("LPT", StringComparison.Ordinal)))
+                return stem[3] >= '1' && stem[3] <= '9';
+            return false;
         }
 
         private static bool IsAsciiLetter(char value)
@@ -961,8 +1012,8 @@ namespace MortalModHost
         }
 
         /// <summary>
-        /// 验证打包器生成的压缩无关逻辑内容哈希。旧 v1 包允许缺少记录；一旦存在，
-        /// 格式错误或任一条目被替换都拒绝整包。
+        /// 验证 v3 打包器生成的压缩无关逻辑内容哈希。记录必填；格式错误、缺失或
+        /// 任一条目被替换都拒绝整包。v1/v2 在 manifest 版本门禁处已直接拒绝。
         /// </summary>
         private static void ValidatePackageContentHash(ZipArchive zip, bool required)
         {
@@ -970,7 +1021,7 @@ namespace MortalModHost
             if (recordEntry == null)
             {
                 if (required)
-                    throw new FormatException("package_format=2 缺少 " + PackageContentHashEntry);
+                    throw new FormatException("package_format=3 缺少 " + PackageContentHashEntry);
                 return;
             }
 
@@ -1033,7 +1084,7 @@ namespace MortalModHost
             if (recordEntry == null)
             {
                 if (required)
-                    throw new FormatException("package_format=2 缺少 " + StoryLuaHashEntry);
+                    throw new FormatException("package_format=3 缺少 " + StoryLuaHashEntry);
                 return;
             }
             string[] lines = ReadEntryText(recordEntry).Replace("\r\n", "\n").Split('\n');

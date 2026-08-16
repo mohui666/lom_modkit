@@ -17,7 +17,7 @@ texts.json             # 必填，已读文本表：{MOD_<modid>_<scriptid>_<nod
 localization.json      # 可选，Story 内容语言元数据（schema/default/fallback/locales）
 lua/<locale>/<id>.lua  # 本地化包必填，完整的 locale 专用编译产物
 texts/<locale>.json    # 本地化包必填，locale 专用已读文本表
-story-lua.sha256       # package_format=2 必填，Story/Lua 成对 SHA-256
+story-lua.sha256       # package_format=3 必填，Story/Lua 成对 SHA-256
 package-content.sha256 # 必填，压缩无关的逻辑包内容 SHA-256
 assets/                # 可选，自定义资源
                        #   图片：结局插图 / 人物介绍图 PNG/JPG
@@ -27,7 +27,7 @@ assets/                # 可选，自定义资源
 
 - `<id>` 规则：`[a-zA-Z0-9_\-]{1,64}`，包内唯一，即"剧情脚本 id"。
 - 导出（打包）时必须重新编译：story/*.json → lua/*.lua，二者同名。
-- `story-lua.sha256` 使用 `lom-story-lua-sha256-v1`：每行以 TAB 记录 Story 路径/原始字节 SHA-256 与对应默认或 locale Lua 路径/原始字节 SHA-256。Runtime 对 v2 包强制逐项核对；v1 旧包可缺失，Editor 导入时会现场复编译比对。
+- `story-lua.sha256` 使用 `lom-story-lua-sha256-v1`：每行以 TAB 记录 Story 路径/原始字节 SHA-256 与对应默认或 locale Lua 路径/原始字节 SHA-256。Runtime 对 v3 包强制逐项核对；v1/v2 包缺少稳定战役身份，1.0.1 不再导入或加载，必须明确设置 `campaign_id` 后重新导出。
 - 运行时插件**只读 manifest.json、lua/、texts、可选 localization.json 与 assets/**；story/*.json 给编辑器回读/再编辑用。编译器只打入剧情明确引用的 PNG/JPG（单张 ≤8MB）、明确引用的 `user:` 音频，以及明确引用的自定义角色立绘。导出的 `.lommod` 自包含，玩家机器不需要编辑器仓库。
 - texts.json 由打包时自动生成：收集每个 story 的全部 **say** 节点文本，key 与 lua 里 `GetStoryText` 的 key 一一对应；运行时注册进 LeanLocalization（见 §4/§6）。**death 文本不进 texts.json**：由 codegen 发射 `mod_set_death_text(<标题>, <文本>)` 两参 lua_str 字面量（见 §3.1/§6）。
 - 运行时先拒绝物理文件超过 160 MiB 的包，再从读取该包的同一个文件句柄计算最终 `.lommod` **全部原始字节**的 SHA-256，保存完整 64 个十六进制字符，并在强制披露中显示前 16 个字符。重新压缩、修改任一字节都会改变指纹；改文件名或逐字节复制不会改变。该指纹用于核对具体包，不是作者签名或官方认证。编辑器安装器同样以 160 MiB / 4 MiB 分别限制包文件与 `manifest.json`。
@@ -62,16 +62,17 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 
 ```json
 {
-  "format": 2,
-  "package_format": 2,
-  "story_schema": 1,
+  "format": 3,
+  "package_format": 3,
+  "story_schema": 2,
   "content_schema": 1,
   "min_host_version": "1.0.0",
-  "tested_host_version": "1.0.0",
+  "tested_host_version": "1.0.1",
   "tested_game_version": "1.2.3",
   "id": "demo_mod",
+  "campaign_id": "demo_campaign",
   "name": "示例 Mod",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "somebody",
   "description": "一句话简介",
   "entry": "main",
@@ -85,22 +86,23 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 }
 ```
 
-- `package_format`：`.lommod` 容器与 manifest 契约版本，当前为 `2`。v2 强制 `story-lua.sha256`；v1 仅作为旧包输入兼容。
-- `story_schema`：包内 `story/*.json` 源格式版本，当前固定 `1`。
+- `package_format`：`.lommod` 容器与 manifest 契约版本，当前固定为 `3`。v3 强制 `story-lua.sha256`、`package-content.sha256`、稳定 `campaign_id` 和 `campaign.new_game=true`；v1/v2 一律拒绝。
+- `story_schema`：包内 `story/*.json` 源格式版本，当前固定 `2`。
 - `content_schema`：包内 `assets/user/*/*/content.json` 格式版本，当前固定 `1`。
-- `format`：兼容字段，值必须与 `package_format` 一致。新导出的包同时写出四个字段并使用值 `2`；旧包只有 `format: 1` 时仍可读取，未知版本或互相冲突的声明会被拒绝。
-- 编辑器迁移管线对缺少显式字段的旧 v1 manifest、Story 与 `content.json` 做纯数据迁移，未知字段按原结构保留。打开磁盘上的旧 Story 或扫描旧用户内容时，先写入逐字节原始备份 `原文件名.pre-migration-v1.bak`，再用同目录临时文件原子替换；校验、备份或替换任一步失败都不覆盖源文件。`migration.restore_migration_backup(source, backup)` 可显式恢复，恢复前还会保留当前文件的 recovery 备份。导入旧 `.lommod` 只迁移内存副本，不修改原压缩包。
-- `id`：mod 唯一 id（`[a-z0-9_\-]{1,64}`），运行时也会独立复验，作为注册名前缀与隔离存档槽的一部分。
+- `format`：兼容拼写，值必须与 `package_format` 同为 `3`。未知、旧版或互相冲突的声明都会被拒绝。
+- v1/v2 manifest 和 Story 的 Combat/Battle 语义无法安全推断，也没有稳定 `campaign_id`，Editor 不会自动迁移或从 `id` 猜测。旧项目须由作者选择长期不变的战役 ID、重新配置相关节点并用 1.0.1 重新导出。
+- `id`：mod 包唯一 id（`[a-z0-9_\-]{1,64}`），作为 Lua 注册名前缀；它不是存档身份。
+- `campaign_id`：战役唯一且跨包版本稳定的 id（同样匹配 `[a-z0-9_\-]{1,64}`），唯一用于生成 `mod_campaign_<campaign_id>` 存档命名空间。同一战役更新时不得改变，也不会回退为 `id`。
 - `entry`：入口剧情脚本 id（`[A-Za-z0-9_\-]{1,64}`），必须存在；`lua/` 下所有脚本 id 同样由运行时复验。
 - `min_host_version`（可选 SemVer）：硬门槛。当前 MortalModHost 低于它时，在注册脚本前明确拒载。
 - `tested_host_version`（可选 SemVer）：作者最后测试的 Host 版本；当前 Host 更高时警告但继续加载。编辑器新导出默认填入随附 Runtime 版本。
 - `game_version`（可选版本标识）：硬门槛，必须与 Unity 运行时真实 `Application.version` 精确一致，否则拒载。
 - `tested_game_version`（可选版本标识）：作者测试的游戏版本；与 `Application.version` 不同时警告但继续加载。它与 Steam build id 不是同一字段，当前值可从 Host 启动日志查看。
-- 旧 manifest 不写上述四项时保持原行为。`min_host_version` 不得高于 `tested_host_version`；同时填写 `game_version` 与 `tested_game_version` 时二者不得矛盾。
+- 四个兼容性字段仍可选；`min_host_version` 不得高于 `tested_host_version`，同时填写 `game_version` 与 `tested_game_version` 时二者不得矛盾。
 - `name`、`version`、`author`、`description` 都是**作者自报元数据**，不能声明官方身份。运行时展示前会单行化、限长，并移除控制字符、双向覆盖/零宽格式字符与富文本尖括号。
 - 未定义 `official`、`verified`、`signature`、`sha256` 等信任字段；手工向 manifest 添加这些字段不会影响 Host 计算的包指纹，也不会显示为官方内容。
 - `campaign`（可选）：战役模式。
-  - `new_game`：true 时本 mod 出现在游戏内 mod 菜单的"开始新战役"区，点击后**隔离存档槽**（`SetSlot("mod_<modid>")`，不覆盖玩家正常存档）开新游戏，首个剧情脚本替换为本 mod 的 `entry`。
+  - `new_game`：v3 固定为 true。选择 MOD 只切换到该战役的存档页，不直接开局；只有明确点击“开始新战役”才使用 `SetSlot("mod_campaign_<campaign_id>")` 开新游戏并把首个脚本替换为本包 `entry`。
   - `disable_official_events`（可选，bool，缺省 false）：true 时本战役**禁用原版剧情事件**——返回 Free 时不自动启动无地点主线/支线，地图位置只保留本 mod 触发器（未命中则该位置默认活动不可用，需 mod 自带兜底触发器）。
   - `triggers`：自由模式触发器数组。`type="position"`：点击地图位置 `position`（PositionType 枚举 id：Mall/Center/Alchemy/Forge/BackMountain/Room1/Door/Study/Kitchen/Room2/Secret）时，该位置默认活动脚本替换为 `script`（同包脚本 id）。可选条件全部命中才生效（多条件 AND；**数组顺序=优先级**，运行时取第一个全部命中的触发器）：
     - `when_flag_set` / `when_flag_clear`：剧情 flag（即 `flag` 节点 AddStory 的 key，存档持久化）已设置/未设置。
@@ -127,7 +129,7 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 
 ```json
 {
-  "story_schema": 1,
+  "story_schema": 2,
   "id": "main",
   "title": "显示给玩家的标题",
   "mood": false,
@@ -142,9 +144,9 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 - `choice` / `branch` / `dice` 的分支必须用 `goto` 指到目标节点 id。
 - 多个前驱汇入同一节点（汇合点）合法。
 
-### 3.1 节点类型（全量 63 种）
+### 3.1 节点类型（全量 62 种）
 
-此表是当前全部合法节点。`combat` / `battle` 是基于原版模板的高层编排；战斗能力只调用已反编译核验的原版接口，`mod_quest` 则是明确不接触原版 Mission ID 的宿主状态机。
+此表是当前全部合法节点。`combat` / `battle` 使用稳定的运行时内部基线，不向作者暴露场景预设；战斗能力只调用已反编译核验的原版接口，`mod_quest` 则是明确不接触原版 Mission ID 的宿主状态机。
 
 **演出类**
 
@@ -190,9 +192,8 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 | `game_flag` | `flag`, `value`；可选 `op`("set"默认/"add") | 官方任务 flag：`SetFlag(id, 状态)` / `AddFlag(id, ±增量)`。**id 必须是游戏已有 FlagData**（14_属性与Flag 表），否则游戏静默忽略 |
 | `enemy` | `op`("team"=向心力/"level"=门派规模/"people"=门派人数/"id"=选择当前敌对门派), `enemy`(战役门派 id), `value`(变化量，id 操作不需要), `display`(仅 team/people 使用，默认1) | 修改 **Battle 多人战役**使用的门派状态 `ModifyEnemyTeam/Level/People/Id`；不配置 Combat 一对一决斗敌人 |
 | `battle_skill` | `op`("set"/"active"/"reset"), `key`(reset 不需要), `index`(set 用, 默认2), `active`(active 用, 默认1) | 战场技能 `SetPlayerBattleSkill/SetBattleSkillActive/ResetBattleSkill` |
-| `battle_setup` | 可选 `enemy`, `team`, `level`, `people`, `display`, `reset_skills`, `skills:[{key,index,active}]`；至少配置一项 | 战前聚合节点：只按顺序调用已验证的 `ModifyEnemy*`、`ResetBattleSkill`、`SetPlayerBattleSkill`、`SetBattleSkillActive`，不修改地图/AI/战斗机制 |
-| `combat` | 必填 `key`, `win`, `lose`；可直接设置对手 `max_health/health/max_stamina/stamina`、九项属性、`talents`、三格绝招和五类行动概率 | `key` 仅选择可读名称对应的原版一对一角色/场景底板。Host 只在本次 Combat 的原版 `CombatLevel` 数据读取点覆盖节点内参数，不修改原版资产；`CombatManager.GameOver(bool)` 的真实 win/lose 回到指定节点。不支持 draw/escape，不允许额外 goto |
-| `battle` | 必填 `key`, `win`, `lose`；可直接设置 `friend/enemy/neutral_roster`、三方人数和 NPC 血量、`reset_skills` 与 `skills` | `key` 仅选择原版 Battle 场景。Host 在本次 Battle 读取时分别复用节点指定的三个原版阵容并覆盖生成数量/血量，原版 `ShowGameOver(FriendWin/EnemyWin, finish:true)` 回到指定节点。`PlayerDie(false)` 保持原版流程，不允许额外 goto |
+| `combat` | 必填 `character`, `win`, `lose`；可直接设置对手 `max_health/health/max_stamina/stamina`、九项属性、`talents`、三格绝招和五类行动概率 | `character` 接受官方 ID 或 `user:` 自定义人物，只决定四类战斗动画；其余数值始终自由填写，不会从人物自动带入或受其限制。Host 只覆盖本次 Combat，不修改原版资产；真实 win/lose 回到指定节点 |
+| `battle` | 必填 `friend_faction`, `friend_people`, `enemy_faction`, `enemy_people`, `win`, `lose`；可选 `friend_characters` / `enemy_characters` | 人数各至少 1；具名角色只允许已核实的 12 个官方 Battle 角色，且计入对应总人数、列表长度不得超过总人数。作者数据不含地图、阵容模板、NPC 血量或战场技能预设 |
 | `battle_result` | `win`, `lose`；可选 `kind`("any"/"combat"/"battle"，默认 any) | 读取 Host 按完整包指纹和剧情 id 绑定的最后真实结果并分支。当前仅支持反编译确认的 win/lose；无结果、类型不符或伪造 draw/escape 都会 fail-closed。终止节点，不允许额外 goto |
 | `reward` | `entries`(1~32)：`kind`=stat/affinity/talent/item/flag，`key`，非 flag 用 `amount`，item 另用 `category`=book/misc/special | 编译期展开为现有 `Player` / `Character` / `AddTalent` / `AddBook|Misc|Special` / `AddStory` 与 `modflags`，不发明奖励存档系统 |
 | `result_screen` | `title`（非空）、`entries`（同 reward）；可选 `text` | 先用原版 `mainui.DisplayMessageText` 显示作者填写的标题与说明，再按顺序执行 `reward` 的现有原子接口；这是作者友好的组合节点，不创建自定义结算 UI |
@@ -205,7 +206,7 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 | `activity` | `kind`=training/study/forge/alchemy/custom，`stat`,`op`,`value`,`success`,`failure`；可选 `message`,`time`=none/round/month、成功/失败奖励表 | 编译期组合现有系统提示、`GetStatData` 检定、`NextRound/NextMonth` 与 `reward` 原子接口，不引入新活动引擎 |
 | `mod_quest` | `quest`(安全 id), `op`=start/update/complete/fail；可选 `message` | 操作 Host 自有任务状态机；按包 id + 完整 SHA-256 隔离，不调用 `MissionManager`，不占用官方 Mission ID。当前是战役会话态，跨 Story/Free、但不跨重启/新战役 |
 | `quest_check` | `quest`,`state`=inactive/active/completed/failed,`success`,`failure` | 读取同包任务状态并二分；未知任务为 inactive，非法状态迁移在运行时拒绝 |
-| `persistent_var` | `key`(安全 id), `op`=set/add, `value`(Int32) | 设置或增减当前 MOD 隔离槽的 Host sidecar 整数变量。只允许 `SaveSystem.CurrentSlot == "mod_<id>"`；修改先留在内存，原版 `SaveGameData` 成功返回后原子写入，不修改 GameSave schema |
+| `persistent_var` | `key`(安全 id), `op`=set/add, `value`(Int32) | 设置或增减当前 MOD 隔离槽的 Host sidecar 整数变量。只允许 `SaveSystem.CurrentSlot == "mod_campaign_<campaign_id>"`；修改先留在内存，原版 `SaveGameData` 成功返回后原子写入，不修改 GameSave schema |
 | `persistent_check` | `key`,`op`(>=/>/<=/</==),`value`(Int32),`success`,`failure` | 读取同一 sidecar 后二分；缺失变量为 0。普通存档槽、F5 试玩槽、其他 MOD 槽一律拒绝访问 |
 | `mission` | `name`, `key` | 任务操作 `statmodifymanager.Mission(name, key)`：`Mission("Main","M0001")` 推进主线 / `Mission("S2200","clear")` 清支线 |
 | `time` | `op`("set"/"round"/"month"/"mission")；set 用 `year,month,stage`；mission 用 `name,year,month,stage` | 时间 `SetGameTime/NextRound/NextMonth/SetMissionTime` |
@@ -419,9 +420,9 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 
 1. 启动扫描 `BepInEx/plugins/MortalModHost/mods/*.lommod`，限制物理包大小、ZIP 条目数/单项/总解压大小，复验 id 与脚本 id，并从同一文件句柄计算 SHA-256；随后注册 `MOD_<modid>_<scriptid>` → lua 文本。重复 mod id 或任一注册名碰撞时保留先加载者并按整包拒绝后加载者，菜单不会展示未完整注册的包。
 2. Harmony prefix `LuaManager.ExecuteLuaScript()`：注册名命中时用 mod lua 执行并跳过原方法。
-3. 入口：Free 自由场景保留“活侠MOD”按钮与 F8 菜单；Title 标题场景在原版“开始游戏”上方显示同风格“开始 MOD 战役”。点击后临时复用原版 `LoadGamePanel/LoadSlotPanel`：已有 `mod_<id>` 槽直接继续，固定“新战役”空白槽进入战役选择；关闭后重建原版 001～020 槽。
-   - **完整存档隔离**：MOD 手动槽为 `mod_<id>`；Story/Free/Battle 自动槽分别重定向到 `mod_<id>_auto`、`mod_<id>_auto_free`、`mod_<id>_auto_battle`。`SaveUniverseData` 在 MOD 活动期间只看到最后一个原版槽，原版继续游戏和最近存档不会指向 MOD。
-4. **战役**：点击"开始新战役"→ `SetSlot("mod_<modid>")`（隔离存档槽）→ 官方 `NewGameData()` → postfix 把首个剧情脚本替换为该 mod 的 entry → LoadStory。
+3. 入口：Free 自由场景保留“活侠MOD”按钮与 F8 菜单；Title 标题场景在原版“开始游戏”上方显示同风格“开始 MOD 战役”。点击后临时复用原版读档面板：先选择战役，再显示该战役的主档、三类自动档和新建入口；选择不会直接启动。关闭后重建原版 001～020 槽。
+   - **完整存档隔离**：MOD 手动槽为 `mod_campaign_<campaign_id>`；Story/Free/Battle 自动槽分别追加 `_auto`、`_auto_free`、`_auto_battle`。旧 `mod_<id>` 不探测，原版继续游戏和最近存档不会指向 MOD。
+4. **战役**：选择战役只显示其存档页；明确点击"开始新战役"→ `SetSlot("mod_campaign_<campaign_id>")`（全新 v3 命名空间，不探测旧 `mod_<id>`）→ 官方 `NewGameData()` → postfix 把首个剧情脚本替换为该 mod 的 entry → LoadStory。三类自动槽依次为 `_auto`、`_auto_free`、`_auto_battle`。
 5. **原版剧情抑制与位置触发器**：`disable_official_events` 或 F7 生效时，`UpdateCheckMissions` 内暂时隐藏主线触发状态，`HasAnyMissionTrigger` 返回 false，避免返回 Free 时自动启动官方主线/支线；地点点击 postfix `FreePositionData.GetExecuteScript` 优先匹配 manifest.triggers，无 mod 命中时抑制官方地点默认脚本。
 6. **兜底**：Story 场景请求的 MOD_ 脚本未注册、包身份/指纹缺失、Lua 编译/运行失败时，不执行或立即停止 `LuaEnvironment` 协程，绕过任务判定直接 `SceneController.LoadFree()` 防软锁。若场景正在切换则保持安全遮罩，待可安全转场时重试，禁止并发启动第二条转场协程。
 7. mod 不修改官方脚本与文本表；mod 的 flag 进 StoryKeyList，存档兼容。
@@ -459,7 +460,7 @@ transition 黑幕、choice 皮肤崩溃、背景黑屏、人物未登场就做�
 - Python API：
   - `load_editor_data()`：读取编辑器数据（含 dice_meta 等清单），返回 (editor_data, is_fallback)
   - `new_story(story_id="main", title="新剧情", mood=False)`：新建剧情脚本（show 登场 + 空 say 双节点开场，先登场再动作）
-  - `add_node(story, node_type, fields=None, after=None)`：按 models 默认值新增节点（63 种类型），未知类型/字段/类型不符→ValueError，节点 id 自动生成，after 指定插入位置（节点 id 或 None=末尾）。登场防线：动作类节点的目标人物在前面未登场/已退场时，自动在它前面插入 show
+  - `add_node(story, node_type, fields=None, after=None)`：按 models 默认值新增节点（62 种类型），未知类型/字段/类型不符→ValueError，节点 id 自动生成，after 指定插入位置（节点 id 或 None=末尾）。登场防线：动作类节点的目标人物在前面未登场/已退场时，自动在它前面插入 show
   - `update_node(story, node_id, fields)`：更新节点字段（同 add 的字段校验），节点不存在→ValueError。登场防线：更新后若动作人物未登场/已退场，自动在该节点前插入 show 并把指向它的 goto/选项/分支跳转改指新节点
   - `get_node(story, node_id)`：读取节点，不存在→ValueError
   - `list_nodes(story)`：返回 [{"id","type","summary"}] 清单

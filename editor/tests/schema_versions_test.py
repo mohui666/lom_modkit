@@ -31,9 +31,9 @@ class SchemaVersionsTest(unittest.TestCase):
         self.assertEqual(
             manifest_versions(),
             {
-                "format": 2,
-                "package_format": 2,
-                "story_schema": 1,
+                "format": 3,
+                "package_format": 3,
+                "story_schema": 2,
                 "content_schema": 1,
             },
         )
@@ -57,7 +57,7 @@ class SchemaVersionsTest(unittest.TestCase):
                 lua = "return nil\n"
             archive.writestr("lua/main.lua", lua)
 
-    def test_import_accepts_legacy_v1_and_rejects_unknown_explicit_versions(self):
+    def test_import_rejects_legacy_and_unknown_explicit_versions(self):
         story = {
             "id": "main",
             "start": "end1",
@@ -69,14 +69,9 @@ class SchemaVersionsTest(unittest.TestCase):
             old_package = root / "old.lommod"
             self._package(old_package, legacy, story)
             original_package = old_package.read_bytes()
-            manifest, stories = package_io.import_lommod(old_package)
+            with self.assertRaisesRegex(package_io.PackError, "不兼容"):
+                package_io.import_lommod(old_package)
             self.assertEqual(old_package.read_bytes(), original_package)
-            self.assertEqual(manifest["id"], "legacy")
-            self.assertEqual(manifest["package_format"], PACKAGE_FORMAT)
-            self.assertEqual(manifest["story_schema"], STORY_SCHEMA)
-            self.assertEqual(manifest["content_schema"], CONTENT_SCHEMA)
-            self.assertEqual(stories["main"]["id"], "main")
-            self.assertEqual(stories["main"]["story_schema"], STORY_SCHEMA)
 
             cases = (
                 ({**legacy, "package_format": 3}, story),

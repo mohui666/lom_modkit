@@ -17,6 +17,11 @@ MAX_ARCHIVE_ENTRIES = 2048
 MAX_ENTRY_BYTES = 32 * 1024 * 1024
 MAX_ARCHIVE_UNCOMPRESSED = 128 * 1024 * 1024
 MAX_TEXT_BYTES = 4 * 1024 * 1024
+WINDOWS_DEVICE_NAMES = frozenset(
+    ("CON", "PRN", "AUX", "NUL")
+    + tuple("COM%d" % value for value in range(1, 10))
+    + tuple("LPT%d" % value for value in range(1, 10))
+)
 
 
 class ArchiveValidationError(ValueError):
@@ -64,6 +69,20 @@ def canonical_archive_name(name: str) -> str:
     parts = body.split("/")
     if any(part in ("", ".", "..") for part in parts):
         raise ArchiveValidationError("包内包含不安全或非规范路径：%r" % name)
+    for part in parts:
+        if ":" in part:
+            raise ArchiveValidationError(
+                "包内路径段不能含冒号或 NTFS ADS：%r" % name
+            )
+        if part.endswith((".", " ")):
+            raise ArchiveValidationError(
+                "包内路径段不能以点或空格结尾：%r" % name
+            )
+        device_base = part.split(".", 1)[0].upper()
+        if device_base in WINDOWS_DEVICE_NAMES:
+            raise ArchiveValidationError(
+                "包内路径段不能使用 Windows 设备名：%r" % name
+            )
     canonical = "/".join(parts)
     return canonical + "/" if is_directory else canonical
 

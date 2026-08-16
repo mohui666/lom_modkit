@@ -158,7 +158,7 @@ def _compatibility_checks(
         ("story_schema", manifest.get("story_schema", STORY_SCHEMA), STORY_SCHEMA),
         ("content_schema", manifest.get("content_schema", CONTENT_SCHEMA), CONTENT_SCHEMA),
     ):
-        accepted = (1, current) if field_name == "package_format" else (current,)
+        accepted = (current,)
         if isinstance(value, bool) or value not in accepted:
             inspection.errors.append(
                 f"不支持的 {field_name}：{value!r}（检查器支持 {current}）"

@@ -20,6 +20,16 @@ import content_registry  # noqa: E402
 import package_io  # noqa: E402
 from lomc.content import parse_content_ref  # noqa: E402
 from lomc.errors import LomcError  # noqa: E402
+from schema_versions import manifest_versions, STORY_SCHEMA  # noqa: E402
+
+
+def _manifest(mod_id: str, name: str) -> dict:
+    return {
+        **manifest_versions(), "id": mod_id, "name": name,
+        "version": "1.0.0", "author": "tester", "description": "test",
+        "entry": "main", "campaign_id": "campaign_" + mod_id,
+        "campaign": {"new_game": True},
+    }
 
 
 def _minimal_wav() -> bytes:
@@ -204,17 +214,10 @@ class ContentRegistryTest(unittest.TestCase):
         unused = self._write_wav("unused.wav")
         content_registry.register_audio(used, "mohui.used", "用到的", "music")
         content_registry.register_audio(unused, "mohui.unused", "没用的", "music")
-        manifest = {
-            "format": 1,
-            "id": "audio_test",
-            "name": "音频测试",
-            "version": "1.0.0",
-            "author": "tester",
-            "description": "test",
-            "entry": "main",
-        }
+        manifest = _manifest("audio_test", "音频测试")
         stories = {
             "main": {
+                "story_schema": STORY_SCHEMA,
                 "id": "main",
                 "title": "音频测试",
                 "start": "n1",
@@ -303,17 +306,10 @@ class ContentRegistryTest(unittest.TestCase):
         # 称号仍保留
         self.assertEqual(cleared.title, "江湖新秀")
 
-        manifest = {
-            "format": 1,
-            "id": "char_test",
-            "name": "角色测试",
-            "version": "1.0.0",
-            "author": "tester",
-            "description": "test",
-            "entry": "main",
-        }
+        manifest = _manifest("char_test", "角色测试")
         stories = {
             "main": {
+                "story_schema": STORY_SCHEMA,
                 "id": "main",
                 "title": "角色",
                 "start": "n1",
@@ -341,17 +337,10 @@ class ContentRegistryTest(unittest.TestCase):
     def test_wrong_kind_on_export(self):
         src = self._write_wav()
         content_registry.register_audio(src, "mohui.sfx", "敲门", "sound")
-        manifest = {
-            "format": 1,
-            "id": "kind_test",
-            "name": "类型测试",
-            "version": "1.0.0",
-            "author": "tester",
-            "description": "test",
-            "entry": "main",
-        }
+        manifest = _manifest("kind_test", "类型测试")
         stories = {
             "main": {
+                "story_schema": STORY_SCHEMA,
                 "id": "main",
                 "start": "n1",
                 "nodes": [
@@ -480,17 +469,10 @@ class ContentRegistryTest(unittest.TestCase):
         package = Path(self.temp.name) / "voice_pack.lommod"
         package_io.export_lommod(
             package,
-            {
-                "format": 1,
-                "id": "voice_pack",
-                "name": "语音打包",
-                "version": "1.0.0",
-                "author": "tester",
-                "description": "test",
-                "entry": "main",
-            },
+            _manifest("voice_pack", "语音打包"),
             {
                 "main": {
+                    "story_schema": STORY_SCHEMA,
                     "id": "main",
                     "title": "语音",
                     "start": "n1",

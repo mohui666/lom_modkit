@@ -16,8 +16,8 @@
 
 標題畫面的「開始 MOD 戰役」重用原版讀檔面板；已有戰役可繼續，空白「新戰役」槽會開啟戰役選擇。
 
-- 原版手動槽為 `001`～`020`；MOD 使用 `mod_<mod_id>`。
-- MOD 自動槽為 `mod_<mod_id>_auto*`，不會寫入原版 `auto*`。
+- 原版手動槽為 `001`～`020`；MOD 使用 `mod_campaign_<campaign_id>`，舊 `mod_<mod_id>` 不會被探測。
+- MOD 自動槽追加 `_auto`、`_auto_free`、`_auto_battle`，不會寫入原版 `auto*`。
 - Universe 最近槽保持最後一個原版槽，因此原版「繼續遊戲」不會進入 MOD。
 - 持久變數 sidecar 依 MOD ID 與槽位隔離，並記錄完整包指紋供核對；同 ID 更新包沿用該戰役狀態。
 

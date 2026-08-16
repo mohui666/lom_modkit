@@ -155,6 +155,14 @@ CAMPAIGN_POSITIONS = (
     "Secret",
 )
 
+# Addressables catalog 中已实证同时具备 Battle 具名角色资源的稳定 Story id。
+# 未验证人物不能由 raw JSON 绕过 Editor 带入 Battle spawner。
+VERIFIED_BATTLE_CHARACTERS = frozenset((
+    "brother1", "brother2", "brother4", "girl4", "girl9", "sister1",
+    "special3", "special4", "special102", "special103", "special401",
+    "special811",
+))
+
 # 枚举字段的合法值（§3.1）
 _ENUMS = {
     "music_op": ("play", "stop", "fadeout"),
@@ -192,8 +200,6 @@ _ENUMS = {
     "goto_scene": (
         "Free",
         "Title",
-        "Combat",
-        "Battle",
         "GameOver",
         "End",
         "Story",
@@ -377,16 +383,8 @@ _NODE_FIELDS = {
         {"op": "bskill_op"},
         {"key": "idstr", "index": "num", "active": "num", "level": "num"},
     ),
-    "battle_setup": (
-        {},
-        {
-            "enemy": "idstr", "team": "num", "level": "num",
-            "people": "num", "display": "num", "reset_skills": "bool",
-            "skills": "list",
-        },
-    ),
     "combat": (
-        {"key": "idstr", "win": "idstr", "lose": "idstr"},
+        {"character": "idstr", "win": "idstr", "lose": "idstr"},
         {
             "max_health": "num", "health": "num", "max_stamina": "num",
             "stamina": "num", "strength": "num", "internal": "num",
@@ -399,13 +397,13 @@ _NODE_FIELDS = {
         },
     ),
     "battle": (
-        {"key": "idstr", "win": "idstr", "lose": "idstr"},
         {
-            "friend_roster": "idstr",
-            "enemy_roster": "idstr", "neutral_roster": "idstr",
-            "friend_people": "num", "enemy_people": "num", "neutral_people": "num",
-            "friend_health": "num", "enemy_health": "num", "neutral_health": "num",
-            "reset_skills": "bool", "skills": "list",
+            "friend_faction": "idstr", "friend_people": "num",
+            "enemy_faction": "idstr", "enemy_people": "num",
+            "win": "idstr", "lose": "idstr",
+        },
+        {
+            "friend_characters": "list", "enemy_characters": "list",
         },
     ),
     "battle_result": (
@@ -1021,41 +1019,15 @@ def _check_node_extra(node, ntype, label):
             or node.get("level", 1) < 0
         ):
             raise LomcError('%s(battle_skill): 字段 "level" 必须是非负整数' % label)
-    elif ntype == "battle_setup":
-        if not node.get("enemy") and not node.get("reset_skills") and not node.get("skills"):
-            raise LomcError(
-                '%s(battle_setup): 至少需要 enemy、reset_skills=true 或一条 skills 配置'
-                % label
-            )
-        if not node.get("enemy") and any(name in node for name in ("team", "level", "people")):
-            raise LomcError(
-                '%s(battle_setup): team/level/people 必须与 enemy 一起使用' % label
-            )
-        for name in ("team", "level", "people", "display"):
-            if name in node and (isinstance(node[name], bool) or not isinstance(node[name], int)):
-                raise LomcError('%s(battle_setup): 字段 "%s" 必须是整数' % (label, name))
-        if "display" in node and node["display"] not in (0, 1):
-            raise LomcError('%s(battle_setup): 字段 "display" 必须是 0 或 1' % label)
-        skills = node.get("skills", [])
-        if len(skills) > 16:
-            raise LomcError('%s(battle_setup): skills 最多 16 条' % label)
-        for index, skill in enumerate(skills, 1):
-            skill_label = '%s(battle_setup) 第 %d 条技能' % (label, index)
-            if not isinstance(skill, dict):
-                raise LomcError('%s: 必须是对象' % skill_label)
-            unknown = set(skill) - {"key", "index", "active"}
-            if unknown:
-                raise LomcError('%s: 未知字段 %s' % (skill_label, "、".join(sorted(unknown))))
-            if not _check_type("idstr", skill.get("key")):
-                raise LomcError('%s: key 必须是非空技能 id' % skill_label)
-            slot = skill.get("index", 2)
-            if isinstance(slot, bool) or not isinstance(slot, int):
-                raise LomcError('%s: index 必须是整数' % skill_label)
-            active = skill.get("active", 1)
-            if isinstance(active, bool) or active not in (0, 1):
-                raise LomcError('%s: active 必须是 0 或 1' % skill_label)
     elif ntype == "combat":
         effective = node
+        character = effective.get("character")
+        if is_user_ref(character):
+            parse_content_ref(character, label='%s(combat) 的 character' % label)
+        elif not isinstance(character, str) or SCRIPT_ID_RE.fullmatch(character) is None:
+            raise LomcError(
+                '%s(combat): character 必须是官方人物 id 或合法 user: 引用' % label
+            )
         for name in (
             "max_health", "health", "max_stamina", "stamina", "strength", "internal",
             "dexterity", "talking", "defence", "sword", "fist", "martial_weapon", "mental",
@@ -1084,32 +1056,38 @@ def _check_node_extra(node, ntype, label):
                 raise LomcError('%s(combat): 第 %d 条 talent level 必须是非负整数' % (label, index))
     elif ntype == "battle":
         effective = node
-        for name in ("friend_roster", "enemy_roster", "neutral_roster"):
+        for name in ("friend_faction", "enemy_faction"):
             if name in effective and SCRIPT_ID_RE.fullmatch(effective[name]) is None:
-                raise LomcError('%s(battle): %s 必须是安全的原版 Battle id' % (label, name))
-        for name in (
-            "friend_people", "enemy_people", "neutral_people", "friend_health",
-            "enemy_health", "neutral_health",
-        ):
+                raise LomcError('%s(battle): %s 必须是安全的原版阵营 id' % (label, name))
+        for name in ("friend_people", "enemy_people"):
             if name in effective and (
                 isinstance(effective[name], bool) or not isinstance(effective[name], int)
-                or effective[name] < (1 if name.endswith("health") else 0)
+                or effective[name] < 1
             ):
-                raise LomcError('%s(battle): %s 数值无效' % (label, name))
-        skills = effective.get("skills", [])
-        if len(skills) > 16:
-            raise LomcError('%s(battle): skills 最多 16 条' % label)
-        for index, skill in enumerate(skills, 1):
-            if not isinstance(skill, dict) or set(skill) - {"key", "index", "active"}:
-                raise LomcError('%s(battle): 第 %d 条 skills 格式错误' % (label, index))
-            if not isinstance(skill.get("key"), str) or SCRIPT_ID_RE.fullmatch(skill["key"]) is None:
-                raise LomcError('%s(battle): 第 %d 条 skill key 无效' % (label, index))
-            slot = skill.get("index", 2)
-            active = skill.get("active", 1)
-            if isinstance(slot, bool) or not isinstance(slot, int):
-                raise LomcError('%s(battle): 第 %d 条 skill index 必须是整数' % (label, index))
-            if isinstance(active, bool) or active not in (0, 1):
-                raise LomcError('%s(battle): 第 %d 条 skill active 必须是 0 或 1' % (label, index))
+                raise LomcError('%s(battle): %s 必须是至少 1 的整数' % (label, name))
+        for side in ("friend", "enemy"):
+            people = effective.get(side + "_people", 0)
+            characters = effective.get(side + "_characters", [])
+            if not isinstance(characters, list):
+                raise LomcError('%s(battle): %s_characters 必须是数组' % (label, side))
+            if len(characters) > people:
+                raise LomcError(
+                    '%s(battle): %s_characters 中的具名角色已超过该方总人数 %d'
+                    % (label, side, people)
+                )
+            seen = set()
+            for index, character in enumerate(characters, 1):
+                if character not in VERIFIED_BATTLE_CHARACTERS:
+                    raise LomcError(
+                        '%s(battle): %s_characters 第 %d 项不是已验证的官方 Battle 人物'
+                        % (label, side, index)
+                    )
+                if character.casefold() in seen:
+                    raise LomcError(
+                        '%s(battle): %s_characters 不得重复添加人物 %s'
+                        % (label, side, character)
+                    )
+                seen.add(character.casefold())
     elif ntype in ("reward", "result_screen"):
         if ntype == "result_screen" and not node["title"].strip():
             raise LomcError('%s(result_screen): title 不能为空或纯空白' % label)
@@ -1743,10 +1721,10 @@ def validate_manifest(manifest, source="manifest.json"):
         if not isinstance(manifest, dict):
             raise LomcError("顶层必须是 JSON 对象")
         fmt = manifest.get("package_format", manifest.get("format"))
-        if fmt not in (1, PACKAGE_FORMAT) or isinstance(fmt, bool):
+        if fmt != PACKAGE_FORMAT or isinstance(fmt, bool):
             raise LomcError(
-                '字段 "package_format" 必须是 1 或 %d（包格式版本号）'
-                % PACKAGE_FORMAT
+                '字段 "package_format" 必须是 %d；v1/v2 包缺少稳定 campaign_id，'
+                '与 1.0.1 不兼容，请用 1.0.1 Editor 重新导出' % PACKAGE_FORMAT
             )
         if "package_format" in manifest and "format" in manifest:
             legacy_format = manifest.get("format")
@@ -1767,6 +1745,13 @@ def validate_manifest(manifest, source="manifest.json"):
             raise LomcError(
                 '缺少必填字段 "id"（mod 唯一 id，规则 [a-z0-9_-]{1,64}），实际为 %r' % (mid,)
             )
+        campaign_id = manifest.get("campaign_id")
+        if not isinstance(campaign_id, str) or MOD_ID_RE.fullmatch(campaign_id) is None:
+            raise LomcError(
+                '缺少必填字段 "campaign_id"（稳定战役 id，规则 '
+                '[a-z0-9_-]{1,64}）。旧项目不会自动生成该 ID；请在 1.0.1 Editor '
+                '中明确填写并重新导出，实际为 %r' % (campaign_id,)
+            )
         for name in ("name", "version", "author", "description"):
             _validate_manifest_display_text(name, manifest.get(name))
         _validate_compatibility_metadata(manifest)
@@ -1775,11 +1760,13 @@ def validate_manifest(manifest, source="manifest.json"):
             raise LomcError(
                 '缺少必填字段 "entry"（入口剧情脚本 id），实际为 %r' % (entry,)
             )
-        # campaign（可选，§2）：结构只做浅校验，运行时再解释
+        # v3 每个 MOD 恰好对应一个可开始的新战役。
         campaign = manifest.get("campaign")
+        if not isinstance(campaign, dict):
+            raise LomcError('缺少必填字段 "campaign"（每个 v3 MOD 必须对应一个战役）')
+        if campaign.get("new_game") is not True:
+            raise LomcError('字段 "campaign.new_game" 必须固定为 true')
         if campaign is not None:
-            if not isinstance(campaign, dict):
-                raise LomcError('可选字段 "campaign" 必须是对象')
             if "new_game" in campaign and not isinstance(campaign["new_game"], bool):
                 raise LomcError('字段 "campaign.new_game" 必须是布尔值')
             if "disable_official_events" in campaign and not isinstance(

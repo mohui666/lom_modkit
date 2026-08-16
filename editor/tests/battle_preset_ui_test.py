@@ -25,34 +25,32 @@ class DirectCombatBattleUiTest(unittest.TestCase):
         fields = {key for key, *_ in models.NODE_SCHEMAS["combat"]["fields"]}
         self.assertNotIn("preset", fields)
         self.assertEqual(fields, {
-            "key", "max_health", "health", "max_stamina", "stamina", "strength",
+            "character", "max_health", "health", "max_stamina", "stamina", "strength",
             "internal", "dexterity", "talking", "defence", "sword", "fist",
             "martial_weapon", "mental", "talents", "ultimate_one", "ultimate_two",
             "ultimate_three", "talk_rate", "attack_rate", "weapon_rate",
             "ultimate_rate", "block_rate", "win", "lose",
         })
 
-    def test_battle_node_exposes_all_three_sides_and_skills(self):
+    def test_battle_node_exposes_only_factions_totals_and_named_characters(self):
         fields = {key for key, *_ in models.NODE_SCHEMAS["battle"]["fields"]}
         self.assertNotIn("preset", fields)
         self.assertEqual(fields, {
-            "key", "friend_roster", "enemy_roster", "neutral_roster",
-            "friend_people", "enemy_people", "neutral_people",
-            "friend_health", "enemy_health", "neutral_health",
-            "reset_skills", "skills", "win", "lose",
+            "friend_faction", "friend_people", "friend_characters",
+            "enemy_faction", "enemy_people", "enemy_characters", "win", "lose",
         })
 
     def test_form_shows_readable_template_and_direct_numeric_controls(self):
         data = dict(models.FALLBACK_EDITOR_DATA)
-        data["combat_ids"] = [{"id": "5102_01", "name": "山贼决斗"}]
+        data["characters"] = [{"id": "special3", "name": "叶云舟"}]
         form = NodeForm()
         form.set_context(data, ["fight", "win", "lose"], ["main"])
         form.set_node({
-            "id": "fight", "type": "combat", "key": "5102_01",
+            "id": "fight", "type": "combat", "character": "special3",
             "max_health": 800, "win": "win", "lose": "lose",
         })
-        template = next(c for c in form.findChildren(QComboBox) if c.findData("5102_01") >= 0)
-        self.assertIn("山贼决斗", template.itemText(template.findData("5102_01")))
+        template = next(c for c in form.findChildren(QComboBox) if c.findData("special3") >= 0)
+        self.assertIn("叶云舟", template.itemText(template.findData("special3")))
         self.assertTrue(form.findChildren(QSpinBox))
 
 

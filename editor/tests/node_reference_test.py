@@ -92,11 +92,11 @@ class NodeReferenceTest(unittest.TestCase):
 
     def test_combat_battle_and_dice_parameter_effects_are_specific(self):
         combat = node_reference_html("combat")
-        self.assertIn("原版一对一决斗的角色与场景底板", combat)
+        self.assertIn("只决定战斗动画", combat)
         self.assertIn("原版 AI", combat)
         battle = node_reference_html("battle")
-        self.assertIn("三方阵容", battle)
-        self.assertIn("上一场配置残留", battle)
+        self.assertIn("总人数", battle)
+        self.assertIn("具名角色", battle)
         dice = node_reference_html("dice")
         self.assertIn("0 到该值之间", dice)
         self.assertIn("最后一档接收剩余点数", dice)

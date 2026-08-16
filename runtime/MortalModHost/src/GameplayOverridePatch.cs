@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using HarmonyLib;
 using Mortal.Battle;
@@ -28,6 +29,12 @@ namespace MortalModHost
     {
         private static CombatStat _lastClone;
 
+        internal static void Clear()
+        {
+            if (_lastClone != null) UnityObject.Destroy(_lastClone);
+            _lastClone = null;
+        }
+
         private static void Prefix(CombatActionController __instance, ref CombatStat data)
         {
             if (!GameplaySession.PendingCombat || data == null) return;
@@ -39,9 +46,10 @@ namespace MortalModHost
                     .Field("_enemyAction").GetValue<CombatActionController>();
                 if (!ReferenceEquals(__instance, enemy)) return;
 
-                if (_lastClone != null) UnityObject.Destroy(_lastClone);
+                Clear();
                 CombatStat clone = UnityObject.Instantiate(data);
                 clone.name = data.name + "__MortalModHost";
+                BattleOverrideResolver.ApplyCombatCharacter(clone);
                 ApplyInt("max_health", 1, 10000000, delegate(int v) { clone.MaxHealth = v; });
                 ApplyInt("health", 0, 10000000, delegate(int v) { clone.DefaultHealth = v; });
                 ApplyInt("max_stamina", 0, 100000, delegate(int v) { clone.MaxStamina = v; });
@@ -131,21 +139,76 @@ namespace MortalModHost
             return config == null ? null : config.Get("BL_" + key);
         }
 
-        internal static GameObject ResolveSpawner(string configKey, string fieldName)
+        internal static void ApplyCombatCharacter(CombatStat clone)
         {
-            if (!GameplaySession.HasConfig(configKey)) return null;
-            BattleLevel source = ResolveLevel(GameplaySession.ConfigString(configKey));
-            if (source == null)
+            string character = GameplaySession.ConfigString("character");
+            if (string.IsNullOrEmpty(character))
+                throw new InvalidOperationException("Combat v3 缺少 character");
+            if (CombatCharacterPolicy.IsUserCharacter(character)) return;
+            CombatLevelConfig config = Traverse.Create(CombatManager.Instance)
+                .Field("_levelConfig").GetValue<CombatLevelConfig>();
+            if (config == null || config.List == null)
+                throw new InvalidOperationException("CombatLevelConfig 不可用");
+            CombatEnemyAvatar avatar = null;
+            string token = NormalizeAssetName(CombatCharacterPolicy.OfficialAssetToken(character));
+            for (int i = 0; i < config.List.Count; i++)
             {
-                GameplayOverrideFailure.Abort(
-                    "战役阵容", new InvalidOperationException("找不到原版 Battle 模板：" + GameplaySession.ConfigString(configKey)));
-                return null;
+                CombatLevel level = config.List[i];
+                CombatEnemyAvatar candidate = level != null && level.EnemyStat != null
+                    ? level.EnemyStat.CombatAvatar : null;
+                string key = candidate != null ? NormalizeAssetName(candidate.NormalKey) : "";
+                if (key.IndexOf(token, StringComparison.Ordinal) < 0) continue;
+                if (avatar != null && !SameAvatar(avatar, candidate))
+                    throw new InvalidOperationException("官方决斗人物动画匹配不唯一：" + character);
+                avatar = candidate;
             }
-            GameObject result = Traverse.Create(source).Field(fieldName).GetValue<GameObject>();
-            if (result == null)
-                GameplayOverrideFailure.Abort(
-                    "战役阵容", new InvalidOperationException("原版 Battle 模板缺少阵容 Prefab：" + configKey));
-            return result;
+            if (avatar == null)
+                throw new InvalidOperationException("找不到官方决斗人物动画：" + character);
+            clone.CombatAvatar = avatar;
+        }
+
+        private static bool SameAvatar(CombatEnemyAvatar left, CombatEnemyAvatar right)
+        {
+            return left == right || (left != null && right != null
+                && left.NormalKey == right.NormalKey && left.AttackKey == right.AttackKey
+                && left.HurtKey == right.HurtKey && left.DefenceKey == right.DefenceKey);
+        }
+
+        private static string NormalizeAssetName(string value)
+        {
+            var chars = new List<char>();
+            foreach (char c in (value ?? "").ToLowerInvariant())
+                if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) chars.Add(c);
+            return new string(chars.ToArray());
+        }
+
+        internal static GameObject ResolveFactionSpawner(string side, string fieldName)
+        {
+            if (!GameplaySession.PendingBattle) return null;
+            string faction = GameplaySession.ConfigString(side + "_faction");
+            int total;
+            if (!GameplaySession.TryConfigInt(side + "_people", 0, 10000, out total)) total = 0;
+            BattleCompositionPolicy.ParseCharacters(
+                GameplaySession.ConfigString(side + "_characters"), total);
+            if (string.IsNullOrEmpty(faction))
+            {
+                if (total == 0) return null;
+                throw new InvalidOperationException(side + "_faction 在人数非零时不能为空");
+            }
+            BattleLevelConfig config = Traverse.Create(GameLevelManager.Instance)
+                .Field("_levelConfig").GetValue<BattleLevelConfig>();
+            if (config == null || config.List == null)
+                throw new InvalidOperationException("BattleLevelConfig 不可用");
+            for (int i = 0; i < config.List.Count; i++)
+            {
+                BattleLevel level = config.List[i];
+                if (level == null || !string.Equals(level.NameKey, faction, StringComparison.Ordinal)) continue;
+                GameObject prefab = Traverse.Create(level).Field(fieldName).GetValue<GameObject>();
+                if (prefab == null)
+                    throw new InvalidOperationException("战役阵营缺少可用 NPC 生成器：" + faction);
+                return prefab;
+            }
+            throw new InvalidOperationException("找不到战役阵营：" + faction);
         }
 
         internal static bool TryCount(string key, out int value)
@@ -190,8 +253,8 @@ namespace MortalModHost
     {
         private static void Postfix(ref int __result)
         {
-            int value;
-            if (BattleOverrideResolver.TryCount("neutral_people", out value)) __result = value;
+            // story_schema=2 只公开友/敌双方；内部 BL_0000 若自带中立人数必须清零。
+            if (GameplaySession.PendingBattle) __result = 0;
         }
     }
 
@@ -201,9 +264,13 @@ namespace MortalModHost
         private static void Postfix(ref GameObject __result)
         {
             if (!GameplaySession.PendingBattle) return;
-            GameObject replacement = BattleOverrideResolver.ResolveSpawner(
-                "friend_roster", "_friendSpawnerPrefab");
-            if (replacement != null) __result = replacement;
+            try
+            {
+                GameObject replacement = BattleOverrideResolver.ResolveFactionSpawner(
+                    "friend", "_enemySpawnerPrefab");
+                if (replacement != null) __result = replacement;
+            }
+            catch (Exception ex) { GameplayOverrideFailure.Abort("我方战役阵营", ex); }
         }
     }
 
@@ -213,74 +280,239 @@ namespace MortalModHost
         private static void Postfix(ref GameObject __result)
         {
             if (!GameplaySession.PendingBattle) return;
-            GameObject replacement = BattleOverrideResolver.ResolveSpawner(
-                "enemy_roster", "_enemySpawnerPrefab");
-            if (replacement != null) __result = replacement;
-        }
-    }
-
-    [HarmonyPatch(typeof(BattleLevel), "get_NeutralSpawnerPrefab")]
-    internal static class BattleNeutralRosterPatch
-    {
-        private static void Postfix(ref GameObject __result)
-        {
-            if (!GameplaySession.PendingBattle) return;
-            GameObject replacement = BattleOverrideResolver.ResolveSpawner(
-                "neutral_roster", "_neutralSpawnerPrefab");
-            if (replacement != null) __result = replacement;
-        }
-    }
-
-    /// <summary>按阵营给每个已实例化 NPC 增加临时生命修正，不写共享 HealthData。</summary>
-    [HarmonyPatch(typeof(CharacterHealth), "Start")]
-    internal static class BattleNpcHealthPatch
-    {
-        private static void Postfix(CharacterHealth __instance)
-        {
-            if (!GameplaySession.PendingBattle || GameLevelManager.Instance == null) return;
             try
             {
-                int target;
-                string side = FindSide(__instance.transform);
-                if (side.Length == 0
-                    || !GameplaySession.TryConfigInt(side + "_health", 1, 10000000, out target))
-                    return;
-                HealthData data = Traverse.Create(__instance).Field("_defaultHealth")
-                    .GetValue<HealthData>();
-                if (data == null) throw new InvalidOperationException("CharacterHealth 缺少默认 HealthData");
-                Traverse.Create(__instance).Field("_defaultAddHealth")
-                    .SetValue(target - data.Health);
-                Traverse.Create(__instance).Property("CurrentHealth").SetValue(target);
+                GameObject replacement = BattleOverrideResolver.ResolveFactionSpawner(
+                    "enemy", "_enemySpawnerPrefab");
+                if (replacement != null) __result = replacement;
+            }
+            catch (Exception ex) { GameplayOverrideFailure.Abort("敌方战役阵营", ex); }
+        }
+    }
+
+    /// <summary>在原版 SetData 完成后，仅替换本场敌人的四个 SpriteRenderer；离场立即销毁。</summary>
+    [HarmonyPatch(typeof(CombatEnemyController), "SetData")]
+    internal static class CombatCustomAvatarPatch
+    {
+        private static readonly List<Sprite> Sprites = new List<Sprite>();
+        private static readonly List<Texture2D> Textures = new List<Texture2D>();
+
+        private static void Postfix(CombatEnemyController __instance, ref IEnumerator __result)
+        {
+            if (!GameplaySession.PendingCombat || __instance == null) return;
+            string character = GameplaySession.ConfigString("character");
+            if (!CombatCharacterPolicy.IsUserCharacter(character)) return;
+            __result = Wrap(__instance, __result, character);
+        }
+
+        private static IEnumerator Wrap(
+            CombatEnemyController controller, IEnumerator original, string raw)
+        {
+            while (original != null && original.MoveNext()) yield return original.Current;
+            try { Apply(controller, raw); }
+            catch (Exception ex) { GameplayOverrideFailure.Abort("自定义决斗动画", ex); }
+        }
+
+        private static void Apply(CombatEnemyController controller, string raw)
+        {
+            Clear();
+            ContentRef parsed;
+            string error;
+            ModPackage package = ModOverlay.CurrentPackage;
+            UserContent content;
+            if (!ContentRef.TryParse(raw, out parsed, out error) || package == null
+                || !package.TryGetUserContent(parsed.ContentId, out content)
+                || content == null || content.Type != "character")
+                throw new InvalidOperationException("找不到当前包内自定义决斗人物：" + raw);
+            string normal = null;
+            if (content.Portraits != null) content.Portraits.TryGetValue("normal", out normal);
+            Dictionary<string, string> frames = CombatCharacterPolicy.ResolveFrames(
+                content.CombatFrames, normal);
+            Sprite idle = Load(content, frames["idle"]);
+            Sprite attack = Load(content, frames["attack"]);
+            Sprite hurt = Load(content, frames["hurt"]);
+            Sprite defence = Load(content, frames["defence"]);
+            Traverse owner = Traverse.Create(controller);
+            Set(owner.Field("_idleSprite").GetValue<SpriteRenderer>(), idle);
+            Set(owner.Field("_chargeSprite").GetValue<SpriteRenderer>(), idle);
+            Set(owner.Field("_attackSprite").GetValue<SpriteRenderer>(), attack);
+            Set(owner.Field("_hurtSprite").GetValue<SpriteRenderer>(), hurt);
+            Set(owner.Field("_defenceSprite").GetValue<SpriteRenderer>(), defence);
+        }
+
+        private static Sprite Load(UserContent content, string file)
+        {
+            byte[] bytes;
+            if (content.Files == null || !content.Files.TryGetValue(file, out bytes)
+                || bytes == null || bytes.Length == 0)
+                throw new InvalidOperationException("自定义决斗动画文件不存在：" + file);
+            Texture2D texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+            if (!texture.LoadImage(bytes))
+            {
+                UnityObject.Destroy(texture);
+                throw new InvalidOperationException("自定义决斗动画图片解码失败：" + file);
+            }
+            texture.wrapMode = TextureWrapMode.Clamp;
+            texture.filterMode = FilterMode.Bilinear;
+            Sprite sprite = Sprite.Create(texture,
+                new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0f), 100f);
+            Textures.Add(texture);
+            Sprites.Add(sprite);
+            return sprite;
+        }
+
+        private static void Set(SpriteRenderer renderer, Sprite sprite)
+        {
+            if (renderer == null) throw new InvalidOperationException("CombatEnemyController 动画渲染器缺失");
+            renderer.sprite = sprite;
+        }
+
+        internal static void Clear()
+        {
+            for (int i = 0; i < Sprites.Count; i++) if (Sprites[i] != null) UnityObject.Destroy(Sprites[i]);
+            for (int i = 0; i < Textures.Count; i++) if (Textures[i] != null) UnityObject.Destroy(Textures[i]);
+            Sprites.Clear();
+            Textures.Clear();
+        }
+    }
+
+    [HarmonyPatch(typeof(CombatEnemyController), "OnDestroy")]
+    internal static class CombatCustomAvatarCleanupPatch
+    {
+        private static void Prefix()
+        {
+            CombatCustomAvatarPatch.Clear();
+            CombatStatOverridePatch.Clear();
+        }
+    }
+
+    /// <summary>
+    /// 原版 InitNpcList 会把 _specialNPCs 额外压入队列。v3 必须让具名角色计入
+    /// total，因此先禁用额外队列，再在生成后的固定长度队列中替换前 N 个普通席位。
+    /// </summary>
+    [HarmonyPatch(typeof(NpcSpawner), "Setup")]
+    internal static class BattleNamedCharacterPatch
+    {
+        private static string Prefix(NpcSpawner __instance, GameObject spawnerObject)
+        {
+            if (!GameplaySession.PendingBattle || __instance == null) return null;
+            string side = FindSide(spawnerObject);
+            if (side == null) return null;
+            try
+            {
+                int total;
+                if (!GameplaySession.TryConfigInt(side + "_people", 0, 10000, out total)) total = 0;
+                List<string> ids = BattleCompositionPolicy.ParseCharacters(
+                    GameplaySession.ConfigString(side + "_characters"), total);
+                // 原版 specialNPC 始终是额外席位；v3 所有席位都必须包含在 total 内。
+                Traverse.Create(__instance).Field("_specialNPCs").SetValue(new NpcSpawnPreset[0]);
+                return side;
             }
             catch (Exception ex)
             {
-                GameplayOverrideFailure.Abort("战役 NPC 血量", ex);
+                GameplayOverrideFailure.Abort("战役具名角色", ex);
+                return null;
             }
         }
 
-        private static string FindSide(Transform transform)
+        private static string FindSide(GameObject spawnPoints)
         {
+            if (spawnPoints == null || GameLevelManager.Instance == null) return null;
+            Transform parent = spawnPoints.transform.parent;
             Traverse manager = Traverse.Create(GameLevelManager.Instance);
-            if (Inside(manager.Field("_friendSpawner").GetValue<NpcSpawner>(), transform))
-                return "friend";
-            if (Inside(manager.Field("_enemySpawner").GetValue<NpcSpawner>(), transform))
-                return "enemy";
-            if (Inside(manager.Field("_neutralSpawner").GetValue<NpcSpawner>(), transform))
-                return "neutral";
-            return "";
+            if (ReferenceEquals(parent, manager.Field("_friendSpawnerPosition").GetValue<Transform>())) return "friend";
+            if (ReferenceEquals(parent, manager.Field("_enemySpawnerPosition").GetValue<Transform>())) return "enemy";
+            if (ReferenceEquals(parent, manager.Field("_neutralSpawnerPosition").GetValue<Transform>())) return "neutral";
+            return null;
         }
 
-        private static bool Inside(NpcSpawner spawner, Transform target)
+        private static void Postfix(NpcSpawner __instance, string __state)
         {
-            if (spawner == null) return false;
-            CharacterSpawnPoint[] points = Traverse.Create(spawner)
-                .Field("_spawnPoints").GetValue<CharacterSpawnPoint[]>();
-            if (points == null) return false;
-            foreach (CharacterSpawnPoint point in points)
+            if (string.IsNullOrEmpty(__state) || __instance == null) return;
+            try
             {
-                if (point != null && target.IsChildOf(point.transform)) return true;
+                int total;
+                GameplaySession.TryConfigInt(__state + "_people", 0, 10000, out total);
+                List<string> ids = BattleCompositionPolicy.ParseCharacters(
+                    GameplaySession.ConfigString(__state + "_characters"), total);
+                Queue<NpcSpawnPreset> queue = Traverse.Create(__instance)
+                    .Field("_npcQueue").GetValue<Queue<NpcSpawnPreset>>();
+                if (queue == null || queue.Count != total)
+                    throw new InvalidOperationException("原版 NPC 队列人数与声明总人数不一致");
+                if (ids.Count == 0) return;
+                var replacements = new List<NpcSpawnPreset>();
+                for (int i = 0; i < ids.Count; i++) replacements.Add(ResolveNamed(ids[i]));
+                var rows = queue.ToArray();
+                queue.Clear();
+                for (int i = 0; i < rows.Length; i++)
+                    queue.Enqueue(i < replacements.Count ? replacements[i] : rows[i]);
+                if (queue.Count != total)
+                    throw new InvalidOperationException("替换具名角色后 NPC 队列人数发生变化");
             }
-            return false;
+            catch (Exception ex) { GameplayOverrideFailure.Abort("战役具名角色", ex); }
+        }
+
+        private static NpcSpawnPreset ResolveNamed(string id)
+        {
+            BattleLevelConfig config = Traverse.Create(GameLevelManager.Instance)
+                .Field("_levelConfig").GetValue<BattleLevelConfig>();
+            string token = BattleCompositionPolicy.AssetToken(id);
+            NpcSpawnPreset found = null;
+            if (config != null && config.List != null)
+            {
+                for (int i = 0; i < config.List.Count; i++)
+                {
+                    BattleLevel level = config.List[i];
+                    if (level == null) continue;
+                    string[] fields = { "_friendSpawnerPrefab", "_enemySpawnerPrefab", "_neutralSpawnerPrefab" };
+                    for (int f = 0; f < fields.Length; f++)
+                    {
+                        GameObject owner = Traverse.Create(level).Field(fields[f]).GetValue<GameObject>();
+                        NpcSpawner source = owner != null ? owner.GetComponent<NpcSpawner>() : null;
+                        if (source == null) continue;
+                        NpcSpawnPreset[] special = Traverse.Create(source)
+                            .Field("_specialNPCs").GetValue<NpcSpawnPreset[]>();
+                        found = MatchPreset(source.NpcPresets, special, token, found);
+                    }
+                }
+            }
+            if (found == null)
+                throw new InvalidOperationException("找不到已验证的官方战役人物资源：" + id);
+            return found;
+        }
+
+        private static NpcSpawnPreset MatchPreset(
+            IList<NpcSpawnPreset> normal, IList<NpcSpawnPreset> special,
+            string token, NpcSpawnPreset current)
+        {
+            current = MatchList(normal, token, current);
+            return MatchList(special, token, current);
+        }
+
+        private static NpcSpawnPreset MatchList(
+            IList<NpcSpawnPreset> rows, string token, NpcSpawnPreset current)
+        {
+            if (rows == null) return current;
+            for (int i = 0; i < rows.Count; i++)
+            {
+                NpcSpawnPreset preset = rows[i];
+                string name = preset != null && preset.Prefab != null ? preset.Prefab.name : "";
+                string normalized = NormalizeAssetName(name);
+                if (normalized.IndexOf(token, StringComparison.Ordinal) < 0) continue;
+                if (current != null && !ReferenceEquals(current.Prefab, preset.Prefab))
+                    throw new InvalidOperationException("官方人物资源匹配不唯一：" + token);
+                current = preset;
+            }
+            return current;
+        }
+
+        private static string NormalizeAssetName(string value)
+        {
+            var chars = new List<char>();
+            foreach (char c in (value ?? "").ToLowerInvariant())
+                if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) chars.Add(c);
+            return new string(chars.ToArray());
         }
     }
+
 }

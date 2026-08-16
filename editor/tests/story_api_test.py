@@ -35,7 +35,7 @@ import models  # noqa: E402
 PROJECT_ROOT = EDITOR_DIR.parent
 DEMO_STORY = PROJECT_ROOT / "samples" / "demo_mod" / "story" / "main.json"
 
-# 契约 §3.1 全量 63 种节点类型（与 models.NODE_TYPES 一一对应）
+# 契约 §3.1 全量 62 种节点类型（与 models.NODE_TYPES 一一对应）
 ALL_TYPES = [
     "music",
     "sound",
@@ -72,7 +72,6 @@ ALL_TYPES = [
     "game_flag",
     "enemy",
     "battle_skill",
-    "battle_setup",
     "combat",
     "battle",
     "battle_result",
@@ -162,9 +161,9 @@ class TestNewStory(unittest.TestCase):
 
 
 class TestAddNode(unittest.TestCase):
-    def test_63_types(self):
+    def test_62_types(self):
         story = story_api.new_story()
-        self.assertEqual(len(ALL_TYPES), 63, "契约应有 63 种节点类型")
+        self.assertEqual(len(ALL_TYPES), 62, "契约应有 62 种节点类型")
         self.assertEqual(
             set(ALL_TYPES), set(models.NODE_TYPES), "类型表与 models.NODE_TYPES 不一致"
         )
@@ -177,9 +176,9 @@ class TestAddNode(unittest.TestCase):
             ids.add(node["id"])
             found = [n for n in story["nodes"] if n["id"] == node["id"]]
             self.assertEqual(len(found), 1, f"{t} 节点应写入 story.nodes")
-        # 2 个开场节点（show+say）+ 63 种各一个 + hide 之后的首个动作节点
+        # 2 个开场节点（show+say）+ 62 种各一个 + hide 之后的首个动作节点
         # 触发登场防线自动补 1 个 show
-        self.assertEqual(len(story["nodes"]), 2 + 63 + 1, "63 种类型应全部追加进 story（含自动补登场）")
+        self.assertEqual(len(story["nodes"]), 2 + 62 + 1, "62 种类型应全部追加进 story（含自动补登场）")
 
     def test_unknown_type(self):
         story = story_api.new_story()
@@ -220,7 +219,7 @@ class TestAddNode(unittest.TestCase):
         )
         combat = story_api.add_node(
             story, "combat",
-            {"key": "5102_01", "talents": [{"key": "1010", "level": 1}], "win": "ok", "lose": "bad"},
+            {"character": "special3", "talents": [{"key": "1010", "level": 1}], "win": "ok", "lose": "bad"},
         )
         self.assertEqual(enemy["display"], 1)
         self.assertEqual(combat["talents"][0]["key"], "1010")
@@ -780,13 +779,18 @@ class TestPackMod(unittest.TestCase):
     def _manifest(self) -> dict:
         # 字段仿 samples/demo_mod/manifest.json（契约 §2）
         return {
-            "format": 1,
+            "format": 3,
+            "package_format": 3,
+            "story_schema": 2,
+            "content_schema": 1,
             "id": "api_test_mod",
             "name": "API 测试 Mod",
             "version": "1.0.0",
             "author": "story_api_test",
             "description": "story_api pack_mod 契约测试",
             "entry": "main",
+            "campaign_id": "campaign_api_test_mod",
+            "campaign": {"new_game": True},
         }
 
     def _make_mod_dir(self, root: Path) -> Path:

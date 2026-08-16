@@ -324,13 +324,17 @@ def main_fn() -> int:
             ],
         }
         manifest = {
-            "format": 1,
+            "format": 3,
+            "package_format": 3,
+            "story_schema": 2,
+            "content_schema": 1,
             "id": "smoke_mod",
             "name": "冒烟",
             "version": "1.0.0",
             "author": "test",
             "description": "冒烟测试用包",
             "entry": win.story["id"],
+            "campaign_id": "campaign_smoke_mod",
             "campaign": campaign,
         }
         try:
@@ -369,8 +373,8 @@ def main_fn() -> int:
     # ------------------------------------------------------------------
     # v3：汉化覆盖 + schema 2 + 新节点表单 + manifest campaign 对话框
     # ------------------------------------------------------------------
-    # 63 种节点类型中文名全覆盖；菜单分组与类型表一一对应
-    assert len(models.NODE_TYPES) == 63, f"契约应有 63 种节点：{len(models.NODE_TYPES)}"
+    # 62 种节点类型中文名全覆盖；菜单分组与类型表一一对应
+    assert len(models.NODE_TYPES) == 62, f"契约应有 62 种节点：{len(models.NODE_TYPES)}"
     assert set(models.NODE_TYPE_CN) == set(models.NODE_TYPES), "NODE_TYPE_CN 未全覆盖"
     grouped = [t for _g, ts in models.NODE_GROUPS for t in ts]
     assert sorted(grouped) == sorted(models.NODE_TYPES), "NODE_GROUPS 与类型表不一致"
@@ -413,11 +417,11 @@ def main_fn() -> int:
     )
     assert s == "骰子检定·0~99(3项)", s
     s = models.node_summary(
-        {"id": "x", "type": "goto_scene", "scene": "Combat", "key": "5102_01"},
-        editor_data,
+        {"id": "x", "type": "combat", "character": "special3",
+         "win": "ok", "lose": "bad"}, editor_data,
     )
-    assert s == "进入其他场景·决斗（一对一） 5102_01", s
-    print("[8b] 汉化/schema 2 助手抽查 OK（63 类型中文名、四组分组、清单显示）")
+    assert "叶云舟" in s and "胜利→ok" in s, s
+    print("[8b] 汉化/schema 2 助手抽查 OK（62 类型中文名、四组分组、清单显示）")
 
     # ManifestDialog：campaign 区读写 + 空行跳过 + 无内容不写出 + 新条件列
     dlg = main.ManifestDialog(
@@ -425,6 +429,7 @@ def main_fn() -> int:
         editor_data,
         ["main", "second"],
         {
+            "campaign_id": "campaign_smoke",
             "campaign": {
                 "new_game": True,
                 "disable_official_events": True,
@@ -442,12 +447,12 @@ def main_fn() -> int:
             }
         },
     )
-    assert dlg.new_game_check.isChecked(), "应回填 new_game"
+    assert dlg.manifest()["campaign"]["new_game"] is True, "战役必须是新游戏入口"
     assert dlg.disable_events_check.isChecked(), "应回填 disable_official_events"
     assert dlg.triggers_table.rowCount() == 1, "应回填 1 行触发器"
     assert dlg.triggers_table.columnCount() == 8, "触发器表应为 8 列"
     m = dlg.manifest()
-    assert m["tested_host_version"] == "1.0.0", "新导出应记录随附 Host 测试版本"
+    assert m["tested_host_version"] == "1.0.1", "新导出应记录随附 Host 测试版本"
     dlg.min_host_version_edit.setText("0.5.0")
     dlg.game_version_edit.setText("1.2.3")
     dlg.tested_game_version_edit.setText("1.2.3")
@@ -496,12 +501,11 @@ def main_fn() -> int:
         "min": 5,
     }, f"新列解析错误：{new_trig!r}"
     assert "when_stage" not in new_trig, "空旬列不应写出 when_stage"
-    dlg.new_game_check.setChecked(False)
     dlg.disable_events_check.setChecked(False)
     while dlg.triggers_table.rowCount():
         dlg._del_trigger_row()
-    assert not dlg.manifest().get("campaign"), (
-        "无 new_game 且无有效触发器不应写 campaign"
+    assert dlg.manifest()["campaign"] == {"new_game": True}, (
+        "v3 必须保留 campaign.new_game=true"
     )
     print("[8c] ManifestDialog campaign 区 OK（回填/新条件列/跳过空行/空则不写）")
 
@@ -687,6 +691,7 @@ def main_fn() -> int:
     fake_manager = FakeGameManager()
     win.game_manager = fake_manager
     win._stories["second"] = {
+        "story_schema": 2,
         "id": "second",
         "title": "试玩收尾",
         "start": "end1",
@@ -920,6 +925,7 @@ def main_fn() -> int:
         dlg2.accept()
         assert dlg2.result() != main.QDialog.DialogCode.Accepted, "大写 Mod 标识应在窗口内拦截"
         dlg2.id_edit.setText("good_mod")
+        dlg2.campaign_id_edit.setText("campaign_smoke")
         dlg2.accept()
         assert dlg2.result() == main.QDialog.DialogCode.Accepted, "完整有效信息应允许继续导出"
     finally:

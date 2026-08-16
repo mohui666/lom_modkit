@@ -67,7 +67,6 @@ NODE_TYPE_CN_SRC: dict[str, str] = {
     "game_flag": "游戏任务旗标",
     "enemy": "战役门派状态",
     "battle_skill": "战场技能",
-    "battle_setup": "战前配置",
     "combat": "战斗",
     "battle": "战役",
     "battle_result": "战斗结果",
@@ -139,7 +138,6 @@ NODE_HELP_KEYS = {
     "combat": "help.combat",
     "battle": "help.battle",
     "battle_result": "help.battle_result",
-    "battle_setup": "help.battle_setup",
     "reward": "help.reward",
     "result_screen": "help.result_screen",
     "custom_shop": "help.custom_shop",
@@ -209,7 +207,7 @@ NODE_GROUPS_SRC: list[tuple[str, list[str]]] = [
     (
         "group.gameplay",
         [
-            "battle_setup", "combat", "battle", "battle_result", "reward", "result_screen",
+            "combat", "battle", "battle_result", "reward", "result_screen",
             "custom_shop",
             "stat_check", "affinity_check", "item_check", "talent_check", "flag_check",
             "activity",
@@ -325,8 +323,6 @@ ENUM_SETS_SRC: dict[str, list[tuple[str, str]]] = {
     "goto_scene": [
         ("Free", "自由模式"),
         ("Title", "标题画面"),
-        ("Combat", "战斗"),
-        ("Battle", "战役"),
         ("GameOver", "游戏结束"),
         ("End", "结局"),
         ("Story", "剧情演出"),
@@ -746,22 +742,10 @@ NODE_SCHEMAS: dict[str, dict] = {
             ("level", "技能等级", "int", True),
         ],
     },
-    "battle_setup": {
-        "label": "战役前配置（兼容）",
-        "fields": [
-            ("enemy", "敌方阵营", "enemy_team_optional", True),
-            ("team", "敌方凝聚力变化", "int", True),
-            ("level", "敌方门派等级变化", "int", True),
-            ("people", "敌方人数变化", "int", True),
-            ("display", "显示变化提示", "bool_int", True),
-            ("reset_skills", "先重置战场技能", "bool", True),
-            ("skills", "我方战场技能", "battle_setup_skills", True),
-        ],
-    },
     "combat": {
         "label": "决斗（一对一）",
         "fields": [
-            ("key", "原版决斗角色与场景模板", "combat_id", False),
+            ("character", "人物（只决定战斗动画）", "character", False),
             ("max_health", "对手最大血量", "int", True),
             ("health", "对手初始血量", "int", True),
             ("max_stamina", "对手最大气力", "int", True),
@@ -791,18 +775,12 @@ NODE_SCHEMAS: dict[str, dict] = {
     "battle": {
         "label": "原版大规模战役",
         "fields": [
-            ("key", "战役场景", "battle_id", False),
-            ("friend_roster", "我方阵容模板", "battle_id_optional", True),
-            ("enemy_roster", "敌方阵容模板", "battle_id_optional", True),
-            ("neutral_roster", "中立阵容模板", "battle_id_optional", True),
-            ("friend_people", "我方人数", "int", True),
-            ("enemy_people", "敌方人数", "int", True),
-            ("neutral_people", "中立人数", "int", True),
-            ("friend_health", "我方 NPC 血量", "int", True),
-            ("enemy_health", "敌方 NPC 血量", "int", True),
-            ("neutral_health", "中立 NPC 血量", "int", True),
-            ("reset_skills", "先重置玩家战役技能", "bool", True),
-            ("skills", "玩家战役技能", "battle_setup_skills", True),
+            ("friend_faction", "我方阵营", "battle_faction", False),
+            ("friend_people", "我方总人数（含具名角色）", "int", False),
+            ("friend_characters", "我方官方具名角色", "official_characters", True),
+            ("enemy_faction", "敌方阵营", "battle_faction", False),
+            ("enemy_people", "敌方总人数（含具名角色）", "int", False),
+            ("enemy_characters", "敌方官方具名角色", "official_characters", True),
             ("win", "友军胜利后", "node_ref", False),
             ("lose", "敌军胜利后", "node_ref", False),
         ],
@@ -1089,10 +1067,11 @@ _NODE_DEFAULTS: dict[str, dict] = {
     "battle_skill": {
         "op": "set", "key": "", "index": 2, "active": 1, "level": 1,
     },
-    "battle_setup": {"reset_skills": False, "skills": []},
-    "combat": {"key": "", "talents": [], "win": "", "lose": ""},
+    "combat": {"character": "", "talents": [], "win": "", "lose": ""},
     "battle": {
-        "key": "", "reset_skills": False, "skills": [], "win": "", "lose": "",
+        "friend_faction": "", "friend_people": 1, "friend_characters": [],
+        "enemy_faction": "", "enemy_people": 1, "enemy_characters": [],
+        "win": "", "lose": "",
     },
     "battle_result": {"kind": "any", "win": "", "lose": ""},
     "reward": {"entries": [{"kind": "stat", "key": "", "amount": 1}]},
@@ -1163,6 +1142,13 @@ DEFAULT_PORTRAITS = [
     "laugh1",
     "gloomy2",
 ]
+
+# 仅这些人物已在原版 Addressables catalog 中实证有 Battle 具名资源。
+VERIFIED_BATTLE_CHARACTER_IDS = (
+    "brother1", "brother2", "brother4", "girl4", "girl9", "sister1",
+    "special3", "special4", "special102", "special103", "special401",
+    "special811",
+)
 
 # editor_data.json 不存在时的兜底数据（契约 §5 schema 2 同构，{id,name} 对象数组）
 FALLBACK_EDITOR_DATA: dict = {
@@ -1298,32 +1284,13 @@ def list_items(editor_data: dict, key: str) -> list[tuple[str, str]]:
     if not isinstance(items, list):
         return []
     result = []
-    gameplay_ordinals: dict[str, int] = {}
     for entry in items:
         item_id = entry_id(entry)
-        if isinstance(entry, dict) and key == "combat_ids" and entry.get("character"):
-            group = str(entry["character"])
-            gameplay_ordinals[group] = gameplay_ordinals.get(group, 0) + 1
-            name = term("characters", group, default=group)
-            result.append((item_id, t(
-                "list.combat_character_template", name=name, n=gameplay_ordinals[group]
-            )))
-            continue
-        if isinstance(entry, dict) and key == "battle_ids" and entry.get("name_key"):
-            group = str(entry["name_key"])
-            gameplay_ordinals[group] = gameplay_ordinals.get(group, 0) + 1
-            name = term("enemy_teams", group, default=group)
-            result.append((item_id, t(
-                "list.battle_team_template", name=name, n=gameplay_ordinals[group]
-            )))
-            continue
         name = term(key, item_id, default=entry_name(entry))
         if name and name != item_id:
             display = f"{name}（{item_id}）"
         else:
             prefix_key = {
-                "combat_ids": "list.combat_template",
-                "battle_ids": "list.battle_template",
                 "dice_checks": "list.dice_check",
                 "game_flags": "list.game_flag",
             }.get(key)
@@ -1345,6 +1312,22 @@ def affinity_character_items(editor_data: dict) -> list[tuple[str, str]]:
         display = char_id if name == char_id else f"{name}（{char_id}）"
         result.append((char_id, display))
     return result
+
+
+def battle_character_items(editor_data: dict) -> list[tuple[str, str]]:
+    """Only catalog-verified named characters accepted by Battle spawning."""
+    available = {
+        entry_id(entry): character_name(editor_data, entry_id(entry))
+        for entry in editor_data.get("characters") or []
+        if entry_id(entry)
+    }
+    return [
+        (
+            character_id,
+            "%s（%s）" % (available.get(character_id, character_id), character_id),
+        )
+        for character_id in VERIFIED_BATTLE_CHARACTER_IDS
+    ]
 
 
 def normalize_character_ids(stories, editor_data: dict) -> int:
@@ -1924,23 +1907,13 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
             f"{tcn}·{enum_label('battle_skill_op', node.get('op', 'set'))}"
             f" {skill_name}"
         )
-    if nt == "battle_setup":
-        enemy_name = display_name(ed, "enemy_teams", node.get("enemy", ""))
-        return t(
-            "summary.battle_setup",
-            default="{type}·敌方阵营 {enemy} / 战场技能 {count}",
-            type=tcn,
-            enemy=enemy_name or t("form.unchanged", default="不变"),
-            count=len(node.get("skills", [])),
-        )
     if nt == "combat":
-        key = node.get("key", "") or t("form.unselected", default="（未选）")
-        template = display_name(ed, "combat_ids", str(key))
-        return f"{tcn}·{template}（胜利→{node.get('win', '')} / 失败→{node.get('lose', '')}）"
+        character = character_name(ed, node.get("character", ""))
+        return f"{tcn}·{character}（胜利→{node.get('win', '')} / 失败→{node.get('lose', '')}）"
     if nt == "battle":
-        key = node.get("key", "") or t("form.unselected", default="（未选）")
-        template = display_name(ed, "battle_ids", str(key))
-        return f"{tcn}·{template}（友军胜→{node.get('win', '')} / 敌军胜→{node.get('lose', '')}）"
+        friend = display_name(ed, "battle_factions", node.get("friend_faction", ""))
+        enemy = display_name(ed, "battle_factions", node.get("enemy_faction", ""))
+        return f"{tcn}·{friend} {node.get('friend_people', 0)} vs {enemy} {node.get('enemy_people', 0)}（友军胜→{node.get('win', '')} / 敌军胜→{node.get('lose', '')}）"
     if nt == "battle_result":
         return f"{tcn}·胜→{node.get('win', '')} / 败→{node.get('lose', '')}"
     if nt == "reward":

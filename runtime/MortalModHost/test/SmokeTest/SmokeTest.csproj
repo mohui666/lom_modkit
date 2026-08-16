@@ -17,6 +17,10 @@
     <Compile Include="..\..\src\ModRegistry.cs" />
     <Compile Include="..\..\src\HotkeyMigration.cs" />
     <Compile Include="..\..\src\CampaignConfig.cs" />
+    <Compile Include="..\..\src\CampaignIdentity.cs" />
+    <Compile Include="..\..\src\CampaignMenuFlow.cs" />
+    <Compile Include="..\..\src\BattleCompositionPolicy.cs" />
+    <Compile Include="..\..\src\CombatCharacterPolicy.cs" />
     <Compile Include="..\..\src\PositionNameMap.cs" />
     <Compile Include="..\..\src\PreviewRequest.cs" />
     <Compile Include="..\..\src\ContentRef.cs" />

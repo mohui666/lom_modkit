@@ -43,6 +43,7 @@ from asset_store import AssetStoreError, import_image_file
 import content_registry
 from i18n import t
 import models
+from table_layout import ReadableTableWidget as QTableWidget
 
 COMBO_VISIBLE_ITEMS = 12
 
@@ -509,29 +510,14 @@ class NodeForm(QScrollArea):
             w.toggled.connect(lambda checked: self._apply(node, key, int(checked)))
             return w
         if kind == "goto_scene_key":
-            # 场景参数清单随 scene 字段切换（战斗/战役/死亡画面/结局 id）
+            # 场景参数清单随 scene 字段切换（死亡画面/结局 id）
             scene = node.get("scene", "Free")
             data_key = {
-                "Combat": "combat_ids",
-                "Battle": "battle_ids",
                 "GameOver": "death_ids",
                 "End": "ending_ids",
             }.get(scene)
             items = models.list_items(self._editor_data, data_key) if data_key else []
             return self._combo_from_items(node, key, items, value)
-        if kind == "combat_id":
-            combo = self._combo_from_items(
-                node, key, models.list_items(self._editor_data, "combat_ids"), value
-            )
-            self._attach_template_id_tooltip(combo)
-            return combo
-        if kind in ("battle_id", "battle_id_optional"):
-            items = models.list_items(self._editor_data, "battle_ids")
-            if kind.endswith("optional"):
-                items = [("", t("form.use_current_template"))] + items
-            combo = self._combo_from_items(node, key, items, value)
-            self._attach_template_id_tooltip(combo)
-            return combo
         if kind == "node_ref":
             w = self._make_goto_combo(str(value or ""), allow_empty=False)
             w.currentTextChanged.connect(
@@ -617,7 +603,12 @@ class NodeForm(QScrollArea):
             return w
         if kind == "int":
             w = QSpinBox()
-            w.setRange(-999999, 999999)
+            if node.get("type") == "battle" and key in (
+                "friend_people", "enemy_people"
+            ):
+                w.setRange(1, 10000)
+            else:
+                w.setRange(-999999, 999999)
             try:
                 w.setValue(int(value or 0))
             except (TypeError, ValueError):
@@ -695,10 +686,10 @@ class NodeForm(QScrollArea):
             return self._make_vars_table(node, key)
         if kind == "dice_bands":
             return self._make_dice_bands_table(node, key)
-        if kind == "battle_setup_skills":
-            return self._make_battle_setup_skills_table(node, key)
         if kind == "combat_talents":
             return self._make_combat_talents_table(node, key)
+        if kind == "official_characters":
+            return self._make_official_characters_table(node, key)
         if kind == "reward_entries":
             return self._make_reward_entries_table(node, key)
         if kind == "reward_entries_optional":
@@ -1109,14 +1100,6 @@ class NodeForm(QScrollArea):
             lambda t, c=w: self._apply(node, key, self._combo_value(c, t))
         )
         return w
-
-    def _attach_template_id_tooltip(self, combo: QComboBox) -> None:
-        def refresh(_text: str = "") -> None:
-            value = self._combo_value(combo, combo.currentText()).strip()
-            combo.setToolTip(t("form.technical_template_tip", id=value or t("common.none")))
-
-        combo.currentTextChanged.connect(refresh)
-        refresh()
 
     def _rebuild_current(self) -> None:
         """延迟重建表单（回到事件循环后执行）。
@@ -1556,68 +1539,6 @@ class NodeForm(QScrollArea):
         )
         return box
 
-    def _make_battle_setup_skills_table(self, node: dict, key: str) -> QWidget:
-        rows: list[dict] = node.setdefault(key, [])
-        box = QWidget()
-        layout = QVBoxLayout(box)
-        layout.setContentsMargins(0, 0, 0, 0)
-        table = QTableWidget(0, 3)
-        table.setHorizontalHeaderLabels(
-            (t("table.skill"), t("table.slot"), t("table.active"))
-        )
-        table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-
-        def fill() -> None:
-            table.setRowCount(0)
-            for row_index, row in enumerate(rows):
-                table.insertRow(row_index)
-                skill = self._make_combo(
-                    models.list_items(self._editor_data, "battle_skills"),
-                    str(row.get("key", "")),
-                    editable=True,
-                )
-                skill.currentTextChanged.connect(
-                    lambda text, target=row, combo=skill: self._apply_row(
-                        target, "key", self._combo_value(combo, text).strip()
-                    )
-                )
-                slot = QSpinBox()
-                slot.setRange(-999999, 999999)
-                slot.setValue(int(row.get("index", 2)))
-                slot.valueChanged.connect(
-                    lambda value, target=row: self._apply_row(target, "index", int(value))
-                )
-                active = self._make_combo(
-                    (("1", t("common.enabled")), ("0", t("common.disabled"))),
-                    str(row.get("active", 1)),
-                )
-                active.currentTextChanged.connect(
-                    lambda _text, target=row, combo=active: self._apply_row(
-                        target, "active", int(combo.currentData())
-                    )
-                )
-                table.setCellWidget(row_index, 0, skill)
-                table.setCellWidget(row_index, 1, slot)
-                table.setCellWidget(row_index, 2, active)
-            table.setMinimumHeight(min(5, max(2, len(rows))) * 32 + 30)
-
-        buttons = QHBoxLayout()
-        add = QPushButton(t("table.add_skill"))
-        remove = QPushButton(t("table.remove_last"))
-        add.clicked.connect(
-            lambda: (rows.append({"key": "", "index": 2, "active": 1}), fill(), self._emit_changed())
-        )
-        remove.clicked.connect(
-            lambda: (rows.pop(), fill(), self._emit_changed()) if rows else None
-        )
-        buttons.addWidget(add)
-        buttons.addWidget(remove)
-        buttons.addStretch(1)
-        fill()
-        layout.addWidget(table)
-        layout.addLayout(buttons)
-        return box
-
     def _make_combat_talents_table(self, node: dict, key: str) -> QWidget:
         rows: list[dict] = node.setdefault(key, [])
         box = QWidget()
@@ -1977,6 +1898,76 @@ class NodeForm(QScrollArea):
         buttons.addWidget(add)
         buttons.addWidget(remove)
         buttons.addStretch(1)
+        layout.addLayout(buttons)
+        return box
+
+    def _make_official_characters_table(self, node: dict, key: str) -> QWidget:
+        """Battle named roster: catalog-verified official characters only."""
+        rows: list[str] = node.setdefault(key, [])
+        box = QWidget()
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(0, 0, 0, 0)
+        table = QTableWidget(0, 1)
+        table.setHorizontalHeaderLabels(("官方具名角色（计入总人数）",))
+        table.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.Interactive
+        )
+
+        def fill() -> None:
+            table.setRowCount(0)
+            for row_index, character_id in enumerate(rows):
+                table.insertRow(row_index)
+                character = self._make_combo(
+                    models.battle_character_items(self._editor_data),
+                    str(character_id),
+                    editable=False,
+                )
+
+                def changed(_text, index=row_index, combo=character) -> None:
+                    if self._loading or not (0 <= index < len(rows)):
+                        return
+                    value = str(combo.currentData() or "")
+                    if rows[index] != value:
+                        rows[index] = value
+                        self._emit_changed()
+
+                character.currentTextChanged.connect(changed)
+                table.setCellWidget(row_index, 0, character)
+            table.setMinimumHeight(min(6, max(2, len(rows))) * 34 + 30)
+
+        buttons = QHBoxLayout()
+        add = QPushButton("添加官方角色")
+        remove = QPushButton(t("table.remove_last"))
+
+        def add_row() -> None:
+            used = set(rows)
+            available = [
+                character_id
+                for character_id, _display in models.battle_character_items(
+                    self._editor_data
+                )
+                if character_id not in used
+            ]
+            if not available:
+                return
+            rows.append(available[0])
+            fill()
+            self._emit_changed()
+
+        def remove_row() -> None:
+            if not rows:
+                return
+            rows.pop()
+            fill()
+            self._emit_changed()
+
+        add.clicked.connect(add_row)
+        remove.clicked.connect(remove_row)
+        buttons.addWidget(add)
+        buttons.addWidget(remove)
+        buttons.addStretch(1)
+        fill()
+        layout.addWidget(table)
         layout.addLayout(buttons)
         return box
 

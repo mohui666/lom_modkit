@@ -44,6 +44,7 @@ from content_pack import (
 )
 from i18n import t
 from content_registry import (
+    COMBAT_ANIMATION_FIELDS,
     ContentRecord,
     ContentRegistryError,
     default_namespace,
@@ -465,6 +466,7 @@ class ContentLibraryDialog(QDialog):
                 title=dlg.character_title(),
                 scale=dlg.character_scale(),
                 art_facing=dlg.character_art_facing(),
+                combat_images=dlg.combat_images(),
             )
         except ContentRegistryError as exc:
             QMessageBox.critical(self, t("library.import_char_fail"), str(exc))
@@ -671,6 +673,7 @@ class ContentLibraryDialog(QDialog):
                 title=dlg.character_title(),
                 scale=dlg.character_scale(),
                 art_facing=dlg.character_art_facing(),
+                combat_images=dlg.combat_images(),
             )
         except ContentRegistryError as exc:
             QMessageBox.critical(self, t("library.edit_fail"), str(exc))
@@ -989,6 +992,57 @@ class _ImportCharacterDialog(QDialog):
         portraits_layout.addStretch(1)
         tabs.addTab(portraits, t("library.tab.portraits"))
 
+        combat = QWidget()
+        combat_layout = QVBoxLayout(combat)
+        combat_hint = QLabel(
+            "战斗显示沿用原版四类图像：待机、攻击、受伤、防御。"
+            "待机未设置时使用 normal 立绘，其余未设置时使用待机图。"
+        )
+        combat_hint.setWordWrap(True)
+        combat_hint.setProperty("context_help", True)
+        combat_layout.addWidget(combat_hint)
+        combat_form = QFormLayout()
+        self._combat_rows: dict[str, QWidget] = {}
+        labels = {
+            "combat_idle": "待机（Normal / Idle）",
+            "combat_attack": "攻击（Attack）",
+            "combat_hurt": "受伤（Hurt）",
+            "combat_defence": "防御（Defence）",
+        }
+        for field in COMBAT_ANIMATION_FIELDS:
+            current = getattr(existing, field, "") if existing else ""
+            row = QWidget()
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            filename = QLabel(current or "使用默认回退")
+            filename.setMinimumWidth(220)
+            filename.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            choose = QPushButton(t("library.choose_image"))
+
+            def choose_combat(
+                _checked=False, holder=row, target=filename, action=field
+            ) -> None:
+                path, _ = QFileDialog.getOpenFileName(
+                    self,
+                    "选择战斗图",
+                    str(Path.home()),
+                    "图片 (*.png *.jpg *.jpeg)",
+                )
+                if not path:
+                    return
+                holder.setProperty("source_path", path)
+                holder.setProperty("combat_field", action)
+                target.setText(Path(path).name)
+
+            choose.clicked.connect(choose_combat)
+            row_layout.addWidget(filename, 1)
+            row_layout.addWidget(choose)
+            self._combat_rows[field] = row
+            combat_form.addRow(labels[field], row)
+        combat_layout.addLayout(combat_form)
+        combat_layout.addStretch(1)
+        tabs.addTab(combat, "战斗动画")
+
         voices = QWidget()
         voices_layout = QVBoxLayout(voices)
         if existing:
@@ -1108,6 +1162,14 @@ class _ImportCharacterDialog(QDialog):
 
     def removed_portraits(self) -> list[str]:
         return list(self._removed)
+
+    def combat_images(self) -> dict[str, Path]:
+        result = {}
+        for field, row in self._combat_rows.items():
+            path = row.property("source_path")
+            if path:
+                result[field] = Path(str(path))
+        return result
 
     def _accept(self) -> None:
         portraits = self.portraits()

@@ -1,6 +1,6 @@
 # 当前能力与边界
 
-本文按仓库当前代码描述能力，不把研究计划写成已实现功能。节点的唯一权威集合是 `editor/models.py` 的 `NODE_SCHEMAS`，当前共 63 种。
+本文按仓库当前代码描述能力，不把研究计划写成已实现功能。节点的唯一权威集合是 `editor/models.py` 的 `NODE_SCHEMAS`，当前共 62 种。
 
 ## 已实现
 
@@ -19,12 +19,10 @@
 
 - `enemy`：`ModifyEnemyTeam` / `ModifyEnemyLevel` / `ModifyEnemyPeople` / `ModifyEnemyId`；
 - `battle_skill`：`SetPlayerBattleSkill` / `SetBattleSkillActive` / `ResetBattleSkill`；
-- `goto_scene`：通过 `LuaManager.ChangeScene` 进入原版 `Combat` / `Battle`，并传入作者选择的官方 key。
-- `combat`：选择原版一对一人物/场景模板，可在本次读取中覆盖对手 HP、体力、九项能力、天赋、三格绝招及行动概率；Host 从 `CombatManager.GameOver(bool)` 取得真实 win/lose。原版资产不被修改。
-- `battle`：选择原版 Battle 场景，可分别复用我方、敌方、中立阵容模板并覆盖三方人数、NPC HP 与玩家技能；Host 只把 `ShowGameOver(FriendWin/EnemyWin, finish:true)` 映射为 win/lose。`PlayerDie(false)` 保持原版流程。
-- `combat` / `battle` 节点直接配置全部已验证参数，不再使用工具预设。`key` 只选择原版角色/场景底板，血量、属性、行动概率、三方阵容、人数、NPC 血量与战场技能都写在当前节点。
+- `goto_scene`：只用于普通场景跳转，不再向作者暴露 Combat / Battle 场景预设。
+- `combat`：人物选择只决定四类战斗动画；HP、体力、九项能力、天赋、三格绝招及行动概率均自由填写且不会自动带入。Host 从 `CombatManager.GameOver(bool)` 取得真实 win/lose，原版资产不被修改。
+- `battle`：只设置敌我阵营、双方总人数以及已核实的官方具名角色；具名角色计入总人数。地图与阵容基线是 Runtime 内部细节，不暴露中立阵容、NPC HP 或技能预设。
 - `battle_result`：按包完整 SHA-256、剧情 id 和可选 Combat/Battle 类型读取 Host 的最后真实结果，只提供已验证的 win/lose 分支。
-- `battle_setup`：把 `ModifyEnemy*` 与 `SetPlayerBattleSkill` / `SetBattleSkillActive` / `ResetBattleSkill` 组合为战前表格配置。
 - `reward`：把现有 `stat` / `affinity` / `talent` / `item` / `flag` 原子接口聚合为 1~32 项奖励。
 - `result_screen`：用原版 `mainui.DisplayMessageText` 显示作者填写的结算标题与说明，再逐项执行与 `reward` 相同的现有奖励接口；不创建新的结算 UI。
 - `custom_shop`：临时替换原版 `ShopDatabase` 的书籍、杂物、贵重品库存并复用 `ShopPanel`；支持数量、MOD/原版条件和原版统一折扣，关闭或故障时恢复原库存。原版没有公开逐商品价格接口，因此不支持 `price`。
@@ -35,7 +33,7 @@
 ## MOD 战役状态
 
 - `mod_quest` / `quest_check` 提供按包完整指纹隔离的任务状态机；它不调用、不污染原版 Mission 系统，并在同一 MOD 战役会话内跨 Story / Free 保留。
-- `persistent_var` / `persistent_check` 提供 Int32 持久变量：只允许当前 `mod_<id>` 隔离槽，Host sidecar 与该槽同名绑定，并在原版 `SaveGameData` 成功返回后原子落盘；不修改 GameSave schema。缺失值为 0，每包最多 256 项。
+- `persistent_var` / `persistent_check` 提供 Int32 持久变量：只允许当前 `mod_campaign_<campaign_id>` 隔离槽，Host sidecar 与稳定战役身份绑定，并在原版 `SaveGameData` 成功返回后原子落盘；不修改 GameSave schema。缺失值为 0，每包最多 256 项。
 - `modflags` / `modvars` 仍是 Story 会话表，不写存档；需要跨重启保存的数值应显式使用 `persistent_var`。
 
 ## 尚未实现

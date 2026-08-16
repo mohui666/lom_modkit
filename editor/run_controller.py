@@ -69,6 +69,7 @@ class RunControllerMixin:
         manifest = {
             **manifest_versions(),
             "id": preview_id,
+            "campaign_id": preview_id,
             "name": f"编辑器临时试玩：{title}",
             "version": "0.0.0-preview",
             "author": "lom_modkit",
