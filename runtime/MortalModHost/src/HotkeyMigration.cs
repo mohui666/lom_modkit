@@ -27,5 +27,17 @@ namespace MortalModHost
             migrated = result;
             return true;
         }
+
+        /// <summary>
+        /// 一次性迁移门闩。completed 为 true 后永不再改写，因此用户之后主动设回 F9
+        /// 会被保留。调用方无论当前值是否需要改写，都应持久化 completed=true。
+        /// </summary>
+        public static bool TryRewriteLegacyHotkeyOnce(
+            string cfgText, bool completed, out string migrated, out bool markCompleted)
+        {
+            migrated = null;
+            markCompleted = !completed;
+            return !completed && TryRewriteLegacyHotkey(cfgText, out migrated);
+        }
     }
 }

@@ -20,6 +20,7 @@ from schema_versions import (  # noqa: E402
     manifest_versions,
 )
 from lomc import schema_versions as compiler_versions  # noqa: E402
+from lomc import compile_story  # noqa: E402
 
 
 class SchemaVersionsTest(unittest.TestCase):
@@ -30,8 +31,8 @@ class SchemaVersionsTest(unittest.TestCase):
         self.assertEqual(
             manifest_versions(),
             {
-                "format": 1,
-                "package_format": 1,
+                "format": 2,
+                "package_format": 2,
                 "story_schema": 1,
                 "content_schema": 1,
             },
@@ -48,6 +49,13 @@ class SchemaVersionsTest(unittest.TestCase):
         with zipfile.ZipFile(path, "w") as archive:
             archive.writestr("manifest.json", json.dumps(manifest))
             archive.writestr("story/main.json", json.dumps(story))
+            try:
+                lua = compile_story(
+                    story, mod_info=manifest, source="story/main.json"
+                )
+            except Exception:
+                lua = "return nil\n"
+            archive.writestr("lua/main.lua", lua)
 
     def test_import_accepts_legacy_v1_and_rejects_unknown_explicit_versions(self):
         story = {
@@ -71,7 +79,7 @@ class SchemaVersionsTest(unittest.TestCase):
             self.assertEqual(stories["main"]["story_schema"], STORY_SCHEMA)
 
             cases = (
-                ({**legacy, "package_format": 2}, story),
+                ({**legacy, "package_format": 3}, story),
                 ({**legacy, "story_schema": 2}, story),
                 ({**legacy, "content_schema": 2}, story),
                 ({**legacy, "content_schema": None}, story),
@@ -105,7 +113,7 @@ class SchemaVersionsTest(unittest.TestCase):
             with self.assertRaises(package_io.PackError):
                 package_io.export_lommod(
                     output,
-                    {**manifest, "package_format": 2},
+                    {**manifest, "package_format": 3},
                     {"main": story},
                 )
             with self.assertRaises(package_io.PackError):

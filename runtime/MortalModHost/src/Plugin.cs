@@ -28,7 +28,7 @@ namespace MortalModHost
     {
         public const string GUID = "com.mohui666.mortalmodhost";
         public const string NAME = "MortalModHost";
-        public const string VERSION = "0.6.0";
+        public const string VERSION = "1.0.0";
 
         private const int WindowId = 886310; // IMGUI 窗口 id，取个不易与其他插件撞车的数
         private const int DebugWindowId = 886311;
@@ -40,11 +40,14 @@ namespace MortalModHost
         private ConfigEntry<KeyboardShortcut> _menuHotkey;
         private ConfigEntry<KeyboardShortcut> _vanillaStoryHotkey;
         private ConfigEntry<KeyboardShortcut> _debuggerHotkey;
+        private ConfigEntry<bool> _hotkeyMigrationCompleted;
         private bool _harmonyPatched;
         private bool _runtimeReady;
         private bool _disablePendingForDisclosure;
         private bool _disclosureAbortRequested;
         private bool _applicationQuitting;
+        private bool _originalRunInBackground;
+        private bool _runInBackgroundOverridden;
 
         private bool _showMenu;
         private bool _inTitleScene; // 当前菜单是否处于标题画面（Title 场景仅提供战役区）
@@ -68,6 +71,8 @@ namespace MortalModHost
                 "切换「禁用原版游戏剧情」的全局临时开关（任意场景可切换；会话级，不持久化）。开启后跳过返回 Free 时自动触发及地点点击触发的官方主线、支线和默认脚本，mod 触发器仍优先。");
             _debuggerHotkey = Config.Bind("Development", "DebuggerHotkey", new KeyboardShortcut(KeyCode.F10),
                 "仅编辑器 F5 开发包生效：显示/隐藏 Runtime Debugger。正式 Mod 不启用调试器。");
+            _hotkeyMigrationCompleted = Config.Bind("Migration", "MenuHotkeyF9ToF8Completed", false,
+                "内部一次性迁移标记。设为 true 后 Runtime 不会再自动改写 MenuHotkey。除非排查旧配置迁移，请勿修改。");
             MigrateLegacyHotkey();
             Logger.LogInfo("菜单热键：" + _menuHotkey.Value + "（Title 使用原版风格战役入口，Free 左下角保留常驻入口）；原版剧情开关热键：" + _vanillaStoryHotkey.Value);
 
@@ -91,12 +96,11 @@ namespace MortalModHost
 
             ReloadMods();
 
-            // 官方播放器默认失焦暂停：标题画面试玩请求等 Update 逻辑在后台也照常运行。
-            Application.runInBackground = true;
-            Logger.LogInfo("已开启 runInBackground（失焦时 Update 仍跑）");
-
             if (_enabled.Value)
+            {
+                EnableBackgroundExecution();
                 ApplyHarmonyPatch();
+            }
             else
                 Logger.LogInfo("MortalModHost 已禁用：未挂载 Harmony 补丁");
             _enabled.SettingChanged += OnEnabledChanged;
@@ -107,6 +111,7 @@ namespace MortalModHost
             if (_enabled.Value)
             {
                 _disablePendingForDisclosure = false;
+                EnableBackgroundExecution();
                 ApplyHarmonyPatch();
                 if (_runtimeReady)
                     Logger.LogInfo("MortalModHost 已启用");
@@ -134,6 +139,8 @@ namespace MortalModHost
             VanillaModCampaignPanel.Remove();
             VanillaTitleModEntry.Remove();
             RemoveHarmonyPatches();
+            LuaManagerPatch.CleanupRuntimeState();
+            RestoreBackgroundExecution();
             _showMenu = false;
             ModCampaignState.Clear();
             GameplaySession.Reset();
@@ -149,33 +156,61 @@ namespace MortalModHost
 
         /// <summary>
         /// 旧版本默认热键是 F9，与同机 MortalInstantWin 冲突；现默认改 F8。
-        /// 已有 cfg 里 MenuHotkey 若仍是 F9（旧默认残留），直接改写文件为 F8 并 Reload。
-        /// 无法可靠区分"用户主动改回 F9"的情况，本轮统一迁移并在日志说明。
+        /// 已有 cfg 里 MenuHotkey 若仍是 F9（旧默认残留），首次改写为 F8 并记录完成标记。
+        /// 标记落盘后永不重复迁移，因此用户之后主动设置 F9 不会在下次启动被覆盖。
         /// </summary>
         private void MigrateLegacyHotkey()
         {
-            if (_menuHotkey.Value.MainKey != KeyCode.F9 || HasModifiers(_menuHotkey.Value)) return;
+            if (_hotkeyMigrationCompleted.Value) return;
             try
             {
                 string path = Config.ConfigFilePath;
                 string migrated;
-                if (File.Exists(path) && HotkeyMigration.TryRewriteLegacyHotkey(File.ReadAllText(path), out migrated))
+                bool markCompleted;
+                bool changed = HotkeyMigration.TryRewriteLegacyHotkeyOnce(
+                    File.Exists(path) ? File.ReadAllText(path) : "",
+                    _hotkeyMigrationCompleted.Value,
+                    out migrated,
+                    out markCompleted);
+                if (changed)
                 {
                     File.WriteAllText(path, migrated);
                     Config.Reload();
                     Logger.LogInfo("检测到旧默认热键 F9 残留（与 MortalInstantWin 冲突），已一次性迁移为 F8。");
                 }
-                else
+                else if (_menuHotkey.Value.MainKey == KeyCode.F9 && !HasModifiers(_menuHotkey.Value))
                 {
                     // cfg 文件缺失或该行未落盘：直接改当前值（BepInEx 会自动保存）
                     _menuHotkey.Value = new KeyboardShortcut(KeyCode.F8);
                     Logger.LogInfo("检测到旧默认热键 F9，已迁移为 F8。");
+                }
+                if (markCompleted)
+                {
+                    _hotkeyMigrationCompleted.Value = true;
+                    Config.Save();
                 }
             }
             catch (Exception ex)
             {
                 Logger.LogWarning("热键 F9→F8 迁移失败：" + ex.Message);
             }
+        }
+
+        private void EnableBackgroundExecution()
+        {
+            if (_runInBackgroundOverridden) return;
+            _originalRunInBackground = Application.runInBackground;
+            Application.runInBackground = true;
+            _runInBackgroundOverridden = true;
+            Logger.LogInfo("已开启 runInBackground（失焦时 Update 仍跑）");
+        }
+
+        private void RestoreBackgroundExecution()
+        {
+            if (!_runInBackgroundOverridden) return;
+            Application.runInBackground = _originalRunInBackground;
+            _runInBackgroundOverridden = false;
+            Logger.LogInfo("已恢复 runInBackground 原值：" + _originalRunInBackground);
         }
 
         private static bool HasModifiers(KeyboardShortcut shortcut)
@@ -671,6 +706,8 @@ namespace MortalModHost
             VanillaModCampaignPanel.Remove();
             VanillaTitleModEntry.Remove();
             RemoveHarmonyPatches();
+            LuaManagerPatch.CleanupRuntimeState();
+            RestoreBackgroundExecution();
             CustomAudioPlayer.ReleaseAll();
             CustomCharacterRuntime.ClearAll();
             CustomImageRuntime.ClearAll();

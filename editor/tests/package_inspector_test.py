@@ -12,15 +12,21 @@ EDITOR_DIR = Path(__file__).resolve().parent.parent
 COMPILER_DIR = EDITOR_DIR.parent / "compiler"
 sys.path[:0] = [str(EDITOR_DIR), str(COMPILER_DIR)]
 
-from lomc.deterministic_zip import DeterministicPackageBuilder  # noqa: E402
+from lomc.deterministic_zip import DeterministicPackageBuilder, stable_json_bytes  # noqa: E402
+from lomc import compile_story  # noqa: E402
+from lomc.story_lua_integrity import (  # noqa: E402
+    STORY_LUA_INTEGRITY_ENTRY,
+    build_story_lua_integrity,
+)
+from schema_versions import PACKAGE_FORMAT  # noqa: E402
 import package_io  # noqa: E402
 from package_inspector import inspect_lommod  # noqa: E402
 
 
 def _manifest(**extra):
     result = {
-        "format": 1,
-        "package_format": 1,
+        "format": PACKAGE_FORMAT,
+        "package_format": PACKAGE_FORMAT,
         "story_schema": 1,
         "content_schema": 1,
         "id": "inspect_test",
@@ -86,6 +92,45 @@ class PackageInspectorTest(unittest.TestCase):
         result = inspect_lommod(target)
         self.assertFalse(result.content_hash_valid)
         self.assertTrue(any("不一致" in message for message in result.errors))
+
+    def test_matching_hashes_cannot_hide_lua_not_compiled_from_story(self):
+        package = Path(self.temp.name) / "substituted.lommod"
+        manifest = _manifest()
+        story = _story()
+        story_data = stable_json_bytes(story)
+        bad_lua = b"return 'substituted'\n"
+        builder = DeterministicPackageBuilder()
+        builder.add_json("manifest.json", manifest)
+        builder.add_bytes("story/main.json", story_data)
+        builder.add_bytes("lua/main.lua", bad_lua)
+        builder.add_bytes(
+            STORY_LUA_INTEGRITY_ENTRY,
+            build_story_lua_integrity([
+                ("story/main.json", story_data, "lua/main.lua", bad_lua)
+            ]),
+        )
+        builder.write(package)
+        result = inspect_lommod(package)
+        self.assertTrue(result.content_hash_valid)
+        self.assertTrue(any("不是由对应" in message for message in result.errors))
+        with self.assertRaisesRegex(package_io.PackError, "不是由对应"):
+            package_io.import_lommod(package)
+
+    def test_v2_requires_story_lua_integrity_record(self):
+        package = Path(self.temp.name) / "missing-story-lua-hash.lommod"
+        manifest = _manifest()
+        story = _story()
+        with zipfile.ZipFile(package, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("manifest.json", stable_json_bytes(manifest))
+            archive.writestr("story/main.json", stable_json_bytes(story))
+            archive.writestr(
+                "lua/main.lua",
+                compile_story(story, mod_info=manifest, source="story/main.json"),
+            )
+        with self.assertRaisesRegex(package_io.PackError, "必须包含 story-lua"):
+            package_io.import_lommod(package)
+        result = inspect_lommod(package)
+        self.assertTrue(any("必须包含 story-lua" in error for error in result.errors))
 
     def test_references_compatibility_and_unused_assets_are_visible(self):
         package = Path(self.temp.name) / "refs.lommod"

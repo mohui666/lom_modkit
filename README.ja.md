@@ -5,11 +5,11 @@
 Lua を書く必要はありません。グラフィカルエディターで人物の台詞、シーン演出、分岐シナリオ、音楽・効果音を組み立て、
 ワンクリックで `.lommod` を書き出し、そのままゲーム内で実行できます。
 
-[![Release v0.7.0](https://img.shields.io/badge/release-v0.7.0-blue)](https://github.com/mohui666/lom_modkit/releases/latest)
+[![Release v1.0.0](https://img.shields.io/badge/release-v1.0.0-blue)](https://github.com/mohui666/lom_modkit/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)](#互換性)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-**[⬇ Windows 版をダウンロード](https://github.com/mohui666/lom_modkit/releases/download/v0.7.0/lom_modkit-v0.7.0_windows_x64.zip)** ·
+**[⬇ Windows 版をダウンロード](https://github.com/mohui666/lom_modkit/releases/download/v1.0.0/lom_modkit-v1.0.0_windows_x64.zip)** ·
 [クイックスタート](#クイックスタート) ·
 [ドキュメント](docs/ja/README.md)
 
@@ -41,7 +41,7 @@ lom_modkit を使うと、『活俠傳』が**本来持つ人物、シーン、�
 
 ### 1. ダウンロード
 
-[lom_modkit-v0.7.0_windows_x64.zip](https://github.com/mohui666/lom_modkit/releases/download/v0.7.0/lom_modkit-v0.7.0_windows_x64.zip) をダウンロードして解凍します。Python のインストールは不要です。
+[lom_modkit-v1.0.0_windows_x64.zip](https://github.com/mohui666/lom_modkit/releases/download/v1.0.0/lom_modkit-v1.0.0_windows_x64.zip) をダウンロードして解凍します。Python のインストールは不要です。
 
 ### 2. 起動
 
@@ -123,6 +123,9 @@ PC 上のキャラクター、音声、画像を「ユーザーコンテンツ�
 | ゲーム原本ファイルの改変 | 不要 |
 
 ## 現在のバージョン
+
+**v1.0.0**：Editor/Runtime バージョン統一 · `.lommod` v2 厳格検証と Story/Lua 整合性 ·
+Lua 環境分離と完全なライフサイクル清掃 · 一度限りのホットキー移行 · Runtime 自動テストと CI。
 
 **v0.7.0**：カスタム立ち絵 · 台詞ボイス紐づけ · 紹介カードと称号 · 体型スライダー ·
 退場時の清台 · ノードを種類で番号付け。

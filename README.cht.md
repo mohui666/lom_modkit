@@ -5,11 +5,11 @@
 不用寫 Lua。用圖形編輯器編排人物對白、場景演出、分支劇情、音樂音效，
 一鍵匯出 `.lommod`，直接在遊戲中執行。
 
-[![Release v0.7.0](https://img.shields.io/badge/release-v0.7.0-blue)](https://github.com/mohui666/lom_modkit/releases/latest)
+[![Release v1.0.0](https://img.shields.io/badge/release-v1.0.0-blue)](https://github.com/mohui666/lom_modkit/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)](#相容性)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-**[⬇ 下載 Windows 版](https://github.com/mohui666/lom_modkit/releases/download/v0.7.0/lom_modkit-v0.7.0_windows_x64.zip)** ·
+**[⬇ 下載 Windows 版](https://github.com/mohui666/lom_modkit/releases/download/v1.0.0/lom_modkit-v1.0.0_windows_x64.zip)** ·
 [快速開始](#快速開始) ·
 [文件](docs/cht/README.md)
 
@@ -41,7 +41,7 @@ lom_modkit 讓你用《活俠傳》**原有的人物、場景、音樂、特效�
 
 ### 1. 下載
 
-下載 [lom_modkit-v0.7.0_windows_x64.zip](https://github.com/mohui666/lom_modkit/releases/download/v0.7.0/lom_modkit-v0.7.0_windows_x64.zip) 並解壓縮。無需安裝 Python。
+下載 [lom_modkit-v1.0.0_windows_x64.zip](https://github.com/mohui666/lom_modkit/releases/download/v1.0.0/lom_modkit-v1.0.0_windows_x64.zip) 並解壓縮。無需安裝 Python。
 
 ### 2. 啟動
 
@@ -123,6 +123,9 @@ lom_modkit 讓你用《活俠傳》**原有的人物、場景、音樂、特效�
 | 修改遊戲原檔 | 不需要 |
 
 ## 目前版本
+
+**v1.0.0**：統一 Editor/Runtime 版本 · `.lommod` v2 嚴格驗證與 Story/Lua 一致性 ·
+Lua 環境隔離與完整生命週期清理 · 一次性快捷鍵遷移 · Runtime 自動化測試與 CI。
 
 **v0.7.0**：自訂角色立繪 · 對白語音歸屬 · 介紹卡與稱號 · 體型滑桿 ·
 離場清台 · 節點按類型編號。

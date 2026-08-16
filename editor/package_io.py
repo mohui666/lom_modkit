@@ -12,7 +12,7 @@ import json
 import os
 import shutil
 import zipfile
-from pathlib import Path, PurePosixPath, PureWindowsPath
+from pathlib import Path
 
 from asset_store import AssetStoreError, resolve_image_asset, store_image_bytes
 import content_registry
@@ -25,54 +25,46 @@ from schema_versions import (
     assert_supported_version,
     manifest_versions,
 )
+from lomc.package_validation import (
+    ArchiveValidationError,
+    MAX_ARCHIVE_ENTRIES,
+    MAX_ARCHIVE_UNCOMPRESSED,
+    MAX_ENTRY_BYTES,
+    MAX_PACKAGE_FILE_BYTES,
+    MAX_TEXT_BYTES,
+    canonical_archive_name,
+    validate_archive_entries,
+)
+from lomc.story_lua_integrity import (
+    STORY_LUA_INTEGRITY_ENTRY,
+    build_story_lua_integrity,
+    verify_story_lua_integrity,
+)
+from lomc.deterministic_zip import stable_json_bytes
 
 
 class PackError(Exception):
     """导入/导出失败，message 面向用户可读。"""
 
 
-MAX_ARCHIVE_ENTRIES = 2048
-MAX_ARCHIVE_UNCOMPRESSED = 128 * 1024 * 1024
-MAX_JSON_BYTES = 4 * 1024 * 1024
-MAX_IMAGE_BYTES = 24 * 1024 * 1024
+MAX_JSON_BYTES = MAX_TEXT_BYTES
+MAX_IMAGE_BYTES = 8 * 1024 * 1024
 MAX_USER_FILE_BYTES = 32 * 1024 * 1024
 
 
 def _safe_archive_name(name: str) -> str:
     """Return a canonical ZIP path, rejecting paths unsafe on POSIX or Windows."""
-    normalized = name.replace("\\", "/")
-    posix = PurePosixPath(normalized)
-    windows = PureWindowsPath(name)
-    if (
-        not normalized
-        or normalized.startswith("/")
-        or posix.is_absolute()
-        or windows.is_absolute()
-        or windows.drive
-        or any(part == ".." for part in posix.parts)
-    ):
-        raise PackError(f"包内包含不安全路径：{name!r}")
-    canonical = str(posix)
-    if normalized.endswith("/") and canonical != ".":
-        canonical += "/"
-    return canonical
+    try:
+        return canonical_archive_name(name)
+    except ArchiveValidationError as exc:
+        raise PackError(str(exc)) from exc
 
 
 def _validated_entries(zf: zipfile.ZipFile) -> dict[str, zipfile.ZipInfo]:
-    infos = zf.infolist()
-    if len(infos) > MAX_ARCHIVE_ENTRIES:
-        raise PackError(f"包内条目过多（最多 {MAX_ARCHIVE_ENTRIES} 个）")
-    total = 0
-    entries: dict[str, zipfile.ZipInfo] = {}
-    for info in infos:
-        name = _safe_archive_name(info.filename)
-        total += info.file_size
-        if info.file_size < 0 or total > MAX_ARCHIVE_UNCOMPRESSED:
-            raise PackError("包解压后总大小超过 128 MiB")
-        if name in entries:
-            raise PackError(f"包内存在重复路径：{name}")
-        entries[name] = info
-    return entries
+    try:
+        return validate_archive_entries(zf.infolist())
+    except ArchiveValidationError as exc:
+        raise PackError(str(exc)) from exc
 
 
 def _read_entry(
@@ -121,12 +113,98 @@ def _read_json_from_zip(
     return result
 
 
+def _verify_story_lua_pairs(
+    zf: zipfile.ZipFile,
+    entries: dict[str, zipfile.ZipInfo],
+    manifest: dict,
+    stories: dict[str, dict],
+    *,
+    require_integrity: bool = False,
+) -> None:
+    """Verify metadata hashes and independently recompile every Lua variant."""
+    lua_names = sorted(
+        name for name, info in entries.items()
+        if name.startswith("lua/") and name.endswith(".lua") and not info.is_dir()
+    )
+    expected_default = {f"lua/{story_id}.lua" for story_id in stories}
+    if not expected_default.issubset(lua_names):
+        missing = sorted(expected_default - set(lua_names))
+        raise PackError("包内 Story 缺少对应 Lua：" + "、".join(missing))
+    relevant_names = set(lua_names)
+    relevant_names.update(f"story/{story_id}.json" for story_id in stories)
+    entry_bytes = {
+        name: _read_entry(zf, entries[name], MAX_TEXT_BYTES, name)
+        for name in relevant_names
+    }
+    integrity_info = entries.get(STORY_LUA_INTEGRITY_ENTRY)
+    if integrity_info is None and require_integrity:
+        raise PackError("package_format=2 的包必须包含 story-lua.sha256")
+    if integrity_info is not None:
+        record = _read_entry(
+            zf, integrity_info, MAX_TEXT_BYTES, STORY_LUA_INTEGRITY_ENTRY
+        )
+        try:
+            verify_story_lua_integrity(record, entry_bytes)
+        except Exception as exc:
+            raise PackError(str(exc)) from exc
+
+    lomc, lomc_error = get_lomc()
+    if lomc is None:
+        raise PackError("编译器不可用，无法验证 Story/Lua 一致性：%s" % lomc_error)
+    for story_id, story in stories.items():
+        story_path = f"story/{story_id}.json"
+        variants = []
+        for lua_path in lua_names:
+            parts = lua_path.split("/")
+            if len(parts) == 2:
+                lua_story_id = parts[1][:-4]
+                locale = None
+            elif len(parts) == 3:
+                locale = parts[1]
+                locale = {
+                    "zh_CN": "chs", "zh-CN": "chs", "zh_Hans": "chs", "zh-Hans": "chs",
+                    "zh_TW": "cht", "zh-TW": "cht", "zh_Hant": "cht", "zh-Hant": "cht",
+                }.get(locale, locale)
+                if locale not in ("chs", "cht", "ja", "ko"):
+                    raise PackError("包内包含不支持的 locale Lua 路径：%s" % lua_path)
+                lua_story_id = parts[2][:-4]
+            else:
+                raise PackError("包内 Lua 路径层级无效：%s" % lua_path)
+            if lua_story_id not in stories:
+                raise PackError("包内 Lua 没有对应 Story：%s" % lua_path)
+            if lua_story_id == story_id:
+                variants.append((lua_path, locale))
+        for lua_path, locale in variants:
+            try:
+                if locale is None:
+                    generated = lomc.compile_story(
+                        story, mod_info=manifest, source=story_path
+                    )
+                else:
+                    localized = lomc.apply_story_locale(story, locale)
+                    generated = lomc.compile_story(
+                        localized, mod_info=manifest, source=story_path
+                    )
+            except Exception as exc:
+                raise PackError(f"无法复编译 {story_path} 以验证 {lua_path}：{exc}") from exc
+            packaged = entry_bytes[lua_path]
+            if generated.encode("utf-8") != packaged:
+                raise PackError(
+                    f"包内 {lua_path} 不是由对应 {story_path} 编译生成，拒绝导入"
+                )
+
+
 def _import_lommod(path: str | Path) -> tuple[dict, dict[str, dict]]:
     """解 zip 读 manifest + story/*.json。
 
     返回 (manifest, {story_id: story_dict})。story_id 取文件名去后缀。
     """
     path = Path(path)
+    try:
+        if path.stat().st_size > MAX_PACKAGE_FILE_BYTES:
+            raise PackError("Mod 包文件超过 160 MiB 上限")
+    except OSError as exc:
+        raise PackError(f"无法读取 {path.name}：{exc}") from exc
     try:
         is_zip = zipfile.is_zipfile(path)
     except OSError as exc:
@@ -143,6 +221,7 @@ def _import_lommod(path: str | Path) -> tuple[dict, dict[str, dict]]:
         except (ValueError, OSError, zipfile.BadZipFile) as exc:
             raise PackError(f"无法检查包内容：{exc}") from exc
         manifest = _read_json_from_zip(zf, entries, "manifest.json")
+        source_package_format = manifest.get("package_format", manifest.get("format"))
         try:
             manifest = migrate_manifest(manifest).document
             assert_supported_version(
@@ -169,9 +248,17 @@ def _import_lommod(path: str | Path) -> tuple[dict, dict[str, dict]]:
                     raise PackError(f"包内 {name}：{exc}") from exc
                 story_id = Path(name).stem
                 story.setdefault("id", story_id)
+                if story.get("id") != story_id:
+                    raise PackError(
+                        f"包内 {name} 的 id={story.get('id')!r} 与文件名不一致"
+                    )
                 stories[story_id] = story
         if not stories:
             raise PackError("包内没有 story/*.json（契约要求 ≥1）")
+        _verify_story_lua_pairs(
+            zf, entries, manifest, stories,
+            require_integrity=source_package_format == PACKAGE_FORMAT,
+        )
         asset_map: dict[str, str] = {}
         for normalized, info in entries.items():
             if not normalized.startswith("assets/") or normalized.endswith("/"):
@@ -255,6 +342,7 @@ def export_lommod(
             PACKAGE_FORMAT,
             legacy="format",
             allow_missing=True,
+            supported=(1, PACKAGE_FORMAT),
         )
         assert_supported_version(
             manifest, "story_schema", STORY_SCHEMA, allow_missing=True
@@ -363,10 +451,23 @@ def export_lommod(
 
     package = DeterministicPackageBuilder()
     package.add_json("manifest.json", manifest)
+    integrity_pairs = []
     for sid, story in stories.items():
         package.add_json(f"story/{sid}.json", story)
+        integrity_pairs.append(
+            (
+                f"story/{sid}.json",
+                stable_json_bytes(story),
+                f"lua/{sid}.lua",
+                compiled[sid].encode("utf-8"),
+            )
+        )
     for sid, lua in compiled.items():
         package.add_bytes(f"lua/{sid}.lua", lua)
+    package.add_bytes(
+        STORY_LUA_INTEGRITY_ENTRY,
+        build_story_lua_integrity(integrity_pairs),
+    )
     for rel, source in sorted(asset_sources.items()):
         package.add_file(rel, source)
     for content_type, content_id in user_content:

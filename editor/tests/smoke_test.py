@@ -447,7 +447,7 @@ def main_fn() -> int:
     assert dlg.triggers_table.rowCount() == 1, "应回填 1 行触发器"
     assert dlg.triggers_table.columnCount() == 8, "触发器表应为 8 列"
     m = dlg.manifest()
-    assert m["tested_host_version"] == "0.6.0", "新导出应记录随附 Host 测试版本"
+    assert m["tested_host_version"] == "1.0.0", "新导出应记录随附 Host 测试版本"
     dlg.min_host_version_edit.setText("0.5.0")
     dlg.game_version_edit.setText("1.2.3")
     dlg.tested_game_version_edit.setText("1.2.3")

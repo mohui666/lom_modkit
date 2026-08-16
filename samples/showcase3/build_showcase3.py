@@ -33,12 +33,12 @@ STORY_DIR = SHOWCASE_DIR / "story"
 SOURCE_ASSETS = PROJECT_ROOT / "samples" / "feature_showcase" / "assets" / "user"
 
 MANIFEST = {
-    "format": 1,
-    "package_format": 1,
+    "format": 2,
+    "package_format": 2,
     "story_schema": 1,
     "content_schema": 1,
-    "min_host_version": "0.6.0",
-    "tested_host_version": "0.6.0",
+    "min_host_version": "1.0.0",
+    "tested_host_version": "1.0.0",
     "id": "showcase3",
     "name": "全节点样例3.0·六十三节点实机验收",
     "version": "3.0.0",

@@ -89,13 +89,27 @@ class AssetStoreTest(unittest.TestCase):
 
     def test_import_rejects_unsafe_archive_paths(self):
         for index, unsafe in enumerate(
-            ("assets/user/../../escaped.wav", "/absolute.png", "C:/drive.png", "assets\\user\\..\\escaped.wav")
+            (
+                "assets/user/../../escaped.wav", "/absolute.png", "C:/drive.png",
+                "assets\\user\\escaped.wav", "assets//escaped.wav", "assets/./escaped.wav",
+            )
         ):
             package = Path(self.temp.name) / f"unsafe-{index}.lommod"
             self._write_minimal_package(package, [(unsafe, b"payload")])
             with self.subTest(path=unsafe), self.assertRaises(package_io.PackError):
                 package_io.import_lommod(package)
         self.assertFalse((Path(self.temp.name) / "escaped.wav").exists())
+
+    def test_import_rejects_duplicate_case_and_file_directory_conflicts(self):
+        cases = (
+            [("assets/A.png", b"a"), ("assets/a.png", b"b")],
+            [("assets", b"file"), ("assets/a.png", b"nested")],
+        )
+        for index, extras in enumerate(cases):
+            package = Path(self.temp.name) / f"conflict-{index}.lommod"
+            self._write_minimal_package(package, extras)
+            with self.subTest(index=index), self.assertRaises(package_io.PackError):
+                package_io.import_lommod(package)
 
     def test_import_rejects_oversized_json_and_too_many_entries(self):
         oversized = Path(self.temp.name) / "oversized.lommod"

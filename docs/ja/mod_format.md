@@ -14,6 +14,7 @@ manifest.json          # 必填，包元信息
 story/<id>.json        # 必填≥1，剧情源文件（编辑器可编辑的源格式）
 lua/<id>.lua           # 必填≥1，编译产物（运行时只读这里）；每个 story/<id>.json 对应一个
 texts.json             # 必填，已读文本表：{MOD_<modid>_<scriptid>_<nodeid>: 文本}（say 节点文本）
+story-lua.sha256       # package_format=2 で必須。Story/Lua ペアの SHA-256
 package-content.sha256 # 必須。圧縮に依存しない論理コンテンツ SHA-256
 assets/                # 可选，自定义资源
                        #   图片：结局插图 / 人物介绍图 PNG/JPG
@@ -22,6 +23,7 @@ assets/                # 可选，自定义资源
 
 - `<id>` のルール：`[a-zA-Z0-9_\-]+`。パッケージ内で一意。すなわち「シナリオスクリプト id」。
 - エクスポート（パッケージング）時は必ず再コンパイルします：story/*.json → lua/*.lua。両者は同名です。
+- `story-lua.sha256` は Story の生バイトと対応するデフォルト／ロケール Lua の SHA-256 を結び付けます。Runtime は v2 で必須検証し、v1 旧パッケージは Editor がその場で再コンパイルして比較します。
 - ランタイムプラグインが読むのは **manifest.json、lua/ ディレクトリと assets/ のみ**です。story/*.json はエディターが再読込／再編集するためのものです。コンパイラーはシナリオが明示的に参照する PNG/JPG（1 枚 ≤8MB）と明示的に参照される `user:` 音声のみを同梱します。エクスポートされた `.lommod` は自己完結しており、プレイヤーのマシンにエディターのリポジトリは不要です。
 - texts.json はパッケージング時に自動生成されます：各 story の全 **say** ノードのテキストを収集し、key は lua 内の `GetStoryText` の key と一対一で対応します。ランタイムで LeanLocalization に登録されます（§4/§6 参照）。**death テキストは texts.json に入りません**：codegen が `mod_set_death_text(<タイトル>, <テキスト>)` の 2 引数 lua_str リテラルとして出力します（§3.1/§6 参照）。
 - エントリー、JSON、Lua、ZIP の時刻／権限を固定し、同一 Python/zlib ツールチェーンでは同一入力をバイト単位で再現します。`package-content.sha256` は圧縮結果に依存しない論理内容ハッシュです。異なるツールチェーン間の完全な reproducible build は保証せず、このハッシュも署名や公式認証ではありません。
@@ -31,12 +33,12 @@ assets/                # 可选，自定义资源
 
 ```json
 {
-  "format": 1,
-  "package_format": 1,
+  "format": 2,
+  "package_format": 2,
   "story_schema": 1,
   "content_schema": 1,
-  "min_host_version": "0.6.0",
-  "tested_host_version": "0.6.0",
+  "min_host_version": "1.0.0",
+  "tested_host_version": "1.0.0",
   "tested_game_version": "1.2.3",
   "id": "demo_mod",
   "name": "示例 Mod",
@@ -54,7 +56,7 @@ assets/                # 可选，自定义资源
 }
 ```
 
-`package_format` / `story_schema` / `content_schema` は、それぞれパッケージ、Story、ユーザーコンテンツの明示的な形式バージョンで、現在はすべて `1` 固定です。`format: 1` は旧 reader 互換用です。未知のバージョンや矛盾する宣言はエディター、コンパイラー、Runtime のすべてで拒否されます。
+`package_format` は現在 `2`、`story_schema` / `content_schema` は `1` です。v2 では Story/Lua 整合性レコードが必須です。`format: 1` の旧パッケージは入力互換のみで、未知または矛盾する宣言は拒否されます。
 
 旧 v1 の Story／ユーザーコンテンツは、元のバイト列を `*.pre-migration-v1.bak` に保存してから、同一ディレクトリ内で原子的に移行します。検証・バックアップ・置換に失敗した場合、元ファイルは変更されません。未知フィールドは保持され、`migration.restore_migration_backup` で明示的に復元できます。旧 `.lommod` のインポートはメモリ上のコピーだけを移行し、元パッケージを変更しません。
 

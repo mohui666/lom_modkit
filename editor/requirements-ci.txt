@@ -1,0 +1,3 @@
+# Editor tests exercise both headless widgets and the complete MainWindow.
+# Keep CI deterministic; this is the version used by the repository test venv.
+PySide6==6.11.1

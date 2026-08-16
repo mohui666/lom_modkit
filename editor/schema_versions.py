@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """Versions written by the editor; kept dependency-free for frozen builds."""
 
-PACKAGE_FORMAT = 1
+PACKAGE_FORMAT = 2
 STORY_SCHEMA = 1
 CONTENT_SCHEMA = 1
 
 
 def manifest_versions() -> dict[str, int]:
     return {
-        "format": PACKAGE_FORMAT,  # legacy v1 readers
+        "format": PACKAGE_FORMAT,  # compatibility spelling
         "package_format": PACKAGE_FORMAT,
         "story_schema": STORY_SCHEMA,
         "content_schema": CONTENT_SCHEMA,
@@ -31,6 +31,7 @@ def assert_supported_version(
     *,
     legacy: str | None = None,
     allow_missing: bool = False,
+    supported: tuple[int, ...] | None = None,
 ) -> None:
     value = version_value(document, explicit, legacy)
     has_version = explicit in document or (
@@ -38,9 +39,11 @@ def assert_supported_version(
     )
     if not has_version and allow_missing:
         return
-    if value != current or isinstance(value, bool):
+    accepted = supported or (current,)
+    if value not in accepted or isinstance(value, bool):
         raise ValueError(
-            "不支持的 %s：%r（当前仅支持 %d）" % (explicit, value, current)
+            "不支持的 %s：%r（支持 %s）"
+            % (explicit, value, "/".join(str(item) for item in accepted))
         )
     if explicit in document and legacy is not None and legacy in document:
         legacy_value = document.get(legacy)

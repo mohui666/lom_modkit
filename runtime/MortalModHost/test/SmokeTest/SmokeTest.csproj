@@ -25,6 +25,7 @@
     <Compile Include="..\..\src\StructuredRuntimeError.cs" />
     <Compile Include="..\..\src\RuntimeDebugControl.cs" />
     <Compile Include="..\..\src\RuntimeCompatibility.cs" />
+    <Compile Include="..\..\src\RuntimeEnvironmentLease.cs" />
     <Compile Include="..\..\src\ModDisclosurePolicy.cs" />
     <Compile Include="..\..\src\DisclosureIntegrity.cs" />
     <Compile Include="..\..\src\ProvenanceWatermarkProtocol.cs" />

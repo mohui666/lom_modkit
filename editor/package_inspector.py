@@ -18,12 +18,14 @@ from app_version import RUNTIME_VERSION
 from package_io import (
     MAX_JSON_BYTES,
     PackError,
+    _verify_story_lua_pairs,
     _validated_entries,
 )
+from lomc.package_validation import MAX_PACKAGE_FILE_BYTES
 from schema_versions import CONTENT_SCHEMA, PACKAGE_FORMAT, STORY_SCHEMA
 
 
-MAX_PACKAGE_BYTES = 160 * 1024 * 1024
+MAX_PACKAGE_BYTES = MAX_PACKAGE_FILE_BYTES
 MAX_TEXT_PREVIEW_BYTES = MAX_JSON_BYTES
 CONTENT_HASH_ENTRY = "package-content.sha256"
 CONTENT_HASH_ALGORITHM = "lom-entry-sha256-v1"
@@ -88,7 +90,7 @@ def _category(name: str) -> str:
         return "User content"
     if name.startswith("assets/"):
         return "Asset"
-    if name == CONTENT_HASH_ENTRY:
+    if name in (CONTENT_HASH_ENTRY, "story-lua.sha256"):
         return "Hash"
     return "Other"
 
@@ -156,7 +158,8 @@ def _compatibility_checks(
         ("story_schema", manifest.get("story_schema", STORY_SCHEMA), STORY_SCHEMA),
         ("content_schema", manifest.get("content_schema", CONTENT_SCHEMA), CONTENT_SCHEMA),
     ):
-        if isinstance(value, bool) or value != current:
+        accepted = (1, current) if field_name == "package_format" else (current,)
+        if isinstance(value, bool) or value not in accepted:
             inspection.errors.append(
                 f"不支持的 {field_name}：{value!r}（检查器支持 {current}）"
             )
@@ -311,6 +314,27 @@ def inspect_lommod(
     }
     if not stories:
         inspection.errors.append("包内没有合法的 story/*.json")
+    elif isinstance(manifest, dict):
+        story_by_id = {Path(name).stem: value for name, value in stories.items()}
+        try:
+            with zipfile.ZipFile(package) as verification_archive:
+                verification_entries = _validated_entries(verification_archive)
+                _verify_story_lua_pairs(
+                    verification_archive,
+                    verification_entries,
+                    manifest,
+                    story_by_id,
+                    require_integrity=(
+                        manifest.get("package_format", manifest.get("format"))
+                        == PACKAGE_FORMAT
+                    ),
+                )
+                if "story-lua.sha256" not in verification_entries:
+                    inspection.warnings.append(
+                        "包未包含 story-lua.sha256（旧包允许，已通过现场复编译核对）"
+                    )
+        except (OSError, zipfile.BadZipFile, PackError) as exc:
+            inspection.errors.append("Story/Lua 一致性校验失败：%s" % exc)
     try:
         from lomc.validate import validate_story
         for name, story in stories.items():

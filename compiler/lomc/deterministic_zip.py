@@ -11,6 +11,11 @@ import tempfile
 import zipfile
 
 from .errors import LomcError
+from .package_validation import (
+    ArchiveValidationError,
+    canonical_archive_name,
+    validate_archive_entries,
+)
 
 
 PACKAGE_CONTENT_HASH_ENTRY = "package-content.sha256"
@@ -44,15 +49,26 @@ def _zip_info(name: str) -> zipfile.ZipInfo:
 class DeterministicPackageBuilder:
     def __init__(self) -> None:
         self._entries: dict[str, tuple[str, object]] = {}
+        self._case_entries: dict[str, str] = {}
 
     def _add(self, name: str, kind: str, value: object) -> None:
-        normalized = str(name).replace("\\", "/")
-        if not normalized or normalized.startswith("/") or ".." in normalized.split("/"):
-            raise LomcError("不安全的包内路径：%r" % name)
+        try:
+            normalized = canonical_archive_name(str(name))
+        except ArchiveValidationError as exc:
+            raise LomcError(str(exc)) from exc
+        if normalized.endswith("/"):
+            raise LomcError("打包器不接受目录条目：%s" % normalized)
         if normalized == PACKAGE_CONTENT_HASH_ENTRY:
             raise LomcError("package-content.sha256 由打包器保留")
         if normalized in self._entries:
             raise LomcError("重复的包内路径：%s" % normalized)
+        folded = normalized.casefold()
+        if folded in self._case_entries:
+            raise LomcError(
+                "大小写冲突的包内路径：%s / %s"
+                % (self._case_entries[folded], normalized)
+            )
+        self._case_entries[folded] = normalized
         self._entries[normalized] = (kind, value)
 
     def add_bytes(self, name: str, data: bytes | str) -> None:
@@ -125,14 +141,16 @@ def package_content_hash(path: str | Path) -> str:
     """Recompute and verify the logical entry hash from an existing package."""
     digest = hashlib.sha256()
     with zipfile.ZipFile(path) as archive:
+        try:
+            entries = validate_archive_entries(archive.infolist())
+        except ArchiveValidationError as exc:
+            raise LomcError(str(exc)) from exc
         names = sorted(
-            info.filename for info in archive.infolist()
-            if not info.is_dir() and info.filename != PACKAGE_CONTENT_HASH_ENTRY
+            name for name, info in entries.items()
+            if not info.is_dir() and name != PACKAGE_CONTENT_HASH_ENTRY
         )
-        if len(names) != len(set(names)):
-            raise LomcError("包内存在重复路径，无法计算内容哈希")
         for name in names:
-            info = archive.getinfo(name)
+            info = entries[name]
             _hash_header(digest, name, info.file_size)
             with archive.open(info) as stream:
                 for chunk in iter(lambda: stream.read(_CHUNK), b""):

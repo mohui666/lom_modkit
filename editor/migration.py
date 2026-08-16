@@ -160,7 +160,7 @@ def _integer_version(value: object, field: str, current: int) -> int:
 
 
 def migrate_manifest(document: dict) -> MigrationResult:
-    """Migrate a v1 manifest to explicit package/story/content declarations."""
+    """Migrate a v1 manifest to the current integrity-linked package format."""
     if not isinstance(document, dict):
         raise MigrationError("manifest 顶层必须是 JSON 对象")
     result = copy.deepcopy(document)
@@ -168,31 +168,33 @@ def migrate_manifest(document: dict) -> MigrationResult:
     has_legacy = "format" in result
     if not has_explicit and not has_legacy:
         raise MigrationError("manifest 缺少 package_format/format，无法判断来源版本")
-    package_version = _integer_version(
-        result.get("package_format") if has_explicit else result.get("format"),
-        "package_format",
-        PACKAGE_FORMAT,
-    )
+    package_version = result.get("package_format") if has_explicit else result.get("format")
+    if isinstance(package_version, bool) or package_version not in (1, PACKAGE_FORMAT):
+        raise MigrationError(
+            "无法迁移 package_format=%r：当前工具仅支持版本 1/%d"
+            % (package_version, PACKAGE_FORMAT)
+        )
     if has_explicit and has_legacy:
-        legacy = _integer_version(result.get("format"), "format", PACKAGE_FORMAT)
+        legacy = result.get("format")
+        if isinstance(legacy, bool) or legacy not in (1, PACKAGE_FORMAT):
+            raise MigrationError("无法迁移 format=%r" % legacy)
         if legacy != package_version:
             raise MigrationError("package_format 与旧字段 format 不一致")
 
     steps: list[str] = []
-    declarations = (
-        ("package_format", PACKAGE_FORMAT),
-        ("story_schema", STORY_SCHEMA),
-        ("content_schema", CONTENT_SCHEMA),
-    )
+    if package_version != PACKAGE_FORMAT or result.get("package_format") != PACKAGE_FORMAT:
+        result["package_format"] = PACKAGE_FORMAT
+        steps.append("upgrade package_format to %d" % PACKAGE_FORMAT)
+    if result.get("format") != PACKAGE_FORMAT:
+        result["format"] = PACKAGE_FORMAT
+        steps.append("upgrade legacy format to %d" % PACKAGE_FORMAT)
+    declarations = (("story_schema", STORY_SCHEMA), ("content_schema", CONTENT_SCHEMA))
     for field, current in declarations:
         if field in result:
             _integer_version(result.get(field), field, current)
         else:
             result[field] = current
             steps.append("add " + field)
-    if "format" not in result:
-        result["format"] = PACKAGE_FORMAT
-        steps.append("add legacy format")
     return MigrationResult(
         kind="manifest",
         document=result,

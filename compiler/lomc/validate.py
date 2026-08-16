@@ -1743,9 +1743,9 @@ def validate_manifest(manifest, source="manifest.json"):
         if not isinstance(manifest, dict):
             raise LomcError("顶层必须是 JSON 对象")
         fmt = manifest.get("package_format", manifest.get("format"))
-        if fmt != PACKAGE_FORMAT or isinstance(fmt, bool):
+        if fmt not in (1, PACKAGE_FORMAT) or isinstance(fmt, bool):
             raise LomcError(
-                '字段 "package_format" 必须固定为 %d（包格式版本号）'
+                '字段 "package_format" 必须是 1 或 %d（包格式版本号）'
                 % PACKAGE_FORMAT
             )
         if "package_format" in manifest and "format" in manifest:

@@ -1,9 +1,9 @@
 {
-  "format": 1,
-  "package_format": 1,
+  "format": 2,
+  "package_format": 2,
   "story_schema": 1,
   "content_schema": 1,
-  "tested_host_version": "0.6.0",
+  "tested_host_version": "1.0.0",
   "id": "audio_test",
   "name": "自定义音频测试",
   "version": "1.0.0",

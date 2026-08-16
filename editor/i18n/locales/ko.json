@@ -482,7 +482,7 @@
   "export.tested_host_version": "테스트한 Host 버전(초과 시 경고)",
   "export.game_version": "필수 게임 버전(정확히 일치)",
   "export.tested_game_version": "테스트한 게임 버전(다르면 경고)",
-  "export.compat_optional": "비워 둘 수 있음. 예: 0.6.0",
+  "export.compat_optional": "비워 둘 수 있음. 예: 1.0.0",
   "export.compat_exact_optional": "비워 둘 수 있음. 입력 시 Application.version과 정확히 일치해야 함",
   "export.id_ph": "예：my_story（소문자, 숫자, _ 또는 -）",
   "export.author_ph": "작가 이름",

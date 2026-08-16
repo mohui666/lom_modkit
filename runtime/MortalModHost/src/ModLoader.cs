@@ -14,7 +14,7 @@ namespace MortalModHost
     /// </summary>
     internal static class ModLoader
     {
-        internal const int PackageFormat = 1;
+        internal const int PackageFormat = 2;
         internal const int StorySchema = 1;
         internal const int ContentSchema = 1;
 
@@ -31,6 +31,11 @@ namespace MortalModHost
         private const long MaxTextBytes = 4L * 1024 * 1024;
         private const long MaxPackageFileBytes = 160L * 1024 * 1024;
         private const int MaxIdentifierLength = 64;
+
+        internal const string PackageContentHashEntry = "package-content.sha256";
+        internal const string PackageContentHashAlgorithm = "lom-entry-sha256-v1";
+        internal const string StoryLuaHashEntry = "story-lua.sha256";
+        internal const string StoryLuaHashAlgorithm = "lom-story-lua-sha256-v1";
 
         /// <summary>结局卡背景图允许的扩展名（契约 §3.1）。</summary>
         private static bool IsImageAsset(string path)
@@ -102,6 +107,10 @@ namespace MortalModHost
                     var package = ParseManifest(ReadEntryText(manifestEntry));
                     package.PackagePath = path;
                     package.PackageFingerprint = fingerprint;
+
+                    bool requiresV2Integrity = package.PackageFormatVersion >= 2;
+                    ValidatePackageContentHash(zip, requiresV2Integrity);
+                    ValidateStoryLuaIntegrity(zip, requiresV2Integrity);
 
                 // 收集 lua/<id>.lua（仅 lua/ 直接子项，契约 §1）
                 foreach (var entry in zip.Entries)
@@ -222,7 +231,7 @@ namespace MortalModHost
                 throw new FormatException("manifest.json 顶层必须是 JSON 对象");
 
             // 新包使用含义明确的三个版本字段；format 仅供旧 v1 reader 兼容。
-            RequireVersion(root, "package_format", PackageFormat, "format", false);
+            int packageFormat = RequireVersion(root, "package_format", PackageFormat, "format", false, true);
             RequireVersion(root, "story_schema", StorySchema, null, true);
             RequireVersion(root, "content_schema", ContentSchema, null, true);
 
@@ -236,6 +245,7 @@ namespace MortalModHost
             var package = new ModPackage
             {
                 Id = id,
+                PackageFormatVersion = packageFormat,
                 Name = GetString(root, "name", required: false) ?? "",
                 Version = GetString(root, "version", required: false) ?? "",
                 MinHostVersion = GetOptionalCompatibilityString(root, "min_host_version"),
@@ -250,12 +260,13 @@ namespace MortalModHost
             return package;
         }
 
-        private static void RequireVersion(
+        private static int RequireVersion(
             Dictionary<string, object> root,
             string field,
             int current,
             string legacyField,
-            bool allowMissing)
+            bool allowMissing,
+            bool allowPrevious = false)
         {
             object valueObj;
             bool hasExplicit = root.TryGetValue(field, out valueObj);
@@ -264,15 +275,18 @@ namespace MortalModHost
             if (!hasExplicit)
                 valueObj = hasLegacy ? legacyObj : null;
             if (!hasExplicit && !hasLegacy && allowMissing)
-                return;
-            if (!(valueObj is double) || (double)valueObj != current)
+                return current;
+            if (!(valueObj is double)
+                || ((double)valueObj != current && !(allowPrevious && (double)valueObj == current - 1)))
                 throw new FormatException(
-                    "manifest." + field + " 不是 " + current
+                    "manifest." + field + " 不是受支持版本 "
+                    + (allowPrevious ? (current - 1) + " 或 " : "") + current
                     + "（本插件不支持该版本）");
             if (hasExplicit && hasLegacy
                 && (!(legacyObj is double) || (double)legacyObj != (double)valueObj))
                 throw new FormatException(
                     "manifest." + field + " 与旧字段 " + legacyField + " 不一致");
+            return (int)(double)valueObj;
         }
 
         private static bool IsValidModId(string value)
@@ -862,14 +876,270 @@ namespace MortalModHost
             if (zip.Entries.Count > MaxArchiveEntries)
                 throw new FormatException("包内条目数超过 " + MaxArchiveEntries + " 上限");
             long total = 0;
+            var exactPaths = new HashSet<string>(StringComparer.Ordinal);
+            var foldedPaths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var filePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var directoryPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var entry in zip.Entries)
             {
+                string path = ValidateArchivePath(entry.FullName);
+                if (!exactPaths.Add(path))
+                    throw new FormatException("包内存在重复路径：" + path);
+                string existing;
+                if (foldedPaths.TryGetValue(path, out existing)
+                    && !string.Equals(existing, path, StringComparison.Ordinal))
+                    throw new FormatException("包内存在大小写冲突路径：" + existing + " / " + path);
+                foldedPaths[path] = path;
                 if (entry.Length < 0 || entry.Length > MaxEntryBytes)
                     throw new FormatException("包内条目超过 32MB 上限：" + entry.FullName);
+                if (!path.EndsWith("/", StringComparison.Ordinal) && IsTextArchivePath(path)
+                    && entry.Length > MaxTextBytes)
+                    throw new FormatException("包内文本条目超过 4MB 上限：" + entry.FullName);
                 if (total > MaxArchiveBytes - entry.Length)
                     throw new FormatException("包内总未压缩大小超过 128MB 上限");
                 total += entry.Length;
+                if (path.EndsWith("/", StringComparison.Ordinal))
+                    directoryPaths.Add(path.Substring(0, path.Length - 1));
+                else
+                    filePaths.Add(path);
             }
+
+            foreach (string path in exactPaths)
+            {
+                string body = path.EndsWith("/", StringComparison.Ordinal)
+                    ? path.Substring(0, path.Length - 1) : path;
+                string[] parts = body.Split('/');
+                for (int i = 1; i < parts.Length; i++)
+                {
+                    string prefix = string.Join("/", parts, 0, i);
+                    if (filePaths.Contains(prefix))
+                        throw new FormatException("包内路径同时被用作文件和目录：" + prefix);
+                }
+            }
+            foreach (string file in filePaths)
+                if (directoryPaths.Contains(file))
+                    throw new FormatException("包内路径同时被用作文件和目录：" + file);
+        }
+
+        private static bool IsTextArchivePath(string path)
+        {
+            return path.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
+                || path.EndsWith(".lua", StringComparison.OrdinalIgnoreCase)
+                || path.EndsWith(".sha256", StringComparison.OrdinalIgnoreCase)
+                || path.EndsWith(".txt", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// ZIP 条目必须使用唯一、规范的相对 POSIX 路径。Runtime 从不解压条目，但仍与
+        /// Editor 使用同一规则拒绝路径穿越、Windows drive/UNC、反斜杠和歧义路径。
+        /// </summary>
+        private static string ValidateArchivePath(string path)
+        {
+            if (string.IsNullOrEmpty(path) || path.IndexOf('\0') >= 0)
+                throw new FormatException("包内包含空路径或 NUL 字符");
+            if (path.IndexOf('\\') >= 0)
+                throw new FormatException("包内路径必须使用正斜杠：" + path);
+            if (path[0] == '/' || (path.Length >= 2 && IsAsciiLetter(path[0]) && path[1] == ':'))
+                throw new FormatException("包内包含绝对路径：" + path);
+
+            bool directory = path.EndsWith("/", StringComparison.Ordinal);
+            string body = directory ? path.Substring(0, path.Length - 1) : path;
+            if (body.Length == 0)
+                throw new FormatException("包内包含根目录条目");
+            string[] parts = body.Split('/');
+            foreach (string part in parts)
+            {
+                if (part.Length == 0 || part == "." || part == "..")
+                    throw new FormatException("包内包含不安全或非规范路径：" + path);
+            }
+            return directory ? body + "/" : body;
+        }
+
+        private static bool IsAsciiLetter(char value)
+        {
+            return (value >= 'A' && value <= 'Z') || (value >= 'a' && value <= 'z');
+        }
+
+        /// <summary>
+        /// 验证打包器生成的压缩无关逻辑内容哈希。旧 v1 包允许缺少记录；一旦存在，
+        /// 格式错误或任一条目被替换都拒绝整包。
+        /// </summary>
+        private static void ValidatePackageContentHash(ZipArchive zip, bool required)
+        {
+            ZipArchiveEntry recordEntry = zip.GetEntry(PackageContentHashEntry);
+            if (recordEntry == null)
+            {
+                if (required)
+                    throw new FormatException("package_format=2 缺少 " + PackageContentHashEntry);
+                return;
+            }
+
+            Dictionary<string, string> record = ParseHashRecord(ReadEntryText(recordEntry));
+            string algorithm;
+            string declared;
+            if (!record.TryGetValue("algorithm", out algorithm)
+                || algorithm != PackageContentHashAlgorithm
+                || !record.TryGetValue("sha256", out declared)
+                || !IsUpperHexSha256(declared))
+                throw new FormatException(PackageContentHashEntry + " 记录格式无效");
+
+            string actual;
+            using (var digest = SHA256.Create())
+            {
+                var entries = new List<ZipArchiveEntry>();
+                foreach (ZipArchiveEntry entry in zip.Entries)
+                    if (entry.Name.Length != 0 && entry.FullName != PackageContentHashEntry)
+                        entries.Add(entry);
+                entries.Sort(delegate(ZipArchiveEntry left, ZipArchiveEntry right)
+                {
+                    return string.CompareOrdinal(left.FullName, right.FullName);
+                });
+                foreach (ZipArchiveEntry entry in entries)
+                {
+                    byte[] name = Encoding.UTF8.GetBytes(entry.FullName);
+                    AddBigEndian(digest, (uint)name.Length, 4);
+                    digest.TransformBlock(name, 0, name.Length, name, 0);
+                    AddBigEndian(digest, (ulong)entry.Length, 8);
+                    using (Stream input = entry.Open())
+                    {
+                        byte[] buffer = new byte[81920];
+                        int read;
+                        long actualLength = 0;
+                        while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+                        {
+                            if (actualLength > entry.Length - read)
+                                throw new FormatException("条目读取长度与 ZIP 元数据不一致：" + entry.FullName);
+                            actualLength += read;
+                            digest.TransformBlock(buffer, 0, read, buffer, 0);
+                        }
+                        if (actualLength != entry.Length)
+                            throw new FormatException("条目读取长度与 ZIP 元数据不一致：" + entry.FullName);
+                    }
+                }
+                digest.TransformFinalBlock(new byte[0], 0, 0);
+                actual = ToUpperHex(digest.Hash);
+            }
+            if (!string.Equals(actual, declared, StringComparison.Ordinal))
+                throw new FormatException(PackageContentHashEntry + " 与包内逻辑内容不一致");
+        }
+
+        /// <summary>
+        /// 验证 Story 原始字节与由打包器编译出的每份 Lua（含本地化变体）的绑定记录。
+        /// 旧包可缺少该记录；新打包器产物一旦含记录，缺行、重复行或内容替换均拒绝。
+        /// </summary>
+        private static void ValidateStoryLuaIntegrity(ZipArchive zip, bool required)
+        {
+            ZipArchiveEntry recordEntry = zip.GetEntry(StoryLuaHashEntry);
+            if (recordEntry == null)
+            {
+                if (required)
+                    throw new FormatException("package_format=2 缺少 " + StoryLuaHashEntry);
+                return;
+            }
+            string[] lines = ReadEntryText(recordEntry).Replace("\r\n", "\n").Split('\n');
+            if (lines.Length == 0 || lines[0] != "algorithm=" + StoryLuaHashAlgorithm)
+                throw new FormatException(StoryLuaHashEntry + " 算法标识无效");
+
+            var expectedLua = new HashSet<string>(StringComparer.Ordinal);
+            foreach (ZipArchiveEntry entry in zip.Entries)
+                if (entry.Name.Length != 0 && IsRuntimeLuaPath(entry.FullName))
+                    expectedLua.Add(entry.FullName);
+            if (expectedLua.Count == 0)
+                throw new FormatException("包内没有可绑定的 Lua 脚本");
+
+            var seenLua = new HashSet<string>(StringComparer.Ordinal);
+            for (int i = 1; i < lines.Length; i++)
+            {
+                if (lines[i].Length == 0) continue;
+                string[] fields = lines[i].Split('\t');
+                if (fields.Length != 4 || !IsStoryPath(fields[0]) || !IsUpperHexSha256(fields[1])
+                    || !IsRuntimeLuaPath(fields[2]) || !IsUpperHexSha256(fields[3]))
+                    throw new FormatException(StoryLuaHashEntry + " 第 " + (i + 1) + " 行格式无效");
+                if (!seenLua.Add(fields[2]))
+                    throw new FormatException(StoryLuaHashEntry + " 重复声明 " + fields[2]);
+                ZipArchiveEntry story = zip.GetEntry(fields[0]);
+                ZipArchiveEntry lua = zip.GetEntry(fields[2]);
+                if (story == null || lua == null)
+                    throw new FormatException(StoryLuaHashEntry + " 引用不存在条目：" + fields[0] + " / " + fields[2]);
+                string storyId = fields[0].Substring("story/".Length,
+                    fields[0].Length - "story/".Length - ".json".Length);
+                string luaId = Path.GetFileNameWithoutExtension(fields[2]);
+                if (!string.Equals(storyId, luaId, StringComparison.Ordinal))
+                    throw new FormatException(StoryLuaHashEntry + " 的 Story/Lua id 不一致：" + fields[0] + " / " + fields[2]);
+                if (!string.Equals(HashEntry(story), fields[1], StringComparison.Ordinal)
+                    || !string.Equals(HashEntry(lua), fields[3], StringComparison.Ordinal))
+                    throw new FormatException("Story/Lua 一致性校验失败：" + fields[2]);
+            }
+            if (!expectedLua.SetEquals(seenLua))
+                throw new FormatException(StoryLuaHashEntry + " 未完整覆盖全部 Lua 脚本");
+        }
+
+        private static bool IsStoryPath(string path)
+        {
+            if (!path.StartsWith("story/", StringComparison.Ordinal) || !path.EndsWith(".json", StringComparison.Ordinal))
+                return false;
+            string rest = path.Substring("story/".Length);
+            return rest.Length > ".json".Length && rest.IndexOf('/') < 0;
+        }
+
+        private static bool IsRuntimeLuaPath(string path)
+        {
+            if (!path.StartsWith("lua/", StringComparison.Ordinal) || !path.EndsWith(".lua", StringComparison.Ordinal))
+                return false;
+            string rest = path.Substring("lua/".Length);
+            string[] parts = rest.Split('/');
+            return (parts.Length == 1 || parts.Length == 2)
+                && parts[parts.Length - 1].Length > ".lua".Length;
+        }
+
+        private static string HashEntry(ZipArchiveEntry entry)
+        {
+            using (SHA256 sha = SHA256.Create())
+            using (Stream input = entry.Open())
+            {
+                byte[] bytes = ReadBoundedBytes(input, MaxEntryBytes, entry.FullName);
+                if (bytes.LongLength != entry.Length)
+                    throw new FormatException("条目读取长度与 ZIP 元数据不一致：" + entry.FullName);
+                return ToUpperHex(sha.ComputeHash(bytes));
+            }
+        }
+
+        private static Dictionary<string, string> ParseHashRecord(string text)
+        {
+            var result = new Dictionary<string, string>(StringComparer.Ordinal);
+            string[] lines = text.Replace("\r\n", "\n").Split('\n');
+            foreach (string line in lines)
+            {
+                if (line.Length == 0) continue;
+                int separator = line.IndexOf('=');
+                if (separator <= 0 || separator == line.Length - 1)
+                    throw new FormatException("哈希记录行格式无效");
+                string key = line.Substring(0, separator);
+                if (result.ContainsKey(key))
+                    throw new FormatException("哈希记录字段重复：" + key);
+                result[key] = line.Substring(separator + 1);
+            }
+            return result;
+        }
+
+        private static bool IsUpperHexSha256(string value)
+        {
+            if (value == null || value.Length != 64) return false;
+            for (int i = 0; i < value.Length; i++)
+                if (!((value[i] >= '0' && value[i] <= '9') || (value[i] >= 'A' && value[i] <= 'F')))
+                    return false;
+            return true;
+        }
+
+        private static void AddBigEndian(HashAlgorithm digest, ulong value, int bytes)
+        {
+            byte[] buffer = new byte[bytes];
+            for (int i = bytes - 1; i >= 0; i--)
+            {
+                buffer[i] = (byte)(value & 0xFF);
+                value >>= 8;
+            }
+            digest.TransformBlock(buffer, 0, buffer.Length, buffer, 0);
         }
 
         private static byte[] ReadBoundedBytes(Stream input, long maxBytes, string path)

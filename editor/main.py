@@ -14,10 +14,7 @@ from __future__ import annotations
 import copy
 from datetime import datetime
 import faulthandler
-import json
-import os
 import sys
-import tempfile
 import traceback
 from pathlib import Path
 
@@ -44,7 +41,6 @@ from PySide6.QtWidgets import (
     QMenu,
     QMessageBox,
     QPushButton,
-    QPlainTextEdit,
     QSizePolicy,
     QSplitter,
     QStackedWidget,
@@ -76,11 +72,8 @@ from node_reference import DocumentationDialog
 from i18n import LANGUAGES, current_language, init_language, install_qt_translator, set_language, t
 from glass_theme import apply_glass_theme, mark_primary
 from game_install import (
-    PREVIEW_PACKAGE_NAME,
     GameInstallError,
     GameInstallManager,
-    build_story_read_keys,
-    reset_story_read_state,
 )
 from flow_graph import FlowGraphPanel
 from mod_manager_dialog import ModManagerDialog, apply_steam_launch_fix_ui
@@ -88,7 +81,6 @@ import content_registry
 from diagnostic_bundle import export_diagnostic_bundle
 import package_io
 from package_inspector import inspect_lommod
-from package_inspector_dialog import PackageInspectorDialog
 from preflight import PreflightIssue, apply_safe_fixes, run_preflight
 from preflight_dialog import PreflightDialog
 import stage_guard
@@ -99,7 +91,6 @@ from schema_versions import manifest_versions
 from preview import (
     CRASH_LOG,
     StagePreview,
-    build_playtest_prelude,
     load_preview_map,
     log_crash,
 )
@@ -108,13 +99,11 @@ from project_statistics import ProjectStatistics, calculate_project_statistics
 from voice_coverage import VoiceCoverageReport, calculate_voice_coverage
 from release_preflight import apply_release_profile
 from release_builder import ReleaseBuildBlocked, build_release
-from recovery_store import (
-    RecoveryCandidate,
-    RecoveryError,
-    RecoverySession,
-    finish_candidate,
-    list_recovery_candidates,
-)
+from recovery_store import RecoveryError, RecoverySession
+from history_controller import HistoryControllerMixin
+from project_controller import ProjectControllerMixin
+from recovery_controller import RecoveryControllerMixin, RecoveryDialog
+from run_controller import RunControllerMixin
 # 文件对话框默认目录：冻结态用用户 CWD（解包目录/ exe 目录不可当作工作目录）
 WORK_DIR = Path.cwd() if models.FROZEN else PROJECT_ROOT
 
@@ -122,7 +111,6 @@ def _app_title() -> str:
     return t("app.title")
 
 
-UNDO_LIMIT = 100  # 撤销栈最大步数（快照式，超限丢最旧）
 _ROLE_KIND = Qt.ItemDataRole.UserRole
 
 
@@ -319,100 +307,6 @@ class HelpDialog(QDialog):
         apply_steam_launch_fix_ui(self, self._manager)
 
 
-class RecoveryDialog(QDialog):
-    """Choose, inspect, restore or discard a snapshot left by an abnormal exit."""
-
-    def __init__(self, candidates: list[RecoveryCandidate], parent=None):
-        super().__init__(parent)
-        self.candidates = candidates
-        self.action = "later"
-        self.candidate: RecoveryCandidate | None = None
-        self.setWindowTitle(t("recovery.title"))
-        self.resize(860, 430)
-        layout = QVBoxLayout(self)
-        layout.addWidget(QLabel(
-            "上次编辑器可能异常退出。恢复只载入内存，不会自动覆盖原项目文件。"
-        ))
-        self.table = QTableWidget(len(candidates), 4)
-        self.table.setHorizontalHeaderLabels(
-            (t("recovery.saved_at"), t("recovery.project"), t("recovery.source"), t("recovery.chapter"))
-        )
-        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        for row, candidate in enumerate(candidates):
-            source = candidate.source_path or "未命名项目"
-            values = (
-                candidate.saved_at,
-                candidate.project_name,
-                source,
-                str(len(candidate.story_ids)),
-            )
-            for column, value in enumerate(values):
-                item = QTableWidgetItem(value)
-                item.setToolTip(value)
-                self.table.setItem(row, column, item)
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        if candidates:
-            self.table.selectRow(0)
-        self.table.itemDoubleClicked.connect(lambda _item: self._inspect())
-        layout.addWidget(self.table, stretch=1)
-
-        buttons = QHBoxLayout()
-        inspect_btn = QPushButton(t("recovery.inspect"))
-        inspect_btn.clicked.connect(self._inspect)
-        buttons.addWidget(inspect_btn)
-        buttons.addStretch(1)
-        discard_btn = QPushButton(t("recovery.discard"))
-        discard_btn.clicked.connect(lambda: self._finish("discard"))
-        buttons.addWidget(discard_btn)
-        later_btn = QPushButton(t("recovery.later"))
-        later_btn.clicked.connect(self.reject)
-        buttons.addWidget(later_btn)
-        restore_btn = QPushButton(t("recovery.restore"))
-        mark_primary(restore_btn)
-        restore_btn.clicked.connect(lambda: self._finish("restore"))
-        buttons.addWidget(restore_btn)
-        layout.addLayout(buttons)
-
-    def _selected(self) -> RecoveryCandidate | None:
-        row = self.table.currentRow()
-        return self.candidates[row] if 0 <= row < len(self.candidates) else None
-
-    def _finish(self, action: str) -> None:
-        candidate = self._selected()
-        if candidate is None:
-            return
-        self.action = action
-        self.candidate = candidate
-        self.accept()
-
-    def _inspect(self) -> None:
-        candidate = self._selected()
-        if candidate is None:
-            return
-        dialog = QDialog(self)
-        dialog.setWindowTitle(t("recovery.inspect_title"))
-        dialog.resize(780, 600)
-        layout = QVBoxLayout(dialog)
-        layout.addWidget(QLabel(
-            f"项目：{candidate.project_name}　当前章节：{candidate.current_story_id}\n"
-            f"来源：{candidate.source_path or '未命名项目'}"
-        ))
-        preview = QPlainTextEdit()
-        preview.setReadOnly(True)
-        text = json.dumps(candidate.document, ensure_ascii=False, indent=2)
-        if len(text) > 500_000:
-            text = text[:500_000] + "\n\n……检查预览已截断，恢复数据本身未修改。"
-        preview.setPlainText(text)
-        layout.addWidget(preview, stretch=1)
-        close = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-        close.rejected.connect(dialog.reject)
-        layout.addWidget(close)
-        dialog.exec()
 
 
 class ProjectTemplateDialog(QDialog):
@@ -927,7 +821,13 @@ class ManifestDialog(QDialog):
         super().accept()
 
 
-class MainWindow(QMainWindow):
+class MainWindow(
+    HistoryControllerMixin,
+    ProjectControllerMixin,
+    RecoveryControllerMixin,
+    RunControllerMixin,
+    QMainWindow,
+):
     def __init__(self, editor_data: dict, is_fallback: bool, parent=None):
         super().__init__(parent)
         self.setWindowTitle(_app_title())
@@ -2217,163 +2117,6 @@ class MainWindow(QMainWindow):
         except Exception:
             log_crash(f"选项跳转异常（{node_id!r}）：\n" + traceback.format_exc())
 
-    # ------------------------------------------------------ 撤销/重做/脏标记
-    def _snapshot(self) -> dict:
-        return copy.deepcopy(self._stories)
-
-    def _trim_undo(self) -> None:
-        while len(self._undo_stack) > UNDO_LIMIT:
-            self._undo_stack.pop(0)
-
-    def _flush_pending(self) -> None:
-        """提交进行中的连续编辑（暂停超时/下一步操作前），压入撤销栈。"""
-        if self._pending_before is not None:
-            self._undo_stack.append((self._pending_before, self._current_id))
-            self._trim_undo()
-            self._pending_before = None
-            # 提交点之后，当前状态成为下一段编辑的撤销基线
-            self._prev_snapshot = self._snapshot()
-        self._commit_timer.stop()
-
-    def _record_continuous(self) -> None:
-        """连续编辑（表单打字等）：首击时定格编辑前状态，暂停后合并为一步。"""
-        if self._loading:
-            return
-        if self._pending_before is None:
-            self._pending_before = self._prev_snapshot
-            self._redo_stack.clear()
-        self._commit_timer.start()
-        self._set_dirty(True)
-
-    def _record_discrete(self) -> None:
-        """原子操作（增删移节点/改起始点/剧情增删）前调用：当前状态入撤销栈。"""
-        if self._loading:
-            return
-        self._flush_pending()
-        self._undo_stack.append((self._snapshot(), self._current_id))
-        self._trim_undo()
-        self._redo_stack.clear()
-        self._set_dirty(True)
-
-    def _restore(self, stories: dict, current_id: str) -> None:
-        row = self.node_list.currentRow()
-        self._stories = stories
-        if current_id not in self._stories:
-            current_id = next(iter(sorted(self._stories)))
-        self._current_id = current_id
-        self._refresh_all(select_row=max(0, row))
-
-    def _undo(self) -> None:
-        self._flush_pending()
-        if not self._undo_stack:
-            self.statusBar().showMessage("没有可撤销的操作", 2000)
-            return
-        stories, current_id = self._undo_stack.pop()
-        self._redo_stack.append((self._snapshot(), self._current_id))
-        self._restore(stories, current_id)
-        self.statusBar().showMessage("已撤销", 2000)
-
-    def _redo(self) -> None:
-        self._flush_pending()
-        if not self._redo_stack:
-            self.statusBar().showMessage("没有可重做的操作", 2000)
-            return
-        stories, current_id = self._redo_stack.pop()
-        self._undo_stack.append((self._snapshot(), self._current_id))
-        self._restore(stories, current_id)
-        self.statusBar().showMessage("已重做", 2000)
-
-    def _set_dirty(self, dirty: bool) -> None:
-        self._dirty = bool(dirty)
-        self._update_title()
-        if not self._dirty:
-            self._clear_recovery_snapshot()
-
-    def _autosave_recovery(self) -> None:
-        """Write a separate recovery bundle; never touch story.json/.lommod."""
-        session = self._recovery_session
-        if session is None or not self._dirty:
-            return
-        try:
-            session.write_snapshot(
-                stories=self._snapshot(),
-                current_story_id=self._current_id,
-                manifest=copy.deepcopy(self.manifest),
-                story_paths=dict(self._story_paths),
-                source_kind=self._source_kind,
-                source_path=str(self._source_path) if self._source_path else None,
-            )
-            self._recovery_error_logged = False
-        except Exception:
-            if not self._recovery_error_logged:
-                log_crash("写入自动恢复副本失败：\n" + traceback.format_exc())
-                self._recovery_error_logged = True
-
-    def _clear_recovery_snapshot(self) -> None:
-        session = getattr(self, "_recovery_session", None)
-        if session is None:
-            return
-        try:
-            session.clear_snapshot()
-        except RecoveryError:
-            if not self._recovery_error_logged:
-                log_crash("清除自动恢复副本失败：\n" + traceback.format_exc())
-                self._recovery_error_logged = True
-
-    def _set_project_source(self, kind: str, path: Path | None) -> None:
-        self._source_kind = kind
-        self._source_path = Path(path).resolve() if path is not None else None
-
-    def _update_title(self) -> None:
-        name = (
-            self.manifest.get("name")
-            or self.manifest.get("id")
-            or self._current_id
-            or "未命名"
-        )
-        star = " *" if self._dirty else ""
-        self.setWindowTitle(f"{_app_title()} — {name}{star}")
-
-    def _mark_saved(self) -> None:
-        """当前剧情脚本已保存：仅更新该脚本的基线（多剧情各自独立）。"""
-        self._saved_snapshot[self._current_id] = copy.deepcopy(self.story)
-        for key in list(self._saved_snapshot):
-            if key not in self._stories:
-                del self._saved_snapshot[key]
-        self._set_dirty(self._stories != self._saved_snapshot)
-
-    def _confirm_discard(self) -> bool:
-        """有未保存修改时询问处理方式；返回 True 表示可以继续（保存成功或放弃）。"""
-        if not self._dirty or not self._prompt_on_discard:
-            return True
-        box = QMessageBox(self)
-        box.setWindowTitle(_app_title())
-        box.setText(t("discard.title"))
-        box.setInformativeText("导出 Mod 会保存全部章节；也可以放弃这次修改。")
-        save_btn = box.addButton(t("discard.save"), QMessageBox.ButtonRole.AcceptRole)
-        discard_btn = box.addButton(t("discard.discard"), QMessageBox.ButtonRole.DestructiveRole)
-        box.addButton(t("discard.cancel"), QMessageBox.ButtonRole.RejectRole)
-        box.setDefaultButton(save_btn)
-        box.exec()
-        clicked = box.clickedButton()
-        box.deleteLater()  # 避免重复弹窗残留（findChild 会命中旧实例）
-        if clicked is save_btn:
-            return self.export_lommod()
-        return clicked is discard_btn
-
-    def closeEvent(self, event) -> None:
-        if self._confirm_discard():
-            self._commit_timer.stop()
-            self._recovery_timer.stop()
-            if self._recovery_session is not None:
-                try:
-                    self._recovery_session.mark_closed()
-                except RecoveryError:
-                    log_crash("关闭自动恢复会话失败：\n" + traceback.format_exc())
-            event.accept()
-        else:
-            event.ignore()
-
     # -------------------------------------------------------------- 节点操作
     def _add_node(self, node_type: str) -> None:
         node = models.new_node(
@@ -2638,138 +2381,6 @@ class MainWindow(QMainWindow):
         self._graph_timer.start()
         self._schedule_preview()
 
-    # -------------------------------------------------------------- 一键试玩
-    def play_from_current_node(self) -> bool:
-        """临时打包、安装并请求运行时从当前步骤进入游戏。"""
-        self._flush_pending()
-        node = self._current_node()
-        if node is None:
-            QMessageBox.warning(self, _app_title(), t("error.select_story_step"))
-            return False
-        errors = [issue for issue in self._preflight_issues() if issue.severity == "error"]
-        if errors:
-            dialog = PreflightDialog(
-                self._preflight_issues(),
-                self._locate_preflight_issue,
-                self._apply_preflight_fixes,
-                self,
-            )
-            dialog.exec()
-            self.statusBar().showMessage("试玩已停止：请先修复体检中的错误", 5000)
-            return False
-
-        node_id = str(node.get("id") or "")
-        script_id = self._current_id
-        stories = copy.deepcopy(self._stories)
-        # 舞台状态前导：从原 start 推演到目标节点之前，把当时的场景与台上人物
-        # 补成 scene/show 节点链；否则从依赖前置舞台状态的步骤（如 rotate 一个
-        # 早前才上场的人物）进入时，游戏会因"角色不存在"崩掉剧情协程而黑屏。
-        prelude = build_playtest_prelude(
-            self._stories[script_id], node_id, self.editor_data
-        )
-        if prelude:
-            stories[script_id]["nodes"].extend(prelude)
-            stories[script_id]["start"] = prelude[0]["id"]
-        else:
-            stories[script_id]["start"] = node_id
-        preview_id = "lom_modkit_preview"
-        title = str(self.story.get("title") or script_id)
-        manifest = {
-            **manifest_versions(),
-            "id": preview_id,
-            "name": f"编辑器临时试玩：{title}",
-            "version": "0.0.0-preview",
-            "author": "lom_modkit",
-            "description": f"从 {script_id}/{node_id} 开始的临时测试包",
-            "entry": script_id,
-            "campaign": {
-                "new_game": True,
-                "disable_official_events": True,
-            },
-        }
-        try:
-            game_dir = self.game_manager.require_game_dir()
-            self.game_manager.validate_bepinex(game_dir)
-            was_running = self.game_manager.is_game_running()
-            _runtime_path, runtime_changed = self.game_manager.install_runtime()
-            with tempfile.TemporaryDirectory(prefix="lom_modkit_preview_") as tmp:
-                package = Path(tmp) / PREVIEW_PACKAGE_NAME
-                package_io.export_lommod(package, manifest, stories)
-                self.game_manager.install_mod(package, enabled=True)
-            self.game_manager.request_preview(preview_id, script_id, node_id)
-            started = self.game_manager.launch_game()
-        except (GameInstallError, package_io.PackError, OSError) as exc:
-            QMessageBox.critical(self, _app_title(), t("error.preview_start", error=exc))
-            return False
-
-        if runtime_changed and was_running:
-            QMessageBox.information(
-                self,
-                "试玩已经准备好",
-                "运行时刚刚更新，但当前游戏仍加载着旧版本。\n\n"
-                "请完整退出游戏后重新启动；启动后会自动进入这个步骤。",
-            )
-            message = "试玩已准备：请重启游戏，随后会自动进入选中步骤"
-        elif started:
-            message = f"游戏正在启动，将自动进入 {script_id}/{node_id}"
-        else:
-            message = f"试玩请求已发送，将在游戏进入标题或自由场景后跳到 {script_id}/{node_id}"
-        self.statusBar().showMessage(message, 10000)
-        return True
-
-    # -------------------------------------------------------------- 已读重置
-    def _reset_read_state(self) -> None:
-        """把当前 mod 的已读文本记录重置为未读（对话不再变黄/可快进）。"""
-        mod_id = str(self.manifest.get("id") or "").strip()
-        if not mod_id:
-            mod_id = "my_mod"
-        if self.game_manager.is_game_running():
-            QMessageBox.warning(
-                self,
-                _app_title(),
-                "游戏正在运行。运行中的游戏会把内存里的旧已读清单写回存档，"
-                "重置会失效。\n\n请先退出游戏，再执行此操作。",
-            )
-            return
-        answer = QMessageBox.question(
-            self,
-            _app_title(),
-            f"将把 mod「{mod_id}」以及 F5 试玩包的全部已读文本记录重置为未读"
-            "（游戏全局存档 Save_universe.dat / .json 会被修改，自动留 .lomkit_bak 备份）。\n\n继续？",
-        )
-        if answer != QMessageBox.StandardButton.Yes:
-            return
-        extra = ["lom_modkit_preview"]
-        if not mod_id:
-            extra = []
-        try:
-            read_keys_by_id = {
-                mid: build_story_read_keys(mid, self._stories)
-                for mid in [mod_id, *extra]
-            }
-            results = reset_story_read_state(
-                mod_id,
-                extra_ids=extra,
-                read_keys_by_id=read_keys_by_id,
-            )
-        except GameInstallError as exc:
-            QMessageBox.critical(self, _app_title(), t("error.reset", error=exc))
-            return
-        if not results:
-            QMessageBox.information(
-                self,
-                _app_title(),
-                f"没有找到 mod「{mod_id}」或试玩包的已读记录（或尚未安装/游玩过）。",
-            )
-            return
-        total = sum(count for _path, count in results)
-        QMessageBox.information(
-            self,
-            _app_title(),
-            f"已重置 {total} 条已读记录（mod「{mod_id}」及 F5 试玩包）。\n"
-            "下次进入剧情时对话将显示为未读（不变黄）。",
-        )
-
     def _reload_start_combo_keep(self) -> None:
         """节点 id 可能变了，刷新起始节点下拉框但保留选择。"""
         cur = self.story.get("start", "")
@@ -2827,374 +2438,6 @@ class MainWindow(QMainWindow):
         suffix = "；请替换 user:template.* 占位内容" if info.placeholder_content else ""
         self.statusBar().showMessage(f"已从模板创建“{info.name}”{suffix}", 6000)
 
-    def _last_dir(self, key: str) -> str:
-        """读取记住的上次目录；没有记录或目录已消失则退回工作目录。"""
-        remembered = self.game_manager.load_pref(key)
-        if remembered and Path(remembered).is_dir():
-            return remembered
-        return str(WORK_DIR)
-
-    def _remember_dir(self, key: str, path: str) -> None:
-        """文件对话框选完后记住所在目录，下次同类型操作默认从这里开始。"""
-        self.game_manager.save_pref(key, str(Path(path).parent))
-
-    def open_story(self) -> None:
-        if not self._confirm_discard():
-            return
-        path, _ = QFileDialog.getOpenFileName(
-            self, "打开", self._last_dir("last_story_dir"), "story JSON (*.json)"
-        )
-        if not path:
-            return
-        self._remember_dir("last_story_dir", path)
-        self._load_story_path(Path(path))
-
-    _RECENT_MAX = 10
-
-    def _should_persist_session(self) -> bool:
-        """测试/无头打包自检不要改用户的最近记录。"""
-        if not getattr(self, "_prompt_on_discard", True):
-            return False
-        return os.environ.get("QT_QPA_PLATFORM") != "offscreen"
-
-    def _load_recents(self) -> list[dict]:
-        raw = self.game_manager.load_pref("recent_projects")
-        if not raw:
-            return []
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError:
-            return []
-        if not isinstance(data, list):
-            return []
-        out = []
-        for item in data:
-            if not isinstance(item, dict):
-                continue
-            if item.get("kind") not in ("story", "lommod"):
-                continue
-            if not item.get("path"):
-                continue
-            out.append(item)
-        return out
-
-    def _remember_project(self, kind: str, path: Path, name: str = "") -> None:
-        if not self._should_persist_session():
-            return
-        resolved = str(Path(path).resolve())
-        self.game_manager.save_pref("last_open_kind", kind)
-        self.game_manager.save_pref("last_open_path", resolved)
-        if self._current_id:
-            self.game_manager.save_pref("last_open_story_id", self._current_id)
-        recents = [item for item in self._load_recents() if item.get("path") != resolved]
-        recents.insert(
-            0,
-            {
-                "kind": kind,
-                "path": resolved,
-                "name": name or Path(resolved).stem,
-            },
-        )
-        self.game_manager.save_pref(
-            "recent_projects",
-            json.dumps(recents[: self._RECENT_MAX], ensure_ascii=False),
-        )
-        self._rebuild_recent_menu()
-
-    def _remember_current_chapter(self) -> None:
-        if not self._should_persist_session() or not self._current_id:
-            return
-        self.game_manager.save_pref("last_open_story_id", self._current_id)
-
-    def _rebuild_recent_menu(self) -> None:
-        menu = getattr(self, "_recent_menu", None)
-        if menu is None:
-            return
-        menu.clear()
-        recents = self._load_recents()
-        if not recents:
-            empty = QAction(t("menu.recent_empty"), self)
-            empty.setEnabled(False)
-            menu.addAction(empty)
-            return
-        for item in recents:
-            kind = item["kind"]
-            path = item["path"]
-            name = item.get("name") or Path(path).stem
-            tag = "Mod" if kind == "lommod" else "剧本"
-            action = QAction(f"{name}（{tag}）", self)
-            action.setToolTip(path)
-            action.triggered.connect(
-                lambda _checked=False, k=kind, p=path: self._open_recent(k, p)
-            )
-            menu.addAction(action)
-        menu.addSeparator()
-        menu.addAction("清除最近记录", self._clear_recents)
-
-    def _clear_recents(self) -> None:
-        self.game_manager.save_pref("recent_projects", "[]")
-        self._rebuild_recent_menu()
-        self.statusBar().showMessage("已清除最近打开记录", 2500)
-
-    def _open_recent(self, kind: str, path: str) -> None:
-        target = Path(path)
-        if not target.is_file():
-            recents = [item for item in self._load_recents() if item.get("path") != path]
-            self.game_manager.save_pref(
-                "recent_projects",
-                json.dumps(recents, ensure_ascii=False),
-            )
-            self._rebuild_recent_menu()
-            QMessageBox.warning(
-                self,
-                _app_title(),
-                f"找不到文件，已从最近列表移除：\n{path}",
-            )
-            return
-        if not self._confirm_discard():
-            return
-        if kind == "lommod":
-            self._import_lommod_path(target)
-        else:
-            self._load_story_path(target)
-
-    def restore_last_project(self) -> bool:
-        """启动时打开上次的剧本或 Mod；文件不在则保持新建项目。"""
-        kind = self.game_manager.load_pref("last_open_kind")
-        path = self.game_manager.load_pref("last_open_path")
-        if kind not in ("story", "lommod") or not path:
-            return False
-        target = Path(path)
-        if not target.is_file():
-            return False
-        if kind == "lommod":
-            ok = self._import_lommod_path(target)
-        else:
-            self._load_story_path(target)
-            ok = bool(self._story_paths)
-        if not ok:
-            return False
-        story_id = self.game_manager.load_pref("last_open_story_id")
-        if story_id and story_id in self._stories and story_id != self._current_id:
-            self._current_id = story_id
-            self._refresh_all()
-        return True
-
-    def restore_abnormal_session(self) -> bool:
-        """Offer recovery snapshots left by dead editor sessions at startup."""
-        session = self._recovery_session
-        if session is None:
-            return False
-        while True:
-            candidates = list_recovery_candidates(
-                session.root, exclude_session_id=session.session_id
-            )
-            if not candidates:
-                return False
-            dialog = RecoveryDialog(candidates, self)
-            if dialog.exec() != QDialog.DialogCode.Accepted or dialog.candidate is None:
-                return False
-            candidate = dialog.candidate
-            if dialog.action == "discard":
-                try:
-                    finish_candidate(candidate, "discarded")
-                except RecoveryError as exc:
-                    QMessageBox.warning(self, _app_title(), t("error.recovery_discard", error=exc))
-                    return False
-                continue
-            if dialog.action == "restore":
-                return self._restore_recovery_candidate(candidate)
-
-    def _restore_recovery_candidate(self, candidate: RecoveryCandidate) -> bool:
-        """Load a validated candidate into memory without restoring write paths."""
-        document = candidate.document
-        try:
-            stories = copy.deepcopy(document["stories"])
-            current_id = str(document["current_story_id"])
-            if current_id not in stories:
-                raise RecoveryError("恢复快照当前章节不存在")
-            repaired = models.normalize_character_ids(stories, self.editor_data)
-            manifest = document.get("manifest")
-            if not isinstance(manifest, dict):
-                manifest = {}
-        except Exception as exc:
-            QMessageBox.critical(self, _app_title(), t("error.recovery_load", error=exc))
-            return False
-
-        self._stories = stories
-        self._current_id = current_id
-        self.manifest = copy.deepcopy(manifest)
-        self.manifest_base = copy.deepcopy(manifest)
-        # Deliberately require an explicit Save As/export after recovery. A
-        # restored snapshot never inherits an automatic overwrite target.
-        self._story_paths = {story_id: None for story_id in stories}
-        self._set_project_source(candidate.source_kind, None)
-        self._saved_snapshot = {}
-        self._undo_stack.clear()
-        self._redo_stack.clear()
-        self._pending_before = None
-        self._commit_timer.stop()
-        self._refresh_all()
-        self._set_dirty(True)
-
-        # Establish the new process' own atomic copy before consuming the old
-        # crash candidate, so a second crash during recovery cannot lose it.
-        session = self._recovery_session
-        try:
-            if session is None:
-                raise RecoveryError("当前恢复会话不可用")
-            session.write_snapshot(
-                stories=self._snapshot(),
-                current_story_id=self._current_id,
-                manifest=copy.deepcopy(self.manifest),
-                story_paths=dict(self._story_paths),
-                source_kind=self._source_kind,
-                source_path=None,
-            )
-            finish_candidate(candidate, "recovered")
-        except RecoveryError as exc:
-            QMessageBox.warning(
-                self,
-                _app_title(),
-                "内容已载入内存，但无法转移恢复副本：%s\n"
-                "请立即使用“另存为”或“导出 Mod”。" % exc,
-            )
-        note = f"；已修复 {repaired} 个人物内部 ID" if repaired else ""
-        self.statusBar().showMessage(
-            "已从异常退出副本恢复（尚未覆盖任何正式文件）" + note,
-            7000,
-        )
-        return True
-
-    def _load_story_path(self, path: Path) -> None:
-        try:
-            story = models.load_story(path)
-        except Exception as exc:
-            QMessageBox.critical(self, _app_title(), t("error.open", error=exc))
-            return
-        repaired = models.normalize_character_ids([story], self.editor_data)
-        self._stories = {story["id"]: story}
-        self._current_id = story["id"]
-        self.manifest = {}
-        self.manifest_base = {}
-        self._story_paths = {story["id"]: path}
-        self._set_project_source("story", path)
-        self._saved_snapshot = self._snapshot()
-        self._undo_stack.clear()
-        self._redo_stack.clear()
-        self._pending_before = None
-        self._commit_timer.stop()
-        self._refresh_all()
-        if repaired:
-            self._set_dirty(True)
-        self._remember_project("story", path, str(story.get("title") or path.stem))
-        repair_note = f"；已自动修复 {repaired} 个人物内部 ID" if repaired else ""
-        self.statusBar().showMessage(f"已打开 {path}{repair_note}", 5000)
-
-    def save_story(self) -> bool:
-        """Ctrl+S：已有路径直接覆盖；第一次保存才询问路径。"""
-        path = self.story_path
-        if path is None:
-            return self.save_story_as()
-        return self._write_current_story(path)
-
-    def save_story_as(self) -> bool:
-        """另存为当前章节；无论是否已有路径都显示文件选择框。"""
-        current = str(self.story_path) if self.story_path else ""
-        path, _ = QFileDialog.getSaveFileName(
-            self,
-            "另存为",
-            current or str(
-                Path(self._last_dir("last_story_dir")) / f"{self._current_id}.json"
-            ),
-            "story JSON (*.json)",
-        )
-        if not path:
-            return False
-        if self._write_current_story(Path(path)):
-            self._remember_dir("last_story_dir", path)
-            return True
-        return False
-
-    def _write_current_story(self, path: Path) -> bool:
-        """写入已确定的路径，不弹出对话框。"""
-        try:
-            models.save_story(self.story, path)
-        except Exception as exc:
-            QMessageBox.critical(self, _app_title(), t("error.save", error=exc))
-            return False
-        self._story_paths[self._current_id] = path
-        self._set_project_source("story", path)
-        self._mark_saved()
-        self._remember_project("story", path, str(self.story.get("title") or path.stem))
-        self.statusBar().showMessage(f"已保存 {path}", 3000)
-        return True
-
-    def import_lommod(self) -> None:
-        if not self._confirm_discard():
-            return
-        path, _ = QFileDialog.getOpenFileName(
-            self, "导入 Mod", self._last_dir("last_mod_dir"), "LoM Mod 包 (*.lommod)"
-        )
-        if not path:
-            return
-        self._remember_dir("last_mod_dir", path)
-        self._import_lommod_path(Path(path))
-
-    def inspect_lommod(self) -> None:
-        """Open an untrusted package read-only without changing this project."""
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            t("inspector.choose"),
-            self._last_dir("last_mod_dir"),
-            "LoM Mod 包 (*.lommod)",
-        )
-        if not path:
-            return
-        self._remember_dir("last_mod_dir", path)
-        try:
-            inspection = inspect_lommod(path)
-        except package_io.PackError as exc:
-            QMessageBox.critical(self, _app_title(), str(exc))
-            return
-        PackageInspectorDialog(inspection, self).exec()
-
-    def _import_lommod_path(self, path: Path) -> bool:
-        try:
-            manifest, stories = package_io.import_lommod(path)
-        except package_io.PackError as exc:
-            QMessageBox.critical(self, _app_title(), str(exc))
-            return False
-        # 包内全部剧情进项目（键以 story 内部 id 为准）
-        self._stories = {str(st.get("id") or s): st for s, st in stories.items()}
-        repaired = models.normalize_character_ids(self._stories, self.editor_data)
-        entry = manifest.get("entry")
-        self._current_id = entry if entry in self._stories else sorted(self._stories)[0]
-        self.manifest = manifest
-        self.manifest_base = manifest  # 保留 campaign 等，导出时回填
-        self._story_paths = {}
-        self._set_project_source("lommod", path)
-        self._saved_snapshot = self._snapshot()
-        self._undo_stack.clear()
-        self._redo_stack.clear()
-        self._pending_before = None
-        self._commit_timer.stop()
-        self._refresh_all()
-        if repaired:
-            self._set_dirty(True)
-        extra = (
-            ""
-            if len(self._stories) == 1
-            else f"（包内共 {len(self._stories)} 个剧情，当前打开入口 {self._current_id}）"
-        )
-        if manifest.get("campaign"):
-            extra += "（含战役 campaign 配置）"
-        if repaired:
-            extra += f"（已自动修复 {repaired} 个人物内部 ID）"
-        title = str(manifest.get("name") or manifest.get("id") or path.stem)
-        self._remember_project("lommod", path, title)
-        self.statusBar().showMessage(f"已导入 {title}{extra}", 5000)
-        return True
 
     def export_lommod(self) -> bool:
         """导出 .lommod：包内全部剧情脚本 + manifest；成功返回 True。"""

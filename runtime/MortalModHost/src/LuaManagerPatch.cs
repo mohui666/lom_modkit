@@ -22,7 +22,8 @@ namespace MortalModHost
     {
         /// <summary>日志通道，由 Plugin.Awake 注入（patch 类是静态的，拿不到插件实例的 Logger）。</summary>
         internal static ManualLogSource Log;
-        private static LuaEnvironment _activeModEnvironment;
+        private static readonly RuntimeEnvironmentLease<LuaEnvironment> EnvironmentLease =
+            new RuntimeEnvironmentLease<LuaEnvironment>();
         private static bool _abortRequested;
         private static bool _abortBusyLogged;
         private static string _pendingAbortReason;
@@ -55,6 +56,17 @@ namespace MortalModHost
                 }
                 // 官方脚本：复位心情气泡硬控状态（契约 §6.10，官方演出不受 mod 影响）；
                 // 清空 mod 死亡/结局文本覆盖（契约 §6.13，官方结局不受影响）
+                try
+                {
+                    ReleaseActiveModEnvironment(true, "进入官方脚本", true);
+                }
+                catch (Exception ex)
+                {
+                    AbortActivePlayback(
+                        "进入官方脚本前无法清理 MOD Lua 环境",
+                        __instance, ex, "lua_cleanup", null, scriptName);
+                    return false;
+                }
                 MoodControl.Disabled = false;
                 ModOverlay.Clear();
                 CharacterIntroSupport.Clear();
@@ -66,7 +78,7 @@ namespace MortalModHost
                 if (!ModDisclosure.Active)
                 {
                     ModDisclosure.Disable();
-                    _activeModEnvironment = null;
+                    EnvironmentLease.Detach();
                 }
                 else
                     Log.LogInfo("MOD 来源会话进入官方脚本 " + (scriptName ?? "(null)") + "：继续保持玩家内容披露");
@@ -87,7 +99,7 @@ namespace MortalModHost
                 var env = Traverse.Create(__instance).Field("_luaEnvironment").GetValue<LuaEnvironment>();
                 if (env == null)
                     throw new InvalidOperationException("LuaManager._luaEnvironment 为 null");
-                _activeModEnvironment = env;
+                PrepareEnvironmentForPackage(env, package.Id);
 
                 // 契约 §3.1：结局卡背景图按"当前演出 mod"解析——开演前把包写入 ModOverlay.CurrentPackage
                 ModOverlay.CurrentPackage = package;
@@ -153,7 +165,7 @@ namespace MortalModHost
             LuaManager manager = _activeDevelopmentManager;
             _activeDevelopmentEnvironment = null;
             _activeDevelopmentManager = null;
-            _activeModEnvironment = null;
+            EnvironmentLease.Detach();
 
             if (env == null)
                 throw new InvalidOperationException("F5 热重载找不到活动 LuaEnvironment");
@@ -181,9 +193,7 @@ namespace MortalModHost
 
             try
             {
-                Traverse fields = Traverse.Create(env);
-                fields.Field("interpreter").SetValue(null);
-                fields.Field("initialised").SetValue(false);
+                ResetLuaEnvironment(env, false);
             }
             catch (Exception ex)
             {
@@ -220,23 +230,33 @@ namespace MortalModHost
 
             if (ModDisclosure.Active)
                 ModDisclosure.ReportMandatorySurfaceFailure(reason);
+            LuaEnvironment env = EnvironmentLease.Active;
             try
             {
                 if (instance == null)
                     instance = UnityEngine.Object.FindObjectOfType<LuaManager>();
-                LuaEnvironment env = _activeModEnvironment;
                 if (env == null && instance != null)
                     env = Traverse.Create(instance).Field("_luaEnvironment").GetValue<LuaEnvironment>();
-                if (env != null)
-                    env.StopAllCoroutines();
-                if (instance != null)
-                    instance.StopAllCoroutines();
-                _activeModEnvironment = null;
+                if (EnvironmentLease.Active != null)
+                    EnvironmentLease.Release(delegate(LuaEnvironment active) { ResetLuaEnvironment(active, true); });
+                else if (env != null)
+                    ResetLuaEnvironment(env, true);
             }
             catch (Exception ex)
             {
-                Log?.LogError("终止 MOD Lua 协程失败：" + ex);
+                Log?.LogError("终止并清空 MOD LuaEnvironment 失败：" + ex);
             }
+            try
+            {
+                if (instance != null)
+                    instance.StopAllCoroutines();
+            }
+            catch (Exception ex)
+            {
+                Log?.LogError("终止 LuaManager 协程失败：" + ex);
+            }
+            _activeDevelopmentEnvironment = null;
+            _activeDevelopmentManager = null;
 
             try
             {
@@ -294,7 +314,57 @@ namespace MortalModHost
             _abortRequested = false;
             _abortBusyLogged = false;
             _pendingAbortReason = null;
-            _activeModEnvironment = null;
+            ReleaseActiveModEnvironment(true, "抵达可信场景边界", false);
+            _activeDevelopmentEnvironment = null;
+            _activeDevelopmentManager = null;
+        }
+
+        internal static void CleanupRuntimeState()
+        {
+            RuntimeDebugControl.Continue();
+            ReleaseActiveModEnvironment(true, "Runtime 禁用或卸载", false);
+            _activeDevelopmentEnvironment = null;
+            _activeDevelopmentManager = null;
+        }
+
+        /// <summary>
+        /// 新 MOD 必须获得全新的 MoonSharp 全局表；同一 MOD 连续章节保留 modflags/modvars。
+        /// 这同时清除之前官方脚本或异常销毁留下的任意全局变量和宿主回调。
+        /// </summary>
+        private static void PrepareEnvironmentForPackage(LuaEnvironment env, string modId)
+        {
+            EnvironmentLease.Prepare(
+                env, modId,
+                delegate(LuaEnvironment target) { ResetLuaEnvironment(target, true); });
+        }
+
+        private static void ReleaseActiveModEnvironment(bool stopCoroutines, string reason, bool throwOnFailure)
+        {
+            LuaEnvironment env = EnvironmentLease.Active;
+            if (env == null) return;
+            try
+            {
+                EnvironmentLease.Release(delegate(LuaEnvironment target)
+                {
+                    ResetLuaEnvironment(target, stopCoroutines);
+                });
+                if (Log != null) Log.LogInfo("已清理 MoonSharp MOD 环境（" + reason + "）");
+            }
+            catch (Exception ex)
+            {
+                if (Log != null) Log.LogError("清理 MoonSharp MOD 环境失败（" + reason + "）：" + ex);
+                if (throwOnFailure) throw;
+            }
+        }
+
+        private static void ResetLuaEnvironment(LuaEnvironment env, bool stopCoroutines)
+        {
+            if (env == null) return;
+            if (stopCoroutines)
+                env.StopAllCoroutines();
+            Traverse fields = Traverse.Create(env);
+            fields.Field("interpreter").SetValue(null);
+            fields.Field("initialised").SetValue(false);
         }
 
         /// <summary>

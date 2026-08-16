@@ -8,6 +8,7 @@ namespace MortalModHost
     /// </summary>
     internal sealed class ModPackage
     {
+        public int PackageFormatVersion { get; set; } = 1;
         /// <summary>mod 唯一 id（manifest.id），注册脚本时用作前缀防冲突。</summary>
         public string Id;
 

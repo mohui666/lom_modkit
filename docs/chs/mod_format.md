@@ -17,6 +17,7 @@ texts.json             # 必填，已读文本表：{MOD_<modid>_<scriptid>_<nod
 localization.json      # 可选，Story 内容语言元数据（schema/default/fallback/locales）
 lua/<locale>/<id>.lua  # 本地化包必填，完整的 locale 专用编译产物
 texts/<locale>.json    # 本地化包必填，locale 专用已读文本表
+story-lua.sha256       # package_format=2 必填，Story/Lua 成对 SHA-256
 package-content.sha256 # 必填，压缩无关的逻辑包内容 SHA-256
 assets/                # 可选，自定义资源
                        #   图片：结局插图 / 人物介绍图 PNG/JPG
@@ -26,6 +27,7 @@ assets/                # 可选，自定义资源
 
 - `<id>` 规则：`[a-zA-Z0-9_\-]{1,64}`，包内唯一，即"剧情脚本 id"。
 - 导出（打包）时必须重新编译：story/*.json → lua/*.lua，二者同名。
+- `story-lua.sha256` 使用 `lom-story-lua-sha256-v1`：每行以 TAB 记录 Story 路径/原始字节 SHA-256 与对应默认或 locale Lua 路径/原始字节 SHA-256。Runtime 对 v2 包强制逐项核对；v1 旧包可缺失，Editor 导入时会现场复编译比对。
 - 运行时插件**只读 manifest.json、lua/、texts、可选 localization.json 与 assets/**；story/*.json 给编辑器回读/再编辑用。编译器只打入剧情明确引用的 PNG/JPG（单张 ≤8MB）、明确引用的 `user:` 音频，以及明确引用的自定义角色立绘。导出的 `.lommod` 自包含，玩家机器不需要编辑器仓库。
 - texts.json 由打包时自动生成：收集每个 story 的全部 **say** 节点文本，key 与 lua 里 `GetStoryText` 的 key 一一对应；运行时注册进 LeanLocalization（见 §4/§6）。**death 文本不进 texts.json**：由 codegen 发射 `mod_set_death_text(<标题>, <文本>)` 两参 lua_str 字面量（见 §3.1/§6）。
 - 运行时先拒绝物理文件超过 160 MiB 的包，再从读取该包的同一个文件句柄计算最终 `.lommod` **全部原始字节**的 SHA-256，保存完整 64 个十六进制字符，并在强制披露中显示前 16 个字符。重新压缩、修改任一字节都会改变指纹；改文件名或逐字节复制不会改变。该指纹用于核对具体包，不是作者签名或官方认证。编辑器安装器同样以 160 MiB / 4 MiB 分别限制包文件与 `manifest.json`。
@@ -60,12 +62,12 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 
 ```json
 {
-  "format": 1,
-  "package_format": 1,
+  "format": 2,
+  "package_format": 2,
   "story_schema": 1,
   "content_schema": 1,
-  "min_host_version": "0.6.0",
-  "tested_host_version": "0.6.0",
+  "min_host_version": "1.0.0",
+  "tested_host_version": "1.0.0",
   "tested_game_version": "1.2.3",
   "id": "demo_mod",
   "name": "示例 Mod",
@@ -83,10 +85,10 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 }
 ```
 
-- `package_format`：`.lommod` 容器与 manifest 契约版本，当前固定 `1`。
+- `package_format`：`.lommod` 容器与 manifest 契约版本，当前为 `2`。v2 强制 `story-lua.sha256`；v1 仅作为旧包输入兼容。
 - `story_schema`：包内 `story/*.json` 源格式版本，当前固定 `1`。
 - `content_schema`：包内 `assets/user/*/*/content.json` 格式版本，当前固定 `1`。
-- `format`：旧 v1 reader 的兼容字段，值必须与 `package_format` 一致。新导出的包同时写出四个字段；旧包只有 `format: 1` 时仍可读取，未知版本或互相冲突的声明会被编辑器、编译器和 Runtime 拒绝。
+- `format`：兼容字段，值必须与 `package_format` 一致。新导出的包同时写出四个字段并使用值 `2`；旧包只有 `format: 1` 时仍可读取，未知版本或互相冲突的声明会被拒绝。
 - 编辑器迁移管线对缺少显式字段的旧 v1 manifest、Story 与 `content.json` 做纯数据迁移，未知字段按原结构保留。打开磁盘上的旧 Story 或扫描旧用户内容时，先写入逐字节原始备份 `原文件名.pre-migration-v1.bak`，再用同目录临时文件原子替换；校验、备份或替换任一步失败都不覆盖源文件。`migration.restore_migration_backup(source, backup)` 可显式恢复，恢复前还会保留当前文件的 recovery 备份。导入旧 `.lommod` 只迁移内存副本，不修改原压缩包。
 - `id`：mod 唯一 id（`[a-z0-9_\-]{1,64}`），运行时也会独立复验，作为注册名前缀与隔离存档槽的一部分。
 - `entry`：入口剧情脚本 id（`[A-Za-z0-9_\-]{1,64}`），必须存在；`lua/` 下所有脚本 id 同样由运行时复验。

@@ -593,7 +593,21 @@ def resolve_content_dir(root, content_type, content_id):
     root_norm = os.path.normpath(root)
     if full != root_norm and not full.startswith(root_norm + os.sep):
         raise LomcError("内容路径逃逸：%s / %s" % (content_type, content_id))
-    return full if os.path.isdir(full) else None
+    if not os.path.isdir(full):
+        return None
+    # ``normpath`` is only lexical.  Resolve the actual directory so a symlink
+    # or Windows junction under assets/user cannot escape the project root.
+    try:
+        root_real = os.path.realpath(root_norm)
+        full_real = os.path.realpath(full)
+        confined = os.path.commonpath((root_real, full_real)) == root_real
+    except (OSError, ValueError) as exc:
+        raise LomcError("用户内容目录无法安全解析：%s" % exc)
+    if not confined:
+        raise LomcError(
+            "用户内容目录通过 symlink/junction 指向项目目录外：%s" % content_id
+        )
+    return full_real
 
 
 def resolve_content(root, content_type, content_id):
@@ -620,6 +634,13 @@ def resolve_content(root, content_type, content_id):
     folder_norm = os.path.normpath(folder)
     if main_path != folder_norm and not main_path.startswith(folder_norm + os.sep):
         raise LomcError("用户内容 %s 的主文件路径逃逸" % content_id)
+    main_real = os.path.realpath(main_path)
+    try:
+        if os.path.commonpath((folder_norm, main_real)) != folder_norm:
+            raise LomcError("用户内容 %s 的主文件通过 symlink/junction 路径逃逸" % content_id)
+    except ValueError:
+        raise LomcError("用户内容 %s 的主文件路径逃逸" % content_id)
+    main_path = main_real
     if not os.path.isfile(main_path):
         raise LomcError(
             "用户内容 %s%s 的文件不存在：%s"
@@ -631,6 +652,15 @@ def resolve_content(root, content_type, content_id):
         for fname in listed_content_files(meta):
             image_path = os.path.normpath(os.path.join(folder, fname))
             if image_path != folder_norm and not image_path.startswith(folder_norm + os.sep):
+                raise LomcError("用户内容 %s 的立绘路径逃逸：%s" % (content_id, fname))
+            image_path = os.path.realpath(image_path)
+            try:
+                if os.path.commonpath((folder_norm, image_path)) != folder_norm:
+                    raise LomcError(
+                        "用户内容 %s 的立绘通过 symlink/junction 路径逃逸：%s"
+                        % (content_id, fname)
+                    )
+            except ValueError:
                 raise LomcError("用户内容 %s 的立绘路径逃逸：%s" % (content_id, fname))
             if not os.path.isfile(image_path):
                 raise LomcError(

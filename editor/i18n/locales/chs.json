@@ -474,7 +474,7 @@
   "export.tested_host_version": "已测试 Host 版本（超出则警告）",
   "export.game_version": "要求的游戏版本（精确匹配）",
   "export.tested_game_version": "已测试游戏版本（不同时警告）",
-  "export.compat_optional": "可留空，例如 0.6.0",
+  "export.compat_optional": "可留空，例如 1.0.0",
   "export.compat_exact_optional": "可留空；填写后必须与游戏 Application.version 完全一致",
   "export.id_ph": "例如：my_story（小写英文、数字、_ 或 -）",
   "export.author_ph": "作者名",

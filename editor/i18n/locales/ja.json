@@ -482,7 +482,7 @@
   "export.tested_host_version": "テスト済み Host バージョン（超過時は警告）",
   "export.game_version": "必須ゲームバージョン（完全一致）",
   "export.tested_game_version": "テスト済みゲームバージョン（不一致時は警告）",
-  "export.compat_optional": "空欄可。例：0.6.0",
+  "export.compat_optional": "空欄可。例：1.0.0",
   "export.compat_exact_optional": "空欄可。指定時は Application.version と完全一致が必要",
   "export.id_ph": "例：my_story（小文字・数字・_ または -）",
   "export.author_ph": "作者名",

@@ -17,6 +17,21 @@ namespace MortalModHost
     {
         private static int Main()
         {
+            try
+            {
+                return Run();
+            }
+            catch (Exception ex)
+            {
+                // Never let an assertion escape Main: on Windows an unhandled CLR
+                // exception opens an application-error dialog and can hang CI.
+                Console.Error.WriteLine("FAIL: " + ex);
+                return 1;
+            }
+        }
+
+        private static int Run()
+        {
             // 临时目录里造测试包，跑完即删
             string modsDir = Path.Combine(Path.GetTempPath(), "lommod_smoketest_" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(modsDir);
@@ -57,7 +72,7 @@ namespace MortalModHost
                 Assert(mod.Name == "示例 Mod", "name 解析错误（含中文）：" + mod.Name);
                 Assert(mod.Version == "1.0.0", "version 解析错误：" + mod.Version);
                 Assert(mod.Author == "somebody", "author 解析错误：" + mod.Author);
-                Assert(mod.MinHostVersion == "0.5.0" && mod.TestedHostVersion == "0.6.0"
+                Assert(mod.MinHostVersion == "0.5.0" && mod.TestedHostVersion == "1.0.0"
                     && mod.TestedGameVersion == "1.2.3",
                     "兼容性 metadata 解析错误");
                 Assert(mod.Entry == "main", "entry 解析错误：" + mod.Entry);
@@ -129,13 +144,29 @@ namespace MortalModHost
                 Assert(!HotkeyMigration.TryRewriteLegacyHotkey("# MenuHotkey = F9\n", out migrated), "注释行不应动");
                 Assert(!HotkeyMigration.TryRewriteLegacyHotkey("MenuHotkey = LeftControl + F9\n", out migrated), "带修饰键不应动");
                 Assert(!HotkeyMigration.TryRewriteLegacyHotkey("", out migrated), "空文本不应动");
+                bool markMigrationCompleted;
+                Assert(HotkeyMigration.TryRewriteLegacyHotkeyOnce(
+                        "MenuHotkey = F9\n", false, out migrated, out markMigrationCompleted)
+                    && migrated == "MenuHotkey = F8\n" && markMigrationCompleted,
+                    "首次 F9 迁移必须改写并要求持久化完成标记");
+                Assert(!HotkeyMigration.TryRewriteLegacyHotkeyOnce(
+                        "MenuHotkey = F9\n", true, out migrated, out markMigrationCompleted)
+                    && migrated == null && !markMigrationCompleted,
+                    "迁移完成后用户主动设回 F9 必须保留");
+                Assert(!HotkeyMigration.TryRewriteLegacyHotkeyOnce(
+                        "MenuHotkey = F10\n", false, out migrated, out markMigrationCompleted)
+                    && migrated == null && markMigrationCompleted,
+                    "首次检查即使无需改写也必须落一次性标记");
 
                 TestCampaign();
                 TestLocalization();
                 TestRuntimeCompatibility();
                 TestRuntimeTrace();
+                TestRuntimeEnvironmentLease();
                 TestStructuredRuntimeError();
                 TestArchiveLimits();
+                TestArchivePathValidation();
+                TestStoryLuaIntegrity();
                 TestManifestIdentifiers();
                 TestPackageFingerprint();
                 TestPreviewRequest(modsDir);
@@ -153,7 +184,7 @@ namespace MortalModHost
                 infos.ForEach(Console.WriteLine);
                 Console.WriteLine("--- 坏包/容错警告（预期 7 条，另 1 条注册冲突） ---");
                 warnings.ForEach(Console.WriteLine);
-                Console.WriteLine("PASS: 2 个好包解析正确（显式 Schema + 运行环境兼容 metadata + texts/assets 容错），6 个坏包/坏文件与未来版本安全跳过，Host/游戏版本硬拒载与软警告、注册表冲突、热键迁移、campaign、非官方剧情披露与结构化 Runtime 错误均正确。");
+                Console.WriteLine("PASS: Runtime 离线测试全部通过（ZIP 安全、Story/Lua 完整性、版本兼容、注册隔离、一次性热键迁移、campaign、披露与生命周期状态）。");
                 return 0;
             }
             finally
@@ -228,48 +259,117 @@ namespace MortalModHost
             RuntimeTrace.Reset();
         }
 
+        private sealed class FakeRuntimeEnvironment
+        {
+            internal string Global;
+            internal int ResetCount;
+        }
+
+        /// <summary>
+        /// MoonSharp-independent lifecycle state machine: the same MOD may keep globals across
+        /// chapters, while every owner/environment transition and unload must clear them.
+        /// </summary>
+        private static void TestRuntimeEnvironmentLease()
+        {
+            var lease = new RuntimeEnvironmentLease<FakeRuntimeEnvironment>();
+            var first = new FakeRuntimeEnvironment { Global = "stale-before-first-use" };
+            var second = new FakeRuntimeEnvironment { Global = "foreign" };
+            Action<FakeRuntimeEnvironment> reset = env =>
+            {
+                env.ResetCount++;
+                env.Global = null;
+            };
+
+            Assert(lease.Prepare(first, "mod_a", reset)
+                    && first.ResetCount == 1 && first.Global == null
+                    && object.ReferenceEquals(lease.Active, first) && lease.OwnerId == "mod_a",
+                "首次进入 MOD 必须先清理宿主环境再取得所有权");
+            first.Global = "mod_a_state";
+            Assert(!lease.Prepare(first, "mod_a", reset)
+                    && first.ResetCount == 1 && first.Global == "mod_a_state",
+                "同一 MOD/环境连续章节必须保留本 MOD 会话状态");
+            Assert(lease.Prepare(first, "mod_b", reset)
+                    && first.ResetCount == 2 && first.Global == null && lease.OwnerId == "mod_b",
+                "同环境切换 MOD 必须清除前一 MOD 全局变量");
+            first.Global = "mod_b_state";
+            Assert(lease.Prepare(second, "mod_b", reset)
+                    && first.ResetCount == 3 && first.Global == null
+                    && second.ResetCount == 1 && second.Global == null
+                    && object.ReferenceEquals(lease.Active, second),
+                "同 MOD 换环境也必须同时清理旧环境和新环境");
+            lease.Release(reset);
+            int releasedCount = second.ResetCount;
+            lease.Release(reset);
+            Assert(lease.Active == null && lease.OwnerId == null
+                    && second.ResetCount == releasedCount,
+                "卸载清理必须清空所有权且可重复调用");
+
+            var throwing = new RuntimeEnvironmentLease<FakeRuntimeEnvironment>();
+            throwing.Prepare(first, "mod_a", reset);
+            bool prepareThrew = false;
+            try
+            {
+                throwing.Prepare(second, "mod_b", env =>
+                {
+                    reset(env);
+                    if (object.ReferenceEquals(env, second))
+                        throw new InvalidOperationException("synthetic incoming reset failure");
+                });
+            }
+            catch (InvalidOperationException) { prepareThrew = true; }
+            Assert(prepareThrew && throwing.Active == null && throwing.OwnerId == null,
+                "切换清理失败后不得保留旧 MOD/环境身份");
+
+            throwing.Prepare(first, "mod_a", reset);
+            bool releaseThrew = false;
+            try { throwing.Release(_ => { throw new InvalidOperationException("synthetic release failure"); }); }
+            catch (InvalidOperationException) { releaseThrew = true; }
+            Assert(releaseThrew && throwing.Active == null && throwing.OwnerId == null,
+                "卸载清理回调失败后状态也必须先被清空");
+        }
+
         private static void TestRuntimeCompatibility()
         {
             var legacy = new ModPackage { Id = "legacy" };
-            CompatibilityResult result = RuntimeCompatibility.Evaluate(legacy, "0.6.0", "1.2.3");
+            CompatibilityResult result = RuntimeCompatibility.Evaluate(legacy, "1.0.0", "1.2.3");
             Assert(result.IsCompatible && result.Warnings.Count == 0,
                 "旧 manifest 无兼容字段时必须正常工作");
 
             var supported = new ModPackage
             {
                 Id = "supported",
-                MinHostVersion = "0.5.0",
-                TestedHostVersion = "0.6.0",
+                MinHostVersion = "0.9.0",
+                TestedHostVersion = "1.0.0",
                 GameVersion = "1.2.3",
                 TestedGameVersion = "1.2.3"
             };
-            result = RuntimeCompatibility.Evaluate(supported, "0.6.0", "1.2.3");
+            result = RuntimeCompatibility.Evaluate(supported, "1.0.0", "1.2.3");
             Assert(result.IsCompatible && result.Warnings.Count == 0,
                 "匹配的 Host/游戏版本声明应通过");
 
-            supported.MinHostVersion = "0.7.0";
-            result = RuntimeCompatibility.Evaluate(supported, "0.6.0", "1.2.3");
-            Assert(!result.IsCompatible && result.Error.Contains("Host >= 0.7.0"),
+            supported.MinHostVersion = "1.1.0";
+            result = RuntimeCompatibility.Evaluate(supported, "1.0.0", "1.2.3");
+            Assert(!result.IsCompatible && result.Error.Contains("Host >= 1.1.0"),
                 "Host 低于硬门槛必须给明确错误");
 
-            supported.MinHostVersion = "0.5.0";
-            supported.TestedHostVersion = "0.5.9";
+            supported.MinHostVersion = "0.9.0";
+            supported.TestedHostVersion = "0.9.9";
             supported.GameVersion = null;
             supported.TestedGameVersion = "1.2.2";
-            result = RuntimeCompatibility.Evaluate(supported, "0.6.0", "1.2.3");
+            result = RuntimeCompatibility.Evaluate(supported, "1.0.0", "1.2.3");
             Assert(result.IsCompatible && result.Warnings.Count == 2,
                 "超出作者测试的 Host/游戏版本应警告但继续加载");
 
-            supported.TestedHostVersion = "0.6.0";
+            supported.TestedHostVersion = "1.0.0";
             supported.GameVersion = "1.2.2";
             supported.TestedGameVersion = null;
-            result = RuntimeCompatibility.Evaluate(supported, "0.6.0", "1.2.3");
+            result = RuntimeCompatibility.Evaluate(supported, "1.0.0", "1.2.3");
             Assert(!result.IsCompatible && result.Error.Contains("需要游戏版本 1.2.2"),
                 "game_version 精确硬门槛不匹配时必须拒绝");
 
             supported.GameVersion = null;
             supported.MinHostVersion = "not-semver";
-            result = RuntimeCompatibility.Evaluate(supported, "0.6.0", "1.2.3");
+            result = RuntimeCompatibility.Evaluate(supported, "1.0.0", "1.2.3");
             Assert(!result.IsCompatible && result.Error.Contains("min_host_version"),
                 "手工包的非法兼容字段必须在运行时明确拒绝");
         }
@@ -576,6 +676,108 @@ namespace MortalModHost
             }
         }
 
+        /// <summary>
+        /// ZIP 路径规则必须在读取 manifest/Lua 前 fail closed，且不依赖宿主文件系统是否
+        /// 区分大小写。每个异常包同时包含可加载的 manifest/Lua，确保拒载原因来自包结构。
+        /// </summary>
+        private static void TestArchivePathValidation()
+        {
+            string modsDir = Path.Combine(Path.GetTempPath(), "lommod_paths_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(modsDir);
+            try
+            {
+                string manifest = "{\"format\":1,\"id\":\"path_test\",\"entry\":\"main\"}";
+                string lua = "say(\"ok\")";
+                WriteZip(Path.Combine(modsDir, "traversal.lommod"),
+                    ("manifest.json", manifest), ("lua/main.lua", lua), ("../outside.txt", "x"));
+                WriteZip(Path.Combine(modsDir, "absolute.lommod"),
+                    ("manifest.json", manifest), ("lua/main.lua", lua), ("C:/outside.txt", "x"));
+                WriteZip(Path.Combine(modsDir, "duplicate.lommod"),
+                    ("manifest.json", manifest), ("lua/main.lua", lua), ("lua/main.lua", lua));
+                WriteZip(Path.Combine(modsDir, "case_collision.lommod"),
+                    ("manifest.json", manifest), ("lua/main.lua", lua), ("LUA/MAIN.LUA", lua));
+                WriteZip(Path.Combine(modsDir, "file_directory_collision.lommod"),
+                    ("manifest.json", manifest), ("lua/main.lua", lua),
+                    ("assets", "not a directory"), ("assets/picture.png", "x"));
+
+                var warnings = new List<string>();
+                var mods = ModLoader.ScanMods(modsDir, _ => { }, warnings.Add);
+                Assert(mods.Count == 0, "路径穿越、绝对路径、重复、大小写冲突及文件/目录冲突包都必须拒载");
+                Assert(warnings.Count == 5, "五种异常 ZIP 应各产生一条拒载警告：" + string.Join(" | ", warnings));
+                Assert(warnings.Any(x => x.Contains("不安全") || x.Contains("绝对路径")), "应报告路径穿越/绝对路径");
+                Assert(warnings.Any(x => x.Contains("重复路径")), "应报告精确重复路径");
+                Assert(warnings.Any(x => x.Contains("大小写冲突")), "应报告大小写冲突路径");
+                Assert(warnings.Any(x => x.Contains("文件和目录")), "应报告文件/目录前缀冲突");
+            }
+            finally
+            {
+                Directory.Delete(modsDir, recursive: true);
+            }
+        }
+
+        /// <summary>新包把每份 Story 原始字节与对应生成 Lua 绑定；替换任一侧或漏记脚本均拒载。</summary>
+        private static void TestStoryLuaIntegrity()
+        {
+            string modsDir = Path.Combine(Path.GetTempPath(), "lommod_story_lua_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(modsDir);
+            try
+            {
+                const string manifest = "{\"format\":1,\"id\":\"integrity\",\"entry\":\"main\"}";
+                const string story = "{\"id\":\"main\",\"start\":\"end\",\"nodes\":[{\"id\":\"end\",\"type\":\"end\"}]}";
+                const string lua = "return mod_end()";
+                string record = "algorithm=lom-story-lua-sha256-v1\n"
+                    + "story/main.json\t" + ComputeSha256(story)
+                    + "\tlua/main.lua\t" + ComputeSha256(lua) + "\n";
+                const string manifestV2 = "{\"format\":2,\"package_format\":2,\"story_schema\":1,\"content_schema\":1,\"id\":\"integrity_v2\",\"entry\":\"main\"}";
+                var v2Content = new (string name, string content)[]
+                {
+                    ("manifest.json", manifestV2),
+                    ("story/main.json", story),
+                    ("lua/main.lua", lua),
+                    ("story-lua.sha256", record),
+                };
+                string packageRecord = "algorithm=lom-entry-sha256-v1\nsha256="
+                    + ComputePackageContentSha256(v2Content) + "\n";
+
+                WriteZip(Path.Combine(modsDir, "valid.lommod"),
+                    ("manifest.json", manifest), ("story/main.json", story),
+                    ("lua/main.lua", lua), ("story-lua.sha256", record));
+                WriteZip(Path.Combine(modsDir, "valid_v2.lommod"),
+                    ("manifest.json", manifestV2), ("story/main.json", story),
+                    ("lua/main.lua", lua), ("story-lua.sha256", record),
+                    ("package-content.sha256", packageRecord));
+                WriteZip(Path.Combine(modsDir, "tampered_story.lommod"),
+                    ("manifest.json", manifest.Replace("integrity", "tampered_story")),
+                    ("story/main.json", story + " "),
+                    ("lua/main.lua", lua), ("story-lua.sha256", record));
+                WriteZip(Path.Combine(modsDir, "tampered_lua.lommod"),
+                    ("manifest.json", manifest.Replace("integrity", "tampered_lua")),
+                    ("story/main.json", story),
+                    ("lua/main.lua", lua + " -- replaced"), ("story-lua.sha256", record));
+                WriteZip(Path.Combine(modsDir, "missing_row.lommod"),
+                    ("manifest.json", manifest.Replace("integrity", "missing_row")),
+                    ("story/main.json", story), ("story/extra.json", story.Replace("main", "extra")),
+                    ("lua/main.lua", lua), ("lua/extra.lua", lua), ("story-lua.sha256", record));
+                WriteZip(Path.Combine(modsDir, "v2_missing_integrity.lommod"),
+                    ("manifest.json", "{\"format\":2,\"package_format\":2,\"story_schema\":1,\"content_schema\":1,\"id\":\"v2_missing\",\"entry\":\"main\"}"),
+                    ("story/main.json", story), ("lua/main.lua", lua));
+
+                var warnings = new List<string>();
+                var mods = ModLoader.ScanMods(modsDir, _ => { }, warnings.Add);
+                Assert(mods.Count == 2 && mods.Any(x => x.Id == "integrity")
+                        && mods.Any(x => x.Id == "integrity_v2"),
+                    "旧 v1 完整性记录与含双重完整性记录的 v2 包都应加载");
+                Assert(warnings.Count == 4, "三种 Story/Lua 篡改及 v2 缺记录应各产生一条警告：" + string.Join(" | ", warnings));
+                Assert(warnings.Count(x => x.Contains("Story/Lua") || x.Contains("story-lua.sha256")
+                        || x.Contains("package-content.sha256")) == 4,
+                    "Story/Lua 拒载警告应明确指出一致性或内容哈希记录");
+            }
+            finally
+            {
+                Directory.Delete(modsDir, recursive: true);
+            }
+        }
+
         private static void TestManifestIdentifiers()
         {
             string modsDir = Path.Combine(Path.GetTempPath(), "lommod_ids_" + Guid.NewGuid().ToString("N"));
@@ -645,7 +847,7 @@ namespace MortalModHost
         private static void WriteGoodPackage(string path)
         {
             WriteZip(path,
-                ("manifest.json", "{\"format\":1,\"package_format\":1,\"story_schema\":1,\"content_schema\":1,\"id\":\"demo_mod\",\"name\":\"示例 Mod\",\"version\":\"1.0.0\",\"author\":\"somebody\",\"description\":\"一句话简介\",\"entry\":\"main\",\"min_host_version\":\"0.5.0\",\"tested_host_version\":\"0.6.0\",\"tested_game_version\":\"1.2.3\"}"),
+                ("manifest.json", "{\"format\":1,\"package_format\":1,\"story_schema\":1,\"content_schema\":1,\"id\":\"demo_mod\",\"name\":\"示例 Mod\",\"version\":\"1.0.0\",\"author\":\"somebody\",\"description\":\"一句话简介\",\"entry\":\"main\",\"min_host_version\":\"0.5.0\",\"tested_host_version\":\"1.0.0\",\"tested_game_version\":\"1.2.3\"}"),
                 ("story/main.json", "{\"id\":\"main\"}"),
                 ("story/extra.json", "{\"id\":\"extra\"}"),
                 ("lua/main.lua", "local function node_n1() say(\"你好\") end\nreturn node_n1()"),
@@ -736,8 +938,11 @@ namespace MortalModHost
                     ("assets/user/audio/mohui.boss_theme/boss_theme.ogg", new byte[] { 1, 2, 3, 4 }));
                 AppendBinaryEntries(Path.Combine(modsDir, "mod_b.lommod"),
                     ("assets/user/audio/mohui.boss_theme/boss_theme.ogg", new byte[] { 9, 9, 9, 9 }),
-                    ("assets/user/audio/../evil/content.json", Encoding.UTF8.GetBytes("{\"schema\":1}")),
                     ("assets/user/audio/Bad.Id/content.json", Encoding.UTF8.GetBytes("{\"schema\":1,\"id\":\"Bad.Id\"}")));
+                WriteZip(Path.Combine(modsDir, "invalid_path.lommod"),
+                    ("manifest.json", "{\"format\":1,\"id\":\"invalid_path\",\"entry\":\"main\"}"),
+                    ("lua/main.lua", "say(\"invalid\")"),
+                    ("assets/user/audio/../evil/content.json", "{\"schema\":1}"));
 
                 var warnings = new List<string>();
                 var mods = ModLoader.ScanMods(modsDir, _ => { }, warnings.Add);
@@ -1222,6 +1427,48 @@ namespace MortalModHost
             using (var stream = File.OpenRead(path))
             using (var sha = SHA256.Create())
                 return string.Concat(sha.ComputeHash(stream).Select(b => b.ToString("X2")));
+        }
+
+        private static string ComputeSha256(string text)
+        {
+            using (var sha = SHA256.Create())
+                return string.Concat(sha.ComputeHash(new UTF8Encoding(false).GetBytes(text))
+                    .Select(b => b.ToString("X2")));
+        }
+
+        private static string ComputePackageContentSha256(
+            IEnumerable<(string name, string content)> entries)
+        {
+            using (var sha = SHA256.Create())
+            {
+                foreach (var entry in entries.OrderBy(item => item.name, StringComparer.Ordinal))
+                {
+                    byte[] name = Encoding.UTF8.GetBytes(entry.name);
+                    byte[] content = new UTF8Encoding(false).GetBytes(entry.content);
+                    Transform(sha, BigEndian((ulong)name.Length, 4));
+                    Transform(sha, name);
+                    Transform(sha, BigEndian((ulong)content.Length, 8));
+                    Transform(sha, content);
+                }
+                sha.TransformFinalBlock(new byte[0], 0, 0);
+                return string.Concat(sha.Hash.Select(b => b.ToString("X2")));
+            }
+        }
+
+        private static void Transform(HashAlgorithm hash, byte[] bytes)
+        {
+            hash.TransformBlock(bytes, 0, bytes.Length, bytes, 0);
+        }
+
+        private static byte[] BigEndian(ulong value, int length)
+        {
+            var result = new byte[length];
+            for (int index = length - 1; index >= 0; index--)
+            {
+                result[index] = (byte)(value & 0xFF);
+                value >>= 8;
+            }
+            return result;
         }
 
         private static void Assert(bool condition, string message)

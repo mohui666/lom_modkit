@@ -26,6 +26,11 @@ from lomc.deterministic_zip import (
     PACKAGE_CONTENT_HASH_ENTRY,
     package_content_hash,
 )
+from lomc.story_lua_integrity import (
+    STORY_LUA_INTEGRITY_ENTRY,
+    parse_story_lua_integrity,
+    verify_story_lua_integrity,
+)
 from lomc.schema_versions import CONTENT_SCHEMA, PACKAGE_FORMAT, STORY_SCHEMA
 
 COMPILER_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -1575,8 +1580,8 @@ class TestBranchNewSources(unittest.TestCase):
 
     def test_manifest_errors(self):
         with self.assertRaises(LomcError) as cm:
-            validate_manifest({"format": 2, "id": "x"})
-        self.assertIn('"package_format" 必须固定为 1', str(cm.exception))
+            validate_manifest({"format": 3, "id": "x"})
+        self.assertIn('"package_format" 必须是 1 或 2', str(cm.exception))
         bad = dict(MANIFEST)
         del bad["author"]
         with self.assertRaises(LomcError) as cm:
@@ -1613,6 +1618,7 @@ class TestBranchNewSources(unittest.TestCase):
     def test_explicit_schema_versions_are_checked(self):
         explicit = dict(
             MANIFEST,
+            format=PACKAGE_FORMAT,
             package_format=PACKAGE_FORMAT,
             story_schema=STORY_SCHEMA,
             content_schema=CONTENT_SCHEMA,
@@ -1993,11 +1999,15 @@ class TestPack(unittest.TestCase):
                     "lua/main.lua",
                     "lua/extra.lua",
                     "texts.json",
+                    STORY_LUA_INTEGRITY_ENTRY,
                     PACKAGE_CONTENT_HASH_ENTRY,
                 },
             )
             manifest_back = json.loads(zf.read("manifest.json").decode("utf-8"))
-            self.assertEqual({key: manifest_back[key] for key in MANIFEST}, MANIFEST)
+            expected_manifest = dict(MANIFEST, format=PACKAGE_FORMAT)
+            self.assertEqual(
+                {key: manifest_back[key] for key in MANIFEST}, expected_manifest
+            )
             self.assertEqual(manifest_back["package_format"], PACKAGE_FORMAT)
             self.assertEqual(manifest_back["story_schema"], STORY_SCHEMA)
             self.assertEqual(manifest_back["content_schema"], CONTENT_SCHEMA)
@@ -2006,6 +2016,20 @@ class TestPack(unittest.TestCase):
             self.assertEqual({key: story_back[key] for key in main}, main)
             lua_main = zf.read("lua/main.lua").decode("utf-8")
             lua_extra = zf.read("lua/extra.lua").decode("utf-8")
+            integrity = parse_story_lua_integrity(
+                zf.read(STORY_LUA_INTEGRITY_ENTRY)
+            )
+            self.assertEqual(set(integrity), {"lua/main.lua", "lua/extra.lua"})
+            verify_story_lua_integrity(
+                zf.read(STORY_LUA_INTEGRITY_ENTRY),
+                {
+                    name: zf.read(name)
+                    for name in (
+                        "story/main.json", "story/extra.json",
+                        "lua/main.lua", "lua/extra.lua",
+                    )
+                },
+            )
             # 已读文本表（契约 §1）：仅 say 节点的 key → 文本（death 文本由
             # mod_set_death_text 直接进 Lua，不进 texts.json）
             texts = json.loads(zf.read("texts.json").decode("utf-8"))
@@ -2175,6 +2199,25 @@ class TestPack(unittest.TestCase):
         with self.assertRaises(LomcError) as cm:
             pack_mod(self.mod_dir)
         self.assertIn("image 指向的文件不存在", str(cm.exception))
+
+    def test_pack_rejects_symlink_escape(self):
+        outside = Path(self.tmp.name) / "outside.png"
+        outside.write_bytes(b"outside")
+        assets = Path(self.mod_dir) / "assets"
+        assets.mkdir()
+        link = assets / "linked.png"
+        try:
+            link.symlink_to(outside)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest("当前环境不能创建文件 symlink：%s" % exc)
+        self.write_story(
+            make_story([{
+                "id": "n1", "type": "goto_scene", "scene": "End",
+                "key": "920047", "image": "assets/linked.png",
+            }], start="n1")
+        )
+        with self.assertRaisesRegex(LomcError, "symlink/junction"):
+            pack_mod(self.mod_dir)
 
     def test_pack_custom_intro_image_ok(self):
         os.makedirs(os.path.join(self.mod_dir, "assets"))

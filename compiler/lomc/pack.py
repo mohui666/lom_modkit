@@ -33,6 +33,12 @@ from .deterministic_zip import DeterministicPackageBuilder
 from .localization import SUPPORTED_LOCALES, apply_story_locale, localization_config
 from .validate import validate_manifest, validate_story
 from .schema_versions import STORY_SCHEMA, version_declarations
+from .deterministic_zip import stable_json_bytes
+from .story_lua_integrity import (
+    STORY_LUA_INTEGRITY_ENTRY,
+    build_story_lua_integrity,
+)
+from .package_validation import ArchiveValidationError, resolve_confined_file
 
 # 汗青书左页插图上限（字节，与运行时插件 §6 一致）：超过则打包报错
 _MAX_ENDING_IMAGE_BYTES = 8 * 1024 * 1024
@@ -54,7 +60,7 @@ def pack_mod(mod_dir, output=None):
     validate_manifest(manifest)
     manifest = dict(manifest)
     manifest.update(version_declarations())
-    manifest["format"] = manifest["package_format"]  # legacy v1 readers
+    manifest["format"] = manifest["package_format"]  # compatibility spelling
 
     story_dir = os.path.join(mod_dir, "story")
     if not os.path.isdir(story_dir):
@@ -198,6 +204,13 @@ def pack_mod(mod_dir, output=None):
                         "%s（请放到 mod 目录的 assets/ 下）"
                         % (fname, node["id"], node.get("type"), image)
                     )
+                try:
+                    full = str(resolve_confined_file(mod_dir, full))
+                except ArchiveValidationError as exc:
+                    raise LomcError(
+                        'story/%s 节点 "%s"(%s): %s'
+                        % (fname, node["id"], node.get("type"), exc)
+                    ) from exc
                 if not image.lower().endswith(_IMAGE_EXTS):
                     raise LomcError(
                         'story/%s 节点 "%s"(%s): image 必须是 '
@@ -252,9 +265,15 @@ def pack_mod(mod_dir, output=None):
 
     package = DeterministicPackageBuilder()
     package.add_json("manifest.json", manifest)
+    integrity_pairs = []
     for fname in story_files:
         stem = fname[: -len(".json")]
         package.add_json("story/%s" % fname, loaded_stories[stem])
+        story_bytes = stable_json_bytes(loaded_stories[stem])
+        lua_bytes = compiled[stem].encode("utf-8")
+        integrity_pairs.append(
+            ("story/%s" % fname, story_bytes, "lua/%s.lua" % stem, lua_bytes)
+        )
     for stem, lua in compiled.items():
         package.add_bytes("lua/%s.lua" % stem, lua)
     package.add_json("texts.json", texts)
@@ -272,17 +291,38 @@ def pack_mod(mod_dir, output=None):
         for locale in SUPPORTED_LOCALES:
             for stem, lua in localized_compiled[locale].items():
                 package.add_bytes("lua/%s/%s.lua" % (locale, stem), lua)
+                integrity_pairs.append(
+                    (
+                        "story/%s.json" % stem,
+                        stable_json_bytes(loaded_stories[stem]),
+                        "lua/%s/%s.lua" % (locale, stem),
+                        lua.encode("utf-8"),
+                    )
+                )
             package.add_json("texts/%s.json" % locale, localized_texts[locale])
+    package.add_bytes(
+        STORY_LUA_INTEGRITY_ENTRY,
+        build_story_lua_integrity(integrity_pairs),
+    )
     # assets 只收剧情明确引用的图片与用户内容，避免把本机未使用素材意外分发。
     for rel in sorted(referenced_assets):
-        full = os.path.join(mod_dir, rel.replace("/", os.sep))
+        try:
+            full = resolve_confined_file(
+                mod_dir, os.path.join(mod_dir, rel.replace("/", os.sep))
+            )
+        except ArchiveValidationError as exc:
+            raise LomcError(str(exc)) from exc
         package.add_file(rel, full)
     for ctype, content_id in sorted(referenced_user_content):
         meta, folder = referenced_user_content[(ctype, content_id)]
         rel_dir = package_content_dir(ctype, content_id)
         package.add_json(rel_dir + "/content.json", content_metadata_payload(meta))
         for fname in listed_content_files(meta):
-            package.add_file(rel_dir + "/" + fname, os.path.join(folder, fname))
+            try:
+                source = resolve_confined_file(mod_dir, os.path.join(folder, fname))
+            except ArchiveValidationError as exc:
+                raise LomcError(str(exc)) from exc
+            package.add_file(rel_dir + "/" + fname, source)
 
     final_path, _content_hash = package.write(output)
     return final_path
