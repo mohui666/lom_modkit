@@ -244,6 +244,9 @@ namespace MortalModHost
                 && !string.Equals(scene, "Free", StringComparison.Ordinal))
                 return false;
             Disable();
+            // Title/Free 是完整开发演出的生命周期边界。若只关披露而保留 Trace，
+            // 下一次 F5 会把新试玩误判为旧 Story 会话热重载，并被披露层安全拒绝。
+            RuntimeTrace.Reset();
             LuaManagerPatch.ResetAbortGuard();
             return true;
         }

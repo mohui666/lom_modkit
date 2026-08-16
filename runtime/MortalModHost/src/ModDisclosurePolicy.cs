@@ -45,6 +45,22 @@ namespace MortalModHost
         }
 
         /// <summary>
+        /// F5 只有在仍处于固定编辑器试玩会话时才是“热重载”。RuntimeTrace 在
+        /// Title/Free 边界可能刚结束或来自旧版本的残留状态，不能单独作为依据。
+        /// </summary>
+        public static bool CanHotReloadDevelopmentPreview(
+            bool traceActive,
+            bool disclosureActive,
+            string activeModId,
+            string requestModId)
+        {
+            return traceActive
+                && disclosureActive
+                && string.Equals(activeModId, "lom_modkit_preview", StringComparison.Ordinal)
+                && string.Equals(requestModId, "lom_modkit_preview", StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// 当前场景是否允许保持已开启的披露。
         /// 空场景名视为未知（保持），避免 SceneController 未就绪时误关。
         /// </summary>

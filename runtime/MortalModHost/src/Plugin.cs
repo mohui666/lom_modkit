@@ -471,8 +471,11 @@ namespace MortalModHost
             catch (IOException) { return; }
             if (_loadedPreviewStamp != stamp)
             {
-                bool hotReload = RuntimeTrace.Active
-                    && string.Equals(request.ModId, "lom_modkit_preview", StringComparison.Ordinal);
+                bool hotReload = ModDisclosurePolicy.CanHotReloadDevelopmentPreview(
+                    RuntimeTrace.Active,
+                    ModDisclosure.Active,
+                    ModDisclosure.ModId,
+                    request.ModId);
                 if (hotReload)
                 {
                     Logger.LogInfo("收到新的 F5 试玩包，清理当前开发演出并从节点 " + request.NodeId + " 重启。");
@@ -508,7 +511,11 @@ namespace MortalModHost
             }
 
             string scene = SceneController.Instance != null ? SceneController.Instance.CurrentScene : "";
-            bool reloadCurrentPreview = RuntimeTrace.Active
+            bool reloadCurrentPreview = ModDisclosurePolicy.CanHotReloadDevelopmentPreview(
+                    RuntimeTrace.Active,
+                    ModDisclosure.Active,
+                    ModDisclosure.ModId,
+                    target.Id)
                 && RuntimeTrace.IsDevelopmentPackage(target)
                 && scene == "Story";
             if (reloadCurrentPreview && SceneController.Instance != null

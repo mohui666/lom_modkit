@@ -854,6 +854,19 @@ namespace MortalModHost
                     true, true, "lom_modkit_preview", previewIdentity),
                 "改名包不得借 F5 热重载切换活动披露身份");
 
+            Assert(ModDisclosurePolicy.CanHotReloadDevelopmentPreview(
+                    true, true, "lom_modkit_preview", "lom_modkit_preview"),
+                "活动中的固定编辑器试玩会话必须允许 F5 热重载");
+            Assert(!ModDisclosurePolicy.CanHotReloadDevelopmentPreview(
+                    true, false, "lom_modkit_preview", "lom_modkit_preview")
+                && !ModDisclosurePolicy.CanHotReloadDevelopmentPreview(
+                    false, true, "lom_modkit_preview", "lom_modkit_preview")
+                && !ModDisclosurePolicy.CanHotReloadDevelopmentPreview(
+                    true, true, null, "lom_modkit_preview")
+                && !ModDisclosurePolicy.CanHotReloadDevelopmentPreview(
+                    true, true, "lom_modkit_preview", "other"),
+                "可信边界残留 Trace、无披露或非固定试玩 ID 都必须按新试玩处理");
+
             const string fingerprint = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
             Assert(ModDisclosurePolicy.IsValidPackageFingerprint(fingerprint), "64 位十六进制 SHA-256 应合法");
             Assert(!ModDisclosurePolicy.IsValidPackageFingerprint("abcdef")
