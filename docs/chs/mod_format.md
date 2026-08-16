@@ -1,6 +1,6 @@
 # 活侠传 Mod 包格式（v3 契约）
 
-> 语言：简体中文（本文） · [繁體中文](../zh_TW/mod_format.md) · [日本語](../ja/mod_format.md) · [한국어](../ko/mod_format.md)
+> 语言：简体中文（本文） · [繁體中文](../cht/mod_format.md) · [日本語](../ja/mod_format.md) · [한국어](../ko/mod_format.md)
 
 **所有组件（编辑器 / 编译器 / 运行时插件）以本文档为准。** 改动需同步更新本文档。
 文中规则的官方脚本/反编译实证材料见 `../research/`，正文不重复展开。
@@ -35,16 +35,16 @@ assets/                # 可选，自定义资源
 
 ### 1.1 Story 内容本地化（可选）
 
-Story 本地化与编辑器界面语言是两套独立机制。支持 `zh_CN`、`zh_TW`、`ja`、`ko`。未启用本地化的旧 Story 及其 `lua/<id>.lua`、`texts.json` 契约保持不变，不要求迁移。
+Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`cht`、`ja`、`ko`。未启用本地化的旧 Story 及其 `lua/<id>.lua`、`texts.json` 契约保持不变，不要求迁移。
 
 启用后，节点字段中的作者文本仍是默认语言原文；每个 Story 可增加：
 
 ```json
 "localization": {
-  "default_locale": "zh_CN",
-  "fallback_locale": "zh_TW",
+  "default_locale": "chs",
+  "fallback_locale": "cht",
   "translations": {
-    "zh_TW": {"story.title": "章節標題", "say1.text": "你好呀"},
+    "cht": {"story.title": "章節標題", "say1.text": "你好呀"},
     "ja": {"story.title": "章タイトル", "say1.text": "こんにちは"}
   }
 }
@@ -189,8 +189,8 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `zh_CN`、
 | `enemy` | `op`("team"/"level"/"people"/"id"), `enemy`, `value`(数值, id 的 op 不需要), `display`(默认1) | 敌方队伍修改 `ModifyEnemyTeam/Level/People/Id` |
 | `battle_skill` | `op`("set"/"active"/"reset"), `key`(reset 不需要), `index`(set 用, 默认2), `active`(active 用, 默认1) | 战场技能 `SetPlayerBattleSkill/SetBattleSkillActive/ResetBattleSkill` |
 | `battle_setup` | 可选 `enemy`, `team`, `level`, `people`, `display`, `reset_skills`, `skills:[{key,index,active}]`；至少配置一项 | 战前聚合节点：只按顺序调用已验证的 `ModifyEnemy*`、`ResetBattleSkill`、`SetPlayerBattleSkill`、`SetBattleSkillActive`，不修改地图/AI/战斗机制 |
-| `combat` | `win`, `lose`(节点 id)；`key`(原版 Combat id) 与 `preset` 二选一；直接配置时可选 `enemy`, `team`, `level`, `people`, `display` | 可选组合 `ModifyEnemy*`，随后 Host 建立包指纹绑定的一次性结果会话并执行 `ChangeScene("Combat",key,"Story")`。原版 `CombatManager.GameOver(bool)` 的 win/lose 回到对应节点；不支持 draw/escape。终止节点，不允许额外 goto |
-| `battle` | `win`, `lose`(节点 id)；`key`(原版 Battle id) 与 `preset` 二选一 | 执行 `ChangeScene("Battle",key,"Story")`；Host 只把原版 `ShowGameOver(FriendWin/EnemyWin, finish:true)` 映射到 win/lose。`PlayerDie(false)` 保持原版重试/标题流程，不伪造为可续接结果。终止节点，不允许额外 goto |
+| `combat` | `win`, `lose`；`key`（原版一对一人物/场景模板）与 `preset` 二选一；可选对手 `health/stamina` 上限与初值、九项属性、`talents`、三格绝招和五类行动概率 | Host 只在本次 Combat 的原版 `CombatLevel` 数据读取点覆盖对手数值，不修改原版资产；`CombatManager.GameOver(bool)` 的真实 win/lose 回到指定节点。不支持 draw/escape，不允许额外 goto |
+| `battle` | `win`, `lose`；`key`（原版 Battle 场景）与 `preset` 二选一；可选 `friend/enemy/neutral_roster`、三方人数和 NPC 血量、`reset_skills` 与 `skills` | Host 在本次 Battle 读取时分别复用三个原版阵容模板并覆盖生成数量/血量，原版 `ShowGameOver(FriendWin/EnemyWin, finish:true)` 回到指定节点。`PlayerDie(false)` 保持原版流程，不允许额外 goto |
 | `battle_result` | `win`, `lose`；可选 `kind`("any"/"combat"/"battle"，默认 any) | 读取 Host 按完整包指纹和剧情 id 绑定的最后真实结果并分支。当前仅支持反编译确认的 win/lose；无结果、类型不符或伪造 draw/escape 都会 fail-closed。终止节点，不允许额外 goto |
 | `reward` | `entries`(1~32)：`kind`=stat/affinity/talent/item/flag，`key`，非 flag 用 `amount`，item 另用 `category`=book/misc/special | 编译期展开为现有 `Player` / `Character` / `AddTalent` / `AddBook|Misc|Special` / `AddStory` 与 `modflags`，不发明奖励存档系统 |
 | `result_screen` | `title`（非空）、`entries`（同 reward）；可选 `text` | 先用原版 `mainui.DisplayMessageText` 显示作者填写的标题与说明，再按顺序执行 `reward` 的现有原子接口；这是作者友好的组合节点，不创建自定义结算 UI |
@@ -417,7 +417,8 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 
 1. 启动扫描 `BepInEx/plugins/MortalModHost/mods/*.lommod`，限制物理包大小、ZIP 条目数/单项/总解压大小，复验 id 与脚本 id，并从同一文件句柄计算 SHA-256；随后注册 `MOD_<modid>_<scriptid>` → lua 文本。重复 mod id 或任一注册名碰撞时保留先加载者并按整包拒绝后加载者，菜单不会展示未完整注册的包。
 2. Harmony prefix `LuaManager.ExecuteLuaScript()`：注册名命中时用 mod lua 执行并跳过原方法。
-3. 入口：Free 自由场景与 Title 标题画面左下角"活侠MOD"按钮 + F8（可配）打开菜单。Free 菜单分"演出 mod 剧情"与"开始新战役"两区；Title 菜单仅"开始新战役"区（演出剧情需要已加载的存档玩家状态，只在 Free 提供）。
+3. 入口：Free 自由场景保留“活侠MOD”按钮与 F8 菜单；Title 标题场景在原版“开始游戏”上方显示同风格“开始 MOD 战役”。点击后临时复用原版 `LoadGamePanel/LoadSlotPanel`：已有 `mod_<id>` 槽直接继续，固定“新战役”空白槽进入战役选择；关闭后重建原版 001～020 槽。
+   - **完整存档隔离**：MOD 手动槽为 `mod_<id>`；Story/Free/Battle 自动槽分别重定向到 `mod_<id>_auto`、`mod_<id>_auto_free`、`mod_<id>_auto_battle`。`SaveUniverseData` 在 MOD 活动期间只看到最后一个原版槽，原版继续游戏和最近存档不会指向 MOD。
 4. **战役**：点击"开始新战役"→ `SetSlot("mod_<modid>")`（隔离存档槽）→ 官方 `NewGameData()` → postfix 把首个剧情脚本替换为该 mod 的 entry → LoadStory。
 5. **原版剧情抑制与位置触发器**：`disable_official_events` 或 F7 生效时，`UpdateCheckMissions` 内暂时隐藏主线触发状态，`HasAnyMissionTrigger` 返回 false，避免返回 Free 时自动启动官方主线/支线；地点点击 postfix `FreePositionData.GetExecuteScript` 优先匹配 manifest.triggers，无 mod 命中时抑制官方地点默认脚本。
 6. **兜底**：Story 场景请求的 MOD_ 脚本未注册、包身份/指纹缺失、Lua 编译/运行失败时，不执行或立即停止 `LuaEnvironment` 协程，绕过任务判定直接 `SceneController.LoadFree()` 防软锁。若场景正在切换则保持安全遮罩，待可安全转场时重试，禁止并发启动第二条转场协程。
@@ -438,7 +439,7 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 18. **对白语音**：注册 `mod_play_voice(ref)` / `mod_stop_voice()`。`mod_play_voice` 先停当前语音再播（不循环，走独立 `_voice` 通道）。`sound` 节点、自定义音效、`StopMusic` 都不碰这条通道。剧情中断、切官方脚本、重载 Mod 时 `StopEverything()` 会停语音。无 `voice` 的旧 Lua 不会调用这两个函数，行为不变。
 19. **离场清台**：脚本开头、`end` / `goto_scene` / `death` 发射 `mod_hide_all()`，立刻隐藏官方台上人物并清掉自定义立绘。换背景 `scene` 不自动退场。切到下一章（`end.next_script`）时下一章开场也会再清一次，避免上一幕角色带到下一章。
 20. **自定义角色立绘朝向与体型**：原版立绘朝左。自定义角色默认 `art_facing=left`，节点 `facing=left` 不翻、`right` 才水平翻转；原图朝右时把 `art_facing` 标成 `right`。`scale` 是 50–130 的体型百分比（默认 100），从脚底缩放，大约 80 接近小师妹。
-21. **游戏内 Mod 菜单多语言**：菜单文案（`src/I18n.cs` 内嵌 zh_CN/zh_TW/ja/ko 四语言目录）跟随游戏当前语言——反射读 LeanLocalization `CurrentLanguage` 并模糊匹配语言名；官方游戏本身没有日语选项，日语目录实际不会触发；检测失败一律回退 zh_CN。详见 `i18n.md`。
+21. **游戏内 Mod 菜单多语言**：菜单文案（`src/I18n.cs` 内嵌 chs/cht/ja/ko 四语言目录）跟随游戏当前语言——反射读 LeanLocalization `CurrentLanguage` 并模糊匹配语言名；官方游戏本身没有日语选项，日语目录实际不会触发；检测失败一律回退 chs。详见 `i18n.md`。
 22. **强制玩家内容披露与失败停播**：注册表命中的 Mod 首次开演前，Host 必须同步创建固定的「玩家制作 MOD｜非官方内容 / UNOFFICIAL」主标签，并以独立次级 Text 显示清洗后的作品名、作者自报信息和 SHA-256 前 16 字符。屏幕右上角常驻标签、独立 IMGUI 固定章、对白框内标签、GameOver/EndGamePanel/End/人物介绍卡标签同时覆盖全屏录像、裁对白截图和关键单卡；标签无 Lua/cfg 关闭接口。来源按整段会话污染：Mod 链入官方脚本仍保持原包标签；活动期间嵌套切到另一包会被拒绝；只有实际抵达 Title/Free 才解除。独立于 BepInEx 宿主对象的 guardian 在 Update/LateUpdate、`Canvas.willRenderCanvases` 与 `Camera.onPreCull` 复验对象父级、几何、字体、文案、alpha、材质、显示器与最高排序，被删除/禁用/移出屏幕后自动重建；Lua 篡改 `ActiveSayDialog` 时仍扫描并维护所有可见对白宿主。任何必须标签无法创建/恢复时，立即停止由 Host 推进的 LuaEnvironment 协程、用不依赖 Canvas 的 IMGUI 黑屏显示固定警示并直接返回 Free；异步 Lua 异常不会被 Fungus 吞掉。演出中关闭 Host 总开关只关闭菜单/热键，补丁与披露延迟到 Title/Free 后卸载。
 23. **F5 Runtime Trace v1**：只对编辑器固定的 `lom_modkit_preview` / `__lom_modkit_preview.lommod` 开发包启用。记录 `mod_enter`、`story_enter`、`node_enter`、`choice`、`condition_result`、`goto`、`end`、`death`、`runtime_error`；普通玩家加载的正式 Mod 默认不记录。Trace 使用 256 条内存 ring buffer，满后丢弃最旧条目，不写入存档且不会无限增长。新编译器只增加 `if mod_trace_node then ... end` 可选钩子，旧 Runtime 没有该函数时仍按原流程运行。
 24. **F5 Runtime Debugger v1**：开发 trace 激活后显示独立 IMGUI 调试窗，列出当前 Mod/Story/Node、`modvars`、`modflags`、可见自定义角色、当前自定义音乐/语音及最近 24 条 trace；F10 可隐藏/重新显示。正式 `.lommod` 不激活该窗口。变量与 Flag 由节点入口处的真实 Lua table 快照取得；尚未使用 `modvars` 的旧剧情会明确显示为空，不伪造状态。

@@ -93,9 +93,10 @@ namespace MortalModHost
     [HarmonyPatch(typeof(SaveSystem), "SetSlot")]
     internal static class PersistentStateSlotPatch
     {
-        private static void Postfix()
+        private static void Postfix(SaveSystem __instance)
         {
             PersistentModState.OnSlotChanged();
+            ModSaveIsolation.ObserveSlot(__instance != null ? __instance.CurrentSlot : "");
         }
     }
 

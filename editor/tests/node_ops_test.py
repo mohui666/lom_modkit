@@ -115,11 +115,11 @@ def test_language_keeps_selection():
     win._select_node_index(1)
     assert win._selected_node_index() == 1
     before = win.story["nodes"][1]["id"]
-    set_language("zh_CN")
-    win._change_language("zh_TW")
+    set_language("chs")
+    win._change_language("cht")
     assert win._selected_node_index() == 1, win._selected_node_index()
     assert win.story["nodes"][1]["id"] == before
-    win._change_language("zh_CN")
+    win._change_language("chs")
     assert win._selected_node_index() == 1
     print("[node] 切语言保持当前步骤 OK")
 

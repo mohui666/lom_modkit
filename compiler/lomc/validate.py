@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """story.json / manifest.json 校验。
 
-严格遵循 docs/zh_CN/mod_format.md（v3 契约）：
+严格遵循 docs/chs/mod_format.md（v3 契约）：
 - §2 manifest.json 字段
 - §3 story/*.json 结构与 §3.1 全量节点类型表（字段除标注"可选"外均为必填）
 - §4 补充规则（末节点收尾、禁止显式 goto 的类型、分支兜底等）
@@ -180,7 +180,7 @@ _ENUMS = {
     "item_kind": ("book", "misc", "special"),
     "gameflag_op": ("set", "add"),
     "enemy_op": ("team", "level", "people", "id"),
-    "bskill_op": ("set", "active", "reset"),
+    "bskill_op": ("set", "active", "level", "reset"),
     "gameplay_kind": ("any", "combat", "battle"),
     "reward_kind": ("stat", "affinity", "talent", "item", "flag"),
     "shop_item_kind": ("book", "misc", "special"),
@@ -380,7 +380,7 @@ _NODE_FIELDS = {
     ),
     "battle_skill": (
         {"op": "bskill_op"},
-        {"key": "idstr", "index": "num", "active": "num"},
+        {"key": "idstr", "index": "num", "active": "num", "level": "num"},
     ),
     "battle_setup": (
         {},
@@ -394,13 +394,25 @@ _NODE_FIELDS = {
         {"win": "idstr", "lose": "idstr"},
         {
             "preset": "idstr", "key": "idstr",
-            "enemy": "idstr", "team": "num", "level": "num",
-            "people": "num", "display": "num",
+            "max_health": "num", "health": "num", "max_stamina": "num",
+            "stamina": "num", "strength": "num", "internal": "num",
+            "dexterity": "num", "talking": "num", "defence": "num",
+            "sword": "num", "fist": "num", "martial_weapon": "num",
+            "mental": "num", "ultimate_one": "idstr", "ultimate_two": "idstr",
+            "ultimate_three": "idstr", "talk_rate": "num", "attack_rate": "num",
+            "weapon_rate": "num", "ultimate_rate": "num", "block_rate": "num",
+            "talents": "list",
         },
     ),
     "battle": (
         {"win": "idstr", "lose": "idstr"},
-        {"preset": "idstr", "key": "idstr"},
+        {
+            "preset": "idstr", "key": "idstr", "friend_roster": "idstr",
+            "enemy_roster": "idstr", "neutral_roster": "idstr",
+            "friend_people": "num", "enemy_people": "num", "neutral_people": "num",
+            "friend_health": "num", "enemy_health": "num", "neutral_health": "num",
+            "reset_skills": "bool", "skills": "list",
+        },
     ),
     "battle_result": (
         {"win": "idstr", "lose": "idstr"},
@@ -966,12 +978,22 @@ def _check_node_extra(node, ntype, label, battle_presets=None):
                 '%s(enemy): op="%s" 时必填字段 "value"（仅 op="id" 不需要）'
                 % (label, node["op"])
             )
+        if "display" in node and node["display"] not in (0, 1):
+            raise LomcError('%s(enemy): 字段 "display" 必须是 0 或 1' % label)
     elif ntype == "battle_skill":
-        if node["op"] in ("set", "active") and "key" not in node:
+        if node["op"] in ("set", "active", "level") and "key" not in node:
             raise LomcError(
                 '%s(battle_skill): op="%s" 时必填字段 "key"（仅 reset 不需要）'
                 % (label, node["op"])
             )
+        if node["op"] == "active" and node.get("active", 1) not in (0, 1):
+            raise LomcError('%s(battle_skill): 字段 "active" 必须是 0 或 1' % label)
+        if node["op"] == "level" and (
+            isinstance(node.get("level", 1), bool)
+            or not isinstance(node.get("level", 1), int)
+            or node.get("level", 1) < 0
+        ):
+            raise LomcError('%s(battle_skill): 字段 "level" 必须是非负整数' % label)
     elif ntype == "battle_setup":
         if not node.get("enemy") and not node.get("reset_skills") and not node.get("skills"):
             raise LomcError(
@@ -985,6 +1007,8 @@ def _check_node_extra(node, ntype, label, battle_presets=None):
         for name in ("team", "level", "people", "display"):
             if name in node and (isinstance(node[name], bool) or not isinstance(node[name], int)):
                 raise LomcError('%s(battle_setup): 字段 "%s" 必须是整数' % (label, name))
+        if "display" in node and node["display"] not in (0, 1):
+            raise LomcError('%s(battle_setup): 字段 "display" 必须是 0 或 1' % label)
         skills = node.get("skills", [])
         if len(skills) > 16:
             raise LomcError('%s(battle_setup): skills 最多 16 条' % label)
@@ -1022,18 +1046,45 @@ def _check_node_extra(node, ntype, label, battle_presets=None):
                     '%s(combat): 预设 "%s" 的 kind=%r，不是 combat'
                     % (label, preset_id, preset["kind"])
                 )
-            mixed = set(node) & {"enemy", "team", "level", "people", "display"}
+            mixed = set(node) & {
+                "max_health", "health", "max_stamina", "stamina", "strength",
+                "internal", "dexterity", "talking", "defence", "sword", "fist",
+                "martial_weapon", "mental", "ultimate_one", "ultimate_two",
+                "ultimate_three", "talk_rate", "attack_rate", "weapon_rate",
+                "ultimate_rate", "block_rate", "talents",
+            }
             if mixed:
                 raise LomcError(
                     '%s(combat): 使用 preset 时不能再填写 %s；请在预设中统一配置'
                     % (label, "、".join(sorted(mixed)))
                 )
-        for name in ("team", "level", "people", "display"):
-            if name in node and (isinstance(node[name], bool) or not isinstance(node[name], int)):
-                raise LomcError(
-                    '%s(combat): 字段 "%s" 必须是整数，实际为 %r'
-                    % (label, name, node[name])
-                )
+        effective = (battle_presets or {}).get(preset_id, node) if preset_id else node
+        for name in (
+            "max_health", "health", "max_stamina", "stamina", "strength", "internal",
+            "dexterity", "talking", "defence", "sword", "fist", "martial_weapon", "mental",
+        ):
+            if name in effective and (
+                isinstance(effective[name], bool) or not isinstance(effective[name], int)
+                or effective[name] < 0
+            ):
+                raise LomcError('%s(combat): %s 必须是非负整数' % (label, name))
+        for name in ("talk_rate", "attack_rate", "weapon_rate", "ultimate_rate", "block_rate"):
+            if name in effective and not 0 <= effective[name] <= 1:
+                raise LomcError('%s(combat): %s 必须在 0~1 之间' % (label, name))
+        for name in ("ultimate_one", "ultimate_two", "ultimate_three"):
+            if name in effective and SCRIPT_ID_RE.fullmatch(effective[name]) is None:
+                raise LomcError('%s(combat): %s 必须是安全的原版技能 id' % (label, name))
+        talents = effective.get("talents", [])
+        if len(talents) > 32:
+            raise LomcError('%s(combat): talents 最多 32 条' % label)
+        for index, talent in enumerate(talents, 1):
+            if not isinstance(talent, dict) or set(talent) - {"key", "level"}:
+                raise LomcError('%s(combat): 第 %d 条 talents 格式错误' % (label, index))
+            if not isinstance(talent.get("key"), str) or SCRIPT_ID_RE.fullmatch(talent["key"]) is None:
+                raise LomcError('%s(combat): 第 %d 条 talent key 无效' % (label, index))
+            level = talent.get("level", 1)
+            if isinstance(level, bool) or not isinstance(level, int) or level < 0:
+                raise LomcError('%s(combat): 第 %d 条 talent level 必须是非负整数' % (label, index))
     elif ntype == "battle":
         direct = bool(node.get("key"))
         preset_id = node.get("preset")
@@ -1053,6 +1104,43 @@ def _check_node_extra(node, ntype, label, battle_presets=None):
                     '%s(battle): 预设 "%s" 的 kind=%r，不是 battle'
                     % (label, preset_id, preset["kind"])
                 )
+            mixed = set(node) & {
+                "friend_roster", "enemy_roster", "neutral_roster", "friend_people",
+                "enemy_people", "neutral_people", "friend_health", "enemy_health",
+                "neutral_health", "reset_skills", "skills",
+            }
+            if mixed:
+                raise LomcError(
+                    '%s(battle): 使用 preset 时不能再填写 %s；请在预设中统一配置'
+                    % (label, "、".join(sorted(mixed)))
+                )
+        effective = (battle_presets or {}).get(preset_id, node) if preset_id else node
+        for name in ("friend_roster", "enemy_roster", "neutral_roster"):
+            if name in effective and SCRIPT_ID_RE.fullmatch(effective[name]) is None:
+                raise LomcError('%s(battle): %s 必须是安全的原版 Battle id' % (label, name))
+        for name in (
+            "friend_people", "enemy_people", "neutral_people", "friend_health",
+            "enemy_health", "neutral_health",
+        ):
+            if name in effective and (
+                isinstance(effective[name], bool) or not isinstance(effective[name], int)
+                or effective[name] < (1 if name.endswith("health") else 0)
+            ):
+                raise LomcError('%s(battle): %s 数值无效' % (label, name))
+        skills = effective.get("skills", [])
+        if len(skills) > 16:
+            raise LomcError('%s(battle): skills 最多 16 条' % label)
+        for index, skill in enumerate(skills, 1):
+            if not isinstance(skill, dict) or set(skill) - {"key", "index", "active"}:
+                raise LomcError('%s(battle): 第 %d 条 skills 格式错误' % (label, index))
+            if not isinstance(skill.get("key"), str) or SCRIPT_ID_RE.fullmatch(skill["key"]) is None:
+                raise LomcError('%s(battle): 第 %d 条 skill key 无效' % (label, index))
+            slot = skill.get("index", 2)
+            active = skill.get("active", 1)
+            if isinstance(slot, bool) or not isinstance(slot, int):
+                raise LomcError('%s(battle): 第 %d 条 skill index 必须是整数' % (label, index))
+            if isinstance(active, bool) or active not in (0, 1):
+                raise LomcError('%s(battle): 第 %d 条 skill active 必须是 0 或 1' % (label, index))
     elif ntype in ("reward", "result_screen"):
         if ntype == "result_screen" and not node["title"].strip():
             raise LomcError('%s(result_screen): title 不能为空或纯空白' % label)
@@ -1528,21 +1616,85 @@ def _validate_battle_presets(raw):
         kind = preset.get("kind")
         if kind not in ("combat", "battle"):
             raise LomcError('%s: kind 必须是 "combat" 或 "battle"' % label)
-        allowed = {"kind", "key"}
+        allowed = {"name", "kind", "key"}
         if kind == "combat":
-            allowed.update(("enemy", "team", "level", "people", "display"))
+            allowed.update((
+                "max_health", "health", "max_stamina", "stamina", "strength",
+                "internal", "dexterity", "talking", "defence", "sword", "fist",
+                "martial_weapon", "mental", "ultimate_one", "ultimate_two",
+                "ultimate_three", "talk_rate", "attack_rate", "weapon_rate",
+                "ultimate_rate", "block_rate", "talents",
+            ))
+        else:
+            allowed.update((
+                "friend_roster", "enemy_roster", "neutral_roster", "friend_people",
+                "enemy_people", "neutral_people", "friend_health", "enemy_health",
+                "neutral_health", "reset_skills", "skills",
+            ))
         unknown = set(preset) - allowed
         if unknown:
             raise LomcError('%s: 未知字段 %s' % (label, "、".join(sorted(unknown))))
         if not _check_type("idstr", preset.get("key")):
             raise LomcError('%s: key 必须是非空的原版场景 id' % label)
-        if "enemy" in preset and not _check_type("idstr", preset["enemy"]):
-            raise LomcError('%s: enemy 必须是非空字符串' % label)
-        for name in ("team", "level", "people", "display"):
+        if "name" in preset and (
+            not isinstance(preset["name"], str)
+            or not preset["name"].strip()
+            or len(preset["name"]) > 80
+        ):
+            raise LomcError('%s: name 必须是 1~80 字符的可读名称' % label)
+        for name in ("friend_roster", "enemy_roster", "neutral_roster"):
+            if name in preset and (
+                not isinstance(preset[name], str) or SCRIPT_ID_RE.fullmatch(preset[name]) is None
+            ):
+                raise LomcError('%s: %s 必须是非空原版 Battle id' % (label, name))
+        for name in ("ultimate_one", "ultimate_two", "ultimate_three"):
+            if name in preset and (
+                not isinstance(preset[name], str) or SCRIPT_ID_RE.fullmatch(preset[name]) is None
+            ):
+                raise LomcError('%s: %s 必须是安全的原版技能 id' % (label, name))
+        for name in (
+            "max_health", "health", "max_stamina", "stamina", "strength", "internal",
+            "dexterity", "talking", "defence", "sword", "fist", "martial_weapon", "mental",
+            "friend_people", "enemy_people", "neutral_people", "friend_health",
+            "enemy_health", "neutral_health",
+        ):
             if name in preset and (
                 isinstance(preset[name], bool) or not isinstance(preset[name], int)
+                or preset[name] < (1 if name.endswith("health") and kind == "battle" else 0)
             ):
-                raise LomcError('%s: %s 必须是整数' % (label, name))
+                raise LomcError('%s: %s 必须是有效非负整数' % (label, name))
+        for name in ("talk_rate", "attack_rate", "weapon_rate", "ultimate_rate", "block_rate"):
+            if name in preset and (
+                isinstance(preset[name], bool) or not isinstance(preset[name], (int, float))
+                or not 0 <= preset[name] <= 1
+            ):
+                raise LomcError('%s: %s 必须在 0~1 之间' % (label, name))
+        if "reset_skills" in preset and not isinstance(preset["reset_skills"], bool):
+            raise LomcError('%s: reset_skills 必须是 bool' % label)
+        list_name = "talents" if kind == "combat" else "skills"
+        if list_name in preset and not isinstance(preset[list_name], list):
+            raise LomcError('%s: %s 必须是数组' % (label, list_name))
+        rows = preset.get(list_name, [])
+        if len(rows) > (32 if kind == "combat" else 16):
+            raise LomcError('%s: %s 条目过多' % (label, list_name))
+        for index, row in enumerate(rows, 1):
+            allowed_row = {"key", "level"} if kind == "combat" else {"key", "index", "active"}
+            if not isinstance(row, dict) or set(row) - allowed_row:
+                raise LomcError('%s: %s 第 %d 条格式错误' % (label, list_name, index))
+            key = row.get("key")
+            if not isinstance(key, str) or SCRIPT_ID_RE.fullmatch(key) is None:
+                raise LomcError('%s: %s 第 %d 条 key 无效' % (label, list_name, index))
+            if kind == "combat":
+                level = row.get("level", 1)
+                if isinstance(level, bool) or not isinstance(level, int) or level < 0:
+                    raise LomcError('%s: talents 第 %d 条 level 必须是非负整数' % (label, index))
+            else:
+                slot = row.get("index", 2)
+                active = row.get("active", 1)
+                if isinstance(slot, bool) or not isinstance(slot, int):
+                    raise LomcError('%s: skills 第 %d 条 index 必须是整数' % (label, index))
+                if isinstance(active, bool) or active not in (0, 1):
+                    raise LomcError('%s: skills 第 %d 条 active 必须是 0 或 1' % (label, index))
         validated[preset_id] = preset
     return validated
 

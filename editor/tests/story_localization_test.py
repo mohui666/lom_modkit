@@ -26,11 +26,11 @@ class StoryLocalizationTest(unittest.TestCase):
         story = self.story()
         config = normalized_localization(story)
         self.assertNotIn("localization", story)
-        self.assertEqual(config["default_locale"], "zh_CN")
+        self.assertEqual(config["default_locale"], "chs")
 
     def test_apply_and_remove(self):
         story = self.story()
-        apply_localization_settings(story, {"default_locale": "zh_CN", "fallback_locale": "zh_TW", "translations": {"ja": {"s1.text": "こんにちは"}}})
+        apply_localization_settings(story, {"default_locale": "chs", "fallback_locale": "cht", "translations": {"ja": {"s1.text": "こんにちは"}}})
         self.assertEqual(story["localization"]["translations"]["ja"]["s1.text"], "こんにちは")
         apply_localization_settings(story, None)
         self.assertNotIn("localization", story)
@@ -48,7 +48,7 @@ class StoryLocalizationTest(unittest.TestCase):
 
     def test_stale_and_blank_entries_are_cleaned(self):
         story = self.story()
-        story["localization"] = {"default_locale": "zh_CN", "fallback_locale": "zh_CN", "translations": {"ja": {"s1.text": " ", "gone.text": "x", "story.title": "題"}}}
+        story["localization"] = {"default_locale": "chs", "fallback_locale": "chs", "translations": {"ja": {"s1.text": " ", "gone.text": "x", "story.title": "題"}}}
         config = normalized_localization(story)
         self.assertEqual(config["translations"]["ja"], {"story.title": "題"})
 
@@ -62,8 +62,8 @@ class StoryLocalizationTest(unittest.TestCase):
 
     def test_coverage_is_exclusive_and_missing_filter_preserves_hidden_values(self):
         story = self.story()
-        config = {"default_locale": "zh_CN", "fallback_locale": "zh_TW", "translations": {
-            "zh_TW": {"story.title": "標題"}, "ja": {"s1.text": "こんにちは"}
+        config = {"default_locale": "chs", "fallback_locale": "cht", "translations": {
+            "cht": {"story.title": "標題"}, "ja": {"s1.text": "こんにちは"}
         }}
         coverage = translation_coverage(story, config, "ja")
         self.assertEqual((coverage["total"], coverage["translated"], coverage["fallback"], coverage["missing"]), (3, 1, 1, 1))

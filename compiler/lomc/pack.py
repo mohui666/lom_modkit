@@ -87,6 +87,8 @@ def pack_mod(mod_dir, output=None):
         validate_story(story, source="story/%s" % fname)
         story = dict(story)
         story["story_schema"] = STORY_SCHEMA
+        if localization_config(story) is not None:
+            story["localization"] = localization_config(story)
         inner_id = story.get("id") if isinstance(story, dict) else None
         if inner_id != stem:
             raise LomcError(

@@ -1,6 +1,6 @@
 # AI 에이전트 CLI / Python API 매뉴얼(story_api)
 
-> 언어: [简体中文](../zh_CN/ai_cli.md) · [繁體中文](../zh_TW/ai_cli.md) · [日本語](../ja/ai_cli.md) · 한국어(본문)
+> 언어: [简体中文](../chs/ai_cli.md) · [繁體中文](../cht/ai_cli.md) · [日本語](../ja/ai_cli.md) · 한국어(본문)
 
 `editor/story_api.py`는 AI 에이전트와 스크립트가 호출하는 스토리 데이터 인터페이스입니다: 통제된 쓰기 작업(Python API)
 + argparse 명령줄(check / compile / pack / new-story). 이 문서는 **서브프로세스 방식으로

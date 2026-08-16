@@ -28,11 +28,15 @@ namespace MortalModHost
         /// <summary>待开局的战役 mod；null 表示本次 NewGameData 是官方正常开局，不干预。</summary>
         internal static ModPackage PendingCampaign;
 
+        /// <summary>Postfix 失败时由 Plugin 检查并回滚，禁止继续进入官方首章。</summary>
+        internal static string CampaignFailure;
+
         private static void Postfix(SaveSystem __instance)
         {
             ModPackage mod = PendingCampaign;
             if (mod == null)
             {
+                CampaignFailure = null;
                 // 官方方式开局（无 mod 挂起）：上一场 mod 战役结束，禁用原版事件状态随之清除。
                 // （LuaManagerPatch 官方脚本分支不重置本状态——战役期间可能穿插官方脚本演出。）
                 ModCampaignState.Clear();
@@ -45,6 +49,7 @@ namespace MortalModHost
                 PlayerStatManagerData stat = PlayerStatManagerData.Instance;
                 if (stat == null)
                 {
+                    CampaignFailure = "PlayerStatManagerData 单例未就绪";
                     Log.LogError("新战役开局失败：PlayerStatManagerData 单例未就绪（mod " + mod.Id + "）");
                     ModCampaignState.Clear(); // 战役未真正开始，回退为无 mod 战役态（不再抑制原版事件）
                     ModQuestSession.Reset();
@@ -83,9 +88,13 @@ namespace MortalModHost
                 // 双写也只是同槽顺序覆盖（先官方 ch1_1 后本修正），无并发冲突。
                 __instance.SaveGameData();
                 Log.LogInfo("隔离槽存档已重写，StartStoryScript = " + registered);
+                CampaignFailure = null;
             }
             catch (Exception ex)
             {
+                CampaignFailure = ex.ToString();
+                ModCampaignState.Clear();
+                ModQuestSession.Reset();
                 Log.LogError("新战役首脚本替换异常（mod " + mod.Id + "）：" + ex);
             }
         }

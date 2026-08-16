@@ -5,7 +5,7 @@ namespace MortalModHost
 {
     /// <summary>
     /// 注册名（MOD_&lt;modid&gt;_&lt;scriptid&gt;）→ Lua 源码 的查找表（纯静态、无 BepInEx/Unity 依赖，可离线单测）。
-    /// 扫描完成后由 Plugin 重建一次，Harmony patch 按名命中，契约见 docs/zh_CN/mod_format.md §6.2。
+    /// 扫描完成后由 Plugin 重建一次，Harmony patch 按名命中，契约见 docs/chs/mod_format.md §6.2。
     /// </summary>
     internal static class ModRegistry
     {

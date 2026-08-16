@@ -8,7 +8,16 @@ import copy
 from .errors import LomcError
 
 
-SUPPORTED_LOCALES = ("zh_CN", "zh_TW", "ja", "ko")
+SUPPORTED_LOCALES = ("chs", "cht", "ja", "ko")
+LOCALE_ALIASES = {
+    "zh_CN": "chs", "zh-CN": "chs", "zh_Hans": "chs", "zh-Hans": "chs",
+    "zh_TW": "cht", "zh-TW": "cht", "zh_Hant": "cht", "zh-Hant": "cht",
+}
+
+
+def normalize_locale(locale):
+    """Canonicalize old locale spellings without emitting them in new packages."""
+    return LOCALE_ALIASES.get(locale, locale)
 
 # Only author-facing prose is localizable. IDs, asset refs and raw Lua never are.
 _NODE_TEXT_FIELDS = {
@@ -24,7 +33,23 @@ def localization_config(story):
     raw = story.get("localization") if isinstance(story, dict) else None
     if not isinstance(raw, dict):
         return None
-    return raw
+    normalized = dict(raw)
+    normalized["default_locale"] = normalize_locale(raw.get("default_locale"))
+    if "fallback_locale" in raw:
+        normalized["fallback_locale"] = normalize_locale(raw.get("fallback_locale"))
+    translations = raw.get("translations")
+    if isinstance(translations, dict):
+        canonical = {}
+        for old_locale, catalog in translations.items():
+            locale = normalize_locale(old_locale)
+            if locale in canonical and isinstance(canonical[locale], dict) and isinstance(catalog, dict):
+                merged = dict(canonical[locale])
+                merged.update(catalog)
+                canonical[locale] = merged
+            else:
+                canonical[locale] = catalog
+        normalized["translations"] = canonical
+    return normalized
 
 
 def iter_localizable_texts(story):
@@ -103,6 +128,7 @@ def resolved_catalog(story, locale):
     config = localization_config(story)
     if config is None:
         return source
+    locale = normalize_locale(locale)
     if locale not in SUPPORTED_LOCALES:
         raise LomcError("不支持的 Story locale: %s" % locale)
     translations = config.get("translations") or {}

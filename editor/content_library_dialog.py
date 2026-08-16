@@ -439,7 +439,7 @@ class ContentLibraryDialog(QDialog):
                 character=dlg.character(),
             )
         except ContentRegistryError as exc:
-            QMessageBox.critical(self, "无法导入音频", str(exc))
+            QMessageBox.critical(self, t("audio.import_error"), str(exc))
             return
         set_default_namespace(dlg.namespace())
         self._reload()
@@ -614,7 +614,7 @@ class ContentLibraryDialog(QDialog):
     def _edit_selected(self) -> None:
         content_id = self._selected_id()
         if not content_id:
-            QMessageBox.information(self, t("library.edit"), "请先选中一条用户内容。")
+            QMessageBox.information(self, t("library.edit"), t("library.select_content"))
             return
         try:
             rec = get(content_id)
@@ -680,12 +680,12 @@ class ContentLibraryDialog(QDialog):
     def _delete_selected(self) -> None:
         content_id = self._selected_id()
         if not content_id:
-            QMessageBox.information(self, "删除", "请先选中一条用户内容。")
+            QMessageBox.information(self, t("library.delete"), t("library.select_content"))
             return
         try:
             remove(content_id, stories=self._stories)
         except ContentRegistryError as exc:
-            QMessageBox.warning(self, "无法删除", str(exc))
+            QMessageBox.warning(self, t("library.delete_fail"), str(exc))
             return
         self._reload()
 
@@ -785,9 +785,9 @@ class _ImportAudioDialog(QDialog):
         self._namespace = QLineEdit(ns)
         self._local = QLineEdit(local)
         self._kind = QComboBox()
-        self._kind.addItem("音乐（music 步骤）", "music")
-        self._kind.addItem("音效（sound 步骤）", "sound")
-        self._kind.addItem("环境音（sound 步骤的环境音声道）", "env")
+        self._kind.addItem(t("library.kind.music"), "music")
+        self._kind.addItem(t("library.kind.sound"), "sound")
+        self._kind.addItem(t("library.kind.env"), "env")
         if audio_kind in ("music", "sound", "env"):
             idx = self._kind.findData(audio_kind)
             if idx >= 0:
@@ -800,12 +800,12 @@ class _ImportAudioDialog(QDialog):
             current=character,
             locked=character if lock_character else None,
         )
-        layout.addRow("显示名称", self._name)
-        layout.addRow("命名空间", self._namespace)
-        layout.addRow("内部名称", self._local)
-        layout.addRow("用途", self._kind)
+        layout.addRow(t("library.col.name"), self._name)
+        layout.addRow(t("library.namespace"), self._namespace)
+        layout.addRow(t("library.internal_name"), self._local)
+        layout.addRow(t("library.col.kind"), self._kind)
         layout.addRow(t("library.col.character"), self._character)
-        hint = QLabel("完整编号将是 user:%s.%s" % (ns, local))
+        hint = QLabel(t("library.full_id", id="user:%s.%s" % (ns, local)))
         hint.setWordWrap(True)
         hint.setProperty("context_help", True)
         layout.addRow(hint)
@@ -861,12 +861,12 @@ class _ImportImageDialog(QDialog):
         self._namespace = QLineEdit(ns)
         self._local = QLineEdit(local)
         layout.addRow(t("library.col.name"), self._name)
-        layout.addRow("命名空间", self._namespace)
-        layout.addRow("内部名称", self._local)
+        layout.addRow(t("library.namespace"), self._namespace)
+        layout.addRow(t("library.internal_name"), self._local)
         self._preview = QLabel()
         self._preview.setPixmap(QIcon(str(source)).pixmap(QSize(240, 135)))
         self._preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addRow("缩略图", self._preview)
+        layout.addRow(t("library.thumbnail"), self._preview)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
@@ -925,7 +925,7 @@ class _ImportCharacterDialog(QDialog):
             self._title = QLineEdit("")
             self._namespace = QLineEdit(ns)
             self._local = QLineEdit(local)
-        form.addRow("显示名称", self._name)
+        form.addRow(t("library.col.name"), self._name)
         form.addRow(t("library.char_title"), self._title)
         self._scale = QSlider(Qt.Orientation.Horizontal)
         self._scale.setRange(50, 130)
@@ -956,10 +956,10 @@ class _ImportCharacterDialog(QDialog):
         facing_idx = self._art_facing.findData(current_facing)
         self._art_facing.setCurrentIndex(facing_idx if facing_idx >= 0 else 0)
         form.addRow(t("library.art_facing"), self._art_facing)
-        form.addRow("命名空间", self._namespace)
-        form.addRow("内部名称", self._local)
+        form.addRow(t("library.namespace"), self._namespace)
+        form.addRow(t("library.internal_name"), self._local)
         basic_layout.addLayout(form)
-        self._hint = QLabel("完整编号将是 user:%s.%s" % (ns, local))
+        self._hint = QLabel(t("library.full_id", id="user:%s.%s" % (ns, local)))
         self._hint.setWordWrap(True)
         self._hint.setProperty("context_help", True)
         basic_layout.addWidget(self._hint)
@@ -1112,7 +1112,7 @@ class _ImportCharacterDialog(QDialog):
     def _accept(self) -> None:
         portraits = self.portraits()
         if self._existing is None and "normal" not in portraits:
-            QMessageBox.warning(self, t("library.import_char_fail"), "必须选择 normal 默认立绘。")
+            QMessageBox.warning(self, t("library.import_char_fail"), t("library.normal_required"))
             return
         self.accept()
 
@@ -1144,7 +1144,7 @@ class _EditAudioDialog(QDialog):
             current=lock_character or rec.character,
             locked=lock_character,
         )
-        layout.addRow("显示名称", self._name)
+        layout.addRow(t("library.col.name"), self._name)
         layout.addRow(t("library.col.character"), self._character)
         hint = QLabel(t("library.character_hint"))
         hint.setWordWrap(True)

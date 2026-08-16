@@ -64,10 +64,9 @@ namespace MortalModHost
 
         internal static string VisibleWatermarkText(string shortFingerprint)
         {
-            string identity = string.IsNullOrEmpty(shortFingerprint)
+            return string.IsNullOrEmpty(shortFingerprint)
                 ? FixedStamp()
-                : FixedStamp() + " / " + shortFingerprint;
-            return identity + "     " + identity + "\n" + identity + "     " + identity;
+                : FixedStamp() + "  ·  " + shortFingerprint;
         }
 
         internal static byte[] CreateSessionSeal(string modId, string fingerprint)

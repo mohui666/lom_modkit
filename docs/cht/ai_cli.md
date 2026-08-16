@@ -1,6 +1,6 @@
 # AI 代理 CLI / Python API 手冊（story_api）
 
-> 語言：[简体中文](../zh_CN/ai_cli.md) · 繁體中文（本文） · [日本語](../ja/ai_cli.md) · [한국어](../ko/ai_cli.md)
+> 語言：[简体中文](../chs/ai_cli.md) · 繁體中文（本文） · [日本語](../ja/ai_cli.md) · [한국어](../ko/ai_cli.md)
 
 `editor/story_api.py` 是給 AI 代理與腳本呼叫的劇情資料介面：受控寫操作（Python API）
 + argparse 命令列（check / compile / pack / new-story）。本文件面向**以子行程方式

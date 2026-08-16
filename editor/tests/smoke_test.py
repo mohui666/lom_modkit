@@ -34,6 +34,32 @@ def main_fn() -> int:
     editor_data, is_fallback = models.load_editor_data(main.PROJECT_ROOT)
     win = main.MainWindow(editor_data, is_fallback)
     win._prompt_on_discard = False  # 测试全程关闭未保存确认弹窗（会阻塞 offscreen）
+    win.show()
+    app.processEvents()
+
+    # 两根分隔条只允许改变相邻区域，不能牵动另一侧。
+    outer_before = win.workspace_splitter.sizes()
+    inner_before = win.navigation_splitter.sizes()
+    right_before = win.right_tabs.width()
+    win.navigation_splitter.moveSplitter(max(180, inner_before[0] - 40), 1)
+    app.processEvents()
+    assert win.right_tabs.width() == right_before, "拖动左侧分隔条不应改变非相邻右栏"
+    left_before = win.navigation_splitter.widget(0).width()
+    # 极限向左挤压外层 handle；过去在中栏耗尽后会继续压缩左栏。
+    win.workspace_splitter.moveSplitter(1, 1)
+    app.processEvents()
+    assert win.navigation_splitter.widget(0).width() == left_before, (
+        "拖动右侧分隔条不应改变非相邻左栏"
+    )
+    assert win.inspector.width() >= win.inspector.minimumWidth(), (
+        "外层分隔条必须在属性栏最小可用宽度处停止"
+    )
+
+    combo_probe = QComboBox()
+    main.NodeForm._configure_combo(combo_probe)
+    assert combo_probe.minimumContentsLength() == 1
+    assert combo_probe.minimumWidth() == 0
+
     assert len(win.story["nodes"]) == 3, "新建项目应含登场、示例对白和结束剧情"
     assert win.node_list.count() == 4, "列表 = 章节设置 + 3 个步骤"
     assert win.story["nodes"][-1]["type"] == "end", "新手模板应可直接通过收尾校验"
@@ -48,6 +74,7 @@ def main_fn() -> int:
         assert noise not in toolbar_texts, f"工具栏不应再放 {noise}（已收进菜单）"
     menu_texts = [action.text() for action in win.menuBar().findChildren(main.QAction)]
     assert any("检查 Mod 包" in text for text in menu_texts), "文件菜单缺少只读包检查器"
+    assert "文档" in menu_texts, "帮助菜单应提供独立文档入口"
     # 左栏步骤树：第 0 行是章节设置，其后才是步骤
     assert win.node_list.count() == 4, "章节设置 + 3 个新手步骤"
     assert win._is_chapter_item(win.node_list.item(0))
@@ -58,6 +85,7 @@ def main_fn() -> int:
     help_dlg = main.HelpDialog(win)
     help_text = help_dlg.findChild(main.QTextBrowser).toPlainText()
     assert "五分钟做出第一段剧情" in help_text and "汗青书结局怎么写" in help_text
+    assert help_dlg.findChild(main.QTabWidget) is None, "完整文档不应嵌套在帮助弹窗内"
     help_dlg.close()
     manager_dlg = main.ModManagerDialog(win.game_manager, win)
     manager_buttons = [

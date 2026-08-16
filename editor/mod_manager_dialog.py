@@ -36,22 +36,19 @@ class RuntimeDoctorDialog(QDialog):
     def __init__(self, manager: GameInstallManager, parent=None):
         super().__init__(parent)
         self.manager = manager
-        self.setWindowTitle("Runtime 安装诊断")
+        self.setWindowTitle(t("doctor.title"))
         self.resize(820, 580)
         layout = QVBoxLayout(self)
-        intro = QLabel(
-            "检查 BepInEx、MortalModHost、运行依赖、重复 DLL 和 Mod 目录。"
-            "诊断不会加载 DLL；安全修复不会删除第三方文件。"
-        )
+        intro = QLabel(t("doctor.intro"))
         intro.setWordWrap(True)
         layout.addWidget(intro)
         self.report_view = QTextBrowser()
         self.report_view.setOpenExternalLinks(False)
         layout.addWidget(self.report_view, 1)
         action_row = QHBoxLayout()
-        self.repair_btn = QPushButton("应用安全修复")
+        self.repair_btn = QPushButton(t("doctor.repair"))
         self.repair_btn.clicked.connect(self._repair)
-        refresh_btn = QPushButton("重新检查")
+        refresh_btn = QPushButton(t("doctor.refresh"))
         refresh_btn.clicked.connect(self.refresh)
         action_row.addWidget(self.repair_btn)
         action_row.addWidget(refresh_btn)
@@ -72,7 +69,7 @@ class RuntimeDoctorDialog(QDialog):
                 "<br><code>%s</code>" % str(path).replace("&", "&amp;").replace("<", "&lt;")
                 for path in item.paths
             )
-            fix = " <b>［可安全修复］</b>" if item.fixable else ""
+            fix = " <b>%s</b>" % t("doctor.fixable") if item.fixable else ""
             lines.append(
                 '<p><span style="color:%s"><b>%s %s</b></span>%s<br>%s%s</p>'
                 % (colors[item.severity], icons[item.severity], item.title, fix,
@@ -80,19 +77,19 @@ class RuntimeDoctorDialog(QDialog):
             )
         self.report_view.setHtml("".join(lines))
         self.repair_btn.setEnabled(report.fixable_count > 0)
-        self.repair_btn.setText("应用安全修复（%d）" % report.fixable_count)
+        self.repair_btn.setText(t("doctor.repair_count", count=report.fixable_count))
 
     def _repair(self) -> None:
         try:
             actions = self.manager.apply_installation_doctor_fixes()
         except GameInstallError as exc:
-            QMessageBox.critical(self, "安全修复失败", str(exc))
+            QMessageBox.critical(self, t("doctor.repair_fail"), str(exc))
             self.refresh()
             return
         QMessageBox.information(
             self,
-            "安全修复完成",
-            "\n".join(actions) if actions else "当前没有可自动执行的安全修复。",
+            t("doctor.repair_done"),
+            "\n".join(actions) if actions else t("doctor.no_repairs"),
         )
         self.refresh()
 
@@ -145,9 +142,9 @@ class ModManagerDialog(QDialog):
         self.status_label.setWordWrap(True)
         self.install_btn = QPushButton(t("install.reinstall_runtime"))
         self.install_btn.clicked.connect(self._install_runtime)
-        self.doctor_btn = QPushButton("安装诊断…")
+        self.doctor_btn = QPushButton(t("doctor.open"))
         self.doctor_btn.clicked.connect(self._show_runtime_doctor)
-        self.rollback_btn = QPushButton("恢复上一版")
+        self.rollback_btn = QPushButton(t("install.rollback"))
         self.rollback_btn.clicked.connect(self._restore_runtime)
         self.bepinex_btn = QPushButton(t("install.bepinex"))
         self.bepinex_btn.setToolTip(t("install.bepinex_tip"))
@@ -312,25 +309,25 @@ class ModManagerDialog(QDialog):
         try:
             self.manager.save_game_dir(path)
         except GameInstallError as exc:
-            QMessageBox.critical(self, "无法连接游戏", str(exc))
+            QMessageBox.critical(self, t("install.connect_fail"), str(exc))
             return
         if self.manager.bepinex_installed(path):
             try:
                 target, changed = self.manager.install_runtime()
             except GameInstallError as exc:
-                QMessageBox.critical(self, "运行时安装失败", str(exc))
+                QMessageBox.critical(self, t("install.runtime_fail"), str(exc))
                 self.refresh()
                 return
             QMessageBox.information(
                 self,
-                "游戏已连接",
-                ("运行时已安装到：" if changed else "运行时已经是最新版：") + str(target),
+                t("install.connected_title"),
+                t("install.runtime_changed" if changed else "install.runtime_current", path=target),
             )
         else:
             QMessageBox.information(
                 self,
-                "已找到游戏",
-                "游戏目录已经保存。下一步点击“安装 BepInEx”，编辑器会自动完成其余安装。",
+                t("install.found_title"),
+                t("install.found_message"),
             )
         self.refresh()
 
@@ -339,20 +336,18 @@ class ModManagerDialog(QDialog):
             root = self.manager.require_game_dir()
             architecture = self.manager.game_architecture(root)
         except GameInstallError as exc:
-            QMessageBox.critical(self, "无法安装 BepInEx", str(exc))
+            QMessageBox.critical(self, t("install.bepinex_fail"), str(exc))
             return
         answer = QMessageBox.question(
             self,
-            "安装 BepInEx",
-            "将从 BepInEx 官方下载站安装已验证的 BepInEx 6 build 692 "
-            f"（Unity Mono {architecture}）。\n\n"
-            "不会删除已有配置、插件或 Mod。是否继续？",
+            t("install.bepinex_confirm_title"),
+            t("install.bepinex_confirm", architecture=architecture),
         )
         if answer != QMessageBox.StandardButton.Yes:
             return
 
-        dialog = QProgressDialog("正在准备下载…", "取消", 0, 0, self)
-        dialog.setWindowTitle("安装 BepInEx")
+        dialog = QProgressDialog(t("install.download_prepare"), t("common.cancel"), 0, 0, self)
+        dialog.setWindowTitle(t("install.bepinex_confirm_title"))
         dialog.setWindowModality(Qt.WindowModality.WindowModal)
         dialog.setMinimumDuration(0)
         dialog.setAutoClose(False)
@@ -367,23 +362,21 @@ class ModManagerDialog(QDialog):
                 dialog.setRange(0, 0)
             QApplication.processEvents()
             if dialog.wasCanceled():
-                raise GameInstallError("安装已取消，现有游戏文件没有被删除。")
+                raise GameInstallError(t("install.cancelled"))
 
         try:
             version, source = self.manager.install_bepinex(report)
             target, _changed = self.manager.install_runtime()
         except GameInstallError as exc:
             dialog.close()
-            QMessageBox.critical(self, "BepInEx 安装失败", str(exc))
+            QMessageBox.critical(self, t("install.bepinex_install_fail"), str(exc))
             self.refresh()
             return
         dialog.close()
         QMessageBox.information(
             self,
-            "安装完成",
-            f"已安装 BepInEx {version} 和 MortalModHost。\n"
-            f"运行时位置：{target}\n\n官方来源：{source}\n\n"
-            "已同时写入 Steam 普通启动修复（ignore_disable_switch + version.dll）。",
+            t("install.complete"),
+            t("install.bepinex_done", version=version, target=target, source=source),
         )
         self.refresh()
 
@@ -395,12 +388,12 @@ class ModManagerDialog(QDialog):
         try:
             target, changed = self.manager.install_runtime()
         except GameInstallError as exc:
-            QMessageBox.critical(self, "安装失败", str(exc))
+            QMessageBox.critical(self, t("install.fail"), str(exc))
             return
         QMessageBox.information(
             self,
-            "安装完成",
-            ("已更新：" if changed else "无需更新，文件已经一致：") + str(target),
+            t("install.complete"),
+            t("install.updated" if changed else "install.already_current", path=target),
         )
         self.refresh()
 
@@ -410,13 +403,12 @@ class ModManagerDialog(QDialog):
 
     def _restore_runtime(self) -> None:
         if self.manager.is_game_running():
-            QMessageBox.warning(self, "无法恢复 Runtime", "请先退出《活侠传》，再恢复上一版。")
+            QMessageBox.warning(self, t("install.rollback_fail"), t("install.exit_before_rollback"))
             return
         answer = QMessageBox.question(
             self,
-            "恢复上一版 Runtime",
-            "只会恢复 MortalModHost.dll 与其受管依赖，不会修改游戏原始文件。\n\n"
-            "是否继续？",
+            t("install.rollback_title"),
+            t("install.rollback_confirm"),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -425,28 +417,28 @@ class ModManagerDialog(QDialog):
         try:
             restored = self.manager.restore_previous_runtime()
         except GameInstallError as exc:
-            QMessageBox.critical(self, "Runtime 恢复失败", str(exc))
+            QMessageBox.critical(self, t("install.rollback_runtime_fail"), str(exc))
             self.refresh()
             return
         QMessageBox.information(
             self,
-            "Runtime 已恢复",
-            "已恢复：\n" + "\n".join(str(path) for path in restored),
+            t("install.rollback_done"),
+            t("install.restored_files", files="\n".join(str(path) for path in restored)),
         )
         self.refresh()
 
     def _add_mod(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
-            self, "安装 .lommod", str(Path.home()), "活侠传 Mod (*.lommod)"
+            self, t("install.choose_mod"), str(Path.home()), t("install.mod_filter")
         )
         if not path:
             return
         try:
             target = self.manager.install_mod(Path(path), enabled=True)
         except GameInstallError as exc:
-            QMessageBox.critical(self, "Mod 安装失败", str(exc))
+            QMessageBox.critical(self, t("install.mod_fail"), str(exc))
             return
-        QMessageBox.information(self, "Mod 已安装", f"已启用：{target.name}\n重启游戏后生效。")
+        QMessageBox.information(self, t("install.mod_done"), t("install.mod_enabled", name=target.name))
         self.refresh()
 
     def _toggle_mod(self, item: QTableWidgetItem) -> None:
@@ -459,5 +451,5 @@ class ModManagerDialog(QDialog):
         try:
             self.manager.set_enabled(Path(str(path_value)), enabled)
         except GameInstallError as exc:
-            QMessageBox.critical(self, "无法切换 Mod", str(exc))
+            QMessageBox.critical(self, t("install.mod_toggle_fail"), str(exc))
         self.refresh()

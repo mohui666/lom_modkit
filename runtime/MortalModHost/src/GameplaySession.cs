@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace MortalModHost
@@ -23,6 +25,8 @@ namespace MortalModHost
         private static string _lastResult = "";
         private static string _lastOwner = "";
         private static string _lastStory = "";
+        private static readonly Dictionary<string, string> _config =
+            new Dictionary<string, string>(StringComparer.Ordinal);
 
         internal static bool HasPending { get { return _owner.Length > 0; } }
         internal static bool PendingCombat
@@ -65,6 +69,66 @@ namespace MortalModHost
             _lastResult = "";
             _lastOwner = "";
             _lastStory = "";
+            _config.Clear();
+        }
+
+        internal static void Configure(string kind, string encoded)
+        {
+            if (!HasPending || !string.Equals(_kind, kind, StringComparison.Ordinal))
+                throw new InvalidOperationException("Gameplay 配置必须紧跟对应的 prepare");
+            if (encoded == null || encoded.Length > 8192)
+                throw new ArgumentException("Gameplay 配置超过 8192 字符上限");
+            _config.Clear();
+            if (encoded.Length == 0) return;
+            string[] fields = encoded.Split(';');
+            if (fields.Length > 64)
+                throw new ArgumentException("Gameplay 配置字段过多");
+            foreach (string field in fields)
+            {
+                int pivot = field.IndexOf('=');
+                if (pivot <= 0) throw new ArgumentException("Gameplay 配置格式错误");
+                string key = field.Substring(0, pivot);
+                string value = field.Substring(pivot + 1);
+                RequireSegment("config key", key);
+                if (value.Length > 4096)
+                    throw new ArgumentException("Gameplay 配置值过长：" + key);
+                if (_config.ContainsKey(key))
+                    throw new ArgumentException("Gameplay 配置字段重复：" + key);
+                _config.Add(key, value);
+            }
+        }
+
+        internal static string ConfigString(string key)
+        {
+            string value;
+            return _config.TryGetValue(key, out value) ? value : "";
+        }
+
+        internal static bool HasConfig(string key)
+        {
+            return _config.ContainsKey(key);
+        }
+
+        internal static bool TryConfigInt(string key, int min, int max, out int value)
+        {
+            value = 0;
+            string raw;
+            if (!_config.TryGetValue(key, out raw)) return false;
+            if (!int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out value)
+                || value < min || value > max)
+                throw new InvalidOperationException("Gameplay 整数配置越界：" + key);
+            return true;
+        }
+
+        internal static bool TryConfigFloat(string key, float min, float max, out float value)
+        {
+            value = 0f;
+            string raw;
+            if (!_config.TryGetValue(key, out raw)) return false;
+            if (!float.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out value)
+                || float.IsNaN(value) || float.IsInfinity(value) || value < min || value > max)
+                throw new InvalidOperationException("Gameplay 小数配置越界：" + key);
+            return true;
         }
 
         internal static bool RecordResult(string kind, string result)
@@ -130,6 +194,7 @@ namespace MortalModHost
             _winTarget = "";
             _loseTarget = "";
             _result = "";
+            _config.Clear();
         }
 
         private static string Owner(ModPackage package)

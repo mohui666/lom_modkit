@@ -30,6 +30,8 @@ TABLES = {
     "items_book": ("ItemBook_{lang}.txt", "Book/Name/"),
     "items_misc": ("ItemMisc_{lang}.txt", "Misc/Name/"),
     "items_special": ("ItemSpecial_{lang}.txt", "Special/Name/"),
+    "enemy_teams": ("EnemyTeam_{lang}.txt", "EnemyTeam/"),
+    "battle_skills": ("BattleSkill_{lang}.txt", "BattleSkill/Name/"),
     "free_positions": ("Position_{lang}.txt", "Position/Name/"),
     "system": ("System_{lang}.txt", "System/"),
 }
@@ -71,7 +73,7 @@ WIKI_JA_STATS = {
 
 # wiki / 官方系统名词
 WIKI_COMMON = {
-    "zh_CN": {
+    "chs": {
         "game_title": "活侠传",
         "tang_sect": "唐门",
         "affinity": "好感度",
@@ -88,7 +90,7 @@ WIKI_COMMON = {
         "fourth_brother": "四师兄",
         "sect_leader": "掌门",
     },
-    "zh_TW": {
+    "cht": {
         "game_title": "活俠傳",
         "tang_sect": "唐門",
         "affinity": "好感度",
@@ -142,7 +144,7 @@ WIKI_COMMON = {
 }
 
 VIEW_TIME = {
-    "zh_CN": {
+    "chs": {
         "白天": "白天",
         "夜晚": "夜晚",
         "黃昏": "黄昏",
@@ -154,7 +156,7 @@ VIEW_TIME = {
         "孤雲山": "孤云山",
         "孤云山": "孤云山",
     },
-    "zh_TW": {},
+    "cht": {},
     "ja": {
         "白天": "昼",
         "夜晚": "夜",
@@ -181,7 +183,7 @@ VIEW_TIME = {
 
 # 场景专名：wiki / 解包地点表
 VIEW_PLACE = {
-    "zh_CN": {
+    "chs": {
         "煉丹房": "炼丹房",
         "後山": "后山",
         "後山2": "后山2",
@@ -588,6 +590,8 @@ def build_lang(unpack_lang: str, locale: str, ja_from_tw: dict | None = None) ->
         data["items_book"] = dict(ja_from_tw.get("items_book") or {})
         data["items_misc"] = dict(ja_from_tw.get("items_misc") or {})
         data["items_special"] = dict(ja_from_tw.get("items_special") or {})
+        data["enemy_teams"] = dict(ja_from_tw.get("enemy_teams") or {})
+        data["battle_skills"] = dict(ja_from_tw.get("battle_skills") or {})
         data["free_positions"] = dict(ja_from_tw.get("free_positions") or {})
         stats = dict(ja_from_tw.get("stats") or {})
         stats.update(WIKI_JA_STATS)
@@ -614,8 +618,8 @@ def build_lang(unpack_lang: str, locale: str, ja_from_tw: dict | None = None) ->
         data.setdefault("free_positions", {}).update(ja_pos)
     common = dict(WIKI_COMMON[locale])
     sys_map = {
-        "zh_CN": "zh-cn",
-        "zh_TW": "zh-tw",
+        "chs": "zh-cn",
+        "cht": "zh-tw",
         "ko": "kr",
     }
     if locale in sys_map:
@@ -630,7 +634,7 @@ def build_lang(unpack_lang: str, locale: str, ja_from_tw: dict | None = None) ->
             name = entry.get("name") if isinstance(entry, dict) else str(entry)
             if not vid:
                 continue
-            if locale == "zh_TW":
+            if locale == "cht":
                 views[vid] = name
             else:
                 views[vid] = translate_view_name(name, locale)
@@ -639,14 +643,14 @@ def build_lang(unpack_lang: str, locale: str, ja_from_tw: dict | None = None) ->
         # 站位：无官方多语言，按规则翻译
         pos = {}
         letters = {
-            "zh_CN": {"S": "屏外", "L": "左", "M": "中", "R": "右", "B": "后", "C": "央"},
-            "zh_TW": {"S": "屏外", "L": "左", "M": "中", "R": "右", "B": "後", "C": "央"},
+            "chs": {"S": "屏外", "L": "左", "M": "中", "R": "右", "B": "后", "C": "央"},
+            "cht": {"S": "屏外", "L": "左", "M": "中", "R": "右", "B": "後", "C": "央"},
             "ja": {"S": "画面外", "L": "左", "M": "中", "R": "右", "B": "後", "C": "中央"},
             "ko": {"S": "화면 밖", "L": "좌", "M": "중", "R": "우", "B": "후", "C": "중앙"},
         }[locale]
         special = {
-            "zh_CN": {"Talk": "对话位"},
-            "zh_TW": {"Talk": "對話位"},
+            "chs": {"Talk": "对话位"},
+            "cht": {"Talk": "對話位"},
             "ja": {"Talk": "会話位置"},
             "ko": {"Talk": "대화 위치"},
         }[locale]
@@ -674,10 +678,10 @@ def main() -> int:
     if not RAW.is_dir():
         print("missing unpack raw:", RAW)
         return 2
-    tw = build_lang("zh-tw", "zh_TW")
+    tw = build_lang("zh-tw", "cht")
     catalogs = {
-        "zh_CN": build_lang("zh-cn", "zh_CN"),
-        "zh_TW": tw,
+        "chs": build_lang("zh-cn", "chs"),
+        "cht": tw,
         "ja": build_lang("zh-tw", "ja", ja_from_tw=tw),
         "ko": build_lang("kr", "ko"),
     }

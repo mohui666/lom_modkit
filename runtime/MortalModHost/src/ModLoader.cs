@@ -9,7 +9,7 @@ namespace MortalModHost
 {
     /// <summary>
     /// mod 包扫描与解析（纯静态、无 BepInEx/Unity 依赖，便于离线单测）。
-    /// 行为契约见 docs/zh_CN/mod_format.md §6：扫描 mods/*.lommod，解出 manifest.json、lua/*.lua、可选 texts.json（契约 §1）
+    /// 行为契约见 docs/chs/mod_format.md §6：扫描 mods/*.lommod，解出 manifest.json、lua/*.lua、可选 texts.json（契约 §1）
     /// 与 assets/ 下图片（契约 §3.1）。单个包损坏只警告跳过，绝不抛出让插件崩溃。
     /// </summary>
     internal static class ModLoader
@@ -152,8 +152,8 @@ namespace MortalModHost
                     {
                         package.LocalizedLuaScripts.Clear();
                         package.LocalizedTexts.Clear();
-                        package.DefaultLocale = "zh_CN";
-                        package.FallbackLocale = "zh_CN";
+                        package.DefaultLocale = "chs";
+                        package.FallbackLocale = "chs";
                         if (logWarn != null)
                             logWarn("mod " + package.Id + " 的 localization.json/locale 资源无效，已回退默认语言：" + ex.Message);
                     }
@@ -450,7 +450,16 @@ namespace MortalModHost
 
         private static bool IsStoryLocale(string locale)
         {
-            return locale == "zh_CN" || locale == "zh_TW" || locale == "ja" || locale == "ko";
+            return NormalizeStoryLocale(locale) != null;
+        }
+
+        private static string NormalizeStoryLocale(string locale)
+        {
+            if (locale == "chs" || locale == "cht" || locale == "ja" || locale == "ko") return locale;
+            // Compatibility is input-only. New manifests and package paths always emit chs/cht.
+            if (locale == "zh_CN" || locale == "zh-CN" || locale == "zh_Hans" || locale == "zh-Hans") return "chs";
+            if (locale == "zh_TW" || locale == "zh-TW" || locale == "zh_Hant" || locale == "zh-Hant") return "cht";
+            return null;
         }
 
         private static void ParseLocalization(ModPackage package, string json)
@@ -464,17 +473,18 @@ namespace MortalModHost
             string defaultLocale = root.TryGetValue("default_locale", out defaultValue) ? defaultValue as string : null;
             string fallbackLocale = root.TryGetValue("fallback_locale", out fallbackValue) ? fallbackValue as string : defaultLocale;
             if (!IsStoryLocale(defaultLocale) || !IsStoryLocale(fallbackLocale))
-                throw new FormatException("default_locale/fallback_locale 只支持 zh_CN/zh_TW/ja/ko");
-            package.DefaultLocale = defaultLocale;
-            package.FallbackLocale = fallbackLocale;
+                throw new FormatException("default_locale/fallback_locale 只支持 chs/cht/ja/ko");
+            package.DefaultLocale = NormalizeStoryLocale(defaultLocale);
+            package.FallbackLocale = NormalizeStoryLocale(fallbackLocale);
         }
 
         private static void LoadLocalizedScriptsAndTexts(ModPackage package, ZipArchive zip)
         {
-            foreach (string locale in new[] { "zh_CN", "zh_TW", "ja", "ko" })
+            foreach (string locale in new[] { "chs", "cht", "ja", "ko" })
             {
                 var scripts = new Dictionary<string, string>();
-                string prefix = "lua/" + locale + "/";
+                string packageLocale = FindPackagedLocale(zip, locale);
+                string prefix = "lua/" + packageLocale + "/";
                 foreach (var entry in zip.Entries)
                 {
                     if (!entry.FullName.StartsWith(prefix, StringComparison.Ordinal) ||
@@ -489,7 +499,7 @@ namespace MortalModHost
                 if (scripts.Count != package.LuaScripts.Count)
                     throw new FormatException(prefix + " 必须为每个默认脚本提供完整变体");
                 package.LocalizedLuaScripts[locale] = scripts;
-                var textsEntry = zip.GetEntry("texts/" + locale + ".json");
+                var textsEntry = zip.GetEntry("texts/" + packageLocale + ".json");
                 if (textsEntry == null)
                     throw new FormatException("缺少 texts/" + locale + ".json");
                 var texts = new Dictionary<string, string>();
@@ -501,6 +511,14 @@ namespace MortalModHost
                         throw new FormatException(textsEntry.FullName + " 缺少 key " + key);
                 package.LocalizedTexts[locale] = texts;
             }
+        }
+
+        private static string FindPackagedLocale(ZipArchive zip, string locale)
+        {
+            if (zip.GetEntry("texts/" + locale + ".json") != null) return locale;
+            if (locale == "chs" && zip.GetEntry("texts/zh_CN.json") != null) return "zh_CN";
+            if (locale == "cht" && zip.GetEntry("texts/zh_TW.json") != null) return "zh_TW";
+            return locale;
         }
 
         /// <summary>

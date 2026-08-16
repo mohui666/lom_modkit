@@ -17,12 +17,12 @@ from PySide6.QtWidgets import (
 )
 
 from i18n import t
-from lomc.localization import SUPPORTED_LOCALES, iter_localizable_texts
+from lomc.localization import SUPPORTED_LOCALES, iter_localizable_texts, normalize_locale
 
 
 LOCALE_NAMES = {
-    "zh_CN": "简体中文",
-    "zh_TW": "繁體中文",
+    "chs": "简体中文",
+    "cht": "繁體中文",
     "ja": "日本語",
     "ko": "한국어",
 }
@@ -32,16 +32,17 @@ def normalized_localization(story: dict) -> dict:
     """Return a safe editable copy without mutating an old story."""
     raw = story.get("localization")
     if not isinstance(raw, dict):
-        return {"default_locale": "zh_CN", "fallback_locale": "zh_CN", "translations": {}}
-    default = raw.get("default_locale")
+        return {"default_locale": "chs", "fallback_locale": "chs", "translations": {}}
+    default = normalize_locale(raw.get("default_locale"))
     if default not in SUPPORTED_LOCALES:
-        default = "zh_CN"
-    fallback = raw.get("fallback_locale")
+        default = "chs"
+    fallback = normalize_locale(raw.get("fallback_locale"))
     if fallback not in SUPPORTED_LOCALES:
         fallback = default
     known = dict(iter_localizable_texts(story))
     translations = {}
-    for locale, catalog in (raw.get("translations") or {}).items():
+    for raw_locale, catalog in (raw.get("translations") or {}).items():
+        locale = normalize_locale(raw_locale)
         if locale not in SUPPORTED_LOCALES or locale == default or not isinstance(catalog, dict):
             continue
         cleaned = {path: value for path, value in catalog.items()
@@ -63,7 +64,7 @@ def apply_localization_settings(story: dict, config: dict | None) -> None:
 def translation_coverage(story: dict, config: dict, locale: str) -> dict:
     """Return exclusive direct/fallback/missing counts and per-path status."""
     source = dict(iter_localizable_texts(story))
-    default = config.get("default_locale", "zh_CN")
+    default = normalize_locale(config.get("default_locale", "chs"))
     fallback_locale = config.get("fallback_locale", default)
     translations = config.get("translations") or {}
     direct = translations.get(locale, {}) if locale != default else source

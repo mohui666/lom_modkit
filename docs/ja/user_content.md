@@ -1,6 +1,6 @@
 # ユーザーコンテンツ庫（User Content Library）
 
-> 言語：[简体中文](../zh_CN/user_content.md) · [繁體中文](../zh_TW/user_content.md) · 日本語（本文） · [한국어](../ko/user_content.md)
+> 言語：[简体中文](../chs/user_content.md) · [繁體中文](../cht/user_content.md) · 日本語（本文） · [한국어](../ko/user_content.md)
 
 ローカル、オフライン、Mod 単位で自己完結。アカウントなし、オンラインマーケットなし、クラウド同期なし。
 

@@ -2604,6 +2604,15 @@ class TestNewNodeCodegen(unittest.TestCase):
             ),
         )
         self.assertIn(
+            '\tluamanager.SetBattleSkillLevel("special3", 4)',
+            self.lua_of(
+                {
+                    "id": "n1", "type": "battle_skill", "op": "level",
+                    "key": "special3", "level": 4,
+                }
+            ),
+        )
+        self.assertIn(
             "\tluamanager.ResetBattleSkill()",
             self.lua_of({"id": "n1", "type": "battle_skill", "op": "reset"}),
         )
@@ -3308,6 +3317,16 @@ class TestNewNodeValidationErrors(unittest.TestCase):
             self,
             linear_story({"id": "n1", "type": "battle_skill", "op": "set"}),
             '必填字段 "key"',
+        )
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1", "type": "battle_skill", "op": "active",
+                    "key": "special3", "active": 2,
+                }
+            ),
+            '"active" 必须是 0 或 1',
         )
 
     def test_time_fields(self):

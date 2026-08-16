@@ -104,11 +104,11 @@ _COMMON_FIELDS = ("id", "type", "goto")
 # kind 为数组型的字段
 _LIST_KINDS = {
     "options", "cases", "vars", "dice_options", "battle_setup_skills",
-    "reward_entries", "reward_entries_optional", "custom_shop_items",
+    "combat_talents", "reward_entries", "reward_entries_optional", "custom_shop_items",
 }
 _NUMBER_KINDS = {
     "int", "float", "percent_scale", "percent_cg_scale", "percent_position",
-    "percent_offset", "percent_opacity", "discount_toggle",
+    "percent_offset", "percent_opacity", "discount_toggle", "bool_int",
 }
 
 
@@ -225,7 +225,20 @@ def _normalize_battle_preset(node: dict) -> None:
     """preset 模式移除 new_node 带入的直填默认字段，保持二选一契约。"""
     if node.get("type") not in ("combat", "battle") or not node.get("preset"):
         return
-    direct_fields = ("key", "enemy", "team", "level", "people", "display")
+    if node.get("type") == "combat":
+        direct_fields = (
+            "key", "max_health", "health", "max_stamina", "stamina", "strength",
+            "internal", "dexterity", "talking", "defence", "sword", "fist",
+            "martial_weapon", "mental", "talents", "ultimate_one", "ultimate_two",
+            "ultimate_three", "talk_rate", "attack_rate", "weapon_rate",
+            "ultimate_rate", "block_rate",
+        )
+    else:
+        direct_fields = (
+            "key", "friend_roster", "enemy_roster", "neutral_roster",
+            "friend_people", "enemy_people", "neutral_people", "friend_health",
+            "enemy_health", "neutral_health", "reset_skills", "skills",
+        )
     for key in direct_fields:
         node.pop(key, None)
 

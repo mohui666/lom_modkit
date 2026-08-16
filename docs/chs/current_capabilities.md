@@ -6,7 +6,7 @@
 
 - 剧情与演出：对白、人物舞台动作、场景、音乐/音效、背景、CG、Overlay、选项、分支、骰子、结局/死亡卡及多章节跳转。
 - 用户内容：离线导入和打包 audio / character / image；自定义角色、逐句语音、BGM、SFX、环境音、背景、CG、Overlay。包只收集实际引用内容。
-- 战役入口：`campaign.new_game` 使用 `mod_<id>` 隔离存档槽；Manifest 支持地点、时间、Flag、好感触发器。
+- 战役入口：标题“开始 MOD 战役”复用原版读档槽显示已有 MOD 存档和“新战役”入口；手动槽、三类自动槽、Universe 最近槽和持久变量均与原版隔离。Manifest 支持地点、时间、Flag、好感触发器。
 - 原版系统节点：属性、好感、天赋、物品、官方 Flag、Mission、面板、时间，以及下节所列战斗底层节点。
 - 创作与发布：F5 试玩/热重载/Debugger、Editing 与 Release 体检、恢复副本、项目/节点模板、统计与语音覆盖、本地 Release Builder、安装诊断与 Runtime 回滚。
 - 来源披露：运行时强制非官方标识、整包指纹、画面内来源水印及离线截图/视频检测。它们不是数字签名，无法证明作者身份。
@@ -20,8 +20,8 @@
 - `enemy`：`ModifyEnemyTeam` / `ModifyEnemyLevel` / `ModifyEnemyPeople` / `ModifyEnemyId`；
 - `battle_skill`：`SetPlayerBattleSkill` / `SetBattleSkillActive` / `ResetBattleSkill`；
 - `goto_scene`：通过 `LuaManager.ChangeScene` 进入原版 `Combat` / `Battle`，并传入作者选择的官方 key。
-- `combat`：选择原版 Combat key，可选组合敌方 id/队伍/等级/人数设置；Host 从原版 `CombatManager.GameOver(bool)` 取得真实 win/lose，并一次性续接作者指定节点。失败时仅在该 MOD 战斗会话内把 `DeadEnd` 视为 false，以走原版 `LoadNextScene()` 回 Story。
-- `battle`：选择原版 Battle key；Host 只把 `ShowGameOver(FriendWin/EnemyWin, finish:true)` 映射为 win/lose。`PlayerDie(false)` 保持原版重试/标题流程。
+- `combat`：选择原版一对一人物/场景模板，可在本次读取中覆盖对手 HP、体力、九项能力、天赋、三格绝招及行动概率；Host 从 `CombatManager.GameOver(bool)` 取得真实 win/lose。原版资产不被修改。
+- `battle`：选择原版 Battle 场景，可分别复用我方、敌方、中立阵容模板并覆盖三方人数、NPC HP 与玩家技能；Host 只把 `ShowGameOver(FriendWin/EnemyWin, finish:true)` 映射为 win/lose。`PlayerDie(false)` 保持原版流程。
 - Battle Preset：章节设置中可保存 `combat` / `battle` 原版模板与已验证敌方参数，剧情节点按 ID 复用；编译时展开，不引入新的运行时接口。
 - `battle_result`：按包完整 SHA-256、剧情 id 和可选 Combat/Battle 类型读取 Host 的最后真实结果，只提供已验证的 win/lose 分支。
 - `battle_setup`：把 `ModifyEnemy*` 与 `SetPlayerBattleSkill` / `SetBattleSkillActive` / `ResetBattleSkill` 组合为战前表格配置。

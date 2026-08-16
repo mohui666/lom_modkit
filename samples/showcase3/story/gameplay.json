@@ -65,7 +65,8 @@
       "op": "set",
       "key": "special3",
       "index": 2,
-      "active": 1
+      "active": 1,
+      "level": 1
     },
     {
       "id": "reward1",

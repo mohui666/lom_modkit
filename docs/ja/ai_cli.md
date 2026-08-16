@@ -1,6 +1,6 @@
 # AI エージェント CLI / Python API マニュアル（story_api）
 
-> 言語：[简体中文](../zh_CN/ai_cli.md) · [繁體中文](../zh_TW/ai_cli.md) · 日本語（本文） · [한국어](../ko/ai_cli.md)
+> 言語：[简体中文](../chs/ai_cli.md) · [繁體中文](../cht/ai_cli.md) · 日本語（本文） · [한국어](../ko/ai_cli.md)
 
 `editor/story_api.py` は AI エージェントとスクリプト向けのシナリオデータインターフェースです：管理された書き込み操作（Python API）
 + argparse コマンドライン（check / compile / pack / new-story）。本ドキュメントは**サブプロセスとして

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """从 lom_unpack 解包产物提取编辑器数据，生成 data/editor_data.json。
 
-格式契约见 docs/zh_CN/mod_format.md §5。仅用 Python 标准库。
+格式契约见 docs/chs/mod_format.md §5。仅用 Python 标准库。
 """
 
 import csv
@@ -31,6 +31,8 @@ RAW_BOOK = os.path.join(UNPACK_DIR, "raw", "ItemBook_zh-cn.txt")
 CSV_ITEM = os.path.join(UNPACK_DIR, "output", "csv", "10_物品.csv")
 RAW_MISC = os.path.join(UNPACK_DIR, "raw", "ItemMisc_zh-cn.txt")
 RAW_SPECIAL = os.path.join(UNPACK_DIR, "raw", "ItemSpecial_zh-cn.txt")
+RAW_ENEMY_TEAM = os.path.join(UNPACK_DIR, "raw", "EnemyTeam_zh-cn.txt")
+RAW_BATTLE_SKILL = os.path.join(UNPACK_DIR, "raw", "BattleSkill_zh-cn.txt")
 CSV_MESSAGE = os.path.join(UNPACK_DIR, "output", "csv", "03_剧情系统提示.csv")
 RAW_MESSAGE = os.path.join(UNPACK_DIR, "raw", "Story_Message_zh-cn.txt")
 RAW_FLAG = os.path.join(UNPACK_DIR, "raw", "Flag_zh-cn.txt")
@@ -281,14 +283,27 @@ def load_free_position_names():
 
 def load_view_names():
     """场景显示名：探测产物 view_map.json 的 name 字段（游戏内 m_Name）。"""
-    if not os.path.isfile(VIEW_MAP_JSON):
-        return {}
-    try:
-        with open(VIEW_MAP_JSON, encoding="utf-8") as f:
-            vm = json.load(f)
-    except (OSError, ValueError):
-        return {}
-    return {k: v["name"] for k, v in vm.items() if v.get("name")}
+    if os.path.isfile(VIEW_MAP_JSON):
+        try:
+            with open(VIEW_MAP_JSON, encoding="utf-8") as f:
+                vm = json.load(f)
+            return {k: v["name"] for k, v in vm.items() if v.get("name")}
+        except (OSError, ValueError):
+            pass
+    # 发布源码通常不带体积较大的探测目录。重新提取其他 catalog 时，保留
+    # 已提交 editor_data 里的原版场景名称，不能把可读中文静默退化为内部 id。
+    if os.path.isfile(OUT_PATH):
+        try:
+            with open(OUT_PATH, encoding="utf-8") as f:
+                current = json.load(f)
+            return {
+                str(item.get("id")): str(item.get("name"))
+                for item in current.get("views", [])
+                if isinstance(item, dict) and item.get("id") and item.get("name")
+            }
+        except (OSError, ValueError, TypeError):
+            pass
+    return {}
 
 
 def load_ref_ids():
@@ -323,6 +338,8 @@ def main():
     book_names = _load_prefixed_kv(CSV_BOOK, RAW_BOOK, "Book/Name")
     misc_names = _load_prefixed_kv(CSV_ITEM, RAW_MISC, "Misc/Name")
     special_names = _load_prefixed_kv(CSV_ITEM, RAW_SPECIAL, "Special/Name")
+    enemy_team_names = _load_prefixed_kv("", RAW_ENEMY_TEAM, "EnemyTeam")
+    battle_skill_names = _load_prefixed_kv("", RAW_BATTLE_SKILL, "BattleSkill/Name")
     message_names = _load_prefixed_kv(CSV_MESSAGE, RAW_MESSAGE, "Story")
 
     char_ids = set()
@@ -437,6 +454,15 @@ def main():
         "dice_meta": dice_meta,
         "combat_ids": sorted(combat_ids),
         "battle_ids": sorted(battle_ids),
+        # StatModifyManager.ModifyEnemy* 的 id 来自原版 BattleTeamStat，不能让
+        # 作者猜 001/201/500 这类裸编号。全量取官方 EnemyTeam 本地化表。
+        "enemy_teams": [
+            {"id": i, "name": enemy_team_names[i]} for i in sorted(enemy_team_names)
+        ],
+        # SetPlayerBattleSkill / SetBattleSkillActive 使用的原版技能 key。
+        "battle_skills": [
+            {"id": i, "name": battle_skill_names[i]} for i in sorted(battle_skill_names)
+        ],
         "death_ids": enrich_id_list(death_ids, ref_ids.get("death", {})),
         "ending_ids": enrich_id_list(ending_ids, ref_ids.get("ending", {})),
         "game_flags": [

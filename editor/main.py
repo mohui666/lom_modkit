@@ -72,7 +72,7 @@ if str(PROJECT_ROOT / "compiler") not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT / "compiler"))
 
 from help_content import current_help_html
-from node_reference import NodeReferenceWidget
+from node_reference import DocumentationDialog
 from i18n import LANGUAGES, current_language, init_language, install_qt_translator, set_language, t
 from glass_theme import apply_glass_theme, mark_primary
 from game_install import (
@@ -297,16 +297,10 @@ class HelpDialog(QDialog):
         self.setWindowTitle(t("app.help_title"))
         self.resize(760, 620)
         layout = QVBoxLayout(self)
-        tabs = QTabWidget()
         browser = QTextBrowser()
         browser.setOpenExternalLinks(False)
         browser.setHtml(current_help_html())
-        tabs.addTab(browser, t("help.guide_tab", default="使用指南"))
-        tabs.addTab(
-            NodeReferenceWidget(),
-            t("help.reference_tab", default="节点 / API 参考"),
-        )
-        layout.addWidget(tabs)
+        layout.addWidget(browser)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(self.reject)
         close_btn = buttons.button(QDialogButtonBox.StandardButton.Close)
@@ -333,14 +327,16 @@ class RecoveryDialog(QDialog):
         self.candidates = candidates
         self.action = "later"
         self.candidate: RecoveryCandidate | None = None
-        self.setWindowTitle("发现未完成的自动恢复副本")
+        self.setWindowTitle(t("recovery.title"))
         self.resize(860, 430)
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel(
             "上次编辑器可能异常退出。恢复只载入内存，不会自动覆盖原项目文件。"
         ))
         self.table = QTableWidget(len(candidates), 4)
-        self.table.setHorizontalHeaderLabels(("保存时间", "项目", "来源", "章节"))
+        self.table.setHorizontalHeaderLabels(
+            (t("recovery.saved_at"), t("recovery.project"), t("recovery.source"), t("recovery.chapter"))
+        )
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -366,17 +362,17 @@ class RecoveryDialog(QDialog):
         layout.addWidget(self.table, stretch=1)
 
         buttons = QHBoxLayout()
-        inspect_btn = QPushButton("检查内容")
+        inspect_btn = QPushButton(t("recovery.inspect"))
         inspect_btn.clicked.connect(self._inspect)
         buttons.addWidget(inspect_btn)
         buttons.addStretch(1)
-        discard_btn = QPushButton("丢弃所选")
+        discard_btn = QPushButton(t("recovery.discard"))
         discard_btn.clicked.connect(lambda: self._finish("discard"))
         buttons.addWidget(discard_btn)
-        later_btn = QPushButton("稍后处理")
+        later_btn = QPushButton(t("recovery.later"))
         later_btn.clicked.connect(self.reject)
         buttons.addWidget(later_btn)
-        restore_btn = QPushButton("恢复所选")
+        restore_btn = QPushButton(t("recovery.restore"))
         mark_primary(restore_btn)
         restore_btn.clicked.connect(lambda: self._finish("restore"))
         buttons.addWidget(restore_btn)
@@ -399,7 +395,7 @@ class RecoveryDialog(QDialog):
         if candidate is None:
             return
         dialog = QDialog(self)
-        dialog.setWindowTitle("检查自动恢复内容（只读）")
+        dialog.setWindowTitle(t("recovery.inspect_title"))
         dialog.resize(780, 600)
         layout = QVBoxLayout(dialog)
         layout.addWidget(QLabel(
@@ -423,10 +419,10 @@ class ProjectTemplateDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.template_key: str | None = None
-        self.setWindowTitle("从模板新建项目")
+        self.setWindowTitle(t("template.title"))
         self.resize(680, 430)
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("模板只使用普通 Story schema；创建后所有节点都可自由编辑。"))
+        layout.addWidget(QLabel(t("template.note")))
         self.list = QListWidget()
         for item in TEMPLATES:
             row = QListWidgetItem(item.name)
@@ -472,27 +468,87 @@ class ProjectTemplateDialog(QDialog):
         self.accept()
 
 
+class GameplayPresetConfigDialog(QDialog):
+    """Edit one preset with the exact same controls as its Combat/Battle node."""
+
+    FLOW_FIELDS = {"id", "type", "preset", "win", "lose", "goto"}
+
+    def __init__(self, kind: str, config: dict, editor_data: dict, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(t("preset.configure_title"))
+        self.resize(700, 720)
+        self.node = {
+            "id": "preset_config", "type": kind, "key": str(config.get("key") or ""),
+            "win": "win", "lose": "lose",
+        }
+        for key, value in config.items():
+            if key not in ("name", "kind") and key not in self.FLOW_FIELDS:
+                self.node[key] = copy.deepcopy(value)
+        layout = QVBoxLayout(self)
+        self.form = NodeForm()
+        self.form.set_preset_edit_mode(True)
+        self.form.set_context(editor_data, ["win", "lose"], ["main"], {})
+        self.form.set_node(self.node)
+        layout.addWidget(self.form, 1)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def result_config(self) -> dict:
+        return {
+            key: copy.deepcopy(value)
+            for key, value in self.node.items()
+            if key not in self.FLOW_FIELDS
+        }
+
+
 class BattlePresetDialog(QDialog):
     """章节级 Combat/Battle 预设编辑器；只暴露已验证的原版模板参数。"""
 
-    COLUMNS = ("id", "kind", "key", "enemy", "team", "level", "people", "display")
+    COLUMNS = ("id", "name", "kind", "key", "configure")
+    CONFIG_FIELDS = {
+        "combat": {
+            "max_health", "health", "max_stamina", "stamina", "strength", "internal",
+            "dexterity", "talking", "defence", "sword", "fist", "martial_weapon",
+            "mental", "talents", "ultimate_one", "ultimate_two", "ultimate_three",
+            "talk_rate", "attack_rate", "weapon_rate", "ultimate_rate", "block_rate",
+        },
+        "battle": {
+            "friend_roster", "enemy_roster", "neutral_roster", "friend_people",
+            "enemy_people", "neutral_people", "friend_health", "enemy_health",
+            "neutral_health", "reset_skills", "skills",
+        },
+    }
 
     def __init__(self, presets: dict, editor_data: dict, parent=None):
         super().__init__(parent)
         self.presets: dict[str, dict] | None = None
         self.editor_data = editor_data
         self.setWindowTitle(t("preset.title"))
-        self.resize(920, 460)
+        self.resize(960, 500)
         layout = QVBoxLayout(self)
         note = QLabel(t("preset.note"))
         note.setWordWrap(True)
         layout.addWidget(note)
+        technical = QToolButton()
+        technical.setText(t("preset.show_technical"))
+        technical.setCheckable(True)
+        technical.setAutoRaise(True)
+        layout.addWidget(technical)
         self.table = QTableWidget(0, len(self.COLUMNS))
         self.table.setHorizontalHeaderLabels(
-            ("ID", "类型", "原版模板", "敌方 ID", "队伍", "等级", "人数", "显示")
+            (
+                t("preset.col.id"), t("preset.col.name"), t("preset.col.kind"),
+                t("preset.col.template"), t("preset.col.configure"),
+            )
         )
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table.setColumnHidden(0, True)
+        technical.toggled.connect(lambda shown: self.table.setColumnHidden(0, not shown))
         layout.addWidget(self.table, stretch=1)
         row_buttons = QHBoxLayout()
         add = QPushButton(t("preset.add"))
@@ -517,22 +573,51 @@ class BattlePresetDialog(QDialog):
         data_key = "combat_ids" if kind == "combat" else "battle_ids"
         return models.list_items(self.editor_data, data_key)
 
+    @staticmethod
+    def _editable_combo_value(combo: QComboBox) -> str:
+        index = combo.currentIndex()
+        if combo.isEditable() and (
+            index < 0 or combo.currentText() != combo.itemText(index)
+        ):
+            return combo.currentText().strip()
+        data = combo.currentData()
+        return str(data if data is not None else combo.currentText()).strip()
+
     def add_preset_row(self, preset_id: str = "", config: dict | None = None) -> None:
         config = dict(config or {})
+        config_kind = "battle" if config.get("kind") == "battle" else "combat"
+        config = {
+            key: copy.deepcopy(value)
+            for key, value in config.items()
+            if key in {"name", "kind", "key"} or key in self.CONFIG_FIELDS[config_kind]
+        }
+        config["kind"] = config_kind
+        if not preset_id:
+            used = {
+                self.table.item(row, 0).text()
+                for row in range(self.table.rowCount())
+                if self.table.item(row, 0) is not None
+            }
+            number = 1
+            while f"battle_preset_{number}" in used:
+                number += 1
+            preset_id = f"battle_preset_{number}"
         row = self.table.rowCount()
         self.table.insertRow(row)
         self.table.setItem(row, 0, QTableWidgetItem(preset_id))
+        self.table.setItem(row, 1, QTableWidgetItem(str(config.get("name") or "")))
         kind = QComboBox()
-        kind.addItem("Combat", "combat")
-        kind.addItem("Battle", "battle")
+        kind.addItem(t("preset.kind.combat"), "combat")
+        kind.addItem(t("preset.kind.battle"), "battle")
         kind.setCurrentIndex(1 if config.get("kind") == "battle" else 0)
-        self.table.setCellWidget(row, 1, kind)
+        self.table.setCellWidget(row, 2, kind)
         key = QComboBox()
         key.setEditable(True)
-        self.table.setCellWidget(row, 2, key)
-        for column, name in enumerate(self.COLUMNS[3:], start=3):
-            value = config.get(name, "")
-            self.table.setItem(row, column, QTableWidgetItem(str(value)))
+        self.table.setCellWidget(row, 3, key)
+        config_button = QPushButton(t("preset.configure"))
+        config_button.clicked.connect(lambda _checked=False, target=row: self._open_config(target))
+        self.table.setCellWidget(row, 4, config_button)
+        self.table.item(row, 0).setData(Qt.ItemDataRole.UserRole, copy.deepcopy(config))
         kind.currentIndexChanged.connect(
             lambda _index, widget=kind: self._refresh_preset_kind_widget(widget)
         )
@@ -540,18 +625,23 @@ class BattlePresetDialog(QDialog):
 
     def _refresh_preset_kind_widget(self, widget: QComboBox) -> None:
         for row in range(self.table.rowCount()):
-            if self.table.cellWidget(row, 1) is widget:
-                self._refresh_preset_row(row)
+            if self.table.cellWidget(row, 2) is widget:
+                item = self.table.item(row, 0)
+                current = item.data(Qt.ItemDataRole.UserRole) if item is not None else {}
+                kind = str(widget.currentData())
+                if not isinstance(current, dict) or current.get("kind") != kind:
+                    item.setData(Qt.ItemDataRole.UserRole, {"kind": kind, "key": ""})
+                self._refresh_preset_row(row, "")
                 return
 
     def _refresh_preset_row(self, row: int, current_key: str | None = None) -> None:
-        kind = self.table.cellWidget(row, 1)
-        key = self.table.cellWidget(row, 2)
+        kind = self.table.cellWidget(row, 2)
+        key = self.table.cellWidget(row, 3)
         if not isinstance(kind, QComboBox) or not isinstance(key, QComboBox):
             return
         selected = current_key
         if selected is None:
-            selected = str(key.currentData() or key.currentText()).strip()
+            selected = self._editable_combo_value(key)
         key.blockSignals(True)
         key.clear()
         for item_id, display in self._template_items(str(kind.currentData())):
@@ -562,15 +652,31 @@ class BattlePresetDialog(QDialog):
         else:
             key.setCurrentText(selected)
         key.blockSignals(False)
-        combat = kind.currentData() == "combat"
-        for column in range(3, len(self.COLUMNS)):
-            item = self.table.item(row, column)
-            if item is not None:
-                flags = item.flags()
-                item.setFlags(
-                    flags | Qt.ItemFlag.ItemIsEditable
-                    if combat else flags & ~Qt.ItemFlag.ItemIsEditable
-                )
+        config_button = self.table.cellWidget(row, 4)
+        if isinstance(config_button, QPushButton):
+            config_button.setText(
+                t("preset.configure_combat")
+                if kind.currentData() == "combat" else t("preset.configure_battle")
+            )
+
+    def _open_config(self, row: int) -> None:
+        item = self.table.item(row, 0)
+        kind_widget = self.table.cellWidget(row, 2)
+        key_widget = self.table.cellWidget(row, 3)
+        if item is None or not isinstance(kind_widget, QComboBox) or not isinstance(key_widget, QComboBox):
+            return
+        kind = str(kind_widget.currentData())
+        stored = item.data(Qt.ItemDataRole.UserRole)
+        config = copy.deepcopy(stored) if isinstance(stored, dict) else {}
+        config["kind"] = kind
+        config["key"] = self._editable_combo_value(key_widget)
+        dialog = GameplayPresetConfigDialog(kind, config, self.editor_data, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        edited = dialog.result_config()
+        edited["kind"] = kind
+        item.setData(Qt.ItemDataRole.UserRole, edited)
+        self._refresh_preset_row(row, str(edited.get("key") or ""))
 
     def _remove_selected(self) -> None:
         rows = sorted({item.row() for item in self.table.selectedItems()}, reverse=True)
@@ -586,23 +692,21 @@ class BattlePresetDialog(QDialog):
                     raise ValueError(t("preset.bad_id", id=preset_id or "（空）"))
                 if preset_id in result:
                     raise ValueError(t("preset.duplicate", id=preset_id))
-                kind_widget = self.table.cellWidget(row, 1)
-                key_widget = self.table.cellWidget(row, 2)
+                name = (self.table.item(row, 1).text() if self.table.item(row, 1) else "").strip()
+                kind_widget = self.table.cellWidget(row, 2)
+                key_widget = self.table.cellWidget(row, 3)
                 kind = str(kind_widget.currentData())
-                key = str(key_widget.currentData() or key_widget.currentText()).strip()
+                key = self._editable_combo_value(key_widget)
                 if not key:
                     raise ValueError(t("preset.missing_key", id=preset_id))
                 config: dict = {"kind": kind, "key": key}
-                if kind == "combat":
-                    enemy_item = self.table.item(row, 3)
-                    enemy = enemy_item.text().strip() if enemy_item else ""
-                    if enemy:
-                        config["enemy"] = enemy
-                    for column, name in enumerate(self.COLUMNS[4:], start=4):
-                        item = self.table.item(row, column)
-                        text = item.text().strip() if item else ""
-                        if text:
-                            config[name] = int(text)
+                if name:
+                    config["name"] = name
+                stored = self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+                if isinstance(stored, dict) and stored.get("kind") == kind:
+                    for field, value in stored.items():
+                        if field not in ("name", "kind", "key"):
+                            config[field] = copy.deepcopy(value)
                 result[preset_id] = config
         except (TypeError, ValueError) as exc:
             QMessageBox.warning(self, t("preset.title"), str(exc))
@@ -615,13 +719,15 @@ class ProjectStatisticsDialog(QDialog):
     def __init__(self, statistics: ProjectStatistics, parent=None):
         super().__init__(parent)
         self.statistics = statistics
-        self.setWindowTitle("项目统计")
+        self.setWindowTitle(t("statistics.title"))
         self.resize(660, 500)
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("当前内存项目的即时统计（只读）"))
+        layout.addWidget(QLabel(t("statistics.note")))
         rows = statistics.rows()
         self.table = QTableWidget(len(rows), 3)
-        self.table.setHorizontalHeaderLabels(("项目", "数量 / 覆盖", "口径"))
+        self.table.setHorizontalHeaderLabels(
+            (t("statistics.item"), t("statistics.count"), t("statistics.scope"))
+        )
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         for row, values in enumerate(rows):
@@ -647,10 +753,10 @@ class VoiceCoverageDialog(QDialog):
         super().__init__(parent)
         self.report = report
         self._locate_callback = locate
-        self.setWindowTitle("语音覆盖")
+        self.setWindowTitle(t("voice_report.title"))
         self.resize(820, 650)
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("按项目、Story 与人物统计 voiced / unvoiced 对白。"))
+        layout.addWidget(QLabel(t("voice_report.note")))
 
         coverage_rows = (report.total,) + report.stories + report.characters
         self.coverage_table = QTableWidget(len(coverage_rows), 5)
@@ -671,9 +777,11 @@ class VoiceCoverageDialog(QDialog):
         )
         layout.addWidget(self.coverage_table, stretch=1)
 
-        layout.addWidget(QLabel(f"未配音对白（{len(report.unvoiced_dialogues)}）"))
+        layout.addWidget(QLabel(t("voice_report.unvoiced", count=len(report.unvoiced_dialogues))))
         self.unvoiced_table = QTableWidget(len(report.unvoiced_dialogues), 4)
-        self.unvoiced_table.setHorizontalHeaderLabels(("Story", "节点", "人物", "文本"))
+        self.unvoiced_table.setHorizontalHeaderLabels(
+            (t("voice_report.story"), t("voice_report.node"), t("voice_report.character"), t("voice_report.text"))
+        )
         self.unvoiced_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.unvoiced_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.unvoiced_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
@@ -696,11 +804,11 @@ class VoiceCoverageDialog(QDialog):
 
         buttons = QHBoxLayout()
         buttons.addStretch(1)
-        locate_btn = QPushButton("定位未配音节点")
+        locate_btn = QPushButton(t("voice_report.locate"))
         locate_btn.setEnabled(bool(report.unvoiced_dialogues))
         locate_btn.clicked.connect(self._locate_unvoiced)
         buttons.addWidget(locate_btn)
-        close_btn = QPushButton("关闭")
+        close_btn = QPushButton(t("common.close"))
         close_btn.clicked.connect(self.reject)
         buttons.addWidget(close_btn)
         layout.addLayout(buttons)
@@ -1156,8 +1264,6 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------ UI
     def _build_ui(self) -> None:
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-
         # 左栏：只管理结构——章节切换 + 步骤树 + 添加
         left = QWidget()
         left.setObjectName("leftNav")
@@ -1268,12 +1374,53 @@ class MainWindow(QMainWindow):
         self.right_tabs.addTab(self.flow_graph, t("tab.flow"))
         self.right_tabs.addTab(self.preview, t("tab.compile"))
         self.right_tabs.currentChanged.connect(self._on_right_tab_changed)
+        self.right_tabs.setMinimumWidth(320)
 
-        splitter.addWidget(left)
-        splitter.addWidget(self.inspector)
-        splitter.addWidget(self.right_tabs)
-        splitter.setSizes([280, 420, 560])
-        self.setCentralWidget(splitter)
+        # 两级 splitter 保证每根分隔条只改变它两侧的相邻栏：
+        # - 内层拖动“章节 / 属性”时，右侧预览宽度保持不变；
+        # - 外层拖动“属性 / 预览”时，左侧章节宽度保持不变。
+        # 单个三栏 QSplitter 会按三个 stretch factor 重新分配空间，拖动一根
+        # handle 时可能连带改变不相邻栏，尤其在窗口较窄时最明显。
+        navigation_splitter = QSplitter(Qt.Orientation.Horizontal)
+        navigation_splitter.setObjectName("navigationSplitter")
+        navigation_splitter.setChildrenCollapsible(False)
+        navigation_splitter.addWidget(left)
+        navigation_splitter.addWidget(self.inspector)
+        left.setMinimumWidth(220)
+        self.inspector.setMinimumWidth(300)
+        navigation_splitter.setStretchFactor(0, 0)
+        navigation_splitter.setStretchFactor(1, 1)
+        navigation_splitter.setSizes([280, 420])
+
+        def _protect_left_nav(_pos: int = 0, _index: int = 0) -> None:
+            """外层缩小时保留用户刚设置的左栏宽度，让中栏先承担变化。"""
+            sizes = navigation_splitter.sizes()
+            left_width = sizes[0] if sizes and sizes[0] > 0 else 280
+            navigation_splitter.setMinimumWidth(
+                left_width
+                + self.inspector.minimumWidth()
+                + navigation_splitter.handleWidth()
+            )
+
+        navigation_splitter.splitterMoved.connect(_protect_left_nav)
+        _protect_left_nav()
+
+        workspace_splitter = QSplitter(Qt.Orientation.Horizontal)
+        workspace_splitter.setObjectName("workspaceSplitter")
+        workspace_splitter.setChildrenCollapsible(False)
+        workspace_splitter.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
+        workspace_splitter.addWidget(navigation_splitter)
+        workspace_splitter.addWidget(self.right_tabs)
+        workspace_splitter.setStretchFactor(0, 1)
+        workspace_splitter.setStretchFactor(1, 1)
+        workspace_splitter.setSizes([700, 560])
+
+        # 保留引用供窗口状态保存、自动化测试和后续响应式布局使用。
+        self.navigation_splitter = navigation_splitter
+        self.workspace_splitter = workspace_splitter
+        self.setCentralWidget(workspace_splitter)
 
         self._preview_timer = QTimer(self)
         self._preview_timer.setSingleShot(True)
@@ -1320,11 +1467,22 @@ class MainWindow(QMainWindow):
         self.mood_check.setToolTip(t("chapter.mood_tip"))
         self.story_id_edit.textChanged.connect(self._on_story_props_changed)
         self.story_title_edit.textChanged.connect(self._on_story_props_changed)
-        self.start_combo.currentTextChanged.connect(self._on_start_changed)
+        self.start_combo.currentIndexChanged.connect(self._on_start_changed)
         self.mood_check.toggled.connect(self._on_story_mood_changed)
         self.story_id_edit.setPlaceholderText(t("chapter.id_placeholder"))
         self.story_title_edit.setPlaceholderText(t("chapter.name_placeholder"))
-        props.addRow(t("chapter.id"), self.story_id_edit)
+        chapter_tech = QToolButton()
+        chapter_tech.setText(t("chapter.technical"))
+        chapter_tech.setCheckable(True)
+        chapter_tech.setAutoRaise(True)
+        chapter_tech_body = QWidget()
+        chapter_tech_layout = QFormLayout(chapter_tech_body)
+        chapter_tech_layout.setContentsMargins(8, 0, 0, 0)
+        chapter_tech_layout.addRow(t("chapter.id"), self.story_id_edit)
+        chapter_tech_body.setVisible(False)
+        chapter_tech.toggled.connect(chapter_tech_body.setVisible)
+        props.addRow(chapter_tech)
+        props.addRow(chapter_tech_body)
         props.addRow(t("chapter.name"), self.story_title_edit)
         props.addRow(t("chapter.start"), self.start_combo)
         props.addRow(t("chapter.mood"), self.mood_check)
@@ -1446,7 +1604,12 @@ class MainWindow(QMainWindow):
             action.setChecked(current_language() == code)
             action.triggered.connect(lambda checked=False, c=code: self._change_language(c))
         help_menu = self.menuBar().addMenu(t("menu.help"))
+        help_menu.addAction(
+            t("menu.documentation"), self._show_documentation,
+            QKeySequence("Ctrl+F1"),
+        )
         help_menu.addAction(t("menu.help_item"), self._show_help, QKeySequence("F1"))
+        help_menu.addSeparator()
         help_menu.addAction(t("menu.diagnostic_bundle"), self._export_diagnostic_bundle)
 
     def _build_toolbar(self) -> None:
@@ -1484,6 +1647,10 @@ class MainWindow(QMainWindow):
             return
         set_language(code)
         models.refresh_labels()
+        documentation = getattr(self, "_documentation_dialog", None)
+        if documentation is not None:
+            documentation.close()
+            self._documentation_dialog = None
         self.game_manager.save_pref("language", code)
         app = QApplication.instance()
         if app is not None:
@@ -1527,6 +1694,15 @@ class MainWindow(QMainWindow):
 
     def _show_help(self) -> None:
         HelpDialog(self, self.game_manager).exec()
+
+    def _show_documentation(self) -> None:
+        documentation = getattr(self, "_documentation_dialog", None)
+        if documentation is None:
+            documentation = DocumentationDialog(self)
+            self._documentation_dialog = documentation
+        documentation.show()
+        documentation.raise_()
+        documentation.activateWindow()
 
     def _export_diagnostic_bundle(self) -> None:
         """Export only the fixed, privacy-sanitized diagnostic allowlist."""
@@ -1937,10 +2113,15 @@ class MainWindow(QMainWindow):
         self.story_combo.blockSignals(True)
         try:
             self.story_combo.clear()
-            for sid in sorted(self._stories):
+            for index, sid in enumerate(sorted(self._stories), start=1):
                 title = str(self._stories[sid].get("title") or "")
-                disp = f"{sid} — {title}" if title and title != sid else sid
+                disp = title if title and title != sid else t("chapter.untitled", n=index)
                 self.story_combo.addItem(disp, sid)
+                self.story_combo.setItemData(
+                    self.story_combo.count() - 1,
+                    t("chapter.internal_id_tip", id=sid),
+                    Qt.ItemDataRole.ToolTipRole,
+                )
             idx = self.story_combo.findData(self._current_id)
             self.story_combo.setCurrentIndex(max(0, idx))
         finally:
@@ -1984,7 +2165,7 @@ class MainWindow(QMainWindow):
     def _delete_story_in_project(self) -> None:
         """从项目删除当前剧情脚本（可撤销）。"""
         if len(self._stories) <= 1:
-            QMessageBox.warning(self, _app_title(), "项目中至少要保留一个剧情章节")
+            QMessageBox.warning(self, _app_title(), t("error.keep_one_story"))
             return
         if self._prompt_on_discard:
             answer = QMessageBox.question(
@@ -2003,9 +2184,25 @@ class MainWindow(QMainWindow):
 
     def _reload_start_combo(self) -> None:
         self.start_combo.clear()
-        for n in self.story.get("nodes", []):
-            self.start_combo.addItem(n.get("id", ""))
-        idx = self.start_combo.findText(self.story.get("start", ""))
+        for index, node in enumerate(self.story.get("nodes", []), start=1):
+            if not isinstance(node, dict):
+                continue
+            node_id = str(node.get("id") or "")
+            title, detail = models.node_list_caption(node, self.editor_data)
+            preset = (self.story.get("battle_presets") or {}).get(node.get("preset"), {})
+            if isinstance(preset, dict) and preset.get("name"):
+                detail = str(preset["name"])
+            self.start_combo.addItem(
+                t(
+                    "nav.step_option",
+                    default="第 {n} 步 · {title} · {detail}",
+                    n=index,
+                    title=title,
+                    detail=detail,
+                ),
+                node_id,
+            )
+        idx = self.start_combo.findData(self.story.get("start", ""))
         self.start_combo.setCurrentIndex(max(0, idx))
 
     def _is_chapter_item(self, item: QListWidgetItem | None) -> bool:
@@ -2088,12 +2285,18 @@ class MainWindow(QMainWindow):
             index = row.node_index
             n = nodes[index]
             bullet = models.node_bullet(n.get("type", ""))
-            nid = n.get("id", "")
             title, detail = models.node_list_caption(n, self.editor_data)
+            preset = (self.story.get("battle_presets") or {}).get(n.get("preset"), {})
+            if isinstance(preset, dict) and preset.get("name"):
+                detail = str(preset["name"])
             indent = "    " * row.depth
-            item = QListWidgetItem(f"{indent}{bullet} {nid}  {title}\n{indent}      {detail}")
+            step = t("nav.step_number", default="第 {n} 步", n=index + 1)
+            item = QListWidgetItem(f"{indent}{bullet} {step}  {title}\n{indent}      {detail}")
             item.setData(self._ROLE_KIND, index)
-            item.setToolTip(models.node_summary(n, self.editor_data))
+            item.setToolTip(
+                f"{models.node_summary(n, self.editor_data)}\n"
+                f"{t('field.node_id_technical')}: {n.get('id', '')}"
+            )
             item.setFlags(
                 Qt.ItemFlag.ItemIsEnabled
                 | Qt.ItemFlag.ItemIsSelectable
@@ -2477,7 +2680,7 @@ class MainWindow(QMainWindow):
         if not (0 <= row < len(nodes)):
             return
         if len(nodes) <= 1:
-            QMessageBox.warning(self, _app_title(), "至少保留一个节点")
+            QMessageBox.warning(self, _app_title(), t("error.keep_one_node"))
             return
         self._record_discrete()
         from story_sections import repair_after_delete
@@ -2659,11 +2862,12 @@ class MainWindow(QMainWindow):
             self._refresh_story_combo()
         self._schedule_preview()
 
-    def _on_start_changed(self, text: str) -> None:
-        if self._loading or not text or text == self.story.get("start"):
+    def _on_start_changed(self, _index: int) -> None:
+        node_id = str(self.start_combo.currentData() or "")
+        if self._loading or not node_id or node_id == self.story.get("start"):
             return
         self._record_discrete()
-        self.story["start"] = text
+        self.story["start"] = node_id
         self._prev_snapshot = self._snapshot()
         self._refresh_stage()  # 推演起点变了
         self._graph_timer.start()
@@ -2717,7 +2921,7 @@ class MainWindow(QMainWindow):
         self._flush_pending()
         node = self._current_node()
         if node is None:
-            QMessageBox.warning(self, _app_title(), "请先在左侧选择一个剧情步骤。")
+            QMessageBox.warning(self, _app_title(), t("error.select_story_step"))
             return False
         errors = [issue for issue in self._preflight_issues() if issue.severity == "error"]
         if errors:
@@ -2772,7 +2976,7 @@ class MainWindow(QMainWindow):
             self.game_manager.request_preview(preview_id, script_id, node_id)
             started = self.game_manager.launch_game()
         except (GameInstallError, package_io.PackError, OSError) as exc:
-            QMessageBox.critical(self, _app_title(), f"无法开始试玩：{exc}")
+            QMessageBox.critical(self, _app_title(), t("error.preview_start", error=exc))
             return False
 
         if runtime_changed and was_running:
@@ -2826,7 +3030,7 @@ class MainWindow(QMainWindow):
                 read_keys_by_id=read_keys_by_id,
             )
         except GameInstallError as exc:
-            QMessageBox.critical(self, _app_title(), f"重置失败：{exc}")
+            QMessageBox.critical(self, _app_title(), t("error.reset", error=exc))
             return
         if not results:
             QMessageBox.information(
@@ -2851,8 +3055,8 @@ class MainWindow(QMainWindow):
             self._reload_start_combo()
             self.story["start"] = (
                 cur
-                if self.start_combo.findText(cur) >= 0
-                else self.start_combo.currentText()
+                if self.start_combo.findData(cur) >= 0
+                else str(self.start_combo.currentData() or "")
             )
         finally:
             self._loading = False
@@ -3072,7 +3276,7 @@ class MainWindow(QMainWindow):
                 try:
                     finish_candidate(candidate, "discarded")
                 except RecoveryError as exc:
-                    QMessageBox.warning(self, _app_title(), f"无法丢弃恢复副本：{exc}")
+                    QMessageBox.warning(self, _app_title(), t("error.recovery_discard", error=exc))
                     return False
                 continue
             if dialog.action == "restore":
@@ -3091,7 +3295,7 @@ class MainWindow(QMainWindow):
             if not isinstance(manifest, dict):
                 manifest = {}
         except Exception as exc:
-            QMessageBox.critical(self, _app_title(), f"恢复副本无法载入：{exc}")
+            QMessageBox.critical(self, _app_title(), t("error.recovery_load", error=exc))
             return False
 
         self._stories = stories
@@ -3143,7 +3347,7 @@ class MainWindow(QMainWindow):
         try:
             story = models.load_story(path)
         except Exception as exc:
-            QMessageBox.critical(self, _app_title(), f"打开失败：{exc}")
+            QMessageBox.critical(self, _app_title(), t("error.open", error=exc))
             return
         repaired = models.normalize_character_ids([story], self.editor_data)
         self._stories = {story["id"]: story}
@@ -3194,7 +3398,7 @@ class MainWindow(QMainWindow):
         try:
             models.save_story(self.story, path)
         except Exception as exc:
-            QMessageBox.critical(self, _app_title(), f"保存失败：{exc}")
+            QMessageBox.critical(self, _app_title(), t("error.save", error=exc))
             return False
         self._story_paths[self._current_id] = path
         self._set_project_source("story", path)
@@ -3408,7 +3612,7 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(str(exc), 5000)
             return False
         except (package_io.PackError, OSError) as exc:
-            QMessageBox.critical(self, _app_title(), "发布构建失败：%s" % exc)
+            QMessageBox.critical(self, _app_title(), t("error.release_build", error=exc))
             return False
         self.manifest = manifest
         self.manifest_base = manifest
@@ -3451,8 +3655,11 @@ def main() -> int:
         del args[at : at + 2]
     app = QApplication(args)
     app.setOrganizationName("lom_modkit")
-    _pref_lang = GameInstallManager().load_pref("language")
-    init_language(_pref_lang)
+    _startup_manager = GameInstallManager()
+    _pref_lang = _startup_manager.load_pref("language")
+    _canonical_lang = init_language(_pref_lang)
+    if _pref_lang and _pref_lang != _canonical_lang:
+        _startup_manager.save_pref("language", _canonical_lang)
     models.refresh_labels()
     install_qt_translator(app)
     app.setApplicationName(_app_title())

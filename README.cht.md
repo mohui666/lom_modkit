@@ -11,9 +11,9 @@
 
 **[⬇ 下載 Windows 版](https://github.com/mohui666/lom_modkit/releases/download/v0.7.0/lom_modkit-v0.7.0_windows_x64.zip)** ·
 [快速開始](#快速開始) ·
-[文件](docs/zh_TW/README.md)
+[文件](docs/cht/README.md)
 
-> 語言：[简体中文](README.md) · 繁體中文（本文） · [日本語](README.ja.md) · [한국어](README.ko.md)
+> 語言：[中文（CHS）](README.md) · 中文（CHT，本文） · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 <!-- TODO(宣傳素材): 在這裡放 8~15 秒循環 GIF：
      開啟 lom_editor.exe → 新增劇情 → 選角色/對白/場景/音樂 → F5 → 遊戲內實際演出。
@@ -103,7 +103,7 @@ lom_modkit 讓你用《活俠傳》**原有的人物、場景、音樂、特效�
 | 自訂背景 / CG / Overlay 圖片 | ✅ 已支援 |
 | 社群內容庫 | ◯ Roadmap |
 
-詳細用法見 [使用者內容庫文件](docs/zh_TW/user_content.md)。
+詳細用法見 [使用者內容庫文件](docs/cht/user_content.md)。
 
 ## 安裝別人做的 Mod
 
@@ -138,12 +138,12 @@ lom_modkit 讓你用《活俠傳》**原有的人物、場景、音樂、特效�
 
 | 文件 | 內容 |
 | --- | --- |
-| [文件索引](docs/zh_TW/README.md) | 語言導覽與讀者導引 |
-| [使用者內容庫](docs/zh_TW/user_content.md) | 自訂音訊 / 對白語音用法 |
-| [目前能力與邊界](docs/zh_TW/current_capabilities.md) | 已實作、僅有底層介面和尚未實作的功能邊界 |
-| [Mod 包格式契約](docs/zh_TW/mod_format.md) | 包結構、63 種節點、編譯約定、執行階段行為 |
-| [AI / CLI 手冊](docs/zh_TW/ai_cli.md) | story_api 命令列與 Python API |
-| [多語言](docs/zh_TW/i18n.md) | 介面與文件的 i18n 架構 |
+| [文件索引](docs/cht/README.md) | 語言導覽與讀者導引 |
+| [使用者內容庫](docs/cht/user_content.md) | 自訂音訊 / 對白語音用法 |
+| [目前能力與邊界](docs/cht/current_capabilities.md) | 已實作、僅有底層介面和尚未實作的功能邊界 |
+| [Mod 包格式契約](docs/cht/mod_format.md) | 包結構、63 種節點、編譯約定、執行階段行為 |
+| [AI / CLI 手冊](docs/cht/ai_cli.md) | story_api 命令列與 Python API |
+| [多語言](docs/cht/i18n.md) | 介面與文件的 i18n 架構 |
 
 ## For Developers
 

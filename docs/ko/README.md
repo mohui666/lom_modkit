@@ -1,9 +1,18 @@
 # lom_modkit 문서
 
-> 언어: [简体中文](../README.md) · [繁體中文](../zh_TW/README.md) · [日本語](../ja/README.md) · 한국어(본문)
+> 언어: [중국어(CHS)](../README.md) · [중국어(CHT)](../cht/README.md) · [日本語](../ja/README.md) · 한국어(본문)
 
-권위 버전은 간체 중국어(`zh_CN/`)이며, 번역문은 언어 코드별 디렉터리에 같은 이름으로 보관합니다.
-문서를 바꿀 때는 먼저 `zh_CN/`을 수정한 후 번역문을 동기화하세요; 약정은 [i18n.md §4](i18n.md) 참조.
+권위 버전은 중국어 CHS(`chs/`)이며, 번역문은 언어 코드별 디렉터리에 같은 이름으로 보관합니다.
+문서를 바꿀 때는 먼저 `chs/`을 수정한 후 번역문을 동기화하세요; 약정은 [i18n.md §4](i18n.md) 참조.
+
+## 소프트웨어 사용 문서
+
+- [소프트웨어 사용 안내](software_usage.md): 에디터, Combat/Battle, 원작형 MOD 불러오기, 저장 격리, 출처 표시.
+- [사용자 콘텐츠](user_content.md) · [현재 기능](current_capabilities.md)
+
+## 스크립트 / API 문서
+
+- [스크립트 / API 개요](script_reference.md): 63개 노드, Combat/Battle 구분, ID와 사용자 참조 규칙.
 
 ## 독자별 문서 찾기
 

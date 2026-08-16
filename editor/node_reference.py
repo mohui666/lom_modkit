@@ -5,20 +5,28 @@ from __future__ import annotations
 
 import html
 import json
+import re
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
+    QDialog,
     QHBoxLayout,
+    QLabel,
     QLineEdit,
-    QListWidget,
-    QListWidgetItem,
+    QPushButton,
     QSplitter,
+    QStyle,
+    QTabWidget,
     QTextBrowser,
+    QTreeWidget,
+    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
 from i18n import t
+from help_content import current_help_html
 import models
 
 
@@ -129,14 +137,20 @@ KIND_DOCS: dict[str, str] = {
     "ending_image": "reference.kind.game_or_user_id",
     "combat_id": "reference.kind.game_id",
     "battle_id": "reference.kind.game_id",
+    "battle_id_optional": "reference.kind.game_id",
+    "enemy_team": "reference.kind.game_id",
+    "enemy_team_optional": "reference.kind.game_id",
+    "battle_skill": "reference.kind.game_id",
     "battle_preset": "reference.kind.preset_id",
     "goto_scene_key": "reference.kind.game_id",
     "death_id": "reference.kind.mod_id",
     "battle_setup_skills": "reference.kind.structured",
+    "combat_talents": "reference.kind.structured",
     "reward_entries": "reference.kind.nonempty_table",
     "reward_entries_optional": "reference.kind.structured",
     "custom_shop_items": "reference.kind.nonempty_table",
     "discount_toggle": "reference.kind.number_or_bool",
+    "bool_int": "reference.kind.number_or_bool",
     "percent_scale": "reference.kind.percent",
     "percent_cg_scale": "reference.kind.percent",
     "percent_position": "reference.kind.percent",
@@ -204,16 +218,17 @@ def node_reference_html(node_type: str) -> str:
     sample = html.escape(json.dumps(example, ensure_ascii=False, indent=2))
     return f"""
     <style>
-      body {{ color: #e8e8ed; font-family: sans-serif; font-size: 13px; }}
-      h1 {{ font-size: 22px; margin-bottom: 2px; }}
-      h2 {{ font-size: 16px; margin-top: 20px; }}
+      body {{ color: #e8e8ed; font-family: sans-serif; font-size: 13px; line-height: 1.45; margin: 24px 30px 40px 30px; }}
+      h1 {{ font-size: 25px; margin-bottom: 2px; }}
+      h2 {{ font-size: 17px; margin-top: 24px; border-bottom: 1px solid #44444c; padding-bottom: 6px; }}
       .muted {{ color: #a8a8b2; }}
-      .api {{ border-left: 4px solid #e9912c; padding: 8px 12px; background: #24242a; }}
+      .api {{ border-left: 4px solid #0a84ff; padding: 10px 13px; background: #24242a; }}
       table {{ border-collapse: collapse; width: 100%; }}
       th, td {{ border-bottom: 1px solid #44444c; padding: 7px; text-align: left; vertical-align: top; }}
-      th {{ color: #ffd7a0; }}
+      th {{ color: #b7d7ff; }}
       code, pre {{ font-family: Consolas, monospace; }}
-      pre {{ background: #1d1d22; padding: 10px; white-space: pre-wrap; }}
+      code {{ color: #ffd6a0; }}
+      pre {{ background: #1d1d22; border: 1px solid #393943; padding: 12px; white-space: pre-wrap; }}
     </style>
     <h1>{html.escape(str(label))}</h1>
     <p class="muted">{html.escape(t('reference.story_type', default='Story type'))}: <code>{html.escape(node_type)}</code> · {html.escape(t('reference.category', default='Category'))}: {html.escape(_group_for(node_type))}</p>
@@ -233,67 +248,421 @@ def reference_node_types() -> tuple[str, ...]:
     return tuple(models.NODE_TYPES)
 
 
+def documentation_home_html() -> str:
+    """生成类似 Unity Manual 首页的离线文档入口。"""
+    group_rows = []
+    for group_name, node_types in models.NODE_GROUPS:
+        if not node_types:
+            continue
+        first = node_types[0]
+        group_rows.append(
+            '<tr><td><a href="lomdoc://node/{node}">{group}</a></td>'
+            '<td>{count}</td><td>{examples}</td></tr>'.format(
+                node=html.escape(first, quote=True),
+                group=html.escape(group_name),
+                count=len(node_types),
+                examples=html.escape(" · ".join(node_types[:4])),
+            )
+        )
+    return f"""
+    <style>
+      body {{ color: #e8e8ed; font-family: sans-serif; font-size: 13px; line-height: 1.5; margin: 24px 30px 40px 30px; }}
+      h1 {{ font-size: 27px; margin: 0 0 4px 0; }}
+      h2 {{ font-size: 18px; margin-top: 26px; border-bottom: 1px solid #44444c; padding-bottom: 6px; }}
+      .eyebrow {{ color: #78b7ff; font-size: 11px; font-weight: 600; letter-spacing: 1px; }}
+      .lead {{ color: #c6c6cf; font-size: 15px; max-width: 760px; }}
+      .note {{ border-left: 4px solid #0a84ff; padding: 10px 13px; background: #24242a; }}
+      table {{ border-collapse: collapse; width: 100%; }}
+      th, td {{ border-bottom: 1px solid #44444c; padding: 9px 7px; text-align: left; vertical-align: top; }}
+      th {{ color: #b7d7ff; }}
+      a {{ color: #66adff; text-decoration: none; }}
+      code {{ color: #ffd6a0; font-family: Consolas, monospace; }}
+    </style>
+    <div class="eyebrow">LOM MODKIT DOCUMENTATION</div>
+    <h1>{html.escape(t('docs.home_title', default='Author documentation'))}</h1>
+    <p class="lead">{html.escape(t('docs.home_intro', default='Offline reference generated from the editor schema. Search every node, field, and runtime bridge from one place.'))}</p>
+    <div class="note"><b>{html.escape(t('docs.contract_title', default='Authoring contract'))}</b><br>
+    {html.escape(t('docs.contract_note', default='The editor writes Story JSON, lomc validates and compiles it, and MortalModHost bridges verified functions to the original game.'))}</div>
+    <h2>{html.escape(t('docs.catalog_title', default='Node catalog'))}</h2>
+    <table><tr><th>{html.escape(t('docs.col.category', default='Category'))}</th><th>{html.escape(t('docs.col.nodes', default='Nodes'))}</th><th>{html.escape(t('docs.col.examples', default='Examples'))}</th></tr>{''.join(group_rows)}</table>
+    <h2>{html.escape(t('docs.how_to_title', default='How to use this reference'))}</h2>
+    <p>{html.escape(t('docs.how_to_note', default='Choose a category in the sidebar or search by visible field name, JSON key, node type, or runtime API. Each page shows requirements, defaults, a minimal example, and compatibility notes.'))}</p>
+    """
+
+
 class NodeReferenceWidget(QWidget):
-    """帮助窗口中的可搜索节点/API 文档。"""
+    """Unity Manual 风格的离线节点/API 文档浏览器。"""
+
+    HOME_PAGE = "__home__"
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._history = [self.HOME_PAGE]
+        self._history_index = 0
+        self._current_page = self.HOME_PAGE
+
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(9)
+
+        toolbar = QHBoxLayout()
+        toolbar.setSpacing(6)
+        self.back_button = QPushButton()
+        self.forward_button = QPushButton()
+        self.home_button = QPushButton()
+        self.back_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ArrowBack))
+        self.forward_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ArrowForward))
+        self.home_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DirHomeIcon))
+        for button in (self.back_button, self.forward_button, self.home_button):
+            button.setFixedSize(34, 30)
+        self.back_button.setToolTip(t("docs.back", default="Back"))
+        self.forward_button.setToolTip(t("docs.forward", default="Forward"))
+        self.home_button.setToolTip(t("docs.home", default="Documentation home"))
+        self.back_button.setAccessibleName(t("docs.back", default="Back"))
+        self.forward_button.setAccessibleName(t("docs.forward", default="Forward"))
+        self.home_button.setAccessibleName(t("docs.home", default="Documentation home"))
+        toolbar.addWidget(self.back_button)
+        toolbar.addWidget(self.forward_button)
+        toolbar.addWidget(self.home_button)
+
+        self.breadcrumb = QLabel()
+        self.breadcrumb.setObjectName("documentationBreadcrumb")
+        self.breadcrumb.setMinimumWidth(180)
+        toolbar.addWidget(self.breadcrumb, 1)
+
         self.search = QLineEdit()
         self.search.setPlaceholderText(t("reference.search", default="Search nodes, fields, or APIs…"))
         self.search.setClearButtonEnabled(True)
-        layout.addWidget(self.search)
+        self.search.setAccessibleName(t("docs.search_name", default="Search documentation"))
+        self.search.setMinimumWidth(280)
+        toolbar.addWidget(self.search)
+        layout.addLayout(toolbar)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
-        self.node_list = QListWidget()
-        self.node_list.setMinimumWidth(220)
+        splitter.setChildrenCollapsible(False)
+        self.node_tree = QTreeWidget()
+        self.node_tree.setObjectName("documentationTree")
+        self.node_tree.setHeaderHidden(True)
+        self.node_tree.setMinimumWidth(240)
+        self.node_tree.setAccessibleName(t("docs.contents", default="Contents"))
         self.browser = QTextBrowser()
+        self.browser.setObjectName("documentationBrowser")
         self.browser.setOpenExternalLinks(False)
-        splitter.addWidget(self.node_list)
+        self.browser.setOpenLinks(False)
+        self.browser.setAccessibleName(t("docs.article", default="Documentation article"))
+        splitter.addWidget(self.node_tree)
         splitter.addWidget(self.browser)
+        splitter.setSizes([270, 830])
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
         layout.addWidget(splitter, 1)
 
         self.search.textChanged.connect(self._filter)
-        self.node_list.currentItemChanged.connect(self._show_current)
+        self.search.returnPressed.connect(self._activate_first_result)
+        self.node_tree.currentItemChanged.connect(self._show_current)
+        self.browser.anchorClicked.connect(self._open_link)
+        self.back_button.clicked.connect(self.go_back)
+        self.forward_button.clicked.connect(self.go_forward)
+        self.home_button.clicked.connect(self.go_home)
+        QShortcut(QKeySequence.StandardKey.Find, self, activated=self.search.setFocus)
+        QShortcut(QKeySequence("Alt+Left"), self, activated=self.go_back)
+        QShortcut(QKeySequence("Alt+Right"), self, activated=self.go_forward)
+        self._filter("")
+        self._update_navigation()
+
+    def _filter(self, text: str) -> None:
+        query = (text or "").strip().casefold()
+        self.node_tree.blockSignals(True)
+        self.node_tree.clear()
+        page_items: dict[str, QTreeWidgetItem] = {}
+        if not query:
+            home = QTreeWidgetItem([t("docs.overview", default="Overview")])
+            home.setData(0, Qt.ItemDataRole.UserRole, self.HOME_PAGE)
+            self.node_tree.addTopLevelItem(home)
+            page_items[self.HOME_PAGE] = home
+
+        shown_count = 0
+        for group_name, node_types in models.NODE_GROUPS:
+            matches = [node_type for node_type in node_types if self._matches(node_type, query)]
+            if not matches:
+                continue
+            group_item = QTreeWidgetItem([group_name])
+            group_item.setFlags(group_item.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+            self.node_tree.addTopLevelItem(group_item)
+            for node_type in matches:
+                schema = models.NODE_SCHEMAS[node_type]
+                label = models.NODE_TYPE_CN.get(node_type, schema.get("label", node_type))
+                item = QTreeWidgetItem([str(label)])
+                item.setData(0, Qt.ItemDataRole.UserRole, node_type)
+                item.setToolTip(0, f"{label} ({node_type})")
+                group_item.addChild(item)
+                page_items[node_type] = item
+                shown_count += 1
+            group_item.setExpanded(True)
+
+        target = page_items.get(self._current_page)
+        if target is None:
+            target = page_items.get(self.HOME_PAGE)
+        if target is None and page_items:
+            target = next(iter(page_items.values()))
+        if target is not None:
+            self.node_tree.setCurrentItem(target)
+        self.node_tree.blockSignals(False)
+        if target is not None:
+            page = str(target.data(0, Qt.ItemDataRole.UserRole) or "")
+            if page:
+                self._render_page(page)
+        if shown_count == 0:
+            self.browser.setHtml(
+                f"<p>{html.escape(t('reference.no_matches', default='No matching nodes or fields.'))}</p>"
+            )
+            self.breadcrumb.setText(t("docs.no_results", default="No results"))
+
+    def _matches(self, node_type: str, query: str) -> bool:
+        if not query:
+            return True
+        schema = models.NODE_SCHEMAS[node_type]
+        label = models.NODE_TYPE_CN.get(node_type, schema.get("label", node_type))
+        field_terms = []
+        for key, field_label, kind, _optional in schema["fields"]:
+            field_terms.extend((key, t(f"field.{key}", default=field_label), _kind_doc(kind)))
+        haystack = " ".join((
+            node_type,
+            str(label),
+            " ".join(field_terms),
+            models.NODE_HELP.get(node_type, ""),
+            RUNTIME_API.get(node_type, ""),
+        )).casefold()
+        return query in haystack
+
+    def _show_current(self, current: QTreeWidgetItem | None, _previous=None) -> None:
+        if current is None:
+            return
+        page = str(current.data(0, Qt.ItemDataRole.UserRole) or "")
+        if page:
+            self._navigate(page)
+
+    def _render_page(self, page: str) -> None:
+        self._current_page = page
+        if page == self.HOME_PAGE:
+            self.browser.setHtml(documentation_home_html())
+            self.breadcrumb.setText(
+                f"{t('docs.title', default='Documentation')}  /  {t('docs.overview', default='Overview')}"
+            )
+        else:
+            self.browser.setHtml(node_reference_html(page))
+            label = models.NODE_TYPE_CN.get(page, page)
+            self.breadcrumb.setText(
+                f"{t('docs.title', default='Documentation')}  /  {_group_for(page)}  /  {label}"
+            )
+        self.browser.verticalScrollBar().setValue(0)
+
+    def _navigate(self, page: str, *, record: bool = True) -> None:
+        if page != self.HOME_PAGE and page not in models.NODE_SCHEMAS:
+            return
+        if record and page != self._current_page:
+            del self._history[self._history_index + 1:]
+            self._history.append(page)
+            self._history_index = len(self._history) - 1
+        self._render_page(page)
+        item = self._find_item(page)
+        if item is not None and self.node_tree.currentItem() is not item:
+            self.node_tree.blockSignals(True)
+            self.node_tree.setCurrentItem(item)
+            self.node_tree.blockSignals(False)
+        self._update_navigation()
+
+    def _find_item(self, page: str) -> QTreeWidgetItem | None:
+        iterator = self.node_tree.invisibleRootItem()
+        stack = [iterator.child(i) for i in range(iterator.childCount())]
+        while stack:
+            item = stack.pop(0)
+            if str(item.data(0, Qt.ItemDataRole.UserRole) or "") == page:
+                return item
+            stack[0:0] = [item.child(i) for i in range(item.childCount())]
+        return None
+
+    def _open_link(self, url: QUrl) -> None:
+        if url.scheme() == "lomdoc" and url.host() == "node":
+            self._navigate(url.path().lstrip("/"))
+
+    def _activate_first_result(self) -> None:
+        item = self.node_tree.currentItem()
+        if item is not None:
+            page = str(item.data(0, Qt.ItemDataRole.UserRole) or "")
+            if page:
+                self._navigate(page)
+                self.browser.setFocus()
+
+    def go_back(self) -> None:
+        if self._history_index <= 0:
+            return
+        self._history_index -= 1
+        page = self._history[self._history_index]
+        if page == self.HOME_PAGE and self.search.text():
+            self.search.clear()
+        self._navigate(page, record=False)
+
+    def go_forward(self) -> None:
+        if self._history_index >= len(self._history) - 1:
+            return
+        self._history_index += 1
+        self._navigate(self._history[self._history_index], record=False)
+
+    def go_home(self) -> None:
+        if self.search.text():
+            self.search.clear()
+        self._navigate(self.HOME_PAGE)
+
+    def _update_navigation(self) -> None:
+        self.back_button.setEnabled(self._history_index > 0)
+        self.forward_button.setEnabled(self._history_index < len(self._history) - 1)
+
+    def current_node_type(self) -> str:
+        return "" if self._current_page == self.HOME_PAGE else self._current_page
+
+    def visible_node_types(self) -> tuple[str, ...]:
+        """测试与可访问性工具使用的当前搜索结果。"""
+        out = []
+        root = self.node_tree.invisibleRootItem()
+        for i in range(root.childCount()):
+            top = root.child(i)
+            for j in range(top.childCount()):
+                value = str(top.child(j).data(0, Qt.ItemDataRole.UserRole) or "")
+                if value:
+                    out.append(value)
+        return tuple(out)
+
+
+_SOFTWARE_STYLE = """
+<style>
+  body { color: #e8e8ed; font-family: sans-serif; font-size: 13px; line-height: 1.55; margin: 24px 30px 40px 30px; }
+  h1 { font-size: 26px; margin: 0 0 10px 0; }
+  h2 { font-size: 19px; margin: 0 0 12px 0; border-bottom: 1px solid #44444c; padding-bottom: 7px; }
+  h3 { font-size: 15px; margin-top: 22px; }
+  p, li { max-width: 880px; }
+  a { color: #66adff; text-decoration: none; }
+  code { color: #ffd6a0; font-family: Consolas, monospace; }
+  .eyebrow { color: #78b7ff; font-size: 11px; font-weight: 600; letter-spacing: 1px; }
+</style>
+"""
+
+
+def software_documentation_pages() -> tuple[tuple[str, str, str], ...]:
+    """把当前语言的使用指南按 h2 拆成 Unity Manual 风格的独立文章。"""
+    source = current_help_html()
+    matches = list(re.finditer(r"<h2[^>]*>(.*?)</h2>", source, re.I | re.S))
+    pages: list[tuple[str, str, str]] = []
+    intro_end = matches[0].start() if matches else len(source)
+    intro = source[:intro_end].strip()
+    pages.append(("overview", t("docs.software_overview", default="Software overview"), intro))
+    for index, match in enumerate(matches):
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(source)
+        raw_title = re.sub(r"<[^>]+>", "", match.group(1))
+        title = html.unescape(raw_title).strip()
+        body = source[match.end():end].strip()
+        pages.append((f"section-{index + 1}", title, f"<h2>{html.escape(title)}</h2>{body}"))
+    return tuple(pages)
+
+
+class SoftwareDocumentationWidget(QWidget):
+    """软件操作文档：与节点契约分栏，保留目录、搜索和独立文章阅读。"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.pages = software_documentation_pages()
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(9)
+
+        self.search = QLineEdit()
+        self.search.setPlaceholderText(t("docs.software_search", default="Search software usage…"))
+        self.search.setClearButtonEnabled(True)
+        self.search.setAccessibleName(t("docs.software_search", default="Search software usage"))
+        layout.addWidget(self.search)
+
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.setChildrenCollapsible(False)
+        self.contents = QTreeWidget()
+        self.contents.setHeaderHidden(True)
+        self.contents.setMinimumWidth(240)
+        self.contents.setAccessibleName(t("docs.contents", default="Contents"))
+        self.browser = QTextBrowser()
+        self.browser.setOpenExternalLinks(True)
+        self.browser.setAccessibleName(t("docs.article", default="Documentation article"))
+        splitter.addWidget(self.contents)
+        splitter.addWidget(self.browser)
+        splitter.setSizes([270, 830])
+        splitter.setStretchFactor(0, 0)
+        splitter.setStretchFactor(1, 1)
+        layout.addWidget(splitter, 1)
+
+        self.search.textChanged.connect(self._filter)
+        self.contents.currentItemChanged.connect(self._show_current)
+        QShortcut(QKeySequence.StandardKey.Find, self, activated=self.search.setFocus)
         self._filter("")
 
     def _filter(self, text: str) -> None:
         query = (text or "").strip().casefold()
-        current = self.current_node_type()
-        self.node_list.clear()
-        for node_type in models.NODE_TYPES:
-            schema = models.NODE_SCHEMAS[node_type]
-            label = models.NODE_TYPE_CN.get(node_type, schema.get("label", node_type))
-            field_terms = []
-            for key, field_label, kind, _optional in schema["fields"]:
-                field_terms.extend((key, t(f"field.{key}", default=field_label), _kind_doc(kind)))
-            fields = " ".join(field_terms)
-            haystack = " ".join(
-                (node_type, str(label), fields, models.NODE_HELP.get(node_type, ""), RUNTIME_API.get(node_type, ""))
-            ).casefold()
-            if query and query not in haystack:
+        self.contents.blockSignals(True)
+        self.contents.clear()
+        first = None
+        for page_id, title, body in self.pages:
+            plain = re.sub(r"<[^>]+>", " ", body)
+            if query and query not in (title + " " + html.unescape(plain)).casefold():
                 continue
-            item = QListWidgetItem(f"{_group_for(node_type)} · {label}")
-            item.setData(Qt.ItemDataRole.UserRole, node_type)
-            item.setToolTip(f"{label} ({node_type})")
-            self.node_list.addItem(item)
-            if node_type == current:
-                self.node_list.setCurrentItem(item)
-        if self.node_list.currentRow() < 0 and self.node_list.count():
-            self.node_list.setCurrentRow(0)
-        if self.node_list.count() == 0:
+            item = QTreeWidgetItem([title])
+            item.setData(0, Qt.ItemDataRole.UserRole, page_id)
+            self.contents.addTopLevelItem(item)
+            if first is None: first = item
+        self.contents.blockSignals(False)
+        if first is None:
             self.browser.setHtml(
-                f"<p>{html.escape(t('reference.no_matches', default='No matching nodes or fields.'))}</p>"
+                _SOFTWARE_STYLE + "<p>" + html.escape(
+                    t("docs.software_no_results", default="No matching software guide.")) + "</p>"
             )
+        else:
+            self.contents.setCurrentItem(first)
+            self._render(str(first.data(0, Qt.ItemDataRole.UserRole)))
 
-    def _show_current(self, current: QListWidgetItem | None, _previous=None) -> None:
-        if current is None:
-            return
-        node_type = str(current.data(Qt.ItemDataRole.UserRole) or "")
-        self.browser.setHtml(node_reference_html(node_type))
+    def _show_current(self, current: QTreeWidgetItem | None, _previous=None) -> None:
+        if current is not None:
+            self._render(str(current.data(0, Qt.ItemDataRole.UserRole) or ""))
 
-    def current_node_type(self) -> str:
-        item = self.node_list.currentItem()
-        return str(item.data(Qt.ItemDataRole.UserRole) or "") if item else ""
+    def _render(self, page_id: str) -> None:
+        for candidate, _title, body in self.pages:
+            if candidate == page_id:
+                self.browser.setHtml(_SOFTWARE_STYLE + body)
+                self.browser.verticalScrollBar().setValue(0)
+                return
+
+    def visible_page_ids(self) -> tuple[str, ...]:
+        return tuple(
+            str(self.contents.topLevelItem(i).data(0, Qt.ItemDataRole.UserRole) or "")
+            for i in range(self.contents.topLevelItemCount())
+        )
+
+
+class DocumentationDialog(QDialog):
+    """可与编辑器并行使用，且明确区分软件操作与脚本契约的独立文档窗口。"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(t("docs.window_title", default="Documentation — LOM Modkit"))
+        self.setModal(False)
+        self.resize(1120, 760)
+        self.setMinimumSize(820, 560)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.tabs = QTabWidget(self)
+        self.software = SoftwareDocumentationWidget(self.tabs)
+        self.reference = NodeReferenceWidget(self.tabs)
+        self.tabs.addTab(
+            self.software,
+            t("docs.software_tab", default="Software usage"),
+        )
+        self.tabs.addTab(
+            self.reference,
+            t("docs.script_tab", default="Script / API reference"),
+        )
+        layout.addWidget(self.tabs)

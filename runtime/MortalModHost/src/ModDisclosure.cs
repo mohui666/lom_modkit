@@ -45,6 +45,7 @@ namespace MortalModHost
         private const string PrimaryObjectName = "primary";
         private const string DetailObjectName = "detail";
         private const string AccentObjectName = "accent";
+        private const string DialogLabelObjectName = "dialog-label";
         private const string GuardianObjectName = "lom_disclosure_guardian";
         private const int EdgeMaxWidth = 480;
         private const int SurfaceMaxWidth = 430;
@@ -54,13 +55,15 @@ namespace MortalModHost
         {
             public Transform Parent;
             public GameObject Chip;
+            public Vector2 Anchor = Vector2.one;
+            public Vector2 Pivot = Vector2.one;
+            public Vector2 Offset = new Vector2(-18f, -14f);
         }
 
         private sealed class DialogBinding
         {
             public SayDialog Host;
             public RectTransform Parent;
-            public GameObject Chip;
             public GameObject Watermark;
         }
 
@@ -350,21 +353,24 @@ namespace MortalModHost
             GUI.contentColor = Color.white;
             GUI.backgroundColor = Color.white;
 
-            float width = Mathf.Min(500f, Mathf.Max(240f, Screen.width - 24f));
-            var rect = new Rect(Mathf.Max(12f, Screen.width - width - 12f), 12f, width, 54f);
-            GUI.color = new Color(0.08f, 0.06f, 0.05f, 0.94f);
+            // Canvas 边缘标已经承载完整作品身份并固定在右上角。独立 IMGUI 章只作
+            // 跨 Canvas 的最后防线，放到左下角并压成单行，避免两套全局标识重叠。
+            float width = Mathf.Min(360f, Mathf.Max(220f, Screen.width - 24f));
+            float height = 34f;
+            var rect = new Rect(12f, Mathf.Max(12f, Screen.height - height - 12f), width, height);
+            GUI.color = new Color(0.08f, 0.06f, 0.05f, 0.78f);
             GUI.DrawTexture(rect, Texture2D.whiteTexture);
             GUI.color = Color.white;
             var style = new GUIStyle(GUI.skin.label)
             {
                 alignment = TextAnchor.MiddleLeft,
                 fontStyle = FontStyle.Bold,
-                fontSize = Mathf.Clamp(Screen.height / 60, 12, 18),
+                fontSize = Mathf.Clamp(Screen.height / 75, 11, 15),
                 wordWrap = false,
-                padding = new RectOffset(12, 10, 3, 3)
+                padding = new RectOffset(10, 8, 2, 2)
             };
             string shortHash = ModDisclosurePolicy.ShortFingerprint(PackageFingerprint);
-            GUI.Label(rect, CurrentPrimaryText() + "\nSHA-256 " + shortHash, style);
+            GUI.Label(rect, DisclosureIntegrity.FixedStamp() + "  ·  " + shortHash, style);
 
             GUI.enabled = oldEnabled;
             GUI.matrix = oldMatrix;
@@ -429,6 +435,23 @@ namespace MortalModHost
         /// </summary>
         internal static GameObject AttachToPanel(Transform parent)
         {
+            return AttachToPanel(
+                parent,
+                Vector2.one,
+                Vector2.one,
+                new Vector2(-18f, -14f));
+        }
+
+        /// <summary>
+        /// 把来源标记挂到关键面板的指定局部位置。anchor/pivot/offset 都属于该面板
+        /// 自身的 RectTransform 坐标，避免全屏父节点把所有卡片标记挤到屏幕右上角。
+        /// </summary>
+        internal static GameObject AttachToPanel(
+            Transform parent,
+            Vector2 anchor,
+            Vector2 pivot,
+            Vector2 offset)
+        {
             if (!Active) return null;
             if (parent == null)
             {
@@ -444,11 +467,16 @@ namespace MortalModHost
                     binding = new PanelBinding { Parent = parent };
                     PanelBindings.Add(binding);
                 }
+                binding.Anchor = anchor;
+                binding.Pivot = pivot;
+                binding.Offset = offset;
                 DestroyChip(ref binding.Chip);
                 Transform existing = parent.Find(ModDisclosurePolicy.ChipObjectName);
                 if (existing != null) UnityEngine.Object.Destroy(existing.gameObject);
                 binding.Chip = BuildSurfaceChip(parent, ModDisclosurePolicy.ChipObjectName, FindFontOn(parent));
-                RepairChip(binding.Chip, parent, new Vector2(-18f, -14f), SurfaceMaxWidth, 15, 11, false);
+                RepairChip(
+                    binding.Chip, parent, binding.Anchor, binding.Pivot, binding.Offset,
+                    SurfaceMaxWidth, 15, 11, false);
                 return binding.Chip;
             }
             catch (Exception ex)
@@ -525,7 +553,9 @@ namespace MortalModHost
                 DestroyChip(ref _edgeChip);
                 _edgeChip = BuildChip(_edgeRoot.transform, "edge", ResolveFont(null), 16, 12, EdgeMaxWidth, true);
             }
-            RepairChip(_edgeChip, _edgeRoot.transform, new Vector2(-20f, -18f), EdgeMaxWidth, 16, 12, true);
+            RepairChip(
+                _edgeChip, _edgeRoot.transform, Vector2.one, Vector2.one,
+                new Vector2(-20f, -18f), EdgeMaxWidth, 16, 12, true);
         }
 
         private static void EnsureGuardian()
@@ -568,7 +598,6 @@ namespace MortalModHost
                 {
                     if (binding != null)
                     {
-                        DestroyChip(ref binding.Chip);
                         DestroyChip(ref binding.Watermark);
                     }
                     DialogBindings.RemoveAt(i);
@@ -578,7 +607,6 @@ namespace MortalModHost
                 // 换成诱饵对象或销毁 SayDialog 组件，仍保留真实 UI 上的内标。
                 if (!binding.Parent.gameObject.activeInHierarchy)
                 {
-                    DestroyChip(ref binding.Chip);
                     DestroyChip(ref binding.Watermark);
                     DialogBindings.RemoveAt(i);
                     continue;
@@ -590,15 +618,11 @@ namespace MortalModHost
                     DestroyChip(ref binding.Watermark);
                     binding.Watermark = BuildDialogWatermark(binding.Parent, font);
                 }
-                RepairDialogWatermark(binding.Watermark, binding.Parent, font);
-                if (!IsChipStructurallyValid(binding.Chip))
-                {
-                    DestroyChip(ref binding.Chip);
-                    binding.Chip = BuildChip(binding.Parent, "dialog", font, 14, 11, SurfaceMaxWidth, false);
-                }
-                // 同排序层内让高对比芯片最后绘制；透明水印铺满对白区域，芯片负责
-                // 一眼可见的固定声明，两者缺一都按强制披露故障处理。
-                RepairChip(binding.Chip, binding.Parent, new Vector2(-10f, -8f), SurfaceMaxWidth, 14, 11, false);
+                RectTransform storyRect = binding.Host != null
+                    && binding.Host.StoryTextObject != null
+                    ? binding.Host.StoryTextObject.rectTransform : null;
+                RepairDialogWatermark(
+                    binding.Watermark, binding.Parent, font, storyRect);
             }
         }
 
@@ -614,8 +638,6 @@ namespace MortalModHost
                 if (existing.Parent != parent)
                 {
                     existing.Parent = parent;
-                    if (existing.Chip != null)
-                        existing.Chip.transform.SetParent(parent, false);
                     if (existing.Watermark != null)
                         existing.Watermark.transform.SetParent(parent, false);
                 }
@@ -623,22 +645,18 @@ namespace MortalModHost
             }
             Font font = ResolveFont(dialog.StoryTextObject != null ? dialog.StoryTextObject.font : null);
             GameObject watermark = null;
-            GameObject chip = null;
             try
             {
                 watermark = BuildDialogWatermark(parent, font);
-                chip = BuildChip(parent, "dialog", font, 14, 11, SurfaceMaxWidth, false);
                 DialogBindings.Add(new DialogBinding
                 {
                     Host = dialog,
                     Parent = parent,
-                    Watermark = watermark,
-                    Chip = chip
+                    Watermark = watermark
                 });
             }
             catch
             {
-                DestroyChip(ref chip);
                 DestroyChip(ref watermark);
                 throw;
             }
@@ -663,7 +681,9 @@ namespace MortalModHost
                         ModDisclosurePolicy.ChipObjectName,
                         FindFontOn(binding.Parent));
                 }
-                RepairChip(binding.Chip, binding.Parent, new Vector2(-18f, -14f), SurfaceMaxWidth, 15, 11, false);
+                RepairChip(
+                    binding.Chip, binding.Parent, binding.Anchor, binding.Pivot, binding.Offset,
+                    SurfaceMaxWidth, 15, 11, false);
             }
         }
 
@@ -693,26 +713,34 @@ namespace MortalModHost
             LayoutElement layout = go.AddComponent<LayoutElement>();
             layout.ignoreLayout = true;
 
-            Text label = go.AddComponent<Text>();
+            Image background = go.AddComponent<Image>();
+            background.sprite = WhiteSprite();
+            background.color = new Color(0.04f, 0.03f, 0.025f, 0.42f);
+            background.raycastTarget = false;
+
+            var labelObject = new GameObject(DialogLabelObjectName, typeof(RectTransform));
+            RectTransform labelRect = (RectTransform)labelObject.transform;
+            labelRect.SetParent(rect, false);
+            Text label = labelObject.AddComponent<Text>();
             label.font = font;
             label.text = DisclosureIntegrity.VisibleWatermarkText(_shortFingerprint);
-            label.fontSize = 13;
+            label.fontSize = 12;
             label.fontStyle = FontStyle.Bold;
             label.alignment = TextAnchor.MiddleCenter;
-            label.color = new Color(1f, 0.72f, 0.36f, 0.18f);
-            label.horizontalOverflow = HorizontalWrapMode.Wrap;
+            label.color = new Color(1f, 0.77f, 0.43f, 0.88f);
+            label.horizontalOverflow = HorizontalWrapMode.Overflow;
             label.verticalOverflow = VerticalWrapMode.Truncate;
             label.resizeTextForBestFit = true;
             label.resizeTextMinSize = 9;
-            label.resizeTextMaxSize = 13;
+            label.resizeTextMaxSize = 12;
             label.raycastTarget = false;
             label.supportRichText = false;
             return go;
         }
 
         /// <summary>
-        /// 对白框本身，而不是可能铺满全屏的 SayDialog 根。优先挂到正文父节点；
-        /// 父节点过高时直接挂到正文上，使裁切对白截图时仍保留来源。
+        /// 始终挂到正文的直接 RectTransform 父级，再按正文实际边界计算底部居中位置。
+        /// 不能把高度与 Screen 像素混算，也不能把标记挂到正文自身后伸出 Mask 区域。
         /// </summary>
         private static RectTransform FindDialogChrome(SayDialog dialog)
         {
@@ -720,18 +748,7 @@ namespace MortalModHost
             if (story == null) return dialog.transform as RectTransform;
             RectTransform storyRect = story.rectTransform;
             RectTransform parent = storyRect.parent as RectTransform;
-            if (parent != null)
-            {
-                Canvas canvas = parent.GetComponentInParent<Canvas>();
-                RectTransform canvasRect = canvas != null ? canvas.transform as RectTransform : null;
-                float referenceHeight = canvasRect != null ? canvasRect.rect.height : 0f;
-                if (referenceHeight <= 0f && canvas != null && canvas.scaleFactor > 0f)
-                    referenceHeight = Screen.height / canvas.scaleFactor;
-                if (referenceHeight <= 0f) referenceHeight = Screen.height;
-                if (parent.rect.height < referenceHeight * 0.7f)
-                    return parent;
-            }
-            return storyRect;
+            return parent != null ? parent : storyRect;
         }
 
         private static GameObject BuildChip(
@@ -849,7 +866,12 @@ namespace MortalModHost
             _lastDetail = detail;
             SetChipLabels(_edgeChip, primary, detail, EdgeMaxWidth);
             for (int i = 0; i < DialogBindings.Count; i++)
-                SetChipLabels(DialogBindings[i].Chip, primary, detail, SurfaceMaxWidth);
+            {
+                DialogBinding binding = DialogBindings[i];
+                Text label = binding != null ? FindDialogLabel(binding.Watermark) : null;
+                if (label != null)
+                    label.text = DisclosureIntegrity.VisibleWatermarkText(_shortFingerprint);
+            }
             for (int i = 0; i < PanelBindings.Count; i++)
                 SetChipLabels(PanelBindings[i].Chip, primary, detail, SurfaceMaxWidth);
         }
@@ -891,11 +913,12 @@ namespace MortalModHost
             return watermark != null && watermark.activeSelf
                 && watermark.transform is RectTransform
                 && watermark.GetComponent<Canvas>() != null
-                && watermark.GetComponent<Text>() != null;
+                && watermark.GetComponent<Image>() != null
+                && FindDialogLabel(watermark) != null;
         }
 
         private static void RepairDialogWatermark(
-            GameObject watermark, Transform expectedParent, Font font)
+            GameObject watermark, Transform expectedParent, Font font, RectTransform storyRect)
         {
             if (!IsDialogWatermarkStructurallyValid(watermark))
                 throw new InvalidOperationException("对白区域水印结构不完整");
@@ -908,12 +931,24 @@ namespace MortalModHost
             watermark.SetActive(true);
             RectTransform rect = (RectTransform)watermark.transform;
             if (rect.parent != expectedParent) rect.SetParent(expectedParent, false);
+            RectTransform parentRect = expectedParent as RectTransform;
             rect.anchorMin = Vector2.zero;
-            rect.anchorMax = Vector2.one;
-            rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.offsetMin = new Vector2(6f, 5f);
-            rect.offsetMax = new Vector2(-6f, -5f);
-            rect.anchoredPosition = Vector2.zero;
+            rect.anchorMax = Vector2.zero;
+            rect.pivot = new Vector2(0.5f, 1f);
+            Bounds storyBounds = storyRect != null && parentRect != null && storyRect != parentRect
+                ? RectTransformUtility.CalculateRelativeRectTransformBounds(parentRect, storyRect)
+                : new Bounds(
+                    parentRect != null ? (Vector3)parentRect.rect.center : Vector3.zero,
+                    parentRect != null ? (Vector3)parentRect.rect.size : new Vector3(360f, 80f, 0f));
+            float parentWidth = parentRect != null ? parentRect.rect.width : 360f;
+            float storyWidth = storyBounds.size.x > 1f ? storyBounds.size.x : parentWidth;
+            rect.sizeDelta = new Vector2(
+                Mathf.Clamp(Mathf.Min(parentWidth - 16f, storyWidth), 180f, 440f), 28f);
+            float parentLeft = parentRect != null ? parentRect.rect.xMin : -180f;
+            float parentBottom = parentRect != null ? parentRect.rect.yMin : -40f;
+            float xFromBottomLeft = storyBounds.center.x - parentLeft;
+            float topFromBottom = Mathf.Max(32f, storyBounds.min.y - parentBottom - 6f);
+            rect.anchoredPosition = new Vector2(xFromBottomLeft, topFromBottom);
             rect.localScale = Vector3.one;
             rect.localRotation = Quaternion.identity;
             rect.SetAsLastSibling();
@@ -940,33 +975,85 @@ namespace MortalModHost
             if (layout == null) layout = watermark.AddComponent<LayoutElement>();
             layout.ignoreLayout = true;
 
-            Text label = watermark.GetComponent<Text>();
+            Image background = watermark.GetComponent<Image>();
+            background.enabled = true;
+            background.sprite = WhiteSprite();
+            background.material = null;
+            Color backgroundColor = new Color(0.04f, 0.03f, 0.025f, 0.42f);
+            background.color = backgroundColor;
+            background.raycastTarget = false;
+            background.maskable = false;
+            background.canvasRenderer.cull = false;
+            background.canvasRenderer.SetAlpha(1f);
+            background.canvasRenderer.SetColor(backgroundColor);
+            background.SetAllDirty();
+
+            Text label = FindDialogLabel(watermark);
+            RectTransform labelRect = label.rectTransform;
+            if (labelRect.parent != rect) labelRect.SetParent(rect, false);
+            labelRect.anchorMin = Vector2.zero;
+            labelRect.anchorMax = Vector2.one;
+            labelRect.offsetMin = new Vector2(10f, 1f);
+            labelRect.offsetMax = new Vector2(-10f, -1f);
+            labelRect.localScale = Vector3.one;
+            labelRect.localRotation = Quaternion.identity;
+            label.gameObject.SetActive(true);
             label.enabled = true;
             label.font = font;
-            label.fontSize = 13;
+            label.fontSize = 12;
             label.fontStyle = FontStyle.Bold;
             label.alignment = TextAnchor.MiddleCenter;
-            label.horizontalOverflow = HorizontalWrapMode.Wrap;
+            label.horizontalOverflow = HorizontalWrapMode.Overflow;
             label.verticalOverflow = VerticalWrapMode.Truncate;
             label.resizeTextForBestFit = true;
             label.resizeTextMinSize = 9;
-            label.resizeTextMaxSize = 13;
+            label.resizeTextMaxSize = 12;
             label.raycastTarget = false;
             label.supportRichText = false;
             label.maskable = false;
             label.material = null;
             label.text = DisclosureIntegrity.VisibleWatermarkText(_shortFingerprint);
-            Color color = new Color(1f, 0.72f, 0.36f, 0.18f);
+            Color color = new Color(1f, 0.77f, 0.43f, 0.88f);
             label.color = color;
             label.canvasRenderer.cull = false;
             label.canvasRenderer.SetAlpha(1f);
             label.canvasRenderer.SetColor(color);
             label.SetAllDirty();
+            CanvasGroup[] labelGroups = label.gameObject.GetComponents<CanvasGroup>();
+            for (int i = 0; i < labelGroups.Length; i++)
+            {
+                labelGroups[i].enabled = true;
+                labelGroups[i].alpha = 1f;
+                labelGroups[i].interactable = false;
+                labelGroups[i].blocksRaycasts = false;
+                labelGroups[i].ignoreParentGroups = false;
+            }
+            Canvas[] labelCanvases = label.gameObject.GetComponents<Canvas>();
+            for (int i = 0; i < labelCanvases.Length; i++)
+            {
+                labelCanvases[i].enabled = true;
+                labelCanvases[i].overrideSorting = false;
+                labelCanvases[i].targetDisplay = 0;
+            }
+            Shadow shadow = label.GetComponent<Shadow>();
+            if (shadow == null) shadow = label.gameObject.AddComponent<Shadow>();
+            shadow.enabled = true;
+            shadow.effectColor = new Color(0f, 0f, 0f, 0.82f);
+            shadow.effectDistance = new Vector2(1f, -1f);
+        }
+
+        private static Text FindDialogLabel(GameObject watermark)
+        {
+            if (watermark == null) return null;
+            Transform child = watermark.transform.Find(DialogLabelObjectName);
+            return child != null ? child.GetComponent<Text>() : null;
         }
 
         private static void RepairChip(
             GameObject chip,
             Transform expectedParent,
+            Vector2 anchor,
+            Vector2 pivot,
             Vector2 inset,
             float maxWidth,
             int primarySize,
@@ -980,9 +1067,9 @@ namespace MortalModHost
             chip.SetActive(true);
             RectTransform rect = (RectTransform)chip.transform;
             if (rect.parent != expectedParent) rect.SetParent(expectedParent, false);
-            rect.anchorMin = new Vector2(1f, 1f);
-            rect.anchorMax = new Vector2(1f, 1f);
-            rect.pivot = new Vector2(1f, 1f);
+            rect.anchorMin = anchor;
+            rect.anchorMax = anchor;
+            rect.pivot = pivot;
             rect.anchoredPosition = inset;
             rect.localScale = Vector3.one;
             rect.localRotation = Quaternion.identity;
@@ -1139,7 +1226,6 @@ namespace MortalModHost
                 DialogBinding binding = DialogBindings[i];
                 if (binding != null)
                 {
-                    DestroyChip(ref binding.Chip);
                     DestroyChip(ref binding.Watermark);
                 }
             }

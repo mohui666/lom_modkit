@@ -1,6 +1,6 @@
 # 用户内容库（User Content Library）
 
-> 语言：简体中文（本文） · [繁體中文](../zh_TW/user_content.md) · [日本語](../ja/user_content.md) · [한국어](../ko/user_content.md)
+> 语言：简体中文（本文） · [繁體中文](../cht/user_content.md) · [日本語](../ja/user_content.md) · [한국어](../ko/user_content.md)
 
 本地、离线、按 Mod 自包含。没有账号、没有在线市场、没有云同步。
 

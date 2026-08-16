@@ -736,6 +736,11 @@ def _emit_battle_skill(node, ctx):
             "\tluamanager.SetBattleSkillActive(%s, %s)"
             % (lua_str(node["key"]), lua_num(node.get("active", 1)))
         ]
+    if op == "level":
+        return [
+            "\tluamanager.SetBattleSkillLevel(%s, %s)"
+            % (lua_str(node["key"]), lua_num(node.get("level", 1)))
+        ]
     return [
         "\tluamanager.SetPlayerBattleSkill(%s, %s)"
         % (lua_str(node["key"]), lua_num(node.get("index", 2)))
@@ -774,28 +779,41 @@ def _emit_battle_setup(node, ctx):
     return lines
 
 
+def _encode_gameplay_config(config, scalar_fields, list_fields=()):
+    """编码已由 validate 限定的 Gameplay 配置；id 不允许出现分隔字符。"""
+    parts = []
+    for field in scalar_fields:
+        if field not in config or config[field] in (None, ""):
+            continue
+        value = config[field]
+        if isinstance(value, bool):
+            value = 1 if value else 0
+        parts.append("%s=%s" % (field, value))
+    for field, columns in list_fields:
+        if field not in config:
+            continue
+        rows = []
+        for item in config.get(field, []):
+            rows.append(":".join(str(item.get(column, "")) for column in columns))
+        parts.append("%s=%s" % (field, ",".join(rows)))
+    return ";".join(parts)
+
+
 def _emit_combat(node, ctx):
     """编排一场原版 Combat，并把已验证的 win/lose 结果带回本剧情。"""
     config = ctx["battle_presets"].get(node.get("preset"), node)
+    encoded = _encode_gameplay_config(
+        config,
+        (
+            "max_health", "health", "max_stamina", "stamina", "strength",
+            "internal", "dexterity", "talking", "defence", "sword", "fist",
+            "martial_weapon", "mental", "ultimate_one", "ultimate_two",
+            "ultimate_three", "talk_rate", "attack_rate", "weapon_rate",
+            "ultimate_rate", "block_rate",
+        ),
+        (("talents", ("key", "level")),),
+    )
     lines = []
-    enemy = config.get("enemy")
-    if enemy:
-        lines.append("\tstatmodifymanager.ModifyEnemyId(%s)" % lua_str(enemy))
-        api = {
-            "team": "ModifyEnemyTeam",
-            "level": "ModifyEnemyLevel",
-            "people": "ModifyEnemyPeople",
-        }
-        for field in ("team", "level", "people"):
-            value = config.get(field, 0)
-            if value:
-                lines.append(
-                    "\tstatmodifymanager.%s(%s, %s, %s)"
-                    % (
-                        api[field], lua_str(enemy), lua_num(value),
-                        lua_num(config.get("display", 1)),
-                    )
-                )
     lines.extend(
         [
             "\tmod_gameplay_prepare(%s, %s, %s, %s, %s)"
@@ -803,6 +821,8 @@ def _emit_combat(node, ctx):
                 lua_str("combat"), lua_str(ctx["script_id"]), lua_str(node["id"]),
                 lua_str(node["win"]), lua_str(node["lose"]),
             ),
+            "\tmod_gameplay_configure(%s, %s)"
+            % (lua_str("combat"), lua_str(encoded)),
             "\tmod_stop_voice()",
             "\tmod_hide_all()",
             '\tluamanager.ChangeScene("Combat", %s, "Story")' % lua_str(config["key"]),
@@ -813,16 +833,39 @@ def _emit_combat(node, ctx):
 
 def _emit_battle(node, ctx):
     config = ctx["battle_presets"].get(node.get("preset"), node)
-    return [
+    encoded = _encode_gameplay_config(
+        config,
+        (
+            "friend_roster", "enemy_roster", "neutral_roster",
+            "friend_people", "enemy_people", "neutral_people",
+            "friend_health", "enemy_health", "neutral_health",
+        ),
+    )
+    lines = []
+    if config.get("reset_skills", False):
+        lines.append("\tluamanager.ResetBattleSkill()")
+    for skill in config.get("skills", []):
+        lines.append(
+            "\tluamanager.SetPlayerBattleSkill(%s, %s)"
+            % (lua_str(skill["key"]), lua_num(skill.get("index", 2)))
+        )
+        lines.append(
+            "\tluamanager.SetBattleSkillActive(%s, %s)"
+            % (lua_str(skill["key"]), lua_num(skill.get("active", 1)))
+        )
+    lines.extend([
         "\tmod_gameplay_prepare(%s, %s, %s, %s, %s)"
         % (
             lua_str("battle"), lua_str(ctx["script_id"]), lua_str(node["id"]),
             lua_str(node["win"]), lua_str(node["lose"]),
         ),
+        "\tmod_gameplay_configure(%s, %s)"
+        % (lua_str("battle"), lua_str(encoded)),
         "\tmod_stop_voice()",
         "\tmod_hide_all()",
         '\tluamanager.ChangeScene("Battle", %s, "Story")' % lua_str(config["key"]),
-    ]
+    ])
+    return lines
 
 
 def _emit_battle_result(node, ctx):

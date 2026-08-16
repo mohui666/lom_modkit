@@ -199,7 +199,15 @@ namespace MortalModHost
         {
             if (ModDisclosure.Active)
             {
-                if (ModDisclosure.AttachToPanel(ResolveDisclosureAnchor(__instance)) == null)
+                Transform buttonAnchor = ResolveButtonDisclosureAnchor(__instance);
+                GameObject disclosure = buttonAnchor != null
+                    ? ModDisclosure.AttachToPanel(
+                        buttonAnchor,
+                        Vector2.one,
+                        new Vector2(1f, 0f),
+                        new Vector2(0f, 14f))
+                    : ModDisclosure.AttachToPanel(ResolveDisclosureAnchor(__instance));
+                if (disclosure == null)
                 {
                     (__result as IDisposable)?.Dispose();
                     __result = ModDisclosure.EmptyRoutine();
@@ -219,6 +227,23 @@ namespace MortalModHost
             {
                 Log?.LogWarning("GameOver mod 文本覆盖注入失败：" + ex.Message);
             }
+        }
+
+        /// <summary>
+        /// 原版 GameOver 的标题父节点 Vertical/Horizontal 实际铺满全屏；挂到它的
+        /// “右上角”会与常驻边缘标完全重叠。标题按钮画布是卡片自身右下角的 300x100
+        /// 区域，局部标识放在按钮上沿，截图裁取死亡卡或返回按钮时都会保留。
+        /// </summary>
+        private static Transform ResolveButtonDisclosureAnchor(GameOverController controller)
+        {
+            try
+            {
+                CanvasGroup buttons = Traverse.Create(controller)
+                    .Field("_titleButtonCanvas").GetValue<CanvasGroup>();
+                if (buttons != null) return buttons.transform;
+            }
+            catch { }
+            return null;
         }
 
         private static Transform ResolveDisclosureAnchor(GameOverController controller)
@@ -498,7 +523,15 @@ namespace MortalModHost
         {
             if (ModDisclosure.Active)
             {
-                if (ModDisclosure.AttachToPanel(ResolveDisclosureAnchor(__instance)) == null)
+                Transform buttonAnchor = ResolveButtonDisclosureAnchor(__instance);
+                GameObject disclosure = buttonAnchor != null
+                    ? ModDisclosure.AttachToPanel(
+                        buttonAnchor,
+                        Vector2.one,
+                        new Vector2(1f, 0f),
+                        new Vector2(0f, 14f))
+                    : ModDisclosure.AttachToPanel(ResolveDisclosureAnchor(__instance));
+                if (disclosure == null)
                 {
                     (__result as IDisposable)?.Dispose();
                     __result = ModDisclosure.EmptyRoutine();
@@ -518,6 +551,18 @@ namespace MortalModHost
             {
                 Log?.LogWarning("End 结局 mod 文本覆盖注入失败：" + ex.Message);
             }
+        }
+
+        private static Transform ResolveButtonDisclosureAnchor(EndGameController controller)
+        {
+            try
+            {
+                CanvasGroup buttons = Traverse.Create(controller)
+                    .Field("_titleButtonCanvas").GetValue<CanvasGroup>();
+                if (buttons != null) return buttons.transform;
+            }
+            catch { }
+            return null;
         }
 
         private static Transform ResolveDisclosureAnchor(EndGameController controller)

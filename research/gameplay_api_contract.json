@@ -71,6 +71,27 @@
       ]
     },
     {
+      "assembly": "Mortal.Combat.dll",
+      "type": "Mortal.Combat.CombatStat",
+      "required_fragments": [
+        "public int MaxHealth;",
+        "public int DefaultHealth;",
+        "public int MaxStamina;",
+        "public int DefaultStamina;",
+        "public List<CombatTalentItem> TalentItems",
+        "public string UltimateOne;",
+        "public float AttackRate",
+        "public void Reset()"
+      ]
+    },
+    {
+      "assembly": "Mortal.Combat.dll",
+      "type": "Mortal.Combat.CombatActionController",
+      "required_fragments": [
+        "public void SetStat(CombatStat data)"
+      ]
+    },
+    {
       "assembly": "Mortal.Battle.dll",
       "type": "Mortal.Battle.GameLevelManager",
       "required_fragments": [
@@ -89,6 +110,36 @@
         "FriendWin",
         "EnemyWin",
         "Timeout"
+      ]
+    },
+    {
+      "assembly": "Mortal.Battle.dll",
+      "type": "Mortal.Battle.BattleLevel",
+      "required_fragments": [
+        "public int GetFriendPeople()",
+        "public int GetEnemyPeople()",
+        "public int NeutralPeople => _neutralPeople;",
+        "public GameObject FriendSpawnerPrefab => _friendSpawnerPrefab;",
+        "public GameObject EnemySpawnerPrefab => _enemySpawnerPrefab;",
+        "public GameObject NeutralSpawnerPrefab => _neutralSpawnerPrefab;"
+      ]
+    },
+    {
+      "assembly": "Mortal.Battle.dll",
+      "type": "Mortal.Battle.CharacterHealth",
+      "required_fragments": [
+        "private HealthData _defaultHealth;",
+        "private int _defaultAddHealth;",
+        "public int CurrentHealth { get; private set; }",
+        "private void Start()"
+      ]
+    },
+    {
+      "assembly": "Mortal.Battle.dll",
+      "type": "Mortal.Battle.NpcSpawner",
+      "required_fragments": [
+        "private CharacterSpawnPoint[] _spawnPoints;",
+        "public void Setup(int npcMaxCount, GameObject spawnerObject)"
       ]
     },
     {
@@ -148,16 +199,59 @@
       "required_fragments": [
         "public string CurrentSlot",
         "public void SetSlot(string slot)",
+        "private void AutoSaveData(string slot)",
+        "public void AutoSaveStoryData()",
+        "public void AutoSaveFreeData()",
+        "public void AutoSaveBattleData()",
+        "public void AutoLoadGameData(string slot)",
+        "public void SaveUniverseData()",
         "public void SaveGameData()",
         "SaveGameData(_currentSlot)",
         "public void SaveGameData(string slot)"
+      ]
+    },
+    {
+      "assembly": "Mortal.Core.dll",
+      "type": "Mortal.Core.TitleManager",
+      "required_fragments": [
+        "private CommonPanel _slotPanel;",
+        "private Button _startButton;",
+        "public void OpenSlot()",
+        "_slotPanel.Show(show: true)",
+        "public void OnPanelOpen()",
+        "InteractableButtons(interactable: false)"
+      ]
+    },
+    {
+      "assembly": "Mortal.Core.dll",
+      "type": "Mortal.Core.LoadGamePanel",
+      "required_fragments": [
+        "private LoadSlotPanel[] _saveSlots;",
+        "private GameObject _slotPrefab;",
+        "private Transform _slotContainer;",
+        "private void CreateSlot()",
+        "private void SetButtonNavigation()",
+        "public void OnPanelOpen()"
+      ]
+    },
+    {
+      "assembly": "Mortal.Core.dll",
+      "type": "Mortal.Core.LoadSlotPanel",
+      "required_fragments": [
+        "public Button SlotButton",
+        "public void Setup()",
+        "public void OnTitleClick()",
+        "SaveSystem.Instance.LoadGameData()",
+        "SceneController.Instance.LoadCurrentScene()"
       ]
     }
   ],
   "capabilities": {
     "combat_official_template": "verified_decompile",
+    "combat_enemy_stat_override": "verified_decompile_host_clone",
     "combat_result_win_lose": "verified_decompile",
     "battle_official_template": "verified_decompile",
+    "battle_roster_count_health_override": "verified_decompile_host_scope",
     "battle_result_friend_enemy_win": "verified_decompile",
     "battle_draw_escape": "not_exposed",
     "dynamic_battle_map_model_ai": "not_exposed",
@@ -168,6 +262,9 @@
     "affinity_check": "verified_decompile_read_only_bridge_implemented",
     "mod_persistent_state": "verified_decompile_slot_bound_host_sidecar_implemented",
     "mod_quest": "host_session_state_machine_implemented",
-    "result_screen": "existing_message_and_reward_apis_implemented"
+    "result_screen": "existing_message_and_reward_apis_implemented",
+    "title_mod_campaign_entry": "verified_original_start_button_clone",
+    "title_mod_campaign_load_panel": "verified_original_load_panel_and_slot_prefab_reuse",
+    "mod_manual_auto_universe_save_isolation": "verified_decompile_host_redirect_implemented"
   }
 }

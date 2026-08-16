@@ -1,6 +1,6 @@
 # 활협전 Mod 패키지 형식(v3 규약)
 
-> 언어: [简体中文](../zh_CN/mod_format.md) · [繁體中文](../zh_TW/mod_format.md) · [日本語](../ja/mod_format.md) · 한국어(본문)
+> 언어: [简体中文](../chs/mod_format.md) · [繁體中文](../cht/mod_format.md) · [日本語](../ja/mod_format.md) · 한국어(본문)
 
 **모든 구성 요소(에디터 / 컴파일러 / 런타임 플러그인)는 이 문서를 기준으로 합니다.** 변경 시 이 문서도 함께 갱신해야 합니다.
 문서 내 규칙의 공식 스크립트/디컴파일 실증 자료는 `../research/`에 있으며, 본문에서는 다시 다루지 않습니다.
@@ -154,8 +154,8 @@ assets/                # 可选，自定义资源
 | `enemy` | `op`("team"/"level"/"people"/"id"), `enemy`, `value`(수치, id의 op는 불필요), `display`(기본1) | 적 팀 수정 `ModifyEnemyTeam/Level/People/Id` |
 | `battle_skill` | `op`("set"/"active"/"reset"), `key`(reset 불필요), `index`(set용, 기본2), `active`(active용, 기본1) | 전장 스킬 `SetPlayerBattleSkill/SetBattleSkillActive/ResetBattleSkill` |
 | `battle_setup` | 선택 적 설정, `reset_skills`, `skills:[{key,index,active}]`; 최소 1개 | 검증된 원작 적/전장 스킬 API만 묶고 지도/AI/메커니즘은 바꾸지 않습니다 |
-| `combat` | `win`, `lose`; 원작 Combat `key`와 `preset` 중 하나, 직접 설정 시 선택 `enemy`, `team`, `level`, `people`, `display` | 원작 적 설정을 조합해 Combat에 들어가고 Host가 `CombatManager.GameOver(bool)`의 win/lose를 지정 노드로 돌려보냅니다. draw/escape와 추가 goto는 지원하지 않습니다 |
-| `battle` | `win`, `lose`; 원작 Battle `key`와 `preset` 중 하나 | 원작 Battle에 들어가 finish=true인 `FriendWin/EnemyWin`만 win/lose로 연결합니다. `PlayerDie(false)`는 원작 재시도/타이틀 흐름을 유지합니다 |
+| `combat` | `win`, `lose`; 원작 1대1 캐릭터/장면 `key` 또는 `preset`; 상대 HP, 기력, 9개 능력, 재능, 3개 필살기와 5개 행동 확률 선택 | 이번 Combat의 원작 데이터 읽기만 덮어쓰고 `CombatManager.GameOver(bool)`의 실제 결과를 반환합니다. draw/escape는 지원하지 않습니다 |
+| `battle` | `win`, `lose`; `key` 또는 `preset`; 아군/적군/중립 roster, 각 인원과 NPC HP, 플레이어 기술 선택 | 이번 Battle에서 세 원작 편성을 따로 재사용하며 finish=true인 `FriendWin/EnemyWin`만 반환합니다. `PlayerDie(false)`는 원작 흐름을 유지합니다 |
 | `battle_result` | `win`, `lose`; 선택 `kind`("any"/"combat"/"battle") | 전체 패키지 지문과 스토리 id에 결합된 Host 실제 결과를 읽고 검증된 win/lose만 분기합니다. 결과 없음/유형 불일치는 fail-closed |
 | `reward` | `entries`(1~32): stat/affinity/talent/item/flag | 기존 능력치, 호감도, 재능, 아이템, 플래그 원자 API로 컴파일 시 펼칩니다 |
 | `result_screen` | 비어 있지 않은 `title`, `entries`(reward와 동일), 선택 `text` | 원본 `mainui.DisplayMessageText`로 제목과 설명을 표시한 뒤 기존 보상 API를 실행합니다. 별도 결산 UI는 만들지 않습니다 |
@@ -372,7 +372,8 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 
 1. 시작 시 `BepInEx/plugins/MortalModHost/mods/*.lommod`를 스캔해 `MOD_<modid>_<scriptid>` → lua 텍스트를 등록합니다.
 2. Harmony prefix `LuaManager.ExecuteLuaScript()`: 등록 이름이 적중하면 mod lua로 실행하고 원래 메서드를 건너뜁니다.
-3. 진입: Free 자유 장면과 Title 타이틀 화면 왼쪽 아래의 "活侠MOD" 버튼 + F8(설정 가능)로 메뉴를 엽니다. Free 메뉴는 "mod 스토리 연출"과 "새 캠페인 시작" 두 구역; Title 메뉴는 "새 캠페인 시작" 구역만(스토리 연출은 로드된 세이브 플레이어 상태가 필요하므로 Free에서만 제공).
+3. 진입: Free에서는 "活侠MOD"와 F8을 유지합니다. Title에서는 원작 "게임 시작" 위에 같은 외형의 "MOD 캠페인 시작"을 표시합니다. 원작 로드 슬롯을 재사용해 기존 MOD 저장을 이어 하고, 고정 "새 캠페인" 빈 슬롯에서 Mod를 선택합니다. 닫으면 원작 001～020을 다시 만듭니다.
+   - **완전 저장 격리**: MOD 수동 슬롯은 `mod_<id>`, 세 자동 슬롯은 `mod_<id>_auto*`입니다. Universe 최근 슬롯은 마지막 원작 슬롯만 기록하므로 원작 "계속하기"가 MOD로 들어가지 않습니다.
 4. **캠페인**: "새 캠페인 시작" 클릭 → `SetSlot("mod_<modid>")`(격리 세이브 슬롯) → 공식 `NewGameData()` → postfix가 첫 번째 스토리 스크립트를 해당 mod의 entry로 교체 → LoadStory.
 5. **원작 스토리 억제와 위치 트리거**: `disable_official_events` 또는 F7이 유효할 때, `UpdateCheckMissions` 내에서 메인 트리거 상태를 잠시 숨기고 `HasAnyMissionTrigger`가 false를 반환해, Free로 돌아올 때 공식 메인/서브가 자동으로 시작되는 것을 막습니다; 장소 클릭 postfix `FreePositionData.GetExecuteScript`는 manifest.triggers를 우선 매칭하고, mod 적중이 없으면 공식 장소 기본 스크립트를 억제합니다.
 6. **폴백**: Story 장면이 요청한 MOD_ 스크립트가 미등록(mod 삭제됨)이면 실행하지 않고 `ChangeScene("Free","","")`로 소프트락을 방지합니다.
@@ -391,7 +392,7 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 16. **mod 스토리의 주사위 범위 수정 개방**: 공식 「범위 수정」 버튼은 2회차이면서 업적 30016 보유를 요구; mod 스토리 중(`CurrentStoryScript`가 `MOD_`로 시작) `get_NewGamePlus` prefix가 true를 반환하고, `CheckRevolution`이 원래 true를 반환할 때 `_rangeButton`을 바로 활성화합니다(mod에서 공식 업적 30016을 잠금 해제하지 않아 공식 세이브 오염 방지). 공식 스토리는 전혀 영향을 받지 않습니다.
 17. **사용자 오디오**: `LuaManager.PlayMusic/PlaySound/PlayEnvSound` 인자가 `user:`로 시작하면 플러그인이 이어받아 **현재 연출 중인 Mod 패키지**의 `UserContents`에서 해석(`assets/user/audio/<id>/content.json` + 메인 파일)하고, 디코딩 후 Windows `waveOut`으로 재생합니다(이 게임의 메인 믹싱은 Wwise이며 Unity `AudioSource`는 종종 소리가 나지 않음). 공식 이름은 모두 원작 Wwise로 넘깁니다. 런타임은 `%APPDATA%/lom_modkit/repository` 읽기를 금지합니다. 두 Mod가 ID가 같아도 각자 자신의 패키지만 해석합니다. 지원 형식은 `.ogg` / `.wav`뿐이며 개당 ≤20MB. 사용자 지정 fadeout은 출력 볼륨 페이드아웃(이후에도 컴파일러가 방출한 `wait`가 있음); 사용자 지정 음악으로 전환할 때 먼저 공식 Wwise 음악을 정지합니다(공식 `StopMusic`은 환경음도 함께 지움).
 18. **대사 음성**: `mod_play_voice(ref)` / `mod_stop_voice()` 등록. `mod_play_voice`는 현재 음성을 먼저 정지한 후 재생(루프 없음, 독립 `_voice` 채널 사용). `sound` 노드, 사용자 지정 효과음, `StopMusic` 모두 이 채널을 건드리지 않습니다. 스토리 중단, 공식 스크립트 전환, Mod 재로드 시 `StopEverything()`이 음성을 정지합니다. `voice`가 없는 구 Lua는 이 두 함수를 호출하지 않으므로 동작이 변하지 않습니다.
-19. **게임 내 Mod 메뉴 다국어**: 메뉴 문구(`src/I18n.cs`에 zh_CN/zh_TW/ja/ko 4개 언어 목록 내장)는 게임의 현재 언어를 따릅니다 — 리플렉션으로 LeanLocalization `CurrentLanguage`를 읽고 언어 이름을 퍼지 매칭; 공식 게임 자체에는 일본어 옵션이 없어 일본어 목록은 실제로 발동하지 않습니다; 감지 실패 시 일률적으로 zh_CN으로 폴백. 자세한 내용은 `i18n.md` 참조.
+19. **게임 내 Mod 메뉴 다국어**: 메뉴 문구(`src/I18n.cs`에 chs/cht/ja/ko 4개 언어 목록 내장)는 게임의 현재 언어를 따릅니다 — 리플렉션으로 LeanLocalization `CurrentLanguage`를 읽고 언어 이름을 퍼지 매칭; 공식 게임 자체에는 일본어 옵션이 없어 일본어 목록은 실제로 발동하지 않습니다; 감지 실패 시 일률적으로 chs으로 폴백. 자세한 내용은 `i18n.md` 참조.
 
 20. **구조화 Runtime 오류**: Mod 재생을 fail-closed로 중단시키는 장애는 한 줄의 `[mod-runtime-error]` JSON 로그로 기록됩니다. 고정 필드는 `mod_id`, `mod_name`, `version`, `story`, `node`, `category`, `error`, `recent_trace`와 UTC 시간입니다. 일반 Mod는 변수 값을 포함하지 않는 노드/이동 breadcrumb를 최대 32개만 보관하며 오류에는 길이가 제한된 최근 16개만 첨부합니다. F5의 전체 256개 개발 trace 규칙은 그대로입니다. 예외 포맷, trace 조회, JSON 직렬화 또는 로그 출력 자체가 실패해도 최소 보고서로 대체하여 원래 오류나 안전한 Free 복귀를 방해하지 않습니다. 마지막 보고서는 진단 번들을 위해 메모리에 유지됩니다.
 

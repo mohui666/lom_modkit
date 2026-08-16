@@ -6,7 +6,7 @@
 - `normal` / `happy` 两张透明立绘与绑定到角色的对白语音；
 - 自定义循环 BGM、一次性 SFX、背景、全屏 CG 和透明 Overlay；
 - choice、Mod 会话 flag、隔离战役存档内的数值 flag/variable 分支；
-- zh_CN / zh_TW / ja / ko Story 本地化；
+- chs / cht / ja / ko Story 本地化；
 - 使用官方 EndGamePanel 版式的自定义结局卡。
 
 构建：

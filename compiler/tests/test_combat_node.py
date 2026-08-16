@@ -27,12 +27,12 @@ class CombatNodeTest(unittest.TestCase):
     def test_emits_original_combat_and_resume_dispatch(self):
         lua = compile_story(story({
             "id": "fight", "type": "combat", "key": "5102_01",
-            "enemy": "Bandit", "level": 20, "people": 3,
-            "display": 1, "win": "win", "lose": "lose",
+            "max_health": 800, "health": 650, "strength": 20,
+            "talents": [{"key": "skill_1", "level": 3}],
+            "attack_rate": 0.65, "win": "win", "lose": "lose",
         }))
-        self.assertIn('statmodifymanager.ModifyEnemyId("Bandit")', lua)
-        self.assertIn('statmodifymanager.ModifyEnemyLevel("Bandit", 20, 1)', lua)
-        self.assertIn('statmodifymanager.ModifyEnemyPeople("Bandit", 3, 1)', lua)
+        self.assertIn('mod_gameplay_configure("combat", "max_health=800;health=650;strength=20;attack_rate=0.65;talents=skill_1:3")', lua)
+        self.assertNotIn("ModifyEnemy", lua)
         self.assertIn('mod_gameplay_prepare("combat", "main", "fight", "win", "lose")', lua)
         self.assertIn('luamanager.ChangeScene("Combat", "5102_01", "Story")', lua)
         self.assertIn('local mod_resume_target = mod_gameplay_consume_resume("main")', lua)
@@ -54,11 +54,11 @@ class CombatNodeTest(unittest.TestCase):
     def test_rejects_fractional_enemy_setup_and_explicit_goto(self):
         combat = {
             "id": "fight", "type": "combat", "key": "5102_01",
-            "level": 1.5, "win": "win", "lose": "lose",
+            "strength": 1.5, "win": "win", "lose": "lose",
         }
         with self.assertRaises(LomcError):
             compile_story(story(combat))
-        combat["level"] = 1
+        combat["strength"] = 1
         combat["goto"] = "end"
         with self.assertRaises(LomcError):
             compile_story(story(combat))
@@ -68,9 +68,17 @@ class BattleNodeTest(unittest.TestCase):
     def test_emits_verified_original_battle_resume(self):
         document = story({
             "id": "fight", "type": "battle", "key": "1001",
+            "friend_roster": "1002", "enemy_roster": "1003",
+            "friend_people": 8, "enemy_people": 12,
+            "friend_health": 300, "enemy_health": 450,
+            "reset_skills": True,
+            "skills": [{"key": "special3", "index": 2, "active": 1}],
             "win": "win", "lose": "lose",
         })
         lua = compile_story(document)
+        self.assertIn("luamanager.ResetBattleSkill()", lua)
+        self.assertIn('luamanager.SetPlayerBattleSkill("special3", 2)', lua)
+        self.assertIn('mod_gameplay_configure("battle", "friend_roster=1002;enemy_roster=1003;friend_people=8;enemy_people=12;friend_health=300;enemy_health=450")', lua)
         self.assertIn('mod_gameplay_prepare("battle", "main", "fight", "win", "lose")', lua)
         self.assertIn('luamanager.ChangeScene("Battle", "1001", "Story")', lua)
         self.assertIn('mod_gameplay_consume_resume("main")', lua)
@@ -96,13 +104,12 @@ class BattlePresetTest(unittest.TestCase):
         })
         document["battle_presets"] = {
             "bandit_ambush": {
-                "kind": "combat", "key": "5102_01", "enemy": "Bandit",
-                "level": 20, "people": 3, "display": 1,
+                "name": "山贼伏击", "kind": "combat", "key": "5102_01",
+                "max_health": 800, "strength": 20,
             }
         }
         lua = compile_story(document)
-        self.assertIn('ModifyEnemyId("Bandit")', lua)
-        self.assertIn('ModifyEnemyLevel("Bandit", 20, 1)', lua)
+        self.assertIn('mod_gameplay_configure("combat", "max_health=800;strength=20")', lua)
         self.assertIn('ChangeScene("Combat", "5102_01", "Story")', lua)
 
     def test_battle_preset_expands_to_verified_original_battle(self):
@@ -146,8 +153,10 @@ class BattlePresetTest(unittest.TestCase):
             [],
             {"bad id": {"kind": "combat", "key": "5102_01"}},
             {"bad": {"kind": "combat", "key": ""}},
-            {"bad": {"kind": "combat", "key": "5102_01", "level": 1.5}},
-            {"bad": {"kind": "battle", "key": "1001", "enemy": "x"}},
+            {"bad": {"kind": "combat", "key": "5102_01", "strength": 1.5}},
+            {"bad": {"kind": "combat", "key": "5102_01", "talents": [{"key": "bad:key"}]}},
+            {"bad": {"kind": "battle", "key": "1001", "max_health": 1}},
+            {"bad": {"kind": "battle", "key": "1001", "skills": [{"key": "special3", "active": 2}]}},
         ]
         for value in bad_values:
             document["battle_presets"] = value

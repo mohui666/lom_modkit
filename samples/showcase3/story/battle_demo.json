@@ -15,7 +15,7 @@
       "options": [
         {
           "text": "进入原版 Battle",
-          "goto": "battle1"
+          "goto": "battle_setup1"
         },
         {
           "text": "跳过 Battle",
@@ -31,6 +31,17 @@
       "portrait": "normal",
       "mode": "narrative",
       "goto": "end1"
+    },
+    {
+      "id": "battle_setup1",
+      "type": "battle_setup",
+      "reset_skills": false,
+      "skills": [],
+      "enemy": "400",
+      "team": 0,
+      "level": 1,
+      "people": 1,
+      "display": 1
     },
     {
       "id": "battle1",
@@ -71,7 +82,21 @@
   "battle_presets": {
     "showcase3_battle": {
       "kind": "battle",
-      "key": "0000"
+      "key": "0000",
+      "friend_roster": "0000",
+      "enemy_roster": "0000",
+      "friend_people": 3,
+      "enemy_people": 3,
+      "friend_health": 300,
+      "enemy_health": 300,
+      "reset_skills": true,
+      "skills": [
+        {
+          "key": "special3",
+          "index": 2,
+          "active": 1
+        }
+      ]
     }
   },
   "start": "message1"

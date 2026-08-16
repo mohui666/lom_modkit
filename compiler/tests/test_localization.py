@@ -21,9 +21,9 @@ def story(localized=True):
     }
     if localized:
         value["localization"] = {
-            "default_locale": "zh_CN", "fallback_locale": "zh_TW",
+            "default_locale": "chs", "fallback_locale": "cht",
             "translations": {
-                "zh_TW": {"story.title": "繁中章", "say1.text": "你好呀", "choice1.options.0.text": "繼續", "msg1.text": "提示繁"},
+                "cht": {"story.title": "繁中章", "say1.text": "你好呀", "choice1.options.0.text": "繼續", "msg1.text": "提示繁"},
                 "ja": {"story.title": "日本語章", "say1.text": "こんにちは", "choice1.options.0.text": "続ける"},
             },
         }
@@ -37,7 +37,7 @@ class StoryLocalizationTest(unittest.TestCase):
         self.assertEqual(ja["title"], "日本語章")
         self.assertEqual(ja["nodes"][0]["text"], "こんにちは")
         self.assertEqual(ja["nodes"][1]["options"][0]["text"], "続ける")
-        self.assertEqual(ja["nodes"][2]["text"], "提示繁")  # ja missing → zh_TW fallback
+        self.assertEqual(ja["nodes"][2]["text"], "提示繁")  # ja missing → cht fallback
         self.assertEqual(ja["nodes"][1]["options"][1]["text"], "结束")  # fallback missing → source
         self.assertIn("localization", original)
         self.assertNotIn("localization", ja)
@@ -63,7 +63,7 @@ class StoryLocalizationTest(unittest.TestCase):
         bad = story(); bad["localization"]["translations"]["ja"]["missing.text"] = "x"
         with self.assertRaisesRegex(LomcError, "不存在"):
             validate_story(bad)
-        bad = story(); bad["localization"]["translations"]["zh_CN"] = {"say1.text": "重复"}
+        bad = story(); bad["localization"]["translations"]["chs"] = {"say1.text": "重复"}
         with self.assertRaisesRegex(LomcError, "默认语言"):
             validate_story(bad)
 
@@ -82,11 +82,11 @@ class StoryLocalizationTest(unittest.TestCase):
                 self.assertIn("lua/main.lua", names)
                 self.assertIn("texts.json", names)
                 self.assertIn("localization.json", names)
-                for locale in ("zh_CN", "zh_TW", "ja", "ko"):
+                for locale in ("chs", "cht", "ja", "ko"):
                     self.assertIn("lua/%s/main.lua" % locale, names)
                     self.assertIn("texts/%s.json" % locale, names)
                 meta = json.loads(archive.read("localization.json"))
-                self.assertEqual((meta["default_locale"], meta["fallback_locale"]), ("zh_CN", "zh_TW"))
+                self.assertEqual((meta["default_locale"], meta["fallback_locale"]), ("chs", "cht"))
                 ja_texts = json.loads(archive.read("texts/ja.json"))
                 self.assertEqual(ja_texts["MOD_locdemo_main_say1"], "こんにちは")
                 ko_texts = json.loads(archive.read("texts/ko.json"))
@@ -99,8 +99,30 @@ class StoryLocalizationTest(unittest.TestCase):
             output = pack_mod(mod_dir)
             with zipfile.ZipFile(output) as archive:
                 self.assertNotIn("localization.json", archive.namelist())
-                self.assertNotIn("lua/zh_CN/main.lua", archive.namelist())
+                self.assertNotIn("lua/chs/main.lua", archive.namelist())
                 self.assertEqual(json.loads(archive.read("texts.json"))["MOD_locdemo_main_say1"], "你好")
+
+    def test_legacy_locale_codes_are_accepted_but_packages_emit_canonical_codes(self):
+        value = story()
+        value["localization"]["default_locale"] = "zh_CN"
+        value["localization"]["fallback_locale"] = "zh_TW"
+        value["localization"]["translations"]["zh_TW"] = value["localization"]["translations"].pop("cht")
+        validate_story(value)
+        self.assertEqual(apply_story_locale(value, "zh_TW")["nodes"][2]["text"], "提示繁")
+        with tempfile.TemporaryDirectory() as root:
+            mod_dir = os.path.join(root, "mod"); os.makedirs(mod_dir)
+            manifest = {"format": 1, "id": "legacy_locale", "name": "Loc", "version": "1", "author": "A", "description": "D", "entry": "main"}
+            os.makedirs(os.path.join(mod_dir, "story"))
+            with open(os.path.join(mod_dir, "manifest.json"), "w", encoding="utf-8") as handle:
+                json.dump(manifest, handle, ensure_ascii=False)
+            with open(os.path.join(mod_dir, "story", "main.json"), "w", encoding="utf-8") as handle:
+                json.dump(value, handle, ensure_ascii=False)
+            output = pack_mod(mod_dir)
+            with zipfile.ZipFile(output) as archive:
+                metadata = json.loads(archive.read("localization.json"))
+                self.assertEqual((metadata["default_locale"], metadata["fallback_locale"]), ("chs", "cht"))
+                self.assertIn("lua/chs/main.lua", archive.namelist())
+                self.assertNotIn("lua/zh_CN/main.lua", archive.namelist())
 
 
 if __name__ == "__main__": unittest.main()

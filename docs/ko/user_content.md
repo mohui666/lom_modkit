@@ -1,6 +1,6 @@
 # 사용자 콘텐츠 라이브러리(User Content Library)
 
-> 언어: [简体中文](../zh_CN/user_content.md) · [繁體中文](../zh_TW/user_content.md) · [日本語](../ja/user_content.md) · 한국어(본문)
+> 언어: [简体中文](../chs/user_content.md) · [繁體中文](../cht/user_content.md) · [日本語](../ja/user_content.md) · 한국어(본문)
 
 로컬, 오프라인, Mod별 자체 완결. 계정도, 온라인 마켓도, 클라우드 동기화도 없습니다.
 

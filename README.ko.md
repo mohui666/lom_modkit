@@ -13,7 +13,7 @@ Lua를 작성할 필요가 없습니다. 그래픽 에디터로 인물 대사, �
 [빠른 시작](#빠른-시작) ·
 [문서](docs/ko/README.md)
 
-> 언어: [简体中文](README.md) · [繁體中文](README.zh_TW.md) · [日本語](README.ja.md) · 한국어(본문)
+> 언어: [중국어(CHS)](README.md) · [중국어(CHT)](README.cht.md) · [日本語](README.ja.md) · 한국어(본문)
 
 <!-- TODO(홍보 소재): 여기에 8~15초 루프 GIF 배치:
      lom_editor.exe 열기 → 새 시나리오 → 캐릭터/대사/장면/음악 선택 → F5 → 게임 내 실제 연출.

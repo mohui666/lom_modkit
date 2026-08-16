@@ -45,7 +45,7 @@ class FeatureShowcaseTest(unittest.TestCase):
         ending = next(node for node in nodes if node["type"] == "goto_scene")
         self.assertEqual((ending["scene"], ending["key"]), ("End", "900047"))
         self.assertEqual(
-            set(self.story["localization"]["translations"]), {"zh_TW", "ja", "ko"}
+            set(self.story["localization"]["translations"]), {"cht", "ja", "ko"}
         )
 
     def test_all_user_references_have_valid_metadata_and_committed_files(self):

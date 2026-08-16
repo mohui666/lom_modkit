@@ -20,19 +20,19 @@ import models  # noqa: E402
 
 README_FILES = (
     ROOT / "README.md",
-    ROOT / "README.zh_TW.md",
+    ROOT / "README.cht.md",
     ROOT / "README.ja.md",
     ROOT / "README.ko.md",
 )
 DOC_INDEXES = (
     ROOT / "docs" / "README.md",
-    ROOT / "docs" / "zh_TW" / "README.md",
+    ROOT / "docs" / "cht" / "README.md",
     ROOT / "docs" / "ja" / "README.md",
     ROOT / "docs" / "ko" / "README.md",
 )
 CAPABILITY_DOCS = (
-    ROOT / "docs" / "zh_CN" / "current_capabilities.md",
-    ROOT / "docs" / "zh_TW" / "current_capabilities.md",
+    ROOT / "docs" / "chs" / "current_capabilities.md",
+    ROOT / "docs" / "cht" / "current_capabilities.md",
     ROOT / "docs" / "ja" / "current_capabilities.md",
     ROOT / "docs" / "ko" / "current_capabilities.md",
 )

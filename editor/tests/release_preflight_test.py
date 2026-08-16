@@ -22,7 +22,7 @@ class ReleasePreflightTest(unittest.TestCase):
         return {
             "id": "main", "title": "新剧情", "start": "show1", "mood": False,
             "localization": {
-                "default_locale": "zh_CN", "fallback_locale": "zh_CN",
+                "default_locale": "chs", "fallback_locale": "chs",
                 "translations": {"ja": {"story.title": "物語"}},
             },
             "nodes": [

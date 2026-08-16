@@ -10,7 +10,7 @@ from i18n import help_html as _help_html
 HELP_HTML_ZH_CN = r"""
 <h1>活侠传 Mod 剧情编辑器使用指南</h1>
 <p>第一次使用，只要记住一件事：<b>左边排步骤，中间改内容，右边看效果，最后检查并导出。</b></p>
-<p>需要查询精确字段时，切换到本窗口的 <b>“节点 / API 参考”</b>：它按当前编辑器实际契约列出全部节点、每个 JSON 字段、默认值、枚举、编译接口和最小示例，并支持按节点、字段或运行时 API 搜索。</p>
+<p>本页只提供快速帮助。需要系统学习软件或查询精确脚本字段时，请打开“帮助 → 文档”。文档窗口把 <b>“软件使用文档”</b> 和 <b>“脚本 / API 文档”</b> 分成两个独立页签；后者按当前编辑器实际契约列出全部节点、每个 JSON 字段、默认值、枚举、编译接口和最小示例，并支持按节点、字段或运行时 API 搜索。</p>
 
 <h2>五分钟做出第一段剧情</h2>
 <ol>
@@ -91,8 +91,17 @@ HELP_HTML_ZH_CN = r"""
 <p>导出 Mod 时只会打入当前剧情真正用到的音频。别人安装你的 <code>.lommod</code> 后不需要再拷你的内容库。仍被步骤引用的内容不能删除。</p>
 
 <h2>玩家制作内容标记</h2>
-<p>MOD 演出期间，MortalModHost 会显示固定的“玩家制作 MOD / UNOFFICIAL”来源芯片、包指纹和屏幕来源载体。对白区域内部还会重复显示低透明度来源标记，因此只裁对白文字也会保留非官方提示。死亡、结局和人物介绍等关键卡片同样会附加标记。</p>
+<p>MOD 演出期间，MortalModHost 会显示固定的“玩家制作 MOD / UNOFFICIAL”来源芯片、包指纹和屏幕来源载体。对白框正文下方居中显示一条高可见度、半透明的单行来源标记，不覆盖对白文字；即使只裁对白框也会保留非官方提示。死亡、结局和人物介绍等关键卡片同样会附加标记。</p>
 <p>披露由 Host 控制，剧情 Lua 没有关闭接口；运行时会在每帧和渲染前修复标记，并用活动包身份生成完整性封印。若必须标记无法维持，Host 会停止当前 MOD 并返回安全场景。此机制用于提高恶意删除成本和保留截图来源，不宣称能阻止控制宿主 DLL 的人重新修改程序。</p>
+
+<h2>MOD 战役与存档隔离</h2>
+<p>标题画面的“开始 MOD 战役”会打开复用原版 <code>LoadGamePanel / LoadSlotPanel</code> 的存档页：已有 MOD 战役存档可直接继续，空白的“新战役”槽会进入战役选择。</p>
+<ul>
+  <li>原版手动槽继续使用 <code>001～020</code>；MOD 战役使用 <code>mod_&lt;mod_id&gt;</code>，两者不会互相覆盖。</li>
+  <li>MOD 的 Story、Free、Battle 自动档分别写入该 MOD 自己的 <code>mod_&lt;mod_id&gt;_auto*</code> 槽，不写原版 <code>auto*</code>。</li>
+  <li>MOD 槽不会写入原版 Universe 的“最近/继续游戏”指针；退出 MOD 后原版继续游戏仍指向最后一个原版槽。</li>
+  <li>每个 MOD 的持久变量 sidecar 也同时按包指纹和 MOD 槽隔离。</li>
+</ul>
 
 <h2>导出、自动安装与启停管理</h2>
 <p>导出时填写 Mod 名称、作者和简介。“Mod 标识”只用小写英文、数字、下划线或短横线，例如 <code>my_story</code>。</p>
@@ -140,7 +149,7 @@ HELP_HTML = HELP_HTML_ZH_CN
 def current_help_html() -> str:
     from i18n import current_language
 
-    if current_language() == "zh_CN":
+    if current_language() == "chs":
         return HELP_HTML_ZH_CN
     return _help_html() or HELP_HTML_ZH_CN
 

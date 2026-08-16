@@ -146,6 +146,7 @@ namespace MortalModHost
                 TestProvenanceWatermarkCodec();
                 TestGameplaySession();
                 TestModQuestSession();
+                TestModSaveSlotPolicy();
                 TestPersistentStateStore(Path.Combine(modsDir, "campaign_state"));
 
                 Console.WriteLine("--- 扫描信息 ---");
@@ -367,20 +368,20 @@ namespace MortalModHost
                     ("manifest.json", "{\"format\":1,\"id\":\"localized\",\"entry\":\"main\"}"),
                     ("lua/main.lua", "say(\"legacy\")"),
                     ("texts.json", "{\"MOD_localized_main_s1\":\"legacy\"}"),
-                    ("localization.json", "{\"schema\":1,\"default_locale\":\"zh_CN\",\"fallback_locale\":\"zh_TW\",\"locales\":[\"zh_CN\",\"zh_TW\",\"ja\",\"ko\"]}"),
-                    ("lua/zh_CN/main.lua", "say(\"简中\")"),
-                    ("lua/zh_TW/main.lua", "say(\"繁中\")"),
+                    ("localization.json", "{\"schema\":1,\"default_locale\":\"chs\",\"fallback_locale\":\"cht\",\"locales\":[\"chs\",\"cht\",\"ja\",\"ko\"]}"),
+                    ("lua/chs/main.lua", "say(\"简中\")"),
+                    ("lua/cht/main.lua", "say(\"繁中\")"),
                     ("lua/ja/main.lua", "say(\"日本語\")"),
                     ("lua/ko/main.lua", "say(\"한국어\")"),
-                    ("texts/zh_CN.json", "{\"MOD_localized_main_s1\":\"简中\"}"),
-                    ("texts/zh_TW.json", "{\"MOD_localized_main_s1\":\"繁中\"}"),
+                    ("texts/chs.json", "{\"MOD_localized_main_s1\":\"简中\"}"),
+                    ("texts/cht.json", "{\"MOD_localized_main_s1\":\"繁中\"}"),
                     ("texts/ja.json", "{\"MOD_localized_main_s1\":\"日本語\"}"),
                     ("texts/ko.json", "{\"MOD_localized_main_s1\":\"한국어\"}"));
                 var warnings = new List<string>();
                 var mods = ModLoader.ScanMods(modsDir, _ => { }, warnings.Add);
                 Assert(mods.Count == 1 && warnings.Count == 0, "本地化包应无警告加载：" + string.Join(" | ", warnings));
                 var mod = mods[0];
-                Assert(mod.DefaultLocale == "zh_CN" && mod.FallbackLocale == "zh_TW", "locale 元数据解析错误");
+                Assert(mod.DefaultLocale == "chs" && mod.FallbackLocale == "cht", "locale 元数据解析错误");
                 Assert(mod.GetLuaScript("main", "ja").Contains("日本語"), "ja Lua 选择错误");
                 Assert(mod.GetLuaScript("main", "fr").Contains("繁中"), "未知语言应选择 fallback Lua");
                 Assert(mod.GetTexts("ko")["MOD_localized_main_s1"] == "한국어", "ko texts 选择错误");
@@ -390,15 +391,15 @@ namespace MortalModHost
                 Assert(ModRegistry.TryGetLuaByRegisteredName("MOD_localized_main", out lua) && lua.Contains("日本語"), "注册表首次语言选择错误");
                 I18n.CurrentStoryLocale = "ko";
                 Assert(ModRegistry.TryGetLuaByRegisteredName("MOD_localized_main", out lua) && lua.Contains("한국어"), "切换语言后不重扫也应选择新脚本");
-                I18n.CurrentStoryLocale = "zh_CN";
+                I18n.CurrentStoryLocale = "chs";
 
                 WriteZip(Path.Combine(modsDir, "incomplete.lommod"),
                     ("manifest.json", "{\"format\":1,\"id\":\"incomplete\",\"entry\":\"main\"}"),
                     ("lua/main.lua", "say(\"legacy-safe\")"),
                     ("texts.json", "{}"),
-                    ("localization.json", "{\"schema\":1,\"default_locale\":\"zh_CN\",\"fallback_locale\":\"zh_CN\"}"),
-                    ("lua/zh_CN/main.lua", "say(\"partial\")"),
-                    ("texts/zh_CN.json", "{}"));
+                    ("localization.json", "{\"schema\":1,\"default_locale\":\"chs\",\"fallback_locale\":\"chs\"}"),
+                    ("lua/chs/main.lua", "say(\"partial\")"),
+                    ("texts/chs.json", "{}"));
                 warnings.Clear();
                 mods = ModLoader.ScanMods(modsDir, _ => { }, warnings.Add);
                 var incomplete = mods.First(item => item.Id == "incomplete");
@@ -918,8 +919,8 @@ namespace MortalModHost
             string watermark = DisclosureIntegrity.VisibleWatermarkText("ABCDEF0123456789");
             Assert(watermark.Contains("MOD / UNOFFICIAL")
                     && watermark.Contains("ABCDEF0123456789")
-                    && watermark.IndexOf('\n') >= 0,
-                "对白栏水印必须重复显示固定标记和包指纹");
+                    && watermark.IndexOf('\n') < 0,
+                "对白栏水印必须以紧凑单行显示固定标记和包指纹");
             byte[] seal = DisclosureIntegrity.CreateSessionSeal("demo_mod", fingerprint);
             Assert(DisclosureIntegrity.VerifySessionSeal("demo_mod", fingerprint, seal),
                 "原始会话身份应通过 HMAC 完整性校验");
@@ -1021,6 +1022,18 @@ namespace MortalModHost
             GameplaySession.Prepare(package, "combat", "main", "fight1", "win1", "lose1");
             Assert(GameplaySession.PendingCombat && GameplaySession.ShouldForceCombatReturn,
                 "combat 准备后必须进入有所有者的待决态");
+            GameplaySession.Configure(
+                "combat", "max_health=800;attack_rate=0.65;talents=1010:2,2010:1");
+            int configuredHealth;
+            float configuredRate;
+            Assert(GameplaySession.TryConfigInt("max_health", 1, 10000000, out configuredHealth)
+                    && configuredHealth == 800,
+                "Combat 整数覆盖必须按 InvariantCulture 有界解析");
+            Assert(GameplaySession.TryConfigFloat("attack_rate", 0f, 1f, out configuredRate)
+                    && Math.Abs(configuredRate - 0.65f) < 0.0001f,
+                "Combat 概率覆盖必须按 InvariantCulture 解析");
+            Assert(GameplaySession.ConfigString("talents") == "1010:2,2010:1",
+                "Combat 技能表必须原样保存在有所有者的会话中");
             Assert(GameplaySession.ConsumeResume(package, "main") == "",
                 "原版战斗尚未回报结果时不得提前续接");
             Assert(GameplaySession.RecordResult("combat", "win"), "应接受原版 Combat win");
@@ -1060,10 +1073,16 @@ namespace MortalModHost
             Assert(rejected && GameplaySession.HasPending,
                 "同 id 不同完整 SHA-256 的包不得消费旧包战斗结果");
             GameplaySession.Reset();
+            Assert(!GameplaySession.HasConfig("max_health"), "Reset 必须清除战斗覆盖配置");
 
             GameplaySession.Prepare(package, "battle", "main", "war1", "friend", "enemy");
             Assert(GameplaySession.PendingBattle && !GameplaySession.PendingCombat,
                 "battle 待决态必须与 combat 区分");
+            GameplaySession.Configure("battle", "friend_people=3;enemy_health=300");
+            int friendPeople;
+            Assert(GameplaySession.TryConfigInt("friend_people", 0, 10000, out friendPeople)
+                    && friendPeople == 3,
+                "Battle 三方配置必须绑定 battle 会话");
             Assert(!GameplaySession.RecordResult("combat", "win")
                     && GameplaySession.RecordResult("battle", "lose"),
                 "battle 结果只能由匹配类型记录");
@@ -1164,6 +1183,33 @@ namespace MortalModHost
             reloaded.Flush();
             Assert(new PersistentStateStore(root).Get(updatedPackage, slot, "chapter") == 0,
                 "新战役空状态必须覆盖旧 sidecar");
+        }
+
+        private static void TestModSaveSlotPolicy()
+        {
+            Assert(ModSaveSlotPolicy.IsModSlot("mod_campaign")
+                    && !ModSaveSlotPolicy.IsModSlot("001")
+                    && !ModSaveSlotPolicy.IsModSlot("auto")
+                    && !ModSaveSlotPolicy.IsModSlot(null),
+                "只有 mod_ 前缀槽可以进入 MOD 隔离策略");
+            Assert(ModSaveSlotPolicy.IsolatedAutoSlot("mod_campaign", "auto")
+                    == "mod_campaign_auto"
+                    && ModSaveSlotPolicy.IsolatedAutoSlot("mod_campaign", "auto_free")
+                    == "mod_campaign_auto_free"
+                    && ModSaveSlotPolicy.IsolatedAutoSlot("mod_campaign", "auto_battle")
+                    == "mod_campaign_auto_battle",
+                "三类自动档必须稳定映射到当前 MOD 槽，不能复用原版 auto*");
+            Assert(ModSaveSlotPolicy.ObserveOfficialSlot("007", "mod_campaign") == "007"
+                    && ModSaveSlotPolicy.ObserveOfficialSlot("007", "012") == "012",
+                "进入 MOD 槽不得覆盖最后原版槽，观察原版槽则必须刷新");
+            bool rejected = false;
+            try { ModSaveSlotPolicy.IsolatedAutoSlot("001", "auto"); }
+            catch (ArgumentException) { rejected = true; }
+            Assert(rejected, "官方手动槽不得构造 MOD 自动档名");
+            rejected = false;
+            try { ModSaveSlotPolicy.IsolatedAutoSlot("mod_campaign", "quicksave"); }
+            catch (ArgumentException) { rejected = true; }
+            Assert(rejected, "未知自动槽必须 fail-closed");
         }
 
         private static bool IsUpperHex(char c)

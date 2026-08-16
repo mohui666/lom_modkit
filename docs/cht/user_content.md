@@ -1,6 +1,6 @@
 # 使用者內容庫（User Content Library）
 
-> 語言：[简体中文](../zh_CN/user_content.md) · 繁體中文（本文） · [日本語](../ja/user_content.md) · [한국어](../ko/user_content.md)
+> 語言：[简体中文](../chs/user_content.md) · 繁體中文（本文） · [日本語](../ja/user_content.md) · [한국어](../ko/user_content.md)
 
 本機、離線、按 Mod 自包含。沒有帳號、沒有線上市集、沒有雲端同步。
 

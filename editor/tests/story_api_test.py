@@ -4,7 +4,7 @@
 用法（在 editor/ 目录下）：
     .venv/Scripts/python tests/story_api_test.py
 
-覆盖 docs/zh_CN/mod_format.md §7「AI 工具接口」契约的全部函数：
+覆盖 docs/chs/mod_format.md §7「AI 工具接口」契约的全部函数：
 new_story / add_node / update_node / get_node / list_nodes / delete_node /
 move_node / set_start / add_choice / add_dice / add_say / add_scene /
 check_story / compile_story / load_story_json / save_story_json / pack_mod。
@@ -212,6 +212,18 @@ class TestAddNode(unittest.TestCase):
         self.assertEqual((cg["scale"], cg["x"], cg["y"]), (68, -5, 10))
         self.assertEqual((overlay["scale"], overlay["opacity"]), (34, 88))
         self.assertEqual(shop["discount"], 1)
+
+    def test_gameplay_tables_and_legacy_display_use_contract_types(self):
+        story = story_api.new_story()
+        enemy = story_api.add_node(
+            story, "enemy", {"op": "team", "enemy": "400", "value": -10, "display": 1}
+        )
+        combat = story_api.add_node(
+            story, "combat",
+            {"key": "5102_01", "talents": [{"key": "1010", "level": 1}], "win": "ok", "lose": "bad"},
+        )
+        self.assertEqual(enemy["display"], 1)
+        self.assertEqual(combat["talents"][0]["key"], "1010")
 
     def test_battle_preset_removes_direct_mode_defaults(self):
         story = story_api.new_story()

@@ -4,7 +4,7 @@ namespace MortalModHost
 {
     /// <summary>
     /// 一个已解析的 .lommod 包：manifest 元信息 + lua/ 目录全部脚本（内存常驻，不落盘）。
-    /// 契约见 docs/zh_CN/mod_format.md §1/§2。
+    /// 契约见 docs/chs/mod_format.md §1/§2。
     /// </summary>
     internal sealed class ModPackage
     {
@@ -38,8 +38,8 @@ namespace MortalModHost
         public readonly Dictionary<string, Dictionary<string, string>> LocalizedLuaScripts =
             new Dictionary<string, Dictionary<string, string>>(System.StringComparer.OrdinalIgnoreCase);
 
-        public string DefaultLocale = "zh_CN";
-        public string FallbackLocale = "zh_CN";
+        public string DefaultLocale = "chs";
+        public string FallbackLocale = "chs";
 
         /// <summary>
         /// texts.json（可选，契约 §1）：键 = "MOD_&lt;modid&gt;_&lt;scriptid&gt;_&lt;nodeid&gt;"，值 = 台词文本。

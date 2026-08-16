@@ -1,9 +1,18 @@
 # lom_modkit 文件
 
-> 語言：[简体中文](../README.md) · 繁體中文（本文） · [日本語](../ja/README.md) · [한국어](../ko/README.md)
+> 語言：[中文（CHS）](../README.md) · 中文（CHT，本文） · [日本語](../ja/README.md) · [한국어](../ko/README.md)
 
-權威版為簡體中文（`zh_CN/`），譯文按語言碼分目錄、同名存放。
-改文件先改 `zh_CN/`，再同步譯文；約定見 [i18n.md §4](i18n.md)。
+權威版為中文 CHS（`chs/`），譯文按語言碼分目錄、同名存放。
+改文件先改 `chs/`，再同步譯文；約定見 [i18n.md §4](i18n.md)。
+
+## 軟體使用文件
+
+- [軟體使用總覽](software_usage.md)：編輯器流程、Combat/Battle、原版樣式 MOD 讀檔、存檔隔離與來源標記。
+- [使用者內容](user_content.md) · [目前能力](current_capabilities.md)
+
+## 腳本 / API 文件
+
+- [腳本 / API 總覽](script_reference.md)：63 種節點入口、Combat/Battle 區別、ID 與使用者內容引用規則。
 
 ## 按讀者找文件
 

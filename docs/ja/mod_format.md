@@ -1,6 +1,6 @@
 # 活俠傳 Mod パッケージ形式（v3 契約）
 
-> 言語：[简体中文](../zh_CN/mod_format.md) · [繁體中文](../zh_TW/mod_format.md) · 日本語（本文） · [한국어](../ko/mod_format.md)
+> 言語：[简体中文](../chs/mod_format.md) · [繁體中文](../cht/mod_format.md) · 日本語（本文） · [한국어](../ko/mod_format.md)
 
 **すべてのコンポーネント（エディター / コンパイラー / ランタイムプラグイン）は本ドキュメントを正とします。** 変更時は本ドキュメントも同期して更新してください。
 文中のルールに対応する公式スクリプト／逆コンパイルの実証資料は `../research/` を参照。本文では繰り返し展開しません。
@@ -154,8 +154,8 @@ assets/                # 可选，自定义资源
 | `enemy` | `op`("team"/"level"/"people"/"id"), `enemy`, `value`(数値、id の op は不要), `display`(既定1) | 敵パーティー変更 `ModifyEnemyTeam/Level/People/Id` |
 | `battle_skill` | `op`("set"/"active"/"reset"), `key`(reset は不要), `index`(set 用、既定2), `active`(active 用、既定1) | 戦場スキル `SetPlayerBattleSkill/SetBattleSkillActive/ResetBattleSkill` |
 | `battle_setup` | 任意の敵設定、`reset_skills`、`skills:[{key,index,active}]`。最低 1 項 | 確認済みの原作敵設定・戦場スキル API だけを集約し、マップ／AI／機構は変更しません |
-| `combat` | `win`, `lose`。原作 Combat `key` と `preset` は二者択一。直接設定では任意 `enemy`, `team`, `level`, `people`, `display` | 原作の敵設定を組み合わせて Combat へ入り、Host が `CombatManager.GameOver(bool)` の win/lose を指定ノードへ戻します。draw/escape と追加 goto は非対応 |
-| `battle` | `win`, `lose`。原作 Battle `key` と `preset` は二者択一 | 原作 Battle へ入り、finish=true の `FriendWin/EnemyWin` だけを win/lose に対応させます。`PlayerDie(false)` は原作の再試行／タイトルのままです |
+| `combat` | `win`, `lose`。原作一対一キャラクター／場面 `key` と `preset` は二者択一。相手 HP、スタミナ、9 能力、才能、3 奥義、5 行動確率を任意指定 | 今回の Combat が原作データを読む時だけ相手を上書きし、`CombatManager.GameOver(bool)` の実結果を返します。draw/escape は非対応 |
+| `battle` | `win`, `lose`。`key` と `preset` は二者択一。味方／敵／中立 roster、各人数と NPC HP、プレイヤースキルを任意指定 | 今回の Battle で三つの原作編成を別々に再利用し、finish=true の `FriendWin/EnemyWin` だけを返します。`PlayerDie(false)` は原作のままです |
 | `battle_result` | `win`, `lose`。任意 `kind`("any"/"combat"/"battle") | 完全なパッケージ指紋とシナリオ id に結び付いた Host の実結果を読み、確認済み win/lose だけを分岐します。結果なし／型不一致は fail-closed |
 | `reward` | `entries`(1~32)：stat/affinity/talent/item/flag | 既存の能力、好感度、才能、アイテム、フラグ原子 API にコンパイル時展開します |
 | `result_screen` | 非空 `title`、`entries`（reward と同じ）、任意 `text` | 公式 `mainui.DisplayMessageText` でタイトルと説明を表示してから既存の報酬 API を実行します。独自の結果 UI は作りません |
@@ -372,7 +372,8 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 
 1. 起動時に `BepInEx/plugins/MortalModHost/mods/*.lommod` をスキャンし、`MOD_<modid>_<scriptid>` → lua テキストを登録します。
 2. Harmony prefix `LuaManager.ExecuteLuaScript()`：登録名に命中した場合は mod の lua で実行し、元メソッドをスキップします。
-3. 入口：Free フリーシーンと Title タイトル画面左下の「活侠MOD」ボタン + F8（設定可）でメニューを開きます。Free メニューは「mod シナリオを演出」と「新しいキャンペーンを開始」の 2 区。Title メニューは「新しいキャンペーンを開始」区のみ（シナリオ演出には読み込み済みセーブのプレイヤー状態が必要なため Free でのみ提供）。
+3. 入口：Free は「活侠MOD」と F8 を維持。Title では原作「ゲーム開始」の上に同じ外観の「MOD キャンペーン開始」を表示します。原作ロードスロットを再利用し、既存 MOD セーブを続行、「新規キャンペーン」空きスロットから Mod を選択します。閉じると原作 001～020 を再構築します。
+   - **完全セーブ分離**：MOD 手動スロットは `mod_<id>`、三種の自動スロットは `mod_<id>_auto*`。Universe の最近スロットは最後の原作スロットだけを記録し、原作「続きから」が MOD に入りません。
 4. **キャンペーン**：「新しいキャンペーンを開始」クリック → `SetSlot("mod_<modid>")`（分離セーブスロット）→ 公式 `NewGameData()` → postfix が最初のシナリオスクリプトをその mod の entry に置き換え → LoadStory。
 5. **原版シナリオ抑制と位置トリガー**：`disable_official_events` または F7 が有効なとき、`UpdateCheckMissions` 内でメインのトリガー状態を一時的に隠し、`HasAnyMissionTrigger` を false にして、Free 復帰時に公式メイン／サブが自動開始するのを防ぎます。地点クリックの postfix `FreePositionData.GetExecuteScript` は manifest.triggers を優先マッチし、mod の命中がない場合は公式地点の既定スクリプトを抑制します。
 6. **フォールバック**：Story シーンが要求した MOD_ スクリプトが未登録（mod が削除された）の場合、実行せず `ChangeScene("Free","","")` でソフトロックを防ぎます。
@@ -391,7 +392,7 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 16. **mod シナリオでのダイス範囲変更の開放**：公式の「修改范围」ボタンは 2 周目かつ実績 30016 所持を要求します。mod シナリオ中（`CurrentStoryScript` が `MOD_` で始まる）は `get_NewGamePlus` prefix を true 返しにし、かつ `CheckRevolution` の元の戻り値が true のとき `_rangeButton` を直接アクティブにします（mod 内で公式実績 30016 をアンロックせず、公式セーブの汚染を回避）。公式シナリオにはまったく影響しません。
 17. **ユーザー音声**：`LuaManager.PlayMusic/PlaySound/PlayEnvSound` の引数が `user:` で始まる場合はプラグインが引き継ぎ、**現在演出中の Mod パッケージ**の `UserContents` から解決（`assets/user/audio/<id>/content.json` + メインファイル）してデコード後に Windows `waveOut` で再生します（本ゲームのメインミックスは Wwise で、Unity `AudioSource` はしばしば無音）。公式名は一律そのまま原版 Wwise に渡します。ランタイムは `%APPDATA%/lom_modkit/repository` を読みません。2 つの Mod が同じ ID を持っていても自身のパッケージのみを解決します。対応フォーマットは `.ogg` / `.wav` のみ、1 件 ≤20MB。カスタム fadeout は出力音量のフェードアウト（その後もコンパイラー出力の `wait` は続きます）。カスタム音楽への切替時は先に公式 Wwise 音楽を停止します（公式 `StopMusic` は環境音も同時にクリアします）。
 18. **セリフボイス**：`mod_play_voice(ref)` / `mod_stop_voice()` を登録。`mod_play_voice` は現在のボイスを先に停止してから再生（ループなし、独立 `_voice` チャンネル）。`sound` ノード、カスタム効果音、`StopMusic` はいずれもこのチャンネルに触れません。シナリオ中断、公式スクリプトへの切替、Mod の再読み込み時は `StopEverything()` がボイスを停止します。`voice` のない旧 Lua はこれらの関数を呼ばないため、動作は変わりません。
-19. **ゲーム内 Mod メニューの多言語**：メニュー文案（`src/I18n.cs` に zh_CN/zh_TW/ja/ko の 4 言語カタログを内蔵）はゲームの現在の言語に従います——リフレクションで LeanLocalization の `CurrentLanguage` を読み、言語名を曖昧マッチ。公式ゲーム自体に日本語オプションはないため、日本語カタログが実際に発火することはありません。検出失敗時は一律 zh_CN にフォールバック。詳細は `i18n.md` を参照。
+19. **ゲーム内 Mod メニューの多言語**：メニュー文案（`src/I18n.cs` に chs/cht/ja/ko の 4 言語カタログを内蔵）はゲームの現在の言語に従います——リフレクションで LeanLocalization の `CurrentLanguage` を読み、言語名を曖昧マッチ。公式ゲーム自体に日本語オプションはないため、日本語カタログが実際に発火することはありません。検出失敗時は一律 chs にフォールバック。詳細は `i18n.md` を参照。
 
 20. **構造化 Runtime エラー**：Mod 再生を fail-closed で中止する障害は、一行の `[mod-runtime-error]` JSON ログとして記録されます。固定項目は `mod_id`、`mod_name`、`version`、`story`、`node`、`category`、`error`、`recent_trace` と UTC 時刻です。通常 Mod は変数値を含まないノード/遷移 breadcrumb を最大 32 件だけ保持し、エラーには最大 16 件を長さ制限付きで添付します。F5 の完全な 256 件開発 trace は従来どおりです。例外整形、trace 取得、JSON 化、ログ出力自体が失敗しても最小レポートへ退避し、元の障害や安全な Free 復帰を妨げません。最後のレポートは診断バンドル用にメモリ保持します。
 

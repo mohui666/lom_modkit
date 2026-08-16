@@ -15,7 +15,7 @@
       "options": [
         {
           "text": "进入原版 Combat",
-          "goto": "battle_setup1"
+          "goto": "combat1"
         },
         {
           "text": "跳过 Combat",
@@ -31,23 +31,6 @@
       "portrait": "normal",
       "mode": "narrative",
       "goto": "end1"
-    },
-    {
-      "id": "battle_setup1",
-      "type": "battle_setup",
-      "reset_skills": true,
-      "skills": [
-        {
-          "key": "special3",
-          "index": 2,
-          "active": 1
-        }
-      ],
-      "enemy": "400",
-      "team": 0,
-      "level": 1,
-      "people": 1,
-      "display": 1
     },
     {
       "id": "combat1",
@@ -103,11 +86,16 @@
     "showcase3_combat": {
       "kind": "combat",
       "key": "5102_01",
-      "enemy": "400",
-      "team": 0,
-      "level": 1,
-      "people": 1,
-      "display": 1
+      "max_health": 300,
+      "health": 300,
+      "max_stamina": 120,
+      "stamina": 120,
+      "strength": 20,
+      "internal": 20,
+      "dexterity": 20,
+      "talking": 20,
+      "attack_rate": 0.5,
+      "block_rate": 0.25
     }
   },
   "start": "message1"

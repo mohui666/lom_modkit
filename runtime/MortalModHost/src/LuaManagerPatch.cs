@@ -568,6 +568,11 @@ namespace MortalModHost
                         ArgString(args, 3), ArgString(args, 4));
                     return DynValue.Nil;
                 }, "mod_gameplay_prepare");
+                script.Globals["mod_gameplay_configure"] = new CallbackFunction((ctx, args) =>
+                {
+                    GameplaySession.Configure(ArgString(args, 0), ArgString(args, 1, ""));
+                    return DynValue.Nil;
+                }, "mod_gameplay_configure");
                 script.Globals["mod_gameplay_consume_resume"] = new CallbackFunction((ctx, args) =>
                 {
                     string target = GameplaySession.ConsumeResume(

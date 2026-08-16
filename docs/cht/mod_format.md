@@ -1,6 +1,6 @@
 # 活俠傳 Mod 包格式（v3 契約）
 
-> 語言：[简体中文](../zh_CN/mod_format.md) · 繁體中文（本文） · [日本語](../ja/mod_format.md) · [한국어](../ko/mod_format.md)
+> 語言：[简体中文](../chs/mod_format.md) · 繁體中文（本文） · [日本語](../ja/mod_format.md) · [한국어](../ko/mod_format.md)
 
 **所有元件（編輯器 / 編譯器 / 執行階段外掛）以本文件為準。** 改動需同步更新本文件。
 文中規則的官方腳本/反編譯實證材料見 `../research/`，正文不重複展開。
@@ -151,8 +151,8 @@ assets/                # 可选，自定义资源
 | `enemy` | `op`("team"/"level"/"people"/"id"), `enemy`, `value`(數值, id 的 op 不需要), `display`(預設1) | 敵方隊伍修改 `ModifyEnemyTeam/Level/People/Id` |
 | `battle_skill` | `op`("set"/"active"/"reset"), `key`(reset 不需要), `index`(set 用, 預設2), `active`(active 用, 預設1) | 戰場技能 `SetPlayerBattleSkill/SetBattleSkillActive/ResetBattleSkill` |
 | `battle_setup` | 可選敵方欄位、`reset_skills`、`skills:[{key,index,active}]`；至少一項 | 只聚合已驗證的原版敵方與戰場技能介面，不修改地圖／AI／機制 |
-| `combat` | `win`, `lose`；`key`(原版 Combat id) 與 `preset` 二選一；直接設定可選 `enemy`, `team`, `level`, `people`, `display` | 組合原版敵方設定後進入 Combat；Host 從 `CombatManager.GameOver(bool)` 取得 win/lose 並回到指定節點。不支援 draw/escape，且不允許額外 goto |
-| `battle` | `win`, `lose`；`key`(原版 Battle id) 與 `preset` 二選一 | 進入原版 Battle；只把 `FriendWin/EnemyWin` 且 finish=true 映射為 win/lose。`PlayerDie(false)` 保持原版重試／標題，不偽造續接 |
+| `combat` | `win`, `lose`；`key`（原版一對一人物／場景範本）與 `preset` 二選一；可覆寫對手 HP、體力、九項屬性、天賦、三格絕招與五類行動機率 | 只在本次 Combat 的原版資料讀取點覆寫對手；`CombatManager.GameOver(bool)` 的真實 win/lose 回到指定節點。不支援 draw/escape |
+| `battle` | `win`, `lose`；`key` 與 `preset` 二選一；可選我方／敵方／中立陣容範本、三方人數與 NPC HP、玩家戰役技能 | 本次 Battle 分別重用三個原版陣容；只把 finish=true 的 `FriendWin/EnemyWin` 映射為 win/lose，`PlayerDie(false)` 保持原版流程 |
 | `battle_result` | `win`, `lose`；可選 `kind`("any"/"combat"/"battle") | 按完整包指紋與劇情 id 讀取 Host 真實結果，只支援已驗證的 win/lose；無結果或類型不符會 fail-closed |
 | `reward` | `entries`(1~32)：stat/affinity/talent/item/flag | 編譯期展開為既有屬性、好感、天賦、物品、旗標原子介面 |
 | `result_screen` | `title`（非空）、`entries`（同 reward）；可選 `text` | 先用原版 `mainui.DisplayMessageText` 顯示標題與說明，再執行既有獎勵介面；不建立自訂結算 UI |
@@ -369,7 +369,8 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 
 1. 啟動掃描 `BepInEx/plugins/MortalModHost/mods/*.lommod`，註冊 `MOD_<modid>_<scriptid>` → lua 文字。
 2. Harmony prefix `LuaManager.ExecuteLuaScript()`：註冊名命中時用 mod lua 執行並跳過原方法。
-3. 入口：Free 自由場景與 Title 標題畫面左下角「活俠MOD」按鈕 + F8（可配置）開啟選單。Free 選單分「演出 mod 劇情」與「開始新戰役」兩區；Title 選單僅「開始新戰役」區（演出劇情需要已載入的存檔玩家狀態，只在 Free 提供）。
+3. 入口：Free 保留「活俠MOD」與 F8；Title 在原版「開始遊戲」上方顯示同風格「開始 MOD 戰役」。點擊後重用原版讀檔槽：既有 MOD 槽可繼續，固定「新戰役」空白槽開啟戰役選擇，關閉時還原原版 001～020。
+   - **完整存檔隔離**：MOD 手動槽為 `mod_<id>`，三類自動槽為 `mod_<id>_auto*`；Universe 最近槽只記最後一個原版槽，不會讓原版「繼續遊戲」進入 MOD。
 4. **戰役**：點擊「開始新戰役」→ `SetSlot("mod_<modid>")`（隔離存檔槽）→ 官方 `NewGameData()` → postfix 把首個劇情腳本替換為該 mod 的 entry → LoadStory。
 5. **原版劇情抑制與位置觸發器**：`disable_official_events` 或 F7 生效時，`UpdateCheckMissions` 內暫時隱藏主線觸發狀態，`HasAnyMissionTrigger` 返回 false，避免返回 Free 時自動啟動官方主線/支線；地點點擊 postfix `FreePositionData.GetExecuteScript` 優先匹配 manifest.triggers，無 mod 命中時抑制官方地點預設腳本。
 6. **保底**：Story 場景請求的 MOD_ 腳本未註冊（mod 被刪）時，不執行並 `ChangeScene("Free","","")` 防軟鎖。
@@ -388,7 +389,7 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 16. **mod 劇情放開骰子範圍修改**：官方「修改範圍」按鈕要求二周目且持有成就 30016；mod 劇情中（`CurrentStoryScript` 以 `MOD_` 開頭）`get_NewGamePlus` prefix 返 true，且 `CheckRevolution` 原返 true 時直接啟用 `_rangeButton`（不在 mod 裡解鎖官方成就 30016，避免污染官方存檔）。官方劇情完全不受影響。
 17. **使用者音訊**：`LuaManager.PlayMusic/PlaySound/PlayEnvSound` 參數以 `user:` 開頭時由外掛接管，從**當前演出 Mod 包**的 `UserContents` 解析（`assets/user/audio/<id>/content.json` + 主檔案），解碼後用 Windows `waveOut` 播放（本遊戲主混音是 Wwise，Unity `AudioSource` 經常無聲）。官方名字一律放行給原版 Wwise。執行階段禁止讀取 `%APPDATA%/lom_modkit/repository`。兩個 Mod 即使 ID 相同也只解析自身包。支援格式僅 `.ogg` / `.wav`，單條 ≤20MB。自訂 fadeout 是輸出音量淡出（隨後仍有編譯器發射的 `wait`）；切到自訂音樂會先停官方 Wwise 音樂（官方 `StopMusic` 會同時清環境音）。
 18. **對白語音**：註冊 `mod_play_voice(ref)` / `mod_stop_voice()`。`mod_play_voice` 先停當前語音再播（不循環，走獨立 `_voice` 通道）。`sound` 節點、自訂音效、`StopMusic` 都不碰這條通道。劇情中斷、切官方腳本、重載 Mod 時 `StopEverything()` 會停語音。無 `voice` 的舊 Lua 不會呼叫這兩個函式，行為不變。
-19. **遊戲內 Mod 選單多語言**：選單文案（`src/I18n.cs` 內嵌 zh_CN/zh_TW/ja/ko 四語言目錄）跟隨遊戲當前語言——反射讀 LeanLocalization `CurrentLanguage` 並模糊匹配語言名；官方遊戲本身沒有日語選項，日語目錄實際不會觸發；偵測失敗一律退回 zh_CN。詳見 `i18n.md`。
+19. **遊戲內 Mod 選單多語言**：選單文案（`src/I18n.cs` 內嵌 chs/cht/ja/ko 四語言目錄）跟隨遊戲當前語言——反射讀 LeanLocalization `CurrentLanguage` 並模糊匹配語言名；官方遊戲本身沒有日語選項，日語目錄實際不會觸發；偵測失敗一律退回 chs。詳見 `i18n.md`。
 
 20. **結構化 Runtime 錯誤**：所有導致 Mod 演出 fail-closed 中止的故障會寫入單條 `[mod-runtime-error]` JSON 日誌，固定包含 `mod_id`、`mod_name`、`version`、`story`、`node`、`category`、`error`、`recent_trace` 與 UTC 時間。正式 Mod 只保留最多 32 條節點/跳轉級輕量 breadcrumb，不記錄變數值；錯誤快照最多附 16 條且都有長度上限，F5 的 256 條完整開發 trace 規則不變。格式化、快照、序列化或日誌自身再失敗時使用最小兜底報告，不能遮蔽原始錯誤或阻止安全返回 Free；最後一份報告留在記憶體供診斷包使用。
 

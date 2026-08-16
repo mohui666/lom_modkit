@@ -4,6 +4,7 @@
 from .core import (  # noqa: F401
     DEFAULT_LANGUAGE,
     LANGUAGES,
+    normalize_language,
     current_language,
     help_html,
     init_language,

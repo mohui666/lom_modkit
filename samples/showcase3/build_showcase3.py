@@ -423,28 +423,20 @@ def build_combat() -> dict:
         "showcase3_combat": {
             "kind": "combat",
             "key": COMBAT_KEY,
-            "enemy": "400",
-            "team": 0,
-            "level": 1,
-            "people": 1,
-            "display": 1,
+            "max_health": 300,
+            "health": 300,
+            "max_stamina": 120,
+            "stamina": 120,
+            "strength": 20,
+            "internal": 20,
+            "dexterity": 20,
+            "talking": 20,
+            "attack_rate": 0.5,
+            "block_rate": 0.25,
         }
     }
     start = _node(story, "message", {"text": "【3.0/3】可测试原版 Combat，也可跳过。"})
     _set_start(story, start)
-    setup = _node(
-        story,
-        "battle_setup",
-        {
-            "enemy": "400",
-            "team": 0,
-            "level": 1,
-            "people": 1,
-            "display": 1,
-            "reset_skills": True,
-            "skills": [{"key": "special3", "index": 2, "active": 1}],
-        },
-    )
     fight = _node(
         story,
         "combat",
@@ -470,7 +462,7 @@ def build_combat() -> dict:
     skip = _say(story, "已跳过 Combat。", mode="narrative", after=start)
     story_api.add_choice(
         story,
-        [("进入原版 Combat", setup), ("跳过 Combat", skip)],
+        [("进入原版 Combat", fight), ("跳过 Combat", skip)],
         after=start,
     )
     story_api.update_node(story, fight, {"win": inspect, "lose": inspect})
@@ -485,7 +477,14 @@ def build_combat() -> dict:
 def build_battle() -> dict:
     story = _blank_story("battle_demo", "3.0 第四章：原版 Battle 编排")
     story["battle_presets"] = {
-        "showcase3_battle": {"kind": "battle", "key": BATTLE_KEY}
+        "showcase3_battle": {
+            "kind": "battle", "key": BATTLE_KEY,
+            "friend_roster": BATTLE_KEY, "enemy_roster": BATTLE_KEY,
+            "friend_people": 3, "enemy_people": 3,
+            "friend_health": 300, "enemy_health": 300,
+            "reset_skills": True,
+            "skills": [{"key": "special3", "index": 2, "active": 1}],
+        }
     }
     start = _node(
         story,
@@ -493,6 +492,14 @@ def build_battle() -> dict:
         {"text": "【3.0/4】Battle 失败中的 PlayerDie 可能按原版进入重试/标题；可选择跳过。"},
     )
     _set_start(story, start)
+    setup = _node(
+        story,
+        "battle_setup",
+        {
+            "enemy": "400", "team": 0, "level": 1, "people": 1,
+            "display": 1,
+        },
+    )
     war = _node(
         story,
         "battle",
@@ -509,7 +516,7 @@ def build_battle() -> dict:
     skip = _say(story, "已跳过 Battle。", mode="narrative", after=start)
     story_api.add_choice(
         story,
-        [("进入原版 Battle", war), ("跳过 Battle", skip)],
+        [("进入原版 Battle", setup), ("跳过 Battle", skip)],
         after=start,
     )
     story_api.update_node(story, war, {"win": inspect, "lose": inspect})

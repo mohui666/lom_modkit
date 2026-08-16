@@ -43,10 +43,10 @@
     {"id": "n28", "type": "goto_scene", "scene": "End", "key": "900047", "title": "灯路未央", "desc": "你循着一盏灯留下的微光，踏上了尚未写完的远路。", "image": "assets/ending.png"}
   ],
   "localization": {
-    "default_locale": "zh_CN",
-    "fallback_locale": "zh_CN",
+    "default_locale": "chs",
+    "fallback_locale": "chs",
     "translations": {
-      "zh_TW": {
+      "cht": {
         "story.title": "燈路：一封未署名的信",
         "n06.text": "燈已點亮。前路雖遠，也總有一處能照見腳下。",
         "n07.text": "你是送信來的，還是專程來講道理的？",
