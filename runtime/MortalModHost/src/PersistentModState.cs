@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using BepInEx.Logging;
 using HarmonyLib;
 using Mortal.Core;
@@ -98,9 +99,18 @@ namespace MortalModHost
         }
     }
 
-    [HarmonyPatch(typeof(SaveSystem), "SaveGameData")]
+    [HarmonyPatch]
     internal static class PersistentStateSavePatch
     {
+        // SaveSystem 同时公开 SaveGameData() 与 SaveGameData(string)。必须显式选择
+        // “保存当前槽”的无参重载，否则 Harmony PatchAll 会抛 AmbiguousMatchException，
+        // 而且 string 重载可能保存的并不是 CurrentSlot，不能触发当前 MOD sidecar。
+        internal static MethodBase TargetMethod()
+        {
+            return AccessTools.Method(
+                typeof(SaveSystem), nameof(SaveSystem.SaveGameData), Type.EmptyTypes);
+        }
+
         private static void Postfix()
         {
             try

@@ -214,7 +214,7 @@ namespace MortalModHost
             ok &= CheckTarget("SaveSystem.SetSlot",
                 AccessTools.Method(typeof(SaveSystem), "SetSlot", new Type[] { typeof(string) }));
             ok &= CheckTarget("SaveSystem.SaveGameData",
-                AccessTools.Method(typeof(SaveSystem), "SaveGameData"));
+                PersistentStateSavePatch.TargetMethod());
             ok &= CheckTarget("FreePositionData.GetExecuteScript",
                 AccessTools.Method(typeof(FreePositionData), "GetExecuteScript"));
             ok &= CheckTarget("PositionController.OnPositionClick",

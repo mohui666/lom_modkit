@@ -148,7 +148,9 @@
       "required_fragments": [
         "public string CurrentSlot",
         "public void SetSlot(string slot)",
-        "public void SaveGameData()"
+        "public void SaveGameData()",
+        "SaveGameData(_currentSlot)",
+        "public void SaveGameData(string slot)"
       ]
     }
   ],
