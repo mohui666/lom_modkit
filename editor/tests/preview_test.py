@@ -3,8 +3,10 @@
 
 from __future__ import annotations
 
+import base64
 import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -13,9 +15,27 @@ EDITOR_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(EDITOR_DIR))
 
 import preview  # noqa: E402
+from PySide6.QtWidgets import QApplication  # noqa: E402
 
 
 class PreviewStageActionTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QApplication.instance() or QApplication([])
+
+    def test_pixmap_loader_accepts_path_returned_by_content_registry(self):
+        # 1x1 PNG；复现自定义背景解析器把 pathlib.Path 交给预览加载器的路径。
+        png = base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "background.png"
+            source.write_bytes(png)
+            stage = preview.StagePreview()
+            pixmap = stage._load_pixmap(source)
+            self.assertFalse(pixmap.isNull())
+            self.assertIn(str(source).replace("\\", "/"), stage._pix_cache)
+
     def test_custom_background_state_cleanup_and_playtest_prelude(self):
         story = {
             "id": "main",

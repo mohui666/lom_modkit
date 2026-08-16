@@ -750,14 +750,16 @@ class StagePreview(QWidget):
             _key, pix = self._pix_cache.popitem(last=False)
             self._cache_bytes -= self._pix_bytes(pix)
 
-    def _load_pixmap(self, rel_path: str | None) -> QPixmap:
+    def _load_pixmap(self, rel_path: str | Path | None) -> QPixmap:
         """按相对 data/ 的路径加载图片（LRU 缓存 + 加载即降采样）。
 
         任何失败（文件缺失/损坏/解码异常）都返回 null QPixmap，调用方走占位图。
         """
         if not rel_path:
             return QPixmap()
-        key = rel_path.replace("\\", "/")
+        # content_registry.resolve() 返回 pathlib.Path；预览映射则通常返回 str。
+        # 必须先统一成文本，否则 Path.replace 是“移动文件”API，并不是字符串替换。
+        key = str(rel_path).replace("\\", "/")
         hit = self._pix_cache.get(key)
         if hit is not None:
             self._pix_cache.move_to_end(key)
