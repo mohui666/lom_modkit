@@ -14,17 +14,27 @@ import sys
 from pathlib import Path
 from typing import Any
 
-DEFAULT_LANGUAGE = "zh_CN"
+DEFAULT_LANGUAGE = "chs"
+LANGUAGE_ALIASES = {
+    "zh_CN": "chs",
+    "zh-CN": "chs",
+    "zh_Hans": "chs",
+    "zh-Hans": "chs",
+    "zh_TW": "cht",
+    "zh-TW": "cht",
+    "zh_Hant": "cht",
+    "zh-Hant": "cht",
+}
 LANGUAGES: tuple[tuple[str, str], ...] = (
-    ("zh_CN", "简体中文"),
-    ("zh_TW", "繁體中文"),
+    ("chs", "中文（CHS）"),
+    ("cht", "中文（CHT）"),
     ("ja", "日本語"),
     ("ko", "한국어"),
 )
 
 _QT_QM = {
-    "zh_CN": "qt_zh_CN",
-    "zh_TW": "qt_zh_TW",
+    "chs": "qt_zh_CN",
+    "cht": "qt_zh_TW",
     "ja": "qt_ja",
     "ko": "qt_ko",
 }
@@ -66,6 +76,7 @@ def _flatten_ui(data: dict, prefix: str = "") -> dict[str, str]:
 
 
 def language_label(code: str) -> str:
+    code = normalize_language(code)
     for item, label in LANGUAGES:
         if item == code:
             return label
@@ -81,8 +92,15 @@ def init_language(code: str | None = None) -> str:
     return set_language(code or DEFAULT_LANGUAGE)
 
 
+def normalize_language(code: str | None) -> str:
+    """Return a canonical public language code; legacy names are input-only."""
+    value = str(code or "").strip()
+    return LANGUAGE_ALIASES.get(value, value)
+
+
 def set_language(code: str) -> str:
     global _language, _ui, _ui_fallback, _terms, _terms_fallback
+    code = normalize_language(code)
     valid = {item for item, _label in LANGUAGES}
     _language = code if code in valid else DEFAULT_LANGUAGE
     root = _bundle_dir()

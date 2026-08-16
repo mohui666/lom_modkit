@@ -1,0 +1,270 @@
+{
+  "format": 1,
+  "observed_utc": "2026-08-16",
+  "verification_tool": "ilspycmd 8.2.0.7535",
+  "game_build_note": "Mortal.exe exposes Unity product version 2020.3.49f1 only; assembly hashes are the authoritative observed-build identity.",
+  "assemblies": [
+    {
+      "file": "Mortal.Story.dll",
+      "size": 109568,
+      "sha256": "ED5C318DB14868B03EEF3CC345B5FF9DD32C557CA9DB88CE7E07ACCFC5F47020"
+    },
+    {
+      "file": "Mortal.Core.dll",
+      "size": 331776,
+      "sha256": "9A76F508BC069A4F9BEB1A2E798A002A0D4B20D1210FE0CD2EA98C7B6FFC0FB1"
+    },
+    {
+      "file": "Mortal.Combat.dll",
+      "size": 472576,
+      "sha256": "65D64D0BA936D90B8FF405A27477C1C3F5D65805AB900411C92481A638B103DD"
+    },
+    {
+      "file": "Mortal.Battle.dll",
+      "size": 294912,
+      "sha256": "BE9025D12D75A6E6B70EE00FAFA0C3744F4E67A774427233CCA29CF0E79C3DAD"
+    }
+  ],
+  "probes": [
+    {
+      "assembly": "Mortal.Story.dll",
+      "type": "Mortal.Story.LuaManager",
+      "required_fragments": [
+        "public void ChangeScene(string name, string key, string nextScene)",
+        "PlayerStatManagerData.Instance.SetNextScene(nextScene)",
+        "PlayerStatManagerData.Instance.SetSceneKey(key)",
+        "SceneController.Instance.LoadNewScene(name)",
+        "public void SetPlayerBattleSkill(string key, int index)",
+        "public void SetBattleSkillActive(string key, int active)",
+        "public void SetBattleSkillLevel(string key, int level)"
+      ]
+    },
+    {
+      "assembly": "Mortal.Combat.dll",
+      "type": "Mortal.Combat.CombatManager",
+      "required_fragments": [
+        "public IEnumerator GameOver(bool win)",
+        "yield return GameOver(win: true)",
+        "yield return GameOver(win: false)",
+        "yield return LoadNextScene()",
+        "SceneController.Instance.LoadNextScene()"
+      ]
+    },
+    {
+      "assembly": "Mortal.Story.dll",
+      "type": "Mortal.Story.ShopPanel",
+      "required_fragments": [
+        "public IEnumerator Open(int discount = 0)",
+        "foreach (ShopItem book in instance2.Books)",
+        "foreach (ShopItem misc in instance2.Miscs)",
+        "foreach (ShopItem special in instance2.Specials)",
+        "component.Setup(shopItem.Data, count, shopItem.Data.GetBuyPrice(discount))"
+      ]
+    },
+    {
+      "assembly": "Mortal.Combat.dll",
+      "type": "Mortal.Combat.CombatLevel",
+      "required_fragments": [
+        "public CombatResultFlag[] WinResult",
+        "public CombatResultFlag[] LoseResult",
+        "public bool DeadEnd"
+      ]
+    },
+    {
+      "assembly": "Mortal.Combat.dll",
+      "type": "Mortal.Combat.CombatStat",
+      "required_fragments": [
+        "public int MaxHealth;",
+        "public int DefaultHealth;",
+        "public int MaxStamina;",
+        "public int DefaultStamina;",
+        "public List<CombatTalentItem> TalentItems",
+        "public string UltimateOne;",
+        "public float AttackRate",
+        "public void Reset()"
+      ]
+    },
+    {
+      "assembly": "Mortal.Combat.dll",
+      "type": "Mortal.Combat.CombatActionController",
+      "required_fragments": [
+        "public void SetStat(CombatStat data)"
+      ]
+    },
+    {
+      "assembly": "Mortal.Battle.dll",
+      "type": "Mortal.Battle.GameLevelManager",
+      "required_fragments": [
+        "string text = \"BL_\" + currentSceneKey",
+        "public void ShowGameOver(GameOverType type, bool finish)",
+        "ShowGameOver(GameOverType.FriendWin, finish: true)",
+        "ShowGameOver(GameOverType.EnemyWin, finish: true)",
+        "ShowGameOver(GameOverType.PlayerDie, finish: false)"
+      ]
+    },
+    {
+      "assembly": "Mortal.Battle.dll",
+      "type": "Mortal.Battle.GameOverType",
+      "required_fragments": [
+        "PlayerDie = 1",
+        "FriendWin",
+        "EnemyWin",
+        "Timeout"
+      ]
+    },
+    {
+      "assembly": "Mortal.Battle.dll",
+      "type": "Mortal.Battle.BattleLevel",
+      "required_fragments": [
+        "public int GetFriendPeople()",
+        "public int GetEnemyPeople()",
+        "public int NeutralPeople => _neutralPeople;",
+        "public GameObject FriendSpawnerPrefab => _friendSpawnerPrefab;",
+        "public GameObject EnemySpawnerPrefab => _enemySpawnerPrefab;",
+        "public GameObject NeutralSpawnerPrefab => _neutralSpawnerPrefab;"
+      ]
+    },
+    {
+      "assembly": "Mortal.Battle.dll",
+      "type": "Mortal.Battle.CharacterHealth",
+      "required_fragments": [
+        "private HealthData _defaultHealth;",
+        "private int _defaultAddHealth;",
+        "public int CurrentHealth { get; private set; }",
+        "private void Start()"
+      ]
+    },
+    {
+      "assembly": "Mortal.Battle.dll",
+      "type": "Mortal.Battle.NpcSpawner",
+      "required_fragments": [
+        "private CharacterSpawnPoint[] _spawnPoints;",
+        "public void Setup(int npcMaxCount, GameObject spawnerObject)"
+      ]
+    },
+    {
+      "assembly": "Mortal.Core.dll",
+      "type": "Mortal.Core.ShopDatabase",
+      "required_fragments": [
+        "public List<ShopItem> Books",
+        "public List<ShopItem> Miscs",
+        "public List<ShopItem> Specials",
+        "public void NewShop()",
+        "private void AddShopItem(ShopItemsData itemData)"
+      ]
+    },
+    {
+      "assembly": "Mortal.Core.dll",
+      "type": "Mortal.Core.ShopItem",
+      "required_fragments": [
+        "public ShopItem(ItemData item, int count)",
+        "public int Count { get; private set; }"
+      ]
+    },
+    {
+      "assembly": "Mortal.Core.dll",
+      "type": "Mortal.Core.ItemDatabase",
+      "required_fragments": [
+        "public IGameItem GetItem(GameItemType type, string id)",
+        "public bool HasItem(GameItemType type, string id)"
+      ]
+    },
+    {
+      "assembly": "Mortal.Core.dll",
+      "type": "Mortal.Core.PlayerStatManagerData",
+      "required_fragments": [
+        "public PlayerTalentDataCollection Talents",
+        "public RelationshipData Relationships",
+        "public void SetBattleSkillLevel(string key, int level)",
+        "public void Save(GameSave gameSave)"
+      ]
+    },
+    {
+      "assembly": "Mortal.Core.dll",
+      "type": "Mortal.Core.PlayerTalentDataCollection",
+      "required_fragments": [
+        "public PlayerTalentData Get(string id)"
+      ]
+    },
+    {
+      "assembly": "Mortal.Core.dll",
+      "type": "Mortal.Core.PlayerTalentData",
+      "required_fragments": [
+        "public int Level => _level;"
+      ]
+    },
+    {
+      "assembly": "Mortal.Core.dll",
+      "type": "Mortal.Core.SaveSystem",
+      "required_fragments": [
+        "public string CurrentSlot",
+        "public void SetSlot(string slot)",
+        "private void AutoSaveData(string slot)",
+        "public void AutoSaveStoryData()",
+        "public void AutoSaveFreeData()",
+        "public void AutoSaveBattleData()",
+        "public void AutoLoadGameData(string slot)",
+        "public void SaveUniverseData()",
+        "public void SaveGameData()",
+        "SaveGameData(_currentSlot)",
+        "public void SaveGameData(string slot)"
+      ]
+    },
+    {
+      "assembly": "Mortal.Core.dll",
+      "type": "Mortal.Core.TitleManager",
+      "required_fragments": [
+        "private CommonPanel _slotPanel;",
+        "private Button _startButton;",
+        "public void OpenSlot()",
+        "_slotPanel.Show(show: true)",
+        "public void OnPanelOpen()",
+        "InteractableButtons(interactable: false)"
+      ]
+    },
+    {
+      "assembly": "Mortal.Core.dll",
+      "type": "Mortal.Core.LoadGamePanel",
+      "required_fragments": [
+        "private LoadSlotPanel[] _saveSlots;",
+        "private GameObject _slotPrefab;",
+        "private Transform _slotContainer;",
+        "private void CreateSlot()",
+        "private void SetButtonNavigation()",
+        "public void OnPanelOpen()"
+      ]
+    },
+    {
+      "assembly": "Mortal.Core.dll",
+      "type": "Mortal.Core.LoadSlotPanel",
+      "required_fragments": [
+        "public Button SlotButton",
+        "public void Setup()",
+        "public void OnTitleClick()",
+        "SaveSystem.Instance.LoadGameData()",
+        "SceneController.Instance.LoadCurrentScene()"
+      ]
+    }
+  ],
+  "capabilities": {
+    "combat_official_template": "verified_decompile",
+    "combat_enemy_stat_override": "verified_decompile_host_clone",
+    "combat_result_win_lose": "verified_decompile",
+    "battle_official_template": "verified_decompile",
+    "battle_roster_count_health_override": "verified_decompile_host_scope",
+    "battle_result_friend_enemy_win": "verified_decompile",
+    "battle_draw_escape": "not_exposed",
+    "dynamic_battle_map_model_ai": "not_exposed",
+    "battle_skill_setup": "verified_decompile",
+    "custom_shop_inventory": "verified_decompile_host_scope_implemented",
+    "custom_shop_per_item_price": "requires_host_patch",
+    "item_talent_checks": "verified_decompile_read_only_bridge_implemented",
+    "affinity_check": "verified_decompile_read_only_bridge_implemented",
+    "mod_persistent_state": "verified_decompile_slot_bound_host_sidecar_implemented",
+    "mod_quest": "host_session_state_machine_implemented",
+    "result_screen": "existing_message_and_reward_apis_implemented",
+    "title_mod_campaign_entry": "verified_original_start_button_clone",
+    "title_mod_campaign_load_panel": "verified_original_load_panel_and_slot_prefab_reuse",
+    "mod_manual_auto_universe_save_isolation": "verified_decompile_host_redirect_implemented"
+  }
+}

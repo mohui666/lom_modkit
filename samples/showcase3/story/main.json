@@ -1,0 +1,416 @@
+{
+  "story_schema": 1,
+  "id": "main",
+  "title": "3.0 第一章：演出与用户内容",
+  "mood": false,
+  "nodes": [
+    {
+      "id": "message1",
+      "type": "message",
+      "text": "【3.0/1】演出、对白栏防裁剪水印与三类用户内容测试开始。"
+    },
+    {
+      "id": "music1",
+      "type": "music",
+      "name": "user:showcase.lantern_theme",
+      "op": "play"
+    },
+    {
+      "id": "sound1",
+      "type": "sound",
+      "name": "user:showcase.lantern_chime",
+      "kind": "sound",
+      "op": "play"
+    },
+    {
+      "id": "scene1",
+      "type": "scene",
+      "view": "center"
+    },
+    {
+      "id": "background1",
+      "type": "background",
+      "action": "show",
+      "image": "user:showcase.courier_station",
+      "fade": 0.5
+    },
+    {
+      "id": "custom_cg1",
+      "type": "custom_cg",
+      "action": "show",
+      "image": "user:showcase.departure_cg",
+      "fade": 0.3,
+      "scale": 68,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "id": "custom_cg2",
+      "type": "custom_cg",
+      "action": "hide",
+      "image": "",
+      "fade": 0.3,
+      "scale": 100,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "id": "overlay1",
+      "type": "overlay",
+      "action": "show",
+      "slot": "showcase_lantern",
+      "image": "user:showcase.lantern_overlay",
+      "position": "top_right",
+      "scale": 34,
+      "opacity": 88,
+      "layer": "front",
+      "fade": 0.25
+    },
+    {
+      "id": "show1",
+      "type": "show",
+      "character": "player",
+      "position": "L1",
+      "portrait": "normal",
+      "facing": "right",
+      "fadeDuration": 0,
+      "moveDuration": 0
+    },
+    {
+      "id": "show2",
+      "type": "show",
+      "character": "user:showcase.lin_deng",
+      "position": "R1",
+      "portrait": "normal",
+      "facing": "left",
+      "fadeDuration": 0,
+      "moveDuration": 0
+    },
+    {
+      "id": "say1",
+      "type": "say",
+      "text": "我是用户角色林灯。这句对白同时播放用户语音；请检查对白栏里是否有重复的低透明度 MOD 水印。",
+      "character": "user:showcase.lin_deng",
+      "portrait": "normal",
+      "mode": "character",
+      "voice": "user:showcase.lin_greeting"
+    },
+    {
+      "id": "move1",
+      "type": "move",
+      "character": "player",
+      "from": "L1",
+      "to": "M",
+      "duration": 0.6
+    },
+    {
+      "id": "face1",
+      "type": "face",
+      "character": "player",
+      "facing": "right"
+    },
+    {
+      "id": "focus1",
+      "type": "focus",
+      "character": "user:showcase.lin_deng"
+    },
+    {
+      "id": "offset1",
+      "type": "offset",
+      "character": "player",
+      "x": 12,
+      "y": -4,
+      "duration": 0.25
+    },
+    {
+      "id": "shock1",
+      "type": "shock",
+      "character": "player",
+      "duration": 0.35
+    },
+    {
+      "id": "dim1",
+      "type": "dim",
+      "character": "player",
+      "dimmed": true
+    },
+    {
+      "id": "rotate1",
+      "type": "rotate",
+      "character": "user:showcase.lin_deng",
+      "angle": -6,
+      "duration": 0.2
+    },
+    {
+      "id": "rotate2",
+      "type": "rotate",
+      "character": "user:showcase.lin_deng",
+      "angle": 6,
+      "duration": 0.2
+    },
+    {
+      "id": "dim2",
+      "type": "dim",
+      "character": "player",
+      "dimmed": false
+    },
+    {
+      "id": "say2",
+      "type": "say",
+      "text": "旁白、人物、语音与舞台动作均已执行。",
+      "portrait": "normal",
+      "mode": "narrative"
+    },
+    {
+      "id": "mask1",
+      "type": "mask",
+      "show": true
+    },
+    {
+      "id": "say3",
+      "type": "say",
+      "text": "遮罩中的文字仍应显示玩家内容披露。",
+      "portrait": "normal",
+      "mode": "center"
+    },
+    {
+      "id": "mask2",
+      "type": "mask",
+      "show": false
+    },
+    {
+      "id": "intro1",
+      "type": "intro",
+      "intro_source": "official",
+      "character": "sister1",
+      "title": "",
+      "name": "",
+      "text": "",
+      "image": "",
+      "image_scale": 100,
+      "image_x": 0,
+      "image_y": 0
+    },
+    {
+      "id": "effect1",
+      "type": "effect",
+      "name": "Hit_001",
+      "x": 0,
+      "y": 0,
+      "a": 1,
+      "b": 1,
+      "c": 1,
+      "play": true
+    },
+    {
+      "id": "transition1",
+      "type": "transition",
+      "phase": "in",
+      "dir": "lr"
+    },
+    {
+      "id": "transition2",
+      "type": "transition",
+      "phase": "out",
+      "dir": "lr"
+    },
+    {
+      "id": "camera1",
+      "type": "camera",
+      "name": "stage-memory",
+      "active": true
+    },
+    {
+      "id": "camera2",
+      "type": "camera",
+      "name": "stage-memory",
+      "active": false
+    },
+    {
+      "id": "block1",
+      "type": "block",
+      "flowchart": "common",
+      "name": "flash",
+      "vars": []
+    },
+    {
+      "id": "cg1",
+      "type": "cg",
+      "action": "show",
+      "kind": "title",
+      "key": "全节点样例 3.0"
+    },
+    {
+      "id": "dayenv1",
+      "type": "dayenv",
+      "day_type": 1
+    },
+    {
+      "id": "wait1",
+      "type": "wait",
+      "seconds": 0.35
+    },
+    {
+      "id": "say4",
+      "type": "say",
+      "text": "下面弹出 choice。两个选项都会汇合。",
+      "portrait": "normal",
+      "mode": "narrative"
+    },
+    {
+      "id": "choice1",
+      "type": "choice",
+      "options": [
+        {
+          "text": "选项 A：继续",
+          "goto": "say5"
+        },
+        {
+          "text": "选项 B：也继续",
+          "goto": "say5"
+        }
+      ],
+      "dialog": "Options"
+    },
+    {
+      "id": "say5",
+      "type": "say",
+      "text": "choice 已返回。",
+      "portrait": "normal",
+      "mode": "narrative"
+    },
+    {
+      "id": "flag1",
+      "type": "flag",
+      "flag": "SHOWCASE3_BRANCH"
+    },
+    {
+      "id": "say6",
+      "type": "say",
+      "text": "下面执行 mod flag 分支。",
+      "portrait": "normal",
+      "mode": "narrative"
+    },
+    {
+      "id": "branch1",
+      "type": "branch",
+      "flag": "SHOWCASE3_BRANCH",
+      "source": "mod",
+      "cases": [
+        {
+          "value": 1,
+          "goto": "say7"
+        },
+        {
+          "value": 2,
+          "goto": "say8"
+        }
+      ]
+    },
+    {
+      "id": "say7",
+      "type": "say",
+      "text": "branch：flag 已设置。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "message2"
+    },
+    {
+      "id": "say8",
+      "type": "say",
+      "text": "branch：flag 未设置。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "message2"
+    },
+    {
+      "id": "message2",
+      "type": "message",
+      "text": "branch 已汇合。"
+    },
+    {
+      "id": "say9",
+      "type": "say",
+      "text": "下面调用原版三带骰子。任一结果都会继续。",
+      "portrait": "normal",
+      "mode": "narrative"
+    },
+    {
+      "id": "dice1",
+      "type": "dice",
+      "check": "Ch_1_1_1_001",
+      "options": [
+        {
+          "goto_大成功": "say10",
+          "goto_成功": "say11",
+          "goto_失败": "say12"
+        }
+      ]
+    },
+    {
+      "id": "say10",
+      "type": "say",
+      "text": "骰子结果：大成功。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "message3"
+    },
+    {
+      "id": "say11",
+      "type": "say",
+      "text": "骰子结果：成功。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "message3"
+    },
+    {
+      "id": "say12",
+      "type": "say",
+      "text": "骰子结果：失败。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "message3"
+    },
+    {
+      "id": "message3",
+      "type": "message",
+      "text": "骰子分支已汇合。"
+    },
+    {
+      "id": "raw1",
+      "type": "raw",
+      "code": "local showcase3_raw_marker = \"ok\"\n"
+    },
+    {
+      "id": "hide1",
+      "type": "hide",
+      "character": "user:showcase.lin_deng",
+      "fadeDuration": 0.25
+    },
+    {
+      "id": "overlay2",
+      "type": "overlay",
+      "action": "hide",
+      "slot": "showcase_lantern",
+      "image": "",
+      "position": "center",
+      "scale": 100,
+      "opacity": 100,
+      "layer": "front",
+      "fade": 0.2
+    },
+    {
+      "id": "background2",
+      "type": "background",
+      "action": "clear",
+      "image": "",
+      "fade": 0.5
+    },
+    {
+      "id": "end1",
+      "type": "end",
+      "next_script": "gameplay"
+    }
+  ],
+  "start": "message1"
+}

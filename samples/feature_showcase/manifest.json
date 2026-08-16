@@ -1,0 +1,16 @@
+{
+  "package_format": 1,
+  "story_schema": 1,
+  "content_schema": 1,
+  "id": "feature_showcase",
+  "name": "灯路：功能展示",
+  "version": "1.0.0",
+  "author": "lom_modkit",
+  "description": "可直接编译打包的原创展示项目：官方/自定义角色、多表情、语音、BGM、音效、背景、CG、Overlay、分支、旗标、数值变量、本地化与自定义结局。",
+  "entry": "main",
+  "min_host_version": "0.6.0",
+  "tested_host_version": "0.6.0",
+  "campaign": {
+    "new_game": true
+  }
+}

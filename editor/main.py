@@ -12,6 +12,7 @@ v4 起支持多剧情脚本管理（项目 = 多个 story + manifest，对应 .l
 from __future__ import annotations
 
 import copy
+from datetime import datetime
 import faulthandler
 import json
 import os
@@ -43,6 +44,7 @@ from PySide6.QtWidgets import (
     QMenu,
     QMessageBox,
     QPushButton,
+    QPlainTextEdit,
     QSizePolicy,
     QSplitter,
     QStackedWidget,
@@ -57,6 +59,8 @@ from PySide6.QtWidgets import (
 )
 
 import models
+from app_version import RUNTIME_VERSION
+from app_version import EDITOR_VERSION
 
 EDITOR_DIR = models.editor_dir()
 PROJECT_ROOT = models.project_root()
@@ -68,28 +72,48 @@ if str(PROJECT_ROOT / "compiler") not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT / "compiler"))
 
 from help_content import current_help_html
+from node_reference import DocumentationDialog
 from i18n import LANGUAGES, current_language, init_language, install_qt_translator, set_language, t
 from glass_theme import apply_glass_theme, mark_primary
 from game_install import (
     PREVIEW_PACKAGE_NAME,
     GameInstallError,
     GameInstallManager,
+    build_story_read_keys,
     reset_story_read_state,
 )
 from flow_graph import FlowGraphPanel
 from mod_manager_dialog import ModManagerDialog, apply_steam_launch_fix_ui
+import content_registry
+from diagnostic_bundle import export_diagnostic_bundle
 import package_io
+from package_inspector import inspect_lommod
+from package_inspector_dialog import PackageInspectorDialog
 from preflight import PreflightIssue, apply_safe_fixes, run_preflight
 from preflight_dialog import PreflightDialog
 import stage_guard
 from lua_preview import LuaPreview, compile_story, lomc_available, get_lomc
 from node_form import NodeForm
+from story_localization import StoryLocalizationDialog, apply_localization_settings
+from schema_versions import manifest_versions
 from preview import (
     CRASH_LOG,
     StagePreview,
     build_playtest_prelude,
     load_preview_map,
     log_crash,
+)
+from project_templates import TEMPLATES, create_project_template, template_info
+from project_statistics import ProjectStatistics, calculate_project_statistics
+from voice_coverage import VoiceCoverageReport, calculate_voice_coverage
+from release_preflight import apply_release_profile
+from release_builder import ReleaseBuildBlocked, build_release
+from recovery_store import (
+    RecoveryCandidate,
+    RecoveryError,
+    RecoverySession,
+    finish_candidate,
+    list_recovery_candidates,
 )
 # 文件对话框默认目录：冻结态用用户 CWD（解包目录/ exe 目录不可当作工作目录）
 WORK_DIR = Path.cwd() if models.FROZEN else PROJECT_ROOT
@@ -178,12 +202,19 @@ class StepListWidget(QListWidget):
     def _drop_insert_index(self, event) -> int | None:
         pos = event.position().toPoint()
         item = self.itemAt(pos)
-        node_count = max(0, self.count() - 1)
+        node_indices = [
+            int(self.item(row).data(_ROLE_KIND))
+            for row in range(self.count())
+            if isinstance(self.item(row).data(_ROLE_KIND), int)
+        ]
+        node_count = max(node_indices, default=-1) + 1
         if item is None:
             return node_count
         if self._is_chapter(item):
             return 0
         idx = item.data(_ROLE_KIND)
+        if isinstance(idx, tuple) and len(idx) >= 4 and idx[0] == "structure":
+            return int(idx[3])
         if not isinstance(idx, int):
             return node_count
         indicator = self.dropIndicatorPosition()
@@ -288,6 +319,510 @@ class HelpDialog(QDialog):
         apply_steam_launch_fix_ui(self, self._manager)
 
 
+class RecoveryDialog(QDialog):
+    """Choose, inspect, restore or discard a snapshot left by an abnormal exit."""
+
+    def __init__(self, candidates: list[RecoveryCandidate], parent=None):
+        super().__init__(parent)
+        self.candidates = candidates
+        self.action = "later"
+        self.candidate: RecoveryCandidate | None = None
+        self.setWindowTitle(t("recovery.title"))
+        self.resize(860, 430)
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(
+            "上次编辑器可能异常退出。恢复只载入内存，不会自动覆盖原项目文件。"
+        ))
+        self.table = QTableWidget(len(candidates), 4)
+        self.table.setHorizontalHeaderLabels(
+            (t("recovery.saved_at"), t("recovery.project"), t("recovery.source"), t("recovery.chapter"))
+        )
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        for row, candidate in enumerate(candidates):
+            source = candidate.source_path or "未命名项目"
+            values = (
+                candidate.saved_at,
+                candidate.project_name,
+                source,
+                str(len(candidate.story_ids)),
+            )
+            for column, value in enumerate(values):
+                item = QTableWidgetItem(value)
+                item.setToolTip(value)
+                self.table.setItem(row, column, item)
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        if candidates:
+            self.table.selectRow(0)
+        self.table.itemDoubleClicked.connect(lambda _item: self._inspect())
+        layout.addWidget(self.table, stretch=1)
+
+        buttons = QHBoxLayout()
+        inspect_btn = QPushButton(t("recovery.inspect"))
+        inspect_btn.clicked.connect(self._inspect)
+        buttons.addWidget(inspect_btn)
+        buttons.addStretch(1)
+        discard_btn = QPushButton(t("recovery.discard"))
+        discard_btn.clicked.connect(lambda: self._finish("discard"))
+        buttons.addWidget(discard_btn)
+        later_btn = QPushButton(t("recovery.later"))
+        later_btn.clicked.connect(self.reject)
+        buttons.addWidget(later_btn)
+        restore_btn = QPushButton(t("recovery.restore"))
+        mark_primary(restore_btn)
+        restore_btn.clicked.connect(lambda: self._finish("restore"))
+        buttons.addWidget(restore_btn)
+        layout.addLayout(buttons)
+
+    def _selected(self) -> RecoveryCandidate | None:
+        row = self.table.currentRow()
+        return self.candidates[row] if 0 <= row < len(self.candidates) else None
+
+    def _finish(self, action: str) -> None:
+        candidate = self._selected()
+        if candidate is None:
+            return
+        self.action = action
+        self.candidate = candidate
+        self.accept()
+
+    def _inspect(self) -> None:
+        candidate = self._selected()
+        if candidate is None:
+            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle(t("recovery.inspect_title"))
+        dialog.resize(780, 600)
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(QLabel(
+            f"项目：{candidate.project_name}　当前章节：{candidate.current_story_id}\n"
+            f"来源：{candidate.source_path or '未命名项目'}"
+        ))
+        preview = QPlainTextEdit()
+        preview.setReadOnly(True)
+        text = json.dumps(candidate.document, ensure_ascii=False, indent=2)
+        if len(text) > 500_000:
+            text = text[:500_000] + "\n\n……检查预览已截断，恢复数据本身未修改。"
+        preview.setPlainText(text)
+        layout.addWidget(preview, stretch=1)
+        close = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        close.rejected.connect(dialog.reject)
+        layout.addWidget(close)
+        dialog.exec()
+
+
+class ProjectTemplateDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.template_key: str | None = None
+        self.setWindowTitle(t("template.title"))
+        self.resize(680, 430)
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(t("template.note")))
+        self.list = QListWidget()
+        for item in TEMPLATES:
+            row = QListWidgetItem(item.name)
+            row.setData(Qt.ItemDataRole.UserRole, item.key)
+            row.setToolTip(item.description)
+            self.list.addItem(row)
+        self.list.currentRowChanged.connect(self._refresh_description)
+        self.list.itemDoubleClicked.connect(lambda _item: self._accept_selected())
+        layout.addWidget(self.list, stretch=1)
+        self.description = QLabel()
+        self.description.setWordWrap(True)
+        self.description.setMinimumHeight(64)
+        layout.addWidget(self.description)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        ok = buttons.button(QDialogButtonBox.StandardButton.Ok)
+        if ok is not None:
+            ok.setText("创建项目")
+            mark_primary(ok)
+        buttons.accepted.connect(self._accept_selected)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+        self.list.setCurrentRow(0)
+
+    def _refresh_description(self, _row: int) -> None:
+        item = self.list.currentItem()
+        if item is None:
+            self.description.clear()
+            return
+        info = template_info(str(item.data(Qt.ItemDataRole.UserRole)))
+        suffix = (
+            "\n\n此模板含 user:template.* 占位引用；导出前必须在内容库中替换或创建。"
+            if info.placeholder_content else ""
+        )
+        self.description.setText(info.description + suffix)
+
+    def _accept_selected(self) -> None:
+        item = self.list.currentItem()
+        if item is None:
+            return
+        self.template_key = str(item.data(Qt.ItemDataRole.UserRole))
+        self.accept()
+
+
+class GameplayPresetConfigDialog(QDialog):
+    """Edit one preset with the exact same controls as its Combat/Battle node."""
+
+    FLOW_FIELDS = {"id", "type", "preset", "win", "lose", "goto"}
+
+    def __init__(self, kind: str, config: dict, editor_data: dict, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(t("preset.configure_title"))
+        self.resize(700, 720)
+        self.node = {
+            "id": "preset_config", "type": kind, "key": str(config.get("key") or ""),
+            "win": "win", "lose": "lose",
+        }
+        for key, value in config.items():
+            if key not in ("name", "kind") and key not in self.FLOW_FIELDS:
+                self.node[key] = copy.deepcopy(value)
+        layout = QVBoxLayout(self)
+        self.form = NodeForm()
+        self.form.set_preset_edit_mode(True)
+        self.form.set_context(editor_data, ["win", "lose"], ["main"], {})
+        self.form.set_node(self.node)
+        layout.addWidget(self.form, 1)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def result_config(self) -> dict:
+        return {
+            key: copy.deepcopy(value)
+            for key, value in self.node.items()
+            if key not in self.FLOW_FIELDS
+        }
+
+
+class BattlePresetDialog(QDialog):
+    """章节级 Combat/Battle 预设编辑器；只暴露已验证的原版模板参数。"""
+
+    COLUMNS = ("id", "name", "kind", "key", "configure")
+    CONFIG_FIELDS = {
+        "combat": {
+            "max_health", "health", "max_stamina", "stamina", "strength", "internal",
+            "dexterity", "talking", "defence", "sword", "fist", "martial_weapon",
+            "mental", "talents", "ultimate_one", "ultimate_two", "ultimate_three",
+            "talk_rate", "attack_rate", "weapon_rate", "ultimate_rate", "block_rate",
+        },
+        "battle": {
+            "friend_roster", "enemy_roster", "neutral_roster", "friend_people",
+            "enemy_people", "neutral_people", "friend_health", "enemy_health",
+            "neutral_health", "reset_skills", "skills",
+        },
+    }
+
+    def __init__(self, presets: dict, editor_data: dict, parent=None):
+        super().__init__(parent)
+        self.presets: dict[str, dict] | None = None
+        self.editor_data = editor_data
+        self.setWindowTitle(t("preset.title"))
+        self.resize(960, 500)
+        layout = QVBoxLayout(self)
+        note = QLabel(t("preset.note"))
+        note.setWordWrap(True)
+        layout.addWidget(note)
+        technical = QToolButton()
+        technical.setText(t("preset.show_technical"))
+        technical.setCheckable(True)
+        technical.setAutoRaise(True)
+        layout.addWidget(technical)
+        self.table = QTableWidget(0, len(self.COLUMNS))
+        self.table.setHorizontalHeaderLabels(
+            (
+                t("preset.col.id"), t("preset.col.name"), t("preset.col.kind"),
+                t("preset.col.template"), t("preset.col.configure"),
+            )
+        )
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table.setColumnHidden(0, True)
+        technical.toggled.connect(lambda shown: self.table.setColumnHidden(0, not shown))
+        layout.addWidget(self.table, stretch=1)
+        row_buttons = QHBoxLayout()
+        add = QPushButton(t("preset.add"))
+        remove = QPushButton(t("preset.remove"))
+        add.clicked.connect(lambda: self.add_preset_row())
+        remove.clicked.connect(self._remove_selected)
+        row_buttons.addWidget(add)
+        row_buttons.addWidget(remove)
+        row_buttons.addStretch(1)
+        layout.addLayout(row_buttons)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self._accept_presets)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+        for preset_id, config in sorted((presets or {}).items()):
+            if isinstance(config, dict):
+                self.add_preset_row(str(preset_id), config)
+
+    def _template_items(self, kind: str) -> list[tuple[str, str]]:
+        data_key = "combat_ids" if kind == "combat" else "battle_ids"
+        return models.list_items(self.editor_data, data_key)
+
+    @staticmethod
+    def _editable_combo_value(combo: QComboBox) -> str:
+        index = combo.currentIndex()
+        if combo.isEditable() and (
+            index < 0 or combo.currentText() != combo.itemText(index)
+        ):
+            return combo.currentText().strip()
+        data = combo.currentData()
+        return str(data if data is not None else combo.currentText()).strip()
+
+    def add_preset_row(self, preset_id: str = "", config: dict | None = None) -> None:
+        config = dict(config or {})
+        config_kind = "battle" if config.get("kind") == "battle" else "combat"
+        config = {
+            key: copy.deepcopy(value)
+            for key, value in config.items()
+            if key in {"name", "kind", "key"} or key in self.CONFIG_FIELDS[config_kind]
+        }
+        config["kind"] = config_kind
+        if not preset_id:
+            used = {
+                self.table.item(row, 0).text()
+                for row in range(self.table.rowCount())
+                if self.table.item(row, 0) is not None
+            }
+            number = 1
+            while f"battle_preset_{number}" in used:
+                number += 1
+            preset_id = f"battle_preset_{number}"
+        row = self.table.rowCount()
+        self.table.insertRow(row)
+        self.table.setItem(row, 0, QTableWidgetItem(preset_id))
+        self.table.setItem(row, 1, QTableWidgetItem(str(config.get("name") or "")))
+        kind = QComboBox()
+        kind.addItem(t("preset.kind.combat"), "combat")
+        kind.addItem(t("preset.kind.battle"), "battle")
+        kind.setCurrentIndex(1 if config.get("kind") == "battle" else 0)
+        self.table.setCellWidget(row, 2, kind)
+        key = QComboBox()
+        key.setEditable(True)
+        self.table.setCellWidget(row, 3, key)
+        config_button = QPushButton(t("preset.configure"))
+        config_button.clicked.connect(lambda _checked=False, target=row: self._open_config(target))
+        self.table.setCellWidget(row, 4, config_button)
+        self.table.item(row, 0).setData(Qt.ItemDataRole.UserRole, copy.deepcopy(config))
+        kind.currentIndexChanged.connect(
+            lambda _index, widget=kind: self._refresh_preset_kind_widget(widget)
+        )
+        self._refresh_preset_row(row, str(config.get("key") or ""))
+
+    def _refresh_preset_kind_widget(self, widget: QComboBox) -> None:
+        for row in range(self.table.rowCount()):
+            if self.table.cellWidget(row, 2) is widget:
+                item = self.table.item(row, 0)
+                current = item.data(Qt.ItemDataRole.UserRole) if item is not None else {}
+                kind = str(widget.currentData())
+                if not isinstance(current, dict) or current.get("kind") != kind:
+                    item.setData(Qt.ItemDataRole.UserRole, {"kind": kind, "key": ""})
+                self._refresh_preset_row(row, "")
+                return
+
+    def _refresh_preset_row(self, row: int, current_key: str | None = None) -> None:
+        kind = self.table.cellWidget(row, 2)
+        key = self.table.cellWidget(row, 3)
+        if not isinstance(kind, QComboBox) or not isinstance(key, QComboBox):
+            return
+        selected = current_key
+        if selected is None:
+            selected = self._editable_combo_value(key)
+        key.blockSignals(True)
+        key.clear()
+        for item_id, display in self._template_items(str(kind.currentData())):
+            key.addItem(display, item_id)
+        index = key.findData(selected)
+        if index >= 0:
+            key.setCurrentIndex(index)
+        else:
+            key.setCurrentText(selected)
+        key.blockSignals(False)
+        config_button = self.table.cellWidget(row, 4)
+        if isinstance(config_button, QPushButton):
+            config_button.setText(
+                t("preset.configure_combat")
+                if kind.currentData() == "combat" else t("preset.configure_battle")
+            )
+
+    def _open_config(self, row: int) -> None:
+        item = self.table.item(row, 0)
+        kind_widget = self.table.cellWidget(row, 2)
+        key_widget = self.table.cellWidget(row, 3)
+        if item is None or not isinstance(kind_widget, QComboBox) or not isinstance(key_widget, QComboBox):
+            return
+        kind = str(kind_widget.currentData())
+        stored = item.data(Qt.ItemDataRole.UserRole)
+        config = copy.deepcopy(stored) if isinstance(stored, dict) else {}
+        config["kind"] = kind
+        config["key"] = self._editable_combo_value(key_widget)
+        dialog = GameplayPresetConfigDialog(kind, config, self.editor_data, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        edited = dialog.result_config()
+        edited["kind"] = kind
+        item.setData(Qt.ItemDataRole.UserRole, edited)
+        self._refresh_preset_row(row, str(edited.get("key") or ""))
+
+    def _remove_selected(self) -> None:
+        rows = sorted({item.row() for item in self.table.selectedItems()}, reverse=True)
+        for row in rows:
+            self.table.removeRow(row)
+
+    def _accept_presets(self) -> None:
+        result: dict[str, dict] = {}
+        try:
+            for row in range(self.table.rowCount()):
+                preset_id = (self.table.item(row, 0).text() if self.table.item(row, 0) else "").strip()
+                if not models.ID_PATTERN.fullmatch(preset_id):
+                    raise ValueError(t("preset.bad_id", id=preset_id or "（空）"))
+                if preset_id in result:
+                    raise ValueError(t("preset.duplicate", id=preset_id))
+                name = (self.table.item(row, 1).text() if self.table.item(row, 1) else "").strip()
+                kind_widget = self.table.cellWidget(row, 2)
+                key_widget = self.table.cellWidget(row, 3)
+                kind = str(kind_widget.currentData())
+                key = self._editable_combo_value(key_widget)
+                if not key:
+                    raise ValueError(t("preset.missing_key", id=preset_id))
+                config: dict = {"kind": kind, "key": key}
+                if name:
+                    config["name"] = name
+                stored = self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+                if isinstance(stored, dict) and stored.get("kind") == kind:
+                    for field, value in stored.items():
+                        if field not in ("name", "kind", "key"):
+                            config[field] = copy.deepcopy(value)
+                result[preset_id] = config
+        except (TypeError, ValueError) as exc:
+            QMessageBox.warning(self, t("preset.title"), str(exc))
+            return
+        self.presets = result
+        self.accept()
+
+
+class ProjectStatisticsDialog(QDialog):
+    def __init__(self, statistics: ProjectStatistics, parent=None):
+        super().__init__(parent)
+        self.statistics = statistics
+        self.setWindowTitle(t("statistics.title"))
+        self.resize(660, 500)
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(t("statistics.note")))
+        rows = statistics.rows()
+        self.table = QTableWidget(len(rows), 3)
+        self.table.setHorizontalHeaderLabels(
+            (t("statistics.item"), t("statistics.count"), t("statistics.scope"))
+        )
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        for row, values in enumerate(rows):
+            for column, value in enumerate(values):
+                self.table.setItem(row, column, QTableWidgetItem(value))
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        layout.addWidget(self.table, stretch=1)
+        note = QLabel(
+            "“不可用”表示当前未保存项目没有可扫描的资产目录；"
+            "统计不会修改项目，也不会执行资源。"
+        )
+        note.setWordWrap(True)
+        layout.addWidget(note)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+
+class VoiceCoverageDialog(QDialog):
+    def __init__(self, report: VoiceCoverageReport, locate, parent=None):
+        super().__init__(parent)
+        self.report = report
+        self._locate_callback = locate
+        self.setWindowTitle(t("voice_report.title"))
+        self.resize(820, 650)
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(t("voice_report.note")))
+
+        coverage_rows = (report.total,) + report.stories + report.characters
+        self.coverage_table = QTableWidget(len(coverage_rows), 5)
+        self.coverage_table.setHorizontalHeaderLabels(
+            ("范围", "名称", "已配音", "未配音", "覆盖率")
+        )
+        self.coverage_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        scope_names = {"total": "总计", "story": "Story", "character": "人物"}
+        for row, item in enumerate(coverage_rows):
+            values = (
+                scope_names[item.scope], item.label, str(item.voiced),
+                str(item.unvoiced), f"{item.percent:.1f}%",
+            )
+            for column, value in enumerate(values):
+                self.coverage_table.setItem(row, column, QTableWidgetItem(value))
+        self.coverage_table.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.ResizeMode.Stretch
+        )
+        layout.addWidget(self.coverage_table, stretch=1)
+
+        layout.addWidget(QLabel(t("voice_report.unvoiced", count=len(report.unvoiced_dialogues))))
+        self.unvoiced_table = QTableWidget(len(report.unvoiced_dialogues), 4)
+        self.unvoiced_table.setHorizontalHeaderLabels(
+            (t("voice_report.story"), t("voice_report.node"), t("voice_report.character"), t("voice_report.text"))
+        )
+        self.unvoiced_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.unvoiced_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.unvoiced_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        for row, item in enumerate(report.unvoiced_dialogues):
+            values = (item.story_title, item.node_id, item.character_label,
+                      item.text.replace("\n", " "))
+            for column, value in enumerate(values):
+                cell = QTableWidgetItem(value)
+                cell.setToolTip(value)
+                if column == 0:
+                    cell.setData(Qt.ItemDataRole.UserRole, (item.story_id, item.node_id))
+                self.unvoiced_table.setItem(row, column, cell)
+        self.unvoiced_table.horizontalHeader().setSectionResizeMode(
+            3, QHeaderView.ResizeMode.Stretch
+        )
+        if report.unvoiced_dialogues:
+            self.unvoiced_table.selectRow(0)
+        self.unvoiced_table.itemDoubleClicked.connect(lambda _item: self._locate_unvoiced())
+        layout.addWidget(self.unvoiced_table, stretch=1)
+
+        buttons = QHBoxLayout()
+        buttons.addStretch(1)
+        locate_btn = QPushButton(t("voice_report.locate"))
+        locate_btn.setEnabled(bool(report.unvoiced_dialogues))
+        locate_btn.clicked.connect(self._locate_unvoiced)
+        buttons.addWidget(locate_btn)
+        close_btn = QPushButton(t("common.close"))
+        close_btn.clicked.connect(self.reject)
+        buttons.addWidget(close_btn)
+        layout.addLayout(buttons)
+
+    def _locate_unvoiced(self) -> None:
+        row = self.unvoiced_table.currentRow()
+        item = self.unvoiced_table.item(row, 0) if row >= 0 else None
+        target = item.data(Qt.ItemDataRole.UserRole) if item is not None else None
+        if not isinstance(target, tuple) or len(target) != 2:
+            return
+        self.accept()
+        self._locate_callback(target[0], target[1])
+
+
 class ManifestDialog(QDialog):
     """导出 .lommod 时填写 manifest 元信息（契约 §2，含 campaign 战役区）。
 
@@ -309,7 +844,7 @@ class ManifestDialog(QDialog):
         self._story_ids = list(story_ids)
 
         self.setWindowTitle(t("export.title"))
-        self.resize(920, 560)
+        self.resize(920, 700)
         layout = QVBoxLayout(self)
         intro = QLabel(t("export.intro"))
         intro.setWordWrap(True)
@@ -339,6 +874,31 @@ class ManifestDialog(QDialog):
         form.addRow(t("export.entry"), self.entry_combo)
         layout.addLayout(form)
 
+        compatibility_box = QGroupBox(t("export.compatibility"))
+        compatibility_form = QFormLayout(compatibility_box)
+        self.min_host_version_edit = QLineEdit(str(base.get("min_host_version") or ""))
+        self.tested_host_version_edit = QLineEdit(
+            str(base.get("tested_host_version") or RUNTIME_VERSION)
+        )
+        self.game_version_edit = QLineEdit(str(base.get("game_version") or ""))
+        self.tested_game_version_edit = QLineEdit(
+            str(base.get("tested_game_version") or "")
+        )
+        self.min_host_version_edit.setPlaceholderText(t("export.compat_optional"))
+        self.game_version_edit.setPlaceholderText(t("export.compat_exact_optional"))
+        self.tested_game_version_edit.setPlaceholderText(t("export.compat_optional"))
+        compatibility_form.addRow(
+            t("export.min_host_version"), self.min_host_version_edit
+        )
+        compatibility_form.addRow(
+            t("export.tested_host_version"), self.tested_host_version_edit
+        )
+        compatibility_form.addRow(t("export.game_version"), self.game_version_edit)
+        compatibility_form.addRow(
+            t("export.tested_game_version"), self.tested_game_version_edit
+        )
+        layout.addWidget(compatibility_box)
+
         # ------------------------------------------------------ campaign 区
         camp_box = QGroupBox(t("export.campaign"))
         cv = QVBoxLayout(camp_box)
@@ -353,7 +913,7 @@ class ManifestDialog(QDialog):
         trigger_help = QLabel(t("export.trigger_help"))
         trigger_help.setWordWrap(True)
         cv.addWidget(trigger_help)
-        self.triggers_table = QTableWidget(0, 7)
+        self.triggers_table = QTableWidget(0, 8)
         self.triggers_table.setHorizontalHeaderLabels(
             [
                 t("export.col.position"),
@@ -362,13 +922,14 @@ class ManifestDialog(QDialog):
                 t("export.col.flag_clear"),
                 t("export.col.month"),
                 t("export.col.stage"),
-                t("export.col.affinity"),
+                t("export.col.affinity_character"),
+                t("export.col.affinity_min"),
             ]
         )
         self.triggers_table.horizontalHeader().setSectionResizeMode(
             0, QHeaderView.ResizeMode.ResizeToContents
         )
-        for c in (1, 2, 3, 4, 5, 6):
+        for c in (1, 2, 3, 4, 5, 6, 7):
             self.triggers_table.horizontalHeader().setSectionResizeMode(
                 c, QHeaderView.ResizeMode.Stretch
             )
@@ -421,24 +982,48 @@ class ManifestDialog(QDialog):
             script.addItem(sid, sid)
         self._set_combo_value(script, str(trig.get("script", "")))
         table.setCellWidget(r, 1, script)
-        table.setItem(r, 2, QTableWidgetItem(str(trig.get("when_flag_set", ""))))
-        table.setItem(r, 3, QTableWidgetItem(str(trig.get("when_flag_clear", ""))))
-        # 月份/旬：int 条件；空则不写
+        for column, field in ((2, "when_flag_set"), (3, "when_flag_clear")):
+            flag = QComboBox()
+            flag.setEditable(True)
+            flag.addItem("", "")
+            for flag_id, display in models.list_items(self._editor_data, "game_flags"):
+                flag.addItem(display, flag_id)
+            self._set_combo_value(flag, str(trig.get(field, "")))
+            table.setCellWidget(r, column, flag)
+        # 月份/旬：有界下拉；空则不写，杜绝手填 0/13 等无效值
         wm = trig.get("when_month")
-        table.setItem(r, 4, QTableWidgetItem("" if wm is None else str(wm)))
+        month = QComboBox()
+        month.addItem(t("export.any_month"), None)
+        for value in range(1, 13):
+            month.addItem(t("export.month_value", value=value), value)
+        self._set_combo_value(month, "" if wm is None else str(wm))
+        table.setCellWidget(r, 4, month)
         ws = trig.get("when_stage")
-        table.setItem(r, 5, QTableWidgetItem("" if ws is None else str(ws)))
-        # 好感：{"character": <人物>, "min": <数值>} → "人物:数值"（如 brother4:3）
+        stage = QComboBox()
+        stage.addItem(t("export.any_stage"), None)
+        for value, label in ((1, t("export.stage_early")), (2, t("export.stage_mid")), (3, t("export.stage_late"))):
+            stage.addItem(label, value)
+        self._set_combo_value(stage, "" if ws is None else str(ws))
+        table.setCellWidget(r, 5, stage)
+        # 好感拆为人物下拉 + 最低值，作者无需记忆 "人物:数值" 文本语法
         wa = trig.get("when_affinity")
-        aff_text = ""
-        if isinstance(wa, dict) and wa.get("character"):
-            aff_text = "%s:%s" % (wa["character"], wa.get("min", ""))
-        table.setItem(r, 6, QTableWidgetItem(aff_text))
+        affinity = QComboBox()
+        affinity.setEditable(True)
+        affinity.addItem("", "")
+        for character, display in models.affinity_character_items(self._editor_data):
+            affinity.addItem(display, character)
+        affinity_value = wa.get("character", "") if isinstance(wa, dict) else ""
+        self._set_combo_value(affinity, str(affinity_value))
+        table.setCellWidget(r, 6, affinity)
+        affinity_min = wa.get("min", "") if isinstance(wa, dict) else ""
+        table.setItem(r, 7, QTableWidgetItem(str(affinity_min)))
 
     @staticmethod
     def _set_combo_value(combo: QComboBox, value: str) -> None:
         """可编辑下拉框回填：空值显式置空（否则默认停在第一项，空行变有效行）。"""
         idx = combo.findData(value)
+        if idx < 0 and value.lstrip("-").isdigit():
+            idx = combo.findData(int(value))
         if idx >= 0:
             combo.setCurrentIndex(idx)
         elif value and combo.isEditable():
@@ -458,9 +1043,25 @@ class ManifestDialog(QDialog):
         item = table.item(row, col)
         return item.text().strip() if item else ""
 
+    @staticmethod
+    def _combo_value(table: QTableWidget, row: int, col: int):
+        combo = table.cellWidget(row, col)
+        if not isinstance(combo, QComboBox):
+            return None
+        text = combo.currentText().strip()
+        index = combo.currentIndex()
+        # 可编辑清单必须保留作者手填但尚未出现在 editor_data 的合法 id。
+        # Qt 在这种情况下可能仍保留旧 index/data，不能让空 data 覆盖编辑文字。
+        if combo.isEditable() and (
+            index < 0 or combo.currentText() != combo.itemText(index)
+        ):
+            return text
+        data = combo.currentData()
+        return data if data is not None else text
+
     def manifest(self) -> dict:
         m = {
-            "format": 1,
+            **manifest_versions(),
             "id": self.id_edit.text().strip() or "my_mod",
             "name": self.name_edit.text().strip(),
             "version": self.version_edit.text().strip() or "1.0.0",
@@ -478,44 +1079,32 @@ class ManifestDialog(QDialog):
                 isinstance(pos_combo, QComboBox) and isinstance(script_combo, QComboBox)
             ):
                 continue  # 异常行防御（cellWidget 静态类型是 QWidget）
-            position = str(pos_combo.currentData() or pos_combo.currentText()).strip()
+            position = str(self._combo_value(table, r, 0) or "").strip()
             script = script_combo.currentText().strip()
             if not position or not script:
                 continue  # 位置/脚本缺一不可，缺了跳过该行
             trig: dict = {"type": "position", "position": position, "script": script}
-            flag_set = self._cell_text(table, r, 2)
-            flag_clear = self._cell_text(table, r, 3)
+            flag_set = str(self._combo_value(table, r, 2) or "").strip()
+            flag_clear = str(self._combo_value(table, r, 3) or "").strip()
             if flag_set:
                 trig["when_flag_set"] = flag_set
             if flag_clear:
                 trig["when_flag_clear"] = flag_clear
-            # 月份/旬：尝试转 int（转不了原样写出，交给 lomc validate 报错）
-            month_text = self._cell_text(table, r, 4)
-            if month_text:
+            month_value = self._combo_value(table, r, 4)
+            if isinstance(month_value, int):
+                trig["when_month"] = month_value
+            stage_value = self._combo_value(table, r, 5)
+            if isinstance(stage_value, int):
+                trig["when_stage"] = stage_value
+            affinity_character = str(self._combo_value(table, r, 6) or "").strip()
+            if affinity_character:
+                min_text = self._cell_text(table, r, 7)
                 try:
-                    trig["when_month"] = int(month_text)
+                    min_val = int(min_text)
                 except ValueError:
-                    trig["when_month"] = month_text
-            stage_text = self._cell_text(table, r, 5)
-            if stage_text:
-                try:
-                    trig["when_stage"] = int(stage_text)
-                except ValueError:
-                    trig["when_stage"] = stage_text
-            # 好感："角色:数值" 拆 character/min；无冒号时整串当 character
-            aff_text = self._cell_text(table, r, 6)
-            if aff_text:
-                if ":" in aff_text:
-                    char_part, _, min_part = aff_text.partition(":")
-                    min_part = min_part.strip()
-                    try:
-                        min_val = int(min_part)
-                    except ValueError:
-                        min_val = min_part  # 非法值原样给 lomc 报错
-                else:
-                    char_part, min_val = aff_text, ""
+                    min_val = min_text  # 非法值原样给 lomc 报错
                 trig["when_affinity"] = {
-                    "character": char_part.strip(),
+                    "character": affinity_character,
                     "min": min_val,
                 }
             triggers.append(trig)
@@ -528,6 +1117,15 @@ class ManifestDialog(QDialog):
             campaign["triggers"] = triggers
         if campaign:
             m["campaign"] = campaign
+        for field, widget in (
+            ("min_host_version", self.min_host_version_edit),
+            ("tested_host_version", self.tested_host_version_edit),
+            ("game_version", self.game_version_edit),
+            ("tested_game_version", self.tested_game_version_edit),
+        ):
+            value = widget.text().strip()
+            if value:
+                m[field] = value
         return m
 
     def accept(self) -> None:
@@ -600,12 +1198,23 @@ class MainWindow(QMainWindow):
         self._prev_snapshot: dict = self._snapshot()
         self._dirty = False
         self._prompt_on_discard = True  # 测试可关：有未保存修改时的确认弹窗
+        self._source_kind = "untitled"
+        self._source_path: Path | None = None
+        self._recovery_session: RecoverySession | None = None
+        self._recovery_error_logged = False
 
         self._build_ui()
         self._build_menu()
         self._build_toolbar()
         self.form.node_changed.connect(self._on_node_changed)
         self._refresh_all()
+
+        if self._should_persist_session():
+            try:
+                self._recovery_session = RecoverySession(editor_version=EDITOR_VERSION)
+                self._recovery_timer.start()
+            except RecoveryError:
+                log_crash("无法启动自动恢复会话：\n" + traceback.format_exc())
 
         # 状态栏：数据来源提示
         src = (
@@ -704,6 +1313,7 @@ class MainWindow(QMainWindow):
         self.node_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.node_list.customContextMenuRequested.connect(self._on_node_context_menu)
         self.node_list.currentRowChanged.connect(self._on_node_selected)
+        self.node_list.itemDoubleClicked.connect(self._toggle_structure_item)
         self.node_list.steps_moved.connect(self._on_steps_moved)
         self.node_list.setToolTip(t("nav.drag_tip"))
         rename_shortcut = QAction(self)
@@ -833,6 +1443,10 @@ class MainWindow(QMainWindow):
         self._auto_timer.setInterval(1500)
         self._auto_timer.timeout.connect(self._auto_step)
 
+        self._recovery_timer = QTimer(self)
+        self._recovery_timer.setInterval(30_000)
+        self._recovery_timer.timeout.connect(self._autosave_recovery)
+
     def _build_chapter_panel(self) -> QWidget:
         """中栏「章节设置」：编号 / 名称 / 起始步骤 / 心情气泡。"""
         panel = QWidget()
@@ -855,14 +1469,28 @@ class MainWindow(QMainWindow):
         self.mood_check.setToolTip(t("chapter.mood_tip"))
         self.story_id_edit.textChanged.connect(self._on_story_props_changed)
         self.story_title_edit.textChanged.connect(self._on_story_props_changed)
-        self.start_combo.currentTextChanged.connect(self._on_start_changed)
+        self.start_combo.currentIndexChanged.connect(self._on_start_changed)
         self.mood_check.toggled.connect(self._on_story_mood_changed)
         self.story_id_edit.setPlaceholderText(t("chapter.id_placeholder"))
         self.story_title_edit.setPlaceholderText(t("chapter.name_placeholder"))
-        props.addRow(t("chapter.id"), self.story_id_edit)
+        chapter_tech = QToolButton()
+        chapter_tech.setText(t("chapter.technical"))
+        chapter_tech.setCheckable(True)
+        chapter_tech.setAutoRaise(True)
+        chapter_tech_body = QWidget()
+        chapter_tech_layout = QFormLayout(chapter_tech_body)
+        chapter_tech_layout.setContentsMargins(8, 0, 0, 0)
+        chapter_tech_layout.addRow(t("chapter.id"), self.story_id_edit)
+        chapter_tech_body.setVisible(False)
+        chapter_tech.toggled.connect(chapter_tech_body.setVisible)
+        props.addRow(chapter_tech)
+        props.addRow(chapter_tech_body)
         props.addRow(t("chapter.name"), self.story_title_edit)
         props.addRow(t("chapter.start"), self.start_combo)
         props.addRow(t("chapter.mood"), self.mood_check)
+        self.battle_presets_btn = QPushButton()
+        self.battle_presets_btn.clicked.connect(self._edit_battle_presets)
+        props.addRow(t("chapter.battle_presets"), self.battle_presets_btn)
         self._chapter_form = props
         root.addLayout(props)
         root.addStretch(1)
@@ -906,6 +1534,7 @@ class MainWindow(QMainWindow):
         self.menuBar().clear()
         menu = self.menuBar().addMenu(t("menu.file"))
         menu.addAction(t("menu.new"), self.new_story, QKeySequence.StandardKey.New)
+        menu.addAction("从模板新建…", self.new_story_from_template)
         menu.addAction(
             t("menu.open"), self.open_story, QKeySequence.StandardKey.Open
         )
@@ -921,7 +1550,9 @@ class MainWindow(QMainWindow):
         )
         menu.addSeparator()
         menu.addAction(t("menu.import_mod"), self.import_lommod)
+        menu.addAction(t("menu.inspect_mod"), self.inspect_lommod)
         menu.addAction(t("menu.export_mod"), self.export_lommod)
+        menu.addAction("构建发布包…", self.build_release_package)
         menu.addAction(t("menu.install"), self._show_mod_manager)
         menu.addAction(
             t("menu.content_library"),
@@ -933,6 +1564,18 @@ class MainWindow(QMainWindow):
         edit = self.menuBar().addMenu(t("menu.edit"))
         edit.addAction(t("menu.undo"), self._undo, QKeySequence.StandardKey.Undo)
         edit.addAction(t("menu.redo"), self._redo, QKeySequence.StandardKey.Redo)
+        edit.addSeparator()
+        edit.addAction(
+            t("menu.global_search"), self._show_global_search,
+            QKeySequence("Ctrl+Shift+F"),
+        )
+        edit.addAction(t("menu.bulk_edit"), self._show_bulk_edit)
+        edit.addAction(t("menu.node_templates"), self._show_node_templates)
+        edit.addAction(t("menu.story_sections"), self._show_story_sections)
+        edit.addAction(t("menu.cross_story_transfer"), self._show_cross_story_transfer)
+        edit.addAction(t("menu.variable_manager"), self._show_variable_manager)
+        edit.addAction(t("menu.condition_inspector"), self._show_condition_inspector)
+        edit.addAction(t("menu.story_localization"), self._show_story_localization)
         run_menu = self.menuBar().addMenu(t("menu.run"))
         run_menu.addAction(
             t("menu.play"),
@@ -940,11 +1583,20 @@ class MainWindow(QMainWindow):
             QKeySequence("F5"),
         )
         run_menu.addAction(
-            t("menu.preflight"),
-            self._check_project,
+            t("menu.preflight") + "（Editing）",
+            lambda: self._check_project("editing"),
             QKeySequence("F6"),
         )
+        run_menu.addAction(
+            "严格发布体检（Release）",
+            lambda: self._check_project("release"),
+            QKeySequence("Ctrl+F6"),
+        )
         run_menu.addAction(t("menu.flow"), self._show_flow_graph, QKeySequence("F7"))
+        run_menu.addAction(t("menu.path_simulator"), self._show_path_simulator)
+        run_menu.addAction(t("menu.story_tests"), self._show_story_tests)
+        run_menu.addAction("项目统计…", self._show_project_statistics)
+        run_menu.addAction("语音覆盖…", self._show_voice_coverage)
         run_menu.addSeparator()
         run_menu.addAction(t("menu.reset_read"), self._reset_read_state)
         lang_menu = self.menuBar().addMenu(t("lang.menu"))
@@ -954,7 +1606,13 @@ class MainWindow(QMainWindow):
             action.setChecked(current_language() == code)
             action.triggered.connect(lambda checked=False, c=code: self._change_language(c))
         help_menu = self.menuBar().addMenu(t("menu.help"))
+        help_menu.addAction(
+            t("menu.documentation"), self._show_documentation,
+            QKeySequence("Ctrl+F1"),
+        )
         help_menu.addAction(t("menu.help_item"), self._show_help, QKeySequence("F1"))
+        help_menu.addSeparator()
+        help_menu.addAction(t("menu.diagnostic_bundle"), self._export_diagnostic_bundle)
 
     def _build_toolbar(self) -> None:
         """工具栏只留高频：试玩 + 导出。其余走菜单。"""
@@ -991,6 +1649,10 @@ class MainWindow(QMainWindow):
             return
         set_language(code)
         models.refresh_labels()
+        documentation = getattr(self, "_documentation_dialog", None)
+        if documentation is not None:
+            documentation.close()
+            self._documentation_dialog = None
         self.game_manager.save_pref("language", code)
         app = QApplication.instance()
         if app is not None:
@@ -1035,6 +1697,60 @@ class MainWindow(QMainWindow):
     def _show_help(self) -> None:
         HelpDialog(self, self.game_manager).exec()
 
+    def _show_documentation(self) -> None:
+        documentation = getattr(self, "_documentation_dialog", None)
+        if documentation is None:
+            documentation = DocumentationDialog(self)
+            self._documentation_dialog = documentation
+        documentation.show()
+        documentation.raise_()
+        documentation.activateWindow()
+
+    def _export_diagnostic_bundle(self) -> None:
+        """Export only the fixed, privacy-sanitized diagnostic allowlist."""
+        self._flush_pending()
+        default_name = "lom_modkit_diagnostics_%s.zip" % datetime.now().strftime(
+            "%Y%m%d_%H%M%S"
+        )
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            t("diagnostics.title"),
+            str(Path(self._last_dir("last_diagnostic_dir")) / default_name),
+            t("diagnostics.filter"),
+        )
+        if not path:
+            return
+        self._remember_dir("last_diagnostic_dir", path)
+        manifest = dict(self.manifest_base or self.manifest or {})
+        manifest.setdefault("entry", self._current_id)
+        try:
+            issues = self._preflight_issues()
+        except Exception as exc:
+            issues = [PreflightIssue(
+                "error", "validation_crash", "", "",
+                "F6 validation crashed while collecting diagnostics: " + str(exc),
+            )]
+        try:
+            result = export_diagnostic_bundle(
+                Path(path),
+                self._stories,
+                self.editor_data,
+                manifest,
+                issues,
+                game_manager=self.game_manager,
+                crash_log=CRASH_LOG,
+            )
+        except Exception as exc:
+            QMessageBox.critical(
+                self, t("diagnostics.title"),
+                t("diagnostics.failed", error=str(exc)),
+            )
+            return
+        QMessageBox.information(
+            self, t("diagnostics.title"),
+            t("diagnostics.done", path=str(result)),
+        )
+
     def _show_mod_manager(self) -> None:
         ModManagerDialog(self.game_manager, self).exec()
 
@@ -1043,6 +1759,237 @@ class MainWindow(QMainWindow):
 
         ContentLibraryDialog(self._stories, self, self.editor_data).exec()
         self._load_form()
+
+    def _show_global_search(self) -> None:
+        from global_search import GlobalSearchDialog
+
+        self._flush_pending()
+        GlobalSearchDialog(
+            self._stories, self._locate_search_result, self,
+            manifest=self.manifest_base,
+        ).exec()
+
+    def _show_bulk_edit(self) -> None:
+        from bulk_edit import BulkEditDialog, apply_bulk_edit
+
+        self._flush_pending()
+        dialog = BulkEditDialog(self.story, self.editor_data, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        indices = dialog.selected_indices()
+        try:
+            # Validate against a disposable copy before recording an undo point.
+            # The real mutation below should therefore be unable to leave an
+            # empty/stray undo entry when a malformed value is rejected.
+            apply_bulk_edit(
+                copy.deepcopy(self.story),
+                indices,
+                dialog.selected_field(),
+                dialog.selected_value(),
+            )
+            self._record_discrete()
+            count = apply_bulk_edit(
+                self.story, indices, dialog.selected_field(), dialog.selected_value()
+            )
+        except ValueError as exc:
+            QMessageBox.warning(self, t("bulk.title"), str(exc))
+            return
+        self._refresh_all(select_row=indices[0] if indices else 0)
+        self.statusBar().showMessage(t("bulk.done", count=count), 3500)
+
+    def _show_node_templates(self) -> None:
+        from node_templates import NodeTemplateDialog, instantiate_template
+
+        self._flush_pending()
+        current = self._selected_node_index()
+        dialog = NodeTemplateDialog(self.story, current, self.editor_data, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        template = dialog.chosen_template()
+        if template is None:
+            return
+        nodes = self.story.get("nodes") or []
+        insert_at = current + 1 if 0 <= current < len(nodes) else len(nodes)
+        try:
+            # Validate and allocate on a copy before the undo checkpoint.
+            instantiate_template(copy.deepcopy(self.story), template, insert_at)
+            self._record_discrete()
+            first, count, _mapping = instantiate_template(self.story, template, insert_at)
+        except ValueError as exc:
+            QMessageBox.warning(self, t("template.title"), str(exc))
+            return
+        self._refresh_all(select_row=first)
+        self.statusBar().showMessage(
+            t("template.inserted", name=template.get("name", ""), count=count), 4000
+        )
+
+    def _show_story_sections(self) -> None:
+        from story_sections import StorySectionsDialog, get_sections, set_sections
+
+        self._flush_pending()
+        dialog = StorySectionsDialog(self.story, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        updated = copy.deepcopy(get_sections(dialog.story))
+        if updated == get_sections(self.story):
+            return
+        selected = self._selected_node_index()
+        self._record_discrete()
+        set_sections(self.story, updated)
+        self._refresh_all(select_row=selected)
+        self.statusBar().showMessage(t("sections.updated"), 3000)
+
+    def _show_cross_story_transfer(self) -> None:
+        from cross_story_transfer import CrossStoryTransferDialog, copy_nodes_between_stories
+
+        self._flush_pending()
+        if len(self._stories) < 2:
+            QMessageBox.information(self, t("transfer.title"), t("transfer.need_two"))
+            return
+        dialog = CrossStoryTransferDialog(self._stories, self._current_id, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        params = dialog.parameters()
+        try:
+            copy_nodes_between_stories(copy.deepcopy(self._stories), *params)
+            self._record_discrete()
+            result = copy_nodes_between_stories(self._stories, *params)
+        except ValueError as exc:
+            QMessageBox.warning(self, t("transfer.title"), str(exc))
+            return
+        self._current_id = result.target_story
+        self._refresh_all(select_row=result.first_index)
+        self.statusBar().showMessage(
+            t("transfer.done", count=result.count, story=result.target_story), 4000
+        )
+        if result.warnings:
+            QMessageBox.warning(
+                self,
+                t("transfer.warning_title"),
+                t("transfer.warning_intro") + "\n\n" + "\n".join("• " + warning for warning in result.warnings),
+            )
+
+    def _show_variable_manager(self) -> None:
+        from variable_manager import VariableManagerDialog
+
+        self._flush_pending()
+        VariableManagerDialog(
+            self._stories, self._locate_search_result, self,
+            manifest=self.manifest_base,
+        ).exec()
+
+    def _show_condition_inspector(self) -> None:
+        from condition_inspector import ConditionInspectorDialog
+
+        self._flush_pending()
+        ConditionInspectorDialog(
+            self._stories, self._locate_search_result, self,
+            manifest=self.manifest_base,
+        ).exec()
+
+    def _show_path_simulator(self) -> None:
+        from path_simulator import PathSimulatorDialog
+
+        self._flush_pending()
+        PathSimulatorDialog(
+            self._stories, self._locate_search_result, self,
+            manifest=self.manifest_base,
+        ).exec()
+
+    def _show_story_tests(self) -> None:
+        from story_test_runner import StoryTestRunnerDialog, get_story_tests, set_story_tests
+
+        self._flush_pending()
+        dialog = StoryTestRunnerDialog(self._stories, self._current_id, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        tests = dialog.saved_tests()
+        if tests is None or tests == get_story_tests(self.story):
+            return
+        self._record_discrete()
+        set_story_tests(self.story, tests)
+        self._refresh_all(select_row=self._selected_node_index())
+        self.statusBar().showMessage(t("tests.saved", count=len(tests)), 3000)
+
+    def _project_bundled_assets(self) -> list[str] | None:
+        source = self._source_path
+        if source is None:
+            source = next(
+                (path for path in self._story_paths.values() if path is not None),
+                None,
+            )
+        if source is None:
+            return None
+        source = Path(source)
+        if self._source_kind == "lommod" and source.is_file():
+            try:
+                return inspect_lommod(source).bundled_assets
+            except Exception as exc:
+                self.statusBar().showMessage(f"资产统计无法检查原 Mod 包：{exc}", 5000)
+                return None
+        root = source.parent.parent if source.parent.name.lower() == "story" else source.parent
+        assets = root / "assets"
+        if not assets.is_dir():
+            return []
+        try:
+            result = []
+            for path in assets.rglob("*"):
+                if path.is_file():
+                    result.append("assets/" + path.relative_to(assets).as_posix())
+                    if len(result) >= 100_000:
+                        self.statusBar().showMessage("资产统计已达到 10 万文件上限", 5000)
+                        break
+            return result
+        except OSError as exc:
+            self.statusBar().showMessage(f"资产目录统计失败：{exc}", 5000)
+            return None
+
+    def _show_project_statistics(self) -> None:
+        self._flush_pending()
+        statistics = calculate_project_statistics(
+            self._stories, self._project_bundled_assets()
+        )
+        ProjectStatisticsDialog(statistics, self).exec()
+
+    def _show_voice_coverage(self) -> None:
+        self._flush_pending()
+        VoiceCoverageDialog(
+            calculate_voice_coverage(self._stories),
+            self._locate_search_result,
+            self,
+        ).exec()
+
+    def _show_story_localization(self) -> None:
+        dialog = StoryLocalizationDialog(self.story, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        config = dialog.result_config()
+        before = copy.deepcopy(self.story.get("localization"))
+        if before == config or ("localization" not in self.story and config is None):
+            return
+        self._record_discrete()
+        apply_localization_settings(self.story, config)
+        self._refresh_all(select_row=max(0, self._selected_node_index()))
+        self.statusBar().showMessage(t("localization.saved"), 3000)
+
+    def _locate_search_result(self, story_id: str, node_id: str | None) -> None:
+        if story_id not in self._stories:
+            return
+        self._current_id = story_id
+        row = 0
+        if node_id:
+            for index, node in enumerate(self.story.get("nodes", [])):
+                if node.get("id") == node_id:
+                    row = index
+                    break
+        self._refresh_all(select_row=row)
+        if node_id is None:
+            self._select_chapter_settings()
+        self.node_list.setFocus()
+        self.statusBar().showMessage(
+            t("search.located", story=story_id, node=node_id or t("chapter.title")),
+            3500,
+        )
 
     def _show_flow_graph(self) -> None:
         self._refresh_flow_graph()
@@ -1058,15 +2005,16 @@ class MainWindow(QMainWindow):
         self._select_node_index(row)
         self.statusBar().showMessage(f"已定位到步骤 {node_id}", 2500)
 
-    def _check_project(self) -> bool:
+    def _check_project(self, profile: str = "editing") -> bool:
         """打开可定位、可保守修复的体检报告。"""
         self._flush_pending()
-        issues = self._preflight_issues()
+        issues = self._preflight_issues(profile)
         dialog = PreflightDialog(
             issues,
             self._locate_preflight_issue,
-            self._apply_preflight_fixes,
+            lambda: self._apply_preflight_fixes(profile),
             self,
+            profile=profile,
         )
         dialog.exec()
         remaining_errors = sum(issue.severity == "error" for issue in dialog.issues)
@@ -1078,11 +2026,30 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(t("preflight.passed"), 5000)
         return True
 
-    def _preflight_issues(self) -> list[PreflightIssue]:
+    def _preflight_issues(self, profile: str = "editing") -> list[PreflightIssue]:
         entry = self.manifest_base.get("entry") or self.manifest.get("entry")
-        if entry not in self._stories:
+        if not entry:
             entry = self._current_id
-        return run_preflight(self._stories, self.editor_data, str(entry))
+        effective_manifest = dict(self.manifest_base or self.manifest or {})
+        effective_manifest["entry"] = entry
+        issues = run_preflight(
+            self._stories,
+            self.editor_data,
+            str(entry),
+            manifest=effective_manifest,
+            content_root=content_registry.repository_root(),
+        )
+        if profile == "release":
+            return apply_release_profile(
+                issues,
+                self._stories,
+                effective_manifest,
+                RUNTIME_VERSION,
+                self._project_bundled_assets(),
+            )
+        if profile != "editing":
+            raise ValueError("未知体检 profile：%s" % profile)
+        return issues
 
     def _locate_preflight_issue(self, issue: PreflightIssue) -> None:
         if issue.story_id not in self._stories:
@@ -1108,7 +2075,9 @@ class MainWindow(QMainWindow):
             5000,
         )
 
-    def _apply_preflight_fixes(self) -> tuple[list[str], list[PreflightIssue]]:
+    def _apply_preflight_fixes(
+        self, profile: str = "editing"
+    ) -> tuple[list[str], list[PreflightIssue]]:
         before = self._snapshot()
         fixes = apply_safe_fixes(self._stories, self.editor_data)
         if fixes:
@@ -1118,7 +2087,7 @@ class MainWindow(QMainWindow):
             self._redo_stack.clear()
             self._refresh_all(select_row=max(0, self.node_list.currentRow()))
             self._set_dirty(True)
-        return fixes, self._preflight_issues()
+        return fixes, self._preflight_issues(profile)
 
     # -------------------------------------------------------------- 刷新
     def _refresh_all(self, select_row: int = 0) -> None:
@@ -1129,6 +2098,7 @@ class MainWindow(QMainWindow):
             self.story_id_edit.setText(self.story.get("id", ""))
             self.story_title_edit.setText(self.story.get("title", ""))
             self.mood_check.setChecked(bool(self.story.get("mood", False)))
+            self._refresh_battle_presets_button()
             self._reload_start_combo()
             self._reload_node_list(select_row)
         finally:
@@ -1145,10 +2115,15 @@ class MainWindow(QMainWindow):
         self.story_combo.blockSignals(True)
         try:
             self.story_combo.clear()
-            for sid in sorted(self._stories):
+            for index, sid in enumerate(sorted(self._stories), start=1):
                 title = str(self._stories[sid].get("title") or "")
-                disp = f"{sid} — {title}" if title and title != sid else sid
+                disp = title if title and title != sid else t("chapter.untitled", n=index)
                 self.story_combo.addItem(disp, sid)
+                self.story_combo.setItemData(
+                    self.story_combo.count() - 1,
+                    t("chapter.internal_id_tip", id=sid),
+                    Qt.ItemDataRole.ToolTipRole,
+                )
             idx = self.story_combo.findData(self._current_id)
             self.story_combo.setCurrentIndex(max(0, idx))
         finally:
@@ -1192,7 +2167,7 @@ class MainWindow(QMainWindow):
     def _delete_story_in_project(self) -> None:
         """从项目删除当前剧情脚本（可撤销）。"""
         if len(self._stories) <= 1:
-            QMessageBox.warning(self, _app_title(), "项目中至少要保留一个剧情章节")
+            QMessageBox.warning(self, _app_title(), t("error.keep_one_story"))
             return
         if self._prompt_on_discard:
             answer = QMessageBox.question(
@@ -1211,13 +2186,33 @@ class MainWindow(QMainWindow):
 
     def _reload_start_combo(self) -> None:
         self.start_combo.clear()
-        for n in self.story.get("nodes", []):
-            self.start_combo.addItem(n.get("id", ""))
-        idx = self.start_combo.findText(self.story.get("start", ""))
+        for index, node in enumerate(self.story.get("nodes", []), start=1):
+            if not isinstance(node, dict):
+                continue
+            node_id = str(node.get("id") or "")
+            title, detail = models.node_list_caption(node, self.editor_data)
+            preset = (self.story.get("battle_presets") or {}).get(node.get("preset"), {})
+            if isinstance(preset, dict) and preset.get("name"):
+                detail = str(preset["name"])
+            self.start_combo.addItem(
+                t(
+                    "nav.step_option",
+                    default="第 {n} 步 · {title} · {detail}",
+                    n=index,
+                    title=title,
+                    detail=detail,
+                ),
+                node_id,
+            )
+        idx = self.start_combo.findData(self.story.get("start", ""))
         self.start_combo.setCurrentIndex(max(0, idx))
 
     def _is_chapter_item(self, item: QListWidgetItem | None) -> bool:
         return item is not None and item.data(self._ROLE_KIND) == "chapter"
+
+    def _is_structure_item(self, item: QListWidgetItem | None) -> bool:
+        data = item.data(self._ROLE_KIND) if item is not None else None
+        return isinstance(data, tuple) and len(data) >= 3 and data[0] == "structure"
 
     def _selected_node_index(self) -> int:
         """当前选中的步骤在 nodes[] 中的下标；选中章节设置时返回 -1。"""
@@ -1228,10 +2223,18 @@ class MainWindow(QMainWindow):
         return int(data) if isinstance(data, int) else -1
 
     def _list_row_for_node_index(self, node_index: int) -> int:
-        """nodes[] 下标 → 列表行（第 0 行是章节设置）。"""
-        return node_index + 1
+        """nodes[] 下标 → 当前树列表行（折叠时可能不可见）。"""
+        for row in range(self.node_list.count()):
+            if self.node_list.item(row).data(self._ROLE_KIND) == node_index:
+                return row
+        return -1
 
     def _select_node_index(self, node_index: int) -> None:
+        from story_sections import expand_for_node
+
+        if expand_for_node(self.story, node_index):
+            self._reload_node_list(select_row=node_index)
+            return
         row = self._list_row_for_node_index(node_index)
         if 0 <= row < self.node_list.count():
             self.node_list.setCurrentRow(row)
@@ -1248,8 +2251,14 @@ class MainWindow(QMainWindow):
 
         第 0 行固定为「章节设置」；步骤从第 1 行起。
         """
-        prev_kind = "chapter" if self._is_chapter_item(self.node_list.currentItem()) else "node"
+        from story_sections import expand_for_node, structure_rows
+
+        prev_item = self.node_list.currentItem()
+        prev_kind = "chapter" if self._is_chapter_item(prev_item) else "node"
+        prev_structure = prev_item.data(self._ROLE_KIND) if self._is_structure_item(prev_item) else None
         prev_node = self._selected_node_index()
+        if select_row >= 0:
+            expand_for_node(self.story, select_row)
         self.node_list.blockSignals(True)
         self.node_list.clear()
 
@@ -1262,13 +2271,34 @@ class MainWindow(QMainWindow):
         chapter.setSizeHint(QSize(0, 28))
         self.node_list.addItem(chapter)
 
-        for index, n in enumerate(self.story.get("nodes", [])):
+        nodes = self.story.get("nodes", [])
+        for row in structure_rows(self.story):
+            if row.kind != "node":
+                marker = "▸" if row.collapsed else "▾"
+                kind_label = t("sections.section") if row.kind == "section" else t("sections.group")
+                indent = "    " * row.depth
+                item = QListWidgetItem(f"{indent}{marker} {kind_label} · {row.title}")
+                item.setData(self._ROLE_KIND, ("structure", row.kind, row.item_id, row.start, row.end))
+                item.setToolTip(t("sections.header_tip"))
+                item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+                item.setSizeHint(QSize(0, 30))
+                self.node_list.addItem(item)
+                continue
+            index = row.node_index
+            n = nodes[index]
             bullet = models.node_bullet(n.get("type", ""))
-            nid = n.get("id", "")
             title, detail = models.node_list_caption(n, self.editor_data)
-            item = QListWidgetItem(f"{bullet} {nid}  {title}\n      {detail}")
+            preset = (self.story.get("battle_presets") or {}).get(n.get("preset"), {})
+            if isinstance(preset, dict) and preset.get("name"):
+                detail = str(preset["name"])
+            indent = "    " * row.depth
+            step = t("nav.step_number", default="第 {n} 步", n=index + 1)
+            item = QListWidgetItem(f"{indent}{bullet} {step}  {title}\n{indent}      {detail}")
             item.setData(self._ROLE_KIND, index)
-            item.setToolTip(models.node_summary(n, self.editor_data))
+            item.setToolTip(
+                f"{models.node_summary(n, self.editor_data)}\n"
+                f"{t('field.node_id_technical')}: {n.get('id', '')}"
+            )
             item.setFlags(
                 Qt.ItemFlag.ItemIsEnabled
                 | Qt.ItemFlag.ItemIsSelectable
@@ -1283,6 +2313,13 @@ class MainWindow(QMainWindow):
             self.node_list.setCurrentRow(self._list_row_for_node_index(target))
         elif prev_kind == "chapter" or not self.story.get("nodes"):
             self.node_list.setCurrentRow(0)
+        elif prev_structure is not None:
+            target_row = next(
+                (row for row in range(self.node_list.count())
+                 if self.node_list.item(row).data(self._ROLE_KIND) == prev_structure),
+                0,
+            )
+            self.node_list.setCurrentRow(target_row)
         elif prev_node >= 0:
             target = min(prev_node, len(self.story.get("nodes", [])) - 1)
             self.node_list.setCurrentRow(self._list_row_for_node_index(target))
@@ -1319,7 +2356,10 @@ class MainWindow(QMainWindow):
             return
         self.inspector.setCurrentWidget(self.form)
         node_ids = [n.get("id", "") for n in self.story.get("nodes", [])]
-        self.form.set_context(self.editor_data, node_ids, sorted(self._stories.keys()))
+        self.form.set_context(
+            self.editor_data, node_ids, sorted(self._stories.keys()),
+            self.story.get("battle_presets", {}),
+        )
         self.form.set_node(self._current_node())
 
     def _schedule_preview(self) -> None:
@@ -1504,6 +2544,43 @@ class MainWindow(QMainWindow):
     def _set_dirty(self, dirty: bool) -> None:
         self._dirty = bool(dirty)
         self._update_title()
+        if not self._dirty:
+            self._clear_recovery_snapshot()
+
+    def _autosave_recovery(self) -> None:
+        """Write a separate recovery bundle; never touch story.json/.lommod."""
+        session = self._recovery_session
+        if session is None or not self._dirty:
+            return
+        try:
+            session.write_snapshot(
+                stories=self._snapshot(),
+                current_story_id=self._current_id,
+                manifest=copy.deepcopy(self.manifest),
+                story_paths=dict(self._story_paths),
+                source_kind=self._source_kind,
+                source_path=str(self._source_path) if self._source_path else None,
+            )
+            self._recovery_error_logged = False
+        except Exception:
+            if not self._recovery_error_logged:
+                log_crash("写入自动恢复副本失败：\n" + traceback.format_exc())
+                self._recovery_error_logged = True
+
+    def _clear_recovery_snapshot(self) -> None:
+        session = getattr(self, "_recovery_session", None)
+        if session is None:
+            return
+        try:
+            session.clear_snapshot()
+        except RecoveryError:
+            if not self._recovery_error_logged:
+                log_crash("清除自动恢复副本失败：\n" + traceback.format_exc())
+                self._recovery_error_logged = True
+
+    def _set_project_source(self, kind: str, path: Path | None) -> None:
+        self._source_kind = kind
+        self._source_path = Path(path).resolve() if path is not None else None
 
     def _update_title(self) -> None:
         name = (
@@ -1545,6 +2622,12 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event) -> None:
         if self._confirm_discard():
             self._commit_timer.stop()
+            self._recovery_timer.stop()
+            if self._recovery_session is not None:
+                try:
+                    self._recovery_session.mark_closed()
+                except RecoveryError:
+                    log_crash("关闭自动恢复会话失败：\n" + traceback.format_exc())
             event.accept()
         else:
             event.ignore()
@@ -1599,9 +2682,11 @@ class MainWindow(QMainWindow):
         if not (0 <= row < len(nodes)):
             return
         if len(nodes) <= 1:
-            QMessageBox.warning(self, _app_title(), "至少保留一个节点")
+            QMessageBox.warning(self, _app_title(), t("error.keep_one_node"))
             return
         self._record_discrete()
+        from story_sections import repair_after_delete
+        repair_after_delete(self.story, str(nodes[row].get("id") or ""), nodes)
         removed = nodes.pop(row)
         if self.story.get("start") == removed.get("id"):
             self.story["start"] = nodes[0].get("id", "")
@@ -1663,6 +2748,8 @@ class MainWindow(QMainWindow):
         try:
             self._record_discrete()
             changed = models.rename_node(self.story, old_id, new_id)
+            from story_sections import retarget_structure_ids
+            changed += retarget_structure_ids(self.story, {old_id: new_id})
         except ValueError as exc:
             QMessageBox.warning(self, t("nav.rename_title"), str(exc))
             self._load_form()
@@ -1687,6 +2774,16 @@ class MainWindow(QMainWindow):
         if item is None or self._is_chapter_item(item):
             return
         self.node_list.setCurrentItem(item)
+        if self._is_structure_item(item):
+            data = item.data(self._ROLE_KIND)
+            menu = QMenu(self)
+            menu.addAction(t("sections.toggle"), lambda: self._toggle_structure(data[2]))
+            menu.addAction(t("sections.expand_all"), lambda: self._set_all_structures(False))
+            menu.addAction(t("sections.collapse_all"), lambda: self._set_all_structures(True))
+            menu.addSeparator()
+            menu.addAction(t("sections.manage"), self._show_story_sections)
+            menu.exec(self.node_list.mapToGlobal(pos))
+            return
         menu = QMenu(self)
         menu.addAction(t("nav.rename"), self._rename_current_node)
         menu.addAction(t("nav.copy"), self._copy_node)
@@ -1695,6 +2792,35 @@ class MainWindow(QMainWindow):
         menu.addAction(t("nav.move_up"), lambda: self._move_node(-1))
         menu.addAction(t("nav.move_down"), lambda: self._move_node(1))
         menu.exec(self.node_list.mapToGlobal(pos))
+
+    def _toggle_structure_item(self, item: QListWidgetItem) -> None:
+        if not self._is_structure_item(item):
+            return
+        data = item.data(self._ROLE_KIND)
+        self._toggle_structure(str(data[2]))
+
+    def _toggle_structure(self, item_id: str) -> None:
+        from story_sections import get_sections, set_collapsed
+
+        current = next(
+            (bool(item.get("collapsed"))
+             for section in get_sections(self.story)
+             for item in [section] + list(section.get("groups") or [])
+             if item.get("id") == item_id),
+            False,
+        )
+        self._record_discrete()
+        set_collapsed(self.story, item_id, not current)
+        self._reload_node_list()
+
+    def _set_all_structures(self, collapsed: bool) -> None:
+        from story_sections import set_all_collapsed
+
+        if not set_all_collapsed(copy.deepcopy(self.story), collapsed):
+            return
+        self._record_discrete()
+        set_all_collapsed(self.story, collapsed)
+        self._reload_node_list()
 
     # -------------------------------------------------------------- 信号槽
     def _on_node_selected(self, _row: int) -> None:
@@ -1714,7 +2840,7 @@ class MainWindow(QMainWindow):
         if new_id == old_id and new_title == self.story.get("title", ""):
             return
         if new_id != old_id and (
-            not models.ID_PATTERN.match(new_id)
+            not models.ID_PATTERN.fullmatch(new_id)
             or (new_id in self._stories and self._stories[new_id] is not self.story)
         ):
             # 非法 id 或已被其它剧情占用：回退文本
@@ -1738,11 +2864,12 @@ class MainWindow(QMainWindow):
             self._refresh_story_combo()
         self._schedule_preview()
 
-    def _on_start_changed(self, text: str) -> None:
-        if self._loading or not text or text == self.story.get("start"):
+    def _on_start_changed(self, _index: int) -> None:
+        node_id = str(self.start_combo.currentData() or "")
+        if self._loading or not node_id or node_id == self.story.get("start"):
             return
         self._record_discrete()
-        self.story["start"] = text
+        self.story["start"] = node_id
         self._prev_snapshot = self._snapshot()
         self._refresh_stage()  # 推演起点变了
         self._graph_timer.start()
@@ -1756,6 +2883,27 @@ class MainWindow(QMainWindow):
             return
         self._record_continuous()
         self.story["mood"] = bool(checked)
+        self._schedule_preview()
+
+    def _refresh_battle_presets_button(self) -> None:
+        count = len(self.story.get("battle_presets", {}))
+        self.battle_presets_btn.setText(t("preset.manage", count=count))
+
+    def _edit_battle_presets(self) -> None:
+        dialog = BattlePresetDialog(
+            self.story.get("battle_presets", {}), self.editor_data, self
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted or dialog.presets is None:
+            return
+        if dialog.presets == self.story.get("battle_presets", {}):
+            return
+        self._record_discrete()
+        if dialog.presets:
+            self.story["battle_presets"] = dialog.presets
+        else:
+            self.story.pop("battle_presets", None)
+        self._refresh_battle_presets_button()
+        self._load_form()
         self._schedule_preview()
 
     def _on_node_changed(self) -> None:
@@ -1775,7 +2923,7 @@ class MainWindow(QMainWindow):
         self._flush_pending()
         node = self._current_node()
         if node is None:
-            QMessageBox.warning(self, _app_title(), "请先在左侧选择一个剧情步骤。")
+            QMessageBox.warning(self, _app_title(), t("error.select_story_step"))
             return False
         errors = [issue for issue in self._preflight_issues() if issue.severity == "error"]
         if errors:
@@ -1806,7 +2954,7 @@ class MainWindow(QMainWindow):
         preview_id = "lom_modkit_preview"
         title = str(self.story.get("title") or script_id)
         manifest = {
-            "format": 1,
+            **manifest_versions(),
             "id": preview_id,
             "name": f"编辑器临时试玩：{title}",
             "version": "0.0.0-preview",
@@ -1830,7 +2978,7 @@ class MainWindow(QMainWindow):
             self.game_manager.request_preview(preview_id, script_id, node_id)
             started = self.game_manager.launch_game()
         except (GameInstallError, package_io.PackError, OSError) as exc:
-            QMessageBox.critical(self, _app_title(), f"无法开始试玩：{exc}")
+            QMessageBox.critical(self, _app_title(), t("error.preview_start", error=exc))
             return False
 
         if runtime_changed and was_running:
@@ -1874,9 +3022,17 @@ class MainWindow(QMainWindow):
         if not mod_id:
             extra = []
         try:
-            results = reset_story_read_state(mod_id, extra_ids=extra)
+            read_keys_by_id = {
+                mid: build_story_read_keys(mid, self._stories)
+                for mid in [mod_id, *extra]
+            }
+            results = reset_story_read_state(
+                mod_id,
+                extra_ids=extra,
+                read_keys_by_id=read_keys_by_id,
+            )
         except GameInstallError as exc:
-            QMessageBox.critical(self, _app_title(), f"重置失败：{exc}")
+            QMessageBox.critical(self, _app_title(), t("error.reset", error=exc))
             return
         if not results:
             QMessageBox.information(
@@ -1901,8 +3057,8 @@ class MainWindow(QMainWindow):
             self._reload_start_combo()
             self.story["start"] = (
                 cur
-                if self.start_combo.findText(cur) >= 0
-                else self.start_combo.currentText()
+                if self.start_combo.findData(cur) >= 0
+                else str(self.start_combo.currentData() or "")
             )
         finally:
             self._loading = False
@@ -1916,6 +3072,7 @@ class MainWindow(QMainWindow):
         self.manifest = {}
         self.manifest_base = {}
         self._story_paths = {}
+        self._set_project_source("untitled", None)
         self._saved_snapshot = self._snapshot()
         self._undo_stack.clear()
         self._redo_stack.clear()
@@ -1923,6 +3080,31 @@ class MainWindow(QMainWindow):
         self._commit_timer.stop()
         self._refresh_all()
         self.statusBar().showMessage("已新建项目：修改示例对白后即可继续添加步骤", 4000)
+
+    def new_story_from_template(self) -> None:
+        if not self._confirm_discard():
+            return
+        dialog = ProjectTemplateDialog(self)
+        if dialog.exec() != QDialog.DialogCode.Accepted or not dialog.template_key:
+            return
+        project = create_project_template(dialog.template_key, self.editor_data)
+        self._clear_recovery_snapshot()
+        self._stories = project["stories"]
+        self._current_id = project["current_story_id"]
+        self.manifest = project["manifest"]
+        self.manifest_base = copy.deepcopy(self.manifest)
+        self._story_paths = {story_id: None for story_id in self._stories}
+        self._set_project_source("untitled", None)
+        self._saved_snapshot = {}
+        self._undo_stack.clear()
+        self._redo_stack.clear()
+        self._pending_before = None
+        self._commit_timer.stop()
+        self._refresh_all()
+        self._set_dirty(True)
+        info = template_info(dialog.template_key)
+        suffix = "；请替换 user:template.* 占位内容" if info.placeholder_content else ""
+        self.statusBar().showMessage(f"已从模板创建“{info.name}”{suffix}", 6000)
 
     def _last_dir(self, key: str) -> str:
         """读取记住的上次目录；没有记录或目录已消失则退回工作目录。"""
@@ -2077,11 +3259,97 @@ class MainWindow(QMainWindow):
             self._refresh_all()
         return True
 
+    def restore_abnormal_session(self) -> bool:
+        """Offer recovery snapshots left by dead editor sessions at startup."""
+        session = self._recovery_session
+        if session is None:
+            return False
+        while True:
+            candidates = list_recovery_candidates(
+                session.root, exclude_session_id=session.session_id
+            )
+            if not candidates:
+                return False
+            dialog = RecoveryDialog(candidates, self)
+            if dialog.exec() != QDialog.DialogCode.Accepted or dialog.candidate is None:
+                return False
+            candidate = dialog.candidate
+            if dialog.action == "discard":
+                try:
+                    finish_candidate(candidate, "discarded")
+                except RecoveryError as exc:
+                    QMessageBox.warning(self, _app_title(), t("error.recovery_discard", error=exc))
+                    return False
+                continue
+            if dialog.action == "restore":
+                return self._restore_recovery_candidate(candidate)
+
+    def _restore_recovery_candidate(self, candidate: RecoveryCandidate) -> bool:
+        """Load a validated candidate into memory without restoring write paths."""
+        document = candidate.document
+        try:
+            stories = copy.deepcopy(document["stories"])
+            current_id = str(document["current_story_id"])
+            if current_id not in stories:
+                raise RecoveryError("恢复快照当前章节不存在")
+            repaired = models.normalize_character_ids(stories, self.editor_data)
+            manifest = document.get("manifest")
+            if not isinstance(manifest, dict):
+                manifest = {}
+        except Exception as exc:
+            QMessageBox.critical(self, _app_title(), t("error.recovery_load", error=exc))
+            return False
+
+        self._stories = stories
+        self._current_id = current_id
+        self.manifest = copy.deepcopy(manifest)
+        self.manifest_base = copy.deepcopy(manifest)
+        # Deliberately require an explicit Save As/export after recovery. A
+        # restored snapshot never inherits an automatic overwrite target.
+        self._story_paths = {story_id: None for story_id in stories}
+        self._set_project_source(candidate.source_kind, None)
+        self._saved_snapshot = {}
+        self._undo_stack.clear()
+        self._redo_stack.clear()
+        self._pending_before = None
+        self._commit_timer.stop()
+        self._refresh_all()
+        self._set_dirty(True)
+
+        # Establish the new process' own atomic copy before consuming the old
+        # crash candidate, so a second crash during recovery cannot lose it.
+        session = self._recovery_session
+        try:
+            if session is None:
+                raise RecoveryError("当前恢复会话不可用")
+            session.write_snapshot(
+                stories=self._snapshot(),
+                current_story_id=self._current_id,
+                manifest=copy.deepcopy(self.manifest),
+                story_paths=dict(self._story_paths),
+                source_kind=self._source_kind,
+                source_path=None,
+            )
+            finish_candidate(candidate, "recovered")
+        except RecoveryError as exc:
+            QMessageBox.warning(
+                self,
+                _app_title(),
+                "内容已载入内存，但无法转移恢复副本：%s\n"
+                "请立即使用“另存为”或“导出 Mod”。" % exc,
+            )
+        note = f"；已修复 {repaired} 个人物内部 ID" if repaired else ""
+        self.statusBar().showMessage(
+            "已从异常退出副本恢复（尚未覆盖任何正式文件）" + note,
+            7000,
+        )
+        return True
+
     def _load_story_path(self, path: Path) -> None:
         try:
             story = models.load_story(path)
         except Exception as exc:
-            QMessageBox.critical(self, _app_title(), f"打开失败：{exc}")
+            QMessageBox.critical(self, _app_title(), t("error.open", error=exc))
             return
         repaired = models.normalize_character_ids([story], self.editor_data)
         self._stories = {story["id"]: story}
@@ -2089,6 +3357,7 @@ class MainWindow(QMainWindow):
         self.manifest = {}
         self.manifest_base = {}
         self._story_paths = {story["id"]: path}
+        self._set_project_source("story", path)
         self._saved_snapshot = self._snapshot()
         self._undo_stack.clear()
         self._redo_stack.clear()
@@ -2131,9 +3400,10 @@ class MainWindow(QMainWindow):
         try:
             models.save_story(self.story, path)
         except Exception as exc:
-            QMessageBox.critical(self, _app_title(), f"保存失败：{exc}")
+            QMessageBox.critical(self, _app_title(), t("error.save", error=exc))
             return False
         self._story_paths[self._current_id] = path
+        self._set_project_source("story", path)
         self._mark_saved()
         self._remember_project("story", path, str(self.story.get("title") or path.stem))
         self.statusBar().showMessage(f"已保存 {path}", 3000)
@@ -2150,6 +3420,24 @@ class MainWindow(QMainWindow):
         self._remember_dir("last_mod_dir", path)
         self._import_lommod_path(Path(path))
 
+    def inspect_lommod(self) -> None:
+        """Open an untrusted package read-only without changing this project."""
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            t("inspector.choose"),
+            self._last_dir("last_mod_dir"),
+            "LoM Mod 包 (*.lommod)",
+        )
+        if not path:
+            return
+        self._remember_dir("last_mod_dir", path)
+        try:
+            inspection = inspect_lommod(path)
+        except package_io.PackError as exc:
+            QMessageBox.critical(self, _app_title(), str(exc))
+            return
+        PackageInspectorDialog(inspection, self).exec()
+
     def _import_lommod_path(self, path: Path) -> bool:
         try:
             manifest, stories = package_io.import_lommod(path)
@@ -2164,6 +3452,7 @@ class MainWindow(QMainWindow):
         self.manifest = manifest
         self.manifest_base = manifest  # 保留 campaign 等，导出时回填
         self._story_paths = {}
+        self._set_project_source("lommod", path)
         self._saved_snapshot = self._snapshot()
         self._undo_stack.clear()
         self._redo_stack.clear()
@@ -2255,6 +3544,7 @@ class MainWindow(QMainWindow):
         self.manifest_base = manifest  # 导出成功后回填，下次导出保留 campaign 等配置
         self._saved_snapshot = self._snapshot()
         self._set_dirty(False)
+        self._set_project_source("lommod", Path(path))
         install_note = ""
         if self.game_manager.load_game_dir() is not None:
             try:
@@ -2281,6 +3571,75 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"已导出 {path}", 5000)
         return True
 
+    def build_release_package(self) -> bool:
+        """Build a checked local release artifact without installing or publishing it."""
+        self._flush_pending()
+        dlg = ManifestDialog(
+            self._current_id,
+            self.editor_data,
+            sorted(self._stories.keys()),
+            self.manifest_base,
+            self,
+        )
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return False
+        manifest = dlg.manifest()
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "构建发布包",
+            str(Path(self._last_dir("last_mod_dir")) / f"{manifest['id']}.lommod"),
+            "LoM Mod 包 (*.lommod)",
+        )
+        if not path:
+            return False
+        self._remember_dir("last_mod_dir", path)
+        try:
+            result = build_release(
+                path,
+                manifest,
+                self._stories,
+                self.editor_data,
+                RUNTIME_VERSION,
+                content_root=content_registry.repository_root(),
+                bundled_assets=self._project_bundled_assets(),
+            )
+        except ReleaseBuildBlocked as exc:
+            PreflightDialog(
+                list(exc.issues),
+                self._locate_preflight_issue,
+                lambda: self._apply_preflight_fixes("release"),
+                self,
+                profile="release",
+            ).exec()
+            self.statusBar().showMessage(str(exc), 5000)
+            return False
+        except (package_io.PackError, OSError) as exc:
+            QMessageBox.critical(self, _app_title(), t("error.release_build", error=exc))
+            return False
+        self.manifest = manifest
+        self.manifest_base = manifest
+        warning_note = (
+            "无" if not result.warnings else "%d 条（已保留在 Release 体检中）" % len(result.warnings)
+        )
+        QMessageBox.information(
+            self,
+            _app_title(),
+            "发布构建完成（未安装、未上传）\n\n"
+            "包：%s\n校验：%s\n大小：%d bytes\n剧情/节点：%d / %d\n"
+            "SHA-256：%s\n提醒：%s"
+            % (
+                result.package_path,
+                result.checksum_path,
+                result.package_size,
+                result.story_count,
+                result.node_count,
+                result.package_sha256,
+                warning_note,
+            ),
+        )
+        self.statusBar().showMessage("发布构建完成：%s" % result.package_path, 5000)
+        return True
+
 
 def main() -> int:
     # --smoke-exit：启动级自检（显示窗口 1.5 秒后自动退出，退出码 0）；
@@ -2298,8 +3657,11 @@ def main() -> int:
         del args[at : at + 2]
     app = QApplication(args)
     app.setOrganizationName("lom_modkit")
-    _pref_lang = GameInstallManager().load_pref("language")
-    init_language(_pref_lang)
+    _startup_manager = GameInstallManager()
+    _pref_lang = _startup_manager.load_pref("language")
+    _canonical_lang = init_language(_pref_lang)
+    if _pref_lang and _pref_lang != _canonical_lang:
+        _startup_manager.save_pref("language", _canonical_lang)
     models.refresh_labels()
     install_qt_translator(app)
     app.setApplicationName(_app_title())
@@ -2321,6 +3683,7 @@ def main() -> int:
         preview_text = win.preview.toPlainText()
         resource_ok = (
             win.game_manager.runtime_dll.is_file()
+            and (win.game_manager.runtime_dll.parent / "NVorbis.dll").is_file()
             and icon_path.is_file()
             and (icon_base / "assets" / "combo_arrow.svg").is_file()
         )
@@ -2337,10 +3700,11 @@ def main() -> int:
         QTimer.singleShot(0, lambda: app.exit(0 if preview_ok else 3))
     elif smoke_exit:
         QTimer.singleShot(1500, app.quit)
-    elif len(args) > 1:  # 支持命令行直接打开 story.json
-        win._load_story_path(Path(args[1]))
     else:
-        if win.restore_last_project():
+        recovered = win.restore_abnormal_session()
+        if not recovered and len(args) > 1:  # 支持命令行直接打开 story.json
+            win._load_story_path(Path(args[1]))
+        elif not recovered and win.restore_last_project():
             win.statusBar().showMessage(
                 win.statusBar().currentMessage() or "已恢复上次打开的项目",
                 5000,

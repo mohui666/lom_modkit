@@ -17,6 +17,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import unicodedata
 import urllib.error
 import urllib.request
 import zipfile
@@ -28,6 +29,12 @@ from typing import Callable
 APP_DIR_NAME = "lom_modkit"
 PLUGIN_DIR_NAME = "MortalModHost"
 RUNTIME_DLL_NAME = "MortalModHost.dll"
+RUNTIME_DEPENDENCIES = ("NVorbis.dll",)
+BEPINEX_RUNTIME_FILES = (
+    "BepInEx/core/BepInEx.Core.dll",
+    "BepInEx/core/BepInEx.Unity.Mono.dll",
+    "BepInEx/core/0Harmony.dll",
+)
 PREVIEW_PACKAGE_NAME = "__lom_modkit_preview.lommod"
 PREVIEW_REQUEST_NAME = "preview-request.json"
 BEPINEX_VERSION = "6.0.0-be.692"
@@ -37,6 +44,16 @@ BEPINEX_URL = (
 )
 BEPINEX_SHA256 = "97720c5f5c70abfb2ae19dba6000529049ae67f053303b3ce2b49e6ad6c0eca6"
 BEPINEX_MAX_BYTES = 32 * 1024 * 1024
+MOD_PACKAGE_MAX_BYTES = 160 * 1024 * 1024
+MOD_MANIFEST_MAX_BYTES = 4 * 1024 * 1024
+MOD_ID_RE = re.compile(r"[a-z0-9_-]{1,64}")
+SCRIPT_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
+MANIFEST_TEXT_LIMITS = {
+    "name": 80,
+    "version": 32,
+    "author": 80,
+    "description": 500,
+}
 
 ProgressCallback = Callable[[str, int, int], None]
 
@@ -55,6 +72,30 @@ class ModRecord:
     author: str
     description: str
     error: str = ""
+
+
+@dataclass(frozen=True)
+class InstallationDoctorFinding:
+    severity: str  # ok / warning / error
+    code: str
+    title: str
+    detail: str
+    paths: tuple[Path, ...] = ()
+    fixable: bool = False
+
+
+@dataclass(frozen=True)
+class InstallationDoctorReport:
+    game_root: Path | None
+    findings: tuple[InstallationDoctorFinding, ...]
+
+    @property
+    def healthy(self) -> bool:
+        return not any(item.severity != "ok" for item in self.findings)
+
+    @property
+    def fixable_count(self) -> int:
+        return sum(item.fixable for item in self.findings)
 
 
 def _settings_path() -> Path:
@@ -292,38 +333,373 @@ class GameInstallManager:
     def mods_dir(self, enabled: bool = True) -> Path:
         return self.plugin_dir() / ("mods" if enabled else "mods_disabled")
 
+    # ------------------------------------------------------------ 安装诊断
+    @staticmethod
+    def _known_dll_locations(plugins: Path, names: set[str]) -> dict[str, list[Path]]:
+        """Scan regular files below plugins without following directory symlinks."""
+        found = {name.casefold(): [] for name in names}
+        if not plugins.is_dir():
+            return found
+        pending = [plugins]
+        visited = 0
+        while pending and visited < 10000:
+            folder = pending.pop()
+            try:
+                entries = list(os.scandir(folder))
+            except OSError:
+                continue
+            for entry in entries:
+                visited += 1
+                if visited >= 10000:
+                    break
+                try:
+                    if entry.is_dir(follow_symlinks=False):
+                        pending.append(Path(entry.path))
+                    elif entry.is_file(follow_symlinks=False):
+                        key = entry.name.casefold()
+                        if key in found:
+                            found[key].append(Path(entry.path))
+                except OSError:
+                    continue
+        return found
+
+    def diagnose_installation(self) -> InstallationDoctorReport:
+        """Inspect the configured installation without writing to it or launching code."""
+        findings: list[InstallationDoctorFinding] = []
+        root = self.load_game_dir()
+        if root is None:
+            return InstallationDoctorReport(None, (InstallationDoctorFinding(
+                "error", "game_not_configured", "尚未连接游戏",
+                "请先选择《活侠传》游戏目录。",
+            ),))
+        try:
+            self.validate_game_root(root)
+        except GameInstallError as exc:
+            return InstallationDoctorReport(root, (InstallationDoctorFinding(
+                "error", "invalid_game_root", "游戏目录无效", str(exc), (root,),
+            ),))
+
+        findings.append(InstallationDoctorFinding(
+            "ok", "game_root_ok", "游戏目录", "已找到 Mortal.exe 和 Managed 目录。", (root,),
+        ))
+        try:
+            architecture = self.game_architecture(root)
+            architecture_ok = architecture == "x86"
+            findings.append(InstallationDoctorFinding(
+                "ok" if architecture_ok else "error",
+                "architecture_ok" if architecture_ok else "unsupported_architecture",
+                "游戏架构", "%s（当前内置 BepInEx/Runtime 目标为 x86）" % architecture,
+                (root / "Mortal.exe",),
+            ))
+        except GameInstallError as exc:
+            findings.append(InstallationDoctorFinding(
+                "error", "architecture_unknown", "游戏架构无法识别", str(exc),
+                (root / "Mortal.exe",),
+            ))
+
+        missing_bepinex = [rel for rel in BEPINEX_RUNTIME_FILES if not (root / rel).is_file()]
+        bepinex_ready = not missing_bepinex
+        findings.append(InstallationDoctorFinding(
+            "ok" if bepinex_ready else "error",
+            "bepinex_ok" if bepinex_ready else "bepinex_incomplete",
+            "BepInEx 6",
+            "核心、Unity Mono 和 Harmony 依赖齐全。" if bepinex_ready
+            else "缺少：" + "、".join(missing_bepinex),
+            tuple(root / rel for rel in missing_bepinex),
+        ))
+
+        plugin_dir = root / "BepInEx" / "plugins" / PLUGIN_DIR_NAME
+        runtime_target = plugin_dir / RUNTIME_DLL_NAME
+        bundled_ready = self.runtime_dll.is_file()
+        dependencies_ready = all(
+            (self.runtime_dll.parent / name).is_file() for name in RUNTIME_DEPENDENCIES
+        )
+        can_repair_runtime = bepinex_ready and bundled_ready and dependencies_ready
+        if not bundled_ready:
+            findings.append(InstallationDoctorFinding(
+                "error", "bundled_runtime_missing", "编辑器内置 Runtime 缺失",
+                str(self.runtime_dll), (self.runtime_dll,),
+            ))
+        elif not runtime_target.is_file():
+            findings.append(InstallationDoctorFinding(
+                "error", "runtime_missing", "MortalModHost 未安装",
+                "目标目录中没有 MortalModHost.dll。", (runtime_target,), can_repair_runtime,
+            ))
+        else:
+            try:
+                same = _sha256(runtime_target) == _sha256(self.runtime_dll)
+            except OSError as exc:
+                findings.append(InstallationDoctorFinding(
+                    "error", "runtime_unreadable", "MortalModHost 无法核对",
+                    str(exc), (runtime_target,), can_repair_runtime,
+                ))
+            else:
+                findings.append(InstallationDoctorFinding(
+                    "ok" if same else "warning",
+                    "runtime_current" if same else "runtime_obsolete",
+                    "MortalModHost Runtime",
+                    "与编辑器内置版本字节一致。" if same else "已安装 DLL 与当前编辑器内置版本不一致。",
+                    (runtime_target,), (not same and can_repair_runtime),
+                ))
+
+        for name in RUNTIME_DEPENDENCIES:
+            bundled = self.runtime_dll.parent / name
+            target = plugin_dir / name
+            if not bundled.is_file():
+                findings.append(InstallationDoctorFinding(
+                    "error", "bundled_dependency_missing", "编辑器依赖缺失",
+                    "内置发布目录缺少 %s。" % name, (bundled,),
+                ))
+            elif not target.is_file():
+                findings.append(InstallationDoctorFinding(
+                    "error", "runtime_dependency_missing", "Runtime 依赖缺失",
+                    "%s 未安装。" % name, (target,), can_repair_runtime,
+                ))
+            else:
+                try:
+                    same = _sha256(target) == _sha256(bundled)
+                except OSError:
+                    same = False
+                findings.append(InstallationDoctorFinding(
+                    "ok" if same else "warning",
+                    "runtime_dependency_current" if same else "runtime_dependency_obsolete",
+                    "Runtime 依赖 %s" % name,
+                    "与内置版本一致。" if same else "文件与当前编辑器内置版本不一致。",
+                    (target,), (not same and can_repair_runtime),
+                ))
+
+        for enabled, dirname in ((True, "mods"), (False, "mods_disabled")):
+            directory = plugin_dir / dirname
+            findings.append(InstallationDoctorFinding(
+                "ok" if directory.is_dir() else "warning",
+                "mods_directory_ok" if directory.is_dir() else "mods_directory_missing",
+                "Mod 目录 %s" % dirname,
+                "目录已就绪。" if directory.is_dir() else "目录不存在，可安全创建。",
+                (directory,), (bepinex_ready and not directory.is_dir()),
+            ))
+
+        plugins = root / "BepInEx" / "plugins"
+        expected = {RUNTIME_DLL_NAME, *RUNTIME_DEPENDENCIES}
+        locations = self._known_dll_locations(plugins, expected)
+        expected_locations = {
+            RUNTIME_DLL_NAME.casefold(): runtime_target,
+            **{name.casefold(): plugin_dir / name for name in RUNTIME_DEPENDENCIES},
+        }
+        duplicates: list[Path] = []
+        for key, paths in locations.items():
+            expected_path = expected_locations[key]
+            duplicates.extend(path for path in paths if path != expected_path)
+        if duplicates:
+            findings.append(InstallationDoctorFinding(
+                "warning", "duplicate_runtime_dll", "发现重复 Runtime DLL",
+                "不会自动删除第三方目录中的 DLL；请核对后手工处理。",
+                tuple(sorted(duplicates, key=lambda path: str(path).casefold())), False,
+            ))
+        else:
+            findings.append(InstallationDoctorFinding(
+                "ok", "no_duplicate_runtime_dll", "重复 DLL", "未发现已知 Runtime DLL 的重复副本。",
+            ))
+        return InstallationDoctorReport(root, tuple(findings))
+
+    def apply_installation_doctor_fixes(self) -> list[str]:
+        """Apply only deterministic local fixes advertised by the current report."""
+        report = self.diagnose_installation()
+        fixable_codes = {item.code for item in report.findings if item.fixable}
+        actions: list[str] = []
+        runtime_codes = {
+            "runtime_missing", "runtime_obsolete", "runtime_unreadable",
+            "runtime_dependency_missing", "runtime_dependency_obsolete",
+        }
+        if fixable_codes & runtime_codes:
+            target, changed = self.install_runtime()
+            actions.append(("已修复 Runtime：" if changed else "Runtime 已是当前版本：") + str(target))
+        if "mods_directory_missing" in fixable_codes:
+            for enabled in (True, False):
+                directory = self.mods_dir(enabled)
+                if not directory.is_dir():
+                    directory.mkdir(parents=True, exist_ok=True)
+                    actions.append("已创建：" + str(directory))
+        return actions
+
+    # ------------------------------------------------------------ Runtime 回滚
+    def runtime_rollback_dir(self) -> Path:
+        return self.plugin_dir() / ".runtime_rollback"
+
+    def _runtime_owned_targets(self) -> dict[str, Path]:
+        directory = self.plugin_dir()
+        return {
+            name: directory / name
+            for name in (RUNTIME_DLL_NAME, *RUNTIME_DEPENDENCIES)
+        }
+
+    def _read_runtime_rollback(self) -> dict[str, str | None] | None:
+        metadata = self.runtime_rollback_dir() / "previous.json"
+        try:
+            payload = json.loads(metadata.read_text(encoding="utf-8"))
+        except (OSError, ValueError, TypeError):
+            return None
+        if not isinstance(payload, dict):
+            return None
+        files = payload.get("files")
+        expected = set(self._runtime_owned_targets())
+        if payload.get("format") != 1 or not isinstance(files, dict) or set(files) != expected:
+            return None
+        result: dict[str, str | None] = {}
+        for name in sorted(expected):
+            digest = files.get(name)
+            if digest is not None and (
+                not isinstance(digest, str)
+                or re.fullmatch(r"[0-9a-f]{64}", digest) is None
+            ):
+                return None
+            if digest is not None:
+                backup = self.runtime_rollback_dir() / (name + "." + digest + ".rollback")
+                try:
+                    if not backup.is_file() or _sha256(backup) != digest:
+                        return None
+                except OSError:
+                    return None
+            result[name] = digest
+        return result
+
+    def runtime_rollback_available(self) -> bool:
+        return self._read_runtime_rollback() is not None
+
+    def _save_runtime_rollback(self, targets: dict[str, Path]) -> bool:
+        """Save the current owned files. Returns False for a clean first install."""
+        existing = {name: path for name, path in targets.items() if path.is_file()}
+        if not existing:
+            return False
+        rollback = self.runtime_rollback_dir()
+        rollback.mkdir(parents=True, exist_ok=True)
+        file_map: dict[str, str | None] = {}
+        try:
+            for name, target in targets.items():
+                if name not in existing:
+                    file_map[name] = None
+                    continue
+                digest = _sha256(target)
+                backup = rollback / (name + "." + digest + ".rollback")
+                if not backup.is_file() or _sha256(backup) != digest:
+                    staging = rollback / (backup.name + ".tmp")
+                    shutil.copy2(target, staging)
+                    if _sha256(staging) != digest:
+                        raise OSError("回滚副本写入后校验失败：" + name)
+                    os.replace(staging, backup)
+                file_map[name] = digest
+            metadata = rollback / "previous.json"
+            staging_metadata = rollback / "previous.json.tmp"
+            staging_metadata.write_text(
+                json.dumps(
+                    {"format": 1, "created_at": int(time.time()), "files": file_map},
+                    ensure_ascii=False,
+                    indent=2,
+                ) + "\n",
+                encoding="utf-8",
+            )
+            os.replace(staging_metadata, metadata)
+        except OSError as exc:
+            raise GameInstallError("无法保存 Runtime 回滚副本：%s" % exc) from exc
+        return True
+
+    def restore_previous_runtime(self) -> list[Path]:
+        """Restore exactly the last captured owned files; never touches game originals."""
+        snapshot = self._read_runtime_rollback()
+        if snapshot is None:
+            raise GameInstallError("没有可用且校验通过的 Runtime 回滚副本。")
+        targets = self._runtime_owned_targets()
+        rollback = self.runtime_rollback_dir()
+        staged: dict[str, Path] = {}
+        try:
+            for name, digest in snapshot.items():
+                if digest is None:
+                    continue
+                backup = rollback / (name + "." + digest + ".rollback")
+                temporary = targets[name].with_name(targets[name].name + ".restoring")
+                shutil.copy2(backup, temporary)
+                if _sha256(temporary) != digest:
+                    raise OSError("恢复暂存文件校验失败：" + name)
+                staged[name] = temporary
+            for name, temporary in staged.items():
+                os.replace(temporary, targets[name])
+            for name, digest in snapshot.items():
+                if digest is None and targets[name].is_file():
+                    targets[name].unlink()
+        except OSError as exc:
+            for temporary in staged.values():
+                try:
+                    temporary.unlink()
+                except OSError:
+                    pass
+            raise GameInstallError("恢复 Runtime 失败：%s" % exc) from exc
+        return [targets[name] for name, digest in snapshot.items() if digest is not None]
+
     # ------------------------------------------------------------ 安装
     def install_runtime(self) -> tuple[Path, bool]:
         """安装内置 DLL；返回 (目标路径, 是否实际更新)。"""
         if not self.runtime_dll.is_file():
             raise GameInstallError(f"编辑器内置运行时不存在：{self.runtime_dll}")
+        missing_dependencies = [
+            name for name in RUNTIME_DEPENDENCIES
+            if not (self.runtime_dll.parent / name).is_file()
+        ]
+        if missing_dependencies:
+            raise GameInstallError(
+                "编辑器内置运行时依赖缺失：" + "、".join(missing_dependencies)
+            )
         root = self.require_game_dir()
         self.validate_bepinex(root)
         target_dir = self.plugin_dir()
         target_dir.mkdir(parents=True, exist_ok=True)
         self.mods_dir(True).mkdir(parents=True, exist_ok=True)
         self.mods_dir(False).mkdir(parents=True, exist_ok=True)
-        target = target_dir / RUNTIME_DLL_NAME
-        changed = not target.exists() or _sha256(target) != _sha256(self.runtime_dll)
-        extras = [
-            src
-            for src in self.runtime_dll.parent.glob("*.dll")
-            if src.name != RUNTIME_DLL_NAME
-        ]
-        if not changed:
-            for src in extras:
-                dest = target_dir / src.name
-                if not dest.exists() or _sha256(dest) != _sha256(src):
-                    changed = True
-                    break
+        sources = {
+            RUNTIME_DLL_NAME: self.runtime_dll,
+            **{
+                name: self.runtime_dll.parent / name
+                for name in RUNTIME_DEPENDENCIES
+            },
+        }
+        targets = self._runtime_owned_targets()
+        target = targets[RUNTIME_DLL_NAME]
+        changed = any(
+            not targets[name].is_file()
+            or _sha256(targets[name]) != _sha256(source)
+            for name, source in sources.items()
+        )
         if changed:
+            rollback_saved = self._save_runtime_rollback(targets)
+            staged: dict[str, Path] = {}
             try:
-                shutil.copy2(self.runtime_dll, target)
-                for src in extras:
-                    shutil.copy2(src, target_dir / src.name)
+                for name, source in sources.items():
+                    temporary = target_dir / ("." + name + ".installing")
+                    shutil.copy2(source, temporary)
+                    if _sha256(temporary) != _sha256(source):
+                        raise OSError("Runtime 暂存文件校验失败：" + name)
+                    staged[name] = temporary
+                for name, temporary in staged.items():
+                    os.replace(temporary, targets[name])
+                if any(
+                    _sha256(targets[name]) != _sha256(source)
+                    for name, source in sources.items()
+                ):
+                    raise OSError("Runtime 安装后校验失败")
             except OSError as exc:
+                for temporary in staged.values():
+                    try:
+                        temporary.unlink()
+                    except OSError:
+                        pass
+                rollback_note = ""
+                if rollback_saved:
+                    try:
+                        self.restore_previous_runtime()
+                        rollback_note = "；已自动恢复上一版"
+                    except GameInstallError as rollback_exc:
+                        rollback_note = "；自动恢复也失败：%s" % rollback_exc
                 raise GameInstallError(
-                    "无法安装运行时。请确认游戏已退出，并检查目录写入权限：" + str(exc)
+                    "无法安装运行时。请确认游戏已退出，并检查目录写入权限："
+                    + str(exc) + rollback_note
                 ) from exc
         return target, changed
 
@@ -608,15 +984,41 @@ class GameInstallManager:
     @staticmethod
     def _read_manifest(path: Path) -> dict:
         try:
+            if path.stat().st_size > MOD_PACKAGE_MAX_BYTES:
+                raise ValueError("Mod 包文件超过 160 MiB 上限")
             with zipfile.ZipFile(path, "r") as archive:
-                raw = archive.read("manifest.json")
+                info = archive.getinfo("manifest.json")
+                if info.file_size < 0 or info.file_size > MOD_MANIFEST_MAX_BYTES:
+                    raise ValueError("manifest.json 超过 4 MiB 上限")
+                with archive.open(info, "r") as stream:
+                    raw = stream.read(MOD_MANIFEST_MAX_BYTES + 1)
+                if len(raw) > MOD_MANIFEST_MAX_BYTES:
+                    raise ValueError("manifest.json 超过 4 MiB 上限")
             manifest = json.loads(raw.decode("utf-8-sig"))
             if not isinstance(manifest, dict):
                 raise ValueError("manifest.json 不是对象")
-            if not manifest.get("id"):
-                raise ValueError("manifest.json 缺少 id")
+            mod_id = manifest.get("id")
+            if not isinstance(mod_id, str) or MOD_ID_RE.fullmatch(mod_id) is None:
+                raise ValueError("manifest.id 必须匹配 [a-z0-9_-]{1,64}")
+            entry = manifest.get("entry")
+            if not isinstance(entry, str) or SCRIPT_ID_RE.fullmatch(entry) is None:
+                raise ValueError("manifest.entry 必须匹配 [A-Za-z0-9_-]{1,64}")
+            for field, limit in MANIFEST_TEXT_LIMITS.items():
+                value = manifest.get(field)
+                if value is None:
+                    continue
+                if not isinstance(value, str) or len(value) > limit:
+                    raise ValueError(f"manifest.{field} 必须是不超过 {limit} 字符的文本")
+                if any(
+                    char in "\r\n"
+                    or unicodedata.category(char) in ("Cc", "Cf", "Zl", "Zp")
+                    for char in value
+                ):
+                    raise ValueError(
+                        f"manifest.{field} 不能含换行、控制、零宽或双向格式字符"
+                    )
             return manifest
-        except (OSError, KeyError, ValueError, zipfile.BadZipFile) as exc:
+        except (OSError, KeyError, ValueError, RuntimeError, zipfile.BadZipFile) as exc:
             raise GameInstallError(f"{path.name} 不是有效的 .lommod：{exc}") from exc
 
     def list_mods(self) -> list[ModRecord]:
@@ -713,14 +1115,54 @@ def _choose_zombie_prefix(raw: bytes, mod_id: str) -> bytes:
     )
 
 
-def _is_mod_read_story_key(key: str, mod_id: str) -> bool:
-    """是否为该 mod 的已读 key：``XXXX{modid}_...``（4 字符前缀，大小写不敏感）。"""
+def _validated_read_story_keys(mod_id: str, read_keys: list[str]) -> tuple[str, ...]:
+    """校验并去重由当前项目实际生成的完整已读 key。"""
+    live_prefix = f"MOD_{mod_id}_"
+    valid: set[str] = set()
+    for key in read_keys:
+        if (
+            not isinstance(key, str)
+            or not key.startswith(live_prefix)
+            or not re.fullmatch(r"[A-Za-z0-9_\-]+", key[len(live_prefix) :])
+        ):
+            raise GameInstallError(
+                f"已读记录键 {key!r} 不属于 mod「{mod_id}」或格式非法"
+            )
+        valid.add(key)
+    # 长 key 优先，配合末尾边界检查避免 n1 抢先命中 n10。
+    return tuple(sorted(valid, key=lambda value: (-len(value), value)))
+
+
+def build_story_read_keys(mod_id: str, stories: dict[str, dict]) -> list[str]:
+    """从当前项目的 say 节点生成该 mod 会写入存档的完整已读 key。"""
+    keys: list[str] = []
+    for fallback_id, story in stories.items():
+        if not isinstance(story, dict):
+            continue
+        script_id = str(story.get("id") or fallback_id)
+        for node in story.get("nodes") or []:
+            if not isinstance(node, dict) or node.get("type") != "say":
+                continue
+            node_id = node.get("id")
+            if isinstance(node_id, str) and node_id:
+                keys.append(f"MOD_{mod_id}_{script_id}_{node_id}")
+    return list(_validated_read_story_keys(mod_id, keys))
+
+
+def _is_mod_read_story_key(
+    key: str, mod_id: str, read_keys: tuple[str, ...] | list[str]
+) -> bool:
+    """是否与给定完整 key 相同（允许 MOD_ 被等长僵尸前缀替换）。"""
     if not isinstance(key, str):
         return False
-    marker = f"{mod_id}_"
-    if len(key) < 4 + len(marker) or key[3] != "_":
+    if len(key) < 5 or key[3] != "_":
         return False
-    return key[4 : 4 + len(marker)].casefold() == marker.casefold()
+    suffix = key[4:].casefold()
+    return any(
+        candidate.startswith(f"MOD_{mod_id}_")
+        and suffix == candidate[4:].casefold()
+        for candidate in read_keys
+    )
 
 
 def _backup_once(path: Path, data: bytes) -> None:
@@ -729,26 +1171,102 @@ def _backup_once(path: Path, data: bytes) -> None:
         backup.write_bytes(data)
 
 
-def _reset_universe_dat(save: Path, mod_id: str) -> int:
-    """等长改写 .dat 内 live 前缀 MOD_<modid>_ → 未占用的僵尸前缀。返回改写次数。"""
+def _atomic_write_bytes(path: Path, data: bytes) -> None:
+    """同目录落盘并原子替换，失败时保留原存档。"""
+    temp_path: Path | None = None
+    try:
+        fd, raw_temp = tempfile.mkstemp(
+            prefix=path.name + ".", suffix=".tmp", dir=str(path.parent)
+        )
+        temp_path = Path(raw_temp)
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temp_path, path)
+        temp_path = None
+    except OSError as exc:
+        raise GameInstallError(f"写入存档失败：{exc}") from exc
+    finally:
+        if temp_path is not None:
+            try:
+                temp_path.unlink()
+            except OSError:
+                pass
+
+
+def _has_binary_formatter_string_prefix(raw: bytes, start: int, length: int) -> bool:
+    """识别 BinaryObjectString 的 ``record + objectId + 7-bit 长度`` 前缀。"""
+    for width in range(1, min(5, start) + 1):
+        prefix_start = start - width
+        encoded = raw[prefix_start:start]
+        if any(byte & 0x80 == 0 for byte in encoded[:-1]) or encoded[-1] & 0x80:
+            continue
+        value = 0
+        for index, byte in enumerate(encoded):
+            value |= (byte & 0x7F) << (7 * index)
+        # BinaryFormatter BinaryObjectString：record type 6 + Int32 object id。
+        if (
+            value == length
+            and prefix_start >= 5
+            and raw[prefix_start - 5] == 6
+        ):
+            return True
+    return False
+
+
+def _exact_key_offsets(raw: bytes, needle: bytes) -> list[int]:
+    """返回完整字符串 key 的偏移，拒绝任何字符串内部的同名子串。"""
+    pattern = re.compile(re.escape(needle))
+    offsets: list[int] = []
+    for match in pattern.finditer(raw):
+        start = match.start()
+        end = match.end()
+        # 真实 Save_universe.dat 使用 BinaryFormatter BinaryObjectString；只有
+        # 声明的 UTF-8 字节长度恰好等于 key，才能证明命中的是完整字符串。
+        binary_formatter_string = _has_binary_formatter_string_prefix(
+            raw, start, len(needle)
+        )
+        # 保留旧测试夹具/简单转储的兼容路径，但边界必须是明确的 NUL（或文件
+        # 首尾），不能把标点、Unicode 尾字节等任意非标识符字节当成字符串边界。
+        nul_delimited = (start == 0 or raw[start - 1] == 0) and (
+            end == len(raw) or raw[end] == 0
+        )
+        if binary_formatter_string or nul_delimited:
+            offsets.append(start)
+    return offsets
+
+
+def _reset_universe_dat(
+    save: Path, mod_id: str, read_keys: tuple[str, ...]
+) -> int:
+    """仅等长改写 .dat 内给定的完整 live key，返回改写次数。"""
     try:
         raw = save.read_bytes()
     except OSError:
         return 0
-    needle = f"MOD_{mod_id}_".encode("utf-8")
-    count = raw.count(needle)
+    offsets: set[int] = set()
+    for key in read_keys:
+        needle = key.encode("utf-8")
+        offsets.update(_exact_key_offsets(raw, needle))
+    count = len(offsets)
     if count == 0:
         return 0
     zombie = _choose_zombie_prefix(raw, mod_id)
+    updated = bytearray(raw)
+    for start in offsets:
+        updated[start : start + 4] = zombie[:4]
     try:
         _backup_once(save, raw)
-        save.write_bytes(raw.replace(needle, zombie))
+        _atomic_write_bytes(save, bytes(updated))
     except OSError as exc:
         raise GameInstallError(f"写入存档失败：{exc}") from exc
     return count
 
 
-def _reset_universe_json(path: Path, mod_id: str) -> int:
+def _reset_universe_json(
+    path: Path, mod_id: str, read_keys: tuple[str, ...]
+) -> int:
     """从 Save_universe.json 的 ReadStoryData 中移除该 mod 的已读条目。返回移除条数。"""
     if not path.is_file():
         return 0
@@ -765,7 +1283,7 @@ def _reset_universe_json(path: Path, mod_id: str) -> int:
     kept: list = []
     removed = 0
     for item in stories:
-        if _is_mod_read_story_key(item, mod_id):
+        if _is_mod_read_story_key(item, mod_id, read_keys):
             removed += 1
         else:
             kept.append(item)
@@ -774,7 +1292,9 @@ def _reset_universe_json(path: Path, mod_id: str) -> int:
     data["ReadStoryData"] = kept
     try:
         _backup_once(path, original)
-        path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        _atomic_write_bytes(
+            path, json.dumps(data, ensure_ascii=False).encode("utf-8")
+        )
     except OSError as exc:
         raise GameInstallError(f"写入存档失败：{exc}") from exc
     return removed
@@ -784,17 +1304,17 @@ def reset_story_read_state(
     mod_id: str,
     saves: list[Path] | None = None,
     extra_ids: list[str] | None = None,
+    read_keys_by_id: dict[str, list[str]] | None = None,
 ) -> list[tuple[Path, int]]:
     """把指定 mod 的全部已读文本记录重置为未读（对话不再变黄/可快进）。
 
     实现：
     - ``Save_universe.dat``（.NET BinaryFormatter）：已读 key 形如
-      ``MOD_<modid>_<script>_<node>``。把 live 前缀 ``MOD_<modid>_`` 等长改写为
-      文件中尚未出现的 4 字符僵尸前缀（``mod_`` / ``xod_`` / ``yod_`` …）——游戏查不到
-      即视为未读。等长替换不动结构；每次重重置选用未占用前缀，避免 Dictionary.Add
-      因重复 key 崩溃。无需解析 BinaryFormatter。
+      ``MOD_<modid>_<script>_<node>``。仅把 ``read_keys_by_id`` 给出的完整 live key
+      等长改写为文件中尚未出现的 4 字符僵尸前缀（``mod_`` / ``xod_`` / ``yod_`` …）。
+      BinaryFormatter 声明长度校验确保只改完整字符串，避免误伤内嵌或更长的 key。
     - 同目录 ``Save_universe.json``（JsonUtility 转储）：从 ``ReadStoryData`` 列表中
-      **移除** 匹配该 mod 的条目（``MOD_`` 及任意僵尸前缀，大小写不敏感），干净清空。
+       **移除** 与完整 key 匹配的条目（``MOD_`` 及任意僵尸前缀，大小写不敏感）。
 
     写入前各写一次 ``.lomkit_bak`` 备份（已存在则不覆盖）。
 
@@ -802,6 +1322,8 @@ def reset_story_read_state(
     每个 dat 的兄弟 json 会一并处理。
 
     extra_ids：额外一并清理的 mod id（编辑器 F5 试玩包 ``lom_modkit_preview``）。
+
+    read_keys_by_id：每个 mod id 对应的完整已读 key；这是防止前缀碰撞所必需的。
 
     注意：必须在游戏关闭后调用——运行中的游戏会在下次存档时把内存里的旧清单写回。
     返回 [(路径, 重置/移除条数)]，含 dat 与 json；无改动时返回空列表。
@@ -817,15 +1339,25 @@ def reset_story_read_state(
         ids.append(candidate)
     if not ids:
         raise GameInstallError("Mod 标识不可用（只允许小写英文、数字、_ 和 -）")
+    if read_keys_by_id is None:
+        raise GameInstallError("重置已读状态需要当前项目的完整对白 key 清单")
+    validated: dict[str, tuple[str, ...]] = {}
+    for mid in ids:
+        if mid not in read_keys_by_id:
+            raise GameInstallError(f"缺少 mod「{mid}」的完整对白 key 清单")
+        validated[mid] = _validated_read_story_keys(mid, read_keys_by_id[mid])
     results: list[tuple[Path, int]] = []
     dat_paths = saves if saves is not None else find_universe_saves()
     for mid in ids:
+        read_keys = validated[mid]
+        if not read_keys:
+            continue
         for save in dat_paths:
-            dat_count = _reset_universe_dat(save, mid)
+            dat_count = _reset_universe_dat(save, mid, read_keys)
             if dat_count:
                 results.append((save, dat_count))
             json_path = save.with_suffix(".json")
-            json_count = _reset_universe_json(json_path, mid)
+            json_count = _reset_universe_json(json_path, mid, read_keys)
             if json_count:
                 results.append((json_path, json_count))
     return results

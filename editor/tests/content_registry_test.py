@@ -54,6 +54,15 @@ class ContentRegistryTest(unittest.TestCase):
         path.write_bytes(_minimal_wav())
         return path
 
+    def _write_png(self, name="image.png") -> Path:
+        path = Path(self.temp.name) / name
+        path.write_bytes(
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+            b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\xcf\xc0"
+            b"\x00\x00\x00\x03\x00\x01\x00\x05\xfe\xd4\xef\x00\x00\x00\x00IEND\xaeB`\x82"
+        )
+        return path
+
     def test_register_resolve_list(self):
         src = self._write_wav()
         rec = content_registry.register_audio(src, "mohui.battle", "决战曲", "music")
@@ -65,12 +74,75 @@ class ContentRegistryTest(unittest.TestCase):
         self.assertEqual(got.content_id, "mohui.battle")
         self.assertTrue(main.is_file())
 
+    def test_listing_migrates_legacy_content_with_backup(self):
+        src = self._write_wav("legacy.wav")
+        rec = content_registry.register_audio(
+            src, "mohui.legacy", "旧内容", "sound"
+        )
+        meta_path = rec.folder / "content.json"
+        legacy = json.loads(meta_path.read_text(encoding="utf-8"))
+        legacy.pop("content_schema")
+        legacy["vendor_extension"] = {"keep": True}
+        original = json.dumps(legacy, ensure_ascii=False).encode("utf-8")
+        meta_path.write_bytes(original)
+
+        listed = content_registry.list_contents(content_type="audio")
+        self.assertEqual([item.content_id for item in listed], ["mohui.legacy"])
+        current = json.loads(meta_path.read_text(encoding="utf-8"))
+        self.assertEqual(current["content_schema"], 1)
+        self.assertEqual(current["vendor_extension"], {"keep": True})
+        backup = meta_path.with_name(meta_path.name + ".pre-migration-v1.bak")
+        self.assertEqual(backup.read_bytes(), original)
+
+    def test_generic_image_register_thumbnail_source_and_references(self):
+        src = self._write_png("moon.jpeg")
+        rec = content_registry.register_image(src, "mohui.moon_bg", "月夜")
+        self.assertEqual(rec.type, "image")
+        self.assertEqual(rec.ref, "user:mohui.moon_bg")
+        self.assertTrue((rec.folder / rec.main_file).is_file())
+        got, main = content_registry.resolve(
+            rec.ref, expected_type="image"
+        )
+        self.assertEqual(got.name, "月夜")
+        self.assertEqual(main, rec.folder / rec.main_file)
+        renamed = content_registry.update_image(rec.content_id, "月夜改")
+        self.assertEqual(renamed.name, "月夜改")
+        stories = {
+            "main": {
+                "nodes": [
+                    {
+                        "id": "n1",
+                        "type": "future_image_node",
+                        "image": rec.ref,
+                    }
+                ]
+            }
+        }
+        refs = content_registry.find_references(rec.content_id, stories)
+        self.assertEqual([(r["story_id"], r["node_id"]) for r in refs], [("main", "n1")])
+        with self.assertRaises(content_registry.ContentRegistryError):
+            content_registry.remove(rec.content_id, stories=stories)
+        target = Path(self.temp.name) / "mod_copy"
+        copied = content_registry.copy_into_mod(
+            target, rec.content_id, expected_type="image"
+        )
+        self.assertTrue((copied / "content.json").is_file())
+        self.assertTrue((copied / rec.main_file).is_file())
+
     def test_duplicate_id(self):
         src = self._write_wav()
         content_registry.register_audio(src, "mohui.battle", "一", "music")
         with self.assertRaises(content_registry.ContentRegistryError) as cm:
             content_registry.register_audio(src, "mohui.battle", "二", "music")
         self.assertIn("已存在", str(cm.exception))
+
+    def test_content_id_is_unique_across_types(self):
+        audio = self._write_wav("same.wav")
+        image = self._write_png("same.png")
+        content_registry.register_audio(audio, "mohui.same", "音频", "sound")
+        with self.assertRaises(content_registry.ContentRegistryError) as cm:
+            content_registry.register_image(image, "mohui.same", "图片")
+        self.assertIn("所有类型之间必须唯一", str(cm.exception))
 
     def test_illegal_id(self):
         src = self._write_wav()
@@ -223,6 +295,9 @@ class ContentRegistryTest(unittest.TestCase):
         self.assertEqual(with_intro.title, "江湖新秀")
         self.assertEqual(with_intro.scale, 80)
         self.assertEqual(with_intro.art_facing, "right")
+        copied = Path(self.temp.name) / "copied_mod"
+        copied_dir = content_registry.copy_into_mod(copied, "mohui.luoxue")
+        self.assertTrue((copied_dir / with_intro.intro["image"]).is_file())
         cleared = content_registry.update_character_intro("mohui.luoxue", clear=True)
         self.assertIsNone(cleared.intro)
         # 称号仍保留

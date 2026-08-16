@@ -1,4 +1,5 @@
 {
+  "story_schema": 1,
   "id": "train_affinity",
   "title": "练武场·四师兄吹牛会（好感≥3）",
   "start": "n1",

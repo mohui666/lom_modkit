@@ -1,6 +1,6 @@
 # 活俠傳 Mod パッケージ形式（v3 契約）
 
-> 言語：[简体中文](../zh_CN/mod_format.md) · [繁體中文](../zh_TW/mod_format.md) · 日本語（本文） · [한국어](../ko/mod_format.md)
+> 言語：[简体中文](../chs/mod_format.md) · [繁體中文](../cht/mod_format.md) · 日本語（本文） · [한국어](../ko/mod_format.md)
 
 **すべてのコンポーネント（エディター / コンパイラー / ランタイムプラグイン）は本ドキュメントを正とします。** 変更時は本ドキュメントも同期して更新してください。
 文中のルールに対応する公式スクリプト／逆コンパイルの実証資料は `../research/` を参照。本文では繰り返し展開しません。
@@ -14,6 +14,7 @@ manifest.json          # 必填，包元信息
 story/<id>.json        # 必填≥1，剧情源文件（编辑器可编辑的源格式）
 lua/<id>.lua           # 必填≥1，编译产物（运行时只读这里）；每个 story/<id>.json 对应一个
 texts.json             # 必填，已读文本表：{MOD_<modid>_<scriptid>_<nodeid>: 文本}（say 节点文本）
+package-content.sha256 # 必須。圧縮に依存しない論理コンテンツ SHA-256
 assets/                # 可选，自定义资源
                        #   图片：结局插图 / 人物介绍图 PNG/JPG
                        #   用户音频：assets/user/audio/<content_id>/
@@ -23,12 +24,20 @@ assets/                # 可选，自定义资源
 - エクスポート（パッケージング）時は必ず再コンパイルします：story/*.json → lua/*.lua。両者は同名です。
 - ランタイムプラグインが読むのは **manifest.json、lua/ ディレクトリと assets/ のみ**です。story/*.json はエディターが再読込／再編集するためのものです。コンパイラーはシナリオが明示的に参照する PNG/JPG（1 枚 ≤8MB）と明示的に参照される `user:` 音声のみを同梱します。エクスポートされた `.lommod` は自己完結しており、プレイヤーのマシンにエディターのリポジトリは不要です。
 - texts.json はパッケージング時に自動生成されます：各 story の全 **say** ノードのテキストを収集し、key は lua 内の `GetStoryText` の key と一対一で対応します。ランタイムで LeanLocalization に登録されます（§4/§6 参照）。**death テキストは texts.json に入りません**：codegen が `mod_set_death_text(<タイトル>, <テキスト>)` の 2 引数 lua_str リテラルとして出力します（§3.1/§6 参照）。
+- エントリー、JSON、Lua、ZIP の時刻／権限を固定し、同一 Python/zlib ツールチェーンでは同一入力をバイト単位で再現します。`package-content.sha256` は圧縮結果に依存しない論理内容ハッシュです。異なるツールチェーン間の完全な reproducible build は保証せず、このハッシュも署名や公式認証ではありません。
+- エディターの「ファイル → Mod パッケージを検査」は Manifest、Story、Lua、Texts、アセット、ユーザーコンテンツ、サイズ、各 SHA-256 を読み取り専用で表示し、互換性、形式、論理ハッシュ、参照差分を検査します。Lua の実行、ディスクへの展開、内容のインポートは行いません。
 
 ## 2. manifest.json
 
 ```json
 {
   "format": 1,
+  "package_format": 1,
+  "story_schema": 1,
+  "content_schema": 1,
+  "min_host_version": "0.6.0",
+  "tested_host_version": "0.6.0",
+  "tested_game_version": "1.2.3",
   "id": "demo_mod",
   "name": "示例 Mod",
   "version": "1.0.0",
@@ -45,9 +54,14 @@ assets/                # 可选，自定义资源
 }
 ```
 
+`package_format` / `story_schema` / `content_schema` は、それぞれパッケージ、Story、ユーザーコンテンツの明示的な形式バージョンで、現在はすべて `1` 固定です。`format: 1` は旧 reader 互換用です。未知のバージョンや矛盾する宣言はエディター、コンパイラー、Runtime のすべてで拒否されます。
+
+旧 v1 の Story／ユーザーコンテンツは、元のバイト列を `*.pre-migration-v1.bak` に保存してから、同一ディレクトリ内で原子的に移行します。検証・バックアップ・置換に失敗した場合、元ファイルは変更されません。未知フィールドは保持され、`migration.restore_migration_backup` で明示的に復元できます。旧 `.lommod` のインポートはメモリ上のコピーだけを移行し、元パッケージを変更しません。
+
 - `format`：固定で `1`。
 - `id`：mod の一意な id（`[a-z0-9_\-]+`）。ランタイムの登録名プレフィックスとして衝突を防ぎます。
 - `entry`：エントリーのシナリオスクリプト id。必ず存在すること。
+- `min_host_version` は SemVer のハード要件、`tested_host_version` を現在の Host が超える場合は警告のみです。`game_version` は Unity の実際の `Application.version` と完全一致するハード要件、`tested_game_version` は不一致時の警告です。4 項目はすべて任意で、未指定の旧 manifest は従来どおり動作します。
 - `campaign`（任意）：キャンペーンモード。
   - `new_game`：true のとき、ゲーム内 mod メニューの「新しいキャンペーンを開始」区に表示され、クリックすると**分離セーブスロット**（`SetSlot("mod_<modid>")`。プレイヤーの通常セーブを上書きしない）で新規ゲームを開始し、最初のシナリオスクリプトを本 mod の `entry` に置き換えます。
   - `disable_official_events`（任意、bool、既定 false）：true のとき本キャンペーンは**公式シナリオイベントを無効化**します——Free に戻っても場所なしメイン／サブイベントを自動開始せず、マップ地点には本 mod のトリガーのみが残ります（未命中の場合その地点の既定アクティビティは使用不可。mod 側でフォールバックトリガーを用意する必要があります）。
@@ -76,6 +90,7 @@ assets/                # 可选，自定义资源
 
 ```json
 {
+  "story_schema": 1,
   "id": "main",
   "title": "显示给玩家的标题",
   "mood": false,
@@ -90,7 +105,9 @@ assets/                # 可选，自定义资源
 - `choice` / `branch` / `dice` の分岐は必ず `goto` で対象ノード id を指します。
 - 複数の先行ノードが同一ノードに合流（合流点）するのは合法です。
 
-### 3.1 ノードタイプ（全 43 種）
+### 3.1 ノードタイプ（全 63 種）
+
+この表が現在の合法ノードすべてです。`combat` / `battle` は原作テンプレートを使う高レベル編成です。戦闘機能は逆コンパイル確認済み原作 API だけを呼び、`mod_quest` は原作 Mission ID に触れない Host 状態機を使います。
 
 **演出系**
 
@@ -99,6 +116,9 @@ assets/                # 可选，自定义资源
 | `music` | `name`；任意 `op`("play"既定/"stop"/"fadeout")、fadeout 時は `seconds`(既定2) | 公式名に従い `PlayMusic` / `StopMusic` / `FadeOutMusic(seconds)` の後に **`wait(seconds)`**。`name` が `user:` で始まる場合はユーザーコンテンツ参照（§8）で、ランタイムが**現在のパッケージ**の `assets/user/` から解決して再生します。ローカル絶対パスは禁止 |
 | `sound` | `name`；任意 `kind`("sound"既定/"env")、`op`("play"既定/"fadeout"は env のみ、`seconds`既定1) | 公式名に従い `PlaySound` / `PlayEnvSound` / `FadeOutEnvSound(seconds)` の後に同様に **`wait(seconds)`**。`user:` 参照ルールは music と同じで、`audio_kind` がノードと一致している必要があります |
 | `scene` | `view` | シーン切替：`runblock(flowcharts.view,"out")` の後 `ViewName=view; runblock(...,"view")`。`view="out"` はフェードアウトのみ。`"black"/"white"` は単色。単色以外の view は先に `runwait(flowcharts.LoadView(view))` で背景アセットをプリロードします（プリロードしないと背景が真っ黒になります） |
+| `background` | `action`(`set`/`show`/`replace`/`fadein`/`fadeout`/`clear`)。表示系は `image`(`user:` 画像)必須、`fade`(既定0.5)任意 | 現在のパッケージ内ユーザー画像をカスタム背景として表示。章・公式 `scene`・シーン切替・再読込時に自動消去し、原版 View 資源は変更しません |
+| `custom_cg` | `action`(`show`/`hide`)。show は `image` 必須、`fade`・`scale`・`x/y` 任意 | 人物レイヤー前にユーザー画像 CG を表示。拡大率と中心位置を調整でき、hide・章・シーン切替時に消去します。公式 `cg` は変更しません |
+| `overlay` | `action`(`show`/`hide`) と `slot` 必須。show は `image` 必須。`position`・`scale`・`opacity`・`layer`・`fade` 任意 | 複数スロットの前景・小道具・挿絵・マスク。同じスロットは置換でき、章・シーン切替時に消去します |
 | `show` | `character`, `position`；任意 `portrait`(既定normal), `facing`(既定right), `fadeDuration`(0), `moveDuration`(0) | 人物を読み込んで表示。story.mood が false のとき末尾（Focus の後）に `mod_hide_mood()` を追加 |
 | `move` | `character`, `from`, `to`；任意 `duration`(既定1) | 移動して `wait(duration)` |
 | `face` | `character`, `facing` | 向き変更 |
@@ -133,6 +153,17 @@ assets/                # 可选，自定义资源
 | `game_flag` | `flag`, `value`；任意 `op`("set"既定/"add") | 公式クエスト flag：`SetFlag(id, 状態)` / `AddFlag(id, ±増分)`。**id はゲーム既存の FlagData でなければなりません**（14_属性とFlag 表）。さもないとゲームが黙って無視します |
 | `enemy` | `op`("team"=結束力/"level"=門派規模/"people"=門派人数/"id"=現在の敵対門派を選択), `enemy`(戦役門派 id), `value`(変化量、id 操作では不要), `display`(team/people のみ、既定1) | **Battle の多人数戦役**で使う門派状態を変更する `ModifyEnemyTeam/Level/People/Id`。Combat の一対一決闘の敵設定ではありません |
 | `battle_skill` | `op`("set"/"active"/"reset"), `key`(reset は不要), `index`(set 用、既定2), `active`(active 用、既定1) | 戦場スキル `SetPlayerBattleSkill/SetBattleSkillActive/ResetBattleSkill` |
+| `battle_setup` | 任意の敵設定、`reset_skills`、`skills:[{key,index,active}]`。最低 1 項 | 確認済みの原作敵設定・戦場スキル API だけを集約し、マップ／AI／機構は変更しません |
+| `combat` | `win`, `lose`。原作一対一キャラクター／場面 `key` と `preset` は二者択一。相手 HP、スタミナ、9 能力、才能、3 奥義、5 行動確率を任意指定 | 今回の Combat が原作データを読む時だけ相手を上書きし、`CombatManager.GameOver(bool)` の実結果を返します。draw/escape は非対応 |
+| `battle` | `win`, `lose`。`key` と `preset` は二者択一。味方／敵／中立 roster、各人数と NPC HP、プレイヤースキルを任意指定 | 今回の Battle で三つの原作編成を別々に再利用し、finish=true の `FriendWin/EnemyWin` だけを返します。`PlayerDie(false)` は原作のままです |
+| `battle_result` | `win`, `lose`。任意 `kind`("any"/"combat"/"battle") | 完全なパッケージ指紋とシナリオ id に結び付いた Host の実結果を読み、確認済み win/lose だけを分岐します。結果なし／型不一致は fail-closed |
+| `reward` | `entries`(1~32)：stat/affinity/talent/item/flag | 既存の能力、好感度、才能、アイテム、フラグ原子 API にコンパイル時展開します |
+| `result_screen` | 非空 `title`、`entries`（reward と同じ）、任意 `text` | 公式 `mainui.DisplayMessageText` でタイトルと説明を表示してから既存の報酬 API を実行します。独自の結果 UI は作りません |
+| `custom_shop` | `items`(1~64)：book/misc/special の原作アイテム id、在庫、任意の MOD/原作条件。任意 `discount`(0/1) | 原作 `ShopDatabase` 在庫を一時置換して `ShopPanel` を開き、終了または障害時に復元します。価格は原作の一括割引のみで、商品別 `price` は非対応です |
+| `stat_check` / `affinity_check` / `item_check` / `talent_check` / `flag_check` | 判定対象、成功先、失敗先。数値判定は比較演算子としきい値も指定 | 検証済み原作 API / 読み取り専用 Host bridge だけで二分します |
+| `activity` | 活動種別、能力値判定、成功／失敗先。任意で表示、時間進行、両側の報酬 | 既存の表示、能力、時間、報酬 API にコンパイル時展開し、新しい活動エンジンは追加しません |
+| `mod_quest` / `quest_check` | 安全なクエスト id、状態操作、または対象状態と二分先 | package id + 完全 SHA-256 で分離された Host キャンペーンセッション状態。原作 Mission ID を使わず、Story/Free を跨ぎますが再起動は跨ぎません |
+| `persistent_var` / `persistent_check` | 安全な変数名、set/add、または整数比較と二分先 | Int32 状態を現在の `mod_<id>` 専用スロットにのみ結び付け、原作 `SaveGameData` 成功後に Host sidecar へ原子的に保存します。GameSave は変更せず、未定義値は 0 です |
 | `mission` | `name`, `key` | クエスト操作 `statmodifymanager.Mission(name, key)`：`Mission("Main","M0001")` でメイン進行 / `Mission("S2200","clear")` でサブクリア |
 | `time` | `op`("set"/"round"/"month"/"mission")；set は `year,month,stage`；mission は `name,year,month,stage` | 時間 `SetGameTime/NextRound/NextMonth/SetMissionTime` |
 | `autosave` | 任意 `kind`("story"既定/"free"/"prologue")；任意 `save_button`(0/1、セーブボタンを個別制御) | `AutoSave()/AutoFreeSave()/PrologueSave(mode)`。`save_button` は単独で `ToggleSaveButton(n)` を emit |
@@ -343,7 +374,8 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 
 1. 起動時に `BepInEx/plugins/MortalModHost/mods/*.lommod` をスキャンし、`MOD_<modid>_<scriptid>` → lua テキストを登録します。
 2. Harmony prefix `LuaManager.ExecuteLuaScript()`：登録名に命中した場合は mod の lua で実行し、元メソッドをスキップします。
-3. 入口：Free フリーシーンと Title タイトル画面左下の「活侠MOD」ボタン + F8（設定可）でメニューを開きます。Free メニューは「mod シナリオを演出」と「新しいキャンペーンを開始」の 2 区。Title メニューは「新しいキャンペーンを開始」区のみ（シナリオ演出には読み込み済みセーブのプレイヤー状態が必要なため Free でのみ提供）。
+3. 入口：Free は「活侠MOD」と F8 を維持。Title では原作「ゲーム開始」の上に同じ外観の「MOD キャンペーン開始」を表示します。原作ロードスロットを再利用し、既存 MOD セーブを続行、「新規キャンペーン」空きスロットから Mod を選択します。閉じると原作 001～020 を再構築します。
+   - **完全セーブ分離**：MOD 手動スロットは `mod_<id>`、三種の自動スロットは `mod_<id>_auto*`。Universe の最近スロットは最後の原作スロットだけを記録し、原作「続きから」が MOD に入りません。
 4. **キャンペーン**：「新しいキャンペーンを開始」クリック → `SetSlot("mod_<modid>")`（分離セーブスロット）→ 公式 `NewGameData()` → postfix が最初のシナリオスクリプトをその mod の entry に置き換え → LoadStory。
 5. **原版シナリオ抑制と位置トリガー**：`disable_official_events` または F7 が有効なとき、`UpdateCheckMissions` 内でメインのトリガー状態を一時的に隠し、`HasAnyMissionTrigger` を false にして、Free 復帰時に公式メイン／サブが自動開始するのを防ぎます。地点クリックの postfix `FreePositionData.GetExecuteScript` は manifest.triggers を優先マッチし、mod の命中がない場合は公式地点の既定スクリプトを抑制します。
 6. **フォールバック**：Story シーンが要求した MOD_ スクリプトが未登録（mod が削除された）の場合、実行せず `ChangeScene("Free","","")` でソフトロックを防ぎます。
@@ -362,7 +394,9 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 16. **mod シナリオでのダイス範囲変更の開放**：公式の「修改范围」ボタンは 2 周目かつ実績 30016 所持を要求します。mod シナリオ中（`CurrentStoryScript` が `MOD_` で始まる）は `get_NewGamePlus` prefix を true 返しにし、かつ `CheckRevolution` の元の戻り値が true のとき `_rangeButton` を直接アクティブにします（mod 内で公式実績 30016 をアンロックせず、公式セーブの汚染を回避）。公式シナリオにはまったく影響しません。
 17. **ユーザー音声**：`LuaManager.PlayMusic/PlaySound/PlayEnvSound` の引数が `user:` で始まる場合はプラグインが引き継ぎ、**現在演出中の Mod パッケージ**の `UserContents` から解決（`assets/user/audio/<id>/content.json` + メインファイル）してデコード後に Windows `waveOut` で再生します（本ゲームのメインミックスは Wwise で、Unity `AudioSource` はしばしば無音）。公式名は一律そのまま原版 Wwise に渡します。ランタイムは `%APPDATA%/lom_modkit/repository` を読みません。2 つの Mod が同じ ID を持っていても自身のパッケージのみを解決します。対応フォーマットは `.ogg` / `.wav` のみ、1 件 ≤20MB。カスタム fadeout は出力音量のフェードアウト（その後もコンパイラー出力の `wait` は続きます）。カスタム音楽への切替時は先に公式 Wwise 音楽を停止します（公式 `StopMusic` は環境音も同時にクリアします）。
 18. **セリフボイス**：`mod_play_voice(ref)` / `mod_stop_voice()` を登録。`mod_play_voice` は現在のボイスを先に停止してから再生（ループなし、独立 `_voice` チャンネル）。`sound` ノード、カスタム効果音、`StopMusic` はいずれもこのチャンネルに触れません。シナリオ中断、公式スクリプトへの切替、Mod の再読み込み時は `StopEverything()` がボイスを停止します。`voice` のない旧 Lua はこれらの関数を呼ばないため、動作は変わりません。
-19. **ゲーム内 Mod メニューの多言語**：メニュー文案（`src/I18n.cs` に zh_CN/zh_TW/ja/ko の 4 言語カタログを内蔵）はゲームの現在の言語に従います——リフレクションで LeanLocalization の `CurrentLanguage` を読み、言語名を曖昧マッチ。公式ゲーム自体に日本語オプションはないため、日本語カタログが実際に発火することはありません。検出失敗時は一律 zh_CN にフォールバック。詳細は `i18n.md` を参照。
+19. **ゲーム内 Mod メニューの多言語**：メニュー文案（`src/I18n.cs` に chs/cht/ja/ko の 4 言語カタログを内蔵）はゲームの現在の言語に従います——リフレクションで LeanLocalization の `CurrentLanguage` を読み、言語名を曖昧マッチ。公式ゲーム自体に日本語オプションはないため、日本語カタログが実際に発火することはありません。検出失敗時は一律 chs にフォールバック。詳細は `i18n.md` を参照。
+
+20. **構造化 Runtime エラー**：Mod 再生を fail-closed で中止する障害は、一行の `[mod-runtime-error]` JSON ログとして記録されます。固定項目は `mod_id`、`mod_name`、`version`、`story`、`node`、`category`、`error`、`recent_trace` と UTC 時刻です。通常 Mod は変数値を含まないノード/遷移 breadcrumb を最大 32 件だけ保持し、エラーには最大 16 件を長さ制限付きで添付します。F5 の完全な 256 件開発 trace は従来どおりです。例外整形、trace 取得、JSON 化、ログ出力自体が失敗しても最小レポートへ退避し、元の障害や安全な Free 復帰を妨げません。最後のレポートは診断バンドル用にメモリ保持します。
 
 ## 7. AI ツールインターフェース（story_api）
 
@@ -373,7 +407,7 @@ transition の黒幕、choice スキンクラッシュ、背景の黒画面、�
 - Python API：
   - `load_editor_data()`：エディターデータ（dice_meta などの一覧を含む）を読み、(editor_data, is_fallback) を返す
   - `new_story(story_id="main", title="新剧情", mood=False)`：新規シナリオスクリプト（show 登場 + 空 say の 2 ノード開場。先に登場させてから動作）
-  - `add_node(story, node_type, fields=None, after=None)`：models 既定値でノードを追加（43 種）。未知のタイプ／フィールド／型不一致→ValueError。ノード id は自動生成。after で挿入位置を指定（ノード id または None=末尾）。登場防線：動作系ノードの対象人物がそれ以前に未登場／退場済みの場合、その前に show を自動挿入
+  - `add_node(story, node_type, fields=None, after=None)`：models 既定値でノードを追加（63 種）。未知のタイプ／フィールド／型不一致→ValueError。ノード id は自動生成。after で挿入位置を指定（ノード id または None=末尾）。登場防線：動作系ノードの対象人物がそれ以前に未登場／退場済みの場合、その前に show を自動挿入
   - `update_node(story, node_id, fields)`：ノードフィールドを更新（add と同じフィールド検証）。ノード不存在→ValueError。登場防線：更新後に動作人物が未登場／退場済みなら、そのノードの前に show を自動挿入し、それを指す goto／選択肢／分岐ジャンプを新ノードへ付け替え
   - `get_node(story, node_id)`：ノードを読む。不存在→ValueError
   - `list_nodes(story)`：[{"id","type","summary"}] の一覧を返す
@@ -421,6 +455,7 @@ assets/user/audio/mohui.boss_theme/boss_theme.ogg
 ```json
 {
   "schema": 1,
+  "content_schema": 1,
   "id": "mohui.boss_theme",
   "type": "audio",
   "name": "决战曲",

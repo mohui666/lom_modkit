@@ -136,7 +136,22 @@ def _hint_text(node: dict, ed: dict) -> str | None:
     返回 None 表示该类型有真实的舞台呈现（show/move/face/hide/scene/say/choice）。
     """
     t = str(node.get("type") or "")
-    if t in ("show", "move", "face", "hide", "scene", "say", "choice"):
+    if t in (
+        "show",
+        "move",
+        "face",
+        "hide",
+        "scene",
+        "background",
+        "custom_cg",
+        "overlay",
+        "say",
+        "choice",
+        "offset",
+        "shock",
+        "dim",
+        "rotate",
+    ):
         return None
 
     def cname() -> str:
@@ -246,6 +261,38 @@ def _hint_text(node: dict, ed: dict) -> str | None:
             f"[战场技能] {models.enum_label('battle_skill_op', node.get('op', 'set'))}"
             f" {node.get('key', '')}"
         )
+    if t == "battle_setup":
+        return (
+            f"[战前配置] 敌方 {node.get('enemy', '') or '不变'}｜"
+            f"我方技能 {len(node.get('skills', []))} 项"
+        )
+    if t == "combat":
+        return (
+            f"[战斗] 原版 Combat {node.get('preset') or node.get('key', '')}｜"
+            f"胜利→{node.get('win', '')}｜失败→{node.get('lose', '')}"
+        )
+    if t == "battle":
+        return (
+            f"[战役] 原版 Battle {node.get('preset') or node.get('key', '')}｜"
+            f"友军胜→{node.get('win', '')}｜敌军胜→{node.get('lose', '')}"
+        )
+    if t == "battle_result":
+        return (
+            f"[战斗结果] {node.get('kind', 'any')}｜"
+            f"胜利→{node.get('win', '')}｜失败→{node.get('lose', '')}"
+        )
+    if t == "reward":
+        return f"[战斗奖励] {len(node.get('entries', []))} 项"
+    if t == "result_screen":
+        return (
+            f"[自定义结算] {node.get('title', '')}｜"
+            f"发放 {len(node.get('entries', []))} 项奖励"
+        )
+    if t.endswith("_check") or t == "activity":
+        return (
+            f"[{models.NODE_TYPE_CN.get(t, t)}] "
+            f"成功→{node.get('success', '')}｜失败→{node.get('failure', '')}"
+        )
     if t == "mission":
         return f"[任务] {node.get('name', '')} {node.get('key', '')}"
     if t == "time":
@@ -290,9 +337,39 @@ def _apply_node(state: dict, node: dict, ed: dict | None = None) -> None:
     state["dialog"] = None
     state["choice"] = None
     state["hint"] = None
+    for actor in actors.values():
+        actor["shocked"] = False
 
     if t == "scene":
         state["view"] = node.get("view") or None
+        state["background"] = None
+    elif t == "background":
+        if node.get("action", "show") in ("fadeout", "clear"):
+            state["background"] = None
+        else:
+            state["background"] = node.get("image") or None
+    elif t == "custom_cg":
+        if node.get("action", "show") == "hide":
+            state["custom_cg"] = None
+        else:
+            state["custom_cg"] = {
+                "image": node.get("image") or None,
+                "scale": node.get("scale", 100),
+                "x": node.get("x", 0),
+                "y": node.get("y", 0),
+            }
+    elif t == "overlay":
+        slot = str(node.get("slot") or "main")
+        if node.get("action", "show") == "hide":
+            state["overlays"].pop(slot, None)
+        else:
+            state["overlays"][slot] = {
+                "image": node.get("image") or None,
+                "position": node.get("position", "center"),
+                "scale": node.get("scale", 100),
+                "opacity": node.get("opacity", 100),
+                "layer": node.get("layer", "front"),
+            }
     elif t == "show":
         cid = node.get("character") or ""
         if cid:
@@ -300,6 +377,11 @@ def _apply_node(state: dict, node: dict, ed: dict | None = None) -> None:
                 "position": node.get("position") or "M",
                 "portrait": node.get("portrait") or "normal",
                 "facing": node.get("facing") or "right",
+                "offset_x": 0,
+                "offset_y": 0,
+                "rotation": 0,
+                "dimmed": False,
+                "shocked": False,
             }
     elif t == "move":
         cid = node.get("character") or ""
@@ -309,6 +391,23 @@ def _apply_node(state: dict, node: dict, ed: dict | None = None) -> None:
         cid = node.get("character") or ""
         if cid in actors and node.get("facing"):
             actors[cid]["facing"] = node["facing"]
+    elif t == "offset":
+        cid = node.get("character") or ""
+        if cid in actors:
+            actors[cid]["offset_x"] = actors[cid].get("offset_x", 0) + node.get("x", 0)
+            actors[cid]["offset_y"] = actors[cid].get("offset_y", 0) + node.get("y", 0)
+    elif t == "shock":
+        cid = node.get("character") or ""
+        if cid in actors:
+            actors[cid]["shocked"] = True
+    elif t == "dim":
+        cid = node.get("character") or ""
+        if cid in actors:
+            actors[cid]["dimmed"] = bool(node.get("dimmed"))
+    elif t == "rotate":
+        cid = node.get("character") or ""
+        if cid in actors:
+            actors[cid]["rotation"] = node.get("angle", 0)
     elif t == "hide":
         actors.pop(node.get("character") or "", None)
     elif t == "say":
@@ -333,7 +432,11 @@ def _apply_node(state: dict, node: dict, ed: dict | None = None) -> None:
 def _next_node(node: dict, idx: int, nodes: list) -> str | None:
     """决定下一步节点 id：choice/branch/dice 走分支，显式 goto 优先，否则顺序。"""
     t = node.get("type")
-    if t in ("end", "goto_scene"):
+    if t in (
+        "end", "goto_scene", "death", "combat", "battle", "battle_result",
+        "stat_check", "affinity_check", "item_check", "talent_check", "flag_check", "activity",
+        "quest_check", "persistent_check",
+    ):
         return None  # 脚本终止/跳离当前场景：推演到此为止
     if t == "choice":
         for opt in node.get("options", []):
@@ -413,6 +516,9 @@ def simulate_stage(
     """
     state = {
         "view": None,
+        "background": None,
+        "custom_cg": None,
+        "overlays": {},
         "actors": {},
         "dialog": None,
         "choice": None,
@@ -502,12 +608,34 @@ def build_playtest_prelude(
     """
     state = simulate_stage(story, target_id, editor_data, include_target=False)
     view = state.get("view")
+    background = state.get("background")
+    custom_cg = state.get("custom_cg")
+    overlays = state.get("overlays") or {}
     actors = state.get("actors") or {}
 
     stage_nodes: list[dict] = []
     # view="out" 只是淡出，无可重建的画面，跳过（否则前导反而把屏幕淡出）
     if view and view != "out":
         stage_nodes.append({"type": "scene", "view": view})
+    if background:
+        stage_nodes.append(
+            {"type": "background", "action": "set", "image": background}
+        )
+    for slot, overlay in sorted(overlays.items()):
+        if overlay.get("image"):
+            stage_nodes.append(
+                {
+                    "type": "overlay",
+                    "action": "show",
+                    "slot": slot,
+                    "image": overlay["image"],
+                    "position": overlay.get("position", "center"),
+                    "scale": overlay.get("scale", 100),
+                    "opacity": overlay.get("opacity", 100),
+                    "layer": overlay.get("layer", "front"),
+                    "fade": 0,
+                }
+            )
     # 按站位 x 从左到右依次上场，id 兜底保证确定性
     ordered = sorted(
         actors.items(),
@@ -521,6 +649,18 @@ def build_playtest_prelude(
                 "position": info.get("position") or "M",
                 "portrait": info.get("portrait") or "normal",
                 "facing": info.get("facing") or "right",
+            }
+        )
+    if custom_cg and custom_cg.get("image"):
+        stage_nodes.append(
+            {
+                "type": "custom_cg",
+                "action": "show",
+                "image": custom_cg["image"],
+                "fade": 0,
+                "scale": custom_cg.get("scale", 100),
+                "x": custom_cg.get("x", 0),
+                "y": custom_cg.get("y", 0),
             }
         )
     if not stage_nodes:
@@ -613,14 +753,16 @@ class StagePreview(QWidget):
             _key, pix = self._pix_cache.popitem(last=False)
             self._cache_bytes -= self._pix_bytes(pix)
 
-    def _load_pixmap(self, rel_path: str | None) -> QPixmap:
+    def _load_pixmap(self, rel_path: str | Path | None) -> QPixmap:
         """按相对 data/ 的路径加载图片（LRU 缓存 + 加载即降采样）。
 
         任何失败（文件缺失/损坏/解码异常）都返回 null QPixmap，调用方走占位图。
         """
         if not rel_path:
             return QPixmap()
-        key = rel_path.replace("\\", "/")
+        # content_registry.resolve() 返回 pathlib.Path；预览映射则通常返回 str。
+        # 必须先统一成文本，否则 Path.replace 是“移动文件”API，并不是字符串替换。
+        key = str(rel_path).replace("\\", "/")
         hit = self._pix_cache.get(key)
         if hit is not None:
             self._pix_cache.move_to_end(key)
@@ -764,7 +906,10 @@ class StagePreview(QWidget):
                 self._paint_caption(p, rect)
                 return
             self._paint_background(p, rect)
+            self._paint_overlays(p, rect, "back")
             self._paint_actors(p, rect)
+            self._paint_custom_cg(p, rect)
+            self._paint_overlays(p, rect, "front")
             self._paint_dialog(p, rect)
             self._paint_hint(p, rect)
             self._paint_choices(p, rect)
@@ -1034,9 +1179,9 @@ class StagePreview(QWidget):
         elif node.get("intro_source") == "character":
             title, name, intro = self._bound_intro_texts(str(node.get("character") or ""))
         else:
-            name = models.character_name(self._editor_data, str(node.get("character") or ""))
-            title = "原版人物资料"
-            intro = "游戏内直接读取原版称号、姓名、介绍与头像。编辑器预览不显示游戏原图。"
+            title, name, intro = models.official_character_intro(
+                self._editor_data, str(node.get("character") or "")
+            )
         # 官方层级：金色小称号、红色大姓名、浅色正文。
         p.setPen(QColor(213, 184, 122))
         title_font = QFont(self.font())
@@ -1115,7 +1260,19 @@ class StagePreview(QWidget):
 
     def _paint_background(self, p: QPainter, rect: QRect) -> None:
         view = self._state.get("view")
-        pix = self._load_pixmap(self._view_path(view))
+        background = self._state.get("background")
+        missing_user = False
+        if background:
+            try:
+                _record, source = content_registry.resolve(
+                    str(background), expected_type="image"
+                )
+                pix = self._load_pixmap(source)
+            except content_registry.ContentRegistryError:
+                pix = QPixmap()
+                missing_user = True
+        else:
+            pix = self._load_pixmap(self._view_path(view))
         if not pix.isNull():
             # 缩放铺满、保比例、居中（超出部分裁掉）
             scaled = pix.scaled(
@@ -1146,7 +1303,10 @@ class StagePreview(QWidget):
             font.setPointSizeF(max(10.0, rect.height() * 0.06))
             font.setBold(True)
             p.setFont(font)
-            label = f"场景：{view}" if view else "（尚未切场景）"
+            if missing_user:
+                label = f"缺失用户图片：{background}"
+            else:
+                label = f"场景：{view}" if view else "（尚未切场景）"
             p.drawText(rect, Qt.AlignmentFlag.AlignCenter, label)
 
     def _paint_actors(self, p: QPainter, rect: QRect) -> None:
@@ -1166,11 +1326,20 @@ class StagePreview(QWidget):
             if not known:
                 unknown.append(pos or "（空）")
             cx = rect.x() + floor(rect.width() * frac)
+            cx += floor(float(info.get("offset_x", 0)))
+            actor_baseline = baseline - floor(float(info.get("offset_y", 0)))
             facing = info.get("facing", "right")
             portrait = info.get("portrait", "normal")
             body_scale, art_facing = self._character_look(cid)
             draw_h = max(8, floor(h * body_scale / 100.0))
             pix = self._load_pixmap(self._portrait_path(cid, portrait))
+            p.save()
+            p.translate(cx, actor_baseline)
+            p.rotate(float(info.get("rotation", 0)))
+            if info.get("shocked"):
+                p.translate(5, -3)
+            if info.get("dimmed"):
+                p.setOpacity(0.52)
             if not pix.isNull():
                 scaled = pix.scaledToHeight(
                     draw_h, Qt.TransformationMode.SmoothTransformation
@@ -1180,10 +1349,11 @@ class StagePreview(QWidget):
                 if want_left != art_left:
                     scaled = scaled.transformed(QTransform().scale(-1, 1))
                 p.drawPixmap(
-                    cx - scaled.width() // 2, baseline - scaled.height(), scaled
+                    -scaled.width() // 2, -scaled.height(), scaled
                 )
             else:
-                self._paint_actor_placeholder(p, cx, baseline, draw_h, cid, portrait)
+                self._paint_actor_placeholder(p, 0, 0, draw_h, cid, portrait)
+            p.restore()
         if unknown:
             # 未识别站位：角落小字标注原值
             p.setPen(QColor(255, 200, 120))
@@ -1196,6 +1366,94 @@ class StagePreview(QWidget):
                 Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft,
                 note,
             )
+
+    def _paint_custom_cg(self, p: QPainter, rect: QRect) -> None:
+        data = self._state.get("custom_cg")
+        if not isinstance(data, dict) or not data.get("image"):
+            return
+        raw = str(data["image"])
+        try:
+            _record, source = content_registry.resolve(raw, expected_type="image")
+            pix = self._load_pixmap(source)
+        except content_registry.ContentRegistryError:
+            pix = QPixmap()
+        if pix.isNull():
+            p.save()
+            p.fillRect(rect, QColor(15, 15, 18, 210))
+            p.setPen(QColor(255, 150, 120))
+            p.drawText(rect, Qt.AlignmentFlag.AlignCenter, f"缺失用户 CG：{raw}")
+            p.restore()
+            return
+        scale_factor = max(0.1, min(3.0, float(data.get("scale", 100)) / 100.0))
+        base = pix.scaled(
+            rect.size(),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        target_w = max(1, floor(base.width() * scale_factor))
+        target_h = max(1, floor(base.height() * scale_factor))
+        shown = base.scaled(
+            target_w,
+            target_h,
+            Qt.AspectRatioMode.IgnoreAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        x = rect.center().x() - shown.width() // 2
+        y = rect.center().y() - shown.height() // 2
+        x += floor(rect.width() * float(data.get("x", 0)) / 100.0)
+        y -= floor(rect.height() * float(data.get("y", 0)) / 100.0)
+        p.save()
+        try:
+            p.setClipRect(rect)
+            p.drawPixmap(x, y, shown)
+        finally:
+            p.restore()
+
+    def _paint_overlays(self, p: QPainter, rect: QRect, layer: str) -> None:
+        overlays = self._state.get("overlays") or {}
+        positions = {
+            "center": (0.50, 0.50), "top": (0.50, 0.18),
+            "bottom": (0.50, 0.82), "left": (0.18, 0.50),
+            "right": (0.82, 0.50), "top_left": (0.18, 0.18),
+            "top_right": (0.82, 0.18), "bottom_left": (0.18, 0.82),
+            "bottom_right": (0.82, 0.82),
+        }
+        for slot, data in sorted(overlays.items()):
+            if data.get("layer", "front") != layer or not data.get("image"):
+                continue
+            raw = str(data["image"])
+            try:
+                _record, source = content_registry.resolve(raw, expected_type="image")
+                pix = self._load_pixmap(source)
+            except content_registry.ContentRegistryError:
+                pix = QPixmap()
+            if pix.isNull():
+                p.save()
+                p.setPen(QColor(255, 150, 120))
+                p.drawText(rect, Qt.AlignmentFlag.AlignCenter, f"缺失插图 {slot}：{raw}")
+                p.restore()
+                continue
+            scale = max(0.1, min(3.0, float(data.get("scale", 100)) / 100.0))
+            base = pix.scaled(
+                rect.size(), Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            shown = base.scaled(
+                max(1, floor(base.width() * scale)),
+                max(1, floor(base.height() * scale)),
+                Qt.AspectRatioMode.IgnoreAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            px, py = positions.get(str(data.get("position")), positions["center"])
+            x = rect.x() + floor(rect.width() * px) - shown.width() // 2
+            y = rect.y() + floor(rect.height() * py) - shown.height() // 2
+            p.save()
+            try:
+                p.setClipRect(rect)
+                p.setOpacity(max(0.0, min(1.0, float(data.get("opacity", 100)) / 100.0)))
+                p.drawPixmap(x, y, shown)
+            finally:
+                p.restore()
 
     def _paint_actor_placeholder(
         self, p: QPainter, cx: int, baseline: int, h: int, cid: str, portrait: str

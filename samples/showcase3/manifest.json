@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "package_format": 1,
+  "story_schema": 1,
+  "content_schema": 1,
+  "min_host_version": "0.6.0",
+  "tested_host_version": "0.6.0",
+  "id": "showcase3",
+  "name": "全节点样例3.0·六十三节点实机验收",
+  "version": "3.0.0",
+  "author": "lom_modkit",
+  "description": "面向手动验收的 63 节点完整样例：用户图片/角色/音频、演出、数值与检定、MOD 任务/持久变量、奖励/商店、原版 Combat/Battle 编排、死亡与安全返回。",
+  "entry": "main"
+}

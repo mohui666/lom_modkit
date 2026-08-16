@@ -11,6 +11,8 @@
   其余节点末尾追加 return node_<goto 或顺序下一节点>()。
 """
 
+import math
+
 from .content import (
     default_repository_root,
     is_user_ref,
@@ -43,6 +45,8 @@ def lua_num(n):
     if isinstance(n, int):
         return str(n)
     f = float(n)
+    if not math.isfinite(f):
+        raise LomcError("内部错误：数值必须是有限值")
     if f.is_integer() and abs(f) < 1e15:
         return str(int(f))
     return repr(f)
@@ -59,6 +63,16 @@ def _get(char_expr):
 
 def _portrait(character, portrait):
     return "characters.GetPortrait(%s, %s)" % (character, portrait)
+
+
+def _load_official_character(character):
+    """确保原版 CharacterPlaceholder 已建立人物键。
+
+    原版 LoadCharacterPortrait/Focus/Rotate 等方法会直接索引内部字典；分支若
+    绕过 show，未加载人物会抛 KeyNotFoundException。LoadCharacterAsset 自带
+    ContainsKey 防护，重复调用是安全空操作。
+    """
+    return "\trunwait(characters.LoadCharacterAsset(%s))" % character
 
 
 def _user_char(node):
@@ -113,7 +127,7 @@ def _emit_sound(node, ctx):
 
 def _emit_scene(node, ctx):
     view = node["view"]
-    lines = ['\trunblock(flowcharts.view, "out")']
+    lines = ["\tmod_background_clear(0)", '\trunblock(flowcharts.view, "out")']
     if view != "out":  # view="out" 时只淡出；"black"/"white" 为纯色，照常 emit
         # 官方实证：非纯色 view 必须先 LoadView 预加载背景资产（StoryViewImage
         # 的 Addressables 缓存为空时 view 块只显示空 sprite=黑背景；995/1111
@@ -122,6 +136,64 @@ def _emit_scene(node, ctx):
             lines.append("\trunwait(flowcharts.LoadView(%s))" % lua_str(view))
         lines.append('\tgetvar(flowcharts.view, "ViewName").value = %s' % lua_str(view))
         lines.append('\trunblock(flowcharts.view, "view")')
+    return lines
+
+
+def _emit_background(node, ctx):
+    action = node["action"]
+    fade = 0 if action in ("set", "clear") else node.get("fade", 0.5)
+    if action in ("fadeout", "clear"):
+        lines = ["\tmod_background_clear(%s)" % lua_num(fade)]
+    else:
+        lines = [
+            "\tmod_background_show(%s, %s)"
+            % (lua_str(node["image"]), lua_num(fade))
+        ]
+    if fade > 0:
+        lines.append("\twait(%s)" % lua_num(fade))
+    return lines
+
+
+def _emit_custom_cg(node, ctx):
+    fade = node.get("fade", 0.5)
+    if node["action"] == "hide":
+        lines = ["\tmod_cg_hide(%s)" % lua_num(fade)]
+    else:
+        lines = [
+            "\tmod_cg_show(%s, %s, %s, %s, %s)"
+            % (
+                lua_str(node["image"]),
+                lua_num(fade),
+                lua_num(node.get("scale", 100)),
+                lua_num(node.get("x", 0)),
+                lua_num(node.get("y", 0)),
+            )
+        ]
+    if fade > 0:
+        lines.append("\twait(%s)" % lua_num(fade))
+    return lines
+
+
+def _emit_overlay(node, ctx):
+    fade = node.get("fade", 0.25)
+    slot = lua_str(node["slot"])
+    if node["action"] == "hide":
+        lines = ["\tmod_overlay_hide(%s, %s)" % (slot, lua_num(fade))]
+    else:
+        lines = [
+            "\tmod_overlay_show(%s, %s, %s, %s, %s, %s, %s)"
+            % (
+                slot,
+                lua_str(node["image"]),
+                lua_str(node.get("position", "center")),
+                lua_num(node.get("scale", 100)),
+                lua_num(node.get("opacity", 100)),
+                lua_str(node.get("layer", "front")),
+                lua_num(fade),
+            )
+        ]
+    if fade > 0:
+        lines.append("\twait(%s)" % lua_num(fade))
     return lines
 
 
@@ -166,6 +238,7 @@ def _emit_move(node, ctx):
             "\twait(%s)" % lua_num(duration),
         ]
     return [
+        _load_official_character(c),
         "\tstage.show{character=%s, fromPosition=%s, toPosition=%s, "
         "moveDuration=%s, useDefaultSettings=false}"
         % (_get(c), lua_str(node["from"]), lua_str(node["to"]), lua_num(duration)),
@@ -179,6 +252,7 @@ def _emit_face(node, ctx):
     if _user_char(node):
         return ["\tmod_char_face(%s, %s)" % (c, facing)]
     return [
+        _load_official_character(c),
         "\tstage.show{character=%s, facing=%s, useDefaultSettings=false}"
         % (_get(c), facing)
     ]
@@ -190,6 +264,7 @@ def _emit_hide(node, ctx):
     if _user_char(node):
         return ["\tmod_char_hide(%s, %s)" % (c, fade)]
     return [
+        _load_official_character(c),
         "\tstage.hide{character=%s, fadeDuration=%s, useDefaultSettings=false}"
         % (_get(c), fade)
     ]
@@ -199,14 +274,27 @@ def _emit_focus(node, ctx):
     c = lua_str(node["character"])
     if _user_char(node):
         return ["\tmod_char_focus(%s)" % c]
-    return ["\tcharacters.Focus(%s)" % c]
+    return [_load_official_character(c), "\tcharacters.Focus(%s)" % c]
 
 
 def _emit_offset(node, ctx):
+    c = lua_str(node["character"])
+    if _user_char(node):
+        return [
+            "\tmod_char_offset(%s, %s, %s, %s)"
+            % (
+                c,
+                lua_num(node["x"]),
+                lua_num(node["y"]),
+                lua_num(node["duration"]),
+            ),
+            "\twait(%s)" % lua_num(node["duration"]),
+        ]
     return [
+        _load_official_character(c),
         "\trunwait(characters.MoveOffsetCoroutine(%s, %s, %s, %s))"
         % (
-            lua_str(node["character"]),
+            c,
             lua_num(node["x"]),
             lua_num(node["y"]),
             lua_num(node["duration"]),
@@ -274,6 +362,7 @@ def _emit_say(node, ctx):
         ]
     else:
         lines = [
+            _load_official_character(c),
             "\tsetsaydialog(saydialogs.%s)" % mode,
             # 表情差分：先加载该表情的立绘差分（官方 93% say 块均如此；
             # 不加载则台上人物立绘不换，只有气泡变）
@@ -321,7 +410,14 @@ def _emit_choice(node, ctx):
 
 def _emit_shock(node, ctx):
     c = lua_str(node["character"])
+    if _user_char(node):
+        duration = lua_num(node.get("duration", 0.5))
+        return [
+            "\tmod_char_shock(%s, %s)" % (c, duration),
+            "\twait(%s)" % duration,
+        ]
     return [
+        _load_official_character(c),
         '\tgetvar(flowcharts.common, "ShockPosition").value = %s.State.holder.gameObject'
         % _get(c),
         '\tgetvar(flowcharts.common, "ShockDuration").value = %s'
@@ -479,9 +575,19 @@ def _emit_dim(node, ctx):
     """人物压暗：stage.SetDimmed(character, dimmedState)（官方 API，实参顺序
     character 在前、bool 在后）。dimmed=true 时官方实现还会隐藏该角色心情气泡。
     """
+    c = lua_str(node["character"])
+    if _user_char(node):
+        return [
+            "\tmod_char_dim(%s, %s)"
+            % (
+                c,
+                "true" if node["dimmed"] else "false",
+            )
+        ]
     return [
+        _load_official_character(c),
         "\tstage.SetDimmed(%s, %s)"
-        % (_get(lua_str(node["character"])), "true" if node["dimmed"] else "false")
+        % (_get(c), "true" if node["dimmed"] else "false")
     ]
 
 
@@ -497,10 +603,22 @@ def _emit_rotate(node, ctx):
     angle 在前、duration 在后（StoryCharacterController.Rotate(duration, angle)
     内部再交换，raw_scripts 调用点实证）。
     """
+    c = lua_str(node["character"])
+    if _user_char(node):
+        return [
+            "\tmod_char_rotate(%s, %s, %s)"
+            % (
+                c,
+                lua_num(node["angle"]),
+                lua_num(node["duration"]),
+            ),
+            "\twait(%s)" % lua_num(node["duration"]),
+        ]
     return [
+        _load_official_character(c),
         "\tcharacters.Rotate(%s, %s, %s)"
         % (
-            lua_str(node["character"]),
+            c,
             lua_num(node["angle"]),
             lua_num(node["duration"]),
         )
@@ -618,10 +736,335 @@ def _emit_battle_skill(node, ctx):
             "\tluamanager.SetBattleSkillActive(%s, %s)"
             % (lua_str(node["key"]), lua_num(node.get("active", 1)))
         ]
+    if op == "level":
+        return [
+            "\tluamanager.SetBattleSkillLevel(%s, %s)"
+            % (lua_str(node["key"]), lua_num(node.get("level", 1)))
+        ]
     return [
         "\tluamanager.SetPlayerBattleSkill(%s, %s)"
         % (lua_str(node["key"]), lua_num(node.get("index", 2)))
     ]
+
+
+def _emit_battle_setup(node, ctx):
+    lines = []
+    enemy = node.get("enemy")
+    if enemy:
+        lines.append("\tstatmodifymanager.ModifyEnemyId(%s)" % lua_str(enemy))
+        for field, api in (
+            ("team", "ModifyEnemyTeam"),
+            ("level", "ModifyEnemyLevel"),
+            ("people", "ModifyEnemyPeople"),
+        ):
+            if node.get(field, 0):
+                lines.append(
+                    "\tstatmodifymanager.%s(%s, %s, %s)"
+                    % (
+                        api, lua_str(enemy), lua_num(node[field]),
+                        lua_num(node.get("display", 1)),
+                    )
+                )
+    if node.get("reset_skills", False):
+        lines.append("\tluamanager.ResetBattleSkill()")
+    for skill in node.get("skills", []):
+        lines.append(
+            "\tluamanager.SetPlayerBattleSkill(%s, %s)"
+            % (lua_str(skill["key"]), lua_num(skill.get("index", 2)))
+        )
+        lines.append(
+            "\tluamanager.SetBattleSkillActive(%s, %s)"
+            % (lua_str(skill["key"]), lua_num(skill.get("active", 1)))
+        )
+    return lines
+
+
+def _encode_gameplay_config(config, scalar_fields, list_fields=()):
+    """编码已由 validate 限定的 Gameplay 配置；id 不允许出现分隔字符。"""
+    parts = []
+    for field in scalar_fields:
+        if field not in config or config[field] in (None, ""):
+            continue
+        value = config[field]
+        if isinstance(value, bool):
+            value = 1 if value else 0
+        parts.append("%s=%s" % (field, value))
+    for field, columns in list_fields:
+        if field not in config:
+            continue
+        rows = []
+        for item in config.get(field, []):
+            rows.append(":".join(str(item.get(column, "")) for column in columns))
+        parts.append("%s=%s" % (field, ",".join(rows)))
+    return ";".join(parts)
+
+
+def _emit_combat(node, ctx):
+    """编排一场原版 Combat，并把已验证的 win/lose 结果带回本剧情。"""
+    config = ctx["battle_presets"].get(node.get("preset"), node)
+    encoded = _encode_gameplay_config(
+        config,
+        (
+            "max_health", "health", "max_stamina", "stamina", "strength",
+            "internal", "dexterity", "talking", "defence", "sword", "fist",
+            "martial_weapon", "mental", "ultimate_one", "ultimate_two",
+            "ultimate_three", "talk_rate", "attack_rate", "weapon_rate",
+            "ultimate_rate", "block_rate",
+        ),
+        (("talents", ("key", "level")),),
+    )
+    lines = []
+    lines.extend(
+        [
+            "\tmod_gameplay_prepare(%s, %s, %s, %s, %s)"
+            % (
+                lua_str("combat"), lua_str(ctx["script_id"]), lua_str(node["id"]),
+                lua_str(node["win"]), lua_str(node["lose"]),
+            ),
+            "\tmod_gameplay_configure(%s, %s)"
+            % (lua_str("combat"), lua_str(encoded)),
+            "\tmod_stop_voice()",
+            "\tmod_hide_all()",
+            '\tluamanager.ChangeScene("Combat", %s, "Story")' % lua_str(config["key"]),
+        ]
+    )
+    return lines
+
+
+def _emit_battle(node, ctx):
+    config = ctx["battle_presets"].get(node.get("preset"), node)
+    encoded = _encode_gameplay_config(
+        config,
+        (
+            "friend_roster", "enemy_roster", "neutral_roster",
+            "friend_people", "enemy_people", "neutral_people",
+            "friend_health", "enemy_health", "neutral_health",
+        ),
+    )
+    lines = []
+    if config.get("reset_skills", False):
+        lines.append("\tluamanager.ResetBattleSkill()")
+    for skill in config.get("skills", []):
+        lines.append(
+            "\tluamanager.SetPlayerBattleSkill(%s, %s)"
+            % (lua_str(skill["key"]), lua_num(skill.get("index", 2)))
+        )
+        lines.append(
+            "\tluamanager.SetBattleSkillActive(%s, %s)"
+            % (lua_str(skill["key"]), lua_num(skill.get("active", 1)))
+        )
+    lines.extend([
+        "\tmod_gameplay_prepare(%s, %s, %s, %s, %s)"
+        % (
+            lua_str("battle"), lua_str(ctx["script_id"]), lua_str(node["id"]),
+            lua_str(node["win"]), lua_str(node["lose"]),
+        ),
+        "\tmod_gameplay_configure(%s, %s)"
+        % (lua_str("battle"), lua_str(encoded)),
+        "\tmod_stop_voice()",
+        "\tmod_hide_all()",
+        '\tluamanager.ChangeScene("Battle", %s, "Story")' % lua_str(config["key"]),
+    ])
+    return lines
+
+
+def _emit_battle_result(node, ctx):
+    """按 Host 记录的真实结果分支；当前游戏接口只确认 win / lose。"""
+    kind = node.get("kind", "any")
+    kind_filter = kind if kind != "any" else ""
+    return [
+        "\tlocal gameplay_result = mod_gameplay_last_result(%s, %s)"
+        % (lua_str(ctx["script_id"]), lua_str(kind_filter)),
+        '\tif gameplay_result == "win" then return node_%s()' % node["win"],
+        '\telseif gameplay_result == "lose" then return node_%s()' % node["lose"],
+        '\telse error("没有可供 battle_result 消费的已验证战斗结果") end',
+    ]
+
+
+def _emit_reward(node, ctx):
+    lines = []
+    for entry in node["entries"]:
+        kind, key = entry["kind"], entry["key"]
+        if kind == "stat":
+            qkey = lua_str(key)
+            lines.append(
+                "\tstatmodifymanager.Player(%s, %s, %s, %s)"
+                % (qkey, lua_num(entry["amount"]), lua_str(""), lua_num(1))
+            )
+            lines.append("\twait(statmodifymanager.GetDisplayTime(%s))" % qkey)
+        elif kind == "affinity":
+            lines.append(
+                "\tstatmodifymanager.Character(%s, %s, 1)"
+                % (lua_str(key), lua_num(entry["amount"]))
+            )
+        elif kind == "talent":
+            lines.append(
+                "\tstatmodifymanager.AddTalent(%s, %s)"
+                % (lua_str(key), lua_num(entry["amount"]))
+            )
+        elif kind == "item":
+            lines.append(
+                "\tstatmodifymanager.Add%s(%s, %s)"
+                % (
+                    _ITEM_API[entry["category"]], lua_str(key),
+                    lua_num(entry["amount"]),
+                )
+            )
+        else:
+            qkey = lua_str(key)
+            lines.extend((
+                "\tstatmodifymanager.AddStory(%s)" % qkey,
+                "\tmodflags[%s] = true" % qkey,
+            ))
+    return lines
+
+
+def _emit_result_screen(node, ctx):
+    """用已验证的系统 Message 显示结算标题/说明，再执行现有奖励原子接口。"""
+    message = node["title"]
+    if node.get("text"):
+        message += "\n" + node["text"]
+    return ["\tmainui.DisplayMessageText(%s)" % lua_str(message)] + _emit_reward(node, ctx)
+
+
+def _emit_custom_shop(node, ctx):
+    """临时替换原版 ShopDatabase 库存，关闭官方 ShopPanel 后立即恢复。"""
+    lines = ["\tmod_custom_shop_begin()"]
+    for item in node["items"]:
+        add = "\tmod_custom_shop_add(%s, %s, %s)" % (
+            lua_str(item["category"]),
+            lua_str(item["item"]),
+            lua_num(item.get("count", 1)),
+        )
+        condition = item.get("condition")
+        if condition:
+            if condition["source"] == "mod":
+                expression = "modflags[%s]" % lua_str(condition["key"])
+            else:
+                expression = "checkpointmanager.Condition(%s)" % lua_str(condition["key"])
+            if condition.get("invert", False):
+                expression = "not (" + expression + ")"
+            lines.extend(("\tif %s then" % expression, "\t" + add, "\tend"))
+        else:
+            lines.append(add)
+    lines.extend((
+        "\trunwait(shoppanel.Open(%s))" % lua_num(node.get("discount", 0)),
+        "\tmod_custom_shop_end()",
+    ))
+    return lines
+
+
+def _check_branch(expression, node):
+    return [
+        "\tif %s then" % expression,
+        "\t\treturn node_%s()" % node["success"],
+        "\telse",
+        "\t\treturn node_%s()" % node["failure"],
+        "\tend",
+    ]
+
+
+def _emit_stat_check(node, ctx):
+    expression = "luamanager.GetStatData(%s, 1) %s %s" % (
+        lua_str(node["key"]), node["op"], lua_num(node["value"]),
+    )
+    return _check_branch(expression, node)
+
+
+def _emit_affinity_check(node, ctx):
+    expression = "mod_affinity_value(%s) %s %s" % (
+        lua_str(node["character"]), node["op"], lua_num(node["value"]),
+    )
+    return _check_branch(expression, node)
+
+
+def _emit_item_check(node, ctx):
+    expression = "mod_has_item(%s, %s)" % (
+        lua_str(node["category"]), lua_str(node["item"]),
+    )
+    if node.get("invert", False):
+        expression = "not (" + expression + ")"
+    return _check_branch(expression, node)
+
+
+def _emit_talent_check(node, ctx):
+    expression = "mod_talent_level(%s) %s %s" % (
+        lua_str(node["talent"]), node["op"], lua_num(node["value"]),
+    )
+    return _check_branch(expression, node)
+
+
+def _emit_flag_check(node, ctx):
+    source = node["source"]
+    if source == "mod":
+        expression = "modflags[%s]" % lua_str(node["flag"])
+    elif source == "condition":
+        expression = "checkpointmanager.Condition(%s)" % lua_str(node["flag"])
+    else:
+        expression = "tonumber(luamanager.GetFlagData(%s)) %s %s" % (
+            lua_str(node["flag"]), node["op"], lua_num(node["value"]),
+        )
+    if source != "flag_value" and node.get("invert", False):
+        expression = "not (" + expression + ")"
+    return _check_branch(expression, node)
+
+
+def _emit_activity(node, ctx):
+    lines = []
+    if node.get("message"):
+        lines.append("\tmainui.DisplayMessageText(%s)" % lua_str(node["message"]))
+    if node.get("time") == "round":
+        lines.append("\tluamanager.NextRound()")
+    elif node.get("time") == "month":
+        lines.append("\tluamanager.NextMonth()")
+    expression = "luamanager.GetStatData(%s, 1) %s %s" % (
+        lua_str(node["stat"]), node["op"], lua_num(node["value"]),
+    )
+    lines.append("\tif %s then" % expression)
+    for reward in _emit_reward({"entries": node.get("success_rewards", [])}, ctx):
+        lines.append("\t" + reward)
+    lines.append("\t\treturn node_%s()" % node["success"])
+    lines.append("\telse")
+    for reward in _emit_reward({"entries": node.get("failure_rewards", [])}, ctx):
+        lines.append("\t" + reward)
+    lines.append("\t\treturn node_%s()" % node["failure"])
+    lines.append("\tend")
+    return lines
+
+
+def _emit_mod_quest(node, ctx):
+    lines = []
+    if node.get("message"):
+        lines.append("\tmainui.DisplayMessageText(%s)" % lua_str(node["message"]))
+    lines.append(
+        "\tmod_quest_set(%s, %s)" % (lua_str(node["quest"]), lua_str(node["op"]))
+    )
+    return lines
+
+
+def _emit_quest_check(node, ctx):
+    return _check_branch(
+        "mod_quest_state(%s) == %s" % (
+            lua_str(node["quest"]), lua_str(node["state"]),
+        ),
+        node,
+    )
+
+
+def _emit_persistent_var(node, ctx):
+    function = "mod_persistent_set" if node["op"] == "set" else "mod_persistent_add"
+    return [
+        "\t%s(%s, %s)" % (function, lua_str(node["key"]), lua_num(node["value"]))
+    ]
+
+
+def _emit_persistent_check(node, ctx):
+    return _check_branch(
+        "mod_persistent_get(%s) %s %s" % (
+            lua_str(node["key"]), node["op"], lua_num(node["value"]),
+        ),
+        node,
+    )
 
 
 def _emit_mission(node, ctx):
@@ -1003,6 +1446,9 @@ _EMITTERS = {
     "music": _emit_music,
     "sound": _emit_sound,
     "scene": _emit_scene,
+    "background": _emit_background,
+    "custom_cg": _emit_custom_cg,
+    "overlay": _emit_overlay,
     "show": _emit_show,
     "move": _emit_move,
     "face": _emit_face,
@@ -1032,6 +1478,23 @@ _EMITTERS = {
     "game_flag": _emit_game_flag,
     "enemy": _emit_enemy,
     "battle_skill": _emit_battle_skill,
+    "battle_setup": _emit_battle_setup,
+    "combat": _emit_combat,
+    "battle": _emit_battle,
+    "battle_result": _emit_battle_result,
+    "reward": _emit_reward,
+    "result_screen": _emit_result_screen,
+    "custom_shop": _emit_custom_shop,
+    "stat_check": _emit_stat_check,
+    "affinity_check": _emit_affinity_check,
+    "item_check": _emit_item_check,
+    "talent_check": _emit_talent_check,
+    "flag_check": _emit_flag_check,
+    "activity": _emit_activity,
+    "mod_quest": _emit_mod_quest,
+    "quest_check": _emit_quest_check,
+    "persistent_var": _emit_persistent_var,
+    "persistent_check": _emit_persistent_check,
     "mission": _emit_mission,
     "time": _emit_time,
     "autosave": _emit_autosave,
@@ -1046,7 +1509,11 @@ _EMITTERS = {
 }
 
 # 自带流转（分支/跳转/场景切换），story_to_lua 不再追加 return node_<goto>() 行
-_NO_FLOW_TYPES = ("end", "choice", "branch", "dice", "goto_scene", "death")
+_NO_FLOW_TYPES = (
+    "end", "choice", "branch", "dice", "goto_scene", "death", "combat", "battle",
+    "battle_result", "stat_check", "affinity_check", "item_check", "talent_check",
+    "flag_check", "activity", "quest_check", "persistent_check",
+)
 
 
 def story_to_lua(story, mod_info=None, source=None, content_root=None):
@@ -1061,6 +1528,7 @@ def story_to_lua(story, mod_info=None, source=None, content_root=None):
         "script_id": story["id"],
         "mood": bool(story.get("mood", False)),
         "content_root": content_root or default_repository_root(),
+        "battle_presets": story.get("battle_presets", {}),
     }
     nodes = story["nodes"]
 
@@ -1100,6 +1568,10 @@ def story_to_lua(story, mod_info=None, source=None, content_root=None):
     for i, node in enumerate(nodes):
         lines.append("-- [%s] %s" % (node["id"], node["type"]))
         lines.append("node_%s = function()" % node["id"])
+        lines.append(
+            "\tif mod_trace_node then mod_trace_node(%s, %s) end"
+            % (lua_str(node["id"]), lua_str(node["type"]))
+        )
         emitter = _EMITTERS.get(node["type"])
         if emitter is None:
             raise LomcError(
@@ -1112,10 +1584,23 @@ def story_to_lua(story, mod_info=None, source=None, content_root=None):
             # 显式 goto 覆盖顺序流（契约 §3）；校验已保证目标存在
             goto = node.get("goto")
             if goto is None:
-                goto = nodes[i + 1]["id"]
-            lines.append("\treturn node_%s()" % goto)
+                goto = nodes[i + 1]["id"] if i + 1 < len(nodes) else None
+            if goto is not None:
+                lines.append("\treturn node_%s()" % goto)
         lines.append("end")
         lines.append("")
 
+    if any(node.get("type") in ("combat", "battle") for node in nodes):
+        lines.append("-- 原版战斗返回 Story 后，由 Host 一次性消费已记录的结果目标。")
+        lines.append("local mod_resume_target = mod_gameplay_consume_resume(%s)" % lua_str(story["id"]))
+        lines.append("if mod_resume_target ~= nil and mod_resume_target ~= \"\" then")
+        for index, node in enumerate(nodes):
+            keyword = "if" if index == 0 else "elseif"
+            lines.append(
+                "\t%s mod_resume_target == %s then return node_%s()"
+                % (keyword, lua_str(node["id"]), node["id"])
+            )
+        lines.append("\telse error(\"Host 返回了未知战斗续接节点: \" .. tostring(mod_resume_target)) end")
+        lines.append("end")
     lines.append("return node_%s()" % story["start"])
     return "\n".join(lines) + "\n"

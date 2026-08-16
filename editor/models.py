@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """数据模型：story.json 读写、节点工厂、节点摘要、editor_data.json 加载。
 
-格式契约见 docs/zh_CN/mod_format.md §3（节点类型）与 §5（editor_data.json）。
+格式契约见 docs/chs/mod_format.md §3（节点类型）与 §5（editor_data.json）。
 节点在编辑器内部就是普通 dict（与 JSON 结构一致），本模块只管结构约束与默认值。
 """
 
@@ -9,26 +9,35 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 from i18n import t, term
+from migration import MigrationError, migrate_json_file, migrate_story
+from schema_versions import STORY_SCHEMA, assert_supported_version
 
-# story 脚本 id / 节点 id 规则（契约 §1）
-ID_PATTERN = re.compile(r"^[a-zA-Z0-9_\-]+$")
+# story 脚本 id 规则（契约 §1）
+ID_PATTERN = re.compile(r"^[a-zA-Z0-9_\-]{1,64}$")
+# 节点 id 会拼进 Lua 函数名，不能包含短横线。
+NODE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_]+$")
 # manifest mod id 比 story id 更严格：运行时注册名与包格式只接受小写。
-MOD_ID_PATTERN = re.compile(r"^[a-z0-9_\-]+$")
+MOD_ID_PATTERN = re.compile(r"^[a-z0-9_\-]{1,64}$")
 CHARACTER_DISPLAY_PATTERN = re.compile(r"^.*（([a-zA-Z0-9_\-]+)）$")
 
 # ---------------------------------------------------------------------------
-# 节点类型中文名（契约 §3.1 全量 43 种）
+# 节点类型中文名（契约 §3.1）
 # 源表保持简中，界面显示走 refresh_labels() → i18n。
 # ---------------------------------------------------------------------------
 NODE_TYPE_CN_SRC: dict[str, str] = {
     "music": "音乐",
     "sound": "音效",
-    "scene": "切换背景",
+    "scene": "切换官方背景",
+    "background": "自定义背景",
+    "custom_cg": "自定义全屏 CG",
+    "overlay": "前景 / 插图",
     "show": "人物登场",
     "move": "人物移动",
     "face": "人物转向",
@@ -58,6 +67,23 @@ NODE_TYPE_CN_SRC: dict[str, str] = {
     "game_flag": "游戏任务旗标",
     "enemy": "战役门派状态",
     "battle_skill": "战场技能",
+    "battle_setup": "战前配置",
+    "combat": "战斗",
+    "battle": "战役",
+    "battle_result": "战斗结果",
+    "reward": "战斗奖励",
+    "result_screen": "自定义结算",
+    "custom_shop": "自定义商店",
+    "stat_check": "属性检定",
+    "affinity_check": "好感检定",
+    "item_check": "物品检定",
+    "talent_check": "天赋检定",
+    "flag_check": "旗标检定",
+    "activity": "训练 / 活动",
+    "mod_quest": "MOD 任务",
+    "quest_check": "任务状态检定",
+    "persistent_var": "持久变量",
+    "persistent_check": "持久变量检定",
     "mission": "任务",
     "time": "时间",
     "autosave": "自动存档",
@@ -80,6 +106,9 @@ COMMON_NODE_TYPES: list[str] = [
     "hide",
     "intro",
     "scene",
+    "background",
+    "custom_cg",
+    "overlay",
     "choice",
     "dice",
     "wait",
@@ -93,6 +122,9 @@ NODE_HELP_KEYS = {
     "show": "help.show",
     "hide": "help.hide",
     "scene": "help.scene",
+    "background": "help.background",
+    "custom_cg": "help.custom_cg",
+    "overlay": "help.overlay",
     "choice": "help.choice",
     "dice": "help.dice",
     "goto_scene": "help.goto_scene",
@@ -103,6 +135,24 @@ NODE_HELP_KEYS = {
     "music": "help.music",
     "sound": "help.sound",
     "enemy": "help.enemy",
+    "battle_skill": "help.battle_skill",
+    "combat": "help.combat",
+    "battle": "help.battle",
+    "battle_result": "help.battle_result",
+    "battle_setup": "help.battle_setup",
+    "reward": "help.reward",
+    "result_screen": "help.result_screen",
+    "custom_shop": "help.custom_shop",
+    "stat_check": "help.stat_check",
+    "affinity_check": "help.affinity_check",
+    "item_check": "help.item_check",
+    "talent_check": "help.talent_check",
+    "flag_check": "help.flag_check",
+    "activity": "help.activity",
+    "mod_quest": "help.mod_quest",
+    "quest_check": "help.quest_check",
+    "persistent_var": "help.persistent_var",
+    "persistent_check": "help.persistent_check",
 }
 NODE_HELP: dict[str, str] = {}
 
@@ -114,6 +164,9 @@ NODE_GROUPS_SRC: list[tuple[str, list[str]]] = [
             "music",
             "sound",
             "scene",
+            "background",
+            "custom_cg",
+            "overlay",
             "show",
             "move",
             "face",
@@ -154,6 +207,16 @@ NODE_GROUPS_SRC: list[tuple[str, list[str]]] = [
         ],
     ),
     (
+        "group.gameplay",
+        [
+            "battle_setup", "combat", "battle", "battle_result", "reward", "result_screen",
+            "custom_shop",
+            "stat_check", "affinity_check", "item_check", "talent_check", "flag_check",
+            "activity",
+            "mod_quest", "quest_check", "persistent_var", "persistent_check",
+        ],
+    ),
+    (
         "group.flow",
         ["branch", "dice", "goto_scene", "panel", "wait", "end", "death", "raw"],
     ),
@@ -167,6 +230,14 @@ ENUM_SETS_SRC: dict[str, list[tuple[str, str]]] = {
     "music_op": [("play", "播放"), ("stop", "停止"), ("fadeout", "淡出")],
     "sound_kind": [("sound", "音效"), ("env", "环境音")],
     "sound_op": [("play", "播放"), ("fadeout", "淡出")],
+    "background_action": [
+        ("set", "立即设置"),
+        ("show", "显示"),
+        ("replace", "替换"),
+        ("fadein", "淡入"),
+        ("fadeout", "淡出并清除"),
+        ("clear", "立即清除"),
+    ],
     "transition_phase": [("in", "淡入"), ("out", "淡出")],
     "transition_dir": [
         ("lr", "从左到右"),
@@ -175,6 +246,19 @@ ENUM_SETS_SRC: dict[str, list[tuple[str, str]]] = {
         ("bt", "从下到上"),
     ],
     "cg_action": [("show", "显示"), ("hide", "隐藏")],
+    "overlay_action": [("show", "显示 / 替换"), ("hide", "隐藏")],
+    "overlay_position": [
+        ("center", "中央"),
+        ("top", "上方"),
+        ("bottom", "下方"),
+        ("left", "左侧"),
+        ("right", "右侧"),
+        ("top_left", "左上"),
+        ("top_right", "右上"),
+        ("bottom_left", "左下"),
+        ("bottom_right", "右下"),
+    ],
+    "overlay_layer": [("back", "人物后方"), ("front", "人物前方")],
     "cg_kind": [
         ("picture", "图片"),
         ("item", "物品图"),
@@ -187,12 +271,46 @@ ENUM_SETS_SRC: dict[str, list[tuple[str, str]]] = {
     "item_kind": [("book", "秘籍"), ("misc", "杂物"), ("special", "特殊物品")],
     "game_flag_op": [("set", "设置"), ("add", "增减")],
     "enemy_op": [
-        ("team", "队伍"),
-        ("level", "等级"),
-        ("people", "人数"),
-        ("id", "替换 id"),
+        ("team", "凝聚力"),
+        ("level", "门派等级"),
+        ("people", "阵营人数"),
+        ("id", "切换当前敌方阵营"),
     ],
-    "battle_skill_op": [("set", "设置"), ("active", "激活"), ("reset", "重置")],
+    "battle_skill_op": [
+        ("set", "装备到槽位"), ("active", "启用 / 停用"),
+        ("level", "设置等级"), ("reset", "全部重置"),
+    ],
+    "gameplay_kind": [("any", "任意战斗"), ("combat", "Combat"), ("battle", "Battle")],
+    "reward_kind": [
+        ("stat", "属性 / 银两"), ("affinity", "好感"),
+        ("talent", "天赋"), ("item", "物品 / 秘籍"), ("flag", "剧情旗标"),
+    ],
+    "shop_item_kind": [
+        ("book", "秘籍"), ("misc", "杂物"), ("special", "贵重品"),
+    ],
+    "shop_condition_source": [
+        ("always", "始终出售"), ("mod", "本 MOD 旗标"),
+        ("condition", "原版条件检查点"),
+    ],
+    "check_op": [(op, op) for op in (">=", ">", "<=", "<", "==")],
+    "flag_check_source": [
+        ("mod", "本 MOD 旗标"), ("condition", "原版条件检查点"),
+        ("flag_value", "原版数值旗标"),
+    ],
+    "activity_kind": [
+        ("training", "练武"), ("study", "读书"), ("forge", "锻造"),
+        ("alchemy", "炼丹"), ("custom", "自定义活动"),
+    ],
+    "activity_time": [("none", "不推进"), ("round", "下一旬"), ("month", "下一月")],
+    "quest_op": [
+        ("start", "开始任务"), ("update", "更新任务"),
+        ("complete", "完成任务"), ("fail", "任务失败"),
+    ],
+    "quest_state": [
+        ("inactive", "未开始"), ("active", "进行中"),
+        ("completed", "已完成"), ("failed", "已失败"),
+    ],
+    "persistent_op": [("set", "设置"), ("add", "增减")],
     "time_op": [
         ("set", "设置时间"),
         ("round", "进入下一旬"),
@@ -236,7 +354,19 @@ ENUM_SETS_SRC: dict[str, list[tuple[str, str]]] = {
 }
 ENUM_SETS: dict[str, list[tuple[str, str]]] = {}
 # 切换后需要重建表单的枚举（其它字段或可见字段随它变化）
-REBUILD_ENUMS = {"item_kind", "goto_scene", "mode", "intro_source", "sound_kind"}
+REBUILD_ENUMS = {
+    "item_kind",
+    "goto_scene",
+    "mode",
+    "intro_source",
+    "sound_kind",
+    "background_action",
+    "cg_action",
+    "overlay_action",
+    "flag_check_source",
+    "enemy_op",
+    "battle_skill_op",
+}
 
 # say mode 中文标注（清单本身来自 editor_data.modes）
 MODE_CN_SRC = {
@@ -276,7 +406,10 @@ def refresh_labels() -> None:
         rows = []
         for value, fallback in options:
             key = _ENUM_KEY_OVERRIDE.get((set_name, value), f"enum.{value}")
-            rows.append((value, t(key, default=fallback)))
+            generic = t(key, default=fallback)
+            rows.append(
+                (value, t(f"enum.{set_name}.{value}", default=generic))
+            )
         rebuilt[set_name] = rows
     ENUM_SETS = rebuilt
     MODE_CN = {
@@ -348,8 +481,40 @@ NODE_SCHEMAS: dict[str, dict] = {
         ],
     },
     "scene": {
-        "label": "切换场景",
-        "fields": [("view", "场景", "view", False)],
+        "label": "切换官方背景",
+        "fields": [("view", "官方背景", "view", False)],
+    },
+    "background": {
+        "label": "自定义背景",
+        "fields": [
+            ("action", "动作", "enum:background_action", False),
+            ("image", "用户图片", "user_image", True),
+            ("fade", "淡入/淡出秒数", "float", True),
+        ],
+    },
+    "custom_cg": {
+        "label": "自定义全屏 CG",
+        "fields": [
+            ("action", "动作", "enum:cg_action", False),
+            ("image", "用户图片", "user_image", True),
+            ("fade", "淡入/淡出秒数", "float", True),
+            ("scale", "缩放百分比", "percent_cg_scale", True),
+            ("x", "横向位置百分比", "percent_position", True),
+            ("y", "纵向位置百分比", "percent_position", True),
+        ],
+    },
+    "overlay": {
+        "label": "前景 / 插图",
+        "fields": [
+            ("action", "动作", "enum:overlay_action", False),
+            ("slot", "槽位 id", "line", False),
+            ("image", "用户图片", "user_image", True),
+            ("position", "位置", "enum:overlay_position", True),
+            ("scale", "缩放百分比", "percent_cg_scale", True),
+            ("opacity", "不透明度", "percent_opacity", True),
+            ("layer", "层级", "enum:overlay_layer", True),
+            ("fade", "淡入/淡出秒数", "float", True),
+        ],
     },
     "show": {
         "label": "显示人物",
@@ -568,16 +733,197 @@ NODE_SCHEMAS: dict[str, dict] = {
             ("op", "操作", "enum:enemy_op", False),
             ("enemy", "战役门派", "battle_faction", False),
             ("value", "变化量", "int", True),
-            ("display", "显示提示（1/0）", "int", True),
+            ("display", "显示变化提示", "bool_int", True),
         ],
     },
     "battle_skill": {
         "label": "战场技能",
         "fields": [
             ("op", "操作", "enum:battle_skill_op", False),
-            ("key", "技能 id", "line", True),
+            ("key", "战场技能", "battle_skill", True),
             ("index", "槽位", "int", True),
-            ("active", "激活（1/0）", "int", True),
+            ("active", "启用技能", "bool_int", True),
+            ("level", "技能等级", "int", True),
+        ],
+    },
+    "battle_setup": {
+        "label": "战役前配置（兼容）",
+        "fields": [
+            ("enemy", "敌方阵营", "enemy_team_optional", True),
+            ("team", "敌方凝聚力变化", "int", True),
+            ("level", "敌方门派等级变化", "int", True),
+            ("people", "敌方人数变化", "int", True),
+            ("display", "显示变化提示", "bool_int", True),
+            ("reset_skills", "先重置战场技能", "bool", True),
+            ("skills", "我方战场技能", "battle_setup_skills", True),
+        ],
+    },
+    "combat": {
+        "label": "决斗（一对一）",
+        "fields": [
+            ("preset", "战斗预设", "battle_preset", True),
+            ("key", "原版决斗角色与场景模板", "combat_id", True),
+            ("max_health", "对手最大血量", "int", True),
+            ("health", "对手初始血量", "int", True),
+            ("max_stamina", "对手最大气力", "int", True),
+            ("stamina", "对手初始气力", "int", True),
+            ("strength", "对手体魄", "int", True),
+            ("internal", "对手内力", "int", True),
+            ("dexterity", "对手轻功", "int", True),
+            ("talking", "对手嘴力", "int", True),
+            ("defence", "对手防御", "int", True),
+            ("sword", "对手刀剑", "int", True),
+            ("fist", "对手拳掌", "int", True),
+            ("martial_weapon", "对手暗器", "int", True),
+            ("mental", "对手心相", "int", True),
+            ("talents", "对手决斗技能", "combat_talents", True),
+            ("ultimate_one", "绝招一", "line", True),
+            ("ultimate_two", "绝招二", "line", True),
+            ("ultimate_three", "绝招三", "line", True),
+            ("talk_rate", "嘴攻概率", "float", True),
+            ("attack_rate", "近战概率", "float", True),
+            ("weapon_rate", "暗器概率", "float", True),
+            ("ultimate_rate", "绝招概率", "float", True),
+            ("block_rate", "防守概率", "float", True),
+            ("win", "胜利后", "node_ref", False),
+            ("lose", "失败后", "node_ref", False),
+        ],
+    },
+    "battle": {
+        "label": "原版大规模战役",
+        "fields": [
+            ("preset", "战斗预设", "battle_preset", True),
+            ("key", "战役场景", "battle_id", True),
+            ("friend_roster", "我方阵容模板", "battle_id_optional", True),
+            ("enemy_roster", "敌方阵容模板", "battle_id_optional", True),
+            ("neutral_roster", "中立阵容模板", "battle_id_optional", True),
+            ("friend_people", "我方人数", "int", True),
+            ("enemy_people", "敌方人数", "int", True),
+            ("neutral_people", "中立人数", "int", True),
+            ("friend_health", "我方 NPC 血量", "int", True),
+            ("enemy_health", "敌方 NPC 血量", "int", True),
+            ("neutral_health", "中立 NPC 血量", "int", True),
+            ("reset_skills", "先重置玩家战役技能", "bool", True),
+            ("skills", "玩家战役技能", "battle_setup_skills", True),
+            ("win", "友军胜利后", "node_ref", False),
+            ("lose", "敌军胜利后", "node_ref", False),
+        ],
+    },
+    "battle_result": {
+        "label": "战斗结果分支",
+        "fields": [
+            ("kind", "结果类型", "enum:gameplay_kind", True),
+            ("win", "胜利后", "node_ref", False),
+            ("lose", "失败后", "node_ref", False),
+        ],
+    },
+    "reward": {
+        "label": "战斗奖励",
+        "fields": [("entries", "奖励内容", "reward_entries", False)],
+    },
+    "result_screen": {
+        "label": "自定义结算",
+        "fields": [
+            ("title", "结算标题", "line", False),
+            ("text", "结算说明", "multiline", True),
+            ("entries", "发放奖励", "reward_entries", False),
+        ],
+    },
+    "custom_shop": {
+        "label": "自定义商店",
+        "fields": [
+            ("discount", "原版统一折扣（0/1）", "discount_toggle", True),
+            ("items", "商品库存与上架条件", "custom_shop_items", False),
+        ],
+    },
+    "stat_check": {
+        "label": "属性检定",
+        "fields": [
+            ("key", "主角属性", "stat", False), ("op", "比较", "enum:check_op", False),
+            ("value", "目标值", "int", False), ("success", "成功后", "node_ref", False),
+            ("failure", "失败后", "node_ref", False),
+        ],
+    },
+    "affinity_check": {
+        "label": "好感检定",
+        "fields": [
+            ("character", "人物", "affinity_character", False),
+            ("op", "比较", "enum:check_op", False), ("value", "目标值", "int", False),
+            ("success", "成功后", "node_ref", False), ("failure", "失败后", "node_ref", False),
+        ],
+    },
+    "item_check": {
+        "label": "物品检定",
+        "fields": [
+            ("category", "物品类别", "enum:item_kind", False),
+            ("item", "原版物品", "item", False), ("invert", "检定未持有", "bool", True),
+            ("success", "成功后", "node_ref", False), ("failure", "失败后", "node_ref", False),
+        ],
+    },
+    "talent_check": {
+        "label": "天赋检定",
+        "fields": [
+            ("talent", "原版天赋", "talent", False),
+            ("op", "等级比较", "enum:check_op", False), ("value", "目标等级", "int", False),
+            ("success", "成功后", "node_ref", False), ("failure", "失败后", "node_ref", False),
+        ],
+    },
+    "flag_check": {
+        "label": "旗标检定",
+        "fields": [
+            ("source", "旗标来源", "enum:flag_check_source", False),
+            ("flag", "旗标 / 条件 id", "line", False),
+            ("op", "数值比较", "enum:check_op", True), ("value", "目标值", "int", True),
+            ("invert", "布尔结果取反", "bool", True),
+            ("success", "成功后", "node_ref", False), ("failure", "失败后", "node_ref", False),
+        ],
+    },
+    "activity": {
+        "label": "训练 / 活动",
+        "fields": [
+            ("kind", "活动类型", "enum:activity_kind", False),
+            ("message", "开始提示", "line", True),
+            ("stat", "检定属性", "stat", False),
+            ("op", "比较", "enum:check_op", False), ("value", "目标值", "int", False),
+            ("time", "时间推进", "enum:activity_time", True),
+            ("success_rewards", "成功奖励", "reward_entries_optional", True),
+            ("failure_rewards", "失败结果", "reward_entries_optional", True),
+            ("success", "成功后", "node_ref", False), ("failure", "失败后", "node_ref", False),
+        ],
+    },
+    "mod_quest": {
+        "label": "MOD 任务",
+        "fields": [
+            ("quest", "任务 id", "line", False),
+            ("op", "操作", "enum:quest_op", False),
+            ("message", "玩家提示", "line", True),
+        ],
+    },
+    "quest_check": {
+        "label": "任务状态检定",
+        "fields": [
+            ("quest", "任务 id", "line", False),
+            ("state", "目标状态", "enum:quest_state", False),
+            ("success", "命中后", "node_ref", False),
+            ("failure", "未命中", "node_ref", False),
+        ],
+    },
+    "persistent_var": {
+        "label": "持久变量",
+        "fields": [
+            ("key", "变量名", "line", False),
+            ("op", "操作", "enum:persistent_op", False),
+            ("value", "整数值", "int", False),
+        ],
+    },
+    "persistent_check": {
+        "label": "持久变量检定",
+        "fields": [
+            ("key", "变量名", "line", False),
+            ("op", "比较", "enum:check_op", False),
+            ("value", "目标值", "int", False),
+            ("success", "成功后", "node_ref", False),
+            ("failure", "失败后", "node_ref", False),
         ],
     },
     "mission": {
@@ -671,6 +1017,25 @@ _NODE_DEFAULTS: dict[str, dict] = {
     "music": {"name": "", "op": "play"},
     "sound": {"name": "", "kind": "sound", "op": "play"},
     "scene": {"view": ""},
+    "background": {"action": "show", "image": "", "fade": 0.5},
+    "custom_cg": {
+        "action": "show",
+        "image": "",
+        "fade": 0.5,
+        "scale": 100,
+        "x": 0,
+        "y": 0,
+    },
+    "overlay": {
+        "action": "show",
+        "slot": "main",
+        "image": "",
+        "position": "center",
+        "scale": 100,
+        "opacity": 100,
+        "layer": "front",
+        "fade": 0.25,
+    },
     "show": {
         "character": "",
         "position": "M",
@@ -719,7 +1084,51 @@ _NODE_DEFAULTS: dict[str, dict] = {
     "flag": {"flag": ""},
     "game_flag": {"flag": "", "value": 1, "op": "set"},
     "enemy": {"op": "team", "enemy": "", "value": 0, "display": 1},
-    "battle_skill": {"op": "set", "key": "", "index": 2, "active": 1},
+    "battle_skill": {
+        "op": "set", "key": "", "index": 2, "active": 1, "level": 1,
+    },
+    "battle_setup": {"reset_skills": False, "skills": []},
+    "combat": {"key": "", "talents": [], "win": "", "lose": ""},
+    "battle": {
+        "key": "", "reset_skills": False, "skills": [], "win": "", "lose": "",
+    },
+    "battle_result": {"kind": "any", "win": "", "lose": ""},
+    "reward": {"entries": [{"kind": "stat", "key": "", "amount": 1}]},
+    "result_screen": {
+        "title": "胜利",
+        "text": "获得以下奖励",
+        "entries": [{"kind": "stat", "key": "", "amount": 1}],
+    },
+    "custom_shop": {
+        "discount": 0,
+        "items": [{"category": "misc", "item": "", "count": 1}],
+    },
+    "stat_check": {"key": "", "op": ">=", "value": 0, "success": "", "failure": ""},
+    "affinity_check": {
+        "character": "", "op": ">=", "value": 0, "success": "", "failure": "",
+    },
+    "item_check": {
+        "category": "misc", "item": "", "invert": False, "success": "", "failure": "",
+    },
+    "talent_check": {
+        "talent": "", "op": ">=", "value": 1, "success": "", "failure": "",
+    },
+    "flag_check": {
+        "source": "mod", "flag": "", "invert": False, "success": "", "failure": "",
+    },
+    "activity": {
+        "kind": "training", "message": "", "stat": "", "op": ">=", "value": 0,
+        "time": "round", "success_rewards": [], "failure_rewards": [],
+        "success": "", "failure": "",
+    },
+    "mod_quest": {"quest": "", "op": "start", "message": ""},
+    "quest_check": {
+        "quest": "", "state": "active", "success": "", "failure": "",
+    },
+    "persistent_var": {"key": "", "op": "set", "value": 0},
+    "persistent_check": {
+        "key": "", "op": ">=", "value": 1, "success": "", "failure": "",
+    },
     "mission": {"name": "Main", "key": ""},
     "time": {"op": "round"},
     "autosave": {"kind": "story"},
@@ -759,11 +1168,19 @@ FALLBACK_EDITOR_DATA: dict = {
     "schema": 3,
     "characters": [
         {"id": "player", "name": "主角", "portraits": list(DEFAULT_PORTRAITS)},
-        {"id": "brother4", "name": "四师兄", "portraits": list(DEFAULT_PORTRAITS)},
+        {
+            "id": "brother4",
+            "name": "四师兄",
+            "title": "四师兄",
+            "intro": "唐门掌门座下第四弟子。",
+            "portraits": list(DEFAULT_PORTRAITS),
+        },
         {"id": "trainee1", "name": "师弟", "portraits": list(DEFAULT_PORTRAITS)},
     ],
     "views": [{"id": v, "name": v} for v in ("out", "center", "paddy")],
     "music": [{"id": "普通_001", "name": "普通_001"}],
+    "sounds": [{"id": "巴掌_001", "name": "巴掌_001"}],
+    "env_sounds": [{"id": "雨天_001", "name": "雨天_001"}],
     "positions": [
         {"id": p, "name": p} for p in ("SL", "L1", "L2", "M", "R1", "R2", "RM2", "SR")
     ],
@@ -811,6 +1228,8 @@ FALLBACK_EDITOR_DATA: dict = {
             "900",
         )
     ],
+    "enemy_teams": [],
+    "battle_skills": [],
     "death_ids": [],
     "ending_ids": [],
     "game_flags": [],
@@ -878,10 +1297,40 @@ def list_items(editor_data: dict, key: str) -> list[tuple[str, str]]:
     if not isinstance(items, list):
         return []
     result = []
+    gameplay_ordinals: dict[str, int] = {}
     for entry in items:
         item_id = entry_id(entry)
+        if isinstance(entry, dict) and key == "combat_ids" and entry.get("character"):
+            group = str(entry["character"])
+            gameplay_ordinals[group] = gameplay_ordinals.get(group, 0) + 1
+            name = term("characters", group, default=group)
+            result.append((item_id, t(
+                "list.combat_character_template", name=name, n=gameplay_ordinals[group]
+            )))
+            continue
+        if isinstance(entry, dict) and key == "battle_ids" and entry.get("name_key"):
+            group = str(entry["name_key"])
+            gameplay_ordinals[group] = gameplay_ordinals.get(group, 0) + 1
+            name = term("enemy_teams", group, default=group)
+            result.append((item_id, t(
+                "list.battle_team_template", name=name, n=gameplay_ordinals[group]
+            )))
+            continue
         name = term(key, item_id, default=entry_name(entry))
-        display = item_id if not name or name == item_id else f"{name}（{item_id}）"
+        if name and name != item_id:
+            display = f"{name}（{item_id}）"
+        else:
+            prefix_key = {
+                "combat_ids": "list.combat_template",
+                "battle_ids": "list.battle_template",
+                "dice_checks": "list.dice_check",
+                "game_flags": "list.game_flag",
+            }.get(key)
+            display = (
+                t(prefix_key, default="原版数据 {id}", id=item_id)
+                if prefix_key
+                else item_id
+            )
         result.append((item_id, display))
     return result
 
@@ -946,6 +1395,11 @@ def dice_check_items(editor_data: dict) -> list[tuple[str, str]]:
 
 def display_name(editor_data: dict, key: str, item_id: str) -> str:
     """按清单查某 id 的显示名，查不到返回 id 本身。优先用当前语言的游戏名词。"""
+    if key in ("combat_ids", "battle_ids"):
+        for value, display in list_items(editor_data, key):
+            if value == item_id:
+                return display
+        return item_id
     base = item_id
     for e in editor_data.get(key) or []:
         if entry_id(e) == item_id:
@@ -1019,6 +1473,26 @@ def character_name(editor_data: dict, char_id: str) -> str:
     return display_name(editor_data, "characters", char_id)
 
 
+def official_character_intro(editor_data: dict, char_id: str) -> tuple[str, str, str]:
+    """返回原版人物介绍卡的（称号、姓名、Intro0 正文）。
+
+    缺少提取数据时保留明确占位提示；运行时仍直接调用原版面板，不受此预览
+    数据影响。
+    """
+    for entry in editor_data.get("characters") or []:
+        if entry_id(entry) != char_id:
+            continue
+        name = entry_name(entry) or char_id
+        if isinstance(entry, dict):
+            return (
+                str(entry.get("title") or "原版人物资料"),
+                name,
+                str(entry.get("intro") or "未提取到该人物的原版介绍正文。"),
+            )
+        return "原版人物资料", name, "未提取到该人物的原版介绍正文。"
+    return "原版人物资料", char_id, "未提取到该人物的原版介绍正文。"
+
+
 def character_combo_items(editor_data: dict) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
     """人物下拉：自定义角色 + 官方角色，各自带分组前缀。"""
     custom: list[tuple[str, str]] = []
@@ -1085,6 +1559,7 @@ def new_story(story_id: str = "main", editor_data: dict | None = None) -> dict:
     draft["nodes"].append(entrance)
     first = new_node("say", make_node_id(draft, "say"), editor_data)
     return {
+        "story_schema": STORY_SCHEMA,
         "id": story_id,
         "title": t("new_story_title", default="新剧情"),
         "mood": False,
@@ -1093,34 +1568,66 @@ def new_story(story_id: str = "main", editor_data: dict | None = None) -> dict:
     }
 
 
-def load_story(path: Path) -> dict:
-    """读取 story.json 并做最基本结构校验。"""
-    try:
-        story = json.loads(Path(path).read_text(encoding="utf-8"))
-    except OSError as exc:
-        raise ValueError("story.json 读取失败: %s" % exc) from exc
-    except json.JSONDecodeError as exc:
-        raise ValueError("story.json 不是合法 JSON: %s" % exc) from exc
+def _validate_story_shape(story: dict) -> None:
     if not isinstance(story, dict) or not isinstance(story.get("nodes"), list):
         raise ValueError("story.json 结构非法：缺少 nodes 数组")
+    assert_supported_version(
+        story, "story_schema", STORY_SCHEMA, allow_missing=True
+    )
+    for node in story["nodes"]:
+        if not isinstance(node, dict) or "id" not in node or "type" not in node:
+            raise ValueError("story.json 结构非法：节点缺少 id/type")
+
+
+def load_story(path: Path) -> dict:
+    """读取 Story；旧 v1 文件先备份并原子迁移，再返回当前 schema。"""
+    try:
+        result, _backup = migrate_json_file(
+            Path(path), "story", validator=_validate_story_shape
+        )
+    except MigrationError as exc:
+        raise ValueError(str(exc)) from exc
+    story = result.document
     story.setdefault("id", "main")
     story.setdefault("title", story["id"])
     story.setdefault("mood", False)
     story.setdefault("start", story["nodes"][0]["id"] if story["nodes"] else "")
-    for node in story["nodes"]:
-        if "id" not in node or "type" not in node:
-            raise ValueError("story.json 结构非法：节点缺少 id/type")
     return story
 
 
 def save_story(story: dict, path: Path) -> None:
-    """写出 story.json（UTF-8、缩进 2、保留中文）。"""
-    Path(path).write_text(
-        json.dumps(story, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-    )
+    """写当前 Story schema；覆盖旧文件前先完成可恢复迁移。"""
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        migrated = migrate_story(story)
+        _validate_story_shape(migrated.document)
+        if target.exists():
+            migrate_json_file(target, "story", validator=_validate_story_shape)
+    except MigrationError as exc:
+        raise ValueError(str(exc)) from exc
+    payload = json.dumps(migrated.document, ensure_ascii=False, indent=2) + "\n"
+    temp_path = None
+    try:
+        fd, raw_temp = tempfile.mkstemp(
+            prefix=target.name + ".", suffix=".tmp", dir=str(target.parent)
+        )
+        temp_path = Path(raw_temp)
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temp_path, target)
+        temp_path = None
+    finally:
+        if temp_path is not None:
+            try:
+                temp_path.unlink()
+            except OSError:
+                pass
 
 
-_GOTO_KEYS = ("goto", "goto_大成功", "goto_成功", "goto_失败")
+_GOTO_KEYS = ("goto", "goto_大成功", "goto_成功", "goto_失败", "win", "lose")
 
 
 def retarget_node_ids(story: dict, mapping: dict[str, str]) -> int:
@@ -1139,10 +1646,11 @@ def retarget_node_ids(story: dict, mapping: dict[str, str]) -> int:
         if isinstance(nid, str) and nid in mapping:
             node["id"] = mapping[nid]
             changed += 1
-        value = node.get("goto")
-        if isinstance(value, str) and value in mapping:
-            node["goto"] = mapping[value]
-            changed += 1
+        for key in ("goto", "win", "lose"):
+            value = node.get(key)
+            if isinstance(value, str) and value in mapping:
+                node[key] = mapping[value]
+                changed += 1
         for option in node.get("options") or []:
             if not isinstance(option, dict):
                 continue
@@ -1169,8 +1677,8 @@ def rename_node(story: dict, old_id: str, new_id: str) -> int:
         raise ValueError("原节点编号为空")
     if old_id == new_id:
         return 0
-    if not ID_PATTERN.fullmatch(new_id):
-        raise ValueError("节点编号只使用英文字母、数字、下划线或短横线")
+    if not NODE_ID_PATTERN.fullmatch(new_id):
+        raise ValueError("节点编号只使用英文字母、数字或下划线")
     ids = [n.get("id") for n in story.get("nodes") or [] if isinstance(n, dict)]
     if old_id not in ids:
         raise ValueError("节点不存在: %s" % old_id)
@@ -1200,7 +1708,7 @@ def make_node_id(story: dict, node_type: str | None = None, prefix: str | None =
     旧故事里的 n1/n2 保持不动。prefix 仍可用，便于试玩前导等特殊编号。
     """
     stem = (prefix or node_type or "n").strip()
-    if not ID_PATTERN.fullmatch(stem):
+    if not NODE_ID_PATTERN.fullmatch(stem):
         stem = "n"
     used = {n.get("id") for n in story.get("nodes", [])}
     i = 1
@@ -1234,9 +1742,12 @@ def _signed(value) -> str:
 
 def node_bullet(node_type: str) -> str:
     """步骤列表前缀符号：分支/结局与普通步骤区分开。"""
-    if node_type in ("choice", "branch", "dice"):
+    if node_type in (
+        "choice", "branch", "dice", "stat_check", "affinity_check", "item_check",
+        "talent_check", "flag_check", "activity", "quest_check", "persistent_check",
+    ):
         return "◆"
-    if node_type in ("end", "death", "goto_scene"):
+    if node_type in ("end", "death", "goto_scene", "combat", "battle"):
         return "■"
     return "●"
 
@@ -1313,6 +1824,17 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
         return f"{tcn}·{node.get('name', '')}"
     if nt == "scene":
         return f"{tcn}·{display_name(ed, 'views', node.get('view', ''))}"
+    if nt == "background":
+        action = enum_label("background_action", node.get("action", "show"))
+        image = node.get("image") or ""
+        return f"{tcn}·{action}" + (f" {image}" if image else "")
+    if nt == "custom_cg":
+        action = enum_label("cg_action", node.get("action", "show"))
+        image = node.get("image") or ""
+        return f"{tcn}·{action}" + (f" {image}" if image else "")
+    if nt == "overlay":
+        action = enum_label("overlay_action", node.get("action", "show"))
+        return f"{tcn}·{node.get('slot', 'main')} {action}"
     if nt == "show":
         return f"{tcn}·{cname()}@{node.get('position', '')}"
     if nt == "move":
@@ -1417,9 +1939,76 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
         value = "" if op == "id" else f" {_signed(node.get('value', 0))}"
         return f"{tcn}·{enum_label('enemy_op', op)} {faction}{value}"
     if nt == "battle_skill":
+        skill_name = display_name(ed, "battle_skills", node.get("key", ""))
         return (
             f"{tcn}·{enum_label('battle_skill_op', node.get('op', 'set'))}"
-            f" {node.get('key', '')}"
+            f" {skill_name}"
+        )
+    if nt == "battle_setup":
+        enemy_name = display_name(ed, "enemy_teams", node.get("enemy", ""))
+        return t(
+            "summary.battle_setup",
+            default="{type}·敌方阵营 {enemy} / 战场技能 {count}",
+            type=tcn,
+            enemy=enemy_name or t("form.unchanged", default="不变"),
+            count=len(node.get("skills", [])),
+        )
+    if nt == "combat":
+        key = node.get("preset") or node.get("key", "") or t("form.unselected", default="（未选）")
+        return f"{tcn}·{key}（胜利→{node.get('win', '')} / 失败→{node.get('lose', '')}）"
+    if nt == "battle":
+        key = node.get("preset") or node.get("key", "") or t("form.unselected", default="（未选）")
+        return f"{tcn}·{key}（友军胜→{node.get('win', '')} / 敌军胜→{node.get('lose', '')}）"
+    if nt == "battle_result":
+        return f"{tcn}·胜→{node.get('win', '')} / 败→{node.get('lose', '')}"
+    if nt == "reward":
+        return f"{tcn}·{len(node.get('entries', []))} 项"
+    if nt == "result_screen":
+        return (
+            f"{tcn}·{_short(str(node.get('title', '')))}"
+            f" / {len(node.get('entries', []))} 项"
+        )
+    if nt == "custom_shop":
+        discount = " / 原版折扣" if node.get("discount") else ""
+        return f"{tcn}·{len(node.get('items', []))} 件{discount}"
+    if nt in ("stat_check", "affinity_check", "talent_check"):
+        key = node.get("key") or node.get("character") or node.get("talent", "")
+        return (
+            f"{tcn}·{key} {node.get('op', '>=')} {node.get('value', 0)}"
+            f"（成功→{node.get('success', '')} / 失败→{node.get('failure', '')}）"
+        )
+    if nt == "item_check":
+        return (
+            f"{tcn}·{node.get('category', 'misc')}:{node.get('item', '')}"
+            f"（成功→{node.get('success', '')} / 失败→{node.get('failure', '')}）"
+        )
+    if nt == "flag_check":
+        return (
+            f"{tcn}·{node.get('source', 'mod')}:{node.get('flag', '')}"
+            f"（成功→{node.get('success', '')} / 失败→{node.get('failure', '')}）"
+        )
+    if nt == "activity":
+        return (
+            f"{tcn}·{enum_label('activity_kind', node.get('kind', 'training'))} / "
+            f"{node.get('stat', '')} {node.get('op', '>=')} {node.get('value', 0)}"
+            f"（成功→{node.get('success', '')} / 失败→{node.get('failure', '')}）"
+        )
+    if nt == "mod_quest":
+        return f"{tcn}·{enum_label('quest_op', node.get('op', 'start'))} {node.get('quest', '')}"
+    if nt == "quest_check":
+        return (
+            f"{tcn}·{node.get('quest', '')}={enum_label('quest_state', node.get('state', 'active'))}"
+            f"（命中→{node.get('success', '')} / 未命中→{node.get('failure', '')}）"
+        )
+    if nt == "persistent_var":
+        return (
+            f"{tcn}·{node.get('key', '')} "
+            f"{enum_label('persistent_op', node.get('op', 'set'))} {node.get('value', 0)}"
+        )
+    if nt == "persistent_check":
+        return (
+            f"{tcn}·{node.get('key', '')} {node.get('op', '>=')} {node.get('value', 1)}"
+            f"（成功→{node.get('success', '')} / 失败→{node.get('failure', '')}）"
         )
     if nt == "mission":
         return f"{tcn}·{node.get('name', '')} {node.get('key', '')}"

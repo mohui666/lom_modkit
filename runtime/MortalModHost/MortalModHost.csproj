@@ -67,6 +67,15 @@
       <HintPath>$(GameDir)\Mortal_Data\Managed\Mortal.Story.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <!-- Gameplay 高层 combat：仅观察原版胜负并让 MOD lose 分支返回 Story。 -->
+    <Reference Include="Mortal.Combat">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\Mortal.Combat.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Mortal.Battle">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\Mortal.Battle.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <!-- 游戏程序集：FreePositionData / PositionController（自由模式位置触发器） -->
     <Reference Include="Mortal.Free">
       <HintPath>$(GameDir)\Mortal_Data\Managed\Mortal.Free.dll</HintPath>
@@ -80,6 +89,11 @@
     <!-- UnityEngine.UI：Text 组件（GameOver/End 官方画面的标题/描述文本写入） -->
     <Reference Include="UnityEngine.UI">
       <HintPath>$(GameDir)\Mortal_Data\Managed\UnityEngine.UI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <!-- Font.CreateDynamicFontFromOSFont（披露芯片在找不到游戏字体时回退系统中文字体） -->
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <!-- UnityEngine.UIModule：CanvasGroup（GameOver 描述容器/按钮画布 fade 目标） -->

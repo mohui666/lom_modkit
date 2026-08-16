@@ -1,4 +1,5 @@
 {
+  "story_schema": 1,
   "id": "main",
   "title": "自定义音频测试",
   "start": "n1",

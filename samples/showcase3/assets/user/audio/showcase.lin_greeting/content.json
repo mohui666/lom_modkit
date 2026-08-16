@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "content_schema": 1,
+  "id": "showcase.lin_greeting",
+  "type": "audio",
+  "name": "林灯问候",
+  "audio_kind": "sound",
+  "files": {"main": "lin_greeting.wav"},
+  "character": "user:showcase.lin_deng"
+}

@@ -10,7 +10,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-TERMINAL_TYPES = {"end", "goto_scene", "death"}
+CHECK_TYPES = {
+    "stat_check", "affinity_check", "item_check", "talent_check", "flag_check", "activity",
+    "quest_check", "persistent_check",
+}
+TERMINAL_TYPES = {
+    "end", "goto_scene", "death", "combat", "battle", "battle_result", *CHECK_TYPES,
+}
 NO_FALLTHROUGH_TYPES = {"choice", "dice", *TERMINAL_TYPES}
 
 
@@ -77,6 +83,22 @@ def _explicit_edges(node: dict) -> list[tuple[str, str, str]]:
                 target = option.get(key)
                 if isinstance(target, str) and target:
                     result.append((target, f"第{index}项·{result_name}", "dice"))
+    elif node_type in ("combat", "battle", "battle_result"):
+        labels = (("win", "友军胜利"), ("lose", "敌军胜利")) if node_type == "battle" else (("win", "胜利"), ("lose", "失败"))
+        for key, label in labels:
+            target = node.get(key)
+            if isinstance(target, str) and target:
+                result.append((target, label, node_type))
+    elif node_type in CHECK_TYPES:
+        labels = (
+            (("success", "命中"), ("failure", "未命中"))
+            if node_type == "quest_check"
+            else (("success", "成功"), ("failure", "失败"))
+        )
+        for key, label in labels:
+            target = node.get(key)
+            if isinstance(target, str) and target:
+                result.append((target, label, node_type))
 
     seen: set[tuple[str, str, str]] = set()
     return [item for item in result if not (item in seen or seen.add(item))]

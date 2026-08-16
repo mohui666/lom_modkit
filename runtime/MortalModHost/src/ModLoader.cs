@@ -2,22 +2,35 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace MortalModHost
 {
     /// <summary>
     /// mod 包扫描与解析（纯静态、无 BepInEx/Unity 依赖，便于离线单测）。
-    /// 行为契约见 docs/zh_CN/mod_format.md §6：扫描 mods/*.lommod，解出 manifest.json、lua/*.lua、可选 texts.json（契约 §1）
+    /// 行为契约见 docs/chs/mod_format.md §6：扫描 mods/*.lommod，解出 manifest.json、lua/*.lua、可选 texts.json（契约 §1）
     /// 与 assets/ 下图片（契约 §3.1）。单个包损坏只警告跳过，绝不抛出让插件崩溃。
     /// </summary>
     internal static class ModLoader
     {
+        internal const int PackageFormat = 1;
+        internal const int StorySchema = 1;
+        internal const int ContentSchema = 1;
+
         /// <summary>结局卡背景图单张上限（字节，契约 §3.1，与编译器 pack 校验一致）。</summary>
         private const long MaxEndingImageBytes = 8L * 1024 * 1024;
 
         /// <summary>用户音频单条上限（与 compiler/lomc/content.py 一致）。</summary>
         private const long MaxAudioBytes = ContentRef.MaxAudioBytes;
+
+        /// <summary>包结构防护：避免畸形 zip 以海量条目或超高解压比耗尽内存。</summary>
+        private const int MaxArchiveEntries = 2048;
+        private const long MaxEntryBytes = 32L * 1024 * 1024;
+        private const long MaxArchiveBytes = 128L * 1024 * 1024;
+        private const long MaxTextBytes = 4L * 1024 * 1024;
+        private const long MaxPackageFileBytes = 160L * 1024 * 1024;
+        private const int MaxIdentifierLength = 64;
 
         /// <summary>结局卡背景图允许的扩展名（契约 §3.1）。</summary>
         private static bool IsImageAsset(string path)
@@ -71,14 +84,24 @@ namespace MortalModHost
         private static ModPackage LoadPackage(string path, Action<string> logWarn)
         {
             using (var stream = File.OpenRead(path))
-            using (var zip = new ZipArchive(stream, ZipArchiveMode.Read))
             {
-                var manifestEntry = zip.GetEntry("manifest.json");
-                if (manifestEntry == null)
-                    throw new FormatException("包内缺少 manifest.json");
+                if (stream.Length > MaxPackageFileBytes)
+                    throw new FormatException("mod 包文件超过 160MB 上限");
+                string fingerprint;
+                using (var sha256 = SHA256.Create())
+                    fingerprint = ToUpperHex(sha256.ComputeHash(stream));
+                stream.Position = 0;
 
-                var package = ParseManifest(ReadEntryText(manifestEntry));
-                package.PackagePath = path;
+                using (var zip = new ZipArchive(stream, ZipArchiveMode.Read))
+                {
+                    ValidateArchiveLimits(zip);
+                    var manifestEntry = zip.GetEntry("manifest.json");
+                    if (manifestEntry == null)
+                        throw new FormatException("包内缺少 manifest.json");
+
+                    var package = ParseManifest(ReadEntryText(manifestEntry));
+                    package.PackagePath = path;
+                    package.PackageFingerprint = fingerprint;
 
                 // 收集 lua/<id>.lua（仅 lua/ 直接子项，契约 §1）
                 foreach (var entry in zip.Entries)
@@ -89,6 +112,8 @@ namespace MortalModHost
                     if (!rest.EndsWith(".lua", StringComparison.OrdinalIgnoreCase)) continue;
                     string scriptId = rest.Substring(0, rest.Length - 4);
                     if (scriptId.Length == 0) continue;
+                    if (!IsValidScriptId(scriptId))
+                        throw new FormatException("lua 脚本 id 非法：" + scriptId);
                     package.LuaScripts[scriptId] = ReadEntryText(entry);
                 }
 
@@ -113,6 +138,27 @@ namespace MortalModHost
                     }
                 }
 
+                // Story Localization v1. Invalid optional metadata falls back to the
+                // legacy default scripts/texts without rejecting an otherwise valid mod.
+                var localizationEntry = zip.GetEntry("localization.json");
+                if (localizationEntry != null)
+                {
+                    try
+                    {
+                        ParseLocalization(package, ReadEntryText(localizationEntry));
+                        LoadLocalizedScriptsAndTexts(package, zip);
+                    }
+                    catch (Exception ex)
+                    {
+                        package.LocalizedLuaScripts.Clear();
+                        package.LocalizedTexts.Clear();
+                        package.DefaultLocale = "chs";
+                        package.FallbackLocale = "chs";
+                        if (logWarn != null)
+                            logWarn("mod " + package.Id + " 的 localization.json/locale 资源无效，已回退默认语言：" + ex.Message);
+                    }
+                }
+
                 // assets/ 下的图片（契约 §3.1 结局卡背景图）：只收 .png/.jpg/.jpeg，
                 // 单张 ≤8MB（超限警告跳过）。用户音频走 assets/user/，见 LoadUserContents。
                 foreach (var entry in zip.Entries)
@@ -128,10 +174,8 @@ namespace MortalModHost
                     try
                     {
                         using (var input = entry.Open())
-                        using (var ms = new MemoryStream())
                         {
-                            input.CopyTo(ms);
-                            package.Assets[NormalizeAssetPath(entry.FullName)] = ms.ToArray();
+                            package.Assets[NormalizeAssetPath(entry.FullName)] = ReadBoundedBytes(input, MaxEndingImageBytes, entry.FullName);
                         }
                     }
                     catch (Exception ex)
@@ -157,8 +201,17 @@ namespace MortalModHost
                     }
                 }
 
-                return package;
+                    return package;
+                }
             }
+        }
+
+        private static string ToUpperHex(byte[] bytes)
+        {
+            var text = new StringBuilder(bytes.Length * 2);
+            for (int i = 0; i < bytes.Length; i++)
+                text.Append(bytes[i].ToString("X2"));
+            return text.ToString();
         }
 
         /// <summary>解析 manifest.json，校验契约 §2 的必填字段。</summary>
@@ -168,23 +221,83 @@ namespace MortalModHost
             if (root == null)
                 throw new FormatException("manifest.json 顶层必须是 JSON 对象");
 
-            // format 固定为 1，不符说明是未知格式版本，跳过比误加载安全
-            object formatObj;
-            double format;
-            if (!root.TryGetValue("format", out formatObj) || !(formatObj is double) || (format = (double)formatObj) != 1.0)
-                throw new FormatException("manifest.format 不是 1（本插件只支持格式 v1）");
+            // 新包使用含义明确的三个版本字段；format 仅供旧 v1 reader 兼容。
+            RequireVersion(root, "package_format", PackageFormat, "format", false);
+            RequireVersion(root, "story_schema", StorySchema, null, true);
+            RequireVersion(root, "content_schema", ContentSchema, null, true);
+
+            string id = GetString(root, "id", required: true);
+            string entry = GetString(root, "entry", required: true);
+            if (!IsValidModId(id))
+                throw new FormatException("manifest.id 必须匹配 [a-z0-9_-]{1,64}");
+            if (!IsValidScriptId(entry))
+                throw new FormatException("manifest.entry 必须匹配 [A-Za-z0-9_-]{1,64}");
 
             var package = new ModPackage
             {
-                Id = GetString(root, "id", required: true),
+                Id = id,
                 Name = GetString(root, "name", required: false) ?? "",
                 Version = GetString(root, "version", required: false) ?? "",
+                MinHostVersion = GetOptionalCompatibilityString(root, "min_host_version"),
+                TestedHostVersion = GetOptionalCompatibilityString(root, "tested_host_version"),
+                GameVersion = GetOptionalCompatibilityString(root, "game_version"),
+                TestedGameVersion = GetOptionalCompatibilityString(root, "tested_game_version"),
                 Author = GetString(root, "author", required: false) ?? "",
                 Description = GetString(root, "description", required: false) ?? "",
-                Entry = GetString(root, "entry", required: true),
+                Entry = entry,
                 Campaign = ParseCampaign(root)
             };
             return package;
+        }
+
+        private static void RequireVersion(
+            Dictionary<string, object> root,
+            string field,
+            int current,
+            string legacyField,
+            bool allowMissing)
+        {
+            object valueObj;
+            bool hasExplicit = root.TryGetValue(field, out valueObj);
+            object legacyObj = null;
+            bool hasLegacy = legacyField != null && root.TryGetValue(legacyField, out legacyObj);
+            if (!hasExplicit)
+                valueObj = hasLegacy ? legacyObj : null;
+            if (!hasExplicit && !hasLegacy && allowMissing)
+                return;
+            if (!(valueObj is double) || (double)valueObj != current)
+                throw new FormatException(
+                    "manifest." + field + " 不是 " + current
+                    + "（本插件不支持该版本）");
+            if (hasExplicit && hasLegacy
+                && (!(legacyObj is double) || (double)legacyObj != (double)valueObj))
+                throw new FormatException(
+                    "manifest." + field + " 与旧字段 " + legacyField + " 不一致");
+        }
+
+        private static bool IsValidModId(string value)
+        {
+            if (string.IsNullOrEmpty(value) || value.Length > MaxIdentifierLength) return false;
+            for (int i = 0; i < value.Length; i++)
+            {
+                char c = value[i];
+                if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' || c == '-'))
+                    return false;
+            }
+            return true;
+        }
+
+        private static bool IsValidScriptId(string value)
+        {
+            if (string.IsNullOrEmpty(value) || value.Length > MaxIdentifierLength) return false;
+            for (int i = 0; i < value.Length; i++)
+            {
+                char c = value[i];
+                if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+                    || (c >= '0' && c <= '9') || c == '_' || c == '-'))
+                    return false;
+            }
+            return true;
         }
 
         /// <summary>解析可选的 campaign 段（契约 §2）；无该段返回 null，结构非法抛 FormatException。</summary>
@@ -275,12 +388,15 @@ namespace MortalModHost
             if (affinity == null)
                 throw new FormatException("manifest 触发器 when_affinity 必须是对象");
             object minObj;
-            if (!affinity.TryGetValue("min", out minObj) || !(minObj is double) || (double)minObj % 1 != 0 || (double)minObj < 0)
-                throw new FormatException("manifest 触发器 when_affinity.min 必须是非负整数");
+            double min;
+            if (!affinity.TryGetValue("min", out minObj) || !(minObj is double)
+                || double.IsNaN(min = (double)minObj) || double.IsInfinity(min)
+                || min % 1 != 0 || min < int.MinValue || min > int.MaxValue)
+                throw new FormatException("manifest 触发器 when_affinity.min 必须是 Int32 范围内的整数");
             return new AffinityCondition
             {
                 Character = GetString(affinity, "character", required: true),
-                Min = (int)(double)minObj
+                Min = (int)min
             };
         }
 
@@ -300,19 +416,109 @@ namespace MortalModHost
             return text;
         }
 
+        private static string GetOptionalCompatibilityString(
+            Dictionary<string, object> dict, string key)
+        {
+            object value;
+            if (!dict.TryGetValue(key, out value)) return null;
+            string text = value as string;
+            if (string.IsNullOrEmpty(text) || text.Length > 64)
+                throw new FormatException("manifest 字段 \"" + key
+                    + "\" 必须是 1~64 位版本字符串");
+            return text;
+        }
+
         /// <summary>解析 texts.json（契约 §1）：顶层对象，值必须全部是字符串。</summary>
         private static void ParseTexts(ModPackage package, string json)
         {
+            ParseTextsInto(package.Texts, json, "texts.json");
+        }
+
+        private static void ParseTextsInto(Dictionary<string, string> target, string json, string source)
+        {
             var root = MiniJson.Parse(json) as Dictionary<string, object>;
             if (root == null)
-                throw new FormatException("texts.json 顶层必须是 JSON 对象");
+                throw new FormatException(source + " 顶层必须是 JSON 对象");
             foreach (var pair in root)
             {
                 var text = pair.Value as string;
                 if (text == null)
-                    throw new FormatException("texts.json 键 " + pair.Key + " 的值必须是字符串");
-                package.Texts[pair.Key] = text;
+                    throw new FormatException(source + " 键 " + pair.Key + " 的值必须是字符串");
+                target[pair.Key] = text;
             }
+        }
+
+        private static bool IsStoryLocale(string locale)
+        {
+            return NormalizeStoryLocale(locale) != null;
+        }
+
+        private static string NormalizeStoryLocale(string locale)
+        {
+            if (locale == "chs" || locale == "cht" || locale == "ja" || locale == "ko") return locale;
+            // Compatibility is input-only. New manifests and package paths always emit chs/cht.
+            if (locale == "zh_CN" || locale == "zh-CN" || locale == "zh_Hans" || locale == "zh-Hans") return "chs";
+            if (locale == "zh_TW" || locale == "zh-TW" || locale == "zh_Hant" || locale == "zh-Hant") return "cht";
+            return null;
+        }
+
+        private static void ParseLocalization(ModPackage package, string json)
+        {
+            var root = MiniJson.Parse(json) as Dictionary<string, object>;
+            if (root == null) throw new FormatException("localization.json 顶层必须是对象");
+            object schema;
+            if (!root.TryGetValue("schema", out schema) || Convert.ToInt32(schema) != 1)
+                throw new FormatException("localization.json schema 必须为 1");
+            object defaultValue, fallbackValue;
+            string defaultLocale = root.TryGetValue("default_locale", out defaultValue) ? defaultValue as string : null;
+            string fallbackLocale = root.TryGetValue("fallback_locale", out fallbackValue) ? fallbackValue as string : defaultLocale;
+            if (!IsStoryLocale(defaultLocale) || !IsStoryLocale(fallbackLocale))
+                throw new FormatException("default_locale/fallback_locale 只支持 chs/cht/ja/ko");
+            package.DefaultLocale = NormalizeStoryLocale(defaultLocale);
+            package.FallbackLocale = NormalizeStoryLocale(fallbackLocale);
+        }
+
+        private static void LoadLocalizedScriptsAndTexts(ModPackage package, ZipArchive zip)
+        {
+            foreach (string locale in new[] { "chs", "cht", "ja", "ko" })
+            {
+                var scripts = new Dictionary<string, string>();
+                string packageLocale = FindPackagedLocale(zip, locale);
+                string prefix = "lua/" + packageLocale + "/";
+                foreach (var entry in zip.Entries)
+                {
+                    if (!entry.FullName.StartsWith(prefix, StringComparison.Ordinal) ||
+                        !entry.FullName.EndsWith(".lua", StringComparison.OrdinalIgnoreCase)) continue;
+                    string rest = entry.FullName.Substring(prefix.Length);
+                    if (rest.Length <= 4 || rest.IndexOf('/') >= 0) continue;
+                    string scriptId = rest.Substring(0, rest.Length - 4);
+                    if (!package.LuaScripts.ContainsKey(scriptId))
+                        throw new FormatException(entry.FullName + " 没有对应的默认 lua/" + scriptId + ".lua");
+                    scripts[scriptId] = ReadEntryText(entry);
+                }
+                if (scripts.Count != package.LuaScripts.Count)
+                    throw new FormatException(prefix + " 必须为每个默认脚本提供完整变体");
+                package.LocalizedLuaScripts[locale] = scripts;
+                var textsEntry = zip.GetEntry("texts/" + packageLocale + ".json");
+                if (textsEntry == null)
+                    throw new FormatException("缺少 texts/" + locale + ".json");
+                var texts = new Dictionary<string, string>();
+                ParseTextsInto(texts, ReadEntryText(textsEntry), textsEntry.FullName);
+                if (texts.Count != package.Texts.Count)
+                    throw new FormatException(textsEntry.FullName + " 的 key 必须与 texts.json 完全一致");
+                foreach (string key in package.Texts.Keys)
+                    if (!texts.ContainsKey(key))
+                        throw new FormatException(textsEntry.FullName + " 缺少 key " + key);
+                package.LocalizedTexts[locale] = texts;
+            }
+        }
+
+        private static string FindPackagedLocale(ZipArchive zip, string locale)
+        {
+            if (zip.GetEntry("texts/" + locale + ".json") != null) return locale;
+            if (locale == "chs" && zip.GetEntry("texts/zh_CN.json") != null) return "zh_CN";
+            if (locale == "cht" && zip.GetEntry("texts/zh_TW.json") != null) return "zh_TW";
+            return locale;
         }
 
         /// <summary>
@@ -346,7 +552,17 @@ namespace MortalModHost
                 {
                     UserContent content = ParseUserContent(package, pair.Key, ReadEntryText(pair.Value), entries, logWarn);
                     if (content != null)
+                    {
+                        UserContent existing;
+                        if (package.UserContents.TryGetValue(content.Id, out existing))
+                        {
+                            if (logWarn != null)
+                                logWarn("mod " + package.Id + " 的用户内容 ID " + content.Id
+                                    + " 重复（" + existing.Type + " / " + content.Type + "），已保留先加载项");
+                            continue;
+                        }
                         package.UserContents[content.Id] = content;
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -368,8 +584,16 @@ namespace MortalModHost
                 throw new FormatException("content.json 顶层必须是对象");
 
             object schemaObj;
-            if (!root.TryGetValue("schema", out schemaObj) || !(schemaObj is double) || (double)schemaObj != 1.0)
-                throw new FormatException("content.json schema 必须是 1");
+            bool hasExplicitSchema = root.TryGetValue("content_schema", out schemaObj);
+            object legacySchemaObj = null;
+            bool hasLegacySchema = root.TryGetValue("schema", out legacySchemaObj);
+            if (!hasExplicitSchema)
+                schemaObj = hasLegacySchema ? legacySchemaObj : null;
+            if (!(schemaObj is double) || (double)schemaObj != ContentSchema)
+                throw new FormatException("content.json content_schema 必须是 " + ContentSchema);
+            if (hasExplicitSchema && hasLegacySchema
+                && (!(legacySchemaObj is double) || (double)legacySchemaObj != (double)schemaObj))
+                throw new FormatException("content.json content_schema 与旧字段 schema 不一致");
 
             string id = GetString(root, "id", required: true);
             string idError;
@@ -408,6 +632,8 @@ namespace MortalModHost
                 return ParseAudioContent(package, expectedDir, id, name, mainFile, root, entries);
             if (type == "character")
                 return ParseCharacterContent(package, expectedDir, id, name, mainFile, root, entries);
+            if (type == "image")
+                return ParseImageContent(package, expectedDir, id, name, mainFile, entries);
             if (logWarn != null)
                 logWarn("mod " + package.Id + " 的用户内容 " + id + " 类型 " + type + " 本版本不加载");
             return null;
@@ -431,7 +657,7 @@ namespace MortalModHost
                 throw new FormatException("用户音频只支持 .ogg / .wav");
 
             string audioPath = expectedDir + "/" + mainFile;
-            byte[] bytes = ReadZipBytes(entries, audioPath, MaxAudioBytes, "音频");
+            byte[] bytes = ReadZipBytes(package, entries, audioPath, MaxAudioBytes, "音频");
             return new UserContent
             {
                 Id = id,
@@ -481,12 +707,12 @@ namespace MortalModHost
             {
                 string path = expectedDir + "/" + pair.Value;
                 if (!fileBytes.ContainsKey(pair.Value))
-                    fileBytes[pair.Value] = ReadZipBytes(entries, path, 8L * 1024 * 1024, "立绘");
+                    fileBytes[pair.Value] = ReadZipBytes(package, entries, path, 8L * 1024 * 1024, "立绘");
             }
             byte[] mainBytes;
             if (!fileBytes.TryGetValue(mainFile, out mainBytes))
             {
-                mainBytes = ReadZipBytes(entries, expectedDir + "/" + mainFile, 8L * 1024 * 1024, "立绘");
+                mainBytes = ReadZipBytes(package, entries, expectedDir + "/" + mainFile, 8L * 1024 * 1024, "立绘");
                 fileBytes[mainFile] = mainBytes;
             }
 
@@ -520,6 +746,29 @@ namespace MortalModHost
                 Bytes = mainBytes,
                 Portraits = portraits,
                 Files = fileBytes
+            };
+        }
+
+        private static UserContent ParseImageContent(
+            ModPackage package,
+            string expectedDir,
+            string id,
+            string name,
+            string mainFile,
+            Dictionary<string, ZipArchiveEntry> entries)
+        {
+            if (!IsImageExt(Path.GetExtension(mainFile)))
+                throw new FormatException("用户图片只支持 .png / .jpg / .jpeg");
+            string imagePath = expectedDir + "/" + mainFile;
+            byte[] bytes = ReadZipBytes(package, entries, imagePath, ContentRef.MaxImageBytes, "图片");
+            return new UserContent
+            {
+                Id = id,
+                Type = "image",
+                Name = name,
+                MainFile = mainFile,
+                PackagePath = imagePath,
+                Bytes = bytes
             };
         }
 
@@ -560,21 +809,29 @@ namespace MortalModHost
         }
 
         private static byte[] ReadZipBytes(
+            ModPackage package,
             Dictionary<string, ZipArchiveEntry> entries,
             string path,
             long maxBytes,
             string label)
         {
+            byte[] cached;
+            if (package.Assets.TryGetValue(NormalizeAssetPath(path), out cached))
+            {
+                if (cached.LongLength > maxBytes)
+                    throw new FormatException(label + "超过上限：" + path);
+                if (cached.Length == 0)
+                    throw new FormatException(label + "文件为空：" + path);
+                return cached;
+            }
             ZipArchiveEntry entry;
             if (!entries.TryGetValue(path, out entry))
                 throw new FormatException("缺少" + label + "文件 " + path);
             if (entry.Length > maxBytes)
                 throw new FormatException(label + "超过上限：" + path);
             using (var input = entry.Open())
-            using (var ms = new MemoryStream())
             {
-                input.CopyTo(ms);
-                byte[] bytes = ms.ToArray();
+                byte[] bytes = ReadBoundedBytes(input, maxBytes, path);
                 if (bytes.Length == 0)
                     throw new FormatException(label + "文件为空：" + path);
                 return bytes;
@@ -583,8 +840,55 @@ namespace MortalModHost
 
         private static string ReadEntryText(ZipArchiveEntry entry)
         {
-            using (var reader = new StreamReader(entry.Open(), Encoding.UTF8))
-                return reader.ReadToEnd();
+            if (entry.Length > MaxTextBytes)
+                throw new FormatException("文本条目超过 4MB 上限：" + entry.FullName);
+            using (var input = entry.Open())
+            {
+                byte[] bytes = ReadBoundedBytes(input, MaxTextBytes, entry.FullName);
+                try
+                {
+                    string text = new UTF8Encoding(false, true).GetString(bytes);
+                    return text.Length > 0 && text[0] == '\uFEFF' ? text.Substring(1) : text;
+                }
+                catch (DecoderFallbackException)
+                {
+                    throw new FormatException("文本条目不是合法 UTF-8：" + entry.FullName);
+                }
+            }
+        }
+
+        private static void ValidateArchiveLimits(ZipArchive zip)
+        {
+            if (zip.Entries.Count > MaxArchiveEntries)
+                throw new FormatException("包内条目数超过 " + MaxArchiveEntries + " 上限");
+            long total = 0;
+            foreach (var entry in zip.Entries)
+            {
+                if (entry.Length < 0 || entry.Length > MaxEntryBytes)
+                    throw new FormatException("包内条目超过 32MB 上限：" + entry.FullName);
+                if (total > MaxArchiveBytes - entry.Length)
+                    throw new FormatException("包内总未压缩大小超过 128MB 上限");
+                total += entry.Length;
+            }
+        }
+
+        private static byte[] ReadBoundedBytes(Stream input, long maxBytes, string path)
+        {
+            using (var ms = new MemoryStream())
+            {
+                var buffer = new byte[81920];
+                long total = 0;
+                while (true)
+                {
+                    int read = input.Read(buffer, 0, buffer.Length);
+                    if (read == 0) break;
+                    if (total > maxBytes - read)
+                        throw new FormatException("条目读取超过大小上限：" + path);
+                    ms.Write(buffer, 0, read);
+                    total += read;
+                }
+                return ms.ToArray();
+            }
         }
     }
 }

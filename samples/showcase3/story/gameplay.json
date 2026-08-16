@@ -1,0 +1,438 @@
+{
+  "story_schema": 1,
+  "id": "gameplay",
+  "title": "3.0 第二章：数值、检定、任务与商店",
+  "mood": false,
+  "nodes": [
+    {
+      "id": "message1",
+      "type": "message",
+      "text": "【3.0/2】Gameplay 组合节点开始。"
+    },
+    {
+      "id": "stat1",
+      "type": "stat",
+      "key": "mental",
+      "delta": 1,
+      "waitDisplay": false,
+      "display": 1
+    },
+    {
+      "id": "stat_set1",
+      "type": "stat_set",
+      "key": "talking",
+      "value": 50,
+      "update": false
+    },
+    {
+      "id": "affinity1",
+      "type": "affinity",
+      "character": "sister1",
+      "delta": 1
+    },
+    {
+      "id": "talent1",
+      "type": "talent",
+      "talent": "1010",
+      "level": 1
+    },
+    {
+      "id": "item1",
+      "type": "item",
+      "kind": "misc",
+      "item": "2001",
+      "count": 1,
+      "remove": false
+    },
+    {
+      "id": "game_flag1",
+      "type": "game_flag",
+      "flag": "50019",
+      "value": 1,
+      "op": "set"
+    },
+    {
+      "id": "enemy1",
+      "type": "enemy",
+      "op": "team",
+      "enemy": "400",
+      "value": -10,
+      "display": 1
+    },
+    {
+      "id": "battle_skill1",
+      "type": "battle_skill",
+      "op": "set",
+      "key": "special3",
+      "index": 2,
+      "active": 1,
+      "level": 1
+    },
+    {
+      "id": "reward1",
+      "type": "reward",
+      "entries": [
+        {
+          "kind": "stat",
+          "key": "money",
+          "amount": 25
+        },
+        {
+          "kind": "affinity",
+          "key": "sister1",
+          "amount": 1
+        },
+        {
+          "kind": "item",
+          "category": "book",
+          "key": "1010",
+          "amount": 1
+        },
+        {
+          "kind": "flag",
+          "key": "SHOWCASE3_REWARDED"
+        }
+      ]
+    },
+    {
+      "id": "result_screen1",
+      "type": "result_screen",
+      "title": "3.0 奖励结算",
+      "text": "应显示提示并发放心相 +1。",
+      "entries": [
+        {
+          "kind": "stat",
+          "key": "mental",
+          "amount": 1
+        }
+      ]
+    },
+    {
+      "id": "custom_shop1",
+      "type": "custom_shop",
+      "discount": 0,
+      "items": [
+        {
+          "category": "misc",
+          "item": "2001",
+          "count": 1
+        },
+        {
+          "category": "book",
+          "item": "1010",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "stat_check1",
+      "type": "stat_check",
+      "key": "mental",
+      "op": ">=",
+      "value": -999,
+      "success": "say1",
+      "failure": "say2"
+    },
+    {
+      "id": "say1",
+      "type": "say",
+      "text": "stat_check 成功。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "message2"
+    },
+    {
+      "id": "say2",
+      "type": "say",
+      "text": "stat_check 失败。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "message2"
+    },
+    {
+      "id": "message2",
+      "type": "message",
+      "text": "检定分支已汇合，继续下一项。"
+    },
+    {
+      "id": "affinity_check1",
+      "type": "affinity_check",
+      "character": "sister1",
+      "op": ">=",
+      "value": -999,
+      "success": "say3",
+      "failure": "say4"
+    },
+    {
+      "id": "say3",
+      "type": "say",
+      "text": "affinity_check 成功。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "message3"
+    },
+    {
+      "id": "say4",
+      "type": "say",
+      "text": "affinity_check 失败。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "message3"
+    },
+    {
+      "id": "message3",
+      "type": "message",
+      "text": "检定分支已汇合，继续下一项。"
+    },
+    {
+      "id": "item_check1",
+      "type": "item_check",
+      "category": "misc",
+      "item": "2001",
+      "invert": false,
+      "success": "say5",
+      "failure": "say6"
+    },
+    {
+      "id": "say5",
+      "type": "say",
+      "text": "item_check：持有黄酒。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "message4"
+    },
+    {
+      "id": "say6",
+      "type": "say",
+      "text": "item_check：没有黄酒。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "message4"
+    },
+    {
+      "id": "message4",
+      "type": "message",
+      "text": "检定分支已汇合，继续下一项。"
+    },
+    {
+      "id": "talent_check1",
+      "type": "talent_check",
+      "talent": "1010",
+      "op": ">=",
+      "value": 0,
+      "success": "say7",
+      "failure": "say8"
+    },
+    {
+      "id": "say7",
+      "type": "say",
+      "text": "talent_check 成功。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "message5"
+    },
+    {
+      "id": "say8",
+      "type": "say",
+      "text": "talent_check 失败。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "message5"
+    },
+    {
+      "id": "message5",
+      "type": "message",
+      "text": "检定分支已汇合，继续下一项。"
+    },
+    {
+      "id": "flag_check1",
+      "type": "flag_check",
+      "source": "mod",
+      "flag": "SHOWCASE3_REWARDED",
+      "invert": false,
+      "success": "say9",
+      "failure": "say10"
+    },
+    {
+      "id": "say9",
+      "type": "say",
+      "text": "flag_check：奖励 flag 已设置。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "message6"
+    },
+    {
+      "id": "say10",
+      "type": "say",
+      "text": "flag_check：奖励 flag 未设置。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "message6"
+    },
+    {
+      "id": "message6",
+      "type": "message",
+      "text": "检定分支已汇合，继续下一项。"
+    },
+    {
+      "id": "mod_quest1",
+      "type": "mod_quest",
+      "quest": "showcase3_manual",
+      "op": "start",
+      "message": "接受 3.0 手测任务"
+    },
+    {
+      "id": "quest_check1",
+      "type": "quest_check",
+      "quest": "showcase3_manual",
+      "state": "active",
+      "success": "say11",
+      "failure": "say12"
+    },
+    {
+      "id": "say11",
+      "type": "say",
+      "text": "quest_check：任务 active。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "message7"
+    },
+    {
+      "id": "say12",
+      "type": "say",
+      "text": "quest_check：任务状态异常。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "message7"
+    },
+    {
+      "id": "message7",
+      "type": "message",
+      "text": "检定分支已汇合，继续下一项。"
+    },
+    {
+      "id": "persistent_var1",
+      "type": "persistent_var",
+      "key": "showcase3_runs",
+      "op": "add",
+      "value": 1
+    },
+    {
+      "id": "persistent_check1",
+      "type": "persistent_check",
+      "key": "showcase3_runs",
+      "op": ">=",
+      "value": 1,
+      "success": "say13",
+      "failure": "say14"
+    },
+    {
+      "id": "say13",
+      "type": "say",
+      "text": "persistent_check：累计运行次数至少为 1。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "message8"
+    },
+    {
+      "id": "say14",
+      "type": "say",
+      "text": "persistent_check：持久变量没有保存。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "message8"
+    },
+    {
+      "id": "message8",
+      "type": "message",
+      "text": "检定分支已汇合，继续下一项。"
+    },
+    {
+      "id": "activity1",
+      "type": "activity",
+      "kind": "training",
+      "message": "activity：进行一次练武并推进一旬",
+      "stat": "mental",
+      "op": ">=",
+      "value": -999,
+      "time": "round",
+      "success_rewards": [
+        {
+          "kind": "stat",
+          "key": "mental",
+          "amount": 1
+        },
+        {
+          "kind": "flag",
+          "key": "SHOWCASE3_ACTIVITY"
+        }
+      ],
+      "failure_rewards": [
+        {
+          "kind": "stat",
+          "key": "mental",
+          "amount": -1
+        }
+      ],
+      "success": "say15",
+      "failure": "say16"
+    },
+    {
+      "id": "say15",
+      "type": "say",
+      "text": "activity 成功路径。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "message9"
+    },
+    {
+      "id": "say16",
+      "type": "say",
+      "text": "activity 失败路径。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "message9"
+    },
+    {
+      "id": "message9",
+      "type": "message",
+      "text": "activity 已汇合。"
+    },
+    {
+      "id": "mission1",
+      "type": "mission",
+      "name": "Main",
+      "key": "M0001"
+    },
+    {
+      "id": "time1",
+      "type": "time",
+      "op": "round"
+    },
+    {
+      "id": "autosave1",
+      "type": "autosave",
+      "kind": "story",
+      "save_button": 1
+    },
+    {
+      "id": "panel1",
+      "type": "panel",
+      "panel": "martial",
+      "mode": 0
+    },
+    {
+      "id": "mod_quest2",
+      "type": "mod_quest",
+      "quest": "showcase3_manual",
+      "op": "complete",
+      "message": "3.0 手测任务完成"
+    },
+    {
+      "id": "end1",
+      "type": "end",
+      "next_script": "combat_demo"
+    }
+  ],
+  "start": "message1"
+}

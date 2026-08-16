@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """用户内容引用协议与本地/包内解析。
 
-契约见 docs/zh_CN/mod_format.md「用户内容」与 docs/zh_CN/user_content.md。
+契约见 docs/chs/mod_format.md「用户内容」与 docs/chs/user_content.md。
 
 本模块是 Python 侧唯一的 user: 解析入口。编辑器仓库、编译校验、打包收集
 都走这里，避免 editor / compiler / pack 各自实现一套字符串规则。
@@ -16,10 +16,10 @@ import os
 import re
 
 from .errors import LomcError
+from .schema_versions import CONTENT_SCHEMA
 
 USER_PREFIX = "user:"
-CONTENT_SCHEMA = 1
-CONTENT_TYPES = ("audio", "character")
+CONTENT_TYPES = ("audio", "character", "image")
 AUDIO_KINDS = ("music", "sound", "env")
 ART_FACINGS = ("left", "right")
 ART_FACING_DEFAULT = "left"
@@ -31,8 +31,22 @@ IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg")
 MAX_AUDIO_BYTES = 20 * 1024 * 1024
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 PACKAGE_USER_ROOT = "assets/user"
-CHARACTER_NODE_TYPES = ("show", "say", "hide", "move", "face", "focus", "intro")
-UNSUPPORTED_USER_CHAR_TYPES = ("offset", "shock", "dim", "rotate", "affinity")
+CHARACTER_NODE_TYPES = (
+    "show",
+    "say",
+    "hide",
+    "move",
+    "face",
+    "focus",
+    "offset",
+    "shock",
+    "dim",
+    "rotate",
+    "intro",
+)
+# affinity 会写入官方 CharacterData / 好感数值，不是纯舞台演出。自定义角色
+# 没有官方好感数据槽，因此必须继续显式拒绝，不能把 user: id 传给原版 API。
+UNSUPPORTED_USER_CHAR_TYPES = ("affinity",)
 
 # 内容 ID：<namespace>.<local>，只允许小写字母、数字、下划线；禁止路径分隔。
 # namespace 以字母开头，避免与纯数字/点号路径混淆。
@@ -277,6 +291,33 @@ def collect_story_content_refs(story):
                             else None,
                         }
                     )
+        # 统一图片协议：所有图片型节点都把稳定引用放在 image 字段。
+        # 当前及后续 background / CG / overlay 共用这一条收集路径，不各建 Store。
+        image_is_active = not (
+            (ntype == "custom_cg" and node.get("action", "show") == "hide")
+            or (ntype == "overlay" and node.get("action", "show") == "hide")
+            or (
+                ntype == "background"
+                and node.get("action", "show") in ("fadeout", "clear")
+            )
+        )
+        raw_image = node.get("image") if image_is_active else None
+        if raw_image:
+            ref = parse_content_ref(
+                raw_image, label='节点 "%s"(%s) 的 image' % (nid, ntype)
+            )
+            if ref is not None:
+                found.append(
+                    {
+                        "node_id": nid,
+                        "node_type": ntype,
+                        "field": "image",
+                        "raw": ref.raw,
+                        "ref": ref,
+                        "expected_kind": None,
+                        "expected_type": "image",
+                    }
+                )
     return found
 
 
@@ -316,12 +357,16 @@ def normalize_content_metadata(data, source="content.json"):
     """校验 content.json 对象并补齐缺省。"""
     if not isinstance(data, dict):
         raise LomcError("%s：顶层必须是 JSON 对象" % source)
-    schema = data.get("schema")
+    schema = data.get("content_schema", data.get("schema"))
     if schema != CONTENT_SCHEMA or isinstance(schema, bool):
         raise LomcError(
-            "%s：schema 必须是 %d（当前用户内容格式版本），实际为 %r"
+            "%s：content_schema 必须是 %d（当前用户内容格式版本），实际为 %r"
             % (source, CONTENT_SCHEMA, schema)
         )
+    if "content_schema" in data and "schema" in data:
+        legacy_schema = data.get("schema")
+        if legacy_schema != schema or isinstance(legacy_schema, bool):
+            raise LomcError("%s：content_schema 与旧字段 schema 的版本声明不一致" % source)
     content_id = data.get("id")
     validate_content_id(content_id, label="%s 的 id" % source)
     ctype = data.get("type")
@@ -371,6 +416,7 @@ def normalize_content_metadata(data, source="content.json"):
         art_facing = normalize_art_facing(data.get("art_facing"), source)
     return {
         "schema": CONTENT_SCHEMA,
+        "content_schema": CONTENT_SCHEMA,
         "id": content_id,
         "type": ctype,
         "name": name.strip(),
@@ -493,11 +539,11 @@ def listed_content_files(meta):
     return names
 
 
-def write_content_metadata(meta_path, metadata):
-    """把规范化 metadata 写成 content.json。"""
-    normalized = normalize_content_metadata(metadata, source=meta_path)
+def content_metadata_payload(normalized):
+    """Build the stable on-disk representation from normalized metadata."""
     payload = {
         "schema": normalized["schema"],
+        "content_schema": normalized["content_schema"],
         "id": normalized["id"],
         "type": normalized["type"],
         "name": normalized["name"],
@@ -524,6 +570,13 @@ def write_content_metadata(meta_path, metadata):
         payload["art_facing"] = normalized["art_facing"]
     if normalized["type"] == "character" and normalized.get("intro"):
         payload["intro"] = dict(normalized["intro"])
+    return payload
+
+
+def write_content_metadata(meta_path, metadata):
+    """把规范化 metadata 写成 content.json。"""
+    normalized = normalize_content_metadata(metadata, source=meta_path)
+    payload = content_metadata_payload(normalized)
     parent = os.path.dirname(meta_path)
     if parent:
         os.makedirs(parent, exist_ok=True)
@@ -587,6 +640,8 @@ def resolve_content(root, content_type, content_id):
             _check_file_size(
                 image_path, USER_PREFIX + content_id + "/" + fname, MAX_IMAGE_BYTES, "立绘", 8
             )
+    elif meta["type"] == "image":
+        _check_file_size(main_path, USER_PREFIX + content_id, MAX_IMAGE_BYTES, "图片", 8)
     return meta, main_path
 
 

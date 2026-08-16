@@ -129,16 +129,24 @@ class NodeForm(QScrollArea):
         self._editor_data: dict = models.FALLBACK_EDITOR_DATA
         self._node_ids: list[str] = []
         self._story_ids: list[str] = []  # 包内剧情脚本 id（end.next_script 下拉用）
+        self._battle_presets: dict[str, dict] = {}
+        self._preset_edit_mode = False
         self._loading = False  # 重建表单期间屏蔽信号
 
     # ------------------------------------------------------------------ 对外
     def set_context(
-        self, editor_data: dict, node_ids: list[str], story_ids: list[str] | None = None
+        self, editor_data: dict, node_ids: list[str], story_ids: list[str] | None = None,
+        battle_presets: dict[str, dict] | None = None,
     ) -> None:
         """更新下拉框数据来源（editor_data / 全部节点 id / 包内剧情脚本 id）。"""
         self._editor_data = editor_data
         self._node_ids = list(node_ids)
         self._story_ids = list(story_ids or [])
+        self._battle_presets = dict(battle_presets or {})
+
+    def set_preset_edit_mode(self, enabled: bool = True) -> None:
+        """Use the same verified Combat/Battle controls without flow-only fields."""
+        self._preset_edit_mode = bool(enabled)
 
     def _emit_id_change(self, edit: QLineEdit, original: str) -> None:
         if self._loading or self._node is None:
@@ -198,11 +206,18 @@ class NodeForm(QScrollArea):
         hf.setBold(True)
         hf.setPointSize(hf.pointSize() + 2)
         head.setFont(hf)
-        head.setToolTip(f"{node.get('id', '')} · 内部类型：{node_type}")
+        head.setToolTip(
+            t("form.internal_type_tip", id=node.get("id", ""), type=node_type)
+        )
         outer.addWidget(head)
-        id_row = QHBoxLayout()
-        id_row.setContentsMargins(0, 0, 0, 0)
-        id_label = QLabel(t("field.node_id"))
+        tech_btn = QToolButton()
+        tech_btn.setText(t("form.technical"))
+        tech_btn.setCheckable(True)
+        tech_btn.setAutoRaise(True)
+        tech_body = QWidget()
+        id_row = QHBoxLayout(tech_body)
+        id_row.setContentsMargins(8, 0, 0, 0)
+        id_label = QLabel(t("field.node_id_technical"))
         id_label.setProperty("context_help", True)
         id_edit = QLineEdit(str(node.get("id", "")))
         id_edit.setObjectName("nodeIdEdit")
@@ -214,7 +229,11 @@ class NodeForm(QScrollArea):
         )
         id_row.addWidget(id_label)
         id_row.addWidget(id_edit, 1)
-        outer.addLayout(id_row)
+        tech_body.setVisible(False)
+        tech_btn.toggled.connect(tech_body.setVisible)
+        if not self._preset_edit_mode:
+            outer.addWidget(tech_btn)
+            outer.addWidget(tech_body)
 
         help_text = models.NODE_HELP.get(node_type)
         if help_text:
@@ -229,6 +248,8 @@ class NodeForm(QScrollArea):
             return wrap
 
         for key, label, kind, optional in schema["fields"]:
+            if self._preset_edit_mode and key in ("preset", "win", "lose"):
+                continue
             # branch 的键字段按 source 显示：stat 来源显示属性下拉，其余显示 flag
             if node_type == "branch":
                 src = node.get("source", "mod")
@@ -248,8 +269,8 @@ class NodeForm(QScrollArea):
             form.addRow(shown, widget)
         outer.addLayout(form)
 
-        # choice/branch/dice/end/death/goto_scene 之外允许显式 goto（契约 §3/§4）
-        if node_type not in ("choice", "branch", "dice", "end", "death", "goto_scene"):
+        # 自带分支/跨场景流转的节点不再提供额外 goto。
+        if node_type not in ("choice", "branch", "dice", "end", "death", "goto_scene", "combat", "battle", "battle_result"):
             adv_btn = QToolButton()
             adv_btn.setText(t("form.advanced"))
             adv_btn.setCheckable(True)
@@ -299,6 +320,18 @@ class NodeForm(QScrollArea):
                 "image_y",
             ):
                 return source == "custom"
+        if node_type == "background":
+            action = node.get("action", "show")
+            if key == "image":
+                return action not in ("fadeout", "clear")
+            if key == "fade":
+                return action not in ("set", "clear")
+        if node_type == "custom_cg":
+            if key in ("image", "scale", "x", "y"):
+                return node.get("action", "show") == "show"
+        if node_type == "overlay":
+            if key in ("image", "position", "scale", "opacity", "layer"):
+                return node.get("action", "show") == "show"
         if node_type == "goto_scene":
             scene = node.get("scene", "Free")
             if key == "key":
@@ -321,6 +354,23 @@ class NodeForm(QScrollArea):
                 return op in ("team", "people")
         if node_type == "death" and key == "next":
             return False
+        if node_type == "enemy":
+            if key == "value":
+                return node.get("op", "team") != "id"
+            if key == "display":
+                return node.get("op", "team") != "id"
+        if node_type == "battle_skill":
+            op = node.get("op", "set")
+            if key == "key":
+                return op in ("set", "active", "level")
+            if key == "index":
+                return op == "set"
+            if key == "active":
+                return op == "active"
+            if key == "level":
+                return op == "level"
+        if node_type in ("combat", "battle") and node.get("preset"):
+            return key not in ("key", "enemy", "team", "level", "people", "display")
         return True
 
     def _make_widget(self, node: dict, key: str, kind: str) -> QWidget:
@@ -329,7 +379,7 @@ class NodeForm(QScrollArea):
             custom, official = models.character_combo_items(self._editor_data)
             items = list(custom) + list(official)
             if not items:
-                items = [("", "（没有人物）")]
+                items = [("", t("form.no_characters"))]
             w = self._make_combo(items, value or "", editable=True)
             if custom and official:
                 w.insertSeparator(len(custom))
@@ -371,6 +421,8 @@ class NodeForm(QScrollArea):
                 value,
                 audio_kind="env" if sound_kind == "env" else "sound",
             )
+        if kind == "user_image":
+            return self._make_user_image_combo(node, key, value)
         if kind in ("position", "view", "stat", "battle_faction"):
             # schema 2 清单：{id,name} 对象数组，显示 "名字（id）"
             data_key = {
@@ -460,10 +512,24 @@ class NodeForm(QScrollArea):
             return self._make_death_id_widget(node, key, value)
         if kind == "item":
             # 物品清单随 kind 字段（book/misc/special）切换；切换时表单已重建
-            data_key = f"items_{node.get('kind', 'misc')}"
+            data_key = f"items_{node.get('kind', node.get('category', 'misc'))}"
             return self._combo_from_items(
                 node, key, models.list_items(self._editor_data, data_key), value
             )
+        if kind == "battle_skill":
+            return self._combo_from_items(
+                node, key, models.list_items(self._editor_data, "battle_skills"), value
+            )
+        if kind in ("enemy_team", "enemy_team_optional"):
+            items = models.list_items(self._editor_data, "enemy_teams")
+            if kind.endswith("optional"):
+                items = [("", t("form.enemy_unchanged"))] + items
+            return self._combo_from_items(node, key, items, value)
+        if kind == "bool_int":
+            w = QCheckBox(t("form.show_change_message"))
+            w.setChecked(bool(int(value if value is not None else 1)))
+            w.toggled.connect(lambda checked: self._apply(node, key, int(checked)))
+            return w
         if kind == "goto_scene_key":
             # 场景参数清单随 scene 字段切换（战斗/战役/死亡画面/结局 id）
             scene = node.get("scene", "Free")
@@ -475,6 +541,43 @@ class NodeForm(QScrollArea):
             }.get(scene)
             items = models.list_items(self._editor_data, data_key) if data_key else []
             return self._combo_from_items(node, key, items, value)
+        if kind == "combat_id":
+            combo = self._combo_from_items(
+                node, key, models.list_items(self._editor_data, "combat_ids"), value
+            )
+            self._attach_template_id_tooltip(combo)
+            return combo
+        if kind in ("battle_id", "battle_id_optional"):
+            items = models.list_items(self._editor_data, "battle_ids")
+            if kind.endswith("optional"):
+                items = [("", t("form.use_current_template"))] + items
+            combo = self._combo_from_items(node, key, items, value)
+            self._attach_template_id_tooltip(combo)
+            return combo
+        if kind == "battle_preset":
+            node_type = str(node.get("type") or "")
+            items = [("", t("form.direct_vanilla_template"))]
+            items.extend(
+                (
+                    preset_id,
+                    "%s（%s）" % (preset.get("name") or preset_id, preset.get("key", "")),
+                )
+                for preset_id, preset in sorted(self._battle_presets.items())
+                if isinstance(preset, dict) and preset.get("kind") == node_type
+            )
+            w = self._make_combo(items, str(value or ""))
+            w.currentTextChanged.connect(
+                lambda _text, c=w: self._on_battle_preset_changed(node, key, c)
+            )
+            return w
+        if kind == "node_ref":
+            w = self._make_goto_combo(str(value or ""), allow_empty=False)
+            w.currentTextChanged.connect(
+                lambda text, c=w: self._apply(
+                    node, key, self._combo_value(c, text).strip()
+                )
+            )
+            return w
         if kind == "story_ref":
             # end.next_script：包内剧情脚本 id 下拉（可编辑，允许指向未创建脚本）
             return self._combo_from_items(
@@ -484,13 +587,13 @@ class NodeForm(QScrollArea):
             w = QLineEdit("" if value is None else str(value))
             if node.get("type") == "death" and key == "title":
                 # 死亡文本两段式：短标题缺省「勝敗乃兵家常事」
-                w.setPlaceholderText("缺省「勝敗乃兵家常事」")
+                w.setPlaceholderText(t("placeholder.death_title"))
             elif node.get("type") == "goto_scene" and key == "title":
-                w.setPlaceholderText("例如：浪迹江湖")
+                w.setPlaceholderText(t("placeholder.ending_title"))
             elif node.get("type") == "intro" and key == "title":
-                w.setPlaceholderText("例如：无名游侠（可选）")
+                w.setPlaceholderText(t("placeholder.intro_title"))
             elif node.get("type") == "intro" and key == "name":
-                w.setPlaceholderText("填写人物姓名")
+                w.setPlaceholderText(t("placeholder.character_name"))
             w.textChanged.connect(lambda t: self._apply(node, key, t))
             return w
         if kind == "affinity_character":
@@ -517,23 +620,23 @@ class NodeForm(QScrollArea):
             return w
         if kind in ("ending_image", "intro_image"):
             placeholder = (
-                "assets/ending.png（可选；留空时游戏内用原版图占位）"
+                t("placeholder.ending_image")
                 if kind == "ending_image"
-                else "选择 PNG/JPG 人物图片（可选；建议透明背景立绘）"
+                else t("placeholder.intro_image")
             )
             return self._make_image_picker(node, key, value, placeholder)
         if kind == "multiline":
             w = QPlainTextEdit("" if value is None else str(value))
             if node.get("type") == "death" and key == "text":
-                w.setPlaceholderText("填写死亡原因或人物最后的结局")
+                w.setPlaceholderText(t("placeholder.death_text"))
             elif node.get("type") == "goto_scene" and key == "desc":
-                w.setPlaceholderText("填写汗青书或死亡画面的正文，可以换行")
+                w.setPlaceholderText(t("placeholder.ending_desc"))
             elif node.get("type") == "message":
-                w.setPlaceholderText("系统提示文本（原文显示，不走本地化 key）")
+                w.setPlaceholderText(t("placeholder.message_text"))
             elif node.get("type") == "intro" and key == "text":
-                w.setPlaceholderText("填写人物介绍，可以换行")
+                w.setPlaceholderText(t("placeholder.intro_text"))
             else:
-                w.setPlaceholderText("对话/独白/旁白文本")
+                w.setPlaceholderText(t("placeholder.dialogue_text"))
             w.setMinimumHeight(72)
             w.setMaximumHeight(140)
             w.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -542,7 +645,7 @@ class NodeForm(QScrollArea):
         if kind == "code":
             # raw 节点：大号等宽多行编辑框
             w = QPlainTextEdit("" if value is None else str(value))
-            w.setPlaceholderText("原生 Lua 代码，原样插入编译产物（多行合法）")
+            w.setPlaceholderText(t("placeholder.raw_lua"))
             w.setMinimumHeight(180)
             w.setProperty("code_edit", True)  # 测试/调试定位用
             font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
@@ -578,7 +681,7 @@ class NodeForm(QScrollArea):
             w.setSingleStep(5)
             w.setSuffix(" %")
             w.setValue(int(value if value is not None else 100))
-            w.setToolTip("100% 是自动适配后的推荐大小；可在 40%～160% 间调整")
+            w.setToolTip(t("tooltip.portrait_scale"))
             w.valueChanged.connect(lambda v: self._apply(node, key, int(v)))
             return w
         if kind == "percent_offset":
@@ -587,11 +690,36 @@ class NodeForm(QScrollArea):
             w.setSingleStep(1)
             w.setSuffix(" %")
             w.setValue(int(value or 0))
-            w.setToolTip("相对屏幕位置微调；正数向右或向上，负数向左或向下")
+            w.setToolTip(t("tooltip.portrait_offset"))
+            w.valueChanged.connect(lambda v: self._apply(node, key, int(v)))
+            return w
+        if kind == "percent_cg_scale":
+            w = QSpinBox()
+            w.setRange(10, 300)
+            w.setSingleStep(5)
+            w.setSuffix(" %")
+            w.setValue(int(value if value is not None else 100))
+            w.setToolTip(t("tooltip.cg_scale"))
+            w.valueChanged.connect(lambda v: self._apply(node, key, int(v)))
+            return w
+        if kind == "percent_position":
+            w = QSpinBox()
+            w.setRange(-100, 100)
+            w.setSingleStep(5)
+            w.setSuffix(" %")
+            w.setValue(int(value or 0))
+            w.setToolTip(t("tooltip.cg_position"))
+            w.valueChanged.connect(lambda v: self._apply(node, key, int(v)))
+            return w
+        if kind == "percent_opacity":
+            w = QSpinBox()
+            w.setRange(0, 100)
+            w.setSuffix(" %")
+            w.setValue(int(value if value is not None else 100))
             w.valueChanged.connect(lambda v: self._apply(node, key, int(v)))
             return w
         if kind == "bool":
-            w = QCheckBox("是")
+            w = QCheckBox(t("common.yes"))
             w.setChecked(bool(value))
             w.toggled.connect(lambda b: self._apply(node, key, bool(b)))
             return w
@@ -605,7 +733,26 @@ class NodeForm(QScrollArea):
             return self._make_vars_table(node, key)
         if kind == "dice_options":
             return self._make_dice_table(node, key)
-        return QLabel(f"（暂不支持的字段类型 {kind}）")
+        if kind == "battle_setup_skills":
+            return self._make_battle_setup_skills_table(node, key)
+        if kind == "combat_talents":
+            return self._make_combat_talents_table(node, key)
+        if kind == "reward_entries":
+            return self._make_reward_entries_table(node, key)
+        if kind == "reward_entries_optional":
+            return self._make_reward_entries_table(node, key, allow_empty=True)
+        if kind == "custom_shop_items":
+            return self._make_custom_shop_items_table(node, key)
+        if kind == "discount_toggle":
+            w = QComboBox()
+            w.addItem(t("shop.full_price"), 0)
+            w.addItem(t("shop.vanilla_discount"), 1)
+            w.setCurrentIndex(1 if int(value or 0) else 0)
+            w.currentIndexChanged.connect(
+                lambda _index: self._apply(node, key, int(w.currentData()))
+            )
+            return w
+        return QLabel(t("form.unsupported_field", kind=kind))
 
     # ------------------------------------------------------------ 基础控件
     @staticmethod
@@ -680,23 +827,25 @@ class NodeForm(QScrollArea):
         row.setContentsMargins(0, 0, 0, 0)
         edit = QLineEdit("" if value is None else str(value))
         edit.setPlaceholderText(placeholder)
-        choose = QPushButton("选择图片…")
+        choose = QPushButton(t("asset.choose_image"))
         choose.setMinimumHeight(28)
         edit.textChanged.connect(lambda text: self._apply(node, key, text))
 
         def pick() -> None:
             path, _ = QFileDialog.getOpenFileName(
                 self,
-                "选择人物图片" if node.get("type") == "intro" else "选择结局插图",
+                t("asset.choose_portrait")
+                if node.get("type") == "intro"
+                else t("asset.choose_ending_image"),
                 str(Path.home()),
-                "图片 (*.png *.jpg *.jpeg)",
+                t("asset.image_filter"),
             )
             if not path:
                 return
             try:
                 relative, _stored = import_image_file(Path(path))
             except AssetStoreError as exc:
-                QMessageBox.critical(self, "无法使用图片", str(exc))
+                QMessageBox.critical(self, t("asset.image_error"), str(exc))
                 return
             edit.setText(relative)
 
@@ -714,37 +863,40 @@ class NodeForm(QScrollArea):
             for rec in content_registry.list_contents(
                 content_type="audio", audio_kind=audio_kind
             ):
-                user_items.append((rec.ref, "用户 · %s（%s）" % (rec.name, rec.ref)))
+                user_items.append((rec.ref, t("content.user_item", name=rec.name, id=rec.ref)))
         except Exception:
             user_items = []
-        official_items: list[tuple[str, str]] = []
-        if audio_kind == "music":
-            official_items = [
-                (item_id, "官方 · %s" % display)
-                for item_id, display in models.list_items(self._editor_data, "music")
-            ]
+        data_key = {
+            "music": "music",
+            "sound": "sounds",
+            "env": "env_sounds",
+        }.get(audio_kind, "")
+        official_items = [
+            (item_id, t("content.official_item", name=display))
+            for item_id, display in models.list_items(self._editor_data, data_key)
+        ]
         items: list[tuple[str, str]] = []
         if user_items:
             items.extend(user_items)
-        elif audio_kind != "music":
-            items.append(("", "（还没有自定义音效，点右侧导入）"))
         items.extend(official_items)
+        if not items:
+            items.append(("", t("audio.none_available")))
         w = self._make_combo(items, str(current or ""), editable=True)
         if user_items and official_items:
             w.insertSeparator(len(user_items))
         if hasattr(w, "remember_items"):
             w.remember_items()
-        if not user_items and audio_kind != "music":
+        if not user_items and not official_items:
             model = w.model()
             if model is not None and model.rowCount() > 0:
                 item = model.item(0)
                 if item is not None:
                     item.setEnabled(False)
-        if audio_kind != "music" and w.lineEdit() is not None:
+        if w.lineEdit() is not None:
             if not current:
                 w.setCurrentText("")
             w.lineEdit().setPlaceholderText(
-                "选择用户内容，或手填官方音效名（例如 鈴鐺_001）"
+                t("audio.search_placeholder")
             )
         w.currentTextChanged.connect(
             lambda t, c=w: self._apply(node, key, self._combo_value(c, t))
@@ -754,17 +906,17 @@ class NodeForm(QScrollArea):
         col = QVBoxLayout(box)
         col.setContentsMargins(0, 0, 0, 0)
         col.setSpacing(4)
-        import_btn = QPushButton("导入…")
+        import_btn = QPushButton(t("common.import"))
         import_btn.setMinimumHeight(28)
         import_btn.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
-        import_btn.setToolTip("导入本地 ogg/wav 到用户内容库，并填入此步骤")
+        import_btn.setToolTip(t("audio.import_tip"))
 
         def pick() -> None:
             path, _ = QFileDialog.getOpenFileName(
                 self,
-                "选择音频",
+                t("audio.choose"),
                 str(Path.home()),
-                "音频 (*.ogg *.wav)",
+                t("audio.filter"),
             )
             if not path:
                 return
@@ -776,7 +928,7 @@ class NodeForm(QScrollArea):
                     audio_kind,
                 )
             except content_registry.ContentRegistryError as exc:
-                QMessageBox.critical(self, "无法导入音频", str(exc))
+                QMessageBox.critical(self, t("audio.import_error"), str(exc))
                 return
             self._apply(node, key, rec.ref)
             self._rebuild_current()
@@ -790,8 +942,71 @@ class NodeForm(QScrollArea):
         col.addLayout(row)
         return box
 
+    def _make_user_image_combo(self, node: dict, key: str, current) -> QWidget:
+        """用户图片下拉 + 缩略图 + 就地导入；官方背景由 scene 节点单独选择。"""
+        records = []
+        try:
+            records = content_registry.list_contents(content_type="image")
+        except Exception:
+            records = []
+        items = [
+            (rec.ref, t("content.user_image", name=rec.name, id=rec.ref))
+            for rec in records
+        ]
+        if not items:
+            items = [("", t("image.none_available"))]
+        w = self._make_combo(items, str(current or ""), editable=False)
+        for index, rec in enumerate(records):
+            try:
+                _record, path = content_registry.resolve(rec.ref, expected_type="image")
+                from PySide6.QtGui import QIcon
+                w.setItemIcon(index, QIcon(str(path)))
+            except Exception:
+                pass
+        if not records:
+            item = w.model().item(0) if w.model() is not None else None
+            if item is not None:
+                item.setEnabled(False)
+        w.currentTextChanged.connect(
+            lambda text, c=w: self._apply(node, key, self._combo_value(c, text))
+        )
+
+        box = QWidget()
+        row = QHBoxLayout(box)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.addWidget(w, 1)
+        choose = QPushButton(t("image.import"))
+        choose.setMinimumHeight(28)
+
+        def pick() -> None:
+            path, _ = QFileDialog.getOpenFileName(
+                self, t("image.choose_background"), str(Path.home()), t("asset.image_filter")
+            )
+            if not path:
+                return
+            source = Path(path)
+            try:
+                rec = content_registry.register_image(
+                    source,
+                    content_registry.suggest_content_id(source.name),
+                    source.stem,
+                )
+            except content_registry.ContentRegistryError as exc:
+                QMessageBox.critical(self, t("image.import_error"), str(exc))
+                return
+            self._apply(node, key, rec.ref)
+            self._rebuild_current()
+
+        choose.clicked.connect(pick)
+        row.addWidget(choose)
+        return box
+
     def _voice_label(self, rec) -> str:
-        kind_cn = {"music": "音乐", "sound": "音效", "env": "环境音"}.get(
+        kind_cn = {
+            "music": t("audio.kind.music"),
+            "sound": t("audio.kind.sound"),
+            "env": t("audio.kind.env"),
+        }.get(
             rec.audio_kind or "", rec.audio_kind or ""
         )
         return "%s · %s（%s）" % (kind_cn, rec.name, rec.ref)
@@ -806,7 +1021,7 @@ class NodeForm(QScrollArea):
         current_ref = str(current or "").strip()
         combo.blockSignals(True)
         combo.clear()
-        combo.addItem("（无语音）", "")
+        combo.addItem(t("voice.none"), "")
         seen: set[str] = set()
         need_bind = bool(speaker) or node.get("mode", "character") not in (
             "narrative",
@@ -864,14 +1079,14 @@ class NodeForm(QScrollArea):
         col = QVBoxLayout(box)
         col.setContentsMargins(0, 0, 0, 0)
         col.setSpacing(4)
-        import_btn = QPushButton("导入…")
-        clear_btn = QPushButton("清除")
+        import_btn = QPushButton(t("common.import"))
+        clear_btn = QPushButton(t("common.clear"))
         import_btn.setMinimumHeight(28)
         clear_btn.setMinimumHeight(28)
         import_btn.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
         clear_btn.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
         import_btn.setToolTip(t("form.voice_import_tip"))
-        clear_btn.setToolTip("这句对白不再播放语音")
+        clear_btn.setToolTip(t("form.voice_clear_tip"))
 
         def pick() -> None:
             speaker = self._say_speaker(node)
@@ -883,9 +1098,9 @@ class NodeForm(QScrollArea):
                 return
             path, _ = QFileDialog.getOpenFileName(
                 self,
-                "选择对白语音",
+                t("voice.choose"),
                 str(Path.home()),
-                "音频 (*.ogg *.wav)",
+                t("audio.filter"),
             )
             if not path:
                 return
@@ -898,7 +1113,7 @@ class NodeForm(QScrollArea):
                     character=speaker or None,
                 )
             except content_registry.ContentRegistryError as exc:
-                QMessageBox.critical(self, "无法导入音频", str(exc))
+                QMessageBox.critical(self, t("audio.import_error"), str(exc))
                 return
             self._apply(node, key, rec.ref)
             self._rebuild_current()
@@ -933,6 +1148,14 @@ class NodeForm(QScrollArea):
         )
         return w
 
+    def _attach_template_id_tooltip(self, combo: QComboBox) -> None:
+        def refresh(_text: str = "") -> None:
+            value = self._combo_value(combo, combo.currentText()).strip()
+            combo.setToolTip(t("form.technical_template_tip", id=value or t("common.none")))
+
+        combo.currentTextChanged.connect(refresh)
+        refresh()
+
     def _rebuild_current(self) -> None:
         """延迟重建表单（回到事件循环后执行）。
 
@@ -957,6 +1180,25 @@ class NodeForm(QScrollArea):
             self._rebuild_current()
         self._emit_changed()
 
+    def _on_battle_preset_changed(
+        self, node: dict, key: str, combo: QComboBox
+    ) -> None:
+        if self._loading:
+            return
+        value = combo.currentData()
+        value = str(value or "")
+        if value == str(node.get(key) or ""):
+            return
+        if value:
+            node[key] = value
+            for direct_key in ("key", "enemy", "team", "level", "people", "display"):
+                node.pop(direct_key, None)
+        else:
+            node.pop(key, None)
+            node.setdefault("key", "")
+        self._rebuild_current()
+        self._emit_changed()
+
     def _make_death_id_widget(self, node: dict, key: str, value) -> QWidget:
         """death.death_id：mod 专属死亡画面 id（9+官方 id，如 910021）。
 
@@ -969,17 +1211,16 @@ class NodeForm(QScrollArea):
         w = QLineEdit("910021" if value in (None, "") else str(value))
         official = models.list_items(self._editor_data, "death_ids")
         ref = "　".join("%s %s" % (i, n) for i, n in official[:5])
-        w.setToolTip(
-            "mod 专属死亡画面 id：官方 id + 前綴 9（官方 10021 → 910021），"
-            "保证与官方 1xxxx/2xxxx/4xxxx 不撞。官方 id 仅供参考（用官方 id 会"
-            "触发官方结局解锁与记录，污染存档）。官方参考：%s" % (ref or "无")
-        )
+        w.setToolTip(t("death.id_hint", refs=ref or t("common.none")))
         w.setPlaceholderText("910021")
         w.textChanged.connect(lambda t: self._apply(node, key, t))
         v.addWidget(w)
         if official:
             label = QLabel(
-                "官方参考：" + " / ".join("%s %s" % (i, n) for i, n in official[:5])
+                t(
+                    "death.official_refs",
+                    refs=" / ".join("%s %s" % (i, n) for i, n in official[:5]),
+                )
             )
             label.setWordWrap(True)
             # 玻璃主题的次要文字色（原 gray 在深色背景下偏暗）
@@ -1001,8 +1242,31 @@ class NodeForm(QScrollArea):
         self._emit_changed()
 
     def _goto_items(self, allow_empty: bool) -> list[tuple[str, str]]:
-        items = [("", "（无）")] if allow_empty else []
-        items += [(nid, nid) for nid in self._node_ids if nid]
+        items = [("", t("common.none"))] if allow_empty else []
+        window = self.window()
+        story = getattr(window, "story", None)
+        nodes = story.get("nodes", []) if isinstance(story, dict) else []
+        if isinstance(nodes, list) and nodes:
+            for index, node in enumerate(nodes, start=1):
+                if not isinstance(node, dict):
+                    continue
+                node_id = str(node.get("id") or "")
+                if not node_id:
+                    continue
+                title, detail = models.node_list_caption(node, self._editor_data)
+                preset = self._battle_presets.get(node.get("preset"), {})
+                if isinstance(preset, dict) and preset.get("name"):
+                    detail = str(preset["name"])
+                display = t(
+                    "nav.step_option",
+                    default="第 {n} 步 · {title} · {detail}",
+                    n=index,
+                    title=title,
+                    detail=detail,
+                )
+                items.append((node_id, display))
+        else:
+            items += [(nid, nid) for nid in self._node_ids if nid]
         return items
 
     def refill_goto_combo(self, combo: QComboBox, allow_empty: bool) -> None:
@@ -1050,6 +1314,11 @@ class NodeForm(QScrollArea):
     @staticmethod
     def _combo_value(combo: QComboBox, text: str) -> str:
         """可编辑下拉框取值：选中清单项时取 userData，手输时取文本。"""
+        index = combo.currentIndex()
+        if combo.isEditable() and (
+            index < 0 or combo.currentText() != combo.itemText(index)
+        ):
+            return text
         data = combo.currentData()
         return str(data) if data is not None else text
 
@@ -1075,9 +1344,9 @@ class NodeForm(QScrollArea):
         v.setContentsMargins(0, 0, 0, 0)
         table = QTableWidget(len(rows), 2)
         table.setHorizontalHeaderLabels(
-            ["选项文本", "goto 目标"]
+            [t("table.option_text"), t("table.goto_target")]
             if key == "options"
-            else ["分支值(value)", "goto 目标"]
+            else [t("table.branch_value"), t("table.goto_target")]
         )
         table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         table.horizontalHeader().setSectionResizeMode(
@@ -1136,8 +1405,8 @@ class NodeForm(QScrollArea):
         table.setProperty("rows_ref", id(rows))
 
         btns = QHBoxLayout()
-        add = QPushButton("添加行")
-        remove = QPushButton("删除末行")
+        add = QPushButton(t("table.add_row"))
+        remove = QPushButton(t("table.remove_row"))
         btns.addWidget(add)
         btns.addWidget(remove)
         btns.addStretch(1)
@@ -1203,12 +1472,12 @@ class NodeForm(QScrollArea):
         n_cols = 3 if with_op else 2
         table = QTableWidget(len(rows), n_cols)
         headers = (
-            ["运算符", "数值", "goto 目标"]
+            [t("table.operator"), t("table.value"), t("table.goto_target")]
             if with_op
             else (
-                ["分支值(value)", "goto 目标"]
+                [t("table.branch_value"), t("table.goto_target")]
                 if numeric
-                else ["真/假(value)", "goto 目标"]
+                else [t("table.truth_value"), t("table.goto_target")]
             )
         )
         table.setHorizontalHeaderLabels(headers)
@@ -1293,8 +1562,8 @@ class NodeForm(QScrollArea):
     ) -> QHBoxLayout:
         """表格通用的 添加行/删除末行 按钮行。"""
         btns = QHBoxLayout()
-        add = QPushButton("添加行")
-        remove = QPushButton("删除末行")
+        add = QPushButton(t("table.add_row"))
+        remove = QPushButton(t("table.remove_row"))
         btns.addWidget(add)
         btns.addWidget(remove)
         btns.addStretch(1)
@@ -1324,7 +1593,7 @@ class NodeForm(QScrollArea):
         v = QVBoxLayout(box)
         v.setContentsMargins(0, 0, 0, 0)
         table = QTableWidget(0, 2)
-        table.setHorizontalHeaderLabels(["变量名", "值"])
+        table.setHorizontalHeaderLabels([t("table.variable"), t("table.value")])
         table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         table.setMinimumHeight(min(4, max(2, len(rows) or 2)) * 32 + 30)
@@ -1360,6 +1629,335 @@ class NodeForm(QScrollArea):
         )
         return box
 
+    def _make_battle_setup_skills_table(self, node: dict, key: str) -> QWidget:
+        rows: list[dict] = node.setdefault(key, [])
+        box = QWidget()
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(0, 0, 0, 0)
+        table = QTableWidget(0, 3)
+        table.setHorizontalHeaderLabels(
+            (t("table.skill"), t("table.slot"), t("table.active"))
+        )
+        table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+
+        def fill() -> None:
+            table.setRowCount(0)
+            for row_index, row in enumerate(rows):
+                table.insertRow(row_index)
+                skill = self._make_combo(
+                    models.list_items(self._editor_data, "battle_skills"),
+                    str(row.get("key", "")),
+                    editable=True,
+                )
+                skill.currentTextChanged.connect(
+                    lambda text, target=row, combo=skill: self._apply_row(
+                        target, "key", self._combo_value(combo, text).strip()
+                    )
+                )
+                slot = QSpinBox()
+                slot.setRange(-999999, 999999)
+                slot.setValue(int(row.get("index", 2)))
+                slot.valueChanged.connect(
+                    lambda value, target=row: self._apply_row(target, "index", int(value))
+                )
+                active = self._make_combo(
+                    (("1", t("common.enabled")), ("0", t("common.disabled"))),
+                    str(row.get("active", 1)),
+                )
+                active.currentTextChanged.connect(
+                    lambda _text, target=row, combo=active: self._apply_row(
+                        target, "active", int(combo.currentData())
+                    )
+                )
+                table.setCellWidget(row_index, 0, skill)
+                table.setCellWidget(row_index, 1, slot)
+                table.setCellWidget(row_index, 2, active)
+            table.setMinimumHeight(min(5, max(2, len(rows))) * 32 + 30)
+
+        buttons = QHBoxLayout()
+        add = QPushButton(t("table.add_skill"))
+        remove = QPushButton(t("table.remove_last"))
+        add.clicked.connect(
+            lambda: (rows.append({"key": "", "index": 2, "active": 1}), fill(), self._emit_changed())
+        )
+        remove.clicked.connect(
+            lambda: (rows.pop(), fill(), self._emit_changed()) if rows else None
+        )
+        buttons.addWidget(add)
+        buttons.addWidget(remove)
+        buttons.addStretch(1)
+        fill()
+        layout.addWidget(table)
+        layout.addLayout(buttons)
+        return box
+
+    def _make_combat_talents_table(self, node: dict, key: str) -> QWidget:
+        rows: list[dict] = node.setdefault(key, [])
+        box = QWidget()
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(0, 0, 0, 0)
+        table = QTableWidget(0, 2)
+        table.setHorizontalHeaderLabels((t("table.skill"), t("table.level")))
+        table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+
+        def fill() -> None:
+            table.setRowCount(0)
+            for row_index, row in enumerate(rows):
+                table.insertRow(row_index)
+                talent = self._make_combo(
+                    models.list_items(self._editor_data, "talents"),
+                    str(row.get("key", "")), editable=True,
+                )
+                talent.currentTextChanged.connect(
+                    lambda text, target=row, combo=talent: self._apply_row(
+                        target, "key", self._combo_value(combo, text).strip()
+                    )
+                )
+                level = QSpinBox()
+                level.setRange(0, 999)
+                level.setValue(int(row.get("level", 1)))
+                level.valueChanged.connect(
+                    lambda value, target=row: self._apply_row(target, "level", int(value))
+                )
+                table.setCellWidget(row_index, 0, talent)
+                table.setCellWidget(row_index, 1, level)
+            table.setMinimumHeight(min(5, max(2, len(rows))) * 32 + 30)
+
+        buttons = QHBoxLayout()
+        add = QPushButton(t("table.add_skill"))
+        remove = QPushButton(t("table.remove_last"))
+        add.clicked.connect(
+            lambda: (rows.append({"key": "", "level": 1}), fill(), self._emit_changed())
+        )
+        remove.clicked.connect(
+            lambda: (rows.pop(), fill(), self._emit_changed()) if rows else None
+        )
+        buttons.addWidget(add)
+        buttons.addWidget(remove)
+        buttons.addStretch(1)
+        fill()
+        layout.addWidget(table)
+        layout.addLayout(buttons)
+        return box
+
+    def _make_reward_entries_table(
+        self, node: dict, key: str, allow_empty: bool = False
+    ) -> QWidget:
+        rows: list[dict] = node.setdefault(key, [])
+        if not rows and not allow_empty:
+            rows.append({"kind": "stat", "key": "", "amount": 1})
+        box = QWidget()
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(0, 0, 0, 0)
+        table = QTableWidget(0, 4)
+        table.setHorizontalHeaderLabels(
+            (t("table.category"), t("table.subcategory"), t("table.target"), t("table.amount"))
+        )
+        table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+
+        def fill() -> None:
+            table.setRowCount(0)
+            for row_index, row in enumerate(rows):
+                table.insertRow(row_index)
+                kind = self._make_combo(
+                    list(models.ENUM_SETS["reward_kind"]), str(row.get("kind", "stat"))
+                )
+                category = self._make_combo(
+                    list(models.ENUM_SETS["item_kind"]), str(row.get("category", "misc"))
+                )
+                category.setEnabled(row.get("kind") == "item")
+                target_kind = str(row.get("kind", "stat"))
+                target_items: list[tuple[str, str]] = []
+                if target_kind == "stat":
+                    target_items = models.list_items(self._editor_data, "stats")
+                elif target_kind == "affinity":
+                    target_items = models.affinity_character_items(self._editor_data)
+                elif target_kind == "talent":
+                    target_items = models.list_items(self._editor_data, "talents")
+                elif target_kind == "item":
+                    target_items = models.list_items(
+                        self._editor_data, f"items_{row.get('category', 'misc')}"
+                    )
+                target = self._make_combo(
+                    target_items,
+                    str(row.get("key", "")),
+                    editable=True,
+                )
+                amount = QSpinBox()
+                amount.setRange(-999999, 999999)
+                amount.setValue(int(row.get("amount", 1)))
+                amount.setEnabled(row.get("kind") != "flag")
+
+                def change_kind(_text: str, target_row=row, combo=kind) -> None:
+                    value = str(combo.currentData() or "stat")
+                    target_row["kind"] = value
+                    if value == "flag":
+                        target_row.pop("amount", None)
+                        target_row.pop("category", None)
+                    else:
+                        target_row.setdefault("amount", 1)
+                        if value == "item":
+                            target_row.setdefault("category", "misc")
+                        else:
+                            target_row.pop("category", None)
+                    self._emit_changed()
+                    QTimer.singleShot(0, fill)
+
+                def change_category(_text: str, target_row=row, combo=category) -> None:
+                    target_row["category"] = str(combo.currentData() or "misc")
+                    self._emit_changed()
+                    QTimer.singleShot(0, fill)
+
+                kind.currentTextChanged.connect(change_kind)
+                category.currentTextChanged.connect(change_category)
+                target.currentTextChanged.connect(
+                    lambda text, target_row=row, combo=target: self._apply_row(
+                        target_row, "key", self._combo_value(combo, text).strip()
+                    )
+                )
+                amount.valueChanged.connect(
+                    lambda value, target_row=row: self._apply_row(target_row, "amount", int(value))
+                )
+                table.setCellWidget(row_index, 0, kind)
+                table.setCellWidget(row_index, 1, category)
+                table.setCellWidget(row_index, 2, target)
+                table.setCellWidget(row_index, 3, amount)
+            table.setMinimumHeight(min(6, max(2, len(rows))) * 32 + 30)
+
+        buttons = QHBoxLayout()
+        add = QPushButton(t("table.add_reward"))
+        remove = QPushButton(t("table.remove_last"))
+        add.clicked.connect(
+            lambda: (rows.append({"kind": "stat", "key": "", "amount": 1}), fill(), self._emit_changed())
+        )
+        remove.clicked.connect(
+            lambda: (rows.pop(), fill(), self._emit_changed())
+            if rows and (allow_empty or len(rows) > 1) else None
+        )
+        buttons.addWidget(add)
+        buttons.addWidget(remove)
+        buttons.addStretch(1)
+        fill()
+        layout.addWidget(table)
+        layout.addLayout(buttons)
+        return box
+
+    def _make_custom_shop_items_table(self, node: dict, key: str) -> QWidget:
+        rows: list[dict] = node.setdefault(key, [])
+        if not rows:
+            rows.append({"category": "misc", "item": "", "count": 1})
+        box = QWidget()
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(0, 0, 0, 0)
+        table = QTableWidget(0, 6)
+        table.setHorizontalHeaderLabels(
+            (
+                t("table.category"), t("table.item"), t("table.stock"),
+                t("table.condition"), t("table.condition_key"), t("table.invert"),
+            )
+        )
+        table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
+
+        def fill() -> None:
+            table.setRowCount(0)
+            for row_index, row in enumerate(rows):
+                table.insertRow(row_index)
+                condition = row.get("condition") if isinstance(row.get("condition"), dict) else None
+                source_value = str(condition.get("source", "always")) if condition else "always"
+                category = self._make_combo(
+                    list(models.ENUM_SETS["shop_item_kind"]), str(row.get("category", "misc"))
+                )
+                item_id = self._make_combo(
+                    models.list_items(
+                        self._editor_data, f"items_{row.get('category', 'misc')}"
+                    ),
+                    str(row.get("item", "")),
+                    editable=True,
+                )
+                count = QSpinBox()
+                count.setRange(1, 9999)
+                count.setValue(int(row.get("count", 1)))
+                source = self._make_combo(
+                    list(models.ENUM_SETS["shop_condition_source"]), source_value
+                )
+                condition_key = QLineEdit(str(condition.get("key", "")) if condition else "")
+                condition_key.setEnabled(source_value != "always")
+                invert = QCheckBox()
+                invert.setChecked(bool(condition.get("invert", False)) if condition else False)
+                invert.setEnabled(source_value != "always")
+
+                def change_source(_text: str, target_row=row, combo=source) -> None:
+                    value = str(combo.currentData() or "always")
+                    if value == "always":
+                        target_row.pop("condition", None)
+                    else:
+                        old = target_row.get("condition")
+                        old_key = old.get("key", "") if isinstance(old, dict) else ""
+                        old_invert = bool(old.get("invert", False)) if isinstance(old, dict) else False
+                        target_row["condition"] = {
+                            "source": value, "key": old_key, "invert": old_invert,
+                        }
+                    self._emit_changed()
+                    QTimer.singleShot(0, fill)
+
+                def change_condition_key(text: str, target_row=row) -> None:
+                    target = target_row.get("condition")
+                    if isinstance(target, dict):
+                        target["key"] = text.strip()
+                        self._emit_changed()
+
+                def change_invert(checked: bool, target_row=row) -> None:
+                    target = target_row.get("condition")
+                    if isinstance(target, dict):
+                        target["invert"] = bool(checked)
+                        self._emit_changed()
+
+                def change_item_category(_text: str, target_row=row, combo=category) -> None:
+                    target_row["category"] = str(combo.currentData() or "misc")
+                    self._emit_changed()
+                    QTimer.singleShot(0, fill)
+
+                category.currentTextChanged.connect(change_item_category)
+                item_id.currentTextChanged.connect(
+                    lambda text, target_row=row, combo=item_id: self._apply_row(
+                        target_row, "item", self._combo_value(combo, text).strip()
+                    )
+                )
+                count.valueChanged.connect(
+                    lambda value, target_row=row: self._apply_row(target_row, "count", int(value))
+                )
+                source.currentTextChanged.connect(change_source)
+                condition_key.textChanged.connect(change_condition_key)
+                invert.toggled.connect(change_invert)
+                table.setCellWidget(row_index, 0, category)
+                table.setCellWidget(row_index, 1, item_id)
+                table.setCellWidget(row_index, 2, count)
+                table.setCellWidget(row_index, 3, source)
+                table.setCellWidget(row_index, 4, condition_key)
+                table.setCellWidget(row_index, 5, invert)
+            table.setMinimumHeight(min(7, max(2, len(rows))) * 32 + 30)
+
+        buttons = QHBoxLayout()
+        add = QPushButton(t("table.add_item"))
+        remove = QPushButton(t("table.remove_last"))
+        add.clicked.connect(
+            lambda: (
+                rows.append({"category": "misc", "item": "", "count": 1}),
+                fill(), self._emit_changed(),
+            )
+        )
+        remove.clicked.connect(
+            lambda: (rows.pop(), fill(), self._emit_changed()) if len(rows) > 1 else None
+        )
+        buttons.addWidget(add)
+        buttons.addWidget(remove)
+        buttons.addStretch(1)
+        fill()
+        layout.addWidget(table)
+        layout.addLayout(buttons)
+        return box
+
     def _make_dice_table(self, node: dict, key: str) -> QWidget:
         """dice.options：选项文本覆写（band_texts）+ 大成功/成功/失败 三列 goto。
 
@@ -1380,7 +1978,7 @@ class NodeForm(QScrollArea):
         v.setContentsMargins(0, 0, 0, 0)
 
         if bands:
-            v.addWidget(QLabel("选项文本（可选，留空用官方文本）："))
+            v.addWidget(QLabel(t("dice.band_text_hint")))
             current = opt0.get("band_texts") or []
             for i, band in enumerate(bands):
                 txt = (
@@ -1389,7 +1987,9 @@ class NodeForm(QScrollArea):
                     else ""
                 )
                 le = QLineEdit(txt)
-                le.setPlaceholderText("带%d 官方：%s" % (i + 1, band.get("text", "")))
+                le.setPlaceholderText(
+                    t("dice.band_placeholder", n=i + 1, text=band.get("text", ""))
+                )
                 le.textChanged.connect(
                     lambda t, idx=i, c=le: self._apply_band_text(idx, t, c)
                 )
@@ -1397,7 +1997,7 @@ class NodeForm(QScrollArea):
 
         table = QTableWidget(0, 3)
         table.setHorizontalHeaderLabels(
-            ["失败 goto（最差带）", "成功 goto", "大成功 goto（3带检查点最优带）"]
+            [t("dice.goto_failure"), t("dice.goto_success"), t("dice.goto_critical")]
         )
         for c in range(3):
             table.horizontalHeader().setSectionResizeMode(
@@ -1429,11 +2029,16 @@ class NodeForm(QScrollArea):
         # 检查点元数据提示行（官方结果带：差→好）
         if bands:
             hint = "　".join(
-                "带%d: %s｜%s" % (i, b.get("text", ""), b.get("cond", ""))
+                t(
+                    "dice.band_summary",
+                    n=i,
+                    text=b.get("text", ""),
+                    condition=b.get("cond", ""),
+                )
                 for i, b in enumerate(bands, 1)
             )
             hint_label = QLabel(
-                "官方结果带（骰子 0~%s）：%s" % (meta.get("max", "?"), hint)
+                t("dice.official_bands", max=meta.get("max", "?"), bands=hint)
             )
             hint_label.setWordWrap(True)
             v.addWidget(hint_label)

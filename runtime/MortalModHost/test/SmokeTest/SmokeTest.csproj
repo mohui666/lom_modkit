@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- 离线冒烟测试：不依赖 BepInEx/Unity，直接编译 src 下可独立测试的三个文件。
+  <!-- 离线冒烟测试：不依赖 BepInEx/Unity，直接编译 src 下可独立测试的纯逻辑文件。
        仅开发期验证用，产物不进游戏。 -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -21,6 +21,19 @@
     <Compile Include="..\..\src\PreviewRequest.cs" />
     <Compile Include="..\..\src\ContentRef.cs" />
     <Compile Include="..\..\src\UserContent.cs" />
+    <Compile Include="..\..\src\RuntimeTrace.cs" />
+    <Compile Include="..\..\src\StructuredRuntimeError.cs" />
+    <Compile Include="..\..\src\RuntimeDebugControl.cs" />
+    <Compile Include="..\..\src\RuntimeCompatibility.cs" />
+    <Compile Include="..\..\src\ModDisclosurePolicy.cs" />
+    <Compile Include="..\..\src\DisclosureIntegrity.cs" />
+    <Compile Include="..\..\src\ProvenanceWatermarkProtocol.cs" />
+    <Compile Include="..\..\src\ProvenanceWatermarkCodec.cs" />
+    <Compile Include="..\..\src\GameplaySession.cs" />
+    <Compile Include="..\..\src\ModCampaignState.cs" />
+    <Compile Include="..\..\src\ModSaveSlotPolicy.cs" />
+    <Compile Include="..\..\src\ModQuestSession.cs" />
+    <Compile Include="..\..\src\PersistentStateStore.cs" />
   </ItemGroup>
 
 </Project>

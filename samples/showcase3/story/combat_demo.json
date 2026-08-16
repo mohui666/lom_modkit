@@ -1,0 +1,102 @@
+{
+  "story_schema": 1,
+  "id": "combat_demo",
+  "title": "3.0 第三章：原版 Combat 编排",
+  "mood": false,
+  "nodes": [
+    {
+      "id": "message1",
+      "type": "message",
+      "text": "【3.0/3】可测试原版 Combat，也可跳过。"
+    },
+    {
+      "id": "choice1",
+      "type": "choice",
+      "options": [
+        {
+          "text": "进入原版 Combat",
+          "goto": "combat1"
+        },
+        {
+          "text": "跳过 Combat",
+          "goto": "say3"
+        }
+      ],
+      "dialog": "Options"
+    },
+    {
+      "id": "say3",
+      "type": "say",
+      "text": "已跳过 Combat。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "end1"
+    },
+    {
+      "id": "combat1",
+      "type": "combat",
+      "win": "battle_result1",
+      "lose": "battle_result1",
+      "preset": "showcase3_combat"
+    },
+    {
+      "id": "battle_result1",
+      "type": "battle_result",
+      "kind": "combat",
+      "win": "say1",
+      "lose": "say2"
+    },
+    {
+      "id": "say1",
+      "type": "say",
+      "text": "Combat 结果：win。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "result_screen1"
+    },
+    {
+      "id": "say2",
+      "type": "say",
+      "text": "Combat 结果：lose。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "result_screen1"
+    },
+    {
+      "id": "result_screen1",
+      "type": "result_screen",
+      "title": "Combat 验收结束",
+      "text": "胜负结果已由 Host 验证并返回 Story。",
+      "entries": [
+        {
+          "kind": "stat",
+          "key": "mental",
+          "amount": 1
+        }
+      ],
+      "goto": "end1"
+    },
+    {
+      "id": "end1",
+      "type": "end",
+      "next_script": "battle_demo"
+    }
+  ],
+  "battle_presets": {
+    "showcase3_combat": {
+      "kind": "combat",
+      "key": "5102_01",
+      "max_health": 300,
+      "health": 300,
+      "max_stamina": 120,
+      "stamina": 120,
+      "strength": 20,
+      "internal": 20,
+      "dexterity": 20,
+      "talking": 20,
+      "attack_rate": 0.5,
+      "block_rate": 0.25
+    }
+  },
+  "start": "message1"
+}

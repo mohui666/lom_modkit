@@ -54,6 +54,11 @@ def main_fn() -> int:
     assert win.inspector.width() >= win.inspector.minimumWidth(), (
         "外层分隔条必须在属性栏最小可用宽度处停止"
     )
+    combo_probe = QComboBox()
+    main.NodeForm._configure_combo(combo_probe)
+    assert combo_probe.minimumContentsLength() == 1
+    assert combo_probe.minimumWidth() == 0
+
     assert len(win.story["nodes"]) == 3, "新建项目应含登场、示例对白和结束剧情"
     assert win.node_list.count() == 4, "列表 = 章节设置 + 3 个步骤"
     assert win.story["nodes"][-1]["type"] == "end", "新手模板应可直接通过收尾校验"
@@ -66,6 +71,9 @@ def main_fn() -> int:
     assert any("导出" in t for t in toolbar_texts), f"工具栏应有导出：{toolbar_texts}"
     for noise in ("新建", "导入 Mod", "体检", "帮助"):
         assert noise not in toolbar_texts, f"工具栏不应再放 {noise}（已收进菜单）"
+    menu_texts = [action.text() for action in win.menuBar().findChildren(main.QAction)]
+    assert any("检查 Mod 包" in text for text in menu_texts), "文件菜单缺少只读包检查器"
+    assert "文档" in menu_texts, "帮助菜单应提供独立文档入口"
     # 左栏步骤树：第 0 行是章节设置，其后才是步骤
     assert win.node_list.count() == 4, "章节设置 + 3 个新手步骤"
     assert win._is_chapter_item(win.node_list.item(0))
@@ -76,6 +84,7 @@ def main_fn() -> int:
     help_dlg = main.HelpDialog(win)
     help_text = help_dlg.findChild(main.QTextBrowser).toPlainText()
     assert "五分钟做出第一段剧情" in help_text and "汗青书结局怎么写" in help_text
+    assert help_dlg.findChild(main.QTabWidget) is None, "完整文档不应嵌套在帮助弹窗内"
     help_dlg.close()
     manager_dlg = main.ModManagerDialog(win.game_manager, win)
     manager_buttons = [
@@ -221,8 +230,8 @@ def main_fn() -> int:
     # 切换节点类型：当前 choice → 换成 branch 工厂产物，并验证表单按 type 重建
     branch = models.new_node("branch", node["id"], editor_data)
     branch["flag"] = "SMOKE_FLAG"
-    existing_target = win.story["nodes"][0]["id"]
-    branch["cases"][0]["goto"] = existing_target  # 指向真实存在节点
+    existing_target = win.story["start"]
+    branch["cases"][0]["goto"] = existing_target  # 指向已有节点，保证 story 合法可编译
     win.story["nodes"][win._selected_node_index()] = branch
     win._refresh_all(select_row=1)
     cur = win._current_node()
@@ -343,22 +352,32 @@ def main_fn() -> int:
             assert m2.get("campaign") == campaign, (
                 f"campaign 往返不一致：{m2.get('campaign')!r}"
             )
+            from package_inspector import inspect_lommod
+            from package_inspector_dialog import PackageInspectorDialog
+
+            inspected = inspect_lommod(out)
+            assert inspected.content_hash_valid and not inspected.errors
+            inspector_dialog = PackageInspectorDialog(inspected, win)
+            assert inspector_dialog.table.rowCount() == len(inspected.entries)
+            assert "smoke_mod" in inspector_dialog.summary.toPlainText()
+            inspector_dialog.close()
             print(
                 f"[8] .lommod 导出→导入往返 OK（{out.stat().st_size} 字节，"
-                f"campaign 往返一致）"
+                f"campaign 往返一致；包检查器 OK）"
             )
 
     # ------------------------------------------------------------------
     # v3：汉化覆盖 + schema 2 + 新节点表单 + manifest campaign 对话框
     # ------------------------------------------------------------------
-    # 43 种节点类型中文名全覆盖；菜单分组与类型表一一对应
-    assert len(models.NODE_TYPES) == 43, f"契约应有 43 种节点：{len(models.NODE_TYPES)}"
+    # 63 种节点类型中文名全覆盖；菜单分组与类型表一一对应
+    assert len(models.NODE_TYPES) == 63, f"契约应有 63 种节点：{len(models.NODE_TYPES)}"
     assert set(models.NODE_TYPE_CN) == set(models.NODE_TYPES), "NODE_TYPE_CN 未全覆盖"
     grouped = [t for _g, ts in models.NODE_GROUPS for t in ts]
     assert sorted(grouped) == sorted(models.NODE_TYPES), "NODE_GROUPS 与类型表不一致"
     assert [g for g, _t in models.NODE_GROUPS] == [
         "画面与声音",
         "数值、物品与任务",
+        "战斗与游戏系统",
         "流程与高级功能",
     ]
 
@@ -389,7 +408,7 @@ def main_fn() -> int:
         editor_data,
     )
     assert s == "进入其他场景·决斗（一对一） 5102_01", s
-    print("[8b] 汉化/schema 2 助手抽查 OK（43 类型中文名、三组分组、清单显示）")
+    print("[8b] 汉化/schema 2 助手抽查 OK（63 类型中文名、四组分组、清单显示）")
 
     # ManifestDialog：campaign 区读写 + 空行跳过 + 无内容不写出 + 新条件列
     dlg = main.ManifestDialog(
@@ -417,8 +436,15 @@ def main_fn() -> int:
     assert dlg.new_game_check.isChecked(), "应回填 new_game"
     assert dlg.disable_events_check.isChecked(), "应回填 disable_official_events"
     assert dlg.triggers_table.rowCount() == 1, "应回填 1 行触发器"
-    assert dlg.triggers_table.columnCount() == 7, "触发器表应为 7 列"
+    assert dlg.triggers_table.columnCount() == 8, "触发器表应为 8 列"
     m = dlg.manifest()
+    assert m["tested_host_version"] == "0.6.0", "新导出应记录随附 Host 测试版本"
+    dlg.min_host_version_edit.setText("0.5.0")
+    dlg.game_version_edit.setText("1.2.3")
+    dlg.tested_game_version_edit.setText("1.2.3")
+    compat = dlg.manifest()
+    assert compat["min_host_version"] == "0.5.0"
+    assert compat["game_version"] == compat["tested_game_version"] == "1.2.3"
     assert m["campaign"]["new_game"]
     assert m["campaign"]["disable_official_events"], "勾选框应写出 disable_official_events"
     trig = m["campaign"]["triggers"][0]
@@ -437,7 +463,7 @@ def main_fn() -> int:
     }, f"好感条件错误：{trig!r}"
     dlg._add_trigger_row({})  # 空行：位置/脚本缺失，应被跳过
     assert len(dlg.manifest()["campaign"]["triggers"]) == 1
-    # 新行填位置+脚本+好感文本：解析写回
+    # 新行填位置+脚本+有界月份下拉+好感人物/数值：解析写回
     table = dlg.triggers_table
     last_row = table.rowCount() - 1
     pos_combo = table.cellWidget(last_row, 0)
@@ -446,11 +472,14 @@ def main_fn() -> int:
     assert isinstance(script_combo, QComboBox), "脚本列应是下拉框"
     pos_combo.setCurrentText("Kitchen")
     script_combo.setCurrentText("main")
-    month_item = table.item(last_row, 4)
-    aff_item = table.item(last_row, 6)
-    assert month_item is not None and aff_item is not None, "新列应有 item"
-    month_item.setText("6")
-    aff_item.setText("girl2:5")
+    month_combo = table.cellWidget(last_row, 4)
+    affinity_combo = table.cellWidget(last_row, 6)
+    aff_min_item = table.item(last_row, 7)
+    assert isinstance(month_combo, QComboBox) and isinstance(affinity_combo, QComboBox)
+    assert aff_min_item is not None, "最低好感列应有 item"
+    month_combo.setCurrentIndex(month_combo.findData(6))
+    affinity_combo.setCurrentIndex(affinity_combo.findData("girl2"))
+    aff_min_item.setText("5")
     trigs = dlg.manifest()["campaign"]["triggers"]
     new_trig = next(t for t in trigs if t["position"] == "Kitchen")
     assert new_trig["when_month"] == 6 and new_trig["when_affinity"] == {

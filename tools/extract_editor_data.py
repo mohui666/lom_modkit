@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """从 lom_unpack 解包产物提取编辑器数据，生成 data/editor_data.json。
 
-格式契约见 docs/zh_CN/mod_format.md §5。仅用 Python 标准库。
+格式契约见 docs/chs/mod_format.md §5。仅用 Python 标准库。
 """
 
 import csv
@@ -11,11 +11,17 @@ import os
 import re
 import sys
 
+# 当前仓库根目录。输出和随仓数据不能硬编码到某个开发者工作区，否则在
+# 独立 worktree/CI 中运行提取器会误写另一份仓库。
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 # 解包产物目录：优先环境变量 LOM_UNPACK_DIR，缺省为本机开发路径
 UNPACK_DIR = os.environ.get("LOM_UNPACK_DIR", r"C:/Users/mohui666/lom_unpack")
 SCRIPTS_DIR = os.path.join(UNPACK_DIR, "raw_scripts")
 CSV_CHAR = os.path.join(UNPACK_DIR, "output", "csv", "11_人物.csv")
 RAW_CHAR = os.path.join(UNPACK_DIR, "raw", "Character_zh-cn.txt")
+RAW_CHAR_TITLE = os.path.join(UNPACK_DIR, "raw", "CharacterTitle_zh-cn.txt")
+RAW_CHAR_INTRO = os.path.join(UNPACK_DIR, "raw", "CharacterIntro0_zh-cn.txt")
 CSV_STAT = os.path.join(UNPACK_DIR, "output", "csv", "14_属性与Flag.csv")
 RAW_STAT = os.path.join(UNPACK_DIR, "raw", "Stat_zh-cn.txt")
 CSV_TALENT = os.path.join(UNPACK_DIR, "output", "csv", "08_天赋技能.csv")
@@ -25,20 +31,20 @@ RAW_BOOK = os.path.join(UNPACK_DIR, "raw", "ItemBook_zh-cn.txt")
 CSV_ITEM = os.path.join(UNPACK_DIR, "output", "csv", "10_物品.csv")
 RAW_MISC = os.path.join(UNPACK_DIR, "raw", "ItemMisc_zh-cn.txt")
 RAW_SPECIAL = os.path.join(UNPACK_DIR, "raw", "ItemSpecial_zh-cn.txt")
+RAW_ENEMY_TEAM = os.path.join(UNPACK_DIR, "raw", "EnemyTeam_zh-cn.txt")
+RAW_BATTLE_SKILL = os.path.join(UNPACK_DIR, "raw", "BattleSkill_zh-cn.txt")
 CSV_MESSAGE = os.path.join(UNPACK_DIR, "output", "csv", "03_剧情系统提示.csv")
 RAW_MESSAGE = os.path.join(UNPACK_DIR, "raw", "Story_Message_zh-cn.txt")
 RAW_FLAG = os.path.join(UNPACK_DIR, "raw", "Flag_zh-cn.txt")
 RAW_POSITION = os.path.join(UNPACK_DIR, "raw", "Position_zh-cn.txt")
 CSV_OTHER = os.path.join(UNPACK_DIR, "output", "csv", "15_其他.csv")
-RAW_ENEMY_TEAM = os.path.join(UNPACK_DIR, "raw", "EnemyTeam_zh-cn.txt")
-VIEW_MAP_JSON = os.path.join(
-    r"C:/Users/mohui666/lom_modkit", "data", "assets", "_probe", "view_map.json"
+VIEW_MAP_JSON = os.environ.get(
+    "LOM_VIEW_MAP_JSON",
+    os.path.join(REPO_ROOT, "data", "assets", "_probe", "view_map.json"),
 )
 # 死亡/结局 id 权威参考（由 lom-save-analyzer 仓库 mappings.js 提取）
-REF_IDS_JSON = os.path.join(
-    r"C:/Users/mohui666/lom_modkit", "data", "ref", "death_ending_ids.json"
-)
-OUT_PATH = os.path.join(r"C:/Users/mohui666/lom_modkit", "data", "editor_data.json")
+REF_IDS_JSON = os.path.join(REPO_ROOT, "data", "ref", "death_ending_ids.json")
+OUT_PATH = os.path.join(REPO_ROOT, "data", "editor_data.json")
 
 # 契约 §5 固定值
 MODES = ["character", "think", "narrative", "center"]
@@ -82,6 +88,8 @@ RE_CHARACTER = re.compile(r'characters\.Get\("([^"]+)"\)')
 RE_PORTRAIT = re.compile(r'GetPortrait\("([^"]+)",\s*"([^"]+)"\)')
 RE_VIEW = re.compile(r'getvar\(flowcharts\.view,\s*"ViewName"\)\.value\s*=\s*"([^"]+)"')
 RE_MUSIC = re.compile(r'luamanager\.PlayMusic\("([^"]+)"\)')
+RE_SOUND = re.compile(r'luamanager\.PlaySound\("([^"]+)"\)')
+RE_ENV_SOUND = re.compile(r'luamanager\.PlayEnvSound\("([^"]+)"\)')
 RE_STAT = re.compile(r'statmodifymanager\.Player\("([^"]+)"')
 RE_AFFINITY = re.compile(r'statmodifymanager\.Character\("([^"]+)"')
 RE_STAGE_SHOW = re.compile(r"stage\.show\{(.*?)\}", re.S)
@@ -237,6 +245,19 @@ def load_names():
     return _load_prefixed_kv(CSV_CHAR, RAW_CHAR, "Character")
 
 
+def load_character_intro_data():
+    """原版人物介绍卡文本：CharacterTitle/<id> + CharacterIntro0/<id>。
+
+    CharacterIntroPanel.TransitionIntro 已反编译验证只读取 Intro0；Intro1~3 是
+    其它关系资料页内容，不能拿来冒充首次人物介绍卡。
+    """
+    titles = _load_prefixed_kv(CSV_CHAR, RAW_CHAR_TITLE, "CharacterTitle")
+    intros = _load_prefixed_kv(CSV_CHAR, RAW_CHAR_INTRO, "CharacterIntro0")
+    return titles, {
+        key: value.replace("\\n", "\n") for key, value in intros.items()
+    }
+
+
 def load_stat_names():
     """属性显示名：key 格式 PlayerStat/<id>。"""
     return _load_prefixed_kv(CSV_STAT, RAW_STAT, "PlayerStat")
@@ -263,14 +284,27 @@ def load_free_position_names():
 
 def load_view_names():
     """场景显示名：探测产物 view_map.json 的 name 字段（游戏内 m_Name）。"""
-    if not os.path.isfile(VIEW_MAP_JSON):
-        return {}
-    try:
-        with open(VIEW_MAP_JSON, encoding="utf-8") as f:
-            vm = json.load(f)
-    except (OSError, ValueError):
-        return {}
-    return {k: v["name"] for k, v in vm.items() if v.get("name")}
+    if os.path.isfile(VIEW_MAP_JSON):
+        try:
+            with open(VIEW_MAP_JSON, encoding="utf-8") as f:
+                vm = json.load(f)
+            return {k: v["name"] for k, v in vm.items() if v.get("name")}
+        except (OSError, ValueError):
+            pass
+    # 发布源码通常不带体积较大的探测目录。重新提取其他 catalog 时，保留
+    # 已提交 editor_data 里的原版场景名称，不能把可读中文静默退化为内部 id。
+    if os.path.isfile(OUT_PATH):
+        try:
+            with open(OUT_PATH, encoding="utf-8") as f:
+                current = json.load(f)
+            return {
+                str(item.get("id")): str(item.get("name"))
+                for item in current.get("views", [])
+                if isinstance(item, dict) and item.get("id") and item.get("name")
+            }
+        except (OSError, ValueError, TypeError):
+            pass
+    return {}
 
 
 def load_ref_ids():
@@ -295,6 +329,7 @@ def enrich_id_list(ids, ref_table):
 
 def main():
     names = load_names()
+    character_titles, character_intros = load_character_intro_data()
     stat_names = load_stat_names()
     view_names = load_view_names()
     free_pos_names = load_free_position_names()
@@ -304,6 +339,8 @@ def main():
     book_names = _load_prefixed_kv(CSV_BOOK, RAW_BOOK, "Book/Name")
     misc_names = _load_prefixed_kv(CSV_ITEM, RAW_MISC, "Misc/Name")
     special_names = _load_prefixed_kv(CSV_ITEM, RAW_SPECIAL, "Special/Name")
+    enemy_team_names = _load_prefixed_kv("", RAW_ENEMY_TEAM, "EnemyTeam")
+    battle_skill_names = _load_prefixed_kv("", RAW_BATTLE_SKILL, "BattleSkill/Name")
     message_names = _load_prefixed_kv(CSV_MESSAGE, RAW_MESSAGE, "Story")
     battle_faction_names = _load_prefixed_kv(
         CSV_OTHER, RAW_ENEMY_TEAM, "EnemyTeam"
@@ -313,6 +350,8 @@ def main():
     portraits = {}  # id -> set
     views = set()
     music = set()
+    sounds = set()
+    env_sounds = set()
     positions = set()
     stats = set()
     affinity_chars = set()
@@ -352,6 +391,8 @@ def main():
             portraits.setdefault(cid, set()).add(port)
         views.update(RE_VIEW.findall(text))
         music.update(RE_MUSIC.findall(text))
+        sounds.update(RE_SOUND.findall(text))
+        env_sounds.update(RE_ENV_SOUND.findall(text))
         stats.update(RE_STAT.findall(text))
         affinity_chars.update(RE_AFFINITY.findall(text))
         for block in RE_STAGE_SHOW.findall(text):
@@ -384,6 +425,11 @@ def main():
             "id": cid,
             "name": names.get(cid, cid),
             "portraits": sorted(portraits.get(cid, ())),
+            **(
+                {"title": character_titles.get(cid, ""), "intro": character_intros[cid]}
+                if cid in character_intros
+                else {}
+            ),
         }
         for cid in sorted(char_ids)
     ]
@@ -395,6 +441,12 @@ def main():
         "music": [
             {"id": m, "name": m} for m in sorted(music)
         ],  # 音乐 id 本身已是中文名
+        "sounds": [
+            {"id": sound, "name": sound} for sound in sorted(sounds)
+        ],  # 普通音效 id 来自原版 PlaySound 调用
+        "env_sounds": [
+            {"id": sound, "name": sound} for sound in sorted(env_sounds)
+        ],  # 环境音 id 来自原版 PlayEnvSound 调用
         "positions": [{"id": p, "name": position_label(p)} for p in sorted(positions)],
         "stats": [{"id": s, "name": stat_names.get(s, s)} for s in sorted(stats)],
         "modes": MODES,
@@ -409,6 +461,15 @@ def main():
         "battle_factions": [
             {"id": faction_id, "name": name}
             for faction_id, name in sorted(battle_faction_names.items())
+        ],
+        # StatModifyManager.ModifyEnemy* 的 id 来自原版 BattleTeamStat，不能让
+        # 作者猜 001/201/500 这类裸编号。全量取官方 EnemyTeam 本地化表。
+        "enemy_teams": [
+            {"id": i, "name": enemy_team_names[i]} for i in sorted(enemy_team_names)
+        ],
+        # SetPlayerBattleSkill / SetBattleSkillActive 使用的原版技能 key。
+        "battle_skills": [
+            {"id": i, "name": battle_skill_names[i]} for i in sorted(battle_skill_names)
         ],
         "death_ids": enrich_id_list(death_ids, ref_ids.get("death", {})),
         "ending_ids": enrich_id_list(ending_ids, ref_ids.get("ending", {})),
@@ -449,8 +510,11 @@ def main():
     print("脚本数: %d" % len(files))
     print("旅行脚本数（骰子元数据剔除）: %d" % len(travel_scripts))
     print("人物数: %d" % len(characters))
+    print("人物介绍卡文本数: %d" % len(character_intros))
     print("场景数: %s" % hit(views, view_names))
     print("音乐数: %d" % len(music))
+    print("普通音效数: %d" % len(sounds))
+    print("环境音效数: %d" % len(env_sounds))
     print("站位数: %d" % len(positions))
     print("属性数: %s" % hit(stats, stat_names))
     print("菜单对话框数: %d" % len(menu_dialogs))

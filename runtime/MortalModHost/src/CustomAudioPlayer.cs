@@ -21,6 +21,18 @@ namespace MortalModHost
         private static NativePcmPlayer _voice;
         private static Coroutine _musicFade;
         private static Coroutine _envFade;
+        private static string _currentMusic = "";
+        private static string _currentVoice = "";
+
+        internal static string CurrentMusic
+        {
+            get { return _music != null && _music.IsPlaying ? _currentMusic : ""; }
+        }
+
+        internal static string CurrentVoice
+        {
+            get { return _voice != null && _voice.IsPlaying ? _currentVoice : ""; }
+        }
 
         /// <summary>
         /// 自定义切歌时会主动调 <c>SoundManager.StopMusic</c> 清官方 BGM。
@@ -44,6 +56,7 @@ namespace MortalModHost
                 StopCoroutine(ref _musicFade);
                 StopCoroutine(ref _envFade);
                 if (_music != null) _music.Stop();
+                _currentMusic = "";
                 if (_env != null) _env.Stop();
                 if (_sfx != null) _sfx.Stop();
             }
@@ -58,6 +71,7 @@ namespace MortalModHost
             try
             {
                 if (_voice != null) _voice.Stop();
+                _currentVoice = "";
             }
             catch (Exception ex)
             {
@@ -107,6 +121,7 @@ namespace MortalModHost
             {
                 StopCoroutine(ref _musicFade);
                 if (_music != null) _music.Stop();
+                _currentMusic = "";
             }
             catch (Exception ex)
             {
@@ -203,6 +218,8 @@ namespace MortalModHost
                 string ext = System.IO.Path.GetExtension(content.MainFile ?? "");
                 player.Play(content.Bytes, ext, loop);
                 player.SetVolume(GameVolume(isMusic || player == _env));
+                if (isMusic) _currentMusic = parsed.Raw;
+                else if (player == _voice) _currentVoice = parsed.Raw;
                 if (Log != null)
                     Log.LogInfo("自定义音频开始播放：" + parsed.Raw + "（waveOut 流式 " + ext + "）");
                 return true;

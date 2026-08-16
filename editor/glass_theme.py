@@ -224,7 +224,7 @@ QComboBox QLineEdit {{
     padding: 0;
     margin: 0;
 }}
-QListWidget, QTableWidget {{
+QListWidget, QTreeWidget, QTableWidget {{
     background: {CONTENT_FILL};
     border: none;
     border-radius: 10px;
@@ -247,6 +247,20 @@ QListWidget::item:hover {{
 QListWidget::item:selected {{
     background: {ACCENT_FILL};
     border: none;
+}}
+QTreeWidget::item {{
+    border-radius: 6px;
+    padding: 5px 7px;
+}}
+QTreeWidget::item:hover {{
+    background: rgba(255, 255, 255, 14);
+}}
+QTreeWidget::item:selected {{
+    background: {ACCENT_FILL};
+}}
+QLabel#documentationBreadcrumb {{
+    color: {TEXT_SECONDARY};
+    padding-left: 5px;
 }}
 QTableWidget {{
     gridline-color: rgba(255, 255, 255, 18);

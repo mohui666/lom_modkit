@@ -1,0 +1,96 @@
+{
+  "story_schema": 1,
+  "id": "main",
+  "title": "灯路：一封未署名的信",
+  "start": "n01",
+  "mood": false,
+  "nodes": [
+    {"id": "n01", "type": "background", "action": "fadein", "image": "user:showcase.courier_station", "fade": 0.8},
+    {"id": "n02", "type": "music", "name": "user:showcase.lantern_theme", "op": "play"},
+    {"id": "n03", "type": "overlay", "action": "show", "slot": "lantern", "image": "user:showcase.lantern_overlay", "position": "top_right", "scale": 34, "opacity": 88, "layer": "front", "fade": 0.35},
+    {"id": "n04", "type": "show", "character": "player", "position": "L2", "portrait": "normal", "facing": "right", "fadeDuration": 0.4},
+    {"id": "n05", "type": "show", "character": "user:showcase.lin_deng", "position": "R2", "portrait": "normal", "facing": "left", "fadeDuration": 0.5},
+    {"id": "n06", "type": "say", "mode": "character", "character": "user:showcase.lin_deng", "portrait": "normal", "voice": "user:showcase.lin_greeting", "text": "灯已点亮。前路虽远，也总有一处能照见脚下。"},
+    {"id": "n07", "type": "say", "mode": "character", "character": "player", "portrait": "normal", "text": "你是送信来的，还是专程来讲道理的？"},
+    {"id": "n08", "type": "say", "mode": "character", "character": "user:showcase.lin_deng", "portrait": "happy", "text": "两样都是。先听哪一样，由你选。"},
+    {"id": "n09", "type": "sound", "name": "user:showcase.lantern_chime", "kind": "sound", "op": "play"},
+    {"id": "n10", "type": "flag", "flag": "FEATURE_SHOWCASE_MET_COURIER"},
+    {"id": "n11", "type": "game_flag", "flag": "FEATURE_SHOWCASE_ROUTE_SCORE", "value": 1, "op": "set"},
+    {"id": "n12", "type": "choice", "dialog": "Options", "options": [
+      {"text": "先拆信。", "goto": "n13"},
+      {"text": "先问前路。", "goto": "n14"}
+    ]},
+    {"id": "n13", "type": "message", "text": "信封里只有一张画着山路的薄纸。", "goto": "n15"},
+    {"id": "n14", "type": "message", "text": "她把灯举高，远处山脊浮出一线微光。", "goto": "n15"},
+    {"id": "n15", "type": "branch", "source": "mod", "flag": "FEATURE_SHOWCASE_MET_COURIER", "cases": [
+      {"value": 1, "goto": "n16"},
+      {"value": 2, "goto": "n17"}
+    ]},
+    {"id": "n16", "type": "branch", "source": "flag_value", "flag": "FEATURE_SHOWCASE_ROUTE_SCORE", "cases": [
+      {"op": ">=", "value": 1, "goto": "n18"}
+    ]},
+    {"id": "n17", "type": "say", "mode": "narrative", "text": "若没有留下记录，故事会从这里安全回到主线。", "goto": "n18"},
+    {"id": "n18", "type": "say", "mode": "character", "character": "user:showcase.lin_deng", "portrait": "happy", "text": "记住这束光。下次再见时，我们就在路的另一头。"},
+    {"id": "n19", "type": "overlay", "action": "hide", "slot": "lantern", "fade": 0.3},
+    {"id": "n20", "type": "hide", "character": "player", "fadeDuration": 0.3},
+    {"id": "n21", "type": "hide", "character": "user:showcase.lin_deng", "fadeDuration": 0.3},
+    {"id": "n22", "type": "custom_cg", "action": "show", "image": "user:showcase.departure_cg", "fade": 0.8, "scale": 100, "x": 0, "y": 0},
+    {"id": "n23", "type": "say", "mode": "narrative", "text": "天色破晓，灯火没有熄灭，只是融进了晨光。"},
+    {"id": "n24", "type": "wait", "seconds": 1.0},
+    {"id": "n25", "type": "custom_cg", "action": "hide", "fade": 0.5},
+    {"id": "n26", "type": "music", "name": "user:showcase.lantern_theme", "op": "fadeout", "seconds": 1.2},
+    {"id": "n27", "type": "background", "action": "clear"},
+    {"id": "n28", "type": "goto_scene", "scene": "End", "key": "900047", "title": "灯路未央", "desc": "你循着一盏灯留下的微光，踏上了尚未写完的远路。", "image": "assets/ending.png"}
+  ],
+  "localization": {
+    "default_locale": "chs",
+    "fallback_locale": "chs",
+    "translations": {
+      "cht": {
+        "story.title": "燈路：一封未署名的信",
+        "n06.text": "燈已點亮。前路雖遠，也總有一處能照見腳下。",
+        "n07.text": "你是送信來的，還是專程來講道理的？",
+        "n08.text": "兩樣都是。先聽哪一樣，由你選。",
+        "n12.options.0.text": "先拆信。",
+        "n12.options.1.text": "先問前路。",
+        "n13.text": "信封裡只有一張畫著山路的薄紙。",
+        "n14.text": "她把燈舉高，遠處山脊浮出一線微光。",
+        "n17.text": "若沒有留下記錄，故事會從這裡安全回到主線。",
+        "n18.text": "記住這束光。下次再見時，我們就在路的另一頭。",
+        "n23.text": "天色破曉，燈火沒有熄滅，只是融進了晨光。",
+        "n28.title": "燈路未央",
+        "n28.desc": "你循著一盞燈留下的微光，踏上了尚未寫完的遠路。"
+      },
+      "ja": {
+        "story.title": "灯の道：差出人のない手紙",
+        "n06.text": "灯りはともった。道が遠くても、足元を照らす場所はきっとある。",
+        "n07.text": "手紙を届けに来たのか、それとも説教をしに来たのか？",
+        "n08.text": "どちらも。先に聞く方は、あなたが選んで。",
+        "n12.options.0.text": "先に手紙を開く。",
+        "n12.options.1.text": "先に道を尋ねる。",
+        "n13.text": "封筒には、山道が描かれた薄い紙が一枚だけ入っていた。",
+        "n14.text": "彼女が灯を掲げると、遠い尾根に一筋の光が浮かんだ。",
+        "n17.text": "記録がなければ、物語はここから安全に本筋へ戻る。",
+        "n18.text": "この光を覚えていて。次に会う時は、道の向こう側で。",
+        "n23.text": "夜が明けても灯は消えず、ただ朝の光へ溶けていった。",
+        "n28.title": "灯の道は続く",
+        "n28.desc": "一つの灯が残した微かな光をたどり、まだ書かれていない遠い道へ踏み出した。"
+      },
+      "ko": {
+        "story.title": "등불길: 이름 없는 편지",
+        "n06.text": "등불은 밝혔어. 길이 멀어도 발밑을 비출 곳은 언제나 있어.",
+        "n07.text": "편지를 전하러 온 거야, 아니면 충고하러 온 거야?",
+        "n08.text": "둘 다야. 무엇부터 들을지는 네가 골라.",
+        "n12.options.0.text": "먼저 편지를 연다.",
+        "n12.options.1.text": "먼저 앞길을 묻는다.",
+        "n13.text": "봉투 안에는 산길이 그려진 얇은 종이 한 장뿐이었다.",
+        "n14.text": "그녀가 등을 높이 들자 먼 산등성이에 한 줄기 빛이 떠올랐다.",
+        "n17.text": "기록이 없다면 이야기는 여기서 안전하게 본줄기로 돌아간다.",
+        "n18.text": "이 빛을 기억해. 다음에 만날 때는 길 저편에서 보자.",
+        "n23.text": "날이 밝아도 등불은 꺼지지 않고 아침빛 속으로 스며들었다.",
+        "n28.title": "끝나지 않은 등불길",
+        "n28.desc": "한 등불이 남긴 희미한 빛을 따라 아직 쓰이지 않은 먼 길에 올랐다."
+      }
+    }
+  }
+}

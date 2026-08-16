@@ -1,8 +1,12 @@
 # 사용자 콘텐츠 라이브러리(User Content Library)
 
-> 언어: [简体中文](../zh_CN/user_content.md) · [繁體中文](../zh_TW/user_content.md) · [日本語](../ja/user_content.md) · 한국어(본문)
+> 언어: [简体中文](../chs/user_content.md) · [繁體中文](../cht/user_content.md) · [日本語](../ja/user_content.md) · 한국어(본문)
 
 로컬, 오프라인, Mod별 자체 완결. 계정도, 온라인 마켓도, 클라우드 동기화도 없습니다.
+
+## Content Browser v2
+
+캐릭터, 오디오와 이미지를 한 창에서 관리합니다. 이름, 안정 ID, 파일명과 메타데이터를 검색하고 유형별로 필터링할 수 있습니다. 썸네일/기본 스탠딩 이미지, 용도와 현재 프로젝트 참조 수를 표시합니다. ‘미사용’은 현재 프로젝트에서 참조하지 않는다는 뜻이며 자동 삭제하지 않습니다. 메타데이터 보기, 오디오 미리 듣기, 참조 찾기를 제공하고 삭제 전에도 참조를 검사합니다.
 
 ## 가져오는 방법
 
@@ -95,6 +99,7 @@ assets/user/audio/mohui.battle/battle.ogg
 ```json
 {
   "schema": 1,
+  "content_schema": 1,
   "id": "mohui.line_01",
   "type": "audio",
   "name": "师兄早",
@@ -116,11 +121,21 @@ assets/user/audio/mohui.battle/battle.ogg
 
 ## 런타임 동작
 
+- 공용 이미지는 `type=image`와 안정된 `user:` 번호를 사용하며 PNG/JPG/JPEG(8MB 이하)를 지원합니다. 배경·CG·Overlay는 같은 콘텐츠 보관함을 공유하고 목록에 썸네일을 표시하며 삭제 전 참조 위치를 검사하고 패키지에는 실제 참조만 포함합니다.
+
 - 공식 이름: 원작 Wwise, 동작은 이전과 완전히 같습니다.
 - `user:`: **현재 연출 중인 바로 그 .lommod** 안에서만 찾습니다. 다른 Mod가 같은 이름의 ID를 등록해도 섞이지 않습니다.
 - 사용자 지정 오디오는 Windows `waveOut`으로 재생하며, Unity `AudioSource`도 Wwise도 거치지 않습니다. 이 게임의 메인 믹싱은 Wwise라 Unity로 재생하면 종종 소리가 나지 않습니다.
 - 볼륨은 대략 게임의 메인 볼륨 × 음악/효과음 슬라이더를 따릅니다; Wwise RTPC가 아니므로 완전히 일치할 수는 없습니다.
 - 사용자 지정 fadeout은 출력 볼륨 페이드아웃(이후에도 노드에 따라 대기).
 - 사용자 지정 음악으로 전환할 때 먼저 공식 배경 음악을 정지합니다; 공식 `StopMusic`은 원래 환경음도 함께 지웁니다.
-- 커스텀 캐릭터는 독립 Runtime(`mod_char_*`)이며 공식 Addressables에 등록하지 않습니다. 1판은 show / say / hide / move / face / focus를 지원합니다. 체형은 `scale`(50–130, 기본 100)로 발끝을 기준으로 줄이고, 방향은 `art_facing`(기본 왼쪽) 위에 노드 `facing`을 겹칩니다. 자세한 내용은 중국어 문서를 보세요.
+- 커스텀 캐릭터는 독립 Runtime(`mod_char_*`)이며 공식 Addressables에 등록하지 않습니다. show / say / hide / move / face / focus / offset / shock / dim / rotate를 지원하고 공식 캐릭터 경로는 바뀌지 않습니다. 체형은 `scale`(50–130, 기본 100)로 발끝을 기준으로 줄이고, 방향은 `art_facing`(기본 왼쪽) 위에 노드 `facing`을 겹칩니다.
+- `affinity`는 순수 연출이 아니라 공식 CharacterData 호감도 시스템을 수정하므로 커스텀 캐릭터에서는 계속 지원하지 않습니다. 장기 상태는 Mod 격리 변수를 사용하세요.
 - `samples/audio_test/`로 인수 테스트를 할 수 있습니다: 직접 `user:test.bgm` / `user:test.sfx` / `user:test.env`를 가져와 보세요.
+## 독립 공유: Content Pack v1
+
+“사용자 콘텐츠 보관함”에서 캐릭터, 오디오 또는 이미지를 골라 오프라인 `.lomcontent`로 내보낼 수 있습니다. 서버에 연결하거나 업로드하지 않습니다. 안정 ID, 유형, SemVer, 작성자, 라이선스, metadata와 각 파일의 크기/SHA-256을 기록합니다.
+
+가져올 때 안전한 경로, 크기, metadata, 파일 및 논리 콘텐츠 해시를 모두 검증한 뒤 원자적으로 설치합니다. audio / character / image는 하나의 ID 공간을 사용합니다. `user:<id>`가 이미 있으면 덮어쓰지 않고 중단합니다. 해시는 작성자 서명이나 공식 인증이 아닙니다.
+
+`dependencies`에는 중복 제거·정렬한 직접 콘텐츠 ID만 기록합니다. 가져올 때 로컬 누락 항목을 표시하지만 저장은 허용합니다. 첫 버전은 온라인 다운로드, 재귀 설치, 버전 선택 또는 의존성 솔버를 구현하지 않습니다.

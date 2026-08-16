@@ -9,9 +9,21 @@ EDITOR_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(EDITOR_DIR))
 
 from story_graph import analyze_story  # noqa: E402
+from preview import simulate_stage  # noqa: E402
 
 
 class StoryGraphTest(unittest.TestCase):
+    def test_preview_does_not_fall_through_death(self):
+        story = {
+            "id": "main",
+            "start": "death",
+            "nodes": [
+                {"id": "death", "type": "death", "text": "终局"},
+                {"id": "after", "type": "say", "text": "不应到达"},
+            ],
+        }
+        self.assertFalse(simulate_stage(story, "after")["reached"])
+
     def test_branches_fallthrough_and_unreachable(self):
         story = {
             "start": "n1",

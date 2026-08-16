@@ -1,0 +1,103 @@
+{
+  "story_schema": 1,
+  "id": "battle_demo",
+  "title": "3.0 第四章：原版 Battle 编排",
+  "mood": false,
+  "nodes": [
+    {
+      "id": "message1",
+      "type": "message",
+      "text": "【3.0/4】Battle 失败中的 PlayerDie 可能按原版进入重试/标题；可选择跳过。"
+    },
+    {
+      "id": "choice1",
+      "type": "choice",
+      "options": [
+        {
+          "text": "进入原版 Battle",
+          "goto": "battle_setup1"
+        },
+        {
+          "text": "跳过 Battle",
+          "goto": "say3"
+        }
+      ],
+      "dialog": "Options"
+    },
+    {
+      "id": "say3",
+      "type": "say",
+      "text": "已跳过 Battle。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "end1"
+    },
+    {
+      "id": "battle_setup1",
+      "type": "battle_setup",
+      "reset_skills": false,
+      "skills": [],
+      "enemy": "400",
+      "team": 0,
+      "level": 1,
+      "people": 1,
+      "display": 1
+    },
+    {
+      "id": "battle1",
+      "type": "battle",
+      "win": "battle_result1",
+      "lose": "battle_result1",
+      "preset": "showcase3_battle"
+    },
+    {
+      "id": "battle_result1",
+      "type": "battle_result",
+      "kind": "battle",
+      "win": "say1",
+      "lose": "say2"
+    },
+    {
+      "id": "say1",
+      "type": "say",
+      "text": "Battle 结果：FriendWin。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "end1"
+    },
+    {
+      "id": "say2",
+      "type": "say",
+      "text": "Battle 结果：EnemyWin。",
+      "portrait": "normal",
+      "mode": "narrative",
+      "goto": "end1"
+    },
+    {
+      "id": "end1",
+      "type": "end",
+      "next_script": "finale"
+    }
+  ],
+  "battle_presets": {
+    "showcase3_battle": {
+      "kind": "battle",
+      "key": "0000",
+      "friend_roster": "0000",
+      "enemy_roster": "0000",
+      "friend_people": 3,
+      "enemy_people": 3,
+      "friend_health": 300,
+      "enemy_health": 300,
+      "reset_skills": true,
+      "skills": [
+        {
+          "key": "special3",
+          "index": 2,
+          "active": 1
+        }
+      ]
+    }
+  },
+  "start": "message1"
+}

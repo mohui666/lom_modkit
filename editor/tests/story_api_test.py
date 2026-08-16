@@ -4,7 +4,7 @@
 用法（在 editor/ 目录下）：
     .venv/Scripts/python tests/story_api_test.py
 
-覆盖 docs/zh_CN/mod_format.md §7「AI 工具接口」契约的全部函数：
+覆盖 docs/chs/mod_format.md §7「AI 工具接口」契约的全部函数：
 new_story / add_node / update_node / get_node / list_nodes / delete_node /
 move_node / set_start / add_choice / add_dice / add_say / add_scene /
 check_story / compile_story / load_story_json / save_story_json / pack_mod。
@@ -23,6 +23,7 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from unittest import mock
 
 EDITOR_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(EDITOR_DIR))
@@ -34,11 +35,14 @@ import models  # noqa: E402
 PROJECT_ROOT = EDITOR_DIR.parent
 DEMO_STORY = PROJECT_ROOT / "samples" / "demo_mod" / "story" / "main.json"
 
-# 契约 §3.1 全量 43 种节点类型（与 models.NODE_TYPES 一一对应）
+# 契约 §3.1 全量 63 种节点类型（与 models.NODE_TYPES 一一对应）
 ALL_TYPES = [
     "music",
     "sound",
     "scene",
+    "background",
+    "custom_cg",
+    "overlay",
     "show",
     "move",
     "face",
@@ -68,6 +72,23 @@ ALL_TYPES = [
     "game_flag",
     "enemy",
     "battle_skill",
+    "battle_setup",
+    "combat",
+    "battle",
+    "battle_result",
+    "reward",
+    "result_screen",
+    "custom_shop",
+    "stat_check",
+    "affinity_check",
+    "item_check",
+    "talent_check",
+    "flag_check",
+    "activity",
+    "mod_quest",
+    "quest_check",
+    "persistent_var",
+    "persistent_check",
     "mission",
     "time",
     "autosave",
@@ -103,6 +124,10 @@ def base_story() -> dict:
 
 
 class TestNewStory(unittest.TestCase):
+    def test_rejects_trailing_newline_in_story_id(self):
+        with self.assertRaises(ValueError):
+            story_api.new_story("main\n")
+
     def test_structure(self):
         story = story_api.new_story()
         self.assertIsInstance(story, dict, "new_story 应返回 dict")
@@ -137,9 +162,9 @@ class TestNewStory(unittest.TestCase):
 
 
 class TestAddNode(unittest.TestCase):
-    def test_43_types(self):
+    def test_63_types(self):
         story = story_api.new_story()
-        self.assertEqual(len(ALL_TYPES), 43, "契约应有 43 种节点类型")
+        self.assertEqual(len(ALL_TYPES), 63, "契约应有 63 种节点类型")
         self.assertEqual(
             set(ALL_TYPES), set(models.NODE_TYPES), "类型表与 models.NODE_TYPES 不一致"
         )
@@ -152,9 +177,9 @@ class TestAddNode(unittest.TestCase):
             ids.add(node["id"])
             found = [n for n in story["nodes"] if n["id"] == node["id"]]
             self.assertEqual(len(found), 1, f"{t} 节点应写入 story.nodes")
-        # 2 个开场节点（show+say）+ 43 种各一个 + hide 之后的首个动作节点
+        # 2 个开场节点（show+say）+ 63 种各一个 + hide 之后的首个动作节点
         # 触发登场防线自动补 1 个 show
-        self.assertEqual(len(story["nodes"]), 2 + 43 + 1, "43 种类型应全部追加进 story（含自动补登场）")
+        self.assertEqual(len(story["nodes"]), 2 + 63 + 1, "63 种类型应全部追加进 story（含自动补登场）")
 
     def test_unknown_type(self):
         story = story_api.new_story()
@@ -170,6 +195,52 @@ class TestAddNode(unittest.TestCase):
         story = story_api.new_story()
         with self.assertRaises(ValueError, msg="数值字段给字符串应抛 ValueError"):
             story_api.add_node(story, "wait", {"seconds": "abc"})
+
+    def test_percent_and_discount_contract_fields_accept_numbers(self):
+        story = story_api.new_story()
+        cg = story_api.add_node(
+            story,
+            "custom_cg",
+            {"image": "user:test.cg", "scale": 68, "x": -5, "y": 10},
+        )
+        overlay = story_api.add_node(
+            story,
+            "overlay",
+            {"image": "user:test.overlay", "scale": 34, "opacity": 88},
+        )
+        shop = story_api.add_node(story, "custom_shop", {"discount": 1})
+        self.assertEqual((cg["scale"], cg["x"], cg["y"]), (68, -5, 10))
+        self.assertEqual((overlay["scale"], overlay["opacity"]), (34, 88))
+        self.assertEqual(shop["discount"], 1)
+
+    def test_gameplay_tables_and_legacy_display_use_contract_types(self):
+        story = story_api.new_story()
+        enemy = story_api.add_node(
+            story, "enemy", {"op": "team", "enemy": "400", "value": -10, "display": 1}
+        )
+        combat = story_api.add_node(
+            story, "combat",
+            {"key": "5102_01", "talents": [{"key": "1010", "level": 1}], "win": "ok", "lose": "bad"},
+        )
+        self.assertEqual(enemy["display"], 1)
+        self.assertEqual(combat["talents"][0]["key"], "1010")
+
+    def test_battle_preset_removes_direct_mode_defaults(self):
+        story = story_api.new_story()
+        combat = story_api.add_node(
+            story,
+            "combat",
+            {"preset": "ambush", "win": "ok", "lose": "bad"},
+        )
+        battle = story_api.add_node(
+            story,
+            "battle",
+            {"preset": "war", "win": "ok", "lose": "bad"},
+        )
+        self.assertEqual(combat["preset"], "ambush")
+        self.assertEqual(battle["preset"], "war")
+        for node in (combat, battle):
+            self.assertNotIn("key", node)
 
     def test_ids_are_type_plus_order(self):
         story = story_api.new_story()
@@ -201,6 +272,33 @@ class TestAddNode(unittest.TestCase):
         story = story_api.new_story()
         with self.assertRaises(ValueError, msg="after 指向不存在节点应抛 ValueError"):
             story_api.add_node(story, "wait", after="no_such")
+
+    def test_custom_character_stage_actions_compile(self):
+        story = base_story()
+        raw = "user:mohui.luoxue"
+        story_api.add_node(story, "show", {"character": raw, "position": "M"})
+        story_api.add_node(
+            story,
+            "offset",
+            {"character": raw, "x": 10, "y": -2, "duration": 0.2},
+        )
+        story_api.add_node(story, "shock", {"character": raw, "duration": 0.4})
+        story_api.add_node(story, "dim", {"character": raw, "dimmed": True})
+        story_api.add_node(
+            story,
+            "rotate",
+            {"character": raw, "angle": 30, "duration": 0.3},
+        )
+        story_api.add_node(story, "end")
+
+        lua, _warnings, _texts = story_api.compile_story(story)
+        for global_name in (
+            "mod_char_offset",
+            "mod_char_shock",
+            "mod_char_dim",
+            "mod_char_rotate",
+        ):
+            self.assertIn(global_name, lua)
 
 
 class TestUpdateNode(unittest.TestCase):
@@ -693,6 +791,19 @@ class TestSaveLoad(unittest.TestCase):
             back = story_api.load_story_json(p)
         self.assertEqual(copy.deepcopy(story), back, "save→load 往返应保持一致")
         self.assertEqual(back["id"], "main", "往返后 id 应保留")
+
+    def test_save_failure_preserves_old_file_and_cleans_temp(self):
+        story = base_story()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / "story.json"
+            old_content = json.dumps(base_story(), ensure_ascii=False)
+            target.write_text(old_content, encoding="utf-8")
+            with mock.patch.object(models.os, "replace", side_effect=OSError("boom")):
+                with self.assertRaises(OSError):
+                    models.save_story(story, target)
+            self.assertEqual(target.read_text(encoding="utf-8"), old_content)
+            self.assertEqual(list(root.glob("story.json.*.tmp")), [])
 
 
 class TestPackMod(unittest.TestCase):

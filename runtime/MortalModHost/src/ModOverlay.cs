@@ -197,6 +197,26 @@ namespace MortalModHost
 
         private static void Postfix(GameOverController __instance, ref IEnumerator __result)
         {
+            if (ModDisclosure.Active)
+            {
+                Transform buttonAnchor = ResolveButtonDisclosureAnchor(__instance);
+                GameObject disclosure = buttonAnchor != null
+                    ? ModDisclosure.AttachToPanel(
+                        buttonAnchor,
+                        Vector2.one,
+                        new Vector2(1f, 0f),
+                        new Vector2(0f, 14f))
+                    : ModDisclosure.AttachToPanel(ResolveDisclosureAnchor(__instance));
+                if (disclosure == null)
+                {
+                    (__result as IDisposable)?.Dispose();
+                    __result = ModDisclosure.EmptyRoutine();
+                    LuaManagerPatch.AbortActivePlayback(
+                        "GameOver 卡片无法附加强制玩家内容标记",
+                        null, null, "mandatory_disclosure");
+                    return;
+                }
+            }
             if (!ModOverlay.HasGameOverContent) return;
             try
             {
@@ -207,6 +227,38 @@ namespace MortalModHost
             {
                 Log?.LogWarning("GameOver mod 文本覆盖注入失败：" + ex.Message);
             }
+        }
+
+        /// <summary>
+        /// 原版 GameOver 的标题父节点 Vertical/Horizontal 实际铺满全屏；挂到它的
+        /// “右上角”会与常驻边缘标完全重叠。标题按钮画布是卡片自身右下角的 300x100
+        /// 区域，局部标识放在按钮上沿，截图裁取死亡卡或返回按钮时都会保留。
+        /// </summary>
+        private static Transform ResolveButtonDisclosureAnchor(GameOverController controller)
+        {
+            try
+            {
+                CanvasGroup buttons = Traverse.Create(controller)
+                    .Field("_titleButtonCanvas").GetValue<CanvasGroup>();
+                if (buttons != null) return buttons.transform;
+            }
+            catch { }
+            return null;
+        }
+
+        private static Transform ResolveDisclosureAnchor(GameOverController controller)
+        {
+            try
+            {
+                var traverse = Traverse.Create(controller);
+                Text title = SystemSettings.IsChineseLanguage
+                    ? traverse.Field("_titleText").GetValue<Text>()
+                    : traverse.Field("_horizontalTitleText").GetValue<Text>();
+                if (title != null)
+                    return title.rectTransform.parent != null ? title.rectTransform.parent : title.rectTransform;
+            }
+            catch { }
+            return controller.transform;
         }
 
         /// <summary>包装协程：步进官方 Start 到文本注入点，注入后透传剩余 yield。
@@ -315,6 +367,18 @@ namespace MortalModHost
 
         private static void Postfix(EndGamePanel __instance, ref IEnumerator __result)
         {
+            if (ModDisclosure.Active)
+            {
+                if (ModDisclosure.AttachToPanel(ResolveDisclosureAnchor(__instance)) == null)
+                {
+                    (__result as IDisposable)?.Dispose();
+                    __result = ModDisclosure.EmptyRoutine();
+                    LuaManagerPatch.AbortActivePlayback(
+                        "汗青书结局卡无法附加强制玩家内容标记",
+                        null, null, "mandatory_disclosure");
+                    return;
+                }
+            }
             if (!ModOverlay.HasEndingContent) return;
             try
             {
@@ -325,6 +389,18 @@ namespace MortalModHost
             {
                 Log?.LogWarning("汗青书 mod 结局卡注入失败：" + ex.Message);
             }
+        }
+
+        private static Transform ResolveDisclosureAnchor(EndGamePanel panel)
+        {
+            try
+            {
+                Text title = Traverse.Create(panel).Field("_titleText").GetValue<Text>();
+                if (title != null)
+                    return title.rectTransform.parent != null ? title.rectTransform.parent : title.rectTransform;
+            }
+            catch { }
+            return panel.transform;
         }
 
         private static IEnumerator ApplyAfterOfficial(EndGamePanel panel, IEnumerator original)
@@ -445,6 +521,26 @@ namespace MortalModHost
 
         private static void Postfix(EndGameController __instance, ref IEnumerator __result)
         {
+            if (ModDisclosure.Active)
+            {
+                Transform buttonAnchor = ResolveButtonDisclosureAnchor(__instance);
+                GameObject disclosure = buttonAnchor != null
+                    ? ModDisclosure.AttachToPanel(
+                        buttonAnchor,
+                        Vector2.one,
+                        new Vector2(1f, 0f),
+                        new Vector2(0f, 14f))
+                    : ModDisclosure.AttachToPanel(ResolveDisclosureAnchor(__instance));
+                if (disclosure == null)
+                {
+                    (__result as IDisposable)?.Dispose();
+                    __result = ModDisclosure.EmptyRoutine();
+                    LuaManagerPatch.AbortActivePlayback(
+                        "End 结局卡无法附加强制玩家内容标记",
+                        null, null, "mandatory_disclosure");
+                    return;
+                }
+            }
             if (!ModOverlay.HasEndingContent) return;
             try
             {
@@ -455,6 +551,30 @@ namespace MortalModHost
             {
                 Log?.LogWarning("End 结局 mod 文本覆盖注入失败：" + ex.Message);
             }
+        }
+
+        private static Transform ResolveButtonDisclosureAnchor(EndGameController controller)
+        {
+            try
+            {
+                CanvasGroup buttons = Traverse.Create(controller)
+                    .Field("_titleButtonCanvas").GetValue<CanvasGroup>();
+                if (buttons != null) return buttons.transform;
+            }
+            catch { }
+            return null;
+        }
+
+        private static Transform ResolveDisclosureAnchor(EndGameController controller)
+        {
+            try
+            {
+                Text title = Traverse.Create(controller).Field("_titleText").GetValue<Text>();
+                if (title != null)
+                    return title.rectTransform.parent != null ? title.rectTransform.parent : title.rectTransform;
+            }
+            catch { }
+            return controller.transform;
         }
 
         private static IEnumerator ApplyAfterOfficial(EndGameController controller, IEnumerator original)

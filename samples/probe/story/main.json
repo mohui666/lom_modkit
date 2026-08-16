@@ -1,4 +1,5 @@
 {
+  "story_schema": 1,
   "id": "main",
   "title": "诊断探针",
   "start": "p0",

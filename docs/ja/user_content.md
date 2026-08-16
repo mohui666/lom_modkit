@@ -1,8 +1,12 @@
 # ユーザーコンテンツ庫（User Content Library）
 
-> 言語：[简体中文](../zh_CN/user_content.md) · [繁體中文](../zh_TW/user_content.md) · 日本語（本文） · [한국어](../ko/user_content.md)
+> 言語：[简体中文](../chs/user_content.md) · [繁體中文](../cht/user_content.md) · 日本語（本文） · [한국어](../ko/user_content.md)
 
 ローカル、オフライン、Mod 単位で自己完結。アカウントなし、オンラインマーケットなし、クラウド同期なし。
+
+## Content Browser v2
+
+キャラクター・音声・画像を一つの画面で管理します。名前、安定 ID、ファイル名、メタデータを検索し、種類で絞り込めます。サムネイル/既定立ち絵、用途、現在のプロジェクトでの参照数を表示します。「未使用」は現在のプロジェクトから未参照という意味だけで、自動削除はしません。メタデータ表示、音声試聴、参照検索があり、削除前にも参照を検査します。
 
 ## インポート方法
 
@@ -95,6 +99,7 @@ assets/user/audio/mohui.battle/battle.ogg
 ```json
 {
   "schema": 1,
+  "content_schema": 1,
   "id": "mohui.line_01",
   "type": "audio",
   "name": "师兄早",
@@ -116,11 +121,21 @@ assets/user/audio/mohui.battle/battle.ogg
 
 ## ランタイムの動作
 
+- 共通画像は `type=image` と安定した `user:` 番号を使い、PNG/JPG/JPEG（8MB 以下）に対応します。背景・CG・Overlay は同じコンテンツ庫を共有し、一覧にはサムネイル、削除時には参照箇所を表示し、パックには実際の参照だけを収録します。
+
 - 公式名：原版 Wwise。動作は従来とまったく同じです。
 - `user:`：**現在演出中の .lommod** の中だけを探します。別の Mod が同名 ID を登録していても混線しません。
 - カスタム音声は Windows `waveOut` で再生し、Unity `AudioSource` も Wwise も通りません。本ゲームのメインミックスは Wwise で、Unity で再生するとしばしば無音になります。
 - 音量はおおよそゲームのマスター音量 × 音楽／効果音スライダーに従います。Wwise RTPC ではないため、完全一致はできません。
 - カスタム fadeout は出力音量のフェードアウトです（その後もノードどおり待機します）。
 - カスタム音楽への切替時は先に公式の背景楽を停止します。公式の `StopMusic` はもともと環境音も一緒にクリアします。
-- カスタムキャラは独立 Runtime（`mod_char_*`）で、公式 Addressables には登録しません。v1 は show / say / hide / move / face / focus に対応。体型は `scale`（50–130、既定 100）で足元基準に縮小し、向きは `art_facing`（既定は左）の上にノードの `facing` を重ねます。詳細は中国語版を参照。
+- カスタムキャラは独立 Runtime（`mod_char_*`）で、公式 Addressables には登録しません。show / say / hide / move / face / focus / offset / shock / dim / rotate に対応し、公式キャラの経路は変わりません。体型は `scale`（50–130、既定 100）で足元基準に縮小し、向きは `art_facing`（既定は左）の上にノードの `facing` を重ねます。
+- `affinity` は純粋な演出ではなく公式 CharacterData の好感度を書き換えるため、カスタムキャラでは引き続き非対応です。長期状態には Mod 隔離変数を使用してください。
 - 受け入れ確認には `samples/audio_test/` が使えます：自分で `user:test.bgm` / `user:test.sfx` / `user:test.env` をインポートしてください。
+## 単体共有：Content Pack v1
+
+「ユーザーコンテンツ庫」でキャラクター、音声、画像を選び、オフラインの `.lomcontent` として書き出せます。サーバーへの接続やアップロードは行いません。安定 ID、種類、SemVer、作者、ライセンス、metadata、各ファイルのサイズと SHA-256 を記録します。
+
+読み込み時は安全なパス、サイズ、metadata、ファイルと論理内容ハッシュを検証し、すべて合格してからアトミックに導入します。audio / character / image で ID は共通して一意です。`user:<id>` が既にあれば上書きせず停止します。ハッシュは作者署名や公式認証ではありません。
+
+`dependencies` は重複を除いて整列した直接コンテンツ ID だけを記録します。読み込み時にローカルの不足項目を表示しますが保存は可能です。初版はオンライン取得、再帰インストール、バージョン選択、依存関係ソルバーを実装しません。

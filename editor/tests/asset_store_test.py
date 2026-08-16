@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 import tempfile
@@ -76,6 +77,50 @@ class AssetStoreTest(unittest.TestCase):
         self.assertEqual(loaded_manifest["id"], "image_test")
         loaded_image = loaded_stories["main"]["nodes"][0]["image"]
         self.assertIsNotNone(resolve_image_asset(loaded_image))
+
+    def _write_minimal_package(self, path: Path, extra=None):
+        manifest = {"format": 1, "id": "safe", "entry": "main"}
+        story = {"id": "main", "start": "n1", "nodes": [{"id": "n1", "type": "end"}]}
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("manifest.json", json.dumps(manifest))
+            archive.writestr("story/main.json", json.dumps(story))
+            for name, data in extra or []:
+                archive.writestr(name, data)
+
+    def test_import_rejects_unsafe_archive_paths(self):
+        for index, unsafe in enumerate(
+            ("assets/user/../../escaped.wav", "/absolute.png", "C:/drive.png", "assets\\user\\..\\escaped.wav")
+        ):
+            package = Path(self.temp.name) / f"unsafe-{index}.lommod"
+            self._write_minimal_package(package, [(unsafe, b"payload")])
+            with self.subTest(path=unsafe), self.assertRaises(package_io.PackError):
+                package_io.import_lommod(package)
+        self.assertFalse((Path(self.temp.name) / "escaped.wav").exists())
+
+    def test_import_rejects_oversized_json_and_too_many_entries(self):
+        oversized = Path(self.temp.name) / "oversized.lommod"
+        self._write_minimal_package(
+            oversized,
+            [("story/huge.json", b"{" + b" " * package_io.MAX_JSON_BYTES + b"}")],
+        )
+        with self.assertRaises(package_io.PackError) as cm:
+            package_io.import_lommod(oversized)
+        self.assertIn("过大", str(cm.exception))
+
+        crowded = Path(self.temp.name) / "crowded.lommod"
+        extras = [(f"unused/{i}", b"") for i in range(package_io.MAX_ARCHIVE_ENTRIES)]
+        self._write_minimal_package(crowded, extras)
+        with self.assertRaises(package_io.PackError) as cm:
+            package_io.import_lommod(crowded)
+        self.assertIn("条目过多", str(cm.exception))
+
+    def test_import_wraps_malformed_json_as_pack_error(self):
+        package = Path(self.temp.name) / "bad-json.lommod"
+        with zipfile.ZipFile(package, "w") as archive:
+            archive.writestr("manifest.json", b"\xff")
+            archive.writestr("story/main.json", b"{}")
+        with self.assertRaises(package_io.PackError):
+            package_io.import_lommod(package)
 
 
 if __name__ == "__main__":

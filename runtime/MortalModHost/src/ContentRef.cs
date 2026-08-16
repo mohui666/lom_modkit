@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 namespace MortalModHost
 {
     /// <summary>
-    /// 用户内容引用协议（与 compiler/lomc/content.py、docs/zh_CN/user_content.md 一致）。
+    /// 用户内容引用协议（与 compiler/lomc/content.py、docs/chs/user_content.md 一致）。
     /// 官方 ID 不含 user: 前缀，本类型只解析用户内容。无 Unity 依赖，可离线单测。
     /// </summary>
     internal sealed class ContentRef
@@ -12,6 +12,7 @@ namespace MortalModHost
         public const string UserPrefix = "user:";
         public const string PackageUserRoot = "assets/user";
         public const long MaxAudioBytes = 20L * 1024 * 1024;
+        public const long MaxImageBytes = 8L * 1024 * 1024;
 
         private static readonly Regex ContentIdRegex = new Regex(
             @"^[a-z][a-z0-9_]{0,31}\.[a-z0-9][a-z0-9_]{0,47}$",

@@ -23,6 +23,7 @@ namespace MortalModHost
 
         /// <summary>texts.json 原始 key → 台词文本（不含 Story/ 前缀，Apply 时拼上）。</summary>
         private static readonly Dictionary<string, string> _texts = new Dictionary<string, string>();
+        private static readonly List<ModPackage> _mods = new List<ModPackage>();
 
         /// <summary>已收集文本条目数（日志/自检用）。</summary>
         public static int Count
@@ -33,10 +34,17 @@ namespace MortalModHost
         /// <summary>用扫描到的 mod 包重建文本表（纯数据，不碰 Unity）。key 冲突保留先加载者（加载顺序=文件名序）。</summary>
         public static void Rebuild(IEnumerable<ModPackage> mods, Action<string> logWarn = null)
         {
+            _mods.Clear();
+            foreach (var mod in mods) _mods.Add(mod);
+            SelectLocale(I18n.StoryLocale, logWarn);
+        }
+
+        private static void SelectLocale(string locale, Action<string> logWarn = null)
+        {
             _texts.Clear();
-            foreach (var mod in mods)
+            foreach (var mod in _mods)
             {
-                foreach (var pair in mod.Texts)
+                foreach (var pair in mod.GetTexts(locale))
                 {
                     if (_texts.ContainsKey(pair.Key))
                     {
@@ -55,6 +63,9 @@ namespace MortalModHost
         /// </summary>
         public static void Apply()
         {
+            // LeanLocalization invokes this after a language switch, so select the
+            // locale on every Apply rather than requiring a mod rescan.
+            SelectLocale(I18n.StoryLocale);
             foreach (var pair in _texts)
             {
                 LeanTranslation translation = LeanLocalization.RegisterTranslation(Prefix + pair.Key);

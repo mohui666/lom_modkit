@@ -7,6 +7,7 @@
 
 import json
 import os
+from pathlib import Path
 import subprocess
 import sys
 import tempfile
@@ -20,6 +21,12 @@ from lomc import (
     validate_manifest,
     validate_story,
 )
+from lomc.codegen import lua_num
+from lomc.deterministic_zip import (
+    PACKAGE_CONTENT_HASH_ENTRY,
+    package_content_hash,
+)
+from lomc.schema_versions import CONTENT_SCHEMA, PACKAGE_FORMAT, STORY_SCHEMA
 
 COMPILER_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -157,6 +164,7 @@ class TestNodeCodegen(unittest.TestCase):
 
     def test_scene(self):
         lua = self.lua_of({"id": "n1", "type": "scene", "view": "center"})
+        self.assertIn("\tmod_background_clear(0)", lua)
         self.assertIn('\trunblock(flowcharts.view, "out")', lua)
         self.assertIn('\tgetvar(flowcharts.view, "ViewName").value = "center"', lua)
         self.assertIn('\trunblock(flowcharts.view, "view")', lua)
@@ -166,6 +174,140 @@ class TestNodeCodegen(unittest.TestCase):
         self.assertIn('\trunblock(flowcharts.view, "out")', lua)
         self.assertNotIn("ViewName", lua)
         self.assertNotIn('runblock(flowcharts.view, "view")', lua)
+
+    def test_custom_background_actions(self):
+        show = self.lua_of(
+            {
+                "id": "n1",
+                "type": "background",
+                "action": "fadein",
+                "image": "user:mohui.moon_bg",
+                "fade": 1.25,
+            }
+        )
+        self.assertIn('mod_background_show("user:mohui.moon_bg", 1.25)', show)
+        self.assertIn("\twait(1.25)", show)
+        clear = self.lua_of(
+            {"id": "n1", "type": "background", "action": "clear"}
+        )
+        self.assertIn("mod_background_clear(0)", clear)
+        fadeout = self.lua_of(
+            {"id": "n1", "type": "background", "action": "fadeout", "fade": 0.75}
+        )
+        self.assertIn("mod_background_clear(0.75)", fadeout)
+        self.assertIn("\twait(0.75)", fadeout)
+
+    def test_custom_background_validation(self):
+        assert_compile_error(
+            self,
+            linear_story({"id": "n1", "type": "background", "action": "show"}),
+            "image",
+        )
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "background",
+                    "action": "show",
+                    "image": "assets/bg.png",
+                }
+            ),
+            "user:",
+        )
+        assert_compile_error(
+            self,
+            linear_story(
+                {"id": "n1", "type": "background", "action": "clear", "image": "user:mohui.bg"}
+            ),
+            "不能填写",
+        )
+        assert_compile_error(
+            self,
+            linear_story(
+                {"id": "n1", "type": "background", "action": "fadeout", "fade": -1}
+            ),
+            "不能小于 0",
+        )
+
+    def test_custom_cg_codegen_and_validation(self):
+        shown = self.lua_of(
+            {
+                "id": "n1",
+                "type": "custom_cg",
+                "action": "show",
+                "image": "user:mohui.memory_cg",
+                "fade": 0.8,
+                "scale": 125,
+                "x": -10,
+                "y": 15,
+            }
+        )
+        self.assertIn(
+            'mod_cg_show("user:mohui.memory_cg", 0.8, 125, -10, 15)', shown
+        )
+        self.assertIn("\twait(0.8)", shown)
+        hidden = self.lua_of(
+            {"id": "n1", "type": "custom_cg", "action": "hide", "fade": 0.25}
+        )
+        self.assertIn("mod_cg_hide(0.25)", hidden)
+        assert_compile_error(
+            self,
+            linear_story({"id": "n1", "type": "custom_cg", "action": "show"}),
+            "image",
+        )
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "custom_cg",
+                    "action": "show",
+                    "image": "user:mohui.memory_cg",
+                    "scale": 301,
+                }
+            ),
+            "10~300",
+        )
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "custom_cg",
+                    "action": "show",
+                    "image": "user:mohui.memory_cg",
+                    "x": 101,
+                }
+            ),
+            "-100~100",
+        )
+
+    def test_overlay_codegen_and_validation(self):
+        shown = self.lua_of(
+            {
+                "id": "n1", "type": "overlay", "action": "show",
+                "slot": "prop_1", "image": "user:mohui.lantern",
+                "position": "top_right", "scale": 75, "opacity": 60,
+                "layer": "front", "fade": 0.3,
+            }
+        )
+        self.assertIn(
+            'mod_overlay_show("prop_1", "user:mohui.lantern", "top_right", 75, 60, "front", 0.3)',
+            shown,
+        )
+        self.assertIn("\twait(0.3)", shown)
+        hidden = self.lua_of(
+            {"id": "n1", "type": "overlay", "action": "hide", "slot": "prop_1", "fade": 0.2}
+        )
+        self.assertIn('mod_overlay_hide("prop_1", 0.2)', hidden)
+        for bad, message in (
+            ({"slot": "bad slot", "image": "user:mohui.lantern"}, "槽位 id"),
+            ({"slot": "main"}, "image"),
+            ({"slot": "main", "image": "user:mohui.lantern", "opacity": 101}, "0~100"),
+        ):
+            node = {"id": "n1", "type": "overlay", "action": "show", **bad}
+            assert_compile_error(self, linear_story(node), message)
 
     def test_show(self):
         lua = self.lua_of(
@@ -255,6 +397,10 @@ class TestNodeCodegen(unittest.TestCase):
                 "text": "对话文本",
             }
         )
+        load = '\trunwait(characters.LoadCharacterAsset("player"))'
+        portrait = '\tcharacters.LoadCharacterPortrait("player", "nervous1")'
+        self.assertIn(load, lua)
+        self.assertLess(lua.index(load), lua.index(portrait))
         self.assertIn("\tsetsaydialog(saydialogs.character)", lua)
         self.assertIn("\tsayoptions.waitforinput = true", lua)
         self.assertIn("\tsayoptions.fadewhendone  = true", lua)
@@ -273,6 +419,54 @@ class TestNodeCodegen(unittest.TestCase):
         self.assertIn('\tsay(luamanager.GetStoryText("MOD_MOD_main_n1"))', lua)
         self.assertNotIn("对话文本", lua)
         self.assertNotIn("os_mask", lua)
+
+    def test_official_stage_actions_lazy_load_character(self):
+        cases = (
+            {
+                "id": "n1",
+                "type": "move",
+                "character": "player",
+                "from": "M",
+                "to": "R1",
+            },
+            {"id": "n1", "type": "face", "character": "player", "facing": "left"},
+            {"id": "n1", "type": "hide", "character": "player"},
+            {"id": "n1", "type": "focus", "character": "player"},
+            {
+                "id": "n1",
+                "type": "offset",
+                "character": "player",
+                "x": 10,
+                "y": -4,
+                "duration": 0.2,
+            },
+            {"id": "n1", "type": "shock", "character": "player"},
+            {"id": "n1", "type": "dim", "character": "player", "dimmed": True},
+            {
+                "id": "n1",
+                "type": "rotate",
+                "character": "player",
+                "angle": 45,
+                "duration": 0.3,
+            },
+        )
+        expected = '\trunwait(characters.LoadCharacterAsset("player"))'
+        for node in cases:
+            with self.subTest(node=node["type"]):
+                lua = self.lua_of(node)
+                self.assertIn(expected, lua)
+
+    def test_narrative_does_not_load_unused_character(self):
+        lua = self.lua_of(
+            {
+                "id": "n1",
+                "type": "say",
+                "mode": "narrative",
+                "character": "player",
+                "text": "旁白",
+            }
+        )
+        self.assertNotIn("LoadCharacterAsset", lua)
 
     def test_say_think(self):
         lua = self.lua_of(
@@ -751,6 +945,20 @@ class TestNodeCodegen(unittest.TestCase):
 
 
 class TestValidationErrors(unittest.TestCase):
+    def test_ids_reject_trailing_newlines(self):
+        story = linear_story({"id": "n1", "type": "music", "name": "普通_001"})
+        story["id"] = "main\n"
+        assert_compile_error(self, story, "剧情脚本 id")
+
+        story = linear_story({"id": "n1\n", "type": "music", "name": "普通_001"})
+        assert_compile_error(self, story, "节点 id")
+
+        for field in ("id", "entry"):
+            manifest = dict(MANIFEST)
+            manifest[field] += "\n"
+            with self.subTest(field=field), self.assertRaises(LomcError):
+                validate_manifest(manifest)
+
     def test_unknown_node_type(self):
         assert_compile_error(
             self,
@@ -1368,7 +1576,7 @@ class TestBranchNewSources(unittest.TestCase):
     def test_manifest_errors(self):
         with self.assertRaises(LomcError) as cm:
             validate_manifest({"format": 2, "id": "x"})
-        self.assertIn('"format" 必须固定为 1', str(cm.exception))
+        self.assertIn('"package_format" 必须固定为 1', str(cm.exception))
         bad = dict(MANIFEST)
         del bad["author"]
         with self.assertRaises(LomcError) as cm:
@@ -1378,6 +1586,83 @@ class TestBranchNewSources(unittest.TestCase):
         with self.assertRaises(LomcError) as cm:
             validate_manifest(bad2)
         self.assertIn('"id"', str(cm.exception))
+
+        for field, value in (("id", "a" * 65), ("entry", "a" * 65)):
+            bad = dict(MANIFEST)
+            bad[field] = value
+            with self.subTest(field=field), self.assertRaises(LomcError):
+                validate_manifest(bad)
+
+        for field, value in (
+            ("name", "伪造\n下一行"),
+            ("author", "作者\u202e官方"),
+            ("version", "1.0\u200b"),
+            ("description", "说明\x00尾部"),
+        ):
+            bad = dict(MANIFEST)
+            bad[field] = value
+            with self.subTest(field=field), self.assertRaises(LomcError) as cm:
+                validate_manifest(bad)
+            self.assertIn("单行可见文本", str(cm.exception))
+
+        bad = dict(MANIFEST, name="名" * 81)
+        with self.assertRaises(LomcError) as cm:
+            validate_manifest(bad)
+        self.assertIn("不能超过 80", str(cm.exception))
+
+    def test_explicit_schema_versions_are_checked(self):
+        explicit = dict(
+            MANIFEST,
+            package_format=PACKAGE_FORMAT,
+            story_schema=STORY_SCHEMA,
+            content_schema=CONTENT_SCHEMA,
+        )
+        validate_manifest(explicit)
+        for field in ("package_format", "story_schema", "content_schema"):
+            for value in (999, None, True):
+                bad = dict(explicit)
+                bad[field] = value
+                with self.subTest(field=field, value=value), self.assertRaises(LomcError):
+                    validate_manifest(bad)
+        inconsistent = dict(explicit, format=999)
+        with self.assertRaises(LomcError) as cm:
+            validate_manifest(inconsistent)
+        self.assertIn("不一致", str(cm.exception))
+
+        validate_story(dict(linear_story(), story_schema=STORY_SCHEMA))
+        with self.assertRaises(LomcError) as cm:
+            validate_story(dict(linear_story(), story_schema=999))
+        self.assertIn("story_schema", str(cm.exception))
+        with self.assertRaises(LomcError):
+            validate_story(dict(linear_story(), story_schema=None))
+
+    def test_runtime_compatibility_metadata(self):
+        compatible = dict(
+            MANIFEST,
+            min_host_version="0.5.0",
+            tested_host_version="0.6.0",
+            game_version="1.2.3-steam",
+            tested_game_version="1.2.3-steam",
+        )
+        validate_manifest(compatible)
+        validate_manifest(dict(MANIFEST))  # legacy manifests remain valid
+        for field, value in (
+            ("min_host_version", "v1"),
+            ("tested_host_version", "1.0.0.0"),
+            ("min_host_version", "1.0.0-01"),
+            ("game_version", "bad version\n"),
+            ("tested_game_version", "x" * 65),
+        ):
+            with self.subTest(field=field, value=value), self.assertRaises(LomcError):
+                validate_manifest(dict(MANIFEST, **{field: value}))
+        with self.assertRaises(LomcError):
+            validate_manifest(
+                dict(MANIFEST, min_host_version="2.0.0", tested_host_version="1.0.0")
+            )
+        with self.assertRaises(LomcError):
+            validate_manifest(
+                dict(MANIFEST, game_version="1.0", tested_game_version="1.1")
+            )
 
     def test_disable_official_events(self):
         # campaign.disable_official_events：bool，可选（缺省 false）
@@ -1392,6 +1677,17 @@ class TestBranchNewSources(unittest.TestCase):
                 validate_manifest(bad)
             self.assertIn("disable_official_events", str(cm.exception))
             self.assertIn("布尔值", str(cm.exception))
+
+    def test_campaign_position_must_be_known_enum(self):
+        bad = dict(MANIFEST)
+        bad["campaign"] = {
+            "triggers": [
+                {"type": "position", "position": "Nowhere", "script": "main"}
+            ]
+        }
+        with self.assertRaises(LomcError) as cm:
+            validate_manifest(bad)
+        self.assertIn('字段 "position" 必须是合法位置 id', str(cm.exception))
 
 
 class TestPortraitValidation(unittest.TestCase):
@@ -1555,6 +1851,16 @@ class TestManifestTriggerConditions(unittest.TestCase):
             self.trig_manifest({"when_affinity": {"character": "girl2", "min": -2}})
         )
 
+    def test_affinity_min_outside_runtime_int32_range(self):
+        for value in (-(2**31) - 1, 2**31):
+            with self.subTest(value=value), self.assertRaises(LomcError) as cm:
+                validate_manifest(
+                    self.trig_manifest(
+                        {"when_affinity": {"character": "girl2", "min": value}}
+                    )
+                )
+            self.assertIn("Int32", str(cm.exception))
+
     def test_invalid_month(self):
         for bad in (0, 13, "4", 4.5, True):
             with self.assertRaises(LomcError) as cm:
@@ -1687,12 +1993,17 @@ class TestPack(unittest.TestCase):
                     "lua/main.lua",
                     "lua/extra.lua",
                     "texts.json",
+                    PACKAGE_CONTENT_HASH_ENTRY,
                 },
             )
             manifest_back = json.loads(zf.read("manifest.json").decode("utf-8"))
-            self.assertEqual(manifest_back, MANIFEST)
+            self.assertEqual({key: manifest_back[key] for key in MANIFEST}, MANIFEST)
+            self.assertEqual(manifest_back["package_format"], PACKAGE_FORMAT)
+            self.assertEqual(manifest_back["story_schema"], STORY_SCHEMA)
+            self.assertEqual(manifest_back["content_schema"], CONTENT_SCHEMA)
             story_back = json.loads(zf.read("story/main.json").decode("utf-8"))
-            self.assertEqual(story_back, main)
+            self.assertEqual(story_back["story_schema"], STORY_SCHEMA)
+            self.assertEqual({key: story_back[key] for key in main}, main)
             lua_main = zf.read("lua/main.lua").decode("utf-8")
             lua_extra = zf.read("lua/extra.lua").decode("utf-8")
             # 已读文本表（契约 §1）：仅 say 节点的 key → 文本（death 文本由
@@ -1722,11 +2033,38 @@ class TestPack(unittest.TestCase):
         )
         self.assertNotIn("luamanager.Init()", lua_extra)
 
+    def test_pack_is_byte_stable_and_content_hash_verifies(self):
+        story_path = self.write_story(linear_story())
+        first = os.path.join(self.tmp.name, "first.lommod")
+        second = os.path.join(self.tmp.name, "second.lommod")
+        pack_mod(self.mod_dir, first)
+        os.utime(story_path, (1900000000, 1900000000))
+        os.utime(os.path.join(self.mod_dir, "manifest.json"), (1800000000, 1800000000))
+        pack_mod(self.mod_dir, second)
+        self.assertEqual(Path(first).read_bytes(), Path(second).read_bytes())
+        computed = package_content_hash(first)
+        with zipfile.ZipFile(first) as archive:
+            infos = archive.infolist()
+            self.assertEqual(
+                [info.filename for info in infos[:-1]],
+                sorted(info.filename for info in infos[:-1]),
+            )
+            self.assertEqual(infos[-1].filename, PACKAGE_CONTENT_HASH_ENTRY)
+            self.assertTrue(all(info.date_time == (1980, 1, 1, 0, 0, 0) for info in infos))
+            record = archive.read(PACKAGE_CONTENT_HASH_ENTRY).decode("ascii")
+        self.assertIn("sha256=" + computed, record)
+
     def test_pack_missing_manifest(self):
         os.remove(os.path.join(self.mod_dir, "manifest.json"))
         with self.assertRaises(LomcError) as cm:
             pack_mod(self.mod_dir)
         self.assertIn("缺少 manifest.json", str(cm.exception))
+
+    def test_pack_does_not_silently_downgrade_future_story(self):
+        self.write_story(dict(linear_story(), story_schema=999))
+        with self.assertRaises(LomcError) as cm:
+            pack_mod(self.mod_dir)
+        self.assertIn("story_schema", str(cm.exception))
 
     def test_pack_entry_missing(self):
         self.write_story(
@@ -1746,6 +2084,23 @@ class TestPack(unittest.TestCase):
             pack_mod(self.mod_dir)
         self.assertIn('next_script 指向包内不存在的脚本 "ghost"', str(cm.exception))
         self.assertIn('节点 "n1"', str(cm.exception))
+
+    def test_pack_campaign_trigger_script_missing(self):
+        manifest = dict(MANIFEST)
+        manifest["campaign"] = {
+            "triggers": [
+                {"type": "position", "position": "Center", "script": "ghost"}
+            ]
+        }
+        with open(
+            os.path.join(self.mod_dir, "manifest.json"), "w", encoding="utf-8"
+        ) as f:
+            json.dump(manifest, f, ensure_ascii=False, indent=2)
+        self.write_story(make_story([{"id": "n1", "type": "end"}]))
+        with self.assertRaises(LomcError) as cm:
+            pack_mod(self.mod_dir)
+        self.assertIn('campaign.triggers 第 1 项', str(cm.exception))
+        self.assertIn('不存在的脚本 "ghost"', str(cm.exception))
 
     def test_pack_filename_id_mismatch(self):
         self.write_story(
@@ -2055,8 +2410,25 @@ class TestNewNodeCodegen(unittest.TestCase):
         )
         self.assertIn(
             "\trunwait(mainui.HidePicture())",
-            self.lua_of(
-                {"id": "n1", "type": "cg", "action": "hide", "kind": "picture"}
+            compile_story(
+                make_story(
+                    [
+                        {
+                            "id": "n1",
+                            "type": "cg",
+                            "action": "show",
+                            "kind": "picture",
+                            "key": "forge_work_001",
+                        },
+                        {
+                            "id": "n2",
+                            "type": "cg",
+                            "action": "hide",
+                            "kind": "picture",
+                        },
+                        {"id": "nend", "type": "end"},
+                    ]
+                )
             ),
         )
         self.assertIn(
@@ -2229,6 +2601,15 @@ class TestNewNodeCodegen(unittest.TestCase):
             '\tluamanager.SetBattleSkillActive("special3", 1)',
             self.lua_of(
                 {"id": "n1", "type": "battle_skill", "op": "active", "key": "special3"}
+            ),
+        )
+        self.assertIn(
+            '\tluamanager.SetBattleSkillLevel("special3", 4)',
+            self.lua_of(
+                {
+                    "id": "n1", "type": "battle_skill", "op": "level",
+                    "key": "special3", "level": 4,
+                }
             ),
         )
         self.assertIn(
@@ -2761,7 +3142,7 @@ class TestFourNewNodes(unittest.TestCase):
                 "next": "Title",
             },
         ):
-            validate_story(
+            lua = compile_story(
                 make_story(
                     [
                         {"id": "n1", "type": "focus", "character": "p", "goto": "n2"},
@@ -2770,6 +3151,7 @@ class TestFourNewNodes(unittest.TestCase):
                     start="n1",
                 )
             )
+            self.assertIn("node_n2 = function()", lua)
 
 
 class TestNewNodeValidationErrors(unittest.TestCase):
@@ -2787,6 +3169,104 @@ class TestNewNodeValidationErrors(unittest.TestCase):
             self,
             linear_story({"id": "n1", "type": "cg", "action": "hide", "kind": "title"}),
             'action="hide" 不支持 kind="title"',
+        )
+        # 原版 HidePicture 会无条件 Release handle，不能依赖脚本外的历史状态。
+        assert_compile_error(
+            self,
+            linear_story(
+                {"id": "n1", "type": "cg", "action": "hide", "kind": "picture"}
+            ),
+            "n1",
+            "每条可达路径",
+            "Addressables handle",
+        )
+        # 一条分支跳过 show 也必须拒绝，避免偶发路径才在游戏里崩溃。
+        assert_compile_error(
+            self,
+            make_story(
+                [
+                    {
+                        "id": "n1",
+                        "type": "branch",
+                        "source": "mod",
+                        "flag": "CG_PATH",
+                        "cases": [
+                            {"value": 1, "goto": "nshow"},
+                            {"value": 2, "goto": "nhide"},
+                        ],
+                    },
+                    {
+                        "id": "nshow",
+                        "type": "cg",
+                        "action": "show",
+                        "kind": "picture",
+                        "key": "forge_work_001",
+                        "goto": "nhide",
+                    },
+                    {
+                        "id": "nhide",
+                        "type": "cg",
+                        "action": "hide",
+                        "kind": "picture",
+                    },
+                    {"id": "nend", "type": "end"},
+                ]
+            ),
+            "nhide",
+            "每条可达路径",
+        )
+        # raw 不触碰 UI 时不会使原版 handle 失效，不能误杀合法的配对。
+        compile_story(
+            make_story(
+                [
+                    {
+                        "id": "nshow",
+                        "type": "cg",
+                        "action": "show",
+                        "kind": "picture",
+                        "key": "forge_work_001",
+                    },
+                    {"id": "nraw", "type": "raw", "code": "local x = 1"},
+                    {
+                        "id": "nhide",
+                        "type": "cg",
+                        "action": "hide",
+                        "kind": "picture",
+                    },
+                    {"id": "nend", "type": "end"},
+                ]
+            )
+        )
+        # Combat/Battle 会换场并重新进入 Story，此前的 handle 已不再可信。
+        assert_compile_error(
+            self,
+            make_story(
+                [
+                    {
+                        "id": "nshow",
+                        "type": "cg",
+                        "action": "show",
+                        "kind": "picture",
+                        "key": "forge_work_001",
+                    },
+                    {
+                        "id": "nfight",
+                        "type": "combat",
+                        "key": "5102_01",
+                        "win": "nhide",
+                        "lose": "nend",
+                    },
+                    {
+                        "id": "nhide",
+                        "type": "cg",
+                        "action": "hide",
+                        "kind": "picture",
+                    },
+                    {"id": "nend", "type": "end"},
+                ]
+            ),
+            "nhide",
+            "每条可达路径",
         )
         # show map 缺 key2
         assert_compile_error(
@@ -2837,6 +3317,16 @@ class TestNewNodeValidationErrors(unittest.TestCase):
             self,
             linear_story({"id": "n1", "type": "battle_skill", "op": "set"}),
             '必填字段 "key"',
+        )
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1", "type": "battle_skill", "op": "active",
+                    "key": "special3", "active": 2,
+                }
+            ),
+            '"active" 必须是 0 或 1',
         )
 
     def test_time_fields(self):
@@ -3082,6 +3572,28 @@ class TestNewNodeValidationErrors(unittest.TestCase):
             linear_story({"id": "n1", "type": "talent", "talent": "3004", "level": 2}),
             '字段 "level" 必须是1 或 -1',
         )
+        assert_compile_error(
+            self,
+            linear_story(
+                {"id": "n1", "type": "talent", "talent": "3004", "level": True}
+            ),
+            '字段 "level" 必须是1 或 -1',
+        )
+
+    def test_numbers_must_be_finite(self):
+        for value in (float("nan"), float("inf"), float("-inf")):
+            assert_compile_error(
+                self,
+                linear_story(
+                    {"id": "n1", "type": "wait", "seconds": value}
+                ),
+                '字段 "seconds" 必须是数值',
+            )
+        validate_story(
+            linear_story({"id": "n1", "type": "wait", "seconds": 10**400})
+        )
+        with self.assertRaises(LomcError):
+            lua_num(float("nan"))
 
     def test_official_id_nonempty(self):
         # dice.check / game_flag.flag / branch.flag 只校验非空，不查表
@@ -3275,6 +3787,26 @@ def _write_user_audio(mod_dir, content_id, audio_kind="music", filename="track.w
     return folder
 
 
+def _write_user_image(mod_dir, content_id, filename="image.png", payload=TINY_PNG):
+    from lomc.content import package_content_dir, write_content_metadata
+
+    folder = os.path.join(mod_dir, package_content_dir("image", content_id).replace("/", os.sep))
+    os.makedirs(folder, exist_ok=True)
+    with open(os.path.join(folder, filename), "wb") as f:
+        f.write(payload)
+    write_content_metadata(
+        os.path.join(folder, "content.json"),
+        {
+            "schema": 1,
+            "id": content_id,
+            "type": "image",
+            "name": content_id,
+            "files": {"main": filename},
+        },
+    )
+    return folder
+
+
 class TestUserContent(unittest.TestCase):
     def test_official_music_still_emits_playmusic(self):
         lua = compile_story(
@@ -3390,6 +3922,74 @@ class TestUserContent(unittest.TestCase):
         with self.assertRaises(LomcError):
             validate_content_id("a" * 80 + ".x")
 
+    def test_generic_image_metadata_and_reference_collection(self):
+        from lomc.content import (
+            collect_story_content_refs,
+            normalize_content_metadata,
+        )
+
+        meta = normalize_content_metadata(
+            {
+                "schema": 1,
+                "id": "mohui.moon_bg",
+                "type": "image",
+                "name": "月夜",
+                "files": {"main": "moon.JPEG"},
+            }
+        )
+        self.assertEqual(meta["type"], "image")
+        self.assertEqual(meta["files"]["main"], "moon.JPEG")
+        refs = collect_story_content_refs(
+            {
+                "nodes": [
+                    {
+                        "id": "n1",
+                        "type": "future_image_node",
+                        "image": "user:mohui.moon_bg",
+                    }
+                ]
+            }
+        )
+        self.assertEqual(len(refs), 1)
+        self.assertEqual(refs[0]["expected_type"], "image")
+        self.assertEqual(refs[0]["field"], "image")
+
+    def test_hidden_image_nodes_do_not_collect_stale_refs(self):
+        from lomc.content import collect_story_content_refs
+
+        refs = collect_story_content_refs(
+            {
+                "nodes": [
+                    {
+                        "id": "n1",
+                        "type": "custom_cg",
+                        "action": "hide",
+                        "image": "user:mohui.stale_cg",
+                    },
+                    {
+                        "id": "n2",
+                        "type": "background",
+                        "action": "clear",
+                        "image": "user:mohui.stale_bg",
+                    },
+                ]
+            }
+        )
+        self.assertEqual(refs, [])
+
+    def test_generic_image_rejects_bad_extension(self):
+        from lomc.content import normalize_content_metadata
+
+        with self.assertRaises(LomcError):
+            normalize_content_metadata(
+                {
+                    "schema": 1,
+                    "id": "mohui.bad_image",
+                    "type": "image",
+                    "name": "坏图",
+                    "files": {"main": "bad.webp"},
+                }
+            )
     def test_official_show_still_uses_stage(self):
         lua = compile_story(
             linear_story(
@@ -3549,17 +4149,83 @@ class TestUserContent(unittest.TestCase):
             "不合法",
         )
 
-    def test_user_character_unsupported_offset(self):
+    def test_user_character_stage_actions(self):
+        cases = (
+            (
+                {
+                    "id": "n1",
+                    "type": "offset",
+                    "character": "user:mohui.luoxue",
+                    "x": 10,
+                    "y": -4,
+                    "duration": 0.2,
+                },
+                'mod_char_offset("user:mohui.luoxue", 10, -4, 0.2)',
+                "MoveOffsetCoroutine",
+            ),
+            (
+                {
+                    "id": "n1",
+                    "type": "shock",
+                    "character": "user:mohui.luoxue",
+                    "duration": 0.6,
+                },
+                'mod_char_shock("user:mohui.luoxue", 0.6)',
+                "ShockPosition",
+            ),
+            (
+                {
+                    "id": "n1",
+                    "type": "dim",
+                    "character": "user:mohui.luoxue",
+                    "dimmed": True,
+                },
+                'mod_char_dim("user:mohui.luoxue", true)',
+                "stage.SetDimmed",
+            ),
+            (
+                {
+                    "id": "n1",
+                    "type": "rotate",
+                    "character": "user:mohui.luoxue",
+                    "angle": 45,
+                    "duration": 0.3,
+                },
+                'mod_char_rotate("user:mohui.luoxue", 45, 0.3)',
+                "characters.Rotate",
+            ),
+        )
+        for node, expected, forbidden in cases:
+            with self.subTest(node=node["type"]):
+                lua = compile_story(linear_story(node))
+                self.assertIn(expected, lua)
+                self.assertNotIn(forbidden, lua)
+
+    def test_user_character_stage_action_rejects_illegal_ref(self):
         assert_compile_error(
             self,
             linear_story(
                 {
                     "id": "n1",
                     "type": "offset",
-                    "character": "user:mohui.luoxue",
+                    "character": "user:../evil",
                     "x": 10,
                     "y": 0,
                     "duration": 0.2,
+                }
+            ),
+            "非法路径",
+        )
+
+    def test_user_character_affinity_remains_unsupported(self):
+        assert_compile_error(
+            self,
+            linear_story(
+                {
+                    "id": "n1",
+                    "type": "affinity",
+                    "character": "user:mohui.luoxue",
+                    "delta": 1,
                 }
             ),
             "暂不支持",
@@ -3600,6 +4266,91 @@ class TestPackUserAudio(unittest.TestCase):
             self.assertNotIn("assets/user/audio/mohui.unused/unused.ogg", names)
             self.assertNotIn("assets/user/audio/mohui.unused/content.json", names)
             self.assertEqual(zf.read("assets/user/audio/mohui.boss_theme/boss.ogg"), b"OggSused")
+
+    def test_pack_collects_referenced_background_image_only(self):
+        _write_user_image(self.mod_dir, "mohui.moon_bg", "moon.png")
+        _write_user_image(self.mod_dir, "mohui.unused_bg", "unused.png")
+        story = make_story(
+            [
+                {
+                    "id": "n1",
+                    "type": "background",
+                    "action": "show",
+                    "image": "user:mohui.moon_bg",
+                    "fade": 0.5,
+                },
+                {"id": "n2", "type": "end"},
+            ]
+        )
+        with open(
+            os.path.join(self.mod_dir, "story", "main.json"), "w", encoding="utf-8"
+        ) as f:
+            json.dump(story, f, ensure_ascii=False, indent=2)
+        out = pack_mod(self.mod_dir)
+        with zipfile.ZipFile(out) as zf:
+            names = zf.namelist()
+            self.assertIn("assets/user/image/mohui.moon_bg/content.json", names)
+            self.assertIn("assets/user/image/mohui.moon_bg/moon.png", names)
+            self.assertNotIn("assets/user/image/mohui.unused_bg/unused.png", names)
+            lua = zf.read("lua/main.lua").decode("utf-8")
+            self.assertIn('mod_background_show("user:mohui.moon_bg", 0.5)', lua)
+
+    def test_pack_collects_referenced_custom_cg_image_only(self):
+        _write_user_image(self.mod_dir, "mohui.memory_cg", "memory.png")
+        _write_user_image(self.mod_dir, "mohui.unused_cg", "unused.png")
+        story = make_story(
+            [
+                {
+                    "id": "n1",
+                    "type": "custom_cg",
+                    "action": "show",
+                    "image": "user:mohui.memory_cg",
+                    "fade": 0.4,
+                    "scale": 110,
+                    "x": 5,
+                    "y": -5,
+                },
+                {"id": "n2", "type": "custom_cg", "action": "hide", "fade": 0.2},
+                {"id": "n3", "type": "end"},
+            ]
+        )
+        with open(
+            os.path.join(self.mod_dir, "story", "main.json"), "w", encoding="utf-8"
+        ) as f:
+            json.dump(story, f, ensure_ascii=False, indent=2)
+        out = pack_mod(self.mod_dir)
+        with zipfile.ZipFile(out) as zf:
+            names = zf.namelist()
+            self.assertIn("assets/user/image/mohui.memory_cg/memory.png", names)
+            self.assertNotIn("assets/user/image/mohui.unused_cg/unused.png", names)
+            lua = zf.read("lua/main.lua").decode("utf-8")
+            self.assertIn(
+                'mod_cg_show("user:mohui.memory_cg", 0.4, 110, 5, -5)', lua
+            )
+            self.assertIn("mod_cg_hide(0.2)", lua)
+
+    def test_pack_collects_referenced_overlay_image_only(self):
+        _write_user_image(self.mod_dir, "mohui.lantern", "lantern.png")
+        _write_user_image(self.mod_dir, "mohui.unused_overlay", "unused.png")
+        story = make_story(
+            [
+                {"id": "n1", "type": "overlay", "action": "show", "slot": "prop",
+                 "image": "user:mohui.lantern", "position": "left", "scale": 80,
+                 "opacity": 90, "layer": "back", "fade": 0},
+                {"id": "n2", "type": "overlay", "action": "hide", "slot": "prop", "fade": 0},
+                {"id": "n3", "type": "end"},
+            ]
+        )
+        with open(os.path.join(self.mod_dir, "story", "main.json"), "w", encoding="utf-8") as f:
+            json.dump(story, f, ensure_ascii=False, indent=2)
+        out = pack_mod(self.mod_dir)
+        with zipfile.ZipFile(out) as zf:
+            names = zf.namelist()
+            self.assertIn("assets/user/image/mohui.lantern/lantern.png", names)
+            self.assertNotIn("assets/user/image/mohui.unused_overlay/unused.png", names)
+            lua = zf.read("lua/main.lua").decode("utf-8")
+            self.assertIn('mod_overlay_show("prop", "user:mohui.lantern", "left", 80, 90, "back", 0)', lua)
+            self.assertIn('mod_overlay_hide("prop", 0)', lua)
 
     def test_pack_missing_user_audio_fails(self):
         story = make_story(
@@ -3745,10 +4496,32 @@ class TestPackUserAudio(unittest.TestCase):
             self.assertIn("assets/user/audio/mohui.line_used/content.json", names)
             self.assertNotIn("assets/user/audio/mohui.line_unused/content.json", names)
             meta = json.loads(zf.read("assets/user/audio/mohui.line_used/content.json"))
+            self.assertEqual(meta["content_schema"], CONTENT_SCHEMA)
             self.assertEqual(meta.get("character"), "user:mohui.luoxue")
 
 
 class TestAudioCharacterMetadata(unittest.TestCase):
+    def test_explicit_content_schema_is_checked(self):
+        from lomc.content import normalize_content_metadata
+
+        base = {
+            "schema": 1,
+            "content_schema": CONTENT_SCHEMA,
+            "id": "mohui.line_01",
+            "type": "audio",
+            "name": "语音",
+            "audio_kind": "sound",
+            "files": {"main": "line.wav"},
+        }
+        self.assertEqual(
+            normalize_content_metadata(base)["content_schema"], CONTENT_SCHEMA
+        )
+        with self.assertRaises(LomcError):
+            normalize_content_metadata(dict(base, content_schema=999))
+        with self.assertRaises(LomcError) as cm:
+            normalize_content_metadata(dict(base, schema=999))
+        self.assertIn("不一致", str(cm.exception))
+
     def test_old_audio_without_character_still_loads(self):
         from lomc.content import normalize_content_metadata, write_content_metadata
 
@@ -3938,6 +4711,27 @@ class TestPackUserCharacter(unittest.TestCase):
                     "type": "show",
                     "character": "user:mohui.ghost",
                     "position": "M",
+                },
+                {"id": "n2", "type": "end"},
+            ]
+        )
+        with open(
+            os.path.join(self.mod_dir, "story", "main.json"), "w", encoding="utf-8"
+        ) as f:
+            json.dump(story, f, ensure_ascii=False, indent=2)
+        with self.assertRaises(LomcError) as cm:
+            pack_mod(self.mod_dir)
+        self.assertIn("找不到用户内容", str(cm.exception))
+
+    def test_pack_stage_action_alone_still_resolves_character(self):
+        story = make_story(
+            [
+                {
+                    "id": "n1",
+                    "type": "rotate",
+                    "character": "user:mohui.ghost",
+                    "angle": 15,
+                    "duration": 0.2,
                 },
                 {"id": "n2", "type": "end"},
             ]
