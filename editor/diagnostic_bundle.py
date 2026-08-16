@@ -81,12 +81,18 @@ def _known_private_roots(game_root: Path | None) -> list[tuple[str, str]]:
     for path, label in candidates:
         if path is None:
             continue
+        variants = {str(path)}
         try:
-            text = str(path.resolve())
+            variants.add(str(path.resolve()))
         except OSError:
-            text = str(path)
-        if text:
-            roots.append((text, label))
+            pass
+        # Windows runners may expose the same temp directory through both an
+        # 8.3 alias (RUNNER~1) and its expanded spelling (runneradmin).  Keep
+        # both forms so a diagnostic never falls through to the generic local
+        # path redaction merely because Path.resolve() changed the spelling.
+        for text in variants:
+            if text:
+                roots.append((text, label))
     roots.sort(key=lambda item: len(item[0]), reverse=True)
     return roots
 

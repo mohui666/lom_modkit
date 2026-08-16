@@ -136,7 +136,9 @@ class GameInstallManagerTest(unittest.TestCase):
 
         report = self.manager.diagnose_installation()
         finding = next(item for item in report.findings if item.code == "duplicate_runtime_dll")
-        self.assertEqual(finding.paths, (duplicate,))
+        # GameInstallManager canonicalizes its configured root.  Windows CI
+        # may expand an 8.3 temp alias (RUNNER~1) while doing so.
+        self.assertEqual(finding.paths, (duplicate.resolve(),))
         self.assertFalse(finding.fixable)
         self.assertEqual(self.manager.apply_installation_doctor_fixes(), [])
         self.assertEqual(duplicate.read_bytes(), b"legacy")
