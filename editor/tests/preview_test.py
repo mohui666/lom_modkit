@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import base64
+import json
 import os
 import sys
 import tempfile
@@ -35,6 +36,18 @@ class PreviewStageActionTest(unittest.TestCase):
             pixmap = stage._load_pixmap(source)
             self.assertFalse(pixmap.isNull())
             self.assertIn(str(source).replace("\\", "/"), stage._pix_cache)
+
+    def test_official_intro_text_changes_with_selected_character(self):
+        data = json.loads(
+            (EDITOR_DIR.parent / "data" / "editor_data.json").read_text(encoding="utf-8")
+        )
+        brother1 = preview.models.official_character_intro(data, "brother1")
+        brother2 = preview.models.official_character_intro(data, "brother2")
+        self.assertEqual(brother1[0:2], ("飞侠", "唐布衣"))
+        self.assertIn("掌门座下第一大弟子", brother1[2])
+        self.assertEqual(brother2[0:2], ("二师兄", "唐铮"))
+        self.assertIn("掌门座下第二弟子", brother2[2])
+        self.assertNotEqual(brother1, brother2)
 
     def test_custom_background_state_cleanup_and_playtest_prelude(self):
         story = {

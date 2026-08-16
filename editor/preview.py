@@ -1176,9 +1176,9 @@ class StagePreview(QWidget):
         elif node.get("intro_source") == "character":
             title, name, intro = self._bound_intro_texts(str(node.get("character") or ""))
         else:
-            name = models.character_name(self._editor_data, str(node.get("character") or ""))
-            title = "原版人物资料"
-            intro = "游戏内直接读取原版称号、姓名、介绍与头像。编辑器预览不显示游戏原图。"
+            title, name, intro = models.official_character_intro(
+                self._editor_data, str(node.get("character") or "")
+            )
         # 官方层级：金色小称号、红色大姓名、浅色正文。
         p.setPen(QColor(213, 184, 122))
         title_font = QFont(self.font())

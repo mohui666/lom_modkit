@@ -20,6 +20,8 @@ UNPACK_DIR = os.environ.get("LOM_UNPACK_DIR", r"C:/Users/mohui666/lom_unpack")
 SCRIPTS_DIR = os.path.join(UNPACK_DIR, "raw_scripts")
 CSV_CHAR = os.path.join(UNPACK_DIR, "output", "csv", "11_人物.csv")
 RAW_CHAR = os.path.join(UNPACK_DIR, "raw", "Character_zh-cn.txt")
+RAW_CHAR_TITLE = os.path.join(UNPACK_DIR, "raw", "CharacterTitle_zh-cn.txt")
+RAW_CHAR_INTRO = os.path.join(UNPACK_DIR, "raw", "CharacterIntro0_zh-cn.txt")
 CSV_STAT = os.path.join(UNPACK_DIR, "output", "csv", "14_属性与Flag.csv")
 RAW_STAT = os.path.join(UNPACK_DIR, "raw", "Stat_zh-cn.txt")
 CSV_TALENT = os.path.join(UNPACK_DIR, "output", "csv", "08_天赋技能.csv")
@@ -240,6 +242,19 @@ def load_names():
     return _load_prefixed_kv(CSV_CHAR, RAW_CHAR, "Character")
 
 
+def load_character_intro_data():
+    """原版人物介绍卡文本：CharacterTitle/<id> + CharacterIntro0/<id>。
+
+    CharacterIntroPanel.TransitionIntro 已反编译验证只读取 Intro0；Intro1~3 是
+    其它关系资料页内容，不能拿来冒充首次人物介绍卡。
+    """
+    titles = _load_prefixed_kv(CSV_CHAR, RAW_CHAR_TITLE, "CharacterTitle")
+    intros = _load_prefixed_kv(CSV_CHAR, RAW_CHAR_INTRO, "CharacterIntro0")
+    return titles, {
+        key: value.replace("\\n", "\n") for key, value in intros.items()
+    }
+
+
 def load_stat_names():
     """属性显示名：key 格式 PlayerStat/<id>。"""
     return _load_prefixed_kv(CSV_STAT, RAW_STAT, "PlayerStat")
@@ -298,6 +313,7 @@ def enrich_id_list(ids, ref_table):
 
 def main():
     names = load_names()
+    character_titles, character_intros = load_character_intro_data()
     stat_names = load_stat_names()
     view_names = load_view_names()
     free_pos_names = load_free_position_names()
@@ -388,6 +404,11 @@ def main():
             "id": cid,
             "name": names.get(cid, cid),
             "portraits": sorted(portraits.get(cid, ())),
+            **(
+                {"title": character_titles.get(cid, ""), "intro": character_intros[cid]}
+                if cid in character_intros
+                else {}
+            ),
         }
         for cid in sorted(char_ids)
     ]
@@ -455,6 +476,7 @@ def main():
     print("脚本数: %d" % len(files))
     print("旅行脚本数（骰子元数据剔除）: %d" % len(travel_scripts))
     print("人物数: %d" % len(characters))
+    print("人物介绍卡文本数: %d" % len(character_intros))
     print("场景数: %s" % hit(views, view_names))
     print("音乐数: %d" % len(music))
     print("普通音效数: %d" % len(sounds))

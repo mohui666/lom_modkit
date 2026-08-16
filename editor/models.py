@@ -1124,7 +1124,13 @@ FALLBACK_EDITOR_DATA: dict = {
     "schema": 3,
     "characters": [
         {"id": "player", "name": "主角", "portraits": list(DEFAULT_PORTRAITS)},
-        {"id": "brother4", "name": "四师兄", "portraits": list(DEFAULT_PORTRAITS)},
+        {
+            "id": "brother4",
+            "name": "四师兄",
+            "title": "四师兄",
+            "intro": "唐门掌门座下第四弟子。",
+            "portraits": list(DEFAULT_PORTRAITS),
+        },
         {"id": "trainee1", "name": "师弟", "portraits": list(DEFAULT_PORTRAITS)},
     ],
     "views": [{"id": v, "name": v} for v in ("out", "center", "paddy")],
@@ -1358,6 +1364,26 @@ def load_editor_data(proj_root: Path) -> tuple[dict, bool]:
 def character_name(editor_data: dict, char_id: str) -> str:
     """按人物 id 查显示名，查不到返回 id 本身。"""
     return display_name(editor_data, "characters", char_id)
+
+
+def official_character_intro(editor_data: dict, char_id: str) -> tuple[str, str, str]:
+    """返回原版人物介绍卡的（称号、姓名、Intro0 正文）。
+
+    缺少提取数据时保留明确占位提示；运行时仍直接调用原版面板，不受此预览
+    数据影响。
+    """
+    for entry in editor_data.get("characters") or []:
+        if entry_id(entry) != char_id:
+            continue
+        name = entry_name(entry) or char_id
+        if isinstance(entry, dict):
+            return (
+                str(entry.get("title") or "原版人物资料"),
+                name,
+                str(entry.get("intro") or "未提取到该人物的原版介绍正文。"),
+            )
+        return "原版人物资料", name, "未提取到该人物的原版介绍正文。"
+    return "原版人物资料", char_id, "未提取到该人物的原版介绍正文。"
 
 
 def character_combo_items(editor_data: dict) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
