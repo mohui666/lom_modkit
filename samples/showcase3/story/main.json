@@ -236,8 +236,9 @@
     {
       "id": "cg1",
       "type": "cg",
-      "action": "hide",
-      "kind": "picture"
+      "action": "show",
+      "kind": "title",
+      "key": "全节点样例 3.0"
     },
     {
       "id": "dayenv1",

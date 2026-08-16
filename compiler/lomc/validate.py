@@ -1634,6 +1634,93 @@ def _validate_story_inner(story):
                     "（请把它移到最后之前，或补齐 value 1 和 2 两个 case）" % label
                 )
 
+    _validate_cg_lifecycle(story)
+
+
+def _story_successors(nodes, index):
+    """返回与 codegen 流转规则一致的后继节点 id。"""
+    node = nodes[index]
+    ntype = node["type"]
+    next_id = nodes[index + 1]["id"] if index + 1 < len(nodes) else None
+
+    if ntype == "choice":
+        return [opt["goto"] for opt in node["options"]]
+    if ntype == "dice":
+        opt = node["options"][0]
+        return list(
+            dict.fromkeys(
+                target
+                for target in (opt.get(name) for name in _DICE_OPTION_GOTOS)
+                if target
+            )
+        )
+    if ntype == "branch":
+        targets = [case["goto"] for case in node["cases"]]
+        source = node.get("source", "mod")
+        completely_covered = source in ("mod", "condition") and {
+            case["value"] for case in node["cases"]
+        } == {1, 2}
+        if not completely_covered and next_id is not None:
+            targets.append(next_id)
+        return list(dict.fromkeys(targets))
+    if ntype in ("combat", "battle", "battle_result"):
+        return list(dict.fromkeys((node["win"], node["lose"])))
+    if ntype in _CHECK_TYPES:
+        return list(dict.fromkeys((node["success"], node["failure"])))
+    if ntype in ("end", "goto_scene", "death"):
+        return []
+    target = node.get("goto", next_id)
+    return [target] if target is not None else []
+
+
+def _validate_cg_lifecycle(story):
+    """拒绝可能让原版 StoryPicture 释放无效 Addressables handle 的流程。
+
+    原版 Hide* 不会先检查 handle 是否有效，所以 hide 必须在当前脚本的每条
+    可达路径上都有同 kind 的 show。战斗会切换场景并重新进入脚本，不能把此前
+    的 handle 视为仍然有效。raw 是作者自行承担风险的逃生口；普通 raw 不应仅因
+    编译器无法理解其内容，就误杀其前后本来配对正确的 show/hide。
+    """
+    nodes = story["nodes"]
+    by_id = {node["id"]: (index, node) for index, node in enumerate(nodes)}
+    incoming = {story["start"]: frozenset()}
+    queue = [story["start"]]
+
+    while queue:
+        node_id = queue.pop(0)
+        index, node = by_id[node_id]
+        state = set(incoming[node_id])
+        if node["type"] == "cg":
+            kind = node["kind"]
+            if node["action"] == "show":
+                state.add(kind)
+            else:
+                state.discard(kind)
+        elif node["type"] in ("combat", "battle"):
+            state.clear()
+
+        outgoing = frozenset(state)
+        for successor in _story_successors(nodes, index):
+            old = incoming.get(successor)
+            merged = outgoing if old is None else old.intersection(outgoing)
+            if old != merged:
+                incoming[successor] = merged
+                queue.append(successor)
+
+    for node_id, state in incoming.items():
+        _, node = by_id[node_id]
+        if (
+            node["type"] == "cg"
+            and node["action"] == "hide"
+            and node["kind"] not in state
+        ):
+            raise LomcError(
+                '节点 "%s"(cg): action="hide" kind="%s" 前没有在每条可达路径上'
+                "成功执行同类 show；原版 Hide 会释放无效的 Addressables handle 并"
+                "导致演出异常。请先添加同 kind 的 cg show，或删除这个 hide 节点。"
+                % (node_id, node["kind"])
+            )
+
 
 def validate_manifest(manifest, source="manifest.json"):
     """校验 manifest.json（§2）。不通过则抛 LomcError。"""

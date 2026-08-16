@@ -2410,8 +2410,25 @@ class TestNewNodeCodegen(unittest.TestCase):
         )
         self.assertIn(
             "\trunwait(mainui.HidePicture())",
-            self.lua_of(
-                {"id": "n1", "type": "cg", "action": "hide", "kind": "picture"}
+            compile_story(
+                make_story(
+                    [
+                        {
+                            "id": "n1",
+                            "type": "cg",
+                            "action": "show",
+                            "kind": "picture",
+                            "key": "forge_work_001",
+                        },
+                        {
+                            "id": "n2",
+                            "type": "cg",
+                            "action": "hide",
+                            "kind": "picture",
+                        },
+                        {"id": "nend", "type": "end"},
+                    ]
+                )
             ),
         )
         self.assertIn(
@@ -3143,6 +3160,104 @@ class TestNewNodeValidationErrors(unittest.TestCase):
             self,
             linear_story({"id": "n1", "type": "cg", "action": "hide", "kind": "title"}),
             'action="hide" 不支持 kind="title"',
+        )
+        # 原版 HidePicture 会无条件 Release handle，不能依赖脚本外的历史状态。
+        assert_compile_error(
+            self,
+            linear_story(
+                {"id": "n1", "type": "cg", "action": "hide", "kind": "picture"}
+            ),
+            "n1",
+            "每条可达路径",
+            "Addressables handle",
+        )
+        # 一条分支跳过 show 也必须拒绝，避免偶发路径才在游戏里崩溃。
+        assert_compile_error(
+            self,
+            make_story(
+                [
+                    {
+                        "id": "n1",
+                        "type": "branch",
+                        "source": "mod",
+                        "flag": "CG_PATH",
+                        "cases": [
+                            {"value": 1, "goto": "nshow"},
+                            {"value": 2, "goto": "nhide"},
+                        ],
+                    },
+                    {
+                        "id": "nshow",
+                        "type": "cg",
+                        "action": "show",
+                        "kind": "picture",
+                        "key": "forge_work_001",
+                        "goto": "nhide",
+                    },
+                    {
+                        "id": "nhide",
+                        "type": "cg",
+                        "action": "hide",
+                        "kind": "picture",
+                    },
+                    {"id": "nend", "type": "end"},
+                ]
+            ),
+            "nhide",
+            "每条可达路径",
+        )
+        # raw 不触碰 UI 时不会使原版 handle 失效，不能误杀合法的配对。
+        compile_story(
+            make_story(
+                [
+                    {
+                        "id": "nshow",
+                        "type": "cg",
+                        "action": "show",
+                        "kind": "picture",
+                        "key": "forge_work_001",
+                    },
+                    {"id": "nraw", "type": "raw", "code": "local x = 1"},
+                    {
+                        "id": "nhide",
+                        "type": "cg",
+                        "action": "hide",
+                        "kind": "picture",
+                    },
+                    {"id": "nend", "type": "end"},
+                ]
+            )
+        )
+        # Combat/Battle 会换场并重新进入 Story，此前的 handle 已不再可信。
+        assert_compile_error(
+            self,
+            make_story(
+                [
+                    {
+                        "id": "nshow",
+                        "type": "cg",
+                        "action": "show",
+                        "kind": "picture",
+                        "key": "forge_work_001",
+                    },
+                    {
+                        "id": "nfight",
+                        "type": "combat",
+                        "key": "5102_01",
+                        "win": "nhide",
+                        "lose": "nend",
+                    },
+                    {
+                        "id": "nhide",
+                        "type": "cg",
+                        "action": "hide",
+                        "kind": "picture",
+                    },
+                    {"id": "nend", "type": "end"},
+                ]
+            ),
+            "nhide",
+            "每条可达路径",
         )
         # show map 缺 key2
         assert_compile_error(

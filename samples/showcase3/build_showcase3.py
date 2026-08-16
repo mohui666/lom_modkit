@@ -216,7 +216,10 @@ def build_main() -> dict:
     _node(story, "camera", {"name": "stage-memory", "active": True})
     _node(story, "camera", {"name": "stage-memory", "active": False})
     _node(story, "block", {"flowchart": "common", "name": "flash", "vars": []})
-    _node(story, "cg", {"action": "hide", "kind": "picture"})
+    # DisplayTitle 不持有 Addressables handle，适合在全节点样例中安全演示官方 cg
+    # 接口；不能在没有先 ShowPicture 的情况下直接 HidePicture，原版会释放无效
+    # handle 并抛出 Attempting to use an invalid operation handle。
+    _node(story, "cg", {"action": "show", "kind": "title", "key": "全节点样例 3.0"})
     _node(story, "dayenv", {"day_type": 1})
     _node(story, "wait", {"seconds": 0.35})
 
