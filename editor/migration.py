@@ -50,6 +50,9 @@ def _inline_legacy_dice(node: dict, metadata: dict) -> dict[int, int]:
     source_bands = meta.get("bands")
     if not isinstance(source_bands, list) or not 2 <= len(source_bands) <= 4:
         raise MigrationError("节点 %r 的旧骰子结果带无效" % node.get("id"))
+    maximum = meta.get("max", 99)
+    if isinstance(maximum, bool) or not isinstance(maximum, int) or not 1 <= maximum <= 9999:
+        raise MigrationError("节点 %r 的旧骰子随机范围无效" % node.get("id"))
     option = (node.get("options") or [{}])[0]
     if not isinstance(option, dict):
         raise MigrationError("节点 %r 的旧骰子选项无效" % node.get("id"))
@@ -89,12 +92,18 @@ def _inline_legacy_dice(node: dict, metadata: dict) -> dict[int, int]:
         if index < len(parsed) - 1:
             if high >= 10**9:
                 raise MigrationError("节点 %r 的旧骰子分段顺序无法安全展开" % node.get("id"))
+            if high < 0 or high >= maximum:
+                raise MigrationError(
+                    "节点 %r 的旧骰子分段上限 %d 超出 0~%d；该官方检查点可能含动态加值，"
+                    "无法无损转换，请手动改为直接骰子参数"
+                    % (node.get("id"), high, maximum)
+                )
             row["upper"] = high
         direct_bands.append(row)
     node.pop("check", None)
     node.pop("options", None)
     node.update({
-        "max": int(meta.get("max", 99)),
+        "max": maximum,
         "header": "命运检定",
         "bonus": 0,
         "bands": direct_bands,

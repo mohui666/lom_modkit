@@ -101,6 +101,24 @@ class MigrationPureTest(unittest.TestCase):
             "roll.bands.0.text": "失敗", "roll.bands.1.text": "成功",
         })
 
+    def test_legacy_dice_with_unreachable_official_band_requires_manual_conversion(self):
+        node = {
+            "id": "roll", "type": "dice", "check": "dynamic_bonus",
+            "options": [{
+                "goto_大成功": "great", "goto_成功": "ok", "goto_失败": "bad",
+            }],
+        }
+        metadata = {"dynamic_bonus": {
+            "max": 60,
+            "bands": [
+                {"text": "失败", "cond": "<20"},
+                {"text": "成功", "cond": "<80"},
+                {"text": "大成功", "cond": ">=80"},
+            ],
+        }}
+        with self.assertRaisesRegex(migration.MigrationError, "动态加值.*无法无损转换"):
+            migration._inline_legacy_dice(node, metadata)
+
 
 class MigrationFileTest(unittest.TestCase):
     def test_file_migration_creates_exact_backup_and_is_idempotent(self):

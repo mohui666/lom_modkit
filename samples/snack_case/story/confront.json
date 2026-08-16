@@ -137,17 +137,23 @@
     {
       "id": "pa_dice",
       "type": "dice",
-      "check": "Ch_6_8_2_Break_01_001",
-      "options": [
+      "max": 60,
+      "header": "命运检定",
+      "bonus": 0,
+      "bands": [
         {
-          "goto_大成功": "pa_win",
-          "goto_成功": "pa_br1",
-          "goto_失败": "pab_1",
-          "band_texts": [
-            "气势不足，反被倒打一耙",
-            "拿话头唬住了对方",
-            "人赃并获，铁证如山"
-          ]
+          "text": "气势不足，反被倒打一耙",
+          "goto": "pab_1",
+          "upper": 19
+        },
+        {
+          "text": "拿话头唬住了对方",
+          "goto": "pa_br1",
+          "upper": 39
+        },
+        {
+          "text": "人赃并获，铁证如山",
+          "goto": "pa_win"
         }
       ]
     },
@@ -708,16 +714,18 @@
     {
       "id": "pd_dice",
       "type": "dice",
-      "check": "S0120_01_001",
-      "options": [
+      "max": 99,
+      "header": "命运检定",
+      "bonus": 0,
+      "bands": [
         {
-          "goto_大成功": "pd_win",
-          "goto_成功": "pd_win",
-          "goto_失败": "pe_1",
-          "band_texts": [
-            "拳头落空，被人反手一掰",
-            "一拳定音，真相入袋"
-          ]
+          "text": "拳头落空，被人反手一掰",
+          "goto": "pe_1",
+          "upper": 49
+        },
+        {
+          "text": "一拳定音，真相入袋",
+          "goto": "pd_win"
         }
       ]
     },
