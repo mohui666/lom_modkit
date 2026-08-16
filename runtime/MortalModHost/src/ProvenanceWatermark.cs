@@ -11,11 +11,13 @@ namespace MortalModHost
     /// </summary>
     internal static class ProvenanceWatermark
     {
-        private const string RootName = "lom_provenance_overlay";
-        private const string ImageName = "carrier";
         private const int SortingOrder = 32767;
 
         private static string _modId;
+        private static string _fingerprint;
+        private static string _rootName;
+        private static string _imageName;
+        private static string _textureName;
         private static byte[] _tileRgba;
         private static GameObject _root;
         private static Canvas _canvas;
@@ -25,16 +27,24 @@ namespace MortalModHost
         internal static bool Active { get; private set; }
         internal static string LastError { get; private set; }
 
-        internal static void Enable(string modId)
+        internal static void Enable(string modId, string fingerprint)
         {
             byte[] packet = ProvenanceWatermarkProtocol.Encode(
                 modId, ProvenanceWatermarkCodec.AlgorithmVersion);
             byte[] tile = ProvenanceWatermarkCodec.BuildTileRgba(packet);
 
-            if (!string.Equals(_modId, modId, StringComparison.Ordinal))
+            if (!string.Equals(_modId, modId, StringComparison.Ordinal)
+                || !string.Equals(_fingerprint, fingerprint, StringComparison.OrdinalIgnoreCase))
             {
                 DestroyVisuals();
                 _modId = modId;
+                _fingerprint = fingerprint;
+                _rootName = DisclosureIntegrity.ProtectedObjectName(
+                    "provenance-root", fingerprint);
+                _imageName = DisclosureIntegrity.ProtectedObjectName(
+                    "provenance-carrier", fingerprint);
+                _textureName = DisclosureIntegrity.ProtectedObjectName(
+                    "provenance-texture", fingerprint);
                 _tileRgba = tile;
             }
             else if (_tileRgba == null)
@@ -77,6 +87,10 @@ namespace MortalModHost
             Active = false;
             LastError = null;
             _modId = null;
+            _fingerprint = null;
+            _rootName = null;
+            _imageName = null;
+            _textureName = null;
             _tileRgba = null;
             DestroyVisuals();
         }
@@ -99,7 +113,7 @@ namespace MortalModHost
                 TextureFormat.RGBA32,
                 false,
                 true);
-            _texture.name = "lom_provenance_algorithm_v1";
+            _texture.name = _textureName;
             _texture.hideFlags = HideFlags.DontSave;
             _texture.wrapMode = TextureWrapMode.Repeat;
             _texture.filterMode = FilterMode.Bilinear;
@@ -112,7 +126,7 @@ namespace MortalModHost
         {
             if (_root == null)
             {
-                _root = new GameObject(RootName, typeof(RectTransform), typeof(Canvas),
+                _root = new GameObject(_rootName, typeof(RectTransform), typeof(Canvas),
                     typeof(CanvasGroup));
                 UnityEngine.Object.DontDestroyOnLoad(_root);
             }
@@ -121,12 +135,12 @@ namespace MortalModHost
 
             if (_image == null || _image.transform.parent != _root.transform)
             {
-                Transform existing = _root.transform.Find(ImageName);
+                Transform existing = _root.transform.Find(_imageName);
                 if (existing != null) _image = existing.GetComponent<RawImage>();
                 if (_image == null)
                 {
                     var imageObject = new GameObject(
-                        ImageName, typeof(RectTransform), typeof(CanvasRenderer),
+                        _imageName, typeof(RectTransform), typeof(CanvasRenderer),
                         typeof(RawImage), typeof(CanvasGroup));
                     imageObject.transform.SetParent(_root.transform, false);
                     _image = imageObject.GetComponent<RawImage>();
@@ -136,7 +150,7 @@ namespace MortalModHost
 
         private static void RepairOverlay()
         {
-            _root.name = RootName;
+            _root.name = _rootName;
             _root.SetActive(true);
             _root.transform.SetParent(null, false);
             _root.transform.localPosition = Vector3.zero;
@@ -163,7 +177,7 @@ namespace MortalModHost
             RepairCanvasGroups(_root);
 
             GameObject imageObject = _image.gameObject;
-            imageObject.name = ImageName;
+            imageObject.name = _imageName;
             imageObject.SetActive(true);
             _image.transform.SetParent(_root.transform, false);
             _image.transform.SetAsLastSibling();

@@ -61,6 +61,7 @@ namespace MortalModHost
             public SayDialog Host;
             public RectTransform Parent;
             public GameObject Chip;
+            public GameObject Watermark;
         }
 
         internal static ManualLogSource Log;
@@ -75,6 +76,8 @@ namespace MortalModHost
         private static string _shortFingerprint;
         private static string _lastPrimary;
         private static string _lastDetail;
+        private static string _dialogWatermarkName;
+        private static byte[] _sessionSeal;
 
         private static GameObject _edgeRoot;
         private static GameObject _guardianRoot;
@@ -94,6 +97,8 @@ namespace MortalModHost
         {
             if (package == null)
                 throw new InvalidOperationException("mod 包身份缺失");
+            if (string.IsNullOrEmpty(package.Id))
+                throw new InvalidOperationException("mod 包没有有效的 Host 身份 ID");
             if (!ModDisclosurePolicy.IsValidPackageFingerprint(package.PackageFingerprint))
                 throw new InvalidOperationException("mod 包没有有效的 Host SHA-256 指纹");
 
@@ -112,13 +117,27 @@ namespace MortalModHost
 
             if (!samePackage || developmentReplacement)
             {
+                // 先完成所有可能失败的身份派生，再切换活动状态，避免留下
+                // Active=true 但尚无守护面的半初始化窗口。
+                string nextModId = package.Id;
+                string nextFingerprint = package.PackageFingerprint.ToUpperInvariant();
+                string nextSafeName = ModDisclosurePolicy.SafePackageName(package);
+                string nextSafeAuthor = ModDisclosurePolicy.SafePackageAuthor(package);
+                string nextShortFingerprint = ModDisclosurePolicy.ShortFingerprint(package.PackageFingerprint);
+                string nextWatermarkName = DisclosureIntegrity.ProtectedObjectName(
+                    "dialog-watermark", nextFingerprint);
+                byte[] nextSessionSeal = DisclosureIntegrity.CreateSessionSeal(
+                    nextModId, nextFingerprint);
+
                 ClearVisuals();
                 Active = true;
-                ModId = package.Id ?? "";
-                PackageFingerprint = package.PackageFingerprint.ToUpperInvariant();
-                _safeName = ModDisclosurePolicy.SafePackageName(package);
-                _safeAuthor = ModDisclosurePolicy.SafePackageAuthor(package);
-                _shortFingerprint = ModDisclosurePolicy.ShortFingerprint(package.PackageFingerprint);
+                ModId = nextModId;
+                PackageFingerprint = nextFingerprint;
+                _safeName = nextSafeName;
+                _safeAuthor = nextSafeAuthor;
+                _shortFingerprint = nextShortFingerprint;
+                _dialogWatermarkName = nextWatermarkName;
+                _sessionSeal = nextSessionSeal;
                 FailureReason = null;
                 _lastPrimary = null;
                 _lastDetail = null;
@@ -128,9 +147,10 @@ namespace MortalModHost
             try
             {
                 SubscribeTrustedBoundaryEvents();
+                EnsureSessionIntegrity();
                 EnsureEdgeOverlay();
                 RefreshLabels(true);
-                ProvenanceWatermark.Enable(ModId);
+                ProvenanceWatermark.Enable(ModId, PackageFingerprint);
                 if (!IsChipStructurallyValid(_edgeChip))
                     throw new InvalidOperationException("屏幕常驻标记未成功创建");
                 if (!ProvenanceWatermark.Maintain())
@@ -170,6 +190,8 @@ namespace MortalModHost
             _shortFingerprint = null;
             _lastPrimary = null;
             _lastDetail = null;
+            _dialogWatermarkName = null;
+            _sessionSeal = null;
             _insideRenderGuard = false;
             _developmentHotReloadPending = false;
         }
@@ -383,6 +405,7 @@ namespace MortalModHost
             }
             try
             {
+                EnsureSessionIntegrity();
                 EnsureEdgeOverlay();
                 RefreshLabels(false);
                 if (!ProvenanceWatermark.Maintain())
@@ -440,6 +463,14 @@ namespace MortalModHost
             if (!Active || !string.IsNullOrEmpty(FailureReason)) return;
             FailureReason = string.IsNullOrEmpty(reason) ? "未知披露故障" : reason;
             Log?.LogError(FailureReason + "；将终止当前 MOD 演出");
+        }
+
+        private static void EnsureSessionIntegrity()
+        {
+            if (!DisclosureIntegrity.VerifySessionSeal(ModId, PackageFingerprint, _sessionSeal))
+                throw new InvalidOperationException("披露会话身份完整性校验失败");
+            if (!DisclosureIntegrity.IsFixedStampIntact())
+                throw new InvalidOperationException("固定非官方标记完整性校验失败");
         }
 
         private static void EnsureEdgeOverlay()
@@ -535,7 +566,11 @@ namespace MortalModHost
                 DialogBinding binding = DialogBindings[i];
                 if (binding == null || binding.Parent == null)
                 {
-                    if (binding != null) DestroyChip(ref binding.Chip);
+                    if (binding != null)
+                    {
+                        DestroyChip(ref binding.Chip);
+                        DestroyChip(ref binding.Watermark);
+                    }
                     DialogBindings.RemoveAt(i);
                     continue;
                 }
@@ -544,16 +579,25 @@ namespace MortalModHost
                 if (!binding.Parent.gameObject.activeInHierarchy)
                 {
                     DestroyChip(ref binding.Chip);
+                    DestroyChip(ref binding.Watermark);
                     DialogBindings.RemoveAt(i);
                     continue;
                 }
+                Font font = ResolveFont(binding.Host != null && binding.Host.StoryTextObject != null
+                    ? binding.Host.StoryTextObject.font : FindFontOn(binding.Parent));
+                if (!IsDialogWatermarkStructurallyValid(binding.Watermark))
+                {
+                    DestroyChip(ref binding.Watermark);
+                    binding.Watermark = BuildDialogWatermark(binding.Parent, font);
+                }
+                RepairDialogWatermark(binding.Watermark, binding.Parent, font);
                 if (!IsChipStructurallyValid(binding.Chip))
                 {
                     DestroyChip(ref binding.Chip);
-                    Font font = ResolveFont(binding.Host != null && binding.Host.StoryTextObject != null
-                        ? binding.Host.StoryTextObject.font : FindFontOn(binding.Parent));
                     binding.Chip = BuildChip(binding.Parent, "dialog", font, 14, 11, SurfaceMaxWidth, false);
                 }
+                // 同排序层内让高对比芯片最后绘制；透明水印铺满对白区域，芯片负责
+                // 一眼可见的固定声明，两者缺一都按强制披露故障处理。
                 RepairChip(binding.Chip, binding.Parent, new Vector2(-10f, -8f), SurfaceMaxWidth, 14, 11, false);
             }
         }
@@ -572,16 +616,32 @@ namespace MortalModHost
                     existing.Parent = parent;
                     if (existing.Chip != null)
                         existing.Chip.transform.SetParent(parent, false);
+                    if (existing.Watermark != null)
+                        existing.Watermark.transform.SetParent(parent, false);
                 }
                 return;
             }
             Font font = ResolveFont(dialog.StoryTextObject != null ? dialog.StoryTextObject.font : null);
-            DialogBindings.Add(new DialogBinding
+            GameObject watermark = null;
+            GameObject chip = null;
+            try
             {
-                Host = dialog,
-                Parent = parent,
-                Chip = BuildChip(parent, "dialog", font, 14, 11, SurfaceMaxWidth, false)
-            });
+                watermark = BuildDialogWatermark(parent, font);
+                chip = BuildChip(parent, "dialog", font, 14, 11, SurfaceMaxWidth, false);
+                DialogBindings.Add(new DialogBinding
+                {
+                    Host = dialog,
+                    Parent = parent,
+                    Watermark = watermark,
+                    Chip = chip
+                });
+            }
+            catch
+            {
+                DestroyChip(ref chip);
+                DestroyChip(ref watermark);
+                throw;
+            }
         }
 
         private static void SyncPanelChips()
@@ -610,6 +670,44 @@ namespace MortalModHost
         private static GameObject BuildSurfaceChip(Transform parent, string name, Font preferred)
         {
             return BuildChip(parent, name, ResolveFont(preferred), 15, 11, SurfaceMaxWidth, false);
+        }
+
+        private static GameObject BuildDialogWatermark(Transform parent, Font font)
+        {
+            if (parent == null) throw new ArgumentNullException(nameof(parent));
+            if (font == null) throw new InvalidOperationException("没有可用于对白水印的字体");
+            string name = _dialogWatermarkName;
+            if (string.IsNullOrEmpty(name))
+                throw new InvalidOperationException("对白水印保护名称缺失");
+            var go = new GameObject(name, typeof(RectTransform));
+            RectTransform rect = (RectTransform)go.transform;
+            rect.SetParent(parent, false);
+
+            Canvas canvas = go.AddComponent<Canvas>();
+            canvas.overrideSorting = true;
+            canvas.sortingOrder = TopSortingOrder;
+            CanvasGroup group = go.AddComponent<CanvasGroup>();
+            group.alpha = 1f;
+            group.interactable = false;
+            group.blocksRaycasts = false;
+            LayoutElement layout = go.AddComponent<LayoutElement>();
+            layout.ignoreLayout = true;
+
+            Text label = go.AddComponent<Text>();
+            label.font = font;
+            label.text = DisclosureIntegrity.VisibleWatermarkText(_shortFingerprint);
+            label.fontSize = 13;
+            label.fontStyle = FontStyle.Bold;
+            label.alignment = TextAnchor.MiddleCenter;
+            label.color = new Color(1f, 0.72f, 0.36f, 0.18f);
+            label.horizontalOverflow = HorizontalWrapMode.Wrap;
+            label.verticalOverflow = VerticalWrapMode.Truncate;
+            label.resizeTextForBestFit = true;
+            label.resizeTextMinSize = 9;
+            label.resizeTextMaxSize = 13;
+            label.raycastTarget = false;
+            label.supportRichText = false;
+            return go;
         }
 
         /// <summary>
@@ -788,6 +886,84 @@ namespace MortalModHost
                 && FindLabel(chip, DetailObjectName) != null;
         }
 
+        private static bool IsDialogWatermarkStructurallyValid(GameObject watermark)
+        {
+            return watermark != null && watermark.activeSelf
+                && watermark.transform is RectTransform
+                && watermark.GetComponent<Canvas>() != null
+                && watermark.GetComponent<Text>() != null;
+        }
+
+        private static void RepairDialogWatermark(
+            GameObject watermark, Transform expectedParent, Font font)
+        {
+            if (!IsDialogWatermarkStructurallyValid(watermark))
+                throw new InvalidOperationException("对白区域水印结构不完整");
+            if (expectedParent == null || font == null)
+                throw new InvalidOperationException("对白区域水印宿主或字体不存在");
+
+            if (string.IsNullOrEmpty(_dialogWatermarkName))
+                throw new InvalidOperationException("对白水印保护名称缺失");
+            watermark.name = _dialogWatermarkName;
+            watermark.SetActive(true);
+            RectTransform rect = (RectTransform)watermark.transform;
+            if (rect.parent != expectedParent) rect.SetParent(expectedParent, false);
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.offsetMin = new Vector2(6f, 5f);
+            rect.offsetMax = new Vector2(-6f, -5f);
+            rect.anchoredPosition = Vector2.zero;
+            rect.localScale = Vector3.one;
+            rect.localRotation = Quaternion.identity;
+            rect.SetAsLastSibling();
+
+            Canvas canvas = watermark.GetComponent<Canvas>();
+            canvas.enabled = true;
+            canvas.overrideSorting = true;
+            canvas.sortingOrder = TopSortingOrder;
+            canvas.sortingLayerID = 0;
+            canvas.targetDisplay = 0;
+            CanvasGroup[] groups = watermark.GetComponents<CanvasGroup>();
+            if (groups.Length == 0)
+                groups = new CanvasGroup[] { watermark.AddComponent<CanvasGroup>() };
+            for (int i = 0; i < groups.Length; i++)
+            {
+                groups[i].enabled = true;
+                groups[i].alpha = 1f;
+                groups[i].interactable = false;
+                groups[i].blocksRaycasts = false;
+                // 对白自身淡出时一起淡出，但额外加在水印对象上的组不能隐藏它。
+                groups[i].ignoreParentGroups = false;
+            }
+            LayoutElement layout = watermark.GetComponent<LayoutElement>();
+            if (layout == null) layout = watermark.AddComponent<LayoutElement>();
+            layout.ignoreLayout = true;
+
+            Text label = watermark.GetComponent<Text>();
+            label.enabled = true;
+            label.font = font;
+            label.fontSize = 13;
+            label.fontStyle = FontStyle.Bold;
+            label.alignment = TextAnchor.MiddleCenter;
+            label.horizontalOverflow = HorizontalWrapMode.Wrap;
+            label.verticalOverflow = VerticalWrapMode.Truncate;
+            label.resizeTextForBestFit = true;
+            label.resizeTextMinSize = 9;
+            label.resizeTextMaxSize = 13;
+            label.raycastTarget = false;
+            label.supportRichText = false;
+            label.maskable = false;
+            label.material = null;
+            label.text = DisclosureIntegrity.VisibleWatermarkText(_shortFingerprint);
+            Color color = new Color(1f, 0.72f, 0.36f, 0.18f);
+            label.color = color;
+            label.canvasRenderer.cull = false;
+            label.canvasRenderer.SetAlpha(1f);
+            label.canvasRenderer.SetColor(color);
+            label.SetAllDirty();
+        }
+
         private static void RepairChip(
             GameObject chip,
             Transform expectedParent,
@@ -961,7 +1137,11 @@ namespace MortalModHost
             for (int i = 0; i < DialogBindings.Count; i++)
             {
                 DialogBinding binding = DialogBindings[i];
-                if (binding != null) DestroyChip(ref binding.Chip);
+                if (binding != null)
+                {
+                    DestroyChip(ref binding.Chip);
+                    DestroyChip(ref binding.Watermark);
+                }
             }
             DialogBindings.Clear();
             for (int i = 0; i < PanelBindings.Count; i++)

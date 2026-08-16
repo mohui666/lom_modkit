@@ -141,6 +141,7 @@ namespace MortalModHost
                 TestPreviewRequest(modsDir);
                 TestUserContent();
                 TestDisclosurePolicy();
+                TestDisclosureIntegrity();
                 TestProvenanceWatermarkProtocol();
                 TestProvenanceWatermarkCodec();
                 TestGameplaySession();
@@ -905,6 +906,33 @@ namespace MortalModHost
             hostile.Name = " \r\n ";
             Assert(ModDisclosurePolicy.SafePackageName(hostile) == "safe_id",
                 "空名称必须回退到已验证的 mod id");
+        }
+
+        private static void TestDisclosureIntegrity()
+        {
+            const string fingerprint = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
+            Assert(DisclosureIntegrity.FixedStamp() == "MOD / UNOFFICIAL",
+                "固定水印必须始终明确说明 MOD 非官方来源");
+            Assert(DisclosureIntegrity.IsFixedStampIntact(),
+                "固定水印摘要完整性校验失败");
+            string watermark = DisclosureIntegrity.VisibleWatermarkText("ABCDEF0123456789");
+            Assert(watermark.Contains("MOD / UNOFFICIAL")
+                    && watermark.Contains("ABCDEF0123456789")
+                    && watermark.IndexOf('\n') >= 0,
+                "对白栏水印必须重复显示固定标记和包指纹");
+            byte[] seal = DisclosureIntegrity.CreateSessionSeal("demo_mod", fingerprint);
+            Assert(DisclosureIntegrity.VerifySessionSeal("demo_mod", fingerprint, seal),
+                "原始会话身份应通过 HMAC 完整性校验");
+            seal[0] ^= 0x01;
+            Assert(!DisclosureIntegrity.VerifySessionSeal("demo_mod", fingerprint, seal)
+                    && !DisclosureIntegrity.VerifySessionSeal("other_mod", fingerprint,
+                        DisclosureIntegrity.CreateSessionSeal("demo_mod", fingerprint)),
+                "篡改封印或切换 mod id 必须被拒绝");
+            Assert(DisclosureIntegrity.ProtectedObjectName("dialog", fingerprint)
+                    == DisclosureIntegrity.ProtectedObjectName("dialog", fingerprint)
+                    && DisclosureIntegrity.ProtectedObjectName("dialog", fingerprint)
+                        != DisclosureIntegrity.ProtectedObjectName("edge", fingerprint),
+                "保护对象名必须按角色稳定派生且互不相同");
         }
 
         private static void TestProvenanceWatermarkProtocol()

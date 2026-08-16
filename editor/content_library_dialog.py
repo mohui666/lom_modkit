@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (
 )
 
 from audio_preview import AudioPreviewError, play_audio_file, stop_audio
+from glass_theme import mark_primary
 from content_pack import (
     content_pack_defaults,
     export_content_pack,
@@ -73,6 +74,64 @@ def _kind_labels() -> dict[str, str]:
     }
 
 
+class _ImportContentTypeDialog(QDialog):
+    """三类用户内容的统一入口；这里只负责选择类型，不嵌套具体编辑流程。"""
+
+    _KINDS = ("audio", "character", "image")
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(t("library.import_content_title"))
+        self.setModal(True)
+        self.resize(460, 210)
+
+        layout = QVBoxLayout(self)
+        title = QLabel(t("library.import_content_heading"))
+        title.setWordWrap(True)
+        title.setProperty("context_help", True)
+        layout.addWidget(title)
+
+        form = QFormLayout()
+        self.kind_combo = QComboBox()
+        for kind in self._KINDS:
+            self.kind_combo.addItem(t(f"library.import_kind.{kind}"), kind)
+        self.kind_combo.setMinimumHeight(30)
+        self.kind_combo.setAccessibleName(t("library.import_content_kind"))
+        form.addRow(t("library.import_content_kind"), self.kind_combo)
+        layout.addLayout(form)
+
+        self.description = QLabel()
+        self.description.setWordWrap(True)
+        self.description.setProperty("context_help", True)
+        layout.addWidget(self.description)
+        layout.addStretch(1)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok
+            | QDialogButtonBox.StandardButton.Cancel
+        )
+        ok = buttons.button(QDialogButtonBox.StandardButton.Ok)
+        if ok is not None:
+            ok.setText(t("library.import_continue"))
+            ok.setDefault(True)
+            mark_primary(ok)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+        self.kind_combo.currentIndexChanged.connect(self._refresh_description)
+        self._refresh_description()
+
+    def _refresh_description(self) -> None:
+        self.description.setText(
+            t(f"library.import_kind.{self.selected_type()}.description")
+        )
+
+    def selected_type(self) -> str:
+        value = self.kind_combo.currentData()
+        return str(value) if value in self._KINDS else "audio"
+
+
 class ContentLibraryDialog(QDialog):
     def __init__(
         self,
@@ -84,7 +143,7 @@ class ContentLibraryDialog(QDialog):
         self._stories = stories or {}
         self._editor_data = editor_data or {}
         self.setWindowTitle(t("library.title"))
-        self.resize(820, 500)
+        self.resize(920, 600)
 
         layout = QVBoxLayout(self)
         intro = QLabel(t("library.intro"))
@@ -95,6 +154,26 @@ class ContentLibraryDialog(QDialog):
         path.setWordWrap(True)
         path.setProperty("context_help", True)
         layout.addWidget(path)
+
+        # 创建内容、跨项目分享与“对所选内容操作”分层放置。试听只在选中
+        # 音频时出现，避免把一个条件动作伪装成全局工具栏命令。
+        create_actions = QHBoxLayout()
+        import_btn = QPushButton(t("library.import_content"))
+        import_btn.setObjectName("libraryImportContentButton")
+        import_btn.setMinimumHeight(32)
+        import_btn.setToolTip(t("library.import_content_tip"))
+        mark_primary(import_btn)
+        import_pack_btn = QPushButton(t("content_pack.import"))
+        export_pack_btn = QPushButton(t("content_pack.export"))
+        import_btn.clicked.connect(self._import_content)
+        import_pack_btn.clicked.connect(self._import_content_pack)
+        export_pack_btn.clicked.connect(self._export_content_pack)
+        create_actions.addWidget(import_btn)
+        create_actions.addSpacing(10)
+        create_actions.addWidget(import_pack_btn)
+        create_actions.addWidget(export_pack_btn)
+        create_actions.addStretch(1)
+        layout.addLayout(create_actions)
 
         filters = QHBoxLayout()
         self.search_edit = QLineEdit()
@@ -136,40 +215,34 @@ class ContentLibraryDialog(QDialog):
         self.metadata_view.setPlaceholderText(t("library.metadata_empty"))
         layout.addWidget(self.metadata_view)
 
+        self.audio_actions = QWidget()
+        audio_row = QHBoxLayout(self.audio_actions)
+        audio_row.setContentsMargins(0, 0, 0, 0)
+        audio_label = QLabel(t("library.audio_preview_heading"))
+        self.preview_btn = QPushButton(t("library.preview_selected_audio"))
+        stop_btn = QPushButton(t("library.preview_stop"))
+        self.preview_btn.clicked.connect(self._preview_selected)
+        stop_btn.clicked.connect(stop_audio)
+        audio_row.addWidget(audio_label)
+        audio_row.addWidget(self.preview_btn)
+        audio_row.addWidget(stop_btn)
+        audio_row.addStretch(1)
+        self.audio_actions.setVisible(False)
+        layout.addWidget(self.audio_actions)
+
         buttons = QHBoxLayout()
-        import_btn = QPushButton(t("library.import"))
-        import_char_btn = QPushButton(t("library.import_character"))
-        import_image_btn = QPushButton(t("library.import_image"))
-        import_pack_btn = QPushButton(t("content_pack.import"))
-        export_pack_btn = QPushButton(t("content_pack.export"))
-        delete_btn = QPushButton(t("library.delete"))
-        edit_btn = QPushButton(t("library.edit"))
-        preview_btn = QPushButton(t("library.preview"))
-        references_btn = QPushButton(t("library.references"))
-        import_btn.clicked.connect(self._import_audio)
-        import_char_btn.clicked.connect(self._import_character)
-        import_image_btn.clicked.connect(self._import_image)
-        import_pack_btn.clicked.connect(self._import_content_pack)
-        export_pack_btn.clicked.connect(self._export_content_pack)
-        edit_btn.clicked.connect(self._edit_selected)
-        delete_btn.clicked.connect(self._delete_selected)
-        preview_btn.clicked.connect(self._preview_selected)
-        references_btn.clicked.connect(self._show_references)
+        self.edit_btn = QPushButton(t("library.edit"))
+        self.references_btn = QPushButton(t("library.references"))
+        self.delete_btn = QPushButton(t("library.delete"))
+        self.edit_btn.clicked.connect(self._edit_selected)
+        self.delete_btn.clicked.connect(self._delete_selected)
+        self.references_btn.clicked.connect(self._show_references)
         self.table.cellDoubleClicked.connect(lambda *_: self._edit_selected())
-        buttons.addWidget(import_btn)
-        buttons.addWidget(import_char_btn)
-        buttons.addWidget(import_image_btn)
-        buttons.addWidget(edit_btn)
-        buttons.addWidget(preview_btn)
-        buttons.addWidget(references_btn)
-        buttons.addWidget(delete_btn)
+        buttons.addWidget(self.edit_btn)
+        buttons.addWidget(self.references_btn)
+        buttons.addWidget(self.delete_btn)
         buttons.addStretch(1)
         layout.addLayout(buttons)
-        sharing = QHBoxLayout()
-        sharing.addWidget(import_pack_btn)
-        sharing.addWidget(export_pack_btn)
-        sharing.addStretch(1)
-        layout.addLayout(sharing)
 
         close = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         close.rejected.connect(self.reject)
@@ -181,6 +254,7 @@ class ContentLibraryDialog(QDialog):
         self.type_filter.currentIndexChanged.connect(self._apply_filters)
         self.table.itemSelectionChanged.connect(self._update_metadata)
         self._reload()
+        self._update_metadata()
 
     def closeEvent(self, event) -> None:
         stop_audio()
@@ -250,6 +324,13 @@ class ContentLibraryDialog(QDialog):
 
     def _update_metadata(self) -> None:
         rec = self._selected_record()
+        selected = rec is not None
+        self.edit_btn.setEnabled(selected)
+        self.references_btn.setEnabled(selected)
+        self.delete_btn.setEnabled(selected)
+        self.audio_actions.setVisible(bool(rec is not None and rec.type == "audio"))
+        if rec is None or rec.type != "audio":
+            stop_audio()
         if rec is None:
             self.metadata_view.clear()
             return
@@ -270,6 +351,17 @@ class ContentLibraryDialog(QDialog):
             if rec.intro:
                 parts.append("intro=yes")
         self.metadata_view.setPlainText(" · ".join(parts))
+
+    def _import_content(self) -> None:
+        dialog = _ImportContentTypeDialog(self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        handlers = {
+            "audio": self._import_audio,
+            "character": self._import_character,
+            "image": self._import_image,
+        }
+        handlers[dialog.selected_type()]()
 
     def _preview_selected(self) -> None:
         rec = self._selected_record()

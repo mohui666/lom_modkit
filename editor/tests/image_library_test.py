@@ -15,11 +15,14 @@ EDITOR_DIR = Path(__file__).resolve().parent.parent
 COMPILER_DIR = EDITOR_DIR.parent / "compiler"
 sys.path[:0] = [str(EDITOR_DIR), str(COMPILER_DIR)]
 
-from PySide6.QtWidgets import QApplication  # noqa: E402
+from PySide6.QtWidgets import QApplication, QPushButton  # noqa: E402
 from PySide6.QtCore import Qt  # noqa: E402
 
 import content_registry  # noqa: E402
-from content_library_dialog import ContentLibraryDialog  # noqa: E402
+from content_library_dialog import (  # noqa: E402
+    ContentLibraryDialog,
+    _ImportContentTypeDialog,
+)
 
 
 class ImageLibraryTest(unittest.TestCase):
@@ -106,6 +109,43 @@ class ImageLibraryTest(unittest.TestCase):
         self.assertFalse(dialog.table.item(0, 0).icon().isNull())
         dialog.table.selectRow(0)
         self.assertIn("portraits=normal", dialog.metadata_view.toPlainText())
+        dialog.close()
+
+    def test_unified_import_entry_and_contextual_audio_preview(self):
+        image = content_registry.register_image(
+            self._png("still.png"), "mohui.still", "静态图"
+        )
+        wav = Path(self.temp.name) / "voice.wav"
+        wav.write_bytes(b"RIFF\x24\x00\x00\x00WAVEfmt " + b"\x00" * 32)
+        audio = content_registry.register_audio(
+            wav, "mohui.voice", "试听音频", "sound"
+        )
+        dialog = ContentLibraryDialog({})
+        import_button = dialog.findChild(QPushButton, "libraryImportContentButton")
+        self.assertIsNotNone(import_button)
+        self.assertNotIn("音频", import_button.text())
+
+        by_id = {
+            dialog.table.item(row, 1).text(): row
+            for row in range(dialog.table.rowCount())
+        }
+        dialog.table.selectRow(by_id[image.ref])
+        self.assertTrue(dialog.audio_actions.isHidden())
+        dialog.table.selectRow(by_id[audio.ref])
+        self.assertFalse(dialog.audio_actions.isHidden())
+        dialog.close()
+
+    def test_unified_import_type_selector_covers_all_three_content_types(self):
+        dialog = _ImportContentTypeDialog()
+        values = {
+            str(dialog.kind_combo.itemData(index))
+            for index in range(dialog.kind_combo.count())
+        }
+        self.assertEqual(values, {"audio", "character", "image"})
+        for kind in values:
+            dialog.kind_combo.setCurrentIndex(dialog.kind_combo.findData(kind))
+            self.assertEqual(dialog.selected_type(), kind)
+            self.assertTrue(dialog.description.text().strip())
         dialog.close()
 
 

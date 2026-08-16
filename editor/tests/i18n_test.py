@@ -51,6 +51,7 @@ def test_default_zh_cn_keeps_existing_labels():
     assert [g for g, _t in models.NODE_GROUPS] == [
         "画面与声音",
         "数值、物品与任务",
+        "战斗与游戏系统",
         "流程与高级功能",
     ]
     s = models.node_summary(

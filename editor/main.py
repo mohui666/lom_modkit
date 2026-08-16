@@ -72,6 +72,7 @@ if str(PROJECT_ROOT / "compiler") not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT / "compiler"))
 
 from help_content import current_help_html
+from node_reference import NodeReferenceWidget
 from i18n import LANGUAGES, current_language, init_language, install_qt_translator, set_language, t
 from glass_theme import apply_glass_theme, mark_primary
 from game_install import (
@@ -296,10 +297,16 @@ class HelpDialog(QDialog):
         self.setWindowTitle(t("app.help_title"))
         self.resize(760, 620)
         layout = QVBoxLayout(self)
+        tabs = QTabWidget()
         browser = QTextBrowser()
         browser.setOpenExternalLinks(False)
         browser.setHtml(current_help_html())
-        layout.addWidget(browser)
+        tabs.addTab(browser, t("help.guide_tab", default="使用指南"))
+        tabs.addTab(
+            NodeReferenceWidget(),
+            t("help.reference_tab", default="节点 / API 参考"),
+        )
+        layout.addWidget(tabs)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(self.reject)
         close_btn = buttons.button(QDialogButtonBox.StandardButton.Close)

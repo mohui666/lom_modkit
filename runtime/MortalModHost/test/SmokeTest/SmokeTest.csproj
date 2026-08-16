@@ -26,6 +26,7 @@
     <Compile Include="..\..\src\RuntimeDebugControl.cs" />
     <Compile Include="..\..\src\RuntimeCompatibility.cs" />
     <Compile Include="..\..\src\ModDisclosurePolicy.cs" />
+    <Compile Include="..\..\src\DisclosureIntegrity.cs" />
     <Compile Include="..\..\src\ProvenanceWatermarkProtocol.cs" />
     <Compile Include="..\..\src\ProvenanceWatermarkCodec.cs" />
     <Compile Include="..\..\src\GameplaySession.cs" />
