@@ -397,6 +397,10 @@ class TestNodeCodegen(unittest.TestCase):
                 "text": "对话文本",
             }
         )
+        load = '\trunwait(characters.LoadCharacterAsset("player"))'
+        portrait = '\tcharacters.LoadCharacterPortrait("player", "nervous1")'
+        self.assertIn(load, lua)
+        self.assertLess(lua.index(load), lua.index(portrait))
         self.assertIn("\tsetsaydialog(saydialogs.character)", lua)
         self.assertIn("\tsayoptions.waitforinput = true", lua)
         self.assertIn("\tsayoptions.fadewhendone  = true", lua)
@@ -415,6 +419,54 @@ class TestNodeCodegen(unittest.TestCase):
         self.assertIn('\tsay(luamanager.GetStoryText("MOD_MOD_main_n1"))', lua)
         self.assertNotIn("对话文本", lua)
         self.assertNotIn("os_mask", lua)
+
+    def test_official_stage_actions_lazy_load_character(self):
+        cases = (
+            {
+                "id": "n1",
+                "type": "move",
+                "character": "player",
+                "from": "M",
+                "to": "R1",
+            },
+            {"id": "n1", "type": "face", "character": "player", "facing": "left"},
+            {"id": "n1", "type": "hide", "character": "player"},
+            {"id": "n1", "type": "focus", "character": "player"},
+            {
+                "id": "n1",
+                "type": "offset",
+                "character": "player",
+                "x": 10,
+                "y": -4,
+                "duration": 0.2,
+            },
+            {"id": "n1", "type": "shock", "character": "player"},
+            {"id": "n1", "type": "dim", "character": "player", "dimmed": True},
+            {
+                "id": "n1",
+                "type": "rotate",
+                "character": "player",
+                "angle": 45,
+                "duration": 0.3,
+            },
+        )
+        expected = '\trunwait(characters.LoadCharacterAsset("player"))'
+        for node in cases:
+            with self.subTest(node=node["type"]):
+                lua = self.lua_of(node)
+                self.assertIn(expected, lua)
+
+    def test_narrative_does_not_load_unused_character(self):
+        lua = self.lua_of(
+            {
+                "id": "n1",
+                "type": "say",
+                "mode": "narrative",
+                "character": "player",
+                "text": "旁白",
+            }
+        )
+        self.assertNotIn("LoadCharacterAsset", lua)
 
     def test_say_think(self):
         lua = self.lua_of(

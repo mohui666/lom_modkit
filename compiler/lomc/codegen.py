@@ -65,6 +65,16 @@ def _portrait(character, portrait):
     return "characters.GetPortrait(%s, %s)" % (character, portrait)
 
 
+def _load_official_character(character):
+    """确保原版 CharacterPlaceholder 已建立人物键。
+
+    原版 LoadCharacterPortrait/Focus/Rotate 等方法会直接索引内部字典；分支若
+    绕过 show，未加载人物会抛 KeyNotFoundException。LoadCharacterAsset 自带
+    ContainsKey 防护，重复调用是安全空操作。
+    """
+    return "\trunwait(characters.LoadCharacterAsset(%s))" % character
+
+
 def _user_char(node):
     """节点 character 若是 user: 引用则返回该字符串，否则 None。"""
     raw = node.get("character")
@@ -228,6 +238,7 @@ def _emit_move(node, ctx):
             "\twait(%s)" % lua_num(duration),
         ]
     return [
+        _load_official_character(c),
         "\tstage.show{character=%s, fromPosition=%s, toPosition=%s, "
         "moveDuration=%s, useDefaultSettings=false}"
         % (_get(c), lua_str(node["from"]), lua_str(node["to"]), lua_num(duration)),
@@ -241,6 +252,7 @@ def _emit_face(node, ctx):
     if _user_char(node):
         return ["\tmod_char_face(%s, %s)" % (c, facing)]
     return [
+        _load_official_character(c),
         "\tstage.show{character=%s, facing=%s, useDefaultSettings=false}"
         % (_get(c), facing)
     ]
@@ -252,6 +264,7 @@ def _emit_hide(node, ctx):
     if _user_char(node):
         return ["\tmod_char_hide(%s, %s)" % (c, fade)]
     return [
+        _load_official_character(c),
         "\tstage.hide{character=%s, fadeDuration=%s, useDefaultSettings=false}"
         % (_get(c), fade)
     ]
@@ -261,15 +274,16 @@ def _emit_focus(node, ctx):
     c = lua_str(node["character"])
     if _user_char(node):
         return ["\tmod_char_focus(%s)" % c]
-    return ["\tcharacters.Focus(%s)" % c]
+    return [_load_official_character(c), "\tcharacters.Focus(%s)" % c]
 
 
 def _emit_offset(node, ctx):
+    c = lua_str(node["character"])
     if _user_char(node):
         return [
             "\tmod_char_offset(%s, %s, %s, %s)"
             % (
-                lua_str(node["character"]),
+                c,
                 lua_num(node["x"]),
                 lua_num(node["y"]),
                 lua_num(node["duration"]),
@@ -277,9 +291,10 @@ def _emit_offset(node, ctx):
             "\twait(%s)" % lua_num(node["duration"]),
         ]
     return [
+        _load_official_character(c),
         "\trunwait(characters.MoveOffsetCoroutine(%s, %s, %s, %s))"
         % (
-            lua_str(node["character"]),
+            c,
             lua_num(node["x"]),
             lua_num(node["y"]),
             lua_num(node["duration"]),
@@ -347,6 +362,7 @@ def _emit_say(node, ctx):
         ]
     else:
         lines = [
+            _load_official_character(c),
             "\tsetsaydialog(saydialogs.%s)" % mode,
             # 表情差分：先加载该表情的立绘差分（官方 93% say 块均如此；
             # 不加载则台上人物立绘不换，只有气泡变）
@@ -401,6 +417,7 @@ def _emit_shock(node, ctx):
             "\twait(%s)" % duration,
         ]
     return [
+        _load_official_character(c),
         '\tgetvar(flowcharts.common, "ShockPosition").value = %s.State.holder.gameObject'
         % _get(c),
         '\tgetvar(flowcharts.common, "ShockDuration").value = %s'
@@ -558,17 +575,19 @@ def _emit_dim(node, ctx):
     """人物压暗：stage.SetDimmed(character, dimmedState)（官方 API，实参顺序
     character 在前、bool 在后）。dimmed=true 时官方实现还会隐藏该角色心情气泡。
     """
+    c = lua_str(node["character"])
     if _user_char(node):
         return [
             "\tmod_char_dim(%s, %s)"
             % (
-                lua_str(node["character"]),
+                c,
                 "true" if node["dimmed"] else "false",
             )
         ]
     return [
+        _load_official_character(c),
         "\tstage.SetDimmed(%s, %s)"
-        % (_get(lua_str(node["character"])), "true" if node["dimmed"] else "false")
+        % (_get(c), "true" if node["dimmed"] else "false")
     ]
 
 
@@ -584,20 +603,22 @@ def _emit_rotate(node, ctx):
     angle 在前、duration 在后（StoryCharacterController.Rotate(duration, angle)
     内部再交换，raw_scripts 调用点实证）。
     """
+    c = lua_str(node["character"])
     if _user_char(node):
         return [
             "\tmod_char_rotate(%s, %s, %s)"
             % (
-                lua_str(node["character"]),
+                c,
                 lua_num(node["angle"]),
                 lua_num(node["duration"]),
             ),
             "\twait(%s)" % lua_num(node["duration"]),
         ]
     return [
+        _load_official_character(c),
         "\tcharacters.Rotate(%s, %s, %s)"
         % (
-            lua_str(node["character"]),
+            c,
             lua_num(node["angle"]),
             lua_num(node["duration"]),
         )
