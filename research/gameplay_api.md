@@ -8,6 +8,9 @@ python tools/verify_gameplay_api.py --json
 
 该命令不写游戏目录。游戏更新导致程序集哈希或签名变化时会失败，必须重新审计，不能静默沿用旧结论。
 
+本页和 `gameplay_api_contract.json` 是我们自己整理的接口摘要，可以进仓库。
+用 `ilspycmd` 从游戏 DLL 转出的整份 `.cs` **不要上传**（见根目录 `AGENTS.md`、`.gitignore` 里的 `docs/research/decompiled/`）。
+
 ## 已确认
 
 | 能力 | 原版证据 | 可实现范围 |
@@ -19,7 +22,7 @@ python tools/verify_gameplay_api.py --json
 | Combat 独立背景 | `StoryViewImage._viewAddressableData.GetByKey(view)` 可解析官方 view 的 Addressables 地址；`CombatManager` 最终把 `CombatLevel.BackImage` 同时赋给 `_backSprite` / `_backImage` | Story 卸载前冻结作者选择的官方 view 地址，Combat 加载后独立写入两个原版背景渲染器。人物、背景、数值互不决定，不继承临时关卡技术依赖的背景 |
 | Battle 结果 | `GameLevelManager.ShowGameOver(GameOverType,bool)` | `finish=true` 的 `FriendWin` / `EnemyWin` 可继续；`PlayerDie` 只给重试/标题，不伪造可继续分支 |
 | Battle 模板 | `GameLevelManager.Setup()` 查找 `BL_<CurrentSceneKey>` | 只能引用游戏内已有 BattleLevel，不动态造地图、Prefab 或 AI |
-| Battle 双方配置 | `BattleLevel.GetFriendPeople/GetEnemyPeople`、三方 SpawnerPrefab、`NpcSpawner._spawnPoints`、`CharacterHealth` 的默认生命字段 | 可分别引用其他原版 `BL_` 模板的我方/敌方/中立阵容，设置三方人数和 NPC 血量；只替换本次战役读取结果，不修改原版 `BattleLevel` / `HealthData` 资产 |
+| Battle 双方配置 | `GetFriendPeople/GetEnemyPeople`、`NpcSpawner.InitNpcList`（`prefab.name` 字典）、`ReadyPanel.Setup`、`CharacterHealth`/`HealthData` | 各阵营 `id:people` 相加为总人数；标题写 ReadyPanel；血量克隆 HealthData。具名角色先对 BattleLevelConfig 预设，没有则用 catalog 里已核实的 Boss/Npc Animator。不改官方资产 |
 | 战斗技能 | `SetPlayerBattleSkill` / `SetBattleSkillActive` / `SetBattleSkillLevel` / `ResetBattleSkill` | 可做战前技能配置；尚无已确认的通用临时状态效果 API |
 | 商店库存 | `ShopDatabase` 公共 Books/Miscs/Specials 列表、`ShopItem(ItemData,int)`；`ShopPanel.Init()` 只枚举这三类 | Host 在包指纹绑定的受控会话中临时替换库存并复用官方 ShopPanel；结束或故障恢复原库存。Consumables 不在该面板买入列表中 |
 | 单品价格 | `ShopPanel.AddBuyPanel` 调 `ItemData.GetBuyPrice(discount)`；`Open(int)` 只把 0/非0 映射为原版关系折扣/统一 50% 折扣 | 原版没有公共逐商品改价入口；`custom_shop` 只暴露 0/1 原版折扣，拒绝 `price` |

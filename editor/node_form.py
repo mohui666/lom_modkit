@@ -48,6 +48,22 @@ from table_layout import ReadableTableWidget as QTableWidget
 COMBO_VISIBLE_ITEMS = 12
 
 
+def reveal_combo_text_start(combo: QComboBox) -> None:
+    """压缩时从左侧露出名称，不把光标留在右侧空白或 id。"""
+    edit = combo.lineEdit()
+    if edit is None or edit.hasFocus():
+        return
+    idx = combo.currentIndex()
+    if idx < 0:
+        return
+    selected = combo.itemText(idx)
+    if edit.text() != selected:
+        return
+    edit.setAlignment(Qt.AlignmentFlag.AlignLeft)
+    edit.setCursorPosition(0)
+    edit.deselect()
+
+
 class _FilterCombo(QComboBox):
     """可输入筛选的下拉：弹出层只显示匹配项，并限制可见行数。"""
 
@@ -99,6 +115,11 @@ class _FilterCombo(QComboBox):
             if idx >= 0:
                 self.setCurrentIndex(idx)
         self.blockSignals(False)
+        reveal_combo_text_start(self)
+
+    def hidePopup(self) -> None:  # noqa: N802
+        super().hidePopup()
+        reveal_combo_text_start(self)
 
 
 class _GotoCombo(_FilterCombo):
@@ -603,12 +624,7 @@ class NodeForm(QScrollArea):
             return w
         if kind == "int":
             w = QSpinBox()
-            if node.get("type") == "battle" and key in (
-                "friend_people", "enemy_people"
-            ):
-                w.setRange(1, 10000)
-            else:
-                w.setRange(-999999, 999999)
+            w.setRange(-999999, 999999)
             try:
                 w.setValue(int(value or 0))
             except (TypeError, ValueError):
@@ -690,6 +706,8 @@ class NodeForm(QScrollArea):
             return self._make_combat_talents_table(node, key)
         if kind == "official_characters":
             return self._make_official_characters_table(node, key)
+        if kind == "battle_faction_list":
+            return self._make_battle_factions_table(node, key)
         if kind == "reward_entries":
             return self._make_reward_entries_table(node, key)
         if kind == "reward_entries_optional":
@@ -741,8 +759,13 @@ class NodeForm(QScrollArea):
             w.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
         if w.lineEdit() is not None:
             w.lineEdit().setMinimumWidth(0)
+            w.lineEdit().setAlignment(Qt.AlignmentFlag.AlignLeft)
+            w.lineEdit().editingFinished.connect(lambda: reveal_combo_text_start(w))
         w.setToolTip(w.currentText())
         w.currentTextChanged.connect(w.setToolTip)
+        w.currentIndexChanged.connect(lambda _index: reveal_combo_text_start(w))
+        w.currentTextChanged.connect(lambda _text: reveal_combo_text_start(w))
+        reveal_combo_text_start(w)
         return w
 
     def _make_combo(
@@ -1924,6 +1947,112 @@ class NodeForm(QScrollArea):
         layout.addLayout(buttons)
         return box
 
+    def _make_battle_factions_table(self, node: dict, key: str) -> QWidget:
+        """Each attached BattleLevel faction has its own people count."""
+        raw = node.setdefault(key, [])
+        if not isinstance(raw, list):
+            raw = []
+            node[key] = raw
+        rows: list[dict] = raw
+        for index, item in enumerate(list(rows)):
+            rows[index] = models.battle_faction_entry(item)
+        side = "friend" if key.startswith("friend") else "enemy"
+        box = QWidget()
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(0, 0, 0, 0)
+        table = QTableWidget(0, 2)
+        table.setHorizontalHeaderLabels(("附加兵种", "该阵营人数"))
+        table.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.Stretch
+        )
+        table.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.ResizeMode.ResizeToContents
+        )
+        total_label = QLabel()
+
+        def used_ids() -> set[str]:
+            return {models.battle_faction_entry(item)["id"] for item in rows}
+
+        def refresh_total() -> None:
+            total_label.setText(
+                "该方总人数 %d（各阵营人数 + 具名角色，自动相加）"
+                % models.battle_side_total(node, side)
+            )
+
+        def fill() -> None:
+            table.setRowCount(0)
+            for row_index, item in enumerate(rows):
+                entry = models.battle_faction_entry(item)
+                rows[row_index] = entry
+                table.insertRow(row_index)
+                faction = self._make_combo(
+                    models.battle_faction_items(self._editor_data),
+                    entry["id"],
+                    editable=False,
+                )
+
+                def changed(_text, index=row_index, combo=faction) -> None:
+                    if self._loading or not (0 <= index < len(rows)):
+                        return
+                    value = str(combo.currentData() or "")
+                    if rows[index]["id"] != value:
+                        rows[index]["id"] = value
+                        self._emit_changed()
+
+                faction.currentTextChanged.connect(changed)
+                people = QSpinBox()
+                people.setRange(1, 10000)
+                people.setValue(entry["people"])
+
+                def people_changed(value: int, index=row_index) -> None:
+                    if self._loading or not (0 <= index < len(rows)):
+                        return
+                    if rows[index]["people"] != value:
+                        rows[index]["people"] = int(value)
+                        refresh_total()
+                        self._emit_changed()
+
+                people.valueChanged.connect(people_changed)
+                table.setCellWidget(row_index, 0, faction)
+                table.setCellWidget(row_index, 1, people)
+            table.setMinimumHeight(min(6, max(2, len(rows))) * 34 + 30)
+            refresh_total()
+
+        buttons = QHBoxLayout()
+        add = QPushButton("添加兵种")
+        remove = QPushButton(t("table.remove_last"))
+
+        def add_row() -> None:
+            used = used_ids()
+            available = [
+                faction_id
+                for faction_id, _display in models.battle_faction_items(self._editor_data)
+                if faction_id not in used
+            ]
+            if not available:
+                return
+            rows.append({"id": available[0], "people": 1})
+            fill()
+            self._emit_changed()
+
+        def remove_row() -> None:
+            if not rows:
+                return
+            rows.pop()
+            fill()
+            self._emit_changed()
+
+        add.clicked.connect(add_row)
+        remove.clicked.connect(remove_row)
+        buttons.addWidget(add)
+        buttons.addWidget(remove)
+        buttons.addStretch(1)
+        fill()
+        layout.addWidget(table)
+        layout.addWidget(total_label)
+        layout.addLayout(buttons)
+        return box
+
     def _make_official_characters_table(self, node: dict, key: str) -> QWidget:
         """Battle named roster: catalog-verified official characters only."""
         rows: list[str] = node.setdefault(key, [])
@@ -1931,7 +2060,7 @@ class NodeForm(QScrollArea):
         layout = QVBoxLayout(box)
         layout.setContentsMargins(0, 0, 0, 0)
         table = QTableWidget(0, 1)
-        table.setHorizontalHeaderLabels(("官方具名角色（计入总人数）",))
+        table.setHorizontalHeaderLabels(("官方具名角色（另计入该方总人数）",))
         table.horizontalHeader().setSectionResizeMode(
             0, QHeaderView.ResizeMode.Interactive
         )

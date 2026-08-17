@@ -30,6 +30,8 @@ namespace MortalModHost
         public const string NAME = "MortalModHost";
         public const string VERSION = "1.0.1";
 
+        internal static Plugin Instance { get; private set; }
+
         private const int WindowId = 886310; // IMGUI 窗口 id，取个不易与其他插件撞车的数
         private const int DebugWindowId = 886311;
 
@@ -64,6 +66,7 @@ namespace MortalModHost
 
         private void Awake()
         {
+            Instance = this;
             _enabled = Config.Bind("General", "Enabled", true,
                 "总开关。false 时禁用热键、mod 菜单与 LuaManager 注入；若 mod 剧情正在演出，为保持强制披露，会延迟到回到官方枢纽后卸载补丁。");
             _menuHotkey = Config.Bind("General", "MenuHotkey", new KeyboardShortcut(KeyCode.F8),
@@ -83,6 +86,7 @@ namespace MortalModHost
             ModOverlay.Clear();
             // 契约 §2：mod 战役运行态同样重置（插件重载后不残留旧战役的禁原版事件状态）
             ModCampaignState.Clear();
+            BattleNamedCharacterPatch.ClearNamedTemplates();
             GameplaySession.Reset();
             ModQuestSession.Reset();
             PersistentModState.Log = Logger;
@@ -146,6 +150,7 @@ namespace MortalModHost
             RestoreBackgroundExecution();
             _showMenu = false;
             ModCampaignState.Clear();
+            BattleNamedCharacterPatch.ClearNamedTemplates();
             GameplaySession.Reset();
             ModQuestSession.Reset();
             PersistentModState.ResetMemory();
@@ -273,6 +278,10 @@ namespace MortalModHost
                 AccessTools.Method(typeof(SaveSystem), "SaveUniverseData", Type.EmptyTypes));
             ok &= CheckTarget("SaveSystem._currentSlot",
                 AccessTools.Field(typeof(SaveSystem), "_currentSlot"));
+            ok &= CheckTarget("MenuPanel.LoadButtonClick",
+                AccessTools.Method(typeof(MenuPanel), "LoadButtonClick", Type.EmptyTypes));
+            ok &= CheckTarget("MenuPanel._loadPanel",
+                AccessTools.Field(typeof(MenuPanel), "_loadPanel"));
             ok &= CheckTarget("FreePositionData.GetExecuteScript",
                 AccessTools.Method(typeof(FreePositionData), "GetExecuteScript"));
             ok &= CheckTarget("PositionController.OnPositionClick",
@@ -740,6 +749,7 @@ namespace MortalModHost
             {
                 ModDisclosure.Disable();
                 LuaManagerPatch.ResetAbortGuard();
+                BattleNamedCharacterPatch.ClearNamedTemplates();
                 GameplaySession.Reset();
                 if (scene == "Title")
                 {
@@ -805,6 +815,7 @@ namespace MortalModHost
             CustomAudioPlayer.ReleaseAll();
             CustomCharacterRuntime.ClearAll();
             CustomImageRuntime.ClearAll();
+            if (Instance == this) Instance = null;
             if (_applicationQuitting || !ModDisclosure.Active)
                 ModDisclosure.Disable();
         }
@@ -842,6 +853,47 @@ namespace MortalModHost
                 OpenMenuFromVanillaTitle,
                 msg => Logger.LogInfo(msg),
                 msg => Logger.LogWarning(msg));
+        }
+
+        internal bool TryOpenInGameModLoadMenu(MenuPanel menu)
+        {
+            bool isTitle;
+            string slot = SaveSystem.Instance != null ? SaveSystem.Instance.CurrentSlot : "";
+            if (!ModSaveSlotPolicy.ShouldHijackInGameLoad(
+                IsMenuScene(out isTitle) && isTitle,
+                ModCampaignState.Active,
+                slot))
+                return false;
+            if (!_enabled.Value || !_runtimeReady || menu == null) return false;
+            CommonPanel host = Traverse.Create(menu).Field("_loadPanel").GetValue<CommonPanel>();
+            if (host == null)
+            {
+                Logger.LogWarning("游戏内读取面板不可用，保留原版读档页");
+                return false;
+            }
+            LoadGamePanel panel = host.GetComponentInChildren<LoadGamePanel>(true);
+            if (panel == null) panel = LoadGamePanel.Instance;
+            string preferred = ModSaveSlotPolicy.PreferredInGameCampaignId(
+                ModCampaignState.ActiveCampaignId, slot);
+            bool opened = VanillaModCampaignPanel.OpenExisting(
+                host,
+                panel,
+                LoadedMods,
+                StartCampaign,
+                LoadCampaign,
+                LoadCampaignAuto,
+                preferred,
+                preferred,
+                delegate(string campaignId)
+                {
+                    _lastSelectedCampaignId.Value = campaignId ?? "";
+                    Config.Save();
+                },
+                msg => Logger.LogInfo(msg),
+                msg => Logger.LogWarning(msg));
+            if (opened)
+                Logger.LogInfo("游戏内读取已切换为当前 MOD 战役存档页：" + preferred);
+            return opened;
         }
 
         private void OpenMenuFromVanillaTitle()

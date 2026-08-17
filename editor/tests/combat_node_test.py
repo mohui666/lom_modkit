@@ -81,15 +81,16 @@ class CombatEditorTest(unittest.TestCase):
             key: kind for key, _label, kind, _optional
             in models.NODE_SCHEMAS["battle"]["fields"]
         }
-        self.assertEqual(fields["friend_faction"], "battle_faction")
+        self.assertEqual(fields["friend_factions"], "battle_faction_list")
         self.assertEqual(fields["friend_characters"], "official_characters")
         self.assertNotIn("preset", fields)
         story = {
             "start": "war",
             "nodes": [
-                {"id": "war", "type": "battle", "friend_faction": "500",
-                 "friend_people": 2, "friend_characters": ["special4"],
-                 "enemy_faction": "400", "enemy_people": 1,
+                {"id": "war", "type": "battle",
+                 "friend_factions": [{"id": "500", "people": 2}],
+                 "friend_characters": ["special4"],
+                 "enemy_factions": [{"id": "001", "people": 1}],
                  "enemy_characters": [], "win": "friend", "lose": "enemy"},
                 {"id": "friend", "type": "end"},
                 {"id": "enemy", "type": "end"},

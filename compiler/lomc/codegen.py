@@ -782,8 +782,8 @@ def _emit_combat(node, ctx):
             "character", "background",
             "max_health", "health", "max_stamina", "stamina", "stamina_power",
             "strength", "internal", "dexterity", "talking", "defence", "sword", "fist",
-            "martial_weapon", "mental", "confucianism", "buddhism", "taoism", "xingyi",
-            "strategy_level", "weapon_poison_value", "weapon_paralyzed_value",
+            "martial_weapon", "mental",
+            "weapon_poison_value", "weapon_paralyzed_value",
             "poison_resist", "paralyzed_resist", "disposition", "behaviour", "karma",
             "training", "attack_damage_addition", "defence_addition",
             "ultimate_damage_rate", "attack_dice_addition", "weapon_damage_addition",
@@ -817,9 +817,11 @@ def _emit_battle(node, ctx):
     encoded = _encode_gameplay_config(
         config,
         (
-            "friend_faction", "friend_people", "enemy_faction", "enemy_people",
+            "title", "friend_health", "enemy_health",
         ),
         (
+            ("friend_factions", ("id", "people")),
+            ("enemy_factions", ("id", "people")),
             ("friend_characters", ("id",)),
             ("enemy_characters", ("id",)),
         ),

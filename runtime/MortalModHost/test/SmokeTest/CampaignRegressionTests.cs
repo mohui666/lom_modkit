@@ -186,8 +186,14 @@ namespace MortalModHost
                     && BattleCompositionPolicy.IsVerifiedAssetIdentity("girl4", "Girl_004_Animator")
                     && BattleCompositionPolicy.IsVerifiedAssetIdentity("special3", "special003_attack_01")
                     && BattleCompositionPolicy.IsVerifiedAssetIdentity("special4", "Enemy_Special004_Attack1")
+                    && BattleCompositionPolicy.IsVerifiedAssetIdentity("special4", "Special4")
+                    && BattleCompositionPolicy.IsVerifiedAssetIdentity("special4", "樊嘯天_敵方")
                     && BattleCompositionPolicy.IsVerifiedAssetIdentity("special811", "Special811_Die"),
                 "Battle 官方人物必须按已核对的 Animator/动画资源身份匹配");
+            string animatorAddress;
+            Assert(BattleCompositionPolicy.TryOfficialBattleAnimatorAddress("special4", out animatorAddress)
+                    && animatorAddress.IndexOf("Enemy_Special004_Animator", StringComparison.Ordinal) >= 0,
+                "catalog 中的 Boss Animator 必须能作为 special4 的生成底板");
             Assert(!BattleCompositionPolicy.IsVerifiedAssetIdentity("special3", "Brother3_Animator")
                     && !BattleCompositionPolicy.IsVerifiedAssetIdentity("special3", "prefix_special003_animator"),
                 "Battle 官方人物不得使用任意位置子串造成相似 ID 串错");
@@ -196,6 +202,27 @@ namespace MortalModHost
                     && BattleCompositionPolicy.HasNpcPrefabAsset("special4")
                     && BattleCompositionPolicy.HasNpcPrefabAsset("special811"),
                 "玩家战场技能 Animator 与可生成 NpcSpawnPreset 必须严格区分");
+            Assert(BattleCompositionPolicy.HasBattleLevel("500")
+                    && BattleCompositionPolicy.HasBattleLevel("001")
+                    && !BattleCompositionPolicy.HasBattleLevel("400"),
+                "只有原版 BattleLevel.NameKey 存在的阵营才能附加兵种");
+            List<string> factions = BattleCompositionPolicy.ParseFactions("500,001");
+            Assert(factions.Count == 2 && factions[0] == "500" && factions[1] == "001",
+                "附加兵种应按声明顺序混入，不得整营替换");
+            List<BattleCompositionPolicy.FactionGroup> groups =
+                BattleCompositionPolicy.ParseFactionGroups("500:3,002:5");
+            Assert(groups.Count == 2 && groups[0].People == 3 && groups[1].People == 5
+                    && BattleCompositionPolicy.TotalPeople(groups, 1) == 9,
+                "各方总人数必须等于各阵营 people 与具名角色之和");
+            List<BattleCompositionPolicy.FactionGroup> legacy =
+                BattleCompositionPolicy.ResolveSideGroups("500,001", 1, 8);
+            Assert(legacy.Count == 2 && legacy[0].People == 6 && legacy[1].People == 1
+                    && BattleCompositionPolicy.TotalPeople(legacy, 1) == 8,
+                "旧脚本的手动总人数应补给第一个阵营");
+            bool badFaction = false;
+            try { BattleCompositionPolicy.ParseFactions("400"); }
+            catch (InvalidOperationException) { badFaction = true; }
+            Assert(badFaction, "没有 BattleLevel 的阵营不能当作附加兵种");
 
             // Combat 不再从包含中文描述/数字补零的资源路径猜人物身份；
             // Runtime 直接使用 CombatLevel.EnemyStat.Name 的原版对象关系。

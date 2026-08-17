@@ -201,26 +201,17 @@ Lua 环境隔离与完整生命周期清理 · 一次性热键迁移 · Runtime 
 
 | 文档 | 内容 |
 | --- | --- |
-| [文档索引](docs/README.md) | 语言导航与读者向导 |
-| [用户内容库](docs/chs/user_content.md) | 自定义音频 / 对白语音用法 |
-| [来源水印协议 v1](docs/chs/watermark_protocol.md) | 跨 Python/C# 的 payload、ECC、强制画面嵌入与版本规则（不是签名或 DRM） |
-| [截图来源水印检测器](docs/chs/watermark_detector.md) | 离线检测 PNG/JPG，输出置信度、协议、Mod 哈希与 CRC/ECC 状态 |
-| [视频来源水印检测器 v1](docs/chs/watermark_video_detector.md) | FFmpeg 抽帧与多帧相关累积；真实 OBS/H.264 状态单独标注 |
-| [编辑器自动恢复](docs/chs/editor_recovery.md) | 脏项目每 30 秒写独立原子恢复副本，绝不覆盖正式项目文件 |
-| [项目模板](docs/chs/project_templates.md) | 空项目、线性对白、分支、自定义人物与用户内容五种普通 Story 起点 |
-| [项目统计](docs/chs/project_statistics.md) | 只读表格汇总 Story、节点、资源、语音覆盖、不可达与未使用资产 |
-| [语音覆盖](docs/chs/voice_coverage.md) | 按总计、Story、人物统计配音并定位每个未配音对白节点 |
-| [Editing / Release 体检](docs/chs/release_preflight.md) | F6 日常检查与 Ctrl+F6 发布严格检查，按风险分级而非全升 error |
-| [Release Builder](docs/chs/release_builder.md) | 本地完成 Manifest/SemVer 校验、Release 体检、打包与整包 SHA-256，不自动安装或发布 |
-| [Runtime Installation Doctor](docs/chs/runtime_installation_doctor.md) | 离线诊断 BepInEx、MortalModHost、NVorbis、重复 DLL 与 Mod 目录，仅执行确定性的安全修复 |
-| [Runtime Rollback](docs/chs/runtime_rollback.md) | Runtime 更新前保留经 SHA-256 核对的上一版，失败自动恢复，也可在安装管理中手工回滚 |
-| [Test Matrix](docs/chs/test_matrix.md) | 一个离线入口覆盖 Compiler、Editor unit/smoke/stress 与 Runtime build/smoke，并可输出 JSON 结果 |
-| [功能 Showcase](samples/feature_showcase/README.md) | 可直接打包的原创自包含项目，覆盖自定义角色/语音/BGM/图片、流程、本地化与结局 |
-| [当前能力与边界](docs/chs/current_capabilities.md) | 已实现、仅有底层接口和尚未实现的功能边界 |
-| [Runtime 实现说明](runtime/MortalModHost/README.md) | 原版接口接入、反编译验证边界与 fail-closed 策略 |
-| [Mod 包格式契约](docs/chs/mod_format.md) | 包结构、62 种节点、编译约定、运行时行为 |
-| [AI / CLI 手册](docs/chs/ai_cli.md) | story_api 命令行与 Python API |
-| [多语言](docs/chs/i18n.md) | 界面与文档的 i18n 架构 |
+| [文档索引](docs/README.md) | 作者 / 契约 / 维护 三层入口 |
+| [AGENTS.md](AGENTS.md) | 改游戏功能必须先查反编译接口；整份反编译源码不得上传 |
+| [软件使用](docs/chs/software_usage.md) | 编辑器流程、决斗/战役、读档隔离 |
+| [当前能力](docs/chs/current_capabilities.md) | 已实现与明确不做 |
+| [Mod 格式 v3](docs/chs/mod_format.md) | 包结构、节点、编译与运行时契约 |
+| [反编译接口](docs/chs/decompiled_api.md) | 查本机 DLL 的步骤；不提交游戏源码 |
+| [维护者手册](docs/chs/maintainers.md) | 恢复、体检、发布、Runtime 安装、测试 |
+| [来源水印](docs/chs/watermark.md) | 协议与离线检测（不是签名） |
+| [story_api / CLI](docs/chs/ai_cli.md) | 校验、编译、打包 |
+| [用户内容](docs/chs/user_content.md) | 音频 / 角色 / 图片 |
+| [Runtime 说明](runtime/MortalModHost/README.md) | Host 原则与 fail-closed |
 
 ## For Developers
 

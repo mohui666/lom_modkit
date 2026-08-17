@@ -11,7 +11,7 @@ MortalModHost 是 BepInEx 6 / Harmony 宿主，负责加载 `.lommod`、把编�
 - 标题入口临时复用原版 `LoadGamePanel/LoadSlotPanel/AutoSaveSlotPanel/RecentSaveSlotPanel`：先选择战役，再进入该战役自己的主槽、三类自动槽和新建入口。MOD 手动槽为 `mod_campaign_<campaign_id>`，三类自动槽追加 `_auto*`；旧 `mod_<manifest.id>` 槽不探测、不迁移。`SaveUniverseData` 只记录最后一个原版槽，因此原版 001～020、`auto*` 和“继续游戏”指针均不会被 MOD 覆盖。
 - Manifest、路径、包大小、哈希和脚本注册名在 Runtime 再次验证，不能只信编辑器导出的包。
 
-Gameplay / Combat 的程序集哈希、反编译签名、可实现范围与禁止猜测项见 [`research/gameplay_api.md`](../../research/gameplay_api.md)。`tools/verify_gameplay_api.py` 可对本机安装只读复验；游戏更新后旧哈希不会被静默接受。
+改游戏功能必须先查反编译接口，见仓库根目录 [`AGENTS.md`](../../AGENTS.md) 与 [`docs/chs/decompiled_api.md`](../../docs/chs/decompiled_api.md)。已确认签名与禁止项见 [`research/gameplay_api.md`](../../research/gameplay_api.md)。`tools/verify_gameplay_api.py` 对本机安装只读复验；游戏更新后旧哈希不会被静默接受。整份游戏反编译 `.cs` 不要提交。
 
 ## Fail-closed 边界
 

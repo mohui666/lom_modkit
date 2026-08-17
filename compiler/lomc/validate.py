@@ -170,6 +170,11 @@ CAMPAIGN_POSITIONS = (
 VERIFIED_BATTLE_CHARACTERS = frozenset((
     "special4", "special102", "special103", "special401", "special811",
 ))
+# sharedassets5 中 BattleLevel.NameKey 已实证存在的阵营；无对应关卡不能换生成器。
+VERIFIED_BATTLE_FACTIONS = frozenset((
+    "000", "001", "002", "003", "004", "006", "008", "009", "010",
+    "100", "200", "201", "300", "500",
+))
 
 # 枚举字段的合法值（§3.1）
 _ENUMS = {
@@ -402,8 +407,10 @@ _NODE_FIELDS = {
             "internal": "num",
             "dexterity": "num", "talking": "num", "defence": "num",
             "sword": "num", "fist": "num", "martial_weapon": "num",
-            "mental": "num", "confucianism": "num", "buddhism": "num",
-            "taoism": "num", "xingyi": "num", "strategy_level": "num",
+            "mental": "num",
+            # 儒学/佛学/道学/形意/战术由决斗技能写入 CombatStat，不是独立属性。
+            "confucianism": "num", "buddhism": "num", "taoism": "num",
+            "xingyi": "num", "strategy_level": "num",
             "weapon_poison_value": "num",
             "weapon_paralyzed_value": "num", "poison_resist": "num",
             "paralyzed_resist": "num", "disposition": "num", "behaviour": "num",
@@ -419,12 +426,15 @@ _NODE_FIELDS = {
     ),
     "battle": (
         {
-            "friend_faction": "idstr", "friend_people": "num",
-            "enemy_faction": "idstr", "enemy_people": "num",
             "win": "idstr", "lose": "idstr",
         },
         {
+            "friend_factions": "list", "enemy_factions": "list",
             "friend_characters": "list", "enemy_characters": "list",
+            "friend_faction": "idstr", "enemy_faction": "idstr",
+            "friend_people": "num", "enemy_people": "num",
+            "title": "str",
+            "friend_health": "num", "enemy_health": "num",
         },
     ),
     "battle_result": (
@@ -539,6 +549,20 @@ def _node_label(node, index):
     if isinstance(nid, str):
         return '节点 "%s"' % nid
     return "第 %d 个节点" % (index + 1)
+
+
+def _battle_side_total(node, side):
+    """各方总人数 = 各阵营 people 之和 + 具名角色数。"""
+    total = 0
+    for item in node.get(side + "_factions") or []:
+        if isinstance(item, dict):
+            people = item.get("people")
+            if isinstance(people, int) and not isinstance(people, bool) and people > 0:
+                total += people
+    characters = node.get(side + "_characters") or []
+    if isinstance(characters, list):
+        total += len(characters)
+    return total
 
 
 def _check_node_fields(node, label):
@@ -1054,6 +1078,14 @@ def _check_node_extra(node, ntype, label):
                 '%s(combat): display_name 已删除；决斗名称始终由所选人物名称决定'
                 % label
             )
+        for talent_stat in (
+            "confucianism", "buddhism", "taoism", "xingyi", "strategy_level",
+        ):
+            if talent_stat in effective:
+                raise LomcError(
+                    '%s(combat): %s 已删除；儒学/佛学/道学/形意/战术由「对手决斗技能」的等级写入'
+                    % (label, talent_stat)
+                )
         background = effective.get("background", "center")
         if not isinstance(background, str) or GAMEPLAY_VIEW_RE.fullmatch(background) is None:
             raise LomcError(
@@ -1068,7 +1100,7 @@ def _check_node_extra(node, ntype, label):
         integer_ranges = {
             "max_health": (1, 10000000), "health": (0, 10000000),
             "max_stamina": (0, 100000), "stamina": (0, 100000),
-            "strategy_level": (0, 10), "weapon_hit_addition": (0, 10000),
+            "weapon_hit_addition": (0, 10000),
             "attack_damage_addition": (-100000, 100000),
             "defence_addition": (-100000, 100000),
             "weapon_damage_addition": (-100000, 100000),
@@ -1080,7 +1112,6 @@ def _check_node_extra(node, ntype, label):
             "defence", "sword", "fist", "martial_weapon", "mental",
             "weapon_poison_value", "weapon_paralyzed_value", "poison_resist",
             "paralyzed_resist", "disposition", "behaviour", "karma", "training",
-            "confucianism", "buddhism", "taoism", "xingyi",
         ):
             integer_ranges[name] = (0, 10000)
         for name, (minimum, maximum) in integer_ranges.items():
@@ -1140,24 +1171,65 @@ def _check_node_extra(node, ntype, label):
     elif ntype == "battle":
         effective = node
         for name in ("friend_faction", "enemy_faction"):
-            if name in effective and SCRIPT_ID_RE.fullmatch(effective[name]) is None:
-                raise LomcError('%s(battle): %s 必须是安全的原版阵营 id' % (label, name))
+            if name in effective:
+                raise LomcError(
+                    '%s(battle): %s 已改为可附加列表 %s'
+                    % (label, name, name + "s")
+                )
         for name in ("friend_people", "enemy_people"):
-            if name in effective and (
-                isinstance(effective[name], bool) or not isinstance(effective[name], int)
-                or effective[name] < 1
-            ):
-                raise LomcError('%s(battle): %s 必须是至少 1 的整数' % (label, name))
+            if name in effective:
+                raise LomcError(
+                    '%s(battle): %s 已取消；各方总人数由各阵营 people 与具名角色相加'
+                    % (label, name)
+                )
+        for name in ("friend_factions", "enemy_factions"):
+            rows = effective.get(name, [])
+            if not isinstance(rows, list):
+                raise LomcError('%s(battle): %s 必须是数组' % (label, name))
+            seen_factions = set()
+            for index, faction in enumerate(rows, 1):
+                if isinstance(faction, str):
+                    raise LomcError(
+                        '%s(battle): %s 第 %d 项必须是 {id, people}，不再使用纯 id'
+                        % (label, name, index)
+                    )
+                if not isinstance(faction, dict):
+                    raise LomcError(
+                        '%s(battle): %s 第 %d 项必须是 {id, people}'
+                        % (label, name, index)
+                    )
+                faction_id = faction.get("id")
+                people = faction.get("people")
+                extra = set(faction) - {"id", "people"}
+                if extra:
+                    raise LomcError(
+                        '%s(battle): %s 第 %d 项含未知字段 %s'
+                        % (label, name, index, "、".join(sorted(extra)))
+                    )
+                if not isinstance(faction_id, str) or SCRIPT_ID_RE.fullmatch(faction_id) is None:
+                    raise LomcError(
+                        '%s(battle): %s 第 %d 项 id 必须是安全的原版阵营 id'
+                        % (label, name, index)
+                    )
+                if faction_id not in VERIFIED_BATTLE_FACTIONS:
+                    raise LomcError(
+                        '%s(battle): %s 第 %d 项 %r 没有对应的原版 BattleLevel'
+                        % (label, name, index, faction_id)
+                    )
+                if faction_id in seen_factions:
+                    raise LomcError(
+                        '%s(battle): %s 不得重复 %s' % (label, name, faction_id)
+                    )
+                if isinstance(people, bool) or not isinstance(people, int) or people < 1:
+                    raise LomcError(
+                        '%s(battle): %s 第 %d 项 people 必须是至少 1 的整数'
+                        % (label, name, index)
+                    )
+                seen_factions.add(faction_id)
         for side in ("friend", "enemy"):
-            people = effective.get(side + "_people", 0)
             characters = effective.get(side + "_characters", [])
             if not isinstance(characters, list):
                 raise LomcError('%s(battle): %s_characters 必须是数组' % (label, side))
-            if len(characters) > people:
-                raise LomcError(
-                    '%s(battle): %s_characters 中的具名角色已超过该方总人数 %d'
-                    % (label, side, people)
-                )
             seen = set()
             for index, character in enumerate(characters, 1):
                 if character not in VERIFIED_BATTLE_CHARACTERS:
@@ -1171,6 +1243,27 @@ def _check_node_extra(node, ntype, label):
                         % (label, side, character)
                     )
                 seen.add(character.casefold())
+            total = _battle_side_total(effective, side)
+            if total < 1:
+                raise LomcError(
+                    '%s(battle): %s 总人数必须至少 1（各阵营 people 与具名角色相加）'
+                    % (label, side)
+                )
+            health_name = side + "_health"
+            if health_name in effective and (
+                isinstance(effective[health_name], bool)
+                or not isinstance(effective[health_name], int)
+                or not 1 <= effective[health_name] <= 10000000
+            ):
+                raise LomcError(
+                    '%s(battle): %s 必须是 1~10000000 的整数' % (label, health_name)
+                )
+        title = effective.get("title")
+        if title is not None:
+            if not isinstance(title, str) or not title.strip():
+                raise LomcError('%s(battle): title 不能为空或纯空白' % label)
+            if any(mark in title for mark in (";", "=", ",", "\n", "\r")):
+                raise LomcError('%s(battle): title 不能包含分隔符 ; = , 或换行' % label)
     elif ntype in ("reward", "result_screen"):
         if ntype == "result_screen" and not node["title"].strip():
             raise LomcError('%s(result_screen): title 不能为空或纯空白' % label)

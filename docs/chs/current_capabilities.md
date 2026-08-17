@@ -20,8 +20,8 @@
 - `enemy`：`ModifyEnemyTeam` / `ModifyEnemyLevel` / `ModifyEnemyPeople` / `ModifyEnemyId`；
 - `battle_skill`：`SetPlayerBattleSkill` / `SetBattleSkillActive` / `ResetBattleSkill`；
 - `goto_scene`：只用于普通场景跳转，不再向作者暴露 Combat / Battle 场景预设。
-- `combat`：人物选择只决定决斗名称与四类战斗动画；背景从官方 `views` 独立选择。HP、气力、`stamina_power`（内力）、`internal`（阴阳／内功倾向）、其余能力、天赋及行动概率均自由填写且不会自动带入。原版从不读取的三格绝招字段已删除，只保留实际生效的 `ultimate_rate`。Host 从 `CombatManager.GameOver(bool)` 取得真实 win/lose，原版资产不被修改。
-- `battle`：只设置敌我阵营、双方总人数以及已核实的官方具名角色；具名角色计入总人数。地图与阵容基线是 Runtime 内部细节，不暴露中立阵容、NPC HP 或技能预设。
+- `combat`：人物只决定姓名与四类动画；背景从官方 `views` 独立选。HP、气力、内力、内功、其余能力、天赋和行动概率由节点填写，不从人物预设带入。儒学/佛学/道学/形意/战术由决斗技能写入，不是独立字段。无独立四帧时回退 normal 立绘并钉在官方待机中心。胜负来自 `CombatManager.GameOver(bool)`。
+- `battle`：每个附加阵营单独设人数，该方总人数 = 阵营人数 + 具名角色。可选 `title`（`ReadyPanel`）、`friend_health` / `enemy_health`（克隆 `HealthData`）。具名角色必须能对应原版可生成 preset 或 catalog 里已核实的 Battle Animator。不暴露地图、中立路人和技能预设。
 - `battle_result`：按包完整 SHA-256、剧情 id 和可选 Combat/Battle 类型读取 Host 的最后真实结果，只提供已验证的 win/lose 分支。
 - `reward`：把现有 `stat` / `affinity` / `talent` / `item` / `flag` 原子接口聚合为 1~32 项奖励。
 - `result_screen`：用原版 `mainui.DisplayMessageText` 显示作者填写的结算标题与说明，再逐项执行与 `reward` 相同的现有奖励接口；不创建新的结算 UI。

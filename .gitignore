@@ -11,6 +11,11 @@ __pycache__/
 *.pyc
 editor/.venv/
 editor/crash.log
+crash.log
+# 本机构建的发布包与试玩包，不进仓库
+/lom_modkit-*.zip
+/lom_modkit-*.zip.sha256
+/lom_modkit_preview.lommod
 editor/tests/out/
 # PyInstaller 构建产物（editor/build_exe.py + lom_bundle.spec 生成）
 editor/build/

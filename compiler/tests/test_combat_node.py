@@ -52,8 +52,7 @@ class CombatNodeTest(unittest.TestCase):
             "max_stamina": 130, "stamina": 120, "stamina_power": 17,
             "strength": 21, "internal": 22, "dexterity": 23, "talking": 24,
             "defence": 25, "sword": 26, "fist": 27, "martial_weapon": 28,
-            "mental": 29, "confucianism": 1, "buddhism": 2, "taoism": 3,
-            "xingyi": 4, "strategy_level": 5,
+            "mental": 29,
             "weapon_poison_value": 30, "weapon_paralyzed_value": 31,
             "poison_resist": 32, "paralyzed_resist": 33, "disposition": 34,
             "behaviour": 35, "karma": 36, "training": 37,
@@ -71,8 +70,7 @@ class CombatNodeTest(unittest.TestCase):
             'character=brother4;background=center;max_health=900;health=800;'
             'max_stamina=130;stamina=120;stamina_power=17;strength=21;internal=22;'
             'dexterity=23;talking=24;defence=25;sword=26;fist=27;'
-            'martial_weapon=28;mental=29;confucianism=1;buddhism=2;taoism=3;xingyi=4;'
-            'strategy_level=5;weapon_poison_value=30;weapon_paralyzed_value=31;'
+            'martial_weapon=28;mental=29;weapon_poison_value=30;weapon_paralyzed_value=31;'
             'poison_resist=32;paralyzed_resist=33;disposition=34;behaviour=35;karma=36;'
             'training=37;attack_damage_addition=-2;defence_addition=3;'
             'ultimate_damage_rate=1.25;attack_dice_addition=2;weapon_damage_addition=-4;'
@@ -124,8 +122,10 @@ class CombatNodeTest(unittest.TestCase):
             compile_story(story(dict(base, talents=[{"key": "0001", "level": 4}])))
         with self.assertRaisesRegex(LomcError, "max_health.*1~10000000"):
             compile_story(story(dict(base, max_health=0)))
-        with self.assertRaisesRegex(LomcError, "strategy_level.*0~10"):
+        with self.assertRaisesRegex(LomcError, "strategy_level.*决斗技能"):
             compile_story(story(dict(base, strategy_level=11)))
+        with self.assertRaisesRegex(LomcError, "confucianism.*决斗技能"):
+            compile_story(story(dict(base, confucianism=1)))
         with self.assertRaisesRegex(LomcError, "weapon_hit_addition.*0~10000"):
             compile_story(story(dict(base, weapon_hit_addition=-1)))
         with self.assertRaisesRegex(LomcError, "block_dodge_addition.*-1~1"):
@@ -138,9 +138,12 @@ class BattleNodeTest(unittest.TestCase):
     def _battle(self, **changes):
         node = {
             "id": "fight", "type": "battle",
-            "friend_faction": "500", "friend_people": 8,
+            "title": "丐帮围攻",
+            "friend_health": 220,
+            "friend_factions": [{"id": "500", "people": 7}],
             "friend_characters": ["special4"],
-            "enemy_faction": "400", "enemy_people": 12,
+            "enemy_health": 180,
+            "enemy_factions": [{"id": "001", "people": 11}],
             "enemy_characters": ["special102"],
             "win": "win", "lose": "lose",
         }
@@ -150,18 +153,25 @@ class BattleNodeTest(unittest.TestCase):
     def test_factions_totals_and_named_characters_are_compiled(self):
         lua = compile_story(story(self._battle()))
         self.assertIn(
-            'mod_gameplay_configure("battle", "friend_faction=500;friend_people=8;'
-            'enemy_faction=400;enemy_people=12;friend_characters=special4;'
-            'enemy_characters=special102")', lua
+            'mod_gameplay_configure("battle", "'
+            'title=丐帮围攻;friend_health=220;enemy_health=180;'
+            'friend_factions=500:7;enemy_factions=001:11;'
+            'friend_characters=special4;enemy_characters=special102")', lua
         )
+        self.assertNotIn("friend_people", lua)
+        self.assertNotIn("enemy_people", lua)
         self.assertIn('mod_gameplay_start_scene("battle")', lua)
         self.assertNotIn('ChangeScene("Battle", "0000", "Story")', lua)
         self.assertNotIn("roster", lua)
         self.assertNotIn("ResetBattleSkill", lua)
 
     def test_totals_include_named_and_only_verified_official_are_allowed(self):
-        with self.assertRaisesRegex(LomcError, "至少 1"):
-            compile_story(story(self._battle(friend_people=0)))
+        with self.assertRaisesRegex(LomcError, "总人数必须至少 1"):
+            compile_story(story(self._battle(
+                friend_factions=[], friend_characters=[]
+            )))
+        with self.assertRaisesRegex(LomcError, "已取消"):
+            compile_story(story(self._battle(friend_people=8)))
         with self.assertRaisesRegex(LomcError, "已验证的官方 Battle 人物"):
             compile_story(story(self._battle(friend_characters=["player"])))
         with self.assertRaisesRegex(LomcError, "不得重复"):
@@ -174,6 +184,12 @@ class BattleNodeTest(unittest.TestCase):
             compile_story(story(dict(self._battle(), key="0000")))
         with self.assertRaisesRegex(LomcError, "未知字段.*friend_roster"):
             compile_story(story(dict(self._battle(), friend_roster="0000")))
+        with self.assertRaisesRegex(LomcError, "改为可附加列表"):
+            compile_story(story(self._battle(enemy_faction="400")))
+        with self.assertRaisesRegex(LomcError, "没有对应的原版 BattleLevel"):
+            compile_story(story(self._battle(
+                enemy_factions=[{"id": "400", "people": 1}]
+            )))
 
 
 class BattleResultNodeTest(unittest.TestCase):

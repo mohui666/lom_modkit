@@ -269,8 +269,10 @@ def _hint_text(node: dict, ed: dict) -> str | None:
         )
     if t == "battle":
         return (
-            f"[战役] {node.get('friend_faction', '')} {node.get('friend_people', 0)}"
-            f" vs {node.get('enemy_faction', '')} {node.get('enemy_people', 0)}｜"
+            f"[战役] {models.format_battle_factions({}, node.get('friend_factions'))}"
+            f" {models.battle_side_total(node, 'friend')}"
+            f" vs {models.format_battle_factions({}, node.get('enemy_factions'))}"
+            f" {models.battle_side_total(node, 'enemy')}｜"
             f"友军胜→{node.get('win', '')}｜敌军胜→{node.get('lose', '')}"
         )
     if t == "battle_result":

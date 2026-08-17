@@ -6,6 +6,8 @@ using Mortal.Battle;
 using Mortal.Combat;
 using Mortal.Core;
 using UnityEngine;
+using UnityEngine.AddressableAssets;
+using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityObject = UnityEngine.Object;
 
 namespace MortalModHost
@@ -53,11 +55,13 @@ namespace MortalModHost
                 if (manager == null) throw new InvalidOperationException("CombatManager.Instance 为 null");
                 CombatLevel activeLevel = Traverse.Create(manager)
                     .Field("_combatLevel").GetValue<CombatLevel>();
-                // 原版 LoadCombatLevelAsset 的实证顺序是：
-                // _combatLevel = level; _enemyAction.SetStat(_combatLevel.EnemyStat)。
-                // 不再依赖 _enemyAction 包装对象的引用身份，它在这个时点
-                // 与后续字段可以不是同一个托管 wrapper。
-                if (activeLevel == null || data != activeLevel.EnemyStat) return;
+                CombatActionController enemyAction = Traverse.Create(manager)
+                    .Field("_enemyAction").GetValue<CombatActionController>();
+                // 原版 LoadCombatLevelAsset：_combatLevel = level; SetStat(EnemyStat)。
+                // 只改敌方控制器；引用身份在包装/克隆后可能变化，因此同时认实例。
+                if (activeLevel == null
+                    || (__instance != enemyAction && data != activeLevel.EnemyStat && !Owns(data)))
+                    return;
 
                 Clear();
                 CombatStat clone = UnityObject.Instantiate(data);
@@ -99,11 +103,6 @@ namespace MortalModHost
                 ApplyInt("paralyzed_resist", 0, 10000, delegate(int v) { clone.ParalyzedResist = v; });
                 ApplyInt("weapon_poison_value", 0, 10000, delegate(int v) { clone.WeaponPoisonValue = v; });
                 ApplyInt("weapon_paralyzed_value", 0, 10000, delegate(int v) { clone.WeaponParalyzedValue = v; });
-                ApplyInt("confucianism", 0, 10000, delegate(int v) { clone.Confucianism = v; });
-                ApplyInt("buddhism", 0, 10000, delegate(int v) { clone.Buddhism = v; });
-                ApplyInt("taoism", 0, 10000, delegate(int v) { clone.Taoism = v; });
-                ApplyInt("xingyi", 0, 10000, delegate(int v) { clone.Xingyi = v; });
-                ApplyInt("strategy_level", 0, 10, delegate(int v) { clone.StrategyLevel = v; });
                 ApplyInt("weapon_hit_addition", 0, 10000, delegate(int v) { clone.WeaponHitAddition = v; });
                 ApplyInt("weapon_damage_addition", -100000, 100000, delegate(int v) { clone.WeaponDamageAddition = v; });
                 ApplyInt("weapon_dice_addition", -1000, 1000, delegate(int v) { clone.WeaponDiceAddition = v; });
@@ -128,6 +127,8 @@ namespace MortalModHost
 
                 if (clone.MaxHealth > 0)
                     clone.DefaultHealth = Mathf.Clamp(clone.DefaultHealth, 0, clone.MaxHealth);
+                if (clone.DefaultStamina > clone.MaxStamina)
+                    clone.MaxStamina = clone.DefaultStamina;
                 if (clone.MaxStamina > 0)
                     clone.DefaultStamina = Mathf.Clamp(clone.DefaultStamina, 0, clone.MaxStamina);
                 clone.Reset();
@@ -156,11 +157,6 @@ namespace MortalModHost
                     + "; paralyzed_resist=" + clone.ParalyzedResist
                     + "; weapon_poison_value=" + clone.WeaponPoisonValue
                     + "; weapon_paralyzed_value=" + clone.WeaponParalyzedValue
-                    + "; confucianism=" + clone.Confucianism
-                    + "; buddhism=" + clone.Buddhism
-                    + "; taoism=" + clone.Taoism
-                    + "; xingyi=" + clone.Xingyi
-                    + "; strategy_level=" + clone.StrategyLevel
                     + "; weapon_hit_addition=" + clone.WeaponHitAddition
                     + "; weapon_damage_addition=" + clone.WeaponDamageAddition
                     + "; weapon_dice_addition=" + clone.WeaponDiceAddition
@@ -177,6 +173,49 @@ namespace MortalModHost
             {
                 GameplayOverrideFailure.Abort("决斗对手", ex);
             }
+        }
+
+        private static void Postfix(CombatActionController __instance, CombatStat data)
+        {
+            if (!GameplaySession.PendingCombat || __instance == null || !Owns(data))
+                return;
+            ReapplyStatItem(__instance, "stamina_power", delegate(CombatStatController stat, int v)
+            {
+                if (stat.Stamina != null) { stat.Stamina.SetBaseValue(v); stat.Stamina.UpdateFinalValue(); }
+            });
+            ReapplyStatItem(__instance, "strength", delegate(CombatStatController stat, int v)
+            {
+                if (stat.Strength != null) { stat.Strength.SetBaseValue(v); stat.Strength.UpdateFinalValue(); }
+            });
+            ReapplyStatItem(__instance, "dexterity", delegate(CombatStatController stat, int v)
+            {
+                if (stat.Dexterity != null) { stat.Dexterity.SetBaseValue(v); stat.Dexterity.UpdateFinalValue(); }
+            });
+            ReapplyStatItem(__instance, "sword", delegate(CombatStatController stat, int v)
+            {
+                if (stat.Sword != null) { stat.Sword.SetBaseValue(v); stat.Sword.UpdateFinalValue(); }
+            });
+            ReapplyStatItem(__instance, "fist", delegate(CombatStatController stat, int v)
+            {
+                if (stat.Fist != null) { stat.Fist.SetBaseValue(v); stat.Fist.UpdateFinalValue(); }
+            });
+            ReapplyStatItem(__instance, "martial_weapon", delegate(CombatStatController stat, int v)
+            {
+                if (stat.MartialWeapon != null) { stat.MartialWeapon.SetBaseValue(v); stat.MartialWeapon.UpdateFinalValue(); }
+            });
+            ReapplyStatItem(__instance, "talking", delegate(CombatStatController stat, int v)
+            {
+                if (stat.Talking != null) { stat.Talking.SetBaseValue(v); stat.Talking.UpdateFinalValue(); }
+            });
+        }
+
+        private static void ReapplyStatItem(
+            CombatActionController controller, string key, Action<CombatStatController, int> apply)
+        {
+            int value;
+            if (controller == null || controller.Stat == null) return;
+            if (!GameplaySession.TryConfigInt(key, 0, 10000, out value)) return;
+            apply(controller.Stat, value);
         }
 
         private static void ApplyInt(string key, int min, int max, Action<int> setter)
@@ -329,27 +368,60 @@ namespace MortalModHost
                 if (total == 0) return null;
                 throw new InvalidOperationException(side + "_faction 在人数非零时不能为空");
             }
+            if (GameLevelManager.Instance == null)
+                throw new InvalidOperationException("GameLevelManager 不可用");
             BattleLevelConfig config = Traverse.Create(GameLevelManager.Instance)
                 .Field("_levelConfig").GetValue<BattleLevelConfig>();
             if (config == null || config.List == null)
                 throw new InvalidOperationException("BattleLevelConfig 不可用");
+            BattleLevel selected = null;
             for (int i = 0; i < config.List.Count; i++)
             {
                 BattleLevel level = config.List[i];
-                if (level == null || !string.Equals(level.NameKey, faction, StringComparison.Ordinal)) continue;
-                GameObject prefab = Traverse.Create(level).Field(fieldName).GetValue<GameObject>();
-                if (prefab == null)
-                    throw new InvalidOperationException("战役阵营缺少可用 NPC 生成器：" + faction);
-                return prefab;
+                if (level == null || !string.Equals(level.NameKey, faction, StringComparison.Ordinal))
+                    continue;
+                selected = level;
+                break;
             }
-            throw new InvalidOperationException("找不到战役阵营：" + faction);
+            if (selected == null)
+            {
+                selected = config.Get("BL_0000");
+                LuaManagerPatch.Log?.LogWarning(
+                    "阵营 " + faction + " 没有独立 BattleLevel，已回退 BL_0000 安全基线");
+            }
+            if (selected == null)
+                throw new InvalidOperationException("找不到战役阵营：" + faction);
+            GameObject prefab = Traverse.Create(selected).Field(fieldName).GetValue<GameObject>();
+            if (prefab == null)
+                throw new InvalidOperationException("战役阵营缺少可用 NPC 生成器：" + faction);
+            return prefab;
         }
 
         internal static bool TryCount(string key, out int value)
         {
             value = 0;
             if (!GameplaySession.PendingBattle) return false;
-            try { return GameplaySession.TryConfigInt(key, 0, 10000, out value); }
+            try
+            {
+                string side = null;
+                if (string.Equals(key, "friend_people", StringComparison.Ordinal)) side = "friend";
+                else if (string.Equals(key, "enemy_people", StringComparison.Ordinal)) side = "enemy";
+                if (side != null)
+                {
+                    List<string> named = BattleCompositionPolicy.ParseCharacters(
+                        GameplaySession.ConfigString(side + "_characters"), 10000);
+                    int legacy;
+                    if (!GameplaySession.TryConfigInt(side + "_people", 0, 10000, out legacy))
+                        legacy = 0;
+                    value = BattleCompositionPolicy.TotalPeople(
+                        BattleCompositionPolicy.ResolveSideGroups(
+                            GameplaySession.ConfigString(side + "_factions"),
+                            named.Count, legacy),
+                        named.Count);
+                    return true;
+                }
+                return GameplaySession.TryConfigInt(key, 0, 10000, out value);
+            }
             catch (Exception ex)
             {
                 GameplayOverrideFailure.Abort("战役人数", ex);
@@ -392,35 +464,80 @@ namespace MortalModHost
         }
     }
 
-    [HarmonyPatch(typeof(BattleLevel), "get_FriendSpawnerPrefab")]
-    internal static class BattleFriendRosterPatch
+    /// <summary>
+    /// 原版 ReadyPanel.Setup 只写 Localization(EnemyTeam/NameKey)。
+    /// MOD 战役标题必须写到这块官方 Text，不能另做面板。
+    /// </summary>
+    [HarmonyPatch(typeof(ReadyPanel), "Setup")]
+    internal static class BattleReadyTitlePatch
     {
-        private static void Postfix(ref GameObject __result)
+        private static void Postfix(ReadyPanel __instance)
         {
-            if (!GameplaySession.PendingBattle) return;
-            try
-            {
-                GameObject replacement = BattleOverrideResolver.ResolveFactionSpawner(
-                    "friend", "_enemySpawnerPrefab");
-                if (replacement != null) __result = replacement;
-            }
-            catch (Exception ex) { GameplayOverrideFailure.Abort("我方战役阵营", ex); }
+            if (!GameplaySession.PendingBattle || __instance == null) return;
+            string title = GameplaySession.ConfigString("title");
+            if (string.IsNullOrWhiteSpace(title)) return;
+            UnityEngine.UI.Text text = Traverse.Create(__instance)
+                .Field("_enemyNameText").GetValue<UnityEngine.UI.Text>();
+            if (text == null) return;
+            text.text = title;
+            LuaManagerPatch.Log?.LogInfo("战役标题已写入 ReadyPanel：" + title);
         }
     }
 
-    [HarmonyPatch(typeof(BattleLevel), "get_EnemySpawnerPrefab")]
-    internal static class BattleEnemyRosterPatch
+    /// <summary>
+    /// 原版 CharacterHealth.MaxHealth = HealthData.Health + 转换加值。
+    /// 不得改官方 HealthData 资产；在本次实例上克隆后再 SetHealth。
+    /// Start() 在本帧末才跑，Create 后立刻替换即可成为初始血量。
+    /// </summary>
+    [HarmonyPatch(typeof(CharacterSpawnPoint), "Create")]
+    internal static class BattleNpcHealthPatch
     {
-        private static void Postfix(ref GameObject __result)
+        private static void Postfix(CharacterSpawnPoint __instance)
         {
-            if (!GameplaySession.PendingBattle) return;
+            if (!GameplaySession.PendingBattle || __instance == null) return;
             try
             {
-                GameObject replacement = BattleOverrideResolver.ResolveFactionSpawner(
-                    "enemy", "_enemySpawnerPrefab");
-                if (replacement != null) __result = replacement;
+                Transform owner = __instance.transform.parent;
+                string side = BattleNamedCharacterPatch.FindSide(
+                    owner != null ? owner.gameObject : null);
+                int health;
+                if (string.IsNullOrEmpty(side)
+                    || !GameplaySession.TryConfigInt(side + "_health", 1, 10000000, out health))
+                    return;
+                Character character = Traverse.Create(__instance)
+                    .Field("_instance").GetValue<Character>();
+                CharacterHealth body = character != null
+                    ? character.GetComponent<CharacterHealth>() : null;
+                if (body == null) return;
+                HealthData original = Traverse.Create(body)
+                    .Field("_defaultHealth").GetValue<HealthData>();
+                if (original == null)
+                    throw new InvalidOperationException("战役 NPC 缺少 HealthData");
+                HealthData clone = UnityObject.Instantiate(original);
+                clone.name = original.name + "__MortalModHost";
+                clone.SetHealth(health);
+                Traverse.Create(body).Field("_defaultHealth").SetValue(clone);
+                Traverse.Create(body).Field("_defaultAddHealth").SetValue(0);
             }
-            catch (Exception ex) { GameplayOverrideFailure.Abort("敌方战役阵营", ex); }
+            catch (Exception ex)
+            {
+                GameplayOverrideFailure.Abort("战役基础血量", ex);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 原版 CombatRound 是共享 ScriptableObject，OnEnable/Reset 会把已推进的
+    /// 回合打回 0。决斗开始后若再 Reset，界面就会停在第 0 回合。
+    /// </summary>
+    [HarmonyPatch(typeof(CombatRound), "Reset")]
+    internal static class CombatRoundResetGuard
+    {
+        private static bool Prefix(CombatRound __instance)
+        {
+            if (!GameplaySession.PendingCombat || __instance == null) return true;
+            int current = Traverse.Create(__instance).Field("_value").GetValue<int>();
+            return current <= 0;
         }
     }
 
@@ -455,7 +572,7 @@ namespace MortalModHost
                 {
                     RendererLayout[] layout = CaptureRendererLayout(controller);
                     Apply(controller, raw);
-                    RestoreRendererLayout(layout);
+                    RestoreRendererLayout(controller, layout);
                 }
                 catch (Exception ex)
                 {
@@ -551,7 +668,8 @@ namespace MortalModHost
                         VerifyOfficialRenderers(controller, isolatedAvatar, raw);
                         // 原版专用 Combat 帧已经包含正确的画布/pivot；只有 Story
                         // normal 静态回退才需要适配 Combat prefab 的占位空间。
-                        if (usingPortraitFallback) RestoreRendererLayout(officialLayout);
+                        if (usingPortraitFallback)
+                            RestoreRendererLayout(controller, officialLayout);
                     }
                     catch (Exception ex)
                     {
@@ -580,7 +698,7 @@ namespace MortalModHost
         /// <summary>
         /// Story 立绘与原生 Combat 帧的像素画布、pivot 和 PPU 并不相同。仅替换
         /// Sprite 会把半身立绘按原尺寸铺满屏幕。这里先记录原版 prefab 为每个状态
-        /// 预留的世界空间，再让替换图等比缩放，并按水平中心/底边对齐回该空间。
+        /// 预留的世界空间，再让替换图等比缩放，按水平中心与抬高后的站位线对齐。
         /// </summary>
         private sealed class RendererLayout
         {
@@ -609,28 +727,75 @@ namespace MortalModHost
             return result;
         }
 
-        private static void RestoreRendererLayout(RendererLayout[] layouts)
+        private static void RestoreRendererLayout(
+            CombatEnemyController controller, RendererLayout[] layouts)
         {
             if (layouts == null) return;
+            var valid = new bool[layouts.Length];
+            for (int i = 0; i < layouts.Length; i++)
+                valid[i] = layouts[i] != null && layouts[i].Valid;
+            int sharedIndex = CombatSpriteLayoutPolicy.SharedIdleIndex(valid);
+            Bounds shared = sharedIndex >= 0
+                ? layouts[sharedIndex].TargetBounds : default(Bounds);
+            bool useShared = sharedIndex >= 0
+                && shared.size.x > 0.001f && shared.size.y > 0.001f;
+            Transform idleTransform = null;
             for (int i = 0; i < layouts.Length; i++)
             {
                 RendererLayout layout = layouts[i];
                 SpriteRenderer renderer = layout != null ? layout.Renderer : null;
-                if (renderer == null || renderer.sprite == null || !layout.Valid) continue;
+                if (renderer == null || renderer.sprite == null) continue;
+                Bounds target = useShared ? shared : layout.TargetBounds;
+                if (!useShared && !layout.Valid) continue;
                 Bounds current = renderer.bounds;
                 if (current.size.x <= 0.001f || current.size.y <= 0.001f) continue;
-                float scale = Mathf.Min(
-                    layout.TargetBounds.size.x / current.size.x,
-                    layout.TargetBounds.size.y / current.size.y);
-                if (float.IsNaN(scale) || float.IsInfinity(scale) || scale <= 0f) continue;
+                float scale = CombatSpriteLayoutPolicy.FitScale(
+                    target.size.x, target.size.y, current.size.x, current.size.y);
+                if (scale <= 0f) continue;
                 renderer.transform.localScale *= scale;
                 current = renderer.bounds;
                 Vector3 offset = new Vector3(
-                    layout.TargetBounds.center.x - current.center.x,
-                    layout.TargetBounds.min.y - current.min.y,
+                    CombatSpriteLayoutPolicy.AlignCenterX(target.center.x, current.center.x),
+                    CombatSpriteLayoutPolicy.AlignCenterY(target.center.y, current.center.y),
                     0f);
                 renderer.transform.position += offset;
+                if (idleTransform == null) idleTransform = renderer.transform;
             }
+            if (idleTransform != null)
+            {
+                for (int i = 0; i < layouts.Length; i++)
+                {
+                    SpriteRenderer renderer = layouts[i] != null ? layouts[i].Renderer : null;
+                    if (renderer == null || renderer.transform == idleTransform) continue;
+                    renderer.transform.localPosition = idleTransform.localPosition;
+                    renderer.transform.localRotation = idleTransform.localRotation;
+                    renderer.transform.localScale = idleTransform.localScale;
+                }
+            }
+            PinSpriteTransforms(controller, layouts);
+        }
+
+        private static void PinSpriteTransforms(
+            CombatEnemyController controller, RendererLayout[] layouts)
+        {
+            if (controller == null || layouts == null) return;
+            CombatSpritePin pin = controller.GetComponent<CombatSpritePin>();
+            if (pin == null) pin = controller.gameObject.AddComponent<CombatSpritePin>();
+            var pins = new System.Collections.Generic.List<CombatSpritePin.Pin>();
+            for (int i = 0; i < layouts.Length; i++)
+            {
+                SpriteRenderer renderer = layouts[i] != null ? layouts[i].Renderer : null;
+                if (renderer == null) continue;
+                pins.Add(new CombatSpritePin.Pin
+                {
+                    Transform = renderer.transform,
+                    LocalPosition = renderer.transform.localPosition,
+                    LocalRotation = renderer.transform.localRotation,
+                    LocalScale = renderer.transform.localScale
+                });
+            }
+            pin.Pins = pins.ToArray();
+            pin.Apply();
         }
 
         private static void VerifyOfficialRenderers(
@@ -761,6 +926,38 @@ namespace MortalModHost
         }
     }
 
+    /// <summary>
+    /// 原版 SetSliderValue 用玩家 GameStat.Max（约 50）做分母。CombatStat 这几项
+    /// inspector 上限是 100，作者填 100 时滑条会被截成满格且等级按 50 计算。
+    /// </summary>
+    [HarmonyPatch(typeof(CombatCharacterStatusUI), "SetSliderValue")]
+    internal static class CombatStatusSliderMaxPatch
+    {
+        private static void Postfix(object __0, GameStatType gameStatType, int value)
+        {
+            if (!GameplaySession.PendingCombat || __0 == null) return;
+            GameStat gameStat = PlayerStatManagerData.Instance != null
+                && PlayerStatManagerData.Instance.Stats != null
+                ? PlayerStatManagerData.Instance.Stats.Get(gameStatType) : null;
+            int max = CombatStatDisplayPolicy.SliderMax;
+            float fill = Mathf.Clamp01((float)value / (float)max);
+            Traverse fields = Traverse.Create(__0);
+            UnityEngine.UI.Slider progress = fields.Field("Progress")
+                .GetValue<UnityEngine.UI.Slider>();
+            UnityEngine.UI.Text text = fields.Field("Text").GetValue<UnityEngine.UI.Text>();
+            if (progress != null) progress.value = fill;
+            if (text == null || gameStat == null || gameStat.LevelText == null
+                || gameStat.LevelText.Length == 0)
+                return;
+            int level = GameStatUtils.GetGameStatLevel(
+                value, max, gameStat.LevelText.Length);
+            if (level < 0) level = 0;
+            if (level >= gameStat.LevelText.Length) level = gameStat.LevelText.Length - 1;
+            text.text = LocalizationManager.Instance.LocaleResolver.GetString(
+                "StatLevel/" + gameStat.LevelText[level]);
+        }
+    }
+
     [HarmonyPatch(typeof(CombatManager), "OnDisable")]
     internal static class CombatRuntimeCleanupPatch
     {
@@ -780,6 +977,15 @@ namespace MortalModHost
     internal static class BattleNamedCharacterPatch
     {
         internal static bool Ready { get; set; }
+        private static readonly Dictionary<string, GameObject> NamedTemplates =
+            new Dictionary<string, GameObject>(StringComparer.Ordinal);
+
+        internal static void ClearNamedTemplates()
+        {
+            foreach (GameObject template in NamedTemplates.Values)
+                if (template != null) UnityObject.Destroy(template);
+            NamedTemplates.Clear();
+        }
 
         private static void Prefix(
             NpcSpawner __instance, GameObject spawnerObject, out string __state)
@@ -790,11 +996,11 @@ namespace MortalModHost
             if (side == null) return;
             try
             {
-                int total;
-                if (!GameplaySession.TryConfigInt(side + "_people", 0, 10000, out total)) total = 0;
-                List<string> ids = BattleCompositionPolicy.ParseCharacters(
-                    GameplaySession.ConfigString(side + "_characters"), total);
-                // 原版 specialNPC 始终是额外席位；v3 所有席位都必须包含在 total 内。
+                // 原版 InitNpcList 对 NpcPresets 做 Dictionary.Add(prefab.name)。
+                // BL_0000 与丐帮等阵营会共用 丐幫_拋射_敵方 这类 preset；合并或
+                // 条件变体重名都会当场抛 ArgumentException。这里只保留每个名字
+                // 的第一条，再清掉 _specialNPCs，人数与队列在 Postfix 重建。
+                DedupPresetsByPrefabName(__instance);
                 Traverse.Create(__instance).Field("_specialNPCs").SetValue(new NpcSpawnPreset[0]);
                 __state = side;
             }
@@ -804,7 +1010,60 @@ namespace MortalModHost
             }
         }
 
-        private static string FindSide(GameObject spawnPoints)
+        private static void DedupPresetsByPrefabName(NpcSpawner instance)
+        {
+            if (instance == null || instance.NpcPresets == null) return;
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            var kept = new List<NpcSpawnPreset>();
+            for (int i = 0; i < instance.NpcPresets.Count; i++)
+            {
+                NpcSpawnPreset preset = instance.NpcPresets[i];
+                if (preset == null || preset.Prefab == null) continue;
+                if (!seen.Add(preset.Prefab.name)) continue;
+                kept.Add(preset);
+            }
+            instance.NpcPresets.Clear();
+            for (int i = 0; i < kept.Count; i++) instance.NpcPresets.Add(kept[i]);
+        }
+
+        private static List<NpcSpawnPreset> CollectFactionPresets(string side, string faction)
+        {
+            var extras = new List<NpcSpawnPreset>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            if (GameLevelManager.Instance == null)
+                throw new InvalidOperationException("GameLevelManager 不可用");
+            BattleLevelConfig config = Traverse.Create(GameLevelManager.Instance)
+                .Field("_levelConfig").GetValue<BattleLevelConfig>();
+            if (config == null || config.List == null)
+                throw new InvalidOperationException("BattleLevelConfig 不可用");
+            string preferred = string.Equals(side, "friend", StringComparison.Ordinal)
+                ? "_friendSpawnerPrefab" : "_enemySpawnerPrefab";
+            string[] fields = { preferred, "_enemySpawnerPrefab", "_friendSpawnerPrefab" };
+            for (int i = 0; i < config.List.Count; i++)
+            {
+                BattleLevel level = config.List[i];
+                if (level == null
+                    || !string.Equals(level.NameKey, faction, StringComparison.Ordinal))
+                    continue;
+                for (int f = 0; f < fields.Length; f++)
+                {
+                    GameObject owner = Traverse.Create(level).Field(fields[f]).GetValue<GameObject>();
+                    NpcSpawner source = owner != null ? owner.GetComponent<NpcSpawner>() : null;
+                    if (source == null || source.NpcPresets == null) continue;
+                    for (int p = 0; p < source.NpcPresets.Count; p++)
+                    {
+                        NpcSpawnPreset preset = source.NpcPresets[p];
+                        if (preset == null || preset.Prefab == null) continue;
+                        if (!seen.Add(preset.Prefab.name)) continue;
+                        extras.Add(preset);
+                    }
+                    if (extras.Count > 0) return extras;
+                }
+            }
+            return extras;
+        }
+
+        internal static string FindSide(GameObject spawnPoints)
         {
             if (spawnPoints == null || GameLevelManager.Instance == null) return null;
             Transform parent = spawnPoints.transform.parent;
@@ -820,37 +1079,61 @@ namespace MortalModHost
             if (string.IsNullOrEmpty(__state) || __instance == null) return;
             try
             {
-                int total;
-                GameplaySession.TryConfigInt(__state + "_people", 0, 10000, out total);
                 List<string> ids = BattleCompositionPolicy.ParseCharacters(
-                    GameplaySession.ConfigString(__state + "_characters"), total);
+                    GameplaySession.ConfigString(__state + "_characters"), 10000);
+                int legacy;
+                if (!GameplaySession.TryConfigInt(__state + "_people", 0, 10000, out legacy))
+                    legacy = 0;
+                List<BattleCompositionPolicy.FactionGroup> groups =
+                    BattleCompositionPolicy.ResolveSideGroups(
+                        GameplaySession.ConfigString(__state + "_factions"),
+                        ids.Count, legacy);
+                int total = BattleCompositionPolicy.TotalPeople(groups, ids.Count);
                 Queue<NpcSpawnPreset> queue = Traverse.Create(__instance)
                     .Field("_npcQueue").GetValue<Queue<NpcSpawnPreset>>();
-                if (queue == null || queue.Count != total)
-                    throw new InvalidOperationException("原版 NPC 队列人数与声明总人数不一致");
-                if (ids.Count == 0) return;
-                var replacements = new List<NpcSpawnPreset>();
+                if (queue == null)
+                    throw new InvalidOperationException("原版 NPC 队列不可用");
+                var built = new List<NpcSpawnPreset>();
+                for (int g = 0; g < groups.Count; g++)
+                {
+                    List<NpcSpawnPreset> pool = CollectFactionPresets(__state, groups[g].Id);
+                    if (pool.Count == 0)
+                    {
+                        LuaManagerPatch.Log?.LogWarning(
+                            "附加兵种 " + groups[g].Id + " 没有可生成的 NPC preset，已跳过该阵营人数");
+                        continue;
+                    }
+                    for (int n = 0; n < groups[g].People; n++)
+                        built.Add(pool[n % pool.Count]);
+                }
                 for (int i = 0; i < ids.Count; i++)
                 {
-                    NpcSpawnPreset replacement = TryResolveNamed(ids[i]);
-                    replacements.Add(replacement);
-                    if (replacement == null)
+                    NpcSpawnPreset named = TryResolveNamed(ids[i], __state);
+                    if (named == null)
+                    {
                         LuaManagerPatch.Log?.LogWarning(
-                            "官方 BattleLevelConfig 没有可生成的 NPC preset：" + ids[i]
-                            + "；该具名席位保留所选阵营的普通 NPC，战役继续");
+                            "官方 BattleLevelConfig 没有可生成的 NPC preset：" + ids[i]);
+                        continue;
+                    }
+                    built.Add(named);
                 }
-                var rows = queue.ToArray();
+                if (built.Count == 0) return;
                 queue.Clear();
-                for (int i = 0; i < rows.Length; i++)
-                    queue.Enqueue(i < replacements.Count && replacements[i] != null
-                        ? replacements[i] : rows[i]);
-                if (queue.Count != total)
-                    throw new InvalidOperationException("替换具名角色后 NPC 队列人数发生变化");
+                for (int i = 0; i < built.Count; i++) queue.Enqueue(built[i]);
+                object spawnerData = Traverse.Create(__instance).Field("_spawnerData").GetValue();
+                if (spawnerData != null)
+                    Traverse.Create(spawnerData).Property("MaxCount").SetValue(built.Count);
+                Traverse.Create(__instance).Property("CurrentCount").SetValue(built.Count);
+                if (queue.Count != built.Count)
+                    throw new InvalidOperationException("按阵营人数重建 NPC 队列后人数不一致");
+                LuaManagerPatch.Log?.LogInfo(
+                    __state + " 已按附加兵种重建队列，人数=" + built.Count
+                    + "（声明合计 " + total + "）");
             }
             catch (Exception ex) { GameplayOverrideFailure.Abort("战役具名角色", ex); }
         }
 
-        private static NpcSpawnPreset TryResolveNamed(string id)
+        private static NpcSpawnPreset TryResolveNamed(string id, string side)
         {
             if (!BattleCompositionPolicy.HasNpcPrefabAsset(id)) return null;
             BattleLevelConfig config = Traverse.Create(GameLevelManager.Instance)
@@ -874,12 +1157,57 @@ namespace MortalModHost
                     }
                 }
             }
-            // BattleLevelConfig.List 是原版 Setup 唯一读取的关卡/NPC preset 配置库。
-            // Addressables 中 brother1/2/4、girl4/9、sister1 对应的是玩家战场技能
-            // Animator/切入图，不是带 NpcCharacter/NpcStat 的可生成 prefab；不得把
-            // 技能动画控制器猜成 NPC。配置库确无 preset 时返回 null，由调用方保留
-            // 阵营普通席位，避免在 Battle Setup 中抛异常并中断整场战役。
-            return found;
+            if (found != null) return found;
+            return TryBuildNamedFromOfficialAnimator(id, side);
+        }
+
+        private static NpcSpawnPreset TryBuildNamedFromOfficialAnimator(string id, string side)
+        {
+            GameObject cached;
+            if (NamedTemplates.TryGetValue(id, out cached) && cached != null)
+                return new NpcSpawnPreset { Prefab = cached };
+            string address;
+            if (!BattleCompositionPolicy.TryOfficialBattleAnimatorAddress(id, out address))
+                return null;
+            AsyncOperationHandle<RuntimeAnimatorController> handle =
+                Addressables.LoadAssetAsync<RuntimeAnimatorController>(address);
+            RuntimeAnimatorController controller = handle.WaitForCompletion();
+            if (controller == null)
+            {
+                Addressables.Release(handle);
+                LuaManagerPatch.Log?.LogWarning(
+                    "官方战役人物 " + id + " 的 Battle Animator 未能载入：" + address);
+                return null;
+            }
+            List<string> factions = BattleCompositionPolicy.ParseFactions(
+                GameplaySession.ConfigString(side + "_factions"));
+            List<NpcSpawnPreset> pool = factions.Count > 0
+                ? CollectFactionPresets(side, factions[0]) : new List<NpcSpawnPreset>();
+            if (pool.Count == 0)
+            {
+                Addressables.Release(handle);
+                LuaManagerPatch.Log?.LogWarning(
+                    "官方战役人物 " + id + " 需要同阵营兵种作为生成底板，但该方没有可用 preset");
+                return null;
+            }
+            GameObject template = UnityObject.Instantiate(pool[0].Prefab);
+            template.name = id + "__MortalModHost";
+            template.SetActive(false);
+            UnityObject.DontDestroyOnLoad(template);
+            Animator[] animators = template.GetComponentsInChildren<Animator>(true);
+            if (animators.Length == 0)
+            {
+                UnityObject.Destroy(template);
+                Addressables.Release(handle);
+                return null;
+            }
+            for (int i = 0; i < animators.Length; i++)
+                animators[i].runtimeAnimatorController = controller;
+            NamedTemplates[id] = template;
+            LuaManagerPatch.Log?.LogInfo(
+                "官方战役人物 " + id + " 不在 BattleLevelConfig 预设表中；已用 catalog 实证 Animator 套到同阵营底板："
+                + address);
+            return new NpcSpawnPreset { Prefab = template };
         }
 
         private static NpcSpawnPreset MatchPreset(

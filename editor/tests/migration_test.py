@@ -50,6 +50,8 @@ class MigrationPureTest(unittest.TestCase):
             "id": "main", "title": "battle", "start": "war",
             "nodes": [{
                 "id": "war", "type": "battle",
+                "friend_faction": "500",
+                "enemy_faction": "400",
                 "friend_characters": ["brother4", "special4"],
                 "enemy_characters": ["special3", "special102"],
             }],
@@ -58,7 +60,37 @@ class MigrationPureTest(unittest.TestCase):
         node = migrated.document["nodes"][0]
         self.assertEqual(node["friend_characters"], ["special4"])
         self.assertEqual(node["enemy_characters"], ["special102"])
+        self.assertNotIn("friend_faction", node)
+        self.assertNotIn("enemy_faction", node)
+        self.assertEqual(node["friend_factions"], [{"id": "500", "people": 1}])
+        self.assertEqual(node["enemy_factions"], [])
+        self.assertNotIn("friend_people", node)
+        self.assertNotIn("enemy_people", node)
         self.assertTrue(any("spawnable NPC prefab" in step for step in migrated.steps))
+        self.assertTrue(any("attachable list" in step for step in migrated.steps))
+
+    def test_story_migration_splits_manual_people_onto_faction_rows(self):
+        document = {
+            "story_schema": STORY_SCHEMA,
+            "id": "main", "title": "battle", "start": "war",
+            "nodes": [{
+                "id": "war", "type": "battle",
+                "friend_factions": ["500", "001"],
+                "friend_people": 8,
+                "friend_characters": ["special4"],
+                "enemy_factions": [{"id": "002", "people": 4}],
+                "enemy_people": 4,
+                "win": "end", "lose": "end",
+            }, {"id": "end", "type": "end"}],
+        }
+        node = migration.migrate_story(document).document["nodes"][0]
+        self.assertEqual(node["friend_factions"], [
+            {"id": "500", "people": 6},
+            {"id": "001", "people": 1},
+        ])
+        self.assertEqual(node["enemy_factions"], [{"id": "002", "people": 4}])
+        self.assertNotIn("friend_people", node)
+        self.assertNotIn("enemy_people", node)
 
     def test_combat_display_name_is_removed_and_character_owns_name(self):
         source = {
@@ -68,7 +100,9 @@ class MigrationPureTest(unittest.TestCase):
                     "id": "fight", "type": "combat", "character": "artist1",
                     "display_name": "错误的自由名称",
                     "ultimate_one": "special3", "ultimate_two": "player_1",
-                    "ultimate_three": "sister1_1", "win": "end", "lose": "end",
+                    "ultimate_three": "sister1_1",
+                    "confucianism": 1, "strategy_level": 2,
+                    "win": "end", "lose": "end",
                 },
                 {"id": "end", "type": "end"},
             ],
@@ -78,7 +112,10 @@ class MigrationPureTest(unittest.TestCase):
         self.assertNotIn("display_name", migrated.document["nodes"][0])
         self.assertEqual(migrated.document["nodes"][0]["character"], "artist1")
         self.assertEqual(migrated.document["nodes"][0]["background"], "center")
-        for field in ("ultimate_one", "ultimate_two", "ultimate_three"):
+        for field in (
+            "ultimate_one", "ultimate_two", "ultimate_three",
+            "confucianism", "strategy_level",
+        ):
             self.assertNotIn(field, migrated.document["nodes"][0])
 
     def test_pure_migrations_preserve_unknown_fields_and_input(self):

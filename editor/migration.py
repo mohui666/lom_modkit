@@ -241,11 +241,18 @@ def migrate_story(document: dict) -> MigrationResult:
 
     removed_combat_names = 0
     removed_dead_combat_ultimates = 0
+    removed_talent_driven_combat_stats = 0
     added_combat_backgrounds = 0
     removed_unspawnable_battle_characters = 0
     spawnable_battle_characters = {
         "special4", "special102", "special103", "special401", "special811",
     }
+    spawnable_battle_factions = {
+        "000", "001", "002", "003", "004", "006", "008", "009", "010",
+        "100", "200", "201", "300", "500",
+    }
+    remapped_battle_factions = 0
+    converted_battle_faction_lists = 0
     for node in result.get("nodes", []):
         if isinstance(node, dict) and node.get("type") == "combat":
             if "display_name" in node:
@@ -255,10 +262,78 @@ def migrate_story(document: dict) -> MigrationResult:
                 if field in node:
                     node.pop(field, None)
                     removed_dead_combat_ultimates += 1
+            for field in (
+                "confucianism", "buddhism", "taoism", "xingyi", "strategy_level",
+            ):
+                if field in node:
+                    node.pop(field, None)
+                    removed_talent_driven_combat_stats += 1
             if not node.get("background"):
                 node["background"] = "center"
                 added_combat_backgrounds += 1
         if isinstance(node, dict) and node.get("type") == "battle":
+            for singular, plural in (
+                ("friend_faction", "friend_factions"),
+                ("enemy_faction", "enemy_factions"),
+            ):
+                if singular in node:
+                    faction = node.pop(singular)
+                    converted_battle_faction_lists += 1
+                    existing = node.get(plural)
+                    rows = list(existing) if isinstance(existing, list) else []
+                    if isinstance(faction, str) and faction:
+                        if faction not in spawnable_battle_factions:
+                            remapped_battle_factions += 1
+                        elif faction not in rows:
+                            rows.append(faction)
+                    node[plural] = rows
+            for field in ("friend_factions", "enemy_factions"):
+                old = node.get(field)
+                if not isinstance(old, list):
+                    continue
+                converted = []
+                seen = set()
+                for item in old:
+                    if isinstance(item, dict):
+                        faction_id = item.get("id")
+                        try:
+                            people = int(item.get("people") or 1)
+                        except (TypeError, ValueError):
+                            people = 1
+                    else:
+                        faction_id = item
+                        people = 1
+                    if faction_id not in spawnable_battle_factions:
+                        remapped_battle_factions += 1
+                        continue
+                    if faction_id in seen:
+                        remapped_battle_factions += 1
+                        continue
+                    seen.add(faction_id)
+                    converted.append({"id": faction_id, "people": max(1, people)})
+                side = "friend" if field.startswith("friend") else "enemy"
+                legacy_people = node.get(side + "_people")
+                named = node.get(side + "_characters")
+                named_count = len(named) if isinstance(named, list) else 0
+                current = sum(item["people"] for item in converted)
+                if (
+                    isinstance(legacy_people, int)
+                    and not isinstance(legacy_people, bool)
+                    and legacy_people > current + named_count
+                    and converted
+                    and all(
+                        not isinstance(item, dict) or "people" not in item
+                        for item in old
+                    )
+                ):
+                    converted[0]["people"] += legacy_people - current - named_count
+                if converted != old:
+                    converted_battle_faction_lists += 1
+                node[field] = converted
+            for field in ("friend_people", "enemy_people"):
+                if field in node:
+                    node.pop(field, None)
+                    converted_battle_faction_lists += 1
             for field in ("friend_characters", "enemy_characters"):
                 old = node.get(field)
                 if not isinstance(old, list):
@@ -274,6 +349,10 @@ def migrate_story(document: dict) -> MigrationResult:
         steps.append(
             "remove unused combat ultimate slots; original Combat never reads them"
         )
+    if removed_talent_driven_combat_stats:
+        steps.append(
+            "remove combat proficiency stats; original Combat writes them from talents"
+        )
     if added_combat_backgrounds:
         steps.append(
             "add explicit combat background=center; background is independent of character"
@@ -281,6 +360,14 @@ def migrate_story(document: dict) -> MigrationResult:
     if removed_unspawnable_battle_characters:
         steps.append(
             "remove Battle named characters without a verified spawnable NPC prefab"
+        )
+    if converted_battle_faction_lists:
+        steps.append(
+            "convert Battle faction to an attachable list; roster is no longer replaced"
+        )
+    if remapped_battle_factions:
+        steps.append(
+            "drop Battle factions that have no official BattleLevel troop presets"
         )
 
     legacy_dice = [

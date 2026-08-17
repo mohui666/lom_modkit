@@ -35,18 +35,29 @@
     {
       "id": "battle1",
       "type": "battle",
-      "friend_faction": "500",
-      "friend_people": 3,
+      "friend_factions": [
+        {
+          "id": "500",
+          "people": 2
+        }
+      ],
       "friend_characters": [
         "special4"
       ],
-      "enemy_faction": "400",
-      "enemy_people": 3,
+      "enemy_factions": [
+        {
+          "id": "001",
+          "people": 2
+        }
+      ],
       "enemy_characters": [
         "special102"
       ],
       "win": "battle_result1",
-      "lose": "battle_result1"
+      "lose": "battle_result1",
+      "title": "丐帮围攻",
+      "friend_health": 220,
+      "enemy_health": 180
     },
     {
       "id": "battle_result1",

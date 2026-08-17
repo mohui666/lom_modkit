@@ -181,8 +181,8 @@ _COMBAT_VITAL_FIELDS = {
 }
 _COMBAT_STAT_FIELDS = {
     "strength", "internal", "dexterity", "talking", "defence", "sword",
-    "fist", "martial_weapon", "mental", "confucianism", "buddhism", "taoism",
-    "xingyi", "strategy_level", "weapon_poison_value", "weapon_paralyzed_value",
+    "fist", "martial_weapon", "mental",
+    "weapon_poison_value", "weapon_paralyzed_value",
     "poison_resist", "paralyzed_resist", "disposition", "behaviour", "karma",
     "training", "attack_damage_addition", "defence_addition", "ultimate_damage_rate",
     "attack_dice_addition", "weapon_damage_addition", "weapon_dice_addition",
@@ -192,9 +192,9 @@ _COMBAT_STAT_FIELDS = {
 _COMBAT_RATE_FIELDS = {
     "talk_rate", "attack_rate", "weapon_rate", "ultimate_rate", "block_rate",
 }
-_BATTLE_PEOPLE_FIELDS = {"friend_people", "enemy_people"}
-_BATTLE_FACTION_FIELDS = {"friend_faction", "enemy_faction"}
+_BATTLE_FACTION_FIELDS = {"friend_factions", "enemy_factions"}
 _BATTLE_CHARACTER_FIELDS = {"friend_characters", "enemy_characters"}
+_BATTLE_HEALTH_FIELDS = {"friend_health", "enemy_health"}
 
 
 def _field_label(node_type: str, key: str, fallback: str) -> str:
@@ -226,10 +226,12 @@ def _field_effect(node_type: str, key: str, field_label: str, optional: bool) ->
         if key in _COMBAT_RATE_FIELDS:
             return t("reference.effect.combat_rate", field=field_label)
     if node_type == "battle":
+        if key == "title":
+            return t("reference.effect.battle_title", field=field_label)
+        if key in _BATTLE_HEALTH_FIELDS:
+            return t("reference.effect.battle_health", field=field_label)
         if key in _BATTLE_FACTION_FIELDS:
             return t("reference.effect.battle_faction", field=field_label)
-        if key in _BATTLE_PEOPLE_FIELDS:
-            return t("reference.effect.battle_people", field=field_label)
         if key in _BATTLE_CHARACTER_FIELDS:
             return t("reference.effect.battle_characters", field=field_label)
     if node_type == "dice":

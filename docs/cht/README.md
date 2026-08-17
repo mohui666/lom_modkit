@@ -24,7 +24,7 @@
 | [current_capabilities](current_capabilities.md) | 作者 / 維護者 | 目前已實作、僅有底層介面和尚未實作的功能邊界 |
 | [i18n](i18n.md) | 維護者 | 多語言架構：編輯器介面、遊戲內 Mod 選單、名詞對照表再產生、文件翻譯約定 |
 
-`research/` 是逆向研究材料（反編譯腳本等），僅存檔，不翻譯。
+維護者手冊、水印細節與反編譯流程只維護簡中：見 [`../chs/maintainers.md`](../chs/maintainers.md)、[`../chs/decompiled_api.md`](../chs/decompiled_api.md)。整份遊戲反編譯源碼不進倉庫。
 
 編輯器按 `Ctrl+Shift+F` 可跨專案搜尋章節、步驟、台詞、人物、素材、變數、Flag 與跳轉；雙擊結果直接定位，並可用「誰引用了它？」查看精確引用位置。
 

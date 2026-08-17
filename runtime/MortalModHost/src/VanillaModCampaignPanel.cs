@@ -143,22 +143,10 @@ namespace MortalModHost
                     ? RecentSaveField.GetValue(_panel) as RecentSaveSlotPanel : null;
                 RememberAndHideAuxiliarySlots();
 
-                _startCampaign = startCampaign;
-                _loadCampaign = loadCampaign;
-                _loadAutoCampaign = loadAutoCampaign;
-                _campaignSelected = campaignSelected;
-                _flow = new CampaignMenuFlow(Campaigns, recentCampaignId);
-                if (!string.IsNullOrEmpty(recentCampaignId) && _flow.RecentPackage == null
-                    && _campaignSelected != null)
-                    _campaignSelected("");
-                _logInfo = logInfo;
-                _logWarning = logWarning;
-                _active = true;
-                _panel.enabled = false;
-                RenderCampaignList();
-                if (_logInfo != null)
-                    _logInfo("已用原版 LoadGamePanel 打开 MOD 战役存档页。");
-                return true;
+                return BindOpenedPanel(
+                    startCampaign, loadCampaign, loadAutoCampaign,
+                    recentCampaignId, campaignSelected, logInfo, logWarning,
+                    "");
             }
             catch (Exception ex)
             {
@@ -167,6 +155,103 @@ namespace MortalModHost
                 Remove();
                 return false;
             }
+        }
+
+        internal static bool OpenExisting(
+            CommonPanel host,
+            LoadGamePanel panel,
+            IList<ModPackage> packages,
+            Action<ModPackage> startCampaign,
+            Action<ModPackage> loadCampaign,
+            Action<ModPackage, string> loadAutoCampaign,
+            string recentCampaignId,
+            string preferredCampaignId,
+            Action<string> campaignSelected,
+            Action<string> logInfo,
+            Action<string> logWarning)
+        {
+            Remove();
+            if (startCampaign == null) throw new ArgumentNullException(nameof(startCampaign));
+            if (loadCampaign == null) throw new ArgumentNullException(nameof(loadCampaign));
+            if (loadAutoCampaign == null) throw new ArgumentNullException(nameof(loadAutoCampaign));
+            Campaigns.Clear();
+            if (packages != null)
+            {
+                for (int i = 0; i < packages.Count; i++)
+                {
+                    ModPackage package = packages[i];
+                    if (package != null && package.Campaign != null
+                        && package.Campaign.NewGame)
+                        Campaigns.Add(package);
+                }
+            }
+            Campaigns.Sort(delegate(ModPackage left, ModPackage right)
+            {
+                return string.Compare(left.Id, right.Id, StringComparison.Ordinal);
+            });
+            try
+            {
+                if (host == null || panel == null)
+                    throw new InvalidOperationException("游戏内读档面板不可用");
+                _commonPanel = host;
+                _panel = panel;
+                if (!_commonPanel.gameObject.activeInHierarchy)
+                    _commonPanel.Show(true);
+                _slots = SaveSlotsField != null
+                    ? SaveSlotsField.GetValue(_panel) as LoadSlotPanel[] : null;
+                if (_slots == null || _slots.Length < 2)
+                    throw new InvalidOperationException("原版读档槽不足，无法打开 MOD 存档页");
+                _autoSlots = AutoSaveSlotsField != null
+                    ? AutoSaveSlotsField.GetValue(_panel) as AutoSaveSlotPanel[] : null;
+                _recentSlot = RecentSaveField != null
+                    ? RecentSaveField.GetValue(_panel) as RecentSaveSlotPanel : null;
+                RememberAndHideAuxiliarySlots();
+                return BindOpenedPanel(
+                    startCampaign, loadCampaign, loadAutoCampaign,
+                    recentCampaignId, campaignSelected, logInfo, logWarning,
+                    preferredCampaignId);
+            }
+            catch (Exception ex)
+            {
+                if (logWarning != null)
+                    logWarning("游戏内 MOD 读档页建立失败：" + ex.Message);
+                Remove();
+                return false;
+            }
+        }
+
+        private static bool BindOpenedPanel(
+            Action<ModPackage> startCampaign,
+            Action<ModPackage> loadCampaign,
+            Action<ModPackage, string> loadAutoCampaign,
+            string recentCampaignId,
+            Action<string> campaignSelected,
+            Action<string> logInfo,
+            Action<string> logWarning,
+            string preferredCampaignId)
+        {
+            _startCampaign = startCampaign;
+            _loadCampaign = loadCampaign;
+            _loadAutoCampaign = loadAutoCampaign;
+            _campaignSelected = campaignSelected;
+            _flow = new CampaignMenuFlow(Campaigns, recentCampaignId);
+            if (!string.IsNullOrEmpty(recentCampaignId) && _flow.RecentPackage == null
+                && _campaignSelected != null)
+                _campaignSelected("");
+            _logInfo = logInfo;
+            _logWarning = logWarning;
+            _active = true;
+            _panel.enabled = false;
+            if (!string.IsNullOrEmpty(preferredCampaignId) && _flow.Select(preferredCampaignId))
+            {
+                if (_campaignSelected != null) _campaignSelected(preferredCampaignId);
+                RenderSelectedCampaign();
+            }
+            else
+                RenderCampaignList();
+            if (_logInfo != null)
+                _logInfo("已用原版 LoadGamePanel 打开 MOD 战役存档页。");
+            return true;
         }
 
         internal static void Maintain()
@@ -519,6 +604,21 @@ namespace MortalModHost
         private static void SetActive(GameObject owner, bool active)
         {
             if (owner != null) owner.SetActive(active);
+        }
+    }
+
+    /// <summary>
+    /// 游戏内菜单「读取」打开的是 MenuPanel._loadPanel 里的原版 LoadGamePanel。
+    /// MOD 战役中改为直接复用标题那套战役存档页，并按当前 campaign 显示存档。
+    /// </summary>
+    [HarmonyPatch(typeof(MenuPanel), "LoadButtonClick")]
+    internal static class InGameLoadMenuPatch
+    {
+        private static void Postfix(MenuPanel __instance)
+        {
+            if (__instance == null || VanillaModCampaignPanel.IsActive) return;
+            if (Plugin.Instance == null) return;
+            Plugin.Instance.TryOpenInGameModLoadMenu(__instance);
         }
     }
 }

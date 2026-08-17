@@ -172,6 +172,7 @@ namespace MortalModHost
                 TestPackageFingerprint();
                 TestPreviewPackagePrecedence();
                 TestCombatBackgroundAddressPolicy();
+                TestCombatSpriteLayoutPolicy();
                 TestPreviewRequest(modsDir);
                 TestUserContent();
                 TestDisclosurePolicy();
@@ -914,6 +915,23 @@ namespace MortalModHost
                 "非图片 Addressables 地址不得通过");
         }
 
+        private static void TestCombatSpriteLayoutPolicy()
+        {
+            Assert(CombatSpriteLayoutPolicy.FitScale(4f, 8f, 2f, 2f) == 2f,
+                "应取宽高限制中更紧的缩放");
+            Assert(CombatSpriteLayoutPolicy.FitScale(0f, 8f, 2f, 2f) == 0f,
+                "无效占位尺寸不得缩放");
+            Assert(CombatSpriteLayoutPolicy.AlignCenterX(10f, 7f) == 3f,
+                "水平应对齐占位中心");
+            Assert(CombatSpriteLayoutPolicy.AlignCenterY(10f, 4f) == 6f,
+                "无独立四帧时必须叠到官方待机中心，不得贴底");
+            Assert(CombatSpriteLayoutPolicy.SharedIdleIndex(new[] { true, true, true }) == 0
+                    && CombatSpriteLayoutPolicy.SharedIdleIndex(new[] { false, true }) == 1,
+                "无独立战斗动画时所有状态必须共用 idle 占位，避免切攻击上移");
+            Assert(CombatStatDisplayPolicy.SliderMax == 100,
+                "决斗详情滑条必须按 CombatStat 的 100 上限显示，不能用玩家 GameStat.Max=50");
+        }
+
         /// <summary>往已存在的 zip 追加二进制条目（Assets 图片测试用）。</summary>
         private static void AppendBinaryEntries(string path, params (string name, byte[] data)[] entries)
         {
@@ -1632,6 +1650,18 @@ namespace MortalModHost
             try { ModSaveSlotPolicy.IsolatedAutoSlot("mod_campaign_story-one", "quicksave"); }
             catch (ArgumentException) { rejected = true; }
             Assert(rejected, "未知自动槽必须 fail-closed");
+            Assert(!ModSaveSlotPolicy.ShouldHijackInGameLoad(true, true, "mod_campaign_alpha")
+                    && ModSaveSlotPolicy.ShouldHijackInGameLoad(false, true, "001")
+                    && ModSaveSlotPolicy.ShouldHijackInGameLoad(false, false, "mod_campaign_alpha")
+                    && !ModSaveSlotPolicy.ShouldHijackInGameLoad(false, false, "001"),
+                "只有游戏内 MOD 战役才劫持读取菜单，标题页仍走原版入口");
+            Assert(ModSaveSlotPolicy.PreferredInGameCampaignId("alpha", "mod_campaign_beta") == "alpha"
+                    && ModSaveSlotPolicy.PreferredInGameCampaignId("", "mod_campaign_beta_auto_free") == "beta",
+                "游戏内读取应按当前战役或隔离槽决定显示哪套存档");
+            string parsed;
+            Assert(CampaignIdentity.TryParseSlot("mod_campaign_story-one_auto_battle", out parsed)
+                    && parsed == "story-one",
+                "隔离自动槽必须能还原 campaign_id");
         }
 
         private static bool IsUpperHex(char c)

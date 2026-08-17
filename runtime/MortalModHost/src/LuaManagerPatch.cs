@@ -164,6 +164,7 @@ namespace MortalModHost
         {
             if (!RuntimeTrace.Active) return;
             GameplaySceneTransition.Reset();
+            BattleNamedCharacterPatch.ClearNamedTemplates();
             GameplaySession.Reset();
             RuntimeDebugControl.Continue();
 
@@ -227,6 +228,7 @@ namespace MortalModHost
             if (firstAttempt)
             {
                 GameplaySceneTransition.Reset();
+                BattleNamedCharacterPatch.ClearNamedTemplates();
                 GameplaySession.Reset();
                 _pendingAbortReason = string.IsNullOrEmpty(reason) ? "未知 MOD 演出故障" : reason;
                 RuntimeErrorReporter.Report(

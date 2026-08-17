@@ -22,6 +22,9 @@
     <Compile Include="..\..\src\BattleCompositionPolicy.cs" />
     <Compile Include="..\..\src\CombatCharacterPolicy.cs" />
     <Compile Include="..\..\src\CombatBackgroundAddressPolicy.cs" />
+    <Compile Include="..\..\src\CombatSpriteLayoutPolicy.cs" />
+    <Compile Include="..\..\src\CombatStatDisplayPolicy.cs" />
+    <!-- CombatSpritePin 依赖 Unity，不能进离线冒烟测试 -->
     <Compile Include="..\..\src\PositionNameMap.cs" />
     <Compile Include="..\..\src\PreviewRequest.cs" />
     <Compile Include="..\..\src\ContentRef.cs" />

@@ -34,5 +34,18 @@ namespace MortalModHost
         {
             return IsModSlot(candidate) ? (lastOfficialSlot ?? "") : (candidate ?? "");
         }
+
+        internal static bool ShouldHijackInGameLoad(bool titleScene, bool campaignActive, string currentSlot)
+        {
+            if (titleScene) return false;
+            return campaignActive || IsModSlot(currentSlot);
+        }
+
+        internal static string PreferredInGameCampaignId(string activeCampaignId, string currentSlot)
+        {
+            if (!string.IsNullOrEmpty(activeCampaignId)) return activeCampaignId;
+            string parsed;
+            return CampaignIdentity.TryParseSlot(currentSlot, out parsed) ? parsed : "";
+        }
     }
 }

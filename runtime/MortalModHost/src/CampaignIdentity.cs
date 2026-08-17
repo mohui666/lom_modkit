@@ -37,5 +37,24 @@ namespace MortalModHost
             return IsValid(campaignId)
                 && string.Equals(slot, SaveSlot(campaignId), StringComparison.Ordinal);
         }
+
+        internal static bool TryParseSlot(string slot, out string campaignId)
+        {
+            campaignId = "";
+            const string prefix = "mod_campaign_";
+            if (string.IsNullOrEmpty(slot)
+                || !slot.StartsWith(prefix, StringComparison.Ordinal))
+                return false;
+            string id = slot.Substring(prefix.Length);
+            if (id.EndsWith("_auto_battle", StringComparison.Ordinal))
+                id = id.Substring(0, id.Length - "_auto_battle".Length);
+            else if (id.EndsWith("_auto_free", StringComparison.Ordinal))
+                id = id.Substring(0, id.Length - "_auto_free".Length);
+            else if (id.EndsWith("_auto", StringComparison.Ordinal))
+                id = id.Substring(0, id.Length - "_auto".Length);
+            if (!IsValid(id)) return false;
+            campaignId = id;
+            return true;
+        }
     }
 }

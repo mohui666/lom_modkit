@@ -91,11 +91,9 @@ class GameplayV3ContractTest(unittest.TestCase):
             {
                 "id": "war",
                 "type": "battle",
-                "friend_faction": "001",
-                "friend_people": 2,
+                "friend_factions": [{"id": "001", "people": 2}],
                 "friend_characters": ["special4", "special401"],
-                "enemy_faction": "002",
-                "enemy_people": 1,
+                "enemy_factions": [{"id": "002", "people": 1}],
                 "enemy_characters": ["special102"],
                 "win": "win",
                 "lose": "lose",
@@ -103,14 +101,15 @@ class GameplayV3ContractTest(unittest.TestCase):
         )
         validate_story(source)
         lua = compile_story(source)
-        self.assertIn("friend_people=2", lua)
+        self.assertIn("friend_factions=001:2", lua)
         self.assertIn("friend_characters=special4,special401", lua)
-        self.assertIn("enemy_people=1", lua)
+        self.assertIn("enemy_factions=002:1", lua)
+        self.assertNotIn("friend_people", lua)
         self.assertIn('mod_gameplay_start_scene("battle")', lua)
 
-        too_many = story({**source["nodes"][0], "friend_people": 1})
-        with self.assertRaisesRegex(LomcError, "超过.*总人数"):
-            validate_story(too_many)
+        empty = story({**source["nodes"][0], "friend_factions": [], "friend_characters": []})
+        with self.assertRaisesRegex(LomcError, "总人数必须至少 1"):
+            validate_story(empty)
 
         duplicate = story(
             {**source["nodes"][0], "friend_characters": ["special4", "special4"]}

@@ -751,9 +751,9 @@ NODE_SCHEMAS: dict[str, dict] = {
             ("health", "对手初始血量", "int", True),
             ("max_stamina", "对手最大气力", "int", True),
             ("stamina", "对手初始气力", "int", True),
-            ("stamina_power", "对手内力", "int", True),
+            ("stamina_power", "对手内力（雷达）", "int", True),
             ("strength", "对手体力", "int", True),
-            ("internal", "对手阴阳（内功倾向）", "int", True),
+            ("internal", "对手阴阳内功", "int", True),
             ("dexterity", "对手轻功", "int", True),
             ("talking", "对手嘴力", "int", True),
             ("defence", "对手防御", "int", True),
@@ -761,11 +761,6 @@ NODE_SCHEMAS: dict[str, dict] = {
             ("fist", "对手拳掌", "int", True),
             ("martial_weapon", "对手暗器", "int", True),
             ("mental", "对手心相", "int", True),
-            ("confucianism", "对手儒学", "int", True),
-            ("buddhism", "对手佛学", "int", True),
-            ("taoism", "对手道学", "int", True),
-            ("xingyi", "对手形意", "int", True),
-            ("strategy_level", "对手战术等级", "int", True),
             ("weapon_poison_value", "对手暗器中毒累积值", "int", True),
             ("weapon_paralyzed_value", "对手暗器麻痹累积值", "int", True),
             ("poison_resist", "对手抗毒", "int", True),
@@ -797,12 +792,13 @@ NODE_SCHEMAS: dict[str, dict] = {
     "battle": {
         "label": "原版大规模战役",
         "fields": [
-            ("friend_faction", "我方阵营", "battle_faction", False),
-            ("friend_people", "我方总人数（含具名角色）", "int", False),
-            ("friend_characters", "我方官方具名角色", "official_characters", True),
-            ("enemy_faction", "敌方阵营", "battle_faction", False),
-            ("enemy_people", "敌方总人数（含具名角色）", "int", False),
-            ("enemy_characters", "敌方官方具名角色", "official_characters", True),
+            ("title", "战役标题", "line", True),
+            ("friend_health", "我方 NPC 基础血量", "int", True),
+            ("friend_factions", "我方附加兵种", "battle_faction_list", True),
+            ("friend_characters", "我方附加具名角色", "official_characters", True),
+            ("enemy_health", "敌方 NPC 基础血量", "int", True),
+            ("enemy_factions", "敌方附加兵种", "battle_faction_list", True),
+            ("enemy_characters", "敌方附加具名角色", "official_characters", True),
             ("win", "友军胜利后", "node_ref", False),
             ("lose", "敌军胜利后", "node_ref", False),
         ],
@@ -1094,8 +1090,10 @@ _NODE_DEFAULTS: dict[str, dict] = {
         "win": "", "lose": "",
     },
     "battle": {
-        "friend_faction": "", "friend_people": 1, "friend_characters": [],
-        "enemy_faction": "", "enemy_people": 1, "enemy_characters": [],
+        "friend_factions": [{"id": "500", "people": 1}],
+        "friend_characters": [],
+        "enemy_factions": [{"id": "001", "people": 1}],
+        "enemy_characters": [],
         "win": "", "lose": "",
     },
     "battle_result": {"kind": "any", "win": "", "lose": ""},
@@ -1171,6 +1169,11 @@ DEFAULT_PORTRAITS = [
 # 仅这些人物已在原版 Addressables catalog 中实证有 Battle 具名资源。
 VERIFIED_BATTLE_CHARACTER_IDS = (
     "special4", "special102", "special103", "special401", "special811",
+)
+# 仅这些 EnemyTeam id 在原版 BattleLevel.NameKey 中有对应关卡，才能换生成器。
+VERIFIED_BATTLE_FACTION_IDS = (
+    "000", "001", "002", "003", "004", "006", "008", "009", "010",
+    "100", "200", "201", "300", "500",
 )
 
 # editor_data.json 不存在时的兜底数据（契约 §5 schema 2 同构，{id,name} 对象数组）
@@ -1341,6 +1344,49 @@ def affinity_character_items(editor_data: dict) -> list[tuple[str, str]]:
     return result
 
 
+def battle_faction_items(editor_data: dict) -> list[tuple[str, str]]:
+    """Only EnemyTeam ids that exist as BattleLevel.NameKey can attach troops."""
+    available = {
+        entry_id(entry): display_name(editor_data, "battle_factions", entry_id(entry))
+        for entry in editor_data.get("battle_factions") or []
+        if entry_id(entry)
+    }
+    return [
+        (faction_id, "%s（%s）" % (available.get(faction_id, faction_id), faction_id))
+        for faction_id in VERIFIED_BATTLE_FACTION_IDS
+    ]
+
+
+def battle_faction_entry(item) -> dict:
+    """Normalize a battle faction row to {id, people}."""
+    if isinstance(item, dict):
+        try:
+            people = int(item.get("people") or 1)
+        except (TypeError, ValueError):
+            people = 1
+        return {"id": str(item.get("id") or ""), "people": max(1, people)}
+    return {"id": str(item or ""), "people": 1}
+
+
+def battle_side_total(node: dict, side: str) -> int:
+    total = 0
+    for item in node.get(f"{side}_factions") or []:
+        total += battle_faction_entry(item)["people"]
+    characters = node.get(f"{side}_characters") or []
+    if isinstance(characters, list):
+        total += len(characters)
+    return total
+
+
+def format_battle_factions(editor_data: dict, items) -> str:
+    parts = []
+    for item in items or []:
+        entry = battle_faction_entry(item)
+        name = display_name(editor_data, "battle_factions", entry["id"]) or entry["id"]
+        parts.append("%s×%s" % (name, entry["people"]))
+    return "+".join(parts) if parts else "无附加兵种"
+
+
 def battle_character_items(editor_data: dict) -> list[tuple[str, str]]:
     """Only catalog-verified named characters accepted by Battle spawning."""
     available = {
@@ -1483,11 +1529,11 @@ def character_combo_items(editor_data: dict) -> tuple[list[tuple[str, str]], lis
         import content_registry
 
         for rec in content_registry.list_contents(content_type="character"):
-            custom.append((rec.ref, "自定义 · %s（%s）" % (rec.name, rec.ref)))
+            custom.append((rec.ref, "自定义·%s（%s）" % (rec.name, rec.ref)))
     except Exception:
         custom = []
     official = [
-        (item_id, "官方 · %s" % display)
+        (item_id, "官方·%s" % display)
         for item_id, display in list_items(editor_data, "characters")
     ]
     return custom, official
@@ -1942,9 +1988,13 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
             f"（胜利→{node.get('win', '')} / 失败→{node.get('lose', '')}）"
         )
     if nt == "battle":
-        friend = display_name(ed, "battle_factions", node.get("friend_faction", ""))
-        enemy = display_name(ed, "battle_factions", node.get("enemy_faction", ""))
-        return f"{tcn}·{friend} {node.get('friend_people', 0)} vs {enemy} {node.get('enemy_people', 0)}（友军胜→{node.get('win', '')} / 敌军胜→{node.get('lose', '')}）"
+        friend = format_battle_factions(ed, node.get("friend_factions"))
+        enemy = format_battle_factions(ed, node.get("enemy_factions"))
+        return (
+            f"{tcn}·{friend} {battle_side_total(node, 'friend')}"
+            f" vs {enemy} {battle_side_total(node, 'enemy')}"
+            f"（友军胜→{node.get('win', '')} / 敌军胜→{node.get('lose', '')}）"
+        )
     if nt == "battle_result":
         return f"{tcn}·胜→{node.get('win', '')} / 败→{node.get('lose', '')}"
     if nt == "reward":
