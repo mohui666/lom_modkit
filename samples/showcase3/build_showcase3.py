@@ -425,26 +425,27 @@ def build_gameplay() -> dict:
 
 def build_combat() -> dict:
     story = _blank_story("combat_demo", "3.0 第三章：原版 Combat 编排")
-    start = _node(story, "message", {"text": "【3.0/3】可测试原版 Combat，也可跳过。"})
+    start = _node(story, "message", {
+        "text": "【3.0/3】林灯没有专用 Combat 四帧，属性按 100 填写，用来验收立绘钉在待机中心、详情滑条不再被玩家 50 上限截断。也可跳过。",
+    })
     _set_start(story, start)
     fight = _node(
         story,
         "combat",
         {
-            # artist1（武师）在原版 CombatLevel.EnemyStat.Name 中有完整四帧；
-            # 用来验收 Runtime 不再从资源目录或固定 CL 猜人物身份。
-            "character": "artist1",
-            # 背景与人物、数值完全独立，由 Runtime 的官方 view 映射加载。
+            # 包内自定义人物只有 normal/happy，没有战斗四帧；Runtime 必须回退
+            # 立绘并钉在官方待机中心，Attack/Hurt 不得上移。
+            "character": "user:showcase.lin_deng",
             "background": "center",
             "max_health": 300, "health": 300,
-            "max_stamina": 120, "stamina": 120,
-            "stamina_power": 20, "strength": 20, "internal": 20,
-            "dexterity": 20, "talking": 20,
-            "defence": 20, "sword": 20, "fist": 20,
-            "martial_weapon": 20, "mental": 20,
+            "max_stamina": 100, "stamina": 100,
+            "stamina_power": 100, "strength": 100, "internal": 100,
+            "dexterity": 100, "talking": 100,
+            "defence": 100, "sword": 100, "fist": 100,
+            "martial_weapon": 100, "mental": 100,
             "weapon_poison_value": 5, "weapon_paralyzed_value": 5,
-            "poison_resist": 10, "paralyzed_resist": 10,
-            "disposition": 50, "behaviour": 50, "karma": 50, "training": 50,
+            "poison_resist": 100, "paralyzed_resist": 100,
+            "disposition": 100, "behaviour": 100, "karma": 100, "training": 100,
             "attack_damage_addition": 0, "defence_addition": 0,
             "ultimate_damage_rate": 1.0, "attack_dice_addition": 0,
             "weapon_damage_addition": 0, "weapon_dice_addition": 0,
