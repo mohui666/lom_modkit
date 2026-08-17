@@ -1,0 +1,2288 @@
+{
+  "schema": 1,
+  "unity_version": "2020.3.49f1",
+  "source": {
+    "globalgamemanagers.assets.sha256": "712f3f4aaacd0d3bfb61c2749a4e5b298c6114ca1a34e0a536c7d37650177735",
+    "sharedassets6.assets.sha256": "8d270deb9ee225eb0507a5f3de3d0c3369f16daf9cdb68456e7fbb8f77b9d29c",
+    "Mortal.Core.dll.sha256": "9a76f508bc069a4f9beb1a2e798a002a0d4b20d1210fe0cd2ea98c7b6ffc0fb1",
+    "Mortal.Combat.dll.sha256": "65d64d0ba936d90b8ff405a27477c1c3f5d65805ab900411c92481a638b103dd"
+  },
+  "effect_database_count": 654,
+  "skills": [
+    {
+      "id": "0001",
+      "effect_key": "B006",
+      "max_level": 3,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B006_1"
+        },
+        {
+          "level": 2,
+          "key": "B006_2"
+        },
+        {
+          "level": 3,
+          "key": "B006_3"
+        }
+      ]
+    },
+    {
+      "id": "0002",
+      "effect_key": "B005",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B005"
+        }
+      ]
+    },
+    {
+      "id": "0003",
+      "effect_key": "A012",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "A012_1"
+        },
+        {
+          "level": 2,
+          "key": "A012_2"
+        },
+        {
+          "level": 3,
+          "key": "A012_3"
+        },
+        {
+          "level": 4,
+          "key": "A012_4"
+        },
+        {
+          "level": 5,
+          "key": "A012_5"
+        },
+        {
+          "level": 6,
+          "key": "A012_6"
+        },
+        {
+          "level": 7,
+          "key": "A012_7"
+        },
+        {
+          "level": 8,
+          "key": "A012_8"
+        },
+        {
+          "level": 9,
+          "key": "A012_9"
+        }
+      ]
+    },
+    {
+      "id": "0004",
+      "effect_key": "A013",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "A013_1"
+        },
+        {
+          "level": 2,
+          "key": "A013_2"
+        },
+        {
+          "level": 3,
+          "key": "A013_3"
+        },
+        {
+          "level": 4,
+          "key": "A013_4"
+        },
+        {
+          "level": 5,
+          "key": "A013_5"
+        },
+        {
+          "level": 6,
+          "key": "A013_6"
+        },
+        {
+          "level": 7,
+          "key": "A013_7"
+        },
+        {
+          "level": 8,
+          "key": "A013_8"
+        },
+        {
+          "level": 9,
+          "key": "A013_9"
+        }
+      ]
+    },
+    {
+      "id": "0005",
+      "effect_key": "A014",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "A014"
+        }
+      ]
+    },
+    {
+      "id": "0006",
+      "effect_key": "A015",
+      "max_level": 5,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "A015_1"
+        },
+        {
+          "level": 2,
+          "key": "A015_2"
+        },
+        {
+          "level": 3,
+          "key": "A015_3"
+        },
+        {
+          "level": 4,
+          "key": "A015_4"
+        },
+        {
+          "level": 5,
+          "key": "A015_5"
+        }
+      ]
+    },
+    {
+      "id": "0007",
+      "effect_key": "A016",
+      "max_level": 5,
+      "display_level": true,
+      "priority": 10,
+      "effects": [
+        {
+          "level": 1,
+          "key": "A016_1"
+        },
+        {
+          "level": 2,
+          "key": "A016_2"
+        },
+        {
+          "level": 3,
+          "key": "A016_3"
+        },
+        {
+          "level": 4,
+          "key": "A016_4"
+        },
+        {
+          "level": 5,
+          "key": "A016_5"
+        }
+      ]
+    },
+    {
+      "id": "0008",
+      "effect_key": "A0008",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "A0008_1"
+        },
+        {
+          "level": 2,
+          "key": "A0008_2"
+        },
+        {
+          "level": 3,
+          "key": "A0008_3"
+        },
+        {
+          "level": 4,
+          "key": "A0008_4"
+        },
+        {
+          "level": 5,
+          "key": "A0008_5"
+        },
+        {
+          "level": 6,
+          "key": "A0008_6"
+        },
+        {
+          "level": 7,
+          "key": "A0008_7"
+        },
+        {
+          "level": 8,
+          "key": "A0008_8"
+        },
+        {
+          "level": 9,
+          "key": "A0008_9"
+        }
+      ]
+    },
+    {
+      "id": "0009",
+      "effect_key": "A0009",
+      "max_level": 3,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "A0009_1"
+        },
+        {
+          "level": 2,
+          "key": "A0009_2"
+        },
+        {
+          "level": 3,
+          "key": "A0009_3"
+        }
+      ]
+    },
+    {
+      "id": "0010",
+      "effect_key": "A0010",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "A0010"
+        }
+      ]
+    },
+    {
+      "id": "0011",
+      "effect_key": "A0011",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 10,
+      "effects": [
+        {
+          "level": 1,
+          "key": "A0011_1"
+        },
+        {
+          "level": 2,
+          "key": "A0011_2"
+        },
+        {
+          "level": 3,
+          "key": "A0011_3"
+        },
+        {
+          "level": 4,
+          "key": "A0011_4"
+        },
+        {
+          "level": 5,
+          "key": "A0011_5"
+        },
+        {
+          "level": 6,
+          "key": "A0011_6"
+        },
+        {
+          "level": 7,
+          "key": "A0011_7"
+        },
+        {
+          "level": 8,
+          "key": "A0011_8"
+        },
+        {
+          "level": 9,
+          "key": "A0011_9"
+        }
+      ]
+    },
+    {
+      "id": "0012",
+      "effect_key": "B0012",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B0012_1"
+        },
+        {
+          "level": 2,
+          "key": "B0012_2"
+        },
+        {
+          "level": 3,
+          "key": "B0012_3"
+        },
+        {
+          "level": 4,
+          "key": "B0012_4"
+        },
+        {
+          "level": 5,
+          "key": "B0012_5"
+        },
+        {
+          "level": 6,
+          "key": "B0012_6"
+        },
+        {
+          "level": 7,
+          "key": "B0012_7"
+        },
+        {
+          "level": 8,
+          "key": "B0012_8"
+        },
+        {
+          "level": 9,
+          "key": "B0012_9"
+        }
+      ]
+    },
+    {
+      "id": "0013",
+      "effect_key": "B0013",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B0013_1"
+        },
+        {
+          "level": 2,
+          "key": "B0013_2"
+        },
+        {
+          "level": 3,
+          "key": "B0013_3"
+        },
+        {
+          "level": 4,
+          "key": "B0013_4"
+        },
+        {
+          "level": 5,
+          "key": "B0013_5"
+        },
+        {
+          "level": 6,
+          "key": "B0013_6"
+        },
+        {
+          "level": 7,
+          "key": "B0013_7"
+        },
+        {
+          "level": 8,
+          "key": "B0013_8"
+        },
+        {
+          "level": 9,
+          "key": "B0013_9"
+        }
+      ]
+    },
+    {
+      "id": "0014",
+      "effect_key": "B0014",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B0014"
+        }
+      ]
+    },
+    {
+      "id": "0017",
+      "effect_key": "B017",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B017_1"
+        },
+        {
+          "level": 2,
+          "key": "B017_2"
+        },
+        {
+          "level": 3,
+          "key": "B017_3"
+        },
+        {
+          "level": 4,
+          "key": "B017_4"
+        },
+        {
+          "level": 5,
+          "key": "B017_5"
+        },
+        {
+          "level": 6,
+          "key": "B017_6"
+        },
+        {
+          "level": 7,
+          "key": "B017_7"
+        },
+        {
+          "level": 8,
+          "key": "B017_8"
+        },
+        {
+          "level": 9,
+          "key": "B017_9"
+        }
+      ]
+    },
+    {
+      "id": "0019",
+      "effect_key": "B0019",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B0019"
+        }
+      ]
+    },
+    {
+      "id": "0020",
+      "effect_key": "B0020",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B0020"
+        }
+      ]
+    },
+    {
+      "id": "0021",
+      "effect_key": "B0021",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B0021"
+        }
+      ]
+    },
+    {
+      "id": "0025",
+      "effect_key": "B0025",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B0025"
+        }
+      ]
+    },
+    {
+      "id": "0026",
+      "effect_key": "B0026",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B0026"
+        }
+      ]
+    },
+    {
+      "id": "0027",
+      "effect_key": "B0027",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B0027_1"
+        },
+        {
+          "level": 2,
+          "key": "B0027_2"
+        },
+        {
+          "level": 3,
+          "key": "B0027_3"
+        },
+        {
+          "level": 4,
+          "key": "B0027_4"
+        },
+        {
+          "level": 5,
+          "key": "B0027_5"
+        },
+        {
+          "level": 6,
+          "key": "B0027_6"
+        },
+        {
+          "level": 7,
+          "key": "B0027_7"
+        },
+        {
+          "level": 8,
+          "key": "B0027_8"
+        },
+        {
+          "level": 9,
+          "key": "B0027_9"
+        }
+      ]
+    },
+    {
+      "id": "0035",
+      "effect_key": "B0035",
+      "max_level": 7,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B0035_1"
+        },
+        {
+          "level": 2,
+          "key": "B0035_2"
+        },
+        {
+          "level": 3,
+          "key": "B0035_3"
+        },
+        {
+          "level": 4,
+          "key": "B0035_4"
+        },
+        {
+          "level": 5,
+          "key": "B0035_5"
+        },
+        {
+          "level": 6,
+          "key": "B0035_6"
+        },
+        {
+          "level": 7,
+          "key": "B0035_7"
+        }
+      ]
+    },
+    {
+      "id": "0036",
+      "effect_key": "B0036",
+      "max_level": 5,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B0036_1"
+        },
+        {
+          "level": 2,
+          "key": "B0036_2"
+        },
+        {
+          "level": 3,
+          "key": "B0036_3"
+        },
+        {
+          "level": 4,
+          "key": "B0036_4"
+        },
+        {
+          "level": 5,
+          "key": "B0036_5"
+        }
+      ]
+    },
+    {
+      "id": "1001",
+      "effect_key": "A009",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "A009"
+        }
+      ]
+    },
+    {
+      "id": "1002",
+      "effect_key": "B115",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B115_1"
+        },
+        {
+          "level": 2,
+          "key": "B115_2"
+        },
+        {
+          "level": 3,
+          "key": "B115_3"
+        },
+        {
+          "level": 4,
+          "key": "B115_4"
+        },
+        {
+          "level": 5,
+          "key": "B115_5"
+        },
+        {
+          "level": 6,
+          "key": "B115_6"
+        },
+        {
+          "level": 7,
+          "key": "B115_7"
+        },
+        {
+          "level": 8,
+          "key": "B115_8"
+        },
+        {
+          "level": 9,
+          "key": "B115_9"
+        }
+      ]
+    },
+    {
+      "id": "1010",
+      "effect_key": "B110",
+      "max_level": 5,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B110_1"
+        },
+        {
+          "level": 2,
+          "key": "B110_2"
+        },
+        {
+          "level": 3,
+          "key": "B110_3"
+        },
+        {
+          "level": 4,
+          "key": "B110_4"
+        },
+        {
+          "level": 5,
+          "key": "B110_5"
+        }
+      ]
+    },
+    {
+      "id": "1011",
+      "effect_key": "B113",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 10,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B113"
+        }
+      ]
+    },
+    {
+      "id": "1012",
+      "effect_key": "B114",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 200,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B114_1"
+        },
+        {
+          "level": 2,
+          "key": "B114_2"
+        },
+        {
+          "level": 3,
+          "key": "B114_3"
+        },
+        {
+          "level": 4,
+          "key": "B114_4"
+        },
+        {
+          "level": 5,
+          "key": "B114_5"
+        },
+        {
+          "level": 6,
+          "key": "B114_6"
+        },
+        {
+          "level": 7,
+          "key": "B114_7"
+        },
+        {
+          "level": 8,
+          "key": "B114_8"
+        },
+        {
+          "level": 9,
+          "key": "B114_9"
+        }
+      ]
+    },
+    {
+      "id": "1100",
+      "effect_key": "E001",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "E001"
+        }
+      ]
+    },
+    {
+      "id": "1101",
+      "effect_key": "E002",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "E002"
+        }
+      ]
+    },
+    {
+      "id": "1102",
+      "effect_key": "E003",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "E003"
+        }
+      ]
+    },
+    {
+      "id": "1103",
+      "effect_key": "E004",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "E004"
+        }
+      ]
+    },
+    {
+      "id": "1105",
+      "effect_key": "E006",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 1,
+      "effects": [
+        {
+          "level": 1,
+          "key": "E006"
+        }
+      ]
+    },
+    {
+      "id": "1106",
+      "effect_key": "E007",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 1,
+      "effects": [
+        {
+          "level": 1,
+          "key": "E007"
+        }
+      ]
+    },
+    {
+      "id": "1107",
+      "effect_key": "E008",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "E008"
+        }
+      ]
+    },
+    {
+      "id": "1200",
+      "effect_key": "F001",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "F001"
+        }
+      ]
+    },
+    {
+      "id": "1201",
+      "effect_key": "F002",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "F002"
+        }
+      ]
+    },
+    {
+      "id": "1202",
+      "effect_key": "F003",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "F003"
+        }
+      ]
+    },
+    {
+      "id": "1203",
+      "effect_key": "F004",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "F004"
+        }
+      ]
+    },
+    {
+      "id": "1205",
+      "effect_key": "F006",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "F006"
+        }
+      ]
+    },
+    {
+      "id": "1206",
+      "effect_key": "S1206",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 2,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S1206"
+        }
+      ]
+    },
+    {
+      "id": "1207",
+      "effect_key": "S1207",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S1207"
+        }
+      ]
+    },
+    {
+      "id": "1209",
+      "effect_key": "S1209",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 2,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S1209"
+        }
+      ]
+    },
+    {
+      "id": "2010",
+      "effect_key": "B210",
+      "max_level": 1,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B210_1"
+        }
+      ]
+    },
+    {
+      "id": "2020",
+      "effect_key": "B220",
+      "max_level": 1,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B220_1"
+        }
+      ]
+    },
+    {
+      "id": "2030",
+      "effect_key": "B230",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 1,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B230"
+        }
+      ]
+    },
+    {
+      "id": "2101",
+      "effect_key": "G002",
+      "max_level": 7,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "G002_1"
+        },
+        {
+          "level": 2,
+          "key": "G002_2"
+        },
+        {
+          "level": 3,
+          "key": "G002_3"
+        },
+        {
+          "level": 4,
+          "key": "G002_4"
+        },
+        {
+          "level": 5,
+          "key": "G002_5"
+        },
+        {
+          "level": 6,
+          "key": "G002_6"
+        },
+        {
+          "level": 7,
+          "key": "G002_7"
+        }
+      ]
+    },
+    {
+      "id": "2102",
+      "effect_key": "G003",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "G003"
+        }
+      ]
+    },
+    {
+      "id": "2103",
+      "effect_key": "G004",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "G004"
+        }
+      ]
+    },
+    {
+      "id": "2104",
+      "effect_key": "G005",
+      "max_level": 5,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "G005_1"
+        },
+        {
+          "level": 2,
+          "key": "G005_2"
+        },
+        {
+          "level": 3,
+          "key": "G005_3"
+        },
+        {
+          "level": 4,
+          "key": "G005_4"
+        },
+        {
+          "level": 5,
+          "key": "G005_5"
+        }
+      ]
+    },
+    {
+      "id": "2105",
+      "effect_key": "S2105",
+      "max_level": 5,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S2105_1"
+        },
+        {
+          "level": 2,
+          "key": "S2105_2"
+        },
+        {
+          "level": 3,
+          "key": "S2105_3"
+        },
+        {
+          "level": 4,
+          "key": "S2105_4"
+        },
+        {
+          "level": 5,
+          "key": "S2105_5"
+        }
+      ]
+    },
+    {
+      "id": "2108",
+      "effect_key": "G2108",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "G2108"
+        }
+      ]
+    },
+    {
+      "id": "2109",
+      "effect_key": "G008",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "G008"
+        }
+      ]
+    },
+    {
+      "id": "2110",
+      "effect_key": "G009",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "G009"
+        }
+      ]
+    },
+    {
+      "id": "2111",
+      "effect_key": "G2111",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "G2111"
+        }
+      ]
+    },
+    {
+      "id": "3000",
+      "effect_key": "B300",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 200,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B300_1"
+        },
+        {
+          "level": 2,
+          "key": "B300_2"
+        },
+        {
+          "level": 3,
+          "key": "B300_3"
+        },
+        {
+          "level": 4,
+          "key": "B300_4"
+        },
+        {
+          "level": 5,
+          "key": "B300_5"
+        },
+        {
+          "level": 6,
+          "key": "B300_6"
+        },
+        {
+          "level": 7,
+          "key": "B300_7"
+        },
+        {
+          "level": 8,
+          "key": "B300_8"
+        },
+        {
+          "level": 9,
+          "key": "B300_9"
+        }
+      ]
+    },
+    {
+      "id": "3001",
+      "effect_key": "B301",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 100,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B301_1"
+        },
+        {
+          "level": 2,
+          "key": "B301_2"
+        },
+        {
+          "level": 3,
+          "key": "B301_3"
+        },
+        {
+          "level": 4,
+          "key": "B301_4"
+        },
+        {
+          "level": 5,
+          "key": "B301_5"
+        },
+        {
+          "level": 6,
+          "key": "B301_6"
+        },
+        {
+          "level": 7,
+          "key": "B301_7"
+        },
+        {
+          "level": 8,
+          "key": "B301_8"
+        },
+        {
+          "level": 9,
+          "key": "B301_9"
+        }
+      ]
+    },
+    {
+      "id": "3002",
+      "effect_key": "B302",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 300,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B302"
+        }
+      ]
+    },
+    {
+      "id": "3003",
+      "effect_key": "B303",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 300,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B303"
+        }
+      ]
+    },
+    {
+      "id": "3004",
+      "effect_key": "B304",
+      "max_level": 3,
+      "display_level": true,
+      "priority": 300,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B304_1"
+        },
+        {
+          "level": 2,
+          "key": "B304_2"
+        },
+        {
+          "level": 3,
+          "key": "B304_3"
+        }
+      ]
+    },
+    {
+      "id": "3100",
+      "effect_key": "H3100",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "H3100"
+        }
+      ]
+    },
+    {
+      "id": "3102",
+      "effect_key": "H003",
+      "max_level": 5,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "H003_1"
+        },
+        {
+          "level": 2,
+          "key": "H003_2"
+        },
+        {
+          "level": 3,
+          "key": "H003_3"
+        },
+        {
+          "level": 4,
+          "key": "H003_4"
+        },
+        {
+          "level": 5,
+          "key": "H003_5"
+        }
+      ]
+    },
+    {
+      "id": "3103",
+      "effect_key": "H004",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "H004"
+        }
+      ]
+    },
+    {
+      "id": "3104",
+      "effect_key": "H005",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "H005"
+        }
+      ]
+    },
+    {
+      "id": "3105",
+      "effect_key": "H006",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "H006"
+        }
+      ]
+    },
+    {
+      "id": "3107",
+      "effect_key": "H007",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "H007"
+        }
+      ]
+    },
+    {
+      "id": "3112",
+      "effect_key": "S3112",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S3112"
+        }
+      ]
+    },
+    {
+      "id": "3115",
+      "effect_key": "S3115",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S3115"
+        }
+      ]
+    },
+    {
+      "id": "4010",
+      "effect_key": "B410",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B410"
+        }
+      ]
+    },
+    {
+      "id": "4011",
+      "effect_key": "B411",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 10,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B411"
+        }
+      ]
+    },
+    {
+      "id": "4012",
+      "effect_key": "B412",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B412"
+        }
+      ]
+    },
+    {
+      "id": "4013",
+      "effect_key": "B413",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 10,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B413"
+        }
+      ]
+    },
+    {
+      "id": "4014",
+      "effect_key": "B414",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 10,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B414"
+        }
+      ]
+    },
+    {
+      "id": "4018",
+      "effect_key": "B4018",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B4018"
+        }
+      ]
+    },
+    {
+      "id": "4100",
+      "effect_key": "B4100",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B4100"
+        }
+      ]
+    },
+    {
+      "id": "4103",
+      "effect_key": "B4103",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 20,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B4103"
+        }
+      ]
+    },
+    {
+      "id": "4104",
+      "effect_key": "B4104",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B4104"
+        }
+      ]
+    },
+    {
+      "id": "6000",
+      "effect_key": "S600",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S600"
+        }
+      ]
+    },
+    {
+      "id": "6001",
+      "effect_key": "S601",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S601"
+        }
+      ]
+    },
+    {
+      "id": "6008",
+      "effect_key": "S608",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S608"
+        }
+      ]
+    },
+    {
+      "id": "6011",
+      "effect_key": "S6011",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S6011"
+        }
+      ]
+    },
+    {
+      "id": "7001",
+      "effect_key": "S7001",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S7001"
+        }
+      ]
+    },
+    {
+      "id": "7007",
+      "effect_key": "S707",
+      "max_level": 3,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S707_1"
+        },
+        {
+          "level": 2,
+          "key": "S707_2"
+        },
+        {
+          "level": 3,
+          "key": "S707_3"
+        }
+      ]
+    },
+    {
+      "id": "7008",
+      "effect_key": "S7008",
+      "max_level": 3,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S7008_1"
+        },
+        {
+          "level": 2,
+          "key": "S7008_2"
+        },
+        {
+          "level": 3,
+          "key": "S7008_3"
+        }
+      ]
+    },
+    {
+      "id": "7010",
+      "effect_key": "S7010",
+      "max_level": 4,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S7010_1"
+        },
+        {
+          "level": 2,
+          "key": "S7010_2"
+        },
+        {
+          "level": 3,
+          "key": "S7010_3"
+        },
+        {
+          "level": 4,
+          "key": "S7010_4"
+        }
+      ]
+    },
+    {
+      "id": "8001",
+      "effect_key": "S801",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S801"
+        }
+      ]
+    },
+    {
+      "id": "8002",
+      "effect_key": "S803",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S803"
+        }
+      ]
+    },
+    {
+      "id": "8003",
+      "effect_key": "S804",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 3,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S804"
+        }
+      ]
+    },
+    {
+      "id": "8004",
+      "effect_key": "S806",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 3,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S806"
+        }
+      ]
+    },
+    {
+      "id": "8101",
+      "effect_key": "S8101",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S8101"
+        }
+      ]
+    },
+    {
+      "id": "8103",
+      "effect_key": "S904",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S904"
+        }
+      ]
+    },
+    {
+      "id": "8106",
+      "effect_key": "S8106",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 2,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S8106"
+        }
+      ]
+    },
+    {
+      "id": "8108",
+      "effect_key": "S8108",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 2,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S8108"
+        }
+      ]
+    },
+    {
+      "id": "8111",
+      "effect_key": "S8111",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 3,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S8111"
+        }
+      ]
+    },
+    {
+      "id": "8112",
+      "effect_key": "S8112",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 3,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S8112"
+        }
+      ]
+    },
+    {
+      "id": "8113",
+      "effect_key": "S8113",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 3,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S8113"
+        }
+      ]
+    },
+    {
+      "id": "8119",
+      "effect_key": "S8119",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S8119"
+        }
+      ]
+    },
+    {
+      "id": "8121",
+      "effect_key": "S8121",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S8121"
+        }
+      ]
+    },
+    {
+      "id": "8125",
+      "effect_key": "S8125",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S8125"
+        }
+      ]
+    },
+    {
+      "id": "8126",
+      "effect_key": "S8126",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S8126"
+        }
+      ]
+    },
+    {
+      "id": "8127",
+      "effect_key": "S8127",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S8127"
+        }
+      ]
+    },
+    {
+      "id": "8128",
+      "effect_key": "S8128",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S8128"
+        }
+      ]
+    },
+    {
+      "id": "9100",
+      "effect_key": "Z001",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "Z001_1"
+        },
+        {
+          "level": 2,
+          "key": "Z001_2"
+        },
+        {
+          "level": 3,
+          "key": "Z001_3"
+        },
+        {
+          "level": 4,
+          "key": "Z001_4"
+        },
+        {
+          "level": 5,
+          "key": "Z001_5"
+        },
+        {
+          "level": 6,
+          "key": "Z001_6"
+        },
+        {
+          "level": 7,
+          "key": "Z001_7"
+        },
+        {
+          "level": 8,
+          "key": "Z001_8"
+        },
+        {
+          "level": 9,
+          "key": "Z001_9"
+        }
+      ]
+    },
+    {
+      "id": "9102",
+      "effect_key": "S9102",
+      "max_level": 5,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S9102_1"
+        },
+        {
+          "level": 2,
+          "key": "S9102_2"
+        },
+        {
+          "level": 3,
+          "key": "S9102_3"
+        },
+        {
+          "level": 4,
+          "key": "S9102_4"
+        },
+        {
+          "level": 5,
+          "key": "S9102_5"
+        }
+      ]
+    },
+    {
+      "id": "9104",
+      "effect_key": "S9104",
+      "max_level": 3,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S9104_1"
+        },
+        {
+          "level": 2,
+          "key": "S9104_2"
+        },
+        {
+          "level": 3,
+          "key": "S9104_3"
+        }
+      ]
+    },
+    {
+      "id": "9105",
+      "effect_key": "S9105",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S9105"
+        }
+      ]
+    },
+    {
+      "id": "9112",
+      "effect_key": "S9112",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 100,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S9112"
+        }
+      ]
+    },
+    {
+      "id": "9113",
+      "effect_key": "S9113",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S9113"
+        }
+      ]
+    },
+    {
+      "id": "9200",
+      "effect_key": "S9200",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S9200"
+        }
+      ]
+    },
+    {
+      "id": "9201",
+      "effect_key": "S9201",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S9201"
+        }
+      ]
+    },
+    {
+      "id": "9202",
+      "effect_key": "S9202",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S9202"
+        }
+      ]
+    },
+    {
+      "id": "9500",
+      "effect_key": "Z002",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "Z002_1"
+        },
+        {
+          "level": 2,
+          "key": "Z002_2"
+        },
+        {
+          "level": 3,
+          "key": "Z002_3"
+        },
+        {
+          "level": 4,
+          "key": "Z002_4"
+        },
+        {
+          "level": 5,
+          "key": "Z002_5"
+        },
+        {
+          "level": 6,
+          "key": "Z002_6"
+        },
+        {
+          "level": 7,
+          "key": "Z002_7"
+        },
+        {
+          "level": 8,
+          "key": "Z002_8"
+        },
+        {
+          "level": 9,
+          "key": "Z002_9"
+        }
+      ]
+    },
+    {
+      "id": "9501",
+      "effect_key": "Z003",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "Z003_1"
+        },
+        {
+          "level": 2,
+          "key": "Z003_2"
+        },
+        {
+          "level": 3,
+          "key": "Z003_3"
+        },
+        {
+          "level": 4,
+          "key": "Z003_4"
+        },
+        {
+          "level": 5,
+          "key": "Z003_5"
+        },
+        {
+          "level": 6,
+          "key": "Z003_6"
+        },
+        {
+          "level": 7,
+          "key": "Z003_7"
+        },
+        {
+          "level": 8,
+          "key": "Z003_8"
+        },
+        {
+          "level": 9,
+          "key": "Z003_9"
+        }
+      ]
+    },
+    {
+      "id": "9502",
+      "effect_key": "Z004",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "Z004_1"
+        },
+        {
+          "level": 2,
+          "key": "Z004_2"
+        },
+        {
+          "level": 3,
+          "key": "Z004_3"
+        },
+        {
+          "level": 4,
+          "key": "Z004_4"
+        },
+        {
+          "level": 5,
+          "key": "Z004_5"
+        },
+        {
+          "level": 6,
+          "key": "Z004_6"
+        },
+        {
+          "level": 7,
+          "key": "Z004_7"
+        },
+        {
+          "level": 8,
+          "key": "Z004_8"
+        },
+        {
+          "level": 9,
+          "key": "Z004_9"
+        }
+      ]
+    },
+    {
+      "id": "9503",
+      "effect_key": "Z005",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "Z005_1"
+        },
+        {
+          "level": 2,
+          "key": "Z005_2"
+        },
+        {
+          "level": 3,
+          "key": "Z005_3"
+        },
+        {
+          "level": 4,
+          "key": "Z005_4"
+        },
+        {
+          "level": 5,
+          "key": "Z005_5"
+        },
+        {
+          "level": 6,
+          "key": "Z005_6"
+        },
+        {
+          "level": 7,
+          "key": "Z005_7"
+        },
+        {
+          "level": 8,
+          "key": "Z005_8"
+        },
+        {
+          "level": 9,
+          "key": "Z005_9"
+        }
+      ]
+    }
+  ]
+}

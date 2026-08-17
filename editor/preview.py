@@ -264,6 +264,7 @@ def _hint_text(node: dict, ed: dict) -> str | None:
     if t == "combat":
         return (
             f"[战斗] 动画人物 {node.get('character', '')}｜"
+            f"背景 {node.get('background', 'center')}｜"
             f"胜利→{node.get('win', '')}｜失败→{node.get('lose', '')}"
         )
     if t == "battle":
@@ -338,6 +339,11 @@ def _apply_node(state: dict, node: dict, ed: dict | None = None) -> None:
 
     if t == "scene":
         state["view"] = node.get("view") or None
+        state["background"] = None
+    elif t == "combat":
+        # Combat 背景是该节点自己的选择，不继承前一个剧情场景，
+        # 也不根据人物/内部决斗壳推断。
+        state["view"] = node.get("background") or "center"
         state["background"] = None
     elif t == "background":
         if node.get("action", "show") in ("fadeout", "clear"):

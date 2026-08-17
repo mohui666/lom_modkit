@@ -44,6 +44,43 @@ def migratable_story() -> dict:
 
 
 class MigrationPureTest(unittest.TestCase):
+    def test_story_migration_drops_unspawnable_battle_named_characters(self):
+        document = {
+            "story_schema": STORY_SCHEMA,
+            "id": "main", "title": "battle", "start": "war",
+            "nodes": [{
+                "id": "war", "type": "battle",
+                "friend_characters": ["brother4", "special4"],
+                "enemy_characters": ["special3", "special102"],
+            }],
+        }
+        migrated = migration.migrate_story(document)
+        node = migrated.document["nodes"][0]
+        self.assertEqual(node["friend_characters"], ["special4"])
+        self.assertEqual(node["enemy_characters"], ["special102"])
+        self.assertTrue(any("spawnable NPC prefab" in step for step in migrated.steps))
+
+    def test_combat_display_name_is_removed_and_character_owns_name(self):
+        source = {
+            "story_schema": STORY_SCHEMA,
+            "id": "main", "start": "fight", "nodes": [
+                {
+                    "id": "fight", "type": "combat", "character": "artist1",
+                    "display_name": "错误的自由名称",
+                    "ultimate_one": "special3", "ultimate_two": "player_1",
+                    "ultimate_three": "sister1_1", "win": "end", "lose": "end",
+                },
+                {"id": "end", "type": "end"},
+            ],
+        }
+        migrated = migration.migrate_story(source)
+        self.assertTrue(migrated.changed)
+        self.assertNotIn("display_name", migrated.document["nodes"][0])
+        self.assertEqual(migrated.document["nodes"][0]["character"], "artist1")
+        self.assertEqual(migrated.document["nodes"][0]["background"], "center")
+        for field in ("ultimate_one", "ultimate_two", "ultimate_three"):
+            self.assertNotIn(field, migrated.document["nodes"][0])
+
     def test_pure_migrations_preserve_unknown_fields_and_input(self):
         source_story = {**legacy_story(), "story_schema": STORY_SCHEMA}
         untouched = copy.deepcopy(source_story)

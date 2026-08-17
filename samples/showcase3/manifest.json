@@ -10,7 +10,7 @@
   "name": "全节点样例3.0·六十二节点实机验收",
   "version": "3.0.0",
   "author": "lom_modkit",
-  "description": "面向手动验收的 62 节点完整样例：用户图片/角色/音频、演出、数值与检定、MOD 任务/持久变量、奖励/商店、原版 Combat/Battle 编排、死亡与安全返回。",
+  "description": "面向手动验收的 62 节点完整样例：用户图片/角色/音频、演出、数值与检定、MOD 任务/持久变量、奖励/商店、原版 Combat/Battle 编排、独立决斗背景、运行时人物绑定、死亡与安全返回。",
   "entry": "main",
   "campaign": {
     "new_game": true

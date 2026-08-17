@@ -378,11 +378,8 @@ namespace MortalModHost
                 catch { }
                 if (ModDisclosure.AttachToPanel(anchor) == null)
                 {
-                    (__result as IDisposable)?.Dispose();
-                    __result = ModDisclosure.EmptyRoutine();
-                    LuaManagerPatch.AbortActivePlayback(
-                        "人物介绍卡无法附加强制玩家内容标记",
-                        null, null, "mandatory_disclosure");
+                    CharacterIntroSupport.Log?.LogWarning(
+                        "人物介绍卡暂时无法附加玩家内容标记；介绍演出继续显示");
                 }
             }
         }

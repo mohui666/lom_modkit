@@ -17,6 +17,7 @@ EDITOR_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(EDITOR_DIR))
 
 from game_install import (  # noqa: E402
+    PREVIEW_MOD_ID,
     PREVIEW_REQUEST_NAME,
     GameInstallError,
     GameInstallManager,
@@ -82,6 +83,42 @@ class GameInstallManagerTest(unittest.TestCase):
             archive.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False))
             archive.writestr("lua/main.lua", "return nil")
         return path
+
+    @staticmethod
+    def write_mod(path: Path, *, mod_id: str, campaign_id: str | None = None) -> Path:
+        manifest = {
+            "format": 1, "id": mod_id, "name": mod_id, "version": "1",
+            "author": "test", "description": "test", "entry": "main",
+        }
+        if campaign_id is not None:
+            manifest["campaign_id"] = campaign_id
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(path, "w") as archive:
+            archive.writestr("manifest.json", json.dumps(manifest))
+            archive.writestr("lua/main.lua", "return nil")
+        return path
+
+    def test_remove_preview_packages_cleans_all_historical_names_only_for_preview_campaign(self):
+        self.manager.save_game_dir(self.game)
+        enabled = self.manager.mods_dir(True)
+        disabled = self.manager.mods_dir(False)
+        old = self.write_mod(enabled / "lom_modkit_preview.lommod", mod_id=PREVIEW_MOD_ID)
+        new = self.write_mod(disabled / "__lom_modkit_preview.lommod", mod_id=PREVIEW_MOD_ID)
+        renamed = self.write_mod(
+            enabled / "leftover-preview.lommod", mod_id="preview_alias",
+            campaign_id=PREVIEW_MOD_ID,
+        )
+        keep = self.write_mod(
+            disabled / "lom_modkit_preview.lommod", mod_id="user_preview_named_package",
+        )
+
+        removed = self.manager.remove_preview_packages()
+
+        self.assertEqual(set(removed), {old, new, renamed})
+        self.assertTrue(keep.is_file())
+        self.assertFalse(old.exists())
+        self.assertFalse(new.exists())
+        self.assertFalse(renamed.exists())
 
     def test_configure_installs_runtime_and_manages_enabled_state(self):
         self.manager.save_game_dir(self.game)

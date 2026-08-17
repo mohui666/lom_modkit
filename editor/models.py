@@ -746,13 +746,14 @@ NODE_SCHEMAS: dict[str, dict] = {
         "label": "决斗（一对一）",
         "fields": [
             ("character", "人物（只决定战斗动画）", "character", False),
-            ("display_name", "对手显示名（自由填写）", "line", True),
+            ("background", "决斗背景", "view", False),
             ("max_health", "对手最大血量", "int", True),
             ("health", "对手初始血量", "int", True),
             ("max_stamina", "对手最大气力", "int", True),
             ("stamina", "对手初始气力", "int", True),
-            ("strength", "对手体魄", "int", True),
-            ("internal", "对手内力", "int", True),
+            ("stamina_power", "对手内力", "int", True),
+            ("strength", "对手体力", "int", True),
+            ("internal", "对手阴阳（内功倾向）", "int", True),
             ("dexterity", "对手轻功", "int", True),
             ("talking", "对手嘴力", "int", True),
             ("defence", "对手防御", "int", True),
@@ -760,10 +761,30 @@ NODE_SCHEMAS: dict[str, dict] = {
             ("fist", "对手拳掌", "int", True),
             ("martial_weapon", "对手暗器", "int", True),
             ("mental", "对手心相", "int", True),
+            ("confucianism", "对手儒学", "int", True),
+            ("buddhism", "对手佛学", "int", True),
+            ("taoism", "对手道学", "int", True),
+            ("xingyi", "对手形意", "int", True),
+            ("strategy_level", "对手战术等级", "int", True),
+            ("weapon_poison_value", "对手暗器中毒累积值", "int", True),
+            ("weapon_paralyzed_value", "对手暗器麻痹累积值", "int", True),
+            ("poison_resist", "对手抗毒", "int", True),
+            ("paralyzed_resist", "对手抗麻", "int", True),
+            ("disposition", "对手性情", "int", True),
+            ("behaviour", "对手处世", "int", True),
+            ("karma", "对手道德", "int", True),
+            ("training", "对手修养", "int", True),
+            ("attack_damage_addition", "攻击伤害补正", "int", True),
+            ("defence_addition", "防御补正", "int", True),
+            ("ultimate_damage_rate", "绝招补正倍率", "float", True),
+            ("attack_dice_addition", "攻击爆发补正", "int", True),
+            ("weapon_damage_addition", "暗器威力补正", "int", True),
+            ("weapon_dice_addition", "暗器爆发补正", "int", True),
+            ("weapon_hit_addition", "暗器命中补正", "int", True),
+            ("attack_parry_addition", "攻击招架补正", "float", True),
+            ("block_dodge_addition", "防守闪避补正", "float", True),
+            ("block_parry_addition", "防守招架补正", "float", True),
             ("talents", "对手决斗技能", "combat_talents", True),
-            ("ultimate_one", "绝招一", "line", True),
-            ("ultimate_two", "绝招二", "line", True),
-            ("ultimate_three", "绝招三", "line", True),
             ("talk_rate", "嘴攻概率", "float", True),
             ("attack_rate", "近战概率", "float", True),
             ("weapon_rate", "暗器概率", "float", True),
@@ -1068,7 +1089,10 @@ _NODE_DEFAULTS: dict[str, dict] = {
     "battle_skill": {
         "op": "set", "key": "", "index": 2, "active": 1, "level": 1,
     },
-    "combat": {"character": "", "talents": [], "win": "", "lose": ""},
+    "combat": {
+        "character": "", "background": "center", "talents": [],
+        "win": "", "lose": "",
+    },
     "battle": {
         "friend_faction": "", "friend_people": 1, "friend_characters": [],
         "enemy_faction": "", "enemy_people": 1, "enemy_characters": [],
@@ -1146,9 +1170,7 @@ DEFAULT_PORTRAITS = [
 
 # 仅这些人物已在原版 Addressables catalog 中实证有 Battle 具名资源。
 VERIFIED_BATTLE_CHARACTER_IDS = (
-    "brother1", "brother2", "brother4", "girl4", "girl9", "sister1",
-    "special3", "special4", "special102", "special103", "special401",
-    "special811",
+    "special4", "special102", "special103", "special401", "special811",
 )
 
 # editor_data.json 不存在时的兜底数据（契约 §5 schema 2 同构，{id,name} 对象数组）
@@ -1222,6 +1244,10 @@ FALLBACK_EDITOR_DATA: dict = {
     "ending_ids": [],
     "game_flags": [],
     "talents": [],
+    "combat_talents": [
+        {"id": "0001", "name": "强化防御", "max_level": 3,
+         "effects": [{"level": n, "key": "B006_%d" % n} for n in range(1, 4)]},
+    ],
     "items_book": [],
     "items_misc": [],
     "items_special": [],
@@ -1910,7 +1936,11 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
         )
     if nt == "combat":
         character = character_name(ed, node.get("character", ""))
-        return f"{tcn}·{character}（胜利→{node.get('win', '')} / 失败→{node.get('lose', '')}）"
+        background = display_name(ed, "views", node.get("background", "center"))
+        return (
+            f"{tcn}·{character} @ {background}"
+            f"（胜利→{node.get('win', '')} / 失败→{node.get('lose', '')}）"
+        )
     if nt == "battle":
         friend = display_name(ed, "battle_factions", node.get("friend_faction", ""))
         enemy = display_name(ed, "battle_factions", node.get("enemy_faction", ""))

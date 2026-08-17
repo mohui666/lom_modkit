@@ -671,6 +671,9 @@ def main_fn() -> int:
         def install_runtime(self):
             return Path("C:/fake/MortalModHost.dll"), False
 
+        def remove_preview_packages(self):
+            return ()
+
         def install_mod(self, package, enabled=True):
             assert enabled
             with zipfile.ZipFile(package) as archive:

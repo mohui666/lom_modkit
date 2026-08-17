@@ -12,11 +12,11 @@
 
 ## 전투 경계
 
-`combat`은 원작 1대1 캐릭터/장면 템플릿을 쓰고 이번 상대의 HP, 기력, 능력, 재능, 필살기와 행동 확률을 덮어쓸 수 있습니다. `battle`은 원작 아군·적군·중립 roster를 따로 재사용하고 인원, NPC HP와 플레이어 기술을 설정합니다. 전자는 Combat win/lose, 후자는 finish=true인 FriendWin/EnemyWin만 반환합니다. 원작 asset은 바꾸지 않으며 독자 Battle Engine도 아닙니다. 실기 검증은 필요합니다.
+`combat`은 이번 상대의 HP, 기력, 내력, 내공, 기타 능력, 재능과 행동 확률을 설정할 수 있습니다. 원작이 읽지 않는 세 필살기 필드는 삭제하고 실제로 적용되는 `ultimate_rate`만 유지합니다. `battle`은 원작 아군·적군·중립 roster를 따로 재사용하고 인원, NPC HP와 플레이어 기술을 설정합니다. 전자는 Combat win/lose, 후자는 finish=true인 FriendWin/EnemyWin만 반환합니다. 원작 asset은 바꾸지 않으며 독자 Battle Engine도 아닙니다. 실기 검증은 필요합니다.
 
 저수준 `enemy`, `battle_skill`, `goto_scene`는 호환성과 고급 구성을 위해 유지합니다.
 
-`combat`의 인물은 네 종류 전투 애니메이션만 결정하며 체력, 능력치, 스킬, 행동 확률은 자유롭게 설정합니다. `battle`은 아군·적군 진영, 총인원, 확인된 공식 이름 있는 인물만 설정하며 이름 있는 인물도 총인원에 포함됩니다. 이전 프리셋과 `battle_setup`은 삭제되었습니다. 영구 상태는 `mod_campaign_<campaign_id>` 전용 슬롯에 연결되며 원작 GameSave는 바꾸지 않습니다.
+`combat`의 인물은 결투 이름과 네 종류 전투 애니메이션만 결정하고 배경은 공식 `views`에서 별도로 선택합니다. 체력, 능력치, 스킬, 행동 확률은 자유롭게 설정합니다. `battle`은 아군·적군 진영, 총인원, 확인된 공식 이름 있는 인물만 설정하며 이름 있는 인물도 총인원에 포함됩니다. 이전 프리셋과 `battle_setup`은 삭제되었습니다. 영구 상태는 `mod_campaign_<campaign_id>` 전용 슬롯에 연결되며 원작 GameSave는 바꾸지 않습니다.
 
 저수준 `enemy` / `battle_skill`은 독립적으로 사용할 수 있고 Combat / Battle 결과는 `reward`, `result_screen`, `custom_shop`, `mod_quest` 등 기존 노드와 조합할 수 있습니다.
 장기 정수 상태에는 `persistent_var` / `persistent_check`를 사용합니다.

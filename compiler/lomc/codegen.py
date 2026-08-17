@@ -772,15 +772,23 @@ def _encode_gameplay_config(config, scalar_fields, list_fields=()):
 
 def _emit_combat(node, ctx):
     """编排一场原版 Combat，并把已验证的 win/lose 结果带回本剧情。"""
-    config = node
+    config = dict(node)
+    # 兼容旧 Story：未声明独立背景时稳定使用官方 center，
+    # 不再根据内部的特定决斗壳推断背景。
+    config.setdefault("background", "center")
     encoded = _encode_gameplay_config(
         config,
         (
-            "character", "display_name",
-            "max_health", "health", "max_stamina", "stamina", "strength",
-            "internal", "dexterity", "talking", "defence", "sword", "fist",
-            "martial_weapon", "mental", "ultimate_one", "ultimate_two",
-            "ultimate_three", "talk_rate", "attack_rate", "weapon_rate",
+            "character", "background",
+            "max_health", "health", "max_stamina", "stamina", "stamina_power",
+            "strength", "internal", "dexterity", "talking", "defence", "sword", "fist",
+            "martial_weapon", "mental", "confucianism", "buddhism", "taoism", "xingyi",
+            "strategy_level", "weapon_poison_value", "weapon_paralyzed_value",
+            "poison_resist", "paralyzed_resist", "disposition", "behaviour", "karma",
+            "training", "attack_damage_addition", "defence_addition",
+            "ultimate_damage_rate", "attack_dice_addition", "weapon_damage_addition",
+            "weapon_dice_addition", "weapon_hit_addition", "attack_parry_addition",
+            "block_dodge_addition", "block_parry_addition", "talk_rate", "attack_rate", "weapon_rate",
             "ultimate_rate", "block_rate",
         ),
         (("talents", ("key", "level")),),
@@ -797,8 +805,7 @@ def _emit_combat(node, ctx):
             % (lua_str("combat"), lua_str(encoded)),
             "\tmod_stop_voice()",
             "\tmod_hide_all()",
-            # CL_0001_01 只作为 Host 注入自定义动画/数值前的稳定原版壳；
-            # 不暴露给作者，也不从它继承作者未填写的战斗参数。
+            # Runtime 使用临时 Combat 载体；人物和背景都只来自上方配置。
             '\tmod_gameplay_start_scene("combat")',
         ]
     )

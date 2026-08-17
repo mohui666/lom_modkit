@@ -133,8 +133,6 @@ namespace MortalModHost
                 { "disclosure.label", "玩家制作 MOD｜非官方内容" },
                 { "disclosure.detail_author", "包指纹 {2} · 作品：{0} · 作者自报：{1}" },
                 { "disclosure.detail", "包指纹 {1} · 作品：{0} · 未署名" },
-                { "disclosure.blocked", "为防止未标识的玩家内容继续显示，本次演出已被阻止。正在返回自由模式。" },
-                { "combat.mod_opponent", "MOD 对手" },
             };
         }
 
@@ -180,8 +178,6 @@ namespace MortalModHost
                 { "disclosure.label", "玩家製作 MOD｜非官方內容" },
                 { "disclosure.detail_author", "包指紋 {2} · 作品：{0} · 作者自報：{1}" },
                 { "disclosure.detail", "包指紋 {1} · 作品：{0} · 未署名" },
-                { "disclosure.blocked", "為防止未標示的玩家內容繼續顯示，本次演出已被阻止。正在返回自由模式。" },
-                { "combat.mod_opponent", "MOD 對手" },
             };
         }
 
@@ -227,8 +223,6 @@ namespace MortalModHost
                 { "disclosure.label", "ユーザー制作 MOD｜非公式コンテンツ" },
                 { "disclosure.detail_author", "パッケージ指紋 {2}・作品：{0}・作者申告：{1}" },
                 { "disclosure.detail", "パッケージ指紋 {1}・作品：{0}・作者未記載" },
-                { "disclosure.blocked", "表示元を確認できないユーザーコンテンツを防ぐため、再生を中止しました。フリー画面へ戻ります。" },
-                { "combat.mod_opponent", "MOD 対戦相手" },
             };
         }
 
@@ -274,8 +268,6 @@ namespace MortalModHost
                 { "disclosure.label", "사용자 제작 MOD｜비공식 콘텐츠" },
                 { "disclosure.detail_author", "패키지 지문 {2} · 작품: {0} · 작성자 표기: {1}" },
                 { "disclosure.detail", "패키지 지문 {1} · 작품: {0} · 작성자 미표기" },
-                { "disclosure.blocked", "표시되지 않은 사용자 콘텐츠가 계속 보이지 않도록 재생을 중단했습니다. 자유 화면으로 돌아갑니다." },
-                { "combat.mod_opponent", "MOD 상대" },
             };
         }
     }

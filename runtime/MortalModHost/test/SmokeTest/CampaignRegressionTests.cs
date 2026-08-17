@@ -185,32 +185,20 @@ namespace MortalModHost
             Assert(BattleCompositionPolicy.IsVerifiedAssetIdentity("brother4", "Brother4_Animator")
                     && BattleCompositionPolicy.IsVerifiedAssetIdentity("girl4", "Girl_004_Animator")
                     && BattleCompositionPolicy.IsVerifiedAssetIdentity("special3", "special003_attack_01")
-                    && BattleCompositionPolicy.IsVerifiedAssetIdentity("special4", "special4_attack_13"),
+                    && BattleCompositionPolicy.IsVerifiedAssetIdentity("special4", "Enemy_Special004_Attack1")
+                    && BattleCompositionPolicy.IsVerifiedAssetIdentity("special811", "Special811_Die"),
                 "Battle 官方人物必须按已核对的 Animator/动画资源身份匹配");
             Assert(!BattleCompositionPolicy.IsVerifiedAssetIdentity("special3", "Brother3_Animator")
                     && !BattleCompositionPolicy.IsVerifiedAssetIdentity("special3", "prefix_special003_animator"),
                 "Battle 官方人物不得使用任意位置子串造成相似 ID 串错");
+            Assert(!BattleCompositionPolicy.HasNpcPrefabAsset("brother4")
+                    && !BattleCompositionPolicy.HasNpcPrefabAsset("girl4")
+                    && BattleCompositionPolicy.HasNpcPrefabAsset("special4")
+                    && BattleCompositionPolicy.HasNpcPrefabAsset("special811"),
+                "玩家战场技能 Animator 与可生成 NpcSpawnPreset 必须严格区分");
 
-            Assert(CombatCharacterPolicy.MatchesOfficialAssetKey(
-                        "special3", "Assets/__Project/Images/Combat/special_003_叶云舟/stand.png")
-                    && !CombatCharacterPolicy.MatchesOfficialAssetKey(
-                        "special3", "Assets/__Project/Images/Combat/brother3_三师兄/stand.png")
-                    && !CombatCharacterPolicy.MatchesOfficialAssetKey(
-                        "special3", "Assets/special003/stand.png"),
-                "Combat 官方动画必须精确来自已核对的 Combat 目录段");
-            Assert(CombatCharacterPolicy.MatchesOfficialAvatarKeys(
-                        "special3",
-                        "Assets/__Project/Images/Combat/special_003_叶云舟/stand.png",
-                        "Assets/__Project/Images/Combat/special_003_叶云舟/attack.png",
-                        "Assets/__Project/Images/Combat/special_003_叶云舟/hurt.png",
-                        "Assets/__Project/Images/Combat/special_003_叶云舟/defence.png")
-                    && !CombatCharacterPolicy.MatchesOfficialAvatarKeys(
-                        "special3",
-                        "Assets/__Project/Images/Combat/special_003_叶云舟/stand.png",
-                        "Assets/__Project/Images/Combat/special_004_瑞晟/attack.png",
-                        "Assets/__Project/Images/Combat/special_003_叶云舟/hurt.png",
-                        "Assets/__Project/Images/Combat/special_003_叶云舟/defence.png"),
-                "Combat 四种动画必须来自同一官方人物，任何一帧串人都必须拒绝");
+            // Combat 不再从包含中文描述/数字补零的资源路径猜人物身份；
+            // Runtime 直接使用 CombatLevel.EnemyStat.Name 的原版对象关系。
         }
 
         private static ModPackage Package(string modId, string campaignId)

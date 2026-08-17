@@ -25,6 +25,8 @@ namespace MortalModHost
         private static string _lastResult = "";
         private static string _lastOwner = "";
         private static string _lastStory = "";
+        private static string _combatDisplayName = "";
+        private static string _combatIdleAddress = "";
         private static readonly Dictionary<string, string> _config =
             new Dictionary<string, string>(StringComparer.Ordinal);
 
@@ -41,6 +43,8 @@ namespace MortalModHost
         internal static bool ShouldForceCombatReturn { get { return PendingCombat; } }
         internal static string LastKind { get { return _lastKind; } }
         internal static string LastResult { get { return _lastResult; } }
+        internal static string CombatDisplayName { get { return _combatDisplayName; } }
+        internal static string CombatIdleAddress { get { return _combatIdleAddress; } }
 
         internal static void Prepare(
             ModPackage package, string kind, string story, string node,
@@ -71,6 +75,20 @@ namespace MortalModHost
             _lastOwner = "";
             _lastStory = "";
             _config.Clear();
+        }
+
+        /// <summary>
+        /// Story 场景仍在时解析并冻结本场人物身份。Combat 加载后原版
+        /// CharacterPlaceholder 已被卸载，不能到那时再猜人物名或立绘地址。
+        /// </summary>
+        internal static void BindCombatCharacter(string displayName, string idleAddress)
+        {
+            if (!PendingCombat)
+                throw new InvalidOperationException("只能为已准备的 Combat 绑定人物身份");
+            if (string.IsNullOrWhiteSpace(displayName))
+                throw new ArgumentException("Combat 人物名称不能为空", "displayName");
+            _combatDisplayName = displayName.Trim();
+            _combatIdleAddress = idleAddress ?? "";
         }
 
         internal static void Configure(string kind, string encoded)
@@ -195,6 +213,8 @@ namespace MortalModHost
             _winTarget = "";
             _loseTarget = "";
             _result = "";
+            _combatDisplayName = "";
+            _combatIdleAddress = "";
             _config.Clear();
         }
 

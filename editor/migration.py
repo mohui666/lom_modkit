@@ -239,6 +239,50 @@ def migrate_story(document: dict) -> MigrationResult:
             "旧 Combat/Battle 预设已删除，不能自动迁移；请在 v3 节点中重新明确配置"
         )
 
+    removed_combat_names = 0
+    removed_dead_combat_ultimates = 0
+    added_combat_backgrounds = 0
+    removed_unspawnable_battle_characters = 0
+    spawnable_battle_characters = {
+        "special4", "special102", "special103", "special401", "special811",
+    }
+    for node in result.get("nodes", []):
+        if isinstance(node, dict) and node.get("type") == "combat":
+            if "display_name" in node:
+                node.pop("display_name", None)
+                removed_combat_names += 1
+            for field in ("ultimate_one", "ultimate_two", "ultimate_three"):
+                if field in node:
+                    node.pop(field, None)
+                    removed_dead_combat_ultimates += 1
+            if not node.get("background"):
+                node["background"] = "center"
+                added_combat_backgrounds += 1
+        if isinstance(node, dict) and node.get("type") == "battle":
+            for field in ("friend_characters", "enemy_characters"):
+                old = node.get(field)
+                if not isinstance(old, list):
+                    continue
+                kept = [item for item in old if item in spawnable_battle_characters]
+                removed_unspawnable_battle_characters += len(old) - len(kept)
+                node[field] = kept
+    if removed_combat_names:
+        steps.append(
+            "remove obsolete combat display_name; selected character now owns the name"
+        )
+    if removed_dead_combat_ultimates:
+        steps.append(
+            "remove unused combat ultimate slots; original Combat never reads them"
+        )
+    if added_combat_backgrounds:
+        steps.append(
+            "add explicit combat background=center; background is independent of character"
+        )
+    if removed_unspawnable_battle_characters:
+        steps.append(
+            "remove Battle named characters without a verified spawnable NPC prefab"
+        )
+
     legacy_dice = [
         node for node in result.get("nodes", [])
         if isinstance(node, dict) and node.get("type") == "dice" and "check" in node

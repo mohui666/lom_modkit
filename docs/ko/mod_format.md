@@ -156,7 +156,7 @@ assets/                # 可选，自定义资源
 | `game_flag` | `flag`, `value`; 선택 `op`("set"기본/"add") | 공식 퀘스트 flag: `SetFlag(id, 상태)` / `AddFlag(id, ±증분)`. **id는 반드시 게임에 이미 있는 FlagData여야 합니다**(14_속성과Flag 표), 그렇지 않으면 게임이 조용히 무시 |
 | `enemy` | `op`("team"=결속력/"level"=문파 규모/"people"=문파 인원/"id"=현재 적대 문파 선택), `enemy`(전장 문파 id), `value`(변화량, id 작업에는 불필요), `display`(team/people에서만 사용, 기본1) | **Battle 다인 전투**에서 쓰는 문파 상태를 변경하는 `ModifyEnemyTeam/Level/People/Id`. Combat 일대일 결투의 적 설정이 아님 |
 | `battle_skill` | `op`("set"/"active"/"reset"), `key`(reset 불필요), `index`(set용, 기본2), `active`(active용, 기본1) | 전장 스킬 `SetPlayerBattleSkill/SetBattleSkillActive/ResetBattleSkill` |
-| `combat` | `character`, `win`, `lose` 필수. `display_name`, 상대 HP／기력, 9개 능력, `talents`, 3개 필살기, 5개 행동 확률은 자유 설정 | `character`는 공식 ID 또는 `user:` 캐릭터이며 네 가지 전투 애니메이션만 결정합니다. 표시명과 수치는 인물에서 자동 상속하지 않습니다. 표시명을 비우면 공식 셸 인물명이 아닌 중립적인 “MOD 상대”를 표시합니다 |
+| `combat` | `character`, `background`, `win`, `lose` 필수. HP／기력, 내력／내공, 네 학문／전술, 저항／암기 누적, 성정 등 기초값, 실제 소비되는 보정, `talents`, 5개 행동 확률 설정 가능 | `talents`는 공식 `PlayerTalentData`에서 실증 추출한 115개 CombatSkill과 실제 최대 레벨로 검증합니다. 스크립트 참조 일부만 담긴 일반 재능 목록을 재사용하지 않습니다. 인물은 이름과 애니메이션만 결정하고 배경은 독립 선택합니다. 죽은 필드는 노출하지 않습니다 |
 | `battle` | 양측 `faction`, `people`, `win`, `lose` 필수. 양측 `characters` 선택 | 진영별 총인원은 1 이상이며, 지정 캐릭터는 검증된 공식 Battle 캐릭터 12명만 지원하고 총인원에 포함됩니다. 지도, 편성 템플릿, NPC HP, 스킬 프리셋은 공개하지 않습니다 |
 | `battle_result` | `win`, `lose`; 선택 `kind`("any"/"combat"/"battle") | 전체 패키지 지문과 스토리 id에 결합된 Host 실제 결과를 읽고 검증된 win/lose만 분기합니다. 결과 없음/유형 불일치는 fail-closed |
 | `reward` | `entries`(1~32): stat/affinity/talent/item/flag | 기존 능력치, 호감도, 재능, 아이템, 플래그 원자 API로 컴파일 시 펼칩니다 |

@@ -60,6 +60,32 @@
       ]
     },
     {
+      "assembly": "Mortal.Story.dll",
+      "type": "Mortal.Story.CharacterPlaceholder",
+      "required_fragments": [
+        "private StoryCharacterConfig _config;",
+        "public static CharacterPlaceholder Instance",
+        "StoryCharacterData data = _config.Get(key);"
+      ]
+    },
+    {
+      "assembly": "Mortal.Core.dll",
+      "type": "Mortal.Core.StoryCharacterData",
+      "required_fragments": [
+        "public StoryCharaterImageItem[] PortraitResourceList",
+        "public string Id",
+        "public string NameKey"
+      ]
+    },
+    {
+      "assembly": "Mortal.Core.dll",
+      "type": "Mortal.Core.StoryCharaterImageItem",
+      "required_fragments": [
+        "public StoryMappingItem Mapping",
+        "public string AddressKey"
+      ]
+    },
+    {
       "assembly": "Mortal.Core.dll",
       "type": "Mortal.Core.SceneController",
       "required_fragments": [
@@ -86,6 +112,8 @@
       "assembly": "Mortal.Combat.dll",
       "type": "Mortal.Combat.CombatLevel",
       "required_fragments": [
+        "public Sprite BackImage",
+        "public CombatStat EnemyStat",
         "public CombatResultFlag[] WinResult",
         "public CombatResultFlag[] LoseResult",
         "public bool DeadEnd"
@@ -95,6 +123,10 @@
       "assembly": "Mortal.Combat.dll",
       "type": "Mortal.Combat.CombatStat",
       "required_fragments": [
+        "public string Name;",
+        "public string AvatarAddressKey;",
+        "public CombatEnemyAvatar CombatAvatar;",
+        "public Sprite HeadImage;",
         "public int MaxHealth;",
         "public int DefaultHealth;",
         "public int MaxStamina;",
@@ -111,6 +143,42 @@
       "required_fragments": [
         "public void SetStat(CombatStat data)",
         "public bool IsDead => _alreadyDead;"
+      ]
+    },
+    {
+      "assembly": "Mortal.Combat.dll",
+      "type": "Mortal.Combat.CombatLevelConfig",
+      "required_fragments": [
+        "public CombatLevel Get(string name)",
+        "x.name == name"
+      ]
+    },
+    {
+      "assembly": "Mortal.Combat.dll",
+      "type": "Mortal.Combat.CombatStatUI",
+      "required_fragments": [
+        "private Text _nameText;",
+        "public void Setup()",
+        "_nameText.text = @string;",
+        "_statData.GetNameKey()"
+      ]
+    },
+    {
+      "assembly": "Mortal.Story.dll",
+      "type": "Mortal.Story.StoryViewImage",
+      "required_fragments": [
+        "private AddressableCollectionData _viewAddressableData;",
+        "public IEnumerator LoadAsset(string name)",
+        "string key = _viewAddressableData.GetByKey(name);",
+        "Addressables.LoadAssetAsync<Sprite>(key)"
+      ]
+    },
+    {
+      "assembly": "Mortal.Core.dll",
+      "type": "Mortal.Core.AddressableCollectionData",
+      "required_fragments": [
+        "public string GetByKey(string key)",
+        "return addressableData.AddressKey;"
       ]
     },
     {

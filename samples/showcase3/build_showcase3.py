@@ -47,7 +47,7 @@ MANIFEST = {
     "description": (
         "面向手动验收的 62 节点完整样例：用户图片/角色/音频、演出、"
         "数值与检定、MOD 任务/持久变量、奖励/商店、原版 Combat/Battle "
-        "编排、死亡与安全返回。"
+        "编排、独立决斗背景、运行时人物绑定、死亡与安全返回。"
     ),
     "entry": "main",
     "campaign": {"new_game": True},
@@ -431,14 +431,28 @@ def build_combat() -> dict:
         story,
         "combat",
         {
-            "character": "special3",
-            "display_name": "全节点演示对手",
+            # artist1（武师）在原版 CombatLevel.EnemyStat.Name 中有完整四帧；
+            # 用来验收 Runtime 不再从资源目录或固定 CL 猜人物身份。
+            "character": "artist1",
+            # 背景与人物、数值完全独立，由 Runtime 的官方 view 映射加载。
+            "background": "center",
             "max_health": 300, "health": 300,
             "max_stamina": 120, "stamina": 120,
-            "strength": 20, "internal": 20, "dexterity": 20, "talking": 20,
+            "stamina_power": 20, "strength": 20, "internal": 20,
+            "dexterity": 20, "talking": 20,
             "defence": 20, "sword": 20, "fist": 20,
             "martial_weapon": 20, "mental": 20,
-            "talents": [],
+            "confucianism": 1, "buddhism": 1, "taoism": 1,
+            "xingyi": 1, "strategy_level": 1,
+            "weapon_poison_value": 5, "weapon_paralyzed_value": 5,
+            "poison_resist": 10, "paralyzed_resist": 10,
+            "disposition": 50, "behaviour": 50, "karma": 50, "training": 50,
+            "attack_damage_addition": 0, "defence_addition": 0,
+            "ultimate_damage_rate": 1.0, "attack_dice_addition": 0,
+            "weapon_damage_addition": 0, "weapon_dice_addition": 0,
+            "weapon_hit_addition": 0, "attack_parry_addition": 0.0,
+            "block_dodge_addition": 0.0, "block_parry_addition": 0.0,
+            "talents": [{"key": "0001", "level": 3}],
             "talk_rate": 0.1, "attack_rate": 0.5, "weapon_rate": 0.1,
             "ultimate_rate": 0.05, "block_rate": 0.25,
             "win": "", "lose": "",
@@ -489,9 +503,9 @@ def build_battle() -> dict:
         "battle",
         {
             "friend_faction": "500", "friend_people": 3,
-            "friend_characters": ["brother4"],
+            "friend_characters": ["special4"],
             "enemy_faction": "400", "enemy_people": 3,
-            "enemy_characters": ["special3"],
+            "enemy_characters": ["special102"],
             "win": "", "lose": "",
         },
     )

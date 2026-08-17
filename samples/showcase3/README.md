@@ -18,6 +18,11 @@ editor/.venv/Scripts/python editor/story_api.py pack samples/showcase3 -o sample
 （可跳过）→ 死亡画面或安全返回。Battle 的 PlayerDie 沿用原版重试/标题流程，
 并不伪造一个可继续的失败分支。
 
+当前 Combat 样例显式选择人物 `artist1`（武师）与独立背景 `center`。Runtime
+应即时创建隔离 Combat 配置：人物只决定官方姓名/四帧动画，背景由 `background`
+单独决定，血量、属性、技能和行动概率来自节点本身；不得再继承固定 `CL_*`
+决斗的姓名、人物、背景、事件或结果。
+
 ## 手动测试顺序
 
 1. 从 Steam 普通启动游戏。在标题或自由场景按 `F8`，打开“活侠MOD”。
@@ -29,8 +34,11 @@ editor/.venv/Scripts/python editor/story_api.py pack samples/showcase3 -o sample
    停留在旧节点。
 5. 第二章依次观察属性、物品、好感、奖励提示、自定义商店和五类检定。关闭商店
    后应继续；任务、持久变量、activity、自动存档和武学面板不应卡住剧情。
-6. 第三章可进入原版 Combat 或跳过。若进入，战斗结束后必须回 Story，并显示
-   Host 判断的 win/lose 结果和结算提示。
+6. 第三章可进入原版 Combat 或跳过。若进入，顶部姓名必须是“武师”，待机、攻击、
+   受伤、防御必须全部来自 `artist1` 的原版 Combat 四帧，尺寸和位置保持原版布局；
+   背景必须是独立选择的 `center`。不得出现固定壳“唐升”、其他人物动画或
+   `StoryViewImage 尚未就绪`。战斗结束后必须回 Story，并显示 Host 判断的
+   win/lose 结果和结算提示。
 7. 第四章可进入原版 Battle 或跳过。FriendWin/EnemyWin 应回 Story；若触发
    PlayerDie，按原版设计只能重试或回标题，这不算 Mod 分支失败。
 8. 终章选择“安全返回 Free”应回自由模式并关闭披露；选择死亡测试应显示带 MOD

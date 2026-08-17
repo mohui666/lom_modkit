@@ -27,6 +27,8 @@ EDITOR_DATA_PATH = os.path.join(_PROJECT_ROOT, "data", "editor_data.json")
 _META = None  # 进程级缓存；测试可赋值覆盖
 _ED_IDS = None  # 官方死亡/结局画面 id 缓存（goto_scene 警告用）
 _PORTRAITS = None  # 角色表情表缓存：{character_id: [portrait, ...]}；缺文件时 None
+_VIEW_IDS = None  # 官方场景背景 id；缺文件时 None
+_COMBAT_TALENTS = None  # 原版 CombatSkill 清单：{talent_id: metadata}
 
 
 def load_editor_ids(path=None):
@@ -122,6 +124,56 @@ def load_portrait_table(path=None):
     except (OSError, ValueError):
         table = None
     _PORTRAITS = table
+    return table
+
+
+def load_view_ids(path=None):
+    """读 data/editor_data.json 的官方 views id 集合。
+
+    文件不可用时返回 None，让编译器仅执行字符安全校验；数据可用时
+    则拒绝不在官方清单内的 Combat 背景，避免运行时加载不存在的 View。
+    """
+    global _VIEW_IDS
+    if path is None and _VIEW_IDS is not None:
+        return _VIEW_IDS
+    p = path or EDITOR_DATA_PATH
+    try:
+        with open(p, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        result = set()
+        for item in data.get("views") or []:
+            value = item.get("id") if isinstance(item, dict) else item
+            if isinstance(value, str) and value:
+                result.add(value)
+    except (OSError, ValueError):
+        return None
+    if path is None:
+        _VIEW_IDS = result
+    return result
+
+
+def load_combat_talents(path=None):
+    """读取反序列化实证的完整 CombatSkill 清单。
+
+    与普通 ``talents``（剧情 AddTalent 引用子集）分离；不存在或损坏时返回
+    ``None``，让源码外的最小嵌入环境仍可工作。
+    """
+    global _COMBAT_TALENTS
+    if path is None and _COMBAT_TALENTS is not None:
+        return _COMBAT_TALENTS
+    p = path or EDITOR_DATA_PATH
+    try:
+        with open(p, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        table = {}
+        for item in data.get("combat_talents") or []:
+            if not isinstance(item, dict) or not isinstance(item.get("id"), str):
+                continue
+            table[item["id"]] = item
+    except (OSError, ValueError):
+        return None
+    if path is None:
+        _COMBAT_TALENTS = table
     return table
 
 

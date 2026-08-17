@@ -45,7 +45,21 @@ namespace MortalModHost
             if (id == "girl9") return "girl009";
             if (id == "sister1") return "sister001";
             if (id == "special3") return "special003";
+            if (id == "special4") return "special004";
             return id;
+        }
+
+        /// <summary>
+        /// Addressables 实证：这些 id 拥有原版 NpcAnimator/NpcCharacter 动画资源，
+        /// 才可能出现在 BattleLevelConfig 的 NpcSpawnPreset 中。brother1/2/4、
+        /// girl4/9、sister1、special3 只有玩家战场技能 Animator/切入图，不能当 NPC。
+        /// </summary>
+        internal static bool HasNpcPrefabAsset(string id)
+        {
+            if (!OfficialCharacters.Contains(id))
+                throw new InvalidOperationException("不支持的官方战役人物：" + id);
+            return id == "special4" || id == "special102" || id == "special103"
+                || id == "special401" || id == "special811";
         }
 
         /// <summary>
@@ -63,7 +77,9 @@ namespace MortalModHost
                 "block", "dodge", "die", "skill", "ultimate", "stand"
             };
             for (int i = 0; i < animationSuffixes.Length; i++)
-                if (value.StartsWith(token + animationSuffixes[i], StringComparison.Ordinal))
+                if (value.StartsWith(token + animationSuffixes[i], StringComparison.Ordinal)
+                    || value.StartsWith("enemy" + token + animationSuffixes[i],
+                        StringComparison.Ordinal))
                     return true;
             return false;
         }

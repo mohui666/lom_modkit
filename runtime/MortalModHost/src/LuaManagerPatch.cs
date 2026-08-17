@@ -236,7 +236,7 @@ namespace MortalModHost
             reason = _pendingAbortReason;
 
             if (ModDisclosure.Active)
-                ModDisclosure.ReportMandatorySurfaceFailure(reason);
+                ModDisclosure.ReportSurfaceFailure(reason);
             LuaEnvironment env = EnvironmentLease.Active;
             try
             {
@@ -667,7 +667,13 @@ namespace MortalModHost
                 }, "mod_gameplay_configure");
                 script.Globals["mod_gameplay_start_scene"] = new CallbackFunction((ctx, args) =>
                 {
-                    GameplaySceneTransition.Begin(manager, ArgString(args, 0));
+                    string kind = ArgString(args, 0);
+                    if (string.Equals(kind, "combat", StringComparison.Ordinal))
+                    {
+                        CombatCharacterBinding.Capture(ModOverlay.CurrentPackage);
+                        CombatBackgroundOverridePatch.Capture();
+                    }
+                    GameplaySceneTransition.Begin(manager, kind);
                     return DynValue.Nil;
                 }, "mod_gameplay_start_scene");
                 script.Globals["mod_gameplay_consume_resume"] = new CallbackFunction((ctx, args) =>

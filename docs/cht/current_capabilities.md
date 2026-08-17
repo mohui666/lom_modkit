@@ -11,11 +11,11 @@
 
 ## 戰鬥邊界
 
-`combat` 可用原版一對一人物／場景範本並覆寫本次對手 HP、體力、能力、天賦、絕招與行動機率；`battle` 可分別重用原版我方、敵方、中立陣容並設定人數、NPC HP 和玩家技能。前者取得 Combat win/lose，後者取得原版 Battle 的 finish=true FriendWin/EnemyWin。原版資產不被修改，這也不是自製戰鬥引擎；新增流程仍需實機驗收。
+`combat` 可設定本次對手 HP、氣力、內力、內功、其他能力、天賦與行動機率；原版從不讀取的三格絕招欄位已刪除，只保留實際生效的 `ultimate_rate`。`battle` 可分別重用原版我方、敵方、中立陣容並設定人數、NPC HP 和玩家技能。前者取得 Combat win/lose，後者取得原版 Battle 的 finish=true FriendWin/EnemyWin。原版資產不被修改，這也不是自製戰鬥引擎；新增流程仍需實機驗收。
 
 底層 `enemy`、`battle_skill` 與 `goto_scene` 仍保留供相容和進階編排使用。
 
-`combat` 的人物只決定四類戰鬥動畫，血量、屬性、技能與行動機率自由填寫；`battle` 只設定敵我陣營、總人數與已核實的官方具名角色，具名角色計入總人數。舊預設與 `battle_setup` 已刪除。`battle_result` 只按真實 win/lose 分支。`persistent_var` / `persistent_check` 綁定 `mod_campaign_<campaign_id>` 隔離槽；不修改原版 GameSave。
+`combat` 的人物只決定決鬥名稱與四類戰鬥動畫，背景從官方 `views` 獨立選擇，血量、屬性、技能與行動機率自由填寫；`battle` 只設定敵我陣營、總人數與已核實的官方具名角色，具名角色計入總人數。舊預設與 `battle_setup` 已刪除。`battle_result` 只按真實 win/lose 分支。`persistent_var` / `persistent_check` 綁定 `mod_campaign_<campaign_id>` 隔離槽；不修改原版 GameSave。
 
 底層 `enemy` / `battle_skill` 仍可獨立使用；Combat / Battle 結果可配合 `reward`、`result_screen`、`custom_shop`、`mod_quest` 等現有節點編排。
 

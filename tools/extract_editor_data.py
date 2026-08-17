@@ -44,6 +44,7 @@ VIEW_MAP_JSON = os.environ.get(
 )
 # 死亡/结局 id 权威参考（由 lom-save-analyzer 仓库 mappings.js 提取）
 REF_IDS_JSON = os.path.join(REPO_ROOT, "data", "ref", "death_ending_ids.json")
+COMBAT_SKILLS_JSON = os.path.join(REPO_ROOT, "data", "ref", "combat_skills.json")
 OUT_PATH = os.path.join(REPO_ROOT, "data", "editor_data.json")
 
 # 契约 §5 固定值
@@ -117,7 +118,7 @@ RE_DICE_BAND = re.compile(r'(\w+)\[(\d+)\]\s*=\s*"([^"]*)\|([^"]*)"')
 
 
 def _to_int(text):
-    """regex \d+ 捕获组转 int（防御性：非法时返回 0，不抛）。"""
+    """regex \\d+ 捕获组转 int（防御性：非法时返回 0，不抛）。"""
     try:
         return int(text)
     except (TypeError, ValueError):
@@ -322,6 +323,44 @@ def load_ref_ids():
         return {}
 
 
+def load_combat_skills():
+    """Read the serialized-game CombatSkill/Effect snapshot.
+
+    ``talents`` is intentionally still the Story AddTalent catalogue.  Combat
+    cannot reuse it: many valid enemy Combat skills are never granted by a
+    Story script.  The snapshot is produced by ``extract_combat_skills.py``
+    from PlayerTalentData._combatSkill and CombatStateEffectDatabase.
+    """
+    try:
+        with open(COMBAT_SKILLS_JSON, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+    except (OSError, ValueError) as exc:
+        raise RuntimeError("缺少有效 data/ref/combat_skills.json：%s" % exc)
+    if payload.get("schema") != 1 or not isinstance(payload.get("skills"), list):
+        raise RuntimeError("data/ref/combat_skills.json schema 不兼容")
+    result = []
+    seen = set()
+    for item in payload["skills"]:
+        if not isinstance(item, dict):
+            raise RuntimeError("combat_skills.skills 项不是对象")
+        skill_id = item.get("id")
+        effect_key = item.get("effect_key")
+        max_level = item.get("max_level")
+        effects = item.get("effects")
+        if (
+            not isinstance(skill_id, str) or not skill_id
+            or skill_id in seen
+            or not isinstance(effect_key, str) or not effect_key
+            or isinstance(max_level, bool) or not isinstance(max_level, int)
+            or max_level < 1
+            or not isinstance(effects, list) or not effects
+        ):
+            raise RuntimeError("combat_skills.skills 项格式错误：%r" % item)
+        seen.add(skill_id)
+        result.append(item)
+    return result
+
+
 def enrich_id_list(ids, ref_table):
     """裸 id 列表 → [{id, name}] 对象数组（name 取参考文件标题，无则回退 id）。"""
     return [{"id": i, "name": ref_table.get(i, {}).get("name", i)} for i in sorted(ids)]
@@ -336,6 +375,8 @@ def main():
     ref_ids = load_ref_ids()  # 死亡/结局 id 标题参考（death/ending/epilogue）
     flag_names = _load_prefixed_kv(CSV_STAT, RAW_FLAG, "Flag/Name")
     talent_names = _load_prefixed_kv(CSV_TALENT, RAW_TALENT, "PlayerTalent/Name")
+    talent_descs = _load_prefixed_kv(CSV_TALENT, RAW_TALENT, "PlayerTalent/Desc")
+    combat_skills = load_combat_skills()
     book_names = _load_prefixed_kv(CSV_BOOK, RAW_BOOK, "Book/Name")
     misc_names = _load_prefixed_kv(CSV_ITEM, RAW_MISC, "Misc/Name")
     special_names = _load_prefixed_kv(CSV_ITEM, RAW_SPECIAL, "Special/Name")
@@ -477,6 +518,17 @@ def main():
             {"id": g, "name": flag_names.get(g, g)} for g in sorted(game_flags)
         ],
         "talents": [{"id": t, "name": talent_names.get(t, t)} for t in sorted(talents)],
+        # PlayerTalentData._combatSkill 的完整官方集合；不同于只扫描
+        # Story AddTalent 调用得到的 talents。每个等级的 Effect key 已在
+        # CombatStateEffectDatabase 中逐项核对存在。
+        "combat_talents": [
+            {
+                **item,
+                "name": talent_names.get(item["id"], item["id"]),
+                "description": talent_descs.get(item["id"], ""),
+            }
+            for item in combat_skills
+        ],
         "items_book": [
             {"id": i, "name": book_names.get(i, i)} for i in sorted(items_book)
         ],

@@ -18,13 +18,33 @@ class CombatEditorTest(unittest.TestCase):
         self.assertIn("combat", models.NODE_SCHEMAS)
         fields = {key: kind for key, _label, kind, _optional in models.NODE_SCHEMAS["combat"]["fields"]}
         self.assertEqual(fields["character"], "character")
+        self.assertEqual(fields["background"], "view")
         self.assertNotIn("preset", fields)
         self.assertEqual(fields["win"], "node_ref")
         node = models.new_node("combat", "fight", {"characters": ["special3"]})
+        self.assertEqual(node["background"], "center")
         node.update({"character": "special3", "win": "win", "lose": "lose"})
         self.assertIn("叶云舟", models.node_summary(node))
+        self.assertIn(
+            models.display_name(models.FALLBACK_EDITOR_DATA, "views", "center"),
+            models.node_summary(node),
+        )
         self.assertIn("胜利→win", models.node_summary(node))
         self.assertEqual(models.node_bullet("combat"), "■")
+
+    def test_preview_uses_combat_background_instead_of_previous_scene(self):
+        story = {
+            "id": "main", "start": "scene", "nodes": [
+                {"id": "scene", "type": "scene", "view": "kitchen", "goto": "fight"},
+                {"id": "fight", "type": "combat", "character": "special3",
+                 "background": "center_night", "win": "win", "lose": "lose"},
+                {"id": "win", "type": "end"},
+                {"id": "lose", "type": "end"},
+            ],
+        }
+        state = simulate_stage(story, "fight")
+        self.assertEqual(state["view"], "center_night")
+        self.assertIn("背景 center_night", state["hint"])
 
     def test_graph_has_two_labeled_edges_and_no_fallthrough(self):
         story = {
@@ -68,7 +88,7 @@ class CombatEditorTest(unittest.TestCase):
             "start": "war",
             "nodes": [
                 {"id": "war", "type": "battle", "friend_faction": "500",
-                 "friend_people": 2, "friend_characters": ["brother4"],
+                 "friend_people": 2, "friend_characters": ["special4"],
                  "enemy_faction": "400", "enemy_people": 1,
                  "enemy_characters": [], "win": "friend", "lose": "enemy"},
                 {"id": "friend", "type": "end"},

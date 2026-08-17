@@ -21,6 +21,7 @@
     <Compile Include="..\..\src\CampaignMenuFlow.cs" />
     <Compile Include="..\..\src\BattleCompositionPolicy.cs" />
     <Compile Include="..\..\src\CombatCharacterPolicy.cs" />
+    <Compile Include="..\..\src\CombatBackgroundAddressPolicy.cs" />
     <Compile Include="..\..\src\PositionNameMap.cs" />
     <Compile Include="..\..\src\PreviewRequest.cs" />
     <Compile Include="..\..\src\ContentRef.cs" />

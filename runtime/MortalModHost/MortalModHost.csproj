@@ -20,6 +20,13 @@
     <PackageReference Include="NVorbis" Version="0.8.6" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- 由只读提取器生成的官方 view id → Addressables 地址；嵌入 DLL，
+         Runtime 不依赖 StoryViewImage 是否已实例化，也不读取游戏目录外数据。 -->
+    <EmbeddedResource Include="..\..\data\assets\_probe\view_map.json"
+                      LogicalName="MortalModHost.view_map.json" />
+  </ItemGroup>
+
   <!-- test/ 是离线冒烟测试工程，别编进插件 DLL -->
   <ItemGroup>
     <Compile Remove="test/**/*.cs" />
@@ -146,6 +153,14 @@
     </Reference>
     <Reference Include="UnityEngine.InputLegacyModule">
       <HintPath>$(GameDir)\Mortal_Data\Managed\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Unity.Addressables">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\Unity.Addressables.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Unity.ResourceManager">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\Unity.ResourceManager.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>

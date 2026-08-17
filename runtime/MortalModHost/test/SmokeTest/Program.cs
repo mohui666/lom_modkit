@@ -170,6 +170,8 @@ namespace MortalModHost
                 TestStoryLuaIntegrity();
                 TestManifestIdentifiers();
                 TestPackageFingerprint();
+                TestPreviewPackagePrecedence();
+                TestCombatBackgroundAddressPolicy();
                 TestPreviewRequest(modsDir);
                 TestUserContent();
                 TestDisclosurePolicy();
@@ -859,6 +861,59 @@ namespace MortalModHost
             RefreshV3Integrity(path);
         }
 
+        private static void TestPreviewPackagePrecedence()
+        {
+            string modsDir = Path.Combine(Path.GetTempPath(), "lommod_preview_precedence_"
+                + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(modsDir);
+            try
+            {
+                const string manifest = "{\"format\":3,\"package_format\":3,\"story_schema\":2,"
+                    + "\"content_schema\":1,\"id\":\"lom_modkit_preview\","
+                    + "\"campaign_id\":\"lom_modkit_preview\",\"entry\":\"main\","
+                    + "\"campaign\":{\"new_game\":true}}";
+                string legacy = Path.Combine(modsDir, "lom_modkit_preview.lommod");
+                string preferred = Path.Combine(modsDir, "__lom_modkit_preview.lommod");
+                WriteV3Zip(legacy,
+                    ("manifest.json", manifest),
+                    ("lua/main.lua", "-- legacy preview\ncombat_start({ character = 'artist1' })"));
+                WriteV3Zip(preferred,
+                    ("manifest.json", manifest),
+                    ("lua/main.lua", "-- current preview\ncombat_start({ character = 'user:test.weiyuan', strength = 100 })"));
+
+                var warnings = new List<string>();
+                List<ModPackage> mods = ModLoader.ScanMods(modsDir, _ => { }, warnings.Add);
+                Assert(mods.Count == 1, "新旧试玩包并存时只能加载正式试玩包");
+                Assert(string.Equals(Path.GetFileName(mods[0].PackagePath),
+                    "__lom_modkit_preview.lommod", StringComparison.OrdinalIgnoreCase),
+                    "试玩包优先级不能由目录枚举顺序决定");
+                Assert(mods[0].LuaScripts["main"].Contains("strength = 100"),
+                    "必须执行当前试玩包而不是旧残留内容");
+                Assert(warnings.Count == 1 && warnings[0].Contains("忽略旧预览残留"),
+                    "忽略旧试玩包必须给出可诊断告警：" + string.Join(" | ", warnings));
+            }
+            finally
+            {
+                Directory.Delete(modsDir, recursive: true);
+            }
+        }
+
+        private static void TestCombatBackgroundAddressPolicy()
+        {
+            Assert(CombatBackgroundAddressPolicy.IsOfficialImageAddress(
+                "Assets/__Project/Images/Background/screen_section_001_center2.jpg"),
+                "官方背景映射中的 JPG 必须允许");
+            Assert(CombatBackgroundAddressPolicy.IsOfficialImageAddress(
+                "Assets/__Project/Images/Background/screen_alchemy.PNG"),
+                "官方 PNG 扩展名应大小写无关");
+            Assert(!CombatBackgroundAddressPolicy.IsOfficialImageAddress(
+                "Assets/__Project/Images_Evil/Background/x.png"),
+                "相似但越界的目录前缀不得通过");
+            Assert(!CombatBackgroundAddressPolicy.IsOfficialImageAddress(
+                "Assets/__Project/Images/Background/x.asset"),
+                "非图片 Addressables 地址不得通过");
+        }
+
         /// <summary>往已存在的 zip 追加二进制条目（Assets 图片测试用）。</summary>
         private static void AppendBinaryEntries(string path, params (string name, byte[] data)[] entries)
         {
@@ -1369,8 +1424,14 @@ namespace MortalModHost
                     && !GameplaySession.HasRecordedResult,
                 "combat 准备后必须进入有所有者的待决态");
             GameplaySession.Configure(
-                "combat", "max_health=800;attack_rate=0.65;talents=1010:2,2010:1");
+                "combat", "max_health=800;attack_rate=0.65;stamina_power=77;internal=31;talents=1010:2,2010:1");
+            GameplaySession.BindCombatCharacter("叶云舟", "combat/special003/normal");
+            Assert(GameplaySession.CombatDisplayName == "叶云舟"
+                    && GameplaySession.CombatIdleAddress == "combat/special003/normal",
+                "Combat 名称与 fallback 立绘必须绑定到同一所选人物");
             int configuredHealth;
+            int configuredStaminaPower;
+            int configuredInternal;
             float configuredRate;
             Assert(GameplaySession.TryConfigInt("max_health", 1, 10000000, out configuredHealth)
                     && configuredHealth == 800,
@@ -1378,6 +1439,11 @@ namespace MortalModHost
             Assert(GameplaySession.TryConfigFloat("attack_rate", 0f, 1f, out configuredRate)
                     && Math.Abs(configuredRate - 0.65f) < 0.0001f,
                 "Combat 概率覆盖必须按 InvariantCulture 解析");
+            Assert(GameplaySession.TryConfigInt("stamina_power", 0, 10000, out configuredStaminaPower)
+                    && configuredStaminaPower == 77
+                    && GameplaySession.TryConfigInt("internal", 0, 10000, out configuredInternal)
+                    && configuredInternal == 31,
+                "内力 stamina_power 与内功 internal 必须作为两个独立配置键传递");
             Assert(GameplaySession.ConfigString("talents") == "1010:2,2010:1",
                 "Combat 技能表必须原样保存在有所有者的会话中");
             Assert(GameplaySession.ConsumeResume(package, "main") == "",
@@ -1420,7 +1486,10 @@ namespace MortalModHost
             Assert(rejected && GameplaySession.HasPending,
                 "同 id 不同完整 SHA-256 的包不得消费旧包战斗结果");
             GameplaySession.Reset();
-            Assert(!GameplaySession.HasConfig("max_health"), "Reset 必须清除战斗覆盖配置");
+            Assert(!GameplaySession.HasConfig("max_health")
+                    && GameplaySession.CombatDisplayName == ""
+                    && GameplaySession.CombatIdleAddress == "",
+                "Reset 必须清除战斗覆盖配置和人物身份");
 
             GameplaySession.Prepare(package, "battle", "main", "war1", "friend", "enemy");
             Assert(GameplaySession.PendingBattle && !GameplaySession.PendingCombat,

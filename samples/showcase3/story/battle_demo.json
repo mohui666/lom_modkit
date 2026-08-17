@@ -38,12 +38,12 @@
       "friend_faction": "500",
       "friend_people": 3,
       "friend_characters": [
-        "brother4"
+        "special4"
       ],
       "enemy_faction": "400",
       "enemy_people": 3,
       "enemy_characters": [
-        "special3"
+        "special102"
       ],
       "win": "battle_result1",
       "lose": "battle_result1"

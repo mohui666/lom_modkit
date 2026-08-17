@@ -1541,6 +1541,12 @@ class NodeForm(QScrollArea):
 
     def _make_combat_talents_table(self, node: dict, key: str) -> QWidget:
         rows: list[dict] = node.setdefault(key, [])
+        catalog_items = models.list_items(self._editor_data, "combat_talents")
+        catalog = {
+            str(item.get("id")): item
+            for item in (self._editor_data.get("combat_talents") or [])
+            if isinstance(item, dict) and item.get("id")
+        }
         box = QWidget()
         layout = QVBoxLayout(box)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -1553,17 +1559,31 @@ class NodeForm(QScrollArea):
             for row_index, row in enumerate(rows):
                 table.insertRow(row_index)
                 talent = self._make_combo(
-                    models.list_items(self._editor_data, "talents"),
-                    str(row.get("key", "")), editable=True,
-                )
-                talent.currentTextChanged.connect(
-                    lambda text, target=row, combo=talent: self._apply_row(
-                        target, "key", self._combo_value(combo, text).strip()
-                    )
+                    catalog_items,
+                    str(row.get("key", "")), editable=False,
                 )
                 level = QSpinBox()
-                level.setRange(0, 999)
-                level.setValue(int(row.get("level", 1)))
+                selected = str(row.get("key", ""))
+                level.setRange(1, max(1, int(catalog.get(selected, {}).get("max_level", 1))))
+                level.setValue(max(1, int(row.get("level", 1))))
+
+                def change_talent(
+                    _index: int, target=row, combo=talent, level_spin=level
+                ) -> None:
+                    value = str(combo.currentData() or "").strip()
+                    if value not in catalog:
+                        return
+                    target["key"] = value
+                    maximum = max(1, int(catalog.get(value, {}).get("max_level", 1)))
+                    level_spin.setMaximum(maximum)
+                    if level_spin.value() > maximum:
+                        level_spin.setValue(maximum)
+                    target["level"] = level_spin.value()
+                    self._emit_changed()
+
+                # 长清单的输入框只负责筛选；仅在真正选中官方 CombatSkill
+                # 时写回，避免自由文本被误存为不存在的技能。
+                talent.currentIndexChanged.connect(change_talent)
                 level.valueChanged.connect(
                     lambda value, target=row: self._apply_row(target, "level", int(value))
                 )
@@ -1575,7 +1595,10 @@ class NodeForm(QScrollArea):
         add = QPushButton(t("table.add_skill"))
         remove = QPushButton(t("table.remove_last"))
         add.clicked.connect(
-            lambda: (rows.append({"key": "", "level": 1}), fill(), self._emit_changed())
+            lambda: (
+                rows.append({"key": catalog_items[0][0] if catalog_items else "", "level": 1}),
+                fill(), self._emit_changed(),
+            )
         )
         remove.clicked.connect(
             lambda: (rows.pop(), fill(), self._emit_changed()) if rows else None

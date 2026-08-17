@@ -209,12 +209,7 @@ namespace MortalModHost
                     : ModDisclosure.AttachToPanel(ResolveDisclosureAnchor(__instance));
                 if (disclosure == null)
                 {
-                    (__result as IDisposable)?.Dispose();
-                    __result = ModDisclosure.EmptyRoutine();
-                    LuaManagerPatch.AbortActivePlayback(
-                        "GameOver 卡片无法附加强制玩家内容标记",
-                        null, null, "mandatory_disclosure");
-                    return;
+                    Log?.LogWarning("GameOver 卡片暂时无法附加玩家内容标记；结算继续显示");
                 }
             }
             if (!ModOverlay.HasGameOverContent) return;
@@ -371,12 +366,7 @@ namespace MortalModHost
             {
                 if (ModDisclosure.AttachToPanel(ResolveDisclosureAnchor(__instance)) == null)
                 {
-                    (__result as IDisposable)?.Dispose();
-                    __result = ModDisclosure.EmptyRoutine();
-                    LuaManagerPatch.AbortActivePlayback(
-                        "汗青书结局卡无法附加强制玩家内容标记",
-                        null, null, "mandatory_disclosure");
-                    return;
+                    Log?.LogWarning("汗青书结局卡暂时无法附加玩家内容标记；结局继续显示");
                 }
             }
             if (!ModOverlay.HasEndingContent) return;
@@ -533,12 +523,7 @@ namespace MortalModHost
                     : ModDisclosure.AttachToPanel(ResolveDisclosureAnchor(__instance));
                 if (disclosure == null)
                 {
-                    (__result as IDisposable)?.Dispose();
-                    __result = ModDisclosure.EmptyRoutine();
-                    LuaManagerPatch.AbortActivePlayback(
-                        "End 结局卡无法附加强制玩家内容标记",
-                        null, null, "mandatory_disclosure");
-                    return;
+                    Log?.LogWarning("End 结局卡暂时无法附加玩家内容标记；结局继续显示");
                 }
             }
             if (!ModOverlay.HasEndingContent) return;

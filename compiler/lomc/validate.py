@@ -19,12 +19,22 @@ from .content import (
     parse_content_ref,
     validate_portrait_id,
 )
-from .dice_data import check_portrait, get_dice_meta, get_official_scene_ids, load_portrait_table
+from .dice_data import (
+    check_portrait,
+    get_dice_meta,
+    get_official_scene_ids,
+    load_portrait_table,
+    load_combat_talents,
+    load_view_ids,
+)
 from .errors import LomcError
 from .schema_versions import CONTENT_SCHEMA, PACKAGE_FORMAT, STORY_SCHEMA
 
 # §1：剧情脚本 id 规则
 SCRIPT_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,64}$")
+# Gameplay config 以 ;/= 分隔字段；View 允许官方清单中已存在的空格，
+# 但不得携带分隔符、路径或控制字符。
+GAMEPLAY_VIEW_RE = re.compile(r"^[a-zA-Z0-9_\- ]{1,64}$")
 # §2：mod id 规则
 MOD_ID_RE = re.compile(r"^[a-z0-9_\-]{1,64}$")
 # 节点 id 会拼进 Lua 函数名 node_<id>，必须落在 Lua 标识符安全字符集内
@@ -158,9 +168,7 @@ CAMPAIGN_POSITIONS = (
 # Addressables catalog 中已实证同时具备 Battle 具名角色资源的稳定 Story id。
 # 未验证人物不能由 raw JSON 绕过 Editor 带入 Battle spawner。
 VERIFIED_BATTLE_CHARACTERS = frozenset((
-    "brother1", "brother2", "brother4", "girl4", "girl9", "sister1",
-    "special3", "special4", "special102", "special103", "special401",
-    "special811",
+    "special4", "special102", "special103", "special401", "special811",
 ))
 
 # 枚举字段的合法值（§3.1）
@@ -386,13 +394,25 @@ _NODE_FIELDS = {
     "combat": (
         {"character": "idstr", "win": "idstr", "lose": "idstr"},
         {
+            "background": "str",
+            # 仅保留为可诊断的废弃字段；下方语义校验始终拒绝。
             "display_name": "str",
             "max_health": "num", "health": "num", "max_stamina": "num",
-            "stamina": "num", "strength": "num", "internal": "num",
+            "stamina": "num", "stamina_power": "num", "strength": "num",
+            "internal": "num",
             "dexterity": "num", "talking": "num", "defence": "num",
             "sword": "num", "fist": "num", "martial_weapon": "num",
-            "mental": "num", "ultimate_one": "idstr", "ultimate_two": "idstr",
-            "ultimate_three": "idstr", "talk_rate": "num", "attack_rate": "num",
+            "mental": "num", "confucianism": "num", "buddhism": "num",
+            "taoism": "num", "xingyi": "num", "strategy_level": "num",
+            "weapon_poison_value": "num",
+            "weapon_paralyzed_value": "num", "poison_resist": "num",
+            "paralyzed_resist": "num", "disposition": "num", "behaviour": "num",
+            "karma": "num", "training": "num", "attack_damage_addition": "num",
+            "defence_addition": "num", "ultimate_damage_rate": "num",
+            "attack_dice_addition": "num", "weapon_damage_addition": "num",
+            "weapon_dice_addition": "num", "weapon_hit_addition": "num",
+            "attack_parry_addition": "num", "block_dodge_addition": "num",
+            "block_parry_addition": "num", "talk_rate": "num", "attack_rate": "num",
             "weapon_rate": "num", "ultimate_rate": "num", "block_rate": "num",
             "talents": "list",
         },
@@ -1029,41 +1049,94 @@ def _check_node_extra(node, ntype, label):
             raise LomcError(
                 '%s(combat): character 必须是官方人物 id 或合法 user: 引用' % label
             )
-        display_name = effective.get("display_name")
-        if display_name is not None and (not isinstance(display_name, str)
-                                         or not display_name.strip()
-                                         or len(display_name) > 40
-                                         or any(c in display_name for c in ";=\r\n")):
+        if "display_name" in effective:
             raise LomcError(
-                '%s(combat): display_name 必须是 1~40 字符且不含 ; = 或换行的非空文本'
+                '%s(combat): display_name 已删除；决斗名称始终由所选人物名称决定'
                 % label
             )
+        background = effective.get("background", "center")
+        if not isinstance(background, str) or GAMEPLAY_VIEW_RE.fullmatch(background) is None:
+            raise LomcError(
+                '%s(combat): background 必须是安全的官方场景背景 id' % label
+            )
+        known_views = load_view_ids()
+        if known_views is not None and background not in known_views:
+            raise LomcError(
+                '%s(combat): background %r 不在 editor_data.views 官方背景清单中'
+                % (label, background)
+            )
+        integer_ranges = {
+            "max_health": (1, 10000000), "health": (0, 10000000),
+            "max_stamina": (0, 100000), "stamina": (0, 100000),
+            "strategy_level": (0, 10), "weapon_hit_addition": (0, 10000),
+            "attack_damage_addition": (-100000, 100000),
+            "defence_addition": (-100000, 100000),
+            "weapon_damage_addition": (-100000, 100000),
+            "attack_dice_addition": (-1000, 1000),
+            "weapon_dice_addition": (-1000, 1000),
+        }
         for name in (
-            "max_health", "health", "max_stamina", "stamina", "strength", "internal",
-            "dexterity", "talking", "defence", "sword", "fist", "martial_weapon", "mental",
+            "stamina_power", "strength", "internal", "dexterity", "talking",
+            "defence", "sword", "fist", "martial_weapon", "mental",
+            "weapon_poison_value", "weapon_paralyzed_value", "poison_resist",
+            "paralyzed_resist", "disposition", "behaviour", "karma", "training",
+            "confucianism", "buddhism", "taoism", "xingyi",
         ):
-            if name in effective and (
-                isinstance(effective[name], bool) or not isinstance(effective[name], int)
-                or effective[name] < 0
-            ):
-                raise LomcError('%s(combat): %s 必须是非负整数' % (label, name))
+            integer_ranges[name] = (0, 10000)
+        for name, (minimum, maximum) in integer_ranges.items():
+            if name not in effective:
+                continue
+            value = effective[name]
+            if (isinstance(value, bool) or not isinstance(value, int)
+                    or not minimum <= value <= maximum):
+                raise LomcError(
+                    '%s(combat): %s 必须是 %d~%d 的整数'
+                    % (label, name, minimum, maximum)
+                )
+        for name in ("attack_parry_addition", "block_dodge_addition", "block_parry_addition"):
+            if name in effective and not -1 <= effective[name] <= 1:
+                raise LomcError('%s(combat): %s 必须在 -1~1 之间' % (label, name))
+        if "ultimate_damage_rate" in effective and not 0 <= effective["ultimate_damage_rate"] <= 100:
+            raise LomcError('%s(combat): ultimate_damage_rate 必须在 0~100 之间' % label)
         for name in ("talk_rate", "attack_rate", "weapon_rate", "ultimate_rate", "block_rate"):
             if name in effective and not 0 <= effective[name] <= 1:
                 raise LomcError('%s(combat): %s 必须在 0~1 之间' % (label, name))
-        for name in ("ultimate_one", "ultimate_two", "ultimate_three"):
-            if name in effective and SCRIPT_ID_RE.fullmatch(effective[name]) is None:
-                raise LomcError('%s(combat): %s 必须是安全的原版技能 id' % (label, name))
         talents = effective.get("talents", [])
         if len(talents) > 32:
             raise LomcError('%s(combat): talents 最多 32 条' % label)
+        combat_talents = load_combat_talents()
+        seen_talents = set()
         for index, talent in enumerate(talents, 1):
             if not isinstance(talent, dict) or set(talent) - {"key", "level"}:
                 raise LomcError('%s(combat): 第 %d 条 talents 格式错误' % (label, index))
             if not isinstance(talent.get("key"), str) or SCRIPT_ID_RE.fullmatch(talent["key"]) is None:
                 raise LomcError('%s(combat): 第 %d 条 talent key 无效' % (label, index))
+            key = talent["key"]
+            if key in seen_talents:
+                raise LomcError('%s(combat): talent %s 不得重复' % (label, key))
+            seen_talents.add(key)
+            if combat_talents is not None and key not in combat_talents:
+                raise LomcError(
+                    '%s(combat): talent %s 不是原版 CombatSkill' % (label, key)
+                )
             level = talent.get("level", 1)
-            if isinstance(level, bool) or not isinstance(level, int) or level < 0:
-                raise LomcError('%s(combat): 第 %d 条 talent level 必须是非负整数' % (label, index))
+            max_level = int((combat_talents or {}).get(key, {}).get("max_level", 999))
+            if isinstance(level, bool) or not isinstance(level, int) or not 1 <= level <= max_level:
+                raise LomcError(
+                    '%s(combat): talent %s level 必须在 1~%d 之间'
+                    % (label, key, max_level)
+                )
+            if combat_talents is not None:
+                effects = combat_talents[key].get("effects") or []
+                if not any(
+                    isinstance(effect, dict) and effect.get("level") == level
+                    and isinstance(effect.get("key"), str) and effect["key"]
+                    for effect in effects
+                ):
+                    raise LomcError(
+                        '%s(combat): talent %s level %d 没有已验证的 Combat Effect'
+                        % (label, key, level)
+                    )
     elif ntype == "battle":
         effective = node
         for name in ("friend_faction", "enemy_faction"):

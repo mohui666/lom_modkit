@@ -45,7 +45,6 @@ namespace MortalModHost
         private bool _harmonyPatched;
         private bool _runtimeReady;
         private bool _disablePendingForDisclosure;
-        private bool _disclosureAbortRequested;
         private bool _applicationQuitting;
         private bool _originalRunInBackground;
         private bool _runInBackgroundOverridden;
@@ -529,16 +528,7 @@ namespace MortalModHost
 
         private void MaintainModDisclosure()
         {
-            if (!ModDisclosure.Active)
-            {
-                _disclosureAbortRequested = false;
-                return;
-            }
-            if (ModDisclosure.Tick()) return;
-            if (_disclosureAbortRequested) return;
-            _disclosureAbortRequested = LuaManagerPatch.AbortActivePlayback(
-                "强制玩家内容披露无法维持：" + (ModDisclosure.FailureReason ?? "未知错误"),
-                null, null, "mandatory_disclosure");
+            if (ModDisclosure.Active) ModDisclosure.Tick();
         }
 
         private void LateUpdate()
@@ -749,7 +739,6 @@ namespace MortalModHost
             if (!ModDisclosurePolicy.ShouldKeepOnScene(scene))
             {
                 ModDisclosure.Disable();
-                _disclosureAbortRequested = false;
                 LuaManagerPatch.ResetAbortGuard();
                 GameplaySession.Reset();
                 if (scene == "Title")
@@ -802,7 +791,7 @@ namespace MortalModHost
             if (ModDisclosure.Active && !_applicationQuitting)
             {
                 LuaManagerPatch.AbortActivePlayback(
-                    "MortalModHost 正在卸载，已终止活动中的 MOD 演出",
+                    "MortalModHost 正在卸载，正在清理活动中的 MOD 演出",
                     null, null, "host_unload");
                 // 恶意 Lua 可通过 UnityEngine.Object.Destroy 销毁 BepInEx 宿主。此时不得
                 // 连带撤下披露：独立 guardian / Canvas 回调会继续自愈、遮罩和重试
@@ -1013,11 +1002,6 @@ namespace MortalModHost
 
         private void OnGUI()
         {
-            if (DrawDisclosureFailureGuard())
-            {
-                _showMenu = false;
-                return;
-            }
             if (_enabled != null && _enabled.Value && RuntimeTrace.Active && _showDebugger)
             {
                 _debugWindowRect.height = Mathf.Min(680f, Math.Max(240f, Screen.height - 40f));
@@ -1115,15 +1099,6 @@ namespace MortalModHost
         private static string EmptyAsNone(string value)
         {
             return string.IsNullOrEmpty(value) ? I18n.T("debug.none") : value;
-        }
-
-        /// <summary>
-        /// Canvas 披露本身故障时的独立安全层。IMGUI 不依赖被破坏的 Canvas/Text 对象；
-        /// 在 StopAllCoroutines→LoadFree 的过渡期间全屏遮住任何可能继续渲染的 MOD 内容。
-        /// </summary>
-        private bool DrawDisclosureFailureGuard()
-        {
-            return ModDisclosure.DrawFailureGuard();
         }
 
         /// <summary>Free 场景左下角常驻小按钮：不依赖热键的菜单入口；菜单打开时隐藏，避免重复。</summary>

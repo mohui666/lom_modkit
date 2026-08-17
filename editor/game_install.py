@@ -37,6 +37,7 @@ BEPINEX_RUNTIME_FILES = (
 )
 PREVIEW_PACKAGE_NAME = "__lom_modkit_preview.lommod"
 PREVIEW_REQUEST_NAME = "preview-request.json"
+PREVIEW_MOD_ID = "lom_modkit_preview"
 BEPINEX_VERSION = "6.0.0-be.692"
 BEPINEX_URL = (
     "https://builds.bepinex.dev/projects/bepinex_be/692/"
@@ -906,6 +907,40 @@ class GameInstallManager:
                 "无法复制 Mod。请确认游戏已退出，并检查目录写入权限：" + str(exc)
             ) from exc
         return target
+
+    def remove_preview_packages(self) -> tuple[Path, ...]:
+        """删除启用/停用目录中所有历史试玩包文件名。
+
+        只删除 manifest id 或 campaign_id 明确为编辑器试玩 campaign 的
+        .lommod；同名但 manifest 不匹配的用户包不会被误删。
+        """
+        removed: list[Path] = []
+        for enabled in (True, False):
+            directory = self.mods_dir(enabled)
+            if not directory.is_dir():
+                continue
+            try:
+                candidates = tuple(directory.glob("*.lommod"))
+            except OSError as exc:
+                raise GameInstallError(f"无法扫描历史试玩包：{exc}") from exc
+            for candidate in candidates:
+                try:
+                    manifest = self._read_manifest(candidate)
+                except GameInstallError:
+                    continue
+                if (
+                    manifest.get("id") != PREVIEW_MOD_ID
+                    and manifest.get("campaign_id") != PREVIEW_MOD_ID
+                ):
+                    continue
+                try:
+                    candidate.unlink()
+                except OSError as exc:
+                    raise GameInstallError(
+                        f"无法替换旧试玩包 {candidate.name}：{exc}"
+                    ) from exc
+                removed.append(candidate)
+        return tuple(removed)
 
     # ------------------------------------------------------------ 一键试玩
     @staticmethod

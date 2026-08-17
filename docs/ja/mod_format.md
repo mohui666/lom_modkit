@@ -156,7 +156,7 @@ assets/                # 可选，自定义资源
 | `game_flag` | `flag`, `value`；任意 `op`("set"既定/"add") | 公式クエスト flag：`SetFlag(id, 状態)` / `AddFlag(id, ±増分)`。**id はゲーム既存の FlagData でなければなりません**（14_属性とFlag 表）。さもないとゲームが黙って無視します |
 | `enemy` | `op`("team"=結束力/"level"=門派規模/"people"=門派人数/"id"=現在の敵対門派を選択), `enemy`(戦役門派 id), `value`(変化量、id 操作では不要), `display`(team/people のみ、既定1) | **Battle の多人数戦役**で使う門派状態を変更する `ModifyEnemyTeam/Level/People/Id`。Combat の一対一決闘の敵設定ではありません |
 | `battle_skill` | `op`("set"/"active"/"reset"), `key`(reset は不要), `index`(set 用、既定2), `active`(active 用、既定1) | 戦場スキル `SetPlayerBattleSkill/SetBattleSkillActive/ResetBattleSkill` |
-| `combat` | `character`, `win`, `lose` 必須。`display_name` と相手 HP／スタミナ、9 能力、`talents`、3 奥義、5 行動確率を任意設定 | `character` は公式 ID または `user:` キャラクターで、4 種の戦闘アニメーションだけを決めます。表示名や数値は人物から自動継承しません。表示名未指定時は中立な「MOD 対戦相手」を表示し、公式シェルの人物名を流用しません |
+| `combat` | `character`, `background`, `win`, `lose` 必須。HP／気力、内力／内功、四学／戦術、耐性／暗器蓄積、性情などの基礎値、実際に使われる各補正、`talents`、5 行動確率を設定可能 | `talents` は公式 `PlayerTalentData` から実証抽出した 115 個の CombatSkill と実際の最大レベルで検証します。脚本参照だけの通常天賦リストは流用しません。人物は名称とアニメーションのみ、背景は独立選択です。死んだフィールドは公開しません |
 | `battle` | 両陣営の `faction`, `people`, `win`, `lose` 必須。両陣営の `characters` は任意 | 各陣営の総人数は 1 以上。指定キャラクターは検証済み公式 Battle 12 人だけで、総人数に含まれます。マップ、編成テンプレート、NPC HP、スキルプリセットは公開しません |
 | `battle_result` | `win`, `lose`。任意 `kind`("any"/"combat"/"battle") | 完全なパッケージ指紋とシナリオ id に結び付いた Host の実結果を読み、確認済み win/lose だけを分岐します。結果なし／型不一致は fail-closed |
 | `reward` | `entries`(1~32)：stat/affinity/talent/item/flag | 既存の能力、好感度、才能、アイテム、フラグ原子 API にコンパイル時展開します |

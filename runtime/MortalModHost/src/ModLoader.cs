@@ -37,6 +37,9 @@ namespace MortalModHost
         internal const string StoryLuaHashEntry = "story-lua.sha256";
         internal const string StoryLuaHashAlgorithm = "lom-story-lua-sha256-v1";
 
+        private const string PreviewPackageId = "lom_modkit_preview";
+        private const string PreviewPackageFileName = "__lom_modkit_preview.lommod";
+
         /// <summary>结局卡背景图允许的扩展名（契约 §3.1）。</summary>
         private static bool IsImageAsset(string path)
         {
@@ -68,17 +71,12 @@ namespace MortalModHost
 
             string[] files = Directory.GetFiles(modsDir, "*.lommod");
             Array.Sort(files, StringComparer.OrdinalIgnoreCase); // 按文件名排序，加载顺序稳定
+            var parsedPackages = new List<ModPackage>();
             foreach (string file in files)
             {
                 try
                 {
-                    ModPackage package = LoadPackage(file, logWarn);
-                    string existingOwner;
-                    if (campaignOwners.TryGetValue(package.CampaignId, out existingOwner))
-                        throw new FormatException(
-                            "campaign_id 与已加载 MOD " + existingOwner + " 冲突：" + package.CampaignId);
-                    campaignOwners.Add(package.CampaignId, package.Id);
-                    result.Add(package);
+                    parsedPackages.Add(LoadPackage(file, logWarn));
                 }
                 catch (Exception ex)
                 {
@@ -87,7 +85,56 @@ namespace MortalModHost
                         logWarn("跳过损坏的 mod 包 " + Path.GetFileName(file) + "：" + ex.Message);
                 }
             }
+
+            // 编辑器的正式试玩包使用固定文件名和固定 manifest id。旧版本曾写出
+            // lom_modkit_preview.lommod；若两者并存，绝不能让目录枚举/排序决定本次
+            // 试玩加载哪一份。先找出已完整通过包校验的正式试玩包，再忽略所有占用
+            // 同一 id 或 campaign_id 的旧残留。正式包自身损坏时不会进入此列表，旧包
+            // 仍可正常加载，避免一次写包失败把最后可用的试玩也一并屏蔽。
+            ModPackage preferredPreview = null;
+            foreach (ModPackage package in parsedPackages)
+            {
+                if (IsPreferredPreviewPackage(package))
+                {
+                    preferredPreview = package;
+                    break;
+                }
+            }
+
+            foreach (ModPackage package in parsedPackages)
+            {
+                if (preferredPreview != null && !ReferenceEquals(package, preferredPreview)
+                    && (string.Equals(package.Id, preferredPreview.Id, StringComparison.Ordinal)
+                        || string.Equals(package.CampaignId, preferredPreview.CampaignId, StringComparison.Ordinal)))
+                {
+                    if (logWarn != null)
+                        logWarn("已优先加载编辑器正式试玩包 " + PreviewPackageFileName
+                            + "，忽略旧预览残留 " + Path.GetFileName(package.PackagePath));
+                    continue;
+                }
+
+                string existingOwner;
+                if (campaignOwners.TryGetValue(package.CampaignId, out existingOwner))
+                {
+                    if (logWarn != null)
+                        logWarn("跳过 campaign_id 冲突的 mod 包 "
+                            + Path.GetFileName(package.PackagePath) + "：与已加载 MOD "
+                            + existingOwner + " 冲突：" + package.CampaignId);
+                    continue;
+                }
+                campaignOwners.Add(package.CampaignId, package.Id);
+                result.Add(package);
+            }
             return result;
+        }
+
+        private static bool IsPreferredPreviewPackage(ModPackage package)
+        {
+            return package != null
+                && string.Equals(package.Id, PreviewPackageId, StringComparison.Ordinal)
+                && string.Equals(package.CampaignId, PreviewPackageId, StringComparison.Ordinal)
+                && string.Equals(Path.GetFileName(package.PackagePath), PreviewPackageFileName,
+                    StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>

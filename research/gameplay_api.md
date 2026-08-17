@@ -12,10 +12,11 @@ python tools/verify_gameplay_api.py --json
 
 | 能力 | 原版证据 | 可实现范围 |
 | --- | --- | --- |
-| 场景战斗 | `LuaManager.ChangeScene(name,key,nextScene)` 写入 `CurrentSceneKey` / `CurrentNextScene` | 选择原版 Combat / Battle key 并在结束后回 Story |
+| 场景战斗 | `LuaManager.ChangeScene(name,key,nextScene)` 写入 `CurrentSceneKey` / `CurrentNextScene`；`CombatLevelConfig.Get()` 是 Combat 关卡的实际解析入口 | Battle 继续选择原版地图；Combat 使用运行时临时 ID，由 Host 即时组装隔离关卡，结束后回 Story，不借用固定原版决斗配置 |
 | 场景切换就绪 | `LuaManager.Init()` 先 `StartCoroutine(UnloadLoading())`、不等待便立即 `ExecuteLuaScript()`；`SceneController` 在目标场景激活后仍以 `_currentLoadingScene` 记录 `Loading1` | Combat/Battle 由 Host 延迟切换：同时等待 `IsPrepare=false`、`IsLoading=false` 且 `_currentLoadingScene` 为空，再调用原版 `ChangeScene`，避免章节首节点与 Story 的异步卸载冲突后永久停在“读取中” |
 | Combat 结果 | `CombatManager.GameOver(bool win)` | `win` / `lose`；原版先应用关卡 WinResult/LoseResult，再 `LoadNextScene()` |
-| Combat 对手配置 | `CombatManager` 读取 `CL_<key>.EnemyStat` 并调用 `CombatActionController.SetStat(CombatStat)`；`CombatStat` 公开血量、气力、基础属性、决斗技能、绝招和 AI 概率字段 | Host 为本次决斗克隆原版 `CombatStat` 后覆盖作者填写的字段；人物模型、头像、动画和基础行为继续来自所选原版 `CL_` 模板，不修改共享资产 |
+| Combat 对手配置 | `CombatManager` 读取 `CL_<key>.EnemyStat` 并调用 `CombatActionController.SetStat(CombatStat)`；人物与动画的真实关系是 `CombatLevel.EnemyStat.Name` → `CombatStat.CombatAvatar`，资源目录不是主键；`CombatStatUI.Setup()` 直接从 `_statData.GetNameKey()` 写顶部姓名；Story 尚在时 `CharacterPlaceholder._config.Get(id)` 可取得本地化名与 normal 立绘 | Host 即时创建隔离 `CombatLevel` 并清空原版事件/结果/作者数值；官方人物按 `EnemyStat.Name` 精确取得 Name、四帧、详情头像和 HeadImage，不再猜资源路径。确无原生四帧时才用该人物 normal 并适配 Combat 占位边界；自定义人物使用包内动画。所有姓名入口绑定同一人物 |
+| Combat 独立背景 | `StoryViewImage._viewAddressableData.GetByKey(view)` 可解析官方 view 的 Addressables 地址；`CombatManager` 最终把 `CombatLevel.BackImage` 同时赋给 `_backSprite` / `_backImage` | Story 卸载前冻结作者选择的官方 view 地址，Combat 加载后独立写入两个原版背景渲染器。人物、背景、数值互不决定，不继承临时关卡技术依赖的背景 |
 | Battle 结果 | `GameLevelManager.ShowGameOver(GameOverType,bool)` | `finish=true` 的 `FriendWin` / `EnemyWin` 可继续；`PlayerDie` 只给重试/标题，不伪造可继续分支 |
 | Battle 模板 | `GameLevelManager.Setup()` 查找 `BL_<CurrentSceneKey>` | 只能引用游戏内已有 BattleLevel，不动态造地图、Prefab 或 AI |
 | Battle 双方配置 | `BattleLevel.GetFriendPeople/GetEnemyPeople`、三方 SpawnerPrefab、`NpcSpawner._spawnPoints`、`CharacterHealth` 的默认生命字段 | 可分别引用其他原版 `BL_` 模板的我方/敌方/中立阵容，设置三方人数和 NPC 血量；只替换本次战役读取结果，不修改原版 `BattleLevel` / `HealthData` 资产 |

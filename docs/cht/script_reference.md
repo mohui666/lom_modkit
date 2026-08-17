@@ -7,4 +7,4 @@
 - [多語言契約](i18n.md)
 - [目前能力與邊界](current_capabilities.md)
 
-`combat` 的人物只決定戰鬥動畫，其他參數自由填寫；`battle` 只設定敵我陣營、總人數與已核實的官方具名角色。舊預設與 `battle_setup` 已刪除。使用者內容統一使用 `user:<id>`。
+`combat` 的人物只決定決鬥名稱與戰鬥動畫，背景從官方 `views` 獨立選擇，其他參數自由填寫；`battle` 只設定敵我陣營、總人數與已核實的官方具名角色。舊預設與 `battle_setup` 已刪除。使用者內容統一使用 `user:<id>`。

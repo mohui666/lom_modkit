@@ -13760,1904 +13760,483 @@
       ]
     }
   },
-  "battle_factions": [
-    { "id": "000", "name": "混战" },
-    { "id": "001", "name": "飞石帮" },
-    { "id": "002", "name": "丐帮" },
-    { "id": "003", "name": "白鲨帮" },
-    { "id": "004", "name": "点苍派" },
-    { "id": "005", "name": "南宫世家" },
-    { "id": "006", "name": "青城派" },
-    { "id": "007", "name": "全真派" },
-    { "id": "008", "name": "嵩山派" },
-    { "id": "009", "name": "峨嵋派" },
-    { "id": "010", "name": "地狱道" },
-    { "id": "100", "name": "崆峒派" },
-    { "id": "101", "name": "锦香宫" },
-    { "id": "102", "name": "广州唐门" },
-    { "id": "200", "name": "天武门" },
-    { "id": "201", "name": "山贼" },
-    { "id": "300", "name": "官兵" },
-    { "id": "301", "name": "金兵" },
-    { "id": "400", "name": "武林盟" },
-    { "id": "500", "name": "唐门" },
-    { "id": "900", "name": "百姓" }
-  ],
   "combat_ids": [
-    {
-      "id": "0001_01",
-      "character": "brother3",
-      "description": "兩年後醒來"
-    },
-    {
-      "id": "0001_02",
-      "character": "brother3",
-      "description": "兩年後醒來 覺醒"
-    },
-    {
-      "id": "0002",
-      "character": "sister1",
-      "description": "小師妹歸來 決鬥"
-    },
-    {
-      "id": "0003_01",
-      "character": "trainee201",
-      "description": "DEMO尾聲 100個人"
-    },
-    {
-      "id": "0003_02",
-      "character": "special801",
-      "description": "DEMO尾聲 3個高手"
-    },
-    {
-      "id": "0003_03",
-      "character": "special6",
-      "description": "DEMO尾聲 絕頂高手"
-    },
-    {
-      "id": "1001_1",
-      "character": "badguy1",
-      "description": "閻關三煞 一般路線"
-    },
-    {
-      "id": "1001_2",
-      "character": "badguy1",
-      "description": "閻關三煞 高智能路線分歧"
-    },
-    {
-      "id": "1001_3",
-      "character": "badguy1",
-      "description": "閻關三煞 抓包"
-    },
-    {
-      "id": "1100_01",
-      "character": "mask1",
-      "description": "討伐譚霸刀"
-    },
-    {
-      "id": "1101_01",
-      "character": "special801",
-      "description": "討伐譚霸刀"
-    },
-    {
-      "id": "1102_01",
-      "character": "scholar1",
-      "description": "提早至江陵。偷偷跟隨毒打書生"
-    },
-    {
-      "id": "1103_01",
-      "character": "beggar1",
-      "description": "提早至江陵，遇見辛儒師姐"
-    },
-    {
-      "id": "1104_01",
-      "character": "pirate1",
-      "description": "提早至江陵，遇見白鯊幫"
-    },
-    {
-      "id": "1201_01",
-      "character": "trainee331",
-      "description": "南宮家宴與嵩山弟子搶座位"
-    },
-    {
-      "id": "1202_01",
-      "character": "trainee101",
-      "description": "南宮家宴 幫助南宮淺"
-    },
-    {
-      "id": "1203_01",
-      "character": "beggar1",
-      "description": "崆峒擂臺 難度1"
-    },
-    {
-      "id": "1203_02",
-      "character": "artist1",
-      "description": "崆峒擂臺 難度1"
-    },
-    {
-      "id": "1203_03",
-      "character": "ranger1",
-      "description": "崆峒擂臺 難度1"
-    },
-    {
-      "id": "1204_01",
-      "character": "trainee221",
-      "description": "崆峒鐵拳門 介入小竹糾紛"
-    },
-    {
-      "id": "1205_01",
-      "character": "ranger_girl1",
-      "description": "唐門留學期間得知小師妹被糾纏選擇出手"
-    },
-    {
-      "id": "1206_01",
-      "character": "waiter1",
-      "description": "客棧線 選擇對決千面人魔"
-    },
-    {
-      "id": "1206_02",
-      "character": "special2",
-      "description": "客棧線 選擇對決龍淵"
-    },
-    {
-      "id": "1207_01",
-      "character": "special1",
-      "description": "客棧線 綁架小師妹 最終對決"
-    },
-    {
-      "id": "1208_01",
-      "character": "trainee321",
-      "description": "離開唐門 改投峨嵋派"
-    },
-    {
-      "id": "1209_01",
-      "character": "trainee301",
-      "description": "破廟 點蒼弟子"
-    },
-    {
-      "id": "1210_01",
-      "character": "ghost1",
-      "description": "破廟 鬼卒1"
-    },
-    {
-      "id": "1210_02",
-      "character": "ghost1",
-      "description": "破廟 鬼卒2"
-    },
-    {
-      "id": "1211_01",
-      "character": "brother2",
-      "description": "攻打唐門 二師兄"
-    },
-    {
-      "id": "1211_02",
-      "character": "special832",
-      "description": "攻打唐門 唐芳"
-    },
-    {
-      "id": "1212_01",
-      "character": "hero1",
-      "description": "跑路 江湖少俠"
-    },
-    {
-      "id": "1213_01",
-      "character": "pig1",
-      "description": "報訊 山豬"
-    },
-    {
-      "id": "1213_02",
-      "character": "bandit1",
-      "description": "報訊 山賊"
-    },
-    {
-      "id": "1214_01",
-      "character": "big_trainee1",
-      "description": "報訊 唐大鯨1"
-    },
-    {
-      "id": "1214_02",
-      "character": "big_trainee1",
-      "description": "報訊 唐大鯨2"
-    },
-    {
-      "id": "1215_01",
-      "character": "trainee_girl1",
-      "description": "唐門大亂鬥 伙房 女弟子"
-    },
-    {
-      "id": "1215_02",
-      "character": "trainee331",
-      "description": "唐門大亂鬥 伙房 嵩山弟子"
-    },
-    {
-      "id": "1216_01",
-      "character": "trainee211",
-      "description": "唐門大亂鬥 鍛冶場 鐵拳弟子"
-    },
-    {
-      "id": "1217_01",
-      "character": "trainee_girl1",
-      "description": "唐門大亂鬥 女弟子房 女弟子"
-    },
-    {
-      "id": "1218_01",
-      "character": "trainee341",
-      "description": "唐門大亂鬥 煉丹房 全真弟子"
-    },
-    {
-      "id": "1219_01",
-      "character": "trainee321",
-      "description": "唐門大亂鬥 講經堂 峨嵋弟子"
-    },
-    {
-      "id": "1301_01",
-      "character": "trainee_group_211",
-      "description": "崆峒留學 小梅逃脫後 崆峒戰隊"
-    },
-    {
-      "id": "1302_01",
-      "character": "trainee231",
-      "description": "崆峒留學玄功門 早點名切磋"
-    },
-    {
-      "id": "1303_01",
-      "character": "trainee1",
-      "description": "前往江陵大戰 住宿與師弟切磋"
-    },
-    {
-      "id": "1304_01",
-      "character": "special4",
-      "description": "前往江陵大戰 坐診遇見樊嘯天"
-    },
-    {
-      "id": "1304_02",
-      "character": "special4",
-      "description": "用阿牛的性命威脅樊嘯天"
-    },
-    {
-      "id": "1305_01",
-      "character": "artist1",
-      "description": "江陵閒逛"
-    },
-    {
-      "id": "1305_02",
-      "character": "trainee321",
-      "description": "江陵閒逛"
-    },
-    {
-      "id": "1306_01",
-      "character": "trainee101",
-      "description": "江陵大戰與丐幫在客棧僵持不下"
-    },
-    {
-      "id": "1307_01",
-      "character": "special401",
-      "description": "江陵大戰見面毛二壯"
-    },
-    {
-      "id": "1308_01",
-      "character": "brother1",
-      "description": "江陵大戰 野外散心打拳 思想戰"
-    },
-    {
-      "id": "1309_01",
-      "character": "girl5_3",
-      "description": "江陵大戰 野外散心打拳 女飛賊"
-    },
-    {
-      "id": "1310_01",
-      "character": "trainee231",
-      "description": "江陵大戰後 獲得鐵琵琶功"
-    },
-    {
-      "id": "1311_01",
-      "character": "brother2",
-      "description": "回唐門後 被二師兄找"
-    },
-    {
-      "id": "1312_01",
-      "character": "special103",
-      "description": "院中練武 南宮淺"
-    },
-    {
-      "id": "1312_02",
-      "character": "trainee101",
-      "description": "院中練武 南宮家丁"
-    },
-    {
-      "id": "1313_01",
-      "character": "special102",
-      "description": "院中練武 不友善對決南宮深"
-    },
-    {
-      "id": "1313_02",
-      "character": "special102",
-      "description": "院中練武 友善對決南宮深"
-    },
-    {
-      "id": "1313_03",
-      "character": "special102",
-      "description": "院中練武 南宮深"
-    },
-    {
-      "id": "1314_01",
-      "character": "special101",
-      "description": "院中練武 南宮遠"
-    },
-    {
-      "id": "1315_01",
-      "character": "special405",
-      "description": "留學青城 申屠龍"
-    },
-    {
-      "id": "1316_01",
-      "character": "pig1",
-      "description": "留學青城 野豬"
-    },
-    {
-      "id": "1317_01",
-      "character": "ranger1",
-      "description": "留學青城 武林人"
-    },
-    {
-      "id": "1318_01",
-      "character": "trainee311",
-      "description": "留學青城 青城弟子"
-    },
-    {
-      "id": "1319_01",
-      "character": "special834",
-      "description": "留學青城 段智秀"
-    },
-    {
-      "id": "1320_01",
-      "character": "artist1",
-      "description": "留學青城 武師"
-    },
-    {
-      "id": "1321_01",
-      "character": "trainee311",
-      "description": "青城段考 高和子"
-    },
-    {
-      "id": "1321_02",
-      "character": "trainee311",
-      "description": "青城段考 停風子"
-    },
-    {
-      "id": "1322_01",
-      "character": "ghost1",
-      "description": "趙逵上山 鬼卒"
-    },
-    {
-      "id": "1323_01",
-      "character": "cow_horse",
-      "description": "趙逵上山 鬼卒"
-    },
-    {
-      "id": "1324_01",
-      "character": "wolf1",
-      "description": "逃離青城 站哨 狼"
-    },
-    {
-      "id": "1324_02",
-      "character": "bandit1",
-      "description": "逃離青城 站哨 狼"
-    },
-    {
-      "id": "1325_01",
-      "character": "fairy1",
-      "description": "逃離青城 仙姑"
-    },
-    {
-      "id": "1326_01",
-      "character": "pig1",
-      "description": "逃離青城 山豬跟鸚鵡"
-    },
-    {
-      "id": "1327_01",
-      "character": "trainee1",
-      "description": "逃離青城 唐門弟子"
-    },
-    {
-      "id": "1328_01",
-      "character": "special835",
-      "description": "拷問 南宮己"
-    },
-    {
-      "id": "1329_01",
-      "character": "pig1",
-      "description": "青城道長的地位 山豬"
-    },
-    {
-      "id": "1330_01",
-      "character": "special3",
-      "description": "葉雲舟從江陵回唐門 葉雲舟"
-    },
-    {
-      "id": "1330_02",
-      "character": "wolf1",
-      "description": "葉雲舟從江陵回唐門 狼1"
-    },
-    {
-      "id": "1401_01",
-      "character": "trainee1",
-      "description": "下山找人 揍師兄"
-    },
-    {
-      "id": "1401_02",
-      "character": "trainee321",
-      "description": "下山找人 揍峨嵋弟子"
-    },
-    {
-      "id": "1401_03",
-      "character": "trainee321",
-      "description": "下山找人 揍峨嵋弟子"
-    },
-    {
-      "id": "1402_01",
-      "character": "special811",
-      "description": "唐門內戰 決鬥唐衫"
-    },
-    {
-      "id": "1402_02",
-      "character": "master",
-      "description": "唐門內戰 決鬥掌門人"
-    },
-    {
-      "id": "1402_03",
-      "character": "sister1",
-      "description": "唐門內戰 決鬥小師妹"
-    },
-    {
-      "id": "1403_01",
-      "character": "ranger1",
-      "description": "決戰飛石幫 客棧休息"
-    },
-    {
-      "id": "1403_02",
-      "character": "ranger1",
-      "description": "決戰飛石幫 客棧休息"
-    },
-    {
-      "id": "1403_03",
-      "character": "ranger1",
-      "description": "決戰飛石幫 客棧休息"
-    },
-    {
-      "id": "1403_04",
-      "character": "hero1",
-      "description": "決戰飛石幫 客棧休息第二戰"
-    },
-    {
-      "id": "1404_01",
-      "character": "girl4",
-      "description": "決鬥飛石幫 返回唐門 客房修練"
-    },
-    {
-      "id": "1404_02",
-      "character": "special206",
-      "description": "決鬥飛石幫 返回唐門 客房修練"
-    },
-    {
-      "id": "1405_01",
-      "character": "ranger1",
-      "description": "返回唐門途中遇敵"
-    },
-    {
-      "id": "1405_02",
-      "character": "ranger_girl1",
-      "description": "返回唐門途中遇敵"
-    },
-    {
-      "id": "1406_01",
-      "character": "blacksmith1",
-      "description": "返回唐門 遇鐵匠"
-    },
-    {
-      "id": "1407_01",
-      "character": "special207",
-      "description": "返回唐門 決鬥金烏上人"
-    },
-    {
-      "id": "1407_02",
-      "character": "girl5",
-      "description": "返回唐門 決鬥小梅"
-    },
-    {
-      "id": "1407_03",
-      "character": "girl5_3",
-      "description": "返回唐門 決鬥女飛賊"
-    },
-    {
-      "id": "1408_01",
-      "character": "trainee121",
-      "description": "不跟隨大師兄去臥雲岡 遇見泥教弟子"
-    },
-    {
-      "id": "1409_01",
-      "character": "trainee201",
-      "description": "治療大師兄 遇見崆峒弟子"
-    },
-    {
-      "id": "1409_02",
-      "character": "trainee311",
-      "description": "治療大師兄 遇見殺手"
-    },
-    {
-      "id": "1409_03",
-      "character": "trainee201",
-      "description": "治療大師兄 遇見殺手"
-    },
-    {
-      "id": "1409_04",
-      "character": "special207",
-      "description": "治療大師兄 遇見金烏上人"
-    },
-    {
-      "id": "1501_01",
-      "character": "brother3",
-      "description": "談論小師妹婚事 與三師兄吵架"
-    },
-    {
-      "id": "1502_01",
-      "character": "trainee1",
-      "description": "守夜換班 跟師弟要錢"
-    },
-    {
-      "id": "1503_01",
-      "character": "special808",
-      "description": "小師妹出嫁 拜訪解無塵"
-    },
-    {
-      "id": "1504_01",
-      "character": "trainee211",
-      "description": "金烏上人鬧場 戰役勝利後逃亡 四大護法第一關"
-    },
-    {
-      "id": "1504_02",
-      "character": "trainee201",
-      "description": "金烏上人鬧場 戰役勝利後逃亡 四大護法第二關"
-    },
-    {
-      "id": "1504_03",
-      "character": "trainee221",
-      "description": "金烏上人鬧場 戰役勝利後逃亡 四大護法第三關"
-    },
-    {
-      "id": "1504_04",
-      "character": "trainee231",
-      "description": "金烏上人鬧場 戰役勝利後逃亡 四大護法第四關"
-    },
-    {
-      "id": "1505_01",
-      "character": "special207",
-      "description": "金烏上人鬧場 第一次決鬥金烏上人"
-    },
-    {
-      "id": "1505_02",
-      "character": "special207",
-      "description": "金烏上人鬧場 第二次決鬥金烏上人"
-    },
-    {
-      "id": "1506_01",
-      "character": "trainee1",
-      "description": "唐門女婿 被弟子們圍攻"
-    },
-    {
-      "id": "1507_01",
-      "character": "girl6",
-      "description": "屠滅崆峒 修練"
-    },
-    {
-      "id": "1507_02",
-      "character": "special808",
-      "description": "屠滅崆峒 修練"
-    },
-    {
-      "id": "1507_03",
-      "character": "special207",
-      "description": "屠滅崆峒 決鬥金烏上人"
-    },
-    {
-      "id": "1611_01",
-      "character": "special808",
-      "description": "前往武林大會路途 遇見峨嵋派"
-    },
-    {
-      "id": "1612_01",
-      "character": "special201",
-      "description": "前往武林大會路途 遇見青城派"
-    },
-    {
-      "id": "1614_01",
-      "character": "trainee301",
-      "description": "前往武林大會路途 遇見點蒼派"
-    },
-    {
-      "id": "1615_01",
-      "character": "daoshi341",
-      "description": "前往武林大會路途 遇見全真派"
-    },
-    {
-      "id": "1616_01",
-      "character": "trainee491",
-      "description": "拜訪錦香宮 武英殿對手"
-    },
-    {
-      "id": "1616_02",
-      "character": "trainee491",
-      "description": "拜訪錦香宮 武英殿對手"
-    },
-    {
-      "id": "1616_03",
-      "character": "girl7",
-      "description": "拜訪錦香宮 武英殿決鬥 小竹吃醋"
-    },
-    {
-      "id": "1616_04",
-      "character": "girl5",
-      "description": "拜訪錦香宮 武英殿決鬥 小梅病嬌"
-    },
-    {
-      "id": "1617_01",
-      "character": "special402",
-      "description": "在錦香宮賴著不走"
-    },
-    {
-      "id": "1617_02",
-      "character": "special402",
-      "description": "離開錦香宮被溫夫人留住"
-    },
-    {
-      "id": "1618_01",
-      "character": "special813",
-      "description": "千面傳承 選擇領教"
-    },
-    {
-      "id": "1619_01",
-      "character": "special999",
-      "description": "武林大會 遇見瑞笙"
-    },
-    {
-      "id": "1619_02",
-      "character": "special999",
-      "description": "武林大會 遇見瑞笙"
-    },
-    {
-      "id": "1619_03",
-      "character": "special407",
-      "description": "武林大會 挑戰上官隼"
-    },
-    {
-      "id": "1620_01",
-      "character": "trainee1",
-      "description": "武林大會 武林交際時清理門戶"
-    },
-    {
-      "id": "1621_01",
-      "character": "special102",
-      "description": "武林大會 幫助錦香宮 對決南宮深"
-    },
-    {
-      "id": "1622_01",
-      "character": "special407",
-      "description": "武林大會 幫助錦香宮 對決上官隼"
-    },
-    {
-      "id": "1623_01",
-      "character": "special103",
-      "description": "武林大會 追南宮淺"
-    },
-    {
-      "id": "1624_01",
-      "character": "special823",
-      "description": "武林大會 追南宮淺"
-    },
-    {
-      "id": "1625_01",
-      "character": "brother3",
-      "description": "壞結局路線 三師兄"
-    },
-    {
-      "id": "1701_01",
-      "character": "trainee1",
-      "description": "正常路線 弟子離開唐門 "
-    },
-    {
-      "id": "1702_01",
-      "character": "brother4",
-      "description": "段考 四師兄"
-    },
-    {
-      "id": "1702_02",
-      "character": "trainee1",
-      "description": "段考 唐門弟子"
-    },
-    {
-      "id": "1702_03",
-      "character": "big_trainee1",
-      "description": "段考 唐大驚"
-    },
-    {
-      "id": "1702_04",
-      "character": "special811",
-      "description": "段考 唐衫"
-    },
-    {
-      "id": "1702_05",
-      "character": "big_trainee_girl_1",
-      "description": "段考 唐嬌嬌"
-    },
-    {
-      "id": "1702_06",
-      "character": "girl5",
-      "description": "段考 小梅"
-    },
-    {
-      "id": "1702_07",
-      "character": "brother3",
-      "description": "段考 三師兄"
-    },
-    {
-      "id": "1703_01",
-      "character": "special3",
-      "description": "訪問葉雲舟 決鬥"
-    },
-    {
-      "id": "1704_01",
-      "character": "brother3",
-      "description": "唐門大對決 三師兄"
-    },
-    {
-      "id": "1705_01",
-      "character": "girl4",
-      "description": "決裂 龍湘"
-    },
-    {
-      "id": "1706_01",
-      "character": "trainee1",
-      "description": "收買滄幫 唐門弟子"
-    },
-    {
-      "id": "1706_02",
-      "character": "girl9",
-      "description": "收買滄幫 上官螢"
-    },
-    {
-      "id": "1707_01",
-      "character": "special811",
-      "description": "出使峨嵋派 唐衫"
-    },
-    {
-      "id": "1708_01",
-      "character": "girl6",
-      "description": "修羅場 小蘭"
-    },
-    {
-      "id": "1708_02",
-      "character": "girl4",
-      "description": "修羅場 龍湘"
-    },
-    {
-      "id": "1708_03",
-      "character": "girl9",
-      "description": "修羅場 上官螢"
-    },
-    {
-      "id": "1708_04",
-      "character": "sister1",
-      "description": "修羅場 小師妹"
-    },
-    {
-      "id": "1801_01",
-      "character": "brother1",
-      "description": "小梅 大師兄"
-    },
-    {
-      "id": "1802_01",
-      "character": "special801",
-      "description": "護衛三師兄 譚霸刀"
-    },
-    {
-      "id": "1802_02",
-      "character": "hero1",
-      "description": "護衛三師兄 方震天"
-    },
-    {
-      "id": "1802_03",
-      "character": "special811",
-      "description": "護衛三師兄 唐衫"
-    },
-    {
-      "id": "1803_01",
-      "character": "special207",
-      "description": "護衛三師兄 金烏上人"
-    },
-    {
-      "id": "1803_02",
-      "character": "special204",
-      "description": "護衛三師兄 火龍仙君"
-    },
-    {
-      "id": "1803_03",
-      "character": "special826",
-      "description": "護衛三師兄 釋明"
-    },
-    {
-      "id": "1803_04",
-      "character": "waiter1",
-      "description": "護衛三師兄 店小二"
-    },
-    {
-      "id": "1804_01",
-      "character": "special6",
-      "description": "唐門出擊 萬里鵬程"
-    },
-    {
-      "id": "1805_01",
-      "character": "ranger_group",
-      "description": "圍攻唐門 武林盟群俠"
-    },
-    {
-      "id": "1806_01",
-      "character": "special801",
-      "description": "圍攻唐門 譚霸刀"
-    },
-    {
-      "id": "1806_02",
-      "character": "special828",
-      "description": "圍攻唐門 余公子"
-    },
-    {
-      "id": "1806_03",
-      "character": "fairy1",
-      "description": "圍攻唐門 木仙姑"
-    },
-    {
-      "id": "1807_01",
-      "character": "special6",
-      "description": "圍攻唐門 萬里鵬程"
-    },
-    {
-      "id": "1808_01",
-      "character": "ranger_group",
-      "description": "刺殺盟主 武林群俠"
-    },
-    {
-      "id": "1809_01",
-      "character": "special999",
-      "description": "刺殺盟主 瑞笙"
-    },
-    {
-      "id": "1810_01",
-      "character": "special407",
-      "description": "在山上等 上官隼"
-    },
-    {
-      "id": "1811_01",
-      "character": "special408",
-      "description": "在山上等 向無憂"
-    },
-    {
-      "id": "1812_01",
-      "character": "special102",
-      "description": "趕回山上 南宮深"
-    },
-    {
-      "id": "1812_02",
-      "character": "special407",
-      "description": "趕回山上 上官隼"
-    },
-    {
-      "id": "1813_01",
-      "character": "special999",
-      "description": "眉山之顛 瑞笙"
-    },
-    {
-      "id": "1814_01",
-      "character": "special212_1",
-      "description": "護衛三師兄 無相祖師"
-    },
-    {
-      "id": "1814_02",
-      "character": "special212_1",
-      "description": "護衛三師兄 無相祖師"
-    },
-    {
-      "id": "2001_01",
-      "character": "artist1",
-      "description": "釣魚事件"
-    },
-    {
-      "id": "2002_01",
-      "character": "girl5",
-      "description": "練武場 小梅亂入"
-    },
-    {
-      "id": "2003_01",
-      "character": "girl5",
-      "description": "小梅事件 關於四師兄"
-    },
-    {
-      "id": "3001",
-      "character": "brother3",
-      "description": "DEMO閒聊 與三師兄切磋"
-    },
-    {
-      "id": "3001_01",
-      "character": "brother3",
-      "description": "與三師兄切磋"
-    },
-    {
-      "id": "3002",
-      "character": "special7",
-      "description": "DEMO 找石公遠"
-    },
-    {
-      "id": "3003_01",
-      "character": "brother4",
-      "description": "DEMO 舉行段考的對手"
-    },
-    {
-      "id": "3003_02",
-      "character": "brother3",
-      "description": "DEMO 舉行段考的對手"
-    },
-    {
-      "id": "3004_01",
-      "character": "brother4",
-      "description": "四師兄切磋 全力"
-    },
-    {
-      "id": "3004_02",
-      "character": "brother4",
-      "description": "四師兄切磋"
-    },
-    {
-      "id": "5000_01",
-      "character": "trainee341",
-      "description": "崆峒留學 休息 和別派打架 難度1"
-    },
-    {
-      "id": "5001_01",
-      "character": "stone1",
-      "description": "大門 門市 遇見飛石幫"
-    },
-    {
-      "id": "5002_01",
-      "character": "trainee491",
-      "description": "大門 門市 遇見錦香宮"
-    },
-    {
-      "id": "5003_01",
-      "character": "artist1",
-      "description": "大門 門市 看武師表演"
-    },
-    {
-      "id": "5004_01",
-      "character": "ranger1",
-      "description": "外堡 被襲擊"
-    },
-    {
-      "id": "5005_01",
-      "character": "ranger1",
-      "description": "茶舖 被挑釁"
-    },
-    {
-      "id": "5006_01",
-      "character": "artist1",
-      "description": "姜記肉包 砸店 江湖拳師"
-    },
-    {
-      "id": "5100_01",
-      "character": "trainee211",
-      "description": "崆峒 與小梅跑步 遇敵"
-    },
-    {
-      "id": "5100_02",
-      "character": "trainee221",
-      "description": "崆峒 與小梅跑步 遇敵"
-    },
-    {
-      "id": "5100_03",
-      "character": "trainee201",
-      "description": "崆峒 與小梅跑步 遇敵"
-    },
-    {
-      "id": "5101_01",
-      "character": "trainee211",
-      "description": "崆峒 賭博被搶"
-    },
-    {
-      "id": "5101_02",
-      "character": "trainee221",
-      "description": "崆峒 賭博被搶"
-    },
-    {
-      "id": "5101_03",
-      "character": "trainee201",
-      "description": "崆峒 賭博被搶"
-    },
-    {
-      "id": "5102_01",
-      "character": "girl4",
-      "description": "後山挑戰龍湘"
-    },
-    {
-      "id": "5103_01",
-      "character": "snake1",
-      "description": "馬富貴 弄蛇失敗"
-    },
-    {
-      "id": "5103_02",
-      "character": "snake1",
-      "description": "馬富貴 弄蛇失敗"
-    },
-    {
-      "id": "5103_03",
-      "character": "snake1",
-      "description": "馬富貴 弄蛇失敗"
-    },
-    {
-      "id": "5104_01",
-      "character": "special206",
-      "description": "福韞 化緣"
-    },
-    {
-      "id": "9000_01",
-      "character": "bandit1",
-      "description": "外出路途 遇見綠林好漢"
-    },
-    {
-      "id": "A0001_01",
-      "character": "trainee_girl1",
-      "description": "活動 練功塔挑戰方第一關"
-    },
-    {
-      "id": "A0002_01",
-      "character": "brother1",
-      "description": "活動 練功塔挑戰方第二關"
-    },
-    {
-      "id": "A0002_02",
-      "character": "brother2",
-      "description": "活動 練功塔挑戰方第二關"
-    },
-    {
-      "id": "A0002_03",
-      "character": "sister1",
-      "description": "活動 練功塔挑戰方第二關"
-    },
-    {
-      "id": "A0003_01",
-      "character": "big_trainee1",
-      "description": "活動 練功塔防守方第一關"
-    },
-    {
-      "id": "A0003_02",
-      "character": "special811",
-      "description": "活動 練功塔防守方第一關"
-    },
-    {
-      "id": "A0003_03",
-      "character": "girl5",
-      "description": "活動 練功塔防守方第一關"
-    },
-    {
-      "id": "B0001_01",
-      "character": "ranger1",
-      "description": "後山 挑柴遇敵 第一年上半"
-    },
-    {
-      "id": "B0001_02",
-      "character": "ranger1",
-      "description": "後山 挑柴遇敵 第一年下半"
-    },
-    {
-      "id": "B0001_03",
-      "character": "ranger1",
-      "description": "後山 挑柴遇敵 第二年上半"
-    },
-    {
-      "id": "B0001_04",
-      "character": "ranger1",
-      "description": "後山 挑柴遇敵 第二年下半"
-    },
-    {
-      "id": "B0001_05",
-      "character": "hero1",
-      "description": "後山 挑柴遇敵 第三年上半"
-    },
-    {
-      "id": "B0001_06",
-      "character": "hero1",
-      "description": "後山 挑柴遇敵 第三年下半"
-    },
-    {
-      "id": "G0005_02_01",
-      "character": "girl6",
-      "description": "閒聊 小蘭 捍衛魏掌門"
-    },
-    {
-      "id": "G0005_02_02",
-      "character": "special4",
-      "description": "閒聊 小蘭 綁架樊嘯天"
-    },
-    {
-      "id": "G0005_02_03",
-      "character": "girl6",
-      "description": "閒聊 小蘭 綁架上官螢"
-    },
-    {
-      "id": "G0005_10_01",
-      "character": "girl6",
-      "description": "閒聊 小蘭 切磋武功1"
-    },
-    {
-      "id": "G0005_11_01",
-      "character": "girl6",
-      "description": "閒聊 小蘭 切磋武功2"
-    },
-    {
-      "id": "S0014_01",
-      "character": "trainee321",
-      "description": "稻草人 被峨嵋弟子偷襲"
-    },
-    {
-      "id": "S0014_02",
-      "character": "trainee321",
-      "description": "稻草人 被峨嵋弟子追殺"
-    },
-    {
-      "id": "S0014_03",
-      "character": "trainee321",
-      "description": "稻草人 被小蘭指導後"
-    },
-    {
-      "id": "S0017_01",
-      "character": "trainee_girl1",
-      "description": "惜花令 師姐過招"
-    },
-    {
-      "id": "S0017_02",
-      "character": "ranger4",
-      "description": "惜花令 幫助小道長"
-    },
-    {
-      "id": "S0017_03",
-      "character": "trainee341",
-      "description": "惜花令 巴結南宮世家"
-    },
-    {
-      "id": "S0017_04",
-      "character": "trainee341",
-      "description": "惜花令 幫助公子"
-    },
-    {
-      "id": "S0018_01",
-      "character": "ranger1",
-      "description": "藏寶圖 選擇上樓後"
-    },
-    {
-      "id": "S0018_02",
-      "character": "trainee301",
-      "description": "藏寶圖 幫助葉雲裳"
-    },
-    {
-      "id": "S0020_01",
-      "character": "girl4",
-      "description": "龍之覺醒 龍湘"
-    },
-    {
-      "id": "S0021_01",
-      "character": "mask1",
-      "description": "龍之團聚 黑衣人"
-    },
-    {
-      "id": "S0021_02",
-      "character": "girl4",
-      "description": "龍之團聚 龍湘"
-    },
-    {
-      "id": "S0021_03_01",
-      "character": "special2",
-      "description": "龍之團聚 全力龍淵"
-    },
-    {
-      "id": "S0021_03_02",
-      "character": "special2_1",
-      "description": "龍之團聚 全力龍淵"
-    },
-    {
-      "id": "S0022_01",
-      "character": "girl4",
-      "description": "龍之挑戰 龍湘"
-    },
-    {
-      "id": "S0023_01",
-      "character": "beggar1",
-      "description": "龍之反省 乞丐"
-    },
-    {
-      "id": "S0026_01",
-      "character": "special206",
-      "description": "上街偶遇 福韞"
-    },
-    {
-      "id": "S0026_02",
-      "character": "big_shock1",
-      "description": "上街偶遇 許大鯨"
-    },
-    {
-      "id": "S0026_03",
-      "character": "big_shock1",
-      "description": "上街偶遇 許大鯨"
-    },
-    {
-      "id": "S0100_01",
-      "character": "trainee_girl1",
-      "description": "風聲 與女弟子吵架"
-    },
-    {
-      "id": "S0105_01",
-      "character": "special208",
-      "description": "假趙活審判 揍晁和"
-    },
-    {
-      "id": "S0105_02",
-      "character": "trainee1",
-      "description": "假趙活審判 揍晁和後"
-    },
-    {
-      "id": "S0106_01",
-      "character": "trainee1",
-      "description": "假趙活乾娘 與師弟對練"
-    },
-    {
-      "id": "S0121_01",
-      "character": "dio1",
-      "description": "唐嬌嬌加入唐門 狄傲"
-    },
-    {
-      "id": "S0202_02_01",
-      "character": "girl9",
-      "description": "葉雲裳下山 上官螢"
-    },
-    {
-      "id": "S0204_01_03",
-      "character": "special3",
-      "description": "葉家兄妹的去留 葉雲舟"
-    },
-    {
-      "id": "S0208_02_01",
-      "character": "special834",
-      "description": "無相祖師 段智秀"
-    },
-    {
-      "id": "S0208_02_02",
-      "character": "special212",
-      "description": "無相祖師 鐵冠道人"
-    },
-    {
-      "id": "S0208_05_01",
-      "character": "special201",
-      "description": "訣別時 鄒博"
-    },
-    {
-      "id": "S0208_05_02",
-      "character": "special101",
-      "description": "訣別時 南宮遠"
-    },
-    {
-      "id": "S0208_05_03",
-      "character": "special834",
-      "description": "訣別時 段智秀"
-    },
-    {
-      "id": "S0208_05_04",
-      "character": "special203",
-      "description": "訣別時 點蒼雙尊"
-    },
-    {
-      "id": "S0209_01_01",
-      "character": "special201",
-      "description": "雲裳之死 鄒博"
-    },
-    {
-      "id": "S0209_01_02",
-      "character": "special101",
-      "description": "訣別時 南宮遠"
-    },
-    {
-      "id": "S0209_01_03",
-      "character": "special834",
-      "description": "訣別時 段智秀"
-    },
-    {
-      "id": "S0209_01_04",
-      "character": "special203",
-      "description": "訣別時 點蒼雙尊"
-    },
-    {
-      "id": "S0301_01",
-      "character": "special103",
-      "description": "黑衣人VS黑衣人 南宮淺切磋"
-    },
-    {
-      "id": "S0301_02",
-      "character": "special401",
-      "description": "黑衣人VS黑衣人 毛二壯開扁"
-    },
-    {
-      "id": "S0302_01",
-      "character": "brother1",
-      "description": "飛俠千里行 與大師兄切磋"
-    },
-    {
-      "id": "S0603_01",
-      "character": "soldier1",
-      "description": "武林大會邀請葉雲舟 惹怒葉雲裳"
-    },
-    {
-      "id": "S0604_01",
-      "character": "girl6",
-      "description": "武林大會邀請小蘭 選擇襲擊"
-    },
-    {
-      "id": "S0701_01",
-      "character": "sister1",
-      "description": "小師妹歸來 決鬥"
-    },
-    {
-      "id": "S0702_01",
-      "character": "special999",
-      "description": "瑞笙來訪 圍毆瑞笙"
-    },
-    {
-      "id": "S0802_02_01_01",
-      "character": "sister1",
-      "description": "決戰前後山 小師妹1"
-    },
-    {
-      "id": "S0802_02_01_02",
-      "character": "sister1",
-      "description": "決戰前後山 小師妹2"
-    },
-    {
-      "id": "S0802_02_02",
-      "character": "brother1",
-      "description": "決戰前後山 大師兄"
-    },
-    {
-      "id": "S0802_02_03_01",
-      "character": "girl4",
-      "description": "決戰前後山 龍湘1"
-    },
-    {
-      "id": "S0802_02_03_02",
-      "character": "girl4",
-      "description": "決戰前後山 龍湘2"
-    },
-    {
-      "id": "S0802_02_03_03",
-      "character": "girl4",
-      "description": "決戰前後山 龍湘3"
-    },
-    {
-      "id": "S0802_02_04",
-      "character": "girl6",
-      "description": "決戰前後山 小蘭"
-    },
-    {
-      "id": "S0802_02_05",
-      "character": "special3",
-      "description": "決戰前後山 葉雲舟"
-    },
-    {
-      "id": "S0802_02_06",
-      "character": "special829",
-      "description": "決戰前後山 南溪"
-    },
-    {
-      "id": "S0802_02_07",
-      "character": "special201",
-      "description": "決戰前後山 鄒博"
-    },
-    {
-      "id": "S0802_02_08",
-      "character": "special808",
-      "description": "決戰前後山 解無塵"
-    },
-    {
-      "id": "S0802_02_09",
-      "character": "special408",
-      "description": "決戰前後山 向無憂"
-    },
-    {
-      "id": "S0802_02_10",
-      "character": "special405",
-      "description": "決戰前後山 申屠龍"
-    },
-    {
-      "id": "S2001_01",
-      "character": "sir1",
-      "description": "欠債還錢1 想幹掉先生的念頭"
-    },
-    {
-      "id": "S2001_02",
-      "character": "sir1",
-      "description": "欠債還錢1 追殺呂翁"
-    },
-    {
-      "id": "S2002_01",
-      "character": "trainee1",
-      "description": "欠債還錢2 與弟子決鬥"
-    },
-    {
-      "id": "S2002_02",
-      "character": "girl9",
-      "description": "欠債還錢2 知道香方選擇威脅"
-    },
-    {
-      "id": "S2100_01",
-      "character": "trainee1",
-      "description": "段考 第一關"
-    },
-    {
-      "id": "S2100_02",
-      "character": "trainee1",
-      "description": "段考 第一關弱化"
-    },
-    {
-      "id": "S2100_03",
-      "character": "trainee_girl1",
-      "description": "段考 第二關"
-    },
-    {
-      "id": "S2100_04",
-      "character": "trainee_girl1",
-      "description": "段考 第二關弱化"
-    },
-    {
-      "id": "S2100_05",
-      "character": "trainee1",
-      "description": "段考 第三關"
-    },
-    {
-      "id": "S2200_02_01",
-      "character": "special103",
-      "description": "崆峒大試 南宮淺的勝利"
-    },
-    {
-      "id": "S2200_02_02",
-      "character": "trainee311",
-      "description": "崆峒大試 南宮淺戰敗"
-    },
-    {
-      "id": "S2200_03_01",
-      "character": "trainee301",
-      "description": "崆峒大試 第二場"
-    },
-    {
-      "id": "S2200_03_02",
-      "character": "trainee331",
-      "description": "崆峒大試 第二場"
-    },
-    {
-      "id": "S2200_03_03",
-      "character": "trainee491",
-      "description": "崆峒大試 第二場"
-    },
-    {
-      "id": "S2200_03_04",
-      "character": "trainee321",
-      "description": "崆峒大試 第二場"
-    },
-    {
-      "id": "S2200_04_01",
-      "character": "special4",
-      "description": "崆峒大試 第三場"
-    },
-    {
-      "id": "S2200_04_02",
-      "character": "girl9",
-      "description": "崆峒大試 第三場"
-    },
-    {
-      "id": "S2200_04_03",
-      "character": "special999",
-      "description": "崆峒大試 第三場"
-    },
-    {
-      "id": "S2501_01",
-      "character": "trainee491",
-      "description": "雪山行 回程 遇見情敵"
-    },
-    {
-      "id": "S2501_02",
-      "character": "ranger_girl1",
-      "description": "雪山行 回程 遇見情敵"
-    },
-    {
-      "id": "S2501_03",
-      "character": "ranger1",
-      "description": "雪山行 回程 遇見強姦犯"
-    },
-    {
-      "id": "S2501_04",
-      "character": "hero1",
-      "description": "雪山行 回程 遇見少俠"
-    },
-    {
-      "id": "S2501_05",
-      "character": "ranger4",
-      "description": "雪山行 回程 遇見少俠"
-    },
-    {
-      "id": "S2502_01",
-      "character": "pig1",
-      "description": "雪山行 野豬"
-    },
-    {
-      "id": "S2504_01",
-      "character": "special820",
-      "description": "雪山行 主動請纓"
-    },
-    {
-      "id": "S2504_02",
-      "character": "girl6",
-      "description": "雪山行 攻略小蘭"
-    },
-    {
-      "id": "S3004_01",
-      "character": "brother4",
-      "description": "青城留學 四師兄"
-    },
-    {
-      "id": "S8400_01",
-      "character": "trainee1",
-      "description": "霸凌 選擇跟你們拼了"
-    },
-    {
-      "id": "S9903_01",
-      "character": "trainee1",
-      "description": "唐門會議前置 好啦好啦都我啦"
-    },
-    {
-      "id": "S9904_01_01",
-      "character": "bandit1",
-      "description": "大師兄打劫山賊 選到吃喝嫖賭"
-    },
-    {
-      "id": "S9904_01_02",
-      "character": "brother1",
-      "description": "大師兄打劫山賊 鬧小師妹後故作鎮定"
-    },
-    {
-      "id": "S9905_01_01",
-      "character": "trainee1",
-      "description": "情書 蝴蝶雙雄"
-    },
-    {
-      "id": "S9905_01_02",
-      "character": "trainee1",
-      "description": "情書 蝴蝶雙雄"
-    },
-    {
-      "id": "S9906_01",
-      "character": "beggar1",
-      "description": "丐幫搶菜 切磋"
-    },
-    {
-      "id": "T0001",
-      "character": "brother3",
-      "description": "決鬥教學"
-    },
-    {
-      "id": "T0002_01",
-      "character": "trainee1",
-      "description": "主線段考 決鬥"
-    },
-    {
-      "id": "T0002_02",
-      "character": "trainee1",
-      "description": "主線段考 決鬥"
-    },
-    {
-      "id": "T0002_03",
-      "character": "trainee1",
-      "description": "主線段考 決鬥"
-    }
+    "0001_01",
+    "0001_02",
+    "0002",
+    "0003_01",
+    "0003_02",
+    "0003_03",
+    "1001_1",
+    "1001_2",
+    "1001_3",
+    "1100_01",
+    "1101_01",
+    "1102_01",
+    "1103_01",
+    "1104_01",
+    "1201_01",
+    "1202_01",
+    "1203_01",
+    "1203_02",
+    "1203_03",
+    "1204_01",
+    "1205_01",
+    "1206_01",
+    "1206_02",
+    "1207_01",
+    "1208_01",
+    "1209_01",
+    "1210_01",
+    "1210_02",
+    "1211_01",
+    "1211_02",
+    "1212_01",
+    "1213_01",
+    "1213_02",
+    "1214_01",
+    "1214_02",
+    "1215_01",
+    "1215_02",
+    "1216_01",
+    "1217_01",
+    "1218_01",
+    "1219_01",
+    "1301_01",
+    "1302_01",
+    "1303_01",
+    "1304_01",
+    "1304_02",
+    "1305_01",
+    "1305_02",
+    "1306_01",
+    "1307_01",
+    "1308_01",
+    "1309_01",
+    "1310_01",
+    "1311_01",
+    "1312_01",
+    "1312_02",
+    "1313_01",
+    "1313_02",
+    "1313_03",
+    "1314_01",
+    "1315_01",
+    "1316_01",
+    "1317_01",
+    "1318_01",
+    "1319_01",
+    "1320_01",
+    "1321_01",
+    "1321_02",
+    "1322_01",
+    "1323_01",
+    "1324_01",
+    "1324_02",
+    "1325_01",
+    "1326_01",
+    "1327_01",
+    "1328_01",
+    "1329_01",
+    "1330_01",
+    "1330_02",
+    "1401_01",
+    "1401_02",
+    "1401_03",
+    "1402_01",
+    "1402_02",
+    "1402_03",
+    "1403_01",
+    "1403_02",
+    "1403_03",
+    "1403_04",
+    "1404_01",
+    "1404_02",
+    "1405_01",
+    "1405_02",
+    "1406_01",
+    "1407_01",
+    "1407_02",
+    "1407_03",
+    "1408_01",
+    "1409_01",
+    "1409_02",
+    "1409_03",
+    "1409_04",
+    "1501_01",
+    "1502_01",
+    "1503_01",
+    "1504_01",
+    "1504_02",
+    "1504_03",
+    "1504_04",
+    "1505_01",
+    "1505_02",
+    "1506_01",
+    "1507_01",
+    "1507_02",
+    "1507_03",
+    "1611_01",
+    "1612_01",
+    "1614_01",
+    "1615_01",
+    "1616_01",
+    "1616_02",
+    "1616_03",
+    "1616_04",
+    "1617_01",
+    "1617_02",
+    "1618_01",
+    "1619_01",
+    "1619_02",
+    "1619_03",
+    "1620_01",
+    "1621_01",
+    "1622_01",
+    "1623_01",
+    "1624_01",
+    "1625_01",
+    "1701_01",
+    "1702_01",
+    "1702_02",
+    "1702_03",
+    "1702_04",
+    "1702_05",
+    "1702_06",
+    "1702_07",
+    "1703_01",
+    "1704_01",
+    "1705_01",
+    "1706_01",
+    "1706_02",
+    "1707_01",
+    "1708_01",
+    "1708_02",
+    "1708_03",
+    "1708_04",
+    "1801_01",
+    "1802_01",
+    "1802_02",
+    "1802_03",
+    "1803_01",
+    "1803_02",
+    "1803_03",
+    "1803_04",
+    "1804_01",
+    "1805_01",
+    "1806_01",
+    "1806_02",
+    "1806_03",
+    "1807_01",
+    "1808_01",
+    "1809_01",
+    "1810_01",
+    "1811_01",
+    "1812_01",
+    "1812_02",
+    "1813_01",
+    "1814_01",
+    "1814_02",
+    "2001_01",
+    "2002_01",
+    "2003_01",
+    "3001",
+    "3001_01",
+    "3002",
+    "3003_01",
+    "3003_02",
+    "3004_01",
+    "3004_02",
+    "5000_01",
+    "5001_01",
+    "5002_01",
+    "5003_01",
+    "5004_01",
+    "5005_01",
+    "5006_01",
+    "5100_01",
+    "5100_02",
+    "5100_03",
+    "5101_01",
+    "5101_02",
+    "5101_03",
+    "5102_01",
+    "5103_01",
+    "5103_02",
+    "5103_03",
+    "5104_01",
+    "9000_01",
+    "A0001_01",
+    "A0002_01",
+    "A0002_02",
+    "A0002_03",
+    "A0003_01",
+    "A0003_02",
+    "A0003_03",
+    "B0001_01",
+    "B0001_02",
+    "B0001_03",
+    "B0001_04",
+    "B0001_05",
+    "B0001_06",
+    "G0005_02_01",
+    "G0005_02_02",
+    "G0005_02_03",
+    "G0005_10_01",
+    "G0005_11_01",
+    "S0014_01",
+    "S0014_02",
+    "S0014_03",
+    "S0017_01",
+    "S0017_02",
+    "S0017_03",
+    "S0017_04",
+    "S0018_01",
+    "S0018_02",
+    "S0020_01",
+    "S0021_01",
+    "S0021_02",
+    "S0021_03_01",
+    "S0021_03_02",
+    "S0022_01",
+    "S0023_01",
+    "S0026_01",
+    "S0026_02",
+    "S0026_03",
+    "S0100_01",
+    "S0105_01",
+    "S0105_02",
+    "S0106_01",
+    "S0121_01",
+    "S0202_02_01",
+    "S0204_01_03",
+    "S0208_02_01",
+    "S0208_02_02",
+    "S0208_05_01",
+    "S0208_05_02",
+    "S0208_05_03",
+    "S0208_05_04",
+    "S0209_01_01",
+    "S0209_01_02",
+    "S0209_01_03",
+    "S0209_01_04",
+    "S0301_01",
+    "S0301_02",
+    "S0302_01",
+    "S0603_01",
+    "S0604_01",
+    "S0701_01",
+    "S0702_01",
+    "S0802_02_01_01",
+    "S0802_02_01_02",
+    "S0802_02_02",
+    "S0802_02_03_01",
+    "S0802_02_03_02",
+    "S0802_02_03_03",
+    "S0802_02_04",
+    "S0802_02_05",
+    "S0802_02_06",
+    "S0802_02_07",
+    "S0802_02_08",
+    "S0802_02_09",
+    "S0802_02_10",
+    "S2001_01",
+    "S2001_02",
+    "S2002_01",
+    "S2002_02",
+    "S2100_01",
+    "S2100_02",
+    "S2100_03",
+    "S2100_04",
+    "S2100_05",
+    "S2200_02_01",
+    "S2200_02_02",
+    "S2200_03_01",
+    "S2200_03_02",
+    "S2200_03_03",
+    "S2200_03_04",
+    "S2200_04_01",
+    "S2200_04_02",
+    "S2200_04_03",
+    "S2501_01",
+    "S2501_02",
+    "S2501_03",
+    "S2501_04",
+    "S2501_05",
+    "S2502_01",
+    "S2504_01",
+    "S2504_02",
+    "S3004_01",
+    "S8400_01",
+    "S9903_01",
+    "S9904_01_01",
+    "S9904_01_02",
+    "S9905_01_01",
+    "S9905_01_02",
+    "S9906_01",
+    "T0001",
+    "T0002_01",
+    "T0002_02",
+    "T0002_03"
   ],
   "battle_ids": [
+    "0000",
+    "0001",
+    "1000",
+    "1201_01",
+    "1202_01",
+    "1202_02",
+    "1305_01",
+    "1305_02",
+    "1306_01",
+    "1307_01",
+    "1401_01",
+    "1401_02",
+    "1401_03",
+    "1501_01",
+    "1601_01",
+    "1601_02",
+    "1602_01",
+    "1602_02",
+    "1603_01",
+    "1603_02",
+    "1603_03",
+    "1611_01",
+    "1613_01",
+    "1614_01",
+    "1615_01",
+    "1615_02",
+    "1615_03",
+    "1616_01",
+    "1616_02",
+    "1616_03",
+    "1616_04",
+    "1701_01",
+    "1702_01",
+    "1801_01",
+    "1801_02",
+    "1801_03",
+    "1802_01",
+    "1803_01",
+    "1803_02",
+    "1804_01",
+    "2000",
+    "2001",
+    "2002",
+    "3001",
+    "3002",
+    "3003",
+    "3004",
+    "3005",
+    "3100",
+    "3101",
+    "3102",
+    "3200",
+    "3300",
+    "4001",
+    "5001",
+    "5002",
+    "5003_01",
+    "5003_02",
+    "5003_03",
+    "A0001_01",
+    "A0001_02",
+    "A0001_03",
+    "A0002_01",
+    "S0012_01",
+    "S0018_01",
+    "S0018_02",
+    "S0024_01",
+    "S0024_02",
+    "S0106_01",
+    "S0106_02",
+    "S0210_01",
+    "S9906_01"
+  ],
+  "battle_factions": [
     {
-      "id": "0000",
-      "name_key": "001"
+      "id": "000",
+      "name": "混战"
     },
     {
-      "id": "0001",
-      "name_key": "001"
+      "id": "001",
+      "name": "飞石帮"
     },
     {
-      "id": "1000",
-      "name_key": "001"
+      "id": "002",
+      "name": "丐帮"
     },
     {
-      "id": "1201_01",
-      "name_key": "000"
+      "id": "003",
+      "name": "白鲨帮"
     },
     {
-      "id": "1202_01",
-      "name_key": "000"
+      "id": "004",
+      "name": "点苍派"
     },
     {
-      "id": "1202_02",
-      "name_key": "000"
+      "id": "005",
+      "name": "南宫世家"
     },
     {
-      "id": "1305_01",
-      "name_key": "200"
+      "id": "006",
+      "name": "青城派"
     },
     {
-      "id": "1305_02",
-      "name_key": "200"
+      "id": "007",
+      "name": "全真派"
     },
     {
-      "id": "1306_01",
-      "name_key": "010"
+      "id": "008",
+      "name": "嵩山派"
     },
     {
-      "id": "1307_01",
-      "name_key": "201"
+      "id": "009",
+      "name": "峨嵋派"
     },
     {
-      "id": "1401_01",
-      "name_key": "100"
+      "id": "010",
+      "name": "地狱道"
     },
     {
-      "id": "1401_02",
-      "name_key": "006"
+      "id": "100",
+      "name": "崆峒派"
     },
     {
-      "id": "1401_03",
-      "name_key": "000"
+      "id": "101",
+      "name": "锦香宫"
     },
     {
-      "id": "1501_01",
-      "name_key": "100"
+      "id": "102",
+      "name": "广州唐门"
     },
     {
-      "id": "1601_01",
-      "name_key": "010"
+      "id": "200",
+      "name": "天武门"
     },
     {
-      "id": "1601_02",
-      "name_key": "010"
+      "id": "201",
+      "name": "山贼"
     },
     {
-      "id": "1602_01",
-      "name_key": "002"
+      "id": "300",
+      "name": "官兵"
     },
     {
-      "id": "1602_02",
-      "name_key": "002"
+      "id": "301",
+      "name": "金兵"
     },
     {
-      "id": "1603_01",
-      "name_key": "003"
+      "id": "400",
+      "name": "武林盟"
     },
     {
-      "id": "1603_02",
-      "name_key": "003"
+      "id": "500",
+      "name": "唐门"
     },
     {
-      "id": "1603_03",
-      "name_key": "003"
-    },
-    {
-      "id": "1611_01",
-      "name_key": "009"
-    },
-    {
-      "id": "1613_01",
-      "name_key": "100"
-    },
-    {
-      "id": "1614_01",
-      "name_key": "004"
-    },
-    {
-      "id": "1615_01",
-      "name_key": "000"
-    },
-    {
-      "id": "1615_02",
-      "name_key": "000"
-    },
-    {
-      "id": "1615_03",
-      "name_key": "000"
-    },
-    {
-      "id": "1616_01",
-      "name_key": "010"
-    },
-    {
-      "id": "1616_02",
-      "name_key": "010"
-    },
-    {
-      "id": "1616_03",
-      "name_key": "010"
-    },
-    {
-      "id": "1616_04",
-      "name_key": "010"
-    },
-    {
-      "id": "1701_01",
-      "name_key": "001"
-    },
-    {
-      "id": "1702_01",
-      "name_key": "000"
-    },
-    {
-      "id": "1801_01",
-      "name_key": "000"
-    },
-    {
-      "id": "1801_02",
-      "name_key": "000"
-    },
-    {
-      "id": "1801_03",
-      "name_key": "000"
-    },
-    {
-      "id": "1802_01",
-      "name_key": "000"
-    },
-    {
-      "id": "1803_01",
-      "name_key": "000"
-    },
-    {
-      "id": "1803_02",
-      "name_key": "000"
-    },
-    {
-      "id": "1804_01",
-      "name_key": "000"
-    },
-    {
-      "id": "2000",
-      "name_key": "003"
-    },
-    {
-      "id": "2001",
-      "name_key": "300"
-    },
-    {
-      "id": "2002",
-      "name_key": "100"
-    },
-    {
-      "id": "3001",
-      "name_key": "002"
-    },
-    {
-      "id": "3002",
-      "name_key": "000"
-    },
-    {
-      "id": "3003",
-      "name_key": "002"
-    },
-    {
-      "id": "3004",
-      "name_key": "002"
-    },
-    {
-      "id": "3005",
-      "name_key": "002"
-    },
-    {
-      "id": "3100",
-      "name_key": "002"
-    },
-    {
-      "id": "3101",
-      "name_key": "002"
-    },
-    {
-      "id": "3102",
-      "name_key": "000"
-    },
-    {
-      "id": "3200",
-      "name_key": "002"
-    },
-    {
-      "id": "3300",
-      "name_key": "001"
-    },
-    {
-      "id": "4001",
-      "name_key": "000"
-    },
-    {
-      "id": "5001",
-      "name_key": "002"
-    },
-    {
-      "id": "5002",
-      "name_key": "000"
-    },
-    {
-      "id": "5003_01",
-      "name_key": "000"
-    },
-    {
-      "id": "5003_02",
-      "name_key": "001"
-    },
-    {
-      "id": "5003_03",
-      "name_key": "002"
-    },
-    {
-      "id": "A0001_01",
-      "name_key": "008"
-    },
-    {
-      "id": "A0001_02",
-      "name_key": "004"
-    },
-    {
-      "id": "A0001_03",
-      "name_key": "000"
-    },
-    {
-      "id": "A0002_01",
-      "name_key": "500"
-    },
-    {
-      "id": "S0012_01",
-      "name_key": "000"
-    },
-    {
-      "id": "S0018_01",
-      "name_key": "000"
-    },
-    {
-      "id": "S0018_02",
-      "name_key": "000"
-    },
-    {
-      "id": "S0024_01",
-      "name_key": "000"
-    },
-    {
-      "id": "S0024_02",
-      "name_key": "000"
-    },
-    {
-      "id": "S0106_01",
-      "name_key": "000"
-    },
-    {
-      "id": "S0106_02",
-      "name_key": "000"
-    },
-    {
-      "id": "S0210_01",
-      "name_key": "500"
-    },
-    {
-      "id": "S9906_01",
-      "name_key": "002"
+      "id": "900",
+      "name": "百姓"
     }
   ],
   "enemy_teams": [
@@ -19414,6 +17993,2513 @@
     {
       "id": "9113",
       "name": "偕老誓"
+    }
+  ],
+  "combat_talents": [
+    {
+      "id": "0001",
+      "effect_key": "B006",
+      "max_level": 3,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B006_1"
+        },
+        {
+          "level": 2,
+          "key": "B006_2"
+        },
+        {
+          "level": 3,
+          "key": "B006_3"
+        }
+      ],
+      "name": "强化防御",
+      "description": "[决斗]\\n提升所有伤害减免。"
+    },
+    {
+      "id": "0002",
+      "effect_key": "B005",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B005"
+        }
+      ],
+      "name": "额外暗器",
+      "description": "[决斗]\\n使用捅人、暗器指令，\\n额外发动「暗器」效果"
+    },
+    {
+      "id": "0003",
+      "effect_key": "A012",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "A012_1"
+        },
+        {
+          "level": 2,
+          "key": "A012_2"
+        },
+        {
+          "level": 3,
+          "key": "A012_3"
+        },
+        {
+          "level": 4,
+          "key": "A012_4"
+        },
+        {
+          "level": 5,
+          "key": "A012_5"
+        },
+        {
+          "level": 6,
+          "key": "A012_6"
+        },
+        {
+          "level": 7,
+          "key": "A012_7"
+        },
+        {
+          "level": 8,
+          "key": "A012_8"
+        },
+        {
+          "level": 9,
+          "key": "A012_9"
+        }
+      ],
+      "name": "唐门暗器",
+      "description": "[决斗]\\n提升暗器命中、伤害、爆击骰。"
+    },
+    {
+      "id": "0004",
+      "effect_key": "A013",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "A013_1"
+        },
+        {
+          "level": 2,
+          "key": "A013_2"
+        },
+        {
+          "level": 3,
+          "key": "A013_3"
+        },
+        {
+          "level": 4,
+          "key": "A013_4"
+        },
+        {
+          "level": 5,
+          "key": "A013_5"
+        },
+        {
+          "level": 6,
+          "key": "A013_6"
+        },
+        {
+          "level": 7,
+          "key": "A013_7"
+        },
+        {
+          "level": 8,
+          "key": "A013_8"
+        },
+        {
+          "level": 9,
+          "key": "A013_9"
+        }
+      ],
+      "name": "唐门毒术",
+      "description": "[决斗]\\n提升毒药、麻痹累积值。"
+    },
+    {
+      "id": "0005",
+      "effect_key": "A014",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "A014"
+        }
+      ],
+      "name": "君子风",
+      "description": "[决斗]\\n修养、性情、处世三项皆为中庸时，提升最终伤害及伤害减免。"
+    },
+    {
+      "id": "0006",
+      "effect_key": "A015",
+      "max_level": 5,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "A015_1"
+        },
+        {
+          "level": 2,
+          "key": "A015_2"
+        },
+        {
+          "level": 3,
+          "key": "A015_3"
+        },
+        {
+          "level": 4,
+          "key": "A015_4"
+        },
+        {
+          "level": 5,
+          "key": "A015_5"
+        }
+      ],
+      "name": "全真体操",
+      "description": "[决斗]\\n根据体力提升内力。"
+    },
+    {
+      "id": "0007",
+      "effect_key": "A016",
+      "max_level": 5,
+      "display_level": true,
+      "priority": 10,
+      "effects": [
+        {
+          "level": 1,
+          "key": "A016_1"
+        },
+        {
+          "level": 2,
+          "key": "A016_2"
+        },
+        {
+          "level": 3,
+          "key": "A016_3"
+        },
+        {
+          "level": 4,
+          "key": "A016_4"
+        },
+        {
+          "level": 5,
+          "key": "A016_5"
+        }
+      ],
+      "name": "三教合一",
+      "description": "[决斗]\\n根据已精通之儒道释学提升内力。"
+    },
+    {
+      "id": "0008",
+      "effect_key": "A0008",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "A0008_1"
+        },
+        {
+          "level": 2,
+          "key": "A0008_2"
+        },
+        {
+          "level": 3,
+          "key": "A0008_3"
+        },
+        {
+          "level": 4,
+          "key": "A0008_4"
+        },
+        {
+          "level": 5,
+          "key": "A0008_5"
+        },
+        {
+          "level": 6,
+          "key": "A0008_6"
+        },
+        {
+          "level": 7,
+          "key": "A0008_7"
+        },
+        {
+          "level": 8,
+          "key": "A0008_8"
+        },
+        {
+          "level": 9,
+          "key": "A0008_9"
+        }
+      ],
+      "name": "炼精化气",
+      "description": "[决斗]\\n根据体力提升内力。"
+    },
+    {
+      "id": "0009",
+      "effect_key": "A0009",
+      "max_level": 3,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "A0009_1"
+        },
+        {
+          "level": 2,
+          "key": "A0009_2"
+        },
+        {
+          "level": 3,
+          "key": "A0009_3"
+        }
+      ],
+      "name": "炼气化神",
+      "description": "[决斗]\\n根据内力提升气上限。"
+    },
+    {
+      "id": "0010",
+      "effect_key": "A0010",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "A0010"
+        }
+      ],
+      "name": "炼神还虚",
+      "description": "[决斗]\\n根据气的上限获得额外回气。"
+    },
+    {
+      "id": "0011",
+      "effect_key": "A0011",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 10,
+      "effects": [
+        {
+          "level": 1,
+          "key": "A0011_1"
+        },
+        {
+          "level": 2,
+          "key": "A0011_2"
+        },
+        {
+          "level": 3,
+          "key": "A0011_3"
+        },
+        {
+          "level": 4,
+          "key": "A0011_4"
+        },
+        {
+          "level": 5,
+          "key": "A0011_5"
+        },
+        {
+          "level": 6,
+          "key": "A0011_6"
+        },
+        {
+          "level": 7,
+          "key": "A0011_7"
+        },
+        {
+          "level": 8,
+          "key": "A0011_8"
+        },
+        {
+          "level": 9,
+          "key": "A0011_9"
+        }
+      ],
+      "name": "练气神通",
+      "description": "[决斗]\\n根据道学提升内力。"
+    },
+    {
+      "id": "0012",
+      "effect_key": "B0012",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B0012_1"
+        },
+        {
+          "level": 2,
+          "key": "B0012_2"
+        },
+        {
+          "level": 3,
+          "key": "B0012_3"
+        },
+        {
+          "level": 4,
+          "key": "B0012_4"
+        },
+        {
+          "level": 5,
+          "key": "B0012_5"
+        },
+        {
+          "level": 6,
+          "key": "B0012_6"
+        },
+        {
+          "level": 7,
+          "key": "B0012_7"
+        },
+        {
+          "level": 8,
+          "key": "B0012_8"
+        },
+        {
+          "level": 9,
+          "key": "B0012_9"
+        }
+      ],
+      "name": "白猿身法",
+      "description": "[决斗]\\n根据轻功、拳掌获得回避机率"
+    },
+    {
+      "id": "0013",
+      "effect_key": "B0013",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B0013_1"
+        },
+        {
+          "level": 2,
+          "key": "B0013_2"
+        },
+        {
+          "level": 3,
+          "key": "B0013_3"
+        },
+        {
+          "level": 4,
+          "key": "B0013_4"
+        },
+        {
+          "level": 5,
+          "key": "B0013_5"
+        },
+        {
+          "level": 6,
+          "key": "B0013_6"
+        },
+        {
+          "level": 7,
+          "key": "B0013_7"
+        },
+        {
+          "level": 8,
+          "key": "B0013_8"
+        },
+        {
+          "level": 9,
+          "key": "B0013_9"
+        }
+      ],
+      "name": "心剑",
+      "description": "[决斗]\\n根据刀剑提升拳掌。"
+    },
+    {
+      "id": "0014",
+      "effect_key": "B0014",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B0014"
+        }
+      ],
+      "name": "峨嵋十九桩",
+      "description": "[决斗]\\n全属性根据形意拳精通数获得提升。"
+    },
+    {
+      "id": "0017",
+      "effect_key": "B017",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B017_1"
+        },
+        {
+          "level": 2,
+          "key": "B017_2"
+        },
+        {
+          "level": 3,
+          "key": "B017_3"
+        },
+        {
+          "level": 4,
+          "key": "B017_4"
+        },
+        {
+          "level": 5,
+          "key": "B017_5"
+        },
+        {
+          "level": 6,
+          "key": "B017_6"
+        },
+        {
+          "level": 7,
+          "key": "B017_7"
+        },
+        {
+          "level": 8,
+          "key": "B017_8"
+        },
+        {
+          "level": 9,
+          "key": "B017_9"
+        }
+      ],
+      "name": "千机百变",
+      "description": "[决斗]\\n根据暗器提升武器爆击骰。"
+    },
+    {
+      "id": "0019",
+      "effect_key": "B0019",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B0019"
+        }
+      ],
+      "name": "肩甲",
+      "description": "[决斗]\\n防御+20%、轻功-10%。"
+    },
+    {
+      "id": "0020",
+      "effect_key": "B0020",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B0020"
+        }
+      ],
+      "name": "豪华肩甲",
+      "description": "[决斗]\\n防御+40%、轻功-20%。"
+    },
+    {
+      "id": "0021",
+      "effect_key": "B0021",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B0021"
+        }
+      ],
+      "name": "终极肩甲",
+      "description": "[决斗]\\n防御+60%、轻功-30%、采取攻击行动时，自身受到中幅伤害。"
+    },
+    {
+      "id": "0025",
+      "effect_key": "B0025",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B0025"
+        }
+      ],
+      "name": "高手风范",
+      "description": "[决斗]\\n根据修养提升每回合的气力。"
+    },
+    {
+      "id": "0026",
+      "effect_key": "B0026",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B0026"
+        }
+      ],
+      "name": "做人没有下限",
+      "description": "[决斗]\\n道德越低，爆击骰越多。"
+    },
+    {
+      "id": "0027",
+      "effect_key": "B0027",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B0027_1"
+        },
+        {
+          "level": 2,
+          "key": "B0027_2"
+        },
+        {
+          "level": 3,
+          "key": "B0027_3"
+        },
+        {
+          "level": 4,
+          "key": "B0027_4"
+        },
+        {
+          "level": 5,
+          "key": "B0027_5"
+        },
+        {
+          "level": 6,
+          "key": "B0027_6"
+        },
+        {
+          "level": 7,
+          "key": "B0027_7"
+        },
+        {
+          "level": 8,
+          "key": "B0027_8"
+        },
+        {
+          "level": 9,
+          "key": "B0027_9"
+        }
+      ],
+      "name": "化劲",
+      "description": "[决斗]\\n根据拳掌、轻功提升防御。"
+    },
+    {
+      "id": "0035",
+      "effect_key": "B0035",
+      "max_level": 7,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B0035_1"
+        },
+        {
+          "level": 2,
+          "key": "B0035_2"
+        },
+        {
+          "level": 3,
+          "key": "B0035_3"
+        },
+        {
+          "level": 4,
+          "key": "B0035_4"
+        },
+        {
+          "level": 5,
+          "key": "B0035_5"
+        },
+        {
+          "level": 6,
+          "key": "B0035_6"
+        },
+        {
+          "level": 7,
+          "key": "B0035_7"
+        }
+      ],
+      "name": "龙渊七绝",
+      "description": "[决斗]\\n根据六维提升所有伤害。"
+    },
+    {
+      "id": "0036",
+      "effect_key": "B0036",
+      "max_level": 5,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B0036_1"
+        },
+        {
+          "level": 2,
+          "key": "B0036_2"
+        },
+        {
+          "level": 3,
+          "key": "B0036_3"
+        },
+        {
+          "level": 4,
+          "key": "B0036_4"
+        },
+        {
+          "level": 5,
+          "key": "B0036_5"
+        }
+      ],
+      "name": "借势",
+      "description": "[决斗]\\n回避成功时，根据等级回复气。"
+    },
+    {
+      "id": "1001",
+      "effect_key": "A009",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "A009"
+        }
+      ],
+      "name": "傲慢",
+      "description": "[决斗]\\n所有伤害提升50%，\\n受到伤害增加10%。"
+    },
+    {
+      "id": "1002",
+      "effect_key": "B115",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B115_1"
+        },
+        {
+          "level": 2,
+          "key": "B115_2"
+        },
+        {
+          "level": 3,
+          "key": "B115_3"
+        },
+        {
+          "level": 4,
+          "key": "B115_4"
+        },
+        {
+          "level": 5,
+          "key": "B115_5"
+        },
+        {
+          "level": 6,
+          "key": "B115_6"
+        },
+        {
+          "level": 7,
+          "key": "B115_7"
+        },
+        {
+          "level": 8,
+          "key": "B115_8"
+        },
+        {
+          "level": 9,
+          "key": "B115_9"
+        }
+      ],
+      "name": "铁布衫",
+      "description": "[决斗]\\n根据体力提升防御。"
+    },
+    {
+      "id": "1010",
+      "effect_key": "B110",
+      "max_level": 5,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B110_1"
+        },
+        {
+          "level": 2,
+          "key": "B110_2"
+        },
+        {
+          "level": 3,
+          "key": "B110_3"
+        },
+        {
+          "level": 4,
+          "key": "B110_4"
+        },
+        {
+          "level": 5,
+          "key": "B110_5"
+        }
+      ],
+      "name": "金钟罩",
+      "description": "[决斗]\\n气20以上时，\\n备揍指令变化为「金钟罩」。"
+    },
+    {
+      "id": "1011",
+      "effect_key": "B113",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 10,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B113"
+        }
+      ],
+      "name": "不动如山",
+      "description": "[决斗]\\n根据技能「战术」提升防御。"
+    },
+    {
+      "id": "1012",
+      "effect_key": "B114",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 200,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B114_1"
+        },
+        {
+          "level": 2,
+          "key": "B114_2"
+        },
+        {
+          "level": 3,
+          "key": "B114_3"
+        },
+        {
+          "level": 4,
+          "key": "B114_4"
+        },
+        {
+          "level": 5,
+          "key": "B114_5"
+        },
+        {
+          "level": 6,
+          "key": "B114_6"
+        },
+        {
+          "level": 7,
+          "key": "B114_7"
+        },
+        {
+          "level": 8,
+          "key": "B114_8"
+        },
+        {
+          "level": 9,
+          "key": "B114_9"
+        }
+      ],
+      "name": "金刚腿",
+      "description": "[决斗]\\n根据拳掌提升轻功、防御。"
+    },
+    {
+      "id": "1100",
+      "effect_key": "E001",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "E001"
+        }
+      ],
+      "name": "落井下石",
+      "description": "[决斗]\\n对身有异常状态的敌人嘴攻时，激怒成功率更高。"
+    },
+    {
+      "id": "1101",
+      "effect_key": "E002",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "E002"
+        }
+      ],
+      "name": "得理不饶人",
+      "description": "[决斗]\\n连续嘴攻时效果上升。"
+    },
+    {
+      "id": "1102",
+      "effect_key": "E003",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "E003"
+        }
+      ],
+      "name": "孟子曰",
+      "description": "[决斗]\\n敌人身有[愤怒]状态时发动。"
+    },
+    {
+      "id": "1103",
+      "effect_key": "E004",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "E004"
+        }
+      ],
+      "name": "烈火禅",
+      "description": "[决斗]\\n愤怒时不再捅人，变成嘴攻并口喷烈火。"
+    },
+    {
+      "id": "1105",
+      "effect_key": "E006",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 1,
+      "effects": [
+        {
+          "level": 1,
+          "key": "E006"
+        }
+      ],
+      "name": "龙吟功",
+      "description": "[决斗]\\n境界二以上，嘴攻变为「苍龙吟」。"
+    },
+    {
+      "id": "1106",
+      "effect_key": "E007",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 1,
+      "effects": [
+        {
+          "level": 1,
+          "key": "E007"
+        }
+      ],
+      "name": "狮吼功",
+      "description": "[决斗]\\n境界二以上，嘴攻变为「狮吼功」。"
+    },
+    {
+      "id": "1107",
+      "effect_key": "E008",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "E008"
+        }
+      ],
+      "name": "虎啸功",
+      "description": "[决斗]\\n境界二以上，嘴攻变为「虎啸吼」。"
+    },
+    {
+      "id": "1200",
+      "effect_key": "F001",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "F001"
+        }
+      ],
+      "name": "揍狗拳",
+      "description": "[决斗]\\n敌人气低于自身时，获得「揍狗拳」。"
+    },
+    {
+      "id": "1201",
+      "effect_key": "F002",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "F002"
+        }
+      ],
+      "name": "极端揍狗拳",
+      "description": "[决斗]\\n锁定所有指令，无条件使用揍狗拳，并迭加「狂化」。"
+    },
+    {
+      "id": "1202",
+      "effect_key": "F003",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "F003"
+        }
+      ],
+      "name": "翻浪刀法",
+      "description": "[决斗]\\n捅人命中时获得「翻浪刀法」。"
+    },
+    {
+      "id": "1203",
+      "effect_key": "F004",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "F004"
+        }
+      ],
+      "name": "蛮勇",
+      "description": "[决斗]\\n捅人指令不会被暗器打断，但受到的伤害+50%。"
+    },
+    {
+      "id": "1205",
+      "effect_key": "F006",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "F006"
+        }
+      ],
+      "name": "反手拳",
+      "description": "[决斗]\\n回避成功时，\\n捅人指令变化为[反击]。"
+    },
+    {
+      "id": "1206",
+      "effect_key": "S1206",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 2,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S1206"
+        }
+      ],
+      "name": "夺魄幽灵爪",
+      "description": "[决斗]\\n境界二以上，捅人变化为[夺魄幽灵爪]。"
+    },
+    {
+      "id": "1207",
+      "effect_key": "S1207",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S1207"
+        }
+      ],
+      "name": "犯劍",
+      "description": "[決鬥]\\n劉顎專用技能，取代捅人。"
+    },
+    {
+      "id": "1209",
+      "effect_key": "S1209",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 2,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S1209"
+        }
+      ],
+      "name": "雪山飞鸿爪",
+      "description": "[决斗]\\n境界二以上，捅人变化为[雪山飞鸿爪]。"
+    },
+    {
+      "id": "2010",
+      "effect_key": "B210",
+      "max_level": 1,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B210_1"
+        }
+      ],
+      "name": "核枣钉",
+      "description": "[决斗]\\n气20以上时，\\n嘴攻指令变化为「核枣钉」。"
+    },
+    {
+      "id": "2020",
+      "effect_key": "B220",
+      "max_level": 1,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B220_1"
+        }
+      ],
+      "name": "粹毒",
+      "description": "[决斗]\\n备揍时涂毒，获得一个粹毒，\\n提升下回暗器效果。"
+    },
+    {
+      "id": "2030",
+      "effect_key": "B230",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 1,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B230"
+        }
+      ],
+      "name": "石灰粉",
+      "description": "[决斗]\\n气20以上时，\\n备揍指令变化为「石灰粉」。"
+    },
+    {
+      "id": "2101",
+      "effect_key": "G002",
+      "max_level": 7,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "G002_1"
+        },
+        {
+          "level": 2,
+          "key": "G002_2"
+        },
+        {
+          "level": 3,
+          "key": "G002_3"
+        },
+        {
+          "level": 4,
+          "key": "G002_4"
+        },
+        {
+          "level": 5,
+          "key": "G002_5"
+        },
+        {
+          "level": 6,
+          "key": "G002_6"
+        },
+        {
+          "level": 7,
+          "key": "G002_7"
+        }
+      ],
+      "name": "医术",
+      "description": "[决斗]\\n备揍时，根据等级回复血，额外代谢毒麻累积值。"
+    },
+    {
+      "id": "2102",
+      "effect_key": "G003",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "G003"
+        }
+      ],
+      "name": "仙鹤迷踪步",
+      "description": "[决斗]\\n备揍成功后，获得一个「仙鹤迷踪」。"
+    },
+    {
+      "id": "2103",
+      "effect_key": "G004",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "G004"
+        }
+      ],
+      "name": "一趾神通",
+      "description": "[决斗]\\n境界二以上，备揍变为[一趾神通]。"
+    },
+    {
+      "id": "2104",
+      "effect_key": "G005",
+      "max_level": 5,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "G005_1"
+        },
+        {
+          "level": 2,
+          "key": "G005_2"
+        },
+        {
+          "level": 3,
+          "key": "G005_3"
+        },
+        {
+          "level": 4,
+          "key": "G005_4"
+        },
+        {
+          "level": 5,
+          "key": "G005_5"
+        }
+      ],
+      "name": "折花手",
+      "description": "[决斗]\\n备揍时，根据技能等级机率接住暗器。"
+    },
+    {
+      "id": "2105",
+      "effect_key": "S2105",
+      "max_level": 5,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S2105_1"
+        },
+        {
+          "level": 2,
+          "key": "S2105_2"
+        },
+        {
+          "level": 3,
+          "key": "S2105_3"
+        },
+        {
+          "level": 4,
+          "key": "S2105_4"
+        },
+        {
+          "level": 5,
+          "key": "S2105_5"
+        }
+      ],
+      "name": "如意境",
+      "description": "[决斗]\\n每回合有30%机率施展[如意境]，提升拳掌。"
+    },
+    {
+      "id": "2108",
+      "effect_key": "G2108",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "G2108"
+        }
+      ],
+      "name": "铁棋盘",
+      "description": "[决斗]\\n备揍时，备揍时启动机关，可收去所有暗器，下回暗器伤害上升。"
+    },
+    {
+      "id": "2109",
+      "effect_key": "G008",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "G008"
+        }
+      ],
+      "name": "万剑归宗",
+      "description": "[决斗]\\n备揍时，消费所有连击数，额外获得气。"
+    },
+    {
+      "id": "2110",
+      "effect_key": "G009",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "G009"
+        }
+      ],
+      "name": "归元",
+      "description": "[决斗]\\n当连击数大于2时，备揍变成[归元]。"
+    },
+    {
+      "id": "2111",
+      "effect_key": "G2111",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "G2111"
+        }
+      ],
+      "name": "枯荣神功",
+      "description": "[决斗]\\n气20以上时，备揍变成[枯荣神功]。"
+    },
+    {
+      "id": "3000",
+      "effect_key": "B300",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 200,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B300_1"
+        },
+        {
+          "level": 2,
+          "key": "B300_2"
+        },
+        {
+          "level": 3,
+          "key": "B300_3"
+        },
+        {
+          "level": 4,
+          "key": "B300_4"
+        },
+        {
+          "level": 5,
+          "key": "B300_5"
+        },
+        {
+          "level": 6,
+          "key": "B300_6"
+        },
+        {
+          "level": 7,
+          "key": "B300_7"
+        },
+        {
+          "level": 8,
+          "key": "B300_8"
+        },
+        {
+          "level": 9,
+          "key": "B300_9"
+        }
+      ],
+      "name": "点苍快剑",
+      "description": "[决斗]\\n根据轻功提升刀剑。"
+    },
+    {
+      "id": "3001",
+      "effect_key": "B301",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 100,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B301_1"
+        },
+        {
+          "level": 2,
+          "key": "B301_2"
+        },
+        {
+          "level": 3,
+          "key": "B301_3"
+        },
+        {
+          "level": 4,
+          "key": "B301_4"
+        },
+        {
+          "level": 5,
+          "key": "B301_5"
+        },
+        {
+          "level": 6,
+          "key": "B301_6"
+        },
+        {
+          "level": 7,
+          "key": "B301_7"
+        },
+        {
+          "level": 8,
+          "key": "B301_8"
+        },
+        {
+          "level": 9,
+          "key": "B301_9"
+        }
+      ],
+      "name": "提气轻身",
+      "description": "[决斗]\\n根据内力提升轻功。"
+    },
+    {
+      "id": "3002",
+      "effect_key": "B302",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 300,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B302"
+        }
+      ],
+      "name": "千里不留行",
+      "description": "[决斗]\\n根据刀剑50%提升轻功、内力、初始气。"
+    },
+    {
+      "id": "3003",
+      "effect_key": "B303",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 300,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B303"
+        }
+      ],
+      "name": "行云流水",
+      "description": "[决斗]\\n捅人命中时获得「行云流水」。"
+    },
+    {
+      "id": "3004",
+      "effect_key": "B304",
+      "max_level": 3,
+      "display_level": true,
+      "priority": 300,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B304_1"
+        },
+        {
+          "level": 2,
+          "key": "B304_2"
+        },
+        {
+          "level": 3,
+          "key": "B304_3"
+        }
+      ],
+      "name": "勇气",
+      "description": "[决斗]\\n额外新增初始气力。"
+    },
+    {
+      "id": "3100",
+      "effect_key": "H3100",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "H3100"
+        }
+      ],
+      "name": "欺善怕恶",
+      "description": "[决斗]\\n对手气力影响自身属性。"
+    },
+    {
+      "id": "3102",
+      "effect_key": "H003",
+      "max_level": 5,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "H003_1"
+        },
+        {
+          "level": 2,
+          "key": "H003_2"
+        },
+        {
+          "level": 3,
+          "key": "H003_3"
+        },
+        {
+          "level": 4,
+          "key": "H003_4"
+        },
+        {
+          "level": 5,
+          "key": "H003_5"
+        }
+      ],
+      "name": "思想战",
+      "description": "[决斗]\\n依据等级，决斗开始时即默认有连击，并额外获得气。"
+    },
+    {
+      "id": "3103",
+      "effect_key": "H004",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "H004"
+        }
+      ],
+      "name": "飒踏流星剑",
+      "description": "[决斗]\\n决斗开始第一回合，攻击力为3倍。"
+    },
+    {
+      "id": "3104",
+      "effect_key": "H005",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "H005"
+        }
+      ],
+      "name": "地轴锁天关",
+      "description": "[决斗]\\n境界一以上，获得「化境」。此后提升境界，「化境」效果亦会提升。"
+    },
+    {
+      "id": "3105",
+      "effect_key": "H006",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "H006"
+        }
+      ],
+      "name": "剑界",
+      "description": "[决斗]\\n境界三以上，发动「剑界」。"
+    },
+    {
+      "id": "3107",
+      "effect_key": "H007",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "H007"
+        }
+      ],
+      "name": "苦恼拳",
+      "description": "[决斗]\\n当前心相低于中庸时，\\n每1点提升1%攻击力。"
+    },
+    {
+      "id": "3112",
+      "effect_key": "S3112",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S3112"
+        }
+      ],
+      "name": "无影爪",
+      "description": "[决斗]\\n攻击爆击骰子+10。"
+    },
+    {
+      "id": "3115",
+      "effect_key": "S3115",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S3115"
+        }
+      ],
+      "name": "狮子之心",
+      "description": "[决斗]\\n根据受到的伤害，大幅回升气。"
+    },
+    {
+      "id": "4010",
+      "effect_key": "B410",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B410"
+        }
+      ],
+      "name": "动如雷震",
+      "description": "[决斗]\\n施展绝招时追加「震撼」效果。"
+    },
+    {
+      "id": "4011",
+      "effect_key": "B411",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 10,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B411"
+        }
+      ],
+      "name": "疾如风",
+      "description": "[决斗]\\n根据技能「战术」提升轻功。"
+    },
+    {
+      "id": "4012",
+      "effect_key": "B412",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B412"
+        }
+      ],
+      "name": "徐如林",
+      "description": "[决斗]\\n根据技能「战术」每回合额外获得气力。"
+    },
+    {
+      "id": "4013",
+      "effect_key": "B413",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 10,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B413"
+        }
+      ],
+      "name": "侵掠如火",
+      "description": "[决斗]\\n根据技能「战术」提升伤害。"
+    },
+    {
+      "id": "4014",
+      "effect_key": "B414",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 10,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B414"
+        }
+      ],
+      "name": "难知如阴",
+      "description": "[决斗]\\n根据技能「战术」提升嘴力。"
+    },
+    {
+      "id": "4018",
+      "effect_key": "B4018",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B4018"
+        }
+      ],
+      "name": "败絮功",
+      "description": "[决斗]\\n施展败絮功，身有[失衡]异常时失效。"
+    },
+    {
+      "id": "4100",
+      "effect_key": "B4100",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B4100"
+        }
+      ],
+      "name": "暗箭伤人",
+      "description": "[决斗]\\n不讲武德，决斗开始时，忽然发射暗器，造成伤害，并有机率激怒对手。"
+    },
+    {
+      "id": "4103",
+      "effect_key": "B4103",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 20,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B4103"
+        }
+      ],
+      "name": "虚张声势",
+      "description": "[决斗]\\n决斗开始时，气-10，嘴力提升100%。"
+    },
+    {
+      "id": "4104",
+      "effect_key": "B4104",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "B4104"
+        }
+      ],
+      "name": "毅力",
+      "description": "[决斗]\\n受到致命攻击时，以10%血幸存。"
+    },
+    {
+      "id": "6000",
+      "effect_key": "S600",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S600"
+        }
+      ],
+      "name": "彼岸香",
+      "description": "[决斗]\\n敌我每回合增加毒性累积值。"
+    },
+    {
+      "id": "6001",
+      "effect_key": "S601",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S601"
+        }
+      ],
+      "name": "温柔香",
+      "description": "[决斗]\\n敌我每回合增加麻痹累积值。"
+    },
+    {
+      "id": "6008",
+      "effect_key": "S608",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S608"
+        }
+      ],
+      "name": "万寿尸血针",
+      "description": "[决斗]\\n受到伤害时，造成敌人毒、麻累积。"
+    },
+    {
+      "id": "6011",
+      "effect_key": "S6011",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S6011"
+        }
+      ],
+      "name": "毒功",
+      "description": "[决斗]\\n捅人时附带50%的毒、麻累积值。"
+    },
+    {
+      "id": "7001",
+      "effect_key": "S7001",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S7001"
+        }
+      ],
+      "name": "火拂尘",
+      "description": "[决斗]\\n所有攻击都有40%机率造成[燃烧]。"
+    },
+    {
+      "id": "7007",
+      "effect_key": "S707",
+      "max_level": 3,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S707_1"
+        },
+        {
+          "level": 2,
+          "key": "S707_2"
+        },
+        {
+          "level": 3,
+          "key": "S707_3"
+        }
+      ],
+      "name": "焚心火印",
+      "description": "[决斗]\\n属性为阳时，每回合累积若干[毒]累积值，额外回复[气]。"
+    },
+    {
+      "id": "7008",
+      "effect_key": "S7008",
+      "max_level": 3,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S7008_1"
+        },
+        {
+          "level": 2,
+          "key": "S7008_2"
+        },
+        {
+          "level": 3,
+          "key": "S7008_3"
+        }
+      ],
+      "name": "逐浪诀",
+      "description": "[决斗]\\n根据当前连击数，攻击有额外机率造成[失衡]。"
+    },
+    {
+      "id": "7010",
+      "effect_key": "S7010",
+      "max_level": 4,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S7010_1"
+        },
+        {
+          "level": 2,
+          "key": "S7010_2"
+        },
+        {
+          "level": 3,
+          "key": "S7010_3"
+        },
+        {
+          "level": 4,
+          "key": "S7010_4"
+        }
+      ],
+      "name": "地狱使者",
+      "description": "[决斗]\\n每回合有机率对胆小的人造成[胆怯]。"
+    },
+    {
+      "id": "8001",
+      "effect_key": "S801",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S801"
+        }
+      ],
+      "name": "天地无声势",
+      "description": "[决斗]\\n小师妹的独门武功。"
+    },
+    {
+      "id": "8002",
+      "effect_key": "S803",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S803"
+        }
+      ],
+      "name": "金钱镖",
+      "description": "[决斗]\\n暗器命中时造成大额麻痹累积。"
+    },
+    {
+      "id": "8003",
+      "effect_key": "S804",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 3,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S804"
+        }
+      ],
+      "name": "飞燕流星翎",
+      "description": "[决斗]\\n境界三以上，暗器变为[飞燕流星翎]。"
+    },
+    {
+      "id": "8004",
+      "effect_key": "S806",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 3,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S806"
+        }
+      ],
+      "name": "金刚神枪指",
+      "description": "[决斗]\\n境界三以上，暗器变为[金刚神枪指]。"
+    },
+    {
+      "id": "8101",
+      "effect_key": "S8101",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S8101"
+        }
+      ],
+      "name": "霹雳刀",
+      "description": "[决斗]\\n境界二以上，绝招变为[云霄雷霆霹雳刀]。"
+    },
+    {
+      "id": "8103",
+      "effect_key": "S904",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S904"
+        }
+      ],
+      "name": "点破云关",
+      "description": "[决斗]\\n当连击数大于2时，绝招变成[点破云关]。"
+    },
+    {
+      "id": "8106",
+      "effect_key": "S8106",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 2,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S8106"
+        }
+      ],
+      "name": "阴阳夺",
+      "description": "[决斗]\\n境界二以上，绝招变为[阴阳夺]。"
+    },
+    {
+      "id": "8108",
+      "effect_key": "S8108",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 2,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S8108"
+        }
+      ],
+      "name": "铁臂飞拳",
+      "description": "[决斗]\\n境界二以上，绝招变为[铁臂飞拳]。"
+    },
+    {
+      "id": "8111",
+      "effect_key": "S8111",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 3,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S8111"
+        }
+      ],
+      "name": "神雷",
+      "description": "[决斗]\\n境界三以上，绝招变为「神雷」。"
+    },
+    {
+      "id": "8112",
+      "effect_key": "S8112",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 3,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S8112"
+        }
+      ],
+      "name": "太白仙迹",
+      "description": "[决斗]\\n境界二以上，绝招变为「太白仙迹」。"
+    },
+    {
+      "id": "8113",
+      "effect_key": "S8113",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 3,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S8113"
+        }
+      ],
+      "name": "绝影奇袭",
+      "description": "[决斗]\\n境界三以上，绝招变为「绝影奇袭」。"
+    },
+    {
+      "id": "8119",
+      "effect_key": "S8119",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S8119"
+        }
+      ],
+      "name": "天罡伏魔剑",
+      "description": "[决斗]\\n境界三以上，绝招变为[天罡伏魔剑]。"
+    },
+    {
+      "id": "8121",
+      "effect_key": "S8121",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S8121"
+        }
+      ],
+      "name": "风雷神脚",
+      "description": "[决斗]\\n境界二以上，连击数大于3时，绝招变为[风雷神脚]。"
+    },
+    {
+      "id": "8125",
+      "effect_key": "S8125",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S8125"
+        }
+      ],
+      "name": "同舟剑法",
+      "description": "[决斗]\\n有支持同伴时，全属性上升。\\n且连击数>2时，绝招变为[同舟剑法]。\\n无法使用[点破云关]。"
+    },
+    {
+      "id": "8126",
+      "effect_key": "S8126",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S8126"
+        }
+      ],
+      "name": "剑圣第一极招",
+      "description": "[决斗]\\n当连击数大于3时，绝招变为[第一极招]。"
+    },
+    {
+      "id": "8127",
+      "effect_key": "S8127",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S8127"
+        }
+      ],
+      "name": "剑圣第二极招",
+      "description": "[决斗]\\n当连击数大于3时，绝招变为[第二极招]。"
+    },
+    {
+      "id": "8128",
+      "effect_key": "S8128",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S8128"
+        }
+      ],
+      "name": "剑圣第三极招",
+      "description": "[决斗]\\n当连击数大于3时，绝招变为[第三极招]。"
+    },
+    {
+      "id": "9100",
+      "effect_key": "Z001",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "Z001_1"
+        },
+        {
+          "level": 2,
+          "key": "Z001_2"
+        },
+        {
+          "level": 3,
+          "key": "Z001_3"
+        },
+        {
+          "level": 4,
+          "key": "Z001_4"
+        },
+        {
+          "level": 5,
+          "key": "Z001_5"
+        },
+        {
+          "level": 6,
+          "key": "Z001_6"
+        },
+        {
+          "level": 7,
+          "key": "Z001_7"
+        },
+        {
+          "level": 8,
+          "key": "Z001_8"
+        },
+        {
+          "level": 9,
+          "key": "Z001_9"
+        }
+      ],
+      "name": "战术",
+      "description": "[决斗]\\n根据等级，强化战术类技能的效果。"
+    },
+    {
+      "id": "9102",
+      "effect_key": "S9102",
+      "max_level": 5,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S9102_1"
+        },
+        {
+          "level": 2,
+          "key": "S9102_2"
+        },
+        {
+          "level": 3,
+          "key": "S9102_3"
+        },
+        {
+          "level": 4,
+          "key": "S9102_4"
+        },
+        {
+          "level": 5,
+          "key": "S9102_5"
+        }
+      ],
+      "name": "铁琵琶功",
+      "description": "[决斗]\\n崆峒奥义铁琵琶功。"
+    },
+    {
+      "id": "9104",
+      "effect_key": "S9104",
+      "max_level": 3,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S9104_1"
+        },
+        {
+          "level": 2,
+          "key": "S9104_2"
+        },
+        {
+          "level": 3,
+          "key": "S9104_3"
+        }
+      ],
+      "name": "南宫护心诀",
+      "description": "[决斗]\\n可抵挡致命攻击，並恢复气力。"
+    },
+    {
+      "id": "9105",
+      "effect_key": "S9105",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S9105"
+        }
+      ],
+      "name": "失魂落魄",
+      "description": "[决斗]\\n有10%机率发作，忘记自己自谁、为何在此，不能行动。"
+    },
+    {
+      "id": "9112",
+      "effect_key": "S9112",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 100,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S9112"
+        }
+      ],
+      "name": "九转轮回",
+      "description": "[决斗]\\n可抵挡致命攻击，并恢复满血。"
+    },
+    {
+      "id": "9113",
+      "effect_key": "S9113",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S9113"
+        }
+      ],
+      "name": "偕老誓",
+      "description": "[决斗]\\n可抵挡致命攻击，并恢复气力。"
+    },
+    {
+      "id": "9200",
+      "effect_key": "S9200",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S9200"
+        }
+      ],
+      "name": "打穴娟索",
+      "description": "[決鬥]\\n气高于对手时，暗器变为[打穴娟索]。"
+    },
+    {
+      "id": "9201",
+      "effect_key": "S9201",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S9201"
+        }
+      ],
+      "name": "猿王劈山",
+      "description": "[决斗]\\n根据连击数造成伤害。"
+    },
+    {
+      "id": "9202",
+      "effect_key": "S9202",
+      "max_level": 1,
+      "display_level": false,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "S9202"
+        }
+      ],
+      "name": "猿王回风",
+      "description": "[决斗]\\n备揍时格档、闪避大幅上升，成功回避攻击时获得[猿王回风]。"
+    },
+    {
+      "id": "9500",
+      "effect_key": "Z002",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "Z002_1"
+        },
+        {
+          "level": 2,
+          "key": "Z002_2"
+        },
+        {
+          "level": 3,
+          "key": "Z002_3"
+        },
+        {
+          "level": 4,
+          "key": "Z002_4"
+        },
+        {
+          "level": 5,
+          "key": "Z002_5"
+        },
+        {
+          "level": 6,
+          "key": "Z002_6"
+        },
+        {
+          "level": 7,
+          "key": "Z002_7"
+        },
+        {
+          "level": 8,
+          "key": "Z002_8"
+        },
+        {
+          "level": 9,
+          "key": "Z002_9"
+        }
+      ],
+      "name": "儒学",
+      "description": "儒学精通"
+    },
+    {
+      "id": "9501",
+      "effect_key": "Z003",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "Z003_1"
+        },
+        {
+          "level": 2,
+          "key": "Z003_2"
+        },
+        {
+          "level": 3,
+          "key": "Z003_3"
+        },
+        {
+          "level": 4,
+          "key": "Z003_4"
+        },
+        {
+          "level": 5,
+          "key": "Z003_5"
+        },
+        {
+          "level": 6,
+          "key": "Z003_6"
+        },
+        {
+          "level": 7,
+          "key": "Z003_7"
+        },
+        {
+          "level": 8,
+          "key": "Z003_8"
+        },
+        {
+          "level": 9,
+          "key": "Z003_9"
+        }
+      ],
+      "name": "道学",
+      "description": "道学精通"
+    },
+    {
+      "id": "9502",
+      "effect_key": "Z004",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "Z004_1"
+        },
+        {
+          "level": 2,
+          "key": "Z004_2"
+        },
+        {
+          "level": 3,
+          "key": "Z004_3"
+        },
+        {
+          "level": 4,
+          "key": "Z004_4"
+        },
+        {
+          "level": 5,
+          "key": "Z004_5"
+        },
+        {
+          "level": 6,
+          "key": "Z004_6"
+        },
+        {
+          "level": 7,
+          "key": "Z004_7"
+        },
+        {
+          "level": 8,
+          "key": "Z004_8"
+        },
+        {
+          "level": 9,
+          "key": "Z004_9"
+        }
+      ],
+      "name": "佛学",
+      "description": "佛学精通"
+    },
+    {
+      "id": "9503",
+      "effect_key": "Z005",
+      "max_level": 9,
+      "display_level": true,
+      "priority": 0,
+      "effects": [
+        {
+          "level": 1,
+          "key": "Z005_1"
+        },
+        {
+          "level": 2,
+          "key": "Z005_2"
+        },
+        {
+          "level": 3,
+          "key": "Z005_3"
+        },
+        {
+          "level": 4,
+          "key": "Z005_4"
+        },
+        {
+          "level": 5,
+          "key": "Z005_5"
+        },
+        {
+          "level": 6,
+          "key": "Z005_6"
+        },
+        {
+          "level": 7,
+          "key": "Z005_7"
+        },
+        {
+          "level": 8,
+          "key": "Z005_8"
+        },
+        {
+          "level": 9,
+          "key": "Z005_9"
+        }
+      ],
+      "name": "形意拳",
+      "description": "形意拳精通"
     }
   ],
   "items_book": [

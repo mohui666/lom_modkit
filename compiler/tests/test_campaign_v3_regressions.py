@@ -93,10 +93,10 @@ class GameplayV3ContractTest(unittest.TestCase):
                 "type": "battle",
                 "friend_faction": "001",
                 "friend_people": 2,
-                "friend_characters": ["brother1", "girl4"],
+                "friend_characters": ["special4", "special401"],
                 "enemy_faction": "002",
                 "enemy_people": 1,
-                "enemy_characters": ["special3"],
+                "enemy_characters": ["special102"],
                 "win": "win",
                 "lose": "lose",
             }
@@ -104,7 +104,7 @@ class GameplayV3ContractTest(unittest.TestCase):
         validate_story(source)
         lua = compile_story(source)
         self.assertIn("friend_people=2", lua)
-        self.assertIn("friend_characters=brother1,girl4", lua)
+        self.assertIn("friend_characters=special4,special401", lua)
         self.assertIn("enemy_people=1", lua)
         self.assertIn('mod_gameplay_start_scene("battle")', lua)
 
@@ -113,7 +113,7 @@ class GameplayV3ContractTest(unittest.TestCase):
             validate_story(too_many)
 
         duplicate = story(
-            {**source["nodes"][0], "friend_characters": ["brother1", "brother1"]}
+            {**source["nodes"][0], "friend_characters": ["special4", "special4"]}
         )
         with self.assertRaisesRegex(LomcError, "不得重复"):
             validate_story(duplicate)

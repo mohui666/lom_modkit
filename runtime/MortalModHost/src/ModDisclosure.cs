@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using BepInEx.Logging;
 using Fungus;
@@ -12,24 +11,23 @@ namespace MortalModHost
 {
     /// <summary>
     /// 与 BepInEx Plugin GameObject 独立的披露守护。即使恶意 Lua 销毁宿主对象，
-    /// 仍会在 Update / LateUpdate / IMGUI 继续自愈或 fail-closed。
+    /// 仍会在 Update / LateUpdate / IMGUI 继续 best-effort 自愈。
     /// </summary>
     internal sealed class ModDisclosureGuardian : MonoBehaviour
     {
         private void Update()
         {
-            ModDisclosure.MaintainFailClosed();
+            ModDisclosure.MaintainBestEffort();
         }
 
         private void LateUpdate()
         {
-            ModDisclosure.MaintainFailClosed();
+            ModDisclosure.MaintainBestEffort();
         }
 
         private void OnGUI()
         {
-            if (!ModDisclosure.DrawFailureGuard())
-                ModDisclosure.DrawPersistentImGuiStamp();
+            ModDisclosure.DrawPersistentImGuiStamp();
         }
     }
 
@@ -37,8 +35,8 @@ namespace MortalModHost
     /// Host 强制的玩家制作内容披露。来源状态由 Host 的脚本注册表决定，MOD Lua 与 cfg
     /// 都没有关闭、改字、改透明度的入口。
     ///
-    /// 同时覆盖屏幕边缘、对白框和关键结果卡；每帧校验并修复对象。任何必须标记无法
-    /// 创建或修复时进入故障态，由 Plugin 立即中止本次演出并返回官方 Free 场景。
+    /// 同时覆盖屏幕边缘、对白框和关键结果卡；每帧检查并尽力修复对象。UI 标记创建
+    /// 或修复失败只记录日志，绝不停止 Lua、清理当前演出或强制返回 Free。
     /// </summary>
     internal static class ModDisclosure
     {
@@ -80,6 +78,7 @@ namespace MortalModHost
         private static string _lastPrimary;
         private static string _lastDetail;
         private static string _dialogWatermarkName;
+        private static string _lastLoggedFailure;
         private static byte[] _sessionSeal;
 
         private static GameObject _edgeRoot;
@@ -93,8 +92,8 @@ namespace MortalModHost
         private static bool _developmentHotReloadPending;
 
         /// <summary>
-        /// 事务式开启：先验证 Host 计算的包指纹，再确保屏幕常驻标记可渲染。
-        /// 任一步失败都会清理半成品并抛出，由 LuaManagerPatch 阻止脚本启动。
+        /// 先验证 Host 计算的包身份；可见标记随后 best-effort 创建。身份错误仍拒绝，
+        /// 单纯 UI 创建失败不会阻止脚本启动。
         /// </summary>
         internal static void Enable(ModPackage package)
         {
@@ -115,8 +114,7 @@ namespace MortalModHost
             if (Active && !samePackage && !developmentReplacement)
                 throw new InvalidOperationException(
                     "活动中的 MOD 来源会话试图切换到另一包；为防止跨包冒名，已拒绝嵌套演出");
-            if (Active && !string.IsNullOrEmpty(FailureReason))
-                throw new InvalidOperationException("强制披露已进入故障态：" + FailureReason);
+            if (Active && !string.IsNullOrEmpty(FailureReason)) FailureReason = null;
 
             if (!samePackage || developmentReplacement)
             {
@@ -142,6 +140,7 @@ namespace MortalModHost
                 _dialogWatermarkName = nextWatermarkName;
                 _sessionSeal = nextSessionSeal;
                 FailureReason = null;
+                _lastLoggedFailure = null;
                 _lastPrimary = null;
                 _lastDetail = null;
             }
@@ -164,13 +163,10 @@ namespace MortalModHost
             }
             catch (Exception ex)
             {
-                // 即使初次 UI 创建失败也保持来源会话与包身份，让 Plugin 的独立 IMGUI
-                // 安全遮罩接管，直到真正抵达 Title / Free；不能在这里 fail-open 清掉 Active。
-                ClearVisuals();
+                // 来源 UI 不是演出生命周期门禁。保留当前会话并让后续帧继续尝试自愈。
                 try { EnsureGuardian(); }
                 catch { }
-                ReportMandatorySurfaceFailure("强制披露初始化失败：" + ex.Message);
-                throw new InvalidOperationException("无法建立强制玩家内容披露，已拒绝播放 MOD", ex);
+                ReportSurfaceFailure("玩家内容标记初始化失败：" + ex.Message);
             }
 
             Log?.LogInfo("已开启玩家制作内容披露（" + ModId + "，SHA-256 " + PackageFingerprint + "）");
@@ -209,8 +205,8 @@ namespace MortalModHost
             if (!Active || !RuntimeTrace.Active
                 || !string.Equals(ModId, "lom_modkit_preview", StringComparison.Ordinal))
                 throw new InvalidOperationException("当前会话不是可热重载的 F5 开发演出");
-            if (!string.IsNullOrEmpty(FailureReason))
-                throw new InvalidOperationException("强制披露已进入故障态：" + FailureReason);
+            FailureReason = null;
+            _lastLoggedFailure = null;
             _developmentHotReloadPending = true;
         }
 
@@ -221,7 +217,7 @@ namespace MortalModHost
             _insideRenderGuard = true;
             try
             {
-                MaintainFailClosed();
+                MaintainBestEffort();
             }
             finally
             {
@@ -279,58 +275,11 @@ namespace MortalModHost
         /// <summary>
         /// 可由 Plugin、独立 guardian 和渲染前回调重复调用的幂等安全检查。
         /// </summary>
-        internal static bool MaintainFailClosed()
+        internal static bool MaintainBestEffort()
         {
             if (TryCloseAtTrustedBoundary()) return true;
-            if (LuaManagerPatch.HasPendingAbort)
-                LuaManagerPatch.RetryPendingAbort();
             if (!Active) return true;
-            bool healthy = Tick();
-            if (!healthy)
-                LuaManagerPatch.AbortActivePlayback(
-                    "强制玩家内容披露无法维持：" + (FailureReason ?? "未知错误"),
-                    null, null, "mandatory_disclosure");
-            return healthy;
-        }
-
-        /// <summary>Canvas 不可用时的独立全屏安全遮罩。</summary>
-        internal static bool DrawFailureGuard()
-        {
-            if (!Active || string.IsNullOrEmpty(FailureReason)) return false;
-            int oldDepth = GUI.depth;
-            Color oldColor = GUI.color;
-            Color oldContentColor = GUI.contentColor;
-            Color oldBackgroundColor = GUI.backgroundColor;
-            Matrix4x4 oldMatrix = GUI.matrix;
-            bool oldEnabled = GUI.enabled;
-            GUI.depth = -32768;
-            GUI.matrix = Matrix4x4.identity;
-            GUI.enabled = true;
-            GUI.contentColor = Color.white;
-            GUI.backgroundColor = Color.white;
-            GUI.color = Color.black;
-            GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), Texture2D.whiteTexture);
-            GUI.color = Color.white;
-            var style = new GUIStyle(GUI.skin.label)
-            {
-                alignment = TextAnchor.MiddleCenter,
-                fontStyle = FontStyle.Bold,
-                fontSize = Mathf.Clamp(Screen.height / 28, 20, 38),
-                wordWrap = true
-            };
-            string shortHash = ModDisclosurePolicy.ShortFingerprint(PackageFingerprint);
-            GUI.Label(
-                new Rect(Screen.width * 0.1f, Screen.height * 0.25f, Screen.width * 0.8f, Screen.height * 0.5f),
-                CurrentPrimaryText() + "\n\n" + I18n.T("disclosure.blocked")
-                    + (string.IsNullOrEmpty(shortHash) ? "" : "\nSHA-256 " + shortHash),
-                style);
-            GUI.enabled = oldEnabled;
-            GUI.matrix = oldMatrix;
-            GUI.backgroundColor = oldBackgroundColor;
-            GUI.contentColor = oldContentColor;
-            GUI.color = oldColor;
-            GUI.depth = oldDepth;
-            return true;
+            return Tick();
         }
 
         /// <summary>
@@ -385,35 +334,13 @@ namespace MortalModHost
             GUI.depth = oldDepth;
         }
 
-        internal static IEnumerator EmptyRoutine()
-        {
-            yield break;
-        }
-
         /// <summary>
-        /// 每帧检查三类标记。返回 false 表示无法保证披露，调用方必须立即终止演出；
-        /// 不在这里自行 Disable，避免返回 Free 的 Loading 过渡出现无标记画面。
+        /// 每帧检查三类标记。失败时记录并让下一帧继续重建，不影响演出生命周期。
         /// </summary>
         internal static bool Tick()
         {
             if (!Active) return true;
-            if (!string.IsNullOrEmpty(FailureReason))
-            {
-                // 故障态也要 best-effort 复活独立 guardian 和边缘标。否则恶意
-                // Lua 可在销毁 Plugin 的同帧再销毁 UI，让转场遮罩一起消失。
-                try
-                {
-                    EnsureGuardian();
-                    EnsureEdgeOverlay();
-                    RefreshLabels(true);
-                    ProvenanceWatermark.Maintain();
-                }
-                catch (Exception ex)
-                {
-                    Log?.LogError("故障态披露守护重建失败：" + ex.Message);
-                }
-                return false;
-            }
+            FailureReason = null;
             try
             {
                 EnsureSessionIntegrity();
@@ -430,7 +357,7 @@ namespace MortalModHost
             }
             catch (Exception ex)
             {
-                ReportMandatorySurfaceFailure("强制披露刷新失败：" + ex.Message);
+                ReportSurfaceFailure("玩家内容标记刷新失败：" + ex.Message);
                 return false;
             }
         }
@@ -460,7 +387,7 @@ namespace MortalModHost
             if (!Active) return null;
             if (parent == null)
             {
-                ReportMandatorySurfaceFailure("关键结果面板不存在，无法附加来源标记");
+                ReportSurfaceFailure("关键结果面板不存在，无法附加来源标记");
                 return null;
             }
 
@@ -486,16 +413,23 @@ namespace MortalModHost
             }
             catch (Exception ex)
             {
-                ReportMandatorySurfaceFailure("关键结果面板来源标记创建失败：" + ex.Message);
+                ReportSurfaceFailure("关键结果面板来源标记创建失败：" + ex.Message);
                 return null;
             }
         }
 
-        internal static void ReportMandatorySurfaceFailure(string reason)
+        internal static void ReportSurfaceFailure(string reason)
         {
-            if (!Active || !string.IsNullOrEmpty(FailureReason)) return;
-            FailureReason = string.IsNullOrEmpty(reason) ? "未知披露故障" : reason;
-            Log?.LogError(FailureReason + "；将终止当前 MOD 演出");
+            if (!Active) return;
+            string next = string.IsNullOrEmpty(reason) ? "未知来源标记故障" : reason;
+            if (string.Equals(_lastLoggedFailure, next, StringComparison.Ordinal))
+            {
+                FailureReason = next;
+                return;
+            }
+            FailureReason = next;
+            _lastLoggedFailure = next;
+            Log?.LogWarning(FailureReason + "；演出将继续，后续帧会重试创建标记");
         }
 
         private static void EnsureSessionIntegrity()

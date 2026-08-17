@@ -16,6 +16,7 @@ from PySide6.QtWidgets import QMessageBox
 
 import package_io
 from game_install import (
+    PREVIEW_MOD_ID,
     PREVIEW_PACKAGE_NAME,
     GameInstallError,
     build_story_read_keys,
@@ -64,7 +65,7 @@ class RunControllerMixin:
             stories[script_id]["start"] = prelude[0]["id"]
         else:
             stories[script_id]["start"] = node_id
-        preview_id = "lom_modkit_preview"
+        preview_id = PREVIEW_MOD_ID
         title = str(self.story.get("title") or script_id)
         manifest = {
             **manifest_versions(),
@@ -82,6 +83,9 @@ class RunControllerMixin:
             self.game_manager.validate_bepinex(game_dir)
             was_running = self.game_manager.is_game_running()
             _runtime_path, runtime_changed = self.game_manager.install_runtime()
+            # 先精确清理历史文件名的同一试玩 campaign，避免
+            # Runtime 先扫到 lom_modkit_preview.lommod 而跳过新包。
+            self.game_manager.remove_preview_packages()
             with tempfile.TemporaryDirectory(prefix="lom_modkit_preview_") as tmp:
                 package = Path(tmp) / PREVIEW_PACKAGE_NAME
                 package_io.export_lommod(package, manifest, stories)

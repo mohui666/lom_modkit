@@ -67,7 +67,8 @@ namespace MortalModHost
                 }
                 bool combat = string.Equals(kind, "combat", StringComparison.Ordinal);
                 string scene = combat ? "Combat" : "Battle";
-                string key = combat ? "0001_01" : "0000";
+                // Combat 使用 Host 即时组装的隔离关卡，不再借用任何固定原版 CL。
+                string key = combat ? "MORTALMODHOST_RUNTIME" : "0000";
                 LuaManagerPatch.Log?.LogInfo(
                     "原版 Story 读取遮罩已结束，开始安全切换到 " + scene);
                 manager.ChangeScene(scene, key, "Story");

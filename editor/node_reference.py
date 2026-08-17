@@ -176,10 +176,18 @@ def _kind_doc(kind: str) -> str:
 _FLOW_TARGET_FIELDS = {
     "goto", "win", "lose", "success", "failure", "next_script", "next",
 }
-_COMBAT_VITAL_FIELDS = {"max_health", "health", "max_stamina", "stamina"}
+_COMBAT_VITAL_FIELDS = {
+    "max_health", "health", "max_stamina", "stamina", "stamina_power",
+}
 _COMBAT_STAT_FIELDS = {
     "strength", "internal", "dexterity", "talking", "defence", "sword",
-    "fist", "martial_weapon", "mental",
+    "fist", "martial_weapon", "mental", "confucianism", "buddhism", "taoism",
+    "xingyi", "strategy_level", "weapon_poison_value", "weapon_paralyzed_value",
+    "poison_resist", "paralyzed_resist", "disposition", "behaviour", "karma",
+    "training", "attack_damage_addition", "defence_addition", "ultimate_damage_rate",
+    "attack_dice_addition", "weapon_damage_addition", "weapon_dice_addition",
+    "weapon_hit_addition", "attack_parry_addition", "block_dodge_addition",
+    "block_parry_addition",
 }
 _COMBAT_RATE_FIELDS = {
     "talk_rate", "attack_rate", "weapon_rate", "ultimate_rate", "block_rate",
@@ -207,14 +215,14 @@ def _field_effect(node_type: str, key: str, field_label: str, optional: bool) ->
     if node_type == "combat":
         if key == "character":
             return t("reference.effect.combat_character")
+        if key == "background":
+            return t("reference.effect.combat_background")
         if key in _COMBAT_VITAL_FIELDS:
             return t("reference.effect.combat_vital", field=field_label)
         if key in _COMBAT_STAT_FIELDS:
             return t("reference.effect.combat_stat", field=field_label)
         if key == "talents":
             return t("reference.effect.combat_talents")
-        if key.startswith("ultimate_"):
-            return t("reference.effect.combat_ultimate", field=field_label)
         if key in _COMBAT_RATE_FIELDS:
             return t("reference.effect.combat_rate", field=field_label)
     if node_type == "battle":
