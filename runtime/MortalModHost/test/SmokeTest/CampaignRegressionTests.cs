@@ -15,6 +15,20 @@ namespace MortalModHost
             TestRecentCampaignOnlyUsesLoadedPackages();
             TestBattleNamedCharactersAreIncludedInTotal();
             TestCombatAnimationFallback();
+            TestVerifiedGameplayAssetIdentity();
+            TestSceneTransitionReadiness();
+        }
+
+        private static void TestSceneTransitionReadiness()
+        {
+            Assert(SceneTransitionPolicy.IsReady(false, false, null)
+                    && SceneTransitionPolicy.IsReady(false, false, ""),
+                "原版目标场景与读取遮罩均完成后才应允许 MOD 切场景");
+            Assert(!SceneTransitionPolicy.IsReady(true, false, "")
+                    && !SceneTransitionPolicy.IsReady(false, true, ""),
+                "SceneController 正在 Prepare/Loading 时必须拒绝并发切场景");
+            Assert(!SceneTransitionPolicy.IsReady(false, false, "Loading1"),
+                "目标场景已激活但 Loading1 尚未卸载时也必须等待，不能重复载入读取场景");
         }
 
         private static void TestLegacyPackageRejected()
@@ -84,6 +98,11 @@ namespace MortalModHost
 
         private static void TestSelectionDoesNotStartCampaign()
         {
+            var empty = new CampaignMenuFlow(new ModPackage[0], "removed-campaign");
+            Assert(empty.SelectedPackage == null && empty.RecentPackage == null
+                    && !empty.Select("not-loaded"),
+                "没有 MOD 时战役面板状态机仍须可建立空状态，不能把打开面板等同于选择或启动");
+
             ModPackage alpha = Package("mod-alpha", "campaign-alpha");
             ModPackage beta = Package("mod-beta", "campaign-beta");
             ModCampaignState.Clear();
@@ -159,6 +178,39 @@ namespace MortalModHost
             Assert(resolved["idle"] == "normal.png"
                     && resolved["attack"] == "normal.png",
                 "缺少 idle 时必须回退人物 normal 立绘");
+        }
+
+        private static void TestVerifiedGameplayAssetIdentity()
+        {
+            Assert(BattleCompositionPolicy.IsVerifiedAssetIdentity("brother4", "Brother4_Animator")
+                    && BattleCompositionPolicy.IsVerifiedAssetIdentity("girl4", "Girl_004_Animator")
+                    && BattleCompositionPolicy.IsVerifiedAssetIdentity("special3", "special003_attack_01")
+                    && BattleCompositionPolicy.IsVerifiedAssetIdentity("special4", "special4_attack_13"),
+                "Battle 官方人物必须按已核对的 Animator/动画资源身份匹配");
+            Assert(!BattleCompositionPolicy.IsVerifiedAssetIdentity("special3", "Brother3_Animator")
+                    && !BattleCompositionPolicy.IsVerifiedAssetIdentity("special3", "prefix_special003_animator"),
+                "Battle 官方人物不得使用任意位置子串造成相似 ID 串错");
+
+            Assert(CombatCharacterPolicy.MatchesOfficialAssetKey(
+                        "special3", "Assets/__Project/Images/Combat/special_003_叶云舟/stand.png")
+                    && !CombatCharacterPolicy.MatchesOfficialAssetKey(
+                        "special3", "Assets/__Project/Images/Combat/brother3_三师兄/stand.png")
+                    && !CombatCharacterPolicy.MatchesOfficialAssetKey(
+                        "special3", "Assets/special003/stand.png"),
+                "Combat 官方动画必须精确来自已核对的 Combat 目录段");
+            Assert(CombatCharacterPolicy.MatchesOfficialAvatarKeys(
+                        "special3",
+                        "Assets/__Project/Images/Combat/special_003_叶云舟/stand.png",
+                        "Assets/__Project/Images/Combat/special_003_叶云舟/attack.png",
+                        "Assets/__Project/Images/Combat/special_003_叶云舟/hurt.png",
+                        "Assets/__Project/Images/Combat/special_003_叶云舟/defence.png")
+                    && !CombatCharacterPolicy.MatchesOfficialAvatarKeys(
+                        "special3",
+                        "Assets/__Project/Images/Combat/special_003_叶云舟/stand.png",
+                        "Assets/__Project/Images/Combat/special_004_瑞晟/attack.png",
+                        "Assets/__Project/Images/Combat/special_003_叶云舟/hurt.png",
+                        "Assets/__Project/Images/Combat/special_003_叶云舟/defence.png"),
+                "Combat 四种动画必须来自同一官方人物，任何一帧串人都必须拒绝");
         }
 
         private static ModPackage Package(string modId, string campaignId)

@@ -37,6 +37,7 @@ namespace MortalModHost
         {
             get { return HasPending && string.Equals(_kind, "battle", StringComparison.Ordinal); }
         }
+        internal static bool HasRecordedResult { get { return _result.Length > 0; } }
         internal static bool ShouldForceCombatReturn { get { return PendingCombat; } }
         internal static string LastKind { get { return _lastKind; } }
         internal static string LastResult { get { return _lastResult; } }

@@ -35,6 +35,7 @@
     <Compile Include="..\..\src\ProvenanceWatermarkProtocol.cs" />
     <Compile Include="..\..\src\ProvenanceWatermarkCodec.cs" />
     <Compile Include="..\..\src\GameplaySession.cs" />
+    <Compile Include="..\..\src\SceneTransitionPolicy.cs" />
     <Compile Include="..\..\src\ModCampaignState.cs" />
     <Compile Include="..\..\src\ModSaveSlotPolicy.cs" />
     <Compile Include="..\..\src\ModQuestSession.cs" />

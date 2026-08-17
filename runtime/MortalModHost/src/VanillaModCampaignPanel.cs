@@ -111,7 +111,6 @@ namespace MortalModHost
             if (Campaigns.Count == 0)
             {
                 if (logWarning != null) logWarning(I18n.T("campaign.none"));
-                return false;
             }
 
             try
@@ -192,6 +191,11 @@ namespace MortalModHost
         {
             if (!_active) return;
             HideCustomAutoSlots();
+            if (Campaigns.Count == 0)
+            {
+                RenderNoCampaignState();
+                return;
+            }
             int row = 0;
             for (int i = 0; i < Campaigns.Count && row < _slots.Length; i++, row++)
             {
@@ -208,6 +212,20 @@ namespace MortalModHost
                     delegate { SelectCampaign(captured); });
             }
             HideRemaining(row);
+            ConfigureRecentEntry();
+            SelectFirstSlot();
+        }
+
+        private static void RenderNoCampaignState()
+        {
+            if (_slots == null || _slots.Length == 0) return;
+            ConfigureSlot(
+                _slots[0],
+                I18n.T("close"),
+                I18n.T("campaign.none"),
+                I18n.T("empty"),
+                delegate { SelectAndClose(delegate { }); });
+            HideRemaining(1);
             ConfigureRecentEntry();
             SelectFirstSlot();
         }

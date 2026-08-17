@@ -20,14 +20,23 @@ namespace MortalModHost
     }
 
     /// <summary>
-    /// 高层 Combat 只克隆并覆盖当前决斗的 CombatStat，不修改原版共享资产。
-    /// 角色外观、动画与基础招式仍来自作者选择的原版 CL_ 模板。
+    /// 高层 Combat 克隆当前决斗的 CombatStat，再覆盖作者填写的数值。人物选择只
+    /// 决定经过四路径一致性验证的 CombatEnemyAvatar，不带入人物预设属性。
     /// </summary>
     [HarmonyPatch(typeof(CombatActionController), "SetStat",
         new Type[] { typeof(CombatStat) })]
     internal static class CombatStatOverridePatch
     {
         private static CombatStat _lastClone;
+
+        internal static bool Owns(CombatStat data)
+        {
+            // UnityEngine.Object 可能为同一 native 对象生成不同托管 wrapper；
+            // CLR ReferenceEquals 会把它们误判为不同。克隆的 Unity InstanceID
+            // 在本场唯一，正好用于识别敌方 Stat 而不依赖 wrapper 身份。
+            return data != null && _lastClone != null
+                && data.GetInstanceID() == _lastClone.GetInstanceID();
+        }
 
         internal static void Clear()
         {
@@ -42,14 +51,17 @@ namespace MortalModHost
             {
                 CombatManager manager = CombatManager.Instance;
                 if (manager == null) throw new InvalidOperationException("CombatManager.Instance 为 null");
-                CombatActionController enemy = Traverse.Create(manager)
-                    .Field("_enemyAction").GetValue<CombatActionController>();
-                if (!ReferenceEquals(__instance, enemy)) return;
+                CombatLevel activeLevel = Traverse.Create(manager)
+                    .Field("_combatLevel").GetValue<CombatLevel>();
+                // 原版 LoadCombatLevelAsset 的实证顺序是：
+                // _combatLevel = level; _enemyAction.SetStat(_combatLevel.EnemyStat)。
+                // 不再依赖 _enemyAction 包装对象的引用身份，它在这个时点
+                // 与后续字段可以不是同一个托管 wrapper。
+                if (activeLevel == null || data != activeLevel.EnemyStat) return;
 
                 Clear();
                 CombatStat clone = UnityObject.Instantiate(data);
                 clone.name = data.name + "__MortalModHost";
-                BattleOverrideResolver.ApplyCombatCharacter(clone);
                 ApplyInt("max_health", 1, 10000000, delegate(int v) { clone.MaxHealth = v; });
                 ApplyInt("health", 0, 10000000, delegate(int v) { clone.DefaultHealth = v; });
                 ApplyInt("max_stamina", 0, 100000, delegate(int v) { clone.MaxStamina = v; });
@@ -80,6 +92,8 @@ namespace MortalModHost
                 clone.Reset();
                 _lastClone = clone;
                 data = clone;
+                LuaManagerPatch.Log?.LogInfo(
+                    "Combat 敌方 Stat 已从当前 _combatLevel.EnemyStat 克隆并应用自由配置");
             }
             catch (Exception ex)
             {
@@ -139,47 +153,49 @@ namespace MortalModHost
             return config == null ? null : config.Get("BL_" + key);
         }
 
-        internal static void ApplyCombatCharacter(CombatStat clone)
+        internal static CombatEnemyAvatar ResolveCombatAvatar(CombatEnemyAvatar fallback)
         {
             string character = GameplaySession.ConfigString("character");
             if (string.IsNullOrEmpty(character))
                 throw new InvalidOperationException("Combat v3 缺少 character");
-            if (CombatCharacterPolicy.IsUserCharacter(character)) return;
+            if (CombatCharacterPolicy.IsUserCharacter(character)) return fallback;
             CombatLevelConfig config = Traverse.Create(CombatManager.Instance)
                 .Field("_levelConfig").GetValue<CombatLevelConfig>();
             if (config == null || config.List == null)
                 throw new InvalidOperationException("CombatLevelConfig 不可用");
-            CombatEnemyAvatar avatar = null;
-            string token = NormalizeAssetName(CombatCharacterPolicy.OfficialAssetToken(character));
+            CombatEnemyAvatar selected = null;
             for (int i = 0; i < config.List.Count; i++)
             {
                 CombatLevel level = config.List[i];
                 CombatEnemyAvatar candidate = level != null && level.EnemyStat != null
                     ? level.EnemyStat.CombatAvatar : null;
-                string key = candidate != null ? NormalizeAssetName(candidate.NormalKey) : "";
-                if (key.IndexOf(token, StringComparison.Ordinal) < 0) continue;
-                if (avatar != null && !SameAvatar(avatar, candidate))
-                    throw new InvalidOperationException("官方决斗人物动画匹配不唯一：" + character);
-                avatar = candidate;
+                if (candidate == null || !CombatCharacterPolicy.MatchesOfficialAvatarKeys(
+                        character, candidate.NormalKey, candidate.AttackKey,
+                        candidate.HurtKey, candidate.DefenceKey))
+                    continue;
+                if (selected != null && !SameAvatar(selected, candidate))
+                    throw new InvalidOperationException("官方决斗人物四帧动画匹配不唯一：" + character);
+                selected = candidate;
             }
-            if (avatar == null)
-                throw new InvalidOperationException("找不到官方决斗人物动画：" + character);
-            clone.CombatAvatar = avatar;
+            if (selected == null)
+                throw new InvalidOperationException(
+                    "找不到四种动画均属于同一人物的官方决斗资源：" + character);
+            LuaManagerPatch.Log?.LogInfo(
+                "Combat 官方动画已绑定为同一人物 " + character
+                + "：idle=" + selected.NormalKey
+                + "；attack=" + selected.AttackKey
+                + "；hurt=" + selected.HurtKey
+                + "；defence=" + selected.DefenceKey);
+            return selected;
         }
 
         private static bool SameAvatar(CombatEnemyAvatar left, CombatEnemyAvatar right)
         {
-            return left == right || (left != null && right != null
-                && left.NormalKey == right.NormalKey && left.AttackKey == right.AttackKey
-                && left.HurtKey == right.HurtKey && left.DefenceKey == right.DefenceKey);
-        }
-
-        private static string NormalizeAssetName(string value)
-        {
-            var chars = new List<char>();
-            foreach (char c in (value ?? "").ToLowerInvariant())
-                if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) chars.Add(c);
-            return new string(chars.ToArray());
+            return ReferenceEquals(left, right) || (left != null && right != null
+                && string.Equals(left.NormalKey, right.NormalKey, StringComparison.Ordinal)
+                && string.Equals(left.AttackKey, right.AttackKey, StringComparison.Ordinal)
+                && string.Equals(left.HurtKey, right.HurtKey, StringComparison.Ordinal)
+                && string.Equals(left.DefenceKey, right.DefenceKey, StringComparison.Ordinal));
         }
 
         internal static GameObject ResolveFactionSpawner(string side, string fieldName)
@@ -188,8 +204,11 @@ namespace MortalModHost
             string faction = GameplaySession.ConfigString(side + "_faction");
             int total;
             if (!GameplaySession.TryConfigInt(side + "_people", 0, 10000, out total)) total = 0;
-            BattleCompositionPolicy.ParseCharacters(
+            List<string> namedCharacters = BattleCompositionPolicy.ParseCharacters(
                 GameplaySession.ConfigString(side + "_characters"), total);
+            if (namedCharacters.Count > 0 && !BattleNamedCharacterPatch.Ready)
+                throw new InvalidOperationException(
+                    "具名角色补丁不可用；为避免悄悄生成错误阵容，本场战役已取消");
             if (string.IsNullOrEmpty(faction))
             {
                 if (total == 0) return null;
@@ -290,10 +309,17 @@ namespace MortalModHost
         }
     }
 
-    /// <summary>在原版 SetData 完成后，仅替换本场敌人的四个 SpriteRenderer；离场立即销毁。</summary>
+    /// <summary>
+    /// CombatEnemyController.SetData 是原版真正读取敌方四帧地址的唯一入口。
+    /// 官方人物在这里临时换入独立 CombatEnemyAvatar，避免早于 Setup 的
+    /// SetStat 补丁受敌人实例时序影响，也不修改原版 ScriptableObject。
+    /// 自定义人物仍在原版协程完成后替换渲染器；离场立即销毁。
+    /// </summary>
     [HarmonyPatch(typeof(CombatEnemyController), "SetData")]
     internal static class CombatCustomAvatarPatch
     {
+        private static readonly System.Reflection.FieldInfo CombatStatField =
+            AccessTools.Field(typeof(CombatCharacterController), "_combatStat");
         private static readonly List<Sprite> Sprites = new List<Sprite>();
         private static readonly List<Texture2D> Textures = new List<Texture2D>();
 
@@ -301,16 +327,112 @@ namespace MortalModHost
         {
             if (!GameplaySession.PendingCombat || __instance == null) return;
             string character = GameplaySession.ConfigString("character");
-            if (!CombatCharacterPolicy.IsUserCharacter(character)) return;
             __result = Wrap(__instance, __result, character);
         }
 
         private static IEnumerator Wrap(
             CombatEnemyController controller, IEnumerator original, string raw)
         {
-            while (original != null && original.MoveNext()) yield return original.Current;
-            try { Apply(controller, raw); }
-            catch (Exception ex) { GameplayOverrideFailure.Abort("自定义决斗动画", ex); }
+            if (CombatCharacterPolicy.IsUserCharacter(raw))
+            {
+                while (original != null && original.MoveNext()) yield return original.Current;
+                try { Apply(controller, raw); }
+                catch (Exception ex) { GameplayOverrideFailure.Abort("自定义决斗动画", ex); }
+                yield break;
+            }
+
+            CombatStat stat = null;
+            CombatEnemyAvatar originalAvatar = null;
+            CombatEnemyAvatar isolatedAvatar = null;
+            try
+            {
+                try
+                {
+                    stat = CombatStatField != null
+                        ? CombatStatField.GetValue(controller) as CombatStat : null;
+                    if (!CombatStatOverridePatch.Owns(stat))
+                        throw new InvalidOperationException(
+                            "CombatEnemyController.SetData 的 _combatStat 不是本场已克隆的敌方 Stat");
+                    originalAvatar = stat.CombatAvatar;
+                    CombatEnemyAvatar verified = BattleOverrideResolver.ResolveCombatAvatar(originalAvatar);
+                    isolatedAvatar = UnityObject.Instantiate(verified);
+                    isolatedAvatar.name = verified.name + "__MortalModHost";
+                    stat.CombatAvatar = isolatedAvatar;
+                    // 原版 prefab 在 Addressables 失败时会保留序列化的旧 Sprite，
+                    // 这正是“待机南宫深、攻击瑞笙”混搭能够悄然出现的条件。
+                    // 先清空后再让原版载入，任一帧失败都会显式拒绝，
+                    // 不再展示壳上的其他人物。
+                    ClearOfficialRenderers(controller);
+                }
+                catch (Exception ex)
+                {
+                    GameplayOverrideFailure.Abort("官方决斗动画", ex);
+                    yield break;
+                }
+
+                while (original != null)
+                {
+                    bool moved;
+                    object current = null;
+                    try
+                    {
+                        moved = original.MoveNext();
+                        if (moved) current = original.Current;
+                    }
+                    catch (Exception ex)
+                    {
+                        GameplayOverrideFailure.Abort("官方决斗动画载入", ex);
+                        yield break;
+                    }
+                    if (!moved) break;
+                    yield return current;
+                }
+                try { VerifyOfficialRenderers(controller, isolatedAvatar, raw); }
+                catch (Exception ex)
+                {
+                    GameplayOverrideFailure.Abort("官方决斗动画校验", ex);
+                }
+            }
+            finally
+            {
+                if (stat != null) stat.CombatAvatar = originalAvatar;
+                if (isolatedAvatar != null) UnityObject.Destroy(isolatedAvatar);
+            }
+        }
+
+        private static void ClearOfficialRenderers(CombatEnemyController controller)
+        {
+            Traverse owner = Traverse.Create(controller);
+            Set(owner.Field("_idleSprite").GetValue<SpriteRenderer>(), null);
+            Set(owner.Field("_chargeSprite").GetValue<SpriteRenderer>(), null);
+            Set(owner.Field("_attackSprite").GetValue<SpriteRenderer>(), null);
+            Set(owner.Field("_hurtSprite").GetValue<SpriteRenderer>(), null);
+            Set(owner.Field("_defenceSprite").GetValue<SpriteRenderer>(), null);
+        }
+
+        private static void VerifyOfficialRenderers(
+            CombatEnemyController controller, CombatEnemyAvatar avatar, string character)
+        {
+            Traverse owner = Traverse.Create(controller);
+            VerifyRenderer(owner, "_idleSprite", avatar.NormalKey, "idle");
+            VerifyRenderer(owner, "_attackSprite", avatar.AttackKey, "attack");
+            VerifyRenderer(owner, "_hurtSprite", avatar.HurtKey, "hurt");
+            VerifyRenderer(owner, "_defenceSprite", avatar.DefenceKey, "defence");
+            LuaManagerPatch.Log?.LogInfo(
+                "Combat 敌方四帧已在 SetData 绑定同一人物 " + character
+                + "：idle=" + avatar.NormalKey
+                + "；attack=" + avatar.AttackKey
+                + "；hurt=" + avatar.HurtKey
+                + "；defence=" + avatar.DefenceKey);
+        }
+
+        private static void VerifyRenderer(
+            Traverse owner, string field, string addressKey, string logicalName)
+        {
+            SpriteRenderer renderer = owner.Field(field).GetValue<SpriteRenderer>();
+            if (renderer == null || renderer.sprite == null)
+                throw new InvalidOperationException(
+                    "官方决斗动画未载入 " + logicalName + "：" + addressKey);
         }
 
         private static void Apply(CombatEnemyController controller, string raw)
@@ -376,10 +498,28 @@ namespace MortalModHost
         }
     }
 
-    [HarmonyPatch(typeof(CombatEnemyController), "OnDestroy")]
-    internal static class CombatCustomAvatarCleanupPatch
+    /// <summary>
+    /// 人物选择只决定动画，不能让固定场景壳“唐升”的姓名泄漏到 MOD 对手。
+    /// 作者填写 display_name 时使用字面值；未填写时统一使用中性 MOD 标识。
+    /// </summary>
+    [HarmonyPatch(typeof(CombatStatController), "get_CharacterName")]
+    internal static class CombatDisplayNamePatch
     {
-        private static void Prefix()
+        private static void Postfix(CombatStatController __instance, ref string __result)
+        {
+            if (!GameplaySession.PendingCombat || __instance == null
+                || !CombatStatOverridePatch.Owns(__instance.Data)) return;
+            string displayName = GameplaySession.ConfigString("display_name");
+            __result = string.IsNullOrWhiteSpace(displayName)
+                ? I18n.T("combat.mod_opponent")
+                : displayName.Trim();
+        }
+    }
+
+    [HarmonyPatch(typeof(CombatManager), "OnDisable")]
+    internal static class CombatRuntimeCleanupPatch
+    {
+        private static void Postfix()
         {
             CombatCustomAvatarPatch.Clear();
             CombatStatOverridePatch.Clear();
@@ -390,14 +530,17 @@ namespace MortalModHost
     /// 原版 InitNpcList 会把 _specialNPCs 额外压入队列。v3 必须让具名角色计入
     /// total，因此先禁用额外队列，再在生成后的固定长度队列中替换前 N 个普通席位。
     /// </summary>
-    [HarmonyPatch(typeof(NpcSpawner), "Setup")]
     internal static class BattleNamedCharacterPatch
     {
-        private static string Prefix(NpcSpawner __instance, GameObject spawnerObject)
+        internal static bool Ready { get; set; }
+
+        private static void Prefix(
+            NpcSpawner __instance, GameObject spawnerObject, out string __state)
         {
-            if (!GameplaySession.PendingBattle || __instance == null) return null;
+            __state = null;
+            if (!GameplaySession.PendingBattle || __instance == null) return;
             string side = FindSide(spawnerObject);
-            if (side == null) return null;
+            if (side == null) return;
             try
             {
                 int total;
@@ -406,12 +549,11 @@ namespace MortalModHost
                     GameplaySession.ConfigString(side + "_characters"), total);
                 // 原版 specialNPC 始终是额外席位；v3 所有席位都必须包含在 total 内。
                 Traverse.Create(__instance).Field("_specialNPCs").SetValue(new NpcSpawnPreset[0]);
-                return side;
+                __state = side;
             }
             catch (Exception ex)
             {
                 GameplayOverrideFailure.Abort("战役具名角色", ex);
-                return null;
             }
         }
 
@@ -456,7 +598,6 @@ namespace MortalModHost
         {
             BattleLevelConfig config = Traverse.Create(GameLevelManager.Instance)
                 .Field("_levelConfig").GetValue<BattleLevelConfig>();
-            string token = BattleCompositionPolicy.AssetToken(id);
             NpcSpawnPreset found = null;
             if (config != null && config.List != null)
             {
@@ -472,9 +613,21 @@ namespace MortalModHost
                         if (source == null) continue;
                         NpcSpawnPreset[] special = Traverse.Create(source)
                             .Field("_specialNPCs").GetValue<NpcSpawnPreset[]>();
-                        found = MatchPreset(source.NpcPresets, special, token, found);
+                        found = MatchPreset(source.NpcPresets, special, id, found);
                     }
                 }
+            }
+            // 部分官方具名人物不直接出现在当前 BattleLevel 的生成器名称中，
+            // 但其官方 prefab 已随配置加载。继续扫描已加载的原版 NpcSpawner，
+            // 并以 AnimatorController 的确定性资源名识别，不能退回模糊人物名猜测。
+            NpcSpawner[] loadedSpawners = Resources.FindObjectsOfTypeAll<NpcSpawner>();
+            for (int i = 0; i < loadedSpawners.Length; i++)
+            {
+                NpcSpawner source = loadedSpawners[i];
+                if (source == null) continue;
+                NpcSpawnPreset[] special = Traverse.Create(source)
+                    .Field("_specialNPCs").GetValue<NpcSpawnPreset[]>();
+                found = MatchPreset(source.NpcPresets, special, id, found);
             }
             if (found == null)
                 throw new InvalidOperationException("找不到已验证的官方战役人物资源：" + id);
@@ -483,35 +636,50 @@ namespace MortalModHost
 
         private static NpcSpawnPreset MatchPreset(
             IList<NpcSpawnPreset> normal, IList<NpcSpawnPreset> special,
-            string token, NpcSpawnPreset current)
+            string id, NpcSpawnPreset current)
         {
-            current = MatchList(normal, token, current);
-            return MatchList(special, token, current);
+            current = MatchList(normal, id, current);
+            return MatchList(special, id, current);
         }
 
         private static NpcSpawnPreset MatchList(
-            IList<NpcSpawnPreset> rows, string token, NpcSpawnPreset current)
+            IList<NpcSpawnPreset> rows, string id, NpcSpawnPreset current)
         {
             if (rows == null) return current;
             for (int i = 0; i < rows.Count; i++)
             {
                 NpcSpawnPreset preset = rows[i];
-                string name = preset != null && preset.Prefab != null ? preset.Prefab.name : "";
-                string normalized = NormalizeAssetName(name);
-                if (normalized.IndexOf(token, StringComparison.Ordinal) < 0) continue;
+                if (!MatchesOfficialPreset(preset, id)) continue;
                 if (current != null && !ReferenceEquals(current.Prefab, preset.Prefab))
-                    throw new InvalidOperationException("官方人物资源匹配不唯一：" + token);
+                    throw new InvalidOperationException("官方人物资源匹配不唯一：" + id);
                 current = preset;
             }
             return current;
         }
 
-        private static string NormalizeAssetName(string value)
+        private static bool MatchesOfficialPreset(NpcSpawnPreset preset, string id)
         {
-            var chars = new List<char>();
-            foreach (char c in (value ?? "").ToLowerInvariant())
-                if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) chars.Add(c);
-            return new string(chars.ToArray());
+            if (preset == null || preset.Prefab == null) return false;
+            if (BattleCompositionPolicy.IsVerifiedAssetIdentity(id, preset.Prefab.name)) return true;
+            Animator[] animators = preset.Prefab.GetComponentsInChildren<Animator>(true);
+            for (int i = 0; i < animators.Length; i++)
+            {
+                RuntimeAnimatorController controller = animators[i] != null
+                    ? animators[i].runtimeAnimatorController : null;
+                if (controller == null) continue;
+                if (BattleCompositionPolicy.IsVerifiedAssetIdentity(id, controller.name)) return true;
+                AnimatorOverrideController overrides = controller as AnimatorOverrideController;
+                if (overrides == null) continue;
+                var clips = new List<KeyValuePair<AnimationClip, AnimationClip>>();
+                overrides.GetOverrides(clips);
+                for (int c = 0; c < clips.Count; c++)
+                {
+                    AnimationClip clip = clips[c].Value;
+                    if (clip != null && BattleCompositionPolicy.IsVerifiedAssetIdentity(id, clip.name))
+                        return true;
+                }
+            }
+            return false;
         }
     }
 

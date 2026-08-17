@@ -25,7 +25,7 @@ class DirectCombatBattleUiTest(unittest.TestCase):
         fields = {key for key, *_ in models.NODE_SCHEMAS["combat"]["fields"]}
         self.assertNotIn("preset", fields)
         self.assertEqual(fields, {
-            "character", "max_health", "health", "max_stamina", "stamina", "strength",
+            "character", "display_name", "max_health", "health", "max_stamina", "stamina", "strength",
             "internal", "dexterity", "talking", "defence", "sword", "fist",
             "martial_weapon", "mental", "talents", "ultimate_one", "ultimate_two",
             "ultimate_three", "talk_rate", "attack_rate", "weapon_rate",

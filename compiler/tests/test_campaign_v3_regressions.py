@@ -83,7 +83,7 @@ class GameplayV3ContractTest(unittest.TestCase):
         self.assertIn("character=user:author.hero", lua)
         self.assertIn("max_health=900", lua)
         self.assertIn("strength=77", lua)
-        self.assertIn('ChangeScene("Combat", "0001_01", "Story")', lua)
+        self.assertIn('mod_gameplay_start_scene("combat")', lua)
         self.assertNotIn('ChangeScene("Combat", "user:author.hero"', lua)
 
     def test_battle_total_includes_named_official_characters(self):
@@ -106,7 +106,7 @@ class GameplayV3ContractTest(unittest.TestCase):
         self.assertIn("friend_people=2", lua)
         self.assertIn("friend_characters=brother1,girl4", lua)
         self.assertIn("enemy_people=1", lua)
-        self.assertIn('ChangeScene("Battle", "0000", "Story")', lua)
+        self.assertIn('mod_gameplay_start_scene("battle")', lua)
 
         too_many = story({**source["nodes"][0], "friend_people": 1})
         with self.assertRaisesRegex(LomcError, "超过.*总人数"):

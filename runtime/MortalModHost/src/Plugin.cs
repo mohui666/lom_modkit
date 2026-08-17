@@ -52,6 +52,7 @@ namespace MortalModHost
 
         private bool _showMenu;
         private bool _inTitleScene; // 当前菜单是否处于标题画面（Title 场景仅提供战役区）
+        private bool _titleFallbackMenu;
         private Rect _windowRect = new Rect(40f, 40f, 460f, 420f);
         private Vector2 _scroll;
         private float _nextPreviewPoll;
@@ -326,8 +327,31 @@ namespace MortalModHost
                 AccessTools.Method(typeof(SoundManager), "StopMusic", Type.EmptyTypes));
             ok &= CheckTarget("SceneController.LoadNewScene",
                 AccessTools.Method(typeof(SceneController), "LoadNewScene", new Type[] { typeof(string) }));
+            ok &= CheckTarget("SceneController._currentLoadingScene",
+                AccessTools.Field(typeof(SceneController), "_currentLoadingScene"));
+            ok &= CheckTarget("SceneController.LoadNextScene",
+                AccessTools.Method(typeof(SceneController), "LoadNextScene", Type.EmptyTypes));
             ok &= CheckTarget("CombatManager.GameOver(bool)",
                 AccessTools.Method(typeof(CombatManager), "GameOver", new Type[] { typeof(bool) }));
+            ok &= CheckTarget("CombatActionController.SetStat(CombatStat)",
+                AccessTools.Method(typeof(CombatActionController), "SetStat",
+                    new Type[] { typeof(CombatStat) }));
+            ok &= CheckTarget("CombatEnemyController.SetData",
+                AccessTools.Method(typeof(CombatEnemyController), "SetData", Type.EmptyTypes));
+            ok &= CheckTarget("CombatManager.OnDisable",
+                AccessTools.Method(typeof(CombatManager), "OnDisable", Type.EmptyTypes));
+            ok &= CheckTarget("CombatStatController.get_CharacterName",
+                AccessTools.Method(typeof(CombatStatController), "get_CharacterName", Type.EmptyTypes));
+            ok &= CheckTarget("CombatManager._enemyAction",
+                AccessTools.Field(typeof(CombatManager), "_enemyAction"));
+            ok &= CheckTarget("CombatManager._playerAction",
+                AccessTools.Field(typeof(CombatManager), "_playerAction"));
+            ok &= CheckTarget("CombatManager._levelConfig",
+                AccessTools.Field(typeof(CombatManager), "_levelConfig"));
+            ok &= CheckTarget("CombatManager._combatLevel",
+                AccessTools.Field(typeof(CombatManager), "_combatLevel"));
+            ok &= CheckTarget("CombatCharacterController._combatStat",
+                AccessTools.Field(typeof(CombatCharacterController), "_combatStat"));
             ok &= CheckTarget("CombatLevel.get_DeadEnd",
                 AccessTools.Method(typeof(CombatLevel), "get_DeadEnd", Type.EmptyTypes));
             ok &= CheckTarget("GameLevelManager.ShowGameOver(GameOverType,bool)",
@@ -341,6 +365,16 @@ namespace MortalModHost
             try
             {
                 new Harmony(GUID).PatchAll(); // patch 本程序集全部 [HarmonyPatch] 类
+                RequireOwnedPatch("CombatActionController.SetStat(CombatStat)",
+                    AccessTools.Method(typeof(CombatActionController), "SetStat",
+                        new Type[] { typeof(CombatStat) }));
+                RequireOwnedPatch("CombatEnemyController.SetData",
+                    AccessTools.Method(typeof(CombatEnemyController), "SetData", Type.EmptyTypes));
+                RequireOwnedPatch("CombatManager.OnDisable",
+                    AccessTools.Method(typeof(CombatManager), "OnDisable", Type.EmptyTypes));
+                RequireOwnedPatch("CombatStatController.get_CharacterName",
+                    AccessTools.Method(typeof(CombatStatController), "get_CharacterName", Type.EmptyTypes));
+                PatchBattleNamedCharacters();
                 PatchSteamRestart();
                 _harmonyPatched = true;
                 _runtimeReady = true;
@@ -349,7 +383,9 @@ namespace MortalModHost
             catch (Exception ex)
             {
                 new Harmony(GUID).UnpatchSelf();
+                new Harmony(GUID + ".battle-named").UnpatchSelf();
                 new Harmony(GUID + ".steamrestart").UnpatchSelf();
+                BattleNamedCharacterPatch.Ready = false;
                 _harmonyPatched = false;
                 _runtimeReady = false;
                 Logger.LogError("Harmony 挂载失败：为保证玩家内容披露，已回滚补丁并关闭全部 MOD 演出入口。" + ex);
@@ -361,10 +397,54 @@ namespace MortalModHost
             if (_harmonyPatched)
             {
                 new Harmony(GUID).UnpatchSelf();
+                new Harmony(GUID + ".battle-named").UnpatchSelf();
                 new Harmony(GUID + ".steamrestart").UnpatchSelf();
             }
+            BattleNamedCharacterPatch.Ready = false;
             _harmonyPatched = false;
             _runtimeReady = false;
+        }
+
+        /// <summary>
+        /// 具名战役人物属于可隔离的增强补丁。它挂载失败时保留标题入口和核心
+        /// Runtime；真正使用具名人物的战役会 fail-closed，而不会静默生成错误阵容。
+        /// </summary>
+        private void PatchBattleNamedCharacters()
+        {
+            const string harmonyId = GUID + ".battle-named";
+            BattleNamedCharacterPatch.Ready = false;
+            try
+            {
+                MethodInfo target = AccessTools.Method(
+                    typeof(Mortal.Battle.NpcSpawner), "Setup",
+                    new Type[] { typeof(int), typeof(GameObject) });
+                MethodInfo prefix = AccessTools.Method(
+                    typeof(BattleNamedCharacterPatch), "Prefix");
+                MethodInfo postfix = AccessTools.Method(
+                    typeof(BattleNamedCharacterPatch), "Postfix");
+                if (target == null || prefix == null || postfix == null)
+                    throw new MissingMethodException("NpcSpawner.Setup 或具名人物补丁方法不存在");
+                if (AccessTools.Field(typeof(Mortal.Battle.NpcSpawner), "_specialNPCs") == null
+                    || AccessTools.Field(typeof(Mortal.Battle.NpcSpawner), "_npcQueue") == null)
+                    throw new MissingFieldException("NpcSpawner 具名人物队列字段不存在");
+                if (prefix.ReturnType != typeof(void))
+                    throw new InvalidOperationException("Harmony Prefix 返回类型必须是 void");
+
+                new Harmony(harmonyId).Patch(
+                    target,
+                    prefix: new HarmonyMethod(prefix),
+                    postfix: new HarmonyMethod(postfix));
+                BattleNamedCharacterPatch.Ready = true;
+                Logger.LogInfo("战役具名角色补丁已挂载");
+            }
+            catch (Exception ex)
+            {
+                new Harmony(harmonyId).UnpatchSelf();
+                BattleNamedCharacterPatch.Ready = false;
+                Logger.LogError(
+                    "战役具名角色补丁挂载失败：标题入口与其他 MOD 功能继续可用；"
+                    + "包含具名角色的战役将安全取消。" + ex);
+            }
         }
 
         /// <summary>
@@ -578,7 +658,20 @@ namespace MortalModHost
                 return;
             }
 
-            string scene = SceneController.Instance != null ? SceneController.Instance.CurrentScene : "";
+            SceneController sceneController = SceneController.Instance;
+            string scene = sceneController != null ? sceneController.CurrentScene : "";
+            if ((scene == "Title" || scene == "Free")
+                && !IsSceneReadyForModNavigation(sceneController))
+            {
+                string waitingKey = scene + ":loading";
+                if (!string.Equals(_previewWaitingScene, waitingKey, StringComparison.Ordinal))
+                {
+                    _previewWaitingScene = waitingKey;
+                    Logger.LogInfo("试玩请求正在等待原版 " + scene
+                        + " 场景撤下读取遮罩；不会在 Loading1 尚未卸载时重复切场景。");
+                }
+                return;
+            }
             bool reloadCurrentPreview = ModDisclosurePolicy.CanHotReloadDevelopmentPreview(
                     RuntimeTrace.Active,
                     ModDisclosure.Active,
@@ -599,12 +692,14 @@ namespace MortalModHost
             }
             else if (scene == "Free")
             {
+                _previewWaitingScene = "";
                 Logger.LogInfo("收到编辑器试玩请求：" + request.ScriptId + "/" + request.NodeId + "（自由场景直接演出）");
                 PlayMod(target);
                 CompletePreviewRequest(requestPath, target);
             }
             else if (scene == "Title")
             {
+                _previewWaitingScene = "";
                 Logger.LogInfo("收到编辑器试玩请求：" + request.ScriptId + "/" + request.NodeId + "（隔离存档开局）");
                 StartCampaign(target);
                 CompletePreviewRequest(requestPath, target);
@@ -767,6 +862,11 @@ namespace MortalModHost
                 return;
             _inTitleScene = true;
             _showMenu = false;
+            _titleFallbackMenu = false;
+
+            // 空列表同样交给官方风格面板处理。VanillaModCampaignPanel 会显示
+            // “未加载兼容战役”状态；不能在这里提前转去 IMGUI，否则玩家会误以为
+            // 标题入口无效，也无法确认 MOD 战役页本身是否可正常打开。
             bool opened = VanillaModCampaignPanel.Open(
                 LoadedMods,
                 StartCampaign,
@@ -780,9 +880,91 @@ namespace MortalModHost
                 },
                 msg => Logger.LogInfo(msg),
                 msg => Logger.LogWarning(msg));
-            Logger.LogInfo(opened
-                ? "通过标题画面入口打开原版风格 MOD 战役选择/存档页。"
-                : "原版战役存档组件不可用，本次未打开战役页（不会回退为 IMGUI 或直接启动）。");
+            if (opened)
+            {
+                Logger.LogInfo("通过标题画面入口打开原版风格 MOD 战役选择/存档页。"
+                    + (HasModCampaignEntry(LoadedMods) ? "" : "当前没有兼容战役，面板已显示空状态。"));
+                return;
+            }
+
+            if (TryOpenVanillaCampaignPanelFallback())
+                return;
+
+            Logger.LogWarning("MOD 战役页无法打开，回退显示备用选择面板。");
+
+            if (TryOpenVanillaCampaignPanelFallback())
+            {
+                Logger.LogInfo("原版读档页打开成功：关闭 MOD 入口覆盖，仅显示官方备援界面。");
+                return;
+            }
+
+            _titleFallbackMenu = true;
+            _showMenu = true;
+            ClampWindowToScreen();
+            Logger.LogWarning("备用选择面板已显示：未检测到可用兼容 MOD 或官方读档页回退失败。");
+        }
+
+        internal static bool IsSceneReadyForModNavigation(SceneController scenes)
+        {
+            if (scenes == null) return false;
+            string currentLoadingScene;
+            try
+            {
+                currentLoadingScene = Traverse.Create(scenes)
+                    .Field("_currentLoadingScene").GetValue<string>();
+            }
+            catch
+            {
+                // 游戏更新导致私有字段不可读时必须 fail-closed，不能冒险并发切场景。
+                return false;
+            }
+            return SceneTransitionPolicy.IsReady(
+                scenes.IsPrepare, scenes.IsLoading, currentLoadingScene);
+        }
+
+        private bool TryOpenVanillaCampaignPanelFallback()
+        {
+            bool hasModCampaign = HasModCampaignEntry(LoadedMods);
+            if (!hasModCampaign)
+                Logger.LogInfo("未检测到可用兼容 MOD 战役：回退打开原版读档页。");
+            else
+                Logger.LogWarning("MOD 战役页无法打开，回退打开原版读档页。");
+
+            TitleManager title = TitleManager.Instance;
+            if (title == null) return false;
+            try
+            {
+                title.OpenSlot();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning("回退打开原版读档页失败：" + ex.Message);
+                return false;
+            }
+        }
+
+        private static bool HasModCampaignEntry(IList<ModPackage> packages)
+        {
+            if (packages == null) return false;
+            for (int i = 0; i < packages.Count; i++)
+            {
+                ModPackage package = packages[i];
+                if (package != null && package.Campaign != null && package.Campaign.NewGame)
+                    return true;
+            }
+            return false;
+        }
+
+        private static void RequireOwnedPatch(string name, MethodBase method)
+        {
+            Patches info = method == null ? null : Harmony.GetPatchInfo(method);
+            if (info != null)
+            {
+                foreach (string owner in info.Owners)
+                    if (string.Equals(owner, GUID, StringComparison.Ordinal)) return;
+            }
+            throw new MissingMethodException("Harmony 未实际挂载必需补丁：" + name);
         }
 
         /// <summary>
@@ -962,7 +1144,13 @@ namespace MortalModHost
         private void DrawWindow(int id)
         {
             GUILayout.BeginVertical();
-            if (LoadedMods.Count == 0)
+            if (_titleFallbackMenu)
+            {
+                GUILayout.Label(I18n.T("campaign.none"));
+                GUILayout.Label("未检测到可用兼容 MOD（可用格式：package_format=3、story_schema=2，且需稳定 campaign_id）。");
+                GUILayout.Label("可先返回标题画面手动确认原版读档页状态。");
+            }
+            else if (LoadedMods.Count == 0)
             {
                 GUILayout.Label(I18n.T("empty"));
             }
@@ -981,7 +1169,10 @@ namespace MortalModHost
             }
             GUILayout.Space(6f);
             if (GUILayout.Button(I18n.T("close")))
+            {
                 _showMenu = false;
+                _titleFallbackMenu = false;
+            }
             GUILayout.EndVertical();
             GUI.DragWindow(new Rect(0f, 0f, _windowRect.width, 20f)); // 仅标题栏可拖动，避免与关闭按钮/滚动区抢点击
         }
@@ -1010,9 +1201,9 @@ namespace MortalModHost
                 Logger.LogError("无法开始新战役：SaveSystem/SceneController 单例尚未就绪");
                 return;
             }
-            if (scenes.IsPrepare || scenes.IsLoading)
+            if (!IsSceneReadyForModNavigation(scenes))
             {
-                Logger.LogError("无法开始新战役：场景正在切换，请返回标题后重试");
+                Logger.LogError("无法开始新战役：原版场景或读取遮罩尚未完成，请稍后重试");
                 return;
             }
             string slot = CampaignIdentity.SaveSlot(mod.CampaignId);
@@ -1072,7 +1263,7 @@ namespace MortalModHost
             }
             SaveSystem saves = SaveSystem.Instance;
             SceneController scenes = SceneController.Instance;
-            if (saves == null || scenes == null || scenes.IsPrepare || scenes.IsLoading)
+            if (saves == null || !IsSceneReadyForModNavigation(scenes))
             {
                 Logger.LogError("无法读取 MOD 战役：存档或场景系统尚未就绪");
                 return;
@@ -1116,7 +1307,7 @@ namespace MortalModHost
             }
             SaveSystem saves = SaveSystem.Instance;
             SceneController scenes = SceneController.Instance;
-            if (saves == null || scenes == null || scenes.IsPrepare || scenes.IsLoading)
+            if (saves == null || !IsSceneReadyForModNavigation(scenes))
             {
                 Logger.LogError("无法读取 MOD 自动存档：存档或场景系统尚未就绪");
                 return;

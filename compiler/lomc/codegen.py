@@ -776,7 +776,7 @@ def _emit_combat(node, ctx):
     encoded = _encode_gameplay_config(
         config,
         (
-            "character",
+            "character", "display_name",
             "max_health", "health", "max_stamina", "stamina", "strength",
             "internal", "dexterity", "talking", "defence", "sword", "fist",
             "martial_weapon", "mental", "ultimate_one", "ultimate_two",
@@ -799,7 +799,7 @@ def _emit_combat(node, ctx):
             "\tmod_hide_all()",
             # CL_0001_01 只作为 Host 注入自定义动画/数值前的稳定原版壳；
             # 不暴露给作者，也不从它继承作者未填写的战斗参数。
-            '\tluamanager.ChangeScene("Combat", "0001_01", "Story")',
+            '\tmod_gameplay_start_scene("combat")',
         ]
     )
     return lines
@@ -829,7 +829,7 @@ def _emit_battle(node, ctx):
         "\tmod_stop_voice()",
         "\tmod_hide_all()",
         # BL_0000 是不对作者暴露的稳定场景壳；三方编成完全来自上方配置。
-        '\tluamanager.ChangeScene("Battle", "0000", "Story")',
+        '\tmod_gameplay_start_scene("battle")',
     ])
     return lines
 

@@ -13,6 +13,7 @@ python tools/verify_gameplay_api.py --json
 | 能力 | 原版证据 | 可实现范围 |
 | --- | --- | --- |
 | 场景战斗 | `LuaManager.ChangeScene(name,key,nextScene)` 写入 `CurrentSceneKey` / `CurrentNextScene` | 选择原版 Combat / Battle key 并在结束后回 Story |
+| 场景切换就绪 | `LuaManager.Init()` 先 `StartCoroutine(UnloadLoading())`、不等待便立即 `ExecuteLuaScript()`；`SceneController` 在目标场景激活后仍以 `_currentLoadingScene` 记录 `Loading1` | Combat/Battle 由 Host 延迟切换：同时等待 `IsPrepare=false`、`IsLoading=false` 且 `_currentLoadingScene` 为空，再调用原版 `ChangeScene`，避免章节首节点与 Story 的异步卸载冲突后永久停在“读取中” |
 | Combat 结果 | `CombatManager.GameOver(bool win)` | `win` / `lose`；原版先应用关卡 WinResult/LoseResult，再 `LoadNextScene()` |
 | Combat 对手配置 | `CombatManager` 读取 `CL_<key>.EnemyStat` 并调用 `CombatActionController.SetStat(CombatStat)`；`CombatStat` 公开血量、气力、基础属性、决斗技能、绝招和 AI 概率字段 | Host 为本次决斗克隆原版 `CombatStat` 后覆盖作者填写的字段；人物模型、头像、动画和基础行为继续来自所选原版 `CL_` 模板，不修改共享资产 |
 | Battle 结果 | `GameLevelManager.ShowGameOver(GameOverType,bool)` | `finish=true` 的 `FriendWin` / `EnemyWin` 可继续；`PlayerDie` 只给重试/标题，不伪造可继续分支 |

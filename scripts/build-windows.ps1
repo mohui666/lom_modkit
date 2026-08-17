@@ -36,7 +36,26 @@ function Replace-FileAtomically {
     if ([IO.File]::Exists($Destination)) {
         $Backup = "$Destination.replace-backup-$([Guid]::NewGuid().ToString('N'))"
         try {
-            [IO.File]::Replace($Temporary, $Destination, $Backup, $true)
+            # Defender/Explorer may briefly open a freshly produced archive between
+            # verification and replacement. Keep the operation atomic, but tolerate
+            # that transient sharing violation instead of asking maintainers to rerun.
+            $LastError = $null
+            for ($Attempt = 1; $Attempt -le 6; $Attempt++) {
+                try {
+                    [IO.File]::Replace($Temporary, $Destination, $Backup, $true)
+                    $LastError = $null
+                    break
+                }
+                catch {
+                    $LastError = $_
+                    if ($Attempt -lt 6) {
+                        Start-Sleep -Milliseconds 350
+                    }
+                }
+            }
+            if ($null -ne $LastError) {
+                throw $LastError
+            }
         }
         finally {
             if ([IO.File]::Exists($Backup)) {

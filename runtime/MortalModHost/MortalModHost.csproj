@@ -57,6 +57,11 @@
       <HintPath>$(GameDir)\Mortal_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <!-- 官方 Battle 具名人物按 Animator/AnimatorOverrideController 的实证资源身份解析 -->
+    <Reference Include="UnityEngine.AnimationModule">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\UnityEngine.AnimationModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <!-- 游戏程序集：Mortal.Core（SceneController / PlayerStatManagerData / GameOver/EndGame 控制器 / MenuToggleButton） -->
     <Reference Include="Mortal.Core">
       <HintPath>$(GameDir)\Mortal_Data\Managed\Mortal.Core.dll</HintPath>

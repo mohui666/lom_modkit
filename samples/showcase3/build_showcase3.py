@@ -432,6 +432,7 @@ def build_combat() -> dict:
         "combat",
         {
             "character": "special3",
+            "display_name": "全节点演示对手",
             "max_health": 300, "health": 300,
             "max_stamina": 120, "stamina": 120,
             "strength": 20, "internal": 20, "dexterity": 20, "talking": 20,

@@ -354,20 +354,25 @@ namespace MortalModHost
             GUI.backgroundColor = Color.white;
 
             // Canvas 边缘标已经承载完整作品身份并固定在右上角。独立 IMGUI 章只作
-            // 跨 Canvas 的最后防线，放到左下角并压成单行，避免两套全局标识重叠。
+            // 跨 Canvas 的最后防线；对白区横跨屏幕底部时，章应沿对白框的水平中心
+            // 对齐，避免在左侧头像、血条或正文起始处形成第二个视觉焦点。
             float width = Mathf.Min(360f, Mathf.Max(220f, Screen.width - 24f));
             float height = 34f;
-            var rect = new Rect(12f, Mathf.Max(12f, Screen.height - height - 12f), width, height);
+            var rect = new Rect(
+                Mathf.Max(12f, (Screen.width - width) * 0.5f),
+                Mathf.Max(12f, Screen.height - height - 12f),
+                width,
+                height);
             GUI.color = new Color(0.08f, 0.06f, 0.05f, 0.78f);
             GUI.DrawTexture(rect, Texture2D.whiteTexture);
             GUI.color = Color.white;
             var style = new GUIStyle(GUI.skin.label)
             {
-                alignment = TextAnchor.MiddleLeft,
+                alignment = TextAnchor.MiddleCenter,
                 fontStyle = FontStyle.Bold,
                 fontSize = Mathf.Clamp(Screen.height / 75, 11, 15),
                 wordWrap = false,
-                padding = new RectOffset(10, 8, 2, 2)
+                padding = new RectOffset(8, 8, 2, 2)
             };
             string shortHash = ModDisclosurePolicy.ShortFingerprint(PackageFingerprint);
             GUI.Label(rect, DisclosureIntegrity.FixedStamp() + "  ·  " + shortHash, style);

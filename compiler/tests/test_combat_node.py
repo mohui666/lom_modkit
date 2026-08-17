@@ -25,15 +25,17 @@ class CombatNodeTest(unittest.TestCase):
     def test_character_only_selects_animation_and_stats_remain_explicit(self):
         lua = compile_story(story({
             "id": "fight", "type": "combat", "character": "brother4",
+            "display_name": "自定义对手",
             "max_health": 800, "health": 650, "strength": 20,
             "talents": [{"key": "skill_1", "level": 3}],
             "attack_rate": 0.65, "win": "win", "lose": "lose",
         }))
         self.assertIn(
-            'mod_gameplay_configure("combat", "character=brother4;max_health=800;'
+            'mod_gameplay_configure("combat", "character=brother4;display_name=自定义对手;max_health=800;'
             'health=650;strength=20;attack_rate=0.65;talents=skill_1:3")', lua
         )
-        self.assertIn('ChangeScene("Combat", "0001_01", "Story")', lua)
+        self.assertIn('mod_gameplay_start_scene("combat")', lua)
+        self.assertNotIn('ChangeScene("Combat", "0001_01", "Story")', lua)
         self.assertNotIn('ChangeScene("Combat", "brother4"', lua)
 
     def test_custom_character_is_accepted_without_filling_stats(self):
@@ -58,6 +60,8 @@ class CombatNodeTest(unittest.TestCase):
             compile_story(story(dict(base, strength=1.5)))
         with self.assertRaisesRegex(LomcError, "未知字段.*key"):
             compile_story(story(dict(base, key="5102_01")))
+        with self.assertRaisesRegex(LomcError, "display_name"):
+            compile_story(story(dict(base, display_name="伪装;character=special3")))
 
 
 class BattleNodeTest(unittest.TestCase):
@@ -80,7 +84,8 @@ class BattleNodeTest(unittest.TestCase):
             'enemy_faction=400;enemy_people=12;friend_characters=brother4;'
             'enemy_characters=special3")', lua
         )
-        self.assertIn('ChangeScene("Battle", "0000", "Story")', lua)
+        self.assertIn('mod_gameplay_start_scene("battle")', lua)
+        self.assertNotIn('ChangeScene("Battle", "0000", "Story")', lua)
         self.assertNotIn("roster", lua)
         self.assertNotIn("ResetBattleSkill", lua)
 

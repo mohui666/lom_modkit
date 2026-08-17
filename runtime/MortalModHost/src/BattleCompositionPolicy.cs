@@ -41,9 +41,39 @@ namespace MortalModHost
         {
             if (!OfficialCharacters.Contains(id))
                 throw new InvalidOperationException("不支持的官方战役人物：" + id);
+            if (id == "girl4") return "girl004";
+            if (id == "girl9") return "girl009";
+            if (id == "sister1") return "sister001";
             if (id == "special3") return "special003";
-            if (id == "special4") return "special004";
             return id;
+        }
+
+        /// <summary>
+        /// 只接受 catalog 中已核对的角色资源段、Animator 名或该角色自己的动画片段名。
+        /// 不做任意位置的 contains，避免 special3/brother3 一类相似 ID 串错资源。
+        /// </summary>
+        internal static bool IsVerifiedAssetIdentity(string id, string candidate)
+        {
+            string token = AssetToken(id);
+            string value = NormalizeAssetName(candidate);
+            if (value == token || value == token + "animator") return true;
+            string[] animationSuffixes =
+            {
+                "attack", "idle", "hurt", "run", "walk", "defence", "defense",
+                "block", "dodge", "die", "skill", "ultimate", "stand"
+            };
+            for (int i = 0; i < animationSuffixes.Length; i++)
+                if (value.StartsWith(token + animationSuffixes[i], StringComparison.Ordinal))
+                    return true;
+            return false;
+        }
+
+        private static string NormalizeAssetName(string value)
+        {
+            var chars = new List<char>();
+            foreach (char c in (value ?? "").ToLowerInvariant())
+                if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) chars.Add(c);
+            return new string(chars.ToArray());
         }
     }
 }

@@ -746,6 +746,7 @@ NODE_SCHEMAS: dict[str, dict] = {
         "label": "决斗（一对一）",
         "fields": [
             ("character", "人物（只决定战斗动画）", "character", False),
+            ("display_name", "对手显示名（自由填写）", "line", True),
             ("max_health", "对手最大血量", "int", True),
             ("health", "对手初始血量", "int", True),
             ("max_stamina", "对手最大气力", "int", True),

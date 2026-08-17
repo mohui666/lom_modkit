@@ -386,6 +386,7 @@ _NODE_FIELDS = {
     "combat": (
         {"character": "idstr", "win": "idstr", "lose": "idstr"},
         {
+            "display_name": "str",
             "max_health": "num", "health": "num", "max_stamina": "num",
             "stamina": "num", "strength": "num", "internal": "num",
             "dexterity": "num", "talking": "num", "defence": "num",
@@ -1027,6 +1028,15 @@ def _check_node_extra(node, ntype, label):
         elif not isinstance(character, str) or SCRIPT_ID_RE.fullmatch(character) is None:
             raise LomcError(
                 '%s(combat): character 必须是官方人物 id 或合法 user: 引用' % label
+            )
+        display_name = effective.get("display_name")
+        if display_name is not None and (not isinstance(display_name, str)
+                                         or not display_name.strip()
+                                         or len(display_name) > 40
+                                         or any(c in display_name for c in ";=\r\n")):
+            raise LomcError(
+                '%s(combat): display_name 必须是 1~40 字符且不含 ; = 或换行的非空文本'
+                % label
             )
         for name in (
             "max_health", "health", "max_stamina", "stamina", "strength", "internal",

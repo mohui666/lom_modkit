@@ -1365,7 +1365,8 @@ namespace MortalModHost
             Assert(!GameplaySession.HasPending && GameplaySession.LastResult == "",
                 "Gameplay 初始态必须为空");
             GameplaySession.Prepare(package, "combat", "main", "fight1", "win1", "lose1");
-            Assert(GameplaySession.PendingCombat && GameplaySession.ShouldForceCombatReturn,
+            Assert(GameplaySession.PendingCombat && GameplaySession.ShouldForceCombatReturn
+                    && !GameplaySession.HasRecordedResult,
                 "combat 准备后必须进入有所有者的待决态");
             GameplaySession.Configure(
                 "combat", "max_health=800;attack_rate=0.65;talents=1010:2,2010:1");
@@ -1382,7 +1383,8 @@ namespace MortalModHost
             Assert(GameplaySession.ConsumeResume(package, "main") == "",
                 "原版战斗尚未回报结果时不得提前续接");
             Assert(GameplaySession.RecordResult("combat", "win"), "应接受原版 Combat win");
-            Assert(GameplaySession.LastKind == "combat" && GameplaySession.LastResult == "win",
+            Assert(GameplaySession.LastKind == "combat" && GameplaySession.LastResult == "win"
+                    && GameplaySession.HasRecordedResult,
                 "必须保留最后一次真实结果");
             Assert(GameplaySession.ConsumeResume(package, "main") == "win1"
                     && !GameplaySession.HasPending,

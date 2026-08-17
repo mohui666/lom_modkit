@@ -156,8 +156,8 @@ assets/                # 可选，自定义资源
 | `game_flag` | `flag`, `value`；任意 `op`("set"既定/"add") | 公式クエスト flag：`SetFlag(id, 状態)` / `AddFlag(id, ±増分)`。**id はゲーム既存の FlagData でなければなりません**（14_属性とFlag 表）。さもないとゲームが黙って無視します |
 | `enemy` | `op`("team"=結束力/"level"=門派規模/"people"=門派人数/"id"=現在の敵対門派を選択), `enemy`(戦役門派 id), `value`(変化量、id 操作では不要), `display`(team/people のみ、既定1) | **Battle の多人数戦役**で使う門派状態を変更する `ModifyEnemyTeam/Level/People/Id`。Combat の一対一決闘の敵設定ではありません |
 | `battle_skill` | `op`("set"/"active"/"reset"), `key`(reset は不要), `index`(set 用、既定2), `active`(active 用、既定1) | 戦場スキル `SetPlayerBattleSkill/SetBattleSkillActive/ResetBattleSkill` |
-| `combat` | `key`, `win`, `lose` 必須。相手 HP／スタミナの上限・初期値、9 能力、`talents`、3 奥義、5 行動確率を直接設定可能 | `key` は読みやすい名称に対応する原作の一対一キャラクター／場面の土台だけを選びます。今回の Combat が原作データを読む時だけノード値で上書きし、`CombatManager.GameOver(bool)` の実結果を返します。draw/escape は非対応 |
-| `battle` | `key`, `win`, `lose` 必須。味方／敵／中立 roster、各人数と NPC HP、`reset_skills`、`skills` を直接設定可能 | `key` は原作 Battle 場面だけを選びます。今回の Battle でノード指定の三つの原作編成を別々に再利用し、finish=true の `FriendWin/EnemyWin` だけを返します。`PlayerDie(false)` は原作のままです |
+| `combat` | `character`, `win`, `lose` 必須。`display_name` と相手 HP／スタミナ、9 能力、`talents`、3 奥義、5 行動確率を任意設定 | `character` は公式 ID または `user:` キャラクターで、4 種の戦闘アニメーションだけを決めます。表示名や数値は人物から自動継承しません。表示名未指定時は中立な「MOD 対戦相手」を表示し、公式シェルの人物名を流用しません |
+| `battle` | 両陣営の `faction`, `people`, `win`, `lose` 必須。両陣営の `characters` は任意 | 各陣営の総人数は 1 以上。指定キャラクターは検証済み公式 Battle 12 人だけで、総人数に含まれます。マップ、編成テンプレート、NPC HP、スキルプリセットは公開しません |
 | `battle_result` | `win`, `lose`。任意 `kind`("any"/"combat"/"battle") | 完全なパッケージ指紋とシナリオ id に結び付いた Host の実結果を読み、確認済み win/lose だけを分岐します。結果なし／型不一致は fail-closed |
 | `reward` | `entries`(1~32)：stat/affinity/talent/item/flag | 既存の能力、好感度、才能、アイテム、フラグ原子 API にコンパイル時展開します |
 | `result_screen` | 非空 `title`、`entries`（reward と同じ）、任意 `text` | 公式 `mainui.DisplayMessageText` でタイトルと説明を表示してから既存の報酬 API を実行します。独自の結果 UI は作りません |

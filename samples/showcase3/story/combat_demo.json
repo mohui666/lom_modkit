@@ -39,6 +39,7 @@
       "talents": [],
       "win": "battle_result1",
       "lose": "battle_result1",
+      "display_name": "全节点演示对手",
       "max_health": 300,
       "health": 300,
       "max_stamina": 120,

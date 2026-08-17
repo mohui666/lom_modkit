@@ -153,8 +153,8 @@ assets/                # 可选，自定义资源
 | `game_flag` | `flag`, `value`；可選 `op`("set"預設/"add") | 官方任務 flag：`SetFlag(id, 狀態)` / `AddFlag(id, ±增量)`。**id 必須是遊戲已有 FlagData**（14_屬性與Flag 表），否則遊戲靜默忽略 |
 | `enemy` | `op`("team"=向心力/"level"=門派規模/"people"=門派人數/"id"=選擇目前敵對門派), `enemy`(戰役門派 id), `value`(變化量，id 操作不需要), `display`(僅 team/people 使用，預設1) | 修改 **Battle 多人戰役**使用的門派狀態 `ModifyEnemyTeam/Level/People/Id`；不設定 Combat 一對一決鬥敵人 |
 | `battle_skill` | `op`("set"/"active"/"reset"), `key`(reset 不需要), `index`(set 用, 預設2), `active`(active 用, 預設1) | 戰場技能 `SetPlayerBattleSkill/SetBattleSkillActive/ResetBattleSkill` |
-| `combat` | 必填 `key`, `win`, `lose`；可直接設定對手 HP／體力上限與初值、九項屬性、`talents`、三格絕招及五類行動機率 | `key` 只選擇可讀名稱對應的原版一對一角色／場景底板。只在本次 Combat 的原版資料讀取點覆寫節點參數；`CombatManager.GameOver(bool)` 的真實 win/lose 回到指定節點。不支援 draw/escape |
-| `battle` | 必填 `key`, `win`, `lose`；可直接設定我方／敵方／中立陣容範本、三方人數與 NPC HP、`reset_skills`、`skills` | `key` 只選擇原版 Battle 場景。本次 Battle 分別重用節點指定的三個原版陣容；只把 finish=true 的 `FriendWin/EnemyWin` 映射為 win/lose，`PlayerDie(false)` 保持原版流程 |
+| `combat` | 必填 `character`, `win`, `lose`；可自由填寫 `display_name`，並直接設定對手 HP／體力上限與初值、九項屬性、`talents`、三格絕招及五類行動機率 | `character` 接受官方 ID 或 `user:` 自訂人物，只決定四類戰鬥動畫；顯示名與其他數值不從人物自動帶入。未填顯示名時使用中性的「MOD 對手」，不沿用官方外殼人物名。Host 只覆寫本次 Combat |
+| `battle` | 必填雙方 `faction`, `people`, `win`, `lose`；可選雙方 `characters` | 每方總人數至少 1，具名人物只接受已驗證的 12 個官方 Battle 角色且計入總人數。不公開地圖、陣容範本、NPC HP 或技能預設；只把 finish=true 的 `FriendWin/EnemyWin` 映射為 win/lose |
 | `battle_result` | `win`, `lose`；可選 `kind`("any"/"combat"/"battle") | 按完整包指紋與劇情 id 讀取 Host 真實結果，只支援已驗證的 win/lose；無結果或類型不符會 fail-closed |
 | `reward` | `entries`(1~32)：stat/affinity/talent/item/flag | 編譯期展開為既有屬性、好感、天賦、物品、旗標原子介面 |
 | `result_screen` | `title`（非空）、`entries`（同 reward）；可選 `text` | 先用原版 `mainui.DisplayMessageText` 顯示標題與說明，再執行既有獎勵介面；不建立自訂結算 UI |

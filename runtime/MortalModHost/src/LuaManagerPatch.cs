@@ -93,6 +93,11 @@ namespace MortalModHost
                 // 结构化错误也不会误借上一段演出的 Mod 身份。
                 if (!ModRegistry.TryGetPackageByRegisteredName(scriptName, out package) || package == null)
                     throw new InvalidOperationException("注册表命中了 Lua，但找不到对应的 mod 包身份");
+                // 只有原版 Combat/Battle 已记录结果后，Story 才能重新进入并消费续接点。
+                // 若场景异常返回而没有结果，绝不能从剧情开头再跑一遍并二次 Prepare。
+                if (GameplaySession.HasPending && !GameplaySession.HasRecordedResult)
+                    throw new InvalidOperationException(
+                        "Gameplay 尚未回报结果却重新进入 MOD Story，已阻止重复执行：" + scriptName);
                 RuntimeTrace.BeginScript(package, scriptName);
 
                 // _luaEnvironment 是 private 字段（[SerializeField]），用 Harmony Traverse 取
@@ -119,7 +124,7 @@ namespace MortalModHost
 
                 // 契约 §6.9/§6.10：编译后、执行前把 mod 全局函数注册进共享 MoonSharp 环境。
                 failureCategory = "lua_globals";
-                RegisterModGlobals(env);
+                RegisterModGlobals(env, __instance);
                 // 契约 §6.11 兜底：LeanLocalization 切语言/OnEnable 会清空 CurrentTranslations，每次演出前重注册一遍
                 try
                 {
@@ -158,6 +163,7 @@ namespace MortalModHost
         internal static void StopActiveDevelopmentPlayback()
         {
             if (!RuntimeTrace.Active) return;
+            GameplaySceneTransition.Reset();
             GameplaySession.Reset();
             RuntimeDebugControl.Continue();
 
@@ -220,6 +226,7 @@ namespace MortalModHost
             bool firstAttempt = string.IsNullOrEmpty(_pendingAbortReason);
             if (firstAttempt)
             {
+                GameplaySceneTransition.Reset();
                 GameplaySession.Reset();
                 _pendingAbortReason = string.IsNullOrEmpty(reason) ? "未知 MOD 演出故障" : reason;
                 RuntimeErrorReporter.Report(
@@ -314,6 +321,7 @@ namespace MortalModHost
             _abortRequested = false;
             _abortBusyLogged = false;
             _pendingAbortReason = null;
+            GameplaySceneTransition.Reset();
             ReleaseActiveModEnvironment(true, "抵达可信场景边界", false);
             _activeDevelopmentEnvironment = null;
             _activeDevelopmentManager = null;
@@ -322,6 +330,7 @@ namespace MortalModHost
         internal static void CleanupRuntimeState()
         {
             RuntimeDebugControl.Continue();
+            GameplaySceneTransition.Reset();
             ReleaseActiveModEnvironment(true, "Runtime 禁用或卸载", false);
             _activeDevelopmentEnvironment = null;
             _activeDevelopmentManager = null;
@@ -437,7 +446,7 @@ namespace MortalModHost
         /// GameOver 画面官方同款布局显示）；单参调用按旧契约当 desc、title 留空（标题栏保持官方清空态）。
         /// mod_set_ending_text(title, desc)：结局卡片覆盖（ModOverlay，End 画面显示）。
         /// </summary>
-        private static void RegisterModGlobals(LuaEnvironment env)
+        private static void RegisterModGlobals(LuaEnvironment env, LuaManager manager)
         {
             try
             {
@@ -656,6 +665,11 @@ namespace MortalModHost
                     GameplaySession.Configure(ArgString(args, 0), ArgString(args, 1, ""));
                     return DynValue.Nil;
                 }, "mod_gameplay_configure");
+                script.Globals["mod_gameplay_start_scene"] = new CallbackFunction((ctx, args) =>
+                {
+                    GameplaySceneTransition.Begin(manager, ArgString(args, 0));
+                    return DynValue.Nil;
+                }, "mod_gameplay_start_scene");
                 script.Globals["mod_gameplay_consume_resume"] = new CallbackFunction((ctx, args) =>
                 {
                     string target = GameplaySession.ConsumeResume(

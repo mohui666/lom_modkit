@@ -30,6 +30,9 @@
       "assembly": "Mortal.Story.dll",
       "type": "Mortal.Story.LuaManager",
       "required_fragments": [
+        "public void Init()",
+        "StartCoroutine(SceneController.Instance.UnloadLoading());",
+        "ExecuteLuaScript();",
         "public void ChangeScene(string name, string key, string nextScene)",
         "PlayerStatManagerData.Instance.SetNextScene(nextScene)",
         "PlayerStatManagerData.Instance.SetSceneKey(key)",
@@ -43,11 +46,29 @@
       "assembly": "Mortal.Combat.dll",
       "type": "Mortal.Combat.CombatManager",
       "required_fragments": [
+        "private CombatLevel _combatLevel;",
+        "private void OnDisable()",
+        "_levelConfig = null;",
+        "Instance = null;",
         "public IEnumerator GameOver(bool win)",
+        "_combatLevel = combatLevel;",
+        "_enemyAction.SetStat(_combatLevel.EnemyStat);",
         "yield return GameOver(win: true)",
         "yield return GameOver(win: false)",
         "yield return LoadNextScene()",
         "SceneController.Instance.LoadNextScene()"
+      ]
+    },
+    {
+      "assembly": "Mortal.Core.dll",
+      "type": "Mortal.Core.SceneController",
+      "required_fragments": [
+        "private string _currentLoadingScene;",
+        "public void LoadNextScene()",
+        "PlayerStatManagerData.Instance.CurrentNextScene",
+        "StartCoroutine(StartLoadScene(currentNextScene, unloadCurrentScene: true))",
+        "public IEnumerator UnloadLoading()",
+        "_currentLoadingScene = string.Empty;"
       ]
     },
     {
@@ -88,7 +109,37 @@
       "assembly": "Mortal.Combat.dll",
       "type": "Mortal.Combat.CombatActionController",
       "required_fragments": [
-        "public void SetStat(CombatStat data)"
+        "public void SetStat(CombatStat data)",
+        "public bool IsDead => _alreadyDead;"
+      ]
+    },
+    {
+      "assembly": "Mortal.Combat.dll",
+      "type": "Mortal.Combat.CombatCharacterController",
+      "required_fragments": [
+        "protected CombatStat _combatStat;",
+        "_combatStat = stat;"
+      ]
+    },
+    {
+      "assembly": "Mortal.Combat.dll",
+      "type": "Mortal.Combat.CombatEnemyAvatar",
+      "required_fragments": [
+        "public string NormalKey;",
+        "public string AttackKey;",
+        "public string HurtKey;",
+        "public string DefenceKey;"
+      ]
+    },
+    {
+      "assembly": "Mortal.Combat.dll",
+      "type": "Mortal.Combat.CombatEnemyController",
+      "required_fragments": [
+        "public override IEnumerator SetData()",
+        "Addressables.LoadAssetAsync<Sprite>(avatar.NormalKey)",
+        "Addressables.LoadAssetAsync<Sprite>(avatar.AttackKey)",
+        "Addressables.LoadAssetAsync<Sprite>(avatar.HurtKey)",
+        "Addressables.LoadAssetAsync<Sprite>(avatar.DefenceKey)"
       ]
     },
     {
@@ -139,7 +190,21 @@
       "type": "Mortal.Battle.NpcSpawner",
       "required_fragments": [
         "private CharacterSpawnPoint[] _spawnPoints;",
-        "public void Setup(int npcMaxCount, GameObject spawnerObject)"
+        "private Queue<NpcSpawnPreset> _npcQueue;",
+        "private NpcSpawnPreset[] _specialNPCs;",
+        "public List<NpcSpawnPreset> NpcPresets",
+        "public void Setup(int npcMaxCount, GameObject spawnerObject)",
+        "_npcQueue = new Queue<NpcSpawnPreset>();",
+        "InitNpcList();"
+      ]
+    },
+    {
+      "assembly": "Mortal.Battle.dll",
+      "type": "Mortal.Battle.NpcSpawnPreset",
+      "required_fragments": [
+        "public GameObject Prefab;",
+        "public bool UseCondition;",
+        "public bool UseDialog;"
       ]
     },
     {
