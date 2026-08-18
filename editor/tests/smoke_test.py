@@ -903,21 +903,56 @@ def main_fn() -> int:
     win._set_dirty(True)
     win._prompt_on_discard = True
 
-    def click_box_button(text: str) -> None:
-        # 取当前可见的确认框（旧弹窗关闭后仍是子对象，不可见则跳过）
-        boxes = [b for b in win.findChildren(QMessageBox) if b.isVisible()]
-        assert boxes, "应弹出确认框"
-        box = boxes[-1]
-        for b in box.buttons():
-            if b.text() == text:
-                b.click()
-                return
-        raise AssertionError(f"确认框缺少按钮 {text!r}")
+    def confirm_discard_with_button(text: str) -> bool:
+        """Drive the nested QMessageBox loop without allowing it to hang."""
+        errors: list[str] = []
+        watchdog = QTimer(win)
+        watchdog.setSingleShot(True)
 
-    QTimer.singleShot(0, lambda: click_box_button("放弃修改"))
-    assert win._confirm_discard()
-    QTimer.singleShot(0, lambda: click_box_button("取消"))
-    assert not win._confirm_discard()
+        def active_box() -> QMessageBox | None:
+            modal = QApplication.activeModalWidget()
+            if isinstance(modal, QMessageBox):
+                return modal
+            # Keep a fallback for Qt platforms that do not expose the modal
+            # widget until the first nested event-loop turn.
+            boxes = [b for b in win.findChildren(QMessageBox) if b.isVisible()]
+            return boxes[-1] if boxes else None
+
+        def close_stuck_box() -> None:
+            box = active_box()
+            errors.append("确认框未能在 watchdog 超时前完成按钮交互")
+            if box is not None:
+                box.reject()
+
+        watchdog.timeout.connect(close_stuck_box)
+
+        def click_box_button(attempt: int = 0) -> None:
+            box = active_box()
+            if box is None:
+                if attempt < 100:
+                    QTimer.singleShot(0, lambda: click_box_button(attempt + 1))
+                else:
+                    errors.append("确认框未出现在 Qt modal widget 中")
+                return
+            for button in box.buttons():
+                if button.text() == text:
+                    button.click()
+                    return
+            errors.append(f"确认框缺少按钮 {text!r}")
+            box.reject()
+
+        watchdog.start(2000)
+        QTimer.singleShot(0, click_box_button)
+        try:
+            result = win._confirm_discard()
+        finally:
+            watchdog.stop()
+            watchdog.deleteLater()
+        assert not errors, "; ".join(errors)
+        return result
+
+    assert confirm_discard_with_button("放弃修改")
+    assert not confirm_discard_with_button("取消")
     win._prompt_on_discard = False
     print("[19] 未保存确认弹窗 OK（放弃修改→继续；取消→中止）")
 

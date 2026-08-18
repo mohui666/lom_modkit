@@ -61,7 +61,7 @@ jobs:
 
       - name: Run Editor smoke test
         working-directory: editor
-        run: python tests/smoke_test.py
+        run: python -u tests/smoke_test.py
 
       - name: Run Editor stress test
         working-directory: editor
