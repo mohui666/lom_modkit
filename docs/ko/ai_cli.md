@@ -36,7 +36,7 @@ cd editor
 디렉터리와 무관**합니다 — 저장소 루트에서 실행해도 마찬가지로 성립합니다:
 
 ```bash
-editor/.venv/Scripts/python editor/story_api.py check --json samples/demo_mod/story/main.json
+editor/.venv/Scripts/python editor/story_api.py check --json samples/showcase3/story/main.json
 # {"ok": true, "errors": [], "warnings": []}
 ```
 
@@ -95,8 +95,8 @@ usage: story_api check [-h] [--json] story_json
 
 ```bash
 # 全部通过：文本模式无任何输出，exit=0
-.venv/Scripts/python story_api.py check ../samples/demo_mod/story/main.json
-.venv/Scripts/python story_api.py check --json ../samples/demo_mod/story/main.json
+.venv/Scripts/python story_api.py check ../samples/showcase3/story/main.json
+.venv/Scripts/python story_api.py check --json ../samples/showcase3/story/main.json
 # {"ok": true, "errors": [], "warnings": []}
 
 # 有警告（非致命，exit 仍为 0）——transition phase=in 之后没有 out
@@ -183,7 +183,7 @@ id와 일치해야 함), 실패하면 전체가 실패합니다. 산출물 zip�
 ```
 
 > `samples/`의 예제 mod에 pack을 시험할 때는 **반드시 `-o`로 다른 곳을 지정하세요**: 기본 출력은
-> `<mod 디렉터리>.lommod`(예: `samples/demo_mod.lommod`)로, 저장소에 이미 있는 산출물을 덮어씁니다.
+> `<mod 디렉터리>.lommod`(예: `samples/全节点样例3.0.lommod`)로, 저장소에 이미 있는 산출물을 덮어씁니다.
 
 ### 2.4 new-story — 새 스토리 스크립트 story.json 작성
 

@@ -16,6 +16,7 @@
 
 - 更新 Combat/Battle 节点表单、校验、代码生成和字段说明，覆盖玩家基准属性、天赋、战斗 roster 与生命配置。
 - Showcase3 更新为 62 节点的完整实机验收包，包含 Combat/Battle、背景、自动存档和新生命规则。
+- 发布仓库清理为单一示例入口：仅保留 Showcase3，移除不兼容的历史示例源码、README、`.lommod` 与旧版本发布说明。
 - 冻结编辑器、Release Builder、版本校验和多语言文档同步到 `1.1.0`。
 
 ## Runtime / 质量

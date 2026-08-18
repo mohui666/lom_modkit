@@ -11,7 +11,7 @@
 - 创作与发布：F5 试玩/热重载/Debugger、Editing 与 Release 体检、恢复副本、项目/节点模板、统计与语音覆盖、本地 Release Builder、安装诊断与 Runtime 回滚。
 - 来源披露：运行时强制非官方标识、整包指纹、画面内来源水印及离线截图/视频检测。它们不是数字签名，无法证明作者身份。
 
-可直接打包的完整例子见 `samples/feature_showcase/`。
+可直接打包的完整例子见 `samples/showcase3/`。
 
 ## 战斗能力：只到已验证的底层接口
 

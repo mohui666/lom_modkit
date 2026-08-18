@@ -131,7 +131,7 @@ assets/user/audio/mohui.battle/battle.ogg
 - 切到自訂音樂時會先停官方背景樂；官方 `StopMusic` 本來就會把環境音一起清掉。
 - 自訂角色走獨立 Runtime（`mod_char_*`），不註冊進原版 Addressables。支援 show / say / hide / move / face / focus / offset / shock / dim / rotate；官方角色路徑不變。體型用 `scale`（50–130，預設 100）從腳底縮放；朝向依 `art_facing`（預設朝左）再疊節點 `facing`。
 - `affinity` 仍不支援自訂角色，因為它會寫入官方 CharacterData 好感系統，而非純演出；請改用 Mod 隔離變數保存長期狀態。
-- 可用 `samples/audio_test/` 做驗收：自己匯入 `user:test.bgm` / `user:test.sfx` / `user:test.env`。
+- 可用 `samples/showcase3/` 一併驗收自訂音訊、角色、圖片與劇情節點。
 ## 獨立分享：Content Pack v1
 
 在「使用者內容庫」選取角色、音訊或圖片後，可匯出離線 `.lomcontent`；不會連線或上傳伺服器。套件記錄穩定 ID、類型、SemVer、作者、授權、metadata，以及每個檔案的大小與 SHA-256。

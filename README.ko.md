@@ -185,7 +185,7 @@ Lua 환경 격리와 전체 수명 주기 정리 · 일회성 단축키 마이�
 - `runtime/MortalModHost/` — BepInEx 게임 내 플러그인
 - `tools/` — 언팩 산출물에서 에디터 데이터/에셋을 추출하는 스크립트
 - `data/` — 에디터 데이터(`editor_data.json`, schema 3)
-- `samples/` — 예제 mod(demo_mod, showcase, showcase2 전체 노드 시연 2.0, snack_case 《点心大盗疑案》, probe)
+- `samples/showcase3/` — 유일하게 유지하는 전체 예제 Mod(전체 노드 샘플 3.0)
 
 ### 소스에서 실행
 

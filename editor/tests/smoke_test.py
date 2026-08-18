@@ -596,44 +596,35 @@ def main_fn() -> int:
     pmap, data_dir = preview.load_preview_map(main.PROJECT_ROOT)
     print(f"[9] preview_map {'已加载' if pmap else '缺失，走占位图'}（{data_dir}）")
 
-    demo_path = main.PROJECT_ROOT / "samples" / "demo_mod" / "story" / "main.json"
+    demo_path = main.PROJECT_ROOT / "samples" / "showcase3" / "story" / "main.json"
     demo = models.load_story(demo_path)
     # 推演：关键节点均应到达且不崩
     sims = {
         nid: preview.simulate_stage(demo, nid)
-        for nid in ("n1", "n2", "n7", "n11", "n23")
+        for nid in ("scene1", "say1", "choice1", "branch1", "end1")
     }
     for nid, st in sims.items():
         assert st["reached"], f"推演应到达 {nid}（steps={st['steps']}）"
-    # n2 切完 center 场景
-    assert sims["n2"]["view"] == "center", f"n2 view 应为 center：{sims['n2']['view']}"
-    # n7 brother4 说话：对白栏 + 台上三人（player@M / brother4@R2 / trainee1@L2）
-    d7 = sims["n7"]["dialog"]
-    assert d7 and d7["character"] == "brother4" and d7["mode"] == "character"
-    a7 = sims["n7"]["actors"]
-    assert (
-        a7.get("brother4", {}).get("position") == "R2"
-        and a7["brother4"]["facing"] == "left"
-    ), f"n7 brother4 状态异常：{a7}"
-    assert a7.get("trainee1", {}).get("portrait") == "nervous1"
-    # n11 三选一：choice 三个选项
-    c11 = sims["n11"]["choice"]
-    assert c11 and len(c11) == 3 and c11[0]["goto"] == "n12", f"n11 选项异常：{c11}"
-    # n23 hide trainee1：场上只剩 player 和 brother4
-    a23 = sims["n23"]["actors"]
-    assert "trainee1" not in a23 and {"player", "brother4"} <= set(a23), (
-        f"n23 应已隐藏 trainee1：{a23}"
+    assert sims["scene1"]["view"] == "center", (
+        f"scene1 view 应为 center：{sims['scene1']['view']}"
+    )
+    say1 = sims["say1"]
+    assert say1["dialog"] and say1["dialog"]["character"] == "user:showcase.lin_deng"
+    assert say1["background"] == "user:showcase.courier_station"
+    assert {"player", "user:showcase.lin_deng"} <= set(say1["actors"])
+    choice1 = sims["choice1"]["choice"]
+    assert choice1 and len(choice1) == 2 and choice1[0]["goto"] == "say5", (
+        f"choice1 选项异常：{choice1}"
     )
     print(
-        f"[10] demo 推演 OK（n2 场景={sims['n2']['view']}；n7 对白="
-        f"{models.character_name(editor_data, d7['character'])}；n11 {len(c11)} 选项；"
-        f"n23 台上={sorted(a23)}）"
+        f"[10] showcase3 推演 OK（scene1 场景={sims['scene1']['view']}；"
+        f"say1 对白={say1['dialog']['character']}；choice1 {len(choice1)} 选项）"
     )
 
     # 渲染：主窗口载入 demo，逐节点渲染不崩
     win._load_story_path(demo_path)
     assert win.right_tabs.count() == 3, "右栏应为演出预览/剧情流程图/Lua 三个页签"
-    for nid in ("n1", "n2", "n7", "n11", "n23"):
+    for nid in ("scene1", "say1", "choice1", "branch1", "end1"):
         win._select_node_index(win._node_row(nid))
         assert win.stage._state["reached"], f"主窗口预览 {nid} 应到达"
         win.stage.repaint()  # offscreen 下强制重绘，验证 paintEvent 不崩
@@ -648,8 +639,8 @@ def main_fn() -> int:
     app.processEvents()
     assert graph.node_order and not graph.dead_ends, "demo 流程图应包含节点且没有断路"
     assert win.flow_graph.view.scene().items(), "流程图场景不应为空"
-    win.flow_graph.node_activated.emit("n11")
-    assert win._current_node()["id"] == "n11", "点击流程图节点应定位左侧步骤"
+    win.flow_graph.node_activated.emit("choice1")
+    assert win._current_node()["id"] == "choice1", "点击流程图节点应定位左侧步骤"
     print("[11] 主窗口集成 OK（演出预览/流程图/Lua 立即编译、选中刷新、paintEvent 无异常）")
 
     # F5 一键试玩：用假的游戏管理器截获临时包，验证真正从选中节点重写 start。
@@ -693,6 +684,15 @@ def main_fn() -> int:
     old_manager = win.game_manager
     fake_manager = FakeGameManager()
     win.game_manager = fake_manager
+    showcase_story_dir = main.PROJECT_ROOT / "samples" / "showcase3" / "story"
+    extra_story_ids = []
+    for story_path in sorted(showcase_story_dir.glob("*.json")):
+        story_id = story_path.stem
+        if story_id == win._current_id:
+            continue
+        win._stories[story_id] = models.load_story(story_path)
+        win._story_paths[story_id] = story_path
+        extra_story_ids.append(story_id)
     win._stories["second"] = {
         "story_schema": 2,
         "id": "second",
@@ -700,32 +700,42 @@ def main_fn() -> int:
         "start": "end1",
         "nodes": [{"id": "end1", "type": "end"}],
     }
-    win._select_node_index(win._node_row("n7"))
+    win._select_node_index(win._node_row("say1"))
     assert win.play_from_current_node(), "F5 一键试玩应成功生成临时包"
     assert fake_manager.manifest["id"] == "lom_modkit_preview"
-    assert fake_manager.request == ("lom_modkit_preview", win._current_id, "n7")
+    assert fake_manager.request == ("lom_modkit_preview", win._current_id, "say1")
     # 舞台状态前导：start 指向合成前导链（场景+台上人物），链尾 goto 选中节点
     played = fake_manager.stories[win._current_id]
     by_id = {n["id"]: n for n in played["nodes"]}
     prelude_ids = []
     cur = played["start"]
-    while cur != "n7":
-        assert cur.startswith("zz_playtest_"), f"前导链应在 n7 收尾，实际走到 {cur}"
+    while cur != "say1":
+        assert cur.startswith("zz_playtest_"), f"前导链应在 say1 收尾，实际走到 {cur}"
         prelude_ids.append(cur)
         cur = by_id[cur].get("goto")
-        assert cur, "前导链末端应 goto 到选中节点 n7"
-    assert len(prelude_ids) == 4, f"n7 前导应为 场景+3 人物，实际 {prelude_ids}"
+        assert cur, "前导链末端应 goto 到选中节点 say1"
+    assert len(prelude_ids) == 5, f"say1 前导应为 场景+背景+Overlay+2 人物，实际 {prelude_ids}"
     head = by_id[prelude_ids[0]]
     assert head["type"] == "scene" and head["view"] == "center", f"前导应先补场景：{head}"
-    shown = {by_id[i]["character"]: by_id[i] for i in prelude_ids[1:]}
-    assert set(shown) == {"player", "brother4", "trainee1"}, f"前导应补齐台上三人：{shown}"
-    assert shown["brother4"]["position"] == "R2" and shown["brother4"]["facing"] == "left"
-    assert shown["trainee1"]["portrait"] == "nervous1"
+    assert by_id[prelude_ids[1]]["type"] == "background"
+    assert by_id[prelude_ids[1]]["image"] == "user:showcase.courier_station"
+    assert by_id[prelude_ids[2]]["type"] == "overlay"
+    assert by_id[prelude_ids[2]]["image"] == "user:showcase.lantern_overlay"
+    shown = {
+        by_id[item_id]["character"]: by_id[item_id]
+        for item_id in prelude_ids
+        if by_id[item_id]["type"] == "show"
+    }
+    assert set(shown) == {"player", "user:showcase.lin_deng"}, f"前导应补齐台上人物：{shown}"
+    assert shown["user:showcase.lin_deng"]["position"] == "R1"
     del win._stories["second"]
+    for story_id in extra_story_ids:
+        del win._stories[story_id]
+        del win._story_paths[story_id]
     win.game_manager = old_manager
     print("[11b] F5 一键试玩 OK（临时包/舞台前导链/运行时请求一致）")
 
-    # 抓图：n2（场景 center）/ n7（brother4 说话）/ n11（三选一）各存一张 PNG
+    # 抓图：scene1（场景 center）/ say1（用户角色对白）/ choice1 各存一张 PNG
     out_dir = EDITOR_DIR / "tests" / "out"
     out_dir.mkdir(parents=True, exist_ok=True)
     win.resize(1280, 760)
@@ -735,7 +745,7 @@ def main_fn() -> int:
     graph_out = out_dir / "story_flow_graph.png"
     win.flow_graph.grab().save(str(graph_out))
     win.right_tabs.setCurrentIndex(0)
-    for nid in ("n2", "n7", "n11"):
+    for nid in ("scene1", "say1", "choice1"):
         win._select_node_index(win._node_row(nid))
         app.processEvents()
         img = win.stage.grab()
@@ -796,36 +806,36 @@ def main_fn() -> int:
     assert intro_out.stat().st_size > 0
     print(f"[12c] 自定义人物介绍卡预览/编译 OK：{intro_out}")
 
-    # 后续交互测试恢复 demo。
+    # 后续交互测试恢复 showcase3。
     win._load_story_path(demo_path)
     win.right_tabs.setCurrentIndex(0)
 
-    # 选项点击交互：模拟点击 n11 第一个选项 → 主窗口应选中 n12
-    win._select_node_index(win._node_row("n11"))
+    # 选项点击交互：模拟点击 choice1 第一个选项 → 主窗口应选中 say5
+    win._select_node_index(win._node_row("choice1"))
     win.stage.repaint()  # 强制重绘以生成选项热区
     app.processEvents()
-    assert win.stage._choice_rects, "n11 应有选项按钮热区"
+    assert win.stage._choice_rects, "choice1 应有选项按钮热区"
     win.stage.choice_activated.emit(win.stage._choice_rects[0][1])
     app.processEvents()
-    n12_node = win._current_node()
-    assert n12_node is not None and n12_node["id"] == "n12", (
-        "点击选项应跳转到 goto 节点 n12"
+    say5_node = win._current_node()
+    assert say5_node is not None and say5_node["id"] == "say5", (
+        "点击选项应跳转到 goto 节点 say5"
     )
-    print("[13] 选项点击跳转 OK（n11 → n12）")
+    print("[13] 选项点击跳转 OK（choice1 → say5）")
 
     # 步进与自动播放：自动播放应在 choice 处自动暂停
     win._goto_start()
     start_node = win._current_node()
     assert start_node is not None and start_node["id"] == demo["start"]
     win.auto_btn.setChecked(True)
-    for _ in range(20):
+    for _ in range(100):
         if not win.auto_btn.isChecked():
             break
         win._auto_step()
     stop = win._current_node()
     assert (
-        not win.auto_btn.isChecked() and stop is not None and stop["type"] == "choice"
-    ), f"自动播放应在 choice 暂停（当前 {stop['id'] if stop else '?'}）"
+        not win.auto_btn.isChecked() and stop is not None and stop["id"] == "choice1"
+    ), f"自动播放应在 choice1 暂停（当前 {stop['id'] if stop else '?'}）"
     print(f"[14] 步进/自动播放 OK（自动暂停于 {stop['id']} choice）")
 
     # ------------------------------------------------------------------

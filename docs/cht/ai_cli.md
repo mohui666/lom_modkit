@@ -36,7 +36,7 @@ cd editor
 無關**——從倉庫根執行同樣成立：
 
 ```bash
-editor/.venv/Scripts/python editor/story_api.py check --json samples/demo_mod/story/main.json
+editor/.venv/Scripts/python editor/story_api.py check --json samples/showcase3/story/main.json
 # {"ok": true, "errors": [], "warnings": []}
 ```
 
@@ -95,8 +95,8 @@ usage: story_api check [-h] [--json] story_json
 
 ```bash
 # 全部通过：文本模式无任何输出，exit=0
-.venv/Scripts/python story_api.py check ../samples/demo_mod/story/main.json
-.venv/Scripts/python story_api.py check --json ../samples/demo_mod/story/main.json
+.venv/Scripts/python story_api.py check ../samples/showcase3/story/main.json
+.venv/Scripts/python story_api.py check --json ../samples/showcase3/story/main.json
 # {"ok": true, "errors": [], "warnings": []}
 
 # 有警告（非致命，exit 仍为 0）——transition phase=in 之后没有 out
@@ -183,7 +183,7 @@ id），失敗即整體失敗。產物 zip 內含 `manifest.json`、`story/<id>.
 ```
 
 > 對 `samples/` 裡的範例 mod 試 pack 時**務必加 `-o` 指到別處**：預設輸出是
-> `<mod目錄>.lommod`（如 `samples/demo_mod.lommod`），會覆蓋倉庫已有產物。
+> `<mod目錄>.lommod`（如 `samples/全节点样例3.0.lommod`），會覆蓋倉庫已有產物。
 
 ### 2.4 new-story — 新建劇情腳本 story.json
 

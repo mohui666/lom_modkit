@@ -1,9 +1,0 @@
-{
-  "schema": 1,
-  "content_schema": 1,
-  "id": "showcase.lantern_chime",
-  "type": "audio",
-  "name": "提灯轻响",
-  "audio_kind": "sound",
-  "files": {"main": "lantern_chime.wav"}
-}

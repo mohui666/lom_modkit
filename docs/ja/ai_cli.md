@@ -36,7 +36,7 @@ cd editor
 ワーキングディレクトリに依存しません**——リポジトリルートからの実行も同様に成立します：
 
 ```bash
-editor/.venv/Scripts/python editor/story_api.py check --json samples/demo_mod/story/main.json
+editor/.venv/Scripts/python editor/story_api.py check --json samples/showcase3/story/main.json
 # {"ok": true, "errors": [], "warnings": []}
 ```
 
@@ -93,8 +93,8 @@ usage: story_api check [-h] [--json] story_json
 
 ```bash
 # 全部通过：文本模式无任何输出，exit=0
-.venv/Scripts/python story_api.py check ../samples/demo_mod/story/main.json
-.venv/Scripts/python story_api.py check --json ../samples/demo_mod/story/main.json
+.venv/Scripts/python story_api.py check ../samples/showcase3/story/main.json
+.venv/Scripts/python story_api.py check --json ../samples/showcase3/story/main.json
 # {"ok": true, "errors": [], "warnings": []}
 
 # 有警告（非致命，exit 仍为 0）——transition phase=in 之后没有 out
@@ -181,7 +181,7 @@ id と一致必須）。失敗すれば全体が失敗します。成果物 zip 
 ```
 
 > `samples/` 内のサンプル mod で pack を試す場合は**必ず `-o` で別の場所を指定してください**：既定の出力は
-> `<modディレクトリ>.lommod`（例：`samples/demo_mod.lommod`）で、リポジトリの既存成果物を上書きします。
+> `<modディレクトリ>.lommod`（例：`samples/全节点样例3.0.lommod`）で、リポジトリの既存成果物を上書きします。
 
 ### 2.4 new-story — 新規シナリオスクリプト story.json の作成
 

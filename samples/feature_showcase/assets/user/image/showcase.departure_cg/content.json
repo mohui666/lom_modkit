@@ -1,8 +1,0 @@
-{
-  "schema": 1,
-  "content_schema": 1,
-  "id": "showcase.departure_cg",
-  "type": "image",
-  "name": "提灯远行",
-  "files": {"main": "departure_cg.png"}
-}

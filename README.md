@@ -255,7 +255,7 @@ Lua 环境隔离与完整生命周期清理 · 一次性热键迁移 · Runtime 
 - 打包输出使用稳定条目顺序、JSON、ZIP 时间戳/权限和 Lua，并附 `package-content.sha256`；同一工具链相同输入可逐字节复现，逻辑内容哈希不依赖 ZIP 压缩元数据。
 - 「文件 → 检查 Mod 包」可只读查看陌生 `.lommod` 的 Manifest、Story、Lua、Texts、资源/用户内容、大小与逐文件哈希，并报告格式、兼容性、逻辑哈希和资源引用问题；检查不会导入或执行包内内容。
 - 用户内容库可把单个角色、音频或图片导出为离线 `.lomcontent` Content Pack；包内记录稳定 ID、类型、SemVer、作者、许可证、规范 metadata、文件大小/哈希和直接依赖，导入时校验全部内容、提示本地缺失依赖并拒绝任何跨类型 ID 冲突；不静默覆盖、不自动下载、不做依赖求解。
-- `samples/` — 示例 mod（demo_mod、showcase、showcase2 全节点演示 2.0、snack_case《点心大盗疑案》、probe）
+- `samples/showcase3/` — 唯一保留的完整示例 Mod（全节点样例 3.0）
 
 ### 从源码运行
 

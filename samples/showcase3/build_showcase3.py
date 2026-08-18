@@ -10,7 +10,6 @@ story_api CLI 执行 check / compile / pack。构建器会硬性检查当前 mod
 from __future__ import annotations
 
 import json
-import shutil
 import sys
 from pathlib import Path
 
@@ -30,7 +29,7 @@ import story_api  # type: ignore[reportMissingImports]  # noqa: E402
 
 SHOWCASE_DIR = Path(__file__).resolve().parent
 STORY_DIR = SHOWCASE_DIR / "story"
-SOURCE_ASSETS = PROJECT_ROOT / "samples" / "feature_showcase" / "assets" / "user"
+SOURCE_ASSETS = SHOWCASE_DIR / "assets" / "user"
 
 MANIFEST = {
     "format": 3,
@@ -574,13 +573,7 @@ def main() -> None:
         raise SystemExit("data/editor_data.json 不可用，拒绝生成样例")
 
     if not SOURCE_ASSETS.is_dir():
-        raise SystemExit("缺少 feature_showcase 用户内容资产")
-    assets_root = SHOWCASE_DIR / "assets"
-    if assets_root.exists():
-        shutil.rmtree(assets_root)
-    target_assets = assets_root / "user"
-    target_assets.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(SOURCE_ASSETS, target_assets)
+        raise SystemExit("缺少 showcase3 用户内容资产")
 
     builders = (build_main, build_gameplay, build_combat, build_battle, build_finale)
     STORY_DIR.mkdir(parents=True, exist_ok=True)

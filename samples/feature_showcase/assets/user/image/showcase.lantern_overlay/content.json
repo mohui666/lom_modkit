@@ -1,8 +1,0 @@
-{
-  "schema": 1,
-  "content_schema": 1,
-  "id": "showcase.lantern_overlay",
-  "type": "image",
-  "name": "提灯前景",
-  "files": {"main": "lantern_overlay.png"}
-}

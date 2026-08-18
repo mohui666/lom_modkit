@@ -185,7 +185,7 @@ Lua 環境分離と完全なライフサイクル清掃 · 一度限りのホッ
 - `runtime/MortalModHost/` — BepInEx ゲーム内プラグイン
 - `tools/` — 解凍成果物からエディターデータ／素材を抽出するスクリプト
 - `data/` — エディターデータ（`editor_data.json`、schema 3）
-- `samples/` — サンプル mod（demo_mod、showcase、showcase2 全ノードデモ 2.0、snack_case《点心大盗疑案》、probe）
+- `samples/showcase3/` — 唯一保留の完全なサンプル Mod（全ノードサンプル 3.0）
 
 ### ソースから実行
 

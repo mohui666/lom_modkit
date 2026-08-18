@@ -131,7 +131,7 @@ assets/user/audio/mohui.battle/battle.ogg
 - 사용자 지정 음악으로 전환할 때 먼저 공식 배경 음악을 정지합니다; 공식 `StopMusic`은 원래 환경음도 함께 지웁니다.
 - 커스텀 캐릭터는 독립 Runtime(`mod_char_*`)이며 공식 Addressables에 등록하지 않습니다. show / say / hide / move / face / focus / offset / shock / dim / rotate를 지원하고 공식 캐릭터 경로는 바뀌지 않습니다. 체형은 `scale`(50–130, 기본 100)로 발끝을 기준으로 줄이고, 방향은 `art_facing`(기본 왼쪽) 위에 노드 `facing`을 겹칩니다.
 - `affinity`는 순수 연출이 아니라 공식 CharacterData 호감도 시스템을 수정하므로 커스텀 캐릭터에서는 계속 지원하지 않습니다. 장기 상태는 Mod 격리 변수를 사용하세요.
-- `samples/audio_test/`로 인수 테스트를 할 수 있습니다: 직접 `user:test.bgm` / `user:test.sfx` / `user:test.env`를 가져와 보세요.
+- `samples/showcase3/`에서 사용자 지정 오디오, 캐릭터, 이미지와 스토리 노드를 함께 확인할 수 있습니다.
 ## 독립 공유: Content Pack v1
 
 “사용자 콘텐츠 보관함”에서 캐릭터, 오디오 또는 이미지를 골라 오프라인 `.lomcontent`로 내보낼 수 있습니다. 서버에 연결하거나 업로드하지 않습니다. 안정 ID, 유형, SemVer, 작성자, 라이선스, metadata와 각 파일의 크기/SHA-256을 기록합니다.

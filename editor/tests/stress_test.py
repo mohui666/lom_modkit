@@ -33,9 +33,9 @@ import models  # noqa: E402
 import package_io  # noqa: E402
 import preview  # noqa: E402
 
-DEMO_MAIN = main.PROJECT_ROOT / "samples" / "demo_mod" / "story" / "main.json"
-DEMO_SECOND = main.PROJECT_ROOT / "samples" / "demo_mod" / "story" / "second.json"
-DEMO_LOMMOD = main.PROJECT_ROOT / "samples" / "demo_mod.lommod"
+DEMO_MAIN = main.PROJECT_ROOT / "samples" / "showcase3" / "story" / "main.json"
+DEMO_SECOND = main.PROJECT_ROOT / "samples" / "showcase3" / "story" / "gameplay.json"
+DEMO_LOMMOD = main.PROJECT_ROOT / "samples" / "全节点样例3.0.lommod"
 
 
 def click_at(widget, pos) -> None:
@@ -185,13 +185,13 @@ def main_fn() -> int:
     # ------------------------------------------------------------------
     win._load_story_path(DEMO_MAIN)
     app.processEvents()
-    row = win._node_row("n11")
+    row = win._node_row("choice1")
     for k, opt in enumerate(win.story["nodes"][row]["options"]):
         win._select_node_index(row)
         win.stage.repaint()  # 确保热区已生成
         app.processEvents()
         rects = win.stage._choice_rects
-        assert len(rects) == 3, f"n11 应有 3 个选项热区：{len(rects)}"
+        assert len(rects) == 2, f"choice1 应有 2 个选项热区：{len(rects)}"
         box, goto = rects[k]
         assert goto == opt["goto"]
         click_at(win.stage, box.center())
@@ -200,7 +200,7 @@ def main_fn() -> int:
         assert cur and cur["id"] == opt["goto"], (
             f"点击选项 {k} 应选中 {opt['goto']}，实际 {cur and cur['id']}"
         )
-    print("[2] 选项按钮真实点击 OK（n11 三个选项均正确跳转）")
+    print("[2] 选项按钮真实点击 OK（choice1 两个选项均正确跳转）")
 
     # ------------------------------------------------------------------
     # [3] 自动播放：从头开到底；choice/branch 暂停后每个分支都走
@@ -208,13 +208,12 @@ def main_fn() -> int:
     win._goto_start()
     app.processEvents()
     stop = auto_to_halt(win, app)
-    assert stop and stop["id"] == "n11" and stop["type"] == "choice", (
-        f"自动播放应暂停在 n11 choice，实际 {stop and stop['id']}"
+    assert stop and stop["id"] == "choice1" and stop["type"] == "choice", (
+        f"自动播放应暂停在 choice1 choice，实际 {stop and stop['id']}"
     )
-    # n11 三分支：n12 线、n16→n21(branch,两case)线、n20→n21 线；n25b 还有一层 branch
+    # Showcase3 的 choice、branch、dice 分支均走到底。
     walk_branches(win, app, stop)
-    # 确认 branch 两个 case 的目标都被踩过（n22=n21 的 value2 分支，n25c=n25b 分支）
-    print("[3] 自动播放 OK（n11 暂停；choice/branch 各分支均走到底，含 n22/n25c）")
+    print("[3] 自动播放 OK（choice1 暂停；choice/branch/dice 各分支均走到底）")
 
     # ------------------------------------------------------------------
     # [4] 边预览边编辑的操演
@@ -223,7 +222,7 @@ def main_fn() -> int:
     app.processEvents()
 
     # 4a 改正在预览的 say 节点属性
-    r7 = win._node_row("n7")
+    r7 = win._node_row("say1")
     win._select_node_index(r7)
     win.story["nodes"][r7]["text"] = "压力测试改写：四师兄递过来一张清单。\n第二行。"
     win.story["nodes"][r7]["portrait"] = "laugh1"
@@ -232,9 +231,9 @@ def main_fn() -> int:
     win.stage.grab()
 
     # 4b 换正在预览的节点类型（say → show）
-    r8 = win._node_row("n8")
+    r8 = win._node_row("say2")
     win._select_node_index(r8)
-    win.story["nodes"][r8] = models.new_node("show", "n8", editor_data)
+    win.story["nodes"][r8] = models.new_node("show", "say2", editor_data)
     win._refresh_all(select_row=r8)
     app.processEvents()
     win.stage.grab()
@@ -342,7 +341,7 @@ def main_fn() -> int:
         data_dir,
     )
     win._load_story_path(DEMO_MAIN)
-    win._select_node_index(win._node_row("n7"))
+    win._select_node_index(win._node_row("say1"))
     app.processEvents()
     win.stage.grab()
     win.stage.set_assets(pmap, data_dir)  # 还原真实素材
@@ -378,7 +377,7 @@ def main_fn() -> int:
 
     # 收尾：主窗口还活着且能正常渲染
     win._load_story_path(DEMO_MAIN)
-    win._select_node_index(win._node_row("n7"))
+    win._select_node_index(win._node_row("say1"))
     app.processEvents()
     assert not win.stage.grab().isNull()
     win.close()

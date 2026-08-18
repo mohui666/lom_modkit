@@ -85,7 +85,7 @@ def main() -> int:
     if ok:
         # 冻结产物必须能真正 import 内置 lomc、编译剧情，并找到自动安装所需
         # 的 runtime DLL / 应用图标 / 下拉箭头资源。
-        sample = EDITOR_DIR.parent / "samples" / "snack_case" / "story" / "confront.json"
+        sample = EDITOR_DIR.parent / "samples" / "showcase3" / "story" / "main.json"
         env = os.environ.copy()
         env["QT_QPA_PLATFORM"] = "offscreen"
         check = subprocess.run(

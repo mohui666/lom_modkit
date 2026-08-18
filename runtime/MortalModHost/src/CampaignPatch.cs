@@ -138,10 +138,9 @@ namespace MortalModHost
                     foreach (ModPackage mod in Plugin.LoadedMods)
                     {
                         if (mod.Campaign == null) continue;
-                        // 契约 §2：有活跃战役时位置触发器只匹配当前战役 mod——否则其他已安装
-                        // mod 的无条件触发器会跨战役抢占（实证：showcase 的无条件 Center 兜底
-                        // 触发器永远抢在 snack_case 战役的 Center→clue 之前命中）。无战役时维持
-                        // 全部 mod、先加载者优先（与注册表冲突策略一致）。
+                        // 契约 §2：有活跃战役时位置触发器只匹配当前战役 mod；否则其他已安装
+                        // mod 的无条件触发器会跨战役抢占。无战役时维持全部 mod、先加载者优先
+                        // （与注册表冲突策略一致）。
                         if (ModCampaignState.Active
                             && !string.Equals(mod.Id, ModCampaignState.ActiveModId, StringComparison.Ordinal))
                             continue;

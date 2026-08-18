@@ -40,7 +40,7 @@ assets/                # 可选，自定义资源
   "min_host_version": "1.0.0",
   "tested_host_version": "1.1.0",
   "tested_game_version": "1.2.3",
-  "id": "demo_mod",
+  "id": "showcase3",
   "campaign_id": "demo_campaign",
   "name": "示例 Mod",
   "version": "1.1.0",
@@ -230,7 +230,7 @@ stage.showPortrait(characters.Get("player"), characters.GetPortrait("player", "n
 setcharacter(characters.Get("player"), characters.GetPortrait("player", "nervous1"))
 characters.Focus("player")
 mod_hide_mood()
-say(luamanager.GetStoryText("MOD_demo_mod_main_n7"))
+say(luamanager.GetStoryText("MOD_showcase3_main_n7"))
 mod_hide_mood()
 -- say (think)：setsaydialog(saydialogs.think)，say 前 os_mask.SetLastPosition(); os_mask.Show(true)，后 os_mask.Show(false)
 -- say (narrative/center)：setsaydialog(saydialogs.narrative|saydialogs.center); sayoptions 两行同上; setcharacter(narrative); say(GetStoryText(...))（任何 say 前都设 sayoptions）

@@ -33,7 +33,7 @@ import story_api  # noqa: E402  # type: ignore[reportMissingImports]
 import models  # noqa: E402
 
 PROJECT_ROOT = EDITOR_DIR.parent
-DEMO_STORY = PROJECT_ROOT / "samples" / "demo_mod" / "story" / "main.json"
+DEMO_STORY = PROJECT_ROOT / "samples" / "showcase3" / "story" / "main.json"
 
 # 契约 §3.1 全量 62 种节点类型（与 models.NODE_TYPES 一一对应）
 ALL_TYPES = [
@@ -777,7 +777,7 @@ class TestSaveLoad(unittest.TestCase):
 
 class TestPackMod(unittest.TestCase):
     def _manifest(self) -> dict:
-        # 字段仿 samples/demo_mod/manifest.json（契约 §2）
+        # 字段仿 samples/showcase3/manifest.json（契约 §2）
         return {
             "format": 3,
             "package_format": 3,

@@ -18,14 +18,20 @@ from lomc.content import collect_story_content_refs, load_content_metadata
 class FeatureShowcaseTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.sample = ROOT / "samples" / "feature_showcase"
+        cls.sample = ROOT / "samples" / "showcase3"
         cls.manifest = json.loads((cls.sample / "manifest.json").read_text(encoding="utf-8"))
-        cls.story = json.loads((cls.sample / "story" / "main.json").read_text(encoding="utf-8"))
+        cls.stories = [
+            json.loads(path.read_text(encoding="utf-8"))
+            for path in sorted((cls.sample / "story").glob("*.json"))
+        ]
+        cls.story = next(story for story in cls.stories if story["id"] == "main")
+        cls.nodes = [node for story in cls.stories for node in story["nodes"]]
 
     def test_story_uses_every_showcase_capability_with_real_schema_nodes(self):
         validate_manifest(self.manifest)
-        validate_story(self.story)
-        nodes = self.story["nodes"]
+        for story in self.stories:
+            validate_story(story)
+        nodes = self.nodes
         node_types = {node["type"] for node in nodes}
         self.assertTrue({
             "background", "music", "overlay", "show", "say", "sound", "choice",
@@ -34,22 +40,17 @@ class FeatureShowcaseTest(unittest.TestCase):
         characters = {node.get("character") for node in nodes}
         self.assertIn("player", characters)
         self.assertIn("user:showcase.lin_deng", characters)
-        portraits = {
-            node.get("portrait") for node in nodes
-            if node.get("character") == "user:showcase.lin_deng"
-        }
-        self.assertTrue({"normal", "happy"}.issubset(portraits))
+        character_meta = load_content_metadata(
+            str(self.sample / "assets/user/character/showcase.lin_deng/content.json")
+        )
+        self.assertTrue({"normal", "happy"}.issubset(character_meta["portraits"]))
         self.assertTrue(any(node.get("voice") == "user:showcase.lin_greeting" for node in nodes))
         self.assertTrue(any(node.get("source") == "mod" for node in nodes))
-        self.assertTrue(any(node.get("source") == "flag_value" for node in nodes))
         ending = next(node for node in nodes if node["type"] == "goto_scene")
-        self.assertEqual((ending["scene"], ending["key"]), ("End", "900047"))
-        self.assertEqual(
-            set(self.story["localization"]["translations"]), {"cht", "ja", "ko"}
-        )
+        self.assertEqual(ending["scene"], "Free")
 
     def test_all_user_references_have_valid_metadata_and_committed_files(self):
-        refs = collect_story_content_refs(self.story)
+        refs = [ref for story in self.stories for ref in collect_story_content_refs(story)]
         identities = {(item["expected_type"], item["ref"].content_id) for item in refs}
         self.assertEqual(identities, {
             ("character", "showcase.lin_deng"),
@@ -88,14 +89,13 @@ class FeatureShowcaseTest(unittest.TestCase):
 
     def test_pack_is_self_contained_and_does_not_write_into_sample(self):
         with tempfile.TemporaryDirectory() as temp:
-            output = Path(temp) / "feature_showcase.lommod"
+            output = Path(temp) / "showcase3.lommod"
             pack_mod(str(self.sample), output=str(output))
             with zipfile.ZipFile(output) as archive:
                 names = set(archive.namelist())
                 self.assertIn("lua/main.lua", names)
-                self.assertIn("lua/ja/main.lua", names)
-                self.assertIn("texts/ko.json", names)
-                self.assertIn("assets/ending.png", names)
+                self.assertIn("lua/gameplay.lua", names)
+                self.assertIn("story/battle_demo.json", names)
                 self.assertIn(
                     "assets/user/character/showcase.lin_deng/normal.png", names
                 )

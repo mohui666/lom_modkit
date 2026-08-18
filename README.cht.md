@@ -185,7 +185,7 @@ Lua 環境隔離與完整生命週期清理 · 一次性快捷鍵遷移 · Runti
 - `runtime/MortalModHost/` — BepInEx 遊戲內外掛
 - `tools/` — 從解包產物擷取編輯器資料/素材的腳本
 - `data/` — 編輯器資料（`editor_data.json`，schema 3）
-- `samples/` — 範例 mod（demo_mod、showcase、showcase2 全節點演示 2.0、snack_case《點心大盜疑案》、probe）
+- `samples/showcase3/` — 唯一保留的完整範例 Mod（全節點樣例 3.0）
 
 ### 從原始碼執行
 

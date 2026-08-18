@@ -194,4 +194,4 @@ assets/user/character/mohui.luoxue/happy.png
 - `offset` 累加舞台坐标，`rotate` 转到绝对 Z 角度，`dim` 使用当前官方舞台的压暗颜色和过渡时长，`shock` 在结束后恢复原位置；官方角色路径完全不变。
 - `affinity` 仍不支持自定义角色：它会写官方 `CharacterData` 好感系统，不是纯演出，而 `user:` 角色没有官方好感数据槽。长期状态请使用 Mod 隔离变量，不要伪造官方角色 id。
 - 切场景、换脚本时会销毁自定义立绘 GameObject 与 Sprite，避免残留。
-- 可用 `samples/audio_test/` 验收音频；`samples/character_test/` 验收自定义角色（自带两张占位 PNG）。
+- 可用 `samples/showcase3/` 一并验收自定义音频、角色、图片与剧情节点。
