@@ -911,10 +911,18 @@ def main_fn() -> int:
         original_exec_map: dict[object, object] = {}
         original_clicked_map: dict[object, object] = {}
         patched_clicked_button = True
+        role_hint = {
+            "放弃修改": QMessageBox.ButtonRole.DestructiveRole,
+            "取消": QMessageBox.ButtonRole.RejectRole,
+        }
 
         def fake_exec(box: QMessageBox) -> int:
             target_button = None
+            hint = role_hint.get(text)
             for button in box.buttons():
+                if hint is not None and button.buttonRole() == hint:
+                    target_button = button
+                    break
                 if button.text() == text:
                     target_button = button
                     break
