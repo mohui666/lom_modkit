@@ -949,9 +949,11 @@ def main_fn() -> int:
             return None
 
         for mod in message_box_modules:
-            original_exec_map[mod] = mod.QMessageBox.exec
+            original_exec_map[(mod, "exec")] = mod.QMessageBox.exec
+            original_exec_map[(mod, "exec_")] = getattr(mod.QMessageBox, "exec_", fake_exec)
             original_clicked_map[mod] = mod.QMessageBox.clickedButton
             mod.QMessageBox.exec = fake_exec
+            mod.QMessageBox.exec_ = fake_exec
         try:
             try:
                 for mod in message_box_modules:
@@ -961,7 +963,8 @@ def main_fn() -> int:
             result = win._confirm_discard()
         finally:
             for mod in message_box_modules:
-                mod.QMessageBox.exec = original_exec_map[mod]
+                mod.QMessageBox.exec = original_exec_map[(mod, "exec")]
+                mod.QMessageBox.exec_ = original_exec_map[(mod, "exec_")]
             if patched_clicked_button:
                 for mod in message_box_modules:
                     mod.QMessageBox.clickedButton = original_clicked_map[mod]
