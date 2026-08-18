@@ -20,7 +20,6 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 EDITOR_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(EDITOR_DIR))
 
-from PySide6.QtCore import QTimer  # noqa: E402  # type: ignore[reportMissingImports]
 from PySide6.QtWidgets import QApplication, QComboBox, QMessageBox  # noqa: E402  # type: ignore[reportMissingImports]
 
 import main  # noqa: E402
@@ -904,50 +903,45 @@ def main_fn() -> int:
     win._prompt_on_discard = True
 
     def confirm_discard_with_button(text: str) -> bool:
-        """Drive the nested QMessageBox loop without allowing it to hang."""
+        """Drive the nested QMessageBox loop deterministically in offscreen CI."""
         errors: list[str] = []
-        watchdog = QTimer(win)
-        watchdog.setSingleShot(True)
+        selected: dict[int, object] = {}
+        original_exec = main.QMessageBox.exec
+        original_clicked_button = main.QMessageBox.clickedButton
+        patched_clicked_button = True
 
-        def active_box() -> QMessageBox | None:
-            modal = QApplication.activeModalWidget()
-            if isinstance(modal, QMessageBox):
-                return modal
-            # Keep a fallback for Qt platforms that do not expose the modal
-            # widget until the first nested event-loop turn.
-            boxes = [b for b in win.findChildren(QMessageBox) if b.isVisible()]
-            return boxes[-1] if boxes else None
-
-        def close_stuck_box() -> None:
-            box = active_box()
-            errors.append("确认框未能在 watchdog 超时前完成按钮交互")
-            if box is not None:
-                box.reject()
-
-        watchdog.timeout.connect(close_stuck_box)
-
-        def click_box_button(attempt: int = 0) -> None:
-            box = active_box()
-            if box is None:
-                if attempt < 100:
-                    QTimer.singleShot(0, lambda: click_box_button(attempt + 1))
-                else:
-                    errors.append("确认框未出现在 Qt modal widget 中")
-                return
+        def fake_exec(box: QMessageBox) -> int:
+            target_button = None
             for button in box.buttons():
                 if button.text() == text:
-                    button.click()
-                    return
-            errors.append(f"确认框缺少按钮 {text!r}")
-            box.reject()
+                    target_button = button
+                    break
+            if target_button is None:
+                errors.append(f"确认框缺少按钮 {text!r}")
+                buttons = box.buttons()
+                if buttons:
+                    target_button = buttons[0]
+            if target_button is not None:
+                selected[id(box)] = target_button
+                target_button.click()
+                return int(QMessageBox.DialogCode.Accepted)
+            return int(QMessageBox.DialogCode.Rejected)
 
-        watchdog.start(2000)
-        QTimer.singleShot(0, click_box_button)
+        def fake_clicked_button(box: QMessageBox):
+            return selected.get(id(box), original_clicked_button(box))
+
+        main.QMessageBox.exec = fake_exec
         try:
+            try:
+                setattr(main.QMessageBox, "clickedButton", fake_clicked_button)
+            except (TypeError, AttributeError):
+                patched_clicked_button = False
             result = win._confirm_discard()
         finally:
-            watchdog.stop()
-            watchdog.deleteLater()
+            main.QMessageBox.exec = original_exec
+            if patched_clicked_button:
+                main.QMessageBox.clickedButton = original_clicked_button
+
         assert not errors, "; ".join(errors)
         return result
 
