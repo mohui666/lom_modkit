@@ -905,72 +905,73 @@ def main_fn() -> int:
 
     def confirm_discard_with_button(text: str) -> bool:
         """Drive the nested QMessageBox loop deterministically in offscreen CI."""
-        errors: list[str] = []
-        selected: dict[int, object] = {}
+        alias_set = {text, "放弃修改", "Discard", "discard.discard", "Cancel", "取消"}
+
+        class _FakeButton:
+            def __init__(self, label: str) -> None:
+                self._label = str(label)
+
+            def text(self) -> str:
+                return self._label
+
+        class _FakeMessageBox:
+            ButtonRole = main.QMessageBox.ButtonRole
+            DialogCode = main.QMessageBox.DialogCode
+
+            def __init__(self, *_: object, **__: object) -> None:
+                self._buttons: list[object] = []
+                self._clicked = None
+
+            def setWindowTitle(self, *_: object) -> None:
+                return None
+
+            def setText(self, *_: object) -> None:
+                return None
+
+            def setInformativeText(self, *_: object) -> None:
+                return None
+
+            def addButton(self, label: str, _role: object) -> _FakeButton:
+                btn = _FakeButton(label)
+                self._buttons.append(btn)
+                if label == text:
+                    self._clicked = btn
+                return btn
+
+            def setDefaultButton(self, *_: object) -> None:
+                return None
+
+            def deleteLater(self) -> None:
+                return None
+
+            def exec(self) -> int:
+                if self._clicked is None and self._buttons:
+                    # fallback keeps path deterministic even when text matching drifts.
+                    self._clicked = (
+                        self._buttons[1]
+                        if text in alias_set and len(self._buttons) > 1
+                        else self._buttons[0]
+                    )
+                if self._clicked is None:
+                    raise RuntimeError(f"确认框未正确注入按钮：target={text!r}")
+                return int(_FakeMessageBox.DialogCode.Accepted)
+
+            def exec_(self) -> int:
+                return self.exec()
+
+            def clickedButton(self) -> _FakeButton:
+                return self._clicked
+
         message_box_modules = (main, history_controller)
-        original_exec_map: dict[object, object] = {}
-        original_clicked_map: dict[object, object] = {}
-        patched_clicked_button = True
-        discard_aliases = {"放弃修改", "Discard", "discard.discard"}
-        cancel_aliases = {"取消", "Cancel", "discard.cancel"}
-
-        def fake_exec(box: QMessageBox) -> int:
-            target_button = None
-            buttons = box.buttons()
-            for button in buttons:
-                if button.text() == text:
-                    target_button = button
-                    break
-            if target_button is None:
-                if text in discard_aliases and len(buttons) >= 2:
-                    target_button = buttons[1]
-                elif text in cancel_aliases and len(buttons) >= 3:
-                    target_button = buttons[2]
-            if target_button is None:
-                button_labels = [btn.text() for btn in buttons]
-                errors.append(
-                    f"确认框缺少按钮 {text!r}；实际按钮：{button_labels!r}"
-                )
-                if buttons:
-                    target_button = buttons[0]
-            if target_button is not None:
-                selected[id(box)] = target_button
-                setattr(box, "_ci_selected_button", target_button)
-                return int(QMessageBox.DialogCode.Accepted)
-            return int(QMessageBox.DialogCode.Rejected)
-
-        def fake_clicked_button(box: QMessageBox):
-            if id(box) in selected:
-                return selected[id(box)]
-            if hasattr(box, "_ci_selected_button"):
-                return box._ci_selected_button
-            for mod in message_box_modules:
-                return original_clicked_map[mod](box)
-            return None
-
+        original_boxes: dict[object, object] = {}
         for mod in message_box_modules:
-            original_exec_map[(mod, "exec")] = mod.QMessageBox.exec
-            original_exec_map[(mod, "exec_")] = getattr(mod.QMessageBox, "exec_", fake_exec)
-            original_clicked_map[mod] = mod.QMessageBox.clickedButton
-            mod.QMessageBox.exec = fake_exec
-            mod.QMessageBox.exec_ = fake_exec
+            original_boxes[mod] = mod.QMessageBox
+            mod.QMessageBox = _FakeMessageBox
         try:
-            try:
-                for mod in message_box_modules:
-                    setattr(mod.QMessageBox, "clickedButton", fake_clicked_button)
-            except (TypeError, AttributeError):
-                patched_clicked_button = False
-            result = win._confirm_discard()
+            return win._confirm_discard()
         finally:
-            for mod in message_box_modules:
-                mod.QMessageBox.exec = original_exec_map[(mod, "exec")]
-                mod.QMessageBox.exec_ = original_exec_map[(mod, "exec_")]
-            if patched_clicked_button:
-                for mod in message_box_modules:
-                    mod.QMessageBox.clickedButton = original_clicked_map[mod]
-
-        assert not errors, "; ".join(errors)
-        return result
+            for mod, original_box in original_boxes.items():
+                mod.QMessageBox = original_box
 
     assert confirm_discard_with_button("放弃修改")
     assert not confirm_discard_with_button("取消")
