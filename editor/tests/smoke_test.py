@@ -23,6 +23,7 @@ sys.path.insert(0, str(EDITOR_DIR))
 from PySide6.QtWidgets import QApplication, QComboBox, QMessageBox  # noqa: E402  # type: ignore[reportMissingImports]
 
 import main  # noqa: E402
+import history_controller  # noqa: E402
 import models  # noqa: E402
 import story_api  # noqa: E402
 
@@ -906,8 +907,9 @@ def main_fn() -> int:
         """Drive the nested QMessageBox loop deterministically in offscreen CI."""
         errors: list[str] = []
         selected: dict[int, object] = {}
-        original_exec = main.QMessageBox.exec
-        original_clicked_button = main.QMessageBox.clickedButton
+        message_box_modules = (main, history_controller)
+        original_exec_map: dict[object, object] = {}
+        original_clicked_map: dict[object, object] = {}
         patched_clicked_button = True
 
         def fake_exec(box: QMessageBox) -> int:
@@ -928,19 +930,29 @@ def main_fn() -> int:
             return int(QMessageBox.DialogCode.Rejected)
 
         def fake_clicked_button(box: QMessageBox):
-            return selected.get(id(box), original_clicked_button(box))
+            if id(box) in selected:
+                return selected[id(box)]
+            for mod in message_box_modules:
+                return original_clicked_map[mod](box)
+            return None
 
-        main.QMessageBox.exec = fake_exec
+        for mod in message_box_modules:
+            original_exec_map[mod] = mod.QMessageBox.exec
+            original_clicked_map[mod] = mod.QMessageBox.clickedButton
+            mod.QMessageBox.exec = fake_exec
         try:
             try:
-                setattr(main.QMessageBox, "clickedButton", fake_clicked_button)
+                for mod in message_box_modules:
+                    setattr(mod.QMessageBox, "clickedButton", fake_clicked_button)
             except (TypeError, AttributeError):
                 patched_clicked_button = False
             result = win._confirm_discard()
         finally:
-            main.QMessageBox.exec = original_exec
+            for mod in message_box_modules:
+                mod.QMessageBox.exec = original_exec_map[mod]
             if patched_clicked_button:
-                main.QMessageBox.clickedButton = original_clicked_button
+                for mod in message_box_modules:
+                    mod.QMessageBox.clickedButton = original_clicked_map[mod]
 
         assert not errors, "; ".join(errors)
         return result
