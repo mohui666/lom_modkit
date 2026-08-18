@@ -935,13 +935,15 @@ def main_fn() -> int:
                     target_button = buttons[0]
             if target_button is not None:
                 selected[id(box)] = target_button
-                target_button.click()
+                setattr(box, "_ci_selected_button", target_button)
                 return int(QMessageBox.DialogCode.Accepted)
             return int(QMessageBox.DialogCode.Rejected)
 
         def fake_clicked_button(box: QMessageBox):
             if id(box) in selected:
                 return selected[id(box)]
+            if hasattr(box, "_ci_selected_button"):
+                return box._ci_selected_button
             for mod in message_box_modules:
                 return original_clicked_map[mod](box)
             return None
