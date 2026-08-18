@@ -17,6 +17,8 @@ crash.log
 /lom_modkit-*.zip.sha256
 /lom_modkit_preview.lommod
 editor/tests/out/
+# Test matrix reports are local release artifacts.
+/out/
 # PyInstaller 构建产物（editor/build_exe.py + lom_bundle.spec 生成）
 editor/build/
 editor/dist/

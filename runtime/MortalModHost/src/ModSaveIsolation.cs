@@ -65,19 +65,35 @@ namespace MortalModHost
             if (!IsActiveModSlot(saves)) return false;
             if (AutoSaveDataMethod == null)
                 throw new MissingMethodException("SaveSystem.AutoSaveData(string)");
-            string isolated = ModSaveSlotPolicy.IsolatedAutoSlot(
-                saves.CurrentSlot, originalAutoSlot);
-            AutoSaveDataMethod.Invoke(saves, new object[] { isolated });
+            string isolated = ModSaveSlotPolicy.IsolatedAutoSlotForCampaign(
+                ModCampaignState.ActiveCampaignId, originalAutoSlot);
+            bool resumePlayerOverride = CombatPlayerStatSession.SuspendForSave();
+            try
+            {
+                AutoSaveDataMethod.Invoke(saves, new object[] { isolated });
+            }
+            finally
+            {
+                CombatPlayerStatSession.ResumeAfterSave(resumePlayerOverride);
+            }
             Log?.LogInfo("MOD 自动存档已写入隔离槽 " + isolated);
             return true;
         }
 
         internal static void RedirectAutoLoad(SaveSystem saves, ref string slot)
         {
-            if (!IsActiveModSlot(saves) || string.IsNullOrEmpty(slot)
-                || ModSaveSlotPolicy.IsModSlot(slot)) return;
+            if (string.IsNullOrEmpty(slot) || ModSaveSlotPolicy.IsModSlot(slot)) return;
             if (!ModSaveSlotPolicy.IsOfficialAutoSlot(slot)) return;
-            slot = ModSaveSlotPolicy.IsolatedAutoSlot(saves.CurrentSlot, slot);
+            string redirected = ModSaveSlotPolicy.RedirectOfficialAutoSlot(
+                slot,
+                saves != null ? saves.CurrentSlot : null,
+                ModCampaignState.Active ? ModCampaignState.ActiveCampaignId : null,
+                VanillaModCampaignPanel.SelectedCampaignId);
+            if (!string.Equals(redirected, slot, StringComparison.Ordinal))
+            {
+                Log?.LogInfo("原版自动槽 " + slot + " 已重定向为隔离槽 " + redirected);
+                slot = redirected;
+            }
         }
 
         internal static string HideModSlotFromUniverse(SaveSystem saves)
@@ -95,13 +111,54 @@ namespace MortalModHost
                 CurrentSlotField.SetValue(saves, hidden);
         }
 
+        internal static void ClearAfterOfficialLoad(SaveSystem saves)
+        {
+            if (saves == null || IsModSlot(saves.CurrentSlot)) return;
+            ObserveSlot(saves.CurrentSlot);
+            if (!ModCampaignState.Active) return;
+            Log?.LogInfo("已读取原版存档，清理上一 MOD 战役运行态：" + saves.CurrentSlot);
+            ModCampaignState.Clear();
+            ModQuestSession.Reset();
+            PersistentModState.ResetMemory();
+        }
+
         private static bool IsActiveModSlot(SaveSystem saves)
         {
-            return saves != null && ModCampaignState.Active
-                && string.Equals(
-                    saves.CurrentSlot,
-                    CampaignIdentity.SaveSlot(ModCampaignState.ActiveCampaignId),
-                    StringComparison.Ordinal);
+            if (saves == null || !ModCampaignState.Active) return false;
+            return CampaignIdentity.OwnsSlot(
+                ModCampaignState.ActiveCampaignId, saves.CurrentSlot);
+        }
+    }
+
+    /// <summary>
+    /// 官方读入原版手动/自动槽后，旧的 MOD 运行态不能继续参与下一次自动档重定向。
+    /// MOD 读档时 CurrentSlot 仍属于当前 campaign，因此不会误清理。
+    /// </summary>
+    [HarmonyPatch(typeof(SaveSystem), "LoadGameData", new Type[] { })]
+    internal static class ClearModCampaignAfterOfficialLoadPatch
+    {
+        private static void Postfix(SaveSystem __instance)
+        {
+            ModSaveIsolation.ClearAfterOfficialLoad(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(SaveSystem), "AutoLoadGameData", new Type[] { typeof(string) })]
+    internal static class ClearModCampaignAfterOfficialAutoLoadPatch
+    {
+        private static void Postfix(SaveSystem __instance, string slot)
+        {
+            if (__instance == null || ModSaveSlotPolicy.IsModSlot(__instance.CurrentSlot)
+                || !ModSaveSlotPolicy.IsOfficialAutoSlot(slot)) return;
+            try
+            {
+                if (__instance.GetAutoSaveData(slot) != null)
+                    ModSaveIsolation.ClearAfterOfficialLoad(__instance);
+            }
+            catch (Exception ex)
+            {
+                ModSaveIsolation.Log?.LogWarning("检查原版自动档归属失败，保留当前运行态：" + ex.Message);
+            }
         }
     }
 

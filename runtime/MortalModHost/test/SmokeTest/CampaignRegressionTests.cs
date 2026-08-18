@@ -17,6 +17,11 @@ namespace MortalModHost
             TestCombatAnimationFallback();
             TestVerifiedGameplayAssetIdentity();
             TestSceneTransitionReadiness();
+            TestSameSideSpawnerAndSliderLevel();
+            TestCombatVitalityDefaultsToConfiguredMaximum();
+            TestOfficialAutoLoadRedirectsOnTitle();
+            TestCampaignIdsThatLookLikeSlotSuffixes();
+            TestCombatPlayerOverrideKeysStayPrefixed();
         }
 
         private static void TestSceneTransitionReadiness()
@@ -49,7 +54,7 @@ namespace MortalModHost
                 }
                 var warnings = new List<string>();
                 List<ModPackage> loaded = ModLoader.ScanMods(root, null, warnings.Add);
-                Assert(loaded.Count == 0, "v1/v2 包不得被 1.0.1 Runtime 静默加载");
+                Assert(loaded.Count == 0, "v1/v2 包不得被 Runtime 静默加载");
                 Assert(warnings.Count == 1
                         && warnings[0].IndexOf("package_format", StringComparison.OrdinalIgnoreCase) >= 0,
                     "旧包拒绝必须给出明确的 package_format 重导出提示");
@@ -71,6 +76,12 @@ namespace MortalModHost
             Assert(main == "mod_campaign_campaign-01"
                     && CampaignIdentity.OwnsSlot(campaignId, main),
                 "v3 主存档槽必须由稳定 campaign_id 唯一生成");
+            Assert(ModSaveSlotPolicy.IsolatedManualSlot(campaignId, 1) == main
+                    && ModSaveSlotPolicy.IsolatedManualSlot(campaignId, 2)
+                    == "mod_campaign_campaign-01_s002"
+                    && CampaignIdentity.OwnsSlot(
+                        campaignId, ModSaveSlotPolicy.IsolatedManualSlot(campaignId, 20)),
+                "右侧 001～020 必须映射到战役隔离手动槽，001 沿用主槽");
             Assert(!CampaignIdentity.OwnsSlot(campaignId, "mod_campaign-01")
                     && !ModSaveSlotPolicy.IsModSlot("mod_campaign-01")
                     && ModSaveSlotPolicy.IsModSlot(main),
@@ -94,6 +105,11 @@ namespace MortalModHost
                 "主槽与三类自动槽枚举不完整或命名不稳定");
             Assert(new HashSet<string>(slots, StringComparer.Ordinal).Count == 4,
                 "主槽与三类自动槽必须互不重叠");
+            Assert(ModSaveSlotPolicy.IsIsolatedAutoSlotForCampaign(
+                    campaignId, "mod_campaign_campaign-01_auto_battle")
+                    && !ModSaveSlotPolicy.IsIsolatedAutoSlotForCampaign(
+                        campaignId, "mod_campaign_campaign-01_s002"),
+                "只有三类自动槽应使用来源手动槽绑定；002~020 是独立手动槽");
         }
 
         private static void TestSelectionDoesNotStartCampaign()
@@ -186,9 +202,15 @@ namespace MortalModHost
                     && BattleCompositionPolicy.IsVerifiedAssetIdentity("girl4", "Girl_004_Animator")
                     && BattleCompositionPolicy.IsVerifiedAssetIdentity("special3", "special003_attack_01")
                     && BattleCompositionPolicy.IsVerifiedAssetIdentity("special4", "Enemy_Special004_Attack1")
-                    && BattleCompositionPolicy.IsVerifiedAssetIdentity("special4", "Special4")
+                    && !BattleCompositionPolicy.IsVerifiedAssetIdentity("special4", "Special4")
                     && BattleCompositionPolicy.IsVerifiedAssetIdentity("special4", "樊嘯天_敵方")
-                    && BattleCompositionPolicy.IsVerifiedAssetIdentity("special811", "Special811_Die"),
+                    && BattleCompositionPolicy.IsVerifiedAssetIdentity("special811", "Special811_Die")
+                    && BattleCompositionPolicy.IsVerifiedAssetIdentity("special401", "Enemy_Special401_Animator")
+                    && BattleCompositionPolicy.IsVerifiedAssetIdentity("special401", "丐幫_王二壯")
+                    && BattleCompositionPolicy.IsVerifiedAssetIdentity("special401", "Special_401_毛二壯")
+                    && BattleCompositionPolicy.IsVerifiedAssetIdentity("special102", "南宮_南宮深")
+                    && BattleCompositionPolicy.IsVerifiedAssetIdentity("special103", "南宮_南宮淺")
+                    && BattleCompositionPolicy.IsVerifiedAssetIdentity("special811", "唐門_唐衫"),
                 "Battle 官方人物必须按已核对的 Animator/动画资源身份匹配");
             string animatorAddress;
             Assert(BattleCompositionPolicy.TryOfficialBattleAnimatorAddress("special4", out animatorAddress)
@@ -226,6 +248,109 @@ namespace MortalModHost
 
             // Combat 不再从包含中文描述/数字补零的资源路径猜人物身份；
             // Runtime 直接使用 CombatLevel.EnemyStat.Name 的原版对象关系。
+        }
+
+        private static void TestSameSideSpawnerAndSliderLevel()
+        {
+            Assert(BattleCompositionPolicy.SameSideSpawnerField("friend") == "_friendSpawnerPrefab"
+                    && BattleCompositionPolicy.SameSideSpawnerField("enemy") == "_enemySpawnerPrefab"
+                    && BattleCompositionPolicy.IsSameSideSpawnerField("friend", "_friendSpawnerPrefab")
+                    && !BattleCompositionPolicy.IsSameSideSpawnerField("friend", "_enemySpawnerPrefab"),
+                "具名角色必须先查本方生成器，不能直接拿敌方 Boss preset");
+            Assert(CombatStatDisplayPolicy.OfficialLevelIndex(100, 50, 5) == 4
+                    && CombatStatDisplayPolicy.OfficialLevelIndex(50, 50, 5) == 4
+                    && CombatStatDisplayPolicy.OfficialLevelIndex(30, 50, 5) == 3
+                    && CombatStatDisplayPolicy.OfficialLevelIndex(0, 50, 5) == 0,
+                "决斗详情评语应按官方档位，作者填 100 时落在最高评语而不是越界数字");
+        }
+
+        private static void TestCombatVitalityDefaultsToConfiguredMaximum()
+        {
+            int maximum;
+            int current;
+            CombatVitalPolicy.Resolve(100, 100, true, 333, false, 0,
+                out maximum, out current);
+            Assert(maximum == 333 && current == 333,
+                "只填写 Combat 对手最大血量时，初始血量必须从该基准满血开始");
+            CombatVitalPolicy.Resolve(333, 333, true, 333, true, 120,
+                out maximum, out current);
+            Assert(maximum == 333 && current == 120,
+                "显式填写 Combat 对手初始血量时必须覆盖满血默认值");
+            CombatVitalPolicy.Resolve(100, 100, true, 0, false, 0,
+                out maximum, out current);
+            Assert(maximum == 0 && current == 0,
+                "最大气力为 0 时不得被旧初始气力反向抬回非零值");
+            CombatVitalPolicy.Resolve(100, 100, true, 333, true, 999,
+                out maximum, out current);
+            Assert(maximum == 333 && current == 333,
+                "初始血量不得超过作者设置的最大血量");
+            Assert(CombatVitalPolicy.ResolveInitialHealthAfterModifiers(333, false, 400) == 400,
+                "未填写初始血量时，基础血量加原版增益后必须满最终血量");
+            Assert(CombatVitalPolicy.ResolveInitialHealthAfterModifiers(120, true, 400) == 120,
+                "显式初始血量必须保留，不能被增益结算重置为满血");
+            Assert(CombatVitalPolicy.ResolveInitialHealthAfterModifiers(500, true, 400) == 400,
+                "显式初始血量仍必须夹到最终血量上限");
+        }
+
+        private static void TestCombatPlayerOverrideKeysStayPrefixed()
+        {
+            string official;
+            Assert(CombatPlayerOverridePolicy.Key("strength") == "player_strength"
+                    && CombatPlayerOverridePolicy.Key("player_health") == "player_health"
+                    && CombatPlayerOverridePolicy.TryOfficialGameStatType("player_strength", out official)
+                    && official == "體力"
+                    && CombatPlayerOverridePolicy.TryOfficialGameStatType("stamina_power", out official)
+                    && official == "內力"
+                    && !CombatPlayerOverridePolicy.TryOfficialGameStatType("max_health", out official),
+                "赵活覆盖必须使用 player_ 前缀，并映射到官方 GameStatType");
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            seen.Add("player_strength");
+            seen.Add("player_talents");
+            Assert(CombatPlayerOverridePolicy.HasAny(seen.Contains)
+                    && !CombatPlayerOverridePolicy.TouchesVitality(seen.Contains),
+                "未填写血量字段时不得 Reset 赵活官方计算血量");
+        }
+
+        private static void TestOfficialAutoLoadRedirectsOnTitle()
+        {
+            const string campaignId = "campaign-01";
+            string isolated = ModSaveSlotPolicy.RedirectOfficialAutoSlot(
+                "auto_battle", "001", null, campaignId);
+            Assert(isolated == "mod_campaign_campaign-01_auto_battle",
+                "标题页点战役自动档必须重定向到隔离槽，不能读原版 auto_battle");
+            Assert(ModSaveSlotPolicy.RedirectOfficialAutoSlot(
+                    "auto_free", "001", null, campaignId)
+                    == "mod_campaign_campaign-01_auto_free",
+                "自由自动档同样必须走隔离槽");
+            Assert(ModSaveSlotPolicy.RedirectOfficialAutoSlot(
+                    "auto_battle", "001", null, null) == "auto_battle",
+                "没有当前战役时不得改写原版自动槽");
+            Assert(ModSaveSlotPolicy.RedirectOfficialAutoSlot(
+                    "mod_campaign_campaign-01_auto", "001", campaignId, campaignId)
+                    == "mod_campaign_campaign-01_auto",
+                "已经是隔离槽名时不得再拼接");
+            Assert(ModSaveSlotPolicy.IsolatedAutoSlot(
+                    "mod_campaign_campaign-01_s002", "auto")
+                    == "mod_campaign_campaign-01_auto",
+                "002～020 上手动槽的自动档仍写入战役根隔离槽");
+        }
+
+        private static void TestCampaignIdsThatLookLikeSlotSuffixes()
+        {
+            const string campaignId = "chapter_s002";
+            string root = CampaignIdentity.SaveSlot(campaignId);
+            string slot = ModSaveSlotPolicy.IsolatedManualSlot(campaignId, 2);
+            Assert(CampaignIdentity.OwnsSlot(campaignId, root)
+                    && CampaignIdentity.OwnsSlot(campaignId, slot)
+                    && ModSaveSlotPolicy.IsolatedAutoSlotForCampaign(
+                        campaignId, "auto_battle") == root + "_auto_battle",
+                "campaign_id 自身带槽后缀时，主槽/手动槽/自动槽仍必须属于同一战役");
+            Assert(ModSaveSlotPolicy.RedirectOfficialAutoSlot(
+                    "auto", root, null, "chapter_s002") == root + "_auto",
+                "标题页选中的战役必须优先于残留 CurrentSlot 推导自动槽");
+            Assert(ModSaveSlotPolicy.RedirectOfficialAutoSlot(
+                    "auto_battle", "001", "stale-campaign", null) == "auto_battle",
+                "原版 CurrentSlot 不得因残留 MOD 运行态被重定向到旧战役自动槽");
         }
 
         private static ModPackage Package(string modId, string campaignId)

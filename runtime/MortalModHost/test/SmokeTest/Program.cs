@@ -173,6 +173,7 @@ namespace MortalModHost
                 TestPreviewPackagePrecedence();
                 TestCombatBackgroundAddressPolicy();
                 TestCombatSpriteLayoutPolicy();
+                TestCombatVitalPolicy();
                 TestPreviewRequest(modsDir);
                 TestUserContent();
                 TestDisclosurePolicy();
@@ -932,6 +933,14 @@ namespace MortalModHost
                 "决斗详情滑条必须按 CombatStat 的 100 上限显示，不能用玩家 GameStat.Max=50");
         }
 
+        private static void TestCombatVitalPolicy()
+        {
+            Assert(CombatVitalPolicy.AddHealthBaseBonus(280, 120) == 400,
+                "赵活额外基础血量必须累加在原版体力/被动换算结果上");
+            Assert(CombatVitalPolicy.AddHealthBaseBonus(int.MaxValue, 1) == int.MaxValue,
+                "赵活生命上限相加不得发生整数溢出");
+        }
+
         /// <summary>往已存在的 zip 追加二进制条目（Assets 图片测试用）。</summary>
         private static void AppendBinaryEntries(string path, params (string name, byte[] data)[] entries)
         {
@@ -1442,11 +1451,19 @@ namespace MortalModHost
                     && !GameplaySession.HasRecordedResult,
                 "combat 准备后必须进入有所有者的待决态");
             GameplaySession.Configure(
-                "combat", "max_health=800;attack_rate=0.65;stamina_power=77;internal=31;talents=1010:2,2010:1");
+                "combat", "max_health=800;attack_rate=0.65;stamina_power=77;internal=31;player_max_health=1000;talents=1010:2,2010:1");
             GameplaySession.BindCombatCharacter("叶云舟", "combat/special003/normal");
             Assert(GameplaySession.CombatDisplayName == "叶云舟"
                     && GameplaySession.CombatIdleAddress == "combat/special003/normal",
                 "Combat 名称与 fallback 立绘必须绑定到同一所选人物");
+            GameplayCheckpoint checkpoint = GameplaySession.CaptureCheckpoint(package);
+            GameplaySession.Reset();
+            GameplaySession.RestoreCheckpoint(package, checkpoint);
+            Assert(GameplaySession.PendingCombat
+                    && GameplaySession.ConfigString("max_health") == "800"
+                    && GameplaySession.ConfigString("player_max_health") == "1000"
+                    && GameplaySession.CombatDisplayName == "叶云舟",
+                "Combat 自动存档必须恢复完整 Gameplay 上下文和赵活生命覆盖，而不是只恢复 runtime scene key");
             int configuredHealth;
             int configuredStaminaPower;
             int configuredInternal;
@@ -1622,6 +1639,38 @@ namespace MortalModHost
             reloaded.Flush();
             Assert(new PersistentStateStore(root).Get(updatedPackage, slot, "chapter") == 0,
                 "新战役空状态必须覆盖旧 sidecar");
+
+            const string secondSlot = "mod_campaign_state-campaign_s002";
+            var second = new PersistentStateStore(root);
+            second.BeginNewCampaign(updatedPackage, secondSlot);
+            second.Set(updatedPackage, secondSlot, "chapter", 9);
+            second.Flush();
+            Assert(new PersistentStateStore(root).Get(updatedPackage, slot, "chapter") == 0
+                    && new PersistentStateStore(root).Get(updatedPackage, secondSlot, "chapter") == 9,
+                "002 空白 MOD 存档必须拥有独立的 Host sidecar，不能清空 001");
+
+            GameplayCheckpointStore.Initialize(root);
+            GameplaySession.Prepare(updatedPackage, "combat", "main", "fight1", "win", "lose");
+            GameplaySession.Configure("combat", "character=brother4;background=night");
+            GameplaySession.BindCombatCharacter("叶云舟", "combat/brother4/normal");
+            CustomImageRuntime.ActiveBackgroundReference = "user:state_mod.courtyard";
+            const string autoSlot = "mod_campaign_state-campaign_auto_battle";
+            GameplayCheckpointStore.Save(updatedPackage, autoSlot, secondSlot);
+            GameplaySession.Reset();
+            GameplayCheckpoint loaded;
+            Assert(GameplayCheckpointStore.TryLoad(updatedPackage, autoSlot, out loaded)
+                    && loaded.SourceSlot == secondSlot
+                    && loaded.Config["background"] == "night"
+                    && loaded.StoryBackground == "user:state_mod.courtyard",
+                "Battle 自动档必须和产生它的手动槽、完整 Gameplay 配置及剧情背景绑定");
+            CustomImageRuntime.ActiveBackgroundReference = "";
+            GameplaySession.RestoreCheckpoint(updatedPackage, loaded);
+            Assert(GameplaySession.PendingCombat
+                    && GameplaySession.ConfigString("character") == "brother4"
+                    && CustomImageRuntime.ActiveBackgroundReference == "user:state_mod.courtyard",
+                "读取 Battle 自动档必须恢复原来的战斗和剧情背景，而不是重新执行错误剧情");
+            GameplaySession.Reset();
+            GameplayCheckpointStore.Clear(updatedPackage, autoSlot);
         }
 
         private static void TestModSaveSlotPolicy()

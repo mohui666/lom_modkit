@@ -58,10 +58,11 @@ namespace MortalModHost
                 CombatActionController enemyAction = Traverse.Create(manager)
                     .Field("_enemyAction").GetValue<CombatActionController>();
                 // 原版 LoadCombatLevelAsset：_combatLevel = level; SetStat(EnemyStat)。
-                // 只改敌方控制器；引用身份在包装/克隆后可能变化，因此同时认实例。
-                if (activeLevel == null
-                    || (__instance != enemyAction && data != activeLevel.EnemyStat && !Owns(data)))
-                    return;
+                // 作者数值只写敌方。_combatLevel 尚未赋值时仍以 _enemyAction 为准。
+                bool isEnemy = __instance == enemyAction
+                    || Owns(data)
+                    || (activeLevel != null && data == activeLevel.EnemyStat);
+                if (!isEnemy) return;
 
                 Clear();
                 CombatStat clone = UnityObject.Instantiate(data);
@@ -81,57 +82,7 @@ namespace MortalModHost
                         clone.CharacterPrefab = identity.CharacterPrefab;
                     }
                 }
-                ApplyInt("max_health", 1, 10000000, delegate(int v) { clone.MaxHealth = v; });
-                ApplyInt("health", 0, 10000000, delegate(int v) { clone.DefaultHealth = v; });
-                ApplyInt("max_stamina", 0, 100000, delegate(int v) { clone.MaxStamina = v; });
-                ApplyInt("stamina", 0, 100000, delegate(int v) { clone.DefaultStamina = v; });
-                ApplyInt("strength", 0, 10000, delegate(int v) { clone.Strength = v; });
-                ApplyInt("stamina_power", 0, 10000, delegate(int v) { clone.Stamina = v; });
-                ApplyInt("internal", 0, 10000, delegate(int v) { clone.Internal = v; });
-                ApplyInt("dexterity", 0, 10000, delegate(int v) { clone.Dexterity = v; });
-                ApplyInt("talking", 0, 10000, delegate(int v) { clone.Talking = v; });
-                ApplyInt("defence", 0, 10000, delegate(int v) { clone.Defence = v; });
-                ApplyInt("sword", 0, 10000, delegate(int v) { clone.Sword = v; });
-                ApplyInt("fist", 0, 10000, delegate(int v) { clone.Fist = v; });
-                ApplyInt("martial_weapon", 0, 10000, delegate(int v) { clone.MartialWeapon = v; });
-                ApplyInt("mental", 0, 10000, delegate(int v) { clone.Mental = v; });
-                ApplyInt("disposition", 0, 10000, delegate(int v) { clone.Disposition = v; });
-                ApplyInt("training", 0, 10000, delegate(int v) { clone.Training = v; });
-                ApplyInt("karma", 0, 10000, delegate(int v) { clone.Karma = v; });
-                ApplyInt("behaviour", 0, 10000, delegate(int v) { clone.Behaviour = v; });
-                ApplyInt("poison_resist", 0, 10000, delegate(int v) { clone.PoisonResist = v; });
-                ApplyInt("paralyzed_resist", 0, 10000, delegate(int v) { clone.ParalyzedResist = v; });
-                ApplyInt("weapon_poison_value", 0, 10000, delegate(int v) { clone.WeaponPoisonValue = v; });
-                ApplyInt("weapon_paralyzed_value", 0, 10000, delegate(int v) { clone.WeaponParalyzedValue = v; });
-                ApplyInt("weapon_hit_addition", 0, 10000, delegate(int v) { clone.WeaponHitAddition = v; });
-                ApplyInt("weapon_damage_addition", -100000, 100000, delegate(int v) { clone.WeaponDamageAddition = v; });
-                ApplyInt("weapon_dice_addition", -1000, 1000, delegate(int v) { clone.WeaponDiceAddition = v; });
-                ApplyInt("attack_damage_addition", -100000, 100000, delegate(int v) { clone.AttackDamageAddition = v; });
-                ApplyInt("attack_dice_addition", -1000, 1000, delegate(int v) { clone.AttackDiceAddition = v; });
-                ApplyFloatRange("block_dodge_addition", -1f, 1f,
-                    delegate(float v) { clone.BlockDodgeAddition = v; });
-                ApplyFloatRange("block_parry_addition", -1f, 1f,
-                    delegate(float v) { clone.BlockParryAddition = v; });
-                ApplyFloatRange("attack_parry_addition", -1f, 1f,
-                    delegate(float v) { clone.AttackParryAddition = v; });
-                ApplyFloatRange("ultimate_damage_rate", 0f, 100f,
-                    delegate(float v) { clone.UltimateDamageRate = v; });
-                ApplyInt("defence_addition", -100000, 100000,
-                    delegate(int v) { clone.DefenceAddition = v; });
-                ApplyFloat("talk_rate", delegate(float v) { clone.TalkRate = v; });
-                ApplyFloat("attack_rate", delegate(float v) { clone.AttackRate = v; });
-                ApplyFloat("weapon_rate", delegate(float v) { clone.WeaponkRate = v; });
-                ApplyFloat("ultimate_rate", delegate(float v) { clone.UltimateRate = v; });
-                ApplyFloat("block_rate", delegate(float v) { clone.BlockRate = v; });
-                ApplyTalents(clone);
-
-                if (clone.MaxHealth > 0)
-                    clone.DefaultHealth = Mathf.Clamp(clone.DefaultHealth, 0, clone.MaxHealth);
-                if (clone.DefaultStamina > clone.MaxStamina)
-                    clone.MaxStamina = clone.DefaultStamina;
-                if (clone.MaxStamina > 0)
-                    clone.DefaultStamina = Mathf.Clamp(clone.DefaultStamina, 0, clone.MaxStamina);
-                clone.Reset();
+                ApplyConfiguredValues(clone);
                 _lastClone = clone;
                 data = clone;
                 LuaManagerPatch.Log?.LogInfo(
@@ -175,47 +126,261 @@ namespace MortalModHost
             }
         }
 
-        private static void Postfix(CombatActionController __instance, CombatStat data)
+        internal static void ReapplyConfiguredItems(CombatActionController controller)
         {
-            if (!GameplaySession.PendingCombat || __instance == null || !Owns(data))
+            ReapplyConfiguredItems(controller, "");
+        }
+
+        internal static void ApplyConfiguredValues(CombatStat clone)
+        {
+            if (clone == null) return;
+            ApplyConfiguredVitality(clone);
+            ApplyInt("strength", 0, 10000, delegate(int v) { clone.Strength = v; });
+            ApplyInt("stamina_power", 0, 10000, delegate(int v) { clone.Stamina = v; });
+            ApplyInt("internal", 0, 10000, delegate(int v) { clone.Internal = v; });
+            ApplyInt("dexterity", 0, 10000, delegate(int v) { clone.Dexterity = v; });
+            ApplyInt("talking", 0, 10000, delegate(int v) { clone.Talking = v; });
+            ApplyInt("defence", 0, 10000, delegate(int v) { clone.Defence = v; });
+            ApplyInt("sword", 0, 10000, delegate(int v) { clone.Sword = v; });
+            ApplyInt("fist", 0, 10000, delegate(int v) { clone.Fist = v; });
+            ApplyInt("martial_weapon", 0, 10000, delegate(int v) { clone.MartialWeapon = v; });
+            ApplyInt("mental", 0, 10000, delegate(int v) { clone.Mental = v; });
+            ApplyInt("disposition", 0, 10000, delegate(int v) { clone.Disposition = v; });
+            ApplyInt("training", 0, 10000, delegate(int v) { clone.Training = v; });
+            ApplyInt("karma", 0, 10000, delegate(int v) { clone.Karma = v; });
+            ApplyInt("behaviour", 0, 10000, delegate(int v) { clone.Behaviour = v; });
+            ApplyInt("poison_resist", 0, 10000, delegate(int v) { clone.PoisonResist = v; });
+            ApplyInt("paralyzed_resist", 0, 10000, delegate(int v) { clone.ParalyzedResist = v; });
+            ApplyInt("weapon_poison_value", 0, 10000, delegate(int v) { clone.WeaponPoisonValue = v; });
+            ApplyInt("weapon_paralyzed_value", 0, 10000, delegate(int v) { clone.WeaponParalyzedValue = v; });
+            ApplyInt("weapon_hit_addition", 0, 10000, delegate(int v) { clone.WeaponHitAddition = v; });
+            ApplyInt("weapon_damage_addition", -100000, 100000, delegate(int v) { clone.WeaponDamageAddition = v; });
+            ApplyInt("weapon_dice_addition", -1000, 1000, delegate(int v) { clone.WeaponDiceAddition = v; });
+            ApplyInt("attack_damage_addition", -100000, 100000, delegate(int v) { clone.AttackDamageAddition = v; });
+            ApplyInt("attack_dice_addition", -1000, 1000, delegate(int v) { clone.AttackDiceAddition = v; });
+            ApplyFloatRange("block_dodge_addition", -1f, 1f,
+                delegate(float v) { clone.BlockDodgeAddition = v; });
+            ApplyFloatRange("block_parry_addition", -1f, 1f,
+                delegate(float v) { clone.BlockParryAddition = v; });
+            ApplyFloatRange("attack_parry_addition", -1f, 1f,
+                delegate(float v) { clone.AttackParryAddition = v; });
+            ApplyFloatRange("ultimate_damage_rate", 0f, 100f,
+                delegate(float v) { clone.UltimateDamageRate = v; });
+            ApplyInt("defence_addition", -100000, 100000,
+                delegate(int v) { clone.DefenceAddition = v; });
+            ApplyFloat("talk_rate", delegate(float v) { clone.TalkRate = v; });
+            ApplyFloat("attack_rate", delegate(float v) { clone.AttackRate = v; });
+            ApplyFloat("weapon_rate", delegate(float v) { clone.WeaponkRate = v; });
+            ApplyFloat("ultimate_rate", delegate(float v) { clone.UltimateRate = v; });
+            ApplyFloat("block_rate", delegate(float v) { clone.BlockRate = v; });
+            ApplyTalents(clone, "talents");
+
+            clone.Reset();
+        }
+
+        /// <summary>
+        /// Original CombatStat.Reset copies DefaultHealth/DefaultStamina into the
+        /// live values. Keep these pairs coherent before that confirmed engine
+        /// call: max_health alone means a full-health opponent, while health is an
+        /// explicit current-value override.
+        /// </summary>
+        internal static void ApplyConfiguredVitality(CombatStat stat)
+        {
+            if (stat == null) return;
+            int maximumHealth;
+            int currentHealth;
+            int maximumStamina;
+            int currentStamina;
+            bool hasMaximumHealth = GameplaySession.TryConfigInt(
+                "max_health", 1, 10000000, out maximumHealth);
+            bool hasCurrentHealth = GameplaySession.TryConfigInt(
+                "health", 0, 10000000, out currentHealth);
+            bool hasMaximumStamina = GameplaySession.TryConfigInt(
+                "max_stamina", 0, 100000, out maximumStamina);
+            bool hasCurrentStamina = GameplaySession.TryConfigInt(
+                "stamina", 0, 100000, out currentStamina);
+
+            int resolvedMaximum;
+            int resolvedCurrent;
+            CombatVitalPolicy.Resolve(
+                stat.MaxHealth, stat.DefaultHealth,
+                hasMaximumHealth, maximumHealth,
+                hasCurrentHealth, currentHealth,
+                out resolvedMaximum, out resolvedCurrent);
+            stat.MaxHealth = resolvedMaximum;
+            stat.DefaultHealth = resolvedCurrent;
+
+            CombatVitalPolicy.Resolve(
+                stat.MaxStamina, stat.DefaultStamina,
+                hasMaximumStamina, maximumStamina,
+                hasCurrentStamina, currentStamina,
+                out resolvedMaximum, out resolvedCurrent);
+            stat.MaxStamina = resolvedMaximum;
+            stat.DefaultStamina = resolvedCurrent;
+        }
+
+        internal static void LogConfiguredVitality(string stage, CombatStatController controller)
+        {
+            if (controller == null || controller.Data == null) return;
+            CombatStat data = controller.Data;
+            CombatStatItem health = controller.MaxHealth;
+            LuaManagerPatch.Log?.LogInfo(
+                "Combat 敌方生命值已绑定（" + stage + "）：base="
+                + (health != null ? health.BaseValue : data.MaxHealth)
+                + "；modify=" + (health != null ? health.ModifyValue : 0)
+                + "；final=" + (health != null ? health.FinalValue : data.MaxHealth)
+                + "；current=" + data.CurrentHealth
+                + "；stamina=" + data.CurrentStamina + "/" + data.MaxStamina);
+        }
+
+        /// <summary>
+        /// The original InitSkill applies combat talent effects after ResetData.
+        /// Keep the configured max as CombatStatItem.BaseValue, then mirror its
+        /// FinalValue into CombatStat for the original health clamp.
+        /// </summary>
+        internal static void FinalizeConfiguredHealth(
+            CombatActionController action, string prefix, string stage)
+        {
+            if (action == null || action.Stat == null || action.Stat.Data == null)
                 return;
-            ReapplyStatItem(__instance, "stamina_power", delegate(CombatStatController stat, int v)
+            string head = prefix ?? "";
+            if (!GameplaySession.HasConfig(head + "max_health")
+                && !GameplaySession.HasConfig(head + "health"))
+                return;
+            CombatStatController controller = action.Stat;
+            CombatStatItem health = controller.MaxHealth;
+            if (health == null) return;
+            CombatStat data = controller.Data;
+            int finalMaximum = Mathf.Max(0, health.FinalValue);
+            bool preserveCurrent = GameplaySession.HasConfig(head + "health")
+                || data.CurrentHealth != data.DefaultHealth;
+            int current = CombatVitalPolicy.ResolveInitialHealthAfterModifiers(
+                data.CurrentHealth, preserveCurrent, finalMaximum);
+            data.MaxHealth = finalMaximum;
+            data.DefaultHealth = current;
+            data.CurrentHealth = current;
+            LuaManagerPatch.Log?.LogInfo(
+                "Combat " + (head.Length == 0 ? "敌方" : "赵活")
+                + "基础生命结算（" + stage + "）：base=" + health.BaseValue
+                + "；modify=" + health.ModifyValue
+                + "；final=" + finalMaximum + "；current=" + current);
+        }
+
+        /// <summary>
+        /// 只覆盖作者显式填写的赵活血量/气力。体力等基准已在 SetPlayerStat
+        /// 前写入 GameStat.Value，官方换算和被动加成不要再被这里盖掉。
+        /// </summary>
+        internal static void ApplyPlayerConfiguredValues(CombatStat clone)
+        {
+            if (clone == null) return;
+            if (!CombatPlayerOverridePolicy.TouchesVitality(GameplaySession.HasConfig))
+                return;
+            int officialHealth = clone.MaxHealth;
+            int officialStamina = clone.MaxStamina;
+            int extraHealth;
+            int extraStamina;
+            int currentHealth;
+            int currentStamina;
+            if (GameplaySession.TryConfigInt("player_max_health", 1, 10000000, out extraHealth))
             {
-                if (stat.Stamina != null) { stat.Stamina.SetBaseValue(v); stat.Stamina.UpdateFinalValue(); }
+                clone.MaxHealth = extraHealth + officialHealth;
+                if (!GameplaySession.HasConfig("player_health"))
+                    clone.DefaultHealth = clone.MaxHealth;
+            }
+            if (GameplaySession.TryConfigInt("player_max_stamina", 0, 100000, out extraStamina))
+            {
+                clone.MaxStamina = extraStamina + officialStamina;
+                if (!GameplaySession.HasConfig("player_stamina"))
+                    clone.DefaultStamina = clone.MaxStamina;
+            }
+            if (GameplaySession.TryConfigInt("player_health", 0, 10000000, out currentHealth))
+                clone.DefaultHealth = currentHealth + officialHealth;
+            if (GameplaySession.TryConfigInt("player_stamina", 0, 100000, out currentStamina))
+                clone.DefaultStamina = currentStamina + officialStamina;
+            if (clone.MaxHealth > 0)
+                clone.DefaultHealth = Mathf.Clamp(clone.DefaultHealth, 0, clone.MaxHealth);
+            if (clone.DefaultStamina > clone.MaxStamina)
+                clone.MaxStamina = clone.DefaultStamina;
+            if (clone.MaxStamina > 0)
+                clone.DefaultStamina = Mathf.Clamp(clone.DefaultStamina, 0, clone.MaxStamina);
+            clone.Reset();
+        }
+
+        private static void Postfix(CombatActionController __instance)
+        {
+            if (!GameplaySession.PendingCombat || __instance == null || __instance.Stat == null)
+                return;
+            CombatManager manager = CombatManager.Instance;
+            CombatActionController enemyAction = manager != null
+                ? Traverse.Create(manager).Field("_enemyAction").GetValue<CombatActionController>()
+                : null;
+            if (__instance != enemyAction && !Owns(__instance.Stat.Data)) return;
+            ReapplyConfiguredItems(__instance, "");
+            CombatPlayerStatSession.SyncVitalityItems(__instance.Stat);
+            LogConfiguredVitality("CombatActionController.SetStat", __instance.Stat);
+        }
+
+        internal static void ReapplyConfiguredItems(
+            CombatActionController controller, string prefix)
+        {
+            if (controller == null || controller.Stat == null) return;
+            ReapplyConfiguredItems(controller.Stat, prefix);
+        }
+
+        internal static void ReapplyConfiguredItems(CombatStatController controller)
+        {
+            ReapplyConfiguredItems(controller, "");
+        }
+
+        private static void ReapplyConfiguredItems(
+            CombatStatController controller, string prefix)
+        {
+            if (controller == null) return;
+            string head = prefix ?? "";
+            ReapplyStatItem(controller, head + "stamina_power", delegate(CombatStatController stat, int v)
+            {
+                if (controller.Data != null) controller.Data.Stamina = v;
+                stat.Stamina = new CombatStatItem(v);
             });
-            ReapplyStatItem(__instance, "strength", delegate(CombatStatController stat, int v)
+            ReapplyStatItem(controller, head + "strength", delegate(CombatStatController stat, int v)
             {
-                if (stat.Strength != null) { stat.Strength.SetBaseValue(v); stat.Strength.UpdateFinalValue(); }
+                if (controller.Data != null) controller.Data.Strength = v;
+                stat.Strength = new CombatStatItem(v);
             });
-            ReapplyStatItem(__instance, "dexterity", delegate(CombatStatController stat, int v)
+            ReapplyStatItem(controller, head + "dexterity", delegate(CombatStatController stat, int v)
             {
-                if (stat.Dexterity != null) { stat.Dexterity.SetBaseValue(v); stat.Dexterity.UpdateFinalValue(); }
+                if (controller.Data != null) controller.Data.Dexterity = v;
+                stat.Dexterity = new CombatStatItem(v);
             });
-            ReapplyStatItem(__instance, "sword", delegate(CombatStatController stat, int v)
+            ReapplyStatItem(controller, head + "sword", delegate(CombatStatController stat, int v)
             {
-                if (stat.Sword != null) { stat.Sword.SetBaseValue(v); stat.Sword.UpdateFinalValue(); }
+                if (controller.Data != null) controller.Data.Sword = v;
+                stat.Sword = new CombatStatItem(v);
             });
-            ReapplyStatItem(__instance, "fist", delegate(CombatStatController stat, int v)
+            ReapplyStatItem(controller, head + "fist", delegate(CombatStatController stat, int v)
             {
-                if (stat.Fist != null) { stat.Fist.SetBaseValue(v); stat.Fist.UpdateFinalValue(); }
+                if (controller.Data != null) controller.Data.Fist = v;
+                stat.Fist = new CombatStatItem(v);
             });
-            ReapplyStatItem(__instance, "martial_weapon", delegate(CombatStatController stat, int v)
+            ReapplyStatItem(controller, head + "martial_weapon", delegate(CombatStatController stat, int v)
             {
-                if (stat.MartialWeapon != null) { stat.MartialWeapon.SetBaseValue(v); stat.MartialWeapon.UpdateFinalValue(); }
+                if (controller.Data != null) controller.Data.MartialWeapon = v;
+                stat.MartialWeapon = new CombatStatItem(v);
             });
-            ReapplyStatItem(__instance, "talking", delegate(CombatStatController stat, int v)
+            ReapplyStatItem(controller, head + "talking", delegate(CombatStatController stat, int v)
             {
-                if (stat.Talking != null) { stat.Talking.SetBaseValue(v); stat.Talking.UpdateFinalValue(); }
+                if (controller.Data != null) controller.Data.Talking = v;
+                stat.Talking = new CombatStatItem(v);
             });
         }
 
         private static void ReapplyStatItem(
-            CombatActionController controller, string key, Action<CombatStatController, int> apply)
+            CombatStatController controller, string key, Action<CombatStatController, int> apply)
         {
             int value;
-            if (controller == null || controller.Stat == null) return;
+            if (controller == null) return;
             if (!GameplaySession.TryConfigInt(key, 0, 10000, out value)) return;
-            apply(controller.Stat, value);
+            apply(controller, value);
         }
 
         private static void ApplyInt(string key, int min, int max, Action<int> setter)
@@ -235,13 +400,13 @@ namespace MortalModHost
             if (GameplaySession.TryConfigFloat(key, min, max, out value)) setter(value);
         }
 
-        private static void ApplyTalents(CombatStat clone)
+        private static void ApplyTalents(CombatStat clone, string configKey)
         {
-            if (!GameplaySession.HasConfig("talents")) return;
+            if (string.IsNullOrEmpty(configKey) || !GameplaySession.HasConfig(configKey)) return;
             List<CombatTalentItem> items = new List<CombatTalentItem>();
             var seenTalentIds = new HashSet<string>(StringComparer.Ordinal);
             var seenEffectKeys = new HashSet<string>(StringComparer.Ordinal);
-            string encoded = GameplaySession.ConfigString("talents");
+            string encoded = GameplaySession.ConfigString(configKey);
             if (!string.IsNullOrEmpty(encoded))
             {
                 foreach (string row in encoded.Split(','))
@@ -352,51 +517,6 @@ namespace MortalModHost
                 && string.Equals(left.DefenceKey, right.DefenceKey, StringComparison.Ordinal));
         }
 
-        internal static GameObject ResolveFactionSpawner(string side, string fieldName)
-        {
-            if (!GameplaySession.PendingBattle) return null;
-            string faction = GameplaySession.ConfigString(side + "_faction");
-            int total;
-            if (!GameplaySession.TryConfigInt(side + "_people", 0, 10000, out total)) total = 0;
-            List<string> namedCharacters = BattleCompositionPolicy.ParseCharacters(
-                GameplaySession.ConfigString(side + "_characters"), total);
-            if (namedCharacters.Count > 0 && !BattleNamedCharacterPatch.Ready)
-                throw new InvalidOperationException(
-                    "具名角色补丁不可用；为避免悄悄生成错误阵容，本场战役已取消");
-            if (string.IsNullOrEmpty(faction))
-            {
-                if (total == 0) return null;
-                throw new InvalidOperationException(side + "_faction 在人数非零时不能为空");
-            }
-            if (GameLevelManager.Instance == null)
-                throw new InvalidOperationException("GameLevelManager 不可用");
-            BattleLevelConfig config = Traverse.Create(GameLevelManager.Instance)
-                .Field("_levelConfig").GetValue<BattleLevelConfig>();
-            if (config == null || config.List == null)
-                throw new InvalidOperationException("BattleLevelConfig 不可用");
-            BattleLevel selected = null;
-            for (int i = 0; i < config.List.Count; i++)
-            {
-                BattleLevel level = config.List[i];
-                if (level == null || !string.Equals(level.NameKey, faction, StringComparison.Ordinal))
-                    continue;
-                selected = level;
-                break;
-            }
-            if (selected == null)
-            {
-                selected = config.Get("BL_0000");
-                LuaManagerPatch.Log?.LogWarning(
-                    "阵营 " + faction + " 没有独立 BattleLevel，已回退 BL_0000 安全基线");
-            }
-            if (selected == null)
-                throw new InvalidOperationException("找不到战役阵营：" + faction);
-            GameObject prefab = Traverse.Create(selected).Field(fieldName).GetValue<GameObject>();
-            if (prefab == null)
-                throw new InvalidOperationException("战役阵营缺少可用 NPC 生成器：" + faction);
-            return prefab;
-        }
-
         internal static bool TryCount(string key, out int value)
         {
             value = 0;
@@ -500,12 +620,17 @@ namespace MortalModHost
                 Transform owner = __instance.transform.parent;
                 string side = BattleNamedCharacterPatch.FindSide(
                     owner != null ? owner.gameObject : null);
-                int health;
-                if (string.IsNullOrEmpty(side)
-                    || !GameplaySession.TryConfigInt(side + "_health", 1, 10000000, out health))
-                    return;
+                if (string.IsNullOrEmpty(side)) return;
                 Character character = Traverse.Create(__instance)
                     .Field("_instance").GetValue<Character>();
+                // 官方 prefab 是激活的。catalog Animator 套到隐藏底板上时，
+                // Instantiate 出来的实例也是关掉的，Awake/ReadyState 都不会跑。
+                if (character != null && !character.gameObject.activeSelf)
+                    character.gameObject.SetActive(true);
+                ApplySideEntityType(character, side);
+                int health;
+                if (!GameplaySession.TryConfigInt(side + "_health", 1, 10000000, out health))
+                    return;
                 CharacterHealth body = character != null
                     ? character.GetComponent<CharacterHealth>() : null;
                 if (body == null) return;
@@ -524,21 +649,38 @@ namespace MortalModHost
                 GameplayOverrideFailure.Abort("战役基础血量", ex);
             }
         }
-    }
 
-    /// <summary>
-    /// 原版 CombatRound 是共享 ScriptableObject，OnEnable/Reset 会把已推进的
-    /// 回合打回 0。决斗开始后若再 Reset，界面就会停在第 0 回合。
-    /// </summary>
-    [HarmonyPatch(typeof(CombatRound), "Reset")]
-    internal static class CombatRoundResetGuard
-    {
-        private static bool Prefix(CombatRound __instance)
+        /// <summary>
+        /// 只改 Entity 阵营。ReadyPoint / OutsidePosition 留在官方预制体上，
+        /// 由 ReadyState 按原版从 OutsidePosition 跑向父级 CharacterSpawnPoint。
+        /// </summary>
+        private static void ApplySideEntityType(Character character, string side)
         {
-            if (!GameplaySession.PendingCombat || __instance == null) return true;
-            int current = Traverse.Create(__instance).Field("_value").GetValue<int>();
-            return current <= 0;
+            if (character == null) return;
+            Entity entity = character.GetComponent<Entity>();
+            if (entity == null) return;
+            EntityType type;
+            if (string.Equals(side, "friend", StringComparison.Ordinal)) type = EntityType.Friend;
+            else if (string.Equals(side, "enemy", StringComparison.Ordinal)) type = EntityType.Enemy;
+            else if (string.Equals(side, "neutral", StringComparison.Ordinal)) type = EntityType.Neutral;
+            else return;
+            System.Reflection.FieldInfo origin = AccessTools.Field(typeof(Entity), "_originType");
+            if (origin == null)
+                throw new InvalidOperationException("Entity._originType 不可用");
+            origin.SetValue(entity, type);
+            entity.ResetType();
+            if (entity.CurrentType != type)
+            {
+                System.Reflection.PropertyInfo current = AccessTools.Property(typeof(Entity), "CurrentType");
+                if (current != null) current.SetValue(entity, type, null);
+            }
+            if (entity.CurrentType != type)
+                throw new InvalidOperationException(
+                    "Entity.ResetType 后阵营仍不是 " + side + "：" + character.name);
+            LuaManagerPatch.Log?.LogInfo(
+                "战役角色阵营已按出生点改写为 " + side + "：" + character.name);
         }
+
     }
 
     /// <summary>
@@ -554,6 +696,7 @@ namespace MortalModHost
             AccessTools.Field(typeof(CombatCharacterController), "_combatStat");
         private static readonly List<Sprite> Sprites = new List<Sprite>();
         private static readonly List<Texture2D> Textures = new List<Texture2D>();
+        internal static Sprite LastIdleSprite { get; private set; }
 
         private static void Postfix(CombatEnemyController __instance, ref IEnumerator __result)
         {
@@ -670,6 +813,10 @@ namespace MortalModHost
                         // normal 静态回退才需要适配 Combat prefab 的占位空间。
                         if (usingPortraitFallback)
                             RestoreRendererLayout(controller, officialLayout);
+                        SpriteRenderer idleRenderer = Traverse.Create(controller)
+                            .Field("_idleSprite").GetValue<SpriteRenderer>();
+                        if (idleRenderer != null && idleRenderer.sprite != null)
+                            LastIdleSprite = idleRenderer.sprite;
                     }
                     catch (Exception ex)
                     {
@@ -839,6 +986,7 @@ namespace MortalModHost
             Dictionary<string, string> frames = CombatCharacterPolicy.ResolveFrames(
                 content.CombatFrames, normal);
             Sprite idle = Load(content, frames["idle"]);
+            LastIdleSprite = idle;
             Sprite attack = Load(content, frames["attack"]);
             Sprite hurt = Load(content, frames["hurt"]);
             Sprite defence = Load(content, frames["defence"]);
@@ -879,6 +1027,7 @@ namespace MortalModHost
 
         internal static void Clear()
         {
+            LastIdleSprite = null;
             for (int i = 0; i < Sprites.Count; i++) if (Sprites[i] != null) UnityObject.Destroy(Sprites[i]);
             for (int i = 0; i < Textures.Count; i++) if (Textures[i] != null) UnityObject.Destroy(Textures[i]);
             Sprites.Clear();
@@ -927,46 +1076,382 @@ namespace MortalModHost
     }
 
     /// <summary>
-    /// 原版 SetSliderValue 用玩家 GameStat.Max（约 50）做分母。CombatStat 这几项
-    /// inspector 上限是 100，作者填 100 时滑条会被截成满格且等级按 50 计算。
+    /// 原版详情头像读 CombatStat.AvatarAddressKey，自定义人物仍是决斗壳的官方头。
+    /// Setup 是协程，必须等 Addressables 完成后再换成本场待机图。
+    /// </summary>
+    [HarmonyPatch(typeof(CombatCharacterStatusUI), "Setup")]
+    internal static class CombatStatusAvatarPatch
+    {
+        private static void Postfix(CombatCharacterStatusUI __instance, ref IEnumerator __result)
+        {
+            if (!GameplaySession.PendingCombat || __instance == null) return;
+            __result = Wrap(__instance, __result);
+        }
+
+        private static IEnumerator Wrap(CombatCharacterStatusUI ui, IEnumerator original)
+        {
+            while (original != null && original.MoveNext()) yield return original.Current;
+            ApplyIdlePortrait(ui);
+        }
+
+        internal static void ApplyIdlePortrait(CombatCharacterStatusUI ui)
+        {
+            if (!GameplaySession.PendingCombat || ui == null) return;
+            try
+            {
+                Traverse fields = Traverse.Create(ui);
+                CombatActionController action = fields.Field("_actionController")
+                    .GetValue<CombatActionController>();
+                CombatStat stat = action != null && action.Stat != null
+                    ? action.Stat.Data : null;
+                if (!CombatStatOverridePatch.Owns(stat)) return;
+                UnityEngine.UI.Image avatar = fields.Field("_avatar")
+                    .GetValue<UnityEngine.UI.Image>();
+                Sprite idle = CombatCustomAvatarPatch.LastIdleSprite;
+                if (idle == null && action != null)
+                {
+                    CombatEnemyController enemy = action.Character as CombatEnemyController;
+                    if (enemy == null && action.Character != null)
+                        enemy = action.Character.GetComponent<CombatEnemyController>();
+                    SpriteRenderer renderer = enemy != null
+                        ? Traverse.Create(enemy).Field("_idleSprite").GetValue<SpriteRenderer>()
+                        : null;
+                    if (renderer != null) idle = renderer.sprite;
+                }
+                if (avatar != null && idle != null)
+                {
+                    avatar.sprite = idle;
+                    avatar.preserveAspect = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                LuaManagerPatch.Log?.LogError("决斗详情头像无法换成待机立绘：" + ex);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 原版 SetStatusUI 早于 Character.SetData，Setup 时还没有自定义待机图。
+    /// 打开「状态」时四帧已换完，这里再刷头像，并把六维按配置写回后重绘雷达。
+    /// </summary>
+    [HarmonyPatch(typeof(CombatCharacterStatusUI), "OnPanelOpen")]
+    internal static class CombatStatusPanelOpenPatch
+    {
+        private static void Postfix(CombatCharacterStatusUI __instance)
+        {
+            if (!GameplaySession.PendingCombat || __instance == null) return;
+            CombatStatusLog.DumpConfig("OnPanelOpen");
+            CombatStatusAvatarPatch.ApplyIdlePortrait(__instance);
+            CombatActionController action = Traverse.Create(__instance)
+                .Field("_actionController").GetValue<CombatActionController>();
+            if (action == null) return;
+            string prefix = CombatRadarStatApplyPatch.ConfigPrefix(action);
+            CombatStatOverridePatch.ReapplyConfiguredItems(action, prefix);
+            Traverse.Create(__instance).Method("UpdateRadarStat").GetValue();
+        }
+    }
+
+    /// <summary>
+    /// 右边五项是评语，不是六维。官方 SetSliderValue 用 GameStat.LevelText。
+    /// 50 是 0~100 的中档。只在作者值越出 LevelText 时夹到 Max，事后只写评语，
+    /// 绝不写数字，也不改 Slider.value。
     /// </summary>
     [HarmonyPatch(typeof(CombatCharacterStatusUI), "SetSliderValue")]
     internal static class CombatStatusSliderMaxPatch
     {
+        private static void Prefix(GameStatType gameStatType, ref int value)
+        {
+            if (!GameplaySession.PendingCombat) return;
+            PlayerStatManagerData stats = PlayerStatManagerData.Instance;
+            GameStat gameStat = stats != null && stats.Stats != null
+                ? stats.Stats.Get(gameStatType) : null;
+            if (gameStat == null || gameStat.Max <= 0 || gameStat.LevelText == null)
+                return;
+            int top = gameStat.Max;
+            if (value > top) value = top;
+            if (value < 0) value = 0;
+        }
+
         private static void Postfix(object __0, GameStatType gameStatType, int value)
         {
             if (!GameplaySession.PendingCombat || __0 == null) return;
-            GameStat gameStat = PlayerStatManagerData.Instance != null
-                && PlayerStatManagerData.Instance.Stats != null
-                ? PlayerStatManagerData.Instance.Stats.Get(gameStatType) : null;
-            int max = CombatStatDisplayPolicy.SliderMax;
-            float fill = Mathf.Clamp01((float)value / (float)max);
-            Traverse fields = Traverse.Create(__0);
-            UnityEngine.UI.Slider progress = fields.Field("Progress")
-                .GetValue<UnityEngine.UI.Slider>();
-            UnityEngine.UI.Text text = fields.Field("Text").GetValue<UnityEngine.UI.Text>();
-            if (progress != null) progress.value = fill;
-            if (text == null || gameStat == null || gameStat.LevelText == null
-                || gameStat.LevelText.Length == 0)
+            PlayerStatManagerData stats = PlayerStatManagerData.Instance;
+            GameStat gameStat = stats != null && stats.Stats != null
+                ? stats.Stats.Get(gameStatType) : null;
+            if (gameStat == null || gameStat.LevelText == null || gameStat.LevelText.Length == 0)
                 return;
-            int level = GameStatUtils.GetGameStatLevel(
-                value, max, gameStat.LevelText.Length);
-            if (level < 0) level = 0;
-            if (level >= gameStat.LevelText.Length) level = gameStat.LevelText.Length - 1;
-            text.text = LocalizationManager.Instance.LocaleResolver.GetString(
-                "StatLevel/" + gameStat.LevelText[level]);
+            int max = gameStat.Max > 0 ? gameStat.Max : 100;
+            int index = GameStatUtils.GetGameStatLevel(value, max, gameStat.LevelText.Length);
+            if (index < 0) index = 0;
+            if (index >= gameStat.LevelText.Length) index = gameStat.LevelText.Length - 1;
+            string key = gameStat.LevelText[index];
+            if (string.IsNullOrEmpty(key)) return;
+            LocalizationManager locales = LocalizationManager.Instance;
+            if (locales == null || locales.LocaleResolver == null) return;
+            string localized = locales.LocaleResolver.GetString("StatLevel/" + key);
+            UnityEngine.UI.Text text = Traverse.Create(__0).Field("Text")
+                .GetValue<UnityEngine.UI.Text>();
+            if (text != null)
+                text.text = string.IsNullOrEmpty(localized) ? key : localized;
+            CombatStatusLog.Write(
+                "评语 " + gameStatType + " value=" + value
+                + " max=" + max + " index=" + index
+                + " key=" + key
+                + " text=" + (text != null ? text.text : ""));
+        }
+    }
+
+    /// <summary>
+    /// CombatStatItem 在 CombatStatController.SetStat 里按 CombatStat 字段新建。
+    /// 必须在这一步之后再把作者六维写进 Item，雷达读的是 FinalValue。
+    /// </summary>
+    [HarmonyPatch(typeof(CombatManager), "SetPlayerStat")]
+    internal static class CombatPlayerStatApplyPatch
+    {
+        private static void Prefix()
+        {
+            if (!GameplaySession.PendingCombat) return;
+            CombatPlayerStatSession.CaptureAndApply();
+        }
+
+        private static void Postfix(CombatManager __instance)
+        {
+            if (!GameplaySession.PendingCombat || __instance == null) return;
+            CombatActionController player = Traverse.Create(__instance)
+                .Field("_playerAction").GetValue<CombatActionController>();
+            if (player != null)
+                CombatPlayerStatSession.CaptureOfficialVitality(player.Stat);
+            CombatPlayerStatSession.ApplyExplicitVitality(player);
+        }
+
+        private static Exception Finalizer(Exception __exception)
+        {
+            if (__exception != null) CombatPlayerStatSession.Restore();
+            return __exception;
+        }
+    }
+
+    [HarmonyPatch(typeof(CombatStatController), "ResetData")]
+    internal static class CombatPlayerResetDataPatch
+    {
+        private static void Prefix(CombatStatController __instance)
+        {
+            if (!GameplaySession.PendingCombat || __instance == null
+                || !CombatStatOverridePatch.Owns(__instance.Data))
+                return;
+            // CombatStatController.ResetData calls the confirmed CombatStat.Reset.
+            // Reapply the owned clone before that call so CurrentHealth is reset
+            // from the configured DefaultHealth, never from the selected shell.
+            CombatStatOverridePatch.ApplyConfiguredVitality(__instance.Data);
+        }
+
+        private static void Postfix(CombatStatController __instance)
+        {
+            if (!GameplaySession.PendingCombat || __instance == null) return;
+            CombatManager manager = CombatManager.Instance;
+            CombatActionController player = manager != null
+                ? Traverse.Create(manager).Field("_playerAction").GetValue<CombatActionController>()
+                : null;
+            if (player != null && player.Stat == __instance)
+                CombatPlayerStatSession.ApplyExplicitVitality(player);
+            CombatActionController enemy = manager != null
+                ? Traverse.Create(manager).Field("_enemyAction").GetValue<CombatActionController>()
+                : null;
+            if (enemy != null && enemy.Stat == __instance
+                && CombatStatOverridePatch.Owns(__instance.Data))
+            {
+                CombatPlayerStatSession.SyncVitalityItems(enemy.Stat);
+                CombatStatOverridePatch.LogConfiguredVitality("CombatStatController.ResetData", enemy.Stat);
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(CombatStatController), "SetStat")]
+    internal static class CombatStatItemApplyPatch
+    {
+        private static void Postfix(CombatStatController __instance, CombatStat data)
+        {
+            if (!GameplaySession.PendingCombat || __instance == null || data == null) return;
+            CombatManager manager = CombatManager.Instance;
+            CombatActionController playerAction = manager != null
+                ? Traverse.Create(manager).Field("_playerAction").GetValue<CombatActionController>()
+                : null;
+            bool enemy = CombatStatOverridePatch.Owns(__instance.Data)
+                || CombatStatOverridePatch.Owns(data);
+            if (enemy)
+            {
+                // Use the data actually retained by the original SetStat call.
+                // Harmony postfix argument forwarding must not decide which
+                // temporary CombatStat receives the author configuration.
+                CombatStat liveData = __instance.Data;
+                CombatStatOverridePatch.ApplyConfiguredValues(liveData);
+                CombatStatOverridePatch.ReapplyConfiguredItems(__instance);
+                CombatPlayerStatSession.SyncVitalityItems(__instance);
+                CombatStatOverridePatch.LogConfiguredVitality("CombatStatController.SetStat", __instance);
+                return;
+            }
+            if (playerAction != null && playerAction.Stat == __instance)
+                CombatPlayerStatSession.ApplyExplicitVitality(playerAction);
+        }
+    }
+
+    /// <summary>
+    /// Talent effects add their modifiers in InitSkill. Run after the original
+    /// iterator so the HP bar observes BaseValue + ModifyList rather than a
+    /// Host-created replacement item.
+    /// </summary>
+    [HarmonyPatch(typeof(CombatActionController), "InitSkill")]
+    internal static class CombatInitialVitalityFinalizePatch
+    {
+        private static void Postfix(CombatActionController __instance, ref IEnumerator __result)
+        {
+            if (!GameplaySession.PendingCombat || __instance == null) return;
+            __result = Wrap(__instance, __result);
+        }
+
+        private static IEnumerator Wrap(CombatActionController action, IEnumerator original)
+        {
+            while (original != null && original.MoveNext()) yield return original.Current;
+            CombatManager manager = CombatManager.Instance;
+            CombatActionController enemy = manager != null
+                ? Traverse.Create(manager).Field("_enemyAction").GetValue<CombatActionController>()
+                : null;
+            if (action == enemy || CombatStatOverridePatch.Owns(
+                action.Stat != null ? action.Stat.Data : null))
+            {
+                CombatStatOverridePatch.FinalizeConfiguredHealth(
+                    action, "", "CombatActionController.InitSkill");
+                yield break;
+            }
+            CombatActionController player = manager != null
+                ? Traverse.Create(manager).Field("_playerAction").GetValue<CombatActionController>()
+                : null;
+            if (action == player)
+            {
+                // CombatManager and combat talents both run between SetPlayerStat
+                // and InitSkill completion. Rebase here, at the last confirmed
+                // initialization point, so player_max_health survives them while
+                // the existing ModifyList remains intact.
+                CombatPlayerStatSession.ApplyExplicitVitality(player);
+                CombatStatOverridePatch.FinalizeConfiguredHealth(
+                    action, CombatPlayerOverridePolicy.Prefix,
+                    "CombatActionController.InitSkill");
+            }
+        }
+    }
+
+    /// <summary>
+    /// 雷达数字读 CombatStatItem.FinalValue，分母固定 100。打开任一状态页前
+    /// 再把作者六维写回 Item，避免玩家页仍停在 GameStat 的 50。
+    /// </summary>
+    [HarmonyPatch(typeof(CombatCharacterStatusUI), "UpdateRadarStat")]
+    internal static class CombatRadarStatApplyPatch
+    {
+        private static void Prefix(CombatCharacterStatusUI __instance)
+        {
+            if (!GameplaySession.PendingCombat || __instance == null) return;
+            CombatActionController action = Traverse.Create(__instance)
+                .Field("_actionController").GetValue<CombatActionController>();
+            if (action == null) return;
+            string prefix = ConfigPrefix(action);
+            CombatStatOverridePatch.ReapplyConfiguredItems(action, prefix);
+        }
+
+        private static void Postfix(CombatCharacterStatusUI __instance)
+        {
+            if (!GameplaySession.PendingCombat || __instance == null) return;
+            CombatActionController action = Traverse.Create(__instance)
+                .Field("_actionController").GetValue<CombatActionController>();
+            if (action == null || action.Stat == null) return;
+            string prefix = ConfigPrefix(action);
+            CombatStatOverridePatch.ReapplyConfiguredItems(action, prefix);
+            WriteRadarFromConfig(action, prefix + "strength", __instance, "_strValue", 0,
+                delegate(int v)
+                {
+                    action.Stat.Strength = new CombatStatItem(v);
+                    if (action.Stat.Data != null) action.Stat.Data.Strength = v;
+                });
+            WriteRadarFromConfig(action, prefix + "dexterity", __instance, "_dexValue", 1,
+                delegate(int v)
+                {
+                    action.Stat.Dexterity = new CombatStatItem(v);
+                    if (action.Stat.Data != null) action.Stat.Data.Dexterity = v;
+                });
+            WriteRadarFromConfig(action, prefix + "sword", __instance, "_swordValue", 2,
+                delegate(int v)
+                {
+                    action.Stat.Sword = new CombatStatItem(v);
+                    if (action.Stat.Data != null) action.Stat.Data.Sword = v;
+                });
+            WriteRadarFromConfig(action, prefix + "martial_weapon", __instance, "_weaponValue", 3,
+                delegate(int v)
+                {
+                    action.Stat.MartialWeapon = new CombatStatItem(v);
+                    if (action.Stat.Data != null) action.Stat.Data.MartialWeapon = v;
+                });
+            WriteRadarFromConfig(action, prefix + "fist", __instance, "_fistValue", 4,
+                delegate(int v)
+                {
+                    action.Stat.Fist = new CombatStatItem(v);
+                    if (action.Stat.Data != null) action.Stat.Data.Fist = v;
+                });
+            WriteRadarFromConfig(action, prefix + "stamina_power", __instance, "_staminaValue", 5,
+                delegate(int v)
+                {
+                    action.Stat.Stamina = new CombatStatItem(v);
+                    if (action.Stat.Data != null) action.Stat.Data.Stamina = v;
+                });
+        }
+
+        internal static string ConfigPrefix(CombatActionController action)
+        {
+            CombatManager manager = CombatManager.Instance;
+            CombatActionController player = manager != null
+                ? Traverse.Create(manager).Field("_playerAction").GetValue<CombatActionController>()
+                : null;
+            return player != null && action == player ? CombatPlayerOverridePolicy.Prefix : "";
+        }
+
+        private static void WriteRadarFromConfig(
+            CombatActionController action, string key, CombatCharacterStatusUI ui,
+            string textField, int index, Action<int> apply)
+        {
+            int value;
+            if (action == null || !GameplaySession.TryConfigInt(key, 0, 10000, out value))
+            {
+                CombatStatusLog.Write("六维 " + key + " config=MISSING");
+                return;
+            }
+            apply(value);
+            UnityEngine.UI.Text text = Traverse.Create(ui).Field(textField)
+                .GetValue<UnityEngine.UI.Text>();
+            if (text != null)
+            {
+                text.text = value.ToString();
+                text.color = Color.white;
+            }
+            object radar = Traverse.Create(ui).Field("_statRadar").GetValue();
+            if (radar == null) return;
+            float[] distances = Traverse.Create(radar).Property("VerticesDistances")
+                .GetValue<float[]>();
+            if (distances == null || index < 0 || index >= distances.Length) return;
+            distances[index] = Mathf.Clamp01((float)value / 100f);
+            Traverse.Create(radar).Method("SetAllDirty").GetValue();
+            CombatStatusLog.Write("六维 " + key + " config=" + value + " ui=" + value);
         }
     }
 
     [HarmonyPatch(typeof(CombatManager), "OnDisable")]
     internal static class CombatRuntimeCleanupPatch
     {
-        private static void Postfix()
+        private static void Postfix(CombatManager __instance)
         {
-            CombatBackgroundOverridePatch.Clear();
+            CombatBackgroundOverridePatch.Clear(__instance);
             CombatRuntimeLevelPatch.Clear();
             CombatCustomAvatarPatch.Clear();
             CombatStatOverridePatch.Clear();
+            CombatPlayerStatSession.Restore();
         }
     }
 
@@ -1036,9 +1521,10 @@ namespace MortalModHost
                 .Field("_levelConfig").GetValue<BattleLevelConfig>();
             if (config == null || config.List == null)
                 throw new InvalidOperationException("BattleLevelConfig 不可用");
-            string preferred = string.Equals(side, "friend", StringComparison.Ordinal)
-                ? "_friendSpawnerPrefab" : "_enemySpawnerPrefab";
-            string[] fields = { preferred, "_enemySpawnerPrefab", "_friendSpawnerPrefab" };
+            string preferred = BattleCompositionPolicy.SameSideSpawnerField(side);
+            string[] fields = !string.IsNullOrEmpty(preferred)
+                ? new[] { preferred, "_enemySpawnerPrefab", "_friendSpawnerPrefab", "_neutralSpawnerPrefab" }
+                : new[] { "_friendSpawnerPrefab", "_enemySpawnerPrefab", "_neutralSpawnerPrefab" };
             for (int i = 0; i < config.List.Count; i++)
             {
                 BattleLevel level = config.List[i];
@@ -1059,6 +1545,21 @@ namespace MortalModHost
                     }
                     if (extras.Count > 0) return extras;
                 }
+            }
+            return extras;
+        }
+
+        private static List<NpcSpawnPreset> CollectSpawnerPresets(NpcSpawner source)
+        {
+            var extras = new List<NpcSpawnPreset>();
+            if (source == null || source.NpcPresets == null) return extras;
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            for (int p = 0; p < source.NpcPresets.Count; p++)
+            {
+                NpcSpawnPreset preset = source.NpcPresets[p];
+                if (preset == null || preset.Prefab == null) continue;
+                if (!seen.Add(preset.Prefab.name)) continue;
+                extras.Add(preset);
             }
             return extras;
         }
@@ -1108,7 +1609,7 @@ namespace MortalModHost
                 }
                 for (int i = 0; i < ids.Count; i++)
                 {
-                    NpcSpawnPreset named = TryResolveNamed(ids[i], __state);
+                    NpcSpawnPreset named = TryResolveNamed(ids[i], __state, __instance);
                     if (named == null)
                     {
                         LuaManagerPatch.Log?.LogWarning(
@@ -1133,7 +1634,8 @@ namespace MortalModHost
             catch (Exception ex) { GameplayOverrideFailure.Abort("战役具名角色", ex); }
         }
 
-        private static NpcSpawnPreset TryResolveNamed(string id, string side)
+        private static NpcSpawnPreset TryResolveNamed(
+            string id, string side, NpcSpawner current)
         {
             if (!BattleCompositionPolicy.HasNpcPrefabAsset(id)) return null;
             BattleLevelConfig config = Traverse.Create(GameLevelManager.Instance)
@@ -1145,7 +1647,10 @@ namespace MortalModHost
                 {
                     BattleLevel level = config.List[i];
                     if (level == null) continue;
-                    string[] fields = { "_friendSpawnerPrefab", "_enemySpawnerPrefab", "_neutralSpawnerPrefab" };
+                    string same = BattleCompositionPolicy.SameSideSpawnerField(side);
+                    string[] fields = !string.IsNullOrEmpty(same)
+                        ? new[] { same }
+                        : new[] { "_friendSpawnerPrefab", "_enemySpawnerPrefab", "_neutralSpawnerPrefab" };
                     for (int f = 0; f < fields.Length; f++)
                     {
                         GameObject owner = Traverse.Create(level).Field(fields[f]).GetValue<GameObject>();
@@ -1158,13 +1663,15 @@ namespace MortalModHost
                 }
             }
             if (found != null) return found;
-            return TryBuildNamedFromOfficialAnimator(id, side);
+            return TryBuildNamedFromOfficialAnimator(id, side, current);
         }
 
-        private static NpcSpawnPreset TryBuildNamedFromOfficialAnimator(string id, string side)
+        private static NpcSpawnPreset TryBuildNamedFromOfficialAnimator(
+            string id, string side, NpcSpawner current)
         {
+            string cacheKey = side + "/" + id;
             GameObject cached;
-            if (NamedTemplates.TryGetValue(id, out cached) && cached != null)
+            if (NamedTemplates.TryGetValue(cacheKey, out cached) && cached != null)
                 return new NpcSpawnPreset { Prefab = cached };
             string address;
             if (!BattleCompositionPolicy.TryOfficialBattleAnimatorAddress(id, out address))
@@ -1183,6 +1690,14 @@ namespace MortalModHost
                 GameplaySession.ConfigString(side + "_factions"));
             List<NpcSpawnPreset> pool = factions.Count > 0
                 ? CollectFactionPresets(side, factions[0]) : new List<NpcSpawnPreset>();
+            if (pool.Count == 0 && factions.Count > 0)
+            {
+                string opposite = string.Equals(side, "friend", StringComparison.Ordinal)
+                    ? "enemy" : "friend";
+                pool = CollectFactionPresets(opposite, factions[0]);
+            }
+            if (pool.Count == 0)
+                pool = CollectSpawnerPresets(current);
             if (pool.Count == 0)
             {
                 Addressables.Release(handle);
@@ -1203,7 +1718,7 @@ namespace MortalModHost
             }
             for (int i = 0; i < animators.Length; i++)
                 animators[i].runtimeAnimatorController = controller;
-            NamedTemplates[id] = template;
+            NamedTemplates[cacheKey] = template;
             LuaManagerPatch.Log?.LogInfo(
                 "官方战役人物 " + id + " 不在 BattleLevelConfig 预设表中；已用 catalog 实证 Animator 套到同阵营底板："
                 + address);
@@ -1226,9 +1741,7 @@ namespace MortalModHost
             {
                 NpcSpawnPreset preset = rows[i];
                 if (!MatchesOfficialPreset(preset, id)) continue;
-                if (current != null && !ReferenceEquals(current.Prefab, preset.Prefab))
-                    throw new InvalidOperationException("官方人物资源匹配不唯一：" + id);
-                current = preset;
+                if (current == null) current = preset;
             }
             return current;
         }
@@ -1244,16 +1757,8 @@ namespace MortalModHost
                     ? animators[i].runtimeAnimatorController : null;
                 if (controller == null) continue;
                 if (BattleCompositionPolicy.IsVerifiedAssetIdentity(id, controller.name)) return true;
-                AnimatorOverrideController overrides = controller as AnimatorOverrideController;
-                if (overrides == null) continue;
-                var clips = new List<KeyValuePair<AnimationClip, AnimationClip>>();
-                overrides.GetOverrides(clips);
-                for (int c = 0; c < clips.Count; c++)
-                {
-                    AnimationClip clip = clips[c].Value;
-                    if (clip != null && BattleCompositionPolicy.IsVerifiedAssetIdentity(id, clip.name))
-                        return true;
-                }
+                // 不扫 AnimationClip：大量杂兵片段叫 special4/attack，会把 special4
+                // 误配到多个不同 Prefab。
             }
             return false;
         }

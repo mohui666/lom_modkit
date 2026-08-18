@@ -9,7 +9,6 @@ using Mortal.Core;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
-using UnityEngine.UI;
 using UnityObject = UnityEngine.Object;
 
 namespace MortalModHost
@@ -74,6 +73,7 @@ namespace MortalModHost
             _runtimeStat = UnityObject.Instantiate(source.EnemyStat);
             _runtimeStat.name = RuntimeLevelName + "_STAT";
             ResetAuthorFacingState(_runtimeStat);
+            CombatStatOverridePatch.ApplyConfiguredValues(_runtimeStat);
             _emptyDialog = ScriptableObject.CreateInstance<CombatTalkingDialog>();
             _emptyDialog.NormalTalk = EmptyStrings();
             _emptyDialog.GoodTalk = EmptyStrings();
@@ -96,6 +96,10 @@ namespace MortalModHost
             fields.Field("_talkingEvent").SetValue(null);
             fields.Field("_winResult").SetValue(new CombatResultFlag[0]);
             fields.Field("_loseResult").SetValue(new CombatResultFlag[0]);
+            Sprite preparedBackground = CombatBackgroundOverridePatch.GetPreparedSprite(
+                CombatManager.Instance);
+            if (preparedBackground != null)
+                fields.Field("_backImage").SetValue(preparedBackground);
             _runtimeLevel.Events = new List<CombatEventData>();
             LuaManagerPatch.Log?.LogInfo(
                 "已即时创建隔离 CombatLevel；未继承任何固定 CL 的背景、事件、结果或作者数值");
@@ -176,9 +180,11 @@ namespace MortalModHost
     internal static class CombatBackgroundOverridePatch
     {
         private static string _address;
-        private static AsyncOperationHandle<Sprite> _handle;
-        private static bool _hasHandle;
+        private static readonly Dictionary<int, AsyncOperationHandle<Sprite>> Handles =
+            new Dictionary<int, AsyncOperationHandle<Sprite>>();
         private static Dictionary<string, string> _addresses;
+        private static int _preparedManagerId;
+        private static Sprite _preparedSprite;
 
         internal static void Capture()
         {
@@ -241,39 +247,56 @@ namespace MortalModHost
 
         private static IEnumerator Wrap(CombatManager manager, IEnumerator original)
         {
-            while (original != null && original.MoveNext()) yield return original.Current;
-            if (string.IsNullOrEmpty(_address))
+            // 原版 Start 在 LoadCombatLevelAsset 返回后才 Reset CombatRound，而
+            // LoadCombatLevelAsset 末尾已经 StartCoroutine(InitCombatRound)。不能在
+            // 原协程结束后再异步等背景，否则 InitCombatRound 先 NextRound、随后被
+            // Start 的 Reset 改回 0。先完成背景请求，再让原版按正常顺序运行。
+            string address = _address;
+            int managerId = manager != null ? manager.GetInstanceID() : 0;
+            if (!string.IsNullOrEmpty(address))
+            {
+                AsyncOperationHandle<Sprite> handle = Addressables.LoadAssetAsync<Sprite>(address);
+                if (managerId != 0) Handles[managerId] = handle;
+                if (!handle.IsDone) yield return handle;
+                if (handle.Status == AsyncOperationStatus.Succeeded && handle.Result != null)
+                {
+                    _preparedManagerId = managerId;
+                    _preparedSprite = handle.Result;
+                    LuaManagerPatch.Log?.LogInfo(
+                        "Combat 独立背景已预载，交由原版关卡初始化应用：" + address);
+                }
+                else
+                {
+                    LuaManagerPatch.Log?.LogError(
+                        "Combat 背景载入失败；保留可用背景继续决斗：" + address);
+                }
+            }
+            else
             {
                 LuaManagerPatch.Log?.LogWarning("Combat 独立背景不可用；保留可用背景继续决斗");
-                yield break;
             }
-            _handle = Addressables.LoadAssetAsync<Sprite>(_address);
-            _hasHandle = true;
-            if (!_handle.IsDone) yield return _handle;
-            if (_handle.Status != AsyncOperationStatus.Succeeded || _handle.Result == null)
-            {
-                LuaManagerPatch.Log?.LogError(
-                    "Combat 背景载入失败；保留可用背景继续决斗：" + _address);
-                yield break;
-            }
-            Traverse fields = Traverse.Create(manager);
-            SpriteRenderer backSprite = fields.Field("_backSprite").GetValue<SpriteRenderer>();
-            Image backImage = fields.Field("_backImage").GetValue<Image>();
-            if (backSprite == null || backImage == null)
-            {
-                LuaManagerPatch.Log?.LogError("Combat 背景渲染器不可用；继续决斗");
-                yield break;
-            }
-            backSprite.sprite = _handle.Result;
-            backImage.sprite = _handle.Result;
-            LuaManagerPatch.Log?.LogInfo("Combat 已应用独立背景：" + _address);
+            while (original != null && original.MoveNext()) yield return original.Current;
         }
 
-        internal static void Clear()
+        internal static Sprite GetPreparedSprite(CombatManager manager)
         {
-            if (_hasHandle) Addressables.Release(_handle);
-            _hasHandle = false;
-            _address = null;
+            if (manager == null || manager.GetInstanceID() != _preparedManagerId) return null;
+            return _preparedSprite;
+        }
+
+        internal static void Clear(CombatManager manager)
+        {
+            if (manager == null) return;
+            int managerId = manager.GetInstanceID();
+            if (_preparedManagerId == managerId)
+            {
+                _preparedManagerId = 0;
+                _preparedSprite = null;
+            }
+            AsyncOperationHandle<Sprite> handle;
+            if (!Handles.TryGetValue(managerId, out handle)) return;
+            Addressables.Release(handle);
+            Handles.Remove(managerId);
         }
     }
 }

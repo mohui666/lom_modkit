@@ -34,6 +34,18 @@ class CombatNodeTest(unittest.TestCase):
             'mod_gameplay_configure("combat", "character=brother4;background=battlefield;max_health=800;'
             'health=650;strength=20;attack_rate=0.65;talents=0001:3")', lua
         )
+
+    def test_player_overrides_use_prefixed_keys_and_do_not_require_save_slots(self):
+        lua = compile_story(story({
+            "id": "fight", "type": "combat", "character": "brother4",
+            "background": "battlefield",
+            "player_strength": 80, "player_stamina_power": 70,
+            "player_talents": [{"key": "0001", "level": 2}],
+            "win": "win", "lose": "lose",
+        }))
+        self.assertIn("player_strength=80", lua)
+        self.assertIn("player_stamina_power=70", lua)
+        self.assertIn("player_talents=0001:2", lua)
         self.assertIn('mod_gameplay_start_scene("combat")', lua)
         self.assertNotIn('ChangeScene("Combat", "0001_01", "Story")', lua)
         self.assertNotIn('ChangeScene("Combat", "brother4"', lua)

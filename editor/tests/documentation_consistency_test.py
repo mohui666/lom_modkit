@@ -76,7 +76,7 @@ class DocumentationConsistencyTest(unittest.TestCase):
 
         authoritative = _read(CAPABILITY_DOCS[0])
         self.assertIn("高层 `combat`", authoritative)
-        self.assertIn("尚未实机验证", authoritative)
+        self.assertIn("Runtime 回归测试和 Showcase3 实机验收覆盖", authoritative)
         self.assertIn("draw", authoritative)
         self.assertIn("不写存档", authoritative)
         self.assertIn("不是数字签名", authoritative)

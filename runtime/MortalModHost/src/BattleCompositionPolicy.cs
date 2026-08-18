@@ -26,6 +26,28 @@ namespace MortalModHost
             return !string.IsNullOrEmpty(faction) && OfficialFactions.Contains(faction);
         }
 
+        /// <summary>
+        /// 只认本方生成器。敌方 Boss preset 的 Entity._originType 是 Enemy，
+        /// 丢进我方队列会站在友军出生点却打友军。
+        /// </summary>
+        internal static string SameSideSpawnerField(string side)
+        {
+            if (string.Equals(side, "friend", StringComparison.Ordinal))
+                return "_friendSpawnerPrefab";
+            if (string.Equals(side, "enemy", StringComparison.Ordinal))
+                return "_enemySpawnerPrefab";
+            if (string.Equals(side, "neutral", StringComparison.Ordinal))
+                return "_neutralSpawnerPrefab";
+            return null;
+        }
+
+        internal static bool IsSameSideSpawnerField(string side, string field)
+        {
+            string expected = SameSideSpawnerField(side);
+            return !string.IsNullOrEmpty(expected)
+                && string.Equals(expected, field, StringComparison.Ordinal);
+        }
+
         internal static List<string> ParseFactions(string encoded)
         {
             List<FactionGroup> groups = ParseFactionGroups(encoded);
@@ -183,7 +205,9 @@ namespace MortalModHost
             for (int t = 0; t < tokens.Length; t++)
             {
                 string token = tokens[t];
-                if (value == token || value == token + "animator") return true;
+                if (value == token || value == token + "animator"
+                    || value == "enemy" + token || value == "enemy" + token + "animator")
+                    return true;
                 for (int i = 0; i < animationSuffixes.Length; i++)
                     if (value.StartsWith(token + animationSuffixes[i], StringComparison.Ordinal)
                         || value.StartsWith("enemy" + token + animationSuffixes[i],
@@ -199,10 +223,8 @@ namespace MortalModHost
 
         internal static string[] IdentityTokens(string id)
         {
-            string padded = AssetToken(id);
-            if (string.Equals(padded, id, StringComparison.Ordinal))
-                return new[] { padded };
-            return new[] { padded, id };
+            // special4 / girl4 本身是官方表情档名，不能当 NPC 身份；只认补零后的 special004。
+            return new[] { AssetToken(id) };
         }
 
         internal static string[] DisplayAliases(string id)
@@ -210,7 +232,10 @@ namespace MortalModHost
             if (id == "special4") return new[] { "樊嘯天", "樊啸天" };
             if (id == "special102") return new[] { "南宮深", "南宫深" };
             if (id == "special103") return new[] { "南宮淺", "南宫浅" };
-            if (id == "special401") return new[] { "毛二壯", "毛二壮" };
+            // 资源目录是 Special_401_毛二壯，故事/预制体显示名是 丐幫_王二壯。
+            if (id == "special401")
+                return new[] { "王二壯", "王二壮", "毛二壯", "毛二壮" };
+            if (id == "special811") return new[] { "唐衫" };
             return new string[0];
         }
 

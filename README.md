@@ -5,11 +5,11 @@
 不用写 Lua。用图形编辑器编排人物对白、场景演出、分支剧情、音乐音效，
 一键导出 `.lommod`，直接在游戏中运行。
 
-[![Release v1.0.1](https://img.shields.io/badge/release-v1.0.1-blue)](https://github.com/mohui666/lom_modkit/releases/latest)
+[![Release v1.1.0](https://img.shields.io/badge/release-v1.1.0-blue)](https://github.com/mohui666/lom_modkit/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)](#兼容性)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-**[⬇ 下载 Windows 版](https://github.com/mohui666/lom_modkit/releases/download/v1.0.1/lom_modkit-v1.0.1_windows_x64.zip)** ·
+**[⬇ 下载 Windows 版](https://github.com/mohui666/lom_modkit/releases/download/v1.1.0/lom_modkit-v1.1.0_windows_x64.zip)** ·
 [快速开始](#快速开始) ·
 [文档](docs/README.md)
 
@@ -29,7 +29,7 @@ lom_modkit 让你用《活侠传》**原有的人物、场景、音乐、特效�
 
 ## 能做什么
 
-- **可视化剧情编辑**：人物、对白、表情、站位、场景、音乐、音效、特效全部通过 UI 配置。
+- **可视化剧情编辑**：62 种节点覆盖人物、对白、表情、站位、场景、音乐、音效与特效，全部通过 UI 配置。
 - **分支剧情**：选项、条件分支、属性判定、骰子检定、多章节链式脚本。
 - **剧情内容本地化**：同一 Story 可维护简中、繁中、日语、韩语译文，支持默认语言与缺失译文回退；旧项目无需迁移。
 - **直接调用游戏内容**：使用游戏现有人物、场景、音乐与演出系统，不需要自己重做一套。
@@ -41,7 +41,7 @@ lom_modkit 让你用《活侠传》**原有的人物、场景、音乐、特效�
 
 ### 1. 下载
 
-下载 [lom_modkit-v1.0.1_windows_x64.zip](https://github.com/mohui666/lom_modkit/releases/download/v1.0.1/lom_modkit-v1.0.1_windows_x64.zip) 并解压。无需安装 Python。
+下载 [lom_modkit-v1.1.0_windows_x64.zip](https://github.com/mohui666/lom_modkit/releases/download/v1.1.0/lom_modkit-v1.1.0_windows_x64.zip) 并解压。无需安装 Python。
 
 ### 2. 启动
 
@@ -181,8 +181,11 @@ SHA-256 前 16 个十六进制字符，可用来核对具体文件，但**不是
 
 ## 当前版本
 
-**v1.0.1**：`.lommod` v3 强制稳定 `campaign_id` 与战役存档隔离 · MOD 战役只选择、不误启动 ·
-单挑角色仅控制动画并支持 idle 回退 · 修正战役总人数/官方人物计数与编辑器预览裁切。
+**v1.1.0**：完善原版风格 MOD 存档页与每个 MOD 的 001～020 独立栏位；修复 Combat/Battle
+读档、回合、血量叠加和剧情背景恢复；新增赵活基准属性/天赋覆盖，并保留原版体力与被动加成。
+同时更新战斗/战役节点、编辑器表单、Showcase3 验收样例和发布构建流程。
+
+完整变更见 [1.1.0 Release Notes](RELEASE_NOTES_v1.1.0.md)。
 
 **v1.0.0**：统一 Editor/Runtime 版本 · `.lommod` v2 严格校验与 Story/Lua 一致性 ·
 Lua 环境隔离与完整生命周期清理 · 一次性热键迁移 · Runtime 自动化测试与 CI。
@@ -190,7 +193,7 @@ Lua 环境隔离与完整生命周期清理 · 一次性热键迁移 · Runtime 
 **v0.7.0**：自定义角色立绘 · 对白语音归属 · 介绍卡与称号 · 体型滑条 ·
 离场清台 · 节点按类型编号。
 
-完整变更见 [Release Notes](https://github.com/mohui666/lom_modkit/releases)。
+历史版本见 [Release Notes](https://github.com/mohui666/lom_modkit/releases)。
 
 ## Roadmap
 
@@ -316,7 +319,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1
 不需要。Windows 发行版是独立 exe。只有从源码运行/开发才需要 Python 3.10+ 与 .NET（构建插件）。
 
 **Q：Mod 会修改我的游戏文件或存档吗？**
-不会修改官方脚本与文本表。「开始新战役」使用隔离存档槽（`mod_<modid>`），不覆盖你的正常存档。
+不会修改官方脚本与文本表。「开始新战役」使用 `mod_campaign_<campaign_id>` 命名空间下的独立栏位和自动档，不覆盖你的正常存档。
 
 **Q：做好的 Mod 可以发给别人吗？**
 可以。导出的 `.lommod` 自包含（含引用的音频/图片），对方用本工具装好运行时即可游玩。

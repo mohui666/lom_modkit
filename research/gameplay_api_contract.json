@@ -53,6 +53,12 @@
         "public IEnumerator GameOver(bool win)",
         "_combatLevel = combatLevel;",
         "_enemyAction.SetStat(_combatLevel.EnemyStat);",
+        "yield return LoadCombatLevelAsset();",
+        "_round.Reset();",
+        "StartCoroutine(InitCombatRound());",
+        "_round.NextRound();",
+        "yield return _playerAction.InitSkill();",
+        "yield return _enemyAction.InitSkill();",
         "yield return GameOver(win: true)",
         "yield return GameOver(win: false)",
         "yield return LoadNextScene()",
@@ -75,6 +81,14 @@
         "public StoryCharaterImageItem[] PortraitResourceList",
         "public string Id",
         "public string NameKey"
+      ]
+    },
+    {
+      "assembly": "Mortal.Core.dll",
+      "type": "Mortal.Core.GameStatConvertData",
+      "required_fragments": [
+        "protected override int GetValue()",
+        "return _statData.FinalValue;"
       ]
     },
     {
@@ -139,9 +153,52 @@
     },
     {
       "assembly": "Mortal.Combat.dll",
+      "type": "Mortal.Combat.CombatStatItem",
+      "required_fragments": [
+        "public int BaseValue { get; private set; }",
+        "public List<CombatEffectModifyItem> ModifyList { get; }",
+        "public int FinalValue { get; private set; }",
+        "public CombatStatItem(int baseValue)",
+        "public void SetBaseValue(int value)",
+        "public void UpdateFinalValue()",
+        "public void AddModify(string key, int value)"
+      ]
+    },
+    {
+      "assembly": "Mortal.Combat.dll",
+      "type": "Mortal.Combat.CombatStatController",
+      "required_fragments": [
+        "public int MaxHealthValue => MaxHealth.FinalValue",
+        "public IEnumerator ModifyHealth(int value)",
+        "_statData.CurrentHealth = Mathf.Clamp(_statData.CurrentHealth, CurrentMinHealth, _statData.MaxHealth)"
+      ]
+    },
+    {
+      "assembly": "Mortal.Combat.dll",
+      "type": "Mortal.Combat.CombatRound",
+      "required_fragments": [
+        "private int _value;",
+        "public int Value => _value;",
+        "public void Reset()",
+        "_value = 0;",
+        "public void NextRound()",
+        "_value++;"
+      ]
+    },
+    {
+      "assembly": "Mortal.Combat.dll",
+      "type": "Mortal.Combat.CombatRoundUI",
+      "required_fragments": [
+        "private CombatRound _roundData;",
+        "_valueText.text = string.Format(@string, _roundData.Value);"
+      ]
+    },
+    {
+      "assembly": "Mortal.Combat.dll",
       "type": "Mortal.Combat.CombatActionController",
       "required_fragments": [
         "public void SetStat(CombatStat data)",
+        "public IEnumerator InitSkill()",
         "public bool IsDead => _alreadyDead;"
       ]
     },
@@ -159,6 +216,8 @@
       "required_fragments": [
         "private Text _nameText;",
         "public void Setup()",
+        "public IEnumerator UpdateHealth()",
+        "int finalValue = _combatStatController.MaxHealth.FinalValue",
         "_nameText.text = @string;",
         "_statData.GetNameKey()"
       ]
@@ -376,6 +435,27 @@
         "public void OnTitleClick()",
         "SaveSystem.Instance.LoadGameData()",
         "SceneController.Instance.LoadCurrentScene()"
+      ]
+    },
+    {
+      "assembly": "Mortal.Core.dll",
+      "type": "Mortal.Core.SaveGamePanel",
+      "required_fragments": [
+        "private SaveSlotPanel[] _saveSlots;",
+        "public void OnPanelOpen()",
+        "public void ConfirmSaveSlot()",
+        "SaveSystem.Instance.SaveGameData(_currentConfirmSlot);"
+      ]
+    },
+    {
+      "assembly": "Mortal.Core.dll",
+      "type": "Mortal.Core.SaveSlotPanel",
+      "required_fragments": [
+        "private string _slot = \"001\";",
+        "private GameSave _currentData;",
+        "public void Setup()",
+        "public void OnTitleClick()",
+        "_confirmEvent.Raise(_slot);"
       ]
     },
     {

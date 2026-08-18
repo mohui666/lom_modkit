@@ -5,11 +5,11 @@
 Lua를 작성할 필요가 없습니다. 그래픽 에디터로 인물 대사, 장면 연출, 분기 시나리오, 음악·효과음을 편성하고,
 한 번의 클릭으로 `.lommod`를보내 게임에서 바로 실행할 수 있습니다.
 
-[![Release v1.0.1](https://img.shields.io/badge/release-v1.0.1-blue)](https://github.com/mohui666/lom_modkit/releases/latest)
+[![Release v1.1.0](https://img.shields.io/badge/release-v1.1.0-blue)](https://github.com/mohui666/lom_modkit/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)](#호환성)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-**[⬇ Windows 판 다운로드](https://github.com/mohui666/lom_modkit/releases/download/v1.0.1/lom_modkit-v1.0.1_windows_x64.zip)** ·
+**[⬇ Windows 판 다운로드](https://github.com/mohui666/lom_modkit/releases/download/v1.1.0/lom_modkit-v1.1.0_windows_x64.zip)** ·
 [빠른 시작](#빠른-시작) ·
 [문서](docs/ko/README.md)
 
@@ -41,7 +41,7 @@ lom_modkit은 『활협전』의 **기존 인물, 장면, 음악, 특수 효과�
 
 ### 1. 다운로드
 
-[lom_modkit-v1.0.1_windows_x64.zip](https://github.com/mohui666/lom_modkit/releases/download/v1.0.1/lom_modkit-v1.0.1_windows_x64.zip)을 다운로드하고 압축을 풉니다. Python을 설치할 필요가 없습니다.
+[lom_modkit-v1.1.0_windows_x64.zip](https://github.com/mohui666/lom_modkit/releases/download/v1.1.0/lom_modkit-v1.1.0_windows_x64.zip)을 다운로드하고 압축을 풉니다. Python을 설치할 필요가 없습니다.
 
 ### 2. 실행
 
@@ -124,8 +124,9 @@ lom_modkit은 『활협전』의 **기존 인물, 장면, 음악, 특수 효과�
 
 ## 현재 버전
 
-**v1.0.1**: `.lommod` v3에서 안정적인 `campaign_id`와 캠페인 저장 분리를 필수화 · MOD 캠페인은 선택만 하고 잘못 시작하지 않음 ·
-결투 인물은 애니메이션에만 영향을 주고 idle 폴백 지원 · 전투 총인원/공식 인물 수와 에디터 미리보기 잘림 수정.
+**v1.1.0**: 원작 스타일 MOD 저장 화면과 MOD별 001～020 분리 슬롯을 정리했습니다. Combat/Battle 불러오기, 라운드, 체력 중복 누적과 스토리 배경 복원을 수정하고, 조활의 기준 스탯/재능 덮어쓰기와 원작 체력·패시브 보정을 함께 유지합니다.
+
+자세한 변경은 [1.1.0 Release Notes](RELEASE_NOTES_v1.1.0.md) 및 [Release Notes](https://github.com/mohui666/lom_modkit/releases)를 참조하세요.
 
 **v1.0.0**: Editor/Runtime 버전 통일 · `.lommod` v2 엄격 검증과 Story/Lua 일관성 ·
 Lua 환경 격리와 전체 수명 주기 정리 · 일회성 단축키 마이그레이션 · Runtime 자동화 테스트와 CI.
@@ -234,7 +235,7 @@ Windows 배포판은 Runtime 정식 빌드 후 `editor/.venv/Scripts/python edit
 필요 없습니다. Windows 배포판은 독립 exe입니다. 소스에서 실행/개발할 때만 Python 3.10+와 .NET(플러그인 빌드)이 필요합니다.
 
 **Q: Mod가 제 게임 파일이나 세이브를 수정하나요?**
-공식 스크립트와 텍스트 테이블은 수정하지 않습니다. 「새 캠페인 시작」은 격리된 세이브 슬롯(`mod_<modid>`)을 사용하므로 정상 세이브를 덮어쓰지 않습니다.
+공식 스크립트와 텍스트 테이블은 수정하지 않습니다. 「새 캠페인 시작」은 `mod_campaign_<campaign_id>` 네임스페이스의 분리 슬롯과 자동 저장을 사용하므로 정상 세이브를 덮어쓰지 않습니다.
 
 **Q: 만든 Mod를 다른 사람에게 보낼 수 있나요?**
 가능합니다. 보낸 `.lommod`는 자체 완결형(참조하는 오디오/이미지 포함)이며, 상대방이 본 도구로 런타임을 설치하면 플레이할 수 있습니다.

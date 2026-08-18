@@ -67,12 +67,12 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
   "story_schema": 2,
   "content_schema": 1,
   "min_host_version": "1.0.0",
-  "tested_host_version": "1.0.1",
+  "tested_host_version": "1.1.0",
   "tested_game_version": "1.2.3",
   "id": "demo_mod",
   "campaign_id": "demo_campaign",
   "name": "示例 Mod",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "author": "somebody",
   "description": "一句话简介",
   "entry": "main",
@@ -90,7 +90,7 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 - `story_schema`：包内 `story/*.json` 源格式版本，当前固定 `2`。
 - `content_schema`：包内 `assets/user/*/*/content.json` 格式版本，当前固定 `1`。
 - `format`：兼容拼写，值必须与 `package_format` 同为 `3`。未知、旧版或互相冲突的声明都会被拒绝。
-- v1/v2 manifest 和 Story 的 Combat/Battle 语义无法安全推断，也没有稳定 `campaign_id`，Editor 不会自动迁移或从 `id` 猜测。旧项目须由作者选择长期不变的战役 ID、重新配置相关节点并用 1.0.1 重新导出。
+- v1/v2 manifest 和 Story 的 Combat/Battle 语义无法安全推断，也没有稳定 `campaign_id`，Editor 不会自动迁移或从 `id` 猜测。旧项目须由作者选择长期不变的战役 ID、重新配置相关节点并用 1.0.1 或更高版本重新导出。
 - `id`：mod 包唯一 id（`[a-z0-9_\-]{1,64}`），作为 Lua 注册名前缀；它不是存档身份。
 - `campaign_id`：战役唯一且跨包版本稳定的 id（同样匹配 `[a-z0-9_\-]{1,64}`），唯一用于生成 `mod_campaign_<campaign_id>` 存档命名空间。同一战役更新时不得改变，也不会回退为 `id`。
 - `entry`：入口剧情脚本 id（`[A-Za-z0-9_\-]{1,64}`），必须存在；`lua/` 下所有脚本 id 同样由运行时复验。
@@ -102,7 +102,7 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 - `name`、`version`、`author`、`description` 都是**作者自报元数据**，不能声明官方身份。运行时展示前会单行化、限长，并移除控制字符、双向覆盖/零宽格式字符与富文本尖括号。
 - 未定义 `official`、`verified`、`signature`、`sha256` 等信任字段；手工向 manifest 添加这些字段不会影响 Host 计算的包指纹，也不会显示为官方内容。
 - `campaign`（可选）：战役模式。
-  - `new_game`：v3 固定为 true。选择 MOD 只切换到该战役的存档页，不直接开局；只有明确点击“开始新战役”才使用 `SetSlot("mod_campaign_<campaign_id>")` 开新游戏并把首个脚本替换为本包 `entry`。
+  - `new_game`：v3 固定为 true。选择 MOD 只切换到该战役的存档页，不直接开局；只有明确点击“开始新战役”才使用当前选中的 `mod_campaign_<campaign_id>` / `_sNNN` 隔离槽开新游戏，并把首个脚本替换为本包 `entry`。
   - `disable_official_events`（可选，bool，缺省 false）：true 时本战役**禁用原版剧情事件**——返回 Free 时不自动启动无地点主线/支线，地图位置只保留本 mod 触发器（未命中则该位置默认活动不可用，需 mod 自带兜底触发器）。
   - `triggers`：自由模式触发器数组。`type="position"`：点击地图位置 `position`（PositionType 枚举 id：Mall/Center/Alchemy/Forge/BackMountain/Room1/Door/Study/Kitchen/Room2/Secret）时，该位置默认活动脚本替换为 `script`（同包脚本 id）。可选条件全部命中才生效（多条件 AND；**数组顺序=优先级**，运行时取第一个全部命中的触发器）：
     - `when_flag_set` / `when_flag_clear`：剧情 flag（即 `flag` 节点 AddStory 的 key，存档持久化）已设置/未设置。
@@ -192,7 +192,7 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 | `game_flag` | `flag`, `value`；可选 `op`("set"默认/"add") | 官方任务 flag：`SetFlag(id, 状态)` / `AddFlag(id, ±增量)`。**id 必须是游戏已有 FlagData**（14_属性与Flag 表），否则游戏静默忽略 |
 | `enemy` | `op`("team"=向心力/"level"=门派规模/"people"=门派人数/"id"=选择当前敌对门派), `enemy`(战役门派 id), `value`(变化量，id 操作不需要), `display`(仅 team/people 使用，默认1) | 修改 **Battle 多人战役**使用的门派状态 `ModifyEnemyTeam/Level/People/Id`；不配置 Combat 一对一决斗敌人 |
 | `battle_skill` | `op`("set"/"active"/"reset"), `key`(reset 不需要), `index`(set 用, 默认2), `active`(active 用, 默认1) | 战场技能 `SetPlayerBattleSkill/SetBattleSkillActive/ResetBattleSkill` |
-| `combat` | 必填 `character`, `background`, `win`, `lose`；可选 HP/气力/内力/内功、抗性与暗器累积、性情/处世/道德/修养、实际生效的伤害/骰子/命中/招架补正、`talents`、五类行动概率 | `talents` 为官方 `PlayerTalentData` 里 115 个 CombatSkill，按真实最大等级校验。`character` 只管姓名和动画，`background` 独立。儒学/佛学/道学/形意/战术由技能写入，不是独立字段。无四帧时回退 normal 并钉待机中心 |
+| `combat` | 必填 `character`, `background`, `win`, `lose`；可选对手 HP/气力/六维/评语/`talents`/行动概率；可选 `player_*` 与 `player_talents` 覆盖本场赵活 | 对手与赵活都只写本场 `CombatStat`。对手只填 `max_health` / `max_stamina` 时会以该最大值满血/满气开场；填写 `health` / `stamina` 才覆盖初始值。赵活未填的字段仍走官方 `SetPlayerStat` 从 `GameStat` 抄值。`player_*` 不写 `SaveSystem`/`PlayerStatManagerData`，战后赵活存档属性自然恢复。`talents`/`player_talents` 为官方 CombatSkill |
 | `battle` | 必填 `win`, `lose`；可选 `title`、`friend_health` / `enemy_health`、`friend_factions` / `enemy_factions`（`{id,people}`）、`friend_characters` / `enemy_characters` | 各方总人数 = 各阵营 people + 具名角色，至少 1。阵营必须是已有 `BattleLevel.NameKey` 的 id。具名角色仅限可生成的官方人物。标题写 `ReadyPanel._enemyNameText`；血量克隆 `HealthData`，不改官方资产。旧 `friend_people` / 单数 `friend_faction` 拒绝 |
 | `battle_result` | `win`, `lose`；可选 `kind`("any"/"combat"/"battle"，默认 any) | 读取 Host 按完整包指纹和剧情 id 绑定的最后真实结果并分支。当前仅支持反编译确认的 win/lose；无结果、类型不符或伪造 draw/escape 都会 fail-closed。终止节点，不允许额外 goto |
 | `reward` | `entries`(1~32)：`kind`=stat/affinity/talent/item/flag，`key`，非 flag 用 `amount`，item 另用 `category`=book/misc/special | 编译期展开为现有 `Player` / `Character` / `AddTalent` / `AddBook|Misc|Special` / `AddStory` 与 `modflags`，不发明奖励存档系统 |
@@ -206,8 +206,8 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 | `activity` | `kind`=training/study/forge/alchemy/custom，`stat`,`op`,`value`,`success`,`failure`；可选 `message`,`time`=none/round/month、成功/失败奖励表 | 编译期组合现有系统提示、`GetStatData` 检定、`NextRound/NextMonth` 与 `reward` 原子接口，不引入新活动引擎 |
 | `mod_quest` | `quest`(安全 id), `op`=start/update/complete/fail；可选 `message` | 操作 Host 自有任务状态机；按包 id + 完整 SHA-256 隔离，不调用 `MissionManager`，不占用官方 Mission ID。当前是战役会话态，跨 Story/Free、但不跨重启/新战役 |
 | `quest_check` | `quest`,`state`=inactive/active/completed/failed,`success`,`failure` | 读取同包任务状态并二分；未知任务为 inactive，非法状态迁移在运行时拒绝 |
-| `persistent_var` | `key`(安全 id), `op`=set/add, `value`(Int32) | 设置或增减当前 MOD 隔离槽的 Host sidecar 整数变量。只允许 `SaveSystem.CurrentSlot == "mod_campaign_<campaign_id>"`；修改先留在内存，原版 `SaveGameData` 成功返回后原子写入，不修改 GameSave schema |
-| `persistent_check` | `key`,`op`(>=/>/<=/</==),`value`(Int32),`success`,`failure` | 读取同一 sidecar 后二分；缺失变量为 0。普通存档槽、F5 试玩槽、其他 MOD 槽一律拒绝访问 |
+| `persistent_var` | `key`(安全 id), `op`=set/add, `value`(Int32) | 设置或增减当前 MOD 隔离手动槽的 Host sidecar 整数变量。只允许 `SaveSystem.CurrentSlot` 属于当前 `campaign_id` 的 `mod_campaign_<campaign_id>` / `_sNNN` 命名空间；修改先留在内存，原版手动/自动存档成功返回后原子写入，不修改 GameSave schema |
+| `persistent_check` | `key`,`op`(>=/>/<=/</==),`value`(Int32),`success`,`failure` | 读取同一隔离手动槽 sidecar 后二分；缺失变量为 0。普通存档槽、F5 试玩槽、其他 MOD 槽一律拒绝访问 |
 | `mission` | `name`, `key` | 任务操作 `statmodifymanager.Mission(name, key)`：`Mission("Main","M0001")` 推进主线 / `Mission("S2200","clear")` 清支线 |
 | `time` | `op`("set"/"round"/"month"/"mission")；set 用 `year,month,stage`；mission 用 `name,year,month,stage` | 时间 `SetGameTime/NextRound/NextMonth/SetMissionTime` |
 | `autosave` | 可选 `kind`("story"默认/"free"/"prologue")；可选 `save_button`(0/1，单独控制存档按钮) | `AutoSave()/AutoFreeSave()/PrologueSave(mode)`；`save_button` 单独 emit `ToggleSaveButton(n)` |
@@ -420,9 +420,9 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 
 1. 启动扫描 `BepInEx/plugins/MortalModHost/mods/*.lommod`，限制物理包大小、ZIP 条目数/单项/总解压大小，复验 id 与脚本 id，并从同一文件句柄计算 SHA-256；随后注册 `MOD_<modid>_<scriptid>` → lua 文本。重复 mod id 或任一注册名碰撞时保留先加载者并按整包拒绝后加载者，菜单不会展示未完整注册的包。
 2. Harmony prefix `LuaManager.ExecuteLuaScript()`：注册名命中时用 mod lua 执行并跳过原方法。
-3. 入口：Free 自由场景保留“活侠MOD”按钮与 F8 菜单；Title 标题场景在原版“开始游戏”上方显示同风格“开始 MOD 战役”。点击后临时复用原版读档面板：先选择战役，再显示该战役的主档、三类自动档和新建入口；选择不会直接启动。关闭后重建原版 001～020 槽。
-   - **完整存档隔离**：MOD 手动槽为 `mod_campaign_<campaign_id>`；Story/Free/Battle 自动槽分别追加 `_auto`、`_auto_free`、`_auto_battle`。旧 `mod_<id>` 不探测，原版继续游戏和最近存档不会指向 MOD。
-4. **战役**：选择战役只显示其存档页；明确点击"开始新战役"→ `SetSlot("mod_campaign_<campaign_id>")`（全新 v3 命名空间，不探测旧 `mod_<id>`）→ 官方 `NewGameData()` → postfix 把首个剧情脚本替换为该 mod 的 entry → LoadStory。三类自动槽依次为 `_auto`、`_auto_free`、`_auto_battle`。
+3. 入口：Free 自由场景保留“活侠MOD”按钮与 F8 菜单；Title 标题场景在原版“开始游戏”上方显示同风格“开始 MOD 战役”。点击后临时复用原版读档面板：先选择战役，再显示该战役的 001～020 手动栏位和三类自动档；选择不会直接启动。关闭后重建原版 001～020 槽。
+   - **完整存档隔离**：每个 `campaign_id` 独占原版风格的 001～020 手动栏位，001 为 `mod_campaign_<campaign_id>`，002～020 为 `_sNNN`；空栏位可新建，已有栏位可覆盖和读取。Story/Free/Battle 自动槽分别追加 `_auto`、`_auto_free`、`_auto_battle`。旧 `mod_<id>` 不探测，原版继续游戏和最近存档不会指向 MOD。
+4. **战役**：选择战役只显示其存档页；明确点击"开始新战役"→ 使用当前 MOD 的 001 栏位 `SetSlot("mod_campaign_<campaign_id>")` 或 002～020 的 `_sNNN` 槽（全新 v3 命名空间，不探测旧 `mod_<id>`）→ 官方 `NewGameData()` → postfix 把首个剧情脚本替换为该 mod 的 entry → LoadStory。三类自动槽依次为 `_auto`、`_auto_free`、`_auto_battle`。
 5. **原版剧情抑制与位置触发器**：`disable_official_events` 或 F7 生效时，`UpdateCheckMissions` 内暂时隐藏主线触发状态，`HasAnyMissionTrigger` 返回 false，避免返回 Free 时自动启动官方主线/支线；地点点击 postfix `FreePositionData.GetExecuteScript` 优先匹配 manifest.triggers，无 mod 命中时抑制官方地点默认脚本。
 6. **兜底**：Story 场景请求的 MOD_ 脚本未注册、包身份/指纹缺失、Lua 编译/运行失败时，不执行或立即停止 `LuaEnvironment` 协程，绕过任务判定直接 `SceneController.LoadFree()` 防软锁。若场景正在切换则保持安全遮罩，待可安全转场时重试，禁止并发启动第二条转场协程。
 7. mod 不修改官方脚本与文本表；mod 的 flag 进 StoryKeyList，存档兼容。

@@ -10,6 +10,18 @@
       "text": "【3.0/2】Gameplay 组合节点开始。"
     },
     {
+      "id": "scene1",
+      "type": "scene",
+      "view": "center"
+    },
+    {
+      "id": "background1",
+      "type": "background",
+      "action": "show",
+      "image": "user:showcase.courier_station",
+      "fade": 0
+    },
+    {
       "id": "stat1",
       "type": "stat",
       "key": "mental",

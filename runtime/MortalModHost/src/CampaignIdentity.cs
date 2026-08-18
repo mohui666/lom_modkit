@@ -34,8 +34,23 @@ namespace MortalModHost
 
         internal static bool OwnsSlot(string campaignId, string slot)
         {
-            return IsValid(campaignId)
-                && string.Equals(slot, SaveSlot(campaignId), StringComparison.Ordinal);
+            if (!IsValid(campaignId) || string.IsNullOrEmpty(slot)) return false;
+
+            // 先按已知 campaign_id 精确匹配。仅靠 TryParseSlot 无法区分
+            // campaign_id="chapter_s002" 的主槽和普通 campaign_id 的 002 槽。
+            string root = SaveSlot(campaignId);
+            if (string.Equals(slot, root, StringComparison.Ordinal)) return true;
+            if (string.Equals(slot, root + "_auto", StringComparison.Ordinal)
+                || string.Equals(slot, root + "_auto_free", StringComparison.Ordinal)
+                || string.Equals(slot, root + "_auto_battle", StringComparison.Ordinal))
+                return true;
+            for (int index = 2; index <= 20; index++)
+            {
+                if (string.Equals(slot, root + "_s" + index.ToString("000"),
+                    StringComparison.Ordinal))
+                    return true;
+            }
+            return false;
         }
 
         internal static bool TryParseSlot(string slot, out string campaignId)
@@ -52,6 +67,17 @@ namespace MortalModHost
                 id = id.Substring(0, id.Length - "_auto_free".Length);
             else if (id.EndsWith("_auto", StringComparison.Ordinal))
                 id = id.Substring(0, id.Length - "_auto".Length);
+            if (id.Length >= 5)
+            {
+                int mark = id.LastIndexOf("_s", StringComparison.Ordinal);
+                if (mark > 0 && mark == id.Length - 5)
+                {
+                    int index;
+                    if (int.TryParse(id.Substring(mark + 2), out index)
+                        && index >= 2 && index <= 20)
+                        id = id.Substring(0, mark);
+                }
+            }
             if (!IsValid(id)) return false;
             campaignId = id;
             return true;

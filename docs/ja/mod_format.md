@@ -38,12 +38,12 @@ assets/                # 可选，自定义资源
   "story_schema": 2,
   "content_schema": 1,
   "min_host_version": "1.0.0",
-  "tested_host_version": "1.0.1",
+  "tested_host_version": "1.1.0",
   "tested_game_version": "1.2.3",
   "id": "demo_mod",
   "campaign_id": "demo_campaign",
   "name": "示例 Mod",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "author": "somebody",
   "description": "一句话简介",
   "entry": "main",
@@ -66,7 +66,7 @@ assets/                # 可选，自定义资源
 - `entry`：エントリーのシナリオスクリプト id。必ず存在すること。
 - `min_host_version` は SemVer のハード要件、`tested_host_version` を現在の Host が超える場合は警告のみです。`game_version` は Unity の実際の `Application.version` と完全一致するハード要件、`tested_game_version` は不一致時の警告です。4 項目はすべて任意で、未指定の旧 manifest は従来どおり動作します。
 - `campaign`（任意）：キャンペーンモード。
-  - `new_game`：v3 では true 固定です。戦役の選択はセーブ画面を切り替えるだけで、明示的に開始を押した場合のみ `SetSlot("mod_campaign_<campaign_id>")` を使用します。
+  - `new_game`：v3 では true 固定です。戦役の選択はセーブ画面を切り替えるだけで、明示的に開始を押した場合のみ 001 の `SetSlot("mod_campaign_<campaign_id>")` または 002～020 の `_sNNN` を使用します。
   - `disable_official_events`（任意、bool、既定 false）：true のとき本キャンペーンは**公式シナリオイベントを無効化**します——Free に戻っても場所なしメイン／サブイベントを自動開始せず、マップ地点には本 mod のトリガーのみが残ります（未命中の場合その地点の既定アクティビティは使用不可。mod 側でフォールバックトリガーを用意する必要があります）。
   - `triggers`：フリーモードトリガーの配列。`type="position"`：マップ地点 `position`（PositionType 列挙 id：Mall/Center/Alchemy/Forge/BackMountain/Room1/Door/Study/Kitchen/Room2/Secret）をクリックしたとき、その地点の既定アクティビティスクリプトを `script`（同一パッケージ内のスクリプト id）に置き換えます。任意条件はすべて命中した場合のみ有効（複数条件は AND。**配列の順序＝優先度**。ランタイムは最初に全条件命中したトリガーを採用）：
     - `when_flag_set` / `when_flag_clear`：シナリオ flag（`flag` ノードの AddStory の key、セーブに永続化）が設定済み／未設定。
@@ -377,8 +377,8 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 1. 起動時に `BepInEx/plugins/MortalModHost/mods/*.lommod` をスキャンし、`MOD_<modid>_<scriptid>` → lua テキストを登録します。
 2. Harmony prefix `LuaManager.ExecuteLuaScript()`：登録名に命中した場合は mod の lua で実行し、元メソッドをスキップします。
 3. 入口：Free は「活侠MOD」と F8 を維持。Title では原作「ゲーム開始」の上に同じ外観の「MOD キャンペーン開始」を表示します。原作ロードスロットを再利用し、既存 MOD セーブを続行、「新規キャンペーン」空きスロットから Mod を選択します。閉じると原作 001～020 を再構築します。
-   - **完全セーブ分離**：MOD 手動スロットは `mod_campaign_<campaign_id>`、三種の自動スロットは `_auto` / `_auto_free` / `_auto_battle`。旧 `mod_<id>` は検索しません。
-4. **キャンペーン**：選択はセーブ画面の切替だけです。「新しいキャンペーンを開始」クリック → `SetSlot("mod_campaign_<campaign_id>")` → 公式 `NewGameData()` → postfix が entry に置換 → LoadStory。
+   - **完全セーブ分離**：MOD 手動 001～020 は `mod_campaign_<campaign_id>` / `_sNNN`、三種の自動スロットは `_auto` / `_auto_free` / `_auto_battle`。旧 `mod_<id>` は検索しません。
+4. **キャンペーン**：選択はセーブ画面の切替だけです。「新しいキャンペーンを開始」クリック → 現在の MOD の 001～020 隔離スロット → 公式 `NewGameData()` → postfix が entry に置換 → LoadStory。
 5. **原版シナリオ抑制と位置トリガー**：`disable_official_events` または F7 が有効なとき、`UpdateCheckMissions` 内でメインのトリガー状態を一時的に隠し、`HasAnyMissionTrigger` を false にして、Free 復帰時に公式メイン／サブが自動開始するのを防ぎます。地点クリックの postfix `FreePositionData.GetExecuteScript` は manifest.triggers を優先マッチし、mod の命中がない場合は公式地点の既定スクリプトを抑制します。
 6. **フォールバック**：Story シーンが要求した MOD_ スクリプトが未登録（mod が削除された）の場合、実行せず `ChangeScene("Free","","")` でソフトロックを防ぎます。
 7. mod は公式スクリプトとテキスト表を変更しません。mod の flag は StoryKeyList に入り、セーブ互換です。

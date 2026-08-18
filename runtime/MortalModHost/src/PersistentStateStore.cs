@@ -82,7 +82,7 @@ namespace MortalModHost
         {
             if (!_loaded || !_dirty) return;
             Directory.CreateDirectory(_root);
-            string target = StatePath(_campaignId);
+            string target = StatePath(_slot);
             string temporary = target + ".tmp." + Guid.NewGuid().ToString("N");
             try
             {
@@ -143,7 +143,7 @@ namespace MortalModHost
 
         private void Load()
         {
-            string path = StatePath(_campaignId);
+            string path = StatePath(_slot);
             if (!File.Exists(path)) return;
             var info = new FileInfo(path);
             if (info.Length > MaxBytes)
@@ -190,10 +190,10 @@ namespace MortalModHost
             return sb.ToString();
         }
 
-        private string StatePath(string campaignId)
+        private string StatePath(string slot)
         {
             string path = Path.GetFullPath(Path.Combine(
-                _root, "mod_campaign_" + campaignId + ".state.json"));
+                _root, slot + ".state.json"));
             string prefix = _root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
                 + Path.DirectorySeparatorChar;
             if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
@@ -209,10 +209,10 @@ namespace MortalModHost
                 || string.IsNullOrEmpty(package.PackageFingerprint)
                 || !Sha256.IsMatch(package.PackageFingerprint))
                 throw new InvalidOperationException("持久变量缺少可信的包 id / 完整 SHA-256 身份");
-            string expected = CampaignIdentity.SaveSlot(package.CampaignId);
-            if (!string.Equals(slot, expected, StringComparison.Ordinal))
+            if (!CampaignIdentity.OwnsSlot(package.CampaignId, slot))
                 throw new InvalidOperationException(
-                    "持久变量只允许写入当前 MOD 的隔离槽 " + expected);
+                    "持久变量只允许写入当前 MOD 的隔离槽 "
+                    + CampaignIdentity.SaveSlot(package.CampaignId));
         }
 
         private static void RequirePublicKey(string key)

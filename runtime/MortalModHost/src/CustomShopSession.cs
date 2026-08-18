@@ -14,6 +14,7 @@ namespace MortalModHost
             new HashSet<string>(StringComparer.Ordinal);
         private static List<ShopItem> _books;
         private static List<ShopItem> _miscs;
+        private static List<ShopItem> _consumables;
         private static List<ShopItem> _specials;
         private static string _owner = "";
 
@@ -29,6 +30,7 @@ namespace MortalModHost
             _owner = Owner(package);
             _books = new List<ShopItem>(database.Books);
             _miscs = new List<ShopItem>(database.Miscs);
+            _consumables = new List<ShopItem>(database.Consumables);
             _specials = new List<ShopItem>(database.Specials);
             Added.Clear();
             try
@@ -99,10 +101,12 @@ namespace MortalModHost
                 throw new InvalidOperationException("恢复自定义商店时 ShopDatabase.Instance 为 null");
             List<ShopItem> books = _books;
             List<ShopItem> miscs = _miscs;
+            List<ShopItem> consumables = _consumables;
             List<ShopItem> specials = _specials;
             database.ResetItems();
             database.Books.AddRange(books ?? new List<ShopItem>());
             database.Miscs.AddRange(miscs ?? new List<ShopItem>());
+            database.Consumables.AddRange(consumables ?? new List<ShopItem>());
             database.Specials.AddRange(specials ?? new List<ShopItem>());
             ClearState();
         }
@@ -129,6 +133,7 @@ namespace MortalModHost
             _owner = "";
             _books = null;
             _miscs = null;
+            _consumables = null;
             _specials = null;
             Added.Clear();
         }

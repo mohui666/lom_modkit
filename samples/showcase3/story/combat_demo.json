@@ -7,7 +7,7 @@
     {
       "id": "message1",
       "type": "message",
-      "text": "【3.0/3】林灯没有专用 Combat 四帧，属性按 100 填写，用来验收立绘钉在待机中心、详情滑条不再被玩家 50 上限截断。也可跳过。"
+      "text": "【3.0/3】林灯没有专用 Combat 四帧。对手只填写基础血量 333、基础气力 111；原版技能增益后，界面显示最终值，未填初始值时按最终满值进入。赵活体力、内力与被动先按原版换算生命，再额外叠加 120 基础生命。雷达六维填 100，右边五项是官方评语。也可跳过。"
     },
     {
       "id": "choice1",
@@ -45,10 +45,8 @@
       ],
       "win": "battle_result1",
       "lose": "battle_result1",
-      "max_health": 300,
-      "health": 300,
-      "max_stamina": 100,
-      "stamina": 100,
+      "max_health": 333,
+      "max_stamina": 111,
       "stamina_power": 100,
       "strength": 100,
       "internal": 100,
@@ -77,6 +75,17 @@
       "attack_parry_addition": 0.0,
       "block_dodge_addition": 0.0,
       "block_parry_addition": 0.0,
+      "player_max_health": 1000,
+      "player_strength": 80,
+      "player_stamina_power": 70,
+      "player_dexterity": 60,
+      "player_sword": 75,
+      "player_talents": [
+        {
+          "key": "0001",
+          "level": 2
+        }
+      ],
       "talk_rate": 0.1,
       "attack_rate": 0.5,
       "weapon_rate": 0.1,

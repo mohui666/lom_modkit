@@ -790,8 +790,14 @@ def _emit_combat(node, ctx):
             "weapon_dice_addition", "weapon_hit_addition", "attack_parry_addition",
             "block_dodge_addition", "block_parry_addition", "talk_rate", "attack_rate", "weapon_rate",
             "ultimate_rate", "block_rate",
+            "player_max_health", "player_health", "player_max_stamina", "player_stamina",
+            "player_stamina_power", "player_strength", "player_internal",
+            "player_dexterity", "player_talking", "player_defence",
+            "player_sword", "player_fist", "player_martial_weapon", "player_mental",
+            "player_poison_resist", "player_paralyzed_resist",
+            "player_disposition", "player_behaviour", "player_karma", "player_training",
         ),
-        (("talents", ("key", "level")),),
+        (("talents", ("key", "level")), ("player_talents", ("key", "level"))),
     )
     lines = []
     lines.extend(

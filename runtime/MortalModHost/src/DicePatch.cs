@@ -156,24 +156,41 @@ namespace MortalModHost
     }
 
     /// <summary>
-    /// Harmony prefix：PlayerStatManagerData.get_NewGamePlus。
-    /// mod 剧情进行中（CurrentStoryScript 以 MOD_ 开头）一律返回 true（跳过原 getter），
-    /// 其余情况放行原方法——官方剧情/存档读写读到的仍是真实 _newGamePlus 值。
-    /// 影响边界：只改读值不改 _newGamePlus 后备字段，SaveGameData 落盘不受影响；
-    /// mod 剧情内任何读 NewGamePlus 的系统（骰子 ChangeDiceRange 等）都看到 true，
-    /// 官方脚本演出时该前缀完全不生效。
+    /// 只在 DiceMenuDialog.ChangeDiceRange 期间把 NewGamePlus 读成 true。
+    /// 官方 ChangeDiceRange 用该 getter 决定能否换骰面；不改 _newGamePlus 字段，
+    /// 也不影响存档和其它系统。
     /// </summary>
     [HarmonyPatch(typeof(PlayerStatManagerData), "get_NewGamePlus")]
     internal static class NewGamePlusPatch
     {
-        /// <summary>日志通道，由 Plugin.Awake 注入。</summary>
         internal static ManualLogSource Log;
+        private static bool _spoofForDiceRange;
 
-        private static bool Prefix(PlayerStatManagerData __instance, ref bool __result)
+        internal static void AllowDiceRange(bool on)
         {
-            if (!DiceModSupport.IsModStoryActive()) return true; // 官方路径：放行原 getter
+            _spoofForDiceRange = on;
+        }
+
+        private static bool Prefix(ref bool __result)
+        {
+            if (!_spoofForDiceRange) return true;
             __result = true;
             return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(DiceMenuDialog), "ChangeDiceRange")]
+    internal static class DiceRangeNewGamePlusPatch
+    {
+        private static void Prefix()
+        {
+            if (DiceModSupport.IsModStoryActive())
+                NewGamePlusPatch.AllowDiceRange(true);
+        }
+
+        private static void Postfix()
+        {
+            NewGamePlusPatch.AllowDiceRange(false);
         }
     }
 

@@ -23,7 +23,7 @@ assets/                # 可选，自定义资源
 
 - `<id>` 規則：`[a-zA-Z0-9_\-]+`，包內唯一，即「劇情腳本 id」。
 - 匯出（打包）時必須重新編譯：story/*.json → lua/*.lua，二者同名。
-- `story-lua.sha256` 逐項連結 Story 原始位元組與對應預設/語系 Lua 的 SHA-256；Runtime 對 v3 強制核對。v1/v2 缺少穩定戰役身份，1.0.1 會拒絕，必須設定 `campaign_id` 後重新匯出。
+- `story-lua.sha256` 逐項連結 Story 原始位元組與對應預設/語系 Lua 的 SHA-256；Runtime 對 v3 強制核對。v1/v2 缺少穩定戰役身份，從 1.0.1 起會拒絕，必須設定 `campaign_id` 後重新匯出。
 - 執行階段外掛**只讀 manifest.json、lua/ 目錄與 assets/**；story/*.json 給編輯器回讀/再編輯用。編譯器只打入劇情明確引用的 PNG/JPG（單張 ≤8MB）與明確引用的 `user:` 音訊。匯出的 `.lommod` 自包含，玩家機器不需要編輯器倉庫。
 - texts.json 由打包時自動產生：收集每個 story 的全部 **say** 節點文字，key 與 lua 裡 `GetStoryText` 的 key 一一對應；執行階段註冊進 LeanLocalization（見 §4/§6）。**death 文字不進 texts.json**：由 codegen 發射 `mod_set_death_text(<標題>, <文字>)` 兩參 lua_str 字面量（見 §3.1/§6）。
 - 打包器固定條目/JSON/Lua 順序、ZIP 時間戳與權限；同一 Python/zlib 工具鏈的相同輸入可逐位元組重現。`package-content.sha256` 可跨壓縮結果核對邏輯內容；跨工具鏈不宣稱二進位完全 reproducible，內容雜湊也不是簽章或官方認證。
@@ -38,12 +38,12 @@ assets/                # 可选，自定义资源
   "story_schema": 2,
   "content_schema": 1,
   "min_host_version": "1.0.0",
-  "tested_host_version": "1.0.1",
+  "tested_host_version": "1.1.0",
   "tested_game_version": "1.2.3",
   "id": "demo_mod",
   "campaign_id": "demo_campaign",
   "name": "示例 Mod",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "author": "somebody",
   "description": "一句话简介",
   "entry": "main",
@@ -58,12 +58,12 @@ assets/                # 可选，自定义资源
 ```
 
 - `package_format` 目前固定為 `3`，`story_schema=2`、`content_schema=1`。v3 強制雙完整性記錄、`campaign_id` 與 `campaign.new_game=true`；v1/v2 一律拒絕。
-- `campaign_id` 是跨版本穩定的戰役/存檔身份，產生 `mod_campaign_<campaign_id>`；不會從包名或 `id` 推斷。舊專案須由作者明確填寫並用 1.0.1 重新匯出。
+- `campaign_id` 是跨版本穩定的戰役/存檔身份，產生 `mod_campaign_<campaign_id>`；不會從包名或 `id` 推斷。舊專案須由作者明確填寫並用 1.0.1 或更新版本重新匯出。
 - `id`：mod 唯一 id（`[a-z0-9_\-]+`），執行階段註冊名前綴，防衝突。
 - `entry`：入口劇情腳本 id，必須存在。
 - `min_host_version` 是 SemVer 硬門檻；`tested_host_version` 超出時僅警告。`game_version` 必須與 Unity 的 `Application.version` 精確一致，`tested_game_version` 不同時僅警告。四欄皆可省略，舊 manifest 行為不變；Host 會在註冊腳本前給出明確拒載原因。
 - `campaign`（可選）：戰役模式。
-  - `new_game`：v3 固定為 true。選取戰役只切換存檔頁，不會直接開始；明確點擊開始後才使用 `SetSlot("mod_campaign_<campaign_id>")`。
+  - `new_game`：v3 固定為 true。選取戰役只切換存檔頁，不會直接開始；明確點擊開始後才使用 001 的 `SetSlot("mod_campaign_<campaign_id>")` 或 002～020 的 `_sNNN` 槽。
   - `disable_official_events`（可選，bool，預設 false）：true 時本戰役**停用原版劇情事件**——返回 Free 時不自動啟動無地點主線/支線，地圖位置只保留本 mod 觸發器（未命中則該位置預設活動不可用，需 mod 自帶保底觸發器）。
   - `triggers`：自由模式觸發器陣列。`type="position"`：點擊地圖位置 `position`（PositionType 列舉 id：Mall/Center/Alchemy/Forge/BackMountain/Room1/Door/Study/Kitchen/Room2/Secret）時，該位置預設活動腳本替換為 `script`（同包腳本 id）。可選條件全部命中才生效（多條件 AND；**陣列順序=優先級**，執行階段取第一個全部命中的觸發器）：
     - `when_flag_set` / `when_flag_clear`：劇情 flag（即 `flag` 節點 AddStory 的 key，存檔持久化）已設定/未設定。
@@ -374,8 +374,8 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 1. 啟動掃描 `BepInEx/plugins/MortalModHost/mods/*.lommod`，註冊 `MOD_<modid>_<scriptid>` → lua 文字。
 2. Harmony prefix `LuaManager.ExecuteLuaScript()`：註冊名命中時用 mod lua 執行並跳過原方法。
 3. 入口：Free 保留「活俠MOD」與 F8；Title 在原版「開始遊戲」上方顯示同風格「開始 MOD 戰役」。點擊後重用原版讀檔槽：既有 MOD 槽可繼續，固定「新戰役」空白槽開啟戰役選擇，關閉時還原原版 001～020。
-   - **完整存檔隔離**：MOD 手動槽為 `mod_campaign_<campaign_id>`，三類自動槽使用 `_auto` / `_auto_free` / `_auto_battle` 後綴；Universe 最近槽只記最後一個原版槽，不會讓原版「繼續遊戲」進入 MOD。
-4. **戰役**：選取只顯示存檔頁；明確點擊「開始新戰役」→ `SetSlot("mod_campaign_<campaign_id>")`（不探測舊 `mod_<id>`）→ 官方 `NewGameData()` → postfix 替換 entry → LoadStory。三類自動槽後綴為 `_auto`、`_auto_free`、`_auto_battle`。
+   - **完整存檔隔離**：MOD 001～020 手動槽分別使用 `mod_campaign_<campaign_id>` / `_sNNN`，三類自動槽使用 `_auto` / `_auto_free` / `_auto_battle` 後綴；Universe 最近槽只記最後一個原版槽，不會讓原版「繼續遊戲」進入 MOD。
+4. **戰役**：選取只顯示存檔頁；明確點擊「開始新戰役」→ 使用目前 MOD 的 001～020 隔離槽（不探測舊 `mod_<id>`）→ 官方 `NewGameData()` → postfix 替換 entry → LoadStory。三類自動槽後綴為 `_auto`、`_auto_free`、`_auto_battle`。
 5. **原版劇情抑制與位置觸發器**：`disable_official_events` 或 F7 生效時，`UpdateCheckMissions` 內暫時隱藏主線觸發狀態，`HasAnyMissionTrigger` 返回 false，避免返回 Free 時自動啟動官方主線/支線；地點點擊 postfix `FreePositionData.GetExecuteScript` 優先匹配 manifest.triggers，無 mod 命中時抑制官方地點預設腳本。
 6. **保底**：Story 場景請求的 MOD_ 腳本未註冊（mod 被刪）時，不執行並 `ChangeScene("Free","","")` 防軟鎖。
 7. mod 不修改官方腳本與文字表；mod 的 flag 進 StoryKeyList，存檔相容。

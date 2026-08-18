@@ -28,7 +28,7 @@ namespace MortalModHost
     {
         public const string GUID = "com.mohui666.mortalmodhost";
         public const string NAME = "MortalModHost";
-        public const string VERSION = "1.0.1";
+        public const string VERSION = "1.1.0";
 
         internal static Plugin Instance { get; private set; }
 
@@ -37,6 +37,31 @@ namespace MortalModHost
 
         /// <summary>本轮解析到的全部 mod 包（patch 与菜单共用）。</summary>
         internal static List<ModPackage> LoadedMods { get; private set; }
+
+        internal static ModPackage FindCampaignPackage(string campaignId)
+        {
+            if (string.IsNullOrEmpty(campaignId) || LoadedMods == null) return null;
+            for (int i = 0; i < LoadedMods.Count; i++)
+            {
+                ModPackage package = LoadedMods[i];
+                if (package != null
+                    && string.Equals(package.CampaignId, campaignId, StringComparison.Ordinal))
+                    return package;
+            }
+            return null;
+        }
+
+        internal static ModPackage FindPackageForSlot(string slot)
+        {
+            if (string.IsNullOrEmpty(slot) || LoadedMods == null) return null;
+            for (int i = 0; i < LoadedMods.Count; i++)
+            {
+                ModPackage package = LoadedMods[i];
+                if (package != null && CampaignIdentity.OwnsSlot(package.CampaignId, slot))
+                    return package;
+            }
+            return null;
+        }
 
         private ConfigEntry<bool> _enabled;
         private ConfigEntry<KeyboardShortcut> _menuHotkey;
@@ -91,6 +116,8 @@ namespace MortalModHost
             ModQuestSession.Reset();
             PersistentModState.Log = Logger;
             PersistentModState.Initialize(Path.Combine(
+                Paths.ConfigPath, "MortalModHost", "campaign_state"));
+            GameplayCheckpointStore.Initialize(Path.Combine(
                 Paths.ConfigPath, "MortalModHost", "campaign_state"));
             ModSaveIsolation.Log = Logger;
             ModSaveIsolation.Initialize(SaveSystem.Instance);
@@ -262,8 +289,18 @@ namespace MortalModHost
                 AccessTools.Method(typeof(SaveSystem), "NewGameData"));
             ok &= CheckTarget("SaveSystem.SetSlot",
                 AccessTools.Method(typeof(SaveSystem), "SetSlot", new Type[] { typeof(string) }));
+            ok &= CheckTarget("SaveSystem.LoadGameData",
+                AccessTools.Method(typeof(SaveSystem), "LoadGameData", Type.EmptyTypes));
             ok &= CheckTarget("SaveSystem.SaveGameData",
                 PersistentStateSavePatch.TargetMethod());
+            ok &= CheckTarget("SaveGamePanel.OnPanelOpen",
+                AccessTools.Method(typeof(SaveGamePanel), "OnPanelOpen", Type.EmptyTypes));
+            ok &= CheckTarget("SaveGamePanel._saveSlots",
+                AccessTools.Field(typeof(SaveGamePanel), "_saveSlots"));
+            ok &= CheckTarget("SaveSlotPanel.Setup",
+                AccessTools.Method(typeof(SaveSlotPanel), "Setup", Type.EmptyTypes));
+            ok &= CheckTarget("SaveSlotPanel._slot",
+                AccessTools.Field(typeof(SaveSlotPanel), "_slot"));
             ok &= CheckTarget("SaveSystem.AutoSaveStoryData",
                 AccessTools.Method(typeof(SaveSystem), "AutoSaveStoryData", Type.EmptyTypes));
             ok &= CheckTarget("SaveSystem.AutoSaveFreeData",
@@ -282,6 +319,10 @@ namespace MortalModHost
                 AccessTools.Method(typeof(MenuPanel), "LoadButtonClick", Type.EmptyTypes));
             ok &= CheckTarget("MenuPanel._loadPanel",
                 AccessTools.Field(typeof(MenuPanel), "_loadPanel"));
+            ok &= CheckTarget("PausePanel.LoadButtonClick",
+                AccessTools.Method(typeof(Mortal.Battle.PausePanel), "LoadButtonClick", Type.EmptyTypes));
+            ok &= CheckTarget("PausePanel._loadPanel",
+                AccessTools.Field(typeof(Mortal.Battle.PausePanel), "_loadPanel"));
             ok &= CheckTarget("FreePositionData.GetExecuteScript",
                 AccessTools.Method(typeof(FreePositionData), "GetExecuteScript"));
             ok &= CheckTarget("PositionController.OnPositionClick",
@@ -312,6 +353,8 @@ namespace MortalModHost
                 AccessTools.Method(typeof(PlayerStatManagerData), "get_NewGamePlus"));
             ok &= CheckTarget("DiceMenuDialog.CheckRevolution",
                 AccessTools.Method(typeof(DiceMenuDialog), "CheckRevolution"));
+            ok &= CheckTarget("DiceMenuDialog.ChangeDiceRange",
+                AccessTools.Method(typeof(DiceMenuDialog), "ChangeDiceRange", Type.EmptyTypes));
             ok &= CheckTarget("CheckPointManager.Dice(string,int)",
                 AccessTools.Method(typeof(CheckPointManager), "Dice",
                     new Type[] { typeof(string), typeof(int) }));
@@ -344,6 +387,37 @@ namespace MortalModHost
             ok &= CheckTarget("CombatActionController.SetStat(CombatStat)",
                 AccessTools.Method(typeof(CombatActionController), "SetStat",
                     new Type[] { typeof(CombatStat) }));
+            ok &= CheckTarget("CombatStatController.SetStat",
+                AccessTools.Method(typeof(CombatStatController), "SetStat",
+                    new Type[] { typeof(CombatStat) }));
+            ok &= CheckTarget("CombatManager.SetPlayerStat",
+                AccessTools.Method(typeof(CombatManager), "SetPlayerStat", Type.EmptyTypes));
+            ok &= CheckTarget("PlayerStatData.Set(GameStatType,int)",
+                AccessTools.Method(typeof(PlayerStatData), "Set",
+                    new Type[] { typeof(GameStatType), typeof(int) }));
+            ok &= CheckTarget("GameStat.SetValue",
+                AccessTools.Method(typeof(GameStat), "SetValue", new Type[] { typeof(int) }));
+            ok &= CheckTarget("PlayerTalentDataCollection.Set",
+                AccessTools.Method(typeof(PlayerTalentDataCollection), "Set",
+                    new Type[] { typeof(string), typeof(int) }));
+            ok &= CheckTarget("CombatStatController.ResetData",
+                AccessTools.Method(typeof(CombatStatController), "ResetData", Type.EmptyTypes));
+            ok &= CheckTarget("CombatCharacterStatusUI.SetSliderValue",
+                AccessTools.Method(typeof(CombatCharacterStatusUI), "SetSliderValue"));
+            ok &= CheckTarget("CombatCharacterStatusUI.UpdateRadarStat",
+                AccessTools.Method(typeof(CombatCharacterStatusUI), "UpdateRadarStat", Type.EmptyTypes));
+            ok &= CheckTarget("Entity.ResetType",
+                AccessTools.Method(typeof(Mortal.Battle.Entity), "ResetType", Type.EmptyTypes));
+            ok &= CheckTarget("AutoSaveSlotPanel.OnTitleClick",
+                AccessTools.Method(typeof(AutoSaveSlotPanel), "OnTitleClick", Type.EmptyTypes));
+            ok &= CheckTarget("AutoSaveSlotPanel.Setup",
+                AccessTools.Method(typeof(AutoSaveSlotPanel), "Setup", Type.EmptyTypes));
+            ok &= CheckTarget("AutoSaveSlotPanel._slot",
+                AccessTools.Field(typeof(AutoSaveSlotPanel), "_slot"));
+            ok &= CheckTarget("LoadSlotPanel.OnTitleClick",
+                AccessTools.Method(typeof(LoadSlotPanel), "OnTitleClick", Type.EmptyTypes));
+            ok &= CheckTarget("LoadGamePanel._autoSaveSlot",
+                AccessTools.Field(typeof(LoadGamePanel), "_autoSaveSlot"));
             ok &= CheckTarget("CombatEnemyController.SetData",
                 AccessTools.Method(typeof(CombatEnemyController), "SetData", Type.EmptyTypes));
             ok &= CheckTarget("CombatManager.OnDisable",
@@ -376,6 +450,11 @@ namespace MortalModHost
                 RequireOwnedPatch("CombatActionController.SetStat(CombatStat)",
                     AccessTools.Method(typeof(CombatActionController), "SetStat",
                         new Type[] { typeof(CombatStat) }));
+                RequireOwnedPatch("CombatStatController.SetStat",
+                    AccessTools.Method(typeof(CombatStatController), "SetStat",
+                        new Type[] { typeof(CombatStat) }));
+                RequireOwnedPatch("CombatCharacterStatusUI.SetSliderValue",
+                    AccessTools.Method(typeof(CombatCharacterStatusUI), "SetSliderValue"));
                 RequireOwnedPatch("CombatEnemyController.SetData",
                     AccessTools.Method(typeof(CombatEnemyController), "SetData", Type.EmptyTypes));
                 RequireOwnedPatch("CombatManager.OnDisable",
@@ -855,7 +934,7 @@ namespace MortalModHost
                 msg => Logger.LogWarning(msg));
         }
 
-        internal bool TryOpenInGameModLoadMenu(MenuPanel menu)
+        internal bool TryOpenInGameModLoadMenu(object loadHost)
         {
             bool isTitle;
             string slot = SaveSystem.Instance != null ? SaveSystem.Instance.CurrentSlot : "";
@@ -864,8 +943,8 @@ namespace MortalModHost
                 ModCampaignState.Active,
                 slot))
                 return false;
-            if (!_enabled.Value || !_runtimeReady || menu == null) return false;
-            CommonPanel host = Traverse.Create(menu).Field("_loadPanel").GetValue<CommonPanel>();
+            if (!_enabled.Value || !_runtimeReady || loadHost == null) return false;
+            CommonPanel host = Traverse.Create(loadHost).Field("_loadPanel").GetValue<CommonPanel>();
             if (host == null)
             {
                 Logger.LogWarning("游戏内读取面板不可用，保留原版读档页");
@@ -1216,9 +1295,19 @@ namespace MortalModHost
         /// </summary>
         private void StartCampaign(ModPackage mod)
         {
+            StartCampaign(mod, mod != null ? CampaignIdentity.SaveSlot(mod.CampaignId) : null);
+        }
+
+        private void StartCampaign(ModPackage mod, string isolatedSlot)
+        {
             if (!_runtimeReady)
             {
                 Logger.LogError("运行时未安全就绪：已拒绝开始 MOD 战役");
+                return;
+            }
+            if (mod == null || !CampaignIdentity.OwnsSlot(mod.CampaignId, isolatedSlot))
+            {
+                Logger.LogError("无法开始新战役：隔离手动槽不属于该战役");
                 return;
             }
             SaveSystem saves = SaveSystem.Instance;
@@ -1233,7 +1322,7 @@ namespace MortalModHost
                 Logger.LogError("无法开始新战役：原版场景或读取遮罩尚未完成，请稍后重试");
                 return;
             }
-            string slot = CampaignIdentity.SaveSlot(mod.CampaignId);
+            string slot = isolatedSlot;
             string previousOfficialSlot = ModSaveIsolation.IsModSlot(saves.CurrentSlot)
                 ? ModSaveIsolation.LastOfficialSlot : saves.CurrentSlot;
             Logger.LogInfo("开始新战役：" + mod.Id + "（隔离存档槽 " + slot + "）");
@@ -1242,8 +1331,8 @@ namespace MortalModHost
             {
                 saves.SetSlot(slot);
                 // SetSlot postfix 会丢弃上一槽的内存快照；新战役随后以空 sidecar 开局。
-                // NewGameData 内的原版 SaveGameData 会通过 postfix 原子写出这份空状态。
                 PersistentModState.BeginNewCampaign(mod);
+                GameplayCheckpointStore.Clear(mod, slot);
                 NewGameDataPatch.CampaignFailure = null;
                 NewGameDataPatch.PendingCampaign = mod;
                 // 契约 §2：记录 mod 战役运行态——该战役期间 Free 自动任务与位置点击是否禁用原版事件
@@ -1257,10 +1346,19 @@ namespace MortalModHost
                 if (!string.IsNullOrEmpty(NewGameDataPatch.CampaignFailure))
                     throw new InvalidOperationException(
                         "MOD 首脚本或隔离存档写入失败：" + NewGameDataPatch.CampaignFailure);
+                // NewGameData 直接调用私有 ExecuteSaveData，不会经过 SaveGameData()
+                // 的 Harmony postfix；新槽的空 sidecar 必须在官方开局文件成功写入后落盘。
+                PersistentModState.FlushCurrent();
                 // 显式“重新开始”后，旧周目的三个隔离自动槽不能继续出现在该战役页。
                 string[] autoKinds = { "auto", "auto_free", "auto_battle" };
                 for (int i = 0; i < autoKinds.Length; i++)
-                    saves.DeleteSaveData(ModSaveSlotPolicy.IsolatedAutoSlot(slot, autoKinds[i]));
+                {
+                    saves.DeleteSaveData(ModSaveSlotPolicy.IsolatedAutoSlotForCampaign(
+                        mod.CampaignId, autoKinds[i]));
+                    GameplayCheckpointStore.Clear(mod,
+                        ModSaveSlotPolicy.IsolatedAutoSlotForCampaign(
+                            mod.CampaignId, autoKinds[i]));
+                }
                 scenes.LoadStory();
                 _showMenu = false;
             }
@@ -1283,9 +1381,19 @@ namespace MortalModHost
         /// </summary>
         private void LoadCampaign(ModPackage mod)
         {
+            LoadCampaign(mod, mod != null ? CampaignIdentity.SaveSlot(mod.CampaignId) : null);
+        }
+
+        private void LoadCampaign(ModPackage mod, string isolatedSlot)
+        {
             if (!_runtimeReady || mod == null)
             {
                 Logger.LogError("运行时未安全就绪：已拒绝读取 MOD 战役");
+                return;
+            }
+            if (!CampaignIdentity.OwnsSlot(mod.CampaignId, isolatedSlot))
+            {
+                Logger.LogError("无法读取 MOD 战役：隔离手动槽不属于该战役");
                 return;
             }
             SaveSystem saves = SaveSystem.Instance;
@@ -1295,7 +1403,7 @@ namespace MortalModHost
                 Logger.LogError("无法读取 MOD 战役：存档或场景系统尚未就绪");
                 return;
             }
-            string slot = CampaignIdentity.SaveSlot(mod.CampaignId);
+            string slot = isolatedSlot;
             string previousOfficialSlot = ModSaveIsolation.IsModSlot(saves.CurrentSlot)
                 ? ModSaveIsolation.LastOfficialSlot : saves.CurrentSlot;
             try
@@ -1304,12 +1412,14 @@ namespace MortalModHost
                     throw new InvalidOperationException("隔离存档不存在或已经损坏");
                 ModSaveIsolation.BeforeEnterModSlot(saves.CurrentSlot);
                 saves.SetSlot(slot);
+                ResetModRuntimeForLoad();
                 if (SoundManager.Instance != null) SoundManager.Instance.StopMusic();
                 saves.LoadGameData();
                 ModCampaignState.Enter(mod);
                 ModQuestSession.Reset();
                 if (MissionManagerData.Instance != null)
                     MissionManagerData.Instance.UpdateCheckMissions();
+                RestoreGameplayForLoadedSave(mod, slot, false, slot);
                 Logger.LogInfo("继续 MOD 战役：" + mod.Id + "（隔离存档槽 " + slot + "）");
                 scenes.LoadCurrentScene();
                 _showMenu = false;
@@ -1340,23 +1450,32 @@ namespace MortalModHost
                 return;
             }
             string mainSlot = CampaignIdentity.SaveSlot(mod.CampaignId);
-            string isolated = ModSaveSlotPolicy.IsolatedAutoSlot(mainSlot, autoKind);
+            string isolated = ModSaveSlotPolicy.IsolatedAutoSlotForCampaign(
+                mod.CampaignId, autoKind);
             string previousOfficialSlot = ModSaveIsolation.IsModSlot(saves.CurrentSlot)
                 ? ModSaveIsolation.LastOfficialSlot : saves.CurrentSlot;
             try
             {
                 AutoGameSave auto = saves.GetAutoSaveData(isolated);
-                if (auto == null || auto.GameSave == null
-                    || !string.Equals(auto.Slot, mainSlot, StringComparison.Ordinal))
+                if (auto == null || auto.GameSave == null)
                     throw new InvalidOperationException("隔离自动存档不存在或已经损坏");
+                string resumeSlot = !string.IsNullOrEmpty(auto.Slot)
+                    && CampaignIdentity.OwnsSlot(mod.CampaignId, auto.Slot)
+                    ? auto.Slot : mainSlot;
                 ModSaveIsolation.BeforeEnterModSlot(saves.CurrentSlot);
-                saves.SetSlot(mainSlot);
+                saves.SetSlot(resumeSlot);
+                ResetModRuntimeForLoad();
                 if (SoundManager.Instance != null) SoundManager.Instance.StopMusic();
                 saves.AutoLoadGameData(isolated);
                 ModCampaignState.Enter(mod);
                 ModQuestSession.Reset();
                 if (MissionManagerData.Instance != null)
                     MissionManagerData.Instance.UpdateCheckMissions();
+                RestoreGameplayForLoadedSave(
+                    mod, isolated,
+                    string.Equals(autoKind, "auto_battle", StringComparison.Ordinal),
+                    string.Equals(autoKind, "auto_battle", StringComparison.Ordinal)
+                        ? resumeSlot : null);
                 Logger.LogInfo("继续 MOD 战役自动存档：" + mod.CampaignId + "/" + autoKind);
                 scenes.LoadCurrentScene();
                 _showMenu = false;
@@ -1369,6 +1488,53 @@ namespace MortalModHost
                 RestoreOfficialSlotAfterCampaignFailure(saves, previousOfficialSlot);
                 Logger.LogError("读取 MOD 自动存档失败，未切换场景：" + ex);
             }
+        }
+
+        private void RestoreGameplayForLoadedSave(
+            ModPackage mod, string saveSlot, bool required, string expectedSourceSlot)
+        {
+            GameplayCheckpoint checkpoint;
+            if (!GameplayCheckpointStore.TryLoad(mod, saveSlot, out checkpoint))
+            {
+                PlayerStatManagerData stats = PlayerStatManagerData.Instance;
+                bool combatSave = stats != null
+                    && string.Equals(stats.CurrentScene, "Combat", StringComparison.Ordinal);
+                if (required || combatSave)
+                    throw new InvalidOperationException(
+                        "战斗存档缺少 MOD Gameplay 上下文，拒绝进入错误的战斗：" + saveSlot);
+                return;
+            }
+            if (!string.IsNullOrEmpty(expectedSourceSlot)
+                && !string.Equals(checkpoint.SourceSlot, expectedSourceSlot,
+                    StringComparison.Ordinal))
+                throw new InvalidOperationException(
+                    "Gameplay 上下文与原版自动档所属手动槽不一致：" + saveSlot);
+            GameplaySession.RestoreCheckpoint(mod, checkpoint);
+            ModOverlay.CurrentPackage = mod;
+            ModDisclosure.Enable(mod);
+            if (GameplaySession.PendingCombat)
+                CombatBackgroundOverridePatch.Capture();
+            Logger.LogInfo("已恢复 MOD Gameplay 上下文：" + checkpoint.Kind + "/"
+                + checkpoint.Story + "/" + checkpoint.Node + "（" + saveSlot + "）");
+        }
+
+        /// <summary>
+        /// 读取隔离档是一个明确的 Host 生命周期边界。必须先结束旧来源披露和
+        /// Gameplay 临时覆盖，否则从任意 MOD 或战斗暂停页读档时，Enable 会把同一
+        /// 读取请求误判为跨包嵌套演出。
+        /// </summary>
+        private static void ResetModRuntimeForLoad()
+        {
+            GameplaySession.Reset();
+            GameplaySceneTransition.Reset();
+            CombatPlayerStatSession.Restore();
+            BattleNamedCharacterPatch.ClearNamedTemplates();
+            CustomAudioPlayer.StopEverything();
+            CustomCharacterRuntime.HideAllOnStage();
+            CustomImageRuntime.ClearAll();
+            RuntimeTrace.Reset();
+            LuaManagerPatch.ResetAbortGuard();
+            ModDisclosure.Disable();
         }
 
         private void RestoreOfficialSlotAfterCampaignFailure(

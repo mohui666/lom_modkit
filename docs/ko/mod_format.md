@@ -38,12 +38,12 @@ assets/                # 可选，自定义资源
   "story_schema": 2,
   "content_schema": 1,
   "min_host_version": "1.0.0",
-  "tested_host_version": "1.0.1",
+  "tested_host_version": "1.1.0",
   "tested_game_version": "1.2.3",
   "id": "demo_mod",
   "campaign_id": "demo_campaign",
   "name": "示例 Mod",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "author": "somebody",
   "description": "一句话简介",
   "entry": "main",
@@ -66,7 +66,7 @@ assets/                # 可选，自定义资源
 - `entry`: 진입 스토리 스크립트 id, 반드시 존재해야 합니다.
 - `min_host_version`은 SemVer 하드 요구 사항이며, 현재 Host가 `tested_host_version`보다 높으면 경고만 표시합니다. `game_version`은 Unity의 실제 `Application.version`과 정확히 일치해야 하는 하드 요구 사항이고, `tested_game_version` 불일치는 경고입니다. 네 필드는 모두 선택 사항이며 필드가 없는 구형 manifest는 기존처럼 동작합니다.
 - `campaign`(선택): 캠페인 모드.
-  - `new_game`: true이면 이 mod가 게임 내 mod 메뉴의 "새 캠페인 시작" 구역에 표시되며, 클릭하면 **격리 세이브 슬롯**(`SetSlot("mod_<modid>")`, 플레이어의 정상 세이브를 덮어쓰지 않음)으로 새 게임을 시작하고, 첫 번째 스토리 스크립트가 이 mod의 `entry`로 교체됩니다.
+  - `new_game`: v3에서는 true로 고정됩니다. 캠페인을 선택해도 저장 화면만 바뀌며, 명시적으로 시작할 때 현재 MOD의 001～020 격리 슬롯(001은 `mod_campaign_<campaign_id>`, 002～020은 `_sNNN`)으로 새 게임을 시작하고 첫 번째 스토리 스크립트를 이 mod의 `entry`로 교체합니다.
   - `disable_official_events`(선택, bool, 기본 false): true이면 이 캠페인에서 **원작 스토리 이벤트를 비활성화**합니다 — Free로 돌아올 때 장소 없는 메인/서브 스토리가 자동으로 시작되지 않으며, 맵 위치에는 이 mod의 트리거만 남습니다(적중하지 않으면 해당 위치의 기본 활동을 사용할 수 없으므로 mod가 자체 폴백 트리거를 준비해야 합니다).
   - `triggers`: 자유 모드 트리거 배열. `type="position"`: 맵 위치 `position`(PositionType 열거형 id: Mall/Center/Alchemy/Forge/BackMountain/Room1/Door/Study/Kitchen/Room2/Secret)을 클릭하면, 해당 위치의 기본 활동 스크립트가 `script`(같은 패키지의 스크립트 id)로 교체됩니다. 선택 조건이 모두 적중해야 유효합니다(다중 조건은 AND; **배열 순서=우선순위**, 런타임은 모든 조건이 적중하는 첫 번째 트리거를 사용):
     - `when_flag_set` / `when_flag_clear`: 스토리 flag(즉 `flag` 노드 AddStory의 key, 세이브에 영구 저장)가 설정됨/설정되지 않음.
@@ -377,8 +377,8 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 1. 시작 시 `BepInEx/plugins/MortalModHost/mods/*.lommod`를 스캔해 `MOD_<modid>_<scriptid>` → lua 텍스트를 등록합니다.
 2. Harmony prefix `LuaManager.ExecuteLuaScript()`: 등록 이름이 적중하면 mod lua로 실행하고 원래 메서드를 건너뜁니다.
 3. 진입: Free에서는 "活侠MOD"와 F8을 유지합니다. Title에서는 원작 "게임 시작" 위에 같은 외형의 "MOD 캠페인 시작"을 표시합니다. 원작 로드 슬롯을 재사용해 기존 MOD 저장을 이어 하고, 고정 "새 캠페인" 빈 슬롯에서 Mod를 선택합니다. 닫으면 원작 001～020을 다시 만듭니다.
-   - **완전 저장 격리**: MOD 수동 슬롯은 `mod_campaign_<campaign_id>`, 자동 슬롯은 `_auto` / `_auto_free` / `_auto_battle`입니다. 기존 `mod_<id>`는 탐색하지 않습니다.
-4. **캠페인**: "새 캠페인 시작" 클릭 → `SetSlot("mod_<modid>")`(격리 세이브 슬롯) → 공식 `NewGameData()` → postfix가 첫 번째 스토리 스크립트를 해당 mod의 entry로 교체 → LoadStory.
+   - **완전 저장 격리**: MOD 수동 001～020은 `mod_campaign_<campaign_id>` / `_sNNN`, 자동 슬롯은 `_auto` / `_auto_free` / `_auto_battle`입니다. 기존 `mod_<id>`는 탐색하지 않습니다.
+4. **캠페인**: "새 캠페인 시작" 클릭 → 현재 MOD의 001～020 격리 슬롯 → 공식 `NewGameData()` → postfix가 첫 번째 스토리 스크립트를 해당 mod의 entry로 교체 → LoadStory.
 5. **원작 스토리 억제와 위치 트리거**: `disable_official_events` 또는 F7이 유효할 때, `UpdateCheckMissions` 내에서 메인 트리거 상태를 잠시 숨기고 `HasAnyMissionTrigger`가 false를 반환해, Free로 돌아올 때 공식 메인/서브가 자동으로 시작되는 것을 막습니다; 장소 클릭 postfix `FreePositionData.GetExecuteScript`는 manifest.triggers를 우선 매칭하고, mod 적중이 없으면 공식 장소 기본 스크립트를 억제합니다.
 6. **폴백**: Story 장면이 요청한 MOD_ 스크립트가 미등록(mod 삭제됨)이면 실행하지 않고 `ChangeScene("Free","","")`로 소프트락을 방지합니다.
 7. mod는 공식 스크립트와 텍스트 테이블을 수정하지 않습니다; mod의 flag는 StoryKeyList에 들어가 세이브와 호환됩니다.

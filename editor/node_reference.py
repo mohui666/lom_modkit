@@ -134,6 +134,7 @@ KIND_DOCS: dict[str, str] = {
     "intro_image": "reference.kind.user_id",
     "ending_image": "reference.kind.game_or_user_id",
     "battle_faction": "reference.kind.game_id",
+    "battle_faction_list": "reference.kind.structured",
     "enemy_team": "reference.kind.game_id",
     "enemy_team_optional": "reference.kind.game_id",
     "battle_skill": "reference.kind.game_id",

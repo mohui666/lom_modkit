@@ -37,8 +37,8 @@ MANIFEST = {
     "package_format": 3,
     "story_schema": 2,
     "content_schema": 1,
-    "min_host_version": "1.0.1",
-    "tested_host_version": "1.0.1",
+    "min_host_version": "1.1.0",
+    "tested_host_version": "1.1.0",
     "id": "showcase3",
     "campaign_id": "showcase3",
     "name": "全节点样例3.0·六十二节点实机验收",
@@ -290,6 +290,12 @@ def build_gameplay() -> dict:
     story = _blank_story("gameplay", "3.0 第二章：数值、检定、任务与商店")
     start = _node(story, "message", {"text": "【3.0/2】Gameplay 组合节点开始。"})
     _set_start(story, start)
+    _node(story, "scene", {"view": "center"})
+    _node(
+        story,
+        "background",
+        {"action": "show", "image": "user:showcase.courier_station", "fade": 0},
+    )
     _node(story, "stat", {"key": "mental", "delta": 1, "waitDisplay": False})
     _node(story, "stat_set", {"key": "talking", "value": 50, "update": False})
     _node(story, "affinity", {"character": "sister1", "delta": 1})
@@ -426,7 +432,7 @@ def build_gameplay() -> dict:
 def build_combat() -> dict:
     story = _blank_story("combat_demo", "3.0 第三章：原版 Combat 编排")
     start = _node(story, "message", {
-        "text": "【3.0/3】林灯没有专用 Combat 四帧，属性按 100 填写，用来验收立绘钉在待机中心、详情滑条不再被玩家 50 上限截断。也可跳过。",
+        "text": "【3.0/3】林灯没有专用 Combat 四帧。对手只填写基础血量 333、基础气力 111；原版技能增益后，界面显示最终值，未填初始值时按最终满值进入。赵活体力、内力与被动先按原版换算生命，再额外叠加 120 基础生命。雷达六维填 100，右边五项是官方评语。也可跳过。",
     })
     _set_start(story, start)
     fight = _node(
@@ -437,8 +443,9 @@ def build_combat() -> dict:
             # 立绘并钉在官方待机中心，Attack/Hurt 不得上移。
             "character": "user:showcase.lin_deng",
             "background": "center",
-            "max_health": 300, "health": 300,
-            "max_stamina": 100, "stamina": 100,
+            # 故意不填 health/stamina：基础值与原版增益结算后按最终满值开场。
+            "max_health": 333,
+            "max_stamina": 111,
             "stamina_power": 100, "strength": 100, "internal": 100,
             "dexterity": 100, "talking": 100,
             "defence": 100, "sword": 100, "fist": 100,
@@ -452,6 +459,10 @@ def build_combat() -> dict:
             "weapon_hit_addition": 0, "attack_parry_addition": 0.0,
             "block_dodge_addition": 0.0, "block_parry_addition": 0.0,
             "talents": [{"key": "0001", "level": 3}],
+            "player_max_health": 1000,
+            "player_strength": 80, "player_stamina_power": 70,
+            "player_dexterity": 60, "player_sword": 75,
+            "player_talents": [{"key": "0001", "level": 2}],
             "talk_rate": 0.1, "attack_rate": 0.5, "weapon_rate": 0.1,
             "ultimate_rate": 0.05, "block_rate": 0.25,
             "win": "", "lose": "",

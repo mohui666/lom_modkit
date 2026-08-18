@@ -24,6 +24,8 @@
     <Compile Include="..\..\src\CombatBackgroundAddressPolicy.cs" />
     <Compile Include="..\..\src\CombatSpriteLayoutPolicy.cs" />
     <Compile Include="..\..\src\CombatStatDisplayPolicy.cs" />
+    <Compile Include="..\..\src\CombatVitalPolicy.cs" />
+    <Compile Include="..\..\src\CombatPlayerOverridePolicy.cs" />
     <!-- CombatSpritePin 依赖 Unity，不能进离线冒烟测试 -->
     <Compile Include="..\..\src\PositionNameMap.cs" />
     <Compile Include="..\..\src\PreviewRequest.cs" />
@@ -44,6 +46,7 @@
     <Compile Include="..\..\src\ModSaveSlotPolicy.cs" />
     <Compile Include="..\..\src\ModQuestSession.cs" />
     <Compile Include="..\..\src\PersistentStateStore.cs" />
+    <Compile Include="..\..\src\GameplayCheckpointStore.cs" />
   </ItemGroup>
 
 </Project>

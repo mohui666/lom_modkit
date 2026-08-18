@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using BepInEx.Logging;
 using Fungus;
+using Mortal.Core;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -22,6 +23,9 @@ namespace MortalModHost
         private static Sprite _sprite;
         private static Texture2D _texture;
         private static Coroutine _fade;
+        private static string _backgroundReference = "";
+        private static string _pendingBackgroundReference = "";
+        private static Coroutine _backgroundRestore;
         private static GameObject _cgRoot;
         private static Image _cgImage;
         private static Sprite _cgSprite;
@@ -110,6 +114,7 @@ namespace MortalModHost
             _image = image;
             _sprite = sprite;
             _texture = texture;
+            _backgroundReference = raw;
             float duration = Mathf.Max(0f, seconds);
             SetAlpha(image, duration > 0f ? 0f : 1f);
             if (_host != null && duration > 0f)
@@ -120,6 +125,7 @@ namespace MortalModHost
 
         public static void ClearBackground(float seconds)
         {
+            _backgroundReference = "";
             if (_root == null)
                 return;
             StopFade();
@@ -353,6 +359,78 @@ namespace MortalModHost
             DestroyCgVisual();
             foreach (string slot in new List<string>(Overlays.Keys))
                 DestroyOverlay(slot);
+        }
+
+        /// <summary>
+        /// 原版 GameSave 不记录包内图片背景。保存时只记录已验证过的 user:image
+        /// 引用，读档后等新的 Story Stage 就绪再重新挂载，不能把旧场景的对象留下。
+        /// </summary>
+        internal static string ActiveBackgroundReference
+        {
+            get { return _root != null ? _backgroundReference : ""; }
+        }
+
+        internal static void RestoreBackgroundWhenStageReady(string raw)
+        {
+            _pendingBackgroundReference = raw ?? "";
+            if (_backgroundRestore != null && _host != null)
+                _host.StopCoroutine(_backgroundRestore);
+            _backgroundRestore = null;
+            if (string.IsNullOrEmpty(_pendingBackgroundReference) || _host == null)
+                return;
+            Stage previous = Stage.GetActiveStage();
+            _backgroundRestore = _host.StartCoroutine(
+                RestoreBackgroundAfterStageChange(previous));
+        }
+
+        /// <summary>
+        /// 同一 MOD 的 end.next_script 不会切换 Story 场景。保留已显示的作者背景，
+        /// 但只在当前 Stage 已完成加载时立即挂回；读档路径仍使用
+        /// RestoreBackgroundWhenStageReady，不能把图片挂到即将卸载的旧舞台。
+        /// </summary>
+        internal static void RestoreBackgroundForScriptContinuation(string raw)
+        {
+            if (string.IsNullOrEmpty(raw) || _host == null) return;
+            SceneController scenes = SceneController.Instance;
+            bool sceneLoading = scenes != null && (scenes.IsPrepare || scenes.IsLoading);
+            Stage stage = Stage.GetActiveStage();
+            if (sceneLoading || stage == null || stage.PortraitCanvas == null
+                || ModOverlay.CurrentPackage == null)
+            {
+                RestoreBackgroundWhenStageReady(raw);
+                return;
+            }
+            _pendingBackgroundReference = "";
+            if (_backgroundRestore != null)
+                _host.StopCoroutine(_backgroundRestore);
+            _backgroundRestore = null;
+            ShowBackground(raw, 0f);
+        }
+
+        private static IEnumerator RestoreBackgroundAfterStageChange(Stage previous)
+        {
+            float deadline = Time.unscaledTime + 12f;
+            bool observedSceneLoad = false;
+            while (Time.unscaledTime < deadline)
+            {
+                SceneController scenes = SceneController.Instance;
+                bool sceneLoading = scenes != null && (scenes.IsPrepare || scenes.IsLoading);
+                if (sceneLoading) observedSceneLoad = true;
+                Stage stage = Stage.GetActiveStage();
+                if (stage != null && stage.PortraitCanvas != null
+                    && ModOverlay.CurrentPackage != null && !sceneLoading
+                    && (stage != previous || observedSceneLoad))
+                {
+                    string raw = _pendingBackgroundReference;
+                    _pendingBackgroundReference = "";
+                    _backgroundRestore = null;
+                    ShowBackground(raw, 0f);
+                    yield break;
+                }
+                yield return null;
+            }
+            _backgroundRestore = null;
+            Warn("剧情背景恢复超时，未找到新的 Story 舞台");
         }
 
         private static IEnumerator FadeTo(float target, float seconds, bool destroy)

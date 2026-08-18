@@ -7,8 +7,8 @@ MortalModHost 是 BepInEx 6 / Harmony 宿主，负责加载 `.lommod`、把编�
 - 能调用原版系统的节点使用已经由反编译确认、并由 Host 构建/SmokeTest 覆盖的真实方法签名；完整映射以 `docs/chs/mod_format.md` 为准。
 - `enemy`、`battle_skill`、`goto_scene Combat/Battle` 与高层 `combat` / `battle` 只调用原版战斗 API。结果所有权绑定包 id + 完整 SHA-256 和剧情 id；`battle_result` 只能读取匹配所有者的真实 win/lose。Combat 观察 `GameOver(bool)`，Battle 只观察 finish=true 的 FriendWin/EnemyWin。Runtime 不包含自定义 Battle Engine，不伪造 draw/escape，也不改写 PlayerDie(false)。
 - 自定义角色和媒体是独立 Mod Runtime 对象，不伪造或覆盖原版 Addressables 条目。
-- `persistent_var` / `persistent_check` 读取原版 `SaveSystem.CurrentSlot`，但状态写入 Host 管理的 `mod_campaign_<campaign_id>` sidecar；原版 `SaveGameData` 成功后才原子落盘，不改 GameSave schema，也拒绝普通/F5 官方槽。
-- 标题入口临时复用原版 `LoadGamePanel/LoadSlotPanel/AutoSaveSlotPanel/RecentSaveSlotPanel`：先选择战役，再进入该战役自己的主槽、三类自动槽和新建入口。MOD 手动槽为 `mod_campaign_<campaign_id>`，三类自动槽追加 `_auto*`；旧 `mod_<manifest.id>` 槽不探测、不迁移。`SaveUniverseData` 只记录最后一个原版槽，因此原版 001～020、`auto*` 和“继续游戏”指针均不会被 MOD 覆盖。
+- `persistent_var` / `persistent_check` 读取原版 `SaveSystem.CurrentSlot`，状态写入 Host 管理的、与实际 MOD 手动隔离槽一一对应的 sidecar（`mod_campaign_<campaign_id>` 或 `_sNNN`）；原版手动/自动存档成功后才原子落盘，不改 GameSave schema，也拒绝普通/F5 官方槽。
+- 标题入口临时复用原版 `LoadGamePanel/LoadSlotPanel/AutoSaveSlotPanel/RecentSaveSlotPanel`：先选择战役，再进入该战役自己的 001～020 手动栏位和三类自动槽。001 映射到 `mod_campaign_<campaign_id>`，002～020 映射到 `_sNNN`；空手动栏位可新建，已有栏位可覆盖/读取。三类自动槽追加 `_auto*`；旧 `mod_<manifest.id>` 槽不探测、不迁移。`SaveUniverseData` 只记录最后一个原版槽，因此原版 001～020、`auto*` 和“继续游戏”指针均不会被 MOD 覆盖。
 - Manifest、路径、包大小、哈希和脚本注册名在 Runtime 再次验证，不能只信编辑器导出的包。
 
 改游戏功能必须先查反编译接口，见仓库根目录 [`AGENTS.md`](../../AGENTS.md) 与 [`docs/chs/decompiled_api.md`](../../docs/chs/decompiled_api.md)。已确认签名与禁止项见 [`research/gameplay_api.md`](../../research/gameplay_api.md)。`tools/verify_gameplay_api.py` 对本机安装只读复验；游戏更新后旧哈希不会被静默接受。整份游戏反编译 `.cs` 不要提交。

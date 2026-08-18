@@ -100,6 +100,17 @@ namespace MortalModHost
                         "Gameplay 尚未回报结果却重新进入 MOD Story，已阻止重复执行：" + scriptName);
                 RuntimeTrace.BeginScript(package, scriptName);
 
+                // end.next_script stays in the same Story stage. Preserve only a
+                // live background from the exact same package; a fresh entry or a
+                // different package must never inherit another MOD's visual state.
+                ModPackage previousPackage = ModOverlay.CurrentPackage;
+                bool samePackage = previousPackage != null && ModDisclosure.Active
+                    && string.Equals(previousPackage.Id, package.Id, StringComparison.Ordinal)
+                    && string.Equals(previousPackage.PackageFingerprint,
+                        package.PackageFingerprint, StringComparison.Ordinal);
+                string continuedBackground = samePackage
+                    ? CustomImageRuntime.ActiveBackgroundReference : "";
+
                 // _luaEnvironment 是 private 字段（[SerializeField]），用 Harmony Traverse 取
                 var env = Traverse.Create(__instance).Field("_luaEnvironment").GetValue<LuaEnvironment>();
                 if (env == null)
@@ -114,6 +125,12 @@ namespace MortalModHost
                 CustomAudioPlayer.StopEverything();
                 CustomCharacterRuntime.HideAllOnStage();
                 CustomImageRuntime.ClearAll();
+                if (!string.IsNullOrEmpty(continuedBackground))
+                {
+                    CustomImageRuntime.RestoreBackgroundForScriptContinuation(
+                        continuedBackground);
+                    Log.LogInfo("已保留同包跨剧情自定义背景：" + continuedBackground);
+                }
 
                 // LoadLuaFunction 会确保 MoonSharp Interpreter 已初始化；它在编译错误时可能
                 // 吞异常并返回 null，因此必须显式判空，不能把空演出误报为成功。
@@ -229,6 +246,7 @@ namespace MortalModHost
             {
                 GameplaySceneTransition.Reset();
                 BattleNamedCharacterPatch.ClearNamedTemplates();
+                CombatPlayerStatSession.Restore();
                 GameplaySession.Reset();
                 _pendingAbortReason = string.IsNullOrEmpty(reason) ? "未知 MOD 演出故障" : reason;
                 RuntimeErrorReporter.Report(

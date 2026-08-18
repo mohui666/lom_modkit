@@ -1,10 +1,36 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace MortalModHost
 {
+    /// <summary>
+    /// 可随 SaveSystem 自动/手动存档保存的 Gameplay 上下文。原版 GameSave 只保存
+    /// CurrentScene/CurrentSceneKey，不保存 MOD 的 combat/battle 配置，因此不能只靠
+    /// 读回 GameSave 重建本场。
+    /// </summary>
+    internal sealed class GameplayCheckpoint
+    {
+        internal string ModId;
+        internal string CampaignId;
+        internal string PackageFingerprint;
+        internal string Kind;
+        internal string Story;
+        internal string Node;
+        internal string WinTarget;
+        internal string LoseTarget;
+        internal string Result;
+        internal string CombatDisplayName;
+        internal string CombatIdleAddress;
+        internal string StoryBackground;
+        internal string SaveSlot;
+        internal string SourceSlot;
+        internal readonly Dictionary<string, string> Config =
+            new Dictionary<string, string>(StringComparer.Ordinal);
+    }
+
     /// <summary>
     /// 原版 Gameplay 场景与 MOD Story 之间的一次性结果信箱。这里只保存宿主状态，
     /// 不修改游戏存档；包 id + 完整 SHA-256 共同绑定所有权，避免同 id 换包接管结果。
@@ -45,6 +71,66 @@ namespace MortalModHost
         internal static string LastResult { get { return _lastResult; } }
         internal static string CombatDisplayName { get { return _combatDisplayName; } }
         internal static string CombatIdleAddress { get { return _combatIdleAddress; } }
+
+        internal static GameplayCheckpoint CaptureCheckpoint(ModPackage package)
+        {
+            string storyBackground = CustomImageRuntime.ActiveBackgroundReference;
+            if (!HasPending && string.IsNullOrEmpty(storyBackground)) return null;
+            Owner(package);
+            var checkpoint = new GameplayCheckpoint
+            {
+                ModId = package.Id,
+                CampaignId = package.CampaignId,
+                PackageFingerprint = package.PackageFingerprint,
+                Kind = _kind,
+                Story = _story,
+                Node = _node,
+                WinTarget = _winTarget,
+                LoseTarget = _loseTarget,
+                Result = _result,
+                CombatDisplayName = _combatDisplayName,
+                CombatIdleAddress = _combatIdleAddress,
+                StoryBackground = storyBackground,
+            };
+            foreach (KeyValuePair<string, string> pair in _config)
+                checkpoint.Config.Add(pair.Key, pair.Value);
+            return checkpoint;
+        }
+
+        internal static void RestoreCheckpoint(ModPackage package, GameplayCheckpoint checkpoint)
+        {
+            if (package == null || checkpoint == null)
+                throw new InvalidOperationException("Gameplay 自动存档上下文为空");
+            Owner(package);
+            if (!string.Equals(checkpoint.ModId, package.Id, StringComparison.Ordinal)
+                || !string.Equals(checkpoint.CampaignId, package.CampaignId, StringComparison.Ordinal)
+                || !string.Equals(checkpoint.PackageFingerprint,
+                    package.PackageFingerprint, StringComparison.Ordinal))
+                throw new InvalidOperationException("Gameplay 自动存档包身份不匹配");
+
+            Reset();
+            if (string.IsNullOrEmpty(checkpoint.Kind))
+            {
+                CustomImageRuntime.RestoreBackgroundWhenStageReady(checkpoint.StoryBackground);
+                return;
+            }
+            Prepare(package, checkpoint.Kind, checkpoint.Story, checkpoint.Node,
+                checkpoint.WinTarget, checkpoint.LoseTarget);
+            var encoded = new StringBuilder();
+            foreach (KeyValuePair<string, string> pair in checkpoint.Config)
+            {
+                if (encoded.Length > 0) encoded.Append(';');
+                encoded.Append(pair.Key).Append('=').Append(pair.Value ?? "");
+            }
+            Configure(checkpoint.Kind, encoded.ToString());
+            if (string.Equals(checkpoint.Kind, "combat", StringComparison.Ordinal)
+                && !string.IsNullOrWhiteSpace(checkpoint.CombatDisplayName))
+                BindCombatCharacter(checkpoint.CombatDisplayName, checkpoint.CombatIdleAddress);
+            if (!string.IsNullOrEmpty(checkpoint.Result)
+                && !RecordResult(checkpoint.Kind, checkpoint.Result))
+                throw new InvalidOperationException("Gameplay 自动存档结果无效");
+            CustomImageRuntime.RestoreBackgroundWhenStageReady(checkpoint.StoryBackground);
+        }
 
         internal static void Prepare(
             ModPackage package, string kind, string story, string node,
@@ -100,7 +186,7 @@ namespace MortalModHost
             _config.Clear();
             if (encoded.Length == 0) return;
             string[] fields = encoded.Split(';');
-            if (fields.Length > 64)
+            if (fields.Length > 128)
                 throw new ArgumentException("Gameplay 配置字段过多");
             foreach (string field in fields)
             {
@@ -115,6 +201,8 @@ namespace MortalModHost
                     throw new ArgumentException("Gameplay 配置字段重复：" + key);
                 _config.Add(key, value);
             }
+            if (string.Equals(kind, "combat", StringComparison.Ordinal))
+                CombatStatusLog.DumpConfig("configure");
         }
 
         internal static string ConfigString(string key)

@@ -12,6 +12,7 @@ namespace MortalModHost
         private static void Prefix(bool win)
         {
             GameplaySession.RecordResult("combat", win ? "win" : "lose");
+            CombatPlayerStatSession.Restore();
         }
     }
 

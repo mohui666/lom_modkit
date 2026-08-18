@@ -422,6 +422,17 @@ _NODE_FIELDS = {
             "block_parry_addition": "num", "talk_rate": "num", "attack_rate": "num",
             "weapon_rate": "num", "ultimate_rate": "num", "block_rate": "num",
             "talents": "list",
+            "player_max_health": "num", "player_health": "num",
+            "player_max_stamina": "num", "player_stamina": "num",
+            "player_stamina_power": "num", "player_strength": "num",
+            "player_internal": "num", "player_dexterity": "num",
+            "player_talking": "num", "player_defence": "num",
+            "player_sword": "num", "player_fist": "num",
+            "player_martial_weapon": "num", "player_mental": "num",
+            "player_poison_resist": "num", "player_paralyzed_resist": "num",
+            "player_disposition": "num", "player_behaviour": "num",
+            "player_karma": "num", "player_training": "num",
+            "player_talents": "list",
         },
     ),
     "battle": (
@@ -690,6 +701,50 @@ def _check_asset_image_path(image, label, ntype):
             '%s(%s): 字段 "image" 必须是包内 assets/ 相对路径'
             "（不得指向包外），实际为 %r" % (label, ntype, image)
         )
+
+
+def _validate_combat_talent_list(label, field, talents):
+    if talents is None:
+        talents = []
+    if len(talents) > 32:
+        raise LomcError('%s(combat): %s 最多 32 条' % (label, field))
+    combat_talents = load_combat_talents()
+    seen_talents = set()
+    for index, talent in enumerate(talents, 1):
+        if not isinstance(talent, dict) or set(talent) - {"key", "level"}:
+            raise LomcError(
+                '%s(combat): 第 %d 条 %s 格式错误' % (label, index, field)
+            )
+        if not isinstance(talent.get("key"), str) or SCRIPT_ID_RE.fullmatch(talent["key"]) is None:
+            raise LomcError(
+                '%s(combat): 第 %d 条 %s key 无效' % (label, index, field)
+            )
+        key = talent["key"]
+        if key in seen_talents:
+            raise LomcError('%s(combat): %s %s 不得重复' % (label, field, key))
+        seen_talents.add(key)
+        if combat_talents is not None and key not in combat_talents:
+            raise LomcError(
+                '%s(combat): %s %s 不是原版 CombatSkill' % (label, field, key)
+            )
+        level = talent.get("level", 1)
+        max_level = int((combat_talents or {}).get(key, {}).get("max_level", 999))
+        if isinstance(level, bool) or not isinstance(level, int) or not 1 <= level <= max_level:
+            raise LomcError(
+                '%s(combat): %s %s level 必须在 1~%d 之间'
+                % (label, field, key, max_level)
+            )
+        if combat_talents is not None:
+            effects = combat_talents[key].get("effects") or []
+            if not any(
+                isinstance(effect, dict) and effect.get("level") == level
+                and isinstance(effect.get("key"), str) and effect["key"]
+                for effect in effects
+            ):
+                raise LomcError(
+                    '%s(combat): %s %s level %d 没有已验证的 Combat Effect'
+                    % (label, field, key, level)
+                )
 
 
 def _check_node_extra(node, ntype, label):
@@ -1112,8 +1167,18 @@ def _check_node_extra(node, ntype, label):
             "defence", "sword", "fist", "martial_weapon", "mental",
             "weapon_poison_value", "weapon_paralyzed_value", "poison_resist",
             "paralyzed_resist", "disposition", "behaviour", "karma", "training",
+            "player_stamina_power", "player_strength", "player_internal",
+            "player_dexterity", "player_talking", "player_defence", "player_sword",
+            "player_fist", "player_martial_weapon", "player_mental",
+            "player_poison_resist", "player_paralyzed_resist",
+            "player_disposition", "player_behaviour", "player_karma",
+            "player_training",
         ):
             integer_ranges[name] = (0, 10000)
+        integer_ranges["player_max_health"] = (1, 10000000)
+        integer_ranges["player_health"] = (0, 10000000)
+        integer_ranges["player_max_stamina"] = (0, 100000)
+        integer_ranges["player_stamina"] = (0, 100000)
         for name, (minimum, maximum) in integer_ranges.items():
             if name not in effective:
                 continue
@@ -1132,42 +1197,10 @@ def _check_node_extra(node, ntype, label):
         for name in ("talk_rate", "attack_rate", "weapon_rate", "ultimate_rate", "block_rate"):
             if name in effective and not 0 <= effective[name] <= 1:
                 raise LomcError('%s(combat): %s 必须在 0~1 之间' % (label, name))
-        talents = effective.get("talents", [])
-        if len(talents) > 32:
-            raise LomcError('%s(combat): talents 最多 32 条' % label)
-        combat_talents = load_combat_talents()
-        seen_talents = set()
-        for index, talent in enumerate(talents, 1):
-            if not isinstance(talent, dict) or set(talent) - {"key", "level"}:
-                raise LomcError('%s(combat): 第 %d 条 talents 格式错误' % (label, index))
-            if not isinstance(talent.get("key"), str) or SCRIPT_ID_RE.fullmatch(talent["key"]) is None:
-                raise LomcError('%s(combat): 第 %d 条 talent key 无效' % (label, index))
-            key = talent["key"]
-            if key in seen_talents:
-                raise LomcError('%s(combat): talent %s 不得重复' % (label, key))
-            seen_talents.add(key)
-            if combat_talents is not None and key not in combat_talents:
-                raise LomcError(
-                    '%s(combat): talent %s 不是原版 CombatSkill' % (label, key)
-                )
-            level = talent.get("level", 1)
-            max_level = int((combat_talents or {}).get(key, {}).get("max_level", 999))
-            if isinstance(level, bool) or not isinstance(level, int) or not 1 <= level <= max_level:
-                raise LomcError(
-                    '%s(combat): talent %s level 必须在 1~%d 之间'
-                    % (label, key, max_level)
-                )
-            if combat_talents is not None:
-                effects = combat_talents[key].get("effects") or []
-                if not any(
-                    isinstance(effect, dict) and effect.get("level") == level
-                    and isinstance(effect.get("key"), str) and effect["key"]
-                    for effect in effects
-                ):
-                    raise LomcError(
-                        '%s(combat): talent %s level %d 没有已验证的 Combat Effect'
-                        % (label, key, level)
-                    )
+        _validate_combat_talent_list(label, "talents", effective.get("talents", []))
+        _validate_combat_talent_list(
+            label, "player_talents", effective.get("player_talents", [])
+        )
     elif ntype == "battle":
         effective = node
         for name in ("friend_faction", "enemy_faction"):
@@ -1900,7 +1933,7 @@ def validate_manifest(manifest, source="manifest.json"):
         if fmt != PACKAGE_FORMAT or isinstance(fmt, bool):
             raise LomcError(
                 '字段 "package_format" 必须是 %d；v1/v2 包缺少稳定 campaign_id，'
-                '与 1.0.1 不兼容，请用 1.0.1 Editor 重新导出' % PACKAGE_FORMAT
+                '与 v3 不兼容，请用 1.0.1 或更高版本 Editor 重新导出' % PACKAGE_FORMAT
             )
         if "package_format" in manifest and "format" in manifest:
             legacy_format = manifest.get("format")
@@ -1925,7 +1958,7 @@ def validate_manifest(manifest, source="manifest.json"):
         if not isinstance(campaign_id, str) or MOD_ID_RE.fullmatch(campaign_id) is None:
             raise LomcError(
                 '缺少必填字段 "campaign_id"（稳定战役 id，规则 '
-                '[a-z0-9_-]{1,64}）。旧项目不会自动生成该 ID；请在 1.0.1 Editor '
+                '[a-z0-9_-]{1,64}）。旧项目不会自动生成该 ID；请在 1.0.1 或更高版本 Editor '
                 '中明确填写并重新导出，实际为 %r' % (campaign_id,)
             )
         for name in ("name", "version", "author", "description"):

@@ -5,11 +5,11 @@
 不用寫 Lua。用圖形編輯器編排人物對白、場景演出、分支劇情、音樂音效，
 一鍵匯出 `.lommod`，直接在遊戲中執行。
 
-[![Release v1.0.1](https://img.shields.io/badge/release-v1.0.1-blue)](https://github.com/mohui666/lom_modkit/releases/latest)
+[![Release v1.1.0](https://img.shields.io/badge/release-v1.1.0-blue)](https://github.com/mohui666/lom_modkit/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)](#相容性)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-**[⬇ 下載 Windows 版](https://github.com/mohui666/lom_modkit/releases/download/v1.0.1/lom_modkit-v1.0.1_windows_x64.zip)** ·
+**[⬇ 下載 Windows 版](https://github.com/mohui666/lom_modkit/releases/download/v1.1.0/lom_modkit-v1.1.0_windows_x64.zip)** ·
 [快速開始](#快速開始) ·
 [文件](docs/cht/README.md)
 
@@ -41,7 +41,7 @@ lom_modkit 讓你用《活俠傳》**原有的人物、場景、音樂、特效�
 
 ### 1. 下載
 
-下載 [lom_modkit-v1.0.1_windows_x64.zip](https://github.com/mohui666/lom_modkit/releases/download/v1.0.1/lom_modkit-v1.0.1_windows_x64.zip) 並解壓縮。無需安裝 Python。
+下載 [lom_modkit-v1.1.0_windows_x64.zip](https://github.com/mohui666/lom_modkit/releases/download/v1.1.0/lom_modkit-v1.1.0_windows_x64.zip) 並解壓縮。無需安裝 Python。
 
 ### 2. 啟動
 
@@ -124,8 +124,9 @@ lom_modkit 讓你用《活俠傳》**原有的人物、場景、音樂、特效�
 
 ## 目前版本
 
-**v1.0.1**：`.lommod` v3 強制穩定 `campaign_id` 與戰役存檔隔離 · MOD 戰役只選取、不誤啟動 ·
-單挑人物只控制動畫並支援 idle 回退 · 修正戰役總人數/官方人物計數與編輯器預覽裁切。
+**v1.1.0**：完善原版風格 MOD 存檔頁與每個 MOD 的 001～020 獨立欄位；修正 Combat/Battle 讀檔、回合、血量重複累加與劇情背景恢復；新增趙活基準屬性/天賦覆寫並保留原版體力與被動加成。
+
+完整變更見 [1.1.0 Release Notes](RELEASE_NOTES_v1.1.0.md)。歷史版本見 [Release Notes](https://github.com/mohui666/lom_modkit/releases)。
 
 **v1.0.0**：統一 Editor/Runtime 版本 · `.lommod` v2 嚴格驗證與 Story/Lua 一致性 ·
 Lua 環境隔離與完整生命週期清理 · 一次性快捷鍵遷移 · Runtime 自動化測試與 CI。
@@ -234,7 +235,7 @@ cd runtime/MortalModHost && dotnet run --project test/SmokeTest -c Release
 不需要。Windows 發行版是獨立 exe。只有從原始碼執行/開發才需要 Python 3.10+ 與 .NET（建置外掛）。
 
 **Q：Mod 會修改我的遊戲檔案或存檔嗎？**
-不會修改官方腳本與文字表。「開始新戰役」使用獨立存檔槽（`mod_<modid>`），不覆蓋你的正常存檔。
+不會修改官方腳本與文字表。「開始新戰役」使用 `mod_campaign_<campaign_id>` 命名空間下的獨立欄位與自動檔，不覆蓋你的正常存檔。
 
 **Q：做好的 Mod 可以發給別人嗎？**
 可以。匯出的 `.lommod` 自包含（含參照的音訊/圖片），對方用本工具裝好執行階段即可遊玩。

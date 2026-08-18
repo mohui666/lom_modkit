@@ -171,8 +171,8 @@ def migrate_manifest(document: dict) -> MigrationResult:
     package_version = result.get("package_format") if has_explicit else result.get("format")
     if isinstance(package_version, bool) or package_version != PACKAGE_FORMAT:
         raise MigrationError(
-            "package_format=%r 与 1.0.1 不兼容：旧包缺少稳定 campaign_id，"
-            "请用 1.0.1 Editor 明确填写后重新导出" % package_version
+            "package_format=%r 与 v3 不兼容：旧包缺少稳定 campaign_id，"
+            "请用 1.0.1 或更高版本 Editor 明确填写后重新导出" % package_version
         )
     if has_explicit and has_legacy:
         legacy = result.get("format")
@@ -200,7 +200,7 @@ def migrate_manifest(document: dict) -> MigrationResult:
     if not isinstance(campaign_id, str) or not campaign_id.strip():
         raise MigrationError(
             "package_format=3 的 manifest 缺少稳定 campaign_id；"
-            "请用 1.0.1 Editor 明确填写后重新导出"
+            "请用 1.0.1 或更高版本 Editor 明确填写后重新导出"
         )
     if not isinstance(campaign, dict) or campaign.get("new_game") is not True:
         raise MigrationError(
