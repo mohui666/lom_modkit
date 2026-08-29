@@ -5,11 +5,11 @@
 Lua를 작성할 필요가 없습니다. 그래픽 에디터로 인물 대사, 장면 연출, 분기 시나리오, 음악·효과음을 편성하고,
 한 번의 클릭으로 `.lommod`를보내 게임에서 바로 실행할 수 있습니다.
 
-[![Release v1.1.0](https://img.shields.io/badge/release-v1.1.0-blue)](https://github.com/mohui666/lom_modkit/releases/latest)
+[![Release v1.1.1](https://img.shields.io/badge/release-v1.1.1-blue)](https://github.com/mohui666/lom_modkit/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)](#호환성)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-**[⬇ Windows 판 다운로드](https://github.com/mohui666/lom_modkit/releases/download/v1.1.0/lom_modkit-v1.1.0_windows_x64.zip)** ·
+**[⬇ Windows 판 다운로드](https://github.com/mohui666/lom_modkit/releases/download/v1.1.1/lom_modkit-v1.1.1_windows_x64.zip)** ·
 [빠른 시작](#빠른-시작) ·
 [문서](docs/ko/README.md)
 
@@ -41,7 +41,7 @@ lom_modkit은 『활협전』의 **기존 인물, 장면, 음악, 특수 효과�
 
 ### 1. 다운로드
 
-[lom_modkit-v1.1.0_windows_x64.zip](https://github.com/mohui666/lom_modkit/releases/download/v1.1.0/lom_modkit-v1.1.0_windows_x64.zip)을 다운로드하고 압축을 풉니다. Python을 설치할 필요가 없습니다.
+[lom_modkit-v1.1.1_windows_x64.zip](https://github.com/mohui666/lom_modkit/releases/download/v1.1.1/lom_modkit-v1.1.1_windows_x64.zip)을 다운로드하고 압축을 풉니다. Python을 설치할 필요가 없습니다.
 
 ### 2. 실행
 
@@ -124,9 +124,11 @@ lom_modkit은 『활협전』의 **기존 인물, 장면, 음악, 특수 효과�
 
 ## 현재 버전
 
-**v1.1.0**: 원작 스타일 MOD 저장 화면과 MOD별 001～020 분리 슬롯을 정리했습니다. Combat/Battle 불러오기, 라운드, 체력 중복 누적과 스토리 배경 복원을 수정하고, 조활의 기준 스탯/재능 덮어쓰기와 원작 체력·패시브 보정을 함께 유지합니다.
+**v1.1.1**: F5가 게임을 직접 실행해 Steamworks가 초기화되지 않고 시연용 분리 저장을 만들 수 없던 문제를 수정했습니다. Release 점검에서 배포 정보 화면을 바로 열 수 있으며, 잘못된 ICU DLL이 동결판에 포함되던 시작 오류도 수정했습니다.
 
-자세한 변경은 [1.1.0 Release Notes](RELEASE_NOTES_v1.1.0.md) 및 [Release Notes](https://github.com/mohui666/lom_modkit/releases)를 참조하세요.
+자세한 변경은 [1.1.1 Release Notes](RELEASE_NOTES_v1.1.1.md) 및 [Release Notes](https://github.com/mohui666/lom_modkit/releases)를 참조하세요.
+
+**v1.1.0**: 원작 스타일 MOD 저장 화면과 MOD별 001～020 분리 슬롯을 정리하고 Combat/Battle 불러오기, 라운드, 체력 복원을 수정했습니다.
 
 **v1.0.0**: Editor/Runtime 버전 통일 · `.lommod` v2 엄격 검증과 Story/Lua 일관성 ·
 Lua 환경 격리와 전체 수명 주기 정리 · 일회성 단축키 마이그레이션 · Runtime 자동화 테스트와 CI.

@@ -65,6 +65,20 @@ b_cli = Analysis(
     ],
 )
 
+# Qt 6 on Windows intentionally resolves the operating-system ICU shim
+# (icuuc.dll). A developer PATH may also contain Poppler's private ICU build;
+# PyInstaller then mistakes that unrelated DLL (and its icudtXX.dll) for a Qt
+# dependency. Bundling it makes QtCore fail with WinError 127 on startup. Keep
+# the bundle independent of the build machine's PATH and let Windows resolve
+# the same ICU shim used by the unfrozen PySide6 installation.
+_foreign_icu_names = {"icuuc.dll", "icudt78.dll"}
+a_gui.binaries = [
+    item for item in a_gui.binaries if item[0].lower() not in _foreign_icu_names
+]
+b_cli.binaries = [
+    item for item in b_cli.binaries if item[0].lower() not in _foreign_icu_names
+]
+
 pyz_gui = PYZ(a_gui.pure)
 pyz_cli = PYZ(b_cli.pure)
 

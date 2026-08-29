@@ -5,11 +5,11 @@
 Lua を書く必要はありません。グラフィカルエディターで人物の台詞、シーン演出、分岐シナリオ、音楽・効果音を組み立て、
 ワンクリックで `.lommod` を書き出し、そのままゲーム内で実行できます。
 
-[![Release v1.1.0](https://img.shields.io/badge/release-v1.1.0-blue)](https://github.com/mohui666/lom_modkit/releases/latest)
+[![Release v1.1.1](https://img.shields.io/badge/release-v1.1.1-blue)](https://github.com/mohui666/lom_modkit/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)](#互換性)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-**[⬇ Windows 版をダウンロード](https://github.com/mohui666/lom_modkit/releases/download/v1.1.0/lom_modkit-v1.1.0_windows_x64.zip)** ·
+**[⬇ Windows 版をダウンロード](https://github.com/mohui666/lom_modkit/releases/download/v1.1.1/lom_modkit-v1.1.1_windows_x64.zip)** ·
 [クイックスタート](#クイックスタート) ·
 [ドキュメント](docs/ja/README.md)
 
@@ -41,7 +41,7 @@ lom_modkit を使うと、『活俠傳』が**本来持つ人物、シーン、�
 
 ### 1. ダウンロード
 
-[lom_modkit-v1.1.0_windows_x64.zip](https://github.com/mohui666/lom_modkit/releases/download/v1.1.0/lom_modkit-v1.1.0_windows_x64.zip) をダウンロードして解凍します。Python のインストールは不要です。
+[lom_modkit-v1.1.1_windows_x64.zip](https://github.com/mohui666/lom_modkit/releases/download/v1.1.1/lom_modkit-v1.1.1_windows_x64.zip) をダウンロードして解凍します。Python のインストールは不要です。
 
 ### 2. 起動
 
@@ -124,9 +124,11 @@ PC 上のキャラクター、音声、画像を「ユーザーコンテンツ�
 
 ## 現在のバージョン
 
-**v1.1.0**：原作風 MOD セーブ画面と MOD ごとの 001～020 分離スロットを整備。Combat/Battle のロード、ラウンド、HP 重複加算、シナリオ背景復元を修正し、趙活の基準ステータス/才能上書きと原作の体力・パッシブ加算を両立しました。
+**v1.1.1**：F5 がゲームを直接起動して Steamworks が初期化されず、試遊用の分離セーブを作れない問題を修正。Release 検査から公開情報画面を直接開けるようにし、凍結版へ誤った ICU DLL が混入する起動障害も修正しました。
 
-詳しい変更は [1.1.0 Release Notes](RELEASE_NOTES_v1.1.0.md) と [Release Notes](https://github.com/mohui666/lom_modkit/releases) を参照してください。
+詳しい変更は [1.1.1 Release Notes](RELEASE_NOTES_v1.1.1.md) と [Release Notes](https://github.com/mohui666/lom_modkit/releases) を参照してください。
+
+**v1.1.0**：原作風 MOD セーブ画面と MOD ごとの 001～020 分離スロットを整備し、Combat/Battle のロード、ラウンド、HP 復元を修正しました。
 
 **v1.0.0**：Editor/Runtime バージョン統一 · `.lommod` v2 厳格検証と Story/Lua 整合性 ·
 Lua 環境分離と完全なライフサイクル清掃 · 一度限りのホットキー移行 · Runtime 自動テストと CI。

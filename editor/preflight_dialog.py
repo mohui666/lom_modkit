@@ -23,6 +23,14 @@ from i18n import t
 from preflight import PreflightIssue
 
 
+RELEASE_SETTINGS_ISSUE_CODES = frozenset({
+    "missing_release_metadata",
+    "invalid_release_manifest",
+    "invalid_release_version",
+    "incompatible_runtime_requirement",
+})
+
+
 class PreflightDialog(QDialog):
     def __init__(
         self,
@@ -68,6 +76,9 @@ class PreflightDialog(QDialog):
             3, QHeaderView.ResizeMode.Stretch
         )
         self.table.cellDoubleClicked.connect(lambda _row, _col: self._locate())
+        self.table.currentCellChanged.connect(
+            lambda _row, _column, _old_row, _old_column: self._sync_action_state()
+        )
         layout.addWidget(self.table, 1)
 
         hint = QLabel(t("preflight.hint"))
@@ -111,7 +122,11 @@ class PreflightDialog(QDialog):
         for row, issue in enumerate(self._issues):
             values = (
                 issue.severity_text,
-                issue.story_id or "—",
+                issue.story_id or (
+                    t("export.title")
+                    if issue.code in RELEASE_SETTINGS_ISSUE_CODES
+                    else "—"
+                ),
                 issue.node_id or "—",
                 issue.message,
             )
@@ -122,16 +137,25 @@ class PreflightDialog(QDialog):
         if self._issues:
             self.table.selectRow(0)
         self.table.resizeRowsToContents()
-        self.locate_btn.setEnabled(bool(self._issues))
+        self._sync_action_state()
         self.fix_btn.setEnabled(bool(self._issues))
 
     def _selected_issue(self) -> PreflightIssue | None:
         row = self.table.currentRow()
         return self._issues[row] if 0 <= row < len(self._issues) else None
 
+    def _sync_action_state(self) -> None:
+        issue = self._selected_issue()
+        self.locate_btn.setEnabled(
+            issue is not None
+            and (bool(issue.story_id) or issue.code in RELEASE_SETTINGS_ISSUE_CODES)
+        )
+
     def _locate(self) -> None:
         issue = self._selected_issue()
-        if issue is None or not issue.story_id:
+        if issue is None or (
+            not issue.story_id and issue.code not in RELEASE_SETTINGS_ISSUE_CODES
+        ):
             return
         self.accept()
         self._on_locate(issue)

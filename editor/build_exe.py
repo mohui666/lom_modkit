@@ -65,6 +65,7 @@ def main() -> int:
             "-m",
             "PyInstaller",
             "--noconfirm",
+            "--clean",
             "--distpath",
             str(DIST),
             "--workpath",

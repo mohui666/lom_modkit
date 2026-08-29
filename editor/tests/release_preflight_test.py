@@ -70,9 +70,11 @@ class ReleasePreflightTest(unittest.TestCase):
         self.assertFalse(any(i.code == "missing_release_metadata" for i in editing))
         release = apply_release_profile(editing, stories, {"entry": "main"}, "0.6.0")
         missing = [i for i in release if i.code == "missing_release_metadata"]
-        self.assertEqual({i.message.split("manifest.")[1].split()[0] for i in missing},
-                         {"id", "name", "version", "author", "description"})
-        self.assertTrue(all(i.severity == "error" for i in missing))
+        self.assertEqual(len(missing), 1)
+        self.assertTrue(missing[0].severity == "error")
+        for label in ("Mod 标识", "Mod 名称", "版本号", "作者", "简介"):
+            self.assertIn(label, missing[0].message)
+        self.assertFalse(any(i.code == "invalid_release_version" for i in release))
 
     def test_public_package_version_must_be_semver(self):
         stories = {"main": {"id": "main", "start": "end1",

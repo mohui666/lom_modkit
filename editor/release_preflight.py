@@ -20,6 +20,14 @@ _SEMVER = re.compile(
     r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
 )
 _RELEASE_FIELDS = ("id", "name", "version", "author", "description", "entry")
+_RELEASE_FIELD_NAMES = {
+    "id": "Mod 标识",
+    "name": "Mod 名称",
+    "version": "版本号",
+    "author": "作者",
+    "description": "简介",
+    "entry": "开始章节",
+}
 _CRITICAL_EXTENSIONS = {
     ".png", ".jpg", ".jpeg", ".wav", ".ogg", ".mp3", ".flac",
 }
@@ -91,10 +99,12 @@ def apply_release_profile(
         field for field in _RELEASE_FIELDS
         if not isinstance(manifest.get(field), str) or not manifest.get(field).strip()
     ]
-    for field in missing:
+    if missing:
+        names = "、".join(_RELEASE_FIELD_NAMES[field] for field in missing)
         issues.append(PreflightIssue(
             "error", "missing_release_metadata", "", "",
-            "发布元数据缺失：manifest.%s 必须在发布前填写" % field,
+            "发布信息还没有填写完整：%s。它们不属于某个剧情步骤；"
+            "双击本行可打开“导出 Mod”信息页填写。" % names,
         ))
     if not missing:
         release_manifest = {**manifest_versions(), **manifest}
@@ -105,7 +115,8 @@ def apply_release_profile(
                 "error", "invalid_release_manifest", "", "", str(exc)
             ))
 
-    version_error = validate_release_version(manifest.get("version"))
+    version = manifest.get("version")
+    version_error = validate_release_version(version) if version else None
     if version_error is not None:
         issues.append(PreflightIssue(
             "error", "invalid_release_version", "", "", version_error

@@ -19,7 +19,7 @@ from typing import Iterable
 import zipfile
 
 from app_version import EDITOR_VERSION, RUNTIME_VERSION
-from game_install import GameInstallManager, RUNTIME_DLL_NAME
+from game_install import GameInstallManager, RUNTIME_DLL_NAME, STEAM_APP_ID
 import models
 
 
@@ -30,8 +30,6 @@ MAX_RELEVANT_RUNTIME_LINES = 600
 MAX_VALUE_DEPTH = 8
 MAX_COLLECTION_ITEMS = 1000
 MAX_STRING_CHARS = 8192
-STEAM_APP_ID = "1859910"
-
 _WINDOWS_PATH_RE = re.compile(r"(?i)(?<![A-Za-z0-9_])(?:[A-Z]:[\\/][^\r\n\"<>|]*)")
 _UNC_PATH_RE = re.compile(r"\\\\[^\\/\s]+[\\/][^\r\n\"<>|]*")
 _POSIX_PRIVATE_RE = re.compile(r"(?<![A-Za-z0-9_:])/(?:Users|home|tmp|var/tmp)/[^\r\n\"<>|]*")

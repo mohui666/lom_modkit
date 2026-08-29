@@ -5,11 +5,11 @@
 不用写 Lua。用图形编辑器编排人物对白、场景演出、分支剧情、音乐音效，
 一键导出 `.lommod`，直接在游戏中运行。
 
-[![Release v1.1.0](https://img.shields.io/badge/release-v1.1.0-blue)](https://github.com/mohui666/lom_modkit/releases/latest)
+[![Release v1.1.1](https://img.shields.io/badge/release-v1.1.1-blue)](https://github.com/mohui666/lom_modkit/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)](#兼容性)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-**[⬇ 下载 Windows 版](https://github.com/mohui666/lom_modkit/releases/download/v1.1.0/lom_modkit-v1.1.0_windows_x64.zip)** ·
+**[⬇ 下载 Windows 版](https://github.com/mohui666/lom_modkit/releases/download/v1.1.1/lom_modkit-v1.1.1_windows_x64.zip)** ·
 [快速开始](#快速开始) ·
 [文档](docs/README.md)
 
@@ -41,7 +41,7 @@ lom_modkit 让你用《活侠传》**原有的人物、场景、音乐、特效�
 
 ### 1. 下载
 
-下载 [lom_modkit-v1.1.0_windows_x64.zip](https://github.com/mohui666/lom_modkit/releases/download/v1.1.0/lom_modkit-v1.1.0_windows_x64.zip) 并解压。无需安装 Python。
+下载 [lom_modkit-v1.1.1_windows_x64.zip](https://github.com/mohui666/lom_modkit/releases/download/v1.1.1/lom_modkit-v1.1.1_windows_x64.zip) 并解压。无需安装 Python。
 
 ### 2. 启动
 
@@ -181,11 +181,13 @@ SHA-256 前 16 个十六进制字符，可用来核对具体文件，但**不是
 
 ## 当前版本
 
-**v1.1.0**：完善原版风格 MOD 存档页与每个 MOD 的 001～020 独立栏位；修复 Combat/Battle
-读档、回合、血量叠加和剧情背景恢复；新增赵活基准属性/天赋覆盖，并保留原版体力与被动加成。
-同时更新战斗/战役节点、编辑器表单、Showcase3 验收样例和发布构建流程。
+**v1.1.1**：修复 F5 直启游戏导致 Steamworks 未初始化、试玩隔离存档无法建立的问题；
+发布体检现在能直接定位到发布信息页，并修复冻结版在受污染 PATH 下误打包 ICU DLL 的启动故障。
 
-完整变更见 [1.1.0 Release Notes](RELEASE_NOTES_v1.1.0.md)。
+完整变更见 [1.1.1 Release Notes](RELEASE_NOTES_v1.1.1.md)。
+
+**v1.1.0**：完善原版风格 MOD 存档页与每个 MOD 的 001～020 独立栏位；修复 Combat/Battle
+读档、回合、血量叠加和剧情背景恢复。
 
 **v1.0.0**：统一 Editor/Runtime 版本 · `.lommod` v2 严格校验与 Story/Lua 一致性 ·
 Lua 环境隔离与完整生命周期清理 · 一次性热键迁移 · Runtime 自动化测试与 CI。

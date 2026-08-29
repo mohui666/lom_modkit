@@ -82,7 +82,7 @@ from diagnostic_bundle import export_diagnostic_bundle
 import package_io
 from package_inspector import inspect_lommod
 from preflight import PreflightIssue, apply_safe_fixes, run_preflight
-from preflight_dialog import PreflightDialog
+from preflight_dialog import PreflightDialog, RELEASE_SETTINGS_ISSUE_CODES
 import stage_guard
 from lua_preview import LuaPreview, compile_story, lomc_available, get_lomc
 from node_form import NodeForm
@@ -1225,6 +1225,7 @@ class MainWindow(
         menu.addSeparator()
         menu.addAction(t("menu.import_mod"), self.import_lommod)
         menu.addAction(t("menu.inspect_mod"), self.inspect_lommod)
+        menu.addAction(t("menu.release_settings"), self._edit_release_settings)
         menu.addAction(t("menu.export_mod"), self.export_lommod)
         menu.addAction("构建发布包…", self.build_release_package)
         menu.addAction(t("menu.install"), self._show_mod_manager)
@@ -1700,6 +1701,25 @@ class MainWindow(
         self.statusBar().showMessage(t("preflight.passed"), 5000)
         return True
 
+    def _edit_release_settings(self) -> bool:
+        """Edit project-wide manifest fields without starting an export."""
+        self._flush_pending()
+        dlg = ManifestDialog(
+            self._current_id,
+            self.editor_data,
+            sorted(self._stories.keys()),
+            self.manifest_base,
+            self,
+        )
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return False
+        manifest = dlg.manifest()
+        self.manifest = copy.deepcopy(manifest)
+        self.manifest_base = copy.deepcopy(manifest)
+        self._set_dirty(True)
+        self.statusBar().showMessage(t("preflight.release_settings_saved"), 5000)
+        return True
+
     def _preflight_issues(self, profile: str = "editing") -> list[PreflightIssue]:
         entry = self.manifest_base.get("entry") or self.manifest.get("entry")
         if not entry:
@@ -1726,6 +1746,9 @@ class MainWindow(
         return issues
 
     def _locate_preflight_issue(self, issue: PreflightIssue) -> None:
+        if issue.code in RELEASE_SETTINGS_ISSUE_CODES:
+            self._edit_release_settings()
+            return
         if issue.story_id not in self._stories:
             return
         self._current_id = issue.story_id

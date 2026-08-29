@@ -38,6 +38,8 @@ BEPINEX_RUNTIME_FILES = (
 PREVIEW_PACKAGE_NAME = "__lom_modkit_preview.lommod"
 PREVIEW_REQUEST_NAME = "preview-request.json"
 PREVIEW_MOD_ID = "lom_modkit_preview"
+STEAM_APP_ID = "1859910"
+STEAM_RUN_URI = f"steam://rungameid/{STEAM_APP_ID}"
 BEPINEX_VERSION = "6.0.0-be.692"
 BEPINEX_URL = (
     "https://builds.bepinex.dev/projects/bepinex_be/692/"
@@ -999,20 +1001,24 @@ class GameInstallManager:
         return target
 
     def launch_game(self) -> bool:
-        """游戏未运行时启动 Mortal.exe；返回是否实际启动了新进程。"""
+        """游戏未运行时交给 Steam 启动；返回是否发出了启动请求。
+
+        直接执行 Mortal.exe 即使 Steam 客户端已经打开，也可能没有当前游戏的
+        Steamworks 上下文。原版 SaveSystem 创建存档时会调用 SteamUser，F5
+        新战役因此会在 GetSteamID() 处失败。Steam URI 会让客户端完成正常的
+        app 启动握手；这里刻意不回退到直启 exe，避免再次生成不可试玩的进程。
+        """
         if self.is_game_running():
             return False
-        root = self.require_game_dir()
-        exe = root / "Mortal.exe"
+        self.require_game_dir()
+        if os.name != "nt" or not hasattr(os, "startfile"):
+            raise GameInstallError("当前系统不支持通过 Steam 启动《活侠传》。")
         try:
-            subprocess.Popen(
-                [str(exe)],
-                cwd=str(root),
-                close_fds=True,
-                creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
-            )
+            os.startfile(STEAM_RUN_URI)  # type: ignore[attr-defined]
         except OSError as exc:
-            raise GameInstallError(f"无法启动游戏：{exc}") from exc
+            raise GameInstallError(
+                "无法通过 Steam 启动游戏。请确认 Steam 已安装并已登录：" + str(exc)
+            ) from exc
         return True
 
     # ------------------------------------------------------------ 管理

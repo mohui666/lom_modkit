@@ -8,9 +8,9 @@
 涉及 Combat / Battle / 存档 / 商店 / 原版 UI 时，先读根目录
 [AGENTS.md](../AGENTS.md) 和 [反编译接口](chs/decompiled_api.md)。
 
-当前发布版本：**v1.1.0**。本版重点修复 Combat/Battle 读档、回合和血量恢复，
-恢复剧情自动存档背景，并为每个 MOD 提供原版风格的 001～020 独立栏位。
-完整变更见 [RELEASE_NOTES_v1.1.0.md](../RELEASE_NOTES_v1.1.0.md)。
+当前发布版本：**v1.1.1**。本版修复 F5 的 Steam 启动链路、Release 体检定位，
+以及冻结编辑器误打包外部 ICU DLL 的启动故障。
+完整变更见 [RELEASE_NOTES_v1.1.1.md](../RELEASE_NOTES_v1.1.1.md)。
 
 ## 作者
 

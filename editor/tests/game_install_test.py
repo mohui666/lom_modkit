@@ -19,6 +19,7 @@ sys.path.insert(0, str(EDITOR_DIR))
 from game_install import (  # noqa: E402
     PREVIEW_MOD_ID,
     PREVIEW_REQUEST_NAME,
+    STEAM_RUN_URI,
     GameInstallError,
     GameInstallManager,
     _choose_zombie_prefix,
@@ -340,6 +341,28 @@ class GameInstallManagerTest(unittest.TestCase):
         self.assertFalse(request.with_suffix(".tmp").exists())
         with self.assertRaises(GameInstallError):
             self.manager.request_preview("bad id", "main", "n3")
+
+    def test_launch_game_uses_steam_uri_instead_of_direct_executable(self):
+        self.manager.save_game_dir(self.game)
+        with (
+            mock.patch.object(self.manager, "is_game_running", return_value=False),
+            mock.patch.object(os, "startfile", create=True) as startfile,
+            mock.patch("game_install.subprocess.Popen") as popen,
+        ):
+            self.assertTrue(self.manager.launch_game())
+        startfile.assert_called_once_with(STEAM_RUN_URI)
+        popen.assert_not_called()
+
+    def test_launch_game_reports_steam_protocol_failure(self):
+        self.manager.save_game_dir(self.game)
+        with (
+            mock.patch.object(self.manager, "is_game_running", return_value=False),
+            mock.patch.object(
+                os, "startfile", create=True, side_effect=OSError("no handler")
+            ),
+        ):
+            with self.assertRaisesRegex(GameInstallError, "Steam"):
+                self.manager.launch_game()
 
     def test_ensure_ignore_disable_switch(self):
         text, changed = _ensure_ignore_disable_switch(
