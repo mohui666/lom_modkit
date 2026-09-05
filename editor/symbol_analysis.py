@@ -83,10 +83,14 @@ def _structured_uses(
     return uses
 
 
-def find_read_before_write(
-    stories: dict[str, dict], symbol: str, manifest: dict | None = None
-) -> tuple[str, str] | None:
-    """Locate a project-reachable read that can occur before the first write."""
+@dataclass(frozen=True)
+class _ProjectFlow:
+    adjacency: dict[tuple[str, str], set[tuple[str, str]]]
+    by_story: dict[str, dict[str, dict]]
+    roots: tuple[tuple[str, str], ...]
+
+
+def _build_project_flow(stories: dict[str, dict], manifest: dict | None) -> _ProjectFlow:
     adjacency: dict[tuple[str, str], set[tuple[str, str]]] = {}
     by_story: dict[str, dict[str, dict]] = {}
     starts: dict[str, str] = {}
@@ -125,7 +129,13 @@ def find_read_before_write(
     else:
         # Standalone analysis has no project entry contract, so any chapter may start.
         root_stories = set(starts)
-    pending = [(sid, starts[sid]) for sid in sorted(root_stories)]
+    return _ProjectFlow(
+        adjacency, by_story, tuple((sid, starts[sid]) for sid in sorted(root_stories))
+    )
+
+
+def _find_read_before_write(flow: _ProjectFlow, symbol: str) -> tuple[str, str] | None:
+    pending = list(flow.roots)
     reached_without_write: set[tuple[str, str]] = set()
     while pending:
         state = pending.pop()
@@ -133,14 +143,21 @@ def find_read_before_write(
             continue
         reached_without_write.add(state)
         story_id, node_id = state
-        node = by_story[story_id][node_id]
+        node = flow.by_story[story_id][node_id]
         is_read = node.get("type") == "branch" and node.get("source", "mod") == "mod" and node.get("flag") == symbol
         if is_read:
             return story_id, node_id
         is_write = node.get("type") == "flag" and node.get("flag") == symbol
         if not is_write:
-            pending.extend(adjacency.get(state, ()))
+            pending.extend(flow.adjacency.get(state, ()))
     return None
+
+
+def find_read_before_write(
+    stories: dict[str, dict], symbol: str, manifest: dict | None = None
+) -> tuple[str, str] | None:
+    """Locate a project-reachable read that can occur before the first write."""
+    return _find_read_before_write(_build_project_flow(stories, manifest), symbol)
 
 
 def analyze_symbols(
@@ -150,6 +167,11 @@ def analyze_symbols(
     grouped: dict[tuple[str, str], list[SymbolUse]] = defaultdict(list)
     for use in uses:
         grouped[(use.kind, use.name)].append(use)
+    flow = (
+        _build_project_flow(stories, manifest)
+        if any(use.kind == "mod_flag" and use.access == "read" for use in uses)
+        else None
+    )
     reports: list[SymbolReport] = []
     for (kind, name), symbol_uses in sorted(grouped.items()):
         reads = [use for use in symbol_uses if use.access == "read"]
@@ -157,8 +179,8 @@ def analyze_symbols(
         first_write = min(writes, key=lambda use: use.order) if writes else None
         unused: bool | None = (not reads and bool(writes)) if kind == "mod_flag" else None
         read_before: bool | None = (
-            find_read_before_write(stories, name, manifest) is not None
-            if kind == "mod_flag" and reads else None
+            _find_read_before_write(flow, name) is not None
+            if kind == "mod_flag" and reads and flow is not None else None
         )
         reports.append(SymbolReport(
             kind, name, len(reads), len(writes), first_write, unused,
