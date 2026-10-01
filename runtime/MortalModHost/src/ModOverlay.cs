@@ -134,6 +134,7 @@ namespace MortalModHost
 
         internal static void Clear()
         {
+            PlayerAppearance.Clear();
             DeathTitle = null;
             DeathDesc = null;
             ClearEnding();

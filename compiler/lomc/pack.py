@@ -31,7 +31,7 @@ from .content import (
 from .errors import LomcError
 from .deterministic_zip import DeterministicPackageBuilder
 from .localization import SUPPORTED_LOCALES, apply_story_locale, localization_config
-from .validate import validate_manifest, validate_story
+from .validate import validate_manifest, validate_story, _parse_host_version, _host_version_greater
 from .schema_versions import STORY_SCHEMA, version_declarations
 from .deterministic_zip import stable_json_bytes
 from .story_lua_integrity import (
@@ -91,6 +91,11 @@ def pack_mod(mod_dir, output=None):
         stem = fname[: -len(".json")]
         story = load_json_file(os.path.join(story_dir, fname))
         validate_story(story, source="story/%s" % fname)
+        if any(node.get("appearance") for node in story["nodes"]):
+            minimum = manifest.setdefault("min_host_version", "1.1.2")
+            if _host_version_greater(((1, 1, 2), None), _parse_host_version("min_host_version", minimum)):
+                raise LomcError("赵活外观选择需要 min_host_version >= 1.1.2")
+            validate_manifest(manifest)
         story = dict(story)
         story["story_schema"] = STORY_SCHEMA
         if localization_config(story) is not None:

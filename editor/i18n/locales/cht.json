@@ -11,6 +11,8 @@
   "menu.file": "檔案(&F)",
   "menu.new": "新增",
   "menu.open": "開啟…",
+  "menu.open_folder": "開啟劇情資料夾…",
+  "menu.save_folder": "將全部章節儲存至資料夾…",
   "menu.recent": "最近開啟",
   "menu.recent_empty": "（沒有最近記錄）",
   "menu.save": "儲存",
@@ -904,5 +906,17 @@
   "reference.effect.id": "在目前章節內唯一識別此節點，供跳轉與錯誤定位使用；玩家介面不會顯示。", "reference.effect.type": "決定編譯器採用哪種節點行為；此值由節點類型固定。", "reference.effect.flow_target": "當「{field}」對應的結果發生時，跳轉到所選節點。", "reference.effect.required": "設定本節點執行時使用的「{field}」；缺少時編譯器會拒絕建置。", "reference.effect.optional": "可選擇覆寫「{field}」；留空時保留此節點的預設或原版行為。",
   "reference.effect.combat_background": "獨立選擇本次決鬥的官方場景背景；背景不由人物或內部決鬥殼決定。", "reference.effect.combat_character": "選擇官方或自訂人物作為四類戰鬥動畫來源；不會自動填入或限制任何戰鬥數值。", "reference.effect.combat_vital": "覆寫本次決鬥的「{field}」；留空時由 Runtime 內部安全殼提供穩定值。", "reference.effect.combat_stat": "覆寫對手的「{field}」能力值，直接影響原版決鬥計算。", "reference.effect.combat_talents": "逐項設定對手在本次決鬥擁有的技能與等級。", "reference.effect.combat_rate": "設定原版 AI 選擇「{field}」的機率，範圍 0～1。",
   "reference.effect.battle_faction": "設定「{field}」使用的原版陣營；Runtime 依陣營選擇內部安全基線。", "reference.effect.battle_people": "設定「{field}」的總人數；具名角色計入此數。", "reference.effect.battle_characters": "加入已核實的官方具名角色；角色數不得超過對應總人數。",
-  "reference.effect.dice_max": "設定隨機點數上限；本節點擲出 0 到該值之間的整數。", "reference.effect.dice_header": "顯示在原版骰子介面頂部的檢定標題。", "reference.effect.dice_bonus": "在隨機點數上加入固定整數，可為負數。", "reference.effect.dice_bonus_name": "顯示固定加值的來源名稱，例如「輕功」；不改變數值。", "reference.effect.dice_bonus_status": "顯示固定加值的補充說明；不改變數值。", "reference.effect.dice_bands": "可設定 2～4 檔；按可達總點數上限由低至高匹配結果文字與跳轉目標，最後一檔接收剩餘點數。"
+  "reference.effect.dice_max": "設定隨機點數上限；本節點擲出 0 到該值之間的整數。", "reference.effect.dice_header": "顯示在原版骰子介面頂部的檢定標題。", "reference.effect.dice_bonus": "在隨機點數上加入固定整數，可為負數。", "reference.effect.dice_bonus_name": "顯示固定加值的來源名稱，例如「輕功」；不改變數值。", "reference.effect.dice_bonus_status": "顯示固定加值的補充說明；不改變數值。", "reference.effect.dice_bands": "可設定 2～4 檔；按可達總點數上限由低至高匹配結果文字與跳轉目標，最後一檔接收剩餘點數。",
+  "portrait.preview": "人物立繪",
+  "portrait.choose_character": "選擇人物或表情，在這裡查看完整立繪。",
+  "portrait.beautified_player": "美顏趙活（照鏡子 / 自戀）",
+  "portrait.no_assets": "尚未提取此立繪。\n檔案 → 選擇遊戲預覽素材目錄，選擇自己的遊戲素材快取。",
+  "portrait.private_assets": "預覽使用本機遊戲素材，匯出不包含原版立繪。",
+  "portrait.choose_library": "選擇遊戲預覽素材目錄…",
+  "portrait.library_ready": "已連接 {count} 個人物的本機預覽素材。",
+  "mac.game_runtime_windows_only": "Mac 版支援劇情編輯、預覽與匯出。遊戲安裝和 F5 試玩請在 Windows 版進行。",
+  "field.appearance": "趙活外觀",
+  "enum.player_appearance.game": "隨遊戲天賦",
+  "enum.player_appearance.original": "普通趙活",
+  "enum.player_appearance.beautified": "美顏趙活"
 }

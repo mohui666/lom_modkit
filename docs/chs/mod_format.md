@@ -158,7 +158,7 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 | `background` | `action`(`set`/`show`/`replace`/`fadein`/`fadeout`/`clear`)；显示类必填 `image`(`user:` 图片)，可选 `fade`(默认0.5) | 使用当前包 `assets/user/image/` 的图片覆盖为舞台背景。`set/clear` 立即执行；其余动作按 `fade` 淡入/淡出并等待。换章、`goto_scene`、官方 `scene`、场景切换与热重载都会清理，不修改原版 View 资源 |
 | `custom_cg` | `action`(`show`/`hide`)；show 必填 `image`(`user:` 图片)；可选 `fade`(默认0.5)、`scale`(10~300，默认100)、`x/y`(-100~100，默认0) | 在人物层前显示全屏 CG，保持图片比例；`scale` 为自动适配后的百分比，`x` 正向右、`y` 正向上。show 替换上一张，hide 淡出并销毁；换章、换场景、换包自动清理。官方 `cg` 节点保持原样 |
 | `overlay` | 必填 `action`(`show`/`hide`) 与 `slot`；show 必填 `image`；可选 `position`(九宫格)、`scale`(10~300)、`opacity`(0~100)、`layer`(`back`/`front`)、`fade` | 多槽位前景/道具/插图/遮罩；同槽 show 替换、hide 独立清理。前后层相对人物分离，F5 可恢复，换章/换场景/换包统一清理 |
-| `show` | `character`, `position`；可选 `portrait`(默认normal), `facing`(默认right), `fadeDuration`(0), `moveDuration`(0) | 加载并显示人物。story.mood 为 false 时末尾（Focus 后）追加 `mod_hide_mood()` |
+| `show` | `character`, `position`；可选 `portrait`(默认normal), `facing`(默认right), `fadeDuration`(0), `moveDuration`(0), `appearance` | 加载并显示人物。`appearance` 仅用于 `player`，值为 `game`/`original`/`beautified`，需要 Host ≥1.1.2；省略时保留原有加载行为。详见[赵活外观](free_mode_portraits.md#照镜子后的赵活)。story.mood 为 false 时末尾（Focus 后）追加 `mod_hide_mood()` |
 | `move` | `character`, `from`, `to`；可选 `duration`(默认1) | 移动并 `wait(duration)` |
 | `face` | `character`, `facing` | 转向 |
 | `hide` | `character`；可选 `fadeDuration`(默认0) | 隐藏人物 |

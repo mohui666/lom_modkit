@@ -39,9 +39,8 @@ def recovery_root() -> Path:
     override = os.environ.get("LOM_MODKIT_RECOVERY_DIR")
     if override:
         return Path(override)
-    appdata = os.environ.get("APPDATA")
-    base = Path(appdata) if appdata else Path.home() / "AppData" / "Roaming"
-    return base / "lom_modkit" / "recovery"
+    from app_paths import user_data_root
+    return user_data_root() / "recovery"
 
 
 def _now() -> str:
@@ -153,7 +152,7 @@ def _candidate_from(directory: Path, include_live: bool) -> RecoveryCandidate | 
     if not isinstance(source, dict):
         source = {}
     kind = source.get("kind")
-    if kind not in ("untitled", "story", "lommod"):
+    if kind not in ("untitled", "story", "lommod", "folder"):
         kind = "untitled"
     raw_path = source.get("path")
     source_path = raw_path if isinstance(raw_path, str) and len(raw_path) <= 4096 else None
@@ -249,7 +248,7 @@ class RecoverySession:
             raise RecoveryError("恢复副本至少需要一个剧情章节")
         if current_story_id not in stories:
             raise RecoveryError("恢复副本的当前章节不存在")
-        if source_kind not in ("untitled", "story", "lommod"):
+        if source_kind not in ("untitled", "story", "lommod", "folder"):
             raise RecoveryError("恢复副本来源类型无效")
         document = {
             "recovery_schema": RECOVERY_SCHEMA,

@@ -141,6 +141,8 @@ class NodeForm(QScrollArea):
 
     node_changed = Signal()  # 当前节点内容被用户修改
     id_change_requested = Signal(str)  # 用户改了步骤编号，由主窗口同步全部引用
+    portrait_preview_changed = Signal(str, str, str)
+    portrait_preview_requested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -189,6 +191,11 @@ class NodeForm(QScrollArea):
             self.setWidget(body)
         finally:
             self._loading = False
+        self._update_portrait_preview()
+
+    def _update_portrait_preview(self) -> None:
+        node = self._node or {}
+        self.portrait_preview_changed.emit(str(node.get("character") or ""), str(node.get("portrait") or "normal"), str(node.get("appearance") or ""))
 
     def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802
         """下拉弹出时不要把滚轮抢走，否则长清单既滚不动还把整页表单卷走。"""
@@ -315,6 +322,8 @@ class NodeForm(QScrollArea):
     @staticmethod
     def _field_visible(node_type: str, key: str, node: dict) -> bool:
         """按当前选择隐藏无效字段，避免让新手填写游戏根本不会读取的值。"""
+        if key == "appearance":
+            return node.get("character") == "player"
         if node_type == "say" and key in ("character", "portrait"):
             return node.get("mode", "character") not in ("narrative", "center")
         if node_type == "intro":
@@ -387,9 +396,12 @@ class NodeForm(QScrollArea):
         if kind == "character":
             custom, official = models.character_combo_items(self._editor_data)
             items = list(custom) + list(official)
+            if node.get("type") == "show" and any(cid == "player" for cid, _label in official):
+                items.insert(len(custom), ("player_beautified", t("portrait.beautified_player")))
             if not items:
                 items = [("", t("form.no_characters"))]
-            w = self._make_combo(items, value or "", editable=True)
+            selected = "player_beautified" if value == "player" and node.get("appearance") == "beautified" else value or ""
+            w = self._make_combo(items, selected, editable=True)
             if custom and official:
                 w.insertSeparator(len(custom))
             if hasattr(w, "remember_items"):
@@ -398,15 +410,23 @@ class NodeForm(QScrollArea):
                 lambda t, c=w: self._on_character_changed(node, key, c, t)
             )
             box = QWidget()
-            row = QHBoxLayout(box)
-            row.setContentsMargins(0, 0, 0, 0)
+            column = QVBoxLayout(box)
+            column.setContentsMargins(0, 0, 0, 0)
+            column.setSpacing(6)
+            column.addWidget(w)
+            row = QHBoxLayout()
             manage = QPushButton(t("library.manage"))
             manage.setMinimumHeight(28)
             manage.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
             manage.setToolTip(t("toolbar.library_tip"))
             manage.clicked.connect(self._open_content_library)
-            row.addWidget(w, 1)
+            preview_btn = QToolButton()
+            preview_btn.setText(t("portrait.preview"))
+            preview_btn.clicked.connect(self.portrait_preview_requested.emit)
+            row.addWidget(preview_btn)
             row.addWidget(manage)
+            row.addStretch(1)
+            column.addLayout(row)
             return box
         if kind == "portrait":
             char_id = node.get("character", "")
@@ -1146,6 +1166,10 @@ class NodeForm(QScrollArea):
         node[key] = val
         if set_name in models.REBUILD_ENUMS:
             self._rebuild_current()
+        if set_name == "player_appearance":
+            self._update_portrait_preview()
+            self.portrait_preview_requested.emit()
+            self._rebuild_current()
         self._emit_changed()
 
     def _make_death_id_widget(self, node: dict, key: str, value) -> QWidget:
@@ -1247,6 +1271,14 @@ class NodeForm(QScrollArea):
     @staticmethod
     def _combo_value(combo: QComboBox, text: str) -> str:
         """可编辑下拉框取值：选中清单项时取 userData，手输时取文本。"""
+        # QCompleter 可以先写入显示名称，currentIndex 仍指向旧项。
+        # 筛选也可能暂时移除该项；两种情况都从原清单按完整名称解析 ID。
+        for data, label in getattr(combo, "_all_items", []):
+            if text == label and data is not None:
+                return str(data)
+        matched = combo.findText(text, Qt.MatchFlag.MatchExactly)
+        if matched >= 0 and combo.itemData(matched) is not None:
+            return str(combo.itemData(matched))
         index = combo.currentIndex()
         if combo.isEditable() and (
             index < 0 or combo.currentText() != combo.itemText(index)
@@ -2144,6 +2176,9 @@ class NodeForm(QScrollArea):
         else:
             node[key] = value
         self._emit_changed()
+        if key in ("portrait", "appearance"):
+            self._update_portrait_preview()
+            self.portrait_preview_requested.emit()
 
     def _apply_row(self, row: dict, key: str, value) -> None:
         if self._loading:
@@ -2167,8 +2202,21 @@ class NodeForm(QScrollArea):
         """人物变化：写回，并就地刷新同节点内表情下拉框的清单（不重建表单，避免打断输入）。"""
         # 经 Python lambda 转发信号时 QObject.sender() 不可靠，必须显式传入
         # combo；否则会把“鸡（chicken1）”这类显示文本写进 JSON，游戏加载失败。
+        if self._loading:
+            return
         char_id = self._combo_value(combo, text)
+        if char_id == "player_beautified" and node.get("type") == "show":
+            char_id = "player"
+            self._apply(node, "appearance", "beautified")
+            self._rebuild_current()
+        elif char_id == "player" and node.get("type") == "show" and node.get("appearance") == "beautified":
+            self._apply(node, "appearance", "original")
+            self._rebuild_current()
+        elif char_id != "player":
+            node.pop("appearance", None)
         if char_id == node.get(key):
+            self._update_portrait_preview()
+            self.portrait_preview_requested.emit()
             return
         self._apply(node, key, char_id)
         portraits = models.character_portraits(self._editor_data, char_id)
@@ -2191,6 +2239,8 @@ class NodeForm(QScrollArea):
         for combo in self.findChildren(QComboBox):
             if combo.property("voice_for"):
                 self._populate_voice_combo(combo, node, node.get("voice"))
+        self._update_portrait_preview()
+        self.portrait_preview_requested.emit()
 
     def _on_source_changed(self, node: dict, key: str, combo: QComboBox) -> None:
         """branch.source 切换：写回、归一 cases 并重建表单（列布局随来源切换）。"""

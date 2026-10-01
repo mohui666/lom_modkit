@@ -11,6 +11,8 @@
   "menu.file": "ファイル(&F)",
   "menu.new": "新規",
   "menu.open": "開く…",
+  "menu.open_folder": "ストーリーフォルダーを開く…",
+  "menu.save_folder": "全章をフォルダーに保存…",
   "menu.recent": "最近使ったファイル",
   "menu.recent_empty": "（履歴なし）",
   "menu.save": "保存",
@@ -912,5 +914,17 @@
   "reference.effect.id": "章内でこのノードを一意に識別し、分岐とエラー位置の特定に使います。プレイヤー画面には表示されません。", "reference.effect.type": "コンパイラーが生成するノード動作を決めます。値はノード種類ごとに固定です。", "reference.effect.flow_target": "「{field}」に対応する結果が発生したとき、選択したノードへ移動します。", "reference.effect.required": "このノードの実行時に使う「{field}」を設定します。欠けるとビルドを拒否します。", "reference.effect.optional": "「{field}」を任意で上書きします。空欄ならノード既定値または原作の動作を維持します。",
   "reference.effect.combat_background": "今回の決闘で使う公式シーン背景を独立して選びます。背景は人物や内部決闘シェルによって決まりません。", "reference.effect.combat_character": "公式または自作人物を四種類の戦闘アニメーション元として選びます。戦闘数値の自動入力や制限は行いません。", "reference.effect.combat_vital": "今回の決闘の「{field}」を上書きします。空欄なら Runtime の内部安全シェルが安定値を提供します。", "reference.effect.combat_stat": "相手の「{field}」能力値を上書きし、原作の決闘計算へ直接反映します。", "reference.effect.combat_talents": "今回の決闘で相手が持つスキルとレベルを項目ごとに設定します。", "reference.effect.combat_rate": "原作 AI が「{field}」を選ぶ確率を 0～1 で設定します。",
   "reference.effect.battle_faction": "「{field}」の公式陣営を設定します。Runtime は陣営から内部安全基準を選びます。", "reference.effect.battle_people": "「{field}」の総人数を設定します。名付き人物もこの人数に含まれます。", "reference.effect.battle_characters": "確認済みの公式名付き人物を追加します。人数は対応する総人数を超えられません。",
-  "reference.effect.dice_max": "乱数の上限を設定します。このノードは 0 からこの値までの整数を出します。", "reference.effect.dice_header": "原作サイコロ画面の上部に表示する判定タイトルです。", "reference.effect.dice_bonus": "出目に固定整数を加えます。負数も使えます。", "reference.effect.dice_bonus_name": "固定補正の出所名（例：軽功）を表示します。数値には影響しません。", "reference.effect.dice_bonus_status": "固定補正の補足説明を表示します。数値には影響しません。", "reference.effect.dice_bands": "2～4 区分を設定できます。到達可能な合計値の上限が低い順に結果テキストと移動先を照合し、最後の区分が残りを受け取ります。"
+  "reference.effect.dice_max": "乱数の上限を設定します。このノードは 0 からこの値までの整数を出します。", "reference.effect.dice_header": "原作サイコロ画面の上部に表示する判定タイトルです。", "reference.effect.dice_bonus": "出目に固定整数を加えます。負数も使えます。", "reference.effect.dice_bonus_name": "固定補正の出所名（例：軽功）を表示します。数値には影響しません。", "reference.effect.dice_bonus_status": "固定補正の補足説明を表示します。数値には影響しません。", "reference.effect.dice_bands": "2～4 区分を設定できます。到達可能な合計値の上限が低い順に結果テキストと移動先を照合し、最後の区分が残りを受け取ります。",
+  "portrait.preview": "立ち絵",
+  "portrait.choose_character": "人物と表情を選ぶと、ここに立ち絵が表示されます。",
+  "portrait.beautified_player": "美顔の趙活（鏡 / 自恋）",
+  "portrait.no_assets": "この立ち絵は未抽出です。\nファイルから所有するゲームのプレビュー素材フォルダを選んでください。",
+  "portrait.private_assets": "ローカルのゲーム素材を使用。エクスポートには含みません。",
+  "portrait.choose_library": "ゲームのプレビュー素材を選択…",
+  "portrait.library_ready": "{count} 人のローカル素材を接続しました。",
+  "mac.game_runtime_windows_only": "Mac 版では編集・プレビュー・エクスポートができます。ゲームのインストールと F5 テストは Windows 版を使用してください。",
+  "field.appearance": "趙活の外見",
+  "enum.player_appearance.game": "ゲームの才能に従う",
+  "enum.player_appearance.original": "通常の趙活",
+  "enum.player_appearance.beautified": "美顔の趙活"
 }

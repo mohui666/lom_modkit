@@ -40,6 +40,9 @@ TEMPLATES = (
         "自定义背景、BGM、音效、CG 和配音；需在内容库替换占位引用。",
         True,
     ),
+    ProjectTemplateInfo(
+        "free_mode_story", "自由模式剧情", "开场后自由养成；指定月份、旬和地点进入一次性 MOD 剧情，结束后继续养成。"
+    ),
 )
 
 
@@ -83,6 +86,21 @@ def create_project_template(key: str, editor_data: dict | None = None) -> dict:
     """Return {stories,current_story_id,manifest}; every story is ordinary schema."""
     template_info(key)
     character = _official_character(editor_data)
+    if key == "free_mode_story":
+        manifest = new_project_manifest()
+        completed = manifest["campaign_id"] + "_event_done"
+        main = _story("自由模式开场", [
+            {"id": "welcome", "type": "say", "mode": "narrative", "text": "现在可以自由养成。一月上旬前往练功场，开始一次性示例剧情。其余时间正常养成。"},
+            {"id": "free", "type": "end"},
+        ])
+        event = _story("练功场剧情", [
+            {"id": "intro", "type": "say", "mode": "narrative", "text": "你来到练功场，触发了 MOD 剧情。"},
+            {"id": "done", "type": "flag", "flag": completed},
+            {"id": "free", "type": "end"},
+        ])
+        event["id"] = "training_event"
+        manifest["campaign"]["triggers"] = [{"type": "position", "position": "Center", "script": "training_event", "when_month": 1, "when_stage": 1, "when_flag_clear": completed}]
+        return {"stories": {"main": main, "training_event": event}, "current_story_id": "main", "manifest": manifest}
     if key == "empty":
         story = _story("空项目", [{"id": "end1", "type": "end"}])
     elif key == "linear_dialogue":

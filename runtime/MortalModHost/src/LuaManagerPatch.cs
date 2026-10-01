@@ -775,6 +775,12 @@ namespace MortalModHost
 
         private static void RegisterCharacterGlobals(Script script)
         {
+            PlayerAppearance.Clear();
+            script.Globals["mod_player_appearance"] = new CallbackFunction((ctx, args) =>
+            {
+                PlayerAppearance.Set(ArgString(args, 0));
+                return DynValue.Nil;
+            }, "mod_player_appearance");
             script.Globals["mod_char_show"] = new CallbackFunction((ctx, args) =>
             {
                 try

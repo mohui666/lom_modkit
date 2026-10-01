@@ -19,7 +19,7 @@ import traceback
 from pathlib import Path
 
 from PySide6.QtCore import QSize, QTimer, Qt, Signal
-from PySide6.QtGui import QAction, QDrag, QFont, QIcon, QKeySequence
+from PySide6.QtGui import QAction, QColor, QDrag, QFont, QIcon, QKeySequence, QPainter
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -71,6 +71,8 @@ from help_content import current_help_html
 from node_reference import DocumentationDialog
 from i18n import LANGUAGES, current_language, init_language, install_qt_translator, set_language, t
 from glass_theme import apply_glass_theme, mark_primary
+from macos_glass import prepare_macos_glass, install_macos_glass
+from character_preview import CharacterPortraitPreview
 from game_install import (
     GameInstallError,
     GameInstallManager,
@@ -94,6 +96,7 @@ from preview import (
     StagePreview,
     load_preview_map,
     log_crash,
+    simulate_stage,
 )
 from project_templates import (
     TEMPLATES,
@@ -851,6 +854,16 @@ class MainWindow(
     RunControllerMixin,
     QMainWindow,
 ):
+    def paintEvent(self, event) -> None:
+        if self.property("nativeGlass"):
+            # Transparent native windows retain the previous Qt backing pixels
+            # unless we explicitly erase the dirty region before child painting.
+            painter = QPainter(self)
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
+            painter.fillRect(event.rect(), QColor(0, 0, 0, 0))
+            painter.end()
+        super().paintEvent(event)
+
     def __init__(self, editor_data: dict, is_fallback: bool, parent=None):
         super().__init__(parent)
         self.setWindowTitle(_app_title())
@@ -910,7 +923,7 @@ class MainWindow(
             else:
                 src += "；已找到游戏，尚未安装 BepInEx"
         except GameInstallError:
-            src += "；尚未连接游戏（可在“文件 → 安装管理”中设置）"
+            src += "；" + (t("mac.game_runtime_windows_only") if sys.platform == "darwin" else "尚未连接游戏（可在“文件 → 安装管理”中设置）")
         self.statusBar().showMessage(src)
 
     # -------------------------------------------------------------- 项目模型
@@ -1048,6 +1061,12 @@ class MainWindow(
 
         self.right_tabs = QTabWidget()
         self.right_tabs.addTab(stage_tab, t("tab.preview"))
+        self.character_preview = CharacterPortraitPreview()
+        self.character_preview.set_assets(pmap, data_dir)
+        self.character_preview.set_context(self.editor_data)
+        self.right_tabs.addTab(self.character_preview, t("portrait.preview"))
+        self.form.portrait_preview_changed.connect(self._set_character_preview)
+        self.form.portrait_preview_requested.connect(lambda: self.right_tabs.setCurrentWidget(self.character_preview))
         self.flow_graph = FlowGraphPanel()
         self.flow_graph.node_activated.connect(self._on_flow_node_activated)
         self.right_tabs.addTab(self.flow_graph, t("tab.flow"))
@@ -1123,6 +1142,30 @@ class MainWindow(
         self._recovery_timer = QTimer(self)
         self._recovery_timer.setInterval(30_000)
         self._recovery_timer.timeout.connect(self._autosave_recovery)
+
+    def _set_character_preview(self, character: str, portrait: str, appearance: str) -> None:
+        if not appearance:
+            node = self._current_node()
+            state = simulate_stage(self.story, node.get("id") if node else None, self.editor_data)
+            appearance = (state.get("actors", {}).get(character) or {}).get("appearance", "")
+        self.character_preview.set_character(character, portrait, appearance)
+
+    def _choose_preview_library(self) -> None:
+        from preview_library import read_preview_library
+        directory = QFileDialog.getExistingDirectory(self, t("portrait.choose_library"))
+        if not directory:
+            return
+        try:
+            mapping, root = read_preview_library(Path(directory))
+        except (OSError, ValueError, TypeError) as exc:
+            QMessageBox.warning(self, t("portrait.preview"), str(exc))
+            return
+        self.game_manager.save_pref("preview_library_dir", str(root))
+        self.stage.set_assets(mapping, root)
+        self.character_preview.set_assets(mapping, root)
+        self._refresh_stage()
+        self.character_preview.update()
+        self.statusBar().showMessage(t("portrait.library_ready", count=len(mapping["characters"])), 6000)
 
     def _build_chapter_panel(self) -> QWidget:
         """中栏「章节设置」：编号 / 名称 / 起始步骤 / 心情气泡。"""
@@ -1209,8 +1252,12 @@ class MainWindow(
         menu = self.menuBar().addMenu(t("menu.file"))
         menu.addAction(t("menu.new"), self.new_story, QKeySequence.StandardKey.New)
         menu.addAction("从模板新建…", self.new_story_from_template)
+        menu.addAction(t("portrait.choose_library"), self._choose_preview_library)
         menu.addAction(
             t("menu.open"), self.open_story, QKeySequence.StandardKey.Open
+        )
+        menu.addAction(
+            t("menu.open_folder"), self.open_story_folder, QKeySequence("Ctrl+Shift+O")
         )
         self._recent_menu = menu.addMenu(t("menu.recent"))
         self._rebuild_recent_menu()
@@ -1222,6 +1269,7 @@ class MainWindow(
             self.save_story_as,
             QKeySequence.StandardKey.SaveAs,
         )
+        menu.addAction(t("menu.save_folder"), self.save_story_folder)
         menu.addSeparator()
         menu.addAction(t("menu.import_mod"), self.import_lommod)
         menu.addAction(t("menu.inspect_mod"), self.inspect_lommod)
@@ -1252,11 +1300,14 @@ class MainWindow(
         edit.addAction(t("menu.condition_inspector"), self._show_condition_inspector)
         edit.addAction(t("menu.story_localization"), self._show_story_localization)
         run_menu = self.menuBar().addMenu(t("menu.run"))
-        run_menu.addAction(
+        play_action = run_menu.addAction(
             t("menu.play"),
             self.play_from_current_node,
             QKeySequence("F5"),
         )
+        if sys.platform == "darwin":
+            play_action.setEnabled(False)
+            play_action.setToolTip(t("mac.game_runtime_windows_only"))
         run_menu.addAction(
             t("menu.preflight") + "（Editing）",
             lambda: self._check_project("editing"),
@@ -1301,6 +1352,9 @@ class MainWindow(
         play.setToolTip(t("toolbar.play_tip"))
         play.setShortcut(QKeySequence("F5"))
         play.triggered.connect(self.play_from_current_node)
+        if sys.platform == "darwin":
+            play.setEnabled(False)
+            play.setToolTip(t("mac.game_runtime_windows_only"))
         bar.addAction(play)
 
         library = QAction(t("toolbar.library"), self)
@@ -1361,8 +1415,9 @@ class MainWindow(
         self.mood_check.setText(t("chapter.mood_check"))
         self.mood_check.setToolTip(t("chapter.mood_tip"))
         self.right_tabs.setTabText(0, t("tab.preview"))
-        self.right_tabs.setTabText(1, t("tab.flow"))
-        self.right_tabs.setTabText(2, t("tab.compile"))
+        self.right_tabs.setTabText(1, t("portrait.preview"))
+        self.right_tabs.setTabText(2, t("tab.flow"))
+        self.right_tabs.setTabText(3, t("tab.compile"))
         self.node_list.setToolTip(t("nav.drag_tip"))
         keep = self._selected_node_index()
         self._refresh_all(select_row=keep)
@@ -2080,6 +2135,9 @@ class MainWindow(
         self.stage.set_story_root(
             story_path.parent.parent if story_path is not None else None
         )
+        self.character_preview.set_story_root(
+            story_path.parent.parent if story_path is not None else None
+        )
         self.stage.show_node(self.story, node.get("id") if node else None)
 
     # ---------------------------------------------------------- 演出预览步进
@@ -2390,6 +2448,9 @@ class MainWindow(
         cur_story["id"] = new_id
         cur_story["title"] = new_title
         if new_id != old_id:
+            # Keep the old key as well so undo can use the same file path.
+            if old_id in self._story_paths:
+                self._story_paths[new_id] = self._story_paths[old_id]
             del self._stories[old_id]
             self._stories[new_id] = cur_story
             self._current_id = new_id
@@ -2685,24 +2746,42 @@ def main() -> int:
     apply_glass_theme(app)  # 纯样式注入：不改任何控件行为
     editor_data, is_fallback = models.load_editor_data(PROJECT_ROOT)
     win = MainWindow(editor_data, is_fallback)
+    prepare_macos_glass(win)
     win.show()
+    install_macos_glass(win)
     if smoke_preview is not None:
-        win._load_story_path(smoke_preview)
+        loaded = (
+            win._load_story_folder(smoke_preview)
+            if smoke_preview.is_dir() else win._load_story_path(smoke_preview)
+        )
         win.right_tabs.setCurrentWidget(win.preview)
         win._preview_timer.stop()
         win._refresh_preview()
         preview_text = win.preview.toPlainText()
         resource_ok = (
-            win.game_manager.runtime_dll.is_file()
-            and (win.game_manager.runtime_dll.parent / "NVorbis.dll").is_file()
+            (sys.platform == "darwin" or (
+                win.game_manager.runtime_dll.is_file()
+                and (win.game_manager.runtime_dll.parent / "NVorbis.dll").is_file()
+            ))
             and icon_path.is_file()
             and (icon_base / "assets" / "combo_arrow.svg").is_file()
         )
-        preview_ok = (
+        preview_ok = loaded and (
             preview_text.startswith("-- Generated by lomc")
             and " = function()" in preview_text
             and resource_ok
         )
+        # A folder smoke covers every chapter in the frozen GUI's actual path.
+        smoke_stories = sorted(win._stories) if smoke_preview.is_dir() and loaded else ()
+        for story_id in smoke_stories:
+            win.story_combo.setCurrentIndex(win.story_combo.findData(story_id))
+            win._preview_timer.stop()
+            win._refresh_preview()
+            chapter_text = win.preview.toPlainText()
+            preview_ok = preview_ok and (
+                chapter_text.startswith("-- Generated by lomc")
+                and " = function()" in chapter_text
+            )
         if not preview_ok:
             log_crash(
                 "冻结版 Lua 预览/安装资源自检失败"
@@ -2713,8 +2792,12 @@ def main() -> int:
         QTimer.singleShot(1500, app.quit)
     else:
         recovered = win.restore_abnormal_session()
-        if not recovered and len(args) > 1:  # 支持命令行直接打开 story.json
-            win._load_story_path(Path(args[1]))
+        if not recovered and len(args) > 1:  # 支持命令行直接打开剧情或项目目录
+            target = Path(args[1])
+            if target.is_dir():
+                win._load_story_folder(target)
+            else:
+                win._load_story_path(target)
         elif not recovered and win.restore_last_project():
             win.statusBar().showMessage(
                 win.statusBar().currentMessage() or "已恢复上次打开的项目",

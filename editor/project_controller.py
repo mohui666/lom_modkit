@@ -3,9 +3,11 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 from pathlib import Path
+import tempfile
 
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QFileDialog, QMessageBox
@@ -44,6 +46,79 @@ class ProjectControllerMixin:
             self._remember_dir("last_story_dir", path)
             self._load_story_path(Path(path))
 
+    def open_story_folder(self) -> None:
+        folder = QFileDialog.getExistingDirectory(
+            self, t("menu.open_folder"), self._last_dir("last_story_dir")
+        )
+        if folder and self._confirm_discard():
+            if self._load_story_folder(Path(folder)):
+                self.game_manager.save_pref("last_story_dir", folder)
+
+    def _load_story_folder(self, folder: Path) -> bool:
+        """Load all chapters before replacing the currently edited project."""
+        folder = Path(folder)
+        try:
+            if not folder.is_dir():
+                raise ValueError(f"找不到剧情文件夹：{folder}")
+            manifest_path = folder / "manifest.json"
+            manifest = {}
+            if manifest_path.is_file():
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+                if not isinstance(manifest, dict):
+                    raise ValueError("manifest.json 顶层必须是 JSON 对象")
+            story_dir = folder / "story" if (folder / "story").is_dir() else folder
+            stories, paths = {}, {}
+            for path in sorted(story_dir.iterdir()):
+                if (
+                    not path.is_file()
+                    or path.suffix.lower() != ".json"
+                    or path.name == "manifest.json"
+                ):
+                    continue
+                try:
+                    document = json.loads(path.read_text(encoding="utf-8-sig"))
+                    # Settings/content JSON beside stories is not a chapter.
+                    if not isinstance(document, dict) or "nodes" not in document:
+                        continue
+                    story = models.load_story(path)
+                    sid = story["id"]
+                    if not isinstance(sid, str) or not models.ID_PATTERN.fullmatch(sid):
+                        raise ValueError("章节 ID 必须为 1～64 个字母、数字、下划线或连字符")
+                    if sid in stories:
+                        raise ValueError(f"章节 ID {sid!r} 重复：{paths[sid].name} 与 {path.name}")
+                    stories[sid], paths[sid] = story, path
+                except Exception as exc:
+                    raise ValueError(f"{path.name}：{exc}") from exc
+            if not stories:
+                raise ValueError("文件夹中没有可打开的剧情 JSON（应含 nodes 数组）；也可选择含 story/ 的项目根目录")
+            entry = manifest.get("entry")
+            if entry is not None and not isinstance(entry, str):
+                raise ValueError("manifest.json 的 entry 必须是章节 ID 字符串")
+        except Exception as exc:
+            QMessageBox.critical(self, t("app.title"), t("error.open", error=exc))
+            return False
+
+        saved = copy.deepcopy(stories)
+        repaired = models.normalize_character_ids(stories, self.editor_data)
+        self._stories = stories
+        self._current_id = (
+            entry if entry in stories else ("main" if "main" in stories else sorted(stories)[0])
+        )
+        self.manifest = manifest
+        self.manifest_base = copy.deepcopy(manifest)
+        self._story_paths = paths
+        self._set_project_source("folder", folder)
+        self._saved_snapshot = saved
+        self._undo_stack.clear()
+        self._redo_stack.clear()
+        self._pending_before = None
+        self._commit_timer.stop()
+        self._refresh_all()
+        self._remember_project("folder", folder, str(manifest.get("name") or folder.name))
+        note = f"；已自动修复 {repaired} 个人物内部 ID" if repaired else ""
+        self.statusBar().showMessage(f"已打开 {len(stories)} 个剧情章节：{folder}{note}", 6000)
+        return True
+
     def _should_persist_session(self) -> bool:
         if not getattr(self, "_prompt_on_discard", True):
             return False
@@ -62,7 +137,7 @@ class ProjectControllerMixin:
         return [
             item for item in data
             if isinstance(item, dict)
-            and item.get("kind") in ("story", "lommod")
+            and item.get("kind") in ("story", "lommod", "folder")
             and item.get("path")
         ]
 
@@ -102,7 +177,7 @@ class ProjectControllerMixin:
         for item in recents:
             kind, path = item["kind"], item["path"]
             name = item.get("name") or Path(path).stem
-            tag = "Mod" if kind == "lommod" else "剧本"
+            tag = "Mod" if kind == "lommod" else ("剧情文件夹" if kind == "folder" else "剧本")
             action = QAction(f"{name}（{tag}）", self)
             action.setToolTip(path)
             action.triggered.connect(
@@ -119,50 +194,54 @@ class ProjectControllerMixin:
 
     def _open_recent(self, kind: str, path: str) -> None:
         target = Path(path)
-        if not target.is_file():
+        if not (target.is_dir() if kind == "folder" else target.is_file()):
             recents = [item for item in self._load_recents() if item.get("path") != path]
             self.game_manager.save_pref(
                 "recent_projects", json.dumps(recents, ensure_ascii=False)
             )
             self._rebuild_recent_menu()
             QMessageBox.warning(
-                self, t("app.title"), f"找不到文件，已从最近列表移除：\n{path}"
+                self, t("app.title"), f"找不到项目，已从最近列表移除：\n{path}"
             )
             return
         if not self._confirm_discard():
             return
         if kind == "lommod":
             self._import_lommod_path(target)
+        elif kind == "folder":
+            self._load_story_folder(target)
         else:
             self._load_story_path(target)
 
     def restore_last_project(self) -> bool:
         kind = self.game_manager.load_pref("last_open_kind")
         path = self.game_manager.load_pref("last_open_path")
-        if kind not in ("story", "lommod") or not path:
+        story_id = self.game_manager.load_pref("last_open_story_id")
+        if kind not in ("story", "lommod", "folder") or not path:
             return False
         target = Path(path)
-        if not target.is_file():
+        if not (target.is_dir() if kind == "folder" else target.is_file()):
             return False
         if kind == "lommod":
             ok = self._import_lommod_path(target)
+        elif kind == "folder":
+            ok = self._load_story_folder(target)
         else:
-            self._load_story_path(target)
-            ok = bool(self._story_paths)
+            ok = self._load_story_path(target)
         if not ok:
             return False
-        story_id = self.game_manager.load_pref("last_open_story_id")
         if story_id and story_id in self._stories and story_id != self._current_id:
             self._current_id = story_id
             self._refresh_all()
+            self._remember_current_chapter()
         return True
 
-    def _load_story_path(self, path: Path) -> None:
+    def _load_story_path(self, path: Path) -> bool:
         try:
             story = models.load_story(path)
         except Exception as exc:
             QMessageBox.critical(self, t("app.title"), t("error.open", error=exc))
-            return
+            return False
         repaired = models.normalize_character_ids([story], self.editor_data)
         self._stories = {story["id"]: story}
         self._current_id = story["id"]
@@ -181,12 +260,20 @@ class ProjectControllerMixin:
         self._remember_project("story", path, str(story.get("title") or path.stem))
         note = f"；已自动修复 {repaired} 个人物内部 ID" if repaired else ""
         self.statusBar().showMessage(f"已打开 {path}{note}", 5000)
+        return True
 
     def save_story(self) -> bool:
+        self._flush_pending()
+        if self._source_kind == "folder" and self._source_path is not None:
+            return self._write_story_folder(self._source_path)
+        if len(self._stories) > 1:
+            return self.save_story_folder()
         path = self.story_path
         return self.save_story_as() if path is None else self._write_current_story(path)
 
     def save_story_as(self) -> bool:
+        if len(self._stories) > 1 or self._source_kind == "folder":
+            return self.save_story_folder()
         current = str(self.story_path) if self.story_path else ""
         path, _ = QFileDialog.getSaveFileName(
             self, "另存为",
@@ -199,6 +286,85 @@ class ProjectControllerMixin:
             self._remember_dir("last_story_dir", path)
             return True
         return False
+
+    def save_story_folder(self) -> bool:
+        initial = (
+            str(self._source_path)
+            if self._source_kind == "folder" and self._source_path
+            else self._last_dir("last_story_dir")
+        )
+        folder = QFileDialog.getExistingDirectory(
+            self, t("menu.save_folder"), initial,
+        )
+        if not folder:
+            return False
+        if self._write_story_folder(Path(folder)):
+            self.game_manager.save_pref("last_story_dir", folder)
+            return True
+        return False
+
+    def _write_story_folder(self, folder: Path) -> bool:
+        """Save every chapter atomically per file; retain dirty state on failure."""
+        self._flush_pending()
+        folder = Path(folder)
+        story_dir = folder / "story" if (folder / "story").is_dir() else folder
+        paths = {}
+        target = folder
+        try:
+            owned = {path.resolve() for path in self._story_paths.values() if path is not None}
+            seen = set()
+            for sid in self._stories:
+                if not models.ID_PATTERN.fullmatch(sid):
+                    raise ValueError(f"章节 ID {sid!r} 不能用作文件名")
+                original = self._story_paths.get(sid)
+                target = (
+                    original
+                    if original and original.parent.resolve() == story_dir.resolve()
+                    else story_dir / f"{sid}.json"
+                )
+                key = str(target.resolve()).casefold()
+                if key in seen:
+                    raise ValueError(f"多个章节指向同一文件：{target.name}，请另存到空文件夹")
+                seen.add(key)
+                if target.exists() and target.resolve() not in owned:
+                    raise ValueError(f"目标已存在不属于当前项目的文件：{target.name}，请选择空文件夹")
+                paths[sid] = target
+            target = folder / "manifest.json"
+            same_source = self._source_kind == "folder" and self._source_path == folder.resolve()
+            if target.exists() and not same_source:
+                raise ValueError("目标已存在其他项目的 manifest.json，请选择空文件夹")
+            manifest = copy.deepcopy(self.manifest_base or self.manifest or {})
+            manifest.setdefault("entry", "main" if "main" in self._stories else self._current_id)
+            # Prepare metadata before touching any files.
+            payload = json.dumps(manifest, ensure_ascii=False, indent=2) + "\n"
+            for sid, target in paths.items():
+                models.save_story(self._stories[sid], target)
+            target = folder / "manifest.json"
+            temp_path = None
+            try:
+                fd, name = tempfile.mkstemp(prefix="manifest.", suffix=".tmp", dir=folder)
+                temp_path = Path(name)
+                with os.fdopen(fd, "w", encoding="utf-8", newline="") as stream:
+                    stream.write(payload)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                os.replace(temp_path, target)
+                temp_path = None
+            finally:
+                if temp_path is not None:
+                    temp_path.unlink(missing_ok=True)
+        except Exception as exc:
+            QMessageBox.critical(self, t("app.title"), t("error.save", error=f"{target}：{exc}"))
+            return False
+        self._story_paths.update(paths)
+        self.manifest = manifest
+        self.manifest_base = copy.deepcopy(manifest)
+        self._set_project_source("folder", folder)
+        self._saved_snapshot = self._snapshot()
+        self._set_dirty(False)
+        self._remember_project("folder", folder, str(manifest.get("name") or folder.name))
+        self.statusBar().showMessage(f"已保存全部 {len(paths)} 个剧情章节：{folder}", 5000)
+        return True
 
     def _write_current_story(self, path: Path) -> bool:
         try:

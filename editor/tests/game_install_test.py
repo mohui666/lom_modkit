@@ -347,6 +347,7 @@ class GameInstallManagerTest(unittest.TestCase):
         with (
             mock.patch.object(self.manager, "is_game_running", return_value=False),
             mock.patch.object(os, "startfile", create=True) as startfile,
+            mock.patch("game_install.WINDOWS_GAME_RUNTIME", True),
             mock.patch("game_install.subprocess.Popen") as popen,
         ):
             self.assertTrue(self.manager.launch_game())
@@ -702,4 +703,3 @@ class ResetStoryReadStateTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
-

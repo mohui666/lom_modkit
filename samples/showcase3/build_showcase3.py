@@ -36,8 +36,7 @@ MANIFEST = {
     "package_format": 3,
     "story_schema": 2,
     "content_schema": 1,
-    "min_host_version": "1.1.0",
-    "tested_host_version": "1.1.0",
+    "min_host_version": "1.1.2",
     "id": "showcase3",
     "campaign_id": "showcase3",
     "name": "全节点样例3.0·六十二节点实机验收",
@@ -159,8 +158,10 @@ def build_main() -> dict:
     _node(
         story,
         "show",
-        {"character": "player", "position": "L1", "portrait": "normal"},
+        {"character": "player", "position": "L1", "portrait": "normal", "appearance": "beautified"},
     )
+    _say(story, "这是照镜子后的自恋赵活，使用游戏自己的立绘。下一步恢复原版赵活。", "player")
+    _node(story, "show", {"character": "player", "position": "L1", "portrait": "normal", "appearance": "original"})
     _node(
         story,
         "show",

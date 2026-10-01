@@ -47,6 +47,8 @@ def test_all_static_t_calls_and_schema_fields_are_translated():
     locale_keys = _keys("chs")
     used = set()
     for path in EDITOR.rglob("*.py"):
+        if ".venv" in path.parts or "build" in path.parts or "dist" in path.parts:
+            continue
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for node in ast.walk(tree):
             if (

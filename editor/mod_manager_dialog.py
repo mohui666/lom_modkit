@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -215,6 +216,13 @@ class ModManagerDialog(QDialog):
         self._loading = True
         try:
             root = self.manager.load_game_dir()
+            if sys.platform == "darwin":
+                self.path_edit.setText(str(root) if root else "")
+                self.status_label.setText(t("mac.game_runtime_windows_only"))
+                for button in (self.bepinex_btn, self.steam_fix_btn, self.install_btn, self.rollback_btn, self.doctor_btn):
+                    button.setEnabled(False)
+                self.table.setRowCount(0)
+                return
             self.path_edit.setText(str(root) if root else "")
             if not self._configured():
                 self.status_label.setText(t("install.not_connected"))

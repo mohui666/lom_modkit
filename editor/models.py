@@ -225,6 +225,7 @@ NODE_GROUPS: list[tuple[str, list[str]]] = []
 # 枚举字段的中文标注（表单 kind="enum:<名字>" 用）
 # ---------------------------------------------------------------------------
 ENUM_SETS_SRC: dict[str, list[tuple[str, str]]] = {
+    "player_appearance": [("game", "随游戏天赋"), ("original", "普通赵活"), ("beautified", "美颜赵活（照镜子 / 自恋）")],
     "music_op": [("play", "播放"), ("stop", "停止"), ("fadeout", "淡出")],
     "sound_kind": [("sound", "音效"), ("env", "环境音")],
     "sound_op": [("play", "播放"), ("fadeout", "淡出")],
@@ -516,6 +517,7 @@ NODE_SCHEMAS: dict[str, dict] = {
         "label": "显示人物",
         "fields": [
             ("character", "人物", "character", False),
+            ("appearance", "赵活外观", "enum:player_appearance", True),
             ("position", "站位", "position", False),
             ("portrait", "表情", "portrait", True),
             ("facing", "朝向", "facing", True),
@@ -1489,7 +1491,10 @@ def editor_dir() -> Path:
 def crash_log_path() -> Path:
     """崩溃日志位置：冻结态写当前工作目录（解包目录不应被写入）。"""
     if FROZEN:
-        return Path.cwd() / "crash.log"
+        from app_paths import user_data_root
+        root = user_data_root()
+        root.mkdir(parents=True, exist_ok=True)
+        return root / "crash.log"
     return Path(__file__).resolve().parent / "crash.log"
 
 

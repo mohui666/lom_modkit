@@ -74,10 +74,30 @@
       "portrait": "normal",
       "facing": "right",
       "fadeDuration": 0,
-      "moveDuration": 0
+      "moveDuration": 0,
+      "appearance": "beautified"
+    },
+    {
+      "id": "say1",
+      "type": "say",
+      "text": "这是照镜子后的自恋赵活，使用游戏自己的立绘。下一步恢复原版赵活。",
+      "character": "player",
+      "portrait": "normal",
+      "mode": "character"
     },
     {
       "id": "show2",
+      "type": "show",
+      "character": "player",
+      "position": "L1",
+      "portrait": "normal",
+      "facing": "right",
+      "fadeDuration": 0,
+      "moveDuration": 0,
+      "appearance": "original"
+    },
+    {
+      "id": "show3",
       "type": "show",
       "character": "user:showcase.lin_deng",
       "position": "R1",
@@ -87,7 +107,7 @@
       "moveDuration": 0
     },
     {
-      "id": "say1",
+      "id": "say2",
       "type": "say",
       "text": "我是用户角色林灯。这句对白同时播放用户语音；请检查对白栏里是否有重复的低透明度 MOD 水印。",
       "character": "user:showcase.lin_deng",
@@ -155,7 +175,7 @@
       "dimmed": false
     },
     {
-      "id": "say2",
+      "id": "say3",
       "type": "say",
       "text": "旁白、人物、语音与舞台动作均已执行。",
       "portrait": "normal",
@@ -167,7 +187,7 @@
       "show": true
     },
     {
-      "id": "say3",
+      "id": "say4",
       "type": "say",
       "text": "遮罩中的文字仍应显示玩家内容披露。",
       "portrait": "normal",
@@ -251,7 +271,7 @@
       "seconds": 0.35
     },
     {
-      "id": "say4",
+      "id": "say5",
       "type": "say",
       "text": "下面弹出 choice。两个选项都会汇合。",
       "portrait": "normal",
@@ -263,17 +283,17 @@
       "options": [
         {
           "text": "选项 A：继续",
-          "goto": "say5"
+          "goto": "say6"
         },
         {
           "text": "选项 B：也继续",
-          "goto": "say5"
+          "goto": "say6"
         }
       ],
       "dialog": "Options"
     },
     {
-      "id": "say5",
+      "id": "say6",
       "type": "say",
       "text": "choice 已返回。",
       "portrait": "normal",
@@ -285,7 +305,7 @@
       "flag": "SHOWCASE3_BRANCH"
     },
     {
-      "id": "say6",
+      "id": "say7",
       "type": "say",
       "text": "下面执行 mod flag 分支。",
       "portrait": "normal",
@@ -299,16 +319,16 @@
       "cases": [
         {
           "value": 1,
-          "goto": "say7"
+          "goto": "say8"
         },
         {
           "value": 2,
-          "goto": "say8"
+          "goto": "say9"
         }
       ]
     },
     {
-      "id": "say7",
+      "id": "say8",
       "type": "say",
       "text": "branch：flag 已设置。",
       "portrait": "normal",
@@ -316,7 +336,7 @@
       "goto": "message2"
     },
     {
-      "id": "say8",
+      "id": "say9",
       "type": "say",
       "text": "branch：flag 未设置。",
       "portrait": "normal",
@@ -329,7 +349,7 @@
       "text": "branch 已汇合。"
     },
     {
-      "id": "say9",
+      "id": "say10",
       "type": "say",
       "text": "下面调用自定义四段骰子。范围、标题、加值、每档文字和去向都可直接编辑。",
       "portrait": "normal",
@@ -344,29 +364,29 @@
       "bands": [
         {
           "text": "失手",
-          "goto": "say13",
+          "goto": "say14",
           "upper": 24
         },
         {
           "text": "勉强成功",
-          "goto": "say12",
+          "goto": "say13",
           "upper": 49
         },
         {
           "text": "成功",
-          "goto": "say11",
+          "goto": "say12",
           "upper": 79
         },
         {
           "text": "大成功",
-          "goto": "say10"
+          "goto": "say11"
         }
       ],
       "bonus_name": "准备充分",
       "bonus_status": "固定加值"
     },
     {
-      "id": "say10",
+      "id": "say11",
       "type": "say",
       "text": "骰子结果：大成功。",
       "portrait": "normal",
@@ -374,7 +394,7 @@
       "goto": "message3"
     },
     {
-      "id": "say11",
+      "id": "say12",
       "type": "say",
       "text": "骰子结果：成功。",
       "portrait": "normal",
@@ -382,7 +402,7 @@
       "goto": "message3"
     },
     {
-      "id": "say12",
+      "id": "say13",
       "type": "say",
       "text": "骰子结果：勉强成功。",
       "portrait": "normal",
@@ -390,7 +410,7 @@
       "goto": "message3"
     },
     {
-      "id": "say13",
+      "id": "say14",
       "type": "say",
       "text": "骰子结果：失败。",
       "portrait": "normal",

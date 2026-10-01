@@ -11,6 +11,8 @@
   "menu.file": "파일(&F)",
   "menu.new": "새로 만들기",
   "menu.open": "열기…",
+  "menu.open_folder": "스토리 폴더 열기…",
+  "menu.save_folder": "모든 챕터를 폴더에 저장…",
   "menu.recent": "최근 파일",
   "menu.recent_empty": "（기록 없음）",
   "menu.save": "저장",
@@ -912,5 +914,17 @@
   "reference.effect.id": "장 안에서 이 노드를 고유하게 식별하며 이동과 오류 위치 확인에 사용합니다. 플레이어 화면에는 표시되지 않습니다.", "reference.effect.type": "컴파일러가 생성할 노드 동작을 결정합니다. 값은 노드 유형에 따라 고정됩니다.", "reference.effect.flow_target": "‘{field}’에 해당하는 결과가 발생하면 선택한 노드로 이동합니다.", "reference.effect.required": "이 노드를 실행할 때 사용할 ‘{field}’을 설정합니다. 없으면 빌드를 거부합니다.", "reference.effect.optional": "‘{field}’을 선택적으로 덮어씁니다. 비워 두면 노드 기본값 또는 원작 동작을 유지합니다.",
   "reference.effect.combat_background": "이번 결투에 사용할 공식 장면 배경을 별도로 선택합니다. 배경은 인물이나 내부 결투 셸이 결정하지 않습니다.", "reference.effect.combat_character": "공식 또는 사용자 인물을 네 종류 전투 애니메이션 원본으로 선택합니다. 전투 수치를 자동 입력하거나 제한하지 않습니다.", "reference.effect.combat_vital": "이번 결투의 ‘{field}’을 덮어씁니다. 비워 두면 Runtime 내부 안전 셸이 안정값을 제공합니다.", "reference.effect.combat_stat": "상대의 ‘{field}’ 능력치를 덮어써 원작 결투 계산에 직접 반영합니다.", "reference.effect.combat_talents": "이번 결투에서 상대가 보유할 스킬과 레벨을 항목별로 설정합니다.", "reference.effect.combat_rate": "원작 AI가 ‘{field}’을 선택할 확률을 0～1로 설정합니다.",
   "reference.effect.battle_faction": "‘{field}’의 공식 진영을 설정합니다. Runtime은 진영에서 내부 안전 기준을 선택합니다.", "reference.effect.battle_people": "‘{field}’의 총인원을 설정합니다. 이름 있는 인물도 이 수에 포함됩니다.", "reference.effect.battle_characters": "확인된 공식 이름 있는 인물을 추가합니다. 인원은 해당 총인원을 넘을 수 없습니다.",
-  "reference.effect.dice_max": "무작위 눈의 상한을 설정합니다. 이 노드는 0부터 해당 값까지의 정수를 뽑습니다.", "reference.effect.dice_header": "원작 주사위 화면 위쪽에 표시할 판정 제목입니다.", "reference.effect.dice_bonus": "무작위 눈에 고정 정수를 더합니다. 음수도 사용할 수 있습니다.", "reference.effect.dice_bonus_name": "고정 보정의 출처 이름(예: 경공)을 표시합니다. 수치에는 영향을 주지 않습니다.", "reference.effect.dice_bonus_status": "고정 보정의 추가 설명을 표시합니다. 수치에는 영향을 주지 않습니다.", "reference.effect.dice_bands": "2～4개 구간을 설정할 수 있습니다. 도달 가능한 합계 상한이 낮은 순서로 결과 문구와 이동 대상을 맞추고 마지막 구간이 나머지를 받습니다."
+  "reference.effect.dice_max": "무작위 눈의 상한을 설정합니다. 이 노드는 0부터 해당 값까지의 정수를 뽑습니다.", "reference.effect.dice_header": "원작 주사위 화면 위쪽에 표시할 판정 제목입니다.", "reference.effect.dice_bonus": "무작위 눈에 고정 정수를 더합니다. 음수도 사용할 수 있습니다.", "reference.effect.dice_bonus_name": "고정 보정의 출처 이름(예: 경공)을 표시합니다. 수치에는 영향을 주지 않습니다.", "reference.effect.dice_bonus_status": "고정 보정의 추가 설명을 표시합니다. 수치에는 영향을 주지 않습니다.", "reference.effect.dice_bands": "2～4개 구간을 설정할 수 있습니다. 도달 가능한 합계 상한이 낮은 순서로 결과 문구와 이동 대상을 맞추고 마지막 구간이 나머지를 받습니다.",
+  "portrait.preview": "캐릭터 일러스트",
+  "portrait.choose_character": "캐릭터와 표정을 선택하면 전체 일러스트가 표시됩니다.",
+  "portrait.beautified_player": "미남 조활 (거울 / 자련)",
+  "portrait.no_assets": "아직 추출되지 않은 일러스트입니다.\n파일 메뉴에서 본인 게임의 미리보기 소재 폴더를 선택하세요.",
+  "portrait.private_assets": "로컬 게임 소재를 사용하며 내보내기에는 포함하지 않습니다.",
+  "portrait.choose_library": "게임 미리보기 소재 폴더 선택…",
+  "portrait.library_ready": "캐릭터 {count}명의 로컬 소재를 연결했습니다.",
+  "mac.game_runtime_windows_only": "Mac 버전은 편집, 미리보기, 내보내기를 지원합니다. 게임 설치와 F5 테스트는 Windows 버전에서 진행하세요.",
+  "field.appearance": "조활 외형",
+  "enum.player_appearance.game": "게임 특성 따르기",
+  "enum.player_appearance.original": "일반 조활",
+  "enum.player_appearance.beautified": "미남 조활"
 }

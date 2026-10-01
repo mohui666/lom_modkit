@@ -13,6 +13,7 @@ from PySide6.QtWidgets import QApplication, QDialog  # noqa: E402
 
 import main  # noqa: E402
 import models  # noqa: E402
+from project_templates import TEMPLATES  # noqa: E402
 
 
 class ProjectTemplatesUiTest(unittest.TestCase):
@@ -20,9 +21,9 @@ class ProjectTemplatesUiTest(unittest.TestCase):
     def setUpClass(cls):
         cls.app = QApplication.instance() or QApplication([])
 
-    def test_dialog_lists_five_templates_and_warns_for_placeholders(self):
+    def test_dialog_lists_templates_and_warns_for_placeholders(self):
         dialog = main.ProjectTemplateDialog()
-        self.assertEqual(dialog.list.count(), 5)
+        self.assertEqual(dialog.list.count(), len(TEMPLATES))
         dialog.list.setCurrentRow(3)
         self.assertIn("user:template.*", dialog.description.text())
         dialog._accept_selected()

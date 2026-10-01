@@ -9,6 +9,7 @@ method names used by actions and shortcuts.
 from __future__ import annotations
 
 import copy
+import sys
 import tempfile
 from pathlib import Path
 
@@ -37,6 +38,9 @@ class RunControllerMixin:
 
     def play_from_current_node(self) -> bool:
         """Temporarily package, install and launch from the selected node."""
+        if sys.platform == "darwin":
+            QMessageBox.information(self, _app_title(), t("mac.game_runtime_windows_only"))
+            return False
         self._flush_pending()
         node = self._current_node()
         if node is None:

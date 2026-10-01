@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 
 from .errors import LomcError
 from .schema_versions import CONTENT_SCHEMA
@@ -765,6 +766,8 @@ def scan_repository(root, content_type=None):
 
 def default_repository_root():
     """开发环境全局仓库：%APPDATA%/lom_modkit/repository。"""
+    if sys.platform == "darwin" and not os.environ.get("APPDATA"):
+        return os.path.join(os.path.expanduser("~"), "Library", "Application Support", "lom_modkit", "repository")
     appdata = os.environ.get("APPDATA")
     base = appdata if appdata else os.path.join(os.path.expanduser("~"), "AppData", "Roaming")
     return os.path.join(base, "lom_modkit", "repository")

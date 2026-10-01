@@ -20,14 +20,15 @@
 import json
 import os
 import sys
-import io
+import argparse
 
 import UnityPy
 from PIL import Image
 
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, TOOLS_DIR)
-# _probe_assets 在模块级已把 sys.stdout 包装为 utf-8，勿再重复包装（会关闭底层 buffer）
+# _probe_assets 已将标准输出配置为 utf-8。
+import _probe_assets as probe
 from _probe_assets import parse_catalog, CATALOG, BUNDLE_DIR  # noqa: E402
 
 DATA_DIR = os.path.normpath(os.path.join(TOOLS_DIR, "..", "data"))
@@ -54,20 +55,45 @@ def export_sprite(addr2bundle, address, out_path):
         return "bundle 文件缺失: " + bundle
     if bundle not in _bundle_cache:
         _bundle_cache[bundle] = UnityPy.load(bpath)
-    sprite_name = os.path.splitext(os.path.basename(address))[0]
-    for o in _bundle_cache[bundle].objects:
-        if o.type.name == "Sprite" and o.read().m_Name == sprite_name:
-            os.makedirs(os.path.dirname(out_path), exist_ok=True)
-            o.read().image.save(out_path)
-            return None
-    return "bundle 内找不到 Sprite " + sprite_name
+    try:
+        internal_address = getattr(addr2bundle, "asset_paths", {}).get(address, address)
+        sprite = probe.resolve_sprite(_bundle_cache[bundle], internal_address)
+    except ValueError as exc:
+        return str(exc)
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    sprite.read().image.save(out_path)
+    return None
 
 
 def main():
+    global DATA_DIR, PORTRAIT_DIR, VIEW_DIR, PREVIEW_MAP, REPORT, CATALOG, BUNDLE_DIR
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--game-dir", help="包含 Mortal_Data 的本地游戏目录（只读）")
+    parser.add_argument("--output-dir", help="私有预览目录，不会放进发布包")
+    parser.add_argument("--max-size", type=int, default=0, help="预览图最长边像素；0 保留原图")
+    parser.add_argument("--portraits-only", action="store_true")
+    args = parser.parse_args()
+    if args.max_size and not 128 <= args.max_size <= 1600:
+        parser.error("--max-size 必须为 0 或 128~1600")
+    if args.game_dir:
+        game_data = os.path.join(os.path.abspath(args.game_dir), "Mortal_Data")
+        probe.SA2 = os.path.join(game_data, "sharedassets2.assets")
+        CATALOG = os.path.join(game_data, "StreamingAssets", "aa", "catalog.json")
+        BUNDLE_DIR = os.path.join(game_data, "StreamingAssets", "aa", "StandaloneWindows")
+    if args.output_dir:
+        DATA_DIR = os.path.abspath(args.output_dir)
+        PORTRAIT_DIR = os.path.join(DATA_DIR, "assets", "portraits")
+        VIEW_DIR = os.path.join(DATA_DIR, "assets", "views")
+        PREVIEW_MAP = os.path.join(DATA_DIR, "preview_map.json")
+        REPORT = os.path.join(DATA_DIR, "assets", "extract_report.json")
+    os.makedirs(os.path.join(DATA_DIR, "assets"), exist_ok=True)
     addr2bundle = parse_catalog(CATALOG)
-    cm = json.load(open(CHAR_MAP, encoding="utf-8"))
-    vm = json.load(open(VIEW_MAP, encoding="utf-8"))
+    cm, vm = probe.load_sa2()
     ed = json.load(open(EDITOR_DATA, encoding="utf-8"))
+    if "player_beautified" in cm:
+        ed["characters"].append({"id": "player_beautified", "name": "美颜赵活", "portraits": list(cm["player_beautified"]["portraits"])})
+    if args.portraits_only:
+        ed["views"] = []
     print("[load] catalog=%d character_map=%d view_map=%d editor人物=%d editor场景=%d"
           % (len(addr2bundle), len(cm), len(vm), len(ed["characters"]), len(ed["views"])))
 
@@ -128,6 +154,11 @@ def main():
                 err = None  # 已存在则跳过导出（幂等重跑）
             else:
                 err = export_sprite(addr2bundle, addr, out_path)
+            if not err and args.max_size:
+                with Image.open(out_path) as original:
+                    if max(original.size) > args.max_size:
+                        original.thumbnail((args.max_size, args.max_size), Image.Resampling.LANCZOS)
+                        original.save(out_path)
             export_done += 1
             if err:
                 report["portraits"]["failed"].append(

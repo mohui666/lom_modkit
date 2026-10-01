@@ -16,6 +16,8 @@ import os
 import re
 from pathlib import Path
 
+from app_paths import user_data_root
+
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg"}
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
@@ -26,9 +28,7 @@ class AssetStoreError(ValueError):
 
 
 def store_root() -> Path:
-    appdata = os.environ.get("APPDATA")
-    base = Path(appdata) if appdata else Path.home() / "AppData" / "Roaming"
-    return base / "lom_modkit" / "assets"
+    return user_data_root() / "assets"
 
 
 def _safe_name(name: str, suffix: str) -> str:

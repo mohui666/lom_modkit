@@ -7,8 +7,8 @@
 - 玻璃本身无固有色：深色渐变窗体上叠白色低透明度填充 + 1px 高光描边；
 - 强调色（ACCENT 蓝）克制使用：仅选中态、焦点描边和每屏唯一的主操作按钮。
 
-Qt Widgets 无真实背景模糊（backdrop-filter），这里用 QSS 渐变底 + rgba 半透明
-面板近似玻璃质感；纯样式实现，不触碰任何控件逻辑。主操作按钮通过动态属性
+macOS 的背景材质由 macos_glass.py 接入 AppKit；其他平台使用 QSS 渐变底。
+内容面板保持足够的不透明度以便阅读。主操作按钮通过动态属性
 ``primary=true`` 标记（``QPushButton[primary="true"]`` 规则命中）。
 """
 from __future__ import annotations
@@ -54,6 +54,22 @@ QWidget {{
 QMainWindow, QDialog {{
     background: qlineargradient(x1: 0, y1: 0, x2: 0.35, y2: 1,
         stop: 0 {WINDOW_TOP}, stop: 1 {WINDOW_BOTTOM});
+}}
+QMainWindow[nativeGlass="true"] {{
+    background: transparent;
+}}
+QMainWindow[nativeGlass="true"] QWidget#leftNav,
+QMainWindow[nativeGlass="true"] QStackedWidget {{
+    background: rgb(20, 23, 33);
+    border-radius: 10px;
+}}
+QMainWindow[nativeGlass="true"] QStatusBar {{
+    background: rgb(20, 23, 33);
+}}
+QMainWindow[nativeGlass="true"] QToolBar {{
+    background: rgba(28, 32, 46, 220);
+    border: 1px solid rgba(255, 255, 255, 38);
+    border-radius: 12px;
 }}
 
 /* ========== 功能层：菜单栏 / 工具栏 / 状态栏 / 页签 ========== */

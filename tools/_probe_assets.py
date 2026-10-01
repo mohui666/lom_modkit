@@ -28,18 +28,25 @@ import json
 import os
 import struct
 import sys
-import io
 
 import UnityPy
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-GAME_DATA = r"C:/Program Files (x86)/Steam/steamapps/common/LegendOfMortal/Mortal_Data"
+GAME_DATA = os.environ.get("LOM_GAME_DATA", r"C:/Program Files (x86)/Steam/steamapps/common/LegendOfMortal/Mortal_Data")
 CATALOG = os.path.join(GAME_DATA, "StreamingAssets", "aa", "catalog.json")
 BUNDLE_DIR = os.path.join(GAME_DATA, "StreamingAssets", "aa", "StandaloneWindows")
 SA2 = os.path.join(GAME_DATA, "sharedassets2.assets")
-EDITOR_DATA = r"C:/Users/mohui666/lom_modkit/data/editor_data.json"
-OUT_DIR = r"C:/Users/mohui666/lom_modkit/data/assets/_probe"
+EDITOR_DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "editor_data.json")
+OUT_DIR = os.path.join(os.path.dirname(EDITOR_DATA), "assets", "_probe")
+
+
+class CatalogBundleMap(dict):
+    """Bundle paths plus the catalog's internal asset path for each alias."""
+    def __init__(self):
+        super().__init__()
+        self.asset_paths = {}
 
 
 def parse_catalog(path):
@@ -72,7 +79,7 @@ def parse_catalog(path):
         entries.append(struct.unpack_from("<7i", ed, off))  # (internalId, provider, depKey, depHash, data, primaryKey, resType)
         off += 28
 
-    addr2bundle = {}
+    addr2bundle = CatalogBundleMap()
     for i, k in enumerate(keys):
         if not isinstance(k, str):
             continue
@@ -80,6 +87,7 @@ def parse_catalog(path):
             dep = entries[ei][2]
             if dep >= 0 and isinstance(keys[dep], str) and keys[dep].endswith(".bundle"):
                 addr2bundle.setdefault(k, keys[dep])
+                addr2bundle.asset_paths.setdefault(k, cat["m_InternalIds"][entries[ei][0]])
     return addr2bundle
 
 
@@ -196,10 +204,39 @@ def load_sa2():
                     views.update(entries)
             except Exception:
                 continue
+    # The game's CharacterPlaceholder._player2 points to this separate data
+    # object with the same Id=player. Keep a preview-only key, never a game ID.
+    for raw in raws.values():
+        if name_of(raw) == "唐門_主角_自戀":
+            cid, character = parse_character_data(raw)
+            if cid != "player":
+                raise ValueError("自恋主角配置的 Id 不再是 player，请重新检查游戏接口")
+            characters["player_beautified"] = character
     return characters, views
 
 
 _bundle_cache = {}
+
+
+def resolve_sprite(env, address):
+    """Resolve a full Addressables path before considering a short sprite key."""
+    normalized = address.replace("\\", "/").casefold()
+    exact = [obj for key, obj in env.container.items()
+             if key.replace("\\", "/").casefold() == normalized
+             and obj.type.name == "Sprite"]
+    if len(exact) == 1:
+        return exact[0]
+    if len(exact) > 1:
+        raise ValueError("bundle 内无法唯一匹配资源地址 " + address)
+    if "/" in normalized:
+        raise ValueError("bundle 内找不到资源地址 " + address)
+    sprite_name = os.path.splitext(address)[0]
+    candidates = [obj for obj in env.objects
+                  if obj.type.name == "Sprite" and obj.read().m_Name == sprite_name]
+    if len(candidates) == 1:
+        return candidates[0]
+    raise ValueError("bundle 内无法唯一匹配 Sprite %s（%d 个同名资源）"
+                     % (sprite_name, len(candidates)))
 
 
 def export_sprite(addr2bundle, address, out_path):
@@ -208,15 +245,15 @@ def export_sprite(addr2bundle, address, out_path):
         return "无 bundle 映射"
     if bundle not in _bundle_cache:
         _bundle_cache[bundle] = UnityPy.load(os.path.join(BUNDLE_DIR, bundle))
-    sprite_name = os.path.splitext(os.path.basename(address))[0]
-    for o in _bundle_cache[bundle].objects:
-        if o.type.name == "Sprite" and o.read().m_Name == sprite_name:
-            d = o.read()
-            d.image.save(out_path)
-            tex = d.m_RD.texture.read()
-            return "ok (sprite=%s, 整图 %dx%d fmt=%s, bundle=%s)" % (
-                sprite_name, tex.m_Width, tex.m_Height, tex.m_TextureFormat, bundle)
-    return "bundle 内找不到 Sprite " + sprite_name
+    try:
+        internal_address = getattr(addr2bundle, "asset_paths", {}).get(address, address)
+        d = resolve_sprite(_bundle_cache[bundle], internal_address).read()
+    except ValueError as exc:
+        return str(exc)
+    d.image.save(out_path)
+    tex = d.m_RD.texture.read()
+    return "ok (sprite=%s, 整图 %dx%d fmt=%s, bundle=%s)" % (
+        d.m_Name, tex.m_Width, tex.m_Height, tex.m_TextureFormat, bundle)
 
 
 def main():

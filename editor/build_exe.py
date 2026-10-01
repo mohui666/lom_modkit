@@ -19,11 +19,15 @@ import os
 from pathlib import Path
 
 EDITOR_DIR = Path(__file__).resolve().parent
-SPEC = EDITOR_DIR / "lom_bundle.spec"
+IS_MAC = sys.platform == "darwin"
+SPEC = EDITOR_DIR / ("lom_macos.spec" if IS_MAC else "lom_bundle.spec")
 DIST = EDITOR_DIR / "dist"
 BUILD = EDITOR_DIR / "build"
 
 OUTPUTS = (
+    DIST / "LoM Modkit.app" / "Contents" / "MacOS" / "lom_editor",
+    DIST / "LoM Modkit.app" / "Contents" / "MacOS" / "story_api_cli",
+) if IS_MAC else (
     DIST / "lom_modkit" / "lom_editor.exe",
     DIST / "lom_modkit" / "story_api_cli.exe",
 )
@@ -43,7 +47,7 @@ def main() -> int:
     missing_runtime_files = [
         path for path in (runtime_dll, *runtime_dependencies) if not path.is_file()
     ]
-    if missing_runtime_files:
+    if missing_runtime_files and not IS_MAC:
         print(
             "缺少内置运行时文件：%s。请先构建 runtime/MortalModHost"
             % "、".join(str(path) for path in missing_runtime_files),
@@ -58,7 +62,8 @@ def main() -> int:
             file=sys.stderr,
         )
         return 2
-    print(f"打包 {SPEC.name} → {DIST / 'lom_modkit'}（onedir，双入口共享运行时）")
+    output = DIST / ("LoM Modkit.app" if IS_MAC else "lom_modkit")
+    print(f"打包 {SPEC.name} → {output}（双入口共享运行时）")
     r = subprocess.run(
         [
             sys.executable,

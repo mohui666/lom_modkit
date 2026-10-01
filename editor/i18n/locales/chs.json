@@ -11,6 +11,8 @@
   "menu.file": "文件(&F)",
   "menu.new": "新建",
   "menu.open": "打开…",
+  "menu.open_folder": "打开剧情文件夹…",
+  "menu.save_folder": "保存全部章节到文件夹…",
   "menu.recent": "最近打开",
   "menu.recent_empty": "（没有最近记录）",
   "menu.save": "保存",
@@ -905,5 +907,17 @@
   "reference.effect.id": "在当前章节内唯一标识这个节点，供跳转和报错定位使用；玩家界面不会显示。", "reference.effect.type": "决定编译器使用哪一种节点行为；该值由节点类型固定。", "reference.effect.flow_target": "当“{field}”对应的结果发生时，跳转到所选节点。", "reference.effect.required": "设置本节点执行时使用的“{field}”；缺少时编译器会拒绝构建。", "reference.effect.optional": "可选地覆盖“{field}”；留空时保留该节点的默认或原版行为。",
   "reference.effect.combat_background": "独立选择本次决斗的官方场景背景；背景不由人物或内部决斗壳决定。", "reference.effect.combat_character": "选择官方或自定义人物作为四类战斗动画来源；不会自动填写或限制任何战斗数值。", "reference.effect.combat_vital": "覆盖本次决斗的“{field}”；留空时由 Runtime 内部安全壳提供稳定值。", "reference.effect.combat_stat": "覆盖对手的“{field}”能力值，直接影响原版决斗计算。", "reference.effect.combat_talents": "逐项设置对手在本次决斗拥有的技能及等级。", "reference.effect.combat_rate": "设置原版 AI 选择“{field}”的概率，范围 0～1。",
   "reference.effect.battle_title": "写入原版 ReadyPanel 敌军名那一行；留空则显示当前战役壳的官方阵营名。", "reference.effect.battle_health": "覆盖本次生成的“{field}”。原版 CharacterHealth 会克隆 HealthData，不会改官方资产。", "reference.effect.battle_faction": "为“{field}”附加原版阵营，并为每个阵营单独填写人数；该方总人数等于各阵营人数与具名角色之和。", "reference.effect.battle_characters": "添加已核实的官方具名角色；每人另计入该方总人数，不再占用手动总人数。",
-  "reference.effect.dice_max": "设置随机点数上限；本节点掷出 0 到该值之间的整数。", "reference.effect.dice_header": "显示在原版骰子界面顶部的检定标题。", "reference.effect.dice_bonus": "在随机点数上加入固定整数，可为负数。", "reference.effect.dice_bonus_name": "显示固定加值的来源名称，例如“轻功”；不改变数值。", "reference.effect.dice_bonus_status": "显示固定加值的补充说明；不改变数值。", "reference.effect.dice_bands": "可配置 2～4 档；按可达总点数上限从低到高匹配结果文字和跳转目标，最后一档接收剩余点数。"
+  "reference.effect.dice_max": "设置随机点数上限；本节点掷出 0 到该值之间的整数。", "reference.effect.dice_header": "显示在原版骰子界面顶部的检定标题。", "reference.effect.dice_bonus": "在随机点数上加入固定整数，可为负数。", "reference.effect.dice_bonus_name": "显示固定加值的来源名称，例如“轻功”；不改变数值。", "reference.effect.dice_bonus_status": "显示固定加值的补充说明；不改变数值。", "reference.effect.dice_bands": "可配置 2～4 档；按可达总点数上限从低到高匹配结果文字和跳转目标，最后一档接收剩余点数。",
+  "portrait.preview": "人物立绘",
+  "portrait.choose_character": "选择人物或表情，在这里查看完整立绘。",
+  "portrait.beautified_player": "美颜赵活（照镜子 / 自恋）",
+  "portrait.no_assets": "尚未提取此立绘。\n文件 → 选择游戏预览素材目录，选择自己的游戏素材缓存。",
+  "portrait.private_assets": "预览使用本机游戏素材，导出不包含原版立绘。",
+  "portrait.choose_library": "选择游戏预览素材目录…",
+  "portrait.library_ready": "已连接 {count} 个人物的本机预览素材。",
+  "mac.game_runtime_windows_only": "Mac 版支持剧情编辑、预览与导出。游戏安装和 F5 试玩请在 Windows 版进行。",
+  "field.appearance": "赵活外观",
+  "enum.player_appearance.game": "随游戏天赋",
+  "enum.player_appearance.original": "普通赵活",
+  "enum.player_appearance.beautified": "美颜赵活"
 }

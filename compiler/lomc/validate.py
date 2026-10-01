@@ -309,6 +309,7 @@ _NODE_FIELDS = {
         {"character": "str", "position": "str"},
         {
             "portrait": "str",
+            "appearance": "str",
             "facing": "facing",
             "fadeDuration": "num",
             "moveDuration": "num",
@@ -749,6 +750,9 @@ def _validate_combat_talent_list(label, field, talents):
 
 def _check_node_extra(node, ntype, label):
     """各节点类型的跨字段 / 结构性规则。"""
+    if "appearance" in node:
+        if node.get("character") != "player" or node["appearance"] not in ("game", "original", "beautified"):
+            raise LomcError('%s: appearance 仅支持赵活 player 的 game/original/beautified 外观' % label)
     character = node.get("character")
     character_is_used = not (
         ntype == "intro" and node.get("intro_source", "official") == "custom"

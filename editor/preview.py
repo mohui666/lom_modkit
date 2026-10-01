@@ -92,6 +92,15 @@ def load_preview_map(proj_root: Path) -> tuple[dict, Path]:
     调用方按"无预览素材，使用占位图"处理。
     """
     data_dir = proj_root / "data"
+    from game_install import GameInstallManager
+    from preview_library import read_preview_library
+    configured = GameInstallManager().load_pref("preview_library_dir")
+    if configured:
+        try:
+            return read_preview_library(Path(configured))
+        except (OSError, ValueError, TypeError) as exc:
+            log_crash("无法读取所选游戏预览素材目录：%s" % exc)
+            return {}, Path(configured)
     try:
         m = json.loads((data_dir / "preview_map.json").read_text(encoding="utf-8"))
         if not isinstance(m, dict):
@@ -378,6 +387,7 @@ def _apply_node(state: dict, node: dict, ed: dict | None = None) -> None:
         cid = node.get("character") or ""
         if cid:
             actors[cid] = {
+                "appearance": node.get("appearance") or "",
                 "position": node.get("position") or "M",
                 "portrait": node.get("portrait") or "normal",
                 "facing": node.get("facing") or "right",
@@ -652,6 +662,8 @@ def build_playtest_prelude(
                 "facing": info.get("facing") or "right",
             }
         )
+        if info.get("appearance"):
+            stage_nodes[-1]["appearance"] = info["appearance"]
     if custom_cg and custom_cg.get("image"):
         stage_nodes.append(
             {
@@ -1333,7 +1345,8 @@ class StagePreview(QWidget):
             portrait = info.get("portrait", "normal")
             body_scale, art_facing = self._character_look(cid)
             draw_h = max(8, floor(h * body_scale / 100.0))
-            pix = self._load_pixmap(self._portrait_path(cid, portrait))
+            lookup_id = "player_beautified" if cid == "player" and info.get("appearance") == "beautified" else cid
+            pix = self._load_pixmap(self._portrait_path(lookup_id, portrait))
             p.save()
             p.translate(cx, actor_baseline)
             p.rotate(float(info.get("rotation", 0)))

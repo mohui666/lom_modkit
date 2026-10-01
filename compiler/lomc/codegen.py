@@ -225,6 +225,8 @@ def _emit_show(node, ctx):
     # 心情气泡：story mood 关闭时隐藏官方圆形情绪面板（show 后常驻）
     if not ctx.get("mood", False):
         lines.append("\tmod_hide_mood()")
+    if node.get("appearance"):
+        lines.insert(0, "\tmod_player_appearance(%s)" % lua_str(node["appearance"]))
     return lines
 
 

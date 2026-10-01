@@ -25,8 +25,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
+from app_paths import user_data_root
+
 
 APP_DIR_NAME = "lom_modkit"
+WINDOWS_GAME_RUNTIME = sys.platform == "win32"
 PLUGIN_DIR_NAME = "MortalModHost"
 RUNTIME_DLL_NAME = "MortalModHost.dll"
 RUNTIME_DEPENDENCIES = ("NVorbis.dll",)
@@ -105,9 +108,7 @@ def _settings_path() -> Path:
     override = os.environ.get("LOM_MODKIT_SETTINGS_PATH")
     if override:
         return Path(override)
-    appdata = os.environ.get("APPDATA")
-    base = Path(appdata) if appdata else Path.home() / "AppData" / "Roaming"
-    return base / APP_DIR_NAME / "settings.json"
+    return user_data_root() / "settings.json"
 
 
 def _runtime_dll_path() -> Path:
@@ -1011,7 +1012,7 @@ class GameInstallManager:
         if self.is_game_running():
             return False
         self.require_game_dir()
-        if os.name != "nt" or not hasattr(os, "startfile"):
+        if not WINDOWS_GAME_RUNTIME or not hasattr(os, "startfile"):
             raise GameInstallError("当前系统不支持通过 Steam 启动《活侠传》。")
         try:
             os.startfile(STEAM_RUN_URI)  # type: ignore[attr-defined]

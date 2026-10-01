@@ -20,7 +20,7 @@ from diagnostic_bundle import (  # noqa: E402
     export_diagnostic_bundle,
     sanitize_text,
 )
-from app_version import RUNTIME_VERSION  # noqa: E402
+from app_version import EDITOR_VERSION, RUNTIME_VERSION  # noqa: E402
 from game_install import GameInstallManager  # noqa: E402
 
 
@@ -119,8 +119,8 @@ class DiagnosticBundleTest(unittest.TestCase):
                 archive.read(name).decode("utf-8", errors="replace")
                 for name in archive.namelist()
             )
-        self.assertEqual(diagnostic["editor_version"], "1.1.1")
-        self.assertEqual(diagnostic["runtime_version"], "1.1.1")
+        self.assertEqual(diagnostic["editor_version"], EDITOR_VERSION)
+        self.assertEqual(diagnostic["runtime_version"], RUNTIME_VERSION)
         self.assertEqual(diagnostic["detected_game_version"], "Steam build 20337760")
         self.assertEqual(diagnostic["manifest"]["id"], "diagnostic_test")
         self.assertEqual(diagnostic["project_metadata"]["story_count"], 1)
