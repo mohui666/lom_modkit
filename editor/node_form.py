@@ -1467,21 +1467,37 @@ class NodeForm(QScrollArea):
 
     @staticmethod
     def _combo_value(combo: QComboBox, text: str) -> str:
-        """可编辑下拉框取值：选中清单项时取 userData，手输时取文本。
+        """可编辑下拉框取值：把「当前文字」解析成应写回节点的值。
 
-        筛选框（长清单）例外，见 _FilterCombo.text_fallback_value：
-        筛选框里与条目对不上的文字是筛选词，不是值。用户输「武」是为了在 400 多个
-        人物里找「武师」，绝不能把「武」当成人物 id 写回节点——那会让导出报
-        「人物必须保存内部 ID，不能使用下拉显示文字」。这时保持原值不变。
+        优先级：
+        1. 文字精确等于某个条目的显示文本或数据（completer 回填、点选后文字）
+           → 取该条目数据；这是最常见的正常选择路径。
+        2. 当前 index 与文字一致 → 取当前条目数据。
+        3. 都匹配不上：筛选框（长清单）里的文字是筛选词，保持原值不变（用户输
+           「武」是为了在 400 多个人物里找「武师」，绝不能把「武」当人物 id 写回）；
+           普通可编辑框则当手填值。
         """
+        stripped = (text or "").strip()
+        # 1) 精确匹配某个条目（覆盖 completer 回填：文字已变但 index 未变的情况）
+        for index in range(combo.count()):
+            data = combo.itemData(index)
+            if stripped and (
+                combo.itemText(index).strip() == stripped
+                or (data is not None and str(data) == stripped)
+            ):
+                return str(data) if data is not None else text
+        # 2) 当前 index 与文字一致
         index = combo.currentIndex()
-        mismatch = index < 0 or combo.currentText() != combo.itemText(index)
-        if isinstance(combo, _FilterCombo) and mismatch:
+        if index >= 0 and combo.currentText() == combo.itemText(index):
+            data = combo.currentData()
+            if data is not None:
+                return str(data)
+        # 3) 对不上的文字
+        if isinstance(combo, _FilterCombo):
             return combo.text_fallback_value(text)
-        if combo.isEditable() and mismatch:
+        if combo.isEditable():
             return text
-        data = combo.currentData()
-        return str(data) if data is not None else text
+        return ""
 
     def _make_goto_table(
         self,

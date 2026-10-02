@@ -149,6 +149,32 @@ class FilterComboTest:
         )
         print(f"[手输 id] 结束输入后正确采用 {wanted!r}")
 
+    def test_completer_backfill_commits(self):
+        """completer 回填完整显示名（文字变了、index 没变）也应写回正确 id。
+
+        这是「下拉框选人物不刷新、要删一个字才刷新」的根因回归：自动补全把完整
+        显示名填进输入框但不设 index，若把这段文字当筛选词返回旧值，人物就不会更新。
+        """
+        node = self._form_for("show", "cb_show", {"character": "artist1"})
+        combo = longest_combo_for(self.win.form, "artist1")
+        assert combo is not None
+        target_index = None
+        for i in range(combo.count()):
+            data = combo.itemData(i)
+            if data and data != node.get("character"):
+                target_index = i
+                break
+        assert target_index is not None
+        full = combo.itemText(target_index)
+        wanted = str(combo.itemData(target_index))
+        # 只改文字、不动 index，模拟 completer 回填
+        combo.lineEdit().setText(full)
+        QApplication.processEvents()
+        assert node.get("character") == wanted, (
+            f"completer 回填 {full!r} 后应写回 {wanted!r}，实际 {node.get('character')!r}"
+        )
+        print(f"[completer 回填] 文字对得上条目时正确写回 {wanted!r}")
+
     def test_filter_text_is_restored_after_finish(self):
         """筛选词对不上任何条目时，输入框要还原成真正的选中项，不能留着误导。"""
         node = self._form_for("show", "r_show")
@@ -232,6 +258,7 @@ def main_fn() -> int:
     suite.test_filter_typing_never_writes()
     suite.test_picking_item_still_writes_id()
     suite.test_typed_exact_id_commits_on_finish()
+    suite.test_completer_backfill_commits()
     suite.test_filter_text_is_restored_after_finish()
     suite.test_goto_combo_still_accepts_hand_written_id()
     suite.test_short_combo_keeps_direct_typing()
