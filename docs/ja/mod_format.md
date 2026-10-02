@@ -73,6 +73,7 @@ assets/                # 可选，自定义资源
     - `when_month`：整数 1〜12。その月のみ有効。
     - `when_stage`：整数 1〜3（旬：上／中／下）。その旬のみ有効。
     - `when_affinity`：`{"character": <人物 id>, "min": <整数>}`。好感度 ≥ min。
+    - マニフェストに書かず、story 内の `free_trigger` ノードで登録することもできます：パッケージ時にここへ自動集約されます（手書きが先、次にファイル名順 → ノード順。§3.1 参照）。
   - 既定では公式メイン／サブが優先。`disable_official_events` または F7 の一時スイッチが有効なときは公式クエスト判定をスキップし、mod トリガーを優先マッチします。
   - **トリガーはキャンペーン単位で分離**：アクティブな mod キャンペーンがあるときは現在のキャンペーン mod のトリガーのみをマッチ。キャンペーンがないときは全 mod がマッチに参加し、先に読み込まれたものが優先（読み込み順＝ファイル名順）。
   - トリガー例（練功場：好感イベント > 下旬の夜練 > 既定の散策）：
@@ -108,7 +109,7 @@ assets/                # 可选，自定义资源
 - `choice` / `branch` / `dice` の分岐は必ず `goto` で対象ノード id を指します。
 - 複数の先行ノードが同一ノードに合流（合流点）するのは合法です。
 
-### 3.1 ノードタイプ（全 62 種）
+### 3.1 ノードタイプ（全 63 種）
 
 この表が現在の合法ノードすべてです。`combat` / `battle` は原作テンプレートを使う高レベル編成です。戦闘機能は逆コンパイル確認済み原作 API だけを呼び、`mod_quest` は原作 Mission ID に触れない Host 状態機を使います。
 
@@ -182,6 +183,7 @@ assets/                # 可选，自定义资源
 | `panel` | `panel`("martial"/"weapon"/"poison"/"cg"/"cgvideo"/"shop"/"newshop"/"credit"/"endgame")；任意 `key`(cg/cgvideo/endgame の id), `discount`(shop 用、既定0), `mode`(martial 用、既定0) | システムパネルを開く。newshop 以外はすべて `runwait`：`martialpanel.Open(mode)`/`weaponupgradepanel.Open()`/`poisonupgradepanel.Open()`/`cgpanel.Open(key)`/`cgvideopanel.Open(key,0)`/`shoppanel.Open(discount)`/`shoppanel.NewShop()`/`creditpanel.Open()`/`endgamepanel.Open(key)` |
 | `wait` | `seconds` | `wait(seconds)` |
 | `end` | 任意 `next_script` | あり：`SetNextScript("MOD_<modid>_<id>")`+`Init()` で同一パッケージのスクリプトにチェーン。なし：`ChangeScene("Free","","")` でフリーモードに復帰 |
+| `free_trigger` | `position`(マップ位置 id：Center/Mall/Alchemy/Forge/BackMountain/Room1/Room2/Door/Study/Kitchen/Secret)、`script`(同梱スクリプト id)；任意 `when_month`(`any` または `"1"`~`"12"`)、`when_stage`(`any`/`"1"`/`"2"`/`"3"`)、`when_flag_set`、`when_flag_clear`、`when_affinity`(キャラ id、空=判定しない)、`when_affinity_min`、`note`(自分用メモ) | **宣言型ノード**：実行時命令を一切生成せず、フリーモードのトリガーを 1 件登録するだけです。パッケージ時に `manifest.campaign.triggers` へ自動集約されます（マニフェストに手書きしたものが先、次に「ファイル名順 → ノード順」）。そのため `end` の後ろに置いても末尾判定に影響しません（末尾判定では宣言型ノードを飛ばします）。「自分で作ったパッケージを読み込んで再書き出し」でトリガーが増え続けないよう、ノード宣言と完全に同一のマニフェスト項目は集約時に置き換えます。ストーリー途中に置いた場合は通常ノードとして次のノードへ順送りします |
 | `death` | `text`（必須・非空、複数行可）、`death_id`（必須）；任意 `title`（str、既定「勝敗乃兵家常事」）、旧フィールド `next` | **死亡テキスト**：暗転（view="black"）→ `mod_set_death_text(title, text)`（2 引数 lua_str リテラル、**texts.json／既読システムには入らない**）→ `luamanager.ChangeScene("GameOver", death_id, "Title")` で**公式 GameOver 死亡画面**へ（黒地に赤文字 + ロード／タイトルボタン、§6 参照）。原版はカスタム next を読みません。旧値は無視して警告。`death_id` は ≥900000 の mod 専用数値 id でなければなりません（でなければ LomcError。「死亡／結末 id 規約」参照）。終端ノード（独自の遷移を持ち、明示的 goto は不可。末ノードとして締められます） |
 | `raw` | `code` | 生 Lua エスケープハッチ：コードをそのまま挿入（複数行可）。**機構のフォールバック**：どのノードでも表現できない公式機構はこれを使います |
 
@@ -409,7 +411,7 @@ transition の黒幕、choice スキンクラッシュ、背景の黒画面、�
 - Python API：
   - `load_editor_data()`：エディターデータ（dice_meta などの一覧を含む）を読み、(editor_data, is_fallback) を返す
   - `new_story(story_id="main", title="新剧情", mood=False)`：新規シナリオスクリプト（show 登場 + 空 say の 2 ノード開場。先に登場させてから動作）
-  - `add_node(story, node_type, fields=None, after=None)`：models 既定値でノードを追加（62 種）。未知のタイプ／フィールド／型不一致→ValueError。ノード id は自動生成。after で挿入位置を指定（ノード id または None=末尾）。登場防線：動作系ノードの対象人物がそれ以前に未登場／退場済みの場合、その前に show を自動挿入
+  - `add_node(story, node_type, fields=None, after=None)`：models 既定値でノードを追加（63 種）。未知のタイプ／フィールド／型不一致→ValueError。ノード id は自動生成。after で挿入位置を指定（ノード id または None=末尾）。登場防線：動作系ノードの対象人物がそれ以前に未登場／退場済みの場合、その前に show を自動挿入
   - `update_node(story, node_id, fields)`：ノードフィールドを更新（add と同じフィールド検証）。ノード不存在→ValueError。登場防線：更新後に動作人物が未登場／退場済みなら、そのノードの前に show を自動挿入し、それを指す goto／選択肢／分岐ジャンプを新ノードへ付け替え
   - `get_node(story, node_id)`：ノードを読む。不存在→ValueError
   - `list_nodes(story)`：[{"id","type","summary"}] の一覧を返す

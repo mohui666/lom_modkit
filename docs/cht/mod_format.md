@@ -70,6 +70,7 @@ assets/                # 可选，自定义资源
     - `when_month`：整數 1~12，僅該月份生效。
     - `when_stage`：整數 1~3（旬：上/中/下），僅該旬生效。
     - `when_affinity`：`{"character": <人物 id>, "min": <整數>}`，好感度 ≥ min。
+    - 也可以不寫在清單裡，而是在 story 中用 `free_trigger` 節點登記：打包時自動彙總進這裡（清單裡手寫的排在前面，其次按檔名序 → 節點順序；詳見 §3.1）。
   - 預設官方主線/支線優先；`disable_official_events` 或 F7 臨時開關生效時跳過官方任務判定，優先匹配 mod 觸發器。
   - **觸發器按戰役隔離**：有活躍 mod 戰役時只匹配當前戰役 mod 的觸發器；無戰役時全部 mod 參與匹配、先載入者優先（載入順序=檔名序）。
   - 觸發器範例（練武場：好感事件 > 下旬晚練 > 預設閒逛）：
@@ -105,7 +106,7 @@ assets/                # 可选，自定义资源
 - `choice` / `branch` / `dice` 的分支必須用 `goto` 指到目標節點 id。
 - 多個前驅匯入同一節點（匯合點）合法。
 
-### 3.1 節點類型（全量 62 種）
+### 3.1 節點類型（全量 63 種）
 
 此表是目前全部合法節點。`combat` / `battle` 是基於原版模板的高層編排；戰鬥能力只呼叫已反編譯核驗的原版介面，`mod_quest` 則使用不接觸原版 Mission ID 的 Host 狀態機。
 
@@ -179,6 +180,7 @@ assets/                # 可选，自定义资源
 | `panel` | `panel`("martial"/"weapon"/"poison"/"cg"/"cgvideo"/"shop"/"newshop"/"credit"/"endgame")；可選 `key`(cg/cgvideo/endgame 的 id), `discount`(shop 用, 預設0), `mode`(martial 用, 預設0) | 開啟系統面板，除 newshop 外均 `runwait`：`martialpanel.Open(mode)`/`weaponupgradepanel.Open()`/`poisonupgradepanel.Open()`/`cgpanel.Open(key)`/`cgvideopanel.Open(key,0)`/`shoppanel.Open(discount)`/`shoppanel.NewShop()`/`creditpanel.Open()`/`endgamepanel.Open(key)` |
 | `wait` | `seconds` | `wait(seconds)` |
 | `end` | 可選 `next_script` | 有：`SetNextScript("MOD_<modid>_<id>")`+`Init()` 鏈到同包腳本；無：`ChangeScene("Free","","")` 回自由模式 |
+| `free_trigger` | `position`(地圖位置 id：Center/Mall/Alchemy/Forge/BackMountain/Room1/Room2/Door/Study/Kitchen/Secret)、`script`(同包腳本 id)；可選 `when_month`(`any` 或 `"1"`~`"12"`)、`when_stage`(`any`/`"1"`/`"2"`/`"3"`)、`when_flag_set`、`when_flag_clear`、`when_affinity`(人物 id，留空=不判定)、`when_affinity_min`、`note`(只給自己看的備註) | **宣告型節點**：本身不產生任何執行階段指令，只登記一條自由模式觸發器；打包時自動彙總進 `manifest.campaign.triggers`（清單裡手寫的排在前面，其次按「檔名序 → 節點順序」）。因此它可以放在 `end` 之後而不影響收尾驗證——判「末節點能否收尾」時會跳過宣告型節點。為避免「匯入自己打好的包再匯出」時觸發器越滾越多，與節點宣告結構完全相同的清單項會在彙總時被取代。放在劇情中間時按普通節點順延到下一個節點 |
 | `death` | `text`（必填非空，多行合法）、`death_id`（必填）；可選 `title`（str，預設「勝敗乃兵家常事」）、舊欄位 `next` | **死亡文字**：黑屏過渡（view="black"）→ `mod_set_death_text(title, text)`（兩參 lua_str 字面量，**不進 texts.json / 已讀系統**）→ `luamanager.ChangeScene("GameOver", death_id, "Title")` 進**官方 GameOver 死亡畫面**（黑底紅字 + 讀檔/標題按鈕，見 §6）；原版不讀取自訂 next，舊值忽略並警告。`death_id` 必須是 ≥900000 的 mod 專屬數字 id（否則 LomcError，見「死亡/結局 id 約定」）。終止節點（自帶流轉，不允許顯式 goto，可作末節點收尾） |
 | `raw` | `code` | 原生 Lua 逃逸口：原樣插入程式碼（多行合法）。**機制保底**：任何節點表達不了的官方機制用它 |
 
@@ -406,7 +408,7 @@ transition 黑幕、choice 外觀崩潰、背景黑畫面、人物未登場就�
 - Python API：
   - `load_editor_data()`：讀取編輯器資料（含 dice_meta 等清單），返回 (editor_data, is_fallback)
   - `new_story(story_id="main", title="新剧情", mood=False)`：新建劇情腳本（show 登場 + 空 say 雙節點開場，先登場再動作）
-  - `add_node(story, node_type, fields=None, after=None)`：按 models 預設值新增節點（62 種類型），未知類型/欄位/類型不符→ValueError，節點 id 自動產生，after 指定插入位置（節點 id 或 None=末尾）。登場防線：動作類節點的目標人物在前面未登場/已退場時，自動在它前面插入 show
+  - `add_node(story, node_type, fields=None, after=None)`：按 models 預設值新增節點（63 種類型），未知類型/欄位/類型不符→ValueError，節點 id 自動產生，after 指定插入位置（節點 id 或 None=末尾）。登場防線：動作類節點的目標人物在前面未登場/已退場時，自動在它前面插入 show
   - `update_node(story, node_id, fields)`：更新節點欄位（同 add 的欄位驗證），節點不存在→ValueError。登場防線：更新後若動作人物未登場/已退場，自動在該節點前插入 show 並把指向它的 goto/選項/分支跳轉改指新節點
   - `get_node(story, node_id)`：讀取節點，不存在→ValueError
   - `list_nodes(story)`：返回 [{"id","type","summary"}] 清單

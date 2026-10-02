@@ -150,7 +150,7 @@ Lua 環境隔離與完整生命週期清理 · 一次性快捷鍵遷移 · Runti
 | [文件索引](docs/cht/README.md) | 語言導覽與讀者導引 |
 | [使用者內容庫](docs/cht/user_content.md) | 自訂音訊 / 對白語音用法 |
 | [目前能力與邊界](docs/cht/current_capabilities.md) | 已實作、僅有底層介面和尚未實作的功能邊界 |
-| [Mod 包格式契約](docs/cht/mod_format.md) | 包結構、62 種節點、編譯約定、執行階段行為 |
+| [Mod 包格式契約](docs/cht/mod_format.md) | 包結構、63 種節點、編譯約定、執行階段行為 |
 | [AI / CLI 手冊](docs/cht/ai_cli.md) | story_api 命令列與 Python API |
 | [多語言](docs/cht/i18n.md) | 介面與文件的 i18n 架構 |
 

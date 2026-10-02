@@ -1413,6 +1413,22 @@ def _emit_wait(node, ctx):
     return ["\twait(%s)" % lua_num(node["seconds"])]
 
 
+def _emit_free_trigger(node, ctx):
+    """声明型节点：登记一条自由模式触发器，不产生任何运行时指令。
+
+    真正生效的是打包时汇总进 ``manifest.campaign.triggers`` 的那条记录，由引擎
+    在自由模式下按位置/月份/旬匹配；这里只留一行注释，方便在导出的 Lua 里对照
+    「这条触发器来自哪个节点」。它不放进 _NO_FLOW_TYPES：放在剧情中间时仍需
+    顺延到下一节点，否则链会断在这里。
+    """
+    position = node.get("position", "")
+    script = node.get("script", "")
+    return [
+        "\t-- 自由模式触发（声明型节点，运行时不产生指令）：%s → %s"
+        % (position, script)
+    ]
+
+
 def _emit_end(node, ctx):
     next_script = node.get("next_script")
     if next_script is None:
@@ -1535,6 +1551,7 @@ _EMITTERS = {
     "end": _emit_end,
     "death": _emit_death,
     "raw": _emit_raw,
+    "free_trigger": _emit_free_trigger,
 }
 
 # 自带流转（分支/跳转/场景切换），story_to_lua 不再追加 return node_<goto>() 行

@@ -123,7 +123,7 @@ def main_fn() -> int:
         )
 
     # ------------------------------------------------------------------
-    # [1b] v3 全量 62 种节点类型：建表 + 渲染不崩（提示行/舞台两条路径都走）
+    # [1b] v3 全量节点类型：建表 + 渲染不崩（提示行/舞台两条路径都走）
     # ------------------------------------------------------------------
     all_nodes = []
     for i, t in enumerate(models.NODE_TYPES, 1):
@@ -178,7 +178,7 @@ def main_fn() -> int:
         if preview.simulate_stage(win.story, n["id"], editor_data)["hint"]
     )
     assert hints >= 20, f"数值/流程类节点应有提示行：{hints}"
-    print(f"[1b] 全量 62 类型渲染 OK（{len(all_nodes)} 节点，{hints} 个提示行）")
+    print(f"[1b] 全量 {len(models.NODE_TYPES)} 类型渲染 OK（{len(all_nodes)} 节点，{hints} 个提示行）")
 
     # ------------------------------------------------------------------
     # [2] 真实鼠标点击 choice 每个选项按钮
@@ -324,7 +324,9 @@ def main_fn() -> int:
         app.processEvents()
         win.stage.grab()
     x, ok = preview.position_x("Talk")
-    assert not ok and x == 0.5, "Talk 应走未识别兜底"
+    assert ok and abs(x - 0.253646) < 1e-4, "Talk 是真实站位，应取权威坐标"
+    x2, ok2 = preview.position_x("ZZ_NOT_A_POSITION")
+    assert not ok2 and x2 == 0.5, "真正未知的站位才走中央兜底"
     print("[5] 异常输入 OK（空 story/坏图路径/缺失人物/缺表情/Talk 等怪站位）")
 
     # 5c 素材映射整体损坏：preview_map 指向不存在的目录

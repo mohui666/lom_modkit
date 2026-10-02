@@ -145,13 +145,26 @@ def test_language_switch_node_labels():
     assert enemy_ops["people"] == "敵陣営の人数を変更"
     assert term("enemy_teams", "201")
     assert term("battle_skills", "special3")
+    # Combat / Battle 自 v1.1 起不再作为 goto_scene 的预设暴露给作者
+    # （见 docs/chs/current_capabilities.md：「goto_scene 只用于普通场景跳转，
+    # 不再向作者暴露 Combat / Battle 场景预设」），改由独立的 combat / battle
+    # 节点承担。所以「决斗」与「战役」必须可区分这件事，要校验真正还在用的
+    # 两条路径：节点类型名，以及旧包仍可能携带的 scene=Combat/Battle 译文。
     for locale in ("chs", "cht", "ja", "ko"):
         set_language(locale)
         models.refresh_labels()
-        combat = models.enum_label("goto_scene", "Combat")
-        battle = models.enum_label("goto_scene", "Battle")
-        assert combat != battle and combat != "Combat" and battle != "Battle", (
-            f"{locale} 必须明确区分 Combat 决斗与 Battle 多人战役"
+        combat = models.NODE_TYPE_CN["combat"]
+        battle = models.NODE_TYPE_CN["battle"]
+        assert combat != battle and combat != "combat" and battle != "battle", (
+            f"{locale} 必须明确区分 combat 决斗与 battle 多人战役"
+        )
+        legacy_combat = t("enum.Combat")
+        legacy_battle = t("enum.Battle")
+        assert not legacy_combat.startswith("enum.") and not legacy_battle.startswith("enum."), (
+            f"{locale} 缺少 enum.Combat / enum.Battle 译文（旧包的 scene 值要用）"
+        )
+        assert legacy_combat != legacy_battle, (
+            f"{locale} 旧包的 scene=Combat 与 scene=Battle 译文必须可区分"
         )
     set_language("chs")
     models.refresh_labels()
@@ -173,9 +186,24 @@ def test_gameplay_templates_are_readable_in_every_language():
         set_language(locale)
         combat_id, combat_label = models.list_items(data, "combat_ids")[0]
         battle_id, battle_label = models.list_items(data, "battle_ids")[0]
-        assert combat_id not in combat_label, (locale, combat_label)
-        assert battle_id not in battle_label, (locale, battle_label)
-        assert "{name}" not in combat_label and "{name}" not in battle_label
+        # combat_ids / battle_ids 在清单里只有裸 id，没有游戏给出的名字，所以
+        # 显示走 list.combat_template / list.battle_template 模板：
+        #   「原版单挑战斗模板（0001_01）」
+        # 断言改成校验这套约定本身——文案必须已本地化（不是裸 id、不是未替换的
+        # 占位符），同时必须带 id，作者才分得清 0001_01 和 0001_02。
+        # 原断言「label 不得包含 id」与仓库自己的 list_items 约定（名字（id））
+        # 冲突，任何模板都不可能同时满足，故一并修正。
+        for item_id, label in ((combat_id, combat_label), (battle_id, battle_label)):
+            assert label != item_id, f"{locale} 的 {item_id} 没有本地化文案：{label!r}"
+            assert "{name}" not in label and "{id}" not in label, (
+                f"{locale} 的 {item_id} 留下了未替换占位符：{label!r}"
+            )
+            assert item_id in label, (
+                f"{locale} 的 {item_id} 标签里必须保留 id 以便区分同族条目：{label!r}"
+            )
+        assert combat_label != battle_label, (
+            f"{locale} 必须区分单挑模板与战役模板：{combat_label!r} / {battle_label!r}"
+        )
     set_language("chs")
 
 

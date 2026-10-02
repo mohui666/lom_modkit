@@ -27,7 +27,7 @@
     {
       "id": "death1",
       "type": "death",
-      "title": "六十二节点·测试谢幕",
+      "title": "六十三节点·测试谢幕",
       "text": "全节点样例 3.0：主动选择的死亡画面测试。",
       "death_id": "930001",
       "next": "Title"
@@ -36,6 +36,19 @@
       "id": "goto_scene1",
       "type": "goto_scene",
       "scene": "Free"
+    },
+    {
+      "id": "free_trigger1",
+      "type": "free_trigger",
+      "position": "Secret",
+      "script": "finale",
+      "when_month": "7",
+      "when_stage": "3",
+      "when_flag_set": "SHOWCASE3_FREE_TRIGGER",
+      "when_flag_clear": "",
+      "when_affinity": "brother4",
+      "when_affinity_min": 3,
+      "note": "样例：7 月下旬且旗标 SHOWCASE3_FREE_TRIGGER 已设置时，在神秘房子再进终章"
     }
   ],
   "start": "message1"

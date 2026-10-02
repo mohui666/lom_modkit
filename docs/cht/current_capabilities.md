@@ -1,6 +1,6 @@
 # 目前能力與邊界
 
-本文只描述目前倉庫程式碼。節點權威集合是 `editor/models.py` 的 `NODE_SCHEMAS`，目前共 62 種。
+本文只描述目前倉庫程式碼。節點權威集合是 `editor/models.py` 的 `NODE_SCHEMAS`，目前共 63 種。
 
 ## 已實作
 

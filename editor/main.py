@@ -18,7 +18,7 @@ import sys
 import traceback
 from pathlib import Path
 
-from PySide6.QtCore import QSize, QTimer, Qt, Signal
+from PySide6.QtCore import QItemSelectionModel, QSize, QTimer, Qt, Signal
 from PySide6.QtGui import QAction, QDrag, QFont, QIcon, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -110,6 +110,9 @@ from history_controller import HistoryControllerMixin
 from project_controller import ProjectControllerMixin
 from recovery_controller import RecoveryControllerMixin, RecoveryDialog
 from run_controller import RunControllerMixin
+from game_assets import GameAssetLibrary, unity_available
+from asset_picker_dialog import MODE_CHARACTER, MODE_VIEW, AssetPickerDialog
+from asset_extract_dialog import ExtractAssetsDialog
 # 文件对话框默认目录：冻结态用用户 CWD（解包目录/ exe 目录不可当作工作目录）
 WORK_DIR = Path.cwd() if models.FROZEN else PROJECT_ROOT
 
@@ -121,7 +124,7 @@ _ROLE_KIND = Qt.ItemDataRole.UserRole
 
 
 class StepListWidget(QListWidget):
-    """步骤树：可拖动重排；第 0 行「章节设置」固定不参与拖动。"""
+    """步骤树：可拖动重排、可 Shift/Ctrl 多选；第 0 行「章节设置」固定不参与。"""
 
     steps_moved = Signal(int, int)  # from_index, insert_index（均为 nodes[] 下标语义）
 
@@ -132,11 +135,25 @@ class StepListWidget(QListWidget):
         self.setDropIndicatorShown(True)
         self.setDefaultDropAction(Qt.DropAction.MoveAction)
         self.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
-        self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        # 多选用于「复制多个步骤」；拖动仍然只搬当前这一项（见 startDrag）。
+        self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
 
     @staticmethod
     def _is_chapter(item: QListWidgetItem | None) -> bool:
         return item is not None and item.data(_ROLE_KIND) == "chapter"
+
+    def selectionCommand(self, index, event=None):  # noqa: N802
+        """章节设置行与分区标题行不参与多选。
+
+        它们不是 steps[] 里的步骤，被 Ctrl/Shift 一起选进来会让「复制 N 个步骤」
+        的计数和粘贴位置的推断都变得没有意义。
+        """
+        item = self.item(index.row()) if index.isValid() else None
+        if item is None or self._is_chapter(item):
+            return QItemSelectionModel.SelectionFlag.NoUpdate
+        if isinstance(item.data(_ROLE_KIND), tuple):  # 分区/分组标题
+            return QItemSelectionModel.SelectionFlag.NoUpdate
+        return super().selectionCommand(index, event)
 
     def startDrag(self, supported_actions) -> None:  # noqa: N802
         item = self.currentItem()
@@ -858,6 +875,11 @@ class MainWindow(
 
         self.editor_data = editor_data
         self.game_manager = GameInstallManager()
+        # 预览素材库：从本机《活侠传》按需解出立绘 / 背景（官方发布包不含图片素材）。
+        # 未连接游戏目录时库里没有素材，预览照旧走占位图。
+        self.asset_library = GameAssetLibrary(
+            self.game_manager.load_game_dir(), PROJECT_ROOT / "data"
+        )
         # 多剧情项目状态：_stories = {脚本id: story dict}，story 是当前脚本的引用
         self._stories: dict[str, dict] = {}
         self._current_id = ""
@@ -877,6 +899,11 @@ class MainWindow(
         self._prompt_on_discard = True  # 测试可关：有未保存修改时的确认弹窗
         self._source_kind = "untitled"
         self._source_path: Path | None = None
+        # 步骤剪贴板：存被复制节点的深拷贝，粘贴时在目标位置插入并重新编号。
+        # 只放在内存里，不写系统剪贴板——步骤是结构化数据，走系统剪贴板会和
+        # 文本粘贴互相干扰，也容易被别的程序覆盖。
+        self._node_clipboard: list[dict] = []
+        self._clipboard_story_id = ""
         self._recovery_session: RecoverySession | None = None
         self._recovery_error_logged = False
 
@@ -903,6 +930,11 @@ class MainWindow(
             src += f"；lomc 不可用（{get_lomc()[1]}）"
         if not self.stage.has_assets():
             src += "；无预览素材，使用占位图"
+        else:
+            ready, _reason = self.asset_library.probe()
+            if ready:
+                chars, views = self.asset_library.total_counts()
+                src += f"；预览素材可按需从游戏提取（人物 {chars}、背景 {views}）"
         try:
             game_dir = self.game_manager.require_game_dir()
             if self.game_manager.bepinex_installed(game_dir):
@@ -998,6 +1030,15 @@ class MainWindow(
         rename_shortcut.setShortcutContext(Qt.ShortcutContext.WidgetShortcut)
         rename_shortcut.triggered.connect(self._rename_current_node)
         self.node_list.addAction(rename_shortcut)
+        for shortcut, slot in (
+            (QKeySequence.StandardKey.Copy, self._copy_selected_nodes),
+            (QKeySequence.StandardKey.Paste, self._paste_nodes),
+        ):
+            action = QAction(self)
+            action.setShortcut(shortcut)
+            action.setShortcutContext(Qt.ShortcutContext.WidgetShortcut)
+            action.triggered.connect(slot)
+            self.node_list.addAction(action)
         lv.addWidget(self.node_list, stretch=1)
 
         add_btn = QPushButton(t("nav.add_step"))
@@ -1025,6 +1066,7 @@ class MainWindow(
 
         # 中栏：Inspector（章节设置 / 步骤属性）
         self.form = NodeForm()
+        self.form.asset_library = self.asset_library
         self.form.id_change_requested.connect(self._on_id_change_requested)
         self.chapter_panel = self._build_chapter_panel()
         self.inspector = QStackedWidget()
@@ -1036,7 +1078,8 @@ class MainWindow(
         self.preview = LuaPreview()
         self.stage = StagePreview()
         pmap, data_dir = load_preview_map(PROJECT_ROOT)
-        self.stage.set_assets(pmap, data_dir)
+        self.stage.set_assets(self._merge_game_asset_map(pmap), data_dir)
+        self.stage.set_asset_library(self.asset_library)
         self.stage.set_context(self.editor_data)
         self.stage.choice_activated.connect(self._on_choice_goto)
 
@@ -1212,6 +1255,16 @@ class MainWindow(
         menu.addAction(
             t("menu.open"), self.open_story, QKeySequence.StandardKey.Open
         )
+        menu.addAction(
+            t("menu.open_files"),
+            self.open_story_files,
+            QKeySequence("Ctrl+Shift+O"),
+        )
+        menu.addAction(
+            t("menu.open_folder"),
+            self.open_story_folder,
+            QKeySequence("Ctrl+Alt+O"),
+        )
         self._recent_menu = menu.addMenu(t("menu.recent"))
         self._rebuild_recent_menu()
         menu.addAction(
@@ -1234,6 +1287,13 @@ class MainWindow(
             self._show_content_library,
             QKeySequence("Ctrl+L"),
         )
+        menu.addSeparator()
+        menu.addAction(
+            t("menu.asset_browser"),
+            self.show_asset_browser,
+            QKeySequence("Ctrl+Shift+A"),
+        )
+        menu.addAction(t("menu.extract_assets"), self.show_extract_assets)
         menu.addSeparator()
         menu.addAction(t("menu.quit"), self.close)
         edit = self.menuBar().addMenu(t("menu.edit"))
@@ -1434,6 +1494,58 @@ class MainWindow(
 
         ContentLibraryDialog(self._stories, self, self.editor_data).exec()
         self._load_form()
+
+    # ---------------------------------------------------------- 预览素材
+    def _merge_game_asset_map(self, pmap: dict) -> dict:
+        """把游戏目录能提供的立绘 / 背景并进 preview_map。
+
+        官方发布包与源码仓库都不含 ``data/assets``（作者用 .gitignore 排除了
+        几百 MB 的图片），所以随包分发的 preview_map 只覆盖作者导出过的那部分。
+        这里用游戏目录里的配置把剩余条目补全，缺失的图片文件由
+        :meth:`StagePreview._request_game_asset` 在显示时按需提取。
+        """
+        if not self.asset_library.ready:
+            return pmap
+        try:
+            chars, views = self.asset_library.preview_map_fragment()
+        except Exception:  # noqa: BLE001 - 素材映射失败不该拖垮启动
+            log_crash("合并游戏素材映射失败：\n" + traceback.format_exc())
+            return pmap
+        merged = {
+            "characters": dict(pmap.get("characters") or {}),
+            "views": dict(pmap.get("views") or {}),
+        }
+        for cid, conf in chars.items():
+            existing = merged["characters"].get(cid)
+            if not existing:
+                merged["characters"][cid] = conf
+                continue
+            portraits = dict(existing.get("portraits") or {})
+            for emo, rel in (conf.get("portraits") or {}).items():
+                portraits.setdefault(emo, rel)
+            existing["portraits"] = portraits
+            existing.setdefault("first", conf.get("first") or "")
+            existing.setdefault("name", conf.get("name") or cid)
+        for vid, rel in views.items():
+            merged["views"].setdefault(vid, rel)
+        return merged
+
+    def show_asset_browser(self) -> None:
+        """独立的角色 / 背景素材浏览器（带右侧大图预览）。"""
+        dialog = AssetPickerDialog(
+            self,
+            editor_data=self.editor_data,
+            library=self.asset_library,
+            mode=MODE_CHARACTER,
+            browse_only=True,
+        )
+        dialog.accept_btn.setText(t("common.close"))
+        dialog.cancel_btn.setVisible(False)
+        dialog.exec()
+
+    def show_extract_assets(self) -> None:
+        """从游戏目录一次性提取全部立绘 / 背景到本地缓存。"""
+        ExtractAssetsDialog(self.asset_library, self).exec()
 
     def _show_global_search(self) -> None:
         from global_search import GlobalSearchDialog
@@ -2224,6 +2336,19 @@ class MainWindow(
             self.story["start"] = nodes[0].get("id", "")
         self._refresh_all(select_row=min(row, len(nodes) - 1))
 
+    def _follow_start_on_front_change(self, old_front_id: str) -> None:
+        """节点在列表第 0 位附近移动后，让起始步骤跟随新的第 0 位。
+
+        用户把某一步拖到/移到最前，意图就是「让它成为第一步」；若不同步 start，
+        右侧流程图仍从旧 start 推演，会把新的第 0 位标成「无法到达」。仅当 start
+        原本就指向旧的第 0 位时才跟随——分支剧情里 start 可能指向别处，此时不动。
+        """
+        nodes = self.story.get("nodes", [])
+        if not nodes:
+            return
+        if self.story.get("start") == old_front_id:
+            self.story["start"] = str(nodes[0].get("id") or "")
+
     def _move_node(self, delta: int) -> None:
         nodes = self.story.get("nodes", [])
         row = self._selected_node_index()
@@ -2231,7 +2356,9 @@ class MainWindow(
         if not (0 <= row < len(nodes) and 0 <= to < len(nodes)):
             return
         self._record_discrete()
+        old_front = str(nodes[0].get("id") or "")
         nodes[row], nodes[to] = nodes[to], nodes[row]
+        self._follow_start_on_front_change(old_front)
         self._refresh_all(select_row=to)
 
     def _on_steps_moved(self, from_index: int, insert_index: int) -> None:
@@ -2247,7 +2374,9 @@ class MainWindow(
             self._load_form()
             return
         self._record_discrete()
+        old_front = str(nodes[0].get("id") or "")
         dest = models.reorder_node(self.story, from_index, insert_index)
+        self._follow_start_on_front_change(old_front)
         self._refresh_all(select_row=dest)
         self.statusBar().showMessage(t("nav.moved", n=dest + 1), 2500)
 
@@ -2292,8 +2421,8 @@ class MainWindow(
             t("nav.rename_ok", old=old_id, new=new_id, n=changed), 4000
         )
 
-    def _copy_node(self) -> None:
-        """复制当前步骤并插入到其后。"""
+    def _duplicate_node_in_place(self) -> None:
+        """原地复制：把当前步骤复制一份插到它后面（不经过剪贴板）。"""
         node = self._current_node()
         if node is None:
             return
@@ -2301,11 +2430,85 @@ class MainWindow(
         clone["id"] = models.make_node_id(self.story, str(clone.get("type") or "n"))
         self._insert_node(clone, f"已复制步骤为 {clone['id']}")
 
+    # ------------------------------------------------------- 多选复制 / 粘贴
+    def _selected_node_indexes(self) -> list[int]:
+        """当前选中的步骤在 nodes[] 中的下标，按播放顺序升序。
+
+        章节设置行与分区标题行会被跳过——它们不在 nodes[] 里。
+        """
+        indexes = []
+        for item in self.node_list.selectedItems():
+            data = item.data(self._ROLE_KIND)
+            if isinstance(data, int) and not isinstance(data, bool):
+                indexes.append(int(data))
+        return sorted(set(indexes))
+
+    def _copy_selected_nodes(self) -> None:
+        """把选中的步骤（单个或多个）拷进内存剪贴板。"""
+        indexes = self._selected_node_indexes()
+        nodes = self.story.get("nodes", [])
+        picked = [nodes[i] for i in indexes if 0 <= i < len(nodes)]
+        if not picked:
+            # 没多选时退回「当前行」，这样单选/键盘操作也符合直觉
+            current = self._selected_node_index()
+            if 0 <= current < len(nodes):
+                picked = [nodes[current]]
+        if not picked:
+            self.statusBar().showMessage(t("nav.copy_none"), 3000)
+            return
+        self._node_clipboard = copy.deepcopy(picked)
+        self._clipboard_story_id = self._current_id
+        self.statusBar().showMessage(
+            t("nav.copied", n=len(self._node_clipboard)), 3000
+        )
+
+    def _paste_nodes(self) -> None:
+        """把剪贴板里的步骤粘贴到当前选中步骤之后，并重新编号。"""
+        if not self._node_clipboard:
+            self.statusBar().showMessage(t("nav.paste_empty"), 3000)
+            return
+        self._record_discrete()
+        clones = copy.deepcopy(self._node_clipboard)
+        mapping = self._allocate_clone_ids(clones)
+        # 只对副本集合做引用重映射：用临时 story 调 retarget，避免把原剧情里
+        # 指向原节点的跳转也改掉（那会把原步骤的去向改乱）。
+        models.retarget_node_ids({"nodes": clones}, mapping)
+
+        nodes = self.story.setdefault("nodes", [])
+        row = self._selected_node_index()
+        at = row + 1 if 0 <= row < len(nodes) else len(nodes)
+        nodes[at:at] = clones
+        self._refresh_all(select_row=at)
+        self.statusBar().showMessage(
+            t("nav.pasted", n=len(clones), m=at + 1), 4000
+        )
+
+    def _allocate_clone_ids(self, clones: list[dict]) -> dict[str, str]:
+        """给副本分配本 story 内唯一的新编号，返回 旧 id → 新 id 的映射。
+
+        逐个累加进 draft，保证同一批里多个同类型步骤不会拿到同一个编号
+        （make_node_id 只看它拿到的那份 nodes）。
+        """
+        draft = {"nodes": list(self.story.get("nodes", []))}
+        mapping: dict[str, str] = {}
+        for clone in clones:
+            old_id = str(clone.get("id") or "")
+            new_id = models.make_node_id(draft, str(clone.get("type") or "n"))
+            draft["nodes"].append({"id": new_id})
+            if old_id:
+                mapping[old_id] = new_id
+            else:
+                clone["id"] = new_id
+        return mapping
+
     def _on_node_context_menu(self, pos) -> None:
         item = self.node_list.itemAt(pos)
         if item is None or self._is_chapter_item(item):
             return
-        self.node_list.setCurrentItem(item)
+        # 右键已选中的条目要保留整块多选：setCurrentItem 会清空选区，
+        # 那样「Shift 选中 5 个 → 右键复制」就只剩最后点的那一个了。
+        if not item.isSelected():
+            self.node_list.setCurrentItem(item)
         if self._is_structure_item(item):
             data = item.data(self._ROLE_KIND)
             menu = QMenu(self)
@@ -2316,9 +2519,17 @@ class MainWindow(
             menu.addAction(t("sections.manage"), self._show_story_sections)
             menu.exec(self.node_list.mapToGlobal(pos))
             return
+        selected = len(self._selected_node_indexes())
         menu = QMenu(self)
         menu.addAction(t("nav.rename"), self._rename_current_node)
-        menu.addAction(t("nav.copy"), self._copy_node)
+        menu.addSeparator()
+        menu.addAction(
+            t("nav.copy_many", n=selected) if selected > 1 else t("nav.copy"),
+            self._copy_selected_nodes,
+        )
+        paste = menu.addAction(t("nav.paste"), self._paste_nodes)
+        paste.setEnabled(bool(self._node_clipboard))
+        menu.addAction(t("nav.duplicate_here"), self._duplicate_node_in_place)
         menu.addAction(t("nav.delete"), self._delete_node)
         menu.addSeparator()
         menu.addAction(t("nav.move_up"), lambda: self._move_node(-1))
@@ -2652,6 +2863,35 @@ class MainWindow(
         return True
 
 
+def _smoke_check_assets(win) -> tuple[bool, str]:
+    """自检「从本机游戏目录按需解出立绘 / 背景」这条链路在冻结版里是否可用。
+
+    未连接游戏目录只算「未启用」，不算打包失败；但数据解析库本身没打进包里
+    是实打实的打包错误，必须报出来。
+    """
+    library = win.asset_library
+    if not unity_available():
+        return False, "冻结版缺少 UnityPy（无法解析 Unity 资源包）"
+    ready, reason = library.probe()
+    if not ready:
+        return True, f"未启用：{reason}"
+    characters, views = library.mappings()
+    if not characters or not views:
+        return False, f"映射为空：人物 {len(characters)} 个、背景 {len(views)} 个"
+    sample_char = sorted(characters)[0]
+    portrait = library.portrait_file(sample_char, "normal")
+    if portrait is None or not portrait.is_file():
+        return False, f"{sample_char}/normal 立绘导出失败：{library.last_error}"
+    sample_view = sorted(views)[0]
+    view = library.view_file(sample_view)
+    if view is None or not view.is_file():
+        return False, f"{sample_view} 背景导出失败：{library.last_error}"
+    return True, (
+        f"人物 {len(characters)} 个、背景 {len(views)} 个；"
+        f"示例 {sample_char}/normal、{sample_view}"
+    )
+
+
 def main() -> int:
     # --smoke-exit：启动级自检（显示窗口 1.5 秒后自动退出，退出码 0）；
     # 供打包产物在 QT_QPA_PLATFORM=offscreen 下验证“能启动不崩”。
@@ -2659,6 +2899,9 @@ def main() -> int:
     smoke_exit = "--smoke-exit" in args
     if smoke_exit:
         args.remove("--smoke-exit")
+    smoke_assets = "--smoke-assets" in args
+    if smoke_assets:
+        args.remove("--smoke-assets")
     smoke_preview: Path | None = None
     if "--smoke-preview" in args:
         at = args.index("--smoke-preview")
@@ -2686,7 +2929,15 @@ def main() -> int:
     editor_data, is_fallback = models.load_editor_data(PROJECT_ROOT)
     win = MainWindow(editor_data, is_fallback)
     win.show()
-    if smoke_preview is not None:
+    if smoke_assets:
+        assets_ok, assets_detail = _smoke_check_assets(win)
+        # 图形版 exe 没有控制台，stdout 看不见，所以结果同时落到 crash.log，
+        # 便于打包后直接核对（只有显式跑这个自检开关时才会写）。
+        log_crash(
+            f"[smoke-assets] {'OK' if assets_ok else 'FAIL'} — {assets_detail}"
+        )
+        QTimer.singleShot(0, lambda: app.exit(0 if assets_ok else 4))
+    elif smoke_preview is not None:
         win._load_story_path(smoke_preview)
         win.right_tabs.setCurrentWidget(win.preview)
         win._preview_timer.stop()

@@ -20,7 +20,15 @@ from datetime import datetime
 from math import floor
 from pathlib import Path
 
-from PySide6.QtCore import QRect, QRectF, Qt, Signal
+from PySide6.QtCore import (
+    QObject,
+    QRect,
+    QRectF,
+    QRunnable,
+    Qt,
+    QThreadPool,
+    Signal,
+)
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen, QPixmap, QTransform
 from PySide6.QtWidgets import QWidget
 
@@ -49,23 +57,70 @@ def log_crash(text: str) -> None:
         pass
 
 
-# 站位 → 舞台 x 比例（0=左缘，1=右缘；S 系为屏幕外，画一半）
-POSITION_X: dict[str, float] = {
-    "SL": -0.06,
-    "SR": 1.06,
-    "L1": 0.12,
-    "L2": 0.22,
-    "L3": 0.30,
-    "LM1": 0.34,
-    "LM2": 0.40,
-    "M": 0.50,
-    "C": 0.50,
-    "RM2": 0.60,
-    "RM1": 0.66,
-    "R3": 0.70,
-    "R2": 0.78,
-    "R1": 0.88,
+def split_preview_asset_path(rel_path: str) -> tuple[str, str, str] | None:
+    """把素材相对路径拆成 ``(类型, id, 子键)``。
+
+    ``assets/portraits/<角色id>/<表情>.png`` → ("portrait", 角色id, 表情)
+    ``assets/views/<场景id>.png``            → ("view", 场景id, "")
+
+    不是这两类素材时返回 None，调用方按普通图片处理。
+    """
+    parts = str(rel_path).replace("\\", "/").lstrip("./").split("/")
+    if len(parts) >= 4 and parts[0] == "assets" and parts[1] == "portraits":
+        return "portrait", parts[2], Path(parts[-1]).stem
+    if len(parts) >= 3 and parts[0] == "assets" and parts[1] == "views":
+        return "view", Path(parts[-1]).stem, ""
+    return None
+
+
+class _AssetLoadSignals(QObject):
+    finished = Signal(str)  # 素材相对路径
+
+
+class _AssetLoadTask(QRunnable):
+    """后台从游戏资源包解出单张图；失败静默（调用方继续用占位图）。"""
+
+    def __init__(self, rel_path: str, fn, signals: _AssetLoadSignals) -> None:
+        super().__init__()
+        self._rel_path = rel_path
+        self._fn = fn
+        self._signals = signals
+
+    def run(self) -> None:  # pragma: no cover - 线程内执行
+        try:
+            self._fn()
+        except Exception:  # noqa: BLE001 - 取图失败不该影响预览
+            pass
+        try:
+            self._signals.finished.emit(self._rel_path)
+        except RuntimeError:
+            # 预览控件可能在解包完成前就被销毁（切项目、关窗口、测试收尾）。
+            # 此时已经没有接收方，发不出信号是正常竞态，不该刷一屏错误。
+            pass
+
+
+# 站位锚点表（权威值来自游戏剧情场景，见 data/stage_positions.json 与
+# tools/extract_stage_positions.py）：x = 横向比例（0=左缘，1=右缘，可越界表示屏外），
+# feet = 脚底距画面顶部比例（1080 参考）。基准行（L1/R1/M 等）feet≈1.003，即角色
+# 脚底刚好站在画面底边；S/M/B 行分别更低（越靠后越往下）。
+_STAGE_POSITIONS_FALLBACK: dict[str, tuple[float, float]] = {
+    "L1": (0.145313, 1.002778), "L2": (0.249479, 1.002778), "L3": (0.353646, 1.002778),
+    "LB1": (0.145313, 2.009009), "LB2": (0.249479, 2.009009), "LB3": (0.353646, 2.009009),
+    "LM1": (0.145313, 1.203704), "LM2": (0.249479, 1.203704), "LM3": (0.353646, 1.203704),
+    "LS1": (0.145313, 1.037037), "LS2": (0.249479, 1.037037), "LS3": (0.353646, 1.037037),
+    "M": (0.5, 1.002778), "MB": (0.5, 2.009009), "MM": (0.5, 1.203704), "MS": (0.5, 1.037037),
+    "R1": (0.646354, 1.002778), "R2": (0.750521, 1.002778), "R3": (0.854688, 1.002778),
+    "RB1": (0.646354, 2.009009), "RB2": (0.750521, 2.009009), "RB3": (0.854688, 2.009009),
+    "RM1": (0.646354, 1.203704), "RM2": (0.750521, 1.203704), "RM3": (0.854688, 1.203704),
+    "RS1": (0.646354, 1.037037), "RS2": (0.750521, 1.037037), "RS3": (0.854688, 1.037037),
+    "SL": (-0.5, 1.002778), "SLB": (-0.5, 2.009009),
+    "SR": (1.5, 1.002778), "SRB": (1.5, 2.009009),
+    "BC1": (0.5, 1.248148), "BC2": (0.5, 1.002778), "BCB2": (0.5, 3.240741),
+    "C": (0.5, 1.002778),
+    "TALK": (0.253646, 1.028704),
 }
+
+_STAGE_POSITIONS: dict[str, tuple[float, float]] = dict(_STAGE_POSITIONS_FALLBACK)
 
 # 颜色
 BG_FALLBACK = QColor(43, 43, 43)  # 无背景图时的深灰底
@@ -96,6 +151,7 @@ def load_preview_map(proj_root: Path) -> tuple[dict, Path]:
         m = json.loads((data_dir / "preview_map.json").read_text(encoding="utf-8"))
         if not isinstance(m, dict):
             raise ValueError("preview_map.json 顶层应为对象")
+        load_stage_positions(proj_root)
         return m, data_dir
     except Exception:
         return {}, data_dir
@@ -104,30 +160,55 @@ def load_preview_map(proj_root: Path) -> tuple[dict, Path]:
 # ---------------------------------------------------------------------------
 # 舞台状态推演
 # ---------------------------------------------------------------------------
+def load_stage_positions(proj_root: Path) -> dict[str, tuple[float, float]]:
+    """读取 <项目根>/data/stage_positions.json；缺失/损坏时回退内置兜底值。
+
+    表里是 (x 比例, 脚底比例)，权威值由 tools/extract_stage_positions.py 从游戏
+    剧情场景提取；内置兜底值与之一致，保证没有该 JSON 时预览仍正确。
+    """
+    global _STAGE_POSITIONS
+    try:
+        payload = json.loads(
+            (proj_root / "data" / "stage_positions.json").read_text(encoding="utf-8")
+        )
+        positions = payload.get("positions") if isinstance(payload, dict) else None
+        if isinstance(positions, dict):
+            merged: dict[str, tuple[float, float]] = {}
+            for name, val in positions.items():
+                if (
+                    isinstance(val, dict)
+                    and isinstance(val.get("x"), (int, float))
+                    and isinstance(val.get("feet"), (int, float))
+                ):
+                    merged[str(name).upper()] = (float(val["x"]), float(val["feet"]))
+            if merged:
+                _STAGE_POSITIONS = merged
+    except Exception:  # noqa: BLE001
+        pass
+    return _STAGE_POSITIONS
+
+
+def position_anchor(position: str) -> tuple[float, float, bool]:
+    """站位字符串 → (x 比例, 脚底比例, 是否识别)。识别失败兜底中央、脚底在底边。"""
+    p = (position or "").strip().upper()
+    entry = _STAGE_POSITIONS.get(p)
+    if entry is not None:
+        return entry[0], entry[1], True
+    if p in ("M", "C"):
+        return 0.5, 1.002778, True
+    return 0.5, 1.002778, False
+
+
 def position_x(position: str) -> tuple[float, bool]:
     """站位字符串 → (舞台 x 比例, 是否识别成功)。识别失败兜底中央。"""
-    p = (position or "").strip().upper()
-    if p in POSITION_X:
-        return POSITION_X[p], True
-    if p in ("M", "C"):
-        return 0.5, True
-    # 宽松解析：L/R 开头 + 数字；带 M 的（如 LM2/RM2）中间偏
-    if len(p) >= 2 and p[0] in ("L", "R"):
-        side = -1.0 if p[0] == "L" else 1.0
-        digits = "".join(ch for ch in p if ch.isdigit())
-        try:
-            n = int(digits) if digits else 2
-        except ValueError:
-            n = 2
-        if "M" in p[1:]:
-            offset = 0.10  # 带 M：中间偏
-        else:
-            offset = {1: 0.38, 2: 0.28, 3: 0.20}.get(n, 0.30)
-        x = 0.5 + side * offset
-        if p.startswith("S"):  # 不会到这里（S 开头不在 L/R），防御而已
-            x = -0.06 if side < 0 else 1.06
-        return x, True
-    return 0.5, False
+    x, _feet, known = position_anchor(position)
+    return x, known
+
+
+def position_feet(position: str) -> float:
+    """站位字符串 → 脚底距画面顶部比例（1080 参考）；识别失败回到底边。"""
+    _x, feet, _known = position_anchor(position)
+    return feet
 
 
 def _hint_text(node: dict, ed: dict) -> str | None:
@@ -699,6 +780,11 @@ class StagePreview(QWidget):
         self._pmap: dict = {}
         self._data_dir: Path = PROJECT_ROOT / "data"
         self._story_root: Path | None = None
+        self._library = None  # game_assets.GameAssetLibrary：按需从游戏取图
+        self._asset_attempted: set[str] = set()  # 已尝试过解包的素材路径（失败不重试）
+        self._asset_signals = _AssetLoadSignals()
+        self._asset_signals.finished.connect(self._on_game_asset_ready)
+        self._asset_pool = QThreadPool.globalInstance()
         self._story: dict | None = None
         self._node_id: str | None = None
         self._state: dict = simulate_stage({}, None)
@@ -720,13 +806,34 @@ class StagePreview(QWidget):
         self._cache_bytes = 0
         self.update()
 
+    def set_asset_library(self, library) -> None:
+        """注入「从游戏目录按需提取」的素材库（可为 None）。
+
+        本地缓存里没有的立绘 / 背景，会在第一次要显示时从游戏资源里解出来
+        并落盘，之后就是普通图片读取。取不到时仍旧走占位图。
+        """
+        self._library = library
+        self._asset_attempted.clear()
+        self._pix_cache.clear()
+        self._cache_bytes = 0
+        self.update()
+
     def set_story_root(self, root: Path | None) -> None:
         """设置 story/ 所属 mod 根目录，供 End 节点预览 assets/ 自定义插图。"""
         self._story_root = Path(root) if root is not None else None
 
     def has_assets(self) -> bool:
         """是否有任何预览素材（否则全走占位图）。"""
-        return bool(self._pmap.get("characters") or self._pmap.get("views"))
+        if self._pmap.get("characters") or self._pmap.get("views"):
+            return True
+        library = getattr(self, "_library", None)
+        if library is not None:
+            try:
+                if library.ready:
+                    return True
+            except Exception:  # noqa: BLE001 - 素材探测失败不该影响预览
+                return False
+        return False
 
     def show_node(self, story: dict, node_id: str | None) -> None:
         """设置要预览的 story 与节点 id，重新推演并重绘。"""
@@ -769,9 +876,9 @@ class StagePreview(QWidget):
             self._pix_cache.move_to_end(key)
             return hit
         try:
-            source = Path(key)
-            if not source.is_absolute():
-                source = self._data_dir / source
+            source = self._resolve_source(key)
+            if not source.is_file():
+                self._request_game_asset(key)
             pix = QPixmap(str(source))
             # 加载即降采样：原图最大约 3000px/20MB 解码，控件绘制最多几百 px，
             # 降到 MAX_IMAGE_DIM 内可把单张缓存压到约 1/4，且后续每次重绘的
@@ -790,6 +897,55 @@ class StagePreview(QWidget):
         self._cache_bytes += self._pix_bytes(pix)
         self._evict_cache()
         return pix
+
+    def _resolve_source(self, key: str) -> Path:
+        """素材相对路径 → 实际文件路径。
+
+        缓存位置由素材库决定（项目根 data/assets，不可写时退到 APPDATA），
+        所以只要素材库在，就听它给出的路径，而不是硬拼 ``data_dir``。
+        """
+        library = getattr(self, "_library", None)
+        if library is not None:
+            split = split_preview_asset_path(key)
+            if split is not None:
+                try:
+                    return library.cached_path(*split)
+                except Exception:  # noqa: BLE001 - 素材库异常不该影响其它图片
+                    pass
+        source = Path(key)
+        return source if source.is_absolute() else self._data_dir / source
+
+    def _request_game_asset(self, key: str) -> None:
+        """本地没有这张图时，在后台线程从游戏资源包里解出来。
+
+        不在绘制线程里同步解包：单个资源包几十 MB，同步解会让舞台在第一次
+        显示新角色时明显卡顿。这里先照常画占位图，取到图后清掉空缓存并重绘。
+        """
+        library = getattr(self, "_library", None)
+        if library is None:
+            return
+        split = split_preview_asset_path(key)
+        if split is None:
+            return
+        kind, item_id, sub = split
+        if kind == "portrait":
+            fn = lambda: library.portrait_file(item_id, sub or "normal")  # noqa: E731
+        else:
+            fn = lambda: library.view_file(item_id)  # noqa: E731
+        if key in self._asset_attempted:
+            return
+        self._asset_attempted.add(key)
+        self._asset_pool.start(_AssetLoadTask(key, fn, self._asset_signals))
+
+    def _on_game_asset_ready(self, key: str) -> None:
+        """后台取图结束：让这张图下次绘制时重新读盘。
+
+        注意 ``_asset_attempted`` 不在这里清除——取图失败时若清掉，重绘会再次
+        提交任务、再次失败、再次重绘，形成死循环。失败就是失败，等换素材库
+        或重新打开项目时再整体重置。
+        """
+        self._pix_cache.pop(key, None)
+        self.update()
 
     def _load_story_image(self, image_path: str) -> QPixmap:
         """先找当前项目 assets/，再找编辑器托管的用户图片仓库。"""
@@ -1314,21 +1470,27 @@ class StagePreview(QWidget):
         actors = self._state.get("actors", {})
         if not actors:
             return
-        baseline = rect.bottom() - floor(rect.height() * 0.02)  # 底部基准线
         h = floor(rect.height() * 0.78)  # 立绘高度
-        # 按 x 排序，左边先画，避免右侧人物被左压
+        # 越靠后的行 feet 越大（脚底越靠下），先画（在底层）；同层按 x 从左到右。
         ordered = sorted(
-            actors.items(), key=lambda kv: position_x(kv[1].get("position", ""))[0]
+            actors.items(),
+            key=lambda kv: (
+                position_feet(kv[1].get("position", "")),
+                position_x(kv[1].get("position", ""))[0],
+            ),
         )
         unknown: list[str] = []
         for cid, info in ordered:
             pos = info.get("position", "")
             frac, known = position_x(pos)
+            feet = position_feet(pos)
             if not known:
                 unknown.append(pos or "（空）")
             cx = rect.x() + floor(rect.width() * frac)
             cx += floor(float(info.get("offset_x", 0)))
-            actor_baseline = baseline - floor(float(info.get("offset_y", 0)))
+            # 脚底 y = 画面顶部 + feet*高度；叠手工偏移（offset_y 为正表示向上）
+            actor_baseline = rect.top() + floor(rect.height() * feet)
+            actor_baseline -= floor(float(info.get("offset_y", 0)))
             facing = info.get("facing", "right")
             portrait = info.get("portrait", "normal")
             body_scale, art_facing = self._character_look(cid)
