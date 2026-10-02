@@ -94,6 +94,7 @@ NODE_TYPE_CN_SRC: dict[str, str] = {
     "end": "结束剧情",
     "death": "死亡画面",
     "raw": "原生 Lua（高级）",
+    "free_trigger": "自由模式触发",
 }
 NODE_TYPE_CN: dict[str, str] = dict(NODE_TYPE_CN_SRC)
 
@@ -131,6 +132,7 @@ NODE_HELP_KEYS = {
     "death": "help.death",
     "intro": "help.intro",
     "raw": "help.raw",
+    "free_trigger": "help.free_trigger",
     "music": "help.music",
     "sound": "help.sound",
     "enemy": "help.enemy",
@@ -216,7 +218,10 @@ NODE_GROUPS_SRC: list[tuple[str, list[str]]] = [
     ),
     (
         "group.flow",
-        ["branch", "dice", "goto_scene", "panel", "wait", "end", "death", "raw"],
+        [
+            "branch", "dice", "goto_scene", "panel", "wait", "end", "death", "raw",
+            "free_trigger",
+        ],
     ),
 ]
 NODE_GROUPS: list[tuple[str, list[str]]] = []
@@ -329,6 +334,26 @@ ENUM_SETS_SRC: dict[str, list[tuple[str, str]]] = {
         ("Story", "剧情演出"),
         ("DemoEnd", "Demo 结束"),
     ],
+    # 自由模式地图位置：值是 manifest.triggers.position 的契约 id，显示名取原版
+    # PositionType 的中文枚举名。依据 runtime/MortalModHost/src/PositionNameMap.cs
+    # （其注释指明来源为反编译 Mortal.Core 的 [StringValue] 标注）。
+    "map_position": [
+        ("Center", "校场"),
+        ("Mall", "正心堂"),
+        ("Alchemy", "炼丹房"),
+        ("Forge", "锻冶场"),
+        ("BackMountain", "后山"),
+        ("Room1", "弟子房"),
+        ("Room2", "女弟子房"),
+        ("Door", "大门"),
+        ("Study", "讲经堂"),
+        ("Kitchen", "伙房"),
+        ("Secret", "神秘房子"),
+    ],
+    # 触发条件的月份 / 旬。节点里存字符串便于用 "any" 表示不限定；导出成
+    # manifest 时 "any" 会整条略去，其余转成契约要求的整数。
+    "month_limit": [("any", "不限")] + [("%d" % m, "%d 月" % m) for m in range(1, 13)],
+    "stage_limit": [("any", "不限"), ("1", "上旬"), ("2", "中旬"), ("3", "下旬")],
     # 原版 GameOverController 的按钮固定为“读档 / 标题画面”，没有自定义去向。
     # 保留该枚举名供旧 JSON 兼容，但编辑器只提供真实有效的 Title。
     "death_next": [("Title", "标题画面")],
@@ -435,6 +460,115 @@ def refresh_labels() -> None:
 
 
 refresh_labels()
+
+
+# --------------------------------------------------------------------------
+# 字段说明（属性面板里每个字段下方那一行中文备注）
+#
+# 62 种节点的字段加起来近 300 个，逐个手写文案既写不完也容易和 schema 脱节。
+# 所以分两层：
+#   1. 能推导的就现推——枚举字段直接列出全部选项（这正是作者最想知道的
+#      「选择范围」），数值/文本/引用类按类型给一句通用说明；
+#   2. 推导不出关键信息的，用 FIELD_HELP_KEYS 指向一条更具体的文案覆盖。
+# --------------------------------------------------------------------------
+FIELD_HELP_KEYS: dict[tuple[str, str], str] = {
+    ("end", "next_script"): "field_help.end.next_script",
+    ("goto_scene", "key"): "field_help.goto_scene.key",
+    ("free_trigger", "position"): "field_help.free_trigger.position",
+    ("free_trigger", "script"): "field_help.free_trigger.script",
+    ("free_trigger", "when_month"): "field_help.free_trigger.when_month",
+    ("free_trigger", "when_stage"): "field_help.free_trigger.when_stage",
+    ("free_trigger", "when_flag_set"): "field_help.free_trigger.when_flag_set",
+    ("free_trigger", "when_flag_clear"): "field_help.free_trigger.when_flag_clear",
+    ("free_trigger", "when_affinity"): "field_help.free_trigger.when_affinity",
+    ("free_trigger", "when_affinity_min"): "field_help.free_trigger.when_affinity_min",
+    ("free_trigger", "note"): "field_help.free_trigger.note",
+}
+
+# 字段类型 → 通用说明文案键。表里没有的类型统一走 field_help.other。
+_FIELD_HELP_KINDS: dict[str, str] = {
+    "int": "field_help.int",
+    "float": "field_help.float",
+    "bool": "field_help.bool",
+    "bool_int": "field_help.bool_int",
+    "line": "field_help.line",
+    "multiline": "field_help.multiline",
+    "code": "field_help.code",
+    "node_ref": "field_help.node_ref",
+    "story_ref": "field_help.story_ref",
+    "death_id": "field_help.death_id",
+    "character": "field_help.character",
+    "portrait": "field_help.portrait",
+    "view": "field_help.view",
+    "position": "field_help.position",
+    "music": "field_help.music",
+    "sound_name": "field_help.sound_name",
+    "stat": "field_help.stat",
+    "talent": "field_help.talent",
+    "item": "field_help.item",
+    "mode": "field_help.mode",
+    "facing": "field_help.facing",
+    "battle_skill": "field_help.battle_skill",
+    "battle_faction": "field_help.battle_faction",
+    "game_flag": "field_help.game_flag",
+    "affinity_character": "field_help.affinity_character",
+    "affinity_optional": "field_help.affinity_optional",
+    "voice": "field_help.voice",
+    "user_image": "field_help.user_image",
+    "ending_image": "field_help.ending_image",
+    "intro_image": "field_help.intro_image",
+    "goto_scene_key": "field_help.goto_scene_key",
+    "branch_source": "field_help.branch_source",
+    "discount_toggle": "field_help.discount_toggle",
+    "options": "field_help.options",
+    "cases": "field_help.cases",
+    "dice_bands": "field_help.dice_bands",
+    "reward_entries": "field_help.reward_entries",
+    "reward_entries_optional": "field_help.reward_entries",
+    "custom_shop_items": "field_help.custom_shop_items",
+    "combat_talents": "field_help.combat_talents",
+    "battle_faction_list": "field_help.battle_faction_list",
+    "official_characters": "field_help.official_characters",
+    "vars": "field_help.vars",
+    "effect": "field_help.effect",
+    "camera": "field_help.camera",
+    "menu_dialog": "field_help.menu_dialog",
+    "percent_scale": "field_help.percent",
+    "percent_cg_scale": "field_help.percent",
+    "percent_position": "field_help.percent",
+    "percent_offset": "field_help.percent",
+    "percent_opacity": "field_help.percent",
+}
+
+
+def _derive_field_help(kind: str) -> str:
+    """按字段类型推导一句说明；枚举字段直接列出全部选项。
+
+    不重复标注「是否可选」——字段标签后面已经带了（可选），说明只讲取值范围。
+    """
+    if kind.startswith("enum:"):
+        set_name = kind.split(":", 1)[1]
+        options = [display for _value, display in ENUM_SETS.get(set_name, [])]
+        return (
+            t("field_help.enum", options=" / ".join(options))
+            if options
+            else t("field_help.enum_empty", default=kind)
+        )
+    key = _FIELD_HELP_KINDS.get(kind)
+    return t(key) if key else t("field_help.other")
+
+
+def field_help(node_type: str, key: str, kind: str) -> str:
+    """属性面板里某个字段的中文说明（含义 + 取值范围）。
+
+    优先用 FIELD_HELP_KEYS 指定的具体文案；没有覆盖的按字段类型推导。
+    """
+    override = FIELD_HELP_KEYS.get((node_type, key))
+    if override:
+        text = t(override, default="")
+        if text:
+            return text
+    return _derive_field_help(kind)
 
 
 def enum_label(set_name: str, value: str) -> str:
@@ -1016,6 +1150,23 @@ NODE_SCHEMAS: dict[str, dict] = {
         "label": "结束剧情",
         "fields": [("next_script", "下一章节", "story_ref", True)],
     },
+    # 自由模式触发：本身不参与剧情流程，只是「登记一条触发器」，导出打包时会被
+    # 汇总进 manifest.campaign.triggers（引擎 v3 已原生支持，无需改运行时）。
+    # 通常放在 end 之后，表示「这段剧情结束、回到自由模式以后」的条件。
+    "free_trigger": {
+        "label": "自由模式触发",
+        "fields": [
+            ("position", "地图位置", "enum:map_position", False),
+            ("script", "触发剧情", "story_ref", False),
+            ("when_month", "限定月份", "enum:month_limit", True),
+            ("when_stage", "限定旬", "enum:stage_limit", True),
+            ("when_flag_set", "需要已设旗标", "flag_ref", True),
+            ("when_flag_clear", "需要未设旗标", "flag_ref", True),
+            ("when_affinity", "好感度人物", "affinity_optional", True),
+            ("when_affinity_min", "好感度下限", "int", True),
+            ("note", "备注（只给自己看）", "line", True),
+        ],
+    },
     "death": {
         "label": "死亡画面",
         "fields": [
@@ -1173,6 +1324,17 @@ _NODE_DEFAULTS: dict[str, dict] = {
     "panel": {"panel": "martial"},
     "wait": {"seconds": 1},
     "end": {},
+    "free_trigger": {
+        "position": "Center",
+        "script": "",
+        "when_month": "any",
+        "when_stage": "any",
+        "when_flag_set": "",
+        "when_flag_clear": "",
+        "when_affinity": "",
+        "when_affinity_min": 0,
+        "note": "",
+    },
     "death": {"title": "", "text": "", "death_id": "900001", "next": "Title"},
     "raw": {"code": "-- 原生 Lua 代码，原样插入编译产物\n"},
 }
@@ -1346,6 +1508,12 @@ def list_items(editor_data: dict, key: str) -> list[tuple[str, str]]:
             prefix_key = {
                 "dice_checks": "list.dice_check",
                 "game_flags": "list.game_flag",
+                # combat_ids / battle_ids 在 editor_data 里是纯 id 列表（没有名字），
+                # list.combat_template / list.battle_template 这两条四语种文案本来
+                # 就是为此准备的，却一直没人接上，导致下拉框只显示 "0001_01" 这种
+                # 裸 id。这里补上，与骰子检查点、游戏旗标保持同一套显示约定。
+                "combat_ids": "list.combat_template",
+                "battle_ids": "list.battle_template",
             }.get(key)
             display = (
                 t(prefix_key, default="原版数据 {id}", id=item_id)
@@ -2033,6 +2201,20 @@ def node_summary(node: dict, editor_data: dict | None = None) -> str:
     if nt == "custom_shop":
         discount = " / 原版折扣" if node.get("discount") else ""
         return f"{tcn}·{len(node.get('items', []))} 件{discount}"
+    if nt == "free_trigger":
+        place = enum_label("map_position", node.get("position", "")) or node.get(
+            "position", ""
+        )
+        when = []
+        month = node.get("when_month")
+        if month not in (None, "", "any"):
+            when.append(t("summary.month", n=month))
+        stage = node.get("when_stage")
+        if stage not in (None, "", "any"):
+            when.append(enum_label("stage_limit", str(stage)))
+        timing = "·".join(when) or t("summary.any_time")
+        target = node.get("script") or t("form.unselected", default="（未选）")
+        return f"{tcn}·{place}·{timing} → {target}"
     if nt in ("stat_check", "affinity_check", "talent_check"):
         key = node.get("key") or node.get("character") or node.get("talent", "")
         return (

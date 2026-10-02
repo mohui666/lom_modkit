@@ -109,6 +109,7 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
     - `when_month`：整数 1~12，仅该月份生效。
     - `when_stage`：整数 1~3（旬：上/中/下），仅该旬生效。
     - `when_affinity`：`{"character": <人物 id>, "min": <整数>}`，好感度 ≥ min。
+    - 也可以不写在清单里，而是在 story 中用 `free_trigger` 节点登记：打包时自动汇总进这里（清单里手写的排在前面，其次按文件名序 → 节点顺序；详见 §3.1）。
   - 默认官方主线/支线优先；`disable_official_events` 或 F7 临时开关生效时跳过官方任务判定，优先匹配 mod 触发器。
   - **触发器按战役隔离**：有活跃 mod 战役时只匹配当前战役 mod 的触发器；无战役时全部 mod 参与匹配、先加载者优先（加载顺序=文件名序）。
   - 触发器示例（练武场：好感事件 > 下旬晚练 > 默认闲逛）：
@@ -144,7 +145,7 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 - `choice` / `branch` / `dice` 的分支必须用 `goto` 指到目标节点 id。
 - 多个前驱汇入同一节点（汇合点）合法。
 
-### 3.1 节点类型（全量 62 种）
+### 3.1 节点类型（全量 63 种）
 
 此表是当前全部合法节点。`combat` / `battle` 使用稳定的运行时内部基线，不向作者暴露场景预设；战斗能力只调用已反编译核验的原版接口，`mod_quest` 则是明确不接触原版 Mission ID 的宿主状态机。
 
@@ -224,6 +225,7 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 | `panel` | `panel`("martial"/"weapon"/"poison"/"cg"/"cgvideo"/"shop"/"newshop"/"credit"/"endgame")；可选 `key`(cg/cgvideo/endgame 的 id), `discount`(shop 用, 默认0), `mode`(martial 用, 默认0) | 打开系统面板，除 newshop 外均 `runwait`：`martialpanel.Open(mode)`/`weaponupgradepanel.Open()`/`poisonupgradepanel.Open()`/`cgpanel.Open(key)`/`cgvideopanel.Open(key,0)`/`shoppanel.Open(discount)`/`shoppanel.NewShop()`/`creditpanel.Open()`/`endgamepanel.Open(key)` |
 | `wait` | `seconds` | `wait(seconds)` |
 | `end` | 可选 `next_script` | 有：`SetNextScript("MOD_<modid>_<id>")`+`Init()` 链到同包脚本；无：`ChangeScene("Free","","")` 回自由模式 |
+| `free_trigger` | `position`(地图位置 id：Center/Mall/Alchemy/Forge/BackMountain/Room1/Room2/Door/Study/Kitchen/Secret)、`script`(同包脚本 id)；可选 `when_month`(`any` 或 `"1"`~`"12"`)、`when_stage`(`any`/`"1"`/`"2"`/`"3"`)、`when_flag_set`、`when_flag_clear`、`when_affinity`(人物 id，留空=不判定)、`when_affinity_min`、`note`(只给自己看的备注) | **声明型节点**：本身不产生任何运行时指令，只登记一条自由模式触发器；打包时自动汇总进 `manifest.campaign.triggers`（清单里手写的排在前面，其次按「文件名序 → 节点顺序」）。因此它可以放在 `end` 之后而不影响收尾校验——判「末节点能否收尾」时会跳过声明型节点。打包器在顶层 `node_free_triggers` 保存本次生成项的快照；再次导入导出时先移除旧生成项，再按当前节点登记，因此修改或删除节点会同步生效。手写清单项保留原优先级；请勿手改该快照。好感度下限必须为 Int32 整数。放在剧情中间时按普通节点顺延到下一个节点 |
 | `death` | `text`（必填非空，多行合法）、`death_id`（必填）；可选 `title`（str，缺省「勝敗乃兵家常事」）、旧字段 `next` | **死亡文本**：黑屏过渡（view="black"）→ `mod_set_death_text(title, text)`（两参 lua_str 字面量，**不进 texts.json / 已读系统**）→ `luamanager.ChangeScene("GameOver", death_id, "Title")` 进**官方 GameOver 死亡画面**（黑底红字 + 读档/标题按钮，见 §6）；原版不读取自定义 next，旧值忽略并警告。`death_id` 必须是 ≥900000 的 mod 专属数字 id（否则 LomcError，见「死亡/结局 id 约定」）。终止节点（自带流转，不允许显式 goto，可作末节点收尾） |
 | `raw` | `code` | 原生 Lua 逃逸口：原样插入代码（多行合法）。**机制兜底**：任何节点表达不了的官方机制用它 |
 
@@ -460,7 +462,7 @@ transition 黑幕、choice 皮肤崩溃、背景黑屏、人物未登场就做�
 - Python API：
   - `load_editor_data()`：读取编辑器数据（含 dice_meta 等清单），返回 (editor_data, is_fallback)
   - `new_story(story_id="main", title="新剧情", mood=False)`：新建剧情脚本（show 登场 + 空 say 双节点开场，先登场再动作）
-  - `add_node(story, node_type, fields=None, after=None)`：按 models 默认值新增节点（62 种类型），未知类型/字段/类型不符→ValueError，节点 id 自动生成，after 指定插入位置（节点 id 或 None=末尾）。登场防线：动作类节点的目标人物在前面未登场/已退场时，自动在它前面插入 show
+  - `add_node(story, node_type, fields=None, after=None)`：按 models 默认值新增节点（63 种类型），未知类型/字段/类型不符→ValueError，节点 id 自动生成，after 指定插入位置（节点 id 或 None=末尾）。登场防线：动作类节点的目标人物在前面未登场/已退场时，自动在它前面插入 show
   - `update_node(story, node_id, fields)`：更新节点字段（同 add 的字段校验），节点不存在→ValueError。登场防线：更新后若动作人物未登场/已退场，自动在该节点前插入 show 并把指向它的 goto/选项/分支跳转改指新节点
   - `get_node(story, node_id)`：读取节点，不存在→ValueError
   - `list_nodes(story)`：返回 [{"id","type","summary"}] 清单

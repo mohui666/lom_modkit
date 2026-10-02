@@ -234,6 +234,11 @@ _ENUMS = {
     "facing": FACINGS,
     "death_next": ("Free", "Title"),
     "intro_source": ("official", "custom", "character"),
+    # free_trigger 用：地图位置沿用 manifest 触发器的同一套 id；
+    # 月份/旬存字符串，"any" 表示不限定——导出时该条件整条不写进 manifest。
+    "map_position": CAMPAIGN_POSITIONS,
+    "month_limit": ("any",) + tuple(str(m) for m in range(1, 13)),
+    "stage_limit": ("any", "1", "2", "3"),
 }
 
 # 字段类型标签 -> 中文类型名（用于报错）
@@ -525,6 +530,20 @@ _NODE_FIELDS = {
     ),
     "wait": ({"seconds": "num"}, {}),
     "end": ({}, {"next_script": "script_id"}),
+    # 自由模式触发（声明型，不参与剧情流程）。字段值与 manifest.campaign.triggers
+    # 契约一致，但 month/stage 在节点里存字符串以便留空，打包时转成整数。
+    "free_trigger": (
+        {"position": "map_position", "script": "script_id"},
+        {
+            "when_month": "month_limit",
+            "when_stage": "stage_limit",
+            "when_flag_set": "str",
+            "when_flag_clear": "str",
+            "when_affinity": "str",
+            "when_affinity_min": "num",
+            "note": "str",
+        },
+    ),
     "death": (
         {"text": "str", "death_id": "idstr"},
         {"title": "str", "next": "death_next"},
@@ -550,6 +569,11 @@ _TERMINAL_TYPES = (
     "end", "choice", "branch", "dice", "goto_scene", "raw", "death", "combat", "battle",
     "battle_result",
 ) + _CHECK_TYPES
+
+# 声明型节点：只登记配置，不产生剧情流转。判定「末节点能否收尾」时要跳过它们，
+# 否则「end 之后放一条自由模式触发」会被误报成「末节点无法结束」。
+# 注意它们不放进 _NO_FLOW_TYPES：放在剧情中间时仍需顺延到下一节点。
+_DECLARATION_TYPES = ("free_trigger",)
 
 # dice 选项的字段(§3.1)：三向 goto 载体（text/threshold 已废弃，以官方结果带元数据为准）
 _DICE_OPTION_GOTOS = ("goto_大成功", "goto_成功", "goto_失败")
@@ -609,6 +633,10 @@ def _check_node_fields(node, label):
                 '%s(%s): 可选字段 "%s" 必须是%s，实际为 %r'
                 % (label, ntype, name, _TYPE_NAMES[tag], node[name])
             )
+    if ntype == "free_trigger" and "when_affinity_min" in node:
+        minimum = node["when_affinity_min"]
+        if isinstance(minimum, bool) or not isinstance(minimum, int) or not -(2**31) <= minimum <= 2**31 - 1:
+            raise LomcError('%s: when_affinity_min 必须是 Int32 范围内的整数' % label)
     return ntype
 
 
@@ -1807,6 +1835,12 @@ def _validate_story_inner(story):
         raise LomcError('start 指向不存在的节点 "%s"' % start)
 
     # 第二遍：字段、goto、跨字段规则、收尾与兜底
+    # 收尾判定只看「会流转的节点」：声明型节点（free_trigger）可以放在 end 之后。
+    flow_indexes = [
+        i for i, n in enumerate(nodes)
+        if isinstance(n, dict) and n.get("type") not in _DECLARATION_TYPES
+    ]
+    last_flow_index = flow_indexes[-1] if flow_indexes else -1
     for i, node in enumerate(nodes):
         label = _node_label(node, i)
         ntype = _check_node_fields(node, label)
@@ -1817,7 +1851,7 @@ def _validate_story_inner(story):
                 '%s(%s): 该类型节点不允许显式 "goto"（流转由分支/跳转决定）'
                 % (label, ntype)
             )
-        is_last = i == len(nodes) - 1
+        is_last = i == last_flow_index
         # 契约 §4：最后一个节点不是 end/goto_scene/raw（或 choice/branch/dice
         # 这类自带全分支回转的结构）且无 goto → 校验错误
         if ntype not in _TERMINAL_TYPES and "goto" not in node and is_last:

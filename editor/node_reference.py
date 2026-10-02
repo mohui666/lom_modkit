@@ -95,6 +95,7 @@ RUNTIME_API: dict[str, str] = {
     "end": "Free scene or same-package next_script",
     "death": "GameOverPanel + MOD 9xxxxx ID",
     "raw": "MoonSharp/Fungus raw Lua",
+    "free_trigger": "manifest.campaign.triggers（打包时汇总；运行时由 CampaignPatch 按位置/月份/旬/旗标/好感度匹配）",
 }
 
 
@@ -152,6 +153,8 @@ KIND_DOCS: dict[str, str] = {
     "percent_position": "reference.kind.percent",
     "percent_offset": "reference.kind.percent",
     "percent_opacity": "reference.kind.percent",
+    "affinity_optional": "reference.kind.game_id",
+    "flag_ref": "reference.kind.game_id",
 }
 
 

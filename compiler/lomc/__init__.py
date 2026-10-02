@@ -29,7 +29,7 @@ from .schema_versions import CONTENT_SCHEMA, PACKAGE_FORMAT, STORY_SCHEMA
 from .story_lua_integrity import STORY_LUA_INTEGRITY_ENTRY
 from .validate import validate_manifest, validate_story
 
-__version__ = "1.1.2"
+__version__ = "1.2.0"
 
 __all__ = [
     "LomcError",

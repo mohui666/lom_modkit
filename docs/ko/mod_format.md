@@ -73,6 +73,7 @@ assets/                # 可选，自定义资源
     - `when_month`: 정수 1~12, 해당 월에만 유효.
     - `when_stage`: 정수 1~3(순: 상/중/하순), 해당 순에만 유효.
     - `when_affinity`: `{"character": <인물 id>, "min": <정수>}`, 호감도 ≥ min.
+    - 매니페스트에 쓰지 않고 story 안의 `free_trigger` 노드로 등록할 수도 있습니다: 패키징할 때 여기로 자동 취합됩니다(직접 쓴 것이 먼저, 그다음 파일명 순 → 노드 순. §3.1 참조).
   - 기본적으로 공식 메인/서브가 우선; `disable_official_events` 또는 F7 임시 스위치가 유효할 때는 공식 퀘스트 판정을 건너뛰고 mod 트리거를 우선 매칭합니다.
   - **트리거는 캠페인별로 격리**: 활성 mod 캠페인이 있으면 현재 캠페인 mod의 트리거만 매칭합니다; 캠페인이 없으면 모든 mod가 매칭에 참여하고 먼저 로드된 쪽이 우선합니다(로드 순서=파일명 순서).
   - 트리거 예시(연무장: 호감도 이벤트 > 하순 저녁 수련 > 기본 산책):
@@ -108,7 +109,7 @@ assets/                # 可选，自定义资源
 - `choice` / `branch` / `dice`의 분기는 반드시 `goto`로 대상 노드 id를 가리켜야 합니다.
 - 여러 선행 노드가 같은 노드로 합류(합류점)하는 것은 합법입니다.
 
-### 3.1 노드 타입(전체 62종)
+### 3.1 노드 타입(전체 63종)
 
 이 표가 현재 합법 노드 전부입니다. `combat` / `battle`은 원작 템플릿을 사용하는 고수준 편성입니다. 전투 기능은 디컴파일로 확인한 원작 API만 호출하고 `mod_quest`는 원작 Mission ID를 건드리지 않는 Host 상태 머신을 사용합니다.
 
@@ -182,6 +183,7 @@ assets/                # 可选，自定义资源
 | `panel` | `panel`("martial"/"weapon"/"poison"/"cg"/"cgvideo"/"shop"/"newshop"/"credit"/"endgame"); 선택 `key`(cg/cgvideo/endgame의 id), `discount`(shop용, 기본0), `mode`(martial용, 기본0) | 시스템 패널 열기, newshop 외에는 모두 `runwait`: `martialpanel.Open(mode)`/`weaponupgradepanel.Open()`/`poisonupgradepanel.Open()`/`cgpanel.Open(key)`/`cgvideopanel.Open(key,0)`/`shoppanel.Open(discount)`/`shoppanel.NewShop()`/`creditpanel.Open()`/`endgamepanel.Open(key)` |
 | `wait` | `seconds` | `wait(seconds)` |
 | `end` | 선택 `next_script` | 있음: `SetNextScript("MOD_<modid>_<id>")`+`Init()`로 같은 패키지 스크립트에 체인; 없음: `ChangeScene("Free","","")`로 자유 모드 복귀 |
+| `free_trigger` | `position`(맵 위치 id: Center/Mall/Alchemy/Forge/BackMountain/Room1/Room2/Door/Study/Kitchen/Secret), `script`(같은 패키지 스크립트 id); 선택 `when_month`(`any` 또는 `"1"`~`"12"`), `when_stage`(`any`/`"1"`/`"2"`/`"3"`), `when_flag_set`, `when_flag_clear`, `when_affinity`(캐릭터 id, 비우면 판정 안 함), `when_affinity_min`, `note`(자신만 보는 메모) | **선언형 노드**: 실행 시 아무 명령도 만들지 않고 자유 모드 트리거를 한 건 등록할 뿐입니다. 패키징할 때 `manifest.campaign.triggers` 로 자동 취합됩니다(매니페스트에 직접 쓴 것이 먼저, 그다음이 '파일명 순 → 노드 순'). 따라서 `end` 뒤에 두어도 마지막 노드 판정에 영향을 주지 않습니다(마지막 노드 판정에서 선언형 노드는 건너뜁니다). 패키징 도구는 생성 항목의 스냅샷을 최상위 `node_free_triggers` 에 저장합니다. 다시 불러와 내보낼 때 이전 생성 항목을 제거하고 현재 노드에서 등록하므로 노드 수정과 삭제도 반영됩니다. 직접 작성한 항목의 우선순위는 유지됩니다. 스냅샷은 직접 수정하지 마세요. 호감도 하한은 Int32 정수여야 합니다. 스토리 중간에 두면 일반 노드처럼 다음 노드로 이어집니다 |
 | `death` | `text`(필수, 비어 있으면 안 됨, 여러 줄 가능), `death_id`(필수); 선택 `title`(str, 기본값 「勝敗乃兵家常事」), 구 필드 `next` | **사망 텍스트**: 검은 화면 전환(view="black") → `mod_set_death_text(title, text)`(두 인자 lua_str 리터럴, **texts.json / 읽음 시스템에 들어가지 않음**) → `luamanager.ChangeScene("GameOver", death_id, "Title")`로 **공식 GameOver 사망 화면** 진입(검은 바탕 붉은 글자 + 로드/타이틀 버튼, §6 참조); 원작은 사용자 지정 next를 읽지 않으며, 구 값은 무시하고 경고. `death_id`는 반드시 ≥900000의 mod 전용 숫자 id여야 함(아니면 LomcError, 「사망/엔딩 id 약정」 참조). 종료 노드(자체 흐름 이행 포함, 명시적 goto 불가, 마지막 노드로 마무리 가능) |
 | `raw` | `code` | 네이티브 Lua 탈출구: 코드를 그대로 삽입(여러 줄 가능). **메커니즘 폴백**: 어떤 노드로도 표현할 수 없는 공식 메커니즘에 사용 |
 
@@ -409,7 +411,7 @@ transition 검은 막, choice 스킨 크래시, 배경 검은 화면, 인물이 
 - Python API:
   - `load_editor_data()`: 에디터 데이터 읽기(dice_meta 등 목록 포함), (editor_data, is_fallback) 반환
   - `new_story(story_id="main", title="新剧情", mood=False)`: 새 스토리 스크립트 작성(show 등장 + 빈 say 두 노드 오프닝, 등장 후 동작)
-  - `add_node(story, node_type, fields=None, after=None)`: models 기본값으로 노드 추가(62종), 알 수 없는 타입/필드/타입 불일치→ValueError, 노드 id 자동 생성, after로 삽입 위치 지정(노드 id 또는 None=끝). 등장 방어선: 동작류 노드의 대상 인물이 앞에서 등장하지 않았거나 이미 퇴장했으면 그 앞에 자동으로 show 삽입
+  - `add_node(story, node_type, fields=None, after=None)`: models 기본값으로 노드 추가(63종), 알 수 없는 타입/필드/타입 불일치→ValueError, 노드 id 자동 생성, after로 삽입 위치 지정(노드 id 또는 None=끝). 등장 방어선: 동작류 노드의 대상 인물이 앞에서 등장하지 않았거나 이미 퇴장했으면 그 앞에 자동으로 show 삽입
   - `update_node(story, node_id, fields)`: 노드 필드 업데이트(add와 같은 필드 검증), 노드 없음→ValueError. 등장 방어선: 업데이트 후 동작 인물이 미등장/퇴장 상태이면 해당 노드 앞에 자동으로 show를 삽입하고, 그곳을 가리키는 goto/옵션/분기 점프를 새 노드로 변경
   - `get_node(story, node_id)`: 노드 읽기, 없음→ValueError
   - `list_nodes(story)`: [{"id","type","summary"}] 목록 반환

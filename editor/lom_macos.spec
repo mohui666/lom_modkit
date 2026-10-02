@@ -5,6 +5,7 @@ from app_version import EDITOR_VERSION
 shared_data = [
     ("../data/editor_data.json", "data"),
     ("../data/preview_map.json", "data"),
+    ("../data/stage_positions.json", "data"),
     ("assets/lom_editor_icon.png", "assets"),
     ("assets/combo_arrow.svg", "assets"),
     ("i18n/locales", "i18n/locales"),

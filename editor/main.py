@@ -18,7 +18,7 @@ import sys
 import traceback
 from pathlib import Path
 
-from PySide6.QtCore import QSize, QTimer, Qt, Signal
+from PySide6.QtCore import QItemSelectionModel, QSize, QTimer, Qt, Signal
 from PySide6.QtGui import QAction, QColor, QDrag, QFont, QIcon, QKeySequence, QPainter
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -124,7 +124,7 @@ _ROLE_KIND = Qt.ItemDataRole.UserRole
 
 
 class StepListWidget(QListWidget):
-    """步骤树：可拖动重排；第 0 行「章节设置」固定不参与拖动。"""
+    """步骤树：可拖动重排、可 Shift/Ctrl 多选；第 0 行「章节设置」固定不参与。"""
 
     steps_moved = Signal(int, int)  # from_index, insert_index（均为 nodes[] 下标语义）
 
@@ -135,11 +135,25 @@ class StepListWidget(QListWidget):
         self.setDropIndicatorShown(True)
         self.setDefaultDropAction(Qt.DropAction.MoveAction)
         self.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
-        self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        # 多选用于「复制多个步骤」；拖动仍然只搬当前这一项（见 startDrag）。
+        self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
 
     @staticmethod
     def _is_chapter(item: QListWidgetItem | None) -> bool:
         return item is not None and item.data(_ROLE_KIND) == "chapter"
+
+    def selectionCommand(self, index, event=None):  # noqa: N802
+        """章节设置行与分区标题行不参与多选。
+
+        它们不是 steps[] 里的步骤，被 Ctrl/Shift 一起选进来会让「复制 N 个步骤」
+        的计数和粘贴位置的推断都变得没有意义。
+        """
+        item = self.item(index.row()) if index.isValid() else None
+        if item is None or self._is_chapter(item):
+            return QItemSelectionModel.SelectionFlag.NoUpdate
+        if isinstance(item.data(_ROLE_KIND), tuple):  # 分区/分组标题
+            return QItemSelectionModel.SelectionFlag.NoUpdate
+        return super().selectionCommand(index, event)
 
     def startDrag(self, supported_actions) -> None:  # noqa: N802
         item = self.currentItem()
@@ -890,6 +904,11 @@ class MainWindow(
         self._prompt_on_discard = True  # 测试可关：有未保存修改时的确认弹窗
         self._source_kind = "untitled"
         self._source_path: Path | None = None
+        # 步骤剪贴板：存被复制节点的深拷贝，粘贴时在目标位置插入并重新编号。
+        # 只放在内存里，不写系统剪贴板——步骤是结构化数据，走系统剪贴板会和
+        # 文本粘贴互相干扰，也容易被别的程序覆盖。
+        self._node_clipboard: list[dict] = []
+        self._clipboard_story_id = ""
         self._recovery_session: RecoverySession | None = None
         self._recovery_error_logged = False
 
@@ -1011,6 +1030,15 @@ class MainWindow(
         rename_shortcut.setShortcutContext(Qt.ShortcutContext.WidgetShortcut)
         rename_shortcut.triggered.connect(self._rename_current_node)
         self.node_list.addAction(rename_shortcut)
+        for shortcut, slot in (
+            (QKeySequence.StandardKey.Copy, self._copy_selected_nodes),
+            (QKeySequence.StandardKey.Paste, self._paste_nodes),
+        ):
+            action = QAction(self)
+            action.setShortcut(shortcut)
+            action.setShortcutContext(Qt.ShortcutContext.WidgetShortcut)
+            action.triggered.connect(slot)
+            self.node_list.addAction(action)
         lv.addWidget(self.node_list, stretch=1)
 
         add_btn = QPushButton(t("nav.add_step"))
@@ -2282,6 +2310,19 @@ class MainWindow(
             self.story["start"] = nodes[0].get("id", "")
         self._refresh_all(select_row=min(row, len(nodes) - 1))
 
+    def _follow_start_on_front_change(self, old_front_id: str) -> None:
+        """节点在列表第 0 位附近移动后，让起始步骤跟随新的第 0 位。
+
+        用户把某一步拖到/移到最前，意图就是「让它成为第一步」；若不同步 start，
+        右侧流程图仍从旧 start 推演，会把新的第 0 位标成「无法到达」。仅当 start
+        原本就指向旧的第 0 位时才跟随——分支剧情里 start 可能指向别处，此时不动。
+        """
+        nodes = self.story.get("nodes", [])
+        if not nodes:
+            return
+        if self.story.get("start") == old_front_id:
+            self.story["start"] = str(nodes[0].get("id") or "")
+
     def _move_node(self, delta: int) -> None:
         nodes = self.story.get("nodes", [])
         row = self._selected_node_index()
@@ -2289,7 +2330,9 @@ class MainWindow(
         if not (0 <= row < len(nodes) and 0 <= to < len(nodes)):
             return
         self._record_discrete()
+        old_front = str(nodes[0].get("id") or "")
         nodes[row], nodes[to] = nodes[to], nodes[row]
+        self._follow_start_on_front_change(old_front)
         self._refresh_all(select_row=to)
 
     def _on_steps_moved(self, from_index: int, insert_index: int) -> None:
@@ -2305,7 +2348,9 @@ class MainWindow(
             self._load_form()
             return
         self._record_discrete()
+        old_front = str(nodes[0].get("id") or "")
         dest = models.reorder_node(self.story, from_index, insert_index)
+        self._follow_start_on_front_change(old_front)
         self._refresh_all(select_row=dest)
         self.statusBar().showMessage(t("nav.moved", n=dest + 1), 2500)
 
@@ -2350,8 +2395,8 @@ class MainWindow(
             t("nav.rename_ok", old=old_id, new=new_id, n=changed), 4000
         )
 
-    def _copy_node(self) -> None:
-        """复制当前步骤并插入到其后。"""
+    def _duplicate_node_in_place(self) -> None:
+        """原地复制：把当前步骤复制一份插到它后面（不经过剪贴板）。"""
         node = self._current_node()
         if node is None:
             return
@@ -2359,11 +2404,85 @@ class MainWindow(
         clone["id"] = models.make_node_id(self.story, str(clone.get("type") or "n"))
         self._insert_node(clone, f"已复制步骤为 {clone['id']}")
 
+    # ------------------------------------------------------- 多选复制 / 粘贴
+    def _selected_node_indexes(self) -> list[int]:
+        """当前选中的步骤在 nodes[] 中的下标，按播放顺序升序。
+
+        章节设置行与分区标题行会被跳过——它们不在 nodes[] 里。
+        """
+        indexes = []
+        for item in self.node_list.selectedItems():
+            data = item.data(self._ROLE_KIND)
+            if isinstance(data, int) and not isinstance(data, bool):
+                indexes.append(int(data))
+        return sorted(set(indexes))
+
+    def _copy_selected_nodes(self) -> None:
+        """把选中的步骤（单个或多个）拷进内存剪贴板。"""
+        indexes = self._selected_node_indexes()
+        nodes = self.story.get("nodes", [])
+        picked = [nodes[i] for i in indexes if 0 <= i < len(nodes)]
+        if not picked:
+            # 没多选时退回「当前行」，这样单选/键盘操作也符合直觉
+            current = self._selected_node_index()
+            if 0 <= current < len(nodes):
+                picked = [nodes[current]]
+        if not picked:
+            self.statusBar().showMessage(t("nav.copy_none"), 3000)
+            return
+        self._node_clipboard = copy.deepcopy(picked)
+        self._clipboard_story_id = self._current_id
+        self.statusBar().showMessage(
+            t("nav.copied", n=len(self._node_clipboard)), 3000
+        )
+
+    def _paste_nodes(self) -> None:
+        """把剪贴板里的步骤粘贴到当前选中步骤之后，并重新编号。"""
+        if not self._node_clipboard:
+            self.statusBar().showMessage(t("nav.paste_empty"), 3000)
+            return
+        self._record_discrete()
+        clones = copy.deepcopy(self._node_clipboard)
+        mapping = self._allocate_clone_ids(clones)
+        # 只对副本集合做引用重映射：用临时 story 调 retarget，避免把原剧情里
+        # 指向原节点的跳转也改掉（那会把原步骤的去向改乱）。
+        models.retarget_node_ids({"nodes": clones}, mapping)
+
+        nodes = self.story.setdefault("nodes", [])
+        row = self._selected_node_index()
+        at = row + 1 if 0 <= row < len(nodes) else len(nodes)
+        nodes[at:at] = clones
+        self._refresh_all(select_row=at)
+        self.statusBar().showMessage(
+            t("nav.pasted", n=len(clones), m=at + 1), 4000
+        )
+
+    def _allocate_clone_ids(self, clones: list[dict]) -> dict[str, str]:
+        """给副本分配本 story 内唯一的新编号，返回 旧 id → 新 id 的映射。
+
+        逐个累加进 draft，保证同一批里多个同类型步骤不会拿到同一个编号
+        （make_node_id 只看它拿到的那份 nodes）。
+        """
+        draft = {"nodes": list(self.story.get("nodes", []))}
+        mapping: dict[str, str] = {}
+        for clone in clones:
+            old_id = str(clone.get("id") or "")
+            new_id = models.make_node_id(draft, str(clone.get("type") or "n"))
+            draft["nodes"].append({"id": new_id})
+            if old_id:
+                mapping[old_id] = new_id
+            else:
+                clone["id"] = new_id
+        return mapping
+
     def _on_node_context_menu(self, pos) -> None:
         item = self.node_list.itemAt(pos)
         if item is None or self._is_chapter_item(item):
             return
-        self.node_list.setCurrentItem(item)
+        # 右键已选中的条目要保留整块多选：setCurrentItem 会清空选区，
+        # 那样「Shift 选中 5 个 → 右键复制」就只剩最后点的那一个了。
+        if not item.isSelected():
+            self.node_list.setCurrentItem(item)
         if self._is_structure_item(item):
             data = item.data(self._ROLE_KIND)
             menu = QMenu(self)
@@ -2374,9 +2493,17 @@ class MainWindow(
             menu.addAction(t("sections.manage"), self._show_story_sections)
             menu.exec(self.node_list.mapToGlobal(pos))
             return
+        selected = len(self._selected_node_indexes())
         menu = QMenu(self)
         menu.addAction(t("nav.rename"), self._rename_current_node)
-        menu.addAction(t("nav.copy"), self._copy_node)
+        menu.addSeparator()
+        menu.addAction(
+            t("nav.copy_many", n=selected) if selected > 1 else t("nav.copy"),
+            self._copy_selected_nodes,
+        )
+        paste = menu.addAction(t("nav.paste"), self._paste_nodes)
+        paste.setEnabled(bool(self._node_clipboard))
+        menu.addAction(t("nav.duplicate_here"), self._duplicate_node_in_place)
         menu.addAction(t("nav.delete"), self._delete_node)
         menu.addSeparator()
         menu.addAction(t("nav.move_up"), lambda: self._move_node(-1))
@@ -2711,6 +2838,8 @@ class MainWindow(
         )
         self.statusBar().showMessage("发布构建完成：%s" % result.package_path, 5000)
         return True
+
+
 
 
 def main() -> int:

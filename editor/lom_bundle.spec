@@ -18,6 +18,7 @@ a_gui = Analysis(
     datas=[
         ("../data/editor_data.json", "data"),
         ("../data/preview_map.json", "data"),
+        ("../data/stage_positions.json", "data"),
         ("assets/lom_editor_icon.png", "assets"),
         ("assets/combo_arrow.svg", "assets"),
         ("assets/doorstop/win-x86-doorstop.dll", "assets/doorstop"),

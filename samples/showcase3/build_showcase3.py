@@ -39,11 +39,11 @@ MANIFEST = {
     "min_host_version": "1.1.2",
     "id": "showcase3",
     "campaign_id": "showcase3",
-    "name": "全节点样例3.0·六十二节点实机验收",
+    "name": "全节点样例3.0·六十三节点实机验收",
     "version": "3.0.0",
     "author": "lom_modkit",
     "description": (
-        "面向手动验收的 62 节点完整样例：用户图片/角色/音频、演出、"
+        "面向手动验收的 63 节点完整样例：用户图片/角色/音频、演出、"
         "数值与检定、MOD 任务/持久变量、奖励/商店、原版 Combat/Battle "
         "编排、独立决斗背景、运行时人物绑定、死亡与安全返回。"
     ),
@@ -556,7 +556,7 @@ def build_finale() -> dict:
         story,
         "全节点样例 3.0：主动选择的死亡画面测试。",
         death_id="930001",
-        title="六十二节点·测试谢幕",
+        title="六十三节点·测试谢幕",
         next="Title",
     )["id"]
     safe = _node(story, "goto_scene", {"scene": "Free"})
@@ -564,6 +564,22 @@ def build_finale() -> dict:
         story,
         [("测试死亡画面（回标题）", death), ("安全返回 Free", safe)],
         after=start,
+    )
+    # 声明型节点：登记一条自由模式触发器（打包时汇总进 manifest.campaign.triggers）。
+    # 用旗标门控，样例装进游戏后不会真的打断玩家；放在最后也不影响收尾校验。
+    _node(
+        story,
+        "free_trigger",
+        {
+            "position": "Secret",
+            "script": "finale",
+            "when_month": "7",
+            "when_stage": "3",
+            "when_flag_set": "SHOWCASE3_FREE_TRIGGER",
+            "when_affinity": "brother4",
+            "when_affinity_min": 3,
+            "note": "样例：7 月下旬且旗标 SHOWCASE3_FREE_TRIGGER 已设置时，在神秘房子再进终章",
+        },
     )
     return story
 

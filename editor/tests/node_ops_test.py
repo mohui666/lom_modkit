@@ -142,7 +142,8 @@ def test_window_rename_and_drag():
     assert ids[0] == "talk"
     assert ids[1] == first
     assert win.node_list.count() == 1 + len(win.story["nodes"])
-    listed = [win.node_list.item(i).text() for i in range(1, win.node_list.count())]
+    # 列表正文使用步骤名称，技术编号显示在悬停提示中。
+    listed = [win.node_list.item(i).toolTip() for i in range(1, win.node_list.count())]
     assert any("talk" in line for line in listed), listed
     # 原地放下也必须把列表从数据重建，不能让 Qt MoveAction 删掉那一行
     before_count = win.node_list.count()

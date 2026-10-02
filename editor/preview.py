@@ -49,23 +49,28 @@ def log_crash(text: str) -> None:
         pass
 
 
-# 站位 → 舞台 x 比例（0=左缘，1=右缘；S 系为屏幕外，画一半）
-POSITION_X: dict[str, float] = {
-    "SL": -0.06,
-    "SR": 1.06,
-    "L1": 0.12,
-    "L2": 0.22,
-    "L3": 0.30,
-    "LM1": 0.34,
-    "LM2": 0.40,
-    "M": 0.50,
-    "C": 0.50,
-    "RM2": 0.60,
-    "RM1": 0.66,
-    "R3": 0.70,
-    "R2": 0.78,
-    "R1": 0.88,
+# 站位锚点表（权威值来自游戏剧情场景，见 data/stage_positions.json 与
+# tools/extract_stage_positions.py）：x = 横向比例（0=左缘，1=右缘，可越界表示屏外），
+# feet = 脚底距画面顶部比例（1080 参考）。基准行（L1/R1/M 等）feet≈1.003，即角色
+# 脚底刚好站在画面底边；S/M/B 行分别更低（越靠后越往下）。
+_STAGE_POSITIONS_FALLBACK: dict[str, tuple[float, float]] = {
+    "L1": (0.145313, 1.002778), "L2": (0.249479, 1.002778), "L3": (0.353646, 1.002778),
+    "LB1": (0.145313, 2.009009), "LB2": (0.249479, 2.009009), "LB3": (0.353646, 2.009009),
+    "LM1": (0.145313, 1.203704), "LM2": (0.249479, 1.203704), "LM3": (0.353646, 1.203704),
+    "LS1": (0.145313, 1.037037), "LS2": (0.249479, 1.037037), "LS3": (0.353646, 1.037037),
+    "M": (0.5, 1.002778), "MB": (0.5, 2.009009), "MM": (0.5, 1.203704), "MS": (0.5, 1.037037),
+    "R1": (0.646354, 1.002778), "R2": (0.750521, 1.002778), "R3": (0.854688, 1.002778),
+    "RB1": (0.646354, 2.009009), "RB2": (0.750521, 2.009009), "RB3": (0.854688, 2.009009),
+    "RM1": (0.646354, 1.203704), "RM2": (0.750521, 1.203704), "RM3": (0.854688, 1.203704),
+    "RS1": (0.646354, 1.037037), "RS2": (0.750521, 1.037037), "RS3": (0.854688, 1.037037),
+    "SL": (-0.5, 1.002778), "SLB": (-0.5, 2.009009),
+    "SR": (1.5, 1.002778), "SRB": (1.5, 2.009009),
+    "BC1": (0.5, 1.248148), "BC2": (0.5, 1.002778), "BCB2": (0.5, 3.240741),
+    "C": (0.5, 1.002778),
+    "TALK": (0.253646, 1.028704),
 }
+
+_STAGE_POSITIONS: dict[str, tuple[float, float]] = dict(_STAGE_POSITIONS_FALLBACK)
 
 # 颜色
 BG_FALLBACK = QColor(43, 43, 43)  # 无背景图时的深灰底
@@ -91,6 +96,7 @@ def load_preview_map(proj_root: Path) -> tuple[dict, Path]:
     返回 (素材映射, data 目录)。文件不存在/损坏时返回 ({}, data 目录)，
     调用方按"无预览素材，使用占位图"处理。
     """
+    load_stage_positions(proj_root)
     data_dir = proj_root / "data"
     from game_install import GameInstallManager
     from preview_library import read_preview_library
@@ -113,30 +119,55 @@ def load_preview_map(proj_root: Path) -> tuple[dict, Path]:
 # ---------------------------------------------------------------------------
 # 舞台状态推演
 # ---------------------------------------------------------------------------
+def load_stage_positions(proj_root: Path) -> dict[str, tuple[float, float]]:
+    """读取 <项目根>/data/stage_positions.json；缺失/损坏时回退内置兜底值。
+
+    表里是 (x 比例, 脚底比例)，权威值由 tools/extract_stage_positions.py 从游戏
+    剧情场景提取；内置兜底值与之一致，保证没有该 JSON 时预览仍正确。
+    """
+    global _STAGE_POSITIONS
+    try:
+        payload = json.loads(
+            (proj_root / "data" / "stage_positions.json").read_text(encoding="utf-8")
+        )
+        positions = payload.get("positions") if isinstance(payload, dict) else None
+        if isinstance(positions, dict):
+            merged: dict[str, tuple[float, float]] = {}
+            for name, val in positions.items():
+                if (
+                    isinstance(val, dict)
+                    and isinstance(val.get("x"), (int, float))
+                    and isinstance(val.get("feet"), (int, float))
+                ):
+                    merged[str(name).upper()] = (float(val["x"]), float(val["feet"]))
+            if merged:
+                _STAGE_POSITIONS = merged
+    except Exception:  # noqa: BLE001
+        pass
+    return _STAGE_POSITIONS
+
+
+def position_anchor(position: str) -> tuple[float, float, bool]:
+    """站位字符串 → (x 比例, 脚底比例, 是否识别)。识别失败兜底中央、脚底在底边。"""
+    p = (position or "").strip().upper()
+    entry = _STAGE_POSITIONS.get(p)
+    if entry is not None:
+        return entry[0], entry[1], True
+    if p in ("M", "C"):
+        return 0.5, 1.002778, True
+    return 0.5, 1.002778, False
+
+
 def position_x(position: str) -> tuple[float, bool]:
     """站位字符串 → (舞台 x 比例, 是否识别成功)。识别失败兜底中央。"""
-    p = (position or "").strip().upper()
-    if p in POSITION_X:
-        return POSITION_X[p], True
-    if p in ("M", "C"):
-        return 0.5, True
-    # 宽松解析：L/R 开头 + 数字；带 M 的（如 LM2/RM2）中间偏
-    if len(p) >= 2 and p[0] in ("L", "R"):
-        side = -1.0 if p[0] == "L" else 1.0
-        digits = "".join(ch for ch in p if ch.isdigit())
-        try:
-            n = int(digits) if digits else 2
-        except ValueError:
-            n = 2
-        if "M" in p[1:]:
-            offset = 0.10  # 带 M：中间偏
-        else:
-            offset = {1: 0.38, 2: 0.28, 3: 0.20}.get(n, 0.30)
-        x = 0.5 + side * offset
-        if p.startswith("S"):  # 不会到这里（S 开头不在 L/R），防御而已
-            x = -0.06 if side < 0 else 1.06
-        return x, True
-    return 0.5, False
+    x, _feet, known = position_anchor(position)
+    return x, known
+
+
+def position_feet(position: str) -> float:
+    """站位字符串 → 脚底距画面顶部比例（1080 参考）；识别失败回到底边。"""
+    _x, feet, _known = position_anchor(position)
+    return feet
 
 
 def _hint_text(node: dict, ed: dict) -> str | None:

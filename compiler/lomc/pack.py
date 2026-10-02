@@ -47,6 +47,85 @@ _MAX_ENDING_IMAGE_BYTES = 8 * 1024 * 1024
 _IMAGE_EXTS = (".png", ".jpg", ".jpeg")
 
 
+def free_trigger_from_node(node):
+    """把 free_trigger 节点转成 manifest.campaign.triggers 的一项。
+
+    返回 None 表示「这个节点还不完整，先不登记」——字段的完整性由
+    validate_story 报给作者，这里只保证不崩、也不产出非法项。
+    """
+    if not isinstance(node, dict) or node.get("type") != "free_trigger":
+        return None
+    position = node.get("position")
+    script = node.get("script")
+    if not isinstance(position, str) or not position:
+        return None
+    if not isinstance(script, str) or not script:
+        return None
+    trigger = {"type": "position", "position": position, "script": script}
+    # 节点里月份/旬存的是字符串（"any" = 不限定），契约要求整数
+    for key in ("when_month", "when_stage"):
+        raw = node.get(key)
+        if raw is None or raw == "" or raw == "any":
+            continue
+        try:
+            trigger[key] = int(str(raw))
+        except (TypeError, ValueError):
+            return None
+    for key in ("when_flag_set", "when_flag_clear"):
+        value = node.get(key)
+        if isinstance(value, str) and value.strip():
+            trigger[key] = value.strip()
+    character = node.get("when_affinity")
+    if isinstance(character, str) and character.strip():
+        minimum = node.get("when_affinity_min", 0)
+        trigger["when_affinity"] = {"character": character.strip(), "min": minimum}
+    return trigger
+
+
+def merge_node_free_triggers(manifest, story_dir, story_files):
+    """把剧情里 free_trigger 节点登记的触发器并进 manifest.campaign.triggers。
+
+    清单里手写的触发器排在前面（保持既有优先级语义），剧情登记的按
+    「文件名序 → 节点顺序」追加在后——数组顺序就是运行时优先级。
+    node_free_triggers 记录上次由节点生成的项。先移除这些旧项，再按当前节点
+    生成，确保重新导入后修改或删除声明会生效；手写项保留顺序和优先级。
+    """
+    entries = []
+    for fname in story_files:
+        story = load_json_file(os.path.join(story_dir, fname))
+        if not isinstance(story, dict):
+            continue
+        for node in story.get("nodes") or []:
+            trigger = free_trigger_from_node(node)
+            if trigger is not None:
+                entries.append(trigger)
+    previous = manifest.get("node_free_triggers", [])
+    if not isinstance(previous, list) or any(not isinstance(t, dict) for t in previous):
+        raise LomcError('manifest.node_free_triggers 必须是打包器生成的触发器数组')
+    if not entries and not previous:
+        return 0
+    campaign = manifest.get("campaign")
+    if not isinstance(campaign, dict):
+        raise LomcError('story/ 里登记了自由模式触发，但 manifest 缺少 "campaign"')
+    existing = list(campaign.get("triggers", []))
+    for old in reversed(previous):
+        for index in range(len(existing) - 1, -1, -1):
+            if existing[index] == old:
+                del existing[index]
+                break
+    generated = []
+    for trigger in entries:
+        if trigger not in existing:
+            existing.append(trigger)
+            generated.append(trigger)
+    campaign["triggers"] = existing
+    if generated:
+        manifest["node_free_triggers"] = generated
+    else:
+        manifest.pop("node_free_triggers", None)
+    return len(entries)
+
+
 def pack_mod(mod_dir, output=None):
     """校验并打包 mod 目录，返回生成的 .lommod 路径。"""
     mod_dir = os.path.normpath(mod_dir)
@@ -58,9 +137,6 @@ def pack_mod(mod_dir, output=None):
         raise LomcError("mod 目录缺少 manifest.json: %s" % mod_dir)
     manifest = load_json_file(manifest_path)
     validate_manifest(manifest)
-    manifest = dict(manifest)
-    manifest.update(version_declarations())
-    manifest["format"] = manifest["package_format"]  # compatibility spelling
 
     story_dir = os.path.join(mod_dir, "story")
     if not os.path.isdir(story_dir):
@@ -75,6 +151,14 @@ def pack_mod(mod_dir, output=None):
         raise LomcError("story/ 目录读取失败: %s" % e)
     if not story_files:
         raise LomcError("story/ 目录下没有任何 .json 剧情脚本（至少 1 个）")
+
+    # 先把剧情里登记的触发器并进清单再校验：这样它们走的是同一套 manifest 校验
+    # （位置 id / 脚本 id / 月份范围 / 好感结构），不用另写一份平行规则。
+    merge_node_free_triggers(manifest, story_dir, story_files)
+    validate_manifest(manifest)
+    manifest = dict(manifest)
+    manifest.update(version_declarations())
+    manifest["format"] = manifest["package_format"]  # compatibility spelling
 
     # 逐个校验 + 编译；同时收集脚本 id 集与 texts.json 的已读文本表
     compiled = {}  # 脚本 id -> lua 源码

@@ -150,7 +150,7 @@ Lua 환경 격리와 전체 수명 주기 정리 · 일회성 단축키 마이�
 | [문서 색인](docs/ko/README.md) | 언어 네비게이션과 독자 가이드 |
 | [사용자 콘텐츠 보관함](docs/ko/user_content.md) | 사용자 지정 오디오 / 대사 음성 사용법 |
 | [현재 기능과 경계](docs/ko/current_capabilities.md) | 구현됨, 저수준만 제공, 미구현 기능의 경계 |
-| [Mod 패키지 형식 규약](docs/ko/mod_format.md) | 패키지 구조, 62종 노드, 컴파일 규약, 런타임 동작 |
+| [Mod 패키지 형식 규약](docs/ko/mod_format.md) | 패키지 구조, 63종 노드, 컴파일 규약, 런타임 동작 |
 | [AI / CLI 매뉴얼](docs/ko/ai_cli.md) | story_api 명령줄과 Python API |
 | [다국어](docs/ko/i18n.md) | 인터페이스와 문서의 i18n 아키텍처 |
 

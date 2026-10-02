@@ -65,16 +65,104 @@ def reveal_combo_text_start(combo: QComboBox) -> None:
 
 
 class _FilterCombo(QComboBox):
-    """可输入筛选的下拉：弹出层只显示匹配项，并限制可见行数。"""
+    """可输入筛选的下拉：弹出层只显示匹配项，并限制可见行数。
+
+    输入框里的文字**只当筛选词用，不会成为选中值**。
+
+    这是必须的：人物有 400 多条、背景 150 多条，超过阈值的下拉框会被强制变成
+    可输入筛选框。用户为了在长清单里找人，必然会打字（比如输「武」找「武师」），
+    而 QComboBox 会把这段临时文字当作 currentText 抛出来——如果直接取它当值，
+    节点里的人物就会变成 "武"，导出时报「人物必须保存内部 ID，不能使用下拉显示
+    文字」，作者只能手工去改 JSON。
+
+    所以这里单独记住「上一次真正选中的值」，筛选期间取它，等于什么都没改。
+    """
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._all_items: list[tuple[object, str]] = []
+        self._committed: object = None  # 最近一次真正选中的值
+        self._typing = False  # 用户正在输入筛选词
+        # 清单重建（_rebuild）会 blockSignals，所以这里只会记录真正的选中动作，
+        # 不会被筛选过程污染。
+        self.currentIndexChanged.connect(self._remember_commit)
+
+    def _remember_commit(self, _index: int) -> None:
+        if self.currentText() == self.itemText(self.currentIndex()):
+            self._committed = self.currentData()
+
+    def bind_typing(self) -> None:
+        """把输入框里的用户编辑识别为「正在筛选」。
+
+        textEdited 只在用户真的打字时发出，程序设置文本（选中清单项）不会触发，
+        所以可以准确区分「输入筛选词」和「点选条目」。
+        """
+        edit = self.lineEdit()
+        if edit is None:
+            return
+        edit.textEdited.connect(self._on_user_typed)
+        edit.editingFinished.connect(self.finish_typing)
+
+    def prime_committed(self, value: object) -> None:
+        """记住初始值，供「筛选时不改动原值」使用。"""
+        self._committed = value
+
+    def committed_value(self) -> object:
+        return self._committed
+
+    def is_typing(self) -> bool:
+        return self._typing
+
+    def text_fallback_value(self, text: str) -> str:
+        """与清单条目对不上的文字该当成什么值——基类一律「不是值」。
+
+        判据是「文字和当前条目不一致」，而不是「用户是否正在打字」：程序化改文本
+        （补全器回填、清单重建等）时前者照样成立，用后者会漏掉。
+        筛选框里的文字是筛选词，保持上一次真正选中的值不变即可。
+        需要「手填清单外的值」的子类（如跳转框）在这里覆盖。
+        """
+        committed = self._committed
+        return "" if committed is None else str(committed)
+
+    def _on_user_typed(self, text: str) -> None:
+        self._typing = True
+        self._apply_filter(text)
+
+    def finish_typing(self) -> None:
+        """结束输入：能对上清单条目就当作选中，否则还原成上一个有效值。
+
+        没有这一步的话，筛选词会一直留在输入框里，看起来像已经选好了。
+        """
+        if not self._typing:
+            return
+        self._typing = False
+        text = self.currentText().strip()
+        if text:
+            for index in range(self.count()):
+                data = self.itemData(index)
+                if self.itemText(index).strip() == text or (
+                    data is not None and str(data) == text
+                ):
+                    self.setCurrentIndex(index)  # 触发正常写回
+                    return
+        self._restore_committed_text()
+
+    def _restore_committed_text(self) -> None:
+        index = self.findData(self._committed)
+        if index < 0:
+            index = self.currentIndex()
+        self.blockSignals(True)
+        if index >= 0 and self.itemText(index):
+            self.setCurrentText(self.itemText(index))
+        else:
+            self.setCurrentText("" if self._committed in (None, "") else str(self._committed))
+        self.blockSignals(False)
 
     def remember_items(self) -> None:
         self._all_items = [(self.itemData(i), self.itemText(i)) for i in range(self.count())]
 
     def showPopup(self) -> None:  # noqa: N802
+        self._typing = False
         typed = self.currentText() if self.lineEdit() is not None else ""
         current = self.currentData()
         idx = self.findData(current)
@@ -106,6 +194,9 @@ class _FilterCombo(QComboBox):
         self._rebuild(shown, keep)
 
     def _rebuild(self, items: list[tuple[object, str]], current) -> None:
+        # 正在筛选时，重建清单会把输入框文字改成当前条目的文字，
+        # 必须把用户输入原样留住——否则筛到第二个字输入就没了。
+        typed = self.currentText() if self.lineEdit() is not None else ""
         self.blockSignals(True)
         self.clear()
         for data, text in items:
@@ -114,13 +205,15 @@ class _FilterCombo(QComboBox):
             idx = self.findData(current)
             if idx >= 0:
                 self.setCurrentIndex(idx)
+        if self.lineEdit() is not None and self._typing:
+            self.setCurrentIndex(-1)
+            self.lineEdit().setText(typed)
         self.blockSignals(False)
         reveal_combo_text_start(self)
 
     def hidePopup(self) -> None:  # noqa: N802
         super().hidePopup()
         reveal_combo_text_start(self)
-
 
 class _GotoCombo(_FilterCombo):
     """跳转目标：打开时按当前剧情节点刷新清单，点选立刻写回。"""
@@ -129,11 +222,41 @@ class _GotoCombo(_FilterCombo):
         super().__init__(parent)
         self._form = form
         self._allow_empty = allow_empty
+        # 结束输入时认下来的「手写编号」，仅供紧接着那次提交使用
+        self._typed_target: str | None = None
 
     def showPopup(self) -> None:  # noqa: N802
         if isValid(self._form):
             self._form.refill_goto_combo(self, self._allow_empty)
         super().showPopup()
+
+    def text_fallback_value(self, text: str) -> str:
+        # 跳转框允许填「尚未创建的编号」，所以 finish_typing 认下来的手写编号照常提交
+        if self._typed_target is not None:
+            return self._typed_target
+        return super().text_fallback_value(text)
+
+    def finish_typing(self) -> None:
+        if not self._typing:
+            return
+        text = self.currentText().strip()
+        for index in range(self.count()):
+            data = self.itemData(index)
+            if text and (
+                self.itemText(index).strip() == text
+                or (data is not None and str(data) == text)
+            ):
+                self._typing = False
+                self._typed_target = None
+                self.setCurrentIndex(index)
+                return
+        # 对不上任何节点：按「手填编号」提交（导出校验会指出目标不存在）
+        self._typing = False
+        self._typed_target = text
+        try:
+            self.currentTextChanged.emit(self.currentText())
+        finally:
+            self._typed_target = None
 
 
 class NodeForm(QScrollArea):
@@ -284,7 +407,7 @@ class NodeForm(QScrollArea):
             )
             if optional:
                 shown += t("field.optional")
-            form.addRow(shown, widget)
+            form.addRow(shown, self._with_field_help(widget, node_type, key, kind))
         outer.addLayout(form)
 
         # 自带分支/跨场景流转的节点不再提供额外 goto。
@@ -318,6 +441,29 @@ class NodeForm(QScrollArea):
             outer.addWidget(adv_btn)
             outer.addWidget(adv_body)
         return wrap
+
+    @staticmethod
+    def _with_field_help(
+        widget: QWidget, node_type: str, key: str, kind: str
+    ) -> QWidget:
+        """把控件与它下方的一行中文说明叠成一格。
+
+        说明写在「修改数值的下方」，讲清含义与取值范围（枚举字段直接列出全部
+        选项）。没有说明可写时原样返回，不留空行。
+        """
+        text = models.field_help(node_type, key, kind)
+        if not text:
+            return widget
+        box = QWidget()
+        column = QVBoxLayout(box)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(2)
+        column.addWidget(widget)
+        hint = QLabel(text)
+        hint.setWordWrap(True)
+        hint.setProperty("context_help", True)
+        column.addWidget(hint)
+        return box
 
     @staticmethod
     def _field_visible(node_type: str, key: str, node: dict) -> bool:
@@ -472,7 +618,8 @@ class NodeForm(QScrollArea):
                     for item_id, display in items
                 ]
                 return self._combo_from_items(node, key, items, value)
-            return self._list_combo(node, key, data_key, value)
+            combo = self._list_combo(node, key, data_key, value)
+            return combo
         if kind == "mode":
             items = [
                 (m, f"{models.MODE_CN.get(m, m)}（{m}）")
@@ -568,10 +715,33 @@ class NodeForm(QScrollArea):
             )
             return w
         if kind == "story_ref":
-            # end.next_script：包内剧情脚本 id 下拉（可编辑，允许指向未创建脚本）
+            # end.next_script：可留空表示「返回自由模式」；free_trigger.script 必填
+            if node.get("type") == "end" and key == "next_script":
+                items = [("", t("form.return_free_mode"))] + [
+                    (sid, sid) for sid in self._story_ids
+                ]
+                w = self._make_combo(items, value or "", editable=True)
+                w.currentTextChanged.connect(
+                    lambda t, c=w: self._apply(
+                        node, key, self._combo_value(c, t).strip() or None
+                    )
+                )
+                return w
             return self._combo_from_items(
                 node, key, [(sid, sid) for sid in self._story_ids], value
             )
+        if kind == "flag_ref":
+            # 自由模式触发的旗标条件：列出剧情里 flag 步骤设过的旗标，可手填、可留空
+            items = [("", t("form.unlimited"))] + [
+                (flag, flag) for flag in self._flag_items()
+            ]
+            w = self._make_combo(items, value or "", editable=True)
+            w.currentTextChanged.connect(
+                lambda t, c=w: self._apply(
+                    node, key, self._combo_value(c, t).strip() or None
+                )
+            )
+            return w
         if kind == "line":
             w = QLineEdit("" if value is None else str(value))
             if node.get("type") == "death" and key == "title":
@@ -603,6 +773,17 @@ class NodeForm(QScrollArea):
                     value or "",
                     editable=False,
                 )
+            w.currentTextChanged.connect(
+                lambda text, c=w: self._apply(node, key, self._combo_value(c, text))
+            )
+            return w
+        if kind == "affinity_optional":
+            # 与 affinity_character 同源，但多一个「（不限）」：自由模式触发的好感度
+            # 是可选条件，默认必须是不限定，否则会凭空要求某个人物的好感度。
+            items = [("", t("form.unlimited"))] + models.affinity_character_items(
+                self._editor_data
+            )
+            w = self._make_combo(items, value or "", editable=False)
             w.currentTextChanged.connect(
                 lambda text, c=w: self._apply(node, key, self._combo_value(c, text))
             )
@@ -812,7 +993,14 @@ class NodeForm(QScrollArea):
             w.setCurrentIndex(idx)
         elif editable or long_list:
             w.setCurrentText(current)
-        return self._configure_combo(w, filterable=long_list)
+        combo = self._configure_combo(w, filterable=long_list)
+        if long_list and hasattr(w, "bind_typing"):
+            # 只有长清单才会被强制变成筛选框；这时输入框是「筛选词」而不是值
+            # （见 _FilterCombo）。短清单保持原来的「手输即取值」行为。
+            w.bind_typing()
+            # 必须放在 _configure_combo 之后：它内部的 setEditable 会重置记录值
+            w.prime_committed(current)
+        return combo
 
     def _make_image_picker(
         self, node: dict, key: str, value, placeholder: str
@@ -1144,6 +1332,25 @@ class NodeForm(QScrollArea):
         )
         return w
 
+    def _flag_items(self) -> list[str]:
+        """剧情里所有「记录剧情 flag」步骤设过的旗标名，供自由模式触发的旗标条件下拉。
+
+        触发器判定查的是游戏 StoryKeyList（由 flag 节点 statmodifymanager.AddStory 写入），
+        所以这里只收 flag 节点的 key；跨章节也会纳入（旗标可在前一章设、后一章判定）。
+        """
+        seen: set[str] = set()
+        try:
+            window = self.window()
+            for story in (getattr(window, "_stories", {}) or {}).values():
+                if not isinstance(story, dict):
+                    continue
+                for n in story.get("nodes") or []:
+                    if isinstance(n, dict) and n.get("type") == "flag" and n.get("flag"):
+                        seen.add(str(n["flag"]))
+        except Exception:  # noqa: BLE001
+            pass
+        return sorted(seen)
+
     def _rebuild_current(self) -> None:
         """延迟重建表单（回到事件循环后执行）。
 
@@ -1158,9 +1365,9 @@ class NodeForm(QScrollArea):
         """固定枚举写回；item.kind / goto_scene.scene 等切换后重建表单刷新联动清单。"""
         if self._loading:
             return
-        val = combo.currentData()
-        if val is None:
-            val = combo.currentText()
+        # 走统一的取值规则：下拉框条目多时会被强制变成筛选框，输入框里的文字
+        # 只是筛选词，不能当成枚举值写回（否则「找 12 月」打成「1」就把月份改成 1）。
+        val = self._combo_value(combo, combo.currentText())
         if val == node.get(key):
             return
         node[key] = val
@@ -1266,7 +1473,12 @@ class NodeForm(QScrollArea):
             w.setCurrentIndex(idx)
         else:
             w.setCurrentText(current or "")
-        return self._configure_combo(w, filterable=len(items) > COMBO_VISIBLE_ITEMS)
+        # 跳转框本身总是可编辑的（允许填尚未创建的编号），所以不分长短清单都要绑定：
+        # 否则「当前值为空、控件却停在第 0 项」时对不上条目，取到的会是第 0 个节点的 id。
+        w.bind_typing()
+        combo = self._configure_combo(w, filterable=len(items) > COMBO_VISIBLE_ITEMS)
+        w.prime_committed(current)  # 必须在 _configure_combo 之后：它会重置记录值
+        return combo
 
     @staticmethod
     def _combo_value(combo: QComboBox, text: str) -> str:
@@ -1280,9 +1492,10 @@ class NodeForm(QScrollArea):
         if matched >= 0 and combo.itemData(matched) is not None:
             return str(combo.itemData(matched))
         index = combo.currentIndex()
-        if combo.isEditable() and (
-            index < 0 or combo.currentText() != combo.itemText(index)
-        ):
+        mismatch = index < 0 or combo.currentText() != combo.itemText(index)
+        if isinstance(combo, _FilterCombo) and mismatch:
+            return combo.text_fallback_value(text)
+        if combo.isEditable() and mismatch:
             return text
         data = combo.currentData()
         return str(data) if data is not None else text
