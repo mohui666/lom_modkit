@@ -69,14 +69,12 @@ class ProjectControllerMixin:
         self.game_manager.save_pref(key, str(Path(path).parent))
 
     def open_story(self) -> None:
-        if not self._confirm_discard():
-            return
-        path, _ = QFileDialog.getOpenFileName(
-            self, "打开", self._last_dir("last_story_dir"), "story JSON (*.json)"
-        )
-        if path:
-            self._remember_dir("last_story_dir", path)
-            self._load_story_path(Path(path))
+        """打开…：默认打开一个「工作文件夹」（整个剧情目录），而非单个文件。
+
+        用户的工作流是「一个文件夹 = 一个项目（内含多个章节剧情 JSON）」，
+        所以默认打开动作直接选文件夹；单文件/多文件仍可从「打开多个文件」进入。
+        """
+        self.open_story_folder()
 
     def open_story_folder(self) -> None:
         """打开文件夹：把里面的 story JSON 一次性载入为同一项目的多个章节。

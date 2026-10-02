@@ -55,6 +55,7 @@
 
 ## 维护
 
+- 「打开…」（Ctrl+O）默认改为打开**工作文件夹**（整个剧情目录），而非单个文件；单文件/多文件仍可从「打开多个文件」进入。
 - 节点类型数 62 → 63，文档（README ×4、文档索引、能力清单、格式契约四语言）与 `showcase3` 样例已同步；样例构建会硬性校验节点全覆盖。
 - 新增回归测试：`plus_multiselect_test`（多选复制）、`test_free_trigger`（编译器 12 项）、`filter_combo_test`（下拉框取值）、`stage_position_test`（站位表）、`start_sync_test`（起始步骤跟随第 0 位）、`form_field_test`（结束剧情清空 + 旗标条件下拉）。
 
