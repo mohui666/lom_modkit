@@ -203,7 +203,9 @@ namespace MortalModHost
                 {
                     if (stat == null) return false;
                     GameTime time = stat.GameTime;
-                    if (time == null) return false;
+                    // GameTime.operator == dereferences both operands, including
+                    // null. A normal equality check rejects every timed trigger.
+                    if (ReferenceEquals(time, null)) return false;
                     if (trigger.WhenMonth != null && time.Month != trigger.WhenMonth.Value) return false;
                     if (trigger.WhenStage != null && (int)time.Stage != trigger.WhenStage.Value) return false;
                 }

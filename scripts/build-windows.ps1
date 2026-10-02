@@ -84,14 +84,17 @@ if ($Version -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') {
 }
 $VersionSources = @{
     "Editor" = $EditorVersion
-    "bundled Runtime" = $BundledRuntimeVersion
     "Compiler" = $CompilerVersion
-    "Runtime plugin" = $PluginVersion
 }
 foreach ($Item in $VersionSources.GetEnumerator()) {
     if ($Item.Value -ne $Version) {
         throw "$($Item.Key) version $($Item.Value) does not match release $Version"
     }
+}
+# Editor-only releases can keep the existing Host. Its advertised bundled
+# version must still match the plugin being shipped.
+if ($BundledRuntimeVersion -ne $PluginVersion) {
+    throw "bundled Runtime version $BundledRuntimeVersion does not match Runtime plugin $PluginVersion"
 }
 
 if ([string]::IsNullOrWhiteSpace($BundleDirectory)) {

@@ -90,7 +90,7 @@ def create_project_template(key: str, editor_data: dict | None = None) -> dict:
         manifest = new_project_manifest()
         completed = manifest["campaign_id"] + "_event_done"
         main = _story("自由模式开场", [
-            {"id": "welcome", "type": "say", "mode": "narrative", "text": "现在可以自由养成。一月上旬前往练功场，开始一次性示例剧情。其余时间正常养成。"},
+            {"id": "welcome", "type": "say", "mode": "narrative", "text": "现在可以自由养成。四月上旬前往练功场，开始一次性示例剧情。其余时间正常养成。"},
             {"id": "free", "type": "end"},
         ])
         event = _story("练功场剧情", [
@@ -99,7 +99,9 @@ def create_project_template(key: str, editor_data: dict | None = None) -> dict:
             {"id": "free", "type": "end"},
         ])
         event["id"] = "training_event"
-        manifest["campaign"]["triggers"] = [{"type": "position", "position": "Center", "script": "training_event", "when_month": 1, "when_stage": 1, "when_flag_clear": completed}]
+        # SaveSystem.NewGameData initializes SetGameTime(1, 4, 上旬).
+        # Keep the starter event reachable immediately in a new campaign.
+        manifest["campaign"]["triggers"] = [{"type": "position", "position": "Center", "script": "training_event", "when_month": 4, "when_stage": 1, "when_flag_clear": completed}]
         return {"stories": {"main": main, "training_event": event}, "current_story_id": "main", "manifest": manifest}
     if key == "empty":
         story = _story("空项目", [{"id": "end1", "type": "end"}])

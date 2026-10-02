@@ -38,7 +38,8 @@ class FreeModePortraitsTest(unittest.TestCase):
     def test_free_mode_package_has_time_place_once_and_returns_to_free(self):
         project = create_project_template("free_mode_story")
         trigger = project["manifest"]["campaign"]["triggers"][0]
-        self.assertEqual((trigger["position"], trigger["when_month"], trigger["when_stage"]), ("Center", 1, 1))
+        self.assertEqual((trigger["position"], trigger["when_month"], trigger["when_stage"]), ("Center", 4, 1))
+        self.assertIn("四月上旬", project["stories"]["main"]["nodes"][0]["text"])
         event = project["stories"][trigger["script"]]
         self.assertEqual(event["nodes"][-2]["flag"], trigger["when_flag_clear"])
         self.assertFalse(project["manifest"]["campaign"].get("disable_official_events", False))

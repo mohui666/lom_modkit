@@ -10,7 +10,7 @@ import tempfile
 import unittest
 import zipfile
 
-from app_version import EDITOR_VERSION
+from app_version import EDITOR_VERSION, RUNTIME_VERSION
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -49,7 +49,8 @@ class WindowsReleasePackagingTest(unittest.TestCase):
         self.temp.cleanup()
 
     def run_packager(
-        self, *extra: str, output_directory: Path | None = None
+        self, *extra: str, output_directory: Path | None = None,
+        script: Path = SCRIPT,
     ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [
@@ -58,7 +59,7 @@ class WindowsReleasePackagingTest(unittest.TestCase):
                 "-ExecutionPolicy",
                 "Bypass",
                 "-File",
-                str(SCRIPT),
+                str(script),
                 "-Version",
                 EDITOR_VERSION,
                 "-BundleDirectory",
@@ -125,6 +126,29 @@ class WindowsReleasePackagingTest(unittest.TestCase):
         (cache / "secret.pyc").write_bytes(b"cache")
         result = self.run_packager()
         self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(self.archive.exists())
+
+    def test_rejects_mismatched_runtime_declaration(self):
+        repository = self.root / "version-mismatch"
+        sources = (
+            "scripts/build-windows.ps1", "editor/app_version.py",
+            "compiler/lomc/__init__.py", "runtime/MortalModHost/src/Plugin.cs",
+        )
+        for name in sources:
+            target = repository / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ROOT / name, target)
+        app_version = repository / "editor/app_version.py"
+        app_version.write_text(
+            app_version.read_text(encoding="utf-8").replace(
+                f'RUNTIME_VERSION = "{RUNTIME_VERSION}"',
+                'RUNTIME_VERSION = "9.9.9"',
+            ),
+            encoding="utf-8",
+        )
+        result = self.run_packager(script=repository / "scripts/build-windows.ps1")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("does not match Runtime plugin", result.stdout + result.stderr)
         self.assertFalse(self.archive.exists())
 
     def test_rejects_wrong_version_and_incomplete_bundle(self):
