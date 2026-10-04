@@ -27,7 +27,7 @@ mod_id_hash = 720435D441F942141A10BE8AA833C874
 payload     = 4C4F4D5701010000720435D441F942141A10BE8AA833C8741C08EE6D
 ```
 
-Python `lomc.watermark_protocol` 与 C# `ProvenanceWatermarkProtocol` 必须同时通过。
+Rust `lom_core::watermark` 与 C# `ProvenanceWatermarkProtocol` 必须通过相同黄金向量。
 未知 protocol 拒绝；非零 flags/reserved 拒绝。
 
 ## 画面嵌入（algorithm v1）

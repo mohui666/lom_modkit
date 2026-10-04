@@ -11,17 +11,11 @@
 | 材料 | 用途 |
 | --- | --- |
 | [`research/gameplay_api.md`](../../research/gameplay_api.md) | 已确认能力、可实现范围、明确不支持项 |
-| [`research/gameplay_api_contract.json`](../../research/gameplay_api_contract.json) | 程序集大小、SHA-256、必须仍存在的源码片段 |
+| [`research/gameplay_api_contract.json`](../../research/gameplay_api_contract.json) | 已确认的接口片段；不计算程序集哈希 |
 | 本机 `Mortal_Data/Managed/*.dll` | 当前游戏的真实接口；以它为准。用 `ilspycmd` **只读**查询，结果留在本机 |
-| [`docs/research/decompiled/`](../research/decompiled/) | 本机归档，**已 gitignore，不要上传**。缺 Battle/Combat，也不能当现网证据 |
+| `docs/research/decompiled/` | 可选的本机归档目录，**已 gitignore，不随仓库提供，不要上传**。缺 Battle/Combat，也不能当现网证据 |
 
-游戏更新后先跑：
-
-```powershell
-python tools/verify_gameplay_api.py --json
-```
-
-哈希或片段对不上：停下来重新审计，不要沿用旧结论。
+游戏更新后，只查询本次涉及的当前类型和方法，再核对已有接口结论。按照根目录规则，不运行基于程序集哈希的验证，也不因文档维护而启动 Windows 或游戏测试。相关类型或安全入口不可用时，记录具体限制，不猜测替代 API。
 
 ## 怎么查一个类型
 
@@ -33,8 +27,8 @@ ilspycmd -t Mortal.Combat.CombatEnemyController "$managed\Mortal.Combat.dll"
 ```
 
 只读反编译。不要把反编译结果写回游戏目录，也不要 commit / 打进 Release。
-可以上传的是我们自己写的接口摘要（本页、`research/gameplay_api.md`、contract
-哈希），不是游戏程序集转出来的整份 `.cs`。
+可以上传的是我们自己写的接口摘要（本页、`research/gameplay_api.md` 和 contract
+中的接口说明），不是游戏程序集转出来的整份 `.cs`。
 
 ## 已经用过的入口（摘要）
 

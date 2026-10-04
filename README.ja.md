@@ -1,196 +1,52 @@
 # lom_modkit
 
-> Current source uses the Rust editor/compiler. Existing release downloads and their legacy menu descriptions refer to the published version. See For Developers for the current build.
+**『活侠伝』（Legend of Mortal）のストーリー Mod を作るビジュアルツールです。**
 
+会話、背景、分岐、音声を編集して `.lommod` に書き出し、C# のゲームホストで読み込みます。
 
-**『活俠傳』（Legend of Mortal）ビジュアルシナリオ Mod 制作ツール。**
+> 言語：[中文（CHS）](README.md) · [中文（CHT）](README.cht.md) · 日本語（このページ） · [한국어](README.ko.md)
 
-Lua を書く必要はありません。グラフィカルエディターで人物の台詞、シーン演出、分岐シナリオ、音楽・効果音を組み立て、
-ワンクリックで `.lommod` を書き出し、そのままゲーム内で実行できます。
+## バージョンとダウンロード
 
-[![Release v1.1.1](https://img.shields.io/badge/release-v1.1.1-blue)](https://github.com/mohui666/lom_modkit/releases/latest)
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)](#互換性)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-
-**[⬇ Windows 版をダウンロード](https://github.com/mohui666/lom_modkit/releases/download/v1.1.1/lom_modkit-v1.1.1_windows_x64.zip)** ·
-[クイックスタート](#クイックスタート) ·
-[ドキュメント](docs/ja/README.md)
-
-> 言語：[中国語（CHS）](README.md) · [中国語（CHT）](README.cht.md) · 日本語（本文） · [한국어](README.ko.md)
-
-<!-- TODO(宣伝素材): ここに 8〜15 秒のループ GIF を置く：
-     lom_editor.exe を開く → 新規シナリオ → キャラクター／台詞／シーン／音楽を選択 → F5 → ゲーム内の実際の演出。
-     推奨パスは docs/assets/screenshots/demo.gif。作成後は ![demo](docs/assets/screenshots/demo.gif) でこのコメントを置き換える。 -->
-
-## これは何
-
-lom_modkit を使うと、『活俠傳』が**本来持つ人物、シーン、音楽、エフェクト、数値システム**をそのまま使ってオリジナルシナリオを作れます。
-グラフィカルエディターでクリックして設定し、独立した `.lommod` Mod パッケージとして書き出すと、ゲーム内プラグインが読み込んで演出します。
-「新戦役を開始」（ニューゲームの流れを引き継ぎ、セーブスロットを分離）とフリーモードのマップ地点トリガーに対応しています。
-
-ファン制作のツールであり、ゲーム開発元とは無関係です。ゲーム本体のファイルは一切含みません。MIT ライセンス。
-
-## できること
-
-- **ビジュアルシナリオ編集**：人物、台詞、表情、立ち位置、シーン、音楽、効果音、エフェクトをすべて UI で設定できます。
-- **分岐シナリオ**：選択肢、条件分岐、属性判定、ダイス判定、複数チャプターの連鎖スクリプトに対応。
-- **ストーリー内容のローカライズ**：同じ Story で簡体字・繁体字・日本語・韓国語を管理でき、既定言語と欠落時のフォールバックに対応。旧プロジェクトの移行は不要です。
-- **ゲームコンテンツを直接呼び出し**：ゲーム既存の人物、シーン、音楽、演出システムを使えるため、自分で一から作り直す必要はありません。
-- **カスタム音声と台詞ボイス**：`.ogg` / `.wav` を取り込み、音楽・効果音として、またキャラクターの台詞ごとのボイスとして使えます。
-- **ワンクリックでゲーム内試遊**：任意のシナリオステップを選んで F5 を押すと、そのステップから直接ゲームでテストできます。
-- **本物の Mod パッケージ**：書き出した `.lommod` は自己完結型で、そのまま他のプレイヤーに配れます。
-
-## クイックスタート
-
-### 1. ダウンロード
-
-[lom_modkit-v1.1.1_windows_x64.zip](https://github.com/mohui666/lom_modkit/releases/download/v1.1.1/lom_modkit-v1.1.1_windows_x64.zip) をダウンロードして解凍します。Python のインストールは不要です。
-
-### 2. 起動
-
-`lom_editor.exe` を実行します。
-
-### 3. 『活俠傳』に接続
-
-メニュー「ファイル → インストール管理」で `Mortal.exe` を含むゲームフォルダーを選び、「BepInEx をインストール」をクリックします。
-エディターが互換性のある BepInEx 6 とゲーム内ランタイムを自動でダウンロード・インストールし、Steam 通常起動用の修正も書き込みます。
-
-### 4. 最初のシナリオを作る
-
-新規シナリオ → キャラクターを追加 → 台詞を追加 → **F5** で試遊。
-
-### 5. 書き出し
-
-書き出すと `xxx.lommod` が得られます。あとは相手に渡すだけです（相手側にも本ツールでインストールしたランタイムが必要です）。
-
-## スクリーンショット
-
-<!-- TODO(宣伝素材): 少なくとも 4 枚の画像。docs/assets/screenshots/ に置くのがおすすめ：
-     ① メインエディターの全体像 ② シナリオフロー図 ③ ユーザー音声／台詞ボイス ④ ゲーム内の実際の効果。
-     コメントを解除してパスを差し替える：
-![シナリオエディター](docs/assets/screenshots/editor.png)
-![ゲーム内の効果](docs/assets/screenshots/ingame.png)
-![分岐とフロー図](docs/assets/screenshots/flow_graph.png)
--->
-
-## シナリオ制作のためのワークフロー
-
-### 任意の位置から試遊（F5）
-
-ステップを選んで **F5** を押すと、エディターが独立した一時パッケージを生成し、ゲームが安全なシーンに到達した時点で自動的にそのステップから開始します。
-開始前には、そのステップ以前の舞台状態（現在のシーン、舞台上の人物の立ち位置・表情・向き）が自動で補完されるため、
-シナリオの途中から入っても「キャラクターが存在しない」ことによるブラックスクリーンにはなりません。一時パッケージは正式な Mod を上書きせず、読み込み後に自動で削除されます。
-
-### 書き出し前の検査（F6）
-
-**F6** でチェックできる項目：コンパイルエラー、断線や到達不能ステップ、無限ループ、プレースホルダーテキスト、不足している素材、
-誤ったユーザー音声参照、「人物が登場する前に発言・行動する」ブラックスクリーンのリスク。問題をダブルクリックすると該当ステップに移動できます。
-「安全な自動修復」はシナリオの意味を変えない機械的な問題（人物の自動登場補完を含む）だけを処理し、元に戻す操作に対応しています。
-
-### シナリオフロー図
-
-右側の「フロー図」には実際のジャンプの接続線が表示され（1 対多の分岐は色で区別）、断線、
-終了できない無限ループ、到達不能ステップは赤枠と文字で同時に示されます。
-
-## ユーザーコンテンツ
-
-PC 上のキャラクター、音声、画像を「ユーザーコンテンツ庫」（メニュー「ファイル → ユーザーコンテンツ庫」）に取り込むと、安定した番号
-（例：`user:mohui.battle`）が付き、シナリオステップでは「ユーザー / 公式」のグループに分けて選択できます。シナリオにはこの番号だけを保存します。
-書き出し時は現在の Mod が実際に参照しているコンテンツだけが同梱されるため、プレイヤーの PC は作者のローカルコンテンツ庫に依存しません。
-
-| コンテンツ種別 | 状態 |
+| バージョン | 内容 |
 | --- | --- |
-| カスタム音楽 / 効果音 / 環境音 | ✅ 対応済み |
-| キャラクター台詞ボイス | ✅ 対応済み |
-| カスタム立ち絵 / 称号 / 紹介カード / 体型 | ✅ 対応済み |
-| カスタム背景 / CG / Overlay 画像 | ✅ 対応済み |
-| コミュニティコンテンツ庫 | ◯ Roadmap |
+| **現在のソース：v1.2.0** | エディターとコンパイラーは Rust に移行済みです。C# ゲームホストと `.lommod` v3 の仕様は維持しています。 |
+| **最新の公開リリース（2026-10-04 時点）：v1.1.1** | 旧 Python / Qt ツールの Windows 版です。現在の Rust エディターではありません。 |
 
-詳しい使い方は [ユーザーコンテンツ庫のドキュメント](docs/ja/user_content.md) を参照してください。
+[旧版 v1.1.1 をダウンロード（Windows）](https://github.com/mohui666/lom_modkit/releases/download/v1.1.1/lom_modkit-v1.1.1_windows_x64.zip) · [v1.1.1 リリース情報](https://github.com/mohui666/lom_modkit/releases/tag/v1.1.1)
 
-## 他人が作った Mod をインストールする
+現在の Rust エディターはソースから実行またはビルドしてください。旧版の `lom_editor.exe`、メニュー、操作手順は Rust 版とは異なります。
 
-`.lommod` をエディターの「ファイル → インストール管理」でインストールし、有効にチェックを入れるだけです
-（手動のパス：`BepInEx/plugins/MortalModHost/mods/`）。
-ゲームに入ったら、フリーシーン／タイトル画面左下の「活俠MOD」ボタン（または F8）を押し、
-「mod シナリオを再生」または「新戦役を開始」を選びます。ゲーム内メニューはゲームの現在の言語に従います。
+## 現在のバージョンを実行する
 
-## 互換性
-
-| 項目 | 状態 |
-| --- | --- |
-| Windows 10/11 | ✅ |
-| Steam 版『活俠傳』 | ✅（通常起動の修正を含む） |
-| BepInEx | エディターが自動インストール |
-| Python | Windows 版では不要 |
-| ゲーム原本ファイルの改変 | 不要 |
-
-## 現在のバージョン
-
-**v1.1.1**：F5 がゲームを直接起動して Steamworks が初期化されず、試遊用の分離セーブを作れない問題を修正。Release 検査から公開情報画面を直接開けるようにし、凍結版へ誤った ICU DLL が混入する起動障害も修正しました。
-
-詳しい変更は [1.1.1 Release Notes](RELEASE_NOTES_v1.1.1.md) と [Release Notes](https://github.com/mohui666/lom_modkit/releases) を参照してください。
-
-**v1.1.0**：原作風 MOD セーブ画面と MOD ごとの 001～020 分離スロットを整備し、Combat/Battle のロード、ラウンド、HP 復元を修正しました。
-
-**v1.0.0**：Editor/Runtime バージョン統一 · `.lommod` v2 厳格検証と Story/Lua 整合性 ·
-Lua 環境分離と完全なライフサイクル清掃 · 一度限りのホットキー移行 · Runtime 自動テストと CI。
-
-**v0.7.0**：カスタム立ち絵 · 台詞ボイス紐づけ · 紹介カードと称号 · 体型スライダー ·
-退場時の清台 · ノードを種類で番号付け。
-
-全変更内容は [Release Notes](https://github.com/mohui666/lom_modkit/releases) を参照してください。
-
-## Roadmap
-
-- コミュニティコンテンツリポジトリ（ユーザーコンテンツの共有・再利用）
-- 作者向け戦闘 / 戦役オーケストレーション層（現在は検証済み低レベルノードのみ）
-
-## ドキュメント
-
-| ドキュメント | 内容 |
-| --- | --- |
-| [ドキュメント索引](docs/ja/README.md) | 言語ナビゲーションと読者ガイド |
-| [ユーザーコンテンツ庫](docs/ja/user_content.md) | カスタム音声 / 台詞ボイスの使い方 |
-| [現在の機能と境界](docs/ja/current_capabilities.md) | 実装済み、低レベルのみ、未実装の境界 |
-| [Mod パッケージ形式の契約](docs/ja/mod_format.md) | パッケージ構造、63 種のノード、コンパイル規約、ランタイムの挙動 |
-| [AI / CLI マニュアル](docs/ja/ai_cli.md) | story_api コマンドラインと Python API |
-| [多言語対応](docs/ja/i18n.md) | UI とドキュメントの i18n アーキテクチャ |
-
-## For Developers
-
-The editor and compiler use Rust. The C# game Host and v3 package contract are retained. `rust/lom-core` owns compilation, packages, content and controlled authoring; `rust/lomc` is the CLI; `rust/lom-editor` is the native editor. Python is only used by independent research/extraction scripts in `tools/`.
+リポジトリのルートで実行します。
 
 ```sh
 cargo run --locked -p lom-editor
-cargo run --locked -p lomc -- check samples/showcase3/story/main.json --json
-cargo test --locked --workspace
-cargo run --locked -p lomc --example build_showcase3 -- out/showcase3-native
+```
+
+macOS アプリのビルド：
+
+```sh
 scripts/build-macos.sh
 ```
 
-macOS output: `out/LoM Modkit Rust.app`. Windows builder: `scripts/build-windows.ps1`, with prebuilt C# Host DLLs; `-NoArchive` skips ZIP creation. Windows and in-game testing were not run during this migration.
+出力先は `out/LoM Modkit Rust.app` です。環境と素材の設定は[現在の Mac ガイド（簡体字中国語）](docs/chs/macos.md)、Windows のビルドと C# ホストの要件は [Rust 移行ガイド（簡体字中国語）](docs/chs/rust_migration.md)を参照してください。
 
-[Migration coverage](docs/chs/rust_migration.md) · [CLI](docs/chs/ai_cli.md)
+## ドキュメント
 
-## FAQ
+**現在の操作手順は簡体字中国語版を正本とします。** 日本語・繁体字中国語・韓国語の旧 UI ガイドは、まだ Rust 版に完全対応していません。Qt のメニューや Python のコマンドは旧版の参考情報です。
 
-**Q：Steam で「開始」を押しても「活俠MOD」ボタンが出ない、F8 が反応しない？**
-エディターの「ファイル → インストール管理」で「Steam で読み込めない問題を修復」をクリックし、Steam から**通常起動**してください（管理者として実行しないこと）。
+| 現在のドキュメント（簡体字中国語） | 内容 |
+| --- | --- |
+| [使い方](docs/chs/software_usage.md) | Rust エディターの操作と基本的な流れ |
+| [対応機能](docs/chs/current_capabilities.md) | 実装済みの機能、制限、検証範囲 |
+| [Rust CLI](docs/chs/ai_cli.md) | `lomc` コマンドと制御された編集 API |
+| [Mod パッケージ仕様](docs/chs/mod_format.md) | `.lommod` v3、63 種類のノード、C# ホストとの互換性 |
+| [移行とビルド](docs/chs/rust_migration.md) | Rust の構成、ビルド方法、移行範囲 |
 
-**Q：Python のインストールは必要ですか？**
-不要です。Windows 版は独立した exe です。ソース開発には Rust、C# ゲーム Host のビルドには .NET が必要です。
+[日本語ドキュメント索引と旧版の翻訳](docs/ja/README.md) · [全ドキュメント](docs/README.md)
 
-**Q：Mod はゲームファイルやセーブデータを変更しますか？**
-公式スクリプトやテキスト表は変更しません。「新戦役を開始」は `mod_campaign_<campaign_id>` 名前空間の分離スロットと自動セーブを使うため、通常のセーブを上書きしません。
+## ライセンス
 
-**Q：作った Mod を他人に配れますか？**
-配れます。書き出した `.lommod` は自己完結型（参照している音声・画像を同梱）で、相手が本ツールでランタイムをインストール済みならそのまま遊べます。
-
-## ライセンスと免責
-
-MIT ライセンス（[LICENSE](LICENSE)）。ファン制作のツールであり、ゲーム開発元とは無関係です。ゲーム本体のファイルは一切含みません。
-
-- ゲームメカニクスの調査は公式スクリプトの実証分析（1814 本のシナリオスクリプト）に基づきます。逆コンパイルしたソースコードは著作権の都合でリポジトリに公開していません。
-- `data/editor_data.json` は `tools/extract_editor_data.py` が解凍成果物から生成します。リポジトリには解凍成果物とゲームファイルは含まれません。
-- サンプル mod はツールの能力を示すためのもので、ゲーム原作のシナリオコンテンツは含みません。
+[MIT ライセンス](LICENSE)。ファンによる非公式ツールで、ゲーム開発元とは関係ありません。ゲーム本体、展開した素材、完全な逆コンパイルソースは含みません。サンプルはツールの機能を示すものです。

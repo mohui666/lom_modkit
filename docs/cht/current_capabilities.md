@@ -1,5 +1,7 @@
 # 目前能力與邊界
 
+> **版本提醒：** 本頁尚未全面同步目前的 Rust 版本；舊版 UI 選單與實作描述僅供歷史參考。請以[最新簡體中文版](../chs/current_capabilities.md)為準。
+
 本文只描述目前倉庫程式碼。節點權威集合是 `rust/lom-editor/data/authoring.json` 的 `NODE_SCHEMAS`，目前共 63 種。
 
 ## 已實作

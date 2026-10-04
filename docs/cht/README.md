@@ -2,48 +2,29 @@
 
 > 語言：[中文（CHS）](../README.md) · 中文（CHT，本文） · [日本語](../ja/README.md) · [한국어](../ko/README.md)
 
-權威版為中文 CHS（`chs/`），譯文按語言碼分目錄、同名存放。
-改文件先改 `chs/`，再同步譯文；約定見 [i18n.md §4](i18n.md)。
+目前原始碼為 **v1.2.0**：Rust 編輯器與編譯器，保留 C# 遊戲宿主及 `.lommod` v3 契約。截至 2026-10-04，最新公開發行版仍為 [v1.1.1](https://github.com/mohui666/lom_modkit/releases/tag/v1.1.1)，屬於舊 Python / Qt 工具端。
 
-## 軟體使用文件
+## 目前版本的指南
 
-- [軟體使用總覽](software_usage.md)：編輯器流程、Combat/Battle、原版樣式 MOD 讀檔、存檔隔離與來源標記。
-- [使用者內容](user_content.md) · [目前能力](current_capabilities.md)
+**操作以簡中（CHS）文件為準。** 本目錄的 UI 指南尚未完整同步 Rust，請勿將舊版選單、快捷鍵或 Python 命令當作目前操作。
 
-## 腳本 / API 文件
+繁中入門：[Rust CLI 簡介](ai_cli.md)。完整 API 與參數請查閱下方簡中參考。
 
-- [腳本 / API 總覽](script_reference.md)：63 種節點入口、Combat/Battle 區別、ID 與使用者內容引用規則。
+| 指南（簡中） | 內容 |
+| --- | --- |
+| [軟體使用](../chs/software_usage.md) | Rust 編輯器基本流程 |
+| [目前能力](../chs/current_capabilities.md) | 功能邊界與驗證範圍 |
+| [Mac 編輯器](../chs/macos.md) | 建置、啟動與素材設定 |
+| [CLI / API](../chs/ai_cli.md) | Rust `lomc` 與受控編輯 API |
+| [Mod 包格式](../chs/mod_format.md) | v3 契約與 63 種節點 |
+| [使用者內容](../chs/user_content.md) | 自訂人物、圖片與音訊 |
+| [維護者手冊](../chs/maintainers.md) | 保存、檢查、發布與遊戲接入 |
+| [Rust 遷移](../chs/rust_migration.md) | 元件與遷移範圍 |
 
-## 按讀者找文件
+## 尚未同步的繁中譯文
 
-| 文件 | 讀者 | 內容 |
-| --- | --- | --- |
-| [mod_format](mod_format.md) | 全部元件開發者 | **v3 契約**：包結構、63 種節點、story→Lua 編譯約定、editor_data、執行階段行為、story_api 契約、使用者內容協定。改程式碼先改它 |
-| [ai_cli](ai_cli.md) | AI 代理 / 腳本作者 | story_api 操作手冊：CLI 子命令、--json 欄位、Python API 速查、硬性規則、錯誤對照表 |
-| [user_content](user_content.md) | mod 作者 | 使用者內容庫：匯入自訂音訊、對白語音、匯出與分享、執行階段行為 |
-| [current_capabilities](current_capabilities.md) | 作者 / 維護者 | 目前已實作、僅有底層介面和尚未實作的功能邊界 |
-| [i18n](i18n.md) | 維護者 | 多語言架構：編輯器介面、遊戲內 Mod 選單、名詞對照表再產生、文件翻譯約定 |
+以下保留供查閱舊版與術語；目前行為及契約請核對上方簡中正本。
 
-維護者手冊、水印細節與反編譯流程只維護簡中：見 [`../chs/maintainers.md`](../chs/maintainers.md)、[`../chs/decompiled_api.md`](../chs/decompiled_api.md)。整份遊戲反編譯源碼不進倉庫。
+[軟體使用](software_usage.md) · [目前能力](current_capabilities.md) · [腳本 / API](script_reference.md) · [Mod 包格式](mod_format.md) · [使用者內容](user_content.md) · [多語言約定](i18n.md)
 
-編輯器按 `Ctrl+Shift+F` 可跨專案搜尋章節、步驟、台詞、人物、素材、變數、Flag 與跳轉；雙擊結果直接定位，並可用「誰引用了它？」查看精確引用位置。
-
-「編輯 → 批次編輯」只開放所選節點之間欄位名稱與 schema 類型完全相同的安全交集，不相容欄位不會顯示。
-
-「編輯 → 節點範本」可儲存單一或一段連續步驟。每次插入都產生新節點 ID 並重新對應範本內部跳轉；外部跳轉不變、同名不覆蓋，且拒絕本機絕對資源路徑。
-
-「編輯 → 劇情分組」提供可收合的 Section / Group 樹狀導覽。分組只存在 `_editor.sections`，不重排節點、不改起點或跳轉；有無分組的 Lua 編譯結果相同，且不具函式/子程序語義。
-
-「編輯 → 跨章節複製 / 貼上」會解決目標 ID 衝突、重新對應範圍內跳轉並保留 `user:` 引用。範圍外或缺失引用不會被猜測式改寫，而是在完成後逐項警告。
-
-「編輯 → 變數 / Flag 管理器」顯示結構化符號的讀寫、首次寫入、確定未使用與可能先讀後寫，並可跳轉或查找引用。官方系統與原生 Lua 無法閉環判定時會明確顯示未知。
-
-`F6` 是日常 Editing 體檢，`Ctrl+F6` 是發布用 Release 嚴格體檢。兩者都檢查編譯、流程、內容參照與資料流問題；Release 另加發布 metadata 與相容性規則。未使用內容不會自動刪除；自動修復只處理不改變劇情含義的機械問題。
-
-「說明 → 匯出診斷包」會產生固定白名單 ZIP：編輯器/Runtime/遊戲版本、Manifest、F6 結果、脫敏專案計數，以及限長的編輯器崩潰日誌與只篩選 MortalModHost 的 Runtime 日誌。不會遍歷或複製劇情正文、使用者內容庫、Mod、存檔、私人目錄、無關日誌或遊戲檔案；絕對路徑與使用者名稱會替換成佔位符。
-
-「編輯 → 條件檢查器」將 branch 顯示為可讀條件、符號與真實目標。只有所有 CFG 路徑都先寫入同一 Mod Flag 時才證明恆真；其餘 Runtime 狀態保持未知。
-
-「試玩 → 劇情路徑模擬器」檢查無法到達、斷裂目標、無出口循環、可證明死分支、缺少結局與錯誤跨章節跳轉。跨章節結局鏈會一起分析，Raw Lua 與未知 Runtime 狀態不會被假裝成確定結果。
-
-「試玩 → 劇情測試執行器」以 JSON 宣告初始變數/Flag、choice 動作及到達/狀態斷言。確定語義可離線 PASS/FAIL；骰子、Raw Lua 或未知遊戲狀態明確回傳 UNSUPPORTED。
+反編譯流程見[簡中文件](../chs/decompiled_api.md)；完整遊戲反編譯原始碼不進儲存庫。更新文件時先改 `chs/`，再同步相應譯文。
