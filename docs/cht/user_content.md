@@ -1,5 +1,7 @@
 # 使用者內容庫（User Content Library）
 
+> **版本提醒：** 本頁尚未全面同步目前的 Rust 版本；舊版 UI 選單與實作描述僅供歷史參考。請以[最新簡體中文版](../chs/user_content.md)為準。
+
 > 語言：[简体中文](../chs/user_content.md) · 繁體中文（本文） · [日本語](../ja/user_content.md) · [한국어](../ko/user_content.md)
 
 本機、離線、按 Mod 自包含。沒有帳號、沒有線上市集、沒有雲端同步。

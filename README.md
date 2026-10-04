@@ -1,274 +1,90 @@
 # lom_modkit
 
-> 当前源码已切换到 Rust 编辑器与编译器；历史 Release 安装包及其旧菜单说明保留原版本行为。源码运行请看下方 For Developers。
+**《活侠传》（Legend of Mortal）可视化剧情 Mod 制作工具。** 用图形编辑器编排人物对白、场景、分支、音乐和音效，导出 `.lommod`，由 C# 游戏插件加载。
 
+当前源码版本为 **v1.2.0**：编辑器和编译器已迁移至 Rust，保留 C# 游戏接入层。公开 Release 最新仍为 **v1.1.1 旧版**（截至 2026-10-04），不包含当前 Rust 界面。当前源码的构建和使用方式见下文。
 
-**《活侠传》（Legend of Mortal）可视化剧情 Mod 制作工具。**
+[软件使用](docs/chs/software_usage.md) · [Mac 编辑器](docs/chs/macos.md) · [文档索引](docs/README.md) · [旧版下载](https://github.com/mohui666/lom_modkit/releases/tag/v1.1.1)
 
-仓库新增原生 **Rust 工具端**（编辑器 + 编译器，保留 C# 游戏宿主）：
-`cargo run -p lom-editor -- samples/showcase3`。构建、CLI 与本次验证范围见
-[Rust 工具端说明](docs/chs/rust.md)。下方公开下载仍是既有 Python/Qt 发行版。
+语言：简体中文（本文） · [繁體中文](README.cht.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-不用写 Lua。用图形编辑器编排人物对白、场景演出、分支剧情、音乐音效，
-一键导出 `.lommod`，直接在游戏中运行。
+## 从源码开始
 
-[![Release v1.1.1](https://img.shields.io/badge/release-v1.1.1-blue)](https://github.com/mohui666/lom_modkit/releases/latest)
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey)](#兼容性)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-
-**[⬇ 下载 Windows 版](https://github.com/mohui666/lom_modkit/releases/download/v1.1.1/lom_modkit-v1.1.1_windows_x64.zip)** ·
-[快速开始](#快速开始) ·
-[文档](docs/README.md)
-
-> 语言：中文（CHS，本文） · [中文（CHT）](README.cht.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
-
-<!-- TODO(宣传素材): 在这里放 8~15 秒循环 GIF：
-     打开 lom_editor.exe → 新建剧情 → 选角色/对白/场景/音乐 → F5 → 游戏内实际演出。
-     建议路径 docs/assets/screenshots/demo.gif，然后用 ![demo](docs/assets/screenshots/demo.gif) 替换本注释。 -->
-
-## 这是什么
-
-lom_modkit 让你用《活侠传》**原有的人物、场景、音乐、特效与数值系统**制作原创剧情：
-图形编辑器里点选配置，导出独立的 `.lommod` Mod 包，由游戏内插件加载演出。
-支持「开始新战役」（接管新游戏流程，隔离存档槽）与自由模式地图点位触发。
-
-粉丝自制工具，与游戏开发商无关，不包含游戏本体任何文件。MIT 许可。
-
-## 能做什么
-
-- **可视化剧情编辑**：63 种节点覆盖人物、对白、表情、站位、场景、音乐、音效与特效，全部通过 UI 配置。
-- **分支剧情**：选项、条件分支、属性判定、骰子检定、多章节链式脚本。
-- **剧情内容本地化**：同一 Story 可维护简中、繁中、日语、韩语译文，支持默认语言与缺失译文回退；旧项目无需迁移。
-- **直接调用游戏内容**：使用游戏现有人物、场景、音乐与演出系统，不需要自己重做一套。
-- **自定义音频与对白语音**：导入 `.ogg` / `.wav`，可用作音乐、音效，以及逐句的角色对白语音。
-- **一键游戏内试玩**：选中任意剧情步骤按 F5，直接从该步骤进游戏测试。
-- **真正的 Mod 包**：导出的 `.lommod` 自包含，可以直接分享给其他玩家。
-
-本地开发版 v1.1.2 已加入人物立绘预览、美颜赵活和自由模式剧情模板，并提供
-Apple Silicon 的 [Mac 编辑器](docs/chs/macos.md)。功能用法见
-[自由模式与人物立绘](docs/chs/free_mode_portraits.md)。上述公开下载链接仍指向已发布的 v1.1.1。
-
-## 快速开始
-
-### 1. 下载
-
-下载 [lom_modkit-v1.1.1_windows_x64.zip](https://github.com/mohui666/lom_modkit/releases/download/v1.1.1/lom_modkit-v1.1.1_windows_x64.zip) 并解压。无需安装 Python。
-
-### 2. 启动
-
-运行 `lom_editor.exe`。
-
-### 3. 连接《活侠传》
-
-菜单「文件 → 安装管理」，选择包含 `Mortal.exe` 的游戏文件夹，点「安装 BepInEx」——
-编辑器会自动下载安装兼容的 BepInEx 6 与游戏内运行时，并写入 Steam 普通启动修复。
-
-### 4. 做第一段剧情
-
-新建剧情 → 添加角色 → 添加对白 → 按 **F5** 试玩。
-
-### 5. 导出
-
-导出得到 `xxx.lommod`，发给别人即可（对方同样需要本工具装的运行时）。
-
-## 截图
-
-<!-- TODO(宣传素材): 至少四张图，建议放 docs/assets/screenshots/：
-     ① 主编辑器全貌 ② 剧情流程图 ③ 用户音频/对白语音 ④ 游戏内实际效果。
-     取消注释并替换路径：
-![剧情编辑器](docs/assets/screenshots/editor.png)
-![游戏内效果](docs/assets/screenshots/ingame.png)
-![分支与流程图](docs/assets/screenshots/flow_graph.png)
--->
-
-## 为剧情制作设计的工作流
-
-### 从任意位置试玩（F5）
-
-选中一个步骤按 **F5**：编辑器生成独立临时包，游戏到达安全场景后自动从该步骤开始，
-进入前自动补上该步骤之前的舞台状态（当前场景、台上人物的站位/表情/朝向）——
-从剧情中途进入不会再因"角色不存在"黑屏。临时包不覆盖正式 Mod，读入后自动删除。
-
-### 导出前体检（F6）
-
-按 **F6** 检查：编译错误、无出口 SCC、断路与不可达步骤、跨章节跳转与入口、
-可能先读后写的 Mod Flag，以及用户内容的类型、图片、立绘、语音、路径、引用、
-metadata 和当前项目未使用项。双击问题可定位到对应步骤；未使用内容只提示、不删除。
-「安全自动修复」仍只处理不改变剧情含义的机械问题（含自动补人物登场），支持撤销。
-
-需要反馈问题时，用 **帮助 → 导出诊断包** 一键生成 ZIP。诊断包采用固定白名单：
-版本、Manifest、项目计数、F6 结果，以及限长并脱敏的编辑器/Host 相关日志；不会复制
-剧情正文、用户内容、Mod、存档、私人目录、整份游戏日志或任何游戏文件。
-
-### 剧情流程图
-
-右侧「流程图」显示真实跳转连线（一对多分支用不同颜色区分），断路、
-无法结束的死循环和不可达步骤会用红框与文字同时标出。
-
-### 全局搜索（Ctrl+Shift+F）
-
-跨当前项目的全部章节搜索章节/步骤 ID、台词、人物、表情、语音、图片、变量、Flag、跳转和 `user:` 内容引用。支持类别过滤；双击结果会直接切换到对应章节与步骤。选中内容、人物、变量、Flag、章节或步骤后可点「谁引用了它？」查看精确引用位置并继续定位。搜索与引用查询只建立编辑器内索引，不修改剧情数据。
-
-### 批量编辑
-
-「编辑 → 批量编辑」可选择多个节点，批改人物、表情、语音、站位、时长和常用布尔/枚举字段。窗口只开放所有所选节点中字段名与 schema 类型完全一致的交集；不兼容字段自动消失，不做字符串到数值等猜测式转换，整次操作可撤销。
-
-### 节点模板
-
-「编辑 → 节点模板」可把当前单个步骤或一段连续步骤保存到本机模板库，再插入到任意剧情。每次插入都会生成未占用的新节点 ID，并同步重映射模板范围内的 `goto`、选项、条件分支和骰子去向；指向模板外部的跳转保持不变。重名模板不会覆盖，包含本机绝对资源路径的模板会被拒绝。
-
-### 剧情 Section / Group
-
-「编辑 → 剧情分组」可用 Section 包住连续剧情范围，并在 Section 内继续建立 Group。左侧步骤树支持双击或右键折叠、展开和树形导航；节点重命名与删除会同步修复范围锚点。分组只写入 `_editor.sections` 元数据，不重排 `nodes[]`、不改 `start/goto`，同一剧情有无分组编译出的 Lua 完全一致。第一版不把分组当函数或子程序。
-
-### 跨章节复制 / 粘贴
-
-「编辑 → 跨章节复制 / 粘贴」可把来源章节的一段连续节点插入另一章节的任意位置。目标章节内的 ID 冲突会自动消解，复制范围内部的普通跳转、选项、条件与骰子去向会同步重映射，`user:` 内容引用保持原样。指向范围外节点、缺失章节或依赖范围外隐式顺序流转的引用不会被猜测式修改；操作完成后会逐条列出需作者确认的告警，整次复制可撤销。
-
-### Variable / Flag 管理器
-
-「编辑 → 变量 / Flag 管理器」统一列出 Mod 会话 Flag、官方数值 Flag、Checkpoint、Condition 与 Flowchart 变量的读取数、写入数和首次写入位置，并可直接跳转或查找全部引用。对 Mod 会话 Flag 使用真实 CFG 做保守数据流分析，标出确定未使用和“存在路径可能先读后写”；不可达读取不会误报。官方系统值可能被原版代码消费，原生 Lua 也无法可靠解析，因此这两类显示“不可静态判定”，不会猜成未使用。
-
-### Condition Inspector
-
-「编辑 → 条件检查器」把每个 `branch` 展开成可读条件，列出所用属性/Flag、每条 case 与真实兜底目标，并支持定位和引用查询。当前只对 Mod Flag 做可证明分析：若从章节起点到该分支的所有 CFG 路径都先执行同名 `flag` 写入，则标为“恒真”；存在绕过路径、官方 Checkpoint/Condition、属性或官方数值 Flag 一律保留“不可静态判定”，不会把未知 Runtime 状态猜成恒真/恒假。
-
-### Story Path Simulator
-
-「试玩 → 剧情路径模拟器」在全部章节上运行编译器一致的 CFG 分析，集中报告不可达节点、断裂目标、无出口循环、可证明死分支、缺少最终结局，以及错误的 `next_script`、入口和战役触发器。结局分析会沿跨章节链传播，因此 A→B→最终结局不会误报，而 A↔B 闭环会被识别。依赖属性、官方状态或可达 Raw Lua 的结果保持“未知”，绝不伪装成确定模拟。
-
-### Story Test Runner
-
-「试玩 → 剧情测试运行器」可用 JSON 声明 `initial.variables/flags`、按节点编号选择的 `actions.choices`，以及“到达节点/结局、变量值、Flag 值”断言，无需启动游戏。执行器支持确定的顺序流、`goto`、choice、Mod Flag、已给初值的 stat/官方数值 Flag、branch 和跨章节 `end.next_script`。骰子、Raw Lua、未给初值的官方状态及其他无法静态执行的节点返回 `UNSUPPORTED`，不会伪造 PASS。测试定义保存在 `_editor.tests`，不改变编译语义。
-
-## 用户内容
-
-把本机角色、音频或图片导入「用户内容库」（菜单「文件 → 用户内容库」），得到稳定编号
-（如 `user:mohui.battle`），在剧情步骤里按「用户 / 官方」分组选择。剧情只保存编号；
-导出时只打入当前 Mod 真正引用的内容，玩家机器不依赖作者本机内容库。
-
-| 内容类型 | 状态 |
-| --- | --- |
-| 自定义音乐 / 音效 / 环境音 | ✅ 已支持 |
-| 角色对白语音 | ✅ 已支持 |
-| 自定义人物立绘 / 称号 / 介绍卡 / 体型 | ✅ 已支持 |
-| 自定义背景 / CG / Overlay 图片 | ✅ 已支持 |
-| 社区内容库 | ◯ Roadmap |
-
-详细用法见 [用户内容库文档](docs/chs/user_content.md)。
-
-## 安装别人做的 Mod
-
-把 `.lommod` 交给编辑器「文件 → 安装管理」安装并勾选启用即可
-（手动路径：`BepInEx/plugins/MortalModHost/mods/`）。
-
-### 如何辨认玩家制作剧情
-
-运行时会对所有 Mod 剧情强制显示两层来源信息：固定的
-**「玩家制作 MOD｜非官方内容」** 警示，以及经过清洗的作品名、作者自报信息和 16 字符包指纹。
-标识同时出现在屏幕右上角、对白框、死亡/结局/人物介绍卡上，经过 Loading、GameOver、End
-等场景仍会保持；只有真正回到官方 Title / Free 枢纽才解除。
-
-这项披露没有 Lua 或配置开关。独立守护对象会在 Update、渲染提交前和摄像机预渲染前复验标识，
-并额外绘制固定 IMGUI 非官方章；即使 Mod 销毁插件宿主或全部 Canvas，也会重建标识。标识无法恢复时，
-运行时会停止 Mod 协程、用独立安全遮罩封住画面并返回 Free；演出中关闭插件总开关也会延迟到官方枢纽。包指纹取最终 `.lommod` 原始字节的
-SHA-256 前 16 个十六进制字符，可用来核对具体文件，但**不是官方签名，也不代表作者身份经过认证**。
-任何 manifest 自报的 `official`、`verified`、`sha256` 字段均不会授予官方身份。
-
-纯客户端机制无法阻止修改 DLL 或对截图逐像素修图；没有上述标识的网络截图只能视为来源不可验证，
-不能据此认定是官方剧情。
-进游戏后点自由场景/标题画面左下角「活侠MOD」按钮（或按 F8），
-选择「演出 mod 剧情」或「开始新战役」。游戏内菜单会跟随游戏当前语言。
-
-## 兼容性
-
-| 项目 | 状态 |
-| --- | --- |
-| Windows 10/11 | ✅ |
-| Steam《活侠传》 | ✅（含普通启动修复） |
-| BepInEx | 编辑器自动安装 |
-| Python | Windows 发行版无需 |
-| 修改游戏原文件 | 不需要 |
-
-## 当前版本
-
-**v1.2.0**：步骤多选复制/粘贴 · 自由模式触发步骤 · 全字段中文说明 · 修复长清单下拉框
-筛选词污染取值、舞台站位预览与游戏不一致、非人物登场首节点被流程图误报「无法到达」、
-结束剧情清空下一章节报错；自由模式触发的旗标条件改为下拉。
-
-完整变更见 [1.2.0 Release Notes](RELEASE_NOTES_v1.2.0.md)。
-
-**v1.1.1**：修复 F5 直启游戏导致 Steamworks 未初始化、试玩隔离存档无法建立的问题；
-发布体检现在能直接定位到发布信息页，并修复冻结版在受污染 PATH 下误打包 ICU DLL 的启动故障。
-
-完整变更见 [1.1.1 Release Notes](RELEASE_NOTES_v1.1.1.md)。
-
-**v1.1.0**：完善原版风格 MOD 存档页与每个 MOD 的 001～020 独立栏位；修复 Combat/Battle
-读档、回合、血量叠加和剧情背景恢复。
-
-**v1.0.0**：统一 Editor/Runtime 版本 · `.lommod` v2 严格校验与 Story/Lua 一致性 ·
-Lua 环境隔离与完整生命周期清理 · 一次性热键迁移 · Runtime 自动化测试与 CI。
-
-**v0.7.0**：自定义角色立绘 · 对白语音归属 · 介绍卡与称号 · 体型滑条 ·
-离场清台 · 节点按类型编号。
-
-历史版本见 [Release Notes](https://github.com/mohui666/lom_modkit/releases)。
-
-## Roadmap
-
-- 社区内容仓库（分享/复用用户内容）
-- 面向作者的战斗 / 战役编排层（当前仅有经验证的底层节点）
-
-## 文档
-
-| 文档 | 内容 |
-| --- | --- |
-| [文档索引](docs/README.md) | 作者 / 契约 / 维护 三层入口 |
-| [AGENTS.md](AGENTS.md) | 改游戏功能必须先查反编译接口；整份反编译源码不得上传 |
-| [软件使用](docs/chs/software_usage.md) | 编辑器流程、决斗/战役、读档隔离 |
-| [当前能力](docs/chs/current_capabilities.md) | 已实现与明确不做 |
-| [Mod 格式 v3](docs/chs/mod_format.md) | 包结构、节点、编译与运行时契约 |
-| [反编译接口](docs/chs/decompiled_api.md) | 查本机 DLL 的步骤；不提交游戏源码 |
-| [维护者手册](docs/chs/maintainers.md) | 恢复、体检、发布、Runtime 安装、测试 |
-| [来源水印](docs/chs/watermark.md) | 协议与离线检测（不是签名） |
-| [story_api / CLI](docs/chs/ai_cli.md) | 校验、编译、打包 |
-| [用户内容](docs/chs/user_content.md) | 音频 / 角色 / 图片 |
-| [Runtime 说明](runtime/MortalModHost/README.md) | Host 原则与 fail-closed |
-
-## For Developers
-
-工具端使用 Rust；游戏宿主保持 C#。`rust/lom-core` 提供编译、包、内容库和受控编辑 API，`rust/lomc` 提供 CLI，`rust/lom-editor` 提供原生编辑器。`editor/` 仅保留图标、翻译、帮助静态资源和启动入口。`tools/` 中资源研究脚本独立于产品运行时。
+安装 Rust 后，在仓库根目录运行：
 
 ```sh
 cargo run --locked -p lom-editor
-cargo run --locked -p lomc -- check samples/showcase3/story/main.json --json
-cargo test --locked --workspace
-cargo run --locked -p lomc --example build_showcase3 -- out/showcase3-native
-scripts/build-macos.sh
 ```
 
-Mac 产物是 `out/LoM Modkit Rust.app`。Windows 使用 `scripts/build-windows.ps1`（需要已构建的 C# Host）；`-NoArchive` 仅构建目录。Windows 构建与游戏实机结果不属于本次 macOS 验证。
+也可以直接打开全节点样例：
 
-[迁移功能表与验证范围](docs/chs/rust_migration.md) · [受控 API / CLI](docs/chs/ai_cli.md)
+```sh
+cargo run --locked -p lom-editor -- samples/showcase3
+```
 
-## FAQ
+Mac 独立应用通过 `scripts/build-macos.sh` 构建，产物为 `out/LoM Modkit Rust.app`，包含编辑器和 `lomc`，运行不依赖 Python 或 Qt。官方立绘预览需要作者自己的外部素材库，配置见 [Mac 编辑器](docs/chs/macos.md)。
 
-**Q：Steam 点「开始」后没有「活侠MOD」按钮、F8 没反应？**
-在编辑器「文件 → 安装管理」里点「修复 Steam 无法加载」，然后从 Steam **普通启动**（不要管理员）。
+Windows 构建入口为 `scripts/build-windows.ps1`，需要已构建的 C# Host。当前 Rust 迁移的验证范围是 macOS 与离线测试，**未进行 Windows 构建、Windows 测试或游戏实机测试**。Mac 可编辑、预览和导出，不能使用游戏安装与 F5 试玩。
 
-**Q：需要装 Python 吗？**
-不需要。Windows 发行版是独立 exe。源码开发需要 Rust；构建 C# 游戏宿主需要 .NET。
+## 做第一段剧情
 
-**Q：Mod 会修改我的游戏文件或存档吗？**
-不会修改官方脚本与文本表。「开始新战役」使用 `mod_campaign_<campaign_id>` 命名空间下的独立栏位和自动档，不覆盖你的正常存档。
+1. 在「文件」中选择「新建项目」或「从模板新建」。
+2. 在左侧添加步骤，在中间填写人物、台词和场景，右侧查看画面、立绘或流程图。
+3. 增加章节时，先点章节旁的「＋」，选择新建或复制，再填写名称；内部标识自动生成。
+4. 使用「创作工具 → 检查项目」或 F6 检查问题，保存全部章节。
+5. 点击「导出 Mod」生成 `.lommod`。Windows 游戏侧的安装要求见 [维护者手册](docs/chs/maintainers.md)。
 
-**Q：做好的 Mod 可以发给别人吗？**
-可以。导出的 `.lommod` 自包含（含引用的音频/图片），对方用本工具装好运行时即可游玩。
+macOS 从屏幕顶部系统应用菜单打开「设置…」，快捷键 `⌘,`；其他平台使用窗口中的「设置…」。界面支持简体中文、繁體中文、日本語和 한국어。当前是浅色 Rust 通用外壳；Mac 专用 Swift 液态玻璃外壳尚未实现。
 
-## 许可与声明
+## 主要功能
 
-MIT 许可（[LICENSE](LICENSE)）。粉丝自制工具，与游戏开发商无关，不包含游戏本体任何文件。
+| 功能 | 当前入口或说明 |
+| --- | --- |
+| 63 类剧情节点 | 人物、对白、场景、音频、分支、骰子、战斗与自由模式触发等；字段见 [格式参考](docs/chs/mod_format.md) |
+| 多章节编辑 | 保存、撤销/重做、多选、复制粘贴、分组、节点模板与自动恢复 |
+| 创作分析 | 「创作工具」内的全局查找、变量管理、条件检查、路径模拟、跨章节复制和离线测试 |
+| 用户内容 | 工具栏「用户内容」导入人物、音频和图片；项目保存与导出统一处理有效修改 |
+| 四语言剧情 | 「编辑 → 多语言」维护作品译文、回退和覆盖统计；界面语言不会改写作者台词 |
+| 检查与交付 | 项目检查、包检查、发布构建、语音覆盖、脱敏诊断和水印检测 |
+| 游戏接入 | C# Host 保留，提供 Mod 菜单、试玩与独立战役存档；Rust 迁移未做游戏实机验收 |
 
-- 游戏机制调研基于对官方脚本的实证分析（1814 个剧情脚本）；反编译源码因版权原因不随仓库公开。
-- `data/editor_data.json` 由 `tools/extract_editor_data.py` 从解包产物生成；仓库不包含解包产物与游戏文件。
-- 示例 mod 仅演示工具能力，不含游戏原始剧情内容。
+资源选择器显示翻译名称；不同资源同名时加稳定数字，例如「武师 1」「武师 2」。数字只用于界面区分，不修改保存的资源标识或台词。人物资源目录也含包子、马车、棋盘等道具立绘；对白模式可为它们配置文字，但不会自动生成语音。详情见 [用户内容](docs/chs/user_content.md)。
+
+静态分析遇到无法确定的游戏状态会返回 `unknown` / `unsupported`，不能替代游戏实测。完整功能对应与验证范围见 [Rust 迁移记录](docs/chs/rust_migration.md)。
+
+## 开发与验证
+
+| 目录 | 用途 |
+| --- | --- |
+| `rust/lom-core` | 编译、包格式、内容库、受控编辑 API 和离线分析 |
+| `rust/lomc` | 命令行工具与样例生成器 |
+| `rust/lom-editor` | 原生 Rust 编辑器 |
+| `runtime/MortalModHost` | C# 游戏接入层 |
+| `editor/` | 图标、翻译、帮助等静态资源和启动入口 |
+| `tools/` | 独立的资源提取与接口研究脚本，不是工具运行依赖 |
+
+```sh
+cargo build --locked --release --workspace
+cargo test --locked --workspace
+cargo run --locked -p lomc -- check samples/showcase3/story/main.json --json
+cargo run --locked -p lom-editor -- --smoke-preview samples/showcase3
+```
+
+样例再生成需要使用全新输出目录，见 [Showcase 3.0](samples/showcase3/README.md)。包契约保持 `package_format=3`、`story_schema=2`、`content_schema=1`；旧 Python `import story_api` 已退役，自动化改用 [Rust API / JSON CLI](docs/chs/ai_cli.md)。
+
+远端主分支为 `master`，通过 PR 和必需的 macOS Rust、Linux Runtime 离线 CI 检查后合并。游戏功能修改须先查 [AGENTS.md](AGENTS.md) 和 [反编译接口](docs/chs/decompiled_api.md)，不得提交整份游戏反编译源码或提取资源。
+
+## 文档与版本
+
+- [文档索引](docs/README.md)：作者指南、格式契约和维护入口。
+- [当前能力](docs/chs/current_capabilities.md)：实现范围与限制。
+- [Rust 工具端](docs/chs/rust.md)：构建、CLI 与验证命令。
+- [维护者手册](docs/chs/maintainers.md)：恢复、体检、发布、安装与回滚。
+- [v1.2.0 变更记录](RELEASE_NOTES_v1.2.0.md)：当前 Rust 变更与迁移前历史记录。
+- [公开 Releases](https://github.com/mohui666/lom_modkit/releases)：历史安装包；v1.1.1 的旧菜单说明不适用于当前 Rust 界面。
+
+## 许可与来源披露
+
+MIT 许可（[LICENSE](LICENSE)）。粉丝自制工具，与游戏开发商无关，不包含游戏本体文件。`data/editor_data.json` 来自资源研究脚本整理的目录信息，仓库不分发官方资源。
+
+游戏内 Mod 剧情显示「玩家制作 MOD｜非官方内容」、作品与作者自报信息及包指纹；指纹不是官方签名，也不认证作者身份。运行时在无法维持披露时停止 Mod 演出，详见 [Runtime 说明](runtime/MortalModHost/README.md) 和 [来源水印](docs/chs/watermark.md)。

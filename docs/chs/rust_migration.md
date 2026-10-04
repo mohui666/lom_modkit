@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | 63 类节点、字段与默认值、Lua 生成、错误拒绝 | core `validate`、`codegen`；editor `forms` | 旧版输出与非法输入黄金案例；全部节点预览 |
 | 受控脚本新增/修改/删除/重命名/移动，登场保护、骰子与死亡节点 | core `story_api`；CLI `author`、`edit` | 181 个旧版 API 成功/拒绝案例 |
-| 多章节项目、原子保存、旧格式迁移、完整性校验、确定性 ZIP | core `project`、`migration`、`package` | 原始路径、未知字段、非本项目文件、失败与恶意包测试 |
+| 多章节项目、原子保存、旧格式迁移、完整性校验、确定性 ZIP | core `project`、`migration`、`package`；editor `persistence` | 原始路径、未知字段、非本项目文件、失败与恶意包测试 |
 | 撤销/重做、多选、批量编辑、模板、分组、自动恢复 | editor `workspace`、`authoring` | 编辑器状态、资产字节和恢复所有者测试 |
 | 全局分类查找、精确引用、跨章节范围复制及边界告警 | core `editing`；editor `advanced` | 大小写折叠、嵌套引用、链接重映射与失败不修改 |
 | 变量/Flag、条件检查、路径模拟、离线测试 | core `analysis`；editor `advanced` | CFG、跨章节、循环、未知状态、断言与非零退出 |
@@ -30,6 +30,8 @@
 
 ## 构建与检查
 
+以下样例生成命令使用的 `out/showcase3-native` 必须是全新输出目录；已存在时换一个新目录，避免覆盖现有项目。
+
 ```sh
 cargo build --locked --release --workspace
 cargo test --locked --workspace
@@ -39,7 +41,7 @@ cargo run --locked -p lomc -- inspect out/showcase3-native/showcase3.lommod --js
 scripts/build-macos.sh
 ```
 
-Mac 产物：`out/LoM Modkit Rust.app`，包含 `lom-editor` 与 `lomc`。现有 Qt 应用、venv 和个人文件不会被清理脚本删除。Windows 构建入口是 `scripts/build-windows.ps1`；它使用 Cargo 和已构建的 C# DLL，支持 `-NoArchive`，本次仅更新脚本，未执行 Windows 构建或测试。
+Mac 产物：`out/LoM Modkit Rust.app`，包含 `lom-editor` 与 `lomc`。现有 Qt 应用、venv 和个人文件不会被清理脚本删除。Windows 构建入口是 `scripts/build-windows.ps1`；它使用 Cargo 和已构建的 C# DLL，支持 `-NoArchive`，Rust 迁移阶段仅更新脚本，未执行 Windows 构建或测试。
 
 `source.json` 是样例的独立创作源；修改样例时先更新它，Rust 生成器重新校验并写出章节及包。全节点检查随嵌入的 authoring schema 自动变化。
 
@@ -53,11 +55,13 @@ Mac 产物：`out/LoM Modkit Rust.app`，包含 `lom-editor` 与 `lomc`。现有
 
 远端默认主分支为 `master`。要求通过 Pull Request 合并，并且 `Native Rust tools (macOS)` 与 `Runtime tests` 成功、分支跟上主分支、讨论已解决；规则对管理员生效，禁止强推和删除。当前不要求额外审批人数（0），避免单人仓库无法自审；CI 不包含 Windows 或游戏实机测试。
 
-## 本次验证（2026-10-04，Apple Silicon macOS）
+## 已记录的实现验证（2026-10-04，Apple Silicon macOS）
+
+以下结果来自 [PR #4](https://github.com/mohui666/lom_modkit/pull/4) 与 [PR #5](https://github.com/mohui666/lom_modkit/pull/5) 及前序迁移，最近代码合并为 `6e61602`。随后文档维护只核对文档、命令与链接，没有重新运行本机软件或游戏验收。
 
 - `cargo test --locked --workspace --release`：179 通过、0 失败，2 个外部依赖案例默认跳过。其中受控 API 对照测试内部逐项检查 181 个旧版案例；新增回归覆盖 63 类表单不因展示而改值、模态与输入法、统一保存/撤销、自动恢复、删除后保存重开、四语言字形、资源名称补译、同名选项对应原 ID 及系统设置菜单事件。最后的预览名称显示调整另行通过 7 项定向预览测试。
-- FFmpeg 合成视频抽帧测试在此前迁移验收中通过；本轮 UI 修改未重跑外部截图/视频语料测试。
+- FFmpeg 合成视频抽帧测试在此前迁移验收中通过；这些 UI 修改未重跑外部截图/视频语料测试。
 - Rust 生成器：5 章、133 节点、63 类型；原生应用内嵌预览：133 / 133。
-- Mac `.app` 构建及签名校验通过；实际窗口检查了四语言设置与字形、新建取消、命名输入保持、回车复制、保存后撤销章节、素材导入与改名、删除后保存重开。重开确认已撤销章节与已删除素材没有复活；保留三栏布局，常规表单不再显示启用字段的复选框或技术信息块。
+- Mac `.app` 构建及签名校验通过；实际窗口检查了四语言设置与字形、新建取消、命名输入保持、回车复制、保存后撤销章节、素材导入与改名、删除后保存重开。重开确认已撤销章节与已删除素材没有复活；保留三栏布局，常规表单不再显示启用字段的复选框或技术信息块。后续实际窗口确认资源译名、同名编号、系统菜单“设置…”与 `⌘,`、语言切换后菜单标题同步。
 - 删除 157 个旧 Python 源文件及 5 个 spec/依赖文件。保留 10 个资源研究/提取及配套测试脚本。
 - Windows 构建、Windows 测试及游戏实机测试均未执行。上述测试不能替代这些平台的验收。
