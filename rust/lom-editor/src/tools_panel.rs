@@ -29,7 +29,17 @@ impl Default for ToolsPanel {
             report: Value::Null,
             library: lom_core::content::default_repository_root(),
             game: PathBuf::from(settings["game_dir"].as_str().unwrap_or("")),
-            runtime: PathBuf::from(settings["rust_runtime_dir"].as_str().unwrap_or("")),
+            runtime: settings["rust_runtime_dir"]
+                .as_str()
+                .filter(|s| !s.is_empty())
+                .map(PathBuf::from)
+                .or_else(|| {
+                    std::env::current_exe()
+                        .ok()
+                        .and_then(|p| p.parent().map(|p| p.join("runtime")))
+                        .filter(|p| p.join("MortalModHost.dll").is_file())
+                })
+                .unwrap_or_default(),
             ffmpeg: settings["ffmpeg_path"]
                 .as_str()
                 .filter(|s| !s.is_empty())

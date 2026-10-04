@@ -38,6 +38,7 @@ enum Center {
     Localization,
     Assets,
     Tools,
+    Advanced,
 }
 #[derive(Clone, Copy, PartialEq)]
 enum View {
@@ -99,6 +100,9 @@ struct App {
     recent: Vec<PathBuf>,
     node_search: String,
     tools_panel: crate::tools_panel::ToolsPanel,
+    advanced: crate::advanced::Advanced,
+    content_panel: crate::content_panel::ContentPanel,
+    audio: crate::audio::Player,
 }
 fn user_root() -> PathBuf {
     if let Some(appdata) = std::env::var_os("APPDATA") {
@@ -382,6 +386,9 @@ impl App {
                 .unwrap_or_default(),
             node_search: String::new(),
             tools_panel: crate::tools_panel::ToolsPanel::default(),
+            advanced: crate::advanced::Advanced::default(),
+            content_panel: Default::default(),
+            audio: Default::default(),
         }
     }
     fn remember_source(&mut self) {
@@ -556,6 +563,9 @@ impl App {
     fn install(&mut self, p: Project) {
         self.clear_recovery();
         self.project = p;
+        self.advanced = Default::default();
+        self.content_panel = Default::default();
+        self.audio.stop();
         self.remember_source();
         self.catalog.sync_assets(&self.project.assets);
         self.current = self.project.manifest["entry"]
@@ -634,6 +644,14 @@ impl App {
         }
     }
     fn compile(&mut self) {
+        self.catalog.data["project_flags"] = json!(self
+            .project
+            .stories
+            .values()
+            .flat_map(|s| s["nodes"].as_array().into_iter().flatten())
+            .filter(|n| n["type"] == "flag")
+            .filter_map(|n| n["flag"].as_str())
+            .collect::<BTreeSet<_>>());
         self.diagnostics.clear();
         for (id, s) in &self.project.stories {
             match lom_core::validate::validate_story(s) {
@@ -1019,6 +1037,24 @@ impl App {
                         }
                     });
                     ui.menu_button(tr("创作工具"), |ui| {
+                        for (page, label) in [
+                            "全局查找",
+                            "变量管理",
+                            "条件检查",
+                            "路径模拟",
+                            "跨章节复制",
+                            "离线测试",
+                        ]
+                        .iter()
+                        .enumerate()
+                        {
+                            if ui.button(tr(label)).clicked() {
+                                self.advanced.page = page;
+                                self.center = Center::Advanced;
+                                ui.close();
+                            }
+                        }
+                        ui.separator();
                         if ui.button(tr("创作工具")).clicked() {
                             self.center = Center::Tools;
                             ui.close();
@@ -1346,14 +1382,7 @@ impl App {
                                 .horizontal(|ui| {
                                     ui.add_space(depth as f32 * 9.0);
                                     let text = format!(
-                                        "{} 第 {} 步  {}\n   {}",
-                                        if ["end", "death"]
-                                            .contains(&node["type"].as_str().unwrap_or(""))
-                                        {
-                                            "■"
-                                        } else {
-                                            "●"
-                                        },
+                                        "第 {} 步 · {}\n{}",
                                         index + 1,
                                         self.catalog.label(node["type"].as_str().unwrap_or("")),
                                         short(&summary, 22)
@@ -1661,14 +1690,43 @@ impl App {
                         }
                         Center::Chapter => self.chapter(ui),
                         Center::Manifest => {
-                            ui.heading(tr("作品设置"));
-                            ui.label(tr("作品身份、入口、发布语言与自由模式触发规则。"));
-                            ui.separator();
-                            value_editor(ui, "manifest", &mut self.project.manifest, 0);
+                            crate::manifest_panel::show(
+                                ui,
+                                &mut self.project.manifest,
+                                &self.catalog,
+                                &self.project.stories.keys().cloned().collect::<Vec<_>>(),
+                            );
                         }
                         Center::Localization => self.localization(ui),
                         Center::Assets => self.assets(ui),
                         Center::Tools => self.tools(ui),
+                        Center::Advanced => {
+                            if let Some((sid, nid)) =
+                                self.advanced.show(ui, &mut self.project, &self.current)
+                            {
+                                self.flush();
+                                if let Some(nid) = nid {
+                                    if let Some(s) = self.project.stories.get(&sid) {
+                                        if let Some(index) = s["nodes"]
+                                            .as_array()
+                                            .and_then(|ns| ns.iter().position(|n| n["id"] == nid))
+                                        {
+                                            self.current = sid;
+                                            self.selected = index;
+                                            self.multiselect.clear();
+                                            self.search.clear();
+                                            self.center = Center::Node;
+                                            self.needs_compile = true;
+                                        }
+                                    }
+                                } else if self.project.stories.contains_key(&sid) {
+                                    self.current = sid;
+                                    self.center = Center::Chapter;
+                                } else {
+                                    self.center = Center::Manifest;
+                                }
+                            }
+                        }
                     });
             });
     }
@@ -1824,6 +1882,11 @@ impl App {
             }
             return;
         }
+        if ui.button(tr("停用本章多语言（可撤销）")).clicked() {
+            s.as_object_mut().unwrap().remove("localization");
+            self.project.stories.insert(self.current.clone(), s);
+            return;
+        }
         let mut default = s["localization"]["default_locale"]
             .as_str()
             .unwrap_or("chs")
@@ -1860,6 +1923,25 @@ impl App {
         }
         s["localization"]["default_locale"] = default.clone().into();
         s["localization"]["fallback_locale"] = fallback.into();
+        let sources = lom_core::localization::iter_localizable_texts(&s);
+        let translated = sources
+            .iter()
+            .filter(|(key, _)| {
+                s["localization"]["translations"][&self.locale][key]
+                    .as_str()
+                    .is_some_and(|v| !v.is_empty())
+            })
+            .count();
+        ui.label(format!(
+            "{}：{} / {}",
+            tr("已翻译"),
+            if self.locale == default {
+                sources.len()
+            } else {
+                translated
+            },
+            sources.len()
+        ));
         if self.locale == default {
             ui.label(tr("当前选择为源语言，请在节点属性中修改原文。"));
         } else {
@@ -1995,44 +2077,42 @@ impl App {
             }
         }
         if let Some(bytes) = self.project.assets.get(&self.asset_selection).cloned() {
-            if let Ok(mut meta) = serde_json::from_slice::<Value>(&bytes) {
-                ui.separator();
-                if ui.button(tr("复制 user: 引用")).clicked() {
-                    ui.ctx()
-                        .copy_text(format!("user:{}", meta["id"].as_str().unwrap_or("")));
-                }
-                if meta["type"] == "audio" && ui.button(tr("使用系统播放器试听")).clicked()
-                {
-                    let filename = meta["files"]["main"].as_str().unwrap_or("");
-                    let source = Path::new(&self.asset_selection)
-                        .parent()
-                        .unwrap_or(Path::new("assets"))
-                        .join(filename)
-                        .to_string_lossy()
-                        .replace('\\', "/");
-                    if let Some(bytes) = self.project.assets.get(&source) {
-                        let path = user_root()
-                            .join("rust/preview-audio")
-                            .join(Path::new(filename).file_name().unwrap_or_default());
-                        match lom_core::project::atomic_write(&path, bytes)
-                            .and_then(|_| open_file(&path))
+            if let Ok(meta) = serde_json::from_slice::<Value>(&bytes) {
+                if meta["type"] == "audio" {
+                    ui.horizontal(|ui| {
+                        if ui.button(tr("试听音频")).clicked() {
+                            let filename = meta["files"]["main"].as_str().unwrap_or("");
+                            let source = format!(
+                                "{}{filename}",
+                                self.asset_selection
+                                    .strip_suffix("content.json")
+                                    .unwrap_or("")
+                            );
+                            if let Some(data) = self.project.assets.get(&source) {
+                                let path = user_root()
+                                    .join("rust/preview-audio")
+                                    .join(Path::new(filename).file_name().unwrap_or_default());
+                                if let Err(e) = lom_core::project::atomic_write(&path, data)
+                                    .and_then(|_| self.audio.play(&path))
+                                {
+                                    self.error = Some(e.to_string());
+                                }
+                            }
+                        }
+                        if ui
+                            .add_enabled(self.audio.playing(), egui::Button::new(tr("停止试听")))
+                            .clicked()
                         {
-                            Ok(()) => self.status = "已交给系统播放器试听".into(),
-                            Err(e) => self.error = Some(e.to_string()),
+                            self.audio.stop();
                         }
-                    }
+                    });
                 }
-                if value_editor(ui, "素材信息", &mut meta, 0) {
-                    match lom_core::stable_json(&meta) {
-                        Ok(bytes) => {
-                            self.project
-                                .assets
-                                .insert(self.asset_selection.clone(), bytes);
-                            self.asset_dirty = true;
-                        }
-                        Err(e) => self.error = Some(e.to_string()),
-                    }
-                }
+            }
+            if self
+                .content_panel
+                .show(ui, &mut self.project, &self.asset_selection)
+            {
+                self.asset_dirty = true;
             }
         }
         ui.separator();
@@ -2482,6 +2562,18 @@ impl eframe::App for App {
             self.compile();
             self.view = View::Checks;
         }
+        if ctx.input_mut(|i| {
+            i.consume_key(
+                egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
+                egui::Key::F,
+            )
+        }) {
+            self.center = Center::Advanced;
+            self.advanced.page = 0;
+        }
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::F1)) {
+            self.center = Center::Tools;
+        }
         if !ctx.wants_keyboard_input() {
             if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::C)) {
                 self.copy();
@@ -2909,21 +3001,6 @@ fn report(ui: &mut egui::Ui, value: &Value, depth: usize) {
         }
     }
 }
-fn open_file(path: &Path) -> anyhow::Result<()> {
-    let mut cmd = if cfg!(target_os = "macos") {
-        std::process::Command::new("open")
-    } else if cfg!(target_os = "windows") {
-        let mut c = std::process::Command::new("explorer");
-        c.arg("/select,");
-        c
-    } else {
-        std::process::Command::new("xdg-open")
-    };
-    cmd.arg(path);
-    cmd.spawn()?;
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3118,6 +3195,7 @@ mod application_regression_tests {
             Center::Localization,
             Center::Assets,
             Center::Tools,
+            Center::Advanced,
         ] {
             app.center = panel;
             let _ = ctx.run(

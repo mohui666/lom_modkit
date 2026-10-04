@@ -1,5 +1,7 @@
 # lom_modkit 文档
 
+当前原生工具入口与功能迁移表：[Rust 迁移](chs/rust_migration.md)。
+
 权威版是简体中文 [`chs/`](chs/)。译文：
 [繁體](cht/README.md) · [日本語](ja/README.md) · [한국어](ko/README.md)。
 

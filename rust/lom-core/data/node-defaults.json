@@ -1,0 +1,515 @@
+{
+  "music": {
+    "id": "node",
+    "type": "music",
+    "name": "",
+    "op": "play"
+  },
+  "sound": {
+    "id": "node",
+    "type": "sound",
+    "name": "",
+    "kind": "sound",
+    "op": "play"
+  },
+  "scene": {
+    "id": "node",
+    "type": "scene",
+    "view": ""
+  },
+  "background": {
+    "id": "node",
+    "type": "background",
+    "action": "show",
+    "image": "",
+    "fade": 0.5
+  },
+  "custom_cg": {
+    "id": "node",
+    "type": "custom_cg",
+    "action": "show",
+    "image": "",
+    "fade": 0.5,
+    "scale": 100,
+    "x": 0,
+    "y": 0
+  },
+  "overlay": {
+    "id": "node",
+    "type": "overlay",
+    "action": "show",
+    "slot": "main",
+    "image": "",
+    "position": "center",
+    "scale": 100,
+    "opacity": 100,
+    "layer": "front",
+    "fade": 0.25
+  },
+  "show": {
+    "id": "node",
+    "type": "show",
+    "character": "artist1",
+    "position": "M",
+    "portrait": "normal",
+    "facing": "right",
+    "fadeDuration": 0,
+    "moveDuration": 0
+  },
+  "move": {
+    "id": "node",
+    "type": "move",
+    "character": "artist1",
+    "from": "L1",
+    "to": "M",
+    "duration": 1
+  },
+  "face": {
+    "id": "node",
+    "type": "face",
+    "character": "artist1",
+    "facing": "right"
+  },
+  "hide": {
+    "id": "node",
+    "type": "hide",
+    "character": "artist1",
+    "fadeDuration": 0
+  },
+  "focus": {
+    "id": "node",
+    "type": "focus",
+    "character": "artist1"
+  },
+  "offset": {
+    "id": "node",
+    "type": "offset",
+    "character": "artist1",
+    "x": 0,
+    "y": 0,
+    "duration": 0.5
+  },
+  "say": {
+    "id": "node",
+    "type": "say",
+    "text": "",
+    "character": "artist1",
+    "portrait": "normal",
+    "mode": "character"
+  },
+  "choice": {
+    "id": "node",
+    "type": "choice",
+    "options": [
+      {
+        "text": "选项一",
+        "goto": ""
+      },
+      {
+        "text": "选项二",
+        "goto": ""
+      }
+    ],
+    "dialog": "Options"
+  },
+  "shock": {
+    "id": "node",
+    "type": "shock",
+    "character": "artist1",
+    "duration": 0.5
+  },
+  "mask": {
+    "id": "node",
+    "type": "mask",
+    "show": true
+  },
+  "intro": {
+    "id": "node",
+    "type": "intro",
+    "intro_source": "official",
+    "character": "brother1",
+    "title": "",
+    "name": "",
+    "text": "",
+    "image": "",
+    "image_scale": 100,
+    "image_x": 0,
+    "image_y": 0
+  },
+  "effect": {
+    "id": "node",
+    "type": "effect",
+    "name": "",
+    "x": 0,
+    "y": 0,
+    "a": 1,
+    "b": 1,
+    "c": 1,
+    "play": true
+  },
+  "transition": {
+    "id": "node",
+    "type": "transition",
+    "phase": "in",
+    "dir": "lr"
+  },
+  "camera": {
+    "id": "node",
+    "type": "camera",
+    "name": "stage-memory",
+    "active": true
+  },
+  "block": {
+    "id": "node",
+    "type": "block",
+    "flowchart": "common",
+    "name": "",
+    "vars": []
+  },
+  "cg": {
+    "id": "node",
+    "type": "cg",
+    "action": "show",
+    "kind": "picture"
+  },
+  "dim": {
+    "id": "node",
+    "type": "dim",
+    "character": "artist1",
+    "dimmed": true
+  },
+  "message": {
+    "id": "node",
+    "type": "message",
+    "text": ""
+  },
+  "rotate": {
+    "id": "node",
+    "type": "rotate",
+    "character": "artist1",
+    "angle": 180,
+    "duration": 1
+  },
+  "dayenv": {
+    "id": "node",
+    "type": "dayenv",
+    "day_type": 1
+  },
+  "stat": {
+    "id": "node",
+    "type": "stat",
+    "key": "",
+    "delta": 0,
+    "waitDisplay": true,
+    "display": 1
+  },
+  "stat_set": {
+    "id": "node",
+    "type": "stat_set",
+    "key": "",
+    "value": 0,
+    "update": false
+  },
+  "affinity": {
+    "id": "node",
+    "type": "affinity",
+    "character": "artist1",
+    "delta": 1
+  },
+  "talent": {
+    "id": "node",
+    "type": "talent",
+    "talent": "",
+    "level": 1
+  },
+  "item": {
+    "id": "node",
+    "type": "item",
+    "kind": "misc",
+    "item": "",
+    "count": 1,
+    "remove": false
+  },
+  "flag": {
+    "id": "node",
+    "type": "flag",
+    "flag": ""
+  },
+  "game_flag": {
+    "id": "node",
+    "type": "game_flag",
+    "flag": "",
+    "value": 1,
+    "op": "set"
+  },
+  "enemy": {
+    "id": "node",
+    "type": "enemy",
+    "op": "team",
+    "enemy": "",
+    "value": 0,
+    "display": 1
+  },
+  "battle_skill": {
+    "id": "node",
+    "type": "battle_skill",
+    "op": "set",
+    "key": "",
+    "index": 2,
+    "active": 1,
+    "level": 1
+  },
+  "combat": {
+    "id": "node",
+    "type": "combat",
+    "character": "artist1",
+    "background": "center",
+    "talents": [],
+    "win": "",
+    "lose": ""
+  },
+  "battle": {
+    "id": "node",
+    "type": "battle",
+    "friend_factions": [
+      {
+        "id": "500",
+        "people": 1
+      }
+    ],
+    "friend_characters": [],
+    "enemy_factions": [
+      {
+        "id": "001",
+        "people": 1
+      }
+    ],
+    "enemy_characters": [],
+    "win": "",
+    "lose": ""
+  },
+  "battle_result": {
+    "id": "node",
+    "type": "battle_result",
+    "kind": "any",
+    "win": "",
+    "lose": ""
+  },
+  "reward": {
+    "id": "node",
+    "type": "reward",
+    "entries": [
+      {
+        "kind": "stat",
+        "key": "",
+        "amount": 1
+      }
+    ]
+  },
+  "result_screen": {
+    "id": "node",
+    "type": "result_screen",
+    "title": "胜利",
+    "text": "获得以下奖励",
+    "entries": [
+      {
+        "kind": "stat",
+        "key": "",
+        "amount": 1
+      }
+    ]
+  },
+  "custom_shop": {
+    "id": "node",
+    "type": "custom_shop",
+    "discount": 0,
+    "items": [
+      {
+        "category": "misc",
+        "item": "",
+        "count": 1
+      }
+    ]
+  },
+  "stat_check": {
+    "id": "node",
+    "type": "stat_check",
+    "key": "",
+    "op": ">=",
+    "value": 0,
+    "success": "",
+    "failure": ""
+  },
+  "affinity_check": {
+    "id": "node",
+    "type": "affinity_check",
+    "character": "brother1",
+    "op": ">=",
+    "value": 0,
+    "success": "",
+    "failure": ""
+  },
+  "item_check": {
+    "id": "node",
+    "type": "item_check",
+    "category": "misc",
+    "item": "",
+    "invert": false,
+    "success": "",
+    "failure": ""
+  },
+  "talent_check": {
+    "id": "node",
+    "type": "talent_check",
+    "talent": "",
+    "op": ">=",
+    "value": 1,
+    "success": "",
+    "failure": ""
+  },
+  "flag_check": {
+    "id": "node",
+    "type": "flag_check",
+    "source": "mod",
+    "flag": "",
+    "invert": false,
+    "success": "",
+    "failure": ""
+  },
+  "activity": {
+    "id": "node",
+    "type": "activity",
+    "kind": "training",
+    "message": "",
+    "stat": "",
+    "op": ">=",
+    "value": 0,
+    "time": "round",
+    "success_rewards": [],
+    "failure_rewards": [],
+    "success": "",
+    "failure": ""
+  },
+  "mod_quest": {
+    "id": "node",
+    "type": "mod_quest",
+    "quest": "",
+    "op": "start",
+    "message": ""
+  },
+  "quest_check": {
+    "id": "node",
+    "type": "quest_check",
+    "quest": "",
+    "state": "active",
+    "success": "",
+    "failure": ""
+  },
+  "persistent_var": {
+    "id": "node",
+    "type": "persistent_var",
+    "key": "",
+    "op": "set",
+    "value": 0
+  },
+  "persistent_check": {
+    "id": "node",
+    "type": "persistent_check",
+    "key": "",
+    "op": ">=",
+    "value": 1,
+    "success": "",
+    "failure": ""
+  },
+  "mission": {
+    "id": "node",
+    "type": "mission",
+    "name": "Main",
+    "key": ""
+  },
+  "time": {
+    "id": "node",
+    "type": "time",
+    "op": "round"
+  },
+  "autosave": {
+    "id": "node",
+    "type": "autosave",
+    "kind": "story"
+  },
+  "branch": {
+    "id": "node",
+    "type": "branch",
+    "flag": "",
+    "source": "mod",
+    "cases": [
+      {
+        "value": 1,
+        "goto": ""
+      }
+    ]
+  },
+  "dice": {
+    "id": "node",
+    "type": "dice",
+    "max": 99,
+    "header": "命运检定",
+    "bonus": 0,
+    "bands": [
+      {
+        "upper": 49,
+        "text": "失败",
+        "goto": ""
+      },
+      {
+        "text": "成功",
+        "goto": ""
+      }
+    ]
+  },
+  "goto_scene": {
+    "id": "node",
+    "type": "goto_scene",
+    "scene": "Free"
+  },
+  "panel": {
+    "id": "node",
+    "type": "panel",
+    "panel": "martial"
+  },
+  "wait": {
+    "id": "node",
+    "type": "wait",
+    "seconds": 1
+  },
+  "end": {
+    "id": "node",
+    "type": "end"
+  },
+  "free_trigger": {
+    "id": "node",
+    "type": "free_trigger",
+    "position": "Center",
+    "script": "",
+    "when_month": "any",
+    "when_stage": "any",
+    "when_flag_set": "",
+    "when_flag_clear": "",
+    "when_affinity": "",
+    "when_affinity_min": 0,
+    "note": ""
+  },
+  "death": {
+    "id": "node",
+    "type": "death",
+    "title": "",
+    "text": "",
+    "death_id": "900001",
+    "next": "Title"
+  },
+  "raw": {
+    "id": "node",
+    "type": "raw",
+    "code": "-- 原生 Lua 代码，原样插入编译产物\n"
+  }
+}

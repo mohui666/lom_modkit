@@ -1,21 +1,18 @@
 # 全节点样例 3.0
 
-这是手动实机验收包，构建时按当前 `models.NODE_TYPES` 硬性检查全部 63 种节点。
+这是手动实机验收包，构建时按当前 Rust authoring schema 硬性检查全部 63 种节点。
 
 第一章增加美颜赵活登场、对白及恢复普通外观，要求 Host ≥1.1.2。
 2026-10-01 仅重建、校验和打包，尚未执行本页的实机测试流程。
 
 生成与 CLI 校验：
 
-```powershell
-editor/.venv/Scripts/python samples/showcase3/build_showcase3.py
-editor/.venv/Scripts/python editor/story_api.py check samples/showcase3/story/main.json --json
-editor/.venv/Scripts/python editor/story_api.py compile samples/showcase3/story/main.json --json
-editor/.venv/Scripts/python editor/story_api.py pack samples/showcase3 -o samples/全节点样例3.0.lommod --json
+```sh
+cargo run --locked -p lomc --example build_showcase3 -- out/showcase3-native
+cargo run --locked -p lomc -- inspect out/showcase3-native/showcase3.lommod --json
 ```
 
-实际构建可以使用任意安装了项目依赖的 Python。Story 不手写 JSON/Lua：节点由
-`story_api` 受控 API 生成，再由同一个 CLI 校验、编译和打包。
+`source.json` 保存独立创作源，与旧生成器的 5 章、133 节点逐项一致；Rust 生成器检查全部节点覆盖并校验、写出 JSON 和 Lua 包。省略输出参数可刷新本目录。下列实机步骤是手动验收说明，本次迁移没有执行。
 
 实机路径分为五章：演出与用户内容 → Gameplay → Combat（可跳过）→ Battle
 （可跳过）→ 死亡画面或安全返回。Battle 的 PlayerDie 沿用原版重试/标题流程，

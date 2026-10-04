@@ -21,32 +21,15 @@ jobs:
         uses: actions/checkout@v7
       - name: Verify Rust toolchain
         run: rustup show
+      - name: Check Rust formatting
+        run: cargo fmt --all -- --check
       - name: Test native compiler and editor
         run: cargo test --locked --workspace
       - name: Verify embedded authoring data and previews
         run: cargo run --locked -p lom-editor -- --smoke-preview samples/showcase3
 
-  compiler:
-    name: Compiler tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Python
-        uses: actions/setup-python@v7
-        with:
-          python-version: "3.10"
-          cache: pip
-          cache-dependency-path: compiler/requirements-detector.txt
-
-      - name: Install test dependencies
-        run: python -m pip install -r compiler/requirements-detector.txt
-
-      - name: Run Compiler tests
-        working-directory: compiler
-        run: python -m unittest discover -s tests -p "test_*.py" -v
+      - name: Rebuild acceptance sample with Rust
+        run: cargo run --locked -p lomc --example build_showcase3 -- out/showcase3-native
 
   runtime:
     name: Runtime tests

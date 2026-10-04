@@ -16,7 +16,7 @@ crash.log
 editor/tests/out/
 # Test matrix reports are local release artifacts.
 /out/
-# PyInstaller 构建产物（editor/build_exe.py + lom_bundle.spec 生成）
+# 历史 Qt 构建产物（不再维护；保留本机文件）
 editor/build/
 editor/dist/
 # .NET 构建产物

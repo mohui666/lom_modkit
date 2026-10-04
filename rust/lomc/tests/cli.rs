@@ -119,3 +119,42 @@ fn native_cli_pack_and_inspect() {
     assert_eq!(body["manifest"]["package_format"], 3);
     assert_eq!(body["content_hash"].as_str().unwrap().len(), 64);
 }
+#[test]
+fn editing_cli_is_atomic_and_author_returns_controlled_output() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("main.json");
+    let ops = d.path().join("ops.json");
+    assert!(cli(&["new-story", path.to_str().unwrap(), "--json"])
+        .status
+        .success());
+    let before = fs::read(&path).unwrap();
+    let story: Value = serde_json::from_slice(&before).unwrap();
+    let id = story["nodes"][0]["id"].as_str().unwrap();
+    fs::write(&ops,serde_json::to_vec(&serde_json::json!([{"op":"update_node","node_id":id,"fields":{"text":"changed"}},{"op":"rename_node","node_id":"missing","new_id":"new"}])).unwrap()).unwrap();
+    assert!(!cli(&[
+        "edit",
+        path.to_str().unwrap(),
+        "--operations",
+        ops.to_str().unwrap(),
+        "--json"
+    ])
+    .status
+    .success());
+    assert_eq!(fs::read(&path).unwrap(), before);
+    fs::write(
+        &ops,
+        serde_json::to_vec(
+            &serde_json::json!({"op":"new_story","params":{"story_id":"script2","title":"第二章"}}),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let output = cli(&["author", ops.to_str().unwrap(), "--json"]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    let v: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(v["result"]["id"], "script2");
+}

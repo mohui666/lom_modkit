@@ -40,10 +40,9 @@ fail-closed 回 Free。
 ## 截图检测
 
 ```powershell
-python -m pip install -r compiler/requirements-detector.txt
-$env:PYTHONPATH = "compiler"
-python -m lomc detect-watermark screenshot.png
-python -m lomc detect-watermark screenshot.jpg --json
+cargo build --locked --release -p lomc
+target/release/lomc detect-watermark screenshot.png
+target/release/lomc detect-watermark screenshot.jpg --json
 ```
 
 退出码：检出 `0`，未检出 `2`，输入/依赖错误 `1`。JSON 含 `detected`、
@@ -55,7 +54,7 @@ python -m lomc detect-watermark screenshot.jpg --json
 需要 PATH 里的 FFmpeg。定时抽帧后做亮度相关累积，再走截图检测器：
 
 ```powershell
-python -m lomc detect-watermark-video capture.mp4 --json
+target/release/lomc detect-watermark-video capture.mp4 --json
 ```
 
 支持 MP4/MKV/MOV/WebM/AVI/M4V，输入上限 16 GiB。额外字段：

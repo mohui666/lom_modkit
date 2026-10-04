@@ -402,40 +402,9 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 
 20. **構造化 Runtime エラー**：Mod 再生を fail-closed で中止する障害は、一行の `[mod-runtime-error]` JSON ログとして記録されます。固定項目は `mod_id`、`mod_name`、`version`、`story`、`node`、`category`、`error`、`recent_trace` と UTC 時刻です。通常 Mod は変数値を含まないノード/遷移 breadcrumb を最大 32 件だけ保持し、エラーには最大 16 件を長さ制限付きで添付します。F5 の完全な 256 件開発 trace は従来どおりです。例外整形、trace 取得、JSON 化、ログ出力自体が失敗しても最小レポートへ退避し、元の障害や安全な Free 復帰を妨げません。最後のレポートは診断バンドル用にメモリ保持します。
 
-## 7. AI ツールインターフェース（story_api）
+## 7. Rust authoring API
 
-editor/story_api.py は AI／エディター共用の管理された書き込み入口です。ルール：**AI は story JSON や Lua を直接手書きしません**。
-すべてのシナリオ構築は story_api 経由（models 契約の既定値 + lomc の検証／警告）で行い、ダイスメニュークラッシュ、
-transition の黒幕、choice スキンクラッシュ、背景の黒画面、人物未登場での動作など既知の落とし穴を防ぎます。
-
-- Python API：
-  - `load_editor_data()`：エディターデータ（dice_meta などの一覧を含む）を読み、(editor_data, is_fallback) を返す
-  - `new_story(story_id="main", title="新剧情", mood=False)`：新規シナリオスクリプト（show 登場 + 空 say の 2 ノード開場。先に登場させてから動作）
-  - `add_node(story, node_type, fields=None, after=None)`：models 既定値でノードを追加（63 種）。未知のタイプ／フィールド／型不一致→ValueError。ノード id は自動生成。after で挿入位置を指定（ノード id または None=末尾）。登場防線：動作系ノードの対象人物がそれ以前に未登場／退場済みの場合、その前に show を自動挿入
-  - `update_node(story, node_id, fields)`：ノードフィールドを更新（add と同じフィールド検証）。ノード不存在→ValueError。登場防線：更新後に動作人物が未登場／退場済みなら、そのノードの前に show を自動挿入し、それを指す goto／選択肢／分岐ジャンプを新ノードへ付け替え
-  - `get_node(story, node_id)`：ノードを読む。不存在→ValueError
-  - `list_nodes(story)`：[{"id","type","summary"}] の一覧を返す
-  - `delete_node(story, node_id)`：ノードを削除。不存在→ValueError
-  - `rename_node(story, node_id, new_id)`：ノード id を改名し、start と全ジャンプ参照（goto/選択肢/分岐/ダイス行き先）を同期。改名後のノードを返す。新 id は `[A-Za-z0-9_-]+` に限定。既存ノードと衝突→ValueError
-  - `move_node(story, node_id, delta)`：相対移動量でノード順序を調整
-  - `set_start(story, node_id)`：開始ノードを設定
-  - `add_choice(story, options, after=None)`：選択肢分岐を追加（2〜4 項目、dialog は Options 固定）
-  - `add_dice(story, maximum, header, bands, bonus=0, bonus_name="", bonus_status="", after=None)`：直接設定するダイス判定を追加。bands は 2～4 区分、最後以外は昇順 upper、全区分は text と goto を持つ
-  - `add_say(story, text, character=None, mode="character", portrait="normal", voice=None, after=None)`：セリフを追加（character モードは character 必須。narrative/center は character を書かない。voice は任意の user: 音声参照）
-  - `add_death(story, text, death_id, next="Title", title=None, after=None)`：死亡テキストノードを追加（text 必須・非空・複数行可。death_id 必須、≥900000 の mod 専用数値 id。next は Title のみ。title は任意の短いタイトル、既定／空文字列は「勝敗乃兵家常事」）
-  - `add_scene(story, view, after=None)`：シーン切替を追加
-  - `check_story(story)`：検証のみ。(errors: list[str], warnings: list[str]) を返す
-  - `compile_story(story)`：検証+コンパイル。(lua|None, errors, warnings) を返す。失敗時 lua は None
-  - `load_story_json(path)` / `save_story_json(story, path)`：story.json の読み書き（UTF-8）
-  - `pack_mod(mod_dir, output=None)`：manifest 検証 + 全件コンパイル + .lommod パッケージング。成果物パスを返す
-- CLI：python editor/story_api.py check|compile|pack|new-story（AI サブプロセスに優しい。終了コード 0/1、中文エラーメッセージ）
-- 重要な不変条件（コンパイラーが強制、API が透過）：choice.dialog は Options のみ。dice.check は公式メタデータ必須
-  （ダイス範囲+結果バンド）。transition in/out はペア。scene は背景を自動プリロード。
-  **show/say の (character, portrait) は data/editor_data.json のキャラ表情表内になければなりません**
-  （表が利用不可／キャラが表にない → 通過。キャラが表にあるが表情がそのリストにない → LomcError/ValueError——
-  ゲームの LoadCharacterPortrait は無効な表情 key に KeyNotFoundException を投げ → Lua コルーチン死亡 → 会話フリーズ）。
-  say/show が参照する人物は先に show で登場させる必要があります（未登場でも同様に KeyNotFoundException）。
-  書き込み入口の登場防線が show を自動補完します（add_node/update_node 参照）。エディターの検査は複数経路合流に対してグラフレベルでフォールバックします。
+`lom-core::story_api` and `lomc author/edit` provide controlled story editing. Unknown fields and wrong field types are rejected. Use `check` before compiling or packaging; all node types share the embedded authoring schema and defaults. The old Python import API is retired. See [CLI and API](ai_cli.md).
 
 ## 8. ユーザーコンテンツ（User Content、v1 は音声のみ）
 
@@ -477,6 +446,6 @@ assets/user/audio/mohui.boss_theme/boss_theme.ogg
 - `character`（音声のみ、任意）：ユーザーキャラ参照または公式キャラ id。省略時はナレーション／システム／未紐づけ。
 - コンテンツ ID：`[a-z][a-z0-9_]{0,31}.[a-z0-9][a-z0-9_]{0,47}`。`..`、`/`、`\`、`:` は禁止。
 - 欠損、型不一致、metadata 破損、ファイル不存在、非対応拡張子、20MB 超過：pack は直接失敗します。暗黙のスキップは禁止。
-- Python 側の唯一の解析入口：`compiler/lomc/content.py`。C# 側の契約実装：`ContentRef.cs` + `ModLoader`。
+- Python 側の唯一の解析入口：`rust/lom-core/src/content.rs`。C# 側の契約実装：`ContentRef.cs` + `ModLoader`。
 
 使用方法は `user_content.md` を参照してください。

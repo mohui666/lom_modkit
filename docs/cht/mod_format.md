@@ -399,40 +399,9 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 
 20. **結構化 Runtime 錯誤**：所有導致 Mod 演出 fail-closed 中止的故障會寫入單條 `[mod-runtime-error]` JSON 日誌，固定包含 `mod_id`、`mod_name`、`version`、`story`、`node`、`category`、`error`、`recent_trace` 與 UTC 時間。正式 Mod 只保留最多 32 條節點/跳轉級輕量 breadcrumb，不記錄變數值；錯誤快照最多附 16 條且都有長度上限，F5 的 256 條完整開發 trace 規則不變。格式化、快照、序列化或日誌自身再失敗時使用最小兜底報告，不能遮蔽原始錯誤或阻止安全返回 Free；最後一份報告留在記憶體供診斷包使用。
 
-## 7. AI 工具介面（story_api）
+## 7. Rust authoring API
 
-editor/story_api.py 是 AI/編輯器共用的受控寫入口。規則：**AI 不直接手寫 story JSON 或 Lua**，
-一切劇情構建經 story_api（models 契約預設值 + lomc 驗證/警告），防止骰子選單崩潰、
-transition 黑幕、choice 外觀崩潰、背景黑畫面、人物未登場就做動作等已知坑。
-
-- Python API：
-  - `load_editor_data()`：讀取編輯器資料（含 dice_meta 等清單），返回 (editor_data, is_fallback)
-  - `new_story(story_id="main", title="新剧情", mood=False)`：新建劇情腳本（show 登場 + 空 say 雙節點開場，先登場再動作）
-  - `add_node(story, node_type, fields=None, after=None)`：按 models 預設值新增節點（63 種類型），未知類型/欄位/類型不符→ValueError，節點 id 自動產生，after 指定插入位置（節點 id 或 None=末尾）。登場防線：動作類節點的目標人物在前面未登場/已退場時，自動在它前面插入 show
-  - `update_node(story, node_id, fields)`：更新節點欄位（同 add 的欄位驗證），節點不存在→ValueError。登場防線：更新後若動作人物未登場/已退場，自動在該節點前插入 show 並把指向它的 goto/選項/分支跳轉改指新節點
-  - `get_node(story, node_id)`：讀取節點，不存在→ValueError
-  - `list_nodes(story)`：返回 [{"id","type","summary"}] 清單
-  - `delete_node(story, node_id)`：刪除節點，不存在→ValueError
-  - `rename_node(story, node_id, new_id)`：重新命名節點 id 並同步 start 與全部跳轉引用（goto/選項/分支/骰子去向），返回改名後的節點；新 id 限 `[A-Za-z0-9_-]+`，與現有節點衝突→ValueError
-  - `move_node(story, node_id, delta)`：按相對位移調整節點順序
-  - `set_start(story, node_id)`：設定起始節點
-  - `add_choice(story, options, after=None)`：新增選項分支（2~4 項，dialog 固定 Options）
-  - `add_dice(story, maximum, header, bands, bonus=0, bonus_name="", bonus_status="", after=None)`：新增直接設定的骰子檢定；bands 為 2～4 檔，非末檔有遞增 upper，每檔有 text 與 goto
-  - `add_say(story, text, character=None, mode="character", portrait="normal", voice=None, after=None)`：新增對白（character 模式必填 character；narrative/center 不寫 character；voice 可選 user: 音訊引用）
-  - `add_death(story, text, death_id, next="Title", title=None, after=None)`：新增死亡文字節點（text 必填非空多行；death_id 必填 ≥900000 的 mod 專屬數字 id；next 僅接受 Title；title 可選短標題，預設/空字串用「勝敗乃兵家常事」）
-  - `add_scene(story, view, after=None)`：新增場景切換
-  - `check_story(story)`：只驗證，返回 (errors: list[str], warnings: list[str])
-  - `compile_story(story)`：驗證+編譯，返回 (lua|None, errors, warnings)，失敗時 lua 為 None
-  - `load_story_json(path)` / `save_story_json(story, path)`：story.json 讀寫（UTF-8）
-  - `pack_mod(mod_dir, output=None)`：驗證 manifest + 全部編譯 + 打 .lommod，返回產物路徑
-- CLI：python editor/story_api.py check|compile|pack|new-story（AI 子行程友善，退出碼 0/1，中文錯誤）
-- 關鍵不變式（編譯器強制，API 透傳）：choice.dialog 僅 Options；dice.check 必須有官方元資料
-  （骰子範圍+結果帶）；transition in/out 成對；scene 自動預載背景；
-  **show/say 的 (character, portrait) 必須落在 data/editor_data.json 的角色表情表內**
-  （表不可用/角色不在表 → 放行；角色在表但表情不在其列表 → LomcError/ValueError——
-  遊戲 LoadCharacterPortrait 對無效表情 key 拋 KeyNotFoundException → Lua 協程死 → 對話凍結）。
-  say/show 引用的人物必須先 show 上台（未上台同樣拋 KeyNotFoundException），
-  寫入口的登場防線會自動補 show（見 add_node/update_node），編輯器體檢對多路徑匯合做圖級保底。
+`lom-core::story_api` and `lomc author/edit` provide controlled story editing. Unknown fields and wrong field types are rejected. Use `check` before compiling or packaging; all node types share the embedded authoring schema and defaults. The old Python import API is retired. See [CLI and API](ai_cli.md).
 
 ## 8. 使用者內容（User Content，v1 僅音訊）
 
@@ -474,6 +443,6 @@ assets/user/audio/mohui.boss_theme/boss_theme.ogg
 - `character`（僅音訊、可選）：使用者角色引用或官方人物 id；省略表示旁白/系統/未關聯。
 - 內容 ID：`[a-z][a-z0-9_]{0,31}.[a-z0-9][a-z0-9_]{0,47}`，禁止 `..`、`/`、`\`、`:`。
 - 缺失、類型不匹配、metadata 損壞、檔案不存在、副檔名不支援、超過 20MB：pack 直接失敗，不得 silently skip。
-- Python 側唯一解析入口：`compiler/lomc/content.py`。C# 側契約實作：`ContentRef.cs` + `ModLoader`。
+- Python 側唯一解析入口：`rust/lom-core/src/content.rs`。C# 側契約實作：`ContentRef.cs` + `ModLoader`。
 
 使用說明見 `user_content.md`。

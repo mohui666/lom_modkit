@@ -147,18 +147,47 @@ impl Catalog {
                 })
                 .unwrap_or_default();
         }
+        if kind == "camera" {
+            return rows(&self.schema["CAMERA_PRESETS"]);
+        }
+        if kind == "flag_ref" {
+            return std::iter::once((String::new(), tr("不限")))
+                .chain(rows(&self.data["project_flags"]))
+                .collect();
+        }
+        if kind == "battle_character" || kind == "battle_faction" {
+            let (key, category) = if kind == "battle_character" {
+                ("VERIFIED_BATTLE_CHARACTER_IDS", "characters")
+            } else {
+                ("VERIFIED_BATTLE_FACTION_IDS", "battle_factions")
+            };
+            let names = rows(&self.data[category]);
+            return self.schema[key]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|v| v.as_str())
+                .map(|id| {
+                    let name = names
+                        .iter()
+                        .find(|(k, _)| k == id)
+                        .map(|(_, n)| n.as_str())
+                        .unwrap_or(id);
+                    (id.into(), crate::i18n::term(category, id, name))
+                })
+                .collect();
+        }
         if kind == "item" {
-            return rows(
-                &self.data[match node["kind"]
-                    .as_str()
-                    .or_else(|| node["category"].as_str())
-                    .unwrap_or("misc")
-                {
-                    "book" => "items_book",
-                    "special" => "items_special",
-                    _ => "items_misc",
-                }],
-            );
+            let category = match node["category"]
+                .as_str()
+                .or_else(|| node["kind"].as_str())
+                .unwrap_or("misc")
+            {
+                "book" => "items_book",
+                "special" => "items_special",
+                _ => "items_misc",
+            };
+            return localized_rows(&self.data[category], category);
         }
         if kind == "voice" {
             return self.data["user_voices"]
@@ -191,7 +220,9 @@ impl Catalog {
             }
             "stat" => "stats",
             "talent" => "talents",
+            "combat_skill" => "combat_talents",
             "game_flag" => "game_flags",
+            "free_position" => "free_positions",
             "battle_skill" => "battle_skills",
             "battle_faction" => "battle_factions",
             "mode" => "modes",
@@ -202,7 +233,14 @@ impl Catalog {
             "item" => "items",
             _ => "",
         };
-        let result = rows(&self.data[key]);
+        let result = localized_rows(
+            &self.data[key],
+            if key == "affinity_characters" {
+                "characters"
+            } else {
+                key
+            },
+        );
         if kind == "mode" && result.is_empty() {
             return vec![
                 ("character".into(), "对话".into()),
@@ -240,6 +278,27 @@ impl Catalog {
             );
         }
         ui.separator();
+        if kind == "battle" {
+            for side in ["friend", "enemy"] {
+                let total = node[format!("{side}_factions")]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .map(|r| r["people"].as_i64().unwrap_or(1))
+                    .sum::<i64>()
+                    + node[format!("{side}_characters")]
+                        .as_array()
+                        .map_or(0, Vec::len) as i64;
+                ui.label(format!(
+                    "{}: {total}",
+                    if side == "friend" {
+                        tr("我方总人数")
+                    } else {
+                        tr("敌方总人数")
+                    }
+                ));
+            }
+        }
         let allow_goto = ![
             "choice",
             "branch",
@@ -483,7 +542,7 @@ impl Catalog {
                         | "official_characters"
                         | "reward_entries"
                         | "reward_entries_optional"
-                        | "custom_shop_items" => array_editor(ui, &mut value, kind, node_ids),
+                        | "custom_shop_items" => array_editor(self, ui, &mut value, kind, node_ids),
                         _ => {
                             let mut s = value.as_str().unwrap_or("").to_owned();
                             let mut c = false;
@@ -629,7 +688,13 @@ fn row_template(kind: &str) -> Value {
         _ => json!({"kind":"stat","key":"","amount":1}),
     }
 }
-fn array_editor(ui: &mut Ui, value: &mut Value, kind: &str, node_ids: &[String]) -> bool {
+fn array_editor(
+    catalog: &Catalog,
+    ui: &mut Ui,
+    value: &mut Value,
+    kind: &str,
+    node_ids: &[String],
+) -> bool {
     let Some(array) = value.as_array_mut() else {
         return value_editor(ui, "内容", value, 0);
     };
@@ -651,6 +716,14 @@ fn array_editor(ui: &mut Ui, value: &mut Value, kind: &str, node_ids: &[String])
                         remove = Some(i);
                     }
                 });
+                if typed_row(catalog, ui, &mut array[i], kind)
+                    .map(|c| {
+                        changed |= c;
+                    })
+                    .is_some()
+                {
+                    return;
+                }
                 if let Some(obj) = array[i].as_object_mut() {
                     for (key, val) in obj.iter_mut() {
                         ui.push_id(key, |ui| {
@@ -719,7 +792,25 @@ fn array_editor(ui: &mut Ui, value: &mut Value, kind: &str, node_ids: &[String])
         changed = true;
     }
     if ui.button(tr("＋ 添加一项")).clicked() {
-        array.push(row_template(kind));
+        let mut row = row_template(kind);
+        if kind == "official_characters" {
+            if let Some((id, _)) = catalog
+                .options("battle_character", &Value::Null, &[], &[])
+                .into_iter()
+                .find(|(id, _)| !array.iter().any(|v| v == id))
+            {
+                row = json!(id);
+            } else {
+                return changed;
+            }
+        }
+        if kind == "combat_talents" {
+            row["key"] = catalog.data["combat_talents"][0]["id"].clone();
+        }
+        if kind == "battle_faction_list" {
+            row["id"] = json!("000");
+        }
+        array.push(row);
         changed = true;
     }
     changed
@@ -923,5 +1014,231 @@ mod conditional_tests {
             assert!(!field_visible("intro", &node, "name"));
         }
         assert!(!field_visible("branch", &json!({"source":"stat"}), "flag"));
+    }
+}
+
+fn localized_rows(value: &Value, category: &str) -> Vec<(String, String)> {
+    rows(value)
+        .into_iter()
+        .map(|(id, name)| {
+            let name = crate::i18n::term(category, &id, &name);
+            (id, name)
+        })
+        .collect()
+}
+fn pick(
+    ui: &mut Ui,
+    row: &mut Value,
+    key: &str,
+    label: &str,
+    options: Vec<(String, String)>,
+) -> bool {
+    let mut selected = row[key].as_str().unwrap_or("").to_owned();
+    let before = selected.clone();
+    ui.label(tr(label));
+    egui::ComboBox::from_id_salt(key)
+        .selected_text(
+            options
+                .iter()
+                .find(|(k, _)| k == &selected)
+                .map(|(_, n)| n.as_str())
+                .unwrap_or(&selected),
+        )
+        .show_ui(ui, |ui| {
+            let sid = ui.id().with("filter");
+            let mut q = ui.data_mut(|d| d.get_temp::<String>(sid).unwrap_or_default());
+            ui.text_edit_singleline(&mut q);
+            for (id, name) in options {
+                if q.is_empty()
+                    || format!("{name} {id}")
+                        .to_lowercase()
+                        .contains(&q.to_lowercase())
+                {
+                    ui.selectable_value(&mut selected, id.clone(), format!("{name} · {id}"));
+                }
+            }
+            ui.data_mut(|d| d.insert_temp(sid, q));
+        });
+    if before != selected {
+        row[key] = json!(selected);
+        true
+    } else {
+        false
+    }
+}
+fn number(ui: &mut Ui, row: &mut Value, key: &str, min: i64, max: i64) -> bool {
+    let mut v = row[key].as_i64().unwrap_or(min).clamp(min, max);
+    ui.label(tr(key));
+    if ui
+        .add(egui::DragValue::new(&mut v).range(min..=max))
+        .changed()
+    {
+        row[key] = json!(v);
+        true
+    } else {
+        false
+    }
+}
+fn typed_row(c: &Catalog, ui: &mut Ui, row: &mut Value, kind: &str) -> Option<bool> {
+    let mut changed = false;
+    if kind == "official_characters" {
+        let mut temp = json!({"id":row.clone()});
+        changed = pick(
+            ui,
+            &mut temp,
+            "id",
+            "官方角色",
+            c.options("battle_character", row, &[], &[]),
+        );
+        if changed {
+            *row = temp["id"].clone();
+        }
+        return Some(changed);
+    }
+    if !row.is_object() {
+        return None;
+    }
+    match kind {
+        "combat_talents" => {
+            let chosen = pick(
+                ui,
+                row,
+                "key",
+                "武学",
+                c.options("combat_skill", row, &[], &[]),
+            );
+            changed |= chosen;
+            let max = c.data["combat_talents"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .find(|v| v["id"] == row["key"])
+                .and_then(|v| v["max_level"].as_i64())
+                .unwrap_or(1)
+                .max(1);
+            if chosen {
+                row["level"] = json!(row["level"].as_i64().unwrap_or(1).clamp(1, max));
+            }
+            changed |= number(ui, row, "level", 1, max);
+        }
+        "battle_faction_list" => {
+            changed |= pick(
+                ui,
+                row,
+                "id",
+                "阵营",
+                c.options("battle_faction", row, &[], &[]),
+            );
+            changed |= number(ui, row, "people", 1, 10000);
+        }
+        "reward_entries" | "reward_entries_optional" | "custom_shop_items" => {
+            if kind != "custom_shop_items" {
+                changed |= pick(
+                    ui,
+                    row,
+                    "kind",
+                    "奖励类型",
+                    c.options("enum:reward_kind", row, &[], &[]),
+                );
+            }
+            let target = if kind == "custom_shop_items" {
+                "item".to_owned()
+            } else {
+                row["kind"].as_str().unwrap_or("stat").to_owned()
+            };
+            if target == "item" {
+                changed |= pick(
+                    ui,
+                    row,
+                    "category",
+                    "物品类型",
+                    c.options("enum:item_kind", row, &[], &[]),
+                );
+            }
+            let field = if kind == "custom_shop_items" {
+                "item"
+            } else {
+                "key"
+            };
+            let typ = match target.as_str() {
+                "affinity" => "affinity_character",
+                "flag" => "flag_ref",
+                s => s,
+            };
+            changed |= c.field(ui, row, field, "目标", typ, false, &[], &[]);
+            if target != "flag" {
+                changed |= number(
+                    ui,
+                    row,
+                    if kind == "custom_shop_items" {
+                        "count"
+                    } else {
+                        "amount"
+                    },
+                    -999999,
+                    999999,
+                );
+            }
+            ui.collapsing(tr("其他字段"), |ui| {
+                changed |= value_editor(ui, "row", row, 1);
+            });
+        }
+        _ => return None,
+    }
+    Some(changed)
+}
+
+#[cfg(test)]
+mod catalog_parity_tests {
+    use super::*;
+    #[test]
+    fn battle_catalog_matches_existing_verified_contract() {
+        let c = Catalog::new();
+        let chars = c.options("battle_character", &Value::Null, &[], &[]);
+        assert_eq!(
+            chars.iter().map(|(id, _)| id.as_str()).collect::<Vec<_>>(),
+            vec![
+                "special4",
+                "special102",
+                "special103",
+                "special401",
+                "special811"
+            ]
+        );
+        assert!(!c
+            .options("battle_faction", &Value::Null, &[], &[])
+            .iter()
+            .any(|(id, _)| id == "400"));
+        assert_eq!(c.options("combat_skill", &Value::Null, &[], &[]).len(), 115);
+        assert_eq!(c.options("camera", &Value::Null, &[], &[]).len(), 4);
+    }
+    #[test]
+    fn typed_rows_preserve_values_until_user_edits() {
+        let c = Catalog::new();
+        let ctx = egui::Context::default();
+        for (kind, mut row) in [
+            ("combat_talents", json!({"key":"future_skill","level":99})),
+            (
+                "battle_faction_list",
+                json!({"id":"future_faction","people":20000}),
+            ),
+            ("official_characters", json!("future_character")),
+            (
+                "reward_entries",
+                json!({"kind":"affinity","key":"brother4","amount":2}),
+            ),
+            (
+                "custom_shop_items",
+                json!({"category":"misc","item":"1","count":2,"cost":5}),
+            ),
+        ] {
+            let before = row.clone();
+            let _ = ctx.run(Default::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    assert_eq!(typed_row(&c, ui, &mut row, kind), Some(false));
+                });
+            });
+            assert_eq!(row, before);
+        }
     }
 }

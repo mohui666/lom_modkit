@@ -402,40 +402,9 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 
 20. **구조화 Runtime 오류**: Mod 재생을 fail-closed로 중단시키는 장애는 한 줄의 `[mod-runtime-error]` JSON 로그로 기록됩니다. 고정 필드는 `mod_id`, `mod_name`, `version`, `story`, `node`, `category`, `error`, `recent_trace`와 UTC 시간입니다. 일반 Mod는 변수 값을 포함하지 않는 노드/이동 breadcrumb를 최대 32개만 보관하며 오류에는 길이가 제한된 최근 16개만 첨부합니다. F5의 전체 256개 개발 trace 규칙은 그대로입니다. 예외 포맷, trace 조회, JSON 직렬화 또는 로그 출력 자체가 실패해도 최소 보고서로 대체하여 원래 오류나 안전한 Free 복귀를 방해하지 않습니다. 마지막 보고서는 진단 번들을 위해 메모리에 유지됩니다.
 
-## 7. AI 도구 인터페이스(story_api)
+## 7. Rust authoring API
 
-editor/story_api.py는 AI/에디터 공용의 통제된 쓰기 진입구입니다. 규칙: **AI는 story JSON이나 Lua를 직접 손으로 작성하지 않습니다**,
-모든 스토리 구축은 story_api를 거칩니다(models 규약 기본값 + lomc 검증/경고). 주사위 메뉴 크래시,
-transition 검은 막, choice 스킨 크래시, 배경 검은 화면, 인물이 등장하지 않은 채 동작하는 등의 알려진 함정을 막습니다.
-
-- Python API:
-  - `load_editor_data()`: 에디터 데이터 읽기(dice_meta 등 목록 포함), (editor_data, is_fallback) 반환
-  - `new_story(story_id="main", title="新剧情", mood=False)`: 새 스토리 스크립트 작성(show 등장 + 빈 say 두 노드 오프닝, 등장 후 동작)
-  - `add_node(story, node_type, fields=None, after=None)`: models 기본값으로 노드 추가(63종), 알 수 없는 타입/필드/타입 불일치→ValueError, 노드 id 자동 생성, after로 삽입 위치 지정(노드 id 또는 None=끝). 등장 방어선: 동작류 노드의 대상 인물이 앞에서 등장하지 않았거나 이미 퇴장했으면 그 앞에 자동으로 show 삽입
-  - `update_node(story, node_id, fields)`: 노드 필드 업데이트(add와 같은 필드 검증), 노드 없음→ValueError. 등장 방어선: 업데이트 후 동작 인물이 미등장/퇴장 상태이면 해당 노드 앞에 자동으로 show를 삽입하고, 그곳을 가리키는 goto/옵션/분기 점프를 새 노드로 변경
-  - `get_node(story, node_id)`: 노드 읽기, 없음→ValueError
-  - `list_nodes(story)`: [{"id","type","summary"}] 목록 반환
-  - `delete_node(story, node_id)`: 노드 삭제, 없음→ValueError
-  - `rename_node(story, node_id, new_id)`: 노드 id 이름 변경 및 start와 모든 점프 참조 동기화(goto/옵션/분기/주사위 행선지), 변경된 노드 반환; 새 id는 `[A-Za-z0-9_-]+`로 제한, 기존 노드와 충돌→ValueError
-  - `move_node(story, node_id, delta)`: 상대 이동량으로 노드 순서 조정
-  - `set_start(story, node_id)`: 시작 노드 설정
-  - `add_choice(story, options, after=None)`: 옵션 분기 추가(2~4개, dialog는 Options 고정)
-  - `add_dice(story, maximum, header, bands, bonus=0, bonus_name="", bonus_status="", after=None)`: 직접 설정하는 주사위 판정 추가. bands는 2～4구간, 마지막 외에는 오름차순 upper, 모든 구간은 text와 goto 포함
-  - `add_say(story, text, character=None, mode="character", portrait="normal", voice=None, after=None)`: 대사 추가(character 모드는 character 필수; narrative/center는 character를 쓰지 않음; voice는 선택적 user: 오디오 참조)
-  - `add_death(story, text, death_id, next="Title", title=None, after=None)`: 사망 텍스트 노드 추가(text 필수, 비어 있으면 안 되고 여러 줄 가능; death_id 필수, ≥900000의 mod 전용 숫자 id; next는 Title만 허용; title은 선택적 짧은 제목, 기본값/빈 문자열은 「勝敗乃兵家常事」 사용)
-  - `add_scene(story, view, after=None)`: 장면 전환 추가
-  - `check_story(story)`: 검증만, (errors: list[str], warnings: list[str]) 반환
-  - `compile_story(story)`: 검증+컴파일, (lua|None, errors, warnings) 반환, 실패 시 lua는 None
-  - `load_story_json(path)` / `save_story_json(story, path)`: story.json 읽기/쓰기(UTF-8)
-  - `pack_mod(mod_dir, output=None)`: manifest 검증 + 전체 컴파일 + .lommod 패키징, 산출물 경로 반환
-- CLI: python editor/story_api.py check|compile|pack|new-story(AI 서브프로세스 친화, 종료 코드 0/1, 중국어 오류)
-- 핵심 불변량(컴파일러 강제, API 투과): choice.dialog는 Options뿐; dice.check는 반드시 공식 메타데이터 필요
-  (주사위 범위+결과대); transition in/out 쌍; scene은 배경 자동 미리 로드;
-  **show/say의 (character, portrait)는 반드시 data/editor_data.json의 캐릭터 표정표 안에 있어야 합니다**
-  (표 사용 불가/캐릭터가 표에 없음 → 통과; 캐릭터가 표에 있지만 표정이 그 목록에 없음 → LomcError/ValueError——
-  게임의 LoadCharacterPortrait가 무효한 표정 key에 KeyNotFoundException을 던짐 → Lua 코루틴 사망 → 대화 동결).
-  say/show가 참조하는 인물은 반드시 먼저 show로 무대에 올라야 합니다(무대에 오르지 않아도 마찬가지로 KeyNotFoundException),
-  쓰기 진입구의 등장 방어선이 자동으로 show를 보충합니다(add_node/update_node 참조). 에디터 건강 검사는 다중 경로 합류에 그래프 수준 폴백을 합니다.
+`lom-core::story_api` and `lomc author/edit` provide controlled story editing. Unknown fields and wrong field types are rejected. Use `check` before compiling or packaging; all node types share the embedded authoring schema and defaults. The old Python import API is retired. See [CLI and API](ai_cli.md).
 
 ## 8. 사용자 콘텐츠(User Content, v1은 오디오만)
 
@@ -477,6 +446,6 @@ assets/user/audio/mohui.boss_theme/boss_theme.ogg
 - `character`(오디오만, 선택): 사용자 캐릭터 참조 또는 공식 인물 id. 생략하면 나레이션/시스템/미연결.
 - 콘텐츠 ID: `[a-z][a-z0-9_]{0,31}.[a-z0-9][a-z0-9_]{0,47}`, `..`, `/`, `\`, `:` 금지.
 - 누락, 타입 불일치, metadata 손상, 파일 없음, 확장자 미지원, 20MB 초과: pack이 바로 실패하며 silently skip하지 않습니다.
-- Python 측 유일 해석 진입구: `compiler/lomc/content.py`. C# 측 규약 구현: `ContentRef.cs` + `ModLoader`.
+- Python 측 유일 해석 진입구: `rust/lom-core/src/content.rs`. C# 측 규약 구현: `ContentRef.cs` + `ModLoader`.
 
 사용 설명은 `user_content.md` 참조.

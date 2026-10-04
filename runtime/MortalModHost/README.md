@@ -31,4 +31,4 @@ dotnet build runtime/MortalModHost/MortalModHost.csproj -c Release -p:GameDir="C
 dotnet run --project runtime/MortalModHost/test/SmokeTest/SmokeTest.csproj -c Release
 ```
 
-仓库级离线矩阵由 `tools/test_matrix.py` 统一调用。Windows 发行包的完整构建和安全覆盖规则见仓库根目录 README 的“构建与测试”。
+Rust 工具端离线检查由 `scripts/test-native.sh` 调用；C# SmokeTest 保持独立入口。Windows 发行包的完整构建和安全覆盖规则见仓库根目录 README 的“构建与测试”。

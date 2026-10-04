@@ -9,3 +9,8 @@ mod workspace;
 fn main() -> eframe::Result {
     workspace::run()
 }
+mod advanced;
+
+mod audio;
+mod content_panel;
+mod manifest_panel;

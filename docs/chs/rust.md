@@ -31,7 +31,7 @@ open "out/LoM Modkit Rust.app"
 | `rust/lom-core` | 63 类节点校验与 Lua 生成、本地化、用户素材交换、v3 包校验、工程读写与迁移、离线分析、发布体检、水印、C# 宿主文件管理 |
 | `rust/lomc` | 原生命令行入口 |
 | `rust/lom-editor` | egui 桌面界面、动态节点表单、舞台与流程图、编辑历史和工程操作 |
-| `compiler/`、`editor/` | 保留的 Python 对照实现；不作为 Rust 程序的运行时依赖 |
+| `editor/` | 图标、翻译和帮助等静态资源；旧 Python 实现已退役 |
 
 ## CLI
 
@@ -74,3 +74,5 @@ cargo run -p lom-editor -- --smoke-preview samples/showcase3
 测试中的历史 fixture 由开发阶段运行 Python 对照实现采集；Rust 测试与发行程序不启动 Python。Lua 以原始字节比较；包按解压条目与逻辑完整性比较，不把不同压缩库的 ZIP 压缩字节要求为跨语言一致。
 
 本次仅在 Apple Silicon macOS 构建和验证。遵照任务要求，不做 Windows 测试或游戏实机测试；这两项不能由 Mac 的编译与预览结果替代。
+
+后续补齐功能、受控 API、清理范围与当前验证入口见 [迁移验收表](rust_migration.md)。
