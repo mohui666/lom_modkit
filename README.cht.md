@@ -1,5 +1,8 @@
 # lom_modkit
 
+> Current source uses the Rust editor/compiler. Existing release downloads and their legacy menu descriptions refer to the published version. See For Developers for the current build.
+
+
 **《活俠傳》（Legend of Mortal）視覺化劇情 Mod 製作工具。**
 
 不用寫 Lua。用圖形編輯器編排人物對白、場景演出、分支劇情、音樂音效，
@@ -156,77 +159,19 @@ Lua 環境隔離與完整生命週期清理 · 一次性快捷鍵遷移 · Runti
 
 ## For Developers
 
-### 架構
+The editor and compiler use Rust. The C# game Host and v3 package contract are retained. `rust/lom-core` owns compilation, packages, content and controlled authoring; `rust/lomc` is the CLI; `rust/lom-editor` is the native editor. Python is only used by independent research/extraction scripts in `tools/`.
 
-```text
-┌─────────────┐
-│ lom_editor  │  PySide6 图形编辑器
-└──────┬──────┘
-       │ story JSON
-       ▼
-┌─────────────┐
-│    lomc     │  JSON → 游戏原生 Lua 编译器（纯标准库）
-└──────┬──────┘
-       │ Lua + assets
-       ▼
-┌─────────────┐
-│   .lommod   │  自包含 Mod 包（zip）
-└──────┬──────┘
-       ▼
-┌──────────────────┐
-│ MortalModHost    │  BepInEx 游戏内插件（C# net48）
-└──────┬───────────┘
-       ▼
-  Legend of Mortal
+```sh
+cargo run --locked -p lom-editor
+cargo run --locked -p lomc -- check samples/showcase3/story/main.json --json
+cargo test --locked --workspace
+cargo run --locked -p lomc --example build_showcase3 -- out/showcase3-native
+scripts/build-macos.sh
 ```
 
-### 原始碼目錄
+macOS output: `out/LoM Modkit Rust.app`. Windows builder: `scripts/build-windows.ps1`, with prebuilt C# Host DLLs; `-NoArchive` skips ZIP creation. Windows and in-game testing were not run during this migration.
 
-- `compiler/`（`lomc`）— JSON 劇情 → 遊戲原生 Lua 編譯器
-- `editor/` — PySide6 圖形編輯器；`editor/story_api.py` 為 AI/腳本受控介面（Python API + CLI）
-- `runtime/MortalModHost/` — BepInEx 遊戲內外掛
-- `tools/` — 從解包產物擷取編輯器資料/素材的腳本
-- `data/` — 編輯器資料（`editor_data.json`，schema 3）
-- `samples/showcase3/` — 唯一保留的完整範例 Mod（全節點樣例 3.0）
-
-### 從原始碼執行
-
-```bash
-# 编辑器
-cd editor
-python -m venv .venv
-.venv/Scripts/pip install PySide6
-run_editor.bat
-
-# 编译器（无依赖）
-PYTHONPATH=compiler python -m lomc check story.json
-PYTHONPATH=compiler python -m lomc pack mod目录 -o 我的mod.lommod
-```
-
-### 建置與測試
-
-```bash
-# 编译器测试（160 例）
-cd compiler && python -m unittest tests.test_lomc
-
-# 编辑器测试（冒烟/压力，offscreen 无头运行）
-cd editor && .venv/Scripts/python tests/smoke_test.py
-cd editor && .venv/Scripts/python tests/stress_test.py
-
-# story_api / 登场防线测试（61 + 18 例）
-cd editor && .venv/Scripts/python tests/story_api_test.py
-cd editor && .venv/Scripts/python tests/stage_guard_test.py
-
-# 插件构建与冒烟测试
-cd runtime/MortalModHost && dotnet build -c Release
-cd runtime/MortalModHost && dotnet run --project test/SmokeTest -c Release
-```
-
-建置 Windows 發行版：先正式建置 Runtime，再執行 `editor/.venv/Scripts/python editor/build_exe.py`，最後執行 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1`。腳本會核對版本與必要檔案，並拒絕快取、範例包、使用者設定及符號連結混入；同名產物預設不覆寫，確認替換時才加 `-Force`。
-（產物在 `editor/dist/lom_modkit/`，含 `lom_editor.exe` 與 `story_api_cli.exe`）。
-
-遊戲內除錯：任意場景按 **F7** 切換「停用原版劇情」工作階段級開關（不持久化）；
-複測已讀變黃時用編輯器「試玩 → 重設劇情已讀狀態」。
+[Migration coverage](docs/chs/rust_migration.md) · [CLI](docs/chs/ai_cli.md)
 
 ## FAQ
 
@@ -234,7 +179,7 @@ cd runtime/MortalModHost && dotnet run --project test/SmokeTest -c Release
 在編輯器「檔案 → 安裝管理」裡點「修復 Steam 無法載入」，然後從 Steam **一般啟動**（不要系統管理員）。
 
 **Q：需要裝 Python 嗎？**
-不需要。Windows 發行版是獨立 exe。只有從原始碼執行/開發才需要 Python 3.10+ 與 .NET（建置外掛）。
+不需要。Windows 發行版是獨立 exe。原始碼開發需要 Rust；C# 遊戲宿主建置需要 .NET。
 
 **Q：Mod 會修改我的遊戲檔案或存檔嗎？**
 不會修改官方腳本與文字表。「開始新戰役」使用 `mod_campaign_<campaign_id>` 命名空間下的獨立欄位與自動檔，不覆蓋你的正常存檔。

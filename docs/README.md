@@ -1,5 +1,7 @@
 # lom_modkit 文档
 
+当前原生工具入口与功能迁移表：[Rust 迁移](chs/rust_migration.md)。
+
 权威版是简体中文 [`chs/`](chs/)。译文：
 [繁體](cht/README.md) · [日本語](ja/README.md) · [한국어](ko/README.md)。
 
@@ -20,7 +22,7 @@
 | [用户内容](chs/user_content.md) | 音频、角色、图片的导入与引用 |
 | [当前能力](chs/current_capabilities.md) | 已实现与明确不做 |
 | [自由模式与人物立绘](chs/free_mode_portraits.md) | 时间地点事件、中文人物选择、赵活外观 |
-| [Mac 编辑器](chs/macos.md) | 液态玻璃、本地素材与 Apple Silicon 构建 |
+| [Mac 编辑器](chs/macos.md) | Rust 通用外壳、本地素材与 Apple Silicon 构建 |
 
 编辑器「帮助 → 文档」按 `models.NODE_SCHEMAS` 动态生成 63 种节点字段，比静态
 列表新。完整可玩样例：`samples/showcase3/`。

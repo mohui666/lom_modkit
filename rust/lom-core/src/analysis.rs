@@ -283,9 +283,20 @@ pub fn analyze_project(stories: &BTreeMap<String, Value>, manifest: &Value) -> V
                 _ => None,
             };
             if let Some((family, access, name)) = symbol {
+                if name.is_empty() {
+                    continue;
+                }
                 uses.entry((family.into(), name.into()))
                     .or_default()
                     .push(json!({"story":sid,"node":nid,"access":access}));
+            }
+            if kind == "block" {
+                for (i, variable) in n["vars"].as_array().into_iter().flatten().enumerate() {
+                    if let Some(name) = variable["name"].as_str().filter(|s| !s.is_empty()) {
+                        uses.entry(("flow_variable".into(),name.into())).or_default()
+                            .push(json!({"story":sid,"node":nid,"access":"write","field":format!("vars[{i}].name")}));
+                    }
+                }
             }
         }
     }
@@ -302,12 +313,18 @@ pub fn analyze_project(stories: &BTreeMap<String, Value>, manifest: &Value) -> V
             issues.push(json!({"severity":"error","code":"bad_entry","story":entry,"detail":"入口章节不存在"}));
         }
     }
-    for trigger in manifest["campaign"]["triggers"]
+    for (i, trigger) in manifest["campaign"]["triggers"]
         .as_array()
         .into_iter()
         .flatten()
+        .enumerate()
     {
         let target = text(trigger, "script");
+        for field in ["when_flag_set", "when_flag_clear"] {
+            if let Some(name) = trigger[field].as_str().filter(|s| !s.is_empty()) {
+                uses.entry(("mod_flag".into(),name.into())).or_default().push(json!({"story":target,"node":null,"access":"read","field":format!("manifest.campaign.triggers[{i}].{field}")}));
+            }
+        }
         if let Some(story) = stories.get(target) {
             roots.insert(node_key(target, text(story, "start")));
         } else {
@@ -347,7 +364,7 @@ pub fn analyze_project(stories: &BTreeMap<String, Value>, manifest: &Value) -> V
                 } else {
                     json!(reads == 0)
                 },
-                if has_raw {
+                if has_raw || refs.iter().any(|u| u["node"].is_null()) {
                     Value::Null
                 } else {
                     json!(refs

@@ -4,9 +4,11 @@ Mac 版与 Windows 版共用 Story、编译器和 `.lommod` 格式，支持编�
 
 ## 启动与外观
 
-当前构建为 Apple Silicon（arm64）的 `LoM Modkit.app`，不需要另外安装 Python。可将整个 `.app` 拖入应用程序目录，也可以直接双击运行。
+当前构建为 Apple Silicon（arm64）的 `LoM Modkit Rust.app`，不需要另外安装 Python。可将整个 `.app` 拖入应用程序目录，也可以直接双击运行。
 
-macOS 26 及以上通过 AppKit 的 `NSGlassEffectView` 显示液态玻璃材质。窗口和标题栏保留实色底，导航与表单使用不透明深色面板；工具栏保留半透明材质，背景窗口的文字不会直接透到标题或正文上。切换步骤、人物和页签时清除旧的透明画布，避免残影。系统打开“减少透明度”时使用不透明背景。较早的系统使用 `NSVisualEffectView`；本次仅在 macOS 27 的 Apple Silicon 主机上验证，尚未验证旧系统或 Intel Mac。
+当前先提供 Rust 通用外壳：浅色界面、三栏布局和系统标准标题栏。窗口顶部显示作品名称及“活侠传剧情编辑器”；未保存时有 `*` 标记。标题只在内容变化时更新，避免重复刷新。
+
+早期 AppKit 玻璃叠层与当前 OpenGL 窗口发生冲突，导致标题栏异常或正文被遮挡，已移除。当前版本不提供液态玻璃；Mac 专用 Swift 外壳按计划留待后续实现。本次仅在 macOS 27 的 Apple Silicon 主机上验证，尚未验证旧系统或 Intel Mac。
 
 编辑器偏好、自动恢复和用户内容保存在 `~/Library/Application Support/lom_modkit/`，应用程序目录不保存这些数据。
 
@@ -26,12 +28,4 @@ python tools/extract_preview_assets.py --game-dir "C:\Program Files (x86)\Steam\
 
 ## 从源码构建
 
-使用现有 Python 3.12 或更高版本，在仓库根目录执行：
-
-```bash
-LOM_MODKIT_PYTHON=/path/to/python3 scripts/build-macos.sh
-```
-
-产物位于 `editor/dist/LoM Modkit.app`，内含 GUI 与 `Contents/MacOS/story_api_cli`。构建脚本执行冻结版 Lua 预览自检；不启动游戏。
-
-Mac 上完成的项目可以导出 `.lommod`，传到 Windows 使用新 Host。赵活外观选择需要 Host 1.1.2 或更高版本，详见[自由模式与立绘](free_mode_portraits.md)。
+安装 Rust，在仓库根目录运行 `scripts/build-macos.sh`。产物为 `out/LoM Modkit Rust.app`，包含 `lom-editor` 和 `lomc`；编辑和编译不依赖 Python 或 Qt。构建会检查 133 个样例节点预览，不启动游戏。详见 [Rust 迁移](rust_migration.md)。

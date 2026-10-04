@@ -31,7 +31,7 @@ assets/                # 可选，自定义资源
 - 运行时插件**只读 manifest.json、lua/、texts、可选 localization.json 与 assets/**；story/*.json 给编辑器回读/再编辑用。编译器只打入剧情明确引用的 PNG/JPG（单张 ≤8MB）、明确引用的 `user:` 音频，以及明确引用的自定义角色立绘。导出的 `.lommod` 自包含，玩家机器不需要编辑器仓库。
 - texts.json 由打包时自动生成：收集每个 story 的全部 **say** 节点文本，key 与 lua 里 `GetStoryText` 的 key 一一对应；运行时注册进 LeanLocalization（见 §4/§6）。**death 文本不进 texts.json**：由 codegen 发射 `mod_set_death_text(<标题>, <文本>)` 两参 lua_str 字面量（见 §3.1/§6）。
 - 运行时先拒绝物理文件超过 160 MiB 的包，再从读取该包的同一个文件句柄计算最终 `.lommod` **全部原始字节**的 SHA-256，保存完整 64 个十六进制字符，并在强制披露中显示前 16 个字符。重新压缩、修改任一字节都会改变指纹；改文件名或逐字节复制不会改变。该指纹用于核对具体包，不是作者签名或官方认证。编辑器安装器同样以 160 MiB / 4 MiB 分别限制包文件与 `manifest.json`。
-- 打包器按包内规范路径排序条目，JSON 使用稳定键顺序，Lua 编译顺序固定，并把 ZIP 时间戳固定为 1980-01-01、权限固定为普通只读元数据；同一 lom_modkit/Python/zlib 工具链下，相同项目连续导出的 `.lommod` 应逐字节一致。不同 Python 或 zlib 实现的压缩字节可能不同，因此**不宣称跨工具链 reproducible build**。
+- 打包器按包内规范路径排序条目，JSON 使用稳定键顺序，Lua 编译顺序固定，并把 ZIP 时间戳固定为 1980-01-01、权限固定为普通只读元数据；同一 lom_modkit/Rust/ZIP 工具链下，相同项目连续导出的 `.lommod` 应逐字节一致。不同 Rust 或 ZIP 实现的压缩字节可能不同，因此**不宣称跨工具链 reproducible build**。
 - `package-content.sha256` 是 `lom-entry-sha256-v1` 记录：对除它自身外的全部条目按名称排序，以「名称长度 + UTF-8 名称 + 内容长度 + 原始内容」计算 SHA-256。它不依赖 ZIP 时间戳、权限或压缩结果，可由 `lomc.package_content_hash(path)` 复算；它是构建一致性校验，不是签名或官方认证，也不替代 Runtime 对整包原始字节计算的 Host 指纹。
 - 编辑器「文件 → 检查 Mod 包」以只读方式展示 Manifest、Story、Lua、Texts、资源、用户内容、大小和逐条目 SHA-256，同时检查版本兼容、格式错误、逻辑内容哈希及资源引用/打包差异。检查器不解包到磁盘、不执行 Lua，也不会像「导入 Mod」那样登记用户内容。
 
@@ -453,40 +453,9 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 
 27. **结构化 Runtime 错误**：所有导致 Mod 演出 fail-closed 中止的故障写入单条 `[mod-runtime-error]` JSON 日志，字段固定为 `mod_id`、`mod_name`、`version`、`story`、`node`、`category`、`error`、`recent_trace`（另含 UTC 时间）。正式 Mod 只保留最多 32 条节点/跳转级轻量 breadcrumb，不记录变量值；错误快照最多附 16 条，每条和错误正文均有长度上限。F5 的 256 条完整开发 trace 规则不变。异常格式化、trace 快照、JSON 序列化或日志 sink 自身再次失败时逐层吞掉并生成最小兜底报告，不能遮蔽原始错误或阻止安全返回 Free；最后一份报告保留在内存中供诊断包读取。
 
-## 7. AI 工具接口（story_api）
+## 7. Rust authoring API
 
-editor/story_api.py 是 AI/编辑器共用的受控写入口。规则：**AI 不直接手写 story JSON 或 Lua**，
-一切剧情构建经 story_api（models 契约默认值 + lomc 校验/警告），防止骰子菜单崩溃、
-transition 黑幕、choice 皮肤崩溃、背景黑屏、人物未登场就做动作等已知坑。
-
-- Python API：
-  - `load_editor_data()`：读取编辑器数据（含 dice_meta 等清单），返回 (editor_data, is_fallback)
-  - `new_story(story_id="main", title="新剧情", mood=False)`：新建剧情脚本（show 登场 + 空 say 双节点开场，先登场再动作）
-  - `add_node(story, node_type, fields=None, after=None)`：按 models 默认值新增节点（63 种类型），未知类型/字段/类型不符→ValueError，节点 id 自动生成，after 指定插入位置（节点 id 或 None=末尾）。登场防线：动作类节点的目标人物在前面未登场/已退场时，自动在它前面插入 show
-  - `update_node(story, node_id, fields)`：更新节点字段（同 add 的字段校验），节点不存在→ValueError。登场防线：更新后若动作人物未登场/已退场，自动在该节点前插入 show 并把指向它的 goto/选项/分支跳转改指新节点
-  - `get_node(story, node_id)`：读取节点，不存在→ValueError
-  - `list_nodes(story)`：返回 [{"id","type","summary"}] 清单
-  - `delete_node(story, node_id)`：删除节点，不存在→ValueError
-  - `rename_node(story, node_id, new_id)`：重命名节点 id 并同步 start 与全部跳转引用（goto/选项/分支/骰子去向），返回改名后的节点；新 id 限 `[A-Za-z0-9_-]+`，与现有节点冲突→ValueError
-  - `move_node(story, node_id, delta)`：按相对位移调整节点顺序
-  - `set_start(story, node_id)`：设置起始节点
-  - `add_choice(story, options, after=None)`：新增选项分支（2~4 项，dialog 固定 Options）
-  - `add_dice(story, maximum, header, bands, bonus=0, bonus_name="", bonus_status="", after=None)`：新增直接配置的骰子检定；bands 为 2～4 档，非末档有递增 upper，每档有 text 与 goto
-  - `add_say(story, text, character=None, mode="character", portrait="normal", voice=None, after=None)`：新增对白（character 模式必填 character；narrative/center 不写 character；voice 可选 user: 音频引用）
-  - `add_death(story, text, death_id, next="Title", title=None, after=None)`：新增死亡文本节点（text 必填非空多行；death_id 必填 ≥900000 的 mod 专属数字 id；next 仅接受 Title；title 可选短标题，缺省/空串用「勝敗乃兵家常事」）
-  - `add_scene(story, view, after=None)`：新增场景切换
-  - `check_story(story)`：只校验，返回 (errors: list[str], warnings: list[str])
-  - `compile_story(story)`：校验+编译，返回 (lua|None, errors, warnings)，失败时 lua 为 None
-  - `load_story_json(path)` / `save_story_json(story, path)`：story.json 读写（UTF-8）
-  - `pack_mod(mod_dir, output=None)`：校验 manifest + 全部编译 + 打 .lommod，返回产物路径
-- CLI：python editor/story_api.py check|compile|pack|new-story（AI 子进程友好，退出码 0/1，中文错误）
-- 关键不变量（编译器强制，API 透传）：choice.dialog 仅 Options；dice.check 必须有官方元数据
-  （骰子范围+结果带）；transition in/out 成对；scene 自动预载背景；
-  **show/say 的 (character, portrait) 必须落在 data/editor_data.json 的角色表情表内**
-  （表不可用/角色不在表 → 放行；角色在表但表情不在其列表 → LomcError/ValueError——
-  游戏 LoadCharacterPortrait 对无效表情 key 抛 KeyNotFoundException → Lua 协程死 → 对话冻结）。
-  say/show 引用的人物必须先 show 上台（未上台同样抛 KeyNotFoundException），
-  写入口的登场防线会自动补 show（见 add_node/update_node），编辑器体检对多路径汇合做图级兜底。
+`lom-core::story_api` and `lomc author/edit` provide controlled story editing. Unknown fields and wrong field types are rejected. Use `check` before compiling or packaging; all node types share the embedded authoring schema and defaults. The old Python import API is retired. See [CLI and API](ai_cli.md).
 
 ## 8. 用户内容（User Content）
 
@@ -531,6 +500,6 @@ assets/user/image/mohui.moon_bg/moon.jpg
 - `character`（仅音频、可选）：用户角色引用或官方人物 id；省略表示旁白/系统/未关联。
 - 内容 ID：`[a-z][a-z0-9_]{0,31}.[a-z0-9][a-z0-9_]{0,47}`，禁止 `..`、`/`、`\`、`:`。
 - 缺失、类型不匹配、metadata 损坏、文件不存在、扩展名不支持、音频超过 20MB 或图片超过 8MB：pack 直接失败，不得 silently skip。
-- Python 侧唯一解析入口：`compiler/lomc/content.py`。C# 侧契约实现：`ContentRef.cs` + `ModLoader`。
+- Rust 侧唯一解析入口：`rust/lom-core/src/content.rs`。C# 侧契约实现：`ContentRef.cs` + `ModLoader`。
 
 使用说明见 `user_content.md`。

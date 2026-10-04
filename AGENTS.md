@@ -46,43 +46,25 @@ Docs map: [`docs/README.md`](docs/README.md). The decompile workflow is
 [`docs/chs/decompiled_api.md`](docs/chs/decompiled_api.md). The v3
 package contract is [`docs/chs/mod_format.md`](docs/chs/mod_format.md).
 
-## Rebuild showcase and the frozen editor
+## Rebuild showcase and the native editor
 
-Do not leave samples or `lom_editor.exe` on an old schema. The frozen
-editor embeds `lomc`; opening a new field (such as `enemy_health`) with
-an old exe reports “未知字段”. Showcase3 is the acceptance pack: if
-Combat/Battle/node fields change and the sample still uses the previous
-character, stats, or roster, the fix was not finished.
+When changing authoring fields, node defaults, validation, code generation, forms,
+or Host Combat/Battle contracts, update the affected sample and rebuild the native
+Rust editor. Keep C# Host integration and v3 package compatibility.
 
-Rebuild the affected sample and frozen editor when changing the authoring contract used by them:
+Showcase source is `samples/showcase3/source.json`. It must use the new fields,
+not merely compile them. Generate and validate all 63 node types with:
 
-- `compiler/lomc/` schema, validate, or codegen
-- editor node forms, models, or story_api
-- Host Combat/Battle patches
-- authoring fields on `combat` / `battle` / other gameplay nodes
-
-### Showcase 3.0
-
-Update `samples/showcase3/build_showcase3.py` so the sample *uses* the
-new fields (not just compiles). Then regenerate JSON, pack, and install:
-
-```powershell
-editor/.venv/Scripts/python samples/showcase3/build_showcase3.py
-editor/.venv/Scripts/python editor/story_api.py pack samples/showcase3 `
-  -o samples/全节点样例3.0.lommod --json
+```sh
+cargo run --locked -p lomc --example build_showcase3 -- out/showcase3-native
+cargo run --locked -p lomc -- inspect out/showcase3-native/showcase3.lommod --json
 ```
 
-Install the packed `.lommod` into the game mods folder when the change
-is meant to be playable. Delete leftover `samples/showcase3/story/*.lua`
-if a local compile wrote them next to JSON.
+To refresh the tracked JSON, omit the output argument. Do not commit generated
+Lua beside JSON or official game assets. Install a sample only when the user's
+scope includes game installation/testing.
 
-### Frozen editor
-
-```powershell
-editor/.venv/Scripts/python editor/build_exe.py
-```
-
-Tell the user to quit the running editor and open
-`editor/dist/lom_modkit/lom_editor.exe`. Do not point them at an older
-zip or desktop shortcut. Rebuild the Windows zip only when they asked
-for a package.
+Build the Mac editor with `scripts/build-macos.sh`; open `out/LoM Modkit Rust.app`.
+Windows build entry: `scripts/build-windows.ps1 -NoArchive`, using prebuilt Host
+DLLs; output is `out/windows/lom_modkit/lom-editor.exe`. Only build a release ZIP
+when asked. User restrictions on Windows/game testing take precedence.

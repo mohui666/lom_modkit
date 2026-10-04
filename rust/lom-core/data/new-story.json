@@ -1,0 +1,27 @@
+{
+  "story_schema": 2,
+  "id": "main",
+  "title": "新剧情",
+  "mood": false,
+  "start": "show1",
+  "nodes": [
+    {
+      "id": "show1",
+      "type": "show",
+      "character": "artist1",
+      "position": "M",
+      "portrait": "normal",
+      "facing": "right",
+      "fadeDuration": 0,
+      "moveDuration": 0
+    },
+    {
+      "id": "say1",
+      "type": "say",
+      "text": "",
+      "character": "artist1",
+      "portrait": "normal",
+      "mode": "character"
+    }
+  ]
+}

@@ -13,8 +13,7 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-const ACCENT: Color32 = Color32::from_rgb(10, 132, 255);
-const TEXT: Color32 = Color32::from_rgb(242, 242, 247);
+use crate::shell::{self, style, surface, ACCENT};
 #[derive(Clone, PartialEq)]
 struct Snapshot {
     manifest: Value,
@@ -38,6 +37,7 @@ enum Center {
     Localization,
     Assets,
     Tools,
+    Advanced,
 }
 #[derive(Clone, Copy, PartialEq)]
 enum View {
@@ -89,7 +89,7 @@ struct App {
     asset_selection: String,
     asset_id: String,
     asset_kind: usize,
-    glass_backend: Option<String>,
+    shell: shell::Shell,
     scroll_selection: (String, usize),
     bulk_key: String,
     bulk_draft: Value,
@@ -99,6 +99,9 @@ struct App {
     recent: Vec<PathBuf>,
     node_search: String,
     tools_panel: crate::tools_panel::ToolsPanel,
+    advanced: crate::advanced::Advanced,
+    content_panel: crate::content_panel::ContentPanel,
+    audio: crate::audio::Player,
 }
 fn user_root() -> PathBuf {
     if let Some(appdata) = std::env::var_os("APPDATA") {
@@ -170,11 +173,7 @@ pub fn run() -> eframe::Result {
                     rgba: i.into_raw(),
                 }
             });
-    let mut viewport = egui::ViewportBuilder::default()
-        .with_inner_size([1280.0, 760.0])
-        .with_min_inner_size([900.0, 560.0])
-        .with_transparent(true)
-        .with_title("活侠传剧情编辑器 · Rust");
+    let mut viewport = shell::viewport();
     if let Some(icon) = icon {
         viewport = viewport.with_icon(icon);
     }
@@ -210,70 +209,6 @@ fn smoke(path: &Path) -> anyhow::Result<Value> {
     Ok(
         json!({"ok":true,"runtime":"native-rust","chapters":p.stories.len(),"nodes":nodes,"preview_states":previews,"schema_node_types":catalog.schema["NODE_SCHEMAS"].as_object().unwrap().len(),"game_tested":false}),
     )
-}
-fn style(ctx: &egui::Context) {
-    let mut fonts = egui::FontDefinitions::default();
-    for path in [
-        "/System/Library/Fonts/PingFang.ttc",
-        "/System/Library/Fonts/STHeiti Medium.ttc",
-        "C:/Windows/Fonts/msyh.ttc",
-        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-    ] {
-        if let Ok(bytes) = std::fs::read(path) {
-            fonts
-                .font_data
-                .insert("chinese".into(), egui::FontData::from_owned(bytes).into());
-            fonts
-                .families
-                .entry(egui::FontFamily::Proportional)
-                .or_default()
-                .insert(0, "chinese".into());
-            fonts
-                .families
-                .entry(egui::FontFamily::Monospace)
-                .or_default()
-                .push("chinese".into());
-            break;
-        }
-    }
-    ctx.set_fonts(fonts);
-    let mut s = (*ctx.style()).clone();
-    s.visuals = egui::Visuals::dark();
-    s.visuals.panel_fill = Color32::TRANSPARENT;
-    s.visuals.window_fill = Color32::from_rgb(30, 32, 44);
-    s.visuals.extreme_bg_color = Color32::from_rgba_unmultiplied(13, 15, 23, 190);
-    s.visuals.faint_bg_color = Color32::from_white_alpha(8);
-    s.visuals.override_text_color = Some(TEXT);
-    s.visuals.selection.bg_fill = Color32::from_rgba_unmultiplied(10, 132, 255, 92);
-    s.visuals.selection.stroke.color = Color32::from_rgb(96, 168, 255);
-    s.visuals.widgets.active.bg_fill = Color32::from_white_alpha(38);
-    s.visuals.widgets.active.weak_bg_fill = Color32::from_white_alpha(38);
-    s.visuals.widgets.hovered.bg_fill = Color32::from_white_alpha(26);
-    s.visuals.widgets.hovered.weak_bg_fill = Color32::from_white_alpha(26);
-    s.visuals.widgets.inactive.bg_fill = Color32::from_rgba_unmultiplied(13, 15, 23, 190);
-    s.visuals.widgets.inactive.weak_bg_fill = Color32::from_white_alpha(14);
-    for widget in [
-        &mut s.visuals.widgets.inactive,
-        &mut s.visuals.widgets.hovered,
-        &mut s.visuals.widgets.active,
-        &mut s.visuals.widgets.noninteractive,
-    ] {
-        widget.corner_radius = egui::CornerRadius::same(8);
-        widget.bg_stroke = egui::Stroke::new(1.0_f32, Color32::from_white_alpha(34));
-        widget.fg_stroke.color = TEXT;
-    }
-    s.visuals.widgets.active.bg_stroke.color = Color32::from_rgba_unmultiplied(96, 168, 255, 200);
-    s.visuals.window_corner_radius = egui::CornerRadius::same(12);
-    s.visuals.window_stroke = egui::Stroke::new(1.0_f32, Color32::from_white_alpha(34));
-    s.spacing.item_spacing = Vec2::new(7.0, 6.0);
-    s.spacing.button_padding = Vec2::new(10.0, 5.0);
-    s.text_styles
-        .insert(egui::TextStyle::Body, egui::FontId::proportional(15.0));
-    s.text_styles
-        .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
-    s.text_styles
-        .insert(egui::TextStyle::Heading, egui::FontId::proportional(23.0));
-    ctx.set_style(s);
 }
 impl App {
     fn new(
@@ -339,7 +274,7 @@ impl App {
             view: View::Stage,
             search: String::new(),
             replace: String::new(),
-            status: "原生 Rust 编辑器 · JSON / Lua / .lommod 格式兼容".into(),
+            status: String::new(),
             error,
             undo: vec![],
             redo: vec![],
@@ -369,7 +304,7 @@ impl App {
             asset_selection: String::new(),
             asset_id: String::new(),
             asset_kind: 0,
-            glass_backend: None,
+            shell: shell::Shell::default(),
             scroll_selection: (String::new(), usize::MAX),
             bulk_key: String::new(),
             bulk_draft: json!({}),
@@ -382,6 +317,9 @@ impl App {
                 .unwrap_or_default(),
             node_search: String::new(),
             tools_panel: crate::tools_panel::ToolsPanel::default(),
+            advanced: crate::advanced::Advanced::default(),
+            content_panel: Default::default(),
+            audio: Default::default(),
         }
     }
     fn remember_source(&mut self) {
@@ -556,6 +494,9 @@ impl App {
     fn install(&mut self, p: Project) {
         self.clear_recovery();
         self.project = p;
+        self.advanced = Default::default();
+        self.content_panel = Default::default();
+        self.audio.stop();
         self.remember_source();
         self.catalog.sync_assets(&self.project.assets);
         self.current = self.project.manifest["entry"]
@@ -634,6 +575,14 @@ impl App {
         }
     }
     fn compile(&mut self) {
+        self.catalog.data["project_flags"] = json!(self
+            .project
+            .stories
+            .values()
+            .flat_map(|s| s["nodes"].as_array().into_iter().flatten())
+            .filter(|n| n["type"] == "flag")
+            .filter_map(|n| n["flag"].as_str())
+            .collect::<BTreeSet<_>>());
         self.diagnostics.clear();
         for (id, s) in &self.project.stories {
             match lom_core::validate::validate_story(s) {
@@ -851,27 +800,92 @@ impl App {
             self.status = format!("自动恢复副本写入失败：{e:#}");
         }
     }
+    fn shortcuts(&mut self, ctx: &egui::Context) {
+        if ctx.input_mut(|i| {
+            i.consume_key(
+                egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
+                egui::Key::S,
+            )
+        }) {
+            self.save(true);
+        } else if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::S)) {
+            self.save(false);
+        }
+        if ctx.input_mut(|i| {
+            i.consume_key(
+                egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
+                egui::Key::Z,
+            )
+        }) {
+            self.redo();
+        } else if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::Z)) {
+            self.undo();
+        }
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::Y)) {
+            self.redo();
+        }
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::N)) {
+            self.request(Pending::New, ctx);
+        }
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::F5)) {
+            self.play_current();
+        }
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::F6)) {
+            self.compile();
+            self.view = View::Checks;
+        }
+        if ctx.input_mut(|i| {
+            i.consume_key(
+                egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
+                egui::Key::F,
+            )
+        }) {
+            self.center = Center::Advanced;
+            self.advanced.page = 0;
+        }
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::F1)) {
+            self.center = Center::Tools;
+        }
+        if !ctx.wants_keyboard_input() {
+            if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::C)) {
+                self.copy();
+            }
+            if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::V)) {
+                self.paste();
+            }
+            if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Delete)) {
+                self.delete();
+            }
+        }
+        if ctx.input_mut(|i| {
+            i.consume_key(
+                egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
+                egui::Key::O,
+            )
+        }) {
+            if let Some(path) = rfd::FileDialog::new().pick_folder() {
+                self.request(Pending::Open(path), ctx);
+            }
+        } else if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::O)) {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("剧情或 Mod 包", &["json", "lommod"])
+                .pick_file()
+            {
+                self.request(Pending::Open(path), ctx);
+            }
+        }
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::L)) {
+            self.center = Center::Assets;
+        }
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::F7)) {
+            self.view = View::Graph;
+        }
+    }
     fn toolbar(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("commands")
             .frame(surface(false))
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    if ui
-                        .add_enabled(
-                            cfg!(windows),
-                            egui::Button::new(crate::i18n::key("toolbar.play")),
-                        )
-                        .clicked()
-                    {
-                        self.play_current();
-                    }
-                    if ui.button(crate::i18n::key("toolbar.library")).clicked() {
-                        self.center = Center::Assets;
-                    }
-                    if ui.button(crate::i18n::key("toolbar.export")).clicked() {
-                        self.export();
-                    }
-                    ui.separator();
                     ui.menu_button(tr("文件"), |ui| {
                         if ui.button(tr("新建项目")).clicked() {
                             ui.close();
@@ -1019,6 +1033,24 @@ impl App {
                         }
                     });
                     ui.menu_button(tr("创作工具"), |ui| {
+                        for (page, label) in [
+                            "全局查找",
+                            "变量管理",
+                            "条件检查",
+                            "路径模拟",
+                            "跨章节复制",
+                            "离线测试",
+                        ]
+                        .iter()
+                        .enumerate()
+                        {
+                            if ui.button(tr(label)).clicked() {
+                                self.advanced.page = page;
+                                self.center = Center::Advanced;
+                                ui.close();
+                            }
+                        }
+                        ui.separator();
                         if ui.button(tr("创作工具")).clicked() {
                             self.center = Center::Tools;
                             ui.close();
@@ -1031,6 +1063,29 @@ impl App {
                         if ui.button(tr("统计")).clicked() {
                             self.view = View::Statistics;
                             ui.close();
+                        }
+                    });
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui
+                            .add_enabled(
+                                cfg!(windows),
+                                egui::Button::new(crate::i18n::key("toolbar.play")),
+                            )
+                            .clicked()
+                        {
+                            self.play_current();
+                        }
+                        if ui.button(crate::i18n::key("toolbar.library")).clicked() {
+                            self.center = Center::Assets;
+                        }
+                        if ui
+                            .add(
+                                egui::Button::new(crate::i18n::key("toolbar.export"))
+                                    .fill(Color32::from_rgb(213, 231, 247)),
+                            )
+                            .clicked()
+                        {
+                            self.export();
                         }
                     });
                 });
@@ -1054,8 +1109,9 @@ impl App {
     fn sidebar(&mut self, ctx: &egui::Context) {
         egui::SidePanel::left("chapters")
             .frame(surface(true))
-            .default_width(280.0)
+            .default_width(shell::NAVIGATION_WIDTH)
             .min_width(220.0)
+            .max_width((ctx.available_rect().width() - 620.0).max(220.0))
             .resizable(true)
             .show(ctx, |ui| {
                 if self.screenshot.is_some() && self.frame == 12 {
@@ -1273,7 +1329,7 @@ impl App {
                             return;
                         }
                         if let Err(error) = authoring::validate_sections(&story) {
-                            ui.colored_label(Color32::LIGHT_RED, error.to_string());
+                            ui.colored_label(Color32::from_rgb(179, 55, 49), error.to_string());
                         }
                         let mut drop_to = None;
                         for row in authoring::section_rows(&story) {
@@ -1313,7 +1369,23 @@ impl App {
                                 authoring::Row::Node { index, depth } => (index, depth),
                             };
                             let node = &nodes[index];
-                            let summary = if let Some(text) =
+                            let summary = if node["type"] == "end" {
+                                if let Some(next) =
+                                    node["next_script"].as_str().filter(|s| !s.is_empty())
+                                {
+                                    format!(
+                                        "{} {}",
+                                        tr("转到章节"),
+                                        self.project
+                                            .stories
+                                            .get(next)
+                                            .and_then(|s| s["title"].as_str())
+                                            .unwrap_or(next)
+                                    )
+                                } else {
+                                    tr("返回自由模式")
+                                }
+                            } else if let Some(text) =
                                 node["text"].as_str().filter(|v| !v.is_empty())
                             {
                                 text.to_owned()
@@ -1345,30 +1417,47 @@ impl App {
                             let response = ui
                                 .horizontal(|ui| {
                                     ui.add_space(depth as f32 * 9.0);
-                                    let text = format!(
-                                        "{} 第 {} 步  {}\n   {}",
-                                        if ["end", "death"]
-                                            .contains(&node["type"].as_str().unwrap_or(""))
-                                        {
-                                            "■"
+                                    let selected =
+                                        self.selected == index || self.multiselect.contains(&index);
+                                    let primary = egui::TextFormat {
+                                        font_id: egui::FontId::proportional(14.0),
+                                        color: ui.visuals().text_color(),
+                                        ..Default::default()
+                                    };
+                                    let secondary = egui::TextFormat {
+                                        font_id: egui::FontId::proportional(12.0),
+                                        color: if selected {
+                                            Color32::from_rgb(70, 96, 120)
                                         } else {
-                                            "●"
+                                            Color32::from_rgb(103, 113, 125)
                                         },
-                                        index + 1,
-                                        self.catalog.label(node["type"].as_str().unwrap_or("")),
-                                        short(&summary, 22)
-                                    );
-                                    let mut label = egui::text::LayoutJob::simple(
-                                        text,
-                                        egui::TextStyle::Button.resolve(ui.style()),
-                                        ui.visuals().text_color(),
-                                        (ui.available_width() - 20.0).max(40.0),
-                                    );
-                                    // A single-line truncating button hides the entire summary.
+                                        ..Default::default()
+                                    };
+                                    let mut label = egui::text::LayoutJob::default();
+                                    label.wrap.max_width = (ui.available_width() - 24.0).max(40.0);
                                     label.wrap.max_rows = 2;
+                                    label.append(
+                                        &format!("{:02}  ", index + 1),
+                                        0.0,
+                                        secondary.clone(),
+                                    );
+                                    label.append(
+                                        &self.catalog.label(node["type"].as_str().unwrap_or("")),
+                                        0.0,
+                                        primary,
+                                    );
+                                    let preview =
+                                        summary.split_whitespace().collect::<Vec<_>>().join(" ");
+                                    if !preview.is_empty() {
+                                        label.append("\n", 0.0, secondary.clone());
+                                        label.append(&short(&preview, 26), 23.0, secondary);
+                                    }
                                     let label = ui.fonts_mut(|fonts| fonts.layout_job(label));
                                     ui.add_sized(
-                                        [ui.available_width(), 48.0],
+                                        [
+                                            ui.available_width(),
+                                            if summary.is_empty() { 32.0 } else { 44.0 },
+                                        ],
                                         egui::Button::new(label)
                                             .right_text("")
                                             .selected(
@@ -1441,11 +1530,12 @@ impl App {
     fn right(&mut self, ctx: &egui::Context) {
         egui::SidePanel::right("preview")
             .frame(surface(true))
-            .default_width(560.0)
+            .default_width(shell::PREVIEW_WIDTH)
             .min_width(320.0)
+            .max_width((ctx.available_rect().width() - 300.0).max(320.0))
             .resizable(true)
             .show(ctx, |ui| {
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     for (view, key) in [
                         (View::Stage, "tab.preview"),
                         (View::Portraits, "portrait.preview"),
@@ -1455,7 +1545,10 @@ impl App {
                         let selected =
                             self.view == view || (view == View::Lua && self.view == View::Checks);
                         if ui
-                            .selectable_label(selected, crate::i18n::key(key))
+                            .add(
+                                egui::Button::selectable(selected, crate::i18n::key(key))
+                                    .frame(selected),
+                            )
                             .clicked()
                         {
                             self.view = view;
@@ -1567,7 +1660,7 @@ impl App {
                                             self.current = id;
                                             self.needs_compile = true;
                                         }
-                                        ui.colored_label(Color32::LIGHT_RED, message);
+                                        ui.colored_label(Color32::from_rgb(179, 55, 49), message);
                                     }
                                 });
                         }
@@ -1661,14 +1754,43 @@ impl App {
                         }
                         Center::Chapter => self.chapter(ui),
                         Center::Manifest => {
-                            ui.heading(tr("作品设置"));
-                            ui.label(tr("作品身份、入口、发布语言与自由模式触发规则。"));
-                            ui.separator();
-                            value_editor(ui, "manifest", &mut self.project.manifest, 0);
+                            crate::manifest_panel::show(
+                                ui,
+                                &mut self.project.manifest,
+                                &self.catalog,
+                                &self.project.stories.keys().cloned().collect::<Vec<_>>(),
+                            );
                         }
                         Center::Localization => self.localization(ui),
                         Center::Assets => self.assets(ui),
                         Center::Tools => self.tools(ui),
+                        Center::Advanced => {
+                            if let Some((sid, nid)) =
+                                self.advanced.show(ui, &mut self.project, &self.current)
+                            {
+                                self.flush();
+                                if let Some(nid) = nid {
+                                    if let Some(s) = self.project.stories.get(&sid) {
+                                        if let Some(index) = s["nodes"]
+                                            .as_array()
+                                            .and_then(|ns| ns.iter().position(|n| n["id"] == nid))
+                                        {
+                                            self.current = sid;
+                                            self.selected = index;
+                                            self.multiselect.clear();
+                                            self.search.clear();
+                                            self.center = Center::Node;
+                                            self.needs_compile = true;
+                                        }
+                                    }
+                                } else if self.project.stories.contains_key(&sid) {
+                                    self.current = sid;
+                                    self.center = Center::Chapter;
+                                } else {
+                                    self.center = Center::Manifest;
+                                }
+                            }
+                        }
                     });
             });
     }
@@ -1824,6 +1946,11 @@ impl App {
             }
             return;
         }
+        if ui.button(tr("停用本章多语言（可撤销）")).clicked() {
+            s.as_object_mut().unwrap().remove("localization");
+            self.project.stories.insert(self.current.clone(), s);
+            return;
+        }
         let mut default = s["localization"]["default_locale"]
             .as_str()
             .unwrap_or("chs")
@@ -1860,6 +1987,25 @@ impl App {
         }
         s["localization"]["default_locale"] = default.clone().into();
         s["localization"]["fallback_locale"] = fallback.into();
+        let sources = lom_core::localization::iter_localizable_texts(&s);
+        let translated = sources
+            .iter()
+            .filter(|(key, _)| {
+                s["localization"]["translations"][&self.locale][key]
+                    .as_str()
+                    .is_some_and(|v| !v.is_empty())
+            })
+            .count();
+        ui.label(format!(
+            "{}：{} / {}",
+            tr("已翻译"),
+            if self.locale == default {
+                sources.len()
+            } else {
+                translated
+            },
+            sources.len()
+        ));
         if self.locale == default {
             ui.label(tr("当前选择为源语言，请在节点属性中修改原文。"));
         } else {
@@ -1933,18 +2079,20 @@ impl App {
     }
     fn assets(&mut self, ui: &mut egui::Ui) {
         ui.heading(tr("作品内容库"));
-        ui.label(tr("自定义角色、背景、插图和音频随项目保存与导出。"));
+        ui.add_space(4.0);
         ui.horizontal(|ui| {
             egui::ComboBox::from_id_salt("asset-kind")
-                .selected_text(["图片", "角色", "音乐", "音效", "配音"][self.asset_kind])
+                .width(76.0)
+                .selected_text(tr(["图片", "角色", "音乐", "音效", "配音"][self.asset_kind]))
                 .show_ui(ui, |ui| {
                     for (i, k) in ["图片", "角色", "音乐", "音效", "配音"].iter().enumerate()
                     {
-                        ui.selectable_value(&mut self.asset_kind, i, *k);
+                        ui.selectable_value(&mut self.asset_kind, i, tr(k));
                     }
                 });
             ui.add(
                 egui::TextEdit::singleline(&mut self.asset_id)
+                    .desired_width(ui.available_width())
                     .hint_text(tr("内容 ID，如 mymod.hero")),
             );
         });
@@ -1977,62 +2125,74 @@ impl App {
             })
             .collect();
         ui.separator();
-        for (key, meta) in &records {
-            let id = meta["id"].as_str().unwrap_or("");
-            if ui
-                .selectable_label(
-                    self.asset_selection == *key,
-                    format!(
-                        "{} · {}\nuser:{}",
-                        meta["name"].as_str().unwrap_or(id),
-                        meta["type"].as_str().unwrap_or(""),
-                        id
-                    ),
-                )
-                .clicked()
-            {
-                self.asset_selection = key.clone();
-            }
-        }
+        egui::ScrollArea::vertical()
+            .id_salt("project-content-list")
+            .max_height(160.0)
+            .auto_shrink([false, true])
+            .show(ui, |ui| {
+                for (key, meta) in &records {
+                    let id = meta["id"].as_str().unwrap_or("");
+                    let kind = match meta["type"].as_str().unwrap_or("") {
+                        "image" => tr("图片"),
+                        "character" => tr("角色"),
+                        "audio" => tr("音频"),
+                        other => other.to_owned(),
+                    };
+                    if ui
+                        .add_sized(
+                            [ui.available_width(), 26.0],
+                            egui::Button::selectable(
+                                self.asset_selection == *key,
+                                format!("{} · {kind}", meta["name"].as_str().unwrap_or(id)),
+                            )
+                            .frame(self.asset_selection == *key)
+                            .truncate()
+                            .right_text(""),
+                        )
+                        .on_hover_text(format!("user:{id}"))
+                        .clicked()
+                    {
+                        self.asset_selection = key.clone();
+                    }
+                }
+            });
         if let Some(bytes) = self.project.assets.get(&self.asset_selection).cloned() {
-            if let Ok(mut meta) = serde_json::from_slice::<Value>(&bytes) {
-                ui.separator();
-                if ui.button(tr("复制 user: 引用")).clicked() {
-                    ui.ctx()
-                        .copy_text(format!("user:{}", meta["id"].as_str().unwrap_or("")));
-                }
-                if meta["type"] == "audio" && ui.button(tr("使用系统播放器试听")).clicked()
-                {
-                    let filename = meta["files"]["main"].as_str().unwrap_or("");
-                    let source = Path::new(&self.asset_selection)
-                        .parent()
-                        .unwrap_or(Path::new("assets"))
-                        .join(filename)
-                        .to_string_lossy()
-                        .replace('\\', "/");
-                    if let Some(bytes) = self.project.assets.get(&source) {
-                        let path = user_root()
-                            .join("rust/preview-audio")
-                            .join(Path::new(filename).file_name().unwrap_or_default());
-                        match lom_core::project::atomic_write(&path, bytes)
-                            .and_then(|_| open_file(&path))
+            if let Ok(meta) = serde_json::from_slice::<Value>(&bytes) {
+                if meta["type"] == "audio" {
+                    ui.horizontal(|ui| {
+                        if ui.button(tr("试听音频")).clicked() {
+                            let filename = meta["files"]["main"].as_str().unwrap_or("");
+                            let source = format!(
+                                "{}{filename}",
+                                self.asset_selection
+                                    .strip_suffix("content.json")
+                                    .unwrap_or("")
+                            );
+                            if let Some(data) = self.project.assets.get(&source) {
+                                let path = user_root()
+                                    .join("rust/preview-audio")
+                                    .join(Path::new(filename).file_name().unwrap_or_default());
+                                if let Err(e) = lom_core::project::atomic_write(&path, data)
+                                    .and_then(|_| self.audio.play(&path))
+                                {
+                                    self.error = Some(e.to_string());
+                                }
+                            }
+                        }
+                        if ui
+                            .add_enabled(self.audio.playing(), egui::Button::new(tr("停止试听")))
+                            .clicked()
                         {
-                            Ok(()) => self.status = "已交给系统播放器试听".into(),
-                            Err(e) => self.error = Some(e.to_string()),
+                            self.audio.stop();
                         }
-                    }
+                    });
                 }
-                if value_editor(ui, "素材信息", &mut meta, 0) {
-                    match lom_core::stable_json(&meta) {
-                        Ok(bytes) => {
-                            self.project
-                                .assets
-                                .insert(self.asset_selection.clone(), bytes);
-                            self.asset_dirty = true;
-                        }
-                        Err(e) => self.error = Some(e.to_string()),
-                    }
-                }
+            }
+            if self
+                .content_panel
+                .show(ui, &mut self.project, &self.asset_selection)
+            {
+                self.asset_dirty = true;
             }
         }
         ui.separator();
@@ -2149,6 +2309,26 @@ impl App {
     fn tools(&mut self, ui: &mut egui::Ui) {
         ui.heading(tr("创作工具"));
         self.tools_panel.show(ui, &mut self.project);
+        if let Some((sid, nid)) = self.tools_panel.take_location() {
+            if let Some(story) = self.project.stories.get(&sid) {
+                if let Some(index) = nid.and_then(|nid| {
+                    story["nodes"]
+                        .as_array()
+                        .and_then(|ns| ns.iter().position(|n| n["id"] == nid))
+                }) {
+                    self.selected = index;
+                    self.center = Center::Node;
+                } else {
+                    self.center = Center::Chapter;
+                }
+                self.current = sid;
+                self.multiselect.clear();
+                self.search.clear();
+                self.needs_compile = true;
+            } else {
+                self.center = Center::Manifest;
+            }
+        }
         ui.collapsing(tr("批量修改选中步骤字段"), |ui| {
             let story = self.story();
             let indices: BTreeSet<usize> = self.selected_indices().into_iter().collect();
@@ -2427,29 +2607,11 @@ impl App {
 }
 impl eframe::App for App {
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
-        if self
-            .glass_backend
-            .as_deref()
-            .is_some_and(|b| b.starts_with("NS"))
-        {
-            [0.0, 0.0, 0.0, 0.0]
-        } else {
-            [0.063, 0.071, 0.10, 1.0]
-        }
+        self.shell.clear_color()
     }
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         self.frame += 1;
-        if self.glass_backend.is_none() {
-            let backend = match crate::macos_glass::install(_frame) {
-                Ok(name) => name,
-                Err(error) => {
-                    eprintln!("Native glass unavailable: {error}");
-                    String::from("portable")
-                }
-            };
-            println!("Native glass backend: {backend}");
-            self.glass_backend = Some(backend);
-        }
+        self.shell.install(frame);
         if ctx.input(|i| i.viewport().close_requested()) && !self.allow_close {
             if self.dirty() {
                 ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
@@ -2458,41 +2620,7 @@ impl eframe::App for App {
                 self.clear_recovery();
             }
         }
-        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::S)) {
-            self.save(false);
-        }
-        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::Z)) {
-            self.undo();
-        }
-        if ctx.input_mut(|i| {
-            i.consume_key(
-                egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
-                egui::Key::Z,
-            )
-        }) {
-            self.redo();
-        }
-        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::N)) {
-            self.request(Pending::New, ctx);
-        }
-        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::F5)) {
-            self.play_current();
-        }
-        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::F6)) {
-            self.compile();
-            self.view = View::Checks;
-        }
-        if !ctx.wants_keyboard_input() {
-            if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::C)) {
-                self.copy();
-            }
-            if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::V)) {
-                self.paste();
-            }
-            if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Delete)) {
-                self.delete();
-            }
-        }
+        self.shortcuts(ctx);
         if self.needs_compile
             && (self.frame == 1 || self.last_edit.elapsed() > Duration::from_millis(400))
         {
@@ -2546,19 +2674,23 @@ impl eframe::App for App {
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(
-                        RichText::new(if self.dirty() {
-                            "● 未保存"
+                        RichText::new(tr(if self.dirty() {
+                            "未保存"
                         } else {
-                            "○ 已保存"
-                        })
+                            "已保存"
+                        }))
                         .color(if self.dirty() {
                             ACCENT
                         } else {
-                            Color32::GRAY
-                        }),
+                            Color32::from_rgb(104, 114, 125)
+                        })
+                        .small(),
                     );
-                    ui.separator();
-                    ui.label(RichText::new(&self.status).small());
+                    if !self.status.is_empty() {
+                        ui.separator();
+                        ui.add(egui::Label::new(RichText::new(&self.status).small()).truncate())
+                            .on_hover_text(&self.status);
+                    }
                 });
             });
         self.sidebar(ctx);
@@ -2567,11 +2699,14 @@ impl eframe::App for App {
         self.track();
         self.dialogs(ctx);
         self.autosave();
-        ctx.send_viewport_cmd(egui::ViewportCommand::Title(format!(
-            "{}{} · 活侠传剧情编辑器（Rust）",
-            if self.dirty() { "* " } else { "" },
-            self.project.manifest["name"].as_str().unwrap_or("新作品")
-        )));
+        self.shell.set_title(
+            ctx,
+            format!(
+                "{}{} · 活侠传剧情编辑器",
+                if self.dirty() { "* " } else { "" },
+                self.project.manifest["name"].as_str().unwrap_or("新作品")
+            ),
+        );
         if self.frame == 12 && self.screenshot.is_some() {
             ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::default()));
         }
@@ -2730,19 +2865,6 @@ fn compile_with_assets(project: &Project, story: &Value) -> anyhow::Result<Strin
         std::fs::write(path, bytes)?;
     }
     lom_core::codegen::compile_story(story, Some(&project.manifest), None, Some(root.path()))
-}
-fn surface(content: bool) -> egui::Frame {
-    egui::Frame::new()
-        .fill(if content {
-            Color32::from_rgba_unmultiplied(39, 40, 45, 65)
-        } else {
-            Color32::from_rgba_unmultiplied(42, 43, 48, 85)
-        })
-        .inner_margin(if content {
-            egui::Margin::symmetric(8, 7)
-        } else {
-            egui::Margin::symmetric(8, 3)
-        })
 }
 fn valid_id(s: &str) -> bool {
     !s.is_empty()
@@ -2909,21 +3031,6 @@ fn report(ui: &mut egui::Ui, value: &Value, depth: usize) {
         }
     }
 }
-fn open_file(path: &Path) -> anyhow::Result<()> {
-    let mut cmd = if cfg!(target_os = "macos") {
-        std::process::Command::new("open")
-    } else if cfg!(target_os = "windows") {
-        let mut c = std::process::Command::new("explorer");
-        c.arg("/select,");
-        c
-    } else {
-        std::process::Command::new("xdg-open")
-    };
-    cmd.arg(path);
-    cmd.spawn()?;
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2964,6 +3071,34 @@ mod application_regression_tests {
         let mut app = App::new(&cc, None, None);
         app.recovery_candidates.clear();
         app
+    }
+    #[test]
+    fn command_shift_z_redoes_instead_of_consuming_undo() {
+        let mut app = app();
+        let original = app.project.manifest["name"].clone();
+        app.project.manifest["name"] = json!("edited");
+        app.track();
+        app.flush();
+        app.undo();
+        assert_eq!(app.project.manifest["name"], original);
+        let ctx = egui::Context::default();
+        let modifiers = egui::Modifiers::COMMAND | egui::Modifiers::SHIFT;
+        let _ = ctx.run(
+            egui::RawInput {
+                modifiers,
+                events: vec![egui::Event::Key {
+                    key: egui::Key::Z,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers,
+                }],
+                ..Default::default()
+            },
+            |ctx| app.shortcuts(ctx),
+        );
+        assert_eq!(app.project.manifest["name"], "edited");
+        assert!(app.redo.is_empty());
     }
     #[test]
     fn asset_import_is_atomic_and_undo_redo_restores_bytes() {
@@ -3118,6 +3253,7 @@ mod application_regression_tests {
             Center::Localization,
             Center::Assets,
             Center::Tools,
+            Center::Advanced,
         ] {
             app.center = panel;
             let _ = ctx.run(

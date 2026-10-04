@@ -54,14 +54,11 @@ Harmony、`MortalModHost.dll` / `NVorbis.dll` 哈希、`mods` 目录、重复 DL
 替换失败自动恢复；也可点「恢复上一版」（游戏运行中拒绝）。第一次全新安装没有
 回滚点。回滚不碰 `Mortal.exe`、Managed、存档或第三方插件。
 
-## 离线测试矩阵
+## 原生离线验证
 
-```powershell
-python tools/test_matrix.py
-python tools/test_matrix.py --full --report out/test-matrix.json
-python tools/test_matrix.py --step compiler-tests --step runtime-build
+```sh
+scripts/test-native.sh
+dotnet run --project runtime/MortalModHost/test/SmokeTest/SmokeTest.csproj --configuration Release
 ```
 
-不带参数只列出矩阵。覆盖 Compiler、Editor unit/smoke/stress、Runtime Release
-build 与 SmokeTest。离线串行，一步失败也继续收集；最终有失败则非零退出。
-不访问网络、不改游戏目录。
+前者检查 Rust 格式、全部单元/集成测试、133 节点预览及样例重建。后者仅运行 C# 离线测试，无需游戏。当前工具入口与迁移边界见 [Rust 迁移](rust_migration.md)；上面的旧版菜单名可通过“创作工具”对应入口访问。

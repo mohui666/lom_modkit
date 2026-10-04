@@ -1,5 +1,8 @@
 # lom_modkit
 
+> 当前源码已切换到 Rust 编辑器与编译器；历史 Release 安装包及其旧菜单说明保留原版本行为。源码运行请看下方 For Developers。
+
+
 **《活侠传》（Legend of Mortal）可视化剧情 Mod 制作工具。**
 
 仓库新增原生 **Rust 工具端**（编辑器 + 编译器，保留 C# 游戏宿主）：
@@ -42,7 +45,7 @@ lom_modkit 让你用《活侠传》**原有的人物、场景、音乐、特效�
 - **真正的 Mod 包**：导出的 `.lommod` 自包含，可以直接分享给其他玩家。
 
 本地开发版 v1.1.2 已加入人物立绘预览、美颜赵活和自由模式剧情模板，并提供
-Apple Silicon 的 [Mac 液态玻璃编辑器](docs/chs/macos.md)。功能用法见
+Apple Silicon 的 [Mac 编辑器](docs/chs/macos.md)。功能用法见
 [自由模式与人物立绘](docs/chs/free_mode_portraits.md)。上述公开下载链接仍指向已发布的 v1.1.1。
 
 ## 快速开始
@@ -234,97 +237,19 @@ Lua 环境隔离与完整生命周期清理 · 一次性热键迁移 · Runtime 
 
 ## For Developers
 
-### 架构
+工具端使用 Rust；游戏宿主保持 C#。`rust/lom-core` 提供编译、包、内容库和受控编辑 API，`rust/lomc` 提供 CLI，`rust/lom-editor` 提供原生编辑器。`editor/` 仅保留图标、翻译、帮助静态资源和启动入口。`tools/` 中资源研究脚本独立于产品运行时。
 
-```text
-┌─────────────┐
-│ lom_editor  │  PySide6 图形编辑器
-└──────┬──────┘
-       │ story JSON
-       ▼
-┌─────────────┐
-│    lomc     │  JSON → 游戏原生 Lua 编译器（纯标准库）
-└──────┬──────┘
-       │ Lua + assets
-       ▼
-┌─────────────┐
-│   .lommod   │  自包含 Mod 包（zip）
-└──────┬──────┘
-       ▼
-┌──────────────────┐
-│ MortalModHost    │  BepInEx 游戏内插件（C# net48）
-└──────┬───────────┘
-       ▼
-  Legend of Mortal
+```sh
+cargo run --locked -p lom-editor
+cargo run --locked -p lomc -- check samples/showcase3/story/main.json --json
+cargo test --locked --workspace
+cargo run --locked -p lomc --example build_showcase3 -- out/showcase3-native
+scripts/build-macos.sh
 ```
 
-### 源码目录
+Mac 产物是 `out/LoM Modkit Rust.app`。Windows 使用 `scripts/build-windows.ps1`（需要已构建的 C# Host）；`-NoArchive` 仅构建目录。Windows 构建与游戏实机结果不属于本次 macOS 验证。
 
-- `compiler/`（`lomc`）— JSON 剧情 → 游戏原生 Lua 编译器
-- `editor/` — PySide6 图形编辑器；`editor/story_api.py` 为 AI/脚本受控接口（Python API + CLI）
-- `runtime/MortalModHost/` — BepInEx 游戏内插件
-- `tools/` — 从解包产物提取编辑器数据/素材的脚本
-- `data/` — 编辑器数据（`editor_data.json`，schema 3）
-- 新导出的包显式声明 `package_format`、`story_schema`、`content_schema`；三端统一拒绝未知或冲突版本，旧 `format: 1` 包继续兼容读取。
-- 编辑器会把缺少显式声明的旧 v1 Story / 用户内容迁移到当前格式；覆盖前保留 `*.pre-migration-v1.bak` 原始字节，写入使用同目录原子替换，迁移失败不会破坏源文件。
-- manifest 可声明最低/已测试 Host 版本及要求/已测试游戏版本；Host 在注册脚本前按真实 `Application.version` 给出明确拒载或兼容性警告，旧包无字段时不受影响。
-- 打包输出使用稳定条目顺序、JSON、ZIP 时间戳/权限和 Lua，并附 `package-content.sha256`；同一工具链相同输入可逐字节复现，逻辑内容哈希不依赖 ZIP 压缩元数据。
-- 「文件 → 检查 Mod 包」可只读查看陌生 `.lommod` 的 Manifest、Story、Lua、Texts、资源/用户内容、大小与逐文件哈希，并报告格式、兼容性、逻辑哈希和资源引用问题；检查不会导入或执行包内内容。
-- 用户内容库可把单个角色、音频或图片导出为离线 `.lomcontent` Content Pack；包内记录稳定 ID、类型、SemVer、作者、许可证、规范 metadata、文件大小/哈希和直接依赖，导入时校验全部内容、提示本地缺失依赖并拒绝任何跨类型 ID 冲突；不静默覆盖、不自动下载、不做依赖求解。
-- `samples/showcase3/` — 唯一保留的完整示例 Mod（全节点样例 3.0）
-
-### 从源码运行
-
-```bash
-# 编辑器
-cd editor
-python -m venv .venv
-.venv/Scripts/pip install PySide6
-run_editor.bat
-
-# 编译器（无依赖）
-PYTHONPATH=compiler python -m lomc check story.json
-PYTHONPATH=compiler python -m lomc pack mod目录 -o 我的mod.lommod
-
-# 可选：离线截图来源水印检测器
-python -m pip install -r compiler/requirements-detector.txt
-PYTHONPATH=compiler python -m lomc detect-watermark screenshot.png --json
-
-# 可选：需要另外安装 FFmpeg
-PYTHONPATH=compiler python -m lomc detect-watermark-video capture.mp4 --json
-```
-
-### 构建与测试
-
-```bash
-# 编译器测试（193 例）
-cd compiler && python -m unittest tests.test_lomc
-
-# 编辑器测试（冒烟/压力，offscreen 无头运行）
-cd editor && .venv/Scripts/python tests/smoke_test.py
-cd editor && .venv/Scripts/python tests/stress_test.py
-
-# story_api / 登场防线测试（61 + 18 例）
-cd editor && .venv/Scripts/python tests/story_api_test.py
-cd editor && .venv/Scripts/python tests/stage_guard_test.py
-
-# 插件构建与冒烟测试
-cd runtime/MortalModHost && dotnet build -c Release
-cd runtime/MortalModHost && dotnet run --project test/SmokeTest -c Release
-```
-
-构建 Windows 发行版时，先正式构建 Runtime，再冻结 Editor，最后生成 ZIP 与 SHA-256：
-
-```powershell
-dotnet build runtime/MortalModHost/MortalModHost.csproj -c Release -p:GameDir="C:\path\to\LegendOfMortal"
-editor/.venv/Scripts/python editor/build_exe.py
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1
-```
-
-冻结目录为 `editor/dist/lom_modkit/`，包含 `lom_editor.exe` 与 `story_api_cli.exe`。发布脚本会核对 Compiler、Editor、Runtime 版本和必需文件，并拒绝缓存、样本包、用户配置及符号链接混入。若同名 ZIP 或校验文件已存在，默认终止；只有确认要替换同一版本发布产物时才显式加 `-Force`。
-
-游戏内调试：任意场景按 **F7** 切换「禁用原版剧情」会话级开关（不持久化）；
-复测已读变黄时用编辑器「试玩 → 重置剧情已读状态」。
+[迁移功能表与验证范围](docs/chs/rust_migration.md) · [受控 API / CLI](docs/chs/ai_cli.md)
 
 ## FAQ
 
@@ -332,7 +257,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1
 在编辑器「文件 → 安装管理」里点「修复 Steam 无法加载」，然后从 Steam **普通启动**（不要管理员）。
 
 **Q：需要装 Python 吗？**
-不需要。Windows 发行版是独立 exe。只有从源码运行/开发才需要 Python 3.10+ 与 .NET（构建插件）。
+不需要。Windows 发行版是独立 exe。源码开发需要 Rust；构建 C# 游戏宿主需要 .NET。
 
 **Q：Mod 会修改我的游戏文件或存档吗？**
 不会修改官方脚本与文本表。「开始新战役」使用 `mod_campaign_<campaign_id>` 命名空间下的独立栏位和自动档，不覆盖你的正常存档。

@@ -1,5 +1,8 @@
 # lom_modkit
 
+> Current source uses the Rust editor/compiler. Existing release downloads and their legacy menu descriptions refer to the published version. See For Developers for the current build.
+
+
 **『活俠傳』（Legend of Mortal）ビジュアルシナリオ Mod 制作ツール。**
 
 Lua を書く必要はありません。グラフィカルエディターで人物の台詞、シーン演出、分岐シナリオ、音楽・効果音を組み立て、
@@ -156,77 +159,19 @@ Lua 環境分離と完全なライフサイクル清掃 · 一度限りのホッ
 
 ## For Developers
 
-### アーキテクチャ
+The editor and compiler use Rust. The C# game Host and v3 package contract are retained. `rust/lom-core` owns compilation, packages, content and controlled authoring; `rust/lomc` is the CLI; `rust/lom-editor` is the native editor. Python is only used by independent research/extraction scripts in `tools/`.
 
-```text
-┌─────────────┐
-│ lom_editor  │  PySide6 图形编辑器
-└──────┬──────┘
-       │ story JSON
-       ▼
-┌─────────────┐
-│    lomc     │  JSON → 游戏原生 Lua 编译器（纯标准库）
-└──────┬──────┘
-       │ Lua + assets
-       ▼
-┌─────────────┐
-│   .lommod   │  自包含 Mod 包（zip）
-└──────┬──────┘
-       ▼
-┌──────────────────┐
-│ MortalModHost    │  BepInEx 游戏内插件（C# net48）
-└──────┬───────────┘
-       ▼
-  Legend of Mortal
+```sh
+cargo run --locked -p lom-editor
+cargo run --locked -p lomc -- check samples/showcase3/story/main.json --json
+cargo test --locked --workspace
+cargo run --locked -p lomc --example build_showcase3 -- out/showcase3-native
+scripts/build-macos.sh
 ```
 
-### ソースコード構成
+macOS output: `out/LoM Modkit Rust.app`. Windows builder: `scripts/build-windows.ps1`, with prebuilt C# Host DLLs; `-NoArchive` skips ZIP creation. Windows and in-game testing were not run during this migration.
 
-- `compiler/`（`lomc`）— JSON シナリオ → ゲームネイティブ Lua コンパイラー
-- `editor/` — PySide6 グラフィカルエディター。`editor/story_api.py` は AI／スクリプト向けの管理されたインターフェース（Python API + CLI）
-- `runtime/MortalModHost/` — BepInEx ゲーム内プラグイン
-- `tools/` — 解凍成果物からエディターデータ／素材を抽出するスクリプト
-- `data/` — エディターデータ（`editor_data.json`、schema 3）
-- `samples/showcase3/` — 唯一保留の完全なサンプル Mod（全ノードサンプル 3.0）
-
-### ソースから実行
-
-```bash
-# 编辑器
-cd editor
-python -m venv .venv
-.venv/Scripts/pip install PySide6
-run_editor.bat
-
-# 编译器（无依赖）
-PYTHONPATH=compiler python -m lomc check story.json
-PYTHONPATH=compiler python -m lomc pack mod目录 -o 我的mod.lommod
-```
-
-### ビルドとテスト
-
-```bash
-# 编译器测试（160 例）
-cd compiler && python -m unittest tests.test_lomc
-
-# 编辑器测试（冒烟/压力，offscreen 无头运行）
-cd editor && .venv/Scripts/python tests/smoke_test.py
-cd editor && .venv/Scripts/python tests/stress_test.py
-
-# story_api / 登场防线测试（61 + 18 例）
-cd editor && .venv/Scripts/python tests/story_api_test.py
-cd editor && .venv/Scripts/python tests/stage_guard_test.py
-
-# 插件构建与冒烟测试
-cd runtime/MortalModHost && dotnet build -c Release
-cd runtime/MortalModHost && dotnet run --project test/SmokeTest -c Release
-```
-
-Windows 配布版は Runtime を正式ビルドし、`editor/.venv/Scripts/python editor/build_exe.py`、`powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1` の順に作成します。スクリプトはバージョンと必須ファイルを検証し、キャッシュ、サンプルパッケージ、ユーザー設定、シンボリックリンクの混入を拒否します。同名成果物は既定で上書きせず、確認済みの置換時だけ `-Force` を指定します。
-（成果物は `editor/dist/lom_modkit/` に出力。`lom_editor.exe` と `story_api_cli.exe` を含みます）。
-
-ゲーム内デバッグ：任意のシーンで **F7** を押すと「原版シナリオを無効化」のセッション単位スイッチを切り替えられます（永続化しません）。
-既読が黄色くなる場合の再テストには、エディターの「試遊 → 既読状態をリセット」を使います。
+[Migration coverage](docs/chs/rust_migration.md) · [CLI](docs/chs/ai_cli.md)
 
 ## FAQ
 
@@ -234,7 +179,7 @@ Windows 配布版は Runtime を正式ビルドし、`editor/.venv/Scripts/pytho
 エディターの「ファイル → インストール管理」で「Steam で読み込めない問題を修復」をクリックし、Steam から**通常起動**してください（管理者として実行しないこと）。
 
 **Q：Python のインストールは必要ですか？**
-不要です。Windows 版は独立した exe です。ソースから実行・開発する場合のみ、Python 3.10+ と .NET（プラグインのビルド用）が必要です。
+不要です。Windows 版は独立した exe です。ソース開発には Rust、C# ゲーム Host のビルドには .NET が必要です。
 
 **Q：Mod はゲームファイルやセーブデータを変更しますか？**
 公式スクリプトやテキスト表は変更しません。「新戦役を開始」は `mod_campaign_<campaign_id>` 名前空間の分離スロットと自動セーブを使うため、通常のセーブを上書きしません。

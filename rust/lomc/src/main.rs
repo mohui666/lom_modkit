@@ -8,7 +8,7 @@ use std::{env, fs, path::PathBuf};
 fn run() -> Result<i32> {
     let mut args: Vec<String> = env::args().skip(1).collect();
     if args.is_empty() || args.iter().any(|s| s == "--help" || s == "-h") {
-        println!("lomc 1.2.0 — Rust 活侠传剧情工具\n\n用法: lomc <check|build|compile|pack|inspect|new-story> <路径> [-o 输出] [--json] [--locale chs|cht|ja|ko]\n水印: lomc detect-watermark <图片> [--json]\n      lomc detect-watermark-video <视频> [--ffmpeg 路径] [--interval 秒] [--max-frames 数量] [--json]\n\ncheck 校验剧情；build/compile 生成 Lua；pack 生成 v3 .lommod；inspect 验证完整性与源码/Lua一致性。\n扩展: analyze/test/statistics/preflight <项目> [--profile editing|release]\n      release <项目> -o <输出目录>\n      migrate <JSON> [--kind story|manifest|content]\n      content-inspect/content-import <.lomcontent> [--library 目录]");
+        println!("lomc 1.2.0 — Rust 活侠传剧情工具\n\n用法: lomc <check|build|compile|pack|inspect|new-story> <路径> [-o 输出] [--json] [--locale chs|cht|ja|ko]\n水印: lomc detect-watermark <图片> [--json]\n      lomc detect-watermark-video <视频> [--ffmpeg 路径] [--interval 秒] [--max-frames 数量] [--json]\n\ncheck 校验剧情；build/compile 生成 Lua；pack 生成 v3 .lommod；inspect 验证完整性与源码/Lua一致性。\n扩展: analyze/test/statistics/preflight <项目> [--profile editing|release]\n      release <项目> -o <输出目录>\n      migrate <JSON> [--kind story|manifest|content]\n      content-inspect/content-import <.lomcontent> [--library 目录]\n      author <请求.json> [-o 输出.json]\n      edit <story.json> --operations <操作数组.json> [-o 输出.json]");
         return Ok(0);
     }
     if args[0] == "--version" {
@@ -30,8 +30,13 @@ fn run() -> Result<i32> {
     let mut ffmpeg = None;
     let mut interval = 2.0;
     let mut max_frames = 12;
+    let mut operations = None;
     while index < args.len() {
         match args[index].as_str() {
+            "--operations" => {
+                index += 1;
+                operations = Some(PathBuf::from(args.get(index).context("缺少操作文件")?));
+            }
             "--kind" => {
                 index += 1;
                 kind = args.get(index).context("缺少迁移类型")?.clone();
@@ -73,6 +78,25 @@ fn run() -> Result<i32> {
         index += 1;
     }
     let result = match command.as_str() {
+        "author" => {
+            let request = load_json(&path)?;
+            let response = lom_core::story_api::execute(
+                request["op"].as_str().context("缺少 op")?,
+                request.get("params").unwrap_or(&request),
+            )?;
+            if let Some(output) = output {
+                lom_core::project::atomic_write(&output, &stable_json(&response)?)?;
+            }
+            json!({"ok":true,"result":response["result"],"after":response["after"]})
+        }
+        "edit" => {
+            let story = load_json(&path)?;
+            let ops = load_json(operations.context("需要 --operations JSON 文件")?)?;
+            let next = lom_core::story_api::apply(&story, &ops)?;
+            let target = output.unwrap_or(path.clone());
+            lom_core::project::atomic_write(&target, &stable_json(&next)?)?;
+            json!({"ok":true,"output":target,"story":next})
+        }
         "analyze" => {
             let project = Project::open(&path)?;
             lom_core::analysis::analyze_project(&project.stories, &project.manifest)
@@ -159,11 +183,7 @@ fn run() -> Result<i32> {
             let target = package::pack_mod(&path, output.as_deref())?;
             json!({"ok":true,"output":target})
         }
-        "inspect" => {
-            let entries = package::read_package(&path)?;
-            let manifest: serde_json::Value = serde_json::from_slice(&entries["manifest.json"])?;
-            json!({"ok":true,"manifest":manifest,"content_hash":package::content_hash(&entries),"entries":entries.iter().map(|(n,b)|json!({"path":n,"size":b.len()})).collect::<Vec<_>>()})
-        }
+        "inspect" => package::inspect_package(&path)?,
         "detect-watermark" => {
             lom_core::watermark::detect_image(&path, lom_core::watermark::DEFAULT_SCALE_FACTORS)?
         }

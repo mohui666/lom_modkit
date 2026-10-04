@@ -3,6 +3,8 @@ param(
     [string]$Version = "",
     [string]$BundleDirectory = "",
     [string]$OutputDirectory = "",
+    [string]$RuntimeDirectory = "",
+    [switch]$NoArchive,
     [switch]$Force
 )
 
@@ -68,50 +70,60 @@ function Replace-FileAtomically {
     }
 }
 
-$AppVersionPath = Join-Path $RepositoryRoot "editor\app_version.py"
-$CompilerVersionPath = Join-Path $RepositoryRoot "compiler\lomc\__init__.py"
-$PluginPath = Join-Path $RepositoryRoot "runtime\MortalModHost\src\Plugin.cs"
-$EditorVersion = Read-VersionMatch $AppVersionPath 'EDITOR_VERSION\s*=\s*"([^"]+)"' "Editor"
-$BundledRuntimeVersion = Read-VersionMatch $AppVersionPath 'RUNTIME_VERSION\s*=\s*"([^"]+)"' "bundled Runtime"
-$CompilerVersion = Read-VersionMatch $CompilerVersionPath '__version__\s*=\s*"([^"]+)"' "Compiler"
-$PluginVersion = Read-VersionMatch $PluginPath 'VERSION\s*=\s*"([^"]+)"' "Runtime plugin"
-
-if ([string]::IsNullOrWhiteSpace($Version)) {
-    $Version = $EditorVersion
+# Native Rust tools. This script is run on Windows by the maintainer; macOS CI
+# does not execute Windows or game validation.
+$CargoPath = Join-Path $RepositoryRoot "Cargo.toml"
+$EditorVersion = Read-VersionMatch $CargoPath '(?m)^version\s*=\s*"([^"]+)"' "Rust workspace"
+if ([string]::IsNullOrWhiteSpace($Version)) { $Version = $EditorVersion }
+if ($Version -ne $EditorVersion) { throw "Release version must match Cargo.toml ($EditorVersion)" }
+if ($Version -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') { throw "Invalid SemVer: $Version" }
+if ([string]::IsNullOrWhiteSpace($RuntimeDirectory)) {
+    $RuntimeDirectory = Join-Path $RepositoryRoot "runtime\MortalModHost\bin\Release\net48"
 }
-if ($Version -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') {
-    throw "Release version is not SemVer: $Version"
-}
-$VersionSources = @{
-    "Editor" = $EditorVersion
-    "Compiler" = $CompilerVersion
-}
-foreach ($Item in $VersionSources.GetEnumerator()) {
-    if ($Item.Value -ne $Version) {
-        throw "$($Item.Key) version $($Item.Value) does not match release $Version"
+foreach ($Name in @("MortalModHost.dll", "NVorbis.dll")) {
+    if (-not (Test-Path -LiteralPath (Join-Path $RuntimeDirectory $Name) -PathType Leaf)) {
+        throw "Missing C# runtime dependency: $Name. Build Host first, or pass -RuntimeDirectory."
     }
 }
-# Editor-only releases can keep the existing Host. Its advertised bundled
-# version must still match the plugin being shipped.
-if ($BundledRuntimeVersion -ne $PluginVersion) {
-    throw "bundled Runtime version $BundledRuntimeVersion does not match Runtime plugin $PluginVersion"
-}
-
+Push-Location $RepositoryRoot
+try {
+    & cargo build --locked --release -p lomc -p lom-editor
+    if ($LASTEXITCODE -ne 0) { throw "Rust build failed: $LASTEXITCODE" }
+} finally { Pop-Location }
 if ([string]::IsNullOrWhiteSpace($BundleDirectory)) {
-    $BundleDirectory = Join-Path $RepositoryRoot "editor\dist\lom_modkit"
+    $BundleDirectory = Join-Path $RepositoryRoot "out\windows\lom_modkit"
 }
-if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
-    $OutputDirectory = $RepositoryRoot
+if ([string]::IsNullOrWhiteSpace($OutputDirectory)) { $OutputDirectory = Join-Path $RepositoryRoot "out\windows" }
+# Check every existing ancestor before writing the native bundle (also -NoArchive).
+$CheckPath = [IO.Path]::GetFullPath($BundleDirectory)
+while (-not [string]::IsNullOrWhiteSpace($CheckPath)) {
+    if (Test-Path -LiteralPath $CheckPath) {
+        $CheckItem = Get-Item -LiteralPath $CheckPath -Force
+        if (($CheckItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw "Bundle path contains a symlink/junction: $CheckPath" }
+    }
+    $CheckPath = Split-Path -Parent $CheckPath
 }
-if (-not (Test-Path -LiteralPath $BundleDirectory -PathType Container)) {
-    throw "Frozen bundle is missing: $BundleDirectory. Run editor/build_exe.py first."
+if (Test-Path -LiteralPath $BundleDirectory) {
+    foreach ($Item in Get-ChildItem -LiteralPath $BundleDirectory -Recurse -Force) {
+        if (($Item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw "Bundle contains a symlink/junction: $($Item.FullName)" }
+    }
 }
+[IO.Directory]::CreateDirectory($BundleDirectory) | Out-Null
+[IO.Directory]::CreateDirectory((Join-Path $BundleDirectory "runtime")) | Out-Null
+[IO.Directory]::CreateDirectory((Join-Path $BundleDirectory "assets\doorstop")) | Out-Null
+Copy-Item -LiteralPath (Join-Path $RepositoryRoot "target\release\lom-editor.exe") -Destination (Join-Path $BundleDirectory "lom-editor.exe")
+Copy-Item -LiteralPath (Join-Path $RepositoryRoot "target\release\lomc.exe") -Destination (Join-Path $BundleDirectory "lomc.exe")
+foreach ($Name in @("MortalModHost.dll", "NVorbis.dll")) {
+    Copy-Item -LiteralPath (Join-Path $RuntimeDirectory $Name) -Destination (Join-Path $BundleDirectory "runtime\$Name")
+}
+Copy-Item -LiteralPath (Join-Path $RepositoryRoot "editor\assets\doorstop\win-x86-doorstop.dll") -Destination (Join-Path $BundleDirectory "assets\doorstop\win-x86-doorstop.dll")
+if ($NoArchive) { Write-Host "Built native tools: $BundleDirectory"; return }
 $BundleDirectory = (Resolve-Path -LiteralPath $BundleDirectory).Path
 [IO.Directory]::CreateDirectory($OutputDirectory) | Out-Null
 $OutputDirectory = (Resolve-Path -LiteralPath $OutputDirectory).Path
 $BundleItem = Get-Item -LiteralPath $BundleDirectory -Force
 if (($BundleItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-    throw "Frozen bundle itself cannot be a symlink/junction: $BundleDirectory"
+    throw "Native bundle itself cannot be a symlink/junction: $BundleDirectory"
 }
 $BundlePrefix = $BundleDirectory.TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
 if ($OutputDirectory.Equals($BundleDirectory, [StringComparison]::OrdinalIgnoreCase) -or
@@ -120,18 +132,16 @@ if ($OutputDirectory.Equals($BundleDirectory, [StringComparison]::OrdinalIgnoreC
 }
 
 $RequiredFiles = @(
-    "lom_editor.exe",
-    "story_api_cli.exe",
-    "_internal\runtime\MortalModHost.dll",
-    "_internal\runtime\NVorbis.dll",
-    "_internal\assets\doorstop\win-x86-doorstop.dll",
-    "_internal\data\editor_data.json",
-    "_internal\data\preview_map.json"
+    "lom-editor.exe",
+    "lomc.exe",
+    "runtime\MortalModHost.dll",
+    "runtime\NVorbis.dll",
+    "assets\doorstop\win-x86-doorstop.dll"
 )
 foreach ($Relative in $RequiredFiles) {
     $Required = Join-Path $BundleDirectory $Relative
     if (-not (Test-Path -LiteralPath $Required -PathType Leaf)) {
-        throw "Frozen bundle is incomplete; missing $Relative"
+        throw "Native bundle is incomplete; missing $Relative"
     }
 }
 
@@ -139,13 +149,13 @@ $ForbiddenDirectoryNames = @(".git", ".pytest_cache", "__pycache__", "bin", "bui
 $ForbiddenExtensions = @(".cfg", ".log", ".lomcontent", ".lommod", ".pdb", ".pyc")
 foreach ($Item in Get-ChildItem -LiteralPath $BundleDirectory -Recurse -Force) {
     if (($Item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-        throw "Frozen bundle contains a symlink/junction and will not be packaged: $($Item.FullName)"
+        throw "Native bundle contains a symlink/junction and will not be packaged: $($Item.FullName)"
     }
     if ($Item.PSIsContainer -and $ForbiddenDirectoryNames -contains $Item.Name.ToLowerInvariant()) {
-        throw "Frozen bundle contains forbidden build/user directory: $($Item.FullName)"
+        throw "Native bundle contains forbidden build/user directory: $($Item.FullName)"
     }
     if (-not $Item.PSIsContainer -and $ForbiddenExtensions -contains $Item.Extension.ToLowerInvariant()) {
-        throw "Frozen bundle contains forbidden build/user file: $($Item.FullName)"
+        throw "Native bundle contains forbidden build/user file: $($Item.FullName)"
     }
 }
 

@@ -1,6 +1,6 @@
 # 現在の機能と境界
 
-この文書は現在のリポジトリコードだけを説明します。ノードの正規集合は `editor/models.py` の `NODE_SCHEMAS` で、現在 63 種です。
+この文書は現在のリポジトリコードだけを説明します。ノードの正規集合は `rust/lom-editor/data/authoring.json` の `NODE_SCHEMAS` で、現在 63 種です。
 
 ## 実装済み
 

@@ -101,6 +101,29 @@ fn tr_index(source: &str, index: usize) -> String {
         })
         .unwrap_or_else(|| source.into())
 }
+pub fn term(category: &str, id: &str, fallback: &str) -> String {
+    term_index(category, id, fallback, LOCALE.load(Ordering::Relaxed))
+}
+fn term_index(category: &str, id: &str, fallback: &str, index: usize) -> String {
+    static TERMS: OnceLock<[Value; 4]> = OnceLock::new();
+    let tables = TERMS.get_or_init(|| {
+        [
+            serde_json::from_str(include_str!("../../../editor/i18n/terms/chs.json")).unwrap(),
+            serde_json::from_str(include_str!("../../../editor/i18n/terms/cht.json")).unwrap(),
+            serde_json::from_str(include_str!("../../../editor/i18n/terms/ja.json")).unwrap(),
+            serde_json::from_str(include_str!("../../../editor/i18n/terms/ko.json")).unwrap(),
+        ]
+    });
+    if id.starts_with("user:") {
+        return fallback.into();
+    }
+    tables[index][category][id]
+        .as_str()
+        .filter(|s| !s.is_empty())
+        .or_else(|| tables[0][category][id].as_str().filter(|s| !s.is_empty()))
+        .unwrap_or(fallback)
+        .into()
+}
 pub fn help_text() -> String {
     let html = match locale() {
         "cht" => include_str!("../../../editor/i18n/help/cht.html"),
@@ -174,5 +197,24 @@ mod native_tests {
                 assert!(!source[index][key].as_str().unwrap().is_empty());
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod term_tests {
+    #[test]
+    fn translations_preserve_user_names_and_lookup_game_ids() {
+        assert_eq!(
+            super::term_index("characters", "artist1", "fallback", 3),
+            "무사"
+        );
+        assert_eq!(
+            super::term_index("characters", "user:demo.hero", "My hero", 3),
+            "My hero"
+        );
+        assert_eq!(
+            super::term_index("characters", "future_hero", "Future hero", 1),
+            "Future hero"
+        );
     }
 }

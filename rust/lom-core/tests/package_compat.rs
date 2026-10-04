@@ -78,3 +78,58 @@ fn localized_package_contains_all_four_variants_and_matching_records() {
     let texts: serde_json::Value = serde_json::from_slice(&entries["texts/ja.json"]).unwrap();
     assert_eq!(texts["MOD_my_mod_main_say1"], "繁體對白");
 }
+
+#[test]
+fn inspection_previews_tampered_source_without_allowing_it_to_open() {
+    use sha2::{Digest, Sha256};
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("inspect.lommod");
+    Project::new().export(&path).unwrap();
+    let good = package::inspect_package(&path).unwrap();
+    assert_eq!(good["ok"], true);
+    assert_eq!(good["integrity_verified"], true);
+    assert_eq!(good["source_lua_match"], true);
+    assert_eq!(
+        good["package_sha256"],
+        format!("{:X}", Sha256::digest(fs::read(&path).unwrap()))
+    );
+    let mut entries = package::read_package(&path).unwrap();
+    let lua = b"error('must never execute during inspection')";
+    entries.insert("lua/main.lua".into(), lua.to_vec());
+    // Write a deliberately damaged archive without repairing its integrity map.
+    let mut zip = zip::ZipWriter::new(fs::File::create(&path).unwrap());
+    for (name, bytes) in entries {
+        zip.start_file(name, zip::write::SimpleFileOptions::default())
+            .unwrap();
+        zip.write_all(&bytes).unwrap();
+    }
+    zip.finish().unwrap();
+    let report = package::inspect_package(&path).unwrap();
+    assert_eq!(report["ok"], false);
+    assert_eq!(report["integrity_verified"], false);
+    assert_eq!(report["source_lua_match"], false);
+    assert!(report["validation_error"].is_string());
+    let entry = report["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["path"] == "lua/main.lua")
+        .unwrap();
+    assert_eq!(entry["preview"], std::str::from_utf8(lua).unwrap());
+    assert_eq!(entry["sha256"], format!("{:X}", Sha256::digest(lua)));
+    assert!(package::read_package(&path).is_err());
+    assert!(Project::open(&path).is_err());
+}
+
+#[test]
+fn inspector_rejects_unsafe_container_before_preview() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("unsafe.lommod");
+    let mut zip = zip::ZipWriter::new(fs::File::create(&path).unwrap());
+    zip.start_file("../outside.lua", zip::write::SimpleFileOptions::default())
+        .unwrap();
+    zip.write_all(b"no extraction").unwrap();
+    zip.finish().unwrap();
+    assert!(package::inspect_package(&path).is_err());
+    assert!(!dir.path().join("outside.lua").exists());
+}

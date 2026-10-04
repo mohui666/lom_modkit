@@ -3347,5 +3347,28 @@
     "raw": {
       "code": "-- 原生 Lua 代码，原样插入编译产物\n"
     }
-  }
+  },
+  "VERIFIED_BATTLE_CHARACTER_IDS": [
+    "special4",
+    "special102",
+    "special103",
+    "special401",
+    "special811"
+  ],
+  "VERIFIED_BATTLE_FACTION_IDS": [
+    "000",
+    "001",
+    "002",
+    "003",
+    "004",
+    "006",
+    "008",
+    "009",
+    "010",
+    "100",
+    "200",
+    "201",
+    "300",
+    "500"
+  ]
 }

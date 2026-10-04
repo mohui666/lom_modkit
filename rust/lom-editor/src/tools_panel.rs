@@ -6,6 +6,10 @@ use std::path::PathBuf;
 
 pub struct ToolsPanel {
     report: Value,
+    location: Option<crate::advanced::Location>,
+    result_filter: String,
+    package_report: Value,
+    package_entry: String,
     library: PathBuf,
     game: PathBuf,
     runtime: PathBuf,
@@ -27,9 +31,23 @@ impl Default for ToolsPanel {
         let settings = lom_core::load_json(settings_path()).unwrap_or(json!({}));
         Self {
             report: Value::Null,
+            location: None,
+            result_filter: String::new(),
+            package_report: Value::Null,
+            package_entry: String::new(),
             library: lom_core::content::default_repository_root(),
             game: PathBuf::from(settings["game_dir"].as_str().unwrap_or("")),
-            runtime: PathBuf::from(settings["rust_runtime_dir"].as_str().unwrap_or("")),
+            runtime: settings["rust_runtime_dir"]
+                .as_str()
+                .filter(|s| !s.is_empty())
+                .map(PathBuf::from)
+                .or_else(|| {
+                    std::env::current_exe()
+                        .ok()
+                        .and_then(|p| p.parent().map(|p| p.join("runtime")))
+                        .filter(|p| p.join("MortalModHost.dll").is_file())
+                })
+                .unwrap_or_default(),
             ffmpeg: settings["ffmpeg_path"]
                 .as_str()
                 .filter(|s| !s.is_empty())
@@ -55,6 +73,9 @@ impl Default for ToolsPanel {
     }
 }
 impl ToolsPanel {
+    pub fn take_location(&mut self) -> Option<crate::advanced::Location> {
+        self.location.take()
+    }
     pub fn diagnostic_options(&self) -> release::DiagnosticOptions {
         release::DiagnosticOptions {
             game_root: (!self.game.as_os_str().is_empty()).then(|| self.game.clone()),
@@ -260,7 +281,81 @@ impl ToolsPanel {
                     .add_filter("Mod", &["lommod"])
                     .pick_file()
                 {
-                    self.result(inspect_package(&path));
+                    self.package_report = Value::Null;
+                    match inspect_package(&path) {
+                        Ok(report) => {
+                            self.package_report = report;
+                            self.package_entry.clear();
+                        }
+                        Err(e) => self.result::<Value>(Err(e)),
+                    }
+                }
+            }
+            if self.package_report.is_object() {
+                ui.label(crate::i18n::tr(if self.package_report["ok"] == true {
+                    "检查通过"
+                } else {
+                    "检查未通过"
+                }));
+                if let Some(error) = self.package_report["validation_error"].as_str() {
+                    ui.colored_label(egui::Color32::from_rgb(179, 55, 49), error);
+                }
+                ui.collapsing("SHA-256", |ui| {
+                    ui.monospace(self.package_report["package_sha256"].as_str().unwrap_or(""));
+                });
+                let entries = self.package_report["entries"].as_array().unwrap();
+                if self.package_entry.is_empty() {
+                    self.package_entry = entries
+                        .iter()
+                        .find(|entry| entry["path"] == "manifest.json")
+                        .or_else(|| entries.first())
+                        .and_then(|entry| entry["path"].as_str())
+                        .unwrap_or("")
+                        .into();
+                }
+                egui::ComboBox::from_id_salt("package-entry")
+                    .truncate()
+                    .width(ui.available_width())
+                    .selected_text(&self.package_entry)
+                    .height(300.0)
+                    .show_ui(ui, |ui| {
+                        for e in entries {
+                            if let Some(name) = e["path"].as_str() {
+                                ui.selectable_value(&mut self.package_entry, name.into(), name);
+                            }
+                        }
+                    });
+                if let Some(entry) = entries.iter().find(|e| e["path"] == self.package_entry) {
+                    ui.label(format!("{} bytes", entry["size"]));
+                    ui.collapsing(crate::i18n::tr("文件校验值"), |ui| {
+                        ui.monospace(entry["sha256"].as_str().unwrap_or(""));
+                    });
+                    if let Some(preview) = entry["preview"].as_str() {
+                        let mut preview = preview;
+                        egui::ScrollArea::both()
+                            .id_salt("entry-preview")
+                            .max_height(320.0)
+                            .show(ui, |ui| {
+                                ui.add(
+                                    egui::TextEdit::multiline(&mut preview)
+                                        .code_editor()
+                                        .desired_width(f32::INFINITY),
+                                );
+                            });
+                        if entry["preview_truncated"] == true {
+                            ui.label(crate::i18n::tr("预览已截断"));
+                        }
+                    } else {
+                        ui.label(crate::i18n::tr("二进制文件，仅显示大小与哈希"));
+                    }
+                }
+                if !self.package_report["preflight"].is_null() {
+                    ui.collapsing(crate::i18n::tr("发布检查"), |ui| {
+                        show_report(ui, &self.package_report["preflight"], 0);
+                    });
+                    ui.collapsing(crate::i18n::tr("未使用资源"), |ui| {
+                        show_report(ui, &self.package_report["unused_assets"], 0);
+                    });
                 }
             }
             if ui
@@ -567,7 +662,41 @@ impl ToolsPanel {
         });
         if !self.report.is_null() {
             ui.separator();
-            show_report(ui, &self.report, 0);
+            let mut locations = Vec::new();
+            collect_locations(&self.report, project, &mut locations);
+            if !locations.is_empty() {
+                ui.heading(crate::i18n::tr("定位到剧情"));
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.result_filter)
+                        .hint_text(crate::i18n::tr("筛选章节、节点或内容")),
+                );
+                for (sid, nid, label) in locations {
+                    if !self.result_filter.is_empty()
+                        && !format!("{sid} {nid:?} {label}")
+                            .to_lowercase()
+                            .contains(&self.result_filter.to_lowercase())
+                    {
+                        continue;
+                    }
+                    if ui
+                        .link(format!(
+                            "{sid}/{} · {label}",
+                            nid.as_deref().unwrap_or("作品设置")
+                        ))
+                        .clicked()
+                    {
+                        self.location = Some((sid, nid));
+                    }
+                }
+            }
+            if let Some(error) = self.report["error"].as_str() {
+                ui.colored_label(egui::Color32::from_rgb(179, 55, 49), error);
+            } else if self.report.as_array().is_some_and(|a| a.is_empty()) {
+                ui.label(crate::i18n::tr("未发现问题"));
+            }
+            egui::CollapsingHeader::new(crate::i18n::tr("完整报告"))
+                .default_open(false)
+                .show(ui, |ui| show_report(ui, &self.report, 0));
         }
     }
 }
@@ -666,13 +795,66 @@ fn copy_content_to_project(
     Ok(json!({"added":id,"type":record.content_type}))
 }
 fn inspect_package(path: &std::path::Path) -> anyhow::Result<Value> {
-    let entries = lom_core::package::read_package(path)?;
-    let manifest: Value = serde_json::from_slice(&entries["manifest.json"])?;
-    let project = Project::open(path)?;
-    let assets = project.assets.keys().cloned().collect::<Vec<_>>();
-    Ok(
-        json!({"manifest":manifest,"integrity_verified":true,"source_lua_match":true,"entries":entries.iter().map(|(p,b)|json!({"path":p,"size":b.len(),"kind":if p.starts_with("story/"){"source"}else if p.starts_with("assets/"){"asset"}else if p.ends_with(".lua"){"compiled"}else{"metadata"}})).collect::<Vec<_>>(),"preflight":release::run_preflight(&project,release::Profile::Release,"1.1.2"),"unused_assets":release::unused_asset_paths(&project.stories,&assets)}),
-    )
+    let mut report = lom_core::package::inspect_package(path)?;
+    // Preserve release checks for valid packages while allowing damaged packages
+    // to be inspected without opening them as authoring projects.
+    if report["ok"] == true {
+        let project = Project::open(path)?;
+        let assets = project.assets.keys().cloned().collect::<Vec<_>>();
+        report["preflight"] = serde_json::to_value(release::run_preflight(
+            &project,
+            release::Profile::Release,
+            "1.1.2",
+        ))?;
+        report["unused_assets"] =
+            serde_json::to_value(release::unused_asset_paths(&project.stories, &assets))?;
+    }
+    Ok(report)
+}
+fn collect_locations(
+    value: &Value,
+    project: &Project,
+    out: &mut Vec<(String, Option<String>, String)>,
+) {
+    if let Some(o) = value.as_object() {
+        let sid = o
+            .get("story_id")
+            .or_else(|| o.get("story"))
+            .and_then(Value::as_str);
+        let nid = o
+            .get("node_id")
+            .or_else(|| o.get("node"))
+            .and_then(Value::as_str)
+            .filter(|s| !s.is_empty());
+        if let Some(sid) = sid {
+            let label = o
+                .get("message")
+                .or_else(|| o.get("text"))
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_owned();
+            if sid.is_empty() && nid.is_none() {
+                out.push((String::new(), None, label));
+            } else if let Some(story) = project.stories.get(sid) {
+                if nid.is_none_or(|n| {
+                    story["nodes"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .any(|v| v["id"] == n)
+                }) {
+                    out.push((sid.into(), nid.map(str::to_owned), label));
+                }
+            }
+        }
+        for v in o.values() {
+            collect_locations(v, project, out);
+        }
+    } else if let Some(a) = value.as_array() {
+        for v in a {
+            collect_locations(v, project, out);
+        }
+    }
 }
 fn show_report(ui: &mut egui::Ui, value: &Value, depth: usize) {
     if depth > 8 {
@@ -711,6 +893,30 @@ fn show_report(ui: &mut egui::Ui, value: &Value, depth: usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn report_navigation_resolves_only_existing_targets() {
+        let p = Project::new();
+        let node = p.stories["main"]["nodes"][0]["id"].as_str().unwrap();
+        let report = json!([
+            {"story_id":"main","node_id":node,"message":"missing voice"},
+            {"story":"main","node":node,"text":"line"},
+            {"story_id":"main","message":"chapter issue"},
+            {"story_id":"","message":"manifest issue"},
+            {"story_id":"missing","node_id":node},
+            {"story_id":"main","node_id":"missing"}
+        ]);
+        let mut result = Vec::new();
+        collect_locations(&report, &p, &mut result);
+        assert_eq!(
+            result,
+            vec![
+                ("main".into(), Some(node.into()), "missing voice".into()),
+                ("main".into(), Some(node.into()), "line".into()),
+                ("main".into(), None, "chapter issue".into()),
+                (String::new(), None, "manifest issue".into()),
+            ]
+        );
+    }
     #[test]
     fn preview_package_reconstructs_stage_without_mutating_author_project() {
         let mut project = Project::new();
