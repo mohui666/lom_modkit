@@ -1,0 +1,18 @@
+[package]
+name = "lom-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+regex.workspace = true
+tempfile.workspace = true
+zip.workspace = true
+unicode-casefold = "0.2"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+crc32fast = "1"
+uuid = { version = "1", features = ["v4"] }

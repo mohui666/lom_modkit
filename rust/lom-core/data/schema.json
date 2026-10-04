@@ -1,0 +1,1051 @@
+{
+  "package_format": 3,
+  "story_schema": 2,
+  "content_schema": 1,
+  "nodes": {
+    "music": {
+      "required": {
+        "name": "str"
+      },
+      "optional": {
+        "op": "music_op",
+        "seconds": "num"
+      }
+    },
+    "sound": {
+      "required": {
+        "name": "str"
+      },
+      "optional": {
+        "kind": "sound_kind",
+        "op": "sound_op",
+        "seconds": "num"
+      }
+    },
+    "scene": {
+      "required": {
+        "view": "str"
+      },
+      "optional": {}
+    },
+    "background": {
+      "required": {
+        "action": "background_action"
+      },
+      "optional": {
+        "image": "str",
+        "fade": "num"
+      }
+    },
+    "custom_cg": {
+      "required": {
+        "action": "cg_action"
+      },
+      "optional": {
+        "image": "str",
+        "fade": "num",
+        "scale": "num",
+        "x": "num",
+        "y": "num"
+      }
+    },
+    "overlay": {
+      "required": {
+        "action": "overlay_action",
+        "slot": "str"
+      },
+      "optional": {
+        "image": "str",
+        "position": "overlay_position",
+        "scale": "num",
+        "opacity": "num",
+        "layer": "overlay_layer",
+        "fade": "num"
+      }
+    },
+    "show": {
+      "required": {
+        "character": "str",
+        "position": "str"
+      },
+      "optional": {
+        "portrait": "str",
+        "appearance": "str",
+        "facing": "facing",
+        "fadeDuration": "num",
+        "moveDuration": "num"
+      }
+    },
+    "move": {
+      "required": {
+        "character": "str",
+        "from": "str",
+        "to": "str"
+      },
+      "optional": {
+        "duration": "num"
+      }
+    },
+    "face": {
+      "required": {
+        "character": "str",
+        "facing": "facing"
+      },
+      "optional": {}
+    },
+    "hide": {
+      "required": {
+        "character": "str"
+      },
+      "optional": {
+        "fadeDuration": "num"
+      }
+    },
+    "focus": {
+      "required": {
+        "character": "str"
+      },
+      "optional": {}
+    },
+    "offset": {
+      "required": {
+        "character": "str",
+        "x": "num",
+        "y": "num",
+        "duration": "num"
+      },
+      "optional": {}
+    },
+    "say": {
+      "required": {
+        "text": "str"
+      },
+      "optional": {
+        "character": "str",
+        "portrait": "str",
+        "mode": "mode",
+        "voice": "str"
+      }
+    },
+    "choice": {
+      "required": {
+        "options": "list"
+      },
+      "optional": {
+        "dialog": "idstr"
+      }
+    },
+    "shock": {
+      "required": {
+        "character": "str"
+      },
+      "optional": {
+        "duration": "num"
+      }
+    },
+    "mask": {
+      "required": {
+        "show": "bool"
+      },
+      "optional": {}
+    },
+    "intro": {
+      "required": {},
+      "optional": {
+        "intro_source": "intro_source",
+        "character": "str",
+        "title": "str",
+        "name": "str",
+        "text": "str",
+        "image": "str",
+        "image_scale": "num",
+        "image_x": "num",
+        "image_y": "num"
+      }
+    },
+    "effect": {
+      "required": {
+        "name": "str"
+      },
+      "optional": {
+        "x": "num",
+        "y": "num",
+        "a": "num",
+        "b": "num",
+        "c": "num",
+        "d": "num",
+        "play": "bool"
+      }
+    },
+    "transition": {
+      "required": {
+        "phase": "transition_phase"
+      },
+      "optional": {
+        "dir": "transition_dir"
+      }
+    },
+    "camera": {
+      "required": {
+        "name": "str",
+        "active": "bool"
+      },
+      "optional": {}
+    },
+    "block": {
+      "required": {
+        "flowchart": "block_fc",
+        "name": "str"
+      },
+      "optional": {
+        "vars": "list"
+      }
+    },
+    "cg": {
+      "required": {
+        "action": "cg_action",
+        "kind": "cg_kind"
+      },
+      "optional": {
+        "key": "str",
+        "key2": "str",
+        "n1": "num",
+        "n2": "num"
+      }
+    },
+    "dim": {
+      "required": {
+        "character": "str",
+        "dimmed": "bool"
+      },
+      "optional": {}
+    },
+    "message": {
+      "required": {
+        "text": "str"
+      },
+      "optional": {}
+    },
+    "rotate": {
+      "required": {
+        "character": "str",
+        "angle": "num",
+        "duration": "num"
+      },
+      "optional": {}
+    },
+    "dayenv": {
+      "required": {
+        "day_type": "num"
+      },
+      "optional": {}
+    },
+    "stat": {
+      "required": {
+        "key": "str",
+        "delta": "num"
+      },
+      "optional": {
+        "waitDisplay": "bool",
+        "display": "num",
+        "mode": "str"
+      }
+    },
+    "stat_set": {
+      "required": {
+        "key": "str",
+        "value": "num"
+      },
+      "optional": {
+        "update": "bool"
+      }
+    },
+    "affinity": {
+      "required": {
+        "character": "str",
+        "delta": "num"
+      },
+      "optional": {}
+    },
+    "talent": {
+      "required": {
+        "talent": "idstr",
+        "level": "talent_level"
+      },
+      "optional": {}
+    },
+    "item": {
+      "required": {
+        "kind": "item_kind",
+        "item": "idstr"
+      },
+      "optional": {
+        "count": "num",
+        "remove": "bool"
+      }
+    },
+    "flag": {
+      "required": {
+        "flag": "str"
+      },
+      "optional": {}
+    },
+    "game_flag": {
+      "required": {
+        "flag": "idstr",
+        "value": "num"
+      },
+      "optional": {
+        "op": "gameflag_op"
+      }
+    },
+    "enemy": {
+      "required": {
+        "op": "enemy_op",
+        "enemy": "idstr"
+      },
+      "optional": {
+        "value": "num",
+        "display": "num"
+      }
+    },
+    "battle_skill": {
+      "required": {
+        "op": "bskill_op"
+      },
+      "optional": {
+        "key": "idstr",
+        "index": "num",
+        "active": "num",
+        "level": "num"
+      }
+    },
+    "combat": {
+      "required": {
+        "character": "idstr",
+        "win": "idstr",
+        "lose": "idstr"
+      },
+      "optional": {
+        "background": "str",
+        "display_name": "str",
+        "max_health": "num",
+        "health": "num",
+        "max_stamina": "num",
+        "stamina": "num",
+        "stamina_power": "num",
+        "strength": "num",
+        "internal": "num",
+        "dexterity": "num",
+        "talking": "num",
+        "defence": "num",
+        "sword": "num",
+        "fist": "num",
+        "martial_weapon": "num",
+        "mental": "num",
+        "confucianism": "num",
+        "buddhism": "num",
+        "taoism": "num",
+        "xingyi": "num",
+        "strategy_level": "num",
+        "weapon_poison_value": "num",
+        "weapon_paralyzed_value": "num",
+        "poison_resist": "num",
+        "paralyzed_resist": "num",
+        "disposition": "num",
+        "behaviour": "num",
+        "karma": "num",
+        "training": "num",
+        "attack_damage_addition": "num",
+        "defence_addition": "num",
+        "ultimate_damage_rate": "num",
+        "attack_dice_addition": "num",
+        "weapon_damage_addition": "num",
+        "weapon_dice_addition": "num",
+        "weapon_hit_addition": "num",
+        "attack_parry_addition": "num",
+        "block_dodge_addition": "num",
+        "block_parry_addition": "num",
+        "talk_rate": "num",
+        "attack_rate": "num",
+        "weapon_rate": "num",
+        "ultimate_rate": "num",
+        "block_rate": "num",
+        "talents": "list",
+        "player_max_health": "num",
+        "player_health": "num",
+        "player_max_stamina": "num",
+        "player_stamina": "num",
+        "player_stamina_power": "num",
+        "player_strength": "num",
+        "player_internal": "num",
+        "player_dexterity": "num",
+        "player_talking": "num",
+        "player_defence": "num",
+        "player_sword": "num",
+        "player_fist": "num",
+        "player_martial_weapon": "num",
+        "player_mental": "num",
+        "player_poison_resist": "num",
+        "player_paralyzed_resist": "num",
+        "player_disposition": "num",
+        "player_behaviour": "num",
+        "player_karma": "num",
+        "player_training": "num",
+        "player_talents": "list"
+      }
+    },
+    "battle": {
+      "required": {
+        "win": "idstr",
+        "lose": "idstr"
+      },
+      "optional": {
+        "friend_factions": "list",
+        "enemy_factions": "list",
+        "friend_characters": "list",
+        "enemy_characters": "list",
+        "friend_faction": "idstr",
+        "enemy_faction": "idstr",
+        "friend_people": "num",
+        "enemy_people": "num",
+        "title": "str",
+        "friend_health": "num",
+        "enemy_health": "num"
+      }
+    },
+    "battle_result": {
+      "required": {
+        "win": "idstr",
+        "lose": "idstr"
+      },
+      "optional": {
+        "kind": "gameplay_kind"
+      }
+    },
+    "reward": {
+      "required": {
+        "entries": "list"
+      },
+      "optional": {}
+    },
+    "result_screen": {
+      "required": {
+        "title": "str",
+        "entries": "list"
+      },
+      "optional": {
+        "text": "str"
+      }
+    },
+    "custom_shop": {
+      "required": {
+        "items": "list"
+      },
+      "optional": {
+        "discount": "num"
+      }
+    },
+    "stat_check": {
+      "required": {
+        "key": "idstr",
+        "op": "check_op",
+        "value": "num",
+        "success": "idstr",
+        "failure": "idstr"
+      },
+      "optional": {}
+    },
+    "affinity_check": {
+      "required": {
+        "character": "idstr",
+        "op": "check_op",
+        "value": "num",
+        "success": "idstr",
+        "failure": "idstr"
+      },
+      "optional": {}
+    },
+    "item_check": {
+      "required": {
+        "category": "item_kind",
+        "item": "idstr",
+        "success": "idstr",
+        "failure": "idstr"
+      },
+      "optional": {
+        "invert": "bool"
+      }
+    },
+    "talent_check": {
+      "required": {
+        "talent": "idstr",
+        "op": "check_op",
+        "value": "num",
+        "success": "idstr",
+        "failure": "idstr"
+      },
+      "optional": {}
+    },
+    "flag_check": {
+      "required": {
+        "source": "flag_check_source",
+        "flag": "idstr",
+        "success": "idstr",
+        "failure": "idstr"
+      },
+      "optional": {
+        "op": "check_op",
+        "value": "num",
+        "invert": "bool"
+      }
+    },
+    "activity": {
+      "required": {
+        "kind": "activity_kind",
+        "stat": "idstr",
+        "op": "check_op",
+        "value": "num",
+        "success": "idstr",
+        "failure": "idstr"
+      },
+      "optional": {
+        "message": "str",
+        "time": "activity_time",
+        "success_rewards": "list",
+        "failure_rewards": "list"
+      }
+    },
+    "mod_quest": {
+      "required": {
+        "quest": "idstr",
+        "op": "quest_op"
+      },
+      "optional": {
+        "message": "str"
+      }
+    },
+    "quest_check": {
+      "required": {
+        "quest": "idstr",
+        "state": "quest_state",
+        "success": "idstr",
+        "failure": "idstr"
+      },
+      "optional": {}
+    },
+    "persistent_var": {
+      "required": {
+        "key": "idstr",
+        "op": "persistent_op",
+        "value": "num"
+      },
+      "optional": {}
+    },
+    "persistent_check": {
+      "required": {
+        "key": "idstr",
+        "op": "check_op",
+        "value": "num",
+        "success": "idstr",
+        "failure": "idstr"
+      },
+      "optional": {}
+    },
+    "mission": {
+      "required": {
+        "name": "idstr",
+        "key": "idstr"
+      },
+      "optional": {}
+    },
+    "time": {
+      "required": {
+        "op": "time_op"
+      },
+      "optional": {
+        "year": "num",
+        "month": "num",
+        "stage": "num",
+        "name": "idstr"
+      }
+    },
+    "autosave": {
+      "required": {},
+      "optional": {
+        "kind": "autosave_kind",
+        "save_button": "save_button"
+      }
+    },
+    "branch": {
+      "required": {
+        "cases": "list"
+      },
+      "optional": {
+        "source": "branch_source",
+        "flag": "str",
+        "stat": "str"
+      }
+    },
+    "dice": {
+      "required": {},
+      "optional": {
+        "max": "num",
+        "header": "str",
+        "bands": "list",
+        "bonus": "num",
+        "bonus_name": "str",
+        "bonus_status": "str",
+        "check": "idstr",
+        "options": "list"
+      }
+    },
+    "goto_scene": {
+      "required": {
+        "scene": "goto_scene"
+      },
+      "optional": {
+        "key": "idstr",
+        "next": "str",
+        "title": "str",
+        "desc": "str",
+        "image": "str"
+      }
+    },
+    "panel": {
+      "required": {
+        "panel": "panel_kind"
+      },
+      "optional": {
+        "key": "idstr",
+        "discount": "num",
+        "mode": "num"
+      }
+    },
+    "wait": {
+      "required": {
+        "seconds": "num"
+      },
+      "optional": {}
+    },
+    "end": {
+      "required": {},
+      "optional": {
+        "next_script": "script_id"
+      }
+    },
+    "free_trigger": {
+      "required": {
+        "position": "map_position",
+        "script": "script_id"
+      },
+      "optional": {
+        "when_month": "month_limit",
+        "when_stage": "stage_limit",
+        "when_flag_set": "str",
+        "when_flag_clear": "str",
+        "when_affinity": "str",
+        "when_affinity_min": "num",
+        "note": "str"
+      }
+    },
+    "death": {
+      "required": {
+        "text": "str",
+        "death_id": "idstr"
+      },
+      "optional": {
+        "title": "str",
+        "next": "death_next"
+      }
+    },
+    "raw": {
+      "required": {
+        "code": "str"
+      },
+      "optional": {}
+    }
+  },
+  "enums": {
+    "music_op": [
+      "play",
+      "stop",
+      "fadeout"
+    ],
+    "sound_kind": [
+      "sound",
+      "env"
+    ],
+    "sound_op": [
+      "play",
+      "fadeout"
+    ],
+    "background_action": [
+      "set",
+      "show",
+      "replace",
+      "fadein",
+      "fadeout",
+      "clear"
+    ],
+    "overlay_action": [
+      "show",
+      "hide"
+    ],
+    "overlay_position": [
+      "center",
+      "top",
+      "bottom",
+      "left",
+      "right",
+      "top_left",
+      "top_right",
+      "bottom_left",
+      "bottom_right"
+    ],
+    "overlay_layer": [
+      "back",
+      "front"
+    ],
+    "transition_phase": [
+      "in",
+      "out"
+    ],
+    "transition_dir": [
+      "lr",
+      "rl",
+      "tb",
+      "bt"
+    ],
+    "block_fc": [
+      "view",
+      "common"
+    ],
+    "cg_action": [
+      "show",
+      "hide"
+    ],
+    "cg_kind": [
+      "picture",
+      "item",
+      "big",
+      "map",
+      "family",
+      "title"
+    ],
+    "item_kind": [
+      "book",
+      "misc",
+      "special"
+    ],
+    "gameflag_op": [
+      "set",
+      "add"
+    ],
+    "enemy_op": [
+      "team",
+      "level",
+      "people",
+      "id"
+    ],
+    "bskill_op": [
+      "set",
+      "active",
+      "level",
+      "reset"
+    ],
+    "gameplay_kind": [
+      "any",
+      "combat",
+      "battle"
+    ],
+    "reward_kind": [
+      "stat",
+      "affinity",
+      "talent",
+      "item",
+      "flag"
+    ],
+    "shop_item_kind": [
+      "book",
+      "misc",
+      "special"
+    ],
+    "shop_condition_source": [
+      "mod",
+      "condition"
+    ],
+    "check_op": [
+      ">=",
+      ">",
+      "<=",
+      "<",
+      "=="
+    ],
+    "flag_check_source": [
+      "mod",
+      "condition",
+      "flag_value"
+    ],
+    "activity_kind": [
+      "training",
+      "study",
+      "forge",
+      "alchemy",
+      "custom"
+    ],
+    "activity_time": [
+      "none",
+      "round",
+      "month"
+    ],
+    "quest_op": [
+      "start",
+      "update",
+      "complete",
+      "fail"
+    ],
+    "quest_state": [
+      "inactive",
+      "active",
+      "completed",
+      "failed"
+    ],
+    "persistent_op": [
+      "set",
+      "add"
+    ],
+    "time_op": [
+      "set",
+      "round",
+      "month",
+      "mission"
+    ],
+    "autosave_kind": [
+      "story",
+      "free",
+      "prologue"
+    ],
+    "goto_scene": [
+      "Free",
+      "Title",
+      "GameOver",
+      "End",
+      "Story",
+      "DemoEnd"
+    ],
+    "panel_kind": [
+      "martial",
+      "weapon",
+      "poison",
+      "cg",
+      "cgvideo",
+      "shop",
+      "newshop",
+      "credit",
+      "endgame"
+    ],
+    "branch_source": [
+      "mod",
+      "game",
+      "stat",
+      "flag_value",
+      "condition"
+    ],
+    "mode": [
+      "character",
+      "think",
+      "narrative",
+      "center"
+    ],
+    "facing": [
+      "left",
+      "right"
+    ],
+    "death_next": [
+      "Free",
+      "Title"
+    ],
+    "intro_source": [
+      "official",
+      "custom",
+      "character"
+    ],
+    "map_position": [
+      "Mall",
+      "Center",
+      "Alchemy",
+      "Forge",
+      "BackMountain",
+      "Room1",
+      "Door",
+      "Study",
+      "Kitchen",
+      "Room2",
+      "Secret"
+    ],
+    "month_limit": [
+      "any",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11",
+      "12"
+    ],
+    "stage_limit": [
+      "any",
+      "1",
+      "2",
+      "3"
+    ]
+  },
+  "type_names": {
+    "str": "字符串",
+    "idstr": "非空字符串（官方/资源 id）",
+    "num": "数值",
+    "bool": "布尔值",
+    "list": "数组",
+    "talent_level": "1 或 -1",
+    "save_button": "0 或 1",
+    "script_id": "脚本 id 字符串",
+    "music_op": "\"play\"/\"stop\"/\"fadeout\"",
+    "sound_kind": "\"sound\"/\"env\"",
+    "sound_op": "\"play\"/\"fadeout\"",
+    "background_action": "\"set\"/\"show\"/\"replace\"/\"fadein\"/\"fadeout\"/\"clear\"",
+    "overlay_action": "\"show\"/\"hide\"",
+    "overlay_position": "\"center\"/\"top\"/\"bottom\"/\"left\"/\"right\"/\"top_left\"/\"top_right\"/\"bottom_left\"/\"bottom_right\"",
+    "overlay_layer": "\"back\"/\"front\"",
+    "transition_phase": "\"in\"/\"out\"",
+    "transition_dir": "\"lr\"/\"rl\"/\"tb\"/\"bt\"",
+    "block_fc": "\"view\"/\"common\"",
+    "cg_action": "\"show\"/\"hide\"",
+    "cg_kind": "\"picture\"/\"item\"/\"big\"/\"map\"/\"family\"/\"title\"",
+    "item_kind": "\"book\"/\"misc\"/\"special\"",
+    "gameflag_op": "\"set\"/\"add\"",
+    "enemy_op": "\"team\"/\"level\"/\"people\"/\"id\"",
+    "bskill_op": "\"set\"/\"active\"/\"level\"/\"reset\"",
+    "gameplay_kind": "\"any\"/\"combat\"/\"battle\"",
+    "reward_kind": "\"stat\"/\"affinity\"/\"talent\"/\"item\"/\"flag\"",
+    "shop_item_kind": "\"book\"/\"misc\"/\"special\"",
+    "shop_condition_source": "\"mod\"/\"condition\"",
+    "check_op": "\">=\"/\">\"/\"<=\"/\"<\"/\"==\"",
+    "flag_check_source": "\"mod\"/\"condition\"/\"flag_value\"",
+    "activity_kind": "\"training\"/\"study\"/\"forge\"/\"alchemy\"/\"custom\"",
+    "activity_time": "\"none\"/\"round\"/\"month\"",
+    "quest_op": "\"start\"/\"update\"/\"complete\"/\"fail\"",
+    "quest_state": "\"inactive\"/\"active\"/\"completed\"/\"failed\"",
+    "persistent_op": "\"set\"/\"add\"",
+    "time_op": "\"set\"/\"round\"/\"month\"/\"mission\"",
+    "autosave_kind": "\"story\"/\"free\"/\"prologue\"",
+    "goto_scene": "\"Free\"/\"Title\"/\"GameOver\"/\"End\"/\"Story\"/\"DemoEnd\"",
+    "panel_kind": "\"martial\"/\"weapon\"/\"poison\"/\"cg\"/\"cgvideo\"/\"shop\"/\"newshop\"/\"credit\"/\"endgame\"",
+    "branch_source": "\"mod\"/\"game\"/\"stat\"/\"flag_value\"/\"condition\"",
+    "mode": "\"character\"/\"think\"/\"narrative\"/\"center\"",
+    "facing": "\"left\"/\"right\"",
+    "death_next": "\"Free\"/\"Title\"",
+    "intro_source": "\"official\"/\"custom\"/\"character\"",
+    "map_position": "\"Mall\"/\"Center\"/\"Alchemy\"/\"Forge\"/\"BackMountain\"/\"Room1\"/\"Door\"/\"Study\"/\"Kitchen\"/\"Room2\"/\"Secret\"",
+    "month_limit": "\"any\"/\"1\"/\"2\"/\"3\"/\"4\"/\"5\"/\"6\"/\"7\"/\"8\"/\"9\"/\"10\"/\"11\"/\"12\"",
+    "stage_limit": "\"any\"/\"1\"/\"2\"/\"3\""
+  },
+  "common_fields": [
+    "id",
+    "type",
+    "goto"
+  ],
+  "check_types": [
+    "stat_check",
+    "affinity_check",
+    "item_check",
+    "talent_check",
+    "flag_check",
+    "activity",
+    "quest_check",
+    "persistent_check"
+  ],
+  "no_goto_types": [
+    "choice",
+    "branch",
+    "dice",
+    "end",
+    "goto_scene",
+    "death",
+    "combat",
+    "battle",
+    "battle_result",
+    "stat_check",
+    "affinity_check",
+    "item_check",
+    "talent_check",
+    "flag_check",
+    "activity",
+    "quest_check",
+    "persistent_check"
+  ],
+  "terminal_types": [
+    "end",
+    "choice",
+    "branch",
+    "dice",
+    "goto_scene",
+    "raw",
+    "death",
+    "combat",
+    "battle",
+    "battle_result",
+    "stat_check",
+    "affinity_check",
+    "item_check",
+    "talent_check",
+    "flag_check",
+    "activity",
+    "quest_check",
+    "persistent_check"
+  ],
+  "declaration_types": [
+    "free_trigger"
+  ],
+  "battle_characters": [
+    "special102",
+    "special103",
+    "special4",
+    "special401",
+    "special811"
+  ],
+  "battle_factions": [
+    "000",
+    "001",
+    "002",
+    "003",
+    "004",
+    "006",
+    "008",
+    "009",
+    "010",
+    "100",
+    "200",
+    "201",
+    "300",
+    "500"
+  ],
+  "campaign_positions": [
+    "Mall",
+    "Center",
+    "Alchemy",
+    "Forge",
+    "BackMountain",
+    "Room1",
+    "Door",
+    "Study",
+    "Kitchen",
+    "Room2",
+    "Secret"
+  ]
+}

@@ -1,0 +1,228 @@
+{
+  "failures": 0,
+  "errors": 0,
+  "cases": [
+    {
+      "kind": "dat",
+      "mod_id": "showcase2",
+      "keys": [
+        "MOD_showcase2_second_a",
+        "MOD_showcase2_main_n1",
+        "MOD_showcase2_main_n2",
+        "MOD_showcase2_main_n3"
+      ],
+      "input": "0048454144455200756e72656c61746564005441494c",
+      "output": "0048454144455200756e72656c61746564005441494c",
+      "count": 0
+    },
+    {
+      "kind": "dat",
+      "mod_id": "showcase2",
+      "keys": [
+        "MOD_showcase2_second_a",
+        "MOD_showcase2_main_n1",
+        "MOD_showcase2_main_n2",
+        "MOD_showcase2_main_n3"
+      ],
+      "input": "00484541444552004d4f445f73686f7763617365325f6d61696e5f6e31005441494c",
+      "output": "00484541444552006d6f645f73686f7763617365325f6d61696e5f6e31005441494c",
+      "count": 1
+    },
+    {
+      "kind": "dat",
+      "mod_id": "showcase2",
+      "keys": [
+        "MOD_showcase2_second_a",
+        "MOD_showcase2_main_n1",
+        "MOD_showcase2_main_n2",
+        "MOD_showcase2_main_n3"
+      ],
+      "input": "00484541444552006d6f645f73686f7763617365325f6d61696e5f6e31005441494c4d4f445f73686f7763617365325f6d61696e5f6e32",
+      "output": "00484541444552006d6f645f73686f7763617365325f6d61696e5f6e31005441494c4d4f445f73686f7763617365325f6d61696e5f6e32",
+      "count": 0
+    },
+    {
+      "kind": "dat",
+      "mod_id": "foo",
+      "keys": [
+        "MOD_foo_main_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      ],
+      "input": "067b000000304d4f445f666f6f5f6d61696e5f787878787878787878787878787878787878787878787878787878787878787878787800",
+      "output": "067b000000306d6f645f666f6f5f6d61696e5f787878787878787878787878787878787878787878787878787878787878787878787800",
+      "count": 1
+    },
+    {
+      "kind": "dat",
+      "mod_id": "foo",
+      "keys": [
+        "MOD_foo_main_n1"
+      ],
+      "input": "067b000000146e6f74652e4d4f445f666f6f5f6d61696e5f6e310b",
+      "output": "067b000000146e6f74652e4d4f445f666f6f5f6d61696e5f6e310b",
+      "count": 0
+    },
+    {
+      "kind": "dat",
+      "mod_id": "showcase2",
+      "keys": [
+        "MOD_showcase2_second_a",
+        "MOD_showcase2_main_n1",
+        "MOD_showcase2_main_n2",
+        "MOD_showcase2_main_n3"
+      ],
+      "input": "00484541444552004d4f445f73686f7763617365325f6d61696e5f6e31006b6565705f6d65005441494c",
+      "output": "00484541444552006d6f645f73686f7763617365325f6d61696e5f6e31006b6565705f6d65005441494c",
+      "count": 1
+    },
+    {
+      "kind": "json",
+      "mod_id": "showcase2",
+      "keys": [
+        "MOD_showcase2_second_a",
+        "MOD_showcase2_main_n1",
+        "MOD_showcase2_main_n2",
+        "MOD_showcase2_main_n3"
+      ],
+      "input": "7b2256657273696f6e223a202231222c20225265616453746f727944617461223a205b224d4f445f73686f7763617365325f6d61696e5f6e31222c20224d4f445f73686f7763617365325f6d61696e5f6e32222c20226b6565705f6d65225d7d",
+      "output": "7b2256657273696f6e223a202231222c20225265616453746f727944617461223a205b226b6565705f6d65225d7d",
+      "count": 2
+    },
+    {
+      "kind": "dat",
+      "mod_id": "showcase2",
+      "keys": [
+        "MOD_showcase2_second_a",
+        "MOD_showcase2_main_n1",
+        "MOD_showcase2_main_n2",
+        "MOD_showcase2_main_n3"
+      ],
+      "input": "00484541444552004d4f445f73686f7763617365325f6d61696e5f6e31004d4f445f73686f7763617365325f6d61696e5f6e320076616e696c6c615f6b6579005441494c",
+      "output": "00484541444552006d6f645f73686f7763617365325f6d61696e5f6e31006d6f645f73686f7763617365325f6d61696e5f6e320076616e696c6c615f6b6579005441494c",
+      "count": 2
+    },
+    {
+      "kind": "dat",
+      "mod_id": "showcase2",
+      "keys": [
+        "MOD_showcase2_second_a",
+        "MOD_showcase2_main_n1",
+        "MOD_showcase2_main_n2",
+        "MOD_showcase2_main_n3"
+      ],
+      "input": "00484541444552006d6f645f73686f7763617365325f6d61696e5f6e31006d6f645f73686f7763617365325f6d61696e5f6e32004d4f445f73686f7763617365325f6d61696e5f6e31004d4f445f73686f7763617365325f6d61696e5f6e33005441494c",
+      "output": "00484541444552006d6f645f73686f7763617365325f6d61696e5f6e31006d6f645f73686f7763617365325f6d61696e5f6e3200786f645f73686f7763617365325f6d61696e5f6e3100786f645f73686f7763617365325f6d61696e5f6e33005441494c",
+      "count": 2
+    },
+    {
+      "kind": "dat",
+      "mod_id": "showcase2",
+      "keys": [
+        "MOD_showcase2_second_a",
+        "MOD_showcase2_main_n1",
+        "MOD_showcase2_main_n2",
+        "MOD_showcase2_main_n3"
+      ],
+      "input": "004845414445520076616e696c6c615f6f6e6c79005441494c",
+      "output": "004845414445520076616e696c6c615f6f6e6c79005441494c",
+      "count": 0
+    },
+    {
+      "kind": "json",
+      "mod_id": "showcase2",
+      "keys": [
+        "MOD_showcase2_second_a",
+        "MOD_showcase2_main_n1",
+        "MOD_showcase2_main_n2",
+        "MOD_showcase2_main_n3"
+      ],
+      "input": "7b2256657273696f6e223a202231222c20225265616453746f727944617461223a205b2276616e696c6c615f6f6e6c79225d7d",
+      "output": "7b2256657273696f6e223a202231222c20225265616453746f727944617461223a205b2276616e696c6c615f6f6e6c79225d7d",
+      "count": 0
+    },
+    {
+      "kind": "dat",
+      "mod_id": "foo",
+      "keys": [
+        "MOD_foo_main_n1"
+      ],
+      "input": "00484541444552004d4f445f666f6f5f6d61696e5f6e31004d4f445f666f6f5f6d61696e5f6e3130004d4f445f666f6f5f6261725f6d61696e5f6e31004d4f445f6f746865725f584d4f445f666f6f5f6d61696e5f6e31005441494c",
+      "output": "00484541444552006d6f645f666f6f5f6d61696e5f6e31004d4f445f666f6f5f6d61696e5f6e3130004d4f445f666f6f5f6261725f6d61696e5f6e31004d4f445f6f746865725f584d4f445f666f6f5f6d61696e5f6e31005441494c",
+      "count": 1
+    },
+    {
+      "kind": "json",
+      "mod_id": "foo",
+      "keys": [
+        "MOD_foo_main_n1"
+      ],
+      "input": "7b2256657273696f6e223a202231222c20225265616453746f727944617461223a205b224d4f445f666f6f5f6d61696e5f6e31222c20224d4f445f666f6f5f6d61696e5f6e3130222c20224d4f445f666f6f5f6261725f6d61696e5f6e31222c20224d4f445f6f746865725f584d4f445f666f6f5f6d61696e5f6e31225d7d",
+      "output": "7b2256657273696f6e223a202231222c20225265616453746f727944617461223a205b224d4f445f666f6f5f6d61696e5f6e3130222c20224d4f445f666f6f5f6261725f6d61696e5f6e31222c20224d4f445f6f746865725f584d4f445f666f6f5f6d61696e5f6e31225d7d",
+      "count": 1
+    },
+    {
+      "kind": "dat",
+      "mod_id": "showcase2",
+      "keys": [
+        "MOD_showcase2_second_a",
+        "MOD_showcase2_main_n1",
+        "MOD_showcase2_main_n2",
+        "MOD_showcase2_main_n3"
+      ],
+      "input": "00484541444552004d4f445f73686f7763617365325f6d61696e5f6e31004d4f445f6c6f6d5f6d6f646b69745f707265766965775f6d61696e5f6e320076616e696c6c61005441494c",
+      "output": "00484541444552006d6f645f73686f7763617365325f6d61696e5f6e31004d4f445f6c6f6d5f6d6f646b69745f707265766965775f6d61696e5f6e320076616e696c6c61005441494c",
+      "count": 1
+    },
+    {
+      "kind": "json",
+      "mod_id": "showcase2",
+      "keys": [
+        "MOD_showcase2_second_a",
+        "MOD_showcase2_main_n1",
+        "MOD_showcase2_main_n2",
+        "MOD_showcase2_main_n3"
+      ],
+      "input": "7b2256657273696f6e223a202231222c20225265616453746f727944617461223a205b224d4f445f73686f7763617365325f6d61696e5f6e31222c20224d4f445f6c6f6d5f6d6f646b69745f707265766965775f6d61696e5f6e32222c202276616e696c6c61225d7d",
+      "output": "7b2256657273696f6e223a202231222c20225265616453746f727944617461223a205b224d4f445f6c6f6d5f6d6f646b69745f707265766965775f6d61696e5f6e32222c202276616e696c6c61225d7d",
+      "count": 1
+    },
+    {
+      "kind": "dat",
+      "mod_id": "lom_modkit_preview",
+      "keys": [
+        "MOD_lom_modkit_preview_second_a",
+        "MOD_lom_modkit_preview_main_n1",
+        "MOD_lom_modkit_preview_main_n2",
+        "MOD_lom_modkit_preview_main_n3"
+      ],
+      "input": "00484541444552006d6f645f73686f7763617365325f6d61696e5f6e31004d4f445f6c6f6d5f6d6f646b69745f707265766965775f6d61696e5f6e320076616e696c6c61005441494c",
+      "output": "00484541444552006d6f645f73686f7763617365325f6d61696e5f6e31006d6f645f6c6f6d5f6d6f646b69745f707265766965775f6d61696e5f6e320076616e696c6c61005441494c",
+      "count": 1
+    },
+    {
+      "kind": "json",
+      "mod_id": "lom_modkit_preview",
+      "keys": [
+        "MOD_lom_modkit_preview_second_a",
+        "MOD_lom_modkit_preview_main_n1",
+        "MOD_lom_modkit_preview_main_n2",
+        "MOD_lom_modkit_preview_main_n3"
+      ],
+      "input": "7b2256657273696f6e223a202231222c20225265616453746f727944617461223a205b224d4f445f6c6f6d5f6d6f646b69745f707265766965775f6d61696e5f6e32222c202276616e696c6c61225d7d",
+      "output": "7b2256657273696f6e223a202231222c20225265616453746f727944617461223a205b2276616e696c6c61225d7d",
+      "count": 1
+    },
+    {
+      "kind": "json",
+      "mod_id": "showcase2",
+      "keys": [
+        "MOD_showcase2_second_a",
+        "MOD_showcase2_main_n1",
+        "MOD_showcase2_main_n2",
+        "MOD_showcase2_main_n3"
+      ],
+      "input": "7b2256657273696f6e223a202231222c20225265616453746f727944617461223a205b224d4f445f73686f7763617365325f6d61696e5f6e31222c20226d6f645f73686f7763617365325f6d61696e5f6e32222c2022786f645f73686f7763617365325f7365636f6e645f61222c20226f746865725f73746f72795f6b6579222c20224d4f445f6f746865725f6d6f645f6d61696e5f6e31225d7d",
+      "output": "7b2256657273696f6e223a202231222c20225265616453746f727944617461223a205b226f746865725f73746f72795f6b6579222c20224d4f445f6f746865725f6d6f645f6d61696e5f6e31225d7d",
+      "count": 3
+    }
+  ]
+}

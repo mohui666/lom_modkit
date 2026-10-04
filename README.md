@@ -2,6 +2,10 @@
 
 **《活侠传》（Legend of Mortal）可视化剧情 Mod 制作工具。**
 
+仓库新增原生 **Rust 工具端**（编辑器 + 编译器，保留 C# 游戏宿主）：
+`cargo run -p lom-editor -- samples/showcase3`。构建、CLI 与本次验证范围见
+[Rust 工具端说明](docs/chs/rust.md)。下方公开下载仍是既有 Python/Qt 发行版。
+
 不用写 Lua。用图形编辑器编排人物对白、场景演出、分支剧情、音乐音效，
 一键导出 `.lommod`，直接在游戏中运行。
 

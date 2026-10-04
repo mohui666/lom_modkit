@@ -1,0 +1,3081 @@
+[
+  {
+    "input": {
+      "schema": 1,
+      "id": "mohui.line_01",
+      "type": "audio",
+      "name": "洛雪问候",
+      "audio_kind": "sound",
+      "files": {
+        "main": "line.wav"
+      },
+      "character": "user:mohui.luoxue"
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.line_01",
+      "type": "audio",
+      "name": "洛雪问候",
+      "audio_kind": "sound",
+      "files": {
+        "main": "line.wav"
+      },
+      "portraits": null,
+      "character": "user:mohui.luoxue",
+      "intro": null,
+      "title": null,
+      "scale": null,
+      "art_facing": null
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.line_01",
+      "type": "audio",
+      "name": "洛雪问候",
+      "files": {
+        "main": "line.wav"
+      },
+      "audio_kind": "sound",
+      "character": "user:mohui.luoxue"
+    },
+    "files": [
+      "line.wav"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.line_01",
+      "type": "audio",
+      "name": "语音",
+      "audio_kind": "sound",
+      "files": {
+        "main": "line.wav"
+      }
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.line_01",
+      "type": "audio",
+      "name": "语音",
+      "audio_kind": "sound",
+      "files": {
+        "main": "line.wav"
+      },
+      "portraits": null,
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": null,
+      "art_facing": null
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.line_01",
+      "type": "audio",
+      "name": "语音",
+      "files": {
+        "main": "line.wav"
+      },
+      "audio_kind": "sound"
+    },
+    "files": [
+      "line.wav"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "content_schema": 999,
+      "id": "mohui.line_01",
+      "type": "audio",
+      "name": "语音",
+      "audio_kind": "sound",
+      "files": {
+        "main": "line.wav"
+      }
+    },
+    "valid": false
+  },
+  {
+    "input": {
+      "schema": 999,
+      "content_schema": 1,
+      "id": "mohui.line_01",
+      "type": "audio",
+      "name": "语音",
+      "audio_kind": "sound",
+      "files": {
+        "main": "line.wav"
+      }
+    },
+    "valid": false
+  },
+  {
+    "input": {
+      "schema": 1,
+      "id": "mohui.line_01",
+      "type": "audio",
+      "name": "旧语音",
+      "audio_kind": "sound",
+      "files": {
+        "main": "line.wav"
+      }
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.line_01",
+      "type": "audio",
+      "name": "旧语音",
+      "audio_kind": "sound",
+      "files": {
+        "main": "line.wav"
+      },
+      "portraits": null,
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": null,
+      "art_facing": null
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.line_01",
+      "type": "audio",
+      "name": "旧语音",
+      "files": {
+        "main": "line.wav"
+      },
+      "audio_kind": "sound"
+    },
+    "files": [
+      "line.wav"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.line_01",
+      "type": "audio",
+      "name": "旧语音",
+      "audio_kind": "sound",
+      "files": {
+        "main": "line.wav"
+      },
+      "portraits": null,
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": null,
+      "art_facing": null
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.line_01",
+      "type": "audio",
+      "name": "旧语音",
+      "audio_kind": "sound",
+      "files": {
+        "main": "line.wav"
+      },
+      "portraits": null,
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": null,
+      "art_facing": null
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.line_01",
+      "type": "audio",
+      "name": "旧语音",
+      "files": {
+        "main": "line.wav"
+      },
+      "audio_kind": "sound"
+    },
+    "files": [
+      "line.wav"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "id": "mohui.xiaoshi",
+      "type": "character",
+      "name": "小师妹",
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png"
+      },
+      "scale": 80,
+      "art_facing": "right"
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.xiaoshi",
+      "type": "character",
+      "name": "小师妹",
+      "audio_kind": null,
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 80,
+      "art_facing": "right",
+      "combat_idle": "normal.png",
+      "combat_attack": "normal.png",
+      "combat_hurt": "normal.png",
+      "combat_defence": "normal.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.xiaoshi",
+      "type": "character",
+      "name": "小师妹",
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png"
+      },
+      "scale": 80,
+      "art_facing": "right"
+    },
+    "files": [
+      "normal.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "id": "mohui.xiaoshi",
+      "type": "character",
+      "name": "小师妹",
+      "files": {
+        "main": "normal.png"
+      },
+      "scale": 200
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.xiaoshi",
+      "type": "character",
+      "name": "小师妹",
+      "audio_kind": null,
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 130,
+      "art_facing": "left",
+      "combat_idle": "normal.png",
+      "combat_attack": "normal.png",
+      "combat_hurt": "normal.png",
+      "combat_defence": "normal.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.xiaoshi",
+      "type": "character",
+      "name": "小师妹",
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png"
+      },
+      "scale": 130
+    },
+    "files": [
+      "normal.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "id": "mohui.xiaoshi",
+      "type": "character",
+      "name": "小师妹",
+      "files": {
+        "main": "normal.png"
+      },
+      "art_facing": "up"
+    },
+    "valid": false
+  },
+  {
+    "input": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.xiaoshi",
+      "type": "character",
+      "name": "小师妹",
+      "audio_kind": null,
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 80,
+      "art_facing": "right",
+      "combat_idle": "normal.png",
+      "combat_attack": "normal.png",
+      "combat_hurt": "normal.png",
+      "combat_defence": "normal.png"
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.xiaoshi",
+      "type": "character",
+      "name": "小师妹",
+      "audio_kind": null,
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 80,
+      "art_facing": "right",
+      "combat_idle": "normal.png",
+      "combat_attack": "normal.png",
+      "combat_hurt": "normal.png",
+      "combat_defence": "normal.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.xiaoshi",
+      "type": "character",
+      "name": "小师妹",
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png"
+      },
+      "scale": 80,
+      "art_facing": "right"
+    },
+    "files": [
+      "normal.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "id": "mohui.luoxue",
+      "type": "character",
+      "name": "洛雪",
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png"
+      }
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.luoxue",
+      "type": "character",
+      "name": "洛雪",
+      "audio_kind": null,
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 100,
+      "art_facing": "left",
+      "combat_idle": "normal.png",
+      "combat_attack": "normal.png",
+      "combat_hurt": "normal.png",
+      "combat_defence": "normal.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.luoxue",
+      "type": "character",
+      "name": "洛雪",
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png"
+      }
+    },
+    "files": [
+      "normal.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.luoxue",
+      "type": "character",
+      "name": "洛雪",
+      "audio_kind": null,
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 100,
+      "art_facing": "left",
+      "combat_idle": "normal.png",
+      "combat_attack": "normal.png",
+      "combat_hurt": "normal.png",
+      "combat_defence": "normal.png"
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.luoxue",
+      "type": "character",
+      "name": "洛雪",
+      "audio_kind": null,
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 100,
+      "art_facing": "left",
+      "combat_idle": "normal.png",
+      "combat_attack": "normal.png",
+      "combat_hurt": "normal.png",
+      "combat_defence": "normal.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.luoxue",
+      "type": "character",
+      "name": "洛雪",
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png"
+      }
+    },
+    "files": [
+      "normal.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "id": "mohui.moon_bg",
+      "type": "image",
+      "name": "mohui.moon_bg",
+      "files": {
+        "main": "moon.png"
+      }
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.moon_bg",
+      "type": "image",
+      "name": "mohui.moon_bg",
+      "audio_kind": null,
+      "files": {
+        "main": "moon.png"
+      },
+      "portraits": null,
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": null,
+      "art_facing": null
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.moon_bg",
+      "type": "image",
+      "name": "mohui.moon_bg",
+      "files": {
+        "main": "moon.png"
+      }
+    },
+    "files": [
+      "moon.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "id": "mohui.unused_bg",
+      "type": "image",
+      "name": "mohui.unused_bg",
+      "files": {
+        "main": "unused.png"
+      }
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.unused_bg",
+      "type": "image",
+      "name": "mohui.unused_bg",
+      "audio_kind": null,
+      "files": {
+        "main": "unused.png"
+      },
+      "portraits": null,
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": null,
+      "art_facing": null
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.unused_bg",
+      "type": "image",
+      "name": "mohui.unused_bg",
+      "files": {
+        "main": "unused.png"
+      }
+    },
+    "files": [
+      "unused.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.moon_bg",
+      "type": "image",
+      "name": "mohui.moon_bg",
+      "files": {
+        "main": "moon.png"
+      }
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.moon_bg",
+      "type": "image",
+      "name": "mohui.moon_bg",
+      "audio_kind": null,
+      "files": {
+        "main": "moon.png"
+      },
+      "portraits": null,
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": null,
+      "art_facing": null
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.moon_bg",
+      "type": "image",
+      "name": "mohui.moon_bg",
+      "files": {
+        "main": "moon.png"
+      }
+    },
+    "files": [
+      "moon.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "id": "mohui.memory_cg",
+      "type": "image",
+      "name": "mohui.memory_cg",
+      "files": {
+        "main": "memory.png"
+      }
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.memory_cg",
+      "type": "image",
+      "name": "mohui.memory_cg",
+      "audio_kind": null,
+      "files": {
+        "main": "memory.png"
+      },
+      "portraits": null,
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": null,
+      "art_facing": null
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.memory_cg",
+      "type": "image",
+      "name": "mohui.memory_cg",
+      "files": {
+        "main": "memory.png"
+      }
+    },
+    "files": [
+      "memory.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "id": "mohui.unused_cg",
+      "type": "image",
+      "name": "mohui.unused_cg",
+      "files": {
+        "main": "unused.png"
+      }
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.unused_cg",
+      "type": "image",
+      "name": "mohui.unused_cg",
+      "audio_kind": null,
+      "files": {
+        "main": "unused.png"
+      },
+      "portraits": null,
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": null,
+      "art_facing": null
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.unused_cg",
+      "type": "image",
+      "name": "mohui.unused_cg",
+      "files": {
+        "main": "unused.png"
+      }
+    },
+    "files": [
+      "unused.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.memory_cg",
+      "type": "image",
+      "name": "mohui.memory_cg",
+      "files": {
+        "main": "memory.png"
+      }
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.memory_cg",
+      "type": "image",
+      "name": "mohui.memory_cg",
+      "audio_kind": null,
+      "files": {
+        "main": "memory.png"
+      },
+      "portraits": null,
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": null,
+      "art_facing": null
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.memory_cg",
+      "type": "image",
+      "name": "mohui.memory_cg",
+      "files": {
+        "main": "memory.png"
+      }
+    },
+    "files": [
+      "memory.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "id": "mohui.lantern",
+      "type": "image",
+      "name": "mohui.lantern",
+      "files": {
+        "main": "lantern.png"
+      }
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.lantern",
+      "type": "image",
+      "name": "mohui.lantern",
+      "audio_kind": null,
+      "files": {
+        "main": "lantern.png"
+      },
+      "portraits": null,
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": null,
+      "art_facing": null
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.lantern",
+      "type": "image",
+      "name": "mohui.lantern",
+      "files": {
+        "main": "lantern.png"
+      }
+    },
+    "files": [
+      "lantern.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "id": "mohui.unused_overlay",
+      "type": "image",
+      "name": "mohui.unused_overlay",
+      "files": {
+        "main": "unused.png"
+      }
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.unused_overlay",
+      "type": "image",
+      "name": "mohui.unused_overlay",
+      "audio_kind": null,
+      "files": {
+        "main": "unused.png"
+      },
+      "portraits": null,
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": null,
+      "art_facing": null
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.unused_overlay",
+      "type": "image",
+      "name": "mohui.unused_overlay",
+      "files": {
+        "main": "unused.png"
+      }
+    },
+    "files": [
+      "unused.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.lantern",
+      "type": "image",
+      "name": "mohui.lantern",
+      "files": {
+        "main": "lantern.png"
+      }
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.lantern",
+      "type": "image",
+      "name": "mohui.lantern",
+      "audio_kind": null,
+      "files": {
+        "main": "lantern.png"
+      },
+      "portraits": null,
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": null,
+      "art_facing": null
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.lantern",
+      "type": "image",
+      "name": "mohui.lantern",
+      "files": {
+        "main": "lantern.png"
+      }
+    },
+    "files": [
+      "lantern.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "id": "mohui.boss_theme",
+      "type": "audio",
+      "name": "mohui.boss_theme",
+      "audio_kind": "music",
+      "files": {
+        "main": "boss.ogg"
+      }
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.boss_theme",
+      "type": "audio",
+      "name": "mohui.boss_theme",
+      "audio_kind": "music",
+      "files": {
+        "main": "boss.ogg"
+      },
+      "portraits": null,
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": null,
+      "art_facing": null
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.boss_theme",
+      "type": "audio",
+      "name": "mohui.boss_theme",
+      "files": {
+        "main": "boss.ogg"
+      },
+      "audio_kind": "music"
+    },
+    "files": [
+      "boss.ogg"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "id": "mohui.unused",
+      "type": "audio",
+      "name": "mohui.unused",
+      "audio_kind": "music",
+      "files": {
+        "main": "unused.ogg"
+      }
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.unused",
+      "type": "audio",
+      "name": "mohui.unused",
+      "audio_kind": "music",
+      "files": {
+        "main": "unused.ogg"
+      },
+      "portraits": null,
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": null,
+      "art_facing": null
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.unused",
+      "type": "audio",
+      "name": "mohui.unused",
+      "files": {
+        "main": "unused.ogg"
+      },
+      "audio_kind": "music"
+    },
+    "files": [
+      "unused.ogg"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.boss_theme",
+      "type": "audio",
+      "name": "mohui.boss_theme",
+      "files": {
+        "main": "boss.ogg"
+      },
+      "audio_kind": "music"
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.boss_theme",
+      "type": "audio",
+      "name": "mohui.boss_theme",
+      "audio_kind": "music",
+      "files": {
+        "main": "boss.ogg"
+      },
+      "portraits": null,
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": null,
+      "art_facing": null
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.boss_theme",
+      "type": "audio",
+      "name": "mohui.boss_theme",
+      "files": {
+        "main": "boss.ogg"
+      },
+      "audio_kind": "music"
+    },
+    "files": [
+      "boss.ogg"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "id": "mohui.line_01",
+      "type": "audio",
+      "name": "mohui.line_01",
+      "audio_kind": "sound",
+      "files": {
+        "main": "line.wav"
+      }
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.line_01",
+      "type": "audio",
+      "name": "mohui.line_01",
+      "audio_kind": "sound",
+      "files": {
+        "main": "line.wav"
+      },
+      "portraits": null,
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": null,
+      "art_facing": null
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.line_01",
+      "type": "audio",
+      "name": "mohui.line_01",
+      "files": {
+        "main": "line.wav"
+      },
+      "audio_kind": "sound"
+    },
+    "files": [
+      "line.wav"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.line_01",
+      "type": "audio",
+      "name": "mohui.line_01",
+      "files": {
+        "main": "line.wav"
+      },
+      "audio_kind": "sound"
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.line_01",
+      "type": "audio",
+      "name": "mohui.line_01",
+      "audio_kind": "sound",
+      "files": {
+        "main": "line.wav"
+      },
+      "portraits": null,
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": null,
+      "art_facing": null
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.line_01",
+      "type": "audio",
+      "name": "mohui.line_01",
+      "files": {
+        "main": "line.wav"
+      },
+      "audio_kind": "sound"
+    },
+    "files": [
+      "line.wav"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "id": "mohui.luoxue",
+      "type": "character",
+      "name": "洛雪",
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png",
+        "happy": "happy.png"
+      }
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.luoxue",
+      "type": "character",
+      "name": "洛雪",
+      "audio_kind": null,
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png",
+        "happy": "happy.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 100,
+      "art_facing": "left",
+      "combat_idle": "normal.png",
+      "combat_attack": "normal.png",
+      "combat_hurt": "normal.png",
+      "combat_defence": "normal.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.luoxue",
+      "type": "character",
+      "name": "洛雪",
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png",
+        "happy": "happy.png"
+      }
+    },
+    "files": [
+      "normal.png",
+      "happy.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "id": "mohui.line_used",
+      "type": "audio",
+      "name": "mohui.line_used",
+      "audio_kind": "sound",
+      "files": {
+        "main": "used.wav"
+      }
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.line_used",
+      "type": "audio",
+      "name": "mohui.line_used",
+      "audio_kind": "sound",
+      "files": {
+        "main": "used.wav"
+      },
+      "portraits": null,
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": null,
+      "art_facing": null
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.line_used",
+      "type": "audio",
+      "name": "mohui.line_used",
+      "files": {
+        "main": "used.wav"
+      },
+      "audio_kind": "sound"
+    },
+    "files": [
+      "used.wav"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "id": "mohui.line_unused",
+      "type": "audio",
+      "name": "未使用语音",
+      "audio_kind": "sound",
+      "files": {
+        "main": "unused.wav"
+      },
+      "character": "user:mohui.luoxue"
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.line_unused",
+      "type": "audio",
+      "name": "未使用语音",
+      "audio_kind": "sound",
+      "files": {
+        "main": "unused.wav"
+      },
+      "portraits": null,
+      "character": "user:mohui.luoxue",
+      "intro": null,
+      "title": null,
+      "scale": null,
+      "art_facing": null
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.line_unused",
+      "type": "audio",
+      "name": "未使用语音",
+      "files": {
+        "main": "unused.wav"
+      },
+      "audio_kind": "sound",
+      "character": "user:mohui.luoxue"
+    },
+    "files": [
+      "unused.wav"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "id": "mohui.line_used",
+      "type": "audio",
+      "name": "用到的语音",
+      "audio_kind": "sound",
+      "files": {
+        "main": "used.wav"
+      },
+      "character": "user:mohui.luoxue"
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.line_used",
+      "type": "audio",
+      "name": "用到的语音",
+      "audio_kind": "sound",
+      "files": {
+        "main": "used.wav"
+      },
+      "portraits": null,
+      "character": "user:mohui.luoxue",
+      "intro": null,
+      "title": null,
+      "scale": null,
+      "art_facing": null
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.line_used",
+      "type": "audio",
+      "name": "用到的语音",
+      "files": {
+        "main": "used.wav"
+      },
+      "audio_kind": "sound",
+      "character": "user:mohui.luoxue"
+    },
+    "files": [
+      "used.wav"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.luoxue",
+      "type": "character",
+      "name": "洛雪",
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png",
+        "happy": "happy.png"
+      }
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.luoxue",
+      "type": "character",
+      "name": "洛雪",
+      "audio_kind": null,
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png",
+        "happy": "happy.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 100,
+      "art_facing": "left",
+      "combat_idle": "normal.png",
+      "combat_attack": "normal.png",
+      "combat_hurt": "normal.png",
+      "combat_defence": "normal.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.luoxue",
+      "type": "character",
+      "name": "洛雪",
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png",
+        "happy": "happy.png"
+      }
+    },
+    "files": [
+      "normal.png",
+      "happy.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.line_used",
+      "type": "audio",
+      "name": "用到的语音",
+      "files": {
+        "main": "used.wav"
+      },
+      "audio_kind": "sound",
+      "character": "user:mohui.luoxue"
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.line_used",
+      "type": "audio",
+      "name": "用到的语音",
+      "audio_kind": "sound",
+      "files": {
+        "main": "used.wav"
+      },
+      "portraits": null,
+      "character": "user:mohui.luoxue",
+      "intro": null,
+      "title": null,
+      "scale": null,
+      "art_facing": null
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.line_used",
+      "type": "audio",
+      "name": "用到的语音",
+      "files": {
+        "main": "used.wav"
+      },
+      "audio_kind": "sound",
+      "character": "user:mohui.luoxue"
+    },
+    "files": [
+      "used.wav"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "id": "mohui.door",
+      "type": "audio",
+      "name": "mohui.door",
+      "audio_kind": "sound",
+      "files": {
+        "main": "door.wav"
+      }
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.door",
+      "type": "audio",
+      "name": "mohui.door",
+      "audio_kind": "sound",
+      "files": {
+        "main": "door.wav"
+      },
+      "portraits": null,
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": null,
+      "art_facing": null
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.door",
+      "type": "audio",
+      "name": "mohui.door",
+      "files": {
+        "main": "door.wav"
+      },
+      "audio_kind": "sound"
+    },
+    "files": [
+      "door.wav"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.door",
+      "type": "audio",
+      "name": "mohui.door",
+      "files": {
+        "main": "door.wav"
+      },
+      "audio_kind": "sound"
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.door",
+      "type": "audio",
+      "name": "mohui.door",
+      "audio_kind": "sound",
+      "files": {
+        "main": "door.wav"
+      },
+      "portraits": null,
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": null,
+      "art_facing": null
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.door",
+      "type": "audio",
+      "name": "mohui.door",
+      "files": {
+        "main": "door.wav"
+      },
+      "audio_kind": "sound"
+    },
+    "files": [
+      "door.wav"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "id": "mohui.luoxue",
+      "type": "character",
+      "name": "mohui.luoxue",
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png",
+        "happy": "happy.png"
+      }
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.luoxue",
+      "type": "character",
+      "name": "mohui.luoxue",
+      "audio_kind": null,
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png",
+        "happy": "happy.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 100,
+      "art_facing": "left",
+      "combat_idle": "normal.png",
+      "combat_attack": "normal.png",
+      "combat_hurt": "normal.png",
+      "combat_defence": "normal.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.luoxue",
+      "type": "character",
+      "name": "mohui.luoxue",
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png",
+        "happy": "happy.png"
+      }
+    },
+    "files": [
+      "normal.png",
+      "happy.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "id": "mohui.unused",
+      "type": "character",
+      "name": "mohui.unused",
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png",
+        "happy": "happy.png"
+      }
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.unused",
+      "type": "character",
+      "name": "mohui.unused",
+      "audio_kind": null,
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png",
+        "happy": "happy.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 100,
+      "art_facing": "left",
+      "combat_idle": "normal.png",
+      "combat_attack": "normal.png",
+      "combat_hurt": "normal.png",
+      "combat_defence": "normal.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.unused",
+      "type": "character",
+      "name": "mohui.unused",
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png",
+        "happy": "happy.png"
+      }
+    },
+    "files": [
+      "normal.png",
+      "happy.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.luoxue",
+      "type": "character",
+      "name": "mohui.luoxue",
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png",
+        "happy": "happy.png"
+      }
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.luoxue",
+      "type": "character",
+      "name": "mohui.luoxue",
+      "audio_kind": null,
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png",
+        "happy": "happy.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 100,
+      "art_facing": "left",
+      "combat_idle": "normal.png",
+      "combat_attack": "normal.png",
+      "combat_hurt": "normal.png",
+      "combat_defence": "normal.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.luoxue",
+      "type": "character",
+      "name": "mohui.luoxue",
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png",
+        "happy": "happy.png"
+      }
+    },
+    "files": [
+      "normal.png",
+      "happy.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "id": "mohui.moon_bg",
+      "type": "image",
+      "name": "月夜",
+      "files": {
+        "main": "moon.JPEG"
+      }
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.moon_bg",
+      "type": "image",
+      "name": "月夜",
+      "audio_kind": null,
+      "files": {
+        "main": "moon.JPEG"
+      },
+      "portraits": null,
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": null,
+      "art_facing": null
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.moon_bg",
+      "type": "image",
+      "name": "月夜",
+      "files": {
+        "main": "moon.JPEG"
+      }
+    },
+    "files": [
+      "moon.JPEG"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "id": "mohui.bad_image",
+      "type": "image",
+      "name": "坏图",
+      "files": {
+        "main": "bad.webp"
+      }
+    },
+    "valid": false
+  },
+  {
+    "input": {
+      "schema": 1,
+      "id": "mohui.luoxue",
+      "type": "character",
+      "name": "洛雪",
+      "title": "江湖新秀",
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png"
+      },
+      "intro": {
+        "title": "江湖新秀",
+        "name": "洛雪",
+        "text": "来历不明。",
+        "image": "intro.png"
+      }
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.luoxue",
+      "type": "character",
+      "name": "洛雪",
+      "audio_kind": null,
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png"
+      },
+      "character": null,
+      "intro": {
+        "title": "江湖新秀",
+        "name": "洛雪",
+        "text": "来历不明。",
+        "image": "intro.png",
+        "image_scale": 100,
+        "image_x": 0,
+        "image_y": 0
+      },
+      "title": "江湖新秀",
+      "scale": 100,
+      "art_facing": "left",
+      "combat_idle": "normal.png",
+      "combat_attack": "normal.png",
+      "combat_hurt": "normal.png",
+      "combat_defence": "normal.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.luoxue",
+      "type": "character",
+      "name": "洛雪",
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png"
+      },
+      "title": "江湖新秀",
+      "intro": {
+        "title": "江湖新秀",
+        "name": "洛雪",
+        "text": "来历不明。",
+        "image": "intro.png",
+        "image_scale": 100,
+        "image_x": 0,
+        "image_y": 0
+      }
+    },
+    "files": [
+      "normal.png",
+      "intro.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.luoxue",
+      "type": "character",
+      "name": "洛雪",
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png"
+      },
+      "title": "江湖新秀",
+      "intro": {
+        "title": "江湖新秀",
+        "name": "洛雪",
+        "text": "来历不明。",
+        "image": "intro.png",
+        "image_scale": 100,
+        "image_x": 0,
+        "image_y": 0
+      }
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.luoxue",
+      "type": "character",
+      "name": "洛雪",
+      "audio_kind": null,
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png"
+      },
+      "character": null,
+      "intro": {
+        "title": "江湖新秀",
+        "name": "洛雪",
+        "text": "来历不明。",
+        "image": "intro.png",
+        "image_scale": 100,
+        "image_x": 0,
+        "image_y": 0
+      },
+      "title": "江湖新秀",
+      "scale": 100,
+      "art_facing": "left",
+      "combat_idle": "normal.png",
+      "combat_attack": "normal.png",
+      "combat_hurt": "normal.png",
+      "combat_defence": "normal.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "mohui.luoxue",
+      "type": "character",
+      "name": "洛雪",
+      "files": {
+        "main": "normal.png"
+      },
+      "portraits": {
+        "normal": "normal.png"
+      },
+      "title": "江湖新秀",
+      "intro": {
+        "title": "江湖新秀",
+        "name": "洛雪",
+        "text": "来历不明。",
+        "image": "intro.png",
+        "image_scale": 100,
+        "image_x": 0,
+        "image_y": 0
+      }
+    },
+    "files": [
+      "normal.png",
+      "intro.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "type": "character",
+      "id": "test.person",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "scale": null
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "audio_kind": null,
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 100,
+      "art_facing": "left",
+      "combat_idle": "main.png",
+      "combat_attack": "main.png",
+      "combat_hurt": "main.png",
+      "combat_defence": "main.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      }
+    },
+    "files": [
+      "main.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "type": "character",
+      "id": "test.person",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "scale": true
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "audio_kind": null,
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 100,
+      "art_facing": "left",
+      "combat_idle": "main.png",
+      "combat_attack": "main.png",
+      "combat_hurt": "main.png",
+      "combat_defence": "main.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      }
+    },
+    "files": [
+      "main.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "type": "character",
+      "id": "test.person",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "scale": false
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "audio_kind": null,
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 100,
+      "art_facing": "left",
+      "combat_idle": "main.png",
+      "combat_attack": "main.png",
+      "combat_hurt": "main.png",
+      "combat_defence": "main.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      }
+    },
+    "files": [
+      "main.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "type": "character",
+      "id": "test.person",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "scale": "88"
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "audio_kind": null,
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 88,
+      "art_facing": "left",
+      "combat_idle": "main.png",
+      "combat_attack": "main.png",
+      "combat_hurt": "main.png",
+      "combat_defence": "main.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      },
+      "scale": 88
+    },
+    "files": [
+      "main.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "type": "character",
+      "id": "test.person",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "scale": "88.2"
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "audio_kind": null,
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 100,
+      "art_facing": "left",
+      "combat_idle": "main.png",
+      "combat_attack": "main.png",
+      "combat_hurt": "main.png",
+      "combat_defence": "main.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      }
+    },
+    "files": [
+      "main.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "type": "character",
+      "id": "test.person",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "scale": 0
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "audio_kind": null,
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 50,
+      "art_facing": "left",
+      "combat_idle": "main.png",
+      "combat_attack": "main.png",
+      "combat_hurt": "main.png",
+      "combat_defence": "main.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      },
+      "scale": 50
+    },
+    "files": [
+      "main.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "type": "character",
+      "id": "test.person",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "scale": 88.9
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "audio_kind": null,
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 88,
+      "art_facing": "left",
+      "combat_idle": "main.png",
+      "combat_attack": "main.png",
+      "combat_hurt": "main.png",
+      "combat_defence": "main.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      },
+      "scale": 88
+    },
+    "files": [
+      "main.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "type": "character",
+      "id": "test.person",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "scale": 999
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "audio_kind": null,
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 130,
+      "art_facing": "left",
+      "combat_idle": "main.png",
+      "combat_attack": "main.png",
+      "combat_hurt": "main.png",
+      "combat_defence": "main.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      },
+      "scale": 130
+    },
+    "files": [
+      "main.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "type": "character",
+      "id": "test.person",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "scale": -1
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "audio_kind": null,
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 50,
+      "art_facing": "left",
+      "combat_idle": "main.png",
+      "combat_attack": "main.png",
+      "combat_hurt": "main.png",
+      "combat_defence": "main.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      },
+      "scale": 50
+    },
+    "files": [
+      "main.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "type": "character",
+      "id": "test.person",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "art_facing": null
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "audio_kind": null,
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 100,
+      "art_facing": "left",
+      "combat_idle": "main.png",
+      "combat_attack": "main.png",
+      "combat_hurt": "main.png",
+      "combat_defence": "main.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      }
+    },
+    "files": [
+      "main.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "type": "character",
+      "id": "test.person",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "art_facing": ""
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "audio_kind": null,
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 100,
+      "art_facing": "left",
+      "combat_idle": "main.png",
+      "combat_attack": "main.png",
+      "combat_hurt": "main.png",
+      "combat_defence": "main.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      }
+    },
+    "files": [
+      "main.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "type": "character",
+      "id": "test.person",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "art_facing": " LEFT "
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "audio_kind": null,
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 100,
+      "art_facing": "left",
+      "combat_idle": "main.png",
+      "combat_attack": "main.png",
+      "combat_hurt": "main.png",
+      "combat_defence": "main.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      }
+    },
+    "files": [
+      "main.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "type": "character",
+      "id": "test.person",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "art_facing": "right"
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "audio_kind": null,
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 100,
+      "art_facing": "right",
+      "combat_idle": "main.png",
+      "combat_attack": "main.png",
+      "combat_hurt": "main.png",
+      "combat_defence": "main.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      },
+      "art_facing": "right"
+    },
+    "files": [
+      "main.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "type": "character",
+      "id": "test.person",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "art_facing": "up"
+    },
+    "valid": false
+  },
+  {
+    "input": {
+      "schema": 1,
+      "type": "character",
+      "id": "test.person",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "art_facing": true
+    },
+    "valid": false
+  },
+  {
+    "input": {
+      "schema": 1,
+      "type": "character",
+      "id": "test.person",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "title": null
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "audio_kind": null,
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 100,
+      "art_facing": "left",
+      "combat_idle": "main.png",
+      "combat_attack": "main.png",
+      "combat_hurt": "main.png",
+      "combat_defence": "main.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      }
+    },
+    "files": [
+      "main.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "type": "character",
+      "id": "test.person",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "title": ""
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "audio_kind": null,
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 100,
+      "art_facing": "left",
+      "combat_idle": "main.png",
+      "combat_attack": "main.png",
+      "combat_hurt": "main.png",
+      "combat_defence": "main.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      }
+    },
+    "files": [
+      "main.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "type": "character",
+      "id": "test.person",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "title": " Title "
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "audio_kind": null,
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": "Title",
+      "scale": 100,
+      "art_facing": "left",
+      "combat_idle": "main.png",
+      "combat_attack": "main.png",
+      "combat_hurt": "main.png",
+      "combat_defence": "main.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      },
+      "title": "Title"
+    },
+    "files": [
+      "main.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "type": "character",
+      "id": "test.person",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "title": "   "
+    },
+    "valid": false
+  },
+  {
+    "input": {
+      "schema": 1,
+      "type": "character",
+      "id": "test.person",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "title": 12
+    },
+    "valid": false
+  },
+  {
+    "input": {
+      "schema": 1,
+      "type": "character",
+      "id": "test.person",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "intro": null
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "audio_kind": null,
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 100,
+      "art_facing": "left",
+      "combat_idle": "main.png",
+      "combat_attack": "main.png",
+      "combat_hurt": "main.png",
+      "combat_defence": "main.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      }
+    },
+    "files": [
+      "main.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "type": "character",
+      "id": "test.person",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "intro": {}
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "audio_kind": null,
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 100,
+      "art_facing": "left",
+      "combat_idle": "main.png",
+      "combat_attack": "main.png",
+      "combat_hurt": "main.png",
+      "combat_defence": "main.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      }
+    },
+    "files": [
+      "main.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1,
+      "type": "character",
+      "id": "test.person",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "intro": []
+    },
+    "valid": false
+  },
+  {
+    "input": {
+      "schema": 1,
+      "type": "character",
+      "id": "test.person",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "intro": {
+        "name": " A ",
+        "text": " B ",
+        "image_scale": 999,
+        "image_x": true,
+        "image_y": "-20"
+      }
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "audio_kind": null,
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      },
+      "character": null,
+      "intro": {
+        "title": "",
+        "name": "A",
+        "text": "B",
+        "image": null,
+        "image_scale": 160,
+        "image_x": 0,
+        "image_y": -20
+      },
+      "title": null,
+      "scale": 100,
+      "art_facing": "left",
+      "combat_idle": "main.png",
+      "combat_attack": "main.png",
+      "combat_hurt": "main.png",
+      "combat_defence": "main.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      },
+      "intro": {
+        "title": "",
+        "name": "A",
+        "text": "B",
+        "image": null,
+        "image_scale": 160,
+        "image_x": 0,
+        "image_y": -20
+      }
+    },
+    "files": [
+      "main.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": 1.0,
+      "type": "character",
+      "id": "test.person",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      }
+    },
+    "valid": true,
+    "normalized": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "audio_kind": null,
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      },
+      "character": null,
+      "intro": null,
+      "title": null,
+      "scale": 100,
+      "art_facing": "left",
+      "combat_idle": "main.png",
+      "combat_attack": "main.png",
+      "combat_hurt": "main.png",
+      "combat_defence": "main.png"
+    },
+    "payload": {
+      "schema": 1,
+      "content_schema": 1,
+      "id": "test.person",
+      "type": "character",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      },
+      "portraits": {
+        "normal": "main.png"
+      }
+    },
+    "files": [
+      "main.png"
+    ]
+  },
+  {
+    "input": {
+      "schema": true,
+      "type": "character",
+      "id": "test.person",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      }
+    },
+    "valid": false
+  },
+  {
+    "input": {
+      "schema": "1",
+      "type": "character",
+      "id": "test.person",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      }
+    },
+    "valid": false
+  },
+  {
+    "input": {
+      "schema": 2,
+      "type": "character",
+      "id": "test.person",
+      "name": "人物",
+      "files": {
+        "main": "main.png"
+      }
+    },
+    "valid": false
+  }
+]

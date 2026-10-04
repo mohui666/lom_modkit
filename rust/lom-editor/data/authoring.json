@@ -1,0 +1,3351 @@
+{
+  "NODE_TYPE_CN_SRC": {
+    "music": "音乐",
+    "sound": "音效",
+    "scene": "切换官方背景",
+    "background": "自定义背景",
+    "custom_cg": "自定义全屏 CG",
+    "overlay": "前景 / 插图",
+    "show": "人物登场",
+    "move": "人物移动",
+    "face": "人物转向",
+    "hide": "人物退场",
+    "focus": "镜头聚焦",
+    "offset": "人物位移",
+    "say": "对白",
+    "choice": "选项分支",
+    "shock": "人物震动",
+    "mask": "独白遮罩",
+    "intro": "人物介绍卡",
+    "effect": "屏幕特效",
+    "transition": "转场",
+    "camera": "镜头滤镜",
+    "block": "流图块(高级)",
+    "cg": "图片/标题显示",
+    "dim": "压暗",
+    "message": "系统提示",
+    "rotate": "旋转",
+    "dayenv": "日夜环境",
+    "stat": "属性增减",
+    "stat_set": "属性设置",
+    "affinity": "好感度",
+    "talent": "天赋",
+    "item": "物品",
+    "flag": "剧情旗标",
+    "game_flag": "游戏任务旗标",
+    "enemy": "战役门派状态",
+    "battle_skill": "战场技能",
+    "combat": "战斗",
+    "battle": "战役",
+    "battle_result": "战斗结果",
+    "reward": "战斗奖励",
+    "result_screen": "自定义结算",
+    "custom_shop": "自定义商店",
+    "stat_check": "属性检定",
+    "affinity_check": "好感检定",
+    "item_check": "物品检定",
+    "talent_check": "天赋检定",
+    "flag_check": "旗标检定",
+    "activity": "训练 / 活动",
+    "mod_quest": "MOD 任务",
+    "quest_check": "任务状态检定",
+    "persistent_var": "持久变量",
+    "persistent_check": "持久变量检定",
+    "mission": "任务",
+    "time": "时间",
+    "autosave": "自动存档",
+    "branch": "条件分支",
+    "dice": "骰子检定",
+    "goto_scene": "进入其他场景",
+    "panel": "系统面板",
+    "wait": "等待",
+    "end": "结束剧情",
+    "death": "死亡画面",
+    "raw": "原生 Lua（高级）",
+    "free_trigger": "自由模式触发"
+  },
+  "NODE_GROUPS_SRC": [
+    [
+      "group.visual",
+      [
+        "music",
+        "sound",
+        "scene",
+        "background",
+        "custom_cg",
+        "overlay",
+        "show",
+        "move",
+        "face",
+        "hide",
+        "focus",
+        "offset",
+        "say",
+        "choice",
+        "shock",
+        "mask",
+        "intro",
+        "effect",
+        "transition",
+        "camera",
+        "block",
+        "cg",
+        "dim",
+        "message",
+        "rotate",
+        "dayenv"
+      ]
+    ],
+    [
+      "group.stats",
+      [
+        "stat",
+        "stat_set",
+        "affinity",
+        "talent",
+        "item",
+        "flag",
+        "game_flag",
+        "enemy",
+        "battle_skill",
+        "mission",
+        "time",
+        "autosave"
+      ]
+    ],
+    [
+      "group.gameplay",
+      [
+        "combat",
+        "battle",
+        "battle_result",
+        "reward",
+        "result_screen",
+        "custom_shop",
+        "stat_check",
+        "affinity_check",
+        "item_check",
+        "talent_check",
+        "flag_check",
+        "activity",
+        "mod_quest",
+        "quest_check",
+        "persistent_var",
+        "persistent_check"
+      ]
+    ],
+    [
+      "group.flow",
+      [
+        "branch",
+        "dice",
+        "goto_scene",
+        "panel",
+        "wait",
+        "end",
+        "death",
+        "raw",
+        "free_trigger"
+      ]
+    ]
+  ],
+  "ENUM_SETS_SRC": {
+    "player_appearance": [
+      [
+        "game",
+        "随游戏天赋"
+      ],
+      [
+        "original",
+        "普通赵活"
+      ],
+      [
+        "beautified",
+        "美颜赵活（照镜子 / 自恋）"
+      ]
+    ],
+    "music_op": [
+      [
+        "play",
+        "播放"
+      ],
+      [
+        "stop",
+        "停止"
+      ],
+      [
+        "fadeout",
+        "淡出"
+      ]
+    ],
+    "sound_kind": [
+      [
+        "sound",
+        "音效"
+      ],
+      [
+        "env",
+        "环境音"
+      ]
+    ],
+    "sound_op": [
+      [
+        "play",
+        "播放"
+      ],
+      [
+        "fadeout",
+        "淡出"
+      ]
+    ],
+    "background_action": [
+      [
+        "set",
+        "立即设置"
+      ],
+      [
+        "show",
+        "显示"
+      ],
+      [
+        "replace",
+        "替换"
+      ],
+      [
+        "fadein",
+        "淡入"
+      ],
+      [
+        "fadeout",
+        "淡出并清除"
+      ],
+      [
+        "clear",
+        "立即清除"
+      ]
+    ],
+    "transition_phase": [
+      [
+        "in",
+        "淡入"
+      ],
+      [
+        "out",
+        "淡出"
+      ]
+    ],
+    "transition_dir": [
+      [
+        "lr",
+        "从左到右"
+      ],
+      [
+        "rl",
+        "从右到左"
+      ],
+      [
+        "tb",
+        "从上到下"
+      ],
+      [
+        "bt",
+        "从下到上"
+      ]
+    ],
+    "cg_action": [
+      [
+        "show",
+        "显示"
+      ],
+      [
+        "hide",
+        "隐藏"
+      ]
+    ],
+    "overlay_action": [
+      [
+        "show",
+        "显示 / 替换"
+      ],
+      [
+        "hide",
+        "隐藏"
+      ]
+    ],
+    "overlay_position": [
+      [
+        "center",
+        "中央"
+      ],
+      [
+        "top",
+        "上方"
+      ],
+      [
+        "bottom",
+        "下方"
+      ],
+      [
+        "left",
+        "左侧"
+      ],
+      [
+        "right",
+        "右侧"
+      ],
+      [
+        "top_left",
+        "左上"
+      ],
+      [
+        "top_right",
+        "右上"
+      ],
+      [
+        "bottom_left",
+        "左下"
+      ],
+      [
+        "bottom_right",
+        "右下"
+      ]
+    ],
+    "overlay_layer": [
+      [
+        "back",
+        "人物后方"
+      ],
+      [
+        "front",
+        "人物前方"
+      ]
+    ],
+    "cg_kind": [
+      [
+        "picture",
+        "图片"
+      ],
+      [
+        "item",
+        "物品图"
+      ],
+      [
+        "big",
+        "大图"
+      ],
+      [
+        "map",
+        "地图"
+      ],
+      [
+        "family",
+        "家谱"
+      ],
+      [
+        "title",
+        "标题"
+      ]
+    ],
+    "block_flowchart": [
+      [
+        "view",
+        "view（场景）"
+      ],
+      [
+        "common",
+        "common（通用）"
+      ]
+    ],
+    "item_kind": [
+      [
+        "book",
+        "秘籍"
+      ],
+      [
+        "misc",
+        "杂物"
+      ],
+      [
+        "special",
+        "特殊物品"
+      ]
+    ],
+    "game_flag_op": [
+      [
+        "set",
+        "设置"
+      ],
+      [
+        "add",
+        "增减"
+      ]
+    ],
+    "enemy_op": [
+      [
+        "team",
+        "凝聚力"
+      ],
+      [
+        "level",
+        "门派等级"
+      ],
+      [
+        "people",
+        "阵营人数"
+      ],
+      [
+        "id",
+        "切换当前敌方阵营"
+      ]
+    ],
+    "battle_skill_op": [
+      [
+        "set",
+        "装备到槽位"
+      ],
+      [
+        "active",
+        "启用 / 停用"
+      ],
+      [
+        "level",
+        "设置等级"
+      ],
+      [
+        "reset",
+        "全部重置"
+      ]
+    ],
+    "gameplay_kind": [
+      [
+        "any",
+        "任意战斗"
+      ],
+      [
+        "combat",
+        "Combat"
+      ],
+      [
+        "battle",
+        "Battle"
+      ]
+    ],
+    "reward_kind": [
+      [
+        "stat",
+        "属性 / 银两"
+      ],
+      [
+        "affinity",
+        "好感"
+      ],
+      [
+        "talent",
+        "天赋"
+      ],
+      [
+        "item",
+        "物品 / 秘籍"
+      ],
+      [
+        "flag",
+        "剧情旗标"
+      ]
+    ],
+    "shop_item_kind": [
+      [
+        "book",
+        "秘籍"
+      ],
+      [
+        "misc",
+        "杂物"
+      ],
+      [
+        "special",
+        "贵重品"
+      ]
+    ],
+    "shop_condition_source": [
+      [
+        "always",
+        "始终出售"
+      ],
+      [
+        "mod",
+        "本 MOD 旗标"
+      ],
+      [
+        "condition",
+        "原版条件检查点"
+      ]
+    ],
+    "check_op": [
+      [
+        ">=",
+        ">="
+      ],
+      [
+        ">",
+        ">"
+      ],
+      [
+        "<=",
+        "<="
+      ],
+      [
+        "<",
+        "<"
+      ],
+      [
+        "==",
+        "=="
+      ]
+    ],
+    "flag_check_source": [
+      [
+        "mod",
+        "本 MOD 旗标"
+      ],
+      [
+        "condition",
+        "原版条件检查点"
+      ],
+      [
+        "flag_value",
+        "原版数值旗标"
+      ]
+    ],
+    "activity_kind": [
+      [
+        "training",
+        "练武"
+      ],
+      [
+        "study",
+        "读书"
+      ],
+      [
+        "forge",
+        "锻造"
+      ],
+      [
+        "alchemy",
+        "炼丹"
+      ],
+      [
+        "custom",
+        "自定义活动"
+      ]
+    ],
+    "activity_time": [
+      [
+        "none",
+        "不推进"
+      ],
+      [
+        "round",
+        "下一旬"
+      ],
+      [
+        "month",
+        "下一月"
+      ]
+    ],
+    "quest_op": [
+      [
+        "start",
+        "开始任务"
+      ],
+      [
+        "update",
+        "更新任务"
+      ],
+      [
+        "complete",
+        "完成任务"
+      ],
+      [
+        "fail",
+        "任务失败"
+      ]
+    ],
+    "quest_state": [
+      [
+        "inactive",
+        "未开始"
+      ],
+      [
+        "active",
+        "进行中"
+      ],
+      [
+        "completed",
+        "已完成"
+      ],
+      [
+        "failed",
+        "已失败"
+      ]
+    ],
+    "persistent_op": [
+      [
+        "set",
+        "设置"
+      ],
+      [
+        "add",
+        "增减"
+      ]
+    ],
+    "time_op": [
+      [
+        "set",
+        "设置时间"
+      ],
+      [
+        "round",
+        "进入下一旬"
+      ],
+      [
+        "month",
+        "进入下一月"
+      ],
+      [
+        "mission",
+        "设置任务时间"
+      ]
+    ],
+    "autosave_kind": [
+      [
+        "story",
+        "剧情存档"
+      ],
+      [
+        "free",
+        "自由存档"
+      ],
+      [
+        "prologue",
+        "序章存档"
+      ]
+    ],
+    "goto_scene": [
+      [
+        "Free",
+        "自由模式"
+      ],
+      [
+        "Title",
+        "标题画面"
+      ],
+      [
+        "GameOver",
+        "游戏结束"
+      ],
+      [
+        "End",
+        "结局"
+      ],
+      [
+        "Story",
+        "剧情演出"
+      ],
+      [
+        "DemoEnd",
+        "Demo 结束"
+      ]
+    ],
+    "map_position": [
+      [
+        "Center",
+        "校场"
+      ],
+      [
+        "Mall",
+        "正心堂"
+      ],
+      [
+        "Alchemy",
+        "炼丹房"
+      ],
+      [
+        "Forge",
+        "锻冶场"
+      ],
+      [
+        "BackMountain",
+        "后山"
+      ],
+      [
+        "Room1",
+        "弟子房"
+      ],
+      [
+        "Room2",
+        "女弟子房"
+      ],
+      [
+        "Door",
+        "大门"
+      ],
+      [
+        "Study",
+        "讲经堂"
+      ],
+      [
+        "Kitchen",
+        "伙房"
+      ],
+      [
+        "Secret",
+        "神秘房子"
+      ]
+    ],
+    "month_limit": [
+      [
+        "any",
+        "不限"
+      ],
+      [
+        "1",
+        "1 月"
+      ],
+      [
+        "2",
+        "2 月"
+      ],
+      [
+        "3",
+        "3 月"
+      ],
+      [
+        "4",
+        "4 月"
+      ],
+      [
+        "5",
+        "5 月"
+      ],
+      [
+        "6",
+        "6 月"
+      ],
+      [
+        "7",
+        "7 月"
+      ],
+      [
+        "8",
+        "8 月"
+      ],
+      [
+        "9",
+        "9 月"
+      ],
+      [
+        "10",
+        "10 月"
+      ],
+      [
+        "11",
+        "11 月"
+      ],
+      [
+        "12",
+        "12 月"
+      ]
+    ],
+    "stage_limit": [
+      [
+        "any",
+        "不限"
+      ],
+      [
+        "1",
+        "上旬"
+      ],
+      [
+        "2",
+        "中旬"
+      ],
+      [
+        "3",
+        "下旬"
+      ]
+    ],
+    "death_next": [
+      [
+        "Title",
+        "标题画面"
+      ]
+    ],
+    "intro_source": [
+      [
+        "official",
+        "使用原版人物资料"
+      ],
+      [
+        "character",
+        "使用自定义角色介绍卡"
+      ],
+      [
+        "custom",
+        "本步骤手写资料"
+      ]
+    ],
+    "panel": [
+      [
+        "martial",
+        "武学面板"
+      ],
+      [
+        "weapon",
+        "武器强化"
+      ],
+      [
+        "poison",
+        "毒药强化"
+      ],
+      [
+        "cg",
+        "回忆画廊"
+      ],
+      [
+        "cgvideo",
+        "过场动画"
+      ],
+      [
+        "shop",
+        "商店"
+      ],
+      [
+        "newshop",
+        "新商店"
+      ],
+      [
+        "credit",
+        "制作名单"
+      ],
+      [
+        "endgame",
+        "结算面板"
+      ]
+    ]
+  },
+  "MODE_CN_SRC": {
+    "character": "对话",
+    "think": "内心独白",
+    "narrative": "旁白",
+    "center": "居中旁白"
+  },
+  "FACING_CN": [
+    [
+      "left",
+      "朝左"
+    ],
+    [
+      "right",
+      "朝右"
+    ]
+  ],
+  "CAMERA_PRESETS": [
+    "stage-memory",
+    "stage-dream",
+    "stage-fire",
+    "stage-blurdim"
+  ],
+  "NODE_SCHEMAS": {
+    "music": {
+      "label": "播放音乐",
+      "fields": [
+        [
+          "name",
+          "音乐",
+          "music",
+          false
+        ],
+        [
+          "op",
+          "操作",
+          "enum:music_op",
+          true
+        ],
+        [
+          "seconds",
+          "淡出秒数",
+          "float",
+          true
+        ]
+      ]
+    },
+    "sound": {
+      "label": "播放音效",
+      "fields": [
+        [
+          "name",
+          "音效",
+          "sound_name",
+          false
+        ],
+        [
+          "kind",
+          "声道",
+          "enum:sound_kind",
+          true
+        ],
+        [
+          "op",
+          "操作",
+          "enum:sound_op",
+          true
+        ],
+        [
+          "seconds",
+          "淡出秒数",
+          "float",
+          true
+        ]
+      ]
+    },
+    "scene": {
+      "label": "切换官方背景",
+      "fields": [
+        [
+          "view",
+          "官方背景",
+          "view",
+          false
+        ]
+      ]
+    },
+    "background": {
+      "label": "自定义背景",
+      "fields": [
+        [
+          "action",
+          "动作",
+          "enum:background_action",
+          false
+        ],
+        [
+          "image",
+          "用户图片",
+          "user_image",
+          true
+        ],
+        [
+          "fade",
+          "淡入/淡出秒数",
+          "float",
+          true
+        ]
+      ]
+    },
+    "custom_cg": {
+      "label": "自定义全屏 CG",
+      "fields": [
+        [
+          "action",
+          "动作",
+          "enum:cg_action",
+          false
+        ],
+        [
+          "image",
+          "用户图片",
+          "user_image",
+          true
+        ],
+        [
+          "fade",
+          "淡入/淡出秒数",
+          "float",
+          true
+        ],
+        [
+          "scale",
+          "缩放百分比",
+          "percent_cg_scale",
+          true
+        ],
+        [
+          "x",
+          "横向位置百分比",
+          "percent_position",
+          true
+        ],
+        [
+          "y",
+          "纵向位置百分比",
+          "percent_position",
+          true
+        ]
+      ]
+    },
+    "overlay": {
+      "label": "前景 / 插图",
+      "fields": [
+        [
+          "action",
+          "动作",
+          "enum:overlay_action",
+          false
+        ],
+        [
+          "slot",
+          "槽位 id",
+          "line",
+          false
+        ],
+        [
+          "image",
+          "用户图片",
+          "user_image",
+          true
+        ],
+        [
+          "position",
+          "位置",
+          "enum:overlay_position",
+          true
+        ],
+        [
+          "scale",
+          "缩放百分比",
+          "percent_cg_scale",
+          true
+        ],
+        [
+          "opacity",
+          "不透明度",
+          "percent_opacity",
+          true
+        ],
+        [
+          "layer",
+          "层级",
+          "enum:overlay_layer",
+          true
+        ],
+        [
+          "fade",
+          "淡入/淡出秒数",
+          "float",
+          true
+        ]
+      ]
+    },
+    "show": {
+      "label": "显示人物",
+      "fields": [
+        [
+          "character",
+          "人物",
+          "character",
+          false
+        ],
+        [
+          "appearance",
+          "赵活外观",
+          "enum:player_appearance",
+          true
+        ],
+        [
+          "position",
+          "站位",
+          "position",
+          false
+        ],
+        [
+          "portrait",
+          "表情",
+          "portrait",
+          true
+        ],
+        [
+          "facing",
+          "朝向",
+          "facing",
+          true
+        ],
+        [
+          "fadeDuration",
+          "淡入时长",
+          "float",
+          true
+        ],
+        [
+          "moveDuration",
+          "移动时长",
+          "float",
+          true
+        ]
+      ]
+    },
+    "move": {
+      "label": "移动人物",
+      "fields": [
+        [
+          "character",
+          "人物",
+          "character",
+          false
+        ],
+        [
+          "from",
+          "起点站位",
+          "position",
+          false
+        ],
+        [
+          "to",
+          "终点站位",
+          "position",
+          false
+        ],
+        [
+          "duration",
+          "时长",
+          "float",
+          true
+        ]
+      ]
+    },
+    "face": {
+      "label": "人物转向",
+      "fields": [
+        [
+          "character",
+          "人物",
+          "character",
+          false
+        ],
+        [
+          "facing",
+          "朝向",
+          "facing",
+          false
+        ]
+      ]
+    },
+    "hide": {
+      "label": "隐藏人物",
+      "fields": [
+        [
+          "character",
+          "人物",
+          "character",
+          false
+        ],
+        [
+          "fadeDuration",
+          "淡出时长",
+          "float",
+          true
+        ]
+      ]
+    },
+    "focus": {
+      "label": "镜头聚焦",
+      "fields": [
+        [
+          "character",
+          "人物",
+          "character",
+          false
+        ]
+      ]
+    },
+    "offset": {
+      "label": "人物位移",
+      "fields": [
+        [
+          "character",
+          "人物",
+          "character",
+          false
+        ],
+        [
+          "x",
+          "横向偏移(px)",
+          "int",
+          false
+        ],
+        [
+          "y",
+          "纵向偏移(px)",
+          "int",
+          false
+        ],
+        [
+          "duration",
+          "时长",
+          "float",
+          false
+        ]
+      ]
+    },
+    "say": {
+      "label": "对话/独白/旁白",
+      "fields": [
+        [
+          "text",
+          "文本",
+          "multiline",
+          false
+        ],
+        [
+          "character",
+          "人物",
+          "character",
+          true
+        ],
+        [
+          "portrait",
+          "表情",
+          "portrait",
+          true
+        ],
+        [
+          "mode",
+          "模式",
+          "mode",
+          true
+        ],
+        [
+          "voice",
+          "对白语音",
+          "voice",
+          true
+        ]
+      ]
+    },
+    "choice": {
+      "label": "选项菜单",
+      "fields": [
+        [
+          "options",
+          "选项(2~4个)",
+          "options",
+          false
+        ],
+        [
+          "dialog",
+          "菜单皮肤",
+          "menu_dialog",
+          true
+        ]
+      ]
+    },
+    "shock": {
+      "label": "震动特效",
+      "fields": [
+        [
+          "character",
+          "人物",
+          "character",
+          false
+        ],
+        [
+          "duration",
+          "时长",
+          "float",
+          true
+        ]
+      ]
+    },
+    "mask": {
+      "label": "独白遮罩",
+      "fields": [
+        [
+          "show",
+          "显示遮罩",
+          "bool",
+          false
+        ]
+      ]
+    },
+    "intro": {
+      "label": "人物介绍卡",
+      "fields": [
+        [
+          "intro_source",
+          "资料来源",
+          "enum:intro_source",
+          false
+        ],
+        [
+          "character",
+          "原版人物",
+          "affinity_character",
+          false
+        ],
+        [
+          "title",
+          "人物称号",
+          "line",
+          true
+        ],
+        [
+          "name",
+          "人物姓名",
+          "line",
+          false
+        ],
+        [
+          "text",
+          "人物介绍",
+          "multiline",
+          false
+        ],
+        [
+          "image",
+          "人物图片",
+          "intro_image",
+          true
+        ],
+        [
+          "image_scale",
+          "图片大小",
+          "percent_scale",
+          true
+        ],
+        [
+          "image_x",
+          "左右微调",
+          "percent_offset",
+          true
+        ],
+        [
+          "image_y",
+          "上下微调",
+          "percent_offset",
+          true
+        ]
+      ]
+    },
+    "effect": {
+      "label": "屏幕特效",
+      "fields": [
+        [
+          "name",
+          "特效名",
+          "effect",
+          false
+        ],
+        [
+          "x",
+          "x 偏移",
+          "int",
+          true
+        ],
+        [
+          "y",
+          "y 偏移",
+          "int",
+          true
+        ],
+        [
+          "a",
+          "参数 a",
+          "float",
+          true
+        ],
+        [
+          "b",
+          "参数 b",
+          "float",
+          true
+        ],
+        [
+          "c",
+          "参数 c",
+          "float",
+          true
+        ],
+        [
+          "play",
+          "停止特效",
+          "bool",
+          true
+        ]
+      ]
+    },
+    "transition": {
+      "label": "黑场转场",
+      "fields": [
+        [
+          "phase",
+          "淡入/淡出",
+          "enum:transition_phase",
+          false
+        ],
+        [
+          "dir",
+          "扫动方向",
+          "enum:transition_dir",
+          true
+        ]
+      ]
+    },
+    "camera": {
+      "label": "镜头滤镜",
+      "fields": [
+        [
+          "name",
+          "滤镜名",
+          "camera",
+          false
+        ],
+        [
+          "active",
+          "启用",
+          "bool",
+          false
+        ]
+      ]
+    },
+    "block": {
+      "label": "流图块(高级)",
+      "fields": [
+        [
+          "flowchart",
+          "流图",
+          "enum:block_flowchart",
+          false
+        ],
+        [
+          "name",
+          "块名",
+          "line",
+          false
+        ],
+        [
+          "vars",
+          "变量",
+          "vars",
+          true
+        ]
+      ]
+    },
+    "cg": {
+      "label": "图片/标题显示",
+      "fields": [
+        [
+          "action",
+          "动作",
+          "enum:cg_action",
+          false
+        ],
+        [
+          "kind",
+          "类别",
+          "enum:cg_kind",
+          false
+        ],
+        [
+          "key",
+          "参数 key",
+          "line",
+          true
+        ],
+        [
+          "key2",
+          "参数 key2",
+          "line",
+          true
+        ],
+        [
+          "n1",
+          "数值 n1",
+          "int",
+          true
+        ],
+        [
+          "n2",
+          "数值 n2",
+          "int",
+          true
+        ]
+      ]
+    },
+    "dim": {
+      "label": "人物压暗",
+      "fields": [
+        [
+          "character",
+          "人物",
+          "character",
+          false
+        ],
+        [
+          "dimmed",
+          "压暗",
+          "bool",
+          false
+        ]
+      ]
+    },
+    "message": {
+      "label": "系统提示",
+      "fields": [
+        [
+          "text",
+          "提示文本",
+          "multiline",
+          false
+        ]
+      ]
+    },
+    "rotate": {
+      "label": "人物旋转",
+      "fields": [
+        [
+          "character",
+          "人物",
+          "character",
+          false
+        ],
+        [
+          "angle",
+          "角度（整数，正=逆时针）",
+          "int",
+          false
+        ],
+        [
+          "duration",
+          "时长（秒）",
+          "float",
+          false
+        ]
+      ]
+    },
+    "dayenv": {
+      "label": "日夜环境",
+      "fields": [
+        [
+          "day_type",
+          "环境（1=白天 / 2=晚上）",
+          "int",
+          false
+        ]
+      ]
+    },
+    "stat": {
+      "label": "主角属性增减",
+      "fields": [
+        [
+          "key",
+          "属性",
+          "stat",
+          false
+        ],
+        [
+          "delta",
+          "变化量",
+          "int",
+          false
+        ],
+        [
+          "waitDisplay",
+          "等待显示",
+          "bool",
+          true
+        ],
+        [
+          "display",
+          "显示样式",
+          "int",
+          true
+        ],
+        [
+          "mode",
+          "模式参数",
+          "line",
+          true
+        ]
+      ]
+    },
+    "stat_set": {
+      "label": "主角属性设置",
+      "fields": [
+        [
+          "key",
+          "属性",
+          "stat",
+          false
+        ],
+        [
+          "value",
+          "数值",
+          "int",
+          false
+        ],
+        [
+          "update",
+          "用 Update 接口",
+          "bool",
+          true
+        ]
+      ]
+    },
+    "affinity": {
+      "label": "好感度增减",
+      "fields": [
+        [
+          "character",
+          "人物",
+          "character",
+          false
+        ],
+        [
+          "delta",
+          "变化量",
+          "int",
+          false
+        ]
+      ]
+    },
+    "talent": {
+      "label": "天赋增减",
+      "fields": [
+        [
+          "talent",
+          "天赋",
+          "talent",
+          false
+        ],
+        [
+          "level",
+          "等级变化（±）",
+          "int",
+          false
+        ]
+      ]
+    },
+    "item": {
+      "label": "物品增减",
+      "fields": [
+        [
+          "kind",
+          "类别",
+          "enum:item_kind",
+          false
+        ],
+        [
+          "item",
+          "物品",
+          "item",
+          false
+        ],
+        [
+          "count",
+          "数量",
+          "int",
+          false
+        ],
+        [
+          "remove",
+          "移除而非获得",
+          "bool",
+          true
+        ]
+      ]
+    },
+    "flag": {
+      "label": "记录剧情flag",
+      "fields": [
+        [
+          "flag",
+          "flag 标识",
+          "line",
+          false
+        ]
+      ]
+    },
+    "game_flag": {
+      "label": "游戏任务旗标",
+      "fields": [
+        [
+          "flag",
+          "旗标 id",
+          "game_flag",
+          false
+        ],
+        [
+          "value",
+          "数值",
+          "int",
+          false
+        ],
+        [
+          "op",
+          "操作",
+          "enum:game_flag_op",
+          true
+        ]
+      ]
+    },
+    "enemy": {
+      "label": "战役门派状态修改",
+      "fields": [
+        [
+          "op",
+          "操作",
+          "enum:enemy_op",
+          false
+        ],
+        [
+          "enemy",
+          "战役门派",
+          "battle_faction",
+          false
+        ],
+        [
+          "value",
+          "变化量",
+          "int",
+          true
+        ],
+        [
+          "display",
+          "显示变化提示",
+          "bool_int",
+          true
+        ]
+      ]
+    },
+    "battle_skill": {
+      "label": "战场技能",
+      "fields": [
+        [
+          "op",
+          "操作",
+          "enum:battle_skill_op",
+          false
+        ],
+        [
+          "key",
+          "战场技能",
+          "battle_skill",
+          true
+        ],
+        [
+          "index",
+          "槽位",
+          "int",
+          true
+        ],
+        [
+          "active",
+          "启用技能",
+          "bool_int",
+          true
+        ],
+        [
+          "level",
+          "技能等级",
+          "int",
+          true
+        ]
+      ]
+    },
+    "combat": {
+      "label": "决斗（一对一）",
+      "fields": [
+        [
+          "character",
+          "人物（只决定战斗动画）",
+          "character",
+          false
+        ],
+        [
+          "background",
+          "决斗背景",
+          "view",
+          false
+        ],
+        [
+          "max_health",
+          "对手最大血量",
+          "int",
+          true
+        ],
+        [
+          "health",
+          "对手初始血量",
+          "int",
+          true
+        ],
+        [
+          "max_stamina",
+          "对手最大气力",
+          "int",
+          true
+        ],
+        [
+          "stamina",
+          "对手初始气力",
+          "int",
+          true
+        ],
+        [
+          "stamina_power",
+          "对手内力（雷达）",
+          "int",
+          true
+        ],
+        [
+          "strength",
+          "对手体力",
+          "int",
+          true
+        ],
+        [
+          "internal",
+          "对手阴阳内功",
+          "int",
+          true
+        ],
+        [
+          "dexterity",
+          "对手轻功",
+          "int",
+          true
+        ],
+        [
+          "talking",
+          "对手嘴力",
+          "int",
+          true
+        ],
+        [
+          "defence",
+          "对手防御",
+          "int",
+          true
+        ],
+        [
+          "sword",
+          "对手刀剑",
+          "int",
+          true
+        ],
+        [
+          "fist",
+          "对手拳掌",
+          "int",
+          true
+        ],
+        [
+          "martial_weapon",
+          "对手暗器",
+          "int",
+          true
+        ],
+        [
+          "mental",
+          "对手心相",
+          "int",
+          true
+        ],
+        [
+          "weapon_poison_value",
+          "对手暗器中毒累积值",
+          "int",
+          true
+        ],
+        [
+          "weapon_paralyzed_value",
+          "对手暗器麻痹累积值",
+          "int",
+          true
+        ],
+        [
+          "poison_resist",
+          "对手抗毒",
+          "int",
+          true
+        ],
+        [
+          "paralyzed_resist",
+          "对手抗麻",
+          "int",
+          true
+        ],
+        [
+          "disposition",
+          "对手性情",
+          "int",
+          true
+        ],
+        [
+          "behaviour",
+          "对手处世",
+          "int",
+          true
+        ],
+        [
+          "karma",
+          "对手道德",
+          "int",
+          true
+        ],
+        [
+          "training",
+          "对手修养",
+          "int",
+          true
+        ],
+        [
+          "attack_damage_addition",
+          "攻击伤害补正",
+          "int",
+          true
+        ],
+        [
+          "defence_addition",
+          "防御补正",
+          "int",
+          true
+        ],
+        [
+          "ultimate_damage_rate",
+          "绝招补正倍率",
+          "float",
+          true
+        ],
+        [
+          "attack_dice_addition",
+          "攻击爆发补正",
+          "int",
+          true
+        ],
+        [
+          "weapon_damage_addition",
+          "暗器威力补正",
+          "int",
+          true
+        ],
+        [
+          "weapon_dice_addition",
+          "暗器爆发补正",
+          "int",
+          true
+        ],
+        [
+          "weapon_hit_addition",
+          "暗器命中补正",
+          "int",
+          true
+        ],
+        [
+          "attack_parry_addition",
+          "攻击招架补正",
+          "float",
+          true
+        ],
+        [
+          "block_dodge_addition",
+          "防守闪避补正",
+          "float",
+          true
+        ],
+        [
+          "block_parry_addition",
+          "防守招架补正",
+          "float",
+          true
+        ],
+        [
+          "talents",
+          "对手决斗技能",
+          "combat_talents",
+          true
+        ],
+        [
+          "player_max_health",
+          "赵活最大血量",
+          "int",
+          true
+        ],
+        [
+          "player_health",
+          "赵活初始血量",
+          "int",
+          true
+        ],
+        [
+          "player_max_stamina",
+          "赵活最大气力",
+          "int",
+          true
+        ],
+        [
+          "player_stamina",
+          "赵活初始气力",
+          "int",
+          true
+        ],
+        [
+          "player_stamina_power",
+          "赵活内力（雷达）",
+          "int",
+          true
+        ],
+        [
+          "player_strength",
+          "赵活体力",
+          "int",
+          true
+        ],
+        [
+          "player_internal",
+          "赵活阴阳内功",
+          "int",
+          true
+        ],
+        [
+          "player_dexterity",
+          "赵活轻功",
+          "int",
+          true
+        ],
+        [
+          "player_talking",
+          "赵活嘴力",
+          "int",
+          true
+        ],
+        [
+          "player_defence",
+          "赵活防御",
+          "int",
+          true
+        ],
+        [
+          "player_sword",
+          "赵活刀剑",
+          "int",
+          true
+        ],
+        [
+          "player_fist",
+          "赵活拳掌",
+          "int",
+          true
+        ],
+        [
+          "player_martial_weapon",
+          "赵活暗器",
+          "int",
+          true
+        ],
+        [
+          "player_mental",
+          "赵活心相",
+          "int",
+          true
+        ],
+        [
+          "player_poison_resist",
+          "赵活抗毒",
+          "int",
+          true
+        ],
+        [
+          "player_paralyzed_resist",
+          "赵活抗麻",
+          "int",
+          true
+        ],
+        [
+          "player_disposition",
+          "赵活性情",
+          "int",
+          true
+        ],
+        [
+          "player_behaviour",
+          "赵活处世",
+          "int",
+          true
+        ],
+        [
+          "player_karma",
+          "赵活道德",
+          "int",
+          true
+        ],
+        [
+          "player_training",
+          "赵活修养",
+          "int",
+          true
+        ],
+        [
+          "player_talents",
+          "赵活决斗技能",
+          "combat_talents",
+          true
+        ],
+        [
+          "talk_rate",
+          "嘴攻概率",
+          "float",
+          true
+        ],
+        [
+          "attack_rate",
+          "近战概率",
+          "float",
+          true
+        ],
+        [
+          "weapon_rate",
+          "暗器概率",
+          "float",
+          true
+        ],
+        [
+          "ultimate_rate",
+          "绝招概率",
+          "float",
+          true
+        ],
+        [
+          "block_rate",
+          "防守概率",
+          "float",
+          true
+        ],
+        [
+          "win",
+          "胜利后",
+          "node_ref",
+          false
+        ],
+        [
+          "lose",
+          "失败后",
+          "node_ref",
+          false
+        ]
+      ]
+    },
+    "battle": {
+      "label": "原版大规模战役",
+      "fields": [
+        [
+          "title",
+          "战役标题",
+          "line",
+          true
+        ],
+        [
+          "friend_health",
+          "我方 NPC 基础血量",
+          "int",
+          true
+        ],
+        [
+          "friend_factions",
+          "我方附加兵种",
+          "battle_faction_list",
+          true
+        ],
+        [
+          "friend_characters",
+          "我方附加具名角色",
+          "official_characters",
+          true
+        ],
+        [
+          "enemy_health",
+          "敌方 NPC 基础血量",
+          "int",
+          true
+        ],
+        [
+          "enemy_factions",
+          "敌方附加兵种",
+          "battle_faction_list",
+          true
+        ],
+        [
+          "enemy_characters",
+          "敌方附加具名角色",
+          "official_characters",
+          true
+        ],
+        [
+          "win",
+          "友军胜利后",
+          "node_ref",
+          false
+        ],
+        [
+          "lose",
+          "敌军胜利后",
+          "node_ref",
+          false
+        ]
+      ]
+    },
+    "battle_result": {
+      "label": "战斗结果分支",
+      "fields": [
+        [
+          "kind",
+          "结果类型",
+          "enum:gameplay_kind",
+          true
+        ],
+        [
+          "win",
+          "胜利后",
+          "node_ref",
+          false
+        ],
+        [
+          "lose",
+          "失败后",
+          "node_ref",
+          false
+        ]
+      ]
+    },
+    "reward": {
+      "label": "战斗奖励",
+      "fields": [
+        [
+          "entries",
+          "奖励内容",
+          "reward_entries",
+          false
+        ]
+      ]
+    },
+    "result_screen": {
+      "label": "自定义结算",
+      "fields": [
+        [
+          "title",
+          "结算标题",
+          "line",
+          false
+        ],
+        [
+          "text",
+          "结算说明",
+          "multiline",
+          true
+        ],
+        [
+          "entries",
+          "发放奖励",
+          "reward_entries",
+          false
+        ]
+      ]
+    },
+    "custom_shop": {
+      "label": "自定义商店",
+      "fields": [
+        [
+          "discount",
+          "原版统一折扣（0/1）",
+          "discount_toggle",
+          true
+        ],
+        [
+          "items",
+          "商品库存与上架条件",
+          "custom_shop_items",
+          false
+        ]
+      ]
+    },
+    "stat_check": {
+      "label": "属性检定",
+      "fields": [
+        [
+          "key",
+          "主角属性",
+          "stat",
+          false
+        ],
+        [
+          "op",
+          "比较",
+          "enum:check_op",
+          false
+        ],
+        [
+          "value",
+          "目标值",
+          "int",
+          false
+        ],
+        [
+          "success",
+          "成功后",
+          "node_ref",
+          false
+        ],
+        [
+          "failure",
+          "失败后",
+          "node_ref",
+          false
+        ]
+      ]
+    },
+    "affinity_check": {
+      "label": "好感检定",
+      "fields": [
+        [
+          "character",
+          "人物",
+          "affinity_character",
+          false
+        ],
+        [
+          "op",
+          "比较",
+          "enum:check_op",
+          false
+        ],
+        [
+          "value",
+          "目标值",
+          "int",
+          false
+        ],
+        [
+          "success",
+          "成功后",
+          "node_ref",
+          false
+        ],
+        [
+          "failure",
+          "失败后",
+          "node_ref",
+          false
+        ]
+      ]
+    },
+    "item_check": {
+      "label": "物品检定",
+      "fields": [
+        [
+          "category",
+          "物品类别",
+          "enum:item_kind",
+          false
+        ],
+        [
+          "item",
+          "原版物品",
+          "item",
+          false
+        ],
+        [
+          "invert",
+          "检定未持有",
+          "bool",
+          true
+        ],
+        [
+          "success",
+          "成功后",
+          "node_ref",
+          false
+        ],
+        [
+          "failure",
+          "失败后",
+          "node_ref",
+          false
+        ]
+      ]
+    },
+    "talent_check": {
+      "label": "天赋检定",
+      "fields": [
+        [
+          "talent",
+          "原版天赋",
+          "talent",
+          false
+        ],
+        [
+          "op",
+          "等级比较",
+          "enum:check_op",
+          false
+        ],
+        [
+          "value",
+          "目标等级",
+          "int",
+          false
+        ],
+        [
+          "success",
+          "成功后",
+          "node_ref",
+          false
+        ],
+        [
+          "failure",
+          "失败后",
+          "node_ref",
+          false
+        ]
+      ]
+    },
+    "flag_check": {
+      "label": "旗标检定",
+      "fields": [
+        [
+          "source",
+          "旗标来源",
+          "enum:flag_check_source",
+          false
+        ],
+        [
+          "flag",
+          "旗标 / 条件 id",
+          "line",
+          false
+        ],
+        [
+          "op",
+          "数值比较",
+          "enum:check_op",
+          true
+        ],
+        [
+          "value",
+          "目标值",
+          "int",
+          true
+        ],
+        [
+          "invert",
+          "布尔结果取反",
+          "bool",
+          true
+        ],
+        [
+          "success",
+          "成功后",
+          "node_ref",
+          false
+        ],
+        [
+          "failure",
+          "失败后",
+          "node_ref",
+          false
+        ]
+      ]
+    },
+    "activity": {
+      "label": "训练 / 活动",
+      "fields": [
+        [
+          "kind",
+          "活动类型",
+          "enum:activity_kind",
+          false
+        ],
+        [
+          "message",
+          "开始提示",
+          "line",
+          true
+        ],
+        [
+          "stat",
+          "检定属性",
+          "stat",
+          false
+        ],
+        [
+          "op",
+          "比较",
+          "enum:check_op",
+          false
+        ],
+        [
+          "value",
+          "目标值",
+          "int",
+          false
+        ],
+        [
+          "time",
+          "时间推进",
+          "enum:activity_time",
+          true
+        ],
+        [
+          "success_rewards",
+          "成功奖励",
+          "reward_entries_optional",
+          true
+        ],
+        [
+          "failure_rewards",
+          "失败结果",
+          "reward_entries_optional",
+          true
+        ],
+        [
+          "success",
+          "成功后",
+          "node_ref",
+          false
+        ],
+        [
+          "failure",
+          "失败后",
+          "node_ref",
+          false
+        ]
+      ]
+    },
+    "mod_quest": {
+      "label": "MOD 任务",
+      "fields": [
+        [
+          "quest",
+          "任务 id",
+          "line",
+          false
+        ],
+        [
+          "op",
+          "操作",
+          "enum:quest_op",
+          false
+        ],
+        [
+          "message",
+          "玩家提示",
+          "line",
+          true
+        ]
+      ]
+    },
+    "quest_check": {
+      "label": "任务状态检定",
+      "fields": [
+        [
+          "quest",
+          "任务 id",
+          "line",
+          false
+        ],
+        [
+          "state",
+          "目标状态",
+          "enum:quest_state",
+          false
+        ],
+        [
+          "success",
+          "命中后",
+          "node_ref",
+          false
+        ],
+        [
+          "failure",
+          "未命中",
+          "node_ref",
+          false
+        ]
+      ]
+    },
+    "persistent_var": {
+      "label": "持久变量",
+      "fields": [
+        [
+          "key",
+          "变量名",
+          "line",
+          false
+        ],
+        [
+          "op",
+          "操作",
+          "enum:persistent_op",
+          false
+        ],
+        [
+          "value",
+          "整数值",
+          "int",
+          false
+        ]
+      ]
+    },
+    "persistent_check": {
+      "label": "持久变量检定",
+      "fields": [
+        [
+          "key",
+          "变量名",
+          "line",
+          false
+        ],
+        [
+          "op",
+          "比较",
+          "enum:check_op",
+          false
+        ],
+        [
+          "value",
+          "目标值",
+          "int",
+          false
+        ],
+        [
+          "success",
+          "成功后",
+          "node_ref",
+          false
+        ],
+        [
+          "failure",
+          "失败后",
+          "node_ref",
+          false
+        ]
+      ]
+    },
+    "mission": {
+      "label": "任务操作",
+      "fields": [
+        [
+          "name",
+          "任务名",
+          "line",
+          false
+        ],
+        [
+          "key",
+          "操作 key",
+          "line",
+          false
+        ]
+      ]
+    },
+    "time": {
+      "label": "时间操作",
+      "fields": [
+        [
+          "op",
+          "操作",
+          "enum:time_op",
+          false
+        ],
+        [
+          "year",
+          "年",
+          "int",
+          true
+        ],
+        [
+          "month",
+          "月",
+          "int",
+          true
+        ],
+        [
+          "stage",
+          "时段",
+          "int",
+          true
+        ],
+        [
+          "name",
+          "任务名",
+          "line",
+          true
+        ]
+      ]
+    },
+    "autosave": {
+      "label": "自动存档",
+      "fields": [
+        [
+          "kind",
+          "存档类型",
+          "enum:autosave_kind",
+          true
+        ],
+        [
+          "save_button",
+          "存档按钮（0/1）",
+          "int",
+          true
+        ]
+      ]
+    },
+    "branch": {
+      "label": "条件分支",
+      "fields": [
+        [
+          "flag",
+          "flag 标识（mod/game/flag_value/condition）",
+          "line",
+          true
+        ],
+        [
+          "stat",
+          "属性（stat 来源）",
+          "stat",
+          true
+        ],
+        [
+          "source",
+          "分支来源",
+          "branch_source",
+          true
+        ],
+        [
+          "cases",
+          "分支(≥1个)",
+          "cases",
+          false
+        ]
+      ]
+    },
+    "dice": {
+      "label": "骰子检定",
+      "fields": [
+        [
+          "max",
+          "骰子最大值",
+          "int",
+          false
+        ],
+        [
+          "header",
+          "检定标题",
+          "line",
+          false
+        ],
+        [
+          "bonus",
+          "固定加值",
+          "int",
+          true
+        ],
+        [
+          "bonus_name",
+          "加值名称",
+          "line",
+          true
+        ],
+        [
+          "bonus_status",
+          "加值说明",
+          "line",
+          true
+        ],
+        [
+          "bands",
+          "结果分段",
+          "dice_bands",
+          false
+        ]
+      ]
+    },
+    "goto_scene": {
+      "label": "进入其他场景",
+      "fields": [
+        [
+          "scene",
+          "目标场景",
+          "enum:goto_scene",
+          false
+        ],
+        [
+          "key",
+          "场景或战斗编号",
+          "goto_scene_key",
+          true
+        ],
+        [
+          "next",
+          "结束后回到",
+          "line",
+          true
+        ],
+        [
+          "title",
+          "结局标题",
+          "line",
+          true
+        ],
+        [
+          "desc",
+          "结局描述",
+          "multiline",
+          true
+        ],
+        [
+          "image",
+          "汗青书左页插图",
+          "ending_image",
+          true
+        ]
+      ]
+    },
+    "panel": {
+      "label": "系统面板",
+      "fields": [
+        [
+          "panel",
+          "面板",
+          "enum:panel",
+          false
+        ],
+        [
+          "key",
+          "参数 id",
+          "line",
+          true
+        ],
+        [
+          "discount",
+          "折扣",
+          "int",
+          true
+        ],
+        [
+          "mode",
+          "模式",
+          "int",
+          true
+        ]
+      ]
+    },
+    "wait": {
+      "label": "等待",
+      "fields": [
+        [
+          "seconds",
+          "秒数",
+          "float",
+          false
+        ]
+      ]
+    },
+    "end": {
+      "label": "结束剧情",
+      "fields": [
+        [
+          "next_script",
+          "下一章节",
+          "story_ref",
+          true
+        ]
+      ]
+    },
+    "free_trigger": {
+      "label": "自由模式触发",
+      "fields": [
+        [
+          "position",
+          "地图位置",
+          "enum:map_position",
+          false
+        ],
+        [
+          "script",
+          "触发剧情",
+          "story_ref",
+          false
+        ],
+        [
+          "when_month",
+          "限定月份",
+          "enum:month_limit",
+          true
+        ],
+        [
+          "when_stage",
+          "限定旬",
+          "enum:stage_limit",
+          true
+        ],
+        [
+          "when_flag_set",
+          "需要已设旗标",
+          "flag_ref",
+          true
+        ],
+        [
+          "when_flag_clear",
+          "需要未设旗标",
+          "flag_ref",
+          true
+        ],
+        [
+          "when_affinity",
+          "好感度人物",
+          "affinity_optional",
+          true
+        ],
+        [
+          "when_affinity_min",
+          "好感度下限",
+          "int",
+          true
+        ],
+        [
+          "note",
+          "备注（只给自己看）",
+          "line",
+          true
+        ]
+      ]
+    },
+    "death": {
+      "label": "死亡画面",
+      "fields": [
+        [
+          "title",
+          "标题",
+          "line",
+          true
+        ],
+        [
+          "text",
+          "死亡正文",
+          "multiline",
+          false
+        ],
+        [
+          "death_id",
+          "专用编号",
+          "death_id",
+          false
+        ],
+        [
+          "next",
+          "结束后去向",
+          "enum:death_next",
+          true
+        ]
+      ]
+    },
+    "raw": {
+      "label": "原生 Lua（高级）",
+      "fields": [
+        [
+          "code",
+          "Lua 代码",
+          "code",
+          false
+        ]
+      ]
+    }
+  },
+  "_NODE_DEFAULTS": {
+    "music": {
+      "name": "",
+      "op": "play"
+    },
+    "sound": {
+      "name": "",
+      "kind": "sound",
+      "op": "play"
+    },
+    "scene": {
+      "view": ""
+    },
+    "background": {
+      "action": "show",
+      "image": "",
+      "fade": 0.5
+    },
+    "custom_cg": {
+      "action": "show",
+      "image": "",
+      "fade": 0.5,
+      "scale": 100,
+      "x": 0,
+      "y": 0
+    },
+    "overlay": {
+      "action": "show",
+      "slot": "main",
+      "image": "",
+      "position": "center",
+      "scale": 100,
+      "opacity": 100,
+      "layer": "front",
+      "fade": 0.25
+    },
+    "show": {
+      "character": "",
+      "position": "M",
+      "portrait": "normal",
+      "facing": "right",
+      "fadeDuration": 0,
+      "moveDuration": 0
+    },
+    "move": {
+      "character": "",
+      "from": "L1",
+      "to": "M",
+      "duration": 1
+    },
+    "face": {
+      "character": "",
+      "facing": "right"
+    },
+    "hide": {
+      "character": "",
+      "fadeDuration": 0
+    },
+    "focus": {
+      "character": ""
+    },
+    "offset": {
+      "character": "",
+      "x": 0,
+      "y": 0,
+      "duration": 0.5
+    },
+    "say": {
+      "text": "",
+      "character": "",
+      "portrait": "normal",
+      "mode": "character"
+    },
+    "choice": {
+      "options": [
+        {
+          "text": "选项一",
+          "goto": ""
+        },
+        {
+          "text": "选项二",
+          "goto": ""
+        }
+      ],
+      "dialog": "Options"
+    },
+    "shock": {
+      "character": "",
+      "duration": 0.5
+    },
+    "mask": {
+      "show": true
+    },
+    "intro": {
+      "intro_source": "official",
+      "character": "",
+      "title": "",
+      "name": "",
+      "text": "",
+      "image": "",
+      "image_scale": 100,
+      "image_x": 0,
+      "image_y": 0
+    },
+    "effect": {
+      "name": "",
+      "x": 0,
+      "y": 0,
+      "a": 1,
+      "b": 1,
+      "c": 1,
+      "play": true
+    },
+    "transition": {
+      "phase": "in",
+      "dir": "lr"
+    },
+    "camera": {
+      "name": "stage-memory",
+      "active": true
+    },
+    "block": {
+      "flowchart": "common",
+      "name": "",
+      "vars": []
+    },
+    "cg": {
+      "action": "show",
+      "kind": "picture"
+    },
+    "dim": {
+      "character": "",
+      "dimmed": true
+    },
+    "message": {
+      "text": ""
+    },
+    "rotate": {
+      "character": "",
+      "angle": 180,
+      "duration": 1
+    },
+    "dayenv": {
+      "day_type": 1
+    },
+    "stat": {
+      "key": "",
+      "delta": 0,
+      "waitDisplay": true,
+      "display": 1
+    },
+    "stat_set": {
+      "key": "",
+      "value": 0,
+      "update": false
+    },
+    "affinity": {
+      "character": "",
+      "delta": 1
+    },
+    "talent": {
+      "talent": "",
+      "level": 1
+    },
+    "item": {
+      "kind": "misc",
+      "item": "",
+      "count": 1,
+      "remove": false
+    },
+    "flag": {
+      "flag": ""
+    },
+    "game_flag": {
+      "flag": "",
+      "value": 1,
+      "op": "set"
+    },
+    "enemy": {
+      "op": "team",
+      "enemy": "",
+      "value": 0,
+      "display": 1
+    },
+    "battle_skill": {
+      "op": "set",
+      "key": "",
+      "index": 2,
+      "active": 1,
+      "level": 1
+    },
+    "combat": {
+      "character": "",
+      "background": "center",
+      "talents": [],
+      "win": "",
+      "lose": ""
+    },
+    "battle": {
+      "friend_factions": [
+        {
+          "id": "500",
+          "people": 1
+        }
+      ],
+      "friend_characters": [],
+      "enemy_factions": [
+        {
+          "id": "001",
+          "people": 1
+        }
+      ],
+      "enemy_characters": [],
+      "win": "",
+      "lose": ""
+    },
+    "battle_result": {
+      "kind": "any",
+      "win": "",
+      "lose": ""
+    },
+    "reward": {
+      "entries": [
+        {
+          "kind": "stat",
+          "key": "",
+          "amount": 1
+        }
+      ]
+    },
+    "result_screen": {
+      "title": "胜利",
+      "text": "获得以下奖励",
+      "entries": [
+        {
+          "kind": "stat",
+          "key": "",
+          "amount": 1
+        }
+      ]
+    },
+    "custom_shop": {
+      "discount": 0,
+      "items": [
+        {
+          "category": "misc",
+          "item": "",
+          "count": 1
+        }
+      ]
+    },
+    "stat_check": {
+      "key": "",
+      "op": ">=",
+      "value": 0,
+      "success": "",
+      "failure": ""
+    },
+    "affinity_check": {
+      "character": "",
+      "op": ">=",
+      "value": 0,
+      "success": "",
+      "failure": ""
+    },
+    "item_check": {
+      "category": "misc",
+      "item": "",
+      "invert": false,
+      "success": "",
+      "failure": ""
+    },
+    "talent_check": {
+      "talent": "",
+      "op": ">=",
+      "value": 1,
+      "success": "",
+      "failure": ""
+    },
+    "flag_check": {
+      "source": "mod",
+      "flag": "",
+      "invert": false,
+      "success": "",
+      "failure": ""
+    },
+    "activity": {
+      "kind": "training",
+      "message": "",
+      "stat": "",
+      "op": ">=",
+      "value": 0,
+      "time": "round",
+      "success_rewards": [],
+      "failure_rewards": [],
+      "success": "",
+      "failure": ""
+    },
+    "mod_quest": {
+      "quest": "",
+      "op": "start",
+      "message": ""
+    },
+    "quest_check": {
+      "quest": "",
+      "state": "active",
+      "success": "",
+      "failure": ""
+    },
+    "persistent_var": {
+      "key": "",
+      "op": "set",
+      "value": 0
+    },
+    "persistent_check": {
+      "key": "",
+      "op": ">=",
+      "value": 1,
+      "success": "",
+      "failure": ""
+    },
+    "mission": {
+      "name": "Main",
+      "key": ""
+    },
+    "time": {
+      "op": "round"
+    },
+    "autosave": {
+      "kind": "story"
+    },
+    "branch": {
+      "flag": "",
+      "source": "mod",
+      "cases": [
+        {
+          "value": 1,
+          "goto": ""
+        }
+      ]
+    },
+    "dice": {
+      "max": 99,
+      "header": "命运检定",
+      "bonus": 0,
+      "bands": [
+        {
+          "upper": 49,
+          "text": "失败",
+          "goto": ""
+        },
+        {
+          "text": "成功",
+          "goto": ""
+        }
+      ]
+    },
+    "goto_scene": {
+      "scene": "Free"
+    },
+    "panel": {
+      "panel": "martial"
+    },
+    "wait": {
+      "seconds": 1
+    },
+    "end": {},
+    "free_trigger": {
+      "position": "Center",
+      "script": "",
+      "when_month": "any",
+      "when_stage": "any",
+      "when_flag_set": "",
+      "when_flag_clear": "",
+      "when_affinity": "",
+      "when_affinity_min": 0,
+      "note": ""
+    },
+    "death": {
+      "title": "",
+      "text": "",
+      "death_id": "900001",
+      "next": "Title"
+    },
+    "raw": {
+      "code": "-- 原生 Lua 代码，原样插入编译产物\n"
+    }
+  }
+}

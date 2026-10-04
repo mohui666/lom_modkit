@@ -1,0 +1,367 @@
+{
+  "empty": {
+    "name": "空项目",
+    "description": "只有一个安全结束节点，适合从零搭建。",
+    "placeholder_content": false,
+    "project": {
+      "stories": {
+        "main": {
+          "story_schema": 2,
+          "id": "main",
+          "title": "空项目",
+          "mood": false,
+          "start": "end1",
+          "nodes": [
+            {
+              "id": "end1",
+              "type": "end"
+            }
+          ]
+        }
+      },
+      "current_story_id": "main",
+      "manifest": {
+        "campaign_id": "__NEW_CAMPAIGN_ID__",
+        "campaign": {
+          "new_game": true
+        }
+      }
+    }
+  },
+  "linear_dialogue": {
+    "name": "线性对白",
+    "description": "人物登场、角色对白、旁白和结束的最小线性流程。",
+    "placeholder_content": false,
+    "project": {
+      "stories": {
+        "main": {
+          "story_schema": 2,
+          "id": "main",
+          "title": "线性对白",
+          "mood": false,
+          "start": "show1",
+          "nodes": [
+            {
+              "id": "show1",
+              "type": "show",
+              "character": "player",
+              "position": "M",
+              "portrait": "normal",
+              "facing": "right"
+            },
+            {
+              "id": "say1",
+              "type": "say",
+              "character": "player",
+              "portrait": "normal",
+              "mode": "character",
+              "text": "这里写角色的第一句对白。"
+            },
+            {
+              "id": "say2",
+              "type": "say",
+              "mode": "narrative",
+              "text": "这里写推动情节的旁白。"
+            },
+            {
+              "id": "end1",
+              "type": "end"
+            }
+          ]
+        }
+      },
+      "current_story_id": "main",
+      "manifest": {
+        "campaign_id": "__NEW_CAMPAIGN_ID__",
+        "campaign": {
+          "new_game": true
+        }
+      }
+    }
+  },
+  "branching_story": {
+    "name": "分支剧情",
+    "description": "一个双选项分支，两条路线汇合到同一结尾。",
+    "placeholder_content": false,
+    "project": {
+      "stories": {
+        "main": {
+          "story_schema": 2,
+          "id": "main",
+          "title": "分支剧情",
+          "mood": false,
+          "start": "intro",
+          "nodes": [
+            {
+              "id": "intro",
+              "type": "say",
+              "mode": "narrative",
+              "text": "前方出现两条路。"
+            },
+            {
+              "id": "choose",
+              "type": "choice",
+              "dialog": "Options",
+              "options": [
+                {
+                  "text": "走左边",
+                  "goto": "left"
+                },
+                {
+                  "text": "走右边",
+                  "goto": "right"
+                }
+              ]
+            },
+            {
+              "id": "left",
+              "type": "say",
+              "mode": "narrative",
+              "text": "你沿着左边的山路前进。",
+              "goto": "ending"
+            },
+            {
+              "id": "right",
+              "type": "say",
+              "mode": "narrative",
+              "text": "你沿着右边的溪流前进。",
+              "goto": "ending"
+            },
+            {
+              "id": "ending",
+              "type": "say",
+              "mode": "narrative",
+              "text": "两条路最终在山门前汇合。"
+            },
+            {
+              "id": "end1",
+              "type": "end"
+            }
+          ]
+        }
+      },
+      "current_story_id": "main",
+      "manifest": {
+        "campaign_id": "__NEW_CAMPAIGN_ID__",
+        "campaign": {
+          "new_game": true
+        }
+      }
+    }
+  },
+  "custom_character_showcase": {
+    "name": "自定义人物展示",
+    "description": "自定义人物登场、对白、移动和退场；需替换 user:template.hero。",
+    "placeholder_content": true,
+    "project": {
+      "stories": {
+        "main": {
+          "story_schema": 2,
+          "id": "main",
+          "title": "自定义人物展示",
+          "mood": false,
+          "start": "show1",
+          "nodes": [
+            {
+              "id": "show1",
+              "type": "show",
+              "character": "user:template.hero",
+              "position": "L1",
+              "portrait": "normal",
+              "facing": "right",
+              "fadeDuration": 0.3
+            },
+            {
+              "id": "say1",
+              "type": "say",
+              "character": "user:template.hero",
+              "portrait": "normal",
+              "mode": "character",
+              "text": "请把占位人物替换成内容库里的自定义角色。"
+            },
+            {
+              "id": "move1",
+              "type": "move",
+              "character": "user:template.hero",
+              "from": "L1",
+              "to": "M",
+              "duration": 0.8
+            },
+            {
+              "id": "say2",
+              "type": "say",
+              "character": "user:template.hero",
+              "portrait": "normal",
+              "mode": "character",
+              "text": "同一个 user: 引用可以用于登场、动作和对白。"
+            },
+            {
+              "id": "hide1",
+              "type": "hide",
+              "character": "user:template.hero",
+              "fadeDuration": 0.3
+            },
+            {
+              "id": "end1",
+              "type": "end"
+            }
+          ]
+        }
+      },
+      "current_story_id": "main",
+      "manifest": {
+        "campaign_id": "__NEW_CAMPAIGN_ID__",
+        "campaign": {
+          "new_game": true
+        }
+      }
+    }
+  },
+  "user_content_showcase": {
+    "name": "用户内容展示",
+    "description": "自定义背景、BGM、音效、CG 和配音；需在内容库替换占位引用。",
+    "placeholder_content": true,
+    "project": {
+      "stories": {
+        "main": {
+          "story_schema": 2,
+          "id": "main",
+          "title": "用户内容展示",
+          "mood": false,
+          "start": "bg1",
+          "nodes": [
+            {
+              "id": "bg1",
+              "type": "background",
+              "action": "show",
+              "image": "user:template.background",
+              "fade": 0.5
+            },
+            {
+              "id": "music1",
+              "type": "music",
+              "name": "user:template.music",
+              "op": "play"
+            },
+            {
+              "id": "sound1",
+              "type": "sound",
+              "name": "user:template.sound",
+              "kind": "sound",
+              "op": "play"
+            },
+            {
+              "id": "cg1",
+              "type": "custom_cg",
+              "action": "show",
+              "image": "user:template.cg",
+              "fade": 0.4,
+              "scale": 100,
+              "x": 0,
+              "y": 0
+            },
+            {
+              "id": "say1",
+              "type": "say",
+              "mode": "narrative",
+              "text": "背景、音乐、音效、CG 和本句配音都来自用户内容库。",
+              "voice": "user:template.voice"
+            },
+            {
+              "id": "cg2",
+              "type": "custom_cg",
+              "action": "hide",
+              "fade": 0.3
+            },
+            {
+              "id": "bg2",
+              "type": "background",
+              "action": "clear",
+              "fade": 0.3
+            },
+            {
+              "id": "end1",
+              "type": "end"
+            }
+          ]
+        }
+      },
+      "current_story_id": "main",
+      "manifest": {
+        "campaign_id": "__NEW_CAMPAIGN_ID__",
+        "campaign": {
+          "new_game": true
+        }
+      }
+    }
+  },
+  "free_mode_story": {
+    "name": "自由模式剧情",
+    "description": "开场后自由养成；指定月份、旬和地点进入一次性 MOD 剧情，结束后继续养成。",
+    "placeholder_content": false,
+    "project": {
+      "stories": {
+        "main": {
+          "story_schema": 2,
+          "id": "main",
+          "title": "自由模式开场",
+          "mood": false,
+          "start": "welcome",
+          "nodes": [
+            {
+              "id": "welcome",
+              "type": "say",
+              "mode": "narrative",
+              "text": "现在可以自由养成。四月上旬前往练功场，开始一次性示例剧情。其余时间正常养成。"
+            },
+            {
+              "id": "free",
+              "type": "end"
+            }
+          ]
+        },
+        "training_event": {
+          "story_schema": 2,
+          "id": "training_event",
+          "title": "练功场剧情",
+          "mood": false,
+          "start": "intro",
+          "nodes": [
+            {
+              "id": "intro",
+              "type": "say",
+              "mode": "narrative",
+              "text": "你来到练功场，触发了 MOD 剧情。"
+            },
+            {
+              "id": "done",
+              "type": "flag",
+              "flag": "__NEW_CAMPAIGN_ID___event_done"
+            },
+            {
+              "id": "free",
+              "type": "end"
+            }
+          ]
+        }
+      },
+      "current_story_id": "main",
+      "manifest": {
+        "campaign_id": "__NEW_CAMPAIGN_ID__",
+        "campaign": {
+          "new_game": true,
+          "triggers": [
+            {
+              "type": "position",
+              "position": "Center",
+              "script": "training_event",
+              "when_month": 4,
+              "when_stage": 1,
+              "when_flag_clear": "__NEW_CAMPAIGN_ID___event_done"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

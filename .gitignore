@@ -27,3 +27,6 @@ runtime/MortalModHost/test/SmokeTest/obj/
 # tools/ 临时截图（已跟踪的历史截图不受影响）
 tools/tmp_*.png
 .pi/
+
+# Native Rust build output
+/target/

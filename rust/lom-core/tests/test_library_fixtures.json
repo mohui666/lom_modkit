@@ -1,0 +1,1514 @@
+{
+  "test_failures": 0,
+  "test_errors": 0,
+  "migrations": [
+    {
+      "kind": "story",
+      "input": {
+        "story_schema": 2,
+        "id": "main",
+        "start": "roll",
+        "nodes": [
+          {
+            "id": "roll",
+            "type": "dice",
+            "check": "S0205_01_001",
+            "options": [
+              {
+                "goto_大成功": "end1",
+                "goto_成功": "end1",
+                "goto_失败": "end1"
+              }
+            ]
+          },
+          {
+            "id": "end1",
+            "type": "end"
+          }
+        ]
+      },
+      "valid": true,
+      "result": {
+        "kind": "story",
+        "document": {
+          "story_schema": 2,
+          "id": "main",
+          "start": "roll",
+          "nodes": [
+            {
+              "id": "roll",
+              "type": "dice",
+              "max": 99,
+              "header": "命运检定",
+              "bonus": 0,
+              "bands": [
+                {
+                  "text": "O_S0205_01_001",
+                  "goto": "end1",
+                  "upper": 39
+                },
+                {
+                  "text": "O_S0205_01_002",
+                  "goto": "end1"
+                }
+              ]
+            },
+            {
+              "id": "end1",
+              "type": "end"
+            }
+          ]
+        },
+        "changed": true,
+        "from_version": 2,
+        "to_version": 2,
+        "steps": [
+          "inline original dice checkpoints into direct dice parameters"
+        ]
+      }
+    },
+    {
+      "kind": "story",
+      "input": {
+        "story_schema": 2,
+        "id": "main",
+        "start": "roll",
+        "nodes": [
+          {
+            "id": "roll",
+            "type": "dice",
+            "max": 99,
+            "header": "命运检定",
+            "bonus": 0,
+            "bands": [
+              {
+                "text": "O_S0205_01_001",
+                "goto": "end1",
+                "upper": 39
+              },
+              {
+                "text": "O_S0205_01_002",
+                "goto": "end1"
+              }
+            ]
+          },
+          {
+            "id": "end1",
+            "type": "end"
+          }
+        ]
+      },
+      "valid": true,
+      "result": {
+        "kind": "story",
+        "document": {
+          "story_schema": 2,
+          "id": "main",
+          "start": "roll",
+          "nodes": [
+            {
+              "id": "roll",
+              "type": "dice",
+              "max": 99,
+              "header": "命运检定",
+              "bonus": 0,
+              "bands": [
+                {
+                  "text": "O_S0205_01_001",
+                  "goto": "end1",
+                  "upper": 39
+                },
+                {
+                  "text": "O_S0205_01_002",
+                  "goto": "end1"
+                }
+              ]
+            },
+            {
+              "id": "end1",
+              "type": "end"
+            }
+          ]
+        },
+        "changed": false,
+        "from_version": 2,
+        "to_version": 2,
+        "steps": []
+      }
+    },
+    {
+      "kind": "story",
+      "input": {
+        "story_schema": 2,
+        "id": "main",
+        "start": "fight",
+        "nodes": [
+          {
+            "id": "fight",
+            "type": "combat",
+            "character": "artist1",
+            "display_name": "错误的自由名称",
+            "ultimate_one": "special3",
+            "ultimate_two": "player_1",
+            "ultimate_three": "sister1_1",
+            "confucianism": 1,
+            "strategy_level": 2,
+            "win": "end",
+            "lose": "end"
+          },
+          {
+            "id": "end",
+            "type": "end"
+          }
+        ]
+      },
+      "valid": true,
+      "result": {
+        "kind": "story",
+        "document": {
+          "story_schema": 2,
+          "id": "main",
+          "start": "fight",
+          "nodes": [
+            {
+              "id": "fight",
+              "type": "combat",
+              "character": "artist1",
+              "win": "end",
+              "lose": "end",
+              "background": "center"
+            },
+            {
+              "id": "end",
+              "type": "end"
+            }
+          ]
+        },
+        "changed": true,
+        "from_version": 2,
+        "to_version": 2,
+        "steps": [
+          "remove obsolete combat display_name; selected character now owns the name",
+          "remove unused combat ultimate slots; original Combat never reads them",
+          "remove combat proficiency stats; original Combat writes them from talents",
+          "add explicit combat background=center; background is independent of character"
+        ]
+      }
+    },
+    {
+      "kind": "story",
+      "input": {
+        "story_schema": 2,
+        "id": "main",
+        "start": "roll",
+        "nodes": [
+          {
+            "id": "roll",
+            "type": "dice",
+            "check": "S0205_01_001",
+            "options": [
+              {
+                "goto_大成功": "ok",
+                "goto_成功": "ok",
+                "goto_失败": "bad",
+                "band_texts": [
+                  "失手",
+                  "成功"
+                ]
+              }
+            ]
+          },
+          {
+            "id": "ok",
+            "type": "end"
+          },
+          {
+            "id": "bad",
+            "type": "end"
+          }
+        ],
+        "localization": {
+          "default_locale": "chs",
+          "fallback_locale": "chs",
+          "translations": {
+            "ja": {
+              "roll.options.0.band_texts.0": "失敗",
+              "roll.options.0.band_texts.1": "成功"
+            }
+          }
+        }
+      },
+      "valid": true,
+      "result": {
+        "kind": "story",
+        "document": {
+          "story_schema": 2,
+          "id": "main",
+          "start": "roll",
+          "nodes": [
+            {
+              "id": "roll",
+              "type": "dice",
+              "max": 99,
+              "header": "命运检定",
+              "bonus": 0,
+              "bands": [
+                {
+                  "text": "失手",
+                  "goto": "bad",
+                  "upper": 39
+                },
+                {
+                  "text": "成功",
+                  "goto": "ok"
+                }
+              ]
+            },
+            {
+              "id": "ok",
+              "type": "end"
+            },
+            {
+              "id": "bad",
+              "type": "end"
+            }
+          ],
+          "localization": {
+            "default_locale": "chs",
+            "fallback_locale": "chs",
+            "translations": {
+              "ja": {
+                "roll.bands.0.text": "失敗",
+                "roll.bands.1.text": "成功"
+              }
+            }
+          }
+        },
+        "changed": true,
+        "from_version": 2,
+        "to_version": 2,
+        "steps": [
+          "inline original dice checkpoints into direct dice parameters"
+        ]
+      }
+    },
+    {
+      "kind": "story",
+      "input": {
+        "id": "main",
+        "start": "end1",
+        "unknown_top": {
+          "future": [
+            1,
+            2,
+            3
+          ]
+        },
+        "nodes": [
+          {
+            "id": "end1",
+            "type": "end",
+            "unknown_node": {
+              "keep": true
+            }
+          }
+        ],
+        "story_schema": 2
+      },
+      "valid": true,
+      "result": {
+        "kind": "story",
+        "document": {
+          "id": "main",
+          "start": "end1",
+          "unknown_top": {
+            "future": [
+              1,
+              2,
+              3
+            ]
+          },
+          "nodes": [
+            {
+              "id": "end1",
+              "type": "end",
+              "unknown_node": {
+                "keep": true
+              }
+            }
+          ],
+          "story_schema": 2
+        },
+        "changed": false,
+        "from_version": 2,
+        "to_version": 2,
+        "steps": []
+      }
+    },
+    {
+      "kind": "manifest",
+      "input": {
+        "format": 1,
+        "id": "old",
+        "entry": "main"
+      },
+      "valid": false,
+      "error": "package_format=1 与 v3 不兼容：旧包缺少稳定 campaign_id，请用 1.0.1 或更高版本 Editor 明确填写后重新导出"
+    },
+    {
+      "kind": "content",
+      "input": {
+        "schema": 1,
+        "id": "mohui.test",
+        "type": "image",
+        "vendor_extension": [
+          "keep"
+        ]
+      },
+      "valid": true,
+      "result": {
+        "kind": "content",
+        "document": {
+          "schema": 1,
+          "id": "mohui.test",
+          "type": "image",
+          "vendor_extension": [
+            "keep"
+          ],
+          "content_schema": 1
+        },
+        "changed": true,
+        "from_version": 1,
+        "to_version": 1,
+        "steps": [
+          "add content_schema"
+        ]
+      }
+    },
+    {
+      "kind": "story",
+      "input": {
+        "story_schema": 2,
+        "id": "main",
+        "title": "battle",
+        "start": "war",
+        "nodes": [
+          {
+            "id": "war",
+            "type": "battle",
+            "friend_faction": "500",
+            "enemy_faction": "400",
+            "friend_characters": [
+              "brother4",
+              "special4"
+            ],
+            "enemy_characters": [
+              "special3",
+              "special102"
+            ]
+          }
+        ]
+      },
+      "valid": true,
+      "result": {
+        "kind": "story",
+        "document": {
+          "story_schema": 2,
+          "id": "main",
+          "title": "battle",
+          "start": "war",
+          "nodes": [
+            {
+              "id": "war",
+              "type": "battle",
+              "friend_characters": [
+                "special4"
+              ],
+              "enemy_characters": [
+                "special102"
+              ],
+              "friend_factions": [
+                {
+                  "id": "500",
+                  "people": 1
+                }
+              ],
+              "enemy_factions": []
+            }
+          ]
+        },
+        "changed": true,
+        "from_version": 2,
+        "to_version": 2,
+        "steps": [
+          "remove Battle named characters without a verified spawnable NPC prefab",
+          "convert Battle faction to an attachable list; roster is no longer replaced",
+          "drop Battle factions that have no official BattleLevel troop presets"
+        ]
+      }
+    },
+    {
+      "kind": "story",
+      "input": {
+        "story_schema": 2,
+        "id": "main",
+        "title": "battle",
+        "start": "war",
+        "nodes": [
+          {
+            "id": "war",
+            "type": "battle",
+            "friend_factions": [
+              "500",
+              "001"
+            ],
+            "friend_people": 8,
+            "friend_characters": [
+              "special4"
+            ],
+            "enemy_factions": [
+              {
+                "id": "002",
+                "people": 4
+              }
+            ],
+            "enemy_people": 4,
+            "win": "end",
+            "lose": "end"
+          },
+          {
+            "id": "end",
+            "type": "end"
+          }
+        ]
+      },
+      "valid": true,
+      "result": {
+        "kind": "story",
+        "document": {
+          "story_schema": 2,
+          "id": "main",
+          "title": "battle",
+          "start": "war",
+          "nodes": [
+            {
+              "id": "war",
+              "type": "battle",
+              "friend_factions": [
+                {
+                  "id": "500",
+                  "people": 6
+                },
+                {
+                  "id": "001",
+                  "people": 1
+                }
+              ],
+              "friend_characters": [
+                "special4"
+              ],
+              "enemy_factions": [
+                {
+                  "id": "002",
+                  "people": 4
+                }
+              ],
+              "win": "end",
+              "lose": "end"
+            },
+            {
+              "id": "end",
+              "type": "end"
+            }
+          ]
+        },
+        "changed": true,
+        "from_version": 2,
+        "to_version": 2,
+        "steps": [
+          "convert Battle faction to an attachable list; roster is no longer replaced"
+        ]
+      }
+    },
+    {
+      "kind": "story",
+      "input": {
+        "id": "main",
+        "start": "end1",
+        "unknown_top": {
+          "future": [
+            1,
+            2,
+            3
+          ]
+        },
+        "nodes": [
+          {
+            "id": "end1",
+            "type": "end",
+            "unknown_node": {
+              "keep": true
+            }
+          }
+        ],
+        "story_schema": null
+      },
+      "valid": false,
+      "error": "无法迁移 story_schema=None：当前工具仅支持版本 2"
+    },
+    {
+      "kind": "story",
+      "input": {
+        "id": "main",
+        "start": "end1",
+        "unknown_top": {
+          "future": [
+            1,
+            2,
+            3
+          ]
+        },
+        "nodes": [
+          {
+            "id": "end1",
+            "type": "end",
+            "unknown_node": {
+              "keep": true
+            }
+          }
+        ],
+        "story_schema": true
+      },
+      "valid": false,
+      "error": "无法迁移 story_schema=True：当前工具仅支持版本 2"
+    },
+    {
+      "kind": "manifest",
+      "input": {
+        "format": 1,
+        "package_format": 2
+      },
+      "valid": false,
+      "error": "package_format=2 与 v3 不兼容：旧包缺少稳定 campaign_id，请用 1.0.1 或更高版本 Editor 明确填写后重新导出"
+    },
+    {
+      "kind": "manifest",
+      "input": {
+        "format": 1,
+        "content_schema": 2
+      },
+      "valid": false,
+      "error": "package_format=1 与 v3 不兼容：旧包缺少稳定 campaign_id，请用 1.0.1 或更高版本 Editor 明确填写后重新导出"
+    },
+    {
+      "kind": "content",
+      "input": {
+        "schema": 1,
+        "content_schema": 2
+      },
+      "valid": false,
+      "error": "无法迁移 content_schema=2：当前工具仅支持版本 1"
+    },
+    {
+      "kind": "content",
+      "input": {
+        "audio_kind": "sound",
+        "content_schema": 1,
+        "files": {
+          "main": "voice.wav"
+        },
+        "id": "mohui.voice",
+        "name": "语音",
+        "schema": 1,
+        "type": "audio"
+      },
+      "valid": true,
+      "result": {
+        "kind": "content",
+        "document": {
+          "audio_kind": "sound",
+          "content_schema": 1,
+          "files": {
+            "main": "voice.wav"
+          },
+          "id": "mohui.voice",
+          "name": "语音",
+          "schema": 1,
+          "type": "audio"
+        },
+        "changed": false,
+        "from_version": 1,
+        "to_version": 1,
+        "steps": []
+      }
+    },
+    {
+      "kind": "content",
+      "input": {
+        "content_schema": 1,
+        "files": {
+          "main": "normal.png"
+        },
+        "id": "mohui.hero",
+        "name": "侠客",
+        "portraits": {
+          "happy": "happy.png",
+          "normal": "normal.png"
+        },
+        "schema": 1,
+        "title": "少侠",
+        "type": "character"
+      },
+      "valid": true,
+      "result": {
+        "kind": "content",
+        "document": {
+          "content_schema": 1,
+          "files": {
+            "main": "normal.png"
+          },
+          "id": "mohui.hero",
+          "name": "侠客",
+          "portraits": {
+            "happy": "happy.png",
+            "normal": "normal.png"
+          },
+          "schema": 1,
+          "title": "少侠",
+          "type": "character"
+        },
+        "changed": false,
+        "from_version": 1,
+        "to_version": 1,
+        "steps": []
+      }
+    },
+    {
+      "kind": "content",
+      "input": {
+        "content_schema": 1,
+        "files": {
+          "main": "background.jpg"
+        },
+        "id": "mohui.background",
+        "name": "背景",
+        "schema": 1,
+        "type": "image"
+      },
+      "valid": true,
+      "result": {
+        "kind": "content",
+        "document": {
+          "content_schema": 1,
+          "files": {
+            "main": "background.jpg"
+          },
+          "id": "mohui.background",
+          "name": "背景",
+          "schema": 1,
+          "type": "image"
+        },
+        "changed": false,
+        "from_version": 1,
+        "to_version": 1,
+        "steps": []
+      }
+    },
+    {
+      "kind": "content",
+      "input": {
+        "schema": 1,
+        "content_schema": 1,
+        "id": "mohui.same",
+        "type": "audio",
+        "name": "原内容",
+        "files": {
+          "main": "voice.wav"
+        },
+        "audio_kind": "sound"
+      },
+      "valid": true,
+      "result": {
+        "kind": "content",
+        "document": {
+          "schema": 1,
+          "content_schema": 1,
+          "id": "mohui.same",
+          "type": "audio",
+          "name": "原内容",
+          "files": {
+            "main": "voice.wav"
+          },
+          "audio_kind": "sound"
+        },
+        "changed": false,
+        "from_version": 1,
+        "to_version": 1,
+        "steps": []
+      }
+    },
+    {
+      "kind": "content",
+      "input": {
+        "schema": 1,
+        "content_schema": 1,
+        "id": "mohui.dep",
+        "type": "audio",
+        "name": "依赖",
+        "files": {
+          "main": "dep.wav"
+        },
+        "audio_kind": "sound"
+      },
+      "valid": true,
+      "result": {
+        "kind": "content",
+        "document": {
+          "schema": 1,
+          "content_schema": 1,
+          "id": "mohui.dep",
+          "type": "audio",
+          "name": "依赖",
+          "files": {
+            "main": "dep.wav"
+          },
+          "audio_kind": "sound"
+        },
+        "changed": false,
+        "from_version": 1,
+        "to_version": 1,
+        "steps": []
+      }
+    },
+    {
+      "kind": "content",
+      "input": {
+        "content_schema": 1,
+        "files": {
+          "main": "main.png"
+        },
+        "id": "mohui.main",
+        "name": "主内容",
+        "schema": 1,
+        "type": "image"
+      },
+      "valid": true,
+      "result": {
+        "kind": "content",
+        "document": {
+          "content_schema": 1,
+          "files": {
+            "main": "main.png"
+          },
+          "id": "mohui.main",
+          "name": "主内容",
+          "schema": 1,
+          "type": "image"
+        },
+        "changed": false,
+        "from_version": 1,
+        "to_version": 1,
+        "steps": []
+      }
+    },
+    {
+      "kind": "content",
+      "input": {
+        "schema": 1,
+        "content_schema": 1,
+        "id": "mohui.atomic",
+        "type": "image",
+        "name": "原子导入",
+        "files": {
+          "main": "image.png"
+        }
+      },
+      "valid": true,
+      "result": {
+        "kind": "content",
+        "document": {
+          "schema": 1,
+          "content_schema": 1,
+          "id": "mohui.atomic",
+          "type": "image",
+          "name": "原子导入",
+          "files": {
+            "main": "image.png"
+          }
+        },
+        "changed": false,
+        "from_version": 1,
+        "to_version": 1,
+        "steps": []
+      }
+    },
+    {
+      "kind": "content",
+      "input": {
+        "schema": 1,
+        "content_schema": 1,
+        "id": "mohui.meta",
+        "type": "image",
+        "name": "元数据",
+        "files": {
+          "main": "image.png"
+        }
+      },
+      "valid": true,
+      "result": {
+        "kind": "content",
+        "document": {
+          "schema": 1,
+          "content_schema": 1,
+          "id": "mohui.meta",
+          "type": "image",
+          "name": "元数据",
+          "files": {
+            "main": "image.png"
+          }
+        },
+        "changed": false,
+        "from_version": 1,
+        "to_version": 1,
+        "steps": []
+      }
+    },
+    {
+      "kind": "content",
+      "input": {
+        "schema": 1,
+        "content_schema": 1,
+        "id": "mohui.secure",
+        "type": "audio",
+        "name": "校验",
+        "files": {
+          "main": "voice.wav"
+        },
+        "audio_kind": "sound"
+      },
+      "valid": true,
+      "result": {
+        "kind": "content",
+        "document": {
+          "schema": 1,
+          "content_schema": 1,
+          "id": "mohui.secure",
+          "type": "audio",
+          "name": "校验",
+          "files": {
+            "main": "voice.wav"
+          },
+          "audio_kind": "sound"
+        },
+        "changed": false,
+        "from_version": 1,
+        "to_version": 1,
+        "steps": []
+      }
+    }
+  ],
+  "packs": [
+    {
+      "mode": "export",
+      "registry": {
+        "assets/user/audio/mohui.voice/content.json": "7b0a202022736368656d61223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a2020226964223a20226d6f6875692e766f696365222c0a20202274797065223a2022617564696f222c0a2020226e616d65223a2022e8afade99fb3222c0a20202266696c6573223a207b0a20202020226d61696e223a2022766f6963652e776176220a20207d2c0a202022617564696f5f6b696e64223a2022736f756e64220a7d0a",
+        "assets/user/audio/mohui.voice/voice.wav": "524946460400000057415645",
+        "registry.json": "7b0a202022736368656d61223a20312c0a20202264656661756c745f6e616d657370616365223a20226d6f687569363636222c0a202022636f6e74656e7473223a205b0a202020207b0a202020202020226964223a20226d6f6875692e766f696365222c0a2020202020202274797065223a2022617564696f220a202020207d0a20205d0a7d0a"
+      },
+      "id": "mohui.voice",
+      "args": {
+        "version": "1.2.3",
+        "author": "墨绘",
+        "license_name": "CC-BY-4.0"
+      },
+      "valid": true,
+      "entries": {
+        "content-pack.json": "7b0a202022617574686f72223a2022e5a2a8e7bb98222c0a202022636f6e74656e745f7061636b5f666f726d6174223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a202022646570656e64656e63696573223a205b5d2c0a20202266696c6573223a205b0a202020207b0a2020202020202270617468223a202266696c65732f766f6963652e776176222c0a20202020202022736861323536223a202231464535413335314246303331344338413138343042303233464431453443414233463046313233343638393430433234314244374246323045393839414238222c0a2020202020202273697a65223a2031320a202020207d0a20205d2c0a2020226964223a20226d6f6875692e766f696365222c0a2020226c6963656e7365223a202243432d42592d342e30222c0a2020226d65746164617461223a207b0a2020202022617564696f5f6b696e64223a2022736f756e64222c0a2020202022636f6e74656e745f736368656d61223a20312c0a202020202266696c6573223a207b0a202020202020226d61696e223a2022766f6963652e776176220a202020207d2c0a20202020226964223a20226d6f6875692e766f696365222c0a20202020226e616d65223a2022e8afade99fb3222c0a2020202022736368656d61223a20312c0a202020202274797065223a2022617564696f220a20207d2c0a2020226e616d65223a2022e8afade99fb3222c0a20202274797065223a2022617564696f222c0a20202276657273696f6e223a2022312e322e33220a7d0a",
+        "files/voice.wav": "524946460400000057415645",
+        "package-content.sha256": "616c676f726974686d3d6c6f6d2d656e7472792d7368613235362d76310a7368613235363d314437443643363338413442314341384245343737323446354139323445334232334432363537364130464436454237303134303637383344384431373542380a"
+      }
+    },
+    {
+      "mode": "inspect",
+      "registry": {
+        "assets/user/audio/mohui.voice/content.json": "7b0a202022736368656d61223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a2020226964223a20226d6f6875692e766f696365222c0a20202274797065223a2022617564696f222c0a2020226e616d65223a2022e8afade99fb3222c0a20202266696c6573223a207b0a20202020226d61696e223a2022766f6963652e776176220a20207d2c0a202022617564696f5f6b696e64223a2022736f756e64220a7d0a",
+        "assets/user/audio/mohui.voice/voice.wav": "524946460400000057415645",
+        "registry.json": "7b0a202022736368656d61223a20312c0a20202264656661756c745f6e616d657370616365223a20226d6f687569363636222c0a202022636f6e74656e7473223a205b0a202020207b0a202020202020226964223a20226d6f6875692e766f696365222c0a2020202020202274797065223a2022617564696f220a202020207d0a20205d0a7d0a"
+      },
+      "archive": "504b030414000000080000002100b2268ae13d0100004102000011000000636f6e74656e742d7061636b2e6a736f6e7550414ec33010bcf71551ce34d88e5b526e71dafc0121545989ab586dec28718aa0ea3fb82171e2823870e43d08f805f61a4a81725979676777c6b3190441c87b53e9363c0dc297bbfbd7e79bf0c8a185564628336f78b19c2f745b736329f8c7ac2b2a51f31d5c8a46a852a8428ace82e717802ee4cab7b609820d540b37dc544e13c6c76b2d0b115df2358803a1ab38198d1d05e7b3511a8f30cb518c6996a438a1882112e7533ca359cae21ce598c4749c4c28ca08c56c7ac2728266936492b264efa6bc16ce2e01606babf7284ba753ebaa971158f119acec4b756e23ccb2213b1bd208f9492d0c2fb9717ff73fb2299652cf9752c1a94ef7f6e175ff896b2f9a5d283597caad7fc7e18d7ef20fdbb403c56b70f9f6f8f07efbf485fed133570dd0c0ab3b0d870f6dffa202b4166d2735f8c31189e270b01d7c00504b03042d00000008000000210027b92371ffffffffffffffff0f00140066696c65732f766f6963652e776176010010000c000000000000000e000000000000000bf274736361606008770c730500504b030414000000080000002100c74d52f05e00000066000000160000007061636b6167652d636f6e74656e742e73686132353625c63b0e83300c00d09dbb448a1dc73603431c877b305405898f040889db77e89bdeb47e8f73b9e76d588f2d7cf6fb7cc3354f98393cd0fd37808b73e5a4850c6a516b248234e6d223b564981c390b97383a379308145934b93a4836ed7e504b0102140314000000080000002100b2268ae13d01000041020000110000000000000000000000a48100000000636f6e74656e742d7061636b2e6a736f6e504b01022d032d00000008000000210027b923710e0000000c0000000f0000000000000000000000a4816c01000066696c65732f766f6963652e776176504b0102140314000000080000002100c74d52f05e00000066000000160000000000000000000000a481bb0100007061636b6167652d636f6e74656e742e736861323536504b05060000000003000300c00000004d0200000000",
+      "valid": true,
+      "result": {
+        "content_id": "mohui.voice",
+        "content_type": "audio",
+        "version": "1.2.3",
+        "author": "墨绘",
+        "license": "CC-BY-4.0",
+        "name": "语音",
+        "files": [
+          {
+            "path": "files/voice.wav",
+            "size": 12,
+            "sha256": "1FE5A351BF0314C8A1840B023FD1E4CAB3F0F123468940C241BD7BF20E989AB8"
+          }
+        ],
+        "package_sha256": "9140094772ABA6E8DE7846055DCE3546FCE0FB84282C019FA24EF9BB70AD37F1",
+        "logical_content_hash": "1D7D6C638A4B1CA8BE47724F5A924E3B23D26576A0FD6EB701406783D8D175B8",
+        "dependencies": [],
+        "missing_dependencies": [],
+        "collision_type": "audio"
+      }
+    },
+    {
+      "mode": "inspect",
+      "registry": {
+        "registry.json": "7b0a202022736368656d61223a20312c0a20202264656661756c745f6e616d657370616365223a20226d6f687569363636222c0a202022636f6e74656e7473223a205b5d0a7d0a"
+      },
+      "archive": "504b030414000000080000002100b2268ae13d0100004102000011000000636f6e74656e742d7061636b2e6a736f6e7550414ec33010bcf71551ce34d88e5b526e71dafc0121545989ab586dec28718aa0ea3fb82171e2823870e43d08f805f61a4a81725979676777c6b3190441c87b53e9363c0dc297bbfbd7e79bf0c8a185564628336f78b19c2f745b736329f8c7ac2b2a51f31d5c8a46a852a8428ace82e717802ee4cab7b609820d540b37dc544e13c6c76b2d0b115df2358803a1ab38198d1d05e7b3511a8f30cb518c6996a438a1882112e7533ca359cae21ce598c4749c4c28ca08c56c7ac2728266936492b264efa6bc16ce2e01606babf7284ba753ebaa971158f119acec4b756e23ccb2213b1bd208f9492d0c2fb9717ff73fb2299652cf9752c1a94ef7f6e175ff896b2f9a5d283597caad7fc7e18d7ef20fdbb403c56b70f9f6f8f07efbf485fed133570dd0c0ab3b0d870f6dffa202b4166d2735f8c31189e270b01d7c00504b03042d00000008000000210027b92371ffffffffffffffff0f00140066696c65732f766f6963652e776176010010000c000000000000000e000000000000000bf274736361606008770c730500504b030414000000080000002100c74d52f05e00000066000000160000007061636b6167652d636f6e74656e742e73686132353625c63b0e83300c00d09dbb448a1dc73603431c877b305405898f040889db77e89bdeb47e8f73b9e76d588f2d7cf6fb7cc3354f98393cd0fd37808b73e5a4850c6a516b248234e6d223b564981c390b97383a379308145934b93a4836ed7e504b0102140314000000080000002100b2268ae13d01000041020000110000000000000000000000a48100000000636f6e74656e742d7061636b2e6a736f6e504b01022d032d00000008000000210027b923710e0000000c0000000f0000000000000000000000a4816c01000066696c65732f766f6963652e776176504b0102140314000000080000002100c74d52f05e00000066000000160000000000000000000000a481bb0100007061636b6167652d636f6e74656e742e736861323536504b05060000000003000300c00000004d0200000000",
+      "valid": true,
+      "result": {
+        "content_id": "mohui.voice",
+        "content_type": "audio",
+        "version": "1.2.3",
+        "author": "墨绘",
+        "license": "CC-BY-4.0",
+        "name": "语音",
+        "files": [
+          {
+            "path": "files/voice.wav",
+            "size": 12,
+            "sha256": "1FE5A351BF0314C8A1840B023FD1E4CAB3F0F123468940C241BD7BF20E989AB8"
+          }
+        ],
+        "package_sha256": "9140094772ABA6E8DE7846055DCE3546FCE0FB84282C019FA24EF9BB70AD37F1",
+        "logical_content_hash": "1D7D6C638A4B1CA8BE47724F5A924E3B23D26576A0FD6EB701406783D8D175B8",
+        "dependencies": [],
+        "missing_dependencies": [],
+        "collision_type": null
+      }
+    },
+    {
+      "mode": "export",
+      "registry": {
+        "assets/user/audio/mohui.voice/.lomcontent.json": "7b0a202022617574686f72223a2022e5a2a8e7bb98222c0a202022636f6e74656e745f7061636b5f666f726d6174223a20312c0a202022646570656e64656e63696573223a205b5d2c0a2020226c6963656e7365223a202243432d42592d342e30222c0a2020226c6f676963616c5f636f6e74656e745f68617368223a202231443744364336333841344231434138424534373732344635413932344533423233443236353736413046443645423730313430363738334438443137354238222c0a2020227061636b6167655f736861323536223a202239313430303934373732414241364538444537383436303535444345333534364643453046423834323832433031394641323445463942423730414433374631222c0a20202276657273696f6e223a2022312e322e33220a7d0a",
+        "assets/user/audio/mohui.voice/content.json": "7b0a202022617564696f5f6b696e64223a2022736f756e64222c0a202022636f6e74656e745f736368656d61223a20312c0a20202266696c6573223a207b0a20202020226d61696e223a2022766f6963652e776176220a20207d2c0a2020226964223a20226d6f6875692e766f696365222c0a2020226e616d65223a2022e8afade99fb3222c0a202022736368656d61223a20312c0a20202274797065223a2022617564696f220a7d0a",
+        "assets/user/audio/mohui.voice/voice.wav": "524946460400000057415645",
+        "assets/user/character/mohui.hero/content.json": "7b0a202022736368656d61223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a2020226964223a20226d6f6875692e6865726f222c0a20202274797065223a2022636861726163746572222c0a2020226e616d65223a2022e4bea0e5aea2222c0a20202266696c6573223a207b0a20202020226d61696e223a20226e6f726d616c2e706e67220a20207d2c0a202022706f72747261697473223a207b0a20202020226e6f726d616c223a20226e6f726d616c2e706e67222c0a20202020226861707079223a202268617070792e706e67220a20207d2c0a2020227469746c65223a2022e5b091e4bea0220a7d0a",
+        "assets/user/character/mohui.hero/happy.png": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63f8cfc00000000300010005fed4ef0000000049454e44ae426082",
+        "assets/user/character/mohui.hero/normal.png": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63f8cfc00000000300010005fed4ef0000000049454e44ae426082",
+        "registry.json": "7b0a202022736368656d61223a20312c0a20202264656661756c745f6e616d657370616365223a20226d6f687569363636222c0a202022636f6e74656e7473223a205b0a202020207b0a202020202020226964223a20226d6f6875692e766f696365222c0a2020202020202274797065223a2022617564696f220a202020207d2c0a202020207b0a202020202020226964223a20226d6f6875692e6865726f222c0a2020202020202274797065223a2022636861726163746572220a202020207d0a20205d0a7d0a"
+      },
+      "id": "mohui.hero",
+      "args": {
+        "version": "1.2.3",
+        "author": "墨绘",
+        "license_name": "CC-BY-4.0"
+      },
+      "valid": true,
+      "entries": {
+        "content-pack.json": "7b0a202022617574686f72223a2022e5a2a8e7bb98222c0a202022636f6e74656e745f7061636b5f666f726d6174223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a202022646570656e64656e63696573223a205b5d2c0a20202266696c6573223a205b0a202020207b0a2020202020202270617468223a202266696c65732f6e6f726d616c2e706e67222c0a20202020202022736861323536223a202241433735443441433041303636364346423042383445373135444139343030433535353531444243374532423545324130463944333330373639323935343536222c0a2020202020202273697a65223a2037300a202020207d2c0a202020207b0a2020202020202270617468223a202266696c65732f68617070792e706e67222c0a20202020202022736861323536223a202241433735443441433041303636364346423042383445373135444139343030433535353531444243374532423545324130463944333330373639323935343536222c0a2020202020202273697a65223a2037300a202020207d0a20205d2c0a2020226964223a20226d6f6875692e6865726f222c0a2020226c6963656e7365223a202243432d42592d342e30222c0a2020226d65746164617461223a207b0a2020202022636f6e74656e745f736368656d61223a20312c0a202020202266696c6573223a207b0a202020202020226d61696e223a20226e6f726d616c2e706e67220a202020207d2c0a20202020226964223a20226d6f6875692e6865726f222c0a20202020226e616d65223a2022e4bea0e5aea2222c0a2020202022706f72747261697473223a207b0a202020202020226861707079223a202268617070792e706e67222c0a202020202020226e6f726d616c223a20226e6f726d616c2e706e67220a202020207d2c0a2020202022736368656d61223a20312c0a20202020227469746c65223a2022e5b091e4bea0222c0a202020202274797065223a2022636861726163746572220a20207d2c0a2020226e616d65223a2022e4bea0e5aea2222c0a20202274797065223a2022636861726163746572222c0a20202276657273696f6e223a2022312e322e33220a7d0a",
+        "files/happy.png": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63f8cfc00000000300010005fed4ef0000000049454e44ae426082",
+        "files/normal.png": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63f8cfc00000000300010005fed4ef0000000049454e44ae426082",
+        "package-content.sha256": "616c676f726974686d3d6c6f6d2d656e7472792d7368613235362d76310a7368613235363d303638343930414135313142343643334445384537463741464246383031363944384530324134423838333134343342343938324345344338413244413536410a"
+      }
+    },
+    {
+      "mode": "inspect",
+      "registry": {
+        "assets/user/audio/mohui.voice/.lomcontent.json": "7b0a202022617574686f72223a2022e5a2a8e7bb98222c0a202022636f6e74656e745f7061636b5f666f726d6174223a20312c0a202022646570656e64656e63696573223a205b5d2c0a2020226c6963656e7365223a202243432d42592d342e30222c0a2020226c6f676963616c5f636f6e74656e745f68617368223a202231443744364336333841344231434138424534373732344635413932344533423233443236353736413046443645423730313430363738334438443137354238222c0a2020227061636b6167655f736861323536223a202239313430303934373732414241364538444537383436303535444345333534364643453046423834323832433031394641323445463942423730414433374631222c0a20202276657273696f6e223a2022312e322e33220a7d0a",
+        "assets/user/audio/mohui.voice/content.json": "7b0a202022617564696f5f6b696e64223a2022736f756e64222c0a202022636f6e74656e745f736368656d61223a20312c0a20202266696c6573223a207b0a20202020226d61696e223a2022766f6963652e776176220a20207d2c0a2020226964223a20226d6f6875692e766f696365222c0a2020226e616d65223a2022e8afade99fb3222c0a202022736368656d61223a20312c0a20202274797065223a2022617564696f220a7d0a",
+        "assets/user/audio/mohui.voice/voice.wav": "524946460400000057415645",
+        "assets/user/character/mohui.hero/content.json": "7b0a202022736368656d61223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a2020226964223a20226d6f6875692e6865726f222c0a20202274797065223a2022636861726163746572222c0a2020226e616d65223a2022e4bea0e5aea2222c0a20202266696c6573223a207b0a20202020226d61696e223a20226e6f726d616c2e706e67220a20207d2c0a202022706f72747261697473223a207b0a20202020226e6f726d616c223a20226e6f726d616c2e706e67222c0a20202020226861707079223a202268617070792e706e67220a20207d2c0a2020227469746c65223a2022e5b091e4bea0220a7d0a",
+        "assets/user/character/mohui.hero/happy.png": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63f8cfc00000000300010005fed4ef0000000049454e44ae426082",
+        "assets/user/character/mohui.hero/normal.png": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63f8cfc00000000300010005fed4ef0000000049454e44ae426082",
+        "registry.json": "7b0a202022736368656d61223a20312c0a20202264656661756c745f6e616d657370616365223a20226d6f687569363636222c0a202022636f6e74656e7473223a205b0a202020207b0a202020202020226964223a20226d6f6875692e766f696365222c0a2020202020202274797065223a2022617564696f220a202020207d2c0a202020207b0a202020202020226964223a20226d6f6875692e6865726f222c0a2020202020202274797065223a2022636861726163746572220a202020207d0a20205d0a7d0a"
+      },
+      "archive": "504b030414000000080000002100603373ed5d0100002b03000011000000636f6e74656e742d7061636b2e6a736f6ebd514b4ec33014dcf71451d66d70d27c08bbc469ef8010aa2cc7c5168963392e52a97a08762c5157ac107b244e43c5356a3b6a6945e8122f2c79def3ccbc79ab81e3b868a16823dd2bc7dd6e5ebf3f9edda14171c315e16a2610be9fcd1b5923a55bfc935a8b29a9d1012e8920bc241c33d26af0e6d6a27356754ffd709c95bd352c90a246d3962fb811a83cc1efacbaed68290aa2d8f46430898a30832003711cc3690ef2cb7092f85191a5210030d2c72f72984c823c9a041998a6c5780c92380dd228d41c3f9cec9168c60458603d3ce789222196ff6e49df5d6eac343a754317cca34436dd5a2a86096fcd0717c2517e3d0a3dd0556aa2508994594737d01f6b3a5ac961f01a316e288fd6701c50bf178d73545b2b5f9f2fdbb7cd1e158d541231752261d334bd3db176b2e70cfc1a41315559e9edfb9356df4baba5b028a64822ac88343496a4cf6b4fbb851f886c596313f1bdc01bbb83f56007504b03042d0000000800000021001867045effffffffffffffff0f00140066696c65732f68617070792e706e670100100046000000000000003f00000000000000eb0cf073e7e592e2626060e0f5f4700902d28c20ccc10424279407df03523c9e2e8e211573927f9c3f00e4310315b0febbf21ec864f074f57359e794d00400504b03042d0000000800000021001867045effffffffffffffff1000140066696c65732f6e6f726d616c2e706e670100100046000000000000003f00000000000000eb0cf073e7e592e2626060e0f5f4700902d28c20ccc10424279407df03523c9e2e8e211573927f9c3f00e4310315b0febbf21ec864f074f57359e794d00400504b03041400000008000000210062ab90c55d00000066000000160000007061636b6167652d636f6e74656e742e73686132353625c63b0e80200c00d0ddbb905028b50c0ce5770f06a326a2891a136fefe09b5edbe6e35cefa587ede86adaeff355d7d28c23f5c0f02f6862f45ac40144a46473e132d6516aacac817ce6a28d6064b68068237a36a9606231591cc9f001504b0102140314000000080000002100603373ed5d0100002b030000110000000000000000000000a48100000000636f6e74656e742d7061636b2e6a736f6e504b01022d032d0000000800000021001867045e3f000000460000000f0000000000000000000000a4818c01000066696c65732f68617070792e706e67504b01022d032d0000000800000021001867045e3f00000046000000100000000000000000000000a4810c02000066696c65732f6e6f726d616c2e706e67504b010214031400000008000000210062ab90c55d00000066000000160000000000000000000000a4818d0200007061636b6167652d636f6e74656e742e736861323536504b05060000000004000400fe0000001e0300000000",
+      "valid": true,
+      "result": {
+        "content_id": "mohui.hero",
+        "content_type": "character",
+        "version": "1.2.3",
+        "author": "墨绘",
+        "license": "CC-BY-4.0",
+        "name": "侠客",
+        "files": [
+          {
+            "path": "files/normal.png",
+            "size": 70,
+            "sha256": "AC75D4AC0A0666CFB0B84E715DA9400C55551DBC7E2B5E2A0F9D330769295456"
+          },
+          {
+            "path": "files/happy.png",
+            "size": 70,
+            "sha256": "AC75D4AC0A0666CFB0B84E715DA9400C55551DBC7E2B5E2A0F9D330769295456"
+          }
+        ],
+        "package_sha256": "F990FAA3371D33BD708DD9C51EBC867DE46370DDF8E0A3E06F6BF04AAF9DCA94",
+        "logical_content_hash": "068490AA511B46C3DE8E7F7AFBF80169D8E02A4B8831443B4982CE4C8A2DA56A",
+        "dependencies": [],
+        "missing_dependencies": [],
+        "collision_type": "character"
+      }
+    },
+    {
+      "mode": "inspect",
+      "registry": {
+        "assets/user/audio/mohui.voice/.lomcontent.json": "7b0a202022617574686f72223a2022e5a2a8e7bb98222c0a202022636f6e74656e745f7061636b5f666f726d6174223a20312c0a202022646570656e64656e63696573223a205b5d2c0a2020226c6963656e7365223a202243432d42592d342e30222c0a2020226c6f676963616c5f636f6e74656e745f68617368223a202231443744364336333841344231434138424534373732344635413932344533423233443236353736413046443645423730313430363738334438443137354238222c0a2020227061636b6167655f736861323536223a202239313430303934373732414241364538444537383436303535444345333534364643453046423834323832433031394641323445463942423730414433374631222c0a20202276657273696f6e223a2022312e322e33220a7d0a",
+        "assets/user/audio/mohui.voice/content.json": "7b0a202022617564696f5f6b696e64223a2022736f756e64222c0a202022636f6e74656e745f736368656d61223a20312c0a20202266696c6573223a207b0a20202020226d61696e223a2022766f6963652e776176220a20207d2c0a2020226964223a20226d6f6875692e766f696365222c0a2020226e616d65223a2022e8afade99fb3222c0a202022736368656d61223a20312c0a20202274797065223a2022617564696f220a7d0a",
+        "assets/user/audio/mohui.voice/voice.wav": "524946460400000057415645",
+        "registry.json": "7b0a202022736368656d61223a20312c0a20202264656661756c745f6e616d657370616365223a20226d6f687569363636222c0a202022636f6e74656e7473223a205b0a202020207b0a202020202020226964223a20226d6f6875692e766f696365222c0a2020202020202274797065223a2022617564696f220a202020207d0a20205d0a7d0a"
+      },
+      "archive": "504b030414000000080000002100603373ed5d0100002b03000011000000636f6e74656e742d7061636b2e6a736f6ebd514b4ec33014dcf71451d66d70d27c08bbc469ef8010aa2cc7c5168963392e52a97a08762c5157ac107b244e43c5356a3b6a6945e8122f2c79def3ccbc79ab81e3b868a16823dd2bc7dd6e5ebf3f9edda14171c315e16a2610be9fcd1b5923a55bfc935a8b29a9d1012e8920bc241c33d26af0e6d6a27356754ffd709c95bd352c90a246d3962fb811a83cc1efacbaed68290aa2d8f46430898a30832003711cc3690ef2cb7092f85191a5210030d2c72f72984c823c9a041998a6c5780c92380dd228d41c3f9cec9168c60458603d3ce789222196ff6e49df5d6eac343a754317cca34436dd5a2a86096fcd0717c2517e3d0a3dd0556aa2508994594737d01f6b3a5ac961f01a316e288fd6701c50bf178d73545b2b5f9f2fdbb7cd1e158d541231752261d334bd3db176b2e70cfc1a41315559e9edfb9356df4baba5b028a64822ac88343496a4cf6b4fbb851f886c596313f1bdc01bbb83f56007504b03042d0000000800000021001867045effffffffffffffff0f00140066696c65732f68617070792e706e670100100046000000000000003f00000000000000eb0cf073e7e592e2626060e0f5f4700902d28c20ccc10424279407df03523c9e2e8e211573927f9c3f00e4310315b0febbf21ec864f074f57359e794d00400504b03042d0000000800000021001867045effffffffffffffff1000140066696c65732f6e6f726d616c2e706e670100100046000000000000003f00000000000000eb0cf073e7e592e2626060e0f5f4700902d28c20ccc10424279407df03523c9e2e8e211573927f9c3f00e4310315b0febbf21ec864f074f57359e794d00400504b03041400000008000000210062ab90c55d00000066000000160000007061636b6167652d636f6e74656e742e73686132353625c63b0e80200c00d0ddbb905028b50c0ce5770f06a326a2891a136fefe09b5edbe6e35cefa587ede86adaeff355d7d28c23f5c0f02f6862f45ac40144a46473e132d6516aacac817ce6a28d6064b68068237a36a9606231591cc9f001504b0102140314000000080000002100603373ed5d0100002b030000110000000000000000000000a48100000000636f6e74656e742d7061636b2e6a736f6e504b01022d032d0000000800000021001867045e3f000000460000000f0000000000000000000000a4818c01000066696c65732f68617070792e706e67504b01022d032d0000000800000021001867045e3f00000046000000100000000000000000000000a4810c02000066696c65732f6e6f726d616c2e706e67504b010214031400000008000000210062ab90c55d00000066000000160000000000000000000000a4818d0200007061636b6167652d636f6e74656e742e736861323536504b05060000000004000400fe0000001e0300000000",
+      "valid": true,
+      "result": {
+        "content_id": "mohui.hero",
+        "content_type": "character",
+        "version": "1.2.3",
+        "author": "墨绘",
+        "license": "CC-BY-4.0",
+        "name": "侠客",
+        "files": [
+          {
+            "path": "files/normal.png",
+            "size": 70,
+            "sha256": "AC75D4AC0A0666CFB0B84E715DA9400C55551DBC7E2B5E2A0F9D330769295456"
+          },
+          {
+            "path": "files/happy.png",
+            "size": 70,
+            "sha256": "AC75D4AC0A0666CFB0B84E715DA9400C55551DBC7E2B5E2A0F9D330769295456"
+          }
+        ],
+        "package_sha256": "F990FAA3371D33BD708DD9C51EBC867DE46370DDF8E0A3E06F6BF04AAF9DCA94",
+        "logical_content_hash": "068490AA511B46C3DE8E7F7AFBF80169D8E02A4B8831443B4982CE4C8A2DA56A",
+        "dependencies": [],
+        "missing_dependencies": [],
+        "collision_type": null
+      }
+    },
+    {
+      "mode": "export",
+      "registry": {
+        "assets/user/audio/mohui.voice/.lomcontent.json": "7b0a202022617574686f72223a2022e5a2a8e7bb98222c0a202022636f6e74656e745f7061636b5f666f726d6174223a20312c0a202022646570656e64656e63696573223a205b5d2c0a2020226c6963656e7365223a202243432d42592d342e30222c0a2020226c6f676963616c5f636f6e74656e745f68617368223a202231443744364336333841344231434138424534373732344635413932344533423233443236353736413046443645423730313430363738334438443137354238222c0a2020227061636b6167655f736861323536223a202239313430303934373732414241364538444537383436303535444345333534364643453046423834323832433031394641323445463942423730414433374631222c0a20202276657273696f6e223a2022312e322e33220a7d0a",
+        "assets/user/audio/mohui.voice/content.json": "7b0a202022617564696f5f6b696e64223a2022736f756e64222c0a202022636f6e74656e745f736368656d61223a20312c0a20202266696c6573223a207b0a20202020226d61696e223a2022766f6963652e776176220a20207d2c0a2020226964223a20226d6f6875692e766f696365222c0a2020226e616d65223a2022e8afade99fb3222c0a202022736368656d61223a20312c0a20202274797065223a2022617564696f220a7d0a",
+        "assets/user/audio/mohui.voice/voice.wav": "524946460400000057415645",
+        "assets/user/character/mohui.hero/.lomcontent.json": "7b0a202022617574686f72223a2022e5a2a8e7bb98222c0a202022636f6e74656e745f7061636b5f666f726d6174223a20312c0a202022646570656e64656e63696573223a205b5d2c0a2020226c6963656e7365223a202243432d42592d342e30222c0a2020226c6f676963616c5f636f6e74656e745f68617368223a202230363834393041413531314234364333444538453746374146424638303136394438453032413442383833313434334234393832434534433841324441353641222c0a2020227061636b6167655f736861323536223a202246393930464141333337314433334244373038444439433531454243383637444534363337304444463845304133453036463642463034414146394443413934222c0a20202276657273696f6e223a2022312e322e33220a7d0a",
+        "assets/user/character/mohui.hero/content.json": "7b0a202022636f6e74656e745f736368656d61223a20312c0a20202266696c6573223a207b0a20202020226d61696e223a20226e6f726d616c2e706e67220a20207d2c0a2020226964223a20226d6f6875692e6865726f222c0a2020226e616d65223a2022e4bea0e5aea2222c0a202022706f72747261697473223a207b0a20202020226861707079223a202268617070792e706e67222c0a20202020226e6f726d616c223a20226e6f726d616c2e706e67220a20207d2c0a202022736368656d61223a20312c0a2020227469746c65223a2022e5b091e4bea0222c0a20202274797065223a2022636861726163746572220a7d0a",
+        "assets/user/character/mohui.hero/happy.png": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63f8cfc00000000300010005fed4ef0000000049454e44ae426082",
+        "assets/user/character/mohui.hero/normal.png": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63f8cfc00000000300010005fed4ef0000000049454e44ae426082",
+        "assets/user/image/mohui.background/background.jpg": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63f8cfc00000000300010005fed4ef0000000049454e44ae426082",
+        "assets/user/image/mohui.background/content.json": "7b0a202022736368656d61223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a2020226964223a20226d6f6875692e6261636b67726f756e64222c0a20202274797065223a2022696d616765222c0a2020226e616d65223a2022e8838ce699af222c0a20202266696c6573223a207b0a20202020226d61696e223a20226261636b67726f756e642e6a7067220a20207d0a7d0a",
+        "registry.json": "7b0a202022736368656d61223a20312c0a20202264656661756c745f6e616d657370616365223a20226d6f687569363636222c0a202022636f6e74656e7473223a205b0a202020207b0a202020202020226964223a20226d6f6875692e766f696365222c0a2020202020202274797065223a2022617564696f220a202020207d2c0a202020207b0a202020202020226964223a20226d6f6875692e6865726f222c0a2020202020202274797065223a2022636861726163746572220a202020207d2c0a202020207b0a202020202020226964223a20226d6f6875692e6261636b67726f756e64222c0a2020202020202274797065223a2022696d616765220a202020207d0a20205d0a7d0a"
+      },
+      "id": "mohui.background",
+      "args": {
+        "version": "1.2.3",
+        "author": "墨绘",
+        "license_name": "CC-BY-4.0"
+      },
+      "valid": true,
+      "entries": {
+        "content-pack.json": "7b0a202022617574686f72223a2022e5a2a8e7bb98222c0a202022636f6e74656e745f7061636b5f666f726d6174223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a202022646570656e64656e63696573223a205b5d2c0a20202266696c6573223a205b0a202020207b0a2020202020202270617468223a202266696c65732f6261636b67726f756e642e6a7067222c0a20202020202022736861323536223a202241433735443441433041303636364346423042383445373135444139343030433535353531444243374532423545324130463944333330373639323935343536222c0a2020202020202273697a65223a2037300a202020207d0a20205d2c0a2020226964223a20226d6f6875692e6261636b67726f756e64222c0a2020226c6963656e7365223a202243432d42592d342e30222c0a2020226d65746164617461223a207b0a2020202022636f6e74656e745f736368656d61223a20312c0a202020202266696c6573223a207b0a202020202020226d61696e223a20226261636b67726f756e642e6a7067220a202020207d2c0a20202020226964223a20226d6f6875692e6261636b67726f756e64222c0a20202020226e616d65223a2022e8838ce699af222c0a2020202022736368656d61223a20312c0a202020202274797065223a2022696d616765220a20207d2c0a2020226e616d65223a2022e8838ce699af222c0a20202274797065223a2022696d616765222c0a20202276657273696f6e223a2022312e322e33220a7d0a",
+        "files/background.jpg": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63f8cfc00000000300010005fed4ef0000000049454e44ae426082",
+        "package-content.sha256": "616c676f726974686d3d6c6f6d2d656e7472792d7368613235362d76310a7368613235363d334533464543433742443536303630453331313536353241333333464630324246463739454539433136363536433733373444413537333839423938413841310a"
+      }
+    },
+    {
+      "mode": "inspect",
+      "registry": {
+        "assets/user/audio/mohui.voice/.lomcontent.json": "7b0a202022617574686f72223a2022e5a2a8e7bb98222c0a202022636f6e74656e745f7061636b5f666f726d6174223a20312c0a202022646570656e64656e63696573223a205b5d2c0a2020226c6963656e7365223a202243432d42592d342e30222c0a2020226c6f676963616c5f636f6e74656e745f68617368223a202231443744364336333841344231434138424534373732344635413932344533423233443236353736413046443645423730313430363738334438443137354238222c0a2020227061636b6167655f736861323536223a202239313430303934373732414241364538444537383436303535444345333534364643453046423834323832433031394641323445463942423730414433374631222c0a20202276657273696f6e223a2022312e322e33220a7d0a",
+        "assets/user/audio/mohui.voice/content.json": "7b0a202022617564696f5f6b696e64223a2022736f756e64222c0a202022636f6e74656e745f736368656d61223a20312c0a20202266696c6573223a207b0a20202020226d61696e223a2022766f6963652e776176220a20207d2c0a2020226964223a20226d6f6875692e766f696365222c0a2020226e616d65223a2022e8afade99fb3222c0a202022736368656d61223a20312c0a20202274797065223a2022617564696f220a7d0a",
+        "assets/user/audio/mohui.voice/voice.wav": "524946460400000057415645",
+        "assets/user/character/mohui.hero/.lomcontent.json": "7b0a202022617574686f72223a2022e5a2a8e7bb98222c0a202022636f6e74656e745f7061636b5f666f726d6174223a20312c0a202022646570656e64656e63696573223a205b5d2c0a2020226c6963656e7365223a202243432d42592d342e30222c0a2020226c6f676963616c5f636f6e74656e745f68617368223a202230363834393041413531314234364333444538453746374146424638303136394438453032413442383833313434334234393832434534433841324441353641222c0a2020227061636b6167655f736861323536223a202246393930464141333337314433334244373038444439433531454243383637444534363337304444463845304133453036463642463034414146394443413934222c0a20202276657273696f6e223a2022312e322e33220a7d0a",
+        "assets/user/character/mohui.hero/content.json": "7b0a202022636f6e74656e745f736368656d61223a20312c0a20202266696c6573223a207b0a20202020226d61696e223a20226e6f726d616c2e706e67220a20207d2c0a2020226964223a20226d6f6875692e6865726f222c0a2020226e616d65223a2022e4bea0e5aea2222c0a202022706f72747261697473223a207b0a20202020226861707079223a202268617070792e706e67222c0a20202020226e6f726d616c223a20226e6f726d616c2e706e67220a20207d2c0a202022736368656d61223a20312c0a2020227469746c65223a2022e5b091e4bea0222c0a20202274797065223a2022636861726163746572220a7d0a",
+        "assets/user/character/mohui.hero/happy.png": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63f8cfc00000000300010005fed4ef0000000049454e44ae426082",
+        "assets/user/character/mohui.hero/normal.png": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63f8cfc00000000300010005fed4ef0000000049454e44ae426082",
+        "assets/user/image/mohui.background/background.jpg": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63f8cfc00000000300010005fed4ef0000000049454e44ae426082",
+        "assets/user/image/mohui.background/content.json": "7b0a202022736368656d61223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a2020226964223a20226d6f6875692e6261636b67726f756e64222c0a20202274797065223a2022696d616765222c0a2020226e616d65223a2022e8838ce699af222c0a20202266696c6573223a207b0a20202020226d61696e223a20226261636b67726f756e642e6a7067220a20207d0a7d0a",
+        "registry.json": "7b0a202022736368656d61223a20312c0a20202264656661756c745f6e616d657370616365223a20226d6f687569363636222c0a202022636f6e74656e7473223a205b0a202020207b0a202020202020226964223a20226d6f6875692e766f696365222c0a2020202020202274797065223a2022617564696f220a202020207d2c0a202020207b0a202020202020226964223a20226d6f6875692e6865726f222c0a2020202020202274797065223a2022636861726163746572220a202020207d2c0a202020207b0a202020202020226964223a20226d6f6875692e6261636b67726f756e64222c0a2020202020202274797065223a2022696d616765220a202020207d0a20205d0a7d0a"
+      },
+      "archive": "504b030414000000080000002100735800df360100003a02000011000000636f6e74656e742d7061636b2e6a736f6e7d504b4ec33014dcf71491d734387fc22e71d23b20842a93b889a1b6a3c44182aa2bb61c00b6acd87100cec3e718f8032d948f174ff2bc79f3e6cd6ae238008fb2153d3874c0f3fdc3ebd32dd8d36825b8245cce3b5c9dcf17a267582a8af7ad37542d617803d7a423bc26bca26450e0f18941177469bfeae3382b5315dc61d9ea9da6bd7faab634bd1879ed9e758d716058438bfd28d6bc0c255111660866308e6334cb617e1096891715591a428822f5bc224749e9e751e96770961641009338f5d328541a5b4d7a459462020db056d51aa5b5dec3443b5277ebc7a6b1a415e1831e03084df3a369e842db6144e21a4b9d82bded8f74be24b1c98061cab5e4cef5d6d7c7d03fae549763664cbd5ddfbcdc3d7ea23f36cbcbced028c30dd1fa46fdb7e91daa812e483f50619c7aaeef0660b29ebc03504b03042d0000000800000021001867045effffffffffffffff1400140066696c65732f6261636b67726f756e642e6a70670100100046000000000000003f00000000000000eb0cf073e7e592e2626060e0f5f4700902d28c20ccc10424279407df03523c9e2e8e211573927f9c3f00e4310315b0febbf21ec864f074f57359e794d00400504b03041400000008000000210063cf10ca5d00000066000000160000007061636b6167652d636f6e74656e742e73686132353625c63b0a80300c00d0ddbb149ac624ede0d0d6e41e0ea2821f5011bcbd836f7ac33a1de772cf5bb71e9b1bf7fb7cdd350f81d83dd0fceb50d1b456293db167af08404c2123a2990fc54c926aaac04c5c05a5ed3309c65452cc3143f301504b0102140314000000080000002100735800df360100003a020000110000000000000000000000a48100000000636f6e74656e742d7061636b2e6a736f6e504b01022d032d0000000800000021001867045e3f00000046000000140000000000000000000000a4816501000066696c65732f6261636b67726f756e642e6a7067504b010214031400000008000000210063cf10ca5d00000066000000160000000000000000000000a481ea0100007061636b6167652d636f6e74656e742e736861323536504b05060000000003000300c50000007b0200000000",
+      "valid": true,
+      "result": {
+        "content_id": "mohui.background",
+        "content_type": "image",
+        "version": "1.2.3",
+        "author": "墨绘",
+        "license": "CC-BY-4.0",
+        "name": "背景",
+        "files": [
+          {
+            "path": "files/background.jpg",
+            "size": 70,
+            "sha256": "AC75D4AC0A0666CFB0B84E715DA9400C55551DBC7E2B5E2A0F9D330769295456"
+          }
+        ],
+        "package_sha256": "9E2A4EE58AAC196F72FD5DFDDC2F436FE2EAA664DF00992E66775D557E4A58A9",
+        "logical_content_hash": "3E3FECC7BD56060E3115652A333FF02BFF79EE9C16656C7374DA57389B98A8A1",
+        "dependencies": [],
+        "missing_dependencies": [],
+        "collision_type": "image"
+      }
+    },
+    {
+      "mode": "inspect",
+      "registry": {
+        "assets/user/audio/mohui.voice/.lomcontent.json": "7b0a202022617574686f72223a2022e5a2a8e7bb98222c0a202022636f6e74656e745f7061636b5f666f726d6174223a20312c0a202022646570656e64656e63696573223a205b5d2c0a2020226c6963656e7365223a202243432d42592d342e30222c0a2020226c6f676963616c5f636f6e74656e745f68617368223a202231443744364336333841344231434138424534373732344635413932344533423233443236353736413046443645423730313430363738334438443137354238222c0a2020227061636b6167655f736861323536223a202239313430303934373732414241364538444537383436303535444345333534364643453046423834323832433031394641323445463942423730414433374631222c0a20202276657273696f6e223a2022312e322e33220a7d0a",
+        "assets/user/audio/mohui.voice/content.json": "7b0a202022617564696f5f6b696e64223a2022736f756e64222c0a202022636f6e74656e745f736368656d61223a20312c0a20202266696c6573223a207b0a20202020226d61696e223a2022766f6963652e776176220a20207d2c0a2020226964223a20226d6f6875692e766f696365222c0a2020226e616d65223a2022e8afade99fb3222c0a202022736368656d61223a20312c0a20202274797065223a2022617564696f220a7d0a",
+        "assets/user/audio/mohui.voice/voice.wav": "524946460400000057415645",
+        "assets/user/character/mohui.hero/.lomcontent.json": "7b0a202022617574686f72223a2022e5a2a8e7bb98222c0a202022636f6e74656e745f7061636b5f666f726d6174223a20312c0a202022646570656e64656e63696573223a205b5d2c0a2020226c6963656e7365223a202243432d42592d342e30222c0a2020226c6f676963616c5f636f6e74656e745f68617368223a202230363834393041413531314234364333444538453746374146424638303136394438453032413442383833313434334234393832434534433841324441353641222c0a2020227061636b6167655f736861323536223a202246393930464141333337314433334244373038444439433531454243383637444534363337304444463845304133453036463642463034414146394443413934222c0a20202276657273696f6e223a2022312e322e33220a7d0a",
+        "assets/user/character/mohui.hero/content.json": "7b0a202022636f6e74656e745f736368656d61223a20312c0a20202266696c6573223a207b0a20202020226d61696e223a20226e6f726d616c2e706e67220a20207d2c0a2020226964223a20226d6f6875692e6865726f222c0a2020226e616d65223a2022e4bea0e5aea2222c0a202022706f72747261697473223a207b0a20202020226861707079223a202268617070792e706e67222c0a20202020226e6f726d616c223a20226e6f726d616c2e706e67220a20207d2c0a202022736368656d61223a20312c0a2020227469746c65223a2022e5b091e4bea0222c0a20202274797065223a2022636861726163746572220a7d0a",
+        "assets/user/character/mohui.hero/happy.png": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63f8cfc00000000300010005fed4ef0000000049454e44ae426082",
+        "assets/user/character/mohui.hero/normal.png": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63f8cfc00000000300010005fed4ef0000000049454e44ae426082",
+        "registry.json": "7b0a202022736368656d61223a20312c0a20202264656661756c745f6e616d657370616365223a20226d6f687569363636222c0a202022636f6e74656e7473223a205b0a202020207b0a202020202020226964223a20226d6f6875692e766f696365222c0a2020202020202274797065223a2022617564696f220a202020207d2c0a202020207b0a202020202020226964223a20226d6f6875692e6865726f222c0a2020202020202274797065223a2022636861726163746572220a202020207d0a20205d0a7d0a"
+      },
+      "archive": "504b030414000000080000002100735800df360100003a02000011000000636f6e74656e742d7061636b2e6a736f6e7d504b4ec33014dcf71491d734387fc22e71d23b20842a93b889a1b6a3c44182aa2bb61c00b6acd87100cec3e718f8032d948f174ff2bc79f3e6cd6ae238008fb2153d3874c0f3fdc3ebd32dd8d36825b8245cce3b5c9dcf17a267582a8af7ad37542d617803d7a423bc26bca26450e0f18941177469bfeae3382b5315dc61d9ea9da6bd7faab634bd1879ed9e758d716058438bfd28d6bc0c255111660866308e6334cb617e1096891715591a428822f5bc224749e9e751e96770961641009338f5d328541a5b4d7a459462020db056d51aa5b5dec3443b5277ebc7a6b1a415e1831e03084df3a369e842db6144e21a4b9d82bded8f74be24b1c98061cab5e4cef5d6d7c7d03fae549763664cbd5ddfbcdc3d7ea23f36cbcbced028c30dd1fa46fdb7e91daa812e483f50619c7aaeef0660b29ebc03504b03042d0000000800000021001867045effffffffffffffff1400140066696c65732f6261636b67726f756e642e6a70670100100046000000000000003f00000000000000eb0cf073e7e592e2626060e0f5f4700902d28c20ccc10424279407df03523c9e2e8e211573927f9c3f00e4310315b0febbf21ec864f074f57359e794d00400504b03041400000008000000210063cf10ca5d00000066000000160000007061636b6167652d636f6e74656e742e73686132353625c63b0a80300c00d0ddbb149ac624ede0d0d6e41e0ea2821f5011bcbd836f7ac33a1de772cf5bb71e9b1bf7fb7cdd350f81d83dd0fceb50d1b456293db167af08404c2123a2990fc54c926aaac04c5c05a5ed3309c65452cc3143f301504b0102140314000000080000002100735800df360100003a020000110000000000000000000000a48100000000636f6e74656e742d7061636b2e6a736f6e504b01022d032d0000000800000021001867045e3f00000046000000140000000000000000000000a4816501000066696c65732f6261636b67726f756e642e6a7067504b010214031400000008000000210063cf10ca5d00000066000000160000000000000000000000a481ea0100007061636b6167652d636f6e74656e742e736861323536504b05060000000003000300c50000007b0200000000",
+      "valid": true,
+      "result": {
+        "content_id": "mohui.background",
+        "content_type": "image",
+        "version": "1.2.3",
+        "author": "墨绘",
+        "license": "CC-BY-4.0",
+        "name": "背景",
+        "files": [
+          {
+            "path": "files/background.jpg",
+            "size": 70,
+            "sha256": "AC75D4AC0A0666CFB0B84E715DA9400C55551DBC7E2B5E2A0F9D330769295456"
+          }
+        ],
+        "package_sha256": "9E2A4EE58AAC196F72FD5DFDDC2F436FE2EAA664DF00992E66775D557E4A58A9",
+        "logical_content_hash": "3E3FECC7BD56060E3115652A333FF02BFF79EE9C16656C7374DA57389B98A8A1",
+        "dependencies": [],
+        "missing_dependencies": [],
+        "collision_type": null
+      }
+    },
+    {
+      "mode": "export",
+      "registry": {
+        "assets/user/audio/mohui.same/content.json": "7b0a202022736368656d61223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a2020226964223a20226d6f6875692e73616d65222c0a20202274797065223a2022617564696f222c0a2020226e616d65223a2022e58e9fe58685e5aeb9222c0a20202266696c6573223a207b0a20202020226d61696e223a2022766f6963652e776176220a20207d2c0a202022617564696f5f6b696e64223a2022736f756e64220a7d0a",
+        "assets/user/audio/mohui.same/voice.wav": "524946460400000057415645",
+        "registry.json": "7b0a202022736368656d61223a20312c0a20202264656661756c745f6e616d657370616365223a20226d6f687569363636222c0a202022636f6e74656e7473223a205b0a202020207b0a202020202020226964223a20226d6f6875692e73616d65222c0a2020202020202274797065223a2022617564696f220a202020207d0a20205d0a7d0a"
+      },
+      "id": "mohui.same",
+      "args": {
+        "version": "1.0.0",
+        "author": "tester",
+        "license_name": "MIT"
+      },
+      "valid": true,
+      "entries": {
+        "content-pack.json": "7b0a202022617574686f72223a2022746573746572222c0a202022636f6e74656e745f7061636b5f666f726d6174223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a202022646570656e64656e63696573223a205b5d2c0a20202266696c6573223a205b0a202020207b0a2020202020202270617468223a202266696c65732f766f6963652e776176222c0a20202020202022736861323536223a202231464535413335314246303331344338413138343042303233464431453443414233463046313233343638393430433234314244374246323045393839414238222c0a2020202020202273697a65223a2031320a202020207d0a20205d2c0a2020226964223a20226d6f6875692e73616d65222c0a2020226c6963656e7365223a20224d4954222c0a2020226d65746164617461223a207b0a2020202022617564696f5f6b696e64223a2022736f756e64222c0a2020202022636f6e74656e745f736368656d61223a20312c0a202020202266696c6573223a207b0a202020202020226d61696e223a2022766f6963652e776176220a202020207d2c0a20202020226964223a20226d6f6875692e73616d65222c0a20202020226e616d65223a2022e58e9fe58685e5aeb9222c0a2020202022736368656d61223a20312c0a202020202274797065223a2022617564696f220a20207d2c0a2020226e616d65223a2022e58e9fe58685e5aeb9222c0a20202274797065223a2022617564696f222c0a20202276657273696f6e223a2022312e302e30220a7d0a",
+        "files/voice.wav": "524946460400000057415645",
+        "package-content.sha256": "616c676f726974686d3d6c6f6d2d656e7472792d7368613235362d76310a7368613235363d424642304433393245433133313634434541344339453330463934384437364537423233374546363542373846364330394235413041373145303842453246350a"
+      }
+    },
+    {
+      "mode": "inspect",
+      "registry": {
+        "assets/user/audio/mohui.same/content.json": "7b0a202022736368656d61223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a2020226964223a20226d6f6875692e73616d65222c0a20202274797065223a2022617564696f222c0a2020226e616d65223a2022e58e9fe58685e5aeb9222c0a20202266696c6573223a207b0a20202020226d61696e223a2022766f6963652e776176220a20207d2c0a202022617564696f5f6b696e64223a2022736f756e64220a7d0a",
+        "assets/user/audio/mohui.same/voice.wav": "524946460400000057415645",
+        "registry.json": "7b0a202022736368656d61223a20312c0a20202264656661756c745f6e616d657370616365223a20226d6f687569363636222c0a202022636f6e74656e7473223a205b0a202020207b0a202020202020226964223a20226d6f6875692e73616d65222c0a2020202020202274797065223a2022617564696f220a202020207d0a20205d0a7d0a"
+      },
+      "archive": "504b030414000000080000002100f6209fc0380100003f02000011000000636f6e74656e742d7061636b2e6a736f6e75504b4ec33014dce71451d628d8f994845d9226120b76ec108aace455b1dad851ec0441d5252cb9023760cf817a0ffc81523edd58f6bcf1ccbcd93aaeeb9149767cf42e5d4f8290307a671a6d3893c0643d90665daff8d813a928f8c74c341df4e400b730006b81351484026fef0cbaa21bfb540fd7dd9a53c103919df634e3f399d306fc7b321b7343101d09e285a6e0aa8cb330c67985421c1549869308e52808ab252ea322cbc30a553808a3459246a808229c2f2ff22a40659aa4599e1c69d247d0710303ecd46933d256fbf4bc9ba82f480fb6828dcac484fee05d5fdd58ac07495a22f5d27615555f4b79bda6cc68083ea98b353cd1d3512787367a4299fefedd834df8c9ff379fc299beabc9fee575fffcb47f7bff1afc71940f83619ab45adc489f10f8c536d00ca3a0dc84c43ef291e7ec9c0f504b03042d00000008000000210027b92371ffffffffffffffff0f00140066696c65732f766f6963652e776176010010000c000000000000000e000000000000000bf274736361606008770c730500504b030414000000080000002100825b9ab35d00000066000000160000007061636b6167652d636f6e74656e742e73686132353625c63b0a80300c00d0ddbb14d25fd20e0e4d9bdcc34154f0032a82b777f04d6f58a7e35cee79ebd76333e37e9fafb9e6c145348fedfef5ac0ccd6727d57a8ba14a09358b07cd21354221769e44313225c50a996381425620b1388ddd07504b0102140314000000080000002100f6209fc0380100003f020000110000000000000000000000a48100000000636f6e74656e742d7061636b2e6a736f6e504b01022d032d00000008000000210027b923710e0000000c0000000f0000000000000000000000a4816701000066696c65732f766f6963652e776176504b0102140314000000080000002100825b9ab35d00000066000000160000000000000000000000a481b60100007061636b6167652d636f6e74656e742e736861323536504b05060000000003000300c0000000470200000000",
+      "valid": true,
+      "result": {
+        "content_id": "mohui.same",
+        "content_type": "audio",
+        "version": "1.0.0",
+        "author": "tester",
+        "license": "MIT",
+        "name": "原内容",
+        "files": [
+          {
+            "path": "files/voice.wav",
+            "size": 12,
+            "sha256": "1FE5A351BF0314C8A1840B023FD1E4CAB3F0F123468940C241BD7BF20E989AB8"
+          }
+        ],
+        "package_sha256": "DD0680B3329ECADE05F3962D1BD329053DDF899EA57C07B61D0603AAA7B3C29B",
+        "logical_content_hash": "BFB0D392EC13164CEA4C9E30F948D76E7B237EF65B78F6C09B5A0A71E08BE2F5",
+        "dependencies": [],
+        "missing_dependencies": [],
+        "collision_type": "audio"
+      }
+    },
+    {
+      "mode": "export",
+      "registry": {
+        "assets/user/audio/mohui.dep/content.json": "7b0a202022736368656d61223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a2020226964223a20226d6f6875692e646570222c0a20202274797065223a2022617564696f222c0a2020226e616d65223a2022e4be9de8b596222c0a20202266696c6573223a207b0a20202020226d61696e223a20226465702e776176220a20207d2c0a202022617564696f5f6b696e64223a2022736f756e64220a7d0a",
+        "assets/user/audio/mohui.dep/dep.wav": "524946460400000057415645",
+        "assets/user/image/mohui.main/content.json": "7b0a202022736368656d61223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a2020226964223a20226d6f6875692e6d61696e222c0a20202274797065223a2022696d616765222c0a2020226e616d65223a2022e4b8bbe58685e5aeb9222c0a20202266696c6573223a207b0a20202020226d61696e223a20226d61696e2e706e67220a20207d0a7d0a",
+        "assets/user/image/mohui.main/main.png": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63f8cfc00000000300010005fed4ef0000000049454e44ae426082",
+        "registry.json": "7b0a202022736368656d61223a20312c0a20202264656661756c745f6e616d657370616365223a20226d6f687569363636222c0a202022636f6e74656e7473223a205b0a202020207b0a202020202020226964223a20226d6f6875692e646570222c0a2020202020202274797065223a2022617564696f220a202020207d2c0a202020207b0a202020202020226964223a20226d6f6875692e6d61696e222c0a2020202020202274797065223a2022696d616765220a202020207d0a20205d0a7d0a"
+      },
+      "id": "mohui.main",
+      "args": {
+        "version": "1.0.0",
+        "author": "tester",
+        "license_name": "MIT",
+        "dependencies": [
+          "user:mohui.dep",
+          "mohui.missing",
+          "mohui.dep"
+        ]
+      },
+      "valid": true,
+      "entries": {
+        "content-pack.json": "7b0a202022617574686f72223a2022746573746572222c0a202022636f6e74656e745f7061636b5f666f726d6174223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a202022646570656e64656e63696573223a205b0a20202020226d6f6875692e646570222c0a20202020226d6f6875692e6d697373696e67220a20205d2c0a20202266696c6573223a205b0a202020207b0a2020202020202270617468223a202266696c65732f6d61696e2e706e67222c0a20202020202022736861323536223a202241433735443441433041303636364346423042383445373135444139343030433535353531444243374532423545324130463944333330373639323935343536222c0a2020202020202273697a65223a2037300a202020207d0a20205d2c0a2020226964223a20226d6f6875692e6d61696e222c0a2020226c6963656e7365223a20224d4954222c0a2020226d65746164617461223a207b0a2020202022636f6e74656e745f736368656d61223a20312c0a202020202266696c6573223a207b0a202020202020226d61696e223a20226d61696e2e706e67220a202020207d2c0a20202020226964223a20226d6f6875692e6d61696e222c0a20202020226e616d65223a2022e4b8bbe58685e5aeb9222c0a2020202022736368656d61223a20312c0a202020202274797065223a2022696d616765220a20207d2c0a2020226e616d65223a2022e4b8bbe58685e5aeb9222c0a20202274797065223a2022696d616765222c0a20202276657273696f6e223a2022312e302e30220a7d0a",
+        "files/main.png": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63f8cfc00000000300010005fed4ef0000000049454e44ae426082",
+        "package-content.sha256": "616c676f726974686d3d6c6f6d2d656e7472792d7368613235362d76310a7368613235363d373044364639444444353831394237454234304542353134434239303435363131453536313033444337373044343234393438433343353830364341463230320a"
+      }
+    },
+    {
+      "mode": "inspect",
+      "registry": {
+        "assets/user/audio/mohui.dep/content.json": "7b0a202022736368656d61223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a2020226964223a20226d6f6875692e646570222c0a20202274797065223a2022617564696f222c0a2020226e616d65223a2022e4be9de8b596222c0a20202266696c6573223a207b0a20202020226d61696e223a20226465702e776176220a20207d2c0a202022617564696f5f6b696e64223a2022736f756e64220a7d0a",
+        "assets/user/audio/mohui.dep/dep.wav": "524946460400000057415645",
+        "assets/user/image/mohui.main/content.json": "7b0a202022736368656d61223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a2020226964223a20226d6f6875692e6d61696e222c0a20202274797065223a2022696d616765222c0a2020226e616d65223a2022e4b8bbe58685e5aeb9222c0a20202266696c6573223a207b0a20202020226d61696e223a20226d61696e2e706e67220a20207d0a7d0a",
+        "assets/user/image/mohui.main/main.png": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63f8cfc00000000300010005fed4ef0000000049454e44ae426082",
+        "registry.json": "7b0a202022736368656d61223a20312c0a20202264656661756c745f6e616d657370616365223a20226d6f687569363636222c0a202022636f6e74656e7473223a205b0a202020207b0a202020202020226964223a20226d6f6875692e646570222c0a2020202020202274797065223a2022617564696f220a202020207d2c0a202020207b0a202020202020226964223a20226d6f6875692e6d61696e222c0a2020202020202274797065223a2022696d616765220a202020207d0a20205d0a7d0a"
+      },
+      "archive": "504b030414000000080000002100e8f48a98360100004a02000011000000636f6e74656e742d7061636b2e6a736f6e7590cb4ec3301045f7fd8acaeb2a38691ea4bbbc2ab160c70ea1ca4aa68d45ed44b18b045597f039ac41fc0efd0fc64e1bcaa35ed8d2b933d777663b1a8f09dbe8bae9c86c4c34280d1d99185a365283d48b9695f78b65d309a6b1c4fda1a9b206c1065c410bb202597250086f9121154dbde10e6ad67700822bc5e58a20bbb3dd4bbe3e69dbda1b71cb746db259f942302e9d16db26475dd5cc0b425391645190fb4946131a8661364f697ae917911be449ec539a0578dc3ccda2c24b83c24be83ccea7531a85b117073e7a7c7bf22740c7885ab01b22f2cafc73c88f49fa4dad7909529906727d75d333019a554c9bddf4939cd9d9c9dcc3c4d679d6bf76d63ec5a1fcdf0cc8251336c2e7dbc7fee579fffa7e14fe7ca81f5b5bc9055b8131b7d6670c7e555bf4009de28dcde83ad4a164b41b7d01504b03042d0000000800000021001867045effffffffffffffff0e00140066696c65732f6d61696e2e706e670100100046000000000000003f00000000000000eb0cf073e7e592e2626060e0f5f4700902d28c20ccc10424279407df03523c9e2e8e211573927f9c3f00e4310315b0febbf21ec864f074f57359e794d00400504b0304140000000800000021008fff6a7a5e00000066000000160000007061636b6167652d636f6e74656e742e73686132353625ca3d0a80300c40e1ddbb14929af46770b049bd8783a8a016aa08de5ec1e5f10d6fdce652d76bd9bbadec663aaefa9873192d3b7363f3abf3a06e88aaca0163f23911e4c4489222103bc4fc055a15ff9d64295290563880937eb0609b17504b0102140314000000080000002100e8f48a98360100004a020000110000000000000000000000a48100000000636f6e74656e742d7061636b2e6a736f6e504b01022d032d0000000800000021001867045e3f000000460000000e0000000000000000000000a4816501000066696c65732f6d61696e2e706e67504b01021403140000000800000021008fff6a7a5e00000066000000160000000000000000000000a481e40100007061636b6167652d636f6e74656e742e736861323536504b05060000000003000300bf000000760200000000",
+      "valid": true,
+      "result": {
+        "content_id": "mohui.main",
+        "content_type": "image",
+        "version": "1.0.0",
+        "author": "tester",
+        "license": "MIT",
+        "name": "主内容",
+        "files": [
+          {
+            "path": "files/main.png",
+            "size": 70,
+            "sha256": "AC75D4AC0A0666CFB0B84E715DA9400C55551DBC7E2B5E2A0F9D330769295456"
+          }
+        ],
+        "package_sha256": "1BF41FC084D0549F19826A459DEDDA29E5FF39FF26DE234978F46B8B8837904C",
+        "logical_content_hash": "70D6F9DDD5819B7EB40EB514CB9045611E56103DC770D424948C3C5806CAF202",
+        "dependencies": [
+          "mohui.dep",
+          "mohui.missing"
+        ],
+        "missing_dependencies": [
+          "mohui.missing"
+        ],
+        "collision_type": "image"
+      }
+    },
+    {
+      "mode": "inspect",
+      "registry": {
+        "assets/user/audio/mohui.dep/content.json": "7b0a202022736368656d61223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a2020226964223a20226d6f6875692e646570222c0a20202274797065223a2022617564696f222c0a2020226e616d65223a2022e4be9de8b596222c0a20202266696c6573223a207b0a20202020226d61696e223a20226465702e776176220a20207d2c0a202022617564696f5f6b696e64223a2022736f756e64220a7d0a",
+        "assets/user/audio/mohui.dep/dep.wav": "524946460400000057415645",
+        "registry.json": "7b0a202022736368656d61223a20312c0a20202264656661756c745f6e616d657370616365223a20226d6f687569363636222c0a202022636f6e74656e7473223a205b0a202020207b0a202020202020226964223a20226d6f6875692e646570222c0a2020202020202274797065223a2022617564696f220a202020207d0a20205d0a7d0a"
+      },
+      "archive": "504b030414000000080000002100e8f48a98360100004a02000011000000636f6e74656e742d7061636b2e6a736f6e7590cb4ec3301045f7fd8acaeb2a38691ea4bbbc2ab160c70ea1ca4aa68d45ed44b18b045597f039ac41fc0efd0fc64e1bcaa35ed8d2b933d777663b1a8f09dbe8bae9c86c4c34280d1d99185a365283d48b9695f78b65d309a6b1c4fda1a9b206c1065c410bb202597250086f9121154dbde10e6ad67700822bc5e58a20bbb3dd4bbe3e69dbda1b71cb746db259f942302e9d16db26475dd5cc0b425391645190fb4946131a8661364f697ae917911be449ec539a0578dc3ccda2c24b83c24be83ccea7531a85b117073e7a7c7bf22740c7885ab01b22f2cafc73c88f49fa4dad7909529906727d75d333019a554c9bddf4939cd9d9c9dcc3c4d679d6bf76d63ec5a1fcdf0cc8251336c2e7dbc7fee579fffa7e14fe7ca81f5b5bc9055b8131b7d6670c7e555bf4009de28dcde83ad4a164b41b7d01504b03042d0000000800000021001867045effffffffffffffff0e00140066696c65732f6d61696e2e706e670100100046000000000000003f00000000000000eb0cf073e7e592e2626060e0f5f4700902d28c20ccc10424279407df03523c9e2e8e211573927f9c3f00e4310315b0febbf21ec864f074f57359e794d00400504b0304140000000800000021008fff6a7a5e00000066000000160000007061636b6167652d636f6e74656e742e73686132353625ca3d0a80300c40e1ddbb14929af46770b049bd8783a8a016aa08de5ec1e5f10d6fdce652d76bd9bbadec663aaefa9873192d3b7363f3abf3a06e88aaca0163f23911e4c4489222103bc4fc055a15ff9d64295290563880937eb0609b17504b0102140314000000080000002100e8f48a98360100004a020000110000000000000000000000a48100000000636f6e74656e742d7061636b2e6a736f6e504b01022d032d0000000800000021001867045e3f000000460000000e0000000000000000000000a4816501000066696c65732f6d61696e2e706e67504b01021403140000000800000021008fff6a7a5e00000066000000160000000000000000000000a481e40100007061636b6167652d636f6e74656e742e736861323536504b05060000000003000300bf000000760200000000",
+      "valid": true,
+      "result": {
+        "content_id": "mohui.main",
+        "content_type": "image",
+        "version": "1.0.0",
+        "author": "tester",
+        "license": "MIT",
+        "name": "主内容",
+        "files": [
+          {
+            "path": "files/main.png",
+            "size": 70,
+            "sha256": "AC75D4AC0A0666CFB0B84E715DA9400C55551DBC7E2B5E2A0F9D330769295456"
+          }
+        ],
+        "package_sha256": "1BF41FC084D0549F19826A459DEDDA29E5FF39FF26DE234978F46B8B8837904C",
+        "logical_content_hash": "70D6F9DDD5819B7EB40EB514CB9045611E56103DC770D424948C3C5806CAF202",
+        "dependencies": [
+          "mohui.dep",
+          "mohui.missing"
+        ],
+        "missing_dependencies": [
+          "mohui.missing"
+        ],
+        "collision_type": null
+      }
+    },
+    {
+      "mode": "export",
+      "registry": {
+        "assets/user/audio/mohui.dep/content.json": "7b0a202022736368656d61223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a2020226964223a20226d6f6875692e646570222c0a20202274797065223a2022617564696f222c0a2020226e616d65223a2022e4be9de8b596222c0a20202266696c6573223a207b0a20202020226d61696e223a20226465702e776176220a20207d2c0a202022617564696f5f6b696e64223a2022736f756e64220a7d0a",
+        "assets/user/audio/mohui.dep/dep.wav": "524946460400000057415645",
+        "assets/user/image/mohui.main/.lomcontent.json": "7b0a202022617574686f72223a2022746573746572222c0a202022636f6e74656e745f7061636b5f666f726d6174223a20312c0a202022646570656e64656e63696573223a205b0a20202020226d6f6875692e646570222c0a20202020226d6f6875692e6d697373696e67220a20205d2c0a2020226c6963656e7365223a20224d4954222c0a2020226c6f676963616c5f636f6e74656e745f68617368223a202237304436463944444435383139423745423430454235313443423930343536313145353631303344433737304434323439343843334335383036434146323032222c0a2020227061636b6167655f736861323536223a202231424634314643303834443035343946313938323641343539444544444132394535464633394646323644453233343937384634364238423838333739303443222c0a20202276657273696f6e223a2022312e302e30220a7d0a",
+        "assets/user/image/mohui.main/content.json": "7b0a202022636f6e74656e745f736368656d61223a20312c0a20202266696c6573223a207b0a20202020226d61696e223a20226d61696e2e706e67220a20207d2c0a2020226964223a20226d6f6875692e6d61696e222c0a2020226e616d65223a2022e4b8bbe58685e5aeb9222c0a202022736368656d61223a20312c0a20202274797065223a2022696d616765220a7d0a",
+        "assets/user/image/mohui.main/main.png": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63f8cfc00000000300010005fed4ef0000000049454e44ae426082",
+        "registry.json": "7b0a202022736368656d61223a20312c0a20202264656661756c745f6e616d657370616365223a20226d6f687569363636222c0a202022636f6e74656e7473223a205b0a202020207b0a202020202020226964223a20226d6f6875692e646570222c0a2020202020202274797065223a2022617564696f220a202020207d2c0a202020207b0a202020202020226964223a20226d6f6875692e6d61696e222c0a2020202020202274797065223a2022696d616765220a202020207d0a20205d0a7d0a"
+      },
+      "id": "mohui.main",
+      "args": {
+        "version": "1.0.0",
+        "author": "tester",
+        "license_name": "MIT",
+        "dependencies": [
+          "user:mohui.main"
+        ]
+      },
+      "valid": false,
+      "error": "内容包不能依赖自己"
+    },
+    {
+      "mode": "export",
+      "registry": {
+        "assets/user/image/mohui.atomic/content.json": "7b0a202022736368656d61223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a2020226964223a20226d6f6875692e61746f6d6963222c0a20202274797065223a2022696d616765222c0a2020226e616d65223a2022e58e9fe5ad90e5afbce585a5222c0a20202266696c6573223a207b0a20202020226d61696e223a2022696d6167652e706e67220a20207d0a7d0a",
+        "assets/user/image/mohui.atomic/image.png": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63f8cfc00000000300010005fed4ef0000000049454e44ae426082",
+        "registry.json": "7b0a202022736368656d61223a20312c0a20202264656661756c745f6e616d657370616365223a20226d6f687569363636222c0a202022636f6e74656e7473223a205b0a202020207b0a202020202020226964223a20226d6f6875692e61746f6d6963222c0a2020202020202274797065223a2022696d616765220a202020207d0a20205d0a7d0a"
+      },
+      "id": "mohui.atomic",
+      "args": {
+        "version": "1.0.0",
+        "author": "tester",
+        "license_name": "MIT"
+      },
+      "valid": true,
+      "entries": {
+        "content-pack.json": "7b0a202022617574686f72223a2022746573746572222c0a202022636f6e74656e745f7061636b5f666f726d6174223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a202022646570656e64656e63696573223a205b5d2c0a20202266696c6573223a205b0a202020207b0a2020202020202270617468223a202266696c65732f696d6167652e706e67222c0a20202020202022736861323536223a202241433735443441433041303636364346423042383445373135444139343030433535353531444243374532423545324130463944333330373639323935343536222c0a2020202020202273697a65223a2037300a202020207d0a20205d2c0a2020226964223a20226d6f6875692e61746f6d6963222c0a2020226c6963656e7365223a20224d4954222c0a2020226d65746164617461223a207b0a2020202022636f6e74656e745f736368656d61223a20312c0a202020202266696c6573223a207b0a202020202020226d61696e223a2022696d6167652e706e67220a202020207d2c0a20202020226964223a20226d6f6875692e61746f6d6963222c0a20202020226e616d65223a2022e58e9fe5ad90e5afbce585a5222c0a2020202022736368656d61223a20312c0a202020202274797065223a2022696d616765220a20207d2c0a2020226e616d65223a2022e58e9fe5ad90e5afbce585a5222c0a20202274797065223a2022696d616765222c0a20202276657273696f6e223a2022312e302e30220a7d0a",
+        "files/image.png": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63f8cfc00000000300010005fed4ef0000000049454e44ae426082",
+        "package-content.sha256": "616c676f726974686d3d6c6f6d2d656e7472792d7368613235362d76310a7368613235363d344443414543424142424534333941373134313632353630373743334241303243443236344144313643383742434443323242313943303732383730363036320a"
+      }
+    },
+    {
+      "mode": "inspect",
+      "registry": {
+        "registry.json": "7b0a202022736368656d61223a20312c0a20202264656661756c745f6e616d657370616365223a20226d6f687569363636222c0a202022636f6e74656e7473223a205b5d0a7d0a"
+      },
+      "archive": "504b03041400000008000000210024a2b5962f0100002e02000011000000636f6e74656e742d7061636b2e6a736f6e7550b94ec43010edf315516a149c6c0e42976b250a3a3a84565632bbb158db51ec4582d596b4883fa0a244fc00bf93ffc0076439141723f9cdcc3b66efb8ae8777b2e38377ee7a128484c13bd168c3990426573d6e6e576b3e502cd548f0ab279a0e289ee0167a602db0868050e0f58d41d7646bbfeae3ba7b5315dc63d9694dd33e25146fc0efd9c6889b01d1e1304ef4485ea67115e525ca519224e5b240c55954a7415ce559845019ab17544599d66111d7618e9659b558a034c9c22c8e14c791933c80624c91010eaa5a8fa4d53a94773be263c92969ec11b6a40126f48a77797165310a12b758ead836cccc397e449f42534c98263bc6b546bee6676ca80ec3d4b8189f5ec6b7e7f1fd637c7cfdeefd9395f73d4c2a5ac1f0cf73fc5930d01d0c82706336f0918f3ce7e07c02504b03042d0000000800000021001867045effffffffffffffff0f00140066696c65732f696d6167652e706e670100100046000000000000003f00000000000000eb0cf073e7e592e2626060e0f5f4700902d28c20ccc10424279407df03523c9e2e8e211573927f9c3f00e4310315b0febbf21ec864f074f57359e794d00400504b030414000000080000002100dc2ac9ae5b00000066000000160000007061636b6167652d636f6e74656e742e73686132353625c83b0a80300c00d0ddbb149258933a3824a90771102bf80115c1db2bb83ddeb04cfb315f65ed967d0de3761d4f38cb400d871bab5f5dccaebd9b9af5b16e5530227f0f225e9b0279268e9a913d89797622c3d64128093030552f504b010214031400000008000000210024a2b5962f0100002e020000110000000000000000000000a48100000000636f6e74656e742d7061636b2e6a736f6e504b01022d032d0000000800000021001867045e3f000000460000000f0000000000000000000000a4815e01000066696c65732f696d6167652e706e67504b0102140314000000080000002100dc2ac9ae5b00000066000000160000000000000000000000a481de0100007061636b6167652d636f6e74656e742e736861323536504b05060000000003000300c00000006d0200000000",
+      "valid": true,
+      "result": {
+        "content_id": "mohui.atomic",
+        "content_type": "image",
+        "version": "1.0.0",
+        "author": "tester",
+        "license": "MIT",
+        "name": "原子导入",
+        "files": [
+          {
+            "path": "files/image.png",
+            "size": 70,
+            "sha256": "AC75D4AC0A0666CFB0B84E715DA9400C55551DBC7E2B5E2A0F9D330769295456"
+          }
+        ],
+        "package_sha256": "E38A226A6B85BC47C06A6B7578D7FF8009445D36E3F25AF73AD8A80C462C715F",
+        "logical_content_hash": "4DCAECBABBE439A71416256077C3BA02CD264AD16C87BCDC22B19C0728706062",
+        "dependencies": [],
+        "missing_dependencies": [],
+        "collision_type": null
+      }
+    },
+    {
+      "mode": "export",
+      "registry": {
+        "assets/user/image/mohui.meta/content.json": "7b0a202022736368656d61223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a2020226964223a20226d6f6875692e6d657461222c0a20202274797065223a2022696d616765222c0a2020226e616d65223a2022e58583e695b0e68dae222c0a20202266696c6573223a207b0a20202020226d61696e223a2022696d6167652e706e67220a20207d0a7d0a",
+        "assets/user/image/mohui.meta/image.png": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63f8cfc00000000300010005fed4ef0000000049454e44ae426082",
+        "registry.json": "7b0a202022736368656d61223a20312c0a20202264656661756c745f6e616d657370616365223a20226d6f687569363636222c0a202022636f6e74656e7473223a205b0a202020207b0a202020202020226964223a20226d6f6875692e6d657461222c0a2020202020202274797065223a2022696d616765220a202020207d0a20205d0a7d0a"
+      },
+      "id": "mohui.meta",
+      "args": {
+        "version": "v1",
+        "author": "tester",
+        "license_name": "MIT"
+      },
+      "valid": false,
+      "error": "内容版本必须是 SemVer，例如 1.0.0 或 1.1.0-beta.1"
+    },
+    {
+      "mode": "export",
+      "registry": {
+        "assets/user/image/mohui.meta/content.json": "7b0a202022736368656d61223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a2020226964223a20226d6f6875692e6d657461222c0a20202274797065223a2022696d616765222c0a2020226e616d65223a2022e58583e695b0e68dae222c0a20202266696c6573223a207b0a20202020226d61696e223a2022696d6167652e706e67220a20207d0a7d0a",
+        "assets/user/image/mohui.meta/image.png": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63f8cfc00000000300010005fed4ef0000000049454e44ae426082",
+        "registry.json": "7b0a202022736368656d61223a20312c0a20202264656661756c745f6e616d657370616365223a20226d6f687569363636222c0a202022636f6e74656e7473223a205b0a202020207b0a202020202020226964223a20226d6f6875692e6d657461222c0a2020202020202274797065223a2022696d616765220a202020207d0a20205d0a7d0a"
+      },
+      "id": "mohui.meta",
+      "args": {
+        "version": "1.0.0-01",
+        "author": "tester",
+        "license_name": "MIT"
+      },
+      "valid": false,
+      "error": "SemVer 的数字预发布标识不能有前导零"
+    },
+    {
+      "mode": "export",
+      "registry": {
+        "assets/user/image/mohui.meta/content.json": "7b0a202022736368656d61223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a2020226964223a20226d6f6875692e6d657461222c0a20202274797065223a2022696d616765222c0a2020226e616d65223a2022e58583e695b0e68dae222c0a20202266696c6573223a207b0a20202020226d61696e223a2022696d6167652e706e67220a20207d0a7d0a",
+        "assets/user/image/mohui.meta/image.png": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63f8cfc00000000300010005fed4ef0000000049454e44ae426082",
+        "registry.json": "7b0a202022736368656d61223a20312c0a20202264656661756c745f6e616d657370616365223a20226d6f687569363636222c0a202022636f6e74656e7473223a205b0a202020207b0a202020202020226964223a20226d6f6875692e6d657461222c0a2020202020202274797065223a2022696d616765220a202020207d0a20205d0a7d0a"
+      },
+      "id": "mohui.meta",
+      "args": {
+        "version": "1.0.0",
+        "author": "bad\nname",
+        "license_name": "MIT"
+      },
+      "valid": false,
+      "error": "作者 不能含换行、控制、零宽或双向格式字符"
+    },
+    {
+      "mode": "export",
+      "registry": {
+        "assets/user/image/mohui.meta/content.json": "7b0a202022736368656d61223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a2020226964223a20226d6f6875692e6d657461222c0a20202274797065223a2022696d616765222c0a2020226e616d65223a2022e58583e695b0e68dae222c0a20202266696c6573223a207b0a20202020226d61696e223a2022696d6167652e706e67220a20207d0a7d0a",
+        "assets/user/image/mohui.meta/image.png": "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753de0000000c49444154789c63f8cfc00000000300010005fed4ef0000000049454e44ae426082",
+        "registry.json": "7b0a202022736368656d61223a20312c0a20202264656661756c745f6e616d657370616365223a20226d6f687569363636222c0a202022636f6e74656e7473223a205b0a202020207b0a202020202020226964223a20226d6f6875692e6d657461222c0a2020202020202274797065223a2022696d616765220a202020207d0a20205d0a7d0a"
+      },
+      "id": "mohui.meta",
+      "args": {
+        "version": "1.0.0",
+        "author": "tester",
+        "license_name": ""
+      },
+      "valid": false,
+      "error": "许可证 必须是非空文本"
+    },
+    {
+      "mode": "export",
+      "registry": {
+        "assets/user/audio/mohui.secure/content.json": "7b0a202022736368656d61223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a2020226964223a20226d6f6875692e736563757265222c0a20202274797065223a2022617564696f222c0a2020226e616d65223a2022e6a0a1e9aa8c222c0a20202266696c6573223a207b0a20202020226d61696e223a2022766f6963652e776176220a20207d2c0a202022617564696f5f6b696e64223a2022736f756e64220a7d0a",
+        "assets/user/audio/mohui.secure/voice.wav": "524946460400000057415645",
+        "registry.json": "7b0a202022736368656d61223a20312c0a20202264656661756c745f6e616d657370616365223a20226d6f687569363636222c0a202022636f6e74656e7473223a205b0a202020207b0a202020202020226964223a20226d6f6875692e736563757265222c0a2020202020202274797065223a2022617564696f220a202020207d0a20205d0a7d0a"
+      },
+      "id": "mohui.secure",
+      "args": {
+        "version": "1.0.0",
+        "author": "tester",
+        "license_name": "MIT"
+      },
+      "valid": true,
+      "entries": {
+        "content-pack.json": "7b0a202022617574686f72223a2022746573746572222c0a202022636f6e74656e745f7061636b5f666f726d6174223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a202022646570656e64656e63696573223a205b5d2c0a20202266696c6573223a205b0a202020207b0a2020202020202270617468223a202266696c65732f766f6963652e776176222c0a20202020202022736861323536223a202231464535413335314246303331344338413138343042303233464431453443414233463046313233343638393430433234314244374246323045393839414238222c0a2020202020202273697a65223a2031320a202020207d0a20205d2c0a2020226964223a20226d6f6875692e736563757265222c0a2020226c6963656e7365223a20224d4954222c0a2020226d65746164617461223a207b0a2020202022617564696f5f6b696e64223a2022736f756e64222c0a2020202022636f6e74656e745f736368656d61223a20312c0a202020202266696c6573223a207b0a202020202020226d61696e223a2022766f6963652e776176220a202020207d2c0a20202020226964223a20226d6f6875692e736563757265222c0a20202020226e616d65223a2022e6a0a1e9aa8c222c0a2020202022736368656d61223a20312c0a202020202274797065223a2022617564696f220a20207d2c0a2020226e616d65223a2022e6a0a1e9aa8c222c0a20202274797065223a2022617564696f222c0a20202276657273696f6e223a2022312e302e30220a7d0a",
+        "files/voice.wav": "524946460400000057415645",
+        "package-content.sha256": "616c676f726974686d3d6c6f6d2d656e7472792d7368613235362d76310a7368613235363d344132443441463035413431453044343330373530373844383930413939324338343345383444324132453034314637383930453431344532314343383131380a"
+      }
+    },
+    {
+      "mode": "inspect",
+      "registry": {
+        "assets/user/audio/mohui.secure/content.json": "7b0a202022736368656d61223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a2020226964223a20226d6f6875692e736563757265222c0a20202274797065223a2022617564696f222c0a2020226e616d65223a2022e6a0a1e9aa8c222c0a20202266696c6573223a207b0a20202020226d61696e223a2022766f6963652e776176220a20207d2c0a202022617564696f5f6b696e64223a2022736f756e64220a7d0a",
+        "assets/user/audio/mohui.secure/voice.wav": "524946460400000057415645",
+        "registry.json": "7b0a202022736368656d61223a20312c0a20202264656661756c745f6e616d657370616365223a20226d6f687569363636222c0a202022636f6e74656e7473223a205b0a202020207b0a202020202020226964223a20226d6f6875692e736563757265222c0a2020202020202274797065223a2022617564696f220a202020207d0a20205d0a7d0a"
+      },
+      "archive": "504b03041400000000006a0c435dbf1295e23d0200003d02000011000000636f6e74656e742d7061636b2e6a736f6e7b0a202022617574686f72223a2022746573746572222c0a202022636f6e74656e745f7061636b5f666f726d6174223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a202022646570656e64656e63696573223a205b5d2c0a20202266696c6573223a205b0a202020207b0a2020202020202270617468223a202266696c65732f766f6963652e776176222c0a20202020202022736861323536223a202231464535413335314246303331344338413138343042303233464431453443414233463046313233343638393430433234314244374246323045393839414238222c0a2020202020202273697a65223a2031320a202020207d0a20205d2c0a2020226964223a20226d6f6875692e736563757265222c0a2020226c6963656e7365223a20224d4954222c0a2020226d65746164617461223a207b0a2020202022617564696f5f6b696e64223a2022736f756e64222c0a2020202022636f6e74656e745f736368656d61223a20312c0a202020202266696c6573223a207b0a202020202020226d61696e223a2022766f6963652e776176220a202020207d2c0a20202020226964223a20226d6f6875692e736563757265222c0a20202020226e616d65223a2022e6a0a1e9aa8c222c0a2020202022736368656d61223a20312c0a202020202274797065223a2022617564696f220a20207d2c0a2020226e616d65223a2022e6a0a1e9aa8c222c0a20202274797065223a2022617564696f222c0a20202276657273696f6e223a2022312e302e30220a7d0a504b03041400000000006a0c435da925d55e12000000120000000f00000066696c65732f766f6963652e77617652494646040000005741564574616d706572504b03041400000000006a0c435d986687aa6600000066000000160000007061636b6167652d636f6e74656e742e736861323536616c676f726974686d3d6c6f6d2d656e7472792d7368613235362d76310a7368613235363d344132443441463035413431453044343330373530373844383930413939324338343345383444324132453034314637383930453431344532314343383131380a504b03041400000000006a0c435d8316dc8c01000000010000000e000000756e6465636c617265642e62696e78504b010214031400000000006a0c435dbf1295e23d0200003d020000110000000000000000000000800100000000636f6e74656e742d7061636b2e6a736f6e504b010214031400000000006a0c435da925d55e12000000120000000f000000000000000000000080016c02000066696c65732f766f6963652e776176504b010214031400000000006a0c435d986687aa66000000660000001600000000000000000000008001ab0200007061636b6167652d636f6e74656e742e736861323536504b010214031400000000006a0c435d8316dc8c01000000010000000e0000000000000000000000800145030000756e6465636c617265642e62696e504b05060000000004000400fc000000720300000000",
+      "valid": false,
+      "error": "内容包含未声明条目：undeclared.bin"
+    },
+    {
+      "mode": "inspect",
+      "registry": {
+        "assets/user/audio/mohui.secure/content.json": "7b0a202022736368656d61223a20312c0a202022636f6e74656e745f736368656d61223a20312c0a2020226964223a20226d6f6875692e736563757265222c0a20202274797065223a2022617564696f222c0a2020226e616d65223a2022e6a0a1e9aa8c222c0a20202266696c6573223a207b0a20202020226d61696e223a2022766f6963652e776176220a20207d2c0a202022617564696f5f6b696e64223a2022736f756e64220a7d0a",
+        "assets/user/audio/mohui.secure/voice.wav": "524946460400000057415645",
+        "registry.json": "7b0a202022736368656d61223a20312c0a20202264656661756c745f6e616d657370616365223a20226d6f687569363636222c0a202022636f6e74656e7473223a205b0a202020207b0a202020202020226964223a20226d6f6875692e736563757265222c0a2020202020202274797065223a2022617564696f220a202020207d0a20205d0a7d0a"
+      },
+      "archive": "504b03041400000000006a0c435d8316dc8c0100000001000000070000002e2e2f6576696c78504b010214031400000000006a0c435d8316dc8c01000000010000000700000000000000000000008001000000002e2e2f6576696c504b0506000000000100010035000000260000000000",
+      "valid": false,
+      "error": "包内包含不安全或非规范路径：'../evil'"
+    }
+  ]
+}
