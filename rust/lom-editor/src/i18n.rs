@@ -205,6 +205,74 @@ mod native_tests {
 #[cfg(test)]
 mod term_tests {
     #[test]
+    fn resource_codes_have_display_names_in_every_ui_language() {
+        let data: serde_json::Value =
+            serde_json::from_str(include_str!("../../../data/editor_data.json")).unwrap();
+        for category in [
+            "characters",
+            "views",
+            "sounds",
+            "env_sounds",
+            "stats",
+            "effects",
+            "menu_dialogs",
+        ] {
+            let entries: Vec<(String, String)> = if let Some(rows) = data[category].as_array() {
+                rows.iter()
+                    .filter_map(|row| {
+                        Some((row["id"].as_str()?.into(), row["name"].as_str()?.into()))
+                    })
+                    .collect()
+            } else {
+                data[category]
+                    .as_object()
+                    .unwrap()
+                    .iter()
+                    .map(|(id, name)| (id.clone(), name.as_str().unwrap().into()))
+                    .collect()
+            };
+            for (id, name) in entries {
+                if name.is_ascii() {
+                    for locale in 0..4 {
+                        let translated = super::term_index(category, &id, &name, locale);
+                        assert!(!translated.is_empty());
+                        assert_ne!(
+                            translated,
+                            id,
+                            "untranslated {category}/{id} in {}",
+                            super::LOCALES[locale]
+                        );
+                    }
+                }
+            }
+        }
+        for portrait in data["characters"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|row| row["portraits"].as_array().unwrap().iter())
+        {
+            let id = portrait.as_str().unwrap();
+            for locale in 0..4 {
+                assert_ne!(
+                    super::term_index("portraits", id, id, locale),
+                    id,
+                    "portrait {id} in {}",
+                    super::LOCALES[locale]
+                );
+            }
+        }
+        assert_eq!(super::term_index("characters", "bun", "bun", 0), "包子");
+        assert_eq!(
+            super::term_index("characters", "carriage1", "carriage1", 0),
+            "马车"
+        );
+        assert_eq!(
+            super::term_index("characters", "checkerboard", "checkerboard", 0),
+            "棋盘"
+        );
+    }
+    #[test]
     fn translations_preserve_user_names_and_lookup_game_ids() {
         assert_eq!(
             super::term_index("characters", "artist1", "fallback", 3),
