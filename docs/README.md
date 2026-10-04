@@ -40,8 +40,9 @@
 | --- | --- |
 | [维护者手册](chs/maintainers.md) | 恢复、模板、体检、发布、Runtime 安装/回滚 |
 | [测试入口](chs/test_matrix.md) | 当前命令与历史验证边界 |
+| [Windows 验证记录](chs/windows_validation.md) | 2026-10-04 至 05 的 Rust 构建、离线与实际界面验证 |
 | [来源水印](chs/watermark.md) | 协议、嵌入、截图/视频检测 |
 | [Runtime 说明](../runtime/MortalModHost/README.md) | C# Host 行为与限制 |
 | [v1.2.0 变更记录](../RELEASE_NOTES_v1.2.0.md) | Rust 变更及迁移前历史 |
 
-当前 Rust 验证记录限 macOS、预览和离线测试；没有新增 Windows 或游戏实机验收。历史 Windows 结果只对应其记录的旧版本。
+当前 Rust 验证包含早期 macOS 记录和本轮 Windows 构建、离线测试与实际界面操作，各自的环境、通过项及限制分别记录。Rust 版仍未进行游戏实机验收；旧 Python/Qt 的 Windows 和游戏结果只对应当时版本。

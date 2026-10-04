@@ -100,12 +100,13 @@ struct App {
     allow_close: bool,
     asset_dirty: bool,
     lua: String,
-    diagnostics: Vec<(String, String)>,
+    diagnostics: Vec<lom_core::release::PreflightIssue>,
     needs_compile: bool,
     chapter_dialog: Option<ChapterDialog>,
     rename_dialog: Option<RenameDialog>,
     settings_open: bool,
     settings_error: Option<String>,
+    settings_comma_down: bool,
     dialog_ime: bool,
     recovery_dir: PathBuf,
     recovery_paths: BTreeMap<String, PathBuf>,
@@ -343,6 +344,7 @@ impl App {
             rename_dialog: None,
             settings_open: false,
             settings_error: None,
+            settings_comma_down: false,
             dialog_ime: false,
             recovery_dir,
             recovery_paths: BTreeMap::new(),
@@ -819,14 +821,8 @@ impl App {
             .collect::<BTreeSet<_>>());
         self.diagnostics.clear();
         for (id, s) in &self.project.stories {
-            match lom_core::validate::validate_story(s) {
-                Ok(warnings) => {
-                    for w in warnings {
-                        self.diagnostics.push((id.clone(), w));
-                    }
-                }
-                Err(e) => self.diagnostics.push((id.clone(), format!("错误：{e:#}"))),
-            }
+            self.diagnostics
+                .extend(lom_core::release::compiler_issues(id, s));
         }
         match compile_with_assets(&self.project, &self.story()) {
             Ok(lua) => self.lua = lua,
@@ -1093,6 +1089,39 @@ impl App {
         }
     }
     fn shortcuts(&mut self, ctx: &egui::Context) {
+        let windows_settings_release = cfg!(windows)
+            && ctx.input(|input| {
+                if !input.focused {
+                    self.settings_comma_down = false;
+                    return false;
+                }
+                let mut requested = false;
+                for event in &input.events {
+                    if let egui::Event::Key {
+                        key: egui::Key::Comma,
+                        pressed,
+                        modifiers,
+                        ..
+                    } = event
+                    {
+                        if *pressed {
+                            self.settings_comma_down = true;
+                        } else {
+                            // Windows can deliver Ctrl+, only on release. Track
+                            // every comma press, even in a modal, so a normal
+                            // down/up pair never triggers the shortcut twice.
+                            let had_press = std::mem::take(&mut self.settings_comma_down);
+                            requested |= !had_press
+                                && modifiers.ctrl
+                                && modifiers.command
+                                && !modifiers.alt
+                                && !modifiers.shift
+                                && !modifiers.mac_cmd;
+                        }
+                    }
+                }
+                requested
+            });
         if self.chapter_dialog.is_some()
             || self.rename_dialog.is_some()
             || self.asset_import_dialog.is_some()
@@ -1100,7 +1129,9 @@ impl App {
         {
             return;
         }
-        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::Comma)) {
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::Comma))
+            || windows_settings_release
+        {
             self.settings_open = true;
             self.settings_error = None;
             return;
@@ -1192,7 +1223,7 @@ impl App {
                 ui.horizontal(|ui| {
                     #[cfg(not(target_os = "macos"))]
                     if ui
-                        .add(egui::Button::new(tr("设置…")).shortcut_text("Ctrl+,"))
+                        .add(egui::Button::new(tr("设置")).shortcut_text("Ctrl+,"))
                         .clicked()
                     {
                         self.settings_open = true;
@@ -1245,7 +1276,13 @@ impl App {
                                 }
                             }
                         });
-                        if ui.button(tr("保存全部章节  ⌘S")).clicked() {
+                        let save_label = tr("保存全部章节  ⌘S");
+                        let save_label = if cfg!(target_os = "macos") {
+                            save_label
+                        } else {
+                            save_label.replace("⌘S", "Ctrl+S")
+                        };
+                        if ui.button(save_label).clicked() {
                             ui.close();
                             self.save(false);
                         }
@@ -1925,12 +1962,10 @@ impl App {
                         );
                     }
                     View::Graph => {
-                        egui::ScrollArea::both().show(ui, |ui| {
-                            if let Some(i) = preview::graph(ui, &story, self.selected) {
-                                self.selected = i;
-                                self.center = Center::Node;
-                            }
-                        });
+                        if let Some(i) = preview::graph(ui, &self.project, &story, self.selected) {
+                            self.selected = i;
+                            self.center = Center::Node;
+                        }
                     }
                     View::Lua | View::Checks => {
                         ui.horizontal(|ui| {
@@ -1960,11 +1995,41 @@ impl App {
                                 .id_salt("compile-errors")
                                 .max_height(160.0)
                                 .show(ui, |ui| {
-                                    for (id, message) in self.diagnostics.clone() {
-                                        if ui.link(&id).clicked() {
-                                            self.current = id;
-                                            self.needs_compile = true;
+                                    for issue in self.diagnostics.clone() {
+                                        let location = if issue.node_id.is_empty() {
+                                            issue.story_id.clone()
+                                        } else {
+                                            format!("{}/{}", issue.story_id, issue.node_id)
+                                        };
+                                        if ui.link(location).clicked() {
+                                            if let Some(story) =
+                                                self.project.stories.get_mut(&issue.story_id)
+                                            {
+                                                if let Some(index) =
+                                                    story["nodes"].as_array().and_then(|nodes| {
+                                                        nodes.iter().position(|node| {
+                                                            !issue.node_id.is_empty()
+                                                                && node["id"] == issue.node_id
+                                                        })
+                                                    })
+                                                {
+                                                    self.selected = index;
+                                                    self.center = Center::Node;
+                                                    authoring::expand_for_node(story, index);
+                                                } else {
+                                                    self.center = Center::Chapter;
+                                                }
+                                                self.current = issue.story_id;
+                                                self.multiselect.clear();
+                                                self.search.clear();
+                                                self.needs_compile = true;
+                                            }
                                         }
+                                        let message = if issue.severity == "error" {
+                                            format!("错误：{}", issue.message)
+                                        } else {
+                                            issue.message
+                                        };
                                         ui.colored_label(Color32::from_rgb(179, 55, 49), message);
                                     }
                                 });
@@ -2392,6 +2457,7 @@ impl App {
             .max_height(160.0)
             .auto_shrink([false, true])
             .show(ui, |ui| {
+                ui.spacing_mut().item_spacing.y = 4.0;
                 for (key, meta) in &records {
                     let id = meta["id"].as_str().unwrap_or(key);
                     let name = content_names.get(id).map(String::as_str).unwrap_or(id);
@@ -2401,18 +2467,26 @@ impl App {
                         "audio" => tr("音频"),
                         other => other.to_owned(),
                     };
+                    let selected = self.asset_selection == *key;
+                    let border = if selected {
+                        ui.visuals().selection.stroke.color
+                    } else {
+                        ui.visuals().text_color().gamma_multiply(0.22)
+                    };
                     if ui
                         .add_sized(
-                            [ui.available_width(), 26.0],
-                            egui::Button::selectable(
-                                self.asset_selection == *key,
-                                format!("{name} · {kind}"),
-                            )
-                            .frame(self.asset_selection == *key)
-                            .truncate()
-                            .right_text(""),
+                            [ui.available_width(), 30.0],
+                            egui::Button::selectable(selected, name)
+                                .frame_when_inactive(true)
+                                .stroke(egui::Stroke::new(
+                                    if selected { 1.5_f32 } else { 1.0_f32 },
+                                    border,
+                                ))
+                                .corner_radius(3.0)
+                                .truncate()
+                                .right_text(egui::RichText::new(kind).small().weak()),
                         )
-                        .on_hover_text(format!("user:{id}"))
+                        .on_hover_text(format!("{name}\nuser:{id}"))
                         .clicked()
                     {
                         self.asset_selection = key.clone();
@@ -3187,6 +3261,9 @@ impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         self.frame += 1;
         self.shell.install(frame);
+        if let Err(error) = self.audio.update() {
+            self.error = Some(error.to_string());
+        }
         #[cfg(target_os = "macos")]
         if self.frame == 1 {
             if let Err(error) = crate::macos_window::install_settings_menu(ctx) {
@@ -3348,6 +3425,7 @@ fn recovery_owner_active(path: &Path) -> bool {
     else {
         return true;
     };
+    #[cfg(not(windows))]
     if pid == std::process::id() {
         return true;
     }
@@ -3359,9 +3437,94 @@ fn recovery_owner_active(path: &Path) -> bool {
             .map(|out| !out.stdout.is_empty())
             .unwrap_or(true);
     }
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    {
+        let Some(stamp) = path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .and_then(|s| s.split_once('-'))
+            .and_then(|(_, stamp)| stamp.parse::<u128>().ok())
+        else {
+            return true;
+        };
+        windows_recovery_owner_active(pid, stamp)
+    }
+    #[cfg(not(any(unix, windows)))]
     {
         true
+    }
+}
+#[cfg(windows)]
+fn windows_recovery_owner_active(pid: u32, session_created_ms: u128) -> bool {
+    use std::ffi::c_void;
+    use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
+
+    #[repr(C)]
+    #[derive(Default)]
+    struct FileTime {
+        low: u32,
+        high: u32,
+    }
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn OpenProcess(access: u32, inherit: i32, pid: u32) -> *mut c_void;
+        fn WaitForSingleObject(handle: *mut c_void, milliseconds: u32) -> u32;
+        fn GetProcessTimes(
+            handle: *mut c_void,
+            creation: *mut FileTime,
+            exit: *mut FileTime,
+            kernel: *mut FileTime,
+            user: *mut FileTime,
+        ) -> i32;
+    }
+    const SYNCHRONIZE: u32 = 0x0010_0000;
+    const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
+    const ERROR_INVALID_PARAMETER: i32 = 87;
+    const WAIT_OBJECT_0: u32 = 0;
+    const WAIT_TIMEOUT: u32 = 258;
+    const WINDOWS_TO_UNIX_EPOCH_MS: u64 = 11_644_473_600_000;
+
+    // PID 0 is the system idle process, never a valid editor owner.
+    if pid == 0 {
+        return true;
+    }
+    // SAFETY: We only query this non-inherited process handle. OwnedHandle closes
+    // every successful OpenProcess result, and the FILETIME outputs are valid.
+    unsafe {
+        let raw = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if raw.is_null() {
+            // A missing PID is safe to recover; access denied and unknown errors
+            // must keep a potentially active editor's recovery files protected.
+            return std::io::Error::last_os_error().raw_os_error() != Some(ERROR_INVALID_PARAMETER);
+        }
+        let handle = OwnedHandle::from_raw_handle(raw);
+        match WaitForSingleObject(handle.as_raw_handle(), 0) {
+            WAIT_OBJECT_0 => false,
+            WAIT_TIMEOUT => {
+                let mut creation = FileTime::default();
+                let mut exit = FileTime::default();
+                let mut kernel = FileTime::default();
+                let mut user = FileTime::default();
+                if GetProcessTimes(
+                    handle.as_raw_handle(),
+                    &mut creation,
+                    &mut exit,
+                    &mut kernel,
+                    &mut user,
+                ) == 0
+                {
+                    return true;
+                }
+                let ticks = (u64::from(creation.high) << 32) | u64::from(creation.low);
+                // A process created after the session cannot own it: Windows
+                // has reused an earlier editor's PID, including our own PID.
+                (ticks / 10_000)
+                    .checked_sub(WINDOWS_TO_UNIX_EPOCH_MS)
+                    .map(|created_ms| u128::from(created_ms) <= session_created_ms)
+                    .unwrap_or(true)
+            }
+            _ => true,
+        }
     }
 }
 fn repair_deleted_metadata(story: &mut Value, old_ids: &[String], removed: &BTreeSet<String>) {
@@ -3753,8 +3916,8 @@ mod application_regression_tests {
                 egui::CentralPanel::default().show(ctx, |ui| app.assets(ui));
             },
         );
-        let _ = click_named_option(&output, "同名素材 1 · ");
-        let event = click_named_option(&output, "同名素材 2 · ");
+        let _ = click_named_option(&output, "同名素材 1 ");
+        let event = click_named_option(&output, "同名素材 2 ");
         let _ = ctx.run(
             egui::RawInput {
                 events: vec![event],
@@ -3810,6 +3973,167 @@ mod application_regression_tests {
         assert!(!app.settings_open);
         assert!(snapshot(&app.project) == before);
         assert!(!app.dirty());
+    }
+    #[test]
+    fn compiler_diagnostic_link_selects_the_error_node_across_chapters() {
+        let mut app = app();
+        let mut second = app.story();
+        second["id"] = json!("second");
+        app.project.stories.insert("second".into(), second);
+        app.project.stories.insert("main".into(), json!({
+            "story_schema": 2, "id": "main", "start": "first",
+            "nodes": [
+                {"id":"first", "type":"message", "text":"第一步"},
+                {"id":"next", "type":"message", "text":"第二步"},
+                {"id":"say_left", "type":"say", "mode":"narrative", "text":"错误在第三步", "goto":"missing"},
+                {"id":"end", "type":"end"}
+            ]
+        }));
+        app.current = "second".into();
+        app.selected = 0;
+        app.multiselect.insert(0);
+        app.search = "隐藏目标的旧过滤".into();
+        app.compile();
+        assert_eq!(app.diagnostics.len(), 1);
+        assert_eq!(app.diagnostics[0].story_id, "main");
+        assert_eq!(app.diagnostics[0].node_id, "say_left");
+        assert!(app.diagnostics[0].message.contains("missing"));
+        let before = snapshot(&app.project);
+        app.view = View::Checks;
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        let raw = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                Vec2::new(1280.0, 900.0),
+            )),
+            ..Default::default()
+        };
+        let output = ctx.run(raw.clone(), |ctx| app.right(ctx));
+        let _ = ctx.run(
+            egui::RawInput {
+                events: vec![click_named_option(&output, "main/say_left")],
+                ..raw
+            },
+            |ctx| app.right(ctx),
+        );
+        assert_eq!(app.current, "main");
+        assert_eq!(app.selected, 2);
+        assert!(app.center == Center::Node);
+        assert!(app.multiselect.is_empty());
+        assert!(app.search.is_empty());
+        assert!(snapshot(&app.project) == before);
+    }
+    #[test]
+    fn compiler_diagnostic_does_not_guess_nodes_for_chapter_errors() {
+        let mut app = app();
+        app.project.stories.get_mut("main").unwrap()["start"] = json!("missing");
+        app.compile();
+        assert_eq!(app.diagnostics.len(), 1);
+        assert_eq!(app.diagnostics[0].story_id, "main");
+        assert!(app.diagnostics[0].node_id.is_empty());
+        assert!(app.diagnostics[0].message.contains("missing"));
+        let preflight = lom_core::release::run_preflight(
+            &app.project,
+            lom_core::release::Profile::Editing,
+            "1.1.2",
+        );
+        assert!(preflight.contains(&app.diagnostics[0]));
+    }
+    #[test]
+    #[cfg(windows)]
+    fn windows_settings_shortcut_accepts_observed_release_without_keydown() {
+        let mut app = app();
+        let before = snapshot(&app.project);
+        let ctx = egui::Context::default();
+        let _ = ctx.run(
+            egui::RawInput {
+                // The real Windows event retained Ctrl even though the frame's
+                // final modifier state was already NONE.
+                modifiers: egui::Modifiers::NONE,
+                events: vec![egui::Event::Key {
+                    key: egui::Key::Comma,
+                    physical_key: Some(egui::Key::Comma),
+                    pressed: false,
+                    repeat: false,
+                    modifiers: egui::Modifiers::CTRL | egui::Modifiers::COMMAND,
+                }],
+                ..Default::default()
+            },
+            |ctx| app.shortcuts(ctx),
+        );
+        assert!(app.settings_open);
+        assert!(snapshot(&app.project) == before);
+    }
+    #[test]
+    #[cfg(windows)]
+    fn windows_settings_shortcut_does_not_repeat_normal_keydown_or_plain_comma() {
+        let mut app = app();
+        let ctx = egui::Context::default();
+        let command = egui::Modifiers::CTRL | egui::Modifiers::COMMAND;
+        for initial_modifiers in [command, egui::Modifiers::NONE] {
+            let _ = ctx.run(
+                egui::RawInput {
+                    events: vec![key_event(egui::Key::Comma, initial_modifiers)],
+                    ..Default::default()
+                },
+                |ctx| app.shortcuts(ctx),
+            );
+            assert_eq!(app.settings_open, initial_modifiers.command);
+            // Closing before key-up must not reopen settings. A plain comma
+            // followed by Ctrl must not become a shortcut either.
+            app.settings_open = false;
+            let _ = ctx.run(
+                egui::RawInput {
+                    events: vec![egui::Event::Key {
+                        key: egui::Key::Comma,
+                        physical_key: Some(egui::Key::Comma),
+                        pressed: false,
+                        repeat: false,
+                        modifiers: command,
+                    }],
+                    ..Default::default()
+                },
+                |ctx| app.shortcuts(ctx),
+            );
+            assert!(!app.settings_open);
+        }
+    }
+    #[test]
+    #[cfg(windows)]
+    fn windows_settings_release_respects_modal_focus_and_exact_modifiers() {
+        let mut app = app();
+        let ctx = egui::Context::default();
+        let command = egui::Modifiers::CTRL | egui::Modifiers::COMMAND;
+        let before = snapshot(&app.project);
+        for (modal, focused, modifiers) in [
+            (true, true, command),
+            (false, false, command),
+            (false, true, egui::Modifiers::NONE),
+            (false, true, command | egui::Modifiers::ALT),
+            (false, true, command | egui::Modifiers::SHIFT),
+        ] {
+            if modal {
+                app.begin_chapter(false);
+            }
+            let _ = ctx.run(
+                egui::RawInput {
+                    focused,
+                    events: vec![egui::Event::Key {
+                        key: egui::Key::Comma,
+                        physical_key: Some(egui::Key::Comma),
+                        pressed: false,
+                        repeat: false,
+                        modifiers,
+                    }],
+                    ..Default::default()
+                },
+                |ctx| app.shortcuts(ctx),
+            );
+            assert!(!app.settings_open);
+            assert!(snapshot(&app.project) == before);
+            app.chapter_dialog = None;
+        }
     }
     #[test]
     fn modal_blocks_background_clicks_and_project_shortcuts() {
@@ -4492,10 +4816,112 @@ mod application_regression_tests {
     }
     #[test]
     fn active_instance_recovery_is_never_a_candidate() {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
         assert!(recovery_owner_active(&PathBuf::from(format!(
-            "{}-123",
+            "{}-{stamp}",
             std::process::id()
         ))));
         assert!(recovery_owner_active(Path::new("unknown-owner")));
+    }
+    #[cfg(windows)]
+    #[test]
+    fn windows_recovery_distinguishes_live_exited_and_reused_processes() {
+        use std::os::windows::process::CommandExt;
+        use std::process::{Command, Stdio};
+
+        let mut child = Command::new("cmd.exe")
+            .args(["/D", "/C", "set /p recovery_test="])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .creation_flags(0x0800_0000)
+            .spawn()
+            .unwrap();
+        let pid = child.id();
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+        let path = PathBuf::from(format!("{pid}-{stamp}"));
+        let live_active = recovery_owner_active(&path);
+        let reused_active = recovery_owner_active(Path::new(&format!("{pid}-1")));
+        // Close only our child's input, allowing it to exit before assertions.
+        drop(child.stdin.take());
+        child.wait().unwrap();
+        let exited_active = recovery_owner_active(&path);
+        drop(child);
+        let removed_active = recovery_owner_active(&path);
+
+        assert!(live_active);
+        assert!(!reused_active);
+        assert!(!exited_active);
+        assert!(!removed_active);
+        assert!(!recovery_owner_active(Path::new(&format!(
+            "{}-1",
+            std::process::id()
+        ))));
+        assert!(recovery_owner_active(Path::new("0-1")));
+        assert!(recovery_owner_active(Path::new(&format!("{pid}-invalid"))));
+    }
+    #[cfg(windows)]
+    #[test]
+    fn windows_recovery_restores_chapters_assets_and_original_source_after_exit() {
+        use std::os::windows::process::CommandExt;
+
+        let mut child = std::process::Command::new("cmd.exe")
+            .args(["/D", "/C", "exit", "0"])
+            .creation_flags(0x0800_0000)
+            .spawn()
+            .unwrap();
+        let pid = child.id();
+        child.wait().unwrap();
+        drop(child);
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+        let dir = tempfile::tempdir().unwrap();
+        let original = dir.path().join("原项目 source");
+        let image = dir.path().join("恢复 素材.png");
+        std::fs::write(&image, b"image fixture").unwrap();
+        let mut writer = app();
+        writer.project.save_to(&original).unwrap();
+        writer.saved = snapshot(&writer.project);
+        writer.recovery_dir = dir.path().join(format!("{pid}-{stamp}"));
+        writer.begin_chapter(false);
+        writer.chapter_dialog.as_mut().unwrap().name = "未保存章节".into();
+        writer.commit_chapter().unwrap();
+        writer
+            .import_assets(vec![image], "test.recovered", "恢复素材", 0)
+            .unwrap();
+        writer.track();
+        writer.last_recovery = Instant::now() - Duration::from_secs(31);
+        writer.autosave();
+        assert!(writer.recovery_dir.join("session.json").is_file());
+        assert!(!recovery_owner_active(&writer.recovery_dir));
+
+        let mut restored = app();
+        restored.recover(&writer.recovery_dir);
+        assert!(restored.error.is_none(), "{:?}", restored.error);
+        assert_eq!(restored.project.stories, writer.project.stories);
+        assert_eq!(restored.project.assets, writer.project.assets);
+        assert_eq!(restored.project.source, writer.project.source);
+        assert_eq!(restored.project.paths, writer.project.paths);
+        assert_eq!(restored.current, writer.current);
+        assert!(restored.dirty());
+        let unchanged = Project::open(&original).unwrap();
+        assert_eq!(unchanged.stories.len(), 1);
+        assert!(unchanged.assets.is_empty());
+
+        let active = dir.path().join(format!("{}-{stamp}", std::process::id()));
+        std::fs::create_dir(&active).unwrap();
+        let before = snapshot(&restored.project);
+        restored.recover(&active);
+        assert!(restored.error.as_ref().unwrap().contains("仍在运行"));
+        assert!(snapshot(&restored.project) == before);
+        assert!(active.exists());
     }
 }

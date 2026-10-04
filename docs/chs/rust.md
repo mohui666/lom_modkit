@@ -2,7 +2,7 @@
 
 Cargo workspace 由 `rust/lom-core`、`rust/lomc`、`rust/lom-editor` 组成，覆盖剧情编译、包读写和原生桌面编辑。C# `runtime/MortalModHost` 保留游戏接入；包、Story、用户内容版本仍为 **3 / 2 / 1**。
 
-2026-10-04 本轮为文档核对，没有重跑构建或测试。上一轮 Mac 验收记录与未验证项见 [测试矩阵](test_matrix.md)。
+2026-10-04 至 2026-10-05 已完成 Windows 工具端构建、自动化及新 exe 的具体 UI 路径验证；最终 Rust 完整回归为 **196 通过、0 失败、2 默认跳过**。范围、修复与限制见 [Windows 验证记录](windows_validation.md)，历史 Mac 结果见 [测试矩阵](test_matrix.md)。游戏实机未执行。
 
 ## 当前界面
 
@@ -32,7 +32,7 @@ open "out/LoM Modkit Rust.app"
 
 `build-macos.sh` 调用 `build_rust_macos.sh`，生成原生 `lom-editor` 与 `lomc`、打包图标、执行应用签名检查及内置编译预览烟测。应用不需要 Python、Qt、PyInstaller 或当前源码目录。官方预览图片仍从作者自己提取的外部素材库读取，不随应用分发。
 
-Windows 构建入口为 `scripts/build-windows.ps1 -NoArchive`，需要已构建的 `MortalModHost.dll`、`NVorbis.dll`；可用 `-RuntimeDirectory` 指定目录，默认产物为 `out/windows/lom_modkit/lom-editor.exe`。此处只记录入口，未执行 Windows 构建／测试或游戏实机测试。
+Windows 构建入口为 `scripts/build-windows.ps1 -NoArchive`，需要已构建的 `MortalModHost.dll`、`NVorbis.dll`；可用 `-RuntimeDirectory` 指定目录，默认产物为 `out/windows/lom_modkit/lom-editor.exe`。2026-10-05 已使用正式 net48 Host 产物，在独立输出目录完成打包并实际启动新 exe；构建成功、自动化与 UI 验收分别记录。Host 本地引用及嵌入资源要求见 [Runtime 构建说明](../../runtime/MortalModHost/README.md#构建与测试)。
 
 ## 模块
 
@@ -80,7 +80,7 @@ cargo run --locked -p lomc -- detect-watermark-video path/to/video.mp4 --ffmpeg 
 
 迁移沿用既有版本规则，不猜测无法可靠转换的旧 Combat／Battle 数据。可迁移文件在写入前保留原字节备份；多文件写盘失败不保证整个目录一次回滚。新项目生成独立 `campaign_id`，导入已有项目不重置存档身份。
 
-Windows 游戏管理调用已有 C# Host 协议；Mac 上禁用游戏接入按钮。BepInEx 安装接受代码限定的官方 x86 ZIP，宿主 DLL 目录由作者选择。Mac 编译、离线测试、窗口检查与 133 节点预览都不能代替这些 Windows／游戏流程。
+Windows 游戏管理调用已有 C# Host 协议；Mac 上禁用游戏接入按钮。BepInEx 安装接受代码限定的官方 x86 ZIP，宿主 DLL 目录由作者选择。本轮 Windows 编辑器、Host 构建、离线测试及 133 节点预览均不能代替游戏接入实机流程；没有启动游戏、按 F5、安装/更新插件或修改游戏存档。
 
 ## 样例与验证
 
@@ -93,6 +93,8 @@ cargo run --locked -p lomc -- inspect out/showcase3-check/showcase3.lommod --jso
 
 生成器读取 `samples/showcase3/source.json`，输出目录请使用尚未存在的新目录；不要把默认目录或已有输出视为已获得覆盖权限。详见 [样例说明](../../samples/showcase3/README.md)。
 
-上一轮 2026-10-04 Mac 验收记录为 179 项通过、0 失败、2 项默认跳过，预览检查 133 / 133；本轮文档维护没有重跑这些命令。历史 Python 对照实现只用于生成已保存的 JSON／Lua fixture，当前测试不启动 Python。Lua 以原始字节比较，包按解压条目和逻辑完整性比较，不要求不同压缩库产生完全相同的 ZIP 压缩字节。
+2026-10-05 Windows 最终完整回归为 196 项通过、0 失败、2 项默认跳过，Showcase 预览检查 133 / 133；新建输出目录的样例生成、包检查及 C# 离线冒烟通过。此前 2026-10-04 Mac 的 179 / 0 / 2 和同日仅文档维护的记录保持为历史，不算本轮 Windows 结果。
+
+历史 Python 对照实现只用于生成已保存的 JSON／Lua fixture，当前测试不启动 Python。Lua 以原始字节比较，包按解压条目和逻辑完整性比较，不要求不同压缩库产生完全相同的 ZIP 压缩字节。最终测试数不累加阶段重跑、预览状态或 UI 操作；受阻与未执行项见 [Windows 验证记录](windows_validation.md#受阻未执行与剩余限制)。
 
 功能对照与清理范围见 [迁移验收表](rust_migration.md)。
