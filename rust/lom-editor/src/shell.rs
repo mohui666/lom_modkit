@@ -44,33 +44,89 @@ pub fn viewport() -> egui::ViewportBuilder {
         .with_titlebar_shown(true)
         .with_title("活侠传剧情编辑器")
 }
-pub fn style(ctx: &egui::Context) {
-    let mut fonts = egui::FontDefinitions::default();
-    for path in [
-        "/System/Library/Fonts/PingFang.ttc",
-        "/System/Library/Fonts/STHeiti Light.ttc",
-        "/System/Library/Fonts/STHeiti Medium.ttc",
-        "C:/Windows/Fonts/msyh.ttc",
-        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-    ] {
+fn append_system_font(fonts: &mut egui::FontDefinitions, name: &str, paths: &[&str]) {
+    for path in paths {
         if let Ok(bytes) = std::fs::read(path) {
             fonts
                 .font_data
-                .insert("chinese".into(), egui::FontData::from_owned(bytes).into());
-            fonts
-                .families
-                .entry(egui::FontFamily::Proportional)
-                .or_default()
-                .push("chinese".into());
-            fonts
-                .families
-                .entry(egui::FontFamily::Monospace)
-                .or_default()
-                .push("chinese".into());
+                .insert(name.into(), egui::FontData::from_owned(bytes).into());
+            // Keep egui's Latin fonts first; these fonts supply missing scripts only.
+            for family in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
+                fonts.families.entry(family).or_default().push(name.into());
+            }
             break;
         }
     }
-    ctx.set_fonts(fonts);
+}
+fn font_definitions() -> egui::FontDefinitions {
+    let mut fonts = egui::FontDefinitions::default();
+    #[cfg(target_os = "macos")]
+    {
+        append_system_font(
+            &mut fonts,
+            "system-chinese",
+            &[
+                "/System/Library/Fonts/PingFang.ttc",
+                "/System/Library/Fonts/STHeiti Light.ttc",
+                "/System/Library/Fonts/STHeiti Medium.ttc",
+                "/System/Library/Fonts/Hiragino Sans GB.ttc",
+            ],
+        );
+        append_system_font(
+            &mut fonts,
+            "system-japanese",
+            &["/System/Library/Fonts/Hiragino Sans GB.ttc"],
+        );
+        append_system_font(
+            &mut fonts,
+            "system-korean",
+            &[
+                "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+                "/System/Library/Fonts/Supplemental/AppleGothic.ttf",
+            ],
+        );
+    }
+    #[cfg(target_os = "windows")]
+    {
+        append_system_font(
+            &mut fonts,
+            "system-chinese",
+            &["C:/Windows/Fonts/msyh.ttc", "C:/Windows/Fonts/msyh.ttf"],
+        );
+        append_system_font(
+            &mut fonts,
+            "system-japanese",
+            &[
+                "C:/Windows/Fonts/YuGothM.ttc",
+                "C:/Windows/Fonts/meiryo.ttc",
+            ],
+        );
+        append_system_font(
+            &mut fonts,
+            "system-korean",
+            &["C:/Windows/Fonts/malgun.ttf", "C:/Windows/Fonts/gulim.ttc"],
+        );
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        append_system_font(
+            &mut fonts,
+            "system-cjk",
+            &[
+                "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+                "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+            ],
+        );
+        append_system_font(
+            &mut fonts,
+            "system-korean",
+            &["/usr/share/fonts/truetype/nanum/NanumGothic.ttf"],
+        );
+    }
+    fonts
+}
+pub fn style(ctx: &egui::Context) {
+    ctx.set_fonts(font_definitions());
     let mut s = (*ctx.style()).clone();
     s.visuals = egui::Visuals::light();
     s.visuals.panel_fill = Color32::TRANSPARENT;
@@ -127,4 +183,58 @@ pub fn surface(content: bool) -> egui::Frame {
         } else {
             egui::Margin::symmetric(14, 5)
         })
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn system_fallbacks_render_every_supported_language_without_replacing_latin_fonts() {
+        let original = egui::Context::default();
+        let configured = egui::Context::default();
+        style(&configured);
+        for family in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
+            let font = egui::FontId::new(14.0, family);
+            let mut original_widths = Vec::new();
+            let _ = original.run(Default::default(), |ctx| {
+                ctx.fonts_mut(|fonts| {
+                    original_widths = "LoM Modkit 0123 / JSON"
+                        .chars()
+                        .map(|c| fonts.glyph_width(&font, c))
+                        .collect();
+                });
+            });
+            let _ = configured.run(Default::default(), |ctx| {
+                ctx.fonts_mut(|fonts| {
+                    for text in [
+                        "简体中文编辑器",
+                        "繁體中文編輯器",
+                        "日本語ひらがなカタカナ",
+                        "한국어",
+                    ] {
+                        for character in text.chars() {
+                            assert!(
+                                fonts.has_glyph(&font, character),
+                                "Missing {character:?} from {:?}",
+                                font.family
+                            );
+                        }
+                        // Exercise font selection and glyph rasterization, not just file loading.
+                        let galley =
+                            fonts.layout_no_wrap(text.into(), font.clone(), Color32::BLACK);
+                        assert!(!galley.is_empty());
+                    }
+                    let actual_widths: Vec<_> = "LoM Modkit 0123 / JSON"
+                        .chars()
+                        .map(|c| fonts.glyph_width(&font, c))
+                        .collect();
+                    assert_eq!(
+                        actual_widths, original_widths,
+                        "System fallback must not replace Latin glyphs"
+                    );
+                });
+            });
+        }
+    }
 }

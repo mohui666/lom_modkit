@@ -48,6 +48,34 @@ enum View {
     Checks,
     Statistics,
 }
+#[derive(Clone)]
+enum ChapterAction {
+    New,
+    Duplicate(Value),
+}
+struct ChapterDialog {
+    action: ChapterAction,
+    name: String,
+    error: Option<String>,
+    focus_name: bool,
+}
+#[derive(Clone)]
+enum RenameTarget {
+    Node { story: String, node: String },
+    Chapter(String),
+}
+struct RenameDialog {
+    target: RenameTarget,
+    value: String,
+    error: Option<String>,
+    focus_name: bool,
+}
+struct AssetImportDialog {
+    kind: usize,
+    name: String,
+    paths: Vec<PathBuf>,
+    error: Option<String>,
+}
 struct App {
     project: Project,
     catalog: Catalog,
@@ -74,9 +102,14 @@ struct App {
     lua: String,
     diagnostics: Vec<(String, String)>,
     needs_compile: bool,
-    rename: String,
-    new_story_id: String,
+    chapter_dialog: Option<ChapterDialog>,
+    rename_dialog: Option<RenameDialog>,
+    settings_open: bool,
+    settings_error: Option<String>,
+    dialog_ime: bool,
     recovery_dir: PathBuf,
+    recovery_paths: BTreeMap<String, PathBuf>,
+    recovery_assets: BTreeSet<String>,
     recovery_candidates: Vec<PathBuf>,
     last_recovery: Instant,
     templates: Value,
@@ -87,8 +120,7 @@ struct App {
     screenshot: Option<PathBuf>,
     frame: usize,
     asset_selection: String,
-    asset_id: String,
-    asset_kind: usize,
+    asset_import_dialog: Option<AssetImportDialog>,
     shell: shell::Shell,
     scroll_selection: (String, usize),
     bulk_key: String,
@@ -115,6 +147,24 @@ fn user_root() -> PathBuf {
     } else {
         home.join(".local/share/lom_modkit")
     }
+}
+fn dialog_actions(ui: &mut egui::Ui, primary: &str, enabled: bool) -> (bool, bool) {
+    ui.add_space(16.0);
+    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        let submit = ui
+            .add_enabled(
+                enabled,
+                egui::Button::new(RichText::new(tr(primary)).color(Color32::WHITE))
+                    .fill(ACCENT)
+                    .min_size(Vec2::new(80.0, 30.0)),
+            )
+            .clicked();
+        let cancel = ui
+            .add_sized([80.0, 30.0], egui::Button::new(tr("取消")))
+            .clicked();
+        (submit, cancel)
+    })
+    .inner
 }
 fn snapshot(p: &Project) -> Snapshot {
     Snapshot {
@@ -289,9 +339,14 @@ impl App {
             lua: String::new(),
             diagnostics: vec![],
             needs_compile: true,
-            rename: String::new(),
-            new_story_id: String::new(),
+            chapter_dialog: None,
+            rename_dialog: None,
+            settings_open: false,
+            settings_error: None,
+            dialog_ime: false,
             recovery_dir,
+            recovery_paths: BTreeMap::new(),
+            recovery_assets: BTreeSet::new(),
             recovery_candidates,
             last_recovery: Instant::now(),
             templates,
@@ -302,8 +357,7 @@ impl App {
             screenshot,
             frame: 0,
             asset_selection: String::new(),
-            asset_id: String::new(),
-            asset_kind: 0,
+            asset_import_dialog: None,
             shell: shell::Shell::default(),
             scroll_selection: (String::new(), usize::MAX),
             bulk_key: String::new(),
@@ -371,7 +425,10 @@ impl App {
         }
     }
     fn dirty(&self) -> bool {
-        self.last != self.saved || self.asset_dirty
+        self.last != self.saved
+            || self.asset_dirty
+            || self.content_panel.has_pending()
+            || self.advanced.has_pending()
     }
     fn story(&self) -> Value {
         self.project
@@ -379,6 +436,160 @@ impl App {
             .get(&self.current)
             .cloned()
             .unwrap_or(json!({"nodes":[]}))
+    }
+    fn begin_chapter(&mut self, duplicate: bool) {
+        if !self.apply_pending_drafts() {
+            return;
+        }
+        let (action, name) = if duplicate {
+            let story = self.story();
+            let name = format!(
+                "{}{}",
+                story["title"].as_str().unwrap_or(&self.current),
+                tr("的副本")
+            );
+            (ChapterAction::Duplicate(story), name)
+        } else {
+            (ChapterAction::New, tr("新章节"))
+        };
+        self.chapter_dialog = Some(ChapterDialog {
+            action,
+            name,
+            error: None,
+            focus_name: true,
+        });
+    }
+    fn commit_chapter(&mut self) -> anyhow::Result<()> {
+        let draft = self
+            .chapter_dialog
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("没有待创建的章节"))?;
+        let name = draft.name.trim().to_owned();
+        anyhow::ensure!(!name.is_empty(), "请填写章节名称。");
+        anyhow::ensure!(
+            name.chars().count() <= 80 && !name.chars().any(char::is_control),
+            "章节名称最多 80 个字，不能包含换行或控制字符。"
+        );
+        let mut story = match &draft.action {
+            ChapterAction::New => Project::new().stories["main"].clone(),
+            // A chapter copy retains explicit destinations and test semantics. Only
+            // its own identity/title changes; it must not silently retarget the story.
+            ChapterAction::Duplicate(story) => story.clone(),
+        };
+        let id = (1..)
+            .map(|n| format!("chapter{n}"))
+            .find(|id| {
+                !self
+                    .project
+                    .stories
+                    .keys()
+                    .any(|key| key.eq_ignore_ascii_case(id))
+                    && !self.project.paths.values().any(|path| {
+                        path.to_string_lossy()
+                            .eq_ignore_ascii_case(&format!("{id}.json"))
+                    })
+            })
+            .unwrap();
+        story["id"] = json!(id);
+        story["title"] = json!(name);
+        self.flush();
+        self.project.stories.insert(id.clone(), story);
+        self.current = id;
+        self.selected = 0;
+        self.multiselect.clear();
+        self.search.clear();
+        self.center = Center::Node;
+        self.auto = false;
+        self.track();
+        self.flush();
+        self.chapter_dialog = None;
+        self.status = format!("{}：{name}", tr("已创建章节"));
+        Ok(())
+    }
+    fn commit_rename(&mut self) -> anyhow::Result<()> {
+        let draft = self
+            .rename_dialog
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("没有待修改的标识"))?;
+        let new = draft.value.trim().to_owned();
+        let target = draft.target.clone();
+        match &target {
+            RenameTarget::Node { story, node } => {
+                let chapter = self
+                    .project
+                    .stories
+                    .get(story)
+                    .ok_or_else(|| anyhow::anyhow!("原章节已不存在。"))?;
+                anyhow::ensure!(
+                    !new.is_empty() && new.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_'),
+                    "步骤标识只能包含字母、数字和下划线。"
+                );
+                anyhow::ensure!(
+                    chapter["nodes"]
+                        .as_array()
+                        .is_some_and(|nodes| nodes.iter().any(|n| n["id"] == *node)),
+                    "原步骤已不存在。"
+                );
+                anyhow::ensure!(
+                    new == *node
+                        || !chapter["nodes"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .any(|n| n["id"] == new),
+                    "此步骤标识已被使用。"
+                );
+            }
+            RenameTarget::Chapter(old) => {
+                anyhow::ensure!(self.project.stories.contains_key(old), "原章节已不存在。");
+                anyhow::ensure!(
+                    valid_id(&new),
+                    "章节标识应为 1–64 位字母、数字、下划线或连字符。"
+                );
+                anyhow::ensure!(
+                    new == *old || !self.project.stories.contains_key(&new),
+                    "此章节标识已被使用。"
+                );
+            }
+        }
+        self.flush();
+        match target {
+            RenameTarget::Node { story, node } => {
+                let chapter = self.project.stories.get_mut(&story).unwrap();
+                let index = chapter["nodes"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .position(|n| n["id"] == node)
+                    .unwrap();
+                chapter["nodes"][index]["id"] = json!(new);
+                retarget(chapter, &BTreeMap::from([(node.clone(), new.clone())]));
+                rename_translations(chapter, &node, &new);
+            }
+            RenameTarget::Chapter(old) => {
+                let mut story = self.project.stories.remove(&old).unwrap();
+                story["id"] = json!(new);
+                rename_story_refs(&mut story, &old, &new);
+                for other in self.project.stories.values_mut() {
+                    rename_story_refs(other, &old, &new);
+                }
+                rename_story_refs(&mut self.project.manifest, &old, &new);
+                if self.project.manifest["entry"] == old {
+                    self.project.manifest["entry"] = json!(new);
+                }
+                if let Some(path) = self.project.paths.remove(&old) {
+                    self.project.paths.insert(new.clone(), path);
+                }
+                self.project.stories.insert(new.clone(), story);
+                if self.current == old {
+                    self.current = new;
+                }
+            }
+        }
+        self.track();
+        self.flush();
+        self.rename_dialog = None;
+        Ok(())
     }
     fn flush(&mut self) {
         if let Some(s) = self.pending_history.take() {
@@ -416,6 +627,8 @@ impl App {
         }
     }
     fn restore(&mut self, s: Snapshot) {
+        self.content_panel.reset();
+        self.advanced.reset();
         self.project.stories = s.stories;
         self.project.manifest = s.manifest;
         self.project.paths = s.paths;
@@ -444,6 +657,9 @@ impl App {
         self.multiselect.clear();
     }
     fn undo(&mut self) {
+        if !self.apply_pending_drafts() {
+            return;
+        }
         self.flush();
         if let Some(s) = self.undo.pop() {
             self.redo.push(snapshot(&self.project));
@@ -452,6 +668,9 @@ impl App {
         }
     }
     fn redo(&mut self) {
+        if !self.apply_pending_drafts() {
+            return;
+        }
         self.flush();
         if let Some(s) = self.redo.pop() {
             self.undo.push(snapshot(&self.project));
@@ -495,7 +714,10 @@ impl App {
         self.clear_recovery();
         self.project = p;
         self.advanced = Default::default();
-        self.content_panel = Default::default();
+        self.content_panel.reset();
+        self.chapter_dialog = None;
+        self.rename_dialog = None;
+        self.asset_import_dialog = None;
         self.audio.stop();
         self.remember_source();
         self.catalog.sync_assets(&self.project.assets);
@@ -523,6 +745,9 @@ impl App {
         self.status = format!("已载入 {} 个章节", self.project.stories.len());
     }
     fn save(&mut self, as_new: bool) -> bool {
+        if !self.apply_pending_drafts() {
+            return false;
+        }
         self.flush();
         let path = if !as_new {
             self.project.source.clone().filter(|p| {
@@ -539,7 +764,13 @@ impl App {
                 .pick_folder()
         });
         let Some(path) = path else { return false };
-        match self.project.save_to(&path) {
+        match crate::persistence::save_project(
+            &mut self.project,
+            &path,
+            self.saved.assets.as_ref(),
+            &self.saved.stories,
+            &self.saved.paths,
+        ) {
             Ok(()) => {
                 self.remember_source();
                 self.last = snapshot(&self.project);
@@ -560,6 +791,9 @@ impl App {
         }
     }
     fn export(&mut self) {
+        if !self.apply_pending_drafts() {
+            return;
+        }
         if let Some(path) = rfd::FileDialog::new()
             .add_filter("活侠传 Mod", &["lommod"])
             .set_file_name(format!(
@@ -569,7 +803,7 @@ impl App {
             .save_file()
         {
             match self.project.export(&path) {
-                Ok(p) => self.status = format!("已用 Rust 编译并导出 {}", p.display()),
+                Ok(p) => self.status = format!("已导出 {}", p.display()),
                 Err(e) => self.error = Some(format!("导出失败\n{e:#}")),
             }
         }
@@ -749,6 +983,17 @@ impl App {
             Ok(mut project) => {
                 let session = lom_core::load_json(path.join("session.json")).unwrap_or(json!({}));
                 project.source = session["source"].as_str().map(PathBuf::from);
+                if let Ok(paths) =
+                    serde_json::from_value::<BTreeMap<String, PathBuf>>(session["paths"].clone())
+                {
+                    project.paths = paths;
+                }
+                if let Some(story_subdir) = session["story_subdir"].as_bool() {
+                    project.story_subdir = story_subdir;
+                }
+                if let Some(has_manifest) = session["has_manifest"].as_bool() {
+                    project.has_manifest = has_manifest;
+                }
                 self.install(project);
                 self.saved = Snapshot {
                     manifest: json!({}),
@@ -775,10 +1020,12 @@ impl App {
             Err(error) => self.error = Some(error.to_string()),
         }
     }
-    fn clear_recovery(&self) {
+    fn clear_recovery(&mut self) {
         if self.recovery_dir.exists() {
             let _ = std::fs::remove_dir_all(&self.recovery_dir);
         }
+        self.recovery_paths.clear();
+        self.recovery_assets.clear();
     }
     fn autosave(&mut self) {
         if !self.dirty() || self.last_recovery.elapsed() < Duration::from_secs(30) {
@@ -786,10 +1033,53 @@ impl App {
         }
         self.last_recovery = Instant::now();
         let mut p = self.project.clone();
-        p.source = Some(self.recovery_dir.clone());
+        let pending_warning = self.content_panel.apply_pending_to_snapshot(&mut p).err();
+        p.paths = self.recovery_paths.clone();
+        p.story_subdir = true;
+        // Only earlier successful writes establish ownership of recovery files.
+        // Never borrow the original project's filenames or trust a preexisting directory.
+        p.source = if self.recovery_paths.is_empty() {
+            None
+        } else {
+            Some(
+                self.recovery_dir
+                    .canonicalize()
+                    .unwrap_or_else(|_| self.recovery_dir.clone()),
+            )
+        };
         let result = (|| -> anyhow::Result<()> {
             p.save_to(&self.recovery_dir)?;
-            let session = json!({"source":self.project.source,"current":self.current,"selected":self.selected});
+            let previous_paths = self.recovery_paths.clone();
+            let previous_assets = self.recovery_assets.clone();
+            self.recovery_paths.extend(p.paths.clone());
+            self.recovery_assets.extend(p.assets.keys().cloned());
+            // Undoing chapter creation/renaming must not resurrect an obsolete
+            // chapter when recovery reopens the directory. Only remove owned files.
+            for (id, filename) in previous_paths {
+                if !p.paths.values().any(|path| path == &filename) {
+                    let file = self.recovery_dir.join("story").join(&filename);
+                    if file.exists() {
+                        std::fs::remove_file(file)?;
+                    }
+                    self.recovery_paths.remove(&id);
+                }
+            }
+            for name in previous_assets {
+                if !p.assets.contains_key(&name) {
+                    let file = self.recovery_dir.join(&name);
+                    if file.exists() {
+                        let file =
+                            lom_core::package::resolve_confined_file(&self.recovery_dir, &file)?;
+                        anyhow::ensure!(
+                            file == self.recovery_dir.canonicalize()?.join(&name),
+                            "恢复素材路径已改变，未移除：{name}"
+                        );
+                        std::fs::remove_file(file)?;
+                    }
+                    self.recovery_assets.remove(&name);
+                }
+            }
+            let session = json!({"source":self.project.source,"paths":self.project.paths,"story_subdir":self.project.story_subdir,"has_manifest":self.project.has_manifest,"current":self.current,"selected":self.selected});
             lom_core::project::atomic_write(
                 &self.recovery_dir.join("session.json"),
                 &lom_core::stable_json(&session)?,
@@ -798,9 +1088,23 @@ impl App {
         })();
         if let Err(e) = result {
             self.status = format!("自动恢复副本写入失败：{e:#}");
+        } else if let Some(error) = pending_warning {
+            self.status = format!("恢复副本已保存其他修改；尚未包含未完成的素材输入：{error}");
         }
     }
     fn shortcuts(&mut self, ctx: &egui::Context) {
+        if self.chapter_dialog.is_some()
+            || self.rename_dialog.is_some()
+            || self.asset_import_dialog.is_some()
+            || self.settings_open
+        {
+            return;
+        }
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::Comma)) {
+            self.settings_open = true;
+            self.settings_error = None;
+            return;
+        }
         if ctx.input_mut(|i| {
             i.consume_key(
                 egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
@@ -886,6 +1190,22 @@ impl App {
             .frame(surface(false))
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
+                    ui.menu_button(tr("编辑器"), |ui| {
+                        if ui
+                            .add(egui::Button::new(tr("设置…")).shortcut_text(
+                                if cfg!(target_os = "macos") {
+                                    "⌘,"
+                                } else {
+                                    "Ctrl+,"
+                                },
+                            ))
+                            .clicked()
+                        {
+                            self.settings_open = true;
+                            self.settings_error = None;
+                            ui.close();
+                        }
+                    });
                     ui.menu_button(tr("文件"), |ui| {
                         if ui.button(tr("新建项目")).clicked() {
                             ui.close();
@@ -922,32 +1242,6 @@ impl App {
                                 self.request(Pending::Open(path), ctx);
                             }
                         }
-                        ui.menu_button(tr("界面语言 / Language"), |ui| {
-                            for (locale, name) in
-                                crate::i18n::LOCALES.into_iter().zip(crate::i18n::NAMES)
-                            {
-                                if ui
-                                    .selectable_label(crate::i18n::locale() == locale, name)
-                                    .clicked()
-                                {
-                                    crate::i18n::set_locale(locale);
-                                    let mut prefs = lom_core::load_json(
-                                        user_root().join("rust/preferences.json"),
-                                    )
-                                    .unwrap_or(json!({}));
-                                    prefs["ui_locale"] = locale.into();
-                                    if let Err(e) = lom_core::stable_json(&prefs).and_then(|b| {
-                                        lom_core::project::atomic_write(
-                                            &user_root().join("rust/preferences.json"),
-                                            &b,
-                                        )
-                                    }) {
-                                        self.error = Some(e.to_string());
-                                    }
-                                    ui.close();
-                                }
-                            }
-                        });
                         ui.menu_button(tr("最近打开"), |ui| {
                             if self.recent.is_empty() {
                                 ui.label(tr("还没有最近项目"));
@@ -1031,6 +1325,38 @@ impl App {
                             self.center = Center::Localization;
                             ui.close();
                         }
+                        ui.separator();
+                        ui.menu_button(tr("高级"), |ui| {
+                            if ui.button(tr("修改步骤标识…")).clicked()
+                                && self.apply_pending_drafts()
+                            {
+                                if let Some(id) =
+                                    self.story()["nodes"][self.selected]["id"].as_str()
+                                {
+                                    self.rename_dialog = Some(RenameDialog {
+                                        target: RenameTarget::Node {
+                                            story: self.current.clone(),
+                                            node: id.to_owned(),
+                                        },
+                                        value: id.to_owned(),
+                                        error: None,
+                                        focus_name: true,
+                                    });
+                                }
+                                ui.close();
+                            }
+                            if ui.button(tr("修改章节标识…")).clicked()
+                                && self.apply_pending_drafts()
+                            {
+                                self.rename_dialog = Some(RenameDialog {
+                                    target: RenameTarget::Chapter(self.current.clone()),
+                                    value: self.current.clone(),
+                                    error: None,
+                                    focus_name: true,
+                                });
+                                ui.close();
+                            }
+                        });
                     });
                     ui.menu_button(tr("创作工具"), |ui| {
                         for (page, label) in [
@@ -1192,42 +1518,18 @@ impl App {
                                 ui.selectable_value(
                                     &mut self.current,
                                     id.clone(),
-                                    format!("{} · {}", story["title"].as_str().unwrap_or(id), id),
+                                    story["title"].as_str().unwrap_or(id),
                                 );
                             }
                         });
                     ui.menu_button("＋", |ui| {
-                        ui.add(
-                            egui::TextEdit::singleline(&mut self.new_story_id)
-                                .hint_text(tr("章节 ID，如 chapter2")),
-                        );
-                        if ui.button(tr("创建空章节")).clicked() {
-                            let id = self.new_story_id.trim().to_owned();
-                            if valid_id(&id) && !self.project.stories.contains_key(&id) {
-                                let mut s = Project::new().stories["main"].clone();
-                                s["id"] = id.clone().into();
-                                s["title"] = id.clone().into();
-                                self.project.stories.insert(id.clone(), s);
-                                self.current = id;
-                                self.selected = 0;
-                                self.new_story_id.clear();
-                                ui.close();
-                            } else {
-                                self.error = Some(
-                                    "章节 ID 应为 1–64 位字母、数字、_ 或 -，且项目内唯一。".into(),
-                                );
-                            }
+                        if ui.button(tr("新建章节…")).clicked() {
+                            self.begin_chapter(false);
+                            ui.close();
                         }
-                        if ui.button(tr("复制当前章节")).clicked() {
-                            let id = self.new_story_id.trim().to_owned();
-                            if valid_id(&id) && !self.project.stories.contains_key(&id) {
-                                let mut s = self.story();
-                                s["id"] = id.clone().into();
-                                self.project.stories.insert(id.clone(), s);
-                                self.current = id;
-                                self.new_story_id.clear();
-                                ui.close();
-                            }
+                        if ui.button(tr("复制当前章节…")).clicked() {
+                            self.begin_chapter(true);
+                            ui.close();
                         }
                     });
 
@@ -1309,11 +1611,18 @@ impl App {
                                             .selectable_label(
                                                 self.current == sid && self.selected == index,
                                                 format!(
-                                                    "{sid} / {} · {}",
-                                                    node["id"].as_str().unwrap_or(""),
+                                                    "{} · {:02} {} · {}",
+                                                    s["title"].as_str().unwrap_or(&sid),
+                                                    index + 1,
+                                                    self.catalog
+                                                        .label(node["type"].as_str().unwrap_or("")),
                                                     short(node["text"].as_str().unwrap_or(""), 22)
                                                 ),
                                             )
+                                            .on_hover_text(format!(
+                                                "{sid} / {}",
+                                                node["id"].as_str().unwrap_or("")
+                                            ))
                                             .clicked()
                                     {
                                         self.current = sid.clone();
@@ -1497,7 +1806,6 @@ impl App {
                                 }
                                 self.selected = index;
                                 self.center = Center::Node;
-                                self.rename.clear();
                             }
                             response.context_menu(|ui| {
                                 if ui.button(tr("复制")).clicked() {
@@ -1708,45 +2016,6 @@ impl App {
                                         .stories
                                         .insert(self.current.clone(), story.clone());
                                 }
-                                ui.collapsing(tr("重命名节点"), |ui| {
-                                    ui.label(tr("节点 ID"));
-                                    ui.horizontal(|ui| {
-                                        ui.add(
-                                            egui::TextEdit::singleline(&mut self.rename)
-                                                .hint_text(node["id"].as_str().unwrap_or("")),
-                                        );
-                                        if ui.button(tr("重命名")).clicked() {
-                                            let new = self.rename.trim().to_owned();
-                                            let old = node["id"].as_str().unwrap_or("").to_owned();
-                                            if !new.is_empty()
-                                                && new
-                                                    .bytes()
-                                                    .all(|b| b.is_ascii_alphanumeric() || b == b'_')
-                                                && !ids.contains(&new)
-                                            {
-                                                let map =
-                                                    BTreeMap::from([(old.clone(), new.clone())]);
-                                                if let Some(s) =
-                                                    self.project.stories.get_mut(&self.current)
-                                                {
-                                                    s["nodes"][self.selected]["id"] = new.into();
-                                                    retarget(s, &map);
-                                                    rename_translations(
-                                                        s,
-                                                        &old,
-                                                        map[&old].as_str(),
-                                                    );
-                                                }
-                                                self.rename.clear();
-                                            } else {
-                                                self.error = Some(
-                                            "节点 ID 必须只含字母、数字和下划线，且章节内唯一。"
-                                                .into(),
-                                        );
-                                            }
-                                        }
-                                    });
-                                });
                             } else {
                                 ui.heading(tr("还没有步骤"));
                                 ui.label(tr("从左侧“添加步骤”开始创作。"));
@@ -1797,21 +2066,43 @@ impl App {
     fn chapter(&mut self, ui: &mut egui::Ui) {
         ui.heading(tr("章节设置"));
         let mut story = self.story();
-        ui.label(format!("章节 ID：{}", self.current));
-        if let Some(s) = story.get_mut("title") {
-            value_editor(ui, "标题", s, 0);
-        } else if ui.button(tr("填写章节标题")).clicked() {
-            story["title"] = json!(self.current);
+        let mut title = story["title"].as_str().unwrap_or_default().to_owned();
+        ui.label(tr("章节名称"));
+        if ui
+            .add(egui::TextEdit::singleline(&mut title).desired_width(f32::INFINITY))
+            .changed()
+        {
+            story["title"] = json!(title);
         }
         let ids = story["nodes"].as_array().cloned().unwrap_or_default();
         let mut start = story["start"].as_str().unwrap_or("").to_owned();
         ui.label(tr("入口步骤"));
         egui::ComboBox::from_id_salt("start")
-            .selected_text(&start)
+            .selected_text(
+                ids.iter()
+                    .enumerate()
+                    .find(|(_, node)| node["id"] == start)
+                    .map(|(index, node)| {
+                        format!(
+                            "{:02} {}",
+                            index + 1,
+                            self.catalog.label(node["type"].as_str().unwrap_or(""))
+                        )
+                    })
+                    .unwrap_or_else(|| tr("选择入口步骤")),
+            )
             .show_ui(ui, |ui| {
-                for n in &ids {
+                for (index, n) in ids.iter().enumerate() {
                     if let Some(id) = n["id"].as_str() {
-                        ui.selectable_value(&mut start, id.into(), id);
+                        ui.selectable_value(
+                            &mut start,
+                            id.into(),
+                            format!(
+                                "{:02} {}",
+                                index + 1,
+                                self.catalog.label(n["type"].as_str().unwrap_or(""))
+                            ),
+                        );
                     }
                 }
             });
@@ -1820,34 +2111,6 @@ impl App {
         if ui.checkbox(&mut mood, tr("显示官方心情气泡")).changed() {
             story["mood"] = mood.into();
         }
-        ui.separator();
-        ui.label(tr("重命名章节（同步入口和跨章节引用，保留原文件名）"));
-        ui.horizontal(|ui| {
-            ui.add(egui::TextEdit::singleline(&mut self.new_story_id).hint_text(tr("新的章节 ID")));
-            if ui.button(tr("应用")).clicked() {
-                let id = self.new_story_id.trim().to_owned();
-                if valid_id(&id) && !self.project.stories.contains_key(&id) {
-                    let old = self.current.clone();
-                    story["id"] = id.clone().into();
-                    self.project.stories.remove(&old);
-                    if let Some(path) = self.project.paths.remove(&old) {
-                        self.project.paths.insert(id.clone(), path);
-                    }
-                    if self.project.manifest["entry"] == old {
-                        self.project.manifest["entry"] = id.clone().into();
-                    }
-                    for s in self.project.stories.values_mut() {
-                        rename_story_refs(s, &old, &id);
-                    }
-                    rename_story_refs(&mut self.project.manifest, &old, &id);
-                    rename_story_refs(&mut story, &old, &id);
-                    self.current = id;
-                    self.new_story_id.clear();
-                } else {
-                    self.error = Some("章节 ID 格式不合法或已存在。".into());
-                }
-            }
-        });
         ui.separator();
         ui.heading(tr("分区与分组"));
         ui.label(tr(
@@ -1907,6 +2170,7 @@ impl App {
                 Err(e) => self.error = Some(format!("分区/分组修改未应用：{e}")),
             }
         }
+        ui.collapsing(tr("高级"), |ui| {
         if let Some(meta) = story.get_mut("_editor").and_then(Value::as_object_mut) {
             let mut other = Value::Object(
                 meta.iter()
@@ -1932,6 +2196,7 @@ impl App {
             let tests = story["_editor"]["tests"].as_array_mut().unwrap();
             tests.push(json!({"name":format!("测试{}",tests.len()+1),"story":self.current,"initial":{"variables":{},"flags":{}},"actions":{"choices":[]},"assert":{"reaches_node":[]}}));
         }
+        });
         self.project.stories.insert(self.current.clone(), story);
     }
     fn localization(&mut self, ui: &mut egui::Ui) {
@@ -2080,38 +2345,13 @@ impl App {
     fn assets(&mut self, ui: &mut egui::Ui) {
         ui.heading(tr("作品内容库"));
         ui.add_space(4.0);
-        ui.horizontal(|ui| {
-            egui::ComboBox::from_id_salt("asset-kind")
-                .width(76.0)
-                .selected_text(tr(["图片", "角色", "音乐", "音效", "配音"][self.asset_kind]))
-                .show_ui(ui, |ui| {
-                    for (i, k) in ["图片", "角色", "音乐", "音效", "配音"].iter().enumerate()
-                    {
-                        ui.selectable_value(&mut self.asset_kind, i, tr(k));
-                    }
-                });
-            ui.add(
-                egui::TextEdit::singleline(&mut self.asset_id)
-                    .desired_width(ui.available_width())
-                    .hint_text(tr("内容 ID，如 mymod.hero")),
-            );
-        });
-        if ui.button(tr("导入素材文件…")).clicked() {
-            let paths = if self.asset_kind == 1 {
-                rfd::FileDialog::new()
-                    .add_filter("PNG / JPEG", &["png", "jpg", "jpeg"])
-                    .pick_files()
-            } else {
-                rfd::FileDialog::new()
-                    .add_filter("图片或音频", &["png", "jpg", "jpeg", "ogg", "wav"])
-                    .pick_file()
-                    .map(|p| vec![p])
-            };
-            if let Some(paths) = paths {
-                if let Err(e) = self.import_assets(paths) {
-                    self.error = Some(e.to_string());
-                }
-            }
+        if ui.button(tr("导入素材…")).clicked() && self.apply_pending_drafts() {
+            self.asset_import_dialog = Some(AssetImportDialog {
+                kind: 0,
+                name: String::new(),
+                paths: vec![],
+                error: None,
+            });
         }
         let records: Vec<_> = self
             .project
@@ -2190,7 +2430,7 @@ impl App {
             }
             if self
                 .content_panel
-                .show(ui, &mut self.project, &self.asset_selection)
+                .show(ui, &mut self.project, &mut self.asset_selection)
             {
                 self.asset_dirty = true;
             }
@@ -2205,10 +2445,84 @@ impl App {
             },
         );
     }
-    fn import_assets(&mut self, paths: Vec<PathBuf>) -> anyhow::Result<()> {
-        let id = self.asset_id.trim().to_owned();
+    fn apply_pending_drafts(&mut self) -> bool {
+        match self.content_panel.apply_pending(&mut self.project) {
+            Ok(true) => self.track(),
+            Ok(false) => {}
+            Err(error) => {
+                self.error = Some(error.to_string());
+                return false;
+            }
+        }
+        match self.advanced.apply_pending(&mut self.project) {
+            Ok(true) => self.track(),
+            Ok(false) => {}
+            Err(error) => {
+                self.error = Some(error.to_string());
+                return false;
+            }
+        }
+        true
+    }
+    fn commit_asset_import(&mut self) -> anyhow::Result<()> {
+        let draft = self
+            .asset_import_dialog
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("没有待导入的素材"))?;
+        let name = draft.name.trim().to_owned();
+        anyhow::ensure!(!name.is_empty(), "请填写素材名称。");
+        anyhow::ensure!(
+            name.chars().count() <= 80 && !name.chars().any(char::is_control),
+            "素材名称最多 80 个字，不能包含换行或控制字符。"
+        );
+        let kind = draft.kind;
+        let paths = draft.paths.clone();
+        let prefix = match kind {
+            0 => "image",
+            1 => "character",
+            _ => "audio",
+        };
+        let namespace: String = self.project.manifest["id"]
+            .as_str()
+            .unwrap_or("project")
+            .to_ascii_lowercase()
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
+            .take(32)
+            .collect();
+        let namespace = if namespace.starts_with(|c: char| c.is_ascii_lowercase()) {
+            namespace.as_str()
+        } else {
+            "project"
+        };
+        let id = (1..)
+            .map(|n| format!("{namespace}.{prefix}{n}"))
+            .find(|id| {
+                !self
+                    .project
+                    .assets
+                    .keys()
+                    .any(|key| key.split('/').nth(3) == Some(id.as_str()))
+            })
+            .unwrap();
+        self.content_panel.apply_pending(&mut self.project)?;
+        self.flush();
+        self.import_assets(paths, &id, &name, kind)?;
+        self.track();
+        self.flush();
+        self.asset_import_dialog = None;
+        Ok(())
+    }
+    fn import_assets(
+        &mut self,
+        paths: Vec<PathBuf>,
+        id: &str,
+        name: &str,
+        asset_kind: usize,
+    ) -> anyhow::Result<()> {
+        let id = id.trim().to_owned();
         lom_core::content::validate_content_id(&id)?;
-        let kind = match self.asset_kind {
+        let kind = match asset_kind {
             0 => "image",
             1 => "character",
             _ => "audio",
@@ -2277,22 +2591,24 @@ impl App {
                 );
                 portraits.insert(portrait.into(), name.clone().into());
             }
+            anyhow::ensure!(
+                !payload
+                    .keys()
+                    .any(|key: &String| key.eq_ignore_ascii_case(&format!("{prefix}/{name}"))),
+                "所选文件存在同名素材，请分别导入。"
+            );
             payload.insert(format!("{prefix}/{name}"), bytes);
         }
         anyhow::ensure!(!main.is_empty(), "未选择素材");
-        let mut meta = json!({"schema":1,"content_schema":1,"id":id,"type":kind,"name":id,"files":{"main":main}});
+        let mut meta = json!({"schema":1,"content_schema":1,"id":id,"type":kind,"name":name,"files":{"main":main}});
         if kind == "character" {
             meta["portraits"] = portraits.into();
             meta["scale"] = json!(100);
             meta["art_facing"] = json!("left");
         }
         if kind == "audio" {
-            meta["audio_kind"] = json!(if self.asset_kind == 2 {
-                "music"
-            } else {
-                "sound"
-            });
-            if self.asset_kind == 4 {
+            meta["audio_kind"] = json!(if asset_kind == 2 { "music" } else { "sound" });
+            if asset_kind == 4 {
                 meta["character"] = json!("player");
             }
         }
@@ -2303,7 +2619,7 @@ impl App {
         self.project.assets.extend(payload);
         self.asset_selection = key;
         self.asset_dirty = true;
-        self.status = format!("已导入 user:{id}");
+        self.status = format!("{}：{name}", tr("已导入"));
         Ok(())
     }
     fn tools(&mut self, ui: &mut egui::Ui) {
@@ -2514,7 +2830,242 @@ impl App {
             }
         }
     }
+    fn set_interface_locale(&mut self, locale: &str, path: &Path) -> anyhow::Result<()> {
+        anyhow::ensure!(crate::i18n::LOCALES.contains(&locale), "不支持的界面语言");
+        let mut prefs = lom_core::load_json(path)
+            .ok()
+            .filter(Value::is_object)
+            .unwrap_or(json!({}));
+        prefs["ui_locale"] = json!(locale);
+        lom_core::project::atomic_write(path, &lom_core::stable_json(&prefs)?)?;
+        crate::i18n::set_locale(locale);
+        Ok(())
+    }
+    fn dialog_keys(&mut self, ctx: &egui::Context) -> (bool, bool) {
+        if !self.settings_open
+            && self.chapter_dialog.is_none()
+            && self.rename_dialog.is_none()
+            && self.asset_import_dialog.is_none()
+        {
+            self.dialog_ime = false;
+            return (false, false);
+        }
+        let was_composing = self.dialog_ime;
+        let events = ctx.input(|i| i.events.clone());
+        let mut ime_event = false;
+        for event in events {
+            if let egui::Event::Ime(event) = event {
+                ime_event = true;
+                match event {
+                    egui::ImeEvent::Enabled => {}
+                    egui::ImeEvent::Preedit(text) => self.dialog_ime = !text.is_empty(),
+                    egui::ImeEvent::Commit(_) | egui::ImeEvent::Disabled => self.dialog_ime = false,
+                }
+            }
+        }
+        // Return confirms an IME candidate before it can confirm the dialog.
+        // Popups likewise own their Return/Escape while a list is open.
+        if was_composing || self.dialog_ime || ime_event || egui::Popup::is_any_open(ctx) {
+            return (false, false);
+        }
+        ctx.input_mut(|i| {
+            if !i.modifiers.is_none() {
+                return (false, false);
+            }
+            (
+                !self.settings_open && i.consume_key(egui::Modifiers::NONE, egui::Key::Enter),
+                i.consume_key(egui::Modifiers::NONE, egui::Key::Escape),
+            )
+        })
+    }
     fn dialogs(&mut self, ctx: &egui::Context) {
+        let (return_pressed, escape_pressed) = self.dialog_keys(ctx);
+        if self.settings_open {
+            let mut close = false;
+            let mut selected = None;
+            egui::Modal::new(egui::Id::new("application-settings")).show(ctx, |ui| {
+                ui.set_width(360.0);
+                ui.heading(tr("设置"));
+                ui.add_space(16.0);
+                ui.label(tr("界面语言"));
+                for (locale, name) in crate::i18n::LOCALES.into_iter().zip(crate::i18n::NAMES) {
+                    if ui.radio(crate::i18n::locale() == locale, name).clicked() {
+                        selected = Some(locale);
+                    }
+                }
+                if let Some(error) = &self.settings_error {
+                    ui.colored_label(Color32::from_rgb(179, 55, 49), error);
+                }
+                ui.add_space(16.0);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    close = ui
+                        .add_sized([80.0, 30.0], egui::Button::new(tr("完成")))
+                        .clicked();
+                });
+            });
+            if let Some(locale) = selected {
+                let prefs = user_root().join("rust/preferences.json");
+                self.settings_error = self
+                    .set_interface_locale(locale, &prefs)
+                    .err()
+                    .map(|e| e.to_string());
+            }
+            if close || escape_pressed {
+                self.settings_open = false;
+            }
+        }
+        if let Some(draft) = &mut self.asset_import_dialog {
+            let mut submit = false;
+            let mut cancel = false;
+            let mut choose_files = false;
+            egui::Modal::new(egui::Id::new("asset-import")).show(ctx, |ui| {
+                ui.set_width(380.0);
+                ui.heading(tr("导入素材"));
+                ui.add_space(16.0);
+                let old_kind = draft.kind;
+                ui.label(tr("素材类型"));
+                egui::ComboBox::from_id_salt("import-kind")
+                    .selected_text(tr(["图片", "角色", "音乐", "音效", "配音"][draft.kind]))
+                    .show_ui(ui, |ui| {
+                        for (i, kind) in ["图片", "角色", "音乐", "音效", "配音"].iter().enumerate()
+                        {
+                            ui.selectable_value(&mut draft.kind, i, tr(kind));
+                        }
+                    });
+                if old_kind != draft.kind {
+                    draft.paths.clear();
+                    draft.name.clear();
+                    draft.error = None;
+                }
+                choose_files = ui
+                    .button(tr(if draft.kind == 1 {
+                        "选择立绘文件…"
+                    } else {
+                        "选择文件…"
+                    }))
+                    .clicked();
+                if !draft.paths.is_empty() {
+                    for path in &draft.paths {
+                        ui.label(path.file_name().unwrap_or_default().to_string_lossy());
+                    }
+                    ui.label(tr("素材名称"));
+                    ui.add(
+                        egui::TextEdit::singleline(&mut draft.name)
+                            .id(egui::Id::new("asset-import-name"))
+                            .desired_width(f32::INFINITY),
+                    );
+                }
+                if let Some(error) = &draft.error {
+                    ui.colored_label(Color32::from_rgb(179, 55, 49), tr(error));
+                }
+                let can_submit = !draft.paths.is_empty() && !draft.name.trim().is_empty();
+                (submit, cancel) = dialog_actions(ui, "导入", can_submit);
+                submit |= return_pressed && can_submit;
+            });
+            if cancel || escape_pressed {
+                self.asset_import_dialog = None;
+            } else if choose_files {
+                let dialog = rfd::FileDialog::new();
+                let paths = if draft.kind == 1 {
+                    dialog
+                        .add_filter("PNG / JPEG", &["png", "jpg", "jpeg"])
+                        .pick_files()
+                } else if draft.kind == 0 {
+                    dialog
+                        .add_filter("PNG / JPEG", &["png", "jpg", "jpeg"])
+                        .pick_file()
+                        .map(|path| vec![path])
+                } else {
+                    dialog
+                        .add_filter("WAV / OGG", &["wav", "ogg"])
+                        .pick_file()
+                        .map(|path| vec![path])
+                };
+                if let Some(paths) = paths {
+                    draft.name = paths
+                        .first()
+                        .and_then(|path| path.file_stem())
+                        .map(|name| name.to_string_lossy().into_owned())
+                        .unwrap_or_default();
+                    draft.paths = paths;
+                    draft.error = None;
+                }
+            } else if submit {
+                if let Err(error) = self.commit_asset_import() {
+                    self.asset_import_dialog.as_mut().unwrap().error = Some(error.to_string());
+                }
+            }
+        }
+        if let Some(draft) = &mut self.chapter_dialog {
+            let mut submit = false;
+            let mut cancel = false;
+            let title = match draft.action {
+                ChapterAction::New => "新建章节",
+                ChapterAction::Duplicate(_) => "复制章节",
+            };
+            egui::Modal::new(egui::Id::new("chapter-create")).show(ctx, |ui| {
+                ui.set_width(360.0);
+                ui.heading(tr(title));
+                ui.add_space(16.0);
+                ui.label(tr("章节名称"));
+                let name = ui.add(
+                    egui::TextEdit::singleline(&mut draft.name)
+                        .id(egui::Id::new("chapter-name"))
+                        .desired_width(f32::INFINITY),
+                );
+                if std::mem::take(&mut draft.focus_name) {
+                    name.request_focus();
+                }
+                if let Some(error) = &draft.error {
+                    ui.colored_label(Color32::from_rgb(179, 55, 49), tr(error));
+                }
+                let can_submit = !draft.name.trim().is_empty();
+                (submit, cancel) = dialog_actions(ui, "创建", can_submit);
+                submit |= return_pressed && can_submit;
+            });
+            if cancel || escape_pressed {
+                self.chapter_dialog = None;
+            } else if submit {
+                if let Err(error) = self.commit_chapter() {
+                    self.chapter_dialog.as_mut().unwrap().error = Some(error.to_string());
+                }
+            }
+        }
+        if let Some(draft) = &mut self.rename_dialog {
+            let mut submit = false;
+            let mut cancel = false;
+            let title = match draft.target {
+                RenameTarget::Node { .. } => "修改步骤标识",
+                RenameTarget::Chapter(_) => "修改章节标识",
+            };
+            egui::Modal::new(egui::Id::new("advanced-rename")).show(ctx, |ui| {
+                ui.set_width(380.0);
+                ui.heading(tr(title));
+                ui.add_space(16.0);
+                ui.label(tr("内部标识用于流程引用，修改时会同步关联内容。"));
+                let field = ui.add(
+                    egui::TextEdit::singleline(&mut draft.value)
+                        .id(egui::Id::new("advanced-rename-value"))
+                        .desired_width(f32::INFINITY),
+                );
+                if std::mem::take(&mut draft.focus_name) {
+                    field.request_focus();
+                }
+                if let Some(error) = &draft.error {
+                    ui.colored_label(Color32::from_rgb(179, 55, 49), tr(error));
+                }
+                let can_submit = !draft.value.trim().is_empty();
+                (submit, cancel) = dialog_actions(ui, "应用", can_submit);
+                submit |= return_pressed && can_submit;
+            });
+            if cancel || escape_pressed {
+                self.rename_dialog = None;
+            } else if submit {
+                if let Err(error) = self.commit_rename() {
+                    self.rename_dialog.as_mut().unwrap().error = Some(error.to_string());
+                }
+            }
+        }
         if let Some((nodes, warnings)) = self.pending_template.clone() {
             egui::Window::new(tr("模板边界引用"))
                 .collapsible(false)
@@ -3072,6 +3623,538 @@ mod application_regression_tests {
         app.recovery_candidates.clear();
         app
     }
+    fn key_event(key: egui::Key, modifiers: egui::Modifiers) -> egui::Event {
+        egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers,
+        }
+    }
+    #[test]
+    fn settings_shortcut_and_language_preferences_do_not_modify_the_project() {
+        let mut app = app();
+        let before = snapshot(&app.project);
+        let ctx = egui::Context::default();
+        let _ = ctx.run(
+            egui::RawInput {
+                modifiers: egui::Modifiers::COMMAND,
+                events: vec![key_event(egui::Key::Comma, egui::Modifiers::COMMAND)],
+                ..Default::default()
+            },
+            |ctx| app.shortcuts(ctx),
+        );
+        assert!(app.settings_open);
+        let _ = ctx.run(
+            egui::RawInput {
+                modifiers: egui::Modifiers::COMMAND,
+                events: vec![key_event(egui::Key::N, egui::Modifiers::COMMAND)],
+                ..Default::default()
+            },
+            |ctx| app.shortcuts(ctx),
+        );
+        assert!(snapshot(&app.project) == before);
+        let dir = tempfile::tempdir().unwrap();
+        let prefs = dir.path().join("preferences.json");
+        std::fs::write(&prefs, br#"{"preview_library":"keep-me"}"#).unwrap();
+        let locale = crate::i18n::locale();
+        app.set_interface_locale(locale, &prefs).unwrap();
+        let saved = lom_core::load_json(&prefs).unwrap();
+        assert_eq!(saved["ui_locale"], locale);
+        assert_eq!(saved["preview_library"], "keep-me");
+        assert!(app.set_interface_locale("unsupported", &prefs).is_err());
+        assert_eq!(lom_core::load_json(&prefs).unwrap(), saved);
+        let _ = ctx.run(
+            egui::RawInput {
+                events: vec![key_event(egui::Key::Escape, egui::Modifiers::NONE)],
+                ..Default::default()
+            },
+            |ctx| app.dialogs(ctx),
+        );
+        assert!(!app.settings_open);
+        assert!(snapshot(&app.project) == before);
+        assert!(!app.dirty());
+    }
+    #[test]
+    fn modal_blocks_background_clicks_and_project_shortcuts() {
+        let mut app = app();
+        app.project.manifest["name"] = json!("pending title");
+        app.track();
+        app.flush();
+        app.begin_chapter(false);
+        let before = snapshot(&app.project);
+        let ctx = egui::Context::default();
+        let mut button_rect = egui::Rect::NOTHING;
+        let mut clicked = false;
+        let mut draw = |ctx: &egui::Context| {
+            app.shortcuts(ctx);
+            egui::CentralPanel::default().show(ctx, |ui| {
+                let response = ui.button("background action");
+                button_rect = response.rect;
+                clicked |= response.clicked();
+            });
+            app.dialogs(ctx);
+        };
+        let raw = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                Vec2::new(900.0, 800.0),
+            )),
+            ..Default::default()
+        };
+        let _ = ctx.run(raw.clone(), &mut draw);
+        let pos = egui::pos2(20.0, 20.0);
+        for pressed in [true, false] {
+            let _ = ctx.run(
+                egui::RawInput {
+                    events: vec![
+                        egui::Event::PointerMoved(pos),
+                        egui::Event::PointerButton {
+                            pos,
+                            button: egui::PointerButton::Primary,
+                            pressed,
+                            modifiers: egui::Modifiers::NONE,
+                        },
+                    ],
+                    ..raw.clone()
+                },
+                &mut draw,
+            );
+        }
+        let _ = ctx.run(
+            egui::RawInput {
+                modifiers: egui::Modifiers::COMMAND,
+                events: vec![key_event(egui::Key::Z, egui::Modifiers::COMMAND)],
+                ..raw
+            },
+            &mut draw,
+        );
+        assert!(button_rect.contains(pos));
+        assert!(!clicked);
+        assert!(app.chapter_dialog.is_some());
+        assert!(snapshot(&app.project) == before);
+    }
+    #[test]
+    fn ime_confirmation_keeps_dialog_open_then_return_creates_the_chapter() {
+        let mut app = app();
+        app.begin_chapter(false);
+        app.chapter_dialog.as_mut().unwrap().name.clear();
+        let ctx = egui::Context::default();
+        let _ = ctx.run(egui::RawInput::default(), |ctx| app.dialogs(ctx));
+        let _ = ctx.run(
+            egui::RawInput {
+                events: vec![
+                    egui::Event::Ime(egui::ImeEvent::Enabled),
+                    egui::Event::Ime(egui::ImeEvent::Preedit("chun".into())),
+                ],
+                ..Default::default()
+            },
+            |ctx| app.dialogs(ctx),
+        );
+        let _ = ctx.run(
+            egui::RawInput {
+                events: vec![
+                    egui::Event::Ime(egui::ImeEvent::Commit("春日".into())),
+                    key_event(egui::Key::Enter, egui::Modifiers::NONE),
+                ],
+                ..Default::default()
+            },
+            |ctx| app.dialogs(ctx),
+        );
+        assert_eq!(app.project.stories.len(), 1);
+        assert_eq!(app.chapter_dialog.as_ref().unwrap().name, "春日");
+        let _ = ctx.run(
+            egui::RawInput {
+                events: vec![key_event(egui::Key::Enter, egui::Modifiers::NONE)],
+                ..Default::default()
+            },
+            |ctx| app.dialogs(ctx),
+        );
+        assert!(app.chapter_dialog.is_none());
+        assert_eq!(app.story()["title"], "春日");
+        app.begin_chapter(false);
+        app.chapter_dialog.as_mut().unwrap().name = "Next chapter".into();
+        let _ = ctx.run(
+            egui::RawInput {
+                events: vec![egui::Event::Ime(egui::ImeEvent::Enabled)],
+                ..Default::default()
+            },
+            |ctx| app.dialogs(ctx),
+        );
+        let _ = ctx.run(
+            egui::RawInput {
+                events: vec![key_event(egui::Key::Enter, egui::Modifiers::NONE)],
+                ..Default::default()
+            },
+            |ctx| app.dialogs(ctx),
+        );
+        assert!(app.chapter_dialog.is_none());
+        assert_eq!(app.story()["title"], "Next chapter");
+    }
+    #[test]
+    fn chapter_creation_uses_unique_identity_and_preserves_owned_filenames() {
+        let mut app = app();
+        app.project
+            .paths
+            .insert("main".into(), "CHAPTER1.json".into());
+        let before = snapshot(&app.project);
+        app.last = before.clone();
+        app.saved = before.clone();
+        app.begin_chapter(false);
+        app.chapter_dialog.as_mut().unwrap().name = "  春日初遇  ".into();
+        app.commit_chapter().unwrap();
+        assert_eq!(app.current, "chapter2");
+        assert_eq!(app.story()["title"], "春日初遇");
+        lom_core::validate::validate_story(&app.story()).unwrap();
+        assert_eq!(app.project.paths["main"], PathBuf::from("CHAPTER1.json"));
+        assert!(!app.project.paths.contains_key("chapter2"));
+        assert!(app.chapter_dialog.is_none());
+        assert!(app.dirty());
+        app.undo();
+        assert!(snapshot(&app.project) == before);
+        app.redo();
+        assert_eq!(app.project.stories["chapter2"]["title"], "春日初遇");
+    }
+    #[test]
+    fn copied_chapter_preserves_all_content_and_does_not_redirect_explicit_links() {
+        let mut app = app();
+        let mut source = app.story();
+        source["nodes"][1]["next_script"] = json!("main");
+        source["localization"] = json!({"translations":{"cht":{"say1.text":"春日"}}});
+        source["_editor"] = json!({"tests":[{"story":"main","name":"本章测试"}],"sections":[{"id":"a","start":"say1","end":"end1"}]});
+        app.project.stories.insert("main".into(), source.clone());
+        let mut occupied = source.clone();
+        occupied["id"] = json!("chapter1");
+        app.project.stories.insert("chapter1".into(), occupied);
+        app.begin_chapter(true);
+        app.chapter_dialog.as_mut().unwrap().name = "另一段故事".into();
+        app.commit_chapter().unwrap();
+        assert_eq!(app.current, "chapter2");
+        let mut expected = source.clone();
+        expected["id"] = json!("chapter2");
+        expected["title"] = json!("另一段故事");
+        assert_eq!(app.story(), expected);
+        assert_eq!(app.project.stories["main"], source);
+        assert_eq!(app.project.manifest["entry"], "main");
+        app.begin_chapter(true);
+        app.commit_chapter().unwrap();
+        assert_eq!(app.current, "chapter3");
+    }
+    #[test]
+    fn chapter_name_input_survives_frames_and_cancel_or_invalid_name_never_changes_project() {
+        let mut app = app();
+        let before = snapshot(&app.project);
+        let ctx = egui::Context::default();
+        app.begin_chapter(false);
+        app.chapter_dialog.as_mut().unwrap().name.clear();
+        assert!(app.commit_chapter().is_err());
+        assert!(app.chapter_dialog.is_some());
+        assert!(snapshot(&app.project) == before);
+        for events in [vec![], vec![egui::Event::Text("春日".into())], vec![]] {
+            let _ = ctx.run(
+                egui::RawInput {
+                    events,
+                    ..Default::default()
+                },
+                |ctx| app.dialogs(ctx),
+            );
+        }
+        assert_eq!(app.chapter_dialog.as_ref().unwrap().name, "春日");
+        assert!(snapshot(&app.project) == before);
+        let _ = ctx.run(
+            egui::RawInput {
+                events: vec![egui::Event::Key {
+                    key: egui::Key::Escape,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: egui::Modifiers::NONE,
+                }],
+                ..Default::default()
+            },
+            |ctx| app.dialogs(ctx),
+        );
+        assert!(app.chapter_dialog.is_none());
+        assert!(snapshot(&app.project) == before);
+        assert!(!app.dirty());
+    }
+    #[test]
+    fn advanced_node_rename_preserves_links_and_localizations() {
+        let mut app = app();
+        app.project.stories.get_mut("main").unwrap()["nodes"][0]["goto"] = json!("end1");
+        app.project.stories.get_mut("main").unwrap()["localization"] =
+            json!({"translations":{"cht":{"say1.text":"春日"}}});
+        app.rename_dialog = Some(RenameDialog {
+            target: RenameTarget::Node {
+                story: "main".into(),
+                node: "say1".into(),
+            },
+            value: "greeting".into(),
+            error: None,
+            focus_name: false,
+        });
+        app.commit_rename().unwrap();
+        assert_eq!(app.story()["start"], "greeting");
+        assert_eq!(app.story()["nodes"][0]["id"], "greeting");
+        assert_eq!(app.story()["nodes"][0]["goto"], "end1");
+        assert_eq!(
+            app.story()["localization"]["translations"]["cht"]["greeting.text"],
+            "春日"
+        );
+        assert!(app.story()["localization"]["translations"]["cht"]
+            .get("say1.text")
+            .is_none());
+    }
+    #[test]
+    fn advanced_chapter_rename_keeps_owned_filename_and_repairs_entry_and_links() {
+        let mut app = app();
+        app.project
+            .paths
+            .insert("main".into(), "original.json".into());
+        app.project.stories.get_mut("main").unwrap()["nodes"][1]["next_script"] = json!("main");
+        app.project.stories.get_mut("main").unwrap()["_editor"] =
+            json!({"tests":[{"story":"main"}]});
+        let mut other = app.story();
+        other["id"] = json!("other");
+        app.project.stories.insert("other".into(), other);
+        let before = snapshot(&app.project);
+        app.last = before.clone();
+        app.saved = before.clone();
+        app.rename_dialog = Some(RenameDialog {
+            target: RenameTarget::Chapter("main".into()),
+            value: "other".into(),
+            error: None,
+            focus_name: false,
+        });
+        assert!(app.commit_rename().is_err());
+        assert!(snapshot(&app.project) == before);
+        app.rename_dialog.as_mut().unwrap().value = "opening".into();
+        app.commit_rename().unwrap();
+        assert_eq!(app.current, "opening");
+        assert_eq!(app.project.paths["opening"], PathBuf::from("original.json"));
+        assert_eq!(app.project.manifest["entry"], "opening");
+        assert_eq!(app.story()["nodes"][1]["next_script"], "opening");
+        assert_eq!(
+            app.project.stories["other"]["nodes"][1]["next_script"],
+            "opening"
+        );
+        assert_eq!(app.story()["_editor"]["tests"][0]["story"], "opening");
+        app.undo();
+        assert!(snapshot(&app.project) == before);
+    }
+    #[test]
+    fn repeated_recovery_updates_only_owned_files_without_polluting_the_project() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut app = app();
+        app.recovery_dir = dir.path().join("owned-recovery");
+        app.project.source = Some(dir.path().join("original-project"));
+        app.project
+            .paths
+            .insert("main".into(), "authored-name.json".into());
+        app.project.story_subdir = false;
+        app.project.stories.get_mut("main").unwrap()["nodes"][0]["text"] = json!("first");
+        app.track();
+        let original_source = app.project.source.clone();
+        let original_paths = app.project.paths.clone();
+        for text in ["first", "second"] {
+            app.project.stories.get_mut("main").unwrap()["nodes"][0]["text"] = json!(text);
+            app.track();
+            app.last_recovery = Instant::now() - Duration::from_secs(31);
+            app.autosave();
+            let restored = Project::open(&app.recovery_dir).unwrap();
+            assert_eq!(restored.stories["main"]["nodes"][0]["text"], text);
+            assert_eq!(app.project.source, original_source);
+            assert_eq!(app.project.paths, original_paths);
+            assert!(!app.project.story_subdir);
+            assert_eq!(app.recovery_paths["main"], PathBuf::from("main.json"));
+            let session = lom_core::load_json(app.recovery_dir.join("session.json")).unwrap();
+            assert_eq!(session["paths"]["main"], "authored-name.json");
+            assert_eq!(session["story_subdir"], false);
+        }
+        app.begin_chapter(false);
+        app.commit_chapter().unwrap();
+        app.last_recovery = Instant::now() - Duration::from_secs(31);
+        app.autosave();
+        assert!(app.recovery_dir.join("story/chapter1.json").exists());
+        app.undo();
+        app.last_recovery = Instant::now() - Duration::from_secs(31);
+        app.autosave();
+        assert!(!app.recovery_dir.join("story/chapter1.json").exists());
+        assert_eq!(Project::open(&app.recovery_dir).unwrap().stories.len(), 1);
+        app.clear_recovery();
+        assert!(app.recovery_paths.is_empty());
+        assert!(!app.recovery_dir.exists());
+    }
+    #[test]
+    fn recovery_never_claims_a_foreign_collision_as_owned() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut app = app();
+        app.recovery_dir = dir.path().join("foreign-recovery");
+        std::fs::create_dir_all(app.recovery_dir.join("story")).unwrap();
+        let collision = app.recovery_dir.join("story/main.json");
+        std::fs::write(&collision, b"unowned data").unwrap();
+        app.project.stories.get_mut("main").unwrap()["nodes"][0]["text"] = json!("unsaved");
+        app.track();
+        app.last_recovery = Instant::now() - Duration::from_secs(31);
+        app.autosave();
+        assert_eq!(std::fs::read(&collision).unwrap(), b"unowned data");
+        assert!(app.recovery_paths.is_empty());
+        assert!(app.status.starts_with("自动恢复副本写入失败"));
+        assert!(app.project.source.is_none());
+        assert!(app.project.paths.is_empty());
+    }
+    #[test]
+    fn recovery_removes_deleted_owned_assets_without_removing_unknown_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let image = dir.path().join("hero.png");
+        std::fs::write(&image, b"image fixture").unwrap();
+        let mut app = app();
+        app.recovery_dir = dir.path().join("asset-recovery");
+        app.import_assets(vec![image], "test.hero", "hero", 0)
+            .unwrap();
+        app.track();
+        let owned: BTreeSet<_> = app.project.assets.keys().cloned().collect();
+        app.last_recovery = Instant::now() - Duration::from_secs(31);
+        app.autosave();
+        assert_eq!(app.recovery_assets, owned);
+        let unknown = app.recovery_dir.join("assets/unknown.bin");
+        std::fs::write(&unknown, b"unowned data").unwrap();
+        lom_core::content_edit::remove(&mut app.project, &app.asset_selection).unwrap();
+        app.track();
+        app.last_recovery = Instant::now() - Duration::from_secs(31);
+        app.autosave();
+        let restored = Project::open(&app.recovery_dir).unwrap();
+        for name in owned {
+            assert!(!restored.assets.contains_key(&name));
+            assert!(!app.recovery_dir.join(name).exists());
+        }
+        assert_eq!(std::fs::read(&unknown).unwrap(), b"unowned data");
+        assert!(app.recovery_assets.is_empty());
+        app.clear_recovery();
+        assert!(app.recovery_assets.is_empty());
+    }
+    #[test]
+    fn recovery_includes_valid_pending_content_without_changing_live_input() {
+        let dir = tempfile::tempdir().unwrap();
+        let image = dir.path().join("hero.png");
+        std::fs::write(&image, b"image fixture").unwrap();
+        let mut app = app();
+        app.recovery_dir = dir.path().join("draft-recovery");
+        app.import_assets(vec![image], "test.hero", "hero", 0)
+            .unwrap();
+        app.track();
+        let before = snapshot(&app.project);
+        let mut draft: Value =
+            serde_json::from_slice(&app.project.assets[&app.asset_selection]).unwrap();
+        draft["name"] = json!("new title ");
+        app.content_panel = crate::content_panel::ContentPanel::pending_fixture(
+            &app.project,
+            &app.asset_selection,
+            draft,
+        );
+        app.last_recovery = Instant::now() - Duration::from_secs(31);
+        app.autosave();
+        let restored = Project::open(&app.recovery_dir).unwrap();
+        let meta: Value = serde_json::from_slice(&restored.assets[&app.asset_selection]).unwrap();
+        assert_eq!(meta["name"], "new title");
+        assert!(snapshot(&app.project) == before);
+        assert!(app.content_panel.has_pending());
+    }
+    #[test]
+    fn undo_and_redo_keep_invalid_content_drafts_and_existing_history() {
+        let dir = tempfile::tempdir().unwrap();
+        let image = dir.path().join("hero.png");
+        std::fs::write(&image, b"image fixture").unwrap();
+        let mut app = app();
+        app.import_assets(vec![image], "test.hero", "hero", 0)
+            .unwrap();
+        app.track();
+        app.flush();
+        app.project.manifest["name"] = json!("new title");
+        app.track();
+        app.flush();
+        app.undo();
+        assert!(!app.undo.is_empty());
+        assert!(!app.redo.is_empty());
+        let mut draft: Value =
+            serde_json::from_slice(&app.project.assets[&app.asset_selection]).unwrap();
+        draft["files"]["main"] = json!("../outside.png");
+        app.content_panel = crate::content_panel::ContentPanel::pending_fixture(
+            &app.project,
+            &app.asset_selection,
+            draft,
+        );
+        let project = snapshot(&app.project);
+        let history = (app.undo.len(), app.redo.len());
+        app.undo();
+        assert!(snapshot(&app.project) == project);
+        assert!(app.content_panel.has_pending());
+        assert!(app.error.is_some());
+        app.redo();
+        assert!(snapshot(&app.project) == project);
+        assert!(app.content_panel.has_pending());
+        assert_eq!((app.undo.len(), app.redo.len()), history);
+    }
+    #[test]
+    fn import_confirmation_generates_unique_identity_and_keeps_display_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let image = dir.path().join("春日.png");
+        std::fs::write(&image, b"image fixture").unwrap();
+        let mut app = app();
+        app.asset_import_dialog = Some(AssetImportDialog {
+            kind: 0,
+            name: "".into(),
+            paths: vec![image.clone()],
+            error: None,
+        });
+        let before = snapshot(&app.project);
+        assert!(app.commit_asset_import().is_err());
+        assert!(snapshot(&app.project) == before);
+        app.asset_import_dialog.as_mut().unwrap().name = "春日背景".into();
+        app.commit_asset_import().unwrap();
+        let first = app.project.assets.clone();
+        let meta: Value =
+            serde_json::from_slice(&app.project.assets[&app.asset_selection]).unwrap();
+        assert_eq!(meta["id"], "my_mod.image1");
+        assert_eq!(meta["name"], "春日背景");
+        app.asset_import_dialog = Some(AssetImportDialog {
+            kind: 0,
+            name: "另一张背景".into(),
+            paths: vec![image],
+            error: None,
+        });
+        app.commit_asset_import().unwrap();
+        let meta: Value =
+            serde_json::from_slice(&app.project.assets[&app.asset_selection]).unwrap();
+        assert_eq!(meta["id"], "my_mod.image2");
+        for (key, bytes) in first {
+            assert_eq!(app.project.assets[&key], bytes);
+        }
+        let committed = snapshot(&app.project);
+        app.asset_import_dialog = Some(AssetImportDialog {
+            kind: 1,
+            name: "取消".into(),
+            paths: vec![],
+            error: None,
+        });
+        let ctx = egui::Context::default();
+        let _ = ctx.run(
+            egui::RawInput {
+                events: vec![egui::Event::Key {
+                    key: egui::Key::Escape,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: egui::Modifiers::NONE,
+                }],
+                ..Default::default()
+            },
+            |ctx| app.dialogs(ctx),
+        );
+        assert!(app.asset_import_dialog.is_none());
+        assert!(snapshot(&app.project) == committed);
+    }
     #[test]
     fn command_shift_z_redoes_instead_of_consuming_undo() {
         let mut app = app();
@@ -3106,12 +4189,12 @@ mod application_regression_tests {
         let image = dir.path().join("hero.png");
         std::fs::write(&image, b"image fixture").unwrap();
         let mut app = app();
-        app.asset_kind = 0;
-        app.asset_id = "Invalid-ID".into();
-        assert!(app.import_assets(vec![image.clone()]).is_err());
+        assert!(app
+            .import_assets(vec![image.clone()], "Invalid-ID", "hero", 0)
+            .is_err());
         assert!(app.project.assets.is_empty());
-        app.asset_id = "my_mod.hero".into();
-        app.import_assets(vec![image]).unwrap();
+        app.import_assets(vec![image], "my_mod.hero", "hero", 0)
+            .unwrap();
         app.track();
         app.flush();
         let imported = app.project.assets.clone();
