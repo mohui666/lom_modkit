@@ -428,7 +428,7 @@ impl Advanced {
                         plan.source_story, plan.target_story, plan.count
                     ));
                     for w in &plan.warnings {
-                        ui.colored_label(egui::Color32::YELLOW, w);
+                        ui.colored_label(ui.visuals().warn_fg_color, w);
                     }
                     let valid = before == &project.stories;
                     if !valid {

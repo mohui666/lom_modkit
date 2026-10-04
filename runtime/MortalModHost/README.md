@@ -19,7 +19,11 @@ Mod 演出一旦开始即保持来源会话污染标记，只有真正进入官�
 
 ## 构建与测试
 
-项目目标为 .NET Framework 4.8。正式构建需要本机游戏程序集；在仓库根目录执行：
+项目目标为 .NET Framework 4.8。正式构建需要本机游戏程序集。
+
+还需已有的本地提取映射 `data/assets/_probe/view_map.json` 作为嵌入资源；该文件不随 Git 分发，缺少时构建会报 CS1566（无法读取 `MortalModHost.view_map.json`）。
+
+在仓库根目录执行：
 
 ```powershell
 dotnet build runtime/MortalModHost/MortalModHost.csproj -c Release -p:GameDir="C:\path\to\LegendOfMortal"

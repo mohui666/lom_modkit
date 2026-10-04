@@ -337,6 +337,14 @@ fn write_confined_files(root: &Path, writes: &[(PathBuf, Vec<u8>)]) -> Result<()
     }
     let mut prepared = Vec::new();
     for (path, bytes) in writes {
+        // tempfile's Windows persist calls Win32 directly, so both its source
+        // and destination need the canonical parent for paths beyond MAX_PATH.
+        #[cfg(windows)]
+        let path = path
+            .parent()
+            .context("无效保存路径")?
+            .canonicalize()?
+            .join(path.file_name().context("无效保存文件名")?);
         let mut file = tempfile::NamedTempFile::new_in(path.parent().context("无效保存路径")?)?;
         file.write_all(bytes)?;
         file.as_file().sync_all()?;
@@ -365,7 +373,11 @@ pub fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
         .unwrap_or(Path::new("."));
     fs::create_dir_all(parent)?;
     ensure!(!path.is_symlink(), "拒绝通过符号链接保存");
-    let mut temp = tempfile::NamedTempFile::new_in(parent)?;
+    #[cfg(windows)]
+    let parent = parent.canonicalize()?;
+    #[cfg(windows)]
+    let path = parent.join(path.file_name().context("无效保存文件名")?);
+    let mut temp = tempfile::NamedTempFile::new_in(&parent)?;
     temp.write_all(bytes)?;
     temp.as_file().sync_all()?;
     temp.persist(path)?;
@@ -408,6 +420,62 @@ fn collect_assets(root: &Path, dir: &Path, out: &mut BTreeMap<String, Vec<u8>>) 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(windows)]
+    fn long_windows_path(root: &Path, minimum_units: usize) -> PathBuf {
+        use std::os::windows::ffi::OsStrExt;
+        let mut path = root.join("长路径 验证");
+        while path.as_os_str().encode_wide().count() < minimum_units {
+            let remaining = minimum_units - path.as_os_str().encode_wide().count();
+            path.push("x".repeat(remaining.saturating_sub(1).clamp(1, 64)));
+        }
+        path
+    }
+    #[cfg(windows)]
+    #[test]
+    fn windows_long_path_atomic_write_creates_and_replaces() {
+        use std::os::windows::ffi::OsStrExt;
+        let dir = tempfile::tempdir().unwrap();
+        let parent = long_windows_path(dir.path(), 280);
+        let path = parent.join("恢复 会话.json");
+        assert!(path.as_os_str().encode_wide().count() > 260);
+        println!(
+            "atomic destination UTF-16 units: {}",
+            path.as_os_str().encode_wide().count()
+        );
+        atomic_write(&path, b"initial").unwrap();
+        atomic_write(&path, b"replacement").unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"replacement");
+        assert_eq!(fs::read_dir(parent).unwrap().count(), 1);
+    }
+    #[cfg(windows)]
+    #[test]
+    fn windows_long_path_project_save_reopens_replacement_assets() {
+        use std::os::windows::ffi::OsStrExt;
+        let dir = tempfile::tempdir().unwrap();
+        let target = long_windows_path(dir.path(), 185);
+        let name = "assets/user/character/showcase3.character1/asset_37928_1791132549850191700.png";
+        let path = target.join(name);
+        assert!(!target.exists());
+        assert!(path.as_os_str().encode_wide().count() > 260);
+        println!(
+            "project asset destination UTF-16 units: {}",
+            path.as_os_str().encode_wide().count()
+        );
+        let mut project = Project::new();
+        project
+            .assets
+            .insert(name.into(), b"initial portrait".to_vec());
+        project.save_to(&target).unwrap();
+        project
+            .assets
+            .insert(name.into(), b"replacement portrait".to_vec());
+        project.stories.get_mut("main").unwrap()["title"] = json!("恢复立绘替换");
+        project.save_to(&target).unwrap();
+        let reopened = Project::open(&target).unwrap();
+        assert_eq!(reopened.assets[name], b"replacement portrait");
+        assert_eq!(reopened.stories["main"]["title"], "恢复立绘替换");
+        assert_eq!(reopened.source, Some(target.canonicalize().unwrap()));
+    }
     #[test]
     fn folder_save_preserves_names_manifest_and_unrelated_files() {
         let dir = tempfile::tempdir().unwrap();

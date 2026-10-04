@@ -28,7 +28,7 @@ fn materialize(root: &Path, files: &Value) {
             fs::create_dir_all(target).unwrap();
             continue;
         }
-        #[cfg(unix)]
+        #[cfg(any(unix, windows))]
         if value.get("symlink_outside").is_some() || value.get("symlink_inside").is_some() {
             let source = if let Some(relative) = value["symlink_inside"].as_str() {
                 root.join(relative)
@@ -37,7 +37,10 @@ fn materialize(root: &Path, files: &Value) {
                 fs::write(&path, bytes(&value["symlink_outside"])).unwrap();
                 path
             };
+            #[cfg(unix)]
             std::os::unix::fs::symlink(source, target).unwrap();
+            #[cfg(windows)]
+            std::os::windows::fs::symlink_file(source, target).unwrap();
             continue;
         }
         fs::write(target, bytes(value)).unwrap();

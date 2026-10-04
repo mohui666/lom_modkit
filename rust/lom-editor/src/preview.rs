@@ -6,31 +6,78 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[path = "flow_graph.rs"]
+mod flow_graph;
+
 pub fn edges(story: &Value) -> Vec<(String, String, String)> {
     let mut out = Vec::new();
     for (index, node) in story["nodes"].as_array().into_iter().flatten().enumerate() {
         let id = text(node, "id");
         for target in lom_core::analysis::successors(story, index) {
-            let mut label = "下一步".to_owned();
-            for key in ["goto", "win", "lose", "success", "failure"] {
+            let mut labels = Vec::new();
+            for (key, label) in [
+                ("goto", "跳转"),
+                ("win", "胜利"),
+                ("lose", "失败"),
+                ("success", "成功"),
+                ("failure", "失败"),
+            ] {
                 if node[key].as_str() == Some(&target) {
-                    label = key.to_owned();
+                    labels.push(label.to_owned());
                 }
             }
             for key in ["options", "cases", "bands"] {
                 for (i, row) in node[key].as_array().into_iter().flatten().enumerate() {
-                    if ["goto", "goto_大成功", "goto_成功", "goto_失败"]
-                        .iter()
-                        .any(|key| row[*key].as_str() == Some(&target))
-                    {
-                        label = row["text"]
-                            .as_str()
-                            .map(str::to_owned)
-                            .unwrap_or_else(|| format!("{} {}", key, i + 1));
+                    for jump in ["goto", "goto_大成功", "goto_成功", "goto_失败"] {
+                        if row[jump].as_str() == Some(&target) {
+                            let mut label = match key {
+                                "cases" => {
+                                    let source = node["source"].as_str().unwrap_or("mod");
+                                    match (source, row["value"].as_i64()) {
+                                        ("mod" | "condition", Some(1)) => "条件成立（1）".into(),
+                                        ("mod" | "condition", Some(2)) => "条件不成立（2）".into(),
+                                        _ => format!(
+                                            "条件 {} {}",
+                                            if source == "game" {
+                                                "="
+                                            } else {
+                                                row["op"].as_str().unwrap_or(">=")
+                                            },
+                                            row["value"]
+                                        ),
+                                    }
+                                }
+                                _ => row["text"]
+                                    .as_str()
+                                    .filter(|s| !s.is_empty())
+                                    .map(str::to_owned)
+                                    .unwrap_or_else(|| {
+                                        format!(
+                                            "{} {}",
+                                            if key == "bands" { "区间" } else { "选项" },
+                                            i + 1
+                                        )
+                                    }),
+                            };
+                            if let Some(outcome) = jump.strip_prefix("goto_") {
+                                label.push_str(&format!(" · {outcome}"));
+                            }
+                            if !labels.contains(&label) {
+                                labels.push(label);
+                            }
+                        }
                     }
                 }
             }
-            out.push((id.to_owned(), target, label));
+            out.push((
+                id.to_owned(),
+                target,
+                if labels.is_empty() {
+                    "下一步".into()
+                } else {
+                    labels.join(" / ")
+                },
+            ));
         }
     }
     out
@@ -225,6 +272,35 @@ fn text<'a>(v: &'a Value, key: &str) -> &'a str {
 }
 fn number(v: &Value, key: &str, default: f64) -> f64 {
     v[key].as_f64().unwrap_or(default)
+}
+
+fn character_display_name(project: &Project, id: &str) -> String {
+    if let Some(content_id) = id.strip_prefix("user:") {
+        for (path, bytes) in &project.assets {
+            if !path.ends_with("/content.json") {
+                continue;
+            }
+            let Ok(meta) = serde_json::from_slice::<Value>(bytes) else {
+                continue;
+            };
+            if meta["type"] == "character" && meta["id"] == content_id {
+                return meta["name"]
+                    .as_str()
+                    .filter(|name| !name.is_empty())
+                    .unwrap_or(id)
+                    .to_owned();
+            }
+        }
+        return id.to_owned();
+    }
+    let name = lom_core::validate::editor_data()["characters"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|entry| entry["id"] == id)
+        .and_then(|entry| entry["name"].as_str())
+        .unwrap_or(id);
+    crate::i18n::term("characters", id, name)
 }
 
 struct Cached {
@@ -537,7 +613,10 @@ impl Preview {
         }
         if let Some(dialog) = state["dialog"].as_object() {
             let txt = dialog.get("text").and_then(Value::as_str).unwrap_or("");
-            let mode = dialog.get("mode").and_then(Value::as_str).unwrap_or("");
+            let mode = dialog
+                .get("mode")
+                .and_then(Value::as_str)
+                .unwrap_or("character");
             let dr = if mode == "center" {
                 rect.shrink2(Vec2::new(rect.width() * 0.08, rect.height() * 0.25))
             } else {
@@ -547,7 +626,7 @@ impl Preview {
                 )
             };
             painter.rect_filled(dr, 5.0, Color32::from_black_alpha(195));
-            let name = dialog
+            let character = dialog
                 .get("character")
                 .and_then(Value::as_str)
                 .unwrap_or("");
@@ -555,7 +634,7 @@ impl Preview {
                 painter.text(
                     dr.left_top() + Vec2::new(12.0, 9.0),
                     egui::Align2::LEFT_TOP,
-                    name,
+                    character_display_name(p, character),
                     FontId::proportional(13.0),
                     Color32::from_rgb(221, 168, 110),
                 );
@@ -759,14 +838,7 @@ impl Preview {
         } else {
             cid
         };
-        let title = lom_core::validate::editor_data()["characters"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .find(|v| v["id"] == cid)
-            .and_then(|v| v["name"].as_str())
-            .unwrap_or(cid);
-        ui.label(egui::RichText::new(crate::i18n::term("characters", cid, title)).strong())
+        ui.label(egui::RichText::new(character_display_name(project, cid)).strong())
             .on_hover_text(cid);
         let portrait_name = if cid.starts_with("user:") {
             portrait.to_owned()
@@ -1027,68 +1099,13 @@ fn fit_image(painter: &egui::Painter, texture: &TextureHandle, rect: Rect) {
     );
 }
 
-pub fn graph(ui: &mut egui::Ui, story: &Value, selected: usize) -> Option<usize> {
-    let Some(nodes) = story["nodes"].as_array() else {
-        return None;
-    };
-    let links = edges(story);
-    let mut choose = None;
-    let mut positions = BTreeMap::new();
-    let width = ui.available_width().max(260.0);
-    let row_h = 62.0;
-    let (canvas, _) = ui.allocate_exact_size(
-        Vec2::new(width, nodes.len() as f32 * row_h + 20.0),
-        egui::Sense::hover(),
-    );
-    for (i, n) in nodes.iter().enumerate() {
-        let rect = Rect::from_min_size(
-            canvas.min + Vec2::new(58.0, i as f32 * row_h + 10.0),
-            Vec2::new(width - 80.0, 44.0),
-        );
-        positions.insert(text(n, "id").to_owned(), rect);
-    }
-    let painter = ui.painter();
-    for (index, (from, to, _)) in links.iter().enumerate() {
-        if let (Some(a), Some(b)) = (positions.get(from), positions.get(to)) {
-            let x = canvas.left() + 14.0 + (index % 6) as f32 * 6.0;
-            let color = Color32::from_rgb(153, 146, 126);
-            painter.line_segment(
-                [a.left_center(), Pos2::new(x, a.center().y)],
-                Stroke::new(1.0_f32, color),
-            );
-            painter.line_segment(
-                [Pos2::new(x, a.center().y), Pos2::new(x, b.center().y)],
-                Stroke::new(1.0_f32, color),
-            );
-            painter.arrow(
-                Pos2::new(x, b.center().y),
-                b.left_center() - Pos2::new(x, b.center().y),
-                Stroke::new(1.0_f32, color),
-            );
-        }
-    }
-    for (i, n) in nodes.iter().enumerate() {
-        let rect = positions[text(n, "id")];
-        let reachable = route(story, text(n, "id")).is_some();
-        let label = format!(
-            "{}   {}{}",
-            text(n, "id"),
-            text(n, "type"),
-            if reachable { "" } else { " · 不可达" }
-        );
-        if ui
-            .put(rect, egui::Button::new(label).selected(i == selected))
-            .clicked()
-        {
-            choose = Some(i);
-        }
-    }
-    for (_, to, _) in &links {
-        if !positions.contains_key(to) {
-            ui.colored_label(Color32::RED, format!("缺失目标：{to}"));
-        }
-    }
-    choose
+pub fn graph(
+    ui: &mut egui::Ui,
+    project: &Project,
+    story: &Value,
+    selected: usize,
+) -> Option<usize> {
+    flow_graph::show(ui, project, story, selected)
 }
 #[cfg(test)]
 mod tests {
@@ -1113,6 +1130,82 @@ mod tests {
 #[cfg(test)]
 mod content_tests {
     use super::*;
+    #[test]
+    fn omitted_dialogue_mode_renders_character_name_and_matching_text_position() {
+        let mut project = Project::new();
+        project.assets.insert(
+            "assets/user/character/demo.actor/content.json".into(),
+            serde_json::to_vec(&json!({"id":"demo.actor", "type":"character", "name":"林灯"}))
+                .unwrap(),
+        );
+        let render = |mode: Option<&str>| {
+            let mut node = json!({"id":"say", "type":"say", "character":"user:demo.actor", "text":"默认对白正文"});
+            if let Some(mode) = mode {
+                node["mode"] = mode.into();
+            }
+            let story = json!({"start":"say", "nodes":[node]});
+            let context = egui::Context::default();
+            let mut preview = Preview::new(Path::new("/not-a-repository"));
+            let output = context.run(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 500.0))),
+                    ..Default::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        preview.show(ui, &project, &story, 0);
+                    });
+                },
+            );
+            output
+                .shapes
+                .into_iter()
+                .filter_map(|shape| match shape.shape {
+                    egui::Shape::Text(text)
+                        if ["林灯", "默认对白正文"].contains(&text.galley.job.text.as_str()) =>
+                    {
+                        Some((text.galley.job.text.clone(), text.pos))
+                    }
+                    _ => None,
+                })
+                .collect::<BTreeMap<_, _>>()
+        };
+        let explicit = render(Some("character"));
+        assert!(explicit.contains_key("林灯"));
+        assert!(explicit["林灯"].y < explicit["默认对白正文"].y);
+        assert_eq!(render(None), explicit);
+        for mode in ["narrative", "center"] {
+            let rendered = render(Some(mode));
+            assert!(
+                !rendered.contains_key("林灯"),
+                "{mode} must omit the speaker name"
+            );
+            assert!(rendered.contains_key("默认对白正文"));
+        }
+    }
+    #[test]
+    fn preview_names_use_character_metadata_without_selector_numbers() {
+        let mut project = Project::new();
+        for id in ["demo.first", "demo.second"] {
+            project.assets.insert(
+                format!("assets/user/character/{id}/content.json"),
+                serde_json::to_vec(&json!({"id":id, "type":"character", "name":"林灯"})).unwrap(),
+            );
+            assert_eq!(
+                character_display_name(&project, &format!("user:{id}")),
+                "林灯"
+            );
+        }
+        let original_assets = project.assets.clone();
+        assert_eq!(
+            character_display_name(&project, "player"),
+            crate::i18n::term("characters", "player", "赵活")
+        );
+        for unknown in ["future_character", "user:future.actor"] {
+            assert_eq!(character_display_name(&project, unknown), unknown);
+        }
+        assert_eq!(project.assets, original_assets);
+    }
     #[test]
     fn user_image_and_character_follow_files_main_contract() {
         let mut project = Project::new();

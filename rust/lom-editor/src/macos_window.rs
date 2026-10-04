@@ -109,7 +109,7 @@ mod settings_menu {
             let item = unsafe {
                 NSMenuItem::initWithTitle_action_keyEquivalent(
                     NSMenuItem::alloc(main),
-                    &NSString::from_str(&crate::i18n::tr("设置…")),
+                    &NSString::from_str(&crate::i18n::tr("设置")),
                     Some(sel!(lomOpenSettings:)),
                     ns_string!(","),
                 )
@@ -144,7 +144,7 @@ mod settings_menu {
             if let Some(bridge) = bridge.borrow().as_ref() {
                 bridge
                     .item
-                    .setTitle(&NSString::from_str(&crate::i18n::tr("设置…")));
+                    .setTitle(&NSString::from_str(&crate::i18n::tr("设置")));
             }
         });
     }

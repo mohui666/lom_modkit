@@ -357,6 +357,31 @@ fn ordered(mut issues: Vec<PreflightIssue>) -> Vec<PreflightIssue> {
     issues.dedup();
     issues
 }
+/// Compiler diagnostics shared by the editor and project preflight.
+pub fn compiler_issues(story_id: &str, story: &Value) -> Vec<PreflightIssue> {
+    let (severity, code, messages) = match crate::validate::validate_story(story) {
+        Ok(warnings) => ("warning", "compiler_warning", warnings),
+        Err(error) => ("error", "compiler_error", vec![format!("{error:#}")]),
+    };
+    messages
+        .into_iter()
+        .map(|message| {
+            // validate_story currently returns strings. Only its known node
+            // label prefix establishes a location; never guess from prose or
+            // from a missing destination mentioned later in the message.
+            let node_id = message
+                .strip_prefix("story.json: ")
+                .unwrap_or(&message)
+                .strip_prefix("节点 \"")
+                .and_then(|rest| rest.split_once("\"("))
+                .map(|(id, _)| id)
+                .filter(|id| nodes(story).iter().any(|node| text(node, "id") == *id))
+                .unwrap_or("");
+            PreflightIssue::new(severity, code, story_id, node_id, message.clone())
+        })
+        .collect()
+}
+
 pub fn run_preflight(
     project: &Project,
     profile: Profile,
@@ -383,23 +408,8 @@ pub fn run_preflight(
             format!("{e:#}"),
         )),
     }
-    let node_re = regex::Regex::new(r#"节点\s*["“]([^"”]+)["”]"#).unwrap();
     for (sid, story) in &project.stories {
-        let mut add_compiler = |severity, code, msg: String| {
-            let nid = node_re
-                .captures(&msg)
-                .map(|m| m[1].to_owned())
-                .unwrap_or_default();
-            issues.push(PreflightIssue::new(severity, code, sid, &nid, msg));
-        };
-        match crate::validate::validate_story(story) {
-            Ok(warnings) => {
-                for message in warnings {
-                    add_compiler("warning", "compiler_warning", message)
-                }
-            }
-            Err(e) => add_compiler("error", "compiler_error", format!("{e:#}")),
-        }
+        issues.extend(compiler_issues(sid, story));
         for (nid, cid) in find_stage_issues(story) {
             let mut issue = PreflightIssue::new(
                 "warning",

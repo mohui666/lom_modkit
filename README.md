@@ -24,7 +24,7 @@ cargo run --locked -p lom-editor -- samples/showcase3
 
 Mac 独立应用通过 `scripts/build-macos.sh` 构建，产物为 `out/LoM Modkit Rust.app`，包含编辑器和 `lomc`，运行不依赖 Python 或 Qt。官方立绘预览需要作者自己的外部素材库，配置见 [Mac 编辑器](docs/chs/macos.md)。
 
-Windows 构建入口为 `scripts/build-windows.ps1`，需要已构建的 C# Host。当前 Rust 迁移的验证范围是 macOS 与离线测试，**未进行 Windows 构建、Windows 测试或游戏实机测试**。Mac 可编辑、预览和导出，不能使用游戏安装与 F5 试玩。
+Windows 构建入口为 `scripts/build-windows.ps1`，需要正式构建的 C# Host 和 `NVorbis.dll`。2026-10-04 至 05 已完成 Windows 构建、离线测试及新生成程序的实际界面操作，具体通过项和限制见 [Windows 验证记录](docs/chs/windows_validation.md)。**本轮未进行游戏实机测试。** Mac 可编辑、预览和导出，不能使用游戏安装与 F5 试玩。
 
 ## 做第一段剧情
 
@@ -34,7 +34,7 @@ Windows 构建入口为 `scripts/build-windows.ps1`，需要已构建的 C# Host
 4. 使用「创作工具 → 检查项目」或 F6 检查问题，保存全部章节。
 5. 点击「导出 Mod」生成 `.lommod`。Windows 游戏侧的安装要求见 [维护者手册](docs/chs/maintainers.md)。
 
-macOS 从屏幕顶部系统应用菜单打开「设置…」，快捷键 `⌘,`；其他平台使用窗口中的「设置…」。界面支持简体中文、繁體中文、日本語和 한국어。当前是浅色 Rust 通用外壳；Mac 专用 Swift 液态玻璃外壳尚未实现。
+macOS 从屏幕顶部系统应用菜单打开「设置」，快捷键 `⌘,`；Windows 使用窗口中的「设置」或 `Ctrl+,`。界面支持简体中文、繁體中文、日本語和 한국어。当前是浅色 Rust 通用外壳；Mac 专用 Swift 液态玻璃外壳尚未实现。
 
 ## 主要功能
 
@@ -79,6 +79,7 @@ cargo run --locked -p lom-editor -- --smoke-preview samples/showcase3
 - [文档索引](docs/README.md)：作者指南、格式契约和维护入口。
 - [当前能力](docs/chs/current_capabilities.md)：实现范围与限制。
 - [Rust 工具端](docs/chs/rust.md)：构建、CLI 与验证命令。
+- [Windows 验证记录](docs/chs/windows_validation.md)：本轮修复、自动化、实际界面操作和未执行项。
 - [维护者手册](docs/chs/maintainers.md)：恢复、体检、发布、安装与回滚。
 - [v1.2.0 变更记录](RELEASE_NOTES_v1.2.0.md)：当前 Rust 变更与迁移前历史记录。
 - [公开 Releases](https://github.com/mohui666/lom_modkit/releases)：历史安装包；v1.1.1 的旧菜单说明不适用于当前 Rust 界面。

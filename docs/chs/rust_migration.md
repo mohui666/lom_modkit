@@ -17,11 +17,11 @@
 | 试听与停止 | editor `audio` | 拥有所启动的播放器子进程；关闭编辑器时停止。WAV 用系统音频，OGG 需要 FFplay，可设 `LOM_FFPLAY` |
 | 发布身份、自由模式位置/月份/旬/旗标/好感度条件 | editor `manifest_panel` | 空操作保留未知字段与未来值；现有格式校验 |
 | 四语言 UI、对白翻译/回退、覆盖统计、导入/导出/停用 | editor `i18n`、`workspace`；core `localization` | 字典、回退、字段和 ID 保持测试 |
-| 舞台/流程/Lua/人物预览与三栏布局 | editor `preview`、`workspace`、`shell`、`macos_window` | 全样例 133 节点离屏预览与 macOS 标题栏、布局检查 |
+| 舞台/流程/Lua/人物预览与三栏布局 | editor `preview`、`flow_graph`、`workspace`、`shell`、`macos_window` | 全样例 133 节点离屏预览、历史 macOS 检查及本轮 Windows 实际操作，见下方分平台记录 |
 | 包检查器、文件预览、校验摘要、报告定位 | core `package::inspect_package`；editor `tools_panel` | 损坏包只读预览、危险路径拒绝、文件摘要与报告跳转目标测试 |
 | 统计、语音覆盖、编辑/发布体检、安全修复、发布构建、脱敏诊断包 | core `release`；editor `tools_panel` | 统计与发布黄金案例、诊断包白名单、修复测试 |
 | 水印与视频水印检测 | core `watermark`；CLI 与工具面板 | 离线图片测试；视频/外部素材语料测试单独标注 |
-| 游戏安装管理、诊断/回滚、启用 Mod、F5 请求、已读状态工具 | core `game_tools`；editor `tools_panel` | 仅合成目录与协议离线测试；未做 Windows 或游戏实机验收 |
+| 游戏安装管理、诊断/回滚、启用 Mod、F5 请求、已读状态工具 | core `game_tools`；editor `tools_panel` | 仅合成目录与协议离线测试；未做 Windows 游戏安装或游戏实机验收 |
 | 全节点样例生成器 | `rust/lomc/examples/build_showcase3.rs` | 独立 source.json 与旧生成器 5 章输出一致；校验 63 类并导出包 |
 
 新增工具入口集中在“创作工具”；全局查找快捷键为 `Ctrl/⌘+Shift+F`。受控 API 已迁到 Rust/JSON CLI，旧 Python `import story_api` 不再是受支持入口。运行时相关结果仍可能为 `unknown` / `unsupported`，不会把静态推断当作实机结果。
@@ -41,7 +41,7 @@ cargo run --locked -p lomc -- inspect out/showcase3-native/showcase3.lommod --js
 scripts/build-macos.sh
 ```
 
-Mac 产物：`out/LoM Modkit Rust.app`，包含 `lom-editor` 与 `lomc`。现有 Qt 应用、venv 和个人文件不会被清理脚本删除。Windows 构建入口是 `scripts/build-windows.ps1`；它使用 Cargo 和已构建的 C# DLL，支持 `-NoArchive`，Rust 迁移阶段仅更新脚本，未执行 Windows 构建或测试。
+Mac 产物：`out/LoM Modkit Rust.app`，包含 `lom-editor` 与 `lomc`。现有 Qt 应用、venv 和个人文件不会被清理脚本删除。Windows 构建入口是 `scripts/build-windows.ps1`；它使用 Cargo、正式构建的 C# Host 和 `NVorbis.dll`，支持 `-NoArchive`。本轮已完成 Windows 构建并启动新生成程序验证，不能用离线 SmokeTest 产物代替正式 Host。
 
 `source.json` 是样例的独立创作源；修改样例时先更新它，Rust 生成器重新校验并写出章节及包。全节点检查随嵌入的 authoring schema 自动变化。
 
@@ -55,7 +55,13 @@ Mac 产物：`out/LoM Modkit Rust.app`，包含 `lom-editor` 与 `lomc`。现有
 
 远端默认主分支为 `master`。要求通过 Pull Request 合并，并且 `Native Rust tools (macOS)` 与 `Runtime tests` 成功、分支跟上主分支、讨论已解决；规则对管理员生效，禁止强推和删除。当前不要求额外审批人数（0），避免单人仓库无法自审；CI 不包含 Windows 或游戏实机测试。
 
-## 已记录的实现验证（2026-10-04，Apple Silicon macOS）
+## Windows 验证（2026-10-04 至 05）
+
+基线为 `515006691fe6e0e8f4519ce831b41448c6e1ae6c`。最终 Windows Release 工作区测试 **196 通过、0 失败、2 跳过**；使用本机游戏及 BepInEx 的只读引用构建正式 Host，完成 Windows 工具包构建并操作其中的新 `lom-editor.exe`。未启动游戏、安装或更新插件、修改游戏存档或发布 Release。
+
+实际操作覆盖四语言与设置、输入及资源选择、保存/撤销/重开、流程图与错误定位、导出/检查/重开，并分别验证异常退出恢复、仍运行实例保护和长路径素材恢复。鼠标修饰键多选、多节点模板、OGG 与外部视频/水印语料等限制单独保留，详见 [Windows 验证记录](windows_validation.md)。这些结果不替代历史 Mac 或游戏实机验收。
+
+## 历史实现验证（2026-10-04，Apple Silicon macOS）
 
 以下结果来自 [PR #4](https://github.com/mohui666/lom_modkit/pull/4) 与 [PR #5](https://github.com/mohui666/lom_modkit/pull/5) 及前序迁移，最近代码合并为 `6e61602`。随后文档维护只核对文档、命令与链接，没有重新运行本机软件或游戏验收。
 
@@ -64,4 +70,4 @@ Mac 产物：`out/LoM Modkit Rust.app`，包含 `lom-editor` 与 `lomc`。现有
 - Rust 生成器：5 章、133 节点、63 类型；原生应用内嵌预览：133 / 133。
 - Mac `.app` 构建及签名校验通过；实际窗口检查了四语言设置与字形、新建取消、命名输入保持、回车复制、保存后撤销章节、素材导入与改名、删除后保存重开。重开确认已撤销章节与已删除素材没有复活；保留三栏布局，常规表单不再显示启用字段的复选框或技术信息块。后续实际窗口确认资源译名、同名编号、系统菜单“设置…”与 `⌘,`、语言切换后菜单标题同步。
 - 删除 157 个旧 Python 源文件及 5 个 spec/依赖文件。保留 10 个资源研究/提取及配套测试脚本。
-- Windows 构建、Windows 测试及游戏实机测试均未执行。上述测试不能替代这些平台的验收。
+- 当时未执行 Windows 构建、Windows 测试及游戏实机测试。上述 Mac 结果不能替代这些平台的验收；后续 Windows 结果见上一节。
