@@ -203,7 +203,7 @@ fn validate_raw_directory(file: &mut File, start: u64, unique_count: usize) -> R
     );
     Ok(())
 }
-pub fn read_package(path: &Path) -> Result<Entries> {
+fn read_archive(path: &Path) -> Result<Entries> {
     let file = File::open(path)?;
     ensure!(
         file.metadata()?.len() <= MAX_PACKAGE_BYTES,
@@ -234,6 +234,14 @@ pub fn read_package(path: &Path) -> Result<Entries> {
             entries.insert(name, bytes);
         }
     }
+    Ok(entries)
+}
+pub fn read_package(path: &Path) -> Result<Entries> {
+    let entries = read_archive(path)?;
+    validate_entries(&entries)?;
+    Ok(entries)
+}
+fn validate_entries(entries: &Entries) -> Result<()> {
     let manifest: Value = serde_json::from_slice(
         entries
             .get("manifest.json")
@@ -241,8 +249,26 @@ pub fn read_package(path: &Path) -> Result<Entries> {
     )?;
     validate::validate_manifest(&manifest)?;
     verify_integrity(&entries)?;
-    verify_story_lua_pairs(&entries, &manifest)?;
-    Ok(entries)
+    verify_story_lua_pairs(entries, &manifest)?;
+    Ok(())
+}
+/// Read-only inspection can explain a malformed manifest or integrity failure.
+/// Unsafe ZIP containers are still rejected before any preview is produced.
+pub fn inspect_package(path: &Path) -> Result<Value> {
+    let entries = read_archive(path)?;
+    let error = validate_entries(&entries).err().map(|e| format!("{e:#}"));
+    let manifest = entries
+        .get("manifest.json")
+        .and_then(|b| serde_json::from_slice::<Value>(b).ok());
+    let rows=entries.iter().map(|(name,bytes)|{
+        let is_text=["json","lua","txt","sha256","md"].contains(&Path::new(name).extension().and_then(|s|s.to_str()).unwrap_or(""));
+        let count=bytes.len().min(MAX_TEXT_BYTES as usize);
+        let preview=if is_text{Some(String::from_utf8_lossy(&bytes[..count]).trim_start_matches('\u{feff}').to_owned())}else{None};
+        json!({"path":name,"size":bytes.len(),"sha256":sha(bytes),"preview":preview,"preview_truncated":is_text&&bytes.len()>count})
+    }).collect::<Vec<_>>();
+    Ok(
+        json!({"ok":error.is_none(),"validation_error":error,"manifest":manifest,"integrity_verified":verify_integrity(&entries).is_ok(),"source_lua_match":manifest.as_ref().is_some_and(|m|verify_story_lua_pairs(&entries,m).is_ok()),"content_hash":content_hash(&entries),"package_sha256":sha(&fs::read(path)?),"entries":rows}),
+    )
 }
 /// Hashes establish byte consistency only. Independently compile the authored
 /// documents so rewriting both hashes cannot conceal substituted executable Lua.

@@ -183,11 +183,7 @@ fn run() -> Result<i32> {
             let target = package::pack_mod(&path, output.as_deref())?;
             json!({"ok":true,"output":target})
         }
-        "inspect" => {
-            let entries = package::read_package(&path)?;
-            let manifest: serde_json::Value = serde_json::from_slice(&entries["manifest.json"])?;
-            json!({"ok":true,"manifest":manifest,"content_hash":package::content_hash(&entries),"entries":entries.iter().map(|(n,b)|json!({"path":n,"size":b.len()})).collect::<Vec<_>>()})
-        }
+        "inspect" => package::inspect_package(&path)?,
         "detect-watermark" => {
             lom_core::watermark::detect_image(&path, lom_core::watermark::DEFAULT_SCALE_FACTORS)?
         }

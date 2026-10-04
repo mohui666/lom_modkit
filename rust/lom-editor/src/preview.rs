@@ -436,11 +436,11 @@ impl Preview {
         );
         let (outer, _) = ui.allocate_exact_size(size, egui::Sense::hover());
         ui.painter()
-            .rect_filled(outer, 0.0, Color32::from_rgb(18, 18, 18));
+            .rect_filled(outer, 8.0, Color32::from_black_alpha(4));
         let width = size.x.min(size.y * 16.0 / 9.0);
         let rect = Rect::from_center_size(outer.center(), Vec2::new(width, width * 9.0 / 16.0));
         let painter = ui.painter().with_clip_rect(rect);
-        painter.rect_filled(rect, 4.0, Color32::from_rgb(39, 43, 43));
+        painter.rect_filled(rect, 6.0, Color32::from_rgb(29, 35, 42));
         let bg = state["background"]
             .as_str()
             .or_else(|| state["view"].as_str())
@@ -451,8 +451,8 @@ impl Preview {
             painter.text(
                 rect.center(),
                 egui::Align2::CENTER_CENTER,
-                if bg.is_empty() { "舞台" } else { bg },
-                FontId::proportional(22.0),
+                if bg.is_empty() { "" } else { bg },
+                FontId::proportional(13.0),
                 Color32::from_rgb(109, 118, 113),
             );
         }

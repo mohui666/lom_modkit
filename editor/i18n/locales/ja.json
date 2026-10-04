@@ -93,7 +93,7 @@
   "content_pack.hint": "この項目が宣言したファイルだけを同梱し、サーバーへはアップロードしません。ライセンスは素材の利用条件を受信者へ伝えます。",
 
   "toolbar.name": "よく使う操作",
-  "toolbar.play": "▶ 試遊",
+  "toolbar.play": "試遊",
   "toolbar.play_tip": "一時パッケージを入れて、選択中の手順からゲームを開始（F5）",
   "toolbar.export": "Mod を書き出す",
   "toolbar.export_tip": "検査してインストール可能な .lommod を生成",

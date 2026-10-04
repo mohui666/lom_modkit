@@ -93,7 +93,7 @@
   "content_pack.hint": "内容包只包含这条内容声明的文件，不上传到服务器。许可证用于告诉接收者允许如何使用素材。",
 
   "toolbar.name": "常用操作",
-  "toolbar.play": "▶ 试玩",
+  "toolbar.play": "试玩",
   "toolbar.play_tip": "临时安装当前项目并从选中步骤进入游戏（F5）",
   "toolbar.export": "导出 Mod",
   "toolbar.export_tip": "检查并生成可安装的 .lommod",

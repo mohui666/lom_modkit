@@ -264,20 +264,16 @@ impl Catalog {
             .cloned()
             .unwrap_or_default();
         let mut changed = false;
-        ui.heading(self.label(&kind));
-        ui.collapsing(tr("技术信息"), |ui| {
-            ui.label(format!("{} · {}", kind, node["id"].as_str().unwrap_or("")));
+        ui.horizontal(|ui| {
+            ui.heading(self.label(&kind));
+            let help_key = format!("help.{kind}");
+            let help = crate::i18n::key(&help_key);
+            if help != help_key {
+                ui.label(RichText::new(tr("说明")).small().weak())
+                    .on_hover_text(help);
+            }
         });
-        let help_key = format!("help.{kind}");
-        let help = crate::i18n::key(&help_key);
-        if help != help_key {
-            ui.label(
-                RichText::new(help)
-                    .small()
-                    .color(Color32::from_rgb(178, 185, 205)),
-            );
-        }
-        ui.separator();
+        ui.add_space(6.0);
         if kind == "battle" {
             for side in ["friend", "enemy"] {
                 let total = node[format!("{side}_factions")]
@@ -355,6 +351,7 @@ impl Catalog {
                 );
             }
         }
+        ui.add_space(4.0);
         if allow_goto {
             ui.collapsing(crate::i18n::key("form.advanced"), |ui| {
                 changed |= self.field(
@@ -419,6 +416,9 @@ impl Catalog {
                 },
             );
         }
+        ui.collapsing(tr("技术信息"), |ui| {
+            ui.label(format!("{} · {}", kind, node["id"].as_str().unwrap_or("")));
+        });
         changed
     }
     pub fn field(
@@ -467,7 +467,22 @@ impl Catalog {
                         ui.set_min_width(label_width);
                         ui.set_max_width(label_width);
                         if optional {
-                            if ui.checkbox(&mut enabled, label).changed() {
+                            if ui
+                                .scope(|ui| {
+                                    let widgets = &mut ui.visuals_mut().widgets;
+                                    for w in [
+                                        &mut widgets.inactive,
+                                        &mut widgets.hovered,
+                                        &mut widgets.active,
+                                    ] {
+                                        w.corner_radius = egui::CornerRadius::same(2);
+                                    }
+                                    ui.checkbox(&mut enabled, label)
+                                        .on_hover_text(tr("勾选后设置；取消勾选使用默认行为"))
+                                })
+                                .inner
+                                .changed()
+                            {
                                 if enabled {
                                     node[key] = self.schema["_NODE_DEFAULTS"]
                                         [node["type"].as_str().unwrap_or("")][key]
@@ -480,7 +495,6 @@ impl Catalog {
                                 }
                                 changed = true;
                             }
-                            ui.label(RichText::new(tr("可选")).small().color(Color32::GRAY));
                         } else {
                             ui.label(label);
                         }
@@ -551,7 +565,7 @@ impl Catalog {
                                     .add(
                                         egui::TextEdit::singleline(&mut s)
                                             .desired_width(f32::INFINITY)
-                                            .hint_text(tr("填写内容")),
+                                            .hint_text(label),
                                     )
                                     .changed();
                             } else {
@@ -616,7 +630,6 @@ impl Catalog {
                     }
                 });
             });
-            ui.add_space(4.0);
         });
         changed
     }

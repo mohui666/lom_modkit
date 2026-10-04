@@ -17,13 +17,16 @@
 | 试听与停止 | editor `audio` | 拥有所启动的播放器子进程；关闭编辑器时停止。WAV 用系统音频，OGG 需要 FFplay，可设 `LOM_FFPLAY` |
 | 发布身份、自由模式位置/月份/旬/旗标/好感度条件 | editor `manifest_panel` | 空操作保留未知字段与未来值；现有格式校验 |
 | 四语言 UI、对白翻译/回退、覆盖统计、导入/导出/停用 | editor `i18n`、`workspace`；core `localization` | 字典、回退、字段和 ID 保持测试 |
-| 舞台/流程/Lua/人物预览、液态玻璃与三栏布局 | editor `preview`、`workspace`、`macos_glass` | 全样例 133 节点离屏预览与 macOS 原生窗口检查 |
+| 舞台/流程/Lua/人物预览与三栏布局 | editor `preview`、`workspace`、`shell`、`macos_window` | 全样例 133 节点离屏预览与 macOS 标题栏、布局检查 |
+| 包检查器、文件预览、校验摘要、报告定位 | core `package::inspect_package`；editor `tools_panel` | 损坏包只读预览、危险路径拒绝、文件摘要与报告跳转目标测试 |
 | 统计、语音覆盖、编辑/发布体检、安全修复、发布构建、脱敏诊断包 | core `release`；editor `tools_panel` | 统计与发布黄金案例、诊断包白名单、修复测试 |
 | 水印与视频水印检测 | core `watermark`；CLI 与工具面板 | 离线图片测试；视频/外部素材语料测试单独标注 |
 | 游戏安装管理、诊断/回滚、启用 Mod、F5 请求、已读状态工具 | core `game_tools`；editor `tools_panel` | 仅合成目录与协议离线测试；未做 Windows 或游戏实机验收 |
 | 全节点样例生成器 | `rust/lomc/examples/build_showcase3.rs` | 独立 source.json 与旧生成器 5 章输出一致；校验 63 类并导出包 |
 
 新增工具入口集中在“创作工具”；全局查找快捷键为 `Ctrl/⌘+Shift+F`。受控 API 已迁到 Rust/JSON CLI，旧 Python `import story_api` 不再是受支持入口。运行时相关结果仍可能为 `unknown` / `unsupported`，不会把静态推断当作实机结果。
+
+当前先完成 Rust 通用外壳，统一浅色字体、控件、紧凑步骤列表与内容库，保留三栏布局。状态栏仅显示保存状态及实际操作结果。Mac 原生玻璃叠层因遮挡标题栏/正文已移除，Swift 玻璃外壳延后；不能把它计为已完成。功能对应表及自动化案例也不代表已逐项完成全部 GUI、Windows 和游戏实机验收。
 
 ## 构建与检查
 
@@ -52,9 +55,9 @@ Mac 产物：`out/LoM Modkit Rust.app`，包含 `lom-editor` 与 `lomc`。现有
 
 ## 本次验证（2026-10-04，Apple Silicon macOS）
 
-- `cargo test --locked --workspace --release`：132 通过、0 失败，2 个外部依赖案例默认跳过。其中受控 API 对照测试内部逐项检查 181 个旧版案例。
+- `cargo test --locked --workspace --release`：136 通过、0 失败，2 个外部依赖案例默认跳过。其中受控 API 对照测试内部逐项检查 181 个旧版案例；快捷键回归覆盖 `⌘ShiftZ` 重做优先于 `⌘Z` 撤销。
 - FFmpeg 合成视频抽帧测试另行执行并通过；旧版外部截图/视频语料测试未重跑。
 - Rust 生成器：5 章、133 节点、63 类型；原生应用内嵌预览：133 / 133。
-- Mac `.app` 构建及签名校验通过；原生窗口检查了三栏布局、工具入口、搜索、节点类型文字，以及“高级设置”展开。
+- Mac `.app` 构建及签名校验通过；原生窗口检查了作品标题、窗口按钮、三栏布局、工具入口、搜索、节点类型文字，以及“高级设置”展开。
 - 删除 157 个旧 Python 源文件及 5 个 spec/依赖文件。保留 10 个资源研究/提取及配套测试脚本。
 - Windows 构建、Windows 测试及游戏实机测试均未执行。上述测试不能替代这些平台的验收。

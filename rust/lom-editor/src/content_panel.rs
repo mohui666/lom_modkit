@@ -35,7 +35,7 @@ impl ContentPanel {
         let mut changed = false;
         ui.separator();
         let symbol = format!("user:{}", self.draft["id"].as_str().unwrap_or(""));
-        if ui.button(tr("复制 user: 引用")).clicked() {
+        if ui.button(tr("复制引用")).clicked() {
             ui.ctx().copy_text(symbol.clone());
         }
         let kind = self.draft["type"].as_str().unwrap_or("").to_owned();
@@ -44,9 +44,7 @@ impl ContentPanel {
             {
                 self.draft["intro"] = json!({"name":self.draft["name"],"title":"","text":"","image_scale":100,"image_x":0,"image_y":0});
             }
-            if self.draft.get("intro").is_some()
-                && ui.button(tr("移除介绍卡（应用后生效）")).clicked()
-            {
+            if self.draft.get("intro").is_some() && ui.button(tr("移除介绍卡")).clicked() {
                 self.draft.as_object_mut().unwrap().remove("intro");
             }
             for (key, default) in [
@@ -72,21 +70,57 @@ impl ContentPanel {
                 }
             });
         }
-        // Identity stays immutable; all supported metadata, including portrait
-        // mappings and intro layout, remains editable before the explicit apply.
-        let mut values = self.draft.clone();
-        values.as_object_mut().map(|o| {
-            o.remove("id");
-            o.remove("type");
-        });
-        if crate::forms::value_editor(ui, "内容属性（草稿）", &mut values, 0) {
-            values["id"] = self.draft["id"].clone();
-            values["type"] = self.draft["type"].clone();
-            self.draft = values;
+        let catalog = crate::forms::Catalog::new();
+        catalog.field(ui, &mut self.draft, "name", "名称", "str", false, &[], &[]);
+        if kind == "character" {
+            for (key, label, field_kind) in [
+                ("title", "称号", "str"),
+                ("scale", "立绘缩放", "int"),
+                ("art_facing", "原图朝向", "facing"),
+            ] {
+                catalog.field(ui, &mut self.draft, key, label, field_kind, false, &[], &[]);
+            }
+            if self.draft["intro"].is_object() {
+                ui.collapsing(tr("角色介绍卡"), |ui| {
+                    for (key, label, field_kind) in [
+                        ("name", "名称", "str"),
+                        ("title", "称号", "str"),
+                        ("text", "简介", "multiline"),
+                        ("image_scale", "图片缩放", "int"),
+                        ("image_x", "横向偏移", "int"),
+                        ("image_y", "纵向偏移", "int"),
+                    ] {
+                        catalog.field(
+                            ui,
+                            &mut self.draft["intro"],
+                            key,
+                            label,
+                            field_kind,
+                            false,
+                            &[],
+                            &[],
+                        );
+                    }
+                });
+            }
         }
+        // Preserve the complete metadata editor, including future fields.
+        ui.collapsing(tr("高级属性"), |ui| {
+            let mut values = self.draft.clone();
+            values.as_object_mut().map(|o| {
+                o.remove("id");
+                o.remove("type");
+            });
+            if crate::forms::value_editor(ui, "内容属性", &mut values, 0) {
+                values["id"] = self.draft["id"].clone();
+                values["type"] = self.draft["type"].clone();
+                self.draft = values;
+            }
+        });
+        ui.add_space(4.0);
         let slots = if kind == "character" {
             vec![
-                "默认立绘 normal",
+                "默认立绘",
                 "指定表情",
                 "介绍卡图片",
                 "战斗待机",
@@ -183,8 +217,8 @@ impl ContentPanel {
                     .unwrap_or_else(|e| e.to_string());
             }
         }
-        ui.horizontal(|ui| {
-            if ui.button(tr("应用内容修改（可撤销）")).clicked() {
+        ui.horizontal_wrapped(|ui| {
+            if ui.button(tr("应用修改")).clicked() {
                 match content_edit::update(project, key, &self.draft, &self.files) {
                     Ok(()) => {
                         changed = true;

@@ -45,7 +45,7 @@ lom_modkit 让你用《活侠传》**原有的人物、场景、音乐、特效�
 - **真正的 Mod 包**：导出的 `.lommod` 自包含，可以直接分享给其他玩家。
 
 本地开发版 v1.1.2 已加入人物立绘预览、美颜赵活和自由模式剧情模板，并提供
-Apple Silicon 的 [Mac 液态玻璃编辑器](docs/chs/macos.md)。功能用法见
+Apple Silicon 的 [Mac 编辑器](docs/chs/macos.md)。功能用法见
 [自由模式与人物立绘](docs/chs/free_mode_portraits.md)。上述公开下载链接仍指向已发布的 v1.1.1。
 
 ## 快速开始

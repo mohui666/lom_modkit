@@ -81,27 +81,34 @@ impl Advanced {
         current: &str,
     ) -> Option<Location> {
         let mut nav = None;
-        ui.horizontal_wrapped(|ui| {
-            for (i, name) in [
-                "全局查找",
-                "变量管理",
-                "条件检查",
-                "路径模拟",
-                "跨章节复制",
-                "离线测试",
-            ]
-            .iter()
-            .enumerate()
-            {
-                if ui.selectable_value(&mut self.page, i, tr(name)).clicked() {
-                    self.references = None;
-                }
-            }
+        let pages = [
+            "全局查找",
+            "变量管理",
+            "条件检查",
+            "路径模拟",
+            "跨章节复制",
+            "离线测试",
+        ];
+        ui.horizontal(|ui| {
+            ui.heading(tr("创作工具"));
+            egui::ComboBox::from_id_salt("authoring-page")
+                .selected_text(tr(pages[self.page.min(pages.len() - 1)]))
+                .show_ui(ui, |ui| {
+                    for (i, name) in pages.iter().enumerate() {
+                        if ui.selectable_value(&mut self.page, i, tr(name)).clicked() {
+                            self.references = None;
+                        }
+                    }
+                });
         });
-        ui.separator();
+        ui.add_space(6.0);
         match self.page {
             0 => {
-                ui.text_edit_singleline(&mut self.query);
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.query)
+                        .desired_width(f32::INFINITY)
+                        .hint_text(tr("查找台词、人物或节点")),
+                );
                 egui::ComboBox::from_id_salt("search-category")
                     .selected_text(if self.category.is_empty() {
                         "全部类型"
@@ -462,7 +469,7 @@ impl Advanced {
             }
         }
         if !self.error.is_empty() {
-            ui.colored_label(egui::Color32::LIGHT_RED, &self.error);
+            ui.colored_label(egui::Color32::from_rgb(179, 55, 49), &self.error);
         }
         nav
     }

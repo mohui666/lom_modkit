@@ -1,8 +1,9 @@
 mod authoring;
 mod forms;
 mod i18n;
-mod macos_glass;
+mod macos_window;
 mod preview;
+mod shell;
 mod tools_panel;
 mod workspace;
 
