@@ -94,6 +94,46 @@ impl Catalog {
         nodes: &[String],
         stories: &[String],
     ) -> Vec<(String, String)> {
+        let mut options = self.raw_options(kind, node, nodes, stories);
+        for (id, name) in &mut options {
+            if kind.starts_with("enum:") || ["mode", "facing", "branch_source"].contains(&kind) {
+                *name = tr(name);
+            } else if kind == "portrait"
+                && !node["character"]
+                    .as_str()
+                    .unwrap_or("")
+                    .starts_with("user:")
+            {
+                *name = crate::i18n::term("portraits", id, name);
+            } else if kind == "game_flag" && id == name {
+                *name = format!("{} {id}", tr("检查点"));
+            }
+        }
+        // A character keeps the same number in the full list and in restricted
+        // affinity/battle lists. Search only filters these already named options.
+        if matches!(
+            kind,
+            "character" | "affinity_character" | "affinity_optional" | "battle_character"
+        ) {
+            let mut characters = localized_rows(&self.data["characters"], "characters");
+            number_duplicate_labels(&mut characters);
+            let names: std::collections::BTreeMap<_, _> = characters.into_iter().collect();
+            for (id, name) in &mut options {
+                if let Some(label) = names.get(id) {
+                    *name = label.clone();
+                }
+            }
+        }
+        number_duplicate_labels(&mut options);
+        options
+    }
+    fn raw_options(
+        &self,
+        kind: &str,
+        node: &Value,
+        nodes: &[String],
+        stories: &[String],
+    ) -> Vec<(String, String)> {
         if let Some(set) = kind.strip_prefix("enum:") {
             return self.schema["ENUM_SETS_SRC"][set]
                 .as_array()
@@ -445,12 +485,7 @@ impl Catalog {
             }
         };
         let label = label.as_str();
-        let mut options = self.options(kind, node, node_ids, story_ids);
-        if kind.starts_with("enum:") || ["mode", "facing", "branch_source"].contains(&kind) {
-            for (_, label) in &mut options {
-                *label = tr(label);
-            }
-        }
+        let options = self.options(kind, node, node_ids, story_ids);
         let mut changed = false;
         ui.push_id(key, |ui| {
             let width = ui.available_width();
@@ -607,7 +642,7 @@ impl Catalog {
                                 } else if let Some((_, name)) =
                                     options.iter().find(|(v, _)| v == &s)
                                 {
-                                    option_label(kind, &s, name)
+                                    name.clone()
                                 } else if s.is_empty() {
                                     tr("选择…")
                                 } else {
@@ -646,10 +681,7 @@ impl Catalog {
                                                 || name.to_lowercase().contains(&lower)
                                             {
                                                 if ui
-                                                    .selectable_label(
-                                                        present && id == &s,
-                                                        option_label(kind, id, name),
-                                                    )
+                                                    .selectable_label(present && id == &s, name)
                                                     .clicked()
                                                 {
                                                     s = id.clone();
@@ -744,11 +776,37 @@ fn absent_label(node: &Value, key: &str, kind: &str) -> String {
         _ => "默认",
     })
 }
-fn option_label(kind: &str, id: &str, name: &str) -> String {
-    if kind == "portrait" && id == "normal" {
-        tr("正常")
-    } else {
-        name.to_owned()
+/// Number distinct IDs sharing a visible label, without changing values or order.
+/// Call on the complete list before filtering. Sorting IDs makes numbering
+/// independent of search, selection, or the order in which entries were loaded.
+pub fn number_duplicate_labels(options: &mut [(String, String)]) {
+    use std::collections::{BTreeMap, BTreeSet};
+    let mut groups: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    for (id, name) in options.iter() {
+        groups.entry(name.clone()).or_default().insert(id.clone());
+    }
+    let mut used: BTreeSet<String> = groups.keys().cloned().collect();
+    let mut labels = BTreeMap::new();
+    for (name, ids) in groups {
+        if ids.len() < 2 {
+            continue;
+        }
+        let mut number = 1;
+        for id in ids {
+            loop {
+                let label = format!("{name} {number}");
+                number += 1;
+                if used.insert(label.clone()) {
+                    labels.insert((id, name.clone()), label);
+                    break;
+                }
+            }
+        }
+    }
+    for (id, name) in options {
+        if let Some(label) = labels.get(&(id.clone(), name.clone())) {
+            *name = label.clone();
+        }
     }
 }
 
@@ -1107,6 +1165,58 @@ pub fn value_editor(ui: &mut Ui, label: &str, value: &mut Value, depth: usize) -
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn numbered_selector_writes_original_id_and_keeps_number_after_selection() {
+        use egui::accesskit::Role;
+        let mut catalog = Catalog::new();
+        catalog.data["characters"] = json!([
+            {"id":"one", "name":"同名人物"},
+            {"id":"two", "name":"同名人物"}
+        ]);
+        let context = egui::Context::default();
+        let mut node = json!({"id":"n1", "type":"say", "character":"one"});
+        let (output, changed) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "character",
+            "character",
+            vec![],
+        );
+        assert!(!changed);
+        let events = click(&output, Role::ComboBox, "同名人物 1");
+        let (output, changed) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "character",
+            "character",
+            events,
+        );
+        assert!(!changed);
+        let events = click(&output, Role::Button, "同名人物 2");
+        let (_, changed) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "character",
+            "character",
+            events,
+        );
+        assert!(changed);
+        assert_eq!(node["character"], "two");
+        let (output, changed) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "character",
+            "character",
+            vec![],
+        );
+        assert!(!changed);
+        let _ = click(&output, Role::ComboBox, "同名人物 2");
+        assert_eq!(node, json!({"id":"n1", "type":"say", "character":"two"}));
+    }
     fn field_frame(
         catalog: &Catalog,
         context: &egui::Context,
@@ -1562,6 +1672,97 @@ fn typed_row(c: &Catalog, ui: &mut Ui, row: &mut Value, kind: &str) -> Option<bo
 #[cfg(test)]
 mod catalog_parity_tests {
     use super::*;
+    #[test]
+    fn duplicate_labels_are_stable_and_leave_selection_values_unchanged() {
+        let mut options: Vec<(String, String)> = vec![
+            ("b".into(), "同名".into()),
+            ("a".into(), "同名".into()),
+            ("c".into(), "同名 1".into()),
+            ("d".into(), "唯一".into()),
+        ];
+        let ids: Vec<_> = options.iter().map(|(id, _)| id.clone()).collect();
+        let mut reversed = options.iter().rev().cloned().collect::<Vec<_>>();
+        number_duplicate_labels(&mut options);
+        number_duplicate_labels(&mut reversed);
+        assert_eq!(
+            options.iter().map(|(id, _)| id.clone()).collect::<Vec<_>>(),
+            ids
+        );
+        assert_eq!(options[0].1, "同名 3");
+        assert_eq!(options[1].1, "同名 2");
+        assert_eq!(options[2].1, "同名 1");
+        assert_eq!(options[3].1, "唯一");
+        reversed.reverse();
+        assert_eq!(options, reversed);
+        let before = options.clone();
+        number_duplicate_labels(&mut options);
+        assert_eq!(options, before);
+        let mut aliases = vec![("a".into(), "同名".into()), ("a".into(), "同名".into())];
+        number_duplicate_labels(&mut aliases);
+        assert!(aliases.iter().all(|(_, name)| name == "同名"));
+    }
+    #[test]
+    fn character_numbers_agree_across_selectors_and_preserve_user_names() {
+        let mut catalog = Catalog::new();
+        catalog.sync_assets(&std::collections::BTreeMap::from([
+            (
+                "assets/user/character/example.first/content.json".into(),
+                serde_json::to_vec(
+                    &json!({"id":"example.first","name":"My own name","type":"character"}),
+                )
+                .unwrap(),
+            ),
+            (
+                "assets/user/character/example.second/content.json".into(),
+                serde_json::to_vec(
+                    &json!({"id":"example.second","name":"My own name","type":"character"}),
+                )
+                .unwrap(),
+            ),
+        ]));
+        let full = catalog.options("character", &Value::Null, &[], &[]);
+        assert_eq!(
+            full.iter()
+                .map(|(_, name)| name)
+                .collect::<std::collections::BTreeSet<_>>()
+                .len(),
+            full.len()
+        );
+        for kind in [
+            "affinity_character",
+            "affinity_optional",
+            "battle_character",
+        ] {
+            for (id, name) in catalog.options(kind, &Value::Null, &[], &[]) {
+                if let Some((_, full_name)) = full.iter().find(|(key, _)| key == &id) {
+                    assert_eq!(&name, full_name, "{kind}/{id}");
+                }
+            }
+        }
+        assert_eq!(
+            full.iter()
+                .find(|(id, _)| id == "user:example.first")
+                .unwrap()
+                .1,
+            "My own name 1"
+        );
+        assert_eq!(
+            full.iter()
+                .find(|(id, _)| id == "user:example.second")
+                .unwrap()
+                .1,
+            "My own name 2"
+        );
+        assert_eq!(
+            catalog.data["characters"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|row| row["id"] == "user:example.first")
+                .unwrap()["name"],
+            "My own name"
+        );
+    }
     #[test]
     fn battle_catalog_matches_existing_verified_contract() {
         let c = Catalog::new();

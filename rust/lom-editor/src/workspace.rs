@@ -1190,22 +1190,14 @@ impl App {
             .frame(surface(false))
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.menu_button(tr("编辑器"), |ui| {
-                        if ui
-                            .add(egui::Button::new(tr("设置…")).shortcut_text(
-                                if cfg!(target_os = "macos") {
-                                    "⌘,"
-                                } else {
-                                    "Ctrl+,"
-                                },
-                            ))
-                            .clicked()
-                        {
-                            self.settings_open = true;
-                            self.settings_error = None;
-                            ui.close();
-                        }
-                    });
+                    #[cfg(not(target_os = "macos"))]
+                    if ui
+                        .add(egui::Button::new(tr("设置…")).shortcut_text("Ctrl+,"))
+                        .clicked()
+                    {
+                        self.settings_open = true;
+                        self.settings_error = None;
+                    }
                     ui.menu_button(tr("文件"), |ui| {
                         if ui.button(tr("新建项目")).clicked() {
                             ui.close();
@@ -1501,25 +1493,30 @@ impl App {
                         });
                     });
                 let old = self.current.clone();
+                let mut chapter_names: Vec<_> = self
+                    .project
+                    .stories
+                    .iter()
+                    .map(|(id, story)| {
+                        (id.clone(), story["title"].as_str().unwrap_or(id).to_owned())
+                    })
+                    .collect();
+                crate::forms::number_duplicate_labels(&mut chapter_names);
                 ui.horizontal(|ui| {
                     ui.label(crate::i18n::key("nav.story"));
                     egui::ComboBox::from_id_salt("chapters")
                         .truncate()
                         .width((ui.available_width() - 112.0).max(75.0))
                         .selected_text(
-                            self.project
-                                .stories
-                                .get(&self.current)
-                                .and_then(|s| s["title"].as_str())
+                            chapter_names
+                                .iter()
+                                .find(|(id, _)| id == &self.current)
+                                .map(|(_, name)| name.as_str())
                                 .unwrap_or(&self.current),
                         )
                         .show_ui(ui, |ui| {
-                            for (id, story) in &self.project.stories {
-                                ui.selectable_value(
-                                    &mut self.current,
-                                    id.clone(),
-                                    story["title"].as_str().unwrap_or(id),
-                                );
+                            for (id, name) in &chapter_names {
+                                ui.selectable_value(&mut self.current, id.clone(), name);
                             }
                         });
                     ui.menu_button("＋", |ui| {
@@ -2131,20 +2128,33 @@ impl App {
                 .as_array()
                 .cloned()
                 .unwrap_or_default();
+            let mut section_names: Vec<_> = sections
+                .iter()
+                .enumerate()
+                .map(|(index, section)| {
+                    (
+                        section["id"]
+                            .as_str()
+                            .map(str::to_owned)
+                            .unwrap_or_else(|| index.to_string()),
+                        section["title"]
+                            .as_str()
+                            .map(str::to_owned)
+                            .unwrap_or_else(|| tr("分区")),
+                    )
+                })
+                .collect();
+            crate::forms::number_duplicate_labels(&mut section_names);
             egui::ComboBox::from_id_salt("parent-section")
                 .selected_text(
-                    sections
+                    section_names
                         .get(self.section_parent)
-                        .and_then(|s| s["title"].as_str())
-                        .unwrap_or("所属分区"),
+                        .map(|(_, name)| name.clone())
+                        .unwrap_or_else(|| tr("所属分区")),
                 )
                 .show_ui(ui, |ui| {
-                    for (i, s) in sections.iter().enumerate() {
-                        ui.selectable_value(
-                            &mut self.section_parent,
-                            i,
-                            s["title"].as_str().unwrap_or("分区"),
-                        );
+                    for (i, (_, name)) in section_names.iter().enumerate() {
+                        ui.selectable_value(&mut self.section_parent, i, name);
                     }
                 });
             if ui
@@ -2364,6 +2374,18 @@ impl App {
                     .map(|m| (key.clone(), m))
             })
             .collect();
+        let mut content_names: Vec<_> = records
+            .iter()
+            .map(|(key, meta)| {
+                let id = meta["id"].as_str().unwrap_or(key);
+                (
+                    id.to_owned(),
+                    meta["name"].as_str().unwrap_or(id).to_owned(),
+                )
+            })
+            .collect();
+        crate::forms::number_duplicate_labels(&mut content_names);
+        let content_names: BTreeMap<_, _> = content_names.into_iter().collect();
         ui.separator();
         egui::ScrollArea::vertical()
             .id_salt("project-content-list")
@@ -2371,7 +2393,8 @@ impl App {
             .auto_shrink([false, true])
             .show(ui, |ui| {
                 for (key, meta) in &records {
-                    let id = meta["id"].as_str().unwrap_or("");
+                    let id = meta["id"].as_str().unwrap_or(key);
+                    let name = content_names.get(id).map(String::as_str).unwrap_or(id);
                     let kind = match meta["type"].as_str().unwrap_or("") {
                         "image" => tr("图片"),
                         "character" => tr("角色"),
@@ -2383,7 +2406,7 @@ impl App {
                             [ui.available_width(), 26.0],
                             egui::Button::selectable(
                                 self.asset_selection == *key,
-                                format!("{} · {kind}", meta["name"].as_str().unwrap_or(id)),
+                                format!("{name} · {kind}"),
                             )
                             .frame(self.asset_selection == *key)
                             .truncate()
@@ -2839,6 +2862,7 @@ impl App {
         prefs["ui_locale"] = json!(locale);
         lom_core::project::atomic_write(path, &lom_core::stable_json(&prefs)?)?;
         crate::i18n::set_locale(locale);
+        crate::macos_window::update_settings_menu_title();
         Ok(())
     }
     fn dialog_keys(&mut self, ctx: &egui::Context) -> (bool, bool) {
@@ -3163,6 +3187,20 @@ impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         self.frame += 1;
         self.shell.install(frame);
+        #[cfg(target_os = "macos")]
+        if self.frame == 1 {
+            if let Err(error) = crate::macos_window::install_settings_menu(ctx) {
+                self.error = Some(error);
+            }
+        }
+        if self.chapter_dialog.is_none()
+            && self.rename_dialog.is_none()
+            && self.asset_import_dialog.is_none()
+            && crate::macos_window::take_settings_request()
+        {
+            self.settings_open = true;
+            self.settings_error = None;
+        }
         if ctx.input(|i| i.viewport().close_requested()) && !self.allow_close {
             if self.dirty() {
                 ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
@@ -3631,6 +3669,103 @@ mod application_regression_tests {
             repeat: false,
             modifiers,
         }
+    }
+    fn click_named_option(output: &egui::FullOutput, prefix: &str) -> egui::Event {
+        let nodes = &output
+            .platform_output
+            .accesskit_update
+            .as_ref()
+            .unwrap()
+            .nodes;
+        let target = nodes
+            .iter()
+            .find_map(|(id, node)| {
+                (node.label().is_some_and(|label| label.starts_with(prefix))
+                    || node.value().is_some_and(|value| value.starts_with(prefix)))
+                .then_some(*id)
+            })
+            .unwrap_or_else(|| panic!("Missing option {prefix:?}: {nodes:?}"));
+        egui::Event::AccessKitActionRequest(egui::accesskit::ActionRequest {
+            action: egui::accesskit::Action::Click,
+            target,
+            data: None,
+        })
+    }
+    #[test]
+    fn duplicate_chapter_names_select_distinct_ids_without_renaming_stories() {
+        let mut app = app();
+        app.project.stories.get_mut("main").unwrap()["title"] = json!("同名章节");
+        let mut second = app.project.stories["main"].clone();
+        second["id"] = json!("second");
+        app.project.stories.insert("second".into(), second);
+        let before = snapshot(&app.project);
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        let mut events = vec![];
+        for option in ["同名章节 1", "同名章节 2"] {
+            let output = ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        Vec2::new(1280.0, 900.0),
+                    )),
+                    events: std::mem::take(&mut events),
+                    ..Default::default()
+                },
+                |ctx| app.sidebar(ctx),
+            );
+            events.push(click_named_option(&output, option));
+        }
+        let _ = ctx.run(
+            egui::RawInput {
+                events,
+                ..Default::default()
+            },
+            |ctx| app.sidebar(ctx),
+        );
+        assert_eq!(app.current, "second");
+        assert!(snapshot(&app.project) == before);
+    }
+    #[test]
+    fn duplicate_content_names_select_distinct_assets_without_renaming_metadata() {
+        let mut app = app();
+        for id in ["demo.a", "demo.b"] {
+            app.project.assets.insert(
+                format!("assets/user/image/{id}/content.json"),
+                serde_json::to_vec(
+                    &json!({"id":id,"type":"image","name":"同名素材","files":{"main":"main.png"}}),
+                )
+                .unwrap(),
+            );
+        }
+        let before = snapshot(&app.project);
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        let output = ctx.run(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    Vec2::new(700.0, 900.0),
+                )),
+                ..Default::default()
+            },
+            |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| app.assets(ui));
+            },
+        );
+        let _ = click_named_option(&output, "同名素材 1 · ");
+        let event = click_named_option(&output, "同名素材 2 · ");
+        let _ = ctx.run(
+            egui::RawInput {
+                events: vec![event],
+                ..Default::default()
+            },
+            |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| app.assets(ui));
+            },
+        );
+        assert_eq!(app.asset_selection, "assets/user/image/demo.b/content.json");
+        assert!(snapshot(&app.project) == before);
     }
     #[test]
     fn settings_shortcut_and_language_preferences_do_not_modify_the_project() {

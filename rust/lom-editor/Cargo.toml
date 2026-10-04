@@ -22,5 +22,5 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg"]
 [target.'cfg(target_os = "macos")'.dependencies]
 raw-window-handle = "0.6"
 objc2 = "0.6"
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString"] }
-objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSAppearance", "NSColor", "NSResponder", "NSView", "NSWindow"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSObject", "NSString"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSAppearance", "NSApplication", "NSColor", "NSEvent", "NSMenu", "NSMenuItem", "NSResponder", "NSView", "NSWindow"] }

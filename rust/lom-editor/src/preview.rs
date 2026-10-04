@@ -766,12 +766,19 @@ impl Preview {
             .find(|v| v["id"] == cid)
             .and_then(|v| v["name"].as_str())
             .unwrap_or(cid);
-        ui.label(egui::RichText::new(title).strong());
+        ui.label(egui::RichText::new(crate::i18n::term("characters", cid, title)).strong())
+            .on_hover_text(cid);
+        let portrait_name = if cid.starts_with("user:") {
+            portrait.to_owned()
+        } else {
+            crate::i18n::term("portraits", portrait, portrait)
+        };
         ui.label(
-            egui::RichText::new(format!("{cid} · {portrait}"))
+            egui::RichText::new(portrait_name)
                 .small()
                 .color(Color32::GRAY),
-        );
+        )
+        .on_hover_text(portrait);
         let (rect, _) = ui.allocate_exact_size(ui.available_size(), egui::Sense::hover());
         let painter = ui.painter().with_clip_rect(rect);
         painter.rect_filled(rect, 0.0, Color32::from_rgba_unmultiplied(18, 21, 31, 225));
