@@ -4,6 +4,16 @@ use eframe::egui;
 use lom_core::{analysis, editing, project::Project};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
+
+#[derive(PartialEq, Eq)]
+struct CopySelection {
+    source: String,
+    target: String,
+    first: usize,
+    last: usize,
+    insertion: usize,
+}
+
 #[derive(Default)]
 pub struct Advanced {
     pub page: usize,
@@ -16,9 +26,11 @@ pub struct Advanced {
     first: usize,
     last: usize,
     insertion: usize,
-    proposal: Option<(BTreeMap<String, Value>, editing::Transfer)>,
+    proposal: Option<(CopySelection, BTreeMap<String, Value>, editing::Transfer)>,
     tests_story: String,
     tests: String,
+    tests_baseline: String,
+    tests_source: Option<Value>,
     results: Value,
     error: String,
 }
@@ -56,7 +68,7 @@ fn rows(
                         refs = Some(h.clone());
                     }
                 });
-                ui.label(egui::RichText::new(&h.field).small());
+                ui.label(egui::RichText::new(display_label(&h.category)).small());
                 ui.add(egui::Label::new(&h.preview).wrap());
             });
         });
@@ -74,6 +86,64 @@ fn ref_kind(h: &editing::SearchHit) -> &str {
     }
 }
 impl Advanced {
+    pub fn has_pending(&self) -> bool {
+        !self.tests_story.is_empty() && self.tests != self.tests_baseline
+    }
+
+    pub fn reset(&mut self) {
+        *self = Self::default();
+    }
+
+    pub fn apply_pending(&mut self, project: &mut Project) -> anyhow::Result<bool> {
+        if !self.has_pending() {
+            return Ok(false);
+        }
+        let cases: Value = serde_json::from_str(&self.tests)?;
+        anyhow::ensure!(cases.is_array(), "测试定义必须为数组");
+        let story = project
+            .stories
+            .get_mut(&self.tests_story)
+            .ok_or_else(|| anyhow::anyhow!("测试所属章节已不存在，请撤销未完成的输入"))?;
+        anyhow::ensure!(
+            story["_editor"].get("tests") == self.tests_source.as_ref(),
+            "测试内容已被其他操作修改；请撤销未完成的输入后重试"
+        );
+        let changed = self.tests_source.as_ref() != Some(&cases);
+        if changed {
+            if !story["_editor"].is_object() {
+                story["_editor"] = json!({});
+            }
+            story["_editor"]["tests"] = cases.clone();
+        }
+        self.tests_source = Some(cases);
+        self.tests_baseline = self.tests.clone();
+        self.results = Value::Null;
+        self.error.clear();
+        Ok(changed)
+    }
+
+    fn select_tests(&mut self, project: &mut Project, sid: &str) -> bool {
+        if self.tests_story != sid {
+            if let Err(error) = self.apply_pending(project) {
+                self.error = format!("测试输入尚未完成：{error}");
+                return false;
+            }
+            self.load_tests(project, sid);
+        } else if project
+            .stories
+            .get(sid)
+            .and_then(|s| s["_editor"].get("tests"))
+            != self.tests_source.as_ref()
+        {
+            if self.has_pending() {
+                self.error = "测试内容已被其他操作修改；请撤销未完成的输入后重试".into();
+                return false;
+            }
+            self.load_tests(project, sid);
+        }
+        true
+    }
+
     pub fn show(
         &mut self,
         ui: &mut egui::Ui,
@@ -111,9 +181,9 @@ impl Advanced {
                 );
                 egui::ComboBox::from_id_salt("search-category")
                     .selected_text(if self.category.is_empty() {
-                        "全部类型"
+                        tr("全部类型")
                     } else {
-                        &self.category
+                        display_label(&self.category)
                     })
                     .show_ui(ui, |ui| {
                         ui.selectable_value(&mut self.category, String::new(), tr("全部类型"));
@@ -121,7 +191,7 @@ impl Advanced {
                             ui.selectable_value(
                                 &mut self.category,
                                 category.to_string(),
-                                *category,
+                                display_label(category),
                             );
                         }
                     });
@@ -150,9 +220,9 @@ impl Advanced {
             1 => {
                 egui::ComboBox::from_id_salt("symbol-kind")
                     .selected_text(if self.symbol_kind.is_empty() {
-                        "全部变量"
+                        tr("全部变量")
                     } else {
-                        &self.symbol_kind
+                        display_label(&self.symbol_kind)
                     })
                     .show_ui(ui, |ui| {
                         ui.selectable_value(&mut self.symbol_kind, String::new(), tr("全部变量"));
@@ -164,7 +234,7 @@ impl Advanced {
                             "flow_variable",
                             "stat",
                         ] {
-                            ui.selectable_value(&mut self.symbol_kind, k.into(), k);
+                            ui.selectable_value(&mut self.symbol_kind, k.into(), display_label(k));
                         }
                     });
                 let report = analysis::analyze_project(&project.stories, &project.manifest);
@@ -175,7 +245,7 @@ impl Advanced {
                     ui.push_id(s.to_string(), |ui| {
                         ui.strong(format!(
                             "{} · {}",
-                            s["kind"].as_str().unwrap_or(""),
+                            display_label(s["kind"].as_str().unwrap_or("")),
                             s["name"].as_str().unwrap_or("")
                         ));
                         ui.label(format!(
@@ -188,12 +258,11 @@ impl Advanced {
                         for u in s["uses"].as_array().into_iter().flatten() {
                             let sid = u["story"].as_str().unwrap_or("");
                             let nid = u["node"].as_str();
-                            let field = u["field"].as_str().unwrap_or("flag");
                             if ui
                                 .link(format!(
-                                    "{sid}/{} · {} · {field}",
+                                    "{sid}/{} · {}",
                                     nid.unwrap_or("作品设置"),
-                                    u["access"].as_str().unwrap_or("")
+                                    display_label(u["access"].as_str().unwrap_or(""))
                                 ))
                                 .clicked()
                             {
@@ -238,7 +307,7 @@ impl Advanced {
                         if self.page == 2 {
                             ui.label(format!(
                                 "{} · {} · {}",
-                                row["source"].as_str().unwrap_or(""),
+                                display_label(row["source"].as_str().unwrap_or("")),
                                 row["subject"].as_str().unwrap_or(""),
                                 row["reason"].as_str().unwrap_or("")
                             ));
@@ -259,7 +328,7 @@ impl Advanced {
                         } else {
                             ui.label(format!(
                                 "{} · {}",
-                                row["severity"].as_str().unwrap_or(""),
+                                display_label(row["severity"].as_str().unwrap_or("")),
                                 row["detail"].as_str().unwrap_or("")
                             ));
                         }
@@ -321,6 +390,16 @@ impl Advanced {
                     ui.label(tr("插入到第几步之后（0 为开头）"));
                     ui.add(egui::DragValue::new(&mut self.insertion).range(0..=target_count));
                 });
+                let selection = self.copy_selection();
+                if self
+                    .proposal
+                    .as_ref()
+                    .is_some_and(|(previous, _, _)| previous != &selection)
+                {
+                    // A preview only authorizes the exact options it was generated from.
+                    self.proposal = None;
+                    self.error.clear();
+                }
                 if ui
                     .add_enabled(
                         count > 0 && self.source != self.target,
@@ -337,13 +416,13 @@ impl Advanced {
                         self.insertion,
                     ) {
                         Ok(t) => {
-                            self.proposal = Some((project.stories.clone(), t));
+                            self.proposal = Some((selection, project.stories.clone(), t));
                             self.error.clear();
                         }
                         Err(e) => self.error = e.to_string(),
                     }
                 }
-                if let Some((before, plan)) = &self.proposal {
+                if let Some((_, before, plan)) = &self.proposal {
                     ui.label(format!(
                         "{} → {} · {} 个节点",
                         plan.source_story, plan.target_story, plan.count
@@ -373,54 +452,62 @@ impl Advanced {
                 }
             }
             5 => {
-                if self.tests_story.is_empty() {
-                    self.load_tests(project, current);
-                }
-                let old = self.tests_story.clone();
+                let mut selected = if self.tests_story.is_empty() {
+                    current.into()
+                } else {
+                    self.tests_story.clone()
+                };
+                self.select_tests(project, &selected);
                 egui::ComboBox::from_id_salt("test-chapter")
                     .selected_text(&self.tests_story)
                     .show_ui(ui, |ui| {
                         for sid in project.stories.keys() {
-                            ui.selectable_value(&mut self.tests_story, sid.clone(), sid);
+                            ui.selectable_value(&mut selected, sid.clone(), sid);
                         }
                     });
-                if old != self.tests_story {
-                    let sid = self.tests_story.clone();
-                    self.load_tests(project, &sid);
+                if selected != self.tests_story {
+                    self.select_tests(project, &selected);
                 }
                 ui.label(tr(
                     "初始变量、选项动作和断言（JSON）；结果包含完整访问路径。",
                 ));
-                ui.add(
-                    egui::TextEdit::multiline(&mut self.tests)
-                        .code_editor()
-                        .desired_rows(12)
-                        .desired_width(f32::INFINITY),
-                );
+                if ui
+                    .add(
+                        egui::TextEdit::multiline(&mut self.tests)
+                            .code_editor()
+                            .desired_rows(12)
+                            .desired_width(f32::INFINITY),
+                    )
+                    .changed()
+                {
+                    self.results = Value::Null;
+                    if let Err(error) = self.apply_pending(project) {
+                        self.error = format!("测试输入尚未完成：{error}");
+                    }
+                }
                 let mut run = false;
-                let mut save = false;
                 ui.horizontal(|ui| {
-                    run = ui.button(tr("运行草稿测试")).clicked();
-                    save = ui.button(tr("保存测试到章节（可撤销）")).clicked();
+                    run = ui.button(tr("运行测试")).clicked();
+                    if self.has_pending() && ui.button(tr("撤销未完成的输入")).clicked() {
+                        let sid = if project.stories.contains_key(&self.tests_story) {
+                            self.tests_story.clone()
+                        } else {
+                            current.into()
+                        };
+                        self.load_tests(project, &sid);
+                    }
                 });
-                if run || save {
-                    match serde_json::from_str::<Value>(&self.tests)
-                        .map_err(anyhow::Error::from)
-                        .and_then(|cases| {
-                            let result = analysis::run_story_tests(&project.stories, &cases)?;
-                            Ok((cases, result))
-                        }) {
-                        Ok((cases, result)) => {
+                if run {
+                    match self
+                        .apply_pending(project)
+                        .and_then(|_| {
+                            serde_json::from_str::<Value>(&self.tests).map_err(Into::into)
+                        })
+                        .and_then(|cases| analysis::run_story_tests(&project.stories, &cases))
+                    {
+                        Ok(result) => {
                             self.error.clear();
                             self.results = result;
-                            if save {
-                                if let Some(s) = project.stories.get_mut(&self.tests_story) {
-                                    if !s["_editor"].is_object() {
-                                        s["_editor"] = json!({});
-                                    }
-                                    s["_editor"]["tests"] = cases;
-                                }
-                            }
                         }
                         Err(e) => self.error = e.to_string(),
                     }
@@ -429,7 +516,7 @@ impl Advanced {
                     ui.strong(format!(
                         "{} · {}",
                         result["name"].as_str().unwrap_or(""),
-                        result["status"].as_str().unwrap_or("")
+                        display_label(result["status"].as_str().unwrap_or(""))
                     ));
                     ui.label(result["message"].as_str().unwrap_or(""));
                     ui.collapsing(tr("访问路径与最终状态"), |ui| {
@@ -449,8 +536,11 @@ impl Advanced {
                             }
                         }
                         ui.monospace(format!(
-                            "variables: {}\nflags: {}",
-                            result["variables"], result["flags"]
+                            "{}: {}\n{}: {}",
+                            tr("变量"),
+                            result["variables"],
+                            tr("剧情标记"),
+                            result["flags"]
                         ));
                     });
                 }
@@ -473,12 +563,57 @@ impl Advanced {
         }
         nav
     }
+    fn copy_selection(&self) -> CopySelection {
+        CopySelection {
+            source: self.source.clone(),
+            target: self.target.clone(),
+            first: self.first,
+            last: self.last,
+            insertion: self.insertion,
+        }
+    }
     fn load_tests(&mut self, project: &Project, sid: &str) {
         self.tests_story = sid.into();
         self.results = Value::Null;
-        let tests=project.stories.get(sid).and_then(|s|s["_editor"].get("tests")).cloned().unwrap_or(json!([{"name":"example","story":sid,"initial":{"variables":{},"flags":{}},"actions":{"choices":[]},"assert":{"reaches_ending":true}}]));
+        self.tests_source = project
+            .stories
+            .get(sid)
+            .and_then(|s| s["_editor"].get("tests"))
+            .cloned();
+        let tests = self.tests_source.clone().unwrap_or(json!([{"name":"example","story":sid,"initial":{"variables":{},"flags":{}},"actions":{"choices":[]},"assert":{"reaches_ending":true}}]));
         self.tests = serde_json::to_string_pretty(&tests).unwrap();
+        self.tests_baseline = self.tests.clone();
+        self.error.clear();
     }
+}
+fn display_label(value: &str) -> String {
+    tr(match value {
+        "story" => "章节",
+        "node" => "步骤",
+        "text" => "文本",
+        "character" => "人物",
+        "portrait" => "表情",
+        "voice" => "音频",
+        "image" => "图片",
+        "variable" => "变量",
+        "flag" => "剧情标记",
+        "goto" => "跳转",
+        "content_ref" => "素材引用",
+        "mod_flag" | "mod" => "作品标记",
+        "game_flag" | "game" => "游戏标记",
+        "checkpoint" => "检查点",
+        "condition" => "条件",
+        "flow_variable" => "流程变量",
+        "stat" => "人物属性",
+        "read" => "读取",
+        "write" => "写入",
+        "warning" => "警告",
+        "error" => "错误",
+        "pass" => "通过",
+        "fail" => "未通过",
+        "unsupported" => "需要游戏内验证",
+        other => other,
+    })
 }
 fn tri(v: &Value) -> &str {
     match v.as_bool() {
@@ -491,6 +626,121 @@ fn tri(v: &Value) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn valid_test_edits_survive_chapter_switch_and_refresh_after_undo() {
+        let mut project = Project::new();
+        let mut second = project.stories["main"].clone();
+        second["id"] = json!("second");
+        project.stories.insert("second".into(), second);
+        let mut panel = Advanced::default();
+        assert!(panel.select_tests(&mut project, "main"));
+        let cases = json!([{"name":"edited test","story":"main","assert":{"reaches_ending":true}}]);
+        panel.tests = serde_json::to_string(&cases).unwrap();
+        assert!(panel.has_pending());
+        assert!(panel.select_tests(&mut project, "second"));
+        assert_eq!(project.stories["main"]["_editor"]["tests"], cases);
+        assert!(!panel.has_pending());
+        assert!(panel.select_tests(&mut project, "main"));
+        assert_eq!(serde_json::from_str::<Value>(&panel.tests).unwrap(), cases);
+
+        // Undo or another editing surface may replace the stored test definition.
+        project.stories.get_mut("main").unwrap()["_editor"]["tests"] = json!([]);
+        assert!(panel.select_tests(&mut project, "main"));
+        assert_eq!(panel.tests, "[]");
+        assert!(!panel.has_pending());
+    }
+
+    #[test]
+    fn unfinished_test_input_blocks_switch_and_save_without_losing_text() {
+        let mut project = Project::new();
+        let mut second = project.stories["main"].clone();
+        second["id"] = json!("second");
+        project.stories.insert("second".into(), second);
+        let before = project.clone();
+        let mut panel = Advanced::default();
+        panel.select_tests(&mut project, "main");
+        panel.tests = "[{\"name\": \"still typing\"".into();
+        let unfinished = panel.tests.clone();
+        assert!(!panel.select_tests(&mut project, "second"));
+        assert_eq!(panel.tests_story, "main");
+        assert_eq!(panel.tests, unfinished);
+        assert!(panel.apply_pending(&mut project).is_err());
+        assert_eq!(project, before);
+        assert!(panel.has_pending());
+
+        panel.tests = "[]".into();
+        assert!(panel.apply_pending(&mut project).unwrap());
+        assert_eq!(project.stories["main"]["_editor"]["tests"], json!([]));
+        assert!(!panel.has_pending());
+        assert!(panel.select_tests(&mut project, "second"));
+    }
+
+    #[test]
+    fn test_input_cannot_overwrite_external_changes_and_reset_discards_only_buffer() {
+        let mut project = Project::new();
+        let mut panel = Advanced::default();
+        panel.select_tests(&mut project, "main");
+        panel.tests = "[]".into();
+        let external = json!([{"name":"external","story":"main"}]);
+        project.stories.get_mut("main").unwrap()["_editor"] = json!({"tests":external});
+        assert!(panel.apply_pending(&mut project).is_err());
+        assert_eq!(panel.tests, "[]");
+        assert_eq!(project.stories["main"]["_editor"]["tests"], external);
+        panel.reset();
+        assert!(!panel.has_pending());
+        assert!(panel.tests_story.is_empty());
+        assert_eq!(project.stories["main"]["_editor"]["tests"], external);
+    }
+
+    #[test]
+    fn changing_any_copy_option_discards_preview_before_confirmation() {
+        let mut project = Project::new();
+        for id in ["second", "third"] {
+            let mut story = project.stories["main"].clone();
+            story["id"] = json!(id);
+            project.stories.insert(id.into(), story);
+        }
+        let before = project.clone();
+        let ctx = egui::Context::default();
+        for changed_option in ["source", "target", "first", "last", "insertion"] {
+            let mut panel = Advanced {
+                page: 4,
+                source: "main".into(),
+                target: "second".into(),
+                first: 1,
+                last: 2,
+                insertion: 0,
+                ..Default::default()
+            };
+            let plan = editing::transfer(&project.stories, "main", 0, 1, "second", 0)
+                .expect("valid preview");
+            panel.proposal = Some((panel.copy_selection(), project.stories.clone(), plan));
+            // An unchanged frame preserves the preview; editing any input invalidates it.
+            let _ = ctx.run(Default::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    panel.show(ui, &mut project, "main");
+                });
+            });
+            assert!(panel.proposal.is_some());
+            match changed_option {
+                "source" => panel.source = "third".into(),
+                "target" => panel.target = "third".into(),
+                "first" => panel.first = 2,
+                "last" => panel.last = 1,
+                "insertion" => panel.insertion = 1,
+                _ => unreachable!(),
+            }
+            let _ = ctx.run(Default::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    panel.show(ui, &mut project, "main");
+                });
+            });
+            assert!(panel.proposal.is_none(), "changed {changed_option}");
+            assert_eq!(project, before, "changed {changed_option}");
+        }
+    }
+
     #[test]
     fn viewing_all_analysis_pages_does_not_modify_project() {
         let mut project = Project::new();

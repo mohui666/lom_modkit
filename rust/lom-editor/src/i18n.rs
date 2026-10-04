@@ -173,7 +173,9 @@ mod native_tests {
                 "批量修改选中步骤字段",
                 "从模板新建",
                 "共享内容库与 .lomcontent",
-                "界面语言 / Language",
+                "编辑器",
+                "设置…",
+                "界面语言",
             ] {
                 let translated = super::tr_index(label, index);
                 assert!(!translated.is_empty());

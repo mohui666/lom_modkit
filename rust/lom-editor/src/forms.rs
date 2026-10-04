@@ -416,9 +416,6 @@ impl Catalog {
                 },
             );
         }
-        ui.collapsing(tr("技术信息"), |ui| {
-            ui.label(format!("{} · {}", kind, node["id"].as_str().unwrap_or("")));
-        });
         changed
     }
     pub fn field(
@@ -458,7 +455,9 @@ impl Catalog {
         ui.push_id(key, |ui| {
             let width = ui.available_width();
             let label_width = (width * 0.27).clamp(78.0, 120.0);
-            let mut enabled = node.get(key).is_some();
+            let present = node.get(key).is_some();
+            let selector = is_selector(kind);
+            let mut reset = false;
             ui.horizontal_top(|ui| {
                 ui.allocate_ui_with_layout(
                     egui::vec2(label_width, 0.0),
@@ -466,48 +465,61 @@ impl Catalog {
                     |ui| {
                         ui.set_min_width(label_width);
                         ui.set_max_width(label_width);
-                        if optional {
-                            if ui
-                                .scope(|ui| {
-                                    let widgets = &mut ui.visuals_mut().widgets;
-                                    for w in [
-                                        &mut widgets.inactive,
-                                        &mut widgets.hovered,
-                                        &mut widgets.active,
-                                    ] {
-                                        w.corner_radius = egui::CornerRadius::same(2);
-                                    }
-                                    ui.checkbox(&mut enabled, label)
-                                        .on_hover_text(tr("勾选后设置；取消勾选使用默认行为"))
-                                })
-                                .inner
-                                .changed()
-                            {
-                                if enabled {
-                                    node[key] = self.schema["_NODE_DEFAULTS"]
-                                        [node["type"].as_str().unwrap_or("")][key]
-                                        .clone();
-                                    if node[key].is_null() {
-                                        node[key] = default_for(kind);
-                                    }
-                                } else if let Some(o) = node.as_object_mut() {
-                                    o.remove(key);
-                                }
-                                changed = true;
+                        ui.label(label);
+                        if optional && !selector && kind != "bool" {
+                            if present {
+                                reset = ui
+                                    .small_button(tr("重置"))
+                                    .on_hover_text(tr("恢复默认"))
+                                    .clicked();
+                            } else {
+                                ui.label(RichText::new(tr("默认")).small().weak());
                             }
-                        } else {
-                            ui.label(label);
                         }
                     },
                 );
                 ui.vertical(|ui| {
                     ui.set_width((width - label_width - 12.0).max(100.0));
-                    if optional && !enabled {
-                        ui.add_space(5.0);
-                        return;
-                    }
-                    let mut value = node.get(key).cloned().unwrap_or_else(|| default_for(kind));
+                    let mut value = node.get(key).cloned().unwrap_or_else(|| {
+                        let template = &self.schema["_NODE_DEFAULTS"]
+                            [node["type"].as_str().unwrap_or("")][key];
+                        if template.is_null() || template.is_array() {
+                            default_for(kind)
+                        } else {
+                            template.clone()
+                        }
+                    });
                     let field_changed = match kind {
+                        "bool" if optional => {
+                            let mut edited = false;
+                            let title = if !present {
+                                tr("默认")
+                            } else if let Some(b) = value.as_bool() {
+                                tr(if b { "启用" } else { "关闭" })
+                            } else {
+                                tr("自定义")
+                            };
+                            egui::ComboBox::from_id_salt("select")
+                                .selected_text(title)
+                                .width(ui.available_width())
+                                .show_ui(ui, |ui| {
+                                    if ui.selectable_label(!present, tr("默认")).clicked() {
+                                        reset = true;
+                                        ui.close();
+                                    }
+                                    for (b, title) in [(true, "启用"), (false, "关闭")] {
+                                        if ui
+                                            .selectable_label(present && value == b, tr(title))
+                                            .clicked()
+                                        {
+                                            value = json!(b);
+                                            edited = true;
+                                            ui.close();
+                                        }
+                                    }
+                                });
+                            edited
+                        }
                         "bool" => {
                             let mut b = value.as_bool().unwrap_or(false);
                             let c = ui.checkbox(&mut b, tr("启用")).changed();
@@ -518,7 +530,16 @@ impl Catalog {
                         }
                         "int" | "bool_int" | "discount_toggle" => {
                             let mut n = value.as_i64().unwrap_or(0);
-                            let c = ui.add(egui::DragValue::new(&mut n).speed(1)).changed();
+                            let response = ui.add(egui::DragValue::new(&mut n).speed(1));
+                            let mut c = response.changed();
+                            if optional && !present {
+                                response.context_menu(|ui| {
+                                    if ui.button(tr("使用此值")).clicked() {
+                                        c = true;
+                                        ui.close();
+                                    }
+                                });
+                            }
                             if c {
                                 value = n.into();
                             }
@@ -527,7 +548,16 @@ impl Catalog {
                         "float" | "percent_scale" | "percent_cg_scale" | "percent_position"
                         | "percent_offset" | "percent_opacity" => {
                             let mut n = value.as_f64().unwrap_or(0.0);
-                            let c = ui.add(egui::DragValue::new(&mut n).speed(0.25)).changed();
+                            let response = ui.add(egui::DragValue::new(&mut n).speed(0.25));
+                            let mut c = response.changed();
+                            if optional && !present {
+                                response.context_menu(|ui| {
+                                    if ui.button(tr("使用此值")).clicked() {
+                                        c = true;
+                                        ui.close();
+                                    }
+                                });
+                            }
                             if c {
                                 value = json!(n);
                             }
@@ -543,6 +573,7 @@ impl Catalog {
                                 )
                                 .changed();
                             if c {
+                                reset |= optional && s.is_empty();
                                 value = s.into();
                             }
                             c
@@ -560,61 +591,82 @@ impl Catalog {
                         _ => {
                             let mut s = value.as_str().unwrap_or("").to_owned();
                             let mut c = false;
-                            if options.is_empty() {
-                                c |= ui
+                            if !selector {
+                                c = ui
                                     .add(
                                         egui::TextEdit::singleline(&mut s)
                                             .desired_width(f32::INFINITY)
                                             .hint_text(label),
                                     )
                                     .changed();
+                                reset |= c && optional && s.is_empty();
                             } else {
-                                let display = options
-                                    .iter()
-                                    .find(|(v, _)| v == &s)
-                                    .map(|(_, label)| label.as_str())
-                                    .unwrap_or(&s)
-                                    .to_owned();
+                                let absent_label = absent_label(node, key, kind);
+                                let display = if !present {
+                                    absent_label.clone()
+                                } else if let Some((_, name)) =
+                                    options.iter().find(|(v, _)| v == &s)
+                                {
+                                    option_label(kind, &s, name)
+                                } else if s.is_empty() {
+                                    tr("选择…")
+                                } else {
+                                    tr("自定义")
+                                };
                                 egui::ComboBox::from_id_salt("select")
                                     .truncate()
-                                    .selected_text(if display.is_empty() {
-                                        tr("选择…")
-                                    } else {
-                                        display
-                                    })
+                                    .selected_text(display)
                                     .width(ui.available_width())
                                     .height(260.0)
                                     .show_ui(ui, |ui| {
+                                        if optional {
+                                            if ui
+                                                .selectable_label(!present, &absent_label)
+                                                .clicked()
+                                            {
+                                                reset = true;
+                                                ui.close();
+                                            }
+                                            ui.separator();
+                                        }
                                         let search_id = ui.id().with("search");
                                         let mut search = ui.data_mut(|d| {
                                             d.get_temp::<String>(search_id).unwrap_or_default()
                                         });
-                                        ui.add(
-                                            egui::TextEdit::singleline(&mut search)
-                                                .hint_text(tr("搜索名称或 ID")),
-                                        );
+                                        if !options.is_empty() {
+                                            ui.add(
+                                                egui::TextEdit::singleline(&mut search)
+                                                    .hint_text(tr("搜索名称")),
+                                            );
+                                        }
                                         let lower = search.to_lowercase();
                                         for (id, name) in &options {
                                             if lower.is_empty()
                                                 || id.to_lowercase().contains(&lower)
                                                 || name.to_lowercase().contains(&lower)
                                             {
-                                                c |= ui
-                                                    .selectable_value(
-                                                        &mut s,
-                                                        id.clone(),
-                                                        format!("{name} · {id}"),
+                                                if ui
+                                                    .selectable_label(
+                                                        present && id == &s,
+                                                        option_label(kind, id, name),
                                                     )
-                                                    .changed();
+                                                    .clicked()
+                                                {
+                                                    s = id.clone();
+                                                    c = true;
+                                                    ui.close();
+                                                }
                                             }
                                         }
-                                        ui.separator();
-                                        c |= ui
-                                            .add(
-                                                egui::TextEdit::singleline(&mut s)
-                                                    .hint_text(tr("内部 ID / 自定义引用")),
-                                            )
-                                            .changed();
+                                        ui.collapsing(tr("手动输入"), |ui| {
+                                            c |= ui
+                                                .add(
+                                                    egui::TextEdit::singleline(&mut s)
+                                                        .hint_text(tr("内部 ID / 自定义引用")),
+                                                )
+                                                .changed();
+                                        });
+                                        reset |= c && optional && s.is_empty();
                                         ui.data_mut(|d| d.insert_temp(search_id, search));
                                     });
                             }
@@ -624,7 +676,11 @@ impl Catalog {
                             c
                         }
                     };
-                    if field_changed {
+                    if reset {
+                        if let Some(object) = node.as_object_mut() {
+                            changed |= object.remove(key).is_some();
+                        }
+                    } else if field_changed && node.get(key) != Some(&value) {
                         node[key] = value;
                         changed = true;
                     }
@@ -632,6 +688,67 @@ impl Catalog {
             });
         });
         changed
+    }
+}
+
+fn is_selector(kind: &str) -> bool {
+    kind.starts_with("enum:")
+        || matches!(
+            kind,
+            "node_ref"
+                | "story_ref"
+                | "facing"
+                | "branch_source"
+                | "portrait"
+                | "mode"
+                | "camera"
+                | "flag_ref"
+                | "battle_character"
+                | "battle_faction"
+                | "item"
+                | "voice"
+                | "character"
+                | "affinity_character"
+                | "affinity_optional"
+                | "position"
+                | "view"
+                | "music"
+                | "sound_name"
+                | "stat"
+                | "talent"
+                | "combat_skill"
+                | "game_flag"
+                | "free_position"
+                | "battle_skill"
+                | "effect"
+                | "menu_dialog"
+                | "death_id"
+                | "user_image"
+                | "ending_image"
+                | "intro_image"
+        )
+}
+fn absent_label(node: &Value, key: &str, kind: &str) -> String {
+    tr(match (node["type"].as_str().unwrap_or(""), key, kind) {
+        ("say", "mode", _) => "对话（默认）",
+        (_, _, "portrait") => "默认表情",
+        (_, _, "voice") => "无语音",
+        ("say", "character", _)
+            if !matches!(node["mode"].as_str(), Some("narrative" | "center")) =>
+        {
+            "选择人物"
+        }
+        (_, _, "character") => "无",
+        (_, _, "node_ref") => "继续下一步",
+        (_, _, "story_ref" | "user_image" | "ending_image" | "intro_image") => "无",
+        _ => "默认",
+    })
+}
+fn option_label(kind: &str, id: &str, name: &str) -> String {
+    if kind == "portrait" && id == "normal" {
+        tr("正常")
+    } else {
+        name.to_owned()
     }
 }
 
@@ -990,24 +1107,254 @@ pub fn value_editor(ui: &mut Ui, label: &str, value: &mut Value, depth: usize) -
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn field_frame(
+        catalog: &Catalog,
+        context: &egui::Context,
+        node: &mut Value,
+        key: &str,
+        kind: &str,
+        events: Vec<egui::Event>,
+    ) -> (egui::FullOutput, bool) {
+        context.enable_accesskit();
+        let mut changed = false;
+        let output = context.run(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(700.0, 600.0),
+                )),
+                events,
+                ..Default::default()
+            },
+            |context| {
+                egui::CentralPanel::default().show(context, |ui| {
+                    changed |= catalog.field(ui, node, key, key, kind, true, &[], &[]);
+                });
+            },
+        );
+        (output, changed)
+    }
+    fn click(
+        output: &egui::FullOutput,
+        role: egui::accesskit::Role,
+        text: &str,
+    ) -> Vec<egui::Event> {
+        let nodes = &output
+            .platform_output
+            .accesskit_update
+            .as_ref()
+            .unwrap()
+            .nodes;
+        let target = nodes
+            .iter()
+            .find_map(|(id, node)| {
+                (node.role() == role && (node.label() == Some(text) || node.value() == Some(text)))
+                    .then_some(*id)
+            })
+            .unwrap_or_else(|| panic!("No {role:?} {text:?} in accessibility output: {nodes:?}"));
+        vec![egui::Event::AccessKitActionRequest(
+            egui::accesskit::ActionRequest {
+                action: egui::accesskit::Action::Click,
+                target,
+                data: None,
+            },
+        )]
+    }
+    #[test]
+    fn content_name_and_unknown_text_fields_remain_directly_editable() {
+        use egui::accesskit::Role;
+        for kind in ["str", "line", "future_text_field"] {
+            let catalog = Catalog::new();
+            let context = egui::Context::default();
+            let mut node = json!({"name":"原标题"});
+            let (output, changed) =
+                field_frame(&catalog, &context, &mut node, "name", kind, vec![]);
+            assert!(!changed);
+            let nodes = &output
+                .platform_output
+                .accesskit_update
+                .as_ref()
+                .unwrap()
+                .nodes;
+            assert!(!nodes.iter().any(|(_, node)| node.role() == Role::ComboBox));
+            let text_input = nodes
+                .iter()
+                .find_map(|(id, node)| {
+                    (node.role() == Role::TextInput && node.value() == Some("原标题"))
+                        .then_some(*id)
+                })
+                .expect("Content names must expose a direct text input");
+            let events = vec![
+                egui::Event::AccessKitActionRequest(egui::accesskit::ActionRequest {
+                    action: egui::accesskit::Action::Focus,
+                    target: text_input,
+                    data: None,
+                }),
+                egui::Event::Key {
+                    key: egui::Key::A,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: egui::Modifiers {
+                        command: true,
+                        ..Default::default()
+                    },
+                },
+                egui::Event::Text("新标题".into()),
+            ];
+            let (_, changed) = field_frame(&catalog, &context, &mut node, "name", kind, events);
+            assert!(changed);
+            assert_eq!(node["name"], "新标题");
+        }
+    }
+    #[test]
+    fn selector_clicks_distinguish_explicit_default_from_absent_value() {
+        use egui::accesskit::Role;
+        let catalog = Catalog::new();
+        let context = egui::Context::default();
+        let mut node = json!({"id":"n1", "type":"say", "text":"test", "character":"player", "mode":"character"});
+        let (output, changed) = field_frame(&catalog, &context, &mut node, "mode", "mode", vec![]);
+        assert!(!changed);
+        let events = click(&output, Role::ComboBox, "对话");
+        let (output, changed) = field_frame(&catalog, &context, &mut node, "mode", "mode", events);
+        assert!(!changed, "Opening the selector must not write a value");
+        let events = click(&output, Role::Button, "对话（默认）");
+        let (_, changed) = field_frame(&catalog, &context, &mut node, "mode", "mode", events);
+        assert!(changed);
+        assert!(node.get("mode").is_none(), "Default must remove the key");
+        let (output, changed) = field_frame(&catalog, &context, &mut node, "mode", "mode", vec![]);
+        assert!(!changed);
+        let events = click(&output, Role::ComboBox, "对话（默认）");
+        let (output, _) = field_frame(&catalog, &context, &mut node, "mode", "mode", events);
+        let events = click(&output, Role::Button, "对话");
+        let (_, changed) = field_frame(&catalog, &context, &mut node, "mode", "mode", events);
+        assert!(
+            changed,
+            "Selecting the effective default must still store the explicit choice"
+        );
+        assert_eq!(node["mode"], "character");
+    }
+    #[test]
+    fn optional_boolean_can_be_explicitly_disabled_and_restored_to_default() {
+        use egui::accesskit::Role;
+        let catalog = Catalog::new();
+        let context = egui::Context::default();
+        let mut node = json!({"type":"stat", "key":"mental", "delta":1});
+        let (output, changed) =
+            field_frame(&catalog, &context, &mut node, "waitDisplay", "bool", vec![]);
+        assert!(!changed);
+        let events = click(&output, Role::ComboBox, "默认");
+        let (output, _) = field_frame(&catalog, &context, &mut node, "waitDisplay", "bool", events);
+        let events = click(&output, Role::Button, "关闭");
+        let (_, changed) =
+            field_frame(&catalog, &context, &mut node, "waitDisplay", "bool", events);
+        assert!(changed);
+        assert_eq!(node["waitDisplay"], false);
+        let (output, _) = field_frame(&catalog, &context, &mut node, "waitDisplay", "bool", vec![]);
+        let events = click(&output, Role::ComboBox, "关闭");
+        let (output, _) = field_frame(&catalog, &context, &mut node, "waitDisplay", "bool", events);
+        let events = click(&output, Role::Button, "默认");
+        let (_, changed) =
+            field_frame(&catalog, &context, &mut node, "waitDisplay", "bool", events);
+        assert!(changed);
+        assert!(node.get("waitDisplay").is_none());
+    }
+    #[test]
+    fn empty_voice_catalog_preserves_unknown_voice_until_clear_and_keeps_valid_story() {
+        use egui::accesskit::Role;
+        let catalog = Catalog::new();
+        let context = egui::Context::default();
+        let mut node = json!({"id":"n1", "type":"say", "text":"test", "character":"player", "voice":"user:old.voice"});
+        let before = node.clone();
+        let (output, changed) =
+            field_frame(&catalog, &context, &mut node, "voice", "voice", vec![]);
+        assert!(!changed);
+        assert_eq!(node, before);
+        let events = click(&output, Role::ComboBox, "自定义");
+        let (output, changed) =
+            field_frame(&catalog, &context, &mut node, "voice", "voice", events);
+        assert!(!changed);
+        assert_eq!(node, before);
+        assert!(
+            !output
+                .platform_output
+                .accesskit_update
+                .as_ref()
+                .unwrap()
+                .nodes
+                .iter()
+                .any(|(_, n)| n.role() == Role::TextInput),
+            "Internal IDs must remain collapsed"
+        );
+        let events = click(&output, Role::Button, "无语音");
+        let (_, changed) = field_frame(&catalog, &context, &mut node, "voice", "voice", events);
+        assert!(changed);
+        assert!(node.get("voice").is_none());
+        let (output, changed) =
+            field_frame(&catalog, &context, &mut node, "voice", "voice", vec![]);
+        assert!(!changed);
+        let _ = click(&output, Role::ComboBox, "无语音");
+        let story = json!({"story_schema":2, "id":"main", "start":"n1", "nodes":[node, {"id":"end", "type":"end"}]});
+        lom_core::validate::validate_story(&story).unwrap();
+    }
+    #[test]
+    fn optional_numbers_and_arrays_can_be_reset_without_reinstating_template_values() {
+        use egui::accesskit::Role;
+        for (node_type, key, kind, initial) in [
+            ("background", "fade", "float", json!(0.5)),
+            (
+                "block",
+                "vars",
+                "vars",
+                json!([{"name":"count", "value":"7"}]),
+            ),
+        ] {
+            let catalog = Catalog::new();
+            let context = egui::Context::default();
+            let mut node = json!({"type":node_type, key:initial});
+            let (output, changed) = field_frame(&catalog, &context, &mut node, key, kind, vec![]);
+            assert!(!changed);
+            let events = click(&output, Role::Button, "重置");
+            let (_, changed) = field_frame(&catalog, &context, &mut node, key, kind, events);
+            assert!(changed);
+            assert!(node.get(key).is_none());
+            let (_, changed) = field_frame(&catalog, &context, &mut node, key, kind, vec![]);
+            assert!(!changed);
+            assert!(node.get(key).is_none());
+        }
+    }
     #[test]
     fn every_node_form_renders_without_modifying_untouched_document() {
         let catalog = Catalog::new();
         let context = egui::Context::default();
         for kind in catalog.schema["NODE_SCHEMAS"].as_object().unwrap().keys() {
-            let mut node = catalog.new_node(kind, "n1".into());
-            let before = node.clone();
-            let _ = context.run(egui::RawInput::default(), |ctx| {
-                egui::CentralPanel::default().show(ctx, |ui| {
-                    catalog.node_form(
-                        ui,
-                        &mut node,
-                        &["n1".into(), "end1".into()],
-                        &["main".into()],
-                    );
+            let original = catalog.new_node(kind, "n1".into());
+            let mut defaults_omitted = original.clone();
+            for field in catalog.schema["NODE_SCHEMAS"][kind]["fields"]
+                .as_array()
+                .unwrap()
+            {
+                if field[3] == true {
+                    defaults_omitted
+                        .as_object_mut()
+                        .unwrap()
+                        .remove(field[0].as_str().unwrap());
+                }
+            }
+            for mut node in [original, defaults_omitted] {
+                let before = node.clone();
+                let _ = context.run(egui::RawInput::default(), |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        assert!(!catalog.node_form(
+                            ui,
+                            &mut node,
+                            &["n1".into(), "end1".into()],
+                            &["main".into()],
+                        ));
+                    });
                 });
-            });
-            assert_eq!(node, before, "merely rendering {kind} mutated the project");
+                assert_eq!(node, before, "merely rendering {kind} mutated the project");
+            }
         }
     }
 }
@@ -1054,22 +1401,33 @@ fn pick(
             options
                 .iter()
                 .find(|(k, _)| k == &selected)
-                .map(|(_, n)| n.as_str())
-                .unwrap_or(&selected),
+                .map(|(_, n)| n.clone())
+                .unwrap_or_else(|| {
+                    tr(if selected.is_empty() {
+                        "选择…"
+                    } else {
+                        "自定义"
+                    })
+                }),
         )
         .show_ui(ui, |ui| {
             let sid = ui.id().with("filter");
             let mut q = ui.data_mut(|d| d.get_temp::<String>(sid).unwrap_or_default());
-            ui.text_edit_singleline(&mut q);
+            ui.add(egui::TextEdit::singleline(&mut q).hint_text(tr("搜索名称")));
             for (id, name) in options {
                 if q.is_empty()
                     || format!("{name} {id}")
                         .to_lowercase()
                         .contains(&q.to_lowercase())
                 {
-                    ui.selectable_value(&mut selected, id.clone(), format!("{name} · {id}"));
+                    ui.selectable_value(&mut selected, id.clone(), name);
                 }
             }
+            ui.collapsing(tr("手动输入"), |ui| {
+                ui.add(
+                    egui::TextEdit::singleline(&mut selected).hint_text(tr("内部 ID / 自定义引用")),
+                );
+            });
             ui.data_mut(|d| d.insert_temp(sid, q));
         });
     if before != selected {

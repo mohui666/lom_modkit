@@ -8,6 +8,7 @@ pub struct ContentPanel {
     key: String,
     source: Vec<u8>,
     draft: Value,
+    baseline: Value,
     files: BTreeMap<String, Vec<u8>>,
     slot: usize,
     portrait: String,
@@ -16,28 +17,99 @@ pub struct ContentPanel {
     replace_shared: bool,
 }
 impl ContentPanel {
-    pub fn show(&mut self, ui: &mut egui::Ui, project: &mut Project, key: &str) -> bool {
-        let Some(bytes) = project.assets.get(key) else {
-            return false;
+    #[cfg(test)]
+    pub(crate) fn pending_fixture(project: &Project, key: &str, draft: Value) -> Self {
+        let source = project.assets[key].clone();
+        Self {
+            key: key.into(),
+            baseline: draft_from_source(&source),
+            source,
+            draft,
+            ..Default::default()
+        }
+    }
+    pub fn has_pending(&self) -> bool {
+        !self.key.is_empty() && (self.draft != self.baseline || !self.files.is_empty())
+    }
+    pub fn reset(&mut self) {
+        self.key.clear();
+        self.files.clear();
+        self.preview = None;
+        self.message.clear();
+    }
+    pub fn apply_pending(&mut self, project: &mut Project) -> anyhow::Result<bool> {
+        if !self.apply_pending_to_snapshot(project)? {
+            return Ok(false);
+        }
+        self.source = project.assets[&self.key].clone();
+        self.draft = draft_from_source(&self.source);
+        self.baseline = self.draft.clone();
+        self.files.clear();
+        self.message.clear();
+        Ok(true)
+    }
+    /// Include valid in-progress input in recovery without changing the editing buffer.
+    pub(crate) fn apply_pending_to_snapshot(&self, project: &mut Project) -> anyhow::Result<bool> {
+        if !self.has_pending() {
+            return Ok(false);
+        }
+        anyhow::ensure!(
+            project.assets.get(&self.key) == Some(&self.source),
+            "素材已被其他操作修改；请撤销未完成的输入后重试"
+        );
+        content_edit::update(project, &self.key, &self.draft, &self.files)?;
+        Ok(true)
+    }
+    fn select(&mut self, project: &mut Project, selection: &mut String) -> bool {
+        let mut changed = false;
+        if self.key != *selection && self.has_pending() {
+            match self.apply_pending(project) {
+                Ok(applied) => changed = applied,
+                Err(error) => {
+                    *selection = self.key.clone();
+                    self.message = format!("修改尚未完成：{error}");
+                    return false;
+                }
+            }
+        }
+        let Some(bytes) = project.assets.get(selection) else {
+            return changed;
         };
+        let key = selection.as_str();
         if self.key != key || self.source != *bytes {
+            // External project changes must not silently replace unfinished input.
+            if self.has_pending() {
+                self.message = "素材已被其他操作修改；请撤销未完成的输入后重试".into();
+                return changed;
+            }
             self.key = key.into();
             self.source = bytes.clone();
-            self.draft = serde_json::from_slice(bytes).unwrap_or(Value::Null);
+            self.draft = draft_from_source(bytes);
+            self.baseline = self.draft.clone();
             self.files.clear();
             self.preview = None;
             self.message.clear();
         }
+        changed
+    }
+    pub fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        project: &mut Project,
+        selection: &mut String,
+    ) -> bool {
+        let mut changed = self.select(project, selection);
+        let key = self.key.clone();
+        let key = key.as_str();
+        if key.is_empty() || !project.assets.contains_key(key) {
+            return changed;
+        }
         if !self.draft.is_object() {
             ui.label(tr("内容元数据无效"));
-            return false;
+            return changed;
         }
-        let mut changed = false;
         ui.separator();
         let symbol = format!("user:{}", self.draft["id"].as_str().unwrap_or(""));
-        if ui.button(tr("复制引用")).clicked() {
-            ui.ctx().copy_text(symbol.clone());
-        }
         let kind = self.draft["type"].as_str().unwrap_or("").to_owned();
         if kind == "character" {
             if self.draft.get("intro").is_none() && ui.button(tr("添加角色介绍卡")).clicked()
@@ -47,31 +119,22 @@ impl ContentPanel {
             if self.draft.get("intro").is_some() && ui.button(tr("移除介绍卡")).clicked() {
                 self.draft.as_object_mut().unwrap().remove("intro");
             }
-            for (key, default) in [
-                ("title", json!("")),
-                ("scale", json!(100)),
-                ("art_facing", json!("right")),
-            ] {
-                if self.draft.get(key).is_none() {
-                    self.draft[key] = default;
-                }
-            }
         }
-        if kind == "audio" {
-            let mut character = self.draft["character"].as_str().unwrap_or("").to_string();
-            ui.horizontal(|ui| {
-                ui.label(tr("配音绑定人物（空值解除绑定）"));
-                if ui.text_edit_singleline(&mut character).changed() {
-                    if character.is_empty() {
-                        self.draft.as_object_mut().unwrap().remove("character");
-                    } else {
-                        self.draft["character"] = json!(character);
-                    }
-                }
-            });
-        }
-        let catalog = crate::forms::Catalog::new();
+        let mut catalog = crate::forms::Catalog::new();
+        catalog.sync_assets(&project.assets);
         catalog.field(ui, &mut self.draft, "name", "名称", "str", false, &[], &[]);
+        if kind == "audio" {
+            catalog.field(
+                ui,
+                &mut self.draft,
+                "character",
+                "绑定人物",
+                "character",
+                true,
+                &[],
+                &[],
+            );
+        }
         if kind == "character" {
             for (key, label, field_kind) in [
                 ("title", "称号", "str"),
@@ -106,6 +169,9 @@ impl ContentPanel {
         }
         // Preserve the complete metadata editor, including future fields.
         ui.collapsing(tr("高级属性"), |ui| {
+            if ui.button(tr("复制引用")).clicked() {
+                ui.ctx().copy_text(symbol.clone());
+            }
             let mut values = self.draft.clone();
             values.as_object_mut().map(|o| {
                 o.remove("id");
@@ -133,10 +199,10 @@ impl ContentPanel {
         };
         self.slot = self.slot.min(slots.len() - 1);
         egui::ComboBox::from_id_salt("content-file-slot")
-            .selected_text(slots[self.slot])
+            .selected_text(tr(slots[self.slot]))
             .show_ui(ui, |ui| {
                 for (i, label) in slots.iter().enumerate() {
-                    ui.selectable_value(&mut self.slot, i, *label);
+                    ui.selectable_value(&mut self.slot, i, tr(label));
                 }
             });
         if self.slot == 1 {
@@ -213,29 +279,27 @@ impl ContentPanel {
                     Ok(())
                 })();
                 self.message = result
-                    .map(|_| "已载入草稿，应用后生效".into())
+                    .map(|_| String::new())
                     .unwrap_or_else(|e| e.to_string());
             }
         }
-        ui.horizontal_wrapped(|ui| {
-            if ui.button(tr("应用修改")).clicked() {
-                match content_edit::update(project, key, &self.draft, &self.files) {
-                    Ok(()) => {
-                        changed = true;
-                        self.key.clear();
-                        self.message = "已应用".into();
-                    }
-                    Err(e) => self.message = e.to_string(),
-                }
+        // Keep in-progress typing intact (including spaces). Leaving the input,
+        // choosing a file, switching resources, or saving commits the draft.
+        if !ui.ctx().wants_keyboard_input() || !self.files.is_empty() {
+            match self.apply_pending(project) {
+                Ok(applied) => changed |= applied,
+                Err(error) => self.message = format!("修改尚未完成：{error}"),
             }
-            if ui.button(tr("放弃内容草稿")).clicked() {
-                self.key.clear();
+        }
+        ui.horizontal_wrapped(|ui| {
+            if self.has_pending() && ui.button(tr("撤销未完成的输入")).clicked() {
+                self.reset();
             }
             if ui.button(tr("删除项目内容（可撤销）")).clicked() {
                 match content_edit::remove(project, key) {
                     Ok(()) => {
                         changed = true;
-                        self.key.clear();
+                        self.reset();
                     }
                     Err(e) => self.message = e.to_string(),
                 }
@@ -309,7 +373,10 @@ impl ContentPanel {
                 &mut self.replace_shared,
                 tr("允许替换共享库同 ID 内容（旧内容移入 .trash）"),
             );
-            if ui.button(tr("保存当前已应用内容到共享库")).clicked() {
+            if ui
+                .add_enabled(!self.has_pending(), egui::Button::new(tr("保存到共享库")))
+                .clicked()
+            {
                 self.message = content_edit::store_shared(&root, project, key, self.replace_shared)
                     .map(|b| {
                         format!(
@@ -328,10 +395,29 @@ impl ContentPanel {
             }
         });
         if !self.message.is_empty() {
-            ui.label(&self.message);
+            if self.has_pending() {
+                ui.colored_label(egui::Color32::from_rgb(179, 55, 49), &self.message);
+            } else {
+                ui.label(&self.message);
+            }
         }
         changed
     }
+}
+fn draft_from_source(bytes: &[u8]) -> Value {
+    let mut draft: Value = serde_json::from_slice(bytes).unwrap_or(Value::Null);
+    if draft["type"] == "character" {
+        for (key, default) in [
+            ("title", json!("")),
+            ("scale", json!(100)),
+            ("art_facing", json!("left")),
+        ] {
+            if draft.get(key).is_none() {
+                draft[key] = default;
+            }
+        }
+    }
+    draft
 }
 fn uuid_name() -> String {
     format!(
@@ -342,4 +428,158 @@ fn uuid_name() -> String {
             .unwrap_or_default()
             .as_nanos()
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fixture() -> (Project, String, String) {
+        let mut project = Project::new();
+        let mut keys = Vec::new();
+        for (id, kind) in [("demo.hero", "character"), ("demo.scene", "image")] {
+            let prefix = format!("assets/user/{kind}/{id}/");
+            let key = format!("{prefix}content.json");
+            project.assets.insert(
+                key.clone(),
+                serde_json::to_vec(&json!({
+                    "schema":1,"content_schema":1,"id":id,"type":kind,"name":id,
+                    "files":{"main":"main.png"}
+                }))
+                .unwrap(),
+            );
+            project
+                .assets
+                .insert(format!("{prefix}main.png"), vec![1, 2, 3]);
+            keys.push(key);
+        }
+        (project, keys[0].clone(), keys[1].clone())
+    }
+
+    #[test]
+    fn viewing_content_does_not_materialize_defaults_or_mark_dirty() {
+        let (mut project, first, second) = fixture();
+        let original = project.assets.clone();
+        let mut panel = ContentPanel::default();
+        let mut selection = first;
+        assert!(!panel.select(&mut project, &mut selection));
+        assert_eq!(panel.draft["art_facing"], "left");
+        assert!(!panel.has_pending());
+        selection = second;
+        assert!(!panel.select(&mut project, &mut selection));
+        assert_eq!(project.assets, original);
+    }
+
+    #[test]
+    fn switching_content_applies_names_and_files_before_loading_the_next_item() {
+        let (mut project, first, second) = fixture();
+        let mut panel = ContentPanel::default();
+        let mut selection = first.clone();
+        panel.select(&mut project, &mut selection);
+        panel.draft["name"] = json!("新角色名");
+        panel.draft["files"]["main"] = json!("new.png");
+        panel.files.insert("new.png".into(), vec![4, 5, 6]);
+        assert!(panel.has_pending());
+        selection = second.clone();
+        assert!(panel.select(&mut project, &mut selection));
+        assert_eq!(selection, second);
+        assert!(!panel.has_pending());
+        let metadata: Value = serde_json::from_slice(&project.assets[&first]).unwrap();
+        assert_eq!(metadata["name"], "新角色名");
+        assert_eq!(metadata["files"]["main"], "new.png");
+        assert_eq!(
+            project.assets["assets/user/character/demo.hero/new.png"],
+            vec![4, 5, 6]
+        );
+    }
+
+    #[test]
+    fn invalid_content_keeps_input_and_selection_and_cannot_be_saved() {
+        let (mut project, first, second) = fixture();
+        let original = project.assets.clone();
+        let mut panel = ContentPanel::default();
+        let mut selection = first.clone();
+        panel.select(&mut project, &mut selection);
+        panel.draft["files"]["main"] = json!("missing.png");
+        let input = panel.draft.clone();
+        selection = second;
+        assert!(!panel.select(&mut project, &mut selection));
+        assert_eq!(selection, first);
+        assert_eq!(panel.draft, input);
+        assert!(panel.has_pending());
+        assert!(panel.apply_pending(&mut project).is_err());
+        assert_eq!(project.assets, original);
+        panel.reset();
+        panel.select(&mut project, &mut selection);
+        assert!(!panel.has_pending());
+        assert_eq!(panel.draft["files"]["main"], "main.png");
+    }
+
+    #[test]
+    fn committing_normalized_content_keeps_editor_and_saved_values_in_sync() {
+        let (mut project, first, _) = fixture();
+        let mut panel = ContentPanel::default();
+        let mut selection = first.clone();
+        panel.select(&mut project, &mut selection);
+        panel.draft["name"] = json!("  林灯 旅人  ");
+        panel.draft["scale"] = json!(200);
+        assert!(panel.apply_pending(&mut project).unwrap());
+        let saved: Value = serde_json::from_slice(&project.assets[&first]).unwrap();
+        assert_eq!(saved["name"], "林灯 旅人");
+        assert_eq!(saved["scale"], 130);
+        assert_eq!(panel.draft["name"], saved["name"]);
+        assert_eq!(panel.draft["scale"], saved["scale"]);
+        assert!(!panel.has_pending());
+    }
+
+    #[test]
+    fn recovery_snapshot_includes_pending_content_without_normalizing_active_input() {
+        let (mut project, first, _) = fixture();
+        let mut panel = ContentPanel::default();
+        let mut selection = first.clone();
+        panel.select(&mut project, &mut selection);
+        panel.draft["name"] = json!("  林灯 旅人  ");
+        panel.draft["files"]["main"] = json!("new.png");
+        panel.files.insert("new.png".into(), vec![4, 5, 6]);
+        let original = project.clone();
+        let source = panel.source.clone();
+        let baseline = panel.baseline.clone();
+        let input = panel.draft.clone();
+        let files = panel.files.clone();
+        let mut recovery = project.clone();
+        assert!(panel.apply_pending_to_snapshot(&mut recovery).unwrap());
+
+        let dir = tempfile::tempdir().unwrap();
+        recovery.save_to(dir.path()).unwrap();
+        let restored = Project::open(dir.path()).unwrap();
+        let metadata: Value = serde_json::from_slice(&restored.assets[&first]).unwrap();
+        assert_eq!(metadata["name"], "林灯 旅人");
+        assert_eq!(metadata["files"]["main"], "new.png");
+        assert_eq!(
+            restored.assets["assets/user/character/demo.hero/new.png"],
+            vec![4, 5, 6]
+        );
+        assert_eq!(project, original);
+        assert_eq!(panel.source, source);
+        assert_eq!(panel.baseline, baseline);
+        assert_eq!(panel.draft, input);
+        assert_eq!(panel.files, files);
+        assert!(panel.has_pending());
+    }
+
+    #[test]
+    fn invalid_pending_content_cannot_partially_modify_recovery_snapshot() {
+        let (mut project, first, _) = fixture();
+        let mut panel = ContentPanel::default();
+        let mut selection = first;
+        panel.select(&mut project, &mut selection);
+        panel.draft["name"] = json!("保留输入");
+        panel.draft["files"]["main"] = json!("missing.png");
+        let input = panel.draft.clone();
+        let mut recovery = project.clone();
+        assert!(panel.apply_pending_to_snapshot(&mut recovery).is_err());
+        assert_eq!(recovery, project);
+        assert_eq!(panel.draft, input);
+        assert!(panel.has_pending());
+    }
 }
