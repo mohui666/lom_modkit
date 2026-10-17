@@ -1,6 +1,17 @@
 # lom_modkit v1.2.0
 
-本页记录当前源码变更，**尚未发布 v1.2.0 Release 安装包**。截至 2026-10-04，公开下载最新仍为 v1.1.1。
+v1.2.0 发布 Rust 编辑器／编译器与适配当前 64 位游戏的 C# Host。Windows ZIP 与 SHA-256 校验文件见 [Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.2.0)。
+
+## x64 游戏适配（2026-10-17）
+
+- 按 `Mortal.exe` 自动识别 x86／x64，选择并校验对应的官方 BepInEx 6 Mono 压缩包；Windows 包内置两种架构的 Doorstop。
+- Steam 修复会替换升级后残留的错误位数代理，包括 `version_alt.dll`，并保留原文件备份；安装诊断明确显示架构不匹配。
+- Host 明确使用 AnyCPU，并依据现版 `Mortal.Combat.CombatStat` 接口兼容已删除的三个旧字段。同时精确匹配新增重载后的 `CharacterIntroPanel.Show(string)`，修复真实游戏启动时的 Harmony 初始化异常。升级时应使用本包重新构建的 Host DLL；托管插件版本仍为 1.1.2，v3 包契约保持不变。
+- Windows 11 x64 本机构建与 203 项工作区测试通过；Host 构建、离线冒烟及 133 节点预览通过。真实游戏目录的 x64 加载器安装、Steam 代理修复、Host 更新和安装诊断通过。
+
+已在 Windows 11、游戏 `release_1.0.6000.3` 完成 Steam 启动、Host 挂载、F5 隔离试玩、Combat 回合与结果回流、Battle 自然胜利及 `FriendWin` 回流。Combat 结算使用实机原有助手的直接胜利功能。最终两份游戏日志无错误或异常；完整范围、存档记录和未测试项见 [x64 验证记录](docs/chs/x64_validation.md)。
+
+升级：完整解压 ZIP，在「创作工具 → Windows 游戏接入与 MOD 管理」安装界面链接的匹配架构 BepInEx 压缩包，执行「修复 Steam 启动」和「安装 / 更新 C# 宿主」，再运行「安装检查」。不再沿用旧 x86 加载器。
 
 ## Windows 编辑器修复与验证（2026-10-05）
 
