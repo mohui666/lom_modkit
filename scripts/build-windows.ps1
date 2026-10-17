@@ -116,7 +116,12 @@ Copy-Item -LiteralPath (Join-Path $RepositoryRoot "target\release\lomc.exe") -De
 foreach ($Name in @("MortalModHost.dll", "NVorbis.dll")) {
     Copy-Item -LiteralPath (Join-Path $RuntimeDirectory $Name) -Destination (Join-Path $BundleDirectory "runtime\$Name")
 }
-Copy-Item -LiteralPath (Join-Path $RepositoryRoot "editor\assets\doorstop\win-x86-doorstop.dll") -Destination (Join-Path $BundleDirectory "assets\doorstop\win-x86-doorstop.dll")
+foreach ($Architecture in @("x86", "x64")) {
+    Copy-Item -LiteralPath (Join-Path $RepositoryRoot "editor\assets\doorstop\win-$Architecture-doorstop.dll") -Destination (Join-Path $BundleDirectory "assets\doorstop\win-$Architecture-doorstop.dll")
+}
+foreach ($Name in @("README.md", "LICENSE.UnityDoorstop")) {
+    Copy-Item -LiteralPath (Join-Path $RepositoryRoot "editor\assets\doorstop\$Name") -Destination (Join-Path $BundleDirectory "assets\doorstop\$Name")
+}
 if ($NoArchive) { Write-Host "Built native tools: $BundleDirectory"; return }
 $BundleDirectory = (Resolve-Path -LiteralPath $BundleDirectory).Path
 [IO.Directory]::CreateDirectory($OutputDirectory) | Out-Null
@@ -136,7 +141,10 @@ $RequiredFiles = @(
     "lomc.exe",
     "runtime\MortalModHost.dll",
     "runtime\NVorbis.dll",
-    "assets\doorstop\win-x86-doorstop.dll"
+    "assets\doorstop\win-x86-doorstop.dll",
+    "assets\doorstop\win-x64-doorstop.dll",
+    "assets\doorstop\README.md",
+    "assets\doorstop\LICENSE.UnityDoorstop"
 )
 foreach ($Relative in $RequiredFiles) {
     $Required = Join-Path $BundleDirectory $Relative

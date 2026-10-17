@@ -2,7 +2,7 @@
 
 本文档描述当前 **v1.2.0 Rust 编辑器与编译器**，C# 游戏接入层保留。先读 [软件使用](chs/software_usage.md)，构建见 [Rust 工具端](chs/rust.md)，实现与验证范围见 [迁移记录](chs/rust_migration.md)。
 
-截至 2026-10-04，公开 Release 最新仍是 [v1.1.1](https://github.com/mohui666/lom_modkit/releases/tag/v1.1.1) 旧版，不包含当前 Rust 界面。旧版说明见 [v1.1.1 变更记录](../RELEASE_NOTES_v1.1.1.md)。
+[v1.2.0 Windows Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.2.0) 包含 Rust 工具端和适配 x64 游戏的 Host；升级及实测范围见 [x64 验证记录](chs/x64_validation.md)。
 
 权威版为简体中文 [`chs/`](chs/)。[繁體](cht/README.md)、[日本語](ja/README.md)、[한국어](ko/README.md) 的入口已注明适用版本；尚未同步的旧版 UI 指南不能作为当前操作路径。维护文档先更新 `chs/`。
 
@@ -40,9 +40,10 @@
 | --- | --- |
 | [维护者手册](chs/maintainers.md) | 恢复、模板、体检、发布、Runtime 安装/回滚 |
 | [测试入口](chs/test_matrix.md) | 当前命令与历史验证边界 |
+| [x64 验证记录](chs/x64_validation.md) | 2026-10-17 的 x64 安装、真实游戏冒烟和发布包校验 |
 | [Windows 验证记录](chs/windows_validation.md) | 2026-10-04 至 05 的 Rust 构建、离线与实际界面验证 |
 | [来源水印](chs/watermark.md) | 协议、嵌入、截图/视频检测 |
 | [Runtime 说明](../runtime/MortalModHost/README.md) | C# Host 行为与限制 |
 | [v1.2.0 变更记录](../RELEASE_NOTES_v1.2.0.md) | Rust 变更及迁移前历史 |
 
-当前 Rust 验证包含早期 macOS 记录和本轮 Windows 构建、离线测试与实际界面操作，各自的环境、通过项及限制分别记录。Rust 版仍未进行游戏实机验收；旧 Python/Qt 的 Windows 和游戏结果只对应当时版本。
+当前 Rust 验证包含早期 macOS 记录和本轮 Windows 构建、离线测试与实际界面操作，各自的环境、通过项及限制分别记录。2026-10-17 另完成 x64 游戏启动、F5 与 Combat/Battle 定向冒烟；未逐项验收全部 63 类节点。旧 Python/Qt 的 Windows 和游戏结果只对应当时版本。

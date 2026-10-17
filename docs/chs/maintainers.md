@@ -59,6 +59,18 @@
 
 Runtime 更新在 `BepInEx/plugins/MortalModHost/.runtime_rollback/` 保留已有 DLL 的备份与记录；安装写入失败时尝试恢复原文件。全新安装没有上一版。回滚不应改动游戏程序、Managed、存档或第三方插件。BepInEx 安装是单独入口，接受代码约束的官方压缩包。
 
+游戏升级为 64 位后，使用更新后的编辑器执行：
+
+1. 退出游戏，在该区域选择游戏目录，确认显示 `x64`。
+2. 通过界面链接下载 [BepInEx 官方 build 692](https://builds.bepinex.dev/projects/bepinex_be) 的 `BepInEx-Unity.Mono-win-x64-6.0.0-be.692+851521c.zip`，点击“安装官方 BepInEx 压缩包”。旧版 x86 游戏仍选择对应的 x86 包。安装只更新加载器文件，保留已有配置、插件和 MOD。
+3. 点击“修复 Steam 启动”，将 C# 宿主目录选为新版本工具的 `runtime` 目录，再安装／更新宿主并运行“安装检查”。修复会选择匹配游戏位数的 Doorstop 和系统 `VERSION.dll`，替换旧 `version.dll`、`version_alt.dll`，备份后移走 `winhttp.dll`，避免同时注入。不能只替换 Host 而保留 32 位代理。
+
+替换的原生 DLL 保存在同目录的 `.lom_bak`；如该备份已存在且内容不同，会另存带摘要的备份，不覆盖早先备份。x64 系统库来自 `System32`（32 位编辑器通过 `Sysnative` 访问）；x86 来自 `SysWOW64` 或经位数确认的 `System32`。写入前校验所有待安装原生 DLL 的 PE 架构，位数错误时不修改配置。
+
+安装检查接受 x86 与 x64；残留的错误位数代理会报告 `loader_architecture_mismatch`，需按上述顺序修复。C# Host 使用 .NET Framework 4.8 / AnyCPU，`.lommod` 的 **3 / 2 / 1** 契约不变。托管 DLL 的 PE 头显示 x86 不等于只能运行在 32 位进程，不能用原生代理检查规则误判 Host。
+
+此次游戏更新还移除了 `CombatStat` 的三个旧字段，因此也需更新 `MortalModHost.dll`。新 Host 对旧版存在的字段继续清零，对现版已移除的字段不再直接引用；详见 [受影响接口核对](../../research/gameplay_api.md#2026-10-17-x64-更新核对)。
+
 这些是保留的代码能力，本轮只核对入口，未执行 Windows 或真实游戏操作；F5 试玩请求也不属于 Mac 预览验收。
 
 ## 原生离线验证入口

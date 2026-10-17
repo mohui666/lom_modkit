@@ -1,15 +1,20 @@
 # Gameplay API 实证矩阵
 
-Phase 49 使用本机 Steam《活侠传》当前安装的 Managed 程序集，通过 `ilspycmd 8.2.0.7535` 只读反编译。程序集的大小、SHA-256、类型和必需源码片段记录在 `gameplay_api_contract.json`；可运行：
-
-```powershell
-python tools/verify_gameplay_api.py --json
-```
-
-该命令不写游戏目录。游戏更新导致程序集哈希或签名变化时会失败，必须重新审计，不能静默沿用旧结论。
+下方既有矩阵来自 Phase 49 的接口核对；`gameplay_api_contract.json` 保留当时的记录，不能把历史程序集摘要作为现版兼容证明。游戏更新后按根目录 `AGENTS.md` 只读反编译受影响类型与方法，不运行基于程序集哈希的复验。
 
 本页和 `gameplay_api_contract.json` 是我们自己整理的接口摘要，可以进仓库。
 用 `ilspycmd` 从游戏 DLL 转出的整份 `.cs` **不要上传**（见根目录 `AGENTS.md`、`.gitignore` 里的 `docs/research/decompiled/`）。
+
+## 2026-10-17 x64 更新核对
+
+本次从本机 Whisky 安装的 `Mortal_Data/Managed/Mortal.Combat.dll`、`Mortal.Story.dll`、`Mortal.Core.dll` 只读检查以下受影响类型，没有计算游戏程序集哈希：
+
+- `Mortal.Combat.CombatStat` 已不含 `HealthAddition`、`BlockAbsorbAddition`、`IgnoreNormalMode`。`Reset()` 仍从 `DefaultHealth`／`DefaultStamina` 初始化当前值，并清零失败率、中毒和麻痹累积。Host 的 `CombatRuntimeLevelPatch.ResetAuthorFacingState` 保留现有初始化，只对实际仍存在的这三个旧字段反射清零；现版不猜测替代字段。操作对象仍是每场克隆的 `CombatStat`，不修改官方 ScriptableObject。
+- `Mortal.Story.StoryViewImage.LoadAsset(string)` 仍通过 `_viewAddressableData.GetByKey(name)` 取得 Sprite 地址。
+- `Mortal.Core.AddressableCollectionData.GetByKey(string)` 现在取得当前语言并调用 `GetByKey(string,string)`；`AddressableData` 保留 `_key`／`_addressKey`，增加语言覆写，`GetAddressKeyForLang(string)` 可返回覆写地址。本次仅按既有构建流程提取默认背景映射，未改变 Host 的语言选择行为。
+- Windows 当前安装的 `Mortal.Core.CharacterIntroPanel` 经现场反编译确认同时提供 `IEnumerator Show(string key)` 与 `IEnumerator Show(string key, int mode)`；单参数入口转调双参数入口的 `mode=0`。Host 的 `intropanel.Show(key)` 桥接继续使用单参数入口，预检和 Harmony 特性均显式指定 `string` 参数，避免仅按方法名查找触发 `AmbiguousMatchException`、中断整个 Host 初始化。
+
+这些是受影响接口与构建依赖核对，不代表所有游戏接口或实机交互已重新验收。创作字段和 `.lommod` 3／2／1 契约不变。
 
 ## 已确认
 

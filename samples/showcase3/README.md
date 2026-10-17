@@ -31,6 +31,8 @@ normal/happy，没有战斗四帧）和独立背景 `center`。雷达与性情/�
 截断。Battle 样例为各阵营自带人数、标题「丐帮围攻」、双方基础血量，并附加
 樊啸天 / 南宫深。
 
+2026-10-17 的 x64 适配沿用本样例现有 `combat` 字段，未新增创作参数。新版 Host 已处理原版 `CombatStat` 移除的三个旧字段；后续实机复验第三章时，应确认不会出现 `HealthAddition`／`BlockAbsorbAddition`／`IgnoreNormalMode` 的缺字段异常，人物数值仍来自本章配置。本次构建与包检查不代替这项实机验收。
+
 ## 手动测试顺序
 
 1. 从 Steam 普通启动游戏。在标题或自由场景按 `F8`，打开“活侠MOD”。

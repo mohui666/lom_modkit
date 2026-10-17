@@ -10,6 +10,8 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$ROOT/target/release/lom-editor" "$APP/Contents/MacOS/lom-editor"
 cp "$ROOT/target/release/lomc" "$APP/Contents/MacOS/lomc"
 cp "$ROOT/editor/assets/lom_editor.icns" "$APP/Contents/Resources/lom_editor.icns"
+mkdir -p "$APP/Contents/Resources/doorstop"
+cp "$ROOT/editor/assets/doorstop/README.md" "$ROOT/editor/assets/doorstop/LICENSE.UnityDoorstop" "$APP/Contents/Resources/doorstop/"
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

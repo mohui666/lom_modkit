@@ -11,11 +11,11 @@
 | 버전 | 설명 |
 | --- | --- |
 | **현재 소스: v1.2.0** | 편집기와 컴파일러를 Rust로 전환했습니다. C# 게임 호스트와 `.lommod` v3 형식은 유지합니다. |
-| **최신 공개 릴리스(2026-10-04 기준): v1.1.1** | 구형 Python / Qt 도구의 Windows 배포판이며, 현재 Rust 편집기가 아닙니다. |
+| **Windows 릴리스: v1.2.0** | Rust 도구와 x64 게임 지원. 게임 시작, F5, Combat/Battle을 지정된 범위에서 테스트했습니다. |
 
-[구버전 v1.1.1 다운로드(Windows)](https://github.com/mohui666/lom_modkit/releases/download/v1.1.1/lom_modkit-v1.1.1_windows_x64.zip) · [v1.1.1 릴리스 안내](https://github.com/mohui666/lom_modkit/releases/tag/v1.1.1)
+[v1.2.0 다운로드(Windows)](https://github.com/mohui666/lom_modkit/releases/download/v1.2.0/lom_modkit-v1.2.0_windows_x64.zip) · [v1.2.0 Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.2.0)
 
-현재 Rust 편집기를 사용하려면 소스에서 실행하거나 빌드하세요. 구버전의 `lom_editor.exe`, 메뉴, 사용 절차는 Rust 버전과 다릅니다.
+ZIP 전체를 압축 해제하고 `lom_modkit/lom-editor.exe`를 실행하세요. 로더와 C# 호스트 업데이트 방법 및 테스트 범위는 [x64 검증 기록(중국어 간체)](docs/chs/x64_validation.md)을 참고하세요.
 
 ## 현재 버전 실행
 
