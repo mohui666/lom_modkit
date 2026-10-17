@@ -17,6 +17,43 @@ pub const BEPINEX_FILES: [&str; 3] = [
     "BepInEx/core/0Harmony.dll",
 ];
 pub const PREVIEW_ID: &str = "lom_modkit_preview";
+
+pub struct BepInExDistribution {
+    pub filename: &'static str,
+    pub url: &'static str,
+    pub sha256: &'static str,
+}
+
+/// Keep the existing BepInEx version; select its native loader by game bitness,
+/// independently of the editor/OS architecture. Managed Host DLLs remain AnyCPU.
+pub fn bepinex_distribution(architecture: &str) -> Result<BepInExDistribution> {
+    match architecture {
+        "x86" => Ok(BepInExDistribution {
+            filename: "BepInEx-Unity.Mono-win-x86-6.0.0-be.692+851521c.zip",
+            url: "https://builds.bepinex.dev/projects/bepinex_be/692/BepInEx-Unity.Mono-win-x86-6.0.0-be.692%2B851521c.zip",
+            sha256: "97720c5f5c70abfb2ae19dba6000529049ae67f053303b3ce2b49e6ad6c0eca6",
+        }),
+        "x64" => Ok(BepInExDistribution {
+            filename: "BepInEx-Unity.Mono-win-x64-6.0.0-be.692+851521c.zip",
+            url: "https://builds.bepinex.dev/projects/bepinex_be/692/BepInEx-Unity.Mono-win-x64-6.0.0-be.692%2B851521c.zip",
+            sha256: "9a3472f5eefb35a84ae8c6dea16814b728aff807c67c14fbfd448e20112951a6",
+        }),
+        _ => anyhow::bail!("不支持的游戏架构：{architecture}"),
+    }
+}
+
+pub fn bundled_doorstop(architecture: &str) -> Result<&'static [u8]> {
+    match architecture {
+        "x86" => Ok(include_bytes!(
+            "../../../editor/assets/doorstop/win-x86-doorstop.dll"
+        )),
+        "x64" => Ok(include_bytes!(
+            "../../../editor/assets/doorstop/win-x64-doorstop.dll"
+        )),
+        _ => anyhow::bail!("不支持的游戏架构：{architecture}"),
+    }
+}
+
 fn digest(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
@@ -312,22 +349,21 @@ pub fn restore_runtime(root: &Path) -> Result<()> {
     }
     Ok(())
 }
-/// Installs only the same pinned official x86 BepInEx archive as the previous editor.
+/// Installs the pinned official BepInEx archive matching Mortal.exe's bitness.
 pub fn install_bepinex_archive(root: &Path, archive: &Path) -> Result<()> {
     validate_root(root)?;
     ensure!(!is_game_running()?, "游戏正在运行，请退出后再安装 BepInEx");
-    ensure!(
-        game_architecture(root)? == "x86",
-        "内置 BepInEx 安装器只支持已验证的 x86 版本"
-    );
+    let architecture = game_architecture(root)?;
+    let distribution = bepinex_distribution(&architecture)?;
     ensure!(
         fs::metadata(archive)?.len() <= 32 * 1024 * 1024,
         "BepInEx 压缩包过大"
     );
     let bytes = fs::read(archive)?;
     ensure!(
-        digest(&bytes) == "97720c5f5c70abfb2ae19dba6000529049ae67f053303b3ce2b49e6ad6c0eca6",
-        "BepInEx 压缩包不是受支持的 6.0.0-be.692 官方 x86 构建"
+        digest(&bytes) == distribution.sha256,
+        "BepInEx 压缩包版本或位数不符：游戏为 {architecture}，请选择 {}",
+        distribution.filename
     );
     let mut zip = zip::ZipArchive::new(std::io::Cursor::new(bytes))?;
     let mut staged = BTreeMap::new();
@@ -354,7 +390,7 @@ pub fn install_bepinex_archive(root: &Path, archive: &Path) -> Result<()> {
     for (name, data) in writes {
         let path = confined(root, Path::new(&name))?;
         if path.is_file() && fs::read(&path)? != data {
-            first_backup(&path, &fs::read(&path)?, ".lom_bak")?;
+            backup_current(&path, &fs::read(&path)?)?;
         }
         atomic_write(&path, &data)?;
     }
@@ -370,10 +406,7 @@ pub fn bepinex_install_plan(
 ) -> Result<package::Entries> {
     validate_root(root)?;
     ensure!(!game_running, "游戏正在运行，请退出后再安装 BepInEx");
-    ensure!(
-        game_architecture(root)? == "x86",
-        "内置 BepInEx 安装器只支持已验证的 x86 版本"
-    );
+    let architecture = game_architecture(root)?;
     for name in [
         "BepInEx/core/BepInEx.Core.dll",
         "BepInEx/core/BepInEx.Unity.Mono.dll",
@@ -381,6 +414,7 @@ pub fn bepinex_install_plan(
     ] {
         ensure!(entries.contains_key(name), "BepInEx 压缩包结构不完整");
     }
+    ensure_native_architecture(&entries["winhttp.dll"], &architecture, "winhttp.dll")?;
     let mut writes = package::Entries::new();
     for (name, data) in entries {
         package::canonical_archive_name(name)?;
@@ -499,8 +533,18 @@ pub fn is_game_running() -> Result<bool> {
     }
 }
 pub fn game_architecture(root: &Path) -> Result<String> {
-    use std::io::{Seek, SeekFrom};
-    let mut file = fs::File::open(root.join("Mortal.exe"))?;
+    pe_architecture(&root.join("Mortal.exe"))
+}
+
+/// Reads the native PE machine field. Do not use this to classify managed
+/// assemblies: AnyCPU DLLs can have an x86 PE header and still run in x64 Mono.
+pub fn pe_architecture(path: &Path) -> Result<String> {
+    read_pe_architecture(&mut fs::File::open(path)?)
+        .with_context(|| format!("无法读取 PE 架构：{}", path.display()))
+}
+
+fn read_pe_architecture(file: &mut (impl Read + std::io::Seek)) -> Result<String> {
+    use std::io::SeekFrom;
     let mut header = [0u8; 64];
     file.read_exact(&mut header)?;
     ensure!(&header[..2] == b"MZ", "无效的 DOS 头");
@@ -512,8 +556,34 @@ pub fn game_architecture(root: &Path) -> Result<String> {
     match u16::from_le_bytes([pe[4], pe[5]]) {
         0x014c => Ok("x86".into()),
         0x8664 => Ok("x64".into()),
-        machine => anyhow::bail!("不支持的 Mortal.exe 架构：0x{machine:04X}"),
+        machine => anyhow::bail!("不支持的 PE 架构：0x{machine:04X}"),
     }
+}
+
+fn ensure_native_architecture(bytes: &[u8], expected: &str, name: &str) -> Result<()> {
+    let actual = read_pe_architecture(&mut std::io::Cursor::new(bytes))
+        .with_context(|| format!("无法读取 {name} 的架构"))?;
+    ensure!(
+        actual == expected,
+        "{name} 架构为 {actual}，游戏需要 {expected}；请安装对应位数的 BepInEx 并修复 Steam 启动"
+    );
+    Ok(())
+}
+
+pub fn system_version_dll(windows: &Path, architecture: &str) -> Result<PathBuf> {
+    let directories = match architecture {
+        "x86" => ["SysWOW64", "System32"],
+        // Sysnative bypasses WOW64 redirection when the editor itself is 32-bit.
+        "x64" => ["Sysnative", "System32"],
+        _ => anyhow::bail!("不支持的游戏架构：{architecture}"),
+    };
+    for directory in directories {
+        let candidate = windows.join(directory).join("version.dll");
+        if pe_architecture(&candidate).is_ok_and(|arch| arch == architecture) {
+            return Ok(candidate);
+        }
+    }
+    anyhow::bail!("找不到 {architecture} 系统 VERSION.dll，未更改游戏文件")
 }
 pub fn ensure_ignore_disable_switch(text: &str) -> (String, bool) {
     let re = regex::Regex::new(r"(?im)^([ \t]*ignore_disable_switch[ \t]*=[ \t]*)(\S+)").unwrap();
@@ -540,6 +610,16 @@ pub fn ensure_ignore_disable_switch(text: &str) -> (String, bool) {
 }
 pub fn steam_launch_fix_applied(root: &Path) -> Result<bool> {
     if !root.join("version.dll").is_file() || !root.join("doorstop_config.ini").is_file() {
+        return Ok(false);
+    }
+    let architecture = game_architecture(root)?;
+    for name in ["version.dll", "version_alt.dll"] {
+        let path = root.join(name);
+        if path.exists() && !pe_architecture(&path).is_ok_and(|arch| arch == architecture) {
+            return Ok(false);
+        }
+    }
+    if root.join("winhttp.dll").exists() {
         return Ok(false);
     }
     let bytes = fs::read(root.join("doorstop_config.ini"))?;
@@ -574,6 +654,17 @@ fn first_backup(path: &Path, bytes: &[u8], suffix: &str) -> Result<PathBuf> {
     }
     Ok(backup)
 }
+
+fn backup_current(path: &Path, bytes: &[u8]) -> Result<PathBuf> {
+    let mut backup = first_backup(path, bytes, ".lom_bak")?;
+    // Keep both the first backup and any later bytes being replaced during a
+    // bitness migration. An old .lom_bak must not silently discard a newer DLL.
+    if fs::read(&backup)? != bytes {
+        backup = first_backup(path, bytes, &format!(".{}.lom_bak", digest(bytes)))?;
+        ensure!(fs::read(&backup)? == bytes, "既有代理备份校验失败");
+    }
+    Ok(backup)
+}
 pub fn apply_steam_launch_fix(
     root: &Path,
     doorstop: Option<&Path>,
@@ -584,6 +675,7 @@ pub fn apply_steam_launch_fix(
         ensure!(root.join(rel).is_file(), "BepInEx 不完整：{rel}");
     }
     ensure!(!is_game_running()?, "游戏正在运行，请退出后再修复");
+    let architecture = game_architecture(root)?;
     let ini = confined(root, Path::new("doorstop_config.ini"))?;
     let winhttp = confined(root, Path::new("winhttp.dll"))?;
     let version = confined(root, Path::new("version.dll"))?;
@@ -601,7 +693,7 @@ pub fn apply_steam_launch_fix(
         "[General]\nenabled = true\ntarget_assembly = BepInEx\\core\\BepInEx.Unity.Mono.Preloader.dll\n".into()
     };
     let (patched, changed) = ensure_ignore_disable_switch(&original);
-    let proxy = if let Some(path) = doorstop.filter(|p| p.is_file()) {
+    let proxy = if let Some(path) = doorstop {
         Some(fs::read(path)?)
     } else if !version.exists() && winhttp.is_file() {
         Some(fs::read(&winhttp)?)
@@ -612,9 +704,21 @@ pub fn apply_steam_launch_fix(
         proxy.is_some() || version.is_file(),
         "缺少 version.dll / winhttp.dll 和 Doorstop 补丁，请先安装 BepInEx"
     );
-    let alt_bytes = if !alt.is_file() {
-        system_version.map(fs::read).transpose()?
+    if let Some(bytes) = &proxy {
+        ensure_native_architecture(bytes, &architecture, "Doorstop")?;
     } else {
+        ensure_native_architecture(&fs::read(&version)?, &architecture, "version.dll")?;
+    }
+    // Validate all selected bytes before touching even the config. A stale x86
+    // version_alt.dll must be replaced as well as the Doorstop proxy on upgrade.
+    let alt_bytes = if let Some(path) = system_version {
+        let bytes = fs::read(path)?;
+        ensure_native_architecture(&bytes, &architecture, "系统 VERSION.dll")?;
+        (fs::read(&alt).ok().as_ref() != Some(&bytes)).then_some(bytes)
+    } else {
+        if alt.is_file() {
+            ensure_native_architecture(&fs::read(&alt)?, &architecture, "version_alt.dll")?;
+        }
         None
     };
     let mut actions = vec![];
@@ -628,7 +732,7 @@ pub fn apply_steam_launch_fix(
     if let Some(bytes) = proxy {
         if fs::read(&version).ok().as_ref() != Some(&bytes) {
             if version.is_file() {
-                first_backup(&version, &fs::read(&version)?, ".lom_bak")?;
+                backup_current(&version, &fs::read(&version)?)?;
             }
             atomic_write(&version, &bytes)?;
             actions.push("已安装 Doorstop 为 version.dll".into());
@@ -636,13 +740,7 @@ pub fn apply_steam_launch_fix(
     }
     if winhttp.is_file() {
         let bytes = fs::read(&winhttp)?;
-        let mut backup = first_backup(&winhttp, &bytes, ".lom_bak")?;
-        // Preserve a newer/different proxy as well as the historical first backup.
-        if fs::read(&backup)? != bytes {
-            let suffix = format!(".{}.lom_bak", digest(&bytes));
-            backup = first_backup(&winhttp, &bytes, &suffix)?;
-            ensure!(fs::read(&backup)? == bytes, "既有代理备份校验失败");
-        }
+        let backup = backup_current(&winhttp, &bytes)?;
         fs::remove_file(&winhttp)?;
         actions.push(format!(
             "已移走 winhttp.dll，原文件保存在 {}",
@@ -650,6 +748,9 @@ pub fn apply_steam_launch_fix(
         ));
     }
     if let Some(bytes) = alt_bytes {
+        if alt.is_file() {
+            backup_current(&alt, &fs::read(&alt)?)?;
+        }
         atomic_write(&alt, &bytes)?;
         actions.push("已复制系统 VERSION.dll 为 version_alt.dll".into());
     }
@@ -663,7 +764,35 @@ pub fn diagnose_installation(root: &Path, bundle: &Path) -> Result<Value> {
     let mut findings = vec![];
     let bepinex = BEPINEX_FILES.iter().all(|p| root.join(p).is_file());
     let bundled = HOST_FILES.iter().all(|p| bundle.join(p).is_file());
-    match game_architecture(root) {Ok(arch)=>findings.push(json!({"code":if arch=="x86"{"architecture_ok"}else{"unsupported_architecture"},"severity":if arch=="x86"{"ok"}else{"error"},"detail":arch,"fixable":false})),Err(e)=>findings.push(json!({"code":"architecture_unknown","severity":"error","detail":e.to_string(),"fixable":false}))}
+    match game_architecture(root) {
+        Ok(architecture) => {
+            findings.push(json!({"code":"architecture_ok","severity":"ok","detail":architecture,"fixable":false}));
+            let mut has_proxy = false;
+            for name in ["winhttp.dll", "version.dll", "version_alt.dll"] {
+                let path = root.join(name);
+                if !path.exists() {
+                    continue;
+                }
+                has_proxy |= name != "version_alt.dll";
+                match pe_architecture(&path) {
+                    Ok(actual) => {
+                        let matches = actual == architecture;
+                        findings.push(json!({
+                            "code":if matches {"loader_architecture_ok"} else {"loader_architecture_mismatch"},
+                            "severity":if matches {"ok"} else {"error"},
+                            "path":path,"expected":architecture,"actual":actual,"fixable":false,
+                            "detail":if matches {"加载器位数匹配"} else {"游戏更新后仍有旧位数 DLL；安装匹配的 BepInEx 后点击修复 Steam 启动"}
+                        }));
+                    }
+                    Err(error) => findings.push(json!({"code":"loader_architecture_unknown","severity":"error","path":path,"detail":format!("{error:#}"),"fixable":false})),
+                }
+            }
+            if !has_proxy {
+                findings.push(json!({"code":"loader_missing","severity":"error","detail":"缺少 winhttp.dll / version.dll，请安装 BepInEx","fixable":false}));
+            }
+        }
+        Err(error) => findings.push(json!({"code":"architecture_unknown","severity":"error","detail":format!("{error:#}"),"fixable":false})),
+    }
     findings.push(json!({"code":if bepinex{"bepinex_ok"}else{"bepinex_incomplete"},"severity":if bepinex{"ok"}else{"error"},"fixable":false}));
     for (index, name) in HOST_FILES.iter().enumerate() {
         let source = bundle.join(name);

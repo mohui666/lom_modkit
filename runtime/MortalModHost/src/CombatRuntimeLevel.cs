@@ -141,15 +141,19 @@ namespace MortalModHost
             stat.WeaponDiceAddition = 0;
             stat.AttackDamageAddition = 0;
             stat.AttackDiceAddition = 0;
-            stat.HealthAddition = 0;
-            stat.BlockAbsorbAddition = 0f;
+            // 2026-10-17 现版 Mortal.Combat.CombatStat 已移除这两个字段。
+            // 旧版仍需清空克隆对象上的加成；反射只处理这些已知旧字段，
+            // 不把移除的字段猜测映射到现版的其它数值。
+            AccessTools.Field(typeof(CombatStat), "HealthAddition")?.SetValue(stat, 0);
+            AccessTools.Field(typeof(CombatStat), "BlockAbsorbAddition")?.SetValue(stat, 0f);
             stat.BlockDodgeAddition = 0f;
             stat.BlockParryAddition = 0f;
             stat.AttackParryAddition = 0f;
             // GetUltimateDamage 最后直接乘此倍率，0 会让旧 Story 的绝招恒为零伤害。
             stat.UltimateDamageRate = 1f;
             stat.DefenceAddition = 0;
-            stat.IgnoreNormalMode = false;
+            // 同样仅旧版存在；现版继续使用 CombatStat.Reset() 初始化状态。
+            AccessTools.Field(typeof(CombatStat), "IgnoreNormalMode")?.SetValue(stat, false);
             stat.TalentItems = new List<CombatTalentItem>();
             stat.TalkRate = 0f;
             stat.AttackRate = 1f;

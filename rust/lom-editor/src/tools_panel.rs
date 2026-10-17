@@ -529,7 +529,7 @@ impl ToolsPanel {
         });
         ui.collapsing(crate::i18n::tr("Windows 游戏接入与 MOD 管理"), |ui| {
             ui.label(crate::i18n::tr(
-                "沿用现有 C# MortalModHost。当前平台未执行 Windows 或游戏实机验证。",
+                "通过 C# MortalModHost 接入游戏；加载器必须匹配游戏架构。",
             ));
             ui.add_enabled_ui(cfg!(windows), |ui| {
                 if ui.button(crate::i18n::tr("选择游戏目录")).clicked() {
@@ -544,6 +544,12 @@ impl ToolsPanel {
                     }
                 }
                 ui.label(self.game.display().to_string());
+                if let Ok(architecture) = game_tools::game_architecture(&self.game) {
+                    ui.label(format!("{}: {architecture}", crate::i18n::tr("游戏架构")));
+                    if let Ok(distribution) = game_tools::bepinex_distribution(&architecture) {
+                        ui.hyperlink_to(distribution.filename, distribution.url);
+                    }
+                }
                 if ui.button(crate::i18n::tr("安装检查")).clicked() {
                     self.result(game_tools::diagnose_installation(&self.game, &self.runtime));
                 }
@@ -703,26 +709,14 @@ impl ToolsPanel {
 fn steam_launch_fix(root: &std::path::Path) -> anyhow::Result<Vec<String>> {
     #[cfg(windows)]
     {
-        anyhow::ensure!(
-            game_tools::game_architecture(root)? == "x86",
-            "当前补丁仅适用于 x86 游戏"
-        );
+        let architecture = game_tools::game_architecture(root)?;
         let windows = PathBuf::from(
             std::env::var_os("SystemRoot").ok_or_else(|| anyhow::anyhow!("缺少 SystemRoot"))?,
         );
-        let version = [
-            windows.join("SysWOW64/version.dll"),
-            windows.join("System32/version.dll"),
-        ]
-        .into_iter()
-        .find(|p| p.is_file())
-        .ok_or_else(|| anyhow::anyhow!("找不到系统 VERSION.dll，未更改游戏文件"))?;
+        let version = game_tools::system_version_dll(&windows, &architecture)?;
         let temp = tempfile::tempdir()?;
-        let doorstop = temp.path().join("win-x86-doorstop.dll");
-        std::fs::write(
-            &doorstop,
-            include_bytes!("../../../editor/assets/doorstop/win-x86-doorstop.dll"),
-        )?;
+        let doorstop = temp.path().join(format!("win-{architecture}-doorstop.dll"));
+        std::fs::write(&doorstop, game_tools::bundled_doorstop(&architecture)?)?;
         game_tools::apply_steam_launch_fix(root, Some(&doorstop), Some(&version))
     }
     #[cfg(not(windows))]

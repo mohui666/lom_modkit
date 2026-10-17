@@ -6,6 +6,9 @@
     <AssemblyName>MortalModHost</AssemblyName>
     <RootNamespace>MortalModHost</RootNamespace>
     <LangVersion>7.3</LangVersion>
+    <!-- 同一托管 Host 兼容旧 x86 与当前 x64 Mono；原生加载器按游戏位数选择。 -->
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
     <!-- 游戏目录路径（只读引用，绝不写入） -->
     <GameDir>C:\Program Files (x86)\Steam\steamapps\common\LegendOfMortal</GameDir>
   </PropertyGroup>

@@ -22,6 +22,11 @@ fn fixture(root: &Path) {
         fs::write(path, b"synthetic dependency").unwrap();
     }
 }
+fn native_fixture(root: &Path, payload: &[u8]) -> Vec<u8> {
+    let mut bytes = fs::read(root.join("Mortal.exe")).unwrap();
+    bytes.extend_from_slice(payload);
+    bytes
+}
 #[test]
 fn read_state_rewrites_match_all_legacy_synthetic_fixtures() {
     let fixtures: Value =
@@ -163,8 +168,9 @@ fn steam_fix_uses_supplied_files_and_preserves_original_proxies() {
     fixture(&root);
     let patch = dir.path().join("doorstop-fixture.bin");
     let system = dir.path().join("system-version-fixture.bin");
-    fs::write(&patch, b"patched-doorstop").unwrap();
-    fs::write(&system, b"system-version").unwrap();
+    fs::write(&patch, native_fixture(&root, b"patched-doorstop")).unwrap();
+    let system_bytes = native_fixture(&root, b"system-version");
+    fs::write(&system, &system_bytes).unwrap();
     fs::write(root.join("winhttp.dll"), b"official-proxy").unwrap();
     fs::write(root.join("version.dll"), b"previous-version").unwrap();
     let original = b"[General]\nenabled=true\nignore_disable_switch=false\n";
@@ -187,7 +193,7 @@ fn steam_fix_uses_supplied_files_and_preserves_original_proxies() {
     );
     assert_eq!(
         fs::read(root.join("version_alt.dll")).unwrap(),
-        b"system-version"
+        system_bytes
     );
     assert_eq!(
         game::apply_steam_launch_fix(&root, Some(&patch), Some(&system)).unwrap(),
@@ -284,7 +290,7 @@ fn preview_cleanup_uses_manifest_identity_and_keeps_same_name_user_packages() {
     assert!(user.exists());
 }
 #[test]
-fn loader_plan_rejects_running_game_non_x86_and_game_owned_files() {
+fn loader_plan_rejects_running_game_wrong_bitness_and_game_owned_files() {
     let dir = tempfile::tempdir().unwrap();
     fixture(dir.path());
     let entries = lom_core::package::Entries::from([
@@ -296,7 +302,10 @@ fn loader_plan_rejects_running_game_non_x86_and_game_owned_files() {
             "BepInEx/core/BepInEx.Unity.Mono.dll".into(),
             b"loader mono".to_vec(),
         ),
-        ("winhttp.dll".into(), b"loader proxy".to_vec()),
+        (
+            "winhttp.dll".into(),
+            native_fixture(dir.path(), b"loader proxy"),
+        ),
         ("doorstop_config.ini".into(), b"archive default".to_vec()),
     ]);
     let original_exe = fs::read(dir.path().join("Mortal.exe")).unwrap();

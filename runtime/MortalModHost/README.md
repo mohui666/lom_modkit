@@ -11,7 +11,7 @@ MortalModHost 是 BepInEx 6 / Harmony 宿主，负责加载 `.lommod`、把编�
 - 标题入口临时复用原版 `LoadGamePanel/LoadSlotPanel/AutoSaveSlotPanel/RecentSaveSlotPanel`：先选择战役，再进入该战役自己的 001～020 手动栏位和三类自动槽。001 映射到 `mod_campaign_<campaign_id>`，002～020 映射到 `_sNNN`；空手动栏位可新建，已有栏位可覆盖/读取。三类自动槽追加 `_auto*`；旧 `mod_<manifest.id>` 槽不探测、不迁移。`SaveUniverseData` 只记录最后一个原版槽，因此原版 001～020、`auto*` 和“继续游戏”指针均不会被 MOD 覆盖。
 - Manifest、路径、包大小、哈希和脚本注册名在 Runtime 再次验证，不能只信编辑器导出的包。
 
-改游戏功能必须先查反编译接口，见仓库根目录 [`AGENTS.md`](../../AGENTS.md) 与 [`docs/chs/decompiled_api.md`](../../docs/chs/decompiled_api.md)。已确认签名与禁止项见 [`research/gameplay_api.md`](../../research/gameplay_api.md)。`tools/verify_gameplay_api.py` 对本机安装只读复验；游戏更新后旧哈希不会被静默接受。整份游戏反编译 `.cs` 不要提交。
+改游戏功能必须先查反编译接口，见仓库根目录 [`AGENTS.md`](../../AGENTS.md) 与 [`docs/chs/decompiled_api.md`](../../docs/chs/decompiled_api.md)。已确认签名与禁止项见 [`research/gameplay_api.md`](../../research/gameplay_api.md)。游戏更新后只读反编译受影响的当前类型与方法，不运行程序集哈希校验。整份游戏反编译 `.cs` 不要提交。
 
 ## Fail-closed 边界
 
@@ -19,7 +19,7 @@ Mod 演出一旦开始即保持来源会话污染标记，只有真正进入官�
 
 ## 构建与测试
 
-项目目标为 .NET Framework 4.8。正式构建需要本机游戏程序集。
+项目目标为 .NET Framework 4.8 / AnyCPU，禁用 Prefer32Bit；同一托管 DLL 用于 x86 和 x64 Mono。BepInEx／Doorstop 原生加载器必须匹配 `Mortal.exe` 位数，升级步骤见 [维护者手册](../../docs/chs/maintainers.md#windows-游戏接入与-runtime-回滚)。正式构建需要本机游戏程序集。
 
 还需已有的本地提取映射 `data/assets/_probe/view_map.json` 作为嵌入资源；该文件不随 Git 分发，缺少时构建会报 CS1566（无法读取 `MortalModHost.view_map.json`）。
 

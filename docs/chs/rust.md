@@ -80,7 +80,8 @@ cargo run --locked -p lomc -- detect-watermark-video path/to/video.mp4 --ffmpeg 
 
 迁移沿用既有版本规则，不猜测无法可靠转换的旧 Combat／Battle 数据。可迁移文件在写入前保留原字节备份；多文件写盘失败不保证整个目录一次回滚。新项目生成独立 `campaign_id`，导入已有项目不重置存档身份。
 
-Windows 游戏管理调用已有 C# Host 协议；Mac 上禁用游戏接入按钮。BepInEx 安装接受代码限定的官方 x86 ZIP，宿主 DLL 目录由作者选择。本轮 Windows 编辑器、Host 构建、离线测试及 133 节点预览均不能代替游戏接入实机流程；没有启动游戏、按 F5、安装/更新插件或修改游戏存档。
+Windows 游戏管理调用已有 C# Host 协议；Mac 上禁用游戏接入按钮。BepInEx 安装按 `Mortal.exe` 自动识别 x86／x64，接受对应的官方 **6.0.0-be.692+851521c / Unity Mono** ZIP，界面提供匹配的下载链接；校验值或原生代理位数不符时拒绝写入。C# Host 保持 AnyCPU，宿主 DLL 目录由作者选择。游戏从 32 位升级到 64 位后的加载器与旧代理修复见 [维护者手册](maintainers.md#windows-游戏接入与-runtime-回滚)。Mac 编译、离线测试、窗口检查与 133 节点预览都不能代替这些 Windows／游戏流程。
+
 
 ## 样例与验证
 
