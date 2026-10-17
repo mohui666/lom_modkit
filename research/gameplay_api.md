@@ -12,6 +12,7 @@
 - `Mortal.Combat.CombatStat` 已不含 `HealthAddition`、`BlockAbsorbAddition`、`IgnoreNormalMode`。`Reset()` 仍从 `DefaultHealth`／`DefaultStamina` 初始化当前值，并清零失败率、中毒和麻痹累积。Host 的 `CombatRuntimeLevelPatch.ResetAuthorFacingState` 保留现有初始化，只对实际仍存在的这三个旧字段反射清零；现版不猜测替代字段。操作对象仍是每场克隆的 `CombatStat`，不修改官方 ScriptableObject。
 - `Mortal.Story.StoryViewImage.LoadAsset(string)` 仍通过 `_viewAddressableData.GetByKey(name)` 取得 Sprite 地址。
 - `Mortal.Core.AddressableCollectionData.GetByKey(string)` 现在取得当前语言并调用 `GetByKey(string,string)`；`AddressableData` 保留 `_key`／`_addressKey`，增加语言覆写，`GetAddressKeyForLang(string)` 可返回覆写地址。本次仅按既有构建流程提取默认背景映射，未改变 Host 的语言选择行为。
+- Windows 当前安装的 `Mortal.Core.CharacterIntroPanel` 经现场反编译确认同时提供 `IEnumerator Show(string key)` 与 `IEnumerator Show(string key, int mode)`；单参数入口转调双参数入口的 `mode=0`。Host 的 `intropanel.Show(key)` 桥接继续使用单参数入口，预检和 Harmony 特性均显式指定 `string` 参数，避免仅按方法名查找触发 `AmbiguousMatchException`、中断整个 Host 初始化。
 
 这些是受影响接口与构建依赖核对，不代表所有游戏接口或实机交互已重新验收。创作字段和 `.lommod` 3／2／1 契约不变。
 

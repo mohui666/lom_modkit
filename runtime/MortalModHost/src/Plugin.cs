@@ -358,8 +358,8 @@ namespace MortalModHost
             ok &= CheckTarget("CheckPointManager.Dice(string,int)",
                 AccessTools.Method(typeof(CheckPointManager), "Dice",
                     new Type[] { typeof(string), typeof(int) }));
-            ok &= CheckTarget("CharacterIntroPanel.Show",
-                AccessTools.Method(typeof(CharacterIntroPanel), "Show"));
+            ok &= CheckTarget("CharacterIntroPanel.Show(string)",
+                AccessTools.Method(typeof(CharacterIntroPanel), "Show", new Type[] { typeof(string) }));
             ok &= CheckTarget("LuaManager.PlayMusic",
                 AccessTools.Method(typeof(LuaManager), "PlayMusic", new Type[] { typeof(string) }));
             ok &= CheckTarget("LuaManager.PlaySound",

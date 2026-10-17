@@ -349,7 +349,8 @@ namespace MortalModHost
         }
     }
 
-    [HarmonyPatch(typeof(CharacterIntroPanel), "Show")]
+    // The x64 game also exposes Show(string, int); our Lua bridge uses Show(string).
+    [HarmonyPatch(typeof(CharacterIntroPanel), "Show", new Type[] { typeof(string) })]
     internal static class CharacterIntroPanelPatch
     {
         private static bool Prefix(
