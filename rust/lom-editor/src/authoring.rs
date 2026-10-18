@@ -550,7 +550,7 @@ fn range_form(ui: &mut eframe::egui::Ui, item: &mut Value, ids: &[String]) -> bo
     });
     ui.horizontal(|ui| {
         for (key, label) in [("start", "起始步骤"), ("end", "结束步骤")] {
-            ui.label(crate::i18n::tr(label));
+            ui.label(format!("{} *", crate::i18n::tr(label)));
             let old = item[key].as_str().unwrap_or("").to_owned();
             let mut selected = old.clone();
             eframe::egui::ComboBox::from_id_salt(key)

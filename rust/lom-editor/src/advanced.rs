@@ -358,6 +358,7 @@ impl Advanced {
                     ("来源章节", &mut self.source),
                     ("目标章节", &mut self.target),
                 ] {
+                    ui.label(format!("{} *", tr(label)));
                     egui::ComboBox::from_id_salt(label)
                         .selected_text(selected.as_str())
                         .show_ui(ui, |ui| {
@@ -381,13 +382,13 @@ impl Advanced {
                     ("末步（包含）", &mut self.last),
                 ] {
                     ui.horizontal(|ui| {
-                        ui.label(tr(label));
+                        ui.label(format!("{} *", tr(label)));
                         *value = (*value).clamp(1, count.max(1));
                         ui.add(egui::DragValue::new(value).range(1..=count.max(1)));
                     });
                 }
                 ui.horizontal(|ui| {
-                    ui.label(tr("插入到第几步之后（0 为开头）"));
+                    ui.label(format!("{} *", tr("插入到第几步之后（0 为开头）")));
                     ui.add(egui::DragValue::new(&mut self.insertion).range(0..=target_count));
                 });
                 let selection = self.copy_selection();

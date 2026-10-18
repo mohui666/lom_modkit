@@ -457,7 +457,7 @@ impl ToolsPanel {
                 }
             }
             ui.horizontal(|ui| {
-                ui.label(crate::i18n::tr("内容 ID"));
+                ui.label(format!("{} *", crate::i18n::tr("内容 ID")));
                 ui.text_edit_singleline(&mut self.content_id);
             });
             ui.horizontal_wrapped(|ui| {
@@ -495,7 +495,15 @@ impl ToolsPanel {
                 ("依赖 ID（逗号分隔）", &mut self.dependencies),
             ] {
                 ui.horizontal(|ui| {
-                    ui.label(label);
+                    ui.label(format!(
+                        "{}{}",
+                        crate::i18n::tr(label),
+                        if label == "依赖 ID（逗号分隔）" {
+                            ""
+                        } else {
+                            " *"
+                        }
+                    ));
                     ui.text_edit_singleline(value);
                 });
             }

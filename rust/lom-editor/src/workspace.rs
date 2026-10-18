@@ -2138,7 +2138,7 @@ impl App {
         }
         let ids = story["nodes"].as_array().cloned().unwrap_or_default();
         let mut start = story["start"].as_str().unwrap_or("").to_owned();
-        ui.label(tr("入口步骤"));
+        ui.label(format!("{} *", tr("入口步骤")));
         egui::ComboBox::from_id_salt("start")
             .selected_text(
                 ids.iter()
@@ -2305,7 +2305,11 @@ impl App {
             ("正在翻译", &mut self.locale),
         ] {
             ui.horizontal(|ui| {
-                ui.label(tr(label));
+                ui.label(format!(
+                    "{}{}",
+                    tr(label),
+                    if label == "源语言" { " *" } else { "" }
+                ));
                 egui::ComboBox::from_id_salt(label)
                     .selected_text(current.as_str())
                     .show_ui(ui, |ui| {
@@ -2680,13 +2684,24 @@ impl App {
                     .file_stem()
                     .and_then(|s| s.to_str())
                     .unwrap_or("normal");
-                anyhow::ensure!(
-                    portrait
-                        .bytes()
-                        .all(|b| b.is_ascii_alphanumeric() || b == b'_'),
-                    "角色表情文件名只能含字母、数字和下划线"
-                );
-                portraits.insert(portrait.into(), name.clone().into());
+                if lom_core::content::validate_portrait_id(portrait).is_ok()
+                    && (i == 0 || !portraits.contains_key(portrait))
+                {
+                    portraits.insert(portrait.into(), name.clone().into());
+                } else if i > 0 {
+                    // The first image already has normal. Other arbitrary filenames
+                    // need unique IDs without stealing a later file's valid stem.
+                    let portrait = (1..)
+                        .map(|n| format!("portrait_{n}"))
+                        .find(|id| {
+                            !portraits.contains_key(id)
+                                && !paths.iter().any(|p| {
+                                    p.file_stem().and_then(|s| s.to_str()) == Some(id.as_str())
+                                })
+                        })
+                        .unwrap();
+                    portraits.insert(portrait, name.clone().into());
+                }
             }
             anyhow::ensure!(
                 !payload
@@ -2842,7 +2857,8 @@ impl App {
             ));
             ui.horizontal(|ui| {
                 ui.add(
-                    egui::TextEdit::singleline(&mut self.template_name).hint_text(tr("模板名称")),
+                    egui::TextEdit::singleline(&mut self.template_name)
+                        .hint_text(format!("{} *", tr("模板名称"))),
                 );
                 if ui.button(tr("保存选中范围")).clicked() {
                     self.save_selected_template();
@@ -3021,7 +3037,7 @@ impl App {
                 ui.heading(tr("导入素材"));
                 ui.add_space(16.0);
                 let old_kind = draft.kind;
-                ui.label(tr("素材类型"));
+                ui.label(format!("{} *", tr("素材类型")));
                 egui::ComboBox::from_id_salt("import-kind")
                     .selected_text(tr(["图片", "角色", "音乐", "音效", "配音"][draft.kind]))
                     .show_ui(ui, |ui| {
@@ -3036,17 +3052,20 @@ impl App {
                     draft.error = None;
                 }
                 choose_files = ui
-                    .button(tr(if draft.kind == 1 {
-                        "选择立绘文件…"
-                    } else {
-                        "选择文件…"
-                    }))
+                    .button(format!(
+                        "{} *",
+                        tr(if draft.kind == 1 {
+                            "选择立绘文件…"
+                        } else {
+                            "选择文件…"
+                        })
+                    ))
                     .clicked();
                 if !draft.paths.is_empty() {
                     for path in &draft.paths {
                         ui.label(path.file_name().unwrap_or_default().to_string_lossy());
                     }
-                    ui.label(tr("素材名称"));
+                    ui.label(format!("{} *", tr("素材名称")));
                     ui.add(
                         egui::TextEdit::singleline(&mut draft.name)
                             .id(egui::Id::new("asset-import-name"))
@@ -3105,7 +3124,7 @@ impl App {
                 ui.set_width(360.0);
                 ui.heading(tr(title));
                 ui.add_space(16.0);
-                ui.label(tr("章节名称"));
+                ui.label(format!("{} *", tr("章节名称")));
                 let name = ui.add(
                     egui::TextEdit::singleline(&mut draft.name)
                         .id(egui::Id::new("chapter-name"))
@@ -3141,6 +3160,7 @@ impl App {
                 ui.heading(tr(title));
                 ui.add_space(16.0);
                 ui.label(tr("内部标识用于流程引用，修改时会同步关联内容。"));
+                ui.label(format!("{} *", tr("内部标识")));
                 let field = ui.add(
                     egui::TextEdit::singleline(&mut draft.value)
                         .id(egui::Id::new("advanced-rename-value"))
@@ -4554,6 +4574,66 @@ mod application_regression_tests {
         assert!(snapshot(&app.project) == project);
         assert!(app.content_panel.has_pending());
         assert_eq!((app.undo.len(), app.redo.len()), history);
+    }
+    #[test]
+    fn character_import_accepts_timestamp_filename_and_independent_display_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let image = dir.path().join("26_04_23_17_53_52.png");
+        image::RgbaImage::new(1, 1).save(&image).unwrap();
+        for name in ["normal", "我的角色"] {
+            let mut app = app();
+            app.asset_import_dialog = Some(AssetImportDialog {
+                kind: 1,
+                name: name.into(),
+                paths: vec![image.clone()],
+                error: None,
+            });
+            app.commit_asset_import().unwrap();
+            let meta: Value =
+                serde_json::from_slice(&app.project.assets[&app.asset_selection]).unwrap();
+            assert_eq!(meta["name"], name);
+            assert_eq!(meta["portraits"], json!({"normal":"26_04_23_17_53_52.png"}));
+            assert_eq!(meta["files"]["main"], "26_04_23_17_53_52.png");
+            assert_eq!(app.project.assets.len(), 2);
+        }
+    }
+    #[test]
+    fn character_import_keeps_every_image_and_never_overwrites_normal_or_named_portraits() {
+        let dir = tempfile::tempdir().unwrap();
+        let names = [
+            "26_04_23_17_53_52.png",
+            "中文.png",
+            "portrait_1.png",
+            "happy.png",
+            "happy.jpg",
+            "normal.png",
+            "abcdefghijklmnopqrstuvwxyzabcdefg.png",
+            "face-smile.png",
+        ];
+        let paths = names
+            .iter()
+            .map(|name| {
+                let path = dir.path().join(name);
+                std::fs::write(&path, b"image fixture").unwrap();
+                path
+            })
+            .collect();
+        let mut app = app();
+        app.import_assets(paths, "test.hero", "角色", 1).unwrap();
+        let meta: Value =
+            serde_json::from_slice(&app.project.assets[&app.asset_selection]).unwrap();
+        assert_eq!(meta["portraits"]["normal"], names[0]);
+        assert_eq!(meta["portraits"]["portrait_1"], "portrait_1.png");
+        assert_eq!(meta["portraits"]["happy"], "happy.png");
+        let portraits = meta["portraits"].as_object().unwrap();
+        assert_eq!(portraits.len(), names.len());
+        for name in names {
+            assert!(
+                portraits.values().any(|value| value == name),
+                "missing {name}"
+            );
+        }
+        lom_core::content::normalize_content_metadata(&meta).unwrap();
     }
     #[test]
     fn import_confirmation_generates_unique_identity_and_keeps_display_name() {

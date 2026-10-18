@@ -10,10 +10,10 @@
 
 | バージョン | 内容 |
 | --- | --- |
-| **現在のソース：v1.2.0** | エディターとコンパイラーは Rust に移行済みです。C# ゲームホストと `.lommod` v3 の仕様は維持しています。 |
-| **Windows リリース：v1.2.0** | Rust ツールと x64 ゲーム対応。起動、F5、Combat/Battle の動作を限定した範囲で確認済みです。 |
+| **現在のソース：v1.2.1** | エディターとコンパイラーは Rust に移行済みです。C# ゲームホストと `.lommod` v3 の仕様は維持しています。 |
+| **Windows リリース：v1.2.1** | 立ち絵のインポートと表情 ID の衝突を修正し、必須・条件付き必須の表示を追加。ゲーム動作の確認記録は v1.2.0 のものです。 |
 
-[v1.2.0 をダウンロード（Windows）](https://github.com/mohui666/lom_modkit/releases/download/v1.2.0/lom_modkit-v1.2.0_windows_x64.zip) · [v1.2.0 Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.2.0)
+[v1.2.1 をダウンロード（Windows）](https://github.com/mohui666/lom_modkit/releases/download/v1.2.1/lom_modkit-v1.2.1_windows_x64.zip) · [v1.2.1 Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.2.1)
 
 ZIP 全体を展開し、`lom_modkit/lom-editor.exe` を起動してください。ローダーと C# ホストの更新手順、検証範囲は [x64 検証記録（簡体字中国語）](docs/chs/x64_validation.md) を参照してください。
 

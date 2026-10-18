@@ -7,6 +7,98 @@ pub struct Catalog {
     pub data: Value,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Requirement {
+    Optional,
+    Required,
+    OneOf,
+}
+
+// Use compiler requirements, rather than the form's reset/default flag.
+fn field_requirement(node: &Value, key: &str, optional: bool) -> Requirement {
+    use Requirement::*;
+    let kind = node["type"].as_str().unwrap_or("");
+    let spec = &lom_core::validate::node_schema()["nodes"][kind];
+    let required = if spec.is_object() {
+        spec["required"].get(key).is_some()
+    } else if matches!(kind, "character" | "audio" | "image") {
+        key == "name"
+    } else {
+        !optional
+    };
+    let conditional = match (kind, key) {
+        ("say", "character") => Some(!matches!(
+            node["mode"].as_str(),
+            Some("narrative" | "center")
+        )),
+        ("intro", "character") => Some(node["intro_source"] != "custom"),
+        ("intro", "name" | "text") => Some(node["intro_source"] == "custom"),
+        ("background", "image") => Some(matches!(
+            node["action"].as_str(),
+            Some("set" | "show" | "replace" | "fadein")
+        )),
+        ("custom_cg" | "overlay", "image") => Some(node["action"] == "show"),
+        ("cg", "key") => Some(node["action"] == "show"),
+        ("cg", "key2") => Some(
+            node["action"] == "show" && matches!(node["kind"].as_str(), Some("map" | "family")),
+        ),
+        ("cg", "n1" | "n2") => Some(node["action"] == "show" && node["kind"] == "family"),
+        ("enemy", "value") => Some(node["op"] != "id"),
+        ("battle_skill", "key") => Some(matches!(
+            node["op"].as_str(),
+            Some("set" | "active" | "level")
+        )),
+        ("flag_check", "op" | "value") => Some(node["source"] == "flag_value"),
+        ("time", "year" | "month" | "stage") => {
+            Some(matches!(node["op"].as_str(), Some("set" | "mission")))
+        }
+        ("time", "name") => Some(node["op"] == "mission"),
+        ("panel", "key") => Some(matches!(
+            node["panel"].as_str(),
+            Some("cg" | "cgvideo" | "endgame")
+        )),
+        ("branch", "stat") => Some(node["source"] == "stat"),
+        ("branch", "flag") => Some(node["source"] != "stat"),
+        ("dice", "check" | "options") => {
+            Some(node.get("check").is_some() || node.get("options").is_some())
+        }
+        ("dice", "max" | "header" | "bands") => {
+            Some(node.get("check").is_none() && node.get("options").is_none())
+        }
+        (
+            "battle",
+            "friend_factions" | "friend_characters" | "enemy_factions" | "enemy_characters",
+        ) => return OneOf,
+        ("goto_scene", "title" | "desc" | "image") => {
+            let id = node["key"].as_str().unwrap_or("");
+            let digits = !id.is_empty() && id.bytes().all(|b| b.is_ascii_digit());
+            let significant = id.trim_start_matches('0');
+            let custom = digits
+                && (significant.len() > 6 || (significant.len() == 6 && significant >= "900000"));
+            if (node["scene"] == "GameOver" && custom && key != "image")
+                || (node["scene"] == "End" && (id.is_empty() || custom))
+            {
+                return OneOf;
+            }
+            Some(false)
+        }
+        _ => None,
+    };
+    if conditional.unwrap_or(required) {
+        Required
+    } else {
+        Optional
+    }
+}
+
+fn requirement_label(label: String, requirement: Requirement) -> String {
+    match requirement {
+        Requirement::Optional => label,
+        Requirement::Required => format!("{label} *"),
+        Requirement::OneOf => format!("{label} * ({})", tr("至少填一项")),
+    }
+}
+
 impl Catalog {
     pub fn new() -> Self {
         Self {
@@ -442,9 +534,11 @@ impl Catalog {
                 tr("附加字段（保留项目中的全部数据）"),
                 |ui| {
                     for key in extras {
+                        let label =
+                            requirement_label(key.clone(), field_requirement(node, &key, true));
                         ui.push_id(&key, |ui| {
                             if let Some(v) = node.get_mut(&key) {
-                                changed |= value_editor(ui, &key, v, 0);
+                                changed |= value_editor(ui, &label, v, 0);
                             }
                         });
                     }
@@ -479,6 +573,7 @@ impl Catalog {
                 tr(label)
             }
         };
+        let label = requirement_label(label, field_requirement(node, key, optional));
         let label = label.as_str();
         let options = self.options(kind, node, node_ids, story_ids);
         let mut changed = false;
@@ -1074,7 +1169,7 @@ fn array_editor(
                                 key.as_str(),
                                 "goto" | "win" | "lose" | "success" | "failure"
                             ) {
-                                ui.label(key);
+                                ui.label(format!("{key} *"));
                                 let mut s = val.as_str().unwrap_or("").to_owned();
                                 let mut edited = false;
                                 egui::ComboBox::from_id_salt("target")
@@ -1096,7 +1191,19 @@ fn array_editor(
                                     changed = true;
                                 }
                             } else {
-                                changed |= value_editor(ui, key, val, 1);
+                                let required = matches!(
+                                    (kind, key.as_str()),
+                                    ("options", "text")
+                                        | ("cases", "value")
+                                        | ("dice_bands", "text" | "upper")
+                                        | ("vars", "name" | "value")
+                                );
+                                let label = if required {
+                                    format!("{key} *")
+                                } else {
+                                    key.clone()
+                                };
+                                changed |= value_editor(ui, &label, val, 1);
                             }
                         });
                     }
@@ -2051,6 +2158,159 @@ mod tests {
 mod conditional_tests {
     use super::*;
     #[test]
+    fn required_markers_follow_compiler_conditions_and_not_form_defaults() {
+        let fixtures: Vec<(Value, &[&str])> = vec![
+            (
+                json!({"type":"say","text":"test","character":"player"}),
+                &["character"],
+            ),
+            (
+                json!({"type":"intro","intro_source":"custom","name":"角色","text":"简介"}),
+                &["name", "text"],
+            ),
+            (
+                json!({"type":"intro","intro_source":"official","character":"player"}),
+                &["character"],
+            ),
+            (
+                json!({"type":"intro","intro_source":"character","character":"user:test.hero"}),
+                &["character"],
+            ),
+            (
+                json!({"type":"background","action":"set","image":"user:test.image"}),
+                &["image"],
+            ),
+            (
+                json!({"type":"custom_cg","action":"show","image":"user:test.image"}),
+                &["image"],
+            ),
+            (
+                json!({"type":"overlay","action":"show","slot":"main","image":"user:test.image"}),
+                &["image"],
+            ),
+            (
+                json!({"type":"cg","action":"show","kind":"family","key":"a","key2":"b","n1":1,"n2":1}),
+                &["key", "key2", "n1", "n2"],
+            ),
+            (
+                json!({"type":"time","op":"set","year":1,"month":1,"stage":1}),
+                &["year", "month", "stage"],
+            ),
+            (
+                json!({"type":"time","op":"mission","name":"a","year":1,"month":1,"stage":1}),
+                &["name", "year", "month", "stage"],
+            ),
+            (json!({"type":"panel","panel":"cg","key":"a"}), &["key"]),
+            (
+                json!({"type":"enemy","op":"team","enemy":"a","value":1}),
+                &["value"],
+            ),
+            (
+                json!({"type":"battle_skill","op":"set","key":"a"}),
+                &["key"],
+            ),
+            (
+                json!({"type":"flag_check","source":"flag_value","flag":"a","op":">=","value":1,"success":"end","failure":"end"}),
+                &["op", "value"],
+            ),
+            (
+                json!({"type":"branch","source":"stat","stat":"morale","cases":[{"value":1,"goto":"end"}]}),
+                &["stat"],
+            ),
+            (
+                json!({"type":"dice","max":99,"header":"test","bands":[{"upper":49,"text":"失败","goto":"end"},{"text":"成功","goto":"end"}]}),
+                &["max", "header", "bands"],
+            ),
+        ];
+        for (mut node, required) in fixtures {
+            node["id"] = json!("a");
+            let story =
+                json!({"id":"main","start":"a","nodes":[node.clone(),{"id":"end","type":"end"}]});
+            lom_core::validate::validate_story(&story)
+                .unwrap_or_else(|e| panic!("fixture {node}: {e}"));
+            for key in required {
+                assert_eq!(
+                    field_requirement(&node, key, true),
+                    Requirement::Required,
+                    "{node}: {key}"
+                );
+                let mut missing = story.clone();
+                missing["nodes"][0].as_object_mut().unwrap().remove(*key);
+                assert!(
+                    lom_core::validate::validate_story(&missing).is_err(),
+                    "compiler allowed missing {key}: {node}"
+                );
+            }
+        }
+        for (node, keys) in [
+            (
+                json!({"type":"say","mode":"narrative"}),
+                vec!["character", "portrait"],
+            ),
+            (json!({"type":"say","mode":"center"}), vec!["character"]),
+            (
+                json!({"type":"intro","intro_source":"character"}),
+                vec!["name", "text", "image"],
+            ),
+            (json!({"type":"overlay","action":"hide"}), vec!["image"]),
+            (
+                json!({"type":"time","op":"round"}),
+                vec!["year", "month", "stage", "name"],
+            ),
+            (
+                json!({"type":"battle_skill","op":"reset"}),
+                vec!["key", "level", "active"],
+            ),
+            (json!({"type":"panel","panel":"martial"}), vec!["key"]),
+            (
+                json!({"type":"character"}),
+                vec!["title", "scale", "art_facing"],
+            ),
+        ] {
+            for key in keys {
+                assert_eq!(
+                    field_requirement(&node, key, false),
+                    Requirement::Optional,
+                    "{node}: {key}"
+                );
+            }
+        }
+    }
+    #[test]
+    fn alternative_requirements_and_large_death_ids_are_labeled_as_groups() {
+        for id in ["", "900000", "000900000", "999999999999999999999999"] {
+            let node = json!({"type":"goto_scene","scene":"End","key":id});
+            for key in ["title", "desc", "image"] {
+                assert_eq!(field_requirement(&node, key, true), Requirement::OneOf);
+            }
+        }
+        let node = json!({"type":"goto_scene","scene":"GameOver","key":"900000"});
+        assert_eq!(field_requirement(&node, "title", true), Requirement::OneOf);
+        assert_eq!(
+            field_requirement(&node, "image", true),
+            Requirement::Optional
+        );
+        for key in [
+            "friend_factions",
+            "friend_characters",
+            "enemy_factions",
+            "enemy_characters",
+        ] {
+            assert_eq!(
+                field_requirement(&json!({"type":"battle"}), key, true),
+                Requirement::OneOf
+            );
+        }
+        assert_eq!(
+            requirement_label("人物".into(), Requirement::Required),
+            "人物 *"
+        );
+        assert_eq!(
+            requirement_label("称号".into(), Requirement::Optional),
+            "称号"
+        );
+    }
+    #[test]
     fn intro_sources_show_only_their_contract_fields() {
         let custom = json!({"intro_source":"custom"});
         assert!(!field_visible("intro", &custom, "character"));
@@ -2083,7 +2343,7 @@ fn pick(
 ) -> bool {
     let mut selected = row[key].as_str().unwrap_or("").to_owned();
     let before = selected.clone();
-    ui.label(tr(label));
+    ui.label(format!("{} *", tr(label)));
     egui::ComboBox::from_id_salt(key)
         .truncate()
         .width(ui.available_width())
@@ -2129,7 +2389,14 @@ fn pick(
 }
 fn number(ui: &mut Ui, row: &mut Value, key: &str, min: i64, max: i64) -> bool {
     let mut v = row[key].as_i64().unwrap_or(min).clamp(min, max);
-    ui.label(tr(key));
+    ui.label(requirement_label(
+        tr(key),
+        if matches!(key, "people" | "amount") {
+            Requirement::Required
+        } else {
+            Requirement::Optional
+        },
+    ));
     if ui
         .add(egui::DragValue::new(&mut v).range(min..=max))
         .changed()
@@ -2143,7 +2410,7 @@ fn number(ui: &mut Ui, row: &mut Value, key: &str, min: i64, max: i64) -> bool {
 fn typed_row(c: &Catalog, ui: &mut Ui, row: &mut Value, kind: &str) -> Option<bool> {
     let mut changed = false;
     if kind == "official_characters" {
-        ui.label(tr("官方角色"));
+        ui.label(format!("{} *", tr("官方角色")));
         if let Some(Some(id)) = character_picker(
             ui,
             row.as_str(),

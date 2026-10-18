@@ -14,6 +14,13 @@ const ANIMATIONS: &[&str] = &[
 pub fn is_user_ref(value: &str) -> bool {
     value.starts_with("user:")
 }
+pub fn validate_portrait_id(id: &str) -> Result<()> {
+    ensure!(
+        regex::Regex::new(r"^[A-Za-z][A-Za-z0-9_]{0,31}$")?.is_match(id),
+        "表情 id {id:?} 不合法：须以英文字母开头，只含字母、数字和下划线，最多 32 位"
+    );
+    Ok(())
+}
 pub fn validate_content_id(id: &str) -> Result<()> {
     ensure!(
         regex::Regex::new(r"^[a-z][a-z0-9_]{0,31}\.[a-z0-9][a-z0-9_]{0,47}$")?.is_match(id),
@@ -189,9 +196,8 @@ pub fn normalize_content_metadata(data: &Value) -> Result<Value> {
             ensure!(!p.is_empty(), "角色必须提供 portraits（表情 id -> 文件名）");
             p.clone()
         };
-        let portrait_re = regex::Regex::new(r"^[A-Za-z][A-Za-z0-9_]{0,31}$")?;
         for (k, v) in &mut portraits {
-            ensure!(portrait_re.is_match(k), "表情 id {k:?} 不合法");
+            validate_portrait_id(k)?;
             *v = json!(safe_filename(v, &format!("portraits.{k}"), false)?);
         }
         if !portraits.contains_key("normal") {
@@ -370,6 +376,22 @@ pub fn resolve_content(root: &Path, kind: &str, id: &str) -> Result<(Value, Path
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn portrait_ids_have_the_same_bounds_as_character_metadata() {
+        for id in ["normal", "Happy_2", "abcdefghijklmnopqrstuvwxyzabcdef"] {
+            validate_portrait_id(id).unwrap();
+        }
+        for id in [
+            "",
+            "26_04_23_17_53_52",
+            "中文",
+            "face-smile",
+            "abcdefghijklmnopqrstuvwxyzabcdefg",
+            "happy\n",
+        ] {
+            assert!(validate_portrait_id(id).is_err(), "accepted {id:?}");
+        }
+    }
     #[test]
     fn normalize_character_and_payload() {
         let m=normalize_content_metadata(&json!({"schema":1,"id":"test.person","type":"character","name":" 名字 ","files":{"main":"main.png"},"portraits":{"happy":"happy.png"},"scale":500,"intro":{"name":" 人物 ","text":" 介绍 ","image_scale":"130"}})).unwrap();
