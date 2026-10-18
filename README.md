@@ -2,9 +2,9 @@
 
 **《活侠传》（Legend of Mortal）可视化剧情 Mod 制作工具。** 用图形编辑器编排人物对白、场景、分支、音乐和音效，导出 `.lommod`，由 C# 游戏插件加载。
 
-**v1.2.0** 提供 Rust 编辑器与编译器，保留 C# 游戏接入层，并适配《活侠传》64 位更新。Windows 发布包已完成 x64 游戏启动、F5 试玩及 Combat/Battle 冒烟，具体范围见 [x64 验证记录](docs/chs/x64_validation.md)。
+**v1.2.1** 修复作品内容库的角色立绘导入与表情编号冲突，并为全局表单补充必填星号和条件必填提示。沿用 v1.2.0 的 Rust 工具端、C# 接入层与 64 位游戏适配；游戏实测属于 v1.2.0，范围见 [x64 验证记录](docs/chs/x64_validation.md)。本次验证见 [v1.2.1 变更记录](RELEASE_NOTES_v1.2.1.md)。
 
-[软件使用](docs/chs/software_usage.md) · [Mac 编辑器](docs/chs/macos.md) · [文档索引](docs/README.md) · [Windows v1.2.0 下载](https://github.com/mohui666/lom_modkit/releases/tag/v1.2.0)
+[软件使用](docs/chs/software_usage.md) · [Mac 编辑器](docs/chs/macos.md) · [文档索引](docs/README.md) · [Windows v1.2.1 下载](https://github.com/mohui666/lom_modkit/releases/tag/v1.2.1)
 
 语言：简体中文（本文） · [繁體中文](README.cht.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
@@ -85,8 +85,9 @@ cargo run --locked -p lom-editor -- --smoke-preview samples/showcase3
 - [Rust 工具端](docs/chs/rust.md)：构建、CLI 与验证命令。
 - [Windows 验证记录](docs/chs/windows_validation.md)：本轮修复、自动化、实际界面操作和未执行项。
 - [维护者手册](docs/chs/maintainers.md)：恢复、体检、发布、安装与回滚。
-- [v1.2.0 变更记录](RELEASE_NOTES_v1.2.0.md)：当前 Rust 变更与迁移前历史记录。
-- [公开 Releases](https://github.com/mohui666/lom_modkit/releases)：v1.2.0 Windows 包及历史版本。
+- [v1.2.1 变更记录](RELEASE_NOTES_v1.2.1.md)：内容库导入与全局必填提示修复。
+- [v1.2.0 变更记录](RELEASE_NOTES_v1.2.0.md)：Rust 迁移与 x64 游戏适配历史记录。
+- [公开 Releases](https://github.com/mohui666/lom_modkit/releases)：Windows 包及历史版本。
 
 ## 许可与来源披露
 

@@ -10,10 +10,10 @@
 
 | 版本 | 說明 |
 | --- | --- |
-| **目前原始碼：v1.2.0** | 編輯器與編譯器已改為 Rust；保留 C# 遊戲宿主及 `.lommod` v3 格式契約。 |
-| **Windows 發行版：v1.2.0** | Rust 工具端與 x64 遊戲接入；已完成遊戲啟動、F5 及 Combat/Battle 定向測試。 |
+| **目前原始碼：v1.2.1** | 編輯器與編譯器已改為 Rust；保留 C# 遊戲宿主及 `.lommod` v3 格式契約。 |
+| **Windows 發行版：v1.2.1** | 修正角色立繪匯入與表情編號衝突，補齊全域必填及條件必填提示；遊戲實測記錄屬於 v1.2.0。 |
 
-[下載 v1.2.0（Windows）](https://github.com/mohui666/lom_modkit/releases/download/v1.2.0/lom_modkit-v1.2.0_windows_x64.zip) · [v1.2.0 Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.2.0)
+[下載 v1.2.1（Windows）](https://github.com/mohui666/lom_modkit/releases/download/v1.2.1/lom_modkit-v1.2.1_windows_x64.zip) · [v1.2.1 Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.2.1)
 
 完整解壓縮後執行 `lom_modkit/lom-editor.exe`；更新遊戲載入器與 C# 宿主的步驟及測試範圍見 [x64 驗證記錄（簡中）](docs/chs/x64_validation.md)。
 

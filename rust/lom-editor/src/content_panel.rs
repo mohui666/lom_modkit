@@ -159,7 +159,7 @@ impl ContentPanel {
                             key,
                             label,
                             field_kind,
-                            false,
+                            !matches!(key, "name" | "text"),
                             &[],
                             &[],
                         );
@@ -199,15 +199,23 @@ impl ContentPanel {
         };
         self.slot = self.slot.min(slots.len() - 1);
         egui::ComboBox::from_id_salt("content-file-slot")
-            .selected_text(tr(slots[self.slot]))
+            .selected_text(format!(
+                "{}{}",
+                tr(slots[self.slot]),
+                if self.slot == 0 { " *" } else { "" }
+            ))
             .show_ui(ui, |ui| {
                 for (i, label) in slots.iter().enumerate() {
-                    ui.selectable_value(&mut self.slot, i, tr(label));
+                    ui.selectable_value(
+                        &mut self.slot,
+                        i,
+                        format!("{}{}", tr(label), if i == 0 { " *" } else { "" }),
+                    );
                 }
             });
         if self.slot == 1 {
             ui.horizontal(|ui| {
-                ui.label(tr("表情 ID"));
+                ui.label(format!("{} *", tr("表情 ID")));
                 ui.text_edit_singleline(&mut self.portrait);
             });
         }
@@ -248,14 +256,7 @@ impl ContentPanel {
                                 self.draft["portraits"]["normal"] = json!(name);
                             }
                             1 => {
-                                anyhow::ensure!(
-                                    !self.portrait.is_empty()
-                                        && self
-                                            .portrait
-                                            .bytes()
-                                            .all(|b| b.is_ascii_alphanumeric() || b == b'_'),
-                                    "表情 ID 不合法"
-                                );
+                                lom_core::content::validate_portrait_id(&self.portrait)?;
                                 self.draft["portraits"][&self.portrait] = json!(name);
                             }
                             2 => {
