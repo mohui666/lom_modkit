@@ -7,6 +7,11 @@ pub struct Catalog {
     pub data: Value,
 }
 
+pub struct NodeFormResponse {
+    pub changed: bool,
+    pub help: Option<String>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Requirement {
     Optional,
@@ -203,7 +208,7 @@ impl Catalog {
         }
         // A character keeps the same number in the full list and in restricted
         // affinity/battle lists. Search only filters these already named options.
-        if is_character_selector(kind) {
+        if is_character_selector(kind) && kind != "character_group" {
             let mut characters = localized_rows(&self.data["characters"], "characters");
             number_duplicate_labels(&mut characters);
             let names: std::collections::BTreeMap<_, _> = characters.into_iter().collect();
@@ -223,6 +228,23 @@ impl Catalog {
         nodes: &[String],
         stories: &[String],
     ) -> Vec<(String, String)> {
+        if kind == "character_group" {
+            let rows: Vec<Value> = self.data["characters"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter(|row| {
+                    row["appearance_group"]
+                        .as_str()
+                        .is_none_or(|group| row["id"] == group)
+                })
+                .cloned()
+                .collect();
+            return localized_rows(&json!(rows), "characters");
+        }
+        if kind == "character_appearance" {
+            return self.appearance_options(node);
+        }
         if let Some(set) = kind.strip_prefix("enum:") {
             return self.schema["ENUM_SETS_SRC"][set]
                 .as_array()
@@ -258,6 +280,9 @@ impl Catalog {
         }
         if kind == "portrait" {
             let id = node["character"].as_str().unwrap_or("");
+            if id == "player" && node["appearance"] == "beautified" {
+                return rows(&self.data["player_appearance_portraits"]["beautified"]);
+            }
             if let Some(row) = self.data["characters"]
                 .as_array()
                 .and_then(|a| a.iter().find(|c| c["id"].as_str() == Some(id)))
@@ -386,23 +411,44 @@ impl Catalog {
         node: &mut Value,
         node_ids: &[String],
         story_ids: &[String],
-    ) -> bool {
+    ) -> NodeFormResponse {
         let kind = node["type"].as_str().unwrap_or("").to_owned();
         let fields = self.schema["NODE_SCHEMAS"][&kind]["fields"]
             .as_array()
             .cloned()
             .unwrap_or_default();
         let mut changed = false;
+        let mut help_request = None;
         ui.horizontal(|ui| {
             ui.heading(self.label(&kind));
             let help_key = format!("help.{kind}");
             let help = crate::i18n::key(&help_key);
             if help != help_key {
-                ui.label(RichText::new(tr("说明")).small().weak())
-                    .on_hover_text(help);
+                if ui.small_button(tr("说明")).on_hover_text(help).clicked() {
+                    help_request = Some(kind.clone());
+                }
             }
         });
         ui.add_space(6.0);
+        if kind == "parallel" {
+            changed |= self.parallel_actions(ui, node);
+            ui.collapsing(crate::i18n::key("form.advanced"), |ui| {
+                changed |= self.field(
+                    ui,
+                    node,
+                    "goto",
+                    "整组完成后跳转",
+                    "node_ref",
+                    true,
+                    node_ids,
+                    story_ids,
+                );
+            });
+            return NodeFormResponse {
+                changed,
+                help: help_request,
+            };
+        }
         if kind == "battle" {
             for side in ["friend", "enemy"] {
                 let total = node[format!("{side}_factions")]
@@ -545,7 +591,261 @@ impl Catalog {
                 },
             );
         }
+        NodeFormResponse {
+            changed,
+            help: help_request,
+        }
+    }
+    fn parallel_actions(&self, ui: &mut Ui, node: &mut Value) -> bool {
+        ui.label(tr("这些动作会一起开始，全部完成后才继续下一步。"));
+        ui.small(tr(
+            "音乐、音效和循环特效在启动后即视为完成；可添加“等待”控制整组停留时间。",
+        ));
+        let Some(actions) = node.get("actions").and_then(Value::as_array) else {
+            ui.colored_label(
+                Color32::from_rgb(179, 55, 49),
+                tr("同时动作数据不是数组，请先修正原始数据。"),
+            );
+            return false;
+        };
+        let mut actions = actions.clone();
+        let mut changed = false;
+        let mut remove = None;
+        let mut swap = None;
+        for (index, action) in actions.iter_mut().enumerate() {
+            ui.push_id(index, |ui| {
+                egui::Frame::group(ui.style()).show(ui, |ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.strong(format!("{} {}", tr("同时动作"), index + 1));
+                        let old = action["type"].as_str().unwrap_or("").to_owned();
+                        let mut selected = old.clone();
+                        egui::ComboBox::from_id_salt("parallel-action-type")
+                            .selected_text(self.label(&old))
+                            .show_ui(ui, |ui| {
+                                for kind in lom_core::parallel::ACTION_TYPES {
+                                    ui.selectable_value(
+                                        &mut selected,
+                                        (*kind).into(),
+                                        self.label(kind),
+                                    );
+                                }
+                            });
+                        if selected != old {
+                            *action = self.new_node(&selected, String::new());
+                            action.as_object_mut().unwrap().remove("id");
+                            changed = true;
+                        }
+                        if ui
+                            .add_enabled(index > 0, egui::Button::new(tr("上移")))
+                            .clicked()
+                        {
+                            swap = Some((index, index - 1));
+                        }
+                        if ui.small_button(tr("移除")).clicked() {
+                            remove = Some(index);
+                        }
+                    });
+                    let kind = action["type"].as_str().unwrap_or("");
+                    if !lom_core::parallel::ACTION_TYPES.contains(&kind) {
+                        ui.colored_label(
+                            Color32::from_rgb(179, 55, 49),
+                            tr("这个步骤不能同时执行，请改为演出动作或移到组外。"),
+                        );
+                        return;
+                    }
+                    let fields = self.schema["NODE_SCHEMAS"][kind]["fields"]
+                        .as_array()
+                        .cloned()
+                        .unwrap_or_default();
+                    for field in fields {
+                        if field[0] == "appearance" {
+                            continue;
+                        }
+                        if let (Some(key), Some(label), Some(field_kind)) =
+                            (field[0].as_str(), field[1].as_str(), field[2].as_str())
+                        {
+                            changed |= self.field(
+                                ui,
+                                action,
+                                key,
+                                label,
+                                field_kind,
+                                field[3].as_bool().unwrap_or(false),
+                                &[],
+                                &[],
+                            );
+                        }
+                    }
+                    for key in ["id", "goto", "appearance"] {
+                        if action.get(key).is_some() {
+                            ui.colored_label(
+                                Color32::from_rgb(179, 55, 49),
+                                format!("{}: {key}", tr("组内不支持此字段")),
+                            );
+                            if ui
+                                .small_button(format!("{} {key}", tr("移除非法字段")))
+                                .clicked()
+                            {
+                                action.as_object_mut().unwrap().remove(key);
+                                changed = true;
+                            }
+                        }
+                    }
+                });
+            });
+        }
+        if let Some(index) = remove {
+            actions.remove(index);
+            changed = true;
+        } else if let Some((a, b)) = swap {
+            actions.swap(a, b);
+            changed = true;
+        }
+        ui.add_enabled_ui(actions.len() < lom_core::parallel::MAX_ACTIONS, |ui| {
+            ui.menu_button(tr("添加同时动作"), |ui| {
+                egui::ScrollArea::vertical()
+                    .id_salt("parallel-add-actions")
+                    .max_height((ui.ctx().content_rect().height() * 0.6).max(1.0))
+                    .show(ui, |ui| {
+                        for kind in lom_core::parallel::ACTION_TYPES {
+                            if ui.button(self.label(kind)).clicked() {
+                                let mut action = self.new_node(kind, String::new());
+                                action.as_object_mut().unwrap().remove("id");
+                                actions.push(action);
+                                changed = true;
+                                ui.close();
+                            }
+                        }
+                    });
+            });
+        });
+        if changed {
+            node["actions"] = Value::Array(actions);
+        }
+        if let Err(error) = lom_core::parallel::validate_group(node) {
+            ui.colored_label(Color32::from_rgb(179, 55, 49), error.to_string());
+        }
         changed
+    }
+    fn character_group<'a>(&'a self, id: &'a str) -> &'a str {
+        self.data["characters"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|row| row["id"] == id)
+            .and_then(|row| row["appearance_group"].as_str())
+            .unwrap_or(id)
+    }
+    fn appearance_options(&self, node: &Value) -> Vec<(String, String)> {
+        let root = self.character_group(node["character"].as_str().unwrap_or(""));
+        let mut options: Vec<(String, String)> = Vec::new();
+        for row in self.data["characters"].as_array().into_iter().flatten() {
+            if row["appearance_group"] == root {
+                let Some(id) = row["id"].as_str() else {
+                    continue;
+                };
+                if id == "player" && node["type"] == "show" && node.get("id").is_some() {
+                    options.extend([
+                        ("player".into(), tr("跟随游戏")),
+                        ("@original".into(), tr("普通")),
+                        ("@beautified".into(), tr("美颜")),
+                    ]);
+                } else {
+                    options.push((id.into(), tr(row["appearance_name"].as_str().unwrap_or(id))));
+                }
+            }
+        }
+        options.sort_by_key(|(id, _)| {
+            if id == root || id.starts_with('@') {
+                0
+            } else {
+                1
+            }
+        });
+        number_duplicate_labels(&mut options);
+        options
+    }
+    fn select_appearance(&self, node: &mut Value, selected: &str) {
+        let (character, appearance) = match selected {
+            "@original" => ("player", Some("original")),
+            "@beautified" => ("player", Some("beautified")),
+            "player" if node["type"] == "show" && node.get("id").is_some() => {
+                ("player", Some("game"))
+            }
+            other => (other, None),
+        };
+        node["character"] = json!(character);
+        if let Some(appearance) = appearance {
+            node["appearance"] = json!(appearance);
+        } else {
+            node.as_object_mut().unwrap().remove("appearance");
+        }
+        if let Some(portrait) = node["portrait"].as_str().filter(|s| !s.is_empty()) {
+            let options = self.options("portrait", node, &[], &[]);
+            if !options.iter().any(|(id, _)| id == portrait) {
+                let fallback = if options.iter().any(|(id, _)| id == "normal") {
+                    "normal"
+                } else {
+                    options
+                        .first()
+                        .map(|(id, _)| id.as_str())
+                        .unwrap_or("normal")
+                };
+                node["portrait"] = json!(fallback);
+            }
+        }
+    }
+    fn character_field(&self, ui: &mut Ui, node: &mut Value, label: &str, optional: bool) -> bool {
+        let before = node.clone();
+        let mut selection = node.clone();
+        if let Some(id) = node["character"].as_str() {
+            selection["character"] = json!(self.character_group(id));
+        }
+        if self.field(
+            ui,
+            &mut selection,
+            "character",
+            label,
+            "character_group",
+            optional,
+            &[],
+            &[],
+        ) {
+            if let Some(id) = selection["character"].as_str() {
+                self.select_appearance(node, id);
+            } else {
+                node.as_object_mut().unwrap().remove("character");
+            }
+        }
+        let options = self.appearance_options(node);
+        if options.len() > 1 {
+            let selected = if node["character"] == "player" {
+                match node["appearance"].as_str() {
+                    Some("original") => "@original",
+                    Some("beautified") => "@beautified",
+                    _ => "player",
+                }
+            } else {
+                node["character"].as_str().unwrap_or("")
+            };
+            let mut selection = node.clone();
+            selection["selected_appearance"] = json!(selected);
+            if self.field(
+                ui,
+                &mut selection,
+                "selected_appearance",
+                "外观",
+                "character_appearance",
+                false,
+                &[],
+                &[],
+            ) {
+                if let Some(id) = selection["selected_appearance"].as_str() {
+                    self.select_appearance(node, id);
+                }
+            }
+        }
+        *node != before
     }
     pub fn field(
         &self,
@@ -558,6 +858,9 @@ impl Catalog {
         node_ids: &[String],
         story_ids: &[String],
     ) -> bool {
+        if key == "character" && kind == "character" {
+            return self.character_field(ui, node, label, optional);
+        }
         let specific = format!("field.{}.{}", node["type"].as_str().unwrap_or(""), key);
         let generic = format!("field.{key}");
         let localized = crate::i18n::key(&specific);
@@ -855,7 +1158,11 @@ impl Catalog {
 fn is_character_selector(kind: &str) -> bool {
     matches!(
         kind,
-        "character" | "affinity_character" | "affinity_optional" | "battle_character"
+        "character"
+            | "character_group"
+            | "affinity_character"
+            | "affinity_optional"
+            | "battle_character"
     )
 }
 
@@ -972,6 +1279,7 @@ fn character_picker(
 
 fn is_selector(kind: &str) -> bool {
     kind.starts_with("enum:")
+        || matches!(kind, "character_group" | "character_appearance")
         || matches!(
             kind,
             "node_ref"
@@ -1017,7 +1325,7 @@ fn absent_label(node: &Value, key: &str, kind: &str) -> String {
         {
             "选择人物"
         }
-        (_, _, "character") => "无",
+        (_, _, "character" | "character_group") => "无",
         (_, _, "node_ref") => "继续下一步",
         (_, _, "story_ref" | "user_image" | "ending_image" | "intro_image") => "无",
         _ => "默认",
@@ -1059,8 +1367,8 @@ pub fn number_duplicate_labels(options: &mut [(String, String)]) {
 
 fn field_visible(kind: &str, node: &Value, key: &str) -> bool {
     if key == "appearance" {
-        return kind == "show" && node["character"] == "player";
-    }
+        return false;
+    } // rendered directly after the grouped character selector
     if kind == "intro" {
         let custom = node["intro_source"] == "custom";
         return match key {
@@ -1433,6 +1741,143 @@ pub fn value_editor(ui: &mut Ui, label: &str, value: &mut Value, depth: usize) -
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn important_characters_group_appearances_and_filter_expressions_by_real_id() {
+        let catalog = Catalog::new();
+        let characters = catalog.options("character_group", &Value::Null, &[], &[]);
+        assert_eq!(characters.iter().filter(|(id, _)| id == "girl5").count(), 1);
+        assert!(!characters.iter().any(|(id, _)| id == "girl5_9"));
+        let mut node = json!({"id":"n1","type":"show","character":"girl5","position":"M","portrait":"special5"});
+        assert!(catalog
+            .appearance_options(&node)
+            .iter()
+            .any(|(id, label)| id == "girl5_9" && label == "入魔"));
+        catalog.select_appearance(&mut node, "girl5_9");
+        assert_eq!(node["character"], "girl5_9");
+        assert_eq!(node["portrait"], "normal");
+        assert!(node.get("appearance").is_none());
+        let portraits = catalog.options("portrait", &node, &[], &[]);
+        assert!(portraits.iter().any(|(id, _)| id == "special1"));
+        assert!(!portraits.iter().any(|(id, _)| id == "special5"));
+        let story = json!({"id":"main","start":"n1","nodes":[node,{"id":"end","type":"end"}]});
+        lom_core::validate::validate_story(&story).unwrap();
+        let lua = lom_core::codegen::compile_story(&story, None, None, None).unwrap();
+        assert!(lua.contains("girl5_9"));
+    }
+    #[test]
+    fn appearance_selection_keeps_valid_expressions_and_legacy_documents_unchanged_on_draw() {
+        let catalog = Catalog::new();
+        let mut node = json!({"id":"n1","type":"say","character":"girl5_9","portrait":"special1","text":"..."});
+        let original = node.clone();
+        let context = egui::Context::default();
+        let (_, changed) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "character",
+            "character",
+            vec![],
+        );
+        assert!(!changed);
+        assert_eq!(node, original);
+        catalog.select_appearance(&mut node, "girl5");
+        assert_eq!(node["portrait"], "special1");
+        catalog.select_appearance(&mut node, "girl5_9");
+        assert_eq!(node["portrait"], "special1");
+    }
+    #[test]
+    fn player_appearance_choices_keep_existing_host_contract_and_parallel_restrictions() {
+        let catalog = Catalog::new();
+        let mut node = json!({"id":"n1","type":"show","character":"player","position":"M","portrait":"normal"});
+        assert!(catalog
+            .appearance_options(&node)
+            .iter()
+            .any(|(id, _)| id == "@beautified"));
+        catalog.select_appearance(&mut node, "@beautified");
+        assert_eq!(node["character"], "player");
+        assert_eq!(node["appearance"], "beautified");
+        catalog.select_appearance(&mut node, "player");
+        assert_eq!(node["appearance"], "game");
+        node.as_object_mut().unwrap().remove("id");
+        catalog.select_appearance(&mut node, "player");
+        assert!(node.get("appearance").is_none());
+        assert!(!catalog
+            .appearance_options(&node)
+            .iter()
+            .any(|(id, _)| id.starts_with('@')));
+    }
+    #[test]
+    fn clicking_appearance_then_expression_writes_the_selected_official_variant() {
+        use egui::accesskit::Role;
+        let catalog = Catalog::new();
+        let context = egui::Context::default();
+        let mut node = json!({"id":"n1","type":"show","character":"girl5","position":"M","portrait":"special5"});
+        let (output, _) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "character",
+            "character",
+            vec![],
+        );
+        let events = click(&output, Role::ComboBox, &tr("普通"));
+        let (output, _) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "character",
+            "character",
+            events,
+        );
+        let events = click(&output, Role::Button, &tr("入魔"));
+        let (_, changed) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "character",
+            "character",
+            events,
+        );
+        assert!(changed);
+        assert_eq!(node["character"], "girl5_9");
+        assert_eq!(node["portrait"], "normal");
+        let (output, _) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "portrait",
+            "portrait",
+            vec![],
+        );
+        let events = click(
+            &output,
+            Role::ComboBox,
+            &crate::i18n::term("portraits", "normal", "normal"),
+        );
+        let _ = field_frame(
+            &catalog, &context, &mut node, "portrait", "portrait", events,
+        );
+        let (output, _) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "portrait",
+            "portrait",
+            vec![],
+        );
+        let special = catalog
+            .options("portrait", &node, &[], &[])
+            .into_iter()
+            .find(|(id, _)| id == "special1")
+            .unwrap()
+            .1;
+        let events = click(&output, Role::Button, &special);
+        let (_, changed) = field_frame(
+            &catalog, &context, &mut node, "portrait", "portrait", events,
+        );
+        assert!(changed);
+        assert_eq!(node["portrait"], "special1");
+    }
     #[test]
     fn numbered_selector_writes_original_id_and_keeps_number_after_selection() {
         use egui::accesskit::Role;
@@ -1987,7 +2432,7 @@ mod tests {
         ]);
         let context = egui::Context::default();
         let mut node = json!({"id":"n1", "type":"show", "character":"player", "position":"M", "appearance":"beautified"});
-        assert!(field_visible("show", &node, "appearance"));
+        assert!(!field_visible("show", &node, "appearance"));
         for target in ["sister1", "player"] {
             let names = catalog.options("character", &node, &[], &[]);
             let target_name = &names.iter().find(|(id, _)| id == target).unwrap().1;
@@ -2020,11 +2465,12 @@ mod tests {
             );
             assert!(changed);
             assert_eq!(node["character"], target);
-            assert!(node.get("appearance").is_none());
-            assert_eq!(
-                field_visible("show", &node, "appearance"),
-                target == "player"
-            );
+            if target == "player" {
+                assert_eq!(node["appearance"], "game");
+            } else {
+                assert!(node.get("appearance").is_none());
+            }
+            assert!(!field_visible("show", &node, "appearance"));
             let story = json!({"id":"main", "start":"n1", "nodes":[node.clone(), {"id":"end", "type":"end"}]});
             lom_core::validate::validate_story(&story).unwrap();
         }
@@ -2040,7 +2486,7 @@ mod tests {
             let before = node.clone();
             let _ = context.run(egui::RawInput::default(), |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {
-                    assert!(!catalog.node_form(ui, &mut node, &[], &[]));
+                    assert!(!catalog.node_form(ui, &mut node, &[], &[]).changed);
                 });
             });
             assert_eq!(node, before);
@@ -2140,12 +2586,16 @@ mod tests {
                 let before = node.clone();
                 let _ = context.run(egui::RawInput::default(), |ctx| {
                     egui::CentralPanel::default().show(ctx, |ui| {
-                        assert!(!catalog.node_form(
-                            ui,
-                            &mut node,
-                            &["n1".into(), "end1".into()],
-                            &["main".into()],
-                        ));
+                        assert!(
+                            !catalog
+                                .node_form(
+                                    ui,
+                                    &mut node,
+                                    &["n1".into(), "end1".into()],
+                                    &["main".into()],
+                                )
+                                .changed
+                        );
                     });
                 });
                 assert_eq!(node, before, "merely rendering {kind} mutated the project");

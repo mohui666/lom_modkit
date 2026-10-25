@@ -274,7 +274,7 @@ fn doctor_accepts_x64_but_reports_each_wrong_native_dll() {
 fn official_archives_install_only_for_matching_game_and_preserve_user_files() {
     let archive_dir = std::env::var_os("LOM_BEPINEX_ARCHIVES").expect("set LOM_BEPINEX_ARCHIVES");
     for architecture in ["x86", "x64"] {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = lom_core::workdir::create().unwrap();
         let root = dir.path();
         fixture(root, architecture);
         let config = root.join("doorstop_config.ini");

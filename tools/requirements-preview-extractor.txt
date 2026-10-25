@@ -1,0 +1,3 @@
+# Build-time only. End users run the bundled helper, with no Python setup.
+UnityPy==1.24.2
+PyInstaller==6.22.3

@@ -242,8 +242,10 @@ pub fn analyze_project(stories: &BTreeMap<String, Value>, manifest: &Value) -> V
             if kind == "choice" {
                 choice_count += 1;
             }
-            if !text(n, "character").is_empty() {
-                characters.insert(text(n, "character").to_string());
+            for action in crate::parallel::actions(n) {
+                if !text(action, "character").is_empty() {
+                    characters.insert(text(action, "character").to_string());
+                }
             }
             let symbol = match kind {
                 "flag" => Some(("mod_flag", "write", text(n, "flag"))),

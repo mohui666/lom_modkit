@@ -109,17 +109,43 @@
     {
       "id": "say2",
       "type": "say",
-      "text": "我是用户角色林灯。这句对白同时播放用户语音；请检查对白栏里是否有重复的低透明度 MOD 水印。",
+      "text": "我是用户角色林灯。这句对白同时播放用户语音；请检查对白栏中的玩家制作内容标识。来源编码水印是低透明度图像，不是重复的可读 MOD 文字。",
       "character": "user:showcase.lin_deng",
       "portrait": "normal",
       "mode": "character",
       "voice": "user:showcase.lin_greeting"
     },
     {
+      "id": "parallel_moves",
+      "type": "parallel",
+      "actions": [
+        {
+          "type": "move",
+          "character": "player",
+          "from": "L1",
+          "to": "LM1",
+          "duration": 0.6
+        },
+        {
+          "type": "move",
+          "character": "user:showcase.lin_deng",
+          "from": "R1",
+          "to": "RM1",
+          "duration": 0.9
+        },
+        {
+          "type": "sound",
+          "name": "user:showcase.lantern_chime",
+          "kind": "sound",
+          "op": "play"
+        }
+      ]
+    },
+    {
       "id": "move1",
       "type": "move",
       "character": "player",
-      "from": "L1",
+      "from": "LM1",
       "to": "M",
       "duration": 0.6
     },
@@ -227,6 +253,33 @@
       "type": "transition",
       "phase": "in",
       "dir": "lr"
+    },
+    {
+      "id": "parallel_scene_setup",
+      "type": "scene",
+      "view": "center"
+    },
+    {
+      "id": "parallel_arrival",
+      "type": "parallel",
+      "actions": [
+        {
+          "type": "show",
+          "character": "player",
+          "position": "L1",
+          "portrait": "normal",
+          "fadeDuration": 0,
+          "moveDuration": 0
+        },
+        {
+          "type": "show",
+          "character": "user:showcase.lin_deng",
+          "position": "R1",
+          "portrait": "normal",
+          "fadeDuration": 0,
+          "moveDuration": 0
+        }
+      ]
     },
     {
       "id": "transition2",
@@ -451,6 +504,35 @@
       "action": "clear",
       "image": "",
       "fade": 0.5
+    },
+    {
+      "id": "xiaomei_demon_show",
+      "type": "show",
+      "character": "girl5_9",
+      "portrait": "normal",
+      "position": "R1",
+      "facing": "left",
+      "fadeDuration": 0
+    },
+    {
+      "id": "xiaomei_demon_talk",
+      "type": "say",
+      "character": "girl5_9",
+      "portrait": "special1",
+      "text": "【人物外观】虞小梅 → 入魔 → 特殊1；这个外观只列出自身可用的表情。"
+    },
+    {
+      "id": "xiaomei_demon_half",
+      "type": "say",
+      "character": "girl5_9",
+      "portrait": "special2",
+      "text": "【人物表情】同一入魔外观的另一幅立绘。"
+    },
+    {
+      "id": "xiaomei_demon_hide",
+      "type": "hide",
+      "character": "girl5_9",
+      "fadeDuration": 0
     },
     {
       "id": "end1",

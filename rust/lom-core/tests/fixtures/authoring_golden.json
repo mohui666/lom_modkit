@@ -44436,7 +44436,7 @@
         "fields": {
           "character": "brother4",
           "position": "R1",
-          "portrait": "angry3"
+          "portrait": "missing_portrait_for_rejection"
         }
       },
       "ok": false
@@ -44475,7 +44475,7 @@
         "fields": {
           "text": "哼！",
           "character": "brother4",
-          "portrait": "angry3"
+          "portrait": "missing_portrait_for_rejection"
         }
       },
       "ok": false
@@ -44512,7 +44512,7 @@
         },
         "text": "哼！",
         "character": "brother4",
-        "portrait": "angry3"
+        "portrait": "missing_portrait_for_rejection"
       },
       "ok": false
     },
@@ -44646,7 +44646,7 @@
         },
         "node_id": "say2",
         "fields": {
-          "portrait": "angry3"
+          "portrait": "missing_portrait_for_rejection"
         }
       },
       "ok": false

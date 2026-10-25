@@ -58,9 +58,37 @@ fn legacy_pack_acceptance_and_all_entry_bytes_match() {
     for (index, case) in fixtures["cases"].as_array().unwrap().iter().enumerate() {
         let dir = tempfile::tempdir().unwrap();
         let root = if let Some(project) = case["source_project"].as_str() {
-            Path::new(env!("CARGO_MANIFEST_DIR"))
+            let source = Path::new(env!("CARGO_MANIFEST_DIR"))
                 .join("../..")
-                .join(project)
+                .join(project);
+            let frozen = dir.path().join("legacy-source");
+            // Showcase is still an actively maintained authoring sample. Replay
+            // the immutable legacy JSON captured in this golden fixture rather
+            // than silently changing expected hashes when the sample gains a
+            // new node type. Binary artwork is reused only after a hash check.
+            for (name, entry) in case["entries"].as_object().unwrap() {
+                if name != "manifest.json"
+                    && !name.starts_with("story/")
+                    && !name.starts_with("assets/")
+                {
+                    continue;
+                }
+                let bytes = if let Some(text) = entry["utf8"].as_str() {
+                    text.as_bytes().to_vec()
+                } else {
+                    fs::read(source.join(name)).unwrap()
+                };
+                assert_eq!(bytes.len() as u64, entry["size"].as_u64().unwrap());
+                assert_eq!(
+                    format!("{:x}", Sha256::digest(&bytes)),
+                    entry["sha256"].as_str().unwrap(),
+                    "legacy source asset changed: {name}"
+                );
+                let target = frozen.join(name);
+                fs::create_dir_all(target.parent().unwrap()).unwrap();
+                fs::write(target, bytes).unwrap();
+            }
+            frozen
         } else {
             let root = dir.path().join(case["root_name"].as_str().unwrap());
             materialize(&root, &case["files"]);

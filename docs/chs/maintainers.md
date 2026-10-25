@@ -38,9 +38,9 @@
 
 ## 检查、统计与发布
 
-`F6`／“创作工具 → 检查项目”执行当前编辑器的校验与编译检查。完整 Editing／Release 体检在“创作工具 → 创作工具 → 发布体检与打包”中分别点击“编辑体检”或“发布体检”；当前没有单独的 `Ctrl+F6` Release 快捷键。
+`F6`／“剧情工具 → 检查项目”执行当前编辑器的校验与编译检查。完整 Editing／Release 体检在“发布 → 发布体检与打包”中分别点击“编辑体检”或“发布体检”；当前没有单独的 `Ctrl+F6` Release 快捷键。
 
-同一工具面板还提供：
+「发布」页面还提供统计、打包和包检查；迁移与诊断从「剧情工具」进入：
 
 | 区域 | 操作 |
 | --- | --- |
@@ -55,15 +55,15 @@
 
 ## Windows 游戏接入与 Runtime 回滚
 
-当前入口为“创作工具 → 创作工具 → Windows 游戏接入与 MOD 管理”；Mac 上该区域的游戏操作禁用。选择游戏目录及含 `MortalModHost.dll`、`NVorbis.dll` 的 C# 宿主目录后，才能使用安装检查、修复宿主安装、安装／更新与恢复上一版等操作。
+当前源码的一级入口为“游戏与 MOD”。首次选择包含 `Mortal.exe` 的目录后，点击“一键配置游戏”：自动下载匹配架构的官方加载器、配置 Steam 启动、安装随工具分发的 C# 宿主并检查结果。缺少宿主文件时会明确提示，可在“高级维护”选择同时含 `MortalModHost.dll`、`NVorbis.dll` 的完整目录。Mac 显示平台说明及素材、发布入口，不展示不可用的安装控件。
 
-Runtime 更新在 `BepInEx/plugins/MortalModHost/.runtime_rollback/` 保留已有 DLL 的备份与记录；安装写入失败时尝试恢复原文件。全新安装没有上一版。回滚不应改动游戏程序、Managed、存档或第三方插件。BepInEx 安装是单独入口，接受代码约束的官方压缩包。
+Runtime 更新在 `BepInEx/plugins/MortalModHost/.runtime_rollback/` 保留已有 DLL 的备份与记录；安装写入失败时尝试恢复原文件。全新安装没有上一版。回滚不应改动游戏程序、Managed、存档或第三方插件。在线配置与“高级维护 → 使用官方离线压缩包配置…”均只接受代码固定版本、架构和摘要匹配的官方压缩包。
 
 游戏升级为 64 位后，使用更新后的编辑器执行：
 
 1. 退出游戏，在该区域选择游戏目录，确认显示 `x64`。
-2. 通过界面链接下载 [BepInEx 官方 build 692](https://builds.bepinex.dev/projects/bepinex_be) 的 `BepInEx-Unity.Mono-win-x64-6.0.0-be.692+851521c.zip`，点击“安装官方 BepInEx 压缩包”。旧版 x86 游戏仍选择对应的 x86 包。安装只更新加载器文件，保留已有配置、插件和 MOD。
-3. 点击“修复 Steam 启动”，将 C# 宿主目录选为新版本工具的 `runtime` 目录，再安装／更新宿主并运行“安装检查”。修复会选择匹配游戏位数的 Doorstop 和系统 `VERSION.dll`，替换旧 `version.dll`、`version_alt.dll`，备份后移走 `winhttp.dll`，避免同时注入。不能只替换 Host 而保留 32 位代理。
+2. 点击“一键配置游戏”，或在“高级维护”选择 [BepInEx 官方 build 692](https://builds.bepinex.dev/projects/bepinex_be) 的对应离线 ZIP。x64 使用 `BepInEx-Unity.Mono-win-x64-6.0.0-be.692+851521c.zip`；旧版 x86 游戏使用对应的 x86 包。安装保留已有配置、插件和 MOD。
+3. 配置结束后查看安装检查结果，确认页面显示“配置就绪”。独立的 Steam 修复、宿主更新及回滚入口保留在“高级维护”。修复会选择匹配游戏位数的 Doorstop 和系统 `VERSION.dll`，替换旧 `version.dll`、`version_alt.dll`，备份后移走 `winhttp.dll`，避免同时注入。不能只替换 Host 而保留 32 位代理。
 
 替换的原生 DLL 保存在同目录的 `.lom_bak`；如该备份已存在且内容不同，会另存带摘要的备份，不覆盖早先备份。x64 系统库来自 `System32`（32 位编辑器通过 `Sysnative` 访问）；x86 来自 `SysWOW64` 或经位数确认的 `System32`。写入前校验所有待安装原生 DLL 的 PE 架构，位数错误时不修改配置。
 

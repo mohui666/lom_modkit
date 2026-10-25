@@ -13,13 +13,13 @@ pub fn referenced_asset_paths(stories: &Stories, assets: &[String]) -> BTreeSet<
     let bundled = bundled_paths(assets);
     let direct: BTreeSet<_> = stories
         .values()
-        .flat_map(nodes)
+        .flat_map(|story| crate::parallel::story_actions(story).map(|(_, action)| action))
         .filter_map(|n| n["image"].as_str())
         .map(|s| s.replace('\\', "/"))
         .collect();
     let ids: BTreeSet<_> = stories
         .values()
-        .flat_map(nodes)
+        .flat_map(|story| crate::parallel::story_actions(story).map(|(_, action)| action))
         .flat_map(content_specs)
         .filter_map(|r| r.raw.strip_prefix("user:"))
         .collect();
@@ -49,15 +49,21 @@ pub fn calculate_project_statistics(stories: &Stories, assets: Option<&[String]>
     let mut options = 0;
     let mut endings = 0;
     let mut unreachable = 0;
+    let mut parallel_actions = 0;
     for story in stories.values().filter(|s| s.is_object()) {
         let reached = super::stage::reached(story);
         unreachable += nodes(story)
             .iter()
             .filter(|n| !reached.contains(text(n, "id")))
             .count();
-        for n in nodes(story).iter().filter(|n| n.is_object()) {
+        for node in nodes(story).iter().filter(|node| node.is_object()) {
+            *types.entry(text(node, "type")).or_default() += 1;
+            if node["type"] == "parallel" {
+                parallel_actions += crate::parallel::actions(node).len();
+            }
+        }
+        for (_, n) in crate::parallel::story_actions(story).filter(|(_, n)| n.is_object()) {
             let kind = text(n, "type");
-            *types.entry(kind).or_default() += 1;
             if !text(n, "character").is_empty() {
                 chars.insert(text(n, "character"));
             }
@@ -92,7 +98,11 @@ pub fn calculate_project_statistics(stories: &Stories, assets: Option<&[String]>
             }
         }
     }
-    json!({"stories":stories.values().filter(|s|s.is_object()).count(),"nodes":types.values().sum::<usize>(),"node_types":types,"dialogue_count":dialogue,"choice_nodes":types.get("choice").copied().unwrap_or(0),"choice_options":options,"endings":endings,"characters":chars.len(),"images":images.len(),"audio":audio.len(),"voiced_dialogue":voiced,"unvoiced_dialogue":dialogue-voiced,"voice_coverage":if dialogue==0{0.0}else{voiced as f64/dialogue as f64*100.0},"unreachable_nodes":unreachable,"unused_assets":assets.map(|a|unused_asset_paths(stories,a).len())})
+    let mut result = json!({"stories":stories.values().filter(|s|s.is_object()).count(),"nodes":types.values().sum::<usize>(),"node_types":types,"dialogue_count":dialogue,"choice_nodes":types.get("choice").copied().unwrap_or(0),"choice_options":options,"endings":endings,"characters":chars.len(),"images":images.len(),"audio":audio.len(),"voiced_dialogue":voiced,"unvoiced_dialogue":dialogue-voiced,"voice_coverage":if dialogue==0{0.0}else{voiced as f64/dialogue as f64*100.0},"unreachable_nodes":unreachable,"unused_assets":assets.map(|a|unused_asset_paths(stories,a).len())});
+    if parallel_actions > 0 {
+        result["parallel_actions"] = json!(parallel_actions);
+    }
+    result
 }
 fn row(scope: &str, key: &str, label: &str, counts: [usize; 2]) -> Value {
     let total = counts[0] + counts[1];

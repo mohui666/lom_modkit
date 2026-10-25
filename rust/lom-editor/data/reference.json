@@ -62,7 +62,8 @@
     "end": "Free scene or same-package next_script",
     "death": "GameOverPanel + MOD 9xxxxx ID",
     "raw": "MoonSharp/Fungus raw Lua",
-    "free_trigger": "manifest.campaign.triggers（打包时汇总；运行时由 CampaignPatch 按位置/月份/旬/旗标/好感度匹配）"
+    "free_trigger": "manifest.campaign.triggers（打包时汇总；运行时由 CampaignPatch 按位置/月份/旬/旗标/好感度匹配）",
+    "parallel": "Lua cooperative coroutines; joined by HostRunModLua frame resumes"
   },
   "KIND_DOCS": {
     "line": "reference.kind.line",

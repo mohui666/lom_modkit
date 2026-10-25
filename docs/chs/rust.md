@@ -30,7 +30,9 @@ sh scripts/build-macos.sh
 open "out/LoM Modkit Rust.app"
 ```
 
-`build-macos.sh` 调用 `build_rust_macos.sh`，生成原生 `lom-editor` 与 `lomc`、打包图标、执行应用签名检查及内置编译预览烟测。应用不需要 Python、Qt、PyInstaller 或当前源码目录。官方预览图片仍从作者自己提取的外部素材库读取，不随应用分发。
+`build-macos.sh` 调用 `build_rust_macos.sh`，生成原生 `lom-editor` 与 `lomc`、打包图标及独立素材提取组件、执行应用签名检查及内置编译预览烟测。编辑器和编译器仍是 Rust；提取组件复用已有 UnityPy 地址解析，通过独立进程与 Rust 界面交换进度和结果。使用安装包不需要另装 Python、Qt 或当前源码目录。官方预览图片从作者自己的游戏提取，不随应用分发。
+
+构建提取组件需要 Python 3.12 和 `tools/requirements-preview-extractor.txt` 中固定的构建依赖。Mac 默认使用 `editor/.venv/bin/python`，可通过 `EXTRACTOR_PYTHON` 指定；Windows 使用 `scripts/build-windows.ps1 -NoArchive -ExtractorPython <python.exe>`。先用该 Python 执行 `-m pip install -r tools/requirements-preview-extractor.txt`。两端都调用 `scripts/build_asset_extractor.py` 构建本平台的独立组件，不能复制另一平台的提取程序。构建只运行 `--help` 检查，不读取游戏、不自动提取。
 
 Windows 构建入口为 `scripts/build-windows.ps1 -NoArchive`，需要已构建的 `MortalModHost.dll`、`NVorbis.dll`；可用 `-RuntimeDirectory` 指定目录，默认产物为 `out/windows/lom_modkit/lom-editor.exe`。2026-10-05 已使用正式 net48 Host 产物，在独立输出目录完成打包并实际启动新 exe；构建成功、自动化与 UI 验收分别记录。Host 本地引用及嵌入资源要求见 [Runtime 构建说明](../../runtime/MortalModHost/README.md#构建与测试)。
 
@@ -43,7 +45,7 @@ Windows 构建入口为 `scripts/build-windows.ps1 -NoArchive`，需要已构建
 | `rust/lom-editor` | egui 界面、字段表单、舞台／流程预览、编辑历史、草稿与恢复、按文件归属保存 |
 | `rust/lom-editor/src/macos_window.rs` | 标准 AppKit 窗口外观、现有系统应用菜单中的设置项与重绘通知 |
 | `editor/` | 图标、翻译和帮助等静态资源；旧 Python 编辑器已退役 |
-| `tools/` | 仍有独立的游戏资源提取／研究脚本；不是编辑器或编译器运行依赖 |
+| `tools/` | 游戏资源提取／研究脚本；预览提取器单独打包供原生界面调用，其余脚本不作为编辑器或编译器运行依赖 |
 
 ## CLI
 
@@ -81,7 +83,6 @@ cargo run --locked -p lomc -- detect-watermark-video path/to/video.mp4 --ffmpeg 
 迁移沿用既有版本规则，不猜测无法可靠转换的旧 Combat／Battle 数据。可迁移文件在写入前保留原字节备份；多文件写盘失败不保证整个目录一次回滚。新项目生成独立 `campaign_id`，导入已有项目不重置存档身份。
 
 Windows 游戏管理调用已有 C# Host 协议；Mac 上禁用游戏接入按钮。BepInEx 安装按 `Mortal.exe` 自动识别 x86／x64，接受对应的官方 **6.0.0-be.692+851521c / Unity Mono** ZIP，界面提供匹配的下载链接；校验值或原生代理位数不符时拒绝写入。C# Host 保持 AnyCPU，宿主 DLL 目录由作者选择。游戏从 32 位升级到 64 位后的加载器与旧代理修复见 [维护者手册](maintainers.md#windows-游戏接入与-runtime-回滚)。Mac 编译、离线测试、窗口检查与 133 节点预览都不能代替这些 Windows／游戏流程。
-
 
 ## 样例与验证
 

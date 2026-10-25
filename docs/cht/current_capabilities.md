@@ -2,7 +2,7 @@
 
 > **版本提醒：** 本頁尚未全面同步目前的 Rust 版本；舊版 UI 選單與實作描述僅供歷史參考。請以[最新簡體中文版](../chs/current_capabilities.md)為準。
 
-本文只描述目前倉庫程式碼。節點權威集合是 `rust/lom-editor/data/authoring.json` 的 `NODE_SCHEMAS`，目前共 63 種。
+本文只描述目前倉庫程式碼。節點權威集合是 `rust/lom-editor/data/authoring.json` 的 `NODE_SCHEMAS`，目前共 64 種。
 
 ## 已實作
 
@@ -22,3 +22,9 @@
 底層 `enemy` / `battle_skill` 仍可獨立使用；Combat / Battle 結果可配合 `reward`、`result_screen`、`custom_shop`、`mod_quest` 等現有節點編排。
 
 尚未由反編譯與實機驗證確認的遊戲介面不得靠猜測實作。
+
+## 同時執行群組
+
+`parallel` 的 `actions` 為 2～32 個演出動作物件，只有外層群組有 `id/goto`。動作同時開始，全部完成後再繼續；同一人物或畫面通道的衝突會拒絕。支援人物演出、背景、前景、轉場、特效、聲音與等待；對白、選項、戰鬥、跳轉、原生 Lua 與巢狀群組放在群組外。音樂和循環特效在啟動後即視為完成。右側預覽顯示群組結束狀態；格式仍為 3／2／1，實機效果尚未驗收。
+
+[詳細 / 상세](../chs/mod_format.md#34-同时执行组parallel)

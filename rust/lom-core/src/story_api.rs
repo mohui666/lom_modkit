@@ -103,6 +103,7 @@ fn checked_fields(kind: &str, fields: &Value) -> Result<Value> {
             "reward_entries",
             "reward_entries_optional",
             "custom_shop_items",
+            "parallel_actions",
         ]
         .contains(&f)
         {

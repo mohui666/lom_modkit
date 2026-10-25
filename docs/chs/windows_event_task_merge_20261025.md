@@ -45,4 +45,11 @@
 - 同目录含 `lomc.exe`、`runtime/MortalModHost.dll`、`runtime/NVorbis.dll`、x86/x64 Doorstop 和自包含素材提取器。
 - 示例：`packages/event-addon.lommod`、`packages/event-sandbox.lommod`、`showcase/showcase3.lommod`。
 - 官方接口经本机反编译只读核对并通过 Host 编译；未启动游戏，因此调度、存档和奖励的游戏实机行为仍未验收。多个官方结果动作没有整体回滚或严格一次执行保证。
-- 没有安装到游戏目录、发布、推送或创建 Release。已有 Windows 基线与本次整合改动分开记录，Git 提交不夹带任务范围外的基线文件；完整验证对象是此源码工作副本。
+- 没有安装到游戏目录、发布、推送或创建 Release。整合提交 `9507d8d` 记录 61 个任务文件；随后按用户明确授权，将此前保留的 83 个 Windows 基线文件单独纳入版本控制。
+
+
+## Windows 基线提交
+
+83 个基线文件与整合测试前保留的 `windows-carried-baseline.patch` 完全一致，涵盖既有编辑器、并行动作、游戏配置、素材提取、Windows 构建、本地化及相关测试和文档。本次提交保持这些文件的内容不变，并同步本节记录。
+
+本次仅做清单、补丁内容一致性及 Git diff 检查，没有重新运行 Rust、C#、构建或游戏测试；上面的测试数据仍是此前整合验收的实际记录。提交完成后的分支包含整合功能与这批 Windows 基线源码，复现源码无需再应用该历史保留补丁。构建使用的官方游戏程序集和本机提取素材继续留在原有所有权边界内。

@@ -79,7 +79,9 @@ def main():
         game_data = os.path.join(os.path.abspath(args.game_dir), "Mortal_Data")
         probe.SA2 = os.path.join(game_data, "sharedassets2.assets")
         CATALOG = os.path.join(game_data, "StreamingAssets", "aa", "catalog.json")
-        BUNDLE_DIR = os.path.join(game_data, "StreamingAssets", "aa", "StandaloneWindows")
+        BUNDLE_DIR = probe.bundle_directory(game_data)
+    else:
+        BUNDLE_DIR = probe.bundle_directory(probe.GAME_DATA)
     if args.output_dir:
         DATA_DIR = os.path.abspath(args.output_dir)
         PORTRAIT_DIR = os.path.join(DATA_DIR, "assets", "portraits")

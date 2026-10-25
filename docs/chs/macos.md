@@ -24,7 +24,7 @@ Mac 版与 Windows 版共用 Story、编译器和 `.lommod` 格式，支持编�
 
 在“文件 → 选择预览素材库…”中选择包含 `preview_map.json` 与 `assets/portraits/` 的目录。选中人物或表情后，右侧“人物立绘”页显示完整图片。
 
-缓存由用户自己的 Windows 游戏安装提取，并传到自己的 Mac。应用程序和导出的 MOD 不包含这些官方图片。Windows 提取命令：
+可用「文件 → 从游戏提取预览素材…」从自己安装的游戏提取，完成后自动载入；Mac 可以选择自己的 Whisky 游戏安装目录，也可以载入从自己 Windows 游戏中提取后传来的完整素材库。支持 `StandaloneWindows64` 和 `StandaloneWindows` 两种资源目录。应用程序和导出的 MOD 不包含这些官方图片。仅从源码使用旧的命令行提取脚本时：
 
 ```powershell
 python tools/extract_preview_assets.py --game-dir "C:\Program Files (x86)\Steam\steamapps\common\LegendOfMortal" --output-dir out/previews --max-size 640 --portraits-only

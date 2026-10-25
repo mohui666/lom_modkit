@@ -24,7 +24,7 @@
 | 游戏安装管理、诊断/回滚、启用 Mod、F5 请求、已读状态工具 | core `game_tools`；editor `tools_panel` | 仅合成目录与协议离线测试；未做 Windows 游戏安装或游戏实机验收 |
 | 全节点样例生成器 | `rust/lomc/examples/build_showcase3.rs` | 独立 source.json 与旧生成器 5 章输出一致；校验 63 类并导出包 |
 
-新增工具入口集中在“创作工具”；全局查找快捷键为 `Ctrl/⌘+Shift+F`。受控 API 已迁到 Rust/JSON CLI，旧 Python `import story_api` 不再是受支持入口。运行时相关结果仍可能为 `unknown` / `unsupported`，不会把静态推断当作实机结果。
+入口按“剧情编辑、素材管理、游戏与 MOD、发布”分组；批量修改、模板及分析操作在“剧情工具”菜单；全局查找快捷键为 `Ctrl/⌘+Shift+F`。受控 API 已迁到 Rust/JSON CLI，旧 Python `import story_api` 不再是受支持入口。运行时相关结果仍可能为 `unknown` / `unsupported`，不会把静态推断当作实机结果。
 
 当前先完成 Rust 通用外壳，统一浅色字体、控件、紧凑步骤列表与内容库，保留三栏布局。状态栏仅显示保存状态及实际操作结果。Mac 原生玻璃叠层因遮挡标题栏/正文已移除，Swift 玻璃外壳延后；不能把它计为已完成。功能对应表及自动化案例也不代表已逐项完成全部 GUI、Windows 和游戏实机验收。
 

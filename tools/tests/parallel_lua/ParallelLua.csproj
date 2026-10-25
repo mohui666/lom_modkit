@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Only the embedded MoonSharp interpreter is used. No Unity or game code
+         is executed, and the game's DLL is never copied into this project. -->
+    <Reference Include="Fungus">
+      <HintPath>$(FungusAssembly)</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>
