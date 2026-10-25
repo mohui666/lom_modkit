@@ -1,4 +1,5 @@
 use crate::i18n::tr;
+use crate::tools_panel::ToolPage;
 use crate::{
     authoring,
     forms::{value_editor, Catalog},
@@ -17,6 +18,7 @@ use crate::shell::{self, style, surface, ACCENT};
 #[derive(Clone, PartialEq)]
 struct Snapshot {
     manifest: Value,
+    scenario: Option<Value>,
     stories: BTreeMap<String, Value>,
     paths: BTreeMap<String, PathBuf>,
     assets: std::sync::Arc<BTreeMap<String, Vec<u8>>>,
@@ -24,20 +26,30 @@ struct Snapshot {
 #[derive(Clone)]
 enum Pending {
     New,
+    NewAddon,
     Template(String),
     Recover(PathBuf),
     Open(PathBuf),
     Quit,
 }
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum Center {
     Node,
     Chapter,
     Manifest,
+    Events,
+    Tasks,
     Localization,
     Assets,
     Tools,
     Advanced,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Section {
+    Story,
+    Materials,
+    Game,
+    Release,
 }
 #[derive(Clone, Copy, PartialEq)]
 enum View {
@@ -76,6 +88,27 @@ struct AssetImportDialog {
     paths: Vec<PathBuf>,
     error: Option<String>,
 }
+impl AssetImportDialog {
+    fn select_files(&mut self, paths: Vec<PathBuf>) {
+        if self.paths.is_empty() || self.kind != 1 {
+            self.name = paths
+                .first()
+                .and_then(|path| path.file_stem())
+                .map(|name| name.to_string_lossy().into_owned())
+                .unwrap_or_default();
+        }
+        if self.kind == 1 {
+            for path in paths {
+                if !self.paths.contains(&path) {
+                    self.paths.push(path);
+                }
+            }
+        } else {
+            self.paths = paths;
+        }
+        self.error = None;
+    }
+}
 struct App {
     project: Project,
     catalog: Catalog,
@@ -84,6 +117,7 @@ struct App {
     selected: usize,
     multiselect: BTreeSet<usize>,
     center: Center,
+    scenario_selection: crate::scenario_panel::Selection,
     view: View,
     search: String,
     replace: String,
@@ -117,6 +151,8 @@ struct App {
     locale: String,
     auto: bool,
     last_step: Instant,
+    preview_elapsed: Option<f64>,
+    preview_location: (String, usize),
     tools_report: Value,
     screenshot: Option<PathBuf>,
     frame: usize,
@@ -151,7 +187,7 @@ fn user_root() -> PathBuf {
 }
 fn dialog_actions(ui: &mut egui::Ui, primary: &str, enabled: bool) -> (bool, bool) {
     ui.add_space(16.0);
-    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+    shell::dialog_buttons(ui, |ui| {
         let submit = ui
             .add_enabled(
                 enabled,
@@ -165,11 +201,11 @@ fn dialog_actions(ui: &mut egui::Ui, primary: &str, enabled: bool) -> (bool, boo
             .clicked();
         (submit, cancel)
     })
-    .inner
 }
 fn snapshot(p: &Project) -> Snapshot {
     Snapshot {
         manifest: p.manifest.clone(),
+        scenario: p.scenario.clone(),
         stories: p.stories.clone(),
         paths: p.paths.clone(),
         assets: std::sync::Arc::new(p.assets.clone()),
@@ -268,7 +304,7 @@ impl App {
         screenshot: Option<PathBuf>,
     ) -> Self {
         style(&cc.egui_ctx);
-        let mut p = Project::new();
+        let mut p = Project::new_scenario("sandbox");
         let mut error = None;
         if let Some(path) = open {
             match Project::open(&path) {
@@ -322,6 +358,7 @@ impl App {
             selected,
             multiselect: BTreeSet::new(),
             center: Center::Node,
+            scenario_selection: Default::default(),
             view: View::Stage,
             search: String::new(),
             replace: String::new(),
@@ -355,6 +392,8 @@ impl App {
             locale: "cht".into(),
             auto: false,
             last_step: Instant::now(),
+            preview_elapsed: None,
+            preview_location: (String::new(), usize::MAX),
             tools_report: json!({}),
             screenshot,
             frame: 0,
@@ -576,6 +615,9 @@ impl App {
                     rename_story_refs(other, &old, &new);
                 }
                 rename_story_refs(&mut self.project.manifest, &old, &new);
+                if let Some(config) = &mut self.project.scenario {
+                    rename_story_refs(config, &old, &new);
+                }
                 if self.project.manifest["entry"] == old {
                     self.project.manifest["entry"] = json!(new);
                 }
@@ -604,6 +646,7 @@ impl App {
     fn track(&mut self) {
         let current = Snapshot {
             manifest: self.project.manifest.clone(),
+            scenario: self.project.scenario.clone(),
             stories: self.project.stories.clone(),
             paths: self.project.paths.clone(),
             assets: if *self.last.assets == self.project.assets {
@@ -613,6 +656,8 @@ impl App {
             },
         };
         if current != self.last {
+            self.auto = false;
+            self.preview_elapsed = None;
             if current.assets != self.last.assets {
                 self.catalog.sync_assets(&self.project.assets);
             }
@@ -633,6 +678,7 @@ impl App {
         self.advanced.reset();
         self.project.stories = s.stories;
         self.project.manifest = s.manifest;
+        self.project.scenario = s.scenario;
         self.project.paths = s.paths;
         self.project.assets = (*s.assets).clone();
         self.catalog.sync_assets(&self.project.assets);
@@ -695,7 +741,8 @@ impl App {
                 self.clear_recovery();
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
-            Pending::New => self.install(Project::new()),
+            Pending::New => self.install(Project::new_scenario("sandbox")),
+            Pending::NewAddon => self.install(Project::new_scenario("addon")),
             Pending::Template(key) => match template_project(&key) {
                 Ok(project) => {
                     self.install(project);
@@ -715,12 +762,16 @@ impl App {
     fn install(&mut self, p: Project) {
         self.clear_recovery();
         self.project = p;
+        self.center = Center::Node;
+        self.scenario_selection = Default::default();
         self.advanced = Default::default();
         self.content_panel.reset();
         self.chapter_dialog = None;
         self.rename_dialog = None;
         self.asset_import_dialog = None;
         self.audio.stop();
+        self.auto = false;
+        self.preview_elapsed = None;
         self.remember_source();
         self.catalog.sync_assets(&self.project.assets);
         self.current = self.project.manifest["entry"]
@@ -993,6 +1044,7 @@ impl App {
                 self.install(project);
                 self.saved = Snapshot {
                     manifest: json!({}),
+                    scenario: None,
                     stories: BTreeMap::new(),
                     paths: BTreeMap::new(),
                     assets: std::sync::Arc::new(BTreeMap::new()),
@@ -1126,6 +1178,11 @@ impl App {
             || self.rename_dialog.is_some()
             || self.asset_import_dialog.is_some()
             || self.settings_open
+            || self.tools_panel.dialog_open()
+            || self.error.is_some()
+            || self.pending.is_some()
+            || self.pending_template.is_some()
+            || (!self.recovery_candidates.is_empty() && self.screenshot.is_none())
         {
             return;
         }
@@ -1166,8 +1223,10 @@ impl App {
             self.play_current();
         }
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::F6)) {
-            self.compile();
-            self.view = View::Checks;
+            if self.open_center(Center::Node) {
+                self.compile();
+                self.view = View::Checks;
+            }
         }
         if ctx.input_mut(|i| {
             i.consume_key(
@@ -1175,13 +1234,14 @@ impl App {
                 egui::Key::F,
             )
         }) {
-            self.center = Center::Advanced;
-            self.advanced.page = 0;
+            if self.open_center(Center::Advanced) {
+                self.advanced.page = 0;
+            }
         }
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::F1)) {
-            self.center = Center::Tools;
+            self.tools_panel.open_help();
         }
-        if !ctx.wants_keyboard_input() {
+        if !ctx.wants_keyboard_input() && matches!(self.center, Center::Node | Center::Chapter) {
             if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::C)) {
                 self.copy();
             }
@@ -1210,10 +1270,12 @@ impl App {
             }
         }
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::L)) {
-            self.center = Center::Assets;
+            self.navigate(Section::Materials);
         }
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::F7)) {
-            self.view = View::Graph;
+            if self.open_center(Center::Node) {
+                self.view = View::Graph;
+            }
         }
     }
     fn toolbar(&mut self, ctx: &egui::Context) {
@@ -1230,9 +1292,13 @@ impl App {
                         self.settings_error = None;
                     }
                     ui.menu_button(tr("文件"), |ui| {
-                        if ui.button(tr("新建项目")).clicked() {
+                        if ui.button(tr("新建自由剧本")).clicked() {
                             ui.close();
                             self.request(Pending::New, ctx);
+                        }
+                        if ui.button(tr("新建原版附加剧情")).clicked() {
+                            ui.close();
+                            self.request(Pending::NewAddon,ctx);
                         }
                         ui.menu_button(tr("从模板新建"), |ui| {
                             let templates: Value = serde_json::from_str(include_str!(
@@ -1286,6 +1352,11 @@ impl App {
                             ui.close();
                             self.save(false);
                         }
+                        ui.separator();
+                        if ui.button(tr("作品设置…")).clicked() {
+                            self.open_center(Center::Manifest);
+                            ui.close();
+                        }
                         if ui.button(tr("另存项目目录…")).clicked() {
                             ui.close();
                             self.save(true);
@@ -1294,9 +1365,18 @@ impl App {
                             ui.close();
                             self.export();
                         }
-                        if ui.button(tr("选择预览素材库…")).clicked() {
+                        if ui.button(tr("从游戏提取预览素材…")).clicked() {
                             ui.close();
-                            if let Some(path) = rfd::FileDialog::new().pick_folder() {
+                            self.tools_panel.start_extraction();
+                        }
+                        if ui.button(tr("选择预览素材库…")).on_hover_text(tr("选择包含 preview_map.json 的已提取素材库；选择游戏目录则自动开始提取。")).clicked() {
+                            ui.close();
+                            if let Some(path) = rfd::FileDialog::new()
+                                .set_title(tr("选择已提取的素材库（含 preview_map.json），或选择游戏安装目录进行提取"))
+                                .pick_folder() {
+                                if path.join("Mortal_Data").is_dir() || path.file_name().is_some_and(|name| name == "Mortal_Data") {
+                                    self.tools_panel.start_extraction_from(path);
+                                } else {
                                 match self.preview.set_library(&path) {
                                     Ok(()) => {
                                         self.status = format!("预览素材库：{}", path.display());
@@ -1305,12 +1385,13 @@ impl App {
                                         )
                                         .unwrap_or(json!({}));
                                         prefs["preview_library_dir"] = json!(path);
-                                        let _ = lom_core::project::atomic_write(
+                                        if let Err(error) = lom_core::project::atomic_write(
                                             &user_root().join("rust/preferences.json"),
                                             &lom_core::stable_json(&prefs).unwrap_or_default(),
-                                        );
+                                        ) { self.error = Some(format!("素材已载入，但无法记住素材位置：{error:#}")); }
                                     }
                                     Err(e) => self.error = Some(e.to_string()),
+                                }
                                 }
                             }
                         }
@@ -1338,20 +1419,16 @@ impl App {
                             self.redo();
                             ui.close();
                         }
-                        if ui.button(tr("复制")).clicked() {
+                        if ui.add_enabled(matches!(self.center, Center::Node | Center::Chapter), egui::Button::new(tr("复制"))).clicked() {
                             self.copy();
                             ui.close();
                         }
-                        if ui.button(tr("粘贴")).clicked() {
+                        if ui.add_enabled(matches!(self.center, Center::Node | Center::Chapter), egui::Button::new(tr("粘贴"))).clicked() {
                             self.paste();
                             ui.close();
                         }
-                        if ui.button(tr("作品设置")).clicked() {
-                            self.center = Center::Manifest;
-                            ui.close();
-                        }
                         if ui.button(tr("多语言")).clicked() {
-                            self.center = Center::Localization;
+                            self.open_center(Center::Localization);
                             ui.close();
                         }
                         ui.separator();
@@ -1387,7 +1464,7 @@ impl App {
                             }
                         });
                     });
-                    ui.menu_button(tr("创作工具"), |ui| {
+                    ui.menu_button(tr("剧情工具"), |ui| {
                         for (page, label) in [
                             "全局查找",
                             "变量管理",
@@ -1400,26 +1477,38 @@ impl App {
                         .enumerate()
                         {
                             if ui.button(tr(label)).clicked() {
-                                self.advanced.page = page;
-                                self.center = Center::Advanced;
+                                if self.open_center(Center::Advanced) { self.advanced.page = page; }
                                 ui.close();
                             }
                         }
                         ui.separator();
-                        if ui.button(tr("创作工具")).clicked() {
-                            self.center = Center::Tools;
+                        if ui.button(tr("批量修改与模板")).clicked() {
+                            self.open_tool_page(ToolPage::Editing);
+                            ui.close();
+                        }
+                        if ui.button(tr("迁移与诊断")).clicked() {
+                            self.open_tool_page(ToolPage::Maintenance);
                             ui.close();
                         }
                         if ui.button(tr("检查项目")).clicked() {
+                            self.navigate(Section::Story);
                             self.compile();
                             self.view = View::Checks;
                             ui.close();
                         }
                         if ui.button(tr("统计")).clicked() {
+                            self.navigate(Section::Story);
                             self.view = View::Statistics;
                             ui.close();
                         }
                     });
+                    if ui
+                        .button(crate::i18n::key("menu.help_item"))
+                        .on_hover_text("F1")
+                        .clicked()
+                    {
+                        self.tools_panel.open_help();
+                    }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui
                             .add_enabled(
@@ -1429,9 +1518,6 @@ impl App {
                             .clicked()
                         {
                             self.play_current();
-                        }
-                        if ui.button(crate::i18n::key("toolbar.library")).clicked() {
-                            self.center = Center::Assets;
                         }
                         if ui
                             .add(
@@ -1444,9 +1530,108 @@ impl App {
                         }
                     });
                 });
+                ui.add_space(6.0);
+                ui.horizontal_wrapped(|ui| {
+                    for (section, label) in [
+                        (Section::Story, "剧情编辑"),
+                        (Section::Materials, "素材管理"),
+                        (Section::Game, "游戏与 MOD"),
+                        (Section::Release, "发布"),
+                    ] {
+                        if ui.add_sized([112.0, 30.0], egui::Button::selectable(self.section() == section, tr(label))).clicked() {
+                            self.navigate(section);
+                        }
+                    }
+                });
             });
     }
+    fn section(&self) -> Section {
+        match self.center {
+            Center::Assets => Section::Materials,
+            Center::Tools => match self.tools_panel.page {
+                ToolPage::Previews | ToolPage::Library => Section::Materials,
+                ToolPage::Game => Section::Game,
+                ToolPage::Release => Section::Release,
+                _ => Section::Story,
+            },
+            _ => Section::Story,
+        }
+    }
+    fn open_tool_page(&mut self, page: ToolPage) {
+        if self.open_center(Center::Tools) {
+            self.tools_panel.page = page;
+        }
+    }
+    fn open_center(&mut self, center: Center) -> bool {
+        if !self.apply_pending_drafts() {
+            return false;
+        }
+        self.flush();
+        self.center = center;
+        if matches!(center, Center::Events | Center::Tasks | Center::Manifest) {
+            self.auto = false;
+            self.audio.stop();
+        }
+        true
+    }
+    fn navigate(&mut self, section: Section) {
+        if self.section() == section && section != Section::Story {
+            return;
+        }
+        if !self.apply_pending_drafts() {
+            return;
+        }
+        self.flush();
+        match section {
+            Section::Story => self.center = Center::Node,
+            Section::Materials => self.center = Center::Assets,
+            Section::Game => self.open_tool_page(ToolPage::Game),
+            Section::Release => self.open_tool_page(ToolPage::Release),
+        }
+    }
+    fn story_panels_visible(&self) -> bool {
+        self.section() == Section::Story
+            && !(self.center == Center::Tools && self.tools_panel.page == ToolPage::Maintenance)
+    }
+    fn material_navigation(&mut self, ui: &mut egui::Ui) {
+        ui.heading(tr("素材管理"));
+        ui.horizontal_wrapped(|ui| {
+            if ui
+                .selectable_label(self.center == Center::Assets, tr("作品素材"))
+                .clicked()
+                && self.apply_pending_drafts()
+            {
+                self.center = Center::Assets;
+            }
+            for (page, label) in [
+                (ToolPage::Previews, "游戏预览素材"),
+                (ToolPage::Library, "共享内容库"),
+            ] {
+                if ui
+                    .selectable_label(
+                        self.center == Center::Tools && self.tools_panel.page == page,
+                        tr(label),
+                    )
+                    .clicked()
+                {
+                    self.open_tool_page(page);
+                }
+            }
+        });
+        ui.separator();
+    }
     fn play_current(&mut self) {
+        if !self.apply_pending_drafts() {
+            return;
+        }
+        if cfg!(windows) {
+            self.tools_panel.refresh_game();
+            if !self.tools_panel.ready_to_play() {
+                self.open_tool_page(ToolPage::Game);
+                self.status = tr("请先完成游戏配置，再返回剧情试玩。");
+                return;
+            }
+        }
         self.flush();
         let story = self.story();
         let node = story["nodes"][self.selected]["id"]
@@ -1471,6 +1656,72 @@ impl App {
             .show(ctx, |ui| {
                 if self.screenshot.is_some() && self.frame == 12 {
                     println!("Layout navigation width: {}", ui.max_rect().width());
+                }
+                if self.project.scenario.is_some() {
+                    ui.strong(
+                        self.project.manifest["name"]
+                            .as_str()
+                            .unwrap_or("未命名作品"),
+                    );
+                    ui.horizontal(|ui| {
+                        ui.small(tr(if self.project.manifest["play_mode"] == "addon" {
+                            "原版附加剧情"
+                        } else {
+                            "自由剧本"
+                        }));
+                        if ui.small_button(tr("作品设置…")).clicked() {
+                            self.open_center(Center::Manifest);
+                        }
+                    });
+                    ui.add_space(8.0);
+                    ui.horizontal(|ui| {
+                        if ui
+                            .selectable_label(
+                                matches!(self.center, Center::Node | Center::Chapter),
+                                tr("剧情内容"),
+                            )
+                            .clicked()
+                        {
+                            self.open_center(Center::Node);
+                        }
+                        if ui
+                            .selectable_label(
+                                matches!(self.center, Center::Events | Center::Tasks),
+                                tr("剧情安排"),
+                            )
+                            .clicked()
+                        {
+                            self.open_center(Center::Events);
+                        }
+                    });
+                    ui.separator();
+                    if matches!(self.center, Center::Events | Center::Tasks) {
+                        let task_page = self.center == Center::Tasks;
+                        egui::ScrollArea::vertical()
+                            .id_salt("scenario_navigation")
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                if let Some(tasks) = crate::scenario_panel::navigation(
+                                    ui,
+                                    &mut self.project,
+                                    task_page,
+                                    &mut self.scenario_selection,
+                                ) {
+                                    self.open_center(if tasks {
+                                        Center::Tasks
+                                    } else {
+                                        Center::Events
+                                    });
+                                }
+                            });
+                        return;
+                    }
+                    if self.center == Center::Manifest {
+                        ui.strong(tr("作品设置"));
+                        ui.small(tr("这里设置整部作品的名称、作者和运行方式。"));
+                        return;
+                    }
+                    ui.small(tr("一段剧情包含对话、选项和画面演出。"));
                 }
                 egui::TopBottomPanel::bottom("add-step-bottom")
                     .frame(egui::Frame::new().inner_margin(egui::Margin::symmetric(0, 5)))
@@ -1506,6 +1757,11 @@ impl App {
                                             .flatten()
                                             .filter_map(Value::as_str)
                                         {
+                                            if self.project.scenario.is_some()
+                                                && !lom_core::scenario::performance_node(kind)
+                                            {
+                                                continue;
+                                            }
                                             if !self.node_search.is_empty()
                                                 && !format!("{} {kind}", self.catalog.label(kind))
                                                     .to_lowercase()
@@ -1592,7 +1848,7 @@ impl App {
                             ui.close();
                         }
                         if ui.button(tr("存为模板")).clicked() {
-                            self.center = Center::Tools;
+                            self.open_tool_page(ToolPage::Editing);
                             ui.close();
                         }
                         ui.separator();
@@ -1712,7 +1968,13 @@ impl App {
                                 authoring::Row::Node { index, depth } => (index, depth),
                             };
                             let node = &nodes[index];
-                            let summary = if node["type"] == "end" {
+                            let summary = if node["type"] == "parallel" {
+                                format!(
+                                    "{} {}",
+                                    node["actions"].as_array().map_or(0, Vec::len),
+                                    tr("个同时动作")
+                                )
+                            } else if node["type"] == "end" {
                                 if let Some(next) =
                                     node["next_script"].as_str().filter(|s| !s.is_empty())
                                 {
@@ -1869,7 +2131,82 @@ impl App {
                     });
             });
     }
+    fn sync_preview_selection(&mut self) {
+        let location = (self.current.clone(), self.selected);
+        if self.preview_location != location {
+            self.preview_location = location;
+            self.auto = false;
+            self.preview_elapsed = None;
+            self.last_step = Instant::now();
+        }
+    }
+    fn follow_scenario_link(&mut self, link: crate::scenario_panel::Navigate) {
+        use crate::scenario_panel::Navigate;
+        match link {
+            Navigate::Story(id) => {
+                if self.open_center(Center::Node) && self.project.stories.contains_key(&id) {
+                    self.current = id;
+                    self.selected = 0;
+                    self.multiselect.clear();
+                    self.needs_compile = true;
+                }
+            }
+            Navigate::Event(id) => {
+                if self.open_center(Center::Events) {
+                    self.scenario_selection.event = Some(id);
+                }
+            }
+            Navigate::Task(id) => {
+                if self.open_center(Center::Tasks) {
+                    self.scenario_selection.task = Some(id);
+                }
+            }
+        }
+    }
     fn right(&mut self, ctx: &egui::Context) {
+        if self.project.scenario.is_some()
+            && matches!(
+                self.center,
+                Center::Events | Center::Tasks | Center::Manifest
+            )
+        {
+            egui::SidePanel::right("scenario_context")
+                .frame(surface(true))
+                .default_width(300.0)
+                .min_width(280.0)
+                .max_width((ctx.available_rect().width() - 350.0).max(280.0))
+                .resizable(true)
+                .show(ctx, |ui| {
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        if self.center == Center::Manifest {
+                            ui.heading(tr("作品概览"));
+                            ui.label(tr(if self.project.manifest["play_mode"] == "addon" {
+                                "原版附加剧情：在原版流程中加入事件。"
+                            } else {
+                                "自由剧本：从自己的开场开始，使用独立存档。"
+                            }));
+                            ui.add_space(12.0);
+                            ui.label(format!("{} 段剧情", self.project.stories.len()));
+                            if let Some(c) = &self.project.scenario {
+                                ui.label(format!(
+                                    "{} 个事件 · {} 个任务",
+                                    c["events"].as_array().map_or(0, Vec::len),
+                                    c["tasks"].as_array().map_or(0, Vec::len)
+                                ));
+                            }
+                        } else if let Some(link) = crate::scenario_panel::context(
+                            ui,
+                            &self.project,
+                            self.center == Center::Tasks,
+                            &self.scenario_selection,
+                        ) {
+                            self.follow_scenario_link(link);
+                        }
+                    });
+                });
+            return;
+        }
+        self.sync_preview_selection();
         egui::SidePanel::right("preview")
             .frame(surface(true))
             .default_width(shell::PREVIEW_WIDTH)
@@ -1904,7 +2241,7 @@ impl App {
                         egui::TopBottomPanel::bottom("stage-transport")
                             .frame(egui::Frame::new().inner_margin(egui::Margin::symmetric(0, 5)))
                             .show_inside(ui, |ui| {
-                                ui.horizontal(|ui| {
+                                ui.horizontal_wrapped(|ui| {
                                     ui.add_space(((ui.available_width() - 350.0) / 2.0).max(0.0));
                                     if ui.button(crate::i18n::key("stage.home")).clicked() {
                                         self.selected = story["nodes"]
@@ -1939,13 +2276,46 @@ impl App {
                                         }))
                                         .clicked()
                                     {
-                                        self.auto = !self.auto;
-                                        self.last_step = Instant::now();
+                                        if self.auto {
+                                            self.preview_elapsed =
+                                                Some(self.last_step.elapsed().as_secs_f64());
+                                            self.auto = false;
+                                        } else {
+                                            self.last_step = Instant::now()
+                                                - Duration::from_secs_f64(
+                                                    self.preview_elapsed.unwrap_or(0.0),
+                                                );
+                                            self.preview_elapsed = Some(0.0);
+                                            self.auto = true;
+                                        }
                                     }
                                 });
+                                let node = &story["nodes"][self.selected];
+                                if node["type"] == "transition" {
+                                    ui.label(RichText::new(tr("黑幕转场预览（节奏示意）")).small());
+                                } else if preview::simulate(
+                                    &story,
+                                    node["id"].as_str().unwrap_or(""),
+                                )["blackout"]["amount"]
+                                    == 1.0
+                                {
+                                    ui.label(
+                                        RichText::new(tr("黑幕遮挡中；播放到揭幕步骤后显示画面"))
+                                            .small(),
+                                    );
+                                } else if node["type"] == "parallel" {
+                                    ui.label(RichText::new(tr("预览人物移动与淡入淡出")).small());
+                                }
                             });
+                        self.sync_preview_selection();
+                        let elapsed = if self.auto {
+                            Some(self.last_step.elapsed().as_secs_f64())
+                        } else {
+                            self.preview_elapsed
+                        };
                         if let Some(target) =
-                            self.preview.show(ui, &self.project, &story, self.selected)
+                            self.preview
+                                .show(ui, &self.project, &story, self.selected, elapsed)
                         {
                             if let Some(i) = story["nodes"].as_array().and_then(|a| {
                                 a.iter().position(|n| n["id"].as_str() == Some(&target))
@@ -2060,7 +2430,10 @@ impl App {
             .frame(surface(true))
             .show(ctx, |ui| {
                 egui::ScrollArea::vertical()
-                    .id_salt("properties")
+                    .id_salt(format!(
+                        "properties-{:?}-{:?}",
+                        self.center, self.tools_panel.page
+                    ))
                     .show(ui, |ui| match self.center {
                         Center::Node => {
                             let mut story = self.story();
@@ -2072,7 +2445,12 @@ impl App {
                                 .collect();
                             let stories = self.project.stories.keys().cloned().collect::<Vec<_>>();
                             if let Some(mut node) = story["nodes"].get(self.selected).cloned() {
-                                if self.catalog.node_form(ui, &mut node, &ids, &stories) {
+                                let response =
+                                    self.catalog.node_form(ui, &mut node, &ids, &stories);
+                                if let Some(kind) = response.help {
+                                    self.tools_panel.open_node_help(&kind);
+                                }
+                                if response.changed {
                                     story["nodes"][self.selected] = node.clone();
                                     self.project
                                         .stories
@@ -2092,8 +2470,25 @@ impl App {
                                 &self.project.stories.keys().cloned().collect::<Vec<_>>(),
                             );
                         }
+                        Center::Events => crate::scenario_panel::show(
+                            ui,
+                            &mut self.project,
+                            &self.catalog,
+                            false,
+                            &self.scenario_selection,
+                        ),
+                        Center::Tasks => crate::scenario_panel::show(
+                            ui,
+                            &mut self.project,
+                            &self.catalog,
+                            true,
+                            &self.scenario_selection,
+                        ),
                         Center::Localization => self.localization(ui),
-                        Center::Assets => self.assets(ui),
+                        Center::Assets => {
+                            self.material_navigation(ui);
+                            self.assets(ui);
+                        }
                         Center::Tools => self.tools(ui),
                         Center::Advanced => {
                             if let Some((sid, nid)) =
@@ -2422,7 +2817,7 @@ impl App {
         self.project.stories.insert(self.current.clone(), s);
     }
     fn assets(&mut self, ui: &mut egui::Ui) {
-        ui.heading(tr("作品内容库"));
+        ui.strong(tr("作品素材"));
         ui.add_space(4.0);
         if ui.button(tr("导入素材…")).clicked() && self.apply_pending_drafts() {
             self.asset_import_dialog = Some(AssetImportDialog {
@@ -2641,12 +3036,42 @@ impl App {
         let mut portraits = serde_json::Map::new();
         let mut main = String::new();
         for (i, path) in paths.iter().enumerate() {
-            let name = path
+            let original_name = path
                 .file_name()
                 .and_then(|s| s.to_str())
                 .ok_or_else(|| anyhow::anyhow!("文件名无效"))?
                 .to_owned();
-            anyhow::ensure!(!name.contains(':') && !name.contains('\\'), "文件名不合法");
+            anyhow::ensure!(
+                !original_name.contains(':') && !original_name.contains('\\'),
+                "文件名不合法"
+            );
+            // Different directories may contain normal.png. Keep the first file,
+            // and allocate a package filename without stealing another selection's name.
+            let name =
+                if payload.keys().any(|key: &String| {
+                    key.eq_ignore_ascii_case(&format!("{prefix}/{original_name}"))
+                }) {
+                    let stem = path
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("portrait");
+                    let extension = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+                    (1..)
+                        .map(|n| format!("{stem}_{n}.{extension}"))
+                        .find(|candidate| {
+                            !payload.keys().any(|key| {
+                                key.eq_ignore_ascii_case(&format!("{prefix}/{candidate}"))
+                            }) && !paths.iter().any(|selected| {
+                                selected
+                                    .file_name()
+                                    .and_then(|s| s.to_str())
+                                    .is_some_and(|name| name.eq_ignore_ascii_case(candidate))
+                            })
+                        })
+                        .unwrap()
+                } else {
+                    original_name
+                };
             let ext = path
                 .extension()
                 .and_then(|s| s.to_str())
@@ -2703,12 +3128,6 @@ impl App {
                     portraits.insert(portrait, name.clone().into());
                 }
             }
-            anyhow::ensure!(
-                !payload
-                    .keys()
-                    .any(|key: &String| key.eq_ignore_ascii_case(&format!("{prefix}/{name}"))),
-                "所选文件存在同名素材，请分别导入。"
-            );
             payload.insert(format!("{prefix}/{name}"), bytes);
         }
         anyhow::ensure!(!main.is_empty(), "未选择素材");
@@ -2735,27 +3154,29 @@ impl App {
         Ok(())
     }
     fn tools(&mut self, ui: &mut egui::Ui) {
-        ui.heading(tr("创作工具"));
-        self.tools_panel.show(ui, &mut self.project);
-        if let Some((sid, nid)) = self.tools_panel.take_location() {
-            if let Some(story) = self.project.stories.get(&sid) {
-                if let Some(index) = nid.and_then(|nid| {
-                    story["nodes"]
-                        .as_array()
-                        .and_then(|ns| ns.iter().position(|n| n["id"] == nid))
-                }) {
-                    self.selected = index;
-                    self.center = Center::Node;
-                } else {
-                    self.center = Center::Chapter;
+        let page = self.tools_panel.page;
+        if matches!(page, ToolPage::Previews | ToolPage::Library) {
+            self.material_navigation(ui);
+        } else {
+            ui.heading(tr(page.title()));
+        }
+        if page == ToolPage::Game && !cfg!(windows) {
+            ui.horizontal_wrapped(|ui| {
+                if ui.button(tr("游戏预览素材")).clicked() {
+                    self.open_tool_page(ToolPage::Previews);
                 }
-                self.current = sid;
-                self.multiselect.clear();
-                self.search.clear();
-                self.needs_compile = true;
-            } else {
-                self.center = Center::Manifest;
-            }
+                if ui.button(tr("前往发布与导出")).clicked() {
+                    self.open_tool_page(ToolPage::Release);
+                }
+            });
+            ui.add_space(8.0);
+        }
+        self.tools_panel.show(ui, &mut self.project);
+        if self.tools_panel.take_export_request() {
+            self.export();
+        }
+        if page != ToolPage::Editing {
+            return;
         }
         ui.collapsing(tr("批量修改选中步骤字段"), |ui| {
             let story = self.story();
@@ -2908,19 +3329,16 @@ impl App {
         });
         ui.separator();
         ui.horizontal_wrapped(|ui|{
-            if ui.button(tr("变量 / 条件 / 引用分析")).clicked(){self.tools_report=lom_core::analysis::analyze_project(&self.project.stories,&self.project.manifest);}
-            if ui.button(tr("运行项目离线测试")).clicked(){let cases:Vec<Value>=self.project.stories.values().flat_map(|s|s["_editor"]["tests"].as_array().cloned().unwrap_or_default()).collect();if cases.is_empty(){self.error=Some("还没有定义离线测试。请打开章节设置，添加测试并填写初始变量、选项和断言。".into());}else{match lom_core::analysis::run_story_tests(&self.project.stories,&Value::Array(cases)){Ok(result)=>self.tools_report=result,Err(e)=>self.error=Some(e.to_string())}}}
-            if ui.button(tr("从入口模拟当前章节")).clicked(){let case=json!([{"name":"入口路径模拟","story":self.current,"initial":{"variables":{},"flags":{}},"actions":{"choices":[]},"assert":{}}]);match lom_core::analysis::run_story_tests(&self.project.stories,&case){Ok(r)=>self.tools_report=r,Err(e)=>self.error=Some(e.to_string())}}
+            if ui.button(tr("变量 / 条件 / 引用分析")).clicked(){self.tools_report=lom_core::analysis::analyze_project(&self.project.stories,&self.project.manifest);self.tools_panel.present("变量 / 条件 / 引用分析", self.tools_report.clone());}
+            if ui.button(tr("运行项目离线测试")).clicked(){let cases:Vec<Value>=self.project.stories.values().flat_map(|s|s["_editor"]["tests"].as_array().cloned().unwrap_or_default()).collect();if cases.is_empty(){self.error=Some("还没有定义离线测试。请打开章节设置，添加测试并填写初始变量、选项和断言。".into());}else{match lom_core::analysis::run_story_tests(&self.project.stories,&Value::Array(cases)){Ok(result)=>{self.tools_report=result;self.tools_panel.present("运行项目离线测试", self.tools_report.clone());},Err(e)=>self.error=Some(e.to_string())}}}
+            if ui.button(tr("从入口模拟当前章节")).clicked(){let case=json!([{"name":"入口路径模拟","story":self.current,"initial":{"variables":{},"flags":{}},"actions":{"choices":[]},"assert":{}}]);match lom_core::analysis::run_story_tests(&self.project.stories,&case){Ok(r)=>{self.tools_report=r;self.tools_panel.present("从入口模拟当前章节", self.tools_report.clone());},Err(e)=>self.error=Some(e.to_string())}}
         });
         ui.label(
-            RichText::new(tr(
-                "离线模拟遇到未知游戏状态会报告 unsupported，不会伪造战斗胜负。",
-            ))
-            .small()
-            .color(Color32::GRAY),
+            RichText::new(tr("离线模拟无法确定的游戏状态会标为“需要在游戏中确认”。"))
+                .small()
+                .color(Color32::GRAY),
         );
         ui.separator();
-        report(ui, &self.tools_report, 0);
     }
     fn diagnostic(&mut self) {
         if let Some(path) = rfd::FileDialog::new()
@@ -2930,7 +3348,7 @@ impl App {
             let issues = lom_core::release::run_preflight(
                 &self.project,
                 lom_core::release::Profile::Editing,
-                "1.1.2",
+                "1.1.3",
             );
             match lom_core::release::export_diagnostic_bundle(
                 &path,
@@ -2960,6 +3378,10 @@ impl App {
             && self.chapter_dialog.is_none()
             && self.rename_dialog.is_none()
             && self.asset_import_dialog.is_none()
+            && self.error.is_none()
+            && self.pending.is_none()
+            && self.pending_template.is_none()
+            && self.recovery_candidates.is_empty()
         {
             self.dialog_ime = false;
             return (false, false);
@@ -2993,30 +3415,59 @@ impl App {
         })
     }
     fn dialogs(&mut self, ctx: &egui::Context) {
+        if self.tools_panel.dialog_open() {
+            return;
+        }
         let (return_pressed, escape_pressed) = self.dialog_keys(ctx);
+        if let Some(message) = self.error.clone() {
+            let mut close = false;
+            egui::Modal::new(egui::Id::new("operation-error"))
+                .frame(shell::dialog_frame())
+                .show(ctx, |ui| {
+                    ui.set_width(460.0_f32.min(ctx.content_rect().width() - 80.0));
+                    close |= shell::dialog_header(ui, &tr("操作未完成"));
+                    egui::ScrollArea::vertical()
+                        .max_height(ctx.content_rect().height() * 0.5)
+                        .show(ui, |ui| {
+                            ui.label(message);
+                        });
+                    ui.add_space(16.0);
+                    shell::dialog_buttons(ui, |ui| {
+                        close |= ui
+                            .add_sized([80.0, 30.0], egui::Button::new(tr("知道了")))
+                            .clicked();
+                    });
+                });
+            if close || escape_pressed {
+                self.error = None;
+            }
+            return;
+        }
         if self.settings_open {
             let mut close = false;
             let mut selected = None;
-            egui::Modal::new(egui::Id::new("application-settings")).show(ctx, |ui| {
-                ui.set_width(360.0);
-                ui.heading(tr("设置"));
-                ui.add_space(16.0);
-                ui.label(tr("界面语言"));
-                for (locale, name) in crate::i18n::LOCALES.into_iter().zip(crate::i18n::NAMES) {
-                    if ui.radio(crate::i18n::locale() == locale, name).clicked() {
-                        selected = Some(locale);
+            egui::Modal::new(egui::Id::new("application-settings"))
+                .frame(shell::dialog_frame())
+                .show(ctx, |ui| {
+                    ui.set_width(360.0);
+                    close |= shell::dialog_header(ui, &tr("设置"));
+                    ui.add_space(16.0);
+                    ui.label(tr("界面语言"));
+                    for (locale, name) in crate::i18n::LOCALES.into_iter().zip(crate::i18n::NAMES) {
+                        if ui.radio(crate::i18n::locale() == locale, name).clicked() {
+                            selected = Some(locale);
+                        }
                     }
-                }
-                if let Some(error) = &self.settings_error {
-                    ui.colored_label(Color32::from_rgb(179, 55, 49), error);
-                }
-                ui.add_space(16.0);
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    close = ui
-                        .add_sized([80.0, 30.0], egui::Button::new(tr("完成")))
-                        .clicked();
+                    if let Some(error) = &self.settings_error {
+                        ui.colored_label(Color32::from_rgb(179, 55, 49), error);
+                    }
+                    ui.add_space(16.0);
+                    shell::dialog_buttons(ui, |ui| {
+                        close |= ui
+                            .add_sized([80.0, 30.0], egui::Button::new(tr("完成")))
+                            .clicked();
+                    });
                 });
-            });
             if let Some(locale) = selected {
                 let prefs = user_root().join("rust/preferences.json");
                 self.settings_error = self
@@ -3027,58 +3478,68 @@ impl App {
             if close || escape_pressed {
                 self.settings_open = false;
             }
+            return;
         }
         if let Some(draft) = &mut self.asset_import_dialog {
             let mut submit = false;
             let mut cancel = false;
             let mut choose_files = false;
-            egui::Modal::new(egui::Id::new("asset-import")).show(ctx, |ui| {
-                ui.set_width(380.0);
-                ui.heading(tr("导入素材"));
-                ui.add_space(16.0);
-                let old_kind = draft.kind;
-                ui.label(format!("{} *", tr("素材类型")));
-                egui::ComboBox::from_id_salt("import-kind")
-                    .selected_text(tr(["图片", "角色", "音乐", "音效", "配音"][draft.kind]))
-                    .show_ui(ui, |ui| {
-                        for (i, kind) in ["图片", "角色", "音乐", "音效", "配音"].iter().enumerate()
-                        {
-                            ui.selectable_value(&mut draft.kind, i, tr(kind));
-                        }
-                    });
-                if old_kind != draft.kind {
-                    draft.paths.clear();
-                    draft.name.clear();
-                    draft.error = None;
-                }
-                choose_files = ui
-                    .button(format!(
-                        "{} *",
-                        tr(if draft.kind == 1 {
-                            "选择立绘文件…"
-                        } else {
-                            "选择文件…"
-                        })
-                    ))
-                    .clicked();
-                if !draft.paths.is_empty() {
-                    for path in &draft.paths {
-                        ui.label(path.file_name().unwrap_or_default().to_string_lossy());
+            egui::Modal::new(egui::Id::new("asset-import"))
+                .frame(shell::dialog_frame())
+                .show(ctx, |ui| {
+                    ui.set_width(380.0);
+                    cancel |= shell::dialog_header(ui, &tr("导入素材"));
+                    ui.add_space(16.0);
+                    let old_kind = draft.kind;
+                    ui.label(format!("{} *", tr("素材类型")));
+                    egui::ComboBox::from_id_salt("import-kind")
+                        .selected_text(tr(["图片", "角色", "音乐", "音效", "配音"][draft.kind]))
+                        .show_ui(ui, |ui| {
+                            for (i, kind) in
+                                ["图片", "角色", "音乐", "音效", "配音"].iter().enumerate()
+                            {
+                                ui.selectable_value(&mut draft.kind, i, tr(kind));
+                            }
+                        });
+                    if old_kind != draft.kind {
+                        draft.paths.clear();
+                        draft.name.clear();
+                        draft.error = None;
                     }
-                    ui.label(format!("{} *", tr("素材名称")));
-                    ui.add(
-                        egui::TextEdit::singleline(&mut draft.name)
-                            .id(egui::Id::new("asset-import-name"))
-                            .desired_width(f32::INFINITY),
-                    );
-                }
-                if let Some(error) = &draft.error {
-                    ui.colored_label(Color32::from_rgb(179, 55, 49), tr(error));
-                }
-                let can_submit = !draft.paths.is_empty() && !draft.name.trim().is_empty();
-                (submit, cancel) = dialog_actions(ui, "导入", can_submit);
-                submit |= return_pressed && can_submit;
-            });
+                    choose_files = ui
+                        .button(format!(
+                            "{} *",
+                            tr(if draft.kind == 1 {
+                                if draft.paths.is_empty() {
+                                    "选择立绘文件…"
+                                } else {
+                                    "继续添加立绘…"
+                                }
+                            } else {
+                                "选择文件…"
+                            })
+                        ))
+                        .clicked();
+                    if !draft.paths.is_empty() {
+                        for path in &draft.paths {
+                            ui.label(path.file_name().unwrap_or_default().to_string_lossy());
+                        }
+                        ui.label(format!("{} *", tr("素材名称")));
+                        ui.add(
+                            egui::TextEdit::singleline(&mut draft.name)
+                                .id(egui::Id::new("asset-import-name"))
+                                .desired_width(f32::INFINITY),
+                        );
+                    }
+                    if let Some(error) = &draft.error {
+                        ui.colored_label(Color32::from_rgb(179, 55, 49), tr(error));
+                    }
+                    let can_submit = !draft.paths.is_empty() && !draft.name.trim().is_empty();
+                    let actions = dialog_actions(ui, "导入", can_submit);
+                    submit = actions.0;
+                    cancel |= actions.1;
+                    submit |= return_pressed && can_submit;
+                });
             if cancel || escape_pressed {
                 self.asset_import_dialog = None;
             } else if choose_files {
@@ -3099,19 +3560,14 @@ impl App {
                         .map(|path| vec![path])
                 };
                 if let Some(paths) = paths {
-                    draft.name = paths
-                        .first()
-                        .and_then(|path| path.file_stem())
-                        .map(|name| name.to_string_lossy().into_owned())
-                        .unwrap_or_default();
-                    draft.paths = paths;
-                    draft.error = None;
+                    draft.select_files(paths);
                 }
             } else if submit {
                 if let Err(error) = self.commit_asset_import() {
                     self.asset_import_dialog.as_mut().unwrap().error = Some(error.to_string());
                 }
             }
+            return;
         }
         if let Some(draft) = &mut self.chapter_dialog {
             let mut submit = false;
@@ -3120,26 +3576,30 @@ impl App {
                 ChapterAction::New => "新建章节",
                 ChapterAction::Duplicate(_) => "复制章节",
             };
-            egui::Modal::new(egui::Id::new("chapter-create")).show(ctx, |ui| {
-                ui.set_width(360.0);
-                ui.heading(tr(title));
-                ui.add_space(16.0);
-                ui.label(format!("{} *", tr("章节名称")));
-                let name = ui.add(
-                    egui::TextEdit::singleline(&mut draft.name)
-                        .id(egui::Id::new("chapter-name"))
-                        .desired_width(f32::INFINITY),
-                );
-                if std::mem::take(&mut draft.focus_name) {
-                    name.request_focus();
-                }
-                if let Some(error) = &draft.error {
-                    ui.colored_label(Color32::from_rgb(179, 55, 49), tr(error));
-                }
-                let can_submit = !draft.name.trim().is_empty();
-                (submit, cancel) = dialog_actions(ui, "创建", can_submit);
-                submit |= return_pressed && can_submit;
-            });
+            egui::Modal::new(egui::Id::new("chapter-create"))
+                .frame(shell::dialog_frame())
+                .show(ctx, |ui| {
+                    ui.set_width(360.0);
+                    cancel |= shell::dialog_header(ui, &tr(title));
+                    ui.add_space(16.0);
+                    ui.label(format!("{} *", tr("章节名称")));
+                    let name = ui.add(
+                        egui::TextEdit::singleline(&mut draft.name)
+                            .id(egui::Id::new("chapter-name"))
+                            .desired_width(f32::INFINITY),
+                    );
+                    if std::mem::take(&mut draft.focus_name) {
+                        name.request_focus();
+                    }
+                    if let Some(error) = &draft.error {
+                        ui.colored_label(Color32::from_rgb(179, 55, 49), tr(error));
+                    }
+                    let can_submit = !draft.name.trim().is_empty();
+                    let actions = dialog_actions(ui, "创建", can_submit);
+                    submit = actions.0;
+                    cancel |= actions.1;
+                    submit |= return_pressed && can_submit;
+                });
             if cancel || escape_pressed {
                 self.chapter_dialog = None;
             } else if submit {
@@ -3147,6 +3607,7 @@ impl App {
                     self.chapter_dialog.as_mut().unwrap().error = Some(error.to_string());
                 }
             }
+            return;
         }
         if let Some(draft) = &mut self.rename_dialog {
             let mut submit = false;
@@ -3155,27 +3616,31 @@ impl App {
                 RenameTarget::Node { .. } => "修改步骤标识",
                 RenameTarget::Chapter(_) => "修改章节标识",
             };
-            egui::Modal::new(egui::Id::new("advanced-rename")).show(ctx, |ui| {
-                ui.set_width(380.0);
-                ui.heading(tr(title));
-                ui.add_space(16.0);
-                ui.label(tr("内部标识用于流程引用，修改时会同步关联内容。"));
-                ui.label(format!("{} *", tr("内部标识")));
-                let field = ui.add(
-                    egui::TextEdit::singleline(&mut draft.value)
-                        .id(egui::Id::new("advanced-rename-value"))
-                        .desired_width(f32::INFINITY),
-                );
-                if std::mem::take(&mut draft.focus_name) {
-                    field.request_focus();
-                }
-                if let Some(error) = &draft.error {
-                    ui.colored_label(Color32::from_rgb(179, 55, 49), tr(error));
-                }
-                let can_submit = !draft.value.trim().is_empty();
-                (submit, cancel) = dialog_actions(ui, "应用", can_submit);
-                submit |= return_pressed && can_submit;
-            });
+            egui::Modal::new(egui::Id::new("advanced-rename"))
+                .frame(shell::dialog_frame())
+                .show(ctx, |ui| {
+                    ui.set_width(380.0);
+                    cancel |= shell::dialog_header(ui, &tr(title));
+                    ui.add_space(16.0);
+                    ui.label(tr("内部标识用于流程引用，修改时会同步关联内容。"));
+                    ui.label(format!("{} *", tr("内部标识")));
+                    let field = ui.add(
+                        egui::TextEdit::singleline(&mut draft.value)
+                            .id(egui::Id::new("advanced-rename-value"))
+                            .desired_width(f32::INFINITY),
+                    );
+                    if std::mem::take(&mut draft.focus_name) {
+                        field.request_focus();
+                    }
+                    if let Some(error) = &draft.error {
+                        ui.colored_label(Color32::from_rgb(179, 55, 49), tr(error));
+                    }
+                    let can_submit = !draft.value.trim().is_empty();
+                    let actions = dialog_actions(ui, "应用", can_submit);
+                    submit = actions.0;
+                    cancel |= actions.1;
+                    submit |= return_pressed && can_submit;
+                });
             if cancel || escape_pressed {
                 self.rename_dialog = None;
             } else if submit {
@@ -3183,94 +3648,141 @@ impl App {
                     self.rename_dialog.as_mut().unwrap().error = Some(error.to_string());
                 }
             }
+            return;
         }
         if let Some((nodes, warnings)) = self.pending_template.clone() {
-            egui::Window::new(tr("模板边界引用"))
-                .collapsible(false)
-                .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
+            let mut cancel = false;
+            let mut insert = false;
+            egui::Modal::new(egui::Id::new("template-boundary"))
+                .frame(shell::dialog_frame())
                 .show(ctx, |ui| {
+                    ui.set_width(460.0);
+                    cancel |= shell::dialog_header(ui, &tr("模板边界引用"));
                     ui.label(tr("插入前请核对这些跨出模板范围的流程："));
                     for warning in warnings {
                         ui.label(format!("• {warning}"));
                     }
-                    ui.horizontal(|ui| {
-                        if ui.button(tr("保留边界引用并插入")).clicked() {
-                            self.clipboard = nodes;
-                            self.paste();
-                            self.pending_template = None;
-                        }
-                        if ui.button(tr("取消")).clicked() {
-                            self.pending_template = None;
-                        }
-                    });
+                    (insert, cancel) = {
+                        let (submit, footer_cancel) = dialog_actions(ui, "保留引用并插入", true);
+                        (submit, cancel || footer_cancel)
+                    };
                 });
+            if cancel || escape_pressed {
+                self.pending_template = None;
+            } else if insert {
+                self.clipboard = nodes;
+                self.paste();
+                self.pending_template = None;
+            }
+            return;
         }
         if self.pending.is_some() {
-            egui::Window::new(tr("尚有未保存修改"))
-                .collapsible(false)
-                .resizable(false)
-                .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
+            let mut cancel = false;
+            let mut save = false;
+            let mut discard = false;
+            egui::Modal::new(egui::Id::new("unsaved-changes"))
+                .frame(shell::dialog_frame())
                 .show(ctx, |ui| {
+                    ui.set_width(420.0);
+                    cancel |= shell::dialog_header(ui, &tr("尚有未保存修改"));
                     ui.label(tr("保存整个项目后再继续，或放弃本次修改。"));
-                    ui.horizontal(|ui| {
-                        if ui.button(tr("保存并继续")).clicked() && self.save(false) {
-                            if let Some(action) = self.pending.take() {
-                                self.perform(action, ctx);
-                            }
-                        }
-                        if ui.button(tr("放弃修改")).clicked() {
-                            if let Some(action) = self.pending.take() {
-                                self.perform(action, ctx);
-                            }
-                        }
-                        if ui.button(tr("取消")).clicked() {
-                            self.pending = None;
-                        }
+                    ui.add_space(20.0);
+                    shell::dialog_buttons(ui, |ui| {
+                        save = ui
+                            .add_sized(
+                                [108.0, 30.0],
+                                egui::Button::new(
+                                    RichText::new(tr("保存并继续")).color(Color32::WHITE),
+                                )
+                                .fill(ACCENT),
+                            )
+                            .clicked();
+                        cancel |= ui
+                            .add_sized([80.0, 30.0], egui::Button::new(tr("取消")))
+                            .clicked();
+                        discard = ui
+                            .add_sized([96.0, 30.0], egui::Button::new(tr("放弃修改")))
+                            .clicked();
                     });
                 });
-        }
-        if let Some(message) = self.error.clone() {
-            egui::Window::new(tr("操作未完成"))
-                .collapsible(false)
-                .resizable(true)
-                .default_width(520.0)
-                .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
-                .show(ctx, |ui| {
-                    ui.label(message);
-                    if ui.button(tr("知道了")).clicked() {
-                        self.error = None;
-                    }
-                });
+            if cancel || escape_pressed {
+                self.pending = None;
+            } else if discard || (save && self.save(false)) {
+                if let Some(action) = self.pending.take() {
+                    self.perform(action, ctx);
+                }
+            }
+            return;
         }
         if !self.recovery_candidates.is_empty() && self.screenshot.is_none() {
-            egui::Window::new(tr("发现未正常关闭的创作副本"))
-                .default_width(520.0)
-                .collapsible(false)
+            let mut close = false;
+            egui::Modal::new(egui::Id::new("recovery-candidates"))
+                .frame(shell::dialog_frame())
                 .show(ctx, |ui| {
-                    ui.label(tr("这些恢复副本不会覆盖原项目。恢复后请检查并保存。"));
-                    let candidates = self.recovery_candidates.clone();
-                    for path in candidates {
-                        ui.horizontal(|ui| {
-                            ui.label(path.file_name().unwrap_or_default().to_string_lossy());
-                            if ui.button(tr("恢复")).clicked() {
-                                self.request(Pending::Recover(path.clone()), ctx);
-                            }
-                            if ui.button(tr("移除副本")).clicked() {
-                                if recovery_owner_active(&path) {
-                                    self.error = Some("此副本仍有活跃的所有者，不能移除。".into());
-                                    return;
-                                }
-                                match std::fs::remove_dir_all(&path) {
-                                    Ok(()) => self.recovery_candidates.retain(|p| p != &path),
-                                    Err(e) => self.error = Some(e.to_string()),
-                                }
+                    ui.set_width(500.0_f32.min(ctx.content_rect().width() - 80.0));
+                    close |= shell::dialog_header(ui, &tr("恢复创作副本"));
+                    ui.label(tr(
+                        "发现上次未正常关闭时留下的副本。恢复后可检查并另行保存，不会覆盖原项目。",
+                    ));
+                    ui.add_space(12.0);
+                    egui::ScrollArea::vertical()
+                        .max_height(ctx.content_rect().height() * 0.45)
+                        .show(ui, |ui| {
+                            for path in self.recovery_candidates.clone() {
+                                let manifest = lom_core::load_json(path.join("manifest.json"))
+                                    .unwrap_or(Value::Null);
+                                let title = manifest["name"]
+                                    .as_str()
+                                    .filter(|s| !s.is_empty())
+                                    .unwrap_or("未命名作品");
+                                egui::Frame::group(ui.style())
+                                    .inner_margin(12)
+                                    .show(ui, |ui| {
+                                        ui.strong(title);
+                                        ui.label(
+                                            RichText::new(format!(
+                                                "副本 {}",
+                                                path.file_name()
+                                                    .unwrap_or_default()
+                                                    .to_string_lossy()
+                                            ))
+                                            .small()
+                                            .weak(),
+                                        );
+                                        ui.add_space(4.0);
+                                        shell::dialog_buttons(ui, |ui| {
+                                            if ui.button(tr("恢复")).clicked() {
+                                                self.request(Pending::Recover(path.clone()), ctx);
+                                            }
+                                            if ui.button(tr("移除副本")).clicked() {
+                                                if recovery_owner_active(&path) {
+                                                    self.error = Some(
+                                                        "此副本仍有活跃的所有者，不能移除。".into(),
+                                                    );
+                                                    return;
+                                                }
+                                                match std::fs::remove_dir_all(&path) {
+                                                    Ok(()) => self
+                                                        .recovery_candidates
+                                                        .retain(|p| p != &path),
+                                                    Err(e) => self.error = Some(e.to_string()),
+                                                }
+                                            }
+                                        });
+                                    });
                             }
                         });
-                    }
-                    if ui.button(tr("稍后处理")).clicked() {
-                        self.recovery_candidates.clear();
-                    }
+                    ui.add_space(16.0);
+                    shell::dialog_buttons(ui, |ui| {
+                        close |= ui
+                            .add_sized([100.0, 30.0], egui::Button::new(tr("稍后处理")))
+                            .clicked();
+                    });
                 });
+            // Dismissing hides the prompt for this session and never deletes a copy.
+            if close || escape_pressed {
+                self.recovery_candidates.clear();
+            }
         }
     }
 }
@@ -3279,6 +3791,33 @@ impl eframe::App for App {
         self.shell.clear_color()
     }
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        self.tools_panel.poll(ctx);
+        if std::mem::take(&mut self.preview.extract_requested) {
+            self.tools_panel.start_extraction();
+        }
+        if let Some(path) = self.tools_panel.take_preview_library() {
+            match self.preview.set_library(&path) {
+                Ok(()) => {
+                    let preference_path = user_root().join("rust/preferences.json");
+                    let result = (|| -> anyhow::Result<()> {
+                        let mut prefs = lom_core::load_json(&preference_path).unwrap_or(json!({}));
+                        anyhow::ensure!(prefs.is_object(), "偏好设置格式不正确");
+                        prefs["preview_library_dir"] = json!(path);
+                        lom_core::project::atomic_write(
+                            &preference_path,
+                            &lom_core::stable_json(&prefs)?,
+                        )
+                    })();
+                    if let Err(error) = result {
+                        self.error = Some(format!("素材已载入，但无法记住素材位置：{error:#}"));
+                    }
+                    self.status = tr("提取完成，预览素材已自动载入");
+                }
+                Err(error) => self
+                    .tools_panel
+                    .present("载入预览素材", json!({"error":format!("{error:#}")})),
+            }
+        }
         self.frame += 1;
         self.shell.install(frame);
         if let Err(error) = self.audio.update() {
@@ -3315,7 +3854,11 @@ impl eframe::App for App {
         if self.frame == 1 && self.screenshot.is_none() {
             self.remember_source();
         }
-        if self.auto && self.last_step.elapsed() > Duration::from_millis(1800) {
+        self.sync_preview_selection();
+        if self.auto
+            && self.last_step.elapsed().as_secs_f64()
+                >= preview::playback_duration(&self.story()["nodes"][self.selected])
+        {
             let story = self.story();
             let node = &story["nodes"][self.selected];
             let branching = [
@@ -3336,6 +3879,7 @@ impl eframe::App for App {
             ];
             if branching.contains(&node["type"].as_str().unwrap_or("")) {
                 self.auto = false;
+                self.preview_elapsed = Some(preview::playback_duration(node));
                 self.status = "流程在条件或选项处分叉，自动浏览已暂停".into();
             } else {
                 let targets = lom_core::analysis::successors(&story, self.selected);
@@ -3345,11 +3889,15 @@ impl eframe::App for App {
                         .and_then(|nodes| nodes.iter().position(|n| n["id"] == targets[0]))
                     {
                         self.selected = index;
+                        self.preview_location = (self.current.clone(), index);
+                        self.preview_elapsed = Some(0.0);
                     } else {
                         self.auto = false;
+                        self.preview_elapsed = Some(preview::playback_duration(node));
                     }
                 } else {
                     self.auto = false;
+                    self.preview_elapsed = Some(preview::playback_duration(node));
                 }
             }
             self.last_step = Instant::now();
@@ -3377,13 +3925,39 @@ impl eframe::App for App {
                         ui.add(egui::Label::new(RichText::new(&self.status).small()).truncate())
                             .on_hover_text(&self.status);
                     }
+                    self.tools_panel.status_ui(ui);
                 });
             });
-        self.sidebar(ctx);
-        self.right(ctx);
+        if self.story_panels_visible() {
+            self.sidebar(ctx);
+            self.right(ctx);
+        }
         self.center(ctx);
         self.track();
         self.dialogs(ctx);
+        self.tools_panel.show_dialog(ctx, &self.project);
+        let tool_location = self.tools_panel.take_location();
+        if tool_location.is_some() && self.apply_pending_drafts() {
+            let (sid, nid) = tool_location.unwrap();
+            if let Some(story) = self.project.stories.get(&sid) {
+                if let Some(index) = nid.and_then(|nid| {
+                    story["nodes"]
+                        .as_array()
+                        .and_then(|ns| ns.iter().position(|n| n["id"] == nid))
+                }) {
+                    self.selected = index;
+                    self.center = Center::Node;
+                } else {
+                    self.center = Center::Chapter;
+                }
+                self.current = sid;
+                self.multiselect.clear();
+                self.search.clear();
+                self.needs_compile = true;
+            } else {
+                self.center = Center::Manifest;
+            }
+        }
         self.autosave();
         self.shell.set_title(
             ctx,
@@ -3429,7 +4003,9 @@ impl eframe::App for App {
             }
             self.screenshot = None;
         }
-        ctx.request_repaint_after(Duration::from_millis(if self.screenshot.is_some() {
+        ctx.request_repaint_after(Duration::from_millis(if self.auto {
+            16
+        } else if self.screenshot.is_some() {
             70
         } else {
             200
@@ -3626,7 +4202,7 @@ fn template_project(key: &str) -> anyhow::Result<Project> {
     Ok(project)
 }
 fn compile_with_assets(project: &Project, story: &Value) -> anyhow::Result<String> {
-    let root = tempfile::tempdir()?;
+    let root = lom_core::workdir::create()?;
     for (name, bytes) in &project.assets {
         lom_core::package::canonical_archive_name(name)?;
         anyhow::ensure!(name.starts_with("assets/"), "项目素材必须位于 assets/");
@@ -3767,41 +4343,7 @@ fn replace_prose(value: &mut Value, find: &str, replace: &str) -> usize {
     count
 }
 fn report(ui: &mut egui::Ui, value: &Value, depth: usize) {
-    if depth > 10 {
-        return;
-    }
-    match value {
-        Value::Object(o) => {
-            for (k, v) in o {
-                if v.is_object() || v.is_array() {
-                    egui::CollapsingHeader::new(k)
-                        .default_open(depth < 1)
-                        .show(ui, |ui| report(ui, v, depth + 1));
-                } else {
-                    ui.horizontal_wrapped(|ui| {
-                        ui.strong(k);
-                        ui.label(v.as_str().map(str::to_owned).unwrap_or(v.to_string()));
-                    });
-                }
-            }
-        }
-        Value::Array(a) => {
-            for (i, v) in a.iter().enumerate() {
-                egui::Frame::group(ui.style()).show(ui, |ui| {
-                    ui.label(RichText::new(format!("#{}", i + 1)).small().color(ACCENT));
-                    report(ui, v, depth + 1);
-                });
-            }
-        }
-        _ => {
-            ui.label(
-                value
-                    .as_str()
-                    .map(str::to_owned)
-                    .unwrap_or(value.to_string()),
-            );
-        }
-    }
+    crate::tool_report::show(ui, value, depth);
 }
 #[cfg(test)]
 mod tests {
@@ -3825,7 +4367,7 @@ mod tests {
     fn all_catalog_node_forms_have_defaults() {
         let c = Catalog::new();
         let schemas = c.schema["NODE_SCHEMAS"].as_object().unwrap();
-        assert_eq!(schemas.len(), 63);
+        assert_eq!(schemas.len(), 64);
         for kind in schemas.keys() {
             let node = c.new_node(kind, "n1".into());
             assert_eq!(node["type"], kind.as_str());
@@ -3852,6 +4394,306 @@ mod application_regression_tests {
             repeat: false,
             modifiers,
         }
+    }
+    fn navigation_frame(
+        app: &mut App,
+        ctx: &egui::Context,
+        events: Vec<egui::Event>,
+    ) -> egui::FullOutput {
+        ctx.run(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    Vec2::new(1200.0, 850.0),
+                )),
+                events,
+                ..Default::default()
+            },
+            |ctx| {
+                app.shortcuts(ctx);
+                app.toolbar(ctx);
+                app.center(ctx);
+            },
+        )
+    }
+    #[test]
+    fn primary_tabs_are_direct_click_targets_and_preserve_story_selection() {
+        let mut app = app();
+        let before = snapshot(&app.project);
+        let selection = (app.current.clone(), app.selected);
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        let output = navigation_frame(&mut app, &ctx, vec![]);
+        let nodes = output.platform_output.accesskit_update.unwrap().nodes;
+        for (section, label) in [
+            (Section::Materials, "素材管理"),
+            (Section::Game, "游戏与 MOD"),
+            (Section::Release, "发布"),
+            (Section::Story, "剧情编辑"),
+        ] {
+            let target = nodes
+                .iter()
+                .find_map(|(id, node)| {
+                    (node.label() == Some(tr(label).as_str())
+                        && node.role() == egui::accesskit::Role::Button)
+                        .then_some(*id)
+                })
+                .expect("task tab must be directly visible");
+            navigation_frame(
+                &mut app,
+                &ctx,
+                vec![egui::Event::AccessKitActionRequest(
+                    egui::accesskit::ActionRequest {
+                        action: egui::accesskit::Action::Click,
+                        target,
+                        data: None,
+                    },
+                )],
+            );
+            assert_eq!(app.section(), section, "{label}");
+            assert_eq!(app.story_panels_visible(), section == Section::Story);
+            assert_eq!((app.current.clone(), app.selected), selection);
+            assert!(snapshot(&app.project) == before);
+        }
+        app.open_tool_page(ToolPage::Editing);
+        app.navigate(Section::Story);
+        assert_eq!(
+            app.center,
+            Center::Node,
+            "story tab returns from editing tools"
+        );
+    }
+    #[test]
+    fn non_story_pages_do_not_accept_hidden_node_delete_or_paste() {
+        let mut app = app();
+        app.copy();
+        let before = snapshot(&app.project);
+        let ctx = egui::Context::default();
+        for section in [Section::Materials, Section::Game, Section::Release] {
+            app.navigate(section);
+            navigation_frame(
+                &mut app,
+                &ctx,
+                vec![
+                    key_event(egui::Key::Delete, egui::Modifiers::NONE),
+                    key_event(egui::Key::V, egui::Modifiers::COMMAND),
+                ],
+            );
+            assert!(
+                snapshot(&app.project) == before,
+                "hidden story mutated from {section:?}"
+            );
+        }
+    }
+    #[test]
+    fn navigation_keeps_invalid_material_input_until_the_user_resolves_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let image = dir.path().join("hero.png");
+        std::fs::write(&image, b"image fixture").unwrap();
+        let mut app = app();
+        app.import_assets(vec![image], "test.hero", "hero", 0)
+            .unwrap();
+        app.center = Center::Assets;
+        let mut draft: Value =
+            serde_json::from_slice(&app.project.assets[&app.asset_selection]).unwrap();
+        draft["files"]["main"] = json!("../outside.png");
+        app.content_panel = crate::content_panel::ContentPanel::pending_fixture(
+            &app.project,
+            &app.asset_selection,
+            draft,
+        );
+        let before = snapshot(&app.project);
+        for section in [Section::Game, Section::Release, Section::Story] {
+            app.navigate(section);
+            assert_eq!(app.center, Center::Assets);
+            assert!(app.content_panel.has_pending());
+            assert!(app.error.is_some());
+            assert!(snapshot(&app.project) == before);
+        }
+        app.open_tool_page(ToolPage::Library);
+        assert_eq!(app.center, Center::Assets);
+        let ctx = egui::Context::default();
+        for event in [
+            key_event(
+                egui::Key::F,
+                egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
+            ),
+            key_event(egui::Key::F7, egui::Modifiers::NONE),
+        ] {
+            navigation_frame(&mut app, &ctx, vec![event]);
+            assert_eq!(app.center, Center::Assets);
+            assert!(app.content_panel.has_pending());
+            assert!(snapshot(&app.project) == before);
+        }
+    }
+    #[test]
+    fn every_task_page_can_be_read_without_modifying_the_project() {
+        let mut app = app();
+        let before = snapshot(&app.project);
+        let ctx = egui::Context::default();
+        for page in [
+            ToolPage::Editing,
+            ToolPage::Previews,
+            ToolPage::Library,
+            ToolPage::Game,
+            ToolPage::Release,
+            ToolPage::Maintenance,
+        ] {
+            app.open_tool_page(page);
+            navigation_frame(&mut app, &ctx, vec![]);
+            assert!(snapshot(&app.project) == before, "{page:?}");
+        }
+    }
+    #[test]
+    fn visible_help_button_and_f1_open_the_guide_without_changing_the_project() {
+        let mut app = app();
+        let before = snapshot(&app.project);
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        let draw = |app: &mut App, events| {
+            ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        Vec2::new(1200.0, 900.0),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ctx| {
+                    app.shortcuts(ctx);
+                    app.toolbar(ctx);
+                    app.tools_panel.show_dialog(ctx, &app.project);
+                },
+            )
+        };
+        let output = draw(&mut app, vec![]);
+        let help = output
+            .platform_output
+            .accesskit_update
+            .unwrap()
+            .nodes
+            .into_iter()
+            .find_map(|(id, node)| {
+                (node.role() == egui::accesskit::Role::Button
+                    && node.label() == Some(crate::i18n::key("menu.help_item").as_str()))
+                .then_some(id)
+            })
+            .expect("Help must be directly visible on the toolbar");
+        let output = draw(
+            &mut app,
+            vec![egui::Event::AccessKitActionRequest(
+                egui::accesskit::ActionRequest {
+                    action: egui::accesskit::Action::Click,
+                    target: help,
+                    data: None,
+                },
+            )],
+        );
+        assert!(app.tools_panel.dialog_open());
+        let text = output
+            .platform_output
+            .accesskit_update
+            .unwrap()
+            .nodes
+            .into_iter()
+            .filter_map(|(_, node)| node.label().or_else(|| node.value()).map(str::to_owned))
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(text.contains(&crate::i18n::key("help.guide_tab")), "{text}");
+        assert!(
+            text.contains(&crate::i18n::key("help.reference_tab")),
+            "{text}"
+        );
+        assert!(
+            text.contains("F6"),
+            "The guide must be open without another expansion: {text}"
+        );
+        draw(
+            &mut app,
+            vec![key_event(egui::Key::N, egui::Modifiers::COMMAND)],
+        );
+        assert!(app.pending.is_none());
+        draw(
+            &mut app,
+            vec![key_event(egui::Key::Escape, egui::Modifiers::NONE)],
+        );
+        assert!(!app.tools_panel.dialog_open());
+        draw(
+            &mut app,
+            vec![key_event(egui::Key::F1, egui::Modifiers::NONE)],
+        );
+        assert!(app.tools_panel.dialog_open());
+        assert!(snapshot(&app.project) == before);
+        assert!(!app.dirty());
+    }
+    #[test]
+    fn node_description_button_opens_its_own_reference_without_editing() {
+        let mut app = app();
+        app.selected = 1;
+        assert_eq!(app.story()["nodes"][1]["type"], "end");
+        let before = snapshot(&app.project);
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        let draw = |app: &mut App, events| {
+            ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        Vec2::new(1200.0, 800.0),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ctx| {
+                    app.center(ctx);
+                    app.tools_panel.show_dialog(ctx, &app.project);
+                },
+            )
+        };
+        let output = draw(&mut app, vec![]);
+        let target = output
+            .platform_output
+            .accesskit_update
+            .unwrap()
+            .nodes
+            .into_iter()
+            .find_map(|(id, node)| {
+                (node.role() == egui::accesskit::Role::Button
+                    && node.label() == Some(tr("说明").as_str()))
+                .then_some(id)
+            })
+            .expect("Description must be a clickable button, not just a hover label");
+        let output = draw(
+            &mut app,
+            vec![egui::Event::AccessKitActionRequest(
+                egui::accesskit::ActionRequest {
+                    action: egui::accesskit::Action::Click,
+                    target,
+                    data: None,
+                },
+            )],
+        );
+        assert!(app.tools_panel.dialog_open());
+        let text = output
+            .platform_output
+            .accesskit_update
+            .unwrap()
+            .nodes
+            .into_iter()
+            .filter_map(|(_, n)| n.label().or_else(|| n.value()).map(str::to_owned))
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            text.contains("结束后回到哪里"),
+            "Opened the wrong article: {text}"
+        );
+        assert!(
+            text.contains("下一章节"),
+            "Missing end-node guidance: {text}"
+        );
+        assert!(snapshot(&app.project) == before);
+        assert!(!app.dirty());
     }
     fn click_named_option(output: &egui::FullOutput, prefix: &str) -> egui::Event {
         let nodes = &output
@@ -4056,7 +4898,7 @@ mod application_regression_tests {
         let preflight = lom_core::release::run_preflight(
             &app.project,
             lom_core::release::Profile::Editing,
-            "1.1.2",
+            "1.1.3",
         );
         assert!(preflight.contains(&app.diagnostics[0]));
     }
@@ -4212,6 +5054,31 @@ mod application_regression_tests {
         assert!(button_rect.contains(pos));
         assert!(!clicked);
         assert!(app.chapter_dialog.is_some());
+        assert!(snapshot(&app.project) == before);
+    }
+    #[test]
+    fn tool_result_modal_blocks_edit_shortcuts_and_preserves_project() {
+        let mut app = app();
+        app.project.manifest["name"] = json!("pending title");
+        app.track();
+        app.flush();
+        let before = snapshot(&app.project);
+        app.tools_panel
+            .present("安装检查", json!({"healthy":true,"game_tested":false}));
+        let ctx = egui::Context::default();
+        let _ = ctx.run(
+            egui::RawInput {
+                modifiers: egui::Modifiers::COMMAND,
+                events: vec![key_event(egui::Key::Z, egui::Modifiers::COMMAND)],
+                ..Default::default()
+            },
+            |ctx| {
+                app.shortcuts(ctx);
+                app.dialogs(ctx);
+                app.tools_panel.show_dialog(ctx, &app.project);
+            },
+        );
+        assert!(app.tools_panel.dialog_open());
         assert!(snapshot(&app.project) == before);
     }
     #[test]
@@ -4598,6 +5465,55 @@ mod application_regression_tests {
         }
     }
     #[test]
+    fn character_import_appends_selections_and_preserves_same_named_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths: Vec<_> = [
+            ("a/normal.png", b"first".as_slice()),
+            ("b/normal.png", b"second".as_slice()),
+            ("c/normal_1.png", b"reserved".as_slice()),
+            ("d/NORMAL.PNG", b"fourth".as_slice()),
+        ]
+        .into_iter()
+        .map(|(name, bytes)| {
+            let path = dir.path().join(name);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, bytes).unwrap();
+            path
+        })
+        .collect();
+        let mut draft = AssetImportDialog {
+            kind: 1,
+            name: String::new(),
+            paths: vec![],
+            error: None,
+        };
+        draft.select_files(vec![paths[0].clone()]);
+        draft.name = "自定人物".into();
+        draft.select_files(vec![paths[0].clone(), paths[1].clone()]);
+        draft.select_files(paths[2..].to_vec());
+        assert_eq!(draft.paths, paths);
+        assert_eq!(draft.name, "自定人物");
+        let mut app = app();
+        app.asset_import_dialog = Some(draft);
+        app.commit_asset_import().unwrap();
+        let meta: Value =
+            serde_json::from_slice(&app.project.assets[&app.asset_selection]).unwrap();
+        let prefix = app.asset_selection.strip_suffix("content.json").unwrap();
+        assert_eq!(meta["files"]["main"], "normal.png");
+        assert_eq!(meta["portraits"]["normal"], "normal.png");
+        assert_eq!(meta["portraits"]["portrait_1"], "normal_2.png");
+        assert_eq!(meta["portraits"]["normal_1"], "normal_1.png");
+        assert_eq!(meta["portraits"]["NORMAL"], "NORMAL_3.PNG");
+        for (name, bytes) in [
+            ("normal.png", b"first".as_slice()),
+            ("normal_2.png", b"second".as_slice()),
+            ("normal_1.png", b"reserved".as_slice()),
+            ("NORMAL_3.PNG", b"fourth".as_slice()),
+        ] {
+            assert_eq!(app.project.assets[&format!("{prefix}{name}")], bytes);
+        }
+    }
+    #[test]
     fn character_import_keeps_every_image_and_never_overwrites_normal_or_named_portraits() {
         let dir = tempfile::tempdir().unwrap();
         let names = [
@@ -4872,6 +5788,8 @@ mod application_regression_tests {
             Center::Node,
             Center::Chapter,
             Center::Manifest,
+            Center::Events,
+            Center::Tasks,
             Center::Localization,
             Center::Assets,
             Center::Tools,
@@ -4893,6 +5811,165 @@ mod application_regression_tests {
                 "Opening a panel modified the project"
             );
         }
+    }
+    #[test]
+    fn event_configuration_uses_existing_undo_and_read_only_panel_lifecycle() {
+        let mut app = app();
+        let ctx = egui::Context::default();
+        for mode in ["addon", "sandbox"] {
+            app.install(Project::new_scenario(mode));
+            let original = snapshot(&app.project);
+            for center in [Center::Manifest, Center::Events, Center::Tasks] {
+                app.center = center;
+                let _ = ctx.run(Default::default(), |ctx| app.center(ctx));
+                assert!(
+                    snapshot(&app.project) == original,
+                    "painting event panels must preserve source"
+                );
+            }
+            app.project.scenario.as_mut().unwrap()["events"][0]["once"] = json!(false);
+            app.track();
+            app.flush();
+            app.undo();
+            assert!(
+                snapshot(&app.project) == original,
+                "undo must include independent configuration"
+            );
+        }
+    }
+    #[test]
+    fn scenario_navigation_follows_relationships_without_changing_the_project() {
+        let mut app = app();
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../samples/event-addon");
+        app.install(Project::open(&root).unwrap());
+        let original = snapshot(&app.project);
+        let ctx = egui::Context::default();
+        for link in [
+            crate::scenario_panel::Navigate::Event("july_letter".into()),
+            crate::scenario_panel::Navigate::Task("delivery".into()),
+            crate::scenario_panel::Navigate::Story("meeting".into()),
+        ] {
+            app.follow_scenario_link(link);
+            let _ = ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        Vec2::new(1280.0, 760.0),
+                    )),
+                    ..Default::default()
+                },
+                |ctx| {
+                    app.sidebar(ctx);
+                    app.right(ctx);
+                    app.center(ctx);
+                },
+            );
+            assert!(
+                snapshot(&app.project) == original,
+                "navigation must not rewrite scenario or chapter data"
+            );
+        }
+        assert_eq!(app.center, Center::Node);
+        assert_eq!(app.current, "meeting");
+        app.center = Center::Tasks;
+        let original = snapshot(&app.project);
+        let _ = ctx.run(
+            egui::RawInput {
+                events: vec![key_event(egui::Key::Delete, egui::Modifiers::NONE)],
+                ..Default::default()
+            },
+            |ctx| app.shortcuts(ctx),
+        );
+        assert!(
+            snapshot(&app.project) == original,
+            "task navigation must not accept hidden chapter deletion"
+        );
+    }
+    #[test]
+    fn closing_dialogs_cancels_only_the_dialog_and_keeps_work_and_recovery_files() {
+        let root = std::env::temp_dir().join(format!(
+            "lom-dialog-close-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let marker = root.join("session.json");
+        std::fs::write(&marker, b"retained recovery").unwrap();
+        for kind in ["chapter", "pending", "error", "recovery"] {
+            for escape in [false, true] {
+                let mut app = app();
+                app.project.manifest["name"] = json!("unsaved work");
+                match kind {
+                    "chapter" => app.begin_chapter(false),
+                    "pending" => app.pending = Some(Pending::New),
+                    "error" => app.error = Some("example failure".into()),
+                    _ => app.recovery_candidates = vec![root.clone()],
+                }
+                let before = snapshot(&app.project);
+                let ctx = egui::Context::default();
+                ctx.enable_accesskit();
+                let frame = |app: &mut App, events| {
+                    ctx.run(
+                        egui::RawInput {
+                            screen_rect: Some(egui::Rect::from_min_size(
+                                egui::Pos2::ZERO,
+                                Vec2::new(900.0, 560.0),
+                            )),
+                            events,
+                            ..Default::default()
+                        },
+                        |ctx| {
+                            egui::CentralPanel::default().show(ctx, |_ui| {});
+                            app.dialogs(ctx);
+                        },
+                    )
+                };
+                let output = frame(&mut app, vec![]);
+                if kind == "recovery" {
+                    let nodes = &output
+                        .platform_output
+                        .accesskit_update
+                        .as_ref()
+                        .unwrap()
+                        .nodes;
+                    let bounds = |label: &str| {
+                        nodes
+                            .iter()
+                            .find(|(_, n)| {
+                                n.label().or_else(|| n.value()) == Some(tr(label).as_str())
+                            })
+                            .and_then(|(_, n)| n.bounds())
+                            .unwrap()
+                    };
+                    assert!(
+                        bounds("稍后处理").y1 - bounds("恢复创作副本").y0 < 300.0,
+                        "a single recovery card must not expand to fill the scroll area"
+                    );
+                }
+                let event = if escape {
+                    key_event(egui::Key::Escape, egui::Modifiers::NONE)
+                } else {
+                    click_named_option(&output, &tr("关闭"))
+                };
+                let _ = frame(&mut app, vec![event]);
+                assert!(
+                    app.chapter_dialog.is_none()
+                        && app.pending.is_none()
+                        && app.error.is_none()
+                        && app.recovery_candidates.is_empty(),
+                    "{kind}, escape={escape}"
+                );
+                assert!(
+                    snapshot(&app.project) == before,
+                    "closing {kind} must preserve unsaved work"
+                );
+                assert_eq!(std::fs::read(&marker).unwrap(), b"retained recovery");
+            }
+        }
+        std::fs::remove_dir_all(root).unwrap();
     }
     #[test]
     fn active_instance_recovery_is_never_a_candidate() {

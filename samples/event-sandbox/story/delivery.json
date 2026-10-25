@@ -1,0 +1,19 @@
+{
+  "id": "delivery",
+  "story_schema": 2,
+  "title": "山门交信",
+  "start": "say",
+  "nodes": [
+    {
+      "id": "say",
+      "type": "say",
+      "mode": "narrative",
+      "text": "你把信件交到了收信人手中。任务结果由事件配置结算。"
+    },
+    {
+      "id": "end",
+      "type": "end",
+      "event_result": "completed"
+    }
+  ]
+}

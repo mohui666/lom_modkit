@@ -32,6 +32,58 @@ impl Shell {
         [0.94, 0.94, 0.92, 1.0]
     }
 }
+/// Shared chrome for in-app dialogs. These controls are drawn by egui, not AppKit.
+pub fn dialog_frame() -> egui::Frame {
+    egui::Frame::new()
+        .fill(Color32::from_rgb(250, 250, 249))
+        .stroke(egui::Stroke::new(1.0_f32, Color32::from_rgb(218, 222, 226)))
+        .corner_radius(12)
+        .inner_margin(20)
+        .shadow(egui::epaint::Shadow {
+            offset: [0, 8],
+            blur: 24,
+            spread: 0,
+            color: Color32::from_black_alpha(36),
+        })
+}
+
+pub fn dialog_header(ui: &mut egui::Ui, title: &str) -> bool {
+    let close = ui
+        .horizontal(|ui| {
+            ui.add(egui::Label::new(egui::RichText::new(title).size(19.0).strong()).truncate());
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let response = ui
+                    .add_sized(
+                        [28.0, 28.0],
+                        egui::Button::new(egui::RichText::new("×").size(22.0)).frame(false),
+                    )
+                    .on_hover_text(crate::i18n::tr("关闭"));
+                response.widget_info(|| {
+                    egui::WidgetInfo::labeled(
+                        egui::WidgetType::Button,
+                        ui.is_enabled(),
+                        crate::i18n::tr("关闭"),
+                    )
+                });
+                response.clicked()
+            })
+            .inner
+        })
+        .inner;
+    ui.add_space(8.0);
+    close
+}
+
+/// A compact trailing button row, including inside scrollable dialog content.
+pub fn dialog_buttons<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    ui.allocate_ui_with_layout(
+        egui::vec2(ui.available_width(), 30.0),
+        egui::Layout::right_to_left(egui::Align::Center),
+        add,
+    )
+    .inner
+}
+
 pub fn viewport() -> egui::ViewportBuilder {
     egui::ViewportBuilder::default()
         .with_inner_size([1280.0, 760.0])
@@ -136,12 +188,12 @@ pub fn style(ctx: &egui::Context) {
     s.visuals.override_text_color = Some(TEXT);
     s.visuals.selection.bg_fill = Color32::from_rgb(218, 232, 244);
     s.visuals.selection.stroke = egui::Stroke::new(1.0_f32, Color32::from_rgb(39, 89, 137));
-    s.visuals.widgets.active.bg_fill = Color32::from_rgb(222, 231, 240);
-    s.visuals.widgets.active.weak_bg_fill = Color32::from_rgb(222, 231, 240);
-    s.visuals.widgets.hovered.bg_fill = Color32::from_rgb(235, 239, 243);
-    s.visuals.widgets.hovered.weak_bg_fill = Color32::from_rgb(235, 239, 243);
-    s.visuals.widgets.inactive.bg_fill = Color32::from_white_alpha(195);
-    s.visuals.widgets.inactive.weak_bg_fill = Color32::from_white_alpha(80);
+    s.visuals.widgets.active.bg_fill = Color32::from_rgb(204, 224, 244);
+    s.visuals.widgets.active.weak_bg_fill = Color32::from_rgb(204, 224, 244);
+    s.visuals.widgets.hovered.bg_fill = Color32::from_rgb(226, 238, 249);
+    s.visuals.widgets.hovered.weak_bg_fill = Color32::from_rgb(226, 238, 249);
+    s.visuals.widgets.inactive.bg_fill = Color32::from_rgb(246, 249, 252);
+    s.visuals.widgets.inactive.weak_bg_fill = Color32::from_rgb(246, 249, 252);
     for widget in [
         &mut s.visuals.widgets.inactive,
         &mut s.visuals.widgets.hovered,
@@ -152,23 +204,28 @@ pub fn style(ctx: &egui::Context) {
         widget.bg_stroke = egui::Stroke::new(1.0_f32, Color32::from_black_alpha(22));
         widget.fg_stroke.color = TEXT;
     }
-    s.visuals.widgets.active.bg_stroke.color = Color32::from_rgb(92, 142, 188);
+    s.visuals.widgets.inactive.bg_stroke.color = Color32::from_rgb(150, 164, 178);
+    s.visuals.widgets.hovered.bg_stroke.color = Color32::from_rgb(65, 118, 169);
+    s.visuals.widgets.active.bg_stroke.color = ACCENT;
     s.visuals.window_corner_radius = egui::CornerRadius::same(12);
     s.visuals.window_stroke = egui::Stroke::new(1.0_f32, Color32::from_black_alpha(22));
-    s.spacing.item_spacing = Vec2::new(8.0, 6.0);
-    s.spacing.interact_size.y = 26.0;
+    s.spacing.item_spacing = Vec2::new(12.0, 8.0);
+    s.spacing.interact_size.y = 30.0;
     s.spacing.text_edit_width = 180.0;
     s.spacing.icon_width = 14.0;
     s.spacing.icon_width_inner = 8.0;
     s.visuals.widgets.noninteractive.bg_stroke.color = Color32::from_black_alpha(17);
-    s.spacing.button_padding = Vec2::new(9.0, 5.0);
+    s.spacing.button_padding = Vec2::new(11.0, 7.0);
     s.text_styles
         .insert(egui::TextStyle::Body, egui::FontId::proportional(13.0));
     s.text_styles
         .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
     s.text_styles
         .insert(egui::TextStyle::Heading, egui::FontId::proportional(19.0));
-    ctx.set_style(s);
+    // Choose the app's light theme explicitly: set_style alone can configure the
+    // fallback dark theme before Windows supplies its first system-theme input.
+    ctx.set_theme(egui::Theme::Light);
+    ctx.set_style_of(egui::Theme::Light, s);
 }
 
 pub fn surface(content: bool) -> egui::Frame {
@@ -183,6 +240,36 @@ pub fn surface(content: bool) -> egui::Frame {
         } else {
             egui::Margin::symmetric(14, 5)
         })
+}
+
+#[cfg(test)]
+mod button_style_tests {
+    use super::*;
+
+    #[test]
+    fn buttons_keep_app_style_after_first_system_theme_input() {
+        let ctx = egui::Context::default();
+        style(&ctx);
+        for system_theme in [egui::Theme::Light, egui::Theme::Dark] {
+            let mut button_size = Vec2::ZERO;
+            let mut border = egui::Stroke::NONE;
+            let _ = ctx.run(
+                egui::RawInput {
+                    system_theme: Some(system_theme),
+                    ..Default::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        button_size = ui.button("Install MOD").rect.size();
+                        border = ui.visuals().widgets.inactive.bg_stroke;
+                    });
+                },
+            );
+            println!("System theme {system_theme:?}: button={button_size:?}, border={border:?}");
+            assert!(button_size.y >= 30.0, "App button spacing was replaced");
+            assert_eq!(border.color, Color32::from_rgb(150, 164, 178));
+        }
+    }
 }
 
 #[cfg(all(test, target_os = "macos"))]

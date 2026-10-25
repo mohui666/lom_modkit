@@ -7,6 +7,11 @@ use serde_json::{json, Value};
 
 pub fn show(ui: &mut egui::Ui, manifest: &mut Value, catalog: &Catalog, stories: &[String]) {
     ui.heading(tr("作品设置"));
+    let event_mode=manifest.get("play_mode").is_some();
+    if event_mode {
+        ui.label(if manifest["play_mode"]=="addon" { tr("作品模式：原版附加剧情") } else { tr("作品模式：自由剧本") });
+        ui.small(tr("此设置适用于整部作品。事件的时间、地点与任务进度在左侧“剧情安排”中设置。"));
+    }
     for (key, label, kind) in [
         ("id", "作品 ID", "str"),
         ("campaign_id", "存档身份", "str"),
@@ -16,7 +21,16 @@ pub fn show(ui: &mut egui::Ui, manifest: &mut Value, catalog: &Catalog, stories:
         ("description", "简介", "text"),
         ("entry", "入口章节", "story_ref"),
     ] {
+        if event_mode && matches!(key,"id"|"campaign_id"|"entry") {continue;}
         catalog.field(ui, manifest, key, label, kind, false, &[], stories);
+    }
+    if event_mode {
+        ui.collapsing(tr("高级：作品标识"),|ui| {
+            for (key,label) in [("id","作品 ID"),("campaign_id","存档身份")] {
+                catalog.field(ui,manifest,key,label,"str",false,&[],stories);
+            }
+            ui.small(tr("自由剧本的入口由开场事件管理。"));
+        });
     }
     ui.collapsing(tr("兼容性"), |ui| {
         for key in [
@@ -29,6 +43,12 @@ pub fn show(ui: &mut egui::Ui, manifest: &mut Value, catalog: &Catalog, stories:
         }
     });
     ui.separator();
+    if event_mode {
+        if manifest["play_mode"]=="sandbox" {
+            catalog.field(ui,&mut manifest["campaign"],"disable_official_events","禁用官方事件","bool",false,&[],stories);
+        }
+        return;
+    }
     ui.heading(tr("自由模式触发规则"));
     if !manifest["campaign"].is_object() {
         if ui.button(tr("启用战役设置")).clicked() {
@@ -63,8 +83,9 @@ pub fn show(ui: &mut egui::Ui, manifest: &mut Value, catalog: &Catalog, stories:
             campaign["triggers"].as_array_mut().unwrap().push(json!({"type":"position","position":"Center","script":stories.first().cloned().unwrap_or_default()}));
         }
         let mut remove = None;
-        for (i, t) in campaign["triggers"]
-            .as_array_mut()
+        for (i, t) in campaign
+            .get_mut("triggers")
+            .and_then(Value::as_array_mut)
             .into_iter()
             .flatten()
             .enumerate()
@@ -163,6 +184,36 @@ fn bounded(ui: &mut egui::Ui, value: &mut Value, key: &str, label: &str, max: i6
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn painting_does_not_insert_or_replace_campaign_triggers() {
+        let ctx = egui::Context::default();
+        let catalog = Catalog::new();
+        for triggers in [
+            None,
+            Some(json!([])),
+            Some(Value::Null),
+            Some(json!("future")),
+        ] {
+            let mut manifest = lom_core::project::Project::new().manifest;
+            manifest["campaign"] = json!({"new_game":true,"extension":"keep"});
+            if let Some(value) = triggers {
+                manifest["campaign"]["triggers"] = value;
+            }
+            let before = manifest.clone();
+            let valid_before = lom_core::validate::validate_manifest(&manifest).is_ok();
+            let _ = ctx.run(Default::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    show(ui, &mut manifest, &catalog, &["main".into()]);
+                });
+            });
+            assert_eq!(manifest, before, "Read-only painting changed the manifest");
+            assert_eq!(
+                lom_core::validate::validate_manifest(&manifest).is_ok(),
+                valid_before,
+                "Read-only painting changed manifest validity"
+            );
+        }
+    }
     #[test]
     fn painting_preserves_unknown_fields_and_future_values() {
         let ctx = egui::Context::default();

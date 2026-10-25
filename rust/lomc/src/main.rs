@@ -135,7 +135,7 @@ fn run() -> Result<i32> {
                 } else {
                     lom_core::release::Profile::Editing
                 },
-                "1.1.2",
+                "1.1.3",
             );
             json!({"ok":!issues.iter().any(|i|i.severity=="error"),"issues":issues})
         }
@@ -143,7 +143,7 @@ fn run() -> Result<i32> {
             let project = Project::open(&path)?;
             let target = output.context("发布构建需要 -o 输出目录")?;
             serde_json::to_value(lom_core::release::build_release_directory(
-                &project, &target, "1.1.2",
+                &project, &target, "1.1.3",
             )?)?
         }
         "migrate" => {

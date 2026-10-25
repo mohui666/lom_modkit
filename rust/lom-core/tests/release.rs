@@ -333,7 +333,7 @@ fn diagnostic_fixed_allowlist_limits_and_privacy() {
     }
     let diagnostic: Value = serde_json::from_str(&entries["diagnostic.json"]).unwrap();
     let validation: Value = serde_json::from_str(&entries["validation.json"]).unwrap();
-    assert_eq!(diagnostic["runtime_version"], "1.1.2");
+    assert_eq!(diagnostic["runtime_version"], "1.1.3");
     assert_eq!(diagnostic["detected_game_version"], "Steam build 20337760");
     assert_eq!(diagnostic["project_metadata"]["raw_node_count"], 1);
     assert_eq!(validation["errors"], 1002);

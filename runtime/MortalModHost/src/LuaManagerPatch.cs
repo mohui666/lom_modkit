@@ -244,6 +244,8 @@ namespace MortalModHost
             bool firstAttempt = string.IsNullOrEmpty(_pendingAbortReason);
             if (firstAttempt)
             {
+                try { ScenarioRuntime.Abort(package ?? ModOverlay.CurrentPackage); }
+                catch (Exception scenarioError) { Log?.LogError("事件中止状态未能写回："+scenarioError); }
                 GameplaySceneTransition.Reset();
                 BattleNamedCharacterPatch.ClearNamedTemplates();
                 CombatPlayerStatSession.Restore();
@@ -473,6 +475,11 @@ namespace MortalModHost
                 Script script = env.Interpreter;
                 if (script == null)
                     throw new InvalidOperationException("LuaEnvironment.Interpreter 为 null");
+                script.Globals["mod_event_result"] = new CallbackFunction((ctx,args) =>
+                {
+                    ScenarioRuntime.SetResult(ModOverlay.CurrentPackage,ArgString(args,0));
+                    return DynValue.Nil;
+                },"mod_event_result");
                 script.Globals["mod_trace_node"] = new CallbackFunction((ctx, args) =>
                 {
                     CaptureTraceState(script);

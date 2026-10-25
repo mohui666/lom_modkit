@@ -57,6 +57,8 @@ namespace MortalModHost
 
         /// <summary>战役模式配置（manifest.campaign，契约 §2）；null 表示本包无战役模式。</summary>
         public CampaignConfig Campaign;
+        public string PlayMode;
+        public ScenarioConfig Scenario;
 
         /// <summary>
         /// assets/ 目录下的图片（契约 §3.1）：键 = 包内相对路径（"assets/xxx.png"，正斜杠），

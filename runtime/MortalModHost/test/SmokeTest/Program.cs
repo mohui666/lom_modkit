@@ -160,6 +160,7 @@ namespace MortalModHost
 
                 TestCampaign();
                 CampaignRegressionTests.Run();
+                ScenarioTests.Run();
                 TestLocalization();
                 TestRuntimeCompatibility();
                 TestRuntimeTrace();

@@ -1,0 +1,187 @@
+{
+  "schema": 1,
+  "tasks": [
+    {
+      "id": "delivery",
+      "name": "替同门送信",
+      "initial": "locked",
+      "states": [
+        "locked",
+        "available",
+        "accepted",
+        "completed",
+        "declined"
+      ],
+      "transitions": [
+        {
+          "from": "locked",
+          "to": "available",
+          "when": {
+            "source": "time",
+            "key": "month",
+            "op": "eq",
+            "value": 7
+          }
+        }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "id": "opening",
+      "name": "开场：回到唐门",
+      "trigger": "start",
+      "script": "main",
+      "once": true,
+      "check": "stage",
+      "priority": 0,
+      "chance": 100,
+      "weight": 1,
+      "when": {
+        "all": []
+      },
+      "outcomes": {
+        "completed": {
+          "actions": [
+            {
+              "type": "time",
+              "year": 1,
+              "month": 7,
+              "stage": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "july_letter",
+      "name": "七月来信",
+      "trigger": "auto",
+      "script": "meeting",
+      "once": true,
+      "check": "month",
+      "priority": 0,
+      "chance": 100,
+      "weight": 1,
+      "when": {
+        "all": [
+          {
+            "source": "time",
+            "key": "month",
+            "op": "eq",
+            "value": 7
+          },
+          {
+            "source": "task",
+            "key": "delivery",
+            "op": "eq",
+            "value": "available"
+          }
+        ]
+      },
+      "outcomes": {
+        "completed": {},
+        "accepted": {
+          "tasks": {
+            "delivery": "accepted"
+          }
+        },
+        "declined": {
+          "tasks": {
+            "delivery": "declined"
+          }
+        }
+      }
+    },
+    {
+      "id": "practice_chat",
+      "name": "练功闲谈",
+      "trigger": "position",
+      "script": "practice",
+      "once": false,
+      "check": "action",
+      "priority": 0,
+      "chance": 100,
+      "weight": 30,
+      "when": {
+        "all": []
+      },
+      "outcomes": {
+        "completed": {
+          "variables": {
+            "practice_visits": {
+              "op": "add",
+              "value": 1
+            }
+          },
+          "actions": [
+            {
+              "type": "stat",
+              "key": "money",
+              "op": "add",
+              "value": 5
+            }
+          ]
+        }
+      },
+      "position": "Center",
+      "pool": "training"
+    },
+    {
+      "id": "ordinary_training",
+      "name": "平常练功",
+      "trigger": "position",
+      "script": "ordinary",
+      "once": false,
+      "check": "action",
+      "priority": 0,
+      "chance": 100,
+      "weight": 70,
+      "when": {
+        "all": []
+      },
+      "outcomes": {
+        "completed": {
+          "variables": {},
+          "tasks": {}
+        }
+      },
+      "position": "Center",
+      "pool": "training"
+    },
+    {
+      "id": "deliver_letter",
+      "name": "山门交信",
+      "trigger": "position",
+      "script": "delivery",
+      "once": true,
+      "check": "stage",
+      "priority": 0,
+      "chance": 100,
+      "weight": 1,
+      "when": {
+        "source": "task",
+        "key": "delivery",
+        "op": "eq",
+        "value": "accepted"
+      },
+      "outcomes": {
+        "completed": {
+          "tasks": {
+            "delivery": "completed"
+          },
+          "actions": [
+            {
+              "type": "stat",
+              "key": "money",
+              "op": "add",
+              "value": 50
+            }
+          ]
+        }
+      },
+      "position": "Door"
+    }
+  ],
+  "entry_event": "opening"
+}

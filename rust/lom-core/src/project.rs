@@ -12,6 +12,7 @@ use std::{
 #[derive(Clone, Debug, PartialEq)]
 pub struct Project {
     pub manifest: Value,
+    pub scenario: Option<Value>,
     pub stories: BTreeMap<String, Value>,
     /// Story ID -> original filename relative to story/ (or standalone parent).
     pub paths: BTreeMap<String, PathBuf>,
@@ -32,10 +33,26 @@ impl Project {
             json!(format!("campaign_{}", uuid::Uuid::new_v4().simple()));
         project
     }
+    pub fn new_scenario(mode: &str) -> Self {
+        let mut project = Self::new();
+        project.manifest["play_mode"] = json!(mode);
+        project.manifest["min_host_version"] = json!(crate::scenario::MIN_HOST);
+        project.manifest["tested_host_version"] = json!(crate::scenario::MIN_HOST);
+        project.manifest["campaign"] = json!({"new_game":mode=="sandbox","disable_official_events":mode=="sandbox"});
+        let mut config = crate::scenario::default_config();
+        if mode == "addon" {
+            config.as_object_mut().unwrap().remove("entry_event");
+            config["events"][0]["trigger"] = json!("position");
+            config["events"][0]["position"] = json!("Center");
+        }
+        project.scenario = Some(config);
+        project
+    }
     // Existing documents without a manifest must not acquire a new save identity on import.
     fn draft() -> Self {
         let story = json!({"story_schema":2,"id":"main","title":"新的剧情","start":"say1","nodes":[{"id":"say1","type":"say","mode":"narrative","text":"从这里开始你的故事。"},{"id":"end1","type":"end"}]});
         Self {
+            scenario: None,
             manifest: json!({"format":3,"package_format":3,"story_schema":2,"content_schema":1,"id":"my_mod","name":"新的作品","version":"1.0.0","author":"作者","description":"原创剧情","entry":"main","campaign":{"new_game":true,"triggers":[]}}),
             stories: BTreeMap::from([("main".into(), story)]),
             paths: BTreeMap::new(),
@@ -61,6 +78,9 @@ impl Project {
                     project.manifest.get("entry").is_none_or(Value::is_string),
                     "manifest.entry 必须是字符串"
                 );
+                if crate::scenario::enabled(&project.manifest) {
+                    project.scenario = Some(load_json(package::resolve_confined_file(&path, &path.join("scenario.json"))?)?);
+                }
             }
             project.story_subdir = path.join("story").is_dir();
             let folder = if project.story_subdir {
@@ -76,7 +96,7 @@ impl Project {
                 if file.extension().and_then(|s| s.to_str()) != Some("json") || !file.is_file() {
                     continue;
                 }
-                if file.file_name().and_then(|s| s.to_str()) == Some("manifest.json") {
+                if [Some("manifest.json"), Some("scenario.json")].contains(&file.file_name().and_then(|s| s.to_str())) {
                     continue;
                 }
                 package::resolve_confined_file(&path, &file)?;
@@ -98,6 +118,7 @@ impl Project {
         } else if path.extension().and_then(|s| s.to_str()) == Some("lommod") {
             let entries = package::read_package(&path)?;
             project.manifest = serde_json::from_slice(&entries["manifest.json"])?;
+            project.scenario = entries.get("scenario.json").map(|v| serde_json::from_slice(v)).transpose()?;
             for (name, bytes) in &entries {
                 if name.starts_with("story/") && name.ends_with(".json") {
                     let rel = &name[6..];
@@ -188,6 +209,7 @@ impl Project {
             return Ok(());
         }
         if target.extension().and_then(|s| s.to_str()) == Some("json") {
+            ensure!(self.scenario.is_none(), "带事件和任务配置的作品请保存为项目目录，避免丢失 scenario.json");
             ensure!(self.stories.len() == 1, "多章节项目请保存为目录");
             let (id, story) = self.stories.first_key_value().unwrap();
             check_id(id)?;
@@ -273,6 +295,11 @@ impl Project {
             "目标 manifest 不属于当前项目，拒绝覆盖"
         );
         writes.push((manifest_path, stable_json(&self.manifest)?));
+        if let Some(scenario) = &self.scenario {
+            let path = target.join("scenario.json");
+            ensure!(!path.exists() || same_source, "目标 scenario.json 不属于当前项目，拒绝覆盖");
+            writes.push((path, stable_json(scenario)?));
+        }
         for (name, bytes) in &self.assets {
             package::canonical_archive_name(name)?;
             ensure!(name.starts_with("assets/"), "项目资源路径必须在 assets/ 下");
@@ -288,7 +315,7 @@ impl Project {
         Ok(())
     }
     pub fn export(&self, target: &Path) -> Result<PathBuf> {
-        let temp = tempfile::tempdir()?;
+        let temp = crate::workdir::create()?;
         let mut project = self.clone();
         project.paths.clear();
         project.source = None;
@@ -371,16 +398,30 @@ pub fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
-    fs::create_dir_all(parent)?;
+    fs::create_dir_all(parent)
+        .with_context(|| format!("无法创建目标目录，请检查写入权限：{}", parent.display()))?;
     ensure!(!path.is_symlink(), "拒绝通过符号链接保存");
     #[cfg(windows)]
     let parent = parent.canonicalize()?;
     #[cfg(windows)]
     let path = parent.join(path.file_name().context("无效保存文件名")?);
-    let mut temp = tempfile::NamedTempFile::new_in(&parent)?;
-    temp.write_all(bytes)?;
-    temp.as_file().sync_all()?;
-    temp.persist(path)?;
+    let mut temp = tempfile::NamedTempFile::new_in(&parent).with_context(|| {
+        format!(
+            "无法在目标目录创建临时文件，请检查写入权限：{}",
+            parent.display()
+        )
+    })?;
+    temp.write_all(bytes)
+        .with_context(|| format!("无法写入目标文件：{}", path.display()))?;
+    temp.as_file()
+        .sync_all()
+        .with_context(|| format!("无法完成目标文件写入：{}", path.display()))?;
+    temp.persist(&path).with_context(|| {
+        format!(
+            "无法替换目标文件，请检查写入权限、只读属性或文件占用：{}",
+            path.display()
+        )
+    })?;
     Ok(())
 }
 fn collect_assets(root: &Path, dir: &Path, out: &mut BTreeMap<String, Vec<u8>>) -> Result<()> {

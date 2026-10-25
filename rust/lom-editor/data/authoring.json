@@ -62,7 +62,8 @@
     "end": "结束剧情",
     "death": "死亡画面",
     "raw": "原生 Lua（高级）",
-    "free_trigger": "自由模式触发"
+    "free_trigger": "自由模式触发",
+    "parallel": "同时执行组"
   },
   "NODE_GROUPS_SRC": [
     [
@@ -93,7 +94,8 @@
         "dim",
         "message",
         "rotate",
-        "dayenv"
+        "dayenv",
+        "parallel"
       ]
     ],
     [
@@ -2853,6 +2855,12 @@
       "label": "结束剧情",
       "fields": [
         [
+          "event_result",
+          "事件结果（默认 completed）",
+          "str",
+          true
+        ],
+        [
           "next_script",
           "下一章节",
           "story_ref",
@@ -2955,6 +2963,17 @@
           "code",
           "Lua 代码",
           "code",
+          false
+        ]
+      ]
+    },
+    "parallel": {
+      "label": "同时执行组",
+      "fields": [
+        [
+          "actions",
+          "同时动作",
+          "parallel_actions",
           false
         ]
       ]
@@ -3346,6 +3365,19 @@
     },
     "raw": {
       "code": "-- 原生 Lua 代码，原样插入编译产物\n"
+    },
+    "parallel": {
+      "actions": [
+        {
+          "type": "hide",
+          "character": "player",
+          "fadeDuration": 0.5
+        },
+        {
+          "type": "wait",
+          "seconds": 0.5
+        }
+      ]
     }
   },
   "VERIFIED_BATTLE_CHARACTER_IDS": [

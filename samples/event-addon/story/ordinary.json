@@ -1,0 +1,19 @@
+{
+  "id": "ordinary",
+  "story_schema": 2,
+  "title": "平常练功",
+  "start": "say",
+  "nodes": [
+    {
+      "id": "say",
+      "type": "say",
+      "mode": "narrative",
+      "text": "你照常练了一阵拳脚。"
+    },
+    {
+      "id": "end",
+      "type": "end",
+      "event_result": "completed"
+    }
+  ]
+}

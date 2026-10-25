@@ -13,6 +13,11 @@ namespace MortalModHost
     /// <summary>Pure compatibility evaluation for optional manifest metadata.</summary>
     internal static class RuntimeCompatibility
     {
+        internal static bool RequiresAtLeast(string value,string minimum)
+        {
+            SemanticVersion version,floor;
+            return SemanticVersion.TryParse(value,out version) && SemanticVersion.TryParse(minimum,out floor) && version.CompareTo(floor)>=0;
+        }
         private sealed class SemanticVersion : IComparable<SemanticVersion>
         {
             public int Major;

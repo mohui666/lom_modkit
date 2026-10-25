@@ -1,0 +1,38 @@
+{
+  "id": "meeting",
+  "story_schema": 2,
+  "title": "七月来信",
+  "start": "say",
+  "nodes": [
+    {
+      "id": "say",
+      "type": "say",
+      "mode": "narrative",
+      "text": "一封信送到了面前，你愿意帮忙转交吗？"
+    },
+    {
+      "id": "choose",
+      "type": "choice",
+      "options": [
+        {
+          "text": "接下信件",
+          "goto": "accept"
+        },
+        {
+          "text": "婉言拒绝",
+          "goto": "decline"
+        }
+      ]
+    },
+    {
+      "id": "accept",
+      "type": "end",
+      "event_result": "accepted"
+    },
+    {
+      "id": "decline",
+      "type": "end",
+      "event_result": "declined"
+    }
+  ]
+}
