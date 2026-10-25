@@ -389,7 +389,8 @@ def main():
 
     char_ids = set()
     portraits = {}  # id -> set
-    views = set()
+    # Include the confirmed StoryViewData catalog, including script-unused variants.
+    views = set(view_names)
     music = set()
     sounds = set()
     env_sounds = set()

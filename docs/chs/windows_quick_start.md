@@ -1,8 +1,8 @@
-# Windows 快速开始 · v1.3.0
+# Windows 快速开始 · v1.3.1
 
 ## 打开软件
 
-完整解压 `lom_modkit-v1.3.0_windows_x64.zip`，进入 `lom_modkit` 文件夹，双击 `lom-editor.exe`。保留 `lomc.exe`、`runtime`、`assets` 和 `asset-extractor`；不要只移动编辑器 EXE。工具端为 1.3.0，随附 Host 为 1.1.3。
+完整解压 `lom_modkit-v1.3.1_windows_x64.zip`，进入 `lom_modkit` 文件夹，双击 `lom-editor.exe`。保留 `lomc.exe`、`runtime`、`assets` 和 `asset-extractor`；不要只移动编辑器 EXE。工具端为 1.3.1，随附 Host 为 1.1.3。
 
 ## 配置自己的游戏
 
@@ -20,8 +20,8 @@
 
 右侧“播放”只在软件内预览；顶栏“试玩”／F5 会安装临时试玩包并启动游戏。只看软件演示时使用右侧预览。
 
-[中文核心教程](https://github.com/mohui666/lom_modkit/blob/v1.3.0/docs/chs/core_tutorial.md) · [软件使用](https://github.com/mohui666/lom_modkit/blob/v1.3.0/docs/chs/software_usage.md) · [事件与任务](https://github.com/mohui666/lom_modkit/blob/v1.3.0/docs/chs/events_and_tasks.md)
+[中文核心教程](https://github.com/mohui666/lom_modkit/blob/v1.3.1/docs/chs/core_tutorial.md) · [软件使用](https://github.com/mohui666/lom_modkit/blob/v1.3.1/docs/chs/software_usage.md) · [事件与任务](https://github.com/mohui666/lom_modkit/blob/v1.3.1/docs/chs/events_and_tasks.md)
 
-[11 分钟中文演示](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0-core-tutorial-zh-CN.mp4) · [跟做项目](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0-tutorial-follow-along.zip) · [发布与验证记录](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.0)
+[11 分钟中文演示](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0-core-tutorial-zh-CN.mp4) · [跟做项目](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0-tutorial-follow-along.zip) · [发布与验证记录](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.1)
 
 预览素材提取助手仅用于只读提取自己安装的游戏图片。官方资源不随本包分发；导入教程与作品请使用自己有权使用的素材。第三方组件许可位于对应的 `asset-extractor` 与 `assets/doorstop` 目录；本项目许可为根目录 `LICENSE`。

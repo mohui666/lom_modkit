@@ -1082,6 +1082,7 @@ impl Catalog {
                                     .selected_text(display)
                                     .width(ui.available_width())
                                     .height(260.0)
+                                    .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
                                     .show_ui(ui, |ui| {
                                         if optional {
                                             if ui
@@ -2030,6 +2031,106 @@ mod tests {
             egui::Event::Text(query.into()),
         ]
     }
+    #[test]
+    fn clicking_background_search_keeps_choices_open_until_selection() {
+        use egui::accesskit::Role;
+        fn pointer_click(
+            output: &egui::FullOutput,
+            role: Role,
+            label: Option<&str>,
+        ) -> Vec<egui::Event> {
+            let bounds = output
+                .platform_output
+                .accesskit_update
+                .as_ref()
+                .unwrap()
+                .nodes
+                .iter()
+                .find(|(_, node)| {
+                    node.role() == role
+                        && label.is_none_or(|text| {
+                            node.label() == Some(text) || node.value() == Some(text)
+                        })
+                })
+                .and_then(|(_, node)| node.bounds())
+                .expect("click target is visible");
+            let pos = egui::pos2(
+                ((bounds.x0 + bounds.x1) / 2.0) as f32,
+                ((bounds.y0 + bounds.y1) / 2.0) as f32,
+            );
+            vec![
+                egui::Event::PointerMoved(pos),
+                egui::Event::PointerButton {
+                    pos,
+                    button: egui::PointerButton::Primary,
+                    pressed: true,
+                    modifiers: Default::default(),
+                },
+                egui::Event::PointerButton {
+                    pos,
+                    button: egui::PointerButton::Primary,
+                    pressed: false,
+                    modifiers: Default::default(),
+                },
+            ]
+        }
+        let mut catalog = Catalog::new();
+        catalog.data["views"] = json!([
+            {"id":"fixture_day","name":"Daytime background"},
+            {"id":"fixture_night","name":"Night background"}
+        ]);
+        let context = egui::Context::default();
+        let mut node = json!({"id":"scene1","type":"scene","view":"fixture_day"});
+        let original = node.clone();
+        let (output, _) = field_frame(&catalog, &context, &mut node, "view", "view", vec![]);
+        let events = pointer_click(&output, Role::ComboBox, None);
+        let _ = field_frame(&catalog, &context, &mut node, "view", "view", events);
+        let (output, _) = field_frame(&catalog, &context, &mut node, "view", "view", vec![]);
+        let events = pointer_click(&output, Role::TextInput, None);
+        let (_, changed) = field_frame(&catalog, &context, &mut node, "view", "view", events);
+        assert!(!changed);
+        let _ = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "view",
+            "view",
+            vec![egui::Event::Text("Night".into())],
+        );
+        let (output, _) = field_frame(&catalog, &context, &mut node, "view", "view", vec![]);
+        assert_eq!(node, original, "searching must not commit a background");
+        let nodes = &output
+            .platform_output
+            .accesskit_update
+            .as_ref()
+            .unwrap()
+            .nodes;
+        assert!(
+            nodes
+                .iter()
+                .any(|(_, node)| node.role() == Role::Button
+                    && node.label() == Some("Night background")),
+            "search popup closed before choosing a background"
+        );
+        assert!(!nodes
+            .iter()
+            .any(|(_, node)| node.role() == Role::Button
+                && node.label() == Some("Daytime background")));
+        let events = pointer_click(&output, Role::Button, Some("Night background"));
+        let (_, changed) = field_frame(&catalog, &context, &mut node, "view", "view", events);
+        assert!(changed);
+        assert_eq!(node["view"], "fixture_night");
+        let (output, _) = field_frame(&catalog, &context, &mut node, "view", "view", vec![]);
+        assert!(!output
+            .platform_output
+            .accesskit_update
+            .as_ref()
+            .unwrap()
+            .nodes
+            .iter()
+            .any(|(_, node)| node.role() == Role::TextInput));
+    }
+
     #[test]
     fn content_name_and_unknown_text_fields_remain_directly_editable() {
         use egui::accesskit::Role;
@@ -3109,6 +3210,50 @@ mod catalog_parity_tests {
                 });
             });
             assert_eq!(row, before);
+        }
+    }
+}
+
+#[cfg(test)]
+mod background_catalog_tests {
+    use super::*;
+
+    #[test]
+    fn every_official_preview_background_is_selectable_in_scene_forms() {
+        let catalog = Catalog::new();
+        let choices = catalog.options("view", &serde_json::json!({"type":"scene"}), &[], &[]);
+        let previews: Value =
+            serde_json::from_str(include_str!("../../../data/preview_map.json")).unwrap();
+        let missing: Vec<_> = previews["views"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .filter(|id| !choices.iter().any(|(candidate, _)| candidate == *id))
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "preview backgrounds missing from scene selector: {missing:?}"
+        );
+        for id in ["section_001_center_night", "section_001_center2_night"] {
+            let (_, name) = choices
+                .iter()
+                .find(|(candidate, _)| candidate == id)
+                .unwrap();
+            assert_ne!(name, id);
+            let story = serde_json::json!({"id":"background_check","story_schema":2,"start":"scene1","nodes":[
+                {"id":"scene1","type":"scene","view":id}, {"id":"end1","type":"end"}
+            ]});
+            let lua = lom_core::codegen::compile_story(&story, None, None, None).unwrap();
+            assert!(lua.contains(id));
+            assert_eq!(
+                catalog.data["views"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .filter(|row| row["id"] == id)
+                    .count(),
+                1
+            );
         }
     }
 }

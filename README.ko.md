@@ -10,10 +10,10 @@
 
 | 버전 | 설명 |
 | --- | --- |
-| **현재 소스: v1.3.0** | 편집기와 컴파일러를 Rust로 전환했습니다. C# 게임 호스트와 `.lommod` v3 형식은 유지합니다. |
-| **Windows 릴리스: v1.3.0** | 두 가지 제작 모드, 이벤트·퀘스트 설정, UI 개선과 Steam 게임 폴더 자동 찾기를 추가했습니다. |
+| **현재 소스: v1.3.1** | 편집기와 컴파일러를 Rust로 전환했습니다. C# 게임 호스트와 `.lommod` v3 형식은 유지합니다. |
+| **Windows 릴리스: v1.3.1** | 두 가지 제작 모드, 이벤트·퀘스트 설정, UI 개선과 Steam 게임 폴더 자동 찾기를 추가했습니다. |
 
-[v1.3.0 다운로드(Windows)](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0_windows_x64.zip) · [v1.3.0 Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.0)
+[v1.3.1 다운로드(Windows)](https://github.com/mohui666/lom_modkit/releases/download/v1.3.1/lom_modkit-v1.3.1_windows_x64.zip) · [v1.3.1 Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.1)
 
 ZIP 전체를 압축 해제하고 `lom_modkit/lom-editor.exe`를 실행하세요. 로더와 C# 호스트 업데이트 방법 및 테스트 범위는 [x64 검증 기록(중국어 간체)](docs/chs/x64_validation.md)을 참고하세요.
 

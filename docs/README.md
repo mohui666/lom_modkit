@@ -1,8 +1,8 @@
 # lom_modkit 文档
 
-本文档描述当前 **v1.3.0**，C# 游戏接入层保留。先读 [软件使用](chs/software_usage.md)，构建见 [Rust 工具端](chs/rust.md)，实现与验证范围见 [迁移记录](chs/rust_migration.md)。
+本文档描述当前 **v1.3.1**，C# 游戏接入层保留。先读 [软件使用](chs/software_usage.md)，构建见 [Rust 工具端](chs/rust.md)，实现与验证范围见 [迁移记录](chs/rust_migration.md)。
 
-[v1.3.0 Windows Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.0) 提供完整工具包、中文演示和跟做项目；本次验证见 [v1.3.0 记录](../RELEASE_NOTES_v1.3.0.md)，历史游戏冒烟见 [x64 验证记录](chs/x64_validation.md)。
+[v1.3.1 Windows Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.1) 提供最新完整工具包，背景补丁见 [v1.3.1 记录](../RELEASE_NOTES_v1.3.1.md)；中文演示、跟做项目及上一版验证见 [v1.3.0 记录](../RELEASE_NOTES_v1.3.0.md)，历史游戏冒烟见 [x64 验证记录](chs/x64_validation.md)。
 
 权威版为简体中文 [`chs/`](chs/)。[繁體](cht/README.md)、[日本語](ja/README.md)、[한국어](ko/README.md) 的入口已注明适用版本；尚未同步的旧版 UI 指南不能作为当前操作路径。维护文档先更新 `chs/`。
 

@@ -5745,6 +5745,10 @@
       "name": "煉丹房_夜晚"
     },
     {
+      "id": "backmountain",
+      "name": "後山_白天"
+    },
+    {
       "id": "backmountain2",
       "name": "後山2_白天"
     },
@@ -5773,6 +5777,22 @@
       "name": "後院_白天"
     },
     {
+      "id": "bamboo_villa",
+      "name": "新竹別第_白天"
+    },
+    {
+      "id": "bamboo_villa2",
+      "name": "新竹別第2_白天"
+    },
+    {
+      "id": "bamboo_villa_dusk",
+      "name": "新竹別第_黃昏"
+    },
+    {
+      "id": "bamboo_villa_night",
+      "name": "新竹別第_夜晚"
+    },
+    {
       "id": "banquet",
       "name": "宴會_白天"
     },
@@ -5787,6 +5807,14 @@
     {
       "id": "blossom",
       "name": "杏花林_白天"
+    },
+    {
+      "id": "blossom_night",
+      "name": "杏花林_夜晚"
+    },
+    {
+      "id": "boat",
+      "name": "小舟_白天"
     },
     {
       "id": "boat2",
@@ -5805,12 +5833,20 @@
       "name": "馬車內_白天"
     },
     {
+      "id": "carriage_night",
+      "name": "馬車內_夜晚"
+    },
+    {
       "id": "cellar",
       "name": "地窖_白天"
     },
     {
       "id": "center",
       "name": "校場_白天"
+    },
+    {
+      "id": "center2",
+      "name": "校場2_白天"
     },
     {
       "id": "center_evening",
@@ -5833,12 +5869,32 @@
       "name": "原野_白天"
     },
     {
+      "id": "champaign_dusk",
+      "name": "原野_黃昏"
+    },
+    {
+      "id": "champaign_loop",
+      "name": "原野_循環_白天"
+    },
+    {
       "id": "champaign_night",
       "name": "原野_夜晚"
     },
     {
       "id": "citygate",
       "name": "城門_白天"
+    },
+    {
+      "id": "citygate_dust",
+      "name": "城門_黃昏"
+    },
+    {
+      "id": "citygate_night",
+      "name": "城門_夜晚"
+    },
+    {
+      "id": "cliff",
+      "name": "懸崖"
     },
     {
       "id": "cliff_night",
@@ -5877,6 +5933,10 @@
       "name": "柴房_白天"
     },
     {
+      "id": "foodstalls",
+      "name": "小吃攤_白天"
+    },
+    {
       "id": "foodstalls_night",
       "name": "小吃攤_夜晚"
     },
@@ -5899,6 +5959,22 @@
     {
       "id": "forge2",
       "name": "鐵鋪"
+    },
+    {
+      "id": "forge2_cloudy_chaos",
+      "name": "鐵鋪_陰天_亂"
+    },
+    {
+      "id": "forge2_dusk",
+      "name": "鐵鋪_黃昏"
+    },
+    {
+      "id": "forge2_night",
+      "name": "鐵鋪_夜晚"
+    },
+    {
+      "id": "forge2_night_chaos",
+      "name": "鐵鋪_夜晚_亂"
     },
     {
       "id": "forge_dust",
@@ -5925,12 +6001,28 @@
       "name": "外堡_夜晚"
     },
     {
+      "id": "fortress_room1",
+      "name": "外堡房間1_白天"
+    },
+    {
       "id": "fortress_room2",
       "name": "外堡房間2_白天"
     },
     {
       "id": "fortress_room2_dusk",
       "name": "外堡房間2_黃昏"
+    },
+    {
+      "id": "gazebo",
+      "name": "涼亭_白天"
+    },
+    {
+      "id": "gazebo_dusk",
+      "name": "涼亭_黃昏"
+    },
+    {
+      "id": "gazebo_rainy",
+      "name": "涼亭_雨天"
     },
     {
       "id": "grassland",
@@ -5941,12 +6033,40 @@
       "name": "招待所"
     },
     {
+      "id": "guest1_dusk",
+      "name": "招待所_黃昏"
+    },
+    {
+      "id": "guest1_morning",
+      "name": "招待所_早上"
+    },
+    {
+      "id": "guest1_night",
+      "name": "招待所_夜晚"
+    },
+    {
+      "id": "house",
+      "name": "民居_白天"
+    },
+    {
       "id": "house1",
       "name": "巷口人家_白天"
     },
     {
       "id": "house1_night",
       "name": "巷口人家_夜晚"
+    },
+    {
+      "id": "house2",
+      "name": "小竹家_白天"
+    },
+    {
+      "id": "house_dusk",
+      "name": "民居_黃昏"
+    },
+    {
+      "id": "house_night",
+      "name": "民居_夜晚"
     },
     {
       "id": "inn1",
@@ -5983,6 +6103,14 @@
     {
       "id": "lake1",
       "name": "洞庭湖_白天"
+    },
+    {
+      "id": "lake1_night",
+      "name": "洞庭湖_夜晚"
+    },
+    {
+      "id": "lantern_tower",
+      "name": "千燈樓_白天"
     },
     {
       "id": "mall1",
@@ -6033,8 +6161,20 @@
       "name": "山澗_白天"
     },
     {
+      "id": "nightmarket",
+      "name": "夜市_白天"
+    },
+    {
+      "id": "nightmarket_night",
+      "name": "夜市_夜晚"
+    },
+    {
       "id": "outsideshop",
       "name": "野店_白天"
+    },
+    {
+      "id": "outsideshop_dust",
+      "name": "野店_黃昏"
     },
     {
       "id": "outsideshop_night",
@@ -6045,8 +6185,24 @@
       "name": "水田_白天"
     },
     {
+      "id": "paddy_dusk",
+      "name": "水田_黃昏"
+    },
+    {
+      "id": "paddy_night",
+      "name": "水田_夜晚"
+    },
+    {
       "id": "pharmacy1",
       "name": "藥鋪1"
+    },
+    {
+      "id": "pinball",
+      "name": "彈珠台"
+    },
+    {
+      "id": "pirate_cave",
+      "name": "海盜洞"
     },
     {
       "id": "princess _room1",
@@ -6055,6 +6211,22 @@
     {
       "id": "prison",
       "name": "牢房"
+    },
+    {
+      "id": "prison2",
+      "name": "牢房2"
+    },
+    {
+      "id": "prison_night",
+      "name": "牢房_夜晚"
+    },
+    {
+      "id": "prison_nolight",
+      "name": "牢房_無光"
+    },
+    {
+      "id": "prison_outside",
+      "name": "牢房外"
     },
     {
       "id": "riverside1",
@@ -6105,6 +6277,10 @@
       "name": "寢室_夜晚"
     },
     {
+      "id": "sea",
+      "name": "大海_白天"
+    },
+    {
       "id": "section_001_cave",
       "name": "崆峒_玄功洞"
     },
@@ -6113,28 +6289,108 @@
       "name": "崆峒_練武場"
     },
     {
+      "id": "section_001_center2",
+      "name": "崆峒_練武場2_白天"
+    },
+    {
+      "id": "section_001_center2_night",
+      "name": "崆峒_練武場2_夜晚"
+    },
+    {
+      "id": "section_001_center_night",
+      "name": "崆峒_練武場_夜晚"
+    },
+    {
+      "id": "section_001_center_top",
+      "name": "崆峒_半雨坪洞頂"
+    },
+    {
+      "id": "section_001_center_top2",
+      "name": "崆峒_半雨坪洞頂2"
+    },
+    {
+      "id": "section_001_cliff",
+      "name": "崆峒_鶴崖_白天"
+    },
+    {
+      "id": "section_001_cliff_dusk",
+      "name": "崆峒_鶴崖_黃昏"
+    },
+    {
+      "id": "section_001_cliff_night",
+      "name": "崆峒_鶴崖_夜晚"
+    },
+    {
       "id": "section_001_door",
       "name": "崆峒_白天"
+    },
+    {
+      "id": "section_001_door_dust",
+      "name": "崆峒_黃昏"
+    },
+    {
+      "id": "section_001_door_night",
+      "name": "崆峒_夜晚"
+    },
+    {
+      "id": "section_001_field",
+      "name": "崆峒_田地"
     },
     {
       "id": "section_001_fist",
       "name": "崆峒_鐵拳門"
     },
     {
+      "id": "section_001_fist_01",
+      "name": "崆峒_鐵拳門_差分1"
+    },
+    {
+      "id": "section_001_fist_02",
+      "name": "崆峒_鐵拳門_差分2"
+    },
+    {
       "id": "section_001_fist_dusk",
       "name": "崆峒_鐵拳門_黃昏"
+    },
+    {
+      "id": "section_001_fist_night",
+      "name": "崆峒_鐵拳門_夜晚"
     },
     {
       "id": "section_001_map",
       "name": "崆峒_崆峒山地圖"
     },
     {
+      "id": "section_001_map_02",
+      "name": "崆峒_崆峒山地形圖"
+    },
+    {
       "id": "section_001_market",
       "name": "崆峒_市集"
     },
     {
+      "id": "section_001_market_dusk",
+      "name": "崆峒_市集_黃昏"
+    },
+    {
+      "id": "section_001_market_morning",
+      "name": "崆峒_市集_早上"
+    },
+    {
+      "id": "section_001_market_night",
+      "name": "崆峒_市集_夜晚"
+    },
+    {
+      "id": "section_001_market_slay",
+      "name": "崆峒_市集_屠殺"
+    },
+    {
       "id": "section_001_mountain",
       "name": "崆峒_奪魄峰"
+    },
+    {
+      "id": "section_001_space",
+      "name": "崆峒_空地"
     },
     {
       "id": "section_001_temple_mall",
@@ -6153,6 +6409,10 @@
       "name": "青城道觀_白天"
     },
     {
+      "id": "section_002_mall_night",
+      "name": "青城道觀_夜晚"
+    },
+    {
       "id": "section_002_map",
       "name": "青城派_青城山地圖"
     },
@@ -6167,6 +6427,10 @@
     {
       "id": "section_004",
       "name": "全真派_白天"
+    },
+    {
+      "id": "section_004_mall",
+      "name": "全真道觀_白天"
     },
     {
       "id": "section_005",
@@ -6193,6 +6457,10 @@
       "name": "錦香宮_夜晚"
     },
     {
+      "id": "section_200_center",
+      "name": "泥教_廣場_白天"
+    },
+    {
       "id": "section_outside",
       "name": "門派戶外"
     },
@@ -6213,6 +6481,10 @@
       "name": "大船_白天"
     },
     {
+      "id": "sixdao_scenic",
+      "name": "六道峽風景_白天"
+    },
+    {
       "id": "sky",
       "name": "天空_白天"
     },
@@ -6223,6 +6495,10 @@
     {
       "id": "sky_night",
       "name": "天空_夜晚"
+    },
+    {
+      "id": "snow_end",
+      "name": "雪山派結尾"
     },
     {
       "id": "snow_mountain",
@@ -6243,6 +6519,10 @@
     {
       "id": "spa",
       "name": "溫泉_白天"
+    },
+    {
+      "id": "stone_house",
+      "name": "石室_白天"
     },
     {
       "id": "stream",
@@ -6271,6 +6551,14 @@
     {
       "id": "styx_river_dusk",
       "name": "冥河_黃昏"
+    },
+    {
+      "id": "tang_door1",
+      "name": "唐門大門_白天"
+    },
+    {
+      "id": "tang_door_night1",
+      "name": "唐門大門_夜晚"
     },
     {
       "id": "tang_mall",
@@ -6309,6 +6597,10 @@
       "name": "破廟_夜雨"
     },
     {
+      "id": "tent1",
+      "name": "軍帳_白天"
+    },
+    {
       "id": "tree_top",
       "name": "樹頂_白天"
     },
@@ -6323,6 +6615,10 @@
     {
       "id": "underworld",
       "name": "陰曹地府"
+    },
+    {
+      "id": "valley_bottom",
+      "name": "谷底_白天"
     },
     {
       "id": "walled",
