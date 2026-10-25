@@ -3,6 +3,8 @@
 > 语言：简体中文（本文） · [繁體中文](../cht/mod_format.md) · [日本語](../ja/mod_format.md) · [한국어](../ko/mod_format.md)
 
 **所有组件（编辑器 / 编译器 / 运行时插件）以本文档为准。** 改动需同步更新本文档。
+
+2026-10-24 工作区扩展：Host ≥1.1.3 支持 `play_mode=addon/sandbox` 与独立的 `scenario.json`。事件、任务和结果动作使用[事件与任务配置](events_and_tasks.md)契约，旧作品继续兼容。
 文中规则的官方脚本/反编译实证材料见 `../research/`，正文不重复展开。
 
 ## 1. 包结构
@@ -33,7 +35,7 @@ assets/                # 可选，自定义资源
 - 运行时先拒绝物理文件超过 160 MiB 的包，再从读取该包的同一个文件句柄计算最终 `.lommod` **全部原始字节**的 SHA-256，保存完整 64 个十六进制字符，并在强制披露中显示前 16 个字符。重新压缩、修改任一字节都会改变指纹；改文件名或逐字节复制不会改变。该指纹用于核对具体包，不是作者签名或官方认证。编辑器安装器同样以 160 MiB / 4 MiB 分别限制包文件与 `manifest.json`。
 - 打包器按包内规范路径排序条目，JSON 使用稳定键顺序，Lua 编译顺序固定，并把 ZIP 时间戳固定为 1980-01-01、权限固定为普通只读元数据；同一 lom_modkit/Rust/ZIP 工具链下，相同项目连续导出的 `.lommod` 应逐字节一致。不同 Rust 或 ZIP 实现的压缩字节可能不同，因此**不宣称跨工具链 reproducible build**。
 - `package-content.sha256` 是 `lom-entry-sha256-v1` 记录：对除它自身外的全部条目按名称排序，以「名称长度 + UTF-8 名称 + 内容长度 + 原始内容」计算 SHA-256。它不依赖 ZIP 时间戳、权限或压缩结果，可由 `lomc.package_content_hash(path)` 复算；它是构建一致性校验，不是签名或官方认证，也不替代 Runtime 对整包原始字节计算的 Host 指纹。
-- 编辑器「创作工具 → 创作工具 → 包检查与水印检测 → 检查 .lommod 包」以只读方式展示 Manifest、Story、Lua、Texts、资源、用户内容、大小和逐条目 SHA-256，同时检查版本兼容、格式错误、逻辑内容哈希及资源引用/打包差异。检查器不解包到磁盘、不执行 Lua，也不登记共享内容库。
+- 编辑器「发布 → 包检查与水印检测 → 检查 .lommod 包」以只读方式展示 Manifest、Story、Lua、Texts、资源、用户内容、大小和逐条目 SHA-256，同时检查版本兼容、格式错误、逻辑内容哈希及资源引用/打包差异。检查器不解包到磁盘、不执行 Lua，也不登记共享内容库。
 
 ### 1.1 Story 内容本地化（可选）
 
@@ -86,7 +88,7 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 }
 ```
 
-- `package_format`：`.lommod` 容器与 manifest 契约版本，当前固定为 `3`。v3 强制 `story-lua.sha256`、`package-content.sha256`、稳定 `campaign_id` 和 `campaign.new_game=true`；v1/v2 一律拒绝。
+- `package_format`：`.lommod` 容器与 manifest 契约版本，当前固定为 `3`。v3 强制 `story-lua.sha256`、`package-content.sha256` 和稳定 `campaign_id`；独立作品要求 `campaign.new_game=true`，`play_mode=addon` 为 false；v1/v2 一律拒绝。
 - `story_schema`：包内 `story/*.json` 源格式版本，当前固定 `2`。
 - `content_schema`：包内 `assets/user/*/*/content.json` 格式版本，当前固定 `1`。
 - `format`：兼容拼写，值必须与 `package_format` 同为 `3`。未知、旧版或互相冲突的声明都会被拒绝。
@@ -102,7 +104,7 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 - `name`、`version`、`author`、`description` 都是**作者自报元数据**，不能声明官方身份。运行时展示前会单行化、限长，并移除控制字符、双向覆盖/零宽格式字符与富文本尖括号。
 - 未定义 `official`、`verified`、`signature`、`sha256` 等信任字段；手工向 manifest 添加这些字段不会影响 Host 计算的包指纹，也不会显示为官方内容。
 - `campaign`（可选）：战役模式。
-  - `new_game`：v3 固定为 true。选择 MOD 只切换到该战役的存档页，不直接开局；只有明确点击“开始新战役”才使用当前选中的 `mod_campaign_<campaign_id>` / `_sNNN` 隔离槽开新游戏，并把首个脚本替换为本包 `entry`。
+  - `new_game`：独立作品为 true，附加剧情（`play_mode=addon`）为 false。选择 MOD 只切换到该战役的存档页，不直接开局；只有明确点击“开始新战役”才使用当前选中的 `mod_campaign_<campaign_id>` / `_sNNN` 隔离槽开新游戏，并把首个脚本替换为本包 `entry`。
   - `disable_official_events`（可选，bool，缺省 false）：true 时本战役**禁用原版剧情事件**——返回 Free 时不自动启动无地点主线/支线，地图位置只保留本 mod 触发器（未命中则该位置默认活动不可用，需 mod 自带兜底触发器）。
   - `triggers`：自由模式触发器数组。`type="position"`：点击地图位置 `position`（PositionType 枚举 id：Mall/Center/Alchemy/Forge/BackMountain/Room1/Door/Study/Kitchen/Room2/Secret）时，该位置默认活动脚本替换为 `script`（同包脚本 id）。可选条件全部命中才生效（多条件 AND；**数组顺序=优先级**，运行时取第一个全部命中的触发器）：
     - `when_flag_set` / `when_flag_clear`：剧情 flag（即 `flag` 节点 AddStory 的 key，存档持久化）已设置/未设置。
@@ -145,7 +147,7 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 - `choice` / `branch` / `dice` 的分支必须用 `goto` 指到目标节点 id。
 - 多个前驱汇入同一节点（汇合点）合法。
 
-### 3.1 节点类型（全量 63 种）
+### 3.1 节点类型（全量 64 种）
 
 此表是当前全部合法节点。`combat` / `battle` 使用稳定的运行时内部基线，不向作者暴露场景预设；战斗能力只调用已反编译核验的原版接口，`mod_quest` 则是明确不接触原版 Mission ID 的宿主状态机。
 
@@ -153,6 +155,7 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 
 | type | 字段 | 说明 |
 | --- | --- | --- |
+| `parallel` | `actions`：2～32 个演出动作对象（含 `type` 及对应节点的字段，不含 `id/goto`） | 预载官方人物后，同一帧启动各动作；等待全部完成再走父节点的后继。具体范围与冲突规则见 §3.4。 |
 | `music` | `name`；可选 `op`("play"默认/"stop"/"fadeout")，fadeout 时 `seconds`(默认2) | 官方名继续 `PlayMusic` / `StopMusic` / `FadeOutMusic(seconds)` 后 **`wait(seconds)`**。`name` 以 `user:` 开头时是用户内容引用（§8），由运行时从**当前包** `assets/user/` 解析播放。禁止本机绝对路径 |
 | `sound` | `name`；可选 `kind`("sound"默认/"env")，`op`("play"默认/"fadeout"仅env，`seconds`默认1) | 官方名继续 `PlaySound` / `PlayEnvSound` / `FadeOutEnvSound(seconds)` 后同样 **`wait(seconds)`**。`user:` 引用规则同 music，且 `audio_kind` 必须与节点匹配 |
 | `scene` | `view` | 切换**原版官方背景**：先清除自定义背景，再 `runblock(flowcharts.view,"out")`；其余原版预载与切换行为不变。`view="out"` 只淡出；`"black"/"white"` 为纯色 |
@@ -239,6 +242,31 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 ### 3.3 选项菜单皮肤（choice.dialog）
 
 **仅 `Options` 可用**（默认，纯文本选项；Dice 为骰子节点内部专用）。其余皮肤（Talk/Meet/Door/Section_* 等）是自由场景的 break 格式菜单（选项文本为 `类型+key+行动点+贡献` 四段 `+` 分隔），纯文本选项会触发 `BreakOptionButton.UpdateContent` 的 IndexOutOfRange 崩溃（菜单冻结）——编译器直接报错拒绝。发射：`setmenudialog(menudialogs.Options)` → `choose()` → `menudialogs.Options.SetActive(false)`。
+
+### 3.4 同时执行组（parallel）
+
+```json
+{
+  "id": "leave_together",
+  "type": "parallel",
+  "actions": [
+    {"type": "hide", "character": "player", "fadeDuration": 0.5},
+    {"type": "hide", "character": "brother1", "fadeDuration": 0.8}
+  ]
+}
+```
+
+父节点仍是唯一的流程节点：上述两人一起开始退场，整组等 0.8 秒，而非依次等待 1.3 秒，再继续父节点的 `goto` 或下一步。动作对象复用原有字段校验，不另写动作 ID、跳转或执行顺序分支。允许 2～32 个动作，不允许嵌套组。
+
+支持 `show/hide/move/face/focus/offset/rotate/dim/shock`、`scene/background/custom_cg/overlay`、`effect/camera/transition/mask/dayenv`、`music/sound/wait`。对白、选项、检定、战斗、跨场景跳转、面板、原生 Lua 等需要独占流程的节点放在组外。赵活外观 `appearance` 切换也放在组前。
+
+同组不得同时控制同一个人物、背景、前景槽或同名特效／滤镜；官方背景切换与黑幕转场共享剧情界面，不能放在同组；原版人物震动复用同一个 common 流图，同组只能放一个，用户人物震动不受此限制。音乐切换可能影响环境音，因此同组不再另加环境音控制。冲突会报出具体动作序号，不按列表顺序偷偷覆盖。
+
+编译器先预载组内官方人物及所需表情，再在当前 Host 的 Lua 协程内调度各分支，每帧推进一轮。各动作保留原来的 `wait/runwait`，登场、退场、聚焦、压暗和原版旋转补上必要的完成等待。官方背景仍按原版异步加载／流图切换，不保证图片与人物在同一帧完成加载；需要“揭幕时全部就位”时，先盖黑幕，在组外切好背景，再布置人物，最后揭幕。
+
+音乐、普通音效、循环特效只等待启动，不等待曲目或循环结束；可加一个 `wait` 动作决定整组最短停留时间。子动作错误会中止整组并交给 Host 既有故障处理，不会继续后面的剧情。没有新建线程或分离的 Lua 后台任务。
+
+组内用户人物、图片和声音纳入素材检查、打包与未使用素材统计；选取步骤时显示全部子动作结束后的状态，播放时按各自时长预览人物移动、淡入淡出、偏移和旋转。黑幕遮挡状态会保留到后续背景和人物就位步骤，直到揭幕；转场节奏仅作编辑器示意，未读取游戏场景中配置的时长。F5 的预览前置状态也保留人物、背景与黑幕。预览不代替真实动画时序验收。3／2／1 包格式与既有 C# Host 接口不变；旧 63 类节点的 Lua 编译产物保持原样。
 
 ## 4. story.json → Lua 编译约定（lomc 实现）
 

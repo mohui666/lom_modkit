@@ -5,214 +5,210 @@
       "id": "artist1",
       "name": "武师",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "artist2",
       "name": "武师",
       "portraits": [
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "artists",
       "name": "武师众",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "assassin1",
+      "name": "刺客",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "assassin2",
+      "name": "刺客",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "assassin3",
+      "name": "刺客",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "aunt1",
       "name": "大妈",
       "portraits": [
-        "laugh1",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "aunt2",
       "name": "大妈",
       "portraits": [
-        "angry1",
         "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "sad2"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "aunt3",
       "name": "大妈",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "nervous1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "aunt4",
+      "name": "大妈",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "badguy1",
       "name": "歹人",
       "portraits": [
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "badguy2",
       "name": "歹人",
       "portraits": [
-        "laugh1",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "badguy3",
       "name": "歹人",
       "portraits": [
-        "laugh1",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "bandit1",
       "name": "山贼",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "bandit2",
       "name": "山贼",
       "portraits": [
-        "laugh1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "bandit3",
       "name": "山贼",
       "portraits": [
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "bandit4",
       "name": "山贼",
       "portraits": [
-        "laugh1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "bandit5",
       "name": "山贼",
       "portraits": [
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "beggar1",
       "name": "乞丐",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "beggar2",
       "name": "乞丐",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "beggar3",
       "name": "乞丐",
       "portraits": [
-        "angry2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "beggar4",
       "name": "乞丐",
       "portraits": [
-        "angry2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "beggar5",
       "name": "乞丐",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "big_shock1",
       "name": "许大鲸",
       "portraits": [
-        "angry1",
-        "angry2",
-        "hurt",
-        "laugh1",
-        "laugh2",
         "nervous1",
         "nervous2",
         "normal",
         "shock"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "big_trainee_1",
+      "name": "唐门弟子",
+      "portraits": [
+        "angry1",
+        "angry2",
+        "laugh1",
+        "nervous1",
+        "nervous2",
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "big_trainee_2",
@@ -223,65 +219,96 @@
         "laugh1",
         "nervous1",
         "nervous2",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "big_trainee_girl_1",
       "name": "唐娇娇",
       "portraits": [
-        "angry1",
-        "angry2",
-        "angry3",
-        "gloomy2",
-        "laugh1",
-        "nervous1",
         "normal",
         "special1"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "blacksmith1",
       "name": "铁匠",
       "portraits": [
-        "angry1",
-        "hurt2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "blacksmith2",
       "name": "铁匠",
       "portraits": [
-        "laugh1",
-        "nervous1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "blacksmith3",
       "name": "铁匠",
       "portraits": [
-        "angry1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "blacksmith4",
+      "name": "铁飞龙",
+      "portraits": [
+        "hurt",
+        "hurt2",
+        "laugh1",
+        "laugh2",
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "blacksmith5",
+      "name": "铁飞鹰",
+      "portraits": [
+        "normal",
+        "special1"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "boy1",
       "name": "少年",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "boy2",
+      "name": "少年",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "branch",
+      "name": "雜項_樹枝",
+      "portraits": [
+        "normal",
+        "special1"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "break_roof_1",
+      "name": "雜項_破損屋樑",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "brother1",
@@ -300,60 +327,111 @@
         "normal",
         "serious",
         "shock",
+        "silent",
         "special1",
         "special2",
         "special3",
         "special4"
       ],
       "title": "飞侠",
-      "intro": "名唤布衣，掌门座下第一大弟子。\n天资聪颖，爽朗不羁，江湖人称「飞侠」，暗器、轻功造诣俱臻当世第一流境界。"
+      "intro": "名唤布衣，掌门座下第一大弟子。\n天资聪颖，爽朗不羁，江湖人称「飞侠」，暗器、轻功造诣俱臻当世第一流境界。",
+      "default_portrait": "normal",
+      "appearance_group": "brother1",
+      "appearance_name": "普通"
     },
     {
       "id": "brother1_0",
       "name": "？？？",
       "portraits": [
-        "normal"
-      ]
+        "angry1",
+        "angry2",
+        "angry3",
+        "hurt",
+        "hurt2",
+        "laugh1",
+        "laugh2",
+        "nervous1",
+        "nervous2",
+        "nervous3",
+        "normal",
+        "serious",
+        "shock",
+        "silent",
+        "special1",
+        "special2",
+        "special3",
+        "special4"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "brother1",
+      "appearance_name": "剪影"
     },
     {
       "id": "brother1_1",
       "name": "蒙面人",
       "portraits": [
-        "laugh2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "brother1",
+      "appearance_name": "蒙面"
     },
     {
       "id": "brother1_2",
       "name": "唐布衣",
       "portraits": [
         "angry1",
+        "angry2",
+        "angry3",
+        "hurt",
+        "hurt2",
         "laugh1",
+        "laugh2",
         "nervous1",
+        "nervous2",
         "nervous3",
-        "normal"
-      ]
+        "normal",
+        "serious",
+        "shock",
+        "silent",
+        "special1",
+        "special2",
+        "special3",
+        "special4"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "brother1",
+      "appearance_name": "另一造型"
     },
     {
       "id": "brother1_lower",
       "name": "brother1_lower",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "brother1",
+      "appearance_name": "下半身"
     },
     {
       "id": "brother1_upper",
       "name": "brother1_upper",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "brother1",
+      "appearance_name": "上半身"
     },
     {
       "id": "brother1_young",
       "name": "少年唐布衣",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "brother1",
+      "appearance_name": "少年"
     },
     {
       "id": "brother2",
@@ -369,19 +447,25 @@
         "nervous1",
         "nervous2",
         "normal",
-        "shock",
+        "silent",
         "special1",
         "special2"
       ],
       "title": "二师兄",
-      "intro": "单名一字铮，唐门掌门座下第二弟子。\n善使毒药，于药毒之术的钻研尤胜业师，心思缜密，孤僻深沉，鲜少下山走动，故而名声远不及师兄，向有「辣手相公」、「辣手公子」之称，人人敬而远之。"
+      "intro": "单名一字铮，唐门掌门座下第二弟子。\n善使毒药，于药毒之术的钻研尤胜业师，心思缜密，孤僻深沉，鲜少下山走动，故而名声远不及师兄，向有「辣手相公」、「辣手公子」之称，人人敬而远之。",
+      "default_portrait": "normal",
+      "appearance_group": "brother2",
+      "appearance_name": "普通"
     },
     {
       "id": "brother2_young",
       "name": "少年唐铮",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "brother2",
+      "appearance_name": "少年"
     },
     {
       "id": "brother3",
@@ -389,6 +473,7 @@
       "portraits": [
         "angry1",
         "angry2",
+        "hurt",
         "hurt2",
         "laugh1",
         "laugh2",
@@ -398,29 +483,22 @@
         "normal",
         "sad1",
         "sad2",
-        "shock"
+        "shock",
+        "silent"
       ],
       "title": "三师兄",
-      "intro": "单名一字升，唐门掌门第三亲传弟子。\n带艺投师，因此年纪较二位师兄为长，从前是志向远大的读书人，只因开罪权贵，远避江湖。兴趣是说书，教化英才，笑谈天下事。"
+      "intro": "单名一字升，唐门掌门第三亲传弟子。\n带艺投师，因此年纪较二位师兄为长，从前是志向远大的读书人，只因开罪权贵，远避江湖。兴趣是说书，教化英才，笑谈天下事。",
+      "default_portrait": "normal",
+      "appearance_group": "brother3",
+      "appearance_name": "普通"
     },
     {
       "id": "brother3_young",
       "name": "唐升",
       "portraits": [
         "angry1",
-        "laugh1",
-        "nervous1",
-        "nervous3",
-        "normal"
-      ]
-    },
-    {
-      "id": "brother4",
-      "name": "唐惟元",
-      "portraits": [
-        "angry1",
         "angry2",
-        "gloomy2",
+        "hurt",
         "hurt2",
         "laugh1",
         "laugh2",
@@ -428,11 +506,44 @@
         "nervous2",
         "nervous3",
         "normal",
+        "sad1",
         "sad2",
-        "shock"
+        "shock",
+        "silent"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "brother3",
+      "appearance_name": "年轻"
+    },
+    {
+      "id": "brother4",
+      "name": "唐惟元",
+      "portraits": [
+        "angry1",
+        "angry2",
+        "angry3",
+        "gloomy2",
+        "hurt2",
+        "laugh1",
+        "laugh2",
+        "nervous1",
+        "nervous2",
+        "normal",
+        "silent"
       ],
       "title": "四师兄",
-      "intro": "本名惟元，唐门掌门的关门弟子。\n被委以往返山下兜售药品、采购生活用品的任务，乐此不疲，经常钻门规的空子，夹带私货抬价卖给同门师兄弟赚取差价。"
+      "intro": "本名惟元，唐门掌门的关门弟子。\n被委以往返山下兜售药品、采购生活用品的任务，乐此不疲，经常钻门规的空子，夹带私货抬价卖给同门师兄弟赚取差价。",
+      "default_portrait": "normal",
+      "appearance_group": "brother4",
+      "appearance_name": "普通"
+    },
+    {
+      "id": "bucket1",
+      "name": "雜項_水桶1",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "bun",
@@ -443,128 +554,135 @@
         "special2",
         "special3",
         "special4"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "carriage1",
       "name": "carriage1",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "chao1",
       "name": "何大妈",
       "portraits": [
-        "nervous1",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "checkerboard",
       "name": "checkerboard",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "chicken1",
       "name": "鸡",
       "portraits": [
-        "nervous1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "chicken2",
       "name": "鸡",
       "portraits": [
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "chicken3",
       "name": "鸡",
       "portraits": [
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "child_boy1",
       "name": "男童",
       "portraits": [
-        "laugh1",
-        "nervous1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "child_boy2",
       "name": "男童",
       "portraits": [
-        "laugh1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "child_boy3",
+      "name": "男童",
+      "portraits": [
+        "normal",
+        "sad2",
+        "special1"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "child_girl1",
       "name": "女童",
       "portraits": [
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "child_girl2",
+      "name": "女童",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "cook_wine1",
       "name": "cook_wine1",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "cow_man_1",
       "name": "牛头",
       "portraits": [
         "black",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "daoshi311",
       "name": "青城长老",
       "portraits": [
-        "angry1",
-        "angry2",
         "laugh1",
         "nervous1",
-        "nervous2",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "daoshi312",
       "name": "青城长老",
       "portraits": [
-        "angry1",
-        "angry2",
         "laugh1",
-        "laugh2",
         "nervous1",
-        "nervous2",
-        "normal",
-        "special1"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "daoshi313",
@@ -575,197 +693,216 @@
         "angry3",
         "gloomy1",
         "gloomy2",
-        "laugh1",
+        "hurt2",
         "nervous1",
         "nervous2",
         "normal",
-        "shock",
         "special1"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "daoshi341",
       "name": "全真长老",
       "portraits": [
-        "nervous1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "dart1",
       "name": "dart1",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "dart2",
       "name": "dart2",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "dio1",
       "name": "狄傲",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
         "normal",
         "special1"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "doctor1",
       "name": "大夫",
       "portraits": [
-        "laugh1",
+        "angry1",
+        "angry2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "doctor_flag",
       "name": "doctor_flag",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "dog1",
       "name": "狗",
       "portraits": [
         "angry2",
-        "laugh1",
-        "nervous2",
-        "normal",
-        "sad2"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "drunkard1",
+      "name": "醉汉",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "echo",
       "name": "回音",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "elder1",
       "name": "老人",
       "portraits": [
+        "angry1",
         "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "elder101",
       "name": "南宫老人",
       "portraits": [
-        "angry1",
-        "angry2",
-        "gloomy2",
-        "laugh1",
         "nervous1",
         "nervous2",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "fairy1",
       "name": "仙姑",
       "portraits": [
-        "nervous1",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "fan1",
+      "name": "閒雜_扇子1",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "father1",
+      "name": "爹",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "female1",
       "name": "女子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "sad2",
-        "shy"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "female2",
       "name": "女子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "normal",
-        "shy"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "female3",
       "name": "女子",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "female_thief1",
+      "name": "女飞贼",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "female_thief1_bucket",
+      "name": "女飞贼",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "firebird1",
       "name": "火闪电",
       "portraits": [
-        "nervous2",
         "normal",
-        "special1"
-      ]
+        "special1",
+        "special2",
+        "special3"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "food_box",
       "name": "food_box",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "ghost1",
       "name": "鬼卒",
       "portraits": [
-        "angry1",
-        "angry2",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "ghost2",
       "name": "鬼卒",
       "portraits": [
-        "angry2",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "ghost3",
       "name": "鬼卒",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "girl1",
@@ -774,20 +911,28 @@
         "gloomy1",
         "laugh1",
         "laugh2",
-        "nervous1",
         "normal",
-        "shy",
         "special1"
       ],
       "title": "杏花仙",
-      "intro": "瑞杏"
+      "intro": "瑞杏",
+      "default_portrait": "normal",
+      "appearance_group": "girl1",
+      "appearance_name": "普通"
     },
     {
       "id": "girl1_1",
       "name": "？？？",
       "portraits": [
-        "normal"
-      ]
+        "gloomy1",
+        "laugh1",
+        "laugh2",
+        "normal",
+        "special1"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl1",
+      "appearance_name": "剪影"
     },
     {
       "id": "girl2",
@@ -818,6 +963,7 @@
         "special10",
         "special11",
         "special12",
+        "special13",
         "special2",
         "special3",
         "special4",
@@ -828,53 +974,106 @@
         "special9"
       ],
       "title": "点苍明珠",
-      "intro": "叶云舟的胞妹。\n纵是盛夏，貂裘亦不离身。虽是个俏皮爱捣蛋的美貌姑娘，却总闹不消半天便会发烧倒下。"
+      "intro": "叶云舟的胞妹。\n纵是盛夏，貂裘亦不离身。虽是个俏皮爱捣蛋的美貌姑娘，却总闹不消半天便会发烧倒下。",
+      "default_portrait": "normal",
+      "appearance_group": "girl2",
+      "appearance_name": "普通"
     },
     {
       "id": "girl2_1",
       "name": "少女",
       "portraits": [
+        "angry1",
+        "angry2",
+        "gloomy2",
+        "laugh1",
+        "laugh2",
         "nervous1",
-        "normal"
-      ]
+        "nervous2",
+        "nervous3",
+        "normal",
+        "revel",
+        "sad1",
+        "sad2",
+        "serious",
+        "shock",
+        "shy",
+        "special1",
+        "special2",
+        "special3",
+        "special4",
+        "special5",
+        "special6",
+        "special7"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl2",
+      "appearance_name": "剪影"
     },
     {
       "id": "girl2_2",
       "name": "叶云裳",
       "portraits": [
-        "normal"
-      ]
+        "angry1",
+        "angry2",
+        "gloomy2",
+        "laugh1",
+        "laugh2",
+        "nervous1",
+        "nervous2",
+        "nervous3",
+        "normal",
+        "revel",
+        "sad1",
+        "sad2",
+        "serious",
+        "shock",
+        "shy",
+        "special1",
+        "special2",
+        "special3",
+        "special4",
+        "special5",
+        "special6",
+        "special7"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl2",
+      "appearance_name": "特殊造型"
     },
     {
       "id": "girl2_3",
       "name": "？？？",
       "portraits": [
-        "nervous1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl2_4",
+      "appearance_name": "身份不明"
     },
     {
       "id": "girl2_4",
       "name": "叶云啾",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "nervous1",
-        "nervous2",
         "normal"
       ],
       "title": "",
-      "intro": "叶家排行第二，点苍第一怪贱手。\n是叶云裳作案后，用以推卸责任的第二重身份。"
+      "intro": "叶家排行第二，点苍第一怪贱手。\n是叶云裳作案后，用以推卸责任的第二重身份。",
+      "default_portrait": "normal",
+      "appearance_group": "girl2_4",
+      "appearance_name": "普通"
     },
     {
       "id": "girl2_5",
       "name": "叶云裳",
       "portraits": [
-        "nervous1",
         "nervous2",
         "normal",
         "special1"
-      ]
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl2",
+      "appearance_name": "幼年"
     },
     {
       "id": "girl4",
@@ -907,24 +1106,56 @@
         "special9"
       ],
       "title": "",
-      "intro": "师承锦香宫，剑法精绝的清丽佳人。\n踏着父亲从前的足迹踽踽前行，向往能够承其父志，行侠四方。虽然如此，由于不谙世事，意外地容易受骗上当。"
+      "intro": "师承锦香宫，剑法精绝的清丽佳人。\n踏着父亲从前的足迹踽踽前行，向往能够承其父志，行侠四方。虽然如此，由于不谙世事，意外地容易受骗上当。",
+      "default_portrait": "normal",
+      "appearance_group": "girl4",
+      "appearance_name": "普通"
     },
     {
       "id": "girl4_1",
       "name": "少女",
       "portraits": [
-        "normal"
-      ]
+        "angry1",
+        "angry2",
+        "angry3",
+        "black",
+        "hurt",
+        "hurt2",
+        "laugh1",
+        "laugh2",
+        "nervous1",
+        "nervous2",
+        "nervous3",
+        "normal",
+        "sad1",
+        "sad2",
+        "shock",
+        "shy",
+        "special1",
+        "special2",
+        "special3",
+        "special4",
+        "special5",
+        "special6",
+        "special7",
+        "special8",
+        "special9"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl4",
+      "appearance_name": "剪影"
     },
     {
       "id": "girl4_2",
       "name": "龙湘",
       "portraits": [
-        "nervous1",
         "normal",
         "shy",
         "special1"
-      ]
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl4",
+      "appearance_name": "宫装"
     },
     {
       "id": "girl5",
@@ -933,9 +1164,135 @@
         "angry1",
         "angry2",
         "angry3",
+        "backstage ",
+        "bitter",
         "black",
-        "gloomy1",
+        "doubt",
         "gloomy2",
+        "hurt",
+        "hurt2",
+        "laugh1",
+        "laugh2",
+        "nervous1",
+        "nervous2",
+        "nervous3",
+        "normal",
+        "proud",
+        "revel",
+        "sad2",
+        "shock",
+        "shy",
+        "special1",
+        "special10",
+        "special11",
+        "special12",
+        "special13",
+        "special14",
+        "special15",
+        "special2",
+        "special3",
+        "special4",
+        "special5",
+        "special7",
+        "special8",
+        "special9"
+      ],
+      "title": "飞天嫡传女弟子",
+      "intro": "崆峒派‧飞天门当代的嫡传女弟子，天真烂漫，活泼开朗的妙龄少女。\n江湖名声不响，在崆峒派却是四门嫡传女弟子之中呼声最高的一位，第一掌派夫人之位，势在必得。",
+      "default_portrait": "normal",
+      "appearance_group": "girl5",
+      "appearance_name": "普通"
+    },
+    {
+      "id": "girl5_10_1",
+      "name": "██",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl5",
+      "appearance_name": "分身1"
+    },
+    {
+      "id": "girl5_10_2",
+      "name": "██",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl5",
+      "appearance_name": "分身2"
+    },
+    {
+      "id": "girl5_10_3",
+      "name": "██",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl5",
+      "appearance_name": "分身3"
+    },
+    {
+      "id": "girl5_10_4",
+      "name": "██",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl5",
+      "appearance_name": "分身4"
+    },
+    {
+      "id": "girl5_10_5",
+      "name": "██",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl5",
+      "appearance_name": "分身5"
+    },
+    {
+      "id": "girl5_10_6",
+      "name": "██",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl5",
+      "appearance_name": "分身6"
+    },
+    {
+      "id": "girl5_2",
+      "name": "虞小梅",
+      "portraits": [
+        "laugh2",
+        "normal"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl5",
+      "appearance_name": "夜行装"
+    },
+    {
+      "id": "girl5_3",
+      "name": "女飞贼",
+      "portraits": [
+        "laugh2",
+        "normal"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl5",
+      "appearance_name": "飞贼（化名）"
+    },
+    {
+      "id": "girl5_4",
+      "name": "虞小梅",
+      "portraits": [
+        "angry1",
+        "angry2",
+        "angry3",
+        "black",
         "hurt",
         "hurt2",
         "laugh1",
@@ -952,46 +1309,81 @@
         "special3",
         "special4"
       ],
-      "title": "飞天嫡传女弟子",
-      "intro": "崆峒派‧飞天门当代的嫡传女弟子，天真烂漫，活泼开朗的妙龄少女。\n江湖名声不响，在崆峒派却是四门嫡传女弟子之中呼声最高的一位，第一掌派夫人之位，势在必得。"
-    },
-    {
-      "id": "girl5_2",
-      "name": "虞小梅",
-      "portraits": [
-        "nervous1",
-        "normal"
-      ]
-    },
-    {
-      "id": "girl5_3",
-      "name": "女飞贼",
-      "portraits": [
-        "angry1",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "normal"
-      ]
-    },
-    {
-      "id": "girl5_4",
-      "name": "虞小梅",
-      "portraits": [
-        "nervous1",
-        "normal"
-      ]
+      "default_portrait": "normal",
+      "appearance_group": "girl5",
+      "appearance_name": "普通（备用）"
     },
     {
       "id": "girl5_5",
       "name": "虞小梅",
       "portraits": [
+        "hurt",
         "hurt2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl5",
+      "appearance_name": "大师兄装"
+    },
+    {
+      "id": "girl5_6",
+      "name": "虞小梅",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl5",
+      "appearance_name": "公子装"
+    },
+    {
+      "id": "girl5_7",
+      "name": "虞小梅",
+      "portraits": [
+        "laugh2",
+        "normal"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl5",
+      "appearance_name": "半身"
+    },
+    {
+      "id": "girl5_8",
+      "name": "虞小梅",
+      "portraits": [
+        "laugh1",
+        "normal",
+        "special1",
+        "white"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl5",
+      "appearance_name": "幼年"
+    },
+    {
+      "id": "girl5_9",
+      "name": "虞小梅",
+      "portraits": [
+        "caught",
+        "kick",
+        "normal",
+        "sad2",
+        "special1",
+        "special2"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl5",
+      "appearance_name": "入魔"
+    },
+    {
+      "id": "girl5_hand",
+      "name": "崆峒_小小梅手",
+      "portraits": [
+        "normal",
+        "special1"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl5",
+      "appearance_name": "幼年手部"
     },
     {
       "id": "girl6",
@@ -999,7 +1391,7 @@
       "portraits": [
         "angry1",
         "angry2",
-        "angry3",
+        "down_eye",
         "gloomy1",
         "gloomy2",
         "laugh1",
@@ -1007,40 +1399,105 @@
         "love",
         "nervous1",
         "nervous2",
-        "nervous3",
         "normal",
         "sad2",
-        "shy",
         "special1",
         "special2",
-        "special3"
+        "special3",
+        "special4",
+        "special5",
+        "white"
       ],
       "title": "夺魄幽兰",
-      "intro": "崆峒派‧夺魄门当代的嫡传女弟子，江湖人称夺魄幽兰，恶名昭彰的女魔头，行事作风狠辣乖戾，幽居在不见天日的夺魄森林中，生人勿近。"
+      "intro": "崆峒派‧夺魄门当代的嫡传女弟子，江湖人称夺魄幽兰，恶名昭彰的女魔头，行事作风狠辣乖戾，幽居在不见天日的夺魄森林中，生人勿近。",
+      "default_portrait": "normal",
+      "appearance_group": "girl6",
+      "appearance_name": "普通"
     },
     {
       "id": "girl6_1",
       "name": "夏侯兰",
       "portraits": [
+        "angry1",
+        "angry2",
+        "gloomy1",
+        "gloomy2",
+        "laugh1",
+        "laugh2",
+        "love",
         "nervous1",
         "nervous2",
         "normal",
         "sad2",
-        "special1"
-      ]
+        "special1",
+        "special2",
+        "special3"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl6",
+      "appearance_name": "早期"
     },
     {
       "id": "girl6_2",
       "name": "夏侯兰",
       "portraits": [
-        "angry2",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl6",
+      "appearance_name": "魂魄"
+    },
+    {
+      "id": "girl6_3",
+      "name": "夏侯梅",
+      "portraits": [
+        "angry1",
+        "laugh1",
+        "normal"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl6",
+      "appearance_name": "幼年"
     },
     {
       "id": "girl7",
+      "name": "郁竹",
+      "portraits": [
+        "angry1",
+        "angry2",
+        "angry3",
+        "discouraged",
+        "doubt",
+        "fist",
+        "full",
+        "haggard",
+        "hurt2",
+        "laugh1",
+        "laugh2",
+        "nervous1",
+        "nervous2",
+        "nervous3",
+        "normal",
+        "sad1",
+        "sad2",
+        "shy",
+        "special1",
+        "special2",
+        "special3",
+        "special4",
+        "special5",
+        "special6",
+        "special7",
+        "special8"
+      ],
+      "title": "裂骨魔",
+      "intro": "崆峒派．铁拳门当代的嫡传女弟子。\n身材娇小，眼神凶恶的绿衣少女。\n因为锻冶手艺高明，颇负盛名，传闻她力大无穷，能徒手掐碎旁人手骨，故而江湖人称「裂骨魔」。",
+      "default_portrait": "normal",
+      "appearance_group": "girl7",
+      "appearance_name": "普通"
+    },
+    {
+      "id": "girl7_1",
       "name": "郁竹",
       "portraits": [
         "angry1",
@@ -1053,29 +1510,22 @@
         "nervous3",
         "normal",
         "sad2",
-        "shock",
         "shy",
         "special1",
         "special2",
         "special3",
         "special4"
       ],
-      "title": "裂骨魔",
-      "intro": "崆峒派．铁拳门当代的嫡传女弟子。\n身材娇小，眼神凶恶的绿衣少女。\n因为锻冶手艺高明，颇负盛名，传闻她力大无穷，能徒手掐碎旁人手骨，故而江湖人称「裂骨魔」。"
-    },
-    {
-      "id": "girl7_1",
-      "name": "郁竹",
-      "portraits": [
-        "nervous1",
-        "normal"
-      ]
+      "default_portrait": "normal",
+      "appearance_group": "girl7",
+      "appearance_name": "幼年"
     },
     {
       "id": "girl7_2",
       "name": "郁竹",
       "portraits": [
         "laugh1",
+        "laugh2",
         "nervous1",
         "nervous2",
         "nervous3",
@@ -1086,15 +1536,89 @@
         "special2",
         "special3",
         "special4"
-      ]
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl7",
+      "appearance_name": "眼镜"
+    },
+    {
+      "id": "girl7_3",
+      "name": "郁竹",
+      "portraits": [
+        "angry1",
+        "angry2",
+        "discouraged",
+        "laugh1",
+        "laugh2",
+        "nervous1",
+        "nervous2",
+        "normal",
+        "proud",
+        "sad1",
+        "sad2",
+        "shy"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl7",
+      "appearance_name": "盛装"
+    },
+    {
+      "id": "girl7_4",
+      "name": "郁竹",
+      "portraits": [
+        "nervous1",
+        "nervous3",
+        "normal",
+        "sad2",
+        "special1",
+        "special2",
+        "white"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl7",
+      "appearance_name": "幼年"
+    },
+    {
+      "id": "girl7_5",
+      "name": "郁竹",
+      "portraits": [
+        "angry1",
+        "angry2",
+        "blood",
+        "discouraged",
+        "fist",
+        "laugh1",
+        "laugh2",
+        "nervous1",
+        "nervous2",
+        "nervous3",
+        "normal",
+        "sad1",
+        "sad2",
+        "shy"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl7",
+      "appearance_name": "无锤"
+    },
+    {
+      "id": "girl7_6",
+      "name": "郁竹",
+      "portraits": [
+        "laugh1",
+        "normal"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl7",
+      "appearance_name": "全副武装"
     },
     {
       "id": "girl8",
       "name": "魏菊",
       "portraits": [
         "angry1",
-        "angry2",
-        "gloomy1",
+        "close_eye_laugh",
+        "drunk",
         "gloomy2",
         "laugh1",
         "laugh2",
@@ -1110,16 +1634,92 @@
         "special3"
       ],
       "title": "玄功掌门",
-      "intro": "崆峒派．玄功门当代的嫡传女弟子，兼任当代掌门。\n仪态端庄，知书达礼，文静而秀丽脱俗，与崆峒派格格不入的奇女子。"
+      "intro": "崆峒派．玄功门当代的嫡传女弟子，兼任当代掌门。\n仪态端庄，知书达礼，文静而秀丽脱俗，与崆峒派格格不入的奇女子。",
+      "default_portrait": "normal",
+      "appearance_group": "girl8",
+      "appearance_name": "普通"
     },
     {
       "id": "girl8_0",
       "name": "少女",
       "portraits": [
+        "angry1",
+        "gloomy2",
         "laugh1",
+        "laugh2",
         "nervous1",
-        "normal"
-      ]
+        "nervous2",
+        "nervous3",
+        "normal",
+        "sad2",
+        "shock",
+        "shy",
+        "special1",
+        "special2",
+        "special3"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl8",
+      "appearance_name": "剪影"
+    },
+    {
+      "id": "girl8_1",
+      "name": "魏菊",
+      "portraits": [
+        "angry1",
+        "gloomy2",
+        "laugh1",
+        "laugh2",
+        "nervous1",
+        "nervous2",
+        "nervous3",
+        "normal",
+        "sad2",
+        "shock",
+        "shy",
+        "special1",
+        "special2",
+        "special3"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl8",
+      "appearance_name": "早期"
+    },
+    {
+      "id": "girl8_2",
+      "name": "魏菊",
+      "portraits": [
+        "nervous1",
+        "nervous2",
+        "normal",
+        "sad2"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl8",
+      "appearance_name": "散发"
+    },
+    {
+      "id": "girl8_3",
+      "name": "魏菊？",
+      "portraits": [
+        "angry1",
+        "gloomy2",
+        "laugh1",
+        "laugh2",
+        "nervous1",
+        "nervous2",
+        "nervous3",
+        "normal",
+        "sad2",
+        "shock",
+        "shy",
+        "special1",
+        "special2",
+        "special3"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "girl8",
+      "appearance_name": "身份不明"
     },
     {
       "id": "girl9",
@@ -1127,7 +1727,6 @@
       "portraits": [
         "angry1",
         "angry2",
-        "gloomy1",
         "hurt2",
         "laugh1",
         "laugh2",
@@ -1137,7 +1736,6 @@
         "normal",
         "revel",
         "sad2",
-        "shock",
         "shy",
         "special1",
         "special2",
@@ -1145,57 +1743,82 @@
         "special4"
       ],
       "title": "上官千金",
-      "intro": "武林三大世家，世居福州的上官家独女，方今武林知名的美人。\n个性骄傲好强，虽是千金名媛，却不甘养于深闺，年纪轻轻便代父操持上官家业。\n巾帼不让须眉，手腕高明，将偌大家业经营得好生兴旺。"
+      "intro": "武林三大世家，世居福州的上官家独女，方今武林知名的美人。\n个性骄傲好强，虽是千金名媛，却不甘养于深闺，年纪轻轻便代父操持上官家业。\n巾帼不让须眉，手腕高明，将偌大家业经营得好生兴旺。",
+      "default_portrait": "normal",
+      "appearance_group": "girl9",
+      "appearance_name": "普通"
     },
     {
       "id": "girl_group1",
       "name": "崆峒四姝",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "god_thunder",
+      "name": "雜項_神雷劍",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "grappling_hook_1",
       "name": "grappling_hook_1",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "grappling_hook_2",
       "name": "grappling_hook_2",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "grappling_hook_3",
       "name": "grappling_hook_3",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "grappling_hook_4",
       "name": "grappling_hook_4",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "guard1",
       "name": "捕快",
       "portraits": [
-        "angry1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "guest1",
       "name": "宾客",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "hammer1",
+      "name": "閒雜_鐵鎚1",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "hero1",
@@ -1203,15 +1826,14 @@
       "portraits": [
         "angry1",
         "angry2",
+        "hurt",
         "laugh1",
         "laugh2",
         "nervous1",
         "nervous2",
-        "nervous3",
-        "normal",
-        "shock",
-        "shy"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "hero2",
@@ -1219,53 +1841,98 @@
       "portraits": [
         "angry1",
         "angry2",
+        "hurt",
         "laugh1",
+        "laugh2",
         "nervous1",
         "nervous2",
         "normal",
         "shy"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "hit_candle_001",
+      "name": "閒雜_打滅燭火1",
+      "portraits": [
+        "special1"
+      ],
+      "default_portrait": "special1"
+    },
+    {
+      "id": "hit_candle_2",
+      "name": "閒雜_打滅燭火2",
+      "portraits": [
+        "special1"
+      ],
+      "default_portrait": "special1"
+    },
+    {
+      "id": "hit_candle_3",
+      "name": "閒雜_打滅燭火3",
+      "portraits": [
+        "special1"
+      ],
+      "default_portrait": "special1"
     },
     {
       "id": "horse1",
       "name": "马",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "horse2",
+      "name": "閒雜_馬2",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "horse_man_1",
       "name": "马面",
       "portraits": [
-        "angry1",
         "black",
-        "laugh1",
         "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "jewelry_box",
       "name": "jewelry_box",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "judgment1",
       "name": "通判",
       "portraits": [
-        "angry1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "ladder1",
+      "name": "雜項_梯子1",
+      "portraits": [
+        "normal",
+        "special1"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "lady1",
       "name": "店家娘子",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "lee1",
@@ -1273,97 +1940,115 @@
       "portraits": [
         "angry1",
         "angry2",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "letter1",
       "name": "letter1",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "letter2",
       "name": "letter2",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "letter3",
       "name": "letter3",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "letter4",
       "name": "letter4",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "letter5",
       "name": "letter5",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "letter6",
       "name": "letter6",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "letter7",
       "name": "letter7",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "letter8",
       "name": "letter8",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "magistrate1",
       "name": "知县",
       "portraits": [
-        "angry2",
         "nervous1",
         "nervous2",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "maid1",
+      "name": "婢女",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "mask1",
       "name": "蒙面人",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "mask2",
       "name": "蒙面人",
       "portraits": [
-        "laugh1",
-        "laugh2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "mask3",
+      "name": "蒙面人",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "master",
@@ -1372,176 +2057,235 @@
         "angry1",
         "angry2",
         "angry3",
+        "close_eye",
+        "close_eye_laugh",
+        "hurt",
         "hurt2",
         "laugh1",
-        "laugh2",
         "nervous1",
-        "nervous3",
         "normal",
         "sad1",
         "sad2",
-        "shock"
+        "serious",
+        "silent"
       ],
       "title": "唐门掌门",
-      "intro": "本名唐中翎，当任唐门掌门人。\n性情刚烈，嫉恶如仇，曾列名武林十大高手的传奇人物，可惜中年过后，身体已然大不如前，飞燕流星翎成为绝响。"
+      "intro": "本名唐中翎，当任唐门掌门人。\n性情刚烈，嫉恶如仇，曾列名武林十大高手的传奇人物，可惜中年过后，身体已然大不如前，飞燕流星翎成为绝响。",
+      "default_portrait": "normal",
+      "appearance_group": "master",
+      "appearance_name": "普通"
     },
     {
       "id": "master99",
       "name": "绝世高手",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "mega_player",
       "name": "百万赵活",
       "portraits": [
-        "angry2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "merchant1",
       "name": "商人",
       "portraits": [
-        "laugh1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "military_doctor1",
+      "name": "军医",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "mom1",
       "name": "赵活的娘",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "money_dart1",
       "name": "money_dart1",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "money_dart2",
       "name": "money_dart2",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "monk1",
+      "name": "老和尚",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "monk2",
       "name": "老和尚",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "monkey1",
       "name": "猴子",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "mother1",
+      "name": "娘",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "oldbeggar1",
       "name": "老乞丐",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "oldbeggar2",
       "name": "老乞丐",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "parrot1",
       "name": "鹦鹉",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "peach1",
       "name": "peach1",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "people1",
       "name": "众人",
       "portraits": [
-        "laugh2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "picture1",
+      "name": "閒雜_圖片1",
+      "portraits": [
+        "special1",
+        "special2"
+      ],
+      "default_portrait": "special1"
+    },
+    {
+      "id": "picture2",
+      "name": "閒雜_圖片2",
+      "portraits": [
+        "special1",
+        "special2"
+      ],
+      "default_portrait": "special1"
+    },
+    {
+      "id": "picture3",
+      "name": "閒雜_圖片3",
+      "portraits": [
+        "special1",
+        "special2"
+      ],
+      "default_portrait": "special1"
+    },
+    {
+      "id": "picture4",
+      "name": "閒雜_圖片4",
+      "portraits": [
+        "special1",
+        "special2"
+      ],
+      "default_portrait": "special1"
+    },
+    {
+      "id": "picture5",
+      "name": "閒雜_圖片5",
+      "portraits": [
+        "special1"
+      ],
+      "default_portrait": "special1"
     },
     {
       "id": "pig1",
       "name": "野猪",
       "portraits": [
-        "angry2",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "pigeon",
       "name": "pigeon",
       "portraits": [
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "pirate1",
       "name": "海盗",
       "portraits": [
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "pirate2",
       "name": "海盗",
       "portraits": [
-        "angry2",
-        "laugh1",
-        "nervous1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "pirate3",
       "name": "海盗",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "player",
@@ -1550,12 +2294,20 @@
         "angry1",
         "angry2",
         "angry3",
+        "blood",
+        "blood2",
+        "blood_laugh1",
+        "blood_laugh2",
+        "blood_nervous1",
+        "caught",
         "close_eye_laugh",
         "die",
         "doubt",
         "gloomy1",
         "gloomy2",
-        "handsome",
+        "god_thunder",
+        "god_thunder_nervous1",
+        "haggard",
         "hurt",
         "hurt2",
         "laugh1",
@@ -1563,10 +2315,13 @@
         "nervous1",
         "nervous2",
         "nervous3",
+        "nervous4",
         "normal",
         "revel",
         "sad1",
         "sad2",
+        "shake1",
+        "shake2",
         "shock",
         "shy",
         "silent",
@@ -1576,10 +2331,14 @@
         "special12",
         "special13",
         "special14",
+        "special15",
         "special16",
         "special17",
         "special18",
+        "special19",
         "special2",
+        "special20",
+        "special21",
         "special3",
         "special4",
         "special5",
@@ -1591,60 +2350,82 @@
         "suck2",
         "suck3",
         "suck4"
-      ]
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "player",
+      "appearance_name": "普通"
     },
     {
       "id": "playerLeft",
       "name": "playerLeft",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "player",
+      "appearance_name": "左侧"
     },
     {
       "id": "playerRight",
       "name": "playerRight",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "player",
+      "appearance_name": "右侧"
     },
     {
       "id": "player_ass",
       "name": "赵活屁股",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "player",
+      "appearance_name": "背身"
     },
     {
       "id": "player_child",
       "name": "幼年赵活",
       "portraits": [
-        "nervous1",
-        "nervous2",
         "normal",
         "sad2",
         "special1"
-      ]
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "player",
+      "appearance_name": "幼年"
+    },
+    {
+      "id": "player_hand",
+      "name": "赵活的手",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "player",
+      "appearance_name": "手部"
     },
     {
       "id": "player_imagine",
       "name": "赵活",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "player",
+      "appearance_name": "入魔"
     },
     {
       "id": "player_old",
       "name": "赵活",
       "portraits": [
-        "angry1",
-        "nervous1",
-        "normal",
-        "sad2"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "player",
+      "appearance_name": "老年"
     },
     {
       "id": "player_section",
@@ -1658,224 +2439,197 @@
         "special5",
         "special6",
         "special7",
-        "special8"
-      ]
+        "special8",
+        "special9"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "player",
+      "appearance_name": "门派像"
     },
     {
       "id": "player_soul",
       "name": "赵活",
       "portraits": [
-        "nervous1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "player",
+      "appearance_name": "魂魄"
+    },
+    {
+      "id": "player_unknown",
+      "name": "赵活（？）",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "player",
+      "appearance_name": "身份不明"
     },
     {
       "id": "player_young",
       "name": "少年赵活",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "player",
+      "appearance_name": "少年"
     },
     {
       "id": "pot1",
       "name": "pot1",
       "portraits": [
-        "normal"
-      ]
+        "pot1"
+      ],
+      "default_portrait": "pot1"
     },
     {
       "id": "ranger1",
       "name": "路人侠",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "revel",
-        "sad2",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "ranger2",
       "name": "路人侠",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "ranger3",
       "name": "路人侠",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "ranger4",
       "name": "公子侠",
       "portraits": [
-        "angry1",
-        "angry2",
-        "angry3",
-        "gloomy2",
         "hurt",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "sad2"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "ranger5",
       "name": "路人侠",
       "portraits": [
-        "angry1",
-        "angry2",
-        "nervous1",
-        "nervous2",
-        "normal",
-        "sad2",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "ranger_girl1",
       "name": "女侠",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "normal",
-        "shock",
-        "shy"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "ranger_group",
       "name": "武林盟群侠",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "retainer1",
       "name": "家丁",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "normal",
-        "sad2"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "retainer2",
       "name": "家丁",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "retainer3",
       "name": "家丁",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "scholar1",
       "name": "书生",
       "portraits": [
-        "laugh1",
-        "nervous1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "scholar2",
       "name": "书生",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "sedan1",
       "name": "sedan1",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "sedan2",
       "name": "sedan2",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "sedan_talker_1",
       "name": "轿中人",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "shopman1",
       "name": "掌柜",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "nervous1",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "showgirl1",
       "name": "女乐",
       "portraits": [
         "laugh1",
-        "nervous1",
+        "laugh2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "sir1",
       "name": "先生",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "sister1",
@@ -1883,185 +2637,244 @@
       "portraits": [
         "angry1",
         "angry2",
+        "close_eye",
         "close_eye_laugh",
         "gamer",
         "laugh1",
         "laugh2",
         "nervous1",
         "nervous2",
-        "nervous3",
         "normal",
+        "proud",
         "sad2",
         "shock",
         "shy",
+        "silent",
         "special1",
+        "special2",
         "special3",
-        "special4"
+        "special4",
+        "special5",
+        "special6"
       ],
       "title": "小师妹",
-      "intro": "芳名默铃，掌门独生爱女，宛如森林小动物般的少女，性情淡漠，身系七串从来不响的铃铛。\n兴趣是折纸。"
+      "intro": "芳名默铃，掌门独生爱女，宛如森林小动物般的少女，性情淡漠，身系七串从来不响的铃铛。\n兴趣是折纸。",
+      "default_portrait": "normal",
+      "appearance_group": "sister1",
+      "appearance_name": "普通"
+    },
+    {
+      "id": "sister1_look",
+      "name": "唐門_小師妹瞪",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "sister1",
+      "appearance_name": "瞪视"
     },
     {
       "id": "snake1",
       "name": "蛇",
       "portraits": [
+        "angry1",
         "angry2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "soldier1",
       "name": "官兵",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "soldier2",
       "name": "官兵",
       "portraits": [
-        "laugh1",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "soldier21",
       "name": "金士兵",
       "portraits": [
-        "angry1",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "soldier22",
       "name": "金士兵",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "soldier23",
       "name": "金士兵",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "soldier3",
       "name": "官兵",
       "portraits": [
-        "laugh1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "soldier31",
       "name": "老将军",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "soldier4",
       "name": "soldier4",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "soldier41",
+      "name": "蒙古兵",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "soldier42",
+      "name": "蒙古兵",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "soldier51",
+      "name": "蒙古摔角手",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "soldier61",
       "name": "西夏士兵",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "soldier62",
       "name": "西夏士兵",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "soldier63",
       "name": "西夏士兵",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "soldier71",
       "name": "大理士兵",
       "portraits": [
-        "nervous1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "soldier72",
       "name": "大理士兵",
       "portraits": [
-        "angry1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "soldier73",
+      "name": "大理士兵",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "soldier81",
       "name": "吐蕃士兵",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "soldier82",
       "name": "吐蕃士兵",
       "portraits": [
-        "laugh1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "soldier83",
+      "name": "吐蕃士兵",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special1",
       "name": "刘颚",
       "portraits": [
-        "angry2",
-        "angry3",
-        "hurt2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "normal"
-      ]
-    },
-    {
-      "id": "special101",
-      "name": "南宫远",
-      "portraits": [
         "angry1",
         "angry2",
+        "angry3",
         "hurt",
         "hurt2",
         "laugh1",
         "laugh2",
         "nervous1",
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "special101",
+      "name": "南宫远",
+      "portraits": [
+        "angry2",
+        "hurt",
+        "hurt2",
+        "laugh1",
+        "nervous1",
         "nervous2",
-        "nervous3",
         "normal",
         "sad2",
         "special1",
         "special2"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special102",
@@ -2070,18 +2883,20 @@
         "angry1",
         "angry2",
         "gloomy2",
+        "hurt",
         "hurt2",
         "laugh1",
         "laugh2",
         "nervous1",
         "nervous2",
-        "nervous3",
         "normal",
-        "sad2",
-        "shock"
+        "sad2"
       ],
       "title": "",
-      "intro": "南宫世家的嫡长大公子。\n集万千瞩目于一身，承袭家学，儒雅翩翩，四艺皆全，不止江湖人面广阔，在文人雅士圈中亦颇有人脉。"
+      "intro": "南宫世家的嫡长大公子。\n集万千瞩目于一身，承袭家学，儒雅翩翩，四艺皆全，不止江湖人面广阔，在文人雅士圈中亦颇有人脉。",
+      "default_portrait": "normal",
+      "appearance_group": "special102",
+      "appearance_name": "普通"
     },
     {
       "id": "special102_1",
@@ -2089,14 +2904,14 @@
       "portraits": [
         "angry1",
         "angry2",
-        "gloomy1",
-        "gloomy2",
         "hurt2",
         "nervous1",
         "nervous2",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "special102",
+      "appearance_name": "凤凰"
     },
     {
       "id": "special103",
@@ -2104,7 +2919,7 @@
       "portraits": [
         "angry1",
         "angry2",
-        "hurt2",
+        "cry2",
         "laugh1",
         "laugh2",
         "nervous1",
@@ -2117,36 +2932,47 @@
         "special2"
       ],
       "title": "",
-      "intro": "南宫世家的庶子。\n他的出生并非人所期望，他娘亲更为南宫远所深恶痛绝。\n连带南宫浅也不受人待见，虽是二公子，在家待遇却还不如家丁下人。"
+      "intro": "南宫世家的庶子。\n他的出生并非人所期望，他娘亲更为南宫远所深恶痛绝。\n连带南宫浅也不受人待见，虽是二公子，在家待遇却还不如家丁下人。",
+      "default_portrait": "normal"
     },
     {
       "id": "special104",
       "name": "南宫横",
       "portraits": [
+        "nervous1",
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "special1_1",
+      "name": "玄衣少年",
+      "portraits": [
         "angry1",
         "angry2",
+        "angry3",
+        "hurt",
+        "hurt2",
         "laugh1",
         "laugh2",
         "nervous1",
-        "nervous2",
-        "normal",
-        "sad2"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special2",
       "name": "龙渊",
       "portraits": [
-        "angry1",
-        "angry2",
         "laugh1",
         "laugh2",
         "nervous1",
-        "nervous3",
+        "nervous2",
         "normal"
       ],
       "title": "前武林盟主",
-      "intro": "最为江湖人津津乐道的武林传奇之一。在他的诸般传奇事迹之中，尤以决战极乐教主为最。其后旧魔教覆灭，而正邪两道最强高手亦销声匿迹，完结了一个时代。"
+      "intro": "最为江湖人津津乐道的武林传奇之一。在他的诸般传奇事迹之中，尤以决战极乐教主为最。其后旧魔教覆灭，而正邪两道最强高手亦销声匿迹，完结了一个时代。",
+      "default_portrait": "normal"
     },
     {
       "id": "special201",
@@ -2156,36 +2982,32 @@
         "angry2",
         "hurt2",
         "laugh1",
+        "laugh2",
         "nervous1",
         "nervous2",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special202",
       "name": "观云客",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "laugh2",
         "nervous1",
         "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special203",
       "name": "听海生",
       "portraits": [
-        "angry1",
         "hurt",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "nervous3",
+        "hurt2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special204",
@@ -2193,79 +3015,79 @@
       "portraits": [
         "angry1",
         "angry2",
+        "drunk",
         "laugh1",
+        "laugh2",
         "nervous1",
         "nervous2",
-        "nervous3",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special205",
       "name": "尹志平",
       "portraits": [
-        "angry1",
         "laugh1",
         "nervous1",
+        "nervous2",
         "nervous3",
         "normal"
       ],
       "title": "",
-      "intro": "全真「清和子」尹志平\n全真派「天下第一人」丘处机的得意弟子。\n恩师云游期间，代理终南山全真龙门观诸般事物，有传闻可能会在不久将来接任掌教之位。"
+      "intro": "全真「清和子」尹志平\n全真派「天下第一人」丘处机的得意弟子。\n恩师云游期间，代理终南山全真龙门观诸般事物，有传闻可能会在不久将来接任掌教之位。",
+      "default_portrait": "normal"
     },
     {
       "id": "special206",
       "name": "福韫",
       "portraits": [
-        "angry1",
-        "angry2",
-        "gloomy2",
+        "hurt",
         "hurt2",
         "laugh1",
         "nervous1",
         "nervous2",
-        "nervous3",
         "normal",
         "special1",
         "special2"
       ],
       "title": "",
-      "intro": "嵩山派的年轻弟子，云游大宋，弘扬佛法，筹措善款以期修缮败破的嵩山寺。"
+      "intro": "嵩山派的年轻弟子，云游大宋，弘扬佛法，筹措善款以期修缮败破的嵩山寺。",
+      "default_portrait": "normal"
     },
     {
       "id": "special206_2",
       "name": "福韫",
       "portraits": [
-        "angry1",
-        "laugh1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special207",
       "name": "金乌上人",
       "portraits": [
-        "angry1",
         "angry2",
         "gloomy2",
-        "hurt2",
         "laugh1",
+        "laugh2",
         "nervous1",
         "nervous2",
         "nervous3",
-        "normal"
-      ]
+        "normal",
+        "shock",
+        "special1",
+        "special2"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special207_1",
       "name": "金乌上人",
       "portraits": [
-        "laugh1",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special208",
@@ -2273,40 +3095,59 @@
       "portraits": [
         "angry1",
         "angry2",
-        "gloomy2",
         "laugh1",
+        "laugh2",
         "nervous1",
         "nervous2",
-        "nervous3",
         "normal",
+        "sad1",
         "sad2",
         "shock",
         "special1"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special208_1",
       "name": "晁和",
       "portraits": [
+        "normal",
         "special1"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "special209",
+      "name": "丘处机",
+      "portraits": [
+        "hurt",
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "special210",
+      "name": "成吉思汗",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special211",
       "name": "李紫穹",
       "portraits": [
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special211_1",
       "name": "李紫穹",
       "portraits": [
-        "laugh1",
-        "nervous1",
-        "special1"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special212",
@@ -2318,27 +3159,44 @@
         "gloomy1",
         "gloomy2",
         "hurt2",
-        "laugh1",
-        "laugh2",
         "nervous1",
         "nervous2",
         "normal",
         "special1"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special212_1",
       "name": "无相祖师",
       "portraits": [
-        "normal"
-      ]
+        "angry1",
+        "angry2",
+        "gloomy1",
+        "gloomy2",
+        "hurt2",
+        "nervous1",
+        "nervous2",
+        "normal",
+        "special1"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special212_2",
       "name": "吴乡",
       "portraits": [
-        "normal"
-      ]
+        "angry1",
+        "angry2",
+        "gloomy1",
+        "gloomy2",
+        "hurt2",
+        "nervous1",
+        "nervous2",
+        "normal",
+        "special1"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special213_0",
@@ -2346,20 +3204,73 @@
       "portraits": [
         "laugh1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "special214_0",
+      "name": "护卫",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "special214_1",
+      "name": "丁承烈",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "special215_0",
+      "name": "？？？",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "special215_1",
+      "name": "孟珙",
+      "portraits": [
+        "laugh1",
+        "laugh2",
+        "nervous1",
+        "nervous2",
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "special216",
+      "name": "姚不知名",
+      "portraits": [
+        "nervous2",
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "special217",
+      "name": "千面人魔",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special2_1",
       "name": "？？？",
       "portraits": [
-        "angry1",
-        "angry2",
         "laugh1",
         "laugh2",
         "nervous1",
-        "nervous3",
+        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special3",
@@ -2368,29 +3279,32 @@
         "angry1",
         "angry2",
         "angry3",
+        "hurt",
         "hurt2",
         "laugh1",
         "laugh2",
         "nervous1",
         "nervous2",
         "nervous3",
-        "nervous4",
         "normal",
         "sad2",
         "shock",
+        "silent",
         "special1",
         "special2",
         "special3"
       ],
       "title": "苍松剑客",
-      "intro": "身穿点苍派服饰的年轻剑客。\n好像在哪儿听过这个名字，不过你记不得了。不知为何要以斗笠掩藏面目，观其面目俊美，似乎也不像江洋大盗。"
+      "intro": "身穿点苍派服饰的年轻剑客。\n好像在哪儿听过这个名字，不过你记不得了。不知为何要以斗笠掩藏面目，观其面目俊美，似乎也不像江洋大盗。",
+      "default_portrait": "normal"
     },
     {
       "id": "special3_1",
       "name": "斗笠人",
       "portraits": [
-        "special1"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special3_2",
@@ -2401,35 +3315,34 @@
         "nervous3",
         "normal",
         "special1"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special4",
       "name": "樊啸天",
       "portraits": [
-        "angry1",
         "angry2",
         "angry3",
+        "hurt",
         "hurt2",
         "laugh1",
         "laugh2",
         "nervous1",
         "nervous2",
-        "nervous3",
         "normal",
         "sad2",
-        "shock",
-        "shy"
+        "shock"
       ],
       "title": "狂犬",
-      "intro": "来自丐帮的江湖后起新秀。\n人称「狂犬」，莫欺他个头矮小，但凡动起手来就是拼命，不仅外人怕他，就连丐帮中人亦不敢随意招惹这疯狂小子。"
+      "intro": "来自丐帮的江湖后起新秀。\n人称「狂犬」，莫欺他个头矮小，但凡动起手来就是拼命，不仅外人怕他，就连丐帮中人亦不敢随意招惹这疯狂小子。",
+      "default_portrait": "normal"
     },
     {
       "id": "special401",
       "name": "王二壮",
       "portraits": [
-        "angry1",
-        "angry2",
+        "hurt",
         "hurt2",
         "laugh1",
         "laugh2",
@@ -2437,25 +3350,25 @@
         "nervous2",
         "nervous3",
         "normal",
-        "shock",
         "special1"
       ],
       "title": "",
-      "intro": "天下第一大帮，丐帮的帮主。\n一就任即雷厉风行，提拔新派弟子，架空旧派长老，以侠义精神诓骗帮中子弟重拾尊严，令他们相信当乞丐是种选择。"
+      "intro": "天下第一大帮，丐帮的帮主。\n一就任即雷厉风行，提拔新派弟子，架空旧派长老，以侠义精神诓骗帮中子弟重拾尊严，令他们相信当乞丐是种选择。",
+      "default_portrait": "normal"
     },
     {
       "id": "special402",
       "name": "温夫人",
       "portraits": [
         "angry1",
+        "angry2",
         "angry3",
+        "close_eye_laugh",
         "gloomy1",
         "gloomy2",
         "hurt",
         "laugh1",
         "nervous1",
-        "nervous2",
-        "nervous3",
         "normal",
         "sad1",
         "sad2",
@@ -2463,93 +3376,104 @@
         "special2",
         "special3",
         "special4"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special402_1",
       "name": "温夫人",
       "portraits": [
         "angry1",
+        "angry2",
+        "angry3",
+        "gloomy1",
+        "gloomy2",
+        "hurt",
+        "laugh1",
         "nervous1",
-        "nervous2",
         "normal",
-        "sad2"
-      ]
+        "sad1",
+        "sad2",
+        "special1",
+        "special2",
+        "special3",
+        "special4"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special402_2",
       "name": "温夫人",
       "portraits": [
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special402_3",
       "name": "苏迎香",
       "portraits": [
-        "laugh1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special403",
       "name": "赵逵",
       "portraits": [
-        "angry1",
         "angry2",
-        "gloomy2",
         "hurt2",
         "laugh1",
         "laugh2",
         "nervous1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special404",
       "name": "丹霞子",
       "portraits": [
         "angry1",
-        "angry3",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "special1"
-      ],
-      "title": "",
-      "intro": "崆峒派·飞天门掌门火龙仙君座下的大弟子。\n亦是襄阳战场声名赫赫的「道法将军」，百战不殆，为宋国军民仰仗，为金国兵马忌惮。"
-    },
-    {
-      "id": "special405",
-      "name": "申屠龙",
-      "portraits": [
-        "angry1",
         "angry2",
-        "angry3",
-        "gloomy1",
-        "gloomy2",
+        "hurt",
         "hurt2",
         "laugh1",
         "laugh2",
         "nervous1",
         "nervous2",
-        "nervous3",
         "normal",
-        "sad2"
+        "special1",
+        "special2"
       ],
       "title": "",
-      "intro": "青城「逸尘道子」申屠龙\n青城派的修真道士，年纪虽轻，辈份却高，是青城前任掌门的关门弟子。\n面目清俊，随和儒雅，不修道法时多在山中闲游，不太理会江湖事，极少与人争执，只在青城派自家月考时显露武功，饶是如此，名声依然默默的传开。"
+      "intro": "崆峒派·飞天门掌门火龙仙君座下的大弟子。\n亦是襄阳战场声名赫赫的「道法将军」，百战不殆，为宋国军民仰仗，为金国兵马忌惮。",
+      "default_portrait": "normal"
+    },
+    {
+      "id": "special405",
+      "name": "申屠龙",
+      "portraits": [
+        "angry2",
+        "angry3",
+        "hurt2",
+        "laugh1",
+        "laugh2",
+        "nervous1",
+        "nervous3",
+        "normal"
+      ],
+      "title": "",
+      "intro": "青城「逸尘道子」申屠龙\n青城派的修真道士，年纪虽轻，辈份却高，是青城前任掌门的关门弟子。\n面目清俊，随和儒雅，不修道法时多在山中闲游，不太理会江湖事，极少与人争执，只在青城派自家月考时显露武功，饶是如此，名声依然默默的传开。",
+      "default_portrait": "normal"
     },
     {
       "id": "special406",
       "name": "无名",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special407",
@@ -2557,68 +3481,66 @@
       "portraits": [
         "angry1",
         "angry2",
-        "angry3",
-        "gloomy1",
         "gloomy2",
-        "hurt2",
         "laugh1",
-        "laugh2",
         "nervous1",
-        "nervous2",
         "normal",
-        "shock",
-        "special1",
-        "special2"
-      ]
+        "special1"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special408",
       "name": "向无忧",
       "portraits": [
-        "angry1",
-        "angry2",
-        "angry3",
         "laugh1",
+        "laugh2",
         "nervous1",
         "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "special409",
+      "name": "车轩辕",
+      "portraits": [
+        "hurt",
+        "hurt2",
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special410",
       "name": "方丈",
       "portraits": [
-        "laugh1",
-        "nervous1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special6",
       "name": "万里鹏程",
       "portraits": [
-        "angry2",
-        "laugh1",
-        "nervous1",
         "normal"
       ],
       "title": "鹰人",
-      "intro": "身披鹰羽破蓑衣的精悍老者。\n虽然形貌怪异，其武功路数却博大精深，气度非凡，显是名家风范。却不知为何到了这把年纪仍是名不见经传。"
+      "intro": "身披鹰羽破蓑衣的精悍老者。\n虽然形貌怪异，其武功路数却博大精深，气度非凡，显是名家风范。却不知为何到了这把年纪仍是名不见经传。",
+      "default_portrait": "normal"
     },
     {
       "id": "special6_1",
       "name": "？？？",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special7",
       "name": "石公远",
       "portraits": [
-        "angry1",
-        "angry2",
-        "angry3",
         "hurt2",
         "laugh1",
         "laugh2",
@@ -2628,132 +3550,137 @@
         "normal"
       ],
       "title": "飞石帮主",
-      "intro": "飞石帮主，形貌剽悍的豪杰。\n起初是落草于茂州的土匪，成亲后金盆洗手，不再滋扰民生，转而租赁人力包揽粗活，飞石帮名声渐响，隐然能与三大帮派分庭抗礼。"
+      "intro": "飞石帮主，形貌剽悍的豪杰。\n起初是落草于茂州的土匪，成亲后金盆洗手，不再滋扰民生，转而租赁人力包揽粗活，飞石帮名声渐响，隐然能与三大帮派分庭抗礼。",
+      "default_portrait": "normal"
     },
     {
       "id": "special800",
       "name": "宋悲",
       "portraits": [
-        "angry1",
         "angry2",
         "laugh1",
-        "laugh2",
         "nervous1",
         "nervous2",
         "nervous3",
         "normal",
-        "shock",
         "special1"
       ],
       "title": "",
-      "intro": "大宋神捕，御赐银鱼袋、御前带刀。\n天下捕役总指挥使，可以越州拿缉人犯。\n行于江湖之间，算是半个武林人。"
+      "intro": "大宋神捕，御赐银鱼袋、御前带刀。\n天下捕役总指挥使，可以越州拿缉人犯。\n行于江湖之间，算是半个武林人。",
+      "default_portrait": "normal"
     },
     {
       "id": "special801",
       "name": "谭霸刀",
       "portraits": [
-        "angry1",
-        "angry2",
-        "gloomy2",
         "hurt",
         "laugh1",
         "laugh2",
         "nervous1",
         "nervous2",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special802",
       "name": "辛儒",
       "portraits": [
-        "angry2",
         "laugh1",
+        "laugh2",
         "nervous1",
-        "nervous3",
-        "normal",
-        "shy"
-      ]
+        "nervous2",
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special802_0",
       "name": "？？？",
       "portraits": [
+        "laugh1",
+        "laugh2",
+        "nervous1",
+        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special803",
       "name": "江行老",
       "portraits": [
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "sad2"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special803_0",
       "name": "商人",
       "portraits": [
-        "nervous1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special804",
       "name": "雷谦",
       "portraits": [
-        "angry1",
-        "angry2",
+        "drunk",
         "laugh1",
         "laugh2",
         "nervous1",
-        "nervous3",
-        "normal"
-      ]
+        "normal",
+        "special1"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special805",
       "name": "鹤手",
       "portraits": [
-        "laugh1",
-        "nervous1",
-        "nervous2",
         "normal",
         "special1"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special805_0",
       "name": "？？？",
       "portraits": [
+        "normal",
+        "special1"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "special805_1",
+      "name": "阿鹤侠",
+      "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special806",
       "name": "勾魂叟",
       "portraits": [
-        "angry1",
-        "nervous1",
-        "normal"
-      ]
+        "drunk",
+        "laugh1",
+        "laugh2",
+        "normal",
+        "special1",
+        "special2"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special807",
       "name": "吕翁",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special808",
@@ -2761,26 +3688,31 @@
       "portraits": [
         "angry1",
         "angry2",
-        "angry3",
-        "hurt",
-        "hurt2",
         "laugh1",
         "laugh2",
         "nervous1",
         "nervous2",
         "nervous3",
-        "normal",
-        "sad2"
+        "normal"
       ],
       "title": "",
-      "intro": "峨嵋派当代有名的年轻高手，人称「风神」。\n与唐门飞侠唐布衣江湖齐名的峨嵋高手，擅长腿法。\n自诩为你大师兄的生平劲敌，非常烦人，见面就打架，也曾有结伴游戏江湖的美谈。"
+      "intro": "峨嵋派当代有名的年轻高手，人称「风神」。\n与唐门飞侠唐布衣江湖齐名的峨嵋高手，擅长腿法。\n自诩为你大师兄的生平劲敌，非常烦人，见面就打架，也曾有结伴游戏江湖的美谈。",
+      "default_portrait": "normal"
     },
     {
       "id": "special808_0",
       "name": "？？？",
       "portraits": [
+        "angry1",
+        "angry2",
+        "laugh1",
+        "laugh2",
+        "nervous1",
+        "nervous2",
+        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special809",
@@ -2788,25 +3720,24 @@
       "portraits": [
         "angry1",
         "angry2",
-        "gloomy2",
         "laugh1",
         "laugh2",
-        "nervous1",
         "nervous2",
-        "nervous3",
         "normal",
         "sad2",
-        "shock"
+        "special1"
       ],
       "title": "",
-      "intro": "丐帮后起新秀，明明是乞丐，却被取名为富贵。\n既是丐帮老派长老千金叟的遗孤，也是丐帮新派领袖兼帮主王二壮的义子。\n讲话口吃，其实人不算笨。"
+      "intro": "丐帮后起新秀，明明是乞丐，却被取名为富贵。\n既是丐帮老派长老千金叟的遗孤，也是丐帮新派领袖兼帮主王二壮的义子。\n讲话口吃，其实人不算笨。",
+      "default_portrait": "normal"
     },
     {
       "id": "special810",
       "name": "乐屏",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special811",
@@ -2821,74 +3752,76 @@
         "nervous3",
         "normal",
         "sad2"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "special811_2",
+      "name": "唐衫",
+      "portraits": [
+        "angry1",
+        "nervous1",
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special812",
       "name": "唐守鸿",
       "portraits": [
         "angry1",
+        "angry2",
         "hurt2",
-        "laugh1",
         "nervous1",
-        "nervous3",
+        "nervous2",
         "normal",
         "special1"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special812_1",
       "name": "唐守鸿",
       "portraits": [
+        "angry1",
         "angry2",
-        "laugh1",
         "nervous1",
         "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special813",
       "name": "画中仙",
       "portraits": [
-        "angry1",
-        "angry2",
-        "gloomy2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "sad2",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special813_1",
       "name": "画中仙",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "nervous1",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special813_2",
       "name": "画中仙",
       "portraits": [
-        "laugh1",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special814",
       "name": "万胜",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special815",
@@ -2896,24 +3829,19 @@
       "portraits": [
         "angry1",
         "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "nervous3",
         "normal",
         "sad2",
         "shy"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special816",
       "name": "破戒僧",
       "portraits": [
-        "angry1",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special817",
@@ -2921,31 +3849,30 @@
       "portraits": [
         "nervous1",
         "nervous2",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special818",
       "name": "书蓉",
       "portraits": [
+        "laugh1",
+        "laugh2",
         "nervous1",
-        "normal",
-        "sad2"
-      ]
+        "nervous2",
+        "nervous3",
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special819",
       "name": "完颜珣",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "sad2"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special820",
@@ -2953,52 +3880,59 @@
       "portraits": [
         "angry1",
         "angry2",
-        "hurt2",
         "laugh1",
         "nervous1",
         "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special821",
       "name": "夏侯梅",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special822",
       "name": "呼延菊",
       "portraits": [
-        "angry1",
+        "close_eye_laugh",
         "laugh1",
-        "normal"
-      ]
+        "laugh2",
+        "normal",
+        "white"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special823",
       "name": "袁无宪",
       "portraits": [
-        "angry1",
-        "angry2",
         "gloomy2",
-        "laugh1",
         "nervous1",
         "nervous2",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special824",
       "name": "荆红",
       "portraits": [
+        "angry1",
+        "angry2",
+        "gloomy1",
         "gloomy2",
-        "laugh1",
-        "nervous1",
-        "normal"
-      ]
+        "hurt",
+        "hurt2",
+        "laugh2",
+        "normal",
+        "white"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special825",
@@ -3008,13 +3942,14 @@
         "angry2",
         "gloomy1",
         "gloomy2",
-        "laugh1",
         "nervous1",
         "nervous2",
-        "normal"
+        "normal",
+        "shy"
       ],
       "title": "",
-      "intro": "瑞笙的红颜知己之一，苗疆巫灵教圣女。还在娘亲腹中便被族中巫婆指作蛟龙妻。瑞笙与三五好友入苗疆，闯越五仙阵，挥剑斩大蛇，揭穿金蟾娘子和银蛇公子的阴谋，喜闻乐见的英雄救美。"
+      "intro": "瑞笙的红颜知己之一，苗疆巫灵教圣女。还在娘亲腹中便被族中巫婆指作蛟龙妻。瑞笙与三五好友入苗疆，闯越五仙阵，挥剑斩大蛇，揭穿金蟾娘子和银蛇公子的阴谋，喜闻乐见的英雄救美。",
+      "default_portrait": "normal"
     },
     {
       "id": "special826",
@@ -3022,72 +3957,77 @@
       "portraits": [
         "angry1",
         "angry2",
-        "gloomy2",
-        "hurt2",
         "laugh1",
         "laugh2",
         "nervous1",
         "nervous2",
-        "nervous3",
-        "normal",
-        "sad2",
-        "shock",
-        "shy"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special827",
       "name": "沧帮帮主",
       "portraits": [
-        "angry1",
-        "angry2",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special828",
       "name": "余公子",
       "portraits": [
-        "normal",
-        "shock"
-      ]
+        "hurt",
+        "hurt2",
+        "nervous1",
+        "nervous2",
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special829",
       "name": "南溪",
       "portraits": [
-        "angry1",
         "angry3",
+        "hurt",
         "hurt2",
         "laugh1",
         "nervous1",
         "nervous2",
-        "normal"
-      ]
+        "normal",
+        "shy"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special830",
       "name": "梁有诗",
       "portraits": [
         "angry1",
+        "laugh1",
         "nervous1",
         "nervous2",
-        "nervous3",
         "normal",
         "shy"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special831",
       "name": "孟仙谣",
       "portraits": [
         "angry1",
+        "angry2",
+        "drunk",
         "laugh1",
         "nervous1",
-        "normal"
-      ]
+        "nervous2",
+        "normal",
+        "sad2",
+        "shy"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special832",
@@ -3095,76 +4035,207 @@
       "portraits": [
         "angry1",
         "angry2",
-        "gloomy1",
         "laugh1",
         "laugh2",
         "nervous1",
         "nervous2",
         "nervous3",
         "normal",
-        "sad2",
-        "shock",
-        "shy",
         "special1"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special833",
       "name": "南宫秀",
       "portraits": [
-        "angry1",
-        "laugh1",
+        "angry2",
+        "nervous1",
+        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special834",
       "name": "段智秀",
       "portraits": [
-        "angry1",
         "angry2",
         "gloomy1",
-        "gloomy2",
         "hurt2",
-        "laugh1",
-        "laugh2",
         "nervous1",
         "nervous2",
         "nervous3",
         "normal",
-        "sad1",
         "sad2",
-        "shock",
         "special1",
         "special2"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special834_1",
       "name": "special834_1",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special835",
       "name": "南宫己",
       "portraits": [
+        "angry1",
         "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "nervous3",
         "normal",
-        "shock",
-        "special4"
-      ]
+        "special1",
+        "special2",
+        "special3",
+        "special4",
+        "special5"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "special835",
+      "appearance_name": "普通"
     },
     {
       "id": "special835_1",
       "name": "南宫己",
       "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "special835",
+      "appearance_name": "被绑"
+    },
+    {
+      "id": "special836",
+      "name": "段婉清",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "special837",
+      "name": "方独弱",
+      "portraits": [
+        "laugh1",
+        "nervous1",
+        "nervous2",
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "special838",
+      "name": "郁父",
+      "portraits": [
         "angry1",
+        "angry2",
+        "laugh1",
+        "laugh2",
+        "nervous1",
+        "nervous2",
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "special838_1",
+      "name": "汉子",
+      "portraits": [
+        "angry1",
+        "angry2",
+        "laugh1",
+        "laugh2",
+        "nervous1",
+        "nervous2",
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "special838_2",
+      "name": "郁父",
+      "portraits": [
+        "hurt",
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "special839",
+      "name": "郁母",
+      "portraits": [
+        "nervous1",
+        "normal",
+        "sad2"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "special839_1",
+      "name": "妇人",
+      "portraits": [
+        "nervous1",
+        "normal",
+        "sad2"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "special840",
+      "name": "郁宝花",
+      "portraits": [
+        "discouraged",
+        "gloomy2",
+        "laugh1",
+        "nervous1",
+        "normal",
+        "sad2",
+        "shy"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "special840_1",
+      "name": "少女",
+      "portraits": [
+        "gloomy2",
+        "laugh1",
+        "nervous1",
+        "normal",
+        "shy"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "special841",
+      "name": "郁城",
+      "portraits": [
+        "angry1",
+        "angry2",
+        "nervous1",
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "special841_1",
+      "name": "少年",
+      "portraits": [
+        "angry1",
+        "angry2",
+        "nervous1",
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "special841_2",
+      "name": "郁城",
+      "portraits": [
         "hurt",
         "laugh1",
         "laugh2",
@@ -3172,27 +4243,49 @@
         "nervous2",
         "nervous3",
         "normal",
-        "sad2",
-        "shock"
-      ]
+        "special1"
+      ],
+      "default_portrait": "normal"
     },
     {
-      "id": "special836",
-      "name": "段婉清",
+      "id": "special842",
+      "name": "赵方",
       "portraits": [
-        "angry1",
-        "laugh1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
-      "id": "special837",
-      "name": "方独弱",
+      "id": "special843",
+      "name": "周浊",
       "portraits": [
-        "nervous1",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "special844",
+      "name": "胡嵩",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "special845",
+      "name": "裘志攘",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "special998",
+      "name": "崆峒_先掌派人",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "special999",
@@ -3201,6 +4294,10 @@
         "angry1",
         "angry2",
         "angry3",
+        "blood",
+        "close_eye",
+        "doubt",
+        "hurt",
         "hurt2",
         "laugh1",
         "laugh2",
@@ -3208,43 +4305,66 @@
         "nervous2",
         "nervous3",
         "normal",
-        "sad2",
+        "shock",
         "special1",
         "special2",
         "special3",
         "special4",
+        "special5",
         "special6",
         "special7",
         "special8"
       ],
       "title": "缟衣剑少",
-      "intro": "初出茅庐，近来名声渐响的年轻剑客。\n英俊潇洒，磊落君子，处世温文尔雅，胸中亦藏豪情万丈，仗剑行侠，快意恩仇，紧要关头就会出现的家伙。"
+      "intro": "初出茅庐，近来名声渐响的年轻剑客。\n英俊潇洒，磊落君子，处世温文尔雅，胸中亦藏豪情万丈，仗剑行侠，快意恩仇，紧要关头就会出现的家伙。",
+      "default_portrait": "normal",
+      "appearance_group": "special999",
+      "appearance_name": "普通"
     },
     {
       "id": "special999_0",
       "name": "？？？",
       "portraits": [
+        "angry1",
+        "angry2",
+        "angry3",
+        "hurt",
+        "hurt2",
         "laugh1",
-        "nervous1",
-        "normal"
-      ]
+        "laugh2",
+        "nervous2",
+        "nervous3",
+        "normal",
+        "special1",
+        "special2",
+        "special3",
+        "special4",
+        "special5",
+        "special6",
+        "special7",
+        "special8"
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "special999",
+      "appearance_name": "剪影"
     },
     {
       "id": "special999_1",
       "name": "白衣少年",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal",
+      "appearance_group": "special999",
+      "appearance_name": "少年"
     },
     {
       "id": "stone1",
       "name": "stone1",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "nervous1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "stone2",
@@ -3271,50 +4391,41 @@
       "id": "stone_trainee_1",
       "name": "飞石帮",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "normal",
-        "sad2"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "stone_trainee_2",
       "name": "飞石帮",
       "portraits": [
-        "angry1",
-        "angry2",
-        "nervous1",
-        "nervous2",
-        "normal",
-        "sad2"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "stone_trainee_3",
       "name": "飞石帮",
       "portraits": [
-        "nervous1",
-        "nervous2",
-        "normal",
-        "sad2"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "stone_trainee_4",
       "name": "飞石帮",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "stone_trainees",
       "name": "飞石帮众",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "stones",
@@ -3329,59 +4440,117 @@
       "portraits": [
         "angry1",
         "angry2",
-        "laugh1",
         "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "stranger2",
       "name": "路人",
       "portraits": [
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "stranger3",
       "name": "路人",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "stranger4",
+      "name": "路人",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "stranger5",
+      "name": "路人",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "student1",
+      "name": "童生",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "student2",
+      "name": "童生",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "student3",
+      "name": "童生",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "sword1",
       "name": "sword1",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "sword_box1",
+      "name": "雜項_劍匣1",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "sword_box2",
+      "name": "雜項_劍匣2",
+      "portraits": [
+        "normal",
+        "special1"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "table1",
       "name": "table1",
       "portraits": [
-        "normal"
-      ]
+        "normal",
+        "special1"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "table2",
+      "name": "閒雜_桌子2",
+      "portraits": [
+        "normal",
+        "special1"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "tanghulu",
       "name": "tanghulu",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "tank1",
@@ -3390,170 +4559,144 @@
         "normal",
         "special1",
         "special2"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "tent1",
       "name": "tent1",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee010",
       "name": "唐门弟子",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "sad2"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee011",
       "name": "唐门弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "sad2",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee012",
       "name": "唐门弟子",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "trainee013",
+      "name": "唐门弟子",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "trainee014",
+      "name": "唐门弟子",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee020",
       "name": "唐门弟子",
       "portraits": [
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee021",
       "name": "唐门弟子",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee022",
       "name": "唐门弟子",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "laugh2",
-        "nervous1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee023",
       "name": "唐门弟子",
       "portraits": [
-        "laugh1",
-        "nervous1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee024",
       "name": "唐门弟子",
       "portraits": [
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee030",
       "name": "唐门弟子",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "nervous1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "trainee031",
+      "name": "唐门弟子",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee1",
       "name": "唐门弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "sad2",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee101",
       "name": "南宫家丁",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee102",
       "name": "南宫家丁",
       "portraits": [
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee103",
       "name": "南宫家丁",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee104",
@@ -3561,115 +4704,85 @@
       "portraits": [
         "angry1",
         "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "nervous3",
         "normal",
-        "shock",
         "special1",
         "special2",
         "special3"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee111",
       "name": "沧帮弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee112",
       "name": "沧帮弟子",
       "portraits": [
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee113",
       "name": "沧帮弟子",
       "portraits": [
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee121",
       "name": "泥教弟子",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee122",
       "name": "泥教弟子",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee2",
       "name": "唐门弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "sad2"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee201",
       "name": "飞天弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee202",
       "name": "飞天弟子",
       "portraits": [
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "trainee203",
+      "name": "飞天弟子",
+      "portraits": [
+        "normal",
+        "special1"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee204",
@@ -3677,48 +4790,51 @@
       "portraits": [
         "angry1",
         "angry2",
-        "hurt2",
-        "laugh1",
-        "laugh2",
         "nervous1",
         "nervous2",
-        "normal",
-        "shy"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "trainee205",
+      "name": "飞天弟子",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "trainee206",
+      "name": "飞天弟子",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee211",
       "name": "铁拳弟子",
       "portraits": [
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee212",
       "name": "铁拳弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee213",
       "name": "铁拳弟子",
       "portraits": [
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee214",
@@ -3727,71 +4843,70 @@
         "angry1",
         "angry2",
         "laugh1",
+        "laugh2",
         "nervous1",
         "nervous2",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee215",
       "name": "铁拳弟子",
       "portraits": [
-        "angry1",
-        "angry2",
         "hurt",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee215_1",
       "name": "铁拳弟子",
       "portraits": [
-        "angry1",
-        "angry2",
         "hurt",
-        "nervous1",
-        "nervous2",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "trainee216",
+      "name": "铁拳弟子",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "trainee217",
+      "name": "铁拳弟子",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee221",
       "name": "夺魄弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee222",
       "name": "夺魄弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee223",
       "name": "夺魄弟子",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee224",
@@ -3799,958 +4914,825 @@
       "portraits": [
         "angry1",
         "angry2",
-        "laugh1",
+        "hurt",
+        "hurt2",
         "nervous1",
         "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "trainee225",
+      "name": "夺魄弟子",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "trainee226",
+      "name": "夺魄弟子",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "trainee227",
+      "name": "夺魄弟子",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee231",
       "name": "玄功弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee232",
       "name": "玄功弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "nervous1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee233",
       "name": "玄功弟子",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee234",
       "name": "玄功弟子",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "trainee235",
+      "name": "黄佩华",
+      "portraits": [
+        "nervous1",
+        "normal",
+        "special1",
+        "special2"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "trainee236",
+      "name": "玄功弟子",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "trainee237",
+      "name": "玄功弟子",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "trainee241",
+      "name": "铁拳老弟子",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee3",
       "name": "唐门弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "sad2"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee301",
       "name": "点苍弟子",
       "portraits": [
-        "angry1",
-        "angry2",
         "hurt",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee302",
       "name": "点苍弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee303",
       "name": "点苍弟子",
       "portraits": [
-        "angry1",
-        "angry2",
         "hurt",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee304",
       "name": "点苍弟子",
       "portraits": [
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee305",
       "name": "点苍弟子",
       "portraits": [
-        "angry2",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee311",
       "name": "青城弟子",
       "portraits": [
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "nervous3",
         "normal",
         "special1"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee312",
       "name": "青城弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "nervous3",
         "normal",
-        "sad2",
-        "shock",
         "special1"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee313",
       "name": "青城弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee314",
       "name": "青城弟子",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee315",
       "name": "青城弟子",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee316",
       "name": "青城弟子",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "nervous1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee317",
       "name": "青城弟子",
       "portraits": [
-        "nervous1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee321",
       "name": "峨嵋弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "sad2"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee322",
       "name": "峨嵋弟子",
       "portraits": [
-        "laugh1",
-        "nervous1",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee323",
       "name": "峨嵋弟子",
       "portraits": [
-        "angry1",
-        "angry2",
         "hurt",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee323_1",
       "name": "峨嵋弟子",
       "portraits": [
-        "angry1",
-        "angry2",
         "hurt",
-        "nervous1",
-        "nervous2",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee324",
       "name": "峨嵋弟子",
       "portraits": [
-        "nervous1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "trainee325",
+      "name": "峨嵋弟子",
+      "portraits": [
+        "normal",
+        "special1"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee331",
       "name": "嵩山弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "sad2"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee332",
       "name": "嵩山弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee333",
       "name": "嵩山弟子",
       "portraits": [
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "trainee334",
+      "name": "嵩山弟子",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee335",
       "name": "嵩山弟子",
       "portraits": [
-        "angry1",
-        "angry2",
         "hurt",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee335_1",
       "name": "嵩山弟子",
       "portraits": [
-        "angry1",
-        "angry2",
         "hurt",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee341",
       "name": "全真弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee342",
       "name": "全真弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee343",
       "name": "全真弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "trainee344",
+      "name": "全真弟子",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee345",
       "name": "全真弟子",
       "portraits": [
-        "angry1",
-        "angry2",
         "hurt",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee345_1",
       "name": "全真弟子",
       "portraits": [
-        "angry2",
         "hurt",
-        "nervous1",
-        "nervous2",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee351",
       "name": "铜人",
       "portraits": [
-        "angry1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee352",
       "name": "铜人",
       "portraits": [
-        "angry1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee353",
       "name": "铜人",
       "portraits": [
-        "angry1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee361",
       "name": "岭南弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
         "normal",
-        "shock",
         "special1"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee362",
       "name": "岭南弟子",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee363",
       "name": "岭南弟子",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee371",
       "name": "岭南女弟子",
       "portraits": [
-        "angry1",
-        "angry2",
         "hurt",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "nervous3",
         "normal",
-        "shock",
         "special1"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "trainee381",
+      "name": "雪山弟子",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee4",
       "name": "唐门弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee401",
       "name": "点苍女弟子",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee402",
       "name": "点苍女弟子",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee421",
       "name": "峨嵋女弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "trainee422",
+      "name": "峨嵋女弟子",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee431",
       "name": "trainee431",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee491",
       "name": "锦香弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous3",
-        "normal",
-        "sad2",
-        "shock",
-        "shy"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee492",
       "name": "锦香弟子",
       "portraits": [
-        "angry1",
+        "hurt",
         "hurt2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee493",
       "name": "锦香弟子",
       "portraits": [
-        "angry1",
-        "angry2",
         "laugh1",
+        "laugh2",
         "nervous1",
         "nervous2",
-        "nervous3",
-        "normal",
-        "sad2",
-        "shock",
-        "shy"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee494",
       "name": "锦香弟子",
       "portraits": [
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous3",
-        "normal",
-        "sad2",
-        "shock",
-        "shy"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee495",
       "name": "锦香弟子",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "nervous1",
-        "normal",
-        "sad2",
-        "shock",
-        "shy"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee496",
       "name": "锦香弟子",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "nervous1",
-        "nervous3",
-        "normal",
-        "sad2",
-        "shock",
-        "shy"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee5",
       "name": "唐门弟子",
       "portraits": [
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee6",
       "name": "唐门弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee7",
       "name": "唐门弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee8",
       "name": "唐门弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee9",
       "name": "唐门弟子",
       "portraits": [
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee_girl1",
       "name": "唐门女弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "sad2",
-        "shock",
-        "shy"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee_girl10",
       "name": "唐门女弟子",
       "portraits": [
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "trainee_girl11",
+      "name": "唐门女弟子",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee_girl2",
       "name": "唐门女弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "sad2",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee_girl3",
       "name": "唐门女弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "normal",
-        "sad2"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee_girl4",
       "name": "唐门女弟子",
       "portraits": [
-        "laugh1",
-        "shy"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee_girl5",
       "name": "唐门女弟子",
       "portraits": [
-        "angry2",
-        "nervous1",
-        "nervous2",
-        "normal",
-        "shy"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee_girl6",
       "name": "唐门女弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee_girl7",
       "name": "唐门女弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "sad2",
-        "shy"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee_girl8",
       "name": "唐门女弟子",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "sad2",
-        "shock",
-        "shy"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainee_girl9",
       "name": "唐门女弟子",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "laugh2",
-        "nervous2",
-        "normal",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "trainees",
       "name": "唐门众弟子",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "tree1",
+      "name": "閒雜_樹1",
+      "portraits": [
+        "normal",
+        "special1"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "unknown",
       "name": "？？？",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "vendor_cake",
+      "name": "閒雜_攤販_肉餅",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "vendor_kite",
+      "name": "閒雜_攤販_風箏",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "vendor_soymilk",
+      "name": "閒雜_攤販_豆漿",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "waiter1",
       "name": "店小二",
       "portraits": [
-        "angry1",
-        "angry2",
+        "hurt",
         "hurt2",
-        "laugh1",
-        "laugh2",
-        "nervous1",
-        "nervous2",
-        "nervous3",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "waiter2",
       "name": "店小二",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "nervous1",
-        "nervous2",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "waiter3",
       "name": "店小二",
       "portraits": [
         "angry1",
-        "laugh1",
+        "angry2",
         "nervous1",
-        "nervous2",
-        "nervous3",
         "normal",
+        "sad2",
         "special1",
         "special2"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "wolf1",
       "name": "狼",
       "portraits": [
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "women1",
       "name": "妇人",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "sad2",
-        "shock"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "women2",
       "name": "妇人",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "nervous1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "women3",
       "name": "妇人",
       "portraits": [
-        "angry1",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "nervous3",
-        "normal",
-        "shy"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "women4",
       "name": "妇人",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "women411",
       "name": "南宫妇人",
       "portraits": [
-        "angry1",
-        "angry2",
-        "laugh1",
-        "nervous1",
-        "nervous2",
-        "normal",
-        "shy"
-      ]
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "women5",
+      "name": "妇人",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "women6",
+      "name": "妇人",
+      "portraits": [
+        "normal"
+      ],
+      "default_portrait": "normal"
     },
     {
       "id": "woodcutter1",
       "name": "樵夫",
       "portraits": [
         "angry1",
+        "angry2",
         "nervous1",
         "normal"
-      ]
+      ],
+      "default_portrait": "normal"
+    },
+    {
+      "id": "woodman1",
+      "name": "閒雜_木人1",
+      "portraits": [
+        "normal",
+        "special1"
+      ],
+      "default_portrait": "normal"
     }
   ],
   "views": [
@@ -21782,5 +22764,129 @@
       "id": "Secret",
       "name": "神秘房子"
     }
-  ]
+  ],
+  "player_appearance_portraits": {
+    "original": [
+      "angry1",
+      "angry2",
+      "angry3",
+      "blood",
+      "blood2",
+      "blood_laugh1",
+      "blood_laugh2",
+      "blood_nervous1",
+      "caught",
+      "close_eye_laugh",
+      "die",
+      "doubt",
+      "gloomy1",
+      "gloomy2",
+      "god_thunder",
+      "god_thunder_nervous1",
+      "haggard",
+      "hurt",
+      "hurt2",
+      "laugh1",
+      "laugh2",
+      "nervous1",
+      "nervous2",
+      "nervous3",
+      "nervous4",
+      "normal",
+      "revel",
+      "sad1",
+      "sad2",
+      "shake1",
+      "shake2",
+      "shock",
+      "shy",
+      "silent",
+      "special1",
+      "special10",
+      "special11",
+      "special12",
+      "special13",
+      "special14",
+      "special15",
+      "special16",
+      "special17",
+      "special18",
+      "special19",
+      "special2",
+      "special20",
+      "special21",
+      "special3",
+      "special4",
+      "special5",
+      "special6",
+      "special7",
+      "special8",
+      "special9",
+      "suck1",
+      "suck2",
+      "suck3",
+      "suck4"
+    ],
+    "beautified": [
+      "angry1",
+      "angry2",
+      "angry3",
+      "blood",
+      "blood2",
+      "blood_laugh1",
+      "blood_laugh2",
+      "blood_nervous1",
+      "caught",
+      "close_eye_laugh",
+      "die",
+      "doubt",
+      "gloomy1",
+      "gloomy2",
+      "god_thunder",
+      "god_thunder_nervous1",
+      "haggard",
+      "hurt",
+      "hurt2",
+      "laugh1",
+      "laugh2",
+      "nervous1",
+      "nervous2",
+      "nervous3",
+      "nervous4",
+      "normal",
+      "revel",
+      "sad1",
+      "sad2",
+      "shake1",
+      "shake2",
+      "shock",
+      "shy",
+      "silent",
+      "special1",
+      "special10",
+      "special11",
+      "special12",
+      "special13",
+      "special14",
+      "special15",
+      "special16",
+      "special17",
+      "special18",
+      "special19",
+      "special2",
+      "special20",
+      "special21",
+      "special3",
+      "special4",
+      "special5",
+      "special6",
+      "special7",
+      "special8",
+      "special9",
+      "suck1",
+      "suck2",
+      "suck3",
+      "suck4"
+    ]
+  }
 }

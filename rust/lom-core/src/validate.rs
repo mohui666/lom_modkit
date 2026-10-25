@@ -1,4 +1,4 @@
-//! Native validation of the v3 package and all 63 story node contracts.
+//! Native validation of the v3 package and all 64 story node contracts.
 //! The declarative field table is shared with the native editor. Semantic rules
 //! are implemented here; no Python interpreter or subprocess is involved.
 use anyhow::{ensure, Context, Result};
@@ -290,9 +290,33 @@ fn manifest_inner(m: &Value) -> Result<()> {
     );
     let campaign = &m["campaign"];
     object(campaign, "缺少必填字段 campaign")?;
+    let addon = m["play_mode"] == "addon";
+    if crate::scenario::enabled(m) {
+        ensure!(
+            addon || m["play_mode"] == "sandbox",
+            "play_mode 必须为 addon 或 sandbox"
+        );
+        let min = version(&m["min_host_version"], "min_host_version")?;
+        ensure!(
+            !version_greater(
+                &version(&json!(crate::scenario::MIN_HOST), "minimum")?,
+                &min
+            ),
+            "事件任务作品要求 min_host_version 至少 {}",
+            crate::scenario::MIN_HOST
+        );
+        ensure!(
+            array(&campaign["triggers"]).is_empty(),
+            "事件任务作品请在 scenario.json 配置事件，不能混用 campaign.triggers"
+        );
+        ensure!(
+            !addon || campaign["disable_official_events"] != true,
+            "附加剧情必须保留原版事件"
+        );
+    }
     ensure!(
-        campaign["new_game"] == true,
-        "字段 \"campaign.new_game\" 必须固定为 true"
+        campaign["new_game"] == !addon,
+        "campaign.new_game 在附加剧情中必须为 false，独立作品必须为 true"
     );
     if has(campaign, "disable_official_events") {
         ensure!(
@@ -875,6 +899,15 @@ fn mod_death_id(key: &str) -> bool {
     n.len() > 6 || (n.len() == 6 && n >= "900000")
 }
 fn extra(n: &Value, ntype: &str, catalog: &Value) -> Result<()> {
+    if ntype == "parallel" {
+        crate::parallel::validate_group(n)?;
+        for (i, action) in crate::parallel::actions(n).iter().enumerate() {
+            let label = format!("第 {} 个同时动作", i + 1);
+            let kind = fields(action).with_context(|| label.clone())?;
+            extra(action, kind, catalog).with_context(|| label)?;
+        }
+        return Ok(());
+    }
     if has(n, "appearance") {
         ensure!(
             s(n, "character") == "player"
@@ -954,6 +987,7 @@ fn extra(n: &Value, ntype: &str, catalog: &Value) -> Result<()> {
             }
         }
         "say" => {
+            ensure!(nonblank(&n["text"]), "必填字段 \"text\" 不能为空或仅含空白");
             if ["character", "think"].contains(&text(n, "mode", "character")) {
                 require(n, &["character"], "character/think 模式")?;
             }
@@ -978,6 +1012,12 @@ fn extra(n: &Value, ntype: &str, catalog: &Value) -> Result<()> {
                 range(n, "image_y", -30.0, 30.0)?;
             }
         },
+        "end" => {
+            ensure!(
+                !(has(n, "event_result") && has(n, "next_script")),
+                "event_result 只能在最终返回自由模式时报告，不能与 next_script 同时设置"
+            );
+        }
         "choice" => {
             options(n, 2, 4, &["text", "goto"], &[])?;
             ensure!(text(n,"dialog","Options")=="Options","dialog 只支持 \"Options\"；自由场景 break 格式菜单会触发 BreakOptionButton 解析崩溃（IndexOutOfRange，菜单冻结无法点击）");
@@ -1270,21 +1310,22 @@ fn cg_lifecycle(story: &Value) -> Result<()> {
 fn collect_warnings(story: &Value, catalog: &Value) -> Vec<String> {
     let nodes = array(&story["nodes"]);
     let mut warnings = Vec::new();
-    for (index, node) in nodes.iter().enumerate() {
+    let transition_nodes: Vec<_> = crate::parallel::story_actions(story).collect();
+    for (index, (parent, node)) in transition_nodes.iter().enumerate() {
         if s(node, "type") != "transition" {
             continue;
         }
-        let id = s(node, "id");
+        let id = s(parent, "id");
         if s(node, "phase") == "in" {
-            if !nodes[index + 1..]
+            if !transition_nodes[index + 1..]
                 .iter()
-                .any(|n| s(n, "type") == "transition" && s(n, "phase") == "out")
+                .any(|(_, n)| s(n, "type") == "transition" && s(n, "phase") == "out")
             {
                 warnings.push(format!("节点 \"{id}\"(transition, phase=in) 之后没有 phase=out 解除：TransitionIn 会隐藏剧情 UI 并盖满黑幕（官方脚本必须成对使用，ch1_1 里相距仅十几行），黑幕将一直覆盖到脚本结尾（含链式脚本）。请在其后补一个 phase=out 节点，或改用 scene 节点做转场。"));
             }
-        } else if !nodes[..index]
+        } else if !transition_nodes[..index]
             .iter()
-            .any(|n| s(n, "type") == "transition" && s(n, "phase") == "in")
+            .any(|(_, n)| s(n, "type") == "transition" && s(n, "phase") == "in")
         {
             warnings.push(format!("节点 \"{id}\"(transition, phase=out) 之前没有 phase=in：无黑幕可撤（官方用法永远是先 in 后 out），该节点不会产生任何视觉效果，可删除。"));
         }

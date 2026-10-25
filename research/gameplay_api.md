@@ -12,11 +12,48 @@
 - `Mortal.Combat.CombatStat` 已不含 `HealthAddition`、`BlockAbsorbAddition`、`IgnoreNormalMode`。`Reset()` 仍从 `DefaultHealth`／`DefaultStamina` 初始化当前值，并清零失败率、中毒和麻痹累积。Host 的 `CombatRuntimeLevelPatch.ResetAuthorFacingState` 保留现有初始化，只对实际仍存在的这三个旧字段反射清零；现版不猜测替代字段。操作对象仍是每场克隆的 `CombatStat`，不修改官方 ScriptableObject。
 - `Mortal.Story.StoryViewImage.LoadAsset(string)` 仍通过 `_viewAddressableData.GetByKey(name)` 取得 Sprite 地址。
 - `Mortal.Core.AddressableCollectionData.GetByKey(string)` 现在取得当前语言并调用 `GetByKey(string,string)`；`AddressableData` 保留 `_key`／`_addressKey`，增加语言覆写，`GetAddressKeyForLang(string)` 可返回覆写地址。本次仅按既有构建流程提取默认背景映射，未改变 Host 的语言选择行为。
+
+Windows 实机还确认 `Mortal.Core.CharacterIntroPanel` 同时提供 `IEnumerator Show(string key)` 与 `IEnumerator Show(string key, int mode)`。Host 的 Lua 桥接继续调用单参数入口，预检和 Harmony 特性显式指定 `string` 参数，修复仅按方法名查找触发的 `AmbiguousMatchException`。
+
+这些是受影响接口与构建依赖核对，不代表所有游戏接口或实机交互已重新验收。创作字段和 `.lommod` 3／2／1 契约不变。
+
+## 2026-10-19 同时执行组接口核对
+
+本次只读反编译当前安装的 `Fungus.LuaEnvironment`、`Mortal.Story.CharacterPlaceholder` 与 `ViewFlowchartController`，并核对上文已用的舞台和黑幕入口。`LuaEnvironment.RunLuaCoroutine` 每帧推进 Lua 协程；现有 Host 的 `HostRunModLua` 同样逐帧推进，并将异常交给中止路径。`CharacterPlaceholder.LoadCharacterAsset(string)` 是可等待的资源加载，`LoadCharacterPortrait(string,string)` 同步填充表情资源；`PortraitController.Show/Hide(PortraitOptions)` 启动补间，`Stage.FadeDuration` 提供默认聚焦／压暗时长；`StoryTransitionBlack.TransitionIn/Out` 返回协程。
+
+新的 `parallel` 编译到 Lua 协作式子协程，复用这些原有入口与既有 `wait/runwait`，不新增 C# Host 回调，不修改官方 ScriptableObject。仅允许演出动作；共享人物／通道／流图冲突会拒绝。使用游戏 DLL 内的 MoonSharp 进行纯解释器离线测试，所有舞台与游戏全局均为合成替身，未运行 Unity 或游戏。真实补间、资源加载和场景返回仍未实机验收。
+
+编辑器黑幕预览补充核对：当前安装的 `Mortal.Story.StoryTransitionBlack.TransitionIn(string)` 将图像填充量推至 1 并隐藏剧情界面，`TransitionOut(string)` 推至 0 后恢复界面；`SetFillOrigin` 将 `rl` 设为 0、`lr` 及其他值设为 1。当前 `UnityEngine.UI.Image.OriginHorizontal` 的 0／1 分别是 Left／Right。持续时间来自场景组件的序列化字段，本次未读取场景资源，因此编辑器使用独立的 1 秒示意，不能作为实际时长或实机兼容证明。没有修改官方组件或包格式。
+
+
+## 2026-10-17 x64 更新核对
+
+本次从本机 Whisky 安装的 `Mortal_Data/Managed/Mortal.Combat.dll`、`Mortal.Story.dll`、`Mortal.Core.dll` 只读检查以下受影响类型，没有计算游戏程序集哈希：
+
+- `Mortal.Combat.CombatStat` 已不含 `HealthAddition`、`BlockAbsorbAddition`、`IgnoreNormalMode`。`Reset()` 仍从 `DefaultHealth`／`DefaultStamina` 初始化当前值，并清零失败率、中毒和麻痹累积。Host 的 `CombatRuntimeLevelPatch.ResetAuthorFacingState` 保留现有初始化，只对实际仍存在的这三个旧字段反射清零；现版不猜测替代字段。操作对象仍是每场克隆的 `CombatStat`，不修改官方 ScriptableObject。
+- `Mortal.Story.StoryViewImage.LoadAsset(string)` 仍通过 `_viewAddressableData.GetByKey(name)` 取得 Sprite 地址。
+- `Mortal.Core.AddressableCollectionData.GetByKey(string)` 现在取得当前语言并调用 `GetByKey(string,string)`；`AddressableData` 保留 `_key`／`_addressKey`，增加语言覆写，`GetAddressKeyForLang(string)` 可返回覆写地址。本次仅按既有构建流程提取默认背景映射，未改变 Host 的语言选择行为。
 - Windows 当前安装的 `Mortal.Core.CharacterIntroPanel` 经现场反编译确认同时提供 `IEnumerator Show(string key)` 与 `IEnumerator Show(string key, int mode)`；单参数入口转调双参数入口的 `mode=0`。Host 的 `intropanel.Show(key)` 桥接继续使用单参数入口，预检和 Harmony 特性均显式指定 `string` 参数，避免仅按方法名查找触发 `AmbiguousMatchException`、中断整个 Host 初始化。
 
 这些是受影响接口与构建依赖核对，不代表所有游戏接口或实机交互已重新验收。创作字段和 `.lommod` 3／2／1 契约不变。
 
+
+## 2026-10-24 事件与任务接入
+
+本轮只读核对当前 Whisky 安装（Steam Build 26073097）的 `Mortal.Core`、`Mortal.Free` 与 `Mortal.Story`，没有启动游戏或计算程序集哈希。
+
+- `MissionManagerData.UpdateCheckMissions/HasAnyMissionTrigger`：返回 Free 时保留官方任务优先，只有官方未选中剧情才调度附加自动事件。
+- `FreePositionData.GetExecuteScript(float)`、`PositionController.OnPositionClick`：复用现有地图点击及扣点流程；新配置与旧战役触发器分别处理。
+- `FreeManager.Start()` 返回 IEnumerator，末尾启动提醒对话协程而不等待；事件入口等待 `IsProcessing=false` 与 `_menuOpen/_saveOpen/_statOpen=false`。
+- `LuaManager.ChangeScene(string,string,string)`：演出返回 Free 或显式结束时结算事件；`SetGameTime(int,int,int)` 用于配置中的时间结果。
+- `PlayerStatManagerData.StoryKeyList` 由 `Save/Load` 逐项写入/恢复 `StorySave`；宿主只维护自己的命名空间记录，不修改 GameSave schema 或官方 Mission 资产。
+- 结果动作复用 `StatModifyManager.Player/SetPlayer/Character/SetCharacter/AddTalent/AddStory/SetFlag/AddFlag`、`ItemDatabase.GetItem/AddItem/RemoveItem`；先检查原版 ID。这些类型均已本轮定向反编译并以当前 DLL 编译，未实机执行。
+
 ## 已确认
+
+2026-10-24 全人物表情复扫：本机当前安装为 2026-10-20 构建（Steam Build 26073097）。现场只读反编译 `StoryCharacterConfig.Get(string)`、`StoryCharacterData.Id/PortraitResourceList`、`StoryCharaterImageItem.Mapping/AddressKey` 和 `CharacterPlaceholder` 的既有加载入口；补查 `Mortal.Story.StoryCharacterController.LoadPortrait(string)`／`LoadPortraitSync(string)`，两者均以 `FirstOrDefault(x => x.Mapping.Value == key)` 取表情资源。`special405/laugh2` 在原配置中重复出现且地址不同，扫描器须保留第一条，不能以后条覆盖或自行创造新的官方表情 ID。该修正仅作用于本地预览映射，未修改官方资源或 Host 接口；全量范围及核对结果见本轮 `out/portrait-scan-20261024/`，不作为游戏运行验收。
+
+2026-10-20 立绘目录修复只读核对当前本机安装的 `Mortal.Story.CharacterPlaceholder.LoadCharacterAsset(string)`、`LoadCharacterPortrait(string,string)`、`GetPortrait(string,string)`，及 `Mortal.Core.StoryCharacterConfig.Get(string)`、`StoryCharacterData.Id`／`PortraitResourceList`。人物 ID 来自 Mapping.Value，表情与资源地址来自 PortraitResourceList；未从旧剧情中出现的表情推断完整清单。`girl5_9` 是独立的「崆峒_小梅_入魔」配置；`girl5_4` 当前指向普通成年小梅图片。编辑器的外观分组最终保存这些真实 ID，继续使用已有加载入口，没有修改官方对象或新增 Host 接口。当前安装的图片包位于 `StreamingAssets/aa/StandaloneWindows64`，本机只读提取 1,335 张图片成功、0 失败；这是资源提取证据，不是游戏运行验收。
 
 | 能力 | 原版证据 | 可实现范围 |
 | --- | --- | --- |

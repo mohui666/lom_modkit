@@ -75,8 +75,29 @@ fn story(nodes: Value) -> Value {
     json!({"id":"test","start":"n1","nodes":nodes})
 }
 #[test]
-fn schema_exposes_all_63_nodes() {
-    assert_eq!(node_schema()["nodes"].as_object().unwrap().len(), 63);
+fn schema_exposes_legacy_nodes_and_parallel_group() {
+    assert_eq!(node_schema()["nodes"].as_object().unwrap().len(), 64);
+}
+#[test]
+fn say_text_is_required_in_every_display_mode() {
+    for mode in ["narrative", "center", "character", "think"] {
+        for text in ["", " \t\r\n", "\u{3000}"] {
+            let input = story(json!([
+                {"id":"n1","type":"say","mode":mode,"character":"player","text":text},
+                {"id":"end","type":"end"}
+            ]));
+            let error = validate_story(&input).unwrap_err().to_string();
+            assert!(
+                error.contains("text") && error.contains("不能为空"),
+                "{error}"
+            );
+        }
+        let input = story(json!([
+            {"id":"n1","type":"say","mode":mode,"character":"player","text":" 正常对白。\n"},
+            {"id":"end","type":"end"}
+        ]));
+        assert!(validate_story(&input).is_ok());
+    }
 }
 #[test]
 fn partial_direct_dice_is_rejected_without_panicking() {

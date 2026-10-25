@@ -19,6 +19,7 @@ pub fn missing_stage_linear(nodes: &[Value], index: usize) -> Option<String> {
     let cid = required_character(nodes.get(index)?)?;
     for prev in nodes[..index]
         .iter()
+        .flat_map(crate::parallel::actions)
         .rev()
         .filter(|n| text(n, "character") == cid)
     {
@@ -55,6 +56,7 @@ pub fn find_stage_issues(story: &Value) -> Vec<(String, String)> {
     let by_id: BTreeMap<_, _> = ns.iter().map(|n| (text(n, "id"), *n)).collect();
     let universe: BTreeSet<String> = ns
         .iter()
+        .flat_map(|n| crate::parallel::actions(n))
         .filter_map(|n| n["character"].as_str())
         .filter(|s| !s.is_empty())
         .map(str::to_owned)
@@ -95,16 +97,18 @@ pub fn find_stage_issues(story: &Value) -> Vec<(String, String)> {
                     continue;
                 };
                 let mut out = ins[pred].clone();
-                let cid = text(previous, "character");
-                if !cid.is_empty() {
-                    match text(previous, "type") {
-                        "show" => {
-                            out.insert(cid.into());
+                for action in crate::parallel::actions(previous) {
+                    let cid = text(action, "character");
+                    if !cid.is_empty() {
+                        match text(action, "type") {
+                            "show" => {
+                                out.insert(cid.into());
+                            }
+                            "hide" => {
+                                out.remove(cid);
+                            }
+                            _ => {}
                         }
-                        "hide" => {
-                            out.remove(cid);
-                        }
-                        _ => {}
                     }
                 }
                 meet = Some(match meet {
@@ -125,17 +129,30 @@ pub fn find_stage_issues(story: &Value) -> Vec<(String, String)> {
     }
     let reachable = reached(story);
     ns.into_iter()
-        .filter_map(|n| {
+        .flat_map(|n| {
             let id = text(n, "id");
-            let cid = required_character(n)?;
-            (reachable.contains(id) && !ins[id].contains(cid)).then(|| (id.into(), cid.into()))
+            crate::parallel::actions(n)
+                .iter()
+                .filter_map(|action| {
+                    let cid = required_character(action)?;
+                    (reachable.contains(id) && !ins[id].contains(cid))
+                        .then(|| (id.into(), cid.into()))
+                })
+                .collect::<Vec<_>>()
         })
         .collect()
 }
 pub fn ensure_stage(story: &mut Value, node_id: &str) -> Option<Value> {
     let ns = nodes(story);
     let index = ns.iter().position(|n| text(n, "id") == node_id)?;
-    let cid = required_character(&ns[index])?.to_owned();
+    let cid = required_character(&ns[index])
+        .map(str::to_owned)
+        .or_else(|| {
+            find_stage_issues(story)
+                .into_iter()
+                .find(|(id, _)| id == node_id)
+                .map(|(_, cid)| cid)
+        })?;
     let used: BTreeSet<_> = ns.iter().map(|n| text(n, "id")).collect();
     let id = (1..)
         .map(|i| format!("show{i}"))
@@ -215,7 +232,7 @@ pub fn propose_safe_fixes(stories: &Stories) -> FixProposal {
                 }
             }
         }
-        let count = nodes(story).len();
+        let count = crate::parallel::story_actions(story).count();
         for _ in 0..=count {
             let Some((nid, cid)) = find_stage_issues(story).into_iter().next() else {
                 break;

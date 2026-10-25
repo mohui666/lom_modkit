@@ -2306,7 +2306,7 @@
       "valid": false,
       "warnings": [],
       "test": "test_portrait_not_in_character_list (tests.test_lomc.TestPortraitValidation)",
-      "input_json": "{\"story_schema\": 2, \"id\": \"main\", \"title\": \"测试剧情\", \"start\": \"n1\", \"nodes\": [{\"id\": \"n1\", \"type\": \"say\", \"character\": \"brother4\", \"portrait\": \"angry3\", \"text\": \"哼！\"}, {\"id\": \"nend\", \"type\": \"end\"}]}"
+      "input_json": "{\"story_schema\": 2, \"id\": \"main\", \"title\": \"测试剧情\", \"start\": \"n1\", \"nodes\": [{\"id\": \"n1\", \"type\": \"say\", \"character\": \"brother4\", \"portrait\": \"missing_portrait_for_rejection\", \"text\": \"哼！\"}, {\"id\": \"nend\", \"type\": \"end\"}]}"
     },
     {
       "kind": "story",
@@ -2323,7 +2323,7 @@
         "characters": null
       },
       "test": "test_table_unavailable_passes (tests.test_lomc.TestPortraitValidation)",
-      "input_json": "{\"story_schema\": 2, \"id\": \"main\", \"title\": \"测试剧情\", \"start\": \"n1\", \"nodes\": [{\"id\": \"n1\", \"type\": \"say\", \"character\": \"brother4\", \"portrait\": \"angry3\", \"text\": \"哼！\"}, {\"id\": \"nend\", \"type\": \"end\"}]}"
+      "input_json": "{\"story_schema\": 2, \"id\": \"main\", \"title\": \"测试剧情\", \"start\": \"n1\", \"nodes\": [{\"id\": \"n1\", \"type\": \"say\", \"character\": \"brother4\", \"portrait\": \"missing_portrait_for_rejection\", \"text\": \"哼！\"}, {\"id\": \"nend\", \"type\": \"end\"}]}"
     },
     {
       "kind": "story",

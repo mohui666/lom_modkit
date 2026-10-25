@@ -55,7 +55,7 @@ namespace MortalModHost
                     ModQuestSession.Reset();
                     return;
                 }
-                string registered = mod.GetRegisteredScriptName(mod.Entry);
+                string registered = mod.Scenario==null ? mod.GetRegisteredScriptName(mod.Entry) : ScenarioRuntime.BeginCampaign(mod);
                 stat.SetStoryScript(registered);
                 stat.SetStartScript(registered);
                 Log.LogInfo("新战役首脚本已替换：" + registered + "（mod " + mod.Id + "）");
@@ -131,13 +131,19 @@ namespace MortalModHost
                 string positionId = GetPositionId(__instance);
                 if (positionId != null)
                 {
+                    string eventScript;
+                    if (ScenarioRuntime.TryDispatch("position",positionId,out eventScript))
+                    {
+                        __result=eventScript;
+                        return;
+                    }
                     List<string> storyKeys = null;
                     PlayerStatManagerData stat = PlayerStatManagerData.Instance;
                     if (stat != null) storyKeys = stat.StoryKeyList;
 
                     foreach (ModPackage mod in Plugin.LoadedMods)
                     {
-                        if (mod.Campaign == null) continue;
+                        if (mod.Campaign == null || mod.Scenario != null) continue;
                         // 契约 §2：有活跃战役时位置触发器只匹配当前战役 mod；否则其他已安装
                         // mod 的无条件触发器会跨战役抢占。无战役时维持全部 mod、先加载者优先
                         // （与注册表冲突策略一致）。

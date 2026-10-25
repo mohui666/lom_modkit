@@ -1,0 +1,19 @@
+{
+  "id": "practice",
+  "story_schema": 2,
+  "title": "练功闲谈",
+  "start": "say",
+  "nodes": [
+    {
+      "id": "say",
+      "type": "say",
+      "mode": "narrative",
+      "text": "练功间歇，你与同门聊了片刻。这段日常可以再次发生。"
+    },
+    {
+      "id": "end",
+      "type": "end",
+      "event_result": "completed"
+    }
+  ]
+}

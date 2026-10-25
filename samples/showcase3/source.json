@@ -4,13 +4,13 @@
     "package_format": 3,
     "story_schema": 2,
     "content_schema": 1,
-    "min_host_version": "1.1.2",
+    "min_host_version": "1.1.3",
     "id": "showcase3",
     "campaign_id": "showcase3",
-    "name": "全节点样例3.0·六十三节点实机验收",
+    "name": "全节点样例3.0·六十四节点实机验收",
     "version": "3.0.0",
     "author": "lom_modkit",
-    "description": "面向手动验收的 63 节点完整样例：用户图片/角色/音频、演出、数值与检定、MOD 任务/持久变量、奖励/商店、原版 Combat/Battle 编排、独立决斗背景、运行时人物绑定、死亡与安全返回。",
+    "description": "面向手动验收的 64 节点完整样例：用户图片/角色/音频、演出、数值与检定、MOD 任务/持久变量、奖励/商店、原版 Combat/Battle 编排、独立决斗背景、运行时人物绑定、死亡与安全返回。",
     "entry": "main",
     "campaign": {
       "new_game": true
@@ -128,17 +128,43 @@
         {
           "id": "say2",
           "type": "say",
-          "text": "我是用户角色林灯。这句对白同时播放用户语音；请检查对白栏里是否有重复的低透明度 MOD 水印。",
+          "text": "我是用户角色林灯。这句对白同时播放用户语音；请检查对白栏中的玩家制作内容标识。来源编码水印是低透明度图像，不是重复的可读 MOD 文字。",
           "character": "user:showcase.lin_deng",
           "portrait": "normal",
           "mode": "character",
           "voice": "user:showcase.lin_greeting"
         },
         {
+          "id": "parallel_moves",
+          "type": "parallel",
+          "actions": [
+            {
+              "type": "move",
+              "character": "player",
+              "from": "L1",
+              "to": "LM1",
+              "duration": 0.6
+            },
+            {
+              "type": "move",
+              "character": "user:showcase.lin_deng",
+              "from": "R1",
+              "to": "RM1",
+              "duration": 0.9
+            },
+            {
+              "type": "sound",
+              "name": "user:showcase.lantern_chime",
+              "kind": "sound",
+              "op": "play"
+            }
+          ]
+        },
+        {
           "id": "move1",
           "type": "move",
           "character": "player",
-          "from": "L1",
+          "from": "LM1",
           "to": "M",
           "duration": 0.6
         },
@@ -246,6 +272,33 @@
           "type": "transition",
           "phase": "in",
           "dir": "lr"
+        },
+        {
+          "id": "parallel_scene_setup",
+          "type": "scene",
+          "view": "center"
+        },
+        {
+          "id": "parallel_arrival",
+          "type": "parallel",
+          "actions": [
+            {
+              "type": "show",
+              "character": "player",
+              "position": "L1",
+              "portrait": "normal",
+              "fadeDuration": 0,
+              "moveDuration": 0
+            },
+            {
+              "type": "show",
+              "character": "user:showcase.lin_deng",
+              "position": "R1",
+              "portrait": "normal",
+              "fadeDuration": 0,
+              "moveDuration": 0
+            }
+          ]
         },
         {
           "id": "transition2",
@@ -470,6 +523,35 @@
           "action": "clear",
           "image": "",
           "fade": 0.5
+        },
+        {
+          "id": "xiaomei_demon_show",
+          "type": "show",
+          "character": "girl5_9",
+          "portrait": "normal",
+          "position": "R1",
+          "facing": "left",
+          "fadeDuration": 0
+        },
+        {
+          "id": "xiaomei_demon_talk",
+          "type": "say",
+          "character": "girl5_9",
+          "portrait": "special1",
+          "text": "【人物外观】虞小梅 → 入魔 → 特殊1；这个外观只列出自身可用的表情。"
+        },
+        {
+          "id": "xiaomei_demon_half",
+          "type": "say",
+          "character": "girl5_9",
+          "portrait": "special2",
+          "text": "【人物表情】同一入魔外观的另一幅立绘。"
+        },
+        {
+          "id": "xiaomei_demon_hide",
+          "type": "hide",
+          "character": "girl5_9",
+          "fadeDuration": 0
         },
         {
           "id": "end1",
@@ -938,7 +1020,7 @@
         {
           "id": "message1",
           "type": "message",
-          "text": "【3.0/3】林灯没有专用 Combat 四帧。对手只填写基础血量 333、基础气力 111；原版技能增益后，界面显示最终值，未填初始值时按最终满值进入。赵活体力、内力与被动先按原版换算生命，再额外叠加 120 基础生命。雷达六维填 100，右边五项是官方评语。也可跳过。"
+          "text": "【3.0/3】林灯没有专用 Combat 四帧。对手只填写基础血量 333、基础气力 111；原版技能增益后，界面显示最终值，未填初始值时按最终满值进入。赵活体力、内力与被动先按原版换算生命，再额外叠加 1000 基础生命。雷达六维填 100，右边五项是官方评语。也可跳过。"
         },
         {
           "id": "choice1",
@@ -1214,6 +1296,25 @@
         }
       ],
       "start": "message1"
+    },
+    {
+      "id": "event_presentation",
+      "story_schema": 2,
+      "title": "独立事件演出示例",
+      "start": "say",
+      "nodes": [
+        {
+          "id": "say",
+          "type": "say",
+          "mode": "narrative",
+          "text": "事件的触发条件和任务推进配置在独立页面，这里只负责演出并回报结果。"
+        },
+        {
+          "id": "end",
+          "type": "end",
+          "event_result": "completed"
+        }
+      ]
     }
   ]
 }

@@ -1,0 +1,618 @@
+{
+  "manifest": {
+    "format": 3,
+    "package_format": 3,
+    "story_schema": 2,
+    "content_schema": 1,
+    "id": "scenario_fixture",
+    "campaign_id": "scenario_fixture",
+    "name": "验证",
+    "author": "测试",
+    "version": "1.0.0",
+    "description": "离线测试",
+    "entry": "main",
+    "play_mode": "sandbox",
+    "min_host_version": "1.1.3",
+    "campaign": {
+      "new_game": true,
+      "disable_official_events": true
+    }
+  },
+  "stories": {
+    "main": {
+      "id": "main",
+      "story_schema": 2,
+      "nodes": [
+        {
+          "id": "end",
+          "type": "end",
+          "event_result": "completed"
+        }
+      ]
+    }
+  },
+  "config": {
+    "schema": 1,
+    "entry_event": "opening",
+    "tasks": [
+      {
+        "id": "delivery",
+        "name": "交付",
+        "initial": "locked",
+        "states": [
+          "locked",
+          "active",
+          "done"
+        ],
+        "transitions": [
+          {
+            "from": "locked",
+            "to": "active",
+            "when": {
+              "source": "time",
+              "key": "month",
+              "op": "eq",
+              "value": 7
+            }
+          }
+        ]
+      }
+    ],
+    "events": [
+      {
+        "id": "opening",
+        "trigger": "start",
+        "script": "main",
+        "when": {
+          "all": []
+        },
+        "outcomes": {
+          "completed": {}
+        }
+      },
+      {
+        "id": "visit",
+        "trigger": "position",
+        "position": "Center",
+        "script": "main",
+        "once": false,
+        "check": "action",
+        "pool": "visits",
+        "weight": 70,
+        "when": {
+          "all": []
+        },
+        "outcomes": {
+          "completed": {
+            "variables": {
+              "visits": {
+                "op": "add",
+                "value": 1
+              }
+            },
+            "tasks": {
+              "delivery": "done"
+            }
+          }
+        }
+      },
+      {
+        "id": "alternate",
+        "trigger": "position",
+        "position": "Center",
+        "script": "main",
+        "once": false,
+        "check": "action",
+        "pool": "visits",
+        "weight": 30,
+        "when": {
+          "all": []
+        },
+        "outcomes": {
+          "completed": {}
+        }
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "sandbox",
+      "valid": true,
+      "patches": []
+    },
+    {
+      "name": "addon",
+      "valid": true,
+      "patches": [
+        {
+          "path": "/entry_event",
+          "remove": true
+        },
+        {
+          "path": "/events/0",
+          "remove": true
+        }
+      ],
+      "mode": "addon"
+    },
+    {
+      "name": "fractional_chance",
+      "valid": true,
+      "patches": [
+        {
+          "path": "/events/1/chance",
+          "value": 12.5
+        }
+      ]
+    },
+    {
+      "name": "condition_group",
+      "valid": true,
+      "patches": [
+        {
+          "path": "/events/1/when",
+          "value": {
+            "all": [
+              {
+                "source": "task",
+                "key": "delivery",
+                "op": "ne",
+                "value": "locked"
+              },
+              {
+                "not": {
+                  "any": []
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "world_effects",
+      "valid": true,
+      "patches": [
+        {
+          "path": "/events/1/outcomes/completed/actions",
+          "value": [
+            {
+              "type": "stat",
+              "key": "money",
+              "op": "add",
+              "value": 20
+            },
+            {
+              "type": "time",
+              "year": 2,
+              "month": 7,
+              "stage": 1
+            },
+            {
+              "type": "item",
+              "kind": "book",
+              "key": "book1",
+              "op": "add",
+              "value": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "schema",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/schema",
+          "value": 2
+        }
+      ]
+    },
+    {
+      "name": "unknown_root",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/future",
+          "value": 1
+        }
+      ]
+    },
+    {
+      "name": "events_empty",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/events",
+          "value": []
+        }
+      ]
+    },
+    {
+      "name": "events_type",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/events",
+          "value": {}
+        }
+      ]
+    },
+    {
+      "name": "tasks_type",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/tasks",
+          "value": {}
+        }
+      ]
+    },
+    {
+      "name": "entry_missing",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/entry_event",
+          "value": "missing"
+        }
+      ]
+    },
+    {
+      "name": "entry_disabled",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/events/0/enabled",
+          "value": false
+        }
+      ]
+    },
+    {
+      "name": "entry_chance",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/events/0/chance",
+          "value": 50
+        }
+      ]
+    },
+    {
+      "name": "trigger",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/events/1/trigger",
+          "value": "future"
+        }
+      ]
+    },
+    {
+      "name": "position",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/events/1/position",
+          "value": "Somewhere"
+        }
+      ]
+    },
+    {
+      "name": "script_missing",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/events/1/script",
+          "value": "missing"
+        }
+      ]
+    },
+    {
+      "name": "chance_high",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/events/1/chance",
+          "value": 101
+        }
+      ]
+    },
+    {
+      "name": "chance_negative",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/events/1/chance",
+          "value": -1
+        }
+      ]
+    },
+    {
+      "name": "chance_string",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/events/1/chance",
+          "value": "30"
+        }
+      ]
+    },
+    {
+      "name": "once_number",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/events/1/once",
+          "value": 1
+        }
+      ]
+    },
+    {
+      "name": "check",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/events/1/check",
+          "value": "week"
+        }
+      ]
+    },
+    {
+      "name": "weight_negative",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/events/1/weight",
+          "value": -1
+        }
+      ]
+    },
+    {
+      "name": "weight_float",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/events/1/weight",
+          "value": 1.1
+        }
+      ]
+    },
+    {
+      "name": "duplicate_event",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/events/1/id",
+          "value": "opening"
+        }
+      ]
+    },
+    {
+      "name": "pool_priority",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/events/2/priority",
+          "value": 1
+        }
+      ]
+    },
+    {
+      "name": "pool_period",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/events/2/check",
+          "value": "month"
+        }
+      ]
+    },
+    {
+      "name": "condition_source",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/events/1/when",
+          "value": {
+            "source": "unknown",
+            "key": "month",
+            "op": "eq",
+            "value": 1
+          }
+        }
+      ]
+    },
+    {
+      "name": "condition_float",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/events/1/when",
+          "value": {
+            "source": "time",
+            "key": "month",
+            "op": "eq",
+            "value": 1.2
+          }
+        }
+      ]
+    },
+    {
+      "name": "condition_task",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/events/1/when",
+          "value": {
+            "source": "task",
+            "key": "delivery",
+            "op": "eq",
+            "value": "missing"
+          }
+        }
+      ]
+    },
+    {
+      "name": "task_initial",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/tasks/0/initial",
+          "value": "absent"
+        }
+      ]
+    },
+    {
+      "name": "task_states",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/tasks/0/states",
+          "value": [
+            "locked",
+            "locked"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "result_missing",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/events/1/outcomes",
+          "value": {}
+        }
+      ]
+    },
+    {
+      "name": "result_task",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/events/1/outcomes/completed/tasks/delivery",
+          "value": "absent"
+        }
+      ]
+    },
+    {
+      "name": "variable_overflow",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/events/1/outcomes/completed/variables/visits/value",
+          "value": 2147483648
+        }
+      ]
+    },
+    {
+      "name": "action_unknown",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/events/1/outcomes/completed/actions",
+          "value": [
+            {
+              "type": "unknown"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "action_item",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/events/1/outcomes/completed/actions",
+          "value": [
+            {
+              "type": "item",
+              "key": "book1",
+              "kind": "book",
+              "op": "add",
+              "value": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "action_talent",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/events/1/outcomes/completed/actions",
+          "value": [
+            {
+              "type": "talent",
+              "key": "talent1",
+              "value": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "action_time",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/events/1/outcomes/completed/actions",
+          "value": [
+            {
+              "type": "time",
+              "year": 10,
+              "month": 7,
+              "stage": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "nested_limit",
+      "valid": false,
+      "patches": [
+        {
+          "path": "/events/1/when",
+          "value": {
+            "not": {
+              "not": {
+                "not": {
+                  "not": {
+                    "not": {
+                      "not": {
+                        "not": {
+                          "not": {
+                            "not": {
+                              "not": {
+                                "not": {
+                                  "not": {
+                                    "not": {
+                                      "not": {
+                                        "not": {
+                                          "all": []
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

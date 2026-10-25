@@ -6,10 +6,12 @@ pub mod content_library;
 pub mod localization;
 pub mod migration;
 pub mod package;
+pub mod parallel;
 pub mod project;
 pub mod release;
 pub mod validate;
 pub mod watermark;
+pub mod workdir;
 
 pub use anyhow::{Error, Result};
 pub use serde_json::Value;
@@ -48,5 +50,7 @@ pub fn stable_json(value: &Value) -> Result<Vec<u8>> {
 }
 pub mod content_edit;
 pub mod editing;
+pub mod game_discovery;
 pub mod game_tools;
+pub mod scenario;
 pub mod story_api;

@@ -511,5 +511,19 @@
     "id": "node",
     "type": "raw",
     "code": "-- 原生 Lua 代码，原样插入编译产物\n"
+  },
+  "parallel": {
+    "type": "parallel",
+    "actions": [
+      {
+        "type": "hide",
+        "character": "player",
+        "fadeDuration": 0.5
+      },
+      {
+        "type": "wait",
+        "seconds": 0.5
+      }
+    ]
   }
 }

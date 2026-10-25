@@ -114,7 +114,7 @@ pub fn simulate(story: &Value, target: &str) -> Value {
     simulate_until(story, target, true)
 }
 fn simulate_until(story: &Value, target: &str, include_target: bool) -> Value {
-    let mut state = json!({"actors":{},"overlays":{},"background":null,"view":null,"custom_cg":null,"dialog":null,"choice":null,"reached":false,"steps":0});
+    let mut state = json!({"actors":{},"overlays":{},"background":null,"view":null,"custom_cg":null,"dialog":null,"choice":null,"blackout":{"amount":0.0,"dir":"lr"},"reached":false,"steps":0});
     let Some(ns) = story["nodes"].as_array() else {
         return state;
     };
@@ -135,6 +135,9 @@ fn simulate_until(story: &Value, target: &str, include_target: bool) -> Value {
 pub fn build_playtest_prelude(story: &Value, target: &str) -> Vec<Value> {
     let state = simulate_until(story, target, false);
     let mut nodes = Vec::new();
+    if number(&state["blackout"], "amount", 0.0) >= 1.0 {
+        nodes.push(json!({"type":"transition","phase":"in","dir":state["blackout"]["dir"]}));
+    }
     if let Some(view) = state["view"]
         .as_str()
         .filter(|v| !v.is_empty() && *v != "out")
@@ -198,6 +201,15 @@ fn apply(s: &mut Value, n: &Value) {
     let cid = text(n, "character");
     let kind = text(n, "type");
     match kind {
+        "parallel" => {
+            for action in lom_core::parallel::actions(n) {
+                apply(s, action);
+            }
+        }
+        "transition" => {
+            s["blackout"] = json!({"amount":if n["phase"] == "in" {1.0} else {0.0},
+                "dir":n["dir"].as_str().unwrap_or("lr")});
+        }
         "scene" => {
             s["view"] = n["view"].clone();
             s["background"] = Value::Null;
@@ -274,6 +286,137 @@ fn number(v: &Value, key: &str, default: f64) -> f64 {
     v[key].as_f64().unwrap_or(default)
 }
 
+// The game's transition duration is serialized on its scene component. This is
+// a readable editor preview interval, not a claim about that installed value.
+const PREVIEW_TRANSITION_SECONDS: f64 = 1.0;
+
+/// Editor timing only: game loading, filters and audio are not simulated here.
+pub fn playback_duration(node: &Value) -> f64 {
+    fn duration(action: &Value) -> f64 {
+        match text(action, "type") {
+            "show" => number(action, "fadeDuration", 0.0).max(number(action, "moveDuration", 0.0)),
+            "hide" => number(action, "fadeDuration", 0.0),
+            "move" => number(action, "duration", 1.0),
+            "offset" | "rotate" | "shock" => number(action, "duration", 0.0),
+            "wait" => number(action, "seconds", 0.0),
+            "transition" => PREVIEW_TRANSITION_SECONDS,
+            "background" | "custom_cg" | "overlay" => number(action, "fade", 0.0),
+            "music" | "sound" if action["op"] == "fadeout" => number(action, "seconds", 2.0),
+            _ => 0.0,
+        }
+        .max(0.0)
+    }
+    if node["type"] == "parallel" {
+        lom_core::parallel::actions(node)
+            .iter()
+            .map(duration)
+            .fold(0.0, f64::max)
+            .max(0.1)
+    } else {
+        match text(node, "type") {
+            "show" | "hide" | "move" | "offset" | "rotate" | "wait" | "transition" => {
+                duration(node).max(0.1)
+            }
+            _ => 1.8,
+        }
+    }
+}
+
+fn position(positions: &Value, name: &str) -> (f64, f64) {
+    let key = if name.eq_ignore_ascii_case("c") {
+        "M".to_owned()
+    } else {
+        name.to_uppercase()
+    };
+    let entry = &positions["positions"][key];
+    (number(entry, "x", 0.5), number(entry, "feet", 1.003))
+}
+
+/// All children read the same elapsed time. Each retains its own duration;
+/// a short movement reaches its endpoint while its sibling keeps moving.
+fn simulate_frame(story: &Value, target: &str, elapsed: f64, positions: &Value) -> Value {
+    let mut state = simulate(story, target);
+    let before = simulate_until(story, target, false);
+    let Some(node) = story["nodes"]
+        .as_array()
+        .and_then(|nodes| nodes.iter().find(|node| node["id"] == target))
+    else {
+        return state;
+    };
+    for action in lom_core::parallel::actions(node) {
+        if action["type"] == "transition" {
+            let from = number(&before["blackout"], "amount", 0.0);
+            let to = if action["phase"] == "in" { 1.0 } else { 0.0 };
+            let progress = (elapsed / PREVIEW_TRANSITION_SECONDS).clamp(0.0, 1.0);
+            state["blackout"]["amount"] = (from + (to - from) * progress).into();
+            continue;
+        }
+        let cid = text(action, "character");
+        if cid.is_empty() {
+            continue;
+        }
+        let old = &before["actors"][cid];
+        let progress = |duration: f64| {
+            if duration <= 0.0 {
+                1.0
+            } else {
+                (elapsed / duration).clamp(0.0, 1.0)
+            }
+        };
+        match text(action, "type") {
+            "hide" if old.is_object() => {
+                let alpha = 1.0 - progress(number(action, "fadeDuration", 0.0));
+                if alpha > 0.0 {
+                    state["actors"][cid] = old.clone();
+                    state["actors"][cid]["preview_opacity"] = alpha.into();
+                }
+            }
+            "show" => {
+                if state["actors"][cid].is_object() {
+                    state["actors"][cid]["preview_opacity"] =
+                        progress(number(action, "fadeDuration", 0.0)).into();
+                }
+            }
+            "move" if old.is_object() => {
+                let from = position(
+                    positions,
+                    action["from"].as_str().unwrap_or(text(old, "position")),
+                );
+                let to = position(positions, text(action, "to"));
+                let p = progress(number(action, "duration", 1.0));
+                state["actors"][cid]["preview_x"] = (from.0 + (to.0 - from.0) * p).into();
+                state["actors"][cid]["preview_feet"] = (from.1 + (to.1 - from.1) * p).into();
+            }
+            "offset" | "rotate" if old.is_object() => {
+                let p = progress(number(action, "duration", 0.0));
+                let fields: &[&str] = if action["type"] == "rotate" {
+                    &["rotation"]
+                } else {
+                    &["offset_x", "offset_y"]
+                };
+                for field in fields {
+                    let start = number(old, field, 0.0);
+                    let end = number(&state["actors"][cid], field, start);
+                    state["actors"][cid][*field] = (start + (end - start) * p).into();
+                }
+            }
+            _ => {}
+        }
+    }
+    state
+}
+
+fn blackout_rect(rect: Rect, amount: f64, direction: &str) -> Rect {
+    let width = rect.width() * amount.clamp(0.0, 1.0) as f32;
+    // StoryTransitionBlack.SetFillOrigin: rl = Left, lr/default = Right.
+    let left = if direction == "rl" {
+        rect.left()
+    } else {
+        rect.right() - width
+    };
+    Rect::from_min_size(Pos2::new(left, rect.top()), Vec2::new(width, rect.height()))
+}
+
 fn character_display_name(project: &Project, id: &str) -> String {
     if let Some(content_id) = id.strip_prefix("user:") {
         for (path, bytes) in &project.assets {
@@ -314,6 +457,7 @@ pub struct Preview {
     positions: Value,
     cache: BTreeMap<String, Cached>,
     tick: u64,
+    pub extract_requested: bool,
 }
 impl Preview {
     pub fn new(_repo: &Path) -> Self {
@@ -344,6 +488,7 @@ impl Preview {
             positions,
             cache: BTreeMap::new(),
             tick: 0,
+            extract_requested: false,
         }
     }
     pub fn set_library(&mut self, path: &Path) -> anyhow::Result<()> {
@@ -352,11 +497,13 @@ impl Preview {
         } else {
             path.join("data")
         };
-        let mapping = lom_core::load_json(root.join("preview_map.json"))?;
-        anyhow::ensure!(
-            mapping["characters"].is_object(),
-            "素材库缺少 characters 映射"
-        );
+        anyhow::ensure!(root.join("preview_map.json").is_file(),
+            "这个文件夹不是已提取的预览素材库：缺少 preview_map.json。请选提取完成后的素材库文件夹；还没提取时，使用「文件 → 从游戏提取预览素材…」，选择包含 Mortal_Data 的游戏安装目录。普通图片文件夹不能直接作为游戏素材库。");
+        let mapping = lom_core::load_json(root.join("preview_map.json"))
+            .map_err(|error| anyhow::anyhow!("预览素材库目录文件损坏，请重新提取：{error}"))?;
+        crate::asset_extraction::validate_mapping(&root, &mapping).map_err(|error| {
+            anyhow::anyhow!("预览素材库不完整，请保留整个提取文件夹或重新提取：{error:#}")
+        })?;
         self.mapping = mapping;
         self.library = root;
         self.cache.clear();
@@ -484,16 +631,8 @@ impl Preview {
         Some((texture, meta))
     }
     fn anchor(&self, pos: &str) -> (f32, f32) {
-        let key = if pos.eq_ignore_ascii_case("c") {
-            String::from("M")
-        } else {
-            pos.to_uppercase()
-        };
-        let entry = &self.positions["positions"][&key];
-        (
-            number(entry, "x", 0.5) as f32,
-            number(entry, "feet", 1.003) as f32,
-        )
+        let (x, feet) = position(&self.positions, pos);
+        (x as f32, feet as f32)
     }
     pub fn show(
         &mut self,
@@ -501,11 +640,15 @@ impl Preview {
         p: &Project,
         story: &Value,
         index: usize,
+        elapsed: Option<f64>,
     ) -> Option<String> {
         let ctx = ui.ctx().clone();
         let node = &story["nodes"][index];
         let target = text(node, "id");
-        let state = simulate(story, target);
+        let state = match elapsed {
+            Some(elapsed) => simulate_frame(story, target, elapsed, &self.positions),
+            None => simulate(story, target),
+        };
         let size = Vec2::new(
             ui.available_width().max(160.0),
             ui.available_height().max(120.0),
@@ -549,13 +692,15 @@ impl Preview {
                     } else {
                         cid
                     };
-                    let (x, _feet) = self.anchor(text(a, "position"));
+                    let (x, feet) = self.anchor(text(a, "position"));
+                    let x = number(a, "preview_x", x as f64) as f32;
+                    let feet = number(a, "preview_feet", feet as f64) as f32;
+                    let opacity = number(a, "preview_opacity", 1.0).clamp(0.0, 1.0) as f32;
                     let base = Pos2::new(
                         rect.left()
                             + rect.width() * x
                             + number(a, "offset_x", 0.0) as f32 * rect.width() / 1920.0,
-                        rect.bottom()
-                            - rect.height() * 0.02
+                        rect.bottom() - rect.height() * 0.02 + rect.height() * (feet - 1.003)
                             - number(a, "offset_y", 0.0) as f32 * rect.height() / 1080.0,
                     );
                     if let Some((tex, meta)) =
@@ -569,11 +714,12 @@ impl Preview {
                         );
                         let art_left = meta["art_facing"].as_str().unwrap_or("left") != "right";
                         let flipped = (text(a, "facing") == "left") != art_left;
-                        let color = if a["dimmed"].as_bool().unwrap_or(false) {
-                            Color32::from_white_alpha(130)
+                        let alpha = if a["dimmed"].as_bool().unwrap_or(false) {
+                            130.0
                         } else {
-                            Color32::WHITE
+                            255.0
                         };
+                        let color = Color32::from_white_alpha((alpha * opacity).round() as u8);
                         sprite(
                             &painter,
                             tex.id(),
@@ -589,13 +735,17 @@ impl Preview {
                             Pos2::new(base.x - h * 0.19, base.y - h),
                             Vec2::new(h * 0.38, h),
                         );
-                        painter.rect_filled(actor, 20.0, Color32::from_rgb(78, 88, 83));
+                        painter.rect_filled(
+                            actor,
+                            20.0,
+                            Color32::from_rgb(78, 88, 83).gamma_multiply(opacity),
+                        );
                         painter.text(
                             actor.center(),
                             egui::Align2::CENTER_CENTER,
                             format!("{}\n{}", cid, text(a, "portrait")),
                             FontId::proportional(12.0),
-                            Color32::LIGHT_GRAY,
+                            Color32::LIGHT_GRAY.gamma_multiply(opacity),
                         );
                     }
                 }
@@ -787,7 +937,8 @@ impl Preview {
             }
         }
         let mut choice = None;
-        if let Some(options) = state["choice"].as_array() {
+        let covered = number(&state["blackout"], "amount", 0.0);
+        if let Some(options) = state["choice"].as_array().filter(|_| covered == 0.0) {
             for (i, item) in options.iter().enumerate() {
                 let button = Rect::from_min_size(
                     Pos2::new(
@@ -803,6 +954,13 @@ impl Preview {
                     choice = Some(text(item, "goto").to_owned());
                 }
             }
+        }
+        if covered > 0.0 {
+            painter.rect_filled(
+                blackout_rect(rect, covered, text(&state["blackout"], "dir")),
+                0.0,
+                Color32::BLACK,
+            );
         }
         painter.rect_stroke(
             rect,
@@ -851,10 +1009,25 @@ impl Preview {
                 .color(Color32::GRAY),
         )
         .on_hover_text(portrait);
+        let texture = self.texture(ui.ctx(), project, lookup, true, portrait);
+        if texture.is_none() {
+            ui.add_space(12.0);
+            ui.label(crate::i18n::tr(
+                "尚未载入这个立绘的预览图片。试玩仍可直接使用游戏中的素材。",
+            ));
+            if ui.button(crate::i18n::tr("从游戏提取预览素材…")).clicked() {
+                self.extract_requested = true;
+                ui.ctx().request_repaint();
+            }
+            ui.small(crate::i18n::tr(
+                "已有素材库：文件 → 选择预览素材库…，选择包含 preview_map.json 的文件夹。",
+            ));
+            return;
+        }
         let (rect, _) = ui.allocate_exact_size(ui.available_size(), egui::Sense::hover());
         let painter = ui.painter().with_clip_rect(rect);
         painter.rect_filled(rect, 0.0, Color32::from_rgba_unmultiplied(18, 21, 31, 225));
-        if let Some((texture, _)) = self.texture(ui.ctx(), project, lookup, true, portrait) {
+        if let Some((texture, _)) = texture {
             fit_image(&painter, &texture, rect.shrink(20.0));
         } else {
             painter.text(
@@ -1111,6 +1284,173 @@ pub fn graph(
 mod tests {
     use super::*;
     #[test]
+    fn library_picker_explains_wrong_folders_and_preserves_the_active_library() {
+        let root = tempfile::tempdir().unwrap();
+        let mut preview = Preview::new(root.path());
+        let original = preview.library.clone();
+        let error = preview.set_library(root.path()).unwrap_err().to_string();
+        assert!(error.contains("preview_map.json"));
+        assert!(error.contains("从游戏提取预览素材"));
+        assert_eq!(preview.library, original);
+        let mapping = json!({"characters":{"girl5_9":{"first":"normal","portraits":{"normal":"assets/normal.png"}}},"views":{}});
+        std::fs::write(root.path().join("preview_map.json"), mapping.to_string()).unwrap();
+        assert!(preview
+            .set_library(root.path())
+            .unwrap_err()
+            .to_string()
+            .contains("不完整"));
+        assert_eq!(preview.library, original);
+        std::fs::create_dir(root.path().join("assets")).unwrap();
+        std::fs::write(root.path().join("assets/normal.png"), b"fixture").unwrap();
+        preview.set_library(root.path()).unwrap();
+        assert_eq!(preview.library, root.path());
+    }
+    #[test]
+    fn blackout_survives_background_change_and_parallel_placement_until_reveal() {
+        let story = json!({"id":"main","start":"cover","nodes":[
+            {"id":"cover","type":"transition","phase":"in","dir":"lr"},
+            {"id":"background","type":"background","action":"show","image":"new.png"},
+            {"id":"place","type":"parallel","actions":[
+                {"type":"show","character":"a","position":"L1","fadeDuration":0},
+                {"type":"show","character":"b","position":"R3","fadeDuration":0}]},
+            {"id":"reveal","type":"transition","phase":"out","dir":"rl"},
+            {"id":"talk","type":"say","text":"人物本就在此"}
+        ]});
+        let original = story.clone();
+        for target in ["cover", "background", "place"] {
+            assert_eq!(simulate(&story, target)["blackout"]["amount"], 1.0);
+        }
+        let staged = simulate_frame(&story, "place", 0.0, &json!({}));
+        assert_eq!(staged["background"], "new.png");
+        assert_eq!(staged["actors"].as_object().unwrap().len(), 2);
+        assert_eq!(staged["blackout"]["amount"], 1.0);
+        let opening = simulate_frame(
+            &story,
+            "reveal",
+            PREVIEW_TRANSITION_SECONDS / 2.0,
+            &json!({}),
+        );
+        assert_eq!(opening["blackout"]["amount"], 0.5);
+        assert_eq!(opening["actors"].as_object().unwrap().len(), 2);
+        assert_eq!(opening["background"], "new.png");
+        assert!(opening["dialog"].is_null());
+        assert_eq!(simulate(&story, "talk")["blackout"]["amount"], 0.0);
+        let prelude = build_playtest_prelude(&story, "reveal");
+        assert_eq!(prelude[0]["type"], "transition");
+        assert_eq!(prelude[0]["phase"], "in");
+        assert_eq!(prelude.iter().filter(|n| n["type"] == "show").count(), 2);
+        assert_eq!(story, original);
+    }
+    #[test]
+    fn parallel_transition_and_actor_motion_share_the_same_clock() {
+        let story = json!({"id":"main","start":"show","nodes":[
+            {"id":"show","type":"show","character":"a","position":"L1"},
+            {"id":"cover","type":"parallel","actions":[
+                {"type":"transition","phase":"in","dir":"lr"},
+                {"type":"move","character":"a","from":"L1","to":"M","duration":2}]},
+            {"id":"done","type":"end"}
+        ]});
+        let positions = json!({"positions":{"L1":{"x":0.0},"M":{"x":1.0}}});
+        let frame = simulate_frame(&story, "cover", 0.5, &positions);
+        assert_eq!(frame["blackout"]["amount"], 0.5);
+        assert_eq!(frame["actors"]["a"]["preview_x"], 0.25);
+        assert_eq!(playback_duration(&story["nodes"][1]), 2.0);
+        let rect = Rect::from_min_size(Pos2::new(10.0, 20.0), Vec2::new(200.0, 100.0));
+        assert_eq!(blackout_rect(rect, 1.0, "lr"), rect);
+        assert_eq!(blackout_rect(rect, 0.5, "rl").left(), rect.left());
+        assert_eq!(blackout_rect(rect, 0.5, "lr").right(), rect.right());
+        for direction in ["lr", "rl", "tb", "bt"] {
+            assert_eq!(blackout_rect(rect, 0.0, direction).width(), 0.0);
+        }
+    }
+    #[test]
+    fn parallel_playback_uses_each_duration_and_waits_for_the_slowest_action() {
+        let positions: Value =
+            serde_json::from_str(include_str!("../../../data/stage_positions.json")).unwrap();
+        let story = json!({"id":"main","start":"enter","nodes":[
+            {"id":"enter","type":"parallel","actions":[
+                {"type":"show","character":"a","position":"L1"},
+                {"type":"show","character":"b","position":"R3"}]},
+            {"id":"move","type":"parallel","actions":[
+                {"type":"move","character":"a","from":"L1","to":"L3","duration":1},
+                {"type":"move","character":"b","from":"R3","to":"R1","duration":2}]},
+            {"id":"say","type":"say","text":"两人都已到位"}
+        ]});
+        let original = story.clone();
+        let halfway = simulate_frame(&story, "move", 0.5, &positions);
+        let (a_start, _) = position(&positions, "L1");
+        let (a_end, _) = position(&positions, "L3");
+        let (b_start, _) = position(&positions, "R3");
+        let (b_end, _) = position(&positions, "R1");
+        assert!(
+            (number(&halfway["actors"]["a"], "preview_x", 0.0) - (a_start + a_end) / 2.0).abs()
+                < 1e-6
+        );
+        assert!(
+            (number(&halfway["actors"]["b"], "preview_x", 0.0)
+                - (b_start + (b_end - b_start) * 0.25))
+                .abs()
+                < 1e-6
+        );
+        let waiting = simulate_frame(&story, "move", 1.5, &positions);
+        assert_eq!(waiting["actors"]["a"]["preview_x"], a_end);
+        assert!(number(&waiting["actors"]["b"], "preview_x", 0.0) > b_end);
+        assert!(waiting["dialog"].is_null());
+        assert_eq!(playback_duration(&story["nodes"][1]), 2.0);
+        assert_eq!(simulate(&story, "say")["dialog"]["text"], "两人都已到位");
+        assert_eq!(story, original);
+    }
+    #[test]
+    fn parallel_fades_keep_both_actors_until_their_own_fade_finishes() {
+        let positions = json!({});
+        let story = json!({"id":"main","start":"enter","nodes":[
+            {"id":"enter","type":"parallel","actions":[
+                {"type":"show","character":"a","position":"L1","fadeDuration":1},
+                {"type":"show","character":"b","position":"R3","fadeDuration":1}]},
+            {"id":"leave","type":"parallel","actions":[
+                {"type":"hide","character":"a","fadeDuration":0.5},
+                {"type":"hide","character":"b","fadeDuration":1}]}
+        ]});
+        let entering = simulate_frame(&story, "enter", 0.25, &positions);
+        assert_eq!(entering["actors"]["a"]["preview_opacity"], 0.25);
+        assert_eq!(entering["actors"]["b"]["preview_opacity"], 0.25);
+        let leaving = simulate_frame(&story, "leave", 0.25, &positions);
+        assert_eq!(leaving["actors"]["a"]["preview_opacity"], 0.5);
+        assert_eq!(leaving["actors"]["b"]["preview_opacity"], 0.75);
+        let later = simulate_frame(&story, "leave", 0.5, &positions);
+        assert!(later["actors"].get("a").is_none());
+        assert_eq!(later["actors"]["b"]["preview_opacity"], 0.5);
+        assert!(simulate_frame(&story, "leave", 1.0, &positions)["actors"]
+            .as_object()
+            .unwrap()
+            .is_empty());
+        assert_eq!(playback_duration(&story["nodes"][1]), 1.0);
+        assert_eq!(
+            playback_duration(&json!({"type":"parallel","actions":[
+            {"type":"sound"},{"type":"wait","seconds":3.5}]})),
+            3.5
+        );
+    }
+    #[test]
+    fn parallel_preview_applies_all_actions_and_preserves_the_group_source() {
+        let story = json!({"id":"main","start":"enter","nodes":[
+            {"id":"enter","type":"parallel","actions":[
+                {"type":"show","character":"player","position":"L"},
+                {"type":"show","character":"brother1","position":"R"}]},
+            {"id":"leave","type":"parallel","actions":[
+                {"type":"hide","character":"player","fadeDuration":0.4},
+                {"type":"hide","character":"brother1","fadeDuration":0.8}]},
+            {"id":"done","type":"end"}
+        ]});
+        let before = story.clone();
+        let entered = simulate(&story, "enter");
+        assert_eq!(entered["actors"]["player"]["position"], "L");
+        assert_eq!(entered["actors"]["brother1"]["position"], "R");
+        let left = simulate(&story, "leave");
+        assert!(left["actors"].as_object().unwrap().is_empty());
+        assert_eq!(story, before);
+    }
+    #[test]
     fn branch_preview_follows_reachable_path() {
         let story = json!({"start":"s","nodes":[{"id":"s","type":"show","character":"player","position":"LM1"},{"id":"c","type":"choice","options":[{"text":"甲","goto":"a"},{"text":"乙","goto":"b"}]},{"id":"a","type":"end"},{"id":"b","type":"say","character":"player","text":"分支"}]});
         let state = simulate(&story, "b");
@@ -1153,7 +1493,7 @@ mod content_tests {
                 },
                 |ctx| {
                     egui::CentralPanel::default().show(ctx, |ui| {
-                        preview.show(ui, &project, &story, 0);
+                        preview.show(ui, &project, &story, 0, None);
                     });
                 },
             );

@@ -1,9 +1,10 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$Version = "",
     [string]$BundleDirectory = "",
     [string]$OutputDirectory = "",
     [string]$RuntimeDirectory = "",
+    [string]$ExtractorPython = "python",
     [switch]$NoArchive,
     [switch]$Force
 )
@@ -113,6 +114,13 @@ if (Test-Path -LiteralPath $BundleDirectory) {
 [IO.Directory]::CreateDirectory((Join-Path $BundleDirectory "assets\doorstop")) | Out-Null
 Copy-Item -LiteralPath (Join-Path $RepositoryRoot "target\release\lom-editor.exe") -Destination (Join-Path $BundleDirectory "lom-editor.exe")
 Copy-Item -LiteralPath (Join-Path $RepositoryRoot "target\release\lomc.exe") -Destination (Join-Path $BundleDirectory "lomc.exe")
+$ExtractorDist = Join-Path $RepositoryRoot "out\asset-extractor-dist"
+& $ExtractorPython (Join-Path $RepositoryRoot "scripts\build_asset_extractor.py") --output-dir $ExtractorDist
+if ($LASTEXITCODE -ne 0) { throw "Preview extractor build failed" }
+[IO.Directory]::CreateDirectory((Join-Path $BundleDirectory "asset-extractor")) | Out-Null
+Copy-Item -Path (Join-Path $ExtractorDist "lom-asset-extractor\*") -Destination (Join-Path $BundleDirectory "asset-extractor") -Recurse -Force
+& (Join-Path $BundleDirectory "asset-extractor\lom-asset-extractor.exe") --self-check
+if ($LASTEXITCODE -ne 0) { throw "Bundled preview extractor self-check failed" }
 foreach ($Name in @("MortalModHost.dll", "NVorbis.dll")) {
     Copy-Item -LiteralPath (Join-Path $RuntimeDirectory $Name) -Destination (Join-Path $BundleDirectory "runtime\$Name")
 }
@@ -122,6 +130,8 @@ foreach ($Architecture in @("x86", "x64")) {
 foreach ($Name in @("README.md", "LICENSE.UnityDoorstop")) {
     Copy-Item -LiteralPath (Join-Path $RepositoryRoot "editor\assets\doorstop\$Name") -Destination (Join-Path $BundleDirectory "assets\doorstop\$Name")
 }
+Copy-Item -LiteralPath (Join-Path $RepositoryRoot "docs\chs\windows_quick_start.md") -Destination (Join-Path $BundleDirectory "README-Windows.md")
+Copy-Item -LiteralPath (Join-Path $RepositoryRoot "LICENSE") -Destination (Join-Path $BundleDirectory "LICENSE")
 if ($NoArchive) { Write-Host "Built native tools: $BundleDirectory"; return }
 $BundleDirectory = (Resolve-Path -LiteralPath $BundleDirectory).Path
 [IO.Directory]::CreateDirectory($OutputDirectory) | Out-Null
@@ -137,6 +147,9 @@ if ($OutputDirectory.Equals($BundleDirectory, [StringComparison]::OrdinalIgnoreC
 }
 
 $RequiredFiles = @(
+    "README-Windows.md",
+    "LICENSE",
+    "asset-extractor\lom-asset-extractor.exe",
     "lom-editor.exe",
     "lomc.exe",
     "runtime\MortalModHost.dll",

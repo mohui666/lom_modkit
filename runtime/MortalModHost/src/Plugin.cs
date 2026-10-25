@@ -28,7 +28,7 @@ namespace MortalModHost
     {
         public const string GUID = "com.mohui666.mortalmodhost";
         public const string NAME = "MortalModHost";
-        public const string VERSION = "1.1.2";
+        public const string VERSION = "1.1.3";
 
         internal static Plugin Instance { get; private set; }
 
@@ -37,6 +37,7 @@ namespace MortalModHost
 
         /// <summary>本轮解析到的全部 mod 包（patch 与菜单共用）。</summary>
         internal static List<ModPackage> LoadedMods { get; private set; }
+        internal static bool CanScheduleEvents { get { return Instance!=null && Instance._runtimeReady && Instance._enabled.Value && !Instance._disablePendingForDisclosure; } }
 
         internal static ModPackage FindCampaignPackage(string campaignId)
         {
@@ -264,6 +265,7 @@ namespace MortalModHost
             LuaManagerPatch.Log = Logger;
             NewGameDataPatch.Log = Logger;
             FreePositionPatch.Log = Logger;
+            ScenarioRuntime.Log = Logger;
             MoodControl.Log = Logger;
             ReadTextPatch.Log = Logger;
             GameOverOverlayPatch.Log = Logger;
@@ -325,6 +327,10 @@ namespace MortalModHost
                 AccessTools.Field(typeof(Mortal.Battle.PausePanel), "_loadPanel"));
             ok &= CheckTarget("FreePositionData.GetExecuteScript",
                 AccessTools.Method(typeof(FreePositionData), "GetExecuteScript"));
+            ok &= CheckTarget("FreeManager.Start",AccessTools.Method(typeof(FreeManager),"Start",Type.EmptyTypes));
+            ok &= CheckTarget("LuaManager.ChangeScene",AccessTools.Method(typeof(LuaManager),"ChangeScene",new Type[]{typeof(string),typeof(string),typeof(string)}));
+            foreach (string field in new[]{"_menuOpen","_saveOpen","_statOpen"})
+                ok &= CheckTarget("FreeManager."+field,AccessTools.Field(typeof(FreeManager),field));
             ok &= CheckTarget("PositionController.OnPositionClick",
                 AccessTools.Method(typeof(PositionController), "OnPositionClick"));
             ok &= CheckTarget("PositionController.HasTriggerSubMissions",
@@ -1253,7 +1259,9 @@ namespace MortalModHost
             if (_titleFallbackMenu)
             {
                 GUILayout.Label(I18n.T("campaign.none"));
-                GUILayout.Label("未检测到可用兼容 MOD（可用格式：package_format=3、story_schema=2，且需稳定 campaign_id）。");
+                GUILayout.Label(LoadedMods.Exists(m=>m.PlayMode=="addon")
+                    ? "已加载原版附加剧情。请从原版开始或读取原版存档，事件按条件触发，无需新建战役。"
+                    : "未检测到可用兼容 MOD（可用格式：package_format=3、story_schema=2，且需稳定 campaign_id）。");
                 GUILayout.Label("可先返回标题画面手动确认原版读档页状态。");
             }
             else if (LoadedMods.Count == 0)
@@ -1305,7 +1313,7 @@ namespace MortalModHost
                 Logger.LogError("运行时未安全就绪：已拒绝开始 MOD 战役");
                 return;
             }
-            if (mod == null || !CampaignIdentity.OwnsSlot(mod.CampaignId, isolatedSlot))
+            if (mod == null || mod.Campaign==null || !mod.Campaign.NewGame || !CampaignIdentity.OwnsSlot(mod.CampaignId, isolatedSlot))
             {
                 Logger.LogError("无法开始新战役：隔离手动槽不属于该战役");
                 return;
@@ -1561,7 +1569,9 @@ namespace MortalModHost
             if (!string.IsNullOrEmpty(description))
                 GUILayout.Label(description);
             GUILayout.Label(I18n.T("entry.scripts", mod.Entry, mod.LuaScripts.Count));
-            if (GUILayout.Button(I18n.T("play")))
+            if (mod.Scenario!=null)
+                GUILayout.Label(mod.PlayMode=="addon" ? "原版附加剧情：按事件条件自动或点击地点触发" : "自由剧本：从标题页选择此作品，事件与任务独立调度");
+            else if (GUILayout.Button(I18n.T("play")))
                 PlayMod(mod);
             GUILayout.EndVertical();
         }

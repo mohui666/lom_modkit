@@ -30,7 +30,9 @@ sh scripts/build-macos.sh
 open "out/LoM Modkit Rust.app"
 ```
 
-`build-macos.sh` 调用 `build_rust_macos.sh`，生成原生 `lom-editor` 与 `lomc`、打包图标、执行应用签名检查及内置编译预览烟测。应用不需要 Python、Qt、PyInstaller 或当前源码目录。官方预览图片仍从作者自己提取的外部素材库读取，不随应用分发。
+`build-macos.sh` 调用 `build_rust_macos.sh`，生成原生 `lom-editor` 与 `lomc`、打包图标及独立素材提取组件、执行应用签名检查及内置编译预览烟测。编辑器和编译器仍是 Rust；提取组件复用已有 UnityPy 地址解析，通过独立进程与 Rust 界面交换进度和结果。使用安装包不需要另装 Python、Qt 或当前源码目录。官方预览图片从作者自己的游戏提取，不随应用分发。
+
+构建提取组件需要 Python 3.12 和 `tools/requirements-preview-extractor.txt` 中固定的构建依赖。Mac 默认使用 `editor/.venv/bin/python`，可通过 `EXTRACTOR_PYTHON` 指定；Windows 使用 `scripts/build-windows.ps1 -NoArchive -ExtractorPython <python.exe>`。先用该 Python 执行 `-m pip install -r tools/requirements-preview-extractor.txt`。两端都调用 `scripts/build_asset_extractor.py` 构建本平台的独立组件，不能复制另一平台的提取程序。构建运行 `--help` 及 `--self-check` 检查，不读取游戏、不自动提取。
 
 Windows 构建入口为 `scripts/build-windows.ps1 -NoArchive`，需要已构建的 `MortalModHost.dll`、`NVorbis.dll`；可用 `-RuntimeDirectory` 指定目录，默认产物为 `out/windows/lom_modkit/lom-editor.exe`。2026-10-05 已使用正式 net48 Host 产物，在独立输出目录完成打包并实际启动新 exe；构建成功、自动化与 UI 验收分别记录。Host 本地引用及嵌入资源要求见 [Runtime 构建说明](../../runtime/MortalModHost/README.md#构建与测试)。
 
@@ -38,12 +40,12 @@ Windows 构建入口为 `scripts/build-windows.ps1 -NoArchive`，需要已构建
 
 | 路径 | 职责 |
 | --- | --- |
-| `rust/lom-core` | 63 类节点校验与 Lua 生成、本地化、用户内容、v3 包校验、工程读写与迁移、离线分析、发布体检、水印、C# 宿主文件管理 |
+| `rust/lom-core` | 64 类节点校验与 Lua 生成、本地化、用户内容、v3 包校验、工程读写与迁移、离线分析、发布体检、水印、C# 宿主文件管理 |
 | `rust/lomc` | 原生命令行与受控创作 API |
 | `rust/lom-editor` | egui 界面、字段表单、舞台／流程预览、编辑历史、草稿与恢复、按文件归属保存 |
 | `rust/lom-editor/src/macos_window.rs` | 标准 AppKit 窗口外观、现有系统应用菜单中的设置项与重绘通知 |
 | `editor/` | 图标、翻译和帮助等静态资源；旧 Python 编辑器已退役 |
-| `tools/` | 仍有独立的游戏资源提取／研究脚本；不是编辑器或编译器运行依赖 |
+| `tools/` | 游戏资源提取／研究脚本；预览提取器单独打包供原生界面调用，其余脚本不作为编辑器或编译器运行依赖 |
 
 ## CLI
 
@@ -82,7 +84,6 @@ cargo run --locked -p lomc -- detect-watermark-video path/to/video.mp4 --ffmpeg 
 
 Windows 游戏管理调用已有 C# Host 协议；Mac 上禁用游戏接入按钮。BepInEx 安装按 `Mortal.exe` 自动识别 x86／x64，接受对应的官方 **6.0.0-be.692+851521c / Unity Mono** ZIP，界面提供匹配的下载链接；校验值或原生代理位数不符时拒绝写入。C# Host 保持 AnyCPU，宿主 DLL 目录由作者选择。游戏从 32 位升级到 64 位后的加载器与旧代理修复见 [维护者手册](maintainers.md#windows-游戏接入与-runtime-回滚)。Mac 编译、离线测试、窗口检查与 133 节点预览都不能代替这些 Windows／游戏流程。
 
-
 ## 样例与验证
 
 ```sh
@@ -92,7 +93,7 @@ cargo run --locked -p lomc --example build_showcase3 -- out/showcase3-check
 cargo run --locked -p lomc -- inspect out/showcase3-check/showcase3.lommod --json
 ```
 
-生成器读取 `samples/showcase3/source.json`，输出目录请使用尚未存在的新目录；不要把默认目录或已有输出视为已获得覆盖权限。详见 [样例说明](../../samples/showcase3/README.md)。
+生成器读取 `samples/showcase3/source.json`；传入显式输出目录时必须使用尚未存在的新目录。无参数模式按已有工程的文件归属检查刷新受跟踪样例，仍应事先审阅差异并保留用户文件。详见 [样例说明](../../samples/showcase3/README.md)。
 
 2026-10-05 Windows 最终完整回归为 196 项通过、0 失败、2 项默认跳过，Showcase 预览检查 133 / 133；新建输出目录的样例生成、包检查及 C# 离线冒烟通过。此前 2026-10-04 Mac 的 179 / 0 / 2 和同日仅文档维护的记录保持为历史，不算本轮 Windows 结果。
 

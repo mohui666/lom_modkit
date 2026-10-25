@@ -108,7 +108,7 @@ assets/                # 可选，自定义资源
 - `choice` / `branch` / `dice` 的分支必須用 `goto` 指到目標節點 id。
 - 多個前驅匯入同一節點（匯合點）合法。
 
-### 3.1 節點類型（全量 63 種）
+### 3.1 節點類型（全量 64 種）
 
 此表是目前全部合法節點。`combat` / `battle` 是基於原版模板的高層編排；戰鬥能力只呼叫已反編譯核驗的原版介面，`mod_quest` 則使用不接觸原版 Mission ID 的 Host 狀態機。
 
@@ -448,3 +448,9 @@ assets/user/audio/mohui.boss_theme/boss_theme.ogg
 - Python 側唯一解析入口：`rust/lom-core/src/content.rs`。C# 側契約實作：`ContentRef.cs` + `ModLoader`。
 
 使用說明見 `user_content.md`。
+
+## 同時執行群組
+
+`parallel` 的 `actions` 為 2～32 個演出動作物件，只有外層群組有 `id/goto`。動作同時開始，全部完成後再繼續；同一人物或畫面通道的衝突會拒絕。支援人物演出、背景、前景、轉場、特效、聲音與等待；對白、選項、戰鬥、跳轉、原生 Lua 與巢狀群組放在群組外。音樂和循環特效在啟動後即視為完成。右側選取步驟時顯示群組結束狀態，播放時可預覽人物同時移動及淡入淡出；黑幕會遮住換景與人物就位，直到揭幕，轉場節奏僅為示意；格式仍為 3／2／1，實機效果尚未驗收。
+
+[詳細 / 상세](../chs/mod_format.md#34-同时执行组parallel)

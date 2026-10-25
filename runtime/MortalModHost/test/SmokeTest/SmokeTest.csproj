@@ -17,6 +17,8 @@
     <Compile Include="..\..\src\ModRegistry.cs" />
     <Compile Include="..\..\src\HotkeyMigration.cs" />
     <Compile Include="..\..\src\CampaignConfig.cs" />
+    <Compile Include="..\..\src\ScenarioConfig.cs" />
+    <Compile Include="..\..\src\ScenarioEngine.cs" />
     <Compile Include="..\..\src\CampaignIdentity.cs" />
     <Compile Include="..\..\src\CampaignMenuFlow.cs" />
     <Compile Include="..\..\src\BattleCompositionPolicy.cs" />
@@ -47,6 +49,9 @@
     <Compile Include="..\..\src\ModQuestSession.cs" />
     <Compile Include="..\..\src\PersistentStateStore.cs" />
     <Compile Include="..\..\src\GameplayCheckpointStore.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="../../../../rust/lom-core/tests/fixtures/scenario-contract.json" Link="scenario-contract.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

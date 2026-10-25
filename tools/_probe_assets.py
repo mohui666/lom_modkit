@@ -42,6 +42,15 @@ EDITOR_DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 OUT_DIR = os.path.join(os.path.dirname(EDITOR_DATA), "assets", "_probe")
 
 
+def bundle_directory(game_data):
+    """x64 builds use StandaloneWindows64; retain support for the x86 layout."""
+    for platform in ("StandaloneWindows64", "StandaloneWindows"):
+        folder = os.path.join(game_data, "StreamingAssets", "aa", platform)
+        if os.path.isdir(folder):
+            return folder
+    raise ValueError("游戏目录缺少图片素材包（StandaloneWindows64 / StandaloneWindows）")
+
+
 class CatalogBundleMap(dict):
     """Bundle paths plus the catalog's internal asset path for each alias."""
     def __init__(self):
@@ -150,7 +159,9 @@ def load_sa2():
                 first = addr
             emo = mapping_value(ipid)
             if emo:
-                portraits[emo] = addr
+                # StoryCharacterController.LoadPortrait/LoadPortraitSync use
+                # FirstOrDefault for Mapping.Value (the live config has duplicates).
+                portraits.setdefault(emo, addr)
         cid = mapping_value(mpid)
         if not cid:
             raise ValueError("no id")
@@ -257,6 +268,8 @@ def export_sprite(addr2bundle, address, out_path):
 
 
 def main():
+    global BUNDLE_DIR
+    BUNDLE_DIR = bundle_directory(GAME_DATA)
     os.makedirs(OUT_DIR, exist_ok=True)
     addr2bundle = parse_catalog(CATALOG)
     print("[catalog] addressKey->bundle 条目:", len(addr2bundle))

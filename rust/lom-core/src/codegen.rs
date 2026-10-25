@@ -122,6 +122,7 @@ struct Context<'a> {
     mood: bool,
     next: &'a str,
     content_root: &'a Path,
+    preloaded: bool,
 }
 fn check(expr: String, node: &Value) -> Vec<String> {
     vec![
@@ -226,6 +227,59 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
     let c = q(node, "character");
     let user = s(node, "character").starts_with("user:");
     match kind {
+        "parallel" => {
+            // Asset loading can yield several frames. Finish it before any
+            // branch starts so two characters do not enter at different times.
+            let mut loaded = std::collections::BTreeSet::new();
+            for action in crate::parallel::actions(node) {
+                let character = s(action, "character");
+                if !character.is_empty()
+                    && !character.starts_with("user:")
+                    && loaded.insert(character)
+                {
+                    out.push(load(&lua_str(character)));
+                }
+                if s(action, "type") == "show" && !character.starts_with("user:") {
+                    out.push(call(
+                        "characters.LoadCharacterPortrait",
+                        &[lua_str(character), qd(action, "portrait", "normal")],
+                    ));
+                }
+            }
+            out.push("\t__lom_parallel({".into());
+            for action in crate::parallel::actions(node) {
+                out.push("\t\tfunction()".into());
+                let child = Context {
+                    preloaded: true,
+                    ..*ctx
+                };
+                out.extend(
+                    emit(action, &child)?
+                        .into_iter()
+                        .map(|line| format!("\t\t{line}")),
+                );
+                // Most existing node emitters already await their action. These
+                // launch-only portrait calls need an explicit completion wait.
+                let completion = match s(action, "type") {
+                    "show" => Some(format!(
+                        "math.max({}, {}, stage.FadeDuration)",
+                        n(action, "fadeDuration", json!(0)),
+                        n(action, "moveDuration", json!(0))
+                    )),
+                    "hide" => Some(n(action, "fadeDuration", json!(0))),
+                    "rotate" if !s(action, "character").starts_with("user:") => {
+                        Some(n(action, "duration", json!(0)))
+                    }
+                    "focus" | "dim" => Some("stage.FadeDuration".into()),
+                    _ => None,
+                };
+                if let Some(duration) = completion {
+                    out.push(format!("\t\t\twait({duration})"));
+                }
+                out.push("\t\tend,".into());
+            }
+            out.push("\t})".into());
+        }
         "music" => match sd(node, "op", "play") {
             "stop" => out.push("\tluamanager.StopMusic()".into()),
             "fadeout" => {
@@ -342,11 +396,15 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                 ));
                 out.push(call("mod_char_focus", &[c]));
             } else {
-                out.push(load(&c));
-                out.push(call(
-                    "characters.LoadCharacterPortrait",
-                    &[c.clone(), portrait.clone()],
-                ));
+                if !ctx.preloaded {
+                    out.push(load(&c));
+                }
+                if !ctx.preloaded {
+                    out.push(call(
+                        "characters.LoadCharacterPortrait",
+                        &[c.clone(), portrait.clone()],
+                    ));
+                }
                 out.push(format!("\tstage.show{{character=characters.Get({c}), portrait=characters.GetPortrait({c}, {portrait}), fromPosition={pos}, toPosition={pos}, facing={facing}, fadeDuration={fade}, moveDuration={duration}, useDefaultSettings=false}}"));
                 out.push(call("characters.Focus", &[c]));
             }
@@ -361,7 +419,9 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
             if user {
                 out.push(call("mod_char_move", &[c, from, to, duration.clone()]));
             } else {
-                out.push(load(&c));
+                if !ctx.preloaded {
+                    out.push(load(&c));
+                }
                 out.push(format!("\tstage.show{{character=characters.Get({c}), fromPosition={from}, toPosition={to}, moveDuration={duration}, useDefaultSettings=false}}"));
             }
             out.push(wait(duration));
@@ -371,7 +431,9 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
             if user {
                 out.push(call("mod_char_face", &[c, facing]));
             } else {
-                out.push(load(&c));
+                if !ctx.preloaded {
+                    out.push(load(&c));
+                }
                 out.push(format!("\tstage.show{{character=characters.Get({c}), facing={facing}, useDefaultSettings=false}}"));
             }
         }
@@ -380,13 +442,17 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
             if user {
                 out.push(call("mod_char_hide", &[c, fade]));
             } else {
-                out.push(load(&c));
+                if !ctx.preloaded {
+                    out.push(load(&c));
+                }
                 out.push(format!("\tstage.hide{{character=characters.Get({c}), fadeDuration={fade}, useDefaultSettings=false}}"));
             }
         }
         "focus" => {
             if !user {
-                out.push(load(&c));
+                if !ctx.preloaded {
+                    out.push(load(&c));
+                }
             }
             out.push(call(
                 if user {
@@ -417,7 +483,9 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                 ));
                 out.push(wait(d));
             } else {
-                out.push(load(&c));
+                if !ctx.preloaded {
+                    out.push(load(&c));
+                }
                 if kind == "offset" {
                     out.push(format!(
                         "\trunwait(characters.MoveOffsetCoroutine({}))",
@@ -460,7 +528,9 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
             } else {
                 let p = qd(node, "portrait", "normal");
                 if !user {
-                    out.push(load(&c));
+                    if !ctx.preloaded {
+                        out.push(load(&c));
+                    }
                 }
                 out.push(format!("\tsetsaydialog(saydialogs.{mode})"));
                 out.push(call(
@@ -541,7 +611,9 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                 out.push(call("mod_char_shock", &[c, d.clone()]));
                 out.push(wait(d));
             } else {
-                out.push(load(&c));
+                if !ctx.preloaded {
+                    out.push(load(&c));
+                }
                 out.push(format!("\tgetvar(flowcharts.common, \"ShockPosition\").value = characters.Get({c}).State.holder.gameObject"));
                 out.push(format!(
                     "\tgetvar(flowcharts.common, \"ShockDuration\").value = {d}"
@@ -676,7 +748,9 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
             if user {
                 out.push(format!("\tmod_char_dim({c}, {dim})"));
             } else {
-                out.push(load(&c));
+                if !ctx.preloaded {
+                    out.push(load(&c));
+                }
                 out.push(format!("\tstage.SetDimmed(characters.Get({c}), {dim})"));
             }
         }
@@ -1205,6 +1279,9 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
         )),
         "end" => {
             out.extend(["\tmod_stop_voice()".into(), "\tmod_hide_all()".into()]);
+            if let Some(result) = node["event_result"].as_str() {
+                out.push(call("mod_event_result", &[lua_str(result)]));
+            }
             if node["next_script"].is_null() {
                 out.push("\tluamanager.ChangeScene(\"Free\", \"\", \"\")".into());
             } else {
@@ -1476,6 +1553,9 @@ pub fn story_to_lua(
         ),
         "".into(),
     ]);
+    if nodes.iter().any(|node| s(node, "type") == "parallel") {
+        lines.push(include_str!("../data/parallel.lua").into());
+    }
     for (i, node) in nodes.iter().enumerate() {
         let nid = s(node, "id");
         let kind = s(node, "type");
@@ -1486,6 +1566,7 @@ pub fn story_to_lua(
             mood,
             next,
             content_root: root,
+            preloaded: false,
         };
         lines.extend([
             format!("-- [{nid}] {kind}"),

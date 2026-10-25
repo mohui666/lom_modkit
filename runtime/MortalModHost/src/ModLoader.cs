@@ -183,6 +183,20 @@ namespace MortalModHost
                     throw new FormatException("包内 lua/ 目录没有任何 .lua 脚本");
                 if (!package.LuaScripts.ContainsKey(package.Entry))
                     throw new FormatException("入口脚本 lua/" + package.Entry + ".lua 不存在");
+                var scenarioEntry=zip.GetEntry("scenario.json");
+                if (package.PlayMode != null)
+                {
+                    if (scenarioEntry == null) throw new FormatException("事件任务作品缺少 scenario.json");
+                    package.Scenario=ScenarioConfig.Parse(ReadEntryText(scenarioEntry),package.PlayMode);
+                    package.Scenario.ValidateScripts(package.LuaScripts.Keys);
+                    var chapters=new Dictionary<string,string>(StringComparer.Ordinal);
+                    foreach(var entry in zip.Entries)
+                        if(entry.FullName.StartsWith("story/",StringComparison.Ordinal) && entry.FullName.EndsWith(".json",StringComparison.Ordinal)) chapters.Add(entry.FullName.Substring(6,entry.FullName.Length-11),ReadEntryText(entry));
+                    package.Scenario.ValidatePresentations(chapters);
+                    if (package.PlayMode=="sandbox" && package.Scenario.FindEvent(package.Scenario.EntryEvent).Script!=package.Entry)
+                        throw new FormatException("开场事件章节必须等于 manifest.entry");
+                }
+                else if (scenarioEntry != null) throw new FormatException("scenario.json 缺少 manifest.play_mode");
 
                 // texts.json（可选，契约 §1）：MOD_<modid>_<scriptid>_<nodeid> → 台词文本。
                 // 老包没有该文件合法；存在但解析失败只警告跳过（不拖垮整包）。
@@ -292,6 +306,8 @@ namespace MortalModHost
             string id = GetString(root, "id", required: true);
             string campaignId = GetString(root, "campaign_id", required: true);
             string entry = GetString(root, "entry", required: true);
+            string playMode=GetString(root,"play_mode",required:false);
+            if (playMode!=null && playMode!="addon" && playMode!="sandbox") throw new FormatException("play_mode 必须是 addon 或 sandbox");
             if (!IsValidModId(id))
                 throw new FormatException("manifest.id 必须匹配 [a-z0-9_-]{1,64}");
             if (!IsValidScriptId(entry))
@@ -313,8 +329,11 @@ namespace MortalModHost
                 Author = GetString(root, "author", required: false) ?? "",
                 Description = GetString(root, "description", required: false) ?? "",
                 Entry = entry,
-                Campaign = ParseCampaign(root, campaignId)
+                PlayMode = playMode,
+                Campaign = ParseCampaign(root, campaignId, playMode)
             };
+            if (playMode!=null && !RuntimeCompatibility.RequiresAtLeast(package.MinHostVersion,"1.1.3"))
+                throw new FormatException("事件任务作品要求 min_host_version 至少 1.1.3");
             return package;
         }
 
@@ -373,7 +392,7 @@ namespace MortalModHost
         }
 
         /// <summary>解析 v3 必填的 campaign 段；每包恰好一个稳定 campaign_id。</summary>
-        private static CampaignConfig ParseCampaign(Dictionary<string, object> root, string campaignId)
+        private static CampaignConfig ParseCampaign(Dictionary<string, object> root, string campaignId, string mode)
         {
             object campaignObj;
             if (!root.TryGetValue("campaign", out campaignObj) || campaignObj == null)
@@ -385,9 +404,9 @@ namespace MortalModHost
             var campaign = new CampaignConfig { Id = campaignId };
             object newGameObj;
             if (!dict.TryGetValue("new_game", out newGameObj) || !(newGameObj is bool)
-                || !(bool)newGameObj)
-                throw new FormatException("manifest.campaign.new_game 在 v3 中必须为 true");
-            campaign.NewGame = true;
+                || (bool)newGameObj != (mode!="addon"))
+                throw new FormatException("campaign.new_game：附加剧情必须为 false，独立作品必须为 true");
+            campaign.NewGame = (bool)newGameObj;
 
             // 契约 §2：disable_official_events（可选布尔，缺省 false）：该 mod 战役期间返回
             // Free 的自动任务与位置点击不再触发官方故事，只允许 mod 自己的位置触发器命中。
@@ -398,6 +417,7 @@ namespace MortalModHost
                     throw new FormatException("manifest.campaign.disable_official_events 必须是布尔值");
                 campaign.DisableOfficialEvents = (bool)disableObj;
             }
+            if (mode=="addon" && campaign.DisableOfficialEvents) throw new FormatException("附加剧情必须保留原版事件");
 
             object triggersObj;
             if (dict.TryGetValue("triggers", out triggersObj) && triggersObj != null)
@@ -425,6 +445,7 @@ namespace MortalModHost
                     });
                 }
             }
+            if (mode!=null && campaign.Triggers.Count!=0) throw new FormatException("事件任务作品不能混用 campaign.triggers");
             return campaign;
         }
 

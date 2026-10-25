@@ -150,9 +150,9 @@ fn audit_content(project: &Project, root: &Path) -> Vec<PreflightIssue> {
     let mut out = Vec::new();
     let mut referenced = BTreeSet::new();
     for (sid, story) in &project.stories {
-        for node in nodes(story) {
+        for (parent, node) in crate::parallel::story_actions(story) {
             for r in content_specs(node) {
-                let nid = text(node, "id");
+                let nid = text(parent, "id");
                 if let Some(id) = r.raw.strip_prefix("user:") {
                     if let Err(e) = crate::content::validate_content_id(id) {
                         out.push(PreflightIssue::new(
@@ -334,7 +334,7 @@ fn audit_content(project: &Project, root: &Path) -> Vec<PreflightIssue> {
     out
 }
 fn asset_root(project: &Project) -> Result<tempfile::TempDir> {
-    let temp = tempfile::tempdir()?;
+    let temp = crate::workdir::create()?;
     for (name, bytes) in &project.assets {
         crate::package::canonical_archive_name(name)?;
         ensure!(name.starts_with("assets/"), "项目资源路径必须在 assets/ 下");
@@ -388,6 +388,22 @@ pub fn run_preflight(
     runtime_version: &str,
 ) -> Vec<PreflightIssue> {
     let mut issues = Vec::new();
+    if crate::scenario::enabled(&project.manifest) {
+        let result = project
+            .scenario
+            .as_ref()
+            .context("缺少 scenario.json")
+            .and_then(|c| crate::scenario::validate(c, &project.manifest, &project.stories));
+        if let Err(e) = result {
+            issues.push(PreflightIssue::new(
+                "error",
+                "invalid_scenario",
+                "",
+                "",
+                format!("{e:#}"),
+            ));
+        }
+    }
     let entry = text(&project.manifest, "entry");
     if entry.is_empty() || !project.stories.contains_key(entry) {
         issues.push(PreflightIssue::new(
@@ -494,6 +510,15 @@ pub fn run_preflight(
     }
     let mut seen = BTreeSet::new();
     let mut pending = vec![entry.to_owned()];
+    if let Some(config) = &project.scenario {
+        pending.extend(
+            config["events"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|e| e["script"].as_str().map(str::to_owned)),
+        );
+    }
     while let Some(sid) = pending.pop() {
         if seen.insert(sid.clone()) {
             if let Some(s) = project.stories.get(&sid) {

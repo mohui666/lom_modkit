@@ -1,0 +1,19 @@
+{
+  "id": "event_presentation",
+  "nodes": [
+    {
+      "id": "say",
+      "mode": "narrative",
+      "text": "事件的触发条件和任务推进配置在独立页面，这里只负责演出并回报结果。",
+      "type": "say"
+    },
+    {
+      "event_result": "completed",
+      "id": "end",
+      "type": "end"
+    }
+  ],
+  "start": "say",
+  "story_schema": 2,
+  "title": "独立事件演出示例"
+}

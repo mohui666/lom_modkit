@@ -1,6 +1,8 @@
 # 测试矩阵与验证边界
 
-本文列出当前 Rust／C# 验证入口。2026-10-04 至 2026-10-05 Windows 实测的最终完整 Rust 结果为 **196 项通过、0 失败、2 项默认跳过**；正式 Host、原生 bundle 构建和新 exe 的具体 UI 路径另有实际验证，见 [Windows 验证记录](windows_validation.md)。游戏实机未执行。
+本文列出当前 Rust／C# 验证入口。**v1.3.0 本次测试、安装与构建结果见 [版本记录](../../RELEASE_NOTES_v1.3.0.md)。**
+
+历史记录：2026-10-04 至 2026-10-05 Windows 实测的最终完整 Rust 结果为 **196 项通过、0 失败、2 项默认跳过**；正式 Host、原生 bundle 构建和新 exe 的具体 UI 路径另有实际验证，见 [Windows 验证记录](windows_validation.md)。游戏实机未执行。
 
 历史边界：2026-10-04 的文档核对本身没有重跑测试；此前 Apple Silicon Mac 记录为 **179 / 0 / 2**，Showcase 3.0 为 5 章、133 节点、63 类型，预览 **133 / 133**，见 [迁移验收表](rust_migration.md)。这些历史结果不计入本轮 Windows 证据。
 
@@ -11,7 +13,7 @@
 | Rust 格式 | `cargo fmt --all -- --check` | 源码格式，不证明运行正确 |
 | Rust workspace | `cargo test --locked --workspace`；发行配置另加 `--release` | 编译、包格式、受控创作 API、内容管理、编辑状态、表单、保存／恢复、模态与语言等单元／集成回归 |
 | 样例预览 | `cargo run --locked -p lom-editor -- --smoke-preview samples/showcase3` | 逐节点校验、编译与预览状态模拟；不是逐场游戏实机验收 |
-| 样例生成与包检查 | `lomc` 的 `build_showcase3` example 和 `inspect` | 源 JSON 校验、63 类型覆盖、打包、包内源码／Lua 一致性 |
+| 样例生成与包检查 | `lomc` 的 `build_showcase3` example 和 `inspect` | 源 JSON 校验、64 类型覆盖、打包、包内源码／Lua 一致性 |
 | Mac 应用构建 | `sh scripts/build-macos.sh` | 原生程序、应用资源、签名检查与内置预览烟测；GUI 仍需另外打开检查 |
 | C# 离线回归 | `dotnet run --project runtime/MortalModHost/test/SmokeTest/SmokeTest.csproj --configuration Release` | 使用离线测试工程；不启动 Unity，也不验证真实游戏生命周期 |
 | Windows 原生工具 | `scripts/build-windows.ps1 -NoArchive` | 2026-10-05 已用本轮真实 Host DLL 构建，并实际启动新 exe；构建、自动化与 UI 结果分开记录 |
@@ -36,7 +38,9 @@ sh scripts/build-macos.sh
 
 ## 需要外部依赖的案例
 
-当前默认跳过两项：
+当前默认跳过三项：
+
+- 官方加载器 ZIP 安装测试：需 `LOM_BEPINEX_ARCHIVES` 指向固定版本的官方归档，仅写临时合成安装目录。
 
 - `ffmpeg_real_video_extraction`：需 `LOM_FFMPEG` 指定可执行程序，并显式选择该 ignored 测试。
 - 历史截图水印语料测试：需 `LOM_WATERMARK_CORPUS` 指向事先生成的外部语料。

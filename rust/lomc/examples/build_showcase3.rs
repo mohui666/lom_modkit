@@ -7,11 +7,18 @@ use std::{collections::BTreeSet, path::PathBuf};
 fn main() -> Result<()> {
     let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let source = lom_core::load_json(repo.join("samples/showcase3/source.json"))?;
-    let out = std::env::args_os()
-        .nth(1)
+    let requested = std::env::args_os().nth(1);
+    let refresh = requested.is_none();
+    let out = requested
         .map(PathBuf::from)
         .unwrap_or_else(|| repo.join("samples/showcase3"));
-    let mut project = Project::new();
+    // The documented no-argument refresh edits the existing sample through its
+    // normal ownership checks. Explicit output directories must still be new.
+    let mut project = if refresh && out.exists() {
+        Project::open(&out)?
+    } else {
+        Project::new()
+    };
     project.manifest = source["manifest"].clone();
     project.stories.clear();
     for story in source["stories"]

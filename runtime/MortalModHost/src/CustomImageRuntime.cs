@@ -284,13 +284,13 @@ namespace MortalModHost
                 texture, new Rect(0f, 0f, texture.width, texture.height),
                 new Vector2(0.5f, 0.5f), 100f);
 
+            // Share the stage's rendering order, like custom backgrounds and CGs.
+            // A nested override-sorting Canvas with an absolute order of 10 can
+            // render behind the stage itself and escape the normal blackout order.
             GameObject root = new GameObject(
-                "lom_overlay_" + slot, typeof(RectTransform), typeof(Canvas));
+                "lom_overlay_" + slot, typeof(RectTransform));
             root.transform.SetParent(stage.PortraitCanvas.transform, false);
-            Canvas canvas = root.GetComponent<Canvas>();
             bool front = !string.Equals(layer, "back", StringComparison.Ordinal);
-            canvas.overrideSorting = front;
-            canvas.sortingOrder = front ? 10 : 0;
             if (front)
                 root.transform.SetAsLastSibling();
             else

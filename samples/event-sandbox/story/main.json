@@ -1,0 +1,19 @@
+{
+  "id": "main",
+  "story_schema": 2,
+  "title": "回到唐门",
+  "start": "say",
+  "nodes": [
+    {
+      "id": "say",
+      "type": "say",
+      "mode": "narrative",
+      "text": "你回到了唐门。七月的事件将由独立配置调度。"
+    },
+    {
+      "id": "end",
+      "type": "end",
+      "event_result": "completed"
+    }
+  ]
+}

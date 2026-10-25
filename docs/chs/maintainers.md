@@ -2,7 +2,7 @@
 
 当前工具端由 Rust 编译器、核心库与 egui 编辑器组成；C# `MortalModHost` 保留游戏接入。日常编辑见 [软件使用](software_usage.md)，构建和 CLI 见 [Rust 工具端](rust.md)，验证层次见 [测试矩阵](test_matrix.md)。旧 Python／Qt／PyInstaller 入口已经退役，不作为本手册操作入口。
 
-2026-10-04 本轮仅核对文档、源码和脚本，未运行下列命令。上一轮 Mac 验收的 179 项测试和 133 项预览结果详见 [迁移验收表](rust_migration.md)。Windows 构建、Windows 测试与游戏实机测试均未在此次迁移中执行。
+当前 v1.3.0 的测试和 Windows 构建见 [版本记录](../../RELEASE_NOTES_v1.3.0.md)。2026-10-04 的早期迁移文档核对、Mac 179 项测试及 133 项预览仅为历史记录，见 [迁移验收表](rust_migration.md)。
 
 ## 编辑器入口与设置
 
@@ -34,13 +34,13 @@
 
 - 章节旁“＋”先选择新建或复制，再填写章节名称。标识自动生成；复制保留完整剧情内容及显式跳转目的地。内部标识改名位于“编辑 → 高级”，会同步相关引用。
 - “文件 → 从模板新建”含空项目、线性对白、分支剧情、自定义人物展示、用户内容展示、自由模式剧情六种模板。`user:template.*` 是待替换占位引用，导出前换成真实素材。
-- 点击工具栏“用户内容”，再点“导入素材…”；先选类型与文件，再确认可读名称。标识自动生成，取消不会导入，现有内容不会被同名文件静默覆盖。
+- 打开“素材管理 → 作品素材”，再点“导入素材…”；先选类型与文件，再确认可读名称。标识自动生成，取消不会导入，现有内容不会被同名文件静默覆盖。
 
 ## 检查、统计与发布
 
-`F6`／“创作工具 → 检查项目”执行当前编辑器的校验与编译检查。完整 Editing／Release 体检在“创作工具 → 创作工具 → 发布体检与打包”中分别点击“编辑体检”或“发布体检”；当前没有单独的 `Ctrl+F6` Release 快捷键。
+`F6`／“剧情工具 → 检查项目”执行章节校验与编译检查，不等于完整作品体检。事件／任务配置、Manifest 与发布信息还需下面的 Editing／Release 体检。完整 Editing／Release 体检在“发布 → 发布体检与打包”中分别点击“编辑体检”或“发布体检”；当前没有单独的 `Ctrl+F6` Release 快捷键。
 
-同一工具面板还提供：
+「发布」页面还提供统计、打包和包检查；迁移与诊断从「剧情工具」进入：
 
 | 区域 | 操作 |
 | --- | --- |
@@ -55,15 +55,17 @@
 
 ## Windows 游戏接入与 Runtime 回滚
 
-当前入口为“创作工具 → 创作工具 → Windows 游戏接入与 MOD 管理”；Mac 上该区域的游戏操作禁用。选择游戏目录及含 `MortalModHost.dll`、`NVorbis.dll` 的 C# 宿主目录后，才能使用安装检查、修复宿主安装、安装／更新与恢复上一版等操作。
+当前事件／任务作品要求包含 Scenario 的 Host 1.1.3，新 Windows 构建应同时提供 `MortalModHost.dll` 与 `NVorbis.dll`。选择完整编辑器旁的 `runtime` 目录；`changed:false` 仅表示所选源与已装文件一致，不代表互联网最新版本。
 
-Runtime 更新在 `BepInEx/plugins/MortalModHost/.runtime_rollback/` 保留已有 DLL 的备份与记录；安装写入失败时尝试恢复原文件。全新安装没有上一版。回滚不应改动游戏程序、Managed、存档或第三方插件。BepInEx 安装是单独入口，接受代码约束的官方压缩包。
+当前源码的一级入口为“游戏与 MOD”。先点“一键定位游戏目录”，或手动选择包含 `Mortal.exe` 的目录，再点击“一键配置游戏”：自动下载匹配架构的官方加载器、配置 Steam 启动、安装随工具分发的 C# 宿主并检查结果。Steam 定位支持其他盘的游戏库；多处安装会列出供选择，定位本身只读游戏文件。已就绪时可点击“重新配置游戏环境”。缺少宿主文件时会明确提示，可在“高级维护”选择同时含 `MortalModHost.dll`、`NVorbis.dll` 的完整目录。Mac 显示平台说明及素材、发布入口，不展示不可用的安装控件。
+
+Runtime 更新在 `BepInEx/plugins/MortalModHost/.runtime_rollback/` 保留已有 DLL 的备份与记录；安装写入失败时尝试恢复原文件。全新安装没有上一版。回滚不应改动游戏程序、Managed、存档或第三方插件。在线配置与“高级维护 → 使用官方离线压缩包配置…”均只接受代码固定版本、架构和摘要匹配的官方压缩包。
 
 游戏升级为 64 位后，使用更新后的编辑器执行：
 
 1. 退出游戏，在该区域选择游戏目录，确认显示 `x64`。
-2. 通过界面链接下载 [BepInEx 官方 build 692](https://builds.bepinex.dev/projects/bepinex_be) 的 `BepInEx-Unity.Mono-win-x64-6.0.0-be.692+851521c.zip`，点击“安装官方 BepInEx 压缩包”。旧版 x86 游戏仍选择对应的 x86 包。安装只更新加载器文件，保留已有配置、插件和 MOD。
-3. 点击“修复 Steam 启动”，将 C# 宿主目录选为新版本工具的 `runtime` 目录，再安装／更新宿主并运行“安装检查”。修复会选择匹配游戏位数的 Doorstop 和系统 `VERSION.dll`，替换旧 `version.dll`、`version_alt.dll`，备份后移走 `winhttp.dll`，避免同时注入。不能只替换 Host 而保留 32 位代理。
+2. 点击“一键配置游戏”，或在“高级维护”选择 [BepInEx 官方 build 692](https://builds.bepinex.dev/projects/bepinex_be) 的对应离线 ZIP。x64 使用 `BepInEx-Unity.Mono-win-x64-6.0.0-be.692+851521c.zip`；旧版 x86 游戏使用对应的 x86 包。安装保留已有配置、插件和 MOD。
+3. 配置结束后查看安装检查结果，确认页面显示“配置就绪”。独立的 Steam 修复、宿主更新及回滚入口保留在“高级维护”。修复会选择匹配游戏位数的 Doorstop 和系统 `VERSION.dll`，替换旧 `version.dll`、`version_alt.dll`，备份后移走 `winhttp.dll`，避免同时注入。不能只替换 Host 而保留 32 位代理。
 
 替换的原生 DLL 保存在同目录的 `.lom_bak`；如该备份已存在且内容不同，会另存带摘要的备份，不覆盖早先备份。x64 系统库来自 `System32`（32 位编辑器通过 `Sysnative` 访问）；x86 来自 `SysWOW64` 或经位数确认的 `System32`。写入前校验所有待安装原生 DLL 的 PE 架构，位数错误时不修改配置。
 
@@ -71,11 +73,11 @@ Runtime 更新在 `BepInEx/plugins/MortalModHost/.runtime_rollback/` 保留已�
 
 此次游戏更新还移除了 `CombatStat` 的三个旧字段，因此也需更新 `MortalModHost.dll`。新 Host 对旧版存在的字段继续清零，对现版已移除的字段不再直接引用；详见 [受影响接口核对](../../research/gameplay_api.md#2026-10-17-x64-更新核对)。
 
-这些是保留的代码能力，本轮只核对入口，未执行 Windows 或真实游戏操作；F5 试玩请求也不属于 Mac 预览验收。
+以上安装说明是保留的代码能力。2026-10-25 的 Windows 构建及编辑器检查见 [整合验证](windows_event_task_merge_20261025.md)，该次没有启动游戏或执行真实安装；F5 试玩请求也不属于 Mac 预览验收。
 
 ## 原生离线验证入口
 
-以下均在仓库根目录执行；本次文档维护没有运行它们：
+以下均在仓库根目录执行；本次执行结果见版本记录：
 
 ```sh
 sh scripts/test-native.sh

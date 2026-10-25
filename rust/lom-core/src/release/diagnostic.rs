@@ -35,7 +35,7 @@ impl Default for DiagnosticOptions {
             crash_log: None,
             runtime_log: None,
             editor_version: env!("CARGO_PKG_VERSION").into(),
-            runtime_version: "1.1.2".into(),
+            runtime_version: "1.1.3".into(),
             private_roots: Vec::new(),
         }
     }

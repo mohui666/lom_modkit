@@ -158,3 +158,25 @@ fn editing_cli_is_atomic_and_author_returns_controlled_output() {
     let v: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(v["result"]["id"], "script2");
 }
+
+#[test]
+fn event_modes_use_the_bundled_host_version() {
+    for mode in ["addon", "sandbox"] {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join(format!("../../samples/event-{mode}"));
+        let check = cli(&[
+            "preflight",
+            root.to_str().unwrap(),
+            "--profile",
+            "release",
+            "--json",
+        ]);
+        assert!(
+            check.status.success(),
+            "mode={mode}: {}",
+            String::from_utf8_lossy(&check.stdout)
+        );
+        let result: Value = serde_json::from_slice(&check.stdout).unwrap();
+        assert_eq!(result["ok"], true);
+    }
+}

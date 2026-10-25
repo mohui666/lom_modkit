@@ -192,7 +192,8 @@ pub fn install_mod(root: &Path, source: &Path, enabled: bool) -> Result<PathBuf>
         bytes.len() as u64 <= package::MAX_PACKAGE_BYTES,
         "Mod 包超过 160 MiB 上限"
     );
-    let mut snapshot = tempfile::NamedTempFile::new()?;
+    let workspace = crate::workdir::create()?;
+    let mut snapshot = tempfile::NamedTempFile::new_in(workspace.path())?;
     std::io::Write::write_all(&mut snapshot, &bytes)?;
     package::read_package(snapshot.path())?;
     let name = source.file_name().context("无效包文件名")?;
@@ -251,7 +252,11 @@ pub fn install_runtime(root: &Path, bundle: &Path) -> Result<Value> {
     for name in HOST_FILES {
         let path = bundle.join(name);
         ensure!(path.is_file(), "运行时依赖缺失：{name}");
-        files.insert(name, fs::read(path)?);
+        files.insert(
+            name,
+            fs::read(&path)
+                .with_context(|| format!("无法读取所选 C# 宿主文件：{}", path.display()))?,
+        );
     }
     let plugin = confined(root, Path::new("BepInEx/plugins/MortalModHost"))?;
     for name in HOST_FILES {
@@ -274,7 +279,12 @@ pub fn install_runtime(root: &Path, bundle: &Path) -> Result<Value> {
     let mut before = BTreeMap::new();
     for name in HOST_FILES {
         let old = if plugin.join(name).exists() {
-            Some(fs::read(plugin.join(name))?)
+            Some(fs::read(plugin.join(name)).with_context(|| {
+                format!(
+                    "无法读取游戏中已安装的 C# 宿主文件：{}",
+                    plugin.join(name).display()
+                )
+            })?)
         } else {
             None
         };
@@ -650,7 +660,11 @@ fn first_backup(path: &Path, bytes: &[u8], suffix: &str) -> Result<PathBuf> {
         Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
             ensure!(backup.is_file(), "备份路径不是文件");
         }
-        Err(e) => return Err(e).context("无法创建原始备份"),
+        Err(e) => {
+            return Err(e).with_context(|| {
+                format!("无法创建原始备份，请检查目录写入权限：{}", backup.display())
+            })
+        }
     }
     Ok(backup)
 }

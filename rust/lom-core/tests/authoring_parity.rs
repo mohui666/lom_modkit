@@ -1,4 +1,6 @@
 use serde_json::Value;
+// The invalid-portrait fixture uses a permanently unknown key: brother4/angry3
+// became a valid official expression in the refreshed game catalog.
 #[test]
 fn authoring_api_matches_legacy_success_and_rejection_cases() {
     let fixture: Value =
