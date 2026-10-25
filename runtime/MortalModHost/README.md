@@ -2,10 +2,12 @@
 
 MortalModHost 是 BepInEx 6 / Harmony 宿主，负责加载 `.lommod`、把编译后的 Lua 接入《活侠传》现有 Fungus/LuaManager 流程，并承载自定义媒体、战役入口和强制非官方来源披露。
 
+当前源码 Host 版本为 **1.1.3**。新 `addon/sandbox` 作品由 `ScenarioConfig/ScenarioEngine/ScenarioRuntime` 负责配置、纯调度与游戏适配；章节只负责演出，时间、任务和奖励由独立事件配置推进。完整契约见 [事件与任务](../../docs/chs/events_and_tasks.md)。Windows 构建与离线／GUI 记录见 [整合验证](../../docs/chs/windows_event_task_merge_20261025.md)，该次没有启动游戏。
+
 ## 接口原则
 
 - 能调用原版系统的节点使用已经由反编译确认、并由 Host 构建/SmokeTest 覆盖的真实方法签名；完整映射以 `docs/chs/mod_format.md` 为准。
-- `enemy`、`battle_skill`、`goto_scene Combat/Battle` 与高层 `combat` / `battle` 只调用原版战斗 API。结果所有权绑定包 id + 完整 SHA-256 和剧情 id；`battle_result` 只能读取匹配所有者的真实 win/lose。Combat 观察 `GameOver(bool)`，Battle 只观察 finish=true 的 FriendWin/EnemyWin。Runtime 不包含自定义 Battle Engine，不伪造 draw/escape，也不改写 PlayerDie(false)。
+- `enemy`、`battle_skill` 与高层 `combat` / `battle` 只调用原版战斗 API。结果所有权绑定包 id + 完整 SHA-256 和剧情 id；`battle_result` 只能读取匹配所有者的真实 win/lose。Combat 观察 `GameOver(bool)`，Battle 只观察 finish=true 的 FriendWin/EnemyWin。Runtime 不包含自定义 Battle Engine，不伪造 draw/escape，也不改写 PlayerDie(false)。
 - 自定义角色和媒体是独立 Mod Runtime 对象，不伪造或覆盖原版 Addressables 条目。
 - `persistent_var` / `persistent_check` 读取原版 `SaveSystem.CurrentSlot`，状态写入 Host 管理的、与实际 MOD 手动隔离槽一一对应的 sidecar（`mod_campaign_<campaign_id>` 或 `_sNNN`）；原版手动/自动存档成功后才原子落盘，不改 GameSave schema，也拒绝普通/F5 官方槽。
 - 标题入口临时复用原版 `LoadGamePanel/LoadSlotPanel/AutoSaveSlotPanel/RecentSaveSlotPanel`：先选择战役，再进入该战役自己的 001～020 手动栏位和三类自动槽。001 映射到 `mod_campaign_<campaign_id>`，002～020 映射到 `_sNNN`；空手动栏位可新建，已有栏位可覆盖/读取。三类自动槽追加 `_auto*`；旧 `mod_<manifest.id>` 槽不探测、不迁移。`SaveUniverseData` 只记录最后一个原版槽，因此原版 001～020、`auto*` 和“继续游戏”指针均不会被 MOD 覆盖。
@@ -35,4 +37,4 @@ dotnet build runtime/MortalModHost/MortalModHost.csproj -c Release -p:GameDir="C
 dotnet run --project runtime/MortalModHost/test/SmokeTest/SmokeTest.csproj -c Release
 ```
 
-Rust 工具端离线检查由 `scripts/test-native.sh` 调用；C# SmokeTest 保持独立入口。Windows 发行包的完整构建和安全覆盖规则见仓库根目录 README 的“构建与测试”。
+Rust 工具端离线检查由 `scripts/test-native.sh` 调用；C# SmokeTest 保持独立入口。Windows 完整目录构建使用 [`scripts/build-windows.ps1 -NoArchive`](../../scripts/build-windows.ps1)，参数及本地依赖见 [Rust 工具端](../../docs/chs/rust.md#构建与启动)。

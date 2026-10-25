@@ -1,8 +1,8 @@
 # 全节点样例 3.0
 
-这是全节点创作样例，也是后续手动实机验收的输入包。当前源数据含 5 章、140 个流程节点，以及同时执行组内的 5 个动作；Rust 生成器按 `authoring.json` 检查全部 64 种节点覆盖。
+这是全节点创作样例，也是后续手动实机验收的输入包。当前源数据含 6 章、142 个流程节点，以及同时执行组内的 5 个动作；Rust 生成器按 `authoring.json` 检查全部 64 种节点覆盖。
 
-第一章增加美颜赵活登场、对白及恢复普通外观，要求 Host ≥1.1.2。
+第一章含美颜赵活登场、对白及恢复普通外观；当前完整样例另含事件结果演出章，清单要求 Host ≥1.1.3。
 2026-10-04 上一轮 Mac 验收记录包括 133 / 133 节点预览检查；整个 Rust workspace 为 179 项通过、0 失败、2 项默认跳过。这不是游戏实机结果。该段为 2026-10-04 历史记录；2026-10-19 的同时执行组与本轮离线验证见文末。
 
 在仓库根目录生成并检查，输出目录须尚未存在：
@@ -14,13 +14,13 @@ cargo run --locked -p lomc -- inspect out/showcase3-check/showcase3.lommod --jso
 
 [`source.json`](source.json) 保存独立创作源；修改样例先更新它。当前入口是 [`rust/lomc/examples/build_showcase3.rs`](../../rust/lomc/examples/build_showcase3.rs)，不再运行旧 Python 生成器。生成器校验节点覆盖，复制本样例素材，写出 JSON 和包含编译 Lua 的 `showcase3.lommod`；不会在受跟踪 `story/*.json` 旁散落 Lua。
 
-如果 `out/showcase3-check` 已有生成文件，请改用新的输出目录。生成器创建新 Project，不能认领已有章节文件；省略参数虽默认指向本目录，但不能据此覆盖受跟踪 JSON。需要刷新受跟踪样例时，先在新目录生成和检查，再核对需要同步的 JSON；保留 `source.json`、原素材及用户文件，不整目录覆盖。
+如果 `out/showcase3-check` 已有生成文件，请改用新的输出目录。显式输出模式创建新 Project，不能认领已有章节文件。无参数模式会先打开当前样例工程，再按已有文件归属刷新受跟踪 JSON；维护前应审阅 `source.json`，维护后核对 diff，保留原素材及用户文件，不整目录覆盖。
 
 在 Mac 查看样例可用 `cargo run --locked -p lom-editor -- out/showcase3-check`，或构建后从 `out/LoM Modkit Rust.app` 打开该目录。当前为浅色 Rust 三栏外壳，C# Host 与 3／2／1 格式契约保留；Swift／Liquid Glass 不属于已完成的样例验收。
 
 下列实机步骤只是保留的人工检查清单，只有任务明确包含游戏测试时才执行。本次迁移没有执行。
 
-实机路径分为五章：演出与用户内容 → Gameplay → Combat（可跳过）→ Battle
+实机主路径仍分为五章；第六章 `event_presentation` 是独立事件结果演出参考，不会自动接在主路径后。主路径为：演出与用户内容 → Gameplay → Combat（可跳过）→ Battle
 （可跳过）→ 死亡画面或安全返回。Battle 的 PlayerDie 沿用原版重试/标题流程，
 并不伪造一个可继续的失败分支。
 

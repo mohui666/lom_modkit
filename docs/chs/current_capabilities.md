@@ -1,6 +1,6 @@
 # 当前能力与边界
 
-2026-10-24：新增[独立事件与任务配置](events_and_tasks.md)，支持原版附加剧情与自由剧本、一次性/可重复事件、按行动/旬/月判定、概率及动态权重池、命名任务状态与配置结果动作。旧作品兼容；本轮仅本机离线验证，未启动游戏。
+2026-10-24：新增[独立事件与任务配置](events_and_tasks.md)，支持原版附加剧情与自由剧本、一次性/可重复事件、按行动/旬/月判定、概率及动态权重池、命名任务状态与配置结果动作。旧作品兼容；2026-10-25 已完成 Windows 构建、离线测试和具体编辑器 GUI 操作，见 [整合验证](windows_event_task_merge_20261025.md)，事件／任务的游戏实机流程仍未验收。
 
 本文按当前 Rust 源码描述能力。节点集合以 [`authoring.json`](../../rust/lom-editor/data/authoring.json) 的 `NODE_SCHEMAS` 为准，当前共 64 种（原有 63 种加同时执行组）。编辑器、编译器由 Rust 提供，游戏接入仍由 C# `MortalModHost` 提供，包／剧情／内容契约仍为 **3 / 2 / 1**。
 
@@ -48,6 +48,8 @@ Swift 外壳与原生 Liquid Glass 尚未完成。当前浅色面板和正常系
 - `stat_check` / `affinity_check` / `item_check` / `talent_check` / `flag_check`：分别读取原版属性、好感、物品、天赋与 MOD/原版旗标后走成功/失败分支；好感、物品、天赋只使用已验证的只读 Host bridge。
 
 工具是在编排原版战斗系统，不包含自研 Battle Engine。接口证据见 [游戏 API 笔记](../../research/gameplay_api.md) 与 [契约片段](../../research/gameplay_api_contract.json)；历史 Host 验收与当前 Rust 工具验收分别记录。本轮 Windows 只验证编辑器、编译器、构建和离线功能；`draw` / `escape` 没有可用结果接口。
+
+新 `addon/sandbox` 模式的章节添加菜单会排除状态修改、任务、时间和奖励等节点，改用独立事件条件与结果动作。上面的原版系统节点及下列 `mod_quest/persistent_var` 说明保留给旧版兼容作品，不应据此在新模式中寻找这些步骤。
 
 ## MOD 战役状态
 

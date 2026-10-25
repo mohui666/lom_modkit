@@ -10,6 +10,7 @@
 
 | 文档 | 内容 |
 | --- | --- |
+| [核心功能教程](chs/core_tutorial.md) | 仅软件演示：创建、演出、素材、事件任务、检查、保存与导出 |
 | [软件使用](chs/software_usage.md) | 新建、章节、步骤、保存、预览与导出 |
 | [用户内容](chs/user_content.md) | 音频、人物、图片的导入与引用 |
 | [当前能力](chs/current_capabilities.md) | 已实现功能与限制 |
@@ -18,9 +19,9 @@
 | [多语言](chs/i18n.md) | 界面语言、资源显示名称和作品翻译 |
 | [自动恢复](chs/editor_recovery.md) | 快照位置、恢复流程与保存边界 |
 | [自由模式与人物立绘](chs/free_mode_portraits.md) | 时间地点事件与赵活外观 |
-| [Showcase 3.0](../samples/showcase3/README.md) | 5 章、140 节点、64 类节点的样例与生成方法 |
+| [Showcase 3.0](../samples/showcase3/README.md) | 6 章、142 个流程节点、64 类节点的样例与生成方法 |
 | [Windows 完整测试清单（2026-10-22）](chs/windows_integrated_checklist_20261022.md) | 保留旧 A～H 全部 49 项，新增 UI、一键配置、MOD 与发布 37 项；共 86 项 |
-| [可勾选测试网页](../sites/lom-checklist-20261022/dist/index.html) | 分组搜索、五种结果、备注与本地保存；支持 JSON 备份迁移和 Markdown 报告 |
+| [Windows 回归测试包](../tools/windows_test_kit/README.md) | 本机测试包的使用说明；可勾选网页属于另行生成的本地产物，不随源码提供 |
 | [完整测试结果模板](chs/windows_integrated_test_results_20261022.md) | 86 项逐项结果、缺图明细与失败复现记录 |
 | [Windows 旧版测试清单](chs/windows_postrelease_test.md) | 旧 A～H 原始参考：v1.2.1、提取、外观、同时执行、黑幕与 TEMP |
 | [本轮 Windows 构建](chs/windows_postrelease_build_20261020.md) | 2026-10-20 两端路径、实际构建结果与测试入口 |
@@ -39,7 +40,7 @@
 | [受控 API / CLI](chs/ai_cli.md) | Rust API、JSON 请求、校验、编译、打包 |
 | [反编译接口](chs/decompiled_api.md) | 查原版类型的步骤与已用入口 |
 | [Gameplay API 矩阵](../research/gameplay_api.md) | 已确认签名与禁止项 |
-| [Windows 接口资料迁移索引](../research/windows-reference-20261015/README.md) | 远端接口文档的保留版本、36 份本机源码快照、来源与逐文件校验 |
+| [当前确认的接口片段](../research/gameplay_api_contract.json) | 与 API 笔记配合查阅；本机反编译归档不作为可分发源码入口 |
 
 涉及 Combat、Battle、存档、商店或原版 UI 时，先读 [AGENTS.md](../AGENTS.md) 和反编译接口文档。`docs/research/decompiled/` 是旧归档，包含部分 Combat 类型快照，但没有完整 Battle/Combat 程序集反编译结果，不能作为当前游戏接口证据，也不得上传完整反编译源码。
 
@@ -50,6 +51,7 @@
 | [维护者手册](chs/maintainers.md) | 恢复、模板、体检、发布、Runtime 安装/回滚 |
 | [测试入口](chs/test_matrix.md) | 当前命令与历史验证边界 |
 | [x64 验证记录](chs/x64_validation.md) | 2026-10-17 的 x64 安装、真实游戏冒烟和发布包校验 |
+| [事件／任务 Windows 整合验证](chs/windows_event_task_merge_20261025.md) | Host 1.1.3、263 项 Rust、纯 C#、示例及编辑器 GUI，未启动游戏 |
 | [Windows 验证记录](chs/windows_validation.md) | 2026-10-04 至 05 的 Rust 构建、离线与实际界面验证 |
 | [来源水印](chs/watermark.md) | 协议、嵌入、截图/视频检测 |
 | [Runtime 说明](../runtime/MortalModHost/README.md) | C# Host 行为与限制 |
