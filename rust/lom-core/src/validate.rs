@@ -292,11 +292,27 @@ fn manifest_inner(m: &Value) -> Result<()> {
     object(campaign, "缺少必填字段 campaign")?;
     let addon = m["play_mode"] == "addon";
     if crate::scenario::enabled(m) {
-        ensure!(addon || m["play_mode"] == "sandbox", "play_mode 必须为 addon 或 sandbox");
-        let min=version(&m["min_host_version"],"min_host_version")?;
-        ensure!(!version_greater(&version(&json!(crate::scenario::MIN_HOST),"minimum")?,&min),"事件任务作品要求 min_host_version 至少 {}",crate::scenario::MIN_HOST);
-        ensure!(array(&campaign["triggers"]).is_empty(),"事件任务作品请在 scenario.json 配置事件，不能混用 campaign.triggers");
-        ensure!(!addon || campaign["disable_official_events"] != true,"附加剧情必须保留原版事件");
+        ensure!(
+            addon || m["play_mode"] == "sandbox",
+            "play_mode 必须为 addon 或 sandbox"
+        );
+        let min = version(&m["min_host_version"], "min_host_version")?;
+        ensure!(
+            !version_greater(
+                &version(&json!(crate::scenario::MIN_HOST), "minimum")?,
+                &min
+            ),
+            "事件任务作品要求 min_host_version 至少 {}",
+            crate::scenario::MIN_HOST
+        );
+        ensure!(
+            array(&campaign["triggers"]).is_empty(),
+            "事件任务作品请在 scenario.json 配置事件，不能混用 campaign.triggers"
+        );
+        ensure!(
+            !addon || campaign["disable_official_events"] != true,
+            "附加剧情必须保留原版事件"
+        );
     }
     ensure!(
         campaign["new_game"] == !addon,
@@ -997,7 +1013,10 @@ fn extra(n: &Value, ntype: &str, catalog: &Value) -> Result<()> {
             }
         },
         "end" => {
-            ensure!(!(has(n,"event_result") && has(n,"next_script")),"event_result 只能在最终返回自由模式时报告，不能与 next_script 同时设置");
+            ensure!(
+                !(has(n, "event_result") && has(n, "next_script")),
+                "event_result 只能在最终返回自由模式时报告，不能与 next_script 同时设置"
+            );
         }
         "choice" => {
             options(n, 2, 4, &["text", "goto"], &[])?;

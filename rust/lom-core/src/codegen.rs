@@ -1279,8 +1279,8 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
         )),
         "end" => {
             out.extend(["\tmod_stop_voice()".into(), "\tmod_hide_all()".into()]);
-            if let Some(result)=node["event_result"].as_str() {
-                out.push(call("mod_event_result",&[lua_str(result)]));
+            if let Some(result) = node["event_result"].as_str() {
+                out.push(call("mod_event_result", &[lua_str(result)]));
             }
             if node["next_script"].is_null() {
                 out.push("\tluamanager.ChangeScene(\"Free\", \"\", \"\")".into());

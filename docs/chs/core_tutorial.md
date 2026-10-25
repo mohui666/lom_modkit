@@ -2,6 +2,8 @@
 
 本教程面向当前 Windows Rust 编辑器与 Host 1.1.3 配套版本。目标是在软件内完成“创建作品 → 编写演出 → 配置事件与任务 → 检查 → 保存、导出与重开”。全过程不启动游戏、不安装 MOD。右侧“播放”是软件预览；顶栏“试玩”／F5 会安装临时包并启动游戏，本教程不点击。
 
+[播放中文演示](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0-core-tutorial-zh-CN.mp4) · [下载跟做项目](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0-tutorial-follow-along.zip) · [独立字幕](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0-core-tutorial.zh-CN.srt)
+
 录屏使用独立的教程项目与设置目录。中文讲解和字幕说明每一步的目的；打开随附示例的部分会明确标注，不把预先准备好的内容冒充现场创建。视频剪去等待和重复输入，保留实际软件操作。
 
 ## 1. 选择作品模式

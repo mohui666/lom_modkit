@@ -14,7 +14,7 @@
 | [`research/gameplay_api_contract.json`](../../research/gameplay_api_contract.json) | 已确认的接口片段；不计算程序集哈希 |
 | 本机 `Mortal_Data/Managed/*.dll` | 当前游戏的真实接口；以它为准。用 `ilspycmd` **只读**查询，结果留在本机 |
 | `docs/research/decompiled/` | 本机历史归档，**已 gitignore，不随仓库提供，不要上传**。包含部分 Combat 类型快照，没有完整 Battle/Combat 程序集反编译结果，不能当现网证据 |
-| [Windows 接口资料迁移索引](../../research/windows-reference-20261015/README.md) | 2026-10-15 迁入的文档版本、源码快照位置、两端路径与逐文件传输校验 |
+| 本机 `research/windows-reference-20261015/README.md` | 2026-10-15 的接口迁移索引，不随公开仓库提供；当前公开接口摘要见上方 gameplay_api 与 contract |
 
 游戏更新后，只查询本次涉及的当前类型和方法，再核对已有接口结论。按照根目录规则，不运行基于程序集哈希的验证，也不因文档维护而启动 Windows 或游戏测试。相关类型或安全入口不可用时，记录具体限制，不猜测替代 API。
 

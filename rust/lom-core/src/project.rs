@@ -38,7 +38,8 @@ impl Project {
         project.manifest["play_mode"] = json!(mode);
         project.manifest["min_host_version"] = json!(crate::scenario::MIN_HOST);
         project.manifest["tested_host_version"] = json!(crate::scenario::MIN_HOST);
-        project.manifest["campaign"] = json!({"new_game":mode=="sandbox","disable_official_events":mode=="sandbox"});
+        project.manifest["campaign"] =
+            json!({"new_game":mode=="sandbox","disable_official_events":mode=="sandbox"});
         let mut config = crate::scenario::default_config();
         if mode == "addon" {
             config.as_object_mut().unwrap().remove("entry_event");
@@ -79,7 +80,10 @@ impl Project {
                     "manifest.entry 必须是字符串"
                 );
                 if crate::scenario::enabled(&project.manifest) {
-                    project.scenario = Some(load_json(package::resolve_confined_file(&path, &path.join("scenario.json"))?)?);
+                    project.scenario = Some(load_json(package::resolve_confined_file(
+                        &path,
+                        &path.join("scenario.json"),
+                    )?)?);
                 }
             }
             project.story_subdir = path.join("story").is_dir();
@@ -96,7 +100,9 @@ impl Project {
                 if file.extension().and_then(|s| s.to_str()) != Some("json") || !file.is_file() {
                     continue;
                 }
-                if [Some("manifest.json"), Some("scenario.json")].contains(&file.file_name().and_then(|s| s.to_str())) {
+                if [Some("manifest.json"), Some("scenario.json")]
+                    .contains(&file.file_name().and_then(|s| s.to_str()))
+                {
                     continue;
                 }
                 package::resolve_confined_file(&path, &file)?;
@@ -118,7 +124,10 @@ impl Project {
         } else if path.extension().and_then(|s| s.to_str()) == Some("lommod") {
             let entries = package::read_package(&path)?;
             project.manifest = serde_json::from_slice(&entries["manifest.json"])?;
-            project.scenario = entries.get("scenario.json").map(|v| serde_json::from_slice(v)).transpose()?;
+            project.scenario = entries
+                .get("scenario.json")
+                .map(|v| serde_json::from_slice(v))
+                .transpose()?;
             for (name, bytes) in &entries {
                 if name.starts_with("story/") && name.ends_with(".json") {
                     let rel = &name[6..];
@@ -209,7 +218,10 @@ impl Project {
             return Ok(());
         }
         if target.extension().and_then(|s| s.to_str()) == Some("json") {
-            ensure!(self.scenario.is_none(), "带事件和任务配置的作品请保存为项目目录，避免丢失 scenario.json");
+            ensure!(
+                self.scenario.is_none(),
+                "带事件和任务配置的作品请保存为项目目录，避免丢失 scenario.json"
+            );
             ensure!(self.stories.len() == 1, "多章节项目请保存为目录");
             let (id, story) = self.stories.first_key_value().unwrap();
             check_id(id)?;
@@ -297,7 +309,10 @@ impl Project {
         writes.push((manifest_path, stable_json(&self.manifest)?));
         if let Some(scenario) = &self.scenario {
             let path = target.join("scenario.json");
-            ensure!(!path.exists() || same_source, "目标 scenario.json 不属于当前项目，拒绝覆盖");
+            ensure!(
+                !path.exists() || same_source,
+                "目标 scenario.json 不属于当前项目，拒绝覆盖"
+            );
             writes.push((path, stable_json(scenario)?));
         }
         for (name, bytes) in &self.assets {

@@ -371,10 +371,10 @@ fn show_fields(ui: &mut egui::Ui, value: &Value, depth: usize, named_entries: bo
                             );
                         });
                 } else {
-                    ui.horizontal_wrapped(|ui| {
-                        ui.strong(title);
-                        ui.label(scalar(key, v));
-                    });
+                    // A horizontal wrapping row can place a multiline label
+                    // outside its group. Keep each field in normal vertical flow.
+                    ui.add(egui::Label::new(egui::RichText::new(title).strong()).wrap());
+                    ui.add(egui::Label::new(scalar(key, v)).wrap().selectable(true));
                 }
             }
         }
@@ -382,6 +382,7 @@ fn show_fields(ui: &mut egui::Ui, value: &Value, depth: usize, named_entries: bo
             for (i, item) in a.iter().take(1000).enumerate() {
                 ui.push_id(i, |ui| {
                     egui::Frame::group(ui.style()).show(ui, |ui| {
+                        ui.set_max_width(ui.available_width());
                         technical_details |= show_fields(ui, item, depth + 1, false);
                     });
                 });
@@ -442,6 +443,72 @@ mod tests {
         assert!(text.contains("技术详情"), "{text}");
         assert_eq!(report, original);
     }
+    #[test]
+    fn long_windows_paths_stay_in_cards_without_overlapping_following_fields() {
+        fn texts(shape: &egui::epaint::Shape, out: &mut Vec<(String, egui::Rect)>) {
+            match shape {
+                egui::epaint::Shape::Text(text) => {
+                    out.push((text.galley.text().to_owned(), text.visual_bounding_rect()))
+                }
+                egui::epaint::Shape::Vec(shapes) => {
+                    for shape in shapes {
+                        texts(shape, out);
+                    }
+                }
+                _ => (),
+            }
+        }
+        let path = r"C:\Program Files (x86)\Steam\steamapps\common\LegendOfMortal\BepInEx\plugins\MortalModHost\mods_disabled\very_long_mod_name_that_must_remain_readable.lommod";
+        let report = json!([
+            {"code":"mods_directory_ok", "severity":"ok", "path":path,"fixable":false},
+            {"code":"no_duplicate_host", "severity":"ok", "detail":"重复第三方 DLL 不会自动删除，请核对后手工处理","fixable":false}
+        ]);
+        for width in [240.0, 360.0, 560.0] {
+            let context = egui::Context::default();
+            let mut left = 0.0;
+            let output = context.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(800.0, 1600.0),
+                    )),
+                    ..Default::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        ui.allocate_ui_with_layout(
+                            egui::vec2(width, 0.0),
+                            egui::Layout::top_down(egui::Align::Min),
+                            |ui| {
+                                left = ui.max_rect().left();
+                                show(ui, &report, 0);
+                            },
+                        );
+                    });
+                },
+            );
+            let mut labels = Vec::new();
+            for shape in &output.shapes {
+                texts(&shape.shape, &mut labels);
+            }
+            assert!(labels.iter().any(|(text, _)| text == path));
+            for (text, rect) in &labels {
+                assert!(
+                    rect.left() >= left - 1.0 && rect.right() <= left + width + 1.0,
+                    "width={width}, text={text}, bounds={rect:?}"
+                );
+            }
+            for (index, (text, rect)) in labels.iter().enumerate() {
+                for (other, other_rect) in &labels[index + 1..] {
+                    assert!(
+                        !rect.intersects(*other_rect),
+                        "{text} overlaps {other} at width {width}"
+                    );
+                }
+            }
+        }
+    }
+
     #[test]
     fn reports_keep_failures_and_unsupported_results_visible() {
         assert!(summary(&json!({"healthy":false})).contains("未通过"));

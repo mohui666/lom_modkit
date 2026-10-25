@@ -7,10 +7,16 @@ use serde_json::{json, Value};
 
 pub fn show(ui: &mut egui::Ui, manifest: &mut Value, catalog: &Catalog, stories: &[String]) {
     ui.heading(tr("作品设置"));
-    let event_mode=manifest.get("play_mode").is_some();
+    let event_mode = manifest.get("play_mode").is_some();
     if event_mode {
-        ui.label(if manifest["play_mode"]=="addon" { tr("作品模式：原版附加剧情") } else { tr("作品模式：自由剧本") });
-        ui.small(tr("此设置适用于整部作品。事件的时间、地点与任务进度在左侧“剧情安排”中设置。"));
+        ui.label(if manifest["play_mode"] == "addon" {
+            tr("作品模式：原版附加剧情")
+        } else {
+            tr("作品模式：自由剧本")
+        });
+        ui.small(tr(
+            "此设置适用于整部作品。事件的时间、地点与任务进度在左侧“剧情安排”中设置。",
+        ));
     }
     for (key, label, kind) in [
         ("id", "作品 ID", "str"),
@@ -21,13 +27,15 @@ pub fn show(ui: &mut egui::Ui, manifest: &mut Value, catalog: &Catalog, stories:
         ("description", "简介", "text"),
         ("entry", "入口章节", "story_ref"),
     ] {
-        if event_mode && matches!(key,"id"|"campaign_id"|"entry") {continue;}
+        if event_mode && matches!(key, "id" | "campaign_id" | "entry") {
+            continue;
+        }
         catalog.field(ui, manifest, key, label, kind, false, &[], stories);
     }
     if event_mode {
-        ui.collapsing(tr("高级：作品标识"),|ui| {
-            for (key,label) in [("id","作品 ID"),("campaign_id","存档身份")] {
-                catalog.field(ui,manifest,key,label,"str",false,&[],stories);
+        ui.collapsing(tr("高级：作品标识"), |ui| {
+            for (key, label) in [("id", "作品 ID"), ("campaign_id", "存档身份")] {
+                catalog.field(ui, manifest, key, label, "str", false, &[], stories);
             }
             ui.small(tr("自由剧本的入口由开场事件管理。"));
         });
@@ -44,8 +52,17 @@ pub fn show(ui: &mut egui::Ui, manifest: &mut Value, catalog: &Catalog, stories:
     });
     ui.separator();
     if event_mode {
-        if manifest["play_mode"]=="sandbox" {
-            catalog.field(ui,&mut manifest["campaign"],"disable_official_events","禁用官方事件","bool",false,&[],stories);
+        if manifest["play_mode"] == "sandbox" {
+            catalog.field(
+                ui,
+                &mut manifest["campaign"],
+                "disable_official_events",
+                "禁用官方事件",
+                "bool",
+                false,
+                &[],
+                stories,
+            );
         }
         return;
     }

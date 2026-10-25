@@ -1,8 +1,8 @@
 # lom_modkit 文档
 
-本文档描述当前 **v1.2.1 发布基线及后续工作区改动**，C# 游戏接入层保留。先读 [软件使用](chs/software_usage.md)，构建见 [Rust 工具端](chs/rust.md)，实现与验证范围见 [迁移记录](chs/rust_migration.md)。
+本文档描述当前 **v1.3.0**，C# 游戏接入层保留。先读 [软件使用](chs/software_usage.md)，构建见 [Rust 工具端](chs/rust.md)，实现与验证范围见 [迁移记录](chs/rust_migration.md)。
 
-[v1.2.0 Windows Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.2.0) 包含 Rust 工具端和适配 x64 游戏的 Host；升级及实测范围见 [x64 验证记录](chs/x64_validation.md)。
+[v1.3.0 Windows Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.0) 提供完整工具包、中文演示和跟做项目；本次验证见 [v1.3.0 记录](../RELEASE_NOTES_v1.3.0.md)，历史游戏冒烟见 [x64 验证记录](chs/x64_validation.md)。
 
 权威版为简体中文 [`chs/`](chs/)。[繁體](cht/README.md)、[日本語](ja/README.md)、[한국어](ko/README.md) 的入口已注明适用版本；尚未同步的旧版 UI 指南不能作为当前操作路径。维护文档先更新 `chs/`。
 
@@ -55,6 +55,7 @@
 | [Windows 验证记录](chs/windows_validation.md) | 2026-10-04 至 05 的 Rust 构建、离线与实际界面验证 |
 | [来源水印](chs/watermark.md) | 协议、嵌入、截图/视频检测 |
 | [Runtime 说明](../runtime/MortalModHost/README.md) | C# Host 行为与限制 |
+| [v1.3.0 变更记录](../RELEASE_NOTES_v1.3.0.md) | 事件任务、界面、定位游戏与发布验证 |
 | [v1.2.0 变更记录](../RELEASE_NOTES_v1.2.0.md) | Rust 变更及迁移前历史 |
 
-当前 Rust 验证包含早期 macOS 记录和本轮 Windows 构建、离线测试与实际界面操作，各自的环境、通过项及限制分别记录。2026-10-17 另完成 x64 游戏启动、F5 与 Combat/Battle 定向冒烟；未逐项验收全部 63 类节点。旧 Python/Qt 的 Windows 和游戏结果只对应当时版本。
+当前 Rust 验证包含早期 macOS 记录和本轮 Windows 构建、离线测试与实际界面操作，各自的环境、通过项及限制分别记录。2026-10-17 另完成 x64 游戏启动、F5 与 Combat/Battle 定向冒烟；未逐项验收全部 64 类节点。旧 Python/Qt 的 Windows 和游戏结果只对应当时版本。

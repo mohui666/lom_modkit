@@ -50,6 +50,7 @@ pub struct ToolsPanel {
     package_entry: String,
     library: PathBuf,
     game: PathBuf,
+    game_candidates: Vec<PathBuf>,
     runtime: PathBuf,
     ffmpeg: Option<PathBuf>,
     content_id: String,
@@ -89,6 +90,7 @@ impl Default for ToolsPanel {
             package_entry: String::new(),
             library: lom_core::content::default_repository_root(),
             game: PathBuf::from(settings["game_dir"].as_str().unwrap_or("")),
+            game_candidates: Vec::new(),
             runtime: settings["rust_runtime_dir"]
                 .as_str()
                 .filter(|s| !s.is_empty())
@@ -391,11 +393,20 @@ impl ToolsPanel {
                     }
                     ui.label(crate::i18n::tr("可收起窗口继续编辑，完成后会再次提示。"));
                 } else {
-                    ui.strong(crate::tool_report::summary(&self.report));
                     egui::ScrollArea::vertical()
                         .id_salt("creation-result-scroll")
-                        .max_height((ctx.content_rect().height() * 0.55).max(100.0))
+                        .max_height((ctx.content_rect().height() - 180.0).max(100.0))
+                        .auto_shrink([false, true])
                         .show(ui, |ui| {
+                            ui.set_max_width(ui.available_width());
+                            ui.add(
+                                egui::Label::new(
+                                    egui::RichText::new(crate::tool_report::summary(&self.report))
+                                        .strong(),
+                                )
+                                .wrap(),
+                            );
+                            ui.add_space(8.0);
                             if self.report["error"].is_null() {
                                 crate::tool_report::show(ui, &self.report, 0);
                             }
@@ -525,15 +536,34 @@ impl ToolsPanel {
             .set_title(crate::i18n::tr("选择包含 Mortal.exe 的游戏目录"))
             .pick_folder()
         {
-            if let Err(error) = game_tools::validate_root(&path)
-                .and_then(|_| game_tools::game_architecture(&path).map(|_| ()))
-            {
-                self.result::<Value>("选择游戏目录", Err(error));
-                return;
-            }
+            self.select_game(path);
+        }
+    }
+    fn select_game(&mut self, path: PathBuf) {
+        if let Err(error) = game_tools::validate_root(&path)
+            .and_then(|_| game_tools::game_architecture(&path).map(|_| ()))
+        {
+            self.result::<Value>("选择游戏目录", Err(error));
+            return;
+        }
+        if self.save_setting("game_dir", json!(path)) {
             self.game = path;
-            self.save_setting("game_dir", json!(self.game));
+            self.game_candidates.clear();
             self.refresh_game();
+        }
+    }
+    fn locate_game(&mut self) {
+        self.game_candidates.clear();
+        match lom_core::game_discovery::installed_games() {
+            Ok(paths) if paths.len() == 1 => self.select_game(paths[0].clone()),
+            Ok(paths) if paths.is_empty() => self.present(
+                "一键定位游戏目录",
+                json!({
+                    "error": crate::i18n::tr("未找到已安装的活侠传，请使用“选择游戏目录”手动指定。")
+                }),
+            ),
+            Ok(paths) => self.game_candidates = paths,
+            Err(error) => self.result::<Value>("一键定位游戏目录", Err(error)),
         }
     }
     fn start_setup(&mut self, archive: Option<PathBuf>) {
@@ -577,7 +607,11 @@ impl ToolsPanel {
             ui.set_min_width((ui.available_width() - 20.0).max(0.0));
             ui.strong(tr("游戏配置"));
             if has_game {
-                ui.label(self.game.display().to_string());
+                ui.add(
+                    egui::Label::new(self.game.display().to_string())
+                        .wrap()
+                        .selectable(true),
+                );
                 if let Ok(architecture) = game_tools::game_architecture(&self.game) {
                     ui.label(format!("{}: {architecture}", tr("游戏架构")));
                 }
@@ -585,6 +619,12 @@ impl ToolsPanel {
                 ui.label(tr("尚未选择游戏目录"));
             }
             ui.horizontal_wrapped(|ui| {
+                if ui
+                    .add_enabled(idle, egui::Button::new(tr("一键定位游戏目录")))
+                    .clicked()
+                {
+                    self.locate_game();
+                }
                 if ui
                     .add_enabled(
                         idle,
@@ -606,6 +646,17 @@ impl ToolsPanel {
                     self.refresh_game();
                 }
             });
+            if !self.game_candidates.is_empty() {
+                ui.label(tr("找到多个游戏目录，请选择要使用的目录："));
+                for path in self.game_candidates.clone() {
+                    if ui
+                        .add_enabled(idle, egui::Button::new(path.display().to_string()).wrap())
+                        .clicked()
+                    {
+                        self.select_game(path);
+                    }
+                }
+            }
         });
         ui.add_space(10.0);
         if has_game {
@@ -645,6 +696,16 @@ impl ToolsPanel {
                     {
                         self.start_setup(None);
                     }
+                }
+                if ready
+                    && ui
+                        .add_enabled(
+                            idle && self.runtime_available(),
+                            egui::Button::new(tr("重新配置游戏环境")),
+                        )
+                        .clicked()
+                {
+                    self.start_setup(None);
                 }
                 if ui
                     .add_enabled(idle, egui::Button::new(tr("查看安装检查结果")))

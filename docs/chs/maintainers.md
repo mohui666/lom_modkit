@@ -2,7 +2,7 @@
 
 当前工具端由 Rust 编译器、核心库与 egui 编辑器组成；C# `MortalModHost` 保留游戏接入。日常编辑见 [软件使用](software_usage.md)，构建和 CLI 见 [Rust 工具端](rust.md)，验证层次见 [测试矩阵](test_matrix.md)。旧 Python／Qt／PyInstaller 入口已经退役，不作为本手册操作入口。
 
-2026-10-04 本轮仅核对文档、源码和脚本，未运行下列命令。上一轮 Mac 验收的 179 项测试和 133 项预览结果详见 [迁移验收表](rust_migration.md)。Windows 构建、Windows 测试与游戏实机测试均未在此次迁移中执行。
+当前 v1.3.0 的测试和 Windows 构建见 [版本记录](../../RELEASE_NOTES_v1.3.0.md)。2026-10-04 的早期迁移文档核对、Mac 179 项测试及 133 项预览仅为历史记录，见 [迁移验收表](rust_migration.md)。
 
 ## 编辑器入口与设置
 
@@ -57,7 +57,7 @@
 
 当前事件／任务作品要求包含 Scenario 的 Host 1.1.3，新 Windows 构建应同时提供 `MortalModHost.dll` 与 `NVorbis.dll`。选择完整编辑器旁的 `runtime` 目录；`changed:false` 仅表示所选源与已装文件一致，不代表互联网最新版本。
 
-当前源码的一级入口为“游戏与 MOD”。首次选择包含 `Mortal.exe` 的目录后，点击“一键配置游戏”：自动下载匹配架构的官方加载器、配置 Steam 启动、安装随工具分发的 C# 宿主并检查结果。缺少宿主文件时会明确提示，可在“高级维护”选择同时含 `MortalModHost.dll`、`NVorbis.dll` 的完整目录。Mac 显示平台说明及素材、发布入口，不展示不可用的安装控件。
+当前源码的一级入口为“游戏与 MOD”。先点“一键定位游戏目录”，或手动选择包含 `Mortal.exe` 的目录，再点击“一键配置游戏”：自动下载匹配架构的官方加载器、配置 Steam 启动、安装随工具分发的 C# 宿主并检查结果。Steam 定位支持其他盘的游戏库；多处安装会列出供选择，定位本身只读游戏文件。已就绪时可点击“重新配置游戏环境”。缺少宿主文件时会明确提示，可在“高级维护”选择同时含 `MortalModHost.dll`、`NVorbis.dll` 的完整目录。Mac 显示平台说明及素材、发布入口，不展示不可用的安装控件。
 
 Runtime 更新在 `BepInEx/plugins/MortalModHost/.runtime_rollback/` 保留已有 DLL 的备份与记录；安装写入失败时尝试恢复原文件。全新安装没有上一版。回滚不应改动游戏程序、Managed、存档或第三方插件。在线配置与“高级维护 → 使用官方离线压缩包配置…”均只接受代码固定版本、架构和摘要匹配的官方压缩包。
 
@@ -77,7 +77,7 @@ Runtime 更新在 `BepInEx/plugins/MortalModHost/.runtime_rollback/` 保留已�
 
 ## 原生离线验证入口
 
-以下均在仓库根目录执行；本次文档维护没有运行它们：
+以下均在仓库根目录执行；本次执行结果见版本记录：
 
 ```sh
 sh scripts/test-native.sh

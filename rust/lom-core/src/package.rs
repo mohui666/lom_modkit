@@ -251,16 +251,25 @@ fn validate_entries(entries: &Entries) -> Result<()> {
     verify_integrity(&entries)?;
     verify_story_lua_pairs(entries, &manifest)?;
     if crate::scenario::enabled(&manifest) {
-        let config:Value=serde_json::from_slice(entries.get("scenario.json").context("缺少 scenario.json")?)?;
-        let mut stories=BTreeMap::new();
-        for (name,data) in entries {
+        let config: Value =
+            serde_json::from_slice(entries.get("scenario.json").context("缺少 scenario.json")?)?;
+        let mut stories = BTreeMap::new();
+        for (name, data) in entries {
             if name.starts_with("story/") && name.ends_with(".json") {
-                let story:Value=serde_json::from_slice(data)?;
-                stories.insert(story["id"].as_str().context("章节 id 无效")?.to_owned(),story);
+                let story: Value = serde_json::from_slice(data)?;
+                stories.insert(
+                    story["id"].as_str().context("章节 id 无效")?.to_owned(),
+                    story,
+                );
             }
         }
-        crate::scenario::validate(&config,&manifest,&stories)?;
-    } else { ensure!(!entries.contains_key("scenario.json"),"scenario.json 需要 manifest.play_mode"); }
+        crate::scenario::validate(&config, &manifest, &stories)?;
+    } else {
+        ensure!(
+            !entries.contains_key("scenario.json"),
+            "scenario.json 需要 manifest.play_mode"
+        );
+    }
     Ok(())
 }
 /// Read-only inspection can explain a malformed manifest or integrity failure.
@@ -610,10 +619,12 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
     }
     ensure!(!stories.is_empty(), "story/ 下没有剧情 JSON");
     let scenario = if crate::scenario::enabled(&manifest) {
-        let config=load_json(resolve_confined_file(&root,&root.join("scenario.json"))?)?;
-        crate::scenario::validate(&config,&manifest,&stories)?;
+        let config = load_json(resolve_confined_file(&root, &root.join("scenario.json"))?)?;
+        crate::scenario::validate(&config, &manifest, &stories)?;
         Some(config)
-    } else { None };
+    } else {
+        None
+    };
     merge_triggers(&mut manifest, &stories)?;
     validate::validate_manifest(&manifest)?;
     for (key, val) in [
@@ -652,11 +663,28 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
         validate::validate_manifest(&manifest)?;
     }
     let exists = |target: &Value| target.as_str().is_some_and(|s| stories.contains_key(s));
-    if stories.values().any(|story|story["nodes"].as_array().into_iter().flatten().any(|n|n.get("event_result").is_some())) {
-        if manifest.get("min_host_version").is_none() {manifest["min_host_version"]=json!(crate::scenario::MIN_HOST);}
-        let version=manifest["min_host_version"].as_str().unwrap_or("");
-        let core=version.split(['.','-','+']).take(3).map(|n|n.parse::<u32>().unwrap_or(0)).collect::<Vec<_>>();
-        ensure!(core.as_slice()>[1,1,3].as_slice() || core.as_slice()==[1,1,3].as_slice() && !version.split('+').next().unwrap_or(version).contains('-'),"event_result 要求 min_host_version 至少 1.1.3");
+    if stories.values().any(|story| {
+        story["nodes"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .any(|n| n.get("event_result").is_some())
+    }) {
+        if manifest.get("min_host_version").is_none() {
+            manifest["min_host_version"] = json!(crate::scenario::MIN_HOST);
+        }
+        let version = manifest["min_host_version"].as_str().unwrap_or("");
+        let core = version
+            .split(['.', '-', '+'])
+            .take(3)
+            .map(|n| n.parse::<u32>().unwrap_or(0))
+            .collect::<Vec<_>>();
+        ensure!(
+            core.as_slice() > [1, 1, 3].as_slice()
+                || core.as_slice() == [1, 1, 3].as_slice()
+                    && !version.split('+').next().unwrap_or(version).contains('-'),
+            "event_result 要求 min_host_version 至少 1.1.3"
+        );
         validate::validate_manifest(&manifest)?;
     }
     ensure!(exists(&manifest["entry"]), "entry 指向不存在的章节");
@@ -668,7 +696,9 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
         ensure!(exists(&trigger["script"]), "自由模式触发指向不存在的章节");
     }
     let mut entries = Entries::new();
-    if let Some(config)=scenario { entries.insert("scenario.json".into(),stable_json(&config)?); }
+    if let Some(config) = scenario {
+        entries.insert("scenario.json".into(), stable_json(&config)?);
+    }
     let mut texts = json!({});
     let mut loc_pair: Option<(String, String)> = None;
     for (id, story) in &stories {

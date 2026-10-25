@@ -50,6 +50,7 @@ pub fn stable_json(value: &Value) -> Result<Vec<u8>> {
 }
 pub mod content_edit;
 pub mod editing;
+pub mod game_discovery;
 pub mod game_tools;
-pub mod story_api;
 pub mod scenario;
+pub mod story_api;

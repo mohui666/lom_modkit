@@ -24,7 +24,7 @@ Use the relevant interface evidence below; only inspect the type needed for the 
    ```
 
    Prefer the game’s `Mortal_Data/Managed/*.dll`. Frozen copies under
-   [`docs/research/decompiled/`](docs/research/decompiled/) are an
+   `docs/research/decompiled/` are a local, ignored
    archive only; they do not include `Mortal.Battle` / `Mortal.Combat`.
 4. After a game update, inspect only the affected live type and method before reusing old API conclusions; do not run hash-based verification.
 
@@ -53,7 +53,7 @@ or Host Combat/Battle contracts, update the affected sample and rebuild the nati
 Rust editor. Keep C# Host integration and v3 package compatibility.
 
 Showcase source is `samples/showcase3/source.json`. It must use the new fields,
-not merely compile them. Generate and validate all 63 node types with:
+not merely compile them. Generate and validate all 64 node types with:
 
 ```sh
 cargo run --locked -p lomc --example build_showcase3 -- out/showcase3-native

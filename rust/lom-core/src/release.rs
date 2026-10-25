@@ -389,8 +389,20 @@ pub fn run_preflight(
 ) -> Vec<PreflightIssue> {
     let mut issues = Vec::new();
     if crate::scenario::enabled(&project.manifest) {
-        let result=project.scenario.as_ref().context("缺少 scenario.json").and_then(|c|crate::scenario::validate(c,&project.manifest,&project.stories));
-        if let Err(e)=result { issues.push(PreflightIssue::new("error","invalid_scenario","","",format!("{e:#}"))); }
+        let result = project
+            .scenario
+            .as_ref()
+            .context("缺少 scenario.json")
+            .and_then(|c| crate::scenario::validate(c, &project.manifest, &project.stories));
+        if let Err(e) = result {
+            issues.push(PreflightIssue::new(
+                "error",
+                "invalid_scenario",
+                "",
+                "",
+                format!("{e:#}"),
+            ));
+        }
     }
     let entry = text(&project.manifest, "entry");
     if entry.is_empty() || !project.stories.contains_key(entry) {
@@ -498,8 +510,14 @@ pub fn run_preflight(
     }
     let mut seen = BTreeSet::new();
     let mut pending = vec![entry.to_owned()];
-    if let Some(config)=&project.scenario {
-        pending.extend(config["events"].as_array().into_iter().flatten().filter_map(|e|e["script"].as_str().map(str::to_owned)));
+    if let Some(config) = &project.scenario {
+        pending.extend(
+            config["events"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|e| e["script"].as_str().map(str::to_owned)),
+        );
     }
     while let Some(sid) = pending.pop() {
         if seen.insert(sid.clone()) {

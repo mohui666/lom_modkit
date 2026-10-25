@@ -2,15 +2,15 @@
 
 **《活侠传》（Legend of Mortal）可视化剧情 Mod 制作工具。** 用图形编辑器编排人物对白、场景、分支、音乐和音效，导出 `.lommod`，由 C# 游戏插件加载。
 
-**v1.2.1** 修复作品内容库的角色立绘导入与表情编号冲突，并为全局表单补充必填星号和条件必填提示。沿用 v1.2.0 的 Rust 工具端、C# 接入层与 64 位游戏适配；游戏实测属于 v1.2.0，范围见 [x64 验证记录](docs/chs/x64_validation.md)。本次验证见 [v1.2.1 变更记录](RELEASE_NOTES_v1.2.1.md)。
+**v1.3.0** 增加原版附加剧情与自由剧本两种创作模式、独立事件／任务配置和日期／重复事件编辑；优化按钮、页面与弹窗，并新增一键定位 Steam 游戏目录。Windows 完整包包含 Host **1.1.3** 和预览素材提取助手。改动与验证边界见 [v1.3.0 变更记录](RELEASE_NOTES_v1.3.0.md)。
 
-[软件使用](docs/chs/software_usage.md) · [核心功能教程](docs/chs/core_tutorial.md) · [Mac 编辑器](docs/chs/macos.md) · [文档索引](docs/README.md) · [Windows v1.2.1 下载](https://github.com/mohui666/lom_modkit/releases/tag/v1.2.1)
+[软件使用](docs/chs/software_usage.md) · [核心功能教程](docs/chs/core_tutorial.md) · [Mac 编辑器](docs/chs/macos.md) · [文档索引](docs/README.md) · [Windows v1.3.0 下载](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.0)
 
 语言：简体中文（本文） · [繁體中文](README.cht.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 ## 使用发布包
 
-从 Release 下载 Windows ZIP，完整解压后运行 `lom_modkit/lom-editor.exe`。当前源码构建的入口是「游戏与 MOD」：选择游戏目录后点击「一键配置游戏」，完成加载器、Steam 启动和宿主配置；离线安装、修复和回滚位于「高级维护」。已发布 ZIP 的入口以其版本界面为准。游戏从 32 位升级的用户也需要更新加载器和 Host。
+从 Release 下载 Windows ZIP，完整解压后运行 `lom_modkit/lom-editor.exe`。入口是「游戏与 MOD」：点击「一键定位游戏目录」（或手动选择），再点击「一键配置游戏」，完成加载器、Steam 启动和宿主配置；离线安装、修复和回滚位于「高级维护」。配置就绪后可用「重新配置游戏环境」更新或重新检查安装。游戏从 32 位升级的用户也需要更新加载器和 Host。
 
 ## 从源码开始
 
@@ -50,7 +50,7 @@ macOS 从屏幕顶部系统应用菜单打开「设置」，快捷键 `⌘,`；W
 | 用户内容 | 「素材管理 → 作品素材 → 导入素材…」导入人物、音频和图片；项目保存与导出统一处理有效修改 |
 | 四语言剧情 | 「编辑 → 多语言」维护作品译文、回退和覆盖统计；界面语言不会改写作者台词 |
 | 检查与交付 | 项目检查、包检查、发布构建、语音覆盖、脱敏诊断和水印检测 |
-| 游戏接入 | C# Host 保留，提供 Mod 菜单、试玩与独立战役存档；x64 游戏启动、F5 与 Combat/Battle 已完成定向冒烟 |
+| 游戏接入 | 一键定位 Steam 游戏、在线／离线配置加载器及 Host、管理 MOD；历史 x64 游戏冒烟范围见 [验证记录](docs/chs/x64_validation.md) |
 
 资源选择器显示翻译名称；不同资源同名时加稳定数字，例如「武师 1」「武师 2」。数字只用于界面区分，不修改保存的资源标识或台词。人物资源目录也含包子、马车、棋盘等道具立绘；对白模式可为它们配置文字，但不会自动生成语音。详情见 [用户内容](docs/chs/user_content.md)。
 
@@ -81,6 +81,9 @@ cargo run --locked -p lom-editor -- --smoke-preview samples/showcase3
 远端主分支为 `master`，通过 PR 和必需的 macOS Rust、Linux Runtime 离线 CI 检查后合并。游戏功能修改须先查 [AGENTS.md](AGENTS.md) 和 [反编译接口](docs/chs/decompiled_api.md)，不得提交整份游戏反编译源码或提取资源。
 
 ## 文档与版本
+
+- [v1.3.0 变更记录](RELEASE_NOTES_v1.3.0.md)：两种模式、事件任务、UI、自动定位及本次验证。
+- [11 分钟中文软件演示](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0-core-tutorial-zh-CN.mp4) · [跟做项目](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0-tutorial-follow-along.zip)：不启动游戏。
 
 - [文档索引](docs/README.md)：作者指南、格式契约和维护入口。
 - [当前能力](docs/chs/current_capabilities.md)：实现范围与限制。
