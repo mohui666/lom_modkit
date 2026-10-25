@@ -10,10 +10,10 @@
 
 | 版本 | 說明 |
 | --- | --- |
-| **目前原始碼：v1.3.0** | 編輯器與編譯器已改為 Rust；保留 C# 遊戲宿主及 `.lommod` v3 格式契約。 |
-| **Windows 發行版：v1.3.0** | 新增兩種創作模式、事件與任務配置，優化介面並支援一鍵定位 Steam 遊戲目錄。 |
+| **目前原始碼：v1.3.1** | 編輯器與編譯器已改為 Rust；保留 C# 遊戲宿主及 `.lommod` v3 格式契約。 |
+| **Windows 發行版：v1.3.1** | 新增兩種創作模式、事件與任務配置，優化介面並支援一鍵定位 Steam 遊戲目錄。 |
 
-[下載 v1.3.0（Windows）](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0_windows_x64.zip) · [v1.3.0 Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.0)
+[下載 v1.3.1（Windows）](https://github.com/mohui666/lom_modkit/releases/download/v1.3.1/lom_modkit-v1.3.1_windows_x64.zip) · [v1.3.1 Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.1)
 
 完整解壓縮後執行 `lom_modkit/lom-editor.exe`；更新遊戲載入器與 C# 宿主的步驟及測試範圍見 [x64 驗證記錄（簡中）](docs/chs/x64_validation.md)。
 

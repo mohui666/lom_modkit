@@ -10,10 +10,10 @@
 
 | バージョン | 内容 |
 | --- | --- |
-| **現在のソース：v1.3.0** | エディターとコンパイラーは Rust に移行済みです。C# ゲームホストと `.lommod` v3 の仕様は維持しています。 |
-| **Windows リリース：v1.3.0** | 2 つの制作モード、イベント・タスク設定、UI 改善、Steam ゲームフォルダーの自動検出を追加。 |
+| **現在のソース：v1.3.1** | エディターとコンパイラーは Rust に移行済みです。C# ゲームホストと `.lommod` v3 の仕様は維持しています。 |
+| **Windows リリース：v1.3.1** | 2 つの制作モード、イベント・タスク設定、UI 改善、Steam ゲームフォルダーの自動検出を追加。 |
 
-[v1.3.0 をダウンロード（Windows）](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0_windows_x64.zip) · [v1.3.0 Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.0)
+[v1.3.1 をダウンロード（Windows）](https://github.com/mohui666/lom_modkit/releases/download/v1.3.1/lom_modkit-v1.3.1_windows_x64.zip) · [v1.3.1 Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.1)
 
 ZIP 全体を展開し、`lom_modkit/lom-editor.exe` を起動してください。ローダーと C# ホストの更新手順、検証範囲は [x64 検証記録（簡体字中国語）](docs/chs/x64_validation.md) を参照してください。
 
