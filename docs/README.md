@@ -10,6 +10,7 @@
 
 | 文档 | 内容 |
 | --- | --- |
+| [Windows 快速开始](chs/windows_quick_start.md) | 完整包内也可阅读的安装、定位与新建指引 |
 | [核心功能教程](chs/core_tutorial.md) | 仅软件演示：创建、演出、素材、事件任务、检查、保存与导出 |
 | [软件使用](chs/software_usage.md) | 新建、章节、步骤、保存、预览与导出 |
 | [用户内容](chs/user_content.md) | 音频、人物、图片的导入与引用 |

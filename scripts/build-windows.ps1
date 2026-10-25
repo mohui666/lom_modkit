@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$Version = "",
     [string]$BundleDirectory = "",
@@ -130,6 +130,8 @@ foreach ($Architecture in @("x86", "x64")) {
 foreach ($Name in @("README.md", "LICENSE.UnityDoorstop")) {
     Copy-Item -LiteralPath (Join-Path $RepositoryRoot "editor\assets\doorstop\$Name") -Destination (Join-Path $BundleDirectory "assets\doorstop\$Name")
 }
+Copy-Item -LiteralPath (Join-Path $RepositoryRoot "docs\chs\windows_quick_start.md") -Destination (Join-Path $BundleDirectory "README-Windows.md")
+Copy-Item -LiteralPath (Join-Path $RepositoryRoot "LICENSE") -Destination (Join-Path $BundleDirectory "LICENSE")
 if ($NoArchive) { Write-Host "Built native tools: $BundleDirectory"; return }
 $BundleDirectory = (Resolve-Path -LiteralPath $BundleDirectory).Path
 [IO.Directory]::CreateDirectory($OutputDirectory) | Out-Null
@@ -145,6 +147,8 @@ if ($OutputDirectory.Equals($BundleDirectory, [StringComparison]::OrdinalIgnoreC
 }
 
 $RequiredFiles = @(
+    "README-Windows.md",
+    "LICENSE",
     "asset-extractor\lom-asset-extractor.exe",
     "lom-editor.exe",
     "lomc.exe",
