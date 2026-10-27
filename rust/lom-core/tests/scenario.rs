@@ -79,8 +79,6 @@ fn new_modes_protect_legacy_and_presentation_boundary() {
         "free_trigger",
         "mod_quest",
         "persistent_var",
-        "mission",
-        "stat",
         "result_screen",
         "raw",
     ] {
@@ -89,6 +87,32 @@ fn new_modes_protect_legacy_and_presentation_boundary() {
         assert!(scenario::validate(p.scenario.as_ref().unwrap(), &p.manifest, &stories).is_err());
     }
     assert!(Project::new().scenario.is_none());
+}
+
+#[test]
+fn new_modes_keep_in_story_attributes_items_flags_and_time_available() {
+    for mode in ["addon", "sandbox"] {
+        let p = Project::new_scenario(mode);
+        for kind in [
+            "stat",
+            "stat_set",
+            "affinity",
+            "talent",
+            "item",
+            "flag",
+            "game_flag",
+            "mission",
+            "time",
+        ] {
+            assert!(
+                scenario::performance_node(kind),
+                "{mode}: {kind} disappeared from the palette"
+            );
+            let mut stories = p.stories.clone();
+            stories.get_mut("main").unwrap()["nodes"][0]["type"] = json!(kind);
+            scenario::validate(p.scenario.as_ref().unwrap(), &p.manifest, &stories).unwrap();
+        }
+    }
 }
 #[test]
 fn result_node_compiles_and_cannot_continue_to_another_chapter() {

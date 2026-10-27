@@ -9,7 +9,8 @@
       },
       "optional": {
         "op": "music_op",
-        "seconds": "num"
+        "seconds": "num",
+        "wait_after": "num"
       }
     },
     "sound": {
@@ -19,14 +20,17 @@
       "optional": {
         "kind": "sound_kind",
         "op": "sound_op",
-        "seconds": "num"
+        "seconds": "num",
+        "wait_after": "num"
       }
     },
     "scene": {
       "required": {
         "view": "str"
       },
-      "optional": {}
+      "optional": {
+        "wait_after": "num"
+      }
     },
     "background": {
       "required": {
@@ -34,7 +38,8 @@
       },
       "optional": {
         "image": "str",
-        "fade": "num"
+        "fade": "num",
+        "wait_after": "num"
       }
     },
     "custom_cg": {
@@ -46,7 +51,8 @@
         "fade": "num",
         "scale": "num",
         "x": "num",
-        "y": "num"
+        "y": "num",
+        "wait_after": "num"
       }
     },
     "overlay": {
@@ -60,7 +66,8 @@
         "scale": "num",
         "opacity": "num",
         "layer": "overlay_layer",
-        "fade": "num"
+        "fade": "num",
+        "wait_after": "num"
       }
     },
     "show": {
@@ -73,7 +80,9 @@
         "appearance": "str",
         "facing": "facing",
         "fadeDuration": "num",
-        "moveDuration": "num"
+        "moveDuration": "num",
+        "wait_after": "num",
+        "wait_for_completion": "bool"
       }
     },
     "move": {
@@ -83,7 +92,8 @@
         "to": "str"
       },
       "optional": {
-        "duration": "num"
+        "duration": "num",
+        "wait_after": "num"
       }
     },
     "face": {
@@ -91,21 +101,28 @@
         "character": "str",
         "facing": "facing"
       },
-      "optional": {}
+      "optional": {
+        "wait_after": "num"
+      }
     },
     "hide": {
       "required": {
         "character": "str"
       },
       "optional": {
-        "fadeDuration": "num"
+        "fadeDuration": "num",
+        "wait_after": "num",
+        "wait_for_completion": "bool"
       }
     },
     "focus": {
       "required": {
         "character": "str"
       },
-      "optional": {}
+      "optional": {
+        "wait_after": "num",
+        "wait_for_completion": "bool"
+      }
     },
     "offset": {
       "required": {
@@ -114,7 +131,9 @@
         "y": "num",
         "duration": "num"
       },
-      "optional": {}
+      "optional": {
+        "wait_after": "num"
+      }
     },
     "say": {
       "required": {
@@ -124,7 +143,8 @@
         "character": "str",
         "portrait": "str",
         "mode": "mode",
-        "voice": "str"
+        "voice": "str",
+        "font_size": "say_font_size"
       }
     },
     "choice": {
@@ -140,14 +160,17 @@
         "character": "str"
       },
       "optional": {
-        "duration": "num"
+        "duration": "num",
+        "wait_after": "num"
       }
     },
     "mask": {
       "required": {
         "show": "bool"
       },
-      "optional": {}
+      "optional": {
+        "wait_after": "num"
+      }
     },
     "intro": {
       "required": {},
@@ -174,7 +197,8 @@
         "b": "num",
         "c": "num",
         "d": "num",
-        "play": "bool"
+        "play": "bool",
+        "wait_after": "num"
       }
     },
     "transition": {
@@ -182,7 +206,8 @@
         "phase": "transition_phase"
       },
       "optional": {
-        "dir": "transition_dir"
+        "dir": "transition_dir",
+        "wait_after": "num"
       }
     },
     "camera": {
@@ -190,7 +215,9 @@
         "name": "str",
         "active": "bool"
       },
-      "optional": {}
+      "optional": {
+        "wait_after": "num"
+      }
     },
     "block": {
       "required": {
@@ -210,7 +237,9 @@
         "key": "str",
         "key2": "str",
         "n1": "num",
-        "n2": "num"
+        "n2": "num",
+        "color": "num",
+        "wait_after": "num"
       }
     },
     "dim": {
@@ -218,7 +247,10 @@
         "character": "str",
         "dimmed": "bool"
       },
-      "optional": {}
+      "optional": {
+        "wait_after": "num",
+        "wait_for_completion": "bool"
+      }
     },
     "message": {
       "required": {
@@ -232,13 +264,18 @@
         "angle": "num",
         "duration": "num"
       },
-      "optional": {}
+      "optional": {
+        "wait_after": "num",
+        "wait_for_completion": "bool"
+      }
     },
     "dayenv": {
       "required": {
         "day_type": "num"
       },
-      "optional": {}
+      "optional": {
+        "wait_after": "num"
+      }
     },
     "stat": {
       "required": {

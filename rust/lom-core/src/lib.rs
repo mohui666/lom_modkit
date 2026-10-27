@@ -4,6 +4,7 @@ pub mod codegen;
 pub mod content;
 pub mod content_library;
 pub mod localization;
+pub mod lua_import;
 pub mod migration;
 pub mod package;
 pub mod parallel;

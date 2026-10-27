@@ -5,6 +5,10 @@
 本页和 `gameplay_api_contract.json` 是我们自己整理的接口摘要，可以进仓库。
 用 `ilspycmd` 从游戏 DLL 转出的整份 `.cs` **不要上传**（见根目录 `AGENTS.md`、`.gitignore` 里的 `docs/research/decompiled/`）。
 
+## 2026-10-27 人物持续压暗接口核对
+
+当前 Windows 安装的 `Fungus.SayDialog.SetCharacter` 会自动调用 `Stage.SetDimmed`，`PortraitController.Show/ShowPortrait` 还会创建白色 RGB 补间。显式压暗由 `mod_char_dim` 统一记录；补丁在 `PortraitController.SetDimmed` / `StoryStageController.SetDimmed` 保留作者选择，并改写 `LeanTween.color(RectTransform, Color, float)` 的目标 RGB。`LeanTween.descriptions(GameObject)` / `cancel(int)` 仅用于替换 RGB 补间，保留 alpha 淡入淡出和移动。切章、清舞台和结束会话沿现有 `CustomCharacterRuntime.ClearAll` 清理。接口及 Host 构建已核对，实机效果另行验收。
+
 ## 2026-10-17 x64 更新核对
 
 本次从本机 Whisky 安装的 `Mortal_Data/Managed/Mortal.Combat.dll`、`Mortal.Story.dll`、`Mortal.Core.dll` 只读检查以下受影响类型，没有计算游戏程序集哈希：
@@ -75,6 +79,12 @@ Windows 实机还确认 `Mortal.Core.CharacterIntroPanel` 同时提供 `IEnumera
 | 游戏内/战役读档 | `MenuPanel.LoadButtonClick` 打开 `_loadPanel`；战役暂停是 `PausePanel.LoadButtonClick` 打开另一份 `_loadPanel` | MOD 战役中两处都复用标题那套战役存档页，并默认进入当前 MOD 的次级存档页，按当前 `campaign_id` 显示 001～020 手动隔离槽和三类自动槽 |
 | 结算展示 | 已验证剧情入口 `mainui.DisplayMessageText`，以及 `reward` 已使用的属性/好感/天赋/物品/旗标原子接口 | `result_screen` 仅把标题/说明提示与现有奖励顺序组合；不新增、Patch 或猜测结算 UI |
 | 自定义骰子 | `DiceMenuDialog.ExecuteRoll(string[],...)` 逐项写入 `CachedButtons[i]`，`UpdateSelection` 按结果序号选中按钮；`DiceCheckResult.ResultCount` 是随机点数与加值之和；当前提取的原版检查点结果档数最大为 4 | 作者直接设置 max、标题、固定加值及 2～4 个结果分段。Host 仅为特殊 MOD 检查名构造结果，继续复用原版 DiceMenuDialog。超过 4 档没有原版按钮容量证据，因此不开放 |
+
+## 2026-10-27 官方插图预览与大图底色
+
+- 实时反编译 `Mortal.Story.StoryPicture.Show(string key)` 确认加载 `Addressables.LoadAssetAsync<Sprite>("pic_" + key)`；提取器因此仅从本机 catalog 的 `pic_` 地址生成图键，使用 catalog 的真实内部路径解析 Sprite。当前目录共 537 个图键，`data/picture_keys.json` 只保存键和目录分类；图片仅写入用户本地预览缓存。
+- `StoryMainUI.ShowPicture(string)`、`ShowItemPicture(string)` 与 `ShowBigPicture(string,int)` 调用相同的 `StoryPicture.Show`。大图的第二参 `color` 为 0 白底、1 黑底、2 透明；`cg kind=big` 必须传此参数，省略编辑字段时生成 0。`ShowMap(string,string)` / `ShowFamilyTree(string,string,float,float)` 为地图点位演出，`DisplayTitle(string)` 为本地化标题文本，不能当作图片地址。
+- 本次实际从本机解码了普通插图、物品图和大图各一张；未启动游戏验证显示时序。自动用例检查图键映射、失败文件排除、缓存路径与大图参数。
 
 ## 明确不支持
 

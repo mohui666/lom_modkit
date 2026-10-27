@@ -71,6 +71,22 @@ class PreviewWorkerTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "游戏文件夹之外"):
                 worker.extract(game, inside, 128)
 
+    def test_picture_keys_follow_the_native_prefix_and_use_confined_preview_paths(self):
+        with TemporaryDirectory() as folder:
+            game, output, addresses, chars = self.fixture(Path(folder))
+            addresses.update({"pic_big_fixture": "pictures.bundle", "pic_missing": "missing.bundle"})
+            addresses.asset_paths["pic_big_fixture"] = "Assets/Images/BigPicture/fixture.png"
+            sprite = SimpleNamespace(read=lambda: SimpleNamespace(image=Image.new("RGBA", (300, 150))))
+            with patch.object(probe, "parse_catalog", return_value=addresses), patch.object(probe, "load_sa2", return_value=(chars, {"room": {"address": "view"}})), patch.object(probe, "resolve_sprite", return_value=sprite), patch("UnityPy.load", return_value=object()), contextlib.redirect_stdout(io.StringIO()):
+                report = worker.extract(game, output, 128)
+            mapping = json.loads((output / "preview_map.json").read_text())
+            self.assertEqual(report["pictures"], 1)
+            self.assertEqual(mapping["picture_catalog"][0], {"key": "big_fixture", "category": "BigPicture"})
+            self.assertNotIn("missing", mapping["pictures"])
+            relative = mapping["pictures"]["big_fixture"]
+            self.assertTrue(relative.startswith("assets/pictures/"))
+            self.assertTrue((output / relative).is_file())
+
     def test_total_failure_does_not_publish_a_preview_map(self):
         with TemporaryDirectory() as folder:
             game, output, addresses, chars = self.fixture(Path(folder))

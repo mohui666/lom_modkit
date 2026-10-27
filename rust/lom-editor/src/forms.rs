@@ -291,6 +291,32 @@ impl Catalog {
             }
             return vec![("normal".into(), "normal".into())];
         }
+        if kind == "official_picture" {
+            let catalog: Value =
+                serde_json::from_str(include_str!("../../../data/picture_keys.json"))
+                    .expect("picture keys");
+            let preferred = match node["kind"].as_str() {
+                Some("item") => "Items",
+                Some("big") => "BigPicture",
+                _ => "Picture",
+            };
+            let mut result: Vec<_> = catalog["pictures"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|row| {
+                    Some((
+                        row["key"].as_str()?.to_owned(),
+                        row["category"].as_str()?.to_owned(),
+                    ))
+                })
+                .collect();
+            result.sort_by_key(|(key, category)| (category != preferred, key.clone()));
+            return result
+                .into_iter()
+                .map(|(key, category)| (key.clone(), format!("{key} · {category}")))
+                .collect();
+        }
         if kind == "mode" {
             return self.schema["MODE_CN_SRC"]
                 .as_object()
@@ -511,10 +537,24 @@ impl Catalog {
                     ui,
                     node,
                     key,
-                    label,
+                    if kind == "cg" && key == "key" && node["kind"] == "title" {
+                        "标题文字"
+                    } else if kind == "cg"
+                        && key == "key"
+                        && matches!(node["kind"].as_str(), Some("picture" | "item" | "big"))
+                    {
+                        "图片"
+                    } else {
+                        label
+                    },
                     if kind == "intro" && key == "character" && node["intro_source"] == "character"
                     {
                         "character"
+                    } else if kind == "cg"
+                        && key == "key"
+                        && matches!(node["kind"].as_str(), Some("picture" | "item" | "big"))
+                    {
+                        "official_picture"
                     } else {
                         field_kind
                     },
@@ -658,7 +698,7 @@ impl Catalog {
                         .cloned()
                         .unwrap_or_default();
                     for field in fields {
-                        if field[0] == "appearance" {
+                        if field[0] == "appearance" || field[0] == "wait_for_completion" {
                             continue;
                         }
                         if let (Some(key), Some(label), Some(field_kind)) =
@@ -974,8 +1014,17 @@ impl Catalog {
                             c
                         }
                         "int" | "bool_int" | "discount_toggle" => {
-                            let mut n = value.as_i64().unwrap_or(0);
-                            let response = ui.add(egui::DragValue::new(&mut n).speed(1));
+                            let mut n = value.as_i64().unwrap_or(match value.as_str() {
+                                Some("small") if key == "font_size" => 24,
+                                Some("large") if key == "font_size" => 60,
+                                _ => 0,
+                            });
+                            let response = if key == "font_size" {
+                                ui.add(egui::DragValue::new(&mut n).speed(1).range(0..=200))
+                                    .on_hover_text(tr("0 使用游戏默认字号，1～200 调节本句字号。"))
+                            } else {
+                                ui.add(egui::DragValue::new(&mut n).speed(1))
+                            };
                             let mut c = response.changed();
                             if optional && !present {
                                 response.context_menu(|ui| {
@@ -993,7 +1042,16 @@ impl Catalog {
                         "float" | "percent_scale" | "percent_cg_scale" | "percent_position"
                         | "percent_offset" | "percent_opacity" => {
                             let mut n = value.as_f64().unwrap_or(0.0);
-                            let response = ui.add(egui::DragValue::new(&mut n).speed(0.25));
+                            let drag = egui::DragValue::new(&mut n).speed(if key == "wait_after" {
+                                0.1
+                            } else {
+                                0.25
+                            });
+                            let response = if key == "wait_after" {
+                                ui.add(drag.range(0.0..=f64::INFINITY))
+                            } else {
+                                ui.add(drag)
+                            };
                             let mut c = response.changed();
                             if optional && !present {
                                 response.context_menu(|ui| {
@@ -1081,7 +1139,10 @@ impl Catalog {
                                     .truncate()
                                     .selected_text(display)
                                     .width(ui.available_width())
-                                    .height(260.0)
+                                    .height(
+                                        (ui.ctx().content_rect().height() * 0.55)
+                                            .clamp(260.0, 560.0),
+                                    )
                                     .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
                                     .show_ui(ui, |ui| {
                                         if optional {
@@ -1132,6 +1193,12 @@ impl Catalog {
                                         ui.data_mut(|d| d.insert_temp(search_id, search));
                                     });
                             }
+                            if kind == "position" {
+                                if let Some(position) = stage_position_picker(ui, &s) {
+                                    s = position;
+                                    c = true;
+                                }
+                            }
                             if c {
                                 value = s.into();
                             }
@@ -1165,6 +1232,34 @@ fn is_character_selector(kind: &str) -> bool {
             | "affinity_optional"
             | "battle_character"
     )
+}
+
+fn stage_position_picker(ui: &mut Ui, selected: &str) -> Option<String> {
+    let mut choice = None;
+    egui::CollapsingHeader::new(tr("点击选择站位"))
+        .id_salt("stage-position-picker").default_open(true).show(ui, |ui| {
+            let positions: Value = serde_json::from_str(include_str!("../../../data/stage_positions.json")).expect("stage positions");
+            let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width().max(100.0), 86.0), egui::Sense::hover());
+            let stage = egui::Rect::from_min_max(rect.min + egui::vec2(rect.width()*0.16, 0.0), rect.max - egui::vec2(rect.width()*0.16, 0.0));
+            ui.painter().rect_filled(stage, 4.0, Color32::from_rgb(224,232,236));
+            ui.painter().text(stage.center_top()+egui::vec2(0.0,9.0), egui::Align2::CENTER_TOP, tr("舞台"), egui::FontId::proportional(12.0), Color32::DARK_GRAY);
+            for (id,label) in [("SL","左外"),("L1","左1"),("L2","左2"),("L3","左3"),("M","中"),("R1","右1"),("R2","右2"),("R3","右3"),("SR","右外")] {
+                let x = positions["positions"][id]["x"].as_f64().unwrap_or(0.5) as f32;
+                let normalized = if x < 0.0 {0.055} else if x > 1.0 {0.945} else {0.16+x*0.68};
+                let point = egui::pos2(rect.left()+rect.width()*normalized, rect.center().y+6.0);
+                let hit = egui::Rect::from_center_size(point, egui::vec2((rect.width()/11.0).clamp(12.0,28.0),40.0));
+                let response = ui.interact(hit, ui.id().with(id),egui::Sense::click()).on_hover_text(format!("{id} · {} {:.0}%",tr("距画面左缘"),x*100.0));
+                let active = selected == id;
+                ui.painter().circle_filled(point,if active {6.0} else {4.0},if active {crate::shell::ACCENT} else {Color32::from_rgb(88,107,117)});
+                ui.painter().text(point+egui::vec2(0.0,12.0),egui::Align2::CENTER_TOP,tr(label),egui::FontId::proportional(10.0),Color32::DARK_GRAY);
+                if response.clicked() {choice=Some(id.to_owned());}
+            }
+            if let Some(position) = positions["positions"].get(selected) {
+                ui.small(format!("{selected} · {} {:.0}% · {} {:.0}%", tr("横向"),position["x"].as_f64().unwrap_or(0.5)*100.0,tr("脚底距顶部"),position["feet"].as_f64().unwrap_or(1.0)*100.0));
+            }
+            ui.small(tr("SL / SR 在屏幕左 / 右外侧。完整列表可选择偏移站位，脚底超过 100% 表示低于画面底边。"));
+        });
+    choice
 }
 
 #[derive(Clone, Default)]
@@ -1284,6 +1379,7 @@ fn is_selector(kind: &str) -> bool {
         || matches!(
             kind,
             "node_ref"
+                | "official_picture"
                 | "story_ref"
                 | "facing"
                 | "branch_source"
@@ -1367,6 +1463,17 @@ pub fn number_duplicate_labels(options: &mut [(String, String)]) {
 }
 
 fn field_visible(kind: &str, node: &Value, key: &str) -> bool {
+    if kind == "cg" {
+        return match key {
+            "key" => node["action"] == "show",
+            "key2" => {
+                node["action"] == "show" && matches!(node["kind"].as_str(), Some("map" | "family"))
+            }
+            "n1" | "n2" => node["action"] == "show" && node["kind"] == "family",
+            "color" => node["action"] == "show" && node["kind"] == "big",
+            _ => true,
+        };
+    }
     if key == "appearance" {
         return false;
     } // rendered directly after the grouped character selector

@@ -36,6 +36,7 @@ enum Pending {
 enum Center {
     Node,
     Chapter,
+    Initial,
     Manifest,
     Events,
     Tasks,
@@ -158,6 +159,7 @@ struct App {
     frame: usize,
     asset_selection: String,
     asset_import_dialog: Option<AssetImportDialog>,
+    image_import_target: Option<(String, String)>,
     shell: shell::Shell,
     scroll_selection: (String, usize),
     bulk_key: String,
@@ -167,6 +169,7 @@ struct App {
     section_parent: usize,
     recent: Vec<PathBuf>,
     node_search: String,
+    steps_panel_open: bool,
     tools_panel: crate::tools_panel::ToolsPanel,
     advanced: crate::advanced::Advanced,
     content_panel: crate::content_panel::ContentPanel,
@@ -399,6 +402,7 @@ impl App {
             frame: 0,
             asset_selection: String::new(),
             asset_import_dialog: None,
+            image_import_target: None,
             shell: shell::Shell::default(),
             scroll_selection: (String::new(), usize::MAX),
             bulk_key: String::new(),
@@ -411,6 +415,7 @@ impl App {
                 .and_then(|v| serde_json::from_value(v).ok())
                 .unwrap_or_default(),
             node_search: String::new(),
+            steps_panel_open: true,
             tools_panel: crate::tools_panel::ToolsPanel::default(),
             advanced: crate::advanced::Advanced::default(),
             content_panel: Default::default(),
@@ -769,6 +774,7 @@ impl App {
         self.chapter_dialog = None;
         self.rename_dialog = None;
         self.asset_import_dialog = None;
+        self.image_import_target = None;
         self.audio.stop();
         self.auto = false;
         self.preview_elapsed = None;
@@ -796,6 +802,14 @@ impl App {
         self.asset_dirty = false;
         self.needs_compile = true;
         self.status = format!("已载入 {} 个章节", self.project.stories.len());
+        if let Some(notice) = self
+            .project
+            .stories
+            .values()
+            .find_map(|story| story["lua_import"]["notice"].as_str())
+        {
+            self.status = notice.to_owned();
+        }
     }
     fn save(&mut self, as_new: bool) -> bool {
         if !self.apply_pending_drafts() {
@@ -1242,10 +1256,26 @@ impl App {
             self.tools_panel.open_help();
         }
         if !ctx.wants_keyboard_input() && matches!(self.center, Center::Node | Center::Chapter) {
-            if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::C)) {
+            let (copy, paste) = ctx.input_mut(|input| {
+                let mut copy = input.consume_key(egui::Modifiers::COMMAND, egui::Key::C);
+                let mut paste = input.consume_key(egui::Modifiers::COMMAND, egui::Key::V);
+                input.events.retain(|event| match event {
+                    egui::Event::Copy => {
+                        copy = true;
+                        false
+                    }
+                    egui::Event::Paste(_) => {
+                        paste = true;
+                        false
+                    }
+                    _ => true,
+                });
+                (copy, paste)
+            });
+            if copy {
                 self.copy();
             }
-            if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::V)) {
+            if paste {
                 self.paste();
             }
             if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Delete)) {
@@ -1263,7 +1293,7 @@ impl App {
             }
         } else if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::O)) {
             if let Some(path) = rfd::FileDialog::new()
-                .add_filter("剧情或 Mod 包", &["json", "lommod"])
+                .add_filter("剧情、Lua 或 Mod 包", &["json", "lua", "lommod"])
                 .pick_file()
             {
                 self.request(Pending::Open(path), ctx);
@@ -1325,7 +1355,7 @@ impl App {
                         if ui.button(tr("打开 JSON / Mod 包…")).clicked() {
                             ui.close();
                             if let Some(path) = rfd::FileDialog::new()
-                                .add_filter("剧情或 Mod 包", &["json", "lommod"])
+                                .add_filter("剧情、Lua 或 Mod 包", &["json", "lua", "lommod"])
                                 .pick_file()
                             {
                                 self.request(Pending::Open(path), ctx);
@@ -1568,7 +1598,10 @@ impl App {
         }
         self.flush();
         self.center = center;
-        if matches!(center, Center::Events | Center::Tasks | Center::Manifest) {
+        if matches!(
+            center,
+            Center::Events | Center::Tasks | Center::Manifest | Center::Initial
+        ) {
             self.auto = false;
             self.audio.stop();
         }
@@ -1646,12 +1679,121 @@ impl App {
             Err(e) => self.error = Some(format!("{e:#}")),
         }
     }
+    fn open_initial_setup(&mut self) {
+        if !self.open_center(Center::Initial) {
+            return;
+        }
+        if let Some(config) = &self.project.scenario {
+            if let Some(script) = config["events"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .find(|event| event["id"] == config["entry_event"])
+                .and_then(|event| event["script"].as_str())
+                .filter(|id| self.project.stories.contains_key(*id))
+            {
+                self.current = script.to_owned();
+            }
+        }
+        self.selected = 0;
+        self.multiselect.clear();
+    }
+    fn step_palette(&mut self, ctx: &egui::Context) {
+        if !self.steps_panel_open || !matches!(self.center, Center::Node | Center::Chapter) {
+            return;
+        }
+        egui::SidePanel::left("step-palette")
+            .frame(surface(true))
+            .default_width(168.0)
+            .min_width(140.0)
+            .max_width(260.0)
+            .resizable(true)
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.strong(tr("添加步骤"));
+                    if ui
+                        .small_button("×")
+                        .on_hover_text(tr("收起步骤面板"))
+                        .clicked()
+                    {
+                        self.steps_panel_open = false;
+                    }
+                });
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.node_search)
+                        .desired_width(f32::INFINITY)
+                        .hint_text(tr("搜索步骤")),
+                );
+                ui.small(tr("点击插入到选中步骤之后"));
+                if ui
+                    .button(tr("同时执行多个动作"))
+                    .on_hover_text(tr("在一个步骤中安排人物、画面和等待时间"))
+                    .clicked()
+                {
+                    self.add_node("parallel");
+                }
+                ui.separator();
+                let groups = self.catalog.schema["NODE_GROUPS_SRC"]
+                    .as_array()
+                    .cloned()
+                    .unwrap_or_default();
+                let search = self.node_search.to_lowercase();
+                egui::ScrollArea::vertical()
+                    .id_salt("step-palette-list")
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        for (group_i, group) in groups.iter().enumerate() {
+                            let kinds: Vec<_> = group[1]
+                                .as_array()
+                                .into_iter()
+                                .flatten()
+                                .filter_map(Value::as_str)
+                                .filter(|kind| {
+                                    self.project.scenario.is_none()
+                                        || lom_core::scenario::performance_node(kind)
+                                })
+                                .filter(|kind| {
+                                    search.is_empty()
+                                        || format!("{} {kind}", self.catalog.label(kind))
+                                            .to_lowercase()
+                                            .contains(&search)
+                                })
+                                .collect();
+                            if kinds.is_empty() {
+                                continue;
+                            }
+                            egui::CollapsingHeader::new(tr([
+                                "演出与画面",
+                                "属性与旗标",
+                                "玩法与结果",
+                                "流程控制",
+                            ][group_i.min(3)]))
+                            .id_salt(("palette-group", group_i))
+                            .default_open(true)
+                            .show(ui, |ui| {
+                                for kind in kinds {
+                                    if ui
+                                        .add_sized(
+                                            [ui.available_width(), 26.0],
+                                            egui::Button::new(self.catalog.label(kind)),
+                                        )
+                                        .on_hover_text(kind)
+                                        .clicked()
+                                    {
+                                        self.add_node(kind);
+                                    }
+                                }
+                            });
+                        }
+                    });
+            });
+    }
     fn sidebar(&mut self, ctx: &egui::Context) {
         egui::SidePanel::left("chapters")
             .frame(surface(true))
             .default_width(shell::NAVIGATION_WIDTH)
-            .min_width(220.0)
-            .max_width((ctx.available_rect().width() - 620.0).max(220.0))
+            .min_width(180.0)
+            .max_width((ctx.available_rect().width() - 620.0).max(180.0))
             .resizable(true)
             .show(ctx, |ui| {
                 if self.screenshot.is_some() && self.frame == 12 {
@@ -1674,7 +1816,7 @@ impl App {
                         }
                     });
                     ui.add_space(8.0);
-                    ui.horizontal(|ui| {
+                    ui.horizontal_wrapped(|ui| {
                         if ui
                             .selectable_label(
                                 matches!(self.center, Center::Node | Center::Chapter),
@@ -1692,6 +1834,12 @@ impl App {
                             .clicked()
                         {
                             self.open_center(Center::Events);
+                        }
+                        if ui
+                            .selectable_label(self.center == Center::Initial, tr("初始设置"))
+                            .clicked()
+                        {
+                            self.open_initial_setup();
                         }
                     });
                     ui.separator();
@@ -1716,6 +1864,11 @@ impl App {
                             });
                         return;
                     }
+                    if self.center == Center::Initial {
+                        ui.strong(tr("剧情开场设置"));
+                        ui.small(tr("在剧情开始前设置时间、属性、物品和旗标。"));
+                        return;
+                    }
                     if self.center == Center::Manifest {
                         ui.strong(tr("作品设置"));
                         ui.small(tr("这里设置整部作品的名称、作者和运行方式。"));
@@ -1726,64 +1879,9 @@ impl App {
                 egui::TopBottomPanel::bottom("add-step-bottom")
                     .frame(egui::Frame::new().inner_margin(egui::Margin::symmetric(0, 5)))
                     .show_inside(ui, |ui| {
-                        ui.menu_button(tr("＋ 添加步骤"), |ui| {
-                            ui.add(
-                                egui::TextEdit::singleline(&mut self.node_search)
-                                    .hint_text(tr("查找步骤名称 / 类型")),
-                            );
-                            egui::ScrollArea::vertical()
-                                .max_height(560.0)
-                                .show(ui, |ui| {
-                                    let groups = self.catalog.schema["NODE_GROUPS_SRC"]
-                                        .as_array()
-                                        .cloned()
-                                        .unwrap_or_default();
-                                    for (group_i, g) in groups.iter().enumerate() {
-                                        ui.label(
-                                            RichText::new(
-                                                [
-                                                    "演出与画面",
-                                                    "属性与旗标",
-                                                    "玩法与结果",
-                                                    "流程控制",
-                                                ][group_i.min(3)],
-                                            )
-                                            .color(ACCENT)
-                                            .strong(),
-                                        );
-                                        for kind in g[1]
-                                            .as_array()
-                                            .into_iter()
-                                            .flatten()
-                                            .filter_map(Value::as_str)
-                                        {
-                                            if self.project.scenario.is_some()
-                                                && !lom_core::scenario::performance_node(kind)
-                                            {
-                                                continue;
-                                            }
-                                            if !self.node_search.is_empty()
-                                                && !format!("{} {kind}", self.catalog.label(kind))
-                                                    .to_lowercase()
-                                                    .contains(&self.node_search.to_lowercase())
-                                            {
-                                                continue;
-                                            }
-                                            if ui
-                                                .button(self.catalog.label(kind))
-                                                .on_hover_text(format!(
-                                                    "{kind} · 添加后可在属性页查看全部字段"
-                                                ))
-                                                .clicked()
-                                            {
-                                                self.add_node(kind);
-                                                ui.close();
-                                            }
-                                        }
-                                        ui.separator();
-                                    }
-                                });
-                        });
+                        ui.toggle_value(&mut self.steps_panel_open, tr("＋ 添加步骤"))
+                            .on_hover_text(tr("打开或收起独立的步骤面板"));
+                        ui.small(tr("拖动栏间边界可调整宽度"));
                     });
                 let old = self.current.clone();
                 let mut chapter_names: Vec<_> = self
@@ -1866,6 +1964,13 @@ impl App {
                     self.center = Center::Node;
                 }
                 ui.add_space(4.0);
+                if self.project.scenario.is_none()
+                    && ui
+                        .selectable_label(self.center == Center::Initial, tr("初始设置"))
+                        .clicked()
+                {
+                    self.open_initial_setup();
+                }
                 if ui
                     .selectable_label(self.center == Center::Chapter, tr("章节设置"))
                     .clicked()
@@ -2437,6 +2542,10 @@ impl App {
                     .show(ui, |ui| match self.center {
                         Center::Node => {
                             let mut story = self.story();
+                            if let Some(notice) = story["lua_import"]["notice"].as_str() {
+                                ui.small(notice);
+                                ui.separator();
+                            }
                             let ids: Vec<_> = story["nodes"]
                                 .as_array()
                                 .into_iter()
@@ -2445,12 +2554,31 @@ impl App {
                                 .collect();
                             let stories = self.project.stories.keys().cloned().collect::<Vec<_>>();
                             if let Some(mut node) = story["nodes"].get(self.selected).cloned() {
+                                if matches!(node["type"].as_str(), Some("background" | "custom_cg" | "overlay")) {
+                                    ui.small(tr("选择已导入的图片，或直接从文件导入并应用。前景可用位置、层级、比例和透明度调整。"));
+                                    if ui.button(tr("导入图片并用于此步骤…")).clicked() {
+                                        self.image_import_target = Some((self.current.clone(), node["id"].as_str().unwrap_or("").to_owned()));
+                                        self.asset_import_dialog = Some(AssetImportDialog { kind:0, name:String::new(), paths:vec![], error:None });
+                                    }
+                                }
+                                let official = node["type"] == "cg" && matches!(node["kind"].as_str(), Some("picture" | "item" | "big"));
+                                let custom = matches!(node["type"].as_str(), Some("background" | "custom_cg" | "overlay"));
+                                let mut image_changed=false;
+                                if (official || custom) && !matches!(node["action"].as_str(),Some("hide" | "clear" | "fadeout")) {
+                                    let key=if official {"key"} else {"image"};
+                                    let options=self.catalog.options(if official {"official_picture"} else {"user_image"},&node,&[],&[]);
+                                    ui.push_id((&self.current,node["id"].as_str().unwrap_or("").to_owned()),|ui| {
+                                        if let Some(image)=self.preview.image_browser(ui,&self.project,&options,node[key].as_str().unwrap_or(""),official) {
+                                            node[key]=json!(image);image_changed=true;
+                                        }
+                                    });
+                                }
                                 let response =
                                     self.catalog.node_form(ui, &mut node, &ids, &stories);
                                 if let Some(kind) = response.help {
                                     self.tools_panel.open_node_help(&kind);
                                 }
-                                if response.changed {
+                                if response.changed || image_changed {
                                     story["nodes"][self.selected] = node.clone();
                                     self.project
                                         .stories
@@ -2462,6 +2590,15 @@ impl App {
                             }
                         }
                         Center::Chapter => self.chapter(ui),
+                        Center::Initial => {
+                            let old = self.current.clone();
+                            crate::initial_setup::show(ui, &mut self.project, &self.catalog, &mut self.current);
+                            if old != self.current {
+                                self.selected = 0;
+                                self.multiselect.clear();
+                                self.needs_compile = true;
+                            }
+                        }
                         Center::Manifest => {
                             crate::manifest_panel::show(
                                 ui,
@@ -2820,6 +2957,7 @@ impl App {
         ui.strong(tr("作品素材"));
         ui.add_space(4.0);
         if ui.button(tr("导入素材…")).clicked() && self.apply_pending_drafts() {
+            self.image_import_target = None;
             self.asset_import_dialog = Some(AssetImportDialog {
                 kind: 0,
                 name: String::new(),
@@ -3004,6 +3142,21 @@ impl App {
         self.content_panel.apply_pending(&mut self.project)?;
         self.flush();
         self.import_assets(paths, &id, &name, kind)?;
+        if kind == 0 {
+            if let Some((story, node)) = self.image_import_target.take() {
+                if let Some(node) = self
+                    .project
+                    .stories
+                    .get_mut(&story)
+                    .and_then(|story| story["nodes"].as_array_mut())
+                    .and_then(|nodes| nodes.iter_mut().find(|n| n["id"] == node))
+                {
+                    node["image"] = json!(format!("user:{id}"));
+                }
+            }
+        } else {
+            self.image_import_target = None;
+        }
         self.track();
         self.flush();
         self.asset_import_dialog = None;
@@ -3492,15 +3645,20 @@ impl App {
                     ui.add_space(16.0);
                     let old_kind = draft.kind;
                     ui.label(format!("{} *", tr("素材类型")));
-                    egui::ComboBox::from_id_salt("import-kind")
-                        .selected_text(tr(["图片", "角色", "音乐", "音效", "配音"][draft.kind]))
-                        .show_ui(ui, |ui| {
-                            for (i, kind) in
-                                ["图片", "角色", "音乐", "音效", "配音"].iter().enumerate()
-                            {
-                                ui.selectable_value(&mut draft.kind, i, tr(kind));
-                            }
-                        });
+                    if self.image_import_target.is_some() {
+                        ui.label(tr("图片"));
+                        draft.kind = 0;
+                    } else {
+                        egui::ComboBox::from_id_salt("import-kind")
+                            .selected_text(tr(["图片", "角色", "音乐", "音效", "配音"][draft.kind]))
+                            .show_ui(ui, |ui| {
+                                for (i, kind) in
+                                    ["图片", "角色", "音乐", "音效", "配音"].iter().enumerate()
+                                {
+                                    ui.selectable_value(&mut draft.kind, i, tr(kind));
+                                }
+                            });
+                    }
                     if old_kind != draft.kind {
                         draft.paths.clear();
                         draft.name.clear();
@@ -3542,6 +3700,7 @@ impl App {
                 });
             if cancel || escape_pressed {
                 self.asset_import_dialog = None;
+                self.image_import_target = None;
             } else if choose_files {
                 let dialog = rfd::FileDialog::new();
                 let paths = if draft.kind == 1 {
@@ -3930,6 +4089,7 @@ impl eframe::App for App {
             });
         if self.story_panels_visible() {
             self.sidebar(ctx);
+            self.step_palette(ctx);
             self.right(ctx);
         }
         self.center(ctx);
@@ -4227,7 +4387,7 @@ fn short(s: &str, n: usize) -> String {
     }
     out
 }
-fn retarget(value: &mut Value, map: &BTreeMap<String, String>) {
+pub(crate) fn retarget(value: &mut Value, map: &BTreeMap<String, String>) {
     match value {
         Value::Object(o) => {
             for (k, v) in o {
@@ -4394,6 +4554,38 @@ mod application_regression_tests {
             repeat: false,
             modifiers,
         }
+    }
+
+    #[test]
+    fn system_clipboard_events_copy_and_paste_steps_once() {
+        let mut app = app();
+        let original_count = app.story()["nodes"].as_array().unwrap().len();
+        let ctx = egui::Context::default();
+        let _ = ctx.run(
+            egui::RawInput {
+                events: vec![
+                    egui::Event::Copy,
+                    key_event(egui::Key::C, egui::Modifiers::COMMAND),
+                ],
+                ..Default::default()
+            },
+            |ctx| app.shortcuts(ctx),
+        );
+        assert_eq!(app.clipboard.len(), 1);
+        let _ = ctx.run(
+            egui::RawInput {
+                events: vec![
+                    egui::Event::Paste(String::new()),
+                    key_event(egui::Key::V, egui::Modifiers::COMMAND),
+                ],
+                ..Default::default()
+            },
+            |ctx| app.shortcuts(ctx),
+        );
+        assert_eq!(
+            app.story()["nodes"].as_array().unwrap().len(),
+            original_count + 1
+        );
     }
     fn navigation_frame(
         app: &mut App,
@@ -5780,6 +5972,35 @@ mod application_regression_tests {
         }
     }
     #[test]
+    fn imported_step_image_is_applied_and_undone_with_its_asset() {
+        let temp = tempfile::tempdir().unwrap();
+        let file = temp.path().join("image.png");
+        std::fs::write(&file, b"fixture image").unwrap();
+        let mut app = app();
+        let id = app.story()["nodes"][0]["id"].as_str().unwrap().to_owned();
+        app.project.stories.get_mut(&app.current).unwrap()["nodes"][0] =
+            json!({"id":id,"type":"overlay","slot":"main","action":"show"});
+        app.track();
+        app.flush();
+        let before = snapshot(&app.project);
+        app.image_import_target = Some((app.current.clone(), id));
+        app.asset_import_dialog = Some(AssetImportDialog {
+            kind: 0,
+            name: "图片".into(),
+            paths: vec![file],
+            error: None,
+        });
+        app.commit_asset_import().unwrap();
+        let image = app.story()["nodes"][0]["image"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        assert!(image.starts_with("user:"));
+        assert!(!app.project.assets.is_empty());
+        app.undo();
+        assert!(snapshot(&app.project) == before);
+    }
+    #[test]
     fn reading_every_main_panel_preserves_project() {
         let mut app = app();
         let ctx = egui::Context::default();
@@ -5787,6 +6008,7 @@ mod application_regression_tests {
         for panel in [
             Center::Node,
             Center::Chapter,
+            Center::Initial,
             Center::Manifest,
             Center::Events,
             Center::Tasks,

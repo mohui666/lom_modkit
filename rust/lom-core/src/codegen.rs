@@ -123,6 +123,7 @@ struct Context<'a> {
     next: &'a str,
     content_root: &'a Path,
     preloaded: bool,
+    previous_visual_calls: bool,
 }
 fn check(expr: String, node: &Value) -> Vec<String> {
     vec![
@@ -258,24 +259,6 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                         .into_iter()
                         .map(|line| format!("\t\t{line}")),
                 );
-                // Most existing node emitters already await their action. These
-                // launch-only portrait calls need an explicit completion wait.
-                let completion = match s(action, "type") {
-                    "show" => Some(format!(
-                        "math.max({}, {}, stage.FadeDuration)",
-                        n(action, "fadeDuration", json!(0)),
-                        n(action, "moveDuration", json!(0))
-                    )),
-                    "hide" => Some(n(action, "fadeDuration", json!(0))),
-                    "rotate" if !s(action, "character").starts_with("user:") => {
-                        Some(n(action, "duration", json!(0)))
-                    }
-                    "focus" | "dim" => Some("stage.FadeDuration".into()),
-                    _ => None,
-                };
-                if let Some(duration) = completion {
-                    out.push(format!("\t\t\twait({duration})"));
-                }
                 out.push("\t\tend,".into());
             }
             out.push("\t})".into());
@@ -505,8 +488,8 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
             } else {
                 "\tmod_stop_voice()".into()
             });
-            let say = format!(
-                "\tsay(luamanager.GetStoryText({}))",
+            let text = format!(
+                "luamanager.GetStoryText({})",
                 lua_str(&format!(
                     "MOD_{}_{}_{}",
                     if ctx.mod_id.is_empty() {
@@ -518,6 +501,18 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                     s(node, "id")
                 ))
             );
+            let size = node["font_size"]
+                .as_i64()
+                .unwrap_or(match s(node, "font_size") {
+                    "small" => 24,
+                    "large" => 60,
+                    _ => 0,
+                });
+            let say = if size > 0 {
+                format!("\tsay(\"{{size={size}}}\" .. {text} .. \"{{/size}}\")")
+            } else {
+                format!("\tsay({text})")
+            };
             if ["narrative", "center"].contains(&mode) {
                 out.extend([
                     format!("\tsetsaydialog(saydialogs.{mode})"),
@@ -736,6 +731,13 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                     .map(|k| val(&node[*k]))
                     .collect::<Vec<_>>()
                     .join(", ");
+                let args = if name == "BigPicture"
+                    && (!ctx.previous_visual_calls || node.get("color").is_some())
+                {
+                    format!("{args}, {}", n(node, "color", json!(0)))
+                } else {
+                    args
+                };
                 out.push(if name == "Title" {
                     format!("\tmainui.DisplayTitle({args})")
                 } else {
@@ -745,14 +747,14 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
         }
         "dim" => {
             let dim = b(node, "dimmed", false);
-            if user {
-                out.push(format!("\tmod_char_dim({c}, {dim})"));
-            } else {
-                if !ctx.preloaded {
-                    out.push(load(&c));
-                }
-                out.push(format!("\tstage.SetDimmed(characters.Get({c}), {dim})"));
+            if !user && !ctx.preloaded {
+                out.push(load(&c));
             }
+            out.push(if ctx.previous_visual_calls && !user {
+                format!("\tstage.SetDimmed(characters.Get({c}), {dim})")
+            } else {
+                format!("\tmod_char_dim({c}, {dim})")
+            });
         }
         "message" => out.push(call("mainui.DisplayMessageText", &[q(node, "text")])),
         "dayenv" => out.push(call(
@@ -1319,6 +1321,31 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
             s(node, "id")
         ),
     }
+    // Joined actions always finish before their group continues. Standalone
+    // launch-only actions can opt in; absent fields preserve older projects.
+    if ctx.preloaded || b(node, "wait_for_completion", false) {
+        let completion = match kind {
+            "show" => Some(format!(
+                "math.max({}, {}, stage.FadeDuration)",
+                n(node, "fadeDuration", json!(0)),
+                n(node, "moveDuration", json!(0))
+            )),
+            "hide" => Some(n(node, "fadeDuration", json!(0))),
+            "rotate" if !user => Some(n(node, "duration", json!(0))),
+            "focus" | "dim" => Some("stage.FadeDuration".into()),
+            _ => None,
+        };
+        if let Some(duration) = completion {
+            out.push(wait(duration));
+        }
+    }
+    if node
+        .get("wait_after")
+        .and_then(Value::as_f64)
+        .is_some_and(|v| v > 0.0)
+    {
+        out.push(wait(n(node, "wait_after", json!(0))));
+    }
     Ok(out)
 }
 fn splitlines(raw: &str) -> Vec<String> {
@@ -1492,8 +1519,27 @@ pub fn compile_story(
     source: Option<&str>,
     content_root: Option<&Path>,
 ) -> Result<String> {
+    compile_story_impl(story, mod_info, source, content_root, false)
+}
+// Only used to verify already-published v3 packages. Raw code is never rewritten;
+// the two previous structured emitters are reproduced from the authored nodes.
+pub(crate) fn compile_story_previous_visual_calls(
+    story: &Value,
+    mod_info: Option<&Value>,
+    source: Option<&str>,
+    content_root: Option<&Path>,
+) -> Result<String> {
+    compile_story_impl(story, mod_info, source, content_root, true)
+}
+fn compile_story_impl(
+    story: &Value,
+    mod_info: Option<&Value>,
+    source: Option<&str>,
+    content_root: Option<&Path>,
+    previous_visual_calls: bool,
+) -> Result<String> {
     let warnings = crate::validate::validate_story(story)?;
-    let lua = story_to_lua(story, mod_info, source, content_root)?;
+    let lua = story_to_lua_impl(story, mod_info, source, content_root, previous_visual_calls)?;
     if warnings.is_empty() {
         Ok(lua)
     } else {
@@ -1512,6 +1558,15 @@ pub fn story_to_lua(
     mod_info: Option<&Value>,
     source: Option<&str>,
     content_root: Option<&Path>,
+) -> Result<String> {
+    story_to_lua_impl(story, mod_info, source, content_root, false)
+}
+fn story_to_lua_impl(
+    story: &Value,
+    mod_info: Option<&Value>,
+    source: Option<&str>,
+    content_root: Option<&Path>,
+    previous_visual_calls: bool,
 ) -> Result<String> {
     let default_root = crate::content::default_repository_root();
     let root = content_root.unwrap_or(&default_root);
@@ -1567,6 +1622,7 @@ pub fn story_to_lua(
             next,
             content_root: root,
             preloaded: false,
+            previous_visual_calls,
         };
         lines.extend([
             format!("-- [{nid}] {kind}"),

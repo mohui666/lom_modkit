@@ -878,6 +878,12 @@
           "淡出秒数",
           "float",
           true
+        ],
+        [
+          "wait_after",
+          "动作后停留（秒）",
+          "float",
+          true
         ]
       ]
     },
@@ -907,6 +913,12 @@
           "淡出秒数",
           "float",
           true
+        ],
+        [
+          "wait_after",
+          "动作后停留（秒）",
+          "float",
+          true
         ]
       ]
     },
@@ -918,6 +930,12 @@
           "官方背景",
           "view",
           false
+        ],
+        [
+          "wait_after",
+          "动作后停留（秒）",
+          "float",
+          true
         ]
       ]
     },
@@ -939,6 +957,12 @@
         [
           "fade",
           "淡入/淡出秒数",
+          "float",
+          true
+        ],
+        [
+          "wait_after",
+          "动作后停留（秒）",
           "float",
           true
         ]
@@ -981,6 +1005,12 @@
           "y",
           "纵向位置百分比",
           "percent_position",
+          true
+        ],
+        [
+          "wait_after",
+          "动作后停留（秒）",
+          "float",
           true
         ]
       ]
@@ -1035,6 +1065,12 @@
           "淡入/淡出秒数",
           "float",
           true
+        ],
+        [
+          "wait_after",
+          "动作后停留（秒）",
+          "float",
+          true
         ]
       ]
     },
@@ -1082,6 +1118,18 @@
           "移动时长",
           "float",
           true
+        ],
+        [
+          "wait_for_completion",
+          "等待动作完成",
+          "bool",
+          true
+        ],
+        [
+          "wait_after",
+          "动作后停留（秒）",
+          "float",
+          true
         ]
       ]
     },
@@ -1111,6 +1159,12 @@
           "时长",
           "float",
           true
+        ],
+        [
+          "wait_after",
+          "动作后停留（秒）",
+          "float",
+          true
         ]
       ]
     },
@@ -1128,6 +1182,12 @@
           "朝向",
           "facing",
           false
+        ],
+        [
+          "wait_after",
+          "动作后停留（秒）",
+          "float",
+          true
         ]
       ]
     },
@@ -1145,6 +1205,18 @@
           "淡出时长",
           "float",
           true
+        ],
+        [
+          "wait_for_completion",
+          "等待动作完成",
+          "bool",
+          true
+        ],
+        [
+          "wait_after",
+          "动作后停留（秒）",
+          "float",
+          true
         ]
       ]
     },
@@ -1156,6 +1228,18 @@
           "人物",
           "character",
           false
+        ],
+        [
+          "wait_for_completion",
+          "等待动作完成",
+          "bool",
+          true
+        ],
+        [
+          "wait_after",
+          "动作后停留（秒）",
+          "float",
+          true
         ]
       ]
     },
@@ -1185,6 +1269,12 @@
           "时长",
           "float",
           false
+        ],
+        [
+          "wait_after",
+          "动作后停留（秒）",
+          "float",
+          true
         ]
       ]
     },
@@ -1213,6 +1303,12 @@
           "mode",
           "模式",
           "mode",
+          true
+        ],
+        [
+          "font_size",
+          "字号调节",
+          "int",
           true
         ],
         [
@@ -1254,6 +1350,12 @@
           "时长",
           "float",
           true
+        ],
+        [
+          "wait_after",
+          "动作后停留（秒）",
+          "float",
+          true
         ]
       ]
     },
@@ -1265,6 +1367,12 @@
           "显示遮罩",
           "bool",
           false
+        ],
+        [
+          "wait_after",
+          "动作后停留（秒）",
+          "float",
+          true
         ]
       ]
     },
@@ -1371,6 +1479,12 @@
           "停止特效",
           "bool",
           true
+        ],
+        [
+          "wait_after",
+          "动作后停留（秒）",
+          "float",
+          true
         ]
       ]
     },
@@ -1387,6 +1501,12 @@
           "dir",
           "扫动方向",
           "enum:transition_dir",
+          true
+        ],
+        [
+          "wait_after",
+          "动作后停留（秒）",
+          "float",
           true
         ]
       ]
@@ -1405,6 +1525,12 @@
           "启用",
           "bool",
           false
+        ],
+        [
+          "wait_after",
+          "动作后停留（秒）",
+          "float",
+          true
         ]
       ]
     },
@@ -1469,6 +1595,18 @@
           "数值 n2",
           "int",
           true
+        ],
+        [
+          "color",
+          "大图底色（0白 / 1黑 / 2透明）",
+          "int",
+          true
+        ],
+        [
+          "wait_after",
+          "动作后停留（秒）",
+          "float",
+          true
         ]
       ]
     },
@@ -1486,6 +1624,18 @@
           "压暗",
           "bool",
           false
+        ],
+        [
+          "wait_for_completion",
+          "等待动作完成",
+          "bool",
+          true
+        ],
+        [
+          "wait_after",
+          "动作后停留（秒）",
+          "float",
+          true
         ]
       ]
     },
@@ -1520,6 +1670,18 @@
           "时长（秒）",
           "float",
           false
+        ],
+        [
+          "wait_for_completion",
+          "等待动作完成",
+          "bool",
+          true
+        ],
+        [
+          "wait_after",
+          "动作后停留（秒）",
+          "float",
+          true
         ]
       ]
     },
@@ -1531,6 +1693,12 @@
           "环境（1=白天 / 2=晚上）",
           "int",
           false
+        ],
+        [
+          "wait_after",
+          "动作后停留（秒）",
+          "float",
+          true
         ]
       ]
     },
@@ -3021,7 +3189,8 @@
       "portrait": "normal",
       "facing": "right",
       "fadeDuration": 0,
-      "moveDuration": 0
+      "moveDuration": 0,
+      "wait_for_completion": true
     },
     "move": {
       "character": "",
@@ -3035,7 +3204,8 @@
     },
     "hide": {
       "character": "",
-      "fadeDuration": 0
+      "fadeDuration": 0,
+      "wait_for_completion": true
     },
     "focus": {
       "character": ""

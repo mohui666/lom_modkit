@@ -2,7 +2,7 @@
 
 **《活侠传》（Legend of Mortal）可视化剧情 Mod 制作工具。** 用图形编辑器编排人物对白、场景、分支、音乐和音效，导出 `.lommod`，由 C# 游戏插件加载。
 
-**v1.3.1** 补齐崆峒练武场夜景等 74 个漏掉的官方背景，场景选择器从 154 项补至 228 项；修正资源清单生成逻辑。见 [补丁说明](RELEASE_NOTES_v1.3.1.md)。
+**v1.3.1（2026-10-27 更新构建）** 新增独立步骤列、动作内等待、集中初始设置、可视站位、官方图片缩略图与旧 Lua 导入；修复持续压暗、属性节点缺失和复制粘贴，支持输入具体对白字号。保留此前 228 项官方背景与搜索修复。见 [更新日志](RELEASE_NOTES_v1.3.1.md)。
 
 **v1.3.0** 增加原版附加剧情与自由剧本两种创作模式、独立事件／任务配置和日期／重复事件编辑；优化按钮、页面与弹窗，并新增一键定位 Steam 游戏目录。Windows 完整包包含 Host **1.1.3** 和预览素材提取助手。改动与验证边界见 [v1.3.0 变更记录](RELEASE_NOTES_v1.3.0.md)。
 
@@ -84,7 +84,7 @@ cargo run --locked -p lom-editor -- --smoke-preview samples/showcase3
 
 ## 文档与版本
 
-- [v1.3.1 补丁说明](RELEASE_NOTES_v1.3.1.md)：官方背景清单完整性修复。
+- [v1.3.1 更新日志](RELEASE_NOTES_v1.3.1.md)：创作流程、图片预览、字号、持续压暗、旧 Lua 导入及升级方法。
 
 - [v1.3.0 变更记录](RELEASE_NOTES_v1.3.0.md)：两种模式、事件任务、UI、自动定位及本次验证。
 - [11 分钟中文软件演示](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0-core-tutorial-zh-CN.mp4) · [跟做项目](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0-tutorial-follow-along.zip)：不启动游戏。

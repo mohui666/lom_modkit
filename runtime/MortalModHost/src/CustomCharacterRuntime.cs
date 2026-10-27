@@ -54,6 +54,7 @@ namespace MortalModHost
 
         public static void ClearAll()
         {
+            CharacterDimming.Clear();
             List<string> keys = new List<string>(Actors.Keys);
             for (int i = 0; i < keys.Count; i++)
                 DestroyActor(keys[i]);

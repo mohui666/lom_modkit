@@ -45,7 +45,7 @@ def extract(game, output, max_size):
     probe.SA2 = str(data / "sharedassets2.assets")
     if not catalog.is_file() or not bundles.is_dir() or not Path(probe.SA2).is_file():
         raise ValueError("游戏目录不完整：请选择包含 Mortal_Data 的《活侠传》安装文件夹")
-    emit("progress", message="正在读取人物、表情和背景目录", done=0, total=0)
+    emit("progress", message="正在读取人物、表情、背景和插图目录", done=0, total=0)
     addresses = probe.parse_catalog(str(catalog))
     characters, views = probe.load_sa2()
     if not characters or not views:
@@ -53,7 +53,8 @@ def extract(game, output, max_size):
 
     # A single address is exported once; character aliases share its PNG.
     tasks = {}
-    mapping = {"characters": {}, "views": {}}
+    pictures = probe.picture_catalog(addresses)
+    mapping = {"characters": {}, "views": {}, "pictures": {}, "picture_catalog": pictures}
     failures = []
     for cid, character in characters.items():
         portraits = dict(character["portraits"])
@@ -62,11 +63,15 @@ def extract(game, output, max_size):
         mapping["characters"][cid] = {"name": character["name"], "first": first, "portraits": {}}
         for emotion, address in portraits.items():
             rel = "assets/portraits/" + token(address) + ".png"
-            tasks.setdefault(address, (rel, []))[1].append((cid, emotion))
+            tasks.setdefault(address, (rel, []))[1].append(("character", cid, emotion))
     for key, view in views.items():
         address = view["address"]
         rel = "assets/views/" + token(address) + ".png"
-        tasks.setdefault(address, (rel, []))[1].append((None, key))
+        tasks.setdefault(address, (rel, []))[1].append(("views", None, key))
+    for picture in pictures:
+        address = "pic_" + picture["key"]
+        rel = "assets/pictures/" + token(address) + ".png"
+        tasks.setdefault(address, (rel, []))[1].append(("pictures", None, picture["key"]))
 
     @lru_cache(maxsize=2)
     def load_bundle(name):
@@ -90,16 +95,16 @@ def extract(game, output, max_size):
             temporary = path.with_suffix(".tmp")
             image.save(temporary, format="PNG")
             temporary.replace(path)
-            for cid, key in targets:
-                if cid is None:
-                    mapping["views"][key] = relative
+            for group, cid, key in targets:
+                if group != "character":
+                    mapping[group][key] = relative
                 else:
                     mapping["characters"][cid]["portraits"][key] = relative
             succeeded += 1
         except Exception as error:
             failures.append({"address": address, "error": str(error)})
         if done == 1 or done % 10 == 0 or done == len(tasks):
-            emit("progress", message="正在导出立绘、表情和背景", done=done, total=len(tasks), failed=len(failures))
+            emit("progress", message="正在导出立绘、表情、背景和插图", done=done, total=len(tasks), failed=len(failures))
     load_bundle.cache_clear()
 
     # Missing fallback portraits must remain visible as failures, never map to
@@ -121,6 +126,7 @@ def extract(game, output, max_size):
               "resource_platform": bundles.name,
               "unavailable_characters": unavailable,
               "characters": len(mapping["characters"]), "views": len(mapping["views"]),
+              "pictures": len(mapping["pictures"]),
               "game_tested": False}
     write_json(output / "preview_map.json", mapping)
     write_json(output / "extract_report.json", report)
