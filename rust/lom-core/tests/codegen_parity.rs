@@ -1,9 +1,10 @@
 //! Golden outputs captured from the previous Python compiler and its regression suite.
 //! These fixtures are data only; running the native compiler/tests does not invoke Python.
+//! Explicit dim nodes use the persistent Host bridge instead of the legacy one-shot call.
 use lom_core::{codegen, content};
 use serde_json::Value;
 #[test]
-fn all_63_node_types_match_legacy_lua_byte_for_byte() {
+fn all_63_node_types_match_expected_lua_byte_for_byte() {
     let fixtures: Value =
         serde_json::from_str(include_str!("fixtures/codegen_golden.json")).unwrap();
     let mut types = std::collections::BTreeSet::new();

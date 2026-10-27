@@ -106,6 +106,9 @@ fn type_valid(tag: &str, v: &Value) -> bool {
         "str" => v.is_string(),
         "idstr" => nonempty(v),
         "num" => finite(v),
+        "say_font_size" => {
+            int_range(v, 0, 200) || matches!(v.as_str(), Some("normal" | "small" | "large"))
+        }
         "bool" => v.is_boolean(),
         "list" => v.is_array(),
         "talent_level" => v.as_f64().is_some_and(|n| n == 1.0 || n == -1.0),
@@ -899,6 +902,7 @@ fn mod_death_id(key: &str) -> bool {
     n.len() > 6 || (n.len() == 6 && n >= "900000")
 }
 fn extra(n: &Value, ntype: &str, catalog: &Value) -> Result<()> {
+    range(n, "wait_after", 0.0, f64::INFINITY)?;
     if ntype == "parallel" {
         crate::parallel::validate_group(n)?;
         for (i, action) in crate::parallel::actions(n).iter().enumerate() {
@@ -1051,6 +1055,7 @@ fn extra(n: &Value, ntype: &str, catalog: &Value) -> Result<()> {
             "字段 \"day_type\" 必须是 1（白天）或 2（晚上）"
         ),
         "cg" => {
+            int_field(n, "color", 0, 2)?;
             if s(n, "action") == "show" {
                 let keys: &[&str] = match s(n, "kind") {
                     "map" => &["key", "key2"],

@@ -47,7 +47,7 @@ fn materialize(root: &Path, files: &Value) {
     }
 }
 #[test]
-fn legacy_pack_acceptance_and_all_entry_bytes_match() {
+fn legacy_pack_acceptance_and_reviewed_entry_bytes_match() {
     let fixtures: Value = serde_json::from_str(include_str!("test_package_fixtures.json")).unwrap();
     assert_eq!(fixtures["test_failures"], 0);
     assert_eq!(fixtures["test_errors"], 0);
@@ -126,6 +126,12 @@ fn legacy_pack_acceptance_and_all_entry_bytes_match() {
             ));
         }
         for (name, entry) in expected_entries {
+            // Keep the Python capture immutable. Only the reviewed visual-call
+            // fix and its dependent hash entries have a newer export baseline.
+            let entry = case
+                .get("current_entries")
+                .and_then(|entries| entries.get(name))
+                .unwrap_or(entry);
             compared_entries += 1;
             let Some(data) = entries.get(name) else {
                 mismatches.push(format!("case {index}: missing {name}"));
@@ -433,6 +439,56 @@ fn rewritten_hashes(mut entries: Entries, path: &Path) -> Entries {
     );
     package::verify_integrity(&entries).unwrap();
     entries
+}
+
+#[test]
+fn previous_visual_calls_can_be_imported_and_reexported_without_rewriting_raw_code() {
+    let dir = tempfile::tempdir().unwrap();
+    basic_project(
+        dir.path(),
+        json!({}),
+        json!({"id":"main","start":"dim","nodes":[
+        {"id":"dim","type":"dim","character":"player","dimmed":true},
+        {"id":"picture","type":"cg","action":"show","kind":"big","key":"big_fight_001"},
+        {"id":"raw","type":"raw","code":"\tmod_char_dim(\"player\", false)"},
+        {"id":"end","type":"end"}]}),
+    );
+    let current = package::pack_mod(dir.path(), Some(&dir.path().join("current.lommod"))).unwrap();
+    let mut entries = package::read_package(&current).unwrap();
+    let lua = String::from_utf8(entries["lua/main.lua"].clone())
+        .unwrap()
+        .replacen(
+            "\tmod_char_dim(\"player\", true)",
+            "\tstage.SetDimmed(characters.Get(\"player\"), true)",
+            1,
+        )
+        .replace(
+            "mainui.ShowBigPicture(\"big_fight_001\", 0)",
+            "mainui.ShowBigPicture(\"big_fight_001\")",
+        );
+    entries.insert("lua/main.lua".into(), lua.into_bytes());
+    let legacy = dir.path().join("legacy.lommod");
+    let legacy_entries = rewritten_hashes(entries, &legacy);
+    package::read_package(&legacy).unwrap();
+    let project = lom_core::project::Project::open(&legacy).unwrap();
+    let upgraded = dir.path().join("upgraded.lommod");
+    project.export(&upgraded).unwrap();
+    let upgraded = package::read_package(&upgraded).unwrap();
+    let lua = String::from_utf8(upgraded["lua/main.lua"].clone()).unwrap();
+    assert!(lua.contains("\tmod_char_dim(\"player\", true)"));
+    assert!(lua.contains("mainui.ShowBigPicture(\"big_fight_001\", 0)"));
+    assert!(lua.contains("\tmod_char_dim(\"player\", false)"));
+    let mut tampered = legacy_entries;
+    let lua = String::from_utf8(tampered["lua/main.lua"].clone())
+        .unwrap()
+        .replace(
+            "\tmod_char_dim(\"player\", false)",
+            "\tstage.SetDimmed(characters.Get(\"player\"), false)",
+        );
+    tampered.insert("lua/main.lua".into(), lua.into_bytes());
+    let tampered_path = dir.path().join("raw-substitution.lommod");
+    rewritten_hashes(tampered, &tampered_path);
+    assert!(package::read_package(&tampered_path).is_err());
 }
 
 #[test]

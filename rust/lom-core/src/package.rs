@@ -357,8 +357,17 @@ fn verify_story_lua_pairs(entries: &Entries, manifest: &Value) -> Result<()> {
         };
         let generated = compile_story(story, Some(manifest), Some(&source), Some(resources.path()))
             .with_context(|| format!("无法复编译 {source} 以验证 {path}"))?;
+        let matches = generated.as_bytes() == packaged
+            || crate::codegen::compile_story_previous_visual_calls(
+                story,
+                Some(manifest),
+                Some(&source),
+                Some(resources.path()),
+            )?
+            .as_bytes()
+                == packaged;
         ensure!(
-            generated.as_bytes() == packaged,
+            matches,
             "包内 {path} 不是由对应 {source} 编译生成，拒绝导入"
         );
     }

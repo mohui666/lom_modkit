@@ -4,6 +4,8 @@
 
 完整解压 `lom_modkit-v1.3.1_windows_x64.zip`，进入 `lom_modkit` 文件夹，双击 `lom-editor.exe`。保留 `lomc.exe`、`runtime`、`assets` 和 `asset-extractor`；不要只移动编辑器 EXE。工具端为 1.3.1，随附 Host 为 1.1.3。
 
+本次为 2026-10-27 更新构建。已有安装请先退出游戏，用「游戏与 MOD → 高级维护 → 安装 / 更新 C# 宿主」更新本包旁的完整 `runtime`；Host 版本号相同也需要更新本次 DLL。需要持续压暗修复的旧作品须用新版重新导出并安装。官方图片预览需要重新一键提取素材，完成后自动切换；游戏图片不随本包分发。完整变化见随包 `RELEASE_NOTES_v1.3.1.md`。
+
 ## 配置自己的游戏
 
 1. 先退出游戏，打开“游戏与 MOD”。
@@ -20,7 +22,7 @@
 
 右侧“播放”只在软件内预览；顶栏“试玩”／F5 会安装临时试玩包并启动游戏。只看软件演示时使用右侧预览。
 
-[中文核心教程](https://github.com/mohui666/lom_modkit/blob/v1.3.1/docs/chs/core_tutorial.md) · [软件使用](https://github.com/mohui666/lom_modkit/blob/v1.3.1/docs/chs/software_usage.md) · [事件与任务](https://github.com/mohui666/lom_modkit/blob/v1.3.1/docs/chs/events_and_tasks.md)
+[中文核心教程](https://github.com/mohui666/lom_modkit/blob/master/docs/chs/core_tutorial.md) · [软件使用](https://github.com/mohui666/lom_modkit/blob/master/docs/chs/software_usage.md) · [事件与任务](https://github.com/mohui666/lom_modkit/blob/master/docs/chs/events_and_tasks.md)
 
 [11 分钟中文演示](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0-core-tutorial-zh-CN.mp4) · [跟做项目](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0-tutorial-follow-along.zip) · [发布与验证记录](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.1)
 

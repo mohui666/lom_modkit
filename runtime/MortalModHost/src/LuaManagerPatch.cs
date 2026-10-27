@@ -858,7 +858,7 @@ namespace MortalModHost
             }, "mod_char_shock");
             script.Globals["mod_char_dim"] = new CallbackFunction((ctx, args) =>
             {
-                try { CustomCharacterRuntime.Dim(ArgString(args, 0), ArgBool(args, 1, true)); }
+                try { CharacterDimming.Set(ArgString(args, 0), ArgBool(args, 1, true)); }
                 catch (Exception ex) { Log.LogWarning("mod_char_dim 失败：" + ex.Message); }
                 return DynValue.Nil;
             }, "mod_char_dim");

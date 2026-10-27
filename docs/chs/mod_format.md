@@ -34,6 +34,8 @@ assets/                # 可选，自定义资源
 - texts.json 由打包时自动生成：收集每个 story 的全部 **say** 节点文本，key 与 lua 里 `GetStoryText` 的 key 一一对应；运行时注册进 LeanLocalization（见 §4/§6）。**death 文本不进 texts.json**：由 codegen 发射 `mod_set_death_text(<标题>, <文本>)` 两参 lua_str 字面量（见 §3.1/§6）。
 - 运行时先拒绝物理文件超过 160 MiB 的包，再从读取该包的同一个文件句柄计算最终 `.lommod` **全部原始字节**的 SHA-256，保存完整 64 个十六进制字符，并在强制披露中显示前 16 个字符。重新压缩、修改任一字节都会改变指纹；改文件名或逐字节复制不会改变。该指纹用于核对具体包，不是作者签名或官方认证。编辑器安装器同样以 160 MiB / 4 MiB 分别限制包文件与 `manifest.json`。
 - 打包器按包内规范路径排序条目，JSON 使用稳定键顺序，Lua 编译顺序固定，并把 ZIP 时间戳固定为 1980-01-01、权限固定为普通只读元数据；同一 lom_modkit/Rust/ZIP 工具链下，相同项目连续导出的 `.lommod` 应逐字节一致。不同 Rust 或 ZIP 实现的压缩字节可能不同，因此**不宣称跨工具链 reproducible build**。
+
+- 读取已发布的 v3 包时，源码／Lua 校验也识别修复前两种已知生成方式：官方压暗直接调用 `stage.SetDimmed`、未显式填写颜色的大图只传图片键。仍按包内结构化源码复编译后逐字节比较，不改写 `raw` 内容；重新导出统一使用当前生成方式。
 - `package-content.sha256` 是 `lom-entry-sha256-v1` 记录：对除它自身外的全部条目按名称排序，以「名称长度 + UTF-8 名称 + 内容长度 + 原始内容」计算 SHA-256。它不依赖 ZIP 时间戳、权限或压缩结果，可由 `lomc.package_content_hash(path)` 复算；它是构建一致性校验，不是签名或官方认证，也不替代 Runtime 对整包原始字节计算的 Host 指纹。
 - 编辑器「发布 → 包检查与水印检测 → 检查 .lommod 包」以只读方式展示 Manifest、Story、Lua、Texts、资源、用户内容、大小和逐条目 SHA-256，同时检查版本兼容、格式错误、逻辑内容哈希及资源引用/打包差异。检查器不解包到磁盘、不执行 Lua，也不登记共享内容库。
 
@@ -153,6 +155,8 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 
 **演出类**
 
+演出动作可选 `wait_after`（非负秒数，默认 0），动作本身完成／启动后追加停留。`show`、`hide`、`rotate`、`focus`、`dim` 另可选 `wait_for_completion`（布尔，旧数据缺省 false）；组内会统一等待完成，不重复等待。新建登场／退场的编辑器默认值为 true。`cg kind=big` 可选 `color`（整数 0 白底、1 黑底、2 透明，默认 0），发射已确认的 `ShowBigPicture(key, color)`。
+
 | type | 字段 | 说明 |
 | --- | --- | --- |
 | `parallel` | `actions`：2～32 个演出动作对象（含 `type` 及对应节点的字段，不含 `id/goto`） | 预载官方人物后，同一帧启动各动作；等待全部完成再走父节点的后继。具体范围与冲突规则见 §3.4。 |
@@ -168,7 +172,7 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 | `hide` | `character`；可选 `fadeDuration`(默认0) | 隐藏人物 |
 | `focus` | `character` | `characters.Focus` |
 | `offset` | `character`, `x`, `y`, `duration` | 人物偏移演出。官方角色走 `runwait(characters.MoveOffsetCoroutine(id,x,y,t))`；`user:` 角色走 `mod_char_offset` 后等待相同时长 |
-| `say` | `text`；可选 `character`, `portrait`(默认normal), `mode`("character"默认/"think"/"narrative"/"center")，可选 `voice` | 对话/内心独白(带os_mask)/旁白/居中旁白。narrative 与 center 忽略 character。**已读机制**：文本不裸进 Lua，发射 `say(luamanager.GetStoryText("MOD_<modid>_<scriptid>_<nodeid>"))`（无 modid 时兜底 "MOD"），文本本体进 texts.json 由运行时注册。**`voice`**（可选）：用户音频引用，如 `user:mohui.line_01`；进入本句前 `mod_play_voice`（先停上一句），`say()` 返回后 `mod_stop_voice`。语音走独立通道，`sound` / `StopMusic` 不停它。禁止绝对路径与官方音效名 |
+| `say` | `text`；可选 `character`, `portrait`(默认normal), `mode`("character"默认/"think"/"narrative"/"center")，可选 `voice`，`font_size`(0~200整数，默认0) | 字号调节只影响本句正文，0使用游戏默认，原文与已读 key 保留。对话/内心独白(带os_mask)/旁白/居中旁白。narrative 与 center 忽略 character。**已读机制**：文本不裸进 Lua，发射 `say(luamanager.GetStoryText("MOD_<modid>_<scriptid>_<nodeid>"))`（无 modid 时兜底 "MOD"），文本本体进 texts.json 由运行时注册。**`voice`**（可选）：用户音频引用，如 `user:mohui.line_01`；进入本句前 `mod_play_voice`（先停上一句），`say()` 返回后 `mod_stop_voice`。语音走独立通道，`sound` / `StopMusic` 不停它。禁止绝对路径与官方音效名 |
 | `choice` | `options`: `[{"text","goto"}]`（2~4 项）；可选 `dialog`(默认"Options"，皮肤见 §3.3) | 选项菜单 `choose()` |
 | `shock` | `character`；可选 `duration`(默认0.5) | 人物震动。官方角色走 flowcharts.common `shock`；`user:` 角色走独立立绘抖动并在结束后恢复位置 |
 | `mask` | `show`(bool) | 独白遮罩 `os_mask.Show` |
@@ -178,7 +182,7 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 | `camera` | `name`, `active`(bool) | 镜头滤镜 `maincamera.ActiveVolume(name, 0 | 1)`，如 stage-memory/stage-dream/stage-fire/stage-blurdim |
 | `block` | `flowchart`("view"/"common"), `name`；可选 `vars`: `[{"name","value"}]` | 通用 flowchart 块调用：`getvar` 逐个赋值后 `runblock(fc, name)`。覆盖 out_white/shake/flash/vshock 等 |
 | `cg` | `action`("show"/"hide"), `kind`("picture"/"item"/"big"/"map"/"family"/"title")；可选 `key`, `key2`, `n1`, `n2` | mainui 图片/地图/家谱/标题：`ShowPicture(key)`/`HidePicture`/`ShowItemPicture`/`ShowBigPicture`/`ShowMap(key,key2)`/`ShowFamilyTree(key,key2,n1,n2)`/`DisplayTitle(key)` 等 |
-| `dim` | `character`, `dimmed`(bool 必填，默认 true) | 人物压暗。官方角色走 `stage.SetDimmed(character, dimmedState)`；`user:` 角色复用当前舞台的 `DimColor` / `FadeDuration` |
+| `dim` | `character`, `dimmed`(bool 必填，默认 true) | 人物持续压暗。官方与用户角色统一走 `mod_char_dim(id, bool)`；开启后保留到关闭指令，关闭后保持明亮，后续对白、换表情、移动不会覆盖。沿用舞台 `DimColor` / `FadeDuration`，不改变淡入淡出的 alpha；切章/离开舞台清理。需使用随新版编辑器提供的 Host |
 | `message` | `text`（必填非空，多行合法） | 系统提示 `mainui.DisplayMessageText(text)` 显示**原文**（DisplayMessage 走本地化 key 解析，用 Text 版避免自定文本被当 key 查空） |
 | `rotate` | `character`, `angle`(int 必填，默认 180), `duration`(float 必填，默认 1，>0) | 人物旋转到绝对 Z 角度。官方角色走 `characters.Rotate(key, angle, duration)`；`user:` 角色走 `mod_char_rotate` 后等待相同时长 |
 | `dayenv` | `day_type`（int 必填，1=白天 / 2=晚上） | 日夜环境 `luamanager.SetGameDayEnvironment(day_type)`。**字段名 day_type**：避免与节点通用键 "type" 冲突 |

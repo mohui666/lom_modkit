@@ -64,6 +64,13 @@ impl Project {
         }
     }
     pub fn open(path: &Path) -> Result<Self> {
+        if path
+            .extension()
+            .and_then(|s| s.to_str())
+            .is_some_and(|s| s.eq_ignore_ascii_case("lua"))
+        {
+            return Self::import_lua(path).map(|(project, _)| project);
+        }
         let path = path.canonicalize()?;
         let mut project = Self::draft();
         project.stories.clear();
@@ -177,6 +184,25 @@ impl Project {
             )?;
         }
         Ok(project)
+    }
+    /// Import into an unsaved project. Saving must never overwrite the original
+    /// Lua file; retain its exact bytes even when editable nodes were recognized.
+    pub fn import_lua(path: &Path) -> Result<(Self, crate::lua_import::ImportReport)> {
+        let bytes = fs::read(path).with_context(|| format!("无法读取 Lua {}", path.display()))?;
+        let source = std::str::from_utf8(bytes.strip_prefix(&[0xef, 0xbb, 0xbf]).unwrap_or(&bytes))
+            .context("Lua 文件需要使用 UTF-8 编码")?;
+        let title = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("导入的 Lua");
+        let imported = crate::lua_import::import(source, "main", title)?;
+        let mut project = Self::new();
+        project.manifest["name"] = json!(title);
+        project.stories = BTreeMap::from([("main".into(), imported.story)]);
+        project
+            .assets
+            .insert("assets/imported/source.lua".into(), bytes);
+        Ok((project, imported.report))
     }
     fn insert_story(&mut self, story: Value, filename: PathBuf) -> Result<()> {
         let id = story["id"].as_str().context("剧情缺少 id")?.to_string();

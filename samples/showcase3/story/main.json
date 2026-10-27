@@ -5,6 +5,15 @@
   "mood": false,
   "nodes": [
     {
+      "id": "initial_time",
+      "type": "time",
+      "op": "set",
+      "year": 1,
+      "month": 1,
+      "stage": 1,
+      "goto": "message1"
+    },
+    {
       "id": "message1",
       "type": "message",
       "text": "【3.0/1】演出、对白栏防裁剪水印与三类用户内容测试开始。"
@@ -75,7 +84,9 @@
       "facing": "right",
       "fadeDuration": 0,
       "moveDuration": 0,
-      "appearance": "beautified"
+      "appearance": "beautified",
+      "wait_for_completion": true,
+      "wait_after": 0.2
     },
     {
       "id": "say1",
@@ -179,6 +190,15 @@
       "type": "dim",
       "character": "player",
       "dimmed": true
+    },
+    {
+      "id": "say_dim_persistent",
+      "type": "say",
+      "character": "player",
+      "portrait": "normal",
+      "mode": "character",
+      "text": "这句发言换表情后仍应保持压暗，直到后面的压暗关闭步骤。",
+      "font_size": 36
     },
     {
       "id": "rotate1",
@@ -305,6 +325,21 @@
       "flowchart": "common",
       "name": "flash",
       "vars": []
+    },
+    {
+      "id": "big_picture_show",
+      "type": "cg",
+      "action": "show",
+      "kind": "big",
+      "key": "big_fight_001",
+      "color": 2,
+      "wait_after": 0.5
+    },
+    {
+      "id": "big_picture_hide",
+      "type": "cg",
+      "action": "hide",
+      "kind": "big"
     },
     {
       "id": "cg1",
@@ -540,5 +575,5 @@
       "next_script": "gameplay"
     }
   ],
-  "start": "message1"
+  "start": "initial_time"
 }

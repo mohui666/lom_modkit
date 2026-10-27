@@ -100,6 +100,21 @@ def parse_catalog(path):
     return addr2bundle
 
 
+def picture_catalog(addresses):
+    """StoryPicture.Show prefixes its key with pic_; retain exact catalog keys.
+
+    Folder names are descriptive categories only, never used to invent an
+    Addressables key or to reject a picture that the game's API can load.
+    """
+    return [
+        {"key": address[4:],
+         "category": os.path.basename(os.path.dirname(
+             addresses.asset_paths.get(address, "").replace("\\", "/")))}
+        for address in sorted(addresses)
+        if address.startswith("pic_") and len(address) > 4
+    ]
+
+
 def _read_str(raw, off):
     ln = struct.unpack_from("<i", raw, off)[0]
     if ln < 0 or ln > 4096 or off + 4 + ln > len(raw):

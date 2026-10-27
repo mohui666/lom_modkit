@@ -114,7 +114,7 @@ pub fn simulate(story: &Value, target: &str) -> Value {
     simulate_until(story, target, true)
 }
 fn simulate_until(story: &Value, target: &str, include_target: bool) -> Value {
-    let mut state = json!({"actors":{},"overlays":{},"background":null,"view":null,"custom_cg":null,"dialog":null,"choice":null,"blackout":{"amount":0.0,"dir":"lr"},"reached":false,"steps":0});
+    let mut state = json!({"actors":{},"dimming":{},"overlays":{},"official_pictures":{},"background":null,"view":null,"custom_cg":null,"dialog":null,"choice":null,"blackout":{"amount":0.0,"dir":"lr"},"reached":false,"steps":0});
     let Some(ns) = story["nodes"].as_array() else {
         return state;
     };
@@ -165,10 +165,23 @@ pub fn build_playtest_prelude(story: &Value, target: &str) -> Vec<Value> {
             node["appearance"] = appearance.into();
         }
         nodes.push(node);
+        if let Some(dimmed) = state["dimming"].get(id) {
+            nodes.push(json!({"type":"dim","character":id,"dimmed":dimmed}));
+        }
     }
     let cg = &state["custom_cg"];
     if !text(cg, "image").is_empty() {
         nodes.push(json!({"type":"custom_cg","action":"show","image":cg["image"],"fade":0,"scale":number(cg,"scale",100.0),"x":number(cg,"x",0.0),"y":number(cg,"y",0.0)}));
+    }
+    for picture in state["official_pictures"]
+        .as_object()
+        .into_iter()
+        .flat_map(|o| o.values())
+    {
+        let mut picture = picture.clone();
+        picture.as_object_mut().unwrap().remove("id");
+        picture.as_object_mut().unwrap().remove("goto");
+        nodes.push(picture);
     }
     let mut used: std::collections::BTreeSet<String> = story["nodes"]
         .as_array()
@@ -201,6 +214,16 @@ fn apply(s: &mut Value, n: &Value) {
     let cid = text(n, "character");
     let kind = text(n, "type");
     match kind {
+        "raw" => {
+            let (actions, report) = lom_core::lua_import::preview_nodes(text(n, "code"));
+            for action in &actions {
+                apply(s, action);
+            }
+            s["raw_preview"] = json!(format!(
+                "原生 Lua 静态示意：显示已识别的直线演出，未执行 Lua。{}",
+                report.notes.join(" ")
+            ));
+        }
         "parallel" => {
             for action in lom_core::parallel::actions(n) {
                 apply(s, action);
@@ -232,6 +255,16 @@ fn apply(s: &mut Value, n: &Value) {
                 n.clone()
             };
         }
+        "cg" => {
+            let kind = text(n, "kind");
+            if n["action"] == "hide" {
+                if let Some(pictures) = s["official_pictures"].as_object_mut() {
+                    pictures.remove(kind);
+                }
+            } else {
+                s["official_pictures"][kind] = n.clone();
+            }
+        }
         "overlay" => {
             let slot = n["slot"].as_str().unwrap_or("main");
             if text(n, "action") == "hide" {
@@ -244,7 +277,8 @@ fn apply(s: &mut Value, n: &Value) {
         }
         "show" => {
             if !cid.is_empty() {
-                s["actors"][cid] = json!({"position":n.get("position").cloned().unwrap_or(json!("M")),"portrait":n.get("portrait").cloned().unwrap_or(json!("normal")),"facing":n.get("facing").cloned().unwrap_or(json!("right")),"appearance":n["appearance"],"offset_x":0.0,"offset_y":0.0,"rotation":0.0,"dimmed":false});
+                let dimmed = s["dimming"].get(cid).cloned().unwrap_or(json!(false));
+                s["actors"][cid] = json!({"position":n.get("position").cloned().unwrap_or(json!("M")),"portrait":n.get("portrait").cloned().unwrap_or(json!("normal")),"facing":n.get("facing").cloned().unwrap_or(json!("right")),"appearance":n["appearance"],"offset_x":0.0,"offset_y":0.0,"rotation":0.0,"dimmed":dimmed});
             }
         }
         "hide" => {
@@ -254,6 +288,9 @@ fn apply(s: &mut Value, n: &Value) {
         }
         "move" | "face" | "rotate" | "dim" | "offset" => {
             if s["actors"].get(cid).is_some() {
+                if kind == "dim" {
+                    s["dimming"][cid] = n["dimmed"].clone();
+                }
                 let a = &mut s["actors"][cid];
                 match kind {
                     "move" => a["position"] = n["to"].clone(),
@@ -305,6 +342,7 @@ pub fn playback_duration(node: &Value) -> f64 {
             _ => 0.0,
         }
         .max(0.0)
+            + number(action, "wait_after", 0.0).max(0.0)
     }
     if node["type"] == "parallel" {
         lom_core::parallel::actions(node)
@@ -547,12 +585,17 @@ impl Preview {
         if let Some(bytes) = p.assets.get(name) {
             return Some((format!("project:{name}"), bytes.clone(), json!({})));
         }
-        let rel = if character {
+        let rel = if let Some(key) = name.strip_prefix("@picture:") {
+            self.mapping["pictures"][key].as_str()?
+        } else if character {
             self.mapping["characters"][name]["portraits"][portrait]
                 .as_str()
                 .or_else(|| self.mapping["characters"][name]["portraits"]["normal"].as_str())?
         } else {
-            self.mapping["views"][name].as_str().unwrap_or(name)
+            self.mapping["views"][name]
+                .as_str()
+                .or_else(|| self.mapping["pictures"][name].as_str())
+                .unwrap_or(name)
         };
         let rel = Path::new(rel);
         if rel.is_absolute()
@@ -630,6 +673,124 @@ impl Preview {
         );
         Some((texture, meta))
     }
+    pub fn image_browser(
+        &mut self,
+        ui: &mut egui::Ui,
+        project: &Project,
+        options: &[(String, String)],
+        selected: &str,
+        official: bool,
+    ) -> Option<String> {
+        let mut chosen = None;
+        egui::CollapsingHeader::new(crate::i18n::tr("浏览图片缩略图"))
+            .id_salt("image-browser")
+            .show(ui, |ui| {
+                let id = ui.id().with("image-search");
+                let mut query = ui
+                    .data_mut(|data| data.get_temp::<String>(id))
+                    .unwrap_or_default();
+                ui.add(
+                    egui::TextEdit::singleline(&mut query)
+                        .hint_text(crate::i18n::tr("搜索图片名称 / ID")),
+                );
+                if official
+                    && self.mapping["pictures"]
+                        .as_object()
+                        .is_none_or(|pictures| pictures.is_empty())
+                {
+                    ui.small(crate::i18n::tr("图片预览需要重新提取游戏素材。"));
+                    if ui.button(crate::i18n::tr("从游戏提取预览素材…")).clicked() {
+                        self.extract_requested = true;
+                    }
+                }
+                if options.is_empty() {
+                    ui.label(crate::i18n::tr("请先导入图片。"));
+                }
+                let query_lower = query.to_lowercase();
+                let columns = ((ui.available_width() / 136.0).floor() as usize).clamp(1, 4);
+                let width = ((ui.available_width()
+                    - ui.spacing().item_spacing.x * (columns - 1) as f32)
+                    / columns as f32)
+                    .max(80.0);
+                egui::ScrollArea::vertical()
+                    .id_salt("image-browser-scroll")
+                    .max_height((ui.ctx().content_rect().height() * 0.45).clamp(180.0, 420.0))
+                    .show(ui, |ui| {
+                        egui::Grid::new("image-browser-grid")
+                            .num_columns(columns)
+                            .show(ui, |ui| {
+                                let mut shown = 0;
+                                for (key, name) in options.iter().filter(|(key, name)| {
+                                    query_lower.is_empty()
+                                        || key.to_lowercase().contains(&query_lower)
+                                        || name.to_lowercase().contains(&query_lower)
+                                }) {
+                                    ui.push_id(key, |ui| {
+                                        ui.vertical(|ui| {
+                                            ui.set_width(width);
+                                            let (rect, response) = ui.allocate_exact_size(
+                                                egui::vec2(width, 85.0),
+                                                egui::Sense::click(),
+                                            );
+                                            if ui.is_rect_visible(rect) {
+                                                ui.painter().rect_filled(
+                                                    rect,
+                                                    3.0,
+                                                    Color32::from_rgb(38, 44, 49),
+                                                );
+                                                let lookup = if official {
+                                                    format!("@picture:{key}")
+                                                } else {
+                                                    key.clone()
+                                                };
+                                                if let Some((texture, _)) = self.texture(
+                                                    ui.ctx(),
+                                                    project,
+                                                    &lookup,
+                                                    false,
+                                                    "",
+                                                ) {
+                                                    fit_image(
+                                                        ui.painter(),
+                                                        &texture,
+                                                        rect.shrink(3.0),
+                                                    );
+                                                } else {
+                                                    ui.painter().text(
+                                                        rect.center(),
+                                                        egui::Align2::CENTER_CENTER,
+                                                        crate::i18n::tr("暂无预览"),
+                                                        FontId::proportional(12.0),
+                                                        Color32::GRAY,
+                                                    );
+                                                }
+                                            }
+                                            let label = ui
+                                                .add_sized(
+                                                    [width, 22.0],
+                                                    egui::Button::selectable(selected == key, name)
+                                                        .truncate(),
+                                                )
+                                                .on_hover_text(name);
+                                            if response.clicked() || label.clicked() {
+                                                chosen = Some(key.clone());
+                                            }
+                                        });
+                                    });
+                                    shown += 1;
+                                    if shown % columns == 0 {
+                                        ui.end_row();
+                                    }
+                                }
+                                if shown == 0 && !options.is_empty() {
+                                    ui.label(crate::i18n::tr("没有匹配的图片"));
+                                }
+                            });
+                    });
+                ui.data_mut(|data| data.insert_temp(id, query));
+            });
+        chosen
+    }
     fn anchor(&self, pos: &str) -> (f32, f32) {
         let (x, feet) = position(&self.positions, pos);
         (x as f32, feet as f32)
@@ -649,6 +810,9 @@ impl Preview {
             Some(elapsed) => simulate_frame(story, target, elapsed, &self.positions),
             None => simulate(story, target),
         };
+        if let Some(notice) = state["raw_preview"].as_str() {
+            ui.small(notice);
+        }
         let size = Vec2::new(
             ui.available_width().max(160.0),
             ui.available_height().max(120.0),
@@ -714,12 +878,17 @@ impl Preview {
                         );
                         let art_left = meta["art_facing"].as_str().unwrap_or("left") != "right";
                         let flipped = (text(a, "facing") == "left") != art_left;
-                        let alpha = if a["dimmed"].as_bool().unwrap_or(false) {
-                            130.0
+                        let brightness = if a["dimmed"].as_bool().unwrap_or(false) {
+                            128
                         } else {
-                            255.0
+                            255
                         };
-                        let color = Color32::from_white_alpha((alpha * opacity).round() as u8);
+                        let color = Color32::from_rgba_unmultiplied(
+                            brightness,
+                            brightness,
+                            brightness,
+                            (255.0 * opacity).round() as u8,
+                        );
                         sprite(
                             &painter,
                             tex.id(),
@@ -761,6 +930,61 @@ impl Preview {
         if state["custom_cg"].is_object() {
             self.overlay(&ctx, &painter, p, &state["custom_cg"], rect);
         }
+        for picture in state["official_pictures"]
+            .as_object()
+            .into_iter()
+            .flat_map(|o| o.values())
+        {
+            let kind = text(picture, "kind");
+            if matches!(kind, "picture" | "item" | "big") {
+                if kind == "big" && picture["color"] != 2 {
+                    painter.rect_filled(
+                        rect,
+                        0.0,
+                        if picture["color"] == 1 {
+                            Color32::BLACK
+                        } else {
+                            Color32::WHITE
+                        },
+                    );
+                }
+                if let Some((texture, _)) = self.texture(
+                    &ctx,
+                    p,
+                    &format!("@picture:{}", text(picture, "key")),
+                    false,
+                    "",
+                ) {
+                    let target = if kind == "big" {
+                        rect
+                    } else {
+                        rect.shrink2(rect.size() * 0.18)
+                    };
+                    fit_image(&painter, &texture, target);
+                } else {
+                    painter.text(
+                        rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        format!(
+                            "{}: {}\n{}",
+                            crate::i18n::tr("官方图片"),
+                            text(picture, "key"),
+                            crate::i18n::tr("请重新提取游戏预览素材以显示图片")
+                        ),
+                        FontId::proportional(13.0),
+                        Color32::GRAY,
+                    );
+                }
+            } else if kind == "title" {
+                painter.text(
+                    rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    text(picture, "key"),
+                    FontId::proportional(rect.height() * 0.09),
+                    Color32::WHITE,
+                );
+            }
+        }
         if let Some(dialog) = state["dialog"].as_object() {
             let txt = dialog.get("text").and_then(Value::as_str).unwrap_or("");
             let mode = dialog
@@ -789,9 +1013,22 @@ impl Preview {
                     Color32::from_rgb(221, 168, 110),
                 );
             }
+            let font_size = dialog
+                .get("font_size")
+                .and_then(Value::as_i64)
+                .unwrap_or(match dialog.get("font_size").and_then(Value::as_str) {
+                    Some("small") => 24,
+                    Some("large") => 60,
+                    _ => 0,
+                });
+            let font_scale = if font_size > 0 {
+                font_size as f32 / 40.0
+            } else {
+                1.0
+            };
             let galley = painter.layout(
                 txt.to_owned(),
-                FontId::proportional((rect.width() / 38.0).clamp(12.0, 19.0)),
+                FontId::proportional((rect.width() / 38.0).clamp(12.0, 19.0) * font_scale),
                 Color32::from_rgb(246, 241, 221),
                 dr.width() - 24.0,
             );
@@ -1284,6 +1521,48 @@ pub fn graph(
 mod tests {
     use super::*;
     #[test]
+    fn official_pictures_persist_until_hidden_and_are_restored_for_playtest() {
+        let story = json!({"id":"main","start":"picture","nodes":[
+            {"id":"picture","type":"cg","action":"show","kind":"big","key":"one","color":2},
+            {"id":"speech","type":"say","mode":"narrative","text":"hello"},
+            {"id":"hide","type":"cg","action":"hide","kind":"big"}]});
+        assert_eq!(
+            simulate(&story, "speech")["official_pictures"]["big"]["key"],
+            "one"
+        );
+        assert!(simulate(&story, "hide")["official_pictures"]
+            .as_object()
+            .unwrap()
+            .is_empty());
+        let prelude = build_playtest_prelude(&story, "speech");
+        assert!(prelude
+            .iter()
+            .any(|n| n["type"] == "cg" && n["key"] == "one" && n["color"] == 2));
+        assert_eq!(
+            playback_duration(&json!({"type":"parallel","actions":[
+            {"type":"move","duration":1,"wait_after":2},{"type":"wait","seconds":2}]})),
+            3.0
+        );
+    }
+    #[test]
+    fn raw_lua_previews_known_scene_and_portrait_prefix_without_guessing_branches() {
+        let code = r#"
+getvar(flowcharts.view, "ViewName").value = "center"
+runblock(flowcharts.view, "view")
+stage.show{character=characters.Get("player"),portrait=characters.GetPortrait("player", "angry1"),toPosition="L1",facing="right"}
+if ReadGameState() then
+runblock(flowcharts.view, "out")
+end
+"#;
+        let story =
+            json!({"id":"main","start":"old","nodes":[{"id":"old","type":"raw","code":code}]});
+        let state = simulate(&story, "old");
+        assert_eq!(state["view"], "center");
+        assert_eq!(state["actors"]["player"]["portrait"], "angry1");
+        assert_eq!(state["actors"]["player"]["position"], "L1");
+        assert!(state["raw_preview"].as_str().unwrap().contains("第 5 行"));
+    }
+    #[test]
     fn library_picker_explains_wrong_folders_and_preserves_the_active_library() {
         let root = tempfile::tempdir().unwrap();
         let mut preview = Preview::new(root.path());
@@ -1361,6 +1640,31 @@ mod tests {
         assert_eq!(blackout_rect(rect, 0.5, "lr").right(), rect.right());
         for direction in ["lr", "rl", "tb", "bt"] {
             assert_eq!(blackout_rect(rect, 0.0, direction).width(), 0.0);
+        }
+    }
+
+    #[test]
+    fn explicit_dimming_survives_speech_portrait_changes_and_playtest_prelude() {
+        for actor in ["player", "user:demo.speaker"] {
+            let story = json!({"id":"main","start":"enter","nodes":[
+                {"id":"enter","type":"show","character":actor,"position":"M"},
+                {"id":"dark","type":"parallel","actions":[
+                    {"type":"dim","character":actor,"dimmed":true},
+                    {"type":"wait","seconds":0.2}]},
+                {"id":"speech","type":"say","character":actor,"portrait":"normal","text":"保持压暗"},
+                {"id":"portrait","type":"show","character":actor,"position":"R1","portrait":"angry"},
+                {"id":"hide","type":"hide","character":actor},
+                {"id":"return","type":"show","character":actor,"position":"M"},
+                {"id":"bright","type":"dim","character":actor,"dimmed":false},
+                {"id":"done","type":"say","character":actor,"text":"恢复明亮"}]});
+            for target in ["speech", "portrait", "return"] {
+                assert_eq!(simulate(&story, target)["actors"][actor]["dimmed"], true);
+            }
+            let prelude = build_playtest_prelude(&story, "portrait");
+            assert!(prelude.iter().any(|node| node["type"] == "dim"
+                && node["character"] == actor
+                && node["dimmed"] == true));
+            assert_eq!(simulate(&story, "done")["actors"][actor]["dimmed"], false);
         }
     }
     #[test]

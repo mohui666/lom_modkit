@@ -172,6 +172,9 @@ pub(crate) fn validate_mapping(root: &Path, mapping: &Value) -> Result<()> {
         files.extend(portraits.values());
     }
     files.extend(mapping["views"].as_object().unwrap().values());
+    if let Some(pictures) = mapping.get("pictures") {
+        files.extend(pictures.as_object().context("插图映射必须是对象")?.values());
+    }
     for value in files {
         let name = value.as_str().context("图片路径格式不正确")?;
         lom_core::package::canonical_archive_name(name)?;
@@ -210,6 +213,11 @@ mod tests {
         std::fs::write(dir.path().join("assets/normal.png"), b"fixture").unwrap();
         validate_mapping(dir.path(), &map).unwrap();
         map["views"]["bad"] = json!("../outside.png");
+        assert!(validate_mapping(dir.path(), &map).is_err());
+        map["views"] = json!({});
+        map["pictures"] = json!({"valid":"assets/normal.png"});
+        validate_mapping(dir.path(), &map).unwrap();
+        map["pictures"]["escape"] = json!("../outside.png");
         assert!(validate_mapping(dir.path(), &map).is_err());
     }
     #[cfg(unix)]
