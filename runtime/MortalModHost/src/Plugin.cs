@@ -28,7 +28,7 @@ namespace MortalModHost
     {
         public const string GUID = "com.mohui666.mortalmodhost";
         public const string NAME = "MortalModHost";
-        public const string VERSION = "1.1.3";
+        public const string VERSION = "1.1.4";
 
         internal static Plugin Instance { get; private set; }
 
@@ -643,25 +643,19 @@ namespace MortalModHost
             List<ModPackage> scannedMods = ModLoader.ScanMods(
                 modsDir,
                 msg => Logger.LogInfo(msg),
-                msg => Logger.LogWarning(msg));
-            var compatibleMods = new List<ModPackage>();
-            foreach (ModPackage package in scannedMods)
-            {
-                CompatibilityResult compatibility = RuntimeCompatibility.Evaluate(
-                    package, VERSION, Application.version);
-                foreach (string warning in compatibility.Warnings)
-                    Logger.LogWarning("mod " + package.Id + " 兼容性提示：" + warning);
-                if (!compatibility.IsCompatible)
+                msg => Logger.LogWarning(msg),
+                package =>
                 {
-                    Logger.LogError("拒绝加载 mod " + package.Id + "："
-                        + compatibility.Error);
-                    continue;
-                }
-                compatibleMods.Add(package);
-            }
-            scannedMods = compatibleMods;
-            ModRegistry.Rebuild(scannedMods, msg => Logger.LogWarning(msg));
-            LoadedMods = scannedMods.FindAll(ModRegistry.IsPackageFullyRegistered);
+                    CompatibilityResult compatibility = RuntimeCompatibility.Evaluate(
+                        package, VERSION, Application.version);
+                    foreach (string warning in compatibility.Warnings)
+                        Logger.LogWarning("mod " + package.Id + " 兼容性提示：" + warning);
+                    if (!compatibility.IsCompatible)
+                        Logger.LogError("拒绝加载 mod " + package.Id + "（"
+                            + Path.GetFileName(package.PackagePath) + "）：" + compatibility.Error);
+                    return compatibility.IsCompatible;
+                });
+            LoadedMods = ModRegistry.Rebuild(scannedMods, msg => Logger.LogWarning(msg));
             ReadTextRegistry.Rebuild(LoadedMods, msg => Logger.LogWarning(msg));
             try
             {
@@ -1258,11 +1252,9 @@ namespace MortalModHost
             GUILayout.BeginVertical();
             if (_titleFallbackMenu)
             {
-                GUILayout.Label(I18n.T("campaign.none"));
-                GUILayout.Label(LoadedMods.Exists(m=>m.PlayMode=="addon")
-                    ? "已加载原版附加剧情。请从原版开始或读取原版存档，事件按条件触发，无需新建战役。"
-                    : "未检测到可用兼容 MOD（可用格式：package_format=3、story_schema=2，且需稳定 campaign_id）。");
-                GUILayout.Label("可先返回标题画面手动确认原版读档页状态。");
+                bool hasAddons = LoadedMods.Exists(m => m.PlayMode == "addon");
+                GUILayout.Label(I18n.T(hasAddons ? "campaign.addon_only" : "campaign.none"));
+                GUILayout.Label(I18n.T(hasAddons ? "campaign.addon_hint" : "campaign.none_hint"));
             }
             else if (LoadedMods.Count == 0)
             {

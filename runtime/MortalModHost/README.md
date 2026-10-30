@@ -2,7 +2,7 @@
 
 MortalModHost 是 BepInEx 6 / Harmony 宿主，负责加载 `.lommod`、把编译后的 Lua 接入《活侠传》现有 Fungus/LuaManager 流程，并承载自定义媒体、战役入口和强制非官方来源披露。
 
-当前源码 Host 版本为 **1.1.3**。新 `addon/sandbox` 作品由 `ScenarioConfig/ScenarioEngine/ScenarioRuntime` 负责配置、纯调度与游戏适配；章节只负责演出，时间、任务和奖励由独立事件配置推进。完整契约见 [事件与任务](../../docs/chs/events_and_tasks.md)。Windows 构建与离线／GUI 记录见 [整合验证](../../docs/chs/windows_event_task_merge_20261025.md)，该次没有启动游戏。
+当前源码 Host 版本为 **1.1.4**。`addon/sandbox` 作品由 `ScenarioConfig/ScenarioEngine/ScenarioRuntime` 负责配置、纯调度与游戏适配；事件、跨事件任务和统一结算由独立事件配置管理，章节也可直接调整时间、属性、好感等状态。1.1.4 修复旧 Host 误拒绝合法节点、冲突包占位和战役列表提示，实机验证范围见 [v1.3.2 更新日志](../../RELEASE_NOTES_v1.3.2.md)。完整契约见 [事件与任务](../../docs/chs/events_and_tasks.md)。
 
 ## 接口原则
 

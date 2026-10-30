@@ -2,11 +2,13 @@
 
 **《活侠传》（Legend of Mortal）可视化剧情 Mod 制作工具。** 用图形编辑器编排人物对白、场景、分支、音乐和音效，导出 `.lommod`，由 C# 游戏插件加载。
 
-**v1.3.1（2026-10-27 更新构建）** 新增独立步骤列、动作内等待、集中初始设置、可视站位、官方图片缩略图与旧 Lua 导入；修复持续压暗、属性节点缺失和复制粘贴，支持输入具体对白字号。保留此前 228 项官方背景与搜索修复。见 [更新日志](RELEASE_NOTES_v1.3.1.md)。
+**v1.3.2（2026-10-30）** 随附 Host **1.1.4**，修复时间等合法节点导致作品无法加载、不兼容／冲突包遮挡正常包，以及战役列表提示重叠、误报的问题。升级后需退出游戏并更新 Host；现有作品无需删除时间节点。见 [更新日志](RELEASE_NOTES_v1.3.2.md)。
+
+**v1.3.1（2026-10-27 更新构建）** 新增独立步骤列、动作内等待、集中初始设置、可视站位、官方图片缩略图与旧 Lua 导入；修复持续压暗、属性节点缺失和复制粘贴，支持输入具体对白字号。见 [更新日志](RELEASE_NOTES_v1.3.1.md)。
 
 **v1.3.0** 增加原版附加剧情与自由剧本两种创作模式、独立事件／任务配置和日期／重复事件编辑；优化按钮、页面与弹窗，并新增一键定位 Steam 游戏目录。Windows 完整包包含 Host **1.1.3** 和预览素材提取助手。改动与验证边界见 [v1.3.0 变更记录](RELEASE_NOTES_v1.3.0.md)。
 
-[软件使用](docs/chs/software_usage.md) · [核心功能教程](docs/chs/core_tutorial.md) · [Mac 编辑器](docs/chs/macos.md) · [文档索引](docs/README.md) · [Windows v1.3.1 下载](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.1)
+[软件使用](docs/chs/software_usage.md) · [核心功能教程](docs/chs/core_tutorial.md) · [Mac 编辑器](docs/chs/macos.md) · [文档索引](docs/README.md) · [Windows v1.3.2 下载](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.2)
 
 语言：简体中文（本文） · [繁體中文](README.cht.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
@@ -56,7 +58,7 @@ macOS 从屏幕顶部系统应用菜单打开「设置」，快捷键 `⌘,`；W
 
 资源选择器显示翻译名称；不同资源同名时加稳定数字，例如「武师 1」「武师 2」。数字只用于界面区分，不修改保存的资源标识或台词。人物资源目录也含包子、马车、棋盘等道具立绘；对白模式可为它们配置文字，但不会自动生成语音。详情见 [用户内容](docs/chs/user_content.md)。
 
-两种新模式将时间、状态修改及奖励集中在事件条件／结果动作中，章节负责演出；64 类是全工具的节点总数，不是新模式添加菜单的可用数量。新模式要求包含 Scenario 实现的 Host **1.1.3**；完整新手流程见 [核心功能教程](docs/chs/core_tutorial.md)，Windows 软件验证见 [本次整合记录](docs/chs/windows_event_task_merge_20261025.md)。
+两种新模式用「剧情安排」管理事件、跨事件任务和统一结算；章节也可直接调整时间、属性、好感等状态。64 类是全工具的节点总数，不是新模式添加菜单的可用数量。请使用 Host **1.1.4**，避免旧 Host 误拒绝合法章节节点；包格式和存档标识保持不变。完整新手流程见 [核心功能教程](docs/chs/core_tutorial.md)，Windows 软件验证见 [整合记录](docs/chs/windows_event_task_merge_20261025.md)。
 
 静态分析遇到无法确定的游戏状态会返回 `unknown` / `unsupported`，不能替代游戏实测。完整功能对应与验证范围见 [Rust 迁移记录](docs/chs/rust_migration.md)。
 
@@ -83,6 +85,8 @@ cargo run --locked -p lom-editor -- --smoke-preview samples/showcase3
 远端主分支为 `master`，通过 PR 和必需的 macOS Rust、Linux Runtime 离线 CI 检查后合并。游戏功能修改须先查 [AGENTS.md](AGENTS.md) 和 [反编译接口](docs/chs/decompiled_api.md)，不得提交整份游戏反编译源码或提取资源。
 
 ## 文档与版本
+
+- [v1.3.2 更新日志](RELEASE_NOTES_v1.3.2.md)：Host 节点校验、包加载顺序、战役列表提示修复与升级方法。
 
 - [v1.3.1 更新日志](RELEASE_NOTES_v1.3.1.md)：创作流程、图片预览、字号、持续压暗、旧 Lua 导入及升级方法。
 

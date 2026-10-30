@@ -113,7 +113,9 @@ namespace MortalModHost
             var chapter=ScenarioJson.Object(MiniJson.Parse(json));
             foreach(object raw in ScenarioJson.Array(chapter,"nodes")) {
                 var node=ScenarioJson.Object(raw);string kind=ScenarioJson.Text(node,"type");
-                ScenarioJson.Require(Array.IndexOf(new[]{"free_trigger","mod_quest","quest_check","persistent_var","persistent_check","mission","time","flag","game_flag","stat","stat_set","affinity","talent","item","reward","result_screen","raw"},kind)<0,"剧情章节含事件/任务或结果动作："+kind);
+                // 与 Rust scenario::performance_node 保持一致：章节可直接调整时间和属性，
+                // 跨事件任务/持久状态和统一结算仍由 scenario.json 管理，高级 Lua 不在此模式开放。
+                ScenarioJson.Require(Array.IndexOf(new[]{"free_trigger","mod_quest","quest_check","persistent_var","persistent_check","reward","result_screen","raw"},kind)<0,"剧情章节含事件/任务或结果动作："+kind);
                 ScenarioJson.Require(kind!="end" || !node.ContainsKey("event_result") || !node.ContainsKey("next_script"),"章节结果不能与 next_script 混用");
             }
         }

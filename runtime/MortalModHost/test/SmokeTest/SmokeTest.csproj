@@ -52,6 +52,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="../../../../rust/lom-core/tests/fixtures/scenario-contract.json" Link="scenario-contract.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../../../rust/lom-core/data/schema.json" Link="node-schema.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

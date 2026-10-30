@@ -21,20 +21,29 @@ namespace MortalModHost
         }
 
         /// <summary>
-        /// 用扫描到的 mod 包重建查找表。重复 id 或任一注册名冲突时按整包拒绝后加载者，
+        /// 用兼容的 mod 包重建查找表。campaign_id、mod id 或注册名冲突时按整包拒绝后加载者，
         /// 避免一个包只注册一半，或菜单选择 B 却实际执行 A 的脚本。
+        /// 只有完整注册的包才能占用任一身份，返回可供菜单使用的包列表。
         /// </summary>
-        public static void Rebuild(IEnumerable<ModPackage> mods, Action<string> logWarn = null)
+        public static List<ModPackage> Rebuild(IEnumerable<ModPackage> mods, Action<string> logWarn = null)
         {
             _luaByRegisteredName.Clear();
             _packageByRegisteredName.Clear();
             _scriptIdByRegisteredName.Clear();
             var registeredIds = new HashSet<string>(StringComparer.Ordinal);
+            var campaignOwners = new Dictionary<string, string>(StringComparer.Ordinal);
+            var loaded = new List<ModPackage>();
             foreach (var mod in mods)
             {
-                if (mod == null || string.IsNullOrEmpty(mod.Id)) continue;
+                if (mod == null || string.IsNullOrEmpty(mod.Id) || mod.LuaScripts.Count == 0) continue;
                 string conflict = null;
-                if (registeredIds.Contains(mod.Id))
+                string owner;
+                if (!string.IsNullOrEmpty(mod.CampaignId)
+                    && campaignOwners.TryGetValue(mod.CampaignId, out owner))
+                {
+                    conflict = "campaign_id 冲突：" + mod.CampaignId + "（已加载 MOD " + owner + "）";
+                }
+                else if (registeredIds.Contains(mod.Id))
                 {
                     conflict = "重复 mod id：" + mod.Id;
                 }
@@ -65,7 +74,10 @@ namespace MortalModHost
                     _scriptIdByRegisteredName[registeredName] = pair.Key;
                 }
                 registeredIds.Add(mod.Id);
+                if (!string.IsNullOrEmpty(mod.CampaignId)) campaignOwners.Add(mod.CampaignId, mod.Id);
+                loaded.Add(mod);
             }
+            return loaded;
         }
 
         public static bool IsPackageFullyRegistered(ModPackage package)

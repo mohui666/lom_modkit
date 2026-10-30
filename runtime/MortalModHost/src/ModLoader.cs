@@ -57,11 +57,12 @@ namespace MortalModHost
         /// <summary>
         /// 扫描 modsDir 下全部 *.lommod。目录不存在则创建。
         /// 返回成功解析的包列表；坏包经 logWarn 报告后跳过。
+        /// acceptPackage 在试玩包优先级之前执行；身份冲突由 ModRegistry 原子处理。
         /// </summary>
-        public static List<ModPackage> ScanMods(string modsDir, Action<string> logInfo, Action<string> logWarn)
+        public static List<ModPackage> ScanMods(string modsDir, Action<string> logInfo, Action<string> logWarn,
+            Func<ModPackage, bool> acceptPackage = null)
         {
             var result = new List<ModPackage>();
-            var campaignOwners = new Dictionary<string, string>(StringComparer.Ordinal);
             if (!Directory.Exists(modsDir))
             {
                 Directory.CreateDirectory(modsDir);
@@ -74,16 +75,20 @@ namespace MortalModHost
             var parsedPackages = new List<ModPackage>();
             foreach (string file in files)
             {
+                ModPackage package;
                 try
                 {
-                    parsedPackages.Add(LoadPackage(file, logWarn));
+                    package = LoadPackage(file, logWarn);
                 }
                 catch (Exception ex)
                 {
                     // 坏 zip / 缺 manifest / 缺 entry lua / JSON 非法等都走这里
                     if (logWarn != null)
                         logWarn("跳过损坏的 mod 包 " + Path.GetFileName(file) + "：" + ex.Message);
+                    continue;
                 }
+                if (acceptPackage == null || acceptPackage(package))
+                    parsedPackages.Add(package);
             }
 
             // 编辑器的正式试玩包使用固定文件名和固定 manifest id。旧版本曾写出
@@ -113,16 +118,6 @@ namespace MortalModHost
                     continue;
                 }
 
-                string existingOwner;
-                if (campaignOwners.TryGetValue(package.CampaignId, out existingOwner))
-                {
-                    if (logWarn != null)
-                        logWarn("跳过 campaign_id 冲突的 mod 包 "
-                            + Path.GetFileName(package.PackagePath) + "：与已加载 MOD "
-                            + existingOwner + " 冲突：" + package.CampaignId);
-                    continue;
-                }
-                campaignOwners.Add(package.CampaignId, package.Id);
                 result.Add(package);
             }
             return result;
