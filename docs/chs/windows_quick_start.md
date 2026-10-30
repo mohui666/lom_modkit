@@ -12,7 +12,7 @@
 
 打开「游戏与 MOD」，点击页面顶部的「检查更新」。发现 GitHub 最新正式版后，会显示版本和更新说明；选择「更新并重启」即可后台直接下载独立 EXE／DLL，校验、覆盖程序文件并自动重启，重新打开当前项目，无需下载或解压 ZIP，检查过程读取 Release 更新清单，避开匿名 API 限流。未保存的修改会先提示保存、放弃或取消；没有新版则显示「当前已是最新版本」。
 
-用户内容库默认在 `%APPDATA%\lom_modkit\repository`，配置在 `%APPDATA%\lom_modkit\rust`，项目素材随项目保存。内置更新只替换编辑器、编译器和随附 Host DLL，保留这些数据和安装目录里的其他文件。首次从已有完整旧版升级到 v1.3.3，可退出编辑器，直接将独立附件 `lom-editor.exe`、`lomc.exe` 覆盖到原目录；也可完整解压 ZIP 覆盖。不要删除其中自行保存的项目或素材。编辑器更新不会自动替换游戏中的 Host。
+用户内容库默认在 `%APPDATA%\lom_modkit\repository`，配置在 `%APPDATA%\lom_modkit\rust`，项目素材随项目保存。内置更新只替换编辑器、编译器和随附 Host DLL，保留这些数据和安装目录里的其他文件。首次从已有完整旧版升级到 v1.3.3，可退出编辑器，直接将独立附件 `lom-editor.exe`、`lomc.exe` 覆盖到原目录，并将 `MortalModHost.dll`、`NVorbis.dll` 放入 `runtime/`；也可完整解压 ZIP 覆盖。不要删除其中自行保存的项目或素材。编辑器更新不会自动替换游戏中的 Host。
 
 ## 配置自己的游戏
 

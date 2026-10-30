@@ -10,6 +10,6 @@
 
 每次正式 Release 使用递增的 `vX.Y.Z` Tag，上传 `update.json` 与 `lom-editor.exe`、`lomc.exe`、`MortalModHost.dll`、`NVorbis.dll`。清单记录版本、更新说明和四个文件的大小／SHA-256；文件名、安装位置及下载仓库由更新器固定。发布脚本会生成这五个附件，完整 ZIP 另供首次安装。
 
-旧版若遇到 API 限流，可先退出编辑器，直接把本版 `lom-editor.exe`、`lomc.exe` 覆盖到原目录。游戏内 Host 仍需从「游戏与 MOD」另行安装／更新。第三方 `NVorbis.dll` 保留其自身版本。
+旧版若遇到 API 限流，可先退出编辑器，把本版 `lom-editor.exe`、`lomc.exe` 覆盖到原目录，并把 `MortalModHost.dll`、`NVorbis.dll` 放入 `runtime/`。游戏内 Host 仍需从「游戏与 MOD」另行安装／更新。第三方 `NVorbis.dll` 保留其自身版本。
 
 [Windows 快速开始](docs/chs/windows_quick_start.md) · [v1.3.4 设置与版本说明](RELEASE_NOTES_v1.3.4.md)
