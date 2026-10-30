@@ -15,6 +15,7 @@ serde_json.workspace = true
 serde.workspace = true
 regex.workspace = true
 tempfile.workspace = true
+sha2.workspace = true
 eframe = { version = "0.33", default-features = false, features = ["default_fonts", "glow", "x11", "wayland", "accesskit"] }
 rfd = "0.15"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }

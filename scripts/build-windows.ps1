@@ -219,6 +219,12 @@ try {
 
     Replace-FileAtomically $TemporaryArchive $ArchivePath
     Replace-FileAtomically $TemporaryChecksum $ChecksumPath
+    # Stable standalone asset names are consumed by the in-editor updater.
+    foreach ($Relative in @("lom-editor.exe", "lomc.exe", "runtime\MortalModHost.dll", "runtime\NVorbis.dll")) {
+        $StandalonePath = Join-Path $OutputDirectory (Split-Path -Leaf $Relative)
+        Copy-Item -LiteralPath (Join-Path $BundleDirectory $Relative) -Destination $StandalonePath -ErrorAction Stop
+        Write-Host "OK  $StandalonePath"
+    }
     Write-Host "OK  $ArchivePath"
     Write-Host "OK  $ChecksumPath"
     Write-Host "SHA256 $Digest"
