@@ -52,10 +52,14 @@ try {
     }
     if ($job.restart) {
         $editor = Join-Path $root 'lom-editor.exe'
+        $start = New-Object System.Diagnostics.ProcessStartInfo
+        $start.FileName = $editor
+        $start.WorkingDirectory = $root
+        $start.UseShellExecute = $true
         if ($job.project) {
-            $argument = '"' + [regex]::Replace([string]$job.project, '(\\+)$', '$1$1') + '"'
-            Start-Process -FilePath $editor -ArgumentList $argument -WorkingDirectory $root
-        } else { Start-Process -FilePath $editor -WorkingDirectory $root }
+            $start.Arguments = '"' + [regex]::Replace([string]$job.project, '(\\+)$', '$1$1') + '"'
+        }
+        [Diagnostics.Process]::Start($start) | Out-Null
     }
 } catch {
     if ($job -and -not $job.restart) { [Console]::Error.WriteLine($_.Exception.Message) }

@@ -3,7 +3,7 @@ use anyhow::{ensure, Context, Result};
 use eframe::egui;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeSet, fs, io::Read, path::Path, process::Command, sync::mpsc};
+use std::{fs, path::Path, process::Command, sync::mpsc};
 
 const RELEASES: &str = "https://github.com/mohui666/lom_modkit/releases";
 const LATEST: &str = "https://api.github.com/repos/mohui666/lom_modkit/releases/latest";
@@ -16,7 +16,28 @@ struct Release {
     version: String,
     notes: String,
     url: String,
-    archive: Option<(String, String, String)>,
+    files: Vec<Download>,
+}
+
+const PROGRAM_FILES: [(&str, &str); 4] = [
+    ("lom-editor.exe", "lom-editor.exe"),
+    ("lomc.exe", "lomc.exe"),
+    ("MortalModHost.dll", "runtime/MortalModHost.dll"),
+    ("NVorbis.dll", "runtime/NVorbis.dll"),
+];
+
+#[derive(Clone, Debug)]
+struct Download {
+    path: String,
+    url: String,
+    size: u64,
+    digest: String,
+}
+
+impl Release {
+    fn can_update(&self) -> bool {
+        self.files.len() == PROGRAM_FILES.len()
+    }
 }
 
 fn version(text: &str) -> Result<[u64; 3]> {
@@ -49,27 +70,38 @@ fn parse_release(value: &Value) -> Result<Release> {
         value["html_url"] == release_url,
         "发布页面不属于本工具的 GitHub 仓库"
     );
-    let number = tag.trim_start_matches('v');
-    let filename = format!("lom_modkit-v{number}_windows_x64.zip");
-    let asset_url = |name: &str| -> Option<String> {
+
+    let mut files = Vec::new();
+    for (name, path) in PROGRAM_FILES {
         let expected = format!("{RELEASES}/download/{tag}/{name}");
-        value["assets"].as_array()?.iter().find_map(|asset| {
-            (asset["name"] == name
-                && asset["browser_download_url"] == expected
-                && asset["size"]
-                    .as_u64()
-                    .is_some_and(|n| n > 0 && n <= MAX_DOWNLOAD))
-            .then_some(expected.clone())
-        })
-    };
-    let archive = asset_url(&filename)
-        .zip(asset_url(&format!("{filename}.sha256")))
-        .map(|(zip, checksum)| (filename, zip, checksum));
+        if let Some(asset) = value["assets"].as_array().and_then(|assets| {
+            assets.iter().find(|asset| {
+                asset["name"] == name
+                    && asset["browser_download_url"] == expected
+                    && asset["size"]
+                        .as_u64()
+                        .is_some_and(|n| n > 0 && n <= MAX_DOWNLOAD)
+            })
+        }) {
+            if let Some(digest) = asset["digest"]
+                .as_str()
+                .and_then(|s| s.strip_prefix("sha256:"))
+                .filter(|s| s.len() == 64 && s.bytes().all(|b| b.is_ascii_hexdigit()))
+            {
+                files.push(Download {
+                    path: path.into(),
+                    url: expected,
+                    size: asset["size"].as_u64().unwrap(),
+                    digest: digest.into(),
+                });
+            }
+        }
+    }
     Ok(Release {
-        version: number.into(),
+        version: tag.strip_prefix('v').unwrap_or(tag).into(),
         notes: value["body"].as_str().unwrap_or("").into(),
         url: release_url,
-        archive,
+        files,
     })
 }
 
@@ -159,75 +191,7 @@ fn check() -> Result<Release> {
 }
 
 fn owned_file(name: &str) -> bool {
-    matches!(
-        name,
-        "lom-editor.exe"
-            | "lomc.exe"
-            | "LICENSE"
-            | "README-Windows.md"
-            | "runtime/MortalModHost.dll"
-            | "runtime/NVorbis.dll"
-            | "assets/doorstop/win-x86-doorstop.dll"
-            | "assets/doorstop/win-x64-doorstop.dll"
-            | "assets/doorstop/README.md"
-            | "assets/doorstop/LICENSE.UnityDoorstop"
-    ) || name.starts_with("asset-extractor/")
-        || (!name.contains('/') && name.starts_with("RELEASE_NOTES_v") && name.ends_with(".md"))
-}
-
-fn unpack(archive: &Path, output: &Path) -> Result<Vec<String>> {
-    let mut zip = zip::ZipArchive::new(fs::File::open(archive)?)?;
-    ensure!(zip.len() <= 4096, "更新包文件过多");
-    let mut files = Vec::new();
-    let mut seen = BTreeSet::new();
-    let mut total = 0u64;
-    for index in 0..zip.len() {
-        let mut entry = zip.by_index(index)?;
-        let path = lom_core::package::canonical_archive_name(entry.name())?;
-        ensure!(
-            entry.unix_mode().is_none_or(|m| m & 0o170000 != 0o120000),
-            "更新包不能包含符号链接"
-        );
-        let relative = path
-            .strip_prefix("lom_modkit/")
-            .context("更新包目录结构不正确")?;
-        ensure!(
-            seen.insert(relative.to_lowercase()),
-            "更新包含重复路径：{relative}"
-        );
-        if entry.is_dir() {
-            continue;
-        }
-        ensure!(owned_file(relative), "更新包包含非程序文件：{relative}");
-        total = total.checked_add(entry.size()).context("更新包大小溢出")?;
-        ensure!(
-            total <= 512 * 1024 * 1024 && entry.size() <= MAX_DOWNLOAD,
-            "更新包解压大小超限"
-        );
-        let target = output.join(relative);
-        fs::create_dir_all(target.parent().context("无效更新路径")?)?;
-        let mut destination = fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(target)?;
-        let copied = std::io::copy(&mut entry.by_ref().take(MAX_DOWNLOAD + 1), &mut destination)?;
-        ensure!(copied == entry.size(), "更新文件长度不正确：{relative}");
-        files.push(relative.into());
-    }
-    for required in [
-        "lom-editor.exe",
-        "lomc.exe",
-        "runtime/MortalModHost.dll",
-        "runtime/NVorbis.dll",
-        "asset-extractor/lom-asset-extractor.exe",
-        "assets/doorstop/win-x64-doorstop.dll",
-        "assets/doorstop/win-x86-doorstop.dll",
-    ] {
-        ensure!(files.iter().any(|s| s == required), "更新包缺少 {required}");
-    }
-    // Replace the editor last, after all companion files are installed.
-    files.sort_by_key(|name| name == "lom-editor.exe");
-    Ok(files)
+    PROGRAM_FILES.iter().any(|(_, path)| *path == name)
 }
 
 struct Prepared {
@@ -235,32 +199,37 @@ struct Prepared {
     files: Vec<String>,
 }
 
-fn verify_archive(archive: &Path, checksum: &str, filename: &str) -> Result<()> {
-    let expected = checksum.split_whitespace().collect::<Vec<_>>();
+fn verify_file(path: &Path, file: &Download) -> Result<()> {
     ensure!(
-        expected.len() == 2 && expected[1] == filename && expected[0].len() == 64,
-        "发布校验文件格式不正确"
+        fs::metadata(path)?.len() == file.size,
+        "更新文件长度不正确：{}",
+        file.path
     );
-    let actual = format!("{:x}", Sha256::digest(fs::read(archive)?));
+    let actual = format!("{:x}", Sha256::digest(fs::read(path)?));
     ensure!(
-        actual.eq_ignore_ascii_case(expected[0]),
-        "更新包校验失败，请重新检查更新"
+        actual.eq_ignore_ascii_case(&file.digest),
+        "更新文件校验失败：{}",
+        file.path
     );
     Ok(())
 }
 
 fn prepare(release: &Release) -> Result<Prepared> {
-    let (filename, archive_url, checksum_url) = release
-        .archive
-        .as_ref()
-        .context("此发布没有完整 Windows 更新包及校验文件")?;
+    ensure!(
+        release.can_update(),
+        "此发布缺少可直接更新的程序附件或 GitHub 校验信息"
+    );
     let workspace = lom_core::workdir::create()?;
-    let archive = workspace.path().join(filename);
-    let checksum = workspace.path().join("checksum.txt");
-    download(archive_url, &archive, MAX_DOWNLOAD)?;
-    download(checksum_url, &checksum, 4096)?;
-    verify_archive(&archive, &fs::read_to_string(checksum)?, filename)?;
-    let files = unpack(&archive, &workspace.path().join("bundle"))?;
+    let mut files = Vec::new();
+    for file in &release.files {
+        ensure!(owned_file(&file.path), "拒绝下载非程序文件：{}", file.path);
+        let destination = workspace.path().join("bundle").join(&file.path);
+        fs::create_dir_all(destination.parent().context("无效更新路径")?)?;
+        download(&file.url, &destination, MAX_DOWNLOAD)?;
+        verify_file(&destination, file)?;
+        files.push(file.path.clone());
+    }
+    files.sort_by_key(|name| name == "lom-editor.exe");
     Ok(Prepared { workspace, files })
 }
 
@@ -402,13 +371,13 @@ impl Updater {
                     ui.label(tr("是否更新？安装完成后会自动重启编辑器，并重新打开当前项目。"));
                     ui.small(tr("项目、用户内容库和预览库会保留。游戏中的 Host 需在“游戏与 MOD”中另行更新。"));
                     ui.hyperlink_to(tr("查看完整更新说明"), &release.url);
-                    if cfg!(windows) && release.archive.is_some() {
+                    if cfg!(windows) && release.can_update() {
                         offered = true;
                         crate::shell::dialog_buttons(ui, |ui| {
                             update = ui.button(tr("更新并重启")).clicked();
                             close |= ui.button(tr("暂不更新")).clicked();
                         });
-                    } else { ui.label(tr("当前平台暂无内置安装包，请到发布页面查看。")); }
+                    } else { ui.label(tr("此发布暂无适用的独立更新文件，请到发布页面查看。")); }
                 } else {
                     ui.label(tr("当前已是最新版本"));
                     ui.hyperlink_to(tr("查看发布页面"), &release.url);
@@ -452,15 +421,20 @@ impl Updater {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
 
     fn release() -> Value {
         let tag = "v1.3.20";
-        let filename = "lom_modkit-v1.3.20_windows_x64.zip";
-        json!({"tag_name":tag,"draft":false,"prerelease":false,"html_url":format!("{RELEASES}/tag/{tag}"),"body":"fixture release notes","assets":[
-            {"name":filename,"size":100,"browser_download_url":format!("{RELEASES}/download/{tag}/{filename}")},
-            {"name":format!("{filename}.sha256"),"size":100,"browser_download_url":format!("{RELEASES}/download/{tag}/{filename}.sha256")}
-        ]})
+        let assets = PROGRAM_FILES
+            .iter()
+            .map(|(name, _)| {
+                json!({
+                    "name": name, "size": 17,
+                    "browser_download_url": format!("{RELEASES}/download/{tag}/{name}"),
+                    "digest": format!("sha256:{:x}", Sha256::digest(b"new program bytes"))
+                })
+            })
+            .collect::<Vec<_>>();
+        json!({"tag_name":tag,"draft":false,"prerelease":false,"html_url":format!("{RELEASES}/tag/{tag}"),"body":"fixture release notes","assets":assets})
     }
 
     #[test]
@@ -470,71 +444,50 @@ mod tests {
             assert!(version(invalid).is_err());
         }
         let mut value = release();
-        assert!(parse_release(&value).unwrap().archive.is_some());
+        assert!(parse_release(&value).unwrap().can_update());
         value["prerelease"] = json!(true);
         assert!(parse_release(&value).is_err());
         value["prerelease"] = json!(false);
-        value["assets"][0]["browser_download_url"] = json!("https://other.example/update.zip");
-        assert!(parse_release(&value).unwrap().archive.is_none());
+        value["assets"][0]["browser_download_url"] = json!("https://other.example/lom-editor.exe");
+        assert!(!parse_release(&value).unwrap().can_update());
         value["html_url"] = json!("https://github.com/other/repo/releases/tag/v1.3.20");
         assert!(parse_release(&value).is_err());
+        let mut value = release();
+        value["assets"][0]["digest"] = json!("sha256:invalid");
+        assert!(!parse_release(&value).unwrap().can_update());
     }
 
-    fn fixture_zip(path: &Path, extra: Option<&str>) {
-        let mut zip = zip::ZipWriter::new(fs::File::create(path).unwrap());
-        for name in [
-            "lom-editor.exe",
-            "lomc.exe",
-            "runtime/MortalModHost.dll",
-            "runtime/NVorbis.dll",
-            "asset-extractor/lom-asset-extractor.exe",
-            "assets/doorstop/win-x64-doorstop.dll",
-            "assets/doorstop/win-x86-doorstop.dll",
-        ]
-        .into_iter()
-        .chain(extra)
-        {
-            zip.start_file(
-                format!("lom_modkit/{name}"),
-                zip::write::SimpleFileOptions::default(),
-            )
-            .unwrap();
-            zip.write_all(b"new program bytes").unwrap();
+    fn fixture_files(output: &Path) -> Vec<String> {
+        let mut files = Vec::new();
+        for (_, name) in PROGRAM_FILES {
+            let target = output.join(name);
+            fs::create_dir_all(target.parent().unwrap()).unwrap();
+            fs::write(target, b"new program bytes").unwrap();
+            files.push(name.into());
         }
-        zip.finish().unwrap();
+        files.sort_by_key(|name| name == "lom-editor.exe");
+        files
     }
 
     #[test]
-    fn rejects_wrong_checksum_traversal_and_user_data_in_update_packages() {
+    fn rejects_modified_downloads_and_never_selects_user_files() {
         let temp = tempfile::tempdir().unwrap();
-        for (i, extra) in [
-            None,
-            Some("../outside.txt"),
-            Some("assets/user/character/test.person/content.json"),
-            Some("project/story/main.json"),
-            Some("LOM-EDITOR.EXE"),
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            let archive = temp.path().join(format!("{i}.zip"));
-            fixture_zip(&archive, extra);
-            let checksum = format!("{:x}  {i}.zip", Sha256::digest(fs::read(&archive).unwrap()));
-            verify_archive(&archive, &checksum, &format!("{i}.zip")).unwrap();
-            assert!(verify_archive(&archive, &checksum, "wrong.zip").is_err());
-            assert!(verify_archive(
-                &archive,
-                &format!("{}  {i}.zip", "0".repeat(64)),
-                &format!("{i}.zip")
-            )
-            .is_err());
-            let result = unpack(&archive, &temp.path().join(format!("stage-{i}")));
-            assert_eq!(result.is_ok(), extra.is_none(), "{extra:?}");
-            if let Ok(files) = result {
-                assert_eq!(files.last().unwrap(), "lom-editor.exe");
-            }
+        let release = parse_release(&release()).unwrap();
+        for file in &release.files {
+            let path = temp.path().join("download");
+            fs::write(&path, b"new program bytes").unwrap();
+            verify_file(&path, file).unwrap();
+            fs::write(&path, b"bad program bytes").unwrap();
+            assert!(verify_file(&path, file).is_err());
         }
-        assert!(!temp.path().join("outside.txt").exists());
+        for name in [
+            "../outside.txt",
+            "assets/user/character/test.person/content.json",
+            "project/story/main.json",
+            "preferences.json",
+        ] {
+            assert!(!owned_file(name));
+        }
     }
 
     #[test]
@@ -551,13 +504,19 @@ mod tests {
     #[ignore = "requires the public GitHub release and a network download"]
     fn github_release_download_and_validation() {
         let release = check().unwrap();
-        let prepared = prepare(&release).unwrap();
-        assert!(prepared.files.iter().any(|name| name == "lom-editor.exe"));
-        assert!(prepared
-            .workspace
-            .path()
-            .join("bundle/runtime/MortalModHost.dll")
-            .is_file());
+        let host = release
+            .files
+            .iter()
+            .find(|file| file.path == "runtime/MortalModHost.dll")
+            .unwrap();
+        let temp = lom_core::workdir::create().unwrap();
+        let path = temp.path().join("MortalModHost.dll");
+        download(&host.url, &path, MAX_DOWNLOAD).unwrap();
+        verify_file(&path, host).unwrap();
+        if release.can_update() {
+            let prepared = prepare(&release).unwrap();
+            assert_eq!(prepared.files.len(), 4);
+        }
     }
 
     #[cfg(windows)]
@@ -578,9 +537,7 @@ mod tests {
             fs::create_dir_all(root.join("runtime")).unwrap();
             fs::write(root.join("lomc.exe"), b"old").unwrap();
             fs::write(root.join("runtime/MortalModHost.dll"), b"old host").unwrap();
-            let archive = stage.path().join("fixture.zip");
-            fixture_zip(&archive, None);
-            let files = unpack(&archive, &stage.path().join("bundle")).unwrap();
+            let files = fixture_files(&stage.path().join("bundle"));
             for (path, data) in [
                 ("project/story/main.json", "my story"),
                 (
