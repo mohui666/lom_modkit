@@ -38,6 +38,7 @@ impl ToolPage {
 pub struct ToolsPanel {
     pub page: ToolPage,
     export_requested: bool,
+    update_check_requested: bool,
     installation: Option<Value>,
     mods: Vec<Value>,
     mods_error: Option<String>,
@@ -78,6 +79,7 @@ impl Default for ToolsPanel {
         Self {
             page: ToolPage::default(),
             export_requested: false,
+            update_check_requested: false,
             installation: None,
             mods: vec![],
             mods_error: None,
@@ -256,6 +258,10 @@ impl ToolsPanel {
             }
         }
     }
+    pub fn take_update_check(&mut self) -> bool {
+        std::mem::take(&mut self.update_check_requested)
+    }
+
     pub fn take_preview_library(&mut self) -> Option<PathBuf> {
         self.preview_ready.take()
     }
@@ -583,6 +589,20 @@ impl ToolsPanel {
         });
     }
     fn show_game(&mut self, ui: &mut egui::Ui, project: &Project) {
+        ui.horizontal_wrapped(|ui| {
+            ui.strong(crate::i18n::tr("编辑器更新"));
+            ui.label(format!("v{}", env!("CARGO_PKG_VERSION")));
+            if ui
+                .add_enabled(
+                    self.job.is_none(),
+                    egui::Button::new(crate::i18n::tr("检查更新")),
+                )
+                .clicked()
+            {
+                self.update_check_requested = true;
+            }
+        });
+        ui.separator();
         use crate::i18n::tr;
         if !cfg!(windows) {
             ui.group(|ui| {
