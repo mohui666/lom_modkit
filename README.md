@@ -2,6 +2,8 @@
 
 **《活侠传》（Legend of Mortal）可视化剧情 Mod 制作工具。** 用图形编辑器编排人物对白、场景、分支、音乐和音效，导出 `.lommod`，由 C# 游戏插件加载。
 
+**v1.3.5（2026-10-30）** 编辑器、CLI、Host 统一为 **1.3.5**。更新检查改读 Release 的 `update.json`，避开 GitHub 匿名 API 限流；仍直接下载 EXE／DLL，覆盖后重启并保留用户内容。见 [更新日志](RELEASE_NOTES_v1.3.5.md)。
+
 **v1.3.4（2026-10-30）** 编辑器、CLI、Host 统一为 **1.3.4**，旧作品兼容条件保持不变。「游戏与 MOD → 检查更新」直接下载独立 EXE／DLL，覆盖后重启并保留项目与用户内容。见 [更新日志](RELEASE_NOTES_v1.3.4.md)。
 
 **v1.3.3（2026-10-30）** 新增「设置 → 检查更新」：发现 GitHub 最新正式版后，选择「更新并重启」即可直接下载 EXE／DLL、覆盖程序并重新打开当前项目，保留用户内容库、项目素材和配置。内置更新无需 ZIP。见 [更新日志](RELEASE_NOTES_v1.3.3.md)。
@@ -12,7 +14,7 @@
 
 **v1.3.0** 增加原版附加剧情与自由剧本两种创作模式、独立事件／任务配置和日期／重复事件编辑；优化按钮、页面与弹窗，并新增一键定位 Steam 游戏目录。Windows 完整包包含 Host **1.1.3** 和预览素材提取助手。改动与验证边界见 [v1.3.0 变更记录](RELEASE_NOTES_v1.3.0.md)。
 
-[软件使用](docs/chs/software_usage.md) · [核心功能教程](docs/chs/core_tutorial.md) · [Mac 编辑器](docs/chs/macos.md) · [文档索引](docs/README.md) · [Windows v1.3.4 下载](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.4)
+[软件使用](docs/chs/software_usage.md) · [核心功能教程](docs/chs/core_tutorial.md) · [Mac 编辑器](docs/chs/macos.md) · [文档索引](docs/README.md) · [Windows v1.3.5 下载](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.5)
 
 语言：简体中文（本文） · [繁體中文](README.cht.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
@@ -20,7 +22,7 @@
 
 从 Release 下载 Windows ZIP，完整解压后运行 `lom_modkit/lom-editor.exe`。入口是「游戏与 MOD」：点击「一键定位游戏目录」（或手动选择），再点击「一键配置游戏」，完成加载器、Steam 启动和宿主配置；离线安装、修复和回滚位于「高级维护」。配置就绪后可用「重新配置游戏环境」更新或重新检查安装。游戏从 32 位升级的用户也需要更新加载器和 Host。
 
-后续更新打开「游戏与 MOD → 检查更新」，有新版时可选择「更新并重启」或「暂不更新」。更新直接下载独立程序文件，先处理未保存修改，再退出、覆盖并重启。默认每次启动后台检查一次更新，仅发现新版时弹窗；可在「设置 → 更新」关闭。设置已分为「常规」「素材与路径」「更新」，帮助继续提供帮助文档。用户内容库默认位于 `%APPDATA%\lom_modkit\repository`，配置位于 `%APPDATA%\lom_modkit\rust`，项目素材随项目保存，均会保留。已有完整旧版可退出编辑器后，将本次独立提供的 `lom-editor.exe`、`lomc.exe` 覆盖到原目录，完成首次升级。
+后续更新打开「游戏与 MOD → 检查更新」，有新版时可选择「更新并重启」或「暂不更新」。更新直接下载独立程序文件，先处理未保存修改，再退出、覆盖并重启。默认每次启动后台检查一次更新，仅发现新版时弹窗；可在「设置 → 更新」关闭。设置已分为「常规」「素材与路径」「更新」，帮助继续提供帮助文档。用户内容库默认位于 `%APPDATA%\lom_modkit\repository`，配置位于 `%APPDATA%\lom_modkit\rust`，项目素材随项目保存，均会保留。已有完整旧版可退出编辑器后，将本次独立提供的 `lom-editor.exe`、`lomc.exe` 覆盖到原目录，并将 `MortalModHost.dll`、`NVorbis.dll` 放入原目录的 `runtime/`，完成首次升级。
 
 ## 从源码开始
 
@@ -64,7 +66,7 @@ macOS 从屏幕顶部系统应用菜单打开「设置」，快捷键 `⌘,`；W
 
 资源选择器显示翻译名称；不同资源同名时加稳定数字，例如「武师 1」「武师 2」。数字只用于界面区分，不修改保存的资源标识或台词。人物资源目录也含包子、马车、棋盘等道具立绘；对白模式可为它们配置文字，但不会自动生成语音。详情见 [用户内容](docs/chs/user_content.md)。
 
-两种新模式用「剧情安排」管理事件、跨事件任务和统一结算；章节也可直接调整时间、属性、好感等状态。64 类是全工具的节点总数，不是新模式添加菜单的可用数量。请使用 Host **1.3.4**，避免旧 Host 误拒绝合法章节节点；包格式和存档标识保持不变。完整新手流程见 [核心功能教程](docs/chs/core_tutorial.md)，Windows 软件验证见 [整合记录](docs/chs/windows_event_task_merge_20261025.md)。
+两种新模式用「剧情安排」管理事件、跨事件任务和统一结算；章节也可直接调整时间、属性、好感等状态。64 类是全工具的节点总数，不是新模式添加菜单的可用数量。请使用 Host **1.3.5**，避免旧 Host 误拒绝合法章节节点；包格式和存档标识保持不变。完整新手流程见 [核心功能教程](docs/chs/core_tutorial.md)，Windows 软件验证见 [整合记录](docs/chs/windows_event_task_merge_20261025.md)。
 
 静态分析遇到无法确定的游戏状态会返回 `unknown` / `unsupported`，不能替代游戏实测。完整功能对应与验证范围见 [Rust 迁移记录](docs/chs/rust_migration.md)。
 
@@ -90,9 +92,11 @@ cargo run --locked -p lom-editor -- --smoke-preview samples/showcase3
 
 远端主分支为 `master`，通过 PR 和必需的 macOS Rust、Linux Runtime 离线 CI 检查后合并。游戏功能修改须先查 [AGENTS.md](AGENTS.md) 和 [反编译接口](docs/chs/decompiled_api.md)，不得提交整份游戏反编译源码或提取资源。
 
-内置更新的发布约定：使用递增的 `vX.Y.Z` 正式 Release，并单独上传固定名称的 `lom-editor.exe`、`lomc.exe`、`MortalModHost.dll`、`NVorbis.dll`。更新器按 Tag 读取这四个附件与 GitHub 提供的校验信息，将两个 DLL 放入 `runtime/`。`scripts/build-windows.ps1` 会同时输出这些独立附件；完整 ZIP 供首次安装使用。发布时需把四个独立附件一并上传。
+内置更新的发布约定：使用递增的 `vX.Y.Z` 正式 Release，并单独上传固定名称的 `lom-editor.exe`、`lomc.exe`、`MortalModHost.dll`、`NVorbis.dll`。同时上传发布脚本生成的 `update.json`，记录版本、更新说明与四个文件的大小／SHA-256。更新器读取此清单和对应 Tag 的四个程序附件，避开匿名 REST API 限流，将两个 DLL 放入 `runtime/`。`scripts/build-windows.ps1` 会同时输出这些独立附件；完整 ZIP 供首次安装使用。发布时需把四个独立程序附件和 `update.json` 一并上传，上传齐全后再公开 Release。
 
 ## 文档与版本
+
+- [v1.3.5 更新日志](RELEASE_NOTES_v1.3.5.md)：更新清单与 GitHub 限流修复。
 
 - [v1.3.4 更新日志](RELEASE_NOTES_v1.3.4.md)：统一编辑器、CLI、Host 版本与真实在线更新验证。
 
