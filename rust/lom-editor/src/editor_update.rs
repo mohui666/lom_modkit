@@ -277,20 +277,40 @@ enum Job {
 #[derive(Default)]
 pub struct Updater {
     pub open: bool,
+    completed: bool,
     release: Option<Release>,
     prepared: Option<Prepared>,
     job: Option<mpsc::Receiver<Result<Job, String>>>,
     downloading: bool,
+    silent: bool,
     error: Option<String>,
 }
 
 impl Updater {
+    pub fn show_completed(&mut self) {
+        self.completed = true;
+        self.open = true;
+    }
+
     pub fn check(&mut self, ctx: &egui::Context) {
+        self.start_check(ctx, false);
+    }
+
+    pub fn check_on_startup(&mut self, ctx: &egui::Context) {
+        self.start_check(ctx, true);
+    }
+
+    fn start_check(&mut self, ctx: &egui::Context, silent: bool) {
         if self.job.is_some() {
-            self.open = true;
+            if !silent {
+                self.open = true;
+                self.silent = false;
+            }
             return;
         }
-        self.open = true;
+        self.open = !silent;
+        self.silent = silent;
+        self.completed = false;
         self.release = None;
         self.prepared = None;
         self.error = None;
@@ -310,6 +330,7 @@ impl Updater {
         };
         self.open = true;
         self.downloading = true;
+        self.silent = false;
         self.error = None;
         let (tx, rx) = mpsc::channel();
         self.job = Some(rx);
@@ -335,12 +356,22 @@ impl Updater {
         self.job = None;
         self.downloading = false;
         match result {
-            Ok(Job::Checked(release)) => self.release = Some(release),
+            Ok(Job::Checked(release)) => {
+                self.open = !self.silent
+                    || version(&release.version).ok() > version(env!("CARGO_PKG_VERSION")).ok();
+                self.release = Some(release);
+            }
             Ok(Job::Prepared(prepared)) => {
                 self.prepared = Some(prepared);
                 return true;
             }
-            Err(error) => self.error = Some(error),
+            Err(error) => {
+                if self.silent {
+                    self.open = false;
+                } else {
+                    self.error = Some(error);
+                }
+            }
         }
         false
     }
@@ -354,9 +385,11 @@ impl Updater {
         egui::Modal::new(egui::Id::new("editor-update")).frame(crate::shell::dialog_frame()).show(ctx, |ui| {
             ui.set_width(480.0_f32.min(ctx.content_rect().width() - 60.0));
             if self.job.is_some() { ui.heading(tr("检查更新")); }
-            else { close |= crate::shell::dialog_header(ui, &tr("检查更新")); }
+            else { close |= crate::shell::dialog_header(ui, &tr(if self.completed { "更新完成" } else { "检查更新" })); }
             ui.label(format!("{} {}", tr("当前版本"), env!("CARGO_PKG_VERSION")));
-            if self.job.is_some() {
+            if self.completed {
+                ui.label(tr("编辑器已更新完成，可以继续编辑。"));
+            } else if self.job.is_some() {
                 ui.horizontal(|ui| { ui.spinner(); ui.label(tr(if self.downloading { "正在下载并准备更新…" } else { "正在检查 GitHub 最新正式版…" })); });
             } else if let Some(error) = &self.error {
                 ui.colored_label(egui::Color32::from_rgb(179, 55, 49), error);
@@ -455,6 +488,40 @@ mod tests {
         let mut value = release();
         value["assets"][0]["digest"] = json!("sha256:invalid");
         assert!(!parse_release(&value).unwrap().can_update());
+    }
+
+    #[test]
+    fn startup_check_is_silent_except_when_a_newer_release_exists() {
+        for (latest, opens) in [
+            ("0.1.0", false),
+            (env!("CARGO_PKG_VERSION"), false),
+            ("99.0.0", true),
+        ] {
+            let mut release = parse_release(&release()).unwrap();
+            release.version = latest.into();
+            let (tx, rx) = mpsc::channel();
+            let mut updater = Updater {
+                silent: true,
+                job: Some(rx),
+                ..Default::default()
+            };
+            tx.send(Ok(Job::Checked(release))).unwrap();
+            assert!(!updater.poll());
+            assert_eq!(updater.open, opens, "{latest}");
+        }
+        for silent in [true, false] {
+            let (tx, rx) = mpsc::channel();
+            let mut updater = Updater {
+                silent,
+                open: !silent,
+                job: Some(rx),
+                ..Default::default()
+            };
+            tx.send(Err("network unavailable".into())).unwrap();
+            assert!(!updater.poll());
+            assert_eq!(updater.open, !silent);
+            assert_eq!(updater.error.is_some(), !silent);
+        }
     }
 
     fn fixture_files(output: &Path) -> Vec<String> {

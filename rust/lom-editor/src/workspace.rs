@@ -141,6 +141,8 @@ struct App {
     chapter_dialog: Option<ChapterDialog>,
     rename_dialog: Option<RenameDialog>,
     settings_open: bool,
+    settings_page: usize,
+    check_updates_on_startup: bool,
     settings_error: Option<String>,
     settings_comma_down: bool,
     dialog_ime: bool,
@@ -224,6 +226,9 @@ fn repository() -> PathBuf {
 
 pub fn run() -> eframe::Result {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    let updated = std::env::var_os("LOM_EDITOR_UPDATE_JOB").is_some();
+    // The installer passes this only to its restarted editor, including older installers.
+    std::env::remove_var("LOM_EDITOR_UPDATE_JOB");
     if args.first().map(String::as_str) == Some("--smoke-preview") {
         let path = args.get(1).map(PathBuf::from).unwrap_or_else(|| {
             eprintln!("用法：lom-editor --smoke-preview <项目目录/JSON/lommod>");
@@ -275,7 +280,15 @@ pub fn run() -> eframe::Result {
             viewport,
             ..Default::default()
         },
-        Box::new(move |cc| Ok(Box::new(App::new(cc, open, screenshot)))),
+        Box::new(move |cc| {
+            let mut app = App::new(cc, open, screenshot);
+            if updated {
+                app.updater.show_completed();
+            } else if app.check_updates_on_startup && app.screenshot.is_none() {
+                app.updater.check_on_startup(&cc.egui_ctx);
+            }
+            Ok(Box::new(app))
+        }),
     )
 }
 fn smoke(path: &Path) -> anyhow::Result<Value> {
@@ -385,6 +398,8 @@ impl App {
             chapter_dialog: None,
             rename_dialog: None,
             settings_open: false,
+            settings_page: 0,
+            check_updates_on_startup: prefs["check_updates_on_startup"].as_bool().unwrap_or(true),
             settings_error: None,
             settings_comma_down: false,
             dialog_ime: false,
@@ -1406,29 +1421,7 @@ impl App {
                         }
                         if ui.button(tr("选择预览素材库…")).on_hover_text(tr("选择包含 preview_map.json 的已提取素材库；选择游戏目录则自动开始提取。")).clicked() {
                             ui.close();
-                            if let Some(path) = rfd::FileDialog::new()
-                                .set_title(tr("选择已提取的素材库（含 preview_map.json），或选择游戏安装目录进行提取"))
-                                .pick_folder() {
-                                if path.join("Mortal_Data").is_dir() || path.file_name().is_some_and(|name| name == "Mortal_Data") {
-                                    self.tools_panel.start_extraction_from(path);
-                                } else {
-                                match self.preview.set_library(&path) {
-                                    Ok(()) => {
-                                        self.status = format!("预览素材库：{}", path.display());
-                                        let mut prefs = lom_core::load_json(
-                                            user_root().join("rust/preferences.json"),
-                                        )
-                                        .unwrap_or(json!({}));
-                                        prefs["preview_library_dir"] = json!(path);
-                                        if let Err(error) = lom_core::project::atomic_write(
-                                            &user_root().join("rust/preferences.json"),
-                                            &lom_core::stable_json(&prefs).unwrap_or_default(),
-                                        ) { self.error = Some(format!("素材已载入，但无法记住素材位置：{error:#}")); }
-                                    }
-                                    Err(e) => self.error = Some(e.to_string()),
-                                }
-                                }
-                            }
+                            self.choose_preview_library();
                         }
                         if ui.button(tr("导出诊断报告…")).clicked() {
                             ui.close();
@@ -3519,6 +3512,46 @@ impl App {
             }
         }
     }
+    fn choose_preview_library(&mut self) {
+        let Some(path) = rfd::FileDialog::new()
+            .set_title(tr(
+                "选择已提取的素材库（含 preview_map.json），或选择游戏安装目录进行提取",
+            ))
+            .pick_folder()
+        else {
+            return;
+        };
+        if path.join("Mortal_Data").is_dir()
+            || path.file_name().is_some_and(|name| name == "Mortal_Data")
+        {
+            self.tools_panel.start_extraction_from(path);
+        } else {
+            match self.preview.set_library(&path) {
+                Ok(()) => {
+                    self.status = format!("预览素材库：{}", path.display());
+                    let preference_path = user_root().join("rust/preferences.json");
+                    let mut prefs = lom_core::load_json(&preference_path).unwrap_or(json!({}));
+                    prefs["preview_library_dir"] = json!(path);
+                    if let Err(error) = lom_core::stable_json(&prefs)
+                        .and_then(|bytes| lom_core::project::atomic_write(&preference_path, &bytes))
+                    {
+                        self.error = Some(format!("素材已载入，但无法记住素材位置：{error:#}"));
+                    }
+                }
+                Err(error) => self.error = Some(error.to_string()),
+            }
+        }
+    }
+    fn set_startup_update_check(&mut self, enabled: bool, path: &Path) -> anyhow::Result<()> {
+        let mut prefs = lom_core::load_json(path)
+            .ok()
+            .filter(Value::is_object)
+            .unwrap_or(json!({}));
+        prefs["check_updates_on_startup"] = json!(enabled);
+        lom_core::project::atomic_write(path, &lom_core::stable_json(&prefs)?)?;
+        self.check_updates_on_startup = enabled;
+        Ok(())
+    }
     fn set_interface_locale(&mut self, locale: &str, path: &Path) -> anyhow::Result<()> {
         anyhow::ensure!(crate::i18n::LOCALES.contains(&locale), "不支持的界面语言");
         let mut prefs = lom_core::load_json(path)
@@ -3602,7 +3635,14 @@ impl App {
             }
             return;
         }
-        if self.updater.open {
+        if self.updater.open
+            && !self.settings_open
+            && self.pending.is_none()
+            && self.chapter_dialog.is_none()
+            && self.rename_dialog.is_none()
+            && self.asset_import_dialog.is_none()
+            && self.recovery_candidates.is_empty()
+        {
             if self.updater.dialog(ctx) {
                 self.request(Pending::EditorUpdate, ctx);
             }
@@ -3611,49 +3651,79 @@ impl App {
         if self.settings_open {
             let mut close = false;
             let mut selected = None;
-            let mut check_update = false;
+            let mut startup = self.check_updates_on_startup;
+            let mut startup_changed = false;
+            let mut choose_library = false;
+            let mut extract_library = false;
             egui::Modal::new(egui::Id::new("application-settings"))
                 .frame(shell::dialog_frame())
                 .show(ctx, |ui| {
-                    ui.set_width(360.0);
+                    ui.set_width(520.0_f32.min(ctx.content_rect().width() - 60.0));
                     close |= shell::dialog_header(ui, &tr("设置"));
-                    ui.add_space(16.0);
-                    ui.label(tr("界面语言"));
-                    for (locale, name) in crate::i18n::LOCALES.into_iter().zip(crate::i18n::NAMES) {
-                        if ui.radio(crate::i18n::locale() == locale, name).clicked() {
-                            selected = Some(locale);
+                    ui.add_space(12.0);
+                    ui.horizontal_wrapped(|ui| {
+                        for (page, label) in ["常规", "素材与路径", "更新"].iter().enumerate() {
+                            ui.selectable_value(&mut self.settings_page, page, tr(label));
+                        }
+                    });
+                    ui.separator();
+                    ui.add_space(8.0);
+                    match self.settings_page {
+                        0 => {
+                            ui.strong(tr("界面语言"));
+                            for (locale, name) in crate::i18n::LOCALES.into_iter().zip(crate::i18n::NAMES) {
+                                if ui.radio(crate::i18n::locale() == locale, name).clicked() { selected = Some(locale); }
+                            }
+                            ui.small(tr("只改变编辑器界面，不改写作品的台词与语言。"));
+                        }
+                        1 => {
+                            ui.strong(tr("预览素材库"));
+                            if self.preview.library.join("preview_map.json").is_file() { ui.label(self.preview.library.display().to_string()); }
+                            else { ui.label(tr("尚未选择已提取的预览素材库")); }
+                            choose_library = ui.button(tr("选择预览素材库…")).clicked();
+                            extract_library = ui.button(tr("从游戏提取预览素材…")).clicked();
+                            ui.add_space(12.0);
+                            ui.strong(tr("用户内容库"));
+                            let library = lom_core::content::default_repository_root();
+                            ui.label(library.display().to_string());
+                            if ui.button(tr("复制用户内容库路径")).clicked() { ctx.copy_text(library.display().to_string()); }
+                            ui.small(tr("作品素材随项目保存；更新编辑器会保留内容库和配置。"));
+                        }
+                        _ => {
+                            ui.strong(format!("{} {}", tr("编辑器版本"), env!("CARGO_PKG_VERSION")));
+                            startup_changed = ui.checkbox(&mut startup, tr("启动时检查更新")).changed();
+                            ui.small(tr("每次启动在后台检查一次，只有发现新版本才弹窗；无新版或网络失败时保持静默。"));
+                            ui.add_space(8.0);
+                            ui.label(tr("手动检查更新位于“游戏与 MOD”页面。"));
                         }
                     }
-                    ui.separator();
-                    ui.label(format!(
-                        "{} {}",
-                        tr("编辑器版本"),
-                        env!("CARGO_PKG_VERSION")
-                    ));
-                    check_update = ui.button(tr("检查更新")).clicked();
-                    if let Some(error) = &self.settings_error {
-                        ui.colored_label(Color32::from_rgb(179, 55, 49), error);
-                    }
+                    if let Some(error) = &self.settings_error { ui.colored_label(Color32::from_rgb(179, 55, 49), error); }
                     ui.add_space(16.0);
-                    shell::dialog_buttons(ui, |ui| {
-                        close |= ui
-                            .add_sized([80.0, 30.0], egui::Button::new(tr("完成")))
-                            .clicked();
-                    });
+                    shell::dialog_buttons(ui, |ui| { close |= ui.add_sized([80.0,30.0],egui::Button::new(tr("完成"))).clicked(); });
                 });
+            let prefs = user_root().join("rust/preferences.json");
             if let Some(locale) = selected {
-                let prefs = user_root().join("rust/preferences.json");
                 self.settings_error = self
                     .set_interface_locale(locale, &prefs)
+                    .err()
+                    .map(|e| e.to_string());
+            }
+            if startup_changed {
+                self.settings_error = self
+                    .set_startup_update_check(startup, &prefs)
                     .err()
                     .map(|e| e.to_string());
             }
             if close || escape_pressed {
                 self.settings_open = false;
             }
-            if check_update {
+            if choose_library {
                 self.settings_open = false;
-                self.updater.check(ctx);
+                self.choose_preview_library();
+            }
+            if extract_library {
+                self.settings_open = false;
+                self.tools_panel.start_extraction();
             }
             return;
         }
@@ -3986,6 +4056,9 @@ impl eframe::App for App {
             }
         }
         self.tools_panel.poll(ctx);
+        if self.tools_panel.take_update_check() {
+            self.updater.check(ctx);
+        }
         if std::mem::take(&mut self.preview.extract_requested) {
             self.tools_panel.start_extraction();
         }
@@ -4595,6 +4668,27 @@ mod application_regression_tests {
         app.pending = None; // Cancelling must retain the unsaved project.
         assert!(app.dirty());
         assert_eq!(app.story()["nodes"][0]["text"], "unsaved update test");
+    }
+
+    #[test]
+    fn startup_update_preference_preserves_other_settings_and_the_project() {
+        let mut app = app();
+        let before = snapshot(&app.project);
+        let directory = tempfile::tempdir().unwrap();
+        let prefs = directory.path().join("preferences.json");
+        std::fs::write(
+            &prefs,
+            r#"{"ui_locale":"chs","preview_library_dir":"keep previews","custom":"keep data"}"#,
+        )
+        .unwrap();
+        app.set_startup_update_check(false, &prefs).unwrap();
+        let value = lom_core::load_json(&prefs).unwrap();
+        assert_eq!(value["check_updates_on_startup"], false);
+        assert_eq!(value["ui_locale"], "chs");
+        assert_eq!(value["preview_library_dir"], "keep previews");
+        assert_eq!(value["custom"], "keep data");
+        assert!(!app.check_updates_on_startup);
+        assert!(snapshot(&app.project) == before);
     }
     fn key_event(key: egui::Key, modifiers: egui::Modifiers) -> egui::Event {
         egui::Event::Key {
