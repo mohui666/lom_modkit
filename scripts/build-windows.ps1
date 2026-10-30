@@ -225,6 +225,15 @@ try {
         Copy-Item -LiteralPath (Join-Path $BundleDirectory $Relative) -Destination $StandalonePath -ErrorAction Stop
         Write-Host "OK  $StandalonePath"
     }
+    # Readable release metadata avoids unauthenticated GitHub REST API limits.
+    $UpdateFiles = foreach ($Name in @("lom-editor.exe", "lomc.exe", "MortalModHost.dll", "NVorbis.dll")) {
+        $File = Get-Item -LiteralPath (Join-Path $OutputDirectory $Name)
+        [ordered]@{ name = $Name; size = $File.Length; sha256 = (Get-FileHash -LiteralPath $File.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }
+    }
+    $UpdateNotes = [IO.File]::ReadAllText((Join-Path $RepositoryRoot "RELEASE_NOTES_v$Version.md"))
+    $UpdateManifest = [ordered]@{ version = $Version; notes = $UpdateNotes; files = @($UpdateFiles) }
+    [IO.File]::WriteAllText((Join-Path $OutputDirectory "update.json"), ($UpdateManifest | ConvertTo-Json -Depth 6), (New-Object Text.UTF8Encoding($false)))
+    Write-Host "OK  $(Join-Path $OutputDirectory 'update.json')"
     Write-Host "OK  $ArchivePath"
     Write-Host "OK  $ChecksumPath"
     Write-Host "SHA256 $Digest"

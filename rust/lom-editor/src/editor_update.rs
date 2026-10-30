@@ -6,7 +6,7 @@ use sha2::{Digest, Sha256};
 use std::{fs, path::Path, process::Command, sync::mpsc};
 
 const RELEASES: &str = "https://github.com/mohui666/lom_modkit/releases";
-const LATEST: &str = "https://api.github.com/repos/mohui666/lom_modkit/releases/latest";
+const LATEST: &str = "https://github.com/mohui666/lom_modkit/releases/latest/download/update.json";
 const MAX_DOWNLOAD: u64 = 128 * 1024 * 1024;
 #[cfg(any(windows, test))]
 const APPLY_SCRIPT: &str = include_str!("editor_update.ps1");
@@ -59,33 +59,24 @@ fn version(text: &str) -> Result<[u64; 3]> {
 }
 
 fn parse_release(value: &Value) -> Result<Release> {
-    ensure!(
-        value["draft"] == false && value["prerelease"] == false,
-        "最新发布不是正式版"
-    );
-    let tag = value["tag_name"].as_str().context("发布信息缺少版本")?;
-    version(tag)?;
+    let number = value["version"].as_str().context("更新清单缺少版本")?;
+    version(number)?;
+    let tag = format!("v{}", number.strip_prefix('v').unwrap_or(number));
     let release_url = format!("{RELEASES}/tag/{tag}");
-    ensure!(
-        value["html_url"] == release_url,
-        "发布页面不属于本工具的 GitHub 仓库"
-    );
 
     let mut files = Vec::new();
     for (name, path) in PROGRAM_FILES {
         let expected = format!("{RELEASES}/download/{tag}/{name}");
-        if let Some(asset) = value["assets"].as_array().and_then(|assets| {
+        if let Some(asset) = value["files"].as_array().and_then(|assets| {
             assets.iter().find(|asset| {
                 asset["name"] == name
-                    && asset["browser_download_url"] == expected
                     && asset["size"]
                         .as_u64()
                         .is_some_and(|n| n > 0 && n <= MAX_DOWNLOAD)
             })
         }) {
-            if let Some(digest) = asset["digest"]
+            if let Some(digest) = asset["sha256"]
                 .as_str()
-                .and_then(|s| s.strip_prefix("sha256:"))
                 .filter(|s| s.len() == 64 && s.bytes().all(|b| b.is_ascii_hexdigit()))
             {
                 files.push(Download {
@@ -98,8 +89,8 @@ fn parse_release(value: &Value) -> Result<Release> {
         }
     }
     Ok(Release {
-        version: tag.strip_prefix('v').unwrap_or(tag).into(),
-        notes: value["body"].as_str().unwrap_or("").into(),
+        version: number.strip_prefix('v').unwrap_or(number).into(),
+        notes: value["notes"].as_str().unwrap_or("").into(),
         url: release_url,
         files,
     })
@@ -128,6 +119,9 @@ try {
         if ($total -gt $limit) { throw 'Download exceeds size limit' }
         $outputStream.Write($buffer, 0, $count)
     }
+} catch {
+    [Console]::Error.WriteLine($_.Exception.Message)
+    exit 1
 } finally {
     if ($outputStream) { $outputStream.Dispose() }
     if ($inputStream) { $inputStream.Dispose() }
@@ -217,7 +211,7 @@ fn verify_file(path: &Path, file: &Download) -> Result<()> {
 fn prepare(release: &Release) -> Result<Prepared> {
     ensure!(
         release.can_update(),
-        "此发布缺少可直接更新的程序附件或 GitHub 校验信息"
+        "此发布缺少可直接更新的程序附件或校验信息"
     );
     let workspace = lom_core::workdir::create()?;
     let mut files = Vec::new();
@@ -456,37 +450,37 @@ mod tests {
     use super::*;
 
     fn release() -> Value {
-        let tag = "v1.3.20";
-        let assets = PROGRAM_FILES
+        let files = PROGRAM_FILES
             .iter()
             .map(|(name, _)| {
                 json!({
                     "name": name, "size": 17,
-                    "browser_download_url": format!("{RELEASES}/download/{tag}/{name}"),
-                    "digest": format!("sha256:{:x}", Sha256::digest(b"new program bytes"))
+                    "sha256": format!("{:x}", Sha256::digest(b"new program bytes"))
                 })
             })
             .collect::<Vec<_>>();
-        json!({"tag_name":tag,"draft":false,"prerelease":false,"html_url":format!("{RELEASES}/tag/{tag}"),"body":"fixture release notes","assets":assets})
+        json!({"version":"1.3.20","notes":"fixture release notes","files":files})
     }
 
     #[test]
-    fn selects_only_stable_releases_and_matching_official_assets() {
+    fn selects_only_stable_versions_and_fixed_program_files() {
         assert!(version("v1.3.20").unwrap() > version("1.3.9").unwrap());
         for invalid in ["vv1.2.3", "1.3", "1.3.3-beta", "../1.3.3"] {
             assert!(version(invalid).is_err());
         }
         let mut value = release();
-        assert!(parse_release(&value).unwrap().can_update());
-        value["prerelease"] = json!(true);
-        assert!(parse_release(&value).is_err());
-        value["prerelease"] = json!(false);
-        value["assets"][0]["browser_download_url"] = json!("https://other.example/lom-editor.exe");
-        assert!(!parse_release(&value).unwrap().can_update());
-        value["html_url"] = json!("https://github.com/other/repo/releases/tag/v1.3.20");
+        let parsed = parse_release(&value).unwrap();
+        assert!(parsed.can_update());
+        assert!(parsed.files.iter().all(|file| file
+            .url
+            .starts_with(&format!("{RELEASES}/download/v1.3.20/"))));
+        value["version"] = json!("1.3.20-beta");
         assert!(parse_release(&value).is_err());
         let mut value = release();
-        value["assets"][0]["digest"] = json!("sha256:invalid");
+        value["files"][0]["name"] = json!("../lom-editor.exe");
+        assert!(!parse_release(&value).unwrap().can_update());
+        let mut value = release();
+        value["files"][0]["sha256"] = json!("invalid");
         assert!(!parse_release(&value).unwrap().can_update());
     }
 
