@@ -2,8 +2,16 @@
   "id": "main",
   "story_schema": 2,
   "title": "回到唐门",
-  "start": "say",
+  "start": "opening_time",
   "nodes": [
+    {
+      "id": "opening_time",
+      "type": "time",
+      "op": "set",
+      "year": 1,
+      "month": 7,
+      "stage": 1
+    },
     {
       "id": "say",
       "type": "say",

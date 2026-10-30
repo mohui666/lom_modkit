@@ -452,7 +452,7 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 
 ## 6. 运行时插件行为（MortalModHost）
 
-1. 启动扫描 `BepInEx/plugins/MortalModHost/mods/*.lommod`，限制物理包大小、ZIP 条目数/单项/总解压大小，复验 id 与脚本 id，并从同一文件句柄计算 SHA-256；随后注册 `MOD_<modid>_<scriptid>` → lua 文本。重复 mod id 或任一注册名碰撞时保留先加载者并按整包拒绝后加载者，菜单不会展示未完整注册的包。
+1. 启动扫描 `BepInEx/plugins/MortalModHost/mods/*.lommod`，限制物理包大小、ZIP 条目数/单项/总解压大小，复验 id 与脚本 id，并从同一文件句柄计算 SHA-256；先过滤不兼容包，再注册 `MOD_<modid>_<scriptid>` → lua 文本。`campaign_id`、mod id 与注册名冲突统一按整包处理，保留先成功注册者；被拒绝的包不占用任何标识，菜单只展示完整注册的包。
 2. Harmony prefix `LuaManager.ExecuteLuaScript()`：注册名命中时用 mod lua 执行并跳过原方法。
 3. 入口：Free 自由场景保留“活侠MOD”按钮与 F8 菜单；Title 标题场景在原版“开始游戏”上方显示同风格“开始 MOD 战役”。点击后临时复用原版读档面板：先选择战役，再显示该战役的 001～020 手动栏位和三类自动档；选择不会直接启动。关闭后重建原版 001～020 槽。
    - **完整存档隔离**：每个 `campaign_id` 独占原版风格的 001～020 手动栏位，001 为 `mod_campaign_<campaign_id>`，002～020 为 `_sNNN`；空栏位可新建，已有栏位可覆盖和读取。Story/Free/Battle 自动槽分别追加 `_auto`、`_auto_free`、`_auto_battle`。旧 `mod_<id>` 不探测，原版继续游戏和最近存档不会指向 MOD。

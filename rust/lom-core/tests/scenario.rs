@@ -48,6 +48,35 @@ fn shared_authoring_contract() {
     }
 }
 #[test]
+fn shared_presentation_node_boundary_covers_the_editor_schema() {
+    let fixture = fixture();
+    let forbidden = fixture["presentation_forbidden"].as_array().unwrap();
+    for mode in ["addon", "sandbox"] {
+        let project = Project::new_scenario(mode);
+        for kind in lom_core::validate::node_schema()["nodes"]
+            .as_object()
+            .unwrap()
+            .keys()
+        {
+            let expected = !forbidden.contains(&json!(kind));
+            assert_eq!(scenario::performance_node(kind), expected, "{mode}: {kind}");
+            let mut stories = project.stories.clone();
+            stories.get_mut("main").unwrap()["nodes"][0]["type"] = json!(kind);
+            assert_eq!(
+                scenario::validate(
+                    project.scenario.as_ref().unwrap(),
+                    &project.manifest,
+                    &stories
+                )
+                .is_ok(),
+                expected,
+                "{mode}: {kind}"
+            );
+        }
+    }
+}
+
+#[test]
 fn project_and_package_roundtrip_preserve_separate_configuration() {
     for mode in ["addon", "sandbox"] {
         let root = tempfile::tempdir().unwrap();

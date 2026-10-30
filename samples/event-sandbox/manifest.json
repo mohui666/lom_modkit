@@ -8,7 +8,7 @@
   "name": "自由剧本事件示例",
   "version": "1.0.0",
   "author": "LoM Modkit",
-  "description": "事件与任务独立配置；剧情仅作演出。包含可重复事件、概率、权重池与选择结果。",
+  "description": "事件与任务独立配置，开场章节直接设置时间。包含可重复事件、概率、权重池与选择结果。",
   "entry": "main",
   "play_mode": "sandbox",
   "min_host_version": "1.1.3",

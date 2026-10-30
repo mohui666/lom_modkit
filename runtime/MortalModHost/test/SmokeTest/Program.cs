@@ -172,6 +172,8 @@ namespace MortalModHost
                 TestManifestIdentifiers();
                 TestPackageFingerprint();
                 TestPreviewPackagePrecedence();
+                TestCompatibilityBeforePackagePrecedence();
+                TestAtomicPackageIdentitySelection();
                 TestCombatBackgroundAddressPolicy();
                 TestCombatSpriteLayoutPolicy();
                 TestCombatVitalPolicy();
@@ -824,7 +826,7 @@ namespace MortalModHost
                     ("lua/main.lua", "say(\"two\")"));
 
                 var warnings = new List<string>();
-                var mods = ModLoader.ScanMods(modsDir, _ => { }, warnings.Add);
+                var mods = ModRegistry.Rebuild(ModLoader.ScanMods(modsDir, _ => { }, warnings.Add), warnings.Add);
                 Assert(mods.Count == 2, "重复 campaign_id 的逐字节副本必须拒绝");
                 ModPackage a = mods.First(x => x.Id == "sha_a");
                 ModPackage c = mods.First(x => x.Id == "sha_c");
@@ -899,6 +901,88 @@ namespace MortalModHost
             {
                 Directory.Delete(modsDir, recursive: true);
             }
+        }
+
+        private static void TestCompatibilityBeforePackagePrecedence()
+        {
+            string modsDir = Path.Combine(Path.GetTempPath(), "lommod_compatible_precedence_"
+                + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(modsDir);
+            try
+            {
+                const string manifest = "{\"format\":3,\"package_format\":3,\"story_schema\":2,"
+                    + "\"content_schema\":1,\"id\":\"compatible\",\"campaign_id\":\"shared\","
+                    + "\"entry\":\"main\",\"min_host_version\":\"1.1.3\","
+                    + "\"tested_host_version\":\"1.1.3\",\"campaign\":{\"new_game\":true}}";
+                Func<ModPackage, bool> accept = package =>
+                    RuntimeCompatibility.Evaluate(package, "1.1.3", "release_1.0.6001.0").IsCompatible;
+                string incompatible = Path.Combine(modsDir, "a-incompatible.lommod");
+                string compatible = Path.Combine(modsDir, "z-compatible.lommod");
+                WriteV3Zip(incompatible,
+                    ("manifest.json", manifest.Replace("\"compatible\"", "\"future\"")
+                        .Replace("1.1.3", "9.0.0")), ("lua/main.lua", "-- incompatible"));
+                WriteV3Zip(compatible,
+                    ("manifest.json", manifest), ("lua/main.lua", "-- compatible"));
+
+                var warnings = new List<string>();
+                var mods = ModLoader.ScanMods(modsDir, _ => { }, warnings.Add, accept);
+                Assert(mods.Count == 1 && mods[0].Id == "compatible",
+                    "排序靠前的不兼容包不能占用 campaign_id 并挡住兼容包");
+                Assert(warnings.Count == 0, "不兼容包不能造成虚假的 campaign_id 冲突");
+                File.Move(incompatible, Path.Combine(modsDir, "zz-incompatible.lommod"));
+                mods = ModLoader.ScanMods(modsDir, _ => { }, warnings.Add, accept);
+                Assert(mods.Count == 1 && mods[0].Id == "compatible",
+                    "兼容包的选择不能依赖不兼容包的文件名排序");
+
+                string previewDir = Path.Combine(modsDir, "preview");
+                Directory.CreateDirectory(previewDir);
+                string previewManifest = manifest.Replace("\"compatible\"", "\"lom_modkit_preview\"")
+                    .Replace("\"shared\"", "\"lom_modkit_preview\"");
+                WriteV3Zip(Path.Combine(previewDir, "__lom_modkit_preview.lommod"),
+                    ("manifest.json", previewManifest.Replace("1.1.3", "9.0.0")),
+                    ("lua/main.lua", "-- incompatible preferred preview"));
+                WriteV3Zip(Path.Combine(previewDir, "lom_modkit_preview.lommod"),
+                    ("manifest.json", previewManifest), ("lua/main.lua", "-- compatible legacy preview"));
+                mods = ModLoader.ScanMods(previewDir, _ => { }, warnings.Add, accept);
+                Assert(mods.Count == 1 && Path.GetFileName(mods[0].PackagePath) == "lom_modkit_preview.lommod",
+                    "不兼容的正式试玩包不能使仍兼容的旧试玩包消失");
+            }
+            finally
+            {
+                Directory.Delete(modsDir, recursive: true);
+            }
+        }
+
+        private static void TestAtomicPackageIdentitySelection()
+        {
+            var first = new ModPackage { Id = "first", CampaignId = "claimed", Entry = "main" };
+            first.LuaScripts["main"] = "-- first";
+            var rejected = new ModPackage { Id = "first", CampaignId = "available", Entry = "main" };
+            rejected.LuaScripts["main"] = "-- duplicate id";
+            var later = new ModPackage { Id = "later", CampaignId = "available", Entry = "main" };
+            later.LuaScripts["main"] = "-- later";
+            var warnings = new List<string>();
+            var loaded = ModRegistry.Rebuild(new[] { first, rejected, later }, warnings.Add);
+            Assert(loaded.Count == 2 && loaded.Contains(later) && ModRegistry.IsPackageFullyRegistered(later),
+                "重复 mod id 被拒绝后，不能继续占用其 campaign_id 并阻挡正常包");
+
+            first.Id = "a_b";
+            first.Entry = "c";
+            first.LuaScripts.Clear(); first.LuaScripts["c"] = "-- first";
+            rejected.Id = "a";
+            rejected.Entry = "b_c";
+            rejected.LuaScripts.Clear(); rejected.LuaScripts["b_c"] = "-- same registered name";
+            loaded = ModRegistry.Rebuild(new[] { first, rejected, later }, warnings.Add);
+            Assert(loaded.Count == 2 && loaded.Contains(later) && ModRegistry.IsPackageFullyRegistered(later),
+                "注册名冲突被拒绝后，不能继续占用其 campaign_id");
+
+            rejected.Id = later.Id;
+            rejected.Entry = "main";
+            rejected.CampaignId = first.CampaignId;
+            rejected.LuaScripts.Clear(); rejected.LuaScripts["main"] = "-- duplicate campaign";
+            loaded = ModRegistry.Rebuild(new[] { first, rejected, later }, warnings.Add);
+            Assert(loaded.Count == 2 && loaded.Contains(later) && ModRegistry.IsPackageFullyRegistered(later),
+                "campaign_id 冲突被拒绝后，不能继续占用其 mod id 或注册名");
         }
 
         private static void TestCombatBackgroundAddressPolicy()

@@ -1,4 +1,8 @@
 {
+  "presentation_forbidden": [
+    "free_trigger", "mod_quest", "quest_check", "persistent_var",
+    "persistent_check", "reward", "result_screen", "raw"
+  ],
   "manifest": {
     "format": 3,
     "package_format": 3,

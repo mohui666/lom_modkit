@@ -72,6 +72,7 @@ namespace MortalModHost
         private static RecentSaveSlotPanel _recentSlot;
         private static bool[] _autoVisibility;
         private static bool _recentVisibility;
+        private static bool _hasAddonPackages;
         private static readonly List<ModPackage> Campaigns = new List<ModPackage>();
         private static readonly Dictionary<LoadSlotPanel, Action> ManualSlotActions =
             new Dictionary<LoadSlotPanel, Action>();
@@ -115,6 +116,8 @@ namespace MortalModHost
                 for (int i = 0; i < packages.Count; i++)
                 {
                     ModPackage package = packages[i];
+                    if (package != null && package.PlayMode == "addon")
+                        _hasAddonPackages = true;
                     if (package != null && package.Campaign != null
                         && package.Campaign.NewGame)
                         Campaigns.Add(package);
@@ -127,7 +130,11 @@ namespace MortalModHost
 
             if (Campaigns.Count == 0)
             {
-                if (logWarning != null) logWarning(I18n.T("campaign.none"));
+                if (_hasAddonPackages)
+                {
+                    if (logInfo != null) logInfo(I18n.T("campaign.addon_only"));
+                }
+                else if (logWarning != null) logWarning(I18n.T("campaign.none"));
             }
 
             try
@@ -197,6 +204,8 @@ namespace MortalModHost
                 for (int i = 0; i < packages.Count; i++)
                 {
                     ModPackage package = packages[i];
+                    if (package != null && package.PlayMode == "addon")
+                        _hasAddonPackages = true;
                     if (package != null && package.Campaign != null
                         && package.Campaign.NewGame)
                         Campaigns.Add(package);
@@ -325,8 +334,8 @@ namespace MortalModHost
             ConfigureSlot(
                 _slots[0],
                 I18n.T("close"),
-                I18n.T("campaign.none"),
-                I18n.T("empty"),
+                I18n.T(_hasAddonPackages ? "campaign.addon_only" : "campaign.none"),
+                I18n.T(_hasAddonPackages ? "campaign.addon_hint" : "campaign.none_hint"),
                 delegate { SelectAndClose(delegate { }); });
             HideRemaining(1);
             ConfigureRecentEntry();
@@ -839,6 +848,7 @@ namespace MortalModHost
             _logWarning = null;
             ManualSlotActions.Clear();
             Campaigns.Clear();
+            _hasAddonPackages = false;
         }
 
         private static void SetText(Text label, string value)

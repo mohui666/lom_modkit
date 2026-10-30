@@ -44,7 +44,13 @@ namespace MortalModHost
                 var c=ScenarioJson.Object(raw);var root=Base();
                 foreach(object patch in ScenarioJson.Array(c,"patches")) {var p=ScenarioJson.Object(patch);object value;p.TryGetValue("value",out value);Patch(root,ScenarioJson.Text(p,"path"),value,ScenarioJson.Bool(p,"remove",false));}
                 bool valid=true;string error="";
-                try{var config=ScenarioConfig.Parse(ScenarioState.ToJson(root),ScenarioJson.Text(c,"mode",false)??"sandbox");config.ValidateScripts(new[]{"main"});}
+                try{
+                    var config=ScenarioConfig.Parse(ScenarioState.ToJson(root),ScenarioJson.Text(c,"mode",false)??"sandbox");
+                    var chapters=new Dictionary<string,string>(StringComparer.Ordinal);
+                    foreach(var chapter in ScenarioJson.Object(Fixture["stories"])) chapters.Add(chapter.Key,ScenarioState.ToJson(chapter.Value));
+                    config.ValidateScripts(chapters.Keys);
+                    config.ValidatePresentations(chapters);
+                }
                 catch(Exception ex){valid=false;error=ex.Message;}
                 Check(valid==ScenarioJson.Bool(c,"valid",false),ScenarioJson.Text(c,"name")+": "+error);cases++;
             }
@@ -152,8 +158,18 @@ namespace MortalModHost
         private static void TestPresentation()
         {
             ScenarioConfig.ValidateChapter("{\"nodes\":[{\"type\":\"say\"},{\"type\":\"end\",\"event_result\":\"completed\"}]}");
+            var forbidden=ScenarioJson.Array(Fixture,"presentation_forbidden");
+            var schema=ScenarioJson.Object(MiniJson.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"node-schema.json"))));
+            var kinds=ScenarioJson.Object(schema["nodes"]);
+            foreach (string kind in kinds.Keys)
+            {
+                bool accepted=true;
+                try { ScenarioConfig.ValidateChapter("{\"nodes\":[{\"type\":\""+kind+"\"},{\"type\":\"end\",\"event_result\":\"completed\"}]}"); }
+                catch (FormatException) { accepted=false; }
+                Check(accepted==!forbidden.Contains(kind),"shared chapter boundary: "+kind);
+            }
+            Console.WriteLine("PASS scenario chapter boundary: "+kinds.Count+" shared node types");
             Throws(()=>ScenarioConfig.ValidateChapter("{\"nodes\":[{\"type\":\"mod_quest\"}]}"),"chapter task operation");
-            Throws(()=>ScenarioConfig.ValidateChapter("{\"nodes\":[{\"type\":\"stat\"}]}"),"chapter result operation");
             Throws(()=>ScenarioConfig.ValidateChapter("{\"nodes\":[{\"type\":\"result_screen\"}]}"),"embedded rewards belong to event outcomes");
         }
         private static void TestPackagedSamples()
@@ -162,6 +178,7 @@ namespace MortalModHost
             var errors=new List<string>();var mods=ModLoader.ScanMods(folder,null,errors.Add);
             Check(errors.Count==0,"Rust packages must load in C#: "+string.Join(";",errors));
             Check(mods.Count==2 && mods.Exists(m=>m.PlayMode=="addon" && !m.Campaign.NewGame) && mods.Exists(m=>m.PlayMode=="sandbox" && m.Campaign.NewGame),"both packaged modes");
+            Check(mods.Exists(m=>m.PlayMode=="sandbox" && m.LuaScripts[m.Entry].Contains("luamanager.SetGameTime(1, 7, 1)")),"Rust time step exports and loads in Host scenario");
         }
     }
 }
