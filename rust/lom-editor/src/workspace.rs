@@ -30,6 +30,7 @@ enum Pending {
     Template(String),
     Recover(PathBuf),
     Open(PathBuf),
+    EditorUpdate,
     Quit,
 }
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -174,6 +175,7 @@ struct App {
     advanced: crate::advanced::Advanced,
     content_panel: crate::content_panel::ContentPanel,
     audio: crate::audio::Player,
+    updater: crate::editor_update::Updater,
 }
 fn user_root() -> PathBuf {
     if let Some(appdata) = std::env::var_os("APPDATA") {
@@ -420,6 +422,7 @@ impl App {
             advanced: crate::advanced::Advanced::default(),
             content_panel: Default::default(),
             audio: Default::default(),
+            updater: Default::default(),
         }
     }
     fn remember_source(&mut self) {
@@ -741,6 +744,7 @@ impl App {
     }
     fn perform(&mut self, pending: Pending, ctx: &egui::Context) {
         match pending {
+            Pending::EditorUpdate => self.updater.download(ctx),
             Pending::Quit => {
                 self.allow_close = true;
                 self.clear_recovery();
@@ -1192,6 +1196,7 @@ impl App {
             || self.rename_dialog.is_some()
             || self.asset_import_dialog.is_some()
             || self.settings_open
+            || self.updater.open
             || self.tools_panel.dialog_open()
             || self.error.is_some()
             || self.pending.is_some()
@@ -3528,6 +3533,7 @@ impl App {
     }
     fn dialog_keys(&mut self, ctx: &egui::Context) -> (bool, bool) {
         if !self.settings_open
+            && !self.updater.open
             && self.chapter_dialog.is_none()
             && self.rename_dialog.is_none()
             && self.asset_import_dialog.is_none()
@@ -3596,9 +3602,16 @@ impl App {
             }
             return;
         }
+        if self.updater.open {
+            if self.updater.dialog(ctx) {
+                self.request(Pending::EditorUpdate, ctx);
+            }
+            return;
+        }
         if self.settings_open {
             let mut close = false;
             let mut selected = None;
+            let mut check_update = false;
             egui::Modal::new(egui::Id::new("application-settings"))
                 .frame(shell::dialog_frame())
                 .show(ctx, |ui| {
@@ -3611,6 +3624,13 @@ impl App {
                             selected = Some(locale);
                         }
                     }
+                    ui.separator();
+                    ui.label(format!(
+                        "{} {}",
+                        tr("编辑器版本"),
+                        env!("CARGO_PKG_VERSION")
+                    ));
+                    check_update = ui.button(tr("检查更新")).clicked();
                     if let Some(error) = &self.settings_error {
                         ui.colored_label(Color32::from_rgb(179, 55, 49), error);
                     }
@@ -3630,6 +3650,10 @@ impl App {
             }
             if close || escape_pressed {
                 self.settings_open = false;
+            }
+            if check_update {
+                self.settings_open = false;
+                self.updater.check(ctx);
             }
             return;
         }
@@ -3950,6 +3974,17 @@ impl eframe::App for App {
         self.shell.clear_color()
     }
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        if self.updater.poll() {
+            match self.updater.install(self.project.source.as_deref()) {
+                Ok(()) => {
+                    self.allow_close = true;
+                    self.clear_recovery();
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    return;
+                }
+                Err(error) => self.error = Some(format!("更新未完成，编辑器尚未退出。\n{error:#}")),
+            }
+        }
         self.tools_panel.poll(ctx);
         if std::mem::take(&mut self.preview.extract_requested) {
             self.tools_panel.start_extraction();
@@ -4545,6 +4580,21 @@ mod application_regression_tests {
         let mut app = App::new(&cc, None, None);
         app.recovery_candidates.clear();
         app
+    }
+    #[test]
+    fn editor_update_uses_the_existing_unsaved_project_decision() {
+        let mut app = app();
+        let ctx = egui::Context::default();
+        app.project.stories.get_mut("main").unwrap()["nodes"][0]["text"] =
+            json!("unsaved update test");
+        app.track();
+        app.flush();
+        app.request(Pending::EditorUpdate, &ctx);
+        assert!(matches!(app.pending, Some(Pending::EditorUpdate)));
+        assert!(!app.updater.open);
+        app.pending = None; // Cancelling must retain the unsaved project.
+        assert!(app.dirty());
+        assert_eq!(app.story()["nodes"][0]["text"], "unsaved update test");
     }
     fn key_event(key: egui::Key, modifiers: egui::Modifiers) -> egui::Event {
         egui::Event::Key {

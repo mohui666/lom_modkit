@@ -2,13 +2,15 @@
 
 **《活侠传》（Legend of Mortal）可视化剧情 Mod 制作工具。** 用图形编辑器编排人物对白、场景、分支、音乐和音效，导出 `.lommod`，由 C# 游戏插件加载。
 
+**v1.3.3（2026-10-30）** 新增「设置 → 检查更新」：发现 GitHub 最新正式版后，选择「更新并重启」即可下载、覆盖程序并重新打开当前项目，保留用户内容库、项目素材和配置。首次安装这版后即可使用内置更新。见 [更新日志](RELEASE_NOTES_v1.3.3.md)。
+
 **v1.3.2（2026-10-30）** 随附 Host **1.1.4**，修复时间等合法节点导致作品无法加载、不兼容／冲突包遮挡正常包，以及战役列表提示重叠、误报的问题。升级后需退出游戏并更新 Host；现有作品无需删除时间节点。见 [更新日志](RELEASE_NOTES_v1.3.2.md)。
 
 **v1.3.1（2026-10-27 更新构建）** 新增独立步骤列、动作内等待、集中初始设置、可视站位、官方图片缩略图与旧 Lua 导入；修复持续压暗、属性节点缺失和复制粘贴，支持输入具体对白字号。见 [更新日志](RELEASE_NOTES_v1.3.1.md)。
 
 **v1.3.0** 增加原版附加剧情与自由剧本两种创作模式、独立事件／任务配置和日期／重复事件编辑；优化按钮、页面与弹窗，并新增一键定位 Steam 游戏目录。Windows 完整包包含 Host **1.1.3** 和预览素材提取助手。改动与验证边界见 [v1.3.0 变更记录](RELEASE_NOTES_v1.3.0.md)。
 
-[软件使用](docs/chs/software_usage.md) · [核心功能教程](docs/chs/core_tutorial.md) · [Mac 编辑器](docs/chs/macos.md) · [文档索引](docs/README.md) · [Windows v1.3.2 下载](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.2)
+[软件使用](docs/chs/software_usage.md) · [核心功能教程](docs/chs/core_tutorial.md) · [Mac 编辑器](docs/chs/macos.md) · [文档索引](docs/README.md) · [Windows v1.3.3 下载](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.3)
 
 语言：简体中文（本文） · [繁體中文](README.cht.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
@@ -85,6 +87,8 @@ cargo run --locked -p lom-editor -- --smoke-preview samples/showcase3
 远端主分支为 `master`，通过 PR 和必需的 macOS Rust、Linux Runtime 离线 CI 检查后合并。游戏功能修改须先查 [AGENTS.md](AGENTS.md) 和 [反编译接口](docs/chs/decompiled_api.md)，不得提交整份游戏反编译源码或提取资源。
 
 ## 文档与版本
+
+- [v1.3.3 更新日志](RELEASE_NOTES_v1.3.3.md)：编辑器内检查更新、原目录覆盖与自动重启。
 
 - [v1.3.2 更新日志](RELEASE_NOTES_v1.3.2.md)：Host 节点校验、包加载顺序、战役列表提示修复与升级方法。
 
