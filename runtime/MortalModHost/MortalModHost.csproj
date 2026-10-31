@@ -4,7 +4,7 @@
     <!-- 目标框架与现有插件 MortalInstantWin 一致（net48），BepInEx 6 Mono + Unity 2020.3 实测可加载 -->
     <TargetFramework>net48</TargetFramework>
     <AssemblyName>MortalModHost</AssemblyName>
-    <Version>1.3.5</Version>
+    <Version>1.3.6</Version>
     <RootNamespace>MortalModHost</RootNamespace>
     <LangVersion>7.3</LangVersion>
     <!-- 同一托管 Host 兼容旧 x86 与当前 x64 Mono；原生加载器按游戏位数选择。 -->

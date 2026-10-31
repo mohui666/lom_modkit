@@ -124,7 +124,7 @@ fn normalize(node: &mut Value) -> Result<()> {
         };
         node.as_object_mut().unwrap().remove(field);
     }
-    if matches!(node["type"].as_str(), Some("show" | "say")) {
+    if matches!(node["type"].as_str(), Some("show" | "say" | "portrait")) {
         if let (Some(cid), Some(portrait)) = (
             node["character"].as_str().filter(|s| !s.is_empty()),
             node["portrait"].as_str().filter(|s| !s.is_empty()),

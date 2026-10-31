@@ -63,7 +63,9 @@
     "death": "GameOverPanel + MOD 9xxxxx ID",
     "raw": "MoonSharp/Fungus raw Lua",
     "free_trigger": "manifest.campaign.triggers（打包时汇总；运行时由 CampaignPatch 按位置/月份/旬/旗标/好感度匹配）",
-    "parallel": "Lua cooperative coroutines; joined by HostRunModLua frame resumes"
+    "parallel": "Lua cooperative coroutines; joined by HostRunModLua frame resumes",
+    "portrait": "CharacterPlaceholder.LoadCharacterPortrait + PortraitState.SetPortraitImageBySprite + LeanTween.alpha",
+    "mood": "MortalModHost.mod_set_mood + StoryCharacterController.ShowMood / CharacterMoodPanel.Hide"
   },
   "KIND_DOCS": {
     "line": "reference.kind.line",

@@ -144,7 +144,8 @@
         "portrait": "str",
         "mode": "mode",
         "voice": "str",
-        "font_size": "say_font_size"
+        "font_size": "say_font_size",
+        "text_align": "narrative_align"
       }
     },
     "choice": {
@@ -708,6 +709,23 @@
         "actions": "list"
       },
       "optional": {}
+    },
+    "portrait": {
+      "required": {
+        "character": "str",
+        "portrait": "str"
+      },
+      "optional": {
+        "fade_out": "num",
+        "fade_in": "num",
+        "wait_after": "num"
+      }
+    },
+    "mood": {
+      "required": {
+        "enabled": "bool"
+      },
+      "optional": {}
     }
   },
   "enums": {
@@ -901,6 +919,10 @@
       "think",
       "narrative",
       "center"
+    ],
+    "narrative_align": [
+      "default",
+      "left"
     ],
     "facing": [
       "left",

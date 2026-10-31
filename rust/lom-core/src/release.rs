@@ -100,8 +100,8 @@ fn content_specs(node: &Value) -> Vec<ContentSpec<'_>> {
         });
     }
     if [
-        "show", "say", "hide", "move", "face", "focus", "offset", "shock", "dim", "rotate",
-        "intro", "combat",
+        "show", "say", "portrait", "hide", "move", "face", "focus", "offset", "shock", "dim",
+        "rotate", "intro", "combat",
     ]
     .contains(&kind)
         && !text(node, "character").is_empty()
@@ -111,7 +111,7 @@ fn content_specs(node: &Value) -> Vec<ContentSpec<'_>> {
             raw: text(node, "character"),
             kind: "character",
             audio_kind: None,
-            portrait: (["show", "say"].contains(&kind))
+            portrait: (["show", "say", "portrait"].contains(&kind))
                 .then(|| text(node, "portrait"))
                 .filter(|s| !s.is_empty()),
         });

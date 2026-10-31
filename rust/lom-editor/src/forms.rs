@@ -1047,7 +1047,7 @@ impl Catalog {
                             } else {
                                 0.25
                             });
-                            let response = if key == "wait_after" {
+                            let response = if ["wait_after", "fade_out", "fade_in"].contains(&key) {
                                 ui.add(drag.range(0.0..=f64::INFINITY))
                             } else {
                                 ui.add(drag)
@@ -1463,6 +1463,9 @@ pub fn number_duplicate_labels(options: &mut [(String, String)]) {
 }
 
 fn field_visible(kind: &str, node: &Value, key: &str) -> bool {
+    if kind == "say" && key == "text_align" {
+        return matches!(node["mode"].as_str(), Some("narrative" | "center"));
+    }
     if kind == "cg" {
         return match key {
             "key" => node["action"] == "show",
@@ -1486,6 +1489,25 @@ fn field_visible(kind: &str, node: &Value, key: &str) -> bool {
         };
     }
     !(kind == "branch" && node["source"] == "stat" && key == "flag")
+}
+
+#[test]
+fn portrait_and_narration_controls_follow_the_selected_mode() {
+    let node = json!({"type":"portrait"});
+    assert_eq!(
+        field_requirement(&node, "portrait", false),
+        Requirement::Required
+    );
+    assert_eq!(
+        field_requirement(&node, "character", false),
+        Requirement::Required
+    );
+    for mode in ["narrative", "center", "character", "think"] {
+        assert_eq!(
+            field_visible("say", &json!({"mode":mode}), "text_align"),
+            matches!(mode, "narrative" | "center")
+        );
+    }
 }
 
 fn rows(value: &Value) -> Vec<(String, String)> {

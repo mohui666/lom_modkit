@@ -525,5 +525,18 @@
         "seconds": 0.5
       }
     ]
+  },
+  "portrait": {
+    "id": "node",
+    "type": "portrait",
+    "character": "artist1",
+    "portrait": "normal",
+    "fade_out": 0.5,
+    "fade_in": 1.5
+  },
+  "mood": {
+    "id": "node",
+    "type": "mood",
+    "enabled": true
   }
 }

@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 pub const MAX_ACTIONS: usize = 32;
 pub const ACTION_TYPES: &[&str] = &[
     "show",
+    "portrait",
     "hide",
     "move",
     "face",
@@ -98,6 +99,8 @@ pub fn validate_group(node: &Value) -> Result<()> {
             "duration",
             "seconds",
             "fade",
+            "fade_out",
+            "fade_in",
             "fadeDuration",
             "moveDuration",
         ] {
