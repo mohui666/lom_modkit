@@ -63,7 +63,9 @@
     "death": "死亡画面",
     "raw": "原生 Lua（高级）",
     "free_trigger": "自由模式触发",
-    "parallel": "同时执行组"
+    "parallel": "同时执行组",
+    "portrait": "人物换表情",
+    "mood": "表情气泡"
   },
   "NODE_GROUPS_SRC": [
     [
@@ -76,6 +78,7 @@
         "custom_cg",
         "overlay",
         "show",
+        "portrait",
         "move",
         "face",
         "hide",
@@ -92,6 +95,7 @@
         "block",
         "cg",
         "dim",
+        "mood",
         "message",
         "rotate",
         "dayenv",
@@ -833,6 +837,16 @@
         "endgame",
         "结算面板"
       ]
+    ],
+    "narrative_align": [
+      [
+        "default",
+        "游戏默认"
+      ],
+      [
+        "left",
+        "靠左对齐"
+      ]
     ]
   },
   "MODE_CN_SRC": {
@@ -1303,6 +1317,12 @@
           "mode",
           "模式",
           "mode",
+          true
+        ],
+        [
+          "text_align",
+          "旁白对齐",
+          "enum:narrative_align",
           true
         ],
         [
@@ -3145,6 +3165,52 @@
           false
         ]
       ]
+    },
+    "portrait": {
+      "label": "人物换表情",
+      "fields": [
+        [
+          "character",
+          "人物",
+          "character",
+          false
+        ],
+        [
+          "portrait",
+          "表情",
+          "portrait",
+          false
+        ],
+        [
+          "fade_out",
+          "旧表情淡出（秒）",
+          "float",
+          true
+        ],
+        [
+          "fade_in",
+          "新表情淡入（秒）",
+          "float",
+          true
+        ],
+        [
+          "wait_after",
+          "动作后停留（秒）",
+          "float",
+          true
+        ]
+      ]
+    },
+    "mood": {
+      "label": "表情气泡",
+      "fields": [
+        [
+          "enabled",
+          "启用官方表情气泡",
+          "bool",
+          false
+        ]
+      ]
     }
   },
   "_NODE_DEFAULTS": {
@@ -3220,7 +3286,8 @@
       "text": "",
       "character": "",
       "portrait": "normal",
-      "mode": "character"
+      "mode": "character",
+      "text_align": "default"
     },
     "choice": {
       "options": [
@@ -3548,6 +3615,15 @@
           "seconds": 0.5
         }
       ]
+    },
+    "portrait": {
+      "character": "",
+      "portrait": "normal",
+      "fade_out": 0.5,
+      "fade_in": 1.5
+    },
+    "mood": {
+      "enabled": true
     }
   },
   "VERIFIED_BATTLE_CHARACTER_IDS": [

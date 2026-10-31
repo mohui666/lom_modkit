@@ -167,12 +167,14 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 | `custom_cg` | `action`(`show`/`hide`)；show 必填 `image`(`user:` 图片)；可选 `fade`(默认0.5)、`scale`(10~300，默认100)、`x/y`(-100~100，默认0) | 在人物层前显示全屏 CG，保持图片比例；`scale` 为自动适配后的百分比，`x` 正向右、`y` 正向上。show 替换上一张，hide 淡出并销毁；换章、换场景、换包自动清理。官方 `cg` 节点保持原样 |
 | `overlay` | 必填 `action`(`show`/`hide`) 与 `slot`；show 必填 `image`；可选 `position`(九宫格)、`scale`(10~300)、`opacity`(0~100)、`layer`(`back`/`front`)、`fade` | 多槽位前景/道具/插图/遮罩；同槽 show 替换、hide 独立清理。前后层相对人物分离，F5 可恢复，换章/换场景/换包统一清理 |
 | `show` | `character`, `position`；可选 `portrait`(默认normal), `facing`(默认right), `fadeDuration`(0), `moveDuration`(0), `appearance` | 加载并显示人物。`appearance` 仅用于 `player`，值为 `game`/`original`/`beautified`，需要 Host ≥1.1.2；省略时保留原有加载行为。详见[赵活外观](free_mode_portraits.md#照镜子后的赵活)。story.mood 为 false 时末尾（Focus 后）追加 `mod_hide_mood()` |
+| `portrait` | `character`, `portrait`；可选 `fade_out`（默认0.5）、`fade_in`（默认1.5）、`wait_after` | 独立人物换表情，不显示对白。人物必须已登场；先淡出旧表情、换图、再淡入，等待两段完成。时长为非负秒数，0立即完成。保留站位、朝向、偏移、旋转和压暗；支持官方和用户人物，也可放进同时执行组。需 Host ≥1.3.6 |
+| `mood` | `enabled`（bool 必填） | 从本节点起开启或关闭官方表情气泡，持续到下一个 mood 节点；换章恢复该章顶层 `mood` 默认值。关闭立即隐藏，开启按当前台上未压暗的官方人物表情刷新。图标使用官方表情映射；用户人物没有官方气泡。需 Host ≥1.3.6 |
 | `move` | `character`, `from`, `to`；可选 `duration`(默认1) | 移动并 `wait(duration)` |
 | `face` | `character`, `facing` | 转向 |
 | `hide` | `character`；可选 `fadeDuration`(默认0) | 隐藏人物 |
 | `focus` | `character` | `characters.Focus` |
 | `offset` | `character`, `x`, `y`, `duration` | 人物偏移演出。官方角色走 `runwait(characters.MoveOffsetCoroutine(id,x,y,t))`；`user:` 角色走 `mod_char_offset` 后等待相同时长 |
-| `say` | `text`；可选 `character`, `portrait`(默认normal), `mode`("character"默认/"think"/"narrative"/"center")，可选 `voice`，`font_size`(0~200整数，默认0) | 字号调节只影响本句正文，0使用游戏默认，原文与已读 key 保留。对话/内心独白(带os_mask)/旁白/居中旁白。narrative 与 center 忽略 character。**已读机制**：文本不裸进 Lua，发射 `say(luamanager.GetStoryText("MOD_<modid>_<scriptid>_<nodeid>"))`（无 modid 时兜底 "MOD"），文本本体进 texts.json 由运行时注册。**`voice`**（可选）：用户音频引用，如 `user:mohui.line_01`；进入本句前 `mod_play_voice`（先停上一句），`say()` 返回后 `mod_stop_voice`。语音走独立通道，`sound` / `StopMusic` 不停它。禁止绝对路径与官方音效名 |
+| `say` | `text`；可选 `character`, `portrait`(默认normal), `mode`("character"默认/"think"/"narrative"/"center")，可选 `voice`，`font_size`(0~200整数，默认0)，`text_align`（`default`/`left`） | 字号调节只影响本句正文，0使用游戏默认，原文与已读 key 保留。`text_align=left` 仅对 narrative/center 的本句正文靠左对齐并保留 5% 左右留白，保留原垂直对齐，在下句开始前或清舞台时恢复原布局；其他模式忽略。默认沿用游戏布局。需 Host ≥1.3.6。对话/内心独白(带os_mask)/旁白/居中旁白。narrative 与 center 忽略 character。**已读机制**：文本不裸进 Lua，发射 `say(luamanager.GetStoryText("MOD_<modid>_<scriptid>_<nodeid>"))`（无 modid 时兜底 "MOD"），文本本体进 texts.json 由运行时注册。**`voice`**（可选）：用户音频引用，如 `user:mohui.line_01`；进入本句前 `mod_play_voice`（先停上一句），`say()` 返回后 `mod_stop_voice`。语音走独立通道，`sound` / `StopMusic` 不停它。禁止绝对路径与官方音效名 |
 | `choice` | `options`: `[{"text","goto"}]`（2~4 项）；可选 `dialog`(默认"Options"，皮肤见 §3.3) | 选项菜单 `choose()` |
 | `shock` | `character`；可选 `duration`(默认0.5) | 人物震动。官方角色走 flowcharts.common `shock`；`user:` 角色走独立立绘抖动并在结束后恢复位置 |
 | `mask` | `show`(bool) | 独白遮罩 `os_mask.Show` |

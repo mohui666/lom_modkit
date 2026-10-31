@@ -115,6 +115,7 @@ pub fn simulate(story: &Value, target: &str) -> Value {
 }
 fn simulate_until(story: &Value, target: &str, include_target: bool) -> Value {
     let mut state = json!({"actors":{},"dimming":{},"overlays":{},"official_pictures":{},"background":null,"view":null,"custom_cg":null,"dialog":null,"choice":null,"blackout":{"amount":0.0,"dir":"lr"},"reached":false,"steps":0});
+    state["mood_enabled"] = json!(story["mood"].as_bool().unwrap_or(false));
     let Some(ns) = story["nodes"].as_array() else {
         return state;
     };
@@ -135,6 +136,14 @@ fn simulate_until(story: &Value, target: &str, include_target: bool) -> Value {
 pub fn build_playtest_prelude(story: &Value, target: &str) -> Vec<Value> {
     let state = simulate_until(story, target, false);
     let mut nodes = Vec::new();
+    if story["nodes"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .any(|n| n["type"] == "mood")
+    {
+        nodes.push(json!({"type":"mood","enabled":state["mood_enabled"]}));
+    }
     if number(&state["blackout"], "amount", 0.0) >= 1.0 {
         nodes.push(json!({"type":"transition","phase":"in","dir":state["blackout"]["dir"]}));
     }
@@ -275,6 +284,12 @@ fn apply(s: &mut Value, n: &Value) {
                 s["overlays"][slot] = n.clone();
             }
         }
+        "mood" => s["mood_enabled"] = n["enabled"].clone(),
+        "portrait" => {
+            if s["actors"].get(cid).is_some() {
+                s["actors"][cid]["portrait"] = n["portrait"].clone();
+            }
+        }
         "show" => {
             if !cid.is_empty() {
                 let dimmed = s["dimming"].get(cid).cloned().unwrap_or(json!(false));
@@ -331,6 +346,7 @@ const PREVIEW_TRANSITION_SECONDS: f64 = 1.0;
 pub fn playback_duration(node: &Value) -> f64 {
     fn duration(action: &Value) -> f64 {
         match text(action, "type") {
+            "portrait" => number(action, "fade_out", 0.5) + number(action, "fade_in", 1.5),
             "show" => number(action, "fadeDuration", 0.0).max(number(action, "moveDuration", 0.0)),
             "hide" => number(action, "fadeDuration", 0.0),
             "move" => number(action, "duration", 1.0),
@@ -352,7 +368,7 @@ pub fn playback_duration(node: &Value) -> f64 {
             .max(0.1)
     } else {
         match text(node, "type") {
-            "show" | "hide" | "move" | "offset" | "rotate" | "wait" | "transition" => {
+            "show" | "portrait" | "hide" | "move" | "offset" | "rotate" | "wait" | "transition" => {
                 duration(node).max(0.1)
             }
             _ => 1.8,
@@ -408,6 +424,19 @@ fn simulate_frame(story: &Value, target: &str, elapsed: f64, positions: &Value) 
                     state["actors"][cid] = old.clone();
                     state["actors"][cid]["preview_opacity"] = alpha.into();
                 }
+            }
+            "portrait" if old.is_object() => {
+                let fade_out = number(action, "fade_out", 0.5);
+                let fade_in = number(action, "fade_in", 1.5);
+                let alpha = if elapsed < fade_out {
+                    state["actors"][cid] = old.clone();
+                    1.0 - progress(fade_out)
+                } else if fade_in > 0.0 {
+                    ((elapsed - fade_out) / fade_in).clamp(0.0, 1.0)
+                } else {
+                    1.0
+                };
+                state["actors"][cid]["preview_opacity"] = alpha.into();
             }
             "show" => {
                 if state["actors"][cid].is_object() {
@@ -810,6 +839,13 @@ impl Preview {
             Some(elapsed) => simulate_frame(story, target, elapsed, &self.positions),
             None => simulate(story, target),
         };
+        if node["type"] == "mood" {
+            ui.small(crate::i18n::tr(if state["mood_enabled"] == true {
+                "表情气泡已开启，图标由游戏中的人物表情决定。"
+            } else {
+                "表情气泡已关闭。"
+            }));
+        }
         if let Some(notice) = state["raw_preview"].as_str() {
             ui.small(notice);
         }
@@ -1026,16 +1062,35 @@ impl Preview {
             } else {
                 1.0
             };
-            let galley = painter.layout(
+            let centered = mode == "center"
+                && dialog.get("text_align").and_then(Value::as_str) != Some("left");
+            let left_margin = if matches!(mode, "narrative" | "center")
+                && dialog.get("text_align").and_then(Value::as_str) == Some("left")
+            {
+                dr.width() * 0.05
+            } else {
+                12.0
+            };
+            let mut job = egui::text::LayoutJob::simple(
                 txt.to_owned(),
                 FontId::proportional((rect.width() / 38.0).clamp(12.0, 19.0) * font_scale),
                 Color32::from_rgb(246, 241, 221),
-                dr.width() - 24.0,
+                dr.width() - left_margin * 2.0,
             );
+            job.halign = if centered {
+                egui::Align::Center
+            } else {
+                egui::Align::Min
+            };
+            let galley = painter.layout_job(job);
             painter.galley(
                 dr.left_top()
                     + Vec2::new(
-                        12.0,
+                        if centered {
+                            dr.width() / 2.0
+                        } else {
+                            left_margin
+                        },
                         if mode == "character" || mode == "think" {
                             30.0
                         } else {
@@ -1519,6 +1574,51 @@ pub fn graph(
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn mood_switch_preview_and_playtest_resume_keep_the_latest_switch() {
+        let story = json!({"mood":false,"start":"on","nodes":[
+            {"id":"on","type":"mood","enabled":true},
+            {"id":"say","type":"say","mode":"narrative","text":"气泡开启"},
+            {"id":"off","type":"mood","enabled":false},
+            {"id":"end","type":"end"}]});
+        assert_eq!(simulate(&story, "say")["mood_enabled"], true);
+        assert_eq!(simulate(&story, "end")["mood_enabled"], false);
+        let enabled = build_playtest_prelude(&story, "say");
+        assert_eq!(enabled[0]["type"], "mood");
+        assert_eq!(enabled[0]["enabled"], true);
+        let disabled = build_playtest_prelude(&story, "end");
+        assert_eq!(disabled[0]["type"], "mood");
+        assert_eq!(disabled[0]["enabled"], false);
+    }
+    #[test]
+    fn portrait_transition_keeps_transform_and_fades_old_then_new() {
+        use super::*;
+        for actor in ["player", "user:demo.actor"] {
+            let story = json!({"start":"enter","nodes":[
+                {"id":"enter","type":"show","character":actor,"position":"R1","facing":"left"},
+                {"id":"offset","type":"offset","character":actor,"x":17,"y":-6,"duration":0},
+                {"id":"rotate","type":"rotate","character":actor,"angle":12,"duration":0},
+                {"id":"dim","type":"dim","character":actor,"dimmed":true},
+                {"id":"change","type":"portrait","character":actor,"portrait":"angry1"}]});
+            let before = simulate(&story, "dim");
+            let positions = json!({});
+            let fading_out = simulate_frame(&story, "change", 0.25, &positions);
+            assert_eq!(fading_out["actors"][actor]["portrait"], "normal");
+            assert_eq!(fading_out["actors"][actor]["preview_opacity"], 0.5);
+            let fading_in = simulate_frame(&story, "change", 1.25, &positions);
+            assert_eq!(fading_in["actors"][actor]["portrait"], "angry1");
+            assert_eq!(fading_in["actors"][actor]["preview_opacity"], 0.5);
+            for key in [
+                "position", "facing", "offset_x", "offset_y", "rotation", "dimmed",
+            ] {
+                assert_eq!(
+                    fading_in["actors"][actor][key],
+                    before["actors"][actor][key]
+                );
+            }
+            assert_eq!(playback_duration(&story["nodes"][4]), 2.0);
+        }
+    }
     use super::*;
     #[test]
     fn official_pictures_persist_until_hidden_and_are_restored_for_playtest() {

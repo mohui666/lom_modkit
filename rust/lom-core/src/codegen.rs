@@ -120,6 +120,7 @@ struct Context<'a> {
     mod_id: &'a str,
     script_id: &'a str,
     mood: bool,
+    narrative_layout: bool,
     next: &'a str,
     content_root: &'a Path,
     preloaded: bool,
@@ -240,7 +241,9 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                 {
                     out.push(load(&lua_str(character)));
                 }
-                if s(action, "type") == "show" && !character.starts_with("user:") {
+                if ["show", "portrait"].contains(&s(action, "type"))
+                    && !character.starts_with("user:")
+                {
                     out.push(call(
                         "characters.LoadCharacterPortrait",
                         &[lua_str(character), qd(action, "portrait", "normal")],
@@ -363,6 +366,34 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                 out.push(wait(fade));
             }
         }
+        "portrait" => {
+            let portrait = q(node, "portrait");
+            let fade_out = n(node, "fade_out", json!(0.5));
+            let fade_in = n(node, "fade_in", json!(1.5));
+            for (duration, reveal) in [(fade_out, "false"), (fade_in, "true")] {
+                out.push(call(
+                    "mod_char_portrait_transition",
+                    &[c.clone(), portrait.clone(), duration.clone(), reveal.into()],
+                ));
+                out.push(wait(duration));
+            }
+            out.push("\tmod_refresh_mood()".into());
+            if !ctx.mood {
+                out.push("\tmod_hide_mood()".into());
+            }
+        }
+        "mood" => {
+            let enabled = b(node, "enabled", false);
+            out.push(format!("\tmod_set_mood({enabled})"));
+            out.push(
+                if enabled {
+                    "\tmod_refresh_mood()"
+                } else {
+                    "\tmod_hide_mood()"
+                }
+                .into(),
+            );
+        }
         "show" => {
             let portrait = qd(node, "portrait", "normal");
             let facing = qd(node, "facing", "right");
@@ -481,6 +512,9 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
         }
         "say" => {
             let mode = sd(node, "mode", "character");
+            if ctx.narrative_layout {
+                out.push("\tmod_narrative_left(false)".into());
+            }
             let voice = s(node, "voice");
             let voiced = !voice.trim().is_empty();
             out.push(if voiced {
@@ -565,6 +599,10 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
             }
             if !ctx.mood {
                 out.push("\tmod_hide_mood()".into());
+            }
+            let left = ["narrative", "center"].contains(&mode) && s(node, "text_align") == "left";
+            if left {
+                out.push("\tmod_narrative_left(true)".into());
             }
             out.push(say);
             if !ctx.mood {
@@ -1577,6 +1615,13 @@ fn story_to_lua_impl(
     let fallback = format!("story/{id}.json");
     let src = source.filter(|x| !x.is_empty()).unwrap_or(&fallback);
     let mood = b(story, "mood", false);
+    // Explicit switches follow runtime control flow, including loops/branches.
+    // Let the existing Host ShowMood patch enforce disabled state; unconditional
+    // legacy hide calls would otherwise erase an explicitly enabled bubble.
+    let dynamic_mood = nodes.iter().any(|n| s(n, "type") == "mood");
+    let narrative_layout = nodes
+        .iter()
+        .any(|n| ["narrative", "center"].contains(&s(n, "mode")) && s(n, "text_align") == "left");
     let mut lines = vec![
         GENERATED_MARK.to_owned(),
         format!("-- Source: {src} (id={id}, title={})", s(story, "title")),
@@ -1618,7 +1663,8 @@ fn story_to_lua_impl(
         let ctx = Context {
             mod_id: s(info, "id"),
             script_id: id,
-            mood,
+            mood: mood || dynamic_mood,
+            narrative_layout,
             next,
             content_root: root,
             preloaded: false,

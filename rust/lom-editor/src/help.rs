@@ -145,7 +145,9 @@ fn related(kind: &str) -> Option<&'static str> {
     match kind {
         "parallel" => Some("parallel"),
         "transition" => Some("transition"),
-        "say" | "show" | "move" | "hide" | "face" | "offset" => Some("characters"),
+        "say" | "show" | "portrait" | "mood" | "move" | "hide" | "face" | "offset" => {
+            Some("characters")
+        }
         "scene" | "background" | "custom_cg" | "overlay" => Some("assets"),
         "choice" | "branch" | "end" | "flag" | "goto_scene" => Some("flow"),
         _ => None,

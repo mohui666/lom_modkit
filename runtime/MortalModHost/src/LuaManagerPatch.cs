@@ -411,6 +411,17 @@ namespace MortalModHost
                 Script script = env != null ? env.Interpreter : null;
                 if (script == null)
                     throw new InvalidOperationException("LuaEnvironment.Interpreter 为 null");
+                script.Globals["mod_narrative_left"] = new CallbackFunction((ctx, args) =>
+                {
+                    CharacterPresentation.NarrativeLeft(ArgBool(args, 0, false));
+                    return DynValue.Nil;
+                }, "mod_narrative_left");
+                script.Globals["mod_char_portrait_transition"] = new CallbackFunction((ctx, args) =>
+                {
+                    CharacterPresentation.PortraitTransition(
+                        ArgString(args, 0), ArgString(args, 1), ArgFloat(args, 2, 0f), ArgBool(args, 3, false));
+                    return DynValue.Nil;
+                }, "mod_char_portrait_transition");
                 coroutine = script.CreateCoroutine(fn);
                 if (coroutine == null || coroutine.Type != DataType.Thread || coroutine.Coroutine == null)
                     throw new InvalidOperationException("无法创建 MoonSharp 协程");
@@ -518,6 +529,11 @@ namespace MortalModHost
                     MoodControl.Disabled = !show;
                     return DynValue.Nil;
                 }, "mod_set_mood");
+                script.Globals["mod_refresh_mood"] = new CallbackFunction((ctx, args) =>
+                {
+                    MoodControl.RefreshVisible();
+                    return DynValue.Nil;
+                }, "mod_refresh_mood");
                 // 契约 §6.13：死亡文本（2 参：短标题 + 多行描述，GameOver 画面两段式显示）。
                 // 单参调用兼容（旧编译器/老 mod 包）：参数当描述、标题留空。
                 script.Globals["mod_set_death_text"] = new CallbackFunction((ctx, args) =>

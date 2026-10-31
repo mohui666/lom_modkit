@@ -54,6 +54,7 @@ namespace MortalModHost
 
         public static void ClearAll()
         {
+            CharacterPresentation.NarrativeLeft(false);
             CharacterDimming.Clear();
             List<string> keys = new List<string>(Actors.Keys);
             for (int i = 0; i < keys.Count; i++)
@@ -273,6 +274,23 @@ namespace MortalModHost
             if (!TryGetOrCreate(raw, out actor))
                 return false;
             return ApplyPortrait(actor, portrait);
+        }
+
+        internal static Image TransitionPortrait(string raw, string portrait, bool reveal)
+        {
+            Actor actor;
+            if (!Actors.TryGetValue(raw, out actor) || !actor.Visible || actor.Image == null)
+                throw new InvalidOperationException("换表情的人物尚未登场：" + raw);
+            if (GetSprite(actor, portrait) == null)
+                throw new InvalidOperationException("找不到人物表情：" + raw + "/" + portrait);
+            if (reveal)
+            {
+                Vector3 position = actor.HolderRect.position;
+                if (!ApplyPortrait(actor, portrait))
+                    throw new InvalidOperationException("无法切换人物表情：" + raw + "/" + portrait);
+                actor.HolderRect.position = position;
+            }
+            return actor.Image;
         }
 
         public static bool SetSpeaker(string raw)

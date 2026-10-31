@@ -201,6 +201,22 @@
       "font_size": 36
     },
     {
+      "id": "portrait_official",
+      "type": "portrait",
+      "character": "player",
+      "portrait": "angry1",
+      "fade_out": 0.5,
+      "fade_in": 1.5
+    },
+    {
+      "id": "portrait_user",
+      "type": "portrait",
+      "character": "user:showcase.lin_deng",
+      "portrait": "happy",
+      "fade_out": 0.5,
+      "fade_in": 1.0
+    },
+    {
       "id": "rotate1",
       "type": "rotate",
       "character": "user:showcase.lin_deng",
@@ -221,11 +237,27 @@
       "dimmed": false
     },
     {
+      "id": "mood_on",
+      "type": "mood",
+      "enabled": true
+    },
+    {
+      "id": "mood_pause",
+      "type": "wait",
+      "seconds": 1
+    },
+    {
+      "id": "mood_off",
+      "type": "mood",
+      "enabled": false
+    },
+    {
       "id": "say3",
       "type": "say",
-      "text": "旁白、人物、语音与舞台动作均已执行。",
+      "text": "这是靠左旁白。刚才人物在没有对白的情况下换了表情：赵活淡出 0.5 秒、淡入 1.5 秒，并保留偏移与压暗；林灯淡入 1 秒。",
       "portrait": "normal",
-      "mode": "narrative"
+      "mode": "narrative",
+      "text_align": "left"
     },
     {
       "id": "mask1",

@@ -5,6 +5,14 @@
 本页和 `gameplay_api_contract.json` 是我们自己整理的接口摘要，可以进仓库。
 用 `ilspycmd` 从游戏 DLL 转出的整份 `.cs` **不要上传**（见根目录 `AGENTS.md`、`.gitignore` 里的 `docs/research/decompiled/`）。
 
+## 2026-10-31 旁白对齐与原地换表情接口核对
+
+本机当前安装的 `Fungus.SayDialog.StoryTextObject` 返回正文 `UnityEngine.UI.Text`。Host 在显式靠左句前保存其 `alignment`，横向扩展正文区域并保留 5% 留白，下句开始前及清舞台时恢复对齐与原矩形布局。
+
+现场只读反编译 `CharacterPlaceholder.LoadCharacterPortrait/GetPortrait`、`StoryCharacterController.LoadPortraitSync`、`Fungus.Character.GetPortrait`、`PortraitState.SetPortraitImageBySprite` 和 `PortraitController.Show/Hide/SetupPortrait`。`LoadPortraitSync` 会给已有 holder 补建表情 Image；`SetPortraitImageBySprite` 切换运行时 `portraitImage` 引用。原版 Show/Hide 的 SetupPortrait 会重置 holder，因此新增 `portrait` 仅包装这些加载及换图入口，对运行时 Image 分两段调用 `LeanTween.alpha`，不重新登场、不改官方资产。RGB 压暗、holder 朝向/偏移/旋转保留；用户人物同样在换图适配后恢复位置。2026-11-01 实机已观察官方与用户人物在无对白时换表情，以及普通／居中旁白的靠左留白。
+
+2026-11-01 补查 `StoryCharacterController.ShowMood/GetPortraitName` 与 `CharacterMoodPanel.Show/Hide`：`GetPortraitName` 保存原表情键，`ShowMood` 使用该键与 holder 朝向显示气泡，图标由面板内官方 Mapping 自动匹配。独立 `mood` 节点复用 `mod_set_mood`，关闭即时隐藏，开启刷新台上未压暗的官方人物；`portrait` 的淡出阶段先隐藏气泡，淡入完成后按当前开关刷新。带 mood 节点的章节由 Host 开关控制，不发射旧的无条件隐藏语句，避免覆盖作者中途启用的选择；分支和回环以实际执行顺序为准。2026-11-01 实机已观察 player/shock 对应的红色叹号气泡随开启／关闭节点显示与隐藏；回环路径另由离线测试覆盖。
+
 ## 2026-10-27 人物持续压暗接口核对
 
 当前 Windows 安装的 `Fungus.SayDialog.SetCharacter` 会自动调用 `Stage.SetDimmed`，`PortraitController.Show/ShowPortrait` 还会创建白色 RGB 补间。显式压暗由 `mod_char_dim` 统一记录；补丁在 `PortraitController.SetDimmed` / `StoryStageController.SetDimmed` 保留作者选择，并改写 `LeanTween.color(RectTransform, Color, float)` 的目标 RGB。`LeanTween.descriptions(GameObject)` / `cancel(int)` 仅用于替换 RGB 补间，保留 alpha 淡入淡出和移动。切章、清舞台和结束会话沿现有 `CustomCharacterRuntime.ClearAll` 清理。接口及 Host 构建已核对，实机效果另行验收。

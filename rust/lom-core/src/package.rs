@@ -530,8 +530,8 @@ fn add_user_content(
                 refs.push(("voice", "audio", None));
             }
             if [
-                "show", "move", "face", "hide", "focus", "offset", "say", "shock", "dim", "rotate",
-                "intro", "combat",
+                "show", "portrait", "move", "face", "hide", "focus", "offset", "say", "shock",
+                "dim", "rotate", "intro", "combat",
             ]
             .contains(&kind)
             {
@@ -561,7 +561,7 @@ fn add_user_content(
                         "用户音频 {id} 类型不匹配: 需要 {expected}"
                     );
                 }
-                if ctype == "character" && ["show", "say"].contains(&kind) {
+                if ctype == "character" && ["show", "say", "portrait"].contains(&kind) {
                     if let Some(portrait) = node["portrait"].as_str().filter(|s| !s.is_empty()) {
                         ensure!(
                             meta["portraits"].get(portrait).is_some(),
@@ -643,6 +643,27 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
         ("content_schema", 1),
     ] {
         manifest[key] = json!(val);
+    }
+    if stories.values().any(|story| {
+        crate::parallel::story_actions(story).any(|(_, node)| {
+            matches!(node["type"].as_str(), Some("portrait" | "mood"))
+                || node["type"] == "say"
+                    && matches!(node["mode"].as_str(), Some("narrative" | "center"))
+                    && node["text_align"] == "left"
+        })
+    }) {
+        let version = manifest["min_host_version"].as_str().unwrap_or("0.0.0");
+        let core = version
+            .split(['.', '-', '+'])
+            .take(3)
+            .map(|n| n.parse::<u32>().unwrap_or(0))
+            .collect::<Vec<_>>();
+        if core.as_slice() < [1, 3, 6].as_slice()
+            || core.as_slice() == [1, 3, 6].as_slice()
+                && version.split('+').next().unwrap_or(version).contains('-')
+        {
+            manifest["min_host_version"] = json!("1.3.6");
+        }
     }
     if stories.values().any(|s| {
         s["nodes"]

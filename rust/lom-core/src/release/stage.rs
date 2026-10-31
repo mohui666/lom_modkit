@@ -7,7 +7,7 @@ use std::collections::{BTreeMap, BTreeSet};
 pub fn required_character(node: &Value) -> Option<&str> {
     let kind = text(node, "type");
     let needs = [
-        "move", "face", "hide", "focus", "offset", "shock", "dim", "rotate",
+        "move", "face", "hide", "focus", "offset", "shock", "dim", "rotate", "portrait",
     ]
     .contains(&kind)
         || kind == "say" && ["", "character", "think"].contains(&text(node, "mode"));

@@ -1,4 +1,4 @@
-//! Native validation of the v3 package and all 64 story node contracts.
+//! Native validation of the v3 package and all 66 story node contracts.
 //! The declarative field table is shared with the native editor. Semantic rules
 //! are implemented here; no Python interpreter or subprocess is involved.
 use anyhow::{ensure, Context, Result};
@@ -927,7 +927,7 @@ fn extra(n: &Value, ntype: &str, catalog: &Value) -> Result<()> {
             "人物必须保存内部 ID，不能使用下拉显示文字 {c}；请重新选择该人物（例如 chicken1）"
         );
     }
-    if ["show", "say"].contains(&ntype) && nonempty(c) && nonempty(&n["portrait"]) {
+    if ["show", "say", "portrait"].contains(&ntype) && nonempty(c) && nonempty(&n["portrait"]) {
         let portrait = s(n, "portrait");
         if user(c) {
             user_ref(c, "character")?;
@@ -950,13 +950,20 @@ fn extra(n: &Value, ntype: &str, catalog: &Value) -> Result<()> {
     );
     if user(c)
         && [
-            "show", "say", "hide", "move", "face", "focus", "offset", "shock", "dim", "rotate",
+            "show", "say", "portrait", "hide", "move", "face", "focus", "offset", "shock", "dim",
+            "rotate",
         ]
         .contains(&ntype)
     {
         user_ref(c, "character")?;
     }
     match ntype {
+        "portrait" => {
+            ensure!(nonblank(&n["character"]), "换表情的 character 不能为空");
+            ensure!(nonblank(&n["portrait"]), "换表情的 portrait 不能为空");
+            range(n, "fade_out", 0.0, f64::INFINITY)?;
+            range(n, "fade_in", 0.0, f64::INFINITY)?;
+        }
         "background" => {
             range(n, "fade", 0.0, f64::INFINITY)?;
             if ["set", "show", "replace", "fadein"].contains(&s(n, "action")) {

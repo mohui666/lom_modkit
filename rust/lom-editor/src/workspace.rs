@@ -4635,7 +4635,7 @@ mod tests {
     fn all_catalog_node_forms_have_defaults() {
         let c = Catalog::new();
         let schemas = c.schema["NODE_SCHEMAS"].as_object().unwrap();
-        assert_eq!(schemas.len(), 64);
+        assert_eq!(schemas.len(), 66);
         for kind in schemas.keys() {
             let node = c.new_node(kind, "n1".into());
             assert_eq!(node["type"], kind.as_str());

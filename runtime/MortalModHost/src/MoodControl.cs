@@ -45,6 +45,20 @@ namespace MortalModHost
         /// <summary>true = mod 演出中禁止官方心情气泡显示（mod_set_mood(false) 或缺参）。</summary>
         internal static bool Disabled;
 
+        internal static void RefreshVisible()
+        {
+            if (Disabled) return;
+            Fungus.Stage stage = Fungus.Stage.GetActiveStage();
+            if (stage == null) return;
+            foreach (Fungus.Character character in stage.CharactersOnStage)
+            {
+                StoryCharacterController controller = character as StoryCharacterController;
+                if (controller != null && controller.State.onScreen && !controller.State.dimmed
+                    && controller.State.holder != null && controller.Mood != null)
+                    controller.ShowMood();
+            }
+        }
+
         /// <summary>日志通道，由 Plugin.Awake 注入（patch 类是静态的，拿不到插件实例 Logger）。</summary>
         internal static ManualLogSource Log;
 
