@@ -662,8 +662,8 @@
         {
           "id": "stat_set1",
           "type": "stat_set",
-          "key": "talking",
-          "value": 50,
+          "key": "lover",
+          "value": 5,
           "update": false
         },
         {
@@ -769,16 +769,16 @@
         {
           "id": "stat_check1",
           "type": "stat_check",
-          "key": "mental",
-          "op": ">=",
-          "value": -999,
+          "key": "lover",
+          "op": "==",
+          "value": 5,
           "success": "say1",
           "failure": "say2"
         },
         {
           "id": "say1",
           "type": "say",
-          "text": "stat_check 成功。",
+          "text": "stat_check 成功：心上人编号为 5。",
           "portrait": "normal",
           "mode": "narrative",
           "goto": "message2"
@@ -786,7 +786,7 @@
         {
           "id": "say2",
           "type": "say",
-          "text": "stat_check 失败。",
+          "text": "stat_check 失败：心上人编号不是 5。",
           "portrait": "normal",
           "mode": "narrative",
           "goto": "message2"

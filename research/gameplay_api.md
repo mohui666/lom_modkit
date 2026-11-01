@@ -5,6 +5,12 @@
 本页和 `gameplay_api_contract.json` 是我们自己整理的接口摘要，可以进仓库。
 用 `ilspycmd` 从游戏 DLL 转出的整份 `.cs` **不要上传**（见根目录 `AGENTS.md`、`.gitignore` 里的 `docs/research/decompiled/`）。
 
+## 2026-11-01 完整属性目录核对
+
+本机现版 `Mortal.Core.GameStatType` 的 54 个 `StringValue` 与 `globalgamemanagers.assets` 中 `PlayerStatData` 的 54 个实际数据引用逐项一致。编辑器原目录只扫描剧情的 `StatModifyManager.Player` 调用，遗漏 23 项属性（包括心上人），另将防御保留为旧键 `defence`；现版防御键为 `combat-defence`。提取器改用已核对的完整键表，显示名仍优先复用本地语言表。
+
+现场只读反编译 `Mortal.Story.LuaManager.GetStatData(string,int)`，确认它按 `GameStatType.StringValue` 查找 `PlayerStatManagerData.Instance.Stats.Get(type).FinalValue`；`Mortal.Story.StatModifyManager.SetPlayer(string,int)` 写对应属性基值。`Mortal.Core.LoverInfoPanel.UpdateStatus()` 直接以该属性值查询 `PlayerInfo/Lover/<编号>`，所以 `lover` 是编号属性，按 `==` 检定；“心上人已变为……”旗标不代替当前值。这里只补目录并复用现有生成入口，不改官方资产或包格式。2026-11-01 在 Windows 游戏 `release_1.0.6001.0` 的隔离试玩中已完成全部 54 项读取，以及 `lover` 成功／失败分支、腿法、儒学与防御的设置及检定；未逐项改写全部属性。
+
 ## 2026-10-31 旁白对齐与原地换表情接口核对
 
 本机当前安装的 `Fungus.SayDialog.StoryTextObject` 返回正文 `UnityEngine.UI.Text`。Host 在显式靠左句前保存其 `alignment`，横向扩展正文区域并保留 5% 留白，下句开始前及清舞台时恢复对齐与原矩形布局。

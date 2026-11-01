@@ -208,7 +208,7 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 | `reward` | `entries`(1~32)：`kind`=stat/affinity/talent/item/flag，`key`，非 flag 用 `amount`，item 另用 `category`=book/misc/special | 编译期展开为现有 `Player` / `Character` / `AddTalent` / `AddBook|Misc|Special` / `AddStory` 与 `modflags`，不发明奖励存档系统 |
 | `result_screen` | `title`（非空）、`entries`（同 reward）；可选 `text` | 先用原版 `mainui.DisplayMessageText` 显示作者填写的标题与说明，再按顺序执行 `reward` 的现有原子接口；这是作者友好的组合节点，不创建自定义结算 UI |
 | `custom_shop` | `items`(1~64)：`category`=book/misc/special、`item`(原版物品 id)、`count`(1~9999，默认1)，可选 `condition:{source,key,invert?}`；节点可选 `discount`(0/1，默认0) | Host 临时替换 `ShopDatabase` 三类库存并打开原版 `ShopPanel`，关闭或故障时恢复原库存。source=mod 读取本章 `modflags`，source=condition 调原版 `checkpointmanager.Condition`。discount=1 使用原版统一 50% 折扣；原版没有公开逐商品价格接口，`price` 字段会被拒绝 |
-| `stat_check` | `key`, `op`(>=/>/<=/</==), `value`, `success`, `failure` | 读取 `LuaManager.GetStatData(key,1)` 后二分 |
+| `stat_check` | `key`, `op`(>=/>/<=/</==), `value`, `success`, `failure` | 读取 `LuaManager.GetStatData(key,1)` 后二分；属性目录包含现版 54 项，心上人使用 `key="lover"` 按编号 `==` 检定，防御使用 `combat-defence` |
 | `affinity_check` | `character`, `op`, `value`, `success`, `failure` | Host 只读解析原版 RelationshipStatType 并读取 `Relationships.Get(type).Value` |
 | `item_check` | `category`=book/misc/special, `item`, `success`, `failure`；可选 `invert` | Host 只读调用原版 `ItemDatabase.HasItem`；未知 id 运行时 fail-closed |
 | `talent_check` | `talent`, `op`, `value`, `success`, `failure` | Host 只读读取原版 `PlayerStatManagerData.Talents.Get(id).Level` |

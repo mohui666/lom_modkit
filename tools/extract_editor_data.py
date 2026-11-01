@@ -50,6 +50,66 @@ OUT_PATH = os.path.join(REPO_ROOT, "data", "editor_data.json")
 # 契约 §5 固定值
 MODES = ["character", "think", "narrative", "center"]
 
+# 2026-11-01：当前 Mortal.Core.GameStatType.StringValue 与实际 PlayerStatData
+# 的 54 项逐项核对。不能只扫描 Player() 调用：心上人等属性由 SetPlayer()
+# 写入，另一些属性仅供读取；defence 已不是当前原版键。
+PLAYER_STAT_NAMES = {
+    "action": "行动次数",
+    "add-action-1": "额外行动次数1",
+    "add-action-2": "额外行动次数2",
+    "add-action-3": "额外行动次数3",
+    "assets": "门派资产",
+    "behaviour": "处世",
+    "buddhism": "释学",
+    "change-heart": "变心",
+    "charisma": "魅力",
+    "combat-attack-dice": "攻击暴击",
+    "combat-defence": "防御",
+    "combat-weapon-dice": "暗器暴击",
+    "confucianism": "儒学",
+    "contribution": "贡献度",
+    "cook": "厨艺",
+    "default-battle-hp": "门人血量",
+    "dexterity": "轻功",
+    "disposition": "性情",
+    "faction": "门派规模",
+    "faction-contribution": "门派贡献门槛",
+    "fame": "名声",
+    "fate": "命运",
+    "girl": "娘化",
+    "internal": "阴阳",
+    "karma": "道德",
+    "life": "体力",
+    "literacy": "学问",
+    "lover": "心上人",
+    "m-fist": "拳掌",
+    "m-internal": "内功",
+    "m-leg": "腿法",
+    "m-odd": "奇门",
+    "m-projectile": "暗器",
+    "m-soft": "软兵器",
+    "m-stick": "枪棍",
+    "m-sword": "刀剑",
+    "martial-point": "武学",
+    "mental": "心相",
+    "money": "银两",
+    "paralysis-resistance": "抗麻",
+    "people": "门人",
+    "poison": "炼丹",
+    "poison-resistance": "抗毒",
+    "stamina": "内力",
+    "talking": "嘴力",
+    "taoism": "道学",
+    "team": "向心",
+    "title": "称号",
+    "total-contribution": "累计贡献度",
+    "total-martial-point": "累计武学点数",
+    "total-poison-point": "累计炼丹点数",
+    "total-weapon-point": "累计锻造点数",
+    "training": "修养",
+    "weapon": "锻造",
+}
+
 # 自由模式地图地点（Mortal.Core PositionType 枚举，顺序按 Position 文本表）
 FREE_POSITION_TYPES = [
     "Mall",
@@ -91,7 +151,6 @@ RE_VIEW = re.compile(r'getvar\(flowcharts\.view,\s*"ViewName"\)\.value\s*=\s*"([
 RE_MUSIC = re.compile(r'luamanager\.PlayMusic\("([^"]+)"\)')
 RE_SOUND = re.compile(r'luamanager\.PlaySound\("([^"]+)"\)')
 RE_ENV_SOUND = re.compile(r'luamanager\.PlayEnvSound\("([^"]+)"\)')
-RE_STAT = re.compile(r'statmodifymanager\.Player\("([^"]+)"')
 RE_AFFINITY = re.compile(r'statmodifymanager\.Character\("([^"]+)"')
 RE_STAGE_SHOW = re.compile(r"stage\.show\{(.*?)\}", re.S)
 RE_FROM_POS = re.compile(r'fromPosition\s*=\s*"([^"]+)"')
@@ -261,7 +320,7 @@ def load_character_intro_data():
 
 def load_stat_names():
     """属性显示名：key 格式 PlayerStat/<id>。"""
-    return _load_prefixed_kv(CSV_STAT, RAW_STAT, "PlayerStat")
+    return {**PLAYER_STAT_NAMES, **_load_prefixed_kv(CSV_STAT, RAW_STAT, "PlayerStat")}
 
 
 def load_free_position_names():
@@ -395,7 +454,7 @@ def main():
     sounds = set()
     env_sounds = set()
     positions = set()
-    stats = set()
+    stats = set(PLAYER_STAT_NAMES)
     affinity_chars = set()
     menu_dialogs = set()
     effects_found = set()
@@ -435,7 +494,6 @@ def main():
         music.update(RE_MUSIC.findall(text))
         sounds.update(RE_SOUND.findall(text))
         env_sounds.update(RE_ENV_SOUND.findall(text))
-        stats.update(RE_STAT.findall(text))
         affinity_chars.update(RE_AFFINITY.findall(text))
         for block in RE_STAGE_SHOW.findall(text):
             positions.update(RE_FROM_POS.findall(block))

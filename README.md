@@ -2,6 +2,8 @@
 
 **《活侠传》（Legend of Mortal）可视化剧情 Mod 制作工具。** 用图形编辑器编排人物对白、场景、分支、音乐和音效，导出 `.lommod`，由 C# 游戏插件加载。
 
+**v1.3.7（2026-11-01）** 补齐现版全部 54 项原版属性，包括心上人、魅力、称号、娘化、门派规模、各类武学与儒道释；修正防御键。心上人可在「属性设置」「属性检定」中按人物编号设置与比较。见 [更新日志](RELEASE_NOTES_v1.3.7.md)。
+
 **v1.3.6（2026-11-01）** 新增独立「人物换表情」「表情气泡」步骤和逐句旁白靠左对齐。换表情可分别设置淡出／淡入时长，保留人物站位、朝向、偏移、旋转和压暗；气泡可在演出中开启或关闭。编辑器、CLI、Host 统一为 **1.3.6**。见 [更新日志](RELEASE_NOTES_v1.3.6.md)。
 
 **v1.3.5（2026-10-30）** 编辑器、CLI、Host 统一为 **1.3.5**。更新检查改读 Release 的 `update.json`，避开 GitHub 匿名 API 限流；仍直接下载 EXE／DLL，覆盖后重启并保留用户内容。见 [更新日志](RELEASE_NOTES_v1.3.5.md)。
@@ -16,7 +18,7 @@
 
 **v1.3.0** 增加原版附加剧情与自由剧本两种创作模式、独立事件／任务配置和日期／重复事件编辑；优化按钮、页面与弹窗，并新增一键定位 Steam 游戏目录。Windows 完整包包含 Host **1.1.3** 和预览素材提取助手。改动与验证边界见 [v1.3.0 变更记录](RELEASE_NOTES_v1.3.0.md)。
 
-[软件使用](docs/chs/software_usage.md) · [核心功能教程](docs/chs/core_tutorial.md) · [Mac 编辑器](docs/chs/macos.md) · [文档索引](docs/README.md) · [Windows v1.3.6 下载](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.6)
+[软件使用](docs/chs/software_usage.md) · [核心功能教程](docs/chs/core_tutorial.md) · [Mac 编辑器](docs/chs/macos.md) · [文档索引](docs/README.md) · [Windows v1.3.7 下载](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.7)
 
 语言：简体中文（本文） · [繁體中文](README.cht.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
