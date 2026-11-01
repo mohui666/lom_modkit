@@ -71,6 +71,58 @@ WIKI_JA_STATS = {
     "lover": "心上人",
 }
 
+# 原版属性枚举中没有独立语言表条目的名称。
+INTERNAL_STAT_TERMS = {
+    "chs": {
+        "add-action-1": "额外行动次数1",
+        "add-action-2": "额外行动次数2",
+        "add-action-3": "额外行动次数3",
+        "faction-contribution": "门派贡献门槛",
+        "girl": "娘化",
+        "title": "称号",
+        "total-contribution": "累计贡献度",
+        "total-martial-point": "累计武学点数",
+        "total-poison-point": "累计炼丹点数",
+        "total-weapon-point": "累计锻造点数"
+    },
+    "cht": {
+        "add-action-1": "額外行動次數1",
+        "add-action-2": "額外行動次數2",
+        "add-action-3": "額外行動次數3",
+        "faction-contribution": "門派貢獻門檻",
+        "girl": "娘化",
+        "title": "稱號",
+        "total-contribution": "累計貢獻度",
+        "total-martial-point": "累計武學點數",
+        "total-poison-point": "累計煉丹點數",
+        "total-weapon-point": "累計鍛造點數"
+    },
+    "ja": {
+        "add-action-1": "追加行動回数1",
+        "add-action-2": "追加行動回数2",
+        "add-action-3": "追加行動回数3",
+        "faction-contribution": "門派貢献の閾値",
+        "girl": "女性化",
+        "title": "称号",
+        "total-contribution": "累計貢献度",
+        "total-martial-point": "累計武学ポイント",
+        "total-poison-point": "累計煉丹ポイント",
+        "total-weapon-point": "累計鍛造ポイント"
+    },
+    "ko": {
+        "add-action-1": "추가 행동 횟수1",
+        "add-action-2": "추가 행동 횟수2",
+        "add-action-3": "추가 행동 횟수3",
+        "faction-contribution": "문파 공헌 기준",
+        "girl": "여성화",
+        "title": "칭호",
+        "total-contribution": "누적 공헌도",
+        "total-martial-point": "누적 무학 점수",
+        "total-poison-point": "누적 연단 점수",
+        "total-weapon-point": "누적 단조 점수"
+    }
+}
+
 # wiki / 官方系统名词
 WIKI_COMMON = {
     "chs": {
@@ -616,6 +668,7 @@ def build_lang(unpack_lang: str, locale: str, ja_from_tw: dict | None = None) ->
             "Tower": "練功塔",
         }
         data.setdefault("free_positions", {}).update(ja_pos)
+    data.setdefault("stats", {}).update(INTERNAL_STAT_TERMS[locale])
     common = dict(WIKI_COMMON[locale])
     sys_map = {
         "chs": "zh-cn",

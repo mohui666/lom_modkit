@@ -7323,6 +7323,18 @@
       "name": "行动次数"
     },
     {
+      "id": "add-action-1",
+      "name": "额外行动次数1"
+    },
+    {
+      "id": "add-action-2",
+      "name": "额外行动次数2"
+    },
+    {
+      "id": "add-action-3",
+      "name": "额外行动次数3"
+    },
+    {
       "id": "assets",
       "name": "门派资产"
     },
@@ -7331,8 +7343,32 @@
       "name": "处世"
     },
     {
+      "id": "buddhism",
+      "name": "释学"
+    },
+    {
       "id": "change-heart",
       "name": "变心"
+    },
+    {
+      "id": "charisma",
+      "name": "魅力"
+    },
+    {
+      "id": "combat-attack-dice",
+      "name": "爆发"
+    },
+    {
+      "id": "combat-defence",
+      "name": "防御"
+    },
+    {
+      "id": "combat-weapon-dice",
+      "name": "暗器爆发"
+    },
+    {
+      "id": "confucianism",
+      "name": "儒学"
     },
     {
       "id": "contribution",
@@ -7340,15 +7376,11 @@
     },
     {
       "id": "cook",
-      "name": "cook"
+      "name": "厨艺"
     },
     {
       "id": "default-battle-hp",
       "name": "门人血量"
-    },
-    {
-      "id": "defence",
-      "name": "defence"
     },
     {
       "id": "dexterity",
@@ -7359,12 +7391,24 @@
       "name": "性情"
     },
     {
+      "id": "faction",
+      "name": "门派规模"
+    },
+    {
+      "id": "faction-contribution",
+      "name": "门派贡献门槛"
+    },
+    {
       "id": "fame",
       "name": "名声"
     },
     {
       "id": "fate",
       "name": "命运"
+    },
+    {
+      "id": "girl",
+      "name": "娘化"
     },
     {
       "id": "internal",
@@ -7383,12 +7427,36 @@
       "name": "学问"
     },
     {
+      "id": "lover",
+      "name": "心上人"
+    },
+    {
       "id": "m-fist",
       "name": "拳掌"
     },
     {
+      "id": "m-internal",
+      "name": "内功"
+    },
+    {
+      "id": "m-leg",
+      "name": "腿法"
+    },
+    {
+      "id": "m-odd",
+      "name": "奇门"
+    },
+    {
       "id": "m-projectile",
       "name": "暗器"
+    },
+    {
+      "id": "m-soft",
+      "name": "软兵器"
+    },
+    {
+      "id": "m-stick",
+      "name": "枪棍"
     },
     {
       "id": "m-sword",
@@ -7431,8 +7499,32 @@
       "name": "嘴力"
     },
     {
+      "id": "taoism",
+      "name": "道学"
+    },
+    {
       "id": "team",
       "name": "向心"
+    },
+    {
+      "id": "title",
+      "name": "称号"
+    },
+    {
+      "id": "total-contribution",
+      "name": "累计贡献度"
+    },
+    {
+      "id": "total-martial-point",
+      "name": "累计武学点数"
+    },
+    {
+      "id": "total-poison-point",
+      "name": "累计炼丹点数"
+    },
+    {
+      "id": "total-weapon-point",
+      "name": "累计锻造点数"
     },
     {
       "id": "training",
