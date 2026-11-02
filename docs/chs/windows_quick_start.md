@@ -1,10 +1,10 @@
-# Windows 快速开始 · v1.3.9
+# Windows 快速开始 · v1.3.10
 
 ## 打开软件
 
-完整解压 `lom_modkit-v1.3.9_windows_x64.zip`，进入 `lom_modkit` 文件夹，双击 `lom-editor.exe`。保留 `lomc.exe`、`runtime`、`assets` 和 `asset-extractor`；不要只移动编辑器 EXE。编辑器、CLI 与随附 Host 均为 1.3.9。
+完整解压 `lom_modkit-v1.3.10_windows_x64.zip`，进入 `lom_modkit` 文件夹，双击 `lom-editor.exe`。保留 `lomc.exe`、`runtime`、`assets` 和 `asset-extractor`；不要只移动编辑器 EXE。编辑器、CLI 与随附 Host 均为 1.3.10。
 
-本次更新将自动更新的网络下载和安装助手改为 Rust，关闭时主动取消未完成的请求；立绘预览底部留白修复继续保留。已有项目无需重新导出，游戏中的 Host 1.3.7／1.3.8 也无需因本次编辑器改动重新安装。随附 Host 仅同步版本号。完整变化见 [v1.3.9 更新日志](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.9)。官方预览图片仍从作者自己的游戏中提取，不随包分发。
+本次更新修复自定义人物位移后再次登场错位、屏外说话或换表情时闪回原站位，并同步修正编辑器预览。已有项目无需重新导出；完成编辑器更新后，退出游戏，到「游戏与 MOD → 安装／更新 C# 宿主」将游戏中的 Host 更新到 1.3.10，才能应用游戏内修复。完整变化及帧率验证范围见 [v1.3.10 更新日志](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.10)。官方预览图片仍从作者自己的游戏中提取，不随包分发。
 
 ## 后续更新编辑器
 
@@ -34,6 +34,6 @@ v1.3.9 的更新流程使用 Rust，四个附件同时下载，大型文件在�
 
 [中文核心教程](https://github.com/mohui666/lom_modkit/blob/master/docs/chs/core_tutorial.md) · [软件使用](https://github.com/mohui666/lom_modkit/blob/master/docs/chs/software_usage.md) · [事件与任务](https://github.com/mohui666/lom_modkit/blob/master/docs/chs/events_and_tasks.md)
 
-[11 分钟中文演示](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0-core-tutorial-zh-CN.mp4) · [跟做项目](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0-tutorial-follow-along.zip) · [发布与验证记录](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.9)
+[11 分钟中文演示](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0-core-tutorial-zh-CN.mp4) · [跟做项目](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0-tutorial-follow-along.zip) · [发布与验证记录](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.10)
 
 预览素材提取助手仅用于只读提取自己安装的游戏图片。官方资源不随本包分发；导入教程与作品请使用自己有权使用的素材。第三方组件许可位于对应的 `asset-extractor` 与 `assets/doorstop` 目录；本项目许可为根目录 `LICENSE`。

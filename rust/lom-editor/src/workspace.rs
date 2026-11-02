@@ -4282,13 +4282,17 @@ impl eframe::App for App {
             }
             self.screenshot = None;
         }
-        ctx.request_repaint_after(Duration::from_millis(if self.auto {
-            16
-        } else if self.screenshot.is_some() {
-            70
+        if self.auto {
+            // Vsync already paces playback. An extra 16 ms delay can miss the
+            // next refresh and halve the frame rate on a 60 Hz display.
+            ctx.request_repaint();
         } else {
-            200
-        }));
+            ctx.request_repaint_after(Duration::from_millis(if self.screenshot.is_some() {
+                70
+            } else {
+                200
+            }));
+        }
     }
 }
 fn recovery_owner_active(path: &Path) -> bool {
