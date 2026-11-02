@@ -3,13 +3,24 @@ use anyhow::{ensure, Context, Result};
 use eframe::egui;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::{fs, path::Path, process::Command, sync::mpsc};
+#[cfg(windows)]
+use std::process::Command;
+use std::{
+    fs,
+    path::Path,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc, Arc,
+    },
+    thread::{self, JoinHandle},
+};
 
 const RELEASES: &str = "https://github.com/mohui666/lom_modkit/releases";
 const LATEST: &str = "https://github.com/mohui666/lom_modkit/releases/latest/download/update.json";
 const MAX_DOWNLOAD: u64 = 128 * 1024 * 1024;
 #[cfg(any(windows, test))]
-const APPLY_SCRIPT: &str = include_str!("editor_update.ps1");
+use lom_core::editor_update::validate_install;
+use lom_core::editor_update::{owned_file, PROGRAM_FILES};
 
 #[derive(Clone, Debug)]
 struct Release {
@@ -18,13 +29,6 @@ struct Release {
     url: String,
     files: Vec<Download>,
 }
-
-const PROGRAM_FILES: [(&str, &str); 4] = [
-    ("lom-editor.exe", "lom-editor.exe"),
-    ("lomc.exe", "lomc.exe"),
-    ("MortalModHost.dll", "runtime/MortalModHost.dll"),
-    ("NVorbis.dll", "runtime/NVorbis.dll"),
-];
 
 #[derive(Clone, Debug)]
 struct Download {
@@ -96,98 +100,15 @@ fn parse_release(value: &Value) -> Result<Release> {
     })
 }
 
-#[cfg(windows)]
-fn download(url: &str, destination: &Path, limit: u64) -> Result<()> {
-    use std::os::windows::process::CommandExt;
-    let script = r#"
-$ErrorActionPreference = 'Stop'
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-$request = [Net.HttpWebRequest]::Create($env:LOM_UPDATE_URL)
-$request.UserAgent = 'lom-modkit-editor-updater'
-$request.Accept = 'application/vnd.github+json'
-$request.Timeout = 180000; $request.ReadWriteTimeout = 180000
-$response = $null; $inputStream = $null; $outputStream = $null
-try {
-    $response = $request.GetResponse()
-    $limit = [long]$env:LOM_UPDATE_LIMIT
-    if ($response.ContentLength -gt $limit) { throw 'Download exceeds size limit' }
-    $inputStream = $response.GetResponseStream()
-    $outputStream = [IO.File]::Open($env:LOM_UPDATE_FILE, [IO.FileMode]::CreateNew)
-    $buffer = New-Object byte[] 65536; $total = 0
-    while (($count = $inputStream.Read($buffer, 0, $buffer.Length)) -gt 0) {
-        $total += $count
-        if ($total -gt $limit) { throw 'Download exceeds size limit' }
-        $outputStream.Write($buffer, 0, $count)
-    }
-} catch {
-    [Console]::Error.WriteLine($_.Exception.Message)
-    exit 1
-} finally {
-    if ($outputStream) { $outputStream.Dispose() }
-    if ($inputStream) { $inputStream.Dispose() }
-    if ($response) { $response.Close() }
-}
-"#;
-    let output = Command::new("powershell.exe")
-        .args(["-NoProfile", "-NonInteractive", "-Command", script])
-        // This helper can outlive the editor while a network request is pending.
-        .current_dir(destination.parent().context("无法确定更新缓存目录")?)
-        .env("LOM_UPDATE_URL", url)
-        .env("LOM_UPDATE_FILE", destination)
-        .env("LOM_UPDATE_LIMIT", limit.to_string())
-        .creation_flags(0x08000000)
-        .output()
-        .context("无法启动更新下载")?;
-    ensure!(
-        output.status.success(),
-        "无法从 GitHub 下载更新：{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    ensure!(fs::metadata(destination)?.len() > 0, "GitHub 返回了空文件");
-    Ok(())
+fn download(url: &str, destination: &Path, limit: u64, cancel: &AtomicBool) -> Result<()> {
+    crate::http_download::download(url, destination, limit, cancel)
 }
 
-#[cfg(not(windows))]
-fn download(url: &str, destination: &Path, limit: u64) -> Result<()> {
-    let output = Command::new("curl")
-        .args([
-            "--fail",
-            "--location",
-            "--silent",
-            "--show-error",
-            "--connect-timeout",
-            "15",
-            "--max-time",
-            "180",
-            "--max-filesize",
-        ])
-        .arg(limit.to_string())
-        .args(["--user-agent", "lom-modkit-editor-updater", "--output"])
-        .arg(destination)
-        .arg(url)
-        .output()
-        .context("无法启动更新检查")?;
-    ensure!(
-        output.status.success(),
-        "无法从 GitHub 下载更新：{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    ensure!(
-        fs::metadata(destination)?.len() > 0 && fs::metadata(destination)?.len() <= limit,
-        "下载文件大小不正确"
-    );
-    Ok(())
-}
-
-fn check() -> Result<Release> {
+fn check(cancel: &AtomicBool) -> Result<Release> {
     let temp = lom_core::workdir::create()?;
     let response = temp.path().join("release.json");
-    download(LATEST, &response, 1024 * 1024)?;
+    download(LATEST, &response, 1024 * 1024, cancel)?;
     parse_release(&serde_json::from_slice(&fs::read(response)?)?)
-}
-
-fn owned_file(name: &str) -> bool {
-    PROGRAM_FILES.iter().any(|(_, path)| *path == name)
 }
 
 struct Prepared {
@@ -210,7 +131,7 @@ fn verify_file(path: &Path, file: &Download) -> Result<()> {
     Ok(())
 }
 
-fn prepare(release: &Release) -> Result<Prepared> {
+fn prepare(release: &Release, cancel: &AtomicBool) -> Result<Prepared> {
     ensure!(
         release.can_update(),
         "此发布缺少可直接更新的程序附件或校验信息"
@@ -221,48 +142,12 @@ fn prepare(release: &Release) -> Result<Prepared> {
         ensure!(owned_file(&file.path), "拒绝下载非程序文件：{}", file.path);
         let destination = workspace.path().join("bundle").join(&file.path);
         fs::create_dir_all(destination.parent().context("无效更新路径")?)?;
-        download(&file.url, &destination, MAX_DOWNLOAD)?;
+        download(&file.url, &destination, MAX_DOWNLOAD, cancel)?;
         verify_file(&destination, file)?;
         files.push(file.path.clone());
     }
     files.sort_by_key(|name| name == "lom-editor.exe");
     Ok(Prepared { workspace, files })
-}
-
-#[cfg(any(windows, test))]
-fn validate_install(root: &Path, files: &[String]) -> Result<()> {
-    ensure!(
-        root.join("lomc.exe").is_file() && root.join("runtime/MortalModHost.dll").is_file(),
-        "请从完整 Windows 发布包运行编辑器后，再使用内置更新"
-    );
-    for file in files {
-        ensure!(owned_file(file), "拒绝更新非程序文件：{file}");
-        let target = root.join(file);
-        let mut ancestor = Some(target.as_path());
-        while let Some(path) = ancestor {
-            if let Ok(metadata) = fs::symlink_metadata(path) {
-                #[cfg(windows)]
-                {
-                    use std::os::windows::fs::MetadataExt;
-                    ensure!(
-                        metadata.file_attributes() & 0x400 == 0,
-                        "更新路径包含链接或联接：{}",
-                        path.display()
-                    );
-                }
-                ensure!(
-                    !metadata.is_symlink(),
-                    "更新路径包含符号链接：{}",
-                    path.display()
-                );
-            }
-            ancestor = path.parent();
-        }
-        if target.exists() {
-            ensure!(target.is_file(), "程序目标不是文件：{}", target.display());
-        }
-    }
-    Ok(())
 }
 
 enum Job {
@@ -280,9 +165,23 @@ pub struct Updater {
     downloading: bool,
     silent: bool,
     error: Option<String>,
+    cancel: Arc<AtomicBool>,
+    worker: Option<JoinHandle<()>>,
 }
 
 impl Updater {
+    pub fn shutdown(&mut self) {
+        self.cancel.store(true, Ordering::Relaxed);
+        if let Some(worker) = self.worker.take() {
+            if worker.join().is_err() {
+                eprintln!("更新任务在退出时意外中断");
+            }
+        }
+        self.job = None;
+        self.prepared = None;
+        self.downloading = false;
+    }
+
     pub fn show_completed(&mut self) {
         self.completed = true;
         self.open = true;
@@ -314,13 +213,24 @@ impl Updater {
         let (tx, rx) = mpsc::channel();
         self.job = Some(rx);
         let ctx = ctx.clone();
-        std::thread::spawn(move || {
-            let _ = tx.send(check().map(Job::Checked).map_err(|e| format!("{e:#}")));
-            ctx.request_repaint();
-        });
+        self.cancel.store(false, Ordering::Relaxed);
+        let cancel = self.cancel.clone();
+        self.worker = Some(thread::spawn(move || {
+            let _ = tx.send(
+                check(&cancel)
+                    .map(Job::Checked)
+                    .map_err(|e| format!("{e:#}")),
+            );
+            if !cancel.load(Ordering::Relaxed) {
+                ctx.request_repaint();
+            }
+        }));
     }
 
     pub fn download(&mut self, ctx: &egui::Context) {
+        if self.job.is_some() {
+            return;
+        }
         let Some(release) = self.release.clone() else {
             return;
         };
@@ -331,14 +241,18 @@ impl Updater {
         let (tx, rx) = mpsc::channel();
         self.job = Some(rx);
         let ctx = ctx.clone();
-        std::thread::spawn(move || {
+        self.cancel.store(false, Ordering::Relaxed);
+        let cancel = self.cancel.clone();
+        self.worker = Some(thread::spawn(move || {
             let _ = tx.send(
-                prepare(&release)
+                prepare(&release, &cancel)
                     .map(Job::Prepared)
                     .map_err(|e| format!("{e:#}")),
             );
-            ctx.request_repaint();
-        });
+            if !cancel.load(Ordering::Relaxed) {
+                ctx.request_repaint();
+            }
+        }));
     }
 
     /// True only after a confirmed update has finished downloading and validating.
@@ -349,6 +263,14 @@ impl Updater {
             Err(mpsc::TryRecvError::Empty) => return false,
             Err(mpsc::TryRecvError::Disconnected) => Err("更新任务意外中断".into()),
         };
+        if let Some(worker) = self.worker.take() {
+            if worker.join().is_err() {
+                self.job = None;
+                self.downloading = false;
+                self.error = Some("更新任务意外中断".into());
+                return false;
+            }
+        }
         self.job = None;
         self.downloading = false;
         match result {
@@ -430,9 +352,11 @@ impl Updater {
         let job_path = prepared.workspace.path().join("install.json");
         let job = json!({"root":root,"stage":prepared.workspace.path(),"files":prepared.files,"parent_pid":std::process::id(),"project":project,"restart":true});
         fs::write(&job_path, serde_json::to_vec(&job)?)?;
-        Command::new("powershell.exe")
-            .args(["-NoProfile", "-NonInteractive", "-Command", APPLY_SCRIPT])
-            // Stay outside both the installation and the stage being cleaned up.
+        let installer = prepared.workspace.path().join("installer.exe");
+        fs::copy(root.join("lomc.exe"), &installer).context("无法准备 Rust 更新助手")?;
+        Command::new(&installer)
+            .arg("--apply-editor-update")
+            .arg(&job_path)
             .current_dir(
                 prepared
                     .workspace
@@ -440,10 +364,9 @@ impl Updater {
                     .parent()
                     .context("无法确定更新工作目录")?,
             )
-            .env("LOM_EDITOR_UPDATE_JOB", &job_path)
             .creation_flags(0x08000000)
             .spawn()
-            .context("无法启动更新安装，编辑器尚未退出")?;
+            .context("无法启动 Rust 更新助手，编辑器尚未退出")?;
         let _ = self.prepared.take().unwrap().workspace.keep();
         self.open = false;
         Ok(())
@@ -452,6 +375,12 @@ impl Updater {
     #[cfg(not(windows))]
     pub fn install(&mut self, _project: Option<&Path>) -> Result<()> {
         anyhow::bail!("当前平台请从 GitHub 发布页面手动安装")
+    }
+}
+
+impl Drop for Updater {
+    fn drop(&mut self) {
+        self.shutdown();
     }
 }
 
@@ -504,40 +433,24 @@ mod tests {
             let mut release = parse_release(&release()).unwrap();
             release.version = latest.into();
             let (tx, rx) = mpsc::channel();
-            let mut updater = Updater {
-                silent: true,
-                job: Some(rx),
-                ..Default::default()
-            };
+            let mut updater = Updater::default();
+            updater.silent = true;
+            updater.job = Some(rx);
             tx.send(Ok(Job::Checked(release))).unwrap();
             assert!(!updater.poll());
             assert_eq!(updater.open, opens, "{latest}");
         }
         for silent in [true, false] {
             let (tx, rx) = mpsc::channel();
-            let mut updater = Updater {
-                silent,
-                open: !silent,
-                job: Some(rx),
-                ..Default::default()
-            };
+            let mut updater = Updater::default();
+            updater.silent = silent;
+            updater.open = !silent;
+            updater.job = Some(rx);
             tx.send(Err("network unavailable".into())).unwrap();
             assert!(!updater.poll());
             assert_eq!(updater.open, !silent);
             assert_eq!(updater.error.is_some(), !silent);
         }
-    }
-
-    fn fixture_files(output: &Path) -> Vec<String> {
-        let mut files = Vec::new();
-        for (_, name) in PROGRAM_FILES {
-            let target = output.join(name);
-            fs::create_dir_all(target.parent().unwrap()).unwrap();
-            fs::write(target, b"new program bytes").unwrap();
-            files.push(name.into());
-        }
-        files.sort_by_key(|name| name == "lom-editor.exe");
-        files
     }
 
     #[test]
@@ -574,7 +487,8 @@ mod tests {
     #[test]
     #[ignore = "requires the public GitHub release and a network download"]
     fn github_release_download_and_validation() {
-        let release = check().unwrap();
+        let cancel = AtomicBool::new(false);
+        let release = check(&cancel).unwrap();
         let host = release
             .files
             .iter()
@@ -582,11 +496,110 @@ mod tests {
             .unwrap();
         let temp = lom_core::workdir::create().unwrap();
         let path = temp.path().join("MortalModHost.dll");
-        download(&host.url, &path, MAX_DOWNLOAD).unwrap();
+        download(&host.url, &path, MAX_DOWNLOAD, &cancel).unwrap();
         verify_file(&path, host).unwrap();
         if release.can_update() {
-            let prepared = prepare(&release).unwrap();
+            let prepared = prepare(&release, &cancel).unwrap();
             assert_eq!(prepared.files.len(), 4);
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn shutdown_and_drop_cancel_pending_downloads_and_release_their_files() {
+        use std::io::{BufRead, BufReader, Read, Write};
+        use std::net::TcpListener;
+        use std::time::Duration;
+        use std::time::Instant;
+
+        for downloading_body in [false, true] {
+            let temp = tempfile::tempdir().unwrap();
+            let workspace = tempfile::tempdir_in(temp.path()).unwrap();
+            let cache = workspace.path().to_path_buf();
+            let destination = cache.join("download.bin");
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            listener.set_nonblocking(true).unwrap();
+            let url = format!("http://{}/update.json", listener.local_addr().unwrap());
+            let mut updater = Updater::default();
+            let cancel = updater.cancel.clone();
+            let file = destination.clone();
+            let (tx, rx) = mpsc::channel();
+            updater.worker = Some(thread::spawn(move || {
+                let _workspace = workspace;
+                let _ = tx.send(download(&url, &file, 1024, &cancel));
+            }));
+            let deadline = Instant::now() + Duration::from_secs(10);
+            let mut connection = loop {
+                match listener.accept() {
+                    Ok((connection, _)) => break connection,
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        assert!(Instant::now() < deadline, "download helper did not connect");
+                        thread::sleep(Duration::from_millis(20));
+                    }
+                    Err(error) => panic!("{error}"),
+                }
+            };
+            connection
+                .set_read_timeout(Some(Duration::from_secs(3)))
+                .unwrap();
+            {
+                let mut request = BufReader::new(&mut connection);
+                let mut line = String::new();
+                loop {
+                    assert!(request.read_line(&mut line).unwrap() > 0);
+                    if line == "\r\n" {
+                        break;
+                    }
+                    line.clear();
+                }
+            }
+            if downloading_body {
+                connection
+                    .write_all(
+                        b"HTTP/1.1 200 OK\r\nContent-Length: 1024\r\nConnection: close\r\n\r\n{",
+                    )
+                    .unwrap();
+                while !destination.exists() {
+                    assert!(
+                        Instant::now() < deadline,
+                        "download did not open its output file"
+                    );
+                    thread::sleep(Duration::from_millis(20));
+                }
+            }
+            let started = Instant::now();
+            if !downloading_body {
+                updater.shutdown();
+                assert!(updater.worker.is_none());
+                // The real exit hook and Drop may both run during normal shutdown.
+                updater.shutdown();
+            }
+            drop(updater);
+            assert!(
+                started.elapsed() < Duration::from_secs(3),
+                "closing waited for the HTTP timeout"
+            );
+            let error = format!(
+                "{:#}",
+                rx.recv_timeout(Duration::from_secs(1))
+                    .unwrap()
+                    .unwrap_err()
+            );
+            assert!(error.contains("下载已取消"), "{error}");
+            assert!(
+                !cache.exists(),
+                "the helper must release the output file before closing"
+            );
+            let mut remaining = Vec::new();
+            if let Err(error) = connection.read_to_end(&mut remaining) {
+                assert!(
+                    matches!(
+                        error.kind(),
+                        std::io::ErrorKind::ConnectionReset | std::io::ErrorKind::ConnectionAborted
+                    ),
+                    "the helper still holds its HTTP connection: {error}"
+                );
+            }
         }
     }
 
@@ -605,7 +618,9 @@ mod tests {
                 std::env::var_os("LOM_TEST_UPDATE_DOWNLOAD_FILE").unwrap(),
             );
             let cache = destination.parent().unwrap().to_path_buf();
-            let job = std::thread::spawn(move || download(&url, &destination, 1024));
+            let job = std::thread::spawn(move || {
+                download(&url, &destination, 1024, &AtomicBool::new(false))
+            });
             // Release the parent's directory only after its helper has connected.
             std::io::stdin().read_exact(&mut [0]).unwrap();
             std::env::set_current_dir(cache).unwrap();
@@ -660,6 +675,20 @@ mod tests {
                 Err(error) => panic!("{error}"),
             }
         };
+        connection
+            .set_read_timeout(Some(Duration::from_secs(3)))
+            .unwrap();
+        {
+            let mut request = BufReader::new(&mut connection);
+            let mut line = String::new();
+            loop {
+                assert!(request.read_line(&mut line).unwrap() > 0);
+                if line == "\r\n" {
+                    break;
+                }
+                line.clear();
+            }
+        }
         parent.stdin.take().unwrap().write_all(b"1").unwrap();
         let mut stdout = BufReader::new(parent.stdout.take().unwrap());
         let mut line = String::new();
@@ -689,104 +718,5 @@ mod tests {
             b"keep my project"
         );
         assert_eq!(fs::read(destination).unwrap(), b"{}");
-    }
-
-    #[cfg(windows)]
-    #[test]
-    fn installer_waits_for_editor_and_preserves_project_library_and_preferences() {
-        use std::os::windows::process::CommandExt;
-        use std::time::{Duration, Instant};
-        for locked in [false, true] {
-            let temp = tempfile::tempdir().unwrap();
-            let local = temp.path().join("local");
-            let work = local.join("lom_modkit/cache/work");
-            fs::create_dir_all(&work).unwrap();
-            let stage = tempfile::Builder::new()
-                .prefix("lom-modkit-")
-                .tempdir_in(&work)
-                .unwrap();
-            let root = temp.path().join("Editor 中文 [test]");
-            fs::create_dir_all(root.join("runtime")).unwrap();
-            fs::write(root.join("lomc.exe"), b"old").unwrap();
-            fs::write(root.join("runtime/MortalModHost.dll"), b"old host").unwrap();
-            let files = fixture_files(&stage.path().join("bundle"));
-            for (path, data) in [
-                ("project/story/main.json", "my story"),
-                (
-                    "assets/user/character/my.person/content.json",
-                    "my character",
-                ),
-                (
-                    "repository/assets/user/music/my.theme/theme.ogg",
-                    "my music",
-                ),
-                ("preferences.json", "my settings"),
-            ] {
-                fs::create_dir_all(root.join(path).parent().unwrap()).unwrap();
-                fs::write(root.join(path), data).unwrap();
-            }
-            fs::write(root.join("lom-editor.exe"), b"old editor").unwrap();
-            let mut parent = Command::new("powershell.exe")
-                .args(["-NoProfile", "-Command", "Start-Sleep -Milliseconds 700"])
-                .creation_flags(0x08000000)
-                .spawn()
-                .unwrap();
-            let job = stage.path().join("install.json");
-            fs::write(&job, serde_json::to_vec(&json!({"root":root,"stage":stage.path(),"files":files,"parent_pid":parent.id(),"restart":false})).unwrap()).unwrap();
-            let lock = if locked {
-                use std::os::windows::fs::OpenOptionsExt;
-                Some(
-                    fs::OpenOptions::new()
-                        .read(true)
-                        .share_mode(1)
-                        .open(root.join("lom-editor.exe"))
-                        .unwrap(),
-                )
-            } else {
-                None
-            };
-            let started = Instant::now();
-            let result = Command::new("powershell.exe")
-                .args(["-NoProfile", "-NonInteractive", "-Command", APPLY_SCRIPT])
-                .env("LOM_EDITOR_UPDATE_JOB", &job)
-                .env("LOCALAPPDATA", &local)
-                .creation_flags(0x08000000)
-                .output()
-                .unwrap();
-            let _ = parent.wait();
-            assert!(started.elapsed() >= Duration::from_millis(500));
-            assert_eq!(
-                result.status.success(),
-                !locked,
-                "{}",
-                String::from_utf8_lossy(&result.stderr)
-            );
-            assert_eq!(
-                fs::read(root.join("lomc.exe")).unwrap(),
-                if locked {
-                    b"old".as_slice()
-                } else {
-                    b"new program bytes".as_slice()
-                }
-            );
-            assert_eq!(
-                fs::read(root.join("project/story/main.json")).unwrap(),
-                b"my story"
-            );
-            assert_eq!(
-                fs::read(root.join("assets/user/character/my.person/content.json")).unwrap(),
-                b"my character"
-            );
-            assert_eq!(
-                fs::read(root.join("repository/assets/user/music/my.theme/theme.ogg")).unwrap(),
-                b"my music"
-            );
-            assert_eq!(
-                fs::read(root.join("preferences.json")).unwrap(),
-                b"my settings"
-            );
-            assert!(!stage.path().exists());
-            drop(lock);
-        }
     }
 }

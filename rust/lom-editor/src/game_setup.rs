@@ -113,59 +113,14 @@ pub fn configure(
     Ok(report)
 }
 
-#[cfg(windows)]
 fn download(url: &str, destination: &Path) -> Result<()> {
-    use std::os::windows::process::CommandExt;
-    // Pass paths as environment values instead of interpolating shell code.
-    // Bound both network waits and the download size, including chunked replies.
-    let script = r#"
-$ErrorActionPreference = 'Stop'
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-$request = [Net.HttpWebRequest]::Create($env:LOM_SETUP_URL)
-$request.Timeout = 120000
-$request.ReadWriteTimeout = 120000
-$response = $null; $inputStream = $null; $outputStream = $null
-try {
-    $response = $request.GetResponse()
-    if ($response.ContentLength -gt 33554432) { throw 'Download exceeds 32 MiB' }
-    $inputStream = $response.GetResponseStream()
-    $outputStream = [IO.File]::Open($env:LOM_SETUP_ARCHIVE, [IO.FileMode]::CreateNew)
-    $buffer = New-Object byte[] 65536
-    $total = 0
-    while (($count = $inputStream.Read($buffer, 0, $buffer.Length)) -gt 0) {
-        $total += $count
-        if ($total -gt 33554432) { throw 'Download exceeds 32 MiB' }
-        $outputStream.Write($buffer, 0, $count)
-    }
-} finally {
-    if ($outputStream) { $outputStream.Dispose() }
-    if ($inputStream) { $inputStream.Dispose() }
-    if ($response) { $response.Close() }
-}
-"#;
-    let output = std::process::Command::new("powershell.exe")
-        .args(["-NoProfile", "-NonInteractive", "-Command", script])
-        .current_dir(destination.parent().context("无法确定下载缓存目录")?)
-        .env("LOM_SETUP_URL", url)
-        .env("LOM_SETUP_ARCHIVE", destination)
-        .creation_flags(0x08000000)
-        .output()
-        .context("无法启动官方组件下载，请在高级维护中使用离线压缩包")?;
-    ensure!(
-        output.status.success(),
-        "官方组件下载失败：{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    ensure!(
-        std::fs::metadata(destination)?.len() > 0,
-        "下载的压缩包为空"
-    );
-    Ok(())
-}
-
-#[cfg(not(windows))]
-fn download(_url: &str, _destination: &Path) -> Result<()> {
-    anyhow::bail!("游戏配置请在 Windows 版编辑器中执行")
+    crate::http_download::download(
+        url,
+        destination,
+        32 * 1024 * 1024,
+        &std::sync::atomic::AtomicBool::new(false),
+    )
+    .context("官方组件下载失败；可在高级维护中使用离线压缩包")
 }
 
 #[cfg(test)]

@@ -16,3 +16,6 @@ unicode-casefold = "0.2"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 crc32fast = "1"
 uuid = { version = "1", features = ["v4"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"] }
