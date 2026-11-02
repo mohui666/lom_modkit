@@ -4,6 +4,7 @@ mod editor_update;
 mod forms;
 mod game_setup;
 mod help;
+mod http_download;
 mod i18n;
 mod initial_setup;
 mod macos_window;

@@ -226,9 +226,16 @@ fn repository() -> PathBuf {
 
 pub fn run() -> eframe::Result {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let updated = std::env::var_os("LOM_EDITOR_UPDATE_JOB").is_some();
+    let update_job = std::env::var_os("LOM_EDITOR_UPDATE_JOB").map(PathBuf::from);
+    let updated = update_job.is_some();
     // The installer passes this only to its restarted editor, including older installers.
     std::env::remove_var("LOM_EDITOR_UPDATE_JOB");
+    #[cfg(windows)]
+    if let Some(job) = update_job {
+        if let Err(error) = lom_core::editor_update::finish_job(&job) {
+            eprintln!("更新已完成，临时安装文件清理失败：{error:#}");
+        }
+    }
     if args.first().map(String::as_str) == Some("--smoke-preview") {
         let path = args.get(1).map(PathBuf::from).unwrap_or_else(|| {
             eprintln!("用法：lom-editor --smoke-preview <项目目录/JSON/lommod>");
@@ -4040,6 +4047,10 @@ impl App {
     }
 }
 impl eframe::App for App {
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        self.updater.shutdown();
+    }
+
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
         self.shell.clear_color()
     }

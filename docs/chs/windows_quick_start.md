@@ -1,16 +1,18 @@
-# Windows 快速开始 · v1.3.8
+# Windows 快速开始 · v1.3.9
 
 ## 打开软件
 
-完整解压 `lom_modkit-v1.3.8_windows_x64.zip`，进入 `lom_modkit` 文件夹，双击 `lom-editor.exe`。保留 `lomc.exe`、`runtime`、`assets` 和 `asset-extractor`；不要只移动编辑器 EXE。编辑器、CLI 与随附 Host 均为 1.3.8。
+完整解压 `lom_modkit-v1.3.9_windows_x64.zip`，进入 `lom_modkit` 文件夹，双击 `lom-editor.exe`。保留 `lomc.exe`、`runtime`、`assets` 和 `asset-extractor`；不要只移动编辑器 EXE。编辑器、CLI 与随附 Host 均为 1.3.9。
 
-本次为 2026-11-02 修复版，修复退出后后台 PowerShell 占用编辑器目录，以及立绘预览底部留白。已有项目无需重新导出；这两项修复不依赖更新游戏中已安装的 Host 1.3.7。随附 Host 仅同步版本号；需要同步游戏宿主时，请退出游戏后使用「游戏与 MOD → 高级维护 → 安装 / 更新 C# 宿主」。完整变化见 [v1.3.8 更新日志](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.8)。官方预览图片仍从作者自己的游戏中提取，不随包分发。
+本次更新将自动更新的网络下载和安装助手改为 Rust，关闭时主动取消未完成的请求；立绘预览底部留白修复继续保留。已有项目无需重新导出，游戏中的 Host 1.3.7／1.3.8 也无需因本次编辑器改动重新安装。随附 Host 仅同步版本号。完整变化见 [v1.3.9 更新日志](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.9)。官方预览图片仍从作者自己的游戏中提取，不随包分发。
 
 ## 后续更新编辑器
 
 默认每次启动在后台检查一次；仅发现新版本才弹窗，无新版或网络失败时保持静默。可在「设置 → 更新」关闭启动检查。设置分为「常规」「素材与路径」「更新」，可调整界面语言、选择或提取预览素材、查看用户内容库位置。
 
 打开「游戏与 MOD」，点击页面顶部的「检查更新」。发现 GitHub 最新正式版后，会显示版本和更新说明；选择「更新并重启」即可后台直接下载独立 EXE／DLL，校验、覆盖程序文件并自动重启，重新打开当前项目，无需下载或解压 ZIP，检查过程读取 Release 更新清单，避开匿名 API 限流。未保存的修改会先提示保存、放弃或取消；没有新版则显示「当前已是最新版本」。
+
+v1.3.9 的更新流程使用 Rust，四个附件同时下载，大型文件在服务器支持时使用四段并行。关闭软件会一起取消所有下载并释放临时文件；确认更新后，由独立 Rust 助手等待软件退出再覆盖、重启。
 
 用户内容库默认在 `%APPDATA%\lom_modkit\repository`，配置在 `%APPDATA%\lom_modkit\rust`，项目素材随项目保存。内置更新只替换编辑器、编译器和随附 Host DLL，保留这些数据和安装目录里的其他文件。首次从已有完整旧版升级到 v1.3.3，可退出编辑器，直接将独立附件 `lom-editor.exe`、`lomc.exe` 覆盖到原目录，并将 `MortalModHost.dll`、`NVorbis.dll` 放入 `runtime/`；也可完整解压 ZIP 覆盖。不要删除其中自行保存的项目或素材。编辑器更新不会自动替换游戏中的 Host。
 
@@ -32,6 +34,6 @@
 
 [中文核心教程](https://github.com/mohui666/lom_modkit/blob/master/docs/chs/core_tutorial.md) · [软件使用](https://github.com/mohui666/lom_modkit/blob/master/docs/chs/software_usage.md) · [事件与任务](https://github.com/mohui666/lom_modkit/blob/master/docs/chs/events_and_tasks.md)
 
-[11 分钟中文演示](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0-core-tutorial-zh-CN.mp4) · [跟做项目](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0-tutorial-follow-along.zip) · [发布与验证记录](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.8)
+[11 分钟中文演示](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0-core-tutorial-zh-CN.mp4) · [跟做项目](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0-tutorial-follow-along.zip) · [发布与验证记录](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.9)
 
 预览素材提取助手仅用于只读提取自己安装的游戏图片。官方资源不随本包分发；导入教程与作品请使用自己有权使用的素材。第三方组件许可位于对应的 `asset-extractor` 与 `assets/doorstop` 目录；本项目许可为根目录 `LICENSE`。

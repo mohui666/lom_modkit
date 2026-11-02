@@ -7,6 +7,12 @@ use std::{env, fs, path::PathBuf};
 
 fn run() -> Result<i32> {
     let mut args: Vec<String> = env::args().skip(1).collect();
+    #[cfg(windows)]
+    if args.first().map(String::as_str) == Some("--apply-editor-update") {
+        anyhow::ensure!(args.len() == 2, "更新助手需要安装任务文件");
+        lom_core::editor_update::apply_job(&PathBuf::from(&args[1]))?;
+        return Ok(0);
+    }
     if args.is_empty() || args.iter().any(|s| s == "--help" || s == "-h") {
         println!(concat!("lomc ", env!("CARGO_PKG_VERSION"), " — Rust 活侠传剧情工具\n\n用法: lomc <check|build|compile|pack|inspect|new-story> <路径> [-o 输出] [--json] [--locale chs|cht|ja|ko]\n水印: lomc detect-watermark <图片> [--json]\n      lomc detect-watermark-video <视频> [--ffmpeg 路径] [--interval 秒] [--max-frames 数量] [--json]\n\ncheck 校验剧情；build/compile 生成 Lua；pack 生成 v3 .lommod；inspect 验证完整性与源码/Lua一致性。\n扩展: analyze/test/statistics/preflight <项目> [--profile editing|release]\n      release <项目> -o <输出目录>\n      migrate <JSON> [--kind story|manifest|content]\n      content-inspect/content-import <.lomcontent> [--library 目录]\n      author <请求.json> [-o 输出.json]\n      edit <story.json> --operations <操作数组.json> [-o 输出.json]"));
         return Ok(0);
