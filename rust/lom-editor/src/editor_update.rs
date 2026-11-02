@@ -130,6 +130,8 @@ try {
 "#;
     let output = Command::new("powershell.exe")
         .args(["-NoProfile", "-NonInteractive", "-Command", script])
+        // This helper can outlive the editor while a network request is pending.
+        .current_dir(destination.parent().context("无法确定更新缓存目录")?)
         .env("LOM_UPDATE_URL", url)
         .env("LOM_UPDATE_FILE", destination)
         .env("LOM_UPDATE_LIMIT", limit.to_string())
@@ -430,6 +432,14 @@ impl Updater {
         fs::write(&job_path, serde_json::to_vec(&job)?)?;
         Command::new("powershell.exe")
             .args(["-NoProfile", "-NonInteractive", "-Command", APPLY_SCRIPT])
+            // Stay outside both the installation and the stage being cleaned up.
+            .current_dir(
+                prepared
+                    .workspace
+                    .path()
+                    .parent()
+                    .context("无法确定更新工作目录")?,
+            )
             .env("LOM_EDITOR_UPDATE_JOB", &job_path)
             .creation_flags(0x08000000)
             .spawn()
@@ -578,6 +588,107 @@ mod tests {
             let prepared = prepare(&release).unwrap();
             assert_eq!(prepared.files.len(), 4);
         }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn pending_download_does_not_keep_the_editor_directory_locked() {
+        use std::io::{BufRead, BufReader, Read, Write};
+        use std::net::TcpListener;
+        use std::os::windows::process::CommandExt;
+        use std::process::Stdio;
+        use std::time::{Duration, Instant};
+
+        const PROBE: &str = "LOM_TEST_UPDATE_DOWNLOAD_URL";
+        if let Ok(url) = std::env::var(PROBE) {
+            let destination = std::path::PathBuf::from(
+                std::env::var_os("LOM_TEST_UPDATE_DOWNLOAD_FILE").unwrap(),
+            );
+            let cache = destination.parent().unwrap().to_path_buf();
+            let job = std::thread::spawn(move || download(&url, &destination, 1024));
+            // Release the parent's directory only after its helper has connected.
+            std::io::stdin().read_exact(&mut [0]).unwrap();
+            std::env::set_current_dir(cache).unwrap();
+            println!("download-probe-ready");
+            std::io::stdout().flush().unwrap();
+            job.join().unwrap().unwrap();
+            return;
+        }
+
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("Editor 中文 [test]");
+        let cache = temp.path().join("cache");
+        fs::create_dir(&root).unwrap();
+        fs::create_dir(&cache).unwrap();
+        fs::write(root.join("project.json"), b"keep my project").unwrap();
+        let destination = cache.join("release.json");
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let mut parent = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "editor_update::tests::pending_download_does_not_keep_the_editor_directory_locked",
+                "--nocapture",
+            ])
+            .env(
+                PROBE,
+                format!("http://{}/update.json", listener.local_addr().unwrap()),
+            )
+            .env("LOM_TEST_UPDATE_DOWNLOAD_FILE", &destination)
+            .current_dir(&root)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .creation_flags(0x08000000)
+            .spawn()
+            .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(15);
+        let mut connection = loop {
+            match listener.accept() {
+                Ok((connection, _)) => break connection,
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    if Instant::now() >= deadline || parent.try_wait().unwrap().is_some() {
+                        let _ = parent.kill();
+                        let output = parent.wait_with_output().unwrap();
+                        panic!(
+                            "download helper did not connect: {}",
+                            String::from_utf8_lossy(&output.stderr)
+                        );
+                    }
+                    std::thread::sleep(Duration::from_millis(20));
+                }
+                Err(error) => panic!("{error}"),
+            }
+        };
+        parent.stdin.take().unwrap().write_all(b"1").unwrap();
+        let mut stdout = BufReader::new(parent.stdout.take().unwrap());
+        let mut line = String::new();
+        loop {
+            assert!(stdout.read_line(&mut line).unwrap() > 0);
+            if line.trim() == "download-probe-ready" {
+                break;
+            }
+            line.clear();
+        }
+        // The HTTP request is still waiting, but the editor has released its cwd.
+        let moved = temp.path().join("Moved editor");
+        let rename = fs::rename(&root, &moved);
+        connection
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}")
+            .unwrap();
+        drop(connection);
+        let output = parent.wait_with_output().unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        rename.expect("pending PowerShell download must not lock the editor directory");
+        assert_eq!(
+            fs::read(moved.join("project.json")).unwrap(),
+            b"keep my project"
+        );
+        assert_eq!(fs::read(destination).unwrap(), b"{}");
     }
 
     #[cfg(windows)]

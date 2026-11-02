@@ -1,10 +1,10 @@
-# Windows 快速开始 · v1.3.5
+# Windows 快速开始 · v1.3.8
 
 ## 打开软件
 
-完整解压 `lom_modkit-v1.3.5_windows_x64.zip`，进入 `lom_modkit` 文件夹，双击 `lom-editor.exe`。保留 `lomc.exe`、`runtime`、`assets` 和 `asset-extractor`；不要只移动编辑器 EXE。编辑器、CLI 与随附 Host 均为 1.3.5。
+完整解压 `lom_modkit-v1.3.8_windows_x64.zip`，进入 `lom_modkit` 文件夹，双击 `lom-editor.exe`。保留 `lomc.exe`、`runtime`、`assets` 和 `asset-extractor`；不要只移动编辑器 EXE。编辑器、CLI 与随附 Host 均为 1.3.8。
 
-本次为 2026-10-30 修复版。已有安装请先退出游戏，用「游戏与 MOD → 高级维护 → 安装 / 更新 C# 宿主」更新本包旁的完整 `runtime`，再重启游戏。修复时间等节点被误判为坏包的问题，现有作品无需删除时间节点或重新导出；仅替换编辑器不能更新游戏中的 Host。完整变化见随包 `RELEASE_NOTES_v1.3.2.md`。官方预览图片仍从作者自己的游戏中提取，不随包分发。
+本次为 2026-11-02 修复版，修复退出后后台 PowerShell 占用编辑器目录，以及立绘预览底部留白。已有项目无需重新导出；这两项修复不依赖更新游戏中已安装的 Host 1.3.7。随附 Host 仅同步版本号；需要同步游戏宿主时，请退出游戏后使用「游戏与 MOD → 高级维护 → 安装 / 更新 C# 宿主」。完整变化见 [v1.3.8 更新日志](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.8)。官方预览图片仍从作者自己的游戏中提取，不随包分发。
 
 ## 后续更新编辑器
 
@@ -32,6 +32,6 @@
 
 [中文核心教程](https://github.com/mohui666/lom_modkit/blob/master/docs/chs/core_tutorial.md) · [软件使用](https://github.com/mohui666/lom_modkit/blob/master/docs/chs/software_usage.md) · [事件与任务](https://github.com/mohui666/lom_modkit/blob/master/docs/chs/events_and_tasks.md)
 
-[11 分钟中文演示](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0-core-tutorial-zh-CN.mp4) · [跟做项目](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0-tutorial-follow-along.zip) · [发布与验证记录](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.7)
+[11 分钟中文演示](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0-core-tutorial-zh-CN.mp4) · [跟做项目](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0-tutorial-follow-along.zip) · [发布与验证记录](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.8)
 
 预览素材提取助手仅用于只读提取自己安装的游戏图片。官方资源不随本包分发；导入教程与作品请使用自己有权使用的素材。第三方组件许可位于对应的 `asset-extractor` 与 `assets/doorstop` 目录；本项目许可为根目录 `LICENSE`。

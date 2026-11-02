@@ -900,7 +900,7 @@ impl Preview {
                         rect.left()
                             + rect.width() * x
                             + number(a, "offset_x", 0.0) as f32 * rect.width() / 1920.0,
-                        rect.bottom() - rect.height() * 0.02 + rect.height() * (feet - 1.003)
+                        rect.top() + rect.height() * feet
                             - number(a, "offset_y", 0.0) as f32 * rect.height() / 1080.0,
                     );
                     if let Some((tex, meta)) =
@@ -1874,6 +1874,73 @@ end
 #[cfg(test)]
 mod content_tests {
     use super::*;
+    #[test]
+    fn portraits_reach_the_stage_bottom_and_keep_explicit_vertical_offsets() {
+        let mut project = Project::new();
+        let root = "assets/user/character/demo.actor";
+        project.assets.insert(
+            format!("{root}/content.json"),
+            serde_json::to_vec(&json!({"id":"demo.actor", "type":"character", "portraits":{"normal":"normal.png"}})).unwrap(),
+        );
+        let mut png = std::io::Cursor::new(Vec::new());
+        image::RgbaImage::from_pixel(80, 100, image::Rgba([255, 0, 0, 255]))
+            .write_to(&mut png, image::ImageFormat::Png)
+            .unwrap();
+        project
+            .assets
+            .insert(format!("{root}/normal.png"), png.into_inner());
+
+        for size in [Vec2::new(800.0, 500.0), Vec2::new(500.0, 800.0)] {
+            for (position, offset_y) in [("L1", 0), ("R1", 0), ("BC1", 0), ("L1", 54)] {
+                let story = json!({"start":"show", "nodes":[
+                    {"id":"show", "type":"show", "character":"user:demo.actor", "portrait":"normal", "position":position},
+                    {"id":"offset", "type":"offset", "character":"user:demo.actor", "y":offset_y}
+                ]});
+                let context = egui::Context::default();
+                let mut preview = Preview::new(Path::new("/not-a-repository"));
+                let output = context.run(
+                    egui::RawInput {
+                        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, size)),
+                        ..Default::default()
+                    },
+                    |ctx| {
+                        egui::CentralPanel::default().show(ctx, |ui| {
+                            preview.show(ui, &project, &story, 1, None);
+                        });
+                    },
+                );
+                let (stage, bottom) = output
+                    .shapes
+                    .iter()
+                    .find_map(|shape| {
+                        if let egui::Shape::Mesh(mesh) = &shape.shape {
+                            Some((
+                                shape.clip_rect,
+                                mesh.vertices
+                                    .iter()
+                                    .map(|v| v.pos.y)
+                                    .fold(f32::NEG_INFINITY, f32::max),
+                            ))
+                        } else {
+                            None
+                        }
+                    })
+                    .expect("the portrait must render as a textured mesh");
+                if offset_y == 0 {
+                    assert!(
+                        bottom >= stage.bottom(),
+                        "{position}: portrait leaves a gap below its feet at {size:?}"
+                    );
+                } else {
+                    assert!(
+                        bottom < stage.bottom() - stage.height() * 0.04,
+                        "an author's upward offset must still lift the portrait"
+                    );
+                }
+            }
+        }
+    }
+
     #[test]
     fn omitted_dialogue_mode_renders_character_name_and_matching_text_position() {
         let mut project = Project::new();
