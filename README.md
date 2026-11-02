@@ -2,6 +2,8 @@
 
 **《活侠传》（Legend of Mortal）可视化剧情 Mod 制作工具。** 用图形编辑器编排人物对白、场景、分支、音乐和音效，导出 `.lommod`，由 C# 游戏插件加载。
 
+**v1.3.10（2026-11-02）** 修复自定义人物位移后再次登场错位、屏外说话或换表情时闪回原站位；同步修正编辑器位移与移动预览，并调整播放刷新调度。游戏内修复需要更新 Host，现有作品无需重新导出。见 [更新日志](RELEASE_NOTES_v1.3.10.md)。
+
 **v1.3.9（2026-11-02）** 自动更新改为 Rust 原生下载和安装助手，四个文件同时下载、大文件支持四段并行；关闭编辑器时主动取消请求，不再因更新启动 PowerShell。继续保留现有项目、用户内容库与预览素材。见 [更新日志](RELEASE_NOTES_v1.3.9.md)。
 
 **v1.3.8（2026-11-02）** 修复退出编辑器后，后台自动更新 PowerShell 仍占用安装目录、导致文件夹无法移动的问题；修复画面预览中立绘底部与画面之间的空隙。见 [更新日志](RELEASE_NOTES_v1.3.8.md)。
@@ -22,7 +24,7 @@
 
 **v1.3.0** 增加原版附加剧情与自由剧本两种创作模式、独立事件／任务配置和日期／重复事件编辑；优化按钮、页面与弹窗，并新增一键定位 Steam 游戏目录。Windows 完整包包含 Host **1.1.3** 和预览素材提取助手。改动与验证边界见 [v1.3.0 变更记录](RELEASE_NOTES_v1.3.0.md)。
 
-[软件使用](docs/chs/software_usage.md) · [核心功能教程](docs/chs/core_tutorial.md) · [Mac 编辑器](docs/chs/macos.md) · [文档索引](docs/README.md) · [Windows v1.3.9 下载](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.9)
+[软件使用](docs/chs/software_usage.md) · [核心功能教程](docs/chs/core_tutorial.md) · [Mac 编辑器](docs/chs/macos.md) · [文档索引](docs/README.md) · [Windows v1.3.10 下载](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.10)
 
 语言：简体中文（本文） · [繁體中文](README.cht.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
@@ -104,6 +106,7 @@ cargo run --locked -p lom-editor -- --smoke-preview samples/showcase3
 
 ## 文档与版本
 
+- [v1.3.10 更新日志](RELEASE_NOTES_v1.3.10.md)：人物位移、再次登场与屏外换表情修复，以及实机验证结果。
 - [v1.3.9 更新日志](RELEASE_NOTES_v1.3.9.md)：Rust 原生 HTTPS、安装助手和退出时取消下载。
 
 - [v1.3.8 更新日志](RELEASE_NOTES_v1.3.8.md)：修复退出后安装目录占用与立绘预览底部留白。

@@ -308,7 +308,13 @@ fn apply(s: &mut Value, n: &Value) {
                 }
                 let a = &mut s["actors"][cid];
                 match kind {
-                    "move" => a["position"] = n["to"].clone(),
+                    "move" => {
+                        a["position"] = n["to"].clone();
+                        // Named stage movement starts from its explicit slot,
+                        // just like the runtime stage.show call.
+                        a["offset_x"] = json!(0.0);
+                        a["offset_y"] = json!(0.0);
+                    }
                     "face" => a["facing"] = n["facing"].clone(),
                     "rotate" => a["rotation"] = n["angle"].clone(),
                     "dim" => a["dimmed"] = n["dimmed"].clone(),
@@ -445,10 +451,20 @@ fn simulate_frame(story: &Value, target: &str, elapsed: f64, positions: &Value) 
                 }
             }
             "move" if old.is_object() => {
-                let from = position(
-                    positions,
-                    action["from"].as_str().unwrap_or(text(old, "position")),
-                );
+                let from = if cid.starts_with("user:") {
+                    // CustomCharacterRuntime.Move starts a visible actor at
+                    // its current location, including an earlier offset.
+                    let base = position(positions, text(old, "position"));
+                    (
+                        base.0 + number(old, "offset_x", 0.0) / 1920.0,
+                        base.1 - number(old, "offset_y", 0.0) / 1080.0,
+                    )
+                } else {
+                    position(
+                        positions,
+                        action["from"].as_str().unwrap_or(text(old, "position")),
+                    )
+                };
                 let to = position(positions, text(action, "to"));
                 let p = progress(number(action, "duration", 1.0));
                 state["actors"][cid]["preview_x"] = (from.0 + (to.0 - from.0) * p).into();
@@ -1765,6 +1781,54 @@ end
                 && node["character"] == actor
                 && node["dimmed"] == true));
             assert_eq!(simulate(&story, "done")["actors"][actor]["dimmed"], false);
+        }
+    }
+    #[test]
+    fn offscreen_offsets_survive_dialogue_and_reset_on_reentry_or_named_movement() {
+        let positions: Value =
+            serde_json::from_str(include_str!("../../../data/stage_positions.json")).unwrap();
+        for actor in ["player", "user:demo.actor"] {
+            let story = json!({"start":"enter","nodes":[
+                {"id":"enter","type":"show","character":actor,"position":"L1"},
+                {"id":"exit","type":"offset","character":actor,"x":-2400,"y":-400,"duration":1},
+                {"id":"speech","type":"say","character":actor,"portrait":"angry","text":"屏外说话"},
+                {"id":"return","type":"show","character":actor,"position":"R1"},
+                {"id":"adjust","type":"offset","character":actor,"x":170,"y":60},
+                {"id":"move","type":"move","character":actor,"from":"R1","to":"M","duration":1},
+                {"id":"done","type":"say","character":actor,"text":"已到中间"}
+            ]});
+            for elapsed in [0.0, 0.5, 1.0, 1.1] {
+                let state = simulate_frame(&story, "exit", elapsed, &positions);
+                assert_eq!(
+                    state["actors"][actor]["offset_x"],
+                    -2400.0 * elapsed.min(1.0)
+                );
+                assert_eq!(
+                    state["actors"][actor]["offset_y"],
+                    -400.0 * elapsed.min(1.0)
+                );
+            }
+            let speech = simulate(&story, "speech");
+            assert_eq!(speech["actors"][actor]["offset_x"], -2400.0);
+            assert_eq!(speech["actors"][actor]["offset_y"], -400.0);
+            for target in ["return", "move", "done"] {
+                let state = simulate(&story, target);
+                assert_eq!(state["actors"][actor]["offset_x"], 0.0, "{actor}/{target}");
+                assert_eq!(state["actors"][actor]["offset_y"], 0.0, "{actor}/{target}");
+            }
+            let halfway = simulate_frame(&story, "move", 0.5, &positions);
+            let mut from = position(&positions, "R1");
+            if actor.starts_with("user:") {
+                from.0 += 170.0 / 1920.0;
+                from.1 -= 60.0 / 1080.0;
+            }
+            let to = position(&positions, "M");
+            assert_eq!(halfway["actors"][actor]["preview_x"], (from.0 + to.0) / 2.0);
+            assert_eq!(
+                halfway["actors"][actor]["preview_feet"],
+                (from.1 + to.1) / 2.0
+            );
+            assert_eq!(halfway["actors"][actor]["offset_x"], 0.0);
         }
     }
     #[test]

@@ -116,6 +116,9 @@ namespace MortalModHost
                 return false;
             if (!ApplyPortrait(actor, portrait))
                 return false;
+            // A previous offset/move may still be yielding its final frame.
+            // Re-entry owns the new position; an old routine must not overwrite it.
+            StopRoutine(ref actor.MotionRoutine);
             Place(actor, position);
             ApplyFacing(actor, facing);
             actor.Holder.SetActive(true);
@@ -285,10 +288,8 @@ namespace MortalModHost
                 throw new InvalidOperationException("找不到人物表情：" + raw + "/" + portrait);
             if (reveal)
             {
-                Vector3 position = actor.HolderRect.position;
                 if (!ApplyPortrait(actor, portrait))
                     throw new InvalidOperationException("无法切换人物表情：" + raw + "/" + portrait);
-                actor.HolderRect.position = position;
             }
             return actor.Image;
         }
@@ -402,6 +403,7 @@ namespace MortalModHost
             Sprite sprite = GetSprite(actor, portrait);
             if (sprite == null)
                 return false;
+            Vector3 position = actor.HolderRect.position;
             actor.Portrait = portrait;
             if (actor.Image != null)
             {
@@ -413,6 +415,10 @@ namespace MortalModHost
                 actor.Image.color = color;
             }
             FitHolderToSprite(actor);
+            // Dialogue also calls this method. Resize for the new portrait while
+            // retaining the current (possibly offscreen) position of a visible actor.
+            if (actor.Visible)
+                actor.HolderRect.position = position;
             return true;
         }
 
