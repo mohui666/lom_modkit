@@ -2,6 +2,8 @@
 
 **《活侠传》（Legend of Mortal）可视化剧情 Mod 制作工具。** 用图形编辑器编排人物对白、场景、分支、音乐和音效，导出 `.lommod`，由 C# 游戏插件加载。
 
+**v1.3.8（2026-11-02）** 修复退出编辑器后，后台自动更新 PowerShell 仍占用安装目录、导致文件夹无法移动的问题；修复画面预览中立绘底部与画面之间的空隙。见 [更新日志](RELEASE_NOTES_v1.3.8.md)。
+
 **v1.3.7（2026-11-01）** 补齐现版全部 54 项原版属性，包括心上人、魅力、称号、娘化、门派规模、各类武学与儒道释；修正防御键。心上人可在「属性设置」「属性检定」中按人物编号设置与比较。见 [更新日志](RELEASE_NOTES_v1.3.7.md)。
 
 **v1.3.6（2026-11-01）** 新增独立「人物换表情」「表情气泡」步骤和逐句旁白靠左对齐。换表情可分别设置淡出／淡入时长，保留人物站位、朝向、偏移、旋转和压暗；气泡可在演出中开启或关闭。编辑器、CLI、Host 统一为 **1.3.6**。见 [更新日志](RELEASE_NOTES_v1.3.6.md)。
@@ -18,7 +20,7 @@
 
 **v1.3.0** 增加原版附加剧情与自由剧本两种创作模式、独立事件／任务配置和日期／重复事件编辑；优化按钮、页面与弹窗，并新增一键定位 Steam 游戏目录。Windows 完整包包含 Host **1.1.3** 和预览素材提取助手。改动与验证边界见 [v1.3.0 变更记录](RELEASE_NOTES_v1.3.0.md)。
 
-[软件使用](docs/chs/software_usage.md) · [核心功能教程](docs/chs/core_tutorial.md) · [Mac 编辑器](docs/chs/macos.md) · [文档索引](docs/README.md) · [Windows v1.3.7 下载](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.7)
+[软件使用](docs/chs/software_usage.md) · [核心功能教程](docs/chs/core_tutorial.md) · [Mac 编辑器](docs/chs/macos.md) · [文档索引](docs/README.md) · [Windows v1.3.8 下载](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.8)
 
 语言：简体中文（本文） · [繁體中文](README.cht.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
@@ -99,6 +101,8 @@ cargo run --locked -p lom-editor -- --smoke-preview samples/showcase3
 内置更新的发布约定：使用递增的 `vX.Y.Z` 正式 Release，并单独上传固定名称的 `lom-editor.exe`、`lomc.exe`、`MortalModHost.dll`、`NVorbis.dll`。同时上传发布脚本生成的 `update.json`，记录版本、更新说明与四个文件的大小／SHA-256。更新器读取此清单和对应 Tag 的四个程序附件，避开匿名 REST API 限流，将两个 DLL 放入 `runtime/`。`scripts/build-windows.ps1` 会同时输出这些独立附件；完整 ZIP 供首次安装使用。发布时需把四个独立程序附件和 `update.json` 一并上传，上传齐全后再公开 Release。
 
 ## 文档与版本
+
+- [v1.3.8 更新日志](RELEASE_NOTES_v1.3.8.md)：修复退出后安装目录占用与立绘预览底部留白。
 
 - [v1.3.5 更新日志](RELEASE_NOTES_v1.3.5.md)：更新清单与 GitHub 限流修复。
 

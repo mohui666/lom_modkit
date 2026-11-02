@@ -145,6 +145,7 @@ try {
 "#;
     let output = std::process::Command::new("powershell.exe")
         .args(["-NoProfile", "-NonInteractive", "-Command", script])
+        .current_dir(destination.parent().context("无法确定下载缓存目录")?)
         .env("LOM_SETUP_URL", url)
         .env("LOM_SETUP_ARCHIVE", destination)
         .creation_flags(0x08000000)
