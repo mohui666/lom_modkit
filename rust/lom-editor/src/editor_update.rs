@@ -137,15 +137,49 @@ fn prepare(release: &Release, cancel: &AtomicBool) -> Result<Prepared> {
         "此发布缺少可直接更新的程序附件或校验信息"
     );
     let workspace = lom_core::workdir::create()?;
-    let mut files = Vec::new();
-    for file in &release.files {
-        ensure!(owned_file(&file.path), "拒绝下载非程序文件：{}", file.path);
-        let destination = workspace.path().join("bundle").join(&file.path);
-        fs::create_dir_all(destination.parent().context("无效更新路径")?)?;
-        download(&file.url, &destination, MAX_DOWNLOAD, cancel)?;
-        verify_file(&destination, file)?;
-        files.push(file.path.clone());
+    let first_error = std::sync::Mutex::new(None);
+    thread::scope(|scope| {
+        let mut workers = Vec::new();
+        for file in &release.files {
+            let workspace = workspace.path();
+            let first_error = &first_error;
+            workers.push(scope.spawn(move || {
+                let result = (|| -> Result<()> {
+                    ensure!(owned_file(&file.path), "拒绝下载非程序文件：{}", file.path);
+                    let destination = workspace.join("bundle").join(&file.path);
+                    fs::create_dir_all(destination.parent().context("无效更新路径")?)?;
+                    crate::http_download::download_update(
+                        &file.url,
+                        &destination,
+                        file.size,
+                        MAX_DOWNLOAD,
+                        cancel,
+                    )
+                    .with_context(|| format!("下载更新文件失败：{}", file.path))?;
+                    verify_file(&destination, file)
+                })();
+                if let Err(error) = result {
+                    if !cancel.swap(true, Ordering::Relaxed) {
+                        *first_error.lock().unwrap() = Some(error);
+                    }
+                }
+            }));
+        }
+        for worker in workers {
+            if worker.join().is_err() {
+                cancel.store(true, Ordering::Relaxed);
+                let mut error = first_error.lock().unwrap();
+                if error.is_none() {
+                    *error = Some(anyhow::anyhow!("更新下载线程意外中断"));
+                }
+            }
+        }
+    });
+    if let Some(error) = first_error.into_inner().unwrap() {
+        return Err(error);
     }
+    ensure!(!cancel.load(Ordering::Relaxed), "更新已取消");
+    let mut files: Vec<_> = release.files.iter().map(|file| file.path.clone()).collect();
     files.sort_by_key(|name| name == "lom-editor.exe");
     Ok(Prepared { workspace, files })
 }
@@ -471,6 +505,68 @@ mod tests {
             "preferences.json",
         ] {
             assert!(!owned_file(name));
+        }
+    }
+
+    #[test]
+    fn all_update_files_are_requested_before_any_file_finishes() {
+        use std::{
+            io::{BufRead, BufReader, Write},
+            net::TcpListener,
+            time::{Duration, Instant},
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(10);
+            let mut connections = Vec::new();
+            while connections.len() < PROGRAM_FILES.len() {
+                let mut connection = match listener.accept() {
+                    Ok((connection, _)) => connection,
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        assert!(
+                            Instant::now() < deadline,
+                            "update files were downloaded serially"
+                        );
+                        thread::sleep(Duration::from_millis(10));
+                        continue;
+                    }
+                    Err(error) => panic!("{error}"),
+                };
+                connection.set_nonblocking(false).unwrap();
+                connection
+                    .set_read_timeout(Some(Duration::from_secs(3)))
+                    .unwrap();
+                {
+                    let mut request = BufReader::new(&mut connection);
+                    let mut line = String::new();
+                    loop {
+                        assert!(request.read_line(&mut line).unwrap() > 0);
+                        if line == "\r\n" {
+                            break;
+                        }
+                        line.clear();
+                    }
+                }
+                connections.push(connection);
+            }
+            for mut connection in connections {
+                connection.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 17\r\nConnection: close\r\n\r\nnew program bytes").unwrap();
+            }
+        });
+        let mut release = parse_release(&release()).unwrap();
+        for file in &mut release.files {
+            file.url = format!("http://{address}/{}", file.path);
+        }
+        let prepared = prepare(&release, &AtomicBool::new(false)).unwrap();
+        server.join().unwrap();
+        assert_eq!(prepared.files.len(), PROGRAM_FILES.len());
+        for file in prepared.files {
+            assert_eq!(
+                fs::read(prepared.workspace.path().join("bundle").join(file)).unwrap(),
+                b"new program bytes"
+            );
         }
     }
 
