@@ -83,6 +83,14 @@ pub fn remove(project: &mut Project, key: &str) -> Result<()> {
         "仍有 {} 处剧情引用，请先解除引用",
         refs.len()
     );
+    if let Some(config) = &project.scenario {
+        ensure!(
+            !content::scenario_gameplay_nodes(config)
+                .iter()
+                .any(|node| node["item"] == symbol),
+            "事件或任务结果仍引用此内容，请先解除引用"
+        );
+    }
     let prefix = format!(
         "{}/",
         key.strip_suffix("/content.json").context("内容路径无效")?
@@ -147,7 +155,7 @@ pub fn store_shared(
     let folder = root.join(&relative);
     confined_destination(root, &folder)?;
     confined_destination(root, &root.join(".trash"))?;
-    for other in ["character", "image", "audio"] {
+    for &other in content::CONTENT_TYPES {
         let path = root.join(content::package_content_dir(other, id)?);
         ensure!(other == kind || !path.exists(), "内容 ID 已被其他类型占用");
     }

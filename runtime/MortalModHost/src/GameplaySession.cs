@@ -72,11 +72,19 @@ namespace MortalModHost
         internal static string CombatDisplayName { get { return _combatDisplayName; } }
         internal static string CombatIdleAddress { get { return _combatIdleAddress; } }
 
+        internal static bool BelongsTo(ModPackage package)
+        {
+            return package != null && HasPending
+                && string.Equals(_owner, Owner(package), StringComparison.Ordinal);
+        }
+
         internal static GameplayCheckpoint CaptureCheckpoint(ModPackage package)
         {
             string storyBackground = CustomImageRuntime.ActiveBackgroundReference;
             if (!HasPending && string.IsNullOrEmpty(storyBackground)) return null;
             Owner(package);
+            if (HasPending && !BelongsTo(package))
+                throw new InvalidOperationException("Gameplay 存档上下文不属于此 MOD");
             var checkpoint = new GameplayCheckpoint
             {
                 ModId = package.Id,

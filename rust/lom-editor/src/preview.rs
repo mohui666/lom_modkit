@@ -855,6 +855,11 @@ impl Preview {
             Some(elapsed) => simulate_frame(story, target, elapsed, &self.positions),
             None => simulate(story, target),
         };
+        if node["type"] == "use_item" {
+            ui.small(crate::i18n::tr(
+                "消耗品使用效果仅在游戏内执行；此预览不改变背包或属性。",
+            ));
+        }
         if node["type"] == "mood" {
             ui.small(crate::i18n::tr(if state["mood_enabled"] == true {
                 "表情气泡已开启，图标由游戏中的人物表情决定。"

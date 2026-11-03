@@ -127,6 +127,17 @@ fn content_specs(node: &Value) -> Vec<ContentSpec<'_>> {
             portrait: None,
         });
     }
+    for (raw, content_kind, _) in crate::content::gameplay_references(node) {
+        if raw.starts_with("user:") {
+            refs.push(ContentSpec {
+                field: "gameplay",
+                raw,
+                kind: content_kind,
+                audio_kind: None,
+                portrait: None,
+            });
+        }
+    }
     refs
 }
 fn illegal_path(raw: &str) -> bool {
@@ -171,7 +182,7 @@ fn audit_content(project: &Project, root: &Path) -> Vec<PreflightIssue> {
                     referenced.insert((r.kind.to_owned(), id.to_owned()));
                     let base = root.join(format!("assets/user/{}/{id}", r.kind));
                     if !base.is_dir() {
-                        let other = ["image", "audio", "character"]
+                        let other = crate::content::CONTENT_TYPES
                             .iter()
                             .any(|kind| root.join(format!("assets/user/{kind}/{id}")).is_dir());
                         out.push(PreflightIssue::new(
@@ -189,6 +200,29 @@ fn audit_content(project: &Project, root: &Path) -> Vec<PreflightIssue> {
                     }
                     match crate::content::resolve_content(root, r.kind, id) {
                         Ok((meta, _)) => {
+                            if node["type"] == "use_item" && meta["use_in"] != "field" {
+                                out.push(PreflightIssue::new(
+                                    "error",
+                                    "wrong_user_content_type",
+                                    sid,
+                                    nid,
+                                    "use_item 只能同步使用 field 消耗品",
+                                ));
+                            }
+                            if r.field == "gameplay" && r.kind == "item" {
+                                for (raw, _, category) in crate::content::gameplay_references(node)
+                                {
+                                    if raw == r.raw && meta["category"] != category {
+                                        out.push(PreflightIssue::new(
+                                            "error",
+                                            "wrong_user_content_type",
+                                            sid,
+                                            nid,
+                                            format!("{} 的物品类别与 {category} 不一致", r.raw),
+                                        ));
+                                    }
+                                }
+                            }
                             if r.audio_kind.is_some_and(|k| meta["audio_kind"] != k) {
                                 out.push(PreflightIssue::new(
                                     "error",
@@ -268,6 +302,33 @@ fn audit_content(project: &Project, root: &Path) -> Vec<PreflightIssue> {
             }
         }
     }
+    if let Some(config) = &project.scenario {
+        for node in crate::content::scenario_gameplay_nodes(config) {
+            for (raw, kind, category) in crate::content::gameplay_references(&node) {
+                let Some(id) = raw.strip_prefix("user:") else {
+                    continue;
+                };
+                referenced.insert((kind.to_owned(), id.to_owned()));
+                let check =
+                    crate::content::resolve_content(root, kind, id).and_then(|(meta, _)| {
+                        ensure!(
+                            kind != "item" || meta["category"] == category,
+                            "{raw} 的物品类别不匹配"
+                        );
+                        Ok(())
+                    });
+                if let Err(error) = check {
+                    out.push(PreflightIssue::new(
+                        "error",
+                        "impossible_content_reference",
+                        "scenario",
+                        "",
+                        format!("{error:#}"),
+                    ));
+                }
+            }
+        }
+    }
     let mut valid = BTreeSet::new();
     let mut folders = BTreeSet::new();
     for name in project
@@ -276,7 +337,7 @@ fn audit_content(project: &Project, root: &Path) -> Vec<PreflightIssue> {
         .filter(|p| p.starts_with("assets/user/"))
     {
         let parts: Vec<_> = name.split('/').collect();
-        if parts.len() < 5 || !["image", "audio", "character"].contains(&parts[2]) {
+        if parts.len() < 5 || !crate::content::CONTENT_TYPES.contains(&parts[2]) {
             out.push(PreflightIssue::new(
                 "error",
                 "illegal_content_path",

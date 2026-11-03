@@ -12,7 +12,7 @@ namespace MortalModHost
     /// 读档重新进入 CL_MORTALMODHOST_RUNTIME，却没有 PendingCombat 可供补丁接管。
     /// 文件名直接绑定实际的隔离槽，包 id、campaign_id 和完整 SHA-256 全部复核。
     /// </summary>
-    internal static class GameplayCheckpointStore
+    internal static partial class GameplayCheckpointStore
     {
         private const int Format = 1;
         private const int MaxBytes = 256 * 1024;
@@ -128,13 +128,32 @@ namespace MortalModHost
             catch { }
         }
 
+        internal static bool TryLoadAddon(string saveSlot, IEnumerable<ModPackage> packages,
+            out ModPackage package, out GameplayCheckpoint checkpoint)
+        {
+            package = null;
+            checkpoint = null;
+            if (!ModSaveSlotPolicy.IsAddonSlot(saveSlot) || packages == null) return false;
+            // At most one battle is active in an add-on game. Its owner is recorded
+            // in the slot checkpoint rather than inferred from the shared slot name.
+            foreach (ModPackage candidate in packages)
+            {
+                if (candidate.PlayMode != "addon") continue;
+                if (!TryLoad(candidate, saveSlot, out checkpoint)) continue;
+                package = candidate;
+                return true;
+            }
+            return false;
+        }
+
         private static void ValidateSlot(ModPackage package, string slot)
         {
             if (package == null || string.IsNullOrEmpty(package.Id)
                 || !CampaignIdentity.IsValid(package.CampaignId)
                 || string.IsNullOrEmpty(package.PackageFingerprint)
                 || package.PackageFingerprint.Length != 64
-                || !CampaignIdentity.OwnsSlot(package.CampaignId, slot))
+                || (!(package.PlayMode == "addon" && ModSaveSlotPolicy.IsAddonSlot(slot))
+                    && !CampaignIdentity.OwnsSlot(package.CampaignId, slot)))
                 throw new InvalidOperationException("Gameplay checkpoint 槽身份不匹配");
         }
 

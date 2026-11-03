@@ -19,6 +19,7 @@ HOST_INPUT=${HOST_RUNTIME_DIR:-"$ROOT/runtime/MortalModHost/bin/Release/net48"}
 if [ -f "$HOST_INPUT/MortalModHost.dll" ] && [ -f "$HOST_INPUT/NVorbis.dll" ]; then
   mkdir -p "$APP/Contents/MacOS/runtime"
   cp "$HOST_INPUT/MortalModHost.dll" "$HOST_INPUT/NVorbis.dll" "$APP/Contents/MacOS/runtime/"
+  cp "$ROOT/runtime/MortalModHost/THIRD_PARTY_NOTICES.md" "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md"
 fi
 cp "$ROOT/editor/assets/lom_editor.icns" "$APP/Contents/Resources/lom_editor.icns"
 mkdir -p "$APP/Contents/Resources/doorstop"

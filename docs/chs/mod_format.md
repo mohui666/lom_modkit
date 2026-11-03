@@ -197,7 +197,8 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 | `stat_set` | `key`, `value`；可选 `update`(bool默认false) | 绝对设置 `SetPlayer(key, value)`；update=true 用 `UpdateSetPlayerStat`（title 等用） |
 | `affinity` | `character`, `delta` | 人物好感度 `statmodifymanager.Character(character, delta, 1)` |
 | `talent` | `talent`, `level`(±1) | 天赋 `statmodifymanager.AddTalent(id, level)` |
-| `item` | `kind`("book"/"misc"/"special"), `item`, `count`(默认1)；可选 `remove`(bool默认false) | 物品增减 `AddBook/AddMisc/AddSpecial(id,count)`；remove 时 `RemoveBook/RemoveMisc(id)`（仅 book/misc） |
+| `item` | `kind`("book"/"misc"/"special"/"consumable"), `item`, `count`(默认1)；可选 `remove`(bool默认false) | 原版物品走 `AddBook/AddMisc/AddSpecial(id,count)`，原版 remove 仅 book/misc。1.4 的 `user:` 内容走 `mod_item(kind,id,count)`；consumable 仅允许用户消耗品 |
+| `use_item` | `item`，必须是本包 `user:` 养成消耗品引用 | `mod_use_item(item)`；实际应用属性效果并扣除一件；决斗专用药由决斗道具入口使用 |
 | `flag` | `flag` | mod 剧情 flag：`statmodifymanager.AddStory(flag)` + `modflags[flag]=true` |
 | `game_flag` | `flag`, `value`；可选 `op`("set"默认/"add") | 官方任务 flag：`SetFlag(id, 状态)` / `AddFlag(id, ±增量)`。**id 必须是游戏已有 FlagData**（14_属性与Flag 表），否则游戏静默忽略 |
 | `enemy` | `op`("team"=向心力/"level"=门派规模/"people"=门派人数/"id"=选择当前敌对门派), `enemy`(战役门派 id), `value`(变化量，id 操作不需要), `display`(仅 team/people 使用，默认1) | 修改 **Battle 多人战役**使用的门派状态 `ModifyEnemyTeam/Level/People/Id`；不配置 Combat 一对一决斗敌人 |
@@ -221,6 +222,10 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 | `mission` | `name`, `key` | 任务操作 `statmodifymanager.Mission(name, key)`：`Mission("Main","M0001")` 推进主线 / `Mission("S2200","clear")` 清支线 |
 | `time` | `op`("set"/"round"/"month"/"mission")；set 用 `year,month,stage`；mission 用 `name,year,month,stage` | 时间 `SetGameTime/NextRound/NextMonth/SetMissionTime` |
 | `autosave` | 可选 `kind`("story"默认/"free"/"prologue")；可选 `save_button`(0/1，单独控制存档按钮) | `AutoSave()/AutoFreeSave()/PrologueSave(mode)`；`save_button` 单独 emit `ToggleSaveButton(n)` |
+
+1.4 的玩法内容沿用 `content_schema:1`，新增 `item`、`martial`、`support`、`skill` 类型，详细字段见[用户内容库](user_content.md#14-自定义物品功法援助与招式)。`item`、`item_check`、奖励的物品 ID 可引用本包 `user:` 内容：book 对应 martial，misc/special/consumable 对应同类别 item。事件结果的 item 动作也可使用 `key=user:...`。`custom_shop` 仅允许 book/misc/special，明确拒绝原版界面不展示的 consumable。类别不符、缺失定义或非法引用会拒绝打包。
+
+`combat` 可选 `player_supports`、`enemy_supports` 字符串列表，各最多 16 项且不重复；元素必须是本包 `user:` support 引用。`player_skills`、`enemy_skills` 各最多 8 项且不重复，必须是本包 `user:` skill 引用。编译时与既有决斗配置一起传给 Host。引用这些玩法内容的作品，导出时自动要求 Host **1.4.0**，未使用新功能的作品保持原来的最低版本要求。
 
 **流程类**
 

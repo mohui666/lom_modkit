@@ -8,7 +8,54 @@ namespace MortalModHost
         internal static bool IsModSlot(string slot)
         {
             return !string.IsNullOrEmpty(slot)
-                && slot.StartsWith("mod_campaign_", StringComparison.Ordinal);
+                && (slot.StartsWith("mod_campaign_", StringComparison.Ordinal)
+                    || slot.StartsWith("mod_addon_", StringComparison.Ordinal));
+        }
+
+        internal const string AddonRoot = "mod_addon_default";
+
+        internal static string AddonManualSlot(int index)
+        {
+            if (index < 1 || index > OfficialManualCount)
+                throw new ArgumentOutOfRangeException(nameof(index));
+            return index == 1 ? AddonRoot : AddonRoot + "_s" + index.ToString("000");
+        }
+
+        internal static string AddonAutoSlot(string kind)
+        {
+            if (!IsOfficialAutoSlot(kind))
+                throw new ArgumentException("不是受支持的自动槽", nameof(kind));
+            return AddonRoot + "_" + kind;
+        }
+
+        internal static bool IsAddonSlot(string slot)
+        {
+            if (string.IsNullOrEmpty(slot)) return false;
+            for (int i = 1; i <= OfficialManualCount; i++)
+                if (string.Equals(slot, AddonManualSlot(i), StringComparison.Ordinal)) return true;
+            return slot == AddonAutoSlot("auto") || slot == AddonAutoSlot("auto_free")
+                || slot == AddonAutoSlot("auto_battle");
+        }
+
+        internal static bool IsAddonManualSlot(string slot)
+        {
+            for (int i = 1; i <= OfficialManualCount; i++)
+                if (slot == AddonManualSlot(i)) return true;
+            return false;
+        }
+
+        internal static bool OwnsBrowserSlot(string campaignId, bool addon, string slot, bool allowAuto)
+        {
+            if (string.IsNullOrEmpty(slot) || (!addon && !CampaignIdentity.IsValid(campaignId)))
+                return false;
+            for (int i = 1; i <= OfficialManualCount; i++)
+                if (slot == (addon ? AddonManualSlot(i) : IsolatedManualSlot(campaignId, i)))
+                    return true;
+            if (!allowAuto) return false;
+            foreach (string kind in new[] { "auto", "auto_free", "auto_battle" })
+                if (slot == (addon ? AddonAutoSlot(kind) : IsolatedAutoSlotForCampaign(campaignId, kind)))
+                    return true;
+            return false;
         }
 
         internal static bool IsOfficialAutoSlot(string slot)
@@ -25,6 +72,7 @@ namespace MortalModHost
 
         internal static string IsolatedAutoSlot(string modSlot, string officialAutoSlot)
         {
+            if (IsAddonSlot(modSlot)) return AddonAutoSlot(officialAutoSlot);
             string campaignId;
             if (!CampaignIdentity.TryParseSlot(modSlot, out campaignId))
                 throw new ArgumentException("当前槽不是 MOD 隔离槽", nameof(modSlot));
@@ -86,6 +134,7 @@ namespace MortalModHost
         {
             if (IsModSlot(officialAutoSlot) || !IsOfficialAutoSlot(officialAutoSlot))
                 return officialAutoSlot;
+            if (IsAddonSlot(currentSlot)) return AddonAutoSlot(officialAutoSlot);
             // 标题页可能仍保留上一个战役的 CurrentSlot；面板中玩家刚选定的
             // campaign 才是这次点击的所有者，其次才是活动战役，再退回当前槽。
             if (!string.IsNullOrEmpty(panelCampaignId)

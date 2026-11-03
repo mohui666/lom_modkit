@@ -59,6 +59,11 @@ namespace MortalModHost
                 try
                 {
                     ReleaseActiveModEnvironment(true, "进入官方脚本", true);
+                    // LoadLuaFunction prefixes can inspect Interpreter before the
+                    // original method gets to its own InitEnvironment call.
+                    LuaEnvironment officialEnvironment = Traverse.Create(__instance)
+                        .Field("_luaEnvironment").GetValue<LuaEnvironment>();
+                    if (officialEnvironment != null) officialEnvironment.InitEnvironment();
                 }
                 catch (Exception ex)
                 {
@@ -93,6 +98,8 @@ namespace MortalModHost
                 // 结构化错误也不会误借上一段演出的 Mod 身份。
                 if (!ModRegistry.TryGetPackageByRegisteredName(scriptName, out package) || package == null)
                     throw new InvalidOperationException("注册表命中了 Lua，但找不到对应的 mod 包身份");
+                if (!ModPlayModeSession.Allows(package))
+                    throw new InvalidOperationException("当前玩法未启用此 MOD");
                 // 只有原版 Combat/Battle 已记录结果后，Story 才能重新进入并消费续接点。
                 // 若场景异常返回而没有结果，绝不能从剧情开头再跑一遍并二次 Prepare。
                 if (GameplaySession.HasPending && !GameplaySession.HasRecordedResult)
@@ -119,6 +126,7 @@ namespace MortalModHost
 
                 // 契约 §3.1：结局卡背景图按"当前演出 mod"解析——开演前把包写入 ModOverlay.CurrentPackage
                 ModOverlay.CurrentPackage = package;
+                CustomGameplayRuntime.EnsurePackage(package);
                 failureCategory = "mandatory_disclosure";
                 ModDisclosure.Enable(package);
                 CharacterIntroSupport.Clear();
@@ -135,6 +143,12 @@ namespace MortalModHost
                 // LoadLuaFunction 会确保 MoonSharp Interpreter 已初始化；它在编译错误时可能
                 // 吞异常并返回 null，因此必须显式判空，不能把空演出误报为成功。
                 failureCategory = "lua_compile";
+                // Ownership reset deliberately discarded the previous Script.
+                // Initialize through Fungus before third-party compilation prefixes
+                // bind callbacks (Coffee Companion's EventPicker uses Interpreter).
+                env.InitEnvironment();
+                if (env.Interpreter == null)
+                    throw new InvalidOperationException("LuaEnvironment 初始化后 Interpreter 仍为空");
                 Closure fn = env.LoadLuaFunction(lua, scriptName + ".LuaScript");
                 if (fn == null)
                     throw new InvalidOperationException("Lua 编译失败，LoadLuaFunction 返回 null");
@@ -713,6 +727,8 @@ namespace MortalModHost
                     string kind = ArgString(args, 0);
                     if (string.Equals(kind, "combat", StringComparison.Ordinal))
                     {
+                        CustomGameplayRuntime.ValidateSupports(ModOverlay.CurrentPackage);
+                        CustomCombatSkillRuntime.Validate(ModOverlay.CurrentPackage);
                         CombatCharacterBinding.Capture(ModOverlay.CurrentPackage);
                         CombatBackgroundOverridePatch.Capture();
                     }
@@ -752,6 +768,17 @@ namespace MortalModHost
                 {
                     return DynValue.NewNumber(GameplayChecks.AffinityValue(ArgString(args, 0)));
                 }, "mod_affinity_value");
+                script.Globals["mod_item"] = new CallbackFunction((ctx, args) =>
+                {
+                    CustomGameplayRuntime.ChangeItem(ModOverlay.CurrentPackage,
+                        ArgString(args, 0), ArgString(args, 1), RequireArgInt(args, 2));
+                    return DynValue.Nil;
+                }, "mod_item");
+                script.Globals["mod_use_item"] = new CallbackFunction((ctx, args) =>
+                {
+                    CustomConsumableRuntime.UseField(ModOverlay.CurrentPackage, ArgString(args, 0));
+                    return DynValue.Nil;
+                }, "mod_use_item");
                 script.Globals["mod_has_item"] = new CallbackFunction((ctx, args) =>
                 {
                     return DynValue.NewBoolean(GameplayChecks.HasItem(

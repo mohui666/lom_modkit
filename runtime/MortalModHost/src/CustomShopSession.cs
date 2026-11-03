@@ -79,7 +79,8 @@ namespace MortalModHost
             ItemDatabase items = ItemDatabase.Instance;
             if (items == null)
                 throw new InvalidOperationException("ItemDatabase.Instance 为 null");
-            ItemData data = items.GetItem(type, itemId) as ItemData;
+            itemId = CustomGameplayRuntime.ResolveItemId(package, category, itemId);
+            ItemData data = ItemDatabase.Instance.GetItem(type, itemId) as ItemData;
             if (data == null)
                 throw new InvalidOperationException(
                     "原版物品不存在或类型不匹配：" + category + "/" + itemId);

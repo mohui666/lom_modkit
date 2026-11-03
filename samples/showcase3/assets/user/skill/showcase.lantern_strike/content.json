@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "content_schema": 1,
+  "type": "skill",
+  "id": "showcase.lantern_strike",
+  "name": "灯影掌",
+  "files": {
+    "main": "icon.png"
+  },
+  "action": "attack",
+  "power": 25,
+  "stamina_cost": 12,
+  "accuracy": 100,
+  "cooldown": 1,
+  "ai_chance": 35,
+  "description": "自创掌法，使用自绘四帧演出，命中后调息。",
+  "effects": [
+    {
+      "type": "stamina",
+      "target": "self",
+      "value": 3
+    }
+  ],
+  "animation": {
+    "frames": [
+      "frame_01.png",
+      "frame_02.png",
+      "frame_03.png",
+      "frame_04.png"
+    ],
+    "fps": 12,
+    "hit_frame": 2,
+    "scale": 100
+  }
+}

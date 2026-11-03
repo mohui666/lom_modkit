@@ -15,6 +15,9 @@ pub struct ContentPanel {
     message: String,
     preview: Option<(String, egui::TextureHandle)>,
     replace_shared: bool,
+    animation_frame: Option<usize>,
+    animation_playing: bool,
+    animation_started: f64,
 }
 impl ContentPanel {
     #[cfg(test)]
@@ -35,6 +38,8 @@ impl ContentPanel {
         self.key.clear();
         self.files.clear();
         self.preview = None;
+        self.animation_frame = None;
+        self.animation_playing = false;
         self.message.clear();
     }
     pub fn apply_pending(&mut self, project: &mut Project) -> anyhow::Result<bool> {
@@ -88,6 +93,8 @@ impl ContentPanel {
             self.baseline = self.draft.clone();
             self.files.clear();
             self.preview = None;
+            self.animation_frame = None;
+            self.animation_playing = false;
             self.message.clear();
         }
         changed
@@ -166,6 +173,12 @@ impl ContentPanel {
                     }
                 });
             }
+        }
+        if lom_core::content::GAMEPLAY_TYPES.contains(&kind.as_str()) {
+            gameplay_fields(ui, &mut self.draft, &catalog);
+        }
+        if kind == "skill" {
+            self.animation_controls(ui, project);
         }
         // Preserve the complete metadata editor, including future fields.
         ui.collapsing(tr("高级属性"), |ui| {
@@ -324,7 +337,11 @@ impl ContentPanel {
             }
         });
         if kind != "audio" {
-            let file = if kind == "character" {
+            let file = if kind == "skill" && self.animation_frame.is_some() {
+                self.draft["animation"]["frames"]
+                    .get(self.animation_frame.unwrap())
+                    .and_then(Value::as_str)
+            } else if kind == "character" {
                 match self.slot {
                     1 => self.draft["portraits"][&self.portrait].as_str(),
                     2 => self.draft["intro"]["image"].as_str(),
@@ -404,9 +421,581 @@ impl ContentPanel {
         }
         changed
     }
+    fn append_animation_frames(
+        &mut self,
+        project: &Project,
+        paths: &[std::path::PathBuf],
+    ) -> anyhow::Result<()> {
+        let mut frames = self.draft["animation"]["frames"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        anyhow::ensure!(
+            !paths.is_empty() && frames.len() + paths.len() <= 120,
+            "招式动画最多120帧"
+        );
+        let prefix = self
+            .key
+            .strip_suffix("content.json")
+            .ok_or_else(|| anyhow::anyhow!("内容路径无效"))?;
+        let mut files = BTreeMap::new();
+        for (index, path) in paths.iter().enumerate() {
+            anyhow::ensure!(
+                path.extension()
+                    .and_then(|s| s.to_str())
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("png")),
+                "动画帧必须是PNG"
+            );
+            let bytes = std::fs::read(path)?;
+            anyhow::ensure!(
+                !bytes.is_empty() && bytes.len() <= lom_core::content::MAX_IMAGE_BYTES as usize,
+                "动画帧为空或超过8 MiB"
+            );
+            anyhow::ensure!(
+                image::guess_format(&bytes)? == image::ImageFormat::Png,
+                "动画帧必须是PNG编码"
+            );
+            image::load_from_memory(&bytes)?;
+            let original = path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .ok_or_else(|| anyhow::anyhow!("文件名无效"))?;
+            let name = if self.files.contains_key(original)
+                || files.contains_key(original)
+                || project.assets.contains_key(&format!("{prefix}{original}"))
+            {
+                format!("{}_{index}.png", uuid_name())
+            } else {
+                original.into()
+            };
+            frames.push(json!(name));
+            files.insert(name, bytes);
+        }
+        let mut next = self.draft.clone();
+        if !next["animation"].is_object() {
+            next["animation"] = json!({"fps":12,"hit_frame":0,"scale":100});
+        }
+        next["animation"]["frames"] = json!(frames);
+        lom_core::content::normalize_content_metadata(&next)?;
+        self.draft = next;
+        self.files.extend(files);
+        self.preview = None;
+        self.animation_frame = Some(0);
+        self.animation_playing = false;
+        Ok(())
+    }
+    fn animation_controls(&mut self, ui: &mut egui::Ui, project: &Project) {
+        ui.separator();
+        ui.strong(tr("招式帧动画"));
+        if ui.button(tr("导入／追加 PNG 动画帧…")).clicked() {
+            if let Some(paths) = rfd::FileDialog::new()
+                .add_filter("PNG动画帧", &["png"])
+                .pick_files()
+            {
+                self.message = self
+                    .append_animation_frames(project, &paths)
+                    .map(|_| String::new())
+                    .unwrap_or_else(|error| error.to_string());
+            }
+        }
+        if !self.draft["animation"].is_object() {
+            ui.weak(tr("未添加帧动画，使用原版动作演出。"));
+            return;
+        }
+        let mut clear = false;
+        ui.horizontal(|ui| {
+            if ui
+                .button(tr(if self.animation_playing {
+                    "暂停动画"
+                } else {
+                    "播放动画"
+                }))
+                .clicked()
+            {
+                self.animation_playing = !self.animation_playing;
+                self.animation_started = ui.input(|i| i.time);
+            }
+            if ui.button(tr("预览图标")).clicked() {
+                self.animation_frame = None;
+                self.animation_playing = false;
+            }
+            clear = ui.button(tr("移除动画，使用原版动作")).clicked();
+        });
+        if clear {
+            self.draft.as_object_mut().unwrap().remove("animation");
+            self.animation_frame = None;
+            self.animation_playing = false;
+            return;
+        }
+        integer(ui, &mut self.draft["animation"], "fps", "每秒帧数", 1, 60);
+        integer(
+            ui,
+            &mut self.draft["animation"],
+            "scale",
+            "动画缩放（%）",
+            50,
+            200,
+        );
+        let animation = &mut self.draft["animation"];
+        let mut hit = animation["hit_frame"].as_u64().unwrap_or(0) as usize;
+        let Some(frames) = animation["frames"].as_array_mut() else {
+            return;
+        };
+        let count = frames.len();
+        let mut remove = None;
+        let mut swap = None;
+        egui::ScrollArea::vertical()
+            .id_salt("skill-animation-frames")
+            .max_height(220.0)
+            .show(ui, |ui| {
+                for (index, file) in frames.iter().enumerate() {
+                    let name = file.as_str().unwrap_or("");
+                    let short = if name.chars().count() > 20 {
+                        format!("{}…", name.chars().take(19).collect::<String>())
+                    } else {
+                        name.to_owned()
+                    };
+                    ui.push_id(index, |ui| {
+                        ui.horizontal(|ui| {
+                            if ui
+                                .selectable_label(
+                                    self.animation_frame == Some(index),
+                                    format!("{:03} · {}", index + 1, short),
+                                )
+                                .on_hover_text(name)
+                                .clicked()
+                            {
+                                self.animation_frame = Some(index);
+                                self.animation_playing = false;
+                            }
+                            ui.radio_value(&mut hit, index, tr("命中帧"));
+                            if ui.add_enabled(index > 0, egui::Button::new("↑")).clicked() {
+                                swap = Some((index, index - 1));
+                            }
+                            if ui
+                                .add_enabled(index + 1 < count, egui::Button::new("↓"))
+                                .clicked()
+                            {
+                                swap = Some((index, index + 1));
+                            }
+                            if ui
+                                .add_enabled(count > 1, egui::Button::new(tr("移除")).small())
+                                .clicked()
+                            {
+                                remove = Some(index);
+                            }
+                        });
+                    });
+                }
+            });
+        if let Some((a, b)) = swap {
+            frames.swap(a, b);
+            if hit == a {
+                hit = b;
+            } else if hit == b {
+                hit = a;
+            }
+            self.animation_frame = Some(b);
+        }
+        if let Some(index) = remove {
+            frames.remove(index);
+            if hit > index {
+                hit -= 1;
+            }
+            hit = hit.min(frames.len().saturating_sub(1));
+            self.animation_frame = Some(hit);
+        }
+        let count = frames.len();
+        animation["hit_frame"] = json!(hit);
+        if self.animation_playing && count > 0 {
+            let fps = animation["fps"].as_f64().unwrap_or(12.0);
+            self.animation_frame = Some(
+                ((ui.input(|i| i.time) - self.animation_started).max(0.0) * fps).floor() as usize
+                    % count,
+            );
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_secs_f64(1.0 / fps));
+        }
+    }
+}
+fn choice(ui: &mut egui::Ui, row: &mut Value, field: &str, label: &str, options: &[(&str, &str)]) {
+    let mut selected = row[field].as_str().unwrap_or("").to_owned();
+    ui.horizontal(|ui| {
+        ui.label(tr(label));
+        egui::ComboBox::from_id_salt(field)
+            .selected_text(tr(options
+                .iter()
+                .find(|(id, _)| *id == selected)
+                .map(|(_, label)| *label)
+                .unwrap_or(&selected)))
+            .show_ui(ui, |ui| {
+                for (id, label) in options {
+                    ui.selectable_value(&mut selected, (*id).into(), tr(label));
+                }
+            });
+    });
+    row[field] = json!(selected);
+}
+fn integer(ui: &mut egui::Ui, row: &mut Value, field: &str, label: &str, min: i64, max: i64) {
+    let mut number = row[field].as_i64().unwrap_or(min);
+    ui.horizontal(|ui| {
+        ui.label(tr(label));
+        if ui
+            .add(egui::DragValue::new(&mut number).range(min..=max))
+            .changed()
+        {
+            row[field] = json!(number);
+        }
+    });
+}
+fn stat_rows(
+    ui: &mut egui::Ui,
+    level: &mut Value,
+    field: &str,
+    value_field: &str,
+    label: &str,
+    catalog: &crate::forms::Catalog,
+) {
+    ui.push_id(field, |ui| {
+        ui.label(tr(label));
+        let Some(rows) = level[field].as_array_mut() else {
+            return;
+        };
+        let mut remove = None;
+        for (index, row) in rows.iter_mut().enumerate() {
+            ui.push_id(index, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(format!("{}", index + 1));
+                    if ui.small_button(tr("移除")).clicked() {
+                        remove = Some(index);
+                    }
+                });
+                catalog.field(ui, row, "stat", "属性", "stat", false, &[], &[]);
+                integer(
+                    ui,
+                    row,
+                    value_field,
+                    if value_field == "min" {
+                        "至少达到"
+                    } else {
+                        "增加数值"
+                    },
+                    -999999,
+                    999999,
+                );
+            });
+        }
+        if let Some(index) = remove {
+            rows.remove(index);
+        }
+        if rows.len() < 32 && ui.small_button(tr("添加属性")).clicked() {
+            rows.push(json!({"stat":"internal",value_field:if value_field=="min" {0} else {1}}));
+        }
+    });
+}
+fn skill_effect_fields(ui: &mut egui::Ui, draft: &mut Value) {
+    ui.strong(tr("命中后附加效果（可选）"));
+    let Some(effects) = draft["effects"].as_array_mut() else {
+        return;
+    };
+    let mut remove = None;
+    for (index, effect) in effects.iter_mut().enumerate() {
+        ui.push_id(("skill-effect", index), |ui| {
+            ui.horizontal(|ui| {
+                ui.label(format!("{} {}", tr("效果"), index + 1));
+                if ui.small_button(tr("移除")).clicked() {
+                    remove = Some(index);
+                }
+            });
+            choice(
+                ui,
+                effect,
+                "type",
+                "效果类型",
+                &[
+                    ("damage", "造成伤害"),
+                    ("heal", "恢复血量"),
+                    ("stamina", "恢复气力"),
+                ],
+            );
+            choice(
+                ui,
+                effect,
+                "target",
+                "效果目标",
+                &[("self", "自身"), ("enemy", "对手")],
+            );
+            integer(ui, effect, "value", "数值", 1, 999999);
+        });
+    }
+    if let Some(index) = remove {
+        effects.remove(index);
+    }
+    if effects.len() < 16 && ui.button(tr("添加效果")).clicked() {
+        effects.push(json!({"type":"damage","target":"enemy","value":10}));
+    }
+}
+fn consumable_effect_fields(ui: &mut egui::Ui, draft: &mut Value, catalog: &crate::forms::Catalog) {
+    let previous = draft["use_in"].clone();
+    choice(
+        ui,
+        draft,
+        "use_in",
+        "使用场景",
+        &[("field", "野外／剧情"), ("combat", "决斗中")],
+    );
+    ui.weak(tr("切换使用场景会重建效果列表。决斗道具占用一次行动。"));
+    let field = draft["use_in"] == "field";
+    if previous != draft["use_in"] {
+        draft["effects"] = if field {
+            json!([{"type":"stat","stat":"life","value":10}])
+        } else {
+            json!([{"type":"heal","value":10}])
+        };
+    }
+    let Some(effects) = draft["effects"].as_array_mut() else {
+        return;
+    };
+    let can_remove = effects.len() > 1;
+    let mut remove = None;
+    for (index, effect) in effects.iter_mut().enumerate() {
+        ui.push_id(("consumable-effect", index), |ui| {
+            ui.horizontal(|ui| {
+                ui.label(format!("{} {}", tr("使用效果"), index + 1));
+                if ui
+                    .add_enabled(can_remove, egui::Button::new(tr("移除")).small())
+                    .clicked()
+                {
+                    remove = Some(index);
+                }
+            });
+            if field {
+                catalog.field(ui, effect, "stat", "玩家属性", "stat", false, &[], &[]);
+                integer(ui, effect, "value", "增加数值（不能为0）", -999999, 999999);
+            } else {
+                choice(
+                    ui,
+                    effect,
+                    "type",
+                    "效果类型",
+                    &[("heal", "恢复血量"), ("stamina", "恢复气力")],
+                );
+                integer(ui, effect, "value", "数值", 1, 999999);
+            }
+        });
+    }
+    if let Some(index) = remove {
+        effects.remove(index);
+    }
+    if effects.len() < 16 && ui.button(tr("添加使用效果")).clicked() {
+        effects.push(if field {
+            json!({"type":"stat","stat":"life","value":10})
+        } else {
+            json!({"type":"heal","value":10})
+        });
+    }
+}
+fn gameplay_fields(ui: &mut egui::Ui, draft: &mut Value, catalog: &crate::forms::Catalog) {
+    ui.add_space(8.0);
+    catalog.field(
+        ui,
+        draft,
+        "description",
+        "说明",
+        "multiline",
+        false,
+        &[],
+        &[],
+    );
+    match draft["type"].as_str().unwrap_or("") {
+        "item" => {
+            let old_category = draft["category"].clone();
+            choice(
+                ui,
+                draft,
+                "category",
+                "物品类别",
+                &[
+                    ("misc", "杂物"),
+                    ("special", "贵重品"),
+                    ("consumable", "消耗品"),
+                ],
+            );
+            integer(ui, draft, "cost", "基础价格", 0, 999999);
+            if draft["category"] == "consumable" {
+                if old_category != "consumable" {
+                    draft["use_in"] = json!("field");
+                    draft["effects"] = json!([{"type":"stat","stat":"life","value":10}]);
+                }
+                consumable_effect_fields(ui, draft, catalog);
+            }
+            ui.weak(tr("通过物品节点发放或消耗，也可加入自定义商店。"));
+        }
+        "martial" => {
+            integer(ui, draft, "cost", "秘籍价格", 0, 999999);
+            ui.weak(tr(
+                "按等级配置修炼点数、属性条件和升级加成；通过书籍类别的物品节点发放。",
+            ));
+            let Some(levels) = draft["levels"].as_array_mut() else {
+                return;
+            };
+            let can_remove = levels.len() > 1;
+            let mut remove = None;
+            for (index, level) in levels.iter_mut().enumerate() {
+                egui::CollapsingHeader::new(format!("{} {}", tr("等级"), index + 1))
+                    .id_salt(("martial-level", index))
+                    .default_open(index == 0)
+                    .show(ui, |ui| {
+                        integer(ui, level, "points", "修炼所需点数", 1, 999999);
+                        stat_rows(ui, level, "requirements", "min", "修炼条件", catalog);
+                        ui.add_space(6.0);
+                        stat_rows(ui, level, "bonuses", "delta", "升级加成", catalog);
+                        if ui
+                            .add_enabled(can_remove, egui::Button::new(tr("移除此等级")).small())
+                            .clicked()
+                        {
+                            remove = Some(index);
+                        }
+                    });
+            }
+            if let Some(index) = remove {
+                if levels.len() > 1 {
+                    levels.remove(index);
+                }
+            }
+            if levels.len() < 20 && ui.button(tr("添加等级")).clicked() {
+                levels.push(json!({"points":10,"requirements":[],"bonuses":[]}));
+            }
+        }
+        "support" => {
+            choice(
+                ui,
+                draft,
+                "trigger",
+                "触发时机",
+                &[
+                    ("round_start", "回合开始"),
+                    ("after_action", "行动之后"),
+                    ("after_hit", "受击之后"),
+                ],
+            );
+            integer(ui, draft, "chance", "触发概率（%）", 0, 100);
+            integer(ui, draft, "uses", "可用次数", 1, 99);
+            ui.weak(tr(
+                "在决斗节点的我方／对手自定义援助中选择。一次触发会执行下列全部效果并消耗一次。",
+            ));
+            let Some(effects) = draft["effects"].as_array_mut() else {
+                return;
+            };
+            let can_remove = effects.len() > 1;
+            let mut remove = None;
+            for (index, effect) in effects.iter_mut().enumerate() {
+                ui.push_id(("support-effect", index), |ui| {
+                    ui.horizontal(|ui| {
+                        ui.strong(format!("{} {}", tr("效果"), index + 1));
+                        if ui
+                            .add_enabled(can_remove, egui::Button::new(tr("移除")).small())
+                            .clicked()
+                        {
+                            remove = Some(index);
+                        }
+                    });
+                    choice(
+                        ui,
+                        effect,
+                        "type",
+                        "效果类型",
+                        &[
+                            ("damage", "造成伤害"),
+                            ("heal", "恢复血量"),
+                            ("stamina", "恢复气力"),
+                        ],
+                    );
+                    choice(
+                        ui,
+                        effect,
+                        "target",
+                        "效果目标",
+                        &[("self", "持有援助的一方"), ("enemy", "对手")],
+                    );
+                    integer(ui, effect, "value", "数值", 1, 999999);
+                });
+            }
+            if let Some(index) = remove {
+                if effects.len() > 1 {
+                    effects.remove(index);
+                }
+            }
+            if effects.len() < 16 && ui.button(tr("添加效果")).clicked() {
+                effects.push(json!({"type":"heal","target":"self","value":10}));
+            }
+        }
+        "skill" => {
+            choice(
+                ui,
+                draft,
+                "action",
+                "动作类型",
+                &[("attack", "攻击"), ("weapon", "暗器"), ("ultimate", "绝招")],
+            );
+            for (key, label, min, max) in [
+                ("power", "招式威力（基础值）", 0, 999999),
+                ("stamina_cost", "气力消耗", 0, 9999),
+                ("accuracy", "命中率（%）", 0, 100),
+                ("cooldown", "冷却回合", 0, 99),
+                ("ai_chance", "敌方选用概率（%）", 0, 100),
+            ] {
+                integer(ui, draft, key, label, min, max);
+            }
+            skill_effect_fields(ui, draft);
+        }
+        _ => {}
+    }
 }
 fn draft_from_source(bytes: &[u8]) -> Value {
     let mut draft: Value = serde_json::from_slice(bytes).unwrap_or(Value::Null);
+    if let Some(kind) = draft["type"]
+        .as_str()
+        .filter(|kind| lom_core::content::GAMEPLAY_TYPES.contains(kind))
+        .map(str::to_owned)
+    {
+        let defaults = match kind.as_str() {
+            "item" => json!({"description":"","cost":0,"category":"misc"}),
+            "martial" => json!({"description":"","cost":0}),
+            "support" => json!({"description":"","trigger":"round_start","chance":100,"uses":1}),
+            _ => {
+                json!({"description":"","action":"attack","power":0,"stamina_cost":0,"accuracy":100,"cooldown":0,"ai_chance":100,"effects":[]})
+            }
+        };
+        for (key, value) in defaults.as_object().unwrap() {
+            draft
+                .as_object_mut()
+                .unwrap()
+                .entry(key.clone())
+                .or_insert_with(|| value.clone());
+        }
+        if draft["category"] == "consumable" {
+            draft
+                .as_object_mut()
+                .unwrap()
+                .entry("use_in")
+                .or_insert_with(|| json!("field"));
+        }
+        if let Some(animation) = draft["animation"].as_object_mut() {
+            for (key, value) in [("fps", 12), ("hit_frame", 0), ("scale", 100)] {
+                animation.entry(key).or_insert_with(|| json!(value));
+            }
+        }
+        if let Some(levels) = draft["levels"].as_array_mut() {
+            for level in levels {
+                if let Some(object) = level.as_object_mut() {
+                    for field in ["requirements", "bonuses"] {
+                        object.entry(field).or_insert_with(|| json!([]));
+                    }
+                }
+            }
+        }
+    }
     if draft["type"] == "character" {
         for (key, default) in [
             ("title", json!("")),
@@ -434,6 +1023,105 @@ fn uuid_name() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn skill_frames_import_in_order_and_a_bad_batch_preserves_the_draft() {
+        let mut bytes = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::new_rgba8(2, 2)
+            .write_to(&mut bytes, image::ImageFormat::Png)
+            .unwrap();
+        let png = bytes.into_inner();
+        let dir = tempfile::tempdir().unwrap();
+        let first = dir.path().join("first");
+        let second = dir.path().join("second");
+        std::fs::create_dir_all(&first).unwrap();
+        std::fs::create_dir_all(&second).unwrap();
+        let a = first.join("帧.png");
+        let b = second.join("帧.png");
+        std::fs::write(&a, &png).unwrap();
+        std::fs::write(&b, &png).unwrap();
+        let mut project = Project::new();
+        let key = "assets/user/skill/demo.test/content.json".to_owned();
+        project.assets.insert(key.clone(),serde_json::to_vec(&json!({"schema":1,"id":"demo.test","type":"skill","name":"试招","files":{"main":"icon.png"}})).unwrap());
+        project
+            .assets
+            .insert("assets/user/skill/demo.test/icon.png".into(), png.clone());
+        let mut panel = ContentPanel::default();
+        let mut selection = key.clone();
+        panel.select(&mut project, &mut selection);
+        panel
+            .append_animation_frames(&project, &[a.clone(), b])
+            .unwrap();
+        let frames = panel.draft["animation"]["frames"].as_array().unwrap();
+        assert_eq!(frames.len(), 2);
+        assert_ne!(frames[0], frames[1]);
+        assert_eq!(frames[0], "帧.png");
+        let previous_draft = panel.draft.clone();
+        let previous_files = panel.files.clone();
+        let bad = dir.path().join("bad.png");
+        std::fs::write(&bad, b"not an image").unwrap();
+        assert!(panel
+            .append_animation_frames(&project, &[a.clone(), bad])
+            .is_err());
+        assert_eq!(panel.draft, previous_draft);
+        assert_eq!(panel.files, previous_files);
+        assert!(panel
+            .append_animation_frames(&project, &vec![a; 119])
+            .is_err());
+        panel.apply_pending(&mut project).unwrap();
+        let saved: Value = serde_json::from_slice(&project.assets[&key]).unwrap();
+        assert_eq!(
+            saved["animation"]["frames"],
+            previous_draft["animation"]["frames"]
+        );
+        for file in lom_core::content::listed_content_files(&saved) {
+            assert_eq!(
+                project.assets[&format!("assets/user/skill/demo.test/{file}")],
+                png
+            );
+        }
+    }
+
+    #[test]
+    fn gameplay_content_forms_preserve_documents_until_an_edit_is_committed() {
+        for kind in lom_core::content::GAMEPLAY_TYPES {
+            let mut project = Project::new();
+            let key = format!("assets/user/{kind}/demo.test/content.json");
+            let mut metadata = json!({"schema":1,"content_schema":1,"type":kind,"id":"demo.test","name":"测试内容","files":{"main":"icon.png"}});
+            if *kind == "martial" {
+                metadata["levels"] = json!([{"points":10}]);
+            }
+            if *kind == "support" {
+                metadata["effects"] = json!([{"type":"heal","target":"self","value":10}]);
+            }
+            if *kind == "skill" {
+                metadata["animation"] = json!({"frames":["icon.png"]});
+            }
+            project
+                .assets
+                .insert(key.clone(), serde_json::to_vec(&metadata).unwrap());
+            project
+                .assets
+                .insert(key.replace("content.json", "icon.png"), b"icon".to_vec());
+            let original = project.clone();
+            let mut panel = ContentPanel::default();
+            let mut selection = key.clone();
+            panel.select(&mut project, &mut selection);
+            assert!(!panel.has_pending());
+            let ctx = egui::Context::default();
+            let _ = ctx.run(Default::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    panel.show(ui, &mut project, &mut selection);
+                });
+            });
+            assert_eq!(project, original, "{kind}");
+            panel.draft["description"] = json!("修改后的说明");
+            panel.apply_pending(&mut project).unwrap();
+            let saved: Value = serde_json::from_slice(&project.assets[&key]).unwrap();
+            assert_eq!(saved["description"], "修改后的说明");
+            lom_core::content::normalize_content_metadata(&saved).unwrap();
+        }
+    }
 
     fn fixture() -> (Project, String, String) {
         let mut project = Project::new();

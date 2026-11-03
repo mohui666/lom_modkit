@@ -30,8 +30,11 @@ namespace MortalModHost
                 case "book": type = GameItemType.書籍; break;
                 case "misc": type = GameItemType.雜物; break;
                 case "special": type = GameItemType.貴重品; break;
-                default: throw new ArgumentException("物品检定类别必须是 book/misc/special");
+                case "consumable": type = GameItemType.消耗品; break;
+                default: throw new ArgumentException("物品检定类别必须是 book/misc/special/consumable");
             }
+            itemId = CustomGameplayRuntime.ResolveItemId(
+                ModOverlay.CurrentPackage, category, itemId);
             return items.HasItem(type, itemId);
         }
 

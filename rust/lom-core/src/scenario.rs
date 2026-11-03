@@ -304,7 +304,15 @@ fn effects_valid(v: &Value, tasks: &BTreeMap<String, Vec<Value>>) -> Result<()> 
                     _ => &["type", "key", "op", "value"],
                 };
                 fields(action, keys)?;
-                ensure!(id(&action["key"]), "结果动作 key 无效");
+                if kind == "item"
+                    && action["key"]
+                        .as_str()
+                        .is_some_and(|s| s.starts_with("user:"))
+                {
+                    crate::content::parse_content_ref(action["key"].as_str().unwrap())?;
+                } else {
+                    ensure!(id(&action["key"]), "结果动作 key 无效");
+                }
                 if kind != "flag" {
                     ensure!(
                         int(&action["value"], i32::MIN as i64, i32::MAX as i64),
@@ -313,11 +321,18 @@ fn effects_valid(v: &Value, tasks: &BTreeMap<String, Vec<Value>>) -> Result<()> 
                 }
                 if kind == "item" {
                     ensure!(
-                        ["book", "misc", "special"]
+                        ["book", "misc", "special", "consumable"]
                             .contains(&action["kind"].as_str().unwrap_or(""))
                             && ["add", "remove"].contains(&action["op"].as_str().unwrap_or(""))
                             && int(&action["value"], 1, i32::MAX as i64),
                         "物品动作无效"
+                    );
+                    ensure!(
+                        action["kind"] != "consumable"
+                            || action["key"]
+                                .as_str()
+                                .is_some_and(|key| key.starts_with("user:")),
+                        "消耗品当前只支持本包 user: 引用"
                     );
                 } else if kind == "talent" {
                     ensure!(

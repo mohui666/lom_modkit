@@ -172,10 +172,14 @@ fn reward(entries: &[Value]) -> Vec<String> {
                 &[key, amount, "1".into()],
             )),
             "talent" => out.push(call("statmodifymanager.AddTalent", &[key, amount])),
-            "item" => out.push(call(
-                &format!("statmodifymanager.Add{}", item_api(s(e, "category"))),
-                &[key, amount],
-            )),
+            "item" => out.push(if s(e, "key").starts_with("user:") {
+                call("mod_item", &[q(e, "category"), key, amount])
+            } else {
+                call(
+                    &format!("statmodifymanager.Add{}", item_api(s(e, "category"))),
+                    &[key, amount],
+                )
+            }),
             _ => {
                 out.push(call("statmodifymanager.AddStory", &[key.clone()]));
                 out.push(format!("\tmodflags[{key}] = true"));
@@ -832,7 +836,20 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
         )),
         "item" => {
             let api = item_api(s(node, "kind"));
-            if b(node, "remove", false) {
+            if s(node, "item").starts_with("user:") {
+                out.push(call(
+                    "mod_item",
+                    &[
+                        q(node, "kind"),
+                        q(node, "item"),
+                        if b(node, "remove", false) {
+                            "-1".into()
+                        } else {
+                            n(node, "count", json!(1))
+                        },
+                    ],
+                ));
+            } else if b(node, "remove", false) {
                 out.push(call(
                     &format!("statmodifymanager.Remove{api}"),
                     &[q(node, "item")],
@@ -844,6 +861,7 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                 ));
             }
         }
+        "use_item" => out.push(call("mod_use_item", &[q(node, "item")])),
         "flag" => {
             let f = q(node, "flag");
             out.push(call("statmodifymanager.AddStory", &[f.clone()]));
@@ -967,6 +985,10 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                     &[
                         ("talents", &["key", "level"]),
                         ("player_talents", &["key", "level"]),
+                        ("player_supports", &["id"]),
+                        ("enemy_supports", &["id"]),
+                        ("player_skills", &["id"]),
+                        ("enemy_skills", &["id"]),
                     ],
                 )
             } else {

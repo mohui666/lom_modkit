@@ -1,0 +1,43 @@
+{
+  "type": "martial",
+  "id": "showcase.lantern_breath",
+  "name": "灯下调息诀",
+  "description": "静观灯火，调息运气。演示逐级条件、修炼点数与属性加成。",
+  "cost": 480,
+  "levels": [
+    {
+      "points": 10,
+      "requirements": [],
+      "bonuses": [
+        {
+          "stat": "internal",
+          "delta": 1
+        }
+      ]
+    },
+    {
+      "points": 20,
+      "requirements": [
+        {
+          "stat": "internal",
+          "min": 1
+        }
+      ],
+      "bonuses": [
+        {
+          "stat": "internal",
+          "delta": 2
+        },
+        {
+          "stat": "mental",
+          "delta": 1
+        }
+      ]
+    }
+  ],
+  "schema": 1,
+  "content_schema": 1,
+  "files": {
+    "main": "icon.png"
+  }
+}

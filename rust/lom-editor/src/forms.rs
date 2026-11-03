@@ -118,6 +118,9 @@ impl Catalog {
             .expect("embedded metadata");
         self.data["user_images"] = json!([]);
         self.data["user_voices"] = json!([]);
+        self.data["user_supports"] = json!([]);
+        self.data["user_skills"] = json!([]);
+        self.data["user_consumables"] = json!([]);
         for (path, bytes) in assets {
             if !path.ends_with("/content.json") {
                 continue;
@@ -140,6 +143,19 @@ impl Catalog {
                     "characters"
                 }
                 "image" => "user_images",
+                "support" => "user_supports",
+                "skill" => "user_skills",
+                "martial" => "items_book",
+                "item" => {
+                    if meta["category"] == "consumable" {
+                        entry["use_in"] = meta.get("use_in").cloned().unwrap_or(json!("field"));
+                        "user_consumables"
+                    } else if meta["category"] == "special" {
+                        "items_special"
+                    } else {
+                        "items_misc"
+                    }
+                }
                 "audio" => {
                     if meta["character"].is_string() {
                         entry["character"] = meta["character"].clone();
@@ -365,9 +381,22 @@ impl Catalog {
             {
                 "book" => "items_book",
                 "special" => "items_special",
+                "consumable" => "user_consumables",
                 _ => "items_misc",
             };
             return localized_rows(&self.data[category], category);
+        }
+        if kind == "field_consumable" {
+            let rows = Value::Array(
+                self.data["user_consumables"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter(|row| row["use_in"] == "field")
+                    .cloned()
+                    .collect(),
+            );
+            return localized_rows(&rows, "user_consumables");
         }
         if kind == "voice" {
             return self.data["user_voices"]
@@ -398,6 +427,8 @@ impl Catalog {
                     "sounds"
                 }
             }
+            "support" => "user_supports",
+            "skill" => "user_skills",
             "stat" => "stats",
             "talent" => "talents",
             "combat_skill" => "combat_talents",
@@ -1086,6 +1117,8 @@ impl Catalog {
                         | "dice_bands"
                         | "vars"
                         | "combat_talents"
+                        | "support_list"
+                        | "skill_list"
                         | "battle_faction_list"
                         | "official_characters"
                         | "reward_entries"
@@ -1543,6 +1576,8 @@ fn default_for(kind: &str) -> Value {
         | "dice_bands"
         | "vars"
         | "combat_talents"
+        | "support_list"
+        | "skill_list"
         | "battle_faction_list"
         | "official_characters"
         | "reward_entries"
@@ -1558,6 +1593,7 @@ fn row_template(kind: &str) -> Value {
         "dice_bands" => json!({"text":"结果","goto":""}),
         "vars" => json!({"name":"","value":""}),
         "combat_talents" => json!({"key":"","level":1}),
+        "support_list" | "skill_list" => json!(""),
         "battle_faction_list" => json!({"id":"","people":1}),
         "official_characters" => json!("player"),
         "custom_shop_items" => json!({"category":"misc","item":"","count":1}),
@@ -1685,8 +1721,39 @@ fn array_editor(
         array.swap(a, b);
         changed = true;
     }
-    if ui.button(tr("＋ 添加一项")).clicked() {
+    let reference_kind = if kind == "skill_list" {
+        "skill"
+    } else {
+        "support"
+    };
+    let reference_list = matches!(kind, "support_list" | "skill_list");
+    let can_add = !reference_list
+        || array.len() < (if kind == "skill_list" { 8 } else { 16 })
+            && catalog
+                .options(reference_kind, &Value::Null, &[], &[])
+                .iter()
+                .any(|(id, _)| !array.iter().any(|value| value == id));
+    if reference_list && !can_add {
+        ui.weak(tr(
+            "请先导入可用招式或援助；每种内容只能选择一次，并受数量上限限制。",
+        ));
+    }
+    if ui
+        .add_enabled(can_add, egui::Button::new(tr("＋ 添加一项")))
+        .clicked()
+    {
         let mut row = row_template(kind);
+        if reference_list {
+            if let Some((id, _)) = catalog
+                .options(reference_kind, &Value::Null, &[], &[])
+                .into_iter()
+                .find(|(id, _)| !array.iter().any(|value| value == id))
+            {
+                row = json!(id);
+            } else {
+                return changed;
+            }
+        }
         if kind == "official_characters" {
             if let Some((id, _)) = catalog
                 .options("battle_character", &Value::Null, &[], &[])
@@ -3089,6 +3156,29 @@ fn number(ui: &mut Ui, row: &mut Value, key: &str, min: i64, max: i64) -> bool {
 }
 fn typed_row(c: &Catalog, ui: &mut Ui, row: &mut Value, kind: &str) -> Option<bool> {
     let mut changed = false;
+    if matches!(kind, "support_list" | "skill_list") {
+        let reference_kind = if kind == "skill_list" {
+            "skill"
+        } else {
+            "support"
+        };
+        let mut selected = json!({"support":row.clone()});
+        changed |= pick(
+            ui,
+            &mut selected,
+            "support",
+            if kind == "skill_list" {
+                "自创招式"
+            } else {
+                "决斗援助"
+            },
+            c.options(reference_kind, row, &[], &[]),
+        );
+        if changed {
+            *row = selected["support"].clone();
+        }
+        return Some(changed);
+    }
     if kind == "official_characters" {
         ui.label(format!("{} *", tr("官方角色")));
         if let Some(Some(id)) = character_picker(
@@ -3161,7 +3251,16 @@ fn typed_row(c: &Catalog, ui: &mut Ui, row: &mut Value, kind: &str) -> Option<bo
                     row,
                     "category",
                     "物品类型",
-                    c.options("enum:item_kind", row, &[], &[]),
+                    c.options(
+                        if kind == "custom_shop_items" {
+                            "enum:shop_item_kind"
+                        } else {
+                            "enum:item_kind"
+                        },
+                        row,
+                        &[],
+                        &[],
+                    ),
                 );
             }
             let field = if kind == "custom_shop_items" {

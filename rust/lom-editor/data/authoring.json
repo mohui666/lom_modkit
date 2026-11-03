@@ -65,7 +65,8 @@
     "free_trigger": "自由模式触发",
     "parallel": "同时执行组",
     "portrait": "人物换表情",
-    "mood": "表情气泡"
+    "mood": "表情气泡",
+    "use_item": "使用消耗品"
   },
   "NODE_GROUPS_SRC": [
     [
@@ -110,6 +111,7 @@
         "affinity",
         "talent",
         "item",
+        "use_item",
         "flag",
         "game_flag",
         "enemy",
@@ -374,6 +376,10 @@
       [
         "special",
         "特殊物品"
+      ],
+      [
+        "consumable",
+        "消耗品"
       ]
     ],
     "game_flag_op": [
@@ -2311,6 +2317,30 @@
           true
         ],
         [
+          "player_supports",
+          "我方自定义援助",
+          "support_list",
+          true
+        ],
+        [
+          "enemy_supports",
+          "对手自定义援助",
+          "support_list",
+          true
+        ],
+        [
+          "player_skills",
+          "我方自创招式",
+          "skill_list",
+          true
+        ],
+        [
+          "enemy_skills",
+          "对手自创招式",
+          "skill_list",
+          true
+        ],
+        [
           "win",
           "胜利后",
           "node_ref",
@@ -3211,6 +3241,17 @@
           false
         ]
       ]
+    },
+    "use_item": {
+      "label": "使用消耗品",
+      "fields": [
+        [
+          "item",
+          "野外消耗品",
+          "field_consumable",
+          false
+        ]
+      ]
     }
   },
   "_NODE_DEFAULTS": {
@@ -3624,6 +3665,9 @@
     },
     "mood": {
       "enabled": true
+    },
+    "use_item": {
+      "item": ""
     }
   },
   "VERIFIED_BATTLE_CHARACTER_IDS": [

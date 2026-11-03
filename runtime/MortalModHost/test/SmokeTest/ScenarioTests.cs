@@ -55,6 +55,8 @@ namespace MortalModHost
                 Check(valid==ScenarioJson.Bool(c,"valid",false),ScenarioJson.Text(c,"name")+": "+error);cases++;
             }
             TestModes();TestRepeatAndRestore();TestChanceAndCadence();TestPriorityAndWeight();TestResultsAndAtomicState();TestTransitions();TestPresentation();TestPackagedSamples();
+            Config(c=>Patch(c,"/events/1/outcomes/completed/actions",Json("[{\"type\":\"item\",\"kind\":\"consumable\",\"key\":\"user:demo.tonic\",\"op\":\"add\",\"value\":2}]")));
+            Throws(()=>Config(c=>Patch(c,"/events/1/outcomes/completed/actions",Json("[{\"type\":\"item\",\"kind\":\"consumable\",\"key\":\"user:../bad\",\"op\":\"add\",\"value\":2}]"))),"result item path escape");
             Console.WriteLine("PASS scenario: "+cases+" shared contract cases, "+Assertions+" assertions; game execution=false");
         }
         private static void TestModes()

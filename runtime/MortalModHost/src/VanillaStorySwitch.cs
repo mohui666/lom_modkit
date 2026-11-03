@@ -31,7 +31,8 @@ namespace MortalModHost
         {
             get
             {
-                return Enabled || (ModCampaignState.Active && ModCampaignState.DisableOfficialEvents);
+                return ModPlayModeSession.Selected != ModPlayModeKind.Original
+                    && (Enabled || (ModCampaignState.Active && ModCampaignState.DisableOfficialEvents));
             }
         }
 
