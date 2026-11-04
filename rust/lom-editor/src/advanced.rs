@@ -519,7 +519,9 @@ impl Advanced {
                         result["name"].as_str().unwrap_or(""),
                         display_label(result["status"].as_str().unwrap_or(""))
                     ));
-                    ui.label(result["message"].as_str().unwrap_or(""));
+                    ui.label(crate::error_location::explanation(
+                        result["message"].as_str().unwrap_or(""),
+                    ));
                     ui.collapsing(tr("访问路径与最终状态"), |ui| {
                         for v in result["visited"].as_array().into_iter().flatten() {
                             if ui
@@ -560,7 +562,7 @@ impl Advanced {
             }
         }
         if !self.error.is_empty() {
-            ui.colored_label(egui::Color32::from_rgb(179, 55, 49), &self.error);
+            crate::error_location::show(ui, &self.error);
         }
         nav
     }

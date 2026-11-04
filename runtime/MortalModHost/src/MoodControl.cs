@@ -47,31 +47,67 @@ namespace MortalModHost
         internal static bool Disabled;
 
         // Runtime choices only: never change a character's portrait or official assets.
-        private static readonly Dictionary<StoryCharacterController, string> Overrides =
-            new Dictionary<StoryCharacterController, string>();
+        private sealed class Setting
+        {
+            internal string Icon;
+            internal Vector2 Offset;
+        }
+        private static readonly Dictionary<StoryCharacterController, Setting> Overrides =
+            new Dictionary<StoryCharacterController, Setting>();
 
-        internal static void ClearOverrides() { Overrides.Clear(); }
+        internal static void ClearOverrides()
+        {
+            foreach (var controller in Overrides.Keys) RestorePosition(controller);
+            Overrides.Clear();
+            CustomCharacterRuntime.ClearMoodOverrides();
+        }
+
+        internal static CharacterMoodPanel CreatePanel(Transform parent)
+        {
+            var stage = Fungus.Stage.GetActiveStage() as StoryStageController;
+            var prefab = stage == null ? null : Traverse.Create(stage).Field("_moodPrefab").GetValue<GameObject>();
+            if (prefab == null) throw new InvalidOperationException("当前舞台缺少原版气泡面板");
+            var panel = UnityEngine.Object.Instantiate(prefab, parent, false).GetComponent<CharacterMoodPanel>();
+            if (panel == null) throw new InvalidOperationException("原版气泡预制体缺少 CharacterMoodPanel");
+            panel.Hide();
+            return panel;
+        }
 
         internal static void Forget(Fungus.Character character)
         {
             StoryCharacterController controller = character as StoryCharacterController;
-            if (controller != null) Overrides.Remove(controller);
+            if (controller != null && Overrides.Remove(controller))
+            {
+                RestorePosition(controller);
+            }
         }
 
-        internal static void SetCharacter(string id, string icon)
+        private static void RestorePosition(StoryCharacterController controller)
         {
-            if (string.IsNullOrEmpty(id) || id.StartsWith("user:", StringComparison.Ordinal))
-                throw new ArgumentException("指定气泡需要原版人物 ID");
+            if (controller != null && controller.Mood != null && controller.Data != null)
+                controller.Mood.SetPosition(controller.Data.MoodPosition.x, controller.Data.MoodPosition.y);
+        }
+
+        internal static void SetCharacter(string id, string icon, float x = 0f, float y = 0f)
+        {
+            if (string.IsNullOrEmpty(id)) throw new ArgumentException("指定气泡需要人物 ID");
+            if (float.IsNaN(x) || float.IsNaN(y) || Math.Abs(x) > 1920f || Math.Abs(y) > 1080f)
+                throw new ArgumentException("气泡偏移超出范围");
             if (Array.IndexOf(new[] { "auto", "hide", "shock", "silent", "angry2", "nervous1", "laugh1",
                 "shy", "nervous3", "nervous4", "nervous2" }, icon) < 0)
                 throw new ArgumentException("未知气泡样式：" + icon);
+            if (id.StartsWith("user:", StringComparison.Ordinal))
+            {
+                CustomCharacterRuntime.SetMood(id, icon, x, y);
+                return;
+            }
             CharacterPlaceholder placeholder = CharacterPlaceholder.Instance;
             StoryCharacterController controller = placeholder != null ? placeholder.Get(id) as StoryCharacterController : null;
             if (controller == null || controller.State == null || !controller.State.onScreen
                 || controller.State.holder == null || controller.Mood == null)
                 throw new InvalidOperationException("指定气泡的人物尚未登场：" + id);
-            if (icon == "auto") Overrides.Remove(controller);
-            else Overrides[controller] = icon;
+            if (icon == "auto" && x == 0f && y == 0f) Forget(controller);
+            else Overrides[controller] = new Setting { Icon = icon, Offset = new Vector2(x, y) };
             if (controller.State.dimmed) controller.Mood.Hide();
             else controller.ShowMood();
         }
@@ -119,13 +155,15 @@ namespace MortalModHost
             if (n <= PostfixLogLimit && Log != null)
                 Log.LogInfo("[mood-diag] StoryCharacterController.ShowMood postfix 触发 #" + n + "（Disabled=" + Disabled + "）");
             if (__instance.Mood == null || __instance.State == null || __instance.State.holder == null) return;
-            string icon;
-            if (Overrides.TryGetValue(__instance, out icon))
+            Setting setting;
+            if (Overrides.TryGetValue(__instance, out setting))
             {
-                if (icon == "hide" || !__instance.State.onScreen || __instance.State.dimmed)
+                Vector2 position = __instance.Data.MoodPosition + setting.Offset;
+                __instance.Mood.SetPosition(position.x, position.y);
+                if (setting.Icon == "hide" || !__instance.State.onScreen || __instance.State.dimmed || setting.Icon == "auto" && Disabled)
                     __instance.Mood.Hide();
-                else
-                    __instance.Mood.Show(icon, __instance.State.holder.localScale.x);
+                else if (setting.Icon != "auto")
+                    __instance.Mood.Show(setting.Icon, __instance.State.holder.localScale.x);
             }
             else if (Disabled)
                 __instance.Mood.Hide();

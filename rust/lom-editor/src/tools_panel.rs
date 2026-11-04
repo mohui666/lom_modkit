@@ -45,7 +45,7 @@ pub struct ToolsPanel {
     game_loaded: bool,
     refresh_after_job: bool,
     report: Value,
-    location: Option<crate::advanced::Location>,
+    location: Option<crate::error_location::Destination>,
     result_filter: String,
     package_report: Value,
     package_entry: String,
@@ -136,7 +136,7 @@ impl Default for ToolsPanel {
     }
 }
 impl ToolsPanel {
-    pub fn take_location(&mut self) -> Option<crate::advanced::Location> {
+    pub fn take_location(&mut self) -> Option<crate::error_location::Destination> {
         self.location.take()
     }
     pub fn diagnostic_options(&self) -> release::DiagnosticOptions {
@@ -420,38 +420,27 @@ impl ToolsPanel {
                             collect_locations(&self.report, project, &mut locations);
                             if !locations.is_empty() {
                                 ui.separator();
-                                ui.label(crate::i18n::tr("点击可回到对应剧情步骤"));
-                                for (sid, nid, label) in locations.iter().take(100) {
+                                ui.label(crate::i18n::tr("点击下方按钮修改对应内容"));
+                                for (destination, label) in locations.iter().take(100) {
                                     if ui
                                         .link(format!(
-                                            "{sid}/{} · {label}",
-                                            nid.as_deref().unwrap_or("作品设置")
+                                            "{} · {}",
+                                            destination.label(),
+                                            crate::error_location::explanation(label)
                                         ))
                                         .clicked()
                                     {
-                                        self.location = Some((sid.clone(), nid.clone()));
+                                        crate::error_location::focus_field(ui.ctx(), label);
+                                        self.location = Some(destination.clone());
                                         self.report_open = false;
                                     }
                                 }
                             }
-                            ui.collapsing(
-                                crate::i18n::tr("技术详情（排查问题时使用）"),
-                                |ui| {
-                                    if ui.button(crate::i18n::tr("复制原始报告")).clicked() {
-                                        ui.ctx().copy_text(
-                                            serde_json::to_string_pretty(&self.report)
-                                                .unwrap_or_default(),
-                                        );
-                                    }
-                                    let mut text = serde_json::to_string_pretty(&self.report)
-                                        .unwrap_or_default();
-                                    ui.add(
-                                        egui::TextEdit::multiline(&mut text)
-                                            .code_editor()
-                                            .desired_width(f32::INFINITY),
-                                    );
-                                },
-                            );
+                            if ui.button(crate::i18n::tr("复制诊断信息")).clicked() {
+                                ui.ctx().copy_text(
+                                    serde_json::to_string_pretty(&self.report).unwrap_or_default(),
+                                );
+                            }
                         });
                 }
                 ui.separator();
@@ -681,6 +670,34 @@ impl ToolsPanel {
         ui.add_space(10.0);
         if has_game {
             ui.group(|ui| {
+                if let Some(report) = &self.installation {
+                    for (key, label) in [
+                        ("editor", "编辑器版本"),
+                        ("bundled_host", "随包 Host 版本"),
+                        ("installed_host", "游戏已安装 Host 版本"),
+                    ] {
+                        ui.label(format!(
+                            "{}  {}",
+                            tr(label),
+                            report["versions"][key].as_str().unwrap_or("尚未读取")
+                        ));
+                    }
+                    ui.small(tr("编辑器更新后，可在这里同步游戏中的 Host。"));
+                }
+                if ui
+                    .add_enabled(
+                        idle && self.runtime_available(),
+                        egui::Button::new(tr("更新游戏 Host")),
+                    )
+                    .clicked()
+                {
+                    let result = game_tools::is_game_running().and_then(|running| {
+                        anyhow::ensure!(!running, "游戏正在运行，请退出后再更新 Host");
+                        game_tools::install_runtime(&self.game, &self.runtime)
+                    });
+                    self.result("更新游戏 Host", result);
+                    self.refresh_game();
+                }
                 if ready {
                     ui.strong(tr("配置就绪，可以安装 MOD 或返回剧情试玩"));
                     if self
@@ -704,7 +721,7 @@ impl ToolsPanel {
                     if let Some(error) =
                         self.installation.as_ref().and_then(|r| r["error"].as_str())
                     {
-                        ui.colored_label(egui::Color32::from_rgb(179, 55, 49), error);
+                        crate::error_location::show(ui, error);
                     }
                     if ui
                         .add_enabled(
@@ -774,7 +791,7 @@ impl ToolsPanel {
             ui.small(tr("完成上方游戏配置后即可安装作品。"));
         }
         if let Some(error) = &self.mods_error {
-            ui.colored_label(egui::Color32::from_rgb(179, 55, 49), error);
+            crate::error_location::show(ui, error);
         } else if has_game && self.mods.is_empty() {
             ui.label(tr("还没有安装 MOD。"));
         }
@@ -808,7 +825,7 @@ impl ToolsPanel {
                     }
                 });
                 if let Some(error) = item["error"].as_str() {
-                    ui.colored_label(egui::Color32::from_rgb(179, 55, 49), error);
+                    crate::error_location::show(ui, error);
                 }
             });
         }
@@ -1115,7 +1132,7 @@ impl ToolsPanel {
                     "检查未通过"
                 }));
                 if let Some(error) = self.package_report["validation_error"].as_str() {
-                    ui.colored_label(egui::Color32::from_rgb(179, 55, 49), error);
+                    crate::error_location::show(ui, error);
                 }
                 ui.collapsing("SHA-256", |ui| {
                     ui.monospace(self.package_report["package_sha256"].as_str().unwrap_or(""));
@@ -1390,14 +1407,14 @@ impl ToolsPanel {
             let mut locations = Vec::new();
             collect_locations(&self.report, project, &mut locations);
             if !locations.is_empty() {
-                ui.heading(crate::i18n::tr("定位到剧情"));
+                ui.heading(crate::i18n::tr("修改检查发现的问题"));
                 ui.add(
                     egui::TextEdit::singleline(&mut self.result_filter)
                         .hint_text(crate::i18n::tr("筛选章节、节点或内容")),
                 );
-                for (sid, nid, label) in locations {
+                for (destination, label) in locations {
                     if !self.result_filter.is_empty()
-                        && !format!("{sid} {nid:?} {label}")
+                        && !format!("{destination:?} {label}")
                             .to_lowercase()
                             .contains(&self.result_filter.to_lowercase())
                     {
@@ -1405,17 +1422,19 @@ impl ToolsPanel {
                     }
                     if ui
                         .link(format!(
-                            "{sid}/{} · {label}",
-                            nid.as_deref().unwrap_or("作品设置")
+                            "{} · {}",
+                            destination.label(),
+                            crate::error_location::explanation(&label)
                         ))
                         .clicked()
                     {
-                        self.location = Some((sid, nid));
+                        crate::error_location::focus_field(ui.ctx(), &label);
+                        self.location = Some(destination);
                     }
                 }
             }
             if let Some(error) = self.report["error"].as_str() {
-                ui.colored_label(egui::Color32::from_rgb(179, 55, 49), error);
+                crate::error_location::show(ui, error);
             } else if self.report.as_array().is_some_and(|a| a.is_empty()) {
                 ui.label(crate::i18n::tr("未发现问题"));
             }
@@ -1533,48 +1552,11 @@ fn inspect_package(path: &std::path::Path) -> anyhow::Result<Value> {
 fn collect_locations(
     value: &Value,
     project: &Project,
-    out: &mut Vec<(String, Option<String>, String)>,
+    out: &mut Vec<(crate::error_location::Destination, String)>,
 ) {
-    if let Some(o) = value.as_object() {
-        let sid = o
-            .get("story_id")
-            .or_else(|| o.get("story"))
-            .and_then(Value::as_str);
-        let nid = o
-            .get("node_id")
-            .or_else(|| o.get("node"))
-            .and_then(Value::as_str)
-            .filter(|s| !s.is_empty());
-        if let Some(sid) = sid {
-            let label = o
-                .get("message")
-                .or_else(|| o.get("text"))
-                .and_then(Value::as_str)
-                .unwrap_or("")
-                .to_owned();
-            if sid.is_empty() && nid.is_none() {
-                out.push((String::new(), None, label));
-            } else if let Some(story) = project.stories.get(sid) {
-                if nid.is_none_or(|n| {
-                    story["nodes"]
-                        .as_array()
-                        .into_iter()
-                        .flatten()
-                        .any(|v| v["id"] == n)
-                }) {
-                    out.push((sid.into(), nid.map(str::to_owned), label));
-                }
-            }
-        }
-        for v in o.values() {
-            collect_locations(v, project, out);
-        }
-    } else if let Some(a) = value.as_array() {
-        for v in a {
-            collect_locations(v, project, out);
-        }
-    }
+    crate::error_location::collect(value, project, out);
 }
+
 fn show_report(ui: &mut egui::Ui, value: &Value, depth: usize) {
     crate::tool_report::show(ui, value, depth);
 }
@@ -1779,10 +1761,22 @@ mod tests {
         assert_eq!(
             result,
             vec![
-                ("main".into(), Some(node.into()), "missing voice".into()),
-                ("main".into(), Some(node.into()), "line".into()),
-                ("main".into(), None, "chapter issue".into()),
-                (String::new(), None, "manifest issue".into()),
+                (
+                    crate::error_location::Destination::Story("main".into(), Some(node.into())),
+                    "missing voice".into()
+                ),
+                (
+                    crate::error_location::Destination::Story("main".into(), Some(node.into())),
+                    "line".into()
+                ),
+                (
+                    crate::error_location::Destination::Story("main".into(), None),
+                    "chapter issue".into()
+                ),
+                (
+                    crate::error_location::Destination::Current,
+                    "manifest issue".into()
+                ),
             ]
         );
     }

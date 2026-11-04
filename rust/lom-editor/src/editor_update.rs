@@ -344,7 +344,7 @@ impl Updater {
             } else if self.job.is_some() {
                 ui.horizontal(|ui| { ui.spinner(); ui.label(tr(if self.downloading { "正在下载并准备更新…" } else { "正在检查 GitHub 最新正式版…" })); });
             } else if let Some(error) = &self.error {
-                ui.colored_label(egui::Color32::from_rgb(179, 55, 49), error);
+                crate::error_location::show(ui, error);
                 ui.hyperlink_to(tr("前往 GitHub 发布页面"), RELEASES);
                 if ui.button(tr("重新检查")).clicked() { self.check(ctx); }
             } else if let Some(release) = &self.release {

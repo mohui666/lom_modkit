@@ -536,9 +536,12 @@ fn add_user_content(
         if kind == "say" {
             refs.push(("voice", "audio", None));
         }
+        if kind == "cg" && node["kind"] == "event" && node["action"] == "show" {
+            refs.push(("key", "image", None));
+        }
         if [
             "show", "portrait", "move", "face", "hide", "focus", "offset", "say", "shock", "dim",
-            "rotate", "intro", "combat",
+            "rotate", "intro", "combat", "mood",
         ]
         .contains(&kind)
         {
@@ -640,7 +643,7 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
             .to_string();
         let path = resolve_confined_file(&root, &path)?;
         let mut story = load_json(&path)?;
-        validate::validate_story(&story)?;
+        validate::validate_story(&story).with_context(|| format!("story/{stem}.json"))?;
         story["story_schema"] = json!(2);
         if let Some(config) = localization::localization_config(&story) {
             story["localization"] = config;
@@ -673,7 +676,31 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
         crate::parallel::story_actions(story)
             .any(|(_, node)| node["type"] == "mood" && node.get("character").is_some())
     });
-    if character_mood
+    let custom_mood = stories.values().any(|story| {
+        let automatic = story["mood"] == true
+            || crate::parallel::story_actions(story).any(|(_, node)| {
+                node["type"] == "mood" && node["character"].is_null() && node["enabled"] == true
+            });
+        crate::parallel::story_actions(story).any(|(_, node)| {
+            node["character"]
+                .as_str()
+                .is_some_and(|id| id.starts_with("user:"))
+                && (node["type"] == "mood" || automatic)
+        })
+    });
+    let positioned_mood = stories.values().any(|story| {
+        crate::parallel::story_actions(story).any(|(_, node)| {
+            node["type"] == "mood"
+                && (node.get("offset_x").is_some() || node.get("offset_y").is_some())
+        })
+    });
+    let event_picture = stories.values().any(|story| {
+        crate::parallel::story_actions(story)
+            .any(|(_, node)| node["type"] == "cg" && node["kind"] == "event")
+    });
+    if event_picture
+        || custom_mood
+        || character_mood
         || stories.values().any(|story| {
             crate::parallel::story_actions(story).any(|(_, node)| {
                 content::gameplay_references(node)
@@ -691,17 +718,30 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
             .take(3)
             .map(|n| n.parse::<u32>().unwrap_or(0))
             .collect::<Vec<_>>();
-        let minimum = if character_mood { [1, 4, 1] } else { [1, 4, 0] };
+        let minimum = if event_picture || custom_mood || positioned_mood {
+            [1, 4, 2]
+        } else if character_mood {
+            [1, 4, 1]
+        } else {
+            [1, 4, 0]
+        };
+        let required = if event_picture || custom_mood || positioned_mood {
+            "1.4.2"
+        } else if character_mood {
+            "1.4.1"
+        } else {
+            "1.4.0"
+        };
         if core.as_slice() < minimum.as_slice()
             || core.as_slice() == minimum.as_slice()
                 && version.split('+').next().unwrap_or(version).contains('-')
         {
-            manifest["min_host_version"] = json!(if character_mood { "1.4.1" } else { "1.4.0" });
+            manifest["min_host_version"] = json!(required);
         }
         validate::validate_manifest(&manifest).with_context(|| {
             format!(
                 "作品使用的功能需要 Host {}；请核对作品设置中的最低和已测试 Host 版本",
-                if character_mood { "1.4.1" } else { "1.4.0" }
+                required
             )
         })?;
     }

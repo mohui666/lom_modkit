@@ -394,7 +394,19 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                 } else {
                     lua_str("hide")
                 };
-                out.push(call("mod_character_mood", &[c, icon]));
+                if node.get("offset_x").is_some() || node.get("offset_y").is_some() {
+                    out.push(call(
+                        "mod_character_mood",
+                        &[
+                            c,
+                            icon,
+                            n(node, "offset_x", json!(0)),
+                            n(node, "offset_y", json!(0)),
+                        ],
+                    ));
+                } else {
+                    out.push(call("mod_character_mood", &[c, icon]));
+                }
             } else {
                 out.push(format!("\tmod_set_mood({enabled})"));
                 out.push(
@@ -759,6 +771,29 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                 ));
             }
             out.push(call("runblock", &[fc, q(node, "name")]));
+        }
+        "cg" if s(node, "kind") == "event" => {
+            if s(node, "action") == "hide" {
+                out.push("\tmod_event_picture_hide()".into());
+            } else {
+                out.push(call(
+                    "mod_event_picture_show",
+                    &[q(node, "key"), qd(node, "event_title", "事件")],
+                ));
+                if !s(node, "event_text").is_empty() {
+                    if ctx.narrative_layout {
+                        out.push("\tmod_narrative_left(false)".into());
+                    }
+                    out.extend([
+                        "\tmod_stop_voice()".into(),
+                        "\tsetsaydialog(saydialogs.narrative)".into(),
+                        "\tsayoptions.waitforinput = true".into(),
+                        "\tsayoptions.fadewhendone = true".into(),
+                        "\tsetcharacter(narrative)".into(),
+                        call("say", &[q(node, "event_text")]),
+                    ]);
+                }
+            }
         }
         "cg" => {
             let name = match s(node, "kind") {

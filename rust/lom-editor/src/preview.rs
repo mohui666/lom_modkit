@@ -199,6 +199,7 @@ pub fn build_playtest_prelude(story: &Value, target: &str) -> Vec<Value> {
         let mut picture = picture.clone();
         picture.as_object_mut().unwrap().remove("id");
         picture.as_object_mut().unwrap().remove("goto");
+        picture.as_object_mut().unwrap().remove("event_text");
         nodes.push(picture);
     }
     let mut used: std::collections::BTreeSet<String> = story["nodes"]
@@ -281,6 +282,9 @@ fn apply(s: &mut Value, n: &Value) {
                 }
             } else {
                 s["official_pictures"][kind] = n.clone();
+                if kind == "event" && !text(n, "event_text").is_empty() {
+                    s["dialog"] = json!({"mode":"narrative", "text":n["event_text"]});
+                }
             }
         }
         "overlay" => {
@@ -295,7 +299,11 @@ fn apply(s: &mut Value, n: &Value) {
         }
         "mood" => {
             if !cid.is_empty() {
-                if n["enabled"] == true && n["icon"].as_str().unwrap_or("auto") == "auto" {
+                if n["enabled"] == true
+                    && n["icon"].as_str().unwrap_or("auto") == "auto"
+                    && number(n, "offset_x", 0.0) == 0.0
+                    && number(n, "offset_y", 0.0) == 0.0
+                {
                     s["mood_overrides"].as_object_mut().unwrap().remove(cid);
                 } else {
                     s["mood_overrides"][cid] = n.clone();
@@ -452,6 +460,7 @@ fn simulate_frame(story: &Value, target: &str, elapsed: f64, positions: &Value) 
                 if alpha > 0.0 {
                     state["actors"][cid] = old.clone();
                     state["actors"][cid]["preview_opacity"] = alpha.into();
+                    state["actors"][cid]["preview_hide_mood"] = true.into();
                 }
             }
             "portrait" if old.is_object() => {
@@ -466,6 +475,7 @@ fn simulate_frame(story: &Value, target: &str, elapsed: f64, positions: &Value) 
                     1.0
                 };
                 state["actors"][cid]["preview_opacity"] = alpha.into();
+                state["actors"][cid]["preview_hide_mood"] = (elapsed < fade_out + fade_in).into();
             }
             "show" => {
                 if state["actors"][cid].is_object() {
@@ -563,7 +573,10 @@ pub struct Preview {
     positions: Value,
     cache: BTreeMap<String, Cached>,
     tick: u64,
+    mood_clocks: BTreeMap<String, (String, f64)>,
     pub extract_requested: bool,
+    pub mood_edit: Option<(f64, f64)>,
+    mood_drag: Option<(Pos2, f64, f64)>,
 }
 impl Preview {
     pub fn new(_repo: &Path) -> Self {
@@ -594,7 +607,10 @@ impl Preview {
             positions,
             cache: BTreeMap::new(),
             tick: 0,
+            mood_clocks: BTreeMap::new(),
             extract_requested: false,
+            mood_edit: None,
+            mood_drag: None,
         }
     }
     pub fn set_library(&mut self, path: &Path) -> anyhow::Result<()> {
@@ -613,6 +629,7 @@ impl Preview {
         self.mapping = mapping;
         self.library = root;
         self.cache.clear();
+        self.mood_clocks.clear();
         Ok(())
     }
     fn asset(
@@ -653,7 +670,9 @@ impl Preview {
         if let Some(bytes) = p.assets.get(name) {
             return Some((format!("project:{name}"), bytes.clone(), json!({})));
         }
-        let rel = if let Some(key) = name.strip_prefix("@picture:") {
+        let rel = if let Some(key) = name.strip_prefix("@mood:") {
+            key
+        } else if let Some(key) = name.strip_prefix("@picture:") {
             self.mapping["pictures"][key].as_str()?
         } else if character {
             self.mapping["characters"][name]["portraits"][portrait]
@@ -775,6 +794,30 @@ impl Preview {
                     ui.label(crate::i18n::tr("请先导入图片。"));
                 }
                 let query_lower = query.to_lowercase();
+                let category_id = ui.id().with("image-category");
+                let mut category = ui
+                    .data_mut(|data| data.get_temp::<String>(category_id))
+                    .unwrap_or_default();
+                let catalog: Value =
+                    serde_json::from_str(include_str!("../../../data/picture_keys.json"))
+                        .expect("picture catalog");
+                if official {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.selectable_value(
+                            &mut category,
+                            String::new(),
+                            crate::i18n::tr("全部图片"),
+                        );
+                        for kind in ["BigPicture", "Picture", "Items", "Book", "Develop", "UI"] {
+                            ui.selectable_value(
+                                &mut category,
+                                kind.to_owned(),
+                                crate::i18n::tr(crate::forms::picture_category(kind)),
+                            );
+                        }
+                    });
+                    ui.data_mut(|data| data.insert_temp(category_id, category.clone()));
+                }
                 let columns = ((ui.available_width() / 136.0).floor() as usize).clamp(1, 4);
                 let width = ((ui.available_width()
                     - ui.spacing().item_spacing.x * (columns - 1) as f32)
@@ -789,9 +832,14 @@ impl Preview {
                             .show(ui, |ui| {
                                 let mut shown = 0;
                                 for (key, name) in options.iter().filter(|(key, name)| {
-                                    query_lower.is_empty()
-                                        || key.to_lowercase().contains(&query_lower)
-                                        || name.to_lowercase().contains(&query_lower)
+                                    (!official
+                                        || category.is_empty()
+                                        || catalog["pictures"].as_array().unwrap().iter().any(
+                                            |row| row["key"] == *key && row["category"] == category,
+                                        ))
+                                        && (query_lower.is_empty()
+                                            || key.to_lowercase().contains(&query_lower)
+                                            || name.to_lowercase().contains(&query_lower))
                                 }) {
                                     ui.push_id(key, |ui| {
                                         ui.vertical(|ui| {
@@ -806,11 +854,12 @@ impl Preview {
                                                     3.0,
                                                     Color32::from_rgb(38, 44, 49),
                                                 );
-                                                let lookup = if official {
-                                                    format!("@picture:{key}")
-                                                } else {
-                                                    key.clone()
-                                                };
+                                                let lookup =
+                                                    if official && !key.starts_with("user:") {
+                                                        format!("@picture:{key}")
+                                                    } else {
+                                                        key.clone()
+                                                    };
                                                 if let Some((texture, _)) = self.texture(
                                                     ui.ctx(),
                                                     project,
@@ -859,6 +908,52 @@ impl Preview {
             });
         chosen
     }
+    fn mood_texture(
+        &mut self,
+        ctx: &egui::Context,
+        project: &Project,
+        cid: &str,
+        icon: &str,
+        flipped: bool,
+    ) -> Option<(TextureHandle, Value)> {
+        let animation = self.mapping["moods"][icon][if flipped { "right" } else { "left" }].clone();
+        let Some(frames) = animation["frames"].as_array() else {
+            self.mood_clocks.remove(cid);
+            return None;
+        };
+        let now = ctx.input(|i| i.time);
+        let key = format!("{icon}:{flipped}");
+        let clock = self
+            .mood_clocks
+            .entry(cid.into())
+            .or_insert((key.clone(), now));
+        if clock.0 != key {
+            *clock = (key, now);
+        }
+        let elapsed = now - clock.1;
+        let duration = number(&animation, "duration", 1.0);
+        let time = match animation["loop_start"].as_f64() {
+            Some(start) if elapsed >= duration && duration > start => {
+                start + (elapsed - start) % (duration - start)
+            }
+            _ => elapsed.min(duration),
+        };
+        let frame = frames
+            .iter()
+            .rev()
+            .find(|frame| number(frame, "time", 0.0) <= time)?;
+        if elapsed < duration || animation["loop_start"].is_number() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(33));
+        }
+        let (texture, _) = self.texture(
+            ctx,
+            project,
+            &format!("@mood:{}", text(frame, "file")),
+            false,
+            "",
+        )?;
+        Some((texture, animation))
+    }
     fn anchor(&self, pos: &str) -> (f32, f32) {
         let (x, feet) = position(&self.positions, pos);
         (x as f32, feet as f32)
@@ -886,7 +981,7 @@ impl Preview {
         if node["type"] == "mood" {
             if !text(node, "character").is_empty() {
                 ui.small(crate::i18n::tr(
-                    "已设置该人物的独立气泡；动画在游戏中显示，不改变人物立绘。",
+                    "已设置该人物的独立气泡。自定义人物可在作品素材中调整气泡位置。",
                 ));
             } else {
                 ui.small(crate::i18n::tr(if state["mood_enabled"] == true {
@@ -896,6 +991,19 @@ impl Preview {
                 }));
             }
         }
+        if (state["mood_enabled"] == true
+            || state["mood_overrides"]
+                .as_object()
+                .is_some_and(|v| !v.is_empty()))
+            && !self.mapping["moods"].is_object()
+        {
+            ui.small(crate::i18n::tr("气泡动画预览需要重新提取游戏素材。"));
+            if ui.button(crate::i18n::tr("从游戏提取预览素材…")).clicked() {
+                self.extract_requested = true;
+            }
+        }
+        self.mood_clocks
+            .retain(|cid, _| state["actors"][cid].is_object());
         if let Some(notice) = state["raw_preview"].as_str() {
             ui.small(notice);
         }
@@ -956,7 +1064,10 @@ impl Preview {
                     if let Some((tex, meta)) =
                         self.texture(&ctx, p, lookup, true, text(a, "portrait"))
                     {
-                        let h = rect.height() * 0.78 * number(&meta, "scale", 100.0) as f32 / 100.0;
+                        let body_scale = number(&meta, "scale", 100.0) as f32 / 100.0;
+                        let h = rect.height()
+                            * if cid.starts_with("user:") { 0.56 } else { 0.78 }
+                            * body_scale;
                         let w = h * tex.size_vec2().x / tex.size_vec2().y;
                         let dest = Rect::from_min_size(
                             Pos2::new(base.x - w / 2.0, base.y - h),
@@ -984,6 +1095,137 @@ impl Preview {
                             flipped,
                             color,
                         );
+                        let editing_mood = node["type"] == "mood"
+                            && node["character"] == *cid
+                            && node["enabled"] == true;
+                        let icon = visible_mood(&state, cid, a);
+                        if icon.is_some() || editing_mood {
+                            let unit = rect.height() / 1080.0 * body_scale;
+                            let sign = if flipped { -1.0 } else { 1.0 };
+                            let anchor = if cid.starts_with("user:") {
+                                Pos2::new(
+                                    base.x
+                                        + sign
+                                            * (number(&meta, "mood_x", 50.0) as f32 / 100.0 - 0.5)
+                                            * w,
+                                    base.y - number(&meta, "mood_y", 90.0) as f32 / 100.0 * h,
+                                )
+                            } else {
+                                let position = &self.mapping["characters"][lookup]["mood_position"];
+                                Pos2::new(
+                                    base.x
+                                        + sign * position[0].as_f64().unwrap_or(0.0) as f32 * unit,
+                                    base.y
+                                        - rect.height() * 0.5
+                                        - position[1].as_f64().unwrap_or(0.0) as f32 * unit,
+                                )
+                            };
+                            let setting = &state["mood_overrides"][cid];
+                            let anchor = anchor
+                                + Vec2::new(
+                                    sign * number(setting, "offset_x", 0.0) as f32 * unit,
+                                    -number(setting, "offset_y", 0.0) as f32 * unit,
+                                );
+                            let rotation = number(a, "rotation", 0.0) as f32;
+                            if let Some(icon) = icon {
+                                if let Some((texture, animation)) =
+                                    self.mood_texture(&ctx, p, cid, icon, flipped)
+                                {
+                                    let size = Vec2::new(
+                                        animation["size"][0].as_f64().unwrap_or(100.0) as f32,
+                                        animation["size"][1].as_f64().unwrap_or(100.0) as f32,
+                                    ) * unit;
+                                    let center = anchor
+                                        + Vec2::new(
+                                            sign * animation["offset"][0].as_f64().unwrap_or(0.0)
+                                                as f32
+                                                * unit,
+                                            -animation["offset"][1].as_f64().unwrap_or(0.0) as f32
+                                                * unit,
+                                        );
+                                    sprite(
+                                        &painter,
+                                        texture.id(),
+                                        Rect::from_center_size(center, size),
+                                        base,
+                                        rotation,
+                                        flipped,
+                                        Color32::WHITE,
+                                    );
+                                }
+                            }
+                            if editing_mood
+                                && state["blackout"]["amount"].as_f64().unwrap_or(0.0) < 1.0
+                            {
+                                let transform =
+                                    egui::emath::Rot2::from_angle(rotation.to_radians());
+                                let center = base + transform * (anchor - base);
+                                let handle = Rect::from_center_size(
+                                    center,
+                                    Vec2::splat((140.0 * unit).max(28.0)),
+                                );
+                                painter.rect_stroke(
+                                    handle,
+                                    3.0,
+                                    Stroke::new(1.5_f32, Color32::from_rgb(45, 145, 220)),
+                                    egui::StrokeKind::Outside,
+                                );
+                                ui.interact(
+                                    handle.intersect(rect),
+                                    ui.id().with(("mood-drag", cid)),
+                                    egui::Sense::drag(),
+                                )
+                                .on_hover_text(crate::i18n::tr("拖动气泡调整位置"))
+                                .on_hover_cursor(egui::CursorIcon::Grab);
+                                // A quick drag can start and finish in one native
+                                // frame, after PointerState has cleared press_origin.
+                                let press = ui.input(|input| {
+                                    input.events.iter().find_map(|event| match event {
+                                        egui::Event::PointerButton {
+                                            pos,
+                                            button: egui::PointerButton::Primary,
+                                            pressed: true,
+                                            ..
+                                        } if handle.intersect(rect).contains(*pos) => Some(*pos),
+                                        _ => None,
+                                    })
+                                });
+                                if let Some(origin) = press {
+                                    if ui.is_enabled()
+                                        && ctx.layer_id_at(origin) == Some(ui.layer_id())
+                                    {
+                                        self.mood_drag = Some((
+                                            origin,
+                                            number(node, "offset_x", 0.0),
+                                            number(node, "offset_y", 0.0),
+                                        ));
+                                    }
+                                }
+                                if let Some((origin, x, y)) = self.mood_drag {
+                                    let position = ui
+                                        .input(|input| input.pointer.latest_pos())
+                                        .unwrap_or(origin);
+                                    let delta = transform.inverse() * (position - origin);
+                                    let next = (
+                                        (x + (delta.x / unit / sign) as f64).clamp(-1920.0, 1920.0),
+                                        (y - (delta.y / unit) as f64).clamp(-1080.0, 1080.0),
+                                    );
+                                    if next
+                                        != (
+                                            number(node, "offset_x", 0.0),
+                                            number(node, "offset_y", 0.0),
+                                        )
+                                    {
+                                        self.mood_edit = Some(next);
+                                    }
+                                }
+                                if !ui.input(|input| input.pointer.primary_down()) {
+                                    self.mood_drag = None;
+                                }
+                            }
+                        } else {
+                            self.mood_clocks.remove(cid);
+                        }
                     } else {
                         let h = rect.height() * 0.70;
                         let actor = Rect::from_min_size(
@@ -1022,7 +1264,70 @@ impl Preview {
             .flat_map(|o| o.values())
         {
             let kind = text(picture, "kind");
-            if matches!(kind, "picture" | "item" | "big") {
+            if kind == "event" {
+                // Scene layout from StoryMainUI._picture, in the native 1920×1080 canvas.
+                let scale = rect.height() / 1080.0;
+                let book = Rect::from_center_size(
+                    rect.center() - egui::vec2(0.0, 65.0 * scale),
+                    egui::vec2(1000.0, 1000.0) * scale,
+                );
+                let frame = self.mapping["event_book"].as_str().unwrap_or("").to_owned();
+                if let Some((texture, _)) = self.texture(&ctx, p, &frame, false, "") {
+                    painter.image(
+                        texture.id(),
+                        book,
+                        Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
+                        Color32::WHITE,
+                    );
+                } else {
+                    painter.rect_filled(book, 3.0, Color32::from_rgb(220, 207, 176));
+                    painter.text(
+                        book.center_top() + egui::vec2(0.0, 100.0 * scale),
+                        egui::Align2::CENTER_TOP,
+                        crate::i18n::tr("提取游戏素材后显示原版书页"),
+                        FontId::proportional(12.0),
+                        Color32::DARK_GRAY,
+                    );
+                }
+                let image_rect = Rect::from_min_size(
+                    book.min + egui::vec2(87.0, 202.0) * scale,
+                    egui::vec2(400.0, 588.0) * scale,
+                );
+                let key = text(picture, "key");
+                let lookup = if key.starts_with("user:") {
+                    key.to_owned()
+                } else {
+                    format!("@picture:{key}")
+                };
+                if let Some((texture, _)) = self.texture(&ctx, p, &lookup, false, "") {
+                    fit_image(&painter, &texture, image_rect);
+                } else {
+                    painter.text(
+                        image_rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        crate::i18n::tr("暂无图片预览"),
+                        FontId::proportional(12.0),
+                        Color32::DARK_GRAY,
+                    );
+                }
+                let title = picture["event_title"]
+                    .as_str()
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or("事件");
+                let caption = title
+                    .chars()
+                    .map(|c| c.to_string())
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                let font_size = (240.0 / title.chars().count().max(1) as f32).min(64.0) * scale;
+                painter.text(
+                    book.min + egui::vec2(786.4, 625.6) * scale,
+                    egui::Align2::CENTER_CENTER,
+                    caption,
+                    FontId::proportional(font_size),
+                    Color32::from_rgb(48, 44, 41),
+                );
+            } else if matches!(kind, "picture" | "item" | "big") {
                 if kind == "big" && picture["color"] != 2 {
                     painter.rect_filled(
                         rect,
@@ -1426,6 +1731,27 @@ impl Preview {
 fn uv() -> Rect {
     Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0))
 }
+fn visible_mood<'a>(state: &'a Value, cid: &str, actor: &'a Value) -> Option<&'a str> {
+    if actor["dimmed"] == true
+        || actor["preview_hide_mood"] == true
+        || number(actor, "preview_opacity", 1.0) < 0.999
+    {
+        return None;
+    }
+    let setting = &state["mood_overrides"][cid];
+    if setting.is_object() {
+        if setting["enabled"] != true {
+            return None;
+        }
+        if setting["icon"].as_str().unwrap_or("auto") != "auto" {
+            return setting["icon"].as_str();
+        }
+    }
+    (state["mood_enabled"] == true)
+        .then(|| actor["portrait"].as_str())
+        .flatten()
+}
+
 fn sprite(
     p: &egui::Painter,
     id: egui::TextureId,

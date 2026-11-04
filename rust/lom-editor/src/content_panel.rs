@@ -147,6 +147,8 @@ impl ContentPanel {
                 ("title", "称号", "str"),
                 ("scale", "立绘缩放", "int"),
                 ("art_facing", "原图朝向", "facing"),
+                ("mood_x", "气泡横向位置（%）", "int"),
+                ("mood_y", "气泡高度（%）", "int"),
             ] {
                 catalog.field(ui, &mut self.draft, key, label, field_kind, false, &[], &[]);
             }
@@ -414,7 +416,7 @@ impl ContentPanel {
         });
         if !self.message.is_empty() {
             if self.has_pending() {
-                ui.colored_label(egui::Color32::from_rgb(179, 55, 49), &self.message);
+                crate::error_location::show(ui, &self.message);
             } else {
                 ui.label(&self.message);
             }
@@ -1001,6 +1003,8 @@ fn draft_from_source(bytes: &[u8]) -> Value {
             ("title", json!("")),
             ("scale", json!(100)),
             ("art_facing", json!("left")),
+            ("mood_x", json!(50)),
+            ("mood_y", json!(90)),
         ] {
             if draft.get(key).is_none() {
                 draft[key] = default;

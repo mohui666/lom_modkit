@@ -48,6 +48,7 @@ pub fn iter_localizable_texts(story: &Value) -> BTreeMap<String, String> {
         let kind = node["type"].as_str().unwrap_or("");
         let fields: &[&str] = match kind {
             "say" | "message" => &["text"],
+            "cg" if node["kind"] == "event" => &["event_title", "event_text"],
             "intro" => &["title", "name", "text"],
             "goto_scene" => &["title", "desc"],
             "death" => &["title", "text"],

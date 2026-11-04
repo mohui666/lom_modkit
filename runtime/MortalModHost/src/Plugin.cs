@@ -28,7 +28,7 @@ namespace MortalModHost
     {
         public const string GUID = "com.mohui666.mortalmodhost";
         public const string NAME = "MortalModHost";
-        public const string VERSION = "1.4.1";
+        public const string VERSION = "1.4.2";
 
         internal static Plugin Instance { get; private set; }
 
@@ -578,6 +578,7 @@ namespace MortalModHost
 
         private void Update()
         {
+            CustomCharacterRuntime.UpdateMoods();
             if (LuaManagerPatch.HasPendingAbort)
                 LuaManagerPatch.RetryPendingAbort();
             if (_disablePendingForDisclosure)
