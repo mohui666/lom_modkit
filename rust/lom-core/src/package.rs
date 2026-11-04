@@ -669,15 +669,21 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
     ] {
         manifest[key] = json!(val);
     }
-    if stories.values().any(|story| {
-        crate::parallel::story_actions(story).any(|(_, node)| {
-            content::gameplay_references(node)
-                .iter()
-                .any(|(raw, _, _)| raw.starts_with("user:"))
+    let character_mood = stories.values().any(|story| {
+        crate::parallel::story_actions(story)
+            .any(|(_, node)| node["type"] == "mood" && node.get("character").is_some())
+    });
+    if character_mood
+        || stories.values().any(|story| {
+            crate::parallel::story_actions(story).any(|(_, node)| {
+                content::gameplay_references(node)
+                    .iter()
+                    .any(|(raw, _, _)| raw.starts_with("user:"))
+            })
         })
-    }) || scenario
-        .as_ref()
-        .is_some_and(|config| !content::scenario_gameplay_nodes(config).is_empty())
+        || scenario
+            .as_ref()
+            .is_some_and(|config| !content::scenario_gameplay_nodes(config).is_empty())
     {
         let version = manifest["min_host_version"].as_str().unwrap_or("0.0.0");
         let core = version
@@ -685,14 +691,19 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
             .take(3)
             .map(|n| n.parse::<u32>().unwrap_or(0))
             .collect::<Vec<_>>();
-        if core.as_slice() < [1, 4, 0].as_slice()
-            || core.as_slice() == [1, 4, 0].as_slice()
+        let minimum = if character_mood { [1, 4, 1] } else { [1, 4, 0] };
+        if core.as_slice() < minimum.as_slice()
+            || core.as_slice() == minimum.as_slice()
                 && version.split('+').next().unwrap_or(version).contains('-')
         {
-            manifest["min_host_version"] = json!("1.4.0");
+            manifest["min_host_version"] = json!(if character_mood { "1.4.1" } else { "1.4.0" });
         }
-        validate::validate_manifest(&manifest)
-            .context("自定义玩法需要 Host 1.4.0；请核对作品设置中的已测试 Host 版本")?;
+        validate::validate_manifest(&manifest).with_context(|| {
+            format!(
+                "作品使用的功能需要 Host {}；请核对作品设置中的最低和已测试 Host 版本",
+                if character_mood { "1.4.1" } else { "1.4.0" }
+            )
+        })?;
     }
     if stories.values().any(|story| {
         crate::parallel::story_actions(story).any(|(_, node)| {

@@ -168,7 +168,7 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 | `overlay` | 必填 `action`(`show`/`hide`) 与 `slot`；show 必填 `image`；可选 `position`(九宫格)、`scale`(10~300)、`opacity`(0~100)、`layer`(`back`/`front`)、`fade` | 多槽位前景/道具/插图/遮罩；同槽 show 替换、hide 独立清理。前后层相对人物分离，F5 可恢复，换章/换场景/换包统一清理 |
 | `show` | `character`, `position`；可选 `portrait`(默认normal), `facing`(默认right), `fadeDuration`(0), `moveDuration`(0), `appearance` | 加载并显示人物。`appearance` 仅用于 `player`，值为 `game`/`original`/`beautified`，需要 Host ≥1.1.2；省略时保留原有加载行为。详见[赵活外观](free_mode_portraits.md#照镜子后的赵活)。story.mood 为 false 时末尾（Focus 后）追加 `mod_hide_mood()` |
 | `portrait` | `character`, `portrait`；可选 `fade_out`（默认0.5）、`fade_in`（默认1.5）、`wait_after` | 独立人物换表情，不显示对白。人物必须已登场；先淡出旧表情、换图、再淡入，等待两段完成。时长为非负秒数，0立即完成。保留站位、朝向、偏移、旋转和压暗；支持官方和用户人物，也可放进同时执行组。需 Host ≥1.3.6 |
-| `mood` | `enabled`（bool 必填） | 从本节点起开启或关闭官方表情气泡，持续到下一个 mood 节点；换章恢复该章顶层 `mood` 默认值。关闭立即隐藏，开启按当前台上未压暗的官方人物表情刷新。图标使用官方表情映射；用户人物没有官方气泡。需 Host ≥1.3.6 |
+| `mood` | `enabled`（bool 必填）；可选 `character`, `icon` | 不指定人物时控制全场自动气泡（Host ≥1.3.6）。指定已登场的原版人物时，`enabled=true` 按 `icon` 独立显示气泡，不改变立绘；false 仅隐藏该人物。`icon` 默认 `auto`（恢复跟随表情），可选 `shock/silent/angry2/nervous1/laugh1/shy/nervous3/nervous4/nervous2`。单人设置独立于自动开关，离场、换章或关闭全场时清除；压暗时隐藏，解除压暗后恢复。指定人物需 Host ≥1.4.1，自定义人物暂不支持 |
 | `move` | `character`, `from`, `to`；可选 `duration`(默认1) | 移动并 `wait(duration)` |
 | `face` | `character`, `facing` | 转向 |
 | `hide` | `character`；可选 `fadeDuration`(默认0) | 隐藏人物 |

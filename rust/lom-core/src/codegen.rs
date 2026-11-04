@@ -388,15 +388,24 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
         }
         "mood" => {
             let enabled = b(node, "enabled", false);
-            out.push(format!("\tmod_set_mood({enabled})"));
-            out.push(
-                if enabled {
-                    "\tmod_refresh_mood()"
+            if !s(node, "character").is_empty() {
+                let icon = if enabled {
+                    qd(node, "icon", "auto")
                 } else {
-                    "\tmod_hide_mood()"
-                }
-                .into(),
-            );
+                    lua_str("hide")
+                };
+                out.push(call("mod_character_mood", &[c, icon]));
+            } else {
+                out.push(format!("\tmod_set_mood({enabled})"));
+                out.push(
+                    if enabled {
+                        "\tmod_refresh_mood()"
+                    } else {
+                        "\tmod_hide_mood()"
+                    }
+                    .into(),
+                );
+            }
         }
         "show" => {
             let portrait = qd(node, "portrait", "normal");

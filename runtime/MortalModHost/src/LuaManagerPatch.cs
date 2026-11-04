@@ -541,6 +541,7 @@ namespace MortalModHost
                         show = false; // 非布尔参数按契约缺省处理：禁用气泡
                     }
                     MoodControl.Disabled = !show;
+                    if (!show) MoodControl.ClearOverrides();
                     return DynValue.Nil;
                 }, "mod_set_mood");
                 script.Globals["mod_refresh_mood"] = new CallbackFunction((ctx, args) =>
@@ -548,6 +549,11 @@ namespace MortalModHost
                     MoodControl.RefreshVisible();
                     return DynValue.Nil;
                 }, "mod_refresh_mood");
+                script.Globals["mod_character_mood"] = new CallbackFunction((ctx, args) =>
+                {
+                    MoodControl.SetCharacter(ArgString(args, 0), ArgString(args, 1));
+                    return DynValue.Nil;
+                }, "mod_character_mood");
                 // 契约 §6.13：死亡文本（2 参：短标题 + 多行描述，GameOver 画面两段式显示）。
                 // 单参调用兼容（旧编译器/老 mod 包）：参数当描述、标题留空。
                 script.Globals["mod_set_death_text"] = new CallbackFunction((ctx, args) =>

@@ -28,6 +28,10 @@
 
 ## 2026-10-31 旁白对齐与原地换表情接口核对
 
+2026-11-04 单人气泡：定向只读核对本机 `StoryStageController.CreateMoodObject/Show/Hide/SetDimmed`、`StoryCharacterController.SetupMood/ShowMood` 及 `CharacterMoodPanel.Show(string,float)/Hide()`。原版所有舞台人物都会创建面板，`Show` 只按输入键匹配面板 Mapping，不要求人物自身有这个表情。Host 1.4.1 的 `mod_character_mood(character,icon)` 直接调用该人物实例的 `Mood.Show`，使用已读资源的九种 Mapping；不改 `StoryCharacterData`、表情键或官方资产，继续使用原版动画和朝向。隐藏单人、恢复自动、压暗/解除压暗、离场及清舞台分别沿原版入口处理；本条仅记录接口与实现依据，运行证据另记。
+
+本次 Windows `release_1.0.6001.0` 隔离试玩中，实际观察到只有 `normal` 立绘的 `artist1`（武师）和 `aunt1`（大妈）同时显示独立气泡；叹号、音符、汗滴、害羞、阴影、乱线等可切换且立绘保持不变。已观察单人隐藏不影响另一人、恢复跟随普通表情、转身、压暗/解除压暗、离场重登不残留，以及全场关闭清除单人设置。自定义用户人物未接入，也未做全人物实机覆盖。
+
 本机当前安装的 `Fungus.SayDialog.StoryTextObject` 返回正文 `UnityEngine.UI.Text`。Host 在显式靠左句前保存其 `alignment`，横向扩展正文区域并保留 5% 留白，下句开始前及清舞台时恢复对齐与原矩形布局。
 
 现场只读反编译 `CharacterPlaceholder.LoadCharacterPortrait/GetPortrait`、`StoryCharacterController.LoadPortraitSync`、`Fungus.Character.GetPortrait`、`PortraitState.SetPortraitImageBySprite` 和 `PortraitController.Show/Hide/SetupPortrait`。`LoadPortraitSync` 会给已有 holder 补建表情 Image；`SetPortraitImageBySprite` 切换运行时 `portraitImage` 引用。原版 Show/Hide 的 SetupPortrait 会重置 holder，因此新增 `portrait` 仅包装这些加载及换图入口，对运行时 Image 分两段调用 `LeanTween.alpha`，不重新登场、不改官方资产。RGB 压暗、holder 朝向/偏移/旋转保留；用户人物同样在换图适配后恢复位置。2026-11-01 实机已观察官方与用户人物在无对白时换表情，以及普通／居中旁白的靠左留白。

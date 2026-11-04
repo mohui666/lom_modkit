@@ -252,6 +252,56 @@
       "enabled": false
     },
     {
+      "character": "artist1",
+      "id": "mood_extra_enter",
+      "portrait": "normal",
+      "position": "M",
+      "type": "show"
+    },
+    {
+      "character": "artist1",
+      "enabled": true,
+      "icon": "shock",
+      "id": "mood_extra_shock",
+      "type": "mood"
+    },
+    {
+      "id": "mood_extra_pause",
+      "seconds": 1,
+      "type": "wait"
+    },
+    {
+      "character": "artist1",
+      "enabled": true,
+      "icon": "laugh1",
+      "id": "mood_extra_laugh",
+      "type": "mood"
+    },
+    {
+      "id": "mood_extra_pause2",
+      "seconds": 1,
+      "type": "wait"
+    },
+    {
+      "character": "artist1",
+      "enabled": false,
+      "id": "mood_extra_hide",
+      "type": "mood"
+    },
+    {
+      "character": "artist1",
+      "enabled": true,
+      "icon": "auto",
+      "id": "mood_extra_auto",
+      "type": "mood"
+    },
+    {
+      "character": "artist1",
+      "fadeDuration": 0,
+      "id": "mood_extra_exit",
+      "type": "hide"
+    },
+    {
       "id": "say3",
       "type": "say",
       "text": "这是靠左旁白。刚才人物在没有对白的情况下换了表情：赵活淡出 0.5 秒、淡入 1.5 秒，并保留偏移与压暗；林灯淡入 1 秒。",

@@ -73,4 +73,6 @@ normal/happy，没有战斗四帧）和独立背景 `center`。雷达与性情/�
 
 第一章的 `portrait_official` 和 `portrait_user` 在没有对白的情况下切换官方／用户人物表情，分别使用 0.5 秒淡出和 1.5／1 秒淡入；`say3` 演示靠左旁白，`mood_on`／`mood_off` 演示气泡开关。新控件要求 Host 1.3.6。
 
+第一章的 `mood_extra_enter`～`mood_extra_exit` 让只有 `normal` 立绘的武师 `artist1` 独立显示叹号和音符，再隐藏并恢复跟随表情；人物立绘不切换。这组指定人物的气泡步骤要求 Host 1.4.1。
+
 本轮重新生成全部 66 类节点并检查包；实机测试使用独立定向剧情，观察了普通／居中旁白靠左留白、默认布局恢复、官方与用户人物换表情，以及 player/shock 气泡开启／关闭。未重跑本全节点包中的 Combat、Battle 等完整路径。

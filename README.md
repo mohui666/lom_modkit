@@ -2,6 +2,8 @@
 
 **《活侠传》（Legend of Mortal）可视化剧情 Mod 制作工具。** 用图形编辑器编排人物对白、场景、分支、音乐和音效，导出 `.lommod`，由 C# 游戏插件加载。
 
+**v1.4.1（2026-11-04，正式版）**：「表情气泡」可指定原版人物，独立选择九种气泡，只有普通立绘的配角也能使用；支持单人隐藏、恢复跟随表情和离场清除。整合 1.4 的自定义玩法与 MOD 独立存档，编辑器、CLI、Host 统一为 **1.4.1**。使用指定人物气泡时需同步更新 Host。详见 [更新日志](RELEASE_NOTES_v1.4.1.md) · [正式版下载](https://github.com/mohui666/lom_modkit/releases/tag/v1.4.1)。
+
 **v1.4.0（2026-11-03，公开测试版）**：新增自定义物品、功法、主动消耗品、决斗援助、自创招式与 PNG 动画；统一「开始游戏」中的三种玩法，提供当前 MOD 的独立存读档界面。本轮 84 项定向实机检查通过，新功能仍在收集反馈。以普通最新版 Release 发布，现有用户可以检测并更新，升级后需要同步更新游戏 Host。详见 [更新日志](RELEASE_NOTES_v1.4.0.md) · [公开测试版下载](https://github.com/mohui666/lom_modkit/releases/tag/v1.4.0) · [1.4 开发说明](docs/chs/v1_4_development.md)。
 
 **v1.3.10（2026-11-02）** 修复自定义人物位移后再次登场错位、屏外说话或换表情时闪回原站位；同步修正编辑器位移与移动预览，并调整播放刷新调度。游戏内修复需要更新 Host，现有作品无需重新导出。见 [更新日志](RELEASE_NOTES_v1.3.10.md)。
@@ -26,7 +28,7 @@
 
 **v1.3.0** 增加原版附加剧情与自由剧本两种创作模式、独立事件／任务配置和日期／重复事件编辑；优化按钮、页面与弹窗，并新增一键定位 Steam 游戏目录。Windows 完整包包含 Host **1.1.3** 和预览素材提取助手。改动与验证边界见 [v1.3.0 变更记录](RELEASE_NOTES_v1.3.0.md)。
 
-[软件使用](docs/chs/software_usage.md) · [核心功能教程](docs/chs/core_tutorial.md) · [Mac 编辑器](docs/chs/macos.md) · [文档索引](docs/README.md) · [Windows v1.3.10 下载](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.10)
+[软件使用](docs/chs/software_usage.md) · [核心功能教程](docs/chs/core_tutorial.md) · [Mac 编辑器](docs/chs/macos.md) · [文档索引](docs/README.md) · [Windows v1.4.1 下载](https://github.com/mohui666/lom_modkit/releases/tag/v1.4.1)
 
 语言：简体中文（本文） · [繁體中文](README.cht.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 

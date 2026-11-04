@@ -244,6 +244,16 @@ impl Catalog {
         nodes: &[String],
         stories: &[String],
     ) -> Vec<(String, String)> {
+        if kind == "mood_character" {
+            let characters: Vec<_> = self.data["characters"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter(|row| !row["id"].as_str().unwrap_or("").starts_with("user:"))
+                .cloned()
+                .collect();
+            return localized_rows(&json!(characters), "characters");
+        }
         if kind == "character_group" {
             let rows: Vec<Value> = self.data["characters"]
                 .as_array()
@@ -594,6 +604,9 @@ impl Catalog {
                     story_ids,
                 );
             }
+        }
+        if kind == "mood" {
+            ui.small(tr("留空人物时控制全场自动气泡；指定人物后可单独选气泡，无需切换立绘。关闭全场会清除单人设置。"));
         }
         ui.add_space(4.0);
         if allow_goto {
@@ -1241,6 +1254,11 @@ impl Catalog {
                     if reset {
                         if let Some(object) = node.as_object_mut() {
                             changed |= object.remove(key).is_some();
+                            if key == "character"
+                                && object.get("type").and_then(Value::as_str) == Some("mood")
+                            {
+                                object.remove("icon");
+                            }
                         }
                     } else if field_changed && node.get(key) != Some(&value) {
                         node[key] = value;
@@ -1260,6 +1278,7 @@ fn is_character_selector(kind: &str) -> bool {
     matches!(
         kind,
         "character"
+            | "mood_character"
             | "character_group"
             | "affinity_character"
             | "affinity_optional"
@@ -1413,6 +1432,7 @@ fn is_selector(kind: &str) -> bool {
             kind,
             "node_ref"
                 | "official_picture"
+                | "mood_character"
                 | "story_ref"
                 | "facing"
                 | "branch_source"
@@ -1447,6 +1467,8 @@ fn is_selector(kind: &str) -> bool {
 }
 fn absent_label(node: &Value, key: &str, kind: &str) -> String {
     tr(match (node["type"].as_str().unwrap_or(""), key, kind) {
+        ("mood", "character", _) => "全场自动气泡",
+        ("mood", "icon", _) => "跟随人物表情（默认）",
         ("say", "mode", _) => "对话（默认）",
         (_, _, "portrait") => "默认表情",
         (_, _, "voice") => "无语音",
@@ -1496,6 +1518,10 @@ pub fn number_duplicate_labels(options: &mut [(String, String)]) {
 }
 
 fn field_visible(kind: &str, node: &Value, key: &str) -> bool {
+    if kind == "mood" && key == "icon" {
+        return node["character"].as_str().is_some_and(|s| !s.is_empty())
+            && node["enabled"] == true;
+    }
     if kind == "say" && key == "text_align" {
         return matches!(node["mode"].as_str(), Some("narrative" | "center"));
     }

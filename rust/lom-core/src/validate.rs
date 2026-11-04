@@ -986,6 +986,19 @@ fn extra(n: &Value, ntype: &str, catalog: &Value) -> Result<()> {
         user_ref(c, "character")?;
     }
     match ntype {
+        "mood" => {
+            if has(n, "character") {
+                ensure!(nonblank(c) && !user(c), "指定气泡需要原版人物 ID");
+                ensure!(
+                    array(&catalog["characters"])
+                        .iter()
+                        .any(|row| row["id"] == *c),
+                    "指定气泡的人物不在原版清单中：{c}"
+                );
+            } else {
+                ensure!(!has(n, "icon"), "选择气泡样式前请先指定人物");
+            }
+        }
         "portrait" => {
             ensure!(nonblank(&n["character"]), "换表情的 character 不能为空");
             ensure!(nonblank(&n["portrait"]), "换表情的 portrait 不能为空");

@@ -729,7 +729,10 @@
       "required": {
         "enabled": "bool"
       },
-      "optional": {}
+      "optional": {
+        "character": "idstr",
+        "icon": "mood_icon"
+      }
     },
     "use_item": {
       "required": {
@@ -981,6 +984,18 @@
       "1",
       "2",
       "3"
+    ],
+    "mood_icon": [
+      "auto",
+      "shock",
+      "silent",
+      "angry2",
+      "nervous1",
+      "laugh1",
+      "shy",
+      "nervous3",
+      "nervous4",
+      "nervous2"
     ]
   },
   "type_names": {
