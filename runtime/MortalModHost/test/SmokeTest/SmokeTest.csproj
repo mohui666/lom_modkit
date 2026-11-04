@@ -21,6 +21,8 @@
     <Compile Include="..\..\src\ScenarioEngine.cs" />
     <Compile Include="..\..\src\CampaignIdentity.cs" />
     <Compile Include="..\..\src\CampaignMenuFlow.cs" />
+    <Compile Include="..\..\src\ModCampaignState.cs" />
+    <Compile Include="..\..\src\ModPlayMode.cs" />
     <Compile Include="..\..\src\BattleCompositionPolicy.cs" />
     <Compile Include="..\..\src\CombatCharacterPolicy.cs" />
     <Compile Include="..\..\src\CombatBackgroundAddressPolicy.cs" />
@@ -33,6 +35,9 @@
     <Compile Include="..\..\src\PreviewRequest.cs" />
     <Compile Include="..\..\src\ContentRef.cs" />
     <Compile Include="..\..\src\UserContent.cs" />
+    <Compile Include="..\..\src\CustomGameplayDefinition.cs" />
+    <Compile Include="..\..\src\CustomCombatSkillDefinition.cs" />
+    <Compile Include="..\..\src\CustomConsumableState.cs" />
     <Compile Include="..\..\src\RuntimeTrace.cs" />
     <Compile Include="..\..\src\StructuredRuntimeError.cs" />
     <Compile Include="..\..\src\RuntimeDebugControl.cs" />
@@ -44,8 +49,9 @@
     <Compile Include="..\..\src\ProvenanceWatermarkCodec.cs" />
     <Compile Include="..\..\src\GameplaySession.cs" />
     <Compile Include="..\..\src\SceneTransitionPolicy.cs" />
-    <Compile Include="..\..\src\ModCampaignState.cs" />
     <Compile Include="..\..\src\ModSaveSlotPolicy.cs" />
+    <Compile Include="..\..\src\ModSaveNotes.cs" />
+    <Compile Include="..\..\src\AddonSaveDependencies.cs" />
     <Compile Include="..\..\src\ModQuestSession.cs" />
     <Compile Include="..\..\src\PersistentStateStore.cs" />
     <Compile Include="..\..\src\GameplayCheckpointStore.cs" />

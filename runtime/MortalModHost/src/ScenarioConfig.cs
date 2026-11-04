@@ -154,12 +154,17 @@ namespace MortalModHost
                 else if(type=="talent") ScenarioJson.Fields(a,"type","key","value");
                 else if(type=="item") ScenarioJson.Fields(a,"type","key","kind","op","value");
                 else ScenarioJson.Fields(a,"type","key","op","value");
-                ScenarioJson.Id(a,"key");
+                string resultKey=ScenarioJson.Text(a,"key");
+                if(type=="item" && resultKey.StartsWith("user:",StringComparison.Ordinal)) {
+                    ContentRef contentReference;string contentError;
+                    ScenarioJson.Require(ContentRef.TryParse(resultKey,out contentReference,out contentError),"结果物品引用无效："+contentError);
+                }
+                else ScenarioJson.Id(a,"key");
                 if(type=="flag")continue;
                 int n=ScenarioJson.Int(a,"value",int.MinValue,int.MaxValue);
                 if(type=="talent") {ScenarioJson.Require(n==1 || n== -1,"技能变动无效");continue;}
                 string op=ScenarioJson.Text(a,"op");
-                if(type=="item") ScenarioJson.Require((op=="add" || op=="remove") && n>0 && Array.IndexOf(new[]{"book","misc","special"},ScenarioJson.Text(a,"kind"))>=0,"物品动作无效");
+                if(type=="item") ScenarioJson.Require((op=="add" || op=="remove") && n>0 && Array.IndexOf(new[]{"book","misc","special","consumable"},ScenarioJson.Text(a,"kind"))>=0,"物品动作无效");
                 else ScenarioJson.Require(op=="add" || op=="set","结果动作操作无效");
             }
             foreach (string field in new[] { "variables", "tasks" })

@@ -132,6 +132,7 @@ foreach ($Name in @("README.md", "LICENSE.UnityDoorstop")) {
 }
 Copy-Item -LiteralPath (Join-Path $RepositoryRoot "docs\chs\windows_quick_start.md") -Destination (Join-Path $BundleDirectory "README-Windows.md")
 Copy-Item -LiteralPath (Join-Path $RepositoryRoot "LICENSE") -Destination (Join-Path $BundleDirectory "LICENSE")
+Copy-Item -LiteralPath (Join-Path $RepositoryRoot "runtime\MortalModHost\THIRD_PARTY_NOTICES.md") -Destination (Join-Path $BundleDirectory "THIRD_PARTY_NOTICES.md")
 if ($NoArchive) { Write-Host "Built native tools: $BundleDirectory"; return }
 $BundleDirectory = (Resolve-Path -LiteralPath $BundleDirectory).Path
 [IO.Directory]::CreateDirectory($OutputDirectory) | Out-Null

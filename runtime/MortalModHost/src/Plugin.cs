@@ -28,7 +28,7 @@ namespace MortalModHost
     {
         public const string GUID = "com.mohui666.mortalmodhost";
         public const string NAME = "MortalModHost";
-        public const string VERSION = "1.3.10";
+        public const string VERSION = "1.4.1";
 
         internal static Plugin Instance { get; private set; }
 
@@ -37,7 +37,8 @@ namespace MortalModHost
 
         /// <summary>本轮解析到的全部 mod 包（patch 与菜单共用）。</summary>
         internal static List<ModPackage> LoadedMods { get; private set; }
-        internal static bool CanScheduleEvents { get { return Instance!=null && Instance._runtimeReady && Instance._enabled.Value && !Instance._disablePendingForDisclosure; } }
+        internal string LastNavigationError { get; private set; }
+        internal static bool CanScheduleEvents { get { return Instance!=null && Instance._runtimeReady && Instance._enabled.Value && !Instance._disablePendingForDisclosure && ModPlayModeSession.Selected != ModPlayModeKind.Original; } }
 
         internal static ModPackage FindCampaignPackage(string campaignId)
         {
@@ -120,6 +121,8 @@ namespace MortalModHost
                 Paths.ConfigPath, "MortalModHost", "campaign_state"));
             GameplayCheckpointStore.Initialize(Path.Combine(
                 Paths.ConfigPath, "MortalModHost", "campaign_state"));
+            AddonSaveDependencies.Initialize(Path.Combine(
+                Paths.ConfigPath, "MortalModHost", "campaign_state"));
             ModSaveIsolation.Log = Logger;
             ModSaveIsolation.Initialize(SaveSystem.Instance);
 
@@ -189,6 +192,7 @@ namespace MortalModHost
             CombatCustomAvatarPatch.Clear();
             CombatStatOverridePatch.Clear();
             CustomImageRuntime.ClearAll();
+            CustomGameplayRuntime.Clear();
             Logger.LogInfo("MortalModHost 已禁用：Harmony 补丁及运行态效果已清除");
         }
 
@@ -615,6 +619,7 @@ namespace MortalModHost
                 OpenMenuFromVanillaTitle();
                 return;
             }
+            if (ModPlayModeSession.Selected == ModPlayModeKind.Original) return;
             _showMenu = !_showMenu;
             if (_showMenu) ClampWindowToScreen();
             Logger.LogInfo("检测到菜单热键按下（当前场景：" + scene + "），" + (_showMenu ? "已打开菜单。" : "已关闭菜单。"));
@@ -833,6 +838,8 @@ namespace MortalModHost
                 if (scene == "Title")
                 {
                     RestoreOfficialSlotAtTitle();
+                    SelectPlayMode(ModPlayModeKind.Original);
+                    CustomGameplayRuntime.Clear();
                     ModCampaignState.Clear();
                     ModQuestSession.Reset();
                     PersistentModState.ResetMemory();
@@ -845,6 +852,7 @@ namespace MortalModHost
                 CustomAudioPlayer.StopEverything();
                 CustomCharacterRuntime.ClearAll();
                 CustomImageRuntime.ClearAll();
+                CustomGameplayRuntime.ClearSupports();
             }
             _previousScene = scene;
         }
@@ -873,6 +881,42 @@ namespace MortalModHost
             }
         }
 
+        internal void SelectPlayMode(ModPlayModeKind mode)
+        {
+            if (ModPlayModeSession.Selected == mode) return;
+            VanillaModCampaignPanel.Remove();
+            CustomGameplayRuntime.Clear();
+            ModPlayModeSession.Select(mode);
+            VanillaStorySwitch.Enabled = false;
+            _showMenu = false;
+            if (mode != ModPlayModeKind.Campaign) ModCampaignState.Clear();
+            Logger.LogInfo("玩法已切换：" + mode);
+        }
+
+        internal void EnterOriginalMode()
+        {
+            SelectPlayMode(ModPlayModeKind.Original);
+            CustomGameplayRuntime.Clear();
+            ModCampaignState.Clear();
+            ModQuestSession.Reset();
+            PersistentModState.ResetMemory();
+            RestoreOfficialSlotAtTitle();
+        }
+
+        private void OpenPlayModePicker()
+        {
+            ModSaveBrowser.ShowModes(VanillaTitleModEntry.OpenOriginalGame,
+                OpenAddonMenuFromTitle, OpenMenuFromVanillaTitle);
+        }
+
+        private void OpenAddonMenuFromTitle()
+        {
+            bool title;
+            if (!_runtimeReady || !IsMenuScene(out title) || !title) return;
+            SelectPlayMode(ModPlayModeKind.Addon);
+            VanillaModCampaignPanel.OpenAddonMenu();
+        }
+
         private void OnDestroy()
         {
             if (_enabled != null)
@@ -894,6 +938,7 @@ namespace MortalModHost
             CustomAudioPlayer.ReleaseAll();
             CustomCharacterRuntime.ClearAll();
             CustomImageRuntime.ClearAll();
+            CustomGameplayRuntime.Clear();
             if (Instance == this) Instance = null;
             if (_applicationQuitting || !ModDisclosure.Active)
                 ModDisclosure.Disable();
@@ -929,13 +974,16 @@ namespace MortalModHost
                 && IsMenuScene(out isTitle) && isTitle;
             VanillaTitleModEntry.Maintain(
                 shouldExist,
-                OpenMenuFromVanillaTitle,
+                OpenPlayModePicker,
                 msg => Logger.LogInfo(msg),
                 msg => Logger.LogWarning(msg));
         }
 
         internal bool TryOpenInGameModLoadMenu(object loadHost)
         {
+            if (ModPlayModeSession.Selected == ModPlayModeKind.Original) return false;
+            if (ModPlayModeSession.Selected == ModPlayModeKind.Addon)
+                return VanillaModCampaignPanel.OpenAddonSaves(false);
             bool isTitle;
             string slot = SaveSystem.Instance != null ? SaveSystem.Instance.CurrentSlot : "";
             if (!ModSaveSlotPolicy.ShouldHijackInGameLoad(
@@ -980,6 +1028,7 @@ namespace MortalModHost
             bool isTitle;
             if (!_enabled.Value || !_runtimeReady || !IsMenuScene(out isTitle) || !isTitle)
                 return;
+            SelectPlayMode(ModPlayModeKind.Campaign);
             _inTitleScene = true;
             _showMenu = false;
             _titleFallbackMenu = false;
@@ -1095,6 +1144,7 @@ namespace MortalModHost
         /// </summary>
         private void HandleVanillaStoryHotkey()
         {
+            if (ModPlayModeSession.Selected == ModPlayModeKind.Original) return;
             if (!IsHotkeyDown(_vanillaStoryHotkey.Value)) return;
             VanillaStorySwitch.Toggle();
         }
@@ -1139,13 +1189,14 @@ namespace MortalModHost
                 _debugWindowRect = GUI.Window(DebugWindowId, _debugWindowRect, DrawDebuggerWindow, I18n.T("debug.window", _debuggerHotkey.Value));
             }
             bool isTitle;
-            if (!_enabled.Value || !_runtimeReady || !IsMenuScene(out isTitle))
+            if (!_enabled.Value || !_runtimeReady || !IsMenuScene(out isTitle)
+                || ModPlayModeSession.Selected == ModPlayModeKind.Original)
             {
                 _showMenu = false; // 切场景/禁用时自动关窗，按钮也随之隐藏
                 return;
             }
             _inTitleScene = isTitle;
-            // 战役/存档界面只允许复用官方组件；标题按钮注入失败时不显示 IMGUI 回退。
+            // MOD 管理与原版玩法分开；纯原版不显示常驻 MOD 操作按钮。
             if (!_inTitleScene) DrawEntryButton();
             if (_showMenu)
                 _windowRect = GUI.Window(WindowId, _windowRect, DrawWindow, I18n.T("window", _menuHotkey.Value));
@@ -1270,7 +1321,7 @@ namespace MortalModHost
                 _scroll = GUILayout.BeginScrollView(_scroll);
                 GUILayout.Label(I18n.T("section.play"));
                 foreach (var mod in LoadedMods)
-                    DrawModEntry(mod);
+                    if (ModPlayModeSession.Allows(mod)) DrawModEntry(mod);
                 GUILayout.EndScrollView();
             }
             GUILayout.Space(6f);
@@ -1293,6 +1344,109 @@ namespace MortalModHost
         /// Free 自由场景与 Title 标题画面均可调用（SaveSystem/SceneController 是常驻单例）；
         /// 标题画面直接可开新战役，无需先进自由模式。
         /// </summary>
+        internal void StartAddon(string slot)
+        {
+            NavigateAddon(slot, null, true);
+        }
+
+        internal void LoadAddon(string slot)
+        {
+            NavigateAddon(slot, null, false);
+        }
+
+        internal void LoadAddonAuto(string autoKind)
+        {
+            if (!ModSaveSlotPolicy.IsOfficialAutoSlot(autoKind))
+                throw new System.ArgumentException("无效的附加 MOD 自动档类型");
+            NavigateAddon(null, autoKind, false);
+        }
+
+        private void NavigateAddon(string slot, string autoKind, bool newGame)
+        {
+            SaveSystem saves = SaveSystem.Instance;
+            SceneController scenes = SceneController.Instance;
+            if (!_runtimeReady || saves == null || !IsSceneReadyForModNavigation(scenes))
+                throw new InvalidOperationException("存档或场景系统尚未就绪");
+            string saveSlot = slot;
+            if (autoKind != null)
+            {
+                saveSlot = ModSaveSlotPolicy.AddonAutoSlot(autoKind);
+                AutoGameSave automatic = saves.GetAutoSaveData(saveSlot);
+                if (automatic == null || automatic.GameSave == null)
+                    throw new InvalidOperationException("附加 MOD 自动档不存在或已损坏");
+                slot = automatic.Slot;
+            }
+            if (!ModSaveSlotPolicy.IsAddonManualSlot(slot))
+                throw new InvalidOperationException("存档不属于原版＋MOD模式");
+            if (!newGame && autoKind == null && saves.GetSaveData(slot) == null)
+                throw new InvalidOperationException("附加 MOD 存档不存在或已损坏");
+            if (!newGame)
+            {
+                if (!AddonSaveDependencies.HasRecord(saveSlot))
+                    throw new InvalidOperationException("此存档缺少所需 MOD 的记录，无法确认内容完整，未读取。");
+                List<string> missing = AddonSaveDependencies.Missing(saveSlot, LoadedMods);
+                if (missing.Count != 0)
+                    throw new InvalidOperationException("此存档缺少 MOD：" + string.Join("、", missing)
+                        + "。请重新安装或启用后再读取，原存档已保留。");
+            }
+            ModSaveIsolation.BeforeEnterModSlot(saves.CurrentSlot);
+            string previousOfficialSlot = ModSaveIsolation.LastOfficialSlot;
+            try
+            {
+                SelectPlayMode(ModPlayModeKind.Addon);
+                ResetModRuntimeForLoad();
+                CustomGameplayRuntime.Clear();
+                foreach (ModPackage package in LoadedMods)
+                    if (ModPlayModeSession.Allows(package))
+                        CustomGameplayRuntime.EnsurePackage(package);
+                saves.SetSlot(slot);
+                ModCampaignState.Clear();
+                ModQuestSession.Reset();
+                if (newGame)
+                {
+                    foreach (ModPackage package in LoadedMods)
+                    {
+                        if (!ModPlayModeSession.Allows(package)) continue;
+                        PersistentModState.BeginNewCampaign(package);
+                        GameplayCheckpointStore.Clear(package, slot);
+                    }
+                    NewGameDataPatch.PendingCampaign = null;
+                    saves.NewGameData();
+                    PersistentModState.FlushCurrent();
+                    AddonSaveDependencies.Record(slot, LoadedMods);
+                    scenes.LoadStory();
+                }
+                else
+                {
+                    if (SoundManager.Instance != null) SoundManager.Instance.StopMusic();
+                    if (autoKind == null) saves.LoadGameData();
+                    else saves.AutoLoadGameData(saveSlot);
+                    if (MissionManagerData.Instance != null)
+                        MissionManagerData.Instance.UpdateCheckMissions();
+                    ModPackage owner;
+                    GameplayCheckpoint checkpoint;
+                    if (GameplayCheckpointStore.TryLoadAddon(saveSlot, LoadedMods, out owner, out checkpoint))
+                        RestoreGameplayForLoadedSave(owner, saveSlot, false,
+                            autoKind != null ? slot : null);
+                    else
+                    {
+                        string loadedScene = PlayerStatManagerData.Instance.CurrentScene;
+                        if (loadedScene == "Combat" || loadedScene == "Battle")
+                            throw new InvalidOperationException("战斗存档缺少附加 MOD 上下文");
+                    }
+                    scenes.LoadCurrentScene();
+                }
+                _showMenu = false;
+                Logger.LogInfo("原版＋MOD：" + (newGame ? "新游戏 " : "读取 ") + saveSlot);
+            }
+            catch
+            {
+                EnterOriginalMode();
+                RestoreOfficialSlotAfterCampaignFailure(saves, previousOfficialSlot);
+                throw;
+            }
+        }
+
         private void StartCampaign(ModPackage mod)
         {
             StartCampaign(mod, mod != null ? CampaignIdentity.SaveSlot(mod.CampaignId) : null);
@@ -1300,26 +1454,27 @@ namespace MortalModHost
 
         private void StartCampaign(ModPackage mod, string isolatedSlot)
         {
+            LastNavigationError = null;
             if (!_runtimeReady)
             {
-                Logger.LogError("运行时未安全就绪：已拒绝开始 MOD 战役");
+                NavigationFailed("运行时未安全就绪：已拒绝开始 MOD 战役");
                 return;
             }
             if (mod == null || mod.Campaign==null || !mod.Campaign.NewGame || !CampaignIdentity.OwnsSlot(mod.CampaignId, isolatedSlot))
             {
-                Logger.LogError("无法开始新战役：隔离手动槽不属于该战役");
+                NavigationFailed("无法开始新战役：隔离手动槽不属于该战役");
                 return;
             }
             SaveSystem saves = SaveSystem.Instance;
             SceneController scenes = SceneController.Instance;
             if (saves == null || scenes == null)
             {
-                Logger.LogError("无法开始新战役：SaveSystem/SceneController 单例尚未就绪");
+                NavigationFailed("无法开始新战役：SaveSystem/SceneController 单例尚未就绪");
                 return;
             }
             if (!IsSceneReadyForModNavigation(scenes))
             {
-                Logger.LogError("无法开始新战役：原版场景或读取遮罩尚未完成，请稍后重试");
+                NavigationFailed("无法开始新战役：原版场景或读取遮罩尚未完成，请稍后重试");
                 return;
             }
             string slot = isolatedSlot;
@@ -1329,6 +1484,7 @@ namespace MortalModHost
             ModSaveIsolation.BeforeEnterModSlot(saves.CurrentSlot);
             try
             {
+                SelectPlayMode(ModPlayModeKind.Campaign);
                 saves.SetSlot(slot);
                 // SetSlot postfix 会丢弃上一槽的内存快照；新战役随后以空 sidecar 开局。
                 PersistentModState.BeginNewCampaign(mod);
@@ -1339,6 +1495,8 @@ namespace MortalModHost
                 // 由本 mod 的 disable_official_events 决定（官方开局时 NewGameDataPatch 清除）；
                 // 同时记录战役 mod id，位置触发器按当前战役 mod 隔离（见 FreePositionPatch）。
                 ModCampaignState.Enter(mod);
+                CustomGameplayRuntime.Clear();
+                CustomGameplayRuntime.EnsurePackage(mod);
                 ModQuestSession.Reset();
                 if (mod.Campaign.DisableOfficialEvents)
                     Logger.LogInfo("该战役已声明 disable_official_events：返回 Free 的自动任务与位置点击不再触发原版故事脚本（仅 mod 触发器命中）。");
@@ -1370,7 +1528,7 @@ namespace MortalModHost
                 ModQuestSession.Reset();
                 PersistentModState.ResetMemory();
                 RestoreOfficialSlotAfterCampaignFailure(saves, previousOfficialSlot);
-                Logger.LogError("MOD 新战役初始化失败；已回滚到进入前的原版槽：" + ex);
+                NavigationFailed("MOD 新战役初始化失败；已回滚到进入前的原版槽：" + ex);
                 return;
             }
         }
@@ -1386,21 +1544,22 @@ namespace MortalModHost
 
         private void LoadCampaign(ModPackage mod, string isolatedSlot)
         {
+            LastNavigationError = null;
             if (!_runtimeReady || mod == null)
             {
-                Logger.LogError("运行时未安全就绪：已拒绝读取 MOD 战役");
+                NavigationFailed("运行时未安全就绪：已拒绝读取 MOD 战役");
                 return;
             }
             if (!CampaignIdentity.OwnsSlot(mod.CampaignId, isolatedSlot))
             {
-                Logger.LogError("无法读取 MOD 战役：隔离手动槽不属于该战役");
+                NavigationFailed("无法读取 MOD 战役：隔离手动槽不属于该战役");
                 return;
             }
             SaveSystem saves = SaveSystem.Instance;
             SceneController scenes = SceneController.Instance;
             if (saves == null || !IsSceneReadyForModNavigation(scenes))
             {
-                Logger.LogError("无法读取 MOD 战役：存档或场景系统尚未就绪");
+                NavigationFailed("无法读取 MOD 战役：存档或场景系统尚未就绪");
                 return;
             }
             string slot = isolatedSlot;
@@ -1411,6 +1570,10 @@ namespace MortalModHost
                 if (saves.GetSaveData(slot) == null)
                     throw new InvalidOperationException("隔离存档不存在或已经损坏");
                 ModSaveIsolation.BeforeEnterModSlot(saves.CurrentSlot);
+                SelectPlayMode(ModPlayModeKind.Campaign);
+                ModCampaignState.Enter(mod);
+                CustomGameplayRuntime.Clear();
+                CustomGameplayRuntime.EnsurePackage(mod);
                 saves.SetSlot(slot);
                 ResetModRuntimeForLoad();
                 if (SoundManager.Instance != null) SoundManager.Instance.StopMusic();
@@ -1430,23 +1593,24 @@ namespace MortalModHost
                 ModQuestSession.Reset();
                 PersistentModState.ResetMemory();
                 RestoreOfficialSlotAfterCampaignFailure(saves, previousOfficialSlot);
-                Logger.LogError("读取 MOD 战役失败，未切换场景：" + ex);
+                NavigationFailed("读取 MOD 战役失败，未切换场景：" + ex);
             }
         }
 
         /// <summary>从该战役自己的隔离自动槽继续；槽名由稳定 campaign_id 派生。</summary>
         private void LoadCampaignAuto(ModPackage mod, string autoKind)
         {
+            LastNavigationError = null;
             if (!_runtimeReady || mod == null || !ModSaveSlotPolicy.IsOfficialAutoSlot(autoKind))
             {
-                Logger.LogError("无效的 MOD 自动存档读取请求");
+                NavigationFailed("无效的 MOD 自动存档读取请求");
                 return;
             }
             SaveSystem saves = SaveSystem.Instance;
             SceneController scenes = SceneController.Instance;
             if (saves == null || !IsSceneReadyForModNavigation(scenes))
             {
-                Logger.LogError("无法读取 MOD 自动存档：存档或场景系统尚未就绪");
+                NavigationFailed("无法读取 MOD 自动存档：存档或场景系统尚未就绪");
                 return;
             }
             string mainSlot = CampaignIdentity.SaveSlot(mod.CampaignId);
@@ -1463,6 +1627,10 @@ namespace MortalModHost
                     && CampaignIdentity.OwnsSlot(mod.CampaignId, auto.Slot)
                     ? auto.Slot : mainSlot;
                 ModSaveIsolation.BeforeEnterModSlot(saves.CurrentSlot);
+                SelectPlayMode(ModPlayModeKind.Campaign);
+                ModCampaignState.Enter(mod);
+                CustomGameplayRuntime.Clear();
+                CustomGameplayRuntime.EnsurePackage(mod);
                 saves.SetSlot(resumeSlot);
                 ResetModRuntimeForLoad();
                 if (SoundManager.Instance != null) SoundManager.Instance.StopMusic();
@@ -1486,8 +1654,14 @@ namespace MortalModHost
                 ModQuestSession.Reset();
                 PersistentModState.ResetMemory();
                 RestoreOfficialSlotAfterCampaignFailure(saves, previousOfficialSlot);
-                Logger.LogError("读取 MOD 自动存档失败，未切换场景：" + ex);
+                NavigationFailed("读取 MOD 自动存档失败，未切换场景：" + ex);
             }
+        }
+
+        private void NavigationFailed(string message)
+        {
+            LastNavigationError = message.Split(new[] { '\r', '\n' }, 2)[0];
+            Logger.LogError(message);
         }
 
         private void RestoreGameplayForLoadedSave(
@@ -1510,6 +1684,8 @@ namespace MortalModHost
                 throw new InvalidOperationException(
                     "Gameplay 上下文与原版自动档所属手动槽不一致：" + saveSlot);
             GameplaySession.RestoreCheckpoint(mod, checkpoint);
+            CustomGameplayRuntime.ValidateSupports(mod);
+            CustomCombatSkillRuntime.Validate(mod);
             ModOverlay.CurrentPackage = mod;
             ModDisclosure.Enable(mod);
             if (GameplaySession.PendingCombat)

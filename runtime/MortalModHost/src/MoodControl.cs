@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using BepInEx.Logging;
 using HarmonyLib;
 using Mortal.Story;
@@ -10,7 +11,7 @@ namespace MortalModHost
     /// 心情气泡硬控（契约 §6.10）：编译器在每个 mod 脚本开头发射裸全局调用
     /// mod_set_mood(false/true)（story 顶层 mood 字段，默认 false），LuaManagerPatch 注册的
     /// MoonSharp 全局函数把状态写进 <see cref="Disabled"/>；官方脚本演出前会复位为 false。
-    /// Disabled=true 时，任何角色 ShowMood 显示出的圆形情绪面板立即被全量隐藏。
+    /// Disabled=true 时隐藏自动气泡；显式单人设置直接复用本场人物的官方面板。
     ///
     /// patch 目标核实（2026-08 ilspycmd 反编译 Mortal.Story.dll，v 与游戏 7 月更新一致）：
     /// <list type="bullet">
@@ -42,12 +43,49 @@ namespace MortalModHost
     [HarmonyPatch(typeof(StoryCharacterController), "ShowMood")]
     internal static class MoodControl
     {
-        /// <summary>true = mod 演出中禁止官方心情气泡显示（mod_set_mood(false) 或缺参）。</summary>
+        /// <summary>true = 禁止自动气泡；显式单人气泡不依赖人物表情。</summary>
         internal static bool Disabled;
+
+        // Runtime choices only: never change a character's portrait or official assets.
+        private static readonly Dictionary<StoryCharacterController, string> Overrides =
+            new Dictionary<StoryCharacterController, string>();
+
+        internal static void ClearOverrides() { Overrides.Clear(); }
+
+        internal static void Forget(Fungus.Character character)
+        {
+            StoryCharacterController controller = character as StoryCharacterController;
+            if (controller != null) Overrides.Remove(controller);
+        }
+
+        internal static void SetCharacter(string id, string icon)
+        {
+            if (string.IsNullOrEmpty(id) || id.StartsWith("user:", StringComparison.Ordinal))
+                throw new ArgumentException("指定气泡需要原版人物 ID");
+            if (Array.IndexOf(new[] { "auto", "hide", "shock", "silent", "angry2", "nervous1", "laugh1",
+                "shy", "nervous3", "nervous4", "nervous2" }, icon) < 0)
+                throw new ArgumentException("未知气泡样式：" + icon);
+            CharacterPlaceholder placeholder = CharacterPlaceholder.Instance;
+            StoryCharacterController controller = placeholder != null ? placeholder.Get(id) as StoryCharacterController : null;
+            if (controller == null || controller.State == null || !controller.State.onScreen
+                || controller.State.holder == null || controller.Mood == null)
+                throw new InvalidOperationException("指定气泡的人物尚未登场：" + id);
+            if (icon == "auto") Overrides.Remove(controller);
+            else Overrides[controller] = icon;
+            if (controller.State.dimmed) controller.Mood.Hide();
+            else controller.ShowMood();
+        }
+
+        internal static void RefreshCharacter(Fungus.Character character)
+        {
+            StoryCharacterController controller = character as StoryCharacterController;
+            if (controller != null && Overrides.ContainsKey(controller) && controller.State != null && controller.State.onScreen
+                && !controller.State.dimmed && controller.State.holder != null && controller.Mood != null)
+                controller.ShowMood();
+        }
 
         internal static void RefreshVisible()
         {
-            if (Disabled) return;
             Fungus.Stage stage = Fungus.Stage.GetActiveStage();
             if (stage == null) return;
             foreach (Fungus.Character character in stage.CharactersOnStage)
@@ -74,14 +112,23 @@ namespace MortalModHost
         /// <summary>ShowMood postfix 打 Info 诊断日志的前 N 次触发。</summary>
         private const int PostfixLogLimit = 3;
 
-        /// <summary>角色 ShowMood 之后立刻收尾：Disabled 时把刚显示出的气泡全量隐藏。</summary>
-        private static void Postfix()
+        /// <summary>在原版自动匹配之后应用单人选择，否则执行自动开关。</summary>
+        private static void Postfix(StoryCharacterController __instance)
         {
             int n = ++_postfixCalls;
             if (n <= PostfixLogLimit && Log != null)
                 Log.LogInfo("[mood-diag] StoryCharacterController.ShowMood postfix 触发 #" + n + "（Disabled=" + Disabled + "）");
-            if (Disabled)
-                HideAllMoodPanels();
+            if (__instance.Mood == null || __instance.State == null || __instance.State.holder == null) return;
+            string icon;
+            if (Overrides.TryGetValue(__instance, out icon))
+            {
+                if (icon == "hide" || !__instance.State.onScreen || __instance.State.dimmed)
+                    __instance.Mood.Hide();
+                else
+                    __instance.Mood.Show(icon, __instance.State.holder.localScale.x);
+            }
+            else if (Disabled)
+                __instance.Mood.Hide();
         }
 
         /// <summary>
@@ -121,5 +168,17 @@ namespace MortalModHost
                     Log.LogWarning("[mood-diag] 心情气泡隐藏失败：" + ex);
             }
         }
+    }
+
+    [HarmonyPatch(typeof(StoryStageController), "Hide")]
+    internal static class MoodCharacterExitPatch
+    {
+        private static void Postfix(Fungus.PortraitOptions options) { MoodControl.Forget(options.character); }
+    }
+
+    [HarmonyPatch(typeof(StoryStageController), "SetDimmed")]
+    internal static class MoodCharacterFocusPatch
+    {
+        private static void Postfix(Fungus.Character character) { MoodControl.RefreshCharacter(character); }
     }
 }

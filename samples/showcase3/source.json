@@ -4,13 +4,13 @@
     "package_format": 3,
     "story_schema": 2,
     "content_schema": 1,
-    "min_host_version": "1.3.6",
+    "min_host_version": "1.4.1",
     "id": "showcase3",
     "campaign_id": "showcase3",
-    "name": "全节点样例3.0·六十六节点实机验收",
+    "name": "全节点样例3.0·六十七节点实机验收",
     "version": "3.0.0",
     "author": "lom_modkit",
-    "description": "面向手动验收的 66 节点完整样例：用户图片/角色/音频、演出、数值与检定、MOD 任务/持久变量、奖励/商店、原版 Combat/Battle 编排、独立决斗背景、运行时人物绑定、死亡与安全返回。",
+    "description": "面向手动验收的 67 节点完整样例：用户图片/角色/音频、演出、数值与检定、MOD 任务/持久变量、奖励/商店、原版 Combat/Battle 编排、独立决斗背景、运行时人物绑定、死亡与安全返回。 包含 1.4 自定义功法、物品、主动消耗品、决斗援助、招式与序列帧动画。",
     "entry": "main",
     "campaign": {
       "new_game": true
@@ -269,6 +269,56 @@
           "id": "mood_off",
           "type": "mood",
           "enabled": false
+        },
+        {
+          "id": "mood_extra_enter",
+          "type": "show",
+          "character": "artist1",
+          "position": "M",
+          "portrait": "normal"
+        },
+        {
+          "id": "mood_extra_shock",
+          "type": "mood",
+          "character": "artist1",
+          "enabled": true,
+          "icon": "shock"
+        },
+        {
+          "id": "mood_extra_pause",
+          "type": "wait",
+          "seconds": 1
+        },
+        {
+          "id": "mood_extra_laugh",
+          "type": "mood",
+          "character": "artist1",
+          "enabled": true,
+          "icon": "laugh1"
+        },
+        {
+          "id": "mood_extra_pause2",
+          "type": "wait",
+          "seconds": 1
+        },
+        {
+          "id": "mood_extra_hide",
+          "type": "mood",
+          "character": "artist1",
+          "enabled": false
+        },
+        {
+          "id": "mood_extra_auto",
+          "type": "mood",
+          "character": "artist1",
+          "enabled": true,
+          "icon": "auto"
+        },
+        {
+          "id": "mood_extra_exit",
+          "type": "hide",
+          "character": "artist1",
+          "fadeDuration": 0
         },
         {
           "id": "say3",
@@ -687,6 +737,32 @@
           "remove": false
         },
         {
+          "id": "custom_token_grant",
+          "type": "item",
+          "kind": "misc",
+          "item": "user:showcase.courier_token",
+          "count": 1
+        },
+        {
+          "id": "custom_manual_grant",
+          "type": "item",
+          "kind": "book",
+          "item": "user:showcase.lantern_breath",
+          "count": 1
+        },
+        {
+          "id": "custom_tonic_grant",
+          "type": "item",
+          "kind": "consumable",
+          "item": "user:showcase.clear_mind",
+          "count": 2
+        },
+        {
+          "id": "custom_tonic_use",
+          "type": "use_item",
+          "item": "user:showcase.clear_mind"
+        },
+        {
           "id": "game_flag1",
           "type": "game_flag",
           "flag": "50019",
@@ -763,6 +839,16 @@
               "category": "book",
               "item": "1010",
               "count": 1
+            },
+            {
+              "category": "misc",
+              "item": "user:showcase.courier_token",
+              "count": 3
+            },
+            {
+              "category": "book",
+              "item": "user:showcase.lantern_breath",
+              "count": 1
             }
           ]
         },
@@ -830,7 +916,7 @@
           "id": "item_check1",
           "type": "item_check",
           "category": "misc",
-          "item": "2001",
+          "item": "user:showcase.courier_token",
           "invert": false,
           "success": "say5",
           "failure": "say6"
@@ -1087,7 +1173,14 @@
         {
           "id": "message1",
           "type": "message",
-          "text": "【3.0/3】林灯没有专用 Combat 四帧。对手只填写基础血量 333、基础气力 111；原版技能增益后，界面显示最终值，未填初始值时按最终满值进入。赵活体力、内力与被动先按原版换算生命，再额外叠加 1000 基础生命。雷达六维填 100，右边五项是官方评语。也可跳过。"
+          "text": "【3.0/3】林灯没有专用 Combat 四帧。对手只填写基础血量 333、基础气力 111；原版技能增益后，界面显示最终值，未填初始值时按最终满值进入。赵活体力、内力与被动先按原版换算生命，再额外叠加 1000 基础生命。雷达六维填 100，右边五项是官方评语。也可跳过。 本场双方可施展自定义灯影掌及四帧动画；我方可主动使用续息丸，占用当前回合行动。"
+        },
+        {
+          "id": "custom_pill_grant",
+          "type": "item",
+          "kind": "consumable",
+          "item": "user:showcase.mending_pill",
+          "count": 3
         },
         {
           "id": "choice1",
@@ -1170,7 +1263,19 @@
           "attack_rate": 0.5,
           "weapon_rate": 0.1,
           "ultimate_rate": 0.05,
-          "block_rate": 0.25
+          "block_rate": 0.25,
+          "player_supports": [
+            "user:showcase.lin_aid"
+          ],
+          "enemy_supports": [
+            "user:showcase.lin_aid"
+          ],
+          "player_skills": [
+            "user:showcase.lantern_strike"
+          ],
+          "enemy_skills": [
+            "user:showcase.lantern_strike"
+          ]
         },
         {
           "id": "battle_result1",

@@ -17,7 +17,7 @@ pub const MAX_CONTENT_PACK_BYTES: u64 = 128 * 1024 * 1024;
 const MANIFEST: &str = "content-pack.json";
 const HASH: &str = "package-content.sha256";
 const SHARE_META: &str = ".lomcontent.json";
-const KINDS: [&str; 3] = ["audio", "character", "image"];
+const KINDS: &[&str] = content::CONTENT_TYPES;
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct ContentRecord {
     pub content_id: String,
@@ -47,7 +47,7 @@ fn sha(bytes: &[u8]) -> String {
 }
 fn collision_type(root: &Path, id: &str) -> Result<Option<String>> {
     content::validate_content_id(id)?;
-    for kind in KINDS {
+    for &kind in KINDS {
         let path = root.join(content::package_content_dir(kind, id)?);
         if path.exists() || path.is_symlink() {
             return Ok(Some(kind.into()));
@@ -58,7 +58,7 @@ fn collision_type(root: &Path, id: &str) -> Result<Option<String>> {
 pub fn get_content(root: &Path, id: &str) -> Result<ContentRecord> {
     content::validate_content_id(id)?;
     let mut found = None;
-    for kind in KINDS {
+    for &kind in KINDS {
         let folder = root.join(content::package_content_dir(kind, id)?);
         if folder.exists() {
             ensure!(found.is_none(), "内容 ID user:{id} 同时存在于多个类型");
@@ -76,7 +76,7 @@ pub fn get_content(root: &Path, id: &str) -> Result<ContentRecord> {
 }
 pub fn list_contents(root: &Path) -> Result<Vec<ContentRecord>> {
     let mut ids = BTreeSet::new();
-    for kind in KINDS {
+    for &kind in KINDS {
         let folder = root.join(format!("assets/user/{kind}"));
         if !folder.exists() {
             continue;

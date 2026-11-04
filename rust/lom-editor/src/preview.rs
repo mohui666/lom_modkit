@@ -116,6 +116,7 @@ pub fn simulate(story: &Value, target: &str) -> Value {
 fn simulate_until(story: &Value, target: &str, include_target: bool) -> Value {
     let mut state = json!({"actors":{},"dimming":{},"overlays":{},"official_pictures":{},"background":null,"view":null,"custom_cg":null,"dialog":null,"choice":null,"blackout":{"amount":0.0,"dir":"lr"},"reached":false,"steps":0});
     state["mood_enabled"] = json!(story["mood"].as_bool().unwrap_or(false));
+    state["mood_overrides"] = json!({});
     let Some(ns) = story["nodes"].as_array() else {
         return state;
     };
@@ -176,6 +177,14 @@ pub fn build_playtest_prelude(story: &Value, target: &str) -> Vec<Value> {
         nodes.push(node);
         if let Some(dimmed) = state["dimming"].get(id) {
             nodes.push(json!({"type":"dim","character":id,"dimmed":dimmed}));
+        }
+    }
+    for (id, setting) in state["mood_overrides"].as_object().into_iter().flatten() {
+        if state["actors"].get(id).is_some() {
+            let mut setting = setting.clone();
+            setting.as_object_mut().unwrap().remove("id");
+            setting.as_object_mut().unwrap().remove("goto");
+            nodes.push(setting);
         }
     }
     let cg = &state["custom_cg"];
@@ -284,7 +293,20 @@ fn apply(s: &mut Value, n: &Value) {
                 s["overlays"][slot] = n.clone();
             }
         }
-        "mood" => s["mood_enabled"] = n["enabled"].clone(),
+        "mood" => {
+            if !cid.is_empty() {
+                if n["enabled"] == true && n["icon"].as_str().unwrap_or("auto") == "auto" {
+                    s["mood_overrides"].as_object_mut().unwrap().remove(cid);
+                } else {
+                    s["mood_overrides"][cid] = n.clone();
+                }
+            } else {
+                s["mood_enabled"] = n["enabled"].clone();
+                if n["enabled"] == false {
+                    s["mood_overrides"] = json!({});
+                }
+            }
+        }
         "portrait" => {
             if s["actors"].get(cid).is_some() {
                 s["actors"][cid]["portrait"] = n["portrait"].clone();
@@ -300,6 +322,7 @@ fn apply(s: &mut Value, n: &Value) {
             if let Some(o) = s["actors"].as_object_mut() {
                 o.remove(cid);
             }
+            s["mood_overrides"].as_object_mut().unwrap().remove(cid);
         }
         "move" | "face" | "rotate" | "dim" | "offset" => {
             if s["actors"].get(cid).is_some() {
@@ -855,12 +878,23 @@ impl Preview {
             Some(elapsed) => simulate_frame(story, target, elapsed, &self.positions),
             None => simulate(story, target),
         };
+        if node["type"] == "use_item" {
+            ui.small(crate::i18n::tr(
+                "消耗品使用效果仅在游戏内执行；此预览不改变背包或属性。",
+            ));
+        }
         if node["type"] == "mood" {
-            ui.small(crate::i18n::tr(if state["mood_enabled"] == true {
-                "表情气泡已开启，图标由游戏中的人物表情决定。"
+            if !text(node, "character").is_empty() {
+                ui.small(crate::i18n::tr(
+                    "已设置该人物的独立气泡；动画在游戏中显示，不改变人物立绘。",
+                ));
             } else {
-                "表情气泡已关闭。"
-            }));
+                ui.small(crate::i18n::tr(if state["mood_enabled"] == true {
+                    "表情气泡已开启，图标由游戏中的人物表情决定。"
+                } else {
+                    "表情气泡已关闭。"
+                }));
+            }
         }
         if let Some(notice) = state["raw_preview"].as_str() {
             ui.small(notice);
@@ -1590,6 +1624,36 @@ pub fn graph(
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn character_bubble_resume_follows_hide_restore_and_global_clear() {
+        use super::*;
+        let mut story = json!({"start":"enter","nodes":[
+            {"id":"enter","type":"show","character":"artist1","position":"M","portrait":"normal"},
+            {"id":"bubble","type":"mood","character":"artist1","enabled":true,"icon":"laugh1"},
+            {"id":"say","type":"say","mode":"narrative","text":"预览"},
+            {"id":"clear","type":"mood","enabled":false},
+            {"id":"end","type":"end"}]});
+        let state = simulate(&story, "say");
+        assert_eq!(state["mood_enabled"], false);
+        assert_eq!(state["actors"]["artist1"]["portrait"], "normal");
+        assert_eq!(state["mood_overrides"]["artist1"]["icon"], "laugh1");
+        let resume = build_playtest_prelude(&story, "say");
+        assert!(
+            resume.iter().position(|n| n["type"] == "show").unwrap()
+                < resume.iter().position(|n| n["icon"] == "laugh1").unwrap()
+        );
+        for clearing in [
+            json!({"id":"clear","type":"mood","enabled":false}),
+            json!({"id":"clear","type":"mood","character":"artist1","enabled":true,"icon":"auto"}),
+            json!({"id":"clear","type":"hide","character":"artist1"}),
+        ] {
+            story["nodes"][3] = clearing;
+            assert!(simulate(&story, "end")["mood_overrides"]
+                .as_object()
+                .unwrap()
+                .is_empty());
+        }
+    }
     #[test]
     fn mood_switch_preview_and_playtest_resume_keep_the_latest_switch() {
         let story = json!({"mood":false,"start":"on","nodes":[

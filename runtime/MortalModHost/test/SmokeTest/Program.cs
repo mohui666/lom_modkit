@@ -32,6 +32,8 @@ namespace MortalModHost
 
         private static int Run()
         {
+            ModSaveBrowserTests.Run();
+            AddonSaveDependencyTests.Run();
             // 临时目录里造测试包，跑完即删
             string modsDir = Path.Combine(Path.GetTempPath(), "lommod_smoketest_" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(modsDir);
@@ -186,7 +188,10 @@ namespace MortalModHost
                 TestGameplaySession();
                 TestModQuestSession();
                 TestModSaveSlotPolicy();
+                PlayModeTests.Run();
                 TestPersistentStateStore(Path.Combine(modsDir, "campaign_state"));
+                CustomGameplayTests.Run(modsDir);
+                CustomConsumableTests.Run();
 
                 Console.WriteLine("--- 扫描信息 ---");
                 infos.ForEach(Console.WriteLine);

@@ -5,6 +5,16 @@ use std::path::{Path, PathBuf};
 
 pub const MAX_AUDIO_BYTES: u64 = 20 * 1024 * 1024;
 pub const MAX_IMAGE_BYTES: u64 = 8 * 1024 * 1024;
+pub const CONTENT_TYPES: &[&str] = &[
+    "audio",
+    "character",
+    "image",
+    "item",
+    "martial",
+    "support",
+    "skill",
+];
+pub const GAMEPLAY_TYPES: &[&str] = &["item", "martial", "support", "skill"];
 const ANIMATIONS: &[&str] = &[
     "combat_idle",
     "combat_attack",
@@ -149,8 +159,8 @@ pub fn normalize_content_metadata(data: &Value) -> Result<Value> {
     validate_content_id(id)?;
     let kind = text(data, "type");
     ensure!(
-        ["audio", "character", "image"].contains(&kind),
-        "type 必须是 audio / character / image 之一"
+        CONTENT_TYPES.contains(&kind),
+        "type 必须是 audio / character / image / item / martial / support / skill 之一"
     );
     let name = text(data, "name").trim();
     ensure!(!name.is_empty(), "name（显示名称）必须是非空字符串");
@@ -245,7 +255,373 @@ pub fn normalize_content_metadata(data: &Value) -> Result<Value> {
             meta[*k] = json!(optional_image(&data[*k], k)?.unwrap_or_else(|| idle.clone()));
         }
     }
+    if GAMEPLAY_TYPES.contains(&kind) {
+        normalize_gameplay_metadata(data, &mut meta)?;
+    }
     Ok(meta)
+}
+fn integer_field(data: &Value, key: &str, low: i64, high: i64) -> Result<i64> {
+    let value = data[key]
+        .as_i64()
+        .with_context(|| format!("{key} 必须是整数"))?;
+    ensure!(
+        (low..=high).contains(&value),
+        "{key} 必须在 {low}~{high} 之间"
+    );
+    Ok(value)
+}
+fn integer_default(data: &Value, key: &str, default: i64, low: i64, high: i64) -> Result<i64> {
+    if data.get(key).is_none() {
+        Ok(default)
+    } else {
+        integer_field(data, key, low, high)
+    }
+}
+fn combat_effects(data: &Value) -> Result<Value> {
+    let empty = json!([]);
+    let effects = data
+        .get("effects")
+        .unwrap_or(&empty)
+        .as_array()
+        .context("effects 必须是列表")?;
+    ensure!(effects.len() <= 16, "effects 最多16项");
+    Ok(json!(effects.iter().map(|effect| {
+        ensure!(["damage","heal","stamina"].contains(&text(effect,"type")),"效果 type 必须是 damage / heal / stamina");
+        ensure!(["self","enemy"].contains(&text(effect,"target")),"效果 target 必须是 self / enemy");
+        Ok(json!({"type":effect["type"],"target":effect["target"],"value":integer_field(effect,"value",1,999999)?}))
+    }).collect::<Result<Vec<_>>>()?))
+}
+fn consumable_fields(data: &Value, meta: &mut Value) -> Result<()> {
+    let use_in =
+        data.get("use_in")
+            .and_then(Value::as_str)
+            .unwrap_or(if data.get("use_in").is_none() {
+                "field"
+            } else {
+                ""
+            });
+    ensure!(
+        ["field", "combat"].contains(&use_in),
+        "use_in 必须是 field / combat"
+    );
+    let effects = data["effects"]
+        .as_array()
+        .context("消耗品 effects 必须是列表")?;
+    ensure!(
+        (1..=16).contains(&effects.len()),
+        "消耗品必须有1~16项使用效果"
+    );
+    meta["use_in"] = json!(use_in);
+    meta["effects"] = json!(effects
+        .iter()
+        .map(|effect| {
+            let value = integer_field(
+                effect,
+                "value",
+                if use_in == "field" { -999999 } else { 1 },
+                999999,
+            )?;
+            ensure!(
+                effect.get("target").is_none(),
+                "消耗品目标固定为玩家，不能指定 target"
+            );
+            if use_in == "field" {
+                ensure!(
+                    effect["type"] == "stat" && value != 0,
+                    "野外消耗品效果必须是非零 stat 加成"
+                );
+                let stat = text(effect, "stat");
+                ensure!(
+                    crate::validate::editor_data()["stats"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .any(|row| row["id"] == stat),
+                    "未知玩家属性：{stat}"
+                );
+                Ok(json!({"type":"stat","stat":stat,"value":value}))
+            } else {
+                ensure!(
+                    ["heal", "stamina"].contains(&text(effect, "type")),
+                    "决斗消耗品效果必须是 heal / stamina"
+                );
+                Ok(json!({"type":effect["type"],"value":value}))
+            }
+        })
+        .collect::<Result<Vec<_>>>()?);
+    Ok(())
+}
+fn stat_rows(data: &Value, field: &str, value_key: &str, low: i64, high: i64) -> Result<Value> {
+    if data.get(field).is_none() {
+        return Ok(json!([]));
+    }
+    let rows = data[field]
+        .as_array()
+        .with_context(|| format!("{field} 必须是列表"))?;
+    ensure!(rows.len() <= 32, "{field} 最多 32 项");
+    let mut result = Vec::new();
+    let mut seen = std::collections::BTreeSet::new();
+    for row in rows {
+        let stat = text(row, "stat");
+        ensure!(
+            crate::validate::editor_data()["stats"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|v| v["id"] == stat),
+            "未知玩家属性：{stat}"
+        );
+        ensure!(seen.insert(stat), "{field} 中属性重复：{stat}");
+        let value = integer_field(row, value_key, low, high)?;
+        result.push(json!({"stat":stat,value_key:value}));
+    }
+    Ok(json!(result))
+}
+fn normalize_gameplay_metadata(data: &Value, meta: &mut Value) -> Result<()> {
+    let description = text(data, "description").trim();
+    ensure!(
+        (data.get("description").is_none() || data["description"].is_string())
+            && description.chars().count() <= 4000,
+        "description 必须是最多 4000 字的说明"
+    );
+    meta["description"] = json!(description);
+    match text(data, "type") {
+        "item" | "martial" => {
+            meta["cost"] = json!(if data.get("cost").is_none() {
+                0
+            } else {
+                integer_field(data, "cost", 0, 999999)?
+            });
+            if data["type"] == "item" {
+                let category = data.get("category").and_then(Value::as_str).unwrap_or(
+                    if data.get("category").is_none() {
+                        "misc"
+                    } else {
+                        ""
+                    },
+                );
+                ensure!(
+                    ["misc", "special", "consumable"].contains(&category),
+                    "category 必须是 misc / special / consumable"
+                );
+                meta["category"] = json!(category);
+                if category == "consumable" {
+                    consumable_fields(data, meta)?;
+                }
+            } else {
+                let levels = data["levels"].as_array().context("levels 必须是列表")?;
+                ensure!((1..=20).contains(&levels.len()), "功法必须有 1~20 级");
+                meta["levels"] = json!(levels
+                    .iter()
+                    .map(|level| Ok(json!({
+                        "points":integer_field(level,"points",1,999999)?,
+                        "requirements":stat_rows(level,"requirements","min",-999999,999999)?,
+                        "bonuses":stat_rows(level,"bonuses","delta",-999999,999999)?
+                    })))
+                    .collect::<Result<Vec<_>>>()?);
+            }
+        }
+        "support" => {
+            let trigger = data.get("trigger").and_then(Value::as_str).unwrap_or(
+                if data.get("trigger").is_none() {
+                    "round_start"
+                } else {
+                    ""
+                },
+            );
+            ensure!(
+                ["round_start", "after_action", "after_hit"].contains(&trigger),
+                "trigger 必须是 round_start / after_action / after_hit"
+            );
+            meta["trigger"] = json!(trigger);
+            meta["chance"] = json!(if data.get("chance").is_none() {
+                100
+            } else {
+                integer_field(data, "chance", 0, 100)?
+            });
+            meta["uses"] = json!(if data.get("uses").is_none() {
+                1
+            } else {
+                integer_field(data, "uses", 1, 99)?
+            });
+            let effects = data["effects"].as_array().context("effects 必须是列表")?;
+            ensure!((1..=16).contains(&effects.len()), "援助必须有 1~16 项效果");
+            meta["effects"] = json!(effects.iter().map(|effect| {
+                ensure!(["damage","heal","stamina"].contains(&text(effect,"type")), "援助效果 type 必须是 damage / heal / stamina");
+                ensure!(["self","enemy"].contains(&text(effect,"target")), "援助效果 target 必须是 self / enemy");
+                Ok(json!({"type":effect["type"],"target":effect["target"],"value":integer_field(effect,"value",1,999999)?}))
+            }).collect::<Result<Vec<_>>>()?);
+        }
+        "skill" => {
+            let action = data.get("action").and_then(Value::as_str).unwrap_or(
+                if data.get("action").is_none() {
+                    "attack"
+                } else {
+                    ""
+                },
+            );
+            ensure!(
+                ["attack", "weapon", "ultimate"].contains(&action),
+                "action 必须是 attack / weapon / ultimate"
+            );
+            meta["action"] = json!(action);
+            for (key, default, max) in [
+                ("power", 0, 999999),
+                ("stamina_cost", 0, 9999),
+                ("accuracy", 100, 100),
+                ("cooldown", 0, 99),
+                ("ai_chance", 100, 100),
+            ] {
+                meta[key] = json!(integer_default(data, key, default, 0, max)?);
+            }
+            meta["effects"] = combat_effects(data)?;
+            if !data["animation"].is_null() {
+                let animation = &data["animation"];
+                ensure!(animation.is_object(), "animation 必须是对象");
+                let frames = animation["frames"]
+                    .as_array()
+                    .context("animation.frames 必须是列表")?;
+                ensure!((1..=120).contains(&frames.len()), "动画必须有1~120帧");
+                let frames = frames
+                    .iter()
+                    .map(|frame| {
+                        let name = safe_filename(frame, "动画帧", false)?;
+                        ensure!(
+                            name.to_ascii_lowercase().ends_with(".png"),
+                            "动画帧必须是 PNG 文件"
+                        );
+                        Ok(json!(name))
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                meta["animation"] = json!({"frames":frames,"fps":integer_default(animation,"fps",12,1,60)?,"hit_frame":integer_default(animation,"hit_frame",0,0,frames.len() as i64-1)?,"scale":integer_default(animation,"scale",100,50,200)?});
+            }
+        }
+        _ => unreachable!(),
+    }
+    Ok(())
+}
+
+/// References which participate in the 1.4 gameplay content contract.
+pub fn gameplay_references(node: &Value) -> Vec<(&str, &'static str, &str)> {
+    let mut refs = Vec::new();
+    match text(node, "type") {
+        "item" | "item_check" | "use_item" => {
+            if node["type"] == "use_item" {
+                refs.push((text(node, "item"), "item", "consumable"));
+                return refs;
+            }
+            let category = node["category"].as_str().unwrap_or(text(node, "kind"));
+            refs.push((
+                text(node, "item"),
+                if category == "book" {
+                    "martial"
+                } else {
+                    "item"
+                },
+                category,
+            ));
+        }
+        "custom_shop" => {
+            if let Some(items) = node["items"].as_array() {
+                for item in items {
+                    let category = text(item, "category");
+                    refs.push((
+                        text(item, "item"),
+                        if category == "book" {
+                            "martial"
+                        } else {
+                            "item"
+                        },
+                        category,
+                    ));
+                }
+            }
+        }
+        "combat" => {
+            for field in [
+                "player_supports",
+                "enemy_supports",
+                "player_skills",
+                "enemy_skills",
+            ] {
+                if let Some(items) = node[field].as_array() {
+                    for item in items {
+                        if let Some(raw) = item.as_str() {
+                            refs.push((
+                                raw,
+                                if field.ends_with("skills") {
+                                    "skill"
+                                } else {
+                                    "support"
+                                },
+                                "",
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        "reward" | "result_screen" | "activity" => {
+            for field in ["entries", "success_rewards", "failure_rewards"] {
+                if let Some(items) = node[field].as_array() {
+                    for item in items.iter().filter(|i| i["kind"] == "item") {
+                        let category = text(item, "category");
+                        refs.push((
+                            text(item, "key"),
+                            if category == "book" {
+                                "martial"
+                            } else {
+                                "item"
+                            },
+                            category,
+                        ));
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+    refs
+}
+
+pub fn gameplay_defaults(kind: &str) -> Value {
+    match kind {
+        "item" => json!({"description":"","category":"misc","cost":100}),
+        "martial" => {
+            json!({"description":"","cost":100,"levels":[{"points":10,"requirements":[],"bonuses":[{"stat":"internal","delta":1}]}]})
+        }
+        "support" => {
+            json!({"description":"","trigger":"round_start","chance":100,"uses":3,"effects":[{"type":"heal","target":"self","value":10}]})
+        }
+        "skill" => {
+            json!({"description":"","action":"attack","power":20,"stamina_cost":5,"accuracy":100,"cooldown":0,"ai_chance":100,"effects":[]})
+        }
+        _ => json!({}),
+    }
+}
+/// Present event result item actions in the same shape as story item nodes.
+pub fn scenario_gameplay_nodes(config: &Value) -> Vec<Value> {
+    fn collect(value: &Value, result: &mut Vec<Value>) {
+        match value {
+            Value::Object(object) => {
+                if value["type"] == "item" && text(value, "key").starts_with("user:") {
+                    result.push(json!({"type":"item","kind":value["kind"],"item":value["key"]}));
+                }
+                for child in object.values() {
+                    collect(child, result);
+                }
+            }
+            Value::Array(array) => {
+                for child in array {
+                    collect(child, result);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut nodes = Vec::new();
+    collect(config, &mut nodes);
+    nodes
 }
 pub fn listed_content_files(meta: &Value) -> Vec<String> {
     let mut out = Vec::new();
@@ -264,6 +640,11 @@ pub fn listed_content_files(meta: &Value) -> Vec<String> {
     }
     for k in ANIMATIONS {
         add(&meta[*k]);
+    }
+    if let Some(frames) = meta["animation"]["frames"].as_array() {
+        for frame in frames {
+            add(frame);
+        }
     }
     add(&meta["intro"]["image"]);
     out
@@ -301,6 +682,30 @@ pub fn content_metadata_payload(meta: &Value) -> Value {
         }
         if meta["intro"].is_object() {
             p.insert("intro".into(), meta["intro"].clone());
+        }
+    }
+    if GAMEPLAY_TYPES.contains(&text(meta, "type")) {
+        for key in [
+            "description",
+            "category",
+            "cost",
+            "levels",
+            "trigger",
+            "chance",
+            "uses",
+            "effects",
+            "use_in",
+            "action",
+            "power",
+            "stamina_cost",
+            "accuracy",
+            "cooldown",
+            "ai_chance",
+            "animation",
+        ] {
+            if !meta[key].is_null() {
+                p.insert(key.into(), meta[key].clone());
+            }
         }
     }
     Value::Object(p)

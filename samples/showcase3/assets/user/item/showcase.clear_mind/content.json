@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "content_schema": 1,
+  "type": "item",
+  "id": "showcase.clear_mind",
+  "name": "清心饮",
+  "files": {
+    "main": "icon.png"
+  },
+  "category": "consumable",
+  "use_in": "field",
+  "cost": 60,
+  "description": "养成或剧情中主动饮用，心相增加3；每次消耗一瓶。",
+  "effects": [
+    {
+      "type": "stat",
+      "stat": "mental",
+      "value": 3
+    }
+  ]
+}

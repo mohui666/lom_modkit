@@ -498,6 +498,25 @@ fn talents(node: &Value, field: &str, catalog: &Value) -> Result<()> {
     Ok(())
 }
 fn combat(n: &Value, catalog: &Value) -> Result<()> {
+    for field in [
+        "player_supports",
+        "enemy_supports",
+        "player_skills",
+        "enemy_skills",
+    ] {
+        if let Some(value) = n.get(field) {
+            let rows = value
+                .as_array()
+                .with_context(|| format!("{field} 必须是列表"))?;
+            let maximum = if field.ends_with("skills") { 8 } else { 16 };
+            ensure!(rows.len() <= maximum, "{field} 最多 {maximum} 项");
+            let mut seen = BTreeSet::new();
+            for raw in rows {
+                user_ref(raw, field)?;
+                ensure!(seen.insert(string(raw)), "{field} 中同一内容不能重复");
+            }
+        }
+    }
     let character = &n["character"];
     if user(character) {
         user_ref(character, "character")?;
@@ -902,6 +921,15 @@ fn mod_death_id(key: &str) -> bool {
     n.len() > 6 || (n.len() == 6 && n >= "900000")
 }
 fn extra(n: &Value, ntype: &str, catalog: &Value) -> Result<()> {
+    for (raw, _, category) in crate::content::gameplay_references(n) {
+        ensure!(
+            category != "consumable" || raw.starts_with("user:"),
+            "消耗品当前只支持本包 user: 引用"
+        );
+        if raw.starts_with("user:") {
+            crate::content::parse_content_ref(raw)?;
+        }
+    }
     range(n, "wait_after", 0.0, f64::INFINITY)?;
     if ntype == "parallel" {
         crate::parallel::validate_group(n)?;
@@ -958,6 +986,19 @@ fn extra(n: &Value, ntype: &str, catalog: &Value) -> Result<()> {
         user_ref(c, "character")?;
     }
     match ntype {
+        "mood" => {
+            if has(n, "character") {
+                ensure!(nonblank(c) && !user(c), "指定气泡需要原版人物 ID");
+                ensure!(
+                    array(&catalog["characters"])
+                        .iter()
+                        .any(|row| row["id"] == *c),
+                    "指定气泡的人物不在原版清单中：{c}"
+                );
+            } else {
+                ensure!(!has(n, "icon"), "选择气泡样式前请先指定人物");
+            }
+        }
         "portrait" => {
             ensure!(nonblank(&n["character"]), "换表情的 character 不能为空");
             ensure!(nonblank(&n["portrait"]), "换表情的 portrait 不能为空");
@@ -1077,10 +1118,17 @@ fn extra(n: &Value, ntype: &str, catalog: &Value) -> Result<()> {
                 );
             }
         }
-        "item" => ensure!(
-            !(n["remove"] == true && s(n, "kind") == "special"),
-            "remove 仅支持 kind=\"book\"/\"misc\"（special 无 Remove API）"
-        ),
+        "item" => {
+            if user(&n["item"]) {
+                int_field(n, "count", 1, 999999)?;
+            } else {
+                ensure!(
+                    !(n["remove"] == true && s(n, "kind") == "special"),
+                    "remove 仅支持 kind=\"book\"/\"misc\"（special 无 Remove API）"
+                )
+            }
+        }
+        "use_item" => user_ref(&n["item"], "item")?,
         "enemy" => {
             if s(n, "op") != "id" {
                 require(n, &["value"], "op 非 id")?;

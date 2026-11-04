@@ -430,7 +430,11 @@
         "player_behaviour": "num",
         "player_karma": "num",
         "player_training": "num",
-        "player_talents": "list"
+        "player_talents": "list",
+        "player_supports": "list",
+        "enemy_supports": "list",
+        "player_skills": "list",
+        "enemy_skills": "list"
       }
     },
     "battle": {
@@ -725,6 +729,15 @@
       "required": {
         "enabled": "bool"
       },
+      "optional": {
+        "character": "idstr",
+        "icon": "mood_icon"
+      }
+    },
+    "use_item": {
+      "required": {
+        "item": "idstr"
+      },
       "optional": {}
     }
   },
@@ -798,7 +811,8 @@
     "item_kind": [
       "book",
       "misc",
-      "special"
+      "special",
+      "consumable"
     ],
     "gameflag_op": [
       "set",
@@ -970,6 +984,18 @@
       "1",
       "2",
       "3"
+    ],
+    "mood_icon": [
+      "auto",
+      "shock",
+      "silent",
+      "angry2",
+      "nervous1",
+      "laugh1",
+      "shy",
+      "nervous3",
+      "nervous4",
+      "nervous2"
     ]
   },
   "type_names": {
@@ -993,7 +1019,7 @@
     "block_fc": "\"view\"/\"common\"",
     "cg_action": "\"show\"/\"hide\"",
     "cg_kind": "\"picture\"/\"item\"/\"big\"/\"map\"/\"family\"/\"title\"",
-    "item_kind": "\"book\"/\"misc\"/\"special\"",
+    "item_kind": "\"book\"/\"misc\"/\"special\"/\"consumable\"",
     "gameflag_op": "\"set\"/\"add\"",
     "enemy_op": "\"team\"/\"level\"/\"people\"/\"id\"",
     "bskill_op": "\"set\"/\"active\"/\"level\"/\"reset\"",
