@@ -1,0 +1,26 @@
+{
+  "type": "support",
+  "id": "showcase.lin_aid",
+  "name": "林灯援助",
+  "description": "回合开始时调息，至多三次为持有方恢复气血与气力。",
+  "trigger": "round_start",
+  "chance": 100,
+  "uses": 3,
+  "effects": [
+    {
+      "type": "heal",
+      "target": "self",
+      "value": 15
+    },
+    {
+      "type": "stamina",
+      "target": "self",
+      "value": 5
+    }
+  ],
+  "schema": 1,
+  "content_schema": 1,
+  "files": {
+    "main": "icon.png"
+  }
+}

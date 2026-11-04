@@ -57,6 +57,32 @@
       "remove": false
     },
     {
+      "id": "custom_token_grant",
+      "type": "item",
+      "kind": "misc",
+      "item": "user:showcase.courier_token",
+      "count": 1
+    },
+    {
+      "id": "custom_manual_grant",
+      "type": "item",
+      "kind": "book",
+      "item": "user:showcase.lantern_breath",
+      "count": 1
+    },
+    {
+      "id": "custom_tonic_grant",
+      "type": "item",
+      "kind": "consumable",
+      "item": "user:showcase.clear_mind",
+      "count": 2
+    },
+    {
+      "id": "custom_tonic_use",
+      "type": "use_item",
+      "item": "user:showcase.clear_mind"
+    },
+    {
       "id": "game_flag1",
       "type": "game_flag",
       "flag": "50019",
@@ -133,6 +159,16 @@
           "category": "book",
           "item": "1010",
           "count": 1
+        },
+        {
+          "category": "misc",
+          "item": "user:showcase.courier_token",
+          "count": 3
+        },
+        {
+          "category": "book",
+          "item": "user:showcase.lantern_breath",
+          "count": 1
         }
       ]
     },
@@ -200,7 +236,7 @@
       "id": "item_check1",
       "type": "item_check",
       "category": "misc",
-      "item": "2001",
+      "item": "user:showcase.courier_token",
       "invert": false,
       "success": "say5",
       "failure": "say6"

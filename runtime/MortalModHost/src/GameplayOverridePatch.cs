@@ -1313,6 +1313,7 @@ namespace MortalModHost
         private static IEnumerator Wrap(CombatActionController action, IEnumerator original)
         {
             while (original != null && original.MoveNext()) yield return original.Current;
+            yield return CustomGameplayRuntime.AddSupports(action);
             CombatManager manager = CombatManager.Instance;
             CombatActionController enemy = manager != null
                 ? Traverse.Create(manager).Field("_enemyAction").GetValue<CombatActionController>()

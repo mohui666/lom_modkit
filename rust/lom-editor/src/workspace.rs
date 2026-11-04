@@ -92,14 +92,14 @@ struct AssetImportDialog {
 }
 impl AssetImportDialog {
     fn select_files(&mut self, paths: Vec<PathBuf>) {
-        if self.paths.is_empty() || self.kind != 1 {
+        if self.paths.is_empty() || ![1, 8].contains(&self.kind) {
             self.name = paths
                 .first()
                 .and_then(|path| path.file_stem())
                 .map(|name| name.to_string_lossy().into_owned())
                 .unwrap_or_default();
         }
-        if self.kind == 1 {
+        if [1, 8].contains(&self.kind) {
             for path in paths {
                 if !self.paths.contains(&path) {
                     self.paths.push(path);
@@ -3007,6 +3007,10 @@ impl App {
                         "image" => tr("图片"),
                         "character" => tr("角色"),
                         "audio" => tr("音频"),
+                        "item" => tr("物品"),
+                        "martial" => tr("功法"),
+                        "support" => tr("决斗援助"),
+                        "skill" => tr("自创招式"),
                         other => other.to_owned(),
                     };
                     let selected = self.asset_selection == *key;
@@ -3119,6 +3123,11 @@ impl App {
         let prefix = match kind {
             0 => "image",
             1 => "character",
+            5 => "item",
+            6 => "martial",
+            7 => "support",
+            8 => "skill",
+            9 => "item",
             _ => "audio",
         };
         let namespace: String = self.project.manifest["id"]
@@ -3179,9 +3188,18 @@ impl App {
         let kind = match asset_kind {
             0 => "image",
             1 => "character",
+            5 => "item",
+            6 => "martial",
+            7 => "support",
+            8 => "skill",
+            9 => "item",
             _ => "audio",
         };
         let prefix = format!("assets/user/{kind}/{id}");
+        anyhow::ensure!(
+            kind != "skill" || (1..=120).contains(&paths.len()),
+            "招式动画必须选择1~120个PNG帧"
+        );
         anyhow::ensure!(
             !self
                 .project
@@ -3193,6 +3211,7 @@ impl App {
         let mut payload = BTreeMap::new();
         let mut portraits = serde_json::Map::new();
         let mut main = String::new();
+        let mut frames = Vec::new();
         for (i, path) in paths.iter().enumerate() {
             let original_name = path
                 .file_name()
@@ -3286,6 +3305,15 @@ impl App {
                     portraits.insert(portrait, name.clone().into());
                 }
             }
+            if kind == "skill" {
+                anyhow::ensure!(ext == "png", "招式动画帧必须是PNG");
+                anyhow::ensure!(
+                    image::guess_format(&bytes)? == image::ImageFormat::Png,
+                    "招式动画帧必须是PNG编码"
+                );
+                image::load_from_memory(&bytes)?;
+                frames.push(json!(name));
+            }
             payload.insert(format!("{prefix}/{name}"), bytes);
         }
         anyhow::ensure!(!main.is_empty(), "未选择素材");
@@ -3300,6 +3328,17 @@ impl App {
             if asset_kind == 4 {
                 meta["character"] = json!("player");
             }
+        }
+        if let Some(defaults) = lom_core::content::gameplay_defaults(kind).as_object() {
+            meta.as_object_mut().unwrap().extend(defaults.clone());
+        }
+        if kind == "skill" {
+            meta["animation"] = json!({"frames":frames,"fps":12,"hit_frame":0,"scale":100});
+        }
+        if asset_kind == 9 {
+            meta["category"] = json!("consumable");
+            meta["use_in"] = json!("field");
+            meta["effects"] = json!([{"type":"stat","stat":"life","value":10}]);
         }
         let checked = lom_core::content::normalize_content_metadata(&meta)?;
         meta = lom_core::content::content_metadata_payload(&checked);
@@ -3751,10 +3790,33 @@ impl App {
                         draft.kind = 0;
                     } else {
                         egui::ComboBox::from_id_salt("import-kind")
-                            .selected_text(tr(["图片", "角色", "音乐", "音效", "配音"][draft.kind]))
+                            .selected_text(tr([
+                                "图片",
+                                "角色",
+                                "音乐",
+                                "音效",
+                                "配音",
+                                "物品",
+                                "功法",
+                                "决斗援助",
+                                "自创招式",
+                                "消耗品",
+                            ][draft.kind]))
                             .show_ui(ui, |ui| {
-                                for (i, kind) in
-                                    ["图片", "角色", "音乐", "音效", "配音"].iter().enumerate()
+                                for (i, kind) in [
+                                    "图片",
+                                    "角色",
+                                    "音乐",
+                                    "音效",
+                                    "配音",
+                                    "物品",
+                                    "功法",
+                                    "决斗援助",
+                                    "自创招式",
+                                    "消耗品",
+                                ]
+                                .iter()
+                                .enumerate()
                                 {
                                     ui.selectable_value(&mut draft.kind, i, tr(kind));
                                 }
@@ -3768,7 +3830,9 @@ impl App {
                     choose_files = ui
                         .button(format!(
                             "{} *",
-                            tr(if draft.kind == 1 {
+                            tr(if draft.kind == 8 {
+                                "选择 PNG 动画帧…"
+                            } else if draft.kind == 1 {
                                 if draft.paths.is_empty() {
                                     "选择立绘文件…"
                                 } else {
@@ -3804,11 +3868,13 @@ impl App {
                 self.image_import_target = None;
             } else if choose_files {
                 let dialog = rfd::FileDialog::new();
-                let paths = if draft.kind == 1 {
+                let paths = if draft.kind == 8 {
+                    dialog.add_filter("PNG 动画帧", &["png"]).pick_files()
+                } else if draft.kind == 1 {
                     dialog
                         .add_filter("PNG / JPEG", &["png", "jpg", "jpeg"])
                         .pick_files()
-                } else if draft.kind == 0 {
+                } else if draft.kind == 0 || draft.kind >= 5 {
                     dialog
                         .add_filter("PNG / JPEG", &["png", "jpg", "jpeg"])
                         .pick_file()
@@ -4650,7 +4716,7 @@ mod tests {
     fn all_catalog_node_forms_have_defaults() {
         let c = Catalog::new();
         let schemas = c.schema["NODE_SCHEMAS"].as_object().unwrap();
-        assert_eq!(schemas.len(), 66);
+        assert_eq!(schemas.len(), 67);
         for kind in schemas.keys() {
             let node = c.new_node(kind, "n1".into());
             assert_eq!(node["type"], kind.as_str());
@@ -5988,6 +6054,70 @@ mod application_regression_tests {
         );
         assert_eq!(app.project.manifest["name"], "edited");
         assert!(app.redo.is_empty());
+    }
+    #[test]
+    fn gameplay_content_imports_defaults_and_exposes_typed_selectors() {
+        let dir = tempfile::tempdir().unwrap();
+        let icon = dir.path().join("icon.png");
+        std::fs::write(&icon, b"sample icon").unwrap();
+        let mut app = app();
+        for (kind, index, id) in [
+            ("item", 5, "demo.token"),
+            ("martial", 6, "demo.manual"),
+            ("support", 7, "demo.aid"),
+        ] {
+            app.import_assets(vec![icon.clone()], id, "测试内容", index)
+                .unwrap();
+            let key = format!("assets/user/{kind}/{id}/content.json");
+            let meta: Value = serde_json::from_slice(&app.project.assets[&key]).unwrap();
+            assert_eq!(meta["type"], kind);
+            lom_core::content::normalize_content_metadata(&meta).unwrap();
+        }
+        app.catalog.sync_assets(&app.project.assets);
+        assert!(app
+            .catalog
+            .options("item", &json!({"kind":"misc"}), &[], &[])
+            .iter()
+            .any(|(id, _)| id == "user:demo.token"));
+        assert!(app
+            .catalog
+            .options("item", &json!({"kind":"book"}), &[], &[])
+            .iter()
+            .any(|(id, _)| id == "user:demo.manual"));
+        assert!(app
+            .catalog
+            .options("support", &Value::Null, &[], &[])
+            .iter()
+            .any(|(id, _)| id == "user:demo.aid"));
+        let mut bytes = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::new_rgba8(2, 2)
+            .write_to(&mut bytes, image::ImageFormat::Png)
+            .unwrap();
+        std::fs::write(&icon, bytes.into_inner()).unwrap();
+        app.import_assets(vec![icon.clone(), icon.clone()], "demo.strike", "试招", 8)
+            .unwrap();
+        app.import_assets(vec![icon], "demo.tonic", "丹药", 9)
+            .unwrap();
+        app.catalog.sync_assets(&app.project.assets);
+        let skill: Value = serde_json::from_slice(
+            &app.project.assets["assets/user/skill/demo.strike/content.json"],
+        )
+        .unwrap();
+        assert_eq!(skill["animation"]["frames"].as_array().unwrap().len(), 2);
+        assert_ne!(
+            skill["animation"]["frames"][0],
+            skill["animation"]["frames"][1]
+        );
+        assert!(app
+            .catalog
+            .options("skill", &Value::Null, &[], &[])
+            .iter()
+            .any(|(id, _)| id == "user:demo.strike"));
+        assert!(app
+            .catalog
+            .options("field_consumable", &Value::Null, &[], &[])
+            .iter()
+            .any(|(id, _)| id == "user:demo.tonic"));
     }
     #[test]
     fn asset_import_is_atomic_and_undo_redo_restores_bytes() {

@@ -65,7 +65,8 @@
     "free_trigger": "自由模式触发",
     "parallel": "同时执行组",
     "portrait": "人物换表情",
-    "mood": "表情气泡"
+    "mood": "表情气泡",
+    "use_item": "使用消耗品"
   },
   "NODE_GROUPS_SRC": [
     [
@@ -110,6 +111,7 @@
         "affinity",
         "talent",
         "item",
+        "use_item",
         "flag",
         "game_flag",
         "enemy",
@@ -374,6 +376,10 @@
       [
         "special",
         "特殊物品"
+      ],
+      [
+        "consumable",
+        "消耗品"
       ]
     ],
     "game_flag_op": [
@@ -846,6 +852,48 @@
       [
         "left",
         "靠左对齐"
+      ]
+    ],
+    "mood_icon": [
+      [
+        "auto",
+        "跟随人物表情"
+      ],
+      [
+        "shock",
+        "惊讶（叹号）"
+      ],
+      [
+        "silent",
+        "沉默（省略号）"
+      ],
+      [
+        "angry2",
+        "生气"
+      ],
+      [
+        "nervous1",
+        "紧张（汗滴）"
+      ],
+      [
+        "laugh1",
+        "开心（音符）"
+      ],
+      [
+        "shy",
+        "害羞"
+      ],
+      [
+        "nervous3",
+        "低落（阴影）"
+      ],
+      [
+        "nervous4",
+        "烦躁（乱线）"
+      ],
+      [
+        "nervous2",
+        "慌张（冒汗）"
       ]
     ]
   },
@@ -2311,6 +2359,30 @@
           true
         ],
         [
+          "player_supports",
+          "我方自定义援助",
+          "support_list",
+          true
+        ],
+        [
+          "enemy_supports",
+          "对手自定义援助",
+          "support_list",
+          true
+        ],
+        [
+          "player_skills",
+          "我方自创招式",
+          "skill_list",
+          true
+        ],
+        [
+          "enemy_skills",
+          "对手自创招式",
+          "skill_list",
+          true
+        ],
+        [
           "win",
           "胜利后",
           "node_ref",
@@ -3205,9 +3277,32 @@
       "label": "表情气泡",
       "fields": [
         [
+          "character",
+          "人物（留空控制全场）",
+          "mood_character",
+          true
+        ],
+        [
           "enabled",
-          "启用官方表情气泡",
+          "显示气泡",
           "bool",
+          false
+        ],
+        [
+          "icon",
+          "气泡样式",
+          "enum:mood_icon",
+          true
+        ]
+      ]
+    },
+    "use_item": {
+      "label": "使用消耗品",
+      "fields": [
+        [
+          "item",
+          "野外消耗品",
+          "field_consumable",
           false
         ]
       ]
@@ -3624,6 +3719,9 @@
     },
     "mood": {
       "enabled": true
+    },
+    "use_item": {
+      "item": ""
     }
   },
   "VERIFIED_BATTLE_CHARACTER_IDS": [

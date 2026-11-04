@@ -720,6 +720,24 @@ namespace MortalModHost
                 return ParseCharacterContent(package, expectedDir, id, name, mainFile, root, entries);
             if (type == "image")
                 return ParseImageContent(package, expectedDir, id, name, mainFile, entries);
+            if (type == "item" || type == "martial" || type == "support" || type == "skill")
+            {
+                UserContent content = ParseImageContent(package, expectedDir, id, name, mainFile, entries);
+                content.Type = type;
+                content.Gameplay = CustomGameplayDefinition.Parse(root, type);
+                if (content.Gameplay.Skill != null && content.Gameplay.Skill.Animation != null)
+                {
+                    content.Files = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+                    content.Files[mainFile] = content.Bytes;
+                    foreach (string frame in content.Gameplay.Skill.Animation.Frames)
+                    {
+                        if (!content.Files.ContainsKey(frame))
+                            content.Files[frame] = ReadZipBytes(package, entries, expectedDir + "/" + frame,
+                                ContentRef.MaxImageBytes, "招式动画帧");
+                    }
+                }
+                return content;
+            }
             if (logWarn != null)
                 logWarn("mod " + package.Id + " 的用户内容 " + id + " 类型 " + type + " 本版本不加载");
             return null;

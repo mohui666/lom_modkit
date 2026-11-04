@@ -120,6 +120,64 @@ fn mood_switches_follow_execution_order_and_override_chapter_defaults() {
 }
 
 #[test]
+fn a_normal_only_actor_can_choose_bubbles_without_loading_other_portraits() {
+    for (enabled, icon, expected) in [
+        (true, "shock", "shock"),
+        (true, "laugh1", "laugh1"),
+        (false, "shock", "hide"),
+        (true, "auto", "auto"),
+    ] {
+        let input = json!({"id":"main","start":"enter","nodes":[
+            {"id":"enter","type":"show","character":"artist1","portrait":"normal","position":"M"},
+            {"id":"bubble","type":"mood","character":"artist1","enabled":enabled,"icon":icon},
+            {"id":"talk","type":"say","character":"artist1","portrait":"normal","text":"同一立绘"},
+            {"id":"end","type":"end"}]});
+        validate::validate_story(&input).unwrap();
+        assert!(release::find_stage_issues(&input).is_empty());
+        let lua = codegen::compile_story(&input, None, None, None).unwrap();
+        assert!(lua.contains(&format!("mod_character_mood(\"artist1\", \"{expected}\")")));
+        assert!(!lua.contains("mod_hide_mood()"));
+        assert!(!lua.contains(&format!("GetPortrait(\"artist1\", \"{expected}\")")));
+        let mut missing = input.clone();
+        missing["nodes"].as_array_mut().unwrap().remove(0);
+        missing["start"] = json!("bubble");
+        assert!(release::find_stage_issues(&missing).contains(&("bubble".into(), "artist1".into())));
+    }
+    for fields in [
+        json!({"character":"artist1","icon":"question"}),
+        json!({"character":"user:demo.actor","icon":"shock"}),
+        json!({"character":"unknown_actor","icon":"shock"}),
+        json!({"character":"","icon":"shock"}),
+        json!({"icon":"shock"}),
+    ] {
+        let mut node = json!({"id":"bubble","type":"mood","enabled":true});
+        for (key, value) in fields.as_object().unwrap() {
+            node[key] = value.clone();
+        }
+        assert!(validate::validate_story(&story(node)).is_err());
+    }
+}
+
+#[test]
+fn character_bubble_packages_require_a_host_with_the_new_entry_point() {
+    let mut project = lom_core::project::Project::new();
+    project.manifest["min_host_version"] = json!("1.4.0");
+    project.stories.insert(
+        "main".into(),
+        story(
+            json!({"id":"bubble","type":"mood","character":"player","enabled":true,"icon":"shock"}),
+        ),
+    );
+    let dir = tempfile::tempdir().unwrap();
+    let output = dir.path().join("character-bubble.lommod");
+    project.export(&output).unwrap();
+    let entries = lom_core::package::read_package(&output).unwrap();
+    let manifest: Value = serde_json::from_slice(&entries["manifest.json"]).unwrap();
+    assert_eq!(manifest["min_host_version"], "1.4.1");
+    assert_eq!(project.manifest["min_host_version"], "1.4.0");
+}
+
+#[test]
 fn export_requires_the_new_host_only_when_using_the_new_controls() {
     for node in [
         json!({"id":"change","type":"portrait","character":"player","portrait":"normal"}),

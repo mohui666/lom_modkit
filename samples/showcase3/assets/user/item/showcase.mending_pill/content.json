@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "content_schema": 1,
+  "type": "item",
+  "id": "showcase.mending_pill",
+  "name": "续息丸",
+  "files": {
+    "main": "icon.png"
+  },
+  "category": "consumable",
+  "use_in": "combat",
+  "cost": 80,
+  "description": "决斗中主动使用，恢复35气血和8气力；消耗一枚并占用本回合行动。",
+  "effects": [
+    {
+      "type": "heal",
+      "value": 35
+    },
+    {
+      "type": "stamina",
+      "value": 8
+    }
+  ]
+}

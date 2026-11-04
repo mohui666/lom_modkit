@@ -9,198 +9,98 @@ using UnityEngine.UI;
 
 namespace MortalModHost
 {
-    /// <summary>
-    /// 在标题画面的原版按钮列中克隆“开始游戏”按钮，作为 MOD 战役入口。
-    /// 只复用原版序列化的视觉、悬停动画、音效与导航；点击事件由 Host 重新建立，
-    /// 绝不保留模板按钮里指向 TitleManager.NewGame 的持久 UnityEvent。
-    /// </summary>
+    /// <summary>One Start Game entry, then an explicit choice of the three experiences.</summary>
     internal static class VanillaTitleModEntry
     {
-        private const string ObjectName = "MortalModHost_StartModCampaign";
-
-        private static readonly FieldInfo StartButtonField =
-            AccessTools.Field(typeof(TitleManager), "_startButton");
-        private static readonly FieldInfo ButtonsField =
-            AccessTools.Field(typeof(TitleManager), "_buttons");
-
+        private static readonly FieldInfo StartButtonField = AccessTools.Field(typeof(TitleManager), "_startButton");
+        private static readonly FieldInfo ButtonsField = AccessTools.Field(typeof(TitleManager), "_buttons");
         private static TitleManager _owner;
+        private static Button _original, _button;
         private static GameObject _root;
-        private static Button _button;
-        private static bool _missingTemplateLogged;
+        private static bool _originalActive, _missingTemplateLogged;
+        internal static bool IsVisible { get { return _root != null && _root.activeInHierarchy; } }
 
-        internal static bool IsVisible
+        internal static void Maintain(bool shouldExist, Action openModes,
+            Action<string> logInfo, Action<string> logWarning)
         {
-            get { return _root != null && _root.activeInHierarchy; }
-        }
-
-        internal static void Maintain(
-            bool shouldExist,
-            Action openMenu,
-            Action<string> logInfo,
-            Action<string> logWarning)
-        {
-            if (!shouldExist)
-            {
-                Remove();
-                return;
-            }
-
+            if (!shouldExist) { Remove(); return; }
             TitleManager owner = TitleManager.Instance;
-            if (owner == null)
-                return;
-
-            if (_root != null && _owner == owner)
-            {
-                ApplyLabel(_root);
-                return;
-            }
-
+            if (owner == null || (_root != null && _owner == owner)) return;
             Remove();
-            GameObject clone = null;
             try
             {
-                Button template = FindStartButton(owner);
-                if (template == null || template.transform.parent == null)
-                {
-                    if (!_missingTemplateLogged && logWarning != null)
-                    {
-                        _missingTemplateLogged = true;
-                        logWarning("标题画面已加载，但找不到原版开始游戏按钮；本次不提供非官方战役 UI 回退。");
-                    }
-                    return;
-                }
-
-                clone = UnityEngine.Object.Instantiate(
-                    template.gameObject, template.transform.parent, false);
-                clone.name = ObjectName;
-
-                // 克隆对象默认排在末尾；放到模板当前序号会把原版“开始游戏”向后推一位。
-                clone.transform.SetSiblingIndex(template.transform.GetSiblingIndex());
-
-                Button button = clone.GetComponent<Button>();
-                if (button == null)
-                    throw new InvalidOperationException("原版开始游戏模板缺少 UnityEngine.UI.Button");
-
-                // RemoveAllListeners 不保证移除模板里序列化的持久事件。直接替换整个事件对象，
-                // 防止点击 MOD 入口时同时执行原版 NewGame。
-                button.onClick = new Button.ButtonClickedEvent();
-                button.onClick.AddListener(delegate
-                {
-                    if (openMenu != null)
-                        openMenu();
-                });
-                button.navigation = new Navigation { mode = Navigation.Mode.Automatic };
-
-                // 原按钮的文本本地化组件会在语言刷新时把自定义标签改回“开始游戏”。
-                // 禁用文字翻译组件，但保留 LeanLocalizedTextFont 以继续使用原版多语言字体。
-                LeanLocalizedText[] localizers = clone.GetComponentsInChildren<LeanLocalizedText>(true);
-                for (int i = 0; i < localizers.Length; i++)
-                    localizers[i].enabled = false;
-
-                ApplyLabel(clone);
+                Button original = StartButtonField != null ? StartButtonField.GetValue(owner) as Button : null;
+                if (original == null || original.transform.parent == null)
+                    throw new InvalidOperationException("找不到原版开始游戏按钮");
                 _owner = owner;
-                _root = clone;
-                _button = button;
-                AppendManagedButton(owner, button);
+                _original = original;
+                _originalActive = original.gameObject.activeSelf;
+                _root = UnityEngine.Object.Instantiate(original.gameObject, original.transform.parent, false);
+                _root.name = "MortalModHost_StartGame";
+                _root.transform.SetSiblingIndex(original.transform.GetSiblingIndex());
+                _button = _root.GetComponent<Button>();
+                _button.onClick = new Button.ButtonClickedEvent();
+                _button.onClick.AddListener(delegate { if (openModes != null) openModes(); });
+                _button.navigation = new Navigation { mode = Navigation.Mode.Automatic };
+                foreach (LeanLocalizedText localizer in _root.GetComponentsInChildren<LeanLocalizedText>(true))
+                    localizer.enabled = false;
+                foreach (Text label in _root.GetComponentsInChildren<Text>(true))
+                {
+                    label.supportRichText = false;
+                    label.text = "开始游戏";
+                }
+                original.gameObject.SetActive(false);
+                StartButtonField.SetValue(owner, _button);
+                if (ButtonsField != null)
+                {
+                    var buttons = new List<Button>((Button[])ButtonsField.GetValue(owner) ?? new Button[0]);
+                    buttons.Remove(original);
+                    buttons.Add(_button);
+                    ButtonsField.SetValue(owner, buttons.ToArray());
+                }
                 _missingTemplateLogged = false;
-
-                if (logInfo != null)
-                    logInfo("已在原版开始游戏按钮上方注入“" + I18n.T("title.mod_campaign") + "”入口。");
+                if (logInfo != null) logInfo("开始游戏入口已接入：纯原版 / 原版＋MOD / 纯MOD");
             }
             catch (Exception ex)
             {
-                if (_root == null && clone != null)
-                    UnityEngine.Object.Destroy(clone);
                 Remove();
                 if (!_missingTemplateLogged && logWarning != null)
-                {
-                    _missingTemplateLogged = true;
-                    logWarning("原版标题按钮注入失败；本次不提供非官方战役 UI 回退：" + ex.Message);
-                }
+                    logWarning("无法创建玩法选择入口：" + ex.Message);
+                _missingTemplateLogged = true;
             }
+        }
+
+        internal static void OpenOriginalGame()
+        {
+            if (_original == null) throw new InvalidOperationException("原版开始游戏入口尚未就绪");
+            if (Plugin.Instance != null) Plugin.Instance.EnterOriginalMode();
+            // Keep the original serialized choice flow, including slot selection and confirmation.
+            _original.onClick.Invoke();
         }
 
         internal static void Remove()
         {
-            if (_owner != null && _button != null && ButtonsField != null)
+            if (_owner != null)
             {
-                try
+                if (_original != null)
                 {
-                    Button[] buttons = ButtonsField.GetValue(_owner) as Button[];
-                    if (buttons != null)
-                    {
-                        var kept = new List<Button>(buttons.Length);
-                        for (int i = 0; i < buttons.Length; i++)
-                        {
-                            if (buttons[i] != null && buttons[i] != _button)
-                                kept.Add(buttons[i]);
-                        }
-                        ButtonsField.SetValue(_owner, kept.ToArray());
-                    }
+                    _original.gameObject.SetActive(_originalActive);
+                    if (StartButtonField != null && ReferenceEquals(StartButtonField.GetValue(_owner), _button))
+                        StartButtonField.SetValue(_owner, _original);
                 }
-                catch
+                if (ButtonsField != null)
                 {
-                    // 场景卸载期间对象可能已经销毁；标题管理器本身也会随场景释放。
+                    var kept = new List<Button>();
+                    foreach (Button current in (Button[])ButtonsField.GetValue(_owner) ?? new Button[0])
+                        if (current != null && current != _button) kept.Add(current);
+                    if (_original != null && !kept.Contains(_original)) kept.Insert(0, _original);
+                    ButtonsField.SetValue(_owner, kept.ToArray());
                 }
             }
-
-            if (_root != null)
-                UnityEngine.Object.Destroy(_root);
+            if (_root != null) UnityEngine.Object.Destroy(_root);
             _owner = null;
+            _original = _button = null;
             _root = null;
-            _button = null;
-        }
-
-        private static Button FindStartButton(TitleManager owner)
-        {
-            if (StartButtonField != null)
-            {
-                try
-                {
-                    Button value = StartButtonField.GetValue(owner) as Button;
-                    if (value != null)
-                        return value;
-                }
-                catch
-                {
-                    // 私有字段布局变化时继续走场景对象名兼容路径。
-                }
-            }
-
-            Button[] candidates = owner.GetComponentsInChildren<Button>(true);
-            for (int i = 0; i < candidates.Length; i++)
-            {
-                if (candidates[i] != null && candidates[i].gameObject.name == "StartGame")
-                    return candidates[i];
-            }
-            return null;
-        }
-
-        private static void AppendManagedButton(TitleManager owner, Button button)
-        {
-            if (ButtonsField == null)
-                return;
-            Button[] current = ButtonsField.GetValue(owner) as Button[];
-            if (current == null)
-                current = new Button[0];
-            var next = new Button[current.Length + 1];
-            Array.Copy(current, next, current.Length);
-            next[current.Length] = button;
-            ButtonsField.SetValue(owner, next);
-        }
-
-        private static void ApplyLabel(GameObject root)
-        {
-            if (root == null)
-                return;
-            string label = I18n.T("title.mod_campaign");
-            Text[] labels = root.GetComponentsInChildren<Text>(true);
-            for (int i = 0; i < labels.Length; i++)
-            {
-                labels[i].supportRichText = false;
-                if (labels[i].text != label)
-                    labels[i].text = label;
-            }
         }
     }
 }

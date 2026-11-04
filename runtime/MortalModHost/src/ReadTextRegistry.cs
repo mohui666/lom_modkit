@@ -72,6 +72,7 @@ namespace MortalModHost
                 if (translation != null)
                     translation.Data = pair.Value;
             }
+            CustomGameplayRuntime.ApplyTexts();
         }
 
         /// <summary>

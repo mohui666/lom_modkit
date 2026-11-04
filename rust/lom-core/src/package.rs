@@ -510,76 +510,101 @@ fn add_user_content(
     entries: &mut Entries,
     root: &Path,
     stories: &BTreeMap<String, Value>,
+    scenario: Option<&Value>,
 ) -> Result<()> {
     let mut referenced: BTreeMap<String, String> = BTreeMap::new();
-    for story in stories.values() {
-        for (_, node) in crate::parallel::story_actions(story) {
-            let kind = node["type"].as_str().unwrap_or("");
-            let mut refs = Vec::new();
-            if kind == "music" {
-                refs.push(("name", "audio", Some("music")));
+    let scenario_nodes = scenario
+        .map(content::scenario_gameplay_nodes)
+        .unwrap_or_default();
+    for node in stories
+        .values()
+        .flat_map(|story| crate::parallel::story_actions(story).map(|(_, node)| node))
+        .chain(scenario_nodes.iter())
+    {
+        let kind = node["type"].as_str().unwrap_or("");
+        let mut refs = Vec::new();
+        if kind == "music" {
+            refs.push(("name", "audio", Some("music")));
+        }
+        if kind == "sound" {
+            refs.push((
+                "name",
+                "audio",
+                Some(node["kind"].as_str().unwrap_or("sound")),
+            ));
+        }
+        if kind == "say" {
+            refs.push(("voice", "audio", None));
+        }
+        if [
+            "show", "portrait", "move", "face", "hide", "focus", "offset", "say", "shock", "dim",
+            "rotate", "intro", "combat",
+        ]
+        .contains(&kind)
+        {
+            refs.push(("character", "character", None));
+        }
+        let image_active = !((kind == "custom_cg" || kind == "overlay")
+            && node["action"] == "hide"
+            || kind == "background"
+                && ["fadeout", "clear"].contains(&node["action"].as_str().unwrap_or("")));
+        if image_active {
+            refs.push(("image", "image", None));
+        }
+        let mut content_refs: Vec<(&str, &str, Option<&str>, Option<&str>)> = refs
+            .into_iter()
+            .map(|(field, kind, audio)| (node[field].as_str().unwrap_or(""), kind, audio, None))
+            .collect();
+        content_refs.extend(
+            content::gameplay_references(node)
+                .into_iter()
+                .map(|(raw, kind, category)| (raw, kind, None, Some(category))),
+        );
+        for (raw, ctype, expected, category) in content_refs {
+            let Some(id) = raw.strip_prefix("user:") else {
+                continue;
+            };
+            if let Some(previous) = referenced.get(id) {
+                ensure!(
+                    previous == ctype,
+                    "用户内容 {id} 同时被当作 {previous}/{ctype}"
+                );
             }
-            if kind == "sound" {
-                refs.push((
-                    "name",
-                    "audio",
-                    Some(node["kind"].as_str().unwrap_or("sound")),
-                ));
+            let (meta, _main) = content::resolve_content(root, ctype, id)?;
+            if ctype == "item" {
+                ensure!(
+                    category.is_some_and(|category| meta["category"] == category),
+                    "用户物品 {id} 类别不匹配"
+                );
+                ensure!(
+                    kind != "use_item" || meta["use_in"] == "field",
+                    "use_item 只能同步使用 field 消耗品"
+                );
             }
-            if kind == "say" {
-                refs.push(("voice", "audio", None));
+            if let Some(expected) = expected {
+                ensure!(
+                    meta["audio_kind"] == expected,
+                    "用户音频 {id} 类型不匹配: 需要 {expected}"
+                );
             }
-            if [
-                "show", "portrait", "move", "face", "hide", "focus", "offset", "say", "shock",
-                "dim", "rotate", "intro", "combat",
-            ]
-            .contains(&kind)
-            {
-                refs.push(("character", "character", None));
-            }
-            let image_active = !((kind == "custom_cg" || kind == "overlay")
-                && node["action"] == "hide"
-                || kind == "background"
-                    && ["fadeout", "clear"].contains(&node["action"].as_str().unwrap_or("")));
-            if image_active {
-                refs.push(("image", "image", None));
-            }
-            for (field, ctype, expected) in refs {
-                let Some(id) = node[field].as_str().and_then(|s| s.strip_prefix("user:")) else {
-                    continue;
-                };
-                if let Some(previous) = referenced.get(id) {
+            if ctype == "character" && ["show", "say", "portrait"].contains(&kind) {
+                if let Some(portrait) = node["portrait"].as_str().filter(|s| !s.is_empty()) {
                     ensure!(
-                        previous == ctype,
-                        "用户内容 {id} 同时被当作 {previous}/{ctype}"
+                        meta["portraits"].get(portrait).is_some(),
+                        "自定义人物 {id} 缺少表情 {portrait}"
                     );
                 }
-                let (meta, _main) = content::resolve_content(root, ctype, id)?;
-                if let Some(expected) = expected {
-                    ensure!(
-                        meta["audio_kind"] == expected,
-                        "用户音频 {id} 类型不匹配: 需要 {expected}"
-                    );
-                }
-                if ctype == "character" && ["show", "say", "portrait"].contains(&kind) {
-                    if let Some(portrait) = node["portrait"].as_str().filter(|s| !s.is_empty()) {
-                        ensure!(
-                            meta["portraits"].get(portrait).is_some(),
-                            "自定义人物 {id} 缺少表情 {portrait}"
-                        );
-                    }
-                }
-                if referenced.insert(id.into(), ctype.into()).is_none() {
-                    let dir = format!("assets/user/{ctype}/{id}");
-                    entries.insert(
-                        format!("{dir}/content.json"),
-                        stable_json(&content::content_metadata_payload(&meta))?,
-                    );
-                    for file in content::listed_content_files(&meta) {
-                        canonical_archive_name(&file)?;
-                        let path = resolve_confined_file(root, &root.join(&dir).join(&file))?;
-                        entries.insert(format!("{dir}/{file}"), fs::read(path)?);
-                    }
+            }
+            if referenced.insert(id.into(), ctype.into()).is_none() {
+                let dir = format!("assets/user/{ctype}/{id}");
+                entries.insert(
+                    format!("{dir}/content.json"),
+                    stable_json(&content::content_metadata_payload(&meta))?,
+                );
+                for file in content::listed_content_files(&meta) {
+                    canonical_archive_name(&file)?;
+                    let path = resolve_confined_file(root, &root.join(&dir).join(&file))?;
+                    entries.insert(format!("{dir}/{file}"), fs::read(path)?);
                 }
             }
         }
@@ -643,6 +668,42 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
         ("content_schema", 1),
     ] {
         manifest[key] = json!(val);
+    }
+    let character_mood = stories.values().any(|story| {
+        crate::parallel::story_actions(story)
+            .any(|(_, node)| node["type"] == "mood" && node.get("character").is_some())
+    });
+    if character_mood
+        || stories.values().any(|story| {
+            crate::parallel::story_actions(story).any(|(_, node)| {
+                content::gameplay_references(node)
+                    .iter()
+                    .any(|(raw, _, _)| raw.starts_with("user:"))
+            })
+        })
+        || scenario
+            .as_ref()
+            .is_some_and(|config| !content::scenario_gameplay_nodes(config).is_empty())
+    {
+        let version = manifest["min_host_version"].as_str().unwrap_or("0.0.0");
+        let core = version
+            .split(['.', '-', '+'])
+            .take(3)
+            .map(|n| n.parse::<u32>().unwrap_or(0))
+            .collect::<Vec<_>>();
+        let minimum = if character_mood { [1, 4, 1] } else { [1, 4, 0] };
+        if core.as_slice() < minimum.as_slice()
+            || core.as_slice() == minimum.as_slice()
+                && version.split('+').next().unwrap_or(version).contains('-')
+        {
+            manifest["min_host_version"] = json!(if character_mood { "1.4.1" } else { "1.4.0" });
+        }
+        validate::validate_manifest(&manifest).with_context(|| {
+            format!(
+                "作品使用的功能需要 Host {}；请核对作品设置中的最低和已测试 Host 版本",
+                if character_mood { "1.4.1" } else { "1.4.0" }
+            )
+        })?;
     }
     if stories.values().any(|story| {
         crate::parallel::story_actions(story).any(|(_, node)| {
@@ -726,7 +787,7 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
         ensure!(exists(&trigger["script"]), "自由模式触发指向不存在的章节");
     }
     let mut entries = Entries::new();
-    if let Some(config) = scenario {
+    if let Some(config) = &scenario {
         entries.insert("scenario.json".into(), stable_json(&config)?);
     }
     let mut texts = json!({});
@@ -834,6 +895,6 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
         ));
     }
     entries.insert(STORY_HASH.into(), integrity.into_bytes());
-    add_user_content(&mut entries, &root, &stories)?;
+    add_user_content(&mut entries, &root, &stories, scenario.as_ref())?;
     write_package(entries, output.unwrap_or(&default))
 }

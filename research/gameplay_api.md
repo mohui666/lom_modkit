@@ -1,5 +1,20 @@
 # Gameplay API 实证矩阵
 
+## 1.4 开发：自定义玩法与独立存档入口
+
+2026-11-03 定向读取当前 Windows 安装的 `Mortal.Core.dll` 与 `Mortal.Combat.dll`，确认以下入口。这里只记录接口依据，游戏执行结果以本轮实际验证为准。
+
+- `Book.Learn` / `DirectLevelUp` 读取 `MartialLevelData` 的条件、点数和升级加成；`ItemDatabase.Save/Load` 保存并还原书籍数量、修炼等级和点数。Host 克隆数据库、集合及其中的 `ItemData/Book`，新功法使用本场实例，不改官方定义。`BookLevelStatConvertData.GetValue`、`BookDataCollection.GetMaxLevelCount` 与 `MartialStatReference.GetValue` 持有序列化原定义引用，需在会话中映射到克隆后的进度。
+- `CombatActionController.AddEffect` 对 `CombatStateType.Support` 创建原版援助栏；`CombatSupportStateUI.Setup` 显示图标和次数。`CombatStateEffectUnitScriptable` 提供 `ApplyBeforeAction`、`ApplyAfterAction`、`TriggerAfterAttacked`，由 Host 自有子类实现配置的援助效果，不修改官方效果资产。
+- `Consumables` 只有 `ItemEffect[] Effects`，没有原生 `Use`；`ItemStatPanel.UpdateData/OnItemSelected` 只展示书籍、杂物、贵重品。Host 在杂物列表补自有消耗品，并提供使用按钮；属性效果调用 `PlayerStatData.Add`。决斗恢复使用 `CombatActionController.ModifyHealth/ModifyStamina`；以 `CombatManager.Action(無動作)` 完整推进本回合，保留原版休息回气，不捏造行动枚举。
+- 当前 `ItemDatabase.Save/Load` 没有序列化 `Consumables`。Host 仅将自有道具数量编码进 `PlayerStatManagerData.StoryKeyList` 的原生 `StorySave` 通路，并在原生加载后恢复数量；不修改 `GameSave` 格式。
+- `CombatManager.Action/ActionRoundHandle/ActionCost` 与 `CombatActionButton` 是自创招式的执行和选招入口；基础威力接 `SetCurrentDamageResult`，耗气接 `GetActionCost`，命中接 `GetAttackHitRate/GetWeaponHitRate`，保留原生互拼、克制及防御换算。绝招对嘴炮时会改读 `GetTalkUltimateHitRate`；绝招互拼耗气可能乘原版比例，不能把编辑值宣称为所有情形的最终结果。
+- `CombatPlayerController`、`CombatPlayerRootController`、`CombatEnemyController` 的 `Attack/Weapon/Ultimate` 是实际角色演出协程。自有 PNG 序列帧替换本次演出，在指定帧调用 `TakeDamage/HandleDamage`。播放时隐藏角色子树的精灵和模型渲染器，结束逐项恢复原 `Renderer.enabled` 与 Idle；PNG 沿用精灵分支的坐标与图层，不能使用 MaxModel 模型分支的渲染空间。源帧统一朝左，通过 `_sourceAction` 与 `CombatManager.GetActionController(我方)` 比较来决定我方水平翻转，避免取到未激活精灵的错误朝向。`CanUseAnyAction` 原判断为 false 时，仅补充真正可用的自创招式或可操作玩家的恢复药，不绕过死亡、眩晕或自动行动。
+- `TitleManager.OpenSlot/NewGame/LoadGame/ContinueGame` 是原版流程入口；MOD 入口直接调用 `SaveSystem` 并选择自己的隔离槽。标题只提供一个开始游戏按钮，再选择纯原版、原版＋MOD、纯 MOD；纯 MOD 随后选择具体作品。
+- `MenuPanel.LoadButtonClick`、`SaveButtonClick` 和 `Mortal.Battle.PausePanel.LoadButtonClick` 是游戏内存读档入口。MOD 模式打开当前进度所属的独立页；原版模式不接管。继续使用 `SaveSystem.GetSaveData/GetAutoSaveData/SaveGameData/AutoLoadGameData`，不改变原版 GameSave 格式。
+
+独立 UI 的原版＋MOD 栏位使用 `mod_addon_default`，纯 MOD 保留 `mod_campaign_<campaign_id>`；Universe 最近原版槽保护继续有效。新自定义玩法最低要求 Host 1.4.0。
+
 下方既有矩阵来自 Phase 49 的接口核对；`gameplay_api_contract.json` 保留当时的记录，不能把历史程序集摘要作为现版兼容证明。游戏更新后按根目录 `AGENTS.md` 只读反编译受影响类型与方法，不运行基于程序集哈希的复验。
 
 本页和 `gameplay_api_contract.json` 是我们自己整理的接口摘要，可以进仓库。
@@ -12,6 +27,10 @@
 现场只读反编译 `Mortal.Story.LuaManager.GetStatData(string,int)`，确认它按 `GameStatType.StringValue` 查找 `PlayerStatManagerData.Instance.Stats.Get(type).FinalValue`；`Mortal.Story.StatModifyManager.SetPlayer(string,int)` 写对应属性基值。`Mortal.Core.LoverInfoPanel.UpdateStatus()` 直接以该属性值查询 `PlayerInfo/Lover/<编号>`，所以 `lover` 是编号属性，按 `==` 检定；“心上人已变为……”旗标不代替当前值。这里只补目录并复用现有生成入口，不改官方资产或包格式。2026-11-01 在 Windows 游戏 `release_1.0.6001.0` 的隔离试玩中已完成全部 54 项读取，以及 `lover` 成功／失败分支、腿法、儒学与防御的设置及检定；未逐项改写全部属性。
 
 ## 2026-10-31 旁白对齐与原地换表情接口核对
+
+2026-11-04 单人气泡：定向只读核对本机 `StoryStageController.CreateMoodObject/Show/Hide/SetDimmed`、`StoryCharacterController.SetupMood/ShowMood` 及 `CharacterMoodPanel.Show(string,float)/Hide()`。原版所有舞台人物都会创建面板，`Show` 只按输入键匹配面板 Mapping，不要求人物自身有这个表情。Host 1.4.1 的 `mod_character_mood(character,icon)` 直接调用该人物实例的 `Mood.Show`，使用已读资源的九种 Mapping；不改 `StoryCharacterData`、表情键或官方资产，继续使用原版动画和朝向。隐藏单人、恢复自动、压暗/解除压暗、离场及清舞台分别沿原版入口处理；本条仅记录接口与实现依据，运行证据另记。
+
+本次 Windows `release_1.0.6001.0` 隔离试玩中，实际观察到只有 `normal` 立绘的 `artist1`（武师）和 `aunt1`（大妈）同时显示独立气泡；叹号、音符、汗滴、害羞、阴影、乱线等可切换且立绘保持不变。已观察单人隐藏不影响另一人、恢复跟随普通表情、转身、压暗/解除压暗、离场重登不残留，以及全场关闭清除单人设置。自定义用户人物未接入，也未做全人物实机覆盖。
 
 本机当前安装的 `Fungus.SayDialog.StoryTextObject` 返回正文 `UnityEngine.UI.Text`。Host 在显式靠左句前保存其 `alignment`，横向扩展正文区域并保留 5% 留白，下句开始前及清舞台时恢复对齐与原矩形布局。
 

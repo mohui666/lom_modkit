@@ -1,0 +1,13 @@
+{
+  "type": "item",
+  "id": "showcase.courier_token",
+  "name": "驿站信牌",
+  "description": "青石驿站的通行信牌，可作为剧情物品与商品。",
+  "category": "misc",
+  "cost": 120,
+  "schema": 1,
+  "content_schema": 1,
+  "files": {
+    "main": "icon.png"
+  }
+}

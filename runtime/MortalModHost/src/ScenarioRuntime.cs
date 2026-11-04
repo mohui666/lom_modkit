@@ -69,9 +69,9 @@ namespace MortalModHost
         }
         private static bool Allowed(ModPackage package)
         {
-            if (package.Scenario==null) return false;
+            if (package.Scenario==null || !ModPlayModeSession.Allows(package)) return false;
             var saves=SaveSystem.Instance;
-            if(saves==null || package.PlayMode=="addon" && ModSaveIsolation.IsModSlot(saves.CurrentSlot)
+            if(saves==null || package.PlayMode=="addon" && !ModSaveSlotPolicy.IsAddonSlot(saves.CurrentSlot)
                 || package.PlayMode=="sandbox" && !CampaignIdentity.OwnsSlot(package.CampaignId,saves.CurrentSlot)) return false;
             return ScenarioEngine.ModeAllows(package.PlayMode,package.CampaignId,ModCampaignState.Active ? ModCampaignState.ActiveCampaignId : null);
         }
@@ -115,7 +115,7 @@ namespace MortalModHost
             // Validate/encode the final owned state before any official result action.
             // Official actions themselves are not a cross-API transaction.
             string record=null;
-            engine.Complete(ApplyActions,state=>record=EncodeRecord(package,state));
+            engine.Complete(actions=>ApplyActions(package,actions),state=>record=EncodeRecord(package,state));
             StoreRecord(package,record);
             Log?.LogInfo("事件完成："+package.Id+"/"+id+"，结果 "+result);
         }
@@ -137,8 +137,8 @@ namespace MortalModHost
                     if (pair.Value.Position==PositionType.無 && !string.IsNullOrEmpty(pair.Value.StartScript)) return true;
             return false;
         }
-        private static GameItemType ItemType(string kind) {return kind=="book" ? GameItemType.書籍 : kind=="misc" ? GameItemType.雜物 : GameItemType.貴重品;}
-        private static void ApplyActions(List<object> actions)
+        private static GameItemType ItemType(string kind) {return CustomGameplayRuntime.ItemType(kind);}
+        private static void ApplyActions(ModPackage package,List<object> actions)
         {
             var stat=PlayerStatManagerData.Instance;
             var modifier=UnityEngine.Object.FindObjectOfType<StatModifyManager>();
@@ -151,7 +151,7 @@ namespace MortalModHost
                 if(type=="affinity") {RelationshipStatType id;if(!EnumUtils.TryParseByStringValue<RelationshipStatType>(key,out id) || stat.Relationships.Get(id)==null) throw new InvalidOperationException("结果人物未定义："+key);}
                 if(type=="game_flag" && MissionManagerData.Instance.GetFlag(key)==null) throw new InvalidOperationException("结果旗标未定义："+key);
                 if(type=="talent" && stat.Talents.Get(key)==null) throw new InvalidOperationException("结果技能未定义："+key);
-                if(type=="item" && ItemDatabase.Instance.GetItem(ItemType(ScenarioJson.Text(a,"kind")),key)==null) throw new InvalidOperationException("结果物品未定义："+key);
+                if(type=="item" && ItemDatabase.Instance.GetItem(ItemType(ScenarioJson.Text(a,"kind")),CustomGameplayRuntime.ResolveItemId(package,ScenarioJson.Text(a,"kind"),key))==null) throw new InvalidOperationException("结果物品未定义："+key);
             }
             foreach(object raw in actions) {
                 var a=ScenarioJson.Object(raw);string type=ScenarioJson.Text(a,"type"),key=ScenarioJson.Text(a,"key",false),op=ScenarioJson.Text(a,"op",false);
@@ -163,9 +163,7 @@ namespace MortalModHost
                     case "game_flag":if(op=="set")modifier.SetFlag(key,n);else modifier.AddFlag(key,n);break;
                     case "talent":modifier.AddTalent(key,n);break;
                     case "item":
-                        var kind=ItemType(ScenarioJson.Text(a,"kind"));
-                        // AddItem delegates to the official AddCount, including its zero clamp.
-                        ItemDatabase.Instance.AddItem(kind,key,op=="remove" ? -n : n);break;
+                        CustomGameplayRuntime.ChangeItem(package,ScenarioJson.Text(a,"kind"),key,op=="remove" ? -n : n);break;
                     case "time":lua.SetGameTime(ScenarioJson.Int(a,"year",1,9),ScenarioJson.Int(a,"month",1,12),ScenarioJson.Int(a,"stage",1,3));break;
                     default:throw new InvalidOperationException("未知结果动作："+type);
                 }

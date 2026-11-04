@@ -65,8 +65,10 @@ namespace MortalModHost
             if (!IsActiveModSlot(saves)) return false;
             if (AutoSaveDataMethod == null)
                 throw new MissingMethodException("SaveSystem.AutoSaveData(string)");
-            string isolated = ModSaveSlotPolicy.IsolatedAutoSlotForCampaign(
-                ModCampaignState.ActiveCampaignId, originalAutoSlot);
+            string isolated = ModSaveSlotPolicy.IsAddonSlot(saves.CurrentSlot)
+                ? ModSaveSlotPolicy.AddonAutoSlot(originalAutoSlot)
+                : ModSaveSlotPolicy.IsolatedAutoSlotForCampaign(
+                    ModCampaignState.ActiveCampaignId, originalAutoSlot);
             bool resumePlayerOverride = CombatPlayerStatSession.SuspendForSave();
             try
             {
@@ -84,6 +86,12 @@ namespace MortalModHost
         {
             if (string.IsNullOrEmpty(slot) || ModSaveSlotPolicy.IsModSlot(slot)) return;
             if (!ModSaveSlotPolicy.IsOfficialAutoSlot(slot)) return;
+            if (ModPlayModeSession.Selected == ModPlayModeKind.Original) return;
+            if (ModPlayModeSession.Selected == ModPlayModeKind.Addon)
+            {
+                slot = ModSaveSlotPolicy.AddonAutoSlot(slot);
+                return;
+            }
             string redirected = ModSaveSlotPolicy.RedirectOfficialAutoSlot(
                 slot,
                 saves != null ? saves.CurrentSlot : null,
@@ -124,7 +132,10 @@ namespace MortalModHost
 
         private static bool IsActiveModSlot(SaveSystem saves)
         {
-            if (saves == null || !ModCampaignState.Active) return false;
+            if (saves == null) return false;
+            if (ModPlayModeSession.Selected == ModPlayModeKind.Addon
+                && ModSaveSlotPolicy.IsAddonSlot(saves.CurrentSlot)) return true;
+            if (!ModCampaignState.Active) return false;
             return CampaignIdentity.OwnsSlot(
                 ModCampaignState.ActiveCampaignId, saves.CurrentSlot);
         }

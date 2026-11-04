@@ -927,7 +927,12 @@ fn result_actions(ui: &mut egui::Ui, effects: &mut Value) {
                             a,
                             "kind",
                             "物品类别",
-                            &[("book", "书籍"), ("misc", "杂物"), ("special", "贵重品")],
+                            &[
+                                ("book", "书籍"),
+                                ("misc", "杂物"),
+                                ("special", "贵重品"),
+                                ("consumable", "消耗品"),
+                            ],
                             "book",
                         );
                     }

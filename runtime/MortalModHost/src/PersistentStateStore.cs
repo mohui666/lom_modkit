@@ -48,6 +48,11 @@ namespace MortalModHost
             return _values.TryGetValue(key, out value) ? value : 0;
         }
 
+        internal void Open(ModPackage package, string slot)
+        {
+            Bind(package, slot);
+        }
+
         internal void Set(ModPackage package, string slot, string key, int value)
         {
             Bind(package, slot);
@@ -116,6 +121,21 @@ namespace MortalModHost
             _values.Clear();
             _loaded = false;
             _dirty = false;
+        }
+
+        // Save-as and autosave must capture live values for the actual destination,
+        // without advancing the sidecar belonging to an older manual save.
+        internal void SaveToSlot(ModPackage package, string slot)
+        {
+            ValidateIdentity(package, slot);
+            if (!_loaded) return;
+            if (_modId != package.Id || _campaignId != package.CampaignId)
+                throw new InvalidOperationException("持久变量另存的包身份不匹配");
+            if (_slot == slot) { Flush(); return; }
+            string sourceSlot = _slot;
+            bool sourceDirty = _dirty;
+            try { _slot = slot; _dirty = true; Flush(); }
+            finally { _slot = sourceSlot; _dirty = sourceDirty; }
         }
 
         internal IReadOnlyDictionary<string, int> Snapshot()
@@ -193,7 +213,7 @@ namespace MortalModHost
         private string StatePath(string slot)
         {
             string path = Path.GetFullPath(Path.Combine(
-                _root, slot + ".state.json"));
+                _root, slot + (ModSaveSlotPolicy.IsAddonSlot(slot) ? "." + _modId : "") + ".state.json"));
             string prefix = _root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
                 + Path.DirectorySeparatorChar;
             if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
@@ -209,7 +229,8 @@ namespace MortalModHost
                 || string.IsNullOrEmpty(package.PackageFingerprint)
                 || !Sha256.IsMatch(package.PackageFingerprint))
                 throw new InvalidOperationException("持久变量缺少可信的包 id / 完整 SHA-256 身份");
-            if (!CampaignIdentity.OwnsSlot(package.CampaignId, slot))
+            if (!(package.PlayMode == "addon" && ModSaveSlotPolicy.IsAddonSlot(slot))
+                && !CampaignIdentity.OwnsSlot(package.CampaignId, slot))
                 throw new InvalidOperationException(
                     "持久变量只允许写入当前 MOD 的隔离槽 "
                     + CampaignIdentity.SaveSlot(package.CampaignId));

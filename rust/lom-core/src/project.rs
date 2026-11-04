@@ -37,7 +37,7 @@ impl Project {
         let mut project = Self::new();
         project.manifest["play_mode"] = json!(mode);
         project.manifest["min_host_version"] = json!(crate::scenario::MIN_HOST);
-        project.manifest["tested_host_version"] = json!(crate::scenario::MIN_HOST);
+        project.manifest["tested_host_version"] = json!(env!("CARGO_PKG_VERSION"));
         project.manifest["campaign"] =
             json!({"new_game":mode=="sandbox","disable_official_events":mode=="sandbox"});
         let mut config = crate::scenario::default_config();

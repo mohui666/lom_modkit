@@ -143,6 +143,7 @@ namespace MortalModHost
 
                     foreach (ModPackage mod in Plugin.LoadedMods)
                     {
+                        if (!ModPlayModeSession.Allows(mod)) continue;
                         if (mod.Campaign == null || mod.Scenario != null) continue;
                         // 契约 §2：有活跃战役时位置触发器只匹配当前战役 mod；否则其他已安装
                         // mod 的无条件触发器会跨战役抢占。无战役时维持全部 mod、先加载者优先
