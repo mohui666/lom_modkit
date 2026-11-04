@@ -551,7 +551,7 @@ namespace MortalModHost
                 }, "mod_refresh_mood");
                 script.Globals["mod_character_mood"] = new CallbackFunction((ctx, args) =>
                 {
-                    MoodControl.SetCharacter(ArgString(args, 0), ArgString(args, 1));
+                    MoodControl.SetCharacter(ArgString(args, 0), ArgString(args, 1), ArgFloat(args, 2, 0f), ArgFloat(args, 3, 0f));
                     return DynValue.Nil;
                 }, "mod_character_mood");
                 // 契约 §6.13：死亡文本（2 参：短标题 + 多行描述，GameOver 画面两段式显示）。
@@ -665,6 +665,16 @@ namespace MortalModHost
                     catch (Exception ex) { Log.LogWarning("mod_background_clear 失败：" + ex.Message); }
                     return DynValue.Nil;
                 }, "mod_background_clear");
+                script.Globals["mod_event_picture_show"] = new CallbackFunction((ctx, args) =>
+                {
+                    EventPictureRuntime.Show(ArgString(args, 0), ArgString(args, 1, "事件"));
+                    return DynValue.Nil;
+                }, "mod_event_picture_show");
+                script.Globals["mod_event_picture_hide"] = new CallbackFunction((ctx, args) =>
+                {
+                    EventPictureRuntime.Clear();
+                    return DynValue.Nil;
+                }, "mod_event_picture_hide");
                 script.Globals["mod_cg_show"] = new CallbackFunction((ctx, args) =>
                 {
                     try

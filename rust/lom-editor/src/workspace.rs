@@ -459,7 +459,10 @@ impl App {
                 if let Err(e) =
                     lom_core::project::atomic_write(&user_root().join("rust/recent.json"), &bytes)
                 {
-                    self.status = format!("项目已处理；最近列表保存失败：{e}");
+                    self.status = format!(
+                        "最近列表保存失败。{}",
+                        crate::error_location::explanation(&e.to_string())
+                    );
                 }
             }
         }
@@ -917,7 +920,7 @@ impl App {
         }
         match compile_with_assets(&self.project, &self.story()) {
             Ok(lua) => self.lua = lua,
-            Err(e) => self.lua = format!("编译未通过：\n{e:#}"),
+            Err(e) => self.lua = crate::error_location::explanation(&format!("{e:#}")),
         };
         self.needs_compile = false;
     }
@@ -1175,9 +1178,15 @@ impl App {
             Ok(())
         })();
         if let Err(e) = result {
-            self.status = format!("自动恢复副本写入失败：{e:#}");
+            self.status = format!(
+                "自动恢复副本写入失败。{}",
+                crate::error_location::explanation(&format!("{e:#}"))
+            );
         } else if let Some(error) = pending_warning {
-            self.status = format!("恢复副本已保存其他修改；尚未包含未完成的素材输入：{error}");
+            self.status = format!(
+                "素材输入尚未完成。{}",
+                crate::error_location::explanation(&error.to_string())
+            );
         }
     }
     fn shortcuts(&mut self, ctx: &egui::Context) {
@@ -1590,6 +1599,80 @@ impl App {
                 _ => Section::Story,
             },
             _ => Section::Story,
+        }
+    }
+    fn go_to_problem(
+        &mut self,
+        ctx: &egui::Context,
+        destination: crate::error_location::Destination,
+    ) {
+        use crate::error_location::Destination;
+        if destination == Destination::Current {
+            ctx.data_mut(|data| data.remove::<String>(egui::Id::new("problem-field")));
+            return;
+        }
+        if matches!(&destination, Destination::Asset(path) if self.center == Center::Assets && self.asset_selection == *path)
+        {
+            return;
+        }
+        if !self.apply_pending_drafts() {
+            return;
+        }
+        self.flush();
+        self.auto = false;
+        self.audio.stop();
+        match destination {
+            Destination::Story(id, node) => {
+                if let Some(story) = self.project.stories.get_mut(&id) {
+                    if let Some(index) = node.and_then(|node| {
+                        story["nodes"]
+                            .as_array()?
+                            .iter()
+                            .position(|n| n["id"] == node)
+                    }) {
+                        self.selected = index;
+                        self.center = Center::Node;
+                        self.view = View::Stage;
+                        authoring::expand_for_node(story, index);
+                    } else {
+                        self.center = Center::Chapter;
+                    }
+                    self.current = id;
+                    self.multiselect.clear();
+                    self.search.clear();
+                    self.needs_compile = true;
+                }
+            }
+            Destination::Manifest => {
+                self.center = Center::Manifest;
+                ctx.data_mut(|data| {
+                    data.insert_temp(egui::Id::new("reveal-manifest-fields"), true)
+                });
+            }
+            Destination::Asset(path) => {
+                self.center = Center::Assets;
+                self.asset_selection = path;
+            }
+            Destination::Assets => self.center = Center::Assets,
+            Destination::Events => self.center = Center::Events,
+            Destination::Game => {
+                self.center = Center::Tools;
+                self.tools_panel.page = ToolPage::Game;
+            }
+            Destination::PreviewLibrary => {
+                self.center = Center::Tools;
+                self.tools_panel.page = ToolPage::Previews;
+            }
+            Destination::Settings => self.settings_open = true,
+            Destination::Open => {
+                if let Some(path) = rfd::FileDialog::new()
+                    .add_filter("作品、剧情或脚本", &["json", "lua", "lommod"])
+                    .pick_file()
+                {
+                    self.request(Pending::Open(path), ctx);
+                }
+            }
+            Destination::Current => {}
         }
     }
     fn open_tool_page(&mut self, page: ToolPage) {
@@ -2038,7 +2121,7 @@ impl App {
                             return;
                         }
                         if let Err(error) = authoring::validate_sections(&story) {
-                            ui.colored_label(Color32::from_rgb(179, 55, 49), error.to_string());
+                            crate::error_location::show(ui, &error.to_string());
                         }
                         let mut drop_to = None;
                         for row in authoring::section_rows(&story) {
@@ -2345,7 +2428,7 @@ impl App {
                     }
                 });
                 ui.separator();
-                let story = self.story();
+                let mut story = self.story();
                 match self.view {
                     View::Stage => {
                         egui::TopBottomPanel::bottom("stage-transport")
@@ -2433,6 +2516,15 @@ impl App {
                                 self.selected = i;
                             }
                         }
+                        if let Some((x, y)) = self.preview.mood_edit.take() {
+                            self.auto = false;
+                            self.preview_elapsed = None;
+                            story["nodes"][self.selected]["offset_x"] = json!(x);
+                            story["nodes"][self.selected]["offset_y"] = json!(y);
+                            self.project
+                                .stories
+                                .insert(self.current.clone(), story.clone());
+                        }
                     }
                     View::Portraits => {
                         self.preview.show_portrait(
@@ -2510,7 +2602,10 @@ impl App {
                                         } else {
                                             issue.message
                                         };
-                                        ui.colored_label(Color32::from_rgb(179, 55, 49), message);
+                                        ui.colored_label(
+                                            Color32::from_rgb(179, 55, 49),
+                                            crate::error_location::explanation(&message),
+                                        );
                                     }
                                 });
                         }
@@ -2559,19 +2654,24 @@ impl App {
                                 .collect();
                             let stories = self.project.stories.keys().cloned().collect::<Vec<_>>();
                             if let Some(mut node) = story["nodes"].get(self.selected).cloned() {
-                                if matches!(node["type"].as_str(), Some("background" | "custom_cg" | "overlay")) {
+                                let event_picture = node["type"] == "cg" && node["kind"] == "event";
+                                if event_picture {
+                                    ui.small(tr("可选原版事件插图或导入自定义图片。图片保持比例适配左侧图框，右侧题字默认“事件”，下方文本框可留空。"));
+                                }
+                                if matches!(node["type"].as_str(), Some("background" | "custom_cg" | "overlay")) || event_picture && node["action"] == "show" {
                                     ui.small(tr("选择已导入的图片，或直接从文件导入并应用。前景可用位置、层级、比例和透明度调整。"));
                                     if ui.button(tr("导入图片并用于此步骤…")).clicked() {
                                         self.image_import_target = Some((self.current.clone(), node["id"].as_str().unwrap_or("").to_owned()));
                                         self.asset_import_dialog = Some(AssetImportDialog { kind:0, name:String::new(), paths:vec![], error:None });
                                     }
                                 }
-                                let official = node["type"] == "cg" && matches!(node["kind"].as_str(), Some("picture" | "item" | "big"));
+                                let official = node["type"] == "cg" && matches!(node["kind"].as_str(), Some("event" | "picture" | "item" | "big"));
                                 let custom = matches!(node["type"].as_str(), Some("background" | "custom_cg" | "overlay"));
+                                let scene = matches!(node["type"].as_str(), Some("scene" | "combat"));
                                 let mut image_changed=false;
-                                if (official || custom) && !matches!(node["action"].as_str(),Some("hide" | "clear" | "fadeout")) {
-                                    let key=if official {"key"} else {"image"};
-                                    let options=self.catalog.options(if official {"official_picture"} else {"user_image"},&node,&[],&[]);
+                                if (official || custom || scene) && !matches!(node["action"].as_str(),Some("hide" | "clear" | "fadeout")) {
+                                    let key=if official {"key"} else if node["type"] == "scene" {"view"} else if scene {"background"} else {"image"};
+                                    let options=self.catalog.options(if event_picture {"event_picture"} else if official {"official_picture"} else if scene {"view"} else {"user_image"},&node,&[],&[]);
                                     ui.push_id((&self.current,node["id"].as_str().unwrap_or("").to_owned()),|ui| {
                                         if let Some(image)=self.preview.image_browser(ui,&self.project,&options,node[key].as_str().unwrap_or(""),official) {
                                             node[key]=json!(image);image_changed=true;
@@ -3165,7 +3265,12 @@ impl App {
                     .and_then(|story| story["nodes"].as_array_mut())
                     .and_then(|nodes| nodes.iter_mut().find(|n| n["id"] == node))
                 {
-                    node["image"] = json!(format!("user:{id}"));
+                    let field = if node["type"] == "cg" && node["kind"] == "event" {
+                        "key"
+                    } else {
+                        "image"
+                    };
+                    node[field] = json!(format!("user:{id}"));
                 }
             }
         } else {
@@ -3659,6 +3764,8 @@ impl App {
         let (return_pressed, escape_pressed) = self.dialog_keys(ctx);
         if let Some(message) = self.error.clone() {
             let mut close = false;
+            let mut locate = false;
+            let destination = crate::error_location::resolve(&message, &self.project);
             egui::Modal::new(egui::Id::new("operation-error"))
                 .frame(shell::dialog_frame())
                 .show(ctx, |ui| {
@@ -3667,17 +3774,27 @@ impl App {
                     egui::ScrollArea::vertical()
                         .max_height(ctx.content_rect().height() * 0.5)
                         .show(ui, |ui| {
-                            ui.label(message);
+                            ui.label(crate::error_location::explanation(&message));
+                            if ui.small_button(tr("复制诊断信息")).clicked() {
+                                ui.ctx().copy_text(message.clone());
+                            }
                         });
                     ui.add_space(16.0);
                     shell::dialog_buttons(ui, |ui| {
+                        locate = ui
+                            .button(crate::error_location::action_label(&message, &destination))
+                            .clicked();
                         close |= ui
-                            .add_sized([80.0, 30.0], egui::Button::new(tr("知道了")))
+                            .add_sized([80.0, 30.0], egui::Button::new(tr("关闭")))
                             .clicked();
                     });
                 });
-            if close || escape_pressed {
+            if close || escape_pressed || locate {
                 self.error = None;
+            }
+            if locate {
+                crate::error_location::focus_field(ctx, &message);
+                self.go_to_problem(ctx, destination);
             }
             return;
         }
@@ -3743,7 +3860,7 @@ impl App {
                             ui.label(tr("手动检查更新位于“游戏与 MOD”页面。"));
                         }
                     }
-                    if let Some(error) = &self.settings_error { ui.colored_label(Color32::from_rgb(179, 55, 49), error); }
+                    if let Some(error) = &self.settings_error { crate::error_location::show(ui, error); }
                     ui.add_space(16.0);
                     shell::dialog_buttons(ui, |ui| { close |= ui.add_sized([80.0,30.0],egui::Button::new(tr("完成"))).clicked(); });
                 });
@@ -3855,7 +3972,7 @@ impl App {
                         );
                     }
                     if let Some(error) = &draft.error {
-                        ui.colored_label(Color32::from_rgb(179, 55, 49), tr(error));
+                        crate::error_location::show(ui, error);
                     }
                     let can_submit = !draft.paths.is_empty() && !draft.name.trim().is_empty();
                     let actions = dialog_actions(ui, "导入", can_submit);
@@ -3918,7 +4035,7 @@ impl App {
                         name.request_focus();
                     }
                     if let Some(error) = &draft.error {
-                        ui.colored_label(Color32::from_rgb(179, 55, 49), tr(error));
+                        crate::error_location::show(ui, error);
                     }
                     let can_submit = !draft.name.trim().is_empty();
                     let actions = dialog_actions(ui, "创建", can_submit);
@@ -3959,7 +4076,7 @@ impl App {
                         field.request_focus();
                     }
                     if let Some(error) = &draft.error {
-                        ui.colored_label(Color32::from_rgb(179, 55, 49), tr(error));
+                        crate::error_location::show(ui, error);
                     }
                     let can_submit = !draft.value.trim().is_empty();
                     let actions = dialog_actions(ui, "应用", can_submit);
@@ -3986,7 +4103,10 @@ impl App {
                     cancel |= shell::dialog_header(ui, &tr("模板边界引用"));
                     ui.label(tr("插入前请核对这些跨出模板范围的流程："));
                     for warning in warnings {
-                        ui.label(format!("• {warning}"));
+                        ui.label(format!(
+                            "• {}",
+                            crate::error_location::explanation(&warning)
+                        ));
                     }
                     (insert, cancel) = {
                         let (submit, footer_cancel) = dialog_actions(ui, "保留引用并插入", true);
@@ -4281,27 +4401,14 @@ impl eframe::App for App {
         self.track();
         self.dialogs(ctx);
         self.tools_panel.show_dialog(ctx, &self.project);
-        let tool_location = self.tools_panel.take_location();
-        if tool_location.is_some() && self.apply_pending_drafts() {
-            let (sid, nid) = tool_location.unwrap();
-            if let Some(story) = self.project.stories.get(&sid) {
-                if let Some(index) = nid.and_then(|nid| {
-                    story["nodes"]
-                        .as_array()
-                        .and_then(|ns| ns.iter().position(|n| n["id"] == nid))
-                }) {
-                    self.selected = index;
-                    self.center = Center::Node;
-                } else {
-                    self.center = Center::Chapter;
-                }
-                self.current = sid;
-                self.multiselect.clear();
-                self.search.clear();
-                self.needs_compile = true;
-            } else {
-                self.center = Center::Manifest;
-            }
+        if let Some(destination) = self.tools_panel.take_location() {
+            self.go_to_problem(ctx, destination);
+        }
+        if let Some(message) =
+            ctx.data_mut(|data| data.remove_temp::<String>(egui::Id::new("locate-error-message")))
+        {
+            crate::error_location::focus_field(ctx, &message);
+            self.go_to_problem(ctx, crate::error_location::resolve(&message, &self.project));
         }
         self.autosave();
         self.shell.set_title(
@@ -4734,6 +4841,155 @@ mod application_regression_tests {
         let mut app = App::new(&cc, None, None);
         app.recovery_candidates.clear();
         app
+    }
+    #[test]
+    fn error_button_opens_and_focuses_the_manifest_field_without_changing_the_project() {
+        let mut app = app();
+        app.project.manifest["play_mode"] = json!("sandbox");
+        app.project.manifest["campaign_id"] = json!("");
+        let before = snapshot(&app.project);
+        app.error = Some("导出失败\nmanifest.json: 存档身份未填写。".into());
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        let input = |events| egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1200.0, 900.0),
+            )),
+            events,
+            ..Default::default()
+        };
+        let output = ctx.run(input(vec![]), |ctx| app.dialogs(ctx));
+        let click = click_named_option(&output, "去填写存档身份");
+        let _ = ctx.run(input(vec![click]), |ctx| app.dialogs(ctx));
+        assert!(app.error.is_none());
+        assert_eq!(app.center, Center::Manifest);
+        let _ = ctx.run(input(vec![]), |ctx| app.center(ctx));
+        assert!(ctx.memory(|memory| memory.focused().is_some()));
+        assert!(ctx
+            .data(|data| data.get_temp::<String>(egui::Id::new("problem-field")))
+            .is_none());
+        assert!(snapshot(&app.project) == before);
+    }
+
+    #[test]
+    fn error_navigation_selects_the_owned_node_and_asset() {
+        let mut app = app();
+        let ctx = egui::Context::default();
+        let story = json!({"id":"main","nodes":[{"id":"shared","type":"wait","seconds":1}]});
+        app.project.stories.insert("main".into(), story.clone());
+        app.project.stories.insert("other".into(), story);
+        let raw = "story/other.json: 节点 \"shared\"(wait): 字段 \"seconds\" 必须是数字";
+        app.go_to_problem(&ctx, crate::error_location::resolve(raw, &app.project));
+        assert_eq!(app.current, "other");
+        assert_eq!(app.selected, 0);
+        assert_eq!(app.center, Center::Node);
+        let path = "assets/user/image/demo.picture/content.json";
+        app.project.assets.insert(path.into(), b"{}".to_vec());
+        app.go_to_problem(
+            &ctx,
+            crate::error_location::resolve("用户内容 demo.picture 的图片不存在", &app.project),
+        );
+        assert_eq!(app.center, Center::Assets);
+        assert_eq!(app.asset_selection, path);
+    }
+    #[test]
+    fn dragging_a_mood_updates_the_same_node_as_the_form() {
+        let mut app = app();
+        app.project.stories.insert("main".into(), json!({"id":"main","start":"show","nodes":[
+            {"id":"show","type":"show","character":"user:test.actor","position":"M","facing":"left"},
+            {"id":"bubble","type":"mood","character":"user:test.actor","enabled":true,"icon":"laugh1"}]}));
+        app.project.assets.insert(
+            "assets/user/character/test.actor/content.json".into(),
+            serde_json::to_vec(
+                &json!({"id":"test.actor","type":"character","portraits":{"normal":"normal.png"}}),
+            )
+            .unwrap(),
+        );
+        let mut png = std::io::Cursor::new(Vec::new());
+        image::RgbaImage::from_pixel(80, 100, image::Rgba([255, 0, 0, 255]))
+            .write_to(&mut png, image::ImageFormat::Png)
+            .unwrap();
+        app.project.assets.insert(
+            "assets/user/character/test.actor/normal.png".into(),
+            png.into_inner(),
+        );
+        app.selected = 1;
+        app.view = View::Stage;
+        app.center = Center::Node;
+        let ctx = egui::Context::default();
+        let draw = |app: &mut App, events| {
+            ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        Vec2::new(1200.0, 800.0),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ctx| {
+                    app.right(ctx);
+                    app.center(ctx);
+                },
+            )
+        };
+        draw(&mut app, vec![]);
+        let output = draw(&mut app, vec![]);
+        let center = output
+            .shapes
+            .iter()
+            .find_map(|shape| match &shape.shape {
+                egui::Shape::Rect(rect) if rect.stroke.color == Color32::from_rgb(45, 145, 220) => {
+                    Some(rect.rect.center())
+                }
+                _ => None,
+            })
+            .expect("selected bubble has a drag handle");
+        let pointer = |position, pressed| egui::Event::PointerButton {
+            pos: position,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Default::default(),
+        };
+        draw(
+            &mut app,
+            vec![egui::Event::PointerMoved(center), pointer(center, true)],
+        );
+        let target = center + Vec2::new(30.0, -20.0);
+        draw(&mut app, vec![egui::Event::PointerMoved(target)]);
+        draw(&mut app, vec![pointer(target, false)]);
+        let offset = app.story()["nodes"][1].clone();
+        assert!(offset["offset_x"].as_f64().unwrap() > 20.0, "{offset}");
+        assert!(offset["offset_y"].as_f64().unwrap() > 20.0, "{offset}");
+        draw(&mut app, vec![]);
+        assert_eq!(app.story()["nodes"][1], offset);
+        assert!(app.story()["nodes"][0].get("offset_x").is_none());
+        let output = draw(&mut app, vec![]);
+        let center = output
+            .shapes
+            .iter()
+            .find_map(|shape| match &shape.shape {
+                egui::Shape::Rect(rect) if rect.stroke.color == Color32::from_rgb(45, 145, 220) => {
+                    Some(rect.rect.center())
+                }
+                _ => None,
+            })
+            .unwrap();
+        let target = center + Vec2::new(20.0, -10.0);
+        draw(
+            &mut app,
+            vec![
+                egui::Event::PointerMoved(center),
+                pointer(center, true),
+                egui::Event::PointerMoved(target),
+                pointer(target, false),
+            ],
+        );
+        assert!(
+            app.story()["nodes"][1]["offset_x"].as_f64().unwrap()
+                > offset["offset_x"].as_f64().unwrap()
+        );
     }
     #[test]
     fn editor_update_uses_the_existing_unsaved_project_decision() {

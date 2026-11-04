@@ -2,7 +2,7 @@
 
 当前工具端由 Rust 编译器、核心库与 egui 编辑器组成；C# `MortalModHost` 保留游戏接入。日常编辑见 [软件使用](software_usage.md)，构建和 CLI 见 [Rust 工具端](rust.md)，验证层次见 [测试矩阵](test_matrix.md)。旧 Python／Qt／PyInstaller 入口已经退役，不作为本手册操作入口。
 
-当前 v1.3.0 的测试和 Windows 构建见 [版本记录](../../RELEASE_NOTES_v1.3.0.md)。2026-10-04 的早期迁移文档核对、Mac 179 项测试及 133 项预览仅为历史记录，见 [迁移验收表](rust_migration.md)。
+当前版本为 1.4.2，功能与验证范围见 [本版说明](../../RELEASE_NOTES_v1.4.2.md)。2026-10-04 的早期迁移文档核对、Mac 179 项测试及 133 项预览记录见 [迁移验收表](rust_migration.md)。
 
 ## 编辑器入口与设置
 
@@ -85,3 +85,19 @@ dotnet run --project runtime/MortalModHost/test/SmokeTest/SmokeTest.csproj --con
 ```
 
 前者依次做 Rust 格式检查、workspace 测试、样例预览、Rust 样例生成和包检查；生成目录固定为 `out/showcase3-native`，现有生成文件会受归属检查限制，重复验证可使用 [测试矩阵](test_matrix.md) 中的独立步骤和新输出目录。后者是 C# 离线 SmokeTest，不需要启动游戏，也不能证明 Unity 中的时序或交互正确。
+
+## 发布编辑器版本
+
+更新工作区版本、游戏接入组件版本、本版更新说明和当前使用文档后，通过项目既有的合并检查发布。
+
+Windows 发布入口为 `scripts/build-windows.ps1`。准备同版本的 `MortalModHost.dll` 与 `NVorbis.dll`，用 `-RuntimeDirectory` 指向包含两者的目录，`-ExtractorPython` 使用已有素材提取环境。默认构建完整压缩包，`-NoArchive` 仅生成程序目录。
+
+脚本从仓库根目录的 `RELEASE_NOTES_v<版本号>.md` 读取本版说明，并生成以下发布附件。
+
+- Windows x64 完整压缩包和对应校验文件。
+- 固定名称的 `lom-editor.exe`、`lomc.exe`、`MortalModHost.dll`、`NVorbis.dll`。
+- `update.json`，记录版本、说明和四个独立文件的大小与摘要。
+
+先上传到发布草稿，确认附件齐全后公开正式版本。内置更新读取清单和四个独立附件，完整压缩包同时提供素材提取组件。涉及提取组件更新时，在升级说明中明确要求使用完整包。
+
+仓库保留本版说明，旧版说明从对应的历史发布页查阅。清理旧说明时同步修改文档链接。

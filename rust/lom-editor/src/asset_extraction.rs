@@ -175,6 +175,35 @@ pub(crate) fn validate_mapping(root: &Path, mapping: &Value) -> Result<()> {
     if let Some(pictures) = mapping.get("pictures") {
         files.extend(pictures.as_object().context("插图映射必须是对象")?.values());
     }
+    if let Some(book) = mapping.get("event_book") {
+        files.push(book);
+    }
+    if let Some(moods) = mapping.get("moods") {
+        for mood in moods.as_object().context("气泡映射必须是对象")?.values() {
+            for facing in ["left", "right"] {
+                let animation = &mood[facing];
+                let frames = animation["frames"].as_array().context("气泡缺少动画帧")?;
+                ensure!(
+                    !frames.is_empty() && frames.len() <= 240,
+                    "气泡动画帧数量无效"
+                );
+                ensure!(
+                    animation["duration"].as_f64().is_some_and(|v| v > 0.0),
+                    "气泡动画时长无效"
+                );
+                let mut previous = 0.0;
+                for frame in frames {
+                    let time = frame["time"].as_f64().context("气泡帧缺少时间")?;
+                    ensure!(
+                        time >= previous && time <= animation["duration"].as_f64().unwrap(),
+                        "气泡帧时间无效"
+                    );
+                    previous = time;
+                    files.push(&frame["file"]);
+                }
+            }
+        }
+    }
     for value in files {
         let name = value.as_str().context("图片路径格式不正确")?;
         lom_core::package::canonical_archive_name(name)?;

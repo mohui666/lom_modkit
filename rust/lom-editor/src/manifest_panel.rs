@@ -7,6 +7,10 @@ use serde_json::{json, Value};
 
 pub fn show(ui: &mut egui::Ui, manifest: &mut Value, catalog: &Catalog, stories: &[String]) {
     ui.heading(tr("作品设置"));
+    let reveal = ui
+        .ctx()
+        .data_mut(|data| data.remove_temp::<bool>(egui::Id::new("reveal-manifest-fields")))
+        .unwrap_or(false);
     let event_mode = manifest.get("play_mode").is_some();
     if event_mode {
         ui.label(if manifest["play_mode"] == "addon" {
@@ -19,7 +23,7 @@ pub fn show(ui: &mut egui::Ui, manifest: &mut Value, catalog: &Catalog, stories:
         ));
     }
     for (key, label, kind) in [
-        ("id", "作品 ID", "str"),
+        ("id", "作品编号", "str"),
         ("campaign_id", "存档身份", "str"),
         ("name", "名称", "str"),
         ("version", "版本", "str"),
@@ -33,23 +37,25 @@ pub fn show(ui: &mut egui::Ui, manifest: &mut Value, catalog: &Catalog, stories:
         catalog.field(ui, manifest, key, label, kind, false, &[], stories);
     }
     if event_mode {
-        ui.collapsing(tr("高级：作品标识"), |ui| {
-            for (key, label) in [("id", "作品 ID"), ("campaign_id", "存档身份")] {
+        egui::CollapsingHeader::new(tr("高级：作品标识")).open(reveal.then_some(true)).show(ui, |ui| {
+            for (key, label) in [("id", "作品编号"), ("campaign_id", "存档身份")] {
                 catalog.field(ui, manifest, key, label, "str", false, &[], stories);
             }
-            ui.small(tr("自由剧本的入口由开场事件管理。"));
+            ui.small(tr("编号使用 1～64 个小写英文字母、数字、下划线或短横线。存档身份用于关联玩家存档，发布后应保留原编号。自由剧本的入口由开场事件管理。"));
         });
     }
-    ui.collapsing(tr("兼容性"), |ui| {
-        for key in [
-            "min_host_version",
-            "tested_host_version",
-            "game_version",
-            "tested_game_version",
-        ] {
-            catalog.field(ui, manifest, key, key, "str", true, &[], stories);
-        }
-    });
+    egui::CollapsingHeader::new(tr("兼容性"))
+        .open(reveal.then_some(true))
+        .show(ui, |ui| {
+            for (key, label) in [
+                ("min_host_version", "最低游戏接入组件版本"),
+                ("tested_host_version", "已测试的游戏接入组件版本"),
+                ("game_version", "游戏版本"),
+                ("tested_game_version", "已测试的游戏版本"),
+            ] {
+                catalog.field(ui, manifest, key, label, "str", true, &[], stories);
+            }
+        });
     ui.separator();
     if event_mode {
         if manifest["play_mode"] == "sandbox" {

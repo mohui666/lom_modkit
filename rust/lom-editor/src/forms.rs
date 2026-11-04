@@ -209,6 +209,9 @@ impl Catalog {
     ) -> Vec<(String, String)> {
         let mut options = self.raw_options(kind, node, nodes, stories);
         for (id, name) in &mut options {
+            if kind == "view" {
+                *name = resource_label(id, "场景背景", name);
+            }
             if kind.starts_with("enum:") || ["mode", "facing", "branch_source"].contains(&kind) {
                 *name = tr(name);
             } else if kind == "portrait"
@@ -249,7 +252,6 @@ impl Catalog {
                 .as_array()
                 .into_iter()
                 .flatten()
-                .filter(|row| !row["id"].as_str().unwrap_or("").starts_with("user:"))
                 .cloned()
                 .collect();
             return localized_rows(&json!(characters), "characters");
@@ -317,6 +319,11 @@ impl Catalog {
             }
             return vec![("normal".into(), "normal".into())];
         }
+        if kind == "event_picture" {
+            let mut options = self.raw_options("official_picture", node, nodes, stories);
+            options.extend(self.raw_options("user_image", node, nodes, stories));
+            return options;
+        }
         if kind == "official_picture" {
             let catalog: Value =
                 serde_json::from_str(include_str!("../../../data/picture_keys.json"))
@@ -330,6 +337,7 @@ impl Catalog {
                 .as_array()
                 .into_iter()
                 .flatten()
+                .filter(|row| node["kind"] != "event" || row["category"] == "Picture")
                 .filter_map(|row| {
                     Some((
                         row["key"].as_str()?.to_owned(),
@@ -340,7 +348,12 @@ impl Catalog {
             result.sort_by_key(|(key, category)| (category != preferred, key.clone()));
             return result
                 .into_iter()
-                .map(|(key, category)| (key.clone(), format!("{key} · {category}")))
+                .map(|(key, category)| {
+                    (
+                        key.clone(),
+                        resource_label(&key, picture_category(&category), &key),
+                    )
+                })
                 .collect();
         }
         if kind == "mode" {
@@ -582,7 +595,10 @@ impl Catalog {
                         "标题文字"
                     } else if kind == "cg"
                         && key == "key"
-                        && matches!(node["kind"].as_str(), Some("picture" | "item" | "big"))
+                        && matches!(
+                            node["kind"].as_str(),
+                            Some("event" | "picture" | "item" | "big")
+                        )
                     {
                         "图片"
                     } else {
@@ -591,6 +607,8 @@ impl Catalog {
                     if kind == "intro" && key == "character" && node["intro_source"] == "character"
                     {
                         "character"
+                    } else if kind == "cg" && key == "key" && node["kind"] == "event" {
+                        "event_picture"
                     } else if kind == "cg"
                         && key == "key"
                         && matches!(node["kind"].as_str(), Some("picture" | "item" | "big"))
@@ -607,6 +625,16 @@ impl Catalog {
         }
         if kind == "mood" {
             ui.small(tr("留空人物时控制全场自动气泡；指定人物后可单独选气泡，无需切换立绘。关闭全场会清除单人设置。"));
+            if node["character"].is_string() && node["enabled"] == true {
+                ui.small(tr(
+                    "可在画面预览中拖动气泡定位框。偏移按 1920×1080 参考像素计算，跟随人物朝向。",
+                ));
+                if ui.button(tr("气泡位置归位")).clicked() {
+                    node.as_object_mut().unwrap().remove("offset_x");
+                    node.as_object_mut().unwrap().remove("offset_y");
+                    changed = true;
+                }
+            }
         }
         ui.add_space(4.0);
         if allow_goto {
@@ -807,7 +835,7 @@ impl Catalog {
             node["actions"] = Value::Array(actions);
         }
         if let Err(error) = lom_core::parallel::validate_group(node) {
-            ui.colored_label(Color32::from_rgb(179, 55, 49), error.to_string());
+            crate::error_location::show(ui, &error.to_string());
         }
         changed
     }
@@ -964,7 +992,12 @@ impl Catalog {
         let label = label.as_str();
         let options = self.options(kind, node, node_ids, story_ids);
         let mut changed = false;
-        ui.push_id(key, |ui| {
+        let locate = ui
+            .ctx()
+            .data(|data| data.get_temp::<String>(egui::Id::new("problem-field")))
+            .as_deref()
+            == Some(key);
+        let field_response = ui.push_id(key, |ui| {
             let width = ui.available_width();
             let stacked = width < 560.0;
             let label_width = if stacked {
@@ -1141,13 +1174,15 @@ impl Catalog {
                             let mut s = value.as_str().unwrap_or("").to_owned();
                             let mut c = false;
                             if !selector {
-                                c = ui
-                                    .add(
-                                        egui::TextEdit::singleline(&mut s)
-                                            .desired_width(f32::INFINITY)
-                                            .hint_text(label),
-                                    )
-                                    .changed();
+                                let response = ui.add(
+                                    egui::TextEdit::singleline(&mut s)
+                                        .desired_width(f32::INFINITY)
+                                        .hint_text(label),
+                                );
+                                if locate {
+                                    response.request_focus();
+                                }
+                                c = response.changed();
                                 reset |= c && optional && s.is_empty();
                             } else if is_character_selector(kind) {
                                 let absent = absent_label(node, key, kind);
@@ -1258,6 +1293,8 @@ impl Catalog {
                                 && object.get("type").and_then(Value::as_str) == Some("mood")
                             {
                                 object.remove("icon");
+                                object.remove("offset_x");
+                                object.remove("offset_y");
                             }
                         }
                     } else if field_changed && node.get(key) != Some(&value) {
@@ -1270,6 +1307,19 @@ impl Catalog {
                 });
             });
         });
+        if locate {
+            field_response
+                .response
+                .scroll_to_me(Some(egui::Align::Center));
+            ui.painter().rect_stroke(
+                field_response.response.rect.expand(3.0),
+                3.0,
+                egui::Stroke::new(2.0_f32, ui.visuals().selection.stroke.color),
+                egui::StrokeKind::Outside,
+            );
+            ui.ctx()
+                .data_mut(|data| data.remove::<String>(egui::Id::new("problem-field")));
+        }
         changed
     }
 }
@@ -1425,6 +1475,29 @@ fn character_picker(
     selection
 }
 
+pub(crate) fn picture_category(category: &str) -> &str {
+    match category {
+        "BigPicture" => "大图 CG",
+        "Picture" => "普通插图",
+        "Items" => "物品图",
+        "Book" => "功法图",
+        "Develop" => "养成插图",
+        "UI" => "界面图片",
+        _ => category,
+    }
+}
+
+fn resource_label(id: &str, category: &str, name: &str) -> String {
+    let description = match id {
+        "section_001_cliff_dusk" => "崆峒鹤崖·黄昏·小梅教鹤舞前",
+        "section_001_cliff_night" => "崆峒鹤崖·夜晚·小梅教鹤舞后",
+        _ if id.starts_with("dance_event_00") => "小梅教赵活鹤舞",
+        _ if id.starts_with("dance_event_10") => "小梅·崆峒大战·鹤舞相杀",
+        _ => name,
+    };
+    format!("{} · {} · {id}", tr(category), tr(description))
+}
+
 fn is_selector(kind: &str) -> bool {
     kind.starts_with("enum:")
         || matches!(kind, "character_group" | "character_appearance")
@@ -1432,6 +1505,7 @@ fn is_selector(kind: &str) -> bool {
             kind,
             "node_ref"
                 | "official_picture"
+                | "event_picture"
                 | "mood_character"
                 | "story_ref"
                 | "facing"
@@ -1518,7 +1592,7 @@ pub fn number_duplicate_labels(options: &mut [(String, String)]) {
 }
 
 fn field_visible(kind: &str, node: &Value, key: &str) -> bool {
-    if kind == "mood" && key == "icon" {
+    if kind == "mood" && matches!(key, "icon" | "offset_x" | "offset_y") {
         return node["character"].as_str().is_some_and(|s| !s.is_empty())
             && node["enabled"] == true;
     }
@@ -1533,6 +1607,7 @@ fn field_visible(kind: &str, node: &Value, key: &str) -> bool {
             }
             "n1" | "n2" => node["action"] == "show" && node["kind"] == "family",
             "color" => node["action"] == "show" && node["kind"] == "big",
+            "event_title" | "event_text" => node["action"] == "show" && node["kind"] == "event",
             _ => true,
         };
     }
@@ -2328,17 +2403,25 @@ mod tests {
             .unwrap()
             .nodes;
         assert!(
-            nodes
-                .iter()
-                .any(|(_, node)| node.role() == Role::Button
-                    && node.label() == Some("Night background")),
+            nodes.iter().any(|(_, node)| node.role() == Role::Button
+                && node.label()
+                    == Some(
+                        resource_label("fixture_night", "场景背景", "Night background").as_str()
+                    )),
             "search popup closed before choosing a background"
         );
-        assert!(!nodes
-            .iter()
-            .any(|(_, node)| node.role() == Role::Button
-                && node.label() == Some("Daytime background")));
-        let events = pointer_click(&output, Role::Button, Some("Night background"));
+        assert!(!nodes.iter().any(|(_, node)| node.role() == Role::Button
+            && node.label()
+                == Some(resource_label("fixture_day", "场景背景", "Daytime background").as_str())));
+        let events = pointer_click(
+            &output,
+            Role::Button,
+            Some(&resource_label(
+                "fixture_night",
+                "场景背景",
+                "Night background",
+            )),
+        );
         let (_, changed) = field_frame(&catalog, &context, &mut node, "view", "view", events);
         assert!(changed);
         assert_eq!(node["view"], "fixture_night");

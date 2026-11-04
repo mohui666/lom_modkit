@@ -145,7 +145,7 @@ fn a_normal_only_actor_can_choose_bubbles_without_loading_other_portraits() {
     }
     for fields in [
         json!({"character":"artist1","icon":"question"}),
-        json!({"character":"user:demo.actor","icon":"shock"}),
+        json!({"character":"user:invalid","icon":"shock"}),
         json!({"character":"unknown_actor","icon":"shock"}),
         json!({"character":"","icon":"shock"}),
         json!({"icon":"shock"}),
@@ -178,6 +178,50 @@ fn character_bubble_packages_require_a_host_with_the_new_entry_point() {
 }
 
 #[test]
+fn custom_bubbles_export_the_character_and_require_host_142() {
+    let mut project = lom_core::project::Project::new();
+    project.manifest["min_host_version"] = json!("1.4.1");
+    let character = "user:demo.actor";
+    project.stories.insert(
+        "main".into(),
+        json!({"id":"main","start":"enter","nodes":[
+        {"id":"enter","type":"show","character":character,"position":"M"},
+        {"id":"bubble","type":"mood","character":character,"enabled":true,"icon":"laugh1"},
+        {"id":"end","type":"end"}]}),
+    );
+    let meta = lom_core::content::normalize_content_metadata(
+        &json!({"schema":1,"id":"demo.actor","type":"character","name":"测试人物",
+        "files":{"main":"normal.png"},"portraits":{"normal":"normal.png"},"mood_x":35,"mood_y":85}),
+    )
+    .unwrap();
+    project.assets.insert(
+        "assets/user/character/demo.actor/content.json".into(),
+        serde_json::to_vec(&meta).unwrap(),
+    );
+    project.assets.insert(
+        "assets/user/character/demo.actor/normal.png".into(),
+        include_bytes!(
+            "../../../samples/showcase3/assets/user/character/showcase.lin_deng/normal.png"
+        )
+        .to_vec(),
+    );
+    let directory = tempfile::tempdir().unwrap();
+    let output = directory.path().join("custom-bubble.lommod");
+    project.export(&output).unwrap();
+    let entries = lom_core::package::read_package(&output).unwrap();
+    let manifest: Value = serde_json::from_slice(&entries["manifest.json"]).unwrap();
+    assert_eq!(manifest["min_host_version"], "1.4.2");
+    let packed: Value =
+        serde_json::from_slice(&entries["assets/user/character/demo.actor/content.json"]).unwrap();
+    assert_eq!(packed["mood_x"], 35);
+    assert_eq!(packed["mood_y"], 85);
+    let reopened = lom_core::project::Project::open(&output).unwrap();
+    reopened
+        .export(&directory.path().join("reopened.lommod"))
+        .unwrap();
+}
+
+#[test]
 fn export_requires_the_new_host_only_when_using_the_new_controls() {
     for node in [
         json!({"id":"change","type":"portrait","character":"player","portrait":"normal"}),
@@ -195,4 +239,32 @@ fn export_requires_the_new_host_only_when_using_the_new_controls() {
         assert_eq!(manifest["min_host_version"], "1.3.6");
         assert_eq!(project.manifest["min_host_version"], "1.1.3");
     }
+}
+
+#[test]
+fn bubble_offsets_compile_and_require_host_142_for_official_actors() {
+    let mut project = lom_core::project::Project::new();
+    project.manifest["min_host_version"] = json!("1.4.1");
+    let input = story(
+        json!({"id":"bubble","type":"mood","character":"player","enabled":true,
+        "icon":"shock","offset_x":-60,"offset_y":140}),
+    );
+    let lua = codegen::compile_story(&input, None, None, None).unwrap();
+    assert!(lua.contains("mod_character_mood(\"player\", \"shock\", -60, 140)"));
+    project.stories.insert("main".into(), input.clone());
+    let directory = tempfile::tempdir().unwrap();
+    let output = directory.path().join("positioned.lommod");
+    project.export(&output).unwrap();
+    let entries = lom_core::package::read_package(&output).unwrap();
+    let manifest: Value = serde_json::from_slice(&entries["manifest.json"]).unwrap();
+    assert_eq!(manifest["min_host_version"], "1.4.2");
+    let mut invalid = input;
+    invalid["nodes"][1]["offset_y"] = json!(1081);
+    assert!(validate::validate_story(&invalid).is_err());
+    invalid["nodes"][1]["offset_y"] = json!(0);
+    invalid["nodes"][1]
+        .as_object_mut()
+        .unwrap()
+        .remove("character");
+    assert!(validate::validate_story(&invalid).is_err());
 }

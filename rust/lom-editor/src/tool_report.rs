@@ -26,7 +26,7 @@ fn known_label(key: &str) -> Option<String> {
         "description" => "作品说明",
         "entry" => "起始章节",
         "campaign" => "战役设置",
-        "campaign_id" => "战役存档编号",
+        "campaign_id" => "存档身份",
         "new_game" => "允许新建战役",
         "triggers" => "剧情触发条件",
         "min_host_version" => "需要的游戏接入组件版本",
@@ -180,6 +180,9 @@ fn scalar(key: &str, value: &Value) -> String {
             "read_write" => "读取与设置",
             _ => s,
         }),
+        Value::String(s) if matches!(key, "error" | "message" | "validation_error") => {
+            crate::error_location::explanation(s)
+        }
         Value::String(s) => crate::i18n::tr(match s.as_str() {
             "ok" | "passed" | "pass" => "通过",
             "warning" => "提醒",
@@ -197,7 +200,7 @@ fn scalar(key: &str, value: &Value) -> String {
 /// Counts real errors/warnings, without treating an unsupported offline step as a pass.
 pub fn summary(value: &Value) -> String {
     if let Some(error) = value["error"].as_str() {
-        return format!("{}\n{error}", crate::i18n::tr("操作未完成"));
+        return crate::error_location::explanation(error);
     }
     if value.is_null() {
         return crate::i18n::tr("操作完成");
@@ -297,7 +300,7 @@ fn finding(code: &str) -> &str {
 
 pub fn show(ui: &mut egui::Ui, value: &Value, depth: usize) {
     if show_fields(ui, value, depth, false) {
-        ui.label(crate::i18n::tr("其余资料请展开“技术详情”查看"));
+        ui.label(crate::i18n::tr("更多信息可通过“复制诊断信息”获取"));
     }
 }
 
@@ -440,7 +443,7 @@ mod tests {
         assert!(text.contains("音频"), "{text}");
         assert!(!text.contains("future_internal_field"));
         assert!(!text.contains("package_format"));
-        assert!(text.contains("技术详情"), "{text}");
+        assert!(text.contains("复制诊断信息"), "{text}");
         assert_eq!(report, original);
     }
     #[test]
@@ -522,8 +525,7 @@ mod tests {
         assert_eq!(scalar("game_tested", &json!(false)), "否");
         assert!(summary(&json!({"changed":false})).contains("无需更新"));
         let failed = summary(&json!({"changed":false,"error":"拒绝访问 (os error 5)"}));
-        assert!(failed.contains("操作未完成"));
-        assert!(failed.contains("拒绝访问"));
+        assert!(failed.contains("无法访问文件"));
         assert!(!failed.contains("无需更新"));
     }
 }

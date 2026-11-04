@@ -37,6 +37,13 @@ namespace MortalModHost
             public RectTransform ImageRect;
             public bool Visible;
             public bool Dimmed;
+            public CharacterMoodPanel Mood;
+            public Vector2 MoodAnchor;
+            public Vector2 MoodOffset;
+            public string MoodIcon;
+            public string ShownMood;
+            public float MoodFacing;
+            public Coroutine FadeRoutine;
             public Coroutine MotionRoutine;
             public Coroutine ShockRoutine;
             public Coroutine DimRoutine;
@@ -120,13 +127,14 @@ namespace MortalModHost
             // A previous offset/move may still be yielding its final frame.
             // Re-entry owns the new position; an old routine must not overwrite it.
             StopRoutine(ref actor.MotionRoutine);
+            StopRoutine(ref actor.FadeRoutine);
             Place(actor, position);
             ApplyFacing(actor, facing);
             actor.Holder.SetActive(true);
             actor.Visible = true;
             Focus(raw);
             if (_host != null && fade > 0f)
-                _host.StartCoroutine(FadeImage(actor.Image, 0f, 1f, fade));
+                actor.FadeRoutine = _host.StartCoroutine(FadeImage(actor.Image, 0f, 1f, fade));
             else if (actor.Image != null)
                 SetAlpha(actor.Image, 1f);
             if (Log != null)
@@ -139,9 +147,15 @@ namespace MortalModHost
             Actor actor;
             if (!Actors.TryGetValue(raw ?? "", out actor) || actor == null)
                 return true;
+            StopRoutine(ref actor.FadeRoutine);
+            actor.Visible = false;
+            actor.MoodIcon = null;
+            actor.MoodOffset = Vector2.zero;
+            if (actor.Mood != null) actor.Mood.Hide();
+            actor.ShownMood = null;
             if (_host != null && fade > 0f && actor.Image != null)
             {
-                _host.StartCoroutine(FadeThenHide(actor, fade));
+                actor.FadeRoutine = _host.StartCoroutine(FadeThenHide(actor, fade));
                 return true;
             }
             if (actor.Holder != null)
@@ -157,6 +171,7 @@ namespace MortalModHost
                 return false;
             if (!actor.Visible)
             {
+                StopRoutine(ref actor.FadeRoutine);
                 Place(actor, string.IsNullOrEmpty(from) ? to : from);
                 actor.Holder.SetActive(true);
                 actor.Visible = true;
@@ -184,6 +199,68 @@ namespace MortalModHost
                     result.Add(pair.Key);
             result.Sort(StringComparer.Ordinal);
             return result;
+        }
+
+        internal static void SetMood(string raw, string icon, float x, float y)
+        {
+            Actor actor;
+            if (!Actors.TryGetValue(raw, out actor) || !actor.Visible)
+                throw new InvalidOperationException("指定气泡的人物尚未登场：" + raw);
+            EnsureMood(actor);
+            actor.MoodOffset = new Vector2(x, y);
+            actor.Mood.SetPosition(x * actor.BodyScale, y * actor.BodyScale);
+            actor.MoodIcon = icon == "auto" ? null : icon;
+            UpdateMoods();
+        }
+
+        internal static void ClearMoodOverrides()
+        {
+            foreach (var actor in Actors.Values)
+            {
+                actor.MoodIcon = null;
+                actor.MoodOffset = Vector2.zero;
+                actor.ShownMood = null;
+                if (actor.Mood != null)
+                {
+                    actor.Mood.Hide();
+                    actor.Mood.SetPosition(0f, 0f);
+                }
+            }
+        }
+
+        private static void EnsureMood(Actor actor)
+        {
+            if (actor.Mood != null) return;
+            actor.Mood = MoodControl.CreatePanel(actor.Holder.transform);
+            var rect = actor.Mood.GetComponent<RectTransform>();
+            rect.anchorMin = actor.MoodAnchor;
+            rect.anchorMax = actor.MoodAnchor;
+            actor.Mood.SetPosition(0f, 0f);
+            rect.localScale = Vector3.one * actor.BodyScale;
+        }
+
+        internal static void UpdateMoods()
+        {
+            foreach (var actor in Actors.Values)
+            {
+                string icon = actor.MoodIcon ?? (MoodControl.Disabled ? null : actor.Portrait);
+                if (!actor.Visible || actor.Dimmed || actor.Image.color.a < 0.999f || icon == "hide") icon = null;
+                if (icon == null || icon == "normal")
+                {
+                    if (actor.Mood != null && actor.ShownMood != null) actor.Mood.Hide();
+                    actor.ShownMood = null;
+                    continue;
+                }
+                EnsureMood(actor);
+                actor.Mood.SetPosition(actor.MoodOffset.x * actor.BodyScale, actor.MoodOffset.y * actor.BodyScale);
+                float facing = actor.HolderRect.localScale.x < 0f ? -1f : 1f;
+                if (icon != actor.ShownMood || facing != actor.MoodFacing)
+                {
+                    actor.Mood.Show(icon, facing);
+                    actor.ShownMood = icon;
+                    actor.MoodFacing = facing;
+                }
+            }
         }
 
         /// <summary>按原版 MoveOffsetCoroutine 语义累加 anchoredPosition。</summary>
@@ -368,7 +445,8 @@ namespace MortalModHost
                 Name = string.IsNullOrEmpty(content.Name) ? parsed.LocalId : content.Name,
                 Title = content.Title,
                 BodyScale = percent / 100f,
-                ArtFacing = artFacing
+                ArtFacing = artFacing,
+                MoodAnchor = new Vector2(content.MoodX / 100f, content.MoodY / 100f)
             };
             GameObject holder = new GameObject("lom_char_" + parsed.ContentId, typeof(RectTransform));
             holder.transform.SetParent(stage.PortraitCanvas.transform, false);
@@ -511,9 +589,9 @@ namespace MortalModHost
             Stage stage = Stage.GetActiveStage();
             if (stage != null && stage.PortraitCanvas != null)
             {
-                Rect pixel = stage.PortraitCanvas.pixelRect;
-                if (pixel.height > 1f)
-                    canvasH = pixel.height;
+                RectTransform canvasRect = stage.PortraitCanvas.transform as RectTransform;
+                if (canvasRect != null && canvasRect.rect.height > 1f)
+                    canvasH = canvasRect.rect.height;
             }
             if (canvasH < 1f)
                 canvasH = 1080f;
@@ -729,6 +807,7 @@ namespace MortalModHost
             StopShock(actor);
             StopRoutine(ref actor.DimRoutine);
             StopRoutine(ref actor.RotateRoutine);
+            StopRoutine(ref actor.FadeRoutine);
             foreach (var pair in actor.Sprites)
             {
                 if (pair.Value != null)

@@ -240,7 +240,9 @@
         "n1": "num",
         "n2": "num",
         "color": "num",
-        "wait_after": "num"
+        "wait_after": "num",
+        "event_title": "str",
+        "event_text": "str"
       }
     },
     "dim": {
@@ -731,7 +733,9 @@
       },
       "optional": {
         "character": "idstr",
-        "icon": "mood_icon"
+        "icon": "mood_icon",
+        "offset_x": "num",
+        "offset_y": "num"
       }
     },
     "use_item": {
@@ -801,6 +805,7 @@
       "hide"
     ],
     "cg_kind": [
+      "event",
       "picture",
       "item",
       "big",
@@ -1018,7 +1023,7 @@
     "transition_dir": "\"lr\"/\"rl\"/\"tb\"/\"bt\"",
     "block_fc": "\"view\"/\"common\"",
     "cg_action": "\"show\"/\"hide\"",
-    "cg_kind": "\"picture\"/\"item\"/\"big\"/\"map\"/\"family\"/\"title\"",
+    "cg_kind": "\"event\"/\"picture\"/\"item\"/\"big\"/\"map\"/\"family\"/\"title\"",
     "item_kind": "\"book\"/\"misc\"/\"special\"/\"consumable\"",
     "gameflag_op": "\"set\"/\"add\"",
     "enemy_op": "\"team\"/\"level\"/\"people\"/\"id\"",

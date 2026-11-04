@@ -237,7 +237,7 @@ pub fn show(
     }
     if let Err(error) = lom_core::scenario::validate(config, &project.manifest, &project.stories) {
         ui.separator();
-        ui.colored_label(egui::Color32::LIGHT_RED, format!("{error:#}"));
+        crate::error_location::show(ui, &format!("{error:#}"));
     }
 }
 

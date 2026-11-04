@@ -1,8 +1,10 @@
 # lom_modkit 文档
 
-本文档描述当前 **v1.3.1**，C# 游戏接入层保留。先读 [软件使用](chs/software_usage.md)，构建见 [Rust 工具端](chs/rust.md)，实现与验证范围见 [迁移记录](chs/rust_migration.md)。
+本文档对应 **v1.4.2 正式版**，C# 游戏接入层保留。先读 [软件使用](chs/software_usage.md)，构建见 [Rust 工具端](chs/rust.md)，实现与验证范围见 [迁移记录](chs/rust_migration.md)。
 
-[v1.3.1 Windows Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.1) 提供最新完整工具包，背景补丁见 [v1.3.1 记录](../RELEASE_NOTES_v1.3.1.md)；中文演示、跟做项目及上一版验证见 [v1.3.0 记录](../RELEASE_NOTES_v1.3.0.md)，历史游戏冒烟见 [x64 验证记录](chs/x64_validation.md)。
+原路线图中 1.5 的功能已纳入本版。逐项实现状态、已验证范围与待补验收见 [当前能力与边界](chs/current_capabilities.md#原路线图的完成情况)。
+
+当前下载与升级方法见 [Windows 快速开始](chs/windows_quick_start.md)，新增功能和验证范围见 [1.4.2 更新说明](../RELEASE_NOTES_v1.4.2.md)。历史版本集中从 [发布记录](https://github.com/mohui666/lom_modkit/releases) 查阅。
 
 权威版为简体中文 [`chs/`](chs/)。[繁體](cht/README.md)、[日本語](ja/README.md)、[한국어](ko/README.md) 的入口已注明适用版本；尚未同步的旧版 UI 指南不能作为当前操作路径。维护文档先更新 `chs/`。
 
@@ -20,7 +22,7 @@
 | [多语言](chs/i18n.md) | 界面语言、资源显示名称和作品翻译 |
 | [自动恢复](chs/editor_recovery.md) | 快照位置、恢复流程与保存边界 |
 | [自由模式与人物立绘](chs/free_mode_portraits.md) | 时间地点事件与赵活外观 |
-| [Showcase 3.0](../samples/showcase3/README.md) | 6 章、142 个流程节点、64 类节点的样例与生成方法 |
+| [Showcase 3.0](../samples/showcase3/README.md) | 6 章、67 类节点的样例与生成方法 |
 | [Windows 完整测试清单（2026-10-22）](chs/windows_integrated_checklist_20261022.md) | 保留旧 A～H 全部 49 项，新增 UI、一键配置、MOD 与发布 37 项；共 86 项 |
 | [Windows 回归测试包](../tools/windows_test_kit/README.md) | 本机测试包的使用说明；可勾选网页属于另行生成的本地产物，不随源码提供 |
 | [完整测试结果模板](chs/windows_integrated_test_results_20261022.md) | 86 项逐项结果、缺图明细与失败复现记录 |
@@ -56,7 +58,7 @@
 | [Windows 验证记录](chs/windows_validation.md) | 2026-10-04 至 05 的 Rust 构建、离线与实际界面验证 |
 | [来源水印](chs/watermark.md) | 协议、嵌入、截图/视频检测 |
 | [Runtime 说明](../runtime/MortalModHost/README.md) | C# Host 行为与限制 |
-| [v1.3.0 变更记录](../RELEASE_NOTES_v1.3.0.md) | 事件任务、界面、定位游戏与发布验证 |
-| [v1.2.0 变更记录](../RELEASE_NOTES_v1.2.0.md) | Rust 变更及迁移前历史 |
+| [v1.3.0 变更记录](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.0) | 事件任务、界面、定位游戏与发布验证 |
+| [v1.2.0 变更记录](https://github.com/mohui666/lom_modkit/releases/tag/v1.2.0) | Rust 变更及迁移前历史 |
 
-当前 Rust 验证包含早期 macOS 记录和本轮 Windows 构建、离线测试与实际界面操作，各自的环境、通过项及限制分别记录。2026-10-17 另完成 x64 游戏启动、F5 与 Combat/Battle 定向冒烟；未逐项验收全部 64 类节点。旧 Python/Qt 的 Windows 和游戏结果只对应当时版本。
+当前 Rust 验证包含早期 macOS 记录和本轮 Windows 构建、离线测试与实际界面操作，各自的环境、通过项及限制分别记录。2026-10-17 另完成 x64 游戏启动、F5 与 Combat/Battle 定向冒烟；该次未逐项验收全部节点。旧 Python/Qt 的 Windows 和游戏结果只对应当时版本。

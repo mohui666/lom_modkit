@@ -131,3 +131,18 @@ Windows 实机还确认 `Mortal.Core.CharacterIntroPanel` 同时提供 `IEnumera
 - **DECOMPILE VERIFIED**：本页表格和 JSON contract 中的签名、控制流与程序集哈希。
 - **AUTO VERIFIED**：后续 Compiler/Editor/Host 单测和 Host 构建。
 - **NOT VERIFIED IN GAME**：新增高层 Gameplay 节点在真实战斗、战役、商店中的交互与返回时序；实现后仍需实机验收。
+
+## 2026-11-04 自定义人物气泡接口
+
+本次重新读取本机 `Mortal.Story.dll` 中的 `StoryStageController`、`StoryCharacterController`、`CharacterMoodPanel` 和 `CharacterPortraitMood`。舞台 `_moodPrefab` 是原版角色 `SetupMood` 实例化的来源，自定义人物同样克隆该预制体到自己的 Holder。`CharacterMoodPanel.SetPosition(float,float)` 设置锚点偏移，`Show(string,float)` 选择 Mapping 和朝向，`Hide()` 关闭当前图标。实例随人物销毁，官方预制体保持原值。
+
+预览提取读取本机 CharacterMoodPanel 映射、子物件 RectTransform，以及 AnimatorController 的无条件结束切换和 AnimationClip 精灵关键帧。单次动画保留末帧，带尾段循环的动画保留循环起点；序列帧补齐 Sprite 原有透明边距以保持定位。
+
+单人气泡的 `offset_x`／`offset_y` 通过同一 `SetPosition` 接口叠加在官方 `StoryCharacterData.MoodPosition` 或用户人物百分比锚点上。官方位置仅在该人物有 Host 临时设置时恢复，用户人物偏移随体型缩放，离场和全场清除都会归零。
+
+本轮 Windows 隔离试玩观察了自定义人物气泡偏移、转身镜像、位移跟随、压暗隐藏与恢复、换表情、单独隐藏、退场重登和全场清除。自定义立绘的尺寸改为读取舞台 Canvas 的本地 RectTransform 高度；复验换表情后保持体型，避免屏幕像素高度随分辨率改变造成重算差异。
+
+### 1.4.2 书页事件图
+
+- 本次实时反编译确认 `Mortal.Story.StoryMainUI._picture` 为 `StoryPicture`，`ShowPicture(string)` 调用其 `Show`，加载 `pic_` 地址。`EventPictureRuntime` 克隆这个实例并禁用克隆的 `StoryPicture`，通过其 `_image` 设置原版或包内图片，使用 `preserveAspect` 适配左侧图框。克隆保留 `DialogUISizePosition`，清除时释放自己加载的 Sprite/Texture/Addressables handle。
+- 原版 Story 场景的 `Picture/Mask/Image` 为左侧插图，`Picture/Text` 是右侧“事件”题字。仅在克隆中关闭题字的 `LeanLocalizedText` 后写入作者文字。可选下方文字复用 `saydialogs.narrative`，点击继续。原版书页 `pic_book_1` 仅从用户游戏提取到本地缓存。

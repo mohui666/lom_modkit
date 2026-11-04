@@ -4,7 +4,7 @@
     "package_format": 3,
     "story_schema": 2,
     "content_schema": 1,
-    "min_host_version": "1.4.1",
+    "min_host_version": "1.4.2",
     "id": "showcase3",
     "campaign_id": "showcase3",
     "name": "全节点样例3.0·六十七节点实机验收",
@@ -321,6 +321,34 @@
           "fadeDuration": 0
         },
         {
+          "id": "mood_custom_enter",
+          "type": "show",
+          "character": "user:showcase.lin_deng",
+          "portrait": "normal",
+          "position": "R1",
+          "facing": "left"
+        },
+        {
+          "id": "mood_custom_music",
+          "type": "mood",
+          "character": "user:showcase.lin_deng",
+          "enabled": true,
+          "icon": "laugh1",
+          "offset_x": -60,
+          "offset_y": 140
+        },
+        {
+          "id": "mood_custom_line",
+          "type": "say",
+          "mode": "narrative",
+          "text": "自定义人物也可以独立显示气泡，位置由人物素材中的百分比控制。"
+        },
+        {
+          "id": "mood_custom_exit",
+          "type": "hide",
+          "character": "user:showcase.lin_deng"
+        },
+        {
           "id": "say3",
           "type": "say",
           "text": "这是靠左旁白。刚才人物在没有对白的情况下换了表情：赵活淡出 0.5 秒、淡入 1.5 秒，并保留偏移与压暗；林灯淡入 1 秒。",
@@ -441,6 +469,30 @@
           "type": "cg",
           "action": "hide",
           "kind": "big"
+        },
+        {
+          "id": "event_book_native",
+          "type": "cg",
+          "kind": "event",
+          "action": "show",
+          "key": "girlroom_work_002",
+          "event_title": "事件",
+          "event_text": "原版书页事件图。插图可以直接从原版图库选择，底部文字点击后继续。"
+        },
+        {
+          "id": "event_book_custom",
+          "type": "cg",
+          "kind": "event",
+          "action": "show",
+          "key": "user:showcase.departure_cg",
+          "event_title": "来信",
+          "event_text": "自定义图片按比例适配左侧图框，右侧题字也可以自行修改。"
+        },
+        {
+          "id": "event_book_hide",
+          "type": "cg",
+          "kind": "event",
+          "action": "hide"
         },
         {
           "id": "cg1",

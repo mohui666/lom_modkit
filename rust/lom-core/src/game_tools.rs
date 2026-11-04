@@ -773,8 +773,62 @@ pub fn apply_steam_launch_fix(
     }
     Ok(actions)
 }
+pub fn host_file_version(path: &Path) -> Result<String> {
+    ensure!(path.is_file(), "尚未安装");
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        use windows_sys::Win32::Storage::FileSystem::{
+            GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW, VS_FIXEDFILEINFO,
+        };
+        let name: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+        unsafe {
+            let size = GetFileVersionInfoSizeW(name.as_ptr(), std::ptr::null_mut());
+            ensure!(size > 0, "文件缺少可读取的版本信息");
+            let mut data = vec![0u8; size as usize];
+            ensure!(
+                GetFileVersionInfoW(name.as_ptr(), 0, size, data.as_mut_ptr().cast()) != 0,
+                "读取文件版本失败"
+            );
+            let mut value = std::ptr::null_mut();
+            let mut length = 0;
+            ensure!(
+                VerQueryValueW(
+                    data.as_ptr().cast(),
+                    [92u16, 0].as_ptr(),
+                    &mut value,
+                    &mut length
+                ) != 0
+                    && !value.is_null()
+                    && length as usize >= std::mem::size_of::<VS_FIXEDFILEINFO>(),
+                "文件版本结构无效"
+            );
+            let info = std::ptr::read_unaligned(value.cast::<VS_FIXEDFILEINFO>());
+            ensure!(info.dwSignature == 0xfeef04bd, "文件版本签名无效");
+            let version = format!(
+                "{}.{}.{}",
+                info.dwFileVersionMS >> 16,
+                info.dwFileVersionMS & 0xffff,
+                info.dwFileVersionLS >> 16
+            );
+            return Ok(if info.dwFileVersionLS & 0xffff == 0 {
+                version
+            } else {
+                format!("{version}.{}", info.dwFileVersionLS & 0xffff)
+            });
+        }
+    }
+    #[cfg(not(windows))]
+    anyhow::bail!("游戏 Host 版本读取仅在 Windows 提供");
+}
+
 pub fn diagnose_installation(root: &Path, bundle: &Path) -> Result<Value> {
     let mut report = installation_report(root)?;
+    report["versions"] = json!({
+        "editor": env!("CARGO_PKG_VERSION"),
+        "bundled_host": host_file_version(&bundle.join("MortalModHost.dll")).unwrap_or_else(|error| error.to_string()),
+        "installed_host": host_file_version(&plugin_dir(root).join("MortalModHost.dll")).unwrap_or_else(|error| error.to_string()),
+    });
     let mut findings = vec![];
     let bepinex = BEPINEX_FILES.iter().all(|p| root.join(p).is_file());
     let bundled = HOST_FILES.iter().all(|p| bundle.join(p).is_file());

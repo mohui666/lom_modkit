@@ -330,6 +330,10 @@
     ],
     "cg_kind": [
       [
+        "event",
+        "事件图（书页）"
+      ],
+      [
         "picture",
         "图片"
       ],
@@ -1088,7 +1092,7 @@
         ],
         [
           "slot",
-          "槽位 id",
+          "图层编号",
           "line",
           false
         ],
@@ -1316,13 +1320,13 @@
         ],
         [
           "x",
-          "横向偏移(px)",
+          "横向偏移（像素）",
           "int",
           false
         ],
         [
           "y",
-          "纵向偏移(px)",
+          "纵向偏移（像素）",
           "int",
           false
         ],
@@ -1514,31 +1518,31 @@
         ],
         [
           "x",
-          "x 偏移",
+          "横向偏移",
           "int",
           true
         ],
         [
           "y",
-          "y 偏移",
+          "纵向偏移",
           "int",
           true
         ],
         [
           "a",
-          "参数 a",
+          "参数一",
           "float",
           true
         ],
         [
           "b",
-          "参数 b",
+          "参数二",
           "float",
           true
         ],
         [
           "c",
-          "参数 c",
+          "参数三",
           "float",
           true
         ],
@@ -1642,25 +1646,37 @@
         ],
         [
           "key",
-          "参数 key",
+          "显示内容",
           "line",
           true
         ],
         [
+          "event_title",
+          "右侧题字（留空使用“事件”）",
+          "line",
+          true
+        ],
+        [
+          "event_text",
+          "下方文本框（可选）",
+          "text",
+          true
+        ],
+        [
           "key2",
-          "参数 key2",
+          "附加内容",
           "line",
           true
         ],
         [
           "n1",
-          "数值 n1",
+          "数值一",
           "int",
           true
         ],
         [
           "n2",
-          "数值 n2",
+          "数值二",
           "int",
           true
         ],
@@ -1822,7 +1838,7 @@
         ],
         [
           "update",
-          "用 Update 接口",
+          "更新属性",
           "bool",
           true
         ]
@@ -1896,7 +1912,7 @@
       "fields": [
         [
           "flag",
-          "flag 标识",
+          "剧情标记",
           "line",
           false
         ]
@@ -1907,7 +1923,7 @@
       "fields": [
         [
           "flag",
-          "旗标 id",
+          "标记编号",
           "game_flag",
           false
         ],
@@ -2407,7 +2423,7 @@
         ],
         [
           "friend_health",
-          "我方 NPC 基础血量",
+          "我方人物默认血量",
           "int",
           true
         ],
@@ -2425,7 +2441,7 @@
         ],
         [
           "enemy_health",
-          "敌方 NPC 基础血量",
+          "敌方人物默认血量",
           "int",
           true
         ],
@@ -2680,7 +2696,7 @@
         ],
         [
           "flag",
-          "旗标 / 条件 id",
+          "标记或条件编号",
           "line",
           false
         ],
@@ -2786,7 +2802,7 @@
       "fields": [
         [
           "quest",
-          "任务 id",
+          "任务编号",
           "line",
           false
         ],
@@ -2809,7 +2825,7 @@
       "fields": [
         [
           "quest",
-          "任务 id",
+          "任务编号",
           "line",
           false
         ],
@@ -2902,7 +2918,7 @@
         ],
         [
           "key",
-          "操作 key",
+          "传书内容",
           "line",
           false
         ]
@@ -2965,13 +2981,13 @@
       "fields": [
         [
           "flag",
-          "flag 标识（mod/game/flag_value/condition）",
+          "标记或条件",
           "line",
           true
         ],
         [
           "stat",
-          "属性（stat 来源）",
+          "属性",
           "stat",
           true
         ],
@@ -3082,7 +3098,7 @@
         ],
         [
           "key",
-          "参数 id",
+          "内容编号",
           "line",
           true
         ],
@@ -3116,7 +3132,7 @@
       "fields": [
         [
           "event_result",
-          "事件结果（默认 completed）",
+          "事件结果（默认完成）",
           "str",
           true
         ],
@@ -3221,7 +3237,7 @@
       "fields": [
         [
           "code",
-          "Lua 代码",
+          "脚本代码",
           "code",
           false
         ]
@@ -3292,6 +3308,18 @@
           "icon",
           "气泡样式",
           "enum:mood_icon",
+          true
+        ],
+        [
+          "offset_x",
+          "气泡横向偏移",
+          "float",
+          true
+        ],
+        [
+          "offset_y",
+          "气泡纵向偏移",
+          "float",
           true
         ]
       ]

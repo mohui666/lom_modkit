@@ -11,5 +11,7 @@
     "happy": "happy.png"
   },
   "scale": 82,
-  "art_facing": "left"
+  "art_facing": "left",
+  "mood_x": 35,
+  "mood_y": 88
 }

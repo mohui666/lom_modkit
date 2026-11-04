@@ -234,9 +234,18 @@ fn manifest_inner(m: &Value) -> Result<()> {
         }
     }
     for field in ["id", "campaign_id"] {
+        let label = if field == "campaign_id" {
+            "存档身份"
+        } else {
+            "作品 ID"
+        };
+        ensure!(
+            nonempty(&m[field]),
+            "{label}未填写。请在作品设置中填写，例如 my_story_01"
+        );
         ensure!(
             matches(MOD_ID, s(m, field)),
-            "缺少必填字段 \"{field}\"（稳定 id，规则 [a-z0-9_-]{{1,64}}）"
+            "{label}格式不合法。只能使用小写英文字母、数字、下划线（_）或短横线（-），长度为 1～64 个字符"
         );
     }
     for (field, limit) in [
@@ -987,16 +996,26 @@ fn extra(n: &Value, ntype: &str, catalog: &Value) -> Result<()> {
     }
     match ntype {
         "mood" => {
+            range(n, "offset_x", -1920.0, 1920.0)?;
+            range(n, "offset_y", -1080.0, 1080.0)?;
             if has(n, "character") {
-                ensure!(nonblank(c) && !user(c), "指定气泡需要原版人物 ID");
+                ensure!(nonblank(c), "指定气泡需要人物 ID");
+                if user(c) {
+                    user_ref(c, "character")?;
+                }
                 ensure!(
-                    array(&catalog["characters"])
-                        .iter()
-                        .any(|row| row["id"] == *c),
+                    user(c)
+                        || array(&catalog["characters"])
+                            .iter()
+                            .any(|row| row["id"] == *c),
                     "指定气泡的人物不在原版清单中：{c}"
                 );
             } else {
                 ensure!(!has(n, "icon"), "选择气泡样式前请先指定人物");
+                ensure!(
+                    !has(n, "offset_x") && !has(n, "offset_y"),
+                    "调整气泡位置前请先指定人物"
+                );
             }
         }
         "portrait" => {
@@ -1111,6 +1130,9 @@ fn extra(n: &Value, ntype: &str, catalog: &Value) -> Result<()> {
                     _ => &["key"],
                 };
                 require(n, keys, "action=show")?;
+                if s(n, "kind") == "event" && user(&n["key"]) {
+                    user_ref(&n["key"], "key")?;
+                }
             } else {
                 ensure!(
                     s(n, "kind") != "title",
@@ -1363,7 +1385,7 @@ fn cg_lifecycle(story: &Value) -> Result<()> {
     for (id, state) in incoming {
         let node = &nodes[by_id[id]];
         let kind = s(node, "kind");
-        ensure!(!(s(node,"type")=="cg"&&s(node,"action")=="hide"&&!state.contains(kind)),"节点 \"{id}\"(cg): action=\"hide\" kind=\"{kind}\" 前没有在每条可达路径上成功执行同类 show；原版 Hide 会释放无效的 Addressables handle 并导致演出异常。请先添加同 kind 的 cg show，或删除这个 hide 节点。");
+        ensure!(!(s(node,"type")=="cg"&&kind!="event"&&s(node,"action")=="hide"&&!state.contains(kind)),"节点 \"{id}\"(cg): action=\"hide\" kind=\"{kind}\" 前没有在每条可达路径上成功执行同类 show；原版 Hide 会释放无效的 Addressables handle 并导致演出异常。请先添加同 kind 的 cg show，或删除这个 hide 节点。");
     }
     Ok(())
 }

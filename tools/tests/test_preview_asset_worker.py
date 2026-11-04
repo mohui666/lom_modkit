@@ -17,6 +17,14 @@ import preview_asset_worker as worker
 
 
 class PreviewWorkerTest(unittest.TestCase):
+    def setUp(self):
+        patcher = patch.object(worker, "extract_moods", return_value={})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        book = patch.object(worker, "extract_event_book", return_value="assets/ui/event_book.png")
+        book.start()
+        self.addCleanup(book.stop)
+
     def fixture(self, root, platform="StandaloneWindows"):
         game = root / "游戏 安装"
         aa = game / "Mortal_Data/StreamingAssets/aa"

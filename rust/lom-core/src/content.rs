@@ -234,6 +234,11 @@ pub fn normalize_content_metadata(data: &Value) -> Result<Value> {
         }
         meta["intro"] = intro;
         meta["scale"] = json!(clamp(&data["scale"], 100, 50, 130));
+        for (key, default) in [("mood_x", 50), ("mood_y", 90)] {
+            if !data[key].is_null() {
+                meta[key] = json!(integer_default(data, key, default, 0, 100)?);
+            }
+        }
         let facing = if data["art_facing"].is_null() || data["art_facing"] == "" {
             "left".into()
         } else {
@@ -679,6 +684,11 @@ pub fn content_metadata_payload(meta: &Value) -> Value {
         }
         if !meta["art_facing"].is_null() && meta["art_facing"] != "left" {
             p.insert("art_facing".into(), meta["art_facing"].clone());
+        }
+        for (key, default) in [("mood_x", 50), ("mood_y", 90)] {
+            if !meta[key].is_null() && meta[key] != default {
+                p.insert(key.into(), meta[key].clone());
+            }
         }
         if meta["intro"].is_object() {
             p.insert("intro".into(), meta["intro"].clone());

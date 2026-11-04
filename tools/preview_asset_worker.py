@@ -11,6 +11,8 @@ import hashlib
 import json
 from pathlib import Path
 import sys
+from mood_preview import extract_moods
+from event_picture_preview import extract_event_book
 
 
 def emit(event, **fields):
@@ -60,7 +62,8 @@ def extract(game, output, max_size):
         portraits = dict(character["portraits"])
         first = next((emotion for emotion, addr in portraits.items() if addr == character["first"]), "first")
         portraits.setdefault(first, character["first"])
-        mapping["characters"][cid] = {"name": character["name"], "first": first, "portraits": {}}
+        mapping["characters"][cid] = {"name": character["name"], "first": first, "portraits": {},
+                                      "mood_position": character.get("mood", [0, 0])}
         for emotion, address in portraits.items():
             rel = "assets/portraits/" + token(address) + ".png"
             tasks.setdefault(address, (rel, []))[1].append(("character", cid, emotion))
@@ -122,11 +125,15 @@ def extract(game, output, max_size):
     if not succeeded:
         details = list(dict.fromkeys(failure["error"] for failure in failures))[:3]
         raise ValueError("未能导出任何游戏图片，原素材库保持不变。具体原因：" + "；".join(details))
+    emit("progress", message="正在导出气泡动画与人物气泡位置", done=0, total=0)
+    mapping["moods"] = extract_moods(data, output)
+    mapping["event_book"] = extract_event_book(data, output)
     report = {"exported": succeeded, "failed": len(failures), "failures": failures,
               "resource_platform": bundles.name,
               "unavailable_characters": unavailable,
               "characters": len(mapping["characters"]), "views": len(mapping["views"]),
               "pictures": len(mapping["pictures"]),
+              "moods": len(mapping["moods"]),
               "game_tested": False}
     write_json(output / "preview_map.json", mapping)
     write_json(output / "extract_report.json", report)

@@ -865,6 +865,8 @@ namespace MortalModHost
                 Title = title,
                 Scale = GetClampedInt(root, "scale", 100, 50, 130),
                 ArtFacing = artFacing,
+                MoodX = GetClampedInt(root, "mood_x", 50, 0, 100),
+                MoodY = GetClampedInt(root, "mood_y", 90, 0, 100),
                 MainFile = mainFile,
                 PackagePath = expectedDir + "/" + mainFile,
                 Bytes = mainBytes,

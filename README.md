@@ -1,144 +1,107 @@
-# lom_modkit
+# 活侠传剧情编辑器 · lom_modkit
 
-**《活侠传》（Legend of Mortal）可视化剧情 Mod 制作工具。** 用图形编辑器编排人物对白、场景、分支、音乐和音效，导出 `.lommod`，由 C# 游戏插件加载。
+用可视化步骤编写《活侠传》的对白、人物演出、事件和自定义玩法，预览后导出作品包，在自己的游戏中试玩。
 
-**v1.4.1（2026-11-04，正式版）**：「表情气泡」可指定原版人物，独立选择九种气泡，只有普通立绘的配角也能使用；支持单人隐藏、恢复跟随表情和离场清除。整合 1.4 的自定义玩法与 MOD 独立存档，编辑器、CLI、Host 统一为 **1.4.1**。使用指定人物气泡时需同步更新 Host。详见 [更新日志](RELEASE_NOTES_v1.4.1.md) · [正式版下载](https://github.com/mohui666/lom_modkit/releases/tag/v1.4.1)。
+**当前版本为 1.4.2，提供 Windows x64 完整安装包。**
 
-**v1.4.0（2026-11-03，公开测试版）**：新增自定义物品、功法、主动消耗品、决斗援助、自创招式与 PNG 动画；统一「开始游戏」中的三种玩法，提供当前 MOD 的独立存读档界面。本轮 84 项定向实机检查通过，新功能仍在收集反馈。以普通最新版 Release 发布，现有用户可以检测并更新，升级后需要同步更新游戏 Host。详见 [更新日志](RELEASE_NOTES_v1.4.0.md) · [公开测试版下载](https://github.com/mohui666/lom_modkit/releases/tag/v1.4.0) · [1.4 开发说明](docs/chs/v1_4_development.md)。
+[下载 1.4.2 完整包](https://github.com/mohui666/lom_modkit/releases/download/v1.4.2/lom_modkit-v1.4.2_windows_x64.zip) · [本版更新说明](RELEASE_NOTES_v1.4.2.md) · [使用教程](docs/chs/software_usage.md) · [文档目录](docs/README.md)
 
-**v1.3.10（2026-11-02）** 修复自定义人物位移后再次登场错位、屏外说话或换表情时闪回原站位；同步修正编辑器位移与移动预览，并调整播放刷新调度。游戏内修复需要更新 Host，现有作品无需重新导出。见 [更新日志](RELEASE_NOTES_v1.3.10.md)。
+## 安装与更新
 
-**v1.3.9（2026-11-02）** 自动更新改为 Rust 原生下载和安装助手，四个文件同时下载、大文件支持四段并行；关闭编辑器时主动取消请求，不再因更新启动 PowerShell。继续保留现有项目、用户内容库与预览素材。见 [更新日志](RELEASE_NOTES_v1.3.9.md)。
+### 第一次使用
 
-**v1.3.8（2026-11-02）** 修复退出编辑器后，后台自动更新 PowerShell 仍占用安装目录、导致文件夹无法移动的问题；修复画面预览中立绘底部与画面之间的空隙。见 [更新日志](RELEASE_NOTES_v1.3.8.md)。
+1. 下载上方完整压缩包，解压到一个独立文件夹。
+2. 打开其中的 `lom_modkit/lom-editor.exe`。运行时需要同目录的 `lomc.exe`、`runtime`、`assets` 和 `asset-extractor`。
+3. 退出游戏，在编辑器的「游戏与 MOD」中点击「一键定位游戏目录」，确认路径后点击「一键配置游戏」。
+4. 打开「素材管理 → 游戏预览素材」，点击「一键提取游戏资产」。完成后即可预览原版立绘、背景、插图和气泡动画。
 
-**v1.3.7（2026-11-01）** 补齐现版全部 54 项原版属性，包括心上人、魅力、称号、娘化、门派规模、各类武学与儒道释；修正防御键。心上人可在「属性设置」「属性检定」中按人物编号设置与比较。见 [更新日志](RELEASE_NOTES_v1.3.7.md)。
+官方图片从你本机安装的游戏中提取，完整编辑器包自带提取组件。安装过程和常见问题见 [Windows 快速开始](docs/chs/windows_quick_start.md)。
 
-**v1.3.6（2026-11-01）** 新增独立「人物换表情」「表情气泡」步骤和逐句旁白靠左对齐。换表情可分别设置淡出／淡入时长，保留人物站位、朝向、偏移、旋转和压暗；气泡可在演出中开启或关闭。编辑器、CLI、Host 统一为 **1.3.6**。见 [更新日志](RELEASE_NOTES_v1.3.6.md)。
+### 从旧版升级到 1.4.2
 
-**v1.3.5（2026-10-30）** 编辑器、CLI、Host 统一为 **1.3.5**。更新检查改读 Release 的 `update.json`，避开 GitHub 匿名 API 限流；仍直接下载 EXE／DLL，覆盖后重启并保留用户内容。见 [更新日志](RELEASE_NOTES_v1.3.5.md)。
+1. 保存作品并退出编辑器，下载本版完整包并完整解压，使用新文件夹内的编辑器打开已有作品。
+2. 本版增加了气泡动画和书页素材提取，完整包会一起提供新版提取组件。内置自动更新目前更新编辑器、编译器和随包游戏接入组件，提取组件需要通过完整包更新。
+3. 退出游戏，进入「游戏与 MOD」，核对编辑器、随包 Host、游戏已安装 Host 三个版本，点击「更新游戏 Host」，将游戏接入组件更新到 1.4.2。
+4. 在「素材管理 → 游戏预览素材」重新提取一次，以加载气泡动画和原版书页。
 
-**v1.3.4（2026-10-30）** 编辑器、CLI、Host 统一为 **1.3.4**，旧作品兼容条件保持不变。「游戏与 MOD → 检查更新」直接下载独立 EXE／DLL，覆盖后重启并保留项目与用户内容。见 [更新日志](RELEASE_NOTES_v1.3.4.md)。
-
-**v1.3.3（2026-10-30）** 新增「设置 → 检查更新」：发现 GitHub 最新正式版后，选择「更新并重启」即可直接下载 EXE／DLL、覆盖程序并重新打开当前项目，保留用户内容库、项目素材和配置。内置更新无需 ZIP。见 [更新日志](RELEASE_NOTES_v1.3.3.md)。
-
-**v1.3.2（2026-10-30）** 随附 Host **1.1.4**，修复时间等合法节点导致作品无法加载、不兼容／冲突包遮挡正常包，以及战役列表提示重叠、误报的问题。升级后需退出游戏并更新 Host；现有作品无需删除时间节点。见 [更新日志](RELEASE_NOTES_v1.3.2.md)。
-
-**v1.3.1（2026-10-27 更新构建）** 新增独立步骤列、动作内等待、集中初始设置、可视站位、官方图片缩略图与旧 Lua 导入；修复持续压暗、属性节点缺失和复制粘贴，支持输入具体对白字号。见 [更新日志](RELEASE_NOTES_v1.3.1.md)。
-
-**v1.3.0** 增加原版附加剧情与自由剧本两种创作模式、独立事件／任务配置和日期／重复事件编辑；优化按钮、页面与弹窗，并新增一键定位 Steam 游戏目录。Windows 完整包包含 Host **1.1.3** 和预览素材提取助手。改动与验证边界见 [v1.3.0 变更记录](RELEASE_NOTES_v1.3.0.md)。
-
-[软件使用](docs/chs/software_usage.md) · [核心功能教程](docs/chs/core_tutorial.md) · [Mac 编辑器](docs/chs/macos.md) · [文档索引](docs/README.md) · [Windows v1.4.1 下载](https://github.com/mohui666/lom_modkit/releases/tag/v1.4.1)
-
-语言：简体中文（本文） · [繁體中文](README.cht.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
-
-## 使用发布包
-
-从 Release 下载 Windows ZIP，完整解压后运行 `lom_modkit/lom-editor.exe`。入口是「游戏与 MOD」：点击「一键定位游戏目录」（或手动选择），再点击「一键配置游戏」，完成加载器、Steam 启动和宿主配置；离线安装、修复和回滚位于「高级维护」。配置就绪后可用「重新配置游戏环境」更新或重新检查安装。游戏从 32 位升级的用户也需要更新加载器和 Host。
-
-后续更新打开「游戏与 MOD → 检查更新」，有新版时可选择「更新并重启」或「暂不更新」。更新直接下载独立程序文件，先处理未保存修改，再退出、覆盖并重启。默认每次启动后台检查一次更新，仅发现新版时弹窗；可在「设置 → 更新」关闭。设置已分为「常规」「素材与路径」「更新」，帮助继续提供帮助文档。用户内容库默认位于 `%APPDATA%\lom_modkit\repository`，配置位于 `%APPDATA%\lom_modkit\rust`，项目素材随项目保存，均会保留。已有完整旧版可退出编辑器后，将本次独立提供的 `lom-editor.exe`、`lomc.exe` 覆盖到原目录，并将 `MortalModHost.dll`、`NVorbis.dll` 放入原目录的 `runtime/`，完成首次升级。
-
-## 从源码开始
-
-安装 Rust 后，在仓库根目录运行：
-
-```sh
-cargo run --locked -p lom-editor
-```
-
-也可以直接打开全节点样例：
-
-```sh
-cargo run --locked -p lom-editor -- samples/showcase3
-```
-
-Mac 独立应用通过 `scripts/build-macos.sh` 构建，产物为 `out/LoM Modkit Rust.app`，包含编辑器和 `lomc`，运行不依赖 Python 或 Qt。官方立绘预览需要作者自己的外部素材库，配置见 [Mac 编辑器](docs/chs/macos.md)。
-
-Windows 构建入口为 `scripts/build-windows.ps1`，需要正式构建的 C# Host 和 `NVorbis.dll`。Windows 构建与编辑器验证见 [Windows 验证记录](docs/chs/windows_validation.md)，2026-10-17 的 x64 游戏实测见 [x64 验证记录](docs/chs/x64_validation.md)。 Mac 可编辑、预览和导出，不能使用游戏安装与 F5 试玩。
+Windows 用户内容库默认位于 `%APPDATA%\lom_modkit\repository`，设置位于 `%APPDATA%\lom_modkit\rust`。作品及其素材保存在作者选择的项目目录中。新气泡位置、自定义人物气泡和书页事件功能会在导出时自动声明最低游戏接入版本。
 
 ## 做第一段剧情
 
-1. 在「文件」中选择「新建原版附加剧情」或「新建自由剧本」：前者给原版流程添加事件，后者拥有自己的开场及隔离存档。作品名旁的「作品设置…」管理整部作品；「从模板新建」保留旧版模板兼容入口。
-2. 在左侧添加步骤，在中间填写人物、台词和场景，右侧查看画面、立绘或流程图。
-3. 增加章节时，先点章节旁的「＋」，选择新建或复制，再填写名称；内部标识自动生成。
-4. 在「剧情安排」设置事件与可选任务。F6 查看章节校验与编译结果；再到「发布 → 发布体检与打包」做完整作品体检，检查事件／任务及发布信息，然后保存。
-5. 点击「导出 Mod」生成 `.lommod`。右侧「播放」仅预览；顶栏「试玩」／F5 会安装临时试玩包并启动游戏。Windows 游戏侧的安装要求见 [维护者手册](docs/chs/maintainers.md)。
+1. 在「文件」中新建「原版附加剧情」或「自由剧本」。附加剧情接入原版流程，自由剧本拥有自己的开场和独立存档。
+2. 添加背景、人物登场和对白步骤，在中间填写内容，右侧查看预览。需要角色台词时选择人物和表情，需要旁白时选择旁白模式。
+3. 在「剧情安排」设置事件何时触发。整部作品的名称、作者和版本在「作品设置」中填写。
+4. 保存项目，按 `F6` 检查章节，再到「发布 → 发布体检与打包」检查整部作品。错误提示中的修改按钮可定位到对应内容。
+5. 点击「导出 Mod」生成 `.lommod` 作品包。右侧「播放」演示编辑器预览，顶栏「试玩」或 `F5` 将作品送入游戏中验证。
 
-macOS 从屏幕顶部系统应用菜单打开「设置」，快捷键 `⌘,`；Windows 使用窗口中的「设置」或 `Ctrl+,`。界面支持简体中文、繁體中文、日本語和 한국어。当前是浅色 Rust 通用外壳；Mac 专用 Swift 液态玻璃外壳尚未实现。
+第一次创作可按 [核心功能教程](docs/chs/core_tutorial.md) 跟做。随时按 `F1` 打开帮助，步骤标题旁的「说明」可直接查看对应操作。
 
-## 主要功能
+## 能做什么
 
-| 功能 | 当前入口或说明 |
+| 功能 | 用法 |
 | --- | --- |
-| 66 类剧情节点 | 人物、对白、场景、音频、分支、骰子、战斗与自由模式触发等；字段见 [格式参考](docs/chs/mod_format.md) |
-| 多章节编辑 | 保存、撤销/重做、多选、复制粘贴、分组、节点模板与自动恢复 |
-| 创作分析 | 「剧情工具」内的全局查找、变量管理、条件检查、路径模拟、跨章节复制和离线测试 |
-| 用户内容 | 「素材管理 → 作品素材 → 导入素材…」导入人物、音频和图片；项目保存与导出统一处理有效修改 |
-| 四语言剧情 | 「编辑 → 多语言」维护作品译文、回退和覆盖统计；界面语言不会改写作者台词 |
-| 检查与交付 | 项目检查、包检查、发布构建、语音覆盖、脱敏诊断和水印检测 |
-| 游戏接入 | 一键定位 Steam 游戏、在线／离线配置加载器及 Host、管理 MOD；历史 x64 游戏冒烟范围见 [验证记录](docs/chs/x64_validation.md) |
+| 剧情演出 | 共 67 类步骤，覆盖人物、对白、背景、音乐、选项、骰子、决斗和战役等 |
+| 表情气泡 | 原版配角和自定义人物均可独立选择气泡，支持动画预览、数值偏移和拖动定位 |
+| 书页事件图 | 选择原版事件插图或导入自定义图片，等比适配左页，可修改右侧题字和下方文本 |
+| 素材检索 | 用分类、缩略图和中文关键词查找图片，搜索“鹤舞”可定位相关剧情插图 |
+| 自定义内容 | 导入人物、图片和音频，编辑物品、功法、消耗品、决斗援助与招式动画 |
+| 事件和任务 | 编排时间、地点、条件、重复事件、跨事件任务和结算 |
+| 长篇创作 | 多章节、分组、复制粘贴、撤销重做、查找引用、流程图和自动恢复 |
+| 检查与交付 | 中文错误说明、修改定位、离线测试、发布体检和包检查 |
+| 多语言 | 编辑器界面和作品译文支持简体中文、繁體中文、日本語、한국어 |
 
-资源选择器显示翻译名称；不同资源同名时加稳定数字，例如「武师 1」「武师 2」。数字只用于界面区分，不修改保存的资源标识或台词。人物资源目录也含包子、马车、棋盘等道具立绘；对白模式可为它们配置文字，但不会自动生成语音。详情见 [用户内容](docs/chs/user_content.md)。
+67 类是全工具的步骤总数，各创作模式提供适用的步骤。功能说明与已验证范围见 [当前能力与边界](docs/chs/current_capabilities.md)。
 
-两种新模式用「剧情安排」管理事件、跨事件任务和统一结算；章节也可直接调整时间、属性、好感等状态。66 类是全工具的节点总数，不是新模式添加菜单的可用数量。请使用 Host **1.3.6**，避免旧 Host 误拒绝合法章节节点；包格式和存档标识保持不变。完整新手流程见 [核心功能教程](docs/chs/core_tutorial.md)，Windows 软件验证见 [整合记录](docs/chs/windows_event_task_merge_20261025.md)。
+## 常见问题
 
-静态分析遇到无法确定的游戏状态会返回 `unknown` / `unsupported`，不能替代游戏实测。完整功能对应与验证范围见 [Rust 迁移记录](docs/chs/rust_migration.md)。
+### 提示缺少素材提取组件
 
-## 开发与验证
+请下载完整压缩包并完整解压，运行文件夹内的编辑器。提取组件位于 `asset-extractor`，更新页中的单独程序文件主要供已有完整安装使用。
 
-| 目录 | 用途 |
+### 找不到原版图片或气泡预览
+
+先在「素材管理 → 游戏预览素材」重新提取。场景背景在背景步骤中选择，剧情插图在「图片/标题显示」中按大图、图片或「事件图（书页）」选择。预览素材库用于本机编辑，游戏演出时读取自己的游戏资源。
+
+### 导出提示存档身份未填写
+
+点击提示中的「去填写存档身份」，编辑器会展开对应设置并定位输入框。存档身份使用小写英文字母、数字、下划线或短横线，长度为一至六十四个字符。已发布作品沿用原编号，以便关联玩家已有存档。
+
+## 文档与样例
+
+| 想做的事 | 文档 |
 | --- | --- |
-| `rust/lom-core` | 编译、包格式、内容库、受控编辑 API 和离线分析 |
-| `rust/lomc` | 命令行工具与样例生成器 |
-| `rust/lom-editor` | 原生 Rust 编辑器 |
-| `runtime/MortalModHost` | C# 游戏接入层 |
-| `editor/` | 图标、翻译、帮助等静态资源和启动入口 |
-| `tools/` | 独立的资源提取与接口研究脚本，不是工具运行依赖 |
+| 安装、更新、提取素材 | [Windows 快速开始](docs/chs/windows_quick_start.md) |
+| 查询界面操作 | [软件使用](docs/chs/software_usage.md) |
+| 导入人物、图片与音频 | [用户内容](docs/chs/user_content.md) |
+| 编排事件与任务 | [事件与任务](docs/chs/events_and_tasks.md) |
+| 配置自定义玩法与存档 | [1.4 系列功能说明](docs/chs/v1_4_development.md) |
+| 查看完整步骤样例 | [六章样例](samples/showcase3/README.md) |
+| 查询字段与包结构 | [作品格式参考](docs/chs/mod_format.md) |
+| 查看历史版本 | [发布记录](https://github.com/mohui666/lom_modkit/releases) |
+
+中文文档和内置帮助已同步本版。其他语言文档逐步同步，适用版本见各自入口。[繁體中文](README.cht.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
+
+## 平台与验证范围
+
+本版发布 Windows x64 完整包，已完成 Windows 构建、离线回归、样例包检查以及气泡拖动、错误定位、书页事件等定向界面和游戏检查。完整双人演出对照、旧作品存读档、多作品切换的专项实机验收仍待补齐，第三方模组组合也需按作品实际测试。[本版验证范围](RELEASE_NOTES_v1.4.2.md#验证范围)
+
+macOS 可从源码构建，支持编辑、预览和导出，游戏安装与试玩入口在 Windows 上提供。本版 macOS 桌面操作尚未实测。[Mac 编辑器](docs/chs/macos.md)
+
+## 从源码运行
+
+安装 Rust 后，在仓库根目录运行。
 
 ```sh
-cargo build --locked --release --workspace
-cargo test --locked --workspace
-cargo run --locked -p lomc -- check samples/showcase3/story/main.json --json
-cargo run --locked -p lom-editor -- --smoke-preview samples/showcase3
+cargo run --locked -p lom-editor
+cargo run --locked -p lom-editor -- samples/showcase3
 ```
 
-样例再生成需要使用全新输出目录，见 [Showcase 3.0](samples/showcase3/README.md)。包契约保持 `package_format=3`、`story_schema=2`、`content_schema=1`；旧 Python `import story_api` 已退役，自动化改用 [Rust API / JSON CLI](docs/chs/ai_cli.md)。
+核心库、命令行和编辑器分别位于 `rust/lom-core`、`rust/lomc`、`rust/lom-editor`，游戏接入组件位于 `runtime/MortalModHost`。Windows 构建入口为 `scripts/build-windows.ps1`，macOS 为 `scripts/build-macos.sh`。构建、测试及发布附件约定见 [维护者手册](docs/chs/maintainers.md)。
 
-远端主分支为 `master`，通过 PR 和必需的 macOS Rust、Linux Runtime 离线 CI 检查后合并。游戏功能修改须先查 [AGENTS.md](AGENTS.md) 和 [反编译接口](docs/chs/decompiled_api.md)，不得提交整份游戏反编译源码或提取资源。
+修改游戏功能前请阅读 [仓库规则](AGENTS.md) 和 [接口核对流程](docs/chs/decompiled_api.md)。完整开发文档见 [文档目录](docs/README.md)。
 
-内置更新的发布约定：使用递增的 `vX.Y.Z` 正式 Release，并单独上传固定名称的 `lom-editor.exe`、`lomc.exe`、`MortalModHost.dll`、`NVorbis.dll`。同时上传发布脚本生成的 `update.json`，记录版本、更新说明与四个文件的大小／SHA-256。更新器读取此清单和对应 Tag 的四个程序附件，避开匿名 REST API 限流，将两个 DLL 放入 `runtime/`。`scripts/build-windows.ps1` 会同时输出这些独立附件；完整 ZIP 供首次安装使用。发布时需把四个独立程序附件和 `update.json` 一并上传，上传齐全后再公开 Release。
+## 许可与来源
 
-## 文档与版本
+项目采用 [MIT 许可](LICENSE)，属于粉丝自制工具，与游戏开发商无关。官方游戏资源由使用者从自己的游戏安装中提取。第三方组件的许可与致谢随安装包提供。[第三方来源说明](runtime/MortalModHost/THIRD_PARTY_NOTICES.md)
 
-- [v1.3.10 更新日志](RELEASE_NOTES_v1.3.10.md)：人物位移、再次登场与屏外换表情修复，以及实机验证结果。
-- [v1.3.9 更新日志](RELEASE_NOTES_v1.3.9.md)：Rust 原生 HTTPS、安装助手和退出时取消下载。
-
-- [v1.3.8 更新日志](RELEASE_NOTES_v1.3.8.md)：修复退出后安装目录占用与立绘预览底部留白。
-
-- [v1.3.5 更新日志](RELEASE_NOTES_v1.3.5.md)：更新清单与 GitHub 限流修复。
-
-- [v1.3.4 更新日志](RELEASE_NOTES_v1.3.4.md)：统一编辑器、CLI、Host 版本与真实在线更新验证。
-
-- [v1.3.3 更新日志](RELEASE_NOTES_v1.3.3.md)：编辑器内检查更新、原目录覆盖与自动重启。
-
-- [v1.3.2 更新日志](RELEASE_NOTES_v1.3.2.md)：Host 节点校验、包加载顺序、战役列表提示修复与升级方法。
-
-- [v1.3.1 更新日志](RELEASE_NOTES_v1.3.1.md)：创作流程、图片预览、字号、持续压暗、旧 Lua 导入及升级方法。
-
-- [v1.3.0 变更记录](RELEASE_NOTES_v1.3.0.md)：两种模式、事件任务、UI、自动定位及本次验证。
-- [11 分钟中文软件演示](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0-core-tutorial-zh-CN.mp4) · [跟做项目](https://github.com/mohui666/lom_modkit/releases/download/v1.3.0/lom_modkit-v1.3.0-tutorial-follow-along.zip)：不启动游戏。
-
-- [文档索引](docs/README.md)：作者指南、格式契约和维护入口。
-- [当前能力](docs/chs/current_capabilities.md)：实现范围与限制。
-- [Rust 工具端](docs/chs/rust.md)：构建、CLI 与验证命令。
-- [Windows 验证记录](docs/chs/windows_validation.md)：本轮修复、自动化、实际界面操作和未执行项。
-- [维护者手册](docs/chs/maintainers.md)：恢复、体检、发布、安装与回滚。
-- [v1.2.1 变更记录](RELEASE_NOTES_v1.2.1.md)：内容库导入与全局必填提示修复。
-- [v1.2.0 变更记录](RELEASE_NOTES_v1.2.0.md)：Rust 迁移与 x64 游戏适配历史记录。
-- [公开 Releases](https://github.com/mohui666/lom_modkit/releases)：Windows 包及历史版本。
-
-## 许可与来源披露
-
-MIT 许可（[LICENSE](LICENSE)）。粉丝自制工具，与游戏开发商无关，不包含游戏本体文件。`data/editor_data.json` 来自资源研究脚本整理的目录信息，仓库不分发官方资源。
-
-游戏内 Mod 剧情显示「玩家制作 MOD｜非官方内容」、作品与作者自报信息及包指纹；指纹不是官方签名，也不认证作者身份。运行时在无法维持披露时停止 Mod 演出，详见 [Runtime 说明](runtime/MortalModHost/README.md) 和 [来源水印](docs/chs/watermark.md)。
+游戏内作品带有非官方内容标识及来源信息，具体机制见 [来源披露与水印](docs/chs/watermark.md)。
