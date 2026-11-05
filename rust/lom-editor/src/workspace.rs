@@ -73,6 +73,11 @@ struct ChapterDialog {
     error: Option<String>,
     focus_name: bool,
 }
+struct DeleteChapterDialog {
+    chapter: String,
+    replacement: String,
+    error: Option<String>,
+}
 #[derive(Clone)]
 enum RenameTarget {
     Node { story: String, node: String },
@@ -140,6 +145,7 @@ struct App {
     diagnostics: Vec<lom_core::release::PreflightIssue>,
     needs_compile: bool,
     chapter_dialog: Option<ChapterDialog>,
+    delete_chapter_dialog: Option<DeleteChapterDialog>,
     rename_dialog: Option<RenameDialog>,
     settings_open: bool,
     settings_page: usize,
@@ -407,6 +413,7 @@ impl App {
             diagnostics: vec![],
             needs_compile: true,
             chapter_dialog: None,
+            delete_chapter_dialog: None,
             rename_dialog: None,
             settings_open: false,
             settings_page: 0,
@@ -582,6 +589,95 @@ impl App {
         self.flush();
         self.chapter_dialog = None;
         self.status = format!("{}：{name}", tr("已创建章节"));
+        Ok(())
+    }
+    fn chapter_reference_count(&self, chapter: &str) -> usize {
+        usize::from(self.project.manifest["entry"] == chapter)
+            + story_reference_count(&self.project.manifest, chapter)
+            + self
+                .project
+                .scenario
+                .as_ref()
+                .map(|config| story_reference_count(config, chapter))
+                .unwrap_or(0)
+            + self
+                .project
+                .stories
+                .iter()
+                .filter(|(id, _)| id.as_str() != chapter)
+                .map(|(_, story)| story_reference_count(story, chapter))
+                .sum::<usize>()
+    }
+    fn begin_delete_chapter(&mut self) {
+        if !self.apply_pending_drafts() {
+            return;
+        }
+        if self.project.stories.len() <= 1 {
+            self.error = Some(tr("作品至少需要保留一个章节。"));
+            return;
+        }
+        let replacement = self
+            .project
+            .stories
+            .keys()
+            .find(|id| *id != &self.current)
+            .cloned()
+            .unwrap();
+        self.preview.cancel_layout_drag();
+        self.auto = false;
+        self.delete_chapter_dialog = Some(DeleteChapterDialog {
+            chapter: self.current.clone(),
+            replacement,
+            error: None,
+        });
+    }
+    fn commit_delete_chapter(&mut self) -> anyhow::Result<()> {
+        let draft = self
+            .delete_chapter_dialog
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("没有待删除的章节"))?;
+        let chapter = draft.chapter.clone();
+        let replacement = draft.replacement.clone();
+        anyhow::ensure!(
+            self.project.stories.contains_key(&chapter),
+            "原章节已不存在。"
+        );
+        anyhow::ensure!(self.project.stories.len() > 1, "作品至少需要保留一个章节。");
+        anyhow::ensure!(
+            replacement != chapter && self.project.stories.contains_key(&replacement),
+            "请选择一个仍存在的替代章节。"
+        );
+        let name = self.project.stories[&chapter]["title"]
+            .as_str()
+            .unwrap_or(&chapter)
+            .to_owned();
+        self.flush();
+        self.project.stories.remove(&chapter);
+        self.project.paths.remove(&chapter);
+        for story in self.project.stories.values_mut() {
+            rename_story_refs(story, &chapter, &replacement);
+        }
+        rename_story_refs(&mut self.project.manifest, &chapter, &replacement);
+        if self.project.manifest["entry"] == chapter {
+            self.project.manifest["entry"] = json!(replacement);
+        }
+        if let Some(config) = &mut self.project.scenario {
+            rename_story_refs(config, &chapter, &replacement);
+        }
+        if self.current == chapter {
+            self.current = replacement;
+        }
+        self.selected = 0;
+        self.multiselect.clear();
+        self.search.clear();
+        self.section_parent = 0;
+        self.center = Center::Chapter;
+        self.preview.cancel_layout_drag();
+        self.auto = false;
+        self.track();
+        self.flush();
+        self.delete_chapter_dialog = None;
+        self.status = format!("{}：{name} · {}", tr("已删除章节"), tr("可撤销"));
         Ok(())
     }
     fn commit_rename(&mut self) -> anyhow::Result<()> {
@@ -807,6 +903,7 @@ impl App {
         self.advanced = Default::default();
         self.content_panel.reset();
         self.chapter_dialog = None;
+        self.delete_chapter_dialog = None;
         self.rename_dialog = None;
         self.asset_import_dialog = None;
         self.image_import_target = None;
@@ -1240,6 +1337,7 @@ impl App {
                 requested
             });
         if self.chapter_dialog.is_some()
+            || self.delete_chapter_dialog.is_some()
             || self.rename_dialog.is_some()
             || self.asset_import_dialog.is_some()
             || self.settings_open
@@ -2084,10 +2182,14 @@ impl App {
                     self.open_initial_setup();
                 }
                 if ui
-                    .selectable_label(self.center == Center::Chapter, tr("章节设置"))
+                    .add_sized(
+                        [ui.available_width(), 30.0],
+                        egui::Button::new(tr("章节设置")).selected(self.center == Center::Chapter),
+                    )
+                    .on_hover_text(tr("修改章节名称、入口步骤，或删除当前章节"))
                     .clicked()
                 {
-                    self.center = Center::Chapter;
+                    self.open_center(Center::Chapter);
                 }
                 ui.separator();
                 if !self.search.is_empty() {
@@ -2817,7 +2919,23 @@ impl App {
             });
     }
     fn chapter(&mut self, ui: &mut egui::Ui) {
-        ui.heading(tr("章节设置"));
+        ui.horizontal(|ui| {
+            ui.heading(tr("章节设置"));
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui
+                    .add_enabled(
+                        self.project.stories.len() > 1,
+                        egui::Button::new(
+                            RichText::new(tr("删除章节…")).color(ui.visuals().error_fg_color),
+                        ),
+                    )
+                    .on_hover_text(tr("删除当前章节及其步骤，可撤销；作品至少保留一个章节"))
+                    .clicked()
+                {
+                    self.begin_delete_chapter();
+                }
+            });
+        });
         let mut story = self.story();
         let mut title = story["title"].as_str().unwrap_or_default().to_owned();
         ui.label(tr("章节名称"));
@@ -3823,6 +3941,7 @@ impl App {
         if !self.settings_open
             && !self.updater.open
             && self.chapter_dialog.is_none()
+            && self.delete_chapter_dialog.is_none()
             && self.rename_dialog.is_none()
             && self.asset_import_dialog.is_none()
             && self.error.is_none()
@@ -3906,6 +4025,7 @@ impl App {
             && !self.settings_open
             && self.pending.is_none()
             && self.chapter_dialog.is_none()
+            && self.delete_chapter_dialog.is_none()
             && self.rename_dialog.is_none()
             && self.asset_import_dialog.is_none()
             && self.recovery_candidates.is_empty()
@@ -4130,6 +4250,88 @@ impl App {
             } else if submit {
                 if let Err(error) = self.commit_asset_import() {
                     self.asset_import_dialog.as_mut().unwrap().error = Some(error.to_string());
+                }
+            }
+            return;
+        }
+        if let Some(chapter) = self
+            .delete_chapter_dialog
+            .as_ref()
+            .map(|draft| draft.chapter.clone())
+        {
+            let story = self.project.stories.get(&chapter);
+            let name = story
+                .and_then(|story| story["title"].as_str())
+                .unwrap_or(&chapter)
+                .to_owned();
+            let steps = story
+                .and_then(|story| story["nodes"].as_array())
+                .map(Vec::len)
+                .unwrap_or(0);
+            let references = self.chapter_reference_count(&chapter);
+            let mut choices: Vec<_> = self
+                .project
+                .stories
+                .iter()
+                .filter(|(id, _)| *id != &chapter)
+                .map(|(id, story)| (id.clone(), story["title"].as_str().unwrap_or(id).to_owned()))
+                .collect();
+            crate::forms::number_duplicate_labels(&mut choices);
+            let draft = self.delete_chapter_dialog.as_mut().unwrap();
+            let mut submit = false;
+            let mut cancel = false;
+            egui::Modal::new(egui::Id::new("chapter-delete"))
+                .frame(shell::dialog_frame())
+                .show(ctx, |ui| {
+                    ui.set_width(440.0_f32.min(ctx.content_rect().width() - 60.0));
+                    cancel |= shell::dialog_header(ui, &tr("删除章节"));
+                    ui.add_space(12.0);
+                    ui.label(format!("{}：{name}", tr("即将删除章节")));
+                    ui.label(format!("{}：{steps}", tr("本章步骤数")));
+                    ui.label(tr("删除本章及其全部步骤，可撤销；素材仍然保留。"));
+                    if references > 0 {
+                        ui.add_space(12.0);
+                        ui.label(format!(
+                            "{}：{references}",
+                            tr("将改到替代章节的入口、跳转及事件引用")
+                        ));
+                        ui.label(tr("替代章节"));
+                        egui::ComboBox::from_id_salt("delete-chapter-replacement")
+                            .width(ui.available_width())
+                            .selected_text(
+                                choices
+                                    .iter()
+                                    .find(|(id, _)| id == &draft.replacement)
+                                    .map(|(_, name)| name.as_str())
+                                    .unwrap_or(""),
+                            )
+                            .show_ui(ui, |ui| {
+                                for (id, name) in &choices {
+                                    ui.selectable_value(&mut draft.replacement, id.clone(), name);
+                                }
+                            });
+                        ui.small(tr("确认删除时，这些引用会一并改到所选章节。"));
+                    }
+                    if let Some(error) = &draft.error {
+                        crate::error_location::show(ui, error);
+                    }
+                    ui.add_space(16.0);
+                    shell::dialog_buttons(ui, |ui| {
+                        let confirm = ui.add_sized(
+                            [100.0, 30.0],
+                            egui::Button::new(RichText::new(tr("删除章节")).color(Color32::WHITE))
+                                .fill(Color32::from_rgb(170, 45, 45)),
+                        );
+                        submit = confirm.clicked() || (return_pressed && confirm.has_focus());
+                        let dismiss = ui.add_sized([80.0, 30.0], egui::Button::new(tr("取消")));
+                        cancel |= dismiss.clicked() || (return_pressed && dismiss.has_focus());
+                    });
+                });
+            if cancel || escape_pressed {
+                self.delete_chapter_dialog = None;
+            } else if submit {
+                if let Err(error) = self.commit_delete_chapter() {
+                    self.delete_chapter_dialog.as_mut().unwrap().error = Some(error.to_string());
                 }
             }
             return;
@@ -4417,6 +4619,7 @@ impl eframe::App for App {
             }
         }
         if self.chapter_dialog.is_none()
+            && self.delete_chapter_dialog.is_none()
             && self.rename_dialog.is_none()
             && self.asset_import_dialog.is_none()
             && crate::macos_window::take_settings_request()
@@ -4880,6 +5083,27 @@ fn rename_story_refs(value: &mut Value, old: &str, new: &str) {
             }
         }
         _ => {}
+    }
+}
+fn story_reference_count(value: &Value, chapter: &str) -> usize {
+    match value {
+        Value::Object(object) => object
+            .iter()
+            .map(|(key, value)| {
+                if matches!(key.as_str(), "next_script" | "script" | "story")
+                    && value.as_str() == Some(chapter)
+                {
+                    1
+                } else {
+                    story_reference_count(value, chapter)
+                }
+            })
+            .sum(),
+        Value::Array(values) => values
+            .iter()
+            .map(|value| story_reference_count(value, chapter))
+            .sum(),
+        _ => 0,
     }
 }
 fn replace_prose(value: &mut Value, find: &str, replace: &str) -> usize {
@@ -6117,6 +6341,179 @@ mod application_regression_tests {
         );
         assert!(app.chapter_dialog.is_none());
         assert_eq!(app.story()["title"], "Next chapter");
+    }
+    #[test]
+    fn chapter_controls_are_buttons_and_deletion_can_be_cancelled() {
+        let mut app = app();
+        app.begin_chapter(false);
+        app.commit_chapter().unwrap();
+        let before = snapshot(&app.project);
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        let draw = |app: &mut App, events| {
+            ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        Vec2::new(1200.0, 850.0),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ctx| {
+                    app.shortcuts(ctx);
+                    app.sidebar(ctx);
+                    app.center(ctx);
+                    app.dialogs(ctx);
+                },
+            )
+        };
+        draw(&mut app, vec![]);
+        let output = draw(&mut app, vec![]);
+        let settings = output
+            .platform_output
+            .accesskit_update
+            .unwrap()
+            .nodes
+            .into_iter()
+            .find_map(|(id, node)| {
+                (node.role() == egui::accesskit::Role::Button
+                    && node.label() == Some(tr("章节设置").as_str()))
+                .then_some(id)
+            })
+            .expect("chapter settings is a visible button");
+        draw(
+            &mut app,
+            vec![egui::Event::AccessKitActionRequest(
+                egui::accesskit::ActionRequest {
+                    action: egui::accesskit::Action::Click,
+                    target: settings,
+                    data: None,
+                },
+            )],
+        );
+        assert_eq!(app.center, Center::Chapter);
+        let output = draw(&mut app, vec![]);
+        let delete = output
+            .platform_output
+            .accesskit_update
+            .unwrap()
+            .nodes
+            .into_iter()
+            .find_map(|(id, node)| {
+                (node.role() == egui::accesskit::Role::Button
+                    && node.label() == Some(tr("删除章节…").as_str()))
+                .then_some(id)
+            })
+            .expect("delete is visible beside the chapter settings heading");
+        draw(
+            &mut app,
+            vec![egui::Event::AccessKitActionRequest(
+                egui::accesskit::ActionRequest {
+                    action: egui::accesskit::Action::Click,
+                    target: delete,
+                    data: None,
+                },
+            )],
+        );
+        assert!(app.delete_chapter_dialog.is_some());
+        draw(
+            &mut app,
+            vec![key_event(egui::Key::Z, egui::Modifiers::COMMAND)],
+        );
+        assert!(snapshot(&app.project) == before, "the modal blocks undo");
+        draw(
+            &mut app,
+            vec![key_event(egui::Key::Escape, egui::Modifiers::NONE)],
+        );
+        assert!(app.delete_chapter_dialog.is_none());
+        assert!(snapshot(&app.project) == before);
+    }
+    #[test]
+    fn chapter_deletion_retargets_references_undoes_and_stays_deleted_after_save() {
+        let mut app = app();
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        for id in ["keep", "other"] {
+            let mut story = app.story();
+            story["id"] = json!(id);
+            story["title"] = json!(id);
+            app.project.stories.insert(id.into(), story);
+        }
+        let other = app.project.stories.get_mut("other").unwrap();
+        other["nodes"][1]["next_script"] = json!("main");
+        other["_editor"] = json!({"tests":[{"story":"main"}]});
+        app.project
+            .paths
+            .insert("main".into(), "owned-opening.json".into());
+        app.project.save_to(root).unwrap();
+        let before = snapshot(&app.project);
+        app.last = before.clone();
+        app.saved = before.clone();
+        assert_eq!(app.chapter_reference_count("main"), 4);
+        app.begin_delete_chapter();
+        app.delete_chapter_dialog.as_mut().unwrap().replacement = "main".into();
+        assert!(app.commit_delete_chapter().is_err());
+        assert!(snapshot(&app.project) == before);
+        app.delete_chapter_dialog.as_mut().unwrap().replacement = "keep".into();
+        app.commit_delete_chapter().unwrap();
+        assert_eq!(app.current, "keep");
+        assert!(!app.project.stories.contains_key("main"));
+        assert!(!app.project.paths.contains_key("main"));
+        assert_eq!(app.project.manifest["entry"], "keep");
+        assert_eq!(
+            app.project.scenario.as_ref().unwrap()["events"][0]["script"],
+            "keep"
+        );
+        assert_eq!(
+            app.project.stories["other"]["nodes"][1]["next_script"],
+            "keep"
+        );
+        assert_eq!(
+            app.project.stories["other"]["_editor"]["tests"][0]["story"],
+            "keep"
+        );
+        lom_core::scenario::validate(
+            app.project.scenario.as_ref().unwrap(),
+            &app.project.manifest,
+            &app.project.stories,
+        )
+        .unwrap();
+        assert!(
+            root.join("story/owned-opening.json").exists(),
+            "deletion waits for save"
+        );
+        assert!(app.dirty());
+        assert_eq!(app.undo.len(), 1);
+        let deleted = snapshot(&app.project);
+        app.undo();
+        assert!(snapshot(&app.project) == before);
+        app.redo();
+        assert!(snapshot(&app.project) == deleted);
+        crate::persistence::save_project(
+            &mut app.project,
+            root,
+            &before.assets,
+            &before.stories,
+            &before.paths,
+        )
+        .unwrap();
+        let reopened = Project::open(root).unwrap();
+        assert!(!reopened.stories.contains_key("main"));
+        assert_eq!(reopened.stories.len(), 2);
+        assert_eq!(reopened.manifest["entry"], "keep");
+        assert!(!root.join("story/owned-opening.json").exists());
+        assert_eq!(reopened.assets, *before.assets);
+    }
+    #[test]
+    fn chapter_deletion_keeps_the_last_chapter() {
+        let mut app = app();
+        let before = snapshot(&app.project);
+        app.begin_delete_chapter();
+        assert!(app.delete_chapter_dialog.is_none());
+        assert!(app.error.as_deref().unwrap().contains("至少"));
+        assert!(snapshot(&app.project) == before);
+        assert!(!app.dirty());
     }
     #[test]
     fn chapter_creation_uses_unique_identity_and_preserves_owned_filenames() {
