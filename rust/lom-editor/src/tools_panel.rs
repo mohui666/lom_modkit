@@ -2,6 +2,7 @@
 use eframe::egui;
 use lom_core::{content_library, game_tools, project::Project, release};
 use serde_json::{json, Value};
+use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -72,6 +73,7 @@ pub struct ToolsPanel {
     progress: Value,
     cancel: Arc<AtomicBool>,
     preview_ready: Option<PathBuf>,
+    effect_ready: VecDeque<(PathBuf, bool)>,
 }
 impl Default for ToolsPanel {
     fn default() -> Self {
@@ -132,6 +134,7 @@ impl Default for ToolsPanel {
             progress: Value::Null,
             cancel: Arc::new(AtomicBool::new(false)),
             preview_ready: None,
+            effect_ready: VecDeque::new(),
         }
     }
 }
@@ -265,6 +268,24 @@ impl ToolsPanel {
     pub fn take_preview_library(&mut self) -> Option<PathBuf> {
         self.preview_ready.take()
     }
+    pub fn take_effect_library(&mut self) -> Option<(PathBuf, bool)> {
+        self.effect_ready.pop_front()
+    }
+    pub fn start_effect_capture(&mut self, names: Option<Vec<String>>) {
+        let game = self.game.clone();
+        let runtime = self.runtime.clone();
+        let cancel = self.cancel.clone();
+        let title = if names.is_some() {
+            "提取当前特效预览"
+        } else {
+            "提取全部原版特效（较慢）"
+        };
+        self.background_progress(title, move |tx| {
+            crate::effect_capture::capture(&game, &runtime, names, cancel, move |value| {
+                let _ = tx.send(JobEvent::Progress(value));
+            })
+        });
+    }
     pub fn start_extraction_from(&mut self, path: PathBuf) {
         if self.job.is_some() {
             self.report_open = true;
@@ -336,6 +357,18 @@ impl ToolsPanel {
                     self.report = result.unwrap_or_else(|error| json!({"error":error}));
                     if let Some(path) = self.report["output_dir"].as_str() {
                         self.preview_ready = Some(PathBuf::from(path));
+                    }
+                    if let Some(path) = self.report["effect_library"].as_str() {
+                        self.effect_ready
+                            .push_back((PathBuf::from(path), self.report["partial"] == true));
+                    }
+                    if let Some(paths) = self.report["effect_libraries"].as_array() {
+                        self.effect_ready.extend(
+                            paths
+                                .iter()
+                                .filter_map(Value::as_str)
+                                .map(|path| (PathBuf::from(path), false)),
+                        );
                     }
                     self.job = None;
                     if self.refresh_after_job {
@@ -415,6 +448,10 @@ impl ToolsPanel {
                             ui.add_space(8.0);
                             if self.report["error"].is_null() {
                                 crate::tool_report::show(ui, &self.report, 0);
+                            } else if self.report["partial"] == true {
+                                ui.label(crate::i18n::tr(
+                                    "已完成的特效缓存仍可使用；本次提取未全部完成。",
+                                ));
                             }
                             let mut locations = Vec::new();
                             collect_locations(&self.report, project, &mut locations);
@@ -459,7 +496,10 @@ impl ToolsPanel {
                         self.report_open = false;
                     }
                     if running
-                        && self.report_title == "一键提取游戏资产"
+                        && matches!(
+                            self.report_title.as_str(),
+                            "一键提取游戏资产" | "提取当前特效预览" | "提取全部原版特效（较慢）"
+                        )
                         && ui
                             .add_enabled(
                                 !self.cancel.load(Ordering::Relaxed),
@@ -999,6 +1039,18 @@ impl ToolsPanel {
                         .clicked()
                     {
                         self.start_extraction();
+                    }
+                    if ui
+                        .add_enabled(
+                            self.job.is_none() && cfg!(windows),
+                            egui::Button::new(crate::i18n::tr("提取全部原版特效（较慢）")),
+                        )
+                        .on_hover_text(crate::i18n::tr(
+                            "仅生成尚未缓存的原版粒子帧；全量较慢，日常请在预览中只提取当前特效。",
+                        ))
+                        .clicked()
+                    {
+                        self.start_effect_capture(None);
                     }
                     if ui
                         .add_enabled(
@@ -1599,6 +1651,42 @@ fn show_report(ui: &mut egui::Ui, value: &Value, depth: usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn effect_capture_reports_queue_cached_directories_in_order_and_preserve_partial_errors() {
+        let mut panel = ToolsPanel::default();
+        let ctx = egui::Context::default();
+        let (tx, rx) = mpsc::channel();
+        panel.job = Some(rx);
+        tx.send(JobEvent::Finished(Ok(json!({"ok":true,"cached":true,
+            "effect_libraries":["cache/first","cache/second"]}))))
+            .unwrap();
+        panel.poll(&ctx);
+        assert_eq!(
+            panel.take_effect_library(),
+            Some((PathBuf::from("cache/first"), false))
+        );
+        assert_eq!(
+            panel.take_effect_library(),
+            Some((PathBuf::from("cache/second"), false))
+        );
+        assert!(panel.take_effect_library().is_none());
+        let (tx, rx) = mpsc::channel();
+        panel.job = Some(rx);
+        tx.send(JobEvent::Finished(Ok(
+            json!({"ok":false,"partial":true,"error":"cancelled capture",
+            "effect_library":"cache/completed"}),
+        )))
+        .unwrap();
+        panel.poll(&ctx);
+        assert_eq!(panel.report["ok"], false);
+        assert_eq!(panel.report["error"], "cancelled capture");
+        assert_eq!(
+            panel.take_effect_library(),
+            Some((PathBuf::from("cache/completed"), true))
+        );
+        assert!(panel.report_open);
+    }
     #[cfg(windows)]
     #[test]
     fn windows_game_tools_work_with_an_unusable_system_temp() {

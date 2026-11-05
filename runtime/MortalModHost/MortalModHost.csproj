@@ -4,7 +4,7 @@
     <!-- 目标框架与现有插件 MortalInstantWin 一致（net48），BepInEx 6 Mono + Unity 2020.3 实测可加载 -->
     <TargetFramework>net48</TargetFramework>
     <AssemblyName>MortalModHost</AssemblyName>
-    <Version>1.4.4</Version>
+    <Version>1.4.5</Version>
     <RootNamespace>MortalModHost</RootNamespace>
     <LangVersion>7.3</LangVersion>
     <!-- 同一托管 Host 兼容旧 x86 与当前 x64 Mono；原生加载器按游戏位数选择。 -->
@@ -71,6 +71,18 @@
     <!-- 官方 Battle 具名人物按 Animator/AnimatorOverrideController 的实证资源身份解析 -->
     <Reference Include="UnityEngine.AnimationModule">
       <HintPath>$(GameDir)\Mortal_Data\Managed\UnityEngine.AnimationModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.ParticleSystemModule">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\UnityEngine.ParticleSystemModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Unity.RenderPipelines.Core.Runtime">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\Unity.RenderPipelines.Core.Runtime.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Unity.RenderPipelines.Universal.Runtime">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\Unity.RenderPipelines.Universal.Runtime.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <!-- 游戏程序集：Mortal.Core（SceneController / PlayerStatManagerData / GameOver/EndGame 控制器 / MenuToggleButton） -->

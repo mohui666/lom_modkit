@@ -16,8 +16,28 @@ fn authoring_api_matches_legacy_success_and_rejection_cases() {
             c["op"]
         );
         if let Ok(r) = r {
-            assert_eq!(r["result"], c["result"], "case {i} result");
-            assert_eq!(r["after"], c["after"], "case {i} story");
+            // Retain the Python capture. Reviewed v1.4.5 changes only the new
+            // effect node's default coordinate mode and centered position.
+            let mut expected = c.clone();
+            if i == 62 {
+                assert_eq!(c["op"], "add_node");
+                assert_eq!(c["params"]["node_type"], "effect");
+                assert_eq!(c["result"]["x"], 0);
+                assert_eq!(c["result"]["y"], 0);
+                expected["result"]["space"] = serde_json::json!("screen");
+                expected["result"]["x"] = serde_json::json!(50);
+                expected["result"]["y"] = serde_json::json!(50);
+                let generated = expected["result"].clone();
+                let generated_id = generated["id"].clone();
+                *expected["after"]["nodes"]
+                    .as_array_mut()
+                    .unwrap()
+                    .iter_mut()
+                    .find(|node| node["id"] == generated_id)
+                    .unwrap() = generated;
+            }
+            assert_eq!(r["result"], expected["result"], "case {i} result");
+            assert_eq!(r["after"], expected["after"], "case {i} story");
         }
     }
 }

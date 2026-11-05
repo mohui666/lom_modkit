@@ -1,5 +1,29 @@
 # Gameplay API 实证矩阵
 
+## 2026-11-05 原版粒子帧捕获接口
+
+针对原版预览，重新只读核对当前游戏 Unity／URP 的 `UniversalRenderPipeline.RenderSingleCamera(ScriptableRenderContext,Camera)`、`RenderPipelineManager.endFrameRendering`、`UniversalAdditionalCameraData.SetRenderer`、`Camera.CopyFrom`、`RenderTexture`、`Texture2D.ReadPixels` 与 `ParticleSystem.Simulate`。当前使用 URP，不能只凭 `Camera.Render` 存在就认定它支持本场景；新捕获相机使用 Base 类型，并匹配源相机实际 renderer index，CopyFrom 不复制 URP 附加数据。仅给自建粒子实例分配捕获层，不改变原场景相机或官方资源。
+
+当前 Gamma 工程中，`EventBubbleMat_Alpha_001` 的 RGB 混合为 SrcAlpha／OneMinusSrcAlpha，`GlowMat_Add_001` 为 SrcAlpha／One，但两者实际 shader pass 都只写 RGB；直接透明 RenderTexture 的 alpha 不足以区分普通透明与加色。捕获用浮点目标分别渲染黑／白背景，推导原 RGB 和透射率，再写预乘 RGBA；这样可保留加色 RGB>0、A=0，也不会把普通透明误当加色。Blood 使用的 shader 则写 RGBA，不能统一猜材质规则。这些为本轮实际 shader／材质及 API 依据，缓存生成结果另行记录。
+
+全目录实测发现原编辑器清单混入 `驚訝_001`：当前共享资源中该对象的脚本类型是 `Mortal.Core.SoundData`，真实音效键为 `Surprised1`，没有 Prefab；原版 StoryParticleConfig 的 124 个唯一特效键中没有此项。仅从 effects 选择目录剔除，保留音效目录，本工具原有可用特效目录为 96 项，不把音效名猜改为特效别名。
+
+手动 `ParticleSystem.Simulate` 后系统保持暂停，`IsAlive` 不能单独用来判断捕获自然结束。本轮实机核对后，尾段在原 StopEmitting 后以全部活动子系统真实 particleCount 归零结束；非循环播放同时核对实例 particle.time、持续发射区间或最后 burst，避免在延迟与间歇期提前结束。编辑定位使用实际已录制帧中像素总量最高的一帧 `preview_time`，正常播放保留原版起始空帧与时序，不合成图形或寿命。
+
+同日读取当前 `Texture2D.GetRawTextureData<T>()`：它返回纹理 CPU 存储的 `NativeArray<T>` 视图。捕获在每次 ReadPixels 后局部读取 float Color、直接写输出 Color32，保留双浮点透明度恢复，省去每帧约 7.91 MiB 显式数组分配。输出仅用于 CPU 的 EncodeToPNG，不再 Apply 上传 GPU；不释放或跨纹理内存变更持有这些视图。预览入口改成按需提取当前所缺特效，多批缓存合并复用，全目录仍为可选操作。
+
+实际游戏完整捕获 96 项共 4661 PNG，96 项均有非空画面且代表帧对应实际播放帧。换成 raw 视图后重捕 Blood、Glow、EventBubble、Rain、Hit、Sword_Fight，255 帧解码 RGBA 与此前逐像素一致，包含 Glow 的 RGB>0/A=0 加色数据。实际按需两批分别约 3.53 秒／1 项、15.74 秒／5 项，完整缓存复读约 0.96 秒；首次冷启游戏单项约 16.19 秒。该测量包含任务编排开销，不作为受控 GPU／PNG 性能基准。编辑器自身导出画面另确认原版事件气泡和加色辉光可见。
+
+## 2026-11-05 特效实例与画面坐标
+
+定向只读反编译当前 Windows 游戏的 `Mortal.Story.StoryEffectsController.SetupEffect(string,float,float,float,float,float,float)` 及 `Fungus.LuaBindings.AddBindings`。SetupEffect 返回 void，x/y 是世界位置，a/b 为 localScale；unique=1 复用原缓存，其余值新建，play=1 播放，其余值 Stop。旧的非唯一停止实际会新建对象再停止，不能据此停止前一个叠加实例。当前 `_nonUniqueInstances` 为 `List<GameObject>`，Addressables 分支也在 Instantiate 前同步 WaitForCompletion。Lua 的 effects 全局来自实际绑定组件，Host 据此取得当前控制器。
+
+Host 1.4.5 的 `mod_effect` 始终经原 SetupEffect(unique=0,play=1) 创建自己的新实例，再登记原列表追加的对象。复用、叠加、tag 与后台停止均只管理这些实例，不改 `_dicEffect` 或粒子资产；清舞台时仅移除并销毁登记对象。逐子 ParticleSystem 保存初始 `MainModule.simulationSpeed` 后乘作者倍率，旋转叠加初始 localRotation；Stop 使用实际提供的 `Stop(bool,ParticleSystemStopBehavior)`，支持保留余粒或 StopEmittingAndClear。
+
+只读核对当前 level2：StageCamera 为正交相机、orthographicSize≈5.4、全视口、cullingMask=262144（层18），位于 MainCamera 下，默认相机世界 z=-10。z=0 平面在16:9下宽19.2、高10.8。新 screen 坐标按控制器所在场景可渲染实例的 StageCamera，以 ViewportPointToRay 与 z=0 平面求交，允许屏外；不把默认宽高硬编码为运行时映射。编辑器仅用默认舞台做示意换算，不能还原原版 Unity 粒子材质与全部随机行为。本条是本轮接口和资源依据，离线测试与实机结果分开记录。
+
+同日用 Host 1.4.5 在独立试玩战役实际观察两组 Glow 的 25%／75% 位置、单组停止、速度 0 定格及恢复、两个叠加实例按标记一起清空、按名称清除，以及重播越过旧 2 秒计时点后仍继续。结束返回 Free 后清场，日志未出现 Error／Exception／mod-runtime-error。此为本轮定向结果，没有逐个验收 96 种特效或镜头与分辨率组合。
+
 ## 2026-11-05 立绘预览的透明画布
 
 只读核对当前安装游戏的 `UnityEngine.UI.Image.GetDrawingDimensions`：原版按 `activeSprite.rect` 计算比例，并通过 `DataUtility.GetPadding` 保留裁切留白。UnityPy 的 `Sprite.image` 返回已按纹理裁切并处理旋转的图，不能直接视为完整立绘画布。提取人物预览时采用实际 Atlas（指针或 tag）或 `m_RD` 的 `textureRectOffset`，把图放回 `m_Rect` 的透明画布后再缩略。

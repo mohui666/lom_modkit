@@ -7,6 +7,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[path = "preview_effects.rs"]
+pub(crate) mod effects;
+pub(crate) use effects::Library as EffectLibrary;
 #[path = "flow_graph.rs"]
 mod flow_graph;
 #[path = "preview_handles.rs"]
@@ -136,6 +139,7 @@ fn simulate_until(story: &Value, target: &str, include_target: bool) -> Value {
         }
     }
     state["steps"] = walk.len().into();
+    state["effects"] = effects::simulate(story, target, 0.0, include_target, None);
     state
 }
 pub fn build_playtest_prelude(story: &Value, target: &str) -> Vec<Value> {
@@ -429,6 +433,7 @@ pub fn playback_duration(node: &Value) -> f64 {
             "transition" => PREVIEW_TRANSITION_SECONDS,
             "background" | "custom_cg" | "overlay" => number(action, "fade", 0.0),
             "music" | "sound" if action["op"] == "fadeout" => number(action, "seconds", 2.0),
+            "effect" => 0.0,
             _ => 0.0,
         }
         .max(0.0)
@@ -443,7 +448,7 @@ pub fn playback_duration(node: &Value) -> f64 {
     } else {
         match text(node, "type") {
             "show" | "portrait" | "hide" | "move" | "offset" | "rotate" | "wait" | "transition"
-            | "mood" => duration(node).max(0.1),
+            | "mood" | "effect" => duration(node).max(0.1),
             _ => 1.8,
         }
     }
@@ -463,6 +468,7 @@ fn position(positions: &Value, name: &str) -> (f64, f64) {
 /// a short movement reaches its endpoint while its sibling keeps moving.
 fn simulate_frame(story: &Value, target: &str, elapsed: f64, positions: &Value) -> Value {
     let mut state = simulate(story, target);
+    state["effects"] = effects::simulate(story, target, elapsed, true, None);
     let before = simulate_until(story, target, false);
     let Some(node) = story["nodes"]
         .as_array()
@@ -621,6 +627,10 @@ pub struct Preview {
     layout_selected: Option<LayoutTarget>,
     layout_context: (String, String),
     layout_drag: Option<LayoutDrag>,
+    effect_clock: effects::Clock,
+    effect_library: Option<std::sync::Arc<effects::Library>>,
+    effect_library_error: Option<String>,
+    pub effect_extract_requested: Option<Vec<String>>,
 }
 impl Preview {
     pub fn new(_repo: &Path) -> Self {
@@ -645,6 +655,10 @@ impl Preview {
         let positions: Value =
             serde_json::from_str(include_str!("../../../data/stage_positions.json"))
                 .unwrap_or(json!({}));
+        let (effect_library, effect_library_error) = match effects::Library::current() {
+            Ok(library) => (library.map(std::sync::Arc::new), None),
+            Err(error) => (None, Some(format!("{error:#}"))),
+        };
         Self {
             mapping,
             library,
@@ -660,6 +674,103 @@ impl Preview {
             layout_selected: None,
             layout_context: (String::new(), String::new()),
             layout_drag: None,
+            effect_clock: effects::Clock::default(),
+            effect_library,
+            effect_library_error,
+            effect_extract_requested: None,
+        }
+    }
+    pub fn set_effect_library(&mut self, path: &Path) -> anyhow::Result<()> {
+        let loaded = (|| -> anyhow::Result<_> {
+            let next = effects::Library::load(path)?;
+            if let Some(current) = &self.effect_library {
+                let mut merged = (**current).clone();
+                merged.merge(next)?;
+                Ok(merged)
+            } else {
+                Ok(next)
+            }
+        })();
+        match loaded {
+            Ok(library) => {
+                self.effect_library = Some(std::sync::Arc::new(library));
+                self.effect_library_error = None;
+                Ok(())
+            }
+            Err(error) => {
+                self.effect_library_error = Some(format!("{error:#}"));
+                Err(error)
+            }
+        }
+    }
+
+    fn effect_texture(
+        &mut self,
+        ctx: &egui::Context,
+        frame: &effects::Frame,
+        expected: [usize; 2],
+    ) -> Option<(TextureHandle, Rect)> {
+        let key = format!("effect-frame:{}", frame.file.display());
+        self.tick += 1;
+        if let Some(cached) = self.cache.get_mut(&key) {
+            cached.touched = self.tick;
+            return Some((cached.texture.clone(), cached.opaque));
+        }
+        let loaded = (|| -> anyhow::Result<_> {
+            let bytes = std::fs::read(&frame.file)?;
+            let image = image::ImageReader::new(std::io::Cursor::new(bytes))
+                .with_guessed_format()?
+                .decode()?
+                .into_rgba8();
+            let size = [image.width() as usize, image.height() as usize];
+            anyhow::ensure!(size == expected, "原版特效帧尺寸与缓存目录不一致");
+            let limit = ctx.input(|input| input.max_texture_side);
+            anyhow::ensure!(
+                size.iter().all(|side| *side <= limit),
+                "原版特效帧超出当前显卡支持的纹理尺寸"
+            );
+            let opaque = effects::visible_bounds(&image);
+            let cost = size[0] * size[1] * 4;
+            while !self.cache.is_empty()
+                && self
+                    .cache
+                    .values()
+                    .map(|cached| cached.bytes)
+                    .sum::<usize>()
+                    + cost
+                    > 256 * 1024 * 1024
+            {
+                let oldest = self
+                    .cache
+                    .iter()
+                    .min_by_key(|(_, cached)| cached.touched)
+                    .map(|(key, _)| key.clone())
+                    .unwrap();
+                self.cache.remove(&oldest);
+            }
+            // RGB at alpha=0 carries additive light. Never premultiply again.
+            let texture = ctx.load_texture(
+                &key,
+                egui::ColorImage::from_rgba_premultiplied(size, image.as_raw()),
+                egui::TextureOptions::LINEAR,
+            );
+            self.cache.insert(
+                key,
+                Cached {
+                    texture: texture.clone(),
+                    opaque,
+                    bytes: cost,
+                    touched: self.tick,
+                },
+            );
+            Ok((texture, opaque))
+        })();
+        match loaded {
+            Ok(texture) => Some(texture),
+            Err(error) => {
+                self.effect_library_error = Some(format!("{}: {error:#}", frame.file.display()));
+                None
+            }
         }
     }
     pub fn set_library(&mut self, path: &Path) -> anyhow::Result<()> {
@@ -1064,7 +1175,94 @@ impl Preview {
             Some(elapsed) => simulate_frame(story, target, elapsed, &self.positions),
             None => simulate(story, target),
         };
+        let now = ui.input(|input| input.time);
+        self.effect_clock.sync(p, story, target, now);
+        let effect_library = self.effect_library.clone();
+        let effect_cycle = effects::cycle(node, effect_library.as_deref());
+        let has_effects =
+            lom_core::parallel::story_actions(story).any(|(_, node)| node["type"] == "effect");
+        let effect_time = self
+            .effect_clock
+            .time(now, elapsed, effect_cycle, self.layout_mode);
+        state["effects"] =
+            effects::simulate(story, target, effect_time, true, effect_library.as_deref());
+        let captured = effect_cycle.is_some()
+            || state["effects"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .any(|item| matches!(text(item, "cache_status"), "play" | "tail"));
+        if captured
+            && self
+                .effect_clock
+                .ui(ui, effect_cycle.is_some(), self.layout_mode)
+        {
+            let time = self
+                .effect_clock
+                .time(now, elapsed, effect_cycle, self.layout_mode);
+            state["effects"] =
+                effects::simulate(story, target, time, true, effect_library.as_deref());
+        }
+        if has_effects {
+            let missing = effect_library.is_none()
+                || state["effects"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .any(|item| matches!(text(item, "cache_status"), "missing" | "missing_tail"));
+            let truncated = state["effects"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .any(|item| matches!(text(item, "cache_status"), "truncated" | "tail_truncated"));
+            if missing || self.effect_library_error.is_some() || truncated {
+                ui.label(crate::i18n::tr(if missing {
+                    "缺少原版特效预览"
+                } else if truncated {
+                    "原版特效采样已到末尾，未记录自然结束。"
+                } else {
+                    "原版特效预览缓存无效"
+                }));
+                if let Some(error) = &self.effect_library_error {
+                    ui.small(crate::i18n::tr("原版特效预览缓存无效"))
+                        .on_hover_text(error);
+                }
+                let names = effects::extraction_names(
+                    &state,
+                    truncated || self.effect_library_error.is_some(),
+                );
+                if ui
+                    .add_enabled(
+                        !names.is_empty(),
+                        egui::Button::new(crate::i18n::tr("提取当前特效预览")),
+                    )
+                    .clicked()
+                {
+                    self.effect_extract_requested = Some(names);
+                }
+            }
+            if let Some(tail) = state["effects"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .find(|item| item["cache_status"] == "tail")
+            {
+                ui.small(crate::i18n::tr("正在播放原版采样尾段")).on_hover_text(
+                    crate::i18n::tr("尾段在原版播放 {seconds} 秒后采样，不保证与当前停止相位一致；精确效果请用 F5 实机确认。")
+                        .replace("{seconds}",&format!("{:.3}",number(tail,"tail_sample_time",0.0))));
+            }
+            if captured {
+                ui.small(crate::i18n::tr("原版帧已按舞台视口裁切"))
+                    .on_hover_text(crate::i18n::tr(
+                        "移动、缩放或旋转不能补回采样时位于屏幕外的粒子。",
+                    ));
+            }
+        }
         self.layout_controls(ui, p, &state);
+        if self.layout_mode {
+            state["effects"] =
+                effects::simulate(story, target, 0.0, true, effect_library.as_deref());
+        }
         self.apply_layout_draft(&mut state);
         let mood_target = (node["type"] == "mood" && !self.layout_mode).then(|| {
             if text(node, "character").is_empty() {
@@ -1430,6 +1628,14 @@ impl Preview {
                 layout_objects.push(object);
             }
         }
+        layout_objects.extend(effects::paint(
+            &painter,
+            rect,
+            &state["effects"],
+            self.layout_mode,
+            effect_library.as_deref(),
+            |frame, size| self.effect_texture(&ctx, frame, size),
+        ));
         for picture in state["official_pictures"]
             .as_object()
             .into_iter()
@@ -2153,6 +2359,261 @@ pub fn graph(
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn original_effect_frames_preserve_additive_pixels_and_stay_behind_dialogue_ui() {
+        use super::*;
+        let temp = tempfile::tempdir().unwrap();
+        image::RgbaImage::from_pixel(640, 360, image::Rgba([90, 40, 10, 0]))
+            .save(temp.path().join("frame.png"))
+            .unwrap();
+        std::fs::write(
+            temp.path().join("effect_map.json"),
+            serde_json::to_vec(&json!({
+                "format":1,"source":"game-render","width":640,"height":360,
+                "world_width":19.2,"world_height":10.8,"alpha_mode":"premultiplied",
+                "effects":{"Glow_001":{"frames":[{"file":"frame.png","time":0}],
+                    "duration":1,"preview_time":0,"loop_start":0,"looping":true,"complete":false}}
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let story = json!({"id":"main","start":"effect1","nodes":[
+            {"id":"effect1","type":"effect","name":"Glow_001"},
+            {"id":"say1","type":"say","mode":"narrative","text":"特效后对白"}
+        ]});
+        let context = egui::Context::default();
+        let project = Project::new();
+        let mut preview = Preview::new(Path::new("/not-a-repository"));
+        preview.set_effect_library(temp.path()).unwrap();
+        let output = context.run(
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 500.0))),
+                ..Default::default()
+            },
+            |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    preview.show(ui, &project, &story, 1, Some(0.2));
+                });
+            },
+        );
+        let texture = preview
+            .cache
+            .iter()
+            .find(|(key, _)| key.starts_with("effect-frame:"))
+            .map(|(_, cached)| cached.texture.id())
+            .expect("original frame was loaded");
+        let uploaded = output
+            .textures_delta
+            .set
+            .iter()
+            .find(|(id, _)| *id == texture)
+            .unwrap();
+        let egui::ImageData::Color(image) = &uploaded.1.image;
+        assert_eq!(
+            image.pixels[0].to_array(),
+            [90, 40, 10, 0],
+            "additive RGB at alpha=0 must survive loading"
+        );
+        let effect = output
+            .shapes
+            .iter()
+            .position(
+                |shape| matches!(&shape.shape,egui::Shape::Mesh(mesh) if mesh.texture_id==texture),
+            )
+            .expect("original frame is painted");
+        let dialogue=output.shapes.iter().position(|shape|matches!(&shape.shape,egui::Shape::Rect(rect) if rect.fill==Color32::from_black_alpha(195))).expect("dialogue background is painted");
+        assert!(
+            effect < dialogue,
+            "original particle frames belong behind dialogue UI"
+        );
+    }
+
+    #[test]
+    fn invalid_original_effect_cache_exposes_error() {
+        use super::*;
+        let mut preview = Preview::new(Path::new("/not-a-repository"));
+        let temp = tempfile::tempdir().unwrap();
+        assert!(preview.set_effect_library(temp.path()).is_err());
+        assert!(preview.effect_library_error.is_some());
+        assert!(preview.effect_extract_requested.is_none());
+    }
+
+    #[test]
+    fn additional_effect_batch_preserves_current_layout_selection_and_playback_clock() {
+        use super::*;
+        let temp = tempfile::tempdir().unwrap();
+        let mut preview = Preview::new(Path::new("/not-a-repository"));
+        preview.effect_library = None;
+        for (index, name) in ["Rain_001", "Glow_001"].iter().enumerate() {
+            let directory = temp.path().join(index.to_string());
+            std::fs::create_dir(&directory).unwrap();
+            std::fs::write(directory.join("frame.png"), []).unwrap();
+            std::fs::write(directory.join("effect_map.json"),serde_json::to_vec(&json!({
+                "format":1,"source":"game-render","width":640,"height":360,
+                "world_width":19.2,"world_height":10.8,"alpha_mode":"premultiplied",
+                "effects":{(*name):{"frames":[{"file":"frame.png","time":0}],
+                    "duration":1,"preview_time":0,"loop_start":0,"looping":true,"complete":false}}
+            })).unwrap()).unwrap();
+            if index == 0 {
+                preview.set_effect_library(&directory).unwrap();
+                preview.layout_mode = true;
+                preview.layout_selected = Some(LayoutTarget::Effect {
+                    node: "rain".into(),
+                    action: None,
+                });
+                preview
+                    .effect_clock
+                    .sync(&Project::new(), &json!({"id":"main"}), "rain", 5.0);
+            } else {
+                preview.set_effect_library(&directory).unwrap();
+            }
+        }
+        let library = preview.effect_library.as_ref().unwrap();
+        assert!(library.contains("Rain_001") && library.contains("Glow_001"));
+        assert!(preview.layout_mode);
+        assert_eq!(
+            preview.layout_selected,
+            Some(LayoutTarget::Effect {
+                node: "rain".into(),
+                action: None
+            })
+        );
+        assert_eq!(preview.effect_clock.time(7.0, None, None, false), 2.0);
+    }
+
+    #[test]
+    fn effect_selection_uses_offset_additive_pixels_without_cropping_or_double_rotation() {
+        use super::*;
+        let temp = tempfile::tempdir().unwrap();
+        let mut image = image::RgbaImage::new(640, 360);
+        image.put_pixel(400, 60, image::Rgba([0, 0, 0, 5]));
+        image.put_pixel(480, 90, image::Rgba([90, 40, 10, 0]));
+        image.save(temp.path().join("frame.png")).unwrap();
+        image::RgbaImage::new(640, 360)
+            .save(temp.path().join("empty.png"))
+            .unwrap();
+        let entry = |file: &str| {
+            json!({"frames":[{"file":file,"time":0}],"duration":1,"preview_time":0,
+            "loop_start":0,"looping":true,"complete":false})
+        };
+        std::fs::write(
+            temp.path().join("effect_map.json"),
+            serde_json::to_vec(&json!({
+                "format":1,"source":"game-render","width":640,"height":360,
+                "world_width":19.2,"world_height":10.8,"alpha_mode":"premultiplied",
+                "effects":{"Glow_001":entry("frame.png"),"empty":entry("empty.png")}
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let library = effects::Library::load(temp.path()).unwrap();
+        let mut preview = Preview::new(Path::new("/not-a-repository"));
+        let context = egui::Context::default();
+        let stage = Rect::from_min_size(Pos2::ZERO, Vec2::new(640.0, 360.0));
+        let mut objects = Vec::new();
+        let output = context.run(egui::RawInput::default(), |ctx| {
+            objects = effects::paint(
+                &ctx.layer_painter(egui::LayerId::background())
+                    .with_clip_rect(stage),
+                stage,
+                &json!([
+                    {"name":"Glow_001","a":-2,"b":0.5,"rotation":90,"source_node":"fx"},
+                    {"name":"empty","source_node":"empty"}
+                ]),
+                true,
+                Some(&library),
+                |frame, size| preview.effect_texture(ctx, frame, size),
+            );
+        });
+        let cached = preview
+            .cache
+            .values()
+            .find(|cached| cached.opaque.is_positive())
+            .unwrap();
+        assert!((cached.opaque.min - Pos2::new(400.0 / 640.0, 60.0 / 360.0)).length() < 0.00001);
+        assert!((cached.opaque.max - Pos2::new(481.0 / 640.0, 91.0 / 360.0)).length() < 0.00001);
+        assert_eq!(objects.len(), 2);
+        let object = &objects[0];
+        assert!((object.bounds.min - Pos2::new(-2.0, 120.0)).length() < 0.001);
+        assert!((object.bounds.max - Pos2::new(160.0, 135.5)).length() < 0.001);
+        assert_eq!(object.pivot, stage.center());
+        assert_eq!(object.angle, -90.0);
+        assert_eq!(
+            objects[1].bounds,
+            Rect::from_center_size(stage.center(), Vec2::splat(12.0))
+        );
+        let mesh = output
+            .shapes
+            .iter()
+            .find_map(|shape| {
+                if let egui::Shape::Mesh(mesh) = &shape.shape {
+                    Some(mesh)
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        assert_eq!(mesh.vertices[0].uv, Pos2::ZERO);
+        assert_eq!(mesh.vertices[2].uv, Pos2::new(1.0, 1.0));
+        assert!((mesh.vertices[0].pos - Pos2::new(230.0, -460.0)).length() < 0.001);
+        assert!((mesh.vertices[2].pos - Pos2::new(410.0, 820.0)).length() < 0.001);
+    }
+
+    #[test]
+    fn effect_layout_uses_recorded_representative_frame_while_playback_and_tail_keep_their_time() {
+        use super::*;
+        let temp = tempfile::tempdir().unwrap();
+        image::RgbaImage::new(4, 4)
+            .save(temp.path().join("empty.png"))
+            .unwrap();
+        image::RgbaImage::from_pixel(4, 4, image::Rgba([90, 40, 10, 0]))
+            .save(temp.path().join("visible.png"))
+            .unwrap();
+        image::RgbaImage::from_pixel(4, 4, image::Rgba([10, 20, 30, 90]))
+            .save(temp.path().join("tail.png"))
+            .unwrap();
+        let mut map = json!({"format":1,"source":"game-render","width":4,"height":4,
+            "world_width":19.2,"world_height":10.8,"alpha_mode":"premultiplied",
+            "effects":{"EventBubble_001":{"frames":[{"file":"empty.png","time":0},{"file":"visible.png","time":0.1}],
+                "duration":0.2,"preview_time":0.1,"loop_start":0,"looping":false,"complete":true,
+                "tail_frames":[{"file":"tail.png","time":0}],"tail_duration":0.3,"tail_sample_time":0.1,"tail_complete":true}}});
+        let save = |map: &Value| {
+            std::fs::write(
+                temp.path().join("effect_map.json"),
+                serde_json::to_vec(map).unwrap(),
+            )
+            .unwrap()
+        };
+        save(&map);
+        let library = effects::Library::load(temp.path()).unwrap();
+        let mut preview = Preview::new(Path::new("/not-a-repository"));
+        let context = egui::Context::default();
+        let stage = Rect::from_min_size(Pos2::ZERO, Vec2::new(640.0, 360.0));
+        for (layout, stopped, expected) in [
+            (false, None, "empty.png"),
+            (true, None, "visible.png"),
+            (true, Some(0.0), "tail.png"),
+        ] {
+            let mut loaded = PathBuf::new();
+            let _=context.run(egui::RawInput::default(),|ctx| {
+                let objects=effects::paint(&ctx.layer_painter(egui::LayerId::background()),stage,
+                    &json!([{"name":"EventBubble_001","source_node":"fx","age":0,"stopped_age":stopped}]),
+                    layout,Some(&library),|frame,size| {
+                        loaded=frame.file.clone();
+                        preview.effect_texture(ctx,frame,size)
+                    });
+                if layout {assert_eq!(objects[0].bounds,stage);}
+            });
+            assert_eq!(loaded.file_name().unwrap(), expected);
+        }
+        map["effects"]["EventBubble_001"]["preview_time"] = json!(0.05);
+        save(&map);
+        assert!(
+            effects::Library::load(temp.path()).is_err(),
+            "representative time must be an actual recorded frame"
+        );
+    }
+
     #[test]
     fn mood_sequence_uses_authored_holds_for_shows_and_hides() {
         use super::*;

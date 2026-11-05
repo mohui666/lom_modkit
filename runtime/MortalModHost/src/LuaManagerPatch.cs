@@ -565,6 +565,30 @@ namespace MortalModHost
                     CharacterLayoutRuntime.Reset(ArgString(args, 0));
                     return DynValue.Nil;
                 }, "mod_character_layout_reset");
+                script.Globals["mod_effect"] = new CallbackFunction((ctx, args) =>
+                {
+                    DynValue bound = script.Globals.Get("effects");
+                    var effects = bound.Type == DataType.UserData ? bound.UserData.Object as StoryEffectsController : null;
+                    string space = ArgString(args, 7, "world");
+                    float center = space == "screen" ? 50f : 0f;
+                    EffectRuntime.Run(effects, ArgString(args, 0), ArgFloat(args, 1, center), ArgFloat(args, 2, center),
+                        ArgFloat(args, 3, 1f), ArgFloat(args, 4, 1f), ArgFloat(args, 5, 1f), ArgBool(args, 6, true),
+                        space, ArgFloat(args, 8, 0f), ArgFloat(args, 9, 1f),
+                        ArgFloat(args, 10, -1f), ArgBool(args, 11, false), ArgBool(args, 12, false), ArgString(args, 13));
+                    return DynValue.Nil;
+                }, "mod_effect");
+                if (RuntimeTrace.IsDevelopmentPackage(ModOverlay.CurrentPackage))
+                {
+                    script.Globals["mod_capture_effect_previews"] = new CallbackFunction((ctx, args) =>
+                    {
+                        DynValue bound = script.Globals.Get("effects");
+                        var effects = bound.Type == DataType.UserData ? bound.UserData.Object as StoryEffectsController : null;
+                        EffectPreviewCapture.Start(effects, ArgString(args, 0), ArgString(args, 1));
+                        return DynValue.Nil;
+                    }, "mod_capture_effect_previews");
+                    script.Globals["mod_capture_effect_previews_busy"] = new CallbackFunction((ctx, args) =>
+                        DynValue.NewBoolean(EffectPreviewCapture.Busy), "mod_capture_effect_previews_busy");
+                }
                 // 契约 §6.13：死亡文本（2 参：短标题 + 多行描述，GameOver 画面两段式显示）。
                 // 单参调用兼容（旧编译器/老 mod 包）：参数当描述、标题留空。
                 script.Globals["mod_set_death_text"] = new CallbackFunction((ctx, args) =>

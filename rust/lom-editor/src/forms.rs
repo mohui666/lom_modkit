@@ -104,6 +104,38 @@ fn requirement_label(label: String, requirement: Requirement) -> String {
     }
 }
 
+fn effect_playing(node: &Value) -> bool {
+    node["play"].as_bool().unwrap_or_else(|| {
+        node.get("d")
+            .is_none_or(|value| value.as_f64() == Some(1.0))
+    })
+}
+
+fn effect_coordinate_default(node: &Value) -> f64 {
+    if node["space"] == "screen" {
+        50.0
+    } else {
+        0.0
+    }
+}
+
+fn set_effect_space(node: &mut Value, space: &str) {
+    let previous = node["space"].as_str().unwrap_or("world");
+    if previous != space {
+        let default = effect_coordinate_default(node);
+        let x = node["x"].as_f64().unwrap_or(default);
+        let y = node["y"].as_f64().unwrap_or(default);
+        let (x, y) = if space == "screen" {
+            (50.0 + x / 19.2 * 100.0, 50.0 - y / 10.8 * 100.0)
+        } else {
+            ((x - 50.0) / 100.0 * 19.2, (50.0 - y) / 100.0 * 10.8)
+        };
+        node["x"] = json!(x);
+        node["y"] = json!(y);
+    }
+    node["space"] = json!(space);
+}
+
 impl Catalog {
     pub fn new() -> Self {
         Self {
@@ -664,6 +696,32 @@ impl Catalog {
                 }
             }
         }
+        if kind == "effect" {
+            ui.small(tr(if node["space"] == "screen" {
+                "画面百分比：左→右 0～100，上→下 0～100；可填屏外位置。"
+            } else {
+                "世界坐标：中心为 0；参考画面宽 19.2、高 10.8，横向向右、纵向向上。切换坐标模式会换算并保留位置。"
+            }));
+            ui.small(tr("横纵缩放是实数倍，负数表示翻转；自动停止在后台计时，步骤停留由“动作后停留”控制。标记用于单独停止一组实例。"));
+            ui.horizontal_wrapped(|ui| {
+                if ui.small_button(tr("等比缩放")).clicked() {
+                    node["b"] = node.get("a").cloned().unwrap_or(json!(1));
+                    changed = true;
+                }
+                for (field, label) in [("a", "水平翻转"), ("b", "垂直翻转")] {
+                    if ui.small_button(tr(label)).clicked() {
+                        node[field] = json!(-node[field].as_f64().unwrap_or(1.0));
+                        changed = true;
+                    }
+                }
+                if ui.small_button(tr("位置归位")).clicked() {
+                    let default = effect_coordinate_default(node);
+                    node["x"] = json!(default);
+                    node["y"] = json!(default);
+                    changed = true;
+                }
+            });
+        }
         ui.add_space(4.0);
         if allow_goto {
             ui.collapsing(crate::i18n::key("form.advanced"), |ui| {
@@ -1006,6 +1064,8 @@ impl Catalog {
         let localized = crate::i18n::key(&specific);
         let label = if crate::i18n::locale() == "chs" {
             label.to_owned()
+        } else if node["type"] == "effect" && matches!(key, "play" | "x" | "y" | "a" | "b" | "c") {
+            tr(label)
         } else if localized != specific {
             localized
         } else {
@@ -1060,6 +1120,12 @@ impl Catalog {
                                 ("offset", "x" | "y") => Some("以 1920×1080 舞台为单位，向右和向上为正；支持小数。"),
                                 ("offset", "scale") => Some("100% 为素材默认体型，支持任意正数；留空保留当前缩放。"),
                                 ("overlay", "x" | "y") => Some("在九宫格位置上叠加舞台宽高的百分比，向右和向上为正，范围 −100～100。"),
+                                ("effect", "a" | "b") => Some("缩放倍数：1 为原大小，0 不显示，负数沿对应方向翻转。"),
+                                ("effect", "speed") => Some("播放速度倍率，1 为原速，0 定格；不影响步骤停留时间。"),
+                                ("effect", "stop_after") => Some("省略时不限时；填写后由游戏后台计时停止，不等待本步骤。"),
+                                ("effect", "clear") => Some("停止时清除已发射的残余粒子；关闭时保留其自然消散。"),
+                                ("effect", "restart") => Some("复用已有实例时从头播放；关闭时继续当前播放状态。"),
+                                ("effect", "tag") => Some("停止时按标记匹配本 MOD 的实例；标记留空时按特效名停止。"),
                                 _ => None,
                             };
                             if let Some(hint) = hint {
@@ -1081,6 +1147,15 @@ impl Catalog {
                 ui.vertical(|ui| {
                     ui.set_width(value_width);
                     let mut value = node.get(key).cloned().unwrap_or_else(|| {
+                        if node["type"] == "effect" {
+                            match key {
+                                "space" => return json!("world"),
+                                "x" | "y" => return json!(effect_coordinate_default(node)),
+                                "play" => return json!(effect_playing(node)),
+                                "speed" => return json!(1),
+                                _ => (),
+                            }
+                        }
                         let template = &self.schema["_NODE_DEFAULTS"]
                             [node["type"].as_str().unwrap_or("")][key];
                         if template.is_null() || template.is_array() {
@@ -1092,10 +1167,14 @@ impl Catalog {
                     let field_changed = match kind {
                         "bool" if optional => {
                             let mut edited = false;
+                            let effect_play = node["type"] == "effect" && key == "play";
+                            let (on, off) = if effect_play { ("播放", "停止") } else { ("启用", "关闭") };
                             let title = if !present {
-                                tr("默认")
+                                if effect_play {
+                                    format!("{}（{}）", tr("默认"), tr(if effect_playing(node) { on } else { off }))
+                                } else { tr("默认") }
                             } else if let Some(b) = value.as_bool() {
-                                tr(if b { "启用" } else { "关闭" })
+                                tr(if b { on } else { off })
                             } else {
                                 tr("自定义")
                             };
@@ -1107,7 +1186,7 @@ impl Catalog {
                                         reset = true;
                                         ui.close();
                                     }
-                                    for (b, title) in [(true, "启用"), (false, "关闭")] {
+                                    for (b, title) in [(true, on), (false, off)] {
                                         if ui
                                             .selectable_label(present && value == b, tr(title))
                                             .clicked()
@@ -1127,6 +1206,26 @@ impl Catalog {
                                 value = b.into();
                             }
                             c
+                        }
+                        "float" if node["type"] == "effect" && key == "c" => {
+                            let unique = value.as_f64().unwrap_or(1.0) == 1.0;
+                            let mut edited = false;
+                            egui::ComboBox::from_id_salt("effect-instance")
+                                .selected_text(tr(if unique { "复用匹配实例" } else { "叠加新实例" }))
+                                .show_ui(ui, |ui| {
+                                    if optional && ui.selectable_label(!present, tr("默认")).clicked() {
+                                        reset = true;
+                                        ui.close();
+                                    }
+                                    for (number, label) in [(1, "复用匹配实例"), (0, "叠加新实例")] {
+                                        if ui.selectable_label(unique == (number == 1), tr(label)).clicked() {
+                                            value = json!(number);
+                                            edited = true;
+                                            ui.close();
+                                        }
+                                    }
+                                });
+                            edited
                         }
                         "int" | "bool_int" | "discount_toggle" => {
                             let mut n = value.as_i64().unwrap_or(match value.as_str() {
@@ -1162,7 +1261,19 @@ impl Catalog {
                             } else {
                                 0.25
                             });
-                            let response = if ["wait_after", "fade_out", "fade_in"].contains(&key) {
+                            let drag = if node["type"] == "effect" {
+                                match key {
+                                    "x" | "y" if node["space"] == "screen" => drag.suffix("%"),
+                                    "a" | "b" | "speed" => drag.suffix("×"),
+                                    "rotation" => drag.suffix("°"),
+                                    _ => drag,
+                                }
+                            } else {
+                                drag
+                            };
+                            let response = if ["wait_after", "fade_out", "fade_in"].contains(&key)
+                                || node["type"] == "effect" && matches!(key, "speed" | "stop_after")
+                            {
                                 ui.add(drag.range(0.0..=f64::INFINITY))
                             } else {
                                 ui.add(drag)
@@ -1325,6 +1436,9 @@ impl Catalog {
                         }
                     };
                     if reset {
+                        if node["type"] == "effect" && key == "space" {
+                            set_effect_space(node, "world");
+                        }
                         if let Some(object) = node.as_object_mut() {
                             changed |= object.remove(key).is_some();
                             if key == "character"
@@ -1336,6 +1450,13 @@ impl Catalog {
                             }
                         }
                     } else if field_changed && node.get(key) != Some(&value) {
+                        if node["type"] == "effect" && key == "space" {
+                            set_effect_space(node, value.as_str().unwrap_or("world"));
+                        } else if node["type"] == "effect" && key == "play" && node.get("space").is_none() {
+                            // Explicit controls opt this chapter into managed
+                            // effects, so stopping can reach stacked instances.
+                            node["space"] = json!("world");
+                        }
                         node[key] = value;
                         if key == "character" && node["type"] == "show" && node[key] != "player" {
                             node.as_object_mut().unwrap().remove("appearance");
@@ -1581,6 +1702,7 @@ fn is_selector(kind: &str) -> bool {
 }
 fn absent_label(node: &Value, key: &str, kind: &str) -> String {
     tr(match (node["type"].as_str().unwrap_or(""), key, kind) {
+        ("effect", "space", _) => "世界坐标（兼容旧项目）",
         ("mood", "character", _) => "全场自动气泡",
         ("mood", "icon", _) => "跟随人物表情（默认）",
         ("say", "mode", _) => "对话（默认）",
@@ -2079,6 +2201,124 @@ pub fn value_editor(ui: &mut Ui, label: &str, value: &mut Value, depth: usize) -
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn effect_coordinate_mode_switches_preserve_position_and_legacy_fields() {
+        let mut node = json!({"id":"effect1","type":"effect","name":"Hit_001",
+            "x":4.8,"y":-2.7,"c":2,"d":0});
+        let catalog = Catalog::new();
+        let context = egui::Context::default();
+        let (output, changed) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "space",
+            "enum:effect_space",
+            vec![],
+        );
+        assert!(!changed);
+        let events = click(
+            &output,
+            egui::accesskit::Role::ComboBox,
+            &tr("世界坐标（兼容旧项目）"),
+        );
+        let (output, _) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "space",
+            "enum:effect_space",
+            events,
+        );
+        let events = click(&output, egui::accesskit::Role::Button, &tr("画面百分比"));
+        let (_, changed) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "space",
+            "enum:effect_space",
+            events,
+        );
+        assert!(changed);
+        assert_eq!(node["space"], "screen");
+        assert_eq!(node["x"], 75.0);
+        assert_eq!(node["y"], 75.0);
+        assert_eq!(node["c"], 2);
+        assert_eq!(node["d"], 0);
+        assert!(!effect_playing(&node));
+        set_effect_space(&mut node, "world");
+        assert!((node["x"].as_f64().unwrap() - 4.8).abs() < 1e-12);
+        assert!((node["y"].as_f64().unwrap() + 2.7).abs() < 1e-12);
+        for (x, y) in [(0.0, 0.0), (-9.6, 5.4), (19.2, -10.8)] {
+            node["x"] = json!(x);
+            node["y"] = json!(y);
+            set_effect_space(&mut node, "screen");
+            set_effect_space(&mut node, "world");
+            assert!((node["x"].as_f64().unwrap() - x).abs() < 1e-12);
+            assert!((node["y"].as_f64().unwrap() - y).abs() < 1e-12);
+        }
+        node["play"] = json!(true);
+        assert!(effect_playing(&node));
+    }
+
+    #[test]
+    fn effect_forms_preserve_untouched_old_numbers_and_omitted_controls() {
+        let catalog = Catalog::new();
+        let context = egui::Context::default();
+        let fresh = catalog.new_node("effect", "effect1".into());
+        assert_eq!(fresh["space"], "screen");
+        assert_eq!(fresh["x"], 50);
+        assert_eq!(fresh["y"], 50);
+        for original in [
+            json!({"id":"effect1","type":"effect","name":"Hit_001","c":2,"d":0,"x":1.25,"y":-3.6}),
+            json!({"id":"effect1","type":"effect","name":"Hit_001"}),
+            fresh,
+        ] {
+            let mut node = original.clone();
+            let _ = context.run(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    assert!(!catalog.node_form(ui, &mut node, &[], &[]).changed);
+                });
+            });
+            assert_eq!(node, original);
+        }
+    }
+
+    #[test]
+    fn effect_stop_manages_legacy_stacked_instances_without_moving_them() {
+        let catalog = Catalog::new();
+        let context = egui::Context::default();
+        let mut node = json!({"id":"effect1","type":"effect","name":"Hit_001",
+            "x":-4.25,"y":2.75,"a":-1,"b":0.5,"c":2,"d":1});
+        let original = node.clone();
+        let (output, changed) = field_frame(&catalog, &context, &mut node, "play", "bool", vec![]);
+        assert!(!changed);
+        assert_eq!(node, original);
+        let events = click(
+            &output,
+            egui::accesskit::Role::ComboBox,
+            &format!("{}（{}）", tr("默认"), tr("播放")),
+        );
+        let (output, _) = field_frame(&catalog, &context, &mut node, "play", "bool", events);
+        let events = click(&output, egui::accesskit::Role::Button, &tr("停止"));
+        let (_, changed) = field_frame(&catalog, &context, &mut node, "play", "bool", events);
+        assert!(changed);
+        assert_eq!(node["play"], false);
+        assert_eq!(node["space"], "world");
+        for field in ["x", "y", "a", "b", "c", "d"] {
+            assert_eq!(node[field], original[field]);
+        }
+        let lua = lom_core::codegen::compile_story(
+            &json!({"id":"main","start":"effect1","nodes":[node,{"id":"end1","type":"end"}]}),
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        assert!(lua.contains("mod_effect(\"Hit_001\", -4.25, 2.75, -1, 0.5, 2, false, \"world\""));
+        assert!(!lua.contains("effects.SetupEffect"));
+    }
+
     #[test]
     fn important_characters_group_appearances_and_filter_expressions_by_real_id() {
         let catalog = Catalog::new();

@@ -7,6 +7,7 @@ pub enum Target {
     Character(String),
     Overlay(String),
     Cg,
+    Effect { node: String, action: Option<usize> },
 }
 
 #[derive(Clone, Debug)]
@@ -37,6 +38,7 @@ fn affects(action: &Value, target: &Target) -> bool {
             action["type"] == "overlay" && action["slot"].as_str().unwrap_or("main") == slot
         }
         Target::Cg => action["type"] == "custom_cg",
+        Target::Effect { .. } => false,
     }
 }
 
@@ -95,7 +97,7 @@ fn apply_inner(story: &mut Value, selected: usize, change: &Change) -> Result<us
     );
     ensure!(change.scale.is_finite(), "缩放必须是有限数值");
     lom_core::content::positive_scale(&json!(change.scale), "scale")?;
-    if !matches!(&change.target, Target::Character(_)) {
+    if matches!(&change.target, Target::Overlay(_) | Target::Cg) {
         ensure!(
             (-100.0..=100.0).contains(&change.x) && (-100.0..=100.0).contains(&change.y),
             "图片位置必须在 -100～100% 之间"
@@ -109,6 +111,48 @@ fn apply_inner(story: &mut Value, selected: usize, change: &Change) -> Result<us
         .filter(|id| !id.is_empty())
         .context("所选步骤缺少 ID")?
         .to_owned();
+    if let Target::Effect { node, action } = &change.target {
+        let path =
+            crate::preview::route(story, &current_id).context("当前步骤无法从剧情开头到达")?;
+        ensure!(
+            path.iter().any(|id| id == node),
+            "特效来源不在当前预览路径中"
+        );
+        let parent = nodes
+            .iter()
+            .position(|entry| entry["id"] == *node)
+            .context("特效来源步骤不存在")?;
+        let source = if let Some(action) = action {
+            ensure!(
+                nodes[parent]["type"] == "parallel",
+                "特效来源已不属于同时执行组"
+            );
+            nodes[parent]["actions"]
+                .as_array()
+                .and_then(|actions| actions.get(*action))
+                .context("特效来源动作不存在")?
+        } else {
+            &nodes[parent]
+        };
+        ensure!(
+            source["type"] == "effect" && crate::preview::effects::plays(source),
+            "仅可调整可编辑的特效播放动作"
+        );
+        let ratio = change.scale / 100.0;
+        let a = source["a"].as_f64().unwrap_or(1.0) * ratio;
+        let b = source["b"].as_f64().unwrap_or(1.0) * ratio;
+        ensure!(a.is_finite() && b.is_finite(), "特效缩放结果超出可表示范围");
+        let source = if let Some(action) = action {
+            &mut story["nodes"][parent]["actions"][*action]
+        } else {
+            &mut story["nodes"][parent]
+        };
+        source["x"] = json!(change.x);
+        source["y"] = json!(change.y);
+        source["a"] = json!(a);
+        source["b"] = json!(b);
+        return Ok(selected);
+    }
     let state = crate::preview::simulate(story, &current_id);
     let visible = match &change.target {
         Target::Character(character) => {
@@ -116,6 +160,7 @@ fn apply_inner(story: &mut Value, selected: usize, change: &Change) -> Result<us
         }
         Target::Overlay(slot) => state["overlays"][slot].is_object(),
         Target::Cg => state["custom_cg"].is_object(),
+        Target::Effect { .. } => unreachable!(),
     };
     ensure!(visible, "目标尚未显示或已经隐藏，无法调整布局");
     let source = source_on_route(story, &current_id, &change.target)?;
@@ -370,5 +415,87 @@ mod tests {
         )
         .is_err());
         assert_eq!(source, original);
+    }
+
+    #[test]
+    fn effect_layout_changes_only_the_exact_parallel_source_and_keeps_signed_aspect() {
+        let mut source = story(json!([
+            {"id":"effects","type":"parallel","actions":[
+                {"type":"wait","seconds":0.2},
+                {"type":"effect","name":"Rain_001","space":"screen","x":50,"y":50,"a":-2,"b":0.5,"rotation":32,"speed":0.7,"tag":"weather","c":0,"wait_after":0.4}]},
+            {"id":"later","type":"say","mode":"narrative","text":"对白"}
+        ]));
+        let original = source.clone();
+        let change = Change {
+            target: Target::Effect {
+                node: "effects".into(),
+                action: Some(1),
+            },
+            x: -225.0,
+            y: 360.5,
+            scale: 150.0,
+        };
+        assert_eq!(apply(&mut source, 1, &change).unwrap(), 1);
+        assert_eq!(source["nodes"].as_array().unwrap().len(), 2);
+        let effect = &source["nodes"][0]["actions"][1];
+        assert_eq!(effect["x"], -225.0);
+        assert_eq!(effect["y"], 360.5);
+        assert_eq!(effect["a"], -3.0);
+        assert_eq!(effect["b"], 0.75);
+        for field in [
+            "name",
+            "space",
+            "rotation",
+            "speed",
+            "tag",
+            "c",
+            "wait_after",
+        ] {
+            assert_eq!(effect[field], original["nodes"][0]["actions"][1][field]);
+        }
+        assert_eq!(
+            source["nodes"][0]["actions"][0],
+            original["nodes"][0]["actions"][0]
+        );
+        source["nodes"][0]["actions"][1]["b"] = json!(0);
+        apply(&mut source, 1, &change).unwrap();
+        assert_eq!(source["nodes"][0]["actions"][1]["b"], 0.0);
+    }
+
+    #[test]
+    fn effect_layout_rejects_other_branches_and_stop_actions_transactionally() {
+        let mut source = story(json!([
+            {"id":"choice","type":"choice","options":[{"goto":"a"},{"goto":"z"}]},
+            {"id":"a","type":"effect","name":"Rain_001","goto":"current"},
+            {"id":"z","type":"effect","name":"Snow_001","goto":"current"},
+            {"id":"current","type":"say","text":"对白"}
+        ]));
+        let original = source.clone();
+        let change = Change {
+            target: Target::Effect {
+                node: "z".into(),
+                action: None,
+            },
+            x: 12.0,
+            y: -4.0,
+            scale: 200.0,
+        };
+        assert!(apply(&mut source, 3, &change).is_err());
+        assert_eq!(source, original);
+        source["nodes"][1]["play"] = json!(false);
+        let before = source.clone();
+        assert!(apply(
+            &mut source,
+            3,
+            &Change {
+                target: Target::Effect {
+                    node: "a".into(),
+                    action: None
+                },
+                ..change
+            }
+        )
+        .is_err());
+        assert_eq!(source, before);
     }
 }

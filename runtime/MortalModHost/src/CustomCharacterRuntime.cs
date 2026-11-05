@@ -67,6 +67,8 @@ namespace MortalModHost
             CharacterPresentation.NarrativeLeft(false);
             CharacterDimming.Clear();
             CharacterLayoutRuntime.Clear();
+            EffectRuntime.Clear();
+            EffectPreviewCapture.Cancel();
             MoodControl.ClearOverrides();
             List<string> keys = new List<string>(Actors.Keys);
             for (int i = 0; i < keys.Count; i++)
