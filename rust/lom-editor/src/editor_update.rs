@@ -603,14 +603,15 @@ mod tests {
     #[test]
     fn recognizes_partial_editor_installs_but_rejects_unknown_roots_and_user_files() {
         let temp = tempfile::tempdir().unwrap();
-        assert!(validate_install(temp.path(), &["lom-editor.exe".into()]).is_err());
-        fs::write(temp.path().join("lom-editor.exe"), b"fixture").unwrap();
+        let root = temp.path().canonicalize().unwrap();
+        assert!(validate_install(root.as_path(), &["lom-editor.exe".into()]).is_err());
+        fs::write(root.as_path().join("lom-editor.exe"), b"fixture").unwrap();
         let files = PROGRAM_FILES
             .iter()
             .map(|(_, path)| path.to_string())
             .collect::<Vec<_>>();
-        assert!(validate_install(temp.path(), &files).is_ok());
-        assert!(validate_install(temp.path(), &["assets/user/test.json".into()]).is_err());
+        assert!(validate_install(root.as_path(), &files).is_ok());
+        assert!(validate_install(root.as_path(), &["assets/user/test.json".into()]).is_err());
     }
 
     #[test]
@@ -639,40 +640,41 @@ mod tests {
     #[test]
     fn same_version_check_detects_missing_and_mixed_components_without_downgrading() {
         let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().canonicalize().unwrap();
         let mut release = parse_release(&release()).unwrap();
         release.version = env!("CARGO_PKG_VERSION").into();
         for (index, file) in release.files.iter_mut().enumerate() {
             let bytes = format!("current component {index}").into_bytes();
             file.size = bytes.len() as u64;
             file.digest = format!("{:x}", Sha256::digest(&bytes));
-            let path = temp.path().join(&file.path);
+            let path = root.as_path().join(&file.path);
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(path, bytes).unwrap();
         }
-        release.inspect_installation(temp.path()).unwrap();
+        release.inspect_installation(root.as_path()).unwrap();
         assert!(!release.repair_needed);
         for path in [
             "lomc.exe",
             "runtime/MortalModHost.dll",
             "runtime/NVorbis.dll",
         ] {
-            let target = temp.path().join(path);
+            let target = root.as_path().join(path);
             let original = fs::read(&target).unwrap();
             fs::remove_file(&target).unwrap();
-            release.inspect_installation(temp.path()).unwrap();
+            release.inspect_installation(root.as_path()).unwrap();
             assert!(release.repair_needed, "missing {path}");
             fs::write(&target, vec![b'x'; original.len()]).unwrap();
-            release.inspect_installation(temp.path()).unwrap();
+            release.inspect_installation(root.as_path()).unwrap();
             assert!(release.repair_needed, "same-size stale {path}");
             fs::write(&target, original).unwrap();
-            release.inspect_installation(temp.path()).unwrap();
+            release.inspect_installation(root.as_path()).unwrap();
             assert!(!release.repair_needed, "restored {path}");
         }
-        fs::remove_file(temp.path().join("lomc.exe")).unwrap();
-        release.inspect_installation(temp.path()).unwrap();
+        fs::remove_file(root.as_path().join("lomc.exe")).unwrap();
+        release.inspect_installation(root.as_path()).unwrap();
         assert!(release.repair_needed);
         release.version = "0.1.0".into();
-        release.inspect_installation(temp.path()).unwrap();
+        release.inspect_installation(root.as_path()).unwrap();
         assert!(
             !release.repair_needed,
             "an older public release must not replace a newer editor"
