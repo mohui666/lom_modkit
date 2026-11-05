@@ -10,12 +10,21 @@
 
 | バージョン | 内容 |
 | --- | --- |
-| **現在のソース：v1.3.1** | エディターとコンパイラーは Rust に移行済みです。C# ゲームホストと `.lommod` v3 の仕様は維持しています。 |
-| **Windows リリース：v1.3.1** | 2 つの制作モード、イベント・タスク設定、UI 改善、Steam ゲームフォルダーの自動検出を追加。 |
+| **現在のソース：v1.4.3** | Rust 製エディター・コンパイラーと C# ゲームホストを使用し、`.lommod` v3 の仕様を維持しています。 |
+| **Windows リリース：v1.4.3** | 公式キャラクターの立ち絵追加、自由な画像倍率、プレイ用 ZIP、ウィンドウ・DPI 対応。 |
 
-[v1.3.1 をダウンロード（Windows）](https://github.com/mohui666/lom_modkit/releases/download/v1.3.1/lom_modkit-v1.3.1_windows_x64.zip) · [v1.3.1 Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.1)
+[v1.4.3 をダウンロード（Windows x64）](https://github.com/mohui666/lom_modkit/releases/download/v1.4.3/lom_modkit-v1.4.3_windows_x64.zip) · [更新内容と検証範囲（簡体字中国語）](RELEASE_NOTES_v1.4.3.md)
 
-ZIP 全体を展開し、`lom_modkit/lom-editor.exe` を起動してください。ローダーと C# ホストの更新手順、検証範囲は [x64 検証記録（簡体字中国語）](docs/chs/x64_validation.md) を参照してください。
+ZIP 全体を展開し、`lom_modkit/lom-editor.exe` を起動してください。ゲームを終了して「ゲームと MOD」からゲーム側の Host を 1.4.3 に更新します。新機能に必要な Host の最低バージョンは、書き出すパッケージに自動で設定されます。
+
+## 1.4.3 の新機能
+
+- 公式キャラクターの ID・名前・既存の表情を保ちながら、`tired`、`sleep` などの表情を追加し、指定した立ち絵を差し替えられます。素材画面で表情を選び、対応する画像を確認できます。
+- 人物、CG、重ねる画像、紹介カードの画像は、ゲームで表現可能な任意の正の百分率を指定できます。小数にも対応し、従来の固定上限を撤廃しました。人物は公式の表示領域全体に縦横比を保って合わせます。
+- 作品、自作素材、Host、ローダー、インストーラーを含むプレイ用 ZIP を一括出力できます。初回は不足するローダーをダウンロードします。プレイヤーは展開後に「安装MOD.cmd」を実行すればオフラインでインストールでき、エディターは不要です。正規のゲーム本体は別途必要です。
+- OS の DPI を保ち、ウィンドウサイズに応じて UI を自動調整します。設定から UI の倍率を手動で変更することもできます。
+
+操作は [人物の立ち絵追加と素材の共有（簡体字中国語）](docs/chs/user_content.md) を参照してください。プレイ用 ZIP にゲーム本体や公式画像のプレビューキャッシュは含めません。
 
 ## 現在のバージョンを実行する
 
@@ -42,7 +51,7 @@ scripts/build-macos.sh
 | [使い方](docs/chs/software_usage.md) | Rust エディターの操作と基本的な流れ |
 | [対応機能](docs/chs/current_capabilities.md) | 実装済みの機能、制限、検証範囲 |
 | [Rust CLI](docs/chs/ai_cli.md) | `lomc` コマンドと制御された編集 API |
-| [Mod パッケージ仕様](docs/chs/mod_format.md) | `.lommod` v3、63 種類のノード、C# ホストとの互換性 |
+| [Mod パッケージ仕様](docs/chs/mod_format.md) | `.lommod` v3、67 種類のノード、C# ホストとの互換性 |
 | [移行とビルド](docs/chs/rust_migration.md) | Rust の構成、ビルド方法、移行範囲 |
 
 [日本語ドキュメント索引と旧版の翻訳](docs/ja/README.md) · [全ドキュメント](docs/README.md)

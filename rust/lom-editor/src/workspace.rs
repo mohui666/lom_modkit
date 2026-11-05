@@ -85,6 +85,7 @@ struct RenameDialog {
     focus_name: bool,
 }
 struct AssetImportDialog {
+    extends: String,
     kind: usize,
     name: String,
     paths: Vec<PathBuf>,
@@ -304,7 +305,10 @@ fn smoke(path: &Path) -> anyhow::Result<Value> {
     let mut nodes = 0;
     let mut previews = 0;
     for (id, story) in &p.stories {
-        lom_core::validate::validate_story(story)?;
+        lom_core::validate::validate_story_with_catalog(
+            story,
+            &lom_core::validate::catalog_with_assets(&p.assets)?,
+        )?;
         let lua = compile_with_assets(&p, story)?;
         anyhow::ensure!(!lua.is_empty(), "空 Lua: {id}");
         for node in story["nodes"].as_array().into_iter().flatten() {
@@ -427,7 +431,7 @@ impl App {
             asset_selection: String::new(),
             asset_import_dialog: None,
             image_import_target: None,
-            shell: shell::Shell::default(),
+            shell: shell::Shell::from_preferences(&prefs),
             scroll_selection: (String::new(), usize::MAX),
             bulk_key: String::new(),
             bulk_draft: json!({}),
@@ -904,6 +908,12 @@ impl App {
             }
         }
     }
+    fn export_play_bundle(&mut self) {
+        if self.apply_pending_drafts() {
+            self.flush();
+            self.tools_panel.export_play_bundle(&self.project);
+        }
+    }
     fn compile(&mut self) {
         self.catalog.data["project_flags"] = json!(self
             .project
@@ -916,7 +926,11 @@ impl App {
         self.diagnostics.clear();
         for (id, s) in &self.project.stories {
             self.diagnostics
-                .extend(lom_core::release::compiler_issues(id, s));
+                .extend(lom_core::release::compiler_issues_with_catalog(
+                    id,
+                    s,
+                    &self.catalog.data,
+                ));
         }
         match compile_with_assets(&self.project, &self.story()) {
             Ok(lua) => self.lua = lua,
@@ -1348,7 +1362,7 @@ impl App {
         egui::TopBottomPanel::top("commands")
             .frame(surface(false))
             .show(ctx, |ui| {
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     #[cfg(not(target_os = "macos"))]
                     if ui
                         .add(egui::Button::new(tr("设置")).shortcut_text("Ctrl+,"))
@@ -1430,6 +1444,10 @@ impl App {
                         if ui.button(tr("导出 .lommod…")).clicked() {
                             ui.close();
                             self.export();
+                        }
+                        if ui.button(tr("导出完整游玩包…")).clicked() {
+                            ui.close();
+                            self.export_play_bundle();
                         }
                         if ui.button(tr("从游戏提取预览素材…")).clicked() {
                             ui.close();
@@ -1571,6 +1589,9 @@ impl App {
                             .clicked()
                         {
                             self.export();
+                        }
+                        if ui.button(tr("导出游玩包")).clicked() {
+                            self.export_play_bundle();
                         }
                     });
                 });
@@ -2662,7 +2683,7 @@ impl App {
                                     ui.small(tr("选择已导入的图片，或直接从文件导入并应用。前景可用位置、层级、比例和透明度调整。"));
                                     if ui.button(tr("导入图片并用于此步骤…")).clicked() {
                                         self.image_import_target = Some((self.current.clone(), node["id"].as_str().unwrap_or("").to_owned()));
-                                        self.asset_import_dialog = Some(AssetImportDialog { kind:0, name:String::new(), paths:vec![], error:None });
+                                        self.asset_import_dialog = Some(AssetImportDialog { extends:String::new(), kind:0, name:String::new(), paths:vec![], error:None });
                                     }
                                 }
                                 let official = node["type"] == "cg" && matches!(node["kind"].as_str(), Some("event" | "picture" | "item" | "big"));
@@ -3064,7 +3085,19 @@ impl App {
         if ui.button(tr("导入素材…")).clicked() && self.apply_pending_drafts() {
             self.image_import_target = None;
             self.asset_import_dialog = Some(AssetImportDialog {
+                extends: String::new(),
                 kind: 0,
+                name: String::new(),
+                paths: vec![],
+                error: None,
+            });
+        }
+        if ui.button(tr("为原版人物添加立绘…")).clicked() && self.apply_pending_drafts()
+        {
+            self.image_import_target = None;
+            self.asset_import_dialog = Some(AssetImportDialog {
+                extends: "player".into(),
+                kind: 1,
                 name: String::new(),
                 paths: vec![],
                 error: None,
@@ -3219,6 +3252,11 @@ impl App {
             "素材名称最多 80 个字，不能包含换行或控制字符。"
         );
         let kind = draft.kind;
+        let extends = if kind == 1 {
+            draft.extends.clone()
+        } else {
+            String::new()
+        };
         let paths = draft.paths.clone();
         let prefix = match kind {
             0 => "image",
@@ -3255,7 +3293,7 @@ impl App {
             .unwrap();
         self.content_panel.apply_pending(&mut self.project)?;
         self.flush();
-        self.import_assets(paths, &id, &name, kind)?;
+        self.import_assets_with_target(paths, &id, &name, kind, &extends)?;
         if kind == 0 {
             if let Some((story, node)) = self.image_import_target.take() {
                 if let Some(node) = self
@@ -3281,12 +3319,23 @@ impl App {
         self.asset_import_dialog = None;
         Ok(())
     }
+    #[cfg(test)]
     fn import_assets(
         &mut self,
         paths: Vec<PathBuf>,
         id: &str,
         name: &str,
         asset_kind: usize,
+    ) -> anyhow::Result<()> {
+        self.import_assets_with_target(paths, id, name, asset_kind, "")
+    }
+    fn import_assets_with_target(
+        &mut self,
+        paths: Vec<PathBuf>,
+        id: &str,
+        name: &str,
+        asset_kind: usize,
+        extends: &str,
     ) -> anyhow::Result<()> {
         let id = id.trim().to_owned();
         lom_core::content::validate_content_id(&id)?;
@@ -3301,6 +3350,22 @@ impl App {
             _ => "audio",
         };
         let prefix = format!("assets/user/{kind}/{id}");
+        if !extends.is_empty() {
+            anyhow::ensure!(kind == "character", "只有人物素材可以扩展原版人物");
+            anyhow::ensure!(
+                lom_core::validate::editor_data()["characters"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|c| c["id"] == extends),
+                "请选择有效的原版人物"
+            );
+            anyhow::ensure!(
+                !lom_core::content::character_extensions(&self.project.assets)?
+                    .contains_key(extends),
+                "该人物已有扩展，请在作品素材中选择已有扩展，并添加指定表情"
+            );
+        }
         anyhow::ensure!(
             kind != "skill" || (1..=120).contains(&paths.len()),
             "招式动画必须选择1~120个PNG帧"
@@ -3384,7 +3449,9 @@ impl App {
             );
             if i == 0 {
                 main = name.clone();
-                portraits.insert("normal".into(), name.clone().into());
+                if extends.is_empty() {
+                    portraits.insert("normal".into(), name.clone().into());
+                }
             }
             if kind == "character" {
                 let portrait = path
@@ -3395,7 +3462,7 @@ impl App {
                     && (i == 0 || !portraits.contains_key(portrait))
                 {
                     portraits.insert(portrait.into(), name.clone().into());
-                } else if i > 0 {
+                } else if i > 0 || !extends.is_empty() {
                     // The first image already has normal. Other arbitrary filenames
                     // need unique IDs without stealing a later file's valid stem.
                     let portrait = (1..)
@@ -3425,6 +3492,9 @@ impl App {
         let mut meta = json!({"schema":1,"content_schema":1,"id":id,"type":kind,"name":name,"files":{"main":main}});
         if kind == "character" {
             meta["portraits"] = portraits.into();
+            if !extends.is_empty() {
+                meta["extends"] = json!(extends);
+            }
             meta["scale"] = json!(100);
             meta["art_facing"] = json!("left");
         }
@@ -3530,12 +3600,13 @@ impl App {
                 );
                 ui.label(tr("应用前按节点规则校验整章。任何错误都会保留所有原值。"));
                 if ui.button(tr("应用到全部选中步骤")).clicked() {
-                    match authoring::bulk_edit(
+                    match authoring::bulk_edit_with_catalog(
                         &story,
                         &indices,
                         &self.catalog.schema,
                         &field.key,
                         &self.bulk_draft[&field.key],
+                        &self.catalog.data,
                     ) {
                         Ok(next) => {
                             self.flush();
@@ -3818,6 +3889,7 @@ impl App {
             let mut startup_changed = false;
             let mut choose_library = false;
             let mut extract_library = false;
+            let mut resolution_changed = false;
             egui::Modal::new(egui::Id::new("application-settings"))
                 .frame(shell::dialog_frame())
                 .show(ctx, |ui| {
@@ -3838,6 +3910,8 @@ impl App {
                                 if ui.radio(crate::i18n::locale() == locale, name).clicked() { selected = Some(locale); }
                             }
                             ui.small(tr("只改变编辑器界面，不改写作品的台词与语言。"));
+                            ui.add_space(12.0);
+                            resolution_changed = self.shell.resolution_settings(ui);
                         }
                         1 => {
                             ui.strong(tr("预览素材库"));
@@ -3865,6 +3939,14 @@ impl App {
                     shell::dialog_buttons(ui, |ui| { close |= ui.add_sized([80.0,30.0],egui::Button::new(tr("完成"))).clicked(); });
                 });
             let prefs = user_root().join("rust/preferences.json");
+            if resolution_changed {
+                let mut preferences = lom_core::load_json(&prefs).unwrap_or(json!({}));
+                self.shell.store_resolution_preferences(&mut preferences);
+                self.settings_error = lom_core::stable_json(&preferences)
+                    .and_then(|bytes| lom_core::project::atomic_write(&prefs, &bytes))
+                    .err()
+                    .map(|error| error.to_string());
+            }
             if let Some(locale) = selected {
                 self.settings_error = self
                     .set_interface_locale(locale, &prefs)
@@ -3943,6 +4025,13 @@ impl App {
                         draft.paths.clear();
                         draft.name.clear();
                         draft.error = None;
+                        draft.extends.clear();
+                    }
+                    if draft.kind == 1 {
+                        let mut target = if draft.extends.is_empty() { json!({}) } else { json!({"extends":draft.extends}) };
+                        self.catalog.field(ui, &mut target, "extends", "扩展原版人物", "official_character", true, &[], &[]);
+                        draft.extends = target["extends"].as_str().unwrap_or("").to_owned();
+                        ui.small(tr("留空为原创人物；扩展原版人物时，图片文件名作为新增表情 ID，例如 tired.png。"));
                     }
                     choose_files = ui
                         .button(format!(
@@ -4241,6 +4330,7 @@ impl eframe::App for App {
         self.shell.clear_color()
     }
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        self.shell.apply_layout(ctx);
         if self.updater.poll() {
             match self.updater.install(self.project.source.as_deref()) {
                 Ok(()) => {
@@ -6123,6 +6213,7 @@ mod application_regression_tests {
         for name in ["normal", "我的角色"] {
             let mut app = app();
             app.asset_import_dialog = Some(AssetImportDialog {
+                extends: String::new(),
                 kind: 1,
                 name: name.into(),
                 paths: vec![image.clone()],
@@ -6136,6 +6227,45 @@ mod application_regression_tests {
             assert_eq!(meta["files"]["main"], "26_04_23_17_53_52.png");
             assert_eq!(app.project.assets.len(), 2);
         }
+    }
+    #[test]
+    fn official_character_import_lists_new_expressions_under_the_original_identity() {
+        let directory = tempfile::tempdir().unwrap();
+        let paths: Vec<_> = ["tired.png", "sleep.png"]
+            .into_iter()
+            .map(|name| {
+                let path = directory.path().join(name);
+                image::RgbaImage::new(2, 3).save(&path).unwrap();
+                path
+            })
+            .collect();
+        let mut app = app();
+        app.import_assets_with_target(paths, "demo.xia", "Extra expressions", 1, "special825")
+            .unwrap();
+        let meta: Value =
+            serde_json::from_slice(&app.project.assets[&app.asset_selection]).unwrap();
+        assert_eq!(meta["extends"], "special825");
+        assert_eq!(
+            meta["portraits"],
+            json!({"tired":"tired.png", "sleep":"sleep.png"})
+        );
+        app.catalog.sync_assets(&app.project.assets);
+        let options = app
+            .catalog
+            .options("portrait", &json!({"character":"special825"}), &[], &[]);
+        for name in ["tired", "sleep", "normal"] {
+            assert!(options.iter().any(|(id, _)| id == name));
+        }
+        assert!(!app.catalog.data["characters"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c["id"] == "user:demo.xia"));
+        app.project.stories.get_mut("main").unwrap()["nodes"] = json!([
+            {"id":"say1","type":"show","character":"special825","position":"M","portrait":"tired"},
+            {"id":"end1","type":"end"}]);
+        let lua = compile_with_assets(&app.project, &app.project.stories["main"]).unwrap();
+        assert!(lua.contains("characters.LoadCharacterPortrait(\"special825\", \"tired\")"));
     }
     #[test]
     fn character_import_appends_selections_and_preserves_same_named_files() {
@@ -6155,6 +6285,7 @@ mod application_regression_tests {
         })
         .collect();
         let mut draft = AssetImportDialog {
+            extends: String::new(),
             kind: 1,
             name: String::new(),
             paths: vec![],
@@ -6231,6 +6362,7 @@ mod application_regression_tests {
         std::fs::write(&image, b"image fixture").unwrap();
         let mut app = app();
         app.asset_import_dialog = Some(AssetImportDialog {
+            extends: String::new(),
             kind: 0,
             name: "".into(),
             paths: vec![image.clone()],
@@ -6247,6 +6379,7 @@ mod application_regression_tests {
         assert_eq!(meta["id"], "my_mod.image1");
         assert_eq!(meta["name"], "春日背景");
         app.asset_import_dialog = Some(AssetImportDialog {
+            extends: String::new(),
             kind: 0,
             name: "另一张背景".into(),
             paths: vec![image],
@@ -6261,6 +6394,7 @@ mod application_regression_tests {
         }
         let committed = snapshot(&app.project);
         app.asset_import_dialog = Some(AssetImportDialog {
+            extends: String::new(),
             kind: 1,
             name: "取消".into(),
             paths: vec![],
@@ -6530,6 +6664,7 @@ mod application_regression_tests {
         let before = snapshot(&app.project);
         app.image_import_target = Some((app.current.clone(), id));
         app.asset_import_dialog = Some(AssetImportDialog {
+            extends: String::new(),
             kind: 0,
             name: "图片".into(),
             paths: vec![file],

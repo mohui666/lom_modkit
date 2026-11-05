@@ -65,6 +65,7 @@ pub fn update(
         key.into(),
         stable_json(&content::content_metadata_payload(&normalized))?,
     );
+    content::character_extensions(&assets)?;
     project.assets = assets;
     Ok(())
 }
@@ -83,6 +84,22 @@ pub fn remove(project: &mut Project, key: &str) -> Result<()> {
         "仍有 {} 处剧情引用，请先解除引用",
         refs.len()
     );
+    if let Some(target) = meta["extends"].as_str() {
+        ensure!(
+            !project
+                .stories
+                .values()
+                .any(|s| crate::parallel::story_actions(s).any(|(_, node)| {
+                    node["character"] == target
+                        && ["show", "say", "portrait"]
+                            .contains(&node["type"].as_str().unwrap_or(""))
+                        && meta["portraits"]
+                            .get(node["portrait"].as_str().unwrap_or("normal"))
+                            .is_some()
+                })),
+            "剧情仍在使用该原版人物的扩展表情，请先解除引用"
+        );
+    }
     if let Some(config) = &project.scenario {
         ensure!(
             !content::scenario_gameplay_nodes(config)

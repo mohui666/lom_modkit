@@ -1,6 +1,7 @@
 //! Offline authoring preflight, reversible repairs and private release artifacts.
 mod diagnostic;
 mod flow;
+mod play_bundle;
 mod stage;
 mod statistics;
 use crate::project::Project;
@@ -9,6 +10,9 @@ pub use diagnostic::{
     detect_game_version, detect_runtime_version, export_diagnostic_bundle, sanitize_text,
     DiagnosticOptions, MAX_COLLECTION_ITEMS, MAX_LOG_OUTPUT_CHARS, MAX_LOG_READ_BYTES,
     MAX_STRING_CHARS,
+};
+pub use play_bundle::{
+    build_play_bundle, install_play_bundle, validate_loader_archive, PlayBundleResult,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -160,6 +164,19 @@ fn missing_code(r: &ContentSpec<'_>) -> &'static str {
 fn audit_content(project: &Project, root: &Path) -> Vec<PreflightIssue> {
     let mut out = Vec::new();
     let mut referenced = BTreeSet::new();
+    if let Ok(extensions) = crate::content::character_extensions(&project.assets) {
+        for (target, (_, meta)) in extensions {
+            if project.stories.values().any(|s| {
+                crate::parallel::story_actions(s).any(|(_, n)| {
+                    content_specs(n)
+                        .iter()
+                        .any(|r| r.kind == "character" && r.raw == target)
+                })
+            }) {
+                referenced.insert(("character".into(), text(&meta, "id").to_owned()));
+            }
+        }
+    }
     for (sid, story) in &project.stories {
         for (parent, node) in crate::parallel::story_actions(story) {
             for r in content_specs(node) {
@@ -420,10 +437,18 @@ fn ordered(mut issues: Vec<PreflightIssue>) -> Vec<PreflightIssue> {
 }
 /// Compiler diagnostics shared by the editor and project preflight.
 pub fn compiler_issues(story_id: &str, story: &Value) -> Vec<PreflightIssue> {
-    let (severity, code, messages) = match crate::validate::validate_story(story) {
-        Ok(warnings) => ("warning", "compiler_warning", warnings),
-        Err(error) => ("error", "compiler_error", vec![format!("{error:#}")]),
-    };
+    compiler_issues_with_catalog(story_id, story, crate::validate::editor_data())
+}
+pub fn compiler_issues_with_catalog(
+    story_id: &str,
+    story: &Value,
+    catalog: &Value,
+) -> Vec<PreflightIssue> {
+    let (severity, code, messages) =
+        match crate::validate::validate_story_with_catalog(story, catalog) {
+            Ok(warnings) => ("warning", "compiler_warning", warnings),
+            Err(error) => ("error", "compiler_error", vec![format!("{error:#}")]),
+        };
     messages
         .into_iter()
         .map(|message| {
@@ -449,6 +474,19 @@ pub fn run_preflight(
     runtime_version: &str,
 ) -> Vec<PreflightIssue> {
     let mut issues = Vec::new();
+    let catalog = match crate::validate::catalog_with_assets(&project.assets) {
+        Ok(catalog) => Some(catalog),
+        Err(error) => {
+            issues.push(PreflightIssue::new(
+                "error",
+                "stale_content_metadata",
+                "",
+                "",
+                format!("{error:#}"),
+            ));
+            None
+        }
+    };
     if crate::scenario::enabled(&project.manifest) {
         let result = project
             .scenario
@@ -486,7 +524,10 @@ pub fn run_preflight(
         )),
     }
     for (sid, story) in &project.stories {
-        issues.extend(compiler_issues(sid, story));
+        issues.extend(match &catalog {
+            Some(catalog) => compiler_issues_with_catalog(sid, story, catalog),
+            None => compiler_issues(sid, story),
+        });
         for (nid, cid) in find_stage_issues(story) {
             let mut issue = PreflightIssue::new(
                 "warning",
@@ -603,12 +644,36 @@ pub fn run_preflight(
         }
     }
     if profile == Profile::Release {
+        let used_extensions: Vec<_> = crate::content::character_extensions(&project.assets)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|(target, _)| {
+                project.stories.values().any(|s| {
+                    crate::parallel::story_actions(s).any(|(_, n)| {
+                        content_specs(n)
+                            .iter()
+                            .any(|r| r.kind == "character" && r.raw == *target)
+                    })
+                })
+            })
+            .map(|(_, (key, _))| key.trim_end_matches("content.json").to_owned())
+            .collect();
+        let assets: Vec<_> = project
+            .assets
+            .keys()
+            .filter(|name| {
+                !used_extensions
+                    .iter()
+                    .any(|prefix| name.starts_with(prefix))
+            })
+            .cloned()
+            .collect();
         apply_release_profile(
             issues,
             &project.stories,
             &project.manifest,
             runtime_version,
-            Some(&project.assets.keys().cloned().collect::<Vec<_>>()),
+            Some(&assets),
         )
     } else {
         ordered(issues)

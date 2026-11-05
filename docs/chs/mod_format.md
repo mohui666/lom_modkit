@@ -164,8 +164,8 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 | `sound` | `name`；可选 `kind`("sound"默认/"env")，`op`("play"默认/"fadeout"仅env，`seconds`默认1) | 官方名继续 `PlaySound` / `PlayEnvSound` / `FadeOutEnvSound(seconds)` 后同样 **`wait(seconds)`**。`user:` 引用规则同 music，且 `audio_kind` 必须与节点匹配 |
 | `scene` | `view` | 切换**原版官方背景**：先清除自定义背景，再 `runblock(flowcharts.view,"out")`；其余原版预载与切换行为不变。`view="out"` 只淡出；`"black"/"white"` 为纯色 |
 | `background` | `action`(`set`/`show`/`replace`/`fadein`/`fadeout`/`clear`)；显示类必填 `image`(`user:` 图片)，可选 `fade`(默认0.5) | 使用当前包 `assets/user/image/` 的图片覆盖为舞台背景。`set/clear` 立即执行；其余动作按 `fade` 淡入/淡出并等待。换章、`goto_scene`、官方 `scene`、场景切换与热重载都会清理，不修改原版 View 资源 |
-| `custom_cg` | `action`(`show`/`hide`)；show 必填 `image`(`user:` 图片)；可选 `fade`(默认0.5)、`scale`(10~300，默认100)、`x/y`(-100~100，默认0) | 在人物层前显示全屏 CG，保持图片比例；`scale` 为自动适配后的百分比，`x` 正向右、`y` 正向上。show 替换上一张，hide 淡出并销毁；换章、换场景、换包自动清理。官方 `cg` 节点保持原样 |
-| `overlay` | 必填 `action`(`show`/`hide`) 与 `slot`；show 必填 `image`；可选 `position`(九宫格)、`scale`(10~300)、`opacity`(0~100)、`layer`(`back`/`front`)、`fade` | 多槽位前景/道具/插图/遮罩；同槽 show 替换、hide 独立清理。前后层相对人物分离，F5 可恢复，换章/换场景/换包统一清理 |
+| `custom_cg` | `action`(`show`/`hide`)；show 必填 `image`(`user:` 图片)；可选 `fade`(默认0.5)、`scale`(正数百分比，默认100)、`x/y`(-100~100，默认0) | 在人物层前显示全屏 CG，保持图片比例；`scale` 为自动适配后的百分比，1.4.3 起无 10～300 范围限制，支持小数。`x` 正向右、`y` 正向上。show 替换上一张，hide 淡出并销毁；换章、换场景、换包自动清理 |
+| `overlay` | 必填 `action`(`show`/`hide`) 与 `slot`；show 必填 `image`；可选 `position`(九宫格)、`scale`(正数百分比)、`opacity`(0~100)、`layer`(`back`/`front`)、`fade` | 多槽位前景/道具/插图/遮罩；同槽 show 替换、hide 独立清理。前后层相对人物分离，F5 可恢复，换章/换场景/换包统一清理。1.4.3 起 scale 无 10～300 限制 |
 | `show` | `character`, `position`；可选 `portrait`(默认normal), `facing`(默认right), `fadeDuration`(0), `moveDuration`(0), `appearance` | 加载并显示人物。`appearance` 仅用于 `player`，值为 `game`/`original`/`beautified`，需要 Host ≥1.1.2；省略时保留原有加载行为。详见[赵活外观](free_mode_portraits.md#照镜子后的赵活)。story.mood 为 false 时末尾（Focus 后）追加 `mod_hide_mood()` |
 | `portrait` | `character`, `portrait`；可选 `fade_out`（默认0.5）、`fade_in`（默认1.5）、`wait_after` | 独立人物换表情，不显示对白。人物必须已登场；先淡出旧表情、换图、再淡入，等待两段完成。时长为非负秒数，0立即完成。保留站位、朝向、偏移、旋转和压暗；支持官方和用户人物，也可放进同时执行组。需 Host ≥1.3.6 |
 | `mood` | `enabled`（bool 必填）；可选 `character`, `icon`, `offset_x`, `offset_y` | 不指定人物时控制全场自动气泡（Host ≥1.3.6）。指定已登场的人物时，`enabled=true` 按 `icon` 独立显示气泡，不改变立绘；false 仅隐藏该人物。`icon` 默认 `auto`（恢复跟随表情），可选 `shock/silent/angry2/nervous1/laugh1/shy/nervous3/nervous4/nervous2`。单人设置独立于自动开关，离场、换章或关闭全场时清除；压暗时隐藏，解除压暗后恢复。原版人物需 Host ≥1.4.1，自定义人物需 Host ≥1.4.2 |
@@ -178,7 +178,7 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 | `choice` | `options`: `[{"text","goto"}]`（2~4 项）；可选 `dialog`(默认"Options"，皮肤见 §3.3) | 选项菜单 `choose()` |
 | `shock` | `character`；可选 `duration`(默认0.5) | 人物震动。官方角色走 flowcharts.common `shock`；`user:` 角色走独立立绘抖动并在结束后恢复位置 |
 | `mask` | `show`(bool) | 独白遮罩 `os_mask.Show` |
-| `intro` | 可选 `intro_source`(`official` 默认/`custom`)。official 必填 `character`；custom 必填 `name`,`text`，可选 `title`,`image`（包内 `assets/` PNG/JPG，≤8MB）、`image_scale`(40~160，默认100)、`image_x`/`image_y`(-30~30，默认0) | official 调用原版 `runwait(intropanel.Show(character))`；custom 调用 `mod_prepare_character_intro(title,name,text,image,scale,x,y)`，复用同一 CharacterIntroPanel。图片按屏幕安全区独立布局并保持比例；x 正数向右、y 正数向上，无图时隐藏头像区域 |
+| `intro` | 可选 `intro_source`(`official` 默认/`custom`)。official 必填 `character`；custom 必填 `name`,`text`，可选 `title`,`image`（包内 `assets/` PNG/JPG，≤8MB）、`image_scale`(正数百分比，默认100)、`image_x`/`image_y`(-30~30，默认0) | official 调用原版 `runwait(intropanel.Show(character))`；custom 调用 `mod_prepare_character_intro(title,name,text,image,scale,x,y)`。1.4.3 起 image_scale 无 40～160 限制；x 正数向右、y 正数向上，无图时隐藏头像区域 |
 | `effect` | `name`；可选 `x`,`y`,`a`,`b`,`c`(数值，默认0/0/1/1/1)，`play`(bool，默认true) | 屏幕特效 `effects.SetupEffect(name,x,y,a,b,c,play)`，如 Hit_001/Blood_002/Sword_001。`play=false` 发射停止调用（末参 0）：**循环类特效不会自动销毁**（如 EventBubble/Glow），必须后接 play=false 的同参节点停止，否则常驻画面（旧数据的 `d` 字段仍兼容：无 play 时用 d） |
 | `transition` | `phase`("in"/"out")；可选 `dir`(默认"lr"，lr/rl/tb/bt) | 黑场转场 `runwait(transitionblack.TransitionIn/Out(dir))`。**必须成对使用**：TransitionIn 隐藏剧情 UI 并盖满黑幕，TransitionOut 才恢复；有 in 无 out 时编译器警告（画面会一直黑屏） |
 | `camera` | `name`, `active`(bool) | 镜头滤镜 `maincamera.ActiveVolume(name, 0 | 1)`，如 stage-memory/stage-dream/stage-fire/stage-blurdim |
@@ -482,7 +482,7 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 17. **用户音频**：`LuaManager.PlayMusic/PlaySound/PlayEnvSound` 参数以 `user:` 开头时由插件接管，从**当前演出 Mod 包**的 `UserContents` 解析（`assets/user/audio/<id>/content.json` + 主文件），解码后用 Windows `waveOut` 播放（本游戏主混音是 Wwise，Unity `AudioSource` 经常无声）。官方名字一律放行给原版 Wwise。运行时禁止读取 `%APPDATA%/lom_modkit/repository`。两个 Mod 即使 ID 相同也只解析自身包。支持格式仅 `.ogg` / `.wav`，单条 ≤20MB。自定义 fadeout 是输出音量淡出（随后仍有编译器发射的 `wait`）；切到自定义音乐会先停官方 Wwise 音乐（官方 `StopMusic` 会同时清环境音）。
 18. **对白语音**：注册 `mod_play_voice(ref)` / `mod_stop_voice()`。`mod_play_voice` 先停当前语音再播（不循环，走独立 `_voice` 通道）。`sound` 节点、自定义音效、`StopMusic` 都不碰这条通道。剧情中断、切官方脚本、重载 Mod 时 `StopEverything()` 会停语音。无 `voice` 的旧 Lua 不会调用这两个函数，行为不变。
 19. **离场清台**：脚本开头、`end` / `goto_scene` / `death` 发射 `mod_hide_all()`，立刻隐藏官方台上人物并清掉自定义立绘。换背景 `scene` 不自动退场。切到下一章（`end.next_script`）时下一章开场也会再清一次，避免上一幕角色带到下一章。
-20. **自定义角色立绘朝向与体型**：原版立绘朝左。自定义角色默认 `art_facing=left`，节点 `facing=left` 不翻、`right` 才水平翻转；原图朝右时把 `art_facing` 标成 `right`。`scale` 是 50–130 的体型百分比（默认 100），从脚底缩放，大约 80 接近小师妹。
+20. **自定义角色立绘朝向与体型**：原版立绘朝左。默认 `art_facing=left`，节点 `facing=left` 不翻、`right` 水平翻转。原图朝右时标为 `right`。`scale` 默认 100；1.4.3 起为任意可表示的正数百分比，支持小数，按完整站位矩形等比适配并从站位脚底缩放。
 21. **游戏内 Mod 菜单多语言**：菜单文案（`src/I18n.cs` 内嵌 chs/cht/ja/ko 四语言目录）跟随游戏当前语言——反射读 LeanLocalization `CurrentLanguage` 并模糊匹配语言名；官方游戏本身没有日语选项，日语目录实际不会触发；检测失败一律回退 chs。详见 `i18n.md`。
 22. **强制玩家内容披露与失败停播**：注册表命中的 Mod 首次开演前，Host 必须同步创建固定的「玩家制作 MOD｜非官方内容 / UNOFFICIAL」主标签，并以独立次级 Text 显示清洗后的作品名、作者自报信息和 SHA-256 前 16 字符。屏幕右上角常驻标签、独立 IMGUI 固定章、对白框内标签、GameOver/EndGamePanel/End/人物介绍卡标签同时覆盖全屏录像、裁对白截图和关键单卡；标签无 Lua/cfg 关闭接口。来源按整段会话污染：Mod 链入官方脚本仍保持原包标签；活动期间嵌套切到另一包会被拒绝；只有实际抵达 Title/Free 才解除。独立于 BepInEx 宿主对象的 guardian 在 Update/LateUpdate、`Canvas.willRenderCanvases` 与 `Camera.onPreCull` 复验对象父级、几何、字体、文案、alpha、材质、显示器与最高排序，被删除/禁用/移出屏幕后自动重建；Lua 篡改 `ActiveSayDialog` 时仍扫描并维护所有可见对白宿主。任何必须标签无法创建/恢复时，立即停止由 Host 推进的 LuaEnvironment 协程、用不依赖 Canvas 的 IMGUI 黑屏显示固定警示并直接返回 Free；异步 Lua 异常不会被 Fungus 吞掉。演出中关闭 Host 总开关只关闭菜单/热键，补丁与披露延迟到 Title/Free 后卸载。
 23. **F5 Runtime Trace v1**：只对编辑器固定的 `lom_modkit_preview` / `__lom_modkit_preview.lommod` 开发包启用。记录 `mod_enter`、`story_enter`、`node_enter`、`choice`、`condition_result`、`goto`、`end`、`death`、`runtime_error`；普通玩家加载的正式 Mod 默认不记录。Trace 使用 256 条内存 ring buffer，满后丢弃最旧条目，不写入存档且不会无限增长。新编译器只增加 `if mod_trace_node then ... end` 可选钩子，旧 Runtime 没有该函数时仍按原流程运行。
@@ -531,7 +531,7 @@ assets/user/image/mohui.moon_bg/moon.jpg
 
 对白语音仍是 `type=audio`，可另加可选管理字段 `character`（`user:mohui.luoxue` 或官方人物 id，如 `player`）。没有该字段的旧音频继续合法。`character` 不改变 `say.voice` 播放协议，也不导致未引用音频被打包。
 
-自定义角色 `content.json` 还可选：`title`（对话短称号）、`scale`（体型 50–130，默认 100，脚底对齐）、`art_facing`（原图朝向 `left` 默认 / `right`）。缺省与旧包按 100 / 朝左处理。
+人物 `content.json` 还可选：`title`（对话短称号）、`scale`（正数体型百分比，默认 100）、`art_facing`（原图朝向 `left` 默认 / `right`）、`extends`（原版人物 ID，Host ≥1.4.3）。设置 `extends` 时仅增补或覆盖明确列出的表情，不隐式添加 normal，剧情仍引用原版 ID；每个人物同包最多一份扩展，随当前包隔离并在离开时清理。详见[原版人物补绘](user_content.md#为原版人物增加表情)。
 
 - `type`：`audio` / `character` / `image`。`image` 是背景、CG、Overlay 共用的统一图片内容，不建立三个独立仓库。
 - `background.image` 只保存 `user:` 稳定引用；编辑器提供缩略图、缺失诊断与 F5 舞台重建，发布包只收集实际引用的图片。

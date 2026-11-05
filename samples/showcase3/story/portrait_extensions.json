@@ -1,0 +1,56 @@
+{
+  "id": "portrait_extensions",
+  "title": "原版人物追加表情与自由缩放",
+  "start": "show_original",
+  "nodes": [
+    {
+      "id": "show_original",
+      "type": "show",
+      "character": "special825",
+      "position": "M",
+      "portrait": "normal"
+    },
+    {
+      "id": "explain",
+      "type": "say",
+      "mode": "narrative",
+      "text": "下面用自有示意图演示给夏灵犀追加 tired / sleep 表情，新图缩放为 175.5%。原版 normal 仍由游戏加载。"
+    },
+    {
+      "id": "extra_tired",
+      "type": "portrait",
+      "character": "special825",
+      "portrait": "tired",
+      "fade_out": 0.2,
+      "fade_in": 0.2
+    },
+    {
+      "id": "speak_tired",
+      "type": "say",
+      "character": "special825",
+      "portrait": "tired",
+      "text": "这是追加的表情示例，人物仍使用原版姓名和 ID。"
+    },
+    {
+      "id": "extra_sleep",
+      "type": "portrait",
+      "character": "special825",
+      "portrait": "sleep",
+      "fade_out": 0.2,
+      "fade_in": 0.2
+    },
+    {
+      "id": "restore_original",
+      "type": "portrait",
+      "character": "special825",
+      "portrait": "normal",
+      "fade_out": 0.2,
+      "fade_in": 0.2
+    },
+    {
+      "id": "done",
+      "type": "end"
+    }
+  ],
+  "story_schema": 2
+}

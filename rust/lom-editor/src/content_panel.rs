@@ -90,6 +90,16 @@ impl ContentPanel {
             self.key = key.into();
             self.source = bytes.clone();
             self.draft = draft_from_source(bytes);
+            self.portrait = self.draft["portraits"]
+                .as_object()
+                .and_then(|p| {
+                    if p.contains_key("normal") {
+                        Some("normal".to_owned())
+                    } else {
+                        p.keys().next().cloned()
+                    }
+                })
+                .unwrap_or_default();
             self.baseline = self.draft.clone();
             self.files.clear();
             self.preview = None;
@@ -143,9 +153,22 @@ impl ContentPanel {
             );
         }
         if kind == "character" {
+            catalog.field(
+                ui,
+                &mut self.draft,
+                "extends",
+                "扩展原版人物",
+                "official_character",
+                true,
+                &[],
+                &[],
+            );
+            ui.small(tr(
+                "留空为原创人物；选择后，为该原版人物增加或替换表情。图片随作品导出。",
+            ));
             for (key, label, field_kind) in [
                 ("title", "称号", "str"),
-                ("scale", "立绘缩放", "int"),
+                ("scale", "立绘缩放（%）", "float"),
                 ("art_facing", "原图朝向", "facing"),
                 ("mood_x", "气泡横向位置（%）", "int"),
                 ("mood_y", "气泡高度（%）", "int"),
@@ -158,7 +181,7 @@ impl ContentPanel {
                         ("name", "名称", "str"),
                         ("title", "称号", "str"),
                         ("text", "简介", "multiline"),
-                        ("image_scale", "图片缩放", "int"),
+                        ("image_scale", "图片缩放（%）", "float"),
                         ("image_x", "横向偏移", "int"),
                         ("image_y", "纵向偏移", "int"),
                     ] {
@@ -229,10 +252,28 @@ impl ContentPanel {
                 }
             });
         if self.slot == 1 {
+            egui::ComboBox::from_id_salt("content-portrait")
+                .selected_text(if self.portrait.is_empty() {
+                    tr("选择已有表情")
+                } else {
+                    self.portrait.clone()
+                })
+                .show_ui(ui, |ui| {
+                    for portrait in self.draft["portraits"]
+                        .as_object()
+                        .into_iter()
+                        .flat_map(|p| p.keys())
+                    {
+                        ui.selectable_value(&mut self.portrait, portrait.clone(), portrait);
+                    }
+                });
             ui.horizontal(|ui| {
                 ui.label(format!("{} *", tr("表情 ID")));
                 ui.text_edit_singleline(&mut self.portrait);
             });
+            ui.small(tr(
+                "选择表情可查看对应图片；输入新的英文表情 ID 后添加图片即可新增。",
+            ));
         }
         if ui.button(tr("添加或替换素材文件…")).clicked() {
             let extensions = if kind == "audio" {
@@ -1219,7 +1260,7 @@ mod tests {
         assert!(panel.apply_pending(&mut project).unwrap());
         let saved: Value = serde_json::from_slice(&project.assets[&first]).unwrap();
         assert_eq!(saved["name"], "林灯 旅人");
-        assert_eq!(saved["scale"], 130);
+        assert_eq!(saved["scale"], 200);
         assert_eq!(panel.draft["name"], saved["name"]);
         assert_eq!(panel.draft["scale"], saved["scale"]);
         assert!(!panel.has_pending());

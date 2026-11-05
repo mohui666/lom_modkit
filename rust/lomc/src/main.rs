@@ -15,6 +15,7 @@ fn run() -> Result<i32> {
     }
     if args.is_empty() || args.iter().any(|s| s == "--help" || s == "-h") {
         println!(concat!("lomc ", env!("CARGO_PKG_VERSION"), " — Rust 活侠传剧情工具\n\n用法: lomc <check|build|compile|pack|inspect|new-story> <路径> [-o 输出] [--json] [--locale chs|cht|ja|ko]\n水印: lomc detect-watermark <图片> [--json]\n      lomc detect-watermark-video <视频> [--ffmpeg 路径] [--interval 秒] [--max-frames 数量] [--json]\n\ncheck 校验剧情；build/compile 生成 Lua；pack 生成 v3 .lommod；inspect 验证完整性与源码/Lua一致性。\n扩展: analyze/test/statistics/preflight <项目> [--profile editing|release]\n      release <项目> -o <输出目录>\n      migrate <JSON> [--kind story|manifest|content]\n      content-inspect/content-import <.lomcontent> [--library 目录]\n      author <请求.json> [-o 输出.json]\n      edit <story.json> --operations <操作数组.json> [-o 输出.json]"));
+        println!("游玩包: play-bundle <项目> -o <输出.zip> --runtime-dir <宿主目录> --loader-x86 <加载器.zip> --loader-x64 <加载器.zip>\n        install-play-bundle <解压目录> [--game <游戏目录>]");
         return Ok(0);
     }
     if args[0] == "--version" {
@@ -36,9 +37,28 @@ fn run() -> Result<i32> {
     let mut ffmpeg = None;
     let mut interval = 2.0;
     let mut max_frames = 12;
+    let mut runtime_dir = None;
+    let mut game_dir = None;
+    let mut loader_archives = std::collections::BTreeMap::new();
     let mut operations = None;
     while index < args.len() {
         match args[index].as_str() {
+            "--runtime-dir" => {
+                index += 1;
+                runtime_dir = Some(PathBuf::from(args.get(index).context("缺少运行时目录")?));
+            }
+            "--game" => {
+                index += 1;
+                game_dir = Some(PathBuf::from(args.get(index).context("缺少游戏目录")?));
+            }
+            "--loader-x86" | "--loader-x64" => {
+                let architecture = args[index].strip_prefix("--loader-").unwrap().to_owned();
+                index += 1;
+                loader_archives.insert(
+                    architecture,
+                    PathBuf::from(args.get(index).context("缺少加载组件 ZIP")?),
+                );
+            }
             "--operations" => {
                 index += 1;
                 operations = Some(PathBuf::from(args.get(index).context("缺少操作文件")?));
@@ -84,6 +104,40 @@ fn run() -> Result<i32> {
         index += 1;
     }
     let result = match command.as_str() {
+        "install-play-bundle" => {
+            let game = if let Some(game) = game_dir {
+                game
+            } else {
+                let games = lom_core::game_discovery::installed_games()?;
+                if games.len() == 1 {
+                    games[0].clone()
+                } else {
+                    use std::io::Write;
+                    print!("请输入《活侠传》游戏目录（包含 Mortal.exe）：");
+                    std::io::stdout().flush()?;
+                    let mut input = String::new();
+                    std::io::stdin().read_line(&mut input)?;
+                    let input = input.trim().trim_matches('"');
+                    anyhow::ensure!(!input.is_empty(), "未指定游戏目录，安装未执行");
+                    PathBuf::from(input)
+                }
+            };
+            lom_core::release::install_play_bundle(&path, &game)?
+        }
+        "play-bundle" => {
+            let project = Project::open(&path)?;
+            let runtime = runtime_dir.context("完整游玩包需要 --runtime-dir 目录")?;
+            let version =
+                lom_core::game_tools::host_file_version(&runtime.join("MortalModHost.dll"))?;
+            serde_json::to_value(lom_core::release::build_play_bundle(
+                &project,
+                &output.context("完整游玩包需要 -o 输出 ZIP")?,
+                &runtime,
+                &env::current_exe()?,
+                &loader_archives,
+                &version,
+            )?)?
+        }
         "author" => {
             let request = load_json(&path)?;
             let response = lom_core::story_api::execute(
@@ -167,18 +221,17 @@ fn run() -> Result<i32> {
             if let Some(locale) = locale {
                 story = localization::apply_story_locale(&story, &locale)?;
             }
-            let warnings = validate::validate_story(&story)?;
+            let story_dir = path.parent().unwrap_or_else(|| std::path::Path::new("."));
+            let content_root = if story_dir.file_name().and_then(|s| s.to_str()) == Some("story") {
+                story_dir.parent().unwrap_or(story_dir)
+            } else {
+                story_dir
+            };
+            let warnings = validate::validate_story_with_content_root(&story, content_root)?;
             if command == "check" {
                 json!({"ok":true,"errors":[],"warnings":warnings})
             } else {
                 let source = path.to_string_lossy();
-                let story_dir = path.parent().unwrap_or_else(|| std::path::Path::new("."));
-                let content_root =
-                    if story_dir.file_name().and_then(|s| s.to_str()) == Some("story") {
-                        story_dir.parent().unwrap_or(story_dir)
-                    } else {
-                        story_dir
-                    };
                 let lua = codegen::compile_story(&story, None, Some(&source), Some(content_root))?;
                 let target = output.unwrap_or_else(|| path.with_extension("lua"));
                 lom_core::project::atomic_write(&target, lua.as_bytes())?;

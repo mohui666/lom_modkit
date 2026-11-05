@@ -1642,7 +1642,11 @@ fn compile_story_impl(
     content_root: Option<&Path>,
     previous_visual_calls: bool,
 ) -> Result<String> {
-    let warnings = crate::validate::validate_story(story)?;
+    let warnings = if let Some(root) = content_root {
+        crate::validate::validate_story_with_content_root(story, root)?
+    } else {
+        crate::validate::validate_story(story)?
+    };
     let lua = story_to_lua_impl(story, mod_info, source, content_root, previous_visual_calls)?;
     if warnings.is_empty() {
         Ok(lua)

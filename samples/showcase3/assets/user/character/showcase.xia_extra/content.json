@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "content_schema": 1,
+  "id": "showcase.xia_extra",
+  "type": "character",
+  "extends": "special825",
+  "name": "夏灵犀扩展立绘示例",
+  "files": {
+    "main": "tired.png"
+  },
+  "portraits": {
+    "tired": "tired.png",
+    "sleep": "sleep.png"
+  },
+  "scale": 175.5,
+  "art_facing": "left"
+}

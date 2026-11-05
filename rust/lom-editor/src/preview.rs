@@ -667,6 +667,28 @@ impl Preview {
             }
             return None;
         }
+        if character {
+            for (key, bytes) in &p.assets {
+                if !key.starts_with("assets/user/character/") || !key.ends_with("/content.json") {
+                    continue;
+                }
+                let Ok(meta) = serde_json::from_slice::<Value>(bytes) else {
+                    continue;
+                };
+                let target = if name == "player_beautified" {
+                    "player"
+                } else {
+                    name
+                };
+                if meta["extends"] != target {
+                    continue;
+                }
+                if let Some(file) = meta["portraits"][portrait].as_str() {
+                    let path = format!("{}{file}", key.strip_suffix("content.json")?);
+                    return p.assets.get(&path).map(|b| (path, b.clone(), meta));
+                }
+            }
+        }
         if let Some(bytes) = p.assets.get(name) {
             return Some((format!("project:{name}"), bytes.clone(), json!({})));
         }
@@ -1065,12 +1087,15 @@ impl Preview {
                         self.texture(&ctx, p, lookup, true, text(a, "portrait"))
                     {
                         let body_scale = number(&meta, "scale", 100.0) as f32 / 100.0;
-                        let h = rect.height()
-                            * if cid.starts_with("user:") { 0.56 } else { 0.78 }
-                            * body_scale;
-                        let w = h * tex.size_vec2().x / tex.size_vec2().y;
+                        let size = tex.size_vec2();
+                        let factor =
+                            (rect.width() / size.x).min(rect.height() / size.y) * body_scale;
+                        let (w, h) = (size.x * factor, size.y * factor);
                         let dest = Rect::from_min_size(
-                            Pos2::new(base.x - w / 2.0, base.y - h),
+                            Pos2::new(
+                                base.x - w / 2.0,
+                                base.y - rect.height() * body_scale / 2.0 - h / 2.0,
+                            ),
                             Vec2::new(w, h),
                         );
                         let art_left = meta["art_facing"].as_str().unwrap_or("left") != "right";
@@ -1100,7 +1125,12 @@ impl Preview {
                             && node["enabled"] == true;
                         let icon = visible_mood(&state, cid, a);
                         if icon.is_some() || editing_mood {
-                            let unit = rect.height() / 1080.0 * body_scale;
+                            let unit = rect.height() / 1080.0
+                                * if cid.starts_with("user:") {
+                                    body_scale
+                                } else {
+                                    1.0
+                                };
                             let sign = if flipped { -1.0 } else { 1.0 };
                             let anchor = if cid.starts_with("user:") {
                                 Pos2::new(
@@ -1108,7 +1138,8 @@ impl Preview {
                                         + sign
                                             * (number(&meta, "mood_x", 50.0) as f32 / 100.0 - 0.5)
                                             * w,
-                                    base.y - number(&meta, "mood_y", 90.0) as f32 / 100.0 * h,
+                                    dest.bottom()
+                                        - number(&meta, "mood_y", 90.0) as f32 / 100.0 * h,
                                 )
                             } else {
                                 let position = &self.mapping["characters"][lookup]["mood_position"];
@@ -1507,7 +1538,7 @@ impl Preview {
                     Stroke::new(1.0_f32, Color32::from_rgb(164, 137, 91)),
                     egui::StrokeKind::Inside,
                 );
-                let scale = number(node, "image_scale", 100.0).clamp(40.0, 160.0) as f32 / 100.0;
+                let scale = number(node, "image_scale", 100.0) as f32 / 100.0;
                 let x = number(node, "image_x", 0.0).clamp(-30.0, 30.0) as f32 / 100.0;
                 let y = number(node, "image_y", 0.0).clamp(-30.0, 30.0) as f32 / 100.0;
                 let avatar = Rect::from_center_size(

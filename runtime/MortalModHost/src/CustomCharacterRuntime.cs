@@ -27,6 +27,7 @@ namespace MortalModHost
             public string Name;
             public string Title;
             public float BodyScale = 1f;
+            public Vector2 CanvasSize;
             public string ArtFacing = "left";
             public string Portrait = "normal";
             public string Facing = "right";
@@ -39,6 +40,7 @@ namespace MortalModHost
             public bool Dimmed;
             public CharacterMoodPanel Mood;
             public Vector2 MoodAnchor;
+            public Vector2 MoodLayoutAnchor;
             public Vector2 MoodOffset;
             public string MoodIcon;
             public string ShownMood;
@@ -233,16 +235,25 @@ namespace MortalModHost
             if (actor.Mood != null) return;
             actor.Mood = MoodControl.CreatePanel(actor.Holder.transform);
             var rect = actor.Mood.GetComponent<RectTransform>();
-            rect.anchorMin = actor.MoodAnchor;
-            rect.anchorMax = actor.MoodAnchor;
+            rect.anchorMin = actor.MoodLayoutAnchor;
+            rect.anchorMax = actor.MoodLayoutAnchor;
             actor.Mood.SetPosition(0f, 0f);
             rect.localScale = Vector3.one * actor.BodyScale;
         }
 
         internal static void UpdateMoods()
         {
+            Stage stage = Stage.GetActiveStage();
+            RectTransform canvas = stage != null && stage.PortraitCanvas != null
+                ? stage.PortraitCanvas.transform as RectTransform : null;
             foreach (var actor in Actors.Values)
             {
+                if (canvas != null && actor.CanvasSize != canvas.rect.size)
+                {
+                    Vector2 anchored = actor.HolderRect.anchoredPosition;
+                    FitHolderToSprite(actor);
+                    actor.HolderRect.anchoredPosition = anchored;
+                }
                 string icon = actor.MoodIcon ?? (MoodControl.Disabled ? null : actor.Portrait);
                 if (!actor.Visible || actor.Dimmed || actor.Image.color.a < 0.999f || icon == "hide") icon = null;
                 if (icon == null || icon == "normal")
@@ -433,9 +444,9 @@ namespace MortalModHost
                 return false;
             }
 
-            int percent = content.Scale <= 0 ? 100 : content.Scale;
-            if (percent < 50) percent = 50;
-            if (percent > 130) percent = 130;
+            float percent = content.Scale;
+            if (float.IsNaN(percent) || float.IsInfinity(percent) || percent <= 0f)
+                throw new InvalidOperationException("人物缩放必须是正有限数字：" + parsed.Raw);
             string artFacing = string.Equals(content.ArtFacing, "right", StringComparison.OrdinalIgnoreCase)
                 ? "right"
                 : "left";
@@ -585,29 +596,33 @@ namespace MortalModHost
             if (sw < 1f) sw = 531f;
             if (sh < 1f) sh = 1039f;
 
-            float canvasH = Screen.height;
+            float canvasH = 1080f;
+            float canvasW = 1920f;
             Stage stage = Stage.GetActiveStage();
             if (stage != null && stage.PortraitCanvas != null)
             {
                 RectTransform canvasRect = stage.PortraitCanvas.transform as RectTransform;
                 if (canvasRect != null && canvasRect.rect.height > 1f)
+                {
                     canvasH = canvasRect.rect.height;
+                    canvasW = canvasRect.rect.width;
+                    actor.CanvasSize = canvasRect.rect.size;
+                }
             }
             if (canvasH < 1f)
                 canvasH = 1080f;
 
-            // 官方立绘是塞进站位槽里的，槽大约半个画面高。不能按原图像素
-            // 或 90% 屏高来摆，师姐那张 1039px 图会顶满整个舞台。
-            float boxH = canvasH * 0.56f;
-            float boxW = boxH * (sw / sh);
+            // PortraitController.CreatePortraitObject / SetRectTransform 用完整站位矩形
+            // 配合 preserveAspect。当前场景 M/L1/R1 均为 1920x1080。
+            // 与原版采用同一 contain 规则，不能再按 56% 屏高缩小用户图。
+            float boxH = canvasH;
+            float boxW = canvasW;
             Vector2 pivot = new Vector2(0.5f, 0f);
             if (dest != null)
             {
                 float slotH = Mathf.Abs(dest.rect.height);
                 float slotW = Mathf.Abs(dest.rect.width);
-                bool usable = slotH >= canvasH * 0.2f && slotH <= canvasH * 0.72f
-                    && slotW >= 80f && slotW <= canvasH * 0.5f;
-                if (usable)
+                if (slotH > 1f && slotW > 1f)
                 {
                     boxH = slotH;
                     boxW = slotW;
@@ -615,18 +630,21 @@ namespace MortalModHost
                 }
             }
 
-            float scale = Mathf.Min(boxW / sw, boxH / sh);
-            if (scale <= 0f)
-                scale = 1f;
-            float body = actor.BodyScale;
-            if (body < 0.5f) body = 0.5f;
-            if (body > 1.3f) body = 1.3f;
-            scale *= body;
+            float contain = Mathf.Min(boxW / sw, boxH / sh);
+            actor.MoodLayoutAnchor = new Vector2(
+                0.5f + (actor.MoodAnchor.x - 0.5f) * sw * contain / boxW,
+                0.5f + (actor.MoodAnchor.y - 0.5f) * sh * contain / boxH);
+            if (actor.Mood != null)
+            {
+                RectTransform mood = actor.Mood.GetComponent<RectTransform>();
+                mood.anchorMin = actor.MoodLayoutAnchor;
+                mood.anchorMax = actor.MoodLayoutAnchor;
+            }
 
-            actor.HolderRect.anchorMin = pivot;
-            actor.HolderRect.anchorMax = pivot;
+            actor.HolderRect.anchorMin = dest != null ? dest.anchorMin : new Vector2(0.5f, 1f);
+            actor.HolderRect.anchorMax = dest != null ? dest.anchorMax : new Vector2(0.5f, 1f);
             actor.HolderRect.pivot = pivot;
-            actor.HolderRect.sizeDelta = new Vector2(sw * scale, sh * scale);
+            actor.HolderRect.sizeDelta = new Vector2(boxW * actor.BodyScale, boxH * actor.BodyScale);
             if (dest != null)
                 actor.HolderRect.position = dest.position;
         }

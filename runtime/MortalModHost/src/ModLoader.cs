@@ -656,6 +656,13 @@ namespace MortalModHost
                         logWarn("mod " + package.Id + " 的用户内容 " + pair.Key + " 解析失败，已忽略：" + ex.Message);
                 }
             }
+            foreach (UserContent content in package.UserContents.Values)
+            {
+                if (content.Type != "character" || string.IsNullOrEmpty(content.Extends)) continue;
+                if (package.CharacterExtensions.ContainsKey(content.Extends))
+                    throw new FormatException("同一包不能提供多份人物扩展：" + content.Extends);
+                package.CharacterExtensions.Add(content.Extends, content);
+            }
         }
 
         private static UserContent ParseUserContent(
@@ -787,6 +794,10 @@ namespace MortalModHost
             if (!IsImageExt(ext))
                 throw new FormatException("角色主立绘必须是 .png / .jpg / .jpeg");
 
+            string extends = GetString(root, "extends", required: false);
+            if (!string.IsNullOrEmpty(extends)
+                && !System.Text.RegularExpressions.Regex.IsMatch(extends, @"^[A-Za-z][A-Za-z0-9_]{0,47}$"))
+                throw new FormatException("extends 必须是原版人物 ID");
             var portraits = new Dictionary<string, string>(StringComparer.Ordinal);
             object portraitsObj;
             if (root.TryGetValue("portraits", out portraitsObj) && portraitsObj is Dictionary<string, object>)
@@ -803,8 +814,10 @@ namespace MortalModHost
                     portraits[pair.Key] = fname;
                 }
             }
-            if (!portraits.ContainsKey("normal"))
+            if (string.IsNullOrEmpty(extends) && !portraits.ContainsKey("normal"))
                 portraits["normal"] = mainFile;
+            if (portraits.Count == 0)
+                throw new FormatException("人物扩展必须提供至少一个表情");
 
             var combatFrames = new Dictionary<string, string>(StringComparer.Ordinal);
             string[] combatNames = { "idle", "attack", "hurt", "defence" };
@@ -863,7 +876,8 @@ namespace MortalModHost
                 Type = "character",
                 Name = name,
                 Title = title,
-                Scale = GetClampedInt(root, "scale", 100, 50, 130),
+                Scale = GetPositiveScale(root, "scale", 100f),
+                Extends = extends,
                 ArtFacing = artFacing,
                 MoodX = GetClampedInt(root, "mood_x", 50, 0, 100),
                 MoodY = GetClampedInt(root, "mood_y", 90, 0, 100),
@@ -897,6 +911,26 @@ namespace MortalModHost
                 PackagePath = imagePath,
                 Bytes = bytes
             };
+        }
+
+        private static float GetPositiveScale(Dictionary<string, object> dict, string key, float defaultValue)
+        {
+            object value;
+            if (!dict.TryGetValue(key, out value) || value == null) return defaultValue;
+            double number;
+            if (value is string)
+            {
+                if (!double.TryParse((string)value, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out number))
+                    throw new FormatException(key + " 必须是正有限数字");
+            }
+            else if (value is double || value is long || value is int || value is float)
+                number = Convert.ToDouble(value, System.Globalization.CultureInfo.InvariantCulture);
+            else throw new FormatException(key + " 必须是正有限数字");
+            float scale = (float)number;
+            if (float.IsNaN(scale) || float.IsInfinity(scale) || scale <= 0f)
+                throw new FormatException(key + " 必须是正有限数字");
+            return scale;
         }
 
         private static int GetClampedInt(

@@ -180,7 +180,7 @@ fn scalar(key: &str, value: &Value) -> String {
             "read_write" => "读取与设置",
             _ => s,
         }),
-        Value::String(s) if matches!(key, "error" | "message" | "validation_error") => {
+        Value::String(s) if matches!(key, "error" | "validation_error") => {
             crate::error_location::explanation(s)
         }
         Value::String(s) => crate::i18n::tr(match s.as_str() {
@@ -377,7 +377,23 @@ fn show_fields(ui: &mut egui::Ui, value: &Value, depth: usize, named_entries: bo
                     // A horizontal wrapping row can place a multiline label
                     // outside its group. Keep each field in normal vertical flow.
                     ui.add(egui::Label::new(egui::RichText::new(title).strong()).wrap());
-                    ui.add(egui::Label::new(scalar(key, v)).wrap().selectable(true));
+                    let text = if key == "message"
+                        && (matches!(
+                            o.get("severity").and_then(Value::as_str),
+                            Some("error" | "warning")
+                        ) || matches!(
+                            o.get("status").and_then(Value::as_str),
+                            Some("failed" | "error")
+                        ) || o.contains_key("error")
+                            || o.get("ok") == Some(&Value::Bool(false)))
+                    {
+                        v.as_str()
+                            .map(crate::error_location::explanation)
+                            .unwrap_or_else(|| scalar(key, v))
+                    } else {
+                        scalar(key, v)
+                    };
+                    ui.add(egui::Label::new(text).wrap().selectable(true));
                 }
             }
         }
@@ -409,9 +425,11 @@ mod tests {
     fn readable_report_keeps_user_names_and_errors_but_hides_unmapped_internal_labels() {
         let context = egui::Context::default();
         context.enable_accesskit();
-        let report = json!({"healthy":false,"content_type":"audio",
+        let success = "完整游玩包已导出；将 ZIP 发给玩家，解压后双击“安装MOD.cmd”。";
+        let report = json!({"healthy":false,"content_type":"audio", "message":success,
             "variables":{"myCounter":17},
             "future_internal_field":{"error":"素材无法读取"},
+            "warnings":[{"severity":"warning", "message":"角色 special825 没有表情 tired"}],
             "package_format":3});
         let original = report.clone();
         let output = context.run(
@@ -441,6 +459,9 @@ mod tests {
         assert!(text.contains("素材无法读取"), "{text}");
         assert!(text.contains("myCounter"), "{text}");
         assert!(text.contains("音频"), "{text}");
+        assert!(text.contains(success), "{text}");
+        assert!(text.contains("该人物尚未注册这个表情"), "{text}");
+        assert!(!text.contains("操作未能完成"), "{text}");
         assert!(!text.contains("future_internal_field"));
         assert!(!text.contains("package_format"));
         assert!(text.contains("复制诊断信息"), "{text}");

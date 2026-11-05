@@ -6,12 +6,86 @@ const TEXT: Color32 = Color32::from_rgb(45, 51, 59);
 pub const NAVIGATION_WIDTH: f32 = 280.0;
 pub const PREVIEW_WIDTH: f32 = 560.0;
 
-#[derive(Default)]
 pub struct Shell {
     backend: Option<String>,
     title: String,
+    auto_scale: bool,
+    ui_scale_percent: u16,
+}
+impl Default for Shell {
+    fn default() -> Self {
+        Self {
+            backend: None,
+            title: String::new(),
+            auto_scale: true,
+            ui_scale_percent: 100,
+        }
+    }
 }
 impl Shell {
+    pub fn from_preferences(preferences: &serde_json::Value) -> Self {
+        Self {
+            auto_scale: preferences["ui_auto_scale"].as_bool().unwrap_or(true),
+            ui_scale_percent: preferences["ui_scale_percent"]
+                .as_u64()
+                .map(|value| value.clamp(50, 200) as u16)
+                .unwrap_or(100),
+            ..Self::default()
+        }
+    }
+
+    /// Adapt in UI zoom units, leaving the operating system's DPI scale intact.
+    pub fn apply_layout(&mut self, ctx: &egui::Context) {
+        // content_rect is already divided by the current zoom. Multiplying it
+        // back gives the same native logical size after the next egui pass,
+        // rather than repeatedly shrinking and enlarging a fixed-size window.
+        let native_size = ctx.content_rect().size() * ctx.zoom_factor();
+        let target = if self.auto_scale {
+            fitted_zoom(native_size)
+        } else {
+            self.ui_scale_percent as f32 / 100.0
+        };
+        if (ctx.zoom_factor() - target).abs() > 0.005 {
+            ctx.set_zoom_factor(target);
+        }
+    }
+
+    pub fn resolution_settings(&mut self, ui: &mut egui::Ui) -> bool {
+        use crate::i18n::tr;
+        ui.strong(tr("界面缩放"));
+        let mut changed = ui
+            .checkbox(&mut self.auto_scale, tr("按窗口大小自动适配"))
+            .changed();
+        if !self.auto_scale {
+            ui.horizontal(|ui| {
+                ui.label(tr("手动缩放"));
+                changed |= ui
+                    .add(
+                        egui::DragValue::new(&mut self.ui_scale_percent)
+                            .range(50..=200)
+                            .suffix("%"),
+                    )
+                    .changed();
+            });
+        }
+        ui.small(format!(
+            "{}：{:.0}%",
+            tr("当前界面缩放"),
+            ui.ctx().zoom_factor() * 100.0
+        ));
+        if ui.small_button(tr("恢复自动适配")).clicked() {
+            self.auto_scale = true;
+            self.ui_scale_percent = 100;
+            changed = true;
+        }
+        changed
+    }
+
+    pub fn store_resolution_preferences(&self, preferences: &mut serde_json::Value) {
+        preferences["ui_auto_scale"] = self.auto_scale.into();
+        preferences["ui_scale_percent"] = self.ui_scale_percent.into();
+    }
+
     pub fn install(&mut self, frame: &eframe::Frame) {
         if self.backend.is_none() {
             let backend = crate::macos_window::install(frame).unwrap_or_else(|error| {
@@ -31,6 +105,12 @@ impl Shell {
     pub fn clear_color(&self) -> [f32; 4] {
         [0.94, 0.94, 0.92, 1.0]
     }
+}
+
+fn fitted_zoom(native_size: Vec2) -> f32 {
+    (native_size.x / 1280.0)
+        .min(native_size.y / 760.0)
+        .clamp(0.5, 1.0)
 }
 /// Shared chrome for in-app dialogs. These controls are drawn by egui, not AppKit.
 pub fn dialog_frame() -> egui::Frame {
@@ -87,7 +167,8 @@ pub fn dialog_buttons<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R
 pub fn viewport() -> egui::ViewportBuilder {
     egui::ViewportBuilder::default()
         .with_inner_size([1280.0, 760.0])
-        .with_min_inner_size([900.0, 560.0])
+        .with_min_inner_size([640.0, 400.0])
+        .with_clamp_size_to_monitor_size(true)
         .with_transparent(false)
         .with_decorations(true)
         .with_fullsize_content_view(false)
@@ -269,6 +350,99 @@ mod button_style_tests {
             assert!(button_size.y >= 30.0, "App button spacing was replaced");
             assert_eq!(border.color, Color32::from_rgb(150, 164, 178));
         }
+    }
+}
+
+#[cfg(test)]
+mod resolution_tests {
+    use super::*;
+
+    #[test]
+    fn small_windows_and_high_dpi_keep_room_for_the_editor_without_zoom_feedback() {
+        for (physical_size, dpi) in [
+            (Vec2::new(1280.0, 720.0), 1.25),
+            (Vec2::new(1366.0, 768.0), 1.5),
+            (Vec2::new(1920.0, 1080.0), 1.5),
+            (Vec2::new(3840.0, 2160.0), 2.0),
+            (Vec2::new(640.0, 400.0), 1.0),
+        ] {
+            let ctx = egui::Context::default();
+            let mut shell = Shell::default();
+            let mut last_zoom: Option<f32> = None;
+            for pass in 0..8 {
+                let mut input = egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        physical_size / dpi / ctx.zoom_factor(),
+                    )),
+                    ..Default::default()
+                };
+                input
+                    .viewports
+                    .get_mut(&egui::ViewportId::ROOT)
+                    .unwrap()
+                    .native_pixels_per_point = Some(dpi);
+                let _ = ctx.run(input, |ctx| {
+                    shell.apply_layout(ctx);
+                    egui::SidePanel::left("navigation")
+                        .default_width(NAVIGATION_WIDTH)
+                        .show(ctx, |ui| {
+                            ui.label("Chapters");
+                        });
+                    egui::SidePanel::left("steps")
+                        .default_width(168.0)
+                        .show(ctx, |ui| {
+                            ui.label("Steps");
+                        });
+                    egui::SidePanel::right("preview")
+                        .default_width(PREVIEW_WIDTH)
+                        .min_width(320.0)
+                        .max_width((ctx.available_rect().width() - 300.0).max(320.0))
+                        .show(ctx, |ui| {
+                            ui.label("Preview");
+                        });
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        if pass >= 2 {
+                            assert!(
+                                ui.max_rect().width() >= 280.0,
+                                "Form clipped at {physical_size:?}, DPI {dpi}"
+                            );
+                            assert!(ctx.content_rect().height() >= 750.0);
+                        }
+                    });
+                });
+                if pass >= 2 {
+                    let zoom = ctx.zoom_factor();
+                    if let Some(previous) = last_zoom {
+                        assert!(
+                            (zoom - previous).abs() < 0.005,
+                            "Zoom oscillates at {physical_size:?}, DPI {dpi}"
+                        );
+                    }
+                    last_zoom = Some(zoom);
+                    assert_eq!(ctx.native_pixels_per_point(), Some(dpi));
+                    assert!((ctx.pixels_per_point() - dpi * zoom).abs() < 0.001);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn manual_scale_survives_preference_roundtrip_and_preserves_other_settings() {
+        let mut prefs = serde_json::json!({
+            "ui_locale":"chs", "custom":"keep", "ui_auto_scale":false,
+            "ui_scale_percent":150
+        });
+        let shell = Shell::from_preferences(&prefs);
+        shell.store_resolution_preferences(&mut prefs);
+        assert_eq!(prefs["ui_locale"], "chs");
+        assert_eq!(prefs["custom"], "keep");
+        let mut restored = Shell::from_preferences(&prefs);
+        let ctx = egui::Context::default();
+        for _ in 0..3 {
+            let _ = ctx.run(Default::default(), |ctx| restored.apply_layout(ctx));
+        }
+        assert_eq!(ctx.zoom_factor(), 1.5);
     }
 }
 

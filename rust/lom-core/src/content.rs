@@ -118,6 +118,77 @@ fn clamp(v: &Value, default: i64, lo: i64, hi: i64) -> i64 {
     };
     n.unwrap_or(default).clamp(lo, hi)
 }
+/// Percentages are author controlled; only reject values the game cannot represent.
+pub fn positive_scale(value: &Value, label: &str) -> Result<Value> {
+    if value.is_null() {
+        return Ok(json!(100));
+    }
+    let number = value
+        .as_f64()
+        .or_else(|| value.as_str()?.trim().parse().ok())
+        .with_context(|| format!("{label} 必须是正数百分比"))?;
+    ensure!(
+        number.is_finite() && number > 0.0 && (number as f32).is_finite() && (number as f32) > 0.0,
+        "{label} 必须是游戏可表示的正数百分比"
+    );
+    Ok(if value.is_number() {
+        value.clone()
+    } else {
+        json!(number)
+    })
+}
+/// Original-character additions stay in project assets, never in the preview cache.
+pub fn character_extensions(
+    assets: &std::collections::BTreeMap<String, Vec<u8>>,
+) -> Result<std::collections::BTreeMap<String, (String, Value)>> {
+    let mut extensions = std::collections::BTreeMap::new();
+    for (key, bytes) in assets {
+        if !key.starts_with("assets/user/character/") || !key.ends_with("/content.json") {
+            continue;
+        }
+        let raw: Value = serde_json::from_slice(bytes).with_context(|| key.clone())?;
+        if raw.get("extends").is_none_or(|v| v.is_null() || v == "") {
+            continue;
+        }
+        let meta = normalize_content_metadata(&raw).with_context(|| key.clone())?;
+        ensure!(
+            meta["type"] == "character",
+            "原版人物扩展必须是 character 类型"
+        );
+        let id = text(&meta, "id");
+        ensure!(
+            key == &format!("assets/user/character/{id}/content.json"),
+            "扩展素材 ID 与目录不一致：{key}"
+        );
+        let target = text(&meta, "extends").to_owned();
+        ensure!(
+            !extensions.contains_key(&target),
+            "原版人物 {target} 存在多份扩展，请合并到同一素材内"
+        );
+        extensions.insert(target, (key.clone(), meta));
+    }
+    Ok(extensions)
+}
+pub fn character_extensions_at(
+    root: &Path,
+) -> Result<std::collections::BTreeMap<String, (String, Value)>> {
+    let directory = root.join("assets/user/character");
+    let mut assets = std::collections::BTreeMap::new();
+    if directory.exists() {
+        for entry in std::fs::read_dir(directory)? {
+            let path = entry?.path().join("content.json");
+            if path.is_file() {
+                let path = crate::package::resolve_confined_file(root, &path)?;
+                let key = path
+                    .strip_prefix(root.canonicalize()?)?
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                assets.insert(key, std::fs::read(path)?);
+            }
+        }
+    }
+    character_extensions(&assets)
+}
 pub fn normalize_character_intro(raw: &Value) -> Result<Value> {
     if raw.is_null() {
         return Ok(Value::Null);
@@ -139,7 +210,7 @@ pub fn normalize_character_intro(raw: &Value) -> Result<Value> {
         "介绍卡 title 必须是字符串"
     );
     Ok(
-        json!({"title":text(raw,"title").trim(),"name":text(raw,"name").trim(),"text":text(raw,"text").trim(),"image":optional_image(&raw["image"],"intro.image")?,"image_scale":clamp(&raw["image_scale"],100,40,160),"image_x":clamp(&raw["image_x"],0,-30,30),"image_y":clamp(&raw["image_y"],0,-30,30)}),
+        json!({"title":text(raw,"title").trim(),"name":text(raw,"name").trim(),"text":text(raw,"text").trim(),"image":optional_image(&raw["image"],"intro.image")?,"image_scale":positive_scale(&raw["image_scale"],"intro.image_scale")?,"image_x":clamp(&raw["image_x"],0,-30,30),"image_y":clamp(&raw["image_y"],0,-30,30)}),
     )
 }
 pub fn normalize_content_metadata(data: &Value) -> Result<Value> {
@@ -197,6 +268,23 @@ pub fn normalize_content_metadata(data: &Value) -> Result<Value> {
         }
     }
     if kind == "character" {
+        let extends = data
+            .get("extends")
+            .map(|v| v.as_str().context("extends 必须是原版人物 ID"))
+            .transpose()?
+            .unwrap_or("")
+            .trim();
+        if !extends.is_empty() {
+            ensure!(
+                crate::validate::editor_data()["characters"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .any(|c| c["id"] == extends),
+                "找不到要扩展的原版人物：{extends}"
+            );
+            meta["extends"] = json!(extends);
+        }
         let mut portraits = if data["portraits"].is_null() {
             Map::new()
         } else {
@@ -210,13 +298,20 @@ pub fn normalize_content_metadata(data: &Value) -> Result<Value> {
             validate_portrait_id(k)?;
             *v = json!(safe_filename(v, &format!("portraits.{k}"), false)?);
         }
-        if !portraits.contains_key("normal") {
+        if extends.is_empty() && !portraits.contains_key("normal") {
             portraits.insert("normal".into(), json!(main));
         }
-        if portraits["normal"] != main && !portraits.values().any(|v| v == &main) {
+        if extends.is_empty()
+            && portraits["normal"] != main
+            && !portraits.values().any(|v| v == &main)
+        {
             portraits.insert("normal".into(), json!(main));
         }
         meta["portraits"] = Value::Object(portraits);
+        ensure!(
+            extends.is_empty() || !meta["portraits"].as_object().unwrap().is_empty(),
+            "原版人物扩展必须提供至少一个表情和图片"
+        );
         let intro = normalize_character_intro(&data["intro"])?;
         let title = if data["title"].is_null() {
             &intro["title"]
@@ -233,7 +328,7 @@ pub fn normalize_content_metadata(data: &Value) -> Result<Value> {
             ensure!(title.is_null(), "title（对话称号）必须是字符串");
         }
         meta["intro"] = intro;
-        meta["scale"] = json!(clamp(&data["scale"], 100, 50, 130));
+        meta["scale"] = positive_scale(&data["scale"], "scale")?;
         for (key, default) in [("mood_x", 50), ("mood_y", 90)] {
             if !data[key].is_null() {
                 meta[key] = json!(integer_default(data, key, default, 0, 100)?);
@@ -254,7 +349,7 @@ pub fn normalize_content_metadata(data: &Value) -> Result<Value> {
         );
         meta["art_facing"] = json!(facing);
         let idle = optional_image(&data["combat_idle"], "combat_idle")?
-            .unwrap_or_else(|| text(&meta["portraits"], "normal").into());
+            .unwrap_or_else(|| meta["portraits"]["normal"].as_str().unwrap_or(&main).into());
         meta["combat_idle"] = json!(idle);
         for k in &ANIMATIONS[1..] {
             meta[*k] = json!(optional_image(&data[*k], k)?.unwrap_or_else(|| idle.clone()));
@@ -666,6 +761,9 @@ pub fn content_metadata_payload(meta: &Value) -> Value {
         }
     }
     if meta["type"] == "character" {
+        if meta["extends"].is_string() {
+            p.insert("extends".into(), meta["extends"].clone());
+        }
         p.insert("portraits".into(), meta["portraits"].clone());
         let idle = &meta["combat_idle"];
         if !idle.is_null() && idle != &meta["portraits"]["normal"] {
@@ -811,12 +909,12 @@ mod tests {
     fn normalize_character_and_payload() {
         let m=normalize_content_metadata(&json!({"schema":1,"id":"test.person","type":"character","name":" 名字 ","files":{"main":"main.png"},"portraits":{"happy":"happy.png"},"scale":500,"intro":{"name":" 人物 ","text":" 介绍 ","image_scale":"130"}})).unwrap();
         assert_eq!(m["portraits"]["normal"], "main.png");
-        assert_eq!(m["scale"], 130);
+        assert_eq!(m["scale"], 500);
         assert_eq!(m["intro"]["name"], "人物");
         assert_eq!(m["combat_attack"], "main.png");
         let p = content_metadata_payload(&m);
         assert!(p.get("combat_attack").is_none());
-        assert_eq!(p["scale"], 130);
+        assert_eq!(p["scale"], 500);
     }
     #[test]
     fn rejects_unsafe_content() {

@@ -1,5 +1,13 @@
 # Gameplay API 实证矩阵
 
+## 2026-11-05 原版人物补绘与站位尺寸
+
+定向只读反编译当前 Windows 游戏的 `CharacterPlaceholder.LoadCharacterPortrait/GetPortrait`、`StoryCharacterController.LoadPortrait/LoadPortraitSync/GetPortraitName/AddPortraitObject`、`Fungus.Character.Portraits`、`PortraitController.SetupPortrait/CreatePortraitObject/SetRectTransform` 和 `PortraitState.SetPortraitImageBySprite`。新增补绘拦截原版表情加载与名字解析，将包内 Sprite 放进当前人物实例的 `Portraits` 与 `State.allPortraits`，保留官方表情键及原始配置；只给自建 Image 应用缩放，退出包时移除。没有修改 `StoryCharacterData` 或 Addressables 资产。
+
+使用现有 UnityPy 环境只读核对当前 `level2`，M/L1/R1 的站位矩形均为 1920×1080，pivot=(0.5,0)、anchor=(0.5,1)。原版按完整矩形配合 Image.preserveAspect 居中等比适配。自定义人物去除旧的 56% 屏高及槽位尺寸过滤，沿同一矩形适配，Canvas 尺寸变化后保留偏移重算。此为接口与资源依据，构建和离线测试不等于游戏实机验收。
+
+同日使用 Host 1.4.3 在实际游戏中定向检查，覆盖 3840×2160 与 1280×720：同一夏灵犀 PNG 在原版 L1 与用户人物 R1 的 100% 显示等高；新增 `special825/tired`、`sleep` 可切换，原版对白姓名保留，切回 `normal` 还原官方立绘。另完成用户人物 280.5%／25.5% 缩放、隐藏后重登，以及全屏切窗口后继续对白检查，结束后恢复原分辨率。这些为本轮实际观察，不扩展为全部人物、分辨率或第三方 MOD 组合的兼容结论。
+
 ## 1.4 开发：自定义玩法与独立存档入口
 
 2026-11-03 定向读取当前 Windows 安装的 `Mortal.Core.dll` 与 `Mortal.Combat.dll`，确认以下入口。这里只记录接口依据，游戏执行结果以本轮实际验证为准。

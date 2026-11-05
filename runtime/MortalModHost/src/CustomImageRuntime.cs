@@ -136,9 +136,17 @@ namespace MortalModHost
                 DestroyVisual();
         }
 
+        private static float PositiveScale(float percent)
+        {
+            if (float.IsNaN(percent) || float.IsInfinity(percent) || percent <= 0f)
+                throw new ArgumentOutOfRangeException("percent", "图片缩放必须是正有限数字");
+            return percent / 100f;
+        }
+
         public static bool ShowCg(
             string raw, float seconds, float scalePercent, float xPercent, float yPercent)
         {
+            float scale = PositiveScale(scalePercent);
             ContentRef parsed;
             string error;
             if (!ContentRef.TryParse(raw, out parsed, out error))
@@ -188,7 +196,6 @@ namespace MortalModHost
             rootRect.offsetMin = Vector2.zero;
             rootRect.offsetMax = Vector2.zero;
             rootRect.pivot = new Vector2(0.5f, 0.5f);
-            float scale = Mathf.Clamp(scalePercent, 10f, 300f) / 100f;
             rootRect.localScale = new Vector3(scale, scale, 1f);
             Rect parentRect = ((RectTransform)stage.PortraitCanvas.transform).rect;
             rootRect.anchoredPosition = new Vector2(
@@ -242,6 +249,7 @@ namespace MortalModHost
             string slot, string raw, string position, float scalePercent,
             float opacityPercent, string layer, float seconds)
         {
+            float scale = PositiveScale(scalePercent);
             if (string.IsNullOrEmpty(slot))
             {
                 Warn("插图槽位不能为空");
@@ -301,7 +309,6 @@ namespace MortalModHost
             rootRect.offsetMin = Vector2.zero;
             rootRect.offsetMax = Vector2.zero;
             rootRect.pivot = new Vector2(0.5f, 0.5f);
-            float scale = Mathf.Clamp(scalePercent, 10f, 300f) / 100f;
             rootRect.localScale = new Vector3(scale, scale, 1f);
             rootRect.anchoredPosition = OverlayPosition(position, ((RectTransform)stage.PortraitCanvas.transform).rect);
 
