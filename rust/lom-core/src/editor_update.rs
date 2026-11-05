@@ -43,9 +43,15 @@ fn check_path(path: &Path) -> Result<()> {
 }
 
 pub fn validate_install(root: &Path, files: &[String]) -> Result<()> {
+    // The editor itself identifies a repairable install. The other components
+    // may be missing after a partial overwrite and are supplied by the update.
+    // Keep accepting existing bundles whose editor executable was renamed.
     ensure!(
-        root.join("lomc.exe").is_file() && root.join("runtime/MortalModHost.dll").is_file(),
-        "请从完整 Windows 发布包运行编辑器后，再使用内置更新"
+        root.join("lom-editor.exe").is_file()
+            || (root.join("lomc.exe").is_file()
+                && root.join("runtime/MortalModHost.dll").is_file()),
+        "更新目录中找不到可识别的编辑器程序：{}\n请从解压后的编辑器文件夹运行。",
+        root.display()
     );
     for file in files {
         ensure!(owned_file(file), "拒绝更新非程序文件：{file}");
@@ -154,7 +160,10 @@ mod windows {
                 fs::OpenOptions::new()
                     .write(true)
                     .share_mode(0)
-                    .open(&target)?;
+                    .open(&target)
+                    .with_context(|| {
+                        format!("更新文件无法写入（可能被占用）：{}", target.display())
+                    })?;
             }
         }
         let mut files = job.files.clone();

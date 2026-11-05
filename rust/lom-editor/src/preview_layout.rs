@@ -224,19 +224,15 @@ fn apply_inner(story: &mut Value, selected: usize, change: &Change) -> Result<us
         let successor = nodes[parent]["goto"]
             .as_str()
             .filter(|id| !id.is_empty())
-            .map(str::to_owned)
-            .or_else(|| {
-                nodes
-                    .get(parent + 1)
-                    .and_then(|node| node["id"].as_str())
-                    .map(str::to_owned)
-            });
+            .map(str::to_owned);
         if let Some(successor) = successor {
             offset["goto"] = json!(successor);
+            // Explicit branches must pass through the new layout step.
+            story["nodes"][parent]["goto"] = json!(offset_id);
         }
         // Keep the layout on the branch which actually showed or moved the
-        // character. Other incoming edges at a later merge remain untouched.
-        story["nodes"][parent]["goto"] = json!(offset_id);
+        // character. Sequential steps keep their implicit continuation, so
+        // adding and deleting a layout does not introduce a permanent jump.
         story["nodes"]
             .as_array_mut()
             .unwrap()
@@ -369,7 +365,9 @@ mod tests {
         let selected = apply(&mut source, 1, &character(120.0)).unwrap();
         assert_eq!(selected, 2);
         assert_eq!(lom_core::analysis::successors(&source, 0), vec!["offset1"]);
-        assert_eq!(source["nodes"][1]["goto"], "say1");
+        assert_eq!(lom_core::analysis::successors(&source, 1), vec!["say1"]);
+        assert!(source["nodes"][0].get("goto").is_none());
+        assert!(source["nodes"][1].get("goto").is_none());
         assert_eq!(
             apply(&mut source, selected, &character(180.0)).unwrap(),
             selected

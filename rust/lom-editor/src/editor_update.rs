@@ -18,7 +18,6 @@ use std::{
 const RELEASES: &str = "https://github.com/mohui666/lom_modkit/releases";
 const LATEST: &str = "https://github.com/mohui666/lom_modkit/releases/latest/download/update.json";
 const MAX_DOWNLOAD: u64 = 128 * 1024 * 1024;
-#[cfg(any(windows, test))]
 use lom_core::editor_update::validate_install;
 use lom_core::editor_update::{owned_file, PROGRAM_FILES};
 
@@ -28,6 +27,7 @@ struct Release {
     notes: String,
     url: String,
     files: Vec<Download>,
+    repair_needed: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -41,6 +41,24 @@ struct Download {
 impl Release {
     fn can_update(&self) -> bool {
         self.files.len() == PROGRAM_FILES.len()
+    }
+
+    fn inspect_installation(&mut self, root: &Path) -> Result<()> {
+        self.repair_needed = false;
+        if self.version != env!("CARGO_PKG_VERSION") || !self.can_update() {
+            return Ok(());
+        }
+        let paths = self
+            .files
+            .iter()
+            .map(|file| file.path.clone())
+            .collect::<Vec<_>>();
+        validate_install(root, &paths)?;
+        self.repair_needed = self
+            .files
+            .iter()
+            .any(|file| verify_file(&root.join(&file.path), file).is_err());
+        Ok(())
     }
 }
 
@@ -97,6 +115,7 @@ fn parse_release(value: &Value) -> Result<Release> {
         notes: value["notes"].as_str().unwrap_or("").into(),
         url: release_url,
         files,
+        repair_needed: false,
     })
 }
 
@@ -250,11 +269,15 @@ impl Updater {
         self.cancel.store(false, Ordering::Relaxed);
         let cancel = self.cancel.clone();
         self.worker = Some(thread::spawn(move || {
-            let _ = tx.send(
-                check(&cancel)
-                    .map(Job::Checked)
-                    .map_err(|e| format!("{e:#}")),
-            );
+            let result = check(&cancel).and_then(|mut release| {
+                if cfg!(windows) {
+                    let exe = std::env::current_exe()?;
+                    release
+                        .inspect_installation(exe.parent().context("无法确定编辑器安装位置")?)?;
+                }
+                Ok(Job::Checked(release))
+            });
+            let _ = tx.send(result.map_err(|e| format!("{e:#}")));
             if !cancel.load(Ordering::Relaxed) {
                 ctx.request_repaint();
             }
@@ -310,6 +333,7 @@ impl Updater {
         match result {
             Ok(Job::Checked(release)) => {
                 self.open = !self.silent
+                    || release.repair_needed
                     || version(&release.version).ok() > version(env!("CARGO_PKG_VERSION")).ok();
                 self.release = Some(release);
             }
@@ -349,17 +373,21 @@ impl Updater {
                 if ui.button(tr("重新检查")).clicked() { self.check(ctx); }
             } else if let Some(release) = &self.release {
                 let newer = version(&release.version).ok() > version(env!("CARGO_PKG_VERSION")).ok();
-                if newer {
-                    ui.label(format!("{} v{}", tr("发现新版本"), release.version));
+                if newer || release.repair_needed {
+                    if release.repair_needed {
+                        ui.label(tr("检测到程序组件缺失或与当前版本不一致。"));
+                    } else {
+                        ui.label(format!("{} v{}", tr("发现新版本"), release.version));
+                    }
                     egui::ScrollArea::vertical().max_height(210.0).show(ui, |ui| { ui.label(&release.notes); });
                     ui.add_space(8.0);
-                    ui.label(tr("是否更新？安装完成后会自动重启编辑器，并重新打开当前项目。"));
+                    ui.label(tr(if release.repair_needed { "是否修复当前版本？完成后会自动重启编辑器，并重新打开当前项目。" } else { "是否更新？安装完成后会自动重启编辑器，并重新打开当前项目。" }));
                     ui.small(tr("项目、用户内容库和预览库会保留。游戏中的 Host 需在“游戏与 MOD”中另行更新。"));
                     ui.hyperlink_to(tr("查看完整更新说明"), &release.url);
                     if cfg!(windows) && release.can_update() {
                         offered = true;
                         crate::shell::dialog_buttons(ui, |ui| {
-                            update = ui.button(tr("更新并重启")).clicked();
+                            update = ui.button(tr(if release.repair_needed { "修复并重启" } else { "更新并重启" })).clicked();
                             close |= ui.button(tr("暂不更新")).clicked();
                         });
                     } else { ui.label(tr("此发布暂无适用的独立更新文件，请到发布页面查看。")); }
@@ -386,8 +414,8 @@ impl Updater {
         let job_path = prepared.workspace.path().join("install.json");
         let job = json!({"root":root,"stage":prepared.workspace.path(),"files":prepared.files,"parent_pid":std::process::id(),"project":project,"restart":true});
         fs::write(&job_path, serde_json::to_vec(&job)?)?;
-        let installer = prepared.workspace.path().join("installer.exe");
-        fs::copy(root.join("lomc.exe"), &installer).context("无法准备 Rust 更新助手")?;
+        // Use the downloaded, verified helper, never a missing or stale local CLI.
+        let installer = prepared.workspace.path().join("bundle/lomc.exe");
         Command::new(&installer)
             .arg("--apply-editor-update")
             .arg(&job_path)
@@ -458,14 +486,16 @@ mod tests {
     }
 
     #[test]
-    fn startup_check_is_silent_except_when_a_newer_release_exists() {
-        for (latest, opens) in [
-            ("0.1.0", false),
-            (env!("CARGO_PKG_VERSION"), false),
-            ("99.0.0", true),
+    fn startup_check_opens_only_for_updates_or_a_damaged_current_installation() {
+        for (latest, repair, opens) in [
+            ("0.1.0", false, false),
+            (env!("CARGO_PKG_VERSION"), false, false),
+            (env!("CARGO_PKG_VERSION"), true, true),
+            ("99.0.0", false, true),
         ] {
             let mut release = parse_release(&release()).unwrap();
             release.version = latest.into();
+            release.repair_needed = repair;
             let (tx, rx) = mpsc::channel();
             let mut updater = Updater::default();
             updater.silent = true;
@@ -571,13 +601,84 @@ mod tests {
     }
 
     #[test]
-    fn refuses_source_builds_and_non_program_install_paths() {
+    fn recognizes_partial_editor_installs_but_rejects_unknown_roots_and_user_files() {
         let temp = tempfile::tempdir().unwrap();
-        assert!(validate_install(temp.path(), &["lom-editor.exe".into()]).is_err());
-        fs::create_dir(temp.path().join("runtime")).unwrap();
-        fs::write(temp.path().join("lomc.exe"), b"fixture").unwrap();
-        fs::write(temp.path().join("runtime/MortalModHost.dll"), b"fixture").unwrap();
-        assert!(validate_install(temp.path(), &["assets/user/test.json".into()]).is_err());
+        let root = temp.path().canonicalize().unwrap();
+        assert!(validate_install(root.as_path(), &["lom-editor.exe".into()]).is_err());
+        fs::write(root.as_path().join("lom-editor.exe"), b"fixture").unwrap();
+        let files = PROGRAM_FILES
+            .iter()
+            .map(|(_, path)| path.to_string())
+            .collect::<Vec<_>>();
+        assert!(validate_install(root.as_path(), &files).is_ok());
+        assert!(validate_install(root.as_path(), &["assets/user/test.json".into()]).is_err());
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn damaged_current_version_offers_repair_instead_of_reporting_up_to_date() {
+        let mut release = parse_release(&release()).unwrap();
+        release.version = env!("CARGO_PKG_VERSION").into();
+        release.repair_needed = true;
+        let mut updater = Updater::default();
+        updater.release = Some(release);
+        let context = egui::Context::default();
+        context.enable_accesskit();
+        let output = context.run(Default::default(), |context| {
+            assert!(!updater.dialog(context));
+        });
+        let nodes = &output.platform_output.accesskit_update.unwrap().nodes;
+        assert!(nodes
+            .iter()
+            .any(|(_, node)| node.role() == egui::accesskit::Role::Button
+                && node.label() == Some(crate::i18n::tr("修复并重启").as_str())));
+        assert!(!nodes
+            .iter()
+            .any(|(_, node)| node.label() == Some(crate::i18n::tr("当前已是最新版本").as_str())));
+    }
+
+    #[test]
+    fn same_version_check_detects_missing_and_mixed_components_without_downgrading() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().canonicalize().unwrap();
+        let mut release = parse_release(&release()).unwrap();
+        release.version = env!("CARGO_PKG_VERSION").into();
+        for (index, file) in release.files.iter_mut().enumerate() {
+            let bytes = format!("current component {index}").into_bytes();
+            file.size = bytes.len() as u64;
+            file.digest = format!("{:x}", Sha256::digest(&bytes));
+            let path = root.as_path().join(&file.path);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, bytes).unwrap();
+        }
+        release.inspect_installation(root.as_path()).unwrap();
+        assert!(!release.repair_needed);
+        for path in [
+            "lomc.exe",
+            "runtime/MortalModHost.dll",
+            "runtime/NVorbis.dll",
+        ] {
+            let target = root.as_path().join(path);
+            let original = fs::read(&target).unwrap();
+            fs::remove_file(&target).unwrap();
+            release.inspect_installation(root.as_path()).unwrap();
+            assert!(release.repair_needed, "missing {path}");
+            fs::write(&target, vec![b'x'; original.len()]).unwrap();
+            release.inspect_installation(root.as_path()).unwrap();
+            assert!(release.repair_needed, "same-size stale {path}");
+            fs::write(&target, original).unwrap();
+            release.inspect_installation(root.as_path()).unwrap();
+            assert!(!release.repair_needed, "restored {path}");
+        }
+        fs::remove_file(root.as_path().join("lomc.exe")).unwrap();
+        release.inspect_installation(root.as_path()).unwrap();
+        assert!(release.repair_needed);
+        release.version = "0.1.0".into();
+        release.inspect_installation(root.as_path()).unwrap();
+        assert!(
+            !release.repair_needed,
+            "an older public release must not replace a newer editor"
+        );
     }
 
     #[test]
