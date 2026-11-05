@@ -1,6 +1,6 @@
 # Rust 受控编辑 API 与 CLI
 
-编辑器、脚本自动化和编译器共用 `lom-core`。旧 `import story_api` 已退役；自动化通过 Rust API 或 JSON 请求调用 `lomc`，不依赖 Python/Qt。字段定义见 `rust/lom-editor/data/authoring.json`，63 种节点默认值由 `lom-core` 内嵌。
+编辑器、脚本自动化和编译器共用 `lom-core`。旧 `import story_api` 已退役；自动化通过 Rust API 或 JSON 请求调用 `lomc`，不依赖 Python/Qt。字段定义见 `rust/lom-editor/data/authoring.json`，节点默认值由 `lom-core` 内嵌；当前节点范围与字段契约见 [作品格式参考](mod_format.md)。
 
 ## 构建及基础命令
 

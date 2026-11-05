@@ -1,5 +1,71 @@
 use super::*;
 
+fn adjustment_name(project: &Project, state: &Value, target: &LayoutTarget) -> Option<String> {
+    let (kind, id) = match target {
+        LayoutTarget::Character(cid) if state["actors"][cid].is_object() => ("人物", cid.as_str()),
+        LayoutTarget::Overlay(slot) if state["overlays"][slot].is_object() => {
+            ("插图", text(&state["overlays"][slot], "image"))
+        }
+        LayoutTarget::Cg if state["custom_cg"].is_object() => {
+            ("全屏图片", text(&state["custom_cg"], "image"))
+        }
+        _ => return None,
+    };
+    (!id.is_empty()).then(|| {
+        format!(
+            "{} · {}",
+            crate::i18n::tr(kind),
+            character_display_name(project, id)
+        )
+    })
+}
+
+fn badge_rect(stage: Rect, anchor: Pos2, size: Vec2) -> Rect {
+    let inset = 4.0_f32.min(stage.width() / 4.0).min(stage.height() / 4.0);
+    let safe = stage.shrink(inset);
+    let size = Vec2::new(size.x.min(safe.width()), size.y.min(safe.height()));
+    let above = anchor.y - size.y - 10.0;
+    let y = if above >= safe.top() {
+        above
+    } else {
+        anchor.y + 10.0
+    };
+    Rect::from_min_size(
+        Pos2::new(
+            (anchor.x + 8.0).clamp(safe.left(), (safe.right() - size.x).max(safe.left())),
+            y.clamp(safe.top(), (safe.bottom() - size.y).max(safe.top())),
+        ),
+        size,
+    )
+}
+
+pub(super) fn adjustment_badge(painter: &egui::Painter, stage: Rect, anchor: Pos2, label: &str) {
+    if !stage.is_positive() || !anchor.is_finite() || label.is_empty() {
+        return;
+    }
+    let padding = Vec2::new(7.0, 4.0);
+    let mut job = egui::text::LayoutJob::simple(
+        label.to_owned(),
+        FontId::proportional(12.0),
+        Color32::WHITE,
+        (stage.width() - 22.0).max(1.0),
+    );
+    job.wrap.max_rows = 1;
+    job.wrap.overflow_character = Some('…');
+    let painter = painter.with_clip_rect(painter.clip_rect().intersect(stage));
+    let galley = painter.layout_job(job);
+    let rect = badge_rect(stage, anchor, galley.size() + padding * 2.0);
+    painter.rect_filled(rect, 4.0, Color32::from_rgb(25, 105, 180));
+    painter.rect_stroke(
+        rect,
+        4.0,
+        Stroke::new(1.0_f32, Color32::from_rgb(180, 220, 255)),
+        egui::StrokeKind::Inside,
+    );
+    // Painting only: the nameplate never registers a hit target over the handles.
+    painter.galley(rect.min + padding, galley, Color32::WHITE);
+}
+
 #[derive(Clone)]
 pub(super) struct LayoutObject {
     pub target: LayoutTarget,
@@ -106,6 +172,8 @@ impl Preview {
             ui.checkbox(&mut self.layout_mode, crate::i18n::tr("调整画面"));
             if self.layout_mode {
                 egui::ComboBox::from_id_salt("layout-object")
+                    .width((ui.available_width() - 64.0).clamp(100.0, 260.0))
+                    .truncate()
                     .selected_text(
                         choices
                             .iter()
@@ -145,6 +213,31 @@ impl Preview {
             }
         });
         if self.layout_mode {
+            let name = self
+                .layout_selected
+                .as_ref()
+                .and_then(|target| adjustment_name(project, state, target));
+            egui::Frame::new()
+                .fill(if name.is_some() {
+                    Color32::from_rgb(25, 105, 180)
+                } else {
+                    Color32::from_rgb(90, 105, 120)
+                })
+                .corner_radius(4)
+                .inner_margin(egui::Margin::symmetric(9, 5))
+                .show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    let label = name
+                        .map(|name| format!("{}：{name}", crate::i18n::tr("正在调整")))
+                        .unwrap_or_else(|| crate::i18n::tr("尚未选择调整对象"));
+                    ui.add(
+                        egui::Label::new(
+                            egui::RichText::new(&label).strong().color(Color32::WHITE),
+                        )
+                        .truncate(),
+                    )
+                    .on_hover_text(label);
+                });
             ui.small(crate::i18n::tr(
                 "拖动人物或插图移动，拉动四角等比缩放；Esc 取消本次拖动。",
             ));
@@ -187,6 +280,8 @@ impl Preview {
         ui: &mut egui::Ui,
         stage: Rect,
         objects: &[LayoutObject],
+        project: &Project,
+        state: &Value,
     ) {
         if !self.layout_mode || !ui.is_enabled() {
             self.layout_drag = None;
@@ -297,6 +392,7 @@ impl Preview {
             } else {
                 self.layout_selected = None;
             }
+            ui.ctx().request_repaint();
         }
         if let Some(drag) = &mut self.layout_drag {
             let point = ui
@@ -327,6 +423,16 @@ impl Preview {
                 self.layout_drag = None;
             }
             ui.ctx().request_repaint();
+        }
+        if let Some((object, label)) = self.layout_selected.as_ref().and_then(|target| {
+            let object = objects.iter().find(|object| &object.target == target)?;
+            Some((object, adjustment_name(project, state, target)?))
+        }) {
+            let corners = object.corners();
+            let anchor = corners.iter().skip(1).fold(corners[0], |point, corner| {
+                Pos2::new(point.x.min(corner.x), point.y.min(corner.y))
+            });
+            adjustment_badge(&painter, stage, anchor, &label);
         }
     }
 
@@ -378,6 +484,71 @@ pub(super) fn opaque_bounds(image: &image::RgbaImage) -> Rect {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn adjustment_names_follow_the_selected_object_and_current_stage() {
+        let mut project = Project::new();
+        for (kind, id, name) in [
+            ("character", "test.actor", "测试人物"),
+            ("image", "test.first", "旧插图"),
+            ("image", "test.second", "新插图"),
+        ] {
+            project.assets.insert(
+                format!("assets/user/{kind}/{id}/content.json"),
+                serde_json::to_vec(&json!({"id":id,"type":kind,"name":name})).unwrap(),
+            );
+        }
+        let mut state = json!({
+            "actors":{"player":{},"user:test.actor":{}},
+            "overlays":{"main":{"image":"user:test.first"}},
+            "custom_cg":{"image":"user:test.second"}
+        });
+        let character = LayoutTarget::Character("user:test.actor".into());
+        let official = LayoutTarget::Character("player".into());
+        let overlay = LayoutTarget::Overlay("main".into());
+        assert!(adjustment_name(&project, &state, &character)
+            .unwrap()
+            .ends_with("测试人物"));
+        assert!(adjustment_name(&project, &state, &official)
+            .unwrap()
+            .ends_with(&character_display_name(&project, "player")));
+        assert!(adjustment_name(&project, &state, &overlay)
+            .unwrap()
+            .ends_with("旧插图"));
+        assert!(adjustment_name(&project, &state, &LayoutTarget::Cg)
+            .unwrap()
+            .ends_with("新插图"));
+        state["overlays"]["main"]["image"] = json!("user:test.second");
+        assert!(adjustment_name(&project, &state, &overlay)
+            .unwrap()
+            .ends_with("新插图"));
+        state["overlays"]["main"] = Value::Null;
+        state["actors"]["user:test.actor"] = Value::Null;
+        state["custom_cg"] = Value::Null;
+        for target in [&overlay, &character, &LayoutTarget::Cg] {
+            assert!(adjustment_name(&project, &state, target).is_none());
+        }
+    }
+
+    #[test]
+    fn adjustment_badges_remain_inside_the_stage_at_every_edge() {
+        for size in [Vec2::new(320.0, 180.0), Vec2::new(24.0, 16.0)] {
+            let stage = Rect::from_min_size(Pos2::new(31.5, 47.25), size);
+            for anchor in [
+                stage.left_top(),
+                stage.right_top(),
+                stage.right_bottom(),
+                stage.left_bottom(),
+                stage.center() - Vec2::splat(1000.0),
+                stage.center() + Vec2::splat(1000.0),
+            ] {
+                for label_size in [Vec2::new(100.0, 25.0), Vec2::new(1000.0, 80.0)] {
+                    let rect = badge_rect(stage, anchor, label_size);
+                    assert!(stage.contains_rect(rect), "{rect:?} outside {stage:?}");
+                }
+            }
+        }
+    }
 
     #[test]
     fn resized_actor_keeps_its_feet_and_image_keeps_its_opposite_corner() {

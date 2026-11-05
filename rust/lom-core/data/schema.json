@@ -739,7 +739,8 @@
         "character": "idstr",
         "icon": "mood_icon",
         "offset_x": "num",
-        "offset_y": "num"
+        "offset_y": "num",
+        "wait_after": "num"
       }
     },
     "use_item": {

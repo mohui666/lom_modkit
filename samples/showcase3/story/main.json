@@ -243,17 +243,14 @@
     {
       "id": "mood_on",
       "type": "mood",
-      "enabled": true
-    },
-    {
-      "id": "mood_pause",
-      "type": "wait",
-      "seconds": 1
+      "enabled": true,
+      "wait_after": 1
     },
     {
       "id": "mood_off",
       "type": "mood",
-      "enabled": false
+      "enabled": false,
+      "wait_after": 0.5
     },
     {
       "character": "artist1",
@@ -267,37 +264,31 @@
       "enabled": true,
       "icon": "shock",
       "id": "mood_extra_shock",
-      "type": "mood"
-    },
-    {
-      "id": "mood_extra_pause",
-      "seconds": 1,
-      "type": "wait"
+      "type": "mood",
+      "wait_after": 1
     },
     {
       "character": "artist1",
       "enabled": true,
       "icon": "laugh1",
       "id": "mood_extra_laugh",
-      "type": "mood"
-    },
-    {
-      "id": "mood_extra_pause2",
-      "seconds": 1,
-      "type": "wait"
+      "type": "mood",
+      "wait_after": 1.5
     },
     {
       "character": "artist1",
       "enabled": false,
       "id": "mood_extra_hide",
-      "type": "mood"
+      "type": "mood",
+      "wait_after": 0.75
     },
     {
       "character": "artist1",
       "enabled": true,
       "icon": "auto",
       "id": "mood_extra_auto",
-      "type": "mood"
+      "type": "mood",
+      "wait_after": 0.5
     },
     {
       "character": "artist1",
@@ -320,7 +311,8 @@
       "id": "mood_custom_music",
       "type": "mood",
       "offset_x": -60,
-      "offset_y": 140
+      "offset_y": 140,
+      "wait_after": 1
     },
     {
       "id": "mood_custom_line",

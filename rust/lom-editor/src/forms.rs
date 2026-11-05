@@ -650,6 +650,9 @@ impl Catalog {
         }
         if kind == "mood" {
             ui.small(tr("留空人物时控制全场自动气泡；指定人物后可单独选气泡，无需切换立绘。关闭全场会清除单人设置。"));
+            ui.small(tr(
+                "气泡执行后停留：显示、切换或隐藏后等待指定秒数，再执行下一步；默认 0 秒。",
+            ));
             if node["character"].is_string() && node["enabled"] == true {
                 ui.small(tr(
                     "可在画面预览中拖动气泡定位框。偏移按 1920×1080 参考像素计算，跟随人物朝向。",

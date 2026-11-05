@@ -30,6 +30,35 @@ def token(value):
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def portrait_canvas_image(sprite):
+    """Restore the logical Sprite rect after UnityPy decodes its trimmed image."""
+    from PIL import Image
+    from UnityPy.enums import ClassIDType
+
+    # Match UnityPy.export.SpriteHelper's choice of render data. Atlas offsets
+    # can differ from m_RD; image already includes UnityPy's packing rotation.
+    atlas = None
+    if sprite.m_SpriteAtlas:
+        atlas = sprite.m_SpriteAtlas.read()
+    elif sprite.m_AtlasTags:
+        for obj in sprite.assets_file.objects.values():
+            if obj.type == ClassIDType.SpriteAtlas:
+                atlas = obj.read()
+                if atlas.m_Name == sprite.m_AtlasTags[0]:
+                    break
+                atlas = None
+    data = (next(value for key, value in atlas.m_RenderDataMap if key == sprite.m_RenderDataKey)
+            if atlas else sprite.m_RD)
+    image = sprite.image.convert("RGBA")
+    width, height = round(sprite.m_Rect.width), round(sprite.m_Rect.height)
+    canvas = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    offset = data.textureRectOffset
+    # Unity uses a bottom-left offset; PIL's decoded image has a top-left origin.
+    # Paste without an alpha mask so partial transparency is not multiplied twice.
+    canvas.paste(image, (round(offset.x), height - round(offset.y) - image.height))
+    return canvas
+
+
 def extract(game, output, max_size):
     import UnityPy
     from PIL import Image
@@ -53,10 +82,10 @@ def extract(game, output, max_size):
     if not characters or not views:
         raise ValueError("没有读到人物或背景目录，当前游戏资源结构可能已改变；请更新提取工具")
 
-    # A single address is exported once; character aliases share its PNG.
+    # Character aliases share a PNG; other images retain their original crop.
     tasks = {}
     pictures = probe.picture_catalog(addresses)
-    mapping = {"characters": {}, "views": {}, "pictures": {}, "picture_catalog": pictures}
+    mapping = {"portrait_canvas": "sprite_rect", "characters": {}, "views": {}, "pictures": {}, "picture_catalog": pictures}
     failures = []
     for cid, character in characters.items():
         portraits = dict(character["portraits"])
@@ -66,15 +95,15 @@ def extract(game, output, max_size):
                                       "mood_position": character.get("mood", [0, 0])}
         for emotion, address in portraits.items():
             rel = "assets/portraits/" + token(address) + ".png"
-            tasks.setdefault(address, (rel, []))[1].append(("character", cid, emotion))
+            tasks.setdefault((address, True), (rel, []))[1].append(("character", cid, emotion))
     for key, view in views.items():
         address = view["address"]
         rel = "assets/views/" + token(address) + ".png"
-        tasks.setdefault(address, (rel, []))[1].append(("views", None, key))
+        tasks.setdefault((address, False), (rel, []))[1].append(("views", None, key))
     for picture in pictures:
         address = "pic_" + picture["key"]
         rel = "assets/pictures/" + token(address) + ".png"
-        tasks.setdefault(address, (rel, []))[1].append(("pictures", None, picture["key"]))
+        tasks.setdefault((address, False), (rel, []))[1].append(("pictures", None, picture["key"]))
 
     @lru_cache(maxsize=2)
     def load_bundle(name):
@@ -84,14 +113,15 @@ def extract(game, output, max_size):
         return UnityPy.load(str(path))
 
     succeeded = 0
-    for done, (address, (relative, targets)) in enumerate(tasks.items(), 1):
+    for done, ((address, portrait), (relative, targets)) in enumerate(tasks.items(), 1):
         try:
             bundle = addresses.get(address)
             if not bundle:
                 raise ValueError("游戏资源目录中没有对应的素材包")
             environment = load_bundle(bundle)
             internal = addresses.asset_paths.get(address, address)
-            image = probe.resolve_sprite(environment, internal).read().image
+            sprite = probe.resolve_sprite(environment, internal).read()
+            image = portrait_canvas_image(sprite) if portrait else sprite.image
             image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
             path = output / relative
             path.parent.mkdir(parents=True, exist_ok=True)

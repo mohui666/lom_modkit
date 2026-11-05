@@ -442,9 +442,8 @@ pub fn playback_duration(node: &Value) -> f64 {
             .max(0.1)
     } else {
         match text(node, "type") {
-            "show" | "portrait" | "hide" | "move" | "offset" | "rotate" | "wait" | "transition" => {
-                duration(node).max(0.1)
-            }
+            "show" | "portrait" | "hide" | "move" | "offset" | "rotate" | "wait" | "transition"
+            | "mood" => duration(node).max(0.1),
             _ => 1.8,
         }
     }
@@ -1032,6 +1031,19 @@ impl Preview {
         let (x, feet) = position(&self.positions, pos);
         (x as f32, feet as f32)
     }
+    fn portrait_canvas_notice(&mut self, ui: &mut egui::Ui) {
+        if self.mapping["portrait_canvas"] == "sprite_rect"
+            || !self.library.join("preview_map.json").is_file()
+        {
+            return;
+        }
+        ui.small(crate::i18n::tr(
+            "旧版预览素材可能丢失立绘透明边距，请重新提取以校正表情大小。",
+        ));
+        if ui.button(crate::i18n::tr("从游戏提取预览素材…")).clicked() {
+            self.extract_requested = true;
+        }
+    }
     pub fn show(
         &mut self,
         ui: &mut egui::Ui,
@@ -1054,6 +1066,31 @@ impl Preview {
         };
         self.layout_controls(ui, p, &state);
         self.apply_layout_draft(&mut state);
+        let mood_target = (node["type"] == "mood" && !self.layout_mode).then(|| {
+            if text(node, "character").is_empty() {
+                crate::i18n::tr("全场自动气泡")
+            } else {
+                format!(
+                    "{} · {}",
+                    character_display_name(p, text(node, "character")),
+                    crate::i18n::tr("表情气泡")
+                )
+            }
+        });
+        if let Some(label) = &mood_target {
+            ui.label(
+                egui::RichText::new(format!("{}：{label}", crate::i18n::tr("正在调整")))
+                    .strong()
+                    .color(Color32::from_rgb(25, 90, 145)),
+            );
+        }
+        if state["actors"].as_object().is_some_and(|actors| {
+            actors
+                .keys()
+                .any(|id| !id.starts_with("user:") && self.mapping["characters"][id].is_object())
+        }) {
+            self.portrait_canvas_notice(ui);
+        }
         if node["type"] == "use_item" {
             ui.small(crate::i18n::tr(
                 "消耗品使用效果仅在游戏内执行；此预览不改变背包或属性。",
@@ -1279,6 +1316,14 @@ impl Preview {
                                     Stroke::new(1.5_f32, Color32::from_rgb(45, 145, 220)),
                                     egui::StrokeKind::Outside,
                                 );
+                                if let Some(label) = &mood_target {
+                                    handles::adjustment_badge(
+                                        &painter,
+                                        rect,
+                                        handle.left_top(),
+                                        label,
+                                    );
+                                }
                                 ui.interact(
                                     handle.intersect(rect),
                                     ui.id().with(("mood-drag", cid)),
@@ -1745,7 +1790,7 @@ impl Preview {
                 .is_some_and(|images| !images.is_empty())
             && !matches!(text(node, "type"), "intro" | "endgame" | "death")
         {
-            self.layout_handles(ui, rect, &layout_objects);
+            self.layout_handles(ui, rect, &layout_objects, p, &state);
         } else {
             self.layout_drag = None;
         }
@@ -1810,6 +1855,9 @@ impl Preview {
                 "已有素材库：文件 → 选择预览素材库…，选择包含 preview_map.json 的文件夹。",
             ));
             return;
+        }
+        if !cid.starts_with("user:") {
+            self.portrait_canvas_notice(ui);
         }
         let (rect, _) = ui.allocate_exact_size(ui.available_size(), egui::Sense::hover());
         let painter = ui.painter().with_clip_rect(rect);
@@ -2105,6 +2153,45 @@ pub fn graph(
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn mood_sequence_uses_authored_holds_for_shows_and_hides() {
+        use super::*;
+        for character in ["player", "user:fixture.actor"] {
+            let story = json!({"start":"show","nodes":[
+                {"id":"show","type":"show","character":character},
+                {"id":"shock","type":"mood","character":character,"enabled":true,"icon":"shock","wait_after":0.8},
+                {"id":"sweat","type":"mood","character":character,"enabled":true,"icon":"nervous1","wait_after":1.2},
+                {"id":"hide","type":"mood","character":character,"enabled":false,"wait_after":0.25}
+            ]});
+            let before = story.clone();
+            for (index, seconds) in [(1, 0.8), (2, 1.2), (3, 0.25)] {
+                let node = &story["nodes"][index];
+                assert_eq!(playback_duration(node), seconds);
+                let state = simulate(&story, text(node, "id"));
+                assert_eq!(
+                    state["mood_overrides"][character]["enabled"],
+                    node["enabled"]
+                );
+                assert_eq!(
+                    visible_mood(&state, character, &state["actors"][character]),
+                    if node["enabled"] == true {
+                        node["icon"].as_str()
+                    } else {
+                        None
+                    }
+                );
+            }
+            assert_eq!(story, before);
+        }
+        assert_eq!(
+            playback_duration(&json!({"type":"mood","enabled":true})),
+            0.1
+        );
+        assert_eq!(
+            playback_duration(&json!({"type":"mood","enabled":false,"wait_after":0})),
+            0.1
+        );
+    }
     #[test]
     fn character_bubble_resume_follows_hide_restore_and_global_clear() {
         use super::*;
@@ -2483,6 +2570,79 @@ end
 #[cfg(test)]
 mod content_tests {
     use super::*;
+    #[test]
+    fn old_portrait_libraries_offer_reextraction_without_changing_the_project() {
+        let directory = tempfile::tempdir().unwrap();
+        std::fs::create_dir(directory.path().join("assets")).unwrap();
+        image::RgbaImage::from_pixel(80, 100, image::Rgba([255, 0, 0, 255]))
+            .save(directory.path().join("assets/normal.png"))
+            .unwrap();
+        let mapping = json!({"characters":{"fixture":{"first":"normal","portraits":{"normal":"assets/normal.png"}}},"views":{}});
+        std::fs::write(
+            directory.path().join("preview_map.json"),
+            serde_json::to_vec(&mapping).unwrap(),
+        )
+        .unwrap();
+        let project = Project::new();
+        let before = project.stories.clone();
+        let story = json!({"start":"show","nodes":[{"id":"show","type":"show","character":"fixture","portrait":"normal"}]});
+        let mut preview = Preview::new(Path::new("/not-a-repository"));
+        preview.set_library(directory.path()).unwrap();
+        let context = egui::Context::default();
+        context.enable_accesskit();
+        let draw = |preview: &mut Preview, events| {
+            context.run(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 500.0))),
+                    events,
+                    ..Default::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        preview.show(ui, &project, &story, 0, None);
+                    });
+                },
+            )
+        };
+        let output = draw(&mut preview, vec![]);
+        let nodes = output.platform_output.accesskit_update.unwrap().nodes;
+        assert!(nodes.iter().any(|(_, node)| node
+            .label()
+            .or_else(|| node.value())
+            .is_some_and(|label| label.contains("透明边距"))));
+        let button = nodes
+            .into_iter()
+            .find_map(|(id, node)| {
+                (node.role() == egui::accesskit::Role::Button
+                    && node.label() == Some(crate::i18n::tr("从游戏提取预览素材…").as_str()))
+                .then_some(id)
+            })
+            .unwrap();
+        draw(
+            &mut preview,
+            vec![egui::Event::AccessKitActionRequest(
+                egui::accesskit::ActionRequest {
+                    action: egui::accesskit::Action::Click,
+                    target: button,
+                    data: None,
+                },
+            )],
+        );
+        assert!(preview.extract_requested);
+        assert_eq!(project.stories, before);
+        preview.mapping["portrait_canvas"] = json!("sprite_rect");
+        let output = draw(&mut preview, vec![]);
+        assert!(!output
+            .platform_output
+            .accesskit_update
+            .unwrap()
+            .nodes
+            .iter()
+            .any(|(_, node)| node
+                .label()
+                .or_else(|| node.value())
+                .is_some_and(|label| label.contains("透明边距"))));
+    }
     #[test]
     fn portraits_reach_the_stage_bottom_and_keep_explicit_vertical_offsets() {
         let mut project = Project::new();

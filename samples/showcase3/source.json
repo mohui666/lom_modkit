@@ -262,17 +262,14 @@
         {
           "id": "mood_on",
           "type": "mood",
-          "enabled": true
-        },
-        {
-          "id": "mood_pause",
-          "type": "wait",
-          "seconds": 1
+          "enabled": true,
+          "wait_after": 1
         },
         {
           "id": "mood_off",
           "type": "mood",
-          "enabled": false
+          "enabled": false,
+          "wait_after": 0.5
         },
         {
           "id": "mood_extra_enter",
@@ -286,37 +283,31 @@
           "type": "mood",
           "character": "artist1",
           "enabled": true,
-          "icon": "shock"
-        },
-        {
-          "id": "mood_extra_pause",
-          "type": "wait",
-          "seconds": 1
+          "icon": "shock",
+          "wait_after": 1
         },
         {
           "id": "mood_extra_laugh",
           "type": "mood",
           "character": "artist1",
           "enabled": true,
-          "icon": "laugh1"
-        },
-        {
-          "id": "mood_extra_pause2",
-          "type": "wait",
-          "seconds": 1
+          "icon": "laugh1",
+          "wait_after": 1.5
         },
         {
           "id": "mood_extra_hide",
           "type": "mood",
           "character": "artist1",
-          "enabled": false
+          "enabled": false,
+          "wait_after": 0.75
         },
         {
           "id": "mood_extra_auto",
           "type": "mood",
           "character": "artist1",
           "enabled": true,
-          "icon": "auto"
+          "icon": "auto",
+          "wait_after": 0.5
         },
         {
           "id": "mood_extra_exit",
@@ -339,7 +330,8 @@
           "enabled": true,
           "icon": "laugh1",
           "offset_x": -60,
-          "offset_y": 140
+          "offset_y": 140,
+          "wait_after": 1
         },
         {
           "id": "mood_custom_line",

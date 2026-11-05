@@ -2,7 +2,7 @@
 
 Cargo workspace 由 `rust/lom-core`、`rust/lomc`、`rust/lom-editor` 组成，覆盖剧情编译、包读写和原生桌面编辑。C# `runtime/MortalModHost` 保留游戏接入；包、Story、用户内容版本仍为 **3 / 2 / 1**。
 
-2026-10-04 至 2026-10-05 已完成 Windows 工具端构建、自动化及新 exe 的具体 UI 路径验证；最终 Rust 完整回归为 **196 通过、0 失败、2 默认跳过**。范围、修复与限制见 [Windows 验证记录](windows_validation.md)，历史 Mac 结果见 [测试矩阵](test_matrix.md)。游戏实机未执行。
+历史记录：2026-10-04 至 2026-10-05 已完成 Windows 工具端构建、自动化及新 exe 的具体 UI 路径验证；该轮最终 Rust 完整回归为 **196 通过、0 失败、2 默认跳过**，未执行游戏实机。范围、修复与限制见 [Windows 验证记录](windows_validation.md)。当前验证入口见 [测试矩阵](test_matrix.md)，各版本结果从 [文档总目录](../README.md) 查询。
 
 ## 当前界面
 
@@ -40,7 +40,7 @@ Windows 构建入口为 `scripts/build-windows.ps1 -NoArchive`，需要已构建
 
 | 路径 | 职责 |
 | --- | --- |
-| `rust/lom-core` | 64 类节点校验与 Lua 生成、本地化、用户内容、v3 包校验、工程读写与迁移、离线分析、发布体检、水印、C# 宿主文件管理 |
+| `rust/lom-core` | 节点校验与 Lua 生成、本地化、用户内容、v3 包校验、工程读写与迁移、离线分析、发布体检、水印、C# 宿主文件管理 |
 | `rust/lomc` | 原生命令行与受控创作 API |
 | `rust/lom-editor` | egui 界面、字段表单、舞台／流程预览、编辑历史、草稿与恢复、按文件归属保存 |
 | `rust/lom-editor/src/macos_window.rs` | 标准 AppKit 窗口外观、现有系统应用菜单中的设置项与重绘通知 |

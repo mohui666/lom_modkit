@@ -1,5 +1,11 @@
 # Gameplay API 实证矩阵
 
+## 2026-11-05 立绘预览的透明画布
+
+只读核对当前安装游戏的 `UnityEngine.UI.Image.GetDrawingDimensions`：原版按 `activeSprite.rect` 计算比例，并通过 `DataUtility.GetPadding` 保留裁切留白。UnityPy 的 `Sprite.image` 返回已按纹理裁切并处理旋转的图，不能直接视为完整立绘画布。提取人物预览时采用实际 Atlas（指针或 tag）或 `m_RD` 的 `textureRectOffset`，把图放回 `m_Rect` 的透明画布后再缩略。
+
+本地读取 `special4`、`girl1` 的 normal/laugh1 四张当前 Sprite，在内存处理后，两组分别得到相同的缩略尺寸和透明边界：638×1024 / (91,375,637,1024)，764×1024 / (46,355,708,1024)。未导出原版图片、未启动游戏；此结果验证这两组素材的边距恢复，不代表用户尚未指明的具体人物已逐一验收。旧 PNG 没有原画布信息，需要重新提取；不对 normal 应用统一缩小倍率。
+
 ## 2026-11-05 预览拖拽布局的实例变换接口
 
 针对 Host 1.4.4 新布局字段，重新只读反编译当前 Windows 安装的 `CharacterPlaceholder.Get/MoveOffsetCoroutine`、`StoryCharacterController.MoveOffsetCoroutine`、`PortraitController.SetupPortrait/SetRectTransform/Show`、`PortraitState` 与 `PortraitOptions`。原版相对偏移累加 `State.holder.anchoredPosition`，完成后将 `State.position` 改为 holder；后续绝对偏移不能再把这个字段当作原始站位。Host 在 `SetupPortrait(PortraitOptions)` 记录实际目标槽位，新的 `mod_character_layout` 从该槽计算绝对位置或从当前位置累加，并以自有协程移动当前实例的 holder，完成后沿用 `State.position=holder` 语义。旧相对偏移仍调用原版 `MoveOffsetCoroutine`，不改变其行为。

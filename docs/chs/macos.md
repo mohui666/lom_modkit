@@ -8,7 +8,7 @@ Mac 版与 Windows 版共用 Story、编译器和 `.lommod` 格式，支持编�
 
 当前先提供 Rust 通用外壳：浅色界面、三栏布局和系统标准标题栏。窗口顶部显示作品名称及“活侠传剧情编辑器”；未保存时有 `*` 标记。标题只在内容变化时更新，避免重复刷新。
 
-早期 AppKit 玻璃叠层与当前 OpenGL 窗口发生冲突，导致标题栏异常或正文被遮挡，已移除。当前版本不提供液态玻璃；Mac 专用 Swift 外壳按计划留待后续实现。本次仅在 macOS 27 的 Apple Silicon 主机上验证，尚未验证旧系统或 Intel Mac。
+早期 AppKit 玻璃叠层与当前 OpenGL 窗口发生冲突，导致标题栏异常或正文被遮挡，已移除。当前版本不提供液态玻璃；Mac 专用 Swift 外壳按计划留待后续实现。macOS 27、Apple Silicon 的窗口验证属于历史构建记录，见 [迁移验收](rust_migration.md#历史实现验证2026-10-04apple-silicon-macos)；不作为 1.4.4 的 Mac GUI 验收，也未覆盖旧系统或 Intel Mac。
 
 编辑器偏好、自动恢复和用户内容保存在 `~/Library/Application Support/lom_modkit/`，应用程序目录不保存这些数据。
 
