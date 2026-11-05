@@ -171,7 +171,8 @@
     {
       "id": "focus1",
       "type": "focus",
-      "character": "user:showcase.lin_deng"
+      "character": "user:showcase.lin_deng",
+      "goto": "offset1"
     },
     {
       "id": "offset1",
@@ -181,7 +182,8 @@
       "y": -4,
       "duration": 0.25,
       "absolute": true,
-      "scale": 112.5
+      "scale": 112.5,
+      "goto": "shock1"
     },
     {
       "id": "shock1",

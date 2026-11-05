@@ -1139,17 +1139,21 @@ impl App {
             .iter()
             .filter_map(|i| old_nodes.get(*i)?.get("id")?.as_str().map(str::to_owned))
             .collect();
-        self.flush();
-        if let Some(story) = self.project.stories.get_mut(&self.current) {
-            let old_start = story["start"].as_str().unwrap_or("").to_owned();
-            if let Some(nodes) = story["nodes"].as_array_mut() {
-                nodes.retain(|n| !removed.contains(n["id"].as_str().unwrap_or("")));
-                if removed.contains(&old_start) {
-                    story["start"] = nodes.first().map(|n| n["id"].clone()).unwrap_or(json!(""));
-                }
-            }
-            repair_deleted_metadata(story, &old_ids, &removed);
+        let mut story = self.story();
+        story["nodes"]
+            .as_array_mut()
+            .unwrap()
+            .retain(|n| !removed.contains(n["id"].as_str().unwrap_or("")));
+        if let Err(error) = reconnect_deleted_offsets(&mut story, &old_nodes, &removed) {
+            self.error = Some(error.to_string());
+            return;
         }
+        if removed.contains(story["start"].as_str().unwrap_or("")) {
+            story["start"] = story["nodes"][0]["id"].clone();
+        }
+        repair_deleted_metadata(&mut story, &old_ids, &removed);
+        self.flush();
+        self.project.stories.insert(self.current.clone(), story);
         self.selected = self.selected.min(
             self.story()["nodes"]
                 .as_array()
@@ -4926,6 +4930,79 @@ fn windows_recovery_owner_active(pid: u32, session_created_ms: u128) -> bool {
         }
     }
 }
+fn reconnect_deleted_offsets(
+    story: &mut Value,
+    old_nodes: &[Value],
+    removed: &BTreeSet<String>,
+) -> anyhow::Result<()> {
+    let offsets: BTreeMap<_, _> = old_nodes
+        .iter()
+        .enumerate()
+        .filter(|(_, node)| node["type"] == "offset")
+        .filter_map(|(index, node)| {
+            let id = node["id"].as_str()?;
+            removed.contains(id).then_some((id.to_owned(), index))
+        })
+        .collect();
+    if offsets.is_empty() {
+        return Ok(());
+    }
+    let original = json!({"nodes": old_nodes});
+    let mut redirects = BTreeMap::new();
+    let mut terminal = BTreeSet::new();
+    for (id, &index) in &offsets {
+        let mut current = index;
+        let mut visited = BTreeSet::new();
+        while visited.insert(current) {
+            // Follow the original links, including non-adjacent targets and
+            // multi-deletions. Never pick an arbitrary arm of a deleted branch.
+            let next = lom_core::analysis::successors(&original, current);
+            let [next] = next.as_slice() else {
+                if next.is_empty() {
+                    terminal.insert(id.clone());
+                }
+                break;
+            };
+            let Some(index) = old_nodes.iter().position(|node| node["id"] == *next) else {
+                break;
+            };
+            if !removed.contains(next) {
+                redirects.insert(id.clone(), next.clone());
+                break;
+            }
+            current = index;
+        }
+    }
+    let forbidden: BTreeMap<_, _> = offsets
+        .keys()
+        .map(|id| (id.clone(), String::new()))
+        .collect();
+    let nodes = story["nodes"].as_array_mut().unwrap();
+    let last = nodes.len().saturating_sub(1);
+    for (index, node) in nodes.iter_mut().enumerate() {
+        retarget(node, &redirects);
+        // An automatically inserted final offset has no successor. Removing
+        // its final incoming jump restores the original end of the sequence.
+        if index == last
+            && node["goto"]
+                .as_str()
+                .is_some_and(|id| terminal.contains(id))
+        {
+            node.as_object_mut().unwrap().remove("goto");
+        }
+        let mut probe = node.clone();
+        retarget(&mut probe, &forbidden);
+        anyhow::ensure!(
+            probe == *node,
+            "步骤“{}”的位移后续不明确，请先修改跳转后再删除。",
+            node["id"].as_str().unwrap_or("")
+        );
+    }
+    if let Some(next) = story["start"].as_str().and_then(|id| redirects.get(id)) {
+        story["start"] = json!(next);
+    }
+    Ok(())
+}
 fn repair_deleted_metadata(story: &mut Value, old_ids: &[String], removed: &BTreeSet<String>) {
     fn repair(item: &mut Value, old_ids: &[String], removed: &BTreeSet<String>) -> bool {
         let start = old_ids
@@ -5542,6 +5619,17 @@ mod application_regression_tests {
             snapshot(&app.project) == moved_snapshot,
             "a new project cannot inherit a pending drag"
         );
+        app.selected = 1;
+        app.delete();
+        app.track();
+        let deleted = app.story();
+        assert_eq!(deleted["nodes"][0]["goto"], "line");
+        assert!(preview::route(&deleted, "line").is_some());
+        assert!(preview::route(&deleted, "end").is_some());
+        app.undo();
+        assert!(snapshot(&app.project) == moved_snapshot);
+        app.redo();
+        assert_eq!(app.story(), deleted);
     }
     #[test]
     fn editor_update_uses_the_existing_unsaved_project_decision() {
@@ -7218,6 +7306,193 @@ mod application_regression_tests {
         app.selected = 1;
         app.move_node(0);
         assert_eq!(app.story()["start"], first);
+    }
+    #[test]
+    fn deleting_dragged_offsets_preserves_branches_parallel_actions_and_nonadjacent_targets() {
+        for parallel in [false, true] {
+            let mut app = app();
+            let show = if parallel {
+                json!({"id":"a","type":"parallel","goto":"line","actions":[
+                    {"type":"show","character":"player","position":"L1"},
+                    {"type":"show","character":"girl1","position":"R1"}
+                ]})
+            } else {
+                json!({"id":"a","type":"show","character":"player","goto":"line"})
+            };
+            let original = json!({"story_schema":2,"id":"main","start":"choice","nodes":[
+                {"id":"choice","type":"choice","options":[{"goto":"a","text":"人物"},{"goto":"b","text":"其他分支"}]},
+                show,
+                {"id":"b","type":"wait","seconds":1,"goto":"line"},
+                {"id":"line","type":"say","mode":"narrative","text":"汇合对白"},
+                {"id":"end","type":"end"}
+            ]});
+            let mut story = original.clone();
+            let mut selected = if parallel { 1 } else { 3 };
+            for character in if parallel {
+                vec!["player", "girl1"]
+            } else {
+                vec!["player"]
+            } {
+                selected = crate::preview_layout::apply(
+                    &mut story,
+                    selected,
+                    &crate::preview_layout::Change {
+                        target: crate::preview_layout::Target::Character(character.into()),
+                        x: 120.0,
+                        y: 60.0,
+                        scale: 100.0,
+                        effect_scale: None,
+                    },
+                )
+                .unwrap();
+            }
+            app.project.stories.insert("main".into(), story);
+            app.multiselect = app.story()["nodes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .enumerate()
+                .filter_map(|(i, node)| (node["type"] == "offset").then_some(i))
+                .collect();
+            app.delete();
+            assert_eq!(app.story(), original);
+            assert!(preview::route(&app.story(), "end").is_some());
+        }
+    }
+    #[test]
+    fn deleting_offsets_reconnects_incoming_choice_dice_and_check_targets() {
+        let mut app = app();
+        let original = json!({"story_schema":2,"id":"main","start":"offset1","nodes":[
+            {"id":"choice","type":"choice","options":[{"text":"offset1","goto":"offset1"},{"text":"保留","goto":"end"}]},
+            {"id":"dice","type":"dice","options":[{"goto_大成功":"offset1","goto_成功":"offset1","goto_失败":"end"}]},
+            {"id":"check","type":"stat_check","success":"offset1","failure":"end"},
+            {"id":"offset1","type":"offset","character":"player","goto":"offset2"},
+            {"id":"offset2","type":"offset","character":"player"},
+            {"id":"line","type":"say","mode":"narrative","text":"offset1"},
+            {"id":"end","type":"end"}
+        ]});
+        app.project.stories.insert("main".into(), original.clone());
+        app.multiselect = BTreeSet::from([3, 4]);
+        app.delete();
+        let result = app.story();
+        assert_eq!(result["start"], "line");
+        assert_eq!(result["nodes"][0]["options"][0]["goto"], "line");
+        assert_eq!(result["nodes"][0]["options"][0]["text"], "offset1");
+        assert_eq!(
+            result["nodes"][0]["options"][1],
+            original["nodes"][0]["options"][1]
+        );
+        assert_eq!(result["nodes"][1]["options"][0]["goto_大成功"], "line");
+        assert_eq!(result["nodes"][1]["options"][0]["goto_成功"], "line");
+        assert_eq!(result["nodes"][1]["options"][0]["goto_失败"], "end");
+        assert_eq!(result["nodes"][2]["success"], "line");
+        assert_eq!(result["nodes"][2]["failure"], "end");
+        assert_eq!(result["nodes"][3]["text"], "offset1");
+    }
+    #[test]
+    fn deleting_a_final_drag_offset_restores_the_end_and_ambiguous_deletion_changes_nothing() {
+        let mut app = app();
+        let original = json!({"story_schema":2,"id":"main","start":"show","nodes":[
+            {"id":"show","type":"show","character":"player"}
+        ]});
+        let mut story = original.clone();
+        crate::preview_layout::apply(
+            &mut story,
+            0,
+            &crate::preview_layout::Change {
+                target: crate::preview_layout::Target::Character("player".into()),
+                x: 120.0,
+                y: 60.0,
+                scale: 100.0,
+                effect_scale: None,
+            },
+        )
+        .unwrap();
+        app.project.stories.insert("main".into(), story);
+        app.selected = 1;
+        app.delete();
+        assert_eq!(app.story(), original);
+
+        let ambiguous = json!({"story_schema":2,"id":"main","start":"show","nodes":[
+            {"id":"show","type":"show","character":"player","goto":"offset1"},
+            {"id":"offset1","type":"offset","character":"player","goto":"choice"},
+            {"id":"choice","type":"choice","options":[{"goto":"a"},{"goto":"b"}]},
+            {"id":"a","type":"end"}, {"id":"b","type":"end"}
+        ]});
+        app.project.stories.insert("main".into(), ambiguous.clone());
+        app.multiselect = BTreeSet::from([1, 2]);
+        app.delete();
+        assert_eq!(app.story(), ambiguous);
+        assert!(app.error.as_ref().unwrap().contains("位移后续不明确"));
+    }
+    #[test]
+    fn deleting_dragged_offsets_keeps_the_rest_of_the_chapter_reachable() {
+        for explicit in [false, true] {
+            let mut app = app();
+            let mut story = json!({"story_schema":2,"id":"main","start":"show","nodes":[
+                {"id":"show","type":"show","character":"player","position":"M","facing":"left"},
+                {"id":"line","type":"say","mode":"narrative","text":"对白"},
+                {"id":"bubble","type":"mood","character":"player","enabled":true,"icon":"laugh1"},
+                {"id":"end","type":"end"}
+            ]});
+            if explicit {
+                story["nodes"][0]["goto"] = json!("line");
+            }
+            app.project.stories.insert("main".into(), story.clone());
+            app.last = snapshot(&app.project);
+            let change = crate::preview_layout::Change {
+                target: crate::preview_layout::Target::Character("player".into()),
+                x: 120.0,
+                y: 60.0,
+                scale: 100.0,
+                effect_scale: None,
+            };
+            for _ in 0..2 {
+                crate::preview_layout::apply(
+                    app.project.stories.get_mut("main").unwrap(),
+                    1,
+                    &change,
+                )
+                .unwrap();
+                app.track();
+                app.flush();
+                let dragged = app.story();
+                assert_eq!(dragged["nodes"][1]["type"], "offset");
+                assert_eq!(
+                    preview::simulate(&dragged, "line")["actors"]["player"]["offset_x"],
+                    120.0
+                );
+                app.selected = 1;
+                app.delete();
+                app.track();
+                app.flush();
+                let deleted = app.story();
+                assert_eq!(deleted, story);
+                for id in ["line", "bubble", "end"] {
+                    assert!(preview::route(&deleted, id).is_some(), "{id}: {deleted}");
+                }
+                assert_eq!(
+                    deleted["nodes"].as_array().unwrap()[1..],
+                    story["nodes"].as_array().unwrap()[1..]
+                );
+                assert_eq!(
+                    preview::simulate(&deleted, "line")["actors"],
+                    preview::simulate(&story, "line")["actors"]
+                );
+                lom_core::validate::validate_story(&deleted).unwrap();
+                compile_with_assets(&app.project, &deleted).unwrap();
+                app.undo();
+                assert_eq!(app.story(), dragged);
+                app.redo();
+                assert_eq!(app.story(), deleted);
+            }
+            let root = tempfile::tempdir().unwrap();
+            let path = root.path().join("project");
+            app.project.save_to(&path).unwrap();
+            let reopened = Project::open(&path).unwrap();
+            assert_eq!(reopened.stories["main"], app.story());
+            assert!(preview::route(&reopened.stories["main"], "end").is_some());
+        }
     }
     #[test]
     fn deleting_nodes_repairs_sections_groups_and_localizations_without_rewriting_links() {
