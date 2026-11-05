@@ -1051,7 +1051,17 @@ impl Catalog {
                         ui.set_min_width(label_width);
                         ui.set_max_width(label_width);
                         ui.horizontal_wrapped(|ui| {
-                            ui.label(label);
+                            let response = ui.label(label);
+                            let hint = match (node["type"].as_str().unwrap_or(""), key) {
+                                ("offset", "absolute") => Some("启用后，横纵位置相对人物当前站位锚点；关闭时累加到当前位置。"),
+                                ("offset", "x" | "y") => Some("以 1920×1080 舞台为单位，向右和向上为正；支持小数。"),
+                                ("offset", "scale") => Some("100% 为素材默认体型，支持任意正数；留空保留当前缩放。"),
+                                ("overlay", "x" | "y") => Some("在九宫格位置上叠加舞台宽高的百分比，向右和向上为正，范围 −100～100。"),
+                                _ => None,
+                            };
+                            if let Some(hint) = hint {
+                                response.on_hover_text(tr(hint));
+                            }
                             if optional && !selector && kind != "bool" {
                                 if present {
                                     reset = ui

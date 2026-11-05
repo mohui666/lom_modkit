@@ -10,12 +10,18 @@
 
 | 版本 | 說明 |
 | --- | --- |
-| **目前原始碼：v1.4.3** | Rust 編輯器與編譯器，搭配 C# 遊戲宿主；維持 `.lommod` v3 格式。 |
-| **Windows 發行版：v1.4.3** | 原版人物追加立繪、自由縮放、完整遊玩包與視窗／DPI 適配。 |
+| **目前原始碼：v1.4.4** | Rust 編輯器與編譯器，搭配 C# 遊戲宿主；維持 `.lommod` v3 格式。 |
+| **Windows 發行版：v1.4.4** | 預覽拖曳與四角等比縮放，保留原版人物補繪、完整遊玩包及視窗／DPI 適配。 |
 
-[下載 v1.4.3（Windows x64）](https://github.com/mohui666/lom_modkit/releases/download/v1.4.3/lom_modkit-v1.4.3_windows_x64.zip) · [本版更新與驗證範圍（簡中）](RELEASE_NOTES_v1.4.3.md)
+[下載 v1.4.4（Windows x64）](https://github.com/mohui666/lom_modkit/releases/download/v1.4.4/lom_modkit-v1.4.4_windows_x64.zip) · [本版更新與驗證範圍（簡中）](RELEASE_NOTES_v1.4.4.md)
 
-完整解壓縮後執行 `lom_modkit/lom-editor.exe`。退出遊戲，在「遊戲與 MOD」更新遊戲 Host 至 1.4.3；新功能的相容性需求會在匯出時寫入作品包。
+完整解壓縮後執行 `lom_modkit/lom-editor.exe`。退出遊戲，在「遊戲與 MOD」更新遊戲 Host 至 1.4.4；新功能的相容性需求會在匯出時寫入作品包。
+
+## 1.4.4 新功能
+
+在畫面預覽先勾選「调整画面」，再拖曳人物或自訂插圖主體改位置，拉四角等比縮放。「复位」恢復預設佈局，`Esc` 取消尚未放開滑鼠的拖曳；支援復原／重做及儲存後重開。修改屬於本次演出，素材本身的預設大小保持原值，新增佈局需要 Host 1.4.4。
+
+包／劇情／內容格式維持 **3 / 2 / 1**；未填新欄位的既有步驟保留原有 Lua 呼叫。操作與實測範圍見上方本版說明。
 
 ## 1.4.3 新功能
 

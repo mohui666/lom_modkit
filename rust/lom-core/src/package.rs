@@ -961,21 +961,36 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
             n[key].as_f64().is_some_and(|v| v < low || v > high)
         })
     });
-    if new_portrait_layout || free_image_scale {
+    let stage_layout = stories.values().any(|story| {
+        crate::parallel::story_actions(story).any(|(_, node)| {
+            node["type"] == "offset"
+                && (node.get("absolute").is_some() || node.get("scale").is_some())
+                || node["type"] == "overlay"
+                    && node["action"] == "show"
+                    && (node.get("x").is_some() || node.get("y").is_some())
+        })
+    });
+    if new_portrait_layout || free_image_scale || stage_layout {
+        let (minimum, required) = if stage_layout {
+            ([1, 4, 4], "1.4.4")
+        } else {
+            ([1, 4, 3], "1.4.3")
+        };
         let version = manifest["min_host_version"].as_str().unwrap_or("0.0.0");
         let core: Vec<_> = version
             .split(['.', '-', '+'])
             .take(3)
             .map(|v| v.parse::<u32>().unwrap_or(0))
             .collect();
-        if core.as_slice() < [1, 4, 3].as_slice()
-            || core.as_slice() == [1, 4, 3].as_slice()
+        if core.as_slice() < minimum.as_slice()
+            || core.as_slice() == minimum.as_slice()
                 && version.split('+').next().unwrap_or(version).contains('-')
         {
-            manifest["min_host_version"] = json!("1.4.3");
+            manifest["min_host_version"] = json!(required);
         }
-        validate::validate_manifest(&manifest)
-            .context("人物立绘及自由缩放需要 Host 1.4.3，请核对最低和已测试 Host 版本")?;
+        validate::validate_manifest(&manifest).with_context(|| {
+            format!("人物与插图布局需要 Host {required}，请核对最低和已测试 Host 版本")
+        })?;
         entries.insert("manifest.json".into(), stable_json(&manifest)?);
     }
     write_package(entries, output.unwrap_or(&default))

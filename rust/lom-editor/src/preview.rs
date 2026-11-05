@@ -1,3 +1,4 @@
+use crate::preview_layout::{Change as LayoutChange, Target as LayoutTarget};
 use eframe::egui::{self, Color32, FontId, Pos2, Rect, Stroke, TextureHandle, Vec2};
 use lom_core::project::Project;
 use serde_json::{json, Value};
@@ -8,6 +9,9 @@ use std::{
 
 #[path = "flow_graph.rs"]
 mod flow_graph;
+#[path = "preview_handles.rs"]
+mod handles;
+use handles::{opaque_bounds, LayoutDrag, LayoutObject};
 
 pub fn edges(story: &Value) -> Vec<(String, String, String)> {
     let mut out = Vec::new();
@@ -159,7 +163,13 @@ pub fn build_playtest_prelude(story: &Value, target: &str) -> Vec<Value> {
     }
     for (slot, overlay) in state["overlays"].as_object().into_iter().flatten() {
         if !text(overlay, "image").is_empty() {
-            nodes.push(json!({"type":"overlay","action":"show","slot":slot,"image":overlay["image"],"position":overlay.get("position").cloned().unwrap_or(json!("center")),"scale":number(overlay,"scale",100.0),"opacity":number(overlay,"opacity",100.0),"layer":overlay.get("layer").cloned().unwrap_or(json!("front")),"fade":0}));
+            let mut node = json!({"type":"overlay","action":"show","slot":slot,"image":overlay["image"],"position":overlay.get("position").cloned().unwrap_or(json!("center")),"scale":number(overlay,"scale",100.0),"opacity":number(overlay,"opacity",100.0),"layer":overlay.get("layer").cloned().unwrap_or(json!("front")),"fade":0});
+            for field in ["x", "y"] {
+                if let Some(value) = overlay.get(field) {
+                    node[field] = value.clone();
+                }
+            }
+            nodes.push(node);
         }
     }
     let positions: Value = serde_json::from_str(include_str!("../../../data/stage_positions.json"))
@@ -175,6 +185,14 @@ pub fn build_playtest_prelude(story: &Value, target: &str) -> Vec<Value> {
             node["appearance"] = appearance.into();
         }
         nodes.push(node);
+        if actor["layout_active"] == true {
+            nodes.push(json!({"type":"offset","character":id,"x":number(actor,"offset_x",0.0),"y":number(actor,"offset_y",0.0),"absolute":true,"scale":number(actor,"layout_scale",100.0),"duration":0}));
+            if number(actor, "rotation", 0.0) != 0.0 {
+                nodes.push(
+                    json!({"type":"rotate","character":id,"angle":actor["rotation"],"duration":0}),
+                );
+            }
+        }
         if let Some(dimmed) = state["dimming"].get(id) {
             nodes.push(json!({"type":"dim","character":id,"dimmed":dimmed}));
         }
@@ -350,8 +368,27 @@ fn apply(s: &mut Value, n: &Value) {
                     "rotate" => a["rotation"] = n["angle"].clone(),
                     "dim" => a["dimmed"] = n["dimmed"].clone(),
                     "offset" => {
-                        a["offset_x"] = json!(number(a, "offset_x", 0.0) + number(n, "x", 0.0));
-                        a["offset_y"] = json!(number(a, "offset_y", 0.0) + number(n, "y", 0.0));
+                        if n.get("absolute").is_some() || n.get("scale").is_some() {
+                            a["layout_active"] = true.into();
+                        }
+                        let relative = n["absolute"] != true;
+                        a["offset_x"] = json!(
+                            if relative {
+                                number(a, "offset_x", 0.0)
+                            } else {
+                                0.0
+                            } + number(n, "x", 0.0)
+                        );
+                        a["offset_y"] = json!(
+                            if relative {
+                                number(a, "offset_y", 0.0)
+                            } else {
+                                0.0
+                            } + number(n, "y", 0.0)
+                        );
+                        if n["scale"].is_number() {
+                            a["layout_scale"] = n["scale"].clone();
+                        }
                     }
                     _ => {}
                 }
@@ -542,7 +579,9 @@ fn character_display_name(project: &Project, id: &str) -> String {
             let Ok(meta) = serde_json::from_slice::<Value>(bytes) else {
                 continue;
             };
-            if meta["type"] == "character" && meta["id"] == content_id {
+            if matches!(meta["type"].as_str(), Some("character" | "image"))
+                && meta["id"] == content_id
+            {
                 return meta["name"]
                     .as_str()
                     .filter(|name| !name.is_empty())
@@ -564,6 +603,7 @@ fn character_display_name(project: &Project, id: &str) -> String {
 
 struct Cached {
     texture: TextureHandle,
+    opaque: Rect,
     bytes: usize,
     touched: u64,
 }
@@ -577,6 +617,11 @@ pub struct Preview {
     pub extract_requested: bool,
     pub mood_edit: Option<(f64, f64)>,
     mood_drag: Option<(Pos2, f64, f64)>,
+    pub layout_mode: bool,
+    pub layout_edit: Option<LayoutChange>,
+    layout_selected: Option<LayoutTarget>,
+    layout_context: (String, String),
+    layout_drag: Option<LayoutDrag>,
 }
 impl Preview {
     pub fn new(_repo: &Path) -> Self {
@@ -611,6 +656,11 @@ impl Preview {
             extract_requested: false,
             mood_edit: None,
             mood_drag: None,
+            layout_mode: false,
+            layout_edit: None,
+            layout_selected: None,
+            layout_context: (String::new(), String::new()),
+            layout_drag: None,
         }
     }
     pub fn set_library(&mut self, path: &Path) -> anyhow::Result<()> {
@@ -754,6 +804,7 @@ impl Preview {
             .ok()?;
         let image = reader.decode().ok()?.thumbnail(1600, 1600).into_rgba8();
         let size = [image.width() as usize, image.height() as usize];
+        let opaque = opaque_bounds(&image);
         let cost = size[0] * size[1] * 4;
         while !self.cache.is_empty()
             && (self.cache.len() >= 60
@@ -776,6 +827,7 @@ impl Preview {
             key,
             Cached {
                 texture: texture.clone(),
+                opaque,
                 bytes: cost,
                 touched: self.tick,
             },
@@ -991,10 +1043,17 @@ impl Preview {
         let ctx = ui.ctx().clone();
         let node = &story["nodes"][index];
         let target = text(node, "id");
-        let state = match elapsed {
+        let context = (text(story, "id").to_owned(), target.to_owned());
+        if self.layout_context != context {
+            self.cancel_layout_drag();
+            self.layout_context = context;
+        }
+        let mut state = match elapsed.filter(|_| !self.layout_mode) {
             Some(elapsed) => simulate_frame(story, target, elapsed, &self.positions),
             None => simulate(story, target),
         };
+        self.layout_controls(ui, p, &state);
+        self.apply_layout_draft(&mut state);
         if node["type"] == "use_item" {
             ui.small(crate::i18n::tr(
                 "消耗品使用效果仅在游戏内执行；此预览不改变背包或属性。",
@@ -1055,6 +1114,7 @@ impl Preview {
                 Color32::from_rgb(109, 118, 113),
             );
         }
+        let mut layout_objects = Vec::new();
         for layer in ["back", "actors", "front"] {
             if layer == "actors" {
                 let mut actors: Vec<(&String, &Value)> = state["actors"]
@@ -1086,7 +1146,9 @@ impl Preview {
                     if let Some((tex, meta)) =
                         self.texture(&ctx, p, lookup, true, text(a, "portrait"))
                     {
-                        let body_scale = number(&meta, "scale", 100.0) as f32 / 100.0;
+                        let instance_scale = number(a, "layout_scale", 100.0) as f32 / 100.0;
+                        let body_scale =
+                            number(&meta, "scale", 100.0) as f32 / 100.0 * instance_scale;
                         let size = tex.size_vec2();
                         let factor =
                             (rect.width() / size.x).min(rect.height() / size.y) * body_scale;
@@ -1120,16 +1182,32 @@ impl Preview {
                             flipped,
                             color,
                         );
+                        if self.layout_mode {
+                            layout_objects.push(LayoutObject {
+                                target: LayoutTarget::Character(cid.clone()),
+                                bounds: self.opaque_rect(&tex, dest, flipped),
+                                pivot: base,
+                                angle: number(a, "rotation", 0.0) as f32,
+                                value: LayoutChange {
+                                    target: LayoutTarget::Character(cid.clone()),
+                                    x: number(a, "offset_x", 0.0),
+                                    y: number(a, "offset_y", 0.0),
+                                    scale: number(a, "layout_scale", 100.0),
+                                },
+                                units: Vec2::new(rect.width() / 1920.0, rect.height() / 1080.0),
+                            });
+                        }
                         let editing_mood = node["type"] == "mood"
                             && node["character"] == *cid
-                            && node["enabled"] == true;
+                            && node["enabled"] == true
+                            && !self.layout_mode;
                         let icon = visible_mood(&state, cid, a);
                         if icon.is_some() || editing_mood {
                             let unit = rect.height() / 1080.0
                                 * if cid.starts_with("user:") {
                                     body_scale
                                 } else {
-                                    1.0
+                                    instance_scale
                                 };
                             let sign = if flipped { -1.0 } else { 1.0 };
                             let anchor = if cid.starts_with("user:") {
@@ -1147,7 +1225,7 @@ impl Preview {
                                     base.x
                                         + sign * position[0].as_f64().unwrap_or(0.0) as f32 * unit,
                                     base.y
-                                        - rect.height() * 0.5
+                                        - rect.height() * instance_scale * 0.5
                                         - position[1].as_f64().unwrap_or(0.0) as f32 * unit,
                                 )
                             };
@@ -1278,16 +1356,34 @@ impl Preview {
                     }
                 }
             } else if let Some(overlays) = state["overlays"].as_object() {
-                for item in overlays
-                    .values()
-                    .filter(|n| n["layer"].as_str().unwrap_or("front") == layer)
+                for (slot, item) in overlays
+                    .iter()
+                    .filter(|(_, n)| n["layer"].as_str().unwrap_or("front") == layer)
                 {
-                    self.overlay(&ctx, &painter, p, item, rect);
+                    if let Some(object) = self.overlay(
+                        &ctx,
+                        &painter,
+                        p,
+                        item,
+                        rect,
+                        LayoutTarget::Overlay(slot.clone()),
+                    ) {
+                        layout_objects.push(object);
+                    }
                 }
             }
         }
         if state["custom_cg"].is_object() {
-            self.overlay(&ctx, &painter, p, &state["custom_cg"], rect);
+            if let Some(object) = self.overlay(
+                &ctx,
+                &painter,
+                p,
+                &state["custom_cg"],
+                rect,
+                LayoutTarget::Cg,
+            ) {
+                layout_objects.push(object);
+            }
         }
         for picture in state["official_pictures"]
             .as_object()
@@ -1616,7 +1712,10 @@ impl Preview {
         }
         let mut choice = None;
         let covered = number(&state["blackout"], "amount", 0.0);
-        if let Some(options) = state["choice"].as_array().filter(|_| covered == 0.0) {
+        if let Some(options) = state["choice"]
+            .as_array()
+            .filter(|_| covered == 0.0 && !self.layout_mode)
+        {
             for (i, item) in options.iter().enumerate() {
                 let button = Rect::from_min_size(
                     Pos2::new(
@@ -1639,6 +1738,16 @@ impl Preview {
                 0.0,
                 Color32::BLACK,
             );
+        }
+        if covered == 0.0
+            && !state["official_pictures"]
+                .as_object()
+                .is_some_and(|images| !images.is_empty())
+            && !matches!(text(node, "type"), "intro" | "endgame" | "death")
+        {
+            self.layout_handles(ui, rect, &layout_objects);
+        } else {
+            self.layout_drag = None;
         }
         painter.rect_stroke(
             rect,
@@ -1724,7 +1833,8 @@ impl Preview {
         p: &Project,
         n: &Value,
         rect: Rect,
-    ) {
+        target: LayoutTarget,
+    ) -> Option<LayoutObject> {
         if let Some((tex, _)) = self.texture(ctx, p, text(n, "image"), false, "") {
             let scale = number(n, "scale", 100.0) as f32 / 100.0;
             let aspect = tex.size_vec2();
@@ -1737,16 +1847,16 @@ impl Preview {
                 );
             let position = text(n, "position");
             if position.contains("left") {
-                center.x = rect.left() + size.x / 2.0;
+                center.x -= rect.width() * 0.32;
             }
             if position.contains("right") {
-                center.x = rect.right() - size.x / 2.0;
+                center.x += rect.width() * 0.32;
             }
             if position.contains("top") {
-                center.y = rect.top() + size.y / 2.0;
+                center.y -= rect.height() * 0.32;
             }
             if position.contains("bottom") {
-                center.y = rect.bottom() - size.y / 2.0;
+                center.y += rect.height() * 0.32;
             }
             painter.image(
                 tex.id(),
@@ -1756,7 +1866,21 @@ impl Preview {
                     (number(n, "opacity", 100.0) * 2.55).clamp(0.0, 255.0) as u8
                 ),
             );
+            return self.layout_mode.then(|| LayoutObject {
+                bounds: self.opaque_rect(&tex, Rect::from_center_size(center, size), false),
+                pivot: center,
+                angle: 0.0,
+                value: LayoutChange {
+                    target: target.clone(),
+                    x: number(n, "x", 0.0),
+                    y: number(n, "y", 0.0),
+                    scale: number(n, "scale", 100.0),
+                },
+                target,
+                units: Vec2::new(rect.width() / 100.0, rect.height() / 100.0),
+            });
         }
+        None
     }
 }
 fn uv() -> Rect {

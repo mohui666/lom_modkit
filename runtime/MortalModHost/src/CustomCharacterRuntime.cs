@@ -27,6 +27,7 @@ namespace MortalModHost
             public string Name;
             public string Title;
             public float BodyScale = 1f;
+            public float LayoutScale = 1f;
             public Vector2 CanvasSize;
             public string ArtFacing = "left";
             public string Portrait = "normal";
@@ -65,6 +66,7 @@ namespace MortalModHost
         {
             CharacterPresentation.NarrativeLeft(false);
             CharacterDimming.Clear();
+            CharacterLayoutRuntime.Clear();
             MoodControl.ClearOverrides();
             List<string> keys = new List<string>(Actors.Keys);
             for (int i = 0; i < keys.Count; i++)
@@ -124,6 +126,7 @@ namespace MortalModHost
             Actor actor;
             if (!TryGetOrCreate(raw, out actor))
                 return false;
+            actor.LayoutScale = 1f;
             if (!ApplyPortrait(actor, portrait))
                 return false;
             // A previous offset/move may still be yielding its final frame.
@@ -287,6 +290,34 @@ namespace MortalModHost
                 actor.MotionRoutine = _host.StartCoroutine(OffsetTo(actor, target, duration));
             else
                 actor.HolderRect.anchoredPosition = target;
+            return true;
+        }
+
+        internal static bool Layout(string raw, float x, float y, float scale, bool absolute, float duration)
+        {
+            Actor actor;
+            if (!Actors.TryGetValue(raw ?? "", out actor) || actor.HolderRect == null || !actor.Visible)
+                return false;
+            Vector2 target = actor.HolderRect.anchoredPosition + new Vector2(x, y);
+            if (absolute)
+            {
+                RectTransform slot = FindPosition(actor.Slot);
+                if (slot == null) throw new InvalidOperationException("找不到人物的原始站位：" + raw);
+                target = slot.anchoredPosition + new Vector2(x, y);
+            }
+            if (scale != -1f) actor.LayoutScale = scale / 100f;
+            ApplyFacing(actor, actor.Facing);
+            Vector2 delta = target - actor.HolderRect.anchoredPosition;
+            return Offset(raw, delta.x, delta.y, duration);
+        }
+
+        internal static bool ResetLayout(string raw)
+        {
+            Actor actor;
+            if (!Actors.TryGetValue(raw ?? "", out actor) || actor.HolderRect == null || !actor.Visible)
+                return false;
+            actor.LayoutScale = 1f;
+            ApplyFacing(actor, actor.Facing);
             return true;
         }
 
@@ -672,9 +703,7 @@ namespace MortalModHost
             bool wantLeft = actor.Facing == "left";
             bool artLeft = !string.Equals(actor.ArtFacing, "right", StringComparison.OrdinalIgnoreCase);
             float sx = wantLeft == artLeft ? 1f : -1f;
-            Vector3 scale = actor.HolderRect.localScale;
-            scale.x = sx * Mathf.Abs(scale.x < 0.001f ? 1f : scale.x);
-            actor.HolderRect.localScale = scale;
+            actor.HolderRect.localScale = new Vector3(sx * actor.LayoutScale, actor.LayoutScale, 1f);
         }
 
         private static void SetAlpha(Image image, float alpha)

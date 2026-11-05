@@ -73,7 +73,9 @@
       "scale": 34,
       "opacity": 88,
       "layer": "front",
-      "fade": 0.25
+      "fade": 0.25,
+      "x": -8,
+      "y": -3
     },
     {
       "id": "show1",
@@ -177,7 +179,9 @@
       "character": "player",
       "x": 12,
       "y": -4,
-      "duration": 0.25
+      "duration": 0.25,
+      "absolute": true,
+      "scale": 112.5
     },
     {
       "id": "shock1",

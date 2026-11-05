@@ -4,7 +4,7 @@
     "package_format": 3,
     "story_schema": 2,
     "content_schema": 1,
-    "min_host_version": "1.4.3",
+    "min_host_version": "1.4.4",
     "id": "showcase3",
     "campaign_id": "showcase3",
     "name": "全节点样例3.0·六十七节点实机验收",
@@ -92,7 +92,9 @@
           "scale": 34,
           "opacity": 88,
           "layer": "front",
-          "fade": 0.25
+          "fade": 0.25,
+          "x": -8,
+          "y": -3
         },
         {
           "id": "show1",
@@ -196,7 +198,9 @@
           "character": "player",
           "x": 12,
           "y": -4,
-          "duration": 0.25
+          "duration": 0.25,
+          "absolute": true,
+          "scale": 112.5
         },
         {
           "id": "shock1",

@@ -247,9 +247,12 @@ namespace MortalModHost
 
         public static bool ShowOverlay(
             string slot, string raw, string position, float scalePercent,
-            float opacityPercent, string layer, float seconds)
+            float opacityPercent, string layer, float seconds, float xPercent = 0f, float yPercent = 0f)
         {
             float scale = PositiveScale(scalePercent);
+            if (float.IsNaN(xPercent) || float.IsInfinity(xPercent) || Mathf.Abs(xPercent) > 100f
+                || float.IsNaN(yPercent) || float.IsInfinity(yPercent) || Mathf.Abs(yPercent) > 100f)
+                throw new ArgumentOutOfRangeException("position", "插图偏移必须在 -100%~100% 之间");
             if (string.IsNullOrEmpty(slot))
             {
                 Warn("插图槽位不能为空");
@@ -310,7 +313,9 @@ namespace MortalModHost
             rootRect.offsetMax = Vector2.zero;
             rootRect.pivot = new Vector2(0.5f, 0.5f);
             rootRect.localScale = new Vector3(scale, scale, 1f);
-            rootRect.anchoredPosition = OverlayPosition(position, ((RectTransform)stage.PortraitCanvas.transform).rect);
+            Rect parent = ((RectTransform)stage.PortraitCanvas.transform).rect;
+            rootRect.anchoredPosition = OverlayPosition(position, parent)
+                + new Vector2(parent.width * xPercent / 100f, parent.height * yPercent / 100f);
 
             GameObject imageObject = new GameObject(
                 "image", typeof(RectTransform), typeof(CanvasRenderer),

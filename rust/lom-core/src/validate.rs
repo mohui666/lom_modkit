@@ -1088,8 +1088,18 @@ fn extra(n: &Value, ntype: &str, catalog: &Value) -> Result<()> {
                 crate::content::positive_scale(&n["scale"], "scale")?;
             }
             range(n, "opacity", 0.0, 100.0)?;
+            range(n, "x", -100.0, 100.0)?;
+            range(n, "y", -100.0, 100.0)?;
             if s(n, "action") == "show" {
                 user_ref(&n["image"], "image")?;
+            }
+        }
+        "offset" => {
+            if has(n, "scale") {
+                crate::content::positive_scale(&n["scale"], "scale")?;
+            }
+            if has(n, "scale") || has(n, "absolute") {
+                range(n, "duration", 0.0, f64::INFINITY)?;
             }
         }
         "say" => {
