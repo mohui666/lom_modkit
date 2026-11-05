@@ -4,7 +4,7 @@
     "package_format": 3,
     "story_schema": 2,
     "content_schema": 1,
-    "min_host_version": "1.4.5",
+    "min_host_version": "1.4.6",
     "id": "showcase3",
     "campaign_id": "showcase3",
     "name": "全节点样例3.0·六十七节点实机验收",
@@ -141,7 +141,7 @@
         {
           "id": "say2",
           "type": "say",
-          "text": "我是用户角色林灯。这句对白同时播放用户语音；请检查对白栏中的玩家制作内容标识。来源编码水印是低透明度图像，不是重复的可读 MOD 文字。",
+          "text": "我是用户角色林灯。normal 与 happy 使用人物素材中保存的表情对齐配置，气泡沿用 normal 基准图锚点；可在作品素材中一键自动对齐后微调。这句同时播放用户语音，请检查对白栏中的玩家制作内容标识。",
           "character": "user:showcase.lin_deng",
           "portrait": "normal",
           "mode": "character",

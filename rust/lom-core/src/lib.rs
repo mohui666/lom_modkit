@@ -8,6 +8,7 @@ pub mod lua_import;
 pub mod migration;
 pub mod package;
 pub mod parallel;
+pub mod portrait_alignment;
 pub mod project;
 pub mod release;
 pub mod validate;

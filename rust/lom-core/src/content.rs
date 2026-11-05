@@ -308,6 +308,22 @@ pub fn normalize_content_metadata(data: &Value) -> Result<Value> {
             portraits.insert("normal".into(), json!(main));
         }
         meta["portraits"] = Value::Object(portraits);
+        if !data["portrait_layouts"].is_null() {
+            meta["portrait_layouts"] = crate::portrait_alignment::normalize(
+                &data["portrait_layouts"],
+                &meta["portraits"],
+            )?;
+        }
+        if !data["portrait_reference"].is_null() {
+            let reference = data["portrait_reference"]
+                .as_str()
+                .context("基准表情必须是表情 ID")?;
+            ensure!(
+                meta["portraits"].get(reference).is_some(),
+                "基准表情不存在：{reference}"
+            );
+            meta["portrait_reference"] = json!(reference);
+        }
         ensure!(
             extends.is_empty() || !meta["portraits"].as_object().unwrap().is_empty(),
             "原版人物扩展必须提供至少一个表情和图片"
@@ -790,6 +806,11 @@ pub fn content_metadata_payload(meta: &Value) -> Value {
         }
         if meta["intro"].is_object() {
             p.insert("intro".into(), meta["intro"].clone());
+        }
+        for key in ["portrait_layouts", "portrait_reference"] {
+            if !meta[key].is_null() {
+                p.insert(key.into(), meta[key].clone());
+            }
         }
     }
     if GAMEPLAY_TYPES.contains(&text(meta, "type")) {

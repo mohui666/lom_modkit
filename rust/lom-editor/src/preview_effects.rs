@@ -865,6 +865,7 @@ pub(super) fn paint(
                         x,
                         y,
                         scale: 100.0,
+                        effect_scale: None,
                     },
                     units: if item["space"] == "screen" {
                         Vec2::new(stage.width() / 100.0, -stage.height() / 100.0)

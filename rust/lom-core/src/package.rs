@@ -978,8 +978,25 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
                     .any(|key| node.get(*key).is_some())
         })
     });
-    if new_portrait_layout || free_image_scale || stage_layout || effect_controls {
-        let (minimum, required) = if effect_controls {
+    let portrait_calibration = entries.iter().any(|(key, bytes)| {
+        key.starts_with("assets/user/character/")
+            && key.ends_with("/content.json")
+            && serde_json::from_slice::<Value>(bytes).is_ok_and(|meta| {
+                meta.get("portrait_reference").is_some()
+                    || meta["portrait_layouts"]
+                        .as_object()
+                        .is_some_and(|v| !v.is_empty())
+            })
+    });
+    if new_portrait_layout
+        || free_image_scale
+        || stage_layout
+        || effect_controls
+        || portrait_calibration
+    {
+        let (minimum, required) = if portrait_calibration {
+            ([1, 4, 6], "1.4.6")
+        } else if effect_controls {
             ([1, 4, 5], "1.4.5")
         } else if stage_layout {
             ([1, 4, 4], "1.4.4")

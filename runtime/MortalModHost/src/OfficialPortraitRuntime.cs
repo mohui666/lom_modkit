@@ -101,12 +101,16 @@ namespace MortalModHost
             Actor actor;
             var controller = character as StoryCharacterController;
             if (controller == null || !Actors.TryGetValue(controller, out actor)) return;
-            float scale = actor.Content.Scale / 100f;
+            float bodyScale = actor.Content.Scale / 100f;
             bool artLeft = actor.Content.ArtFacing != "right";
             bool nativeLeft = character.PortraitsFace == FacingDirection.Left;
             foreach (Image image in character.State.allPortraits)
             {
                 if (image == null || !actor.Sprites.ContainsValue(image.sprite)) continue;
+                string key = null;
+                foreach (var portrait in actor.Sprites) if (portrait.Value == image.sprite) { key = portrait.Key; break; }
+                PortraitCalibration calibration = actor.Content.PortraitLayout(key);
+                float scale = bodyScale * calibration.Scale / 100f;
                 RectTransform rect = image.rectTransform;
                 rect.anchorMin = Vector2.zero;
                 rect.anchorMax = Vector2.one;
@@ -115,7 +119,9 @@ namespace MortalModHost
                 float height = character.State.holder != null ? character.State.holder.rect.height : 1080f;
                 // Keep native centre-contain for wide images, while the scaled
                 // full slot still grows upward from the actor's foot pivot.
-                rect.anchoredPosition = new Vector2(0f, height * (scale - 1f) * 0.5f);
+                float width = character.State.holder != null ? character.State.holder.rect.width : 1920f;
+                rect.anchoredPosition = new Vector2((artLeft == nativeLeft ? 1f : -1f) * width * calibration.X / 1920f * bodyScale,
+                    height * ((scale - 1f) * 0.5f + calibration.Y / 1080f * bodyScale));
                 rect.localScale = new Vector3(artLeft == nativeLeft ? scale : -scale, scale, 1f);
                 image.raycastTarget = false;
             }

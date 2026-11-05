@@ -1,4 +1,7 @@
 use super::*;
+#[path = "preview_alignment.rs"]
+mod alignment;
+pub(super) use alignment::{Clipboard as LayoutClipboard, Command as LayoutCommand};
 
 fn adjustment_name(project: &Project, state: &Value, target: &LayoutTarget) -> Option<String> {
     if matches!(target, LayoutTarget::Effect { .. }) {
@@ -6,6 +9,7 @@ fn adjustment_name(project: &Project, state: &Value, target: &LayoutTarget) -> O
     }
     let (kind, id) = match target {
         LayoutTarget::Character(cid) if state["actors"][cid].is_object() => ("人物", cid.as_str()),
+        LayoutTarget::Mood(cid) if state["actors"][cid].is_object() => ("表情气泡", cid.as_str()),
         LayoutTarget::Overlay(slot) if state["overlays"][slot].is_object() => {
             ("插图", text(&state["overlays"][slot], "image"))
         }
@@ -121,7 +125,12 @@ impl LayoutDrag {
                 (self.object.pivot - anchor) * (factor - 1.0)
             }
         } else {
-            point - self.origin
+            let delta = point - self.origin;
+            if matches!(change.target, LayoutTarget::Mood(_)) {
+                egui::emath::Rot2::from_angle(-self.object.angle.to_radians()) * delta
+            } else {
+                delta
+            }
         };
         change.x += (delta.x / self.object.units.x) as f64;
         change.y -= (delta.y / self.object.units.y) as f64;
@@ -155,6 +164,18 @@ impl Preview {
                     character_display_name(project, text(image, "image"))
                 ),
             ));
+        }
+        for (cid, setting) in state["mood_overrides"].as_object().into_iter().flatten() {
+            if setting["enabled"] == true && state["actors"][cid].is_object() {
+                choices.push((
+                    LayoutTarget::Mood(cid.clone()),
+                    format!(
+                        "{} · {}",
+                        crate::i18n::tr("表情气泡"),
+                        character_display_name(project, cid)
+                    ),
+                ));
+            }
         }
         if state["custom_cg"].is_object() {
             choices.push((
@@ -223,6 +244,8 @@ impl Preview {
                     egui::Button::new(crate::i18n::tr(
                         if matches!(self.layout_selected, Some(LayoutTarget::Effect { .. })) {
                             "位置归中"
+                        } else if matches!(self.layout_selected, Some(LayoutTarget::Mood(_))) {
+                            "气泡归位"
                         } else {
                             "复位"
                         },
@@ -249,6 +272,7 @@ impl Preview {
                             x: center,
                             y: center,
                             scale: 100.0,
+                            effect_scale: None,
                         }
                     });
                     self.layout_drag = None;
@@ -284,6 +308,7 @@ impl Preview {
             ui.small(crate::i18n::tr(
                 "拖动人物、插图或特效移动，拉动四角等比缩放；Esc 取消本次拖动。",
             ));
+            self.alignment_toolbar(ui, state);
         } else {
             self.layout_drag = None;
         }
@@ -308,12 +333,20 @@ impl Preview {
                     state["custom_cg"]["y"] = json!(change.y);
                     state["custom_cg"]["scale"] = json!(change.scale);
                 }
+                LayoutTarget::Mood(cid) if state["mood_overrides"][cid].is_object() => {
+                    state["mood_overrides"][cid]["offset_x"] = json!(change.x);
+                    state["mood_overrides"][cid]["offset_y"] = json!(change.y);
+                }
                 LayoutTarget::Effect { .. } => {
                     if let Some(item) = effects::item_mut(state, &change.target) {
                         item["x"] = json!(change.x);
                         item["y"] = json!(change.y);
-                        item["a"] = json!(number(item, "a", 1.0) * change.scale / 100.0);
-                        item["b"] = json!(number(item, "b", 1.0) * change.scale / 100.0);
+                        let [a, b] = change.effect_scale.unwrap_or([
+                            number(item, "a", 1.0) * change.scale / 100.0,
+                            number(item, "b", 1.0) * change.scale / 100.0,
+                        ]);
+                        item["a"] = json!(a);
+                        item["b"] = json!(b);
                     }
                 }
                 _ => (),
@@ -324,6 +357,7 @@ impl Preview {
     pub fn cancel_layout_drag(&mut self) {
         self.layout_drag = None;
         self.layout_edit = None;
+        self.layout_command = None;
     }
 
     pub(super) fn layout_handles(
@@ -339,6 +373,7 @@ impl Preview {
             return;
         }
         let painter = ui.painter().with_clip_rect(stage);
+        let stage_response = ui.interact(stage, ui.id().with("layout-stage"), egui::Sense::click());
         let selected = objects
             .iter()
             .find(|object| Some(&object.target) == self.layout_selected.as_ref());
@@ -349,7 +384,11 @@ impl Preview {
                 corners.to_vec(),
                 Stroke::new(1.5_f32, Color32::from_rgb(25, 130, 220)),
             ));
-            for (index, corner) in corners.iter().enumerate() {
+            for (index, corner) in corners
+                .iter()
+                .enumerate()
+                .filter(|_| !matches!(object.target, LayoutTarget::Mood(_)))
+            {
                 if !corner.is_finite() {
                     continue;
                 }
@@ -437,6 +476,7 @@ impl Preview {
                 objects.iter().rev().find(|object| object.contains(origin))
             };
             if let Some(object) = object {
+                stage_response.request_focus();
                 self.layout_selected = Some(object.target.clone());
                 self.layout_drag = Some(LayoutDrag {
                     object: object.clone(),
@@ -454,6 +494,13 @@ impl Preview {
                 .input(|input| input.pointer.latest_pos())
                 .unwrap_or(drag.origin);
             drag.next = drag.at(point);
+            if self.layout_snap
+                && !ui.input(|input| input.modifiers.alt)
+                && drag.resize_anchor.is_none()
+                && point.distance(drag.origin) > 0.5
+            {
+                alignment::snap(drag, stage, &painter);
+            }
             let released = ui.input(|input| {
                 input.events.iter().any(|event| {
                     matches!(
@@ -478,6 +525,9 @@ impl Preview {
                 self.layout_drag = None;
             }
             ui.ctx().request_repaint();
+        }
+        if self.layout_drag.is_none() {
+            self.alignment_actions(ui, stage, objects, state, &stage_response);
         }
         if let Some((object, label)) = self.layout_selected.as_ref().and_then(|target| {
             let object = objects.iter().find(|object| &object.target == target)?;
@@ -617,6 +667,7 @@ mod tests {
                 x: 12.5,
                 y: -20.0,
                 scale: 100.0,
+                effect_scale: None,
             },
             units: Vec2::splat(10.0),
         };
@@ -638,6 +689,7 @@ mod tests {
             x: 0.0,
             y: 0.0,
             scale: 100.0,
+            effect_scale: None,
         };
         image.pivot = Pos2::new(100.0, 100.0);
         image.angle = 0.0;
@@ -674,6 +726,7 @@ mod tests {
                 x: 50.0,
                 y: 50.0,
                 scale: 100.0,
+                effect_scale: None,
             },
             units: Vec2::new(10.0, -10.0),
         };

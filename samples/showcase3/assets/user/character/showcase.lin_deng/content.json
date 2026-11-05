@@ -12,6 +12,11 @@
   },
   "scale": 82,
   "art_facing": "left",
+  "portrait_reference": "normal",
+  "portrait_layouts": {
+    "normal": {"x": -27.0703125, "y": -12.65625, "scale": 100},
+    "happy": {"x": -37.6171875, "y": -15.46875, "scale": 100}
+  },
   "mood_x": 35,
   "mood_y": 88
 }

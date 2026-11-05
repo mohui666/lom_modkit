@@ -3,6 +3,8 @@ use eframe::egui;
 use lom_core::{content_edit, editing, project::Project};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
+#[path = "content_alignment.rs"]
+mod alignment;
 #[derive(Default)]
 pub struct ContentPanel {
     key: String,
@@ -18,6 +20,9 @@ pub struct ContentPanel {
     animation_frame: Option<usize>,
     animation_playing: bool,
     animation_started: f64,
+    alignment_mood: bool,
+    alignment_dragging: bool,
+    alignment_textures: BTreeMap<String, (egui::TextureHandle, [u32; 2])>,
 }
 impl ContentPanel {
     #[cfg(test)]
@@ -35,6 +40,9 @@ impl ContentPanel {
         !self.key.is_empty() && (self.draft != self.baseline || !self.files.is_empty())
     }
     pub fn reset(&mut self) {
+        self.alignment_textures.clear();
+        self.alignment_mood = false;
+        self.alignment_dragging = false;
         self.key.clear();
         self.files.clear();
         self.preview = None;
@@ -103,6 +111,7 @@ impl ContentPanel {
             self.baseline = self.draft.clone();
             self.files.clear();
             self.preview = None;
+            self.alignment_textures.clear();
             self.animation_frame = None;
             self.animation_playing = false;
             self.message.clear();
@@ -116,6 +125,7 @@ impl ContentPanel {
         selection: &mut String,
     ) -> bool {
         let mut changed = self.select(project, selection);
+        self.alignment_dragging = false;
         let key = self.key.clone();
         let key = key.as_str();
         if key.is_empty() || !project.assets.contains_key(key) {
@@ -173,6 +183,11 @@ impl ContentPanel {
                 ("mood_x", "气泡横向位置（%）", "int"),
                 ("mood_y", "气泡高度（%）", "int"),
             ] {
+                if matches!(key, "mood_x" | "mood_y")
+                    && !self.draft["extends"].as_str().unwrap_or("").is_empty()
+                {
+                    continue;
+                }
                 catalog.field(ui, &mut self.draft, key, label, field_kind, false, &[], &[]);
             }
             if self.draft["intro"].is_object() {
@@ -340,9 +355,13 @@ impl ContentPanel {
                     .unwrap_or_else(|e| e.to_string());
             }
         }
+        if kind == "character" {
+            self.alignment_controls(ui, project, key);
+        }
         // Keep in-progress typing intact (including spaces). Leaving the input,
         // choosing a file, switching resources, or saving commits the draft.
-        if !ui.ctx().wants_keyboard_input() || !self.files.is_empty() {
+        if !self.alignment_dragging && (!ui.ctx().wants_keyboard_input() || !self.files.is_empty())
+        {
             match self.apply_pending(project) {
                 Ok(applied) => changed |= applied,
                 Err(error) => self.message = format!("修改尚未完成：{error}"),
