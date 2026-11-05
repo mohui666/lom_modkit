@@ -12,7 +12,8 @@ namespace MortalModHost
         public string Type;
         public string Name;
         public string Title;
-        public int Scale = 100;
+        public float Scale = 100f;
+        public string Extends;
         public string ArtFacing;
         public int MoodX = 50;
         public int MoodY = 90;

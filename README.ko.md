@@ -10,12 +10,21 @@
 
 | 버전 | 설명 |
 | --- | --- |
-| **현재 소스: v1.3.1** | 편집기와 컴파일러를 Rust로 전환했습니다. C# 게임 호스트와 `.lommod` v3 형식은 유지합니다. |
-| **Windows 릴리스: v1.3.1** | 두 가지 제작 모드, 이벤트·퀘스트 설정, UI 개선과 Steam 게임 폴더 자동 찾기를 추가했습니다. |
+| **현재 소스: v1.4.3** | Rust 편집기·컴파일러와 C# 게임 호스트를 사용하며 `.lommod` v3 형식을 유지합니다. |
+| **Windows 릴리스: v1.4.3** | 원작 인물 일러스트 추가, 자유로운 이미지 배율, 플레이용 ZIP, 창 크기·DPI 대응을 지원합니다. |
 
-[v1.3.1 다운로드(Windows)](https://github.com/mohui666/lom_modkit/releases/download/v1.3.1/lom_modkit-v1.3.1_windows_x64.zip) · [v1.3.1 Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.1)
+[v1.4.3 다운로드(Windows x64)](https://github.com/mohui666/lom_modkit/releases/download/v1.4.3/lom_modkit-v1.4.3_windows_x64.zip) · [업데이트 내용 및 검증 범위(중국어 간체)](RELEASE_NOTES_v1.4.3.md)
 
-ZIP 전체를 압축 해제하고 `lom_modkit/lom-editor.exe`를 실행하세요. 로더와 C# 호스트 업데이트 방법 및 테스트 범위는 [x64 검증 기록(중국어 간체)](docs/chs/x64_validation.md)을 참고하세요.
+ZIP 전체를 압축 해제하고 `lom_modkit/lom-editor.exe`를 실행하세요. 게임을 종료한 뒤 ‘게임 및 MOD’에서 게임에 설치된 Host를 1.4.3으로 업데이트하세요. 새 기능에 필요한 최소 Host 버전은 작품을 내보낼 때 자동으로 기록됩니다.
+
+## 1.4.3의 새 기능
+
+- 원작 인물의 ID·이름·기존 표정을 유지하면서 `tired`, `sleep` 등의 표정을 추가하거나 지정한 일러스트를 교체할 수 있습니다. 리소스 화면에서 표정을 선택하고 해당 이미지를 미리 볼 수 있습니다.
+- 인물, CG, 오버레이 이미지, 소개 카드 이미지의 배율을 게임에서 표현할 수 있는 임의의 양수 백분율로 지정할 수 있습니다. 소수도 지원하며 기존의 고정 상한을 없앴습니다. 인물은 원작 표시 영역 전체에 종횡비를 유지해 맞춥니다.
+- 작품, 자체 제작 리소스, Host, 로더, 설치 도구를 하나의 플레이용 ZIP으로 내보냅니다. 처음에는 없는 로더를 다운로드합니다. 플레이어는 압축을 푼 뒤 ‘安装MOD.cmd’를 실행해 오프라인으로 설치할 수 있으며 편집기는 필요하지 않습니다. 정품 게임은 별도로 설치되어 있어야 합니다.
+- 시스템 DPI를 유지하면서 창 크기에 맞춰 UI를 자동 조정합니다. 설정에서 UI 배율을 직접 바꿀 수도 있습니다.
+
+사용법은 [인물 일러스트 추가 및 리소스 공유(중국어 간체)](docs/chs/user_content.md)를 참고하세요. 플레이용 ZIP에는 게임 본체나 원작 이미지의 미리 보기 캐시가 포함되지 않습니다.
 
 ## 현재 버전 실행
 
@@ -42,7 +51,7 @@ scripts/build-macos.sh
 | [사용 안내](docs/chs/software_usage.md) | Rust 편집기의 조작 방법과 기본 흐름 |
 | [지원 기능](docs/chs/current_capabilities.md) | 구현된 기능, 제한 및 검증 범위 |
 | [Rust CLI](docs/chs/ai_cli.md) | `lomc` 명령과 제어된 편집 API |
-| [Mod 패키지 규격](docs/chs/mod_format.md) | `.lommod` v3, 63종 노드 및 C# 호스트 호환성 |
+| [Mod 패키지 규격](docs/chs/mod_format.md) | `.lommod` v3, 67종 노드 및 C# 호스트 호환성 |
 | [전환 및 빌드](docs/chs/rust_migration.md) | Rust 구성 요소, 빌드 방법 및 전환 범위 |
 
 [한국어 문서 색인 및 구버전 번역](docs/ko/README.md) · [전체 문서](docs/README.md)

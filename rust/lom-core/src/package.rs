@@ -513,6 +513,7 @@ fn add_user_content(
     scenario: Option<&Value>,
 ) -> Result<()> {
     let mut referenced: BTreeMap<String, String> = BTreeMap::new();
+    let extensions = content::character_extensions_at(root)?;
     let scenario_nodes = scenario
         .map(content::scenario_gameplay_nodes)
         .unwrap_or_default();
@@ -564,7 +565,12 @@ fn add_user_content(
                 .map(|(raw, kind, category)| (raw, kind, None, Some(category))),
         );
         for (raw, ctype, expected, category) in content_refs {
-            let Some(id) = raw.strip_prefix("user:") else {
+            let extension_id = if ctype == "character" {
+                extensions.get(raw).and_then(|(_, m)| m["id"].as_str())
+            } else {
+                None
+            };
+            let Some(id) = raw.strip_prefix("user:").or(extension_id) else {
                 continue;
             };
             if let Some(previous) = referenced.get(id) {
@@ -590,7 +596,10 @@ fn add_user_content(
                     "用户音频 {id} 类型不匹配: 需要 {expected}"
                 );
             }
-            if ctype == "character" && ["show", "say", "portrait"].contains(&kind) {
+            if ctype == "character"
+                && extension_id.is_none()
+                && ["show", "say", "portrait"].contains(&kind)
+            {
                 if let Some(portrait) = node["portrait"].as_str().filter(|s| !s.is_empty()) {
                     ensure!(
                         meta["portraits"].get(portrait).is_some(),
@@ -643,7 +652,8 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
             .to_string();
         let path = resolve_confined_file(&root, &path)?;
         let mut story = load_json(&path)?;
-        validate::validate_story(&story).with_context(|| format!("story/{stem}.json"))?;
+        validate::validate_story_with_content_root(&story, &root)
+            .with_context(|| format!("story/{stem}.json"))?;
         story["story_schema"] = json!(2);
         if let Some(config) = localization::localization_config(&story) {
             story["localization"] = config;
@@ -936,5 +946,37 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
     }
     entries.insert(STORY_HASH.into(), integrity.into_bytes());
     add_user_content(&mut entries, &root, &stories, scenario.as_ref())?;
+    let new_portrait_layout = entries.iter().any(|(key, bytes)| {
+        key.starts_with("assets/user/character/")
+            && key.ends_with("/content.json")
+            && serde_json::from_slice::<Value>(bytes).is_ok_and(|meta| meta["type"] == "character")
+    });
+    let free_image_scale = stories.values().any(|story| {
+        crate::parallel::story_actions(story).any(|(_, n)| {
+            let (key, low, high) = match n["type"].as_str() {
+                Some("intro") => ("image_scale", 40.0, 160.0),
+                Some("custom_cg" | "overlay") => ("scale", 10.0, 300.0),
+                _ => return false,
+            };
+            n[key].as_f64().is_some_and(|v| v < low || v > high)
+        })
+    });
+    if new_portrait_layout || free_image_scale {
+        let version = manifest["min_host_version"].as_str().unwrap_or("0.0.0");
+        let core: Vec<_> = version
+            .split(['.', '-', '+'])
+            .take(3)
+            .map(|v| v.parse::<u32>().unwrap_or(0))
+            .collect();
+        if core.as_slice() < [1, 4, 3].as_slice()
+            || core.as_slice() == [1, 4, 3].as_slice()
+                && version.split('+').next().unwrap_or(version).contains('-')
+        {
+            manifest["min_host_version"] = json!("1.4.3");
+        }
+        validate::validate_manifest(&manifest)
+            .context("人物立绘及自由缩放需要 Host 1.4.3，请核对最低和已测试 Host 版本")?;
+        entries.insert("manifest.json".into(), stable_json(&manifest)?);
+    }
     write_package(entries, output.unwrap_or(&default))
 }

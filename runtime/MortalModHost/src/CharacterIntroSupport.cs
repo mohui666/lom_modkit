@@ -43,7 +43,9 @@ namespace MortalModHost
                 Name = name ?? "";
                 Intro = intro ?? "";
                 ImagePath = imagePath ?? "";
-                ImageScale = Mathf.Clamp(imageScale, 40f, 160f);
+                if (float.IsNaN(imageScale) || float.IsInfinity(imageScale) || imageScale <= 0f)
+                    throw new ArgumentOutOfRangeException("imageScale", "图片缩放必须是正有限数字");
+                ImageScale = imageScale;
                 ImageX = Mathf.Clamp(imageX, -30f, 30f);
                 ImageY = Mathf.Clamp(imageY, -30f, 30f);
             }
@@ -173,8 +175,18 @@ namespace MortalModHost
                 SetActive(continueButton, true);
                 if (continueObject != null) continueObject.SetActive(true);
 
+                int layoutWidth = Screen.width;
+                int layoutHeight = Screen.height;
                 while (!fields.Field("_pressClose").GetValue<bool>())
+                {
+                    if (hasImage && (layoutWidth != Screen.width || layoutHeight != Screen.height))
+                    {
+                        layoutWidth = Screen.width;
+                        layoutHeight = Screen.height;
+                        ApplyCustomLayout(avatar, customSprite, data);
+                    }
                     yield return null;
+                }
             }
             finally
             {

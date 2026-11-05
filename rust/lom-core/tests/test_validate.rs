@@ -13,8 +13,8 @@ fn legacy_validation_acceptance_and_warning_parity() {
     let mut valid = 0;
     let mut invalid = 0;
     for (index, case) in fixtures["cases"].as_array().unwrap().iter().enumerate() {
-        let expected = case["valid"].as_bool().unwrap();
-        if expected {
+        let legacy_expected = case["valid"].as_bool().unwrap();
+        if legacy_expected {
             valid += 1;
         } else {
             invalid += 1;
@@ -23,7 +23,7 @@ fn legacy_validation_acceptance_and_warning_parity() {
         let input = match parsed {
             Ok(value) => value,
             Err(error) => {
-                if expected {
+                if legacy_expected {
                     mismatches.push(format!(
                         "case {index} {}: valid Python input rejected by JSON parser: {error}",
                         case["test"]
@@ -31,6 +31,27 @@ fn legacy_validation_acceptance_and_warning_parity() {
                 }
                 continue;
             }
+        };
+        // Keep the immutable Python acceptance evidence, while reviewing only
+        // the two inputs whose old limits were removed in v1.4.3.
+        let expected = match index {
+            243 => {
+                assert!(!legacy_expected);
+                assert_eq!(
+                    input["nodes"][0],
+                    json!({"id":"n1","type":"custom_cg","action":"show","image":"user:mohui.memory_cg","scale":301})
+                );
+                true
+            }
+            259 => {
+                assert!(!legacy_expected);
+                assert_eq!(
+                    input["nodes"][0],
+                    json!({"id":"n1","type":"intro","intro_source":"custom","name":"墨小侠","text":"介绍","image_scale":20})
+                );
+                true
+            }
+            _ => legacy_expected,
         };
         let result = if case["kind"] == "manifest" {
             validate_manifest(&input).map(|()| vec![])

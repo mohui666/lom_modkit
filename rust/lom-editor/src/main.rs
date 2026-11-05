@@ -10,6 +10,7 @@ mod i18n;
 mod initial_setup;
 mod macos_window;
 mod persistence;
+mod play_bundle;
 mod preview;
 mod shell;
 mod tool_report;

@@ -10,12 +10,21 @@
 
 | 版本 | 說明 |
 | --- | --- |
-| **目前原始碼：v1.3.1** | 編輯器與編譯器已改為 Rust；保留 C# 遊戲宿主及 `.lommod` v3 格式契約。 |
-| **Windows 發行版：v1.3.1** | 新增兩種創作模式、事件與任務配置，優化介面並支援一鍵定位 Steam 遊戲目錄。 |
+| **目前原始碼：v1.4.3** | Rust 編輯器與編譯器，搭配 C# 遊戲宿主；維持 `.lommod` v3 格式。 |
+| **Windows 發行版：v1.4.3** | 原版人物追加立繪、自由縮放、完整遊玩包與視窗／DPI 適配。 |
 
-[下載 v1.3.1（Windows）](https://github.com/mohui666/lom_modkit/releases/download/v1.3.1/lom_modkit-v1.3.1_windows_x64.zip) · [v1.3.1 Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.3.1)
+[下載 v1.4.3（Windows x64）](https://github.com/mohui666/lom_modkit/releases/download/v1.4.3/lom_modkit-v1.4.3_windows_x64.zip) · [本版更新與驗證範圍（簡中）](RELEASE_NOTES_v1.4.3.md)
 
-完整解壓縮後執行 `lom_modkit/lom-editor.exe`；更新遊戲載入器與 C# 宿主的步驟及測試範圍見 [x64 驗證記錄（簡中）](docs/chs/x64_validation.md)。
+完整解壓縮後執行 `lom_modkit/lom-editor.exe`。退出遊戲，在「遊戲與 MOD」更新遊戲 Host 至 1.4.3；新功能的相容性需求會在匯出時寫入作品包。
+
+## 1.4.3 新功能
+
+- 在作品素材中為原版人物追加 `tired`、`sleep` 等表情或替換指定立繪，保留原人物 ID、姓名和其他表情。可選擇表情並預覽對應圖片，不需手動修改預覽快取。
+- 人物、CG、疊加圖片及介紹卡圖片支援遊戲可表示的任意正數百分比與小數，取消原先的固定縮放上限；人物依完整站位矩形等比適配。
+- 一鍵匯出完整遊玩 ZIP，包含作品、自有素材、Host、載入元件與安裝入口。首次匯出會下載缺少的載入元件；玩家解壓後雙擊「安装MOD.cmd」即可離線安裝，仍需本機已有正版遊戲。
+- 編輯器保留系統 DPI，依視窗大小自動適配介面；設定中也可手動調整介面縮放。
+
+操作細節見 [原版人物補繪與素材分享（簡中）](docs/chs/user_content.md)。遊玩包不包含遊戲本體或官方預覽圖片。
 
 ## 執行目前版本
 
@@ -42,7 +51,7 @@ scripts/build-macos.sh
 | [軟體使用](docs/chs/software_usage.md) | Rust 編輯器的操作入口與基本流程 |
 | [目前能力](docs/chs/current_capabilities.md) | 已實作能力、限制與驗證範圍 |
 | [Rust CLI](docs/chs/ai_cli.md) | `lomc` 命令列與受控編輯 API |
-| [Mod 包格式契約](docs/chs/mod_format.md) | `.lommod` v3、63 種節點與 C# 宿主相容性 |
+| [Mod 包格式契約](docs/chs/mod_format.md) | `.lommod` v3、67 種節點與 C# 宿主相容性 |
 | [遷移與建置](docs/chs/rust_migration.md) | Rust 元件、建置方式及遷移範圍 |
 
 [繁中文件索引與歷史譯文](docs/cht/README.md) · [全部文件](docs/README.md)

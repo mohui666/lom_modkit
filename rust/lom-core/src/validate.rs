@@ -20,6 +20,37 @@ pub fn editor_data() -> &'static Value {
             .expect("embedded official catalog")
     })
 }
+fn extend_portrait_catalog(extensions: &BTreeMap<String, (String, Value)>) -> Value {
+    let mut catalog = editor_data().clone();
+    for (target, (_, meta)) in extensions {
+        if let Some(character) = catalog["characters"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|c| c["id"] == *target)
+        {
+            let portraits = character["portraits"].as_array_mut().unwrap();
+            for portrait in meta["portraits"].as_object().unwrap().keys() {
+                if !portraits.iter().any(|p| p == portrait) {
+                    portraits.push(json!(portrait));
+                }
+            }
+        }
+    }
+    catalog
+}
+pub fn catalog_with_assets(assets: &BTreeMap<String, Vec<u8>>) -> Result<Value> {
+    Ok(extend_portrait_catalog(
+        &crate::content::character_extensions(assets)?,
+    ))
+}
+pub fn validate_story_with_content_root(
+    story: &Value,
+    root: &std::path::Path,
+) -> Result<Vec<String>> {
+    let extensions = crate::content::character_extensions_at(root)?;
+    validate_story_with_catalog(story, &extend_portrait_catalog(&extensions))
+}
 const SCRIPT_ID: &str = r"^[a-zA-Z0-9_\-]{1,64}$";
 const MOD_ID: &str = r"^[a-z0-9_\-]{1,64}$";
 const NODE_ID: &str = r"^[a-zA-Z0-9_]+$";
@@ -977,7 +1008,7 @@ fn extra(n: &Value, ntype: &str, catalog: &Value) -> Result<()> {
             .find(|v| s(v, "id") == string(c))
         {
             {
-                ensure!(array(&meta["portraits"]).iter().any(|v|v.as_str()==Some(portrait)),"角色 {c} 没有表情 \"{portrait}\"（该角色表情：{}）。游戏 LoadCharacterPortrait 对无效表情 key 抛 KeyNotFoundException → Lua 协程死 → 对话冻结，请改用清单内表情。",meta["portraits"]);
+                ensure!(array(&meta["portraits"]).iter().any(|v|v.as_str()==Some(portrait)),"角色 {c} 没有表情 \"{portrait}\"（该角色表情：{}）。请在「素材管理 → 为原版人物添加立绘」中导入该表情；preview_map.json 只负责预览，不会把新增图片注册进 MOD。",meta["portraits"]);
             }
         }
     }
@@ -1038,7 +1069,9 @@ fn extra(n: &Value, ntype: &str, catalog: &Value) -> Result<()> {
         }
         "custom_cg" => {
             range(n, "fade", 0.0, f64::INFINITY)?;
-            range(n, "scale", 10.0, 300.0)?;
+            if has(n, "scale") {
+                crate::content::positive_scale(&n["scale"], "scale")?;
+            }
             range(n, "x", -100.0, 100.0)?;
             range(n, "y", -100.0, 100.0)?;
             if s(n, "action") == "show" {
@@ -1051,7 +1084,9 @@ fn extra(n: &Value, ntype: &str, catalog: &Value) -> Result<()> {
                 "slot 必须是 [A-Za-z0-9_-]+ 的非空槽位 id"
             );
             range(n, "fade", 0.0, f64::INFINITY)?;
-            range(n, "scale", 10.0, 300.0)?;
+            if has(n, "scale") {
+                crate::content::positive_scale(&n["scale"], "scale")?;
+            }
             range(n, "opacity", 0.0, 100.0)?;
             if s(n, "action") == "show" {
                 user_ref(&n["image"], "image")?;
@@ -1078,7 +1113,9 @@ fn extra(n: &Value, ntype: &str, catalog: &Value) -> Result<()> {
                 if nonempty(&n["image"]) {
                     asset_image(&n["image"], false)?;
                 }
-                range(n, "image_scale", 40.0, 160.0)?;
+                if has(n, "image_scale") {
+                    crate::content::positive_scale(&n["image_scale"], "image_scale")?;
+                }
                 range(n, "image_x", -30.0, 30.0)?;
                 range(n, "image_y", -30.0, 30.0)?;
             }

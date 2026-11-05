@@ -178,7 +178,7 @@ fn character_bubble_packages_require_a_host_with_the_new_entry_point() {
 }
 
 #[test]
-fn custom_bubbles_export_the_character_and_require_host_142() {
+fn custom_bubbles_export_the_character_and_require_host_143_layout() {
     let mut project = lom_core::project::Project::new();
     project.manifest["min_host_version"] = json!("1.4.1");
     let character = "user:demo.actor";
@@ -210,7 +210,7 @@ fn custom_bubbles_export_the_character_and_require_host_142() {
     project.export(&output).unwrap();
     let entries = lom_core::package::read_package(&output).unwrap();
     let manifest: Value = serde_json::from_slice(&entries["manifest.json"]).unwrap();
-    assert_eq!(manifest["min_host_version"], "1.4.2");
+    assert_eq!(manifest["min_host_version"], "1.4.3");
     let packed: Value =
         serde_json::from_slice(&entries["assets/user/character/demo.actor/content.json"]).unwrap();
     assert_eq!(packed["mood_x"], 35);

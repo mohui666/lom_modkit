@@ -114,8 +114,8 @@ impl Catalog {
         }
     }
     pub fn sync_assets(&mut self, assets: &std::collections::BTreeMap<String, Vec<u8>>) {
-        self.data = serde_json::from_str(include_str!("../../../data/editor_data.json"))
-            .expect("embedded metadata");
+        self.data = lom_core::validate::catalog_with_assets(assets)
+            .unwrap_or_else(|_| lom_core::validate::editor_data().clone());
         self.data["user_images"] = json!([]);
         self.data["user_voices"] = json!([]);
         self.data["user_supports"] = json!([]);
@@ -134,6 +134,21 @@ impl Catalog {
             let mut entry = json!({"id":format!("user:{id}"),"name":meta["name"]});
             let key = match meta["type"].as_str().unwrap_or("") {
                 "character" => {
+                    if meta["extends"].as_str().is_some_and(|s| !s.is_empty()) {
+                        if meta["extends"] == "player" {
+                            if let Some(portraits) = meta["portraits"].as_object() {
+                                let beauty = self.data["player_appearance_portraits"]["beautified"]
+                                    .as_array_mut()
+                                    .unwrap();
+                                for key in portraits.keys() {
+                                    if !beauty.iter().any(|v| v == key) {
+                                        beauty.push(json!(key));
+                                    }
+                                }
+                            }
+                        }
+                        continue;
+                    }
                     entry["portraits"] = Value::Array(
                         meta["portraits"]
                             .as_object()
@@ -207,6 +222,16 @@ impl Catalog {
         nodes: &[String],
         stories: &[String],
     ) -> Vec<(String, String)> {
+        if kind == "official_character" {
+            let characters: Vec<_> = self.data["characters"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter(|c| !c["id"].as_str().unwrap_or("").starts_with("user:"))
+                .cloned()
+                .collect();
+            return localized_rows(&json!(characters), "characters");
+        }
         let mut options = self.raw_options(kind, node, nodes, stories);
         for (id, name) in &mut options {
             if kind == "view" {
@@ -1328,6 +1353,7 @@ fn is_character_selector(kind: &str) -> bool {
     matches!(
         kind,
         "character"
+            | "official_character"
             | "mood_character"
             | "character_group"
             | "affinity_character"
@@ -1519,6 +1545,7 @@ fn is_selector(kind: &str) -> bool {
                 | "item"
                 | "voice"
                 | "character"
+                | "official_character"
                 | "affinity_character"
                 | "affinity_optional"
                 | "position"

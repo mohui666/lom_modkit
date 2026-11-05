@@ -25,7 +25,7 @@ fn main() -> Result<()> {
         .as_array()
         .ok_or_else(|| anyhow::anyhow!("source.stories 必须是数组"))?
     {
-        validate::validate_story(story)?;
+        validate::validate_story_with_content_root(story, &repo.join("samples/showcase3"))?;
         let id = story["id"]
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("缺少章节 ID"))?;

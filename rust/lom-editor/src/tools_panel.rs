@@ -506,6 +506,39 @@ impl ToolsPanel {
     pub fn take_export_request(&mut self) -> bool {
         std::mem::take(&mut self.export_requested)
     }
+    pub fn export_play_bundle(&mut self, project: &Project) {
+        if self.job.is_some() {
+            self.report_title = self.job_title.clone();
+            self.report_open = true;
+            return;
+        }
+        if let Some(output) = rfd::FileDialog::new()
+            .set_title("导出完整游玩包（含自有素材与安装组件）")
+            .add_filter("ZIP", &["zip"])
+            .set_file_name(format!(
+                "{}-play.zip",
+                project.manifest["id"].as_str().unwrap_or("mod")
+            ))
+            .save_file()
+        {
+            let project = project.clone();
+            let runtime = self.runtime.clone();
+            let cancel = self.cancel.clone();
+            self.background_progress("导出完整游玩包", move |sender| {
+                crate::play_bundle::export(
+                    &project,
+                    &output,
+                    &runtime,
+                    &cancel,
+                    move |message, current| {
+                        let _ = sender.send(JobEvent::Progress(
+                            json!({"message":message,"current":current,"total":3}),
+                        ));
+                    },
+                )
+            });
+        }
+    }
     pub fn ready_to_play(&self) -> bool {
         self.game_ready()
     }
@@ -1051,9 +1084,12 @@ impl ToolsPanel {
                 ui.separator();
                 ui.strong(crate::i18n::tr("2. 导出作品"));
                 ui.small(crate::i18n::tr(
-                    "导出单个 MOD 文件，或生成包含校验和与说明的发布目录。导出时会再次检查。",
+                    "完整游玩包包含自有素材、宿主、加载组件和安装入口，玩家解压后即可安装。首次导出需下载加载组件。",
                 ));
                 ui.horizontal_wrapped(|ui| {
+                    if ui.button(crate::i18n::tr("一键导出完整游玩包…")).clicked() {
+                        self.export_play_bundle(project);
+                    }
                     if ui.button(crate::i18n::tr("导出 .lommod…")).clicked() {
                         self.export_requested = true;
                     }

@@ -210,6 +210,9 @@ pub fn explanation(message: &str) -> String {
     if message.contains("start") && message.contains("不存在") {
         return "章节的起始步骤不存在。请在章节设置中重新选择起始步骤。".into();
     }
+    if message.contains("没有表情") {
+        return "该人物尚未注册这个表情。请在“素材管理 → 为原版人物添加立绘”中导入图片，再选择新增表情；修改预览缓存只会改变预览。".into();
+    }
     if message.contains("portrait") && (message.contains("不存在") || message.contains("不在"))
     {
         return "所选人物没有这个表情。请重新选择该人物可用的表情。".into();

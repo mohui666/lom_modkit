@@ -181,6 +181,7 @@ namespace MortalModHost
                 TestCombatVitalPolicy();
                 TestPreviewRequest(modsDir);
                 TestUserContent();
+                TestCharacterExtensions();
                 TestDisclosurePolicy();
                 TestDisclosureIntegrity();
                 TestProvenanceWatermarkProtocol();
@@ -1196,6 +1197,59 @@ namespace MortalModHost
                 sha.TransformFinalBlock(new byte[0], 0, 0);
                 return string.Concat(sha.Hash.Select(b => b.ToString("X2")));
             }
+        }
+
+        private static void TestCharacterExtensions()
+        {
+            string root = Path.Combine(Path.GetTempPath(), "lommod_portrait_ext_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(root);
+            try
+            {
+                byte[] image = Convert.FromBase64String(PngBase64);
+                for (int i = 0; i < 2; i++)
+                {
+                    string id = "extension" + i;
+                    string path = Path.Combine(root, id + ".lommod");
+                    string character = "assets/user/character/demo.extra/";
+                    string json = "{\"content_schema\":1,\"id\":\"demo.extra\",\"type\":\"character\",\"name\":\"新表情\",\"extends\":\"special825\",\"files\":{\"main\":\"tired.png\"},\"portraits\":{\"tired\":\"tired.png\"},\"scale\":280.5}";
+                    WriteV3Zip(path,
+                        ("manifest.json", "{\"format\":3,\"package_format\":3,\"story_schema\":2,\"content_schema\":1,\"id\":\"" + id + "\",\"campaign_id\":\"" + id + "-campaign\",\"entry\":\"main\",\"campaign\":{\"new_game\":true}}"),
+                        ("lua/main.lua", "say(\"test\")"),
+                        (character + "content.json", json));
+                    AppendBinaryEntries(path, (character + "tired.png", image));
+                    RefreshV3Integrity(path);
+                }
+                var warnings = new List<string>();
+                var packages = ModLoader.ScanMods(root, _ => { }, warnings.Add);
+                Assert(packages.Count == 2 && warnings.Count == 0, "同一原版人物在两个包内扩展应独立加载");
+                foreach (ModPackage package in packages)
+                {
+                    UserContent extra = package.CharacterExtensions["special825"];
+                    Assert(extra.Extends == "special825" && extra.Scale == 280.5f
+                        && extra.Portraits.Count == 1 && extra.Portraits.ContainsKey("tired")
+                        && !extra.Portraits.ContainsKey("normal") && extra.Files.ContainsKey("tired.png"),
+                        "原版扩展应保留新增表情和小数缩放，不能隐式覆盖 normal");
+                }
+                Assert(!ReferenceEquals(packages[0].CharacterExtensions["special825"],
+                    packages[1].CharacterExtensions["special825"]), "原版扩展资源必须按 MOD 包隔离");
+
+                string duplicate = Path.Combine(root, "duplicate.lommod");
+                File.Copy(Path.Combine(root, "extension0.lommod"), duplicate);
+                using (var zip = ZipFile.Open(duplicate, ZipArchiveMode.Update))
+                {
+                    var entry = zip.CreateEntry("assets/user/character/demo.second/content.json");
+                    using (var writer = new StreamWriter(entry.Open(), new UTF8Encoding(false)))
+                        writer.Write("{\"content_schema\":1,\"id\":\"demo.second\",\"type\":\"character\",\"name\":\"重复\",\"extends\":\"special825\",\"files\":{\"main\":\"tired.png\"},\"portraits\":{\"tired\":\"tired.png\"}}");
+                    var png = zip.CreateEntry("assets/user/character/demo.second/tired.png");
+                    using (var stream = png.Open()) stream.Write(image, 0, image.Length);
+                }
+                RefreshV3Integrity(duplicate);
+                warnings.Clear();
+                packages = ModLoader.ScanMods(root, _ => { }, warnings.Add);
+                Assert(packages.Count == 2 && warnings.Any(w => w.Contains("同一包不能提供多份人物扩展")),
+                    "同包重复原版人物扩展必须明确拒绝整包，不能任意挑一份");
+            }
+            finally { Directory.Delete(root, recursive: true); }
         }
 
         /// <summary>用户内容协议与包内解析：合法加载、非法路径拒绝、Mod 间隔离。</summary>

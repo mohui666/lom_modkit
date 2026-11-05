@@ -82,12 +82,30 @@ pub fn bulk_fields(schema: &Value, nodes: &[Value]) -> Vec<BulkField> {
     }
     common.into_values().collect()
 }
+#[cfg(test)]
 pub fn bulk_edit(
     story: &Value,
     indices: &BTreeSet<usize>,
     schema: &Value,
     key: &str,
     value: &Value,
+) -> Result<Value> {
+    bulk_edit_with_catalog(
+        story,
+        indices,
+        schema,
+        key,
+        value,
+        lom_core::validate::editor_data(),
+    )
+}
+pub fn bulk_edit_with_catalog(
+    story: &Value,
+    indices: &BTreeSet<usize>,
+    schema: &Value,
+    key: &str,
+    value: &Value,
+    catalog: &Value,
 ) -> Result<Value> {
     let nodes = story["nodes"].as_array().context("章节没有步骤")?;
     ensure!(indices.len() >= 2, "至少选中两个步骤");
@@ -117,7 +135,7 @@ pub fn bulk_edit(
     }
     // Validate the complete candidate so a field which depends on node type or
     // sibling fields cannot slip through a generic scalar widget.
-    lom_core::validate::validate_story(&candidate)
+    lom_core::validate::validate_story_with_catalog(&candidate, catalog)
         .context("整章校验失败，所有选中步骤均保持原值")?;
     Ok(candidate)
 }

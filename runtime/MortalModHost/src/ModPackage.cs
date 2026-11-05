@@ -73,6 +73,9 @@ namespace MortalModHost
         /// </summary>
         public readonly Dictionary<string, UserContent> UserContents = new Dictionary<string, UserContent>();
 
+        public readonly Dictionary<string, UserContent> CharacterExtensions =
+            new Dictionary<string, UserContent>(System.StringComparer.Ordinal);
+
         /// <summary>.lommod 文件完整路径（仅用于日志定位，内容已全部读入内存）。</summary>
         public string PackagePath;
 

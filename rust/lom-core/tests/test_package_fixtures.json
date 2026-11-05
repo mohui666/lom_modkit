@@ -930,7 +930,20 @@
           "utf8": "{\n  \"MOD_testmod_main_n2\": \"用到的\"\n}\n"
         }
       },
-      "test": "test_pack_unused_character_voice_not_collected (tests.test_lomc.TestPackUserAudio)"
+      "test": "test_pack_unused_character_voice_not_collected (tests.test_lomc.TestPackUserAudio)",
+      "current_entries": {
+        "manifest.json": {
+          "size": 337,
+          "sha256": "bdf66be557eafbb52024e84a8ec0bdcd472e8ed6c9d9feb7eeb64d7ec11713aa",
+          "utf8": "{\n  \"author\": \"tester\",\n  \"campaign\": {\n    \"new_game\": true\n  },\n  \"campaign_id\": \"testmod_campaign\",\n  \"content_schema\": 1,\n  \"description\": \"单元测试用\",\n  \"entry\": \"main\",\n  \"format\": 3,\n  \"id\": \"testmod\",\n  \"min_host_version\": \"1.4.3\",\n  \"name\": \"测试 Mod\",\n  \"package_format\": 3,\n  \"story_schema\": 2,\n  \"version\": \"0.1.0\"\n}\n"
+        },
+        "package-content.sha256": {
+          "size": 102,
+          "sha256": "952c0e65ac769527ccec9eb55987191c2d8e0a7722117eb81d16ab3c865ec11d",
+          "utf8": "algorithm=lom-entry-sha256-v1\nsha256=5521D7461BE6D73FE6B386997C34799A583808A8B34E810D4809C9C2F3AC5C91\n"
+        }
+      },
+      "current_entries_note": "Reviewed v1.4.3: complete original-stage slot sizing for bundled character art requires Host 1.4.3; only manifest.json and its dependent package-content.sha256 change."
     },
     {
       "root_name": "usermod",
@@ -1058,7 +1071,20 @@
           "utf8": "{}\n"
         }
       },
-      "test": "test_pack_collects_referenced_character_portraits (tests.test_lomc.TestPackUserCharacter)"
+      "test": "test_pack_collects_referenced_character_portraits (tests.test_lomc.TestPackUserCharacter)",
+      "current_entries": {
+        "manifest.json": {
+          "size": 337,
+          "sha256": "bdf66be557eafbb52024e84a8ec0bdcd472e8ed6c9d9feb7eeb64d7ec11713aa",
+          "utf8": "{\n  \"author\": \"tester\",\n  \"campaign\": {\n    \"new_game\": true\n  },\n  \"campaign_id\": \"testmod_campaign\",\n  \"content_schema\": 1,\n  \"description\": \"单元测试用\",\n  \"entry\": \"main\",\n  \"format\": 3,\n  \"id\": \"testmod\",\n  \"min_host_version\": \"1.4.3\",\n  \"name\": \"测试 Mod\",\n  \"package_format\": 3,\n  \"story_schema\": 2,\n  \"version\": \"0.1.0\"\n}\n"
+        },
+        "package-content.sha256": {
+          "size": 102,
+          "sha256": "536cacc81cd548d6a66949a09ede3ace38156d9743b5601c7ef74058a4948b88",
+          "utf8": "algorithm=lom-entry-sha256-v1\nsha256=09652C6460076476E91D1C4C3F0AB23CBE93A9676643753DC5F0CBCB281E1E3E\n"
+        }
+      },
+      "current_entries_note": "Reviewed v1.4.3: complete original-stage slot sizing for bundled character art requires Host 1.4.3; only manifest.json and its dependent package-content.sha256 change."
     },
     {
       "root_name": "charmod",
@@ -1958,10 +1984,16 @@
         },
         "package-content.sha256": {
           "size": 102,
-          "sha256": "5e36d383156540ffe7ca0de5e3324fa6cafd816ca52a8d1eb342426d5308eb4a",
-          "utf8": "algorithm=lom-entry-sha256-v1\nsha256=19847D166C1A8C41D5908EA0AB1CD4A96BD418E897DC85E599377B918E994366\n"
+          "sha256": "e27ba127133396f501fae3f0295e1ac42b7f74bb64438897a660cc162b42ab30",
+          "utf8": "algorithm=lom-entry-sha256-v1\nsha256=0509AD45BD62CB2C9B57F7B9AF6081978942B17A952EEC7689CD463A543A7B7E\n"
+        },
+        "manifest.json": {
+          "size": 1221,
+          "sha256": "fd284f233fb3cd7102a9050bd1199ac05adda768f711e26dd8450196cbf014b5",
+          "utf8": "{\n  \"author\": \"lom_modkit\",\n  \"campaign\": {\n    \"new_game\": true,\n    \"triggers\": [\n      {\n        \"position\": \"Secret\",\n        \"script\": \"finale\",\n        \"type\": \"position\",\n        \"when_affinity\": {\n          \"character\": \"brother4\",\n          \"min\": 3\n        },\n        \"when_flag_set\": \"SHOWCASE3_FREE_TRIGGER\",\n        \"when_month\": 7,\n        \"when_stage\": 3\n      }\n    ]\n  },\n  \"campaign_id\": \"showcase3\",\n  \"content_schema\": 1,\n  \"description\": \"面向手动验收的 63 节点完整样例：用户图片/角色/音频、演出、数值与检定、MOD 任务/持久变量、奖励/商店、原版 Combat/Battle 编排、独立决斗背景、运行时人物绑定、死亡与安全返回。\",\n  \"entry\": \"main\",\n  \"format\": 3,\n  \"id\": \"showcase3\",\n  \"min_host_version\": \"1.4.3\",\n  \"name\": \"全节点样例3.0·六十三节点实机验收\",\n  \"node_free_triggers\": [\n    {\n      \"position\": \"Secret\",\n      \"script\": \"finale\",\n      \"type\": \"position\",\n      \"when_affinity\": {\n        \"character\": \"brother4\",\n        \"min\": 3\n      },\n      \"when_flag_set\": \"SHOWCASE3_FREE_TRIGGER\",\n      \"when_month\": 7,\n      \"when_stage\": 3\n    }\n  ],\n  \"package_format\": 3,\n  \"story_schema\": 2,\n  \"version\": \"3.0.0\"\n}\n"
         }
-      }
+      },
+      "current_entries_note": "Reviewed v1.4.3: complete original-stage slot sizing for bundled character art requires Host 1.4.3; only manifest.json and its dependent package-content.sha256 change."
     }
   ]
 }

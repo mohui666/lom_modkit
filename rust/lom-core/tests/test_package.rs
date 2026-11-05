@@ -126,8 +126,9 @@ fn legacy_pack_acceptance_and_reviewed_entry_bytes_match() {
             ));
         }
         for (name, entry) in expected_entries {
-            // Keep the Python capture immutable. Only the reviewed visual-call
-            // fix and its dependent hash entries have a newer export baseline.
+            // Keep the Python capture immutable. Reviewed visual-call fixes and
+            // the v1.4.3 character layout Host requirement have newer baselines,
+            // including only their dependent integrity entries.
             let entry = case
                 .get("current_entries")
                 .and_then(|entries| entries.get(name))
