@@ -47,6 +47,50 @@ REF_IDS_JSON = os.path.join(REPO_ROOT, "data", "ref", "death_ending_ids.json")
 COMBAT_SKILLS_JSON = os.path.join(REPO_ROOT, "data", "ref", "combat_skills.json")
 OUT_PATH = os.path.join(REPO_ROOT, "data", "editor_data.json")
 
+# Titles from the official soundtrack albums. IDs retain the names accepted by
+# the installed MusicDataCollection.GetKey; Wwise Music.txt identifies each source.
+# https://store.steampowered.com/app/2983230/
+# https://store.steampowered.com/app/3968660/
+MUSIC_TITLES = {
+    "主題_001": "某人的传说",
+    "傳奇_001": "子夜寄君书",
+    "傳奇_002": "历劫知侠气",
+    "危險_001": "战令堂",
+    "危險_002": "仙侣宫 哪吒令 龙游浅水",
+    "危險_003": "敕召乾坤英雄令",
+    "古怪_001": "每天都欢似过年",
+    "古怪_002": "猜猜无猜心",
+    "古老_001": "金光裂重云，指天唤霹雳",
+    "嚴肅_001": "唐门薪火 自古如今",
+    "嚴肅_002": "正心而后知己",
+    "嚴肅_003": "龙卷疯",
+    "希望_001": "愿言配德兮，执子协行",
+    "快樂_001": "春暖花开搓圆圆",
+    "快樂_002": "得意须尽欢",
+    "快樂_003": "青山新歌谣",
+    "戰役_001": "黄沙起云飞扬",
+    "戰鬥_001": "好戏开场",
+    "普通_001": "山中好岁月",
+    "普通_002": "青山旧歌谣",
+    "普通_003": "雨后松林香",
+    "普通_004": "鼎沸烟火气",
+    "普通_005": "春以花佐酒，夏邀月同游",
+    "溫暖_001": "余生可庆",
+    "溫暖_002": "帐中梦守人",
+    "破曉_001": "一呼百诺西武林",
+    "神秘_001": "方外执棋手",
+    "絕望_001": "传说之下",
+    "酷炫_001": "斩破昙天",
+    "錦香_001": "锦绣织岁，玄烛照心",
+    "陰森_001": "窗影灯深处",
+    "陰森_002": "鬼门开",
+    "難過_001": "谢幕时分 雨花零落",
+    "魔王_001": "吾往矣",
+    "魔王_002": "晚钟声 千灯行",
+    "魔王_003": "恐怖君临",
+    "魔王_004": "君所愿兮江湖行 最是轻狂不愿醒",
+}
+
 # 契约 §5 固定值
 MODES = ["character", "think", "narrative", "center"]
 
@@ -450,7 +494,7 @@ def main():
     portraits = {}  # id -> set
     # Include the confirmed StoryViewData catalog, including script-unused variants.
     views = set(view_names)
-    music = set()
+    music = set(MUSIC_TITLES)
     sounds = set()
     env_sounds = set()
     positions = set()
@@ -539,8 +583,8 @@ def main():
         "characters": characters,
         "views": [{"id": v, "name": view_names.get(v, v)} for v in sorted(views)],
         "music": [
-            {"id": m, "name": m} for m in sorted(music)
-        ],  # 音乐 id 本身已是中文名
+            {"id": m, "name": MUSIC_TITLES.get(m, m)} for m in sorted(music)
+        ],
         "sounds": [
             {"id": sound, "name": sound} for sound in sorted(sounds)
         ],  # 普通音效 id 来自原版 PlaySound 调用

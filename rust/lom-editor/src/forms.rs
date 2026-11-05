@@ -1365,63 +1365,54 @@ impl Catalog {
                                 } else {
                                     tr("自定义")
                                 };
-                                egui::ComboBox::from_id_salt("select")
-                                    .truncate()
-                                    .selected_text(display)
-                                    .width(ui.available_width())
-                                    .height(
-                                        (ui.ctx().content_rect().height() * 0.55)
-                                            .clamp(260.0, 560.0),
-                                    )
-                                    .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
-                                    .show_ui(ui, |ui| {
-                                        if optional {
+                                resource_combo(ui, "select", &display, |ui| {
+                                    if optional {
+                                        if ui
+                                            .selectable_label(!present, &absent_label)
+                                            .clicked()
+                                        {
+                                            reset = true;
+                                            ui.close();
+                                        }
+                                        ui.separator();
+                                    }
+                                    let search_id = ui.id().with("search");
+                                    let mut search = ui.data_mut(|d| {
+                                        d.get_temp::<String>(search_id).unwrap_or_default()
+                                    });
+                                    if !options.is_empty() {
+                                        ui.add(
+                                            egui::TextEdit::singleline(&mut search)
+                                                .hint_text(tr("搜索名称")),
+                                        );
+                                    }
+                                    let lower = search.to_lowercase();
+                                    for (id, name) in &options {
+                                        if lower.is_empty()
+                                            || id.to_lowercase().contains(&lower)
+                                            || name.to_lowercase().contains(&lower)
+                                        {
                                             if ui
-                                                .selectable_label(!present, &absent_label)
+                                                .selectable_label(present && id == &s, name)
                                                 .clicked()
                                             {
-                                                reset = true;
+                                                s = id.clone();
+                                                c = true;
                                                 ui.close();
                                             }
-                                            ui.separator();
                                         }
-                                        let search_id = ui.id().with("search");
-                                        let mut search = ui.data_mut(|d| {
-                                            d.get_temp::<String>(search_id).unwrap_or_default()
-                                        });
-                                        if !options.is_empty() {
-                                            ui.add(
-                                                egui::TextEdit::singleline(&mut search)
-                                                    .hint_text(tr("搜索名称")),
-                                            );
-                                        }
-                                        let lower = search.to_lowercase();
-                                        for (id, name) in &options {
-                                            if lower.is_empty()
-                                                || id.to_lowercase().contains(&lower)
-                                                || name.to_lowercase().contains(&lower)
-                                            {
-                                                if ui
-                                                    .selectable_label(present && id == &s, name)
-                                                    .clicked()
-                                                {
-                                                    s = id.clone();
-                                                    c = true;
-                                                    ui.close();
-                                                }
-                                            }
-                                        }
-                                        ui.collapsing(tr("手动输入"), |ui| {
-                                            c |= ui
-                                                .add(
-                                                    egui::TextEdit::singleline(&mut s)
-                                                        .hint_text(tr("内部 ID / 自定义引用")),
-                                                )
-                                                .changed();
-                                        });
-                                        reset |= c && optional && s.is_empty();
-                                        ui.data_mut(|d| d.insert_temp(search_id, search));
+                                    }
+                                    ui.collapsing(tr("手动输入"), |ui| {
+                                        c |= ui
+                                            .add(
+                                                egui::TextEdit::singleline(&mut s)
+                                                    .hint_text(tr("内部 ID / 自定义引用")),
+                                            )
+                                            .changed();
                                     });
+                                    reset |= c && optional && s.is_empty();
+                                    ui.data_mut(|d| d.insert_temp(search_id, search));
+                                });
                             }
                             if kind == "position" {
                                 if let Some(position) = stage_position_picker(ui, &s) {
@@ -1633,6 +1624,72 @@ fn character_picker(
     }
     ui.data_mut(|data| data.insert_temp(state_id, state));
     selection
+}
+
+fn resource_combo<R>(
+    ui: &mut Ui,
+    id_salt: impl std::hash::Hash,
+    selected: &str,
+    contents: impl FnOnce(&mut Ui) -> R,
+) -> egui::InnerResponse<Option<R>> {
+    ui.push_id(id_salt, |ui| {
+        let response = ui.add_sized(
+            [ui.available_width(), ui.spacing().interact_size.y],
+            egui::Button::new(selected).truncate().right_text("⏷"),
+        );
+        response.widget_info(|| {
+            let mut info = egui::WidgetInfo::new(egui::WidgetType::ComboBox);
+            info.enabled = ui.is_enabled();
+            info.current_text_value = Some(selected.to_owned());
+            info
+        });
+        let screen = ui.ctx().content_rect();
+        let max_size = (screen.size() - egui::Vec2::splat(16.0)).max(egui::Vec2::splat(1.0));
+        let popup = egui::Popup::menu(&response)
+            .width(response.rect.width())
+            .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside);
+        // Keep the top-left corner fixed while resizing, including menus opened
+        // above their button. Otherwise a bottom pivot moves against the drag.
+        let popup = if !response.clicked() && popup.is_open() {
+            if let Some(state) = egui::AreaState::load(ui.ctx(), popup.get_id()) {
+                popup
+                    .at_position(state.rect().min)
+                    .align(egui::RectAlign::BOTTOM_START)
+                    .align_alternatives(&[])
+            } else {
+                popup
+            }
+        } else {
+            popup
+        };
+        let popup = popup.show(|ui| {
+            // A separate resize region owns the viewport size. Search results must
+            // never become the next frame's available height (ComboBox's default).
+            egui::Resize::default()
+                .id_salt("resource-popup-size")
+                .default_size(egui::vec2(
+                    response.rect.width(),
+                    (screen.height() * 0.55).clamp(260.0, 560.0),
+                ))
+                .min_size(egui::vec2(220.0, 160.0).min(max_size))
+                .max_size(max_size)
+                .with_stroke(false)
+                .show(ui, |ui| {
+                    egui::ScrollArea::vertical()
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
+                            contents(ui)
+                        })
+                        .inner
+                })
+        });
+        egui::InnerResponse {
+            inner: popup.map(|popup| popup.inner),
+            response,
+        }
+    })
+    .inner
 }
 
 pub(crate) fn picture_category(category: &str) -> &str {
@@ -2605,8 +2662,146 @@ mod tests {
                     ..Default::default()
                 },
             },
+            egui::Event::Key {
+                key: egui::Key::Backspace,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Default::default(),
+            },
             egui::Event::Text(query.into()),
         ]
+    }
+    #[test]
+    fn clearing_resource_search_restores_popup_height() {
+        fn popup_rect(context: &egui::Context) -> egui::Rect {
+            let layer = context.memory(|memory| {
+                memory
+                    .areas()
+                    .visible_layer_ids()
+                    .into_iter()
+                    .find(|layer| layer.order == egui::Order::Foreground)
+                    .expect("resource popup is visible")
+            });
+            egui::AreaState::load(context, layer.id).unwrap().rect()
+        }
+        let mut catalog = Catalog::new();
+        catalog.data["views"] = (0..80)
+            .map(|index| json!({"id":format!("fixture_{index:02}"),"name":format!("Background {index:02}")}))
+            .collect();
+        let context = egui::Context::default();
+        let mut node = json!({"id":"scene1","type":"scene","view":"fixture_00"});
+        let original = node.clone();
+        let (output, _) = field_frame(&catalog, &context, &mut node, "view", "view", vec![]);
+        let events = click(
+            &output,
+            egui::accesskit::Role::ComboBox,
+            &resource_label("fixture_00", "场景背景", "Background 00"),
+        );
+        let _ = field_frame(&catalog, &context, &mut node, "view", "view", events);
+        let mut output = field_frame(&catalog, &context, &mut node, "view", "view", vec![]).0;
+        let full = popup_rect(&context);
+        assert!(full.height() > 280.0, "initial popup: {full:?}");
+        for delta in [egui::vec2(-90.0, -90.0), egui::vec2(60.0, 60.0)] {
+            let before = popup_rect(&context);
+            let start = before.max - egui::vec2(10.0, 10.0);
+            let end = start + delta;
+            for events in [
+                vec![
+                    egui::Event::PointerMoved(start),
+                    egui::Event::PointerButton {
+                        pos: start,
+                        button: egui::PointerButton::Primary,
+                        pressed: true,
+                        modifiers: Default::default(),
+                    },
+                ],
+                vec![egui::Event::PointerMoved(end)],
+                vec![egui::Event::PointerButton {
+                    pos: end,
+                    button: egui::PointerButton::Primary,
+                    pressed: false,
+                    modifiers: Default::default(),
+                }],
+                vec![],
+            ] {
+                output = field_frame(&catalog, &context, &mut node, "view", "view", events).0;
+            }
+            let after = popup_rect(&context);
+            assert!(
+                ((after.size() - before.size()) - delta).length() < 12.0,
+                "corner drag must resize both axes: before={before:?}, after={after:?}, delta={delta:?}"
+            );
+        }
+        let resized = popup_rect(&context);
+        for query in ["Background 79", "missing background", ""] {
+            let events = search_character(&output, query);
+            let _ = field_frame(&catalog, &context, &mut node, "view", "view", events);
+            for _ in 0..4 {
+                output = field_frame(&catalog, &context, &mut node, "view", "view", vec![]).0;
+            }
+            assert!(
+                (popup_rect(&context).size() - resized.size()).length() <= 1.0,
+                "search must preserve the user's popup size: query={query:?}"
+            );
+        }
+        let cleared = popup_rect(&context);
+        assert!(
+            (cleared.height() - resized.height()).abs() <= 1.0,
+            "clearing search must preserve the popup: resized={resized:?}, cleared={cleared:?}"
+        );
+        let (output, _) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "view",
+            "view",
+            vec![egui::Event::Key {
+                key: egui::Key::Escape,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Default::default(),
+            }],
+        );
+        let events = click(
+            &output,
+            egui::accesskit::Role::ComboBox,
+            &resource_label("fixture_00", "场景背景", "Background 00"),
+        );
+        let _ = field_frame(&catalog, &context, &mut node, "view", "view", events);
+        let _ = field_frame(&catalog, &context, &mut node, "view", "view", vec![]);
+        assert!((popup_rect(&context).size() - resized.size()).length() <= 1.0);
+        assert_eq!(node, original, "searching must not change the step");
+    }
+    #[test]
+    fn music_search_accepts_titles_and_ids_and_saves_only_the_id() {
+        let catalog = Catalog::new();
+        let context = egui::Context::default();
+        let mut node = json!({"id":"music1","type":"music","op":"play","name":"普通_001"});
+        for (query, id) in [("雨后松林香", "普通_003"), ("主題_001", "主題_001")] {
+            let options = catalog.options("music", &node, &[], &[]);
+            let display = &options
+                .iter()
+                .find(|(id, _)| node["name"] == *id)
+                .unwrap()
+                .1;
+            let target = &options.iter().find(|(key, _)| key == id).unwrap().1;
+            let (output, _) = field_frame(&catalog, &context, &mut node, "name", "music", vec![]);
+            let events = click(&output, egui::accesskit::Role::ComboBox, display);
+            let _ = field_frame(&catalog, &context, &mut node, "name", "music", events);
+            let (output, _) = field_frame(&catalog, &context, &mut node, "name", "music", vec![]);
+            let events = search_character(&output, query);
+            let _ = field_frame(&catalog, &context, &mut node, "name", "music", events);
+            let (output, _) = field_frame(&catalog, &context, &mut node, "name", "music", vec![]);
+            let events = click(&output, egui::accesskit::Role::Button, target);
+            let (_, changed) = field_frame(&catalog, &context, &mut node, "name", "music", events);
+            assert!(changed);
+            assert_eq!(
+                node,
+                json!({"id":"music1","type":"music","op":"play","name":id})
+            );
+        }
     }
     #[test]
     fn clicking_background_search_keeps_choices_open_until_selection() {
@@ -3466,6 +3661,11 @@ fn localized_rows(value: &Value, category: &str) -> Vec<(String, String)> {
         .into_iter()
         .map(|(id, name)| {
             let name = crate::i18n::term(category, &id, &name);
+            let name = if category == "music" && name != id {
+                format!("{name} · {id}")
+            } else {
+                name
+            };
             (id, name)
         })
         .collect()
@@ -3480,42 +3680,40 @@ fn pick(
     let mut selected = row[key].as_str().unwrap_or("").to_owned();
     let before = selected.clone();
     ui.label(format!("{} *", tr(label)));
-    egui::ComboBox::from_id_salt(key)
-        .truncate()
-        .width(ui.available_width())
-        .selected_text(
-            options
-                .iter()
-                .find(|(k, _)| k == &selected)
-                .map(|(_, n)| n.clone())
-                .unwrap_or_else(|| {
-                    tr(if selected.is_empty() {
-                        "选择…"
-                    } else {
-                        "自定义"
-                    })
-                }),
-        )
-        .show_ui(ui, |ui| {
-            let sid = ui.id().with("filter");
-            let mut q = ui.data_mut(|d| d.get_temp::<String>(sid).unwrap_or_default());
-            ui.add(egui::TextEdit::singleline(&mut q).hint_text(tr("搜索名称")));
-            for (id, name) in options {
-                if q.is_empty()
-                    || format!("{name} {id}")
-                        .to_lowercase()
-                        .contains(&q.to_lowercase())
+    let display = options
+        .iter()
+        .find(|(k, _)| k == &selected)
+        .map(|(_, n)| n.clone())
+        .unwrap_or_else(|| {
+            tr(if selected.is_empty() {
+                "选择…"
+            } else {
+                "自定义"
+            })
+        });
+    resource_combo(ui, key, &display, |ui| {
+        let sid = ui.id().with("filter");
+        let mut q = ui.data_mut(|d| d.get_temp::<String>(sid).unwrap_or_default());
+        ui.add(egui::TextEdit::singleline(&mut q).hint_text(tr("搜索名称")));
+        for (id, name) in options {
+            if q.is_empty()
+                || format!("{name} {id}")
+                    .to_lowercase()
+                    .contains(&q.to_lowercase())
+            {
+                if ui
+                    .selectable_value(&mut selected, id.clone(), name)
+                    .clicked()
                 {
-                    ui.selectable_value(&mut selected, id.clone(), name);
+                    ui.close();
                 }
             }
-            ui.collapsing(tr("手动输入"), |ui| {
-                ui.add(
-                    egui::TextEdit::singleline(&mut selected).hint_text(tr("内部 ID / 自定义引用")),
-                );
-            });
-            ui.data_mut(|d| d.insert_temp(sid, q));
+        }
+        ui.collapsing(tr("手动输入"), |ui| {
+            ui.add(egui::TextEdit::singleline(&mut selected).hint_text(tr("内部 ID / 自定义引用")));
         });
+        ui.data_mut(|d| d.insert_temp(sid, q));
+    });
     if before != selected {
         row[key] = json!(selected);
         true
