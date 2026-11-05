@@ -45,7 +45,7 @@ SOLID_SIZE = (1920, 1080)
 _bundle_cache = {}
 
 
-def export_sprite(addr2bundle, address, out_path):
+def export_sprite(addr2bundle, address, out_path, *, portrait=False):
     """从 bundle 导出一张 Sprite 为 PNG。返回 None 表示成功，否则返回错误描述。"""
     bundle = addr2bundle.get(address)
     if bundle is None:
@@ -61,7 +61,12 @@ def export_sprite(addr2bundle, address, out_path):
     except ValueError as exc:
         return str(exc)
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    sprite.read().image.save(out_path)
+    data = sprite.read()
+    if portrait:
+        from preview_asset_worker import portrait_canvas_image
+        portrait_canvas_image(data).save(out_path)
+    else:
+        data.image.save(out_path)
     return None
 
 
@@ -152,10 +157,9 @@ def main():
         for addr, emo in addr2emo.items():
             rel = "assets/portraits/%s/%s.png" % (cid, emo)
             out_path = os.path.join(char_dir, emo + ".png")
-            if os.path.isfile(out_path):
-                err = None  # 已存在则跳过导出（幂等重跑）
-            else:
-                err = export_sprite(addr2bundle, addr, out_path)
+            # Regenerate portraits so an old trimmed PNG cannot acquire the new
+            # sprite_rect marker merely because its filename already exists.
+            err = export_sprite(addr2bundle, addr, out_path, portrait=True)
             if not err and args.max_size:
                 with Image.open(out_path) as original:
                     if max(original.size) > args.max_size:
@@ -233,7 +237,7 @@ def main():
             report["solid"]["failed"].append({"view": v, "error": repr(e)})
 
     # ---------- 写 preview_map.json / report ----------
-    preview = {"characters": out_characters, "views": dict(sorted(out_views.items()))}
+    preview = {"portrait_canvas": "sprite_rect", "characters": out_characters, "views": dict(sorted(out_views.items()))}
     with open(PREVIEW_MAP, "w", encoding="utf-8") as f:
         json.dump(preview, f, ensure_ascii=False, indent=1)
     with open(REPORT, "w", encoding="utf-8") as f:

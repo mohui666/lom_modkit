@@ -2,6 +2,8 @@
 
 编辑器与编译器现由 `rust/lom-editor`、`rust/lomc` 和 `rust/lom-core` 提供。C# `MortalModHost` 保留，包契约仍为 `package_format=3`、`story_schema=2`、`content_schema=1`。编辑、编译、测试、打包不再调用 Python、Qt 或 PyInstaller。
 
+本文保留 2026-10-04 至 05 的迁移与验收记录；下方功能对应、节点／样例数量、测试数字及分支规则均按当时状态阅读。当前构建操作见 [Rust 工具端](rust.md)，维护流程见 [维护者手册](maintainers.md)，当前能力与版本入口见 [文档总目录](../README.md)。
+
 ## 功能对应
 
 | 原工具功能 | Rust 实现 | 验证方式 |

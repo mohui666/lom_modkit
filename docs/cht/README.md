@@ -2,7 +2,9 @@
 
 > 語言：[中文（CHS）](../README.md) · 中文（CHT，本文） · [日本語](../ja/README.md) · [한국어](../ko/README.md)
 
-目前原始碼為 **v1.2.0**：Rust 編輯器與編譯器，保留 C# 遊戲宿主及 `.lommod` v3 契約。截至 2026-10-04，最新公開發行版仍為 [v1.1.1](https://github.com/mohui666/lom_modkit/releases/tag/v1.1.1)，屬於舊 Python / Qt 工具端。
+本索引對應 **1.4.4 原始碼**：Rust 編輯器與編譯器，保留 C# 遊戲宿主及 `.lommod` v3 契約。發布狀態與目前指南見 [文件總目錄](../README.md)。
+
+歷史範圍：本目錄的舊索引於 2026-10-04 記錄原始碼 v1.2.0、當時最新公開發行版 [v1.1.1](https://github.com/mohui666/lom_modkit/releases/tag/v1.1.1)；後者使用舊 Python / Qt 工具端。這是當時的版本紀錄，並非目前發布狀態。
 
 ## 目前版本的指南
 
@@ -12,14 +14,15 @@
 
 | 指南（簡中） | 內容 |
 | --- | --- |
+| [Windows 快速開始](../chs/windows_quick_start.md) | 安裝、升級與遊戲配置 |
 | [軟體使用](../chs/software_usage.md) | Rust 編輯器基本流程 |
 | [目前能力](../chs/current_capabilities.md) | 功能邊界與驗證範圍 |
 | [Mac 編輯器](../chs/macos.md) | 建置、啟動與素材設定 |
 | [CLI / API](../chs/ai_cli.md) | Rust `lomc` 與受控編輯 API |
-| [Mod 包格式](../chs/mod_format.md) | v3 契約與 63 種節點 |
+| [Mod 包格式](../chs/mod_format.md) | v3 契約與目前 67 種節點 |
 | [使用者內容](../chs/user_content.md) | 自訂人物、圖片與音訊 |
 | [維護者手冊](../chs/maintainers.md) | 保存、檢查、發布與遊戲接入 |
-| [Rust 遷移](../chs/rust_migration.md) | 元件與遷移範圍 |
+| [Rust 遷移](../chs/rust_migration.md) | 歷史遷移範圍與驗收紀錄 |
 
 ## 尚未同步的繁中譯文
 

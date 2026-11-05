@@ -2,7 +2,9 @@
 
 > 언어：[中文（CHS）](../README.md) · [中文（CHT）](../cht/README.md) · [日本語](../ja/README.md) · 한국어（현재 페이지）
 
-현재 소스는 **v1.2.0**입니다. 편집기와 컴파일러는 Rust로 작성했으며 C# 게임 호스트와 `.lommod` v3 규격은 유지합니다. 2026-10-04 기준 최신 공개 릴리스인 [v1.1.1](https://github.com/mohui666/lom_modkit/releases/tag/v1.1.1)은 구형 Python / Qt 도구입니다.
+이 색인은 **1.4.4 소스**를 기준으로 합니다. 편집기와 컴파일러는 Rust로 작성했으며 C# 게임 호스트와 `.lommod` v3 규격은 유지합니다. 공개 상태와 현재 안내는 [전체 문서 색인](../README.md)을 참고하세요.
+
+과거 기록: 이 폴더의 예전 색인은 2026-10-04 당시 소스 v1.2.0과 당시 최신 공개 릴리스인 [v1.1.1](https://github.com/mohui666/lom_modkit/releases/tag/v1.1.1)을 설명했습니다. v1.1.1은 구형 Python / Qt 도구이며, 이 기록은 현재 공개 상태를 뜻하지 않습니다.
 
 ## 현재 버전 안내
 
@@ -12,14 +14,15 @@
 
 | 안내(중국어 간체) | 내용 |
 | --- | --- |
+| [Windows 빠른 시작](../chs/windows_quick_start.md) | 설치, 업데이트 및 게임 설정 |
 | [사용 안내](../chs/software_usage.md) | Rust 편집기 기본 조작 |
 | [지원 기능](../chs/current_capabilities.md) | 기능 범위 및 검증 상태 |
 | [Mac 편집기](../chs/macos.md) | 빌드, 실행 및 리소스 설정 |
 | [CLI / API](../chs/ai_cli.md) | Rust `lomc`와 제어된 편집 API |
-| [Mod 패키지 규격](../chs/mod_format.md) | v3 규격과 63종 노드 |
+| [Mod 패키지 규격](../chs/mod_format.md) | v3 규격과 현재 67종 노드 |
 | [사용자 콘텐츠](../chs/user_content.md) | 사용자 캐릭터, 이미지 및 오디오 |
 | [유지보수 안내](../chs/maintainers.md) | 저장, 검사, 배포 및 게임 연동 |
-| [Rust 전환](../chs/rust_migration.md) | 구성 요소 및 전환 범위 |
+| [Rust 전환](../chs/rust_migration.md) | 과거 전환 범위와 검증 기록 |
 
 ## 아직 갱신되지 않은 한국어 번역
 
