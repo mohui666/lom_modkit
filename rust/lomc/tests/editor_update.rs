@@ -20,7 +20,21 @@ fn parent() -> std::process::Child {
 
 #[test]
 fn native_installer_waits_and_preserves_user_data_and_locked_targets() {
-    for locked in [false, true] {
+    for (locked, missing) in [
+        (false, vec![]),
+        (true, vec![]),
+        (false, vec!["lomc.exe"]),
+        (false, vec!["runtime/MortalModHost.dll"]),
+        (
+            false,
+            vec![
+                "lomc.exe",
+                "runtime/MortalModHost.dll",
+                "runtime/NVorbis.dll",
+            ],
+        ),
+        (true, vec!["lomc.exe", "runtime/MortalModHost.dll"]),
+    ] {
         let temp = tempfile::tempdir().unwrap();
         let local = temp.path().join("local");
         let work = local.join("lom_modkit/cache/work");
@@ -35,6 +49,14 @@ fn native_installer_waits_and_preserves_user_data_and_locked_targets() {
             fs::write(root.join(name), b"old").unwrap();
             fs::create_dir_all(stage.path().join("bundle").join(name).parent().unwrap()).unwrap();
             fs::write(stage.path().join("bundle").join(name), b"new").unwrap();
+        }
+        for name in &missing {
+            fs::remove_file(root.join(name)).unwrap();
+        }
+        if missing.contains(&"runtime/MortalModHost.dll")
+            && missing.contains(&"runtime/NVorbis.dll")
+        {
+            fs::remove_dir(root.join("runtime")).unwrap();
         }
         let markers = [
             "project/story/main.json",
@@ -90,6 +112,13 @@ fn native_installer_waits_and_preserves_user_data_and_locked_targets() {
             String::from_utf8_lossy(&output.stderr)
         );
         for (_, name) in PROGRAM_FILES {
+            if locked && missing.contains(&name) {
+                assert!(
+                    !root.join(name).exists(),
+                    "locked install must not create {name}"
+                );
+                continue;
+            }
             assert_eq!(
                 fs::read(root.join(name)).unwrap(),
                 if locked { b"old" } else { b"new" }
