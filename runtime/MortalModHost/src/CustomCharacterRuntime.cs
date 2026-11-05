@@ -27,6 +27,7 @@ namespace MortalModHost
             public string Name;
             public string Title;
             public float BodyScale = 1f;
+            public UserContent Content;
             public float LayoutScale = 1f;
             public Vector2 CanvasSize;
             public string ArtFacing = "left";
@@ -489,6 +490,7 @@ namespace MortalModHost
                 Name = string.IsNullOrEmpty(content.Name) ? parsed.LocalId : content.Name,
                 Title = content.Title,
                 BodyScale = percent / 100f,
+                Content = content,
                 ArtFacing = artFacing,
                 MoodAnchor = new Vector2(content.MoodX / 100f, content.MoodY / 100f)
             };
@@ -663,10 +665,15 @@ namespace MortalModHost
                 }
             }
 
-            float contain = Mathf.Min(boxW / sw, boxH / sh);
+            string reference = actor.Content.PortraitReference;
+            Sprite anchorSprite = !string.IsNullOrEmpty(reference) ? GetSprite(actor, reference) : sprite;
+            if (anchorSprite != null) { sw = anchorSprite.rect.width; sh = anchorSprite.rect.height; }
+            PortraitCalibration anchorLayout = actor.Content.PortraitLayout(reference ?? actor.Portrait);
+            float anchorScale = anchorLayout.Scale / 100f;
+            float contain = Mathf.Min(boxW / sw, boxH / sh) * anchorScale;
             actor.MoodLayoutAnchor = new Vector2(
-                0.5f + (actor.MoodAnchor.x - 0.5f) * sw * contain / boxW,
-                0.5f + (actor.MoodAnchor.y - 0.5f) * sh * contain / boxH);
+                0.5f + anchorLayout.X / 1920f + (actor.MoodAnchor.x - 0.5f) * sw * contain / boxW,
+                0.5f + (anchorScale - 1f) * 0.5f + anchorLayout.Y / 1080f + (actor.MoodAnchor.y - 0.5f) * sh * contain / boxH);
             if (actor.Mood != null)
             {
                 RectTransform mood = actor.Mood.GetComponent<RectTransform>();
@@ -678,6 +685,12 @@ namespace MortalModHost
             actor.HolderRect.anchorMax = dest != null ? dest.anchorMax : new Vector2(0.5f, 1f);
             actor.HolderRect.pivot = pivot;
             actor.HolderRect.sizeDelta = new Vector2(boxW * actor.BodyScale, boxH * actor.BodyScale);
+            PortraitCalibration calibration = actor.Content.PortraitLayout(actor.Portrait);
+            float portraitScale = calibration.Scale / 100f;
+            actor.ImageRect.localScale = new Vector3(portraitScale, portraitScale, 1f);
+            actor.ImageRect.anchoredPosition = new Vector2(
+                actor.HolderRect.rect.width * calibration.X / 1920f,
+                actor.HolderRect.rect.height * (calibration.Y / 1080f + (portraitScale - 1f) * 0.5f));
             if (dest != null)
                 actor.HolderRect.position = dest.position;
         }

@@ -1337,7 +1337,7 @@ namespace MortalModHost
             try
             {
                 string charJson =
-                    "{\"schema\":1,\"content_schema\":1,\"id\":\"mohui.luoxue\",\"type\":\"character\",\"name\":\"洛雪\",\"scale\":80,\"art_facing\":\"right\",\"files\":{\"main\":\"normal.png\"},\"portraits\":{\"normal\":\"normal.png\",\"happy\":\"happy.png\"}}";
+                    "{\"schema\":1,\"content_schema\":1,\"id\":\"mohui.luoxue\",\"type\":\"character\",\"name\":\"洛雪\",\"scale\":80,\"art_facing\":\"right\",\"portrait_reference\":\"normal\",\"portrait_layouts\":{\"happy\":{\"x\":-24.5,\"y\":-80,\"scale\":85.5}},\"files\":{\"main\":\"normal.png\"},\"portraits\":{\"normal\":\"normal.png\",\"happy\":\"happy.png\"}}";
                 string imageJson =
                     "{\"schema\":1,\"content_schema\":1,\"id\":\"mohui.moon_bg\",\"type\":\"image\",\"name\":\"月夜\",\"files\":{\"main\":\"moon.jpg\"}}";
                 byte[] png = new byte[] {
@@ -1367,7 +1367,9 @@ namespace MortalModHost
                     && ch.Files != null
                     && ch.Files.ContainsKey("happy.png")
                     && ch.Scale == 80
-                    && ch.ArtFacing == "right",
+                    && ch.ArtFacing == "right" && ch.PortraitReference == "normal"
+                    && ch.PortraitLayout("happy").X == -24.5f && ch.PortraitLayout("happy").Y == -80f
+                    && ch.PortraitLayout("happy").Scale == 85.5f && ch.PortraitLayout("normal").Scale == 100f,
                     "自定义角色应解析 portraits、立绘字节、体型与原图朝向");
                 UserContent image;
                 Assert(charMods[0].TryGetUserContent("mohui.moon_bg", out image)

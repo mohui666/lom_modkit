@@ -885,9 +885,45 @@ namespace MortalModHost
                 PackagePath = expectedDir + "/" + mainFile,
                 Bytes = mainBytes,
                 Portraits = portraits,
+                PortraitReference = ParsePortraitReference(root, portraits),
+                PortraitLayouts = ParsePortraitLayouts(root, portraits),
                 CombatFrames = combatFrames,
                 Files = fileBytes
             };
+        }
+
+        private static string ParsePortraitReference(Dictionary<string, object> root, Dictionary<string, string> portraits)
+        {
+            string reference = GetString(root, "portrait_reference", required: false);
+            if (!string.IsNullOrEmpty(reference) && !portraits.ContainsKey(reference))
+                throw new FormatException("基准表情不存在：" + reference);
+            return string.IsNullOrEmpty(reference) ? null : reference;
+        }
+
+        private static Dictionary<string, PortraitCalibration> ParsePortraitLayouts(Dictionary<string, object> root, Dictionary<string, string> portraits)
+        {
+            var result = new Dictionary<string, PortraitCalibration>(StringComparer.Ordinal);
+            object value;
+            if (!root.TryGetValue("portrait_layouts", out value) || value == null) return result;
+            var entries = value as Dictionary<string, object>;
+            if (entries == null) throw new FormatException("portrait_layouts 必须是表情对齐配置");
+            foreach (var entry in entries)
+            {
+                var layout = entry.Value as Dictionary<string, object>;
+                if (!portraits.ContainsKey(entry.Key) || layout == null) throw new FormatException("表情对齐配置无效：" + entry.Key);
+                result.Add(entry.Key, new PortraitCalibration { X = PortraitOffset(layout,"x"), Y = PortraitOffset(layout,"y"), Scale = GetPositiveScale(layout,"scale",100f) });
+            }
+            return result;
+        }
+
+        private static float PortraitOffset(Dictionary<string, object> layout, string key)
+        {
+            object value;
+            if (!layout.TryGetValue(key,out value) || value == null) return 0f;
+            if (!(value is double || value is long || value is int || value is float)) throw new FormatException("表情偏移必须是数字");
+            float number = Convert.ToSingle(value,System.Globalization.CultureInfo.InvariantCulture);
+            if (float.IsNaN(number) || float.IsInfinity(number)) throw new FormatException("表情偏移必须是有限数字");
+            return number;
         }
 
         private static UserContent ParseImageContent(

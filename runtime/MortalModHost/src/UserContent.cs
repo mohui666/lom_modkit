@@ -22,8 +22,22 @@ namespace MortalModHost
         public string PackagePath;
         public byte[] Bytes;
         public Dictionary<string, string> Portraits;
+        public string PortraitReference;
+        public Dictionary<string, PortraitCalibration> PortraitLayouts = new Dictionary<string, PortraitCalibration>();
+        public PortraitCalibration PortraitLayout(string portrait)
+        {
+            PortraitCalibration layout;
+            return portrait != null && PortraitLayouts.TryGetValue(portrait, out layout) ? layout : new PortraitCalibration();
+        }
         public Dictionary<string, string> CombatFrames;
         public Dictionary<string, byte[]> Files;
         public CustomGameplayDefinition Gameplay;
+    }
+
+    internal sealed class PortraitCalibration
+    {
+        public float X;
+        public float Y;
+        public float Scale = 100f;
     }
 }

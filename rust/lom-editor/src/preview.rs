@@ -14,7 +14,7 @@ pub(crate) use effects::Library as EffectLibrary;
 mod flow_graph;
 #[path = "preview_handles.rs"]
 mod handles;
-use handles::{opaque_bounds, LayoutDrag, LayoutObject};
+use handles::{opaque_bounds, LayoutClipboard, LayoutCommand, LayoutDrag, LayoutObject};
 
 pub fn edges(story: &Value) -> Vec<(String, String, String)> {
     let mut out = Vec::new();
@@ -627,6 +627,9 @@ pub struct Preview {
     layout_selected: Option<LayoutTarget>,
     layout_context: (String, String),
     layout_drag: Option<LayoutDrag>,
+    layout_command: Option<LayoutCommand>,
+    layout_clipboard: Option<LayoutClipboard>,
+    layout_snap: bool,
     effect_clock: effects::Clock,
     effect_library: Option<std::sync::Arc<effects::Library>>,
     effect_library_error: Option<String>,
@@ -674,6 +677,9 @@ impl Preview {
             layout_selected: None,
             layout_context: (String::new(), String::new()),
             layout_drag: None,
+            layout_command: None,
+            layout_clipboard: None,
+            layout_snap: true,
             effect_clock: effects::Clock::default(),
             effect_library,
             effect_library_error,
@@ -1385,18 +1391,29 @@ impl Preview {
                         let body_scale =
                             number(&meta, "scale", 100.0) as f32 / 100.0 * instance_scale;
                         let size = tex.size_vec2();
-                        let factor =
-                            (rect.width() / size.x).min(rect.height() / size.y) * body_scale;
+                        let calibration =
+                            lom_core::portrait_alignment::layout(&meta, text(a, "portrait"));
+                        let portrait_scale = calibration[2] as f32 / 100.0;
+                        let art_left = meta["art_facing"].as_str().unwrap_or("left") != "right";
+                        let flipped = (text(a, "facing") == "left") != art_left;
+                        let sign = if flipped { -1.0 } else { 1.0 };
+                        let factor = (rect.width() / size.x).min(rect.height() / size.y)
+                            * body_scale
+                            * portrait_scale;
                         let (w, h) = (size.x * factor, size.y * factor);
                         let dest = Rect::from_min_size(
                             Pos2::new(
-                                base.x - w / 2.0,
-                                base.y - rect.height() * body_scale / 2.0 - h / 2.0,
+                                base.x - w / 2.0
+                                    + sign * calibration[0] as f32 / 1920.0
+                                        * rect.width()
+                                        * body_scale,
+                                base.y
+                                    - rect.height() * body_scale * portrait_scale / 2.0
+                                    - h / 2.0
+                                    - calibration[1] as f32 / 1080.0 * rect.height() * body_scale,
                             ),
                             Vec2::new(w, h),
                         );
-                        let art_left = meta["art_facing"].as_str().unwrap_or("left") != "right";
-                        let flipped = (text(a, "facing") == "left") != art_left;
                         let brightness = if a["dimmed"].as_bool().unwrap_or(false) {
                             128
                         } else {
@@ -1428,6 +1445,7 @@ impl Preview {
                                     x: number(a, "offset_x", 0.0),
                                     y: number(a, "offset_y", 0.0),
                                     scale: number(a, "layout_scale", 100.0),
+                                    effect_scale: None,
                                 },
                                 units: Vec2::new(rect.width() / 1920.0, rect.height() / 1080.0),
                             });
@@ -1445,14 +1463,49 @@ impl Preview {
                                     instance_scale
                                 };
                             let sign = if flipped { -1.0 } else { 1.0 };
+                            let mut mood_rect = dest;
+                            if cid.starts_with("user:") {
+                                if let Some(reference) = meta["portrait_reference"].as_str() {
+                                    if let Some((texture, _)) =
+                                        self.texture(&ctx, p, lookup, true, reference)
+                                    {
+                                        let size = texture.size_vec2();
+                                        let value =
+                                            lom_core::portrait_alignment::layout(&meta, reference);
+                                        let scale = value[2] as f32 / 100.0;
+                                        let fit = (rect.width() / size.x)
+                                            .min(rect.height() / size.y)
+                                            * body_scale
+                                            * scale;
+                                        mood_rect = Rect::from_min_size(
+                                            Pos2::new(
+                                                base.x - size.x * fit / 2.0
+                                                    + sign * value[0] as f32 / 1920.0
+                                                        * rect.width()
+                                                        * body_scale,
+                                                base.y
+                                                    - rect.height() * body_scale * scale / 2.0
+                                                    - size.y * fit / 2.0
+                                                    - value[1] as f32 / 1080.0
+                                                        * rect.height()
+                                                        * body_scale,
+                                            ),
+                                            size * fit,
+                                        );
+                                    }
+                                }
+                            }
                             let anchor = if cid.starts_with("user:") {
                                 Pos2::new(
                                     base.x
                                         + sign
                                             * (number(&meta, "mood_x", 50.0) as f32 / 100.0 - 0.5)
-                                            * w,
-                                    dest.bottom()
-                                        - number(&meta, "mood_y", 90.0) as f32 / 100.0 * h,
+                                            * mood_rect.width()
+                                        + mood_rect.center().x
+                                        - base.x,
+                                    mood_rect.bottom()
+                                        - number(&meta, "mood_y", 90.0) as f32 / 100.0
+                                            * mood_rect.height(),
                                 )
                             } else {
                                 let position = &self.mapping["characters"][lookup]["mood_position"];
@@ -1496,6 +1549,26 @@ impl Preview {
                                         flipped,
                                         Color32::WHITE,
                                     );
+                                    if self.layout_mode && setting["enabled"] == true {
+                                        layout_objects.push(LayoutObject {
+                                            target: LayoutTarget::Mood(cid.clone()),
+                                            bounds: self.opaque_rect(
+                                                &texture,
+                                                Rect::from_center_size(center, size),
+                                                flipped,
+                                            ),
+                                            pivot: base,
+                                            angle: rotation,
+                                            value: LayoutChange {
+                                                target: LayoutTarget::Mood(cid.clone()),
+                                                x: number(setting, "offset_x", 0.0),
+                                                y: number(setting, "offset_y", 0.0),
+                                                scale: 100.0,
+                                                effect_scale: None,
+                                            },
+                                            units: Vec2::new(sign * unit, unit),
+                                        });
+                                    }
                                 }
                             }
                             if editing_mood
@@ -2129,6 +2202,7 @@ impl Preview {
                     x: number(n, "x", 0.0),
                     y: number(n, "y", 0.0),
                     scale: number(n, "scale", 100.0),
+                    effect_scale: None,
                 },
                 target,
                 units: Vec2::new(rect.width() / 100.0, rect.height() / 100.0),

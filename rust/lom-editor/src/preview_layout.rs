@@ -5,6 +5,7 @@ use serde_json::{json, Value};
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Target {
     Character(String),
+    Mood(String),
     Overlay(String),
     Cg,
     Effect { node: String, action: Option<usize> },
@@ -16,6 +17,7 @@ pub struct Change {
     pub x: f64,
     pub y: f64,
     pub scale: f64,
+    pub effect_scale: Option<[f64; 2]>,
 }
 
 #[derive(Clone, Copy)]
@@ -33,6 +35,9 @@ fn affects(action: &Value, target: &Target) -> bool {
         Target::Character(character) => {
             text(action, "character") == character
                 && matches!(text(action, "type"), "show" | "hide" | "move" | "offset")
+        }
+        Target::Mood(character) => {
+            action["type"] == "mood" && text(action, "character") == character
         }
         Target::Overlay(slot) => {
             action["type"] == "overlay" && action["slot"].as_str().unwrap_or("main") == slot
@@ -96,6 +101,12 @@ fn apply_inner(story: &mut Value, selected: usize, change: &Change) -> Result<us
         "位置必须是有限数值"
     );
     ensure!(change.scale.is_finite(), "缩放必须是有限数值");
+    if matches!(change.target, Target::Mood(_)) {
+        ensure!(
+            change.x.abs() <= 1920.0 && change.y.abs() <= 1080.0,
+            "气泡偏移须在横向 ±1920、纵向 ±1080 范围内"
+        );
+    }
     lom_core::content::positive_scale(&json!(change.scale), "scale")?;
     if matches!(&change.target, Target::Overlay(_) | Target::Cg) {
         ensure!(
@@ -139,8 +150,10 @@ fn apply_inner(story: &mut Value, selected: usize, change: &Change) -> Result<us
             "仅可调整可编辑的特效播放动作"
         );
         let ratio = change.scale / 100.0;
-        let a = source["a"].as_f64().unwrap_or(1.0) * ratio;
-        let b = source["b"].as_f64().unwrap_or(1.0) * ratio;
+        let [a, b] = change.effect_scale.unwrap_or([
+            source["a"].as_f64().unwrap_or(1.0) * ratio,
+            source["b"].as_f64().unwrap_or(1.0) * ratio,
+        ]);
         ensure!(a.is_finite() && b.is_finite(), "特效缩放结果超出可表示范围");
         let source = if let Some(action) = action {
             &mut story["nodes"][parent]["actions"][*action]
@@ -158,6 +171,10 @@ fn apply_inner(story: &mut Value, selected: usize, change: &Change) -> Result<us
         Target::Character(character) => {
             !character.is_empty() && state["actors"][character].is_object()
         }
+        Target::Mood(character) => {
+            state["actors"][character].is_object()
+                && state["mood_overrides"][character]["enabled"] == true
+        }
         Target::Overlay(slot) => state["overlays"][slot].is_object(),
         Target::Cg => state["custom_cg"].is_object(),
         Target::Effect { .. } => unreachable!(),
@@ -171,6 +188,17 @@ fn apply_inner(story: &mut Value, selected: usize, change: &Change) -> Result<us
     let Source::Action(parent, child) = source else {
         unreachable!()
     };
+
+    if matches!(change.target, Target::Mood(_)) {
+        let action = if let Some(child) = child {
+            &mut story["nodes"][parent]["actions"][child]
+        } else {
+            &mut story["nodes"][parent]
+        };
+        action["offset_x"] = json!(change.x);
+        action["offset_y"] = json!(change.y);
+        return Ok(selected);
+    }
 
     if let Target::Character(character) = &change.target {
         if current["type"] == "offset" && text(current, "character") == character {
@@ -246,6 +274,56 @@ pub fn apply(story: &mut Value, selected: usize, change: &Change) -> Result<usiz
 mod tests {
     use super::*;
 
+    #[test]
+    fn bubble_alignment_edits_its_own_source_without_changing_the_character_or_timing() {
+        let mut source = story(json!([
+            {"id":"show","type":"show","character":"player"},
+            {"id":"bubble","type":"mood","character":"player","enabled":true,"icon":"laugh1","wait_after":0.4},
+            {"id":"line","type":"say","mode":"narrative","text":"test"}
+        ]));
+        let before = source.clone();
+        let change = Change {
+            target: Target::Mood("player".into()),
+            x: 20.5,
+            y: -30.5,
+            scale: 100.0,
+            effect_scale: None,
+        };
+        apply(&mut source, 2, &change).unwrap();
+        assert_eq!(source["nodes"][0], before["nodes"][0]);
+        assert_eq!(source["nodes"][1]["offset_x"], 20.5);
+        assert_eq!(source["nodes"][1]["wait_after"], 0.4);
+        assert_eq!(source["nodes"][1]["icon"], "laugh1");
+        assert_eq!(
+            crate::preview::simulate(&source, "line")["mood_overrides"]["player"]["offset_y"],
+            -30.5
+        );
+    }
+
+    #[test]
+    fn pasted_effect_layout_preserves_both_signed_scale_axes() {
+        let mut source = story(
+            json!([{ "id":"fx","type":"effect","name":"Glow","a":0.5,"b":-2.0},{"id":"line","type":"say","mode":"narrative","text":"test"}]),
+        );
+        apply(
+            &mut source,
+            1,
+            &Change {
+                target: Target::Effect {
+                    node: "fx".into(),
+                    action: None,
+                },
+                x: 25.0,
+                y: 75.0,
+                scale: 100.0,
+                effect_scale: Some([-3.0, 0.75]),
+            },
+        )
+        .unwrap();
+        assert_eq!(source["nodes"][0]["a"], -3.0);
+        assert_eq!(source["nodes"][0]["b"], 0.75);
+    }
+
     fn story(nodes: Value) -> Value {
         json!({"story_schema":2,"id":"main","start":nodes[0]["id"],"nodes":nodes})
     }
@@ -255,6 +333,7 @@ mod tests {
             x,
             y: 60.0,
             scale: 175.5,
+            effect_scale: None,
         }
     }
 
@@ -373,6 +452,7 @@ mod tests {
             x: 12.5,
             y: -20.0,
             scale: 240.5,
+            effect_scale: None,
         };
         assert_eq!(apply(&mut source, 2, &change).unwrap(), 2);
         let action = &source["nodes"][0]["actions"][0];
@@ -434,6 +514,7 @@ mod tests {
             x: -225.0,
             y: 360.5,
             scale: 150.0,
+            effect_scale: None,
         };
         assert_eq!(apply(&mut source, 1, &change).unwrap(), 1);
         assert_eq!(source["nodes"].as_array().unwrap().len(), 2);
@@ -479,6 +560,7 @@ mod tests {
             x: 12.0,
             y: -4.0,
             scale: 200.0,
+            effect_scale: None,
         };
         assert!(apply(&mut source, 3, &change).is_err());
         assert_eq!(source, original);

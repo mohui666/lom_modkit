@@ -28,6 +28,33 @@ fn project() -> Project {
 }
 
 #[test]
+fn portrait_calibration_survives_save_export_and_reopen_and_requires_the_new_host() {
+    let mut project = project();
+    project.stories.get_mut("main").unwrap()["story_schema"] = json!(2);
+    let key = "assets/user/character/demo.xia/content.json";
+    let mut metadata: Value = serde_json::from_slice(&project.assets[key]).unwrap();
+    metadata["portrait_reference"] = json!("tired");
+    metadata["portrait_layouts"] =
+        json!({"tired":{"x":-24.5,"y":-80,"scale":85.5},"sleep":{"x":3,"y":-90,"scale":100}});
+    content_edit::update(&mut project, key, &metadata, &Default::default()).unwrap();
+    let root = tempfile::tempdir().unwrap();
+    project.save_to(&root.path().join("source")).unwrap();
+    let saved = Project::open(&root.path().join("source")).unwrap();
+    let package = root.path().join("calibrated.lommod");
+    saved.export(&package).unwrap();
+    let loaded = Project::open(&package).unwrap();
+    let actual: Value = serde_json::from_slice(&loaded.assets[key]).unwrap();
+    assert_eq!(actual["portrait_layouts"]["tired"]["x"], -24.5);
+    assert_eq!(actual["portrait_reference"], "tired");
+    assert_eq!(loaded.manifest["min_host_version"], "1.4.6");
+    for (name, bytes) in &project.assets {
+        if name.ends_with(".png") {
+            assert_eq!(&loaded.assets[name], bytes);
+        }
+    }
+}
+
+#[test]
 fn added_expressions_compile_travel_with_the_package_and_preserve_official_ones() {
     let project = project();
     // A preview mapping alone must never authorize a missing game resource.
