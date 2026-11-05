@@ -127,12 +127,7 @@ fn check(cancel: &AtomicBool) -> Result<Release> {
     let temp = lom_core::workdir::create()?;
     let response = temp.path().join("release.json");
     download(LATEST, &response, 1024 * 1024, cancel)?;
-    let mut release = parse_release(&serde_json::from_slice(&fs::read(response)?)?)?;
-    if cfg!(windows) {
-        let exe = std::env::current_exe()?;
-        release.inspect_installation(exe.parent().context("无法确定编辑器安装位置")?)?;
-    }
-    Ok(release)
+    parse_release(&serde_json::from_slice(&fs::read(response)?)?)
 }
 
 struct Prepared {
@@ -274,11 +269,15 @@ impl Updater {
         self.cancel.store(false, Ordering::Relaxed);
         let cancel = self.cancel.clone();
         self.worker = Some(thread::spawn(move || {
-            let _ = tx.send(
-                check(&cancel)
-                    .map(Job::Checked)
-                    .map_err(|e| format!("{e:#}")),
-            );
+            let result = check(&cancel).and_then(|mut release| {
+                if cfg!(windows) {
+                    let exe = std::env::current_exe()?;
+                    release
+                        .inspect_installation(exe.parent().context("无法确定编辑器安装位置")?)?;
+                }
+                Ok(Job::Checked(release))
+            });
+            let _ = tx.send(result.map_err(|e| format!("{e:#}")));
             if !cancel.load(Ordering::Relaxed) {
                 ctx.request_repaint();
             }
