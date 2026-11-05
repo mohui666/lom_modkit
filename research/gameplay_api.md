@@ -1,5 +1,15 @@
 # Gameplay API 实证矩阵
 
+## 2026-11-05 预览拖拽布局的实例变换接口
+
+针对 Host 1.4.4 新布局字段，重新只读反编译当前 Windows 安装的 `CharacterPlaceholder.Get/MoveOffsetCoroutine`、`StoryCharacterController.MoveOffsetCoroutine`、`PortraitController.SetupPortrait/SetRectTransform/Show`、`PortraitState` 与 `PortraitOptions`。原版相对偏移累加 `State.holder.anchoredPosition`，完成后将 `State.position` 改为 holder；后续绝对偏移不能再把这个字段当作原始站位。Host 在 `SetupPortrait(PortraitOptions)` 记录实际目标槽位，新的 `mod_character_layout` 从该槽计算绝对位置或从当前位置累加，并以自有协程移动当前实例的 holder，完成后沿用 `State.position=holder` 语义。旧相对偏移仍调用原版 `MoveOffsetCoroutine`，不改变其行为。
+
+`SetupPortrait` 每次复制站位矩形并将 holder.localScale 重置为 ±1，因此 Host 在该入口后恢复作者的额外倍率，保留水平翻转；100% 表示素材默认体型。倍率即时生效，duration 只控制位移。显式 show 后的 `mod_character_layout_reset` 恢复 100%，换表情、转身和移动不重置倍率；移动仍按原版目标槽清除旧偏移。自定义人物使用已有 `Actor.Slot` 与独立倍率，转身按倍率重新组合正负号。清舞台时停止本模块自己的协程并清除实例状态，不修改官方 ScriptableObject 或站位资产。
+
+补查 `CharacterMoodPanel.Show(string,float)`：原版用 `scaleX==1` 选择左向气泡，其余值选右向；对采用额外倍率的原版人物，仅在这个实例的气泡调用中把朝向值归一为 ±1，保留 holder 的实际大小。插图沿用 Host 自建 Canvas 子物件的 `anchoredPosition`，在原 position 锚点上叠加舞台宽高百分比 x/y；旧七参数调用仍以零偏移运行。本条为接口和实现依据，构建、离线冒烟与游戏实际运行分开记录。
+
+同日用 Host 1.4.4 在独立测试战役中实际观察了编辑器拖动结果：夏灵犀额外缩放约 149.1%、用户人物约 70.6%，人物偏移和插图新位置／比例正确显示；转身、原版换表情后保持布局，显式重新登场恢复素材默认大小。正常结束后返回 Free，人物与插图清除；该次日志未出现 Error、Exception 或布局调用失败。此为定向实机结果，不代表复杂动画、全部人物及分辨率组合均已覆盖。
+
 ## 2026-11-05 原版人物补绘与站位尺寸
 
 定向只读反编译当前 Windows 游戏的 `CharacterPlaceholder.LoadCharacterPortrait/GetPortrait`、`StoryCharacterController.LoadPortrait/LoadPortraitSync/GetPortraitName/AddPortraitObject`、`Fungus.Character.Portraits`、`PortraitController.SetupPortrait/CreatePortraitObject/SetRectTransform` 和 `PortraitState.SetPortraitImageBySprite`。新增补绘拦截原版表情加载与名字解析，将包内 Sprite 放进当前人物实例的 `Portraits` 与 `State.allPortraits`，保留官方表情键及原始配置；只给自建 Image 应用缩放，退出包时移除。没有修改 `StoryCharacterData` 或 Addressables 资产。

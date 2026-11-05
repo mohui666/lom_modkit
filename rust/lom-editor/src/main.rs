@@ -12,6 +12,7 @@ mod macos_window;
 mod persistence;
 mod play_bundle;
 mod preview;
+mod preview_layout;
 mod shell;
 mod tool_report;
 mod tools_panel;

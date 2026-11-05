@@ -1115,6 +1115,18 @@
           true
         ],
         [
+          "x",
+          "横向偏移（%）",
+          "percent_offset",
+          true
+        ],
+        [
+          "y",
+          "纵向偏移（%）",
+          "percent_offset",
+          true
+        ],
+        [
           "opacity",
           "不透明度",
           "percent_opacity",
@@ -1321,14 +1333,26 @@
         [
           "x",
           "横向偏移（像素）",
-          "int",
+          "float",
           false
         ],
         [
           "y",
           "纵向偏移（像素）",
-          "int",
+          "float",
           false
+        ],
+        [
+          "absolute",
+          "相对站位绝对定位",
+          "bool",
+          true
+        ],
+        [
+          "scale",
+          "体型缩放百分比",
+          "percent_scale",
+          true
         ],
         [
           "duration",

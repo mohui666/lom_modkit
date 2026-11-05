@@ -1,0 +1,374 @@
+//! Transactional edits made by dragging the stage preview.
+use anyhow::{ensure, Context, Result};
+use serde_json::{json, Value};
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Target {
+    Character(String),
+    Overlay(String),
+    Cg,
+}
+
+#[derive(Clone, Debug)]
+pub struct Change {
+    pub target: Target,
+    pub x: f64,
+    pub y: f64,
+    pub scale: f64,
+}
+
+#[derive(Clone, Copy)]
+enum Source {
+    Action(usize, Option<usize>),
+    Raw,
+}
+
+fn text<'a>(value: &'a Value, key: &str) -> &'a str {
+    value[key].as_str().unwrap_or("")
+}
+
+fn affects(action: &Value, target: &Target) -> bool {
+    match target {
+        Target::Character(character) => {
+            text(action, "character") == character
+                && matches!(text(action, "type"), "show" | "hide" | "move" | "offset")
+        }
+        Target::Overlay(slot) => {
+            action["type"] == "overlay" && action["slot"].as_str().unwrap_or("main") == slot
+        }
+        Target::Cg => action["type"] == "custom_cg",
+    }
+}
+
+fn observe(action: &Value, target: &Target, location: Source, source: &mut Option<Source>) {
+    if action["type"] == "raw" {
+        let (actions, _) = lom_core::lua_import::preview_nodes(text(action, "code"));
+        for action in actions {
+            observe(&action, target, Source::Raw, source);
+        }
+    } else if affects(action, target) {
+        *source = if action["type"] == "hide" || action["action"] == "hide" {
+            None
+        } else {
+            Some(location)
+        };
+    }
+}
+
+fn source_on_route(story: &Value, current: &str, target: &Target) -> Result<Source> {
+    let path = crate::preview::route(story, current).context("当前步骤无法从剧情开头到达")?;
+    let nodes = story["nodes"].as_array().context("剧情缺少步骤列表")?;
+    let mut source = None;
+    for id in path {
+        let (index, parent) = nodes
+            .iter()
+            .enumerate()
+            .find(|(_, node)| node["id"] == id)
+            .context("预览路径中的步骤不存在")?;
+        if parent["type"] == "parallel" {
+            for (action, node) in lom_core::parallel::actions(parent).iter().enumerate() {
+                observe(
+                    node,
+                    target,
+                    Source::Action(index, Some(action)),
+                    &mut source,
+                );
+            }
+        } else {
+            observe(parent, target, Source::Action(index, None), &mut source);
+        }
+    }
+    source.context("当前预览中没有可调整的目标")
+}
+
+fn write_offset(node: &mut Value, change: &Change) {
+    node["x"] = json!(change.x);
+    node["y"] = json!(change.y);
+    node["scale"] = json!(change.scale);
+    node["absolute"] = json!(true);
+}
+
+fn apply_inner(story: &mut Value, selected: usize, change: &Change) -> Result<usize> {
+    ensure!(
+        change.x.is_finite() && change.y.is_finite(),
+        "位置必须是有限数值"
+    );
+    ensure!(change.scale.is_finite(), "缩放必须是有限数值");
+    lom_core::content::positive_scale(&json!(change.scale), "scale")?;
+    if !matches!(&change.target, Target::Character(_)) {
+        ensure!(
+            (-100.0..=100.0).contains(&change.x) && (-100.0..=100.0).contains(&change.y),
+            "图片位置必须在 -100～100% 之间"
+        );
+    }
+    let nodes = story["nodes"].as_array().context("剧情缺少步骤列表")?;
+    let current = nodes.get(selected).context("所选步骤不存在")?;
+    ensure!(current.is_object(), "所选步骤必须是对象");
+    let current_id = current["id"]
+        .as_str()
+        .filter(|id| !id.is_empty())
+        .context("所选步骤缺少 ID")?
+        .to_owned();
+    let state = crate::preview::simulate(story, &current_id);
+    let visible = match &change.target {
+        Target::Character(character) => {
+            !character.is_empty() && state["actors"][character].is_object()
+        }
+        Target::Overlay(slot) => state["overlays"][slot].is_object(),
+        Target::Cg => state["custom_cg"].is_object(),
+    };
+    ensure!(visible, "目标尚未显示或已经隐藏，无法调整布局");
+    let source = source_on_route(story, &current_id, &change.target)?;
+    ensure!(
+        !matches!(source, Source::Raw),
+        "当前目标来自高级 Lua 静态预览，请先改为可编辑的演出步骤"
+    );
+    let Source::Action(parent, child) = source else {
+        unreachable!()
+    };
+
+    if let Target::Character(character) = &change.target {
+        if current["type"] == "offset" && text(current, "character") == character {
+            write_offset(&mut story["nodes"][selected], change);
+            return Ok(selected);
+        }
+        let action = child.map_or(&nodes[parent], |child| &nodes[parent]["actions"][child]);
+        if action["type"] == "offset" && action["absolute"] == true {
+            let action = if let Some(child) = child {
+                &mut story["nodes"][parent]["actions"][child]
+            } else {
+                &mut story["nodes"][parent]
+            };
+            write_offset(action, change);
+            return Ok(selected);
+        }
+        let offset_id = (1..)
+            .map(|number| format!("offset{number}"))
+            .find(|id| !nodes.iter().any(|node| node["id"] == *id))
+            .unwrap();
+        let mut offset = json!({"id":offset_id,"type":"offset","character":character,"duration":0});
+        write_offset(&mut offset, change);
+        let successor = nodes[parent]["goto"]
+            .as_str()
+            .filter(|id| !id.is_empty())
+            .map(str::to_owned)
+            .or_else(|| {
+                nodes
+                    .get(parent + 1)
+                    .and_then(|node| node["id"].as_str())
+                    .map(str::to_owned)
+            });
+        if let Some(successor) = successor {
+            offset["goto"] = json!(successor);
+        }
+        // Keep the layout on the branch which actually showed or moved the
+        // character. Other incoming edges at a later merge remain untouched.
+        story["nodes"][parent]["goto"] = json!(offset_id);
+        story["nodes"]
+            .as_array_mut()
+            .unwrap()
+            .insert(parent + 1, offset);
+        Ok(if parent <= selected {
+            selected + 1
+        } else {
+            selected
+        })
+    } else {
+        let action = if let Some(child) = child {
+            &mut story["nodes"][parent]["actions"][child]
+        } else {
+            &mut story["nodes"][parent]
+        };
+        ensure!(
+            action.is_object() && action["action"] == "show",
+            "当前图片没有可编辑的显示步骤"
+        );
+        action["x"] = json!(change.x);
+        action["y"] = json!(change.y);
+        action["scale"] = json!(change.scale);
+        Ok(selected)
+    }
+}
+
+pub fn apply(story: &mut Value, selected: usize, change: &Change) -> Result<usize> {
+    let mut next = story.clone();
+    let selected = apply_inner(&mut next, selected, change)?;
+    *story = next;
+    Ok(selected)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn story(nodes: Value) -> Value {
+        json!({"story_schema":2,"id":"main","start":nodes[0]["id"],"nodes":nodes})
+    }
+    fn character(x: f64) -> Change {
+        Change {
+            target: Target::Character("player".into()),
+            x,
+            y: 60.0,
+            scale: 175.5,
+        }
+    }
+
+    #[test]
+    fn branch_merge_edits_only_the_showing_branch_source() {
+        let mut source = story(json!([
+            {"id":"choice1","type":"choice","options":[{"goto":"a_show","text":"人物登场"},{"goto":"b_wait","text":"无人物"}]},
+            {"id":"a_show","type":"show","character":"player","goto":"current"},
+            {"id":"b_wait","type":"wait","seconds":1,"goto":"current"},
+            {"id":"current","type":"say","mode":"narrative","text":"汇合对白","goto":"current"},
+            {"id":"end","type":"end"}
+        ]));
+        let original = source.clone();
+        let selected = apply(&mut source, 3, &character(120.0)).unwrap();
+        assert_eq!(selected, 4);
+        assert_eq!(source["nodes"][selected], original["nodes"][3]);
+        assert_eq!(source["nodes"][0], original["nodes"][0]);
+        assert_eq!(source["start"], "choice1");
+        assert_eq!(source["nodes"][1]["goto"], "offset1");
+        assert_eq!(source["nodes"][2]["goto"], "current");
+        assert_eq!(source["nodes"][3], original["nodes"][2]);
+        assert_eq!(lom_core::analysis::successors(&source, 3), vec!["current"]);
+        assert_eq!(source["nodes"][selected]["goto"], "current");
+    }
+
+    #[test]
+    fn implicit_source_insertion_is_reused_on_the_next_drag() {
+        let mut source = story(json!([
+            {"id":"show1","type":"show","character":"player"},
+            {"id":"say1","type":"say","character":"player","text":"对白"},
+            {"id":"end","type":"end"}
+        ]));
+        let selected = apply(&mut source, 1, &character(120.0)).unwrap();
+        assert_eq!(selected, 2);
+        assert_eq!(lom_core::analysis::successors(&source, 0), vec!["offset1"]);
+        assert_eq!(source["nodes"][1]["goto"], "say1");
+        assert_eq!(
+            apply(&mut source, selected, &character(180.0)).unwrap(),
+            selected
+        );
+        assert_eq!(source["nodes"].as_array().unwrap().len(), 4);
+        assert_eq!(source["nodes"][1]["x"], 180.0);
+        assert_eq!(source["nodes"][1]["absolute"], true);
+        assert_eq!(source["nodes"][1]["duration"], 0);
+    }
+
+    #[test]
+    fn parallel_show_inserts_after_and_updates_the_selected_offset() {
+        let mut source = story(json!([
+            {"id":"parallel1","type":"parallel","goto":"end","actions":[
+                {"type":"show","character":"player","position":"L1"},
+                {"type":"show","character":"girl1","position":"R1"}]},
+            {"id":"skipped","type":"say","text":"跳过"},
+            {"id":"end","type":"end"}
+        ]));
+        let selected = apply(&mut source, 0, &character(120.0)).unwrap();
+        assert_eq!(selected, 1);
+        assert_eq!(source["nodes"][0]["goto"], "offset1");
+        assert_eq!(source["nodes"][1]["goto"], "end");
+        source["nodes"][1]["wait_after"] = json!(0.5);
+        source["nodes"][1]["duration"] = json!(1.25);
+        source["nodes"][1]["absolute"] = json!(false);
+        assert_eq!(
+            apply(&mut source, selected, &character(250.0)).unwrap(),
+            selected
+        );
+        assert_eq!(source["nodes"].as_array().unwrap().len(), 4);
+        assert_eq!(source["nodes"][1]["wait_after"], 0.5);
+        assert_eq!(source["nodes"][1]["duration"], 1.25);
+        assert_eq!(source["nodes"][1]["absolute"], true);
+        assert_eq!(source["nodes"][1]["x"], 250.0);
+        assert_eq!(source["nodes"][0]["actions"][1]["character"], "girl1");
+    }
+
+    #[test]
+    fn existing_parallel_absolute_offset_retains_author_timing() {
+        let mut source = story(json!([
+            {"id":"show1","type":"show","character":"player"},
+            {"id":"layout","type":"parallel","actions":[
+                {"type":"offset","character":"player","absolute":true,"x":10,"y":20,"scale":100,"duration":2.5,"wait_after":0.4},
+                {"type":"show","character":"girl1","position":"R1"}]},
+            {"id":"say1","type":"say","mode":"narrative","text":"对白"}
+        ]));
+        let original = source.clone();
+        assert_eq!(apply(&mut source, 2, &character(80.0)).unwrap(), 2);
+        assert_eq!(source["nodes"].as_array().unwrap().len(), 3);
+        let action = &source["nodes"][1]["actions"][0];
+        assert_eq!(action["x"], 80.0);
+        assert_eq!(action["duration"], 2.5);
+        assert_eq!(action["wait_after"], 0.4);
+        assert_eq!(
+            source["nodes"][1]["actions"][1],
+            original["nodes"][1]["actions"][1]
+        );
+
+        source["nodes"][1]["actions"][0]["absolute"] = json!(false);
+        let selected = apply(&mut source, 2, &character(140.0)).unwrap();
+        assert_eq!(source["nodes"][selected]["id"], "say1");
+        assert_eq!(source["nodes"][2]["type"], "offset");
+        assert_eq!(source["nodes"][2]["duration"], 0);
+        assert_eq!(source["nodes"][1]["actions"][0]["duration"], 2.5);
+    }
+
+    #[test]
+    fn images_edit_the_parallel_source_on_the_actual_route_and_keep_other_fields() {
+        let mut source = story(json!([
+            {"id":"pictures","type":"parallel","goto":"current","actions":[
+                {"type":"overlay","action":"show","slot":"seal","image":"user:demo.seal","position":"left","opacity":45,"fade":0.2,"layer":"back"},
+                {"type":"custom_cg","action":"show","image":"user:demo.cg","fade":0.7}]},
+            {"id":"off_path","type":"overlay","action":"show","slot":"seal","image":"user:demo.other","position":"right"},
+            {"id":"current","type":"say","mode":"narrative","text":"对白"}
+        ]));
+        let original = source.clone();
+        let change = Change {
+            target: Target::Overlay("seal".into()),
+            x: 12.5,
+            y: -20.0,
+            scale: 240.5,
+        };
+        assert_eq!(apply(&mut source, 2, &change).unwrap(), 2);
+        let action = &source["nodes"][0]["actions"][0];
+        assert_eq!(action["x"], 12.5);
+        for field in ["position", "opacity", "fade", "layer", "image"] {
+            assert_eq!(action[field], original["nodes"][0]["actions"][0][field]);
+        }
+        assert_eq!(source["nodes"][1], original["nodes"][1]);
+        let cg = Change {
+            target: Target::Cg,
+            ..change
+        };
+        apply(&mut source, 2, &cg).unwrap();
+        assert_eq!(source["nodes"][0]["actions"][1]["scale"], 240.5);
+        assert_eq!(source["nodes"][0]["actions"][1]["fade"], 0.7);
+        let before = source.clone();
+        assert!(apply(&mut source, 2, &Change { x: 101.0, ..cg }).is_err());
+        assert_eq!(source, before);
+    }
+
+    #[test]
+    fn raw_layout_and_invalid_numbers_leave_the_story_unchanged() {
+        let mut source = story(json!([
+            {"id":"raw1","type":"raw","code":"stage.show{character=characters.Get(\"player\"),portrait=characters.GetPortrait(\"player\",\"normal\"),toPosition=\"L1\",facing=\"right\"}"},
+            {"id":"say1","type":"say","character":"player","text":"对白"}
+        ]));
+        let original = source.clone();
+        assert!(apply(&mut source, 1, &character(0.0))
+            .unwrap_err()
+            .to_string()
+            .contains("高级 Lua"));
+        assert_eq!(source, original);
+        assert!(apply(
+            &mut source,
+            1,
+            &Change {
+                x: f64::NAN,
+                ..character(0.0)
+            }
+        )
+        .is_err());
+        assert_eq!(source, original);
+    }
+}

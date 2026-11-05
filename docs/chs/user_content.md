@@ -265,8 +265,8 @@ Windows 顶栏或「文件 → 导出完整游玩包…」可一键生成 ZIP，
 - 自定义 fadeout 是输出音量渐弱（随后仍会按节点等待）。
 - 切到自定义音乐时会先停官方背景乐；官方 `StopMusic` 本来就会把环境音一起清掉。
 - 回标题、进自由/死亡/结局时自定义音频（含对白语音）会立刻停；官方再播一首 BGM 时会先停自定义 BGM，避免两轨叠在一起。
-- 自定义角色不注册进原版 Addressables。`show` / `say` / `hide` / `move` / `face` / `focus` / `offset` / `shock` / `dim` / `rotate` 在编译时改走 `mod_char_*`，由 `CustomCharacterRuntime` 在官方舞台画布上自建 Image。体型按 `scale` 从脚底缩放；朝向按 `art_facing`（默认朝左）再叠节点 `facing`。
-- `offset` 累加舞台坐标，`rotate` 转到绝对 Z 角度，`dim` 使用当前官方舞台的压暗颜色和过渡时长，`shock` 在结束后恢复原位置；官方角色路径完全不变。
+- 自定义角色不注册进原版 Addressables。`show` / `say` / `hide` / `move` / `face` / `focus` / `offset` / `shock` / `dim` / `rotate` 默认编译为 `mod_char_*`，新增人物布局字段使用 `mod_character_layout`；人物由 `CustomCharacterRuntime` 在官方舞台画布上自建 Image。体型按 `scale` 从脚底缩放；朝向按 `art_facing`（默认朝左）再叠节点 `facing`。
+- `offset` 默认累加舞台坐标。Host 1.4.4 起可填 `absolute=true`，把 x/y 设为相对当前站位锚点的绝对偏移；坐标按 1920×1080 舞台换算，向右/上为正。可选 `scale` 为体型百分比，100 沿用素材默认体型，留空保留当前缩放，支持正数小数。显式重新登场恢复默认体型；转身和移动保留缩放。`rotate` 转到绝对 Z 角度，`dim` 使用当前舞台的压暗颜色和过渡时长，`shock` 在结束后恢复原位置。
 - `affinity` 仍不支持自定义角色：它会写官方 `CharacterData` 好感系统，不是纯演出，而 `user:` 角色没有官方好感数据槽。长期状态请使用 Mod 隔离变量，不要伪造官方角色 id。
 - 切场景、换脚本时会销毁自定义立绘 GameObject 与 Sprite，避免残留。
 - 可用 `samples/showcase3/` 一并验收自定义音频、角色、图片与剧情节点。

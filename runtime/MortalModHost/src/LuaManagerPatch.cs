@@ -554,6 +554,17 @@ namespace MortalModHost
                     MoodControl.SetCharacter(ArgString(args, 0), ArgString(args, 1), ArgFloat(args, 2, 0f), ArgFloat(args, 3, 0f));
                     return DynValue.Nil;
                 }, "mod_character_mood");
+                script.Globals["mod_character_layout"] = new CallbackFunction((ctx, args) =>
+                {
+                    CharacterLayoutRuntime.Set(ArgString(args, 0), ArgFloat(args, 1, 0f), ArgFloat(args, 2, 0f),
+                        ArgFloat(args, 3, -1f), ArgBool(args, 4, false), ArgFloat(args, 5, 0f));
+                    return DynValue.Nil;
+                }, "mod_character_layout");
+                script.Globals["mod_character_layout_reset"] = new CallbackFunction((ctx, args) =>
+                {
+                    CharacterLayoutRuntime.Reset(ArgString(args, 0));
+                    return DynValue.Nil;
+                }, "mod_character_layout_reset");
                 // 契约 §6.13：死亡文本（2 参：短标题 + 多行描述，GameOver 画面两段式显示）。
                 // 单参调用兼容（旧编译器/老 mod 包）：参数当描述、标题留空。
                 script.Globals["mod_set_death_text"] = new CallbackFunction((ctx, args) =>
@@ -702,7 +713,8 @@ namespace MortalModHost
                         CustomImageRuntime.ShowOverlay(
                             ArgString(args, 0), ArgString(args, 1), ArgString(args, 2, "center"),
                             ArgFloat(args, 3, 100f), ArgFloat(args, 4, 100f),
-                            ArgString(args, 5, "front"), ArgFloat(args, 6, 0f));
+                            ArgString(args, 5, "front"), ArgFloat(args, 6, 0f),
+                            ArgFloat(args, 7, 0f), ArgFloat(args, 8, 0f));
                     }
                     catch (Exception ex) { Log.LogWarning("mod_overlay_show 失败：" + ex.Message); }
                     return DynValue.Nil;

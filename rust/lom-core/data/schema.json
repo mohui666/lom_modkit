@@ -67,7 +67,9 @@
         "opacity": "num",
         "layer": "overlay_layer",
         "fade": "num",
-        "wait_after": "num"
+        "wait_after": "num",
+        "x": "num",
+        "y": "num"
       }
     },
     "show": {
@@ -132,7 +134,9 @@
         "duration": "num"
       },
       "optional": {
-        "wait_after": "num"
+        "wait_after": "num",
+        "absolute": "bool",
+        "scale": "num"
       }
     },
     "say": {

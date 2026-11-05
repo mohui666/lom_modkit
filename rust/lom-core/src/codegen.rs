@@ -125,6 +125,7 @@ struct Context<'a> {
     content_root: &'a Path,
     preloaded: bool,
     previous_visual_calls: bool,
+    character_layout: bool,
 }
 fn check(expr: String, node: &Value) -> Vec<String> {
     vec![
@@ -351,18 +352,19 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                     if action == "hide" {
                         call("mod_overlay_hide", &[q(node, "slot"), fade.clone()])
                     } else {
-                        call(
-                            "mod_overlay_show",
-                            &[
-                                q(node, "slot"),
-                                q(node, "image"),
-                                qd(node, "position", "center"),
-                                n(node, "scale", json!(100)),
-                                n(node, "opacity", json!(100)),
-                                qd(node, "layer", "front"),
-                                fade.clone(),
-                            ],
-                        )
+                        let mut args = vec![
+                            q(node, "slot"),
+                            q(node, "image"),
+                            qd(node, "position", "center"),
+                            n(node, "scale", json!(100)),
+                            n(node, "opacity", json!(100)),
+                            qd(node, "layer", "front"),
+                            fade.clone(),
+                        ];
+                        if has(node, "x") || has(node, "y") {
+                            args.extend([n(node, "x", json!(0)), n(node, "y", json!(0))]);
+                        }
+                        call("mod_overlay_show", &args)
                     }
                 }
             });
@@ -433,7 +435,7 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                     "mod_char_show",
                     &[c.clone(), portrait, pos, facing, fade, duration],
                 ));
-                out.push(call("mod_char_focus", &[c]));
+                out.push(call("mod_char_focus", &[c.clone()]));
             } else {
                 if !ctx.preloaded {
                     out.push(load(&c));
@@ -445,7 +447,10 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                     ));
                 }
                 out.push(format!("\tstage.show{{character=characters.Get({c}), portrait=characters.GetPortrait({c}, {portrait}), fromPosition={pos}, toPosition={pos}, facing={facing}, fadeDuration={fade}, moveDuration={duration}, useDefaultSettings=false}}"));
-                out.push(call("characters.Focus", &[c]));
+                out.push(call("characters.Focus", &[c.clone()]));
+            }
+            if ctx.character_layout {
+                out.push(call("mod_character_layout_reset", &[c]));
             }
             if !ctx.mood {
                 out.push("\tmod_hide_mood()".into());
@@ -504,34 +509,52 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
         }
         "offset" | "rotate" => {
             let d = n(node, "duration", json!(0));
-            let mut args = vec![c.clone()];
-            if kind == "offset" {
-                args.extend([n(node, "x", json!(0)), n(node, "y", json!(0))]);
-            } else {
-                args.push(n(node, "angle", json!(0)));
-            }
-            args.push(d.clone());
-            if user {
+            if kind == "offset" && (has(node, "absolute") || has(node, "scale")) {
+                if !user && !ctx.preloaded {
+                    out.push(load(&c));
+                }
                 out.push(call(
-                    if kind == "offset" {
-                        "mod_char_offset"
-                    } else {
-                        "mod_char_rotate"
-                    },
-                    &args,
+                    "mod_character_layout",
+                    &[
+                        c,
+                        n(node, "x", json!(0)),
+                        n(node, "y", json!(0)),
+                        n(node, "scale", json!(-1)),
+                        b(node, "absolute", false).to_string(),
+                        d.clone(),
+                    ],
                 ));
                 out.push(wait(d));
             } else {
-                if !ctx.preloaded {
-                    out.push(load(&c));
-                }
+                let mut args = vec![c.clone()];
                 if kind == "offset" {
-                    out.push(format!(
-                        "\trunwait(characters.MoveOffsetCoroutine({}))",
-                        args.join(", ")
-                    ));
+                    args.extend([n(node, "x", json!(0)), n(node, "y", json!(0))]);
                 } else {
-                    out.push(call("characters.Rotate", &args));
+                    args.push(n(node, "angle", json!(0)));
+                }
+                args.push(d.clone());
+                if user {
+                    out.push(call(
+                        if kind == "offset" {
+                            "mod_char_offset"
+                        } else {
+                            "mod_char_rotate"
+                        },
+                        &args,
+                    ));
+                    out.push(wait(d));
+                } else {
+                    if !ctx.preloaded {
+                        out.push(load(&c));
+                    }
+                    if kind == "offset" {
+                        out.push(format!(
+                            "\trunwait(characters.MoveOffsetCoroutine({}))",
+                            args.join(", ")
+                        ));
+                    } else {
+                        out.push(call("characters.Rotate", &args));
+                    }
                 }
             }
         }
@@ -1692,6 +1715,8 @@ fn story_to_lua_impl(
     let narrative_layout = nodes
         .iter()
         .any(|n| ["narrative", "center"].contains(&s(n, "mode")) && s(n, "text_align") == "left");
+    let character_layout = crate::parallel::story_actions(story)
+        .any(|(_, node)| node["type"] == "offset" && (has(node, "absolute") || has(node, "scale")));
     let mut lines = vec![
         GENERATED_MARK.to_owned(),
         format!("-- Source: {src} (id={id}, title={})", s(story, "title")),
@@ -1739,6 +1764,7 @@ fn story_to_lua_impl(
             content_root: root,
             preloaded: false,
             previous_visual_calls,
+            character_layout,
         };
         lines.extend([
             format!("-- [{nid}] {kind}"),

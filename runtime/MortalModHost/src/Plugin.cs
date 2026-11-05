@@ -28,7 +28,7 @@ namespace MortalModHost
     {
         public const string GUID = "com.mohui666.mortalmodhost";
         public const string NAME = "MortalModHost";
-        public const string VERSION = "1.4.3";
+        public const string VERSION = "1.4.4";
 
         internal static Plugin Instance { get; private set; }
 
@@ -284,6 +284,7 @@ namespace MortalModHost
             CustomAudioPlayer.Init(this);
             CustomCharacterRuntime.Log = Logger;
             CustomCharacterRuntime.Init(this);
+            CharacterLayoutRuntime.Init(this);
             CustomImageRuntime.Log = Logger;
             CustomImageRuntime.Init(this);
             ModDisclosure.Log = Logger;
