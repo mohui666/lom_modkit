@@ -1,6 +1,9 @@
 use super::*;
 
 fn adjustment_name(project: &Project, state: &Value, target: &LayoutTarget) -> Option<String> {
+    if matches!(target, LayoutTarget::Effect { .. }) {
+        return effects::item(state, target).map(effects::label);
+    }
     let (kind, id) = match target {
         LayoutTarget::Character(cid) if state["actors"][cid].is_object() => ("人物", cid.as_str()),
         LayoutTarget::Overlay(slot) if state["overlays"][slot].is_object() => {
@@ -122,7 +125,7 @@ impl LayoutDrag {
         };
         change.x += (delta.x / self.object.units.x) as f64;
         change.y -= (delta.y / self.object.units.y) as f64;
-        if !matches!(change.target, LayoutTarget::Character(_)) {
+        if matches!(change.target, LayoutTarget::Overlay(_) | LayoutTarget::Cg) {
             change.x = change.x.clamp(-100.0, 100.0);
             change.y = change.y.clamp(-100.0, 100.0);
         }
@@ -147,7 +150,8 @@ impl Preview {
             choices.push((
                 LayoutTarget::Overlay(slot.clone()),
                 format!(
-                    "插图：{}",
+                    "{}：{}",
+                    crate::i18n::tr("插图"),
                     character_display_name(project, text(image, "image"))
                 ),
             ));
@@ -156,10 +160,29 @@ impl Preview {
             choices.push((
                 LayoutTarget::Cg,
                 format!(
-                    "全屏图片：{}",
+                    "{}：{}",
+                    crate::i18n::tr("全屏图片"),
                     character_display_name(project, text(&state["custom_cg"], "image"))
                 ),
             ));
+        }
+        for (index, effect) in state["effects"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .enumerate()
+        {
+            if let Some(target) = effects::target(effect) {
+                choices.push((
+                    target,
+                    format!(
+                        "{} · {} {}",
+                        effects::label(effect),
+                        crate::i18n::tr("实例"),
+                        index + 1
+                    ),
+                ));
+            }
         }
         if !choices
             .iter()
@@ -178,8 +201,8 @@ impl Preview {
                         choices
                             .iter()
                             .find(|(target, _)| Some(target) == self.layout_selected.as_ref())
-                            .map(|(_, label)| label.as_str())
-                            .unwrap_or("选择人物或插图"),
+                            .map(|(_, label)| label.clone())
+                            .unwrap_or_else(|| crate::i18n::tr("选择人物、插图或特效")),
                     )
                     .show_ui(ui, |ui| {
                         for (target, label) in &choices {
@@ -195,18 +218,38 @@ impl Preview {
                             }
                         }
                     });
-                if ui
-                    .add_enabled(
-                        self.layout_selected.is_some(),
-                        egui::Button::new(crate::i18n::tr("复位")),
-                    )
-                    .clicked()
-                {
-                    self.layout_edit = self.layout_selected.clone().map(|target| LayoutChange {
-                        target,
-                        x: 0.0,
-                        y: 0.0,
-                        scale: 100.0,
+                let reset = ui.add_enabled(
+                    self.layout_selected.is_some(),
+                    egui::Button::new(crate::i18n::tr(
+                        if matches!(self.layout_selected, Some(LayoutTarget::Effect { .. })) {
+                            "位置归中"
+                        } else {
+                            "复位"
+                        },
+                    )),
+                );
+                let reset = if matches!(self.layout_selected, Some(LayoutTarget::Effect { .. })) {
+                    reset.on_hover_text(crate::i18n::tr(
+                        "特效仅恢复中心位置，保留横纵缩放；缩放参数可在步骤属性中分别设置。",
+                    ))
+                } else {
+                    reset
+                };
+                if reset.clicked() {
+                    self.layout_edit = self.layout_selected.clone().map(|target| {
+                        let center = if effects::item(state, &target)
+                            .is_some_and(|item| item["space"] == "screen")
+                        {
+                            50.0
+                        } else {
+                            0.0
+                        };
+                        LayoutChange {
+                            target,
+                            x: center,
+                            y: center,
+                            scale: 100.0,
+                        }
                     });
                     self.layout_drag = None;
                 }
@@ -239,7 +282,7 @@ impl Preview {
                     .on_hover_text(label);
                 });
             ui.small(crate::i18n::tr(
-                "拖动人物或插图移动，拉动四角等比缩放；Esc 取消本次拖动。",
+                "拖动人物、插图或特效移动，拉动四角等比缩放；Esc 取消本次拖动。",
             ));
         } else {
             self.layout_drag = None;
@@ -264,6 +307,14 @@ impl Preview {
                     state["custom_cg"]["x"] = json!(change.x);
                     state["custom_cg"]["y"] = json!(change.y);
                     state["custom_cg"]["scale"] = json!(change.scale);
+                }
+                LayoutTarget::Effect { .. } => {
+                    if let Some(item) = effects::item_mut(state, &change.target) {
+                        item["x"] = json!(change.x);
+                        item["y"] = json!(change.y);
+                        item["a"] = json!(number(item, "a", 1.0) * change.scale / 100.0);
+                        item["b"] = json!(number(item, "b", 1.0) * change.scale / 100.0);
+                    }
                 }
                 _ => (),
             }
@@ -327,7 +378,10 @@ impl Preview {
                     egui::WidgetInfo::labeled(
                         egui::WidgetType::Button,
                         ui.is_enabled(),
-                        format!("拖动{}角缩放", ["左上", "右上", "右下", "左下"][index]),
+                        crate::i18n::tr("拖动{corner}角缩放").replace(
+                            "{corner}",
+                            &crate::i18n::tr(["左上", "右上", "右下", "左下"][index]),
+                        ),
                     )
                 });
                 let anchor = if matches!(object.target, LayoutTarget::Character(_)) {
@@ -350,7 +404,8 @@ impl Preview {
                 egui::WidgetInfo::labeled(
                     egui::WidgetType::Button,
                     ui.is_enabled(),
-                    format!("拖动画面对象 {}", index + 1),
+                    crate::i18n::tr("拖动画面对象 {index}")
+                        .replace("{index}", &(index + 1).to_string()),
                 )
             });
         }
@@ -601,5 +656,45 @@ mod tests {
             new_center + image.bounds.size() * 1.25 / 2.0,
             image.bounds.right_bottom()
         );
+    }
+
+    #[test]
+    fn effect_drag_uses_screen_down_or_world_up_and_never_clamps_to_image_limits() {
+        let target = LayoutTarget::Effect {
+            node: "fx".into(),
+            action: Some(0),
+        };
+        let mut object = LayoutObject {
+            target: target.clone(),
+            bounds: Rect::from_center_size(Pos2::new(100.0, 100.0), Vec2::splat(50.0)),
+            pivot: Pos2::new(100.0, 100.0),
+            angle: 0.0,
+            value: LayoutChange {
+                target,
+                x: 50.0,
+                y: 50.0,
+                scale: 100.0,
+            },
+            units: Vec2::new(10.0, -10.0),
+        };
+        let screen = LayoutDrag {
+            object: object.clone(),
+            origin: object.pivot,
+            resize_anchor: None,
+            next: object.value.clone(),
+        }
+        .at(object.pivot + Vec2::new(100.0, 50.0));
+        assert_eq!((screen.x, screen.y), (60.0, 55.0));
+        object.units = Vec2::splat(50.0);
+        object.value.x = 200.0;
+        object.value.y = -400.0;
+        let world = LayoutDrag {
+            object: object.clone(),
+            origin: object.pivot,
+            resize_anchor: None,
+            next: object.value.clone(),
+        }
+        .at(object.pivot + Vec2::new(100.0, 50.0));
+        assert_eq!((world.x, world.y), (202.0, -401.0));
     }
 }

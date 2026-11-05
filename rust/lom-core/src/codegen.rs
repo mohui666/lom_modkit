@@ -126,6 +126,7 @@ struct Context<'a> {
     preloaded: bool,
     previous_visual_calls: bool,
     character_layout: bool,
+    managed_effects: bool,
 }
 fn check(expr: String, node: &Value) -> Vec<String> {
     vec![
@@ -750,23 +751,52 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
             }
         }
         "effect" => {
-            let play = if has(node, "play") {
-                if b(node, "play", false) { "1" } else { "0" }.into()
+            if ctx.managed_effects {
+                let play = if has(node, "play") {
+                    b(node, "play", false)
+                } else {
+                    node.get("d")
+                        .is_none_or(|value| value.as_f64() == Some(1.0))
+                };
+                let coordinate_default = if s(node, "space") == "screen" { 50 } else { 0 };
+                out.push(call(
+                    "mod_effect",
+                    &[
+                        q(node, "name"),
+                        n(node, "x", json!(coordinate_default)),
+                        n(node, "y", json!(coordinate_default)),
+                        n(node, "a", json!(1)),
+                        n(node, "b", json!(1)),
+                        n(node, "c", json!(1)),
+                        play.to_string(),
+                        qd(node, "space", "world"),
+                        n(node, "rotation", json!(0)),
+                        n(node, "speed", json!(1)),
+                        n(node, "stop_after", json!(-1)),
+                        b(node, "clear", false).to_string(),
+                        b(node, "restart", false).to_string(),
+                        qd(node, "tag", ""),
+                    ],
+                ));
             } else {
-                n(node, "d", json!(1))
-            };
-            out.push(call(
-                "effects.SetupEffect",
-                &[
-                    q(node, "name"),
-                    n(node, "x", json!(0)),
-                    n(node, "y", json!(0)),
-                    n(node, "a", json!(1)),
-                    n(node, "b", json!(1)),
-                    n(node, "c", json!(1)),
-                    play,
-                ],
-            ));
+                let play = if has(node, "play") {
+                    if b(node, "play", false) { "1" } else { "0" }.into()
+                } else {
+                    n(node, "d", json!(1))
+                };
+                out.push(call(
+                    "effects.SetupEffect",
+                    &[
+                        q(node, "name"),
+                        n(node, "x", json!(0)),
+                        n(node, "y", json!(0)),
+                        n(node, "a", json!(1)),
+                        n(node, "b", json!(1)),
+                        n(node, "c", json!(1)),
+                        play,
+                    ],
+                ));
+            }
         }
         "transition" => out.push(format!(
             "\trunwait(transitionblack.{}({}))",
@@ -1717,6 +1747,12 @@ fn story_to_lua_impl(
         .any(|n| ["narrative", "center"].contains(&s(n, "mode")) && s(n, "text_align") == "left");
     let character_layout = crate::parallel::story_actions(story)
         .any(|(_, node)| node["type"] == "offset" && (has(node, "absolute") || has(node, "scale")));
+    let managed_effects = crate::parallel::story_actions(story).any(|(_, node)| {
+        node["type"] == "effect"
+            && crate::validate::EFFECT_CONTROL_FIELDS
+                .iter()
+                .any(|key| has(node, key))
+    });
     let mut lines = vec![
         GENERATED_MARK.to_owned(),
         format!("-- Source: {src} (id={id}, title={})", s(story, "title")),
@@ -1765,6 +1801,7 @@ fn story_to_lua_impl(
             preloaded: false,
             previous_visual_calls,
             character_layout,
+            managed_effects,
         };
         lines.extend([
             format!("-- [{nid}] {kind}"),

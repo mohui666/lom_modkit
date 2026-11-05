@@ -367,12 +367,28 @@
       "id": "effect1",
       "type": "effect",
       "name": "Hit_001",
-      "x": 0,
-      "y": 0,
-      "a": 1,
-      "b": 1,
+      "x": 50,
+      "y": 42,
+      "a": 1.25,
+      "b": 0.8,
       "c": 1,
-      "play": true
+      "play": true,
+      "space": "screen",
+      "rotation": 15,
+      "speed": 0.75,
+      "stop_after": 2.5,
+      "restart": true,
+      "tag": "showcase_hit",
+      "wait_after": 0.8
+    },
+    {
+      "id": "effect1_stop",
+      "type": "effect",
+      "name": "Hit_001",
+      "play": false,
+      "clear": true,
+      "tag": "showcase_hit",
+      "wait_after": 0.25
     },
     {
       "id": "transition1",
@@ -404,6 +420,20 @@
           "portrait": "normal",
           "fadeDuration": 0,
           "moveDuration": 0
+        },
+        {
+          "type": "effect",
+          "name": "Hit_001",
+          "space": "screen",
+          "x": 35,
+          "y": 50,
+          "a": 1.5,
+          "b": 1.5,
+          "c": 0,
+          "rotation": -10,
+          "speed": 1.2,
+          "stop_after": 1,
+          "tag": "parallel_hit"
         }
       ]
     },

@@ -899,6 +899,16 @@
         "nervous2",
         "慌张（冒汗）"
       ]
+    ],
+    "effect_space": [
+      [
+        "world",
+        "世界坐标（高级）"
+      ],
+      [
+        "screen",
+        "画面百分比"
+      ]
     ]
   },
   "MODE_CN_SRC": {
@@ -1541,39 +1551,81 @@
           false
         ],
         [
+          "play",
+          "播放状态",
+          "bool",
+          true
+        ],
+        [
+          "space",
+          "坐标模式",
+          "enum:effect_space",
+          true
+        ],
+        [
           "x",
-          "横向偏移",
-          "int",
+          "横向位置",
+          "float",
           true
         ],
         [
           "y",
-          "纵向偏移",
-          "int",
+          "纵向位置",
+          "float",
           true
         ],
         [
           "a",
-          "参数一",
+          "横向缩放倍数",
           "float",
           true
         ],
         [
           "b",
-          "参数二",
+          "纵向缩放倍数",
           "float",
           true
         ],
         [
           "c",
-          "参数三",
+          "实例方式",
           "float",
           true
         ],
         [
-          "play",
-          "停止特效",
+          "rotation",
+          "旋转角度（度）",
+          "float",
+          true
+        ],
+        [
+          "speed",
+          "播放速度倍数",
+          "float",
+          true
+        ],
+        [
+          "stop_after",
+          "自动停止（秒）",
+          "float",
+          true
+        ],
+        [
+          "clear",
+          "停止时清空残余",
           "bool",
+          true
+        ],
+        [
+          "restart",
+          "复用时重新播放",
+          "bool",
+          true
+        ],
+        [
+          "tag",
+          "实例标记",
+          "str",
           true
         ],
         [
@@ -3475,12 +3527,13 @@
     },
     "effect": {
       "name": "",
-      "x": 0,
-      "y": 0,
+      "x": 50,
+      "y": 50,
       "a": 1,
       "b": 1,
       "c": 1,
-      "play": true
+      "play": true,
+      "space": "screen"
     },
     "transition": {
       "phase": "in",

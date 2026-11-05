@@ -7,6 +7,16 @@ use serde_json::{json, Map, Value};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::sync::OnceLock;
 
+pub const EFFECT_CONTROL_FIELDS: &[&str] = &[
+    "space",
+    "rotation",
+    "speed",
+    "stop_after",
+    "clear",
+    "restart",
+    "tag",
+];
+
 pub fn node_schema() -> &'static Value {
     static SCHEMA: OnceLock<Value> = OnceLock::new();
     SCHEMA.get_or_init(|| {
@@ -1026,6 +1036,18 @@ fn extra(n: &Value, ntype: &str, catalog: &Value) -> Result<()> {
         user_ref(c, "character")?;
     }
     match ntype {
+        "effect" => {
+            for key in ["x", "y", "a", "b", "c", "rotation", "speed", "stop_after"] {
+                if let Some(value) = n.get(key) {
+                    ensure!(
+                        value.as_f64().is_some_and(|number| number.is_finite() && (number as f32).is_finite()),
+                        "{key} 必须是游戏可表示的有限数值"
+                    );
+                }
+            }
+            range(n, "speed", 0.0, f64::INFINITY)?;
+            range(n, "stop_after", 0.0, f64::INFINITY)?;
+        }
         "mood" => {
             range(n, "offset_x", -1920.0, 1920.0)?;
             range(n, "offset_y", -1080.0, 1080.0)?;

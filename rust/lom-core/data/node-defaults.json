@@ -140,12 +140,13 @@
     "id": "node",
     "type": "effect",
     "name": "",
-    "x": 0,
-    "y": 0,
+    "x": 50,
+    "y": 50,
     "a": 1,
     "b": 1,
     "c": 1,
-    "play": true
+    "play": true,
+    "space": "screen"
   },
   "transition": {
     "id": "node",

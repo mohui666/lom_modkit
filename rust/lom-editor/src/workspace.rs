@@ -4584,6 +4584,27 @@ impl eframe::App for App {
         if std::mem::take(&mut self.preview.extract_requested) {
             self.tools_panel.start_extraction();
         }
+        if let Some(names) = self.preview.effect_extract_requested.take() {
+            self.tools_panel.start_effect_capture(Some(names));
+        }
+        while let Some((path, partial)) = self.tools_panel.take_effect_library() {
+            match self
+                .preview
+                .set_effect_library(&path)
+                .and_then(|_| crate::effect_capture::remember(&path))
+            {
+                Ok(()) => {
+                    self.status = tr(if partial {
+                        "已载入已完成的特效缓存；本次提取未全部完成。"
+                    } else {
+                        "原版特效预览已载入"
+                    })
+                }
+                Err(error) => self
+                    .tools_panel
+                    .present("载入原版特效预览", json!({"error":format!("{error:#}")})),
+            }
+        }
         if let Some(path) = self.tools_panel.take_preview_library() {
             match self.preview.set_library(&path) {
                 Ok(()) => {

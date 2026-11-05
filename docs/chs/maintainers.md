@@ -2,7 +2,7 @@
 
 当前工具端由 Rust 编译器、核心库与 egui 编辑器组成；C# `MortalModHost` 保留游戏接入。日常编辑见 [软件使用](software_usage.md)，构建和 CLI 见 [Rust 工具端](rust.md)，验证层次见 [测试矩阵](test_matrix.md)。旧 Python／Qt／PyInstaller 入口已经退役，不作为本手册操作入口。
 
-当前版本为 1.4.4，功能与验证范围见 [本版说明](../../RELEASE_NOTES_v1.4.4.md)。2026-10-04 的早期迁移文档核对、Mac 179 项测试及 133 项预览记录见 [迁移验收表](rust_migration.md)。
+当前版本为 1.4.5，功能与验证范围见 [本版说明](../../RELEASE_NOTES_v1.4.5.md)。2026-10-04 的早期迁移文档核对、Mac 179 项测试及 133 项预览记录见 [迁移验收表](rust_migration.md)。
 
 ## 编辑器入口与设置
 

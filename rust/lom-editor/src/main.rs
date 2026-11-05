@@ -1,6 +1,7 @@
 mod asset_extraction;
 mod authoring;
 mod editor_update;
+mod effect_capture;
 mod error_location;
 mod forms;
 mod game_setup;

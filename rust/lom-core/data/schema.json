@@ -203,7 +203,14 @@
         "c": "num",
         "d": "num",
         "play": "bool",
-        "wait_after": "num"
+        "wait_after": "num",
+        "space": "effect_space",
+        "rotation": "num",
+        "speed": "num",
+        "stop_after": "num",
+        "clear": "bool",
+        "restart": "bool",
+        "tag": "str"
       }
     },
     "transition": {
@@ -1006,6 +1013,10 @@
       "nervous3",
       "nervous4",
       "nervous2"
+    ],
+    "effect_space": [
+      "world",
+      "screen"
     ]
   },
   "type_names": {

@@ -970,8 +970,18 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
                     && (node.get("x").is_some() || node.get("y").is_some())
         })
     });
-    if new_portrait_layout || free_image_scale || stage_layout {
-        let (minimum, required) = if stage_layout {
+    let effect_controls = stories.values().any(|story| {
+        crate::parallel::story_actions(story).any(|(_, node)| {
+            node["type"] == "effect"
+                && validate::EFFECT_CONTROL_FIELDS
+                    .iter()
+                    .any(|key| node.get(*key).is_some())
+        })
+    });
+    if new_portrait_layout || free_image_scale || stage_layout || effect_controls {
+        let (minimum, required) = if effect_controls {
+            ([1, 4, 5], "1.4.5")
+        } else if stage_layout {
             ([1, 4, 4], "1.4.4")
         } else {
             ([1, 4, 3], "1.4.3")
@@ -989,7 +999,7 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
             manifest["min_host_version"] = json!(required);
         }
         validate::validate_manifest(&manifest).with_context(|| {
-            format!("人物与插图布局需要 Host {required}，请核对最低和已测试 Host 版本")
+            format!("作品的演出控制需要 Host {required}，请核对最低和已测试 Host 版本")
         })?;
         entries.insert("manifest.json".into(), stable_json(&manifest)?);
     }

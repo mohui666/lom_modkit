@@ -61,7 +61,15 @@ fn channels(node: &Value) -> Vec<String> {
         "custom_cg" => result.push("全屏插图".into()),
         "overlay" => result.push(format!("前景位置 {}", node["slot"].as_str().unwrap_or(""))),
         "camera" => result.push(format!("镜头滤镜 {}", node["name"].as_str().unwrap_or(""))),
-        "effect" => result.push(format!("特效 {}", node["name"].as_str().unwrap_or(""))),
+        "effect" => {
+            let tag = node["tag"].as_str().unwrap_or("");
+            let effective_tag = if tag.is_empty() {
+                node["name"].as_str().unwrap_or("")
+            } else {
+                tag
+            };
+            result.push(format!("特效实例 {effective_tag}"));
+        }
         "dayenv" => result.push("日夜环境".into()),
         // Native music changes can also stop the environment-sound channel.
         "music" => result.extend(["背景音乐".into(), "环境音".into()]),
@@ -82,6 +90,32 @@ pub fn validate_group(node: &Value) -> Result<()> {
         "同时执行组需要 2~{MAX_ACTIONS} 个动作"
     );
     let mut owners = BTreeMap::new();
+    // A stop without a tag addresses every tracked instance of that name,
+    // including tagged instances. Distinct tagged plays remain independent.
+    for (index, action) in actions.iter().enumerate() {
+        let playing = action["play"].as_bool().unwrap_or_else(|| {
+            action
+                .get("d")
+                .is_none_or(|value| value.as_f64() == Some(1.0))
+        });
+        if action["type"] == "effect" && !playing && action["tag"].as_str().unwrap_or("").is_empty()
+        {
+            for (other_index, other) in actions.iter().enumerate() {
+                let other_playing = other["play"].as_bool().unwrap_or_else(|| {
+                    other
+                        .get("d")
+                        .is_none_or(|value| value.as_f64() == Some(1.0))
+                });
+                if other_index != index
+                    && other["type"] == "effect"
+                    && other["name"] == action["name"]
+                    && other_playing
+                {
+                    anyhow::bail!("第 {} 和第 {} 个同时动作都会控制特效 {}；按名称停止会影响该名称下的全部标记实例，请拆成先后步骤", index+1, other_index+1, action["name"]);
+                }
+            }
+        }
+    }
     for (index, action) in actions.iter().enumerate() {
         let number = index + 1;
         ensure!(action.is_object(), "第 {number} 个同时动作必须是对象");

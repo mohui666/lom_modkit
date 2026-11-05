@@ -179,7 +179,7 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 | `shock` | `character`；可选 `duration`(默认0.5) | 人物震动。官方角色走 flowcharts.common `shock`；`user:` 角色走独立立绘抖动并在结束后恢复位置 |
 | `mask` | `show`(bool) | 独白遮罩 `os_mask.Show` |
 | `intro` | 可选 `intro_source`(`official` 默认/`custom`)。official 必填 `character`；custom 必填 `name`,`text`，可选 `title`,`image`（包内 `assets/` PNG/JPG，≤8MB）、`image_scale`(正数百分比，默认100)、`image_x`/`image_y`(-30~30，默认0) | official 调用原版 `runwait(intropanel.Show(character))`；custom 调用 `mod_prepare_character_intro(title,name,text,image,scale,x,y)`。1.4.3 起 image_scale 无 40～160 限制；x 正数向右、y 正数向上，无图时隐藏头像区域 |
-| `effect` | `name`；可选 `x`,`y`,`a`,`b`,`c`(数值，默认0/0/1/1/1)，`play`(bool，默认true) | 屏幕特效 `effects.SetupEffect(name,x,y,a,b,c,play)`，如 Hit_001/Blood_002/Sword_001。`play=false` 发射停止调用（末参 0）：**循环类特效不会自动销毁**（如 EventBubble/Glow），必须后接 play=false 的同参节点停止，否则常驻画面（旧数据的 `d` 字段仍兼容：无 play 时用 d） |
+| `effect` | `name`；可选 `x/y`、横纵倍数 `a/b`(默认1)、实例 `c`(1复用，其他值叠加)、`play`(bool默认true)；1.4.5 新增 `space`(`world`/`screen`)、`rotation`(默认0度)、`speed`(默认1，≥0)、`stop_after`(≥0秒)、`clear/restart`(bool默认false)、`tag`(字符串) | 详见下方特效控制。新建步骤默认为 screen、50/50；缺省 space 的旧数据保持 world、0/0。位置／缩放／角度支持有限小数，a/b 允许负数与0；所有数值须可表示为 Unity float。后台停止不等待，`wait_after` 控制步骤停留。新字段需 Host ≥1.4.5 |
 | `transition` | `phase`("in"/"out")；可选 `dir`(默认"lr"，lr/rl/tb/bt) | 黑场转场 `runwait(transitionblack.TransitionIn/Out(dir))`。**必须成对使用**：TransitionIn 隐藏剧情 UI 并盖满黑幕，TransitionOut 才恢复；有 in 无 out 时编译器警告（画面会一直黑屏） |
 | `camera` | `name`, `active`(bool) | 镜头滤镜 `maincamera.ActiveVolume(name, 0 | 1)`，如 stage-memory/stage-dream/stage-fire/stage-blurdim |
 | `block` | `flowchart`("view"/"common"), `name`；可选 `vars`: `[{"name","value"}]` | 通用 flowchart 块调用：`getvar` 逐个赋值后 `runblock(fc, name)`。覆盖 out_white/shake/flash/vshock 等 |
@@ -271,7 +271,7 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 
 支持 `show/hide/move/face/focus/offset/rotate/dim/shock`、`scene/background/custom_cg/overlay`、`effect/camera/transition/mask/dayenv`、`music/sound/wait`。对白、选项、检定、战斗、跨场景跳转、面板、原生 Lua 等需要独占流程的节点放在组外。赵活外观 `appearance` 切换也放在组前。
 
-同组不得同时控制同一个人物、背景、前景槽或同名特效／滤镜；官方背景切换与黑幕转场共享剧情界面，不能放在同组；原版人物震动复用同一个 common 流图，同组只能放一个，用户人物震动不受此限制。音乐切换可能影响环境音，因此同组不再另加环境音控制。冲突会报出具体动作序号，不按列表顺序偷偷覆盖。
+同组不得同时控制同一个人物、背景、前景槽或同名滤镜；特效按非空 tag 分通道，同名不同 tag 可同时播放，同 tag 冲突，空 tag 的同名停止与任意同名播放冲突；纯旧无标记特效沿用同名冲突规则。官方背景切换与黑幕转场共享剧情界面，不能放在同组；原版人物震动复用同一个 common 流图，同组只能放一个，用户人物震动不受此限制。音乐切换可能影响环境音，因此同组不再另加环境音控制。冲突会报出具体动作序号，不按列表顺序偷偷覆盖。
 
 编译器先预载组内官方人物及所需表情，再在当前 Host 的 Lua 协程内调度各分支，每帧推进一轮。各动作保留原来的 `wait/runwait`，登场、退场、聚焦、压暗和原版旋转补上必要的完成等待。官方背景仍按原版异步加载／流图切换，不保证图片与人物在同一帧完成加载；需要“揭幕时全部就位”时，先盖黑幕，在组外切好背景，再布置人物，最后揭幕。
 
@@ -297,6 +297,25 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 - `say` 的 narrative/center 模式给 character 允许但忽略。
 - `raw` 节点内容原样插入（编译器不做语法检查）；其后流转照常（顺序/goto）。
 - **非致命警告**：以 `-- lomc 警告：` 注释形式插在 Lua 头部（如 transition 有 in 无 out）；`lomc check` 同步打印到 stderr。
+
+### 特效控制（Host 1.4.5）
+
+`space="screen"` 时 x/y 是画面百分比，左上 0/0、中心 50/50、右下 100/100，允许屏外；运行时用当前场景舞台相机的视口射线与世界 z=0 平面求交。`world` 时直接使用世界坐标，右／上为正；默认参考舞台为 19.2×10.8。编辑器切换模式按参考舞台换算，特效图像来自本机游戏实际渲染的帧缓存。
+
+原版特效缓存不属于 `.lommod`。编辑器经固定隔离 F5 开发包生成本地帧，包含原版播放段和停止余粒段，以预乘 RGBA 保留普通透明与加色混合；缺少缓存不会使用自绘特效替代。录制窗口固定为参考舞台，视窗外粒子不能通过平移恢复，尾段采样相位也不等同任意停止时刻；精确演出用游戏验证。
+
+`rotation` 叠加在实例原始 Z 朝向上；`speed` 乘各子粒子原始 simulationSpeed，0 定格。`stop_after` 是独立于步骤的后台游戏秒数，省略时不限时；0 立即停止。编译器用 -1 表示省略，作品 JSON 不填负值。`wait_after` 仍单独追加步骤等待。重播或再次复用会取消上一次定时，不会被旧计时器误停。
+
+复用实例（c=1）按非空 tag、否则 name 匹配；同一标记换 name 会替换旧复用实例。独立叠加（c≠1）每次新建，不被后来的复用接管。`play=false` 时非空 tag 匹配该组全部实例，空 tag 匹配同 name 全部实例；`clear=true` 清空现有粒子，否则停止发射并自然消散。`restart=true` 在复用时清空并从头播放。实例仅属于本 Host 的当前作品，清舞台时清理，不接管原版脚本创建的特效。
+
+一章含任一新字段（space/rotation/speed/stop_after/clear/restart/tag，包括 parallel 子动作）时，该章全部 effect 都编译为下列固定 14 参数回调；最低 Host 自动升至 1.4.5。完全未使用新字段的章节继续输出原来的 `effects.SetupEffect`，字节行为保持兼容；旧 `d` 在缺少 play 时沿用，只有 d=1 表示播放。
+
+```lua
+-- name,x,y,a,b,c,play,space,rotation,speed,stop_after,clear,restart,tag
+mod_effect("Glow_001", 25, 50, 1.5, 0.8, 1, true, "screen", 30, 0.5, 3, true, true, "left")
+-- 立即继续后续步骤；另一节点可按标记停止这组，不影响右侧同名特效
+mod_effect("Glow_001", 50, 50, 1, 1, 1, false, "screen", 0, 1, -1, true, false, "left")
+```
 
 关键 API 范式：
 
@@ -333,7 +352,7 @@ runblock(flowcharts.view, "view")
 getvar(flowcharts.common, "ShockPosition").value = characters.Get("brother4").State.holder.gameObject
 getvar(flowcharts.common, "ShockDuration").value = 0.5
 runblock(flowcharts.common, "shock")
--- effect / transition / camera（循环特效必须成对 play=0 停止，如 EventBubble/Glow）
+-- 旧 effect / transition / camera（c=1 复用，循环特效需后续同名停止）
 effects.SetupEffect("Hit_001", 10, -5, 1, 1, 1, 1)
 effects.SetupEffect("Glow_001", -4.5, 0, 1, 1, 1, 0)
 runwait(transitionblack.TransitionIn("lr"))
