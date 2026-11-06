@@ -18,17 +18,17 @@ pub enum Destination {
 impl Destination {
     pub fn label(&self) -> String {
         match self {
-            Self::Story(_, Some(_)) => "修改出错步骤".into(),
-            Self::Story(_, None) => "修改出错章节".into(),
-            Self::Manifest => "修改作品设置".into(),
-            Self::Asset(_) => "修改对应素材".into(),
-            Self::Assets => "打开作品素材".into(),
-            Self::Events => "修改剧情安排".into(),
-            Self::Game => "打开游戏配置".into(),
-            Self::PreviewLibrary => "打开游戏预览素材".into(),
-            Self::Settings => "打开编辑器设置".into(),
-            Self::Open => "重新选择作品".into(),
-            Self::Current => "返回当前编辑位置".into(),
+            Self::Story(_, Some(_)) => crate::i18n::key("common.error.fix_step"),
+            Self::Story(_, None) => crate::i18n::key("common.error.fix_story"),
+            Self::Manifest => crate::i18n::key("common.error.fix_manifest"),
+            Self::Asset(_) => crate::i18n::key("common.error.fix_asset"),
+            Self::Assets => crate::i18n::key("common.error.open_assets"),
+            Self::Events => crate::i18n::key("common.error.fix_events"),
+            Self::Game => crate::i18n::key("common.error.open_game"),
+            Self::PreviewLibrary => crate::i18n::key("common.error.open_preview"),
+            Self::Settings => crate::i18n::key("common.error.open_settings"),
+            Self::Open => crate::i18n::key("common.error.reopen"),
+            Self::Current => crate::i18n::key("common.error.current"),
         }
     }
 }
@@ -49,7 +49,7 @@ fn field_label(message: &str, field: &str) -> String {
         .and_then(|kind| authoring_schema()["NODE_SCHEMAS"][kind]["fields"].as_array())
         .and_then(|fields| fields.iter().find(|entry| entry[0] == field))
         .and_then(|entry| entry[1].as_str());
-    label
+    let label = label
         .unwrap_or(match field {
             "id" => "作品编号",
             "campaign_id" => "存档身份",
@@ -75,14 +75,15 @@ fn field_label(message: &str, field: &str) -> String {
         .replace(" ID", "编号")
         .replace("ID", "编号")
         .replace("Host", "游戏接入组件")
-        .replace("CG", "插图")
+        .replace("CG", "插图");
+    crate::i18n::tr(&label)
 }
 
 pub fn explanation(message: &str) -> String {
     if (message.starts_with("无法打开") || message.starts_with("打开失败"))
         && message.contains("scenario.json")
     {
-        return "作品缺少剧情安排文件，无法打开。请重新选择完整的作品目录或作品包。".into();
+        return crate::i18n::key("common.error.no_scenario");
     }
     let lower = message.to_lowercase();
     for (patterns, text) in [
@@ -112,7 +113,7 @@ pub fn explanation(message: &str) -> String {
         ),
     ] {
         if patterns.iter().any(|pattern| lower.contains(pattern)) {
-            return text.into();
+            return crate::i18n::tr(text);
         }
     }
     if (message.contains("asset-extractor") || message.contains("素材提取组件"))
@@ -120,39 +121,50 @@ pub fn explanation(message: &str) -> String {
             .iter()
             .any(|word| message.contains(word))
     {
-        return "安装包缺少素材提取组件。请重新下载完整安装包，解压后从文件夹内打开编辑器。".into();
+        return crate::i18n::key("common.error.extractor_missing");
     }
     if message.contains("campaign_id") || message.contains("存档身份") {
         if message.contains("缺少必填") || message.contains("未填写") {
-            return "还没填写存档身份。请填写后重新导出。".into();
+            return crate::i18n::key("common.error.identity_missing");
         }
         if message.contains("格式不合法") || message.contains("只能使用") {
-            return "存档身份格式不正确。请使用小写英文字母、数字、下划线或短横线，长度为一至六十四个字符。".into();
+            return crate::i18n::key("common.error.identity_format");
         }
     }
     let field = field(message);
     let label = field.as_deref().map(|field| field_label(message, field));
     if message.contains("缺少必填字段") {
-        return format!("请填写{}。", label.as_deref().unwrap_or("当前必填项"));
+        return crate::i18n::message(
+            "common.error.fill_field",
+            &[(
+                "field",
+                label
+                    .clone()
+                    .unwrap_or_else(|| crate::i18n::tr("当前必填项")),
+            )],
+        );
     }
     if message.contains("SemVer") {
-        return format!(
-            "{}格式不正确。请填写三段数字组成的版本号，例如 1.4.2。",
-            label.as_deref().unwrap_or("版本号")
+        return crate::i18n::message(
+            "common.error.version_format",
+            &[(
+                "field",
+                label.clone().unwrap_or_else(|| crate::i18n::tr("版本号")),
+            )],
         );
     }
     if message.contains("package_format")
         || message.contains("content_schema")
         || message.contains("story_schema")
     {
-        return "作品格式与当前版本不兼容。请使用与作品版本相匹配的编辑器重新导出。".into();
+        return crate::i18n::key("common.error.package_format");
     }
     if message.contains("JSON")
         || lower.contains("expected value")
         || lower.contains("expected ident")
         || lower.contains("invalid type:")
     {
-        return "文件内容无法读取。请检查是否选中了完整、有效的作品或素材文件。".into();
+        return crate::i18n::key("common.error.unreadable");
     }
     let mut text = message.trim_start_matches("导出失败\n").to_owned();
     if let Some((_, rest)) = text.split_once("节点 \"") {
@@ -202,41 +214,41 @@ pub fn explanation(message: &str) -> String {
     }
     if !text.chars().any(|c| c.is_ascii_alphabetic()) && !text.contains('{') && !text.contains('}')
     {
-        return text;
+        return crate::i18n::tr(&text);
     }
     if (message.contains("goto") || message.contains("跳转")) && message.contains("不存在") {
-        return "后续步骤不存在。请重新选择有效的剧情步骤。".into();
+        return crate::i18n::key("common.error.missing_next");
     }
     if message.contains("start") && message.contains("不存在") {
-        return "章节的起始步骤不存在。请在章节设置中重新选择起始步骤。".into();
+        return crate::i18n::key("common.error.missing_start");
     }
     if message.contains("没有表情") {
-        return "该人物尚未注册这个表情。请在“素材管理 → 为原版人物添加立绘”中导入图片，再选择新增表情；修改预览缓存只会改变预览。".into();
+        return crate::i18n::key("common.error.unregistered_portrait");
     }
     if message.contains("portrait") && (message.contains("不存在") || message.contains("不在"))
     {
-        return "所选人物没有这个表情。请重新选择该人物可用的表情。".into();
+        return crate::i18n::key("common.error.invalid_portrait");
     }
     if message.contains("user:") && message.contains("引用") {
-        return "素材引用无效。请从素材列表重新选择。".into();
+        return crate::i18n::key("common.error.invalid_reference");
     }
     if let Some(label) = label {
         if message.contains("整数") {
-            return format!("{label}填写不正确。请填写允许范围内的整数。");
+            return crate::i18n::message("common.error.integer_field", &[("field", label)]);
         }
         if message.contains("数字") || message.contains("数值") {
-            return format!("{label}填写不正确。请填写允许范围内的数值。");
+            return crate::i18n::message("common.error.number_field", &[("field", label)]);
         }
-        return format!("{label}填写不正确。请检查输入内容，或从选项中重新选择。");
+        return crate::i18n::message("common.error.invalid_field", &[("field", label)]);
     }
     if message.contains("不存在") || message.contains("找不到") || lower.contains("not found")
     {
-        return "找不到所需的内容。请重新选择有效的文件、素材或剧情步骤。".into();
+        return crate::i18n::key("common.error.not_found");
     }
     if message.contains("图片") || message.contains("素材") || message.contains("content") {
-        return "素材无法使用。请检查素材文件是否完整，以及图片、音频和表情是否已正确选择。".into();
+        return crate::i18n::key("common.error.invalid_asset");
     }
-    "操作未能完成。请返回对应位置检查，或复制诊断信息以便排查。".into()
+    crate::i18n::key("common.error.generic")
 }
 
 pub fn show(ui: &mut eframe::egui::Ui, message: &str) {
@@ -245,7 +257,10 @@ pub fn show(ui: &mut eframe::egui::Ui, message: &str) {
         explanation(message),
     );
     ui.horizontal(|ui| {
-        if ui.small_button("定位修改位置").clicked() {
+        if ui
+            .small_button(crate::i18n::key("common.error.locate"))
+            .clicked()
+        {
             ui.ctx().data_mut(|data| {
                 data.insert_temp(
                     eframe::egui::Id::new("locate-error-message"),
@@ -253,7 +268,7 @@ pub fn show(ui: &mut eframe::egui::Ui, message: &str) {
                 )
             });
         }
-        if ui.small_button("复制诊断信息").clicked() {
+        if ui.small_button(crate::i18n::tr("复制诊断信息")).clicked() {
             ui.ctx().copy_text(message.to_owned());
         }
     });
@@ -306,7 +321,7 @@ pub fn action_label(message: &str, destination: &Destination) -> String {
     if *destination == Destination::Manifest
         && (message.contains("campaign_id") || message.contains("存档身份"))
     {
-        "去填写存档身份".into()
+        crate::i18n::key("common.error.fill_identity")
     } else {
         destination.label()
     }

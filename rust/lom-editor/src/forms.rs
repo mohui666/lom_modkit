@@ -670,14 +670,15 @@ impl Catalog {
                 ui.label(format!(
                     "{}: {total}",
                     if side == "friend" {
-                        tr("我方总人数")
+                        crate::i18n::key("editor.form.allies")
                     } else {
-                        tr("敌方总人数")
+                        crate::i18n::key("editor.form.enemies")
                     }
                 ));
             }
         }
         let allow_goto = ![
+            "native_branch",
             "choice",
             "branch",
             "dice",
@@ -707,6 +708,7 @@ impl Catalog {
                 changed = true;
             }
         }
+        changed |= crate::native_forms::show(ui, node);
         for field in &fields {
             if let (Some(key), Some(label), Some(field_kind)) =
                 (field[0].as_str(), field[1].as_str(), field[2].as_str())
@@ -751,15 +753,16 @@ impl Catalog {
             }
         }
         if kind == "mood" {
-            ui.small(tr("留空人物时控制全场自动气泡；指定人物后可单独选气泡，无需切换立绘。关闭全场会清除单人设置。"));
+            ui.small(crate::i18n::key("editor.form.bubble_hint"));
             ui.small(tr(
                 "气泡执行后停留：显示、切换或隐藏后等待指定秒数，再执行下一步；默认 0 秒。",
             ));
             if node["character"].is_string() && node["enabled"] == true {
-                ui.small(tr(
-                    "可在画面预览中拖动气泡定位框。偏移按 1920×1080 参考像素计算，跟随人物朝向。",
-                ));
-                if ui.button(tr("气泡位置归位")).clicked() {
+                ui.small(crate::i18n::key("workspace.form.bubble_drag"));
+                if ui
+                    .button(crate::i18n::key("editor.form.bubble_reset"))
+                    .clicked()
+                {
                     node.as_object_mut().unwrap().remove("offset_x");
                     node.as_object_mut().unwrap().remove("offset_y");
                     changed = true;
@@ -1132,8 +1135,8 @@ impl Catalog {
         if key == "show_message" {
             let mut show = lom_core::codegen::shows_system_messages(node);
             let changed = ui
-                .checkbox(&mut show, tr("显示系统提示"))
-                .on_hover_text("关闭后照常变更数值、好感、天赋和物品，跳过自动变化提示。")
+                .checkbox(&mut show, crate::i18n::key("editor.form.notice"))
+                .on_hover_text(crate::i18n::key("editor.form.notice_hint"))
                 .changed();
             if changed {
                 node[key] = json!(show);
@@ -1159,11 +1162,11 @@ impl Catalog {
                 .iter()
                 .find(|(id, _)| id == &value.to_string())
                 .map_or_else(
-                    || format!("编号 {value}"),
+                    || crate::i18n::message("editor.form.id", &[("id", value.to_string())]),
                     |(id, name)| format!("{name}（{id}）"),
                 );
             let mut changed = false;
-            ui.label("心上人");
+            ui.label(crate::i18n::key("editor.form.lover"));
             resource_combo(
                 ui,
                 ("lover-value", node["id"].as_str().unwrap_or("")),
@@ -1181,7 +1184,7 @@ impl Catalog {
                         }
                     }
                     ui.separator();
-                    ui.label("自定义编号");
+                    ui.label(crate::i18n::key("editor.form.custom_id"));
                     changed |= ui.add(egui::DragValue::new(&mut value)).changed();
                 },
             );
@@ -1332,7 +1335,7 @@ impl Catalog {
                         }
                         "bool" => {
                             let mut b = value.as_bool().unwrap_or(false);
-                            let c = ui.checkbox(&mut b, tr("启用")).changed();
+                            let c = ui.checkbox(&mut b, crate::i18n::key("common.enabled")).changed();
                             if c {
                                 value = b.into();
                             }
@@ -1492,7 +1495,7 @@ impl Catalog {
                                 {
                                     name.clone()
                                 } else if s.is_empty() {
-                                    tr("选择…")
+                                    crate::i18n::key("editor.form.choose")
                                 } else {
                                     tr("自定义")
                                 };
@@ -1618,28 +1621,95 @@ fn is_character_selector(kind: &str) -> bool {
 
 fn stage_position_picker(ui: &mut Ui, selected: &str) -> Option<String> {
     let mut choice = None;
-    egui::CollapsingHeader::new(tr("点击选择站位"))
-        .id_salt("stage-position-picker").default_open(true).show(ui, |ui| {
-            let positions: Value = serde_json::from_str(include_str!("../../../data/stage_positions.json")).expect("stage positions");
-            let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width().max(100.0), 86.0), egui::Sense::hover());
-            let stage = egui::Rect::from_min_max(rect.min + egui::vec2(rect.width()*0.16, 0.0), rect.max - egui::vec2(rect.width()*0.16, 0.0));
-            ui.painter().rect_filled(stage, 4.0, Color32::from_rgb(224,232,236));
-            ui.painter().text(stage.center_top()+egui::vec2(0.0,9.0), egui::Align2::CENTER_TOP, tr("舞台"), egui::FontId::proportional(12.0), Color32::DARK_GRAY);
-            for (id,label) in [("SL","左外"),("L1","左1"),("L2","左2"),("L3","左3"),("M","中"),("R1","右1"),("R2","右2"),("R3","右3"),("SR","右外")] {
+    egui::CollapsingHeader::new(crate::i18n::key("editor.form.choose_position"))
+        .id_salt("stage-position-picker")
+        .default_open(true)
+        .show(ui, |ui| {
+            let positions: Value =
+                serde_json::from_str(include_str!("../../../data/stage_positions.json"))
+                    .expect("stage positions");
+            let (rect, _) = ui.allocate_exact_size(
+                egui::vec2(ui.available_width().max(100.0), 86.0),
+                egui::Sense::hover(),
+            );
+            let stage = egui::Rect::from_min_max(
+                rect.min + egui::vec2(rect.width() * 0.16, 0.0),
+                rect.max - egui::vec2(rect.width() * 0.16, 0.0),
+            );
+            ui.painter()
+                .rect_filled(stage, 4.0, Color32::from_rgb(224, 232, 236));
+            ui.painter().text(
+                stage.center_top() + egui::vec2(0.0, 9.0),
+                egui::Align2::CENTER_TOP,
+                crate::i18n::key("editor.form.stage"),
+                egui::FontId::proportional(12.0),
+                Color32::DARK_GRAY,
+            );
+            for (id, label) in [
+                ("SL", "左外"),
+                ("L1", "左1"),
+                ("L2", "左2"),
+                ("L3", "左3"),
+                ("M", "中"),
+                ("R1", "右1"),
+                ("R2", "右2"),
+                ("R3", "右3"),
+                ("SR", "右外"),
+            ] {
                 let x = positions["positions"][id]["x"].as_f64().unwrap_or(0.5) as f32;
-                let normalized = if x < 0.0 {0.055} else if x > 1.0 {0.945} else {0.16+x*0.68};
-                let point = egui::pos2(rect.left()+rect.width()*normalized, rect.center().y+6.0);
-                let hit = egui::Rect::from_center_size(point, egui::vec2((rect.width()/11.0).clamp(12.0,28.0),40.0));
-                let response = ui.interact(hit, ui.id().with(id),egui::Sense::click()).on_hover_text(format!("{id} · {} {:.0}%",tr("距画面左缘"),x*100.0));
+                let normalized = if x < 0.0 {
+                    0.055
+                } else if x > 1.0 {
+                    0.945
+                } else {
+                    0.16 + x * 0.68
+                };
+                let point = egui::pos2(
+                    rect.left() + rect.width() * normalized,
+                    rect.center().y + 6.0,
+                );
+                let hit = egui::Rect::from_center_size(
+                    point,
+                    egui::vec2((rect.width() / 11.0).clamp(12.0, 28.0), 40.0),
+                );
+                let response = ui
+                    .interact(hit, ui.id().with(id), egui::Sense::click())
+                    .on_hover_text(format!(
+                        "{id} · {} {:.0}%",
+                        crate::i18n::key("editor.form.left_edge"),
+                        x * 100.0
+                    ));
                 let active = selected == id;
-                ui.painter().circle_filled(point,if active {6.0} else {4.0},if active {crate::shell::ACCENT} else {Color32::from_rgb(88,107,117)});
-                ui.painter().text(point+egui::vec2(0.0,12.0),egui::Align2::CENTER_TOP,tr(label),egui::FontId::proportional(10.0),Color32::DARK_GRAY);
-                if response.clicked() {choice=Some(id.to_owned());}
+                ui.painter().circle_filled(
+                    point,
+                    if active { 6.0 } else { 4.0 },
+                    if active {
+                        crate::shell::ACCENT
+                    } else {
+                        Color32::from_rgb(88, 107, 117)
+                    },
+                );
+                ui.painter().text(
+                    point + egui::vec2(0.0, 12.0),
+                    egui::Align2::CENTER_TOP,
+                    tr(label),
+                    egui::FontId::proportional(10.0),
+                    Color32::DARK_GRAY,
+                );
+                if response.clicked() {
+                    choice = Some(id.to_owned());
+                }
             }
             if let Some(position) = positions["positions"].get(selected) {
-                ui.small(format!("{selected} · {} {:.0}% · {} {:.0}%", tr("横向"),position["x"].as_f64().unwrap_or(0.5)*100.0,tr("脚底距顶部"),position["feet"].as_f64().unwrap_or(1.0)*100.0));
+                ui.small(format!(
+                    "{selected} · {} {:.0}% · {} {:.0}%",
+                    crate::i18n::key("editor.form.horizontal"),
+                    position["x"].as_f64().unwrap_or(0.5) * 100.0,
+                    crate::i18n::key("editor.form.feet"),
+                    position["feet"].as_f64().unwrap_or(1.0) * 100.0
+                ));
             }
-            ui.small(tr("SL / SR 在屏幕左 / 右外侧。完整列表可选择偏移站位，脚底超过 100% 表示低于画面底边。"));
+            ui.small(crate::i18n::key("editor.form.offscreen_hint"));
         });
     choice
 }
@@ -1842,18 +1912,20 @@ pub(crate) fn picture_category(category: &str) -> &str {
 }
 
 fn resource_label(id: &str, category: &str, name: &str) -> String {
-    let description = match id {
-        "section_001_cliff_dusk" => "崆峒鹤崖·黄昏·小梅教鹤舞前",
-        "section_001_cliff_night" => "崆峒鹤崖·夜晚·小梅教鹤舞后",
-        _ if id.starts_with("dance_event_00") => "小梅教赵活鹤舞",
-        _ if id.starts_with("dance_event_10") => "小梅·崆峒大战·鹤舞相杀",
-        _ => name,
+    let label_key = match id {
+        "section_001_cliff_dusk" => Some("workspace.resource.cliff_dusk"),
+        "section_001_cliff_night" => Some("workspace.resource.cliff_night"),
+        _ if id.starts_with("dance_event_00") => Some("workspace.resource.dance_lesson"),
+        _ if id.starts_with("dance_event_10") => Some("workspace.resource.dance_battle"),
+        _ => None,
     };
-    let description = if crate::i18n::locale() == "chs" {
-        crate::i18n::simplified_label(description)
-    } else {
-        tr(description)
-    };
+    let description = label_key.map(crate::i18n::key).unwrap_or_else(|| {
+        if crate::i18n::locale() == "chs" {
+            crate::i18n::simplified_label(name)
+        } else {
+            tr(name)
+        }
+    });
     format!("{} · {description}", tr(category))
 }
 
@@ -1910,6 +1982,9 @@ fn is_selector(kind: &str) -> bool {
         )
 }
 fn absent_label(node: &Value, key: &str, kind: &str) -> String {
+    if node["type"] == "mood" && key == "icon" {
+        return crate::i18n::key("workspace.form.bubble_follow");
+    }
     tr(match (node["type"].as_str().unwrap_or(""), key, kind) {
         ("effect", "space", _) => "世界坐标（兼容旧项目）",
         ("mood", "character", _) => "全场自动气泡",
@@ -1968,7 +2043,7 @@ fn field_visible(kind: &str, node: &Value, key: &str) -> bool {
     if key == "inherit_dialog" {
         return node.get(key).is_some();
     }
-    if key == "resume_original" {
+    if matches!(key, "resume_original" | "resume_node") {
         return node.get(key).is_some();
     }
     if kind == "say"
@@ -2123,7 +2198,10 @@ fn array_editor(
         ui.push_id(i, |ui| {
             egui::Frame::group(ui.style()).show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.strong(format!("第 {} 项", i + 1));
+                    ui.strong(crate::i18n::message(
+                        "editor.form.item",
+                        &[("index", (i + 1).to_string())],
+                    ));
                     if ui.small_button("↑").clicked() && i > 0 {
                         swap = Some((i, i - 1));
                     }
@@ -2192,7 +2270,7 @@ fn array_editor(
                     ui.horizontal(|ui| {
                         ui.add(
                             egui::TextEdit::singleline(&mut key)
-                                .hint_text(tr("可选字段，如 upper / cost")),
+                                .hint_text(crate::i18n::key("editor.form.optional_field")),
                         );
                         if ui.small_button(tr("加字段")).clicked()
                             && !key.is_empty()
@@ -2288,7 +2366,7 @@ fn array_editor(
 pub fn value_editor(ui: &mut Ui, label: &str, value: &mut Value, depth: usize) -> bool {
     let mut changed = false;
     if depth > 12 {
-        ui.label(tr("嵌套过深，请在项目源文件中检查"));
+        ui.label(crate::i18n::key("editor.form.too_deep"));
         return false;
     }
     match value {
@@ -2330,39 +2408,48 @@ pub fn value_editor(ui: &mut Ui, label: &str, value: &mut Value, depth: usize) -
             }
         }
         Value::Array(a) => {
-            ui.collapsing(format!("{} · {} 项", label, a.len()), |ui| {
-                let mut remove = None;
-                for (i, v) in a.iter_mut().enumerate() {
-                    ui.push_id(i, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.label(format!("第 {} 项", i + 1));
-                            if ui.small_button(tr("删除")).clicked() {
-                                remove = Some(i);
-                            }
+            ui.collapsing(
+                crate::i18n::message(
+                    "editor.form.count",
+                    &[("label", label.into()), ("count", a.len().to_string())],
+                ),
+                |ui| {
+                    let mut remove = None;
+                    for (i, v) in a.iter_mut().enumerate() {
+                        ui.push_id(i, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.label(crate::i18n::message(
+                                    "editor.form.item",
+                                    &[("index", (i + 1).to_string())],
+                                ));
+                                if ui.small_button(tr("删除")).clicked() {
+                                    remove = Some(i);
+                                }
+                            });
+                            changed |= value_editor(ui, "内容", v, depth + 1);
+                            ui.separator();
                         });
-                        changed |= value_editor(ui, "内容", v, depth + 1);
-                        ui.separator();
+                    }
+                    if let Some(i) = remove {
+                        a.remove(i);
+                        changed = true;
+                    }
+                    ui.horizontal(|ui| {
+                        if ui.button(tr("＋ 文本")).clicked() {
+                            a.push(json!(""));
+                            changed = true;
+                        }
+                        if ui.button(tr("＋ 对象")).clicked() {
+                            a.push(json!({}));
+                            changed = true;
+                        }
+                        if ui.button(tr("＋ 同类项")).clicked() {
+                            a.push(a.last().cloned().unwrap_or(json!({})));
+                            changed = true;
+                        }
                     });
-                }
-                if let Some(i) = remove {
-                    a.remove(i);
-                    changed = true;
-                }
-                ui.horizontal(|ui| {
-                    if ui.button(tr("＋ 文本")).clicked() {
-                        a.push(json!(""));
-                        changed = true;
-                    }
-                    if ui.button(tr("＋ 对象")).clicked() {
-                        a.push(json!({}));
-                        changed = true;
-                    }
-                    if ui.button(tr("＋ 同类项")).clicked() {
-                        a.push(a.last().cloned().unwrap_or(json!({})));
-                        changed = true;
-                    }
-                });
-            });
+                },
+            );
         }
         Value::Object(o) => {
             egui::CollapsingHeader::new(label)
@@ -2430,7 +2517,10 @@ pub fn value_editor(ui: &mut Ui, label: &str, value: &mut Value, depth: usize) -
         }
         Value::Null => {
             ui.horizontal(|ui| {
-                ui.label(format!("{label}：空值"));
+                ui.label(crate::i18n::message(
+                    "editor.form.null",
+                    &[("label", label.into())],
+                ));
                 if ui.button(tr("设为文本")).clicked() {
                     *value = json!("");
                     changed = true;
@@ -3985,7 +4075,10 @@ fn typed_row(c: &Catalog, ui: &mut Ui, row: &mut Value, kind: &str) -> Option<bo
         return Some(changed);
     }
     if kind == "official_characters" {
-        ui.label(format!("{} *", tr("官方角色")));
+        ui.label(format!(
+            "{} *",
+            crate::i18n::key("workspace.form.official_character")
+        ));
         if let Some(Some(id)) = character_picker(
             ui,
             row.as_str(),
@@ -4092,7 +4185,7 @@ fn typed_row(c: &Catalog, ui: &mut Ui, row: &mut Value, kind: &str) -> Option<bo
                     999999,
                 );
             }
-            ui.collapsing(tr("其他字段"), |ui| {
+            ui.collapsing(crate::i18n::key("workspace.form.other_fields"), |ui| {
                 changed |= value_editor(ui, "row", row, 1);
             });
         }

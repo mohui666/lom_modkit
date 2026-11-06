@@ -28,7 +28,7 @@ namespace MortalModHost
     {
         public const string GUID = "com.mohui666.mortalmodhost";
         public const string NAME = "MortalModHost";
-        public const string VERSION = "1.4.10";
+        public const string VERSION = "1.4.11";
 
         internal static Plugin Instance { get; private set; }
 
@@ -176,6 +176,7 @@ namespace MortalModHost
 
         private void CompleteDisable()
         {
+            RouteRuntimeCapture.Reset();
             _disablePendingForDisclosure = false;
             VanillaModCampaignPanel.Remove();
             VanillaTitleModEntry.Remove();
@@ -844,9 +845,9 @@ namespace MortalModHost
                 GameplaySession.Reset();
                 if (scene == "Title")
                 {
-                    RestoreOfficialSlotAtTitle();
                     SelectPlayMode(ModPlayModeKind.Original);
                     CustomGameplayRuntime.Clear();
+                    RestoreOfficialSlotAtTitle();
                     ModCampaignState.Clear();
                     ModQuestSession.Reset();
                     PersistentModState.ResetMemory();
@@ -926,6 +927,7 @@ namespace MortalModHost
 
         private void OnDestroy()
         {
+            RouteRuntimeCapture.Reset();
             if (_enabled != null)
                 _enabled.SettingChanged -= OnEnabledChanged;
             if (ModDisclosure.Active && !_applicationQuitting)
@@ -953,6 +955,7 @@ namespace MortalModHost
 
         private void OnApplicationQuit()
         {
+            RouteRuntimeCapture.Reset();
             _applicationQuitting = true;
         }
 
@@ -1444,6 +1447,7 @@ namespace MortalModHost
                 foreach (ModPackage package in LoadedMods)
                     if (ModPlayModeSession.Allows(package))
                         CustomGameplayRuntime.EnsurePackage(package);
+                saves = SaveSystem.Instance;
                 saves.SetSlot(slot);
                 ModCampaignState.Clear();
                 ModQuestSession.Reset();
@@ -1530,6 +1534,8 @@ namespace MortalModHost
             try
             {
                 SelectPlayMode(ModPlayModeKind.Campaign);
+                CustomGameplayRuntime.Clear();
+                saves = SaveSystem.Instance;
                 saves.SetSlot(slot);
                 // SetSlot postfix 会丢弃上一槽的内存快照；新战役随后以空 sidecar 开局。
                 PersistentModState.BeginNewCampaign(mod);
@@ -1540,8 +1546,8 @@ namespace MortalModHost
                 // 由本 mod 的 disable_official_events 决定（官方开局时 NewGameDataPatch 清除）；
                 // 同时记录战役 mod id，位置触发器按当前战役 mod 隔离（见 FreePositionPatch）。
                 ModCampaignState.Enter(mod);
-                CustomGameplayRuntime.Clear();
                 CustomGameplayRuntime.EnsurePackage(mod);
+                saves = SaveSystem.Instance;
                 ModQuestSession.Reset();
                 if (mod.Campaign.DisableOfficialEvents)
                     Logger.LogInfo("该战役已声明 disable_official_events：返回 Free 的自动任务与位置点击不再触发原版故事脚本（仅 mod 触发器命中）。");
@@ -1619,6 +1625,7 @@ namespace MortalModHost
                 ModCampaignState.Enter(mod);
                 CustomGameplayRuntime.Clear();
                 CustomGameplayRuntime.EnsurePackage(mod);
+                saves = SaveSystem.Instance;
                 saves.SetSlot(slot);
                 ResetModRuntimeForLoad();
                 if (SoundManager.Instance != null) SoundManager.Instance.StopMusic();
@@ -1676,6 +1683,7 @@ namespace MortalModHost
                 ModCampaignState.Enter(mod);
                 CustomGameplayRuntime.Clear();
                 CustomGameplayRuntime.EnsurePackage(mod);
+                saves = SaveSystem.Instance;
                 saves.SetSlot(resumeSlot);
                 ResetModRuntimeForLoad();
                 if (SoundManager.Instance != null) SoundManager.Instance.StopMusic();
@@ -1761,6 +1769,7 @@ namespace MortalModHost
         private void RestoreOfficialSlotAfterCampaignFailure(
             SaveSystem saves, string previousOfficialSlot)
         {
+            saves = SaveSystem.Instance;
             if (saves == null || string.IsNullOrEmpty(previousOfficialSlot)
                 || ModSaveIsolation.IsModSlot(previousOfficialSlot)) return;
             try

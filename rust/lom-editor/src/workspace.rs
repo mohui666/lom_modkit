@@ -1236,6 +1236,9 @@ impl App {
         }
     }
     fn compile(&mut self) {
+        if let Some(story) = self.project.stories.get_mut(&self.current) {
+            lom_core::native_flow::refresh_branch_labels(story);
+        }
         self.catalog.data["project_flags"] = json!(self
             .project
             .stories
@@ -1273,6 +1276,12 @@ impl App {
             .unwrap()
     }
     fn add_node(&mut self, kind: &str) {
+        if matches!(kind, "native_action" | "native_branch")
+            && self.story()["vanilla_import"]["schema"] != 2
+        {
+            self.error = Some("原版指令与原版条件只用于结构化导入的原版章节。".into());
+            return;
+        }
         if self.story().get("vanilla_import").is_some() && matches!(kind, "combat" | "battle") {
             self.error = Some("新增战斗会切换场景，当前原版整章的局部状态无法跨场景续接。".into());
             return;
@@ -1287,17 +1296,15 @@ impl App {
                 node["inherit_dialog"] = json!(true);
             }
         }
-        if let Some(a) = self
-            .project
-            .stories
-            .get_mut(&self.current)
-            .and_then(|s| s["nodes"].as_array_mut())
-        {
-            let at = (self.selected + 1).min(a.len());
-            a.insert(at, node);
-            self.selected = at;
-            self.multiselect.clear();
-            self.center = Center::Node;
+        let mut story = self.story();
+        match insert_nodes_after(&mut story, self.selected, vec![node]) {
+            Ok(at) => {
+                self.project.stories.insert(self.current.clone(), story);
+                self.selected = at;
+                self.multiselect.clear();
+                self.center = Center::Node;
+            }
+            Err(error) => self.error = Some(error.to_string()),
         }
     }
     fn selected_indices(&self) -> Vec<usize> {
@@ -1322,8 +1329,27 @@ impl App {
         }
         self.flush();
         let mut clones = self.clipboard.clone();
-        let story = self.story();
+        let mut story = self.story();
         let imported = story.get("vanilla_import").is_some();
+        if story["vanilla_import"]["schema"] != 2
+            && clones.iter().any(|node| {
+                matches!(
+                    node["type"].as_str(),
+                    Some("native_action" | "native_branch")
+                )
+            })
+        {
+            self.error = Some("原版指令与原版条件只用于结构化导入的原版章节。".into());
+            return;
+        }
+        if imported
+            && clones
+                .iter()
+                .any(|node| matches!(node["type"].as_str(), Some("combat" | "battle")))
+        {
+            self.error = Some("新增战斗会切换场景，当前原版整章的局部状态无法跨场景续接。".into());
+            return;
+        }
         let mut used: BTreeSet<String> = story["nodes"]
             .as_array()
             .into_iter()
@@ -1351,17 +1377,17 @@ impl App {
         for n in &mut clones {
             retarget(n, &map);
         }
-        if let Some(a) = self
-            .project
-            .stories
-            .get_mut(&self.current)
-            .and_then(|s| s["nodes"].as_array_mut())
-        {
-            let at = (self.selected + 1).min(a.len());
-            let count = clones.len();
-            a.splice(at..at, clones);
-            self.selected = at;
-            self.multiselect = (at..at + count).collect();
+        if story["vanilla_import"]["schema"] == 2 {
+            lom_core::native_flow::rebind_copied_locals(&mut clones, &story);
+        }
+        let count = clones.len();
+        match insert_nodes_after(&mut story, self.selected, clones) {
+            Ok(at) => {
+                self.project.stories.insert(self.current.clone(), story);
+                self.selected = at;
+                self.multiselect = (at..at + count).collect();
+            }
+            Err(error) => self.error = Some(error.to_string()),
         }
     }
     fn delete(&mut self) {
@@ -1387,7 +1413,12 @@ impl App {
             .as_array_mut()
             .unwrap()
             .retain(|n| !removed.contains(n["id"].as_str().unwrap_or("")));
-        if let Err(error) = reconnect_deleted_offsets(&mut story, &old_nodes, &removed) {
+        let reconnect = if story["vanilla_import"]["schema"] == 2 {
+            reconnect_deleted_structured(&mut story, &old_nodes, &removed)
+        } else {
+            reconnect_deleted_offsets(&mut story, &old_nodes, &removed)
+        };
+        if let Err(error) = reconnect {
             self.error = Some(error.to_string());
             return;
         }
@@ -1742,22 +1773,22 @@ impl App {
                         self.settings_error = None;
                     }
                     ui.menu_button(tr("文件"), |ui| {
-                        if ui.button(tr("新建自由剧本")).clicked() {
+                        if ui.button(crate::i18n::key("editor.workspace.new_free")).clicked() {
                             ui.close();
                             self.request(Pending::New, ctx);
                         }
-                        if ui.button(tr("新建原版附加剧情")).clicked() {
+                        if ui.button(crate::i18n::key("editor.workspace.new_extra")).clicked() {
                             ui.close();
                             self.request(Pending::NewAddon,ctx);
                         }
-                        if ui.button(tr("导入原版章节 / 新建补丁…")).clicked() {
+                        if ui.button(crate::i18n::key("editor.workspace.import_original")).clicked() {
                             ui.close();
                             self.request(Pending::NewVanillaPatch, ctx);
                         }
-                        if ui.button(tr("原版路线图…")).clicked() {
+                        if ui.button(crate::i18n::key("editor.workspace.routes")).clicked() {
                             ui.close();self.open_vanilla_routes(ctx);
                         }
-                        if ui.button(tr("打开最近游戏标记")).clicked() {
+                        if ui.button(crate::i18n::key("editor.workspace.bookmark")).clicked() {
                             ui.close();
                             match lom_core::story_bookmarks::read(&lom_core::story_bookmarks::default_root()) {
                                 Ok(marks) => if let Some(mark)=marks.into_iter().next() {
@@ -1819,7 +1850,7 @@ impl App {
                             self.save(false);
                         }
                         ui.separator();
-                        if ui.button(tr("作品设置…")).clicked() {
+                        if ui.button(crate::i18n::key("editor.workspace.release_settings")).clicked() {
                             self.open_center(Center::Manifest);
                             ui.close();
                         }
@@ -1831,7 +1862,7 @@ impl App {
                             ui.close();
                             self.export();
                         }
-                        if ui.button(tr("导出完整游玩包…")).clicked() {
+                        if ui.button(crate::i18n::key("editor.workspace.export_player")).clicked() {
                             ui.close();
                             self.export_play_bundle();
                         }
@@ -1849,7 +1880,7 @@ impl App {
                         }
                     });
 
-                    ui.menu_button(tr("编辑"), |ui| {
+                    ui.menu_button(crate::i18n::key("editor.workspace.edit"), |ui| {
                         if ui
                             .add_enabled(
                                 !self.undo.is_empty() || self.pending_history.is_some(),
@@ -1976,7 +2007,7 @@ impl App {
                         {
                             self.export();
                         }
-                        if ui.button(tr("导出游玩包")).clicked() {
+                        if ui.button(crate::i18n::key("editor.workspace.export_short")).clicked() {
                             self.export_play_bundle();
                         }
                     });
@@ -2200,6 +2231,7 @@ impl App {
     fn step_palette(&mut self, ctx: &egui::Context) {
         let story = self.project.stories.get(&self.current);
         let imported = story.is_some_and(|story| story.get("vanilla_import").is_some());
+        let structured = story.is_some_and(|story| story["vanilla_import"]["schema"] == 2);
         if story.is_some_and(|story| story.get("vanilla_patch").is_some()) {
             return;
         }
@@ -2214,10 +2246,10 @@ impl App {
             .resizable(true)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.strong(tr("添加步骤"));
+                    ui.strong(crate::i18n::key("editor.workspace.add_steps"));
                     if ui
                         .small_button("×")
-                        .on_hover_text(tr("收起步骤面板"))
+                        .on_hover_text(crate::i18n::key("editor.workspace.collapse_steps"))
                         .clicked()
                     {
                         self.steps_panel_open = false;
@@ -2226,12 +2258,12 @@ impl App {
                 ui.add(
                     egui::TextEdit::singleline(&mut self.node_search)
                         .desired_width(f32::INFINITY)
-                        .hint_text(tr("搜索步骤")),
+                        .hint_text(crate::i18n::key("editor.workspace.search_steps")),
                 );
-                ui.small(tr("点击插入到选中步骤之后"));
+                ui.small(crate::i18n::key("editor.workspace.insert_hint"));
                 if ui
-                    .button(tr("同时执行多个动作"))
-                    .on_hover_text(tr("在一个步骤中安排人物、画面和等待时间"))
+                    .button(crate::i18n::key("editor.workspace.parallel"))
+                    .on_hover_text(crate::i18n::key("editor.workspace.parallel_hint"))
                     .clicked()
                 {
                     self.add_node("parallel");
@@ -2253,6 +2285,10 @@ impl App {
                                 .flatten()
                                 .filter_map(Value::as_str)
                                 .filter(|kind| {
+                                    structured
+                                        || !matches!(*kind, "native_action" | "native_branch")
+                                })
+                                .filter(|kind| {
                                     self.project.scenario.is_none()
                                         || imported
                                         || lom_core::scenario::performance_node(kind)
@@ -2267,12 +2303,14 @@ impl App {
                             if kinds.is_empty() {
                                 continue;
                             }
-                            egui::CollapsingHeader::new(tr([
-                                "演出与画面",
-                                "属性与旗标",
-                                "玩法与结果",
-                                "流程控制",
-                            ][group_i.min(3)]))
+                            egui::CollapsingHeader::new(crate::i18n::key(
+                                [
+                                    "workspace.palette.stage",
+                                    "workspace.palette.stats",
+                                    "workspace.palette.gameplay",
+                                    "workspace.palette.flow",
+                                ][group_i.min(3)],
+                            ))
                             .id_salt(("palette-group", group_i))
                             .default_open(true)
                             .show(ui, |ui| {
@@ -2311,12 +2349,17 @@ impl App {
                             .unwrap_or("未命名作品"),
                     );
                     ui.horizontal(|ui| {
-                        ui.small(tr(if self.project.manifest["play_mode"] == "addon" {
-                            "原版附加剧情"
-                        } else {
-                            "自由剧本"
-                        }));
-                        if ui.small_button(tr("作品设置…")).clicked() {
+                        ui.small(crate::i18n::key(
+                            if self.project.manifest["play_mode"] == "addon" {
+                                "workspace.mode.addon"
+                            } else {
+                                "workspace.mode.free"
+                            },
+                        ));
+                        if ui
+                            .small_button(crate::i18n::key("editor.workspace.release_settings"))
+                            .clicked()
+                        {
                             self.open_center(Center::Manifest);
                         }
                     });
@@ -2325,7 +2368,7 @@ impl App {
                         if ui
                             .selectable_label(
                                 matches!(self.center, Center::Node | Center::Chapter),
-                                tr("剧情内容"),
+                                crate::i18n::key("editor.workspace.story_content"),
                             )
                             .clicked()
                         {
@@ -2334,14 +2377,17 @@ impl App {
                         if ui
                             .selectable_label(
                                 matches!(self.center, Center::Events | Center::Tasks),
-                                tr("剧情安排"),
+                                crate::i18n::key("editor.workspace.schedule"),
                             )
                             .clicked()
                         {
                             self.open_center(Center::Events);
                         }
                         if ui
-                            .selectable_label(self.center == Center::Initial, tr("初始设置"))
+                            .selectable_label(
+                                self.center == Center::Initial,
+                                crate::i18n::key("editor.workspace.initial"),
+                            )
                             .clicked()
                         {
                             self.open_initial_setup();
@@ -2370,23 +2416,23 @@ impl App {
                         return;
                     }
                     if self.center == Center::Initial {
-                        ui.strong(tr("剧情开场设置"));
-                        ui.small(tr("在剧情开始前设置时间、属性、物品和旗标。"));
+                        ui.strong(crate::i18n::key("editor.workspace.opening"));
+                        ui.small(crate::i18n::key("editor.workspace.opening_hint"));
                         return;
                     }
                     if self.center == Center::Manifest {
                         ui.strong(tr("作品设置"));
-                        ui.small(tr("这里设置整部作品的名称、作者和运行方式。"));
+                        ui.small(crate::i18n::key("editor.workspace.settings_hint"));
                         return;
                     }
-                    ui.small(tr("一段剧情包含对话、选项和画面演出。"));
+                    ui.small(crate::i18n::key("editor.workspace.story_hint"));
                 }
                 egui::TopBottomPanel::bottom("add-step-bottom")
                     .frame(egui::Frame::new().inner_margin(egui::Margin::symmetric(0, 5)))
                     .show_inside(ui, |ui| {
                         ui.toggle_value(&mut self.steps_panel_open, tr("＋ 添加步骤"))
-                            .on_hover_text(tr("打开或收起独立的步骤面板"));
-                        ui.small(tr("拖动栏间边界可调整宽度"));
+                            .on_hover_text(crate::i18n::key("editor.workspace.panel_toggle"));
+                        ui.small(crate::i18n::key("editor.workspace.panel_resize"));
                     });
                 let old = self.current.clone();
                 let mut chapter_names: Vec<_> = self
@@ -2398,8 +2444,8 @@ impl App {
                     })
                     .collect();
                 crate::forms::number_duplicate_labels(&mut chapter_names);
+                ui.label(crate::i18n::key("nav.story"));
                 ui.horizontal(|ui| {
-                    ui.label(crate::i18n::key("nav.story"));
                     egui::ComboBox::from_id_salt("chapters")
                         .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
                         .truncate()
@@ -2557,7 +2603,10 @@ impl App {
                 ui.add_space(4.0);
                 if self.project.scenario.is_none()
                     && ui
-                        .selectable_label(self.center == Center::Initial, tr("初始设置"))
+                        .selectable_label(
+                            self.center == Center::Initial,
+                            crate::i18n::key("editor.workspace.initial"),
+                        )
                         .clicked()
                 {
                     self.open_initial_setup();
@@ -2583,9 +2632,12 @@ impl App {
                 }
                 let story = self.story();
                 if let Some(patch) = story.get("vanilla_patch") {
-                    ui.strong("原版剧情补丁");
-                    ui.label(format!("章节：{}", patch["target"].as_str().unwrap_or("")));
-                    ui.label("在原文列表中选择插入位置。");
+                    ui.strong(crate::i18n::key("editor.patch.title"));
+                    ui.label(crate::i18n::message(
+                        "editor.patch.chapter",
+                        &[("target", patch["target"].as_str().unwrap_or("").into())],
+                    ));
+                    ui.label(crate::i18n::key("editor.patch.insert_hint"));
                     let used: BTreeSet<_> = self
                         .project
                         .stories
@@ -2596,7 +2648,10 @@ impl App {
                         .collect();
                     let next = self.vanilla.next_target(&used);
                     if ui
-                        .add_enabled(next.is_some(), egui::Button::new("添加原版补丁章节"))
+                        .add_enabled(
+                            next.is_some(),
+                            egui::Button::new(crate::i18n::key("editor.patch.add_chapter")),
+                        )
                         .clicked()
                     {
                         let target = next.unwrap();
@@ -2720,7 +2775,12 @@ impl App {
                             authoring::Row::Node { index, depth } => (index, depth),
                         };
                         let node = &nodes[index];
-                        let summary = if node["type"] == "parallel" {
+                        let summary = if matches!(
+                            node["type"].as_str(),
+                            Some("native_action" | "native_branch")
+                        ) {
+                            crate::native_forms::summary(node)
+                        } else if node["type"] == "parallel" {
                             format!(
                                 "{} {}",
                                 node["actions"].as_array().map_or(0, Vec::len),
@@ -2948,19 +3008,32 @@ impl App {
                 .show(ctx, |ui| {
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         if self.center == Center::Manifest {
-                            ui.heading(tr("作品概览"));
-                            ui.label(tr(if self.project.manifest["play_mode"] == "addon" {
-                                "原版附加剧情：在原版流程中加入事件。"
-                            } else {
-                                "自由剧本：从自己的开场开始，使用独立存档。"
-                            }));
+                            ui.heading(crate::i18n::key("editor.workspace.overview"));
+                            ui.label(crate::i18n::key(
+                                if self.project.manifest["play_mode"] == "addon" {
+                                    "workspace.mode.addon_hint"
+                                } else {
+                                    "workspace.mode.free_hint"
+                                },
+                            ));
                             ui.add_space(12.0);
-                            ui.label(format!("{} 段剧情", self.project.stories.len()));
+                            ui.label(crate::i18n::message(
+                                "editor.workspace.story_count",
+                                &[("count", self.project.stories.len().to_string())],
+                            ));
                             if let Some(c) = &self.project.scenario {
-                                ui.label(format!(
-                                    "{} 个事件 · {} 个任务",
-                                    c["events"].as_array().map_or(0, Vec::len),
-                                    c["tasks"].as_array().map_or(0, Vec::len)
+                                ui.label(crate::i18n::message(
+                                    "workspace.overview.counts",
+                                    &[
+                                        (
+                                            "events",
+                                            c["events"].as_array().map_or(0, Vec::len).to_string(),
+                                        ),
+                                        (
+                                            "tasks",
+                                            c["tasks"].as_array().map_or(0, Vec::len).to_string(),
+                                        ),
+                                    ],
                                 ));
                             }
                         } else if let Some(link) = crate::scenario_panel::context(
@@ -3302,7 +3375,10 @@ impl App {
                                 ui.separator();
                             }
                             if let Some(target) = story["vanilla_import"]["target"].as_str() {
-                                ui.small(format!("原版整章 {target} · F5 从原版入口试玩。复杂原生逻辑按高级步骤编辑。"));
+                                ui.small(crate::i18n::message(
+                                    "editor.original.preview",
+                                    &[("target", target.into())],
+                                ));
                             }
                             let ids: Vec<_> = story["nodes"]
                                 .as_array()
@@ -3314,34 +3390,105 @@ impl App {
                             if let Some(mut node) = story["nodes"].get(self.selected).cloned() {
                                 let event_picture = node["type"] == "cg" && node["kind"] == "event";
                                 if event_picture {
-                                    ui.small(tr("可选原版事件插图或导入自定义图片。图片保持比例适配左侧图框，右侧题字默认“事件”，下方文本框可留空。"));
+                                    ui.small(crate::i18n::key("editor.workspace.event_hint"));
                                 }
-                                if matches!(node["type"].as_str(), Some("background" | "custom_cg" | "overlay")) || event_picture && node["action"] == "show" {
-                                    ui.small(tr("选择已导入的图片，或直接从文件导入并应用。前景可用位置、层级、比例和透明度调整。"));
-                                    if ui.button(tr("导入图片并用于此步骤…")).clicked() {
-                                        self.image_import_target = Some((self.current.clone(), node["id"].as_str().unwrap_or("").to_owned()));
-                                        self.asset_import_dialog = Some(AssetImportDialog { extends:String::new(), kind:0, name:String::new(), paths:vec![], error:None });
+                                if matches!(
+                                    node["type"].as_str(),
+                                    Some("background" | "custom_cg" | "overlay")
+                                ) || event_picture && node["action"] == "show"
+                                {
+                                    ui.small(crate::i18n::key("editor.workspace.image_hint"));
+                                    if ui
+                                        .button(crate::i18n::key("editor.workspace.import_image"))
+                                        .clicked()
+                                    {
+                                        self.image_import_target = Some((
+                                            self.current.clone(),
+                                            node["id"].as_str().unwrap_or("").to_owned(),
+                                        ));
+                                        self.asset_import_dialog = Some(AssetImportDialog {
+                                            extends: String::new(),
+                                            kind: 0,
+                                            name: String::new(),
+                                            paths: vec![],
+                                            error: None,
+                                        });
                                     }
                                 }
-                                let official = node["type"] == "cg" && matches!(node["kind"].as_str(), Some("event" | "picture" | "item" | "big"));
-                                let custom = matches!(node["type"].as_str(), Some("background" | "custom_cg" | "overlay"));
-                                let scene = matches!(node["type"].as_str(), Some("scene" | "combat"));
-                                let mut image_changed=false;
-                                if (official || custom || scene) && !matches!(node["action"].as_str(),Some("hide" | "clear" | "fadeout")) {
-                                    let key=if official {"key"} else if node["type"] == "scene" {"view"} else if scene {"background"} else {"image"};
-                                    let options=self.catalog.options(if event_picture {"event_picture"} else if official {"official_picture"} else if scene {"view"} else {"user_image"},&node,&[],&[]);
-                                    ui.push_id((&self.current,node["id"].as_str().unwrap_or("").to_owned()),|ui| {
-                                        if let Some(image)=self.preview.image_browser(ui,&self.project,&options,node[key].as_str().unwrap_or(""),official) {
-                                            node[key]=json!(image);image_changed=true;
-                                        }
-                                    });
+                                let official = node["type"] == "cg"
+                                    && matches!(
+                                        node["kind"].as_str(),
+                                        Some("event" | "picture" | "item" | "big")
+                                    );
+                                let custom = matches!(
+                                    node["type"].as_str(),
+                                    Some("background" | "custom_cg" | "overlay")
+                                );
+                                let scene =
+                                    matches!(node["type"].as_str(), Some("scene" | "combat"));
+                                let mut image_changed = false;
+                                if (official || custom || scene)
+                                    && !matches!(
+                                        node["action"].as_str(),
+                                        Some("hide" | "clear" | "fadeout")
+                                    )
+                                {
+                                    let key = if official {
+                                        "key"
+                                    } else if node["type"] == "scene" {
+                                        "view"
+                                    } else if scene {
+                                        "background"
+                                    } else {
+                                        "image"
+                                    };
+                                    let options = self.catalog.options(
+                                        if event_picture {
+                                            "event_picture"
+                                        } else if official {
+                                            "official_picture"
+                                        } else if scene {
+                                            "view"
+                                        } else {
+                                            "user_image"
+                                        },
+                                        &node,
+                                        &[],
+                                        &[],
+                                    );
+                                    ui.push_id(
+                                        (
+                                            &self.current,
+                                            node["id"].as_str().unwrap_or("").to_owned(),
+                                        ),
+                                        |ui| {
+                                            if let Some(image) = self.preview.image_browser(
+                                                ui,
+                                                &self.project,
+                                                &options,
+                                                node[key].as_str().unwrap_or(""),
+                                                official,
+                                            ) {
+                                                node[key] = json!(image);
+                                                image_changed = true;
+                                            }
+                                        },
+                                    );
                                 }
                                 if node["type"] == "rotate" {
                                     let mut legacy = self.preview.legacy_character_rotation;
-                                    if ui.checkbox(&mut legacy, "旧版旋转预览")
-                                        .on_hover_text("开启：人物正角度按旧版顺时针预览；关闭：按游戏方向逆时针预览。")
-                                        .changed() {
-                                        if let Err(error) = self.set_legacy_character_rotation(legacy, &user_root().join("rust/preferences.json")) {
+                                    if ui
+                                        .checkbox(
+                                            &mut legacy,
+                                            crate::i18n::key("editor.workspace.legacy_rotation"),
+                                        )
+                                        .on_hover_text(crate::i18n::key("editor.rotation.hint"))
+                                        .changed()
+                                    {
+                                        if let Err(error) = self.set_legacy_character_rotation(
+                                            legacy,
+                                            &user_root().join("rust/preferences.json"),
+                                        ) {
                                             self.error = Some(error.to_string());
                                         }
                                     }
@@ -3359,13 +3506,18 @@ impl App {
                                 }
                             } else {
                                 ui.heading(tr("还没有步骤"));
-                                ui.label(tr("从左侧“添加步骤”开始创作。"));
+                                ui.label(crate::i18n::key("editor.workspace.empty"));
                             }
                         }
                         Center::Chapter => self.chapter(ui),
                         Center::Initial => {
                             let old = self.current.clone();
-                            crate::initial_setup::show(ui, &mut self.project, &self.catalog, &mut self.current);
+                            crate::initial_setup::show(
+                                ui,
+                                &mut self.project,
+                                &self.catalog,
+                                &mut self.current,
+                            );
                             if old != self.current {
                                 self.selected = 0;
                                 self.multiselect.clear();
@@ -3458,16 +3610,53 @@ impl App {
             story["title"] = json!(title);
         }
         if story.get("vanilla_patch").is_some() {
-            ui.label("本章沿用原版触发点与流程，插入位置在原文列表中选择。");
+            ui.label(crate::i18n::key("editor.patch.chapter_hint"));
             self.project.stories.insert(self.current.clone(), story);
             return;
+        }
+        if story["vanilla_import"]["schema"] == 1 {
+            ui.small(crate::i18n::key("editor.upgrade.hint"));
+            if ui
+                .button(crate::i18n::key("editor.upgrade.button"))
+                .clicked()
+            {
+                let selected = story["nodes"][self.selected]["id"].clone();
+                match lom_core::native_upgrade::upgrade(&story) {
+                    Ok(upgraded) => {
+                        self.flush();
+                        story = upgraded;
+                        self.selected = story["nodes"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .position(|node| node["id"] == selected)
+                            .unwrap_or(0);
+                        self.multiselect.clear();
+                        self.needs_compile = true;
+                        self.status = crate::i18n::key("editor.upgrade.done");
+                    }
+                    Err(error) => {
+                        self.error = Some(crate::i18n::message(
+                            "editor.upgrade.error",
+                            &[("error", format!("{error:#}"))],
+                        ))
+                    }
+                }
+            }
         }
         let ids = story["nodes"].as_array().cloned().unwrap_or_default();
         let mut start = story["start"].as_str().unwrap_or("").to_owned();
         ui.label(format!("{} *", tr("入口步骤")));
         if let Some(target) = story["vanilla_import"]["target"].as_str() {
-            ui.label(format!("覆盖原版章节 {target}，从首个步骤进入。"));
-            ui.small("原生复杂分支保留为高级步骤，新增跳转需位于同一原生逻辑段。人物、音乐、数值和流程改动后，本章后续继续显示 MOD 标识。");
+            ui.label(crate::i18n::message(
+                "editor.original.target",
+                &[("target", target.into())],
+            ));
+            ui.small(if story["vanilla_import"]["schema"] == 2 {
+                crate::i18n::key("editor.original.structured_hint")
+            } else {
+                crate::i18n::key("editor.original.legacy_hint")
+            });
         }
         ui.add_enabled_ui(story.get("vanilla_import").is_none(), |ui| {
             egui::ComboBox::from_id_salt("start")
@@ -3537,7 +3726,7 @@ impl App {
                         section["title"]
                             .as_str()
                             .map(str::to_owned)
-                            .unwrap_or_else(|| tr("分区")),
+                            .unwrap_or_else(|| crate::i18n::key("editor.workspace.section")),
                     )
                 })
                 .collect();
@@ -3547,7 +3736,7 @@ impl App {
                     section_names
                         .get(self.section_parent)
                         .map(|(_, name)| name.clone())
-                        .unwrap_or_else(|| tr("所属分区")),
+                        .unwrap_or_else(|| crate::i18n::key("editor.workspace.section_owner")),
                 )
                 .show_ui(ui, |ui| {
                     for (i, (_, name)) in section_names.iter().enumerate() {
@@ -3608,7 +3797,7 @@ impl App {
     }
     fn localization(&mut self, ui: &mut egui::Ui) {
         ui.heading(tr("多语言对白"));
-        ui.label(tr("逐句编辑翻译；人物 ID、资源路径和 Lua 保持原值。"));
+        ui.label(crate::i18n::key("editor.workspace.translation_hint"));
         let mut s = self.story();
         if !s["localization"].is_object() {
             if ui.button(tr("启用本章多语言")).clicked() {
@@ -3766,7 +3955,10 @@ impl App {
                 error: None,
             });
         }
-        if ui.button(tr("为原版人物添加立绘…")).clicked() && self.apply_pending_drafts()
+        if ui
+            .button(crate::i18n::key("editor.workspace.add_portrait"))
+            .clicked()
+            && self.apply_pending_drafts()
         {
             self.image_import_target = None;
             self.asset_import_dialog = Some(AssetImportDialog {
@@ -3887,7 +4079,10 @@ impl App {
         }
         ui.separator();
         ui.collapsing(
-            format!("全部包内资源 · {} 个", self.project.assets.len()),
+            crate::i18n::message(
+                "workspace.assets.count",
+                &[("count", self.project.assets.len().to_string())],
+            ),
             |ui| {
                 for (name, bytes) in &self.project.assets {
                     ui.label(format!("{} · {:.1} KiB", name, bytes.len() as f64 / 1024.0));
@@ -4231,9 +4426,9 @@ impl App {
                 .iter()
                 .filter_map(|i| story["nodes"].get(*i).cloned())
                 .collect();
-            ui.label(format!(
-                "已选中 {} 个步骤。左侧 Shift 连选，⌘/Ctrl 多选。",
-                selected.len()
+            ui.label(crate::i18n::message(
+                "workspace.bulk.selected",
+                &[("count", selected.len().to_string())],
             ));
             let fields = authoring::bulk_fields(&self.catalog.schema, &selected);
             if selected.len() < 2 || fields.is_empty() {
@@ -4293,9 +4488,7 @@ impl App {
             }
         });
         ui.collapsing(tr("批量修改对白"), |ui| {
-            ui.label(tr(
-                "只替换台词、标题与描述文本；不会改动 ID、引用、路径或 Lua。",
-            ));
+            ui.label(crate::i18n::key("workspace.bulk.text_hint"));
             ui.horizontal(|ui| {
                 ui.label(tr("查找"));
                 ui.text_edit_singleline(&mut self.search);
@@ -4319,7 +4512,7 @@ impl App {
                 self.status = format!("已替换 {count} 处文本，可撤销");
             }
         });
-        ui.collapsing(tr("节点模板"), |ui| {
+        ui.collapsing(crate::i18n::key("editor.workspace.templates"), |ui| {
             ui.label(tr(
                 "模板保存连续选中的步骤，并在插入时生成新 ID、重连内部跳转。",
             ));
@@ -4340,7 +4533,10 @@ impl App {
                     .cloned()
                     .unwrap_or_else(|| vec![template.clone()]);
                 ui.horizontal(|ui| {
-                    ui.label(format!("{name} · {} 步", nodes.len()));
+                    ui.label(crate::i18n::message(
+                        "editor.workspace.steps",
+                        &[("name", name.clone()), ("count", nodes.len().to_string())],
+                    ));
                     if ui.small_button(tr("插入")).clicked() {
                         match authoring::validate_template(&nodes) {
                             Ok(()) => {
@@ -4534,7 +4730,10 @@ impl App {
                         .max_height(ctx.content_rect().height() * 0.5)
                         .show(ui, |ui| {
                             ui.label(crate::error_location::explanation(&message));
-                            if ui.small_button(tr("复制诊断信息")).clicked() {
+                            if ui
+                                .small_button(crate::i18n::key("editor.workspace.copy_diagnostics"))
+                                .clicked()
+                            {
                                 ui.ctx().copy_text(message.clone());
                             }
                         });
@@ -4603,13 +4802,13 @@ impl App {
                             resolution_changed = self.shell.resolution_settings(ui);
                         }
                         1 => {
-                            ui.strong(tr("预览素材库"));
+                            ui.strong(crate::i18n::key("editor.workspace.preview_library"));
                             if self.preview.library.join("preview_map.json").is_file() { ui.label(self.preview.library.display().to_string()); }
                             else { ui.label(tr("尚未选择已提取的预览素材库")); }
                             choose_library = ui.button(tr("选择预览素材库…")).clicked();
                             extract_library = ui.button(tr("从游戏提取预览素材…")).clicked();
                             ui.add_space(12.0);
-                            ui.strong(tr("用户内容库"));
+                            ui.strong(crate::i18n::key("library.title"));
                             let library = lom_core::content::default_repository_root();
                             ui.label(library.display().to_string());
                             if ui.button(tr("复制用户内容库路径")).clicked() { ctx.copy_text(library.display().to_string()); }
@@ -4717,10 +4916,23 @@ impl App {
                         draft.extends.clear();
                     }
                     if draft.kind == 1 {
-                        let mut target = if draft.extends.is_empty() { json!({}) } else { json!({"extends":draft.extends}) };
-                        self.catalog.field(ui, &mut target, "extends", "扩展原版人物", "official_character", true, &[], &[]);
+                        let mut target = if draft.extends.is_empty() {
+                            json!({})
+                        } else {
+                            json!({"extends":draft.extends})
+                        };
+                        self.catalog.field(
+                            ui,
+                            &mut target,
+                            "extends",
+                            "扩展原版人物",
+                            "official_character",
+                            true,
+                            &[],
+                            &[],
+                        );
                         draft.extends = target["extends"].as_str().unwrap_or("").to_owned();
-                        ui.small(tr("留空为原创人物；扩展原版人物时，图片文件名作为新增表情 ID，例如 tired.png。"));
+                        ui.small(crate::i18n::key("editor.workspace.character_hint"));
                     }
                     choose_files = ui
                         .button(format!(
@@ -4977,20 +5189,43 @@ impl App {
         if let Some((nodes, warnings)) = self.pending_template.clone() {
             let mut cancel = false;
             let mut insert = false;
+            let structured = self.story()["vanilla_import"]["schema"] == 2;
             egui::Modal::new(egui::Id::new("template-boundary"))
                 .frame(shell::dialog_frame())
                 .show(ctx, |ui| {
                     ui.set_width(460.0);
                     cancel |= shell::dialog_header(ui, &tr("模板边界引用"));
-                    ui.label(tr("插入前请核对这些跨出模板范围的流程："));
+                    ui.label(crate::i18n::key(if structured {
+                        "workspace.template.structured"
+                    } else {
+                        "workspace.template.boundary"
+                    }));
                     for warning in warnings {
+                        let warning = if structured {
+                            warning
+                                .replace(
+                                    "会保留，请确认目标章节中存在该 ID",
+                                    "将接回插入位置后续步骤",
+                                )
+                                .replace("插入后请重新绑定", "将接回插入位置后续步骤")
+                        } else {
+                            warning
+                        };
                         ui.label(format!(
                             "• {}",
                             crate::error_location::explanation(&warning)
                         ));
                     }
                     (insert, cancel) = {
-                        let (submit, footer_cancel) = dialog_actions(ui, "保留引用并插入", true);
+                        let (submit, footer_cancel) = dialog_actions(
+                            ui,
+                            if structured {
+                                "接回当前流程并插入"
+                            } else {
+                                "保留引用并插入"
+                            },
+                            true,
+                        );
                         (submit, cancel || footer_cancel)
                     };
                 });
@@ -5047,10 +5282,9 @@ impl App {
                 .frame(shell::dialog_frame())
                 .show(ctx, |ui| {
                     ui.set_width(500.0_f32.min(ctx.content_rect().width() - 80.0));
-                    close |= shell::dialog_header(ui, &tr("恢复创作副本"));
-                    ui.label(tr(
-                        "发现上次未正常关闭时留下的副本。恢复后可检查并另行保存，不会覆盖原项目。",
-                    ));
+                    close |=
+                        shell::dialog_header(ui, &crate::i18n::key("editor.workspace.recover"));
+                    ui.label(crate::i18n::key("workspace.recovery.hint"));
                     ui.add_space(12.0);
                     egui::ScrollArea::vertical()
                         .max_height(ctx.content_rect().height() * 0.45)
@@ -5482,6 +5716,186 @@ fn windows_recovery_owner_active(pid: u32, session_created_ms: u128) -> bool {
         }
     }
 }
+fn primary_insertion_edge(node: &mut Value) -> Option<&mut Value> {
+    let kind = node["type"].as_str().unwrap_or("").to_owned();
+    if node.get("success").is_some() {
+        return node.get_mut("success");
+    }
+    match kind.as_str() {
+        "choice" => node
+            .get_mut("options")?
+            .as_array_mut()?
+            .first_mut()?
+            .get_mut("goto"),
+        "branch" => node
+            .get_mut("cases")?
+            .as_array_mut()?
+            .first_mut()?
+            .get_mut("goto"),
+        "dice" => {
+            if node["bands"].is_array() {
+                node.get_mut("bands")?
+                    .as_array_mut()?
+                    .first_mut()?
+                    .get_mut("goto")
+            } else {
+                node.get_mut("options")?
+                    .as_array_mut()?
+                    .first_mut()?
+                    .get_mut("goto_大成功")
+            }
+        }
+        "end" if node["resume_original"] == true => Some(
+            node.as_object_mut()?
+                .entry("resume_node")
+                .or_insert(Value::Null),
+        ),
+        _ if lom_core::validate::node_schema()["no_goto_types"]
+            .as_array()?
+            .iter()
+            .any(|value| value == &kind) =>
+        {
+            None
+        }
+        _ => Some(node.as_object_mut()?.entry("goto").or_insert(Value::Null)),
+    }
+}
+
+fn insert_nodes_after(
+    story: &mut Value,
+    selected: usize,
+    mut inserted: Vec<Value>,
+) -> anyhow::Result<usize> {
+    let original = story["nodes"]
+        .as_array()
+        .ok_or_else(|| anyhow::anyhow!("章节缺少步骤"))?;
+    let at = (selected + 1).min(original.len());
+    if story["vanilla_import"]["schema"] == 2 && !inserted.is_empty() && selected < original.len() {
+        let mut anchor = original[selected].clone();
+        let fallback = lom_core::analysis::successors(story, selected);
+        let linear = !lom_core::validate::node_schema()["no_goto_types"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|value| value == &anchor["type"])
+            || anchor["type"] == "end" && anchor["resume_original"] == true;
+        let edge = primary_insertion_edge(&mut anchor)
+            .ok_or_else(|| anyhow::anyhow!("这个步骤结束当前流程，请在它之前或分支内部插入。"))?;
+        let continuation = edge
+            .as_str()
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+            .or_else(|| (linear && fallback.len() == 1).then(|| fallback[0].clone()));
+        *edge = inserted[0]["id"].clone();
+        if let Some(continuation) = continuation {
+            let ids: BTreeSet<_> = inserted
+                .iter()
+                .filter_map(|node| node["id"].as_str().map(str::to_owned))
+                .collect();
+            let block = json!({"nodes":inserted});
+            let mut redirects = BTreeMap::from([(String::new(), continuation.clone())]);
+            for index in 0..inserted.len() {
+                for target in lom_core::analysis::successors(&block, index) {
+                    if !ids.contains(&target) {
+                        redirects.insert(target, continuation.clone());
+                    }
+                }
+                if let Some(target) = inserted[index]["resume_node"]
+                    .as_str()
+                    .filter(|target| !ids.contains(*target))
+                {
+                    redirects.insert(target.to_owned(), continuation.clone());
+                }
+            }
+            for index in 0..inserted.len() {
+                let next = inserted
+                    .get(index + 1)
+                    .map(|node| node["id"].clone())
+                    .unwrap_or(json!(continuation));
+                let node = &mut inserted[index];
+                retarget(node, &redirects);
+                if node["type"] == "end"
+                    && node["resume_original"] == true
+                    && node["resume_node"].is_null()
+                {
+                    node["resume_node"] = next;
+                } else if !lom_core::validate::node_schema()["no_goto_types"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|kind| kind == &node["type"])
+                    && node["goto"].is_null()
+                {
+                    node["goto"] = next;
+                }
+            }
+        }
+        story["nodes"][selected] = anchor;
+    }
+    story["nodes"]
+        .as_array_mut()
+        .unwrap()
+        .splice(at..at, inserted);
+    Ok(at)
+}
+fn reconnect_deleted_structured(
+    story: &mut Value,
+    old_nodes: &[Value],
+    removed: &BTreeSet<String>,
+) -> anyhow::Result<()> {
+    let mut original = story.clone();
+    original["nodes"] = json!(old_nodes);
+    let indices: BTreeMap<_, _> = old_nodes
+        .iter()
+        .enumerate()
+        .filter_map(|(index, node)| Some((node["id"].as_str()?, index)))
+        .collect();
+    let mut redirects = BTreeMap::new();
+    for id in removed {
+        let mut current = id.as_str();
+        let mut visited = BTreeSet::new();
+        while removed.contains(current) {
+            anyhow::ensure!(
+                visited.insert(current),
+                "步骤“{id}”的删除范围形成循环，请先连接保留的后续步骤。"
+            );
+            let next = lom_core::analysis::successors(&original, indices[current]);
+            anyhow::ensure!(
+                next.len() <= 1,
+                "步骤“{current}”有多个不同后继，请先选择并连接要保留的分支，再删除。"
+            );
+            let Some(target) = next.first() else { break };
+            if !removed.contains(target) {
+                redirects.insert(id.clone(), target.clone());
+                break;
+            }
+            current = old_nodes[indices[target.as_str()]]["id"].as_str().unwrap();
+        }
+    }
+    let forbidden: BTreeMap<_, _> = removed
+        .iter()
+        .map(|id| (id.clone(), String::new()))
+        .collect();
+    for node in story["nodes"].as_array_mut().unwrap() {
+        retarget(node, &redirects);
+        let mut probe = node.clone();
+        retarget(&mut probe, &forbidden);
+        anyhow::ensure!(
+            probe == *node,
+            "步骤“{}”仍指向没有明确后继的删除步骤，请先连接保留的后续步骤。",
+            node["id"].as_str().unwrap_or("")
+        );
+    }
+    if let Some(start) = story["start"]
+        .as_str()
+        .filter(|start| removed.contains(*start))
+    {
+        story["start"] = json!(redirects
+            .get(start)
+            .ok_or_else(|| anyhow::anyhow!("入口步骤没有明确后继，请先设置保留的入口。"))?);
+    }
+    Ok(())
+}
 fn reconnect_deleted_offsets(
     story: &mut Value,
     old_nodes: &[Value],
@@ -5670,6 +6084,7 @@ pub(crate) fn retarget(value: &mut Value, map: &BTreeMap<String, String>) {
                         | "lose"
                         | "success"
                         | "failure"
+                        | "resume_node"
                         | "start"
                         | "end"
                         | "goto_大成功"
@@ -5851,7 +6266,7 @@ mod tests {
     fn all_catalog_node_forms_have_defaults() {
         let c = Catalog::new();
         let schemas = c.schema["NODE_SCHEMAS"].as_object().unwrap();
-        assert_eq!(schemas.len(), 67);
+        assert_eq!(schemas.len(), 70);
         for kind in schemas.keys() {
             let node = c.new_node(kind, "n1".into());
             assert_eq!(node["type"], kind.as_str());
@@ -6268,6 +6683,255 @@ mod application_regression_tests {
         app.add_node("end");
         assert_eq!(app.story()["nodes"][app.selected]["resume_original"], true);
         lom_core::validate::validate_story(&app.story()).unwrap();
+    }
+    fn structured_branch_app() -> App {
+        let mut app = app();
+        let mut project = Project::new_vanilla_patch("DEMO").unwrap();
+        project.stories.insert("main".into(), lom_core::vanilla_import::import(
+            "setsaydialog(saydialogs.narrative)\nsetcharacter(narrative)\nif original then\nsay(\"真支原文\")\nelse\nsay(\"假支原文\")\nend\nsay(\"汇合原文\")\n",
+            "main", "原版分支", "DEMO", &BTreeMap::new(),
+        ).unwrap());
+        app.install(project);
+        app
+    }
+    #[test]
+    fn structured_additions_follow_the_true_branch_and_resume_its_original_target() {
+        let mut app = structured_branch_app();
+        app.selected = app.story()["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .position(|node| node["type"] == "native_branch")
+            .unwrap();
+        let branch_index = app.selected;
+        let before = app.story()["nodes"][branch_index].clone();
+        app.add_node("say");
+        let added = app.story()["nodes"][app.selected].clone();
+        assert_eq!(app.story()["nodes"][branch_index]["success"], added["id"]);
+        assert_eq!(
+            app.story()["nodes"][branch_index]["failure"],
+            before["failure"]
+        );
+        assert_eq!(added["goto"], before["success"]);
+        app.project.stories.get_mut("main").unwrap()["nodes"][app.selected]["text"] =
+            json!("新增真支对白");
+
+        app.selected = app.story()["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .position(|node| node["text"] == "真支原文")
+            .unwrap();
+        let tail = app.selected;
+        let original_next = app.story()["nodes"][tail]["goto"].clone();
+        app.add_node("end");
+        let end = app.story()["nodes"][app.selected].clone();
+        assert_eq!(end["resume_original"], true);
+        assert_eq!(end["resume_node"], original_next);
+        assert_eq!(app.story()["nodes"][tail]["goto"], end["id"]);
+        assert_eq!(
+            lom_core::analysis::successors(&app.story(), app.selected),
+            vec![original_next.as_str().unwrap().to_owned()]
+        );
+        lom_core::validate::validate_story(&app.story()).unwrap();
+        compile_with_assets(&app.project, &app.story()).unwrap();
+    }
+    #[test]
+    fn structured_paste_preserves_internal_links_and_reconnects_the_external_exit() {
+        let mut app = structured_branch_app();
+        app.selected = app.story()["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .position(|node| node["text"] == "真支原文")
+            .unwrap();
+        let anchor = app.selected;
+        let continuation = app.story()["nodes"][anchor]["goto"].clone();
+        app.clipboard = vec![
+            json!({"id":"copy_a","type":"say","text":"新增甲","inherit_dialog":true,"goto":"copy_b","_editor":{"vanilla_origin":1}}),
+            json!({"id":"copy_b","type":"say","text":"新增乙","inherit_dialog":true,"goto":"other_chapter_exit"}),
+        ];
+        app.paste();
+        let story = app.story();
+        let first = &story["nodes"][app.selected];
+        let last = &story["nodes"][app.selected + 1];
+        assert_eq!(story["nodes"][anchor]["goto"], first["id"]);
+        assert_eq!(first["goto"], last["id"]);
+        assert_eq!(last["goto"], continuation);
+        assert!(first["_editor"].get("vanilla_origin").is_none());
+        lom_core::validate::validate_story(&story).unwrap();
+        compile_with_assets(&app.project, &story).unwrap();
+    }
+    #[test]
+    fn native_nodes_are_rejected_outside_structured_original_chapters() {
+        let mut app = app();
+        let before = snapshot(&app.project);
+        for kind in ["native_action", "native_branch"] {
+            app.add_node(kind);
+            assert!(app.error.is_some());
+            assert!(snapshot(&app.project) == before);
+        }
+        app.clipboard = vec![json!({"id":"native","type":"native_action","operations":[]})];
+        app.paste();
+        assert!(snapshot(&app.project) == before);
+    }
+    #[test]
+    fn structured_delete_reconnects_single_successors_and_keeps_ambiguous_branches() {
+        let mut app = structured_branch_app();
+        app.selected = app.story()["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .position(|node| node["text"] == "真支原文")
+            .unwrap();
+        let removed = app.story()["nodes"][app.selected].clone();
+        app.delete();
+        assert!(app.error.is_none());
+        let story = app.story();
+        assert!(!story["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|node| node["id"] == removed["id"]));
+        let branch = story["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .position(|node| node["type"] == "native_branch")
+            .unwrap();
+        assert_eq!(story["nodes"][branch]["success"], removed["goto"]);
+        lom_core::validate::validate_story(&story).unwrap();
+        compile_with_assets(&app.project, &story).unwrap();
+
+        app.selected = branch;
+        let before = snapshot(&app.project);
+        app.delete();
+        assert!(snapshot(&app.project) == before);
+        assert!(app.error.as_ref().unwrap().contains("多个不同后继"));
+    }
+    #[test]
+    fn structured_template_insertion_reuses_the_connected_paste_path() {
+        let mut app = structured_branch_app();
+        app.selected = app.story()["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .position(|node| node["text"] == "真支原文")
+            .unwrap();
+        let anchor = app.selected;
+        let continuation = app.story()["nodes"][anchor]["goto"].clone();
+        app.pending_template = Some((
+            vec![
+                json!({"id":"template_say","type":"say","text":"模板对白","inherit_dialog":true,"goto":"outside"}),
+            ],
+            vec!["外部引用 outside 会保留，请确认目标章节中存在该 ID".into()],
+        ));
+        let context = egui::Context::default();
+        context.enable_accesskit();
+        let output = context.run(egui::RawInput::default(), |context| app.dialogs(context));
+        let target = output
+            .platform_output
+            .accesskit_update
+            .unwrap()
+            .nodes
+            .iter()
+            .find(|(_, node)| node.label() == Some("接回当前流程并插入"))
+            .unwrap()
+            .0;
+        let _ = context.run(
+            egui::RawInput {
+                events: vec![egui::Event::AccessKitActionRequest(
+                    egui::accesskit::ActionRequest {
+                        action: egui::accesskit::Action::Click,
+                        target,
+                        data: None,
+                    },
+                )],
+                ..Default::default()
+            },
+            |context| app.dialogs(context),
+        );
+        assert!(app.pending_template.is_none());
+        let story = app.story();
+        assert_eq!(
+            story["nodes"][anchor]["goto"],
+            story["nodes"][app.selected]["id"]
+        );
+        assert_eq!(story["nodes"][app.selected]["goto"], continuation);
+        lom_core::validate::validate_story(&story).unwrap();
+    }
+    #[test]
+    fn legacy_original_conversion_button_is_transactional_and_undoable() {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../lom-core/tests/fixtures/vanilla-import.json"
+        ))
+        .unwrap();
+        for edited_raw in [false, true] {
+            let mut app = app();
+            let mut project = Project::new_vanilla_patch("DEMO").unwrap();
+            let mut story = fixture["story"].clone();
+            if edited_raw {
+                story["nodes"][0]["code"] = json!(format!(
+                    "{}\nuser_change()",
+                    story["nodes"][0]["code"].as_str().unwrap()
+                ));
+            }
+            project.stories.clear();
+            project.stories.insert("native_import".into(), story);
+            project.manifest["entry"] = json!("native_import");
+            app.install(project);
+            let before = snapshot(&app.project);
+            let context = egui::Context::default();
+            context.enable_accesskit();
+            let draw = |app: &mut App, events| {
+                context.run(
+                    egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(
+                            egui::Pos2::ZERO,
+                            egui::vec2(900.0, 1200.0),
+                        )),
+                        events,
+                        ..Default::default()
+                    },
+                    |context| {
+                        egui::CentralPanel::default().show(context, |ui| app.chapter(ui));
+                    },
+                )
+            };
+            let output = draw(&mut app, vec![]);
+            let target = output
+                .platform_output
+                .accesskit_update
+                .unwrap()
+                .nodes
+                .iter()
+                .find(|(_, node)| node.label() == Some("转换原版分支与高级步骤"))
+                .unwrap()
+                .0;
+            draw(
+                &mut app,
+                vec![egui::Event::AccessKitActionRequest(
+                    egui::accesskit::ActionRequest {
+                        action: egui::accesskit::Action::Click,
+                        target,
+                        data: None,
+                    },
+                )],
+            );
+            if edited_raw {
+                assert!(snapshot(&app.project) == before);
+                assert!(app.error.as_ref().unwrap().contains("高级 Lua 已修改"));
+            } else {
+                assert_eq!(app.story()["vanilla_import"]["schema"], 2);
+                app.track();
+                app.flush();
+                let upgraded = snapshot(&app.project);
+                app.undo();
+                assert!(snapshot(&app.project) == before);
+                app.redo();
+                assert!(snapshot(&app.project) == upgraded);
+            }
+        }
     }
     #[test]
     fn legacy_rotation_preference_preserves_project_angles_and_other_settings() {

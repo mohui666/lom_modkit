@@ -1,5 +1,6 @@
 //! Layout and drawing for the editor's actual intra-chapter control-flow edges.
 use super::{character_display_name, edges, text};
+use crate::i18n::{key, message};
 use eframe::egui::{self, Color32, FontId, Pos2, Rect, Stroke, Vec2};
 use lom_core::project::Project;
 use serde_json::Value;
@@ -51,12 +52,15 @@ fn find_back_edges(
 
 fn layout(story: &Value) -> Layout {
     let nodes = story["nodes"].as_array().map(Vec::as_slice).unwrap_or(&[]);
+    layout_graph(nodes, text(story, "start"), edges(story))
+}
+
+fn layout_graph(nodes: &[Value], start: &str, raw: Vec<(String, String, String)>) -> Layout {
     let indices: BTreeMap<_, _> = nodes
         .iter()
         .enumerate()
         .map(|(index, node)| (text(node, "id"), index))
         .collect();
-    let raw = edges(story);
     let mut forward = vec![Vec::new(); nodes.len()];
     let mut reverse = vec![Vec::new(); nodes.len()];
     for (from, to, _) in &raw {
@@ -67,7 +71,7 @@ fn layout(story: &Value) -> Layout {
     }
     let mut back_edges = BTreeSet::new();
     let mut colors = vec![0; nodes.len()];
-    if let Some(&start) = indices.get(text(story, "start")) {
+    if let Some(&start) = indices.get(start) {
         find_back_edges(start, &forward, &mut colors, &mut back_edges);
     }
     for index in 0..nodes.len() {
@@ -187,16 +191,18 @@ fn layout(story: &Value) -> Layout {
                 label_width = 112.0;
                 label_at = Pos2::new(lane - label_width - 5.0, cards[a].center().y - 4.0);
             } else {
-                let exits: Vec<_> = forward[a]
+                let mut exits: Vec<_> = forward[a]
                     .iter()
                     .copied()
                     .filter(|&child| ranks[child] > ranks[a])
                     .collect();
-                let entries: Vec<_> = reverse[b]
+                let mut entries: Vec<_> = reverse[b]
                     .iter()
                     .copied()
                     .filter(|&parent| ranks[parent] < ranks[b])
                     .collect();
+                exits.sort_by(|&a, &b| cards[a].center().x.total_cmp(&cards[b].center().x));
+                entries.sort_by(|&a, &b| cards[a].center().x.total_cmp(&cards[b].center().x));
                 let exit = exits.iter().position(|&index| index == b).unwrap_or(0);
                 let entry = entries.iter().position(|&index| index == a).unwrap_or(0);
                 let start = Pos2::new(
@@ -268,7 +274,7 @@ fn layout(story: &Value) -> Layout {
     }
     let mut reachable = BTreeSet::new();
     let start = indices
-        .get(text(story, "start"))
+        .get(start)
         .copied()
         .or_else(|| (!nodes.is_empty()).then_some(0));
     let mut pending: VecDeque<_> = start.into_iter().collect();
@@ -297,29 +303,219 @@ fn layout(story: &Value) -> Layout {
 #[derive(Clone)]
 struct ViewState {
     zoom: f32,
+    full: bool,
     selected: Option<String>,
     layout: Option<std::sync::Arc<CachedLayout>>,
 }
 struct CachedLayout {
     story: Value,
+    selected: Option<String>,
+    full: bool,
+    members: Vec<Vec<usize>>,
     layout: Layout,
 }
 impl Default for ViewState {
     fn default() -> Self {
         Self {
             zoom: 1.0,
+            full: false,
             selected: None,
             layout: None,
         }
     }
 }
 
+fn native_decision(node: &Value) -> bool {
+    node["operations"].as_array().is_some_and(|operations| {
+        operations.iter().any(|operation| {
+            let expression = if operation["kind"] == "assign" {
+                &operation["value"]
+            } else {
+                &operation["expression"]
+            };
+            let function = &expression["function"];
+            expression["kind"] == "call"
+                && (function["kind"] == "name" && function["name"] == "choose"
+                    || function["kind"] == "member"
+                        && function["object"]["name"] == "checkpointmanager"
+                        && matches!(text(function, "field"), "Switch" | "Condition" | "Dice"))
+        })
+    })
+}
+
+fn display_layout(story: &Value, selected: usize, full: bool) -> CachedLayout {
+    let nodes = story["nodes"].as_array().map(Vec::as_slice).unwrap_or(&[]);
+    let selected_id = nodes.get(selected).map(|node| text(node, "id").to_owned());
+    if full {
+        return CachedLayout {
+            story: story.clone(),
+            selected: selected_id,
+            full,
+            members: (0..nodes.len()).map(|index| vec![index]).collect(),
+            layout: layout(story),
+        };
+    }
+    let raw = edges(story);
+    let indices: BTreeMap<_, _> = nodes
+        .iter()
+        .enumerate()
+        .map(|(index, node)| (text(node, "id"), index))
+        .collect();
+    let mut forward = vec![Vec::new(); nodes.len()];
+    let mut reverse = vec![Vec::new(); nodes.len()];
+    let mut missing = vec![false; nodes.len()];
+    for (from, target, _) in &raw {
+        if let Some(&from) = indices.get(from.as_str()) {
+            if let Some(&target) = indices.get(target.as_str()) {
+                forward[from].push(target);
+                reverse[target].push(from);
+            } else {
+                missing[from] = true;
+            }
+        }
+    }
+    let checks = &lom_core::validate::node_schema()["check_types"];
+    let mut boundary: Vec<_> = nodes
+        .iter()
+        .enumerate()
+        .map(|(index, node)| {
+            let kind = text(node, "type");
+            index == selected
+                || native_decision(node)
+                || text(node, "id") == text(story, "start")
+                || missing[index]
+                || reverse[index].len() > 1
+                || forward[index].len() != 1
+                || matches!(
+                    kind,
+                    "choice"
+                        | "branch"
+                        | "native_branch"
+                        | "dice"
+                        | "end"
+                        | "goto_scene"
+                        | "death"
+                        | "combat"
+                        | "battle"
+                        | "battle_result"
+                        | "raw"
+                )
+                || checks
+                    .as_array()
+                    .is_some_and(|types| types.iter().any(|value| value == kind))
+                || node["operations"].as_array().is_some_and(|operations| {
+                    operations
+                        .iter()
+                        .any(|operation| operation["kind"] == "return")
+                })
+        })
+        .collect();
+    let mut colors = vec![0; nodes.len()];
+    let mut back_edges = BTreeSet::new();
+    for index in 0..nodes.len() {
+        if colors[index] == 0 {
+            find_back_edges(index, &forward, &mut colors, &mut back_edges);
+        }
+    }
+    for (from, target) in back_edges {
+        boundary[from] = true;
+        boundary[target] = true;
+    }
+    let mut owners = vec![usize::MAX; nodes.len()];
+    let mut members = Vec::new();
+    for index in 0..nodes.len() {
+        if owners[index] != usize::MAX {
+            continue;
+        }
+        let mut first = index;
+        if !boundary[first] {
+            while reverse[first].len() == 1 {
+                let previous = reverse[first][0];
+                if boundary[previous] || owners[previous] != usize::MAX {
+                    break;
+                }
+                first = previous;
+            }
+        }
+        let group = members.len();
+        let mut chain = Vec::new();
+        let mut current = first;
+        loop {
+            owners[current] = group;
+            chain.push(current);
+            if boundary[current] || forward[current].len() != 1 {
+                break;
+            }
+            let next = forward[current][0];
+            if boundary[next] || owners[next] != usize::MAX {
+                break;
+            }
+            current = next;
+        }
+        members.push(chain);
+    }
+    let representatives: Vec<_> = members
+        .iter()
+        .map(|members| nodes[members[0]].clone())
+        .collect();
+    let mut projected: BTreeMap<(usize, String), Vec<String>> = BTreeMap::new();
+    for (from, target, label) in raw {
+        let original_from = indices[from.as_str()];
+        let from = owners[original_from];
+        let target = if let Some(&target) = indices.get(target.as_str()) {
+            let group = owners[target];
+            if from == group && original_from != target {
+                continue;
+            }
+            text(&representatives[group], "id").to_owned()
+        } else {
+            target
+        };
+        let labels = projected.entry((from, target)).or_default();
+        if !labels.contains(&label) {
+            labels.push(label);
+        }
+    }
+    let links = projected
+        .into_iter()
+        .map(|((from, target), labels)| {
+            (
+                text(&representatives[from], "id").to_owned(),
+                target,
+                labels.join(" / "),
+            )
+        })
+        .collect();
+    let start = indices
+        .get(text(story, "start"))
+        .map(|&index| text(&representatives[owners[index]], "id"))
+        .unwrap_or("");
+    let layout = layout_graph(&representatives, start, links);
+    CachedLayout {
+        story: story.clone(),
+        selected: selected_id,
+        full,
+        members,
+        layout,
+    }
+}
+
 fn summary(project: &Project, node: &Value) -> String {
+    if matches!(text(node, "type"), "native_action" | "native_branch") {
+        return node["_editor"]["note"]
+            .as_str()
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned)
+            .unwrap_or_else(|| crate::native_forms::summary(node));
+    }
     if text(node, "type") == "end" && !text(node, "next_script").is_empty() {
-        return format!("→ 章节 {}", text(node, "next_script"));
+        return message(
+            "flow_graph.next_chapter",
+            &[("chapter", text(node, "next_script").into())],
+        );
     }
     if text(node, "type") == "raw" {
-        return "Lua 逻辑 · 结果未知".into();
+        return key("flow_graph.raw_unknown");
     }
     if !text(node, "text").is_empty() {
         return text(node, "text").replace(['\n', '\r'], " ");
@@ -358,7 +554,10 @@ fn summary(project: &Project, node: &Value) -> String {
     }
     for key in ["options", "cases", "bands"] {
         if let Some(rows) = node[key].as_array() {
-            return format!("{} 条分支", rows.len());
+            return message(
+                "flow_graph.branch_count",
+                &[("count", rows.len().to_string())],
+            );
         }
     }
     String::new()
@@ -378,6 +577,185 @@ fn paint_text(
     painter.galley(at, painter.layout_job(job), color);
 }
 
+fn card_summary(project: &Project, nodes: &[Value], members: &[usize]) -> String {
+    members
+        .iter()
+        .map(|&index| &nodes[index])
+        .find(|node| !text(node, "text").is_empty())
+        .map(|node| summary(project, node))
+        .unwrap_or_else(|| summary(project, &nodes[members[0]]))
+}
+
+fn short_edge_label(label: &str, backward: bool, full: bool) -> String {
+    if backward && !full {
+        return key("flow_graph.loop");
+    }
+    let mut short: String = label.chars().take(if full { 18 } else { 10 }).collect();
+    if short.len() < label.len() {
+        short.push('…');
+    }
+    short
+}
+
+fn edge_label(label: &str, source: &Value, compact: bool) -> String {
+    // Match complete source labels before translating generated prefixes or suffixes.
+    // Authored text can itself contain the shared-edge separator or outcome words.
+    if matches!(text(source, "type"), "choice" | "dice") {
+        let mut candidates = Vec::new();
+        for (field, raw, name) in [
+            ("goto", "跳转", "flow_graph.jump"),
+            ("win", "胜利", "flow_graph.win"),
+            ("lose", "失败", "flow_graph.failure"),
+            ("success", "成功", "flow_graph.success"),
+            ("failure", "失败", "flow_graph.failure"),
+        ] {
+            if source[field].as_str().is_some() {
+                candidates.push((raw.to_owned(), key(name)));
+            }
+        }
+        for field in ["options", "bands"] {
+            for (index, row) in source[field].as_array().into_iter().flatten().enumerate() {
+                let authored = row["text"].as_str().filter(|text| !text.is_empty());
+                let raw = authored.map(str::to_owned).unwrap_or_else(|| {
+                    format!(
+                        "{} {}",
+                        if field == "bands" { "区间" } else { "选项" },
+                        index + 1
+                    )
+                });
+                let translated = authored.map(str::to_owned).unwrap_or_else(|| {
+                    message(
+                        if field == "bands" {
+                            "editor.flow.band"
+                        } else {
+                            "editor.flow.option"
+                        },
+                        &[("number", (index + 1).to_string())],
+                    )
+                });
+                for (jump, outcome) in [
+                    ("goto", None),
+                    ("goto_大成功", Some("editor.flow.critical_success")),
+                    ("goto_成功", Some("flow_graph.success")),
+                    ("goto_失败", Some("flow_graph.failure")),
+                ] {
+                    if row[jump].as_str().is_none() {
+                        continue;
+                    }
+                    candidates.push(if let Some(name) = outcome {
+                        (
+                            format!("{raw} · {}", jump.trim_start_matches("goto_")),
+                            format!("{translated} · {}", key(name)),
+                        )
+                    } else {
+                        (raw.clone(), translated.clone())
+                    });
+                }
+            }
+        }
+        candidates.sort_by(|left, right| right.0.len().cmp(&left.0.len()));
+        let mut remaining = label;
+        let mut translated = Vec::new();
+        while !remaining.is_empty() {
+            let Some((raw, display)) = candidates.iter().find(|(raw, _)| {
+                remaining == raw
+                    || remaining
+                        .strip_prefix(raw.as_str())
+                        .is_some_and(|tail| tail.starts_with(" / "))
+            }) else {
+                return label.into();
+            };
+            // An identical label with different provenance cannot be safely localized.
+            translated.push(
+                if candidates
+                    .iter()
+                    .any(|(other, value)| other == raw && value != display)
+                {
+                    raw.clone()
+                } else {
+                    display.clone()
+                },
+            );
+            remaining = remaining
+                .strip_prefix(raw.as_str())
+                .unwrap()
+                .strip_prefix(" / ")
+                .unwrap_or("");
+        }
+        return translated.join(" / ");
+    }
+    label
+        .split(" / ")
+        .map(|part| {
+            let name = match part {
+                "下一步" => "flow_graph.next",
+                "跳转" => "flow_graph.jump",
+                "胜利" => "flow_graph.win",
+                "失败" => "flow_graph.failure",
+                "成功" => "flow_graph.success",
+                "条件成立" => {
+                    if compact {
+                        "flow_graph.true_short"
+                    } else {
+                        "flow_graph.condition_true"
+                    }
+                }
+                "条件不成立" => {
+                    if compact {
+                        "flow_graph.false_short"
+                    } else {
+                        "flow_graph.condition_false"
+                    }
+                }
+                _ => "",
+            };
+            if !name.is_empty() {
+                return key(name);
+            }
+            for (prefix, key_name) in [
+                ("条件成立（", "flow_graph.condition_true"),
+                ("条件不成立（", "flow_graph.condition_false"),
+            ] {
+                if let Some(value) = part
+                    .strip_prefix(prefix)
+                    .and_then(|value| value.strip_suffix('）'))
+                {
+                    return message(
+                        "flow_graph.condition_result",
+                        &[("condition", key(key_name)), ("value", value.into())],
+                    );
+                }
+            }
+            if let Some(comparison) = part.strip_prefix("条件 ") {
+                return message(
+                    "flow_graph.condition_compare",
+                    &[("comparison", comparison.into())],
+                );
+            }
+            part.to_owned()
+        })
+        .collect::<Vec<_>>()
+        .join(" / ")
+}
+
+fn label_position(
+    preferred: Pos2,
+    size: Vec2,
+    zoom: f32,
+    cards: &[Rect],
+    placed: &[Rect],
+) -> Option<(Pos2, Rect)> {
+    [0.0, -18.0, 18.0, -36.0, 36.0]
+        .into_iter()
+        .find_map(|offset| {
+            let at = preferred + Vec2::new(0.0, offset * zoom);
+            let bounds = Rect::from_min_size(at, size).expand(2.0);
+            (!placed.iter().any(|prior| prior.intersects(bounds))
+                && !cards.iter().any(|card| card.intersects(bounds)))
+            .then_some((at, bounds))
+        })
+}
+
 pub(super) fn show(
     ui: &mut egui::Ui,
     project: &Project,
@@ -389,39 +767,69 @@ pub(super) fn show(
     let mut state = ui
         .data_mut(|data| data.get_temp::<ViewState>(state_id))
         .unwrap_or_default();
-    if state
-        .layout
-        .as_ref()
-        .is_none_or(|cached| cached.story != *story)
-    {
-        state.layout = Some(std::sync::Arc::new(CachedLayout {
-            story: story.clone(),
-            layout: layout(story),
-        }));
-    }
-    let cached = state.layout.clone().unwrap();
-    let layout = &cached.layout;
     let selected_id = nodes.get(selected).map(|node| text(node, "id").to_owned());
     let mut locate = selected_id != state.selected;
+    let mut fit = state.layout.is_none();
     ui.horizontal_wrapped(|ui| {
-        if ui.button("−").on_hover_text("缩小流程图").clicked() {
+        if ui.button("−").on_hover_text(key("flow.zoom_out")).clicked() {
             state.zoom = (state.zoom - 0.1).max(0.35);
             locate = true;
         }
         ui.label(format!("{:.0}%", state.zoom * 100.0));
-        if ui.button("＋").on_hover_text("放大流程图").clicked() {
+        if ui.button("＋").on_hover_text(key("flow.zoom_in")).clicked() {
             state.zoom = (state.zoom + 0.1).min(1.75);
             locate = true;
         }
-        if ui.button("适应宽度").clicked() {
-            state.zoom = (ui.max_rect().width() / layout.size.x).clamp(0.35, 1.2);
+        if ui.button(key("flow_graph.fit_width")).clicked() {
+            fit = true;
             locate = true;
         }
-        if ui.button("定位选中").clicked() {
+        if ui.button(key("flow_graph.locate")).clicked() {
             locate = true;
         }
-        ui.weak(format!("{} 步 · {} 连接", nodes.len(), layout.links.len()));
+        if ui
+            .checkbox(&mut state.full, key("flow_graph.full"))
+            .on_hover_text(key("flow_graph.mode_tip"))
+            .changed()
+        {
+            fit = true;
+            locate = true;
+        }
     });
+    if state.layout.as_ref().is_none_or(|cached| {
+        cached.story != *story
+            || cached.full != state.full
+            || !state.full && cached.selected != selected_id
+    }) {
+        state.layout = Some(std::sync::Arc::new(display_layout(
+            story, selected, state.full,
+        )));
+    }
+    let cached = state.layout.clone().unwrap();
+    let layout = &cached.layout;
+    let selected_card = cached
+        .members
+        .iter()
+        .position(|members| members.contains(&selected));
+    if fit {
+        state.zoom = (ui.max_rect().width() / layout.size.x).clamp(0.35, 1.2);
+    }
+    ui.weak(message(
+        "flow_graph.stats",
+        &[
+            (
+                "mode",
+                key(if state.full {
+                    "flow_graph.full"
+                } else {
+                    "flow_graph.overview"
+                }),
+            ),
+            ("steps", nodes.len().to_string()),
+            ("cards", cached.members.len().to_string()),
+            ("links", layout.links.len().to_string()),
+        ],
+    ));
     if layout.links.iter().any(|link| link.to.is_none()) {
         let missing: BTreeSet<_> = layout
             .links
@@ -431,9 +839,12 @@ pub(super) fn show(
             .collect();
         ui.colored_label(
             Color32::DARK_RED,
-            format!(
-                "缺失目标：{}",
-                missing.into_iter().collect::<Vec<_>>().join("、")
+            message(
+                "flow_graph.missing_targets",
+                &[(
+                    "targets",
+                    missing.into_iter().collect::<Vec<_>>().join(", "),
+                )],
             ),
         );
     }
@@ -457,6 +868,8 @@ pub(super) fn show(
             let clip = ui.clip_rect().expand(20.0);
             let mut labels = Vec::new();
             for link in &layout.links {
+                let source = &nodes[cached.members[link.from][0]];
+                let detail = edge_label(&link.label, source, false);
                 let bounds = Rect::from_points(&link.points);
                 let bounds = Rect::from_min_max(transform(bounds.min), transform(bounds.max));
                 let label_bounds = Rect::from_min_size(
@@ -466,7 +879,8 @@ pub(super) fn show(
                 if !bounds.union(label_bounds).intersects(clip) {
                     continue;
                 }
-                let active = link.from == selected || link.to == Some(selected);
+                let active = Some(link.from) == selected_card
+                    || link.to == selected_card && selected_card.is_some();
                 let color = if link.to.is_none() {
                     Color32::DARK_RED
                 } else if active {
@@ -477,9 +891,16 @@ pub(super) fn show(
                     Color32::from_rgb(116, 130, 143)
                 };
                 let stroke = Stroke::new(if active { 2.0_f32 } else { 1.3_f32 }, color);
-                for segment in link.points.windows(2) {
+                for (segment_index, segment) in link.points.windows(2).enumerate() {
                     let (a, b) = (transform(segment[0]), transform(segment[1]));
                     painter.line_segment([a, b], stroke);
+                    ui.interact(
+                        Rect::from_two_pos(a, b).expand(4.0),
+                        ui.id()
+                            .with(("flow-edge", link.from, &link.target, segment_index)),
+                        egui::Sense::hover(),
+                    )
+                    .on_hover_text(&detail);
                 }
                 if let Some(segment) = link
                     .points
@@ -497,14 +918,23 @@ pub(super) fn show(
                 if (link.label != "下一步" && !plain_forward) || link.backward || link.to.is_none()
                 {
                     let label = if link.to.is_none() {
-                        format!("缺失：{}", link.target)
+                        message(
+                            "flow_graph.missing_target",
+                            &[("target", link.target.clone())],
+                        )
                     } else {
-                        link.label.clone()
+                        short_edge_label(
+                            &edge_label(&link.label, source, !state.full),
+                            link.backward,
+                            state.full,
+                        )
                     };
-                    labels.push((link, label, color));
+                    labels.push((link, label, detail, color));
                 }
             }
-            for (index, node) in nodes.iter().enumerate() {
+            for (index, members) in cached.members.iter().enumerate() {
+                let original = members[0];
+                let node = &nodes[original];
                 let card = rect(index);
                 if !card.intersects(clip) {
                     continue;
@@ -515,7 +945,7 @@ pub(super) fn show(
                     egui::Sense::click(),
                 );
                 let reached = layout.reachable.contains(&index);
-                let fill = if index == selected {
+                let fill = if Some(index) == selected_card {
                     Color32::from_rgb(224, 239, 250)
                 } else if response.hovered() {
                     Color32::from_rgb(238, 244, 247)
@@ -527,8 +957,12 @@ pub(super) fn show(
                     card,
                     6.0,
                     Stroke::new(
-                        if index == selected { 2.0_f32 } else { 1.0_f32 },
-                        if index == selected {
+                        if Some(index) == selected_card {
+                            2.0_f32
+                        } else {
+                            1.0_f32
+                        },
+                        if Some(index) == selected_card {
                             crate::shell::ACCENT
                         } else {
                             Color32::from_gray(177)
@@ -536,9 +970,9 @@ pub(super) fn show(
                     ),
                     egui::StrokeKind::Inside,
                 );
-                let key = format!("node.{}", text(node, "type"));
-                let translated = crate::i18n::key(&key);
-                let kind = if translated == key {
+                let label_key = format!("node.{}", text(node, "type"));
+                let translated = crate::i18n::key(&label_key);
+                let kind = if translated == label_key {
                     let kind = text(node, "type");
                     if lom_core::validate::node_schema()["nodes"]
                         .get(kind)
@@ -546,16 +980,27 @@ pub(super) fn show(
                     {
                         kind.to_owned()
                     } else {
-                        format!("{kind} · 未支持")
+                        message("flow_graph.unsupported", &[("kind", kind.into())])
                     }
                 } else {
                     translated
                 };
                 let title = format!(
                     "{:02} {}{}",
-                    index + 1,
-                    kind,
-                    if reached { "" } else { " · 不可达" }
+                    original + 1,
+                    if members.len() > 1 {
+                        message(
+                            "flow_graph.segment",
+                            &[("count", members.len().to_string())],
+                        )
+                    } else {
+                        kind
+                    },
+                    if reached {
+                        String::new()
+                    } else {
+                        format!(" · {}", key("flow.unreachable"))
+                    }
                 );
                 response.widget_info(|| {
                     egui::WidgetInfo::labeled(
@@ -582,7 +1027,7 @@ pub(super) fn show(
                 paint_text(
                     &painter,
                     card.min + Vec2::new(padding, 30.0 * zoom),
-                    summary(project, node),
+                    card_summary(project, nodes, members),
                     (12.0 * zoom).max(8.0),
                     available,
                     color,
@@ -590,7 +1035,14 @@ pub(super) fn show(
                 paint_text(
                     &painter,
                     card.min + Vec2::new(padding, 51.0 * zoom),
-                    text(node, "id").into(),
+                    if members.len() > 1 {
+                        message(
+                            "flow_graph.first_step",
+                            &[("number", format!("{:02}", original + 1))],
+                        )
+                    } else {
+                        text(node, "id").into()
+                    },
                     (10.0 * zoom).max(7.0),
                     available,
                     Color32::GRAY,
@@ -600,16 +1052,18 @@ pub(super) fn show(
                         "{}\n{}\n{}",
                         text(node, "id"),
                         text(node, "type"),
-                        summary(project, node)
+                        card_summary(project, nodes, members)
                     ))
                     .clicked()
                 {
-                    choose = Some(index);
+                    choose = Some(original);
                 }
             }
             // All lines are already drawn. Label backgrounds use the actual
             // galley size so later edges cannot cut through text at any zoom.
-            for (link, label, color) in labels {
+            let mut placed = Vec::<Rect>::new();
+            let cards: Vec<_> = (0..layout.cards.len()).map(rect).collect();
+            for (link, label, detail, color) in labels {
                 let mut job = egui::text::LayoutJob::simple(
                     label.clone(),
                     FontId::proportional((11.0 * zoom).max(8.0)),
@@ -619,8 +1073,13 @@ pub(super) fn show(
                 job.wrap.max_rows = 1;
                 job.wrap.overflow_character = Some('…');
                 let galley = painter.layout_job(job);
-                let at = transform(link.label_at) - Vec2::new(0.0, galley.size().y);
-                let bounds = Rect::from_min_size(at, galley.size()).expand(2.0);
+                let preferred = transform(link.label_at) - Vec2::new(0.0, galley.size().y);
+                let Some((at, bounds)) =
+                    label_position(preferred, galley.size(), zoom, &cards, &placed)
+                else {
+                    continue;
+                };
+                placed.push(bounds);
                 painter.rect_filled(bounds, 2.0, Color32::from_rgb(249, 249, 247));
                 painter.galley(at, galley, color);
                 ui.interact(
@@ -628,10 +1087,12 @@ pub(super) fn show(
                     ui.id().with(("flow-label", link.from, &link.target)),
                     egui::Sense::hover(),
                 )
-                .on_hover_text(label);
+                .on_hover_text(detail);
             }
-            if locate && selected < layout.cards.len() {
-                ui.scroll_to_rect(rect(selected), Some(egui::Align::Center));
+            if locate {
+                if let Some(selected) = selected_card {
+                    ui.scroll_to_rect(rect(selected), Some(egui::Align::Center));
+                }
             }
         });
     state.selected = selected_id;
@@ -643,6 +1104,316 @@ pub(super) fn show(
 mod tests {
     use super::*;
     use serde_json::json;
+
+    fn long_story(count: usize) -> Value {
+        let nodes: Vec<_> = (0..count).map(|index| json!({"id":format!("n{index}"),"type":if index + 1 == count {"end"} else {"say"},"text":format!("第{index}句")})).collect();
+        json!({"id":"main","start":"n0","nodes":nodes})
+    }
+
+    #[test]
+    fn overview_collapses_linear_runs_and_keeps_the_externally_selected_step() {
+        let story = long_story(200);
+        let before = story.clone();
+        let overview = display_layout(&story, 100, false);
+        assert_eq!(overview.members.len(), 5);
+        assert!(overview.members.contains(&vec![100]));
+        assert!(overview.members.contains(&(1..100).collect::<Vec<_>>()));
+        assert!(overview.members.contains(&(101..199).collect::<Vec<_>>()));
+        assert_eq!(overview.layout.links.len(), 4);
+        let complete = display_layout(&story, 100, true);
+        assert_eq!(complete.members.len(), 200);
+        assert_eq!(complete.layout.links.len(), 199);
+        assert!(overview.layout.size.y < complete.layout.size.y / 20.0);
+        assert_eq!(story, before);
+    }
+
+    #[test]
+    fn overview_retains_choice_native_conditions_and_real_merge_points() {
+        for native in [false, true] {
+            let mut story = json!({"id":"main","start":"start","nodes":[
+                {"id":"start","type":"message"},
+                {"id":"a","type":"say"},
+                {"id":"b","type":"say"},
+                {"id":"choice","type":"choice","options":[{"text":"走左边","goto":"l1"},{"text":"走右边","goto":"r1"}]},
+                {"id":"l1","type":"say","text":"左侧首句","goto":"l2"},
+                {"id":"l2","type":"say","goto":"merge"},
+                {"id":"r1","type":"say","text":"右侧首句","goto":"r2"},
+                {"id":"r2","type":"say","goto":"merge"},
+                {"id":"merge","type":"message","goto":"tail"},
+                {"id":"tail","type":"say"},
+                {"id":"end","type":"end"}
+            ]});
+            if native {
+                story["nodes"][3] = json!({"id":"choice","type":"native_branch","condition":{"kind":"literal","value":true},"success":"l1","failure":"r1"});
+            }
+            let model = display_layout(&story, 0, false);
+            assert!(model.members.contains(&vec![3]));
+            assert!(model.members.contains(&vec![8]));
+            assert!(model.members.contains(&vec![4, 5]));
+            assert!(model.members.contains(&vec![6, 7]));
+            assert_eq!(model.layout.links.len(), 8);
+            let merge = model
+                .members
+                .iter()
+                .position(|members| members == &[8])
+                .unwrap();
+            assert_eq!(
+                model
+                    .layout
+                    .links
+                    .iter()
+                    .filter(|link| link.to == Some(merge))
+                    .count(),
+                2
+            );
+            assert!(model.layout.links.iter().all(|link| link.to.is_some()));
+            if native {
+                assert!(model
+                    .layout
+                    .links
+                    .iter()
+                    .any(|link| link.label == "条件成立"));
+                assert!(model
+                    .layout
+                    .links
+                    .iter()
+                    .any(|link| link.label == "条件不成立"));
+            }
+        }
+    }
+
+    #[test]
+    fn overview_preserves_loop_endpoints_and_self_loops() {
+        let story = json!({"start":"start","nodes":[
+            {"id":"start","type":"message"},
+            {"id":"again","type":"message"},
+            {"id":"check","type":"native_branch","success":"a","failure":"end"},
+            {"id":"a","type":"say"},{"id":"b","type":"say"},{"id":"c","type":"say"},
+            {"id":"back","type":"message","goto":"again"},
+            {"id":"end","type":"end"}
+        ]});
+        let model = display_layout(&story, 0, false);
+        assert!(model.members.contains(&vec![3, 4, 5]));
+        let backward = model
+            .layout
+            .links
+            .iter()
+            .find(|link| link.backward)
+            .unwrap();
+        assert_eq!(model.members[backward.from], vec![6]);
+        assert_eq!(model.members[backward.to.unwrap()], vec![1]);
+        let own_loop = display_layout(
+            &json!({"start":"a","nodes":[{"id":"a","type":"message","goto":"a"}]}),
+            0,
+            false,
+        );
+        assert_eq!(own_loop.layout.links.len(), 1);
+        assert!(own_loop.layout.links[0].backward);
+        assert_eq!(own_loop.layout.links[0].to, Some(0));
+    }
+
+    #[test]
+    fn native_option_and_checkpoint_calls_remain_visible_decision_cards() {
+        for function in [
+            json!({"kind":"name","name":"choose"}),
+            json!({"kind":"member","object":{"kind":"name","name":"checkpointmanager"},"field":"Switch"}),
+            json!({"kind":"member","object":{"kind":"name","name":"checkpointmanager"},"field":"Dice"}),
+        ] {
+            let mut story = long_story(6);
+            story["nodes"][2] = json!({"id":"n2","type":"native_action","operations":[
+                {"kind":"assign","target":{"kind":"local","name":"result","symbol":"v1"},"value":{"kind":"call","function":function,"args":[]}}
+            ]});
+            let model = display_layout(&story, 0, false);
+            assert!(model.members.contains(&vec![2]));
+            assert_eq!(model.layout.links.len(), 4);
+        }
+    }
+
+    #[test]
+    fn branch_and_merge_ports_follow_card_order_instead_of_identifier_order() {
+        let reversed = layout(&json!({"start":"choice","nodes":[
+            {"id":"choice","type":"choice","options":[{"text":"左","goto":"zleft"},{"text":"右","goto":"aright"}]},
+            {"id":"zleft","type":"say","goto":"end"},
+            {"id":"aright","type":"say","goto":"end"},{"id":"end","type":"end"}
+        ]}));
+        let left = reversed
+            .links
+            .iter()
+            .find(|link| link.from == 0 && link.to == Some(1))
+            .unwrap();
+        let right = reversed
+            .links
+            .iter()
+            .find(|link| link.from == 0 && link.to == Some(2))
+            .unwrap();
+        assert!(left.points[0].x < right.points[0].x);
+        let merged = layout(&json!({"start":"choice","nodes":[
+            {"id":"choice","type":"choice","options":[{"text":"左","goto":"left"},{"text":"右","goto":"right"}]},
+            {"id":"left","type":"say","goto":"second_left"},
+            {"id":"right","type":"say","goto":"second_right"},
+            {"id":"second_right","type":"say","goto":"end"},
+            {"id":"second_left","type":"say","goto":"end"},{"id":"end","type":"end"}
+        ]}));
+        assert!(merged.cards[4].center().x < merged.cards[3].center().x);
+        let left = merged.links.iter().find(|link| link.from == 4).unwrap();
+        let right = merged.links.iter().find(|link| link.from == 3).unwrap();
+        assert!(left.points.last().unwrap().x < right.points.last().unwrap().x);
+    }
+
+    #[test]
+    fn edge_labels_avoid_cards_and_previously_placed_labels() {
+        let cards = [Rect::from_min_size(Pos2::ZERO, CARD)];
+        let size = Vec2::new(80.0, 12.0);
+        let (_, first) = label_position(Pos2::new(0.0, 80.0), size, 1.0, &cards, &[]).unwrap();
+        let (_, second) =
+            label_position(Pos2::new(18.0, 80.0), size, 1.0, &cards, &[first]).unwrap();
+        assert!(!first.intersects(second));
+        assert!(cards
+            .iter()
+            .all(|card| !card.intersects(first) && !card.intersects(second)));
+    }
+
+    #[test]
+    fn system_edge_labels_use_locale_keys_and_authored_option_text_stays_literal() {
+        let condition = json!({"type":"native_branch"});
+        assert_eq!(
+            edge_label("条件成立", &condition, true),
+            key("flow_graph.true_short")
+        );
+        assert_eq!(
+            edge_label("条件不成立", &condition, false),
+            key("flow_graph.condition_false")
+        );
+        assert_eq!(
+            edge_label("条件成立（1）", &json!({"type":"branch"}), false),
+            message(
+                "flow_graph.condition_result",
+                &[
+                    ("condition", key("flow_graph.condition_true")),
+                    ("value", "1".into())
+                ]
+            )
+        );
+        assert_eq!(
+            edge_label("条件成立", &json!({"type":"choice"}), true),
+            "条件成立"
+        );
+        assert_eq!(
+            edge_label("成功 / 失败", &json!({"type":"dice"}), false),
+            "成功 / 失败"
+        );
+    }
+
+    #[test]
+    fn generated_option_and_dice_labels_preserve_complete_authored_text() {
+        let choice =
+            json!({"type":"choice", "options":[{"goto":"a"}, {"text":"成功 / 失败", "goto":"a"}]});
+        assert_eq!(
+            edge_label("选项 1 / 成功 / 失败", &choice, false),
+            format!(
+                "{} / 成功 / 失败",
+                message("editor.flow.option", &[("number", "1".into())])
+            )
+        );
+        let dice = json!({"type":"dice", "bands":[{"goto":"a"}], "options":[{"text":"条件成立 / 失败", "goto_大成功":"a", "goto_失败":"a"}]});
+        assert_eq!(
+            edge_label(
+                "条件成立 / 失败 · 大成功 / 条件成立 / 失败 · 失败 / 区间 1",
+                &dice,
+                false
+            ),
+            format!(
+                "条件成立 / 失败 · {} / 条件成立 / 失败 · {} / {}",
+                key("editor.flow.critical_success"),
+                key("flow_graph.failure"),
+                message("editor.flow.band", &[("number", "1".into())])
+            )
+        );
+    }
+    #[test]
+    fn overview_segment_clicks_and_external_selection_return_real_story_indices() {
+        let story = long_story(100);
+        let before = story.clone();
+        let project = Project::new();
+        let context = egui::Context::default();
+        context.enable_accesskit();
+        let frame = |selected, events| {
+            let mut chosen = None;
+            let mut full = false;
+            let output = context.run(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(680.0, 900.0))),
+                    events,
+                    ..Default::default()
+                },
+                |context| {
+                    egui::CentralPanel::default().show(context, |ui| {
+                        chosen = show(ui, &project, &story, selected);
+                        full = ui
+                            .data_mut(|data| {
+                                data.get_temp::<ViewState>(ui.id().with(("flow-view", "main")))
+                            })
+                            .unwrap()
+                            .full;
+                    });
+                },
+            );
+            (output, chosen, full)
+        };
+        frame(0, vec![]);
+        frame(50, vec![]);
+        let (output, _, _) = frame(50, vec![]);
+        let nodes = &output
+            .platform_output
+            .accesskit_update
+            .as_ref()
+            .unwrap()
+            .nodes;
+        let selected = nodes
+            .iter()
+            .find(|(_, node)| node.label().is_some_and(|label| label.ends_with(" · n50")))
+            .unwrap();
+        let bounds = selected.1.bounds().unwrap();
+        assert!(bounds.y0 > 40.0 && bounds.y1 < 900.0);
+        let segment = nodes
+            .iter()
+            .find(|(_, node)| {
+                node.label().is_some_and(|label| {
+                    label.contains(&message("flow_graph.segment", &[("count", "48".into())]))
+                        && label.ends_with(" · n51")
+                })
+            })
+            .unwrap()
+            .0;
+        let mode = nodes
+            .iter()
+            .find(|(_, node)| node.label() == Some(key("flow_graph.full").as_str()))
+            .unwrap()
+            .0;
+        let (_, chosen, _) = frame(
+            50,
+            vec![egui::Event::AccessKitActionRequest(
+                egui::accesskit::ActionRequest {
+                    action: egui::accesskit::Action::Click,
+                    target: segment,
+                    data: None,
+                },
+            )],
+        );
+        assert_eq!(chosen, Some(51));
+        let (_, _, full) = frame(
+            50,
+            vec![egui::Event::AccessKitActionRequest(
+                egui::accesskit::ActionRequest {
+                    action: egui::accesskit::Action::Click,
+                    target: mode,
+                    data: None,
+                },
+            )],
+        );
+        assert!(full);
+        assert_eq!(story, before);
+    }
 
     #[test]
     fn music_cards_show_the_same_simplified_title_as_the_resource_picker() {
@@ -787,7 +1558,7 @@ mod tests {
                 &Project::new(),
                 &json!({"type":"end", "next_script":"chapter2"})
             ),
-            "→ 章节 chapter2"
+            message("flow_graph.next_chapter", &[("chapter", "chapter2".into())])
         );
     }
 
@@ -842,7 +1613,7 @@ mod tests {
         );
         let controls = nodes
             .iter()
-            .find(|(_, node)| node.label() == Some("定位选中"))
+            .find(|(_, node)| node.label() == Some(key("flow_graph.locate").as_str()))
             .unwrap()
             .1
             .bounds()

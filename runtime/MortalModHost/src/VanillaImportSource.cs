@@ -27,9 +27,15 @@ namespace MortalModHost
             object value;
             if (story == null || !story.TryGetValue("vanilla_import", out value)) return null;
             var metadata = value as Dictionary<string, object>;
-            if (metadata == null || !Equals(metadata["schema"], 1d))
+            if (metadata == null || (!Equals(metadata["schema"], 1d) && !Equals(metadata["schema"], 2d)))
                 throw new FormatException("原版整章来源格式无效");
             var result = new VanillaImportSource { Target = metadata["target"] as string };
+            object external;
+            if (metadata.TryGetValue("external", out external) && Equals(external, true))
+            {
+                result.OriginalVerified = true;
+                result.LogicChanged = true;
+            }
             if (!VanillaStoryPatch.ValidTarget(result.Target))
                 throw new FormatException("原版整章来源缺少章节编号");
             var origins = metadata["origins"] as List<object>;
@@ -44,18 +50,43 @@ namespace MortalModHost
                 throw new FormatException("原版来源文本超过 4 MiB");
 
             var claimed = new HashSet<int>();
+            var byId = new Dictionary<string, Dictionary<string, object>>(StringComparer.Ordinal);
+            var following = new Dictionary<string, string>(StringComparer.Ordinal);
+            var originalIds = new HashSet<string>(StringComparer.Ordinal);
+            for (int i = 0; i < nodes.Count; i++)
+            {
+                var item = (Dictionary<string, object>)nodes[i];
+                string id = (string)item["id"];
+                byId[id] = item;
+                if (i + 1 < nodes.Count) following[id] = (string)((Dictionary<string, object>)nodes[i + 1])["id"];
+                int origin = OriginIndex(item);
+                if (origin >= 0 && origin < origins.Count) originalIds.Add(id);
+            }
             int previous = -1;
             foreach (Dictionary<string, object> node in nodes)
             {
                 string id = (string)node["id"];
                 int index = OriginIndex(node);
                 bool native = index >= 0 && index < origins.Count && claimed.Add(index);
+                var comparable = node;
                 if (native)
                 {
                     if (index <= previous) result.LogicChanged = true;
                     previous = index;
                     var baseline = (Dictionary<string, object>)((Dictionary<string, object>)origins[index])["node"];
-                    if (EqualNode(baseline, node))
+                    if (Equals(metadata["schema"], 2d))
+                    {
+                        comparable = new Dictionary<string, object>(node);
+                        foreach (string edge in new[] { "goto", "success", "failure" })
+                        {
+                            object originalTarget, actualTarget;
+                            if (baseline.TryGetValue(edge, out originalTarget) && node.TryGetValue(edge, out actualTarget)
+                                && originalTarget is string && actualTarget is string
+                                && TransientDetour((string)actualTarget, (string)originalTarget, byId, following, originalIds))
+                                comparable[edge] = originalTarget;
+                        }
+                    }
+                    if (EqualNode(baseline, comparable))
                     {
                         result._original.Add(id);
                         continue;
@@ -80,7 +111,7 @@ namespace MortalModHost
                         if (node.TryGetValue(key, out text)) baseline[key] = text;
                         else baseline.Remove(key);
                     }
-                    if (!EqualNode(baseline, node)) result._persistent.Add(id);
+                    if (!EqualNode(baseline, comparable)) result._persistent.Add(id);
                 }
             }
             if (claimed.Count != origins.Count) result.LogicChanged = true;
@@ -102,6 +133,47 @@ namespace MortalModHost
                     }
             }
             return result;
+        }
+
+        // An inserted dialogue/check can return to the same native successor.
+        // Every reachable exit must do so before its predecessor keeps attribution.
+        private static bool TransientDetour(string actual, string expected,
+            Dictionary<string, Dictionary<string, object>> nodes, Dictionary<string, string> following,
+            HashSet<string> originalIds)
+        {
+            var pending = new Stack<string>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            pending.Push(actual);
+            while (pending.Count > 0)
+            {
+                string id = pending.Pop();
+                if (id == expected) continue;
+                Dictionary<string, object> node;
+                if (!seen.Add(id) || originalIds.Contains(id) || !nodes.TryGetValue(id, out node)) return false;
+                string kind = (string)node["type"];
+                object value;
+                if (kind == "end" && node.TryGetValue("resume_original", out value) && Equals(value, true)
+                    && node.TryGetValue("resume_node", out value) && value is string)
+                {
+                    pending.Push((string)value);
+                    continue;
+                }
+                if (!TransientKinds.Contains(kind)) return false;
+                var targets = new List<string>();
+                foreach (string key in new[] { "goto", "success", "failure" })
+                    if (node.TryGetValue(key, out value) && value is string) targets.Add((string)value);
+                if (node.TryGetValue("options", out value) && value is List<object>)
+                    foreach (Dictionary<string, object> option in (List<object>)value)
+                        if (option.TryGetValue("goto", out value) && value is string) targets.Add((string)value);
+                if (targets.Count == 0)
+                {
+                    string next;
+                    if (!following.TryGetValue(id, out next)) return false;
+                    targets.Add(next);
+                }
+                foreach (string target in targets) pending.Push(target);
+            }
+            return true;
         }
 
         internal void VerifyOriginal(string installedSource)

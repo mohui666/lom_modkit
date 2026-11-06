@@ -343,7 +343,7 @@ impl ToolsPanel {
         };
         if crate::asset_extraction::validate_game(&self.game).is_err() {
             let Some(path) = rfd::FileDialog::new()
-                .set_title("选择包含 Mortal_Data 的游戏目录")
+                .set_title(crate::i18n::key("common.tools.choose_game_data"))
                 .pick_folder()
             else {
                 return;
@@ -481,7 +481,7 @@ impl ToolsPanel {
                             collect_locations(&self.report, project, &mut locations);
                             if !locations.is_empty() {
                                 ui.separator();
-                                ui.label(crate::i18n::tr("点击下方按钮修改对应内容"));
+                                ui.label(crate::i18n::key("common.tools.fix_button_hint"));
                                 for (destination, label) in locations.iter().take(100) {
                                     if ui
                                         .link(format!(
@@ -577,7 +577,7 @@ impl ToolsPanel {
             return;
         }
         if let Some(output) = rfd::FileDialog::new()
-            .set_title("导出完整游玩包（含自有素材与安装组件）")
+            .set_title(crate::i18n::key("common.tools.save_play_pack"))
             .add_filter("ZIP", &["zip"])
             .set_file_name(format!(
                 "{}-play.zip",
@@ -779,14 +779,12 @@ impl ToolsPanel {
                             report["versions"][key].as_str().unwrap_or("尚未读取")
                         ));
                     }
-                    ui.small(tr(
-                        "启动编辑器时会自动同步已安装的 Host；游戏运行时请退出后手动更新。",
-                    ));
+                    ui.small(crate::i18n::key("common.tools.startup_host_hint"));
                 }
                 if ui
                     .add_enabled(
                         idle && self.runtime_available(),
-                        egui::Button::new(tr("更新游戏 Host")),
+                        egui::Button::new(crate::i18n::key("common.tools.update_host")),
                     )
                     .clicked()
                 {
@@ -957,11 +955,11 @@ impl ToolsPanel {
                             ui.hyperlink_to(tr("下载官方离线压缩包"), distribution.url);
                         }
                     }
-                    if ui.button(tr("修复宿主安装")).clicked() {
+                    if ui.button(crate::i18n::key("common.tools.install_repair")).clicked() {
                         self.result("修复宿主安装", game_tools::apply_installation_doctor_fixes(&self.game, &self.runtime));
                         self.refresh_game();
                     }
-                    if ui.button(tr("修复 Steam 启动")).clicked() {
+                    if ui.button(crate::i18n::key("common.tools.steam_repair")).clicked() {
                         self.result("修复 Steam 启动", steam_launch_fix(&self.game));
                         self.refresh_game();
                     }
@@ -986,11 +984,11 @@ impl ToolsPanel {
         ui.collapsing(tr("剧情已读记录"), |ui| {
             ui.add_enabled_ui(idle && has_game, |ui| {
                 if ui
-                    .button(crate::i18n::tr("选择要重置本作品已读记录的存档"))
+                    .button(crate::i18n::key("common.tools.reset_read_choose"))
                     .clicked()
                 {
                     if let Some(paths) = rfd::FileDialog::new()
-                        .set_title("选择 Save_universe.dat；将自动保留原始备份")
+                        .set_title(crate::i18n::key("common.tools.choose_save"))
                         .add_filter("Universe", &["dat"])
                         .pick_files()
                     {
@@ -998,14 +996,12 @@ impl ToolsPanel {
                     }
                 }
                 if !self.read_reset.is_empty() {
-                    ui.label(
-                        "只清理当前作品及临时试玩包的已读文本记录，保留其它存档内容。先建立备份。",
-                    );
+                    ui.label(crate::i18n::key("common.tools.reset_read_hint"));
                     for path in &self.read_reset {
                         ui.label(path.display().to_string());
                     }
                     if ui
-                        .button(crate::i18n::tr("确认备份并重置已读记录"))
+                        .button(crate::i18n::key("common.tools.reset_read"))
                         .clicked()
                     {
                         let result = (|| {
@@ -1086,7 +1082,7 @@ impl ToolsPanel {
                         .clicked()
                     {
                         if let Some(path) = rfd::FileDialog::new()
-                            .set_title("选择包含 Mortal_Data 的游戏目录")
+                            .set_title(crate::i18n::key("common.tools.choose_game_data"))
                             .pick_folder()
                         {
                             match crate::asset_extraction::validate_game(&path) {
@@ -1161,11 +1157,12 @@ impl ToolsPanel {
                 }
                 ui.separator();
                 ui.strong(crate::i18n::tr("2. 导出作品"));
-                ui.small(crate::i18n::tr(
-                    "完整游玩包包含自有素材、宿主、加载组件和安装入口，玩家解压后即可安装。首次导出需下载加载组件。",
-                ));
+                ui.small(crate::i18n::key("common.tools.play_pack_complete"));
                 ui.horizontal_wrapped(|ui| {
-                    if ui.button(crate::i18n::tr("一键导出完整游玩包…")).clicked() {
+                    if ui
+                        .button(crate::i18n::key("common.tools.export_play_pack_menu"))
+                        .clicked()
+                    {
                         self.export_play_bundle(project);
                     }
                     if ui.button(crate::i18n::tr("导出 .lommod…")).clicked() {
@@ -1173,7 +1170,7 @@ impl ToolsPanel {
                     }
                     if ui.button(crate::i18n::tr("生成发布目录")).clicked() {
                         if let Some(path) = rfd::FileDialog::new()
-                            .set_title("发布包、校验和与安装说明的输出目录")
+                            .set_title(crate::i18n::key("common.tools.choose_export_folder"))
                             .pick_folder()
                         {
                             self.result(
@@ -1213,9 +1210,12 @@ impl ToolsPanel {
                         .map(|p| p.display().to_string())
                         .unwrap_or_else(|| "FFmpeg: PATH".into()),
                 );
-                if ui.button(crate::i18n::tr("选择 FFmpeg 程序")).clicked() {
+                if ui
+                    .button(crate::i18n::key("common.tools.choose_ffmpeg"))
+                    .clicked()
+                {
                     if let Some(path) = rfd::FileDialog::new()
-                        .set_title("选择 ffmpeg 可执行程序")
+                        .set_title(crate::i18n::key("common.tools.choose_ffmpeg_file"))
                         .pick_file()
                     {
                         self.ffmpeg = Some(path.clone());
@@ -1314,7 +1314,7 @@ impl ToolsPanel {
                 .clicked()
             {
                 if let Some(path) = rfd::FileDialog::new()
-                    .add_filter("图片", &["png", "jpg", "jpeg"])
+                    .add_filter(crate::i18n::tr("图片"), &["png", "jpg", "jpeg"])
                     .pick_file()
                 {
                     self.background("从图片检测水印", move || {
@@ -1333,7 +1333,10 @@ impl ToolsPanel {
                 .clicked()
             {
                 if let Some(path) = rfd::FileDialog::new()
-                    .add_filter("视频", &["mp4", "mov", "mkv", "webm", "avi"])
+                    .add_filter(
+                        crate::i18n::key("common.tools.video_filter"),
+                        &["mp4", "mov", "mkv", "webm", "avi"],
+                    )
                     .pick_file()
                 {
                     let ffmpeg = self.ffmpeg.clone();
@@ -1365,7 +1368,10 @@ impl ToolsPanel {
                 }
                 if ui.button(crate::i18n::tr("检查待导入的内容包")).clicked() {
                     if let Some(path) = rfd::FileDialog::new()
-                        .add_filter("内容包", &["lomcontent"])
+                        .add_filter(
+                            crate::i18n::key("common.tools.content_filter"),
+                            &["lomcontent"],
+                        )
                         .pick_file()
                     {
                         match content_library::inspect_content_pack(&self.library, &path) {
@@ -1379,21 +1385,24 @@ impl ToolsPanel {
                     }
                 }
                 if let Some(info) = &self.pending_info {
-                    ui.label(format!(
-                        "{} · {} · 作者：{} · 许可：{}",
-                        info.name, info.version, info.author, info.license
+                    ui.label(crate::i18n::message(
+                        "common.tools.content_metadata",
+                        &[
+                            ("name", info.name.clone()),
+                            ("version", info.version.clone()),
+                            ("author", info.author.clone()),
+                            ("license", info.license.clone()),
+                        ],
                     ));
                     if !info.missing_dependencies.is_empty() {
-                        ui.label(format!(
-                            "缺少依赖：{}",
-                            info.missing_dependencies.join("、")
+                        ui.label(crate::i18n::message(
+                            "common.tools.missing_dependencies",
+                            &[("dependencies", info.missing_dependencies.join(", "))],
                         ));
                     }
                     let permitted = info.collision_type.is_none();
                     if !permitted {
-                        ui.label(crate::i18n::tr(
-                            "内容库已有同 ID 内容；请换用空目录或更改来源内容 ID，避免覆盖。",
-                        ));
+                        ui.label(crate::i18n::key("common.tools.library_collision"));
                     }
                     if ui
                         .add_enabled(
@@ -1498,7 +1507,7 @@ impl ToolsPanel {
     }
     fn show_maintenance(&mut self, ui: &mut egui::Ui, project: &mut Project) {
         egui::CollapsingHeader::new(crate::i18n::tr("迁移与诊断")).default_open(true).show(ui,|ui|{
-            ui.label(crate::i18n::tr("迁移遵循原版本规则：无法可靠升级的旧游戏节点会明确拒绝。写入前保留原始字节备份。"));
+            ui.label(crate::i18n::key("common.tools.migration_hint"));
             if ui.button(crate::i18n::tr("检查并迁移所选 JSON")).clicked(){if let Some(path)=rfd::FileDialog::new().add_filter("JSON",&["json"]).pick_file(){let kind=match path.file_name().and_then(|s|s.to_str()){Some("manifest.json")=>"manifest",Some("content.json")=>"content",_=>"story"};self.result("迁移旧项目", lom_core::migration::migrate_json_file(&path,kind,None).map(|(result,backup)|json!({"changed":result.changed,"steps":result.steps,"backup":backup})));}}
             if ui.button(crate::i18n::tr("导出脱敏诊断 ZIP")).clicked(){if let Some(path)=rfd::FileDialog::new().set_file_name("lom-editor-diagnostics.zip").save_file(){let issues=release::run_preflight(project,release::Profile::Editing,"1.1.3");self.result("导出诊断资料", release::export_diagnostic_bundle(&path,project,&issues,&self.diagnostic_options()));}}
         });
@@ -1521,7 +1530,7 @@ impl ToolsPanel {
             let mut locations = Vec::new();
             collect_locations(&self.report, project, &mut locations);
             if !locations.is_empty() {
-                ui.heading(crate::i18n::tr("修改检查发现的问题"));
+                ui.heading(crate::i18n::key("common.tools.fix_findings"));
                 ui.add(
                     egui::TextEdit::singleline(&mut self.result_filter)
                         .hint_text(crate::i18n::tr("筛选章节、节点或内容")),
@@ -1919,7 +1928,10 @@ mod tests {
         let ctx = egui::Context::default();
         let (tx, rx) = mpsc::channel();
         panel.job = Some(rx);
-        tx.send(JobEvent::Finished(Err("已取消".into()))).unwrap();
+        tx.send(JobEvent::Finished(Err(crate::i18n::key(
+            "common.quick.cancelled",
+        ))))
+        .unwrap();
         panel.poll(&ctx);
         assert_eq!(panel.report["error"], "已取消");
         assert!(panel.take_preview_library().is_none());

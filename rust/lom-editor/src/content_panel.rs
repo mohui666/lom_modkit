@@ -173,9 +173,7 @@ impl ContentPanel {
                 &[],
                 &[],
             );
-            ui.small(tr(
-                "留空为原创人物；选择后，为该原版人物增加或替换表情。图片随作品导出。",
-            ));
+            ui.small(crate::i18n::key("workspace.content.extension_hint"));
             for (key, label, field_kind) in [
                 ("title", "称号", "str"),
                 ("scale", "立绘缩放（%）", "float"),
@@ -269,7 +267,7 @@ impl ContentPanel {
         if self.slot == 1 {
             egui::ComboBox::from_id_salt("content-portrait")
                 .selected_text(if self.portrait.is_empty() {
-                    tr("选择已有表情")
+                    crate::i18n::key("editor.content.choose_portrait")
                 } else {
                     self.portrait.clone()
                 })
@@ -286,9 +284,7 @@ impl ContentPanel {
                 ui.label(format!("{} *", tr("表情 ID")));
                 ui.text_edit_singleline(&mut self.portrait);
             });
-            ui.small(tr(
-                "选择表情可查看对应图片；输入新的英文表情 ID 后添加图片即可新增。",
-            ));
+            ui.small(crate::i18n::key("workspace.content.portrait_hint"));
         }
         if ui.button(tr("添加或替换素材文件…")).clicked() {
             let extensions = if kind == "audio" {
@@ -388,16 +384,22 @@ impl ContentPanel {
             &symbol,
             None,
         );
-        ui.collapsing(format!("{} 处内容引用", refs.len()), |ui| {
-            for r in refs {
-                ui.label(format!(
-                    "{}/{} · {}",
-                    r.story_id,
-                    r.node_id.unwrap_or_default(),
-                    r.field
-                ));
-            }
-        });
+        ui.collapsing(
+            crate::i18n::message(
+                "workspace.content.references",
+                &[("count", refs.len().to_string())],
+            ),
+            |ui| {
+                for r in refs {
+                    ui.label(format!(
+                        "{}/{} · {}",
+                        r.story_id,
+                        r.node_id.unwrap_or_default(),
+                        r.field
+                    ));
+                }
+            },
+        );
         if kind != "audio" {
             let file = if kind == "skill" && self.animation_frame.is_some() {
                 self.draft["animation"]["frames"]
@@ -764,7 +766,11 @@ fn skill_effect_fields(ui: &mut egui::Ui, draft: &mut Value) {
     for (index, effect) in effects.iter_mut().enumerate() {
         ui.push_id(("skill-effect", index), |ui| {
             ui.horizontal(|ui| {
-                ui.label(format!("{} {}", tr("效果"), index + 1));
+                ui.label(format!(
+                    "{} {}",
+                    crate::i18n::key("editor.content.effect"),
+                    index + 1
+                ));
                 if ui.small_button(tr("移除")).clicked() {
                     remove = Some(index);
                 }
@@ -904,21 +910,25 @@ fn gameplay_fields(ui: &mut egui::Ui, draft: &mut Value, catalog: &crate::forms:
             let can_remove = levels.len() > 1;
             let mut remove = None;
             for (index, level) in levels.iter_mut().enumerate() {
-                egui::CollapsingHeader::new(format!("{} {}", tr("等级"), index + 1))
-                    .id_salt(("martial-level", index))
-                    .default_open(index == 0)
-                    .show(ui, |ui| {
-                        integer(ui, level, "points", "修炼所需点数", 1, 999999);
-                        stat_rows(ui, level, "requirements", "min", "修炼条件", catalog);
-                        ui.add_space(6.0);
-                        stat_rows(ui, level, "bonuses", "delta", "升级加成", catalog);
-                        if ui
-                            .add_enabled(can_remove, egui::Button::new(tr("移除此等级")).small())
-                            .clicked()
-                        {
-                            remove = Some(index);
-                        }
-                    });
+                egui::CollapsingHeader::new(format!(
+                    "{} {}",
+                    crate::i18n::key("table.level"),
+                    index + 1
+                ))
+                .id_salt(("martial-level", index))
+                .default_open(index == 0)
+                .show(ui, |ui| {
+                    integer(ui, level, "points", "修炼所需点数", 1, 999999);
+                    stat_rows(ui, level, "requirements", "min", "修炼条件", catalog);
+                    ui.add_space(6.0);
+                    stat_rows(ui, level, "bonuses", "delta", "升级加成", catalog);
+                    if ui
+                        .add_enabled(can_remove, egui::Button::new(tr("移除此等级")).small())
+                        .clicked()
+                    {
+                        remove = Some(index);
+                    }
+                });
             }
             if let Some(index) = remove {
                 if levels.len() > 1 {
@@ -954,7 +964,11 @@ fn gameplay_fields(ui: &mut egui::Ui, draft: &mut Value, catalog: &crate::forms:
             for (index, effect) in effects.iter_mut().enumerate() {
                 ui.push_id(("support-effect", index), |ui| {
                     ui.horizontal(|ui| {
-                        ui.strong(format!("{} {}", tr("效果"), index + 1));
+                        ui.strong(format!(
+                            "{} {}",
+                            crate::i18n::key("editor.content.effect"),
+                            index + 1
+                        ));
                         if ui
                             .add_enabled(can_remove, egui::Button::new(tr("移除")).small())
                             .clicked()

@@ -119,7 +119,8 @@ fn validate_inner(c: &Value, m: &Value, stories: &BTreeMap<String, Value>) -> Re
             || (m["play_mode"] == "addon"
                 && stories
                     .values()
-                    .any(|story| crate::vanilla_import::target(story).is_some())))
+                    .any(|story| crate::vanilla_import::target(story).is_some()))
+            || (m["play_mode"] == "addon" && crate::legacy_activation::has_original_content(m)))
             && events.len() <= 512,
         "需要 1~512 条事件"
     );

@@ -183,16 +183,35 @@ fn scalar(key: &str, value: &Value) -> String {
         Value::String(s) if matches!(key, "error" | "validation_error") => {
             crate::error_location::explanation(s)
         }
-        Value::String(s) => crate::i18n::tr(match s.as_str() {
-            "ok" | "passed" | "pass" => "通过",
-            "warning" => "提醒",
-            "error" | "failed" => "未通过",
-            "unsupported" => "需要在游戏中确认",
-            "skipped" => "未执行",
-            "__narrator__" => "旁白",
-            "__unspecified__" => "未指定人物",
-            _ => s,
-        }),
+        Value::String(s)
+            if matches!(
+                key,
+                "name"
+                    | "label"
+                    | "title"
+                    | "story_title"
+                    | "character_label"
+                    | "text"
+                    | "author"
+                    | "description"
+                    | "path"
+                    | "output"
+                    | "directory"
+                    | "file"
+            ) =>
+        {
+            s.clone()
+        }
+        Value::String(s) => match s.as_str() {
+            "ok" | "passed" | "pass" => crate::i18n::tr("通过"),
+            "warning" => crate::i18n::tr("提醒"),
+            "error" | "failed" => crate::i18n::tr("未通过"),
+            "unsupported" => crate::i18n::tr("需要在游戏中确认"),
+            "skipped" => crate::i18n::tr("未执行"),
+            "__narrator__" => crate::i18n::tr("旁白"),
+            "__unspecified__" => crate::i18n::key("common.report.unspecified"),
+            _ => s.clone(),
+        },
         _ => value.to_string(),
     }
 }
@@ -300,7 +319,7 @@ fn finding(code: &str) -> &str {
 
 pub fn show(ui: &mut egui::Ui, value: &Value, depth: usize) {
     if show_fields(ui, value, depth, false) {
-        ui.label(crate::i18n::tr("更多信息可通过“复制诊断信息”获取"));
+        ui.label(crate::i18n::key("common.report.more_diagnostics"));
     }
 }
 
@@ -423,6 +442,8 @@ mod tests {
     use serde_json::json;
     #[test]
     fn readable_report_keeps_user_names_and_errors_but_hides_unmapped_internal_labels() {
+        assert_eq!(scalar("author", &json!("pass")), "pass");
+        assert_eq!(scalar("name", &json!("事件")), "事件");
         let context = egui::Context::default();
         context.enable_accesskit();
         let success = "完整游玩包已导出；将 ZIP 发给玩家，解压后双击“安装MOD.cmd”。";

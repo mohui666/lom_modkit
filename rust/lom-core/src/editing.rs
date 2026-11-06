@@ -83,7 +83,7 @@ fn category(node: &Value, field: &str, value: &str) -> Option<&'static str> {
         "voice" => "voice",
         "image" => "image",
         "name" if matches!(kind, "music" | "sound") => "voice",
-        "goto" | "next_script" | "win" | "lose" | "success" | "failure" => "goto",
+        "goto" | "next_script" | "win" | "lose" | "resume_node" | "success" | "failure" => "goto",
         _ if leaf.starts_with("goto_") => "goto",
         "flag" => "flag",
         "var" | "variable" | "vars" => "variable",
@@ -218,6 +218,7 @@ pub fn retarget(value: &mut Value, mapping: &BTreeMap<String, String>) {
                         | "end"
                         | "win"
                         | "lose"
+                        | "resume_node"
                         | "success"
                         | "failure"
                         | "goto_大成功"

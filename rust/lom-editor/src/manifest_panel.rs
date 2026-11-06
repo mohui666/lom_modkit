@@ -14,13 +14,11 @@ pub fn show(ui: &mut egui::Ui, manifest: &mut Value, catalog: &Catalog, stories:
     let event_mode = manifest.get("play_mode").is_some();
     if event_mode {
         ui.label(if manifest["play_mode"] == "addon" {
-            tr("作品模式：原版附加剧情")
+            crate::i18n::key("common.manifest.addon_mode")
         } else {
-            tr("作品模式：自由剧本")
+            crate::i18n::key("common.manifest.campaign_mode")
         });
-        ui.small(tr(
-            "此设置适用于整部作品。事件的时间、地点与任务进度在左侧“剧情安排”中设置。",
-        ));
+        ui.small(crate::i18n::key("common.manifest.hint"));
     }
     for (key, label, kind) in [
         ("id", "作品编号", "str"),
@@ -37,12 +35,14 @@ pub fn show(ui: &mut egui::Ui, manifest: &mut Value, catalog: &Catalog, stories:
         catalog.field(ui, manifest, key, label, kind, false, &[], stories);
     }
     if event_mode {
-        egui::CollapsingHeader::new(tr("高级：作品标识")).open(reveal.then_some(true)).show(ui, |ui| {
-            for (key, label) in [("id", "作品编号"), ("campaign_id", "存档身份")] {
-                catalog.field(ui, manifest, key, label, "str", false, &[], stories);
-            }
-            ui.small(tr("编号使用 1～64 个小写英文字母、数字、下划线或短横线。存档身份用于关联玩家存档，发布后应保留原编号。自由剧本的入口由开场事件管理。"));
-        });
+        egui::CollapsingHeader::new(crate::i18n::key("common.manifest.identifiers"))
+            .open(reveal.then_some(true))
+            .show(ui, |ui| {
+                for (key, label) in [("id", "作品编号"), ("campaign_id", "存档身份")] {
+                    catalog.field(ui, manifest, key, label, "str", false, &[], stories);
+                }
+                ui.small(crate::i18n::key("common.manifest.identifier_hint"));
+            });
     }
     egui::CollapsingHeader::new(tr("兼容性"))
         .open(reveal.then_some(true))

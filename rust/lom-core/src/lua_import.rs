@@ -62,80 +62,35 @@ pub(crate) fn import_vanilla(
     target: &str,
     translations: &BTreeMap<String, String>,
 ) -> Result<Value> {
-    use crate::vanilla_import::Origin;
-    let source = source.strip_prefix('\u{feff}').unwrap_or(source);
-    ensure!(!source.trim().is_empty(), "原版章节为空");
-    let mut state = State {
-        dialog: "character".into(),
-        translations: translations.clone(),
-        ..Default::default()
-    };
-    let mut origins = Vec::new();
-    let mut cursor = 0;
-    for statement in statements(source) {
-        let mut candidates = Vec::new();
-        if !recognize(&statement.code, &mut state, &mut candidates) || candidates.len() != 1 {
-            continue;
+    crate::native_flow::import(source, id, title, target, translations)
+}
+
+pub(crate) struct VanillaRecognizer(State);
+impl VanillaRecognizer {
+    pub fn new(translations: &BTreeMap<String, String>) -> Self {
+        Self(State {
+            dialog: "character".into(),
+            translations: translations.clone(),
+            ..Default::default()
+        })
+    }
+    pub fn node(&mut self, code: &str) -> Option<Value> {
+        let statement = statements(code).into_iter().next()?;
+        let mut nodes = Vec::new();
+        if !recognize(&statement.code, &mut self.0, &mut nodes) || nodes.len() != 1 {
+            return None;
         }
-        let mut node = candidates.remove(0);
-        node["id"] = json!("check");
-        let probe = json!({"id":"check","start":"check","nodes":[node,{"id":"end","type":"end"}]});
-        if crate::validate::validate_story(&probe).is_err() {
-            continue;
-        }
+        let mut node = nodes.remove(0);
+        node["id"] = json!("probe");
+        let probe = json!({"id":"probe","start":"probe","nodes":[node,{"id":"end","type":"end"}]});
+        crate::validate::validate_story(&probe).ok()?;
+        let mut node = probe["nodes"][0].clone();
+        node.as_object_mut()?.remove("id");
         if node["type"] == "say" {
             node["inherit_dialog"] = json!(true);
         }
-        if !source[cursor..statement.start].trim().is_empty() {
-            let code = source[cursor..statement.start].to_owned();
-            origins.push(Origin {
-                node: json!({"type":"raw","code":code}),
-                code,
-            });
-            cursor = statement.start;
-        }
-        origins.push(Origin {
-            code: source[cursor..statement.end].into(),
-            node,
-        });
-        cursor = statement.end;
+        Some(node)
     }
-    let tail = &source[cursor..];
-    if !tail.trim().is_empty() || origins.is_empty() {
-        origins.push(Origin {
-            code: tail.into(),
-            node: json!({"type":"raw","code":tail}),
-        });
-    } else if let Some(origin) = origins.last_mut() {
-        origin.code.push_str(tail);
-        if origin.node["type"] == "raw" {
-            origin.node["code"] = json!(origin.code);
-        }
-    }
-    if origins
-        .last()
-        .is_some_and(|origin| origin.node["type"] != "raw")
-    {
-        origins.push(Origin {
-            code: String::new(),
-            node: json!({"type":"end","resume_original":true}),
-        });
-    }
-    let nodes: Vec<_> = origins
-        .iter_mut()
-        .enumerate()
-        .map(|(index, origin)| {
-            origin.node["id"] = json!(format!("original_{}", index + 1));
-            let mut node = origin.node.clone();
-            node["_editor"] = json!({"vanilla_origin":index});
-            node
-        })
-        .collect();
-    let story = json!({"story_schema":2,"id":id,"title":title,"mood":true,
-        "start":nodes[0]["id"],"nodes":nodes,
-        "vanilla_import":{"schema":1,"target":target,"origins":origins}});
-    crate::validate::validate_story(&story)?;
-    Ok(story)
 }
 
 /// The known straight-line prefix is an illustration, never a Lua interpreter.
@@ -388,6 +343,11 @@ fn recognize(code: &str, state: &mut State, nodes: &mut Vec<Value>) -> bool {
             }
         }
         "stage.show" if args.len() == 1 => show(&args[0], state, nodes),
+        "mod_char_hide_all" if args.is_empty() => {
+            state.actors.clear();
+            nodes.push(json!({"type":"hide_all"}));
+            true
+        }
         "stage.hide" if args.len() == 1 => {
             let Some(fields) = table(&args[0]) else {
                 return false;
@@ -807,8 +767,6 @@ pub(crate) fn lua_string(s: &str) -> Option<String> {
 struct Statement {
     code: String,
     line: usize,
-    start: usize,
-    end: usize,
 }
 fn statements(source: &str) -> Vec<Statement> {
     let source = source.strip_prefix('\u{feff}').unwrap_or(source);
@@ -818,7 +776,6 @@ fn statements(source: &str) -> Vec<Statement> {
     let mut i = 0;
     let mut line = 1;
     let mut start_line = 1;
-    let mut start = 0;
     let mut stack = vec![];
     while i < b.len() {
         if b[i..].starts_with(b"--") {
@@ -851,8 +808,6 @@ fn statements(source: &str) -> Vec<Statement> {
                 out.push(Statement {
                     code: std::mem::take(&mut code),
                     line: start_line,
-                    start,
-                    end: i + 1,
                 });
             } else {
                 code.clear();
@@ -862,7 +817,6 @@ fn statements(source: &str) -> Vec<Statement> {
             }
             start_line = line;
             i += 1;
-            start = i;
             continue;
         }
         if code.trim().is_empty() && !b[i].is_ascii_whitespace() {
@@ -886,8 +840,6 @@ fn statements(source: &str) -> Vec<Statement> {
         out.push(Statement {
             code,
             line: start_line,
-            start,
-            end: source.len(),
         });
     }
     out

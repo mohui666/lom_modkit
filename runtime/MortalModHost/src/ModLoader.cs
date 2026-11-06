@@ -196,7 +196,8 @@ namespace MortalModHost
                 if (package.PlayMode != null)
                 {
                     if (scenarioEntry == null) throw new FormatException("事件任务作品缺少 scenario.json");
-                    package.Scenario=ScenarioConfig.Parse(ReadEntryText(scenarioEntry),package.PlayMode,package.VanillaOverrides.Count>0);
+                    package.Scenario=ScenarioConfig.Parse(ReadEntryText(scenarioEntry),package.PlayMode,
+                        package.VanillaOverrides.Count>0 || LegacyExtensionsConfig.HasOriginalContent(package));
                     package.Scenario.ValidateScripts(package.LuaScripts.Keys);
                     var chapters=new Dictionary<string,string>(StringComparer.Ordinal);
                     foreach(var entry in zip.Entries)
@@ -357,6 +358,14 @@ namespace MortalModHost
                         throw new FormatException("原版章节补丁编号无效");
                     package.VanillaOverrides.Add(pair.Key, (string)pair.Value);
                 }
+            }
+            object legacyValue;
+            if (root.TryGetValue("legacy", out legacyValue))
+            {
+                var legacy = legacyValue as Dictionary<string, object>;
+                if (legacy == null) throw new FormatException("manifest.legacy 必须是对象");
+                package.LegacyExtensions = LegacyExtensionsConfig.Parse(legacy);
+                package.LegacyResources = LegacyResourceConfig.Parse(legacy);
             }
             return package;
         }
@@ -1066,11 +1075,12 @@ namespace MortalModHost
 
         private static string ReadEntryText(ZipArchiveEntry entry)
         {
-            if (entry.Length > MaxTextBytes)
-                throw new FormatException("文本条目超过 4MB 上限：" + entry.FullName);
+            long maximum = IsStoryPath(entry.FullName) ? MaxEntryBytes : MaxTextBytes;
+            if (entry.Length > maximum)
+                throw new FormatException("文本条目超过 " + (maximum / (1024 * 1024)) + "MB 上限：" + entry.FullName);
             using (var input = entry.Open())
             {
-                byte[] bytes = ReadBoundedBytes(input, MaxTextBytes, entry.FullName);
+                byte[] bytes = ReadBoundedBytes(input, maximum, entry.FullName);
                 try
                 {
                     string text = new UTF8Encoding(false, true).GetString(bytes);
@@ -1105,6 +1115,7 @@ namespace MortalModHost
                 if (entry.Length < 0 || entry.Length > MaxEntryBytes)
                     throw new FormatException("包内条目超过 32MB 上限：" + entry.FullName);
                 if (!path.EndsWith("/", StringComparison.Ordinal) && IsTextArchivePath(path)
+                    && !IsStoryPath(path)
                     && entry.Length > MaxTextBytes)
                     throw new FormatException("包内文本条目超过 4MB 上限：" + entry.FullName);
                 if (total > MaxArchiveBytes - entry.Length)

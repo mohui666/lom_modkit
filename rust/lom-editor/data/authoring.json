@@ -10,6 +10,9 @@
     "move": "人物移动",
     "face": "人物转向",
     "hide": "人物退场",
+    "hide_all": "清除画面人物",
+    "native_action": "原版指令",
+    "native_branch": "原版条件分支",
     "focus": "镜头聚焦",
     "offset": "人物位移",
     "say": "对白",
@@ -83,6 +86,9 @@
         "move",
         "face",
         "hide",
+        "hide_all",
+        "native_action",
+        "native_branch",
         "focus",
         "offset",
         "say",
@@ -1346,6 +1352,25 @@
           "bool",
           true
         ],
+        [
+          "wait_after",
+          "动作后停留（秒）",
+          "float",
+          true
+        ]
+      ]
+    },
+    "native_action": {
+      "label": "原版指令",
+      "fields": [["wait_after", "动作后停留（秒）", "float", true]]
+    },
+    "native_branch": {
+      "label": "原版条件分支",
+      "fields": [["success", "条件成立后", "node_ref", false], ["failure", "条件不成立后", "node_ref", false]]
+    },
+    "hide_all": {
+      "label": "清除画面人物",
+      "fields": [
         [
           "wait_after",
           "动作后停留（秒）",
@@ -3324,6 +3349,7 @@
     "end": {
       "label": "结束剧情",
       "fields": [
+        ["resume_node", "返回原版步骤", "node_ref", true],
         [
           "resume_original",
           "返回原版流程（整章导入）",
@@ -3608,6 +3634,9 @@
       "fadeDuration": 0,
       "wait_for_completion": true
     },
+    "native_action": {"operations": []},
+    "native_branch": {"condition": {"kind":"literal","value":true},"success":"","failure":""},
+    "hide_all": {},
     "focus": {
       "character": ""
     },

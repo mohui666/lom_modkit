@@ -1,4 +1,10 @@
 {
+  "node.native_action": "原版指令",
+  "node.native_branch": "原版条件分支",
+  "help.native_action": "把原版调用和赋值保存为结构化参数。可逐项编辑文字、数值和选项配置。",
+  "help.native_branch": "判断原版条件或选项结果。成立与不成立分别连接各自的步骤，分支结束后可汇合。",
+  "node.hide_all": "清除画面人物",
+  "help.hide_all": "立即让当前画面中的所有官方和自定义人物退场，并清除人物气泡。无需逐个选择人物。",
   "app.title": "活侠传 Mod 剧情编辑器",
   "app.help_title": "帮助 — 活侠传 Mod 剧情编辑器",
   "lang.chs": "中文（CHS）",

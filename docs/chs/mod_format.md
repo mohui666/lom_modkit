@@ -33,6 +33,7 @@ assets/                # 可选，自定义资源
 - 运行时插件**只读 manifest.json、lua/、texts、可选 localization.json 与 assets/**；story/*.json 给编辑器回读/再编辑用。编译器只打入剧情明确引用的 PNG/JPG（单张 ≤8MB）、明确引用的 `user:` 音频，以及明确引用的自定义角色立绘。导出的 `.lommod` 自包含，玩家机器不需要编辑器仓库。
 - texts.json 由打包时自动生成：收集每个 story 的全部 **say** 节点文本，key 与 lua 里 `GetStoryText` 的 key 一一对应；运行时注册进 LeanLocalization（见 §4/§6）。**death 文本不进 texts.json**：由 codegen 发射 `mod_set_death_text(<标题>, <文本>)` 两参 lua_str 字面量（见 §3.1/§6）。
 - 运行时先拒绝物理文件超过 160 MiB 的包，再从读取该包的同一个文件句柄计算最终 `.lommod` **全部原始字节**的 SHA-256，保存完整 64 个十六进制字符，并在强制披露中显示前 16 个字符。重新压缩、修改任一字节都会改变指纹；改文件名或逐字节复制不会改变。该指纹用于核对具体包，不是作者签名或官方认证。编辑器安装器同样以 160 MiB / 4 MiB 分别限制包文件与 `manifest.json`。
+- 解压后单条目上限为 32 MiB，文本条目通常为 4 MiB。Host 1.4.11 起，严格匹配 `story/<id>.json` 的章节源文件使用 32 MiB 上限，以容纳整章结构化指令。包内解压总量仍以 128 MiB 为上限。
 - 打包器按包内规范路径排序条目，JSON 使用稳定键顺序，Lua 编译顺序固定，并把 ZIP 时间戳固定为 1980-01-01、权限固定为普通只读元数据；同一 lom_modkit/Rust/ZIP 工具链下，相同项目连续导出的 `.lommod` 应逐字节一致。不同 Rust 或 ZIP 实现的压缩字节可能不同，因此**不宣称跨工具链 reproducible build**。
 
 - 读取已发布的 v3 包时，源码／Lua 校验也识别修复前两种已知生成方式：官方压暗直接调用 `stage.SetDimmed`、未显式填写颜色的大图只传图片键。仍按包内结构化源码复编译后逐字节比较，不改写 `raw` 内容；重新导出统一使用当前生成方式。
@@ -140,6 +141,10 @@ Story 的 `vanilla_patch` 包含 `target` 与 `edits`。每项修改含 `find`�
 
 整章导入使用 `vanilla_import`，其中 `schema=1`、`target` 和有序 `origins` 保存原生语句及对应基准节点。每个原始节点的 `_editor.vanilla_origin` 为来源序号，复制步骤移除该序号。来源代码在原 Lua 作用域中执行，改写和新增节点复用普通编译器。`say.inherit_dialog=true` 沿用原生发言人与对白选项，`end.resume_original=true` 接回本段后续原版步骤。新增跳转限于同一逻辑段或紧邻的原生逻辑入口，新增 Combat/Battle 切场景续接会校验报错。
 
+新整章导入使用 `vanilla_import.schema=2`，需 Host ≥1.4.11。`origins[].operations` 保存已解析的原版表达式和调用，节点字段保存当前编辑值；来源 `code` 仅用于原文校验。`native_action.operations` 是调用、赋值或返回的结构化数组；表达式包含字面值、名称、局部变量引用、成员、索引、列表、调用及运算。局部变量具有独立符号，嵌套分支中的同名变量保持各自作用域。`native_branch.condition` 保存条件表达式，`success/failure` 指向成立和不成立的节点；每条路径通过显式去向汇合。执行使用步骤分发表，章节长度不增加 Lua 局部函数数量。
+
+`end.resume_node` 可在 schema 2 的 `resume_original=true` 时指定返回步骤，用于在分支尾插入内容后继续该分支原本的后继。普通剧情不使用此字段。旧散装 MOD 导入设置 `vanilla_import.external=true`，表示来源为玩家文件，始终按 MOD 内容标记。旧 schema 1 的原生作用域执行仍可读取和编译。
+
 Host 从包内 Story 构建来源缓存，每次加载作品后首次进入该章时与本机原文逐字核对一次，后续进入和节点切换查询缓存。未变原版节点隐藏披露表面，改写或新增节点显示。持续性演出、数值和流程改动后保持标识，原版步骤删除、重排或原生逻辑改写时整章保持标识。来源会话和包归属继续由 Host 管理，整章导入原文包含在作品包中。
 
 ## 3. story/*.json — 剧情脚本格式
@@ -185,6 +190,7 @@ Host 从包内 Story 构建来源缓存，每次加载作品后首次进入该�
 | `move` | `character`, `from`, `to`；可选 `duration`(默认1) | 移动并 `wait(duration)` |
 | `face` | `character`, `facing` | 转向 |
 | `hide` | `character`；可选 `fadeDuration`(默认0) | 隐藏人物 |
+| `hide_all` | 可选 `wait_after`（非负秒数，默认0） | 立即让画面中所有官方和自定义人物退场，清除人物气泡；调用 `mod_char_hide_all()`。需 Host ≥1.4.11 |
 | `focus` | `character` | `characters.Focus` |
 | `offset` | `character`, `x`, `y`, `duration`；可选 `absolute`(bool，默认false)、`scale`(正数百分比) | 人物偏移与等比缩放。x/y 为 1920×1080 舞台单位，右/上为正，支持小数；absolute=true 从当前站位锚点定位，否则累加当前位置。scale=100 为素材默认体型，省略则保留当前缩放。填写 absolute 或 scale 时走 `mod_character_layout` 并等待 duration，需 Host ≥1.4.4；显式重新登场恢复默认体型。未填新字段时，官方角色仍走 `runwait(characters.MoveOffsetCoroutine(id,x,y,t))`，用户角色仍走 `mod_char_offset` |
 | `say` | `text`；可选 `character`, `portrait`(默认normal), `mode`("character"默认/"think"/"narrative"/"center")，可选 `mood_icon`, `mood_character`, `voice`，`font_size`(0~200整数，默认0)，`text_align`（`default`/`left`） | `mood_icon` 仅作用于本句，结束后恢复此前气泡及偏移，需 Host ≥1.4.10。省略时沿用现有气泡，取值同单人 `mood.icon`，另有 `hide` 临时隐藏。`mood_character` 默认使用发言人，旁白或沿用原版发言人时可显式指定已登场人物。本句 `auto` 跟随人物表情。字号调节只影响本句正文，0使用游戏默认，原文与已读 key 保留。`text_align=left` 仅对 narrative/center 的本句正文靠左对齐并保留 5% 左右留白，保留原垂直对齐，在下句开始前或清舞台时恢复原布局；其他模式忽略。默认沿用游戏布局。需 Host ≥1.3.6。对话/内心独白(带os_mask)/旁白/居中旁白。narrative 与 center 忽略 character。**已读机制**：文本不裸进 Lua，发射 `say(luamanager.GetStoryText("MOD_<modid>_<scriptid>_<nodeid>"))`（无 modid 时兜底 "MOD"），文本本体进 texts.json 由运行时注册。**`voice`**（可选）：用户音频引用，如 `user:mohui.line_01`；进入本句前 `mod_play_voice`（先停上一句），`say()` 返回后 `mod_stop_voice`。语音走独立通道，`sound` / `StopMusic` 不停它。禁止绝对路径与官方音效名 |

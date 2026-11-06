@@ -46,11 +46,11 @@ pub fn navigation(
     }
     let mut target = None;
     ui.horizontal(|ui| {
-        ui.strong(tr("事件"));
+        ui.strong(crate::i18n::key("common.scenario.event"));
         ui.label(config["events"].as_array().unwrap().len().to_string());
         if ui
             .small_button("＋")
-            .on_hover_text(tr("添加事件"))
+            .on_hover_text(crate::i18n::key("common.scenario.add_event"))
             .clicked()
         {
             let id = unique(config["events"].as_array().unwrap(), "event");
@@ -62,7 +62,7 @@ pub fn navigation(
             target = Some(false);
         }
     });
-    ui.small(tr("安排时间、地点和发生概率"));
+    ui.small(crate::i18n::key("common.scenario.arrange_chance"));
     let active = selected(config, false, selection)
         .and_then(|e| e["id"].as_str())
         .map(str::to_owned);
@@ -103,16 +103,16 @@ pub fn navigation(
         }
     }
     ui.add_space(12.0);
-    egui::CollapsingHeader::new(tr("任务进度（可选）")).id_salt("task_navigation").default_open(true).show(ui, |ui| {
-        ui.small(tr("跨多个事件记录接取、完成等进度"));
+    egui::CollapsingHeader::new(crate::i18n::key("common.scenario.task_optional")).id_salt("task_navigation").default_open(true).show(ui, |ui| {
+        ui.small(crate::i18n::key("common.scenario.multi_event_task"));
         let active = selected(config, true, selection).and_then(|t|t["id"].as_str()).map(str::to_owned);
         for t in config["tasks"].as_array().unwrap() {
             let id = t["id"].as_str().unwrap_or("");
-            if ui.selectable_label(task_page && active.as_deref()==Some(id), t["name"].as_str().unwrap_or("未命名任务")).clicked() {
+            if ui.selectable_label(task_page && active.as_deref()==Some(id), t["name"].as_str().unwrap_or(&crate::i18n::key("common.scenario.unnamed_task"))).clicked() {
                 selection.task = Some(id.into()); target=Some(true);
             }
         }
-        if ui.small_button(tr("＋ 添加任务")).clicked() {
+        if ui.small_button(crate::i18n::key("common.scenario.add_task")).clicked() {
             let id=unique(config["tasks"].as_array().unwrap(),"task");
             config["tasks"].as_array_mut().unwrap().push(json!({"id":id,"name":"新的任务","initial":"locked","states":["locked","active","completed"],"transitions":[]}));
             selection.task=Some(id);target=Some(true);
@@ -131,16 +131,14 @@ pub fn show(
     let names = crate::scenario_quick::Names::new(&project.stories, project.scenario.as_ref());
     let stories = project.stories.keys().cloned().collect::<Vec<_>>();
     let Some(config) = &mut project.scenario else {
-        ui.heading(tr("剧情安排"));
-        ui.label(tr(
-            "当前是兼容旧版的作品。文件菜单可新建原版附加剧情或自由剧本。",
-        ));
+        ui.heading(crate::i18n::key("common.scenario.arrangement"));
+        ui.label(crate::i18n::key("common.scenario.old_project"));
         return;
     };
     if !config.is_object() || !config["events"].is_array() || !config["tasks"].is_array() {
         ui.colored_label(
             egui::Color32::LIGHT_RED,
-            tr("配置结构无效，请检查 scenario.json"),
+            crate::i18n::key("common.scenario.invalid_root"),
         );
         return;
     }
@@ -177,7 +175,10 @@ pub fn show(
     let mut remove = false;
     ui.push_id((&id, task_page), |ui| {
         ui.heading(if task_page {
-            e["name"].as_str().unwrap_or("未命名任务").to_owned()
+            e["name"]
+                .as_str()
+                .unwrap_or(&crate::i18n::key("common.scenario.unnamed_task"))
+                .to_owned()
         } else {
             names.event(e)
         });
@@ -188,7 +189,10 @@ pub fn show(
         }));
         ui.add_space(10.0);
         if !e.is_object() {
-            ui.colored_label(egui::Color32::LIGHT_RED, tr("配置必须是对象"));
+            ui.colored_label(
+                egui::Color32::LIGHT_RED,
+                crate::i18n::key("common.scenario.invalid_object"),
+            );
             return;
         }
         if task_page {
@@ -220,7 +224,7 @@ pub fn show(
         ui.add_space(20.0);
         ui.separator();
         if id == entry && !task_page {
-            ui.small(tr("这是自由剧本的开场事件。"));
+            ui.small(crate::i18n::key("common.scenario.start_hint"));
         } else if ui
             .small_button(tr(if task_page {
                 "删除这个任务"
@@ -252,8 +256,8 @@ pub fn context(
     let names = crate::scenario_quick::Names::new(&project.stories, Some(config));
     let mut navigate = None;
     if task_page {
-        ui.heading(tr("关联事件"));
-        ui.label(tr("这些事件会检查或更新这个任务的进度。"));
+        ui.heading(crate::i18n::key("common.scenario.related_events"));
+        ui.label(crate::i18n::key("common.scenario.related_check"));
         let id = e["id"].as_str().unwrap_or("");
         let related = config["events"]
             .as_array()
@@ -266,7 +270,7 @@ pub fn context(
             })
             .collect::<Vec<_>>();
         if related.is_empty() {
-            ui.small(tr("还没有关联事件。可在事件的前置任务或结束结果中关联。"));
+            ui.small(crate::i18n::key("common.scenario.related_connect"));
         }
         for event in related {
             if ui.button(names.event(event)).clicked() {
@@ -274,26 +278,32 @@ pub fn context(
             }
         }
     } else {
-        ui.heading(tr("播放剧情"));
+        ui.heading(crate::i18n::key("common.scenario.play_story"));
         let script = e["script"].as_str().unwrap_or("");
         if let Some(story) = project.stories.get(script) {
             ui.strong(story["title"].as_str().unwrap_or(script));
-            ui.small(format!(
-                "{} 个演出步骤",
-                story["nodes"].as_array().map_or(0, Vec::len)
+            ui.small(crate::i18n::message(
+                "common.scenario.step_count",
+                &[(
+                    "count",
+                    story["nodes"].as_array().map_or(0, Vec::len).to_string(),
+                )],
             ));
-            if ui.button(tr("编辑这段剧情")).clicked() {
+            if ui
+                .button(crate::i18n::key("common.scenario.edit_story"))
+                .clicked()
+            {
                 navigate = Some(Navigate::Story(script.into()));
             }
         } else {
-            ui.label(tr("尚未选择剧情"));
+            ui.label(crate::i18n::key("common.scenario.story_missing"));
         }
         ui.add_space(16.0);
         ui.separator();
-        ui.strong(tr("关联任务"));
+        ui.strong(crate::i18n::key("common.scenario.related_tasks"));
         let related = crate::scenario_quick::related_tasks(e);
         if related.is_empty() {
-            ui.small(tr("没有关联任务。这个事件可以独立发生。"));
+            ui.small(crate::i18n::key("common.scenario.independent"));
         }
         for id in related {
             if let Some((_, name)) = names.tasks.iter().find(|(key, _)| key == &id) {
@@ -439,10 +449,10 @@ fn event_advanced(
         ],
         "stage",
     );
-    ui.small(tr("未抽中也会消耗本周期的判定；下个周期可以再试。"));
+    ui.small(crate::i18n::key("common.scenario.attempt_used"));
     integer(ui, e, "priority", "优先级", 0, -100000, 100000);
     ui.horizontal(|ui| {
-        ui.label(tr("发生概率（%）"));
+        ui.label(crate::i18n::key("common.scenario.chance"));
         let mut chance = e["chance"].as_f64().unwrap_or(100.0);
         if ui
             .add(
@@ -456,7 +466,13 @@ fn event_advanced(
         }
     });
     let mut pooled = e.get("pool").is_some();
-    if ui.checkbox(&mut pooled, tr("加入权重事件池")).changed() {
+    if ui
+        .checkbox(
+            &mut pooled,
+            crate::i18n::key("common.scenario.weighted_pool"),
+        )
+        .changed()
+    {
         if pooled {
             e["pool"] = json!("pool_1");
         } else {
@@ -466,42 +482,52 @@ fn event_advanced(
     if pooled {
         text(ui, e, "pool", "事件池 ID");
         integer(ui, e, "weight", "基础权重", 1, 0, 100000);
-        ui.small(tr("同池候选按有效权重抽取一项；权重不是百分比。"));
+        ui.small(crate::i18n::key("common.scenario.pool_hint"));
     }
-    ui.collapsing(tr("触发条件"), |ui| {
-        condition(ui, &mut e["when"], task_states, catalog, stories, 0)
-    });
-    ui.collapsing(tr("条件权重修正"), |ui| {
-        if ui.button(tr("添加权重修正")).clicked() {
-            if !e["weight_modifiers"].is_array() {
-                e["weight_modifiers"] = json!([]);
-            }
-            e["weight_modifiers"]
-                .as_array_mut()
-                .unwrap()
-                .push(json!({"when":{"all":[]},"add":0}));
-        }
-        let mut delete = None;
-        for (j, r) in e
-            .get_mut("weight_modifiers")
-            .and_then(Value::as_array_mut)
-            .into_iter()
-            .flatten()
-            .enumerate()
-        {
-            ui.push_id(j, |ui| {
-                integer(ui, r, "add", "权重增减", 0, -100000, 100000);
-                condition(ui, &mut r["when"], task_states, catalog, stories, 0);
-                if ui.button(tr("删除修正")).clicked() {
-                    delete = Some(j);
+    ui.collapsing(
+        crate::i18n::key("common.scenario.trigger_conditions"),
+        |ui| condition(ui, &mut e["when"], task_states, catalog, stories, 0),
+    );
+    ui.collapsing(
+        crate::i18n::key("common.scenario.weight_adjustments"),
+        |ui| {
+            if ui
+                .button(crate::i18n::key("common.scenario.add_adjustment"))
+                .clicked()
+            {
+                if !e["weight_modifiers"].is_array() {
+                    e["weight_modifiers"] = json!([]);
                 }
-            });
-        }
-        if let Some(j) = delete {
-            e["weight_modifiers"].as_array_mut().unwrap().remove(j);
-        }
-    });
-    ui.collapsing(tr("演出结果与任务推进"), |ui| {
+                e["weight_modifiers"]
+                    .as_array_mut()
+                    .unwrap()
+                    .push(json!({"when":{"all":[]},"add":0}));
+            }
+            let mut delete = None;
+            for (j, r) in e
+                .get_mut("weight_modifiers")
+                .and_then(Value::as_array_mut)
+                .into_iter()
+                .flatten()
+                .enumerate()
+            {
+                ui.push_id(j, |ui| {
+                    integer(ui, r, "add", "权重增减", 0, -100000, 100000);
+                    condition(ui, &mut r["when"], task_states, catalog, stories, 0);
+                    if ui
+                        .button(crate::i18n::key("common.scenario.remove_adjustment"))
+                        .clicked()
+                    {
+                        delete = Some(j);
+                    }
+                });
+            }
+            if let Some(j) = delete {
+                e["weight_modifiers"].as_array_mut().unwrap().remove(j);
+            }
+        },
+    );
+    ui.collapsing(crate::i18n::key("common.scenario.outcome_tasks"), |ui| {
         outcomes(ui, &mut e["outcomes"], task_states)
     });
 }
@@ -516,7 +542,7 @@ fn task_advanced(
     text(ui, t, "name", "名称");
     text(ui, t, "initial", "初始状态");
     ui.horizontal(|ui| {
-        ui.label(tr("状态（逗号分隔）"));
+        ui.label(crate::i18n::key("common.scenario.states"));
         let mut s = t["states"]
             .as_array()
             .into_iter()
@@ -532,7 +558,10 @@ fn task_advanced(
                 .collect::<Vec<_>>());
         }
     });
-    if ui.button(tr("添加条件转换")).clicked() {
+    if ui
+        .button(crate::i18n::key("common.scenario.add_condition_transition"))
+        .clicked()
+    {
         if !t["transitions"].is_array() {
             t["transitions"] = json!([]);
         }
@@ -554,7 +583,12 @@ fn task_advanced(
                 text(ui, r, "from", "从状态");
                 text(ui, r, "to", "到状态");
                 condition(ui, &mut r["when"], states, catalog, stories, 0);
-                if ui.button(tr("删除转换")).clicked() {
+                if ui
+                    .button(crate::i18n::key(
+                        "common.scenario.remove_condition_transition",
+                    ))
+                    .clicked()
+                {
                     delete = Some(j);
                 }
             });
@@ -574,11 +608,11 @@ fn condition(
     depth: usize,
 ) {
     if depth > 12 {
-        ui.label(tr("条件嵌套超过 12 层"));
+        ui.label(crate::i18n::key("common.scenario.depth"));
         return;
     }
     if !c.is_object() {
-        ui.label(tr("条件必须是对象"));
+        ui.label(crate::i18n::key("common.scenario.condition_object"));
         return;
     }
     let mut kind = if c.get("all").is_some() {
@@ -617,7 +651,10 @@ fn condition(
         };
     }
     if kind == "all" || kind == "any" {
-        if ui.button(tr("添加条件")).clicked() {
+        if ui
+            .button(crate::i18n::key("common.scenario.add_condition"))
+            .clicked()
+        {
             c[kind]
                 .as_array_mut()
                 .unwrap()
@@ -628,7 +665,10 @@ fn condition(
             ui.push_id(i, |ui| {
                 egui::Frame::group(ui.style()).show(ui, |ui| {
                     condition(ui, child, tasks, catalog, stories, depth + 1);
-                    if ui.small_button(tr("删除条件")).clicked() {
+                    if ui
+                        .small_button(crate::i18n::key("common.scenario.delete_condition"))
+                        .clicked()
+                    {
                         delete = Some(i);
                     }
                 });
@@ -729,10 +769,13 @@ fn condition(
 }
 fn outcomes(ui: &mut egui::Ui, v: &mut Value, tasks: &[(String, Vec<String>)]) {
     if !v.is_object() {
-        ui.label(tr("结果配置必须为对象"));
+        ui.label(crate::i18n::key("common.scenario.outcomes_object"));
         return;
     }
-    if ui.button(tr("添加演出结果")).clicked() {
+    if ui
+        .button(crate::i18n::key("common.scenario.add_outcome"))
+        .clicked()
+    {
         let id = (1..)
             .map(|i| format!("result_{i}"))
             .find(|id| v.get(id).is_none())
@@ -757,13 +800,16 @@ fn outcomes(ui: &mut egui::Ui, v: &mut Value, tasks: &[(String, Vec<String>)]) {
                 }
                 let effects = &mut v[&result];
                 if !effects.is_object() {
-                    ui.label(tr("结果必须是对象"));
+                    ui.label(crate::i18n::key("common.scenario.result_object"));
                     return;
                 }
-                ui.collapsing(tr("数值、物品与其他结果动作"), |ui| {
+                ui.collapsing(crate::i18n::key("common.scenario.misc_effects"), |ui| {
                     result_actions(ui, effects)
                 });
-                if ui.button(tr("添加变量结果")).clicked() {
+                if ui
+                    .button(crate::i18n::key("common.scenario.add_variable_effect"))
+                    .clicked()
+                {
                     if !effects["variables"].is_object() {
                         effects["variables"] = json!({});
                     }
@@ -810,12 +856,21 @@ fn outcomes(ui: &mut egui::Ui, v: &mut Value, tasks: &[(String, Vec<String>)]) {
                             i32::MIN as i64,
                             i32::MAX as i64,
                         );
-                        if ui.small_button(tr("删除变量结果")).clicked() {
+                        if ui
+                            .small_button(crate::i18n::key(
+                                "common.scenario.delete_variable_effect",
+                            ))
+                            .clicked()
+                        {
                             effects["variables"].as_object_mut().unwrap().remove(&key);
                         }
                     });
                 }
-                if !tasks.is_empty() && ui.button(tr("添加任务推进")).clicked() {
+                if !tasks.is_empty()
+                    && ui
+                        .button(crate::i18n::key("common.scenario.add_task_effect"))
+                        .clicked()
+                {
                     if !effects["tasks"].is_object() {
                         effects["tasks"] = json!({});
                     }
@@ -855,12 +910,19 @@ fn outcomes(ui: &mut egui::Ui, v: &mut Value, tasks: &[(String, Vec<String>)]) {
                             })
                             .unwrap_or_default();
                         select(ui, &mut effects["tasks"], &key, "推进到状态", &states, "");
-                        if ui.small_button(tr("删除任务推进")).clicked() {
+                        if ui
+                            .small_button(crate::i18n::key("common.scenario.delete_task_effect"))
+                            .clicked()
+                        {
                             effects["tasks"].as_object_mut().unwrap().remove(&key);
                         }
                     });
                 }
-                if result != "completed" && ui.small_button(tr("删除结果")).clicked() {
+                if result != "completed"
+                    && ui
+                        .small_button(crate::i18n::key("common.scenario.delete_outcome"))
+                        .clicked()
+                {
                     v.as_object_mut().unwrap().remove(&result);
                 }
             });
@@ -868,7 +930,10 @@ fn outcomes(ui: &mut egui::Ui, v: &mut Value, tasks: &[(String, Vec<String>)]) {
     }
 }
 fn result_actions(ui: &mut egui::Ui, effects: &mut Value) {
-    if ui.button(tr("添加结果动作")).clicked() {
+    if ui
+        .button(crate::i18n::key("common.scenario.add_effect"))
+        .clicked()
+    {
         if !effects["actions"].is_array() {
             effects["actions"] = json!([]);
         }
@@ -956,7 +1021,10 @@ fn result_actions(ui: &mut egui::Ui, effects: &mut Value) {
                         );
                     }
                 }
-                if ui.small_button(tr("删除动作")).clicked() {
+                if ui
+                    .small_button(crate::i18n::key("common.scenario.delete_effect"))
+                    .clicked()
+                {
                     delete = Some(i);
                 }
             });

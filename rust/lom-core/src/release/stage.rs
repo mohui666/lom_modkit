@@ -21,11 +21,11 @@ pub fn missing_stage_linear(nodes: &[Value], index: usize) -> Option<String> {
         .iter()
         .flat_map(crate::parallel::actions)
         .rev()
-        .filter(|n| text(n, "character") == cid)
+        .filter(|n| text(n, "character") == cid || n["type"] == "hide_all")
     {
         match text(prev, "type") {
             "show" => return None,
-            "hide" => return Some(cid.into()),
+            "hide" | "hide_all" => return Some(cid.into()),
             _ => {}
         }
     }
@@ -102,6 +102,9 @@ pub fn find_stage_issues(story: &Value) -> Vec<(String, String)> {
                 };
                 let mut out = ins[pred].clone();
                 for action in crate::parallel::actions(previous) {
+                    if action["type"] == "hide_all" {
+                        out.clear();
+                    }
                     let cid = text(action, "character");
                     if !cid.is_empty() {
                         match text(action, "type") {

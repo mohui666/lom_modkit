@@ -1,4 +1,10 @@
 {
+  "node.native_action": "원작 명령",
+  "node.native_branch": "원작 조건 분기",
+  "help.native_action": "원작의 호출과 대입을 구조화된 매개변수로 편집합니다.",
+  "help.native_branch": "원작 조건이나 선택 결과에 따라 참과 거짓의 단계로 분기합니다.",
+  "node.hide_all": "화면의 모든 인물 퇴장",
+  "help.hide_all": "화면에 있는 모든 공식 및 사용자 인물을 즉시 퇴장시키고 인물 말풍선을 지웁니다. 인물을 하나씩 선택할 필요가 없습니다.",
   "app.title": "활협전 Mod 시나리오 편집기",
   "app.help_title": "도움말 — 활협전 Mod 시나리오 편집기",
   "lang.chs": "중국어(CHS)",

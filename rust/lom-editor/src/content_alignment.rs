@@ -16,7 +16,7 @@ impl ContentPanel {
         if self.draft["portraits"].get(&portrait).is_none() {
             return;
         }
-        ui.collapsing(tr("立绘、表情与气泡对齐"), |ui| {
+        ui.collapsing(crate::i18n::key("common.alignment.section"), |ui| {
             let custom_mood = self.draft["extends"].as_str().unwrap_or("").is_empty();
             if !custom_mood {
                 self.alignment_mood = false;
@@ -24,7 +24,10 @@ impl ContentPanel {
             let mut reference = alignment::reference(&self.draft).to_owned();
             let before = reference.clone();
             egui::ComboBox::from_id_salt("portrait-reference")
-                .selected_text(format!("{}：{reference}", tr("基准表情")))
+                .selected_text(crate::i18n::message(
+                    "common.alignment.reference_value",
+                    &[("portrait", reference.clone())],
+                ))
                 .show_ui(ui, |ui| {
                     for name in self.draft["portraits"]
                         .as_object()
@@ -37,7 +40,10 @@ impl ContentPanel {
             if reference != before {
                 self.draft["portrait_reference"] = json!(reference);
             }
-            ui.small(format!("{}：{portrait}", tr("当前表情")));
+            ui.small(crate::i18n::message(
+                "common.alignment.current_value",
+                &[("portrait", portrait.clone())],
+            ));
             let root = key.strip_suffix("content.json").unwrap_or("");
             let files = || {
                 self.draft["portraits"]
@@ -53,11 +59,14 @@ impl ContentPanel {
                     })
                     .collect::<BTreeMap<_, _>>()
             };
-            if ui.button(tr("一键自动对齐全部表情")).clicked() {
+            if ui
+                .button(crate::i18n::key("common.alignment.auto_all"))
+                .clicked()
+            {
                 let images = files();
                 self.draft["portrait_reference"] = json!(reference);
                 self.message = alignment::auto_align(&mut self.draft, &images)
-                    .map(|_| "已按基准图的可见中心与底边对齐，可继续微调；缩放保持原值".into())
+                    .map(|_| crate::i18n::key("common.alignment.auto_done"))
                     .unwrap_or_else(|e| e.to_string());
             }
             let mut transform = alignment::layout(&self.draft, &portrait);
@@ -77,7 +86,10 @@ impl ContentPanel {
                     self.alignment_dragging |=
                         response.dragged() && ui.input(|input| input.pointer.primary_down());
                 }
-                if ui.small_button(tr("恢复当前表情")).clicked() {
+                if ui
+                    .small_button(crate::i18n::key("common.alignment.restore"))
+                    .clicked()
+                {
                     transform = [0.0, 0.0, 100.0];
                     if let Some(layouts) = self.draft["portrait_layouts"].as_object_mut() {
                         layouts.remove(&portrait);
@@ -107,7 +119,10 @@ impl ContentPanel {
                     || cache_key == &format!("{root}{refname}:{}", reference_bytes.len())
             });
             ui.horizontal_wrapped(|ui| {
-                if ui.button(tr("当前表情贴底")).clicked() {
+                if ui
+                    .button(crate::i18n::key("common.alignment.bottom"))
+                    .clicked()
+                {
                     match alignment::visible_rect(&current_bytes, transform) {
                         Ok(bounds) => {
                             transform[1] += bounds[3] - 1080.0;
@@ -117,8 +132,11 @@ impl ContentPanel {
                     }
                 }
                 if ui
-                    .add_enabled(custom_mood, egui::Button::new(tr("气泡自动对齐")))
-                    .on_disabled_hover_text(tr("原版人物的气泡请在表情气泡步骤的画面预览中调整。"))
+                    .add_enabled(
+                        custom_mood,
+                        egui::Button::new(crate::i18n::key("common.alignment.auto_bubble")),
+                    )
+                    .on_disabled_hover_text(crate::i18n::key("common.alignment.official_hint"))
                     .clicked()
                 {
                     match alignment::visible_rect(
@@ -147,26 +165,26 @@ impl ContentPanel {
                                     .clamp(0.0, 100.0)
                                     as i64);
                             self.draft["portrait_reference"] = json!(reference);
-                            self.message =
-                                "气泡已放到基准图可见主体的顶部中央，可拖动锚点微调".into();
+                            self.message = crate::i18n::key("common.alignment.bubble_done");
                         }
                         Err(error) => self.message = error.to_string(),
                     }
                 }
                 ui.add_enabled(
                     custom_mood,
-                    egui::Checkbox::new(&mut self.alignment_mood, tr("调整气泡锚点")),
+                    egui::Checkbox::new(
+                        &mut self.alignment_mood,
+                        crate::i18n::key("common.alignment.bubble_anchor"),
+                    ),
                 )
-                .on_disabled_hover_text(tr("原版人物的气泡请在表情气泡步骤的画面预览中调整。"));
+                .on_disabled_hover_text(crate::i18n::key("common.alignment.official_hint"));
             });
             if changed {
                 self.draft["portrait_reference"] = json!(reference);
                 self.draft["portrait_layouts"][&portrait] =
                     json!({"x":transform[0],"y":transform[1],"scale":transform[2]});
             }
-            ui.small(tr(
-                "半透明图是基准表情；拖动当前立绘微调。自动对齐忽略透明留白，姿势差异可手动校准。",
-            ));
+            ui.small(crate::i18n::key("common.alignment.hint"));
             let width = ui.available_width().min(520.0);
             let (canvas, response) =
                 ui.allocate_exact_size(Vec2::new(width, width * 9.0 / 16.0), egui::Sense::drag());

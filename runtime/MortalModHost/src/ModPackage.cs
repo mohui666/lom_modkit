@@ -62,6 +62,8 @@ namespace MortalModHost
         public CampaignConfig Campaign;
         public string PlayMode;
         public ScenarioConfig Scenario;
+        internal LegacyExtensionsConfig LegacyExtensions;
+        internal LegacyResourceConfig LegacyResources;
 
         /// <summary>
         /// assets/ 目录下的图片（契约 §3.1）：键 = 包内相对路径（"assets/xxx.png"，正斜杠），

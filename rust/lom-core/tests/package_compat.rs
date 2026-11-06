@@ -19,6 +19,40 @@ fn deterministic_package_round_trip_detects_tampering() {
     altered.get_mut("lua/main.lua").unwrap().push(b' ');
     assert!(package::verify_integrity(&altered).is_err());
 }
+
+#[test]
+fn a_large_structured_chapter_exports_and_reopens_with_its_parsed_metadata() {
+    let source: String = (0..3500)
+        .map(|index| format!("statmodifymanager.SetFlag(\"large_flag_{index:04}\", 1)\n"))
+        .collect();
+    let mut story = lom_core::native_flow::import(
+        &source,
+        "main",
+        "Large structured chapter",
+        "synthetic_large",
+        &BTreeMap::new(),
+    )
+    .unwrap();
+    story["vanilla_import"]["external"] = json!(true);
+    let mut project = Project::new();
+    project.stories.insert("main".into(), story);
+    let json_bytes = lom_core::stable_json(&project.stories["main"]).unwrap();
+    assert!(
+        json_bytes.len() as u64 > package::MAX_TEXT_BYTES,
+        "The regression needs a structured chapter over the ordinary text bound: {}",
+        json_bytes.len()
+    );
+    assert!((json_bytes.len() as u64) < package::MAX_ENTRY_BYTES);
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("large-chapter.lommod");
+    project.export(&path).unwrap();
+    let reopened = Project::open(&path).unwrap();
+    assert_eq!(reopened.stories, project.stories);
+    assert!(
+        package::read_package(&path).unwrap()["lua/main.lua"].len() as u64
+            <= package::MAX_TEXT_BYTES
+    );
+}
 #[test]
 fn cross_platform_archive_paths_and_unicode_collisions_are_rejected() {
     for bad in [

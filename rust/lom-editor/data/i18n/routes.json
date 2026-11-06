@@ -1,0 +1,386 @@
+{
+  "routes.zoom": {
+    "chs": "缩放",
+    "cht": "縮放",
+    "ja": "拡大縮小",
+    "ko": "확대·축소"
+  },
+  "routes.return_to_mark": {
+    "chs": "回到当前标记",
+    "cht": "回到目前標記",
+    "ja": "現在のマークへ戻る",
+    "ko": "현재 표시로 돌아가기"
+  },
+  "routes.edit_marked_dialogue": {
+    "chs": "编辑标记对白",
+    "cht": "編輯標記對白",
+    "ja": "マークした台詞を編集",
+    "ko": "표시한 대사 편집"
+  },
+  "routes.year": {
+    "chs": "年份",
+    "cht": "年份",
+    "ja": "年",
+    "ko": "연도"
+  },
+  "routes.month": {
+    "chs": "月份",
+    "cht": "月份",
+    "ja": "月",
+    "ko": "월"
+  },
+  "routes.all_dates": {
+    "chs": "0=全部",
+    "cht": "0=全部",
+    "ja": "0=すべて",
+    "ko": "0=전체"
+  },
+  "routes.show_all_links": {
+    "chs": "显示全部连线",
+    "cht": "顯示全部連線",
+    "ja": "すべての接続線を表示",
+    "ko": "모든 연결선 표시"
+  },
+  "routes.click_guide": {
+    "chs": "单击站点查看直接来路与去向 · 蓝线为来路 · 金线为去向 · 悬浮编号查看条件 · 双击站点编辑",
+    "cht": "按一下站點查看直接來路與去向 · 藍線為來路 · 金線為去向 · 游標停在編號上查看條件 · 按兩下站點編輯",
+    "ja": "駅をクリックして直前と直後の経路を表示 · 青は進入、金は退出 · 番号にカーソルを合わせて条件を確認 · ダブルクリックで編集",
+    "ko": "지점을 클릭하면 바로 이전·다음 경로 표시 · 파란색은 진입, 금색은 진출 · 번호에 마우스를 올리면 조건 표시 · 두 번 클릭하여 편집"
+  },
+  "routes.mark_guide": {
+    "chs": "红色“今”为最近标记 · “候”编号表示候选去向 · 显示全部连线时，灰色虚线表示时间顺序",
+    "cht": "紅色「今」為最近標記 ·「候」編號表示候選去向 · 顯示全部連線時，灰色虛線表示時間順序",
+    "ja": "赤い「今」は最新マーク ·「候補」付きの番号は移動先候補 · 全線表示時の灰色破線は時系列",
+    "ko": "빨간색 “현”은 최근 표시 · “후보” 번호는 다음 지점 후보 · 모든 연결선 표시 시 회색 점선은 시간 순서"
+  },
+  "routes.routing_failed": {
+    "chs": "{count} 条连线未找到避障路径，可在右侧查看来路与去向。",
+    "cht": "{count} 條連線未找到避障路徑，可在右側查看來路與去向。",
+    "ja": "{count} 本の接続線で障害物を避ける経路が見つかりません。右側の経路詳細を確認してください。",
+    "ko": "연결선 {count}개에서 장애물 회피 경로를 찾지 못했습니다. 오른쪽에서 이전·다음 경로를 확인할 수 있습니다."
+  },
+  "routes.side_series": {
+    "chs": "支线 · {series}",
+    "cht": "支線 · {series}",
+    "ja": "サブ · {series}",
+    "ko": "서브 · {series}"
+  },
+  "routes.or_separator": {
+    "chs": "\n或 ",
+    "cht": "\n或 ",
+    "ja": "\nまたは ",
+    "ko": "\n또는 "
+  },
+  "routes.station_caption": {
+    "chs": "{when}\n{title}\n{place} · {script}",
+    "cht": "{when}\n{title}\n{place} · {script}",
+    "ja": "{when}\n{title}\n{place} · {script}",
+    "ko": "{when}\n{title}\n{place} · {script}"
+  },
+  "routes.station_hover": {
+    "chs": "{title}\n{key}\n{condition}\n双击打开原版章节",
+    "cht": "{title}\n{key}\n{condition}\n按兩下開啟原版章節",
+    "ja": "{title}\n{key}\n{condition}\nダブルクリックで本編の章を開く",
+    "ko": "{title}\n{key}\n{condition}\n두 번 클릭하여 원본 챕터 열기"
+  },
+  "routes.current_badge": {
+    "chs": "今",
+    "cht": "今",
+    "ja": "今",
+    "ko": "현"
+  },
+  "routes.main_station": {
+    "chs": "主线站点",
+    "cht": "主線站點",
+    "ja": "メインの駅",
+    "ko": "메인 지점"
+  },
+  "routes.marked_station": {
+    "chs": "标记章节",
+    "cht": "標記章節",
+    "ja": "マークした章",
+    "ko": "표시한 챕터"
+  },
+  "routes.side_station": {
+    "chs": "支线站点",
+    "cht": "支線站點",
+    "ja": "サブの駅",
+    "ko": "서브 지점"
+  },
+  "routes.place": {
+    "chs": "地点 · {place}",
+    "cht": "地點 · {place}",
+    "ja": "場所 · {place}",
+    "ko": "장소 · {place}"
+  },
+  "routes.identity": {
+    "chs": "{series} / {key}",
+    "cht": "{series} / {key}",
+    "ja": "{series} / {key}",
+    "ko": "{series} / {key}"
+  },
+  "routes.inactive": {
+    "chs": "此入口需由其他剧情接入。",
+    "cht": "此入口需由其他劇情接入。",
+    "ja": "この入口には別のイベントから接続します。",
+    "ko": "이 진입점은 다른 스토리에서 연결됩니다."
+  },
+  "routes.entry_condition": {
+    "chs": "入口条件",
+    "cht": "入口條件",
+    "ja": "開始条件",
+    "ko": "진입 조건"
+  },
+  "routes.edit_chapter": {
+    "chs": "编辑这个原版章节",
+    "cht": "編輯這個原版章節",
+    "ja": "この本編の章を編集",
+    "ko": "이 원본 챕터 편집"
+  },
+  "routes.incoming": {
+    "chs": "来路",
+    "cht": "來路",
+    "ja": "直前の経路",
+    "ko": "이전 경로"
+  },
+  "routes.outgoing": {
+    "chs": "去向（含候选）",
+    "cht": "去向（含候選）",
+    "ja": "次の経路（候補を含む）",
+    "ko": "다음 경로(후보 포함)"
+  },
+  "routes.edge_destination": {
+    "chs": "{number} · {title}",
+    "cht": "{number} · {title}",
+    "ja": "{number} · {title}",
+    "ko": "{number} · {title}"
+  },
+  "routes.related_chapters": {
+    "chs": "本段关联章节",
+    "cht": "本段關聯章節",
+    "ja": "この区間の関連章",
+    "ko": "이 구간의 관련 챕터"
+  },
+  "routes.select_station": {
+    "chs": "选择一个站点查看时间、地点、条件与去向。",
+    "cht": "選擇一個站點查看時間、地點、條件與去向。",
+    "ja": "駅を選択すると日時、場所、条件、次の経路を確認できます。",
+    "ko": "지점을 선택하면 시간, 장소, 조건, 다음 경로를 확인할 수 있습니다."
+  },
+  "routes.summary": {
+    "chs": "{stations} 个站点 · {routes} 条路线",
+    "cht": "{stations} 個站點 · {routes} 條路線",
+    "ja": "{stations} 駅 · {routes} 経路",
+    "ko": "지점 {stations}개 · 경로 {routes}개"
+  },
+  "routes.unresolved": {
+    "chs": "{count} 处动态去向无法静态确认，未猜测连线。",
+    "cht": "{count} 處動態去向無法靜態確認，未猜測連線。",
+    "ja": "{count} 箇所の動的な移動先は静的に確定できず、接続線を推測していません。",
+    "ko": "동적 이동 대상 {count}곳은 정적으로 확인할 수 없어 연결선을 추측하지 않았습니다."
+  },
+  "routes.dynamic_notice": {
+    "chs": "动态去向按本机配置与章节调用链列出候选，实际结果由当前条件和存档决定。",
+    "cht": "動態去向按本機設定與章節呼叫鏈列出候選，實際結果由目前條件和存檔決定。",
+    "ja": "動的な移動先はローカル設定と章の呼び出し関係から候補を列挙します。実際の結果は現在の条件とセーブデータによって決まります。",
+    "ko": "동적 이동 대상은 로컬 설정과 챕터 호출 관계에 따른 후보입니다. 실제 결과는 현재 조건과 저장 데이터에 따라 결정됩니다."
+  },
+  "routes.mark_notice": {
+    "chs": "已标记的站点显示勾号。连线来自本机任务和脚本，实际触发由游戏判定。",
+    "cht": "已標記的站點顯示勾號。連線來自本機任務和腳本，實際觸發由遊戲判定。",
+    "ja": "マーク済みの駅にはチェックを表示します。接続はローカルの任務とスクリプトに基づき、発生判定はゲームが行います。",
+    "ko": "표시한 지점에는 체크가 나타납니다. 연결은 로컬 임무·스크립트에서 읽으며 실제 발생 여부는 게임이 판단합니다."
+  },
+  "routes.candidate_badge": {
+    "chs": "候{number}",
+    "cht": "候{number}",
+    "ja": "候補{number}",
+    "ko": "후보{number}"
+  },
+  "routes.line_badge": {
+    "chs": "线{number}",
+    "cht": "線{number}",
+    "ja": "線{number}",
+    "ko": "선{number}"
+  },
+  "routes.condition.option": {
+    "chs": "选项 · {text}",
+    "cht": "選項 · {text}",
+    "ja": "選択肢 · {text}",
+    "ko": "선택지 · {text}"
+  },
+  "routes.condition.else_if": {
+    "chs": "否则若 {condition}",
+    "cht": "否則若 {condition}",
+    "ja": "それ以外で {condition}",
+    "ko": "그 외에 {condition}"
+  },
+  "routes.condition.otherwise": {
+    "chs": "其余分支（{condition}）",
+    "cht": "其餘分支（{condition}）",
+    "ja": "その他の分岐（{condition}）",
+    "ko": "그 밖의 분기({condition})"
+  },
+  "routes.condition.check": {
+    "chs": "检定 {key} · 结果 {result}",
+    "cht": "檢定 {key} · 結果 {result}",
+    "ja": "判定 {key} · 結果 {result}",
+    "ko": "판정 {key} · 결과 {result}"
+  },
+  "routes.condition.position": {
+    "chs": "场所检定 {key} · 配置候选",
+    "cht": "場所檢定 {key} · 設定候選",
+    "ja": "場所判定 {key} · 設定上の候補",
+    "ko": "장소 판정 {key} · 설정 후보"
+  },
+  "routes.condition.return_temp": {
+    "chs": "返回临时章节槽 {slot} · {detail}",
+    "cht": "返回暫存章節槽 {slot} · {detail}",
+    "ja": "一時章スロット {slot} に戻る · {detail}",
+    "ko": "임시 챕터 슬롯 {slot}로 복귀 · {detail}"
+  },
+  "routes.condition.return_travel": {
+    "chs": "返回当前游历章节 · {detail}",
+    "cht": "返回目前遊歷章節 · {detail}",
+    "ja": "現在の旅の章に戻る · {detail}",
+    "ko": "현재 여행 챕터로 복귀 · {detail}"
+  },
+  "routes.condition.return_variable": {
+    "chs": "返回跨章节变量 {variable} · {detail}",
+    "cht": "返回跨章節變數 {variable} · {detail}",
+    "ja": "章をまたぐ変数 {variable} に戻る · {detail}",
+    "ko": "챕터 간 변수 {variable}로 복귀 · {detail}"
+  },
+  "routes.condition.call_candidates": {
+    "chs": "调用链候选",
+    "cht": "呼叫鏈候選",
+    "ja": "呼び出し関係に基づく候補",
+    "ko": "호출 관계에 따른 후보"
+  },
+  "routes.condition.global_candidates": {
+    "chs": "全局配置候选（调用上下文未记录）",
+    "cht": "全域設定候選（呼叫上下文未記錄）",
+    "ja": "全体設定の候補（呼び出し元の記録なし）",
+    "ko": "전체 설정 후보(호출 문맥 기록 없음)"
+  },
+  "routes.condition.function": {
+    "chs": "函数体内",
+    "cht": "函式內",
+    "ja": "関数内",
+    "ko": "함수 내부"
+  },
+  "routes.condition.loop": {
+    "chs": "循环或代码块内",
+    "cht": "迴圈或程式區塊內",
+    "ja": "ループまたはコードブロック内",
+    "ko": "반복문 또는 코드 블록 내부"
+  },
+  "routes.condition.progress": {
+    "chs": "剧情推进",
+    "cht": "劇情推進",
+    "ja": "ストーリー進行",
+    "ko": "스토리 진행"
+  },
+  "routes.condition.chapter_entry": {
+    "chs": "接入章节",
+    "cht": "接入章節",
+    "ja": "章に接続",
+    "ko": "챕터 진입"
+  },
+  "routes.condition.default_progress": {
+    "chs": "入口默认推进（章节内仍可改写）",
+    "cht": "入口預設推進（章節內仍可改寫）",
+    "ja": "入口の既定進行（章内で変更可能）",
+    "ko": "진입점의 기본 진행(챕터 내부에서 변경 가능)"
+  },
+  "routes.condition.date_order": {
+    "chs": "时间顺序，不表示必然接续",
+    "cht": "時間順序，不表示必然接續",
+    "ja": "時系列（必ずしも直接続かない）",
+    "ko": "시간 순서(반드시 이어지는 것은 아님)"
+  },
+  "routes.route_condition": {
+    "chs": "{script} · {condition}",
+    "cht": "{script} · {condition}",
+    "ja": "{script} · {condition}",
+    "ko": "{script} · {condition}"
+  },
+  "routes.condition.path": {
+    "chs": "{parent} / {condition}",
+    "cht": "{parent} / {condition}",
+    "ja": "{parent} / {condition}",
+    "ko": "{parent} / {condition}"
+  },
+  "routes.runtime.error": {
+    "chs": "运行快照读取失败 {error}",
+    "cht": "執行快照讀取失敗 {error}",
+    "ja": "実行スナップショットを読み込めません {error}",
+    "ko": "실행 스냅샷을 읽을 수 없습니다 {error}"
+  },
+  "routes.runtime.snapshot": {
+    "chs": "捕获时动态返回槽 {script} → {target}",
+    "cht": "擷取時動態返回槽 {script} → {target}",
+    "ja": "取得時の動的復帰先 {script} → {target}",
+    "ko": "캡처 시 동적 복귀 슬롯 {script} → {target}"
+  },
+  "routes.runtime.empty": {
+    "chs": "空槽",
+    "cht": "空槽",
+    "ja": "空のスロット",
+    "ko": "빈 슬롯"
+  },
+  "routes.runtime.focus": {
+    "chs": "查看捕获章节",
+    "cht": "查看擷取章節",
+    "ja": "取得した章を表示",
+    "ko": "캡처한 장 보기"
+  },
+  "routes.runtime.heading": {
+    "chs": "本次游戏运行证据",
+    "cht": "本次遊戲執行證據",
+    "ja": "今回のゲームの実行記録",
+    "ko": "이번 게임 실행 기록"
+  },
+  "routes.runtime.capture": {
+    "chs": "快照 {time} · 会话 {session}",
+    "cht": "快照 {time} · 工作階段 {session}",
+    "ja": "取得 {time} · セッション {session}",
+    "ko": "스냅샷 {time} · 세션 {session}"
+  },
+  "routes.runtime.slot_guide": {
+    "chs": "下列为捕获时的槽值，执行动态返回分支时使用。绿色连线标识对应槽值，其他分支仍按原条件执行。",
+    "cht": "下列為擷取時的槽值，執行動態返回分支時使用。綠色連線標示對應槽值，其他分支仍依原條件執行。",
+    "ja": "取得時のスロット値です。動的復帰分岐で使用されます。緑の線がこの値を示し、ほかの分岐は元の条件で実行されます。",
+    "ko": "캡처 시 슬롯 값이며 동적 복귀 분기에서 사용됩니다. 녹색 선은 이 값에 해당하며 다른 분기는 원래 조건에 따라 실행됩니다."
+  },
+  "routes.runtime.destination": {
+    "chs": "{script} → {target}（打开目标）",
+    "cht": "{script} → {target}（開啟目標）",
+    "ja": "{script} → {target}（移動先を開く）",
+    "ko": "{script} → {target} (대상 열기)"
+  },
+  "routes.runtime.empty_guide": {
+    "chs": "捕获时返回槽为空，实际目标尚未设定。",
+    "cht": "擷取時返回槽為空，實際目標尚未設定。",
+    "ja": "取得時の復帰スロットは空です。移動先は未設定です。",
+    "ko": "캡처 시 복귀 슬롯이 비어 있어 실제 대상이 설정되지 않았습니다."
+  },
+  "routes.runtime.observed": {
+    "chs": "已发生 {script} → {target} · {time}",
+    "cht": "已發生 {script} → {target} · {time}",
+    "ja": "実行済み {script} → {target} · {time}",
+    "ko": "실행됨 {script} → {target} · {time}"
+  },
+  "routes.runtime.no_transition": {
+    "chs": "本会话尚未记录本站动态返回。",
+    "cht": "本工作階段尚未記錄本站動態返回。",
+    "ja": "このセッションでは、この地点からの動的復帰は未記録です。",
+    "ko": "이 세션에서 이 지점의 동적 복귀가 아직 기록되지 않았습니다."
+  },
+  "routes.runtime.missing": {
+    "chs": "进入原版章节后由游戏 Host 生成运行快照。加载存档或新开局会清空旧会话记录。",
+    "cht": "進入原版章節後由遊戲 Host 產生執行快照。載入存檔或新開局會清空舊工作階段記錄。",
+    "ja": "原作の章に入るとゲーム Host が実行スナップショットを作成します。ロードや新規開始で以前のセッション記録は消去されます。",
+    "ko": "원작 장에 진입하면 게임 Host가 실행 스냅샷을 생성합니다. 저장 불러오기나 새 게임 시작 시 이전 세션 기록이 지워집니다."
+  }
+}

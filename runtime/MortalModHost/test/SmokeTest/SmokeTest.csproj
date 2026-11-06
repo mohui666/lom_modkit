@@ -13,6 +13,8 @@
   <ItemGroup>
     <Compile Include="..\..\src\MiniJson.cs" />
     <Compile Include="..\..\src\ModPackage.cs" />
+    <Compile Include="..\..\src\LegacyExtensionsConfig.cs" />
+    <Compile Include="..\..\src\LegacyResourceConfig.cs" />
     <Compile Include="..\..\src\ModLoader.cs" />
     <Compile Include="..\..\src\ModRegistry.cs" />
     <Compile Include="..\..\src\VanillaStoryPatch.cs" />

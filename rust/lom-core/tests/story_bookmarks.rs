@@ -76,3 +76,59 @@ fn timeline_dates_match_ranges_across_years_and_keep_unknown_times_explicit() {
         1
     );
 }
+
+#[test]
+fn runtime_return_slots_keep_empty_and_inactive_state_distinct_from_candidates() {
+    let root = tempfile::tempdir().unwrap();
+    assert!(story_bookmarks::read_runtime_routes(root.path())
+        .unwrap()
+        .is_none());
+    let path = root.path().join("route-runtime.json");
+    let mut value = json!({
+        "schema":1,"game_dir":"game","session":"session-one","captured_utc":"2026-11-07T12:00:00Z",
+        "status":"story","script":"S0019_01","temp_script1":"TEMP_RETURN","travel_script":"TRAVEL_RETURN",
+        "transitions":[{"from":"S0019_01","target":"ACTUAL_RETURN","captured_utc":"2026-11-07T11:59:00Z"}]
+    });
+    for (script, target) in [
+        ("S0019_01", "TEMP_RETURN"),
+        ("S2504_01", "TEMP_RETURN"),
+        ("talk_girl5_check", "TEMP_RETURN"),
+        ("S8500_01_06", "TRAVEL_RETURN"),
+    ] {
+        value["script"] = script.into();
+        std::fs::write(&path, serde_json::to_vec(&value).unwrap()).unwrap();
+        let snapshot = story_bookmarks::read_runtime_routes(root.path())
+            .unwrap()
+            .unwrap();
+        assert_eq!(snapshot.return_target(), Some(target));
+        assert_eq!(snapshot.transitions[0].target, "ACTUAL_RETURN");
+    }
+    value["travel_script"] = "".into();
+    std::fs::write(&path, serde_json::to_vec(&value).unwrap()).unwrap();
+    let empty = story_bookmarks::read_runtime_routes(root.path())
+        .unwrap()
+        .unwrap();
+    assert!(empty.has_return_slot());
+    assert_eq!(empty.return_target(), None);
+    value["status"] = "inactive".into();
+    value["travel_script"] = "OLD_SAVE_TARGET".into();
+    std::fs::write(&path, serde_json::to_vec(&value).unwrap()).unwrap();
+    let inactive = story_bookmarks::read_runtime_routes(root.path())
+        .unwrap()
+        .unwrap();
+    assert!(!inactive.has_return_slot());
+    assert_eq!(inactive.return_target(), None);
+    value["status"] = "story".into();
+    value["script"] = "unrelated".into();
+    std::fs::write(&path, serde_json::to_vec(&value).unwrap()).unwrap();
+    assert_eq!(
+        story_bookmarks::read_runtime_routes(root.path())
+            .unwrap()
+            .unwrap()
+            .return_target(),
+        None
+    );
+    value["temp_script1"] = "../invalid".into();
+    std::fs::write(&path, serde_json::to_vec(&value).unwrap()).unwrap();
+    assert!(story_bookmarks::read_runtime_routes(root.path()).is_err());
+}

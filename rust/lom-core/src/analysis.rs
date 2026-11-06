@@ -12,6 +12,7 @@ fn nodes(story: &Value) -> &[Value] {
 fn checks(kind: &str) -> bool {
     [
         "stat_check",
+        "native_branch",
         "affinity_check",
         "item_check",
         "talent_check",

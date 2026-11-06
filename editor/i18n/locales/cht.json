@@ -1,4 +1,10 @@
 {
+  "node.native_action": "原版指令",
+  "node.native_branch": "原版條件分支",
+  "help.native_action": "把原版呼叫和賦值儲存為結構化參數，可逐項編輯文字、數值和選項設定。",
+  "help.native_branch": "判斷原版條件或選項結果，成立與不成立分別連接各自的步驟。",
+  "node.hide_all": "清除畫面人物",
+  "help.hide_all": "立即讓目前畫面中的所有官方和自訂人物退場，並清除人物氣泡。無需逐一選擇人物。",
   "app.title": "活俠傳 Mod 劇情編輯器",
   "app.help_title": "說明 — 活俠傳 Mod 劇情編輯器",
   "lang.chs": "中文（CHS）",
