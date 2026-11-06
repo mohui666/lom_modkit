@@ -284,16 +284,16 @@ pub struct TextSite {
 }
 
 #[derive(Clone)]
-struct Token {
-    start: usize,
-    end: usize,
-    value: String,
-    string: bool,
+pub(crate) struct Token {
+    pub start: usize,
+    pub end: usize,
+    pub value: String,
+    pub string: bool,
 }
 
 /// Lex strings/comments first: text inside Lua comments and quoted code is never
 /// offered as an executable dialogue. Branches and local scopes are left intact.
-pub fn text_sites(source: &str) -> Vec<TextSite> {
+pub(crate) fn tokens(source: &str) -> Vec<Token> {
     let bytes = source.as_bytes();
     let mut tokens = Vec::new();
     let mut at = 0;
@@ -330,6 +330,16 @@ pub fn text_sites(source: &str) -> Vec<TextSite> {
             }
         } else if let Some((_, end)) = crate::lua_import::long_string(bytes, at) {
             at = end;
+        } else if bytes[at].is_ascii_digit() {
+            at += 1;
+            while at < bytes.len() && (bytes[at].is_ascii_digit() || bytes[at] == b'.') {
+                at += 1;
+            }
+        } else if ["==", "~=", ">=", "<=", ".."]
+            .iter()
+            .any(|op| source[at..].starts_with(op))
+        {
+            at += 2;
         } else if bytes[at].is_ascii_alphabetic() || bytes[at] == b'_' {
             at += 1;
             while at < bytes.len() && (bytes[at].is_ascii_alphanumeric() || bytes[at] == b'_') {
@@ -347,6 +357,11 @@ pub fn text_sites(source: &str) -> Vec<TextSite> {
             value: literal.unwrap_or_else(|| raw.into()),
         });
     }
+    tokens
+}
+
+pub fn text_sites(source: &str) -> Vec<TextSite> {
+    let tokens = tokens(source);
     let mut sites = Vec::new();
     for i in 0..tokens.len() {
         let token = &tokens[i];

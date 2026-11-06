@@ -358,46 +358,92 @@ impl Updater {
         let mut update = false;
         let mut close = false;
         let mut offered = false;
-        egui::Modal::new(egui::Id::new("editor-update")).frame(crate::shell::dialog_frame()).show(ctx, |ui| {
-            ui.set_width(480.0_f32.min(ctx.content_rect().width() - 60.0));
-            if self.job.is_some() { ui.heading(tr("检查更新")); }
-            else { close |= crate::shell::dialog_header(ui, &tr(if self.completed { "更新完成" } else { "检查更新" })); }
-            ui.label(format!("{} {}", tr("当前版本"), env!("CARGO_PKG_VERSION")));
-            if self.completed {
-                ui.label(tr("编辑器已更新完成，可以继续编辑。"));
-            } else if self.job.is_some() {
-                ui.horizontal(|ui| { ui.spinner(); ui.label(tr(if self.downloading { "正在下载并准备更新…" } else { "正在检查 GitHub 最新正式版…" })); });
-            } else if let Some(error) = &self.error {
-                crate::error_location::show(ui, error);
-                ui.hyperlink_to(tr("前往 GitHub 发布页面"), RELEASES);
-                if ui.button(tr("重新检查")).clicked() { self.check(ctx); }
-            } else if let Some(release) = &self.release {
-                let newer = version(&release.version).ok() > version(env!("CARGO_PKG_VERSION")).ok();
-                if newer || release.repair_needed {
-                    if release.repair_needed {
-                        ui.label(tr("检测到程序组件缺失或与当前版本不一致。"));
-                    } else {
-                        ui.label(format!("{} v{}", tr("发现新版本"), release.version));
-                    }
-                    egui::ScrollArea::vertical().max_height(210.0).show(ui, |ui| { ui.label(&release.notes); });
-                    ui.add_space(8.0);
-                    ui.label(tr(if release.repair_needed { "是否修复当前版本？完成后会自动重启编辑器，并重新打开当前项目。" } else { "是否更新？安装完成后会自动重启编辑器，并重新打开当前项目。" }));
-                    ui.small(tr("重启编辑器后会自动同步已配置游戏中的 Host。若游戏正在运行，请先退出游戏，再到“游戏与 MOD”点击“更新游戏 Host”完成同步。"));
-                    ui.hyperlink_to(tr("查看完整更新说明"), &release.url);
-                    if cfg!(windows) && release.can_update() {
-                        offered = true;
-                        crate::shell::dialog_buttons(ui, |ui| {
-                            update = ui.button(tr(if release.repair_needed { "修复并重启" } else { "更新并重启" })).clicked();
-                            close |= ui.button(tr("暂不更新")).clicked();
-                        });
-                    } else { ui.label(tr("此发布暂无适用的独立更新文件，请到发布页面查看。")); }
+        egui::Modal::new(egui::Id::new("editor-update"))
+            .frame(crate::shell::dialog_frame())
+            .show(ctx, |ui| {
+                ui.set_width(480.0_f32.min(ctx.content_rect().width() - 60.0));
+                if self.job.is_some() {
+                    ui.heading(tr("检查更新"));
                 } else {
-                    ui.label(tr("当前已是最新版本"));
-                    ui.hyperlink_to(tr("查看发布页面"), &release.url);
+                    close |= crate::shell::dialog_header(
+                        ui,
+                        &tr(if self.completed {
+                            "更新完成"
+                        } else {
+                            "检查更新"
+                        }),
+                    );
                 }
-            }
-            if self.job.is_none() && !offered { close |= ui.button(tr("关闭")).clicked(); }
-        });
+                ui.label(crate::i18n::message(
+                    "common.update.current_version",
+                    &[("version", env!("CARGO_PKG_VERSION").to_owned())],
+                ));
+                if self.completed {
+                    ui.label(tr("编辑器已更新完成，可以继续编辑。"));
+                } else if self.job.is_some() {
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label(tr(if self.downloading {
+                            "正在下载并准备更新…"
+                        } else {
+                            "正在检查 GitHub 最新正式版…"
+                        }));
+                    });
+                } else if let Some(error) = &self.error {
+                    crate::error_location::show(ui, error);
+                    ui.hyperlink_to(tr("前往 GitHub 发布页面"), RELEASES);
+                    if ui.button(tr("重新检查")).clicked() {
+                        self.check(ctx);
+                    }
+                } else if let Some(release) = &self.release {
+                    let newer =
+                        version(&release.version).ok() > version(env!("CARGO_PKG_VERSION")).ok();
+                    if newer || release.repair_needed {
+                        if release.repair_needed {
+                            ui.label(crate::i18n::key("common.update.repair_needed"));
+                        } else {
+                            ui.label(crate::i18n::message(
+                                "common.update.found_version",
+                                &[("version", release.version.clone())],
+                            ));
+                        }
+                        egui::ScrollArea::vertical()
+                            .max_height(210.0)
+                            .show(ui, |ui| {
+                                ui.label(&release.notes);
+                            });
+                        ui.add_space(8.0);
+                        ui.label(tr(if release.repair_needed {
+                            "是否修复当前版本？完成后会自动重启编辑器，并重新打开当前项目。"
+                        } else {
+                            "是否更新？安装完成后会自动重启编辑器，并重新打开当前项目。"
+                        }));
+                        ui.small(crate::i18n::key("common.update.host_hint"));
+                        ui.hyperlink_to(tr("查看完整更新说明"), &release.url);
+                        if cfg!(windows) && release.can_update() {
+                            offered = true;
+                            crate::shell::dialog_buttons(ui, |ui| {
+                                update = ui
+                                    .button(tr(if release.repair_needed {
+                                        "修复并重启"
+                                    } else {
+                                        "更新并重启"
+                                    }))
+                                    .clicked();
+                                close |= ui.button(tr("暂不更新")).clicked();
+                            });
+                        } else {
+                            ui.label(tr("此发布暂无适用的独立更新文件，请到发布页面查看。"));
+                        }
+                    } else {
+                        ui.label(tr("当前已是最新版本"));
+                        ui.hyperlink_to(tr("查看发布页面"), &release.url);
+                    }
+                }
+                if self.job.is_none() && !offered {
+                    close |= ui.button(tr("关闭")).clicked();
+                }
+            });
         if close || update {
             self.open = false;
         }
@@ -631,7 +677,8 @@ mod tests {
         assert!(nodes
             .iter()
             .any(|(_, node)| node.role() == egui::accesskit::Role::Button
-                && node.label() == Some(crate::i18n::tr("修复并重启").as_str())));
+                && node.label()
+                    == Some(crate::i18n::key("common.update.repair_restart").as_str())));
         assert!(!nodes
             .iter()
             .any(|(_, node)| node.label() == Some(crate::i18n::tr("当前已是最新版本").as_str())));

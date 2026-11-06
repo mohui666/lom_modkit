@@ -1,0 +1,2642 @@
+{
+  "native.parameter.character": {
+    "chs": "人物",
+    "cht": "人物",
+    "ja": "人物",
+    "ko": "인물"
+  },
+  "native.parameter.portrait": {
+    "chs": "表情",
+    "cht": "表情",
+    "ja": "表情",
+    "ko": "표정"
+  },
+  "native.parameter.position": {
+    "chs": "站位",
+    "cht": "站位",
+    "ja": "立ち位置",
+    "ko": "위치"
+  },
+  "native.parameter.duration": {
+    "chs": "持续时间（秒）",
+    "cht": "持續時間（秒）",
+    "ja": "時間（秒）",
+    "ko": "지속 시간(초)"
+  },
+  "native.parameter.fade": {
+    "chs": "淡入淡出时间（秒）",
+    "cht": "淡入淡出時間（秒）",
+    "ja": "フェード時間（秒）",
+    "ko": "페이드 시간(초)"
+  },
+  "native.parameter.x": {
+    "chs": "横向偏移",
+    "cht": "橫向偏移",
+    "ja": "横方向のずれ",
+    "ko": "가로 이동"
+  },
+  "native.parameter.y": {
+    "chs": "纵向偏移",
+    "cht": "縱向偏移",
+    "ja": "縦方向のずれ",
+    "ko": "세로 이동"
+  },
+  "native.parameter.angle": {
+    "chs": "旋转角度",
+    "cht": "旋轉角度",
+    "ja": "回転角度",
+    "ko": "회전 각도"
+  },
+  "native.parameter.vibrato": {
+    "chs": "震动频率",
+    "cht": "震動頻率",
+    "ja": "振動回数",
+    "ko": "진동 횟수"
+  },
+  "native.parameter.checkpoint": {
+    "chs": "原版检定",
+    "cht": "原版檢定",
+    "ja": "原作の判定",
+    "ko": "원작 판정"
+  },
+  "native.parameter.random": {
+    "chs": "本次随机点数",
+    "cht": "本次隨機點數",
+    "ja": "今回の乱数",
+    "ko": "이번 무작위 값"
+  },
+  "native.parameter.options": {
+    "chs": "选项列表",
+    "cht": "選項列表",
+    "ja": "選択肢一覧",
+    "ko": "선택지 목록"
+  },
+  "native.parameter.scene": {
+    "chs": "游戏场景",
+    "cht": "遊戲場景",
+    "ja": "ゲームシーン",
+    "ko": "게임 장면"
+  },
+  "native.parameter.scene_key": {
+    "chs": "场景内容编号",
+    "cht": "場景內容編號",
+    "ja": "シーン内容のID",
+    "ko": "장면 내용 ID"
+  },
+  "native.parameter.return_scene": {
+    "chs": "返回场景",
+    "cht": "返回場景",
+    "ja": "戻り先のシーン",
+    "ko": "돌아갈 장면"
+  },
+  "native.parameter.script": {
+    "chs": "章节编号",
+    "cht": "章節編號",
+    "ja": "章のID",
+    "ko": "장 ID"
+  },
+  "native.parameter.year": {
+    "chs": "年",
+    "cht": "年",
+    "ja": "年",
+    "ko": "년"
+  },
+  "native.parameter.month": {
+    "chs": "月",
+    "cht": "月",
+    "ja": "月",
+    "ko": "월"
+  },
+  "native.parameter.stage": {
+    "chs": "旬",
+    "cht": "旬",
+    "ja": "旬",
+    "ko": "순"
+  },
+  "native.parameter.environment": {
+    "chs": "日夜环境",
+    "cht": "日夜環境",
+    "ja": "昼夜の環境",
+    "ko": "낮밤 환경"
+  },
+  "native.parameter.slot": {
+    "chs": "暂存位置",
+    "cht": "暫存位置",
+    "ja": "一時保存先",
+    "ko": "임시 저장 위치"
+  },
+  "native.parameter.stat": {
+    "chs": "人物属性",
+    "cht": "人物屬性",
+    "ja": "人物の能力値",
+    "ko": "인물 능력치"
+  },
+  "native.parameter.stat_source": {
+    "chs": "取值方向",
+    "cht": "取值方向",
+    "ja": "値の方向",
+    "ko": "값의 방향"
+  },
+  "native.parameter.text_key": {
+    "chs": "原版文字编号",
+    "cht": "原版文字編號",
+    "ja": "原作テキストのID",
+    "ko": "원작 텍스트 ID"
+  },
+  "native.parameter.flag": {
+    "chs": "旗标编号",
+    "cht": "旗標編號",
+    "ja": "フラグID",
+    "ko": "플래그 ID"
+  },
+  "native.parameter.value": {
+    "chs": "设定值",
+    "cht": "設定值",
+    "ja": "設定値",
+    "ko": "설정 값"
+  },
+  "native.parameter.change": {
+    "chs": "增减数值",
+    "cht": "增減數值",
+    "ja": "増減値",
+    "ko": "증감 값"
+  },
+  "native.parameter.count": {
+    "chs": "数量",
+    "cht": "數量",
+    "ja": "個数",
+    "ko": "수량"
+  },
+  "native.parameter.level": {
+    "chs": "等级",
+    "cht": "等級",
+    "ja": "レベル",
+    "ko": "레벨"
+  },
+  "native.parameter.mission": {
+    "chs": "任务系列",
+    "cht": "任務系列",
+    "ja": "任務の系列",
+    "ko": "임무 계열"
+  },
+  "native.parameter.mission_key": {
+    "chs": "任务进度编号",
+    "cht": "任務進度編號",
+    "ja": "任務進行のID",
+    "ko": "임무 진행 ID"
+  },
+  "native.parameter.item": {
+    "chs": "物品",
+    "cht": "物品",
+    "ja": "アイテム",
+    "ko": "아이템"
+  },
+  "native.parameter.book": {
+    "chs": "秘籍",
+    "cht": "祕笈",
+    "ja": "秘伝書",
+    "ko": "비급"
+  },
+  "native.parameter.special": {
+    "chs": "贵重品",
+    "cht": "貴重品",
+    "ja": "貴重品",
+    "ko": "귀중품"
+  },
+  "native.parameter.misc": {
+    "chs": "杂物",
+    "cht": "雜物",
+    "ja": "雑貨",
+    "ko": "잡화"
+  },
+  "native.parameter.talent": {
+    "chs": "天赋",
+    "cht": "天賦",
+    "ja": "天賦",
+    "ko": "재능"
+  },
+  "native.parameter.enemy": {
+    "chs": "战役门派",
+    "cht": "戰役門派",
+    "ja": "戦場の門派",
+    "ko": "전장 문파"
+  },
+  "native.parameter.battle_skill": {
+    "chs": "战场技能",
+    "cht": "戰場技能",
+    "ja": "戦場スキル",
+    "ko": "전장 기술"
+  },
+  "native.parameter.equipment_slot": {
+    "chs": "装备槽位",
+    "cht": "裝備欄位",
+    "ja": "装備枠",
+    "ko": "장착 칸"
+  },
+  "native.parameter.enabled": {
+    "chs": "启用",
+    "cht": "啟用",
+    "ja": "有効にする",
+    "ko": "활성화"
+  },
+  "native.parameter.visible": {
+    "chs": "显示",
+    "cht": "顯示",
+    "ja": "表示する",
+    "ko": "표시"
+  },
+  "native.parameter.show_message": {
+    "chs": "显示变化提示",
+    "cht": "顯示變化提示",
+    "ja": "変化の通知を表示",
+    "ko": "변경 알림 표시"
+  },
+  "native.parameter.save_enabled": {
+    "chs": "允许存档",
+    "cht": "允許存檔",
+    "ja": "セーブを許可",
+    "ko": "저장 허용"
+  },
+  "native.parameter.actions_enabled": {
+    "chs": "允许操作",
+    "cht": "允許操作",
+    "ja": "操作を許可",
+    "ko": "조작 허용"
+  },
+  "native.parameter.dialog": {
+    "chs": "对白框",
+    "cht": "對白框",
+    "ja": "会話ウィンドウ",
+    "ko": "대화창"
+  },
+  "native.parameter.speaker": {
+    "chs": "发言人物",
+    "cht": "發言人物",
+    "ja": "話し手",
+    "ko": "화자"
+  },
+  "native.parameter.menu": {
+    "chs": "选项框",
+    "cht": "選項框",
+    "ja": "選択ウィンドウ",
+    "ko": "선택창"
+  },
+  "native.parameter.flowchart": {
+    "chs": "演出类型",
+    "cht": "演出類型",
+    "ja": "演出の種類",
+    "ko": "연출 종류"
+  },
+  "native.parameter.block": {
+    "chs": "演出动作",
+    "cht": "演出動作",
+    "ja": "演出の動作",
+    "ko": "연출 동작"
+  },
+  "native.parameter.flow_variable": {
+    "chs": "演出设置项",
+    "cht": "演出設定項",
+    "ja": "演出の設定項目",
+    "ko": "연출 설정 항목"
+  },
+  "native.parameter.view": {
+    "chs": "场景背景",
+    "cht": "場景背景",
+    "ja": "背景",
+    "ko": "배경"
+  },
+  "native.parameter.music": {
+    "chs": "音乐",
+    "cht": "音樂",
+    "ja": "音楽",
+    "ko": "음악"
+  },
+  "native.parameter.sound": {
+    "chs": "音效",
+    "cht": "音效",
+    "ja": "効果音",
+    "ko": "효과음"
+  },
+  "native.parameter.env_sound": {
+    "chs": "环境音",
+    "cht": "環境音",
+    "ja": "環境音",
+    "ko": "환경음"
+  },
+  "native.parameter.effect": {
+    "chs": "屏幕特效",
+    "cht": "畫面特效",
+    "ja": "画面エフェクト",
+    "ko": "화면 효과"
+  },
+  "native.parameter.scale_x": {
+    "chs": "横向缩放",
+    "cht": "橫向縮放",
+    "ja": "横の拡大率",
+    "ko": "가로 배율"
+  },
+  "native.parameter.scale_y": {
+    "chs": "纵向缩放",
+    "cht": "縱向縮放",
+    "ja": "縦の拡大率",
+    "ko": "세로 배율"
+  },
+  "native.parameter.reuse_effect": {
+    "chs": "复用同名特效",
+    "cht": "重用同名特效",
+    "ja": "同名エフェクトを再使用",
+    "ko": "같은 이름 효과 재사용"
+  },
+  "native.parameter.play_effect": {
+    "chs": "播放特效",
+    "cht": "播放特效",
+    "ja": "エフェクトを再生",
+    "ko": "효과 재생"
+  },
+  "native.parameter.filter": {
+    "chs": "镜头滤镜",
+    "cht": "鏡頭濾鏡",
+    "ja": "画面フィルター",
+    "ko": "화면 필터"
+  },
+  "native.parameter.picture": {
+    "chs": "图片编号",
+    "cht": "圖片編號",
+    "ja": "画像ID",
+    "ko": "그림 ID"
+  },
+  "native.parameter.endgame": {
+    "chs": "结局",
+    "cht": "結局",
+    "ja": "結末",
+    "ko": "결말"
+  },
+  "native.parameter.cg": {
+    "chs": "CG 编号",
+    "cht": "CG 編號",
+    "ja": "CG ID",
+    "ko": "CG ID"
+  },
+  "native.parameter.cgvideo": {
+    "chs": "动画编号",
+    "cht": "動畫編號",
+    "ja": "動画ID",
+    "ko": "영상 ID"
+  },
+  "native.parameter.discount": {
+    "chs": "商店折扣参数",
+    "cht": "商店折扣參數",
+    "ja": "店の割引設定",
+    "ko": "상점 할인 설정"
+  },
+  "native.parameter.mode": {
+    "chs": "运行模式",
+    "cht": "執行模式",
+    "ja": "動作モード",
+    "ko": "실행 모드"
+  },
+  "native.parameter.prologue_mode": {
+    "chs": "序章存档模式",
+    "cht": "序章存檔模式",
+    "ja": "序章セーブのモード",
+    "ko": "서장 저장 모드"
+  },
+  "native.parameter.martial_mode": {
+    "chs": "功法修炼模式",
+    "cht": "功法修練模式",
+    "ja": "武功修練のモード",
+    "ko": "무공 수련 모드"
+  },
+  "native.parameter.direction": {
+    "chs": "转场方向",
+    "cht": "轉場方向",
+    "ja": "切り替え方向",
+    "ko": "전환 방향"
+  },
+  "native.parameter.map_start": {
+    "chs": "起始地点",
+    "cht": "起始地點",
+    "ja": "開始地点",
+    "ko": "시작 지점"
+  },
+  "native.parameter.map_end": {
+    "chs": "目标地点",
+    "cht": "目標地點",
+    "ja": "目的地",
+    "ko": "목표 지점"
+  },
+  "native.parameter.start_scale": {
+    "chs": "起始缩放",
+    "cht": "起始縮放",
+    "ja": "開始時の拡大率",
+    "ko": "시작 배율"
+  },
+  "native.parameter.end_scale": {
+    "chs": "结束缩放",
+    "cht": "結束縮放",
+    "ja": "終了時の拡大率",
+    "ko": "종료 배율"
+  },
+  "native.parameter.result_count": {
+    "chs": "结果档数",
+    "cht": "結果檔數",
+    "ja": "結果の段階数",
+    "ko": "결과 단계 수"
+  },
+  "native.parameter.result": {
+    "chs": "检定结果",
+    "cht": "檢定結果",
+    "ja": "判定結果",
+    "ko": "판정 결과"
+  },
+  "native.parameter.header": {
+    "chs": "检定标题",
+    "cht": "檢定標題",
+    "ja": "判定の見出し",
+    "ko": "판정 제목"
+  },
+  "native.parameter.additions": {
+    "chs": "检定加值",
+    "cht": "檢定加值",
+    "ja": "判定の補正値",
+    "ko": "판정 보정 값"
+  },
+  "native.parameter.dice_max": {
+    "chs": "骰子最大点数",
+    "cht": "骰子最大點數",
+    "ja": "サイコロの最大値",
+    "ko": "주사위 최대 값"
+  },
+  "native.parameter.destiny": {
+    "chs": "命运点消耗",
+    "cht": "命運點消耗",
+    "ja": "命運点の消費",
+    "ko": "운명 점수 소모"
+  },
+  "native.parameter.maximum": {
+    "chs": "随机数上限",
+    "cht": "隨機數上限",
+    "ja": "乱数の上限",
+    "ko": "무작위 값 상한"
+  },
+  "native.parameter.achievement": {
+    "chs": "成就编号",
+    "cht": "成就編號",
+    "ja": "実績ID",
+    "ko": "업적 ID"
+  },
+  "native.parameter.story_log": {
+    "chs": "回忆记录编号",
+    "cht": "回憶記錄編號",
+    "ja": "回想記録のID",
+    "ko": "회상 기록 ID"
+  },
+  "native.parameter.item_type": {
+    "chs": "物品类别",
+    "cht": "物品類別",
+    "ja": "アイテムの種類",
+    "ko": "아이템 종류"
+  },
+  "native.parameter.item_change": {
+    "chs": "取得或失去",
+    "cht": "取得或失去",
+    "ja": "獲得または喪失",
+    "ko": "획득 또는 손실"
+  },
+  "native.parameter.title_key": {
+    "chs": "场所标题编号",
+    "cht": "場所標題編號",
+    "ja": "場所の見出しID",
+    "ko": "장소 제목 ID"
+  },
+  "native.parameter.message_key": {
+    "chs": "提示文字编号",
+    "cht": "提示文字編號",
+    "ja": "通知テキストのID",
+    "ko": "알림 텍스트 ID"
+  },
+  "native.parameter.story_text": {
+    "chs": "对白内容",
+    "cht": "對白內容",
+    "ja": "台詞",
+    "ko": "대사"
+  },
+  "native.parameter.calculation": {
+    "chs": "增减计算方式",
+    "cht": "增減計算方式",
+    "ja": "増減の計算方法",
+    "ko": "증감 계산 방식"
+  },
+  "native.parameter.partner": {
+    "chs": "标题画面人物",
+    "cht": "標題畫面人物",
+    "ja": "タイトル画面の人物",
+    "ko": "타이틀 화면 인물"
+  },
+  "native.parameter.animation": {
+    "chs": "动画名称",
+    "cht": "動畫名稱",
+    "ja": "アニメーション名",
+    "ko": "애니메이션 이름"
+  },
+  "native.parameter.move_speed": {
+    "chs": "背景滚动速度",
+    "cht": "背景捲動速度",
+    "ja": "背景スクロール速度",
+    "ko": "배경 스크롤 속도"
+  },
+  "native.parameter.color": {
+    "chs": "底色",
+    "cht": "底色",
+    "ja": "背景色",
+    "ko": "배경색"
+  },
+  "native.parameter.intro_mode": {
+    "chs": "介绍模式",
+    "cht": "介紹模式",
+    "ja": "紹介モード",
+    "ko": "소개 모드"
+  },
+  "native.command.anim_play": {
+    "chs": "播放场景动画",
+    "cht": "播放場景動畫",
+    "ja": "シーンのアニメーションを再生",
+    "ko": "장면 애니메이션 재생"
+  },
+  "native.command.anim_stop": {
+    "chs": "停止场景动画",
+    "cht": "停止場景動畫",
+    "ja": "シーンのアニメーションを停止",
+    "ko": "장면 애니메이션 중지"
+  },
+  "native.command.characters_get": {
+    "chs": "选择人物",
+    "cht": "選擇人物",
+    "ja": "人物を選択",
+    "ko": "인물 선택"
+  },
+  "native.command.characters_getportrait": {
+    "chs": "选择人物表情",
+    "cht": "選擇人物表情",
+    "ja": "人物の表情を選択",
+    "ko": "인물 표정 선택"
+  },
+  "native.command.characters_loadcharacterasset": {
+    "chs": "加载人物资源",
+    "cht": "載入人物資源",
+    "ja": "人物の素材を読み込む",
+    "ko": "인물 리소스 불러오기"
+  },
+  "native.command.characters_unloadcharacterasset": {
+    "chs": "卸载人物资源",
+    "cht": "卸載人物資源",
+    "ja": "人物の素材を解放",
+    "ko": "인물 리소스 해제"
+  },
+  "native.command.characters_loadcharacterportrait": {
+    "chs": "加载人物表情",
+    "cht": "載入人物表情",
+    "ja": "人物の表情を読み込む",
+    "ko": "인물 표정 불러오기"
+  },
+  "native.command.characters_focus": {
+    "chs": "聚焦人物",
+    "cht": "聚焦人物",
+    "ja": "人物を強調",
+    "ko": "인물 강조"
+  },
+  "native.command.characters_restorerotation": {
+    "chs": "恢复人物旋转状态",
+    "cht": "恢復人物旋轉狀態",
+    "ja": "人物の回転状態を復元",
+    "ko": "인물 회전 상태 복원"
+  },
+  "native.command.characters_resetrotation": {
+    "chs": "重置人物旋转",
+    "cht": "重設人物旋轉",
+    "ja": "人物の回転をリセット",
+    "ko": "인물 회전 초기화"
+  },
+  "native.command.characters_rotate": {
+    "chs": "旋转人物",
+    "cht": "旋轉人物",
+    "ja": "人物を回転",
+    "ko": "인물 회전"
+  },
+  "native.command.characters_shake": {
+    "chs": "摇晃人物",
+    "cht": "搖晃人物",
+    "ja": "人物を揺らす",
+    "ko": "인물 흔들기"
+  },
+  "native.command.characters_moveoffset": {
+    "chs": "调整人物偏移",
+    "cht": "調整人物偏移",
+    "ja": "人物の位置をずらす",
+    "ko": "인물 위치 이동"
+  },
+  "native.command.characters_moveoffsetcoroutine": {
+    "chs": "移动人物偏移并等待",
+    "cht": "移動人物偏移並等待",
+    "ja": "人物の位置を移動して待つ",
+    "ko": "인물 이동 완료 대기"
+  },
+  "native.command.characters_testloadcharacter": {
+    "chs": "测试加载人物资源",
+    "cht": "測試載入人物資源",
+    "ja": "人物の素材読み込みをテスト",
+    "ko": "인물 리소스 로드 테스트"
+  },
+  "native.command.checkpointmanager_condition": {
+    "chs": "进行条件检定",
+    "cht": "進行條件檢定",
+    "ja": "条件を判定",
+    "ko": "조건 판정"
+  },
+  "native.command.checkpointmanager_switch": {
+    "chs": "进行多分支检定",
+    "cht": "進行多分支檢定",
+    "ja": "多分岐の判定を実行",
+    "ko": "다중 분기 판정"
+  },
+  "native.command.checkpointmanager_dice": {
+    "chs": "计算骰子检定结果",
+    "cht": "計算骰子檢定結果",
+    "ja": "サイコロ判定の結果を計算",
+    "ko": "주사위 판정 결과 계산"
+  },
+  "native.command.checkpointmanager_position": {
+    "chs": "确定地点事件",
+    "cht": "確定地點事件",
+    "ja": "場所のイベントを決定",
+    "ko": "장소 이벤트 결정"
+  },
+  "native.command.choose": {
+    "chs": "显示选项并等待选择",
+    "cht": "顯示選項並等待選擇",
+    "ja": "選択肢を表示して選択を待つ",
+    "ko": "선택지 표시 및 선택 대기"
+  },
+  "native.command.dicemenudialog_executeroll": {
+    "chs": "显示骰子检定",
+    "cht": "顯示骰子檢定",
+    "ja": "サイコロ判定を表示",
+    "ko": "주사위 판정 표시"
+  },
+  "native.command.dicemenudialog_setrandom": {
+    "chs": "设置骰子点数",
+    "cht": "設定骰子點數",
+    "ja": "サイコロの目を設定",
+    "ko": "주사위 값 설정"
+  },
+  "native.command.dicemenudialog_setup": {
+    "chs": "配置骰子结果显示",
+    "cht": "設定骰子結果顯示",
+    "ja": "サイコロ結果の表示を設定",
+    "ko": "주사위 결과 표시 설정"
+  },
+  "native.command.effects_setupeffect": {
+    "chs": "设置屏幕特效",
+    "cht": "設定畫面特效",
+    "ja": "画面エフェクトを設定",
+    "ko": "화면 효과 설정"
+  },
+  "native.command.flowcharts_loadview": {
+    "chs": "加载场景背景",
+    "cht": "載入場景背景",
+    "ja": "背景を読み込む",
+    "ko": "배경 불러오기"
+  },
+  "native.command.flowcharts_setviewscrollspeed": {
+    "chs": "设置背景滚动速度",
+    "cht": "設定背景捲動速度",
+    "ja": "背景のスクロール速度を設定",
+    "ko": "배경 스크롤 속도 설정"
+  },
+  "native.command.getvar": {
+    "chs": "读取演出设置",
+    "cht": "讀取演出設定",
+    "ja": "演出設定を読み取る",
+    "ko": "연출 설정 읽기"
+  },
+  "native.command.luamanager_autofreesave": {
+    "chs": "自动保存自由行动进度",
+    "cht": "自動儲存自由行動進度",
+    "ja": "自由行動の進行を自動保存",
+    "ko": "자유 행동 진행 자동 저장"
+  },
+  "native.command.luamanager_autosave": {
+    "chs": "自动保存剧情进度",
+    "cht": "自動儲存劇情進度",
+    "ja": "物語の進行を自動保存",
+    "ko": "이야기 진행 자동 저장"
+  },
+  "native.command.luamanager_changescene": {
+    "chs": "进入游戏场景",
+    "cht": "進入遊戲場景",
+    "ja": "ゲームシーンへ移動",
+    "ko": "게임 장면으로 이동"
+  },
+  "native.command.luamanager_closedialog": {
+    "chs": "关闭对白框",
+    "cht": "關閉對白框",
+    "ja": "会話ウィンドウを閉じる",
+    "ko": "대화창 닫기"
+  },
+  "native.command.luamanager_fadeoutenvsound": {
+    "chs": "淡出环境音",
+    "cht": "淡出環境音",
+    "ja": "環境音をフェードアウト",
+    "ko": "환경음 페이드 아웃"
+  },
+  "native.command.luamanager_fadeoutmusic": {
+    "chs": "淡出音乐",
+    "cht": "淡出音樂",
+    "ja": "音楽をフェードアウト",
+    "ko": "음악 페이드 아웃"
+  },
+  "native.command.luamanager_getcurrenttravelscript": {
+    "chs": "读取当前旅行章节",
+    "cht": "讀取目前旅行章節",
+    "ja": "現在の移動先の章を取得",
+    "ko": "현재 이동 장 읽기"
+  },
+  "native.command.luamanager_getstatdata": {
+    "chs": "读取人物属性",
+    "cht": "讀取人物屬性",
+    "ja": "人物の能力値を取得",
+    "ko": "인물 능력치 읽기"
+  },
+  "native.command.luamanager_getstorytext": {
+    "chs": "读取原版对白",
+    "cht": "讀取原版對白",
+    "ja": "原作の台詞を取得",
+    "ko": "원작 대사 읽기"
+  },
+  "native.command.luamanager_gettempscript": {
+    "chs": "读取暂存章节",
+    "cht": "讀取暫存章節",
+    "ja": "一時保存した章を取得",
+    "ko": "임시 저장한 장 읽기"
+  },
+  "native.command.luamanager_init": {
+    "chs": "执行已设置的章节",
+    "cht": "執行已設定的章節",
+    "ja": "設定した章を実行",
+    "ko": "설정한 장 실행"
+  },
+  "native.command.luamanager_nextmonth": {
+    "chs": "推进一个月",
+    "cht": "推進一個月",
+    "ja": "一か月進める",
+    "ko": "한 달 진행"
+  },
+  "native.command.luamanager_nextround": {
+    "chs": "推进一旬",
+    "cht": "推進一旬",
+    "ja": "一旬進める",
+    "ko": "한 순 진행"
+  },
+  "native.command.luamanager_playenvsound": {
+    "chs": "播放环境音",
+    "cht": "播放環境音",
+    "ja": "環境音を再生",
+    "ko": "환경음 재생"
+  },
+  "native.command.luamanager_playmusic": {
+    "chs": "播放音乐",
+    "cht": "播放音樂",
+    "ja": "音楽を再生",
+    "ko": "음악 재생"
+  },
+  "native.command.luamanager_playsound": {
+    "chs": "播放音效",
+    "cht": "播放音效",
+    "ja": "効果音を再生",
+    "ko": "효과음 재생"
+  },
+  "native.command.luamanager_prologuesave": {
+    "chs": "保存序章进度",
+    "cht": "儲存序章進度",
+    "ja": "序章の進行を保存",
+    "ko": "서장 진행 저장"
+  },
+  "native.command.luamanager_resetbattleskill": {
+    "chs": "重置战场技能",
+    "cht": "重設戰場技能",
+    "ja": "戦場スキルをリセット",
+    "ko": "전장 기술 초기화"
+  },
+  "native.command.luamanager_setbattleskillactive": {
+    "chs": "设置战场技能启用状态",
+    "cht": "設定戰場技能啟用狀態",
+    "ja": "戦場スキルの有効状態を設定",
+    "ko": "전장 기술 활성화 설정"
+  },
+  "native.command.luamanager_setcurrentstoryscript": {
+    "chs": "设置当前章节",
+    "cht": "設定目前章節",
+    "ja": "現在の章を設定",
+    "ko": "현재 장 설정"
+  },
+  "native.command.luamanager_setcurrenttravelscript": {
+    "chs": "设置旅行章节",
+    "cht": "設定旅行章節",
+    "ja": "移動先の章を設定",
+    "ko": "이동 장 설정"
+  },
+  "native.command.luamanager_setenableactions": {
+    "chs": "设置操作权限",
+    "cht": "設定操作權限",
+    "ja": "操作の許可を設定",
+    "ko": "조작 허용 설정"
+  },
+  "native.command.luamanager_setgamedayenvironment": {
+    "chs": "设置日夜环境",
+    "cht": "設定日夜環境",
+    "ja": "昼夜の環境を設定",
+    "ko": "낮밤 환경 설정"
+  },
+  "native.command.luamanager_setgametime": {
+    "chs": "设置游戏时间",
+    "cht": "設定遊戲時間",
+    "ja": "ゲーム内の時刻を設定",
+    "ko": "게임 시간 설정"
+  },
+  "native.command.luamanager_setmissiontime": {
+    "chs": "设置任务时间",
+    "cht": "設定任務時間",
+    "ja": "任務の時刻を設定",
+    "ko": "임무 시간 설정"
+  },
+  "native.command.luamanager_setnextscript": {
+    "chs": "设置下一章节",
+    "cht": "設定下一章節",
+    "ja": "次の章を設定",
+    "ko": "다음 장 설정"
+  },
+  "native.command.luamanager_setplayerbattleskill": {
+    "chs": "装备战场技能",
+    "cht": "裝備戰場技能",
+    "ja": "戦場スキルを装備",
+    "ko": "전장 기술 장착"
+  },
+  "native.command.luamanager_settempscript": {
+    "chs": "暂存章节",
+    "cht": "暫存章節",
+    "ja": "章を一時保存",
+    "ko": "장 임시 저장"
+  },
+  "native.command.luamanager_settitlepartner": {
+    "chs": "设置标题画面人物",
+    "cht": "設定標題畫面人物",
+    "ja": "タイトル画面の人物を設定",
+    "ko": "타이틀 화면 인물 설정"
+  },
+  "native.command.luamanager_stopmusic": {
+    "chs": "停止音乐和环境音",
+    "cht": "停止音樂和環境音",
+    "ja": "音楽と環境音を停止",
+    "ko": "음악과 환경음 중지"
+  },
+  "native.command.luamanager_swapupgradeitem": {
+    "chs": "切换养成升级项目",
+    "cht": "切換養成升級項目",
+    "ja": "育成の強化項目を切り替える",
+    "ko": "육성 강화 항목 전환"
+  },
+  "native.command.luamanager_togglesavebutton": {
+    "chs": "设置存档按钮状态",
+    "cht": "設定存檔按鈕狀態",
+    "ja": "セーブボタンの状態を設定",
+    "ko": "저장 버튼 상태 설정"
+  },
+  "native.command.maincamera_activevolume": {
+    "chs": "设置镜头滤镜",
+    "cht": "設定鏡頭濾鏡",
+    "ja": "画面フィルターを設定",
+    "ko": "화면 필터 설정"
+  },
+  "native.command.maincamera_fadevolume": {
+    "chs": "渐变镜头滤镜",
+    "cht": "漸變鏡頭濾鏡",
+    "ja": "画面フィルターを徐々に変更",
+    "ko": "화면 필터 점진 변경"
+  },
+  "native.command.mainui_displayitemmessage": {
+    "chs": "显示物品变化提示",
+    "cht": "顯示物品變化提示",
+    "ja": "アイテム変化の通知を表示",
+    "ko": "아이템 변경 알림 표시"
+  },
+  "native.command.mainui_displaymessage": {
+    "chs": "显示原版提示",
+    "cht": "顯示原版提示",
+    "ja": "原作の通知を表示",
+    "ko": "원작 알림 표시"
+  },
+  "native.command.mainui_displaytitle": {
+    "chs": "显示场所标题",
+    "cht": "顯示場所標題",
+    "ja": "場所の見出しを表示",
+    "ko": "장소 제목 표시"
+  },
+  "native.command.mainui_showpicture": {
+    "chs": "显示剧情图片",
+    "cht": "顯示劇情圖片",
+    "ja": "物語の画像を表示",
+    "ko": "이야기 그림 표시"
+  },
+  "native.command.mainui_hidepicture": {
+    "chs": "隐藏剧情图片",
+    "cht": "隱藏劇情圖片",
+    "ja": "物語の画像を隠す",
+    "ko": "이야기 그림 숨기기"
+  },
+  "native.command.mainui_showitempicture": {
+    "chs": "显示物品图片",
+    "cht": "顯示物品圖片",
+    "ja": "アイテムの画像を表示",
+    "ko": "아이템 그림 표시"
+  },
+  "native.command.mainui_hideitempicture": {
+    "chs": "隐藏物品图片",
+    "cht": "隱藏物品圖片",
+    "ja": "アイテムの画像を隠す",
+    "ko": "아이템 그림 숨기기"
+  },
+  "native.command.mainui_showbigpicture": {
+    "chs": "显示大幅图片",
+    "cht": "顯示大幅圖片",
+    "ja": "大きな画像を表示",
+    "ko": "대형 그림 표시"
+  },
+  "native.command.mainui_hidebigpicture": {
+    "chs": "隐藏大幅图片",
+    "cht": "隱藏大幅圖片",
+    "ja": "大きな画像を隠す",
+    "ko": "대형 그림 숨기기"
+  },
+  "native.command.mainui_showmap": {
+    "chs": "显示地图路线",
+    "cht": "顯示地圖路線",
+    "ja": "地図の経路を表示",
+    "ko": "지도 경로 표시"
+  },
+  "native.command.mainui_hidemap": {
+    "chs": "隐藏地图",
+    "cht": "隱藏地圖",
+    "ja": "地図を隠す",
+    "ko": "지도 숨기기"
+  },
+  "native.command.mainui_showfamilytree": {
+    "chs": "显示人物关系图",
+    "cht": "顯示人物關係圖",
+    "ja": "人物関係図を表示",
+    "ko": "인물 관계도 표시"
+  },
+  "native.command.mainui_hidefamilytree": {
+    "chs": "隐藏人物关系图",
+    "cht": "隱藏人物關係圖",
+    "ja": "人物関係図を隠す",
+    "ko": "인물 관계도 숨기기"
+  },
+  "native.command.math_random": {
+    "chs": "生成随机点数",
+    "cht": "產生隨機點數",
+    "ja": "乱数を生成",
+    "ko": "무작위 값 생성"
+  },
+  "native.command.movieblack_fadein": {
+    "chs": "视频黑幕淡入",
+    "cht": "影片黑幕淡入",
+    "ja": "動画の暗幕をフェードイン",
+    "ko": "영상 암막 페이드 인"
+  },
+  "native.command.movieblack_fadeout": {
+    "chs": "视频黑幕淡出",
+    "cht": "影片黑幕淡出",
+    "ja": "動画の暗幕をフェードアウト",
+    "ko": "영상 암막 페이드 아웃"
+  },
+  "native.command.os_mask_setlastposition": {
+    "chs": "将独白遮罩对准上一发言人物",
+    "cht": "將獨白遮罩對準上一發言人物",
+    "ja": "独白のマスクを直前の話し手に合わせる",
+    "ko": "독백 마스크를 이전 화자에 맞추기"
+  },
+  "native.command.os_mask_show": {
+    "chs": "设置独白遮罩显隐",
+    "cht": "設定獨白遮罩顯隱",
+    "ja": "独白マスクの表示を設定",
+    "ko": "독백 마스크 표시 설정"
+  },
+  "native.command.topmaskgradient_show": {
+    "chs": "设置顶部渐变遮罩显隐",
+    "cht": "設定頂部漸層遮罩顯隱",
+    "ja": "上部グラデーションマスクの表示を設定",
+    "ko": "상단 그라데이션 마스크 표시 설정"
+  },
+  "native.command.runblock": {
+    "chs": "执行演出动作",
+    "cht": "執行演出動作",
+    "ja": "演出の動作を実行",
+    "ko": "연출 동작 실행"
+  },
+  "native.command.runwait": {
+    "chs": "等待演出完成",
+    "cht": "等待演出完成",
+    "ja": "演出の完了を待つ",
+    "ko": "연출 완료 대기"
+  },
+  "native.command.say": {
+    "chs": "显示对白",
+    "cht": "顯示對白",
+    "ja": "台詞を表示",
+    "ko": "대사 표시"
+  },
+  "native.command.setcharacter": {
+    "chs": "设置发言人物",
+    "cht": "設定發言人物",
+    "ja": "話し手を設定",
+    "ko": "화자 설정"
+  },
+  "native.command.setmenudialog": {
+    "chs": "选择选项框",
+    "cht": "選擇選項框",
+    "ja": "選択ウィンドウを選ぶ",
+    "ko": "선택창 선택"
+  },
+  "native.command.setsaydialog": {
+    "chs": "选择对白框",
+    "cht": "選擇對白框",
+    "ja": "会話ウィンドウを選ぶ",
+    "ko": "대화창 선택"
+  },
+  "native.command.stage_show": {
+    "chs": "设置人物演出",
+    "cht": "設定人物演出",
+    "ja": "人物の演出を設定",
+    "ko": "인물 연출 설정"
+  },
+  "native.command.stage_hide": {
+    "chs": "人物退场",
+    "cht": "人物退場",
+    "ja": "人物を退場させる",
+    "ko": "인물 퇴장"
+  },
+  "native.command.stage_showportrait": {
+    "chs": "切换人物表情",
+    "cht": "切換人物表情",
+    "ja": "人物の表情を切り替える",
+    "ko": "인물 표정 전환"
+  },
+  "native.command.transitionblack_transitionin": {
+    "chs": "盖上转场黑幕",
+    "cht": "蓋上轉場黑幕",
+    "ja": "切り替え用の暗幕をかける",
+    "ko": "전환 암막 덮기"
+  },
+  "native.command.transitionblack_transitionout": {
+    "chs": "揭开转场黑幕",
+    "cht": "揭開轉場黑幕",
+    "ja": "切り替え用の暗幕を外す",
+    "ko": "전환 암막 걷기"
+  },
+  "native.command.wait": {
+    "chs": "等待",
+    "cht": "等待",
+    "ja": "待機",
+    "ko": "대기"
+  },
+  "native.command.statmodifymanager_addachievementlib": {
+    "chs": "解锁成就",
+    "cht": "解鎖成就",
+    "ja": "実績を解除",
+    "ko": "업적 잠금 해제"
+  },
+  "native.command.statmodifymanager_addflag": {
+    "chs": "增减游戏旗标",
+    "cht": "增減遊戲旗標",
+    "ja": "ゲームのフラグを増減",
+    "ko": "게임 플래그 증감"
+  },
+  "native.command.statmodifymanager_setflag": {
+    "chs": "设置游戏旗标",
+    "cht": "設定遊戲旗標",
+    "ja": "ゲームのフラグを設定",
+    "ko": "게임 플래그 설정"
+  },
+  "native.command.statmodifymanager_addstory": {
+    "chs": "记录剧情回忆",
+    "cht": "記錄劇情回憶",
+    "ja": "物語を回想に記録",
+    "ko": "이야기 회상 기록"
+  },
+  "native.command.statmodifymanager_addtalent": {
+    "chs": "增减天赋等级",
+    "cht": "增減天賦等級",
+    "ja": "天賦のレベルを増減",
+    "ko": "재능 레벨 증감"
+  },
+  "native.command.statmodifymanager_character": {
+    "chs": "增减人物好感",
+    "cht": "增減人物好感",
+    "ja": "人物の好感度を増減",
+    "ko": "인물 호감도 증감"
+  },
+  "native.command.statmodifymanager_setcharacter": {
+    "chs": "设置人物好感",
+    "cht": "設定人物好感",
+    "ja": "人物の好感度を設定",
+    "ko": "인물 호감도 설정"
+  },
+  "native.command.statmodifymanager_getdisplaytime": {
+    "chs": "读取属性提示时长",
+    "cht": "讀取屬性提示時間",
+    "ja": "能力値通知の表示時間を取得",
+    "ko": "능력치 알림 표시 시간 읽기"
+  },
+  "native.command.statmodifymanager_istriggersubmission": {
+    "chs": "设置支线触发状态",
+    "cht": "設定支線觸發狀態",
+    "ja": "支線任務の発生状態を設定",
+    "ko": "지선 임무 발생 상태 설정"
+  },
+  "native.command.statmodifymanager_mission": {
+    "chs": "推进原版任务",
+    "cht": "推進原版任務",
+    "ja": "原作の任務を進める",
+    "ko": "원작 임무 진행"
+  },
+  "native.command.statmodifymanager_modifyenemyid": {
+    "chs": "选择战役对手门派",
+    "cht": "選擇戰役對手門派",
+    "ja": "戦場の相手門派を選択",
+    "ko": "전장 상대 문파 선택"
+  },
+  "native.command.statmodifymanager_modifyenemylevel": {
+    "chs": "修改门派等级",
+    "cht": "修改門派等級",
+    "ja": "門派のレベルを変更",
+    "ko": "문파 레벨 변경"
+  },
+  "native.command.statmodifymanager_modifyenemypeople": {
+    "chs": "修改门派人数",
+    "cht": "修改門派人數",
+    "ja": "門派の人数を変更",
+    "ko": "문파 인원수 변경"
+  },
+  "native.command.statmodifymanager_modifyenemyteam": {
+    "chs": "修改门派阵营",
+    "cht": "修改門派陣營",
+    "ja": "門派の陣営を変更",
+    "ko": "문파 진영 변경"
+  },
+  "native.command.statmodifymanager_player": {
+    "chs": "增减人物属性",
+    "cht": "增減人物屬性",
+    "ja": "人物の能力値を増減",
+    "ko": "인물 능력치 증감"
+  },
+  "native.command.statmodifymanager_setplayer": {
+    "chs": "设置人物属性",
+    "cht": "設定人物屬性",
+    "ja": "人物の能力値を設定",
+    "ko": "인물 능력치 설정"
+  },
+  "native.command.statmodifymanager_updatesetplayerstat": {
+    "chs": "显示属性设定的变化提示",
+    "cht": "顯示屬性設定的變化提示",
+    "ja": "能力値設定の変化通知を表示",
+    "ko": "능력치 설정 변경 알림 표시"
+  },
+  "native.command.statmodifymanager_resettalkflag": {
+    "chs": "重置对话旗标",
+    "cht": "重設對話旗標",
+    "ja": "会話フラグをリセット",
+    "ko": "대화 플래그 초기화"
+  },
+  "native.command.statmodifymanager_updateshopflag": {
+    "chs": "刷新商店旗标",
+    "cht": "更新商店旗標",
+    "ja": "店のフラグを更新",
+    "ko": "상점 플래그 갱신"
+  },
+  "native.command.statmodifymanager_addbook": {
+    "chs": "获得秘籍",
+    "cht": "獲得祕笈",
+    "ja": "秘伝書を獲得",
+    "ko": "비급 획득"
+  },
+  "native.command.statmodifymanager_removebook": {
+    "chs": "移除秘籍",
+    "cht": "移除祕笈",
+    "ja": "秘伝書を失う",
+    "ko": "비급 제거"
+  },
+  "native.command.statmodifymanager_addmisc": {
+    "chs": "获得杂物",
+    "cht": "獲得雜物",
+    "ja": "雑貨を獲得",
+    "ko": "잡화 획득"
+  },
+  "native.command.statmodifymanager_removemisc": {
+    "chs": "移除杂物",
+    "cht": "移除雜物",
+    "ja": "雑貨を失う",
+    "ko": "잡화 제거"
+  },
+  "native.command.statmodifymanager_addspecial": {
+    "chs": "获得贵重品",
+    "cht": "獲得貴重品",
+    "ja": "貴重品を獲得",
+    "ko": "귀중품 획득"
+  },
+  "native.command.statmodifymanager_removespecial": {
+    "chs": "移除贵重品",
+    "cht": "移除貴重品",
+    "ja": "貴重品を失う",
+    "ko": "귀중품 제거"
+  },
+  "native.command.cgpanel_open": {
+    "chs": "查看 CG",
+    "cht": "查看 CG",
+    "ja": "CGを表示",
+    "ko": "CG 보기"
+  },
+  "native.command.cgvideopanel_open": {
+    "chs": "播放剧情动画",
+    "cht": "播放劇情動畫",
+    "ja": "物語の動画を再生",
+    "ko": "이야기 영상 재생"
+  },
+  "native.command.creditpanel_open": {
+    "chs": "显示制作名单",
+    "cht": "顯示製作名單",
+    "ja": "スタッフ一覧を表示",
+    "ko": "제작진 목록 표시"
+  },
+  "native.command.endgamepanel_open": {
+    "chs": "显示结局画面",
+    "cht": "顯示結局畫面",
+    "ja": "結末の画面を表示",
+    "ko": "결말 화면 표시"
+  },
+  "native.command.fatebonuspanel_open": {
+    "chs": "打开命运奖励面板",
+    "cht": "開啟命運獎勵面板",
+    "ja": "命運ボーナス画面を開く",
+    "ko": "운명 보너스 창 열기"
+  },
+  "native.command.intropanel_show": {
+    "chs": "显示人物介绍",
+    "cht": "顯示人物介紹",
+    "ja": "人物の紹介を表示",
+    "ko": "인물 소개 표시"
+  },
+  "native.command.martialpanel_open": {
+    "chs": "打开功法修炼",
+    "cht": "開啟功法修練",
+    "ja": "武功修練を開く",
+    "ko": "무공 수련 열기"
+  },
+  "native.command.poisonupgradepanel_open": {
+    "chs": "打开毒药升级",
+    "cht": "開啟毒藥升級",
+    "ja": "毒薬の強化を開く",
+    "ko": "독약 강화 열기"
+  },
+  "native.command.weaponupgradepanel_open": {
+    "chs": "打开暗器升级",
+    "cht": "開啟暗器升級",
+    "ja": "暗器の強化を開く",
+    "ko": "암기 강화 열기"
+  },
+  "native.command.shoppanel_open": {
+    "chs": "打开商店",
+    "cht": "開啟商店",
+    "ja": "店を開く",
+    "ko": "상점 열기"
+  },
+  "native.command.shoppanel_newshop": {
+    "chs": "刷新商店商品",
+    "cht": "更新商店商品",
+    "ja": "店の商品を更新",
+    "ko": "상점 상품 갱신"
+  },
+  "native.menu.alchemy": {
+    "chs": "炼丹选项框",
+    "cht": "煉丹選項框",
+    "ja": "錬丹の選択画面",
+    "ko": "연단 선택창"
+  },
+  "native.command.menudialogs_alchemy_setactive": {
+    "chs": "设置炼丹选项框显隐",
+    "cht": "設定煉丹選項框顯隱",
+    "ja": "錬丹の選択画面の表示を設定",
+    "ko": "연단 선택창 표시 설정"
+  },
+  "native.menu.back": {
+    "chs": "后山选项框",
+    "cht": "後山選項框",
+    "ja": "裏山の選択画面",
+    "ko": "뒷산 선택창"
+  },
+  "native.command.menudialogs_back_setactive": {
+    "chs": "设置后山选项框显隐",
+    "cht": "設定後山選項框顯隱",
+    "ja": "裏山の選択画面の表示を設定",
+    "ko": "뒷산 선택창 표시 설정"
+  },
+  "native.menu.center": {
+    "chs": "广场选项框",
+    "cht": "廣場選項框",
+    "ja": "広場の選択画面",
+    "ko": "광장 선택창"
+  },
+  "native.command.menudialogs_center_setactive": {
+    "chs": "设置广场选项框显隐",
+    "cht": "設定廣場選項框顯隱",
+    "ja": "広場の選択画面の表示を設定",
+    "ko": "광장 선택창 표시 설정"
+  },
+  "native.menu.door": {
+    "chs": "山门选项框",
+    "cht": "山門選項框",
+    "ja": "山門の選択画面",
+    "ko": "산문 선택창"
+  },
+  "native.command.menudialogs_door_setactive": {
+    "chs": "设置山门选项框显隐",
+    "cht": "設定山門選項框顯隱",
+    "ja": "山門の選択画面の表示を設定",
+    "ko": "산문 선택창 표시 설정"
+  },
+  "native.menu.downtown": {
+    "chs": "城镇选项框",
+    "cht": "城鎮選項框",
+    "ja": "町の選択画面",
+    "ko": "마을 선택창"
+  },
+  "native.command.menudialogs_downtown_setactive": {
+    "chs": "设置城镇选项框显隐",
+    "cht": "設定城鎮選項框顯隱",
+    "ja": "町の選択画面の表示を設定",
+    "ko": "마을 선택창 표시 설정"
+  },
+  "native.menu.farm": {
+    "chs": "农田选项框",
+    "cht": "農田選項框",
+    "ja": "畑の選択画面",
+    "ko": "밭 선택창"
+  },
+  "native.command.menudialogs_farm_setactive": {
+    "chs": "设置农田选项框显隐",
+    "cht": "設定農田選項框顯隱",
+    "ja": "畑の選択画面の表示を設定",
+    "ko": "밭 선택창 표시 설정"
+  },
+  "native.menu.forge": {
+    "chs": "锻冶选项框",
+    "cht": "鍛冶選項框",
+    "ja": "鍛冶の選択画面",
+    "ko": "대장간 선택창"
+  },
+  "native.command.menudialogs_forge_setactive": {
+    "chs": "设置锻冶选项框显隐",
+    "cht": "設定鍛冶選項框顯隱",
+    "ja": "鍛冶の選択画面の表示を設定",
+    "ko": "대장간 선택창 표시 설정"
+  },
+  "native.menu.fortress": {
+    "chs": "堡垒选项框",
+    "cht": "堡壘選項框",
+    "ja": "砦の選択画面",
+    "ko": "성채 선택창"
+  },
+  "native.command.menudialogs_fortress_setactive": {
+    "chs": "设置堡垒选项框显隐",
+    "cht": "設定堡壘選項框顯隱",
+    "ja": "砦の選択画面の表示を設定",
+    "ko": "성채 선택창 표시 설정"
+  },
+  "native.menu.girlroom": {
+    "chs": "女弟子房选项框",
+    "cht": "女弟子房選項框",
+    "ja": "女弟子の部屋の選択画面",
+    "ko": "여제자 방 선택창"
+  },
+  "native.command.menudialogs_girlroom_setactive": {
+    "chs": "设置女弟子房选项框显隐",
+    "cht": "設定女弟子房選項框顯隱",
+    "ja": "女弟子の部屋の選択画面の表示を設定",
+    "ko": "여제자 방 선택창 표시 설정"
+  },
+  "native.menu.kitchen": {
+    "chs": "厨房选项框",
+    "cht": "廚房選項框",
+    "ja": "厨房の選択画面",
+    "ko": "주방 선택창"
+  },
+  "native.command.menudialogs_kitchen_setactive": {
+    "chs": "设置厨房选项框显隐",
+    "cht": "設定廚房選項框顯隱",
+    "ja": "厨房の選択画面の表示を設定",
+    "ko": "주방 선택창 표시 설정"
+  },
+  "native.menu.mall": {
+    "chs": "商铺选项框",
+    "cht": "商舖選項框",
+    "ja": "商店の選択画面",
+    "ko": "상점 선택창"
+  },
+  "native.command.menudialogs_mall_setactive": {
+    "chs": "设置商铺选项框显隐",
+    "cht": "設定商舖選項框顯隱",
+    "ja": "商店の選択画面の表示を設定",
+    "ko": "상점 선택창 표시 설정"
+  },
+  "native.menu.meet": {
+    "chs": "会面选项框",
+    "cht": "會面選項框",
+    "ja": "面会の選択画面",
+    "ko": "만남 선택창"
+  },
+  "native.command.menudialogs_meet_setactive": {
+    "chs": "设置会面选项框显隐",
+    "cht": "設定會面選項框顯隱",
+    "ja": "面会の選択画面の表示を設定",
+    "ko": "만남 선택창 표시 설정"
+  },
+  "native.menu.options": {
+    "chs": "通用选项框",
+    "cht": "通用選項框",
+    "ja": "汎用の選択画面",
+    "ko": "일반 선택창"
+  },
+  "native.command.menudialogs_options_setactive": {
+    "chs": "设置通用选项框显隐",
+    "cht": "設定通用選項框顯隱",
+    "ja": "汎用の選択画面の表示を設定",
+    "ko": "일반 선택창 표시 설정"
+  },
+  "native.menu.pharmacy": {
+    "chs": "药铺选项框",
+    "cht": "藥舖選項框",
+    "ja": "薬屋の選択画面",
+    "ko": "약방 선택창"
+  },
+  "native.command.menudialogs_pharmacy_setactive": {
+    "chs": "设置药铺选项框显隐",
+    "cht": "設定藥舖選項框顯隱",
+    "ja": "薬屋の選択画面の表示を設定",
+    "ko": "약방 선택창 표시 설정"
+  },
+  "native.menu.room": {
+    "chs": "房间选项框",
+    "cht": "房間選項框",
+    "ja": "部屋の選択画面",
+    "ko": "방 선택창"
+  },
+  "native.command.menudialogs_room_setactive": {
+    "chs": "设置房间选项框显隐",
+    "cht": "設定房間選項框顯隱",
+    "ja": "部屋の選択画面の表示を設定",
+    "ko": "방 선택창 표시 설정"
+  },
+  "native.menu.spa": {
+    "chs": "温泉选项框",
+    "cht": "溫泉選項框",
+    "ja": "温泉の選択画面",
+    "ko": "온천 선택창"
+  },
+  "native.command.menudialogs_spa_setactive": {
+    "chs": "设置温泉选项框显隐",
+    "cht": "設定溫泉選項框顯隱",
+    "ja": "温泉の選択画面の表示を設定",
+    "ko": "온천 선택창 표시 설정"
+  },
+  "native.menu.study": {
+    "chs": "书房选项框",
+    "cht": "書房選項框",
+    "ja": "書斎の選択画面",
+    "ko": "서재 선택창"
+  },
+  "native.command.menudialogs_study_setactive": {
+    "chs": "设置书房选项框显隐",
+    "cht": "設定書房選項框顯隱",
+    "ja": "書斎の選択画面の表示を設定",
+    "ko": "서재 선택창 표시 설정"
+  },
+  "native.menu.talk": {
+    "chs": "对话选项框",
+    "cht": "對話選項框",
+    "ja": "会話の選択画面",
+    "ko": "대화 선택창"
+  },
+  "native.command.menudialogs_talk_setactive": {
+    "chs": "设置对话选项框显隐",
+    "cht": "設定對話選項框顯隱",
+    "ja": "会話の選択画面の表示を設定",
+    "ko": "대화 선택창 표시 설정"
+  },
+  "native.menu.teashop": {
+    "chs": "茶馆选项框",
+    "cht": "茶館選項框",
+    "ja": "茶屋の選択画面",
+    "ko": "찻집 선택창"
+  },
+  "native.command.menudialogs_teashop_setactive": {
+    "chs": "设置茶馆选项框显隐",
+    "cht": "設定茶館選項框顯隱",
+    "ja": "茶屋の選択画面の表示を設定",
+    "ko": "찻집 선택창 표시 설정"
+  },
+  "native.menu.section_01_01": {
+    "chs": "区域 01_01选项框",
+    "cht": "區域 01_01選項框",
+    "ja": "地域 01_01の選択画面",
+    "ko": "구역 01_01 선택창"
+  },
+  "native.command.menudialogs_section_01_01_setactive": {
+    "chs": "设置区域 01_01选项框显隐",
+    "cht": "設定區域 01_01選項框顯隱",
+    "ja": "地域 01_01の選択画面の表示を設定",
+    "ko": "구역 01_01 선택창 표시 설정"
+  },
+  "native.menu.section_01_02": {
+    "chs": "区域 01_02选项框",
+    "cht": "區域 01_02選項框",
+    "ja": "地域 01_02の選択画面",
+    "ko": "구역 01_02 선택창"
+  },
+  "native.command.menudialogs_section_01_02_setactive": {
+    "chs": "设置区域 01_02选项框显隐",
+    "cht": "設定區域 01_02選項框顯隱",
+    "ja": "地域 01_02の選択画面の表示を設定",
+    "ko": "구역 01_02 선택창 표시 설정"
+  },
+  "native.menu.section_01_03": {
+    "chs": "区域 01_03选项框",
+    "cht": "區域 01_03選項框",
+    "ja": "地域 01_03の選択画面",
+    "ko": "구역 01_03 선택창"
+  },
+  "native.command.menudialogs_section_01_03_setactive": {
+    "chs": "设置区域 01_03选项框显隐",
+    "cht": "設定區域 01_03選項框顯隱",
+    "ja": "地域 01_03の選択画面の表示を設定",
+    "ko": "구역 01_03 선택창 표시 설정"
+  },
+  "native.menu.section_01_04": {
+    "chs": "区域 01_04选项框",
+    "cht": "區域 01_04選項框",
+    "ja": "地域 01_04の選択画面",
+    "ko": "구역 01_04 선택창"
+  },
+  "native.command.menudialogs_section_01_04_setactive": {
+    "chs": "设置区域 01_04选项框显隐",
+    "cht": "設定區域 01_04選項框顯隱",
+    "ja": "地域 01_04の選択画面の表示を設定",
+    "ko": "구역 01_04 선택창 표시 설정"
+  },
+  "native.menu.section_01_05": {
+    "chs": "区域 01_05选项框",
+    "cht": "區域 01_05選項框",
+    "ja": "地域 01_05の選択画面",
+    "ko": "구역 01_05 선택창"
+  },
+  "native.command.menudialogs_section_01_05_setactive": {
+    "chs": "设置区域 01_05选项框显隐",
+    "cht": "設定區域 01_05選項框顯隱",
+    "ja": "地域 01_05の選択画面の表示を設定",
+    "ko": "구역 01_05 선택창 표시 설정"
+  },
+  "native.menu.section_01_06": {
+    "chs": "区域 01_06选项框",
+    "cht": "區域 01_06選項框",
+    "ja": "地域 01_06の選択画面",
+    "ko": "구역 01_06 선택창"
+  },
+  "native.command.menudialogs_section_01_06_setactive": {
+    "chs": "设置区域 01_06选项框显隐",
+    "cht": "設定區域 01_06選項框顯隱",
+    "ja": "地域 01_06の選択画面の表示を設定",
+    "ko": "구역 01_06 선택창 표시 설정"
+  },
+  "native.menu.section_02_01": {
+    "chs": "区域 02_01选项框",
+    "cht": "區域 02_01選項框",
+    "ja": "地域 02_01の選択画面",
+    "ko": "구역 02_01 선택창"
+  },
+  "native.command.menudialogs_section_02_01_setactive": {
+    "chs": "设置区域 02_01选项框显隐",
+    "cht": "設定區域 02_01選項框顯隱",
+    "ja": "地域 02_01の選択画面の表示を設定",
+    "ko": "구역 02_01 선택창 표시 설정"
+  },
+  "native.menu.section_02_02": {
+    "chs": "区域 02_02选项框",
+    "cht": "區域 02_02選項框",
+    "ja": "地域 02_02の選択画面",
+    "ko": "구역 02_02 선택창"
+  },
+  "native.command.menudialogs_section_02_02_setactive": {
+    "chs": "设置区域 02_02选项框显隐",
+    "cht": "設定區域 02_02選項框顯隱",
+    "ja": "地域 02_02の選択画面の表示を設定",
+    "ko": "구역 02_02 선택창 표시 설정"
+  },
+  "native.menu.section_02_03": {
+    "chs": "区域 02_03选项框",
+    "cht": "區域 02_03選項框",
+    "ja": "地域 02_03の選択画面",
+    "ko": "구역 02_03 선택창"
+  },
+  "native.command.menudialogs_section_02_03_setactive": {
+    "chs": "设置区域 02_03选项框显隐",
+    "cht": "設定區域 02_03選項框顯隱",
+    "ja": "地域 02_03の選択画面の表示を設定",
+    "ko": "구역 02_03 선택창 표시 설정"
+  },
+  "native.menu.sectionfree01": {
+    "chs": "第一章自由行动选项框",
+    "cht": "第一章自由行動選項框",
+    "ja": "第一章の自由行動の選択画面",
+    "ko": "제1장 자유 행동 선택창"
+  },
+  "native.command.menudialogs_sectionfree01_setactive": {
+    "chs": "设置第一章自由行动选项框显隐",
+    "cht": "設定第一章自由行動選項框顯隱",
+    "ja": "第一章の自由行動の選択画面の表示を設定",
+    "ko": "제1장 자유 행동 선택창 표시 설정"
+  },
+  "native.menu.sectionfree02": {
+    "chs": "第二章自由行动选项框",
+    "cht": "第二章自由行動選項框",
+    "ja": "第二章の自由行動の選択画面",
+    "ko": "제2장 자유 행동 선택창"
+  },
+  "native.command.menudialogs_sectionfree02_setactive": {
+    "chs": "设置第二章自由行动选项框显隐",
+    "cht": "設定第二章自由行動選項框顯隱",
+    "ja": "第二章の自由行動の選択画面の表示を設定",
+    "ko": "제2장 자유 행동 선택창 표시 설정"
+  },
+  "native.summary.missing": {
+    "chs": "原版指令缺失",
+    "cht": "原版指令缺失",
+    "ja": "原作の命令がありません",
+    "ko": "원작 명령이 없습니다"
+  },
+  "native.summary.merge": {
+    "chs": "分支汇合",
+    "cht": "分支匯合",
+    "ja": "分岐の合流",
+    "ko": "분기 합류"
+  },
+  "native.summary.count": {
+    "chs": "{title} · 共 {count} 项指令",
+    "cht": "{title} · 共 {count} 項指令",
+    "ja": "{title} · 計{count}件の命令",
+    "ko": "{title} · 총 {count}개 명령"
+  },
+  "native.summary.unknown": {
+    "chs": "未识别的原版指令 · {name}",
+    "cht": "未辨識的原版指令 · {name}",
+    "ja": "未対応の原作命令 · {name}",
+    "ko": "알 수 없는 원작 명령 · {name}"
+  },
+  "native.summary.return": {
+    "chs": "结束本次章节执行",
+    "cht": "結束本次章節執行",
+    "ja": "この章の実行を終了",
+    "ko": "이번 장 실행 종료"
+  },
+  "native.summary.setting": {
+    "chs": "设置 {name}",
+    "cht": "設定 {name}",
+    "ja": "{name}を設定",
+    "ko": "{name} 설정"
+  },
+  "native.form.condition": {
+    "chs": "判断条件",
+    "cht": "判斷條件",
+    "ja": "判定条件",
+    "ko": "판정 조건"
+  },
+  "native.form.missing_operations": {
+    "chs": "这个动作缺少指令列表，请核对导入结果。",
+    "cht": "這個動作缺少指令列表，請核對匯入結果。",
+    "ja": "命令一覧がありません。読み込み結果を確認してください。",
+    "ko": "명령 목록이 없습니다. 가져오기 결과를 확인하세요."
+  },
+  "native.form.merge": {
+    "chs": "此处汇合分支，随后继续下一步。",
+    "cht": "此處匯合分支，隨後繼續下一步。",
+    "ja": "ここで分岐が合流し、次へ進みます。",
+    "ko": "여기서 분기가 합류한 뒤 다음으로 진행합니다."
+  },
+  "native.form.technical": {
+    "chs": "技术信息",
+    "cht": "技術資訊",
+    "ja": "技術情報",
+    "ko": "기술 정보"
+  },
+  "native.form.original_target": {
+    "chs": "原始写入位置",
+    "cht": "原始寫入位置",
+    "ja": "元の書き込み先",
+    "ko": "원래 기록 위치"
+  },
+  "native.form.original_call": {
+    "chs": "原始接口",
+    "cht": "原始介面",
+    "ja": "元のインターフェース",
+    "ko": "원래 인터페이스"
+  },
+  "native.form.value": {
+    "chs": "设定值",
+    "cht": "設定值",
+    "ja": "設定値",
+    "ko": "설정 값"
+  },
+  "native.form.return_value": {
+    "chs": "返回结果",
+    "cht": "傳回結果",
+    "ja": "返す結果",
+    "ko": "반환 결과"
+  },
+  "native.form.missing_field": {
+    "chs": "{label}缺失，请核对导入结果。",
+    "cht": "缺少{label}，請核對匯入結果。",
+    "ja": "{label}がありません。読み込み結果を確認してください。",
+    "ko": "{label}이(가) 없습니다. 가져오기 결과를 확인하세요."
+  },
+  "native.form.unknown_operation": {
+    "chs": "无法编辑这个指令类型，请核对导入结果。",
+    "cht": "無法編輯這個指令類型，請核對匯入結果。",
+    "ja": "この命令は編集できません。読み込み結果を確認してください。",
+    "ko": "이 명령 형식은 편집할 수 없습니다. 가져오기 결과를 확인하세요."
+  },
+  "native.form.parameter": {
+    "chs": "参数 {number}",
+    "cht": "參數 {number}",
+    "ja": "引数{number}",
+    "ko": "매개변수 {number}"
+  },
+  "native.form.no_parameters": {
+    "chs": "无需填写参数。",
+    "cht": "無需填寫參數。",
+    "ja": "引数はありません。",
+    "ko": "매개변수가 없습니다."
+  },
+  "native.form.wait_completion": {
+    "chs": "执行后等待动作完成。",
+    "cht": "執行後等待動作完成。",
+    "ja": "実行後、動作の完了を待ちます。",
+    "ko": "실행 후 동작 완료를 기다립니다."
+  },
+  "native.form.stored_result": {
+    "chs": "执行结果供后续步骤使用。",
+    "cht": "執行結果供後續步驟使用。",
+    "ja": "実行結果は後続の処理で使われます。",
+    "ko": "실행 결과는 이후 단계에서 사용됩니다."
+  },
+  "native.form.on": {
+    "chs": "启用 / 成立",
+    "cht": "啟用 / 成立",
+    "ja": "有効 / 成立",
+    "ko": "활성화 / 성립"
+  },
+  "native.form.nil": {
+    "chs": "空值",
+    "cht": "空值",
+    "ja": "空の値",
+    "ko": "빈 값"
+  },
+  "native.form.invalid_literal": {
+    "chs": "参数值缺失或类型无效。",
+    "cht": "參數值缺失或類型無效。",
+    "ja": "引数の値がないか、型が無効です。",
+    "ko": "매개변수 값이 없거나 형식이 올바르지 않습니다."
+  },
+  "native.form.unknown_expression": {
+    "chs": "未识别的表达式 · {kind}",
+    "cht": "未辨識的運算式 · {kind}",
+    "ja": "未対応の式 · {kind}",
+    "ko": "알 수 없는 식 · {kind}"
+  },
+  "native.form.search": {
+    "chs": "搜索名称或编号",
+    "cht": "搜尋名稱或編號",
+    "ja": "名前またはIDで検索",
+    "ko": "이름 또는 ID 검색"
+  },
+  "native.form.manual_id": {
+    "chs": "手动填写资源编号",
+    "cht": "手動填寫資源編號",
+    "ja": "素材IDを手入力",
+    "ko": "리소스 ID 직접 입력"
+  },
+  "native.form.choose": {
+    "chs": "选择资源",
+    "cht": "選擇資源",
+    "ja": "素材を選択",
+    "ko": "리소스 선택"
+  },
+  "native.form.missing_args": {
+    "chs": "调用参数列表缺失。",
+    "cht": "呼叫參數列表缺失。",
+    "ja": "呼び出しの引数一覧がありません。",
+    "ko": "호출 매개변수 목록이 없습니다."
+  },
+  "native.form.empty_table": {
+    "chs": "空列表，条目由后续步骤设置。",
+    "cht": "空列表，條目由後續步驟設定。",
+    "ja": "空の一覧です。項目は後の処理で設定されます。",
+    "ko": "빈 목록입니다. 항목은 이후 단계에서 설정됩니다."
+  },
+  "native.form.table_missing": {
+    "chs": "列表条目缺失。",
+    "cht": "列表條目缺失。",
+    "ja": "一覧の項目がありません。",
+    "ko": "목록 항목이 없습니다."
+  },
+  "native.form.entry": {
+    "chs": "第 {number} 项",
+    "cht": "第 {number} 項",
+    "ja": "項目{number}",
+    "ko": "항목 {number}"
+  },
+  "native.form.entry_content": {
+    "chs": "内容",
+    "cht": "內容",
+    "ja": "内容",
+    "ko": "내용"
+  },
+  "native.form.entry_key": {
+    "chs": "条目名称或编号",
+    "cht": "條目名稱或編號",
+    "ja": "項目の名前または番号",
+    "ko": "항목 이름 또는 번호"
+  },
+  "native.form.left": {
+    "chs": "左侧值",
+    "cht": "左側值",
+    "ja": "左の値",
+    "ko": "왼쪽 값"
+  },
+  "native.form.right": {
+    "chs": "右侧值",
+    "cht": "右側值",
+    "ja": "右の値",
+    "ko": "오른쪽 값"
+  },
+  "native.form.operand": {
+    "chs": "运算对象",
+    "cht": "運算對象",
+    "ja": "計算対象",
+    "ko": "연산 대상"
+  },
+  "native.form.index": {
+    "chs": "条目编号",
+    "cht": "條目編號",
+    "ja": "項目の番号",
+    "ko": "항목 번호"
+  },
+  "native.form.object": {
+    "chs": "引用对象",
+    "cht": "引用物件",
+    "ja": "参照先",
+    "ko": "참조 대상"
+  },
+  "native.assignment.background": {
+    "chs": "设置场景背景",
+    "cht": "設定場景背景",
+    "ja": "背景を設定",
+    "ko": "배경 설정"
+  },
+  "native.assignment.wait_input": {
+    "chs": "对白等待玩家确认",
+    "cht": "對白等待玩家確認",
+    "ja": "会話でプレイヤーの確認を待つ",
+    "ko": "대화에서 플레이어 확인 대기"
+  },
+  "native.assignment.hide_dialog": {
+    "chs": "对白结束后收起对白框",
+    "cht": "對白結束後收起對白框",
+    "ja": "会話の終了後にウィンドウを閉じる",
+    "ko": "대화 종료 후 대화창 닫기"
+  },
+  "native.assignment.shock_target": {
+    "chs": "设置震动人物",
+    "cht": "設定震動人物",
+    "ja": "揺らす人物を設定",
+    "ko": "흔들 인물 설정"
+  },
+  "native.assignment.shock_duration": {
+    "chs": "设置人物震动时间",
+    "cht": "設定人物震動時間",
+    "ja": "人物を揺らす時間を設定",
+    "ko": "인물 흔들기 시간 설정"
+  },
+  "native.assignment.flash_color": {
+    "chs": "设置屏幕闪光颜色",
+    "cht": "設定畫面閃光顏色",
+    "ja": "画面の閃光色を設定",
+    "ko": "화면 번쩍임 색상 설정"
+  },
+  "native.assignment.flash_duration": {
+    "chs": "设置屏幕闪光时间",
+    "cht": "設定畫面閃光時間",
+    "ja": "画面の閃光時間を設定",
+    "ko": "화면 번쩍임 시간 설정"
+  },
+  "native.assignment.shake_duration": {
+    "chs": "设置镜头震动时间",
+    "cht": "設定鏡頭震動時間",
+    "ja": "画面を揺らす時間を設定",
+    "ko": "화면 흔들기 시간 설정"
+  },
+  "native.assignment.option": {
+    "chs": "设置第 {number} 个选项",
+    "cht": "設定第 {number} 個選項",
+    "ja": "選択肢{number}を設定",
+    "ko": "선택지 {number} 설정"
+  },
+  "native.assignment.prepare_options": {
+    "chs": "准备选项列表",
+    "cht": "準備選項列表",
+    "ja": "選択肢一覧を準備",
+    "ko": "선택지 목록 준비"
+  },
+  "native.assignment.store_value": {
+    "chs": "保存演出中间值",
+    "cht": "儲存演出中間值",
+    "ja": "演出で使う値を保存",
+    "ko": "연출 중간 값 저장"
+  },
+  "native.assignment.dice_result": {
+    "chs": "读取所选骰子结果",
+    "cht": "讀取所選骰子結果",
+    "ja": "選択したサイコロ結果を取得",
+    "ko": "선택한 주사위 결과 읽기"
+  },
+  "native.field.wait_input": {
+    "chs": "等待玩家确认后继续",
+    "cht": "等待玩家確認後繼續",
+    "ja": "プレイヤーの確認後に続ける",
+    "ko": "플레이어 확인 후 계속"
+  },
+  "native.field.hide_dialog": {
+    "chs": "对白结束后收起",
+    "cht": "對白結束後收起",
+    "ja": "会話終了後に閉じる",
+    "ko": "대화 종료 후 닫기"
+  },
+  "native.field.shock_target": {
+    "chs": "震动人物",
+    "cht": "震動人物",
+    "ja": "揺らす人物",
+    "ko": "흔들 인물"
+  },
+  "native.field.flash_color": {
+    "chs": "闪光颜色",
+    "cht": "閃光顏色",
+    "ja": "閃光の色",
+    "ko": "번쩍임 색상"
+  },
+  "native.field.facing": {
+    "chs": "朝向",
+    "cht": "朝向",
+    "ja": "向き",
+    "ko": "방향"
+  },
+  "native.field.default_settings": {
+    "chs": "使用原版默认演出设置",
+    "cht": "使用原版預設演出設定",
+    "ja": "原作の既定の演出設定を使う",
+    "ko": "원작 기본 연출 설정 사용"
+  },
+  "native.field.from_position": {
+    "chs": "起始站位",
+    "cht": "起始站位",
+    "ja": "開始位置",
+    "ko": "시작 위치"
+  },
+  "native.field.to_position": {
+    "chs": "目标站位",
+    "cht": "目標站位",
+    "ja": "移動先の位置",
+    "ko": "목표 위치"
+  },
+  "native.field.move_duration": {
+    "chs": "移动时间（秒）",
+    "cht": "移動時間（秒）",
+    "ja": "移動時間（秒）",
+    "ko": "이동 시간(초)"
+  },
+  "native.name.choice_result": {
+    "chs": "所选选项",
+    "cht": "所選選項",
+    "ja": "選択した選択肢",
+    "ko": "선택한 선택지"
+  },
+  "native.name.check_result": {
+    "chs": "多分支检定结果",
+    "cht": "多分支檢定結果",
+    "ja": "多分岐の判定結果",
+    "ko": "다중 분기 판정 결과"
+  },
+  "native.name.dice_result": {
+    "chs": "骰子检定结果",
+    "cht": "骰子檢定結果",
+    "ja": "サイコロの判定結果",
+    "ko": "주사위 판정 결과"
+  },
+  "native.name.random": {
+    "chs": "本次骰子点数",
+    "cht": "本次骰子點數",
+    "ja": "今回のサイコロの目",
+    "ko": "이번 주사위 값"
+  },
+  "native.name.options": {
+    "chs": "选项列表",
+    "cht": "選項列表",
+    "ja": "選択肢一覧",
+    "ko": "선택지 목록"
+  },
+  "native.name.dice_options": {
+    "chs": "骰子结果选项",
+    "cht": "骰子結果選項",
+    "ja": "サイコロ結果の選択肢",
+    "ko": "주사위 결과 선택지"
+  },
+  "native.name.variable": {
+    "chs": "演出变量 {number}",
+    "cht": "演出變數 {number}",
+    "ja": "演出変数{number}",
+    "ko": "연출 변수 {number}"
+  },
+  "native.name.narrative": {
+    "chs": "旁白",
+    "cht": "旁白",
+    "ja": "地の文",
+    "ko": "나레이션"
+  },
+  "native.name.character_dialog": {
+    "chs": "人物对白框",
+    "cht": "人物對白框",
+    "ja": "人物の会話ウィンドウ",
+    "ko": "인물 대화창"
+  },
+  "native.name.think_dialog": {
+    "chs": "内心独白框",
+    "cht": "內心獨白框",
+    "ja": "内心の独白ウィンドウ",
+    "ko": "속마음 독백창"
+  },
+  "native.name.narrative_dialog": {
+    "chs": "旁白框",
+    "cht": "旁白框",
+    "ja": "地の文ウィンドウ",
+    "ko": "나레이션 창"
+  },
+  "native.name.center_dialog": {
+    "chs": "居中旁白框",
+    "cht": "置中旁白框",
+    "ja": "中央の地の文ウィンドウ",
+    "ko": "중앙 나레이션 창"
+  },
+  "native.name.center2_dialog": {
+    "chs": "第二种居中旁白框",
+    "cht": "第二種置中旁白框",
+    "ja": "二つ目の中央地の文ウィンドウ",
+    "ko": "두 번째 중앙 나레이션 창"
+  },
+  "native.name.view_flow": {
+    "chs": "背景演出",
+    "cht": "背景演出",
+    "ja": "背景の演出",
+    "ko": "배경 연출"
+  },
+  "native.name.common_flow": {
+    "chs": "通用演出",
+    "cht": "通用演出",
+    "ja": "共通の演出",
+    "ko": "공통 연출"
+  },
+  "native.name.dice_menu": {
+    "chs": "骰子检定框",
+    "cht": "骰子檢定框",
+    "ja": "サイコロ判定ウィンドウ",
+    "ko": "주사위 판정창"
+  },
+  "native.name.holder": {
+    "chs": "人物演出对象",
+    "cht": "人物演出物件",
+    "ja": "人物の演出オブジェクト",
+    "ko": "인물 연출 오브젝트"
+  },
+  "native.name.result_count": {
+    "chs": "检定结果档数",
+    "cht": "檢定結果檔數",
+    "ja": "判定結果の段階数",
+    "ko": "판정 결과 단계 수"
+  },
+  "native.name.result": {
+    "chs": "本次检定结果",
+    "cht": "本次檢定結果",
+    "ja": "今回の判定結果",
+    "ko": "이번 판정 결과"
+  },
+  "native.name.header": {
+    "chs": "检定标题",
+    "cht": "檢定標題",
+    "ja": "判定の見出し",
+    "ko": "판정 제목"
+  },
+  "native.name.additions": {
+    "chs": "检定加值",
+    "cht": "檢定加值",
+    "ja": "判定の補正値",
+    "ko": "판정 보정 값"
+  },
+  "native.name.list_count": {
+    "chs": "{count} 项列表",
+    "cht": "{count} 項列表",
+    "ja": "{count}項目の一覧",
+    "ko": "{count}개 항목 목록"
+  },
+  "native.name.unknown": {
+    "chs": "原版引用 · {name}",
+    "cht": "原版參照 · {name}",
+    "ja": "原作の参照 · {name}",
+    "ko": "원작 참조 · {name}"
+  },
+  "native.block.out": {
+    "chs": "隐藏当前背景",
+    "cht": "隱藏目前背景",
+    "ja": "現在の背景を隠す",
+    "ko": "현재 배경 숨기기"
+  },
+  "native.block.view": {
+    "chs": "显示已设置的背景",
+    "cht": "顯示已設定的背景",
+    "ja": "設定した背景を表示",
+    "ko": "설정한 배경 표시"
+  },
+  "native.block.out_white": {
+    "chs": "白色转场隐藏背景",
+    "cht": "白色轉場隱藏背景",
+    "ja": "白い切り替えで背景を隠す",
+    "ko": "흰색 전환으로 배경 숨기기"
+  },
+  "native.block.view_white": {
+    "chs": "白色转场显示背景",
+    "cht": "白色轉場顯示背景",
+    "ja": "白い切り替えで背景を表示",
+    "ko": "흰색 전환으로 배경 표시"
+  },
+  "native.block.out_2": {
+    "chs": "隐藏背景（原版第二种演出）",
+    "cht": "隱藏背景（原版第二種演出）",
+    "ja": "背景を隠す（原作の第二演出）",
+    "ko": "배경 숨기기(원작 두 번째 연출)"
+  },
+  "native.block.shock": {
+    "chs": "执行人物震动",
+    "cht": "執行人物震動",
+    "ja": "人物を揺らす演出を実行",
+    "ko": "인물 흔들기 연출 실행"
+  },
+  "native.block.vshock": {
+    "chs": "执行人物纵向震动",
+    "cht": "執行人物縱向震動",
+    "ja": "人物を縦に揺らす演出を実行",
+    "ko": "인물 세로 흔들기 연출 실행"
+  },
+  "native.block.shake": {
+    "chs": "执行镜头震动",
+    "cht": "執行鏡頭震動",
+    "ja": "画面を揺らす演出を実行",
+    "ko": "화면 흔들기 연출 실행"
+  },
+  "native.block.flash": {
+    "chs": "执行屏幕闪光",
+    "cht": "執行畫面閃光",
+    "ja": "画面を光らせる演出を実行",
+    "ko": "화면 번쩍임 연출 실행"
+  },
+  "native.enum.true": {
+    "chs": "是",
+    "cht": "是",
+    "ja": "はい",
+    "ko": "예"
+  },
+  "native.enum.false": {
+    "chs": "否",
+    "cht": "否",
+    "ja": "いいえ",
+    "ko": "아니요"
+  },
+  "native.enum.left": {
+    "chs": "朝左",
+    "cht": "朝左",
+    "ja": "左向き",
+    "ko": "왼쪽"
+  },
+  "native.enum.right": {
+    "chs": "朝右",
+    "cht": "朝右",
+    "ja": "右向き",
+    "ko": "오른쪽"
+  },
+  "native.enum.lr": {
+    "chs": "从左到右",
+    "cht": "從左到右",
+    "ja": "左から右",
+    "ko": "왼쪽에서 오른쪽"
+  },
+  "native.enum.rl": {
+    "chs": "从右到左",
+    "cht": "從右到左",
+    "ja": "右から左",
+    "ko": "오른쪽에서 왼쪽"
+  },
+  "native.enum.tb": {
+    "chs": "从上到下",
+    "cht": "從上到下",
+    "ja": "上から下",
+    "ko": "위에서 아래"
+  },
+  "native.enum.bt": {
+    "chs": "从下到上",
+    "cht": "從下到上",
+    "ja": "下から上",
+    "ko": "아래에서 위"
+  },
+  "native.enum.white": {
+    "chs": "白色",
+    "cht": "白色",
+    "ja": "白",
+    "ko": "흰색"
+  },
+  "native.enum.black": {
+    "chs": "黑色",
+    "cht": "黑色",
+    "ja": "黒",
+    "ko": "검은색"
+  },
+  "native.enum.transparent": {
+    "chs": "透明",
+    "cht": "透明",
+    "ja": "透明",
+    "ko": "투명"
+  },
+  "native.enum.red": {
+    "chs": "红色",
+    "cht": "紅色",
+    "ja": "赤",
+    "ko": "빨간색"
+  },
+  "native.enum.day": {
+    "chs": "白天",
+    "cht": "白天",
+    "ja": "昼",
+    "ko": "낮"
+  },
+  "native.enum.night": {
+    "chs": "夜晚",
+    "cht": "夜晚",
+    "ja": "夜",
+    "ko": "밤"
+  },
+  "native.enum.default": {
+    "chs": "默认",
+    "cht": "預設",
+    "ja": "既定",
+    "ko": "기본"
+  },
+  "native.enum.center": {
+    "chs": "向中间值靠拢",
+    "cht": "向中間值靠攏",
+    "ja": "中間の値に近づける",
+    "ko": "중간 값에 가깝게"
+  },
+  "native.enum.mental": {
+    "chs": "计入心理卫生修正",
+    "cht": "計入心理衛生修正",
+    "ja": "心理衛生の補正を含める",
+    "ko": "심리 위생 보정 포함"
+  },
+  "native.enum.free": {
+    "chs": "自由行动",
+    "cht": "自由行動",
+    "ja": "自由行動",
+    "ko": "자유 행동"
+  },
+  "native.enum.title": {
+    "chs": "标题画面",
+    "cht": "標題畫面",
+    "ja": "タイトル画面",
+    "ko": "타이틀 화면"
+  },
+  "native.enum.story": {
+    "chs": "剧情演出",
+    "cht": "劇情演出",
+    "ja": "物語の演出",
+    "ko": "이야기 연출"
+  },
+  "native.enum.combat": {
+    "chs": "决斗",
+    "cht": "決鬥",
+    "ja": "決闘",
+    "ko": "결투"
+  },
+  "native.enum.battle": {
+    "chs": "战役",
+    "cht": "戰役",
+    "ja": "戦場",
+    "ko": "전장"
+  },
+  "native.enum.gameover": {
+    "chs": "死亡画面",
+    "cht": "死亡畫面",
+    "ja": "死亡画面",
+    "ko": "사망 화면"
+  },
+  "native.enum.ending": {
+    "chs": "结局画面",
+    "cht": "結局畫面",
+    "ja": "結末の画面",
+    "ko": "결말 화면"
+  },
+  "native.enum.demoend": {
+    "chs": "试玩结束画面",
+    "cht": "試玩結束畫面",
+    "ja": "体験版の終了画面",
+    "ko": "체험판 종료 화면"
+  },
+  "native.enum.book": {
+    "chs": "秘籍",
+    "cht": "祕笈",
+    "ja": "秘伝書",
+    "ko": "비급"
+  },
+  "native.enum.misc": {
+    "chs": "杂物",
+    "cht": "雜物",
+    "ja": "雑貨",
+    "ko": "잡화"
+  },
+  "native.enum.special": {
+    "chs": "贵重品",
+    "cht": "貴重品",
+    "ja": "貴重品",
+    "ko": "귀중품"
+  },
+  "native.enum.add": {
+    "chs": "获得",
+    "cht": "獲得",
+    "ja": "獲得",
+    "ko": "획득"
+  },
+  "native.enum.remove": {
+    "chs": "失去",
+    "cht": "失去",
+    "ja": "喪失",
+    "ko": "손실"
+  },
+  "native.operator.eq": {
+    "chs": "等于",
+    "cht": "等於",
+    "ja": "等しい",
+    "ko": "같음"
+  },
+  "native.operator.ne": {
+    "chs": "不等于",
+    "cht": "不等於",
+    "ja": "等しくない",
+    "ko": "같지 않음"
+  },
+  "native.operator.gt": {
+    "chs": "大于",
+    "cht": "大於",
+    "ja": "より大きい",
+    "ko": "보다 큼"
+  },
+  "native.operator.ge": {
+    "chs": "大于等于",
+    "cht": "大於等於",
+    "ja": "以上",
+    "ko": "이상"
+  },
+  "native.operator.lt": {
+    "chs": "小于",
+    "cht": "小於",
+    "ja": "より小さい",
+    "ko": "보다 작음"
+  },
+  "native.operator.le": {
+    "chs": "小于等于",
+    "cht": "小於等於",
+    "ja": "以下",
+    "ko": "이하"
+  },
+  "native.operator.and": {
+    "chs": "同时成立",
+    "cht": "同時成立",
+    "ja": "両方成立",
+    "ko": "모두 성립"
+  },
+  "native.operator.or": {
+    "chs": "任一成立",
+    "cht": "任一成立",
+    "ja": "いずれか成立",
+    "ko": "하나 이상 성립"
+  },
+  "native.operator.add": {
+    "chs": "相加",
+    "cht": "相加",
+    "ja": "加算",
+    "ko": "더하기"
+  },
+  "native.operator.subtract": {
+    "chs": "相减",
+    "cht": "相減",
+    "ja": "減算",
+    "ko": "빼기"
+  },
+  "native.operator.multiply": {
+    "chs": "相乘",
+    "cht": "相乘",
+    "ja": "乗算",
+    "ko": "곱하기"
+  },
+  "native.operator.divide": {
+    "chs": "相除",
+    "cht": "相除",
+    "ja": "除算",
+    "ko": "나누기"
+  },
+  "native.operator.modulo": {
+    "chs": "取余数",
+    "cht": "取餘數",
+    "ja": "剰余",
+    "ko": "나머지"
+  },
+  "native.operator.power": {
+    "chs": "乘方",
+    "cht": "乘方",
+    "ja": "累乗",
+    "ko": "거듭제곱"
+  },
+  "native.operator.concat": {
+    "chs": "拼接文字",
+    "cht": "串接文字",
+    "ja": "文字列を連結",
+    "ko": "문자열 연결"
+  },
+  "native.operator.not": {
+    "chs": "取反",
+    "cht": "取反",
+    "ja": "否定",
+    "ko": "부정"
+  },
+  "native.operator.length": {
+    "chs": "列表长度",
+    "cht": "列表長度",
+    "ja": "一覧の長さ",
+    "ko": "목록 길이"
+  },
+  "native.condition.choice": {
+    "chs": "选择第 {number} 项 · {text}",
+    "cht": "選擇第 {number} 項 · {text}",
+    "ja": "選択肢{number}を選ぶ · {text}",
+    "ko": "선택지 {number} 선택 · {text}"
+  },
+  "native.condition.check": {
+    "chs": "检定 {name} · 结果 {result}",
+    "cht": "檢定 {name} · 結果 {result}",
+    "ja": "判定{name} · 結果{result}",
+    "ko": "판정 {name} · 결과 {result}"
+  },
+  "native.summary.choice_count": {
+    "chs": "显示原版选项 · 已配置 {count} 项",
+    "cht": "顯示原版選項 · 已設定 {count} 項",
+    "ja": "原作の選択肢を表示 · {count}項目を設定済み",
+    "ko": "원작 선택지 표시 · {count}개 항목 설정됨"
+  },
+  "native.summary.decision": {
+    "chs": "{title} · {name}",
+    "cht": "{title} · {name}",
+    "ja": "{title} · {name}",
+    "ko": "{title} · {name}"
+  },
+  "native.form.unlisted_resource": {
+    "chs": "未收录资源 · {id}",
+    "cht": "未收錄資源 · {id}",
+    "ja": "未登録の素材 · {id}",
+    "ko": "등록되지 않은 리소스 · {id}"
+  },
+  "native.name.black_view": {
+    "chs": "纯黑背景",
+    "cht": "純黑背景",
+    "ja": "黒一色の背景",
+    "ko": "검정 단색 배경"
+  },
+  "native.name.white_view": {
+    "chs": "纯白背景",
+    "cht": "純白背景",
+    "ja": "白一色の背景",
+    "ko": "흰색 단색 배경"
+  },
+  "native.name.red_view": {
+    "chs": "纯红背景",
+    "cht": "純紅背景",
+    "ja": "赤一色の背景",
+    "ko": "빨강 단색 배경"
+  },
+  "native.name.intermediate": {
+    "chs": "演出中间值",
+    "cht": "演出中間值",
+    "ja": "演出で使う中間値",
+    "ko": "연출 중간 값"
+  },
+  "native.filter.memory": {
+    "chs": "回忆滤镜",
+    "cht": "回憶濾鏡",
+    "ja": "回想フィルター",
+    "ko": "회상 필터"
+  },
+  "native.filter.dream": {
+    "chs": "梦境滤镜",
+    "cht": "夢境濾鏡",
+    "ja": "夢のフィルター",
+    "ko": "꿈 필터"
+  },
+  "native.filter.fire": {
+    "chs": "火光滤镜",
+    "cht": "火光濾鏡",
+    "ja": "炎のフィルター",
+    "ko": "불빛 필터"
+  },
+  "native.filter.blurdim": {
+    "chs": "暗色模糊滤镜",
+    "cht": "暗色模糊濾鏡",
+    "ja": "暗いぼかしフィルター",
+    "ko": "어두운 흐림 필터"
+  },
+  "native.filter.bloody": {
+    "chs": "血色滤镜",
+    "cht": "血色濾鏡",
+    "ja": "血色のフィルター",
+    "ko": "핏빛 필터"
+  },
+  "native.filter.blur": {
+    "chs": "模糊滤镜",
+    "cht": "模糊濾鏡",
+    "ja": "ぼかしフィルター",
+    "ko": "흐림 필터"
+  },
+  "native.filter.sepia": {
+    "chs": "棕褐怀旧滤镜",
+    "cht": "棕褐懷舊濾鏡",
+    "ja": "セピアフィルター",
+    "ko": "세피아 필터"
+  },
+  "native.filter.gray-10": {
+    "chs": "灰度滤镜 10",
+    "cht": "灰階濾鏡 10",
+    "ja": "グレースケール 10",
+    "ko": "회색조 필터 10"
+  },
+  "native.filter.gray-30": {
+    "chs": "灰度滤镜 30",
+    "cht": "灰階濾鏡 30",
+    "ja": "グレースケール 30",
+    "ko": "회색조 필터 30"
+  },
+  "native.filter.gray-50": {
+    "chs": "灰度滤镜 50",
+    "cht": "灰階濾鏡 50",
+    "ja": "グレースケール 50",
+    "ko": "회색조 필터 50"
+  },
+  "native.filter.gray-70": {
+    "chs": "灰度滤镜 70",
+    "cht": "灰階濾鏡 70",
+    "ja": "グレースケール 70",
+    "ko": "회색조 필터 70"
+  },
+  "native.filter.gray-100": {
+    "chs": "灰度滤镜 100",
+    "cht": "灰階濾鏡 100",
+    "ja": "グレースケール 100",
+    "ko": "회색조 필터 100"
+  }
+}

@@ -37,6 +37,7 @@ namespace MortalModHost
             EffectPlaybackTests.Run();
             VanillaStoryPatchTests.Run();
             VanillaImportSourceTests.Run();
+            LegacyExtensionsTests.Run();
             // 临时目录里造测试包，跑完即删
             string modsDir = Path.Combine(Path.GetTempPath(), "lommod_smoketest_" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(modsDir);

@@ -51,14 +51,16 @@ impl Shell {
     }
 
     pub fn resolution_settings(&mut self, ui: &mut egui::Ui) -> bool {
-        use crate::i18n::tr;
-        ui.strong(tr("界面缩放"));
+        ui.strong(crate::i18n::key("common.shell.scale"));
         let mut changed = ui
-            .checkbox(&mut self.auto_scale, tr("按窗口大小自动适配"))
+            .checkbox(
+                &mut self.auto_scale,
+                crate::i18n::key("common.shell.auto_scale"),
+            )
             .changed();
         if !self.auto_scale {
             ui.horizontal(|ui| {
-                ui.label(tr("手动缩放"));
+                ui.label(crate::i18n::key("common.shell.manual_scale"));
                 changed |= ui
                     .add(
                         egui::DragValue::new(&mut self.ui_scale_percent)
@@ -68,12 +70,14 @@ impl Shell {
                     .changed();
             });
         }
-        ui.small(format!(
-            "{}：{:.0}%",
-            tr("当前界面缩放"),
-            ui.ctx().zoom_factor() * 100.0
+        ui.small(crate::i18n::message(
+            "common.shell.scale_info",
+            &[("percent", format!("{:.0}", ui.ctx().zoom_factor() * 100.0))],
         ));
-        if ui.small_button(tr("恢复自动适配")).clicked() {
+        if ui
+            .small_button(crate::i18n::key("common.shell.restore_scale"))
+            .clicked()
+        {
             self.auto_scale = true;
             self.ui_scale_percent = 100;
             changed = true;
@@ -175,7 +179,7 @@ pub fn viewport() -> egui::ViewportBuilder {
         .with_title_shown(true)
         .with_titlebar_buttons_shown(true)
         .with_titlebar_shown(true)
-        .with_title("活侠传剧情编辑器")
+        .with_title(crate::i18n::key("app.title"))
 }
 fn append_system_font(fonts: &mut egui::FontDefinitions, name: &str, paths: &[&str]) {
     for path in paths {
@@ -293,6 +297,7 @@ pub fn style(ctx: &egui::Context) {
     s.spacing.item_spacing = Vec2::new(12.0, 8.0);
     s.spacing.interact_size.y = 30.0;
     s.spacing.text_edit_width = 180.0;
+    s.spacing.scroll = egui::style::ScrollStyle::solid();
     s.spacing.icon_width = 14.0;
     s.spacing.icon_width_inner = 8.0;
     s.visuals.widgets.noninteractive.bg_stroke.color = Color32::from_black_alpha(17);
@@ -326,6 +331,53 @@ pub fn surface(content: bool) -> egui::Frame {
 #[cfg(test)]
 mod button_style_tests {
     use super::*;
+
+    #[test]
+    fn nested_scrollbars_reserve_separate_content_lanes() {
+        for width in [400.0, 760.0] {
+            let ctx = egui::Context::default();
+            style(&ctx);
+            let mut rectangles = None;
+            let _ = ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        Vec2::new(width, 400.0),
+                    )),
+                    ..Default::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        let outer = egui::ScrollArea::vertical()
+                            .scroll_bar_visibility(
+                                egui::scroll_area::ScrollBarVisibility::AlwaysVisible,
+                            )
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                let inner = egui::ScrollArea::vertical()
+                                    .max_height(120.0)
+                                    .scroll_bar_visibility(
+                                        egui::scroll_area::ScrollBarVisibility::AlwaysVisible,
+                                    )
+                                    .auto_shrink([false, false])
+                                    .show(ui, |ui| {
+                                        ui.add_space(600.0);
+                                    });
+                                ui.add_space(600.0);
+                                inner.inner_rect
+                            });
+                        rectangles = Some((outer.inner_rect, outer.inner));
+                    });
+                },
+            );
+            let (outer, inner) = rectangles.unwrap();
+            let scroll = &ctx.style().spacing.scroll;
+            assert!(!scroll.floating);
+            assert!(
+                inner.right() + scroll.bar_width + scroll.bar_inner_margin <= outer.right() + 0.1
+            );
+        }
+    }
 
     #[test]
     fn buttons_keep_app_style_after_first_system_theme_input() {

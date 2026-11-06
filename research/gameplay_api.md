@@ -110,6 +110,8 @@ Host 1.4.5 的 `mod_effect` 始终经原 SetupEffect(unique=0,play=1) 创建自�
 
 ## 2026-10-31 旁白对齐与原地换表情接口核对
 
+2026-11-06 清除画面人物：本机只读核对 `Fungus.Stage.CharactersOnStage` 返回舞台人物列表，`Mortal.Story.StoryStageController.Hide(PortraitOptions)` 先调用 `HideMood` 再交给原版退场。新增 `hide_all` 节点通过 `mod_char_hide_all()` 复用 Host 的 `CustomCharacterRuntime.HideAllOnStage()`，按现有逻辑清除自定义人物并以零淡出时长隐藏官方人物。该入口仅处理人物。此处记录接口依据，未作本次游戏实机验证。
+
 2026-11-04 单人气泡：定向只读核对本机 `StoryStageController.CreateMoodObject/Show/Hide/SetDimmed`、`StoryCharacterController.SetupMood/ShowMood` 及 `CharacterMoodPanel.Show(string,float)/Hide()`。原版所有舞台人物都会创建面板，`Show` 只按输入键匹配面板 Mapping，不要求人物自身有这个表情。Host 1.4.1 的 `mod_character_mood(character,icon)` 直接调用该人物实例的 `Mood.Show`，使用已读资源的九种 Mapping；不改 `StoryCharacterData`、表情键或官方资产，继续使用原版动画和朝向。隐藏单人、恢复自动、压暗/解除压暗、离场及清舞台分别沿原版入口处理；本条仅记录接口与实现依据，运行证据另记。
 
 本次 Windows `release_1.0.6001.0` 隔离试玩中，实际观察到只有 `normal` 立绘的 `artist1`（武师）和 `aunt1`（大妈）同时显示独立气泡；叹号、音符、汗滴、害羞、阴影、乱线等可切换且立绘保持不变。已观察单人隐藏不影响另一人、恢复跟随普通表情、转身、压暗/解除压暗、离场重登不残留，以及全场关闭清除单人设置。自定义用户人物未接入，也未做全人物实机覆盖。
@@ -228,3 +230,24 @@ Windows 实机还确认 `Mortal.Core.CharacterIntroPanel` 同时提供 `IEnumera
 
 - 本次实时反编译确认 `Mortal.Story.StoryMainUI._picture` 为 `StoryPicture`，`ShowPicture(string)` 调用其 `Show`，加载 `pic_` 地址。`EventPictureRuntime` 克隆这个实例并禁用克隆的 `StoryPicture`，通过其 `_image` 设置原版或包内图片，使用 `preserveAspect` 适配左侧图框。克隆保留 `DialogUISizePosition`，清除时释放自己加载的 Sprite/Texture/Addressables handle。
 - 原版 Story 场景的 `Picture/Mask/Image` 为左侧插图，`Picture/Text` 是右侧“事件”题字。仅在克隆中关闭题字的 `LeanLocalizedText` 后写入作者文字。可选下方文字复用 `saydialogs.narrative`，点击继续。原版书页 `pic_book_1` 仅从用户游戏提取到本地缓存。
+
+### 2026-11-07 旧散装 MOD 格式与本机接口核对
+
+旧格式依据 Binarizer `Plugin-DD2` 的 `Mortal` 分支，固定提交 `075e72253edb83212c132ef551b47e33d25009c6`。`Mods/<名称>/story/**/*.lua` 按文件 basename 取脚本编号，`CustomStory.csv` 为脚本、标题、作者三列，`StringTable.csv` 为完整本地化键与文字两列，同名键保留首项。资源包括 `Portraits/**/*.(png|jpg|gif)`、`Voice/**/*.mp3`、`DataTable/<SO类型>/<对象名>.json` 和 `LuaEquivalent/{Condition,Switch,Position}/**/*.lua`。旧 `SpriteConverter` 也可引用 MOD 根目录下其他相对图片路径。导入保持原目录只读，转换后的包内资源按 MOD 归属解析。[旧目录与资源加载源码](https://github.com/Binarizer/Plugin-DD2/blob/075e72253edb83212c132ef551b47e33d25009c6/ModSupport/Hooks/HookMods.cs)、[旧数据表与人物联动源码](https://github.com/Binarizer/Plugin-DD2/blob/075e72253edb83212c132ef551b47e33d25009c6/ModSupport/Hooks/HookDataTable.cs)
+
+- 当前游戏的剧情立绘入口为 `CharacterPlaceholder.LoadCharacterAsset(string)`、`LoadCharacterPortrait(string,string)`、`GetPortrait(string,string)`，实际实例加载由 `StoryCharacterController.LoadPortrait/LoadPortraitSync/GetPortraitName` 和私有 `AddPortraitObject(Sprite)` 完成。人物编号来自 `StoryCharacterData.Id`，表情来自 `PortraitResourceList[].Mapping.Value`。旧文件名的 `人物_表情` 两段规则接入这些实例入口。切换舞台图像还需调用 `stage.show` 等舞台操作，`setcharacter` 设置发言人物。
+- PNG/JPG 的同名 JSON 读取 `pivot`、`pixelsPerUnit`、`extrude`、`spriteType`，复用 `Sprite.Create` 对应参数。旧 GIF 加载使用默认 SpriteDesc，各帧 delay 按毫秒转换，每次 Unity Update 最多推进一帧并循环。Host 保留 Sprite 身份，替换其纹理像素供 Fungus 查找。旧 `normal` 头像联动对应当前 `PlayerAvatarPanel.OnEnable`、`SocialStatPanel.UpdateInfo`、`CombatCharacterStatusUI.Setup` 的 UI Image，按会话记录原值并在结束时恢复。
+- 旧 `ext` 读取包括 `GetPlayerStat`、`GetEnemyTeamStat`、`GetRelationship`、`GetSkillLevel`、`GetBookLevel`、`GetDeveloped`、`GetDevelopLevel`、`GetFlag`、`GetCurrentTime`、`GetTimeValue`、`GetItemCount`，并保留旧生成器的 `GetDevelopd` 拼写。Host 在所属 `LuaEnvironment.Interpreter` 注册 `ext`。`LuaEquivalent` 分别接入当前 `CheckPointManager.Condition(string)`、`Switch(string)`、`Position(string)`，返回值依次为 bool、Int32、string。[旧扩展读取源码](https://github.com/Binarizer/Plugin-DD2/blob/075e72253edb83212c132ef551b47e33d25009c6/ModSupport/LuaExt.cs)
+- 数据表运行时通过 `LegacyDataTableRuntime.Copy/RemapFields/SessionObject` 维护会话克隆及对象引用。此次反编译确认 `ReadStorySystem._dicStoryIndex` 是未序列化的运行态字典，`ExistKey` 直接访问该字典，`LuaManager.GetStoryText` 在解析本地化文字前先调用它。仅使用 `UnityEngine.Object.Instantiate` 克隆 SO 会遗漏这类状态，克隆需保留当时的托管集合与事件关系。`ReadStorySystem.Load(UniverseSave)` 重建已读字典，`SaveSystem.GetUniverseSaveData()` 只读反序列化文件，`LoadUniverseData()` 还涉及当前槽及缺档时写入，因此这些入口各有不同的生命周期含义。
+
+本轮本机制样例已在游戏显示 GIF 来源的红色替换立绘与钱数 73。实际 Player.log 记录 `GameStat/Player_Money source=500 session=73 cloned=True source_unchanged=True`、`EXT 73`、`CONDITION true`、`SWITCH 2`、`POSITION Free`，确认这些查询与替换入口已执行。该轮首句对白曾因克隆后的已读字典为空而中断，后续状态复制修复已通过本轮旧 MOD 到 scope 样例的热重载及原值恢复实测，结果见下节。后续实机已观察 GIF 红绿帧、PNG/JPG 舞台切换、替换角色姓名与完整对白框，并由运行日志确认导入的 MP3 已转成 WAV 并进入 waveOut 播放。帧间隔以离线解码用例核对，未做人工计时或听觉验收。仅含资源／数据的附加包也通过正常原版＋MOD入口启动官方开篇，连续读取对白，本次日志运行异常为零。第三方实际旧 MOD 样本尚未取得，现有证据覆盖本机按上述公开格式自建的样例。
+
+### 2026-11-07 F5 原版整章的继承角色与立绘
+
+本次重新读取当前安装的 `CharacterPlaceholder`、`StoryCharacterController`、`Fungus.Character`、`PortraitController`、`PortraitState` 和 MoonSharp 转换器。`LoadCharacterAsset(string)` 在人物字典缺少该编号时创建实例，其 `Setup` 等待 `PortraitResourceList` 首项加载。`LoadCharacterPortrait(string,string)` 同步补充立绘资源。`GetPortraitName(string)` 会写入当前表情键，因此入口预载从结构化执行 AST 收集常量引用，再调用两个资源加载方法。
+
+`ch5_6_8_3_4` 的 `original75` 只移动 `girl7_3`，沿用前章人物和当前立绘。Unity Player.log 曾记录“角色 Key girl7_3 不存在”。现场 IL 将第一次异常定位到 `CleanPortraitOptions` 的人物状态读取，预载人物后，第二次异常转到 `Show(PortraitOptions)` 将空立绘设为 `portraitImage` 后的访问。固定 F5 包在实际执行这个入场步骤时，仅对未指定立绘、尚未入场且当前立绘为空的人物，补入资源列表首张默认立绘。
+
+`Character.Portraits` 的 C# 类型为 `List<Sprite>`。本机 MoonSharp 的 `ClrToScriptConversions.ObjectToDynValue` 将未注册为 userdata 的 `IList` 交给 `TableConversions.ConvertIListToTable`，后者按 `table[i + 1]` 写入。因此本轮实际 Lua 读取首张立绘使用 `Portraits[1]`。已直接加载游戏 DLL 中的 MoonSharp，执行当前 helper 并通过默认、显式立绘、已有立绘、已在舞台及空资源列表五个合成场景。相关编译回归共 14 项通过。
+
+本轮 Windows 游戏实测已从另一 F5 样例热重载进入该章节，`original75` 正常登场并继续到 `original112` 的对白，观察到完整对白框、郁宝花、两名乞丐、实际房间背景及气泡。该次运行没有新增运行异常。另一次旧 MOD 样例切回 scope 样例，读数从 `source=500 session=73 source_unchanged=True` 恢复为 `source=500 session=500 cloned=False`，官方立绘和姓名同时恢复。

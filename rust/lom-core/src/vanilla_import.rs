@@ -9,6 +9,8 @@ use std::collections::{BTreeMap, BTreeSet};
 pub struct Origin {
     pub code: String,
     pub node: Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operations: Option<Vec<Value>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -17,6 +19,8 @@ pub struct Imported {
     pub schema: u32,
     pub target: String,
     pub origins: Vec<Origin>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub external: bool,
 }
 
 pub fn parse(story: &Value) -> Result<Option<Imported>> {
@@ -30,7 +34,7 @@ pub fn parse(story: &Value) -> Result<Option<Imported>> {
     let imported: Imported =
         serde_json::from_value(value.clone()).context("原版整章导入信息无效")?;
     ensure!(
-        imported.schema == 1 && crate::vanilla_patch::valid_target(&imported.target),
+        [1, 2].contains(&imported.schema) && crate::vanilla_patch::valid_target(&imported.target),
         "原版整章导入的版本或章节编号无效"
     );
     ensure!(
@@ -71,6 +75,14 @@ pub fn origin_index(node: &Value) -> Option<usize> {
 }
 
 pub fn resume_index(story: &Value, from: usize) -> Option<usize> {
+    if story["vanilla_import"]["schema"] == 2 {
+        if let Some(target) = story["nodes"][from]["resume_node"].as_str() {
+            return story["nodes"]
+                .as_array()?
+                .iter()
+                .position(|node| node["id"] == target);
+        }
+    }
     let count = story["vanilla_import"]["origins"].as_array()?.len();
     let mut claimed = BTreeSet::new();
     story["nodes"]
@@ -113,6 +125,9 @@ impl Imported {
 
     pub fn validate_flow(&self, story: &Value) -> Result<()> {
         let nodes = story["nodes"].as_array().context("原版覆盖章节缺少步骤")?;
+        if self.schema == 2 {
+            return crate::native_flow::validate(story, self);
+        }
         ensure!(
             nodes
                 .first()
@@ -231,6 +246,7 @@ pub fn import_patch(
         })
         .collect();
     let mut converted = Vec::new();
+    let mut before_targets = BTreeMap::new();
     let mut offset = 0;
     for (index, (origin, node)) in baseline.origins.iter().zip(nodes).enumerate() {
         let end = offset + origin.code.len();
@@ -246,6 +262,7 @@ pub fn import_patch(
                 node["text"] = json!(text);
             }
             let anchor = node["id"].as_str().unwrap_or("");
+            let before_start = converted.len();
             append_insertion(
                 &mut converted,
                 ordinal,
@@ -254,11 +271,15 @@ pub fn import_patch(
                 edit.before_condition.as_ref(),
                 anchor,
             );
+            if baseline.schema == 2 && converted.len() > before_start {
+                before_targets.insert(anchor.to_owned(), converted[before_start]["id"].clone());
+            }
             converted.push(node.clone());
-            let next = nodes
-                .get(index + 1)
-                .and_then(|node| node["id"].as_str())
+            let next = node["goto"]
+                .as_str()
+                .or_else(|| nodes.get(index + 1).and_then(|node| node["id"].as_str()))
                 .context("原版对白缺少后续入口")?;
+            let after_start = converted.len();
             append_insertion(
                 &mut converted,
                 ordinal,
@@ -267,15 +288,33 @@ pub fn import_patch(
                 edit.after_condition.as_ref(),
                 next,
             );
+            if baseline.schema == 2 && converted.len() > after_start {
+                converted[after_start - 1]["goto"] = converted[after_start]["id"].clone();
+                converted.last_mut().unwrap()["goto"] = json!(next);
+            }
         } else {
             ensure!(
-                edits.is_empty() || node["type"] == "raw",
+                edits.is_empty() || matches!(node["type"].as_str(), Some("raw" | "native_action")),
                 "旧修改无法转换到对应步骤，请先核对原文定位"
             );
             let mut code = origin.code.clone();
             let mut edits = edits;
             edits.sort_by_key(|(_, at, _)| *at);
             for (_, at, edit) in edits.into_iter().rev() {
+                if node["type"] == "native_action" {
+                    let original = crate::lua_import::lua_string(&edit.find)
+                        .context("这处旧修改不是可转换的选项文字")?;
+                    let mut occurrence = origin.code[..at - offset].matches(&edit.find).count();
+                    ensure!(
+                        replace_literal(
+                            &mut node["operations"],
+                            &original,
+                            edit.text.as_deref().unwrap_or(&original),
+                            &mut occurrence
+                        ),
+                        "无法定位结构化选项文字"
+                    );
+                }
                 code.replace_range(
                     at - offset..at - offset + edit.find.len(),
                     &edit.replacement(),
@@ -288,10 +327,53 @@ pub fn import_patch(
         }
         offset = end;
     }
+    if baseline.schema == 2 {
+        for node in &mut converted {
+            if origin_index(node).is_none() {
+                continue;
+            }
+            for field in ["goto", "success", "failure"] {
+                if let Some(target) = node[field]
+                    .as_str()
+                    .and_then(|id| before_targets.get(id))
+                    .cloned()
+                {
+                    node[field] = target;
+                }
+            }
+        }
+    }
     imported["start"] = converted.first().context("原版章节没有步骤")?["id"].clone();
     imported["nodes"] = json!(converted);
+    crate::native_flow::refresh_branch_labels(&mut imported);
     crate::validate::validate_story(&imported)?;
     Ok(imported)
+}
+
+fn replace_literal(
+    value: &mut Value,
+    original: &str,
+    replacement: &str,
+    occurrence: &mut usize,
+) -> bool {
+    if value["kind"] == "literal" && value["value"].as_str() == Some(original) {
+        if *occurrence == 0 {
+            value["value"] = json!(replacement);
+            value.as_object_mut().unwrap().remove("display");
+            return true;
+        }
+        *occurrence -= 1;
+        return false;
+    }
+    match value {
+        Value::Array(values) => values
+            .iter_mut()
+            .any(|v| replace_literal(v, original, replacement, occurrence)),
+        Value::Object(fields) => fields
+            .values_mut()
+            .any(|v| replace_literal(v, original, replacement, occurrence)),
+        _ => false,
+    }
 }
 
 fn append_insertion(

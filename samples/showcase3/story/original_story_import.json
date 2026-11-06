@@ -1,148 +1,779 @@
 {
-  "story_schema": 2,
-  "id": "original_story_import",
-  "title": "整章导入与来源判定（自编流程）",
-  "mood": true,
-  "start": "original_1",
-  "nodes": [
-    {
-      "type": "raw",
-      "code": "-- Synthetic chapter for native-scope regression checks.\nlocal total = 3\nsetsaydialog(saydialogs.narrative)\nsetmenudialog(menudialogs.native)\nsetcharacter(narrative)\nsayoptions.waitforinput = false\nif checkpointmanager.Condition(\"OUTER\") then\n    total = total + 4\n",
-      "id": "original_1",
-      "_editor": {
-        "vanilla_origin": 0
-      }
-    },
-    {
-      "type": "say",
-      "mode": "narrative",
-      "text": "改写甲",
-      "inherit_dialog": true,
-      "id": "original_2",
-      "_editor": {
-        "vanilla_origin": 1
-      }
-    },
-    {
-      "type": "raw",
-      "code": "else\n    total = total + 7\n",
-      "id": "original_3",
-      "_editor": {
-        "vanilla_origin": 2
-      }
-    },
-    {
-      "type": "say",
-      "mode": "narrative",
-      "text": "原版乙",
-      "inherit_dialog": true,
-      "id": "original_4",
-      "_editor": {
-        "vanilla_origin": 3
-      }
-    },
-    {
-      "type": "raw",
-      "code": "end\nlocal options = {\"O_ONE\", \"O_TWO\"}\nlocal selected = choose(options)\nmark_progress(total + selected)\n",
-      "id": "original_5",
-      "_editor": {
-        "vanilla_origin": 4
-      }
-    },
-    {
-      "id": "inserted",
-      "type": "say",
-      "text": "新增对白",
-      "inherit_dialog": true
-    },
-    {
-      "type": "say",
-      "mode": "narrative",
-      "text": "原版尾句",
-      "inherit_dialog": true,
-      "id": "original_6",
-      "_editor": {
-        "vanilla_origin": 5
-      }
-    },
-    {
-      "type": "end",
-      "resume_original": true,
-      "id": "original_7",
-      "_editor": {
-        "vanilla_origin": 6
-      }
-    }
-  ],
-  "vanilla_import": {
-    "schema": 1,
-    "target": "MODKIT_IMPORT_EXAMPLE",
-    "origins": [
-      {
-        "code": "-- Synthetic chapter for native-scope regression checks.\nlocal total = 3\nsetsaydialog(saydialogs.narrative)\nsetmenudialog(menudialogs.native)\nsetcharacter(narrative)\nsayoptions.waitforinput = false\nif checkpointmanager.Condition(\"OUTER\") then\n    total = total + 4\n",
-        "node": {
-          "type": "raw",
-          "code": "-- Synthetic chapter for native-scope regression checks.\nlocal total = 3\nsetsaydialog(saydialogs.narrative)\nsetmenudialog(menudialogs.native)\nsetcharacter(narrative)\nsayoptions.waitforinput = false\nif checkpointmanager.Condition(\"OUTER\") then\n    total = total + 4\n",
-          "id": "original_1"
-        }
-      },
-      {
-        "code": "    say(luamanager.GetStoryText(\"N_IMPORT_A\"))\n",
-        "node": {
-          "type": "say",
-          "mode": "narrative",
-          "text": "原版甲",
-          "inherit_dialog": true,
-          "id": "original_2"
-        }
-      },
-      {
-        "code": "else\n    total = total + 7\n",
-        "node": {
-          "type": "raw",
-          "code": "else\n    total = total + 7\n",
-          "id": "original_3"
-        }
-      },
-      {
-        "code": "    say(luamanager.GetStoryText(\"N_IMPORT_B\"))\n",
-        "node": {
-          "type": "say",
-          "mode": "narrative",
-          "text": "原版乙",
-          "inherit_dialog": true,
-          "id": "original_4"
-        }
-      },
-      {
-        "code": "end\nlocal options = {\"O_ONE\", \"O_TWO\"}\nlocal selected = choose(options)\nmark_progress(total + selected)\n",
-        "node": {
-          "type": "raw",
-          "code": "end\nlocal options = {\"O_ONE\", \"O_TWO\"}\nlocal selected = choose(options)\nmark_progress(total + selected)\n",
-          "id": "original_5"
-        }
-      },
-      {
-        "code": "say(luamanager.GetStoryText(\"N_IMPORT_DONE\"))\n",
-        "node": {
-          "type": "say",
-          "mode": "narrative",
-          "text": "原版尾句",
-          "inherit_dialog": true,
-          "id": "original_6"
-        }
-      },
-      {
-        "code": "",
-        "node": {
-          "type": "end",
-          "resume_original": true,
-          "id": "original_7"
-        }
-      }
-    ]
-  },
   "_editor": {
     "chapter_group": "原版编辑"
+  },
+  "id": "original_story_import",
+  "mood": true,
+  "nodes": [
+    {
+      "_editor": {
+        "vanilla_origin": 0
+      },
+      "goto": "original_2",
+      "id": "original_1",
+      "operations": [
+        {
+          "declare": true,
+          "kind": "assign",
+          "target": {
+            "kind": "local",
+            "name": "total",
+            "symbol": "v0"
+          },
+          "value": {
+            "kind": "literal",
+            "value": 3
+          }
+        },
+        {
+          "expression": {
+            "args": [
+              {
+                "field": "narrative",
+                "kind": "member",
+                "object": {
+                  "kind": "name",
+                  "name": "saydialogs"
+                }
+              }
+            ],
+            "function": {
+              "kind": "name",
+              "name": "setsaydialog"
+            },
+            "kind": "call"
+          },
+          "kind": "call"
+        },
+        {
+          "expression": {
+            "args": [
+              {
+                "field": "native",
+                "kind": "member",
+                "object": {
+                  "kind": "name",
+                  "name": "menudialogs"
+                }
+              }
+            ],
+            "function": {
+              "kind": "name",
+              "name": "setmenudialog"
+            },
+            "kind": "call"
+          },
+          "kind": "call"
+        },
+        {
+          "expression": {
+            "args": [
+              {
+                "kind": "name",
+                "name": "narrative"
+              }
+            ],
+            "function": {
+              "kind": "name",
+              "name": "setcharacter"
+            },
+            "kind": "call"
+          },
+          "kind": "call"
+        },
+        {
+          "kind": "assign",
+          "target": {
+            "field": "waitforinput",
+            "kind": "member",
+            "object": {
+              "kind": "name",
+              "name": "sayoptions"
+            }
+          },
+          "value": {
+            "kind": "literal",
+            "value": false
+          }
+        }
+      ],
+      "type": "native_action"
+    },
+    {
+      "_editor": {
+        "native_condition": {
+          "key": "OUTER",
+          "kind": "check",
+          "result": ""
+        },
+        "vanilla_origin": 1
+      },
+      "condition": {
+        "args": [
+          {
+            "kind": "literal",
+            "value": "OUTER"
+          }
+        ],
+        "function": {
+          "field": "Condition",
+          "kind": "member",
+          "object": {
+            "kind": "name",
+            "name": "checkpointmanager"
+          }
+        },
+        "kind": "call"
+      },
+      "failure": "original_5",
+      "id": "original_2",
+      "success": "original_3",
+      "type": "native_branch"
+    },
+    {
+      "_editor": {
+        "vanilla_origin": 2
+      },
+      "goto": "original_4",
+      "id": "original_3",
+      "operations": [
+        {
+          "kind": "assign",
+          "target": {
+            "kind": "local",
+            "name": "total",
+            "symbol": "v0"
+          },
+          "value": {
+            "kind": "binary",
+            "left": {
+              "kind": "local",
+              "name": "total",
+              "symbol": "v0"
+            },
+            "op": "+",
+            "right": {
+              "kind": "literal",
+              "value": 4
+            }
+          }
+        }
+      ],
+      "type": "native_action"
+    },
+    {
+      "_editor": {
+        "vanilla_origin": 3
+      },
+      "goto": "original_8",
+      "id": "original_4",
+      "inherit_dialog": true,
+      "mode": "narrative",
+      "text": "改写甲",
+      "type": "say"
+    },
+    {
+      "_editor": {
+        "vanilla_origin": 4
+      },
+      "goto": "original_6",
+      "id": "original_5",
+      "operations": [],
+      "type": "native_action"
+    },
+    {
+      "_editor": {
+        "vanilla_origin": 5
+      },
+      "goto": "original_7",
+      "id": "original_6",
+      "operations": [
+        {
+          "kind": "assign",
+          "target": {
+            "kind": "local",
+            "name": "total",
+            "symbol": "v0"
+          },
+          "value": {
+            "kind": "binary",
+            "left": {
+              "kind": "local",
+              "name": "total",
+              "symbol": "v0"
+            },
+            "op": "+",
+            "right": {
+              "kind": "literal",
+              "value": 7
+            }
+          }
+        }
+      ],
+      "type": "native_action"
+    },
+    {
+      "_editor": {
+        "vanilla_origin": 6
+      },
+      "goto": "original_8",
+      "id": "original_7",
+      "inherit_dialog": true,
+      "mode": "narrative",
+      "text": "原版乙",
+      "type": "say"
+    },
+    {
+      "_editor": {
+        "vanilla_origin": 7
+      },
+      "goto": "original_9",
+      "id": "original_8",
+      "operations": [],
+      "type": "native_action"
+    },
+    {
+      "_editor": {
+        "vanilla_origin": 8
+      },
+      "goto": "inserted",
+      "id": "original_9",
+      "operations": [
+        {
+          "declare": true,
+          "kind": "assign",
+          "target": {
+            "kind": "local",
+            "name": "options",
+            "symbol": "v1"
+          },
+          "value": {
+            "entries": [
+              {
+                "key": null,
+                "value": {
+                  "kind": "literal",
+                  "value": "O_ONE"
+                }
+              },
+              {
+                "key": null,
+                "value": {
+                  "kind": "literal",
+                  "value": "O_TWO"
+                }
+              }
+            ],
+            "kind": "table"
+          }
+        },
+        {
+          "declare": true,
+          "kind": "assign",
+          "target": {
+            "kind": "local",
+            "name": "selected",
+            "symbol": "v2"
+          },
+          "value": {
+            "args": [
+              {
+                "kind": "local",
+                "name": "options",
+                "symbol": "v1"
+              }
+            ],
+            "function": {
+              "kind": "name",
+              "name": "choose"
+            },
+            "kind": "call"
+          }
+        },
+        {
+          "expression": {
+            "args": [
+              {
+                "kind": "binary",
+                "left": {
+                  "kind": "local",
+                  "name": "total",
+                  "symbol": "v0"
+                },
+                "op": "+",
+                "right": {
+                  "kind": "local",
+                  "name": "selected",
+                  "symbol": "v2"
+                }
+              }
+            ],
+            "function": {
+              "kind": "name",
+              "name": "mark_progress"
+            },
+            "kind": "call"
+          },
+          "kind": "call"
+        }
+      ],
+      "type": "native_action"
+    },
+    {
+      "goto": "original_10",
+      "id": "inserted",
+      "inherit_dialog": true,
+      "text": "新增对白",
+      "type": "say"
+    },
+    {
+      "_editor": {
+        "vanilla_origin": 9
+      },
+      "goto": "original_11",
+      "id": "original_10",
+      "inherit_dialog": true,
+      "mode": "narrative",
+      "text": "原版尾句",
+      "type": "say"
+    },
+    {
+      "_editor": {
+        "vanilla_origin": 10
+      },
+      "id": "original_11",
+      "resume_original": true,
+      "type": "end"
+    }
+  ],
+  "start": "original_1",
+  "story_schema": 2,
+  "title": "整章导入与来源判定（自编流程）",
+  "vanilla_import": {
+    "origins": [
+      {
+        "code": "-- Synthetic chapter for native-scope regression checks.\nlocal total = 3\nsetsaydialog(saydialogs.narrative)\nsetmenudialog(menudialogs.native)\nsetcharacter(narrative)\nsayoptions.waitforinput = false",
+        "node": {
+          "goto": "original_2",
+          "id": "original_1",
+          "operations": [
+            {
+              "declare": true,
+              "kind": "assign",
+              "target": {
+                "kind": "local",
+                "name": "total",
+                "symbol": "v0"
+              },
+              "value": {
+                "kind": "literal",
+                "value": 3
+              }
+            },
+            {
+              "expression": {
+                "args": [
+                  {
+                    "field": "narrative",
+                    "kind": "member",
+                    "object": {
+                      "kind": "name",
+                      "name": "saydialogs"
+                    }
+                  }
+                ],
+                "function": {
+                  "kind": "name",
+                  "name": "setsaydialog"
+                },
+                "kind": "call"
+              },
+              "kind": "call"
+            },
+            {
+              "expression": {
+                "args": [
+                  {
+                    "field": "native",
+                    "kind": "member",
+                    "object": {
+                      "kind": "name",
+                      "name": "menudialogs"
+                    }
+                  }
+                ],
+                "function": {
+                  "kind": "name",
+                  "name": "setmenudialog"
+                },
+                "kind": "call"
+              },
+              "kind": "call"
+            },
+            {
+              "expression": {
+                "args": [
+                  {
+                    "kind": "name",
+                    "name": "narrative"
+                  }
+                ],
+                "function": {
+                  "kind": "name",
+                  "name": "setcharacter"
+                },
+                "kind": "call"
+              },
+              "kind": "call"
+            },
+            {
+              "kind": "assign",
+              "target": {
+                "field": "waitforinput",
+                "kind": "member",
+                "object": {
+                  "kind": "name",
+                  "name": "sayoptions"
+                }
+              },
+              "value": {
+                "kind": "literal",
+                "value": false
+              }
+            }
+          ],
+          "type": "native_action"
+        }
+      },
+      {
+        "code": "\nif checkpointmanager.Condition(\"OUTER\") then",
+        "node": {
+          "condition": {
+            "args": [
+              {
+                "kind": "literal",
+                "value": "OUTER"
+              }
+            ],
+            "function": {
+              "field": "Condition",
+              "kind": "member",
+              "object": {
+                "kind": "name",
+                "name": "checkpointmanager"
+              }
+            },
+            "kind": "call"
+          },
+          "failure": "original_5",
+          "id": "original_2",
+          "success": "original_3",
+          "type": "native_branch"
+        }
+      },
+      {
+        "code": "\n    total = total + 4",
+        "node": {
+          "goto": "original_4",
+          "id": "original_3",
+          "operations": [
+            {
+              "kind": "assign",
+              "target": {
+                "kind": "local",
+                "name": "total",
+                "symbol": "v0"
+              },
+              "value": {
+                "kind": "binary",
+                "left": {
+                  "kind": "local",
+                  "name": "total",
+                  "symbol": "v0"
+                },
+                "op": "+",
+                "right": {
+                  "kind": "literal",
+                  "value": 4
+                }
+              }
+            }
+          ],
+          "type": "native_action"
+        }
+      },
+      {
+        "code": "\n    say(luamanager.GetStoryText(\"N_IMPORT_A\"))",
+        "node": {
+          "goto": "original_8",
+          "id": "original_4",
+          "inherit_dialog": true,
+          "mode": "narrative",
+          "text": "原版甲",
+          "type": "say"
+        },
+        "operations": [
+          {
+            "expression": {
+              "args": [
+                {
+                  "args": [
+                    {
+                      "kind": "literal",
+                      "value": "N_IMPORT_A"
+                    }
+                  ],
+                  "function": {
+                    "field": "GetStoryText",
+                    "kind": "member",
+                    "object": {
+                      "kind": "name",
+                      "name": "luamanager"
+                    }
+                  },
+                  "kind": "call"
+                }
+              ],
+              "function": {
+                "kind": "name",
+                "name": "say"
+              },
+              "kind": "call"
+            },
+            "kind": "call"
+          }
+        ]
+      },
+      {
+        "code": "\nelse",
+        "node": {
+          "goto": "original_6",
+          "id": "original_5",
+          "operations": [],
+          "type": "native_action"
+        }
+      },
+      {
+        "code": "\n    total = total + 7",
+        "node": {
+          "goto": "original_7",
+          "id": "original_6",
+          "operations": [
+            {
+              "kind": "assign",
+              "target": {
+                "kind": "local",
+                "name": "total",
+                "symbol": "v0"
+              },
+              "value": {
+                "kind": "binary",
+                "left": {
+                  "kind": "local",
+                  "name": "total",
+                  "symbol": "v0"
+                },
+                "op": "+",
+                "right": {
+                  "kind": "literal",
+                  "value": 7
+                }
+              }
+            }
+          ],
+          "type": "native_action"
+        }
+      },
+      {
+        "code": "\n    say(luamanager.GetStoryText(\"N_IMPORT_B\"))",
+        "node": {
+          "goto": "original_8",
+          "id": "original_7",
+          "inherit_dialog": true,
+          "mode": "narrative",
+          "text": "原版乙",
+          "type": "say"
+        },
+        "operations": [
+          {
+            "expression": {
+              "args": [
+                {
+                  "args": [
+                    {
+                      "kind": "literal",
+                      "value": "N_IMPORT_B"
+                    }
+                  ],
+                  "function": {
+                    "field": "GetStoryText",
+                    "kind": "member",
+                    "object": {
+                      "kind": "name",
+                      "name": "luamanager"
+                    }
+                  },
+                  "kind": "call"
+                }
+              ],
+              "function": {
+                "kind": "name",
+                "name": "say"
+              },
+              "kind": "call"
+            },
+            "kind": "call"
+          }
+        ]
+      },
+      {
+        "code": "\nend",
+        "node": {
+          "goto": "original_9",
+          "id": "original_8",
+          "operations": [],
+          "type": "native_action"
+        }
+      },
+      {
+        "code": "\nlocal options = {\"O_ONE\", \"O_TWO\"}\nlocal selected = choose(options)\nmark_progress(total + selected)",
+        "node": {
+          "goto": "original_10",
+          "id": "original_9",
+          "operations": [
+            {
+              "declare": true,
+              "kind": "assign",
+              "target": {
+                "kind": "local",
+                "name": "options",
+                "symbol": "v1"
+              },
+              "value": {
+                "entries": [
+                  {
+                    "key": null,
+                    "value": {
+                      "kind": "literal",
+                      "value": "O_ONE"
+                    }
+                  },
+                  {
+                    "key": null,
+                    "value": {
+                      "kind": "literal",
+                      "value": "O_TWO"
+                    }
+                  }
+                ],
+                "kind": "table"
+              }
+            },
+            {
+              "declare": true,
+              "kind": "assign",
+              "target": {
+                "kind": "local",
+                "name": "selected",
+                "symbol": "v2"
+              },
+              "value": {
+                "args": [
+                  {
+                    "kind": "local",
+                    "name": "options",
+                    "symbol": "v1"
+                  }
+                ],
+                "function": {
+                  "kind": "name",
+                  "name": "choose"
+                },
+                "kind": "call"
+              }
+            },
+            {
+              "expression": {
+                "args": [
+                  {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "local",
+                      "name": "total",
+                      "symbol": "v0"
+                    },
+                    "op": "+",
+                    "right": {
+                      "kind": "local",
+                      "name": "selected",
+                      "symbol": "v2"
+                    }
+                  }
+                ],
+                "function": {
+                  "kind": "name",
+                  "name": "mark_progress"
+                },
+                "kind": "call"
+              },
+              "kind": "call"
+            }
+          ],
+          "type": "native_action"
+        }
+      },
+      {
+        "code": "\nsay(luamanager.GetStoryText(\"N_IMPORT_DONE\"))",
+        "node": {
+          "goto": "original_11",
+          "id": "original_10",
+          "inherit_dialog": true,
+          "mode": "narrative",
+          "text": "原版尾句",
+          "type": "say"
+        },
+        "operations": [
+          {
+            "expression": {
+              "args": [
+                {
+                  "args": [
+                    {
+                      "kind": "literal",
+                      "value": "N_IMPORT_DONE"
+                    }
+                  ],
+                  "function": {
+                    "field": "GetStoryText",
+                    "kind": "member",
+                    "object": {
+                      "kind": "name",
+                      "name": "luamanager"
+                    }
+                  },
+                  "kind": "call"
+                }
+              ],
+              "function": {
+                "kind": "name",
+                "name": "say"
+              },
+              "kind": "call"
+            },
+            "kind": "call"
+          }
+        ]
+      },
+      {
+        "code": "\n",
+        "node": {
+          "id": "original_11",
+          "resume_original": true,
+          "type": "end"
+        }
+      }
+    ],
+    "schema": 2,
+    "target": "MODKIT_IMPORT_EXAMPLE"
   }
 }

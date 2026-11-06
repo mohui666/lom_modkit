@@ -79,6 +79,88 @@ pub struct Timeline {
     pub missions: Vec<TimelineEntry>,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeTransition {
+    pub from: String,
+    pub target: String,
+    pub captured_utc: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct RuntimeRoutes {
+    pub schema: u32,
+    pub game_dir: PathBuf,
+    pub session: String,
+    pub captured_utc: String,
+    pub status: String,
+    pub script: String,
+    pub temp_script1: String,
+    pub travel_script: String,
+    pub transitions: Vec<RuntimeTransition>,
+}
+
+/// The value at capture time, never a prediction for an unrelated saved game.
+impl RuntimeRoutes {
+    pub fn return_target(&self) -> Option<&str> {
+        if self.status != "story" {
+            return None;
+        }
+        let target = match self.script.to_ascii_lowercase().as_str() {
+            "s0019_01" | "s2504_01" | "talk_girl5_check" => &self.temp_script1,
+            "s8500_01_06" => &self.travel_script,
+            _ => return None,
+        };
+        (!target.is_empty()).then_some(target.as_str())
+    }
+
+    pub fn has_return_slot(&self) -> bool {
+        self.status == "story"
+            && matches!(
+                self.script.to_ascii_lowercase().as_str(),
+                "s0019_01" | "s2504_01" | "talk_girl5_check" | "s8500_01_06"
+            )
+    }
+}
+
+pub fn read_runtime_routes(root: &Path) -> Result<Option<RuntimeRoutes>> {
+    let path = root.join("route-runtime.json");
+    let info = match fs::metadata(&path) {
+        Ok(info) => info,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.into()),
+    };
+    ensure!(info.len() <= 65536, "路线运行快照文件过大");
+    let snapshot: RuntimeRoutes = serde_json::from_value(crate::load_json(&path)?)?;
+    ensure!(
+        snapshot.schema == 1
+            && snapshot.transitions.len() <= 32
+            && !snapshot.session.is_empty()
+            && snapshot.session.len() <= 64
+            && matches!(snapshot.status.as_str(), "story" | "inactive"),
+        "路线运行快照格式无效"
+    );
+    for target in [
+        &snapshot.script,
+        &snapshot.temp_script1,
+        &snapshot.travel_script,
+    ] {
+        ensure!(
+            target.is_empty() || crate::vanilla_patch::valid_target(target),
+            "路线运行快照章节无效"
+        );
+    }
+    for transition in &snapshot.transitions {
+        ensure!(
+            crate::vanilla_patch::valid_target(&transition.from)
+                && crate::vanilla_patch::valid_target(&transition.target),
+            "路线跳转记录章节无效"
+        );
+    }
+    Ok(Some(snapshot))
+}
+
 pub fn default_root() -> PathBuf {
     crate::content::default_repository_root()
         .parent()

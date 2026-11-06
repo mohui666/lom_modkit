@@ -152,6 +152,7 @@ fn type_valid(tag: &str, v: &Value) -> bool {
         }
         "bool" => v.is_boolean(),
         "list" => v.is_array(),
+        "expr" => v.is_object(),
         "talent_level" => v.as_f64().is_some_and(|n| n == 1.0 || n == -1.0),
         "save_button" => v.as_f64().is_some_and(|n| n == 0.0 || n == 1.0),
         "script_id" => v.as_str().is_some_and(|x| matches(SCRIPT_ID, x)),
@@ -1397,6 +1398,9 @@ fn extra(n: &Value, ntype: &str, catalog: &Value) -> Result<()> {
 }
 fn targets(node: &Value) -> Vec<&str> {
     let mut result = Vec::new();
+    if let Some(target) = node["resume_node"].as_str() {
+        result.push(target);
+    }
     if let Some(v) = node.get("goto").and_then(Value::as_str) {
         result.push(v);
     }
@@ -1653,6 +1657,20 @@ fn story_inner(story: &Value, catalog: &Value) -> Result<()> {
         let label = format!("节点 \"{id}\"({})", s(node, "type"));
         let kind = fields(node).with_context(|| label.clone())?;
         extra(node, kind, catalog).with_context(|| label.clone())?;
+        if has(node, "resume_node") {
+            ensure!(
+                kind == "end"
+                    && node["resume_original"] == true
+                    && imported.as_ref().is_some_and(|i| i.schema == 2),
+                "resume_node 仅用于结构化原版章节的返回步骤"
+            );
+        }
+        if matches!(kind, "native_action" | "native_branch") {
+            ensure!(
+                imported.as_ref().is_some_and(|i| i.schema == 2),
+                "原版指令及分支需要结构化整章来源"
+            );
+        }
         ensure!(
             !node["resume_original"].as_bool().unwrap_or(false) || imported.is_some(),
             "{label}: 返回原版流程仅用于整章导入的原版章节"

@@ -76,6 +76,12 @@
     "character": "artist1",
     "fadeDuration": 0
   },
+  "native_action": {"id":"node","type":"native_action","operations":[]},
+  "native_branch": {"id":"node","type":"native_branch","condition":{"kind":"literal","value":true},"success":"","failure":""},
+  "hide_all": {
+    "id": "node",
+    "type": "hide_all"
+  },
   "focus": {
     "id": "node",
     "type": "focus",

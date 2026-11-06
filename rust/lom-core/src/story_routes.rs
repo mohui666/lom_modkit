@@ -48,6 +48,7 @@ pub struct RouteEdge {
 }
 #[derive(Clone, Debug, Default)]
 pub struct RouteGraph {
+    pub game_dir: std::path::PathBuf,
     pub stations: Vec<Station>,
     pub edges: Vec<RouteEdge>,
     pub owners: BTreeMap<String, Vec<usize>>,
@@ -103,6 +104,7 @@ impl RouteGraph {
     }
     pub fn build(timeline: &Timeline, routes: &ScriptRoutes) -> Self {
         let mut graph = Self {
+            game_dir: timeline.game_dir.clone(),
             stations: timeline
                 .missions
                 .iter()

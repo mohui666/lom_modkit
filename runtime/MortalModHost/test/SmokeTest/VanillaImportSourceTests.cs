@@ -47,6 +47,25 @@ namespace MortalModHost
             catch (InvalidOperationException) { rejected = true; }
             Check(rejected && !stale.OriginalVerified, "A changed installed chapter must require reimport");
 
+            JsonNode structured = fixture["baseline"].DeepClone();
+            structured["vanilla_import"]["schema"] = 2;
+            structured["vanilla_import"]["origins"][1]["node"]["goto"] = "original_3";
+            structured["nodes"][1]["goto"] = "extra";
+            structured["nodes"].AsArray().Insert(2, JsonNode.Parse("{\"id\":\"extra\",\"type\":\"say\",\"text\":\"added\",\"inherit_dialog\":true,\"goto\":\"original_3\"}"));
+            var detour = VanillaImportSource.Parse(structured.ToJsonString());
+            detour.VerifyOriginal(original);
+            Check(detour.Begin() && detour.Node("original_2") && !detour.Node("extra") && detour.Node("original_6"),
+                "Structured transient insertions must rejoin native attribution");
+            structured["nodes"][1]["goto"] = "original_6";
+            var redirected = VanillaImportSource.Parse(structured.ToJsonString());
+            redirected.VerifyOriginal(original);
+            Check(redirected.Begin() && !redirected.Node("original_2") && !redirected.ContinueOriginal(),
+                "Redirecting to a different native successor must retain MOD attribution");
+            structured["vanilla_import"]["external"] = true;
+            var externalSource = VanillaImportSource.Parse(structured.ToJsonString());
+            Check(externalSource.OriginalVerified && !externalSource.Begin() && !externalSource.Node("original_6"),
+                "Legacy external scripts must always be classified as player content");
+
             // Load/classify separately from the one-time comparison and cached path.
             JsonNode large = fixture["baseline"].DeepClone();
             large["vanilla_import"]["origins"][0]["code"] = new string('x',1024*1024);

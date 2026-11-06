@@ -8,6 +8,60 @@ fn story(node: Value) -> Value {
 }
 
 #[test]
+fn hide_all_clears_stage_analysis_and_compiles_to_the_character_only_entry() {
+    let input = json!({"id":"main","start":"official","nodes":[
+        {"id":"official","type":"show","character":"player","position":"L1"},
+        {"id":"custom","type":"show","character":"user:demo.actor","position":"R1"},
+        {"id":"clear","type":"hide_all","wait_after":0.25},
+        {"id":"official_after","type":"face","character":"player","facing":"left"},
+        {"id":"custom_after","type":"face","character":"user:demo.actor","facing":"left"},
+        {"id":"end","type":"end"}]});
+    validate::validate_story(&input).unwrap();
+    assert_eq!(
+        release::find_stage_issues(&input),
+        vec![
+            ("official_after".into(), "player".into()),
+            ("custom_after".into(), "user:demo.actor".into()),
+        ]
+    );
+    for index in [3, 4] {
+        assert!(release::missing_stage_linear(input["nodes"].as_array().unwrap(), index).is_some());
+    }
+    let lua = codegen::compile_story(&input, None, None, None).unwrap();
+    let clear = lua
+        .split("-- [clear] hide_all")
+        .nth(1)
+        .unwrap()
+        .split("-- [official_after]")
+        .next()
+        .unwrap();
+    assert!(clear.contains("mod_char_hide_all()\n\twait(0.25)"));
+    assert!(!clear.contains("mod_hide_all()"));
+    let mut invalid = input;
+    invalid["nodes"][2]["wait_after"] = json!(-1);
+    assert!(validate::validate_story(&invalid).is_err());
+}
+
+#[test]
+fn hide_all_package_requires_host_1411_and_reopens() {
+    let mut project = lom_core::project::Project::new();
+    project.manifest["min_host_version"] = json!("1.4.0");
+    project.stories.insert(
+        "main".into(),
+        story(json!({"id":"clear","type":"hide_all"})),
+    );
+    let dir = tempfile::tempdir().unwrap();
+    let output = dir.path().join("clear.lommod");
+    project.export(&output).unwrap();
+    let entries = lom_core::package::read_package(&output).unwrap();
+    let manifest: Value = serde_json::from_slice(&entries["manifest.json"]).unwrap();
+    assert_eq!(manifest["min_host_version"], "1.4.11");
+    let reopened = lom_core::project::Project::open(&output).unwrap();
+    assert_eq!(reopened.stories["main"]["nodes"][1]["type"], "hide_all");
+    assert_eq!(project.manifest["min_host_version"], "1.4.0");
+}
+
+#[test]
 fn portrait_changes_wait_for_both_phases_without_dialogue_or_position_reset() {
     for character in ["player", "user:demo.actor"] {
         let node =

@@ -117,6 +117,20 @@
         "wait_for_completion": "bool"
       }
     },
+    "native_action": {
+      "required": { "operations": "list" },
+      "optional": { "wait_after": "num" }
+    },
+    "native_branch": {
+      "required": { "condition": "expr", "success": "str", "failure": "str" },
+      "optional": {}
+    },
+    "hide_all": {
+      "required": {},
+      "optional": {
+        "wait_after": "num"
+      }
+    },
     "focus": {
       "required": {
         "character": "str"
@@ -703,7 +717,8 @@
       "optional": {
         "next_script": "script_id",
         "event_result": "script_id",
-        "resume_original": "bool"
+        "resume_original": "bool",
+        "resume_node": "str"
       }
     },
     "free_trigger": {
@@ -1106,6 +1121,7 @@
     "_editor"
   ],
   "check_types": [
+    "native_branch",
     "stat_check",
     "affinity_check",
     "item_check",
@@ -1116,6 +1132,7 @@
     "persistent_check"
   ],
   "no_goto_types": [
+    "native_branch",
     "choice",
     "branch",
     "dice",
@@ -1135,6 +1152,7 @@
     "persistent_check"
   ],
   "terminal_types": [
+    "native_branch",
     "end",
     "choice",
     "branch",

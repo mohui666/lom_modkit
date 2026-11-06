@@ -10,6 +10,7 @@ mod http_download;
 mod i18n;
 mod initial_setup;
 mod macos_window;
+mod native_forms;
 mod persistence;
 mod play_bundle;
 mod preview;

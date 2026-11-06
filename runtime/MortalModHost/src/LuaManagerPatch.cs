@@ -753,6 +753,11 @@ namespace MortalModHost
                     CustomAudioPlayer.StopVoice();
                     return DynValue.Nil;
                 }, "mod_stop_voice");
+                script.Globals["mod_char_hide_all"] = new CallbackFunction((ctx, args) =>
+                {
+                    CustomCharacterRuntime.HideAllOnStage();
+                    return DynValue.Nil;
+                }, "mod_char_hide_all");
                 script.Globals["mod_hide_all"] = new CallbackFunction((ctx, args) =>
                 {
                     CustomCharacterRuntime.HideAllOnStage();
@@ -952,6 +957,7 @@ namespace MortalModHost
                         ModOverlay.CurrentPackage, ArgString(args, 0), RequireArgInt(args, 1)));
                 }, "mod_persistent_add");
                 RegisterCharacterGlobals(script);
+                LegacyLuaSupport.Register(script, ModOverlay.CurrentPackage);
             }
             catch (Exception ex)
             {

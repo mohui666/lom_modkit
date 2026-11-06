@@ -76,6 +76,12 @@ impl Project {
         }
     }
     pub fn open(path: &Path) -> Result<Self> {
+        if path.is_dir()
+            && !path.join("manifest.json").is_file()
+            && crate::legacy_loose::has_content(path)?
+        {
+            return crate::legacy_loose::read(path)?.into_project();
+        }
         if path
             .extension()
             .and_then(|s| s.to_str())

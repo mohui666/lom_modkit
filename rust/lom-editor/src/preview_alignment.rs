@@ -147,7 +147,7 @@ impl Preview {
                 ] {
                     if ui
                         .small_button(tr(label))
-                        .on_hover_text(tr("按可见边缘对齐到画面，忽略透明留白；可撤销。"))
+                        .on_hover_text(crate::i18n::key("common.layout.visible_edges"))
                         .clicked()
                     {
                         self.layout_command = Some(Command::Align(alignment));
@@ -155,7 +155,10 @@ impl Preview {
                 }
             });
             ui.horizontal_wrapped(|ui| {
-                if ui.small_button(tr("复制布局")).clicked() {
+                if ui
+                    .small_button(crate::i18n::key("common.layout.copy"))
+                    .clicked()
+                {
                     self.layout_command = Some(Command::Copy);
                 }
                 let compatible = self
@@ -168,18 +171,22 @@ impl Preview {
                             && screen_space(state, target) == clipboard.screen
                     });
                 if ui
-                    .add_enabled(compatible, egui::Button::new(tr("粘贴布局")).small())
-                    .on_hover_text(tr("粘贴同类对象的位置与缩放；特效需使用相同坐标模式。"))
+                    .add_enabled(
+                        compatible,
+                        egui::Button::new(crate::i18n::key("common.layout.paste")).small(),
+                    )
+                    .on_hover_text(crate::i18n::key("common.layout.paste_hint"))
                     .clicked()
                 {
                     self.layout_command = Some(Command::Paste);
                 }
-                ui.checkbox(&mut self.layout_snap, tr("吸附参考线"));
+                ui.checkbox(
+                    &mut self.layout_snap,
+                    crate::i18n::key("common.layout.snap"),
+                );
             });
         });
-        ui.small(tr(
-            "点击画面对象后用方向键微调 1 个舞台像素，Shift 为 10；拖动时按 Alt 暂停吸附。",
-        ));
+        ui.small(crate::i18n::key("common.layout.controls"));
     }
 
     pub(in crate::preview) fn alignment_actions(

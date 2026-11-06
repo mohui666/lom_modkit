@@ -1,4 +1,10 @@
 {
+  "node.native_action": "原作コマンド",
+  "node.native_branch": "原作条件分岐",
+  "help.native_action": "原作の呼び出しと代入を構造化したパラメータとして編集します。",
+  "help.native_branch": "原作の条件や選択結果を判定し、成立・不成立の各ステップへ分岐します。",
+  "node.hide_all": "画面の全人物を退場",
+  "help.hide_all": "画面上の公式・カスタム人物を全員すぐに退場させ、人物の吹き出しも消します。人物の個別指定は不要です。",
   "app.title": "活俠傳 Mod シナリオエディタ",
   "app.help_title": "ヘルプ — 活俠傳 Mod シナリオエディタ",
   "lang.chs": "中国語（CHS）",

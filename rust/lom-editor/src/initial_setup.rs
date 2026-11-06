@@ -1,5 +1,5 @@
 //! A focused view of ordinary chapter-entry actions, with no separate game state.
-use crate::{forms::Catalog, i18n::tr};
+use crate::forms::Catalog;
 use eframe::egui;
 use lom_core::project::Project;
 use serde_json::{json, Value};
@@ -79,13 +79,9 @@ fn remove(story: &mut Value, index: usize) {
 }
 
 pub fn show(ui: &mut egui::Ui, project: &mut Project, catalog: &Catalog, current: &mut String) {
-    ui.heading(tr("初始设置"));
-    ui.label(tr(
-        "这些设置就是章节入口处的普通步骤，按顺序在对白之前执行。",
-    ));
-    ui.small(tr(
-        "每次播放此章节都会执行；附加剧情请在剧情安排中设置开场事件只发生一次。",
-    ));
+    ui.heading(crate::i18n::key("common.initial.title"));
+    ui.label(crate::i18n::key("common.initial.hint"));
+    ui.small(crate::i18n::key("common.initial.repeat_hint"));
     egui::ComboBox::from_id_salt("setup-chapter")
         .selected_text(
             project
@@ -112,7 +108,7 @@ pub fn show(ui: &mut egui::Ui, project: &mut Project, catalog: &Catalog, current
         .collect::<Vec<_>>();
     ui.add_space(10.0);
     let mut add = None;
-    ui.menu_button(tr("＋ 添加初始设置"), |ui| {
+    ui.menu_button(crate::i18n::key("common.initial.add"), |ui| {
         for kind in KINDS {
             if ui.button(catalog.label(kind)).clicked() {
                 add = Some(*kind);
@@ -136,7 +132,7 @@ pub fn show(ui: &mut egui::Ui, project: &mut Project, catalog: &Catalog, current
     }
     let leading = prefix(story);
     if leading.is_empty() {
-        ui.label(tr("尚无开场设置。可添加时间、属性设置、物品等步骤。"));
+        ui.label(crate::i18n::key("common.initial.empty"));
     }
     let mut deletion = None;
     for index in leading {
@@ -159,9 +155,9 @@ pub fn show(ui: &mut egui::Ui, project: &mut Project, catalog: &Catalog, current
             if ui
                 .add_enabled(
                     !target.is_empty() && target != id,
-                    egui::Button::new(tr("移除此设置")),
+                    egui::Button::new(crate::i18n::key("common.initial.remove")),
                 )
-                .on_disabled_hover_text(tr("请先在此设置后连接一个剧情或结束步骤。"))
+                .on_disabled_hover_text(crate::i18n::key("common.initial.remove_hint"))
                 .clicked()
             {
                 deletion = Some(index);

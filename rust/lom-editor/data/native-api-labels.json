@@ -1,0 +1,1502 @@
+{
+  "anim.Play": {
+    "title": "native.command.anim_play",
+    "args": [
+      {
+        "label": "native.parameter.animation"
+      }
+    ]
+  },
+  "anim.Stop": {
+    "title": "native.command.anim_stop",
+    "args": []
+  },
+  "characters.Get": {
+    "title": "native.command.characters_get",
+    "args": [
+      {
+        "label": "native.parameter.character",
+        "resource": "characters"
+      }
+    ]
+  },
+  "characters.GetPortrait": {
+    "title": "native.command.characters_getportrait",
+    "args": [
+      {
+        "label": "native.parameter.character",
+        "resource": "characters"
+      },
+      {
+        "label": "native.parameter.portrait",
+        "resource": "portrait"
+      }
+    ]
+  },
+  "characters.LoadCharacterAsset": {
+    "title": "native.command.characters_loadcharacterasset",
+    "args": [
+      {
+        "label": "native.parameter.character",
+        "resource": "characters"
+      }
+    ]
+  },
+  "characters.UnloadCharacterAsset": {
+    "title": "native.command.characters_unloadcharacterasset",
+    "args": [
+      {
+        "label": "native.parameter.character",
+        "resource": "characters"
+      }
+    ]
+  },
+  "characters.LoadCharacterPortrait": {
+    "title": "native.command.characters_loadcharacterportrait",
+    "args": [
+      {
+        "label": "native.parameter.character",
+        "resource": "characters"
+      },
+      {
+        "label": "native.parameter.portrait",
+        "resource": "portrait"
+      }
+    ]
+  },
+  "characters.Focus": {
+    "title": "native.command.characters_focus",
+    "args": [
+      {
+        "label": "native.parameter.character",
+        "resource": "characters"
+      }
+    ]
+  },
+  "characters.RestoreRotation": {
+    "title": "native.command.characters_restorerotation",
+    "args": [
+      {
+        "label": "native.parameter.character",
+        "resource": "characters"
+      }
+    ]
+  },
+  "characters.ResetRotation": {
+    "title": "native.command.characters_resetrotation",
+    "args": [
+      {
+        "label": "native.parameter.character",
+        "resource": "characters"
+      }
+    ]
+  },
+  "characters.Rotate": {
+    "title": "native.command.characters_rotate",
+    "args": [
+      {
+        "label": "native.parameter.character",
+        "resource": "characters"
+      },
+      {
+        "label": "native.parameter.angle"
+      },
+      {
+        "label": "native.parameter.duration"
+      }
+    ]
+  },
+  "characters.Shake": {
+    "title": "native.command.characters_shake",
+    "args": [
+      {
+        "label": "native.parameter.character",
+        "resource": "characters"
+      },
+      {
+        "label": "native.parameter.duration"
+      },
+      {
+        "label": "native.parameter.angle"
+      },
+      {
+        "label": "native.parameter.vibrato"
+      }
+    ]
+  },
+  "characters.MoveOffset": {
+    "title": "native.command.characters_moveoffset",
+    "args": [
+      {
+        "label": "native.parameter.character",
+        "resource": "characters"
+      },
+      {
+        "label": "native.parameter.x"
+      },
+      {
+        "label": "native.parameter.y"
+      },
+      {
+        "label": "native.parameter.duration"
+      }
+    ]
+  },
+  "characters.MoveOffsetCoroutine": {
+    "title": "native.command.characters_moveoffsetcoroutine",
+    "args": [
+      {
+        "label": "native.parameter.character",
+        "resource": "characters"
+      },
+      {
+        "label": "native.parameter.x"
+      },
+      {
+        "label": "native.parameter.y"
+      },
+      {
+        "label": "native.parameter.duration"
+      }
+    ]
+  },
+  "characters.TestLoadCharacter": {
+    "title": "native.command.characters_testloadcharacter",
+    "args": []
+  },
+  "checkpointmanager.Condition": {
+    "title": "native.command.checkpointmanager_condition",
+    "args": [
+      {
+        "label": "native.parameter.checkpoint"
+      }
+    ]
+  },
+  "checkpointmanager.Switch": {
+    "title": "native.command.checkpointmanager_switch",
+    "args": [
+      {
+        "label": "native.parameter.checkpoint"
+      }
+    ]
+  },
+  "checkpointmanager.Dice": {
+    "title": "native.command.checkpointmanager_dice",
+    "args": [
+      {
+        "label": "native.parameter.checkpoint",
+        "resource": "dice_checks"
+      },
+      {
+        "label": "native.parameter.random"
+      }
+    ]
+  },
+  "checkpointmanager.Position": {
+    "title": "native.command.checkpointmanager_position",
+    "args": [
+      {
+        "label": "native.parameter.checkpoint"
+      }
+    ]
+  },
+  "choose": {
+    "title": "native.command.choose",
+    "args": [
+      {
+        "label": "native.parameter.options"
+      }
+    ]
+  },
+  "dicemenudialog.ExecuteRoll": {
+    "title": "native.command.dicemenudialog_executeroll",
+    "args": [
+      {
+        "label": "native.parameter.options"
+      },
+      {
+        "label": "native.parameter.destiny"
+      },
+      {
+        "label": "native.parameter.checkpoint",
+        "resource": "dice_checks"
+      }
+    ]
+  },
+  "dicemenudialog.SetRandom": {
+    "title": "native.command.dicemenudialog_setrandom",
+    "args": [
+      {
+        "label": "native.parameter.dice_max"
+      },
+      {
+        "label": "native.parameter.random"
+      }
+    ]
+  },
+  "dicemenudialog.Setup": {
+    "title": "native.command.dicemenudialog_setup",
+    "args": [
+      {
+        "label": "native.parameter.result_count"
+      },
+      {
+        "label": "native.parameter.result"
+      },
+      {
+        "label": "native.parameter.header"
+      },
+      {
+        "label": "native.parameter.additions"
+      }
+    ]
+  },
+  "effects.SetupEffect": {
+    "title": "native.command.effects_setupeffect",
+    "args": [
+      {
+        "label": "native.parameter.effect",
+        "resource": "effects"
+      },
+      {
+        "label": "native.parameter.x"
+      },
+      {
+        "label": "native.parameter.y"
+      },
+      {
+        "label": "native.parameter.scale_x"
+      },
+      {
+        "label": "native.parameter.scale_y"
+      },
+      {
+        "label": "native.parameter.reuse_effect",
+        "resource": "toggle"
+      },
+      {
+        "label": "native.parameter.play_effect",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "flowcharts.LoadView": {
+    "title": "native.command.flowcharts_loadview",
+    "args": [
+      {
+        "label": "native.parameter.view",
+        "resource": "views"
+      }
+    ]
+  },
+  "flowcharts.SetViewScrollSpeed": {
+    "title": "native.command.flowcharts_setviewscrollspeed",
+    "args": [
+      {
+        "label": "native.parameter.move_speed"
+      }
+    ]
+  },
+  "getvar": {
+    "title": "native.command.getvar",
+    "args": [
+      {
+        "label": "native.parameter.flowchart",
+        "resource": "flowchart"
+      },
+      {
+        "label": "native.parameter.flow_variable"
+      }
+    ]
+  },
+  "luamanager.AutoFreeSave": {
+    "title": "native.command.luamanager_autofreesave",
+    "args": []
+  },
+  "luamanager.AutoSave": {
+    "title": "native.command.luamanager_autosave",
+    "args": []
+  },
+  "luamanager.ChangeScene": {
+    "title": "native.command.luamanager_changescene",
+    "args": [
+      {
+        "label": "native.parameter.scene",
+        "resource": "scene"
+      },
+      {
+        "label": "native.parameter.scene_key"
+      },
+      {
+        "label": "native.parameter.return_scene",
+        "resource": "scene"
+      }
+    ]
+  },
+  "luamanager.CloseDialog": {
+    "title": "native.command.luamanager_closedialog",
+    "args": []
+  },
+  "luamanager.FadeOutEnvSound": {
+    "title": "native.command.luamanager_fadeoutenvsound",
+    "args": [
+      {
+        "label": "native.parameter.duration"
+      }
+    ]
+  },
+  "luamanager.FadeOutMusic": {
+    "title": "native.command.luamanager_fadeoutmusic",
+    "args": [
+      {
+        "label": "native.parameter.duration"
+      }
+    ]
+  },
+  "luamanager.GetCurrentTravelScript": {
+    "title": "native.command.luamanager_getcurrenttravelscript",
+    "args": []
+  },
+  "luamanager.GetStatData": {
+    "title": "native.command.luamanager_getstatdata",
+    "args": [
+      {
+        "label": "native.parameter.stat",
+        "resource": "stats"
+      },
+      {
+        "label": "native.parameter.stat_source"
+      }
+    ]
+  },
+  "luamanager.GetStoryText": {
+    "title": "native.command.luamanager_getstorytext",
+    "args": [
+      {
+        "label": "native.parameter.text_key"
+      }
+    ]
+  },
+  "luamanager.GetTempScript": {
+    "title": "native.command.luamanager_gettempscript",
+    "args": [
+      {
+        "label": "native.parameter.slot"
+      }
+    ]
+  },
+  "luamanager.Init": {
+    "title": "native.command.luamanager_init",
+    "args": []
+  },
+  "luamanager.NextMonth": {
+    "title": "native.command.luamanager_nextmonth",
+    "args": []
+  },
+  "luamanager.NextRound": {
+    "title": "native.command.luamanager_nextround",
+    "args": []
+  },
+  "luamanager.PlayEnvSound": {
+    "title": "native.command.luamanager_playenvsound",
+    "args": [
+      {
+        "label": "native.parameter.env_sound",
+        "resource": "env_sounds"
+      }
+    ]
+  },
+  "luamanager.PlayMusic": {
+    "title": "native.command.luamanager_playmusic",
+    "args": [
+      {
+        "label": "native.parameter.music",
+        "resource": "music"
+      }
+    ]
+  },
+  "luamanager.PlaySound": {
+    "title": "native.command.luamanager_playsound",
+    "args": [
+      {
+        "label": "native.parameter.sound",
+        "resource": "sounds"
+      }
+    ]
+  },
+  "luamanager.PrologueSave": {
+    "title": "native.command.luamanager_prologuesave",
+    "args": [
+      {
+        "label": "native.parameter.prologue_mode"
+      }
+    ]
+  },
+  "luamanager.ResetBattleSkill": {
+    "title": "native.command.luamanager_resetbattleskill",
+    "args": []
+  },
+  "luamanager.SetBattleSkillActive": {
+    "title": "native.command.luamanager_setbattleskillactive",
+    "args": [
+      {
+        "label": "native.parameter.battle_skill",
+        "resource": "battle_skills"
+      },
+      {
+        "label": "native.parameter.enabled",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "luamanager.SetCurrentStoryScript": {
+    "title": "native.command.luamanager_setcurrentstoryscript",
+    "args": [
+      {
+        "label": "native.parameter.script"
+      }
+    ]
+  },
+  "luamanager.SetCurrentTravelScript": {
+    "title": "native.command.luamanager_setcurrenttravelscript",
+    "args": [
+      {
+        "label": "native.parameter.script"
+      }
+    ]
+  },
+  "luamanager.SetEnableActions": {
+    "title": "native.command.luamanager_setenableactions",
+    "args": [
+      {
+        "label": "native.parameter.actions_enabled",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "luamanager.SetGameDayEnvironment": {
+    "title": "native.command.luamanager_setgamedayenvironment",
+    "args": [
+      {
+        "label": "native.parameter.environment",
+        "resource": "dayenv"
+      }
+    ]
+  },
+  "luamanager.SetGameTime": {
+    "title": "native.command.luamanager_setgametime",
+    "args": [
+      {
+        "label": "native.parameter.year"
+      },
+      {
+        "label": "native.parameter.month"
+      },
+      {
+        "label": "native.parameter.stage"
+      }
+    ]
+  },
+  "luamanager.SetMissionTime": {
+    "title": "native.command.luamanager_setmissiontime",
+    "args": [
+      {
+        "label": "native.parameter.mission"
+      },
+      {
+        "label": "native.parameter.year"
+      },
+      {
+        "label": "native.parameter.month"
+      },
+      {
+        "label": "native.parameter.stage"
+      }
+    ]
+  },
+  "luamanager.SetNextScript": {
+    "title": "native.command.luamanager_setnextscript",
+    "args": [
+      {
+        "label": "native.parameter.script"
+      }
+    ]
+  },
+  "luamanager.SetPlayerBattleSkill": {
+    "title": "native.command.luamanager_setplayerbattleskill",
+    "args": [
+      {
+        "label": "native.parameter.battle_skill",
+        "resource": "battle_skills"
+      },
+      {
+        "label": "native.parameter.equipment_slot"
+      }
+    ]
+  },
+  "luamanager.SetTempScript": {
+    "title": "native.command.luamanager_settempscript",
+    "args": [
+      {
+        "label": "native.parameter.slot"
+      },
+      {
+        "label": "native.parameter.script"
+      }
+    ]
+  },
+  "luamanager.SetTitlePartner": {
+    "title": "native.command.luamanager_settitlepartner",
+    "args": [
+      {
+        "label": "native.parameter.partner"
+      }
+    ]
+  },
+  "luamanager.StopMusic": {
+    "title": "native.command.luamanager_stopmusic",
+    "args": []
+  },
+  "luamanager.SwapUpgradeItem": {
+    "title": "native.command.luamanager_swapupgradeitem",
+    "args": [
+      {
+        "label": "native.parameter.item"
+      },
+      {
+        "label": "native.parameter.level"
+      }
+    ]
+  },
+  "luamanager.ToggleSaveButton": {
+    "title": "native.command.luamanager_togglesavebutton",
+    "args": [
+      {
+        "label": "native.parameter.save_enabled",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "maincamera.ActiveVolume": {
+    "title": "native.command.maincamera_activevolume",
+    "args": [
+      {
+        "label": "native.parameter.filter",
+        "resource": "filter"
+      },
+      {
+        "label": "native.parameter.enabled",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "maincamera.FadeVolume": {
+    "title": "native.command.maincamera_fadevolume",
+    "args": [
+      {
+        "label": "native.parameter.filter",
+        "resource": "filter"
+      },
+      {
+        "label": "native.parameter.enabled",
+        "resource": "toggle"
+      },
+      {
+        "label": "native.parameter.duration"
+      }
+    ]
+  },
+  "mainui.DisplayItemMessage": {
+    "title": "native.command.mainui_displayitemmessage",
+    "args": [
+      {
+        "label": "native.parameter.item_type",
+        "resource": "item_type"
+      },
+      {
+        "label": "native.parameter.item_change",
+        "resource": "item_change"
+      },
+      {
+        "label": "native.parameter.item",
+        "resource": "item"
+      }
+    ]
+  },
+  "mainui.DisplayMessage": {
+    "title": "native.command.mainui_displaymessage",
+    "args": [
+      {
+        "label": "native.parameter.message_key",
+        "resource": "messages"
+      }
+    ]
+  },
+  "mainui.DisplayTitle": {
+    "title": "native.command.mainui_displaytitle",
+    "args": [
+      {
+        "label": "native.parameter.title_key"
+      }
+    ]
+  },
+  "mainui.ShowPicture": {
+    "title": "native.command.mainui_showpicture",
+    "args": [
+      {
+        "label": "native.parameter.picture"
+      }
+    ]
+  },
+  "mainui.HidePicture": {
+    "title": "native.command.mainui_hidepicture",
+    "args": []
+  },
+  "mainui.ShowItemPicture": {
+    "title": "native.command.mainui_showitempicture",
+    "args": [
+      {
+        "label": "native.parameter.picture"
+      }
+    ]
+  },
+  "mainui.HideItemPicture": {
+    "title": "native.command.mainui_hideitempicture",
+    "args": []
+  },
+  "mainui.ShowBigPicture": {
+    "title": "native.command.mainui_showbigpicture",
+    "args": [
+      {
+        "label": "native.parameter.picture"
+      },
+      {
+        "label": "native.parameter.color",
+        "resource": "picture_color"
+      }
+    ]
+  },
+  "mainui.HideBigPicture": {
+    "title": "native.command.mainui_hidebigpicture",
+    "args": []
+  },
+  "mainui.ShowMap": {
+    "title": "native.command.mainui_showmap",
+    "args": [
+      {
+        "label": "native.parameter.map_start"
+      },
+      {
+        "label": "native.parameter.map_end"
+      }
+    ]
+  },
+  "mainui.HideMap": {
+    "title": "native.command.mainui_hidemap",
+    "args": []
+  },
+  "mainui.ShowFamilyTree": {
+    "title": "native.command.mainui_showfamilytree",
+    "args": [
+      {
+        "label": "native.parameter.map_start"
+      },
+      {
+        "label": "native.parameter.map_end"
+      },
+      {
+        "label": "native.parameter.start_scale"
+      },
+      {
+        "label": "native.parameter.end_scale"
+      }
+    ]
+  },
+  "mainui.HideFamilyTree": {
+    "title": "native.command.mainui_hidefamilytree",
+    "args": []
+  },
+  "math.random": {
+    "title": "native.command.math_random",
+    "args": [
+      {
+        "label": "native.parameter.maximum"
+      }
+    ]
+  },
+  "movieblack.FadeIn": {
+    "title": "native.command.movieblack_fadein",
+    "args": []
+  },
+  "movieblack.FadeOut": {
+    "title": "native.command.movieblack_fadeout",
+    "args": []
+  },
+  "os_mask.SetLastPosition": {
+    "title": "native.command.os_mask_setlastposition",
+    "args": []
+  },
+  "os_mask.Show": {
+    "title": "native.command.os_mask_show",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "topmaskgradient.Show": {
+    "title": "native.command.topmaskgradient_show",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "runblock": {
+    "title": "native.command.runblock",
+    "args": [
+      {
+        "label": "native.parameter.flowchart",
+        "resource": "flowchart"
+      },
+      {
+        "label": "native.parameter.block",
+        "resource": "block"
+      }
+    ]
+  },
+  "runwait": {
+    "title": "native.command.runwait",
+    "args": [
+      {
+        "label": "native.parameter.value"
+      }
+    ]
+  },
+  "say": {
+    "title": "native.command.say",
+    "args": [
+      {
+        "label": "native.parameter.story_text"
+      }
+    ]
+  },
+  "setcharacter": {
+    "title": "native.command.setcharacter",
+    "args": [
+      {
+        "label": "native.parameter.speaker",
+        "resource": "characters"
+      },
+      {
+        "label": "native.parameter.portrait",
+        "resource": "portrait"
+      }
+    ]
+  },
+  "setmenudialog": {
+    "title": "native.command.setmenudialog",
+    "args": [
+      {
+        "label": "native.parameter.menu",
+        "resource": "menu_dialog"
+      }
+    ]
+  },
+  "setsaydialog": {
+    "title": "native.command.setsaydialog",
+    "args": [
+      {
+        "label": "native.parameter.dialog",
+        "resource": "say_dialog"
+      }
+    ]
+  },
+  "stage.show": {
+    "title": "native.command.stage_show",
+    "args": [
+      {
+        "label": "native.parameter.value"
+      }
+    ]
+  },
+  "stage.hide": {
+    "title": "native.command.stage_hide",
+    "args": [
+      {
+        "label": "native.parameter.value"
+      }
+    ]
+  },
+  "stage.showPortrait": {
+    "title": "native.command.stage_showportrait",
+    "args": [
+      {
+        "label": "native.parameter.character",
+        "resource": "characters"
+      },
+      {
+        "label": "native.parameter.portrait",
+        "resource": "portrait"
+      }
+    ]
+  },
+  "transitionblack.TransitionIn": {
+    "title": "native.command.transitionblack_transitionin",
+    "args": [
+      {
+        "label": "native.parameter.direction",
+        "resource": "direction"
+      }
+    ]
+  },
+  "transitionblack.TransitionOut": {
+    "title": "native.command.transitionblack_transitionout",
+    "args": [
+      {
+        "label": "native.parameter.direction",
+        "resource": "direction"
+      }
+    ]
+  },
+  "wait": {
+    "title": "native.command.wait",
+    "args": [
+      {
+        "label": "native.parameter.duration"
+      }
+    ]
+  },
+  "statmodifymanager.AddAchievementLib": {
+    "title": "native.command.statmodifymanager_addachievementlib",
+    "args": [
+      {
+        "label": "native.parameter.achievement"
+      }
+    ]
+  },
+  "statmodifymanager.AddFlag": {
+    "title": "native.command.statmodifymanager_addflag",
+    "args": [
+      {
+        "label": "native.parameter.flag",
+        "resource": "game_flags"
+      },
+      {
+        "label": "native.parameter.change"
+      }
+    ]
+  },
+  "statmodifymanager.SetFlag": {
+    "title": "native.command.statmodifymanager_setflag",
+    "args": [
+      {
+        "label": "native.parameter.flag",
+        "resource": "game_flags"
+      },
+      {
+        "label": "native.parameter.value"
+      }
+    ]
+  },
+  "statmodifymanager.AddStory": {
+    "title": "native.command.statmodifymanager_addstory",
+    "args": [
+      {
+        "label": "native.parameter.story_log"
+      }
+    ]
+  },
+  "statmodifymanager.AddTalent": {
+    "title": "native.command.statmodifymanager_addtalent",
+    "args": [
+      {
+        "label": "native.parameter.talent",
+        "resource": "talents"
+      },
+      {
+        "label": "native.parameter.level"
+      }
+    ]
+  },
+  "statmodifymanager.Character": {
+    "title": "native.command.statmodifymanager_character",
+    "args": [
+      {
+        "label": "native.parameter.character",
+        "resource": "affinity_characters"
+      },
+      {
+        "label": "native.parameter.change"
+      },
+      {
+        "label": "native.parameter.show_message",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "statmodifymanager.SetCharacter": {
+    "title": "native.command.statmodifymanager_setcharacter",
+    "args": [
+      {
+        "label": "native.parameter.character",
+        "resource": "affinity_characters"
+      },
+      {
+        "label": "native.parameter.value"
+      }
+    ]
+  },
+  "statmodifymanager.GetDisplayTime": {
+    "title": "native.command.statmodifymanager_getdisplaytime",
+    "args": [
+      {
+        "label": "native.parameter.stat",
+        "resource": "stats"
+      }
+    ]
+  },
+  "statmodifymanager.IsTriggerSubMission": {
+    "title": "native.command.statmodifymanager_istriggersubmission",
+    "args": [
+      {
+        "label": "native.parameter.mission_key"
+      },
+      {
+        "label": "native.parameter.enabled",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "statmodifymanager.Mission": {
+    "title": "native.command.statmodifymanager_mission",
+    "args": [
+      {
+        "label": "native.parameter.mission"
+      },
+      {
+        "label": "native.parameter.mission_key"
+      }
+    ]
+  },
+  "statmodifymanager.ModifyEnemyId": {
+    "title": "native.command.statmodifymanager_modifyenemyid",
+    "args": [
+      {
+        "label": "native.parameter.enemy",
+        "resource": "enemy_teams"
+      }
+    ]
+  },
+  "statmodifymanager.ModifyEnemyLevel": {
+    "title": "native.command.statmodifymanager_modifyenemylevel",
+    "args": [
+      {
+        "label": "native.parameter.enemy",
+        "resource": "enemy_teams"
+      },
+      {
+        "label": "native.parameter.change"
+      },
+      {
+        "label": "native.parameter.show_message",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "statmodifymanager.ModifyEnemyPeople": {
+    "title": "native.command.statmodifymanager_modifyenemypeople",
+    "args": [
+      {
+        "label": "native.parameter.enemy",
+        "resource": "enemy_teams"
+      },
+      {
+        "label": "native.parameter.change"
+      },
+      {
+        "label": "native.parameter.show_message",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "statmodifymanager.ModifyEnemyTeam": {
+    "title": "native.command.statmodifymanager_modifyenemyteam",
+    "args": [
+      {
+        "label": "native.parameter.enemy",
+        "resource": "enemy_teams"
+      },
+      {
+        "label": "native.parameter.value"
+      },
+      {
+        "label": "native.parameter.show_message",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "statmodifymanager.Player": {
+    "title": "native.command.statmodifymanager_player",
+    "args": [
+      {
+        "label": "native.parameter.stat",
+        "resource": "stats"
+      },
+      {
+        "label": "native.parameter.change"
+      },
+      {
+        "label": "native.parameter.calculation",
+        "resource": "calculation"
+      },
+      {
+        "label": "native.parameter.show_message",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "statmodifymanager.SetPlayer": {
+    "title": "native.command.statmodifymanager_setplayer",
+    "args": [
+      {
+        "label": "native.parameter.stat",
+        "resource": "stats"
+      },
+      {
+        "label": "native.parameter.value"
+      }
+    ]
+  },
+  "statmodifymanager.UpdateSetPlayerStat": {
+    "title": "native.command.statmodifymanager_updatesetplayerstat",
+    "args": [
+      {
+        "label": "native.parameter.stat",
+        "resource": "stats"
+      },
+      {
+        "label": "native.parameter.value"
+      }
+    ]
+  },
+  "statmodifymanager.ResetTalkFlag": {
+    "title": "native.command.statmodifymanager_resettalkflag",
+    "args": []
+  },
+  "statmodifymanager.UpdateShopFlag": {
+    "title": "native.command.statmodifymanager_updateshopflag",
+    "args": []
+  },
+  "statmodifymanager.AddBook": {
+    "title": "native.command.statmodifymanager_addbook",
+    "args": [
+      {
+        "label": "native.parameter.book",
+        "resource": "items_book"
+      },
+      {
+        "label": "native.parameter.count"
+      }
+    ]
+  },
+  "statmodifymanager.RemoveBook": {
+    "title": "native.command.statmodifymanager_removebook",
+    "args": [
+      {
+        "label": "native.parameter.book",
+        "resource": "items_book"
+      }
+    ]
+  },
+  "statmodifymanager.AddMisc": {
+    "title": "native.command.statmodifymanager_addmisc",
+    "args": [
+      {
+        "label": "native.parameter.misc",
+        "resource": "items_misc"
+      },
+      {
+        "label": "native.parameter.count"
+      }
+    ]
+  },
+  "statmodifymanager.RemoveMisc": {
+    "title": "native.command.statmodifymanager_removemisc",
+    "args": [
+      {
+        "label": "native.parameter.misc",
+        "resource": "items_misc"
+      }
+    ]
+  },
+  "statmodifymanager.AddSpecial": {
+    "title": "native.command.statmodifymanager_addspecial",
+    "args": [
+      {
+        "label": "native.parameter.special",
+        "resource": "items_special"
+      },
+      {
+        "label": "native.parameter.count"
+      }
+    ]
+  },
+  "statmodifymanager.RemoveSpecial": {
+    "title": "native.command.statmodifymanager_removespecial",
+    "args": [
+      {
+        "label": "native.parameter.special",
+        "resource": "items_special"
+      }
+    ]
+  },
+  "cgpanel.Open": {
+    "title": "native.command.cgpanel_open",
+    "args": [
+      {
+        "label": "native.parameter.cg"
+      }
+    ]
+  },
+  "cgvideopanel.Open": {
+    "title": "native.command.cgvideopanel_open",
+    "args": [
+      {
+        "label": "native.parameter.cgvideo"
+      },
+      {
+        "label": "native.parameter.fade"
+      }
+    ]
+  },
+  "creditpanel.Open": {
+    "title": "native.command.creditpanel_open",
+    "args": []
+  },
+  "endgamepanel.Open": {
+    "title": "native.command.endgamepanel_open",
+    "args": [
+      {
+        "label": "native.parameter.endgame",
+        "resource": "ending_ids"
+      }
+    ]
+  },
+  "fatebonuspanel.Open": {
+    "title": "native.command.fatebonuspanel_open",
+    "args": []
+  },
+  "intropanel.Show": {
+    "title": "native.command.intropanel_show",
+    "args": [
+      {
+        "label": "native.parameter.character",
+        "resource": "characters"
+      },
+      {
+        "label": "native.parameter.intro_mode"
+      }
+    ]
+  },
+  "martialpanel.Open": {
+    "title": "native.command.martialpanel_open",
+    "args": [
+      {
+        "label": "native.parameter.martial_mode"
+      }
+    ]
+  },
+  "poisonupgradepanel.Open": {
+    "title": "native.command.poisonupgradepanel_open",
+    "args": []
+  },
+  "weaponupgradepanel.Open": {
+    "title": "native.command.weaponupgradepanel_open",
+    "args": []
+  },
+  "shoppanel.Open": {
+    "title": "native.command.shoppanel_open",
+    "args": [
+      {
+        "label": "native.parameter.discount"
+      }
+    ]
+  },
+  "shoppanel.NewShop": {
+    "title": "native.command.shoppanel_newshop",
+    "args": []
+  },
+  "menudialogs.Alchemy.SetActive": {
+    "title": "native.command.menudialogs_alchemy_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "menudialogs.Back.SetActive": {
+    "title": "native.command.menudialogs_back_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "menudialogs.Center.SetActive": {
+    "title": "native.command.menudialogs_center_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "menudialogs.Door.SetActive": {
+    "title": "native.command.menudialogs_door_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "menudialogs.Downtown.SetActive": {
+    "title": "native.command.menudialogs_downtown_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "menudialogs.Farm.SetActive": {
+    "title": "native.command.menudialogs_farm_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "menudialogs.Forge.SetActive": {
+    "title": "native.command.menudialogs_forge_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "menudialogs.Fortress.SetActive": {
+    "title": "native.command.menudialogs_fortress_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "menudialogs.GirlRoom.SetActive": {
+    "title": "native.command.menudialogs_girlroom_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "menudialogs.Kitchen.SetActive": {
+    "title": "native.command.menudialogs_kitchen_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "menudialogs.Mall.SetActive": {
+    "title": "native.command.menudialogs_mall_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "menudialogs.Meet.SetActive": {
+    "title": "native.command.menudialogs_meet_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "menudialogs.Options.SetActive": {
+    "title": "native.command.menudialogs_options_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "menudialogs.Pharmacy.SetActive": {
+    "title": "native.command.menudialogs_pharmacy_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "menudialogs.Room.SetActive": {
+    "title": "native.command.menudialogs_room_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "menudialogs.Spa.SetActive": {
+    "title": "native.command.menudialogs_spa_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "menudialogs.Study.SetActive": {
+    "title": "native.command.menudialogs_study_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "menudialogs.Talk.SetActive": {
+    "title": "native.command.menudialogs_talk_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "menudialogs.Teashop.SetActive": {
+    "title": "native.command.menudialogs_teashop_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "menudialogs.Section_01_01.SetActive": {
+    "title": "native.command.menudialogs_section_01_01_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "menudialogs.Section_01_02.SetActive": {
+    "title": "native.command.menudialogs_section_01_02_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "menudialogs.Section_01_03.SetActive": {
+    "title": "native.command.menudialogs_section_01_03_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "menudialogs.Section_01_04.SetActive": {
+    "title": "native.command.menudialogs_section_01_04_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "menudialogs.Section_01_05.SetActive": {
+    "title": "native.command.menudialogs_section_01_05_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "menudialogs.Section_01_06.SetActive": {
+    "title": "native.command.menudialogs_section_01_06_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "menudialogs.Section_02_01.SetActive": {
+    "title": "native.command.menudialogs_section_02_01_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "menudialogs.Section_02_02.SetActive": {
+    "title": "native.command.menudialogs_section_02_02_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "menudialogs.Section_02_03.SetActive": {
+    "title": "native.command.menudialogs_section_02_03_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "menudialogs.SectionFree01.SetActive": {
+    "title": "native.command.menudialogs_sectionfree01_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  },
+  "menudialogs.SectionFree02.SetActive": {
+    "title": "native.command.menudialogs_sectionfree02_setactive",
+    "args": [
+      {
+        "label": "native.parameter.visible",
+        "resource": "toggle"
+      }
+    ]
+  }
+}

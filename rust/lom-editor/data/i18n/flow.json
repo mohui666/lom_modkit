@@ -1,0 +1,158 @@
+{
+  "flow_graph.next_chapter": {
+    "chs": "→ 章节 {chapter}",
+    "cht": "→ 章節 {chapter}",
+    "ja": "→ チャプター {chapter}",
+    "ko": "→ 챕터 {chapter}"
+  },
+  "flow_graph.raw_unknown": {
+    "chs": "Lua 逻辑 · 结果未知",
+    "cht": "Lua 邏輯 · 結果未知",
+    "ja": "Lua ロジック · 結果未確認",
+    "ko": "Lua 로직 · 결과 미확인"
+  },
+  "flow_graph.branch_count": {
+    "chs": "{count} 条分支",
+    "cht": "{count} 條分支",
+    "ja": "{count} 個の分岐",
+    "ko": "분기 {count}개"
+  },
+  "flow_graph.loop": {
+    "chs": "回环",
+    "cht": "迴圈",
+    "ja": "ループ",
+    "ko": "반복"
+  },
+  "flow_graph.next": {
+    "chs": "下一步",
+    "cht": "下一步",
+    "ja": "次のステップ",
+    "ko": "다음 단계"
+  },
+  "flow_graph.jump": {
+    "chs": "跳转",
+    "cht": "跳轉",
+    "ja": "移動",
+    "ko": "이동"
+  },
+  "flow_graph.win": {
+    "chs": "胜利",
+    "cht": "勝利",
+    "ja": "勝利",
+    "ko": "승리"
+  },
+  "flow_graph.failure": {
+    "chs": "失败",
+    "cht": "失敗",
+    "ja": "失敗",
+    "ko": "실패"
+  },
+  "flow_graph.success": {
+    "chs": "成功",
+    "cht": "成功",
+    "ja": "成功",
+    "ko": "성공"
+  },
+  "flow_graph.condition_true": {
+    "chs": "条件成立",
+    "cht": "條件成立",
+    "ja": "条件成立",
+    "ko": "조건 성립"
+  },
+  "flow_graph.condition_false": {
+    "chs": "条件不成立",
+    "cht": "條件不成立",
+    "ja": "条件不成立",
+    "ko": "조건 불성립"
+  },
+  "flow_graph.condition_result": {
+    "chs": "{condition}（{value}）",
+    "cht": "{condition}（{value}）",
+    "ja": "{condition}（{value}）",
+    "ko": "{condition} ({value})"
+  },
+  "flow_graph.condition_compare": {
+    "chs": "条件 {comparison}",
+    "cht": "條件 {comparison}",
+    "ja": "条件 {comparison}",
+    "ko": "조건 {comparison}"
+  },
+  "flow_graph.true_short": {
+    "chs": "成立",
+    "cht": "成立",
+    "ja": "成立",
+    "ko": "성립"
+  },
+  "flow_graph.false_short": {
+    "chs": "否则",
+    "cht": "否則",
+    "ja": "それ以外",
+    "ko": "그 외"
+  },
+  "flow_graph.fit_width": {
+    "chs": "适应宽度",
+    "cht": "符合寬度",
+    "ja": "幅に合わせる",
+    "ko": "너비에 맞춤"
+  },
+  "flow_graph.locate": {
+    "chs": "定位选中",
+    "cht": "定位選取",
+    "ja": "選択中へ移動",
+    "ko": "선택 항목으로 이동"
+  },
+  "flow_graph.full": {
+    "chs": "完整流程",
+    "cht": "完整流程",
+    "ja": "全ステップ",
+    "ko": "전체 흐름"
+  },
+  "flow_graph.overview": {
+    "chs": "分支概览",
+    "cht": "分支概覽",
+    "ja": "分岐の概要",
+    "ko": "분기 개요"
+  },
+  "flow_graph.mode_tip": {
+    "chs": "展开所有原始步骤，取消后显示分支概览。",
+    "cht": "展開所有原始步驟，取消後顯示分支概覽。",
+    "ja": "すべての元ステップを表示します。オフにすると分岐の概要を表示します。",
+    "ko": "모든 원본 단계를 펼칩니다. 해제하면 분기 개요를 표시합니다."
+  },
+  "flow_graph.stats": {
+    "chs": "{mode} · {steps} 步 · 显示 {cards} 张卡 · {links} 连接",
+    "cht": "{mode} · {steps} 步 · 顯示 {cards} 張卡 · {links} 連線",
+    "ja": "{mode} · {steps} ステップ · {cards} カード · {links} 接続",
+    "ko": "{mode} · {steps}단계 · 카드 {cards}개 · 연결 {links}개"
+  },
+  "flow_graph.missing_targets": {
+    "chs": "缺失目标 {targets}",
+    "cht": "缺少目標 {targets}",
+    "ja": "移動先が見つかりません {targets}",
+    "ko": "누락된 대상 {targets}"
+  },
+  "flow_graph.missing_target": {
+    "chs": "缺失 {target}",
+    "cht": "缺少 {target}",
+    "ja": "未検出 {target}",
+    "ko": "누락 {target}"
+  },
+  "flow_graph.unsupported": {
+    "chs": "{kind} · 未支持",
+    "cht": "{kind} · 尚未支援",
+    "ja": "{kind} · 未対応",
+    "ko": "{kind} · 미지원"
+  },
+  "flow_graph.segment": {
+    "chs": "演出段 · {count} 步",
+    "cht": "演出段 · {count} 步",
+    "ja": "演出区間 · {count} ステップ",
+    "ko": "연출 구간 · {count}단계"
+  },
+  "flow_graph.first_step": {
+    "chs": "首步 {number} · 点击定位",
+    "cht": "首步 {number} · 點擊定位",
+    "ja": "先頭 {number} · クリックで移動",
+    "ko": "첫 단계 {number} · 클릭하여 이동"
+  }
+}

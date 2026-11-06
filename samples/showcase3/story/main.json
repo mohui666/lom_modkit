@@ -690,9 +690,8 @@
     },
     {
       "id": "hide1",
-      "type": "hide",
-      "character": "user:showcase.lin_deng",
-      "fadeDuration": 0.25
+      "type": "hide_all",
+      "wait_after": 0.25
     },
     {
       "id": "overlay2",

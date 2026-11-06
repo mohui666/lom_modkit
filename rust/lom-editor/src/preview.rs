@@ -30,7 +30,16 @@ pub fn edges(story: &Value) -> Vec<(String, String, String)> {
                 ("failure", "失败"),
             ] {
                 if node[key].as_str() == Some(&target) {
-                    labels.push(label.to_owned());
+                    labels.push(if node["type"] == "native_branch" {
+                        match key {
+                            "success" => "条件成立",
+                            "failure" => "条件不成立",
+                            _ => label,
+                        }
+                        .to_owned()
+                    } else {
+                        label.to_owned()
+                    });
                 }
             }
             for key in ["options", "cases", "bands"] {
@@ -273,10 +282,7 @@ fn apply(s: &mut Value, n: &Value) {
             for action in &actions {
                 apply(s, action);
             }
-            s["raw_preview"] = json!(format!(
-                "原生 Lua 静态示意：显示已识别的直线演出，未执行 Lua。{}",
-                report.notes.join(" ")
-            ));
+            s["raw_preview"] = json!(report);
         }
         "parallel" => {
             for action in lom_core::parallel::actions(n) {
@@ -360,6 +366,10 @@ fn apply(s: &mut Value, n: &Value) {
                 let dimmed = s["dimming"].get(cid).cloned().unwrap_or(json!(false));
                 s["actors"][cid] = json!({"position":n.get("position").cloned().unwrap_or(json!("M")),"portrait":n.get("portrait").cloned().unwrap_or(json!("normal")),"facing":n.get("facing").cloned().unwrap_or(json!("right")),"appearance":n["appearance"],"offset_x":0.0,"offset_y":0.0,"rotation":0.0,"dimmed":dimmed});
             }
+        }
+        "hide_all" => {
+            s["actors"] = json!({});
+            s["mood_overrides"] = json!({});
         }
         "hide" => {
             if let Some(o) = s["actors"].as_object_mut() {
@@ -600,6 +610,52 @@ fn blackout_rect(rect: Rect, amount: f64, direction: &str) -> Rect {
     Rect::from_min_size(Pos2::new(left, rect.top()), Vec2::new(width, rect.height()))
 }
 
+fn raw_preview_notice(report: &Value, locale: &str) -> String {
+    let notes = report["notes"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .map(|note| {
+            let line = report["preview_stopped_at"].as_u64();
+            for (suffix, name) in [
+                (
+                    " 行起保留原生 Lua，静态预览在此停止。",
+                    "editor.preview.raw_stop",
+                ),
+                (
+                    " 行的参数不符合当前节点契约，保留原生 Lua。",
+                    "editor.preview.raw_invalid",
+                ),
+            ] {
+                if let Some(number) = note
+                    .strip_prefix("第 ")
+                    .and_then(|text| text.strip_suffix(suffix))
+                {
+                    if number
+                        .parse::<u64>()
+                        .ok()
+                        .is_some_and(|number| Some(number) == line)
+                    {
+                        return crate::i18n::message_for_locale(
+                            name,
+                            &[("line", number.into())],
+                            locale,
+                        );
+                    }
+                }
+            }
+            if note == "含原版默认补间或异步移动，原生语句保留；预览仅示意动作完成时的画面。"
+            {
+                return crate::i18n::message_for_locale("editor.preview.raw_async", &[], locale);
+            }
+            note.to_owned()
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+    crate::i18n::message_for_locale("editor.preview.raw_notice", &[("notes", notes)], locale)
+}
+
 fn character_display_name(project: &Project, id: &str) -> String {
     if let Some(content_id) = id.strip_prefix("user:") {
         for (path, bytes) in &project.assets {
@@ -799,11 +855,14 @@ impl Preview {
                 .decode()?
                 .into_rgba8();
             let size = [image.width() as usize, image.height() as usize];
-            anyhow::ensure!(size == expected, "原版特效帧尺寸与缓存目录不一致");
+            anyhow::ensure!(
+                size == expected,
+                crate::i18n::key("editor.preview.frame_size_mismatch")
+            );
             let limit = ctx.input(|input| input.max_texture_side);
             anyhow::ensure!(
                 size.iter().all(|side| *side <= limit),
-                "原版特效帧超出当前显卡支持的纹理尺寸"
+                crate::i18n::key("editor.preview.frame_too_large")
             );
             let opaque = effects::visible_bounds(&image);
             let cost = size[0] * size[1] * 4;
@@ -855,12 +914,21 @@ impl Preview {
         } else {
             path.join("data")
         };
-        anyhow::ensure!(root.join("preview_map.json").is_file(),
-            "这个文件夹不是已提取的预览素材库：缺少 preview_map.json。请选提取完成后的素材库文件夹；还没提取时，使用「文件 → 从游戏提取预览素材…」，选择包含 Mortal_Data 的游戏安装目录。普通图片文件夹不能直接作为游戏素材库。");
-        let mapping = lom_core::load_json(root.join("preview_map.json"))
-            .map_err(|error| anyhow::anyhow!("预览素材库目录文件损坏，请重新提取：{error}"))?;
+        anyhow::ensure!(
+            root.join("preview_map.json").is_file(),
+            crate::i18n::key("editor.preview.library_missing")
+        );
+        let mapping = lom_core::load_json(root.join("preview_map.json")).map_err(|error| {
+            anyhow::anyhow!(crate::i18n::message(
+                "editor.preview.library_damaged",
+                &[("error", error.to_string())]
+            ))
+        })?;
         crate::asset_extraction::validate_mapping(&root, &mapping).map_err(|error| {
-            anyhow::anyhow!("预览素材库不完整，请保留整个提取文件夹或重新提取：{error:#}")
+            anyhow::anyhow!(crate::i18n::message(
+                "editor.preview.library_incomplete",
+                &[("error", format!("{error:#}"))]
+            ))
         })?;
         self.mapping = mapping;
         self.library = root;
@@ -1086,7 +1154,7 @@ impl Preview {
         official: bool,
     ) -> Option<String> {
         let mut chosen = None;
-        egui::CollapsingHeader::new(crate::i18n::tr("浏览图片缩略图"))
+        egui::CollapsingHeader::new(crate::i18n::key("editor.preview.browse_images"))
             .id_salt("image-browser")
             .show(ui, |ui| {
                 let id = ui.id().with("image-search");
@@ -1095,20 +1163,20 @@ impl Preview {
                     .unwrap_or_default();
                 ui.add(
                     egui::TextEdit::singleline(&mut query)
-                        .hint_text(crate::i18n::tr("搜索图片名称 / ID")),
+                        .hint_text(crate::i18n::key("editor.preview.image_search")),
                 );
                 if official
                     && self.mapping["pictures"]
                         .as_object()
                         .is_none_or(|pictures| pictures.is_empty())
                 {
-                    ui.small(crate::i18n::tr("图片预览需要重新提取游戏素材。"));
+                    ui.small(crate::i18n::key("editor.preview.image_extract"));
                     if ui.button(crate::i18n::tr("从游戏提取预览素材…")).clicked() {
                         self.extract_requested = true;
                     }
                 }
                 if options.is_empty() {
-                    ui.label(crate::i18n::tr("请先导入图片。"));
+                    ui.label(crate::i18n::key("editor.preview.image_import"));
                 }
                 let query_lower = query.to_lowercase();
                 let category_id = ui.id().with("image-category");
@@ -1121,7 +1189,7 @@ impl Preview {
                         ui.selectable_value(
                             &mut category,
                             String::new(),
-                            crate::i18n::tr("全部图片"),
+                            crate::i18n::key("editor.preview.images"),
                         );
                         for kind in ["BigPicture", "Picture", "Items", "Book", "Develop", "UI"] {
                             ui.selectable_value(
@@ -1191,7 +1259,7 @@ impl Preview {
                                                     ui.painter().text(
                                                         rect.center(),
                                                         egui::Align2::CENTER_CENTER,
-                                                        crate::i18n::tr("暂无预览"),
+                                                        crate::i18n::key("editor.preview.none"),
                                                         FontId::proportional(12.0),
                                                         Color32::GRAY,
                                                     );
@@ -1215,7 +1283,7 @@ impl Preview {
                                     }
                                 }
                                 if shown == 0 && !options.is_empty() {
-                                    ui.label(crate::i18n::tr("没有匹配的图片"));
+                                    ui.label(crate::i18n::key("editor.preview.image_empty"));
                                 }
                             });
                     });
@@ -1398,9 +1466,14 @@ impl Preview {
                 .flatten()
                 .find(|item| item["cache_status"] == "tail")
             {
-                ui.small(crate::i18n::tr("正在播放原版采样尾段")).on_hover_text(
-                    crate::i18n::tr("尾段在原版播放 {seconds} 秒后采样，不保证与当前停止相位一致；精确效果请用 F5 实机确认。")
-                        .replace("{seconds}",&format!("{:.3}",number(tail,"tail_sample_time",0.0))));
+                ui.small(crate::i18n::tr("正在播放原版采样尾段"))
+                    .on_hover_text(crate::i18n::message(
+                        "editor.preview.effect_tail",
+                        &[(
+                            "seconds",
+                            format!("{:.3}", number(tail, "tail_sample_time", 0.0)),
+                        )],
+                    ));
             }
             if captured {
                 ui.small(crate::i18n::tr("原版帧已按舞台视口裁切"))
@@ -1432,9 +1505,12 @@ impl Preview {
         });
         if let Some(label) = &mood_target {
             ui.label(
-                egui::RichText::new(format!("{}：{label}", crate::i18n::tr("正在调整")))
-                    .strong()
-                    .color(Color32::from_rgb(25, 90, 145)),
+                egui::RichText::new(crate::i18n::message(
+                    "editor.preview.adjusting",
+                    &[("target", label.clone())],
+                ))
+                .strong()
+                .color(Color32::from_rgb(25, 90, 145)),
             );
         }
         if state["actors"].as_object().is_some_and(|actors| {
@@ -1451,9 +1527,7 @@ impl Preview {
         }
         if node["type"] == "mood" {
             if !text(node, "character").is_empty() {
-                ui.small(crate::i18n::tr(
-                    "已设置该人物的独立气泡。自定义人物可在作品素材中调整气泡位置。",
-                ));
+                ui.small(crate::i18n::key("editor.preview.individual_bubble"));
             } else {
                 ui.small(crate::i18n::tr(if state["mood_enabled"] == true {
                     "表情气泡已开启，图标由游戏中的人物表情决定。"
@@ -1468,15 +1542,18 @@ impl Preview {
                 .is_some_and(|v| !v.is_empty()))
             && !self.mapping["moods"].is_object()
         {
-            ui.small(crate::i18n::tr("气泡动画预览需要重新提取游戏素材。"));
+            ui.small(crate::i18n::key("editor.preview.bubble_extract"));
             if ui.button(crate::i18n::tr("从游戏提取预览素材…")).clicked() {
                 self.extract_requested = true;
             }
         }
         self.mood_clocks
             .retain(|cid, _| state["actors"][cid].is_object());
-        if let Some(notice) = state["raw_preview"].as_str() {
-            ui.small(notice);
+        if state["raw_preview"].is_object() {
+            ui.small(raw_preview_notice(
+                &state["raw_preview"],
+                crate::i18n::locale(),
+            ));
         }
         let size = Vec2::new(
             ui.available_width().max(160.0),
@@ -1734,7 +1811,7 @@ impl Preview {
                                     ui.id().with(("mood-drag", cid)),
                                     egui::Sense::drag(),
                                 )
-                                .on_hover_text(crate::i18n::tr("拖动气泡调整位置"))
+                                .on_hover_text(crate::i18n::key("editor.preview.bubble_drag"))
                                 .on_hover_cursor(egui::CursorIcon::Grab);
                                 // A quick drag can start and finish in one native
                                 // frame, after PointerState has cleared press_origin.
@@ -1869,7 +1946,7 @@ impl Preview {
                     painter.text(
                         book.center_top() + egui::vec2(0.0, 100.0 * scale),
                         egui::Align2::CENTER_TOP,
-                        crate::i18n::tr("提取游戏素材后显示原版书页"),
+                        crate::i18n::key("editor.preview.book_extract"),
                         FontId::proportional(12.0),
                         Color32::DARK_GRAY,
                     );
@@ -1890,15 +1967,16 @@ impl Preview {
                     painter.text(
                         image_rect.center(),
                         egui::Align2::CENTER_CENTER,
-                        crate::i18n::tr("暂无图片预览"),
+                        crate::i18n::key("editor.preview.no_image"),
                         FontId::proportional(12.0),
                         Color32::DARK_GRAY,
                     );
                 }
+                let default_title = crate::i18n::key("editor.preview.event");
                 let title = picture["event_title"]
                     .as_str()
                     .filter(|s| !s.is_empty())
-                    .unwrap_or("事件");
+                    .unwrap_or(&default_title);
                 let caption = title
                     .chars()
                     .map(|c| c.to_string())
@@ -1943,9 +2021,9 @@ impl Preview {
                         egui::Align2::CENTER_CENTER,
                         format!(
                             "{}: {}\n{}",
-                            crate::i18n::tr("官方图片"),
+                            crate::i18n::key("editor.preview.official_images"),
                             text(picture, "key"),
-                            crate::i18n::tr("请重新提取游戏预览素材以显示图片")
+                            crate::i18n::key("editor.preview.extract_images")
                         ),
                         FontId::proportional(13.0),
                         Color32::GRAY,
@@ -2063,7 +2141,7 @@ impl Preview {
                     paint_text(
                         &painter,
                         art,
-                        "原版结局插图占位\n游戏内由原版面板显示",
+                        &crate::i18n::key("editor.preview.ending_image"),
                         rect.height() * 0.035,
                         Color32::from_rgb(80, 64, 45),
                     );
@@ -2158,10 +2236,12 @@ impl Preview {
                 paint_text(
                     &painter,
                     relative(rect, 0.28, 0.84, 0.6, 0.10),
-                    &format!(
-                        "死亡编号 {} · 完成后 {}",
-                        text(node, "death_id"),
-                        text(node, "next")
+                    &crate::i18n::message(
+                        "editor.preview.death_next",
+                        &[
+                            ("id", text(node, "death_id").into()),
+                            ("next", text(node, "next").into()),
+                        ],
                     ),
                     rect.height() * 0.028,
                     Color32::GRAY,
@@ -2217,7 +2297,7 @@ impl Preview {
             ui.painter().text(
                 outer.left_bottom() + Vec2::new(8.0, -6.0),
                 egui::Align2::LEFT_BOTTOM,
-                "此步骤从入口不可达",
+                crate::i18n::key("editor.preview.unreachable"),
                 FontId::proportional(11.0),
                 Color32::LIGHT_RED,
             );
@@ -2546,7 +2626,7 @@ fn card_data(project: &Project, node: &Value) -> Option<CardData> {
         card.kind = "ending";
         card.title = text(node, "title").into();
         if card.title.is_empty() {
-            card.title = "自定义结局标题".into();
+            card.title = crate::i18n::key("editor.preview.ending_title");
         }
         card.body = text(node, "desc").into();
         card.image = text(node, "image").into();
@@ -2560,8 +2640,8 @@ fn card_data(project: &Project, node: &Value) -> Option<CardData> {
                 .flatten()
                 .find(|v| v["id"] == node["death_id"])
                 .and_then(|v| v["name"].as_str())
-                .unwrap_or("命殒江湖")
-                .into();
+                .map(str::to_owned)
+                .unwrap_or_else(|| crate::i18n::key("editor.preview.death_title"));
         }
         card.body = text(node, "text").into();
     } else if kind == "intro" {
@@ -2572,13 +2652,13 @@ fn card_data(project: &Project, node: &Value) -> Option<CardData> {
                 card.name = text(node, "name").into();
                 card.body = text(node, "text").into();
                 card.image = text(node, "image").into();
-                card.placeholder = "自定义人物\n未选择人物图片".into();
+                card.placeholder = crate::i18n::key("editor.preview.custom_image_missing");
             }
             "character" => {
                 let id = text(node, "character").trim_start_matches("user:");
                 card.name = text(node, "character").into();
-                card.body = "还没有介绍卡。请在内容库填写角色介绍。".into();
-                card.placeholder = "自定义角色\n未设置介绍图".into();
+                card.body = crate::i18n::key("editor.preview.custom_intro_missing");
+                card.placeholder = crate::i18n::key("editor.preview.custom_intro_image_missing");
                 for (path, bytes) in &project.assets {
                     if !path.ends_with("/content.json") {
                         continue;
@@ -2621,15 +2701,15 @@ fn card_data(project: &Project, node: &Value) -> Option<CardData> {
                 card.title = entry
                     .and_then(|v| v["title"].as_str())
                     .filter(|s| !s.is_empty())
-                    .unwrap_or("原版人物资料")
-                    .into();
-                card.name = entry.and_then(|v| v["name"].as_str()).unwrap_or(id).into();
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| crate::i18n::key("editor.preview.official_profile"));
+                card.name = character_display_name(project, id);
                 card.body = entry
                     .and_then(|v| v["intro"].as_str())
                     .filter(|s| !s.is_empty())
-                    .unwrap_or("未提取到该人物的原版介绍正文。")
-                    .into();
-                card.placeholder = "游戏内显示\n原版关系头像".into();
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| crate::i18n::key("editor.preview.official_intro_missing"));
+                card.placeholder = crate::i18n::key("editor.preview.official_portrait");
             }
         }
     } else {
@@ -2973,6 +3053,29 @@ mod tests {
         );
     }
     #[test]
+    fn hide_all_preview_clears_actors_and_bubbles_and_preserves_images() {
+        let story = json!({"start":"background","nodes":[
+            {"id":"background","type":"background","action":"show","image":"user:demo.bg"},
+            {"id":"cg","type":"custom_cg","action":"show","image":"user:demo.cg"},
+            {"id":"overlay","type":"overlay","action":"show","slot":"main","image":"user:demo.overlay"},
+            {"id":"official","type":"show","character":"player","position":"L1"},
+            {"id":"custom","type":"show","character":"user:demo.actor","position":"R1"},
+            {"id":"bubble","type":"mood","character":"player","enabled":true,"icon":"shock"},
+            {"id":"clear","type":"hide_all"},
+            {"id":"end","type":"end"}]});
+        let before = simulate(&story, "bubble");
+        assert_eq!(before["actors"].as_object().unwrap().len(), 2);
+        let state = simulate(&story, "end");
+        assert!(state["actors"].as_object().unwrap().is_empty());
+        assert!(state["mood_overrides"].as_object().unwrap().is_empty());
+        for key in ["background", "custom_cg", "overlays"] {
+            assert_eq!(state[key], before[key]);
+        }
+        assert!(build_playtest_prelude(&story, "end")
+            .iter()
+            .all(|n| n["type"] != "show"));
+    }
+    #[test]
     fn character_bubble_resume_follows_hide_restore_and_global_clear() {
         use super::*;
         let mut story = json!({"start":"enter","nodes":[
@@ -3088,7 +3191,23 @@ end
         assert_eq!(state["view"], "center");
         assert_eq!(state["actors"]["player"]["portrait"], "angry1");
         assert_eq!(state["actors"]["player"]["position"], "L1");
-        assert!(state["raw_preview"].as_str().unwrap().contains("第 5 行"));
+        assert_eq!(state["raw_preview"]["preview_stopped_at"], 5);
+        assert!(raw_preview_notice(&state["raw_preview"], "chs").contains("第 5 行"));
+    }
+    #[test]
+    fn cached_raw_preview_notes_follow_locale_without_changing_report() {
+        let report = json!({"preview_stopped_at":5, "notes":[
+            "第 5 行起保留原生 Lua，静态预览在此停止。", "author {notes} / 条件成立"]});
+        let before = report.clone();
+        for locale in crate::i18n::LOCALES {
+            let notice = raw_preview_notice(&report, locale);
+            assert!(notice.contains("author {notes} / 条件成立"));
+            assert!(notice.contains('5'));
+            if matches!(locale, "ja" | "ko") {
+                assert!(!notice.contains("静态预览在此停止"));
+            }
+        }
+        assert_eq!(report, before);
     }
     #[test]
     fn library_picker_explains_wrong_folders_and_preserves_the_active_library() {

@@ -1,4 +1,10 @@
-//! The existing four offline dictionaries, shared by the native widgets.
+//! Embedded UI catalogs shared by native widgets.
+//!
+//! New UI uses stable `key` identifiers or `message` templates with named values.
+//! Feature catalogs in `data/i18n` provide all four locales together. Author text,
+//! resource IDs and Lua values are arguments, so translation never rewrites them.
+//! `tr` retains the existing source-label catalog for older widgets. Tests check
+//! catalog parity, placeholders, static references and legacy literal coverage.
 use serde_json::Value;
 use std::{
     collections::BTreeMap,
@@ -21,12 +27,44 @@ pub fn set_locale(name: &str) {
 fn dictionaries() -> &'static [Value; 4] {
     static DICTS: OnceLock<[Value; 4]> = OnceLock::new();
     DICTS.get_or_init(|| {
-        [
+        let mut dictionaries: [Value; 4] = [
             serde_json::from_str(include_str!("../../../editor/i18n/locales/chs.json")).unwrap(),
             serde_json::from_str(include_str!("../../../editor/i18n/locales/cht.json")).unwrap(),
             serde_json::from_str(include_str!("../../../editor/i18n/locales/ja.json")).unwrap(),
             serde_json::from_str(include_str!("../../../editor/i18n/locales/ko.json")).unwrap(),
-        ]
+        ];
+        for source in [
+            include_str!("../data/i18n/native.json"),
+            include_str!("../data/i18n/routes.json"),
+            include_str!("../data/i18n/flow.json"),
+            include_str!("../data/i18n/vanilla.json"),
+            include_str!("../data/i18n/editor.json"),
+            include_str!("../data/i18n/common.json"),
+            include_str!("../data/i18n/workspace.json"),
+        ] {
+            let messages: Value = serde_json::from_str(source).expect("feature UI translations");
+            for (key, translations) in messages.as_object().expect("message dictionary") {
+                for (index, locale) in LOCALES.iter().enumerate() {
+                    let translated = translations[*locale]
+                        .as_str()
+                        .expect("all four translations");
+                    assert!(
+                        !translated.trim().is_empty(),
+                        "Empty translation {locale}/{key}"
+                    );
+                    if let Some(existing) = dictionaries[index].get(key) {
+                        assert_eq!(
+                            existing.as_str(),
+                            Some(translated),
+                            "Conflicting translation {locale}/{key}"
+                        );
+                    } else {
+                        dictionaries[index][key] = translated.into();
+                    }
+                }
+            }
+        }
+        dictionaries
     })
 }
 fn normalize(text: &str) -> String {
@@ -46,6 +84,39 @@ pub fn key(name: &str) -> String {
         .or_else(|| all[0][name].as_str())
         .unwrap_or(name)
         .to_owned()
+}
+
+/// Named values stay separate from translated text and are substituted once.
+pub fn message(name: &str, arguments: &[(&str, String)]) -> String {
+    message_for_locale(name, arguments, locale())
+}
+pub(crate) fn message_for_locale(name: &str, arguments: &[(&str, String)], locale: &str) -> String {
+    message_index(
+        name,
+        arguments,
+        LOCALES
+            .iter()
+            .position(|value| *value == locale)
+            .unwrap_or(0),
+    )
+}
+fn message_index(name: &str, arguments: &[(&str, String)], index: usize) -> String {
+    let all = dictionaries();
+    let template = all[index][name]
+        .as_str()
+        .or_else(|| all[0][name].as_str())
+        .unwrap_or(name);
+    static PARAMETER: OnceLock<regex::Regex> = OnceLock::new();
+    PARAMETER
+        .get_or_init(|| regex::Regex::new(r"\{([a-zA-Z_][a-zA-Z_0-9]*)\}").unwrap())
+        .replace_all(template, |capture: &regex::Captures<'_>| {
+            arguments
+                .iter()
+                .find(|(key, _)| *key == &capture[1])
+                .map(|(_, value)| value.clone())
+                .unwrap_or_else(|| capture[0].to_owned())
+        })
+        .into_owned()
 }
 pub fn tr(source: &str) -> String {
     tr_index(source, LOCALE.load(Ordering::Relaxed))
@@ -190,6 +261,196 @@ pub fn help_text() -> String {
 }
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
+    fn placeholders(value: &str) -> BTreeSet<String> {
+        regex::Regex::new(r"\{[a-zA-Z_][a-zA-Z_0-9]*\}|\{\}")
+            .unwrap()
+            .find_iter(value)
+            .map(|value| value.as_str().to_owned())
+            .collect()
+    }
+
+    #[test]
+    fn every_locale_has_matching_keys_nonempty_messages_and_placeholders() {
+        let dictionaries = super::dictionaries();
+        let source = dictionaries[0].as_object().unwrap();
+        let keys: BTreeSet<_> = source.keys().collect();
+        for (index, dictionary) in dictionaries.iter().enumerate() {
+            let messages = dictionary.as_object().unwrap();
+            assert_eq!(messages.keys().collect::<BTreeSet<_>>(), keys);
+            for (key, value) in messages {
+                let value = value.as_str().expect("text message");
+                assert!(!value.trim().is_empty(), "{}/{key}", super::LOCALES[index]);
+                assert_eq!(
+                    placeholders(value),
+                    placeholders(source[key].as_str().unwrap()),
+                    "placeholder mismatch {}/{key}",
+                    super::LOCALES[index]
+                );
+            }
+        }
+        let native: serde_json::Value =
+            serde_json::from_str(include_str!("../data/native-translations.json")).unwrap();
+        for (source, values) in native.as_object().unwrap() {
+            let values = values.as_array().unwrap();
+            assert_eq!(values.len(), 3, "{source}");
+            for value in values {
+                let value = value.as_str().unwrap();
+                assert!(!value.trim().is_empty(), "{source}");
+                assert_eq!(placeholders(value), placeholders(source), "{source}");
+            }
+        }
+    }
+
+    #[test]
+    fn named_arguments_are_substituted_once_in_each_locale() {
+        for locale in super::LOCALES {
+            let result = super::message_for_locale(
+                "editor.form.count",
+                &[
+                    ("label", "作者 {count} · 😀".into()),
+                    ("count", "12".into()),
+                ],
+                locale,
+            );
+            assert!(result.contains("作者 {count} · 😀"), "{locale}/{result}");
+            assert!(result.contains("12"));
+            assert!(!result.contains("{label}"));
+        }
+    }
+
+    #[test]
+    fn static_message_references_exist_in_all_locales() {
+        let references = regex::Regex::new(
+            r#"(?:i18n::(?:key|message|message_for_locale)|\bkey)\(\s*"([a-z][a-z0-9_.]+)""#,
+        )
+        .unwrap();
+        let source_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        for entry in std::fs::read_dir(source_dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().is_none_or(|extension| extension != "rs") {
+                continue;
+            }
+            let source = std::fs::read_to_string(&path).unwrap();
+            for capture in references.captures_iter(&source) {
+                for (index, dictionary) in super::dictionaries().iter().enumerate() {
+                    assert!(
+                        dictionary[&capture[1]].is_string(),
+                        "{}/{}/{key}",
+                        path.display(),
+                        super::LOCALES[index],
+                        key = &capture[1]
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn legacy_literal_messages_have_catalog_entries() {
+        let references = regex::Regex::new(r#"\btr\(\s*"([^"\\]*)"\s*,?\s*\)"#).unwrap();
+        let native: serde_json::Value =
+            serde_json::from_str(include_str!("../data/native-translations.json")).unwrap();
+        let known: BTreeSet<_> = super::dictionaries()[0]
+            .as_object()
+            .unwrap()
+            .values()
+            .filter_map(|value| value.as_str())
+            .map(super::normalize)
+            .collect();
+        let source_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        for entry in std::fs::read_dir(source_dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().is_none_or(|extension| extension != "rs") {
+                continue;
+            }
+            let source = std::fs::read_to_string(&path).unwrap();
+            for capture in references.captures_iter(&source) {
+                let text = &capture[1];
+                if !text
+                    .chars()
+                    .any(|character| ('\u{4e00}'..='\u{9fff}').contains(&character))
+                {
+                    continue;
+                }
+                assert!(
+                    native.get(text).is_some() || known.contains(&super::normalize(text)),
+                    "missing legacy message {}/{text}",
+                    path.display()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn widget_literals_and_templates_use_translation_lookups() {
+        let patterns = [
+            r#"(?:\.(?:label|heading|small|strong|button|small_button|hint_text|on_hover_text|collapsing)|Button::new|CollapsingHeader::new|Window::new)\(\s*(?:format!\(\s*)?"([^"\\]*)""#,
+            r#"\.(?:checkbox|selectable_label)\(\s*[^,\n]+,\s*"([^"\\]*)""#,
+        ].map(|pattern| regex::Regex::new(pattern).unwrap());
+        let test_module = regex::Regex::new(r"#\[cfg\(test\)\]\s*mod\s+\w+\s*\{").unwrap();
+        let source_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        for entry in std::fs::read_dir(source_dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().is_none_or(|extension| extension != "rs") {
+                continue;
+            }
+            let source = std::fs::read_to_string(&path).unwrap();
+            let production = test_module
+                .find(&source)
+                .map_or(source.as_str(), |module| &source[..module.start()]);
+            for pattern in &patterns {
+                for capture in pattern.captures_iter(production) {
+                    assert!(
+                        !capture[1]
+                            .chars()
+                            .any(|character| ('\u{4e00}'..='\u{9fff}').contains(&character)),
+                        "untranslated widget literal {}/{}",
+                        path.display(),
+                        &capture[1]
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn resource_term_catalogs_have_the_same_nonempty_entries() {
+        let sources = [
+            include_str!("../../../editor/i18n/terms/chs.json"),
+            include_str!("../../../editor/i18n/terms/cht.json"),
+            include_str!("../../../editor/i18n/terms/ja.json"),
+            include_str!("../../../editor/i18n/terms/ko.json"),
+        ];
+        let tables: Vec<serde_json::Value> = sources
+            .iter()
+            .map(|source| serde_json::from_str(source).unwrap())
+            .collect();
+        let original = tables[0].as_object().unwrap();
+        for (index, table) in tables.iter().enumerate() {
+            let categories = table.as_object().unwrap();
+            assert_eq!(
+                categories.keys().collect::<BTreeSet<_>>(),
+                original.keys().collect()
+            );
+            for (category, entries) in categories {
+                let entries = entries.as_object().unwrap();
+                assert_eq!(
+                    entries.keys().collect::<BTreeSet<_>>(),
+                    original[category].as_object().unwrap().keys().collect()
+                );
+                for (id, text) in entries {
+                    assert!(
+                        text.as_str().is_some_and(|text| !text.trim().is_empty()),
+                        "{}/{category}/{id}",
+                        super::LOCALES[index]
+                    );
+                }
+            }
+        }
+    }
+
     #[test]
     fn four_dictionaries_and_help_are_embedded() {
         for value in super::dictionaries() {

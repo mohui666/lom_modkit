@@ -125,7 +125,10 @@ impl Advanced {
     fn select_tests(&mut self, project: &mut Project, sid: &str) -> bool {
         if self.tests_story != sid {
             if let Err(error) = self.apply_pending(project) {
-                self.error = format!("测试输入尚未完成：{error}");
+                self.error = crate::i18n::message(
+                    "common.advanced.unfinished_test",
+                    &[("error", error.to_string())],
+                );
                 return false;
             }
             self.load_tests(project, sid);
@@ -200,7 +203,10 @@ impl Advanced {
                     &self.query,
                     &self.category,
                 );
-                ui.label(format!("{} 个匹配", hits.len()));
+                ui.label(crate::i18n::message(
+                    "common.advanced.matches",
+                    &[("count", hits.len().to_string())],
+                ));
                 let (location, refs) = rows(ui, &hits);
                 nav = location;
                 if let Some(h) = refs {
@@ -248,12 +254,14 @@ impl Advanced {
                             display_label(s["kind"].as_str().unwrap_or("")),
                             s["name"].as_str().unwrap_or("")
                         ));
-                        ui.label(format!(
-                            "读取 {} · 写入 {} · 未使用 {} · 可能先读后写 {}",
-                            s["reads"],
-                            s["writes"],
-                            tri(&s["unused"]),
-                            tri(&s["possibly_read_before_write"])
+                        ui.label(crate::i18n::message(
+                            "common.advanced.symbol_summary",
+                            &[
+                                ("reads", s["reads"].to_string()),
+                                ("writes", s["writes"].to_string()),
+                                ("unused", tri(&s["unused"])),
+                                ("uninitialized", tri(&s["possibly_read_before_write"])),
+                            ],
                         ));
                         for u in s["uses"].as_array().into_iter().flatten() {
                             let sid = u["story"].as_str().unwrap_or("");
@@ -424,9 +432,13 @@ impl Advanced {
                     }
                 }
                 if let Some((_, before, plan)) = &self.proposal {
-                    ui.label(format!(
-                        "{} → {} · {} 个节点",
-                        plan.source_story, plan.target_story, plan.count
+                    ui.label(crate::i18n::message(
+                        "common.advanced.copy_summary",
+                        &[
+                            ("source", plan.source_story.clone()),
+                            ("target", plan.target_story.clone()),
+                            ("count", plan.count.to_string()),
+                        ],
                     ));
                     for w in &plan.warnings {
                         ui.colored_label(ui.visuals().warn_fg_color, w);
@@ -483,7 +495,10 @@ impl Advanced {
                 {
                     self.results = Value::Null;
                     if let Err(error) = self.apply_pending(project) {
-                        self.error = format!("测试输入尚未完成：{error}");
+                        self.error = crate::i18n::message(
+                            "common.advanced.unfinished_test",
+                            &[("error", error.to_string())],
+                        );
                     }
                 }
                 let mut run = false;
@@ -618,12 +633,12 @@ fn display_label(value: &str) -> String {
         other => other,
     })
 }
-fn tri(v: &Value) -> &str {
-    match v.as_bool() {
+fn tri(v: &Value) -> String {
+    tr(match v.as_bool() {
         Some(true) => "是",
         Some(false) => "否",
         None => "未知",
-    }
+    })
 }
 
 #[cfg(test)]

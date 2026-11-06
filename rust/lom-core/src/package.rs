@@ -19,6 +19,31 @@ const MAX_TOTAL: u64 = 128 * 1024 * 1024;
 const CONTENT_HASH: &str = "package-content.sha256";
 const STORY_HASH: &str = "story-lua.sha256";
 pub type Entries = BTreeMap<String, Vec<u8>>;
+
+#[cfg(test)]
+mod chapter_size_tests {
+    use super::*;
+
+    #[test]
+    fn only_direct_story_json_uses_the_existing_entry_limit() {
+        assert!(check_names([("story/main.json", MAX_ENTRY_BYTES)]).is_ok());
+        assert!(check_names([("story/main.json", MAX_ENTRY_BYTES + 1)]).is_err());
+        for path in [
+            "manifest.json",
+            "lua/main.lua",
+            "texts/chs.json",
+            "story/nested/main.json",
+            "story/.json",
+            "Story/main.json",
+        ] {
+            assert!(check_names([(path, MAX_TEXT_BYTES + 1)]).is_err(), "{path}");
+        }
+        let entries: Vec<_> = (0..5)
+            .map(|index| (format!("assets/{index}.bin"), MAX_ENTRY_BYTES))
+            .collect();
+        assert!(check_names(entries.iter().map(|(name, size)| (name.as_str(), *size))).is_err());
+    }
+}
 pub fn canonical_archive_name(name: &str) -> Result<String> {
     ensure!(
         !name.is_empty() && !name.contains(['\0', '\\']) && !name.starts_with('/'),
@@ -71,10 +96,14 @@ fn check_names<'a>(names: impl IntoIterator<Item = (&'a str, u64)>) -> Result<()
         ensure!(seen.len() < 2048, "包内条目超过 2048 个");
         ensure!(size <= MAX_ENTRY_BYTES, "包内条目超过 32 MiB: {name}");
         let lower = name.to_lowercase();
+        let story_source = name.strip_prefix("story/").is_some_and(|rest| {
+            rest.len() > ".json".len() && rest.ends_with(".json") && !rest.contains('/')
+        });
         ensure!(
             ![".json", ".lua", ".sha256", ".txt"]
                 .iter()
                 .any(|ext| lower.ends_with(ext))
+                || story_source
                 || size <= MAX_TEXT_BYTES,
             "文本条目超过 4 MiB: {name}"
         );
@@ -539,6 +568,7 @@ fn add_user_content(
     root: &Path,
     stories: &BTreeMap<String, Value>,
     scenario: Option<&Value>,
+    manifest: &Value,
 ) -> Result<()> {
     let mut referenced: BTreeMap<String, String> = BTreeMap::new();
     let extensions = content::character_extensions_at(root)?;
@@ -652,6 +682,27 @@ fn add_user_content(
                 }
             }
         }
+    }
+    for (kind, id) in crate::legacy_loose::resource_references(manifest) {
+        if let Some(previous) = referenced.get(id) {
+            ensure!(
+                previous == kind,
+                "用户内容 {id} 同时被当作 {previous}/{kind}"
+            );
+            continue;
+        }
+        let (metadata, _) = content::resolve_content(root, kind, id)?;
+        let directory = format!("assets/user/{kind}/{id}");
+        entries.insert(
+            format!("{directory}/content.json"),
+            stable_json(&content::content_metadata_payload(&metadata))?,
+        );
+        for file in content::listed_content_files(&metadata) {
+            canonical_archive_name(&file)?;
+            let path = resolve_confined_file(root, &root.join(&directory).join(&file))?;
+            entries.insert(format!("{directory}/{file}"), fs::read(path)?);
+        }
+        referenced.insert(id.into(), kind.into());
     }
     Ok(())
 }
@@ -878,14 +929,23 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
         crate::parallel::story_actions(story)
             .any(|(_, node)| node["type"] == "say" && node["mood_icon"].is_string())
     });
-    if requires_149 || requires_dialogue_mood {
+    let requires_hide_all = stories.values().any(|story| {
+        crate::parallel::story_actions(story).any(|(_, node)| node["type"] == "hide_all")
+    });
+    let requires_extended_import = manifest.get("legacy").is_some()
+        || stories
+            .values()
+            .any(|story| story["vanilla_import"]["schema"] == 2);
+    if requires_149 || requires_dialogue_mood || requires_hide_all || requires_extended_import {
         let version = manifest["min_host_version"].as_str().unwrap_or("0.0.0");
         let core = version
             .split(['.', '-', '+'])
             .take(3)
             .map(|n| n.parse::<u32>().unwrap_or(0))
             .collect::<Vec<_>>();
-        let minimum = if requires_dialogue_mood {
+        let minimum = if requires_extended_import || requires_hide_all {
+            [1, 4, 11]
+        } else if requires_dialogue_mood {
             [1, 4, 10]
         } else {
             [1, 4, 9]
@@ -894,11 +954,14 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
             || core.as_slice() == minimum.as_slice()
                 && version.split('+').next().unwrap_or(version).contains('-')
         {
-            manifest["min_host_version"] = json!(if requires_dialogue_mood {
-                "1.4.10"
-            } else {
-                crate::vanilla_patch::MIN_HOST
-            });
+            manifest["min_host_version"] =
+                json!(if requires_extended_import || requires_hide_all {
+                    "1.4.11"
+                } else if requires_dialogue_mood {
+                    "1.4.10"
+                } else {
+                    crate::vanilla_patch::MIN_HOST
+                });
         }
         validate::validate_manifest(&manifest)?;
     }
@@ -1026,7 +1089,7 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
         ));
     }
     entries.insert(STORY_HASH.into(), integrity.into_bytes());
-    add_user_content(&mut entries, &root, &stories, scenario.as_ref())?;
+    add_user_content(&mut entries, &root, &stories, scenario.as_ref(), &manifest)?;
     let new_portrait_layout = entries.iter().any(|(key, bytes)| {
         key.starts_with("assets/user/character/")
             && key.ends_with("/content.json")

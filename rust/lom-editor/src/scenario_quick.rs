@@ -40,7 +40,13 @@ impl Names {
                     {
                         let code = end["event_result"].as_str().unwrap_or("completed");
                         if let Some(text) = option["text"].as_str() {
-                            labels.insert(code.to_owned(), format!("选择「{text}」后"));
+                            labels.insert(
+                                code.to_owned(),
+                                crate::i18n::message(
+                                    "common.quick.selected_result",
+                                    &[("text", text.to_owned())],
+                                ),
+                            );
                         }
                     }
                 }
@@ -55,7 +61,7 @@ impl Names {
             let name = task["name"]
                 .as_str()
                 .filter(|name| !name.is_empty() && *name != id)
-                .unwrap_or("未命名任务")
+                .unwrap_or(&crate::i18n::key("common.scenario.unnamed_task"))
                 .to_owned();
             result.tasks.push((id.clone(), name));
             result.states.insert(
@@ -85,7 +91,7 @@ impl Names {
     }
     fn result(&self, script: &str, code: &str) -> String {
         if code == "completed" {
-            return tr("正常结束后");
+            return crate::i18n::key("common.quick.normal_end");
         }
         self.results
             .get(script)
@@ -104,14 +110,14 @@ fn label(items: &[(String, String)], id: &str, missing: &str) -> String {
 pub fn state_name(id: &str) -> String {
     match id {
         "locked" | "inactive" => tr("未开始"),
-        "available" => tr("可接取"),
+        "available" => crate::i18n::key("common.quick.available"),
         "active" => tr("进行中"),
-        "accepted" => tr("已接取"),
+        "accepted" => crate::i18n::key("common.quick.accepted"),
         "done" | "completed" => tr("已完成"),
         "failed" => tr("已失败"),
-        "declined" => tr("已拒绝"),
-        "cancelled" => tr("已取消"),
-        _ => format!("{}（{id}）", tr("自定义状态")),
+        "declined" => crate::i18n::key("common.quick.declined"),
+        "cancelled" => crate::i18n::key("common.quick.cancelled"),
+        _ => format!("{}（{id}）", crate::i18n::key("common.quick.custom_state")),
     }
 }
 fn field_row<R>(ui: &mut egui::Ui, title: &str, edit: impl FnOnce(&mut egui::Ui) -> R) -> R {
@@ -260,20 +266,20 @@ impl SimpleWhen {
     fn date(&self) -> String {
         let mut s = String::new();
         if let Some(n) = self.year {
-            s += &format!("第{n}年");
+            s += &crate::i18n::message("common.quick.year", &[("year", n.to_string())]);
         }
         if let Some(n) = self.month {
-            s += &format!("{n}月");
+            s += &crate::i18n::message("common.quick.month", &[("month", n.to_string())]);
         }
         if let Some(n) = self.stage {
-            s += match n {
+            s += &tr(match n {
                 1 => "上旬",
                 2 => "中旬",
                 _ => "下旬",
-            };
+            });
         }
         if s.is_empty() {
-            tr("时间不限")
+            crate::i18n::key("common.quick.no_time")
         } else {
             s
         }
@@ -283,8 +289,8 @@ fn date_part(ui: &mut egui::Ui, key: &str, value: &mut Option<i64>, none: &str, 
     let before = *value;
     let name = |n: i64| -> String {
         match key {
-            "year" => format!("第{n}年"),
-            "month" => format!("{n}月"),
+            "year" => crate::i18n::message("common.quick.year", &[("year", n.to_string())]),
+            "month" => crate::i18n::message("common.quick.month", &[("month", n.to_string())]),
             _ => tr(match n {
                 1 => "上旬",
                 2 => "中旬",
@@ -306,11 +312,11 @@ fn date_part(ui: &mut egui::Ui, key: &str, value: &mut Option<i64>, none: &str, 
 }
 pub fn dates(ui: &mut egui::Ui, when: &mut Value, show_task: bool, names: &Names) -> bool {
     let Some(mut simple) = SimpleWhen::read(when) else {
-        ui.label(tr("此处已有复杂条件，请在高级设置中调整。"));
+        ui.label(crate::i18n::key("common.quick.complex_existing"));
         return false;
     };
     let before = simple.clone();
-    ui.label(tr("发生时间"));
+    ui.label(crate::i18n::key("common.quick.time"));
     ui.horizontal_wrapped(|ui| {
         for (key, value, none, max) in [
             ("year", &mut simple.year, "不限年份", 9),
@@ -325,11 +331,14 @@ pub fn dates(ui: &mut egui::Ui, when: &mut Value, show_task: bool, names: &Names
             );
         }
     });
-    ui.small(tr("每月分上旬、中旬、下旬，游戏没有单独的“几号”。"));
+    ui.small(crate::i18n::key("common.quick.stage_hint"));
     if show_task && !names.tasks.is_empty() {
         let title = match &simple.task {
-            Some((id, state)) => format!("前置任务：{} · {}", names.task(id), state_name(state)),
-            None => tr("前置任务（可选）"),
+            Some((id, state)) => crate::i18n::message(
+                "common.quick.required_task",
+                &[("task", names.task(id)), ("state", state_name(state))],
+            ),
+            None => crate::i18n::key("common.quick.prerequisite_optional"),
         };
         let mut title_job = egui::text::LayoutJob::simple(
             title.clone(),
@@ -342,8 +351,8 @@ pub fn dates(ui: &mut egui::Ui, when: &mut Value, show_task: bool, names: &Names
         let title_galley = ui.fonts_mut(|fonts| fonts.layout_job(title_job));
         let response = egui::CollapsingHeader::new(title_galley).id_salt("require_task").show(ui,|ui| {
             let mut id=simple.task.as_ref().map(|(id,_)|id.clone()).unwrap_or_default();
-            egui::ComboBox::from_id_salt("required_task").width(190.0_f32.min(ui.available_width())).truncate().selected_text(if id.is_empty(){tr("不要求任务")}else{names.task(&id)}).show_ui(ui,|ui| {
-                ui.selectable_value(&mut id,String::new(),tr("不要求任务"));
+            egui::ComboBox::from_id_salt("required_task").width(190.0_f32.min(ui.available_width())).truncate().selected_text(if id.is_empty(){crate::i18n::key("common.quick.no_task")}else{names.task(&id)}).show_ui(ui,|ui| {
+                ui.selectable_value(&mut id,String::new(),crate::i18n::key("common.quick.no_task"));
                 for (key,name) in &names.tasks {ui.selectable_value(&mut id,key.clone(),name);}
             });
             if id.is_empty(){simple.task=None;}
@@ -357,9 +366,9 @@ pub fn dates(ui: &mut egui::Ui, when: &mut Value, show_task: bool, names: &Names
         response.header_response.on_hover_text(title);
     }
     if !simple.other.is_empty() {
-        ui.small(format!(
-            "另有 {} 项高级条件；修改日期会保留它们。",
-            simple.other.len()
+        ui.small(crate::i18n::message(
+            "common.quick.other_conditions",
+            &[("count", simple.other.len().to_string())],
         ));
     }
     if simple != before {
@@ -391,7 +400,7 @@ pub fn event(
         });
         let start = e["trigger"] == "start";
         if start {
-            ui.label(tr("自由剧本开场时，播放下面这段剧情。"));
+            ui.label(crate::i18n::key("common.quick.start_intro"));
         } else {
             dates(ui, &mut e["when"], true, names);
             let mut trigger = e["trigger"].as_str().unwrap_or("auto").to_owned();
@@ -406,8 +415,16 @@ pub fn event(
                         "时间到了自动发生"
                     }))
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut trigger, "auto".into(), tr("时间到了自动发生"));
-                        ui.selectable_value(&mut trigger, "position".into(), tr("去某地点时"));
+                        ui.selectable_value(
+                            &mut trigger,
+                            "auto".into(),
+                            crate::i18n::key("common.quick.time_trigger"),
+                        );
+                        ui.selectable_value(
+                            &mut trigger,
+                            "position".into(),
+                            crate::i18n::key("common.quick.visit"),
+                        );
                     });
             });
             if trigger != before {
@@ -446,13 +463,19 @@ pub fn event(
                 }
             });
             let mut repeat = !e["once"].as_bool().unwrap_or(true);
-            if ui.checkbox(&mut repeat, tr("可以重复发生")).changed() {
+            if ui
+                .checkbox(&mut repeat, crate::i18n::key("common.quick.repeatable"))
+                .changed()
+            {
                 e["once"] = json!(!repeat);
             }
             let choices = vec![
-                ("action".into(), tr("每次行动")),
-                ("stage".into(), tr("每旬")),
-                ("month".into(), tr("每月")),
+                (
+                    "action".into(),
+                    crate::i18n::key("common.quick.every_action"),
+                ),
+                ("stage".into(), crate::i18n::key("common.quick.every_stage")),
+                ("month".into(), crate::i18n::key("common.quick.every_month")),
             ];
             let mut cadence = json!({"check":e.get("check").cloned().unwrap_or(json!("stage"))});
             if named_choice(
@@ -470,23 +493,26 @@ pub fn event(
                 e["check"] = cadence["check"].clone();
             }
             if e.get("pool").is_some() {
-                ui.small(tr("此事件会与同组事件随机选一件，具体权重在高级设置中。"));
+                ui.small(crate::i18n::key("common.quick.pool_hint"));
             }
         }
         let date = SimpleWhen::read(&e["when"])
             .map(|s| s.date())
-            .unwrap_or_else(|| tr("按高级条件"));
+            .unwrap_or_else(|| crate::i18n::key("common.quick.advanced"));
         let mode = if start {
-            tr("开场时")
+            crate::i18n::key("common.quick.on_start")
         } else if e["trigger"] == "position" {
-            tr("前往所选地点时")
+            crate::i18n::key("common.quick.on_visit")
         } else {
-            tr("时间到来时")
+            crate::i18n::key("common.quick.on_time")
         };
         ui.add_space(5.0);
         let story = names.story(e["script"].as_str().unwrap_or(""));
         if start {
-            ui.label(format!("开场时播放《{story}》。"));
+            ui.label(crate::i18n::message(
+                "common.quick.start_summary",
+                &[("story", story)],
+            ));
         } else {
             let chance = e["chance"].as_f64().unwrap_or(100.0);
             let repeat = if e["once"] == false {
@@ -494,8 +520,15 @@ pub fn event(
             } else {
                 "成功播放后不再发生"
             };
-            ui.label(format!(
-                "{date}，{mode}以 {chance}% 概率播放《{story}》，{repeat}。"
+            ui.label(crate::i18n::message(
+                "common.quick.event_summary",
+                &[
+                    ("date", date),
+                    ("mode", mode),
+                    ("chance", chance.to_string()),
+                    ("story", story),
+                    ("repeat", tr(repeat)),
+                ],
             ));
         }
     });
@@ -523,9 +556,12 @@ pub fn task(ui: &mut egui::Ui, t: &mut Value, names: &Names) {
         task_state(ui, t, "initial", "开始时的状态", &states);
         let count = t["transitions"].as_array().map_or(0, Vec::len);
         if count == 0 {
-            ui.small(tr("由事件结束后的结果更新进度；不必设置自动变化。"));
+            ui.small(crate::i18n::key("common.quick.task_outcome"));
         }
-        if ui.button(tr("添加自动变化（可选）")).clicked() {
+        if ui
+            .button(crate::i18n::key("common.quick.add_auto"))
+            .clicked()
+        {
             if !t["transitions"].is_array() {
                 t["transitions"] = json!([]);
             }
@@ -553,7 +589,10 @@ pub fn task(ui: &mut egui::Ui, t: &mut Value, names: &Names) {
                     task_state(ui, r, "from", "当前是", &states);
                     task_state(ui, r, "to", "自动变成", &states);
                     dates(ui, &mut r["when"], false, names);
-                    if ui.small_button(tr("移除这条变化")).clicked() {
+                    if ui
+                        .small_button(crate::i18n::key("common.quick.delete_change"))
+                        .clicked()
+                    {
                         remove = Some(i);
                     }
                 });
@@ -569,19 +608,19 @@ pub fn results(ui: &mut egui::Ui, e: &mut Value, names: &Names) {
     let Some(outcomes) = e["outcomes"].as_object_mut() else {
         return;
     };
-    ui.collapsing(tr("剧情结束后做什么（可选）"), |ui| {
+    ui.collapsing(crate::i18n::key("common.quick.after_story"), |ui| {
         for (code, effects) in outcomes {
             ui.push_id(code, |ui| {
                 egui::Frame::group(ui.style()).show(ui, |ui| {
                     ui.label(names.result(&script, code));
                     if names.tasks.is_empty() {
-                        ui.small(tr("未关联任务，只播放剧情即可。"));
+                        ui.small(crate::i18n::key("common.quick.unlinked_story"));
                     } else {
                         let mut add = String::new();
                         egui::ComboBox::from_id_salt("add_progress")
                             .width(190.0_f32.min(ui.available_width()))
                             .truncate()
-                            .selected_text(tr("让某个任务更新进度…"))
+                            .selected_text(crate::i18n::key("common.quick.update_task"))
                             .show_ui(ui, |ui| {
                                 for (id, name) in &names.tasks {
                                     ui.selectable_value(&mut add, id.clone(), name);
@@ -612,18 +651,25 @@ pub fn results(ui: &mut egui::Ui, e: &mut Value, names: &Names) {
                                 ui,
                                 &mut effects["tasks"],
                                 &id,
-                                &format!("{}变成", names.task(&id)),
+                                &crate::i18n::message(
+                                    "common.quick.task_becomes",
+                                    &[("task", names.task(&id))],
+                                ),
                                 &states,
                             );
-                            if ui.small_button(tr("不更新这个任务")).clicked() {
+                            if ui
+                                .small_button(crate::i18n::key("common.quick.no_update"))
+                                .clicked()
+                            {
                                 effects["tasks"].as_object_mut().unwrap().remove(&id);
                             }
                         });
                     }
                     let actions = effects["actions"].as_array().map_or(0, Vec::len);
                     if actions > 0 {
-                        ui.small(format!(
-                            "另有 {actions} 项奖励或其他结果动作，可在高级设置中修改。"
+                        ui.small(crate::i18n::message(
+                            "common.quick.other_effects",
+                            &[("count", actions.to_string())],
                         ));
                     }
                 });
@@ -669,15 +715,15 @@ pub fn related_tasks(event: &Value) -> Vec<String> {
 }
 pub fn event_summary(e: &Value) -> String {
     if e["trigger"] == "start" {
-        return tr("自由剧本开场");
+        return crate::i18n::key("common.quick.free_start");
     }
     let date = SimpleWhen::read(&e["when"])
         .map(|s| s.date())
-        .unwrap_or_else(|| tr("高级条件"));
+        .unwrap_or_else(|| crate::i18n::key("common.quick.advanced_condition"));
     let repeat = if e["once"] == false {
-        tr("可重复")
+        crate::i18n::key("common.quick.repeat_label")
     } else {
-        tr("一次性")
+        crate::i18n::key("common.quick.once_label")
     };
     format!("{date} · {repeat}")
 }
