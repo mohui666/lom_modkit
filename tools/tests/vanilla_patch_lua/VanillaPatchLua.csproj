@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Fungus">
+      <HintPath>$(FungusAssembly)</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Compile Include="../../../runtime/MortalModHost/src/MiniJson.cs" />
+    <Compile Include="../../../runtime/MortalModHost/src/VanillaStoryPatch.cs" />
+    <Compile Include="../../../runtime/MortalModHost/src/VanillaImportSource.cs" />
+    <Compile Include="../../../runtime/MortalModHost/src/SystemMessageScope.cs" />
+  </ItemGroup>
+</Project>

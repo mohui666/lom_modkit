@@ -6,6 +6,7 @@ using HarmonyLib;
 using Lean.Localization;
 using Mortal.Combat;
 using Mortal.Core;
+using Mortal.Story;
 using OBB.Framework.Utils;
 using UnityEngine;
 using UObject = UnityEngine.Object;
@@ -137,6 +138,20 @@ namespace MortalModHost
             // Keep AddCount's existing zero clamp when consuming more than owned.
             if (result > int.MaxValue) throw new InvalidOperationException("物品数量超出上限：" + raw);
             database.AddItem(ItemType(category), id, count);
+        }
+
+        internal static void ChangeItemWithMessage(ModPackage package,string category,string raw,int count,bool show)
+        {
+            string id=ResolveItemId(package,category,raw);
+            ItemDatabase database=ItemDatabase.Instance;
+            ItemData item=database!=null ? database.GetItem(ItemType(category),id) as ItemData : null;
+            if(item==null)throw new InvalidOperationException("物品不存在："+raw);
+            StoryMainUI ui=StoryMainUI.Instance;
+            if(show&&ui==null)throw new InvalidOperationException("当前场景不能显示物品变化提示");
+            int before=item.CurrentCount;
+            if(show)ChangeItem(package,category,raw,count);
+            else SystemMessageScope.Run(()=>{ChangeItem(package,category,raw,count);return 0;});
+            if(show&&item.CurrentCount!=before)ui.DisplayItemMessage(category,item.CurrentCount>before ? "add" : "remove",id);
         }
 
         internal static IEnumerator AddSupports(CombatActionController actor)

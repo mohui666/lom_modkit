@@ -1,6 +1,8 @@
 # 测试矩阵与验证边界
 
-本文列出当前 Rust／C# 验证入口。**1.4.4 的已记录回归与定向实机范围见 [本轮说明](../../RELEASE_NOTES_v1.4.4.md#验证范围)。** 下方有日期的旧结果只对应当时的验证轮次。
+本文列出当前 Rust／C# 验证入口。1.4.9 的功能见 [更新说明](../../RELEASE_NOTES_v1.4.9.md)，实机范围见 [当前能力](current_capabilities.md)。下方有日期的旧结果只对应当时的验证轮次。
+
+2026-11-06 的 1.4.9 发布验证中，Rust workspace 454 项通过、0 失败、5 项跳过，C# Host 离线测试和两项路线读取测试通过。实机覆盖原版第一章开场、旗帜条件命中和跳过、新增对白标记出现及返回原文后隐藏。完整章节、Combat／Battle 和所有原版分支尚未逐项重测。
 
 历史记录：2026-10-04 至 2026-10-05 Windows 实测的最终完整 Rust 结果为 **196 项通过、0 失败、2 项默认跳过**；正式 Host、原生 bundle 构建和新 exe 的具体 UI 路径另有实际验证，见 [Windows 验证记录](windows_validation.md)。该次未执行游戏实机。
 
@@ -17,7 +19,7 @@
 | Mac 应用构建 | `sh scripts/build-macos.sh` | 原生程序、应用资源、签名检查与内置预览烟测；GUI 仍需另外打开检查 |
 | C# 离线回归 | `dotnet run --project runtime/MortalModHost/test/SmokeTest/SmokeTest.csproj --configuration Release` | 使用离线测试工程；不启动 Unity，也不验证真实游戏生命周期 |
 | Windows 原生工具 | `scripts/build-windows.ps1 -NoArchive` | 使用正式 Host DLL 构建；构建、自动化与实际 UI 结果分开记录 |
-| 游戏实机 | [Showcase 手动流程](../../samples/showcase3/README.md#手动测试顺序) | 按具体场景记录结果；本轮定向范围见上方 1.4.4 说明 |
+| 游戏实机 | [Showcase 手动流程](../../samples/showcase3/README.md#手动测试顺序) | 按具体场景记录结果，1.4.9 范围见上方说明 |
 
 受控 API 对照测试内部的旧版案例不能再加到 Rust 测试总数上重复计数；不同阶段重跑、预览状态、C# 冒烟、构建与 UI 操作也分别记录。旧 JSON／Lua fixture 是历史对照数据，当前测试不启动已退役的 Python 编辑器或编译器。
 

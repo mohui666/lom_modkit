@@ -1,0 +1,80 @@
+{
+  "story_schema": 2,
+  "id": "system_messages",
+  "title": "心上人与系统提示",
+  "start": "explain",
+  "nodes": [
+    {
+      "id": "explain",
+      "type": "say",
+      "mode": "narrative",
+      "text": "心上人可直接按人名选择。下面的属性、好感、物品、天赋与奖励变更均关闭系统提示，最后再显示一次属性变更作对比。"
+    },
+    {
+      "id": "lover",
+      "type": "stat_set",
+      "key": "lover",
+      "value": 1,
+      "show_message": false
+    },
+    {
+      "id": "quiet_stat",
+      "type": "stat",
+      "key": "morale",
+      "delta": 1,
+      "show_message": false
+    },
+    {
+      "id": "quiet_affinity",
+      "type": "affinity",
+      "character": "brother1",
+      "delta": 1,
+      "show_message": false
+    },
+    {
+      "id": "quiet_item",
+      "type": "item",
+      "kind": "misc",
+      "item": "0001",
+      "count": 1,
+      "show_message": false
+    },
+    {
+      "id": "quiet_talent",
+      "type": "talent",
+      "talent": "1010",
+      "level": 1,
+      "show_message": false
+    },
+    {
+      "id": "quiet_reward",
+      "type": "reward",
+      "show_message": false,
+      "entries": [
+        {
+          "kind": "stat",
+          "key": "morale",
+          "amount": 1
+        }
+      ]
+    },
+    {
+      "id": "shown_stat",
+      "type": "stat",
+      "key": "morale",
+      "delta": 1,
+      "show_message": true
+    },
+    {
+      "id": "summary",
+      "type": "say",
+      "mode": "narrative",
+      "text": "关闭提示只影响自动变化提示，数据照常写入。下一章节选择框显示自定义标题与章节代码。"
+    },
+    {
+      "id": "done",
+      "type": "end",
+      "next_script": "main"
+    }
+  ]
+}

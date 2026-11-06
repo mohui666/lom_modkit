@@ -176,13 +176,27 @@ namespace MortalModHost
 
                 if (package.LuaScripts.Count == 0)
                     throw new FormatException("包内 lua/ 目录没有任何 .lua 脚本");
+                foreach (var patch in package.VanillaOverrides)
+                {
+                    if (!package.LuaScripts.ContainsKey(patch.Value))
+                        throw new FormatException("原版章节补丁指向不存在的剧情：" + patch.Value);
+                    var storyEntry = zip.GetEntry("story/" + patch.Value + ".json");
+                    if (storyEntry == null) throw new FormatException("原版覆盖章节缺少来源 JSON");
+                    VanillaImportSource imported = VanillaImportSource.Parse(ReadEntryText(storyEntry));
+                    if (imported != null)
+                    {
+                        if (!string.Equals(imported.Target, patch.Key, StringComparison.OrdinalIgnoreCase))
+                            throw new FormatException("原版覆盖章节与来源声明不一致");
+                        package.VanillaImports.Add(patch.Value, imported);
+                    }
+                }
                 if (!package.LuaScripts.ContainsKey(package.Entry))
                     throw new FormatException("入口脚本 lua/" + package.Entry + ".lua 不存在");
                 var scenarioEntry=zip.GetEntry("scenario.json");
                 if (package.PlayMode != null)
                 {
                     if (scenarioEntry == null) throw new FormatException("事件任务作品缺少 scenario.json");
-                    package.Scenario=ScenarioConfig.Parse(ReadEntryText(scenarioEntry),package.PlayMode);
+                    package.Scenario=ScenarioConfig.Parse(ReadEntryText(scenarioEntry),package.PlayMode,package.VanillaOverrides.Count>0);
                     package.Scenario.ValidateScripts(package.LuaScripts.Keys);
                     var chapters=new Dictionary<string,string>(StringComparer.Ordinal);
                     foreach(var entry in zip.Entries)
@@ -329,6 +343,21 @@ namespace MortalModHost
             };
             if (playMode!=null && !RuntimeCompatibility.RequiresAtLeast(package.MinHostVersion,"1.1.3"))
                 throw new FormatException("事件任务作品要求 min_host_version 至少 1.1.3");
+            object overridesValue;
+            if (root.TryGetValue("vanilla_overrides", out overridesValue))
+            {
+                var overrides = overridesValue as Dictionary<string, object>;
+                if (overrides == null || overrides.Count > 4096)
+                    throw new FormatException("vanilla_overrides 必须是原版章节到补丁章节的映射");
+                if (overrides.Count > 0 && !RuntimeCompatibility.RequiresAtLeast(package.MinHostVersion, "1.4.9"))
+                    throw new FormatException("原版剧情补丁要求 Host 1.4.9 或更高版本");
+                foreach (var pair in overrides)
+                {
+                    if (!VanillaStoryPatch.ValidTarget(pair.Key) || !(pair.Value is string) || !IsValidScriptId((string)pair.Value))
+                        throw new FormatException("原版章节补丁编号无效");
+                    package.VanillaOverrides.Add(pair.Key, (string)pair.Value);
+                }
+            }
             return package;
         }
 

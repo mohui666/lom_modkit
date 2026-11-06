@@ -1,6 +1,7 @@
 //! Golden outputs captured from the previous Python compiler and its regression suite.
 //! These fixtures are data only; running the native compiler/tests does not invoke Python.
 //! Explicit dim nodes use the persistent Host bridge instead of the legacy one-shot call.
+//! Displayed stat sets also perform the actual write; the old display-only call was a bug.
 use lom_core::{codegen, content};
 use serde_json::Value;
 #[test]

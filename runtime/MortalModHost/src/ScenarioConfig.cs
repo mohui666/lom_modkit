@@ -10,7 +10,7 @@ namespace MortalModHost
         internal string EntryEvent;
         internal readonly List<ScenarioEvent> Events = new List<ScenarioEvent>();
         internal readonly Dictionary<string, ScenarioTask> Tasks = new Dictionary<string, ScenarioTask>(StringComparer.Ordinal);
-        internal static ScenarioConfig Parse(string json, string mode)
+        internal static ScenarioConfig Parse(string json, string mode, bool hasVanillaPatches = false)
         {
             var root = ScenarioJson.Object(MiniJson.Parse(json));
             ScenarioJson.Fields(root, "schema", "entry_event", "events", "tasks");
@@ -46,7 +46,7 @@ namespace MortalModHost
                 }
             }
             var events = ScenarioJson.Array(root, "events");
-            ScenarioJson.Require(events.Count >= 1 && events.Count <= 512, "需要 1~512 条事件");
+            ScenarioJson.Require((events.Count >= 1 || mode == "addon" && hasVanillaPatches) && events.Count <= 512, "需要 1~512 条事件");
             var ids = new HashSet<string>(StringComparer.Ordinal);
             var pools = new Dictionary<string, string>(StringComparer.Ordinal);
             foreach (object raw in events)
@@ -115,7 +115,7 @@ namespace MortalModHost
                 var node=ScenarioJson.Object(raw);string kind=ScenarioJson.Text(node,"type");
                 // 与 Rust scenario::performance_node 保持一致：章节可直接调整时间和属性，
                 // 跨事件任务/持久状态和统一结算仍由 scenario.json 管理，高级 Lua 不在此模式开放。
-                ScenarioJson.Require(Array.IndexOf(new[]{"free_trigger","mod_quest","quest_check","persistent_var","persistent_check","reward","result_screen","raw"},kind)<0,"剧情章节含事件/任务或结果动作："+kind);
+                ScenarioJson.Require(chapter.ContainsKey("vanilla_import") || Array.IndexOf(new[]{"free_trigger","mod_quest","quest_check","persistent_var","persistent_check","reward","result_screen","raw"},kind)<0,"剧情章节含事件/任务或结果动作："+kind);
                 ScenarioJson.Require(kind!="end" || !node.ContainsKey("event_result") || !node.ContainsKey("next_script"),"章节结果不能与 next_script 混用");
             }
         }

@@ -1,0 +1,27 @@
+{
+  "story_schema": 2,
+  "id": "message_controls",
+  "title": "数值写入与系统提示测试",
+  "start": "legacy_set",
+  "nodes": [
+    {"id":"legacy_set","type":"stat_set","key":"lover","value":1,"update":true},
+    {"id":"quiet_set","type":"stat_set","key":"lover","value":2,"show_message":false},
+    {"id":"shown_stat","type":"stat","key":"morale","delta":3,"show_message":true,"waitDisplay":false},
+    {"id":"quiet_stat","type":"stat","key":"morale","delta":2,"show_message":false,"waitDisplay":true},
+    {"id":"shown_affinity","type":"affinity","character":"brother1","delta":3,"show_message":true},
+    {"id":"quiet_affinity","type":"affinity","character":"brother1","delta":4,"show_message":false},
+    {"id":"shown_talent","type":"talent","talent":"1010","level":1,"show_message":true},
+    {"id":"quiet_talent","type":"talent","talent":"1010","level":1,"show_message":false},
+    {"id":"shown_item","type":"item","kind":"misc","item":"0001","count":1,"show_message":true},
+    {"id":"quiet_item","type":"item","kind":"misc","item":"0001","count":2,"show_message":false},
+    {"id":"quiet_reward","type":"reward","show_message":false,"entries":[
+      {"kind":"stat","key":"morale","amount":1},
+      {"kind":"affinity","key":"brother1","amount":1},
+      {"kind":"talent","key":"1010","amount":1},
+      {"kind":"item","category":"misc","key":"0001","amount":1}
+    ]},
+    {"id":"result","type":"result_screen","title":"结算","text":"作者指定的结算文字","show_message":false,"entries":[{"kind":"stat","key":"morale","amount":1}]},
+    {"id":"enemy","type":"enemy","op":"team","enemy":"001","value":3,"show_message":false},
+    {"id":"done","type":"end"}
+  ]
+}

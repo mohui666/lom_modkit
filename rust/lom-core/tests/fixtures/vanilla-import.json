@@ -1,0 +1,292 @@
+{
+  "source": "-- Synthetic chapter for native-scope regression checks.\nlocal total = 3\nsetsaydialog(saydialogs.narrative)\nsetmenudialog(menudialogs.native)\nsetcharacter(narrative)\nsayoptions.waitforinput = false\nif checkpointmanager.Condition(\"OUTER\") then\n    total = total + 4\n    say(luamanager.GetStoryText(\"N_IMPORT_A\"))\nelse\n    total = total + 7\n    say(luamanager.GetStoryText(\"N_IMPORT_B\"))\nend\nlocal options = {\"O_ONE\", \"O_TWO\"}\nlocal selected = choose(options)\nmark_progress(total + selected)\nsay(luamanager.GetStoryText(\"N_IMPORT_DONE\"))\n",
+  "translations": {
+    "N_IMPORT_A": "原版甲",
+    "N_IMPORT_B": "原版乙",
+    "N_IMPORT_DONE": "原版尾句"
+  },
+  "baseline": {
+    "story_schema": 2,
+    "id": "native_import",
+    "title": "整章导入与来源判定",
+    "mood": true,
+    "start": "original_1",
+    "nodes": [
+      {
+        "type": "raw",
+        "code": "-- Synthetic chapter for native-scope regression checks.\nlocal total = 3\nsetsaydialog(saydialogs.narrative)\nsetmenudialog(menudialogs.native)\nsetcharacter(narrative)\nsayoptions.waitforinput = false\nif checkpointmanager.Condition(\"OUTER\") then\n    total = total + 4\n",
+        "id": "original_1",
+        "_editor": {
+          "vanilla_origin": 0
+        }
+      },
+      {
+        "type": "say",
+        "mode": "narrative",
+        "text": "原版甲",
+        "inherit_dialog": true,
+        "id": "original_2",
+        "_editor": {
+          "vanilla_origin": 1
+        }
+      },
+      {
+        "type": "raw",
+        "code": "else\n    total = total + 7\n",
+        "id": "original_3",
+        "_editor": {
+          "vanilla_origin": 2
+        }
+      },
+      {
+        "type": "say",
+        "mode": "narrative",
+        "text": "原版乙",
+        "inherit_dialog": true,
+        "id": "original_4",
+        "_editor": {
+          "vanilla_origin": 3
+        }
+      },
+      {
+        "type": "raw",
+        "code": "end\nlocal options = {\"O_ONE\", \"O_TWO\"}\nlocal selected = choose(options)\nmark_progress(total + selected)\n",
+        "id": "original_5",
+        "_editor": {
+          "vanilla_origin": 4
+        }
+      },
+      {
+        "type": "say",
+        "mode": "narrative",
+        "text": "原版尾句",
+        "inherit_dialog": true,
+        "id": "original_6",
+        "_editor": {
+          "vanilla_origin": 5
+        }
+      },
+      {
+        "type": "end",
+        "resume_original": true,
+        "id": "original_7",
+        "_editor": {
+          "vanilla_origin": 6
+        }
+      }
+    ],
+    "vanilla_import": {
+      "schema": 1,
+      "target": "DEMO",
+      "origins": [
+        {
+          "code": "-- Synthetic chapter for native-scope regression checks.\nlocal total = 3\nsetsaydialog(saydialogs.narrative)\nsetmenudialog(menudialogs.native)\nsetcharacter(narrative)\nsayoptions.waitforinput = false\nif checkpointmanager.Condition(\"OUTER\") then\n    total = total + 4\n",
+          "node": {
+            "type": "raw",
+            "code": "-- Synthetic chapter for native-scope regression checks.\nlocal total = 3\nsetsaydialog(saydialogs.narrative)\nsetmenudialog(menudialogs.native)\nsetcharacter(narrative)\nsayoptions.waitforinput = false\nif checkpointmanager.Condition(\"OUTER\") then\n    total = total + 4\n",
+            "id": "original_1"
+          }
+        },
+        {
+          "code": "    say(luamanager.GetStoryText(\"N_IMPORT_A\"))\n",
+          "node": {
+            "type": "say",
+            "mode": "narrative",
+            "text": "原版甲",
+            "inherit_dialog": true,
+            "id": "original_2"
+          }
+        },
+        {
+          "code": "else\n    total = total + 7\n",
+          "node": {
+            "type": "raw",
+            "code": "else\n    total = total + 7\n",
+            "id": "original_3"
+          }
+        },
+        {
+          "code": "    say(luamanager.GetStoryText(\"N_IMPORT_B\"))\n",
+          "node": {
+            "type": "say",
+            "mode": "narrative",
+            "text": "原版乙",
+            "inherit_dialog": true,
+            "id": "original_4"
+          }
+        },
+        {
+          "code": "end\nlocal options = {\"O_ONE\", \"O_TWO\"}\nlocal selected = choose(options)\nmark_progress(total + selected)\n",
+          "node": {
+            "type": "raw",
+            "code": "end\nlocal options = {\"O_ONE\", \"O_TWO\"}\nlocal selected = choose(options)\nmark_progress(total + selected)\n",
+            "id": "original_5"
+          }
+        },
+        {
+          "code": "say(luamanager.GetStoryText(\"N_IMPORT_DONE\"))\n",
+          "node": {
+            "type": "say",
+            "mode": "narrative",
+            "text": "原版尾句",
+            "inherit_dialog": true,
+            "id": "original_6"
+          }
+        },
+        {
+          "code": "",
+          "node": {
+            "type": "end",
+            "resume_original": true,
+            "id": "original_7"
+          }
+        }
+      ]
+    }
+  },
+  "story": {
+    "story_schema": 2,
+    "id": "native_import",
+    "title": "整章导入与来源判定",
+    "mood": true,
+    "start": "original_1",
+    "nodes": [
+      {
+        "type": "raw",
+        "code": "-- Synthetic chapter for native-scope regression checks.\nlocal total = 3\nsetsaydialog(saydialogs.narrative)\nsetmenudialog(menudialogs.native)\nsetcharacter(narrative)\nsayoptions.waitforinput = false\nif checkpointmanager.Condition(\"OUTER\") then\n    total = total + 4\n",
+        "id": "original_1",
+        "_editor": {
+          "vanilla_origin": 0
+        }
+      },
+      {
+        "type": "say",
+        "mode": "narrative",
+        "text": "改写甲",
+        "inherit_dialog": true,
+        "id": "original_2",
+        "_editor": {
+          "vanilla_origin": 1
+        }
+      },
+      {
+        "type": "raw",
+        "code": "else\n    total = total + 7\n",
+        "id": "original_3",
+        "_editor": {
+          "vanilla_origin": 2
+        }
+      },
+      {
+        "type": "say",
+        "mode": "narrative",
+        "text": "原版乙",
+        "inherit_dialog": true,
+        "id": "original_4",
+        "_editor": {
+          "vanilla_origin": 3
+        }
+      },
+      {
+        "type": "raw",
+        "code": "end\nlocal options = {\"O_ONE\", \"O_TWO\"}\nlocal selected = choose(options)\nmark_progress(total + selected)\n",
+        "id": "original_5",
+        "_editor": {
+          "vanilla_origin": 4
+        }
+      },
+      {
+        "id": "inserted",
+        "type": "say",
+        "text": "新增对白",
+        "inherit_dialog": true
+      },
+      {
+        "type": "say",
+        "mode": "narrative",
+        "text": "原版尾句",
+        "inherit_dialog": true,
+        "id": "original_6",
+        "_editor": {
+          "vanilla_origin": 5
+        }
+      },
+      {
+        "type": "end",
+        "resume_original": true,
+        "id": "original_7",
+        "_editor": {
+          "vanilla_origin": 6
+        }
+      }
+    ],
+    "vanilla_import": {
+      "schema": 1,
+      "target": "DEMO",
+      "origins": [
+        {
+          "code": "-- Synthetic chapter for native-scope regression checks.\nlocal total = 3\nsetsaydialog(saydialogs.narrative)\nsetmenudialog(menudialogs.native)\nsetcharacter(narrative)\nsayoptions.waitforinput = false\nif checkpointmanager.Condition(\"OUTER\") then\n    total = total + 4\n",
+          "node": {
+            "type": "raw",
+            "code": "-- Synthetic chapter for native-scope regression checks.\nlocal total = 3\nsetsaydialog(saydialogs.narrative)\nsetmenudialog(menudialogs.native)\nsetcharacter(narrative)\nsayoptions.waitforinput = false\nif checkpointmanager.Condition(\"OUTER\") then\n    total = total + 4\n",
+            "id": "original_1"
+          }
+        },
+        {
+          "code": "    say(luamanager.GetStoryText(\"N_IMPORT_A\"))\n",
+          "node": {
+            "type": "say",
+            "mode": "narrative",
+            "text": "原版甲",
+            "inherit_dialog": true,
+            "id": "original_2"
+          }
+        },
+        {
+          "code": "else\n    total = total + 7\n",
+          "node": {
+            "type": "raw",
+            "code": "else\n    total = total + 7\n",
+            "id": "original_3"
+          }
+        },
+        {
+          "code": "    say(luamanager.GetStoryText(\"N_IMPORT_B\"))\n",
+          "node": {
+            "type": "say",
+            "mode": "narrative",
+            "text": "原版乙",
+            "inherit_dialog": true,
+            "id": "original_4"
+          }
+        },
+        {
+          "code": "end\nlocal options = {\"O_ONE\", \"O_TWO\"}\nlocal selected = choose(options)\nmark_progress(total + selected)\n",
+          "node": {
+            "type": "raw",
+            "code": "end\nlocal options = {\"O_ONE\", \"O_TWO\"}\nlocal selected = choose(options)\nmark_progress(total + selected)\n",
+            "id": "original_5"
+          }
+        },
+        {
+          "code": "say(luamanager.GetStoryText(\"N_IMPORT_DONE\"))\n",
+          "node": {
+            "type": "say",
+            "mode": "narrative",
+            "text": "原版尾句",
+            "inherit_dialog": true,
+            "id": "original_6"
+          }
+        },
+        {
+          "code": "",
+          "node": {
+            "type": "end",
+            "resume_original": true,
+            "id": "original_7"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using BepInEx.Logging;
 using Fungus;
 using Mortal.Core;
@@ -68,6 +69,7 @@ namespace MortalModHost
         internal static ManualLogSource Log;
 
         internal static bool Active { get; private set; }
+        internal static bool OriginalContent { get; private set; }
         internal static string ModId { get; private set; }
         internal static string PackageFingerprint { get; private set; }
         internal static string FailureReason { get; private set; }
@@ -90,6 +92,8 @@ namespace MortalModHost
         private static Font _osFont;
         private static bool _insideRenderGuard;
         private static bool _developmentHotReloadPending;
+        private static readonly FieldInfo SayDialogsField = typeof(SayDialog).GetField(
+            "activeSayDialogs", BindingFlags.Static | BindingFlags.NonPublic);
 
         /// <summary>
         /// 先验证 Host 计算的包身份；可见标记随后 best-effort 创建。身份错误仍拒绝，
@@ -145,6 +149,7 @@ namespace MortalModHost
                 _lastDetail = null;
             }
             _developmentHotReloadPending = false;
+            OriginalContent = false;
 
             try
             {
@@ -181,6 +186,7 @@ namespace MortalModHost
             ProvenanceWatermark.Disable();
             ClearVisuals();
             Active = false;
+            OriginalContent = false;
             ModId = null;
             PackageFingerprint = null;
             FailureReason = null;
@@ -272,6 +278,26 @@ namespace MortalModHost
             return true;
         }
 
+        internal static void SetOriginalContent(bool original)
+        {
+            if (!Active) throw new InvalidOperationException("原版来源切换缺少活动中的 MOD 会话");
+            EnsureSessionIntegrity();
+            if (OriginalContent == original) return;
+            OriginalContent = original;
+            ProvenanceWatermark.SetVisible(!original);
+            if (!original) { Tick(); return; }
+            if (_edgeRoot != null) _edgeRoot.SetActive(false);
+            foreach (DialogBinding binding in DialogBindings) HideSurface(binding.Watermark);
+            foreach (PanelBinding binding in PanelBindings) HideSurface(binding.Chip);
+        }
+
+        private static void HideSurface(GameObject surface)
+        {
+            if (surface == null) return;
+            foreach (CanvasGroup group in surface.GetComponentsInChildren<CanvasGroup>(true))
+                group.alpha = 0f;
+        }
+
         /// <summary>
         /// 可由 Plugin、独立 guardian 和渲染前回调重复调用的幂等安全检查。
         /// </summary>
@@ -289,7 +315,7 @@ namespace MortalModHost
         /// </summary>
         internal static void DrawPersistentImGuiStamp()
         {
-            if (!Active) return;
+            if (!Active || OriginalContent || Event.current == null || Event.current.type != EventType.Repaint) return;
             int oldDepth = GUI.depth;
             Color oldColor = GUI.color;
             Color oldContentColor = GUI.contentColor;
@@ -344,6 +370,7 @@ namespace MortalModHost
             try
             {
                 EnsureSessionIntegrity();
+                if (OriginalContent) return true;
                 EnsureEdgeOverlay();
                 RefreshLabels(false);
                 if (!ProvenanceWatermark.Maintain())
@@ -384,7 +411,7 @@ namespace MortalModHost
             Vector2 pivot,
             Vector2 offset)
         {
-            if (!Active) return null;
+            if (!Active || OriginalContent) return null;
             if (parent == null)
             {
                 ReportSurfaceFailure("关键结果面板不存在，无法附加来源标记");
@@ -450,7 +477,8 @@ namespace MortalModHost
                 UnityEngine.Object.DontDestroyOnLoad(_edgeRoot);
             }
 
-            _edgeRoot.transform.SetParent(null, false);
+            if (_edgeRoot.transform.parent != null)
+                _edgeRoot.transform.SetParent(null, false);
             _edgeRoot.SetActive(true);
             RectTransform rootRect = (RectTransform)_edgeRoot.transform;
             rootRect.anchorMin = Vector2.zero;
@@ -505,7 +533,8 @@ namespace MortalModHost
                 _guardianRoot.hideFlags = HideFlags.DontSave;
                 UnityEngine.Object.DontDestroyOnLoad(_guardianRoot);
             }
-            _guardianRoot.transform.SetParent(null, false);
+            if (_guardianRoot.transform.parent != null)
+                _guardianRoot.transform.SetParent(null, false);
             _guardianRoot.transform.localPosition = Vector3.zero;
             _guardianRoot.transform.localScale = Vector3.one;
             _guardianRoot.transform.localRotation = Quaternion.identity;
@@ -517,10 +546,12 @@ namespace MortalModHost
 
         private static void SyncDialogChips()
         {
-            // LuaUtils.SetSayDialog 能改写 ActiveSayDialog，所以不把这个可变指针
-            // 当成权威来源。扫描全部激活的 SayDialog，并保留已观察的可见宿主。
-            SayDialog[] dialogs = UnityEngine.Object.FindObjectsOfType<SayDialog>();
-            for (int i = 0; i < dialogs.Length; i++)
+            // Awake / OnDestroy 维护完整的原版实例表，避免每个渲染回调扫描场景。
+            // ActiveSayDialog 可由 Lua 改写，仍需覆盖表内所有激活实例和既有绑定。
+            var dialogs = SayDialogsField?.GetValue(null) as List<SayDialog>;
+            if (dialogs == null)
+                throw new InvalidOperationException("无法读取原版 SayDialog 实例表");
+            for (int i = 0; i < dialogs.Count; i++)
             {
                 SayDialog dialog = dialogs[i];
                 if (dialog == null || !dialog.gameObject.activeInHierarchy) continue;
@@ -925,7 +956,6 @@ namespace MortalModHost
             background.canvasRenderer.cull = false;
             background.canvasRenderer.SetAlpha(1f);
             background.canvasRenderer.SetColor(backgroundColor);
-            background.SetAllDirty();
 
             Text label = FindDialogLabel(watermark);
             RectTransform labelRect = label.rectTransform;
@@ -957,7 +987,6 @@ namespace MortalModHost
             label.canvasRenderer.cull = false;
             label.canvasRenderer.SetAlpha(1f);
             label.canvasRenderer.SetColor(color);
-            label.SetAllDirty();
             CanvasGroup[] labelGroups = label.gameObject.GetComponents<CanvasGroup>();
             for (int i = 0; i < labelGroups.Length; i++)
             {
@@ -1045,7 +1074,6 @@ namespace MortalModHost
             bg.canvasRenderer.cull = false;
             bg.canvasRenderer.SetAlpha(1f);
             bg.canvasRenderer.SetColor(bgColor);
-            bg.SetAllDirty();
             Transform accentTransform = chip.transform.Find(AccentObjectName);
             RectTransform accentRect = (RectTransform)accentTransform;
             accentRect.anchorMin = new Vector2(0f, 0f);
@@ -1073,7 +1101,6 @@ namespace MortalModHost
             accent.canvasRenderer.cull = false;
             accent.canvasRenderer.SetAlpha(1f);
             accent.canvasRenderer.SetColor(accentColor);
-            accent.SetAllDirty();
 
             Text primary = FindLabel(chip, PrimaryObjectName);
             Text detail = FindLabel(chip, DetailObjectName);
@@ -1128,7 +1155,6 @@ namespace MortalModHost
             label.canvasRenderer.cull = false;
             label.canvasRenderer.SetAlpha(1f);
             label.canvasRenderer.SetColor(expectedColor);
-            label.SetAllDirty();
             Shadow shadow = label.GetComponent<Shadow>();
             if (shadow == null) shadow = label.gameObject.AddComponent<Shadow>();
             shadow.enabled = true;

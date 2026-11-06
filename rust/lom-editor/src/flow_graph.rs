@@ -27,6 +27,7 @@ struct Layout {
     links: Vec<Link>,
     reachable: BTreeSet<usize>,
     size: Vec2,
+    outgoing: Vec<usize>,
 }
 
 fn find_back_edges(
@@ -150,12 +151,14 @@ fn layout(story: &Value) -> Layout {
         .collect();
     let right = left + (max_columns - 1) as f32 * COLUMN + CARD.x;
     let mut links = Vec::new();
+    let mut outgoing = vec![0; nodes.len()];
     let mut back_lane = 0;
     let mut long_lane = 0;
     for (from, target, label) in raw {
         let Some(&a) = indices.get(from.as_str()) else {
             continue;
         };
+        outgoing[a] += 1;
         let to = indices.get(target.as_str()).copied();
         let mut points = Vec::new();
         let backward = to.is_some_and(|b| ranks[b] <= ranks[a]);
@@ -287,6 +290,7 @@ fn layout(story: &Value) -> Layout {
         links,
         reachable,
         size: Vec2::new(right + extra, height),
+        outgoing,
     }
 }
 
@@ -294,12 +298,18 @@ fn layout(story: &Value) -> Layout {
 struct ViewState {
     zoom: f32,
     selected: Option<String>,
+    layout: Option<std::sync::Arc<CachedLayout>>,
+}
+struct CachedLayout {
+    story: Value,
+    layout: Layout,
 }
 impl Default for ViewState {
     fn default() -> Self {
         Self {
             zoom: 1.0,
             selected: None,
+            layout: None,
         }
     }
 }
@@ -316,6 +326,30 @@ fn summary(project: &Project, node: &Value) -> String {
     }
     if !text(node, "character").is_empty() {
         return character_display_name(project, text(node, "character"));
+    }
+    let resource = match text(node, "type") {
+        "music" => Some(("music", "name")),
+        "sound" => Some((
+            if text(node, "kind") == "env" {
+                "env_sounds"
+            } else {
+                "sounds"
+            },
+            "name",
+        )),
+        "scene" => Some(("views", "view")),
+        _ => None,
+    };
+    if let Some((category, key)) = resource {
+        let id = text(node, key);
+        let name = lom_core::validate::editor_data()[category]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|entry| entry["id"] == id)
+            .and_then(|entry| entry["name"].as_str())
+            .unwrap_or(id);
+        return crate::i18n::term(category, id, name);
     }
     for key in ["image", "view", "name", "flag", "key", "scene"] {
         if !text(node, key).is_empty() {
@@ -351,11 +385,22 @@ pub(super) fn show(
     selected: usize,
 ) -> Option<usize> {
     let nodes = story["nodes"].as_array()?;
-    let layout = layout(story);
     let state_id = ui.id().with(("flow-view", text(story, "id")));
     let mut state = ui
         .data_mut(|data| data.get_temp::<ViewState>(state_id))
         .unwrap_or_default();
+    if state
+        .layout
+        .as_ref()
+        .is_none_or(|cached| cached.story != *story)
+    {
+        state.layout = Some(std::sync::Arc::new(CachedLayout {
+            story: story.clone(),
+            layout: layout(story),
+        }));
+    }
+    let cached = state.layout.clone().unwrap();
+    let layout = &cached.layout;
     let selected_id = nodes.get(selected).map(|node| text(node, "id").to_owned());
     let mut locate = selected_id != state.selected;
     ui.horizontal_wrapped(|ui| {
@@ -409,8 +454,18 @@ pub(super) fn show(
                 )
             };
             let painter = ui.painter().clone();
+            let clip = ui.clip_rect().expand(20.0);
             let mut labels = Vec::new();
             for link in &layout.links {
+                let bounds = Rect::from_points(&link.points);
+                let bounds = Rect::from_min_max(transform(bounds.min), transform(bounds.max));
+                let label_bounds = Rect::from_min_size(
+                    transform(link.label_at) - Vec2::new(0.0, 20.0 * zoom),
+                    Vec2::new(link.label_width, 24.0) * zoom,
+                );
+                if !bounds.union(label_bounds).intersects(clip) {
+                    continue;
+                }
                 let active = link.from == selected || link.to == Some(selected);
                 let color = if link.to.is_none() {
                     Color32::DARK_RED
@@ -438,12 +493,7 @@ pub(super) fn show(
                 let plain_forward = link.label == "跳转"
                     && !link.backward
                     && link.to.is_some()
-                    && layout
-                        .links
-                        .iter()
-                        .filter(|edge| edge.from == link.from)
-                        .count()
-                        == 1;
+                    && layout.outgoing[link.from] == 1;
                 if (link.label != "下一步" && !plain_forward) || link.backward || link.to.is_none()
                 {
                     let label = if link.to.is_none() {
@@ -456,6 +506,9 @@ pub(super) fn show(
             }
             for (index, node) in nodes.iter().enumerate() {
                 let card = rect(index);
+                if !card.intersects(clip) {
+                    continue;
+                }
                 let response = ui.interact(
                     card,
                     ui.id().with(("flow-node", index)),
@@ -556,7 +609,7 @@ pub(super) fn show(
             }
             // All lines are already drawn. Label backgrounds use the actual
             // galley size so later edges cannot cut through text at any zoom.
-            for (index, (link, label, color)) in labels.into_iter().enumerate() {
+            for (link, label, color) in labels {
                 let mut job = egui::text::LayoutJob::simple(
                     label.clone(),
                     FontId::proportional((11.0 * zoom).max(8.0)),
@@ -572,7 +625,7 @@ pub(super) fn show(
                 painter.galley(at, galley, color);
                 ui.interact(
                     bounds,
-                    ui.id().with(("flow-label", index)),
+                    ui.id().with(("flow-label", link.from, &link.target)),
                     egui::Sense::hover(),
                 )
                 .on_hover_text(label);
@@ -590,6 +643,16 @@ pub(super) fn show(
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn music_cards_show_the_same_simplified_title_as_the_resource_picker() {
+        let project = Project::new();
+        let node = json!({"id":"music","type":"music","name":"嚴肅_001"});
+        let options = crate::forms::Catalog::new().options("music", &node, &[], &[]);
+        let title = &options.iter().find(|(id, _)| id == "嚴肅_001").unwrap().1;
+        assert_eq!(summary(&project, &node), *title);
+        assert_ne!(*title, "嚴肅_001");
+    }
 
     #[test]
     fn linear_flow_has_compact_aligned_cards_and_direct_edges() {

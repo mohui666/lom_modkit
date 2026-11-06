@@ -5,6 +5,7 @@ use serde_json::{json, Value};
 pub struct Catalog {
     pub schema: Value,
     pub data: Value,
+    story_titles: std::collections::BTreeMap<String, String>,
 }
 
 pub struct NodeFormResponse {
@@ -143,7 +144,14 @@ impl Catalog {
                 .expect("embedded authoring schema"),
             data: serde_json::from_str(include_str!("../../../data/editor_data.json"))
                 .expect("embedded editor data"),
+            story_titles: Default::default(),
         }
+    }
+    pub fn sync_story_titles(&mut self, stories: &std::collections::BTreeMap<String, Value>) {
+        self.story_titles = stories
+            .iter()
+            .map(|(id, story)| (id.clone(), story["title"].as_str().unwrap_or(id).to_owned()))
+            .collect();
     }
     pub fn sync_assets(&mut self, assets: &std::collections::BTreeMap<String, Vec<u8>>) {
         self.data = lom_core::validate::catalog_with_assets(assets)
@@ -346,7 +354,19 @@ impl Catalog {
             return nodes.iter().map(|s| (s.clone(), s.clone())).collect();
         }
         if kind == "story_ref" {
-            return stories.iter().map(|s| (s.clone(), s.clone())).collect();
+            return stories
+                .iter()
+                .map(|id| {
+                    let title = self
+                        .story_titles
+                        .get(id)
+                        .filter(|title| !title.trim().is_empty() && *title != id);
+                    (
+                        id.clone(),
+                        title.map_or_else(|| id.clone(), |title| format!("{title}（{id}）")),
+                    )
+                })
+                .collect();
         }
         if kind == "facing" {
             return vec![
@@ -382,9 +402,7 @@ impl Catalog {
             return options;
         }
         if kind == "official_picture" {
-            let catalog: Value =
-                serde_json::from_str(include_str!("../../../data/picture_keys.json"))
-                    .expect("picture keys");
+            let catalog = picture_catalog();
             let preferred = match node["kind"].as_str() {
                 Some("item") => "Items",
                 Some("big") => "BigPicture",
@@ -1059,6 +1077,67 @@ impl Catalog {
         if key == "character" && kind == "character" {
             return self.character_field(ui, node, label, optional);
         }
+        if key == "show_message" {
+            let mut show = lom_core::codegen::shows_system_messages(node);
+            let changed = ui
+                .checkbox(&mut show, tr("显示系统提示"))
+                .on_hover_text("关闭后照常变更数值、好感、天赋和物品，跳过自动变化提示。")
+                .changed();
+            if changed {
+                node[key] = json!(show);
+            }
+            return changed;
+        }
+        if key == "resume_original" {
+            let mut resume = node[key].as_bool().unwrap_or(false);
+            let changed = ui.checkbox(&mut resume, tr(label)).changed();
+            if changed {
+                node[key] = json!(resume);
+                if resume {
+                    node.as_object_mut().unwrap().remove("next_script");
+                    node.as_object_mut().unwrap().remove("event_result");
+                }
+            }
+            return changed;
+        }
+        if key == "value" && node["type"] == "stat_set" && node["key"] == "lover" {
+            let mut value = node[key].as_i64().unwrap_or(0);
+            let options = localized_rows(&self.data["lover_values"], "lover_values");
+            let display = options
+                .iter()
+                .find(|(id, _)| id == &value.to_string())
+                .map_or_else(
+                    || format!("编号 {value}"),
+                    |(id, name)| format!("{name}（{id}）"),
+                );
+            let mut changed = false;
+            ui.label("心上人");
+            resource_combo(
+                ui,
+                ("lover-value", node["id"].as_str().unwrap_or("")),
+                &display,
+                |ui| {
+                    for (id, name) in &options {
+                        let number = id.parse::<i64>().expect("embedded lover number");
+                        if ui
+                            .selectable_label(value == number, format!("{name}（{id}）"))
+                            .clicked()
+                        {
+                            value = number;
+                            changed = true;
+                            ui.close();
+                        }
+                    }
+                    ui.separator();
+                    ui.label("自定义编号");
+                    changed |= ui.add(egui::DragValue::new(&mut value)).changed();
+                },
+            );
+            if changed {
+                node[key] = json!(value);
+            }
+            return changed;
+        }
         let specific = format!("field.{}.{}", node["type"].as_str().unwrap_or(""), key);
         let generic = format!("field.{key}");
         let localized = crate::i18n::key(&specific);
@@ -1388,12 +1467,10 @@ impl Catalog {
                                     }
                                     let lower = search.to_lowercase();
                                     for (id, name) in &options {
-                                        if lower.is_empty()
-                                            || id.to_lowercase().contains(&lower)
-                                            || name.to_lowercase().contains(&lower)
-                                        {
+                                        if resource_matches(id,name,&lower) {
                                             if ui
                                                 .selectable_label(present && id == &s, name)
+                                                .on_hover_text(id)
                                                 .clicked()
                                             {
                                                 s = id.clone();
@@ -1626,7 +1703,7 @@ fn character_picker(
     selection
 }
 
-fn resource_combo<R>(
+pub(crate) fn resource_combo<R>(
     ui: &mut Ui,
     id_salt: impl std::hash::Hash,
     selected: &str,
@@ -1692,6 +1769,14 @@ fn resource_combo<R>(
     .inner
 }
 
+pub(crate) fn picture_catalog() -> &'static Value {
+    static CATALOG: std::sync::OnceLock<Value> = std::sync::OnceLock::new();
+    CATALOG.get_or_init(|| {
+        serde_json::from_str(include_str!("../../../data/picture_keys.json"))
+            .expect("picture catalog")
+    })
+}
+
 pub(crate) fn picture_category(category: &str) -> &str {
     match category {
         "BigPicture" => "大图 CG",
@@ -1712,7 +1797,22 @@ fn resource_label(id: &str, category: &str, name: &str) -> String {
         _ if id.starts_with("dance_event_10") => "小梅·崆峒大战·鹤舞相杀",
         _ => name,
     };
-    format!("{} · {} · {id}", tr(category), tr(description))
+    let description = if crate::i18n::locale() == "chs" {
+        crate::i18n::simplified_label(description)
+    } else {
+        tr(description)
+    };
+    format!("{} · {description}", tr(category))
+}
+
+fn resource_matches(id: &str, name: &str, query: &str) -> bool {
+    query.is_empty()
+        || id.to_lowercase().contains(query)
+        || name.to_lowercase().contains(query)
+        || crate::i18n::locale() == "chs"
+            && crate::i18n::simplified_label(id)
+                .to_lowercase()
+                .contains(query)
 }
 
 fn is_selector(kind: &str) -> bool {
@@ -1811,6 +1911,33 @@ pub fn number_duplicate_labels(options: &mut [(String, String)]) {
 }
 
 fn field_visible(kind: &str, node: &Value, key: &str) -> bool {
+    if key == "inherit_dialog" {
+        return node.get(key).is_some();
+    }
+    if key == "resume_original" {
+        return node.get(key).is_some();
+    }
+    if kind == "say"
+        && node["inherit_dialog"] == true
+        && matches!(key, "mode" | "character" | "portrait" | "text_align")
+    {
+        return false;
+    }
+    if kind == "end"
+        && node["resume_original"] == true
+        && matches!(key, "next_script" | "event_result")
+    {
+        return false;
+    }
+    if matches!(
+        (kind, key),
+        ("stat" | "enemy", "display") | ("stat_set", "update")
+    ) {
+        return false;
+    }
+    if kind == "stat" && key == "waitDisplay" {
+        return node["show_message"] != false;
+    }
     if kind == "mood" && matches!(key, "icon" | "offset_x" | "offset_y") {
         return node["character"].as_str().is_some_and(|s| !s.is_empty())
             && node["enabled"] == true;
@@ -2775,11 +2902,50 @@ mod tests {
         assert_eq!(node, original, "searching must not change the step");
     }
     #[test]
+    fn simplified_resource_options_keep_titles_and_raw_values() {
+        let mut catalog = Catalog::new();
+        catalog.data["characters"].as_array_mut().unwrap().extend([
+            json!({"id":"fixture_prop","name":"測試_鐵鎚","portraits":["normal"]}),
+            json!({"id":"fixture_simple","name":"测试_铁锤","portraits":["normal"]}),
+        ]);
+        let before = catalog.data.clone();
+        let characters = catalog.options("character", &json!({}), &[], &[]);
+        assert_eq!(
+            characters
+                .iter()
+                .find(|(id, _)| id == "fixture_prop")
+                .unwrap()
+                .1,
+            "测试_铁锤 1"
+        );
+        assert_eq!(
+            characters
+                .iter()
+                .find(|(id, _)| id == "fixture_simple")
+                .unwrap()
+                .1,
+            "测试_铁锤 2"
+        );
+        let music = catalog.options("music", &json!({}), &[], &[]);
+        let (id, title) = music.iter().find(|(id, _)| id == "嚴肅_001").unwrap();
+        assert_eq!(id, "嚴肅_001");
+        assert!(!title.contains("嚴肅_001"));
+        assert_eq!(*title, crate::i18n::simplified_label(title));
+        assert_eq!(catalog.data, before);
+    }
+
+    #[test]
     fn music_search_accepts_titles_and_ids_and_saves_only_the_id() {
         let catalog = Catalog::new();
         let context = egui::Context::default();
         let mut node = json!({"id":"music1","type":"music","op":"play","name":"普通_001"});
-        for (query, id) in [("雨后松林香", "普通_003"), ("主題_001", "主題_001")] {
+        for (query, id) in [
+            ("雨后松林香", "普通_003"),
+            ("主題_001", "主題_001"),
+            ("主题_001", "主題_001"),
+            ("严肃", "嚴肅_001"),
+        ] {
+            node["name"] = json!("普通_001");
             let options = catalog.options("music", &node, &[], &[]);
             let display = &options
                 .iter()
@@ -3661,11 +3827,6 @@ fn localized_rows(value: &Value, category: &str) -> Vec<(String, String)> {
         .into_iter()
         .map(|(id, name)| {
             let name = crate::i18n::term(category, &id, &name);
-            let name = if category == "music" && name != id {
-                format!("{name} · {id}")
-            } else {
-                name
-            };
             (id, name)
         })
         .collect()
@@ -3695,14 +3856,12 @@ fn pick(
         let sid = ui.id().with("filter");
         let mut q = ui.data_mut(|d| d.get_temp::<String>(sid).unwrap_or_default());
         ui.add(egui::TextEdit::singleline(&mut q).hint_text(tr("搜索名称")));
+        let lower = q.to_lowercase();
         for (id, name) in options {
-            if q.is_empty()
-                || format!("{name} {id}")
-                    .to_lowercase()
-                    .contains(&q.to_lowercase())
-            {
+            if resource_matches(&id, &name, &lower) {
                 if ui
                     .selectable_value(&mut selected, id.clone(), name)
+                    .on_hover_text(&id)
                     .clicked()
                 {
                     ui.close();

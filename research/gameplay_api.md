@@ -1,5 +1,39 @@
 # Gameplay API 实证矩阵
 
+## 2026-11-06 数值写入与系统提示
+
+重新只读核对 `Mortal.Story.StatModifyManager`：`UpdateSetPlayerStat(string,int)` 仅按目标值计算变化量，调用 `StoryMainUI.DisplayStatModification`；真正写入需调用 `SetPlayer(string,int)`，由 `PlayerStatData.Set` 转到 `GameStat.SetValue` 并保留游戏自身上下限。生成器显示变化后始终执行写入。`LoverInfoPanel.UpdateStatus` 按 `FinalValue` 读取 `PlayerInfo/Lover/<编号>`；本机简体语言表确认 0～8 与 99 的名称，编辑器只提供选择，不改官方资产或上下限。
+
+`ItemDatabase.AddItem` / `ItemData.AddCount` 只更新数量。新物品回调沿用现有官方／用户物品 ID 解析，比较实际变更前后数量，有变更且启用提示时调用 `StoryMainUI.DisplayItemMessage(type,"add"|"remove",id)`。静默同步回调仅阻止 `GameMessagePanel.DisplayMessage`、`StatModifyMessagePanel.DisplayStatModification` 和 `RelationshipModifyMessagePanel.DisplayRelationshipModification` 创建提示物件，保留上层数据操作与记录，异常退出立即恢复。回调不包含 Lua 等待。
+
+## 2026-11-05 原版章节补丁入口
+
+2026-11-06 再次只读核对当前 `LuaManager.SetCurrentStoryScript(string)` 与 `Fungus.LuaEnvironment.LoadLuaFunction/RunLuaFunction`。整章导入复用这些入口，来源核对读取同一路径的 `TextAsset.text`，每个包的每章首次核对后缓存结果。原生代码保留局部作用域，可编辑片段用局部函数执行，插入对白后恢复原生 `setcharacter`、`setsaydialog` 参数和 `sayoptions`。
+
+同日实机测试发现，无参数 `Action` 绑定在游戏 Mono 环境中被 MoonSharp 识别为 userdata，原版步骤结束调用 `mod_vanilla_source_continue` 时中断。改为显式 `CallbackFunction` 并返回 `DynValue.Nil` 后，第一章开场、原版数值旗标条件的命中与跳过路径均通过，原文／新增对白／原文的标记切换正常。离线协程与语法检查另行通过，完整章节和全部战斗分支尚未实测。
+
+当前本机 `Lua/fungus` 的 `M.sayoptions` 为 Lua 表，`M.setcharacter/setsaydialog/setmenudialog` 为同步设置入口。`Mortal.Core.NormalOptionButton.UpdateContent` 经 `LeanLocalizationResolver.GetStoryText` 解析选项，找不到翻译时返回原字符串，整章转换后的原文选项修改可直接使用文字。
+
+只读反编译当前安装的 `Mortal.Story.LuaManager.ExecuteLuaScript()`：脚本名来自 `PlayerStatManagerData.CurrentStoryScript`，加载路径固定为 `Story/ChineseTraditional/<ScriptName>`，资源为 `TextAsset`，通过 `LuaEnvironment.LoadLuaFunction` 与协程执行。Host 在既有入口按当前启用作品匹配原版章节，保持游戏中的原脚本名和触发流程；补丁只包含定位片段与替换内容，运行时读取本机资源，不改写官方资产。直接试玩补丁时，在编译成功后调用已核对的 `LuaManager.SetCurrentStoryScript(string)` 恢复原版章节标识，该入口只设置当前脚本并记录演出日志，不切换场景。
+
+旗标插入复用现有 `CheckPointManager.Condition(string)`（转给条件表的 `GetResult`）及 `LuaManager.GetFlagData(string)`（读取 `MissionManagerData.GetFlag(name).State.ToString()`），不重写旗标判断规则。新增文字使用本 MOD 的已读文字键注册，不覆盖原版语言键；原句未改时保留原 `GetStoryText` 调用。
+
+编辑器从本机 `ResourceManager.m_Container` 的原版路径读取章节，用 `TextAsset.m_Name` 保留实际脚本名大小写。对白显示按 `Lean.Localization.LeanLanguageCSV` 已反编译的 `Language`、序列化 `Entries`（`Name`/`Text`）读取简体文字，不按重名 TextAsset 的顺序或汉字猜测语言。这里只记录接口依据；离线解释器验证不等于游戏实机验证。
+
+### 章节标记与任务入口时间线
+
+本次只读核对 `LuaManager.ScriptName/GetStoryText(string)`、`PlayerStatManagerData.GameTime`、`MissionManagerData.Main/_subMissions`、`MissionData._missions` 和 `MissionCheckData`。标记在 `GetStoryText` 的后置钩子记录最后的文字键；显式快捷键写出当前章节、文字和 `GameTime.Year/Month/Stage`，不调用存档、任务或旗标写接口。`GameTime` 重载了相等运算，判空使用 `ReferenceEquals`。
+
+入口索引读取 `MissionCheckData.StartScript/Key/Position` 和 `_active/_desc/_dayCheck/_timeCheckType/_specificTime/_minTime/_maxTime/_periodStage`；时间类型 1／2／3 分别为指定日期／区间／每月某旬，未指定时明确显示时间不定。时间线定位方式参考[咖啡伴侣 StoryAtlas](https://github.com/kevinnie2003/LOMAssistant/blob/main/LOMAssistant.Features.Story/StoryAtlas.cs)，本功能只读取任务入口，不实现存档回溯或修改原版任务数据。
+
+`StatModifyManager.Mission(string,string)` 调用 `MissionManagerData.SetKey`；后者仅对保留名称 `main` 忽略大小写，其余名称由 `SubMissionsData.Get` 精确匹配。路线索引按相同规则关联脚本中的任务推进与时间线入口，保留任务键和支线名称的大小写。
+
+## 2026-11-06 来源标记刷新
+
+只读核对当前安装的 `Fungus.SayDialog.Awake/OnDestroy`，它们维护受保护静态表 `activeSayDialogs`。Host 从该表读取全部实例，并继续检查可变的 `ActiveSayDialog` 和已绑定对白框，替代每个渲染回调的全场景查找。
+
+当前 `UnityEngine.UI.Graphic.color/material` 等属性在值改变时自行标记重绘；`SetAllDirty()` 还会注册布局、材质和顶点重建。来源标记保留各渲染阶段的检查与修复，取消无变化时的强制全量重建及重复重新挂父节点。
+
 ## 2026-11-05 原版粒子帧捕获接口
 
 针对原版预览，重新只读核对当前游戏 Unity／URP 的 `UniversalRenderPipeline.RenderSingleCamera(ScriptableRenderContext,Camera)`、`RenderPipelineManager.endFrameRendering`、`UniversalAdditionalCameraData.SetRenderer`、`Camera.CopyFrom`、`RenderTexture`、`Texture2D.ReadPixels` 与 `ParticleSystem.Simulate`。当前使用 URP，不能只凭 `Camera.Render` 存在就认定它支持本场景；新捕获相机使用 Base 类型，并匹配源相机实际 renderer index，CopyFrom 不复制 URP 附加数据。仅给自建粒子实例分配捕获层，不改变原场景相机或官方资源。

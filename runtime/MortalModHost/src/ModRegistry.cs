@@ -13,6 +13,7 @@ namespace MortalModHost
 
         private static readonly Dictionary<string, ModPackage> _packageByRegisteredName = new Dictionary<string, ModPackage>();
         private static readonly Dictionary<string, string> _scriptIdByRegisteredName = new Dictionary<string, string>();
+        private static readonly Dictionary<string, List<string>> _vanillaOverrides = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>已注册脚本总数（日志/自检用）。</summary>
         public static int Count
@@ -28,6 +29,7 @@ namespace MortalModHost
         public static List<ModPackage> Rebuild(IEnumerable<ModPackage> mods, Action<string> logWarn = null)
         {
             _luaByRegisteredName.Clear();
+            _vanillaOverrides.Clear();
             _packageByRegisteredName.Clear();
             _scriptIdByRegisteredName.Clear();
             var registeredIds = new HashSet<string>(StringComparer.Ordinal);
@@ -74,10 +76,39 @@ namespace MortalModHost
                     _scriptIdByRegisteredName[registeredName] = pair.Key;
                 }
                 registeredIds.Add(mod.Id);
+                foreach (var patch in mod.VanillaOverrides)
+                {
+                    List<string> candidates;
+                    if (!_vanillaOverrides.TryGetValue(patch.Key, out candidates))
+                    {
+                        candidates = new List<string>();
+                        _vanillaOverrides.Add(patch.Key, candidates);
+                    }
+                    else if (logWarn != null)
+                        logWarn("原版章节 " + patch.Key + " 存在多个补丁，同时启用时先加载者优先");
+                    candidates.Add(mod.GetRegisteredScriptName(patch.Value));
+                }
                 if (!string.IsNullOrEmpty(mod.CampaignId)) campaignOwners.Add(mod.CampaignId, mod.Id);
                 loaded.Add(mod);
             }
             return loaded;
+        }
+
+        internal static bool TryGetVanillaOverride(string original, Func<ModPackage, bool> allows, out string registered)
+        {
+            registered = null;
+            List<string> candidates;
+            if (original == null || !_vanillaOverrides.TryGetValue(original, out candidates)) return false;
+            foreach (string candidate in candidates)
+            {
+                ModPackage package;
+                if (_packageByRegisteredName.TryGetValue(candidate, out package) && allows(package))
+                {
+                    registered = candidate;
+                    return true;
+                }
+            }
+            return false;
         }
 
         public static bool IsPackageFullyRegistered(ModPackage package)

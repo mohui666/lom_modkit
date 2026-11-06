@@ -318,6 +318,43 @@ pub fn install_runtime(root: &Path, bundle: &Path) -> Result<Value> {
     }
     Ok(json!({"changed":true,"rollback_available":before.values().any(Option::is_some)}))
 }
+/// Synchronize an existing Host after an editor update or an extracted bundle overwrite.
+pub fn sync_installed_runtime(root: &Path, bundle: &Path) -> Result<Value> {
+    let installed = plugin_dir(root).join("MortalModHost.dll");
+    if !installed.is_file() {
+        return Ok(json!({"changed":false}));
+    }
+    validate_root(root)?;
+    let bundled_version = host_file_version(&bundle.join("MortalModHost.dll"))?;
+    let installed_version = host_file_version(&installed)?;
+    let version = |value: &str| {
+        value
+            .split('.')
+            .map(str::parse::<u32>)
+            .collect::<std::result::Result<Vec<_>, _>>()
+    };
+    if version(&installed_version)? > version(&bundled_version)? {
+        return Ok(json!({"changed":false}));
+    }
+    let mut changed = false;
+    for name in HOST_FILES {
+        let bundled = fs::read(bundle.join(name))
+            .with_context(|| format!("无法读取随包 Host 文件：{name}"))?;
+        changed |= !plugin_dir(root).join(name).is_file()
+            || fs::read(plugin_dir(root).join(name))? != bundled;
+    }
+    if !changed {
+        return Ok(json!({"changed":false}));
+    }
+    ensure!(
+        !is_game_running()?,
+        "游戏正在运行，Host 尚未同步。请退出游戏后，在“游戏与 MOD”中点击“更新游戏 Host”。"
+    );
+    let mut result = install_runtime(root, bundle)?;
+    result["message"] = json!(format!("游戏 Host 已同步至 {bundled_version}。"));
+    Ok(result)
+}
+
 pub fn restore_runtime(root: &Path) -> Result<()> {
     validate_root(root)?;
     let plugin = confined(root, Path::new("BepInEx/plugins/MortalModHost"))?;

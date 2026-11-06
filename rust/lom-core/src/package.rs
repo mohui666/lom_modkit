@@ -318,6 +318,18 @@ fn verify_story_lua_pairs(entries: &Entries, manifest: &Value) -> Result<()> {
         }
     }
     ensure!(!stories.is_empty(), "包内没有 story/*.json");
+    let owned_stories = stories
+        .iter()
+        .map(|(id, story)| ((*id).to_owned(), story.clone()))
+        .collect();
+    let overrides = crate::vanilla_patch::targets(&owned_stories)?;
+    let declared: BTreeMap<String, String> = manifest
+        .get("vanilla_overrides")
+        .cloned()
+        .map(serde_json::from_value)
+        .transpose()?
+        .unwrap_or_default();
+    ensure!(overrides == declared, "原版章节补丁声明与 Story 不一致");
     let resources = crate::workdir::create()?;
     for (name, bytes) in entries
         .iter()
@@ -357,6 +369,13 @@ fn verify_story_lua_pairs(entries: &Entries, manifest: &Value) -> Result<()> {
         };
         let generated = compile_story(story, Some(manifest), Some(&source), Some(resources.path()))
             .with_context(|| format!("无法复编译 {source} 以验证 {path}"))?;
+        let old_displayed_set = story["nodes"].as_array().is_some_and(|nodes| {
+            nodes.iter().any(|node| {
+                node["type"] == "stat_set"
+                    && node["update"] == true
+                    && node.get("show_message").is_none()
+            })
+        });
         let matches = generated.as_bytes() == packaged
             || crate::codegen::compile_story_previous_visual_calls(
                 story,
@@ -365,7 +384,16 @@ fn verify_story_lua_pairs(entries: &Entries, manifest: &Value) -> Result<()> {
                 Some(resources.path()),
             )?
             .as_bytes()
-                == packaged;
+                == packaged
+            || (old_displayed_set
+                && crate::codegen::compile_story_previous_stat_sets(
+                    story,
+                    Some(manifest),
+                    Some(&source),
+                    Some(resources.path()),
+                )?
+                .as_bytes()
+                    == packaged);
         ensure!(
             matches,
             "包内 {path} 不是由对应 {source} 编译生成，拒绝导入"
@@ -829,6 +857,31 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
         validate::validate_manifest(&manifest)?;
     }
     ensure!(exists(&manifest["entry"]), "entry 指向不存在的章节");
+    let overrides = crate::vanilla_patch::targets(&stories)?;
+    let requires_149 = !overrides.is_empty()
+        || stories
+            .values()
+            .any(crate::codegen::requires_system_message_host);
+    if overrides.is_empty() {
+        manifest
+            .as_object_mut()
+            .unwrap()
+            .remove("vanilla_overrides");
+    } else {
+        manifest["vanilla_overrides"] = json!(overrides);
+    }
+    if requires_149 {
+        let version = manifest["min_host_version"].as_str().unwrap_or("0.0.0");
+        let core = version
+            .split(['.', '-', '+'])
+            .take(3)
+            .map(|n| n.parse::<u32>().unwrap_or(0))
+            .collect::<Vec<_>>();
+        if core.as_slice() < [1, 4, 9].as_slice() {
+            manifest["min_host_version"] = json!(crate::vanilla_patch::MIN_HOST);
+        }
+        validate::validate_manifest(&manifest)?;
+    }
     for trigger in manifest["campaign"]["triggers"]
         .as_array()
         .into_iter()
@@ -862,6 +915,9 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
             format!("lua/{id}.lua"),
             compile_story(story, Some(&manifest), Some(&source), Some(&root))?.into_bytes(),
         );
+        for (key, text) in crate::vanilla_patch::texts(story, manifest["id"].as_str().unwrap())? {
+            texts[key] = json!(text);
+        }
         for node in story["nodes"].as_array().unwrap() {
             if node["type"] == "say" {
                 texts[format!(
@@ -917,6 +973,11 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
                     )?
                     .into_bytes(),
                 );
+                for (key, text) in
+                    crate::vanilla_patch::texts(&localized, manifest["id"].as_str().unwrap())?
+                {
+                    texts[key] = json!(text);
+                }
                 for node in localized["nodes"].as_array().unwrap() {
                     if node["type"] == "say" {
                         texts[format!(

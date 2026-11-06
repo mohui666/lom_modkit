@@ -130,6 +130,18 @@ Story 本地化与编辑器界面语言是两套独立机制。支持 `chs`、`c
 }
 ```
 
+### 原版章节补丁（Host ≥1.4.9）
+
+`manifest.vanilla_overrides` 为原版资源脚本名到本包章节 ID 的映射，例如 `{"ch1_1":"patch_intro"}`，由打包器从 Story 自动生成。同一作品不能重复声明同一原版章节（资源名按大小写不敏感比较）。原版＋MOD 模式仅匹配附加作品，战役仅匹配当前作品，纯原版模式不接管；多个同时启用的补丁命中同章时按包加载顺序选第一个并提示冲突。
+
+Story 的 `vanilla_patch` 包含 `target` 与 `edits`。每项修改含 `find`（原调用片段）、`occurrence`（从 1 起的匹配次数）、`kind`（`say`/`option`）；可选 `text` 修改文字，`before`/`after` 添加原句前后的对白。`before_condition`/`after_condition` 使用 `source`（`mod`/`condition`/`flag_value`）、`flag`、`op`、`value`、`invert`；判断语义与普通旗标检定相同。`text` 缺省时保留原调用。选项只修改文字，不改变分支索引。
+
+补丁章保留一个 `end` 作为 v3 编辑文档入口占位，不混入普通节点。编译器生成加载本机原章及应用修改的调用，新增文字进入本包 `texts.json`。原始章节和完整语言表只在编辑器内存读取，不写入 Story、素材或导出包。所有修改先在同一份原文中定位，重叠或无法定位时停止并报错，不猜测替代位置；未修改字节、局部作用域与原版流程保持原值。仅包含原版补丁的附加作品允许 `scenario.json` 的事件列表为空。
+
+整章导入使用 `vanilla_import`，其中 `schema=1`、`target` 和有序 `origins` 保存原生语句及对应基准节点。每个原始节点的 `_editor.vanilla_origin` 为来源序号，复制步骤移除该序号。来源代码在原 Lua 作用域中执行，改写和新增节点复用普通编译器。`say.inherit_dialog=true` 沿用原生发言人与对白选项，`end.resume_original=true` 接回本段后续原版步骤。新增跳转限于同一逻辑段或紧邻的原生逻辑入口，新增 Combat/Battle 切场景续接会校验报错。
+
+Host 从包内 Story 构建来源缓存，每次加载作品后首次进入该章时与本机原文逐字核对一次，后续进入和节点切换查询缓存。未变原版节点隐藏披露表面，改写或新增节点显示。持续性演出、数值和流程改动后保持标识，原版步骤删除、重排或原生逻辑改写时整章保持标识。来源会话和包归属继续由 Host 管理，整章导入原文包含在作品包中。
+
 ## 3. story/*.json — 剧情脚本格式
 
 ```json
@@ -503,7 +515,7 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 19. **离场清台**：脚本开头、`end` / `goto_scene` / `death` 发射 `mod_hide_all()`，立刻隐藏官方台上人物并清掉自定义立绘。换背景 `scene` 不自动退场。切到下一章（`end.next_script`）时下一章开场也会再清一次，避免上一幕角色带到下一章。
 20. **自定义角色立绘朝向与体型**：原版立绘朝左。默认 `art_facing=left`，节点 `facing=left` 不翻、`right` 水平翻转。原图朝右时标为 `right`。`scale` 默认 100；1.4.3 起为任意可表示的正数百分比，支持小数，按完整站位矩形等比适配并从站位脚底缩放。
 21. **游戏内 Mod 菜单多语言**：菜单文案（`src/I18n.cs` 内嵌 chs/cht/ja/ko 四语言目录）跟随游戏当前语言——反射读 LeanLocalization `CurrentLanguage` 并模糊匹配语言名；官方游戏本身没有日语选项，日语目录实际不会触发；检测失败一律回退 chs。详见 `i18n.md`。
-22. **强制玩家内容披露与失败停播**：注册表命中的 Mod 首次开演前，Host 必须同步创建固定的「玩家制作 MOD｜非官方内容 / UNOFFICIAL」主标签，并以独立次级 Text 显示清洗后的作品名、作者自报信息和 SHA-256 前 16 字符。屏幕右上角常驻标签、独立 IMGUI 固定章、对白框内标签、GameOver/EndGamePanel/End/人物介绍卡标签同时覆盖全屏录像、裁对白截图和关键单卡；标签无 Lua/cfg 关闭接口。来源按整段会话污染：Mod 链入官方脚本仍保持原包标签；活动期间嵌套切到另一包会被拒绝；只有实际抵达 Title/Free 才解除。独立于 BepInEx 宿主对象的 guardian 在 Update/LateUpdate、`Canvas.willRenderCanvases` 与 `Camera.onPreCull` 复验对象父级、几何、字体、文案、alpha、材质、显示器与最高排序，被删除/禁用/移出屏幕后自动重建；Lua 篡改 `ActiveSayDialog` 时仍扫描并维护所有可见对白宿主。任何必须标签无法创建/恢复时，立即停止由 Host 推进的 LuaEnvironment 协程、用不依赖 Canvas 的 IMGUI 黑屏显示固定警示并直接返回 Free；异步 Lua 异常不会被 Fungus 吞掉。演出中关闭 Host 总开关只关闭菜单/热键，补丁与披露延迟到 Title/Free 后卸载。
+22. **强制玩家内容披露与失败停播**：注册表命中的 Mod 首次开演前，Host 必须同步创建固定的「玩家制作 MOD｜非官方内容 / UNOFFICIAL」主标签，并以独立次级 Text 显示清洗后的作品名、作者自报信息和 SHA-256 前 16 字符。屏幕右上角标签、独立 IMGUI 固定章、对白框内标签、GameOver/EndGamePanel/End/人物介绍卡标签覆盖全屏录像、裁对白截图和关键单卡。整章导入依据上述来源缓存隐藏未改原版步骤的标记，新增、改写和持续影响按修改内容显示。标签无任意 Lua/cfg 关闭接口。来源按整段会话污染：Mod 链入官方脚本仍保持原包标签；活动期间嵌套切到另一包会被拒绝；只有实际抵达 Title/Free 才解除。独立于 BepInEx 宿主对象的 guardian 在 Update/LateUpdate、`Canvas.willRenderCanvases` 与 `Camera.onPreCull` 复验对象父级、几何、字体、文案、alpha、材质、显示器与最高排序，被删除/禁用/移出屏幕后自动重建；使用 `SayDialog.activeSayDialogs` 实例表、当前 `ActiveSayDialog` 与已绑定宿主维护可见对白框，属性变化时才触发重建。任何必须标签无法创建/恢复时，立即停止由 Host 推进的 LuaEnvironment 协程、用不依赖 Canvas 的 IMGUI 黑屏显示固定警示并直接返回 Free；异步 Lua 异常不会被 Fungus 吞掉。演出中关闭 Host 总开关只关闭菜单/热键，补丁与披露延迟到 Title/Free 后卸载。
 23. **F5 Runtime Trace v1**：只对编辑器固定的 `lom_modkit_preview` / `__lom_modkit_preview.lommod` 开发包启用。记录 `mod_enter`、`story_enter`、`node_enter`、`choice`、`condition_result`、`goto`、`end`、`death`、`runtime_error`；普通玩家加载的正式 Mod 默认不记录。Trace 使用 256 条内存 ring buffer，满后丢弃最旧条目，不写入存档且不会无限增长。新编译器只增加 `if mod_trace_node then ... end` 可选钩子，旧 Runtime 没有该函数时仍按原流程运行。
 24. **F5 Runtime Debugger v1**：开发 trace 激活后显示独立 IMGUI 调试窗，列出当前 Mod/Story/Node、`modvars`、`modflags`、可见自定义角色、当前自定义音乐/语音及最近 24 条 trace；F10 可隐藏/重新显示。正式 `.lommod` 不激活该窗口。变量与 Flag 由节点入口处的真实 Lua table 快照取得；尚未使用 `modvars` 的旧剧情会明确显示为空，不伪造状态。
 25. **Pause / Step / Continue**：F5 调试窗的「暂停」只设置“下一节点前暂停”，不会把正在显示的官方对话/面板冻结在半个 API 调用中。节点第一行的可选 trace 回调通过 MoonSharp `YieldRequest` 在节点体执行前挂起；「单步」放行当前节点，并在再下一节点体之前重新挂起；「继续」清除请求。宿主协程在暂停期间不调用 `Resume()`。该控制器仅在固定 F5 包激活，正式 Mod 即使包含相同可选节点钩子也始终直接返回，不改变执行路径。
@@ -571,3 +583,9 @@ assets/user/image/mohui.moon_bg/moon.jpg
 ### 书页事件图（1.4.2）
 
 `cg` 支持 `kind="event"`。显示时 `key` 可为原版事件插图键或 `user:image` 引用，图片保持比例适配左侧图框。`event_title` 修改右侧题字，省略或留空使用“事件”。`event_text` 可选，使用底部旁白文本框，等待点击继续。`action="hide"` 关闭书页。这两个文字字段参与章节本地化，导出自动要求 Host 1.4.2。
+
+### 系统提示开关（1.4.9）
+
+`stat`、`stat_set`、`affinity`、`item`、`talent`、`reward`、`result_screen`、`activity`、`enemy`、`use_item` 可填可选布尔字段 `show_message`。关闭后照常变更，跳过自动提示和该步骤的提示等待；手动 `wait_after`、对白及作者填写的结算／活动文字保留。物品开启提示时按实际数量变化显示原版获得／失去消息，官方和用户物品均支持。新物品回调及静默回调要求 Host 1.4.9，打包自动提高最低版本。
+
+未填写时保留旧提示行为；`stat.display`、`enemy.display` 和 `stat_set.update` 继续支持，新字段优先。`stat_set` 显示变化后仍调用实际设置接口，修复旧 `update=true` 只提示不写值的问题；旧 v3 包可继续导入，重新导出后生效。心上人仍以数值编号保存，编辑器提供人名选择，不改变原版属性上下限。

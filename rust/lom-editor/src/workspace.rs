@@ -27,6 +27,9 @@ struct Snapshot {
 enum Pending {
     New,
     NewAddon,
+    NewVanillaPatch,
+    OpenVanillaRoutes,
+    OpenVanillaBookmark(lom_core::story_bookmarks::Bookmark),
     Template(String),
     Recover(PathBuf),
     Open(PathBuf),
@@ -142,6 +145,7 @@ struct App {
     allow_close: bool,
     asset_dirty: bool,
     lua: String,
+    vanilla: crate::vanilla_panel::Panel,
     diagnostics: Vec<lom_core::release::PreflightIssue>,
     needs_compile: bool,
     chapter_dialog: Option<ChapterDialog>,
@@ -296,6 +300,9 @@ pub fn run() -> eframe::Result {
         },
         Box::new(move |cc| {
             let mut app = App::new(cc, open, screenshot);
+            if app.screenshot.is_none() {
+                app.tools_panel.sync_game_host();
+            }
             if updated {
                 app.updater.show_completed();
             } else if app.check_updates_on_startup && app.screenshot.is_none() {
@@ -355,6 +362,7 @@ impl App {
         let selected = 0;
         let mut catalog = Catalog::new();
         catalog.sync_assets(&p.assets);
+        catalog.sync_story_titles(&p.stories);
         let snap = snapshot(&p);
         let base = user_root().join("rust/recovery");
         let stamp = SystemTime::now()
@@ -374,6 +382,9 @@ impl App {
         let prefs = lom_core::load_json(user_root().join("rust/preferences.json"))
             .or_else(|_| lom_core::load_json(user_root().join("settings.json")))
             .unwrap_or(json!({}));
+        preview.legacy_character_rotation = prefs["legacy_character_rotation"]
+            .as_bool()
+            .unwrap_or(false);
         if let Some(locale) = prefs["ui_locale"]
             .as_str()
             .or_else(|| prefs["language"].as_str())
@@ -410,6 +421,7 @@ impl App {
             allow_close: false,
             asset_dirty: false,
             lua: String::new(),
+            vanilla: Default::default(),
             diagnostics: vec![],
             needs_compile: true,
             chapter_dialog: None,
@@ -777,23 +789,30 @@ impl App {
         }
     }
     fn track(&mut self) {
-        let current = Snapshot {
-            manifest: self.project.manifest.clone(),
-            scenario: self.project.scenario.clone(),
-            stories: self.project.stories.clone(),
-            paths: self.project.paths.clone(),
-            assets: if *self.last.assets == self.project.assets {
-                self.last.assets.clone()
-            } else {
-                std::sync::Arc::new(self.project.assets.clone())
-            },
-        };
-        if current != self.last {
+        let assets_changed = *self.last.assets != self.project.assets;
+        if self.last.manifest != self.project.manifest
+            || self.last.scenario != self.project.scenario
+            || self.last.stories != self.project.stories
+            || self.last.paths != self.project.paths
+            || assets_changed
+        {
+            let current = Snapshot {
+                manifest: self.project.manifest.clone(),
+                scenario: self.project.scenario.clone(),
+                stories: self.project.stories.clone(),
+                paths: self.project.paths.clone(),
+                assets: if assets_changed {
+                    std::sync::Arc::new(self.project.assets.clone())
+                } else {
+                    self.last.assets.clone()
+                },
+            };
             self.auto = false;
             self.preview_elapsed = None;
             if current.assets != self.last.assets {
                 self.catalog.sync_assets(&self.project.assets);
             }
+            self.catalog.sync_story_titles(&self.project.stories);
             if self.pending_history.is_none() {
                 self.pending_history = Some(self.last.clone());
                 self.redo.clear();
@@ -816,6 +835,7 @@ impl App {
         self.project.paths = s.paths;
         self.project.assets = (*s.assets).clone();
         self.catalog.sync_assets(&self.project.assets);
+        self.catalog.sync_story_titles(&self.project.stories);
         self.asset_dirty = false;
         if !self.project.stories.contains_key(&self.current) {
             self.current = self
@@ -878,6 +898,28 @@ impl App {
             }
             Pending::New => self.install(Project::new_scenario("sandbox")),
             Pending::NewAddon => self.install(Project::new_scenario("addon")),
+            Pending::NewVanillaPatch => match Project::new_vanilla_patch("ch1_1") {
+                Ok(project) => {
+                    self.install(project);
+                    self.saved.manifest = json!({});
+                }
+                Err(error) => self.error = Some(error.to_string()),
+            },
+            Pending::OpenVanillaRoutes => match Project::new_vanilla_patch("ch1_1") {
+                Ok(project) => {
+                    self.install(project);
+                    self.vanilla.open_routes();
+                }
+                Err(error) => self.error = Some(error.to_string()),
+            },
+            Pending::OpenVanillaBookmark(mark) => match Project::new_vanilla_patch(&mark.script) {
+                Ok(project) => {
+                    self.install(project);
+                    self.saved.manifest = json!({});
+                    self.vanilla.focus_bookmark(mark);
+                }
+                Err(error) => self.error = Some(error.to_string()),
+            },
             Pending::Template(key) => match template_project(&key) {
                 Ok(project) => {
                     self.install(project);
@@ -894,6 +936,94 @@ impl App {
             },
         }
     }
+    fn open_vanilla_routes(&mut self, ctx: &egui::Context) {
+        if !self.apply_pending_drafts() {
+            return;
+        }
+        let chapter = self
+            .project
+            .stories
+            .iter()
+            .find(|(_, story)| story.get("vanilla_patch").is_some())
+            .map(|(id, _)| id.clone());
+        if let Some(chapter) = chapter {
+            self.flush();
+            self.current = chapter;
+            self.selected = 0;
+            self.center = Center::Node;
+            self.vanilla.open_routes();
+        } else {
+            self.request(Pending::OpenVanillaRoutes, ctx);
+        }
+    }
+    fn open_story_bookmark(
+        &mut self,
+        mark: lom_core::story_bookmarks::Bookmark,
+        ctx: &egui::Context,
+    ) {
+        if !self.apply_pending_drafts() {
+            return;
+        }
+        let existing = self
+            .project
+            .stories
+            .iter()
+            .find(|(_, story)| {
+                lom_core::vanilla_import::target(story)
+                    .is_some_and(|target| target.eq_ignore_ascii_case(&mark.script))
+            })
+            .map(|(id, _)| id.clone());
+        if let Some(id) = existing {
+            self.open_center(Center::Node);
+            self.current = id;
+            self.selected = 0;
+            self.multiselect.clear();
+            self.auto = false;
+            self.audio.stop();
+            self.needs_compile = true;
+            if self.story().get("vanilla_import").is_some() {
+                self.selected = lom_core::vanilla_import::bookmark_node(
+                    &self.story(),
+                    &mark.text_key,
+                    &mark.text,
+                    self.project.manifest["id"].as_str().unwrap_or(""),
+                )
+                .unwrap_or(0);
+                self.view = View::Stage;
+                self.search.clear();
+                self.status = "已定位到整章导入的原版步骤。".into();
+            } else {
+                self.vanilla.focus_bookmark(mark);
+            }
+        } else if self
+            .project
+            .stories
+            .values()
+            .any(|story| lom_core::vanilla_import::target(story).is_some())
+        {
+            let id = (1..)
+                .map(|i| format!("patch{i}"))
+                .find(|id| !self.project.stories.contains_key(id))
+                .unwrap();
+            match lom_core::vanilla_patch::new_story(&id, &mark.script) {
+                Ok(story) => {
+                    self.flush();
+                    self.project.stories.insert(id.clone(), story);
+                    self.open_center(Center::Node);
+                    self.current = id;
+                    self.selected = 0;
+                    self.multiselect.clear();
+                    self.auto = false;
+                    self.audio.stop();
+                    self.needs_compile = true;
+                    self.vanilla.focus_bookmark(mark);
+                }
+                Err(error) => self.error = Some(error.to_string()),
+            }
+        } else {
+            self.request(Pending::OpenVanillaBookmark(mark), ctx);
+        }
+    }
     fn install(&mut self, p: Project) {
         self.preview.cancel_layout_drag();
         self.clear_recovery();
@@ -902,6 +1032,7 @@ impl App {
         self.scenario_selection = Default::default();
         self.advanced = Default::default();
         self.content_panel.reset();
+        self.vanilla = Default::default();
         self.chapter_dialog = None;
         self.delete_chapter_dialog = None;
         self.rename_dialog = None;
@@ -912,6 +1043,7 @@ impl App {
         self.preview_elapsed = None;
         self.remember_source();
         self.catalog.sync_assets(&self.project.assets);
+        self.catalog.sync_story_titles(&self.project.stories);
         self.current = self.project.manifest["entry"]
             .as_str()
             .filter(|id| self.project.stories.contains_key(*id))
@@ -1051,8 +1183,20 @@ impl App {
             .unwrap()
     }
     fn add_node(&mut self, kind: &str) {
+        if self.story().get("vanilla_import").is_some() && matches!(kind, "combat" | "battle") {
+            self.error = Some("新增战斗会切换场景，当前原版整章的局部状态无法跨场景续接。".into());
+            return;
+        }
         self.flush();
-        let node = self.catalog.new_node(kind, self.next_id(kind));
+        let mut node = self.catalog.new_node(kind, self.next_id(kind));
+        if self.story().get("vanilla_import").is_some() {
+            if kind == "end" {
+                node["resume_original"] = json!(true);
+            }
+            if kind == "say" {
+                node["inherit_dialog"] = json!(true);
+            }
+        }
         if let Some(a) = self
             .project
             .stories
@@ -1088,7 +1232,9 @@ impl App {
         }
         self.flush();
         let mut clones = self.clipboard.clone();
-        let mut used: BTreeSet<String> = self.story()["nodes"]
+        let story = self.story();
+        let imported = story.get("vanilla_import").is_some();
+        let mut used: BTreeSet<String> = story["nodes"]
             .as_array()
             .into_iter()
             .flatten()
@@ -1104,6 +1250,13 @@ impl App {
             used.insert(id.clone());
             map.insert(old, id.clone());
             n["id"] = id.into();
+            if let Some(editor) = n.get_mut("_editor").and_then(Value::as_object_mut) {
+                editor.remove("vanilla_origin");
+            }
+            if !imported {
+                n.as_object_mut().unwrap().remove("inherit_dialog");
+                n.as_object_mut().unwrap().remove("resume_original");
+            }
         }
         for n in &mut clones {
             retarget(n, &map);
@@ -1234,6 +1387,25 @@ impl App {
         }
         self.recovery_paths.clear();
         self.recovery_assets.clear();
+    }
+    fn idle_repaint_delay(&self) -> Duration {
+        let mut delay = Duration::MAX;
+        if self.needs_compile {
+            delay = delay.min(Duration::from_millis(400).saturating_sub(self.last_edit.elapsed()));
+        }
+        if self.pending_history.is_some() {
+            delay = delay.min(Duration::from_millis(650).saturating_sub(self.last_edit.elapsed()));
+        }
+        if self.dirty() {
+            delay = delay.min(Duration::from_secs(30).saturating_sub(self.last_recovery.elapsed()));
+        }
+        if self.audio.playing() {
+            delay = delay.min(Duration::from_millis(200));
+        }
+        if self.screenshot.is_some() {
+            delay = delay.min(Duration::from_millis(70));
+        }
+        delay
     }
     fn autosave(&mut self) {
         if !self.dirty() || self.last_recovery.elapsed() < Duration::from_secs(30) {
@@ -1409,7 +1581,10 @@ impl App {
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::F1)) {
             self.tools_panel.open_help();
         }
-        if !ctx.wants_keyboard_input() && matches!(self.center, Center::Node | Center::Chapter) {
+        if !ctx.wants_keyboard_input()
+            && matches!(self.center, Center::Node | Center::Chapter)
+            && self.story().get("vanilla_patch").is_none()
+        {
             let (copy, paste) = ctx.input_mut(|input| {
                 let mut copy = input.consume_key(egui::Modifiers::COMMAND, egui::Key::C);
                 let mut paste = input.consume_key(egui::Modifiers::COMMAND, egui::Key::V);
@@ -1483,6 +1658,22 @@ impl App {
                         if ui.button(tr("新建原版附加剧情")).clicked() {
                             ui.close();
                             self.request(Pending::NewAddon,ctx);
+                        }
+                        if ui.button(tr("导入原版章节 / 新建补丁…")).clicked() {
+                            ui.close();
+                            self.request(Pending::NewVanillaPatch, ctx);
+                        }
+                        if ui.button(tr("原版路线图…")).clicked() {
+                            ui.close();self.open_vanilla_routes(ctx);
+                        }
+                        if ui.button(tr("打开最近游戏标记")).clicked() {
+                            ui.close();
+                            match lom_core::story_bookmarks::read(&lom_core::story_bookmarks::default_root()) {
+                                Ok(marks) => if let Some(mark)=marks.into_iter().next() {
+                                    self.open_story_bookmark(mark,ctx);
+                                } else {self.error=Some("还没有游戏标记。请在原版剧情中按 Ctrl+F6 后再打开。".into());},
+                                Err(error)=>self.error=Some(error.to_string()),
+                            }
                         }
                         ui.menu_button(tr("从模板新建"), |ui| {
                             let templates: Value = serde_json::from_str(include_str!(
@@ -1585,11 +1776,11 @@ impl App {
                             self.redo();
                             ui.close();
                         }
-                        if ui.add_enabled(matches!(self.center, Center::Node | Center::Chapter), egui::Button::new(tr("复制"))).clicked() {
+                        if ui.add_enabled(matches!(self.center, Center::Node | Center::Chapter) && self.story().get("vanilla_patch").is_none(), egui::Button::new(tr("复制"))).clicked() {
                             self.copy();
                             ui.close();
                         }
-                        if ui.add_enabled(matches!(self.center, Center::Node | Center::Chapter), egui::Button::new(tr("粘贴"))).clicked() {
+                        if ui.add_enabled(matches!(self.center, Center::Node | Center::Chapter) && self.story().get("vanilla_patch").is_none(), egui::Button::new(tr("粘贴"))).clicked() {
                             self.paste();
                             ui.close();
                         }
@@ -1894,6 +2085,9 @@ impl App {
         }
     }
     fn open_initial_setup(&mut self) {
+        if self.story().get("vanilla_patch").is_some() {
+            return;
+        }
         if !self.open_center(Center::Initial) {
             return;
         }
@@ -1913,6 +2107,11 @@ impl App {
         self.multiselect.clear();
     }
     fn step_palette(&mut self, ctx: &egui::Context) {
+        let story = self.project.stories.get(&self.current);
+        let imported = story.is_some_and(|story| story.get("vanilla_import").is_some());
+        if story.is_some_and(|story| story.get("vanilla_patch").is_some()) {
+            return;
+        }
         if !self.steps_panel_open || !matches!(self.center, Center::Node | Center::Chapter) {
             return;
         }
@@ -1964,6 +2163,7 @@ impl App {
                                 .filter_map(Value::as_str)
                                 .filter(|kind| {
                                     self.project.scenario.is_none()
+                                        || imported
                                         || lom_core::scenario::performance_node(kind)
                                 })
                                 .filter(|kind| {
@@ -2205,15 +2405,49 @@ impl App {
                     });
                 }
                 let story = self.story();
-                let nodes = story["nodes"].as_array().cloned().unwrap_or_default();
-                egui::ScrollArea::vertical()
-                    .id_salt("steps")
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        ui.visuals_mut().widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
-                        ui.visuals_mut().widgets.inactive.bg_fill = Color32::TRANSPARENT;
-                        ui.visuals_mut().widgets.inactive.bg_stroke = egui::Stroke::NONE;
-                        if !self.search.is_empty() {
+                if let Some(patch) = story.get("vanilla_patch") {
+                    ui.strong("原版剧情补丁");
+                    ui.label(format!("章节：{}", patch["target"].as_str().unwrap_or("")));
+                    ui.label("在原文列表中选择插入位置。");
+                    let used: BTreeSet<_> = self
+                        .project
+                        .stories
+                        .values()
+                        .filter_map(|story| {
+                            lom_core::vanilla_import::target(story).map(str::to_owned)
+                        })
+                        .collect();
+                    let next = self.vanilla.next_target(&used);
+                    if ui
+                        .add_enabled(next.is_some(), egui::Button::new("添加原版补丁章节"))
+                        .clicked()
+                    {
+                        let target = next.unwrap();
+                        let id = (1..)
+                            .map(|i| format!("patch{i}"))
+                            .find(|id| !self.project.stories.contains_key(id))
+                            .unwrap();
+                        match lom_core::vanilla_patch::new_story(&id, &target) {
+                            Ok(story) => {
+                                self.flush();
+                                self.project.stories.insert(id.clone(), story);
+                                self.current = id;
+                                self.selected = 0;
+                                self.multiselect.clear();
+                            }
+                            Err(error) => self.error = Some(error.to_string()),
+                        }
+                    }
+                    return;
+                }
+                ui.visuals_mut().widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
+                ui.visuals_mut().widgets.inactive.bg_fill = Color32::TRANSPARENT;
+                ui.visuals_mut().widgets.inactive.bg_stroke = egui::Stroke::NONE;
+                if !self.search.is_empty() {
+                    egui::ScrollArea::vertical()
+                        .id_salt("step-search")
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
                             let query = self.search.to_lowercase();
                             for (sid, s) in self.project.stories.clone() {
                                 for (index, node) in
@@ -2248,210 +2482,217 @@ impl App {
                                     }
                                 }
                             }
-                            return;
-                        }
-                        if let Err(error) = authoring::validate_sections(&story) {
-                            crate::error_location::show(ui, &error.to_string());
-                        }
-                        let mut drop_to = None;
-                        for row in authoring::section_rows(&story) {
-                            let (index, depth) = match row {
-                                authoring::Row::Header {
-                                    section,
-                                    group,
-                                    depth,
-                                    title,
-                                    collapsed,
-                                } => {
-                                    let response = ui
-                                        .horizontal(|ui| {
-                                            ui.add_space(depth as f32 * 10.0);
-                                            ui.selectable_label(
-                                                false,
-                                                format!(
-                                                    "{} {}",
-                                                    if collapsed { "▶" } else { "▼" },
-                                                    title
-                                                ),
-                                            )
-                                        })
-                                        .inner;
-                                    if response.clicked() {
-                                        let s =
-                                            self.project.stories.get_mut(&self.current).unwrap();
-                                        let item = if let Some(g) = group {
-                                            &mut s["_editor"]["sections"][section]["groups"][g]
-                                        } else {
-                                            &mut s["_editor"]["sections"][section]
-                                        };
-                                        item["collapsed"] = (!collapsed).into();
-                                    }
-                                    continue;
+                        });
+                    return;
+                }
+                if let Err(error) = authoring::validate_sections(&story) {
+                    crate::error_location::show(ui, &error.to_string());
+                }
+                let nodes = story["nodes"].as_array().map(Vec::as_slice).unwrap_or(&[]);
+                let rows = authoring::section_rows(&story);
+                let row_height = 44.0;
+                let mut scroll = egui::ScrollArea::vertical()
+                    .id_salt("steps")
+                    .auto_shrink([false, false]);
+                if self.scroll_selection != (self.current.clone(), self.selected) {
+                    if let Some(row) = rows.iter().position(|row| {
+                        matches!(row, authoring::Row::Node { index, .. } if *index == self.selected)
+                    }) {
+                        let offset = row as f32 * (row_height + ui.spacing().item_spacing.y)
+                            - (ui.available_height() - row_height) * 0.5;
+                        scroll = scroll.vertical_scroll_offset(offset.max(0.0));
+                        self.scroll_selection = (self.current.clone(), self.selected);
+                    }
+                }
+                scroll.show_rows(ui, row_height, rows.len(), |ui, visible| {
+                    let mut drop_to = None;
+                    for row in rows.into_iter().skip(visible.start).take(visible.len()) {
+                        let (index, depth) = match row {
+                            authoring::Row::Header {
+                                section,
+                                group,
+                                depth,
+                                title,
+                                collapsed,
+                            } => {
+                                let response = ui
+                                    .horizontal(|ui| {
+                                        ui.set_min_height(row_height);
+                                        ui.add_space(depth as f32 * 10.0);
+                                        ui.selectable_label(
+                                            false,
+                                            format!(
+                                                "{} {}",
+                                                if collapsed { "▶" } else { "▼" },
+                                                title
+                                            ),
+                                        )
+                                    })
+                                    .inner;
+                                if response.clicked() {
+                                    let s = self.project.stories.get_mut(&self.current).unwrap();
+                                    let item = if let Some(g) = group {
+                                        &mut s["_editor"]["sections"][section]["groups"][g]
+                                    } else {
+                                        &mut s["_editor"]["sections"][section]
+                                    };
+                                    item["collapsed"] = (!collapsed).into();
                                 }
-                                authoring::Row::Node { index, depth } => (index, depth),
-                            };
-                            let node = &nodes[index];
-                            let summary = if node["type"] == "parallel" {
+                                continue;
+                            }
+                            authoring::Row::Node { index, depth } => (index, depth),
+                        };
+                        let node = &nodes[index];
+                        let summary = if node["type"] == "parallel" {
+                            format!(
+                                "{} {}",
+                                node["actions"].as_array().map_or(0, Vec::len),
+                                tr("个同时动作")
+                            )
+                        } else if node["type"] == "end" {
+                            if let Some(next) =
+                                node["next_script"].as_str().filter(|s| !s.is_empty())
+                            {
                                 format!(
                                     "{} {}",
-                                    node["actions"].as_array().map_or(0, Vec::len),
-                                    tr("个同时动作")
+                                    tr("转到章节"),
+                                    self.project
+                                        .stories
+                                        .get(next)
+                                        .and_then(|s| s["title"].as_str())
+                                        .unwrap_or(next)
                                 )
-                            } else if node["type"] == "end" {
-                                if let Some(next) =
-                                    node["next_script"].as_str().filter(|s| !s.is_empty())
-                                {
-                                    format!(
-                                        "{} {}",
-                                        tr("转到章节"),
-                                        self.project
-                                            .stories
-                                            .get(next)
-                                            .and_then(|s| s["title"].as_str())
-                                            .unwrap_or(next)
-                                    )
-                                } else {
-                                    tr("返回自由模式")
+                            } else {
+                                tr("返回自由模式")
+                            }
+                        } else if let Some(text) = node["text"].as_str().filter(|v| !v.is_empty()) {
+                            text.to_owned()
+                        } else if let Some(character) =
+                            node["character"].as_str().filter(|v| !v.is_empty())
+                        {
+                            let name = self.catalog.data["characters"]
+                                .as_array()
+                                .and_then(|a| a.iter().find(|v| v["id"] == character))
+                                .and_then(|v| v["name"].as_str())
+                                .unwrap_or(character);
+                            let name = crate::i18n::term("characters", character, name);
+                            let position = node["position"]
+                                .as_str()
+                                .or_else(|| node["to"].as_str())
+                                .unwrap_or("");
+                            if position.is_empty() {
+                                name
+                            } else {
+                                format!("{name} · {position}")
+                            }
+                        } else {
+                            node["title"]
+                                .as_str()
+                                .or_else(|| node["view"].as_str())
+                                .or_else(|| node["next_script"].as_str())
+                                .unwrap_or("")
+                                .to_owned()
+                        };
+                        let response = ui
+                            .horizontal(|ui| {
+                                ui.add_space(depth as f32 * 9.0);
+                                let selected =
+                                    self.selected == index || self.multiselect.contains(&index);
+                                let primary = egui::TextFormat {
+                                    font_id: egui::FontId::proportional(14.0),
+                                    color: ui.visuals().text_color(),
+                                    ..Default::default()
+                                };
+                                let secondary = egui::TextFormat {
+                                    font_id: egui::FontId::proportional(12.0),
+                                    color: if selected {
+                                        Color32::from_rgb(70, 96, 120)
+                                    } else {
+                                        Color32::from_rgb(103, 113, 125)
+                                    },
+                                    ..Default::default()
+                                };
+                                let mut label = egui::text::LayoutJob::default();
+                                label.wrap.max_width = (ui.available_width() - 24.0).max(40.0);
+                                label.wrap.max_rows = 2;
+                                label.append(
+                                    &format!("{:02}  ", index + 1),
+                                    0.0,
+                                    secondary.clone(),
+                                );
+                                label.append(
+                                    &self.catalog.label(node["type"].as_str().unwrap_or("")),
+                                    0.0,
+                                    primary,
+                                );
+                                let preview =
+                                    summary.split_whitespace().collect::<Vec<_>>().join(" ");
+                                if !preview.is_empty() {
+                                    label.append("\n", 0.0, secondary.clone());
+                                    label.append(&short(&preview, 26), 23.0, secondary);
                                 }
-                            } else if let Some(text) =
-                                node["text"].as_str().filter(|v| !v.is_empty())
-                            {
-                                text.to_owned()
-                            } else if let Some(character) =
-                                node["character"].as_str().filter(|v| !v.is_empty())
-                            {
-                                let name = self.catalog.data["characters"]
-                                    .as_array()
-                                    .and_then(|a| a.iter().find(|v| v["id"] == character))
-                                    .and_then(|v| v["name"].as_str())
-                                    .unwrap_or(character);
-                                let position = node["position"]
-                                    .as_str()
-                                    .or_else(|| node["to"].as_str())
-                                    .unwrap_or("");
-                                if position.is_empty() {
-                                    name.to_owned()
-                                } else {
-                                    format!("{name} · {position}")
+                                let label = ui.fonts_mut(|fonts| fonts.layout_job(label));
+                                ui.add_sized(
+                                    [ui.available_width(), row_height],
+                                    egui::Button::new(label)
+                                        .right_text("")
+                                        .selected(
+                                            self.selected == index
+                                                || self.multiselect.contains(&index),
+                                        )
+                                        .sense(egui::Sense::click_and_drag()),
+                                )
+                            })
+                            .inner
+                            .on_hover_text(format!(
+                                "{}\n{}",
+                                node["id"].as_str().unwrap_or(""),
+                                summary
+                            ));
+                        if response.clicked() {
+                            let modifiers = ui.input(|i| i.modifiers);
+                            if modifiers.shift {
+                                self.multiselect =
+                                    (self.selected.min(index)..=self.selected.max(index)).collect();
+                            } else if modifiers.command || modifiers.ctrl {
+                                if self.multiselect.is_empty() {
+                                    self.multiselect.insert(self.selected);
+                                }
+                                if !self.multiselect.insert(index) {
+                                    self.multiselect.remove(&index);
                                 }
                             } else {
-                                node["title"]
-                                    .as_str()
-                                    .or_else(|| node["view"].as_str())
-                                    .or_else(|| node["next_script"].as_str())
-                                    .unwrap_or("")
-                                    .to_owned()
-                            };
-                            let response = ui
-                                .horizontal(|ui| {
-                                    ui.add_space(depth as f32 * 9.0);
-                                    let selected =
-                                        self.selected == index || self.multiselect.contains(&index);
-                                    let primary = egui::TextFormat {
-                                        font_id: egui::FontId::proportional(14.0),
-                                        color: ui.visuals().text_color(),
-                                        ..Default::default()
-                                    };
-                                    let secondary = egui::TextFormat {
-                                        font_id: egui::FontId::proportional(12.0),
-                                        color: if selected {
-                                            Color32::from_rgb(70, 96, 120)
-                                        } else {
-                                            Color32::from_rgb(103, 113, 125)
-                                        },
-                                        ..Default::default()
-                                    };
-                                    let mut label = egui::text::LayoutJob::default();
-                                    label.wrap.max_width = (ui.available_width() - 24.0).max(40.0);
-                                    label.wrap.max_rows = 2;
-                                    label.append(
-                                        &format!("{:02}  ", index + 1),
-                                        0.0,
-                                        secondary.clone(),
-                                    );
-                                    label.append(
-                                        &self.catalog.label(node["type"].as_str().unwrap_or("")),
-                                        0.0,
-                                        primary,
-                                    );
-                                    let preview =
-                                        summary.split_whitespace().collect::<Vec<_>>().join(" ");
-                                    if !preview.is_empty() {
-                                        label.append("\n", 0.0, secondary.clone());
-                                        label.append(&short(&preview, 26), 23.0, secondary);
-                                    }
-                                    let label = ui.fonts_mut(|fonts| fonts.layout_job(label));
-                                    ui.add_sized(
-                                        [
-                                            ui.available_width(),
-                                            if summary.is_empty() { 32.0 } else { 44.0 },
-                                        ],
-                                        egui::Button::new(label)
-                                            .right_text("")
-                                            .selected(
-                                                self.selected == index
-                                                    || self.multiselect.contains(&index),
-                                            )
-                                            .sense(egui::Sense::click_and_drag()),
-                                    )
-                                })
-                                .inner
-                                .on_hover_text(format!(
-                                    "{}\n{}",
-                                    node["id"].as_str().unwrap_or(""),
-                                    summary
-                                ));
-                            if self.selected == index
-                                && self.scroll_selection != (self.current.clone(), self.selected)
-                            {
-                                response.scroll_to_me(Some(egui::Align::Center));
-                                self.scroll_selection = (self.current.clone(), self.selected);
+                                self.multiselect.clear();
                             }
-                            if response.clicked() {
-                                let modifiers = ui.input(|i| i.modifiers);
-                                if modifiers.shift {
-                                    self.multiselect = (self.selected.min(index)
-                                        ..=self.selected.max(index))
-                                        .collect();
-                                } else if modifiers.command || modifiers.ctrl {
-                                    if self.multiselect.is_empty() {
-                                        self.multiselect.insert(self.selected);
-                                    }
-                                    if !self.multiselect.insert(index) {
-                                        self.multiselect.remove(&index);
-                                    }
-                                } else {
-                                    self.multiselect.clear();
-                                }
-                                self.selected = index;
-                                self.center = Center::Node;
-                            }
-                            response.context_menu(|ui| {
-                                if ui.button(tr("复制")).clicked() {
-                                    self.copy();
-                                    ui.close();
-                                }
-                                if ui.button(tr("粘贴")).clicked() {
-                                    self.paste();
-                                    ui.close();
-                                }
-                                if ui.button(tr("删除")).clicked() {
-                                    self.delete();
-                                    ui.close();
-                                }
-                            });
-                            if response.drag_started() {
-                                response.dnd_set_drag_payload(index);
-                            }
-                            if let Some(from) = response.dnd_release_payload::<usize>() {
-                                drop_to = Some((*from, index));
-                            }
+                            self.selected = index;
+                            self.center = Center::Node;
                         }
-                        if let Some((from, to)) = drop_to {
-                            self.selected = from;
-                            self.move_node(to);
+                        response.context_menu(|ui| {
+                            if ui.button(tr("复制")).clicked() {
+                                self.copy();
+                                ui.close();
+                            }
+                            if ui.button(tr("粘贴")).clicked() {
+                                self.paste();
+                                ui.close();
+                            }
+                            if ui.button(tr("删除")).clicked() {
+                                self.delete();
+                                ui.close();
+                            }
+                        });
+                        if response.drag_started() {
+                            response.dnd_set_drag_payload(index);
                         }
-                    });
+                        if let Some(from) = response.dnd_release_payload::<usize>() {
+                            drop_to = Some((*from, index));
+                        }
+                    }
+                    if let Some((from, to)) = drop_to {
+                        self.selected = from;
+                        self.move_node(to);
+                    }
+                });
             });
     }
     fn sync_preview_selection(&mut self) {
@@ -2487,6 +2728,20 @@ impl App {
         }
     }
     fn right(&mut self, ctx: &egui::Context) {
+        if self.center == Center::Node && self.story().get("vanilla_patch").is_some() {
+            if self.vanilla.route_open() {
+                return;
+            }
+            let story = self.story();
+            egui::SidePanel::right("vanilla-preview")
+                .frame(surface(true))
+                .default_width(340.0)
+                .resizable(true)
+                .show(ctx, |ui| {
+                    self.vanilla.preview(ui, &story);
+                });
+            return;
+        }
         if self.view != View::Stage {
             self.preview.cancel_layout_drag();
         }
@@ -2621,10 +2876,10 @@ impl App {
                                 let node = &story["nodes"][self.selected];
                                 if node["type"] == "transition" {
                                     ui.label(RichText::new(tr("黑幕转场预览（节奏示意）")).small());
-                                } else if preview::simulate(
-                                    &story,
-                                    node["id"].as_str().unwrap_or(""),
-                                )["blackout"]["amount"]
+                                } else if self
+                                    .preview
+                                    .state(&story, node["id"].as_str().unwrap_or(""))["blackout"]
+                                    ["amount"]
                                     == 1.0
                                 {
                                     ui.label(
@@ -2791,6 +3046,59 @@ impl App {
             });
     }
     fn center(&mut self, ctx: &egui::Context) {
+        if self.center == Center::Node && self.story().get("vanilla_patch").is_some() {
+            let mut story = self.story();
+            let used = self
+                .project
+                .stories
+                .iter()
+                .filter(|(id, _)| *id != &self.current)
+                .filter_map(|(_, story)| lom_core::vanilla_import::target(story).map(str::to_owned))
+                .collect();
+            egui::CentralPanel::default()
+                .frame(surface(true))
+                .show(ctx, |ui| {
+                    if self.vanilla.route_open() {
+                        self.vanilla.show(
+                            ui,
+                            &mut story,
+                            &self.catalog,
+                            self.tools_panel.game_directory(),
+                            &used,
+                        );
+                    } else {
+                        egui::ScrollArea::vertical().show(ui, |ui| {
+                            self.vanilla.show(
+                                ui,
+                                &mut story,
+                                &self.catalog,
+                                self.tools_panel.game_directory(),
+                                &used,
+                            );
+                        });
+                    }
+                });
+            let imported = self.vanilla.take_imported();
+            if imported {
+                self.flush();
+            }
+            self.project.stories.insert(self.current.clone(), story);
+            if imported {
+                self.selected = 0;
+                self.multiselect.clear();
+                self.view = View::Stage;
+                self.auto = false;
+                self.audio.stop();
+                self.needs_compile = true;
+                self.track();
+                self.flush();
+                self.status = "已导入原版整章，可在步骤间插入内容。F5 从原版章节入口试玩。".into();
+            }
+            if let Some(mark) = self.vanilla.take_bookmark() {
+                self.open_story_bookmark(mark, ctx);
+            }
+            return;
+        }
         egui::CentralPanel::default()
             .frame(surface(true))
             .show(ctx, |ui| {
@@ -2805,6 +3113,9 @@ impl App {
                             if let Some(notice) = story["lua_import"]["notice"].as_str() {
                                 ui.small(notice);
                                 ui.separator();
+                            }
+                            if let Some(target) = story["vanilla_import"]["target"].as_str() {
+                                ui.small(format!("原版整章 {target} · F5 从原版入口试玩。复杂原生逻辑按高级步骤编辑。"));
                             }
                             let ids: Vec<_> = story["nodes"]
                                 .as_array()
@@ -2837,6 +3148,16 @@ impl App {
                                             node[key]=json!(image);image_changed=true;
                                         }
                                     });
+                                }
+                                if node["type"] == "rotate" {
+                                    let mut legacy = self.preview.legacy_character_rotation;
+                                    if ui.checkbox(&mut legacy, "旧版旋转预览")
+                                        .on_hover_text("开启：人物正角度按旧版顺时针预览；关闭：按游戏方向逆时针预览。")
+                                        .changed() {
+                                        if let Err(error) = self.set_legacy_character_rotation(legacy, &user_root().join("rust/preferences.json")) {
+                                            self.error = Some(error.to_string());
+                                        }
+                                    }
                                 }
                                 let response =
                                     self.catalog.node_form(ui, &mut node, &ids, &stories);
@@ -2949,38 +3270,49 @@ impl App {
         {
             story["title"] = json!(title);
         }
+        if story.get("vanilla_patch").is_some() {
+            ui.label("本章沿用原版触发点与流程，插入位置在原文列表中选择。");
+            self.project.stories.insert(self.current.clone(), story);
+            return;
+        }
         let ids = story["nodes"].as_array().cloned().unwrap_or_default();
         let mut start = story["start"].as_str().unwrap_or("").to_owned();
         ui.label(format!("{} *", tr("入口步骤")));
-        egui::ComboBox::from_id_salt("start")
-            .selected_text(
-                ids.iter()
-                    .enumerate()
-                    .find(|(_, node)| node["id"] == start)
-                    .map(|(index, node)| {
-                        format!(
-                            "{:02} {}",
-                            index + 1,
-                            self.catalog.label(node["type"].as_str().unwrap_or(""))
-                        )
-                    })
-                    .unwrap_or_else(|| tr("选择入口步骤")),
-            )
-            .show_ui(ui, |ui| {
-                for (index, n) in ids.iter().enumerate() {
-                    if let Some(id) = n["id"].as_str() {
-                        ui.selectable_value(
-                            &mut start,
-                            id.into(),
+        if let Some(target) = story["vanilla_import"]["target"].as_str() {
+            ui.label(format!("覆盖原版章节 {target}，从首个步骤进入。"));
+            ui.small("原生复杂分支保留为高级步骤，新增跳转需位于同一原生逻辑段。人物、音乐、数值和流程改动后，本章后续继续显示 MOD 标识。");
+        }
+        ui.add_enabled_ui(story.get("vanilla_import").is_none(), |ui| {
+            egui::ComboBox::from_id_salt("start")
+                .selected_text(
+                    ids.iter()
+                        .enumerate()
+                        .find(|(_, node)| node["id"] == start)
+                        .map(|(index, node)| {
                             format!(
                                 "{:02} {}",
                                 index + 1,
-                                self.catalog.label(n["type"].as_str().unwrap_or(""))
-                            ),
-                        );
+                                self.catalog.label(node["type"].as_str().unwrap_or(""))
+                            )
+                        })
+                        .unwrap_or_else(|| tr("选择入口步骤")),
+                )
+                .show_ui(ui, |ui| {
+                    for (index, n) in ids.iter().enumerate() {
+                        if let Some(id) = n["id"].as_str() {
+                            ui.selectable_value(
+                                &mut start,
+                                id.into(),
+                                format!(
+                                    "{:02} {}",
+                                    index + 1,
+                                    self.catalog.label(n["type"].as_str().unwrap_or(""))
+                                ),
+                            );
+                        }
                     }
-                }
-            });
+                });
+        });
         story["start"] = start.into();
         let mut mood = story["mood"].as_bool().unwrap_or(false);
         if ui.checkbox(&mut mood, tr("显示官方心情气泡")).changed() {
@@ -3919,6 +4251,19 @@ impl App {
             }
         }
     }
+    fn set_legacy_character_rotation(&mut self, legacy: bool, path: &Path) -> anyhow::Result<()> {
+        let mut prefs = if path.exists() {
+            lom_core::load_json(path)?
+        } else {
+            json!({})
+        };
+        anyhow::ensure!(prefs.is_object(), "个人设置格式无效，未修改旋转选项");
+        prefs["legacy_character_rotation"] = json!(legacy);
+        lom_core::project::atomic_write(path, &lom_core::stable_json(&prefs)?)?;
+        self.preview.cancel_layout_drag();
+        self.preview.legacy_character_rotation = legacy;
+        Ok(())
+    }
     fn set_startup_update_check(&mut self, enabled: bool, path: &Path) -> anyhow::Result<()> {
         let mut prefs = lom_core::load_json(path)
             .ok()
@@ -4811,11 +5156,10 @@ impl eframe::App for App {
             // next refresh and halve the frame rate on a 60 Hz display.
             ctx.request_repaint();
         } else {
-            ctx.request_repaint_after(Duration::from_millis(if self.screenshot.is_some() {
-                70
-            } else {
-                200
-            }));
+            let delay = self.idle_repaint_delay();
+            if delay != Duration::MAX {
+                ctx.request_repaint_after(delay);
+            }
         }
     }
 }
@@ -5286,6 +5630,291 @@ mod application_regression_tests {
         let mut app = App::new(&cc, None, None);
         app.recovery_candidates.clear();
         app
+    }
+    #[test]
+    fn long_step_lists_only_draw_visible_rows_and_follow_offscreen_selection() {
+        let mut app = app();
+        let mut project = Project::new();
+        project.stories.get_mut("main").unwrap()["nodes"] = Value::Array(
+            (0..2000)
+                .map(|index| {
+                    json!({"id":format!("n{index}"),"type":"say","text":format!("滚动节点_{index:04}")})
+                })
+                .collect(),
+        );
+        project.stories.get_mut("main").unwrap()["start"] = json!("n0");
+        app.install(project);
+        let before = snapshot(&app.project);
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        for selected in [0, 1999, 1000] {
+            app.selected = selected;
+            let output = ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1400.0, 900.0),
+                    )),
+                    ..Default::default()
+                },
+                |ctx| app.sidebar(ctx),
+            );
+            let labels: Vec<_> = output
+                .platform_output
+                .accesskit_update
+                .unwrap()
+                .nodes
+                .into_iter()
+                .filter_map(|(_, node)| node.label().map(str::to_owned))
+                .filter(|label| label.contains("滚动节点_"))
+                .collect();
+            assert!(labels.len() < 30, "offscreen steps must not create widgets");
+            assert!(labels
+                .iter()
+                .any(|label| label.contains(&format!("滚动节点_{selected:04}"))));
+            app.track();
+            assert!(snapshot(&app.project) == before);
+            assert!(!app.dirty());
+        }
+    }
+    #[test]
+    fn idle_frames_sleep_until_compile_history_or_recovery_is_due() {
+        let mut app = app();
+        app.needs_compile = false;
+        assert_eq!(app.idle_repaint_delay(), Duration::MAX);
+        app.project.stories.get_mut("main").unwrap()["nodes"][0]["text"] = json!("修改");
+        app.track();
+        assert!(app.idle_repaint_delay() <= Duration::from_millis(400));
+        app.needs_compile = false;
+        assert!(app.idle_repaint_delay() <= Duration::from_millis(650));
+        app.flush();
+        assert!(app.idle_repaint_delay() <= Duration::from_secs(30));
+        app.last_recovery = Instant::now() - Duration::from_secs(31);
+        assert_eq!(app.idle_repaint_delay(), Duration::ZERO);
+        app.saved = app.last.clone();
+        assert_eq!(app.idle_repaint_delay(), Duration::MAX);
+        app.screenshot = Some(PathBuf::from("unused-screenshot-test.png"));
+        assert!(app.idle_repaint_delay() <= Duration::from_millis(70));
+    }
+    #[test]
+    fn original_dialogue_flag_insertion_ui_undoes_and_does_not_save_original_lua() {
+        let mut app = app();
+        app.install(Project::new_vanilla_patch("DEMO").unwrap());
+        let source = "if original then say(\"原对白\") end\nadvance_original()";
+        app.vanilla = crate::vanilla_panel::Panel::with_source("DEMO", source);
+        let before = snapshot(&app.project);
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        let draw = |app: &mut App, events| {
+            ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1600.0, 1600.0),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ctx| {
+                    app.right(ctx);
+                    app.center(ctx);
+                },
+            )
+        };
+        draw(&mut app, vec![]);
+        let output = draw(&mut app, vec![]);
+        // AccessKit returns nodes by ID, not screen order. Select the checkbox
+        // for the before-line insertion by its position, not either label's ID.
+        let target = output
+            .platform_output
+            .accesskit_update
+            .as_ref()
+            .unwrap()
+            .nodes
+            .iter()
+            .filter(|(_, node)| node.label() == Some("仅在旗标检定成立时插入"))
+            .min_by(|(_, a), (_, b)| a.bounds().unwrap().y0.total_cmp(&b.bounds().unwrap().y0))
+            .unwrap()
+            .0;
+        let click = egui::Event::AccessKitActionRequest(egui::accesskit::ActionRequest {
+            action: egui::accesskit::Action::Click,
+            target,
+            data: None,
+        });
+        draw(&mut app, vec![click]);
+        app.track();
+        app.flush();
+        assert_eq!(
+            app.story()["vanilla_patch"]["edits"][0]["before_condition"]["source"],
+            "condition"
+        );
+        assert!(!serde_json::to_string(&app.project.stories)
+            .unwrap()
+            .contains("advance_original"));
+        assert!(app.project.assets.is_empty());
+        app.undo();
+        assert!(snapshot(&app.project) == before);
+        app.redo();
+        app.project.stories.get_mut("main").unwrap()["vanilla_patch"]["edits"][0]["before"] =
+            json!("新增对白");
+        app.project.stories.get_mut("main").unwrap()["vanilla_patch"]["edits"][0]
+            ["before_condition"]["flag"] = json!("DEMO_CHECKPOINT");
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("project");
+        app.project.save_to(&path).unwrap();
+        assert_eq!(Project::open(&path).unwrap().stories, app.project.stories);
+        let pending_before = snapshot(&app.project);
+        app.track();
+        app.request(Pending::NewVanillaPatch, &ctx);
+        assert!(matches!(app.pending, Some(Pending::NewVanillaPatch)));
+        assert!(snapshot(&app.project) == pending_before);
+    }
+    #[test]
+    fn full_original_import_button_preserves_source_undo_and_editable_step_defaults() {
+        let mut app = app();
+        app.install(Project::new_vanilla_patch("DEMO").unwrap());
+        let source="setsaydialog(saydialogs.narrative)\nsetcharacter(narrative)\nlocal amount=3\nif original then\nsay(\"原对白\")\nend\nadvance_original(amount)\n";
+        app.vanilla = crate::vanilla_panel::Panel::with_source("DEMO", source);
+        let before = snapshot(&app.project);
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        let draw = |app: &mut App, events| {
+            ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1600.0, 1600.0),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ctx| app.center(ctx),
+            )
+        };
+        draw(&mut app, vec![]);
+        let output = draw(&mut app, vec![]);
+        let target = output
+            .platform_output
+            .accesskit_update
+            .unwrap()
+            .nodes
+            .into_iter()
+            .find(|(_, node)| node.label() == Some("导入整章到步骤编辑器"))
+            .unwrap()
+            .0;
+        draw(
+            &mut app,
+            vec![egui::Event::AccessKitActionRequest(
+                egui::accesskit::ActionRequest {
+                    action: egui::accesskit::Action::Click,
+                    target,
+                    data: None,
+                },
+            )],
+        );
+        assert!(app.story().get("vanilla_patch").is_none());
+        assert_eq!(
+            lom_core::vanilla_import::parse(&app.story())
+                .unwrap()
+                .unwrap()
+                .source(),
+            source
+        );
+        let imported = snapshot(&app.project);
+        app.undo();
+        assert!(snapshot(&app.project) == before);
+        app.redo();
+        assert!(snapshot(&app.project) == imported);
+        app.selected = app.story()["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .position(|node| node["type"] == "say")
+            .unwrap();
+        draw(&mut app, vec![]);
+        assert!(
+            snapshot(&app.project) == imported,
+            "Opening an imported step must not rewrite its baseline fields"
+        );
+        app.add_node("say");
+        assert_eq!(app.story()["nodes"][app.selected]["inherit_dialog"], true);
+        app.project.stories.get_mut("main").unwrap()["nodes"][app.selected]["text"] =
+            json!("新增对白");
+        app.copy();
+        app.paste();
+        assert!(app.story()["nodes"][app.selected]["_editor"]
+            .get("vanilla_origin")
+            .is_none());
+        app.add_node("end");
+        assert_eq!(app.story()["nodes"][app.selected]["resume_original"], true);
+        lom_core::validate::validate_story(&app.story()).unwrap();
+    }
+    #[test]
+    fn legacy_rotation_preference_preserves_project_angles_and_other_settings() {
+        let mut app = app();
+        let before = snapshot(&app.project);
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("preferences.json");
+        std::fs::write(&path, r#"{"custom":"keep","ui_locale":"chs"}"#).unwrap();
+        app.set_legacy_character_rotation(true, &path).unwrap();
+        assert!(app.preview.legacy_character_rotation);
+        let prefs = lom_core::load_json(&path).unwrap();
+        assert_eq!(prefs["legacy_character_rotation"], true);
+        assert_eq!(prefs["custom"], "keep");
+        app.set_legacy_character_rotation(false, &path).unwrap();
+        assert!(!app.preview.legacy_character_rotation);
+        assert!(snapshot(&app.project) == before);
+    }
+    #[test]
+    fn game_bookmarks_locate_dialogue_preserve_edits_and_use_the_unsaved_project_guard() {
+        let mark = lom_core::story_bookmarks::Bookmark {
+            schema: 1,
+            script: "DEMO".into(),
+            text_key: "D_SECOND".into(),
+            text: String::new(),
+            game_dir: PathBuf::new(),
+            year: 1,
+            month: 4,
+            stage: 1,
+            captured_utc: "2026-11-05T12:00:00Z".into(),
+        };
+        let mut app = app();
+        app.install(Project::new_vanilla_patch("DEMO").unwrap());
+        app.vanilla = crate::vanilla_panel::Panel::with_source(
+            "DEMO",
+            "say(luamanager.GetStoryText(\"D_FIRST\"))\nsay(luamanager.GetStoryText(\"D_SECOND\"))",
+        );
+        let before = snapshot(&app.project);
+        let ctx = egui::Context::default();
+        app.open_story_bookmark(mark.clone(), &ctx);
+        let _ = ctx.run(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1600.0, 1600.0),
+                )),
+                ..Default::default()
+            },
+            |ctx| app.center(ctx),
+        );
+        assert_eq!(app.vanilla.selected_key("DEMO"), Some("D_SECOND"));
+        assert!(snapshot(&app.project) == before);
+        let mut other = mark.clone();
+        other.script = "OTHER".into();
+        app.open_story_bookmark(other, &ctx);
+        app.track();
+        app.flush();
+        assert_eq!(app.project.stories.len(), 2);
+        assert_eq!(app.project.stories["main"], before.stories["main"]);
+        app.undo();
+        assert_eq!(app.project.stories, before.stories);
+        app.install(Project::new());
+        app.project.stories.get_mut("main").unwrap()["nodes"][0]["text"] = json!("未保存修改");
+        app.track();
+        let dirty = snapshot(&app.project);
+        app.open_story_bookmark(mark, &ctx);
+        assert!(matches!(app.pending, Some(Pending::OpenVanillaBookmark(_))));
+        assert!(snapshot(&app.project) == dirty);
     }
     #[test]
     fn error_button_opens_and_focuses_the_manifest_field_without_changing_the_project() {

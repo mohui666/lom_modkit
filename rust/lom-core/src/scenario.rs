@@ -115,7 +115,12 @@ fn validate_inner(c: &Value, m: &Value, stories: &BTreeMap<String, Value>) -> Re
     }
     let events = list(c, "events")?;
     ensure!(
-        !events.is_empty() && events.len() <= 512,
+        (!events.is_empty()
+            || (m["play_mode"] == "addon"
+                && stories
+                    .values()
+                    .any(|story| crate::vanilla_import::target(story).is_some())))
+            && events.len() <= 512,
         "需要 1~512 条事件"
     );
     let mut ids = BTreeSet::new();
@@ -275,7 +280,7 @@ fn validate_inner(c: &Value, m: &Value, stories: &BTreeMap<String, Value>) -> Re
     }
     for (sid, story) in stories {
         for n in story["nodes"].as_array().context("剧情 nodes 必须是数组")? {
-            ensure!(performance_node(n["type"].as_str().unwrap_or("")),"剧情 {sid} 的 {} 节点属于事件/任务配置或结果动作，请移到 scenario.json；旧作品仍兼容",n["type"]);
+            ensure!(story.get("vanilla_import").is_some() || performance_node(n["type"].as_str().unwrap_or("")),"剧情 {sid} 的 {} 节点属于事件/任务配置或结果动作，请移到 scenario.json；旧作品仍兼容",n["type"]);
         }
     }
     Ok(())

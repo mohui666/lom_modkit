@@ -506,7 +506,16 @@ pub fn simulate(
     include_target: bool,
     library: Option<&Library>,
 ) -> Value {
+    if !lom_core::parallel::story_actions(story).any(|(_, node)| node["type"] == "effect") {
+        return json!([]);
+    }
     let nodes = story["nodes"].as_array().map(Vec::as_slice).unwrap_or(&[]);
+    let mut nodes_by_id = BTreeMap::new();
+    for node in nodes {
+        if let Some(id) = node["id"].as_str() {
+            nodes_by_id.entry(id).or_insert(node);
+        }
+    }
     let path = super::route(story, target).unwrap_or_else(|| vec![target.to_owned()]);
     let managed = managed(story);
     let mut instances = Vec::new();
@@ -515,13 +524,14 @@ pub fn simulate(
         if id == target && !include_target {
             break;
         }
-        let Some(parent) = nodes.iter().find(|node| node["id"] == id) else {
+        let Some(parent) = nodes_by_id.get(id.as_str()).copied() else {
             continue;
         };
         if matches!(
             text(parent, "type"),
             "end" | "goto_scene" | "death" | "endgame" | "combat" | "battle"
-        ) {
+        ) && parent["resume_original"] != true
+        {
             instances.clear();
         }
         for (index, action) in lom_core::parallel::actions(parent).iter().enumerate() {
@@ -1266,5 +1276,25 @@ mod tests {
             assert!(objects.is_empty());
         });
         assert!(output.shapes.is_empty());
+    }
+    #[test]
+    fn returning_to_original_flow_keeps_active_effects() {
+        let captured = library(clip(true, false));
+        let mut story = json!({"start":"play","nodes":[
+            {"id":"play","type":"effect","name":"Rain_001","c":1},
+            {"id":"resume","type":"end","resume_original":true}
+        ]});
+        assert_eq!(
+            simulate(&story, "resume", 0.0, true, Some(&captured))
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        story["nodes"][1]["resume_original"] = json!(false);
+        assert!(simulate(&story, "resume", 0.0, true, Some(&captured))
+            .as_array()
+            .unwrap()
+            .is_empty());
     }
 }

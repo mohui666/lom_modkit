@@ -11,7 +11,11 @@ pub mod parallel;
 pub mod portrait_alignment;
 pub mod project;
 pub mod release;
+pub mod story_bookmarks;
+pub mod story_routes;
 pub mod validate;
+pub mod vanilla_import;
+pub mod vanilla_patch;
 pub mod watermark;
 pub mod workdir;
 

@@ -4,7 +4,7 @@
     "package_format": 3,
     "story_schema": 2,
     "content_schema": 1,
-    "min_host_version": "1.4.6",
+    "min_host_version": "1.4.9",
     "id": "showcase3",
     "campaign_id": "showcase3",
     "name": "全节点样例3.0·六十七节点实机验收",
@@ -1623,6 +1623,261 @@
           "type": "end"
         }
       ]
+    },
+    {
+      "story_schema": 2,
+      "id": "original_story_patch",
+      "title": "原版对白补丁与旗标插入",
+      "start": "patch_entry",
+      "nodes": [
+        {
+          "id": "patch_entry",
+          "type": "end"
+        }
+      ],
+      "vanilla_patch": {
+        "target": "ch1_1",
+        "edits": [
+          {
+            "find": "say(luamanager.GetStoryText(\"N_1_1_001\"))",
+            "occurrence": 1,
+            "kind": "say",
+            "before": "【补丁样例】只有本 MOD 的 showcase_extra_dialogue 旗标成立时，才在原对白前插入这一句。",
+            "before_condition": {
+              "source": "mod",
+              "flag": "showcase_extra_dialogue",
+              "op": ">=",
+              "value": 1,
+              "invert": false
+            }
+          }
+        ]
+      }
+    },
+    {
+      "story_schema": 2,
+      "id": "system_messages",
+      "title": "心上人与系统提示",
+      "start": "explain",
+      "nodes": [
+        {
+          "id": "explain",
+          "type": "say",
+          "mode": "narrative",
+          "text": "心上人可直接按人名选择。下面的属性、好感、物品、天赋与奖励变更均关闭系统提示，最后再显示一次属性变更作对比。"
+        },
+        {
+          "id": "lover",
+          "type": "stat_set",
+          "key": "lover",
+          "value": 1,
+          "show_message": false
+        },
+        {
+          "id": "quiet_stat",
+          "type": "stat",
+          "key": "morale",
+          "delta": 1,
+          "show_message": false
+        },
+        {
+          "id": "quiet_affinity",
+          "type": "affinity",
+          "character": "brother1",
+          "delta": 1,
+          "show_message": false
+        },
+        {
+          "id": "quiet_item",
+          "type": "item",
+          "kind": "misc",
+          "item": "0001",
+          "count": 1,
+          "show_message": false
+        },
+        {
+          "id": "quiet_talent",
+          "type": "talent",
+          "talent": "1010",
+          "level": 1,
+          "show_message": false
+        },
+        {
+          "id": "quiet_reward",
+          "type": "reward",
+          "show_message": false,
+          "entries": [
+            {
+              "kind": "stat",
+              "key": "morale",
+              "amount": 1
+            }
+          ]
+        },
+        {
+          "id": "shown_stat",
+          "type": "stat",
+          "key": "morale",
+          "delta": 1,
+          "show_message": true
+        },
+        {
+          "id": "summary",
+          "type": "say",
+          "mode": "narrative",
+          "text": "关闭提示只影响自动变化提示，数据照常写入。下一章节选择框显示自定义标题与章节代码。"
+        },
+        {
+          "id": "done",
+          "type": "end",
+          "next_script": "main"
+        }
+      ]
+    },
+    {
+      "story_schema": 2,
+      "id": "original_story_import",
+      "title": "整章导入与来源判定（自编流程）",
+      "mood": true,
+      "start": "original_1",
+      "nodes": [
+        {
+          "type": "raw",
+          "code": "-- Synthetic chapter for native-scope regression checks.\nlocal total = 3\nsetsaydialog(saydialogs.narrative)\nsetmenudialog(menudialogs.native)\nsetcharacter(narrative)\nsayoptions.waitforinput = false\nif checkpointmanager.Condition(\"OUTER\") then\n    total = total + 4\n",
+          "id": "original_1",
+          "_editor": {
+            "vanilla_origin": 0
+          }
+        },
+        {
+          "type": "say",
+          "mode": "narrative",
+          "text": "改写甲",
+          "inherit_dialog": true,
+          "id": "original_2",
+          "_editor": {
+            "vanilla_origin": 1
+          }
+        },
+        {
+          "type": "raw",
+          "code": "else\n    total = total + 7\n",
+          "id": "original_3",
+          "_editor": {
+            "vanilla_origin": 2
+          }
+        },
+        {
+          "type": "say",
+          "mode": "narrative",
+          "text": "原版乙",
+          "inherit_dialog": true,
+          "id": "original_4",
+          "_editor": {
+            "vanilla_origin": 3
+          }
+        },
+        {
+          "type": "raw",
+          "code": "end\nlocal options = {\"O_ONE\", \"O_TWO\"}\nlocal selected = choose(options)\nmark_progress(total + selected)\n",
+          "id": "original_5",
+          "_editor": {
+            "vanilla_origin": 4
+          }
+        },
+        {
+          "id": "inserted",
+          "type": "say",
+          "text": "新增对白",
+          "inherit_dialog": true
+        },
+        {
+          "type": "say",
+          "mode": "narrative",
+          "text": "原版尾句",
+          "inherit_dialog": true,
+          "id": "original_6",
+          "_editor": {
+            "vanilla_origin": 5
+          }
+        },
+        {
+          "type": "end",
+          "resume_original": true,
+          "id": "original_7",
+          "_editor": {
+            "vanilla_origin": 6
+          }
+        }
+      ],
+      "vanilla_import": {
+        "schema": 1,
+        "target": "MODKIT_IMPORT_EXAMPLE",
+        "origins": [
+          {
+            "code": "-- Synthetic chapter for native-scope regression checks.\nlocal total = 3\nsetsaydialog(saydialogs.narrative)\nsetmenudialog(menudialogs.native)\nsetcharacter(narrative)\nsayoptions.waitforinput = false\nif checkpointmanager.Condition(\"OUTER\") then\n    total = total + 4\n",
+            "node": {
+              "type": "raw",
+              "code": "-- Synthetic chapter for native-scope regression checks.\nlocal total = 3\nsetsaydialog(saydialogs.narrative)\nsetmenudialog(menudialogs.native)\nsetcharacter(narrative)\nsayoptions.waitforinput = false\nif checkpointmanager.Condition(\"OUTER\") then\n    total = total + 4\n",
+              "id": "original_1"
+            }
+          },
+          {
+            "code": "    say(luamanager.GetStoryText(\"N_IMPORT_A\"))\n",
+            "node": {
+              "type": "say",
+              "mode": "narrative",
+              "text": "原版甲",
+              "inherit_dialog": true,
+              "id": "original_2"
+            }
+          },
+          {
+            "code": "else\n    total = total + 7\n",
+            "node": {
+              "type": "raw",
+              "code": "else\n    total = total + 7\n",
+              "id": "original_3"
+            }
+          },
+          {
+            "code": "    say(luamanager.GetStoryText(\"N_IMPORT_B\"))\n",
+            "node": {
+              "type": "say",
+              "mode": "narrative",
+              "text": "原版乙",
+              "inherit_dialog": true,
+              "id": "original_4"
+            }
+          },
+          {
+            "code": "end\nlocal options = {\"O_ONE\", \"O_TWO\"}\nlocal selected = choose(options)\nmark_progress(total + selected)\n",
+            "node": {
+              "type": "raw",
+              "code": "end\nlocal options = {\"O_ONE\", \"O_TWO\"}\nlocal selected = choose(options)\nmark_progress(total + selected)\n",
+              "id": "original_5"
+            }
+          },
+          {
+            "code": "say(luamanager.GetStoryText(\"N_IMPORT_DONE\"))\n",
+            "node": {
+              "type": "say",
+              "mode": "narrative",
+              "text": "原版尾句",
+              "inherit_dialog": true,
+              "id": "original_6"
+            }
+          },
+          {
+            "code": "",
+            "node": {
+              "type": "end",
+              "resume_original": true,
+              "id": "original_7"
+            }
+          }
+        ]
+      }
     }
   ]
 }

@@ -382,7 +382,7 @@ impl Updater {
                     egui::ScrollArea::vertical().max_height(210.0).show(ui, |ui| { ui.label(&release.notes); });
                     ui.add_space(8.0);
                     ui.label(tr(if release.repair_needed { "是否修复当前版本？完成后会自动重启编辑器，并重新打开当前项目。" } else { "是否更新？安装完成后会自动重启编辑器，并重新打开当前项目。" }));
-                    ui.small(tr("项目、用户内容库和预览库会保留。游戏中的 Host 需在“游戏与 MOD”中另行更新。"));
+                    ui.small(tr("重启编辑器后会自动同步已配置游戏中的 Host。若游戏正在运行，请先退出游戏，再到“游戏与 MOD”点击“更新游戏 Host”完成同步。"));
                     ui.hyperlink_to(tr("查看完整更新说明"), &release.url);
                     if cfg!(windows) && release.can_update() {
                         offered = true;
