@@ -1,6 +1,6 @@
-# Windows 测试清单：恢复 v1.2.1 + 本轮改动
+# Windows 测试包人工清单
 
-测试对象是**当前源码重新构建的 Windows 目录**。网上已发布的原版 v1.2.1 不含本轮新增功能；版本号同为 1.2.1 不能证明文件是新构建。此清单不代表 Windows 或游戏测试已完成。
+使用本次构建的完整 Windows 编辑器测试，记录版本与实际结果。A～G 编号对应本测试包的回归样例。
 
 ## 准备与顺序
 
@@ -132,7 +132,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Run-OfflineChecks.ps1 -Bun
 
 ## H．临时目录权限修复版复测
 
-桌面本轮测试快捷方式现指向 `out\windows\lom_modkit-tempfix\lom-editor.exe`。详情与验证范围见 [权限修复记录](windows_temp_permissions.md)。
+使用本次构建的完整程序。权限问题按实际失败路径排查，见 [维护者手册](https://github.com/mohui666/lom_modkit/blob/master/docs/chs/maintainers.md#临时目录与写入错误)。
 
 | 编号 | 操作 | 通过标准 | 结果 |
 | --- | --- | --- | --- |

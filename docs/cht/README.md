@@ -2,9 +2,7 @@
 
 > 語言：[中文（CHS）](../README.md) · 中文（CHT，本文） · [日本語](../ja/README.md) · [한국어](../ko/README.md)
 
-本索引對應 **1.4.4 原始碼**：Rust 編輯器與編譯器，保留 C# 遊戲宿主及 `.lommod` v3 契約。發布狀態與目前指南見 [文件總目錄](../README.md)。
-
-歷史範圍：本目錄的舊索引於 2026-10-04 記錄原始碼 v1.2.0、當時最新公開發行版 [v1.1.1](https://github.com/mohui666/lom_modkit/releases/tag/v1.1.1)；後者使用舊 Python / Qt 工具端。這是當時的版本紀錄，並非目前發布狀態。
+本索引對應 **1.4.10 原始碼**：Rust 編輯器與編譯器，保留 C# 遊戲宿主及 `.lommod` v3 契約。發布狀態與目前指南見 [文件總目錄](../README.md)。
 
 ## 目前版本的指南
 
@@ -22,7 +20,6 @@
 | [Mod 包格式](../chs/mod_format.md) | v3 契約與目前 67 種節點 |
 | [使用者內容](../chs/user_content.md) | 自訂人物、圖片與音訊 |
 | [維護者手冊](../chs/maintainers.md) | 保存、檢查、發布與遊戲接入 |
-| [Rust 遷移](../chs/rust_migration.md) | 歷史遷移範圍與驗收紀錄 |
 
 ## 尚未同步的繁中譯文
 

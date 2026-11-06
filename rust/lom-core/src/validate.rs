@@ -1151,6 +1151,24 @@ fn extra(n: &Value, ntype: &str, catalog: &Value) -> Result<()> {
         }
         "say" => {
             ensure!(nonblank(&n["text"]), "必填字段 \"text\" 不能为空或仅含空白");
+            if has(n, "mood_icon") {
+                let target = if nonblank(&n["mood_character"]) {
+                    &n["mood_character"]
+                } else {
+                    &n["character"]
+                };
+                ensure!(nonblank(target), "本句表情气泡需要指定气泡人物或发言人");
+                if user(target) {
+                    user_ref(target, "mood_character")?;
+                } else {
+                    ensure!(
+                        array(&catalog["characters"])
+                            .iter()
+                            .any(|row| &row["id"] == target),
+                        "未知气泡人物 {target}"
+                    );
+                }
+            }
             if n["inherit_dialog"] != true
                 && ["character", "think"].contains(&text(n, "mode", "character"))
             {

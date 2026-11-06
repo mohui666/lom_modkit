@@ -245,7 +245,6 @@ def build(output, cli, editor):
         if path.is_file():
             encoding = "utf-8-sig" if path.suffix == ".ps1" else "utf-8"
             (output/path.name).write_text(path.read_text(encoding="utf-8-sig"), encoding=encoding)
-    shutil.copyfile(ROOT / "docs/chs/windows_postrelease_test.md", output / "Windows测试清单.md")
     def git(*args):
         return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
     write_json(output/"baseline.json", {

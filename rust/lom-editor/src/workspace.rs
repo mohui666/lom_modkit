@@ -69,6 +69,8 @@ enum View {
 enum ChapterAction {
     New,
     Duplicate(Value),
+    NewGroup,
+    RenameGroup(String),
 }
 struct ChapterDialog {
     action: ChapterAction,
@@ -138,6 +140,7 @@ struct App {
     redo: Vec<Snapshot>,
     last: Snapshot,
     saved: Snapshot,
+    document_dirty: bool,
     pending_history: Option<Snapshot>,
     last_edit: Instant,
     clipboard: Vec<Value>,
@@ -414,6 +417,7 @@ impl App {
             redo: vec![],
             last: snap.clone(),
             saved: snap,
+            document_dirty: false,
             pending_history: None,
             last_edit: Instant::now(),
             clipboard: vec![],
@@ -522,10 +526,20 @@ impl App {
         }
     }
     fn dirty(&self) -> bool {
-        self.last != self.saved
+        self.document_dirty
             || self.asset_dirty
             || self.content_panel.has_pending()
             || self.advanced.has_pending()
+    }
+    fn mark_saved(&mut self) {
+        self.saved = self.last.clone();
+        self.document_dirty = false;
+    }
+    fn is_vanilla_patch(&self) -> bool {
+        self.project
+            .stories
+            .get(&self.current)
+            .is_some_and(|story| story.get("vanilla_patch").is_some())
     }
     fn story(&self) -> Value {
         self.project
@@ -562,6 +576,48 @@ impl App {
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("没有待创建的章节"))?;
         let name = draft.name.trim().to_owned();
+        if matches!(
+            draft.action,
+            ChapterAction::NewGroup | ChapterAction::RenameGroup(_)
+        ) {
+            anyhow::ensure!(
+                !name.is_empty()
+                    && name.chars().count() <= 80
+                    && !name.chars().any(char::is_control),
+                "分组名称需要 1～80 个字，不能包含换行或控制字符。"
+            );
+            let previous = match &draft.action {
+                ChapterAction::RenameGroup(group) => Some(group.clone()),
+                _ => None,
+            };
+            anyhow::ensure!(
+                previous.as_deref() == Some(&name)
+                    || !self
+                        .project
+                        .stories
+                        .values()
+                        .any(|story| chapter_group(story) == name),
+                "已有同名分组，请使用“移入分组”。"
+            );
+            if let Some(previous) = previous {
+                self.flush();
+                for story in self
+                    .project
+                    .stories
+                    .values_mut()
+                    .filter(|story| chapter_group(story) == previous)
+                {
+                    set_chapter_group(story, &name)?;
+                }
+                self.track();
+                self.flush();
+            } else {
+                self.move_chapter_to_group(&name)?;
+            }
+            self.chapter_dialog = None;
+            self.status = format!("分组已更新 · {name}");
+            return Ok(());
+        }
         anyhow::ensure!(!name.is_empty(), "请填写章节名称。");
         anyhow::ensure!(
             name.chars().count() <= 80 && !name.chars().any(char::is_control),
@@ -572,6 +628,7 @@ impl App {
             // A chapter copy retains explicit destinations and test semantics. Only
             // its own identity/title changes; it must not silently retarget the story.
             ChapterAction::Duplicate(story) => story.clone(),
+            ChapterAction::NewGroup | ChapterAction::RenameGroup(_) => unreachable!(),
         };
         let id = (1..)
             .map(|n| format!("chapter{n}"))
@@ -601,6 +658,34 @@ impl App {
         self.flush();
         self.chapter_dialog = None;
         self.status = format!("{}：{name}", tr("已创建章节"));
+        Ok(())
+    }
+    fn begin_chapter_group(&mut self, rename: bool) {
+        if !self.apply_pending_drafts() {
+            return;
+        }
+        let group = chapter_group(&self.story()).to_owned();
+        self.chapter_dialog = Some(ChapterDialog {
+            action: if rename {
+                ChapterAction::RenameGroup(group.clone())
+            } else {
+                ChapterAction::NewGroup
+            },
+            name: if rename { group } else { String::new() },
+            error: None,
+            focus_name: true,
+        });
+    }
+    fn move_chapter_to_group(&mut self, group: &str) -> anyhow::Result<()> {
+        self.flush();
+        let story = self
+            .project
+            .stories
+            .get_mut(&self.current)
+            .ok_or_else(|| anyhow::anyhow!("当前章节不存在"))?;
+        set_chapter_group(story, group)?;
+        self.track();
+        self.flush();
         Ok(())
     }
     fn chapter_reference_count(&self, chapter: &str) -> usize {
@@ -818,6 +903,7 @@ impl App {
                 self.redo.clear();
             }
             self.last = current;
+            self.document_dirty = self.last != self.saved;
             self.last_edit = Instant::now();
             self.needs_compile = true;
         }
@@ -854,6 +940,7 @@ impl App {
                 .saturating_sub(1),
         );
         self.last = snapshot(&self.project);
+        self.document_dirty = self.last != self.saved;
         self.pending_history = None;
         self.needs_compile = true;
         self.multiselect.clear();
@@ -902,6 +989,7 @@ impl App {
                 Ok(project) => {
                     self.install(project);
                     self.saved.manifest = json!({});
+                    self.document_dirty = true;
                 }
                 Err(error) => self.error = Some(error.to_string()),
             },
@@ -916,6 +1004,7 @@ impl App {
                 Ok(project) => {
                     self.install(project);
                     self.saved.manifest = json!({});
+                    self.document_dirty = true;
                     self.vanilla.focus_bookmark(mark);
                 }
                 Err(error) => self.error = Some(error.to_string()),
@@ -924,6 +1013,7 @@ impl App {
                 Ok(project) => {
                     self.install(project);
                     self.saved.manifest = json!({});
+                    self.document_dirty = true;
                     self.status =
                         "已从模板创建项目；user:template.* 占位资源需要在内容库中替换".into();
                 }
@@ -1062,7 +1152,7 @@ impl App {
         self.redo.clear();
         self.pending_history = None;
         self.last = snapshot(&self.project);
-        self.saved = self.last.clone();
+        self.mark_saved();
         self.asset_dirty = false;
         self.needs_compile = true;
         self.status = format!("已载入 {} 个章节", self.project.stories.len());
@@ -1105,7 +1195,7 @@ impl App {
             Ok(()) => {
                 self.remember_source();
                 self.last = snapshot(&self.project);
-                self.saved = self.last.clone();
+                self.mark_saved();
                 self.asset_dirty = false;
                 self.clear_recovery();
                 self.status = format!(
@@ -1362,6 +1452,7 @@ impl App {
                     paths: BTreeMap::new(),
                     assets: std::sync::Arc::new(BTreeMap::new()),
                 };
+                self.document_dirty = true;
                 self.current = session["current"]
                     .as_str()
                     .filter(|id| self.project.stories.contains_key(*id))
@@ -1583,7 +1674,7 @@ impl App {
         }
         if !ctx.wants_keyboard_input()
             && matches!(self.center, Center::Node | Center::Chapter)
-            && self.story().get("vanilla_patch").is_none()
+            && !self.is_vanilla_patch()
         {
             let (copy, paste) = ctx.input_mut(|input| {
                 let mut copy = input.consume_key(egui::Modifiers::COMMAND, egui::Key::C);
@@ -1776,11 +1867,11 @@ impl App {
                             self.redo();
                             ui.close();
                         }
-                        if ui.add_enabled(matches!(self.center, Center::Node | Center::Chapter) && self.story().get("vanilla_patch").is_none(), egui::Button::new(tr("复制"))).clicked() {
+                        if ui.add_enabled(matches!(self.center, Center::Node | Center::Chapter) && !self.is_vanilla_patch(), egui::Button::new(tr("复制"))).clicked() {
                             self.copy();
                             ui.close();
                         }
-                        if ui.add_enabled(matches!(self.center, Center::Node | Center::Chapter) && self.story().get("vanilla_patch").is_none(), egui::Button::new(tr("粘贴"))).clicked() {
+                        if ui.add_enabled(matches!(self.center, Center::Node | Center::Chapter) && !self.is_vanilla_patch(), egui::Button::new(tr("粘贴"))).clicked() {
                             self.paste();
                             ui.close();
                         }
@@ -2085,7 +2176,7 @@ impl App {
         }
     }
     fn open_initial_setup(&mut self) {
-        if self.story().get("vanilla_patch").is_some() {
+        if self.is_vanilla_patch() {
             return;
         }
         if !self.open_center(Center::Initial) {
@@ -2310,6 +2401,7 @@ impl App {
                 ui.horizontal(|ui| {
                     ui.label(crate::i18n::key("nav.story"));
                     egui::ComboBox::from_id_salt("chapters")
+                        .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
                         .truncate()
                         .width((ui.available_width() - 112.0).max(75.0))
                         .selected_text(
@@ -2320,8 +2412,49 @@ impl App {
                                 .unwrap_or(&self.current),
                         )
                         .show_ui(ui, |ui| {
+                            let mut groups = BTreeMap::<&str, Vec<(&String, &String)>>::new();
                             for (id, name) in &chapter_names {
-                                ui.selectable_value(&mut self.current, id.clone(), name);
+                                groups
+                                    .entry(chapter_group(&self.project.stories[id]))
+                                    .or_default()
+                                    .push((id, name));
+                            }
+                            let grouped = groups.keys().any(|group| !group.is_empty());
+                            for (group, chapters) in groups {
+                                if grouped {
+                                    egui::CollapsingHeader::new(if group.is_empty() {
+                                        tr("未分组")
+                                    } else {
+                                        group.to_owned()
+                                    })
+                                    .id_salt(("chapter-group", group))
+                                    .default_open(
+                                        chapters.iter().any(|(id, _)| *id == &self.current),
+                                    )
+                                    .show(ui, |ui| {
+                                        for (id, name) in chapters {
+                                            if ui
+                                                .selectable_value(
+                                                    &mut self.current,
+                                                    id.clone(),
+                                                    name,
+                                                )
+                                                .clicked()
+                                            {
+                                                ui.close_kind(egui::UiKind::Menu);
+                                            }
+                                        }
+                                    });
+                                } else {
+                                    for (id, name) in chapters {
+                                        if ui
+                                            .selectable_value(&mut self.current, id.clone(), name)
+                                            .clicked()
+                                        {
+                                            ui.close_kind(egui::UiKind::Menu);
+                                        }
+                                    }
+                                }
                             }
                         });
                     ui.menu_button("＋", |ui| {
@@ -2333,6 +2466,50 @@ impl App {
                             self.begin_chapter(true);
                             ui.close();
                         }
+                        ui.separator();
+                        if ui.button(tr("新建章节分组…")).clicked() {
+                            self.begin_chapter_group(false);
+                            ui.close();
+                        }
+                        let current_group = chapter_group(&self.story()).to_owned();
+                        if ui
+                            .add_enabled(
+                                !current_group.is_empty(),
+                                egui::Button::new(tr("重命名当前分组…")),
+                            )
+                            .clicked()
+                        {
+                            self.begin_chapter_group(true);
+                            ui.close();
+                        }
+                        ui.menu_button(tr("移入分组"), |ui| {
+                            let groups: BTreeSet<_> = self
+                                .project
+                                .stories
+                                .values()
+                                .map(chapter_group)
+                                .filter(|group| !group.is_empty())
+                                .map(str::to_owned)
+                                .collect();
+                            for group in std::iter::once(String::new()).chain(groups) {
+                                if ui
+                                    .selectable_label(
+                                        current_group == group,
+                                        if group.is_empty() {
+                                            tr("未分组")
+                                        } else {
+                                            group.clone()
+                                        },
+                                    )
+                                    .clicked()
+                                {
+                                    if let Err(error) = self.move_chapter_to_group(&group) {
+                                        self.error = Some(error.to_string());
+                                    }
+                                    ui.close();
+                                }
+                            }
+                        });
                     });
 
                     ui.menu_button("…", |ui| {
@@ -2625,8 +2802,18 @@ impl App {
                                     0.0,
                                     primary,
                                 );
+                                let remark = node["_editor"]["note"]
+                                    .as_str()
+                                    .filter(|note| !note.trim().is_empty())
+                                    .or_else(|| node["id"].as_str())
+                                    .unwrap_or("");
+                                let preview = if summary.is_empty() {
+                                    remark.to_owned()
+                                } else {
+                                    format!("{remark} · {summary}")
+                                };
                                 let preview =
-                                    summary.split_whitespace().collect::<Vec<_>>().join(" ");
+                                    preview.split_whitespace().collect::<Vec<_>>().join(" ");
                                 if !preview.is_empty() {
                                     label.append("\n", 0.0, secondary.clone());
                                     label.append(&short(&preview, 26), 23.0, secondary);
@@ -2728,7 +2915,7 @@ impl App {
         }
     }
     fn right(&mut self, ctx: &egui::Context) {
-        if self.center == Center::Node && self.story().get("vanilla_patch").is_some() {
+        if self.center == Center::Node && self.is_vanilla_patch() {
             if self.vanilla.route_open() {
                 return;
             }
@@ -3046,7 +3233,7 @@ impl App {
             });
     }
     fn center(&mut self, ctx: &egui::Context) {
-        if self.center == Center::Node && self.story().get("vanilla_patch").is_some() {
+        if self.center == Center::Node && self.is_vanilla_patch() {
             let mut story = self.story();
             let used = self
                 .project
@@ -3659,8 +3846,8 @@ impl App {
                     }
                 }
             });
-        if let Some(bytes) = self.project.assets.get(&self.asset_selection).cloned() {
-            if let Ok(meta) = serde_json::from_slice::<Value>(&bytes) {
+        if let Some(bytes) = self.project.assets.get(&self.asset_selection) {
+            if let Ok(meta) = serde_json::from_slice::<Value>(bytes) {
                 if meta["type"] == "audio" {
                     ui.horizontal(|ui| {
                         if ui.button(tr("试听音频")).clicked() {
@@ -4691,14 +4878,27 @@ impl App {
             let title = match draft.action {
                 ChapterAction::New => "新建章节",
                 ChapterAction::Duplicate(_) => "复制章节",
+                ChapterAction::NewGroup => "新建章节分组",
+                ChapterAction::RenameGroup(_) => "重命名章节分组",
             };
+            let group = matches!(
+                draft.action,
+                ChapterAction::NewGroup | ChapterAction::RenameGroup(_)
+            );
             egui::Modal::new(egui::Id::new("chapter-create"))
                 .frame(shell::dialog_frame())
                 .show(ctx, |ui| {
                     ui.set_width(360.0);
                     cancel |= shell::dialog_header(ui, &tr(title));
                     ui.add_space(16.0);
-                    ui.label(format!("{} *", tr("章节名称")));
+                    ui.label(format!(
+                        "{} *",
+                        tr(if group {
+                            "分组名称"
+                        } else {
+                            "章节名称"
+                        })
+                    ));
                     let name = ui.add(
                         egui::TextEdit::singleline(&mut draft.name)
                             .id(egui::Id::new("chapter-name"))
@@ -4711,7 +4911,15 @@ impl App {
                         crate::error_location::show(ui, error);
                     }
                     let can_submit = !draft.name.trim().is_empty();
-                    let actions = dialog_actions(ui, "创建", can_submit);
+                    let actions = dialog_actions(
+                        ui,
+                        if matches!(draft.action, ChapterAction::RenameGroup(_)) {
+                            "保存"
+                        } else {
+                            "创建"
+                        },
+                        can_submit,
+                    );
                     submit = actions.0;
                     cancel |= actions.1;
                     submit |= return_pressed && can_submit;
@@ -5527,6 +5735,37 @@ fn rename_story_refs(value: &mut Value, old: &str, new: &str) {
         _ => {}
     }
 }
+fn chapter_group(story: &Value) -> &str {
+    story["_editor"]["chapter_group"]
+        .as_str()
+        .unwrap_or("")
+        .trim()
+}
+fn set_chapter_group(story: &mut Value, group: &str) -> anyhow::Result<()> {
+    if group.is_empty() && story.get("_editor").is_none() {
+        return Ok(());
+    }
+    let editor = story
+        .as_object_mut()
+        .ok_or_else(|| anyhow::anyhow!("章节格式错误"))?
+        .entry("_editor")
+        .or_insert_with(|| json!({}));
+    if editor.is_null() {
+        *editor = json!({});
+    }
+    let fields = editor
+        .as_object_mut()
+        .ok_or_else(|| anyhow::anyhow!("章节 _editor 必须是对象，分组未修改"))?;
+    if group.is_empty() {
+        fields.remove("chapter_group");
+    } else {
+        fields.insert("chapter_group".into(), json!(group));
+    }
+    if fields.is_empty() {
+        story.as_object_mut().unwrap().remove("_editor");
+    }
+    Ok(())
+}
 fn story_reference_count(value: &Value, chapter: &str) -> usize {
     match value {
         Value::Object(object) => object
@@ -5632,6 +5871,187 @@ mod application_regression_tests {
         app
     }
     #[test]
+    fn chapter_groups_support_rename_move_undo_and_project_roundtrip() {
+        let mut app = app();
+        let mut project = Project::new();
+        let mut second = project.stories["main"].clone();
+        second["id"] = json!("second");
+        project.stories.insert("second".into(), second);
+        app.install(project);
+        let lua = compile_with_assets(&app.project, &app.story()).unwrap();
+        app.begin_chapter_group(false);
+        app.chapter_dialog.as_mut().unwrap().name = "主线".into();
+        app.commit_chapter().unwrap();
+        assert_eq!(chapter_group(&app.project.stories["main"]), "主线");
+        assert_eq!(
+            compile_with_assets(&app.project, &app.story()).unwrap(),
+            lua
+        );
+        app.current = "second".into();
+        app.move_chapter_to_group("主线").unwrap();
+        app.begin_chapter_group(true);
+        app.chapter_dialog.as_mut().unwrap().name = "任务".into();
+        app.commit_chapter().unwrap();
+        assert!(app
+            .project
+            .stories
+            .values()
+            .all(|story| chapter_group(story) == "任务"));
+        app.undo();
+        assert!(app
+            .project
+            .stories
+            .values()
+            .all(|story| chapter_group(story) == "主线"));
+        app.redo();
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("project");
+        app.project.save_to(&path).unwrap();
+        assert!(Project::open(&path)
+            .unwrap()
+            .stories
+            .values()
+            .all(|story| chapter_group(story) == "任务"));
+        app.move_chapter_to_group("").unwrap();
+        assert_eq!(chapter_group(&app.project.stories["second"]), "");
+        assert_eq!(chapter_group(&app.project.stories["main"]), "任务");
+    }
+    #[test]
+    fn cached_saved_status_follows_reverts_save_undo_and_redo() {
+        let mut app = app();
+        let clean = app.project.stories.clone();
+        assert!(!app.dirty());
+        app.project.stories.get_mut("main").unwrap()["nodes"][0]["text"] = json!("修改");
+        app.track();
+        assert!(app.dirty());
+        app.project.stories = clean;
+        app.track();
+        assert!(!app.dirty());
+        app.flush();
+        app.project.stories.get_mut("main").unwrap()["nodes"][0]["text"] = json!("保存内容");
+        app.track();
+        app.flush();
+        app.mark_saved();
+        assert!(!app.dirty());
+        app.undo();
+        assert!(app.dirty());
+        app.redo();
+        assert!(!app.dirty());
+    }
+
+    #[test]
+    fn step_rows_show_notes_or_ids_alongside_the_existing_summary() {
+        let mut app = app();
+        let mut project = Project::new();
+        project.stories.get_mut("main").unwrap()["nodes"][0]["_editor"] =
+            json!({"note":"开场备注"});
+        app.install(project);
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        let output = ctx.run(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1400.0, 900.0),
+                )),
+                ..Default::default()
+            },
+            |ctx| app.sidebar(ctx),
+        );
+        let labels: Vec<_> = output
+            .platform_output
+            .accesskit_update
+            .unwrap()
+            .nodes
+            .into_iter()
+            .filter_map(|(_, node)| node.label().map(str::to_owned))
+            .collect();
+        assert!(labels.iter().any(|text| text.contains("开场备注")));
+        let id = app.story()["nodes"][1]["id"].as_str().unwrap().to_owned();
+        assert!(labels
+            .iter()
+            .any(|text| text.contains(&id) && text.contains("返回自由模式")));
+    }
+    #[test]
+    #[ignore = "manual timing of editor hot paths on a large project"]
+    fn manual_editor_performance_check() {
+        fn measure(label: &str, runs: usize, mut operation: impl FnMut()) {
+            let mut elapsed = Vec::with_capacity(runs);
+            for _ in 0..runs {
+                let started = Instant::now();
+                operation();
+                elapsed.push(started.elapsed().as_secs_f64() * 1000.0);
+            }
+            elapsed.sort_by(f64::total_cmp);
+            println!(
+                "PERF {label} median_ms={:.3} p95_ms={:.3}",
+                elapsed[runs / 2],
+                elapsed[runs * 95 / 100]
+            );
+        }
+        let mut app = app();
+        let mut project = Project::new();
+        let story = json!({"id":"main","start":"n0","nodes":(0..2000).map(|index| {
+            json!({"id":format!("n{index}"),"type":"say","character":"player","portrait":"normal","text":format!("性能检查对白 {index}")})
+        }).collect::<Vec<_>>()});
+        project.stories.insert("main".into(), story);
+        for index in 1..10 {
+            let id = format!("chapter{index}");
+            let mut story = project.stories["main"].clone();
+            story["id"] = json!(id);
+            project.stories.insert(id, story);
+        }
+        project
+            .assets
+            .insert("perf-unused.bin".into(), vec![42; 64 * 1024 * 1024]);
+        app.install(project);
+        measure("story_copy", 30, || {
+            std::hint::black_box(app.story());
+        });
+        measure("saved_status", 30, || {
+            std::hint::black_box(app.dirty());
+        });
+        measure("change_tracking", 30, || app.track());
+        let node = app.story()["nodes"][0].clone();
+        measure("character_options", 30, || {
+            std::hint::black_box(app.catalog.options("character_group", &node, &[], &[]));
+        });
+        let ctx = egui::Context::default();
+        let draw = |app: &mut App| {
+            std::hint::black_box(ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1400.0, 900.0),
+                    )),
+                    ..Default::default()
+                },
+                |ctx| {
+                    app.sidebar(ctx);
+                    app.right(ctx);
+                    app.center(ctx);
+                },
+            ));
+        };
+        for _ in 0..3 {
+            draw(&mut app);
+        }
+        measure("stage_frame", 30, || {
+            draw(&mut app);
+            app.track();
+            std::hint::black_box(app.dirty());
+        });
+        app.view = View::Graph;
+        for _ in 0..3 {
+            draw(&mut app);
+        }
+        measure("graph_frame", 30, || {
+            draw(&mut app);
+            app.track();
+            std::hint::black_box(app.dirty());
+        });
+    }
+    #[test]
     fn long_step_lists_only_draw_visible_rows_and_follow_offscreen_selection() {
         let mut app = app();
         let mut project = Project::new();
@@ -5691,7 +6111,7 @@ mod application_regression_tests {
         assert!(app.idle_repaint_delay() <= Duration::from_secs(30));
         app.last_recovery = Instant::now() - Duration::from_secs(31);
         assert_eq!(app.idle_repaint_delay(), Duration::ZERO);
-        app.saved = app.last.clone();
+        app.mark_saved();
         assert_eq!(app.idle_repaint_delay(), Duration::MAX);
         app.screenshot = Some(PathBuf::from("unused-screenshot-test.png"));
         assert!(app.idle_repaint_delay() <= Duration::from_millis(70));
@@ -7893,7 +8313,7 @@ mod application_regression_tests {
         app.project.stories.insert("second".into(), second);
         app.project.stories.get_mut("main").unwrap()["nodes"] = json!([{"id":"d","type":"dice","options":[{"goto_大成功":"end","goto_成功":"end","goto_失败":"end"}]},{"id":"end","type":"end"}]);
         app.last = snapshot(&app.project);
-        app.saved = app.last.clone();
+        app.mark_saved();
         app.multiselect = BTreeSet::from([0, 1]);
         app.copy();
         app.current = "second".into();

@@ -2,11 +2,11 @@
 
 Cargo workspace 由 `rust/lom-core`、`rust/lomc`、`rust/lom-editor` 组成，覆盖剧情编译、包读写和原生桌面编辑。C# `runtime/MortalModHost` 保留游戏接入；包、Story、用户内容版本仍为 **3 / 2 / 1**。
 
-历史记录：2026-10-04 至 2026-10-05 已完成 Windows 工具端构建、自动化及新 exe 的具体 UI 路径验证；该轮最终 Rust 完整回归为 **196 通过、0 失败、2 默认跳过**，未执行游戏实机。范围、修复与限制见 [Windows 验证记录](windows_validation.md)。当前验证入口见 [测试矩阵](test_matrix.md)，各版本结果从 [文档总目录](../README.md) 查询。
+操作指南见 [软件使用](software_usage.md)，验证命令见 [测试入口](test_matrix.md)。
 
 ## 当前界面
 
-当前是 Rust／egui 浅色通用外壳，标准系统标题栏显示作品名称与未保存状态。默认窗口 1280×760，保留左侧章节／步骤、中间属性编辑、右侧预览的三栏结构。步骤使用序号、类别和文字摘要；同名章节可按列表序号区分，内部标识留在按需查看或高级编辑入口。
+当前是 Rust／egui 浅色通用外壳，标准系统标题栏显示作品名称与未保存状态。默认窗口 1280×760，保留左侧章节／步骤、中间属性编辑、右侧预览的三栏结构。步骤显示序号、类别、节点备注或 ID 及内容概要；同名章节可按列表序号区分，内部标识留在按需查看或高级编辑入口。
 
 新建／复制章节先选择操作，再输入可读名称，内部标识自动生成。素材导入先选类型与文件，再确认名称。相关模态框阻挡背景操作，取消在左、主操作在右，支持 Return 确认和 Esc 取消；输入法确认候选不会提前提交。普通可选字段直接显示语义默认值，技术标识改名在“编辑 → 高级”。
 
@@ -32,9 +32,9 @@ open "out/LoM Modkit Rust.app"
 
 `build-macos.sh` 调用 `build_rust_macos.sh`，生成原生 `lom-editor` 与 `lomc`、打包图标及独立素材提取组件、执行应用签名检查及内置编译预览烟测。编辑器和编译器仍是 Rust；提取组件复用已有 UnityPy 地址解析，通过独立进程与 Rust 界面交换进度和结果。使用安装包不需要另装 Python、Qt 或当前源码目录。官方预览图片从作者自己的游戏提取，不随应用分发。
 
-构建提取组件需要 Python 3.12 和 `tools/requirements-preview-extractor.txt` 中固定的构建依赖。Mac 默认使用 `editor/.venv/bin/python`，可通过 `EXTRACTOR_PYTHON` 指定；Windows 使用 `scripts/build-windows.ps1 -NoArchive -ExtractorPython <python.exe>`。先用该 Python 执行 `-m pip install -r tools/requirements-preview-extractor.txt`。两端都调用 `scripts/build_asset_extractor.py` 构建本平台的独立组件，不能复制另一平台的提取程序。构建运行 `--help` 及 `--self-check` 检查，不读取游戏、不自动提取。
+构建提取组件需要 Python 和 `tools/requirements-preview-extractor.txt` 中固定的构建依赖。Mac 默认使用 `editor/.venv/bin/python`，可通过 `EXTRACTOR_PYTHON` 指定；Windows 使用 `scripts/build-windows.ps1 -NoArchive -ExtractorPython <python.exe>`。复用已有提取环境，缺少依赖时按该 requirements 文件补装。两端都调用 `scripts/build_asset_extractor.py` 构建本平台的独立组件，不能复制另一平台的提取程序。构建运行 `--help` 及 `--self-check` 检查，不读取游戏、不自动提取。
 
-Windows 构建入口为 `scripts/build-windows.ps1 -NoArchive`，需要已构建的 `MortalModHost.dll`、`NVorbis.dll`；可用 `-RuntimeDirectory` 指定目录，默认产物为 `out/windows/lom_modkit/lom-editor.exe`。2026-10-05 已使用正式 net48 Host 产物，在独立输出目录完成打包并实际启动新 exe；构建成功、自动化与 UI 验收分别记录。Host 本地引用及嵌入资源要求见 [Runtime 构建说明](../../runtime/MortalModHost/README.md#构建与测试)。
+Windows 构建入口为 `scripts/build-windows.ps1 -NoArchive`，需要已构建的 `MortalModHost.dll`、`NVorbis.dll`；可用 `-RuntimeDirectory` 指定目录，默认产物为 `out/windows/lom_modkit/lom-editor.exe`。Host 本地引用及嵌入资源要求见 [Runtime 构建说明](../../runtime/MortalModHost/README.md#构建与测试)。
 
 ## 模块
 
@@ -95,8 +95,4 @@ cargo run --locked -p lomc -- inspect out/showcase3-check/showcase3.lommod --jso
 
 生成器读取 `samples/showcase3/source.json`；传入显式输出目录时必须使用尚未存在的新目录。无参数模式按已有工程的文件归属检查刷新受跟踪样例，仍应事先审阅差异并保留用户文件。详见 [样例说明](../../samples/showcase3/README.md)。
 
-2026-10-05 Windows 最终完整回归为 196 项通过、0 失败、2 项默认跳过，Showcase 预览检查 133 / 133；新建输出目录的样例生成、包检查及 C# 离线冒烟通过。此前 2026-10-04 Mac 的 179 / 0 / 2 和同日仅文档维护的记录保持为历史，不算本轮 Windows 结果。
-
-历史 Python 对照实现只用于生成已保存的 JSON／Lua fixture，当前测试不启动 Python。Lua 以原始字节比较，包按解压条目和逻辑完整性比较，不要求不同压缩库产生完全相同的 ZIP 压缩字节。最终测试数不累加阶段重跑、预览状态或 UI 操作；受阻与未执行项见 [Windows 验证记录](windows_validation.md#受阻未执行与剩余限制)。
-
-功能对照与清理范围见 [迁移验收表](rust_migration.md)。
+历史 Python 对照实现只用于生成已保存的 JSON／Lua fixture，当前测试不启动 Python。Lua 以原始字节比较，包按解压条目和逻辑完整性比较，不要求不同压缩库产生完全相同的 ZIP 压缩字节。当前功能与验证范围见 [当前能力](current_capabilities.md)。

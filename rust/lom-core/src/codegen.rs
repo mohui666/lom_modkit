@@ -639,7 +639,7 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
             if truth(node, "voice") {
                 out.push(call("mod_play_voice", &[q(node, "voice")]));
             }
-            out.push(dialogue_line(node, ctx));
+            out.extend(scoped_dialogue_line(node, ctx));
             if truth(node, "voice") {
                 out.push("\tmod_stop_voice()".into());
             }
@@ -656,7 +656,6 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
             } else {
                 "\tmod_stop_voice()".into()
             });
-            let say = dialogue_line(node, ctx);
             if ["narrative", "center"].contains(&mode) {
                 out.extend([
                     format!("\tsetsaydialog(saydialogs.{mode})"),
@@ -714,7 +713,7 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
             if left {
                 out.push("\tmod_narrative_left(true)".into());
             }
-            out.push(say);
+            out.extend(scoped_dialogue_line(node, ctx));
             if !ctx.mood {
                 out.push("\tmod_hide_mood()".into());
             }
@@ -2078,6 +2077,26 @@ fn imported_story_to_lua(
     Ok(lua)
 }
 
+fn scoped_dialogue_line(node: &Value, ctx: &Context<'_>) -> Vec<String> {
+    let line = dialogue_line(node, ctx);
+    if !truth(node, "mood_icon") {
+        return vec![line];
+    }
+    let target = if truth(node, "mood_character") {
+        s(node, "mood_character")
+    } else {
+        s(node, "character")
+    };
+    vec![
+        format!(
+            "\tlocal __lom_restore_mood = mod_dialogue_mood({}, {})",
+            lua_str(target),
+            q(node, "mood_icon")
+        ),
+        line,
+        "\t__lom_restore_mood()".into(),
+    ]
+}
 fn dialogue_line(node: &Value, ctx: &Context<'_>) -> String {
     let mod_id = if ctx.mod_id.is_empty() {
         "MOD"

@@ -2,7 +2,7 @@
 
 当前工具端由 Rust 编译器、核心库与 egui 编辑器组成；C# `MortalModHost` 保留游戏接入。日常编辑见 [软件使用](software_usage.md)，构建和 CLI 见 [Rust 工具端](rust.md)，验证层次见 [测试矩阵](test_matrix.md)。旧 Python／Qt／PyInstaller 入口已经退役，不作为本手册操作入口。
 
-当前版本为 1.4.9，功能见 [本版说明](../../RELEASE_NOTES_v1.4.9.md)，验证范围见 [当前能力](current_capabilities.md)。2026-10-04 的早期迁移文档核对、Mac 179 项测试及 133 项预览记录见 [迁移验收表](rust_migration.md)。
+当前版本为 1.4.10，功能见 [本版说明](../../RELEASE_NOTES_v1.4.10.md)，验证范围见 [当前能力](current_capabilities.md)。
 
 ## 编辑器入口与设置
 
@@ -73,7 +73,11 @@ Runtime 更新在 `BepInEx/plugins/MortalModHost/.runtime_rollback/` 保留已�
 
 此次游戏更新还移除了 `CombatStat` 的三个旧字段，因此也需更新 `MortalModHost.dll`。新 Host 对旧版存在的字段继续清零，对现版已移除的字段不再直接引用；详见 [受影响接口核对](../../research/gameplay_api.md#2026-10-17-x64-更新核对)。
 
-以上安装说明是保留的代码能力。2026-10-25 的 Windows 构建及编辑器检查见 [整合验证](windows_event_task_merge_20261025.md)，该次没有启动游戏或执行真实安装；F5 试玩请求也不属于 Mac 预览验收。
+安装、离线测试、编辑器界面和游戏实机分别验证，当前结果见 [当前能力](current_capabilities.md)。
+
+## 临时目录与写入错误
+
+Windows 工作文件位于 `%LOCALAPPDATA%\lom_modkit\cache\work`，每次操作使用独立子目录。遇到拒绝访问时，先按报告中的实际路径区分工作目录、游戏目录和被占用 DLL，再检查该路径的权限、只读属性或文件占用。诊断信息会标明读取、暂存、备份或替换失败的位置。
 
 ## 原生离线验证入口
 

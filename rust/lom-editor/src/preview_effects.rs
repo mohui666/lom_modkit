@@ -499,15 +499,45 @@ fn event(
     }
     instances.push(Instance::new(spec, source, now));
 }
-pub fn simulate(
+pub struct Simulation {
+    instances: Vec<Instance>,
+    now: f64,
+    at_target: bool,
+}
+impl Simulation {
+    pub fn sample(&self, elapsed: f64, library: Option<&Library>) -> Value {
+        let now = self.now
+            + if self.at_target {
+                elapsed.max(0.0)
+            } else {
+                0.0
+            };
+        let mut instances = self.instances.clone();
+        for instance in &mut instances {
+            instance.advance(now);
+        }
+        Value::Array(
+            instances
+                .iter()
+                .filter(|instance| !instance.ended(library))
+                .map(|instance| instance.value(library))
+                .collect(),
+        )
+    }
+}
+pub fn prepare(
     story: &Value,
     target: &str,
-    elapsed: f64,
     include_target: bool,
     library: Option<&Library>,
-) -> Value {
+) -> Simulation {
+    let mut result = Simulation {
+        instances: Vec::new(),
+        now: 0.0,
+        at_target: false,
+    };
     if !lom_core::parallel::story_actions(story).any(|(_, node)| node["type"] == "effect") {
-        return json!([]);
+        return result;
     }
     let nodes = story["nodes"].as_array().map(Vec::as_slice).unwrap_or(&[]);
     let mut nodes_by_id = BTreeMap::new();
@@ -550,21 +580,23 @@ pub fn simulate(
             }
         }
         if id == target {
-            now += elapsed.max(0.0);
+            result.at_target = true;
             break;
         }
         now += super::playback_duration(parent);
     }
-    for instance in &mut instances {
-        instance.advance(now);
-    }
-    Value::Array(
-        instances
-            .iter()
-            .filter(|instance| !instance.ended(library))
-            .map(|instance| instance.value(library))
-            .collect(),
-    )
+    result.instances = instances;
+    result.now = now;
+    result
+}
+pub fn simulate(
+    story: &Value,
+    target: &str,
+    elapsed: f64,
+    include_target: bool,
+    library: Option<&Library>,
+) -> Value {
+    prepare(story, target, include_target, library).sample(elapsed, library)
 }
 pub fn target(item: &Value) -> Option<LayoutTarget> {
     Some(LayoutTarget::Effect {
@@ -1088,6 +1120,19 @@ mod tests {
             vec!["Rain_001", "Glow_001", "EventBubble_001", "Hit_001"]
         );
         assert!(extraction_names(&json!({"effects":[]}), true).is_empty());
+    }
+    #[test]
+    fn prepared_effects_can_seek_without_replaying_the_story_or_mutating_the_snapshot() {
+        let captured = library(clip(true, false));
+        let story = json!({"start":"play","nodes":[
+            {"id":"play","type":"effect","name":"Rain_001","stop_after":1.0,"wait_after":0.2},
+            {"id":"line","type":"say","text":"等待"}
+        ]});
+        let prepared = prepare(&story, "line", true, Some(&captured));
+        let initial = prepared.sample(0.0, Some(&captured));
+        assert_eq!(initial[0]["age"], 0.2);
+        assert_eq!(prepared.sample(1.0, Some(&captured))[0]["stopped_age"], 1.0);
+        assert_eq!(prepared.sample(0.0, Some(&captured)), initial);
     }
     #[test]
     fn unique_replay_resets_deadline_without_collecting_stacked_instances() {

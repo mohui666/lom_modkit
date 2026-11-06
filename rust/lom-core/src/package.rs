@@ -564,6 +564,9 @@ fn add_user_content(
         }
         if kind == "say" {
             refs.push(("voice", "audio", None));
+            if node["mood_icon"].is_string() {
+                refs.push(("mood_character", "character", None));
+            }
         }
         if kind == "cg" && node["kind"] == "event" && node["action"] == "show" {
             refs.push(("key", "image", None));
@@ -627,6 +630,7 @@ fn add_user_content(
             if ctype == "character"
                 && extension_id.is_none()
                 && ["show", "say", "portrait"].contains(&kind)
+                && raw == node["character"].as_str().unwrap_or("")
             {
                 if let Some(portrait) = node["portrait"].as_str().filter(|s| !s.is_empty()) {
                     ensure!(
@@ -870,15 +874,31 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
     } else {
         manifest["vanilla_overrides"] = json!(overrides);
     }
-    if requires_149 {
+    let requires_dialogue_mood = stories.values().any(|story| {
+        crate::parallel::story_actions(story)
+            .any(|(_, node)| node["type"] == "say" && node["mood_icon"].is_string())
+    });
+    if requires_149 || requires_dialogue_mood {
         let version = manifest["min_host_version"].as_str().unwrap_or("0.0.0");
         let core = version
             .split(['.', '-', '+'])
             .take(3)
             .map(|n| n.parse::<u32>().unwrap_or(0))
             .collect::<Vec<_>>();
-        if core.as_slice() < [1, 4, 9].as_slice() {
-            manifest["min_host_version"] = json!(crate::vanilla_patch::MIN_HOST);
+        let minimum = if requires_dialogue_mood {
+            [1, 4, 10]
+        } else {
+            [1, 4, 9]
+        };
+        if core.as_slice() < minimum.as_slice()
+            || core.as_slice() == minimum.as_slice()
+                && version.split('+').next().unwrap_or(version).contains('-')
+        {
+            manifest["min_host_version"] = json!(if requires_dialogue_mood {
+                "1.4.10"
+            } else {
+                crate::vanilla_patch::MIN_HOST
+            });
         }
         validate::validate_manifest(&manifest)?;
     }

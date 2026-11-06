@@ -319,8 +319,19 @@
     {
       "id": "mood_custom_line",
       "mode": "narrative",
-      "text": "自定义人物也可以独立显示气泡，位置由人物素材中的百分比控制。",
-      "type": "say"
+      "text": "本句临时显示害羞气泡，位置沿用上一步的偏移。",
+      "type": "say",
+      "mood_icon": "shy",
+      "mood_character": "user:showcase.lin_deng",
+      "_editor": {
+        "note": "单句气泡与恢复"
+      }
+    },
+    {
+      "id": "mood_custom_restore",
+      "type": "say",
+      "mode": "narrative",
+      "text": "本句结束后恢复先前的气泡样式和位置。"
     },
     {
       "character": "user:showcase.lin_deng",
@@ -737,5 +748,8 @@
       "next_script": "gameplay"
     }
   ],
-  "start": "initial_time"
+  "start": "initial_time",
+  "_editor": {
+    "chapter_group": "演出示例"
+  }
 }

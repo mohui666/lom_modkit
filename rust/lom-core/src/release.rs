@@ -79,6 +79,18 @@ struct ContentSpec<'a> {
 fn content_specs(node: &Value) -> Vec<ContentSpec<'_>> {
     let kind = text(node, "type");
     let mut refs = Vec::new();
+    if kind == "say"
+        && !text(node, "mood_icon").is_empty()
+        && !text(node, "mood_character").is_empty()
+    {
+        refs.push(ContentSpec {
+            field: "mood_character",
+            raw: text(node, "mood_character"),
+            kind: "character",
+            audio_kind: None,
+            portrait: None,
+        });
+    }
     if ["music", "sound"].contains(&kind) {
         refs.push(ContentSpec {
             field: "name",

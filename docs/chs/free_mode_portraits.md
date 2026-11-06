@@ -32,4 +32,4 @@
 
 Host 通过游戏 `CharacterPlaceholder` 的自恋主角配置加载立绘，表情仍使用 `normal` 等原有标识。该过程不修改天赋等级和官方配置资产。导出器要求 `min_host_version >= 1.1.2`，未填写时自动补入，已有更低版本声明时明确报错。
 
-`samples/showcase3/` 第一章包含美颜赵活登场、对白和恢复原版的示例。以下是 Rust 迁移前的历史实机记录，不代表当前 Rust 工具端已完成实机验收。2026-10-02 在 Windows 游戏 `release_1.0.5000.13` 中使用独立测试战役验证：普通、美颜、恢复普通的外观切换正确；四月上旬的地点事件能够触发，时间和好感度不符的规则不会命中；结束后回到自由模式，存档重载后再次进入练功场恢复原版活动，没有重复播放事件。该历史轮次未对 Showcase 的全部 Combat/Battle 节点重新进行游戏验收；当前 Rust 迁移没有新增 Windows 或游戏实机测试。
+可编辑示例见 [Showcase](../../samples/showcase3/README.md)，验证范围见 [当前能力](current_capabilities.md)。

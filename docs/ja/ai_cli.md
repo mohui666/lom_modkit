@@ -16,4 +16,4 @@ target/release/lomc edit story.json --operations operations.json --json
 
 `edit` applies an array of controlled operations atomically. On failure the input is unchanged. Use `check` before compilation. JSON output is UTF-8; exit code 0 means success and 1 means failure.
 
-[API reference and operation parameters](../chs/ai_cli.md) · [Migration coverage](../chs/rust_migration.md)
+[API reference and operation parameters](../chs/ai_cli.md) · [Build and modules](../chs/rust.md)

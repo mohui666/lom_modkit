@@ -264,6 +264,7 @@ pub fn build_playtest_prelude(story: &Value, target: &str) -> Vec<Value> {
 fn apply(s: &mut Value, n: &Value) {
     s["dialog"] = Value::Null;
     s["choice"] = Value::Null;
+    s["dialogue_mood"] = Value::Null;
     let cid = text(n, "character");
     let kind = text(n, "type");
     match kind {
@@ -411,6 +412,13 @@ fn apply(s: &mut Value, n: &Value) {
             }
         }
         "say" => {
+            if n["mood_icon"].is_string() {
+                let target = n["mood_character"]
+                    .as_str()
+                    .filter(|id| !id.is_empty())
+                    .unwrap_or(cid);
+                s["dialogue_mood"] = json!({"character":target, "icon":n["mood_icon"]});
+            }
             if s["actors"].get(cid).is_some() {
                 s["actors"][cid]["portrait"] =
                     n.get("portrait").cloned().unwrap_or(json!("normal"));
@@ -639,6 +647,8 @@ struct Simulation {
     target: String,
     before: Value,
     after: Value,
+    has_effects: bool,
+    effects: effects::Simulation,
 }
 pub struct Preview {
     pub mapping: Value,
@@ -741,6 +751,7 @@ impl Preview {
             Ok(library) => {
                 self.effect_library = Some(std::sync::Arc::new(library));
                 self.effect_library_error = None;
+                self.simulation = None;
                 Ok(())
             }
             Err(error) => {
@@ -761,6 +772,9 @@ impl Preview {
                 target: target.to_owned(),
                 before: simulate_until(story, target, false),
                 after: simulate(story, target),
+                has_effects: lom_core::parallel::story_actions(story)
+                    .any(|(_, node)| node["type"] == "effect"),
+                effects: effects::prepare(story, target, true, self.effect_library.as_deref()),
             });
         }
         &self.simulation.as_ref().unwrap().after
@@ -954,10 +968,26 @@ impl Preview {
         if !canon.starts_with(root) {
             return None;
         }
+        let mut meta = json!({});
+        if character && self.mapping["portrait_canvas"] != "sprite_rect" {
+            static GEOMETRY: std::sync::OnceLock<Value> = std::sync::OnceLock::new();
+            let geometry = GEOMETRY.get_or_init(|| {
+                serde_json::from_str(include_str!("../../../data/portrait_geometry.json"))
+                    .expect("portrait geometry")
+            });
+            let portrait = if self.mapping["characters"][name]["portraits"][portrait].is_string() {
+                portrait
+            } else {
+                "normal"
+            };
+            if geometry[name][portrait].is_object() {
+                meta["_preview_geometry"] = geometry[name][portrait].clone();
+            }
+        }
         Some((
             canon.to_string_lossy().into(),
             AssetSource::Library(canon),
-            json!({}),
+            meta,
         ))
     }
     fn texture(
@@ -968,23 +998,34 @@ impl Preview {
         character: bool,
         portrait: &str,
     ) -> Option<(TextureHandle, Value)> {
+        self.tick += 1;
+        let mood_key = name
+            .strip_prefix("@mood:")
+            .map(|_| format!("mood-frame:{}:{name}", self.library.display()));
+        if let Some(cached) = mood_key.as_ref().and_then(|key| self.cache.get_mut(key)) {
+            cached.touched = self.tick;
+            return Some((cached.texture.clone(), json!({})));
+        }
         let (key, source, meta) = self.asset(p, name, character, portrait)?;
         use std::hash::{Hash, Hasher};
-        let key = match &source {
-            AssetSource::Project(bytes) => {
-                let mut hash = std::collections::hash_map::DefaultHasher::new();
-                bytes.hash(&mut hash);
-                format!("{key}:{}", hash.finish())
-            }
-            AssetSource::Library(path) => {
-                let metadata = std::fs::metadata(path).ok()?;
-                if metadata.len() > 32 * 1024 * 1024 {
-                    return None;
+        let key = if let Some(key) = mood_key {
+            key
+        } else {
+            match &source {
+                AssetSource::Project(bytes) => {
+                    let mut hash = std::collections::hash_map::DefaultHasher::new();
+                    bytes.hash(&mut hash);
+                    format!("{key}:{}", hash.finish())
                 }
-                format!("{key}:{}:{:?}", metadata.len(), metadata.modified().ok()?)
+                AssetSource::Library(path) => {
+                    let metadata = std::fs::metadata(path).ok()?;
+                    if metadata.len() > 32 * 1024 * 1024 {
+                        return None;
+                    }
+                    format!("{key}:{}:{:?}", metadata.len(), metadata.modified().ok()?)
+                }
             }
         };
-        self.tick += 1;
         if let Some(c) = self.cache.get_mut(&key) {
             c.touched = self.tick;
             return Some((c.texture.clone(), meta));
@@ -999,13 +1040,18 @@ impl Preview {
         let reader = image::ImageReader::new(std::io::Cursor::new(bytes))
             .with_guessed_format()
             .ok()?;
-        let image = reader.decode().ok()?.thumbnail(1600, 1600).into_rgba8();
+        let image = reader.decode().ok()?;
+        let image = if image.width() > 1600 || image.height() > 1600 {
+            image.thumbnail(1600, 1600)
+        } else {
+            image
+        }
+        .into_rgba8();
         let size = [image.width() as usize, image.height() as usize];
         let opaque = opaque_bounds(&image);
         let cost = size[0] * size[1] * 4;
         while !self.cache.is_empty()
-            && (self.cache.len() >= 60
-                || self.cache.values().map(|c| c.bytes).sum::<usize>() + cost > 256 * 1024 * 1024)
+            && self.cache.values().map(|c| c.bytes).sum::<usize>() + cost > 256 * 1024 * 1024
         {
             let oldest = self
                 .cache
@@ -1185,7 +1231,7 @@ impl Preview {
         icon: &str,
         flipped: bool,
     ) -> Option<(TextureHandle, Value)> {
-        let animation = self.mapping["moods"][icon][if flipped { "right" } else { "left" }].clone();
+        let animation = &self.mapping["moods"][icon][if flipped { "right" } else { "left" }];
         let Some(frames) = animation["frames"].as_array() else {
             self.mood_clocks.remove(cid);
             return None;
@@ -1200,28 +1246,32 @@ impl Preview {
             *clock = (key, now);
         }
         let elapsed = now - clock.1;
-        let duration = number(&animation, "duration", 1.0);
-        let time = match animation["loop_start"].as_f64() {
-            Some(start) if elapsed >= duration && duration > start => {
-                start + (elapsed - start) % (duration - start)
-            }
+        let duration = number(animation, "duration", 1.0);
+        let loop_start = animation["loop_start"]
+            .as_f64()
+            .filter(|start| *start >= 0.0 && duration > *start);
+        let time = match loop_start {
+            Some(start) if elapsed >= duration => start + (elapsed - start) % (duration - start),
             _ => elapsed.min(duration),
         };
         let frame = frames
             .iter()
             .rev()
             .find(|frame| number(frame, "time", 0.0) <= time)?;
-        if elapsed < duration || animation["loop_start"].is_number() {
-            ctx.request_repaint_after(std::time::Duration::from_millis(33));
+        let next_frame = frames
+            .iter()
+            .find(|frame| number(frame, "time", 0.0) > time)
+            .map(|frame| number(frame, "time", 0.0));
+        let next_time = next_frame.or_else(|| loop_start.map(|_| duration));
+        if let Some(next_time) = next_time.filter(|_| elapsed < duration || loop_start.is_some()) {
+            ctx.request_repaint_after(std::time::Duration::from_secs_f64(
+                (next_time - time).max(0.001),
+            ));
         }
-        let (texture, _) = self.texture(
-            ctx,
-            project,
-            &format!("@mood:{}", text(frame, "file")),
-            false,
-            "",
-        )?;
-        Some((texture, animation))
+        let file = format!("@mood:{}", text(frame, "file"));
+        let layout = json!({"size": animation["size"], "offset": animation["offset"]});
+        let (texture, _) = self.texture(ctx, project, &file, false, "")?;
+        Some((texture, layout))
     }
     fn anchor(&self, pos: &str) -> (f32, f32) {
         let (x, feet) = position(&self.positions, pos);
@@ -1233,9 +1283,7 @@ impl Preview {
         {
             return;
         }
-        ui.small(crate::i18n::tr(
-            "旧版预览素材可能丢失立绘透明边距，请重新提取以校正表情大小。",
-        ));
+        ui.small(crate::i18n::tr("当前使用旧版预览素材。"));
         if ui.button(crate::i18n::tr("从游戏提取预览素材…")).clicked() {
             self.extract_requested = true;
         }
@@ -1254,6 +1302,7 @@ impl Preview {
         let context = (text(story, "id").to_owned(), target.to_owned());
         if self.layout_context != context {
             self.cancel_layout_drag();
+            self.mood_clocks.clear();
             self.layout_context = context;
         }
         let mut state = self.state(story, target).clone();
@@ -1267,16 +1316,23 @@ impl Preview {
             );
         }
         let now = ui.input(|input| input.time);
-        self.effect_clock.sync(p, story, target, now);
+        let has_effects = self.simulation.as_ref().unwrap().has_effects;
+        if has_effects {
+            self.effect_clock.sync(p, story, target, now);
+        }
         let effect_library = self.effect_library.clone();
         let effect_cycle = effects::cycle(node, effect_library.as_deref());
-        let has_effects =
-            lom_core::parallel::story_actions(story).any(|(_, node)| node["type"] == "effect");
         let effect_time = self
             .effect_clock
             .time(now, elapsed, effect_cycle, self.layout_mode);
-        state["effects"] =
-            effects::simulate(story, target, effect_time, true, effect_library.as_deref());
+        if has_effects {
+            state["effects"] = self
+                .simulation
+                .as_ref()
+                .unwrap()
+                .effects
+                .sample(effect_time, effect_library.as_deref());
+        }
         let captured = effect_cycle.is_some()
             || state["effects"]
                 .as_array()
@@ -1291,8 +1347,12 @@ impl Preview {
             let time = self
                 .effect_clock
                 .time(now, elapsed, effect_cycle, self.layout_mode);
-            state["effects"] =
-                effects::simulate(story, target, time, true, effect_library.as_deref());
+            state["effects"] = self
+                .simulation
+                .as_ref()
+                .unwrap()
+                .effects
+                .sample(time, effect_library.as_deref());
         }
         if has_effects {
             let missing = effect_library.is_none()
@@ -1350,9 +1410,13 @@ impl Preview {
             }
         }
         self.layout_controls(ui, p, &state);
-        if self.layout_mode {
-            state["effects"] =
-                effects::simulate(story, target, 0.0, true, effect_library.as_deref());
+        if has_effects && self.layout_mode {
+            state["effects"] = self
+                .simulation
+                .as_ref()
+                .unwrap()
+                .effects
+                .sample(0.0, effect_library.as_deref());
         }
         self.apply_layout_draft(&mut state);
         let mood_target = (node["type"] == "mood" && !self.layout_mode).then(|| {
@@ -1478,27 +1542,11 @@ impl Preview {
                         let size = tex.size_vec2();
                         let calibration =
                             lom_core::portrait_alignment::layout(&meta, text(a, "portrait"));
-                        let portrait_scale = calibration[2] as f32 / 100.0;
                         let art_left = meta["art_facing"].as_str().unwrap_or("left") != "right";
                         let flipped = (text(a, "facing") == "left") != art_left;
                         let sign = if flipped { -1.0 } else { 1.0 };
-                        let factor = (rect.width() / size.x).min(rect.height() / size.y)
-                            * body_scale
-                            * portrait_scale;
-                        let (w, h) = (size.x * factor, size.y * factor);
-                        let dest = Rect::from_min_size(
-                            Pos2::new(
-                                base.x - w / 2.0
-                                    + sign * calibration[0] as f32 / 1920.0
-                                        * rect.width()
-                                        * body_scale,
-                                base.y
-                                    - rect.height() * body_scale * portrait_scale / 2.0
-                                    - h / 2.0
-                                    - calibration[1] as f32 / 1080.0 * rect.height() * body_scale,
-                            ),
-                            Vec2::new(w, h),
-                        );
+                        let dest =
+                            portrait_rect(rect, base, size, body_scale, calibration, sign, &meta);
                         let brightness = if a["dimmed"].as_bool().unwrap_or(false) {
                             128
                         } else {
@@ -2300,12 +2348,74 @@ impl Preview {
 fn uv() -> Rect {
     Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0))
 }
+fn portrait_rect(
+    stage: Rect,
+    base: Pos2,
+    size: Vec2,
+    body_scale: f32,
+    calibration: [f64; 3],
+    sign: f32,
+    meta: &Value,
+) -> Rect {
+    let geometry = &meta["_preview_geometry"];
+    let canvas = Vec2::new(
+        geometry["canvas"][0].as_f64().unwrap_or(0.0) as f32,
+        geometry["canvas"][1].as_f64().unwrap_or(0.0) as f32,
+    );
+    let image = Rect::from_min_size(
+        Pos2::new(
+            geometry["image"][0].as_f64().unwrap_or(0.0) as f32,
+            geometry["image"][1].as_f64().unwrap_or(0.0) as f32,
+        ),
+        Vec2::new(
+            geometry["image"][2].as_f64().unwrap_or(0.0) as f32,
+            geometry["image"][3].as_f64().unwrap_or(0.0) as f32,
+        ),
+    );
+    // Legacy PNGs contain the trimmed image. Match its aspect before applying
+    // geometry so an already restored canvas is never padded a second time.
+    let legacy = canvas.min_elem() > 0.0
+        && image.is_positive()
+        && ((size.x / size.y - image.width() / image.height()) * size.y).abs() <= 2.0;
+    let (canvas, image) = if legacy {
+        (canvas, image)
+    } else {
+        (size, Rect::from_min_size(Pos2::ZERO, size))
+    };
+    let scale = calibration[2] as f32 / 100.0;
+    let factor = (stage.width() / canvas.x).min(stage.height() / canvas.y) * body_scale * scale;
+    let top_left = Pos2::new(
+        base.x - canvas.x * factor / 2.0
+            + sign * calibration[0] as f32 / 1920.0 * stage.width() * body_scale,
+        base.y
+            - stage.height() * body_scale * scale / 2.0
+            - canvas.y * factor / 2.0
+            - calibration[1] as f32 / 1080.0 * stage.height() * body_scale,
+    );
+    let x = if sign < 0.0 {
+        canvas.x - image.right()
+    } else {
+        image.left()
+    };
+    Rect::from_min_size(
+        top_left + Vec2::new(x, image.top()) * factor,
+        image.size() * factor,
+    )
+}
 fn visible_mood<'a>(state: &'a Value, cid: &str, actor: &'a Value) -> Option<&'a str> {
     if actor["dimmed"] == true
         || actor["preview_hide_mood"] == true
         || number(actor, "preview_opacity", 1.0) < 0.999
     {
         return None;
+    }
+    let dialogue = &state["dialogue_mood"];
+    if dialogue["character"] == cid {
+        return match dialogue["icon"].as_str()? {
+            "hide" => None,
+            "auto" => actor["portrait"].as_str(),
+            icon => Some(icon),
+        };
     }
     let setting = &state["mood_overrides"][cid];
     if setting.is_object() {
@@ -3241,6 +3351,150 @@ end
 mod content_tests {
     use super::*;
     #[test]
+    fn legacy_cropped_portraits_match_the_original_canvas_in_both_directions() {
+        let geometry: Value =
+            serde_json::from_str(include_str!("../../../data/portrait_geometry.json")).unwrap();
+        let stage = Rect::from_min_size(Pos2::ZERO, Vec2::new(1920.0, 1080.0));
+        let base = Pos2::new(960.0, 1083.0);
+        for character in ["player", "girl2"] {
+            let data = &geometry[character]["normal"];
+            let canvas = Vec2::new(
+                data["canvas"][0].as_f64().unwrap() as f32,
+                data["canvas"][1].as_f64().unwrap() as f32,
+            );
+            let crop = Rect::from_min_size(
+                Pos2::new(
+                    data["image"][0].as_f64().unwrap() as f32,
+                    data["image"][1].as_f64().unwrap() as f32,
+                ),
+                Vec2::new(
+                    data["image"][2].as_f64().unwrap() as f32,
+                    data["image"][3].as_f64().unwrap() as f32,
+                ),
+            );
+            for sign in [-1.0, 1.0] {
+                for scale in [0.5, 1.0, 1.5] {
+                    let calibration = [15.0, 20.0, 115.0];
+                    let full =
+                        portrait_rect(stage, base, canvas, scale, calibration, sign, &json!({}));
+                    let meta = json!({"_preview_geometry": data});
+                    let legacy = portrait_rect(
+                        stage,
+                        base,
+                        crop.size() * 0.8,
+                        scale,
+                        calibration,
+                        sign,
+                        &meta,
+                    );
+                    let factor = full.height() / canvas.y;
+                    let x = if sign < 0.0 {
+                        canvas.x - crop.right()
+                    } else {
+                        crop.left()
+                    };
+                    let expected = Rect::from_min_size(
+                        full.min + Vec2::new(x, crop.top()) * factor,
+                        crop.size() * factor,
+                    );
+                    assert!(legacy.min.distance(expected.min) < 0.01);
+                    assert!(legacy.max.distance(expected.max) < 0.01);
+                    assert_eq!(
+                        portrait_rect(stage, base, canvas, scale, calibration, sign, &meta),
+                        full
+                    );
+                }
+            }
+        }
+    }
+    #[test]
+    fn dialogue_mood_restores_the_previous_setting_and_never_enters_the_prelude() {
+        for character in ["player", "user:fixture.actor"] {
+            let mut story = json!({"start":"show","mood":false,"nodes":[
+                {"id":"show","type":"show","character":character,"portrait":"shy"},
+                {"id":"persistent","type":"mood","character":character,"enabled":true,"icon":"silent","offset_x":12},
+                {"id":"line","type":"say","character":character,"portrait":"shy","mood_icon":"shock","text":"本句"},
+                {"id":"next","type":"say","character":character,"portrait":"shy","text":"恢复"}
+            ]});
+            for (icon, expected) in [
+                ("shock", Some("shock")),
+                ("hide", None),
+                ("auto", Some("shy")),
+            ] {
+                story["nodes"][2]["mood_icon"] = json!(icon);
+                let state = simulate(&story, "line");
+                assert_eq!(
+                    visible_mood(&state, character, &state["actors"][character]),
+                    expected
+                );
+                assert_eq!(state["mood_overrides"][character]["offset_x"], 12);
+                let next = simulate(&story, "next");
+                assert_eq!(
+                    visible_mood(&next, character, &next["actors"][character]),
+                    Some("silent")
+                );
+                let prelude = build_playtest_prelude(&story, "next");
+                assert!(prelude
+                    .iter()
+                    .any(|node| node["type"] == "mood" && node["icon"] == "silent"));
+                assert!(!prelude
+                    .iter()
+                    .any(|node| node["icon"] == icon && icon != "silent"));
+            }
+        }
+    }
+
+    #[test]
+    fn animation_frames_stay_cached_beyond_sixty_images_and_reload_with_the_library() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut preview = Preview::new(Path::new("/unused"));
+        preview.library = directory.path().to_path_buf();
+        let mut frames = Vec::new();
+        let ctx = egui::Context::default();
+        let project = Project::new();
+        for index in 0..90 {
+            let name = format!("frame{index}.png");
+            image::RgbaImage::from_pixel(8, 8, image::Rgba([index, 0, 0, 255]))
+                .save(directory.path().join(&name))
+                .unwrap();
+            let key = format!("@mood:{name}");
+            frames.push((
+                key.clone(),
+                preview
+                    .texture(&ctx, &project, &key, false, "")
+                    .unwrap()
+                    .0
+                    .id(),
+            ));
+        }
+        for (key, id) in &frames {
+            assert_eq!(
+                preview
+                    .texture(&ctx, &project, key, false, "")
+                    .unwrap()
+                    .0
+                    .id(),
+                *id
+            );
+        }
+        assert_eq!(preview.cache.len(), 90);
+        std::fs::write(
+            directory.path().join("preview_map.json"),
+            b"{\"characters\":{},\"views\":{}}",
+        )
+        .unwrap();
+        preview.set_library(directory.path()).unwrap();
+        assert_ne!(
+            preview
+                .texture(&ctx, &project, &frames[0].0, false, "")
+                .unwrap()
+                .0
+                .id(),
+            frames[0].1
+        );
+    }
+
+    #[test]
     fn cached_stage_updates_after_story_edits_selection_changes_and_undo() {
         let mut preview = Preview::new(Path::new("/unused"));
         let mut story = json!({"id":"main","start":"show","nodes":[
@@ -3377,7 +3631,7 @@ mod content_tests {
         assert!(nodes.iter().any(|(_, node)| node
             .label()
             .or_else(|| node.value())
-            .is_some_and(|label| label.contains("透明边距"))));
+            .is_some_and(|label| label.contains("旧版预览素材"))));
         let button = nodes
             .into_iter()
             .find_map(|(id, node)| {
@@ -3409,7 +3663,7 @@ mod content_tests {
             .any(|(_, node)| node
                 .label()
                 .or_else(|| node.value())
-                .is_some_and(|label| label.contains("透明边距"))));
+                .is_some_and(|label| label.contains("旧版预览素材"))));
     }
     #[test]
     fn portraits_reach_the_stage_bottom_and_keep_explicit_vertical_offsets() {

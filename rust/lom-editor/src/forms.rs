@@ -6,6 +6,8 @@ pub struct Catalog {
     pub schema: Value,
     pub data: Value,
     story_titles: std::collections::BTreeMap<String, String>,
+    character_options:
+        std::cell::RefCell<std::collections::BTreeMap<(String, String), Vec<(String, String)>>>,
 }
 
 pub struct NodeFormResponse {
@@ -145,6 +147,7 @@ impl Catalog {
             data: serde_json::from_str(include_str!("../../../data/editor_data.json"))
                 .expect("embedded editor data"),
             story_titles: Default::default(),
+            character_options: Default::default(),
         }
     }
     pub fn sync_story_titles(&mut self, stories: &std::collections::BTreeMap<String, Value>) {
@@ -154,6 +157,7 @@ impl Catalog {
             .collect();
     }
     pub fn sync_assets(&mut self, assets: &std::collections::BTreeMap<String, Vec<u8>>) {
+        self.character_options.get_mut().clear();
         self.data = lom_core::validate::catalog_with_assets(assets)
             .unwrap_or_else(|_| lom_core::validate::editor_data().clone());
         self.data["user_images"] = json!([]);
@@ -262,6 +266,29 @@ impl Catalog {
         nodes: &[String],
         stories: &[String],
     ) -> Vec<(String, String)> {
+        let cache_key = is_character_selector(kind)
+            .then(|| (crate::i18n::locale().to_owned(), kind.to_owned()));
+        if let Some(options) = cache_key
+            .as_ref()
+            .and_then(|key| self.character_options.borrow().get(key).cloned())
+        {
+            return options;
+        }
+        let options = self.build_options(kind, node, nodes, stories);
+        if let Some(key) = cache_key {
+            self.character_options
+                .borrow_mut()
+                .insert(key, options.clone());
+        }
+        options
+    }
+    fn build_options(
+        &self,
+        kind: &str,
+        node: &Value,
+        nodes: &[String],
+        stories: &[String],
+    ) -> Vec<(String, String)> {
         if kind == "official_character" {
             let characters: Vec<_> = self.data["characters"]
                 .as_array()
@@ -313,13 +340,7 @@ impl Catalog {
         stories: &[String],
     ) -> Vec<(String, String)> {
         if kind == "mood_character" {
-            let characters: Vec<_> = self.data["characters"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .cloned()
-                .collect();
-            return localized_rows(&json!(characters), "characters");
+            return localized_rows(&self.data["characters"], "characters");
         }
         if kind == "character_group" {
             let rows: Vec<Value> = self.data["characters"]
@@ -585,6 +606,37 @@ impl Catalog {
             }
         });
         ui.add_space(6.0);
+        let mut note = node["_editor"]["note"].as_str().unwrap_or("").to_owned();
+        let editable_note = node["_editor"].is_null() || node["_editor"].is_object();
+        ui.label(tr("节点备注"));
+        if ui
+            .add_enabled(
+                editable_note,
+                egui::TextEdit::singleline(&mut note)
+                    .hint_text(node["id"].as_str().unwrap_or("可选"))
+                    .desired_width(f32::INFINITY),
+            )
+            .changed()
+        {
+            let editor = node
+                .as_object_mut()
+                .unwrap()
+                .entry("_editor")
+                .or_insert_with(|| json!({}));
+            if editor.is_null() {
+                *editor = json!({});
+            }
+            let editor = editor.as_object_mut().unwrap();
+            if note.trim().is_empty() {
+                editor.remove("note");
+            } else {
+                editor.insert("note".into(), json!(note));
+            }
+            if editor.is_empty() {
+                node.as_object_mut().unwrap().remove("_editor");
+            }
+            changed = true;
+        }
         if kind == "parallel" {
             changed |= self.parallel_actions(ui, node);
             ui.collapsing(crate::i18n::key("form.advanced"), |ui| {
@@ -1863,6 +1915,8 @@ fn absent_label(node: &Value, key: &str, kind: &str) -> String {
         ("mood", "character", _) => "全场自动气泡",
         ("mood", "icon", _) => "跟随人物表情（默认）",
         ("say", "mode", _) => "对话（默认）",
+        ("say", "mood_icon", _) => "沿用现有气泡",
+        ("say", "mood_character", _) => "发言人（默认）",
         (_, _, "portrait") => "默认表情",
         (_, _, "voice") => "无语音",
         ("say", "character", _)
@@ -1944,6 +1998,11 @@ fn field_visible(kind: &str, node: &Value, key: &str) -> bool {
     }
     if kind == "say" && key == "text_align" {
         return matches!(node["mode"].as_str(), Some("narrative" | "center"));
+    }
+    if kind == "say" && key == "mood_character" {
+        return node["mood_icon"]
+            .as_str()
+            .is_some_and(|icon| !icon.is_empty());
     }
     if kind == "cg" {
         return match key {

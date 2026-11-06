@@ -57,7 +57,11 @@ pub fn find_stage_issues(story: &Value) -> Vec<(String, String)> {
     let universe: BTreeSet<String> = ns
         .iter()
         .flat_map(|n| crate::parallel::actions(n))
-        .filter_map(|n| n["character"].as_str())
+        .flat_map(|n| {
+            [n["character"].as_str(), n["mood_character"].as_str()]
+                .into_iter()
+                .flatten()
+        })
         .filter(|s| !s.is_empty())
         .map(str::to_owned)
         .collect();
@@ -133,10 +137,16 @@ pub fn find_stage_issues(story: &Value) -> Vec<(String, String)> {
             let id = text(n, "id");
             crate::parallel::actions(n)
                 .iter()
-                .filter_map(|action| {
-                    let cid = required_character(action)?;
-                    (reachable.contains(id) && !ins[id].contains(cid))
-                        .then(|| (id.into(), cid.into()))
+                .flat_map(|action| {
+                    let speaker = required_character(action);
+                    let mood = (action["type"] == "say" && action["mood_icon"].is_string())
+                        .then(|| text(action, "mood_character"))
+                        .filter(|cid| !cid.is_empty() && Some(*cid) != speaker);
+                    [speaker, mood]
+                        .into_iter()
+                        .flatten()
+                        .filter(|cid| reachable.contains(id) && !ins[id].contains(*cid))
+                        .map(|cid| (id.into(), cid.into()))
                 })
                 .collect::<Vec<_>>()
         })
@@ -145,14 +155,11 @@ pub fn find_stage_issues(story: &Value) -> Vec<(String, String)> {
 pub fn ensure_stage(story: &mut Value, node_id: &str) -> Option<Value> {
     let ns = nodes(story);
     let index = ns.iter().position(|n| text(n, "id") == node_id)?;
-    let cid = required_character(&ns[index])
-        .map(str::to_owned)
-        .or_else(|| {
-            find_stage_issues(story)
-                .into_iter()
-                .find(|(id, _)| id == node_id)
-                .map(|(_, cid)| cid)
-        })?;
+    let cid = find_stage_issues(story)
+        .into_iter()
+        .find(|(id, _)| id == node_id)
+        .map(|(_, cid)| cid)
+        .or_else(|| required_character(&ns[index]).map(str::to_owned))?;
     let used: BTreeSet<_> = ns.iter().map(|n| text(n, "id")).collect();
     let id = (1..)
         .map(|i| format!("show{i}"))

@@ -104,4 +104,4 @@
 
 [原版附加剧情](../../samples/event-addon/)与[自由剧本](../../samples/event-sandbox/)示例均包含七月事件、接受/拒绝、交信任务和可重复日常事件池。
 
-交付目录保留 Mac 端历史验证记录；本次 Windows 整合另外完成 Rust/C# 离线测试、三个示例生成与 inspect、Host 和 Windows 编辑器构建及实际编辑器 GUI 检查。具体结果见 [Windows 整合验证](windows_event_task_merge_20261025.md)。本次未启动游戏或安装到游戏目录，离线与编辑器结果不代表游戏实机验收。
+当前验证入口见 [测试入口](test_matrix.md)，具体版本范围见 [当前能力](current_capabilities.md)。
