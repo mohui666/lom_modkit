@@ -11,6 +11,8 @@ import hashlib
 import json
 from pathlib import Path
 import sys
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 from mood_preview import extract_moods
 from event_picture_preview import extract_event_book
 
@@ -177,7 +179,22 @@ def main():
     parser.add_argument("--game-dir", type=Path)
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--max-size", default=1024, type=int)
+    parser.add_argument("--story-list", action="store_true", help="读取本机游戏的原版章节目录")
+    parser.add_argument("--story-script", help="读取一个原版章节，仅返回内存文本")
+    parser.add_argument("--story-routes", action="store_true", help="读取原版章节的静态路线关系，不导出源码")
     args = parser.parse_args()
+    if args.story_routes:
+        if args.game_dir is None:
+            parser.error("读取路线需要 --game-dir")
+        from story_route_reader import read_routes
+        emit("result", routes=read_routes(args.game_dir))
+        return
+    if args.story_list or args.story_script is not None:
+        if args.game_dir is None:
+            parser.error("读取原版剧情需要 --game-dir")
+        from vanilla_story_reader import read
+        emit("result", **read(args.game_dir, args.story_script))
+        return
     if args.self_check:
         import UnityPy
         import _probe_assets

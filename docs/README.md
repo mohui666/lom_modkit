@@ -1,6 +1,6 @@
 # lom_modkit 文档
 
-本文档对应 **1.4.8** 的源码与功能；编辑器、编译器由 Rust 提供，C# Host 保留游戏接入。当前改动与已记录的验证见 [1.4.8 更新说明](../RELEASE_NOTES_v1.4.8.md)，实际发布状态与下载附件以 [发布记录](https://github.com/mohui666/lom_modkit/releases) 为准。
+本文档对应 **1.4.9** 的源码与功能。编辑器、编译器由 Rust 提供，C# Host 提供游戏接入。当前改动见 [1.4.9 更新说明](../RELEASE_NOTES_v1.4.9.md)，验证范围见 [当前能力](chs/current_capabilities.md)，下载附件见 [发布记录](https://github.com/mohui666/lom_modkit/releases)。
 
 先按用途选择：[安装与开始](#安装与开始) · [创作专题](#创作专题) · [契约与开发](#契约与开发) · [维护](#维护) · [历史构建与验收](#历史构建与验收) · [译文与兼容入口](#译文与兼容入口)。
 
@@ -14,6 +14,7 @@
 | --- | --- |
 | [Windows 快速开始](chs/windows_quick_start.md) | 完整包内也可阅读的安装、定位与新建指引 |
 | [软件使用](chs/software_usage.md) | 新建、章节、步骤、保存、预览与导出 |
+| [原版剧情编辑与路线图](chs/software_usage.md#原版剧情补丁149) | 整章导入、条件插入、游戏标记与路线图定位 |
 | [当前能力](chs/current_capabilities.md) | 当前功能、最低 Host 需求与已验证范围 |
 | [核心功能教程](chs/core_tutorial.md) | v1.3.0 录屏与跟做项目；当前操作以软件使用为准 |
 | [Mac 编辑器](chs/macos.md) | 源码构建、启动与素材设置；历史 GUI 记录另行注明 |
@@ -28,7 +29,7 @@
 | [多语言](chs/i18n.md) | 界面语言、资源显示名称和作品翻译 |
 | [自动恢复](chs/editor_recovery.md) | 快照位置、恢复流程与保存边界 |
 | [自由模式与人物立绘](chs/free_mode_portraits.md) | 赵活外观与旧战役时间／地点触发器 |
-| [Showcase 3.0](../samples/showcase3/README.md) | 7 章、67 类节点的完整样例与生成入口 |
+| [Showcase 3.0](../samples/showcase3/README.md) | 10 章、67 类节点的完整样例与生成入口 |
 
 ## 契约与开发
 

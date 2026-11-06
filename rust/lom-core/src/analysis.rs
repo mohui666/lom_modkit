@@ -62,6 +62,11 @@ pub fn successors(story: &Value, index: usize) -> Vec<String> {
     };
     add(&node["goto"]);
     match kind {
+        "end" if node["resume_original"] == true && story.get("vanilla_import").is_some() => {
+            if let Some(next) = crate::vanilla_import::resume_index(story, index) {
+                add(&ns[next]["id"]);
+            }
+        }
         "choice" => {
             for opt in node["options"].as_array().into_iter().flatten() {
                 add(&opt["goto"]);

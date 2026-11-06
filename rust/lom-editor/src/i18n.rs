@@ -104,11 +104,47 @@ fn tr_index(source: &str, index: usize) -> String {
 pub fn term(category: &str, id: &str, fallback: &str) -> String {
     term_index(category, id, fallback, LOCALE.load(Ordering::Relaxed))
 }
+
+/// Official resource labels can fall back to names from Traditional assets.
+/// The embedded character table is loaded once and preserves Unicode symbols.
+/// Ambiguous characters used in simplified names, such as 著 in 著作, stay intact.
+pub fn simplified_label(text: &str) -> String {
+    if text.is_ascii() {
+        return text.into();
+    }
+    static CHARACTERS: OnceLock<std::collections::HashMap<char, char>> = OnceLock::new();
+    let characters = CHARACTERS.get_or_init(|| {
+        serde_json::from_str(include_str!("../data/chs-characters.json"))
+            .expect("simplified resource characters")
+    });
+    let mut result = String::with_capacity(text.len());
+    result.extend(
+        text.chars()
+            .map(|character| characters.get(&character).copied().unwrap_or(character)),
+    );
+    result
+}
+
 fn term_index(category: &str, id: &str, fallback: &str, index: usize) -> String {
     static TERMS: OnceLock<[Value; 4]> = OnceLock::new();
     let tables = TERMS.get_or_init(|| {
+        let mut simplified: Value =
+            serde_json::from_str(include_str!("../../../editor/i18n/terms/chs.json")).unwrap();
+        for category in simplified
+            .as_object_mut()
+            .expect("resource categories")
+            .values_mut()
+        {
+            for label in category
+                .as_object_mut()
+                .expect("resource terms")
+                .values_mut()
+            {
+                *label = Value::String(simplified_label(label.as_str().expect("resource label")));
+            }
+        }
         [
-            serde_json::from_str(include_str!("../../../editor/i18n/terms/chs.json")).unwrap(),
+            simplified,
             serde_json::from_str(include_str!("../../../editor/i18n/terms/cht.json")).unwrap(),
             serde_json::from_str(include_str!("../../../editor/i18n/terms/ja.json")).unwrap(),
             serde_json::from_str(include_str!("../../../editor/i18n/terms/ko.json")).unwrap(),
@@ -117,12 +153,15 @@ fn term_index(category: &str, id: &str, fallback: &str, index: usize) -> String 
     if id.starts_with("user:") {
         return fallback.into();
     }
-    tables[index][category][id]
+    let translated = tables[index][category][id]
         .as_str()
         .filter(|s| !s.is_empty())
-        .or_else(|| tables[0][category][id].as_str().filter(|s| !s.is_empty()))
-        .unwrap_or(fallback)
-        .into()
+        .or_else(|| tables[0][category][id].as_str().filter(|s| !s.is_empty()));
+    match translated {
+        Some(translated) => translated.into(),
+        None if index == 0 => simplified_label(fallback),
+        None => fallback.into(),
+    }
 }
 pub fn help_html(locale: &str) -> &'static str {
     match locale {
@@ -237,6 +276,26 @@ mod native_tests {
 
 #[cfg(test)]
 mod term_tests {
+    #[test]
+    fn simplified_resource_names_cover_fallbacks_and_preserve_unicode_and_user_names() {
+        assert_eq!(
+            super::simplified_label("繁體資源·乾坤著作😀‧✓한국어"),
+            "繁体资源·乾坤著作😀‧✓한국어"
+        );
+        assert_eq!(
+            super::term_index("characters", "unknown_prop", "雜項_破損屋樑", 0),
+            "杂项_破损屋梁"
+        );
+        assert_eq!(super::term_index("talents", "1207", "犯劍", 0), "犯剑");
+        assert_eq!(
+            super::term_index("characters", "user:demo.hero", "原創人物", 0),
+            "原創人物"
+        );
+        assert_eq!(
+            super::term_index("characters", "unknown_prop", "雜項_樹枝", 1),
+            "雜項_樹枝"
+        );
+    }
     #[test]
     fn resource_codes_have_display_names_in_every_ui_language() {
         let data: serde_json::Value =

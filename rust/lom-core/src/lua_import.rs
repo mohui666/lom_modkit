@@ -53,6 +53,91 @@ pub fn import(source: &str, id: &str, title: &str) -> Result<ImportResult> {
     Ok(ImportResult { story, report })
 }
 
+/// Keep native statements in their original Lua scope. Editable statements carry
+/// their exact source alongside the baseline fields used by the editor.
+pub(crate) fn import_vanilla(
+    source: &str,
+    id: &str,
+    title: &str,
+    target: &str,
+    translations: &BTreeMap<String, String>,
+) -> Result<Value> {
+    use crate::vanilla_import::Origin;
+    let source = source.strip_prefix('\u{feff}').unwrap_or(source);
+    ensure!(!source.trim().is_empty(), "原版章节为空");
+    let mut state = State {
+        dialog: "character".into(),
+        translations: translations.clone(),
+        ..Default::default()
+    };
+    let mut origins = Vec::new();
+    let mut cursor = 0;
+    for statement in statements(source) {
+        let mut candidates = Vec::new();
+        if !recognize(&statement.code, &mut state, &mut candidates) || candidates.len() != 1 {
+            continue;
+        }
+        let mut node = candidates.remove(0);
+        node["id"] = json!("check");
+        let probe = json!({"id":"check","start":"check","nodes":[node,{"id":"end","type":"end"}]});
+        if crate::validate::validate_story(&probe).is_err() {
+            continue;
+        }
+        if node["type"] == "say" {
+            node["inherit_dialog"] = json!(true);
+        }
+        if !source[cursor..statement.start].trim().is_empty() {
+            let code = source[cursor..statement.start].to_owned();
+            origins.push(Origin {
+                node: json!({"type":"raw","code":code}),
+                code,
+            });
+            cursor = statement.start;
+        }
+        origins.push(Origin {
+            code: source[cursor..statement.end].into(),
+            node,
+        });
+        cursor = statement.end;
+    }
+    let tail = &source[cursor..];
+    if !tail.trim().is_empty() || origins.is_empty() {
+        origins.push(Origin {
+            code: tail.into(),
+            node: json!({"type":"raw","code":tail}),
+        });
+    } else if let Some(origin) = origins.last_mut() {
+        origin.code.push_str(tail);
+        if origin.node["type"] == "raw" {
+            origin.node["code"] = json!(origin.code);
+        }
+    }
+    if origins
+        .last()
+        .is_some_and(|origin| origin.node["type"] != "raw")
+    {
+        origins.push(Origin {
+            code: String::new(),
+            node: json!({"type":"end","resume_original":true}),
+        });
+    }
+    let nodes: Vec<_> = origins
+        .iter_mut()
+        .enumerate()
+        .map(|(index, origin)| {
+            origin.node["id"] = json!(format!("original_{}", index + 1));
+            let mut node = origin.node.clone();
+            node["_editor"] = json!({"vanilla_origin":index});
+            node
+        })
+        .collect();
+    let story = json!({"story_schema":2,"id":id,"title":title,"mood":true,
+        "start":nodes[0]["id"],"nodes":nodes,
+        "vanilla_import":{"schema":1,"target":target,"origins":origins}});
+    crate::validate::validate_story(&story)?;
+    Ok(story)
+}
+
 /// The known straight-line prefix is an illustration, never a Lua interpreter.
 /// Stop before unknown calls, branches, loops or functions rather than guessing
 /// which branch the installed game would take.
@@ -77,6 +162,7 @@ struct State {
     dialog: String,
     view: Option<String>,
     needs_native_defaults: bool,
+    translations: BTreeMap<String, String>,
 }
 fn inspect(source: &str) -> (Vec<Value>, ImportReport) {
     let mut state = State {
@@ -179,6 +265,32 @@ fn recognize(code: &str, state: &mut State, nodes: &mut Vec<Value>) -> bool {
         return false;
     };
     match name {
+        "luamanager.PlayMusic" if args.len() == 1 => {
+            let Some(name) = string(&args[0], state) else {
+                return false;
+            };
+            nodes.push(json!({"type":"music","name":name}));
+            true
+        }
+        "luamanager.StopMusic" if args.is_empty() => {
+            nodes.push(json!({"type":"music","op":"stop"}));
+            true
+        }
+        "luamanager.FadeOutMusic" if args.len() == 1 => {
+            let Some(seconds) = number(&args[0], state) else {
+                return false;
+            };
+            state.needs_native_defaults = true;
+            nodes.push(json!({"type":"music","op":"fadeout","seconds":seconds}));
+            true
+        }
+        "luamanager.PlaySound" | "luamanager.PlayEnvSound" if args.len() == 1 => {
+            let Some(sound) = string(&args[0], state) else {
+                return false;
+            };
+            nodes.push(json!({"type":"sound","name":sound,"kind":if name=="luamanager.PlaySound" {"sound"} else {"env"}}));
+            true
+        }
         "runwait" if args.len() == 1 => {
             let Some((nested, a)) = call(&args[0]) else {
                 return false;
@@ -479,6 +591,13 @@ fn literal(s: &str, state: &State) -> Option<Literal> {
     }
     if let Some((name, a)) = call(s) {
         match (name, a.len()) {
+            ("luamanager.GetStoryText", 1) => {
+                return state
+                    .translations
+                    .get(&string(&a[0], state)?)
+                    .cloned()
+                    .map(Literal::String)
+            }
             ("characters.Get", 1) => return Some(Literal::Character(string(&a[0], state)?)),
             ("characters.GetPortrait", 2) => {
                 return Some(Literal::Portrait(
@@ -592,7 +711,7 @@ fn quoted_end(b: &[u8], start: usize) -> Option<usize> {
     }
     None
 }
-fn long_string(b: &[u8], start: usize) -> Option<(usize, usize)> {
+pub(crate) fn long_string(b: &[u8], start: usize) -> Option<(usize, usize)> {
     if b.get(start) != Some(&b'[') {
         return None;
     }
@@ -616,7 +735,7 @@ fn long_string(b: &[u8], start: usize) -> Option<(usize, usize)> {
     }
     None
 }
-fn lua_string(s: &str) -> Option<String> {
+pub(crate) fn lua_string(s: &str) -> Option<String> {
     let b = s.as_bytes();
     if let Some((start, end)) = long_string(b, 0) {
         if end != b.len() {
@@ -688,6 +807,8 @@ fn lua_string(s: &str) -> Option<String> {
 struct Statement {
     code: String,
     line: usize,
+    start: usize,
+    end: usize,
 }
 fn statements(source: &str) -> Vec<Statement> {
     let source = source.strip_prefix('\u{feff}').unwrap_or(source);
@@ -697,6 +818,7 @@ fn statements(source: &str) -> Vec<Statement> {
     let mut i = 0;
     let mut line = 1;
     let mut start_line = 1;
+    let mut start = 0;
     let mut stack = vec![];
     while i < b.len() {
         if b[i..].starts_with(b"--") {
@@ -729,6 +851,8 @@ fn statements(source: &str) -> Vec<Statement> {
                 out.push(Statement {
                     code: std::mem::take(&mut code),
                     line: start_line,
+                    start,
+                    end: i + 1,
                 });
             } else {
                 code.clear();
@@ -738,6 +862,7 @@ fn statements(source: &str) -> Vec<Statement> {
             }
             start_line = line;
             i += 1;
+            start = i;
             continue;
         }
         if code.trim().is_empty() && !b[i].is_ascii_whitespace() {
@@ -761,6 +886,8 @@ fn statements(source: &str) -> Vec<Statement> {
         out.push(Statement {
             code,
             line: start_line,
+            start,
+            end: source.len(),
         });
     }
     out

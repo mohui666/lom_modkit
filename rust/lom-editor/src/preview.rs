@@ -94,7 +94,13 @@ pub fn route(story: &Value, target: &str) -> Option<Vec<String>> {
     let start = story["start"]
         .as_str()
         .or_else(|| ns.first()?.get("id")?.as_str())?;
-    let links = edges(story);
+    let mut links: BTreeMap<&str, Vec<String>> = BTreeMap::new();
+    for (index, node) in ns.iter().enumerate() {
+        links
+            .entry(text(node, "id"))
+            .or_default()
+            .extend(lom_core::analysis::successors(story, index));
+    }
     let mut queue = VecDeque::from([start.to_owned()]);
     let mut prev: BTreeMap<String, Option<String>> = BTreeMap::from([(start.into(), None)]);
     while let Some(id) = queue.pop_front() {
@@ -108,7 +114,7 @@ pub fn route(story: &Value, target: &str) -> Option<Vec<String>> {
             out.reverse();
             return Some(out);
         }
-        for (_, to, _) in links.iter().filter(|(from, _, _)| from == &id) {
+        for to in links.get(id.as_str()).into_iter().flatten() {
             if !prev.contains_key(to) {
                 prev.insert(to.clone(), Some(id.clone()));
                 queue.push_back(to.clone());
@@ -130,11 +136,17 @@ fn simulate_until(story: &Value, target: &str, include_target: bool) -> Value {
     let path = route(story, target);
     state["reached"] = path.is_some().into();
     let walk = path.unwrap_or_else(|| vec![target.into()]);
+    let mut nodes_by_id = BTreeMap::new();
+    for node in ns {
+        if let Some(id) = node["id"].as_str() {
+            nodes_by_id.entry(id).or_insert(node);
+        }
+    }
     for id in &walk {
         if !include_target && id == target {
             break;
         }
-        if let Some(n) = ns.iter().find(|n| n["id"].as_str() == Some(id)) {
+        if let Some(n) = nodes_by_id.get(id.as_str()) {
             apply(&mut state, n);
         }
     }
@@ -466,6 +478,7 @@ fn position(positions: &Value, name: &str) -> (f64, f64) {
 
 /// All children read the same elapsed time. Each retains its own duration;
 /// a short movement reaches its endpoint while its sibling keeps moving.
+#[cfg(test)]
 fn simulate_frame(story: &Value, target: &str, elapsed: f64, positions: &Value) -> Value {
     let mut state = simulate(story, target);
     state["effects"] = effects::simulate(story, target, elapsed, true, None);
@@ -476,6 +489,11 @@ fn simulate_frame(story: &Value, target: &str, elapsed: f64, positions: &Value) 
     else {
         return state;
     };
+    animate_frame(&mut state, &before, node, elapsed, positions);
+    state
+}
+
+fn animate_frame(state: &mut Value, before: &Value, node: &Value, elapsed: f64, positions: &Value) {
     for action in lom_core::parallel::actions(node) {
         if action["type"] == "transition" {
             let from = number(&before["blackout"], "amount", 0.0);
@@ -561,7 +579,6 @@ fn simulate_frame(story: &Value, target: &str, elapsed: f64, positions: &Value) 
             _ => {}
         }
     }
-    state
 }
 
 fn blackout_rect(rect: Rect, amount: f64, direction: &str) -> Rect {
@@ -612,10 +629,22 @@ struct Cached {
     bytes: usize,
     touched: u64,
 }
+#[derive(Debug, PartialEq)]
+enum AssetSource<'a> {
+    Project(&'a [u8]),
+    Library(PathBuf),
+}
+struct Simulation {
+    story: Value,
+    target: String,
+    before: Value,
+    after: Value,
+}
 pub struct Preview {
     pub mapping: Value,
     pub library: PathBuf,
     positions: Value,
+    simulation: Option<Simulation>,
     cache: BTreeMap<String, Cached>,
     tick: u64,
     mood_clocks: BTreeMap<String, (String, f64)>,
@@ -623,6 +652,7 @@ pub struct Preview {
     pub mood_edit: Option<(f64, f64)>,
     mood_drag: Option<(Pos2, f64, f64)>,
     pub layout_mode: bool,
+    pub legacy_character_rotation: bool,
     pub layout_edit: Option<LayoutChange>,
     layout_selected: Option<LayoutTarget>,
     layout_context: (String, String),
@@ -636,6 +666,14 @@ pub struct Preview {
     pub effect_extract_requested: Option<Vec<String>>,
 }
 impl Preview {
+    fn character_rotation(&self, degrees: f32) -> f32 {
+        // egui's Y axis points down; Unity's positive Z rotates counterclockwise.
+        if self.legacy_character_rotation {
+            degrees
+        } else {
+            -degrees
+        }
+    }
     pub fn new(_repo: &Path) -> Self {
         // Embedded mappings keep a standalone app independent of its build machine.
         // Never touch the compilation-time Documents checkout during app startup.
@@ -666,6 +704,7 @@ impl Preview {
             mapping,
             library,
             positions,
+            simulation: None,
             cache: BTreeMap::new(),
             tick: 0,
             mood_clocks: BTreeMap::new(),
@@ -673,6 +712,7 @@ impl Preview {
             mood_edit: None,
             mood_drag: None,
             layout_mode: false,
+            legacy_character_rotation: false,
             layout_edit: None,
             layout_selected: None,
             layout_context: (String::new(), String::new()),
@@ -708,6 +748,22 @@ impl Preview {
                 Err(error)
             }
         }
+    }
+
+    pub fn state(&mut self, story: &Value, target: &str) -> &Value {
+        if self
+            .simulation
+            .as_ref()
+            .is_none_or(|cached| cached.target != target || cached.story != *story)
+        {
+            self.simulation = Some(Simulation {
+                story: story.clone(),
+                target: target.to_owned(),
+                before: simulate_until(story, target, false),
+                after: simulate(story, target),
+            });
+        }
+        &self.simulation.as_ref().unwrap().after
     }
 
     fn effect_texture(
@@ -798,13 +854,13 @@ impl Preview {
         self.mood_clocks.clear();
         Ok(())
     }
-    fn asset(
+    fn asset<'a>(
         &self,
-        p: &Project,
+        p: &'a Project,
         name: &str,
         character: bool,
         portrait: &str,
-    ) -> Option<(String, Vec<u8>, Value)> {
+    ) -> Option<(String, AssetSource<'a>, Value)> {
         if name.is_empty() {
             return None;
         }
@@ -826,7 +882,10 @@ impl Preview {
                                 .join(file)
                                 .to_string_lossy()
                                 .replace('\\', "/");
-                            return p.assets.get(&path).map(|b| (path, b.clone(), meta));
+                            return p
+                                .assets
+                                .get(&path)
+                                .map(|b| (path, AssetSource::Project(b), meta));
                         }
                     }
                 }
@@ -851,12 +910,19 @@ impl Preview {
                 }
                 if let Some(file) = meta["portraits"][portrait].as_str() {
                     let path = format!("{}{file}", key.strip_suffix("content.json")?);
-                    return p.assets.get(&path).map(|b| (path, b.clone(), meta));
+                    return p
+                        .assets
+                        .get(&path)
+                        .map(|b| (path, AssetSource::Project(b), meta));
                 }
             }
         }
         if let Some(bytes) = p.assets.get(name) {
-            return Some((format!("project:{name}"), bytes.clone(), json!({})));
+            return Some((
+                format!("project:{name}"),
+                AssetSource::Project(bytes),
+                json!({}),
+            ));
         }
         let rel = if let Some(key) = name.strip_prefix("@mood:") {
             key
@@ -890,7 +956,7 @@ impl Preview {
         }
         Some((
             canon.to_string_lossy().into(),
-            std::fs::read(&canon).ok()?,
+            AssetSource::Library(canon),
             json!({}),
         ))
     }
@@ -902,16 +968,31 @@ impl Preview {
         character: bool,
         portrait: &str,
     ) -> Option<(TextureHandle, Value)> {
-        let (key, bytes, meta) = self.asset(p, name, character, portrait)?;
+        let (key, source, meta) = self.asset(p, name, character, portrait)?;
         use std::hash::{Hash, Hasher};
-        let mut hash = std::collections::hash_map::DefaultHasher::new();
-        bytes.hash(&mut hash);
-        let key = format!("{key}:{}", hash.finish());
+        let key = match &source {
+            AssetSource::Project(bytes) => {
+                let mut hash = std::collections::hash_map::DefaultHasher::new();
+                bytes.hash(&mut hash);
+                format!("{key}:{}", hash.finish())
+            }
+            AssetSource::Library(path) => {
+                let metadata = std::fs::metadata(path).ok()?;
+                if metadata.len() > 32 * 1024 * 1024 {
+                    return None;
+                }
+                format!("{key}:{}:{:?}", metadata.len(), metadata.modified().ok()?)
+            }
+        };
         self.tick += 1;
         if let Some(c) = self.cache.get_mut(&key) {
             c.touched = self.tick;
             return Some((c.texture.clone(), meta));
         }
+        let bytes = match source {
+            AssetSource::Project(bytes) => std::borrow::Cow::Borrowed(bytes),
+            AssetSource::Library(path) => std::borrow::Cow::Owned(std::fs::read(path).ok()?),
+        };
         if bytes.len() > 32 * 1024 * 1024 {
             return None;
         }
@@ -988,9 +1069,7 @@ impl Preview {
                 let mut category = ui
                     .data_mut(|data| data.get_temp::<String>(category_id))
                     .unwrap_or_default();
-                let catalog: Value =
-                    serde_json::from_str(include_str!("../../../data/picture_keys.json"))
-                        .expect("picture catalog");
+                let catalog = crate::forms::picture_catalog();
                 if official {
                     ui.horizontal_wrapped(|ui| {
                         ui.selectable_value(
@@ -1177,10 +1256,16 @@ impl Preview {
             self.cancel_layout_drag();
             self.layout_context = context;
         }
-        let mut state = match elapsed.filter(|_| !self.layout_mode) {
-            Some(elapsed) => simulate_frame(story, target, elapsed, &self.positions),
-            None => simulate(story, target),
-        };
+        let mut state = self.state(story, target).clone();
+        if let Some(elapsed) = elapsed.filter(|_| !self.layout_mode) {
+            animate_frame(
+                &mut state,
+                &self.simulation.as_ref().unwrap().before,
+                node,
+                elapsed,
+                &self.positions,
+            );
+        }
         let now = ui.input(|input| input.time);
         self.effect_clock.sync(p, story, target, now);
         let effect_library = self.effect_library.clone();
@@ -1430,7 +1515,7 @@ impl Preview {
                             tex.id(),
                             dest,
                             base,
-                            number(a, "rotation", 0.0) as f32,
+                            self.character_rotation(number(a, "rotation", 0.0) as f32),
                             flipped,
                             color,
                         );
@@ -1439,7 +1524,7 @@ impl Preview {
                                 target: LayoutTarget::Character(cid.clone()),
                                 bounds: self.opaque_rect(&tex, dest, flipped),
                                 pivot: base,
-                                angle: number(a, "rotation", 0.0) as f32,
+                                angle: self.character_rotation(number(a, "rotation", 0.0) as f32),
                                 value: LayoutChange {
                                     target: LayoutTarget::Character(cid.clone()),
                                     x: number(a, "offset_x", 0.0),
@@ -1523,7 +1608,8 @@ impl Preview {
                                     sign * number(setting, "offset_x", 0.0) as f32 * unit,
                                     -number(setting, "offset_y", 0.0) as f32 * unit,
                                 );
-                            let rotation = number(a, "rotation", 0.0) as f32;
+                            let rotation =
+                                self.character_rotation(number(a, "rotation", 0.0) as f32);
                             if let Some(icon) = icon {
                                 if let Some((texture, animation)) =
                                     self.mood_texture(&ctx, p, cid, icon, flipped)
@@ -2276,6 +2362,55 @@ fn sprite(
     }
     mesh.indices.extend_from_slice(&[0, 1, 2, 0, 2, 3]);
     p.add(egui::Shape::mesh(mesh));
+}
+
+#[cfg(test)]
+mod rotation_direction_tests {
+    use super::*;
+    #[test]
+    fn positive_character_angle_is_counterclockwise_with_an_opt_in_legacy_preview() {
+        let mut preview = Preview::new(Path::new("/not-a-repository"));
+        for legacy in [false, true] {
+            preview.legacy_character_rotation = legacy;
+            for flipped in [false, true] {
+                let ctx = egui::Context::default();
+                let output = ctx.run(
+                    egui::RawInput {
+                        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::splat(300.0))),
+                        ..Default::default()
+                    },
+                    |ctx| {
+                        egui::CentralPanel::default().show(ctx, |ui| {
+                            sprite(
+                                ui.painter(),
+                                egui::TextureId::User(44),
+                                Rect::from_min_max(
+                                    Pos2::new(100.0, 100.0),
+                                    Pos2::new(110.0, 120.0),
+                                ),
+                                Pos2::new(100.0, 100.0),
+                                preview.character_rotation(90.0),
+                                flipped,
+                                Color32::WHITE,
+                            );
+                        });
+                    },
+                );
+                let point = output
+                    .shapes
+                    .iter()
+                    .find_map(|shape| match &shape.shape {
+                        egui::Shape::Mesh(mesh) if mesh.texture_id == egui::TextureId::User(44) => {
+                            Some(mesh.vertices[1].pos)
+                        }
+                        _ => None,
+                    })
+                    .unwrap();
+                assert!((point.x - 100.0).abs() < 0.001);
+                assert!((point.y - if legacy { 110.0 } else { 90.0 }).abs() < 0.001);
+            }
+        }
+    }
 }
 #[derive(Debug)]
 struct CardData {
@@ -3106,6 +3241,104 @@ end
 mod content_tests {
     use super::*;
     #[test]
+    fn cached_stage_updates_after_story_edits_selection_changes_and_undo() {
+        let mut preview = Preview::new(Path::new("/unused"));
+        let mut story = json!({"id":"main","start":"show","nodes":[
+            {"id":"show","type":"show","character":"player","position":"L1"},
+            {"id":"say","type":"say","text":"原文"},
+            {"id":"done","type":"end"}
+        ]});
+        let before = story.clone();
+        let pointer = preview.state(&story, "say")["dialog"]["text"]
+            .as_str()
+            .unwrap()
+            .as_ptr();
+        assert_eq!(
+            preview.state(&story, "say")["dialog"]["text"]
+                .as_str()
+                .unwrap()
+                .as_ptr(),
+            pointer
+        );
+        story["nodes"][0]["position"] = json!("R1");
+        story["nodes"][1]["text"] = json!("新文");
+        assert_eq!(preview.state(&story, "say")["dialog"]["text"], "新文");
+        assert_eq!(
+            preview.simulation.as_ref().unwrap().before["actors"]["player"]["position"],
+            "R1"
+        );
+        assert!(preview.state(&story, "show")["dialog"].is_null());
+        assert_eq!(preview.state(&before, "say")["dialog"]["text"], "原文");
+        assert_eq!(
+            preview.state(&before, "say")["actors"]["player"]["position"],
+            "L1"
+        );
+    }
+    #[test]
+    fn cached_images_detect_library_and_same_path_project_replacements() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("image.png");
+        image::RgbaImage::from_pixel(8, 8, image::Rgba([255, 0, 0, 255]))
+            .save(&path)
+            .unwrap();
+        let mut preview = Preview::new(Path::new("/unused"));
+        preview.library = directory.path().to_path_buf();
+        let mut project = Project::new();
+        let ctx = egui::Context::default();
+        let first = preview
+            .texture(&ctx, &project, "image.png", false, "")
+            .unwrap()
+            .0;
+        assert_eq!(
+            preview
+                .texture(&ctx, &project, "image.png", false, "")
+                .unwrap()
+                .0
+                .id(),
+            first.id()
+        );
+        image::RgbaImage::from_pixel(8, 8, image::Rgba([0, 255, 0, 255]))
+            .save(&path)
+            .unwrap();
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(&path)
+            .unwrap()
+            .set_modified(
+                std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_000),
+            )
+            .unwrap();
+        assert_ne!(
+            preview
+                .texture(&ctx, &project, "image.png", false, "")
+                .unwrap()
+                .0
+                .id(),
+            first.id()
+        );
+        project
+            .assets
+            .insert("picture.png".into(), std::fs::read(&path).unwrap());
+        let first = preview
+            .texture(&ctx, &project, "picture.png", false, "")
+            .unwrap()
+            .0;
+        image::RgbaImage::from_pixel(8, 8, image::Rgba([0, 0, 255, 255]))
+            .save(&path)
+            .unwrap();
+        project
+            .assets
+            .insert("picture.png".into(), std::fs::read(&path).unwrap());
+        assert_ne!(
+            preview
+                .texture(&ctx, &project, "picture.png", false, "")
+                .unwrap()
+                .0
+                .id(),
+            first.id()
+        );
+    }
+    #[test]
     fn old_portrait_libraries_offer_reextraction_without_changing_the_project() {
         let directory = tempfile::tempdir().unwrap();
         std::fs::create_dir(directory.path().join("assets")).unwrap();
@@ -3356,21 +3589,21 @@ mod content_tests {
                 .asset(&project, "user:showcase.courier_station", false, "")
                 .unwrap()
                 .1,
-            vec![1, 2, 3]
+            AssetSource::Project(&[1, 2, 3])
         );
         assert_eq!(
             preview
                 .asset(&project, "user:showcase.lin_deng", true, "happy")
                 .unwrap()
                 .1,
-            vec![6, 7]
+            AssetSource::Project(&[6, 7])
         );
         assert_eq!(
             preview
                 .asset(&project, "user:showcase.lin_deng", true, "missing")
                 .unwrap()
                 .1,
-            vec![4, 5]
+            AssetSource::Project(&[4, 5])
         );
         assert!(preview.mapping["characters"].is_object());
     }

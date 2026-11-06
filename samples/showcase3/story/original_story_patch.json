@@ -1,0 +1,17 @@
+{
+  "story_schema": 2,
+  "id": "original_story_patch",
+  "title": "原版对白补丁与旗标插入",
+  "start": "patch_entry",
+  "nodes": [{"id": "patch_entry", "type": "end"}],
+  "vanilla_patch": {
+    "target": "ch1_1",
+    "edits": [{
+      "find": "say(luamanager.GetStoryText(\"N_1_1_001\"))",
+      "occurrence": 1,
+      "kind": "say",
+      "before": "【补丁样例】只有本 MOD 的 showcase_extra_dialogue 旗标成立时，才在原对白前插入这一句。",
+      "before_condition": {"source":"mod","flag":"showcase_extra_dialogue","op":">=","value":1,"invert":false}
+    }]
+  }
+}

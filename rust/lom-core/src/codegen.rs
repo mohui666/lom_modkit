@@ -125,6 +125,7 @@ struct Context<'a> {
     content_root: &'a Path,
     preloaded: bool,
     previous_visual_calls: bool,
+    previous_stat_sets: bool,
     character_layout: bool,
     managed_effects: bool,
 }
@@ -156,7 +157,50 @@ fn item_api(kind: &str) -> &'static str {
         _ => "Special",
     }
 }
-fn reward(entries: &[Value]) -> Vec<String> {
+pub fn shows_system_messages(node: &Value) -> bool {
+    node["show_message"]
+        .as_bool()
+        .unwrap_or_else(|| match s(node, "type") {
+            "stat_set" => b(node, "update", false),
+            "item" => false,
+            "stat" | "enemy" => node["display"].as_i64().unwrap_or(1) == 1,
+            _ => true,
+        })
+}
+pub fn requires_system_message_host(story: &Value) -> bool {
+    arr(story, "nodes").iter().any(|node| {
+        (node["show_message"] == false
+            && matches!(
+                s(node, "type"),
+                "talent" | "use_item" | "reward" | "result_screen" | "activity"
+            ))
+            || (s(node, "type") == "item" && node["show_message"].is_boolean())
+            || (node["show_message"] == true
+                && ["entries", "success_rewards", "failure_rewards"]
+                    .iter()
+                    .any(|field| arr(node, field).iter().any(|entry| entry["kind"] == "item")))
+    })
+}
+fn message_display(node: &Value) -> String {
+    if has(node, "show_message") {
+        if shows_system_messages(node) {
+            "1"
+        } else {
+            "0"
+        }
+        .into()
+    } else {
+        n(node, "display", json!(1))
+    }
+}
+fn quiet_messages(lines: Vec<String>) -> Vec<String> {
+    let mut result = vec!["\tmod_without_system_messages(function()".into()];
+    result.extend(lines.into_iter().map(|line| format!("\t{line}")));
+    result.push("\tend)".into());
+    result
+}
+fn reward(entries: &[Value], messages: Option<bool>) -> Vec<String> {
+    let show = messages.unwrap_or(true);
     let mut out = Vec::new();
     for e in entries {
         let key = q(e, "key");
@@ -165,15 +209,26 @@ fn reward(entries: &[Value]) -> Vec<String> {
             "stat" => {
                 out.push(call(
                     "statmodifymanager.Player",
-                    &[key.clone(), amount, "\"\"".into(), "1".into()],
+                    &[
+                        key.clone(),
+                        amount,
+                        "\"\"".into(),
+                        if show { "1" } else { "0" }.into(),
+                    ],
                 ));
-                out.push(format!("\twait(statmodifymanager.GetDisplayTime({key}))"));
+                if show {
+                    out.push(format!("\twait(statmodifymanager.GetDisplayTime({key}))"));
+                }
             }
             "affinity" => out.push(call(
                 "statmodifymanager.Character",
-                &[key, amount, "1".into()],
+                &[key, amount, if show { "1" } else { "0" }.into()],
             )),
             "talent" => out.push(call("statmodifymanager.AddTalent", &[key, amount])),
+            "item" if messages.is_some() => out.push(call(
+                "mod_change_item",
+                &[q(e, "category"), key, amount, show.to_string()],
+            )),
             "item" => out.push(if s(e, "key").starts_with("user:") {
                 call("mod_item", &[q(e, "category"), key, amount])
             } else {
@@ -188,7 +243,11 @@ fn reward(entries: &[Value]) -> Vec<String> {
             }
         }
     }
-    out
+    if show {
+        out
+    } else {
+        quiet_messages(out)
+    }
 }
 fn gameplay_config(node: &Value, scalar: &[&str], lists: &[(&str, &[&str])]) -> String {
     let mut parts: Vec<String> = scalar
@@ -228,6 +287,23 @@ fn gameplay_config(node: &Value, scalar: &[&str], lists: &[(&str, &[&str])]) -> 
         }
     }
     parts.join(";")
+}
+pub(crate) fn flag_check_expression(node: &Value) -> String {
+    let source = s(node, "source");
+    let mut expr = match source {
+        "mod" => format!("modflags[{}]", q(node, "flag")),
+        "condition" => format!("checkpointmanager.Condition({})", q(node, "flag")),
+        _ => format!(
+            "tonumber(luamanager.GetFlagData({})) {} {}",
+            q(node, "flag"),
+            s(node, "op"),
+            n(node, "value", json!(0))
+        ),
+    };
+    if source != "flag_value" && b(node, "invert", false) {
+        expr = format!("not ({expr})");
+    }
+    expr
 }
 fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
     let mut out = Vec::new();
@@ -559,6 +635,15 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                 }
             }
         }
+        "say" if b(node, "inherit_dialog", false) => {
+            if truth(node, "voice") {
+                out.push(call("mod_play_voice", &[q(node, "voice")]));
+            }
+            out.push(dialogue_line(node, ctx));
+            if truth(node, "voice") {
+                out.push("\tmod_stop_voice()".into());
+            }
+        }
         "say" => {
             let mode = sd(node, "mode", "character");
             if ctx.narrative_layout {
@@ -571,31 +656,7 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
             } else {
                 "\tmod_stop_voice()".into()
             });
-            let text = format!(
-                "luamanager.GetStoryText({})",
-                lua_str(&format!(
-                    "MOD_{}_{}_{}",
-                    if ctx.mod_id.is_empty() {
-                        "MOD"
-                    } else {
-                        ctx.mod_id
-                    },
-                    ctx.script_id,
-                    s(node, "id")
-                ))
-            );
-            let size = node["font_size"]
-                .as_i64()
-                .unwrap_or(match s(node, "font_size") {
-                    "small" => 24,
-                    "large" => 60,
-                    _ => 0,
-                });
-            let say = if size > 0 {
-                format!("\tsay(\"{{size={size}}}\" .. {text} .. \"{{/size}}\")")
-            } else {
-                format!("\tsay({text})")
-            };
+            let say = dialogue_line(node, ctx);
             if ["narrative", "center"].contains(&mode) {
                 out.extend([
                     format!("\tsetsaydialog(saydialogs.{mode})"),
@@ -908,24 +969,37 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                     k.clone(),
                     n(node, "delta", json!(0)),
                     q(node, "mode"),
-                    n(node, "display", json!(1)),
+                    message_display(node),
                 ],
             ));
-            if b(node, "waitDisplay", true) {
+            if node["show_message"] != false && b(node, "waitDisplay", true) {
                 out.push(format!("\twait(statmodifymanager.GetDisplayTime({k}))"));
             }
         }
-        "stat_set" => out.push(call(
-            if b(node, "update", false) {
-                "statmodifymanager.UpdateSetPlayerStat"
-            } else {
-                "statmodifymanager.SetPlayer"
-            },
-            &[q(node, "key"), n(node, "value", json!(0))],
-        )),
+        "stat_set" => {
+            let args = [q(node, "key"), n(node, "value", json!(0))];
+            // The game's UpdateSetPlayerStat only displays the delta. It never
+            // writes the stat: always call SetPlayer, after calculating that delta.
+            if shows_system_messages(node) {
+                out.push(call("statmodifymanager.UpdateSetPlayerStat", &args));
+            }
+            if !ctx.previous_stat_sets || has(node, "show_message") || !shows_system_messages(node)
+            {
+                out.push(call("statmodifymanager.SetPlayer", &args));
+            }
+        }
         "affinity" => out.push(call(
             "statmodifymanager.Character",
-            &[c, n(node, "delta", json!(0)), "1".into()],
+            &[
+                c,
+                n(node, "delta", json!(0)),
+                if shows_system_messages(node) {
+                    "1"
+                } else {
+                    "0"
+                }
+                .into(),
+            ],
         )),
         "talent" => out.push(call(
             "statmodifymanager.AddTalent",
@@ -933,7 +1007,21 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
         )),
         "item" => {
             let api = item_api(s(node, "kind"));
-            if s(node, "item").starts_with("user:") {
+            if let Some(show) = node["show_message"].as_bool() {
+                out.push(call(
+                    "mod_change_item",
+                    &[
+                        q(node, "kind"),
+                        q(node, "item"),
+                        if b(node, "remove", false) {
+                            "-1".into()
+                        } else {
+                            n(node, "count", json!(1))
+                        },
+                        show.to_string(),
+                    ],
+                ));
+            } else if s(node, "item").starts_with("user:") {
                 out.push(call(
                     "mod_item",
                     &[
@@ -989,7 +1077,7 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                     &[
                         q(node, "enemy"),
                         n(node, "value", json!(0)),
-                        n(node, "display", json!(1)),
+                        message_display(node),
                     ],
                 ));
             }
@@ -1139,7 +1227,7 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                 "\telse error(\"没有可供 battle_result 消费的已验证战斗结果\") end".into(),
             ]);
         }
-        "reward" => out = reward(arr(node, "entries")),
+        "reward" => out = reward(arr(node, "entries"), node["show_message"].as_bool()),
         "result_screen" => {
             let message = if truth(node, "text") {
                 format!("{}\n{}", s(node, "title"), s(node, "text"))
@@ -1147,7 +1235,7 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                 s(node, "title").into()
             };
             out.push(call("mainui.DisplayMessageText", &[lua_str(&message)]));
-            out.extend(reward(arr(node, "entries")));
+            out.extend(reward(arr(node, "entries"), node["show_message"].as_bool()));
         }
         "custom_shop" => {
             out.push("\tmod_custom_shop_begin()".into());
@@ -1195,23 +1283,7 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
             }
             out = check(expr, node);
         }
-        "flag_check" => {
-            let source = s(node, "source");
-            let mut expr = match source {
-                "mod" => format!("modflags[{}]", q(node, "flag")),
-                "condition" => format!("checkpointmanager.Condition({})", q(node, "flag")),
-                _ => format!(
-                    "tonumber(luamanager.GetFlagData({})) {} {}",
-                    q(node, "flag"),
-                    s(node, "op"),
-                    n(node, "value", json!(0))
-                ),
-            };
-            if source != "flag_value" && b(node, "invert", false) {
-                expr = format!("not ({expr})");
-            }
-            out = check(expr, node);
-        }
+        "flag_check" => out = check(flag_check_expression(node), node),
         "activity" => {
             if truth(node, "message") {
                 out.push(call("mainui.DisplayMessageText", &[q(node, "message")]));
@@ -1228,14 +1300,14 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                 n(node, "value", json!(0))
             ));
             out.extend(
-                reward(arr(node, "success_rewards"))
+                reward(arr(node, "success_rewards"), node["show_message"].as_bool())
                     .iter()
                     .map(|x| format!("\t{x}")),
             );
             out.push(ret(s(node, "success")));
             out.push("\telse".into());
             out.extend(
-                reward(arr(node, "failure_rewards"))
+                reward(arr(node, "failure_rewards"), node["show_message"].as_bool())
                     .iter()
                     .map(|x| format!("\t{x}")),
             );
@@ -1436,6 +1508,7 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
             s(node, "position"),
             s(node, "script")
         )),
+        "end" if b(node, "resume_original", false) => out.push("\treturn".into()),
         "end" => {
             out.extend(["\tmod_stop_voice()".into(), "\tmod_hide_all()".into()]);
             if let Some(result) = node["event_result"].as_str() {
@@ -1477,6 +1550,9 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
             "内部错误：节点 {:?} 类型 {kind:?} 未校验通过",
             s(node, "id")
         ),
+    }
+    if node["show_message"] == false && matches!(kind, "talent" | "use_item") {
+        out = quiet_messages(out);
     }
     // Joined actions always finish before their group continues. Standalone
     // launch-only actions can opt in; absent fields preserve older projects.
@@ -1676,7 +1752,7 @@ pub fn compile_story(
     source: Option<&str>,
     content_root: Option<&Path>,
 ) -> Result<String> {
-    compile_story_impl(story, mod_info, source, content_root, false)
+    compile_story_impl(story, mod_info, source, content_root, false, false)
 }
 // Only used to verify already-published v3 packages. Raw code is never rewritten;
 // the two previous structured emitters are reproduced from the authored nodes.
@@ -1686,7 +1762,17 @@ pub(crate) fn compile_story_previous_visual_calls(
     source: Option<&str>,
     content_root: Option<&Path>,
 ) -> Result<String> {
-    compile_story_impl(story, mod_info, source, content_root, true)
+    compile_story_impl(story, mod_info, source, content_root, true, true)
+}
+// Reproduce the old display-only setter solely when checking existing v3 Lua.
+// Newly compiled/exported stories always perform the actual write.
+pub(crate) fn compile_story_previous_stat_sets(
+    story: &Value,
+    mod_info: Option<&Value>,
+    source: Option<&str>,
+    content_root: Option<&Path>,
+) -> Result<String> {
+    compile_story_impl(story, mod_info, source, content_root, false, true)
 }
 fn compile_story_impl(
     story: &Value,
@@ -1694,13 +1780,21 @@ fn compile_story_impl(
     source: Option<&str>,
     content_root: Option<&Path>,
     previous_visual_calls: bool,
+    previous_stat_sets: bool,
 ) -> Result<String> {
     let warnings = if let Some(root) = content_root {
         crate::validate::validate_story_with_content_root(story, root)?
     } else {
         crate::validate::validate_story(story)?
     };
-    let lua = story_to_lua_impl(story, mod_info, source, content_root, previous_visual_calls)?;
+    let lua = story_to_lua_impl(
+        story,
+        mod_info,
+        source,
+        content_root,
+        previous_visual_calls,
+        previous_stat_sets,
+    )?;
     if warnings.is_empty() {
         Ok(lua)
     } else {
@@ -1720,7 +1814,7 @@ pub fn story_to_lua(
     source: Option<&str>,
     content_root: Option<&Path>,
 ) -> Result<String> {
-    story_to_lua_impl(story, mod_info, source, content_root, false)
+    story_to_lua_impl(story, mod_info, source, content_root, false, false)
 }
 fn story_to_lua_impl(
     story: &Value,
@@ -1728,6 +1822,7 @@ fn story_to_lua_impl(
     source: Option<&str>,
     content_root: Option<&Path>,
     previous_visual_calls: bool,
+    previous_stat_sets: bool,
 ) -> Result<String> {
     let default_root = crate::content::default_repository_root();
     let root = content_root.unwrap_or(&default_root);
@@ -1737,6 +1832,24 @@ fn story_to_lua_impl(
     let id = s(story, "id");
     let fallback = format!("story/{id}.json");
     let src = source.filter(|x| !x.is_empty()).unwrap_or(&fallback);
+    if let Some(imported) = crate::vanilla_import::parse(story)? {
+        return imported_story_to_lua(story, info, src, root, &imported);
+    }
+    if let Some(patch) = crate::vanilla_patch::parse(story)? {
+        let edits: Vec<_> = patch
+            .edits
+            .iter()
+            .enumerate()
+            .map(|(index, edit)| {
+                let prefix = (!s(info,"id").is_empty()).then(|| format!("MOD_{}_{}_patch_{index}",s(info,"id"),id));
+                json!({
+                    "find":edit.find,"occurrence":edit.occurrence,"replace":edit.replacement_with_prefix(prefix.as_deref())
+                })
+            })
+            .collect();
+        return Ok(format!("{GENERATED_MARK}\n-- Source: {src}\nmodflags = modflags or {{}}\nlocal original = mod_load_vanilla_story({}, {})\nreturn original()\n",
+            lua_str(&patch.target), lua_str(&serde_json::to_string(&edits)?)));
+    }
     let mood = b(story, "mood", false);
     // Explicit switches follow runtime control flow, including loops/branches.
     // Let the existing Host ShowMood patch enforce disabled state; unconditional
@@ -1800,6 +1913,7 @@ fn story_to_lua_impl(
             content_root: root,
             preloaded: false,
             previous_visual_calls,
+            previous_stat_sets,
             character_layout,
             managed_effects,
         };
@@ -1853,4 +1967,135 @@ fn story_to_lua_impl(
     }
     lines.push(format!("return node_{}()", s(story, "start")));
     Ok(lines.join("\n") + "\n")
+}
+
+fn imported_story_to_lua(
+    story: &Value,
+    info: &Value,
+    source: &str,
+    root: &Path,
+    imported: &crate::vanilla_import::Imported,
+) -> Result<String> {
+    let nodes = arr(story, "nodes");
+    let origins = imported.associations(nodes);
+    let mut lua = format!("{GENERATED_MARK}\n-- Source: {source}\nmodflags = modflags or {{}}\nmod_begin_vanilla_import({})\nlocal mod_vanilla_terminal = {{}}\n", q(story,"id"));
+    lua.push_str(include_str!("../data/vanilla_import.lua"));
+    lua.push('\n');
+    if !b(story, "mood", true) {
+        lua.push_str("mod_set_mood(false)\n");
+    }
+    if nodes.iter().any(|node| node["type"] == "parallel") {
+        lua.push_str(include_str!("../data/parallel.lua"));
+        lua.push('\n');
+    }
+    let mut start = 0;
+    while start < nodes.len() {
+        if crate::vanilla_import::Imported::native_raw(origins[start], &nodes[start]) {
+            lua.push_str(s(&nodes[start], "code"));
+            lua.push('\n');
+            start += 1;
+            continue;
+        }
+        let end = (start..nodes.len())
+            .find(|&index| {
+                crate::vanilla_import::Imported::native_raw(origins[index], &nodes[index])
+            })
+            .unwrap_or(nodes.len());
+        lua.push_str("do\n");
+        let mut names: Vec<_> = nodes[start..end]
+            .iter()
+            .map(|node| format!("node_{}", s(node, "id")))
+            .collect();
+        if let Some(boundary) = nodes.get(end) {
+            names.push(format!("node_{}", s(boundary, "id")));
+        }
+        lua.push_str(&format!("local {}\n", names.join(", ")));
+        if let Some(boundary) = nodes.get(end) {
+            lua.push_str(&format!("node_{} = function() end\n", s(boundary, "id")));
+        }
+        for index in start..end {
+            let node = &nodes[index];
+            let next = nodes.get(index + 1).map(|node| s(node, "id")).unwrap_or("");
+            let original = origins[index]
+                .filter(|origin| crate::vanilla_import::Imported::unchanged(origin, node));
+            lua.push_str(&format!("node_{} = function()\n\t{}()\n\tmod_vanilla_source_node({})\n\tif mod_trace_node then mod_trace_node({}, {}) end\n",s(node,"id"),if original.is_some() {"__lom_restore_native"} else {"__lom_enter_custom"},q(node,"id"),q(node,"id"),q(node,"type")));
+            if let Some(origin) = original {
+                lua.push_str(&origin.code);
+                lua.push('\n');
+            } else {
+                let context = Context {
+                    mod_id: s(info, "id"),
+                    script_id: s(story, "id"),
+                    mood: true,
+                    narrative_layout: true,
+                    next,
+                    content_root: root,
+                    preloaded: false,
+                    previous_visual_calls: false,
+                    previous_stat_sets: false,
+                    character_layout: true,
+                    managed_effects: true,
+                };
+                // Changing only the words keeps the native speaker, dialog,
+                // wait options and portrait selected by the surrounding script.
+                let text_only = origins[index].is_some_and(|origin| {
+                    let mut baseline = crate::vanilla_import::comparable(&origin.node);
+                    baseline["text"] = node["text"].clone();
+                    node["type"] == "say" && baseline == crate::vanilla_import::comparable(node)
+                });
+                let lines = if node["type"] == "end" && b(node, "resume_original", false) {
+                    let target = crate::vanilla_import::resume_index(story, index);
+                    vec![target
+                        .map(|next| format!("\treturn node_{}()", s(&nodes[next], "id")))
+                        .unwrap_or_else(|| "\treturn".into())]
+                } else if text_only {
+                    vec![dialogue_line(node, &context)]
+                } else {
+                    emit(node, &context)?
+                };
+                lua.push_str(&lines.join("\n"));
+                lua.push('\n');
+                if matches!(
+                    s(node, "type"),
+                    "goto_scene" | "death" | "combat" | "battle"
+                ) || node["type"] == "end" && !b(node, "resume_original", false)
+                {
+                    lua.push_str("\tcoroutine.yield(\"__lom_vanilla_import_complete__\")\n");
+                    lua.push_str("\treturn mod_vanilla_terminal\n");
+                }
+            }
+            if !NO_FLOW.contains(&s(node, "type")) {
+                let target = node["goto"].as_str().unwrap_or(next);
+                if !target.is_empty() {
+                    lua.push_str(&format!("\treturn node_{target}()\n"));
+                }
+            }
+            lua.push_str("end\n");
+        }
+        lua.push_str(&format!("if node_{}() == mod_vanilla_terminal then return end\nend\n__lom_restore_native()\nmod_vanilla_source_continue()\n",s(&nodes[start],"id")));
+        start = end;
+    }
+    Ok(lua)
+}
+
+fn dialogue_line(node: &Value, ctx: &Context<'_>) -> String {
+    let mod_id = if ctx.mod_id.is_empty() {
+        "MOD"
+    } else {
+        ctx.mod_id
+    };
+    let key = format!("MOD_{mod_id}_{}_{}", ctx.script_id, s(node, "id"));
+    let text = format!("luamanager.GetStoryText({})", lua_str(&key));
+    let size = node["font_size"]
+        .as_i64()
+        .unwrap_or(match s(node, "font_size") {
+            "small" => 24,
+            "large" => 60,
+            _ => 0,
+        });
+    if size > 0 {
+        format!("\tsay(\"{{size={size}}}\" .. {text} .. \"{{/size}}\")")
+    } else {
+        format!("\tsay({text})")
+    }
 }

@@ -37,6 +37,9 @@ namespace MortalModHost
 
         /// <summary>lua/ 目录全部脚本：键 = 脚本 id（文件名去 .lua），值 = Lua 源码文本。</summary>
         public readonly Dictionary<string, string> LuaScripts = new Dictionary<string, string>();
+        /// <summary>Original resource script name -> this package's edited chapter ID.</summary>
+        public readonly Dictionary<string, string> VanillaOverrides = new Dictionary<string, string>(System.StringComparer.OrdinalIgnoreCase);
+        public readonly Dictionary<string, VanillaImportSource> VanillaImports = new Dictionary<string, VanillaImportSource>(System.StringComparer.Ordinal);
 
         /// <summary>locale → (script id → compiled Lua). Old packages leave this empty.</summary>
         public readonly Dictionary<string, Dictionary<string, string>> LocalizedLuaScripts =

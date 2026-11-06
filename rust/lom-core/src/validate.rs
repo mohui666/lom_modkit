@@ -323,6 +323,28 @@ fn manifest_inner(m: &Value) -> Result<()> {
             "min_host_version 不能高于 tested_host_version"
         );
     }
+    if let Some(overrides) = m.get("vanilla_overrides") {
+        let overrides = overrides
+            .as_object()
+            .context("vanilla_overrides 必须是章节映射")?;
+        ensure!(overrides.len() <= 4096, "原版章节补丁过多");
+        for (target, id) in overrides {
+            ensure!(
+                crate::vanilla_patch::valid_target(target)
+                    && id.as_str().is_some_and(|id| matches(SCRIPT_ID, id)),
+                "原版章节补丁编号无效"
+            );
+        }
+        if !overrides.is_empty() {
+            ensure!(
+                versions
+                    .get("min_host_version")
+                    .is_some_and(|(core, pre)| core.as_slice() > [1, 4, 9].as_slice()
+                        || (core.as_slice() == [1, 4, 9].as_slice() && pre.is_none())),
+                "原版剧情补丁要求 min_host_version 至少 1.4.9"
+            );
+        }
+    }
     for field in ["game_version", "tested_game_version"] {
         if has(m, field) {
             ensure!(
@@ -453,11 +475,14 @@ fn fields(node: &Value) -> Result<&str> {
     let optional = spec["optional"].as_object().expect("optional table");
     for key in object(node, "节点")?.keys() {
         ensure!(
-            ["id", "type", "goto"].contains(&key.as_str())
+            member("common_fields", key)
                 || required.contains_key(key)
                 || optional.contains_key(key),
             "未知字段 \"{key}\""
         );
+    }
+    if has(node, "_editor") {
+        object(&node["_editor"], "步骤编辑器元数据")?;
     }
     for (name, tag) in required {
         ensure!(has(node, name), "缺少必填字段 \"{name}\"");
@@ -1126,7 +1151,9 @@ fn extra(n: &Value, ntype: &str, catalog: &Value) -> Result<()> {
         }
         "say" => {
             ensure!(nonblank(&n["text"]), "必填字段 \"text\" 不能为空或仅含空白");
-            if ["character", "think"].contains(&text(n, "mode", "character")) {
+            if n["inherit_dialog"] != true
+                && ["character", "think"].contains(&text(n, "mode", "character"))
+            {
                 require(n, &["character"], "character/think 模式")?;
             }
             if has(n, "voice") {
@@ -1153,6 +1180,10 @@ fn extra(n: &Value, ntype: &str, catalog: &Value) -> Result<()> {
             }
         },
         "end" => {
+            ensure!(
+                n["resume_original"] != true || (!has(n, "next_script") && !has(n, "event_result")),
+                "返回原版流程不能同时指定下一章节或事件结果"
+            );
             ensure!(
                 !(has(n, "event_result") && has(n, "next_script")),
                 "event_result 只能在最终返回自由模式时报告，不能与 next_script 同时设置"
@@ -1547,6 +1578,8 @@ pub fn validate_story_with_catalog(story: &Value, catalog: &Value) -> Result<Vec
 }
 fn story_inner(story: &Value, catalog: &Value) -> Result<()> {
     object(story, "顶层必须是 JSON 对象")?;
+    crate::vanilla_patch::parse(story)?;
+    let imported = crate::vanilla_import::parse(story)?;
     ensure!(
         !has(story, "battle_presets"),
         "字段 \"battle_presets\" 已废弃；请把模板和数值直接写入每个 combat/battle 节点"
@@ -1602,6 +1635,14 @@ fn story_inner(story: &Value, catalog: &Value) -> Result<()> {
         let label = format!("节点 \"{id}\"({})", s(node, "type"));
         let kind = fields(node).with_context(|| label.clone())?;
         extra(node, kind, catalog).with_context(|| label.clone())?;
+        ensure!(
+            !node["resume_original"].as_bool().unwrap_or(false) || imported.is_some(),
+            "{label}: 返回原版流程仅用于整章导入的原版章节"
+        );
+        ensure!(
+            node["inherit_dialog"] != true || imported.is_some(),
+            "{label}: 沿用原版对白设置仅用于整章导入的原版章节"
+        );
         if has(node, "goto") {
             ensure!(
                 node["goto"].is_string(),
@@ -1625,5 +1666,8 @@ fn story_inner(story: &Value, catalog: &Value) -> Result<()> {
     }
     cg_lifecycle(story)?;
     crate::localization::validate_story_localization(story)?;
+    if let Some(imported) = imported {
+        imported.validate_flow(story)?;
+    }
     Ok(())
 }

@@ -1,0 +1,25 @@
+{
+  "source": "local keep = 41\nif checkpointmanager.Condition(\"OUTER\") then\n    say(luamanager.GetStoryText(\"D_DEMO\"))\n    keep = keep + 1\nelse\n    say(\"alternate\")\nend\nmark_progress(keep)\nlocal options = {}\noptions[1] = \"O_DEMO_A\"\noptions[2] = \"O_DEMO_B\"\nlocal selected = choose(options)\nif selected == 1 then mark_progress(100) else mark_progress(200) end\nsay(\"ending\")\n",
+  "story": {
+    "story_schema": 2,
+    "id": "patch_demo",
+    "title": "原版补丁解释器验证",
+    "start": "patch_entry",
+    "nodes": [{"id": "patch_entry", "type": "end"}],
+    "vanilla_patch": {
+      "target": "DEMO",
+      "edits": [
+        {
+          "find": "say(luamanager.GetStoryText(\"D_DEMO\"))",
+          "occurrence": 1,
+          "kind": "say",
+          "before": "extra before",
+          "after": "extra after",
+          "before_condition": {"source":"condition","flag":"ALLOW","op":">=","value":1,"invert":false},
+          "after_condition": {"source":"flag_value","flag":"COUNT","op":">=","value":2,"invert":false}
+        },
+        {"find":"\"O_DEMO_A\"","occurrence":1,"kind":"option","text":"renamed choice"}
+      ]
+    }
+  }
+}

@@ -15,6 +15,10 @@
     <Compile Include="..\..\src\ModPackage.cs" />
     <Compile Include="..\..\src\ModLoader.cs" />
     <Compile Include="..\..\src\ModRegistry.cs" />
+    <Compile Include="..\..\src\VanillaStoryPatch.cs" />
+    <Compile Include="..\..\src\VanillaImportSource.cs" />
+    <Compile Include="..\..\src\VanillaBookmarkStore.cs" />
+    <Compile Include="..\..\src\SystemMessageScope.cs" />
     <Compile Include="..\..\src\HotkeyMigration.cs" />
     <Compile Include="..\..\src\CampaignConfig.cs" />
     <Compile Include="..\..\src\ScenarioConfig.cs" />
@@ -60,6 +64,7 @@
   <ItemGroup>
     <Content Include="../../../../rust/lom-core/tests/fixtures/scenario-contract.json" Link="scenario-contract.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../../../rust/lom-core/data/schema.json" Link="node-schema.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../../../rust/lom-core/tests/fixtures/vanilla-import.json" Link="vanilla-import.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

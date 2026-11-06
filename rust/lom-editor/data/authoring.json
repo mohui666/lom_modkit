@@ -1382,6 +1382,12 @@
       "label": "对话/独白/旁白",
       "fields": [
         [
+          "inherit_dialog",
+          "沿用原版发言人与对白设置",
+          "bool",
+          true
+        ],
+        [
           "text",
           "文本",
           "multiline",
@@ -1894,6 +1900,12 @@
           "模式参数",
           "line",
           true
+        ],
+        [
+          "show_message",
+          "显示系统提示",
+          "bool",
+          true
         ]
       ]
     },
@@ -1917,6 +1929,12 @@
           "更新属性",
           "bool",
           true
+        ],
+        [
+          "show_message",
+          "显示系统提示",
+          "bool",
+          true
         ]
       ]
     },
@@ -1934,6 +1952,12 @@
           "变化量",
           "int",
           false
+        ],
+        [
+          "show_message",
+          "显示系统提示",
+          "bool",
+          true
         ]
       ]
     },
@@ -1951,6 +1975,12 @@
           "等级变化（±）",
           "int",
           false
+        ],
+        [
+          "show_message",
+          "显示系统提示",
+          "bool",
+          true
         ]
       ]
     },
@@ -1978,6 +2008,12 @@
         [
           "remove",
           "移除而非获得",
+          "bool",
+          true
+        ],
+        [
+          "show_message",
+          "显示系统提示",
           "bool",
           true
         ]
@@ -2042,6 +2078,12 @@
           "display",
           "显示变化提示",
           "bool_int",
+          true
+        ],
+        [
+          "show_message",
+          "显示系统提示",
+          "bool",
           true
         ]
       ]
@@ -2578,6 +2620,12 @@
           "奖励内容",
           "reward_entries",
           false
+        ],
+        [
+          "show_message",
+          "显示系统提示",
+          "bool",
+          true
         ]
       ]
     },
@@ -2601,6 +2649,12 @@
           "发放奖励",
           "reward_entries",
           false
+        ],
+        [
+          "show_message",
+          "显示系统提示",
+          "bool",
+          true
         ]
       ]
     },
@@ -2870,6 +2924,12 @@
           "失败后",
           "node_ref",
           false
+        ],
+        [
+          "show_message",
+          "显示系统提示",
+          "bool",
+          true
         ]
       ]
     },
@@ -3207,6 +3267,12 @@
       "label": "结束剧情",
       "fields": [
         [
+          "resume_original",
+          "返回原版流程（整章导入）",
+          "bool",
+          true
+        ],
+        [
           "event_result",
           "事件结果（默认完成）",
           "str",
@@ -3414,6 +3480,12 @@
           "野外消耗品",
           "field_consumable",
           false
+        ],
+        [
+          "show_message",
+          "显示系统提示",
+          "bool",
+          true
         ]
       ]
     }
@@ -3580,17 +3652,20 @@
     },
     "affinity": {
       "character": "",
-      "delta": 1
+      "delta": 1,
+      "show_message": true
     },
     "talent": {
       "talent": "",
-      "level": 1
+      "level": 1,
+      "show_message": true
     },
     "item": {
       "kind": "misc",
       "item": "",
       "count": 1,
-      "remove": false
+      "remove": false,
+      "show_message": true
     },
     "flag": {
       "flag": ""
@@ -3650,7 +3725,8 @@
           "key": "",
           "amount": 1
         }
-      ]
+      ],
+      "show_message": true
     },
     "result_screen": {
       "title": "胜利",
@@ -3661,7 +3737,8 @@
           "key": "",
           "amount": 1
         }
-      ]
+      ],
+      "show_message": true
     },
     "custom_shop": {
       "discount": 0,
@@ -3718,7 +3795,8 @@
       "success_rewards": [],
       "failure_rewards": [],
       "success": "",
-      "failure": ""
+      "failure": "",
+      "show_message": true
     },
     "mod_quest": {
       "quest": "",
@@ -3832,7 +3910,8 @@
       "enabled": true
     },
     "use_item": {
-      "item": ""
+      "item": "",
+      "show_message": true
     }
   },
   "VERIFIED_BATTLE_CHARACTER_IDS": [

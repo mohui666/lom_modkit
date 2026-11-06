@@ -139,6 +139,28 @@ impl Default for ToolsPanel {
     }
 }
 impl ToolsPanel {
+    pub fn sync_game_host(&mut self) {
+        if !cfg!(windows)
+            || self.game.as_os_str().is_empty()
+            || !self.runtime_available()
+            || !game_tools::plugin_dir(&self.game)
+                .join("MortalModHost.dll")
+                .is_file()
+        {
+            return;
+        }
+        let game = self.game.clone();
+        let runtime = self.runtime.clone();
+        self.refresh_after_job = true;
+        self.background("同步游戏 Host", move || {
+            game_tools::sync_installed_runtime(&game, &runtime)
+        });
+        self.report_open = false;
+    }
+
+    pub fn game_directory(&self) -> PathBuf {
+        self.game.clone()
+    }
     pub fn take_location(&mut self) -> Option<crate::error_location::Destination> {
         self.location.take()
     }
@@ -375,7 +397,9 @@ impl ToolsPanel {
                         self.refresh_after_job = false;
                         self.refresh_game();
                     }
-                    self.report_open = true;
+                    self.report_open = self.job_title != "同步游戏 Host"
+                        || self.report["changed"] == true
+                        || !self.report["error"].is_null();
                 }
                 Err(mpsc::TryRecvError::Disconnected) => {
                     self.report_title = self.job_title.clone();
@@ -755,7 +779,9 @@ impl ToolsPanel {
                             report["versions"][key].as_str().unwrap_or("尚未读取")
                         ));
                     }
-                    ui.small(tr("编辑器更新后，可在这里同步游戏中的 Host。"));
+                    ui.small(tr(
+                        "启动编辑器时会自动同步已安装的 Host；游戏运行时请退出后手动更新。",
+                    ));
                 }
                 if ui
                     .add_enabled(
@@ -1575,14 +1601,32 @@ fn prepare_preview(project: &Project, script: &str, node: &str) -> anyhow::Resul
             .is_some_and(|ns| ns.iter().any(|n| n["id"] == node)),
         "节点不存在"
     );
-    let prelude = crate::preview::build_playtest_prelude(story, node);
-    story["start"] = json!(prelude
-        .first()
-        .and_then(|n| n["id"].as_str())
-        .unwrap_or(node));
-    story["nodes"].as_array_mut().unwrap().extend(prelude);
+    if story.get("vanilla_patch").is_none() && story.get("vanilla_import").is_none() {
+        let prelude = crate::preview::build_playtest_prelude(story, node);
+        story["start"] = json!(prelude
+            .first()
+            .and_then(|n| n["id"].as_str())
+            .unwrap_or(node));
+        story["nodes"].as_array_mut().unwrap().extend(prelude);
+    }
     preview.manifest = json!({"format":3,"package_format":3,"story_schema":2,"content_schema":1,"id":game_tools::PREVIEW_ID,"campaign_id":game_tools::PREVIEW_ID,"name":format!("编辑器临时试玩：{script}"),"version":"0.0.0-preview","author":"lom_modkit","description":format!("从 {script}/{node} 开始的临时测试包"),"entry":script,"campaign":{"new_game":true,"disable_official_events":true}});
     Ok(preview)
+}
+
+#[test]
+fn imported_chapter_preview_keeps_native_initialization_and_scopes() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../lom-core/tests/fixtures/vanilla-import.json"
+    ))
+    .unwrap();
+    let mut project = Project::new_vanilla_patch("DEMO").unwrap();
+    let mut story = fixture["story"].clone();
+    story["id"] = json!("main");
+    project.stories.insert("main".into(), story.clone());
+    let preview = prepare_preview(&project, "main", "inserted").unwrap();
+    assert_eq!(preview.stories["main"], story);
+    let temp = tempfile::tempdir().unwrap();
+    preview.export(&temp.path().join("preview.lommod")).unwrap();
 }
 fn copy_content_to_project(
     root: &std::path::Path,
@@ -1651,6 +1695,24 @@ fn show_report(ui: &mut egui::Ui, value: &Value, depth: usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn startup_host_sync_reports_changes_and_errors_without_a_noop_dialog() {
+        for (result, opens) in [
+            (Ok(json!({"changed":false})), false),
+            (Ok(json!({"changed":true})), true),
+            (Err("游戏正在运行".to_owned()), true),
+        ] {
+            let mut panel = ToolsPanel::default();
+            let (tx, rx) = mpsc::channel();
+            panel.job = Some(rx);
+            panel.job_title = "同步游戏 Host".into();
+            panel.report_open = false;
+            tx.send(JobEvent::Finished(result)).unwrap();
+            panel.poll(&egui::Context::default());
+            assert_eq!(panel.report_open, opens);
+            assert!(panel.job.is_none());
+        }
+    }
 
     #[test]
     fn effect_capture_reports_queue_cached_directories_in_order_and_preserve_partial_errors() {

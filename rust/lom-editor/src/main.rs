@@ -14,9 +14,11 @@ mod persistence;
 mod play_bundle;
 mod preview;
 mod preview_layout;
+mod route_map;
 mod shell;
 mod tool_report;
 mod tools_panel;
+mod vanilla_panel;
 mod workspace;
 
 fn main() -> eframe::Result {

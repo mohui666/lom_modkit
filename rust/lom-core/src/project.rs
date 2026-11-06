@@ -49,6 +49,18 @@ impl Project {
         project.scenario = Some(config);
         project
     }
+    pub fn new_vanilla_patch(target: &str) -> Result<Self> {
+        let mut project = Self::new_scenario("addon");
+        project.manifest["name"] = json!("原版剧情补丁");
+        project.manifest["description"] = json!("在原版章节中修改文字或按旗标插入对白");
+        project.manifest["min_host_version"] = json!(crate::vanilla_patch::MIN_HOST);
+        project.scenario = Some(json!({"schema":1,"events":[],"tasks":[]}));
+        project.stories.insert(
+            "main".into(),
+            crate::vanilla_patch::new_story("main", target)?,
+        );
+        Ok(project)
+    }
     // Existing documents without a manifest must not acquire a new save identity on import.
     fn draft() -> Self {
         let story = json!({"story_schema":2,"id":"main","title":"新的剧情","start":"say1","nodes":[{"id":"say1","type":"say","mode":"narrative","text":"从这里开始你的故事。"},{"id":"end1","type":"end"}]});

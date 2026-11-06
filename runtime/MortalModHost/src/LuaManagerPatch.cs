@@ -15,7 +15,7 @@ namespace MortalModHost
     /// Harmony prefix：拦截 <c>LuaManager.ExecuteLuaScript()</c>（private，Story 场景中由 Init() 调用）。
     /// 当前脚本名命中 mod 注册名（MOD_&lt;modid&gt;_&lt;scriptid&gt;）时，从内存中的 mod 包取 Lua 文本直接演出，
     /// 并跳过原方法——原方法会去 Resources 找官方脚本，MOD_ 前缀的脚本必然找不到，还会刷一条误导性报错。
-    /// 官方脚本名一律放行（return true），游戏行为不受影响。
+    /// 官方脚本按当前玩法查找已启用的章节补丁，未命中时放行（return true）。
     /// </summary>
     [HarmonyPatch(typeof(LuaManager), "ExecuteLuaScript")]
     internal static class LuaManagerPatch
@@ -41,6 +41,10 @@ namespace MortalModHost
         private static bool Prefix(LuaManager __instance)
         {
             string scriptName = __instance.ScriptName;
+            VanillaBookmarkCapture.Begin(scriptName);
+            string replacementName;
+            if (ModRegistry.TryGetVanillaOverride(scriptName, ModPlayModeSession.Allows, out replacementName))
+                scriptName = replacementName;
             string lua;
             if (!ModRegistry.TryGetLuaByRegisteredName(scriptName, out lua))
             {
@@ -463,9 +467,10 @@ namespace MortalModHost
                     continue;
                 }
                 failure = null;
+                DynValue yielded = null;
                 try
                 {
-                    coroutine.Coroutine.Resume();
+                    yielded = coroutine.Coroutine.Resume();
                 }
                 catch (Exception ex)
                 {
@@ -480,6 +485,10 @@ namespace MortalModHost
                         null, failure, "lua_runtime", errorPackage, scriptName);
                     yield break;
                 }
+                // End/goto/death inside a native local function must finish the
+                // owning coroutine, including the enclosing native call stack.
+                if (yielded != null && yielded.Type == DataType.String
+                    && yielded.String == VanillaImportSource.CompletionSignal) yield break;
                 yield return null;
             }
         }
@@ -500,6 +509,66 @@ namespace MortalModHost
                 Script script = env.Interpreter;
                 if (script == null)
                     throw new InvalidOperationException("LuaEnvironment.Interpreter 为 null");
+                VanillaImportSource importedSource = null;
+                script.Globals["mod_begin_vanilla_import"] = (Action<string>)(storyId =>
+                {
+                    ModPackage package = ModOverlay.CurrentPackage;
+                    VanillaImportSource source;
+                    if (package == null || !package.VanillaImports.TryGetValue(storyId, out source))
+                        throw new InvalidOperationException("当前作品没有这个原版整章来源");
+                    if (!source.OriginalVerified)
+                    {
+                        TextAsset original = Resources.Load<TextAsset>("Story/ChineseTraditional/" + source.Target);
+                        if (original == null) throw new InvalidOperationException("当前游戏没有原版章节：" + source.Target);
+                        source.VerifyOriginal(original.text);
+                    }
+                    bool native = source.Begin();
+                    if (manager == null) throw new InvalidOperationException("原版章节演出尚未就绪");
+                    if (!string.Equals(manager.ScriptName, source.Target, StringComparison.Ordinal))
+                        manager.SetCurrentStoryScript(source.Target);
+                    VanillaBookmarkCapture.Begin(source.Target);
+                    MoodControl.Disabled = false;
+                    importedSource = source;
+                    ModDisclosure.SetOriginalContent(native);
+                });
+                script.Globals["mod_vanilla_source_node"] = (Action<string>)(nodeId =>
+                {
+                    if (importedSource == null) throw new InvalidOperationException("尚未开始原版整章演出");
+                    ModDisclosure.SetOriginalContent(importedSource.Node(nodeId));
+                });
+                script.Globals["mod_vanilla_source_continue"] = new CallbackFunction((ctx, args) =>
+                {
+                    if (importedSource == null) throw new InvalidOperationException("尚未开始原版整章演出");
+                    ModDisclosure.SetOriginalContent(importedSource.ContinueOriginal());
+                    return DynValue.Nil;
+                }, "mod_vanilla_source_continue");
+                script.Globals["mod_without_system_messages"] = (Func<DynValue,DynValue>)(change =>
+                {
+                    if (change == null || change.Type != DataType.Function)
+                        throw new ArgumentException("静默数值变更需要同步函数");
+                    return SystemMessageScope.Run(() => script.Call(change));
+                });
+                script.Globals["mod_load_vanilla_story"] = (Func<string, string, DynValue>)((target, editsJson) =>
+                {
+                    ModPackage package = ModOverlay.CurrentPackage;
+                    if (!VanillaStoryPatch.ValidTarget(target) || package == null || !package.VanillaOverrides.ContainsKey(target))
+                        throw new InvalidOperationException("当前作品未声明这个原版章节补丁");
+                    // Confirmed entry: LuaManager.ExecuteLuaScript loads this exact
+                    // Resources path. Assets stay in the player's installation.
+                    TextAsset original = Resources.Load<TextAsset>("Story/ChineseTraditional/" + target);
+                    if (original == null) throw new InvalidOperationException("当前游戏没有原版章节：" + target);
+                    string patched = VanillaStoryPatch.Apply(original.text, editsJson);
+                    Closure function = env.LoadLuaFunction(patched, target + ".VanillaPatch");
+                    if (function == null) throw new InvalidOperationException("原版章节补丁 Lua 编译失败：" + target);
+                    // A direct F5 entry starts with the registered MOD name.
+                    // Native checkpoints and bookmarks must see the original chapter.
+                    if (manager == null) throw new InvalidOperationException("原版章节演出尚未就绪");
+                    if (!string.Equals(manager.ScriptName, target, StringComparison.Ordinal))
+                        manager.SetCurrentStoryScript(target);
+                    VanillaBookmarkCapture.Begin(target);
+                    MoodControl.Disabled = false;
+                    return DynValue.NewClosure(function);
+                });
                 script.Globals["mod_event_result"] = new CallbackFunction((ctx,args) =>
                 {
                     ScenarioRuntime.SetResult(ModOverlay.CurrentPackage,ArgString(args,0));
@@ -831,6 +900,12 @@ namespace MortalModHost
                     CustomConsumableRuntime.UseField(ModOverlay.CurrentPackage, ArgString(args, 0));
                     return DynValue.Nil;
                 }, "mod_use_item");
+                script.Globals["mod_change_item"] = new CallbackFunction((ctx,args)=>
+                {
+                    if(args[3].Type!=DataType.Boolean)throw new ArgumentException("物品提示开关必须是布尔值");
+                    CustomGameplayRuntime.ChangeItemWithMessage(ModOverlay.CurrentPackage,ArgString(args,0),ArgString(args,1),RequireArgInt(args,2),args[3].Boolean);
+                    return DynValue.Nil;
+                },"mod_change_item");
                 script.Globals["mod_has_item"] = new CallbackFunction((ctx, args) =>
                 {
                     return DynValue.NewBoolean(GameplayChecks.HasItem(

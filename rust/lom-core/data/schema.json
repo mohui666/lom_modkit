@@ -149,7 +149,8 @@
         "mode": "mode",
         "voice": "str",
         "font_size": "say_font_size",
-        "text_align": "narrative_align"
+        "text_align": "narrative_align",
+        "inherit_dialog": "bool"
       }
     },
     "choice": {
@@ -299,7 +300,8 @@
       "optional": {
         "waitDisplay": "bool",
         "display": "num",
-        "mode": "str"
+        "mode": "str",
+        "show_message": "bool"
       }
     },
     "stat_set": {
@@ -308,7 +310,8 @@
         "value": "num"
       },
       "optional": {
-        "update": "bool"
+        "update": "bool",
+        "show_message": "bool"
       }
     },
     "affinity": {
@@ -316,14 +319,18 @@
         "character": "str",
         "delta": "num"
       },
-      "optional": {}
+      "optional": {
+        "show_message": "bool"
+      }
     },
     "talent": {
       "required": {
         "talent": "idstr",
         "level": "talent_level"
       },
-      "optional": {}
+      "optional": {
+        "show_message": "bool"
+      }
     },
     "item": {
       "required": {
@@ -332,7 +339,8 @@
       },
       "optional": {
         "count": "num",
-        "remove": "bool"
+        "remove": "bool",
+        "show_message": "bool"
       }
     },
     "flag": {
@@ -357,7 +365,8 @@
       },
       "optional": {
         "value": "num",
-        "display": "num"
+        "display": "num",
+        "show_message": "bool"
       }
     },
     "battle_skill": {
@@ -482,7 +491,9 @@
       "required": {
         "entries": "list"
       },
-      "optional": {}
+      "optional": {
+        "show_message": "bool"
+      }
     },
     "result_screen": {
       "required": {
@@ -490,7 +501,8 @@
         "entries": "list"
       },
       "optional": {
-        "text": "str"
+        "text": "str",
+        "show_message": "bool"
       }
     },
     "custom_shop": {
@@ -568,7 +580,8 @@
         "message": "str",
         "time": "activity_time",
         "success_rewards": "list",
-        "failure_rewards": "list"
+        "failure_rewards": "list",
+        "show_message": "bool"
       }
     },
     "mod_quest": {
@@ -687,7 +700,8 @@
       "required": {},
       "optional": {
         "next_script": "script_id",
-        "event_result": "script_id"
+        "event_result": "script_id",
+        "resume_original": "bool"
       }
     },
     "free_trigger": {
@@ -754,7 +768,9 @@
       "required": {
         "item": "idstr"
       },
-      "optional": {}
+      "optional": {
+        "show_message": "bool"
+      }
     }
   },
   "enums": {
@@ -1071,7 +1087,8 @@
   "common_fields": [
     "id",
     "type",
-    "goto"
+    "goto",
+    "_editor"
   ],
   "check_types": [
     "stat_check",

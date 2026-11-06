@@ -28,7 +28,7 @@ namespace MortalModHost
     {
         public const string GUID = "com.mohui666.mortalmodhost";
         public const string NAME = "MortalModHost";
-        public const string VERSION = "1.4.8";
+        public const string VERSION = "1.4.9";
 
         internal static Plugin Instance { get; private set; }
 
@@ -69,6 +69,7 @@ namespace MortalModHost
         private ConfigEntry<KeyboardShortcut> _menuHotkey;
         private ConfigEntry<KeyboardShortcut> _vanillaStoryHotkey;
         private ConfigEntry<KeyboardShortcut> _debuggerHotkey;
+        private ConfigEntry<KeyboardShortcut> _storyBookmarkHotkey;
         private ConfigEntry<bool> _hotkeyMigrationCompleted;
         private ConfigEntry<string> _lastSelectedCampaignId;
         private bool _harmonyPatched;
@@ -102,6 +103,8 @@ namespace MortalModHost
                 "切换「禁用原版游戏剧情」的全局临时开关（任意场景可切换；会话级，不持久化）。开启后跳过返回 Free 时自动触发及地点点击触发的官方主线、支线和默认脚本，mod 触发器仍优先。");
             _debuggerHotkey = Config.Bind("Development", "DebuggerHotkey", new KeyboardShortcut(KeyCode.F10),
                 "仅编辑器 F5 开发包生效：显示/隐藏 Runtime Debugger。正式 Mod 不启用调试器。");
+            _storyBookmarkHotkey = Config.Bind("General", "StoryBookmarkHotkey", new KeyboardShortcut(KeyCode.F6,KeyCode.LeftControl),
+                "标记当前原版章节与对白，供编辑器快速定位；同时更新只读任务时间线。默认 Ctrl+F6。");
             _hotkeyMigrationCompleted = Config.Bind("Migration", "MenuHotkeyF9ToF8Completed", false,
                 "内部一次性迁移标记。设为 true 后 Runtime 不会再自动改写 MenuHotkey。除非排查旧配置迁移，请勿修改。");
             _lastSelectedCampaignId = Config.Bind("Campaign", "LastSelectedCampaignId", "",
@@ -1187,6 +1190,7 @@ namespace MortalModHost
 
         private void OnGUI()
         {
+            HandleStoryBookmarkKey(Event.current);
             if (_enabled != null && _enabled.Value && RuntimeTrace.Active && _showDebugger)
             {
                 _debugWindowRect.height = Mathf.Min(680f, Math.Max(240f, Screen.height - 40f));
@@ -1204,6 +1208,43 @@ namespace MortalModHost
             if (!_inTitleScene) DrawEntryButton();
             if (_showMenu)
                 _windowRect = GUI.Window(WindowId, _windowRect, DrawWindow, I18n.T("window", _menuHotkey.Value));
+        }
+
+        private void HandleStoryBookmarkKey(Event input)
+        {
+            if (_enabled == null || !_enabled.Value || !_runtimeReady || input == null
+                || input.type != EventType.KeyDown || input.keyCode != _storyBookmarkHotkey.Value.MainKey)
+                return;
+            // Use the modifiers carried by this key event. A quick chord can be
+            // fully released before the next MonoBehaviour.Update polls Keyboard.
+            foreach (KeyCode modifier in _storyBookmarkHotkey.Value.Modifiers)
+            {
+                bool down;
+                if (modifier == KeyCode.LeftControl || modifier == KeyCode.RightControl) down = input.control;
+                else if (modifier == KeyCode.LeftShift || modifier == KeyCode.RightShift) down = input.shift;
+                else if (modifier == KeyCode.LeftAlt || modifier == KeyCode.RightAlt) down = input.alt;
+                else if (modifier == KeyCode.LeftCommand || modifier == KeyCode.RightCommand) down = input.command;
+                else
+                {
+                    Key key;
+                    down = Keyboard.current != null && TryConvertKeyCode(modifier, out key) && Keyboard.current[key].isPressed;
+                }
+                if (!down) return;
+            }
+            input.Use();
+            try
+            {
+                string path = VanillaBookmarkCapture.Mark(Paths.GameRootPath);
+                if (StoryMainUI.Instance != null) StoryMainUI.Instance.DisplayMessageText("已标记原版章节，可在编辑器打开游戏标记");
+                Logger.LogInfo("原版章节标记："+path);
+                try { VanillaBookmarkCapture.ExportTimeline(Paths.GameRootPath); }
+                catch (Exception error) { Logger.LogWarning("章节已标记，时间线读取失败："+error.Message); }
+            }
+            catch (Exception error)
+            {
+                Logger.LogWarning("标记原版章节失败："+error.Message);
+                if (StoryMainUI.Instance != null) StoryMainUI.Instance.DisplayMessageText(error.Message);
+            }
         }
 
         private void DrawDebuggerWindow(int id)

@@ -25,6 +25,7 @@ namespace MortalModHost
         private static Texture2D _texture;
 
         internal static bool Active { get; private set; }
+        private static bool _visible = true;
         internal static string LastError { get; private set; }
 
         internal static void Enable(string modId, string fingerprint)
@@ -53,6 +54,7 @@ namespace MortalModHost
             }
 
             Active = true;
+            _visible = true;
             LastError = null;
             if (!Maintain())
                 throw new InvalidOperationException(
@@ -61,7 +63,7 @@ namespace MortalModHost
 
         internal static bool Maintain()
         {
-            if (!Active) return true;
+            if (!Active || !_visible) return true;
             try
             {
                 if (_tileRgba == null || _tileRgba.Length
@@ -85,6 +87,7 @@ namespace MortalModHost
         internal static void Disable()
         {
             Active = false;
+            _visible = true;
             LastError = null;
             _modId = null;
             _fingerprint = null;
@@ -93,6 +96,12 @@ namespace MortalModHost
             _textureName = null;
             _tileRgba = null;
             DestroyVisuals();
+        }
+
+        internal static void SetVisible(bool visible)
+        {
+            _visible = visible;
+            if (_root != null && !visible) _root.SetActive(false);
         }
 
         private static void EnsureTexture()
@@ -152,7 +161,8 @@ namespace MortalModHost
         {
             _root.name = _rootName;
             _root.SetActive(true);
-            _root.transform.SetParent(null, false);
+            if (_root.transform.parent != null)
+                _root.transform.SetParent(null, false);
             _root.transform.localPosition = Vector3.zero;
             _root.transform.localRotation = Quaternion.identity;
             _root.transform.localScale = Vector3.one;
@@ -179,7 +189,8 @@ namespace MortalModHost
             GameObject imageObject = _image.gameObject;
             imageObject.name = _imageName;
             imageObject.SetActive(true);
-            _image.transform.SetParent(_root.transform, false);
+            if (_image.transform.parent != _root.transform)
+                _image.transform.SetParent(_root.transform, false);
             _image.transform.SetAsLastSibling();
             RectTransform imageRect = _image.rectTransform;
             imageRect.anchorMin = Vector2.zero;
@@ -204,7 +215,6 @@ namespace MortalModHost
                 Mathf.Max(1f, Screen.height / (float)ProvenanceWatermarkCodec.TileHeight));
             _image.canvasRenderer.SetAlpha(1f);
             _image.canvasRenderer.SetColor(Color.white);
-            _image.SetAllDirty();
         }
 
         private static void RepairCanvasGroups(GameObject owner)
