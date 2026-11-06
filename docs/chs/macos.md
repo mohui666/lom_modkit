@@ -8,7 +8,7 @@ Mac 版与 Windows 版共用 Story、编译器和 `.lommod` 格式，支持编�
 
 当前先提供 Rust 通用外壳：浅色界面、三栏布局和系统标准标题栏。窗口顶部显示作品名称及“活侠传剧情编辑器”；未保存时有 `*` 标记。标题只在内容变化时更新，避免重复刷新。
 
-早期 AppKit 玻璃叠层与当前 OpenGL 窗口发生冲突，导致标题栏异常或正文被遮挡，已移除。当前版本不提供液态玻璃；Mac 专用 Swift 外壳按计划留待后续实现。macOS 27、Apple Silicon 的窗口验证属于历史构建记录，见 [迁移验收](rust_migration.md#历史实现验证2026-10-04apple-silicon-macos)；不作为 1.4.4 的 Mac GUI 验收，也未覆盖旧系统或 Intel Mac。
+早期 AppKit 玻璃叠层与当前 OpenGL 窗口发生冲突，导致标题栏异常或正文被遮挡，已移除。当前版本不提供液态玻璃；Mac 专用 Swift 外壳按计划留待后续实现。当前版本的 macOS GUI 专项验收仍待补齐。
 
 编辑器偏好、自动恢复和用户内容保存在 `~/Library/Application Support/lom_modkit/`，应用程序目录不保存这些数据。
 
@@ -34,4 +34,4 @@ python tools/extract_preview_assets.py --game-dir "C:\Program Files (x86)\Steam\
 
 ## 从源码构建
 
-安装 Rust，在仓库根目录运行 `scripts/build-macos.sh`。产物为 `out/LoM Modkit Rust.app`，包含 `lom-editor` 和 `lomc`；编辑和编译不依赖 Python 或 Qt。构建会检查 133 个样例节点预览，不启动游戏。详见 [Rust 迁移](rust_migration.md)。
+安装 Rust，在仓库根目录运行 `scripts/build-macos.sh`。产物为 `out/LoM Modkit Rust.app`，包含 `lom-editor` 和 `lomc`；编辑和编译不依赖 Python 或 Qt。构建会检查样例节点预览。详见 [Rust 构建](rust.md)。

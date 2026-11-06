@@ -623,6 +623,15 @@ namespace MortalModHost
                     MoodControl.SetCharacter(ArgString(args, 0), ArgString(args, 1), ArgFloat(args, 2, 0f), ArgFloat(args, 3, 0f));
                     return DynValue.Nil;
                 }, "mod_character_mood");
+                script.Globals["mod_dialogue_mood"] = new CallbackFunction((ctx, args) =>
+                {
+                    Action restore = MoodControl.BeginDialogue(ArgString(args, 0), ArgString(args, 1));
+                    return DynValue.NewCallback((restoreContext, restoreArgs) =>
+                    {
+                        restore();
+                        return DynValue.Nil;
+                    }, "restore_dialogue_mood");
+                }, "mod_dialogue_mood");
                 script.Globals["mod_character_layout"] = new CallbackFunction((ctx, args) =>
                 {
                     CharacterLayoutRuntime.Set(ArgString(args, 0), ArgFloat(args, 1, 0f), ArgFloat(args, 2, 0f),

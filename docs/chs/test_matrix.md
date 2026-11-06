@@ -1,12 +1,6 @@
-# 测试矩阵与验证边界
+# 测试入口与验证边界
 
-本文列出当前 Rust／C# 验证入口。1.4.9 的功能见 [更新说明](../../RELEASE_NOTES_v1.4.9.md)，实机范围见 [当前能力](current_capabilities.md)。下方有日期的旧结果只对应当时的验证轮次。
-
-2026-11-06 的 1.4.9 发布验证中，Rust workspace 454 项通过、0 失败、5 项跳过，C# Host 离线测试和两项路线读取测试通过。实机覆盖原版第一章开场、旗帜条件命中和跳过、新增对白标记出现及返回原文后隐藏。完整章节、Combat／Battle 和所有原版分支尚未逐项重测。
-
-历史记录：2026-10-04 至 2026-10-05 Windows 实测的最终完整 Rust 结果为 **196 项通过、0 失败、2 项默认跳过**；正式 Host、原生 bundle 构建和新 exe 的具体 UI 路径另有实际验证，见 [Windows 验证记录](windows_validation.md)。该次未执行游戏实机。
-
-历史边界：2026-10-04 的文档核对本身没有重跑测试；此前 Apple Silicon Mac 记录为 **179 / 0 / 2**，Showcase 3.0 为 5 章、133 节点、63 类型，预览 **133 / 133**，见 [迁移验收表](rust_migration.md)。这些历史结果不计入本轮 Windows 证据。
+当前验证结果见 [当前能力](current_capabilities.md#1410-验证范围)，功能见 [本版说明](../../RELEASE_NOTES_v1.4.10.md)。
 
 ## 验证层次
 
@@ -19,7 +13,7 @@
 | Mac 应用构建 | `sh scripts/build-macos.sh` | 原生程序、应用资源、签名检查与内置预览烟测；GUI 仍需另外打开检查 |
 | C# 离线回归 | `dotnet run --project runtime/MortalModHost/test/SmokeTest/SmokeTest.csproj --configuration Release` | 使用离线测试工程；不启动 Unity，也不验证真实游戏生命周期 |
 | Windows 原生工具 | `scripts/build-windows.ps1 -NoArchive` | 使用正式 Host DLL 构建；构建、自动化与实际 UI 结果分开记录 |
-| 游戏实机 | [Showcase 手动流程](../../samples/showcase3/README.md#手动测试顺序) | 按具体场景记录结果，1.4.9 范围见上方说明 |
+| 游戏实机 | [Showcase 手动流程](../../samples/showcase3/README.md#手动测试顺序) | 按具体场景记录结果，本版范围见当前能力 |
 
 受控 API 对照测试内部的旧版案例不能再加到 Rust 测试总数上重复计数；不同阶段重跑、预览状态、C# 冒烟、构建与 UI 操作也分别记录。旧 JSON／Lua fixture 是历史对照数据，当前测试不启动已退役的 Python 编辑器或编译器。
 
@@ -40,7 +34,7 @@ sh scripts/build-macos.sh
 
 ## 需要外部依赖的案例
 
-当前默认跳过四项：
+用 `cargo test --locked --workspace -- --list --ignored` 查看当前忽略清单。下列用例按需准备依赖后单独执行。
 
 - 官方加载器 ZIP 安装测试：需 `LOM_BEPINEX_ARCHIVES` 指向固定版本的官方归档，仅写临时合成安装目录。
 
@@ -48,13 +42,9 @@ sh scripts/build-macos.sh
 - 历史截图水印语料测试：需 `LOM_WATERMARK_CORPUS` 指向事先生成的外部语料。
 - 公开版本的实际更新下载测试，需要网络和已发布附件。
 
-2026-10-05 Windows 轮次未确认可用 FFmpeg/FFplay 或外部水印语料，这两项当时为 ignored，不计通过；OGG 实际播放受阻。此前 FFmpeg 合成视频的历史通过不能替代该轮结果。缺少依赖、默认跳过和实际失败应分别记录。
+手工性能测试使用合成大项目，单独运行并记录面板耗时。缺少依赖、默认忽略与实际失败分别记录。
 
 ## GUI 与 CI
-
-2026-10-04 的历史 Mac 窗口检查包括：系统应用菜单的设置入口、四语言字形、命名和输入法、模态确认／取消、素材导入与名称编辑，以及保存后撤销章节、删除素材后重开的持久化行为。该记录不覆盖 Windows UI，也不代表 Swift 或 Liquid Glass 已完成。
-
-2026-10-04 至 05 的历史 Windows 检查已操作四语言、命名/IME、资源表单与导入替换、保存撤销重开、两项异常恢复、流程图/错误定位和离线创作路径；具体通过与受阻范围见 [Windows 验证记录](windows_validation.md)。当时鼠标修饰键多选和多节点模板受接口限制，未以单元测试代替 UI 验收；也未穷尽其他 DPI、主题和节点组合。
 
 当前 [CI 配置](../../.github/workflows/ci.yml) 包含 `Native Rust tools (macOS)` 与 Ubuntu 上的 `Runtime tests`。前者运行格式、Rust 测试、预览和样例生成；后者运行 C# 离线测试。CI 没有 Windows 或游戏实机任务，也没有替代本机窗口的视觉检查。
 

@@ -4,7 +4,7 @@
     "package_format": 3,
     "story_schema": 2,
     "content_schema": 1,
-    "min_host_version": "1.4.9",
+    "min_host_version": "1.4.10",
     "id": "showcase3",
     "campaign_id": "showcase3",
     "name": "全节点样例3.0·六十七节点实机验收",
@@ -339,7 +339,18 @@
           "id": "mood_custom_line",
           "type": "say",
           "mode": "narrative",
-          "text": "自定义人物也可以独立显示气泡，位置由人物素材中的百分比控制。"
+          "text": "本句临时显示害羞气泡，位置沿用上一步的偏移。",
+          "mood_icon": "shy",
+          "mood_character": "user:showcase.lin_deng",
+          "_editor": {
+            "note": "单句气泡与恢复"
+          }
+        },
+        {
+          "id": "mood_custom_restore",
+          "type": "say",
+          "mode": "narrative",
+          "text": "本句结束后恢复先前的气泡样式和位置。"
         },
         {
           "id": "mood_custom_exit",
@@ -756,7 +767,10 @@
           "next_script": "gameplay"
         }
       ],
-      "start": "initial_time"
+      "start": "initial_time",
+      "_editor": {
+        "chapter_group": "演出示例"
+      }
     },
     {
       "story_schema": 2,
@@ -1877,6 +1891,9 @@
             }
           }
         ]
+      },
+      "_editor": {
+        "chapter_group": "原版编辑"
       }
     }
   ]

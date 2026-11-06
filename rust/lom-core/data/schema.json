@@ -149,6 +149,8 @@
         "mode": "mode",
         "voice": "str",
         "font_size": "say_font_size",
+        "mood_icon": "dialogue_mood_icon",
+        "mood_character": "str",
         "text_align": "narrative_align",
         "inherit_dialog": "bool"
       }
@@ -1017,6 +1019,19 @@
       "1",
       "2",
       "3"
+    ],
+    "dialogue_mood_icon": [
+      "auto",
+      "hide",
+      "shock",
+      "silent",
+      "angry2",
+      "nervous1",
+      "laugh1",
+      "shy",
+      "nervous3",
+      "nervous4",
+      "nervous2"
     ],
     "mood_icon": [
       "auto",

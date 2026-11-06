@@ -74,7 +74,7 @@ namespace MortalModHost
                 if (kind == "say" && native)
                 {
                     var baseline = new Dictionary<string, object>((Dictionary<string, object>)((Dictionary<string, object>)origins[index])["node"]);
-                    foreach (string key in new[] { "text", "font_size", "voice" })
+                    foreach (string key in new[] { "text", "font_size", "voice", "mood_icon", "mood_character" })
                     {
                         object text;
                         if (node.TryGetValue(key, out text)) baseline[key] = text;

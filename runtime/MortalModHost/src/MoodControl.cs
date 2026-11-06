@@ -51,6 +51,7 @@ namespace MortalModHost
         {
             internal string Icon;
             internal Vector2 Offset;
+            internal bool Dialogue;
         }
         private static readonly Dictionary<StoryCharacterController, Setting> Overrides =
             new Dictionary<StoryCharacterController, Setting>();
@@ -93,9 +94,7 @@ namespace MortalModHost
             if (string.IsNullOrEmpty(id)) throw new ArgumentException("指定气泡需要人物 ID");
             if (float.IsNaN(x) || float.IsNaN(y) || Math.Abs(x) > 1920f || Math.Abs(y) > 1080f)
                 throw new ArgumentException("气泡偏移超出范围");
-            if (Array.IndexOf(new[] { "auto", "hide", "shock", "silent", "angry2", "nervous1", "laugh1",
-                "shy", "nervous3", "nervous4", "nervous2" }, icon) < 0)
-                throw new ArgumentException("未知气泡样式：" + icon);
+            ValidateIcon(icon);
             if (id.StartsWith("user:", StringComparison.Ordinal))
             {
                 CustomCharacterRuntime.SetMood(id, icon, x, y);
@@ -118,6 +117,42 @@ namespace MortalModHost
             if (controller != null && Overrides.ContainsKey(controller) && controller.State != null && controller.State.onScreen
                 && !controller.State.dimmed && controller.State.holder != null && controller.Mood != null)
                 controller.ShowMood();
+        }
+
+        private static void ValidateIcon(string icon)
+        {
+            if (Array.IndexOf(new[] { "auto", "hide", "shock", "silent", "angry2", "nervous1", "laugh1",
+                "shy", "nervous3", "nervous4", "nervous2" }, icon) < 0)
+                throw new ArgumentException("未知气泡样式：" + icon);
+        }
+
+        internal static Action BeginDialogue(string id, string icon)
+        {
+            if (string.IsNullOrEmpty(id)) throw new ArgumentException("指定气泡需要人物 ID");
+            ValidateIcon(icon);
+            if (id != null && id.StartsWith("user:", StringComparison.Ordinal))
+                return CustomCharacterRuntime.BeginDialogueMood(id, icon);
+            CharacterPlaceholder placeholder = CharacterPlaceholder.Instance;
+            StoryCharacterController controller = placeholder != null ? placeholder.Get(id) as StoryCharacterController : null;
+            Setting previous = null;
+            bool hadPrevious = controller != null && Overrides.TryGetValue(controller, out previous);
+            SetCharacter(id, icon, previous == null ? 0f : previous.Offset.x, previous == null ? 0f : previous.Offset.y);
+            var current = new Setting { Icon = icon, Offset = previous == null ? Vector2.zero : previous.Offset, Dialogue = true };
+            Overrides[controller] = current;
+            controller.ShowMood();
+            return () =>
+            {
+                Setting active;
+                if (controller == null || !Overrides.TryGetValue(controller, out active) || active != current) return;
+                if (hadPrevious) Overrides[controller] = previous;
+                else
+                {
+                    Overrides.Remove(controller);
+                    RestorePosition(controller);
+                }
+                if (controller.State != null && controller.State.onScreen && controller.State.holder != null && controller.Mood != null)
+                    controller.ShowMood();
+            };
         }
 
         internal static void RefreshVisible()
@@ -160,7 +195,7 @@ namespace MortalModHost
             {
                 Vector2 position = __instance.Data.MoodPosition + setting.Offset;
                 __instance.Mood.SetPosition(position.x, position.y);
-                if (setting.Icon == "hide" || !__instance.State.onScreen || __instance.State.dimmed || setting.Icon == "auto" && Disabled)
+                if (setting.Icon == "hide" || !__instance.State.onScreen || __instance.State.dimmed || setting.Icon == "auto" && Disabled && !setting.Dialogue)
                     __instance.Mood.Hide();
                 else if (setting.Icon != "auto")
                     __instance.Mood.Show(setting.Icon, __instance.State.holder.localScale.x);

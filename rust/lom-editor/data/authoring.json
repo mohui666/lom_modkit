@@ -858,6 +858,52 @@
         "靠左对齐"
       ]
     ],
+    "dialogue_mood_icon": [
+      [
+        "auto",
+        "跟随人物表情"
+      ],
+      [
+        "hide",
+        "本句隐藏"
+      ],
+      [
+        "shock",
+        "惊讶（叹号）"
+      ],
+      [
+        "silent",
+        "沉默（省略号）"
+      ],
+      [
+        "angry2",
+        "生气"
+      ],
+      [
+        "nervous1",
+        "紧张（汗滴）"
+      ],
+      [
+        "laugh1",
+        "开心（音符）"
+      ],
+      [
+        "shy",
+        "害羞"
+      ],
+      [
+        "nervous3",
+        "低落（阴影）"
+      ],
+      [
+        "nervous4",
+        "烦躁（乱线）"
+      ],
+      [
+        "nervous2",
+        "慌张（冒汗）"
+      ]
+    ],
     "mood_icon": [
       [
         "auto",
@@ -1427,6 +1473,18 @@
           "voice",
           "对白语音",
           "voice",
+          true
+        ],
+        [
+          "mood_icon",
+          "本句表情气泡",
+          "enum:dialogue_mood_icon",
+          true
+        ],
+        [
+          "mood_character",
+          "气泡人物",
+          "mood_character",
           true
         ]
       ]

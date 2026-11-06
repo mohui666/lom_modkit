@@ -236,6 +236,25 @@ namespace MortalModHost
             }
         }
 
+        internal static Action BeginDialogueMood(string raw, string icon)
+        {
+            Actor actor;
+            if (!Actors.TryGetValue(raw, out actor) || !actor.Visible)
+                throw new InvalidOperationException("指定气泡的人物尚未登场：" + raw);
+            string previous = actor.MoodIcon;
+            SetMood(raw, icon, actor.MoodOffset.x, actor.MoodOffset.y);
+            // A scoped auto choice follows the portrait even when chapter auto bubbles are off.
+            actor.MoodIcon = icon;
+            UpdateMoods();
+            return () =>
+            {
+                Actor current;
+                if (!Actors.TryGetValue(raw, out current) || current != actor || !actor.Visible) return;
+                actor.MoodIcon = previous;
+                UpdateMoods();
+            };
+        }
+
         private static void EnsureMood(Actor actor)
         {
             if (actor.Mood != null) return;
@@ -260,7 +279,7 @@ namespace MortalModHost
                     FitHolderToSprite(actor);
                     actor.HolderRect.anchoredPosition = anchored;
                 }
-                string icon = actor.MoodIcon ?? (MoodControl.Disabled ? null : actor.Portrait);
+                string icon = actor.MoodIcon == "auto" ? actor.Portrait : actor.MoodIcon ?? (MoodControl.Disabled ? null : actor.Portrait);
                 if (!actor.Visible || actor.Dimmed || actor.Image.color.a < 0.999f || icon == "hide") icon = null;
                 if (icon == null || icon == "normal")
                 {

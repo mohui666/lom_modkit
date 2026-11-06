@@ -70,7 +70,7 @@ fn category(node: &Value, field: &str, value: &str) -> Option<&'static str> {
     let kind = node["type"].as_str().unwrap_or("");
     if value.starts_with("user:") {
         return Some(match leaf {
-            "character" => "character",
+            "character" | "mood_character" => "character",
             "voice" => "voice",
             "image" => "image",
             _ if matches!(kind, "music" | "sound") => "voice",
@@ -78,7 +78,7 @@ fn category(node: &Value, field: &str, value: &str) -> Option<&'static str> {
         });
     }
     Some(match leaf {
-        "character" => "character",
+        "character" | "mood_character" => "character",
         "portrait" => "portrait",
         "voice" => "voice",
         "image" => "image",
