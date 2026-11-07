@@ -10,6 +10,198 @@ const CARD: Vec2 = Vec2::new(192.0, 72.0);
 const COLUMN: f32 = 236.0;
 const ROW: f32 = 126.0;
 
+struct LayeredPositions {
+    x: Vec<f32>,
+    width: f32,
+    channels: BTreeMap<(usize, usize), Vec<Pos2>>,
+}
+
+/// Sugiyama layering, as used by ELK: split long edges into virtual vertices,
+/// sweep both ways to reduce crossings, then compact while preserving order.
+/// Virtual vertices reserve narrow corridors through intermediate node rows.
+/// Reference: https://eclipse.dev/elk/reference/algorithms/org-eclipse-elk-layered.html
+fn layered_positions(ranks: &[usize], forward: &[Vec<usize>]) -> LayeredPositions {
+    let count = ranks.len();
+    let mut rows = vec![Vec::new(); ranks.iter().max().copied().unwrap_or(0) + 1];
+    for (node, &rank) in ranks.iter().enumerate() {
+        rows[rank].push(node);
+    }
+    let mut incoming = vec![Vec::new(); count];
+    let mut outgoing = vec![Vec::new(); count];
+    let mut channels = BTreeMap::new();
+    for (from, targets) in forward.iter().enumerate() {
+        for &to in targets {
+            if ranks[to] <= ranks[from] || channels.contains_key(&(from, to)) {
+                continue;
+            }
+            let mut previous = from;
+            let mut via = Vec::new();
+            for row in rows.iter_mut().take(ranks[to]).skip(ranks[from] + 1) {
+                let dummy = incoming.len();
+                incoming.push(vec![previous]);
+                outgoing.push(Vec::new());
+                outgoing[previous].push(dummy);
+                row.push(dummy);
+                via.push(dummy);
+                previous = dummy;
+            }
+            outgoing[previous].push(to);
+            incoming[to].push(previous);
+            channels.insert((from, to), via);
+        }
+    }
+    let mut order = vec![0.0; incoming.len()];
+    let update_order = |rows: &[Vec<usize>], order: &mut [f32]| {
+        for row in rows {
+            for (position, &node) in row.iter().enumerate() {
+                order[node] = position as f32;
+            }
+        }
+    };
+    let crossings = |rows: &[Vec<usize>], order: &[f32]| -> usize {
+        rows.iter()
+            .map(|row| {
+                let edges: Vec<_> = row
+                    .iter()
+                    .flat_map(|&from| {
+                        outgoing[from]
+                            .iter()
+                            .map(move |&to| (order[from], order[to]))
+                    })
+                    .collect();
+                edges
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &(a, b))| {
+                        edges[i + 1..]
+                            .iter()
+                            .filter(|&&(c, d)| (a - c) * (b - d) < 0.0)
+                            .count()
+                    })
+                    .sum::<usize>()
+            })
+            .sum()
+    };
+    update_order(&rows, &mut order);
+    let mut best = rows.clone();
+    let mut best_crossings = crossings(&rows, &order);
+    for _ in 0..4 {
+        for down in [true, false] {
+            let neighbours = if down { &incoming } else { &outgoing };
+            let indices: Vec<_> = if down {
+                (0..rows.len()).collect()
+            } else {
+                (0..rows.len()).rev().collect()
+            };
+            for row in indices {
+                let barycenter = |node: usize| {
+                    let adjacent = &neighbours[node];
+                    if adjacent.is_empty() {
+                        order[node]
+                    } else {
+                        adjacent.iter().map(|&other| order[other]).sum::<f32>()
+                            / adjacent.len() as f32
+                    }
+                };
+                rows[row].sort_by(|&a, &b| barycenter(a).total_cmp(&barycenter(b)));
+                for (position, &node) in rows[row].iter().enumerate() {
+                    order[node] = position as f32;
+                }
+            }
+            let score = crossings(&rows, &order);
+            if score < best_crossings {
+                best_crossings = score;
+                best = rows.clone();
+            }
+        }
+    }
+    rows = best;
+    let node_width = |node| if node < count { CARD.x } else { 12.0 };
+    let row_width = |row: &[usize]| {
+        row.iter().map(|&n| node_width(n)).sum::<f32>()
+            + row.len().saturating_sub(1) as f32 * (COLUMN - CARD.x)
+    };
+    let width = rows.iter().map(|row| row_width(row)).fold(CARD.x, f32::max);
+    let mut x = vec![0.0; incoming.len()];
+    for row in &rows {
+        let mut cursor = (width - row_width(row)) / 2.0;
+        for &node in row {
+            x[node] = cursor + node_width(node) / 2.0;
+            cursor += node_width(node) + COLUMN - CARD.x;
+        }
+    }
+    // Least-squares compaction (isotonic blocks) aligns chains and centres forks
+    // and joins without pushing neighbouring cards into each other.
+    for _ in 0..4 {
+        for down in [true, false] {
+            let neighbours = if down { &incoming } else { &outgoing };
+            let indices: Vec<_> = if down {
+                (0..rows.len()).collect()
+            } else {
+                (0..rows.len()).rev().collect()
+            };
+            for rank in indices {
+                let row = &rows[rank];
+                let mut offsets = Vec::new();
+                let mut offset = 0.0;
+                let mut blocks: Vec<(usize, usize, f32)> = Vec::new();
+                for (i, &node) in row.iter().enumerate() {
+                    offset += node_width(node) / 2.0;
+                    offsets.push(offset);
+                    let adjacent = &neighbours[node];
+                    let desired = if adjacent.is_empty() {
+                        x[node]
+                    } else {
+                        adjacent.iter().map(|&other| x[other]).sum::<f32>() / adjacent.len() as f32
+                    };
+                    blocks.push((i, 1, desired - offset));
+                    while blocks.len() > 1 {
+                        let n = blocks.len();
+                        let (a, ac, av) = blocks[n - 2];
+                        let (_, bc, bv) = blocks[n - 1];
+                        if av <= bv {
+                            break;
+                        }
+                        blocks.truncate(n - 2);
+                        blocks.push((
+                            a,
+                            ac + bc,
+                            (av * ac as f32 + bv * bc as f32) / (ac + bc) as f32,
+                        ));
+                    }
+                    offset += node_width(node) / 2.0 + COLUMN - CARD.x;
+                }
+                let slack = (width - row_width(row)).max(0.0);
+                for (start, length, value) in blocks {
+                    for i in start..start + length {
+                        x[row[i]] = offsets[i] + value.clamp(0.0, slack);
+                    }
+                }
+            }
+        }
+    }
+    let channels = channels
+        .into_iter()
+        .map(|(edge, via)| {
+            let from_rank = ranks[edge.0];
+            (
+                edge,
+                via.into_iter()
+                    .enumerate()
+                    .map(|(i, node)| {
+                        Pos2::new(
+                            x[node],
+                            32.0 + (from_rank + i + 1) as f32 * ROW + CARD.y / 2.0,
+                        )
+                    })
+                    .collect(),
+            )
+        })
+        .collect();
+    x.truncate(count);
+    LayeredPositions { x, width, channels }
+}
+
 struct Link {
     from: usize,
     to: Option<usize>,
@@ -108,30 +300,7 @@ fn layout_graph(nodes: &[Value], start: &str, raw: Vec<(String, String, String)>
             }
         }
     }
-    let mut rows = BTreeMap::<usize, Vec<usize>>::new();
-    for (index, &rank) in ranks.iter().enumerate() {
-        rows.entry(rank).or_default().push(index);
-    }
-    let max_columns = rows.values().map(Vec::len).max().unwrap_or(1);
-    let mut x = vec![0.0_f32; nodes.len()];
-    for members in rows.values_mut() {
-        let center = |index: usize| {
-            let parents: Vec<_> = reverse[index]
-                .iter()
-                .filter(|&&parent| ranks[parent] < ranks[index])
-                .collect();
-            if parents.is_empty() {
-                index as f32 * COLUMN
-            } else {
-                parents.iter().map(|&&parent| x[parent]).sum::<f32>() / parents.len() as f32
-            }
-        };
-        members.sort_by(|&a, &b| center(a).total_cmp(&center(b)).then(a.cmp(&b)));
-        let margin = (max_columns - members.len()) as f32 * COLUMN / 2.0;
-        for (column, &index) in members.iter().enumerate() {
-            x[index] = margin + column as f32 * COLUMN;
-        }
-    }
+    let positions = layered_positions(&ranks, &forward);
     let back_count = raw
         .iter()
         .filter(|(from, to, _)| {
@@ -146,18 +315,21 @@ fn layout_graph(nodes: &[Value], start: &str, raw: Vec<(String, String, String)>
     } else {
         20.0
     };
-    let cards: Vec<_> = x
+    let cards: Vec<_> = positions
+        .x
         .iter()
         .enumerate()
         .map(|(index, &x)| {
-            Rect::from_min_size(Pos2::new(left + x, 32.0 + ranks[index] as f32 * ROW), CARD)
+            Rect::from_min_size(
+                Pos2::new(left + x - CARD.x / 2.0, 32.0 + ranks[index] as f32 * ROW),
+                CARD,
+            )
         })
         .collect();
-    let right = left + (max_columns - 1) as f32 * COLUMN + CARD.x;
+    let right = left + positions.width;
     let mut links = Vec::new();
     let mut outgoing = vec![0; nodes.len()];
     let mut back_lane = 0;
-    let mut long_lane = 0;
     for (from, target, label) in raw {
         let Some(&a) = indices.get(from.as_str()) else {
             continue;
@@ -170,7 +342,11 @@ fn layout_graph(nodes: &[Value], start: &str, raw: Vec<(String, String, String)>
         let label_width;
         if let Some(b) = to {
             if backward {
-                let lane = left - 30.0 - back_lane as f32 * 16.0;
+                let lane = if a == b {
+                    cards[a].left() - 18.0
+                } else {
+                    left - 30.0 - back_lane as f32 * 16.0
+                };
                 back_lane += 1;
                 if a == b {
                     points.extend([
@@ -181,15 +357,21 @@ fn layout_graph(nodes: &[Value], start: &str, raw: Vec<(String, String, String)>
                         cards[a].center_top(),
                     ]);
                 } else {
+                    let source_corridor = cards[a].top() - 18.0;
+                    let target_corridor = cards[b].top() - 18.0;
                     points.extend([
                         cards[a].left_center(),
-                        Pos2::new(lane, cards[a].center().y),
-                        Pos2::new(lane, cards[b].center().y),
+                        Pos2::new(cards[a].left() - 12.0, cards[a].center().y),
+                        Pos2::new(cards[a].left() - 12.0, source_corridor),
+                        Pos2::new(lane, source_corridor),
+                        Pos2::new(lane, target_corridor),
+                        Pos2::new(cards[b].left() - 12.0, target_corridor),
+                        Pos2::new(cards[b].left() - 12.0, cards[b].center().y),
                         cards[b].left_center(),
                     ]);
                 }
                 label_width = 112.0;
-                label_at = Pos2::new(lane - label_width - 5.0, cards[a].center().y - 4.0);
+                label_at = Pos2::new(lane - label_width - 5.0, cards[a].top() - 22.0);
             } else {
                 let mut exits: Vec<_> = forward[a]
                     .iter()
@@ -201,8 +383,18 @@ fn layout_graph(nodes: &[Value], start: &str, raw: Vec<(String, String, String)>
                     .copied()
                     .filter(|&parent| ranks[parent] < ranks[b])
                     .collect();
-                exits.sort_by(|&a, &b| cards[a].center().x.total_cmp(&cards[b].center().x));
-                entries.sort_by(|&a, &b| cards[a].center().x.total_cmp(&cards[b].center().x));
+                let exit_x = |child| {
+                    positions.channels[&(a, child)]
+                        .first()
+                        .map_or(cards[child].center().x, |point| left + point.x)
+                };
+                let entry_x = |parent| {
+                    positions.channels[&(parent, b)]
+                        .last()
+                        .map_or(cards[parent].center().x, |point| left + point.x)
+                };
+                exits.sort_by(|&a, &b| exit_x(a).total_cmp(&exit_x(b)));
+                entries.sort_by(|&a, &b| entry_x(a).total_cmp(&entry_x(b)));
                 let exit = exits.iter().position(|&index| index == b).unwrap_or(0);
                 let entry = entries.iter().position(|&index| index == a).unwrap_or(0);
                 let start = Pos2::new(
@@ -241,18 +433,30 @@ fn layout_graph(nodes: &[Value], start: &str, raw: Vec<(String, String, String)>
                         middle - 4.0,
                     );
                 } else {
-                    let lane = right + 30.0 + long_lane as f32 * 18.0;
-                    long_lane += 1;
-                    points.extend([
-                        start,
-                        Pos2::new(start.x, start.y + 18.0),
-                        Pos2::new(lane, start.y + 18.0),
-                        Pos2::new(lane, end.y - 18.0),
-                        Pos2::new(end.x, end.y - 18.0),
-                        end,
-                    ]);
+                    // Long edges follow reserved virtual-node corridors instead
+                    // of detouring around the full width of the chapter.
+                    let via = &positions.channels[&(a, b)];
+                    let mut previous = start;
+                    points.push(start);
+                    for next in via
+                        .iter()
+                        .map(|point| *point + Vec2::new(left, 0.0))
+                        .chain([end])
+                    {
+                        let middle = if next == end {
+                            end.y - (ROW - CARD.y) / 2.0
+                        } else {
+                            next.y - CARD.y / 2.0 - (ROW - CARD.y) / 2.0
+                        };
+                        points.extend([
+                            Pos2::new(previous.x, middle),
+                            Pos2::new(next.x, middle),
+                            next,
+                        ]);
+                        previous = next;
+                    }
                     label_width = 156.0;
-                    label_at = Pos2::new(lane + 5.0, start.y + 14.0);
+                    label_at = Pos2::new(start.x + 6.0, start.y + 16.0);
                 }
             }
         } else {
@@ -283,8 +487,8 @@ fn layout_graph(nodes: &[Value], start: &str, raw: Vec<(String, String, String)>
             pending.extend(forward[index].iter().copied());
         }
     }
-    let extra = if links.iter().any(|link| link.to.is_none()) || long_lane > 0 {
-        190.0 + long_lane as f32 * 18.0
+    let extra = if links.iter().any(|link| link.to.is_none()) {
+        190.0
     } else {
         20.0
     };
@@ -867,7 +1071,12 @@ pub(super) fn show(
             let painter = ui.painter().clone();
             let clip = ui.clip_rect().expand(20.0);
             let mut labels = Vec::new();
-            for link in &layout.links {
+            let mut links: Vec<_> = layout.links.iter().collect();
+            links.sort_by_key(|link| {
+                Some(link.from) == selected_card
+                    || link.to == selected_card && selected_card.is_some()
+            });
+            for link in links {
                 let source = &nodes[cached.members[link.from][0]];
                 let detail = edge_label(&link.label, source, false);
                 let bounds = Rect::from_points(&link.points);
@@ -890,10 +1099,18 @@ pub(super) fn show(
                 } else {
                     Color32::from_rgb(116, 130, 143)
                 };
-                let stroke = Stroke::new(if active { 2.0_f32 } else { 1.3_f32 }, color);
+                let stroke = Stroke::new(if active { 1.8 } else { 1.2 } * zoom.max(0.6), color);
+                let points: Vec<_> = link.points.iter().copied().map(transform).collect();
+                crate::graph_edges::paint(
+                    &painter,
+                    &points,
+                    stroke,
+                    zoom,
+                    ui.visuals().panel_fill,
+                    false,
+                );
                 for (segment_index, segment) in link.points.windows(2).enumerate() {
                     let (a, b) = (transform(segment[0]), transform(segment[1]));
-                    painter.line_segment([a, b], stroke);
                     ui.interact(
                         Rect::from_two_pos(a, b).expand(4.0),
                         ui.id()
@@ -901,15 +1118,6 @@ pub(super) fn show(
                         egui::Sense::hover(),
                     )
                     .on_hover_text(&detail);
-                }
-                if let Some(segment) = link
-                    .points
-                    .windows(2)
-                    .rfind(|segment| segment[0] != segment[1])
-                {
-                    let (a, b) = (transform(segment[0]), transform(segment[1]));
-                    let tip = (b - a).normalized() * (10.0 * zoom).min(a.distance(b));
-                    painter.arrow(b - tip, tip, stroke);
                 }
                 let plain_forward = link.label == "跳转"
                     && !link.backward
@@ -1423,6 +1631,48 @@ mod tests {
         let title = &options.iter().find(|(id, _)| id == "嚴肅_001").unwrap().1;
         assert_eq!(summary(&project, &node), *title);
         assert_ne!(*title, "嚴肅_001");
+    }
+
+    #[test]
+    fn long_edges_use_reserved_corridors_without_crossing_intermediate_cards() {
+        let graph = layout(&json!({"start":"choice","nodes":[
+            {"id":"choice","type":"choice","options":[{"text":"跳过","goto":"end"},{"text":"继续","goto":"a"}]},
+            {"id":"a","type":"say","goto":"b"},
+            {"id":"b","type":"say","goto":"end"},
+            {"id":"end","type":"end"}
+        ]}));
+        let skip = graph
+            .links
+            .iter()
+            .find(|link| link.from == 0 && link.to == Some(3))
+            .unwrap();
+        for segment in skip.points.windows(2) {
+            assert!(segment[0].x == segment[1].x || segment[0].y == segment[1].y);
+            for card in &graph.cards[1..3] {
+                let crosses = if segment[0].x == segment[1].x {
+                    segment[0].x > card.left()
+                        && segment[0].x < card.right()
+                        && segment[0].y.max(segment[1].y) > card.top()
+                        && segment[0].y.min(segment[1].y) < card.bottom()
+                } else {
+                    segment[0].y > card.top()
+                        && segment[0].y < card.bottom()
+                        && segment[0].x.max(segment[1].x) > card.left()
+                        && segment[0].x.min(segment[1].x) < card.right()
+                };
+                assert!(!crosses, "skip edge crosses an intermediate card");
+            }
+        }
+        let right = graph.cards.iter().map(Rect::right).fold(0.0_f32, f32::max);
+        assert!(skip.points.iter().all(|point| point.x <= right));
+    }
+
+    #[test]
+    fn layered_order_removes_crossings_and_keeps_separate_chains_straight() {
+        let positions = layered_positions(&[0, 0, 1, 1], &[vec![3], vec![2], vec![], vec![]]);
+        assert!((positions.x[0] - positions.x[1]) * (positions.x[3] - positions.x[2]) > 0.0);
+        assert_eq!(positions.x[0], positions.x[3]);
+        assert_eq!(positions.x[1], positions.x[2]);
     }
 
     #[test]
