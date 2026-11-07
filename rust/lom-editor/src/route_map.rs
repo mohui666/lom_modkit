@@ -202,7 +202,19 @@ impl View {
                                 })
                                 .collect();
                             let clip = ui.clip_rect();
-                            for &edge_index in &shown_edges {
+                            let mut edge_order = shown_edges.clone();
+                            edge_order.sort_by_key(|&index| {
+                                let edge = &graph.edges[index];
+                                (
+                                    !edge.by_date,
+                                    self.selected == Some(edge.from)
+                                        || self.selected == Some(edge.to),
+                                    self.runtime.as_ref().is_some_and(|snapshot| {
+                                        runtime_edge_matches(snapshot, graph, edge)
+                                    }),
+                                )
+                            });
+                            for edge_index in edge_order {
                                 let edge = &graph.edges[edge_index];
                                 let focused = self.selected == Some(edge.from)
                                     || self.selected == Some(edge.to);
@@ -235,44 +247,25 @@ impl View {
                                 if !bounds.expand(30.0 * self.zoom).intersects(clip) {
                                     continue;
                                 }
-                                if edge.by_date {
-                                    for segment in points.windows(2) {
-                                        let [a, b] = [segment[0], segment[1]];
-                                        let count = (a.distance(b) / 12.0).ceil().max(1.0) as usize;
-                                        for index in 0..count {
-                                            let start = index as f32 / count as f32;
-                                            let end = (start + 0.48 / count as f32).min(1.0);
-                                            painter.line_segment(
-                                                [a.lerp(b, start), a.lerp(b, end)],
-                                                Stroke::new(self.zoom, colour),
-                                            );
-                                        }
-                                    }
+                                let width = if edge.by_date {
+                                    1.0
+                                } else if runtime_return {
+                                    2.4
+                                } else if focused {
+                                    1.8
                                 } else {
-                                    let width = if runtime_return {
-                                        3.6
-                                    } else if focused {
-                                        2.4
-                                    } else {
-                                        1.0
-                                    } * self.zoom;
-                                    painter.add(egui::Shape::line(
-                                        points.clone(),
-                                        Stroke::new(width, colour),
-                                    ));
+                                    1.1
+                                } * self.zoom.max(0.6);
+                                crate::graph_edges::paint(
+                                    &painter,
+                                    &points,
+                                    Stroke::new(width, colour),
+                                    self.zoom,
+                                    ui.visuals().faint_bg_color,
+                                    edge.by_date,
+                                );
+                                if !edge.by_date {
                                     let b = *points.last().unwrap();
-                                    let direction = (b - points[points.len() - 2]).normalized();
-                                    let normal = Vec2::new(-direction.y, direction.x);
-                                    for side in [-1.0, 1.0] {
-                                        painter.line_segment(
-                                            [
-                                                b - direction * 10.0 * self.zoom
-                                                    + normal * side * 4.5 * self.zoom,
-                                                b,
-                                            ],
-                                            Stroke::new(width, colour),
-                                        );
-                                    }
                                     if focused {
                                         // Keep the selected station's centre free of labels. Each
                                         // badge sits toward its other endpoint; full text is in details.
@@ -889,27 +882,27 @@ impl RouteLayout {
                 let (source_side, target_side) = sides[index];
                 let source_stub = source + source_side.outward() * CLEARANCE;
                 let target_stub = target + target_side.outward() * CLEARANCE;
+                if let Some(mut direct) = direct_connection(
+                    source_stub,
+                    target_stub,
+                    source_side,
+                    target_side,
+                    &obstacles,
+                ) {
+                    direct.insert(0, source);
+                    direct.push(target);
+                    return simplify_path(direct);
+                }
                 let start = source_side.corner(obstacles[edge.from], target);
                 let end = target_side.corner(obstacles[edge.to], source);
-                let mut waypoints = vec![start];
-                if edge.from == edge.to {
-                    let outside = bounds.right() + 36.0 + (index % 6) as f32 * 12.0;
-                    waypoints.push(Pos2::new(outside, start.y));
-                    waypoints.push(Pos2::new(outside, 24.0 + (index % 6) as f32 * 12.0));
-                    waypoints.push(Pos2::new(end.x, 24.0 + (index % 6) as f32 * 12.0));
-                } else if source_side == Side::Top && target_side == Side::Top {
-                    let outside = 24.0 + (index % 6) as f32 * 12.0;
-                    waypoints.push(Pos2::new(start.x, outside));
-                    waypoints.push(Pos2::new(end.x, outside));
-                }
-                waypoints.push(end);
                 let mut path = vec![source, source_stub];
-                for pair in waypoints.windows(2) {
-                    let Some(part) = grid.path(pair[0], pair[1]) else {
-                        return vec![];
-                    };
-                    path.extend(part);
-                }
+                // Let obstacle routing find a local corridor, including return
+                // edges. A self-loop uses its own top-right corner, rather than
+                // making a round trip around the entire chronology map.
+                let Some(part) = grid.path(start, end) else {
+                    return vec![];
+                };
+                path.extend(part);
                 path.extend([target_stub, target]);
                 simplify_path(path)
             })
@@ -936,6 +929,52 @@ impl RouteLayout {
             size: maximum + Vec2::splat(35.0),
         }
     }
+}
+
+fn direct_connection(
+    start: Pos2,
+    end: Pos2,
+    source: Side,
+    target: Side,
+    obstacles: &[Rect],
+) -> Option<Vec<Pos2>> {
+    let path = match (source, target) {
+        (Side::Right, Side::Left) if start.x <= end.x => {
+            let middle = (start.x + end.x) / 2.0;
+            vec![
+                start,
+                Pos2::new(middle, start.y),
+                Pos2::new(middle, end.y),
+                end,
+            ]
+        }
+        (Side::Bottom, Side::Top) if start.y <= end.y => {
+            let middle = (start.y + end.y) / 2.0;
+            vec![
+                start,
+                Pos2::new(start.x, middle),
+                Pos2::new(end.x, middle),
+                end,
+            ]
+        }
+        _ => return None,
+    };
+    let clear = path.windows(2).all(|pair| {
+        obstacles.iter().all(|rect| {
+            if pair[0].x == pair[1].x {
+                pair[0].x <= rect.left()
+                    || pair[0].x >= rect.right()
+                    || pair[0].y.max(pair[1].y) <= rect.top()
+                    || pair[0].y.min(pair[1].y) >= rect.bottom()
+            } else {
+                pair[0].y <= rect.top()
+                    || pair[0].y >= rect.bottom()
+                    || pair[0].x.max(pair[1].x) <= rect.left()
+                    || pair[0].x.min(pair[1].x) >= rect.right()
+            }
+        })
+    });
+    clear.then_some(path)
 }
 
 /// Orthogonal visibility grid in model coordinates. Card margins are blocked
@@ -1395,6 +1434,35 @@ mod tests {
     }
 
     #[test]
+    fn self_loop_stays_beside_its_station_instead_of_wrapping_the_whole_map() {
+        let graph = fixture();
+        let layout = RouteLayout::build(&graph);
+        let own = layout.rects[1].expand(12.0);
+        assert!(layout.paths[4].iter().all(|point| own.contains(*point)));
+    }
+
+    #[test]
+    fn adjacent_stations_connect_directly_but_intermediate_cards_still_block_shortcuts() {
+        let mut graph = fixture();
+        graph.edges.truncate(1);
+        let layout = RouteLayout::build(&graph);
+        assert_eq!(
+            layout.paths[0],
+            vec![
+                layout.rects[0].right_center(),
+                layout.rects[1].left_center()
+            ]
+        );
+
+        graph.edges[0].to = 2;
+        let layout = RouteLayout::build(&graph);
+        assert!(layout.paths[0].len() > 2);
+        for segment in layout.paths[0].windows(2) {
+            assert!(!crosses_card(segment[0], segment[1], layout.rects[1]));
+        }
+    }
+
+    #[test]
     fn orthogonal_routes_avoid_all_cards_and_assign_sorted_ports() {
         let graph = fixture();
         let layout = RouteLayout::build(&graph);
@@ -1414,7 +1482,7 @@ mod tests {
         assert!(layout.paths[4][0].y < layout.paths[1][0].y);
         assert!(layout.paths[3]
             .iter()
-            .any(|point| point.y < layout.rects[0].top() - 12.0));
+            .any(|point| point.y <= layout.rects[0].top() - 12.0));
         let mut moved = graph.clone();
         moved.stations[2].column += 1;
         assert!(!layout.matches(&moved));
