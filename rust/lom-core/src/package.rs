@@ -932,6 +932,11 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
     let requires_hide_all = stories.values().any(|story| {
         crate::parallel::story_actions(story).any(|(_, node)| node["type"] == "hide_all")
     });
+    let requires_timed_hide_all = stories.values().any(|story| {
+        crate::parallel::story_actions(story).any(|(_, node)| {
+            node["type"] == "hide_all" && node["fadeDuration"].as_f64().unwrap_or(0.0) > 0.0
+        })
+    });
     let requires_extended_import = manifest.get("legacy").is_some()
         || stories
             .values()
@@ -943,7 +948,9 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
             .take(3)
             .map(|n| n.parse::<u32>().unwrap_or(0))
             .collect::<Vec<_>>();
-        let minimum = if requires_extended_import || requires_hide_all {
+        let minimum = if requires_timed_hide_all {
+            [1, 4, 15]
+        } else if requires_extended_import || requires_hide_all {
             [1, 4, 11]
         } else if requires_dialogue_mood {
             [1, 4, 10]
@@ -954,14 +961,15 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
             || core.as_slice() == minimum.as_slice()
                 && version.split('+').next().unwrap_or(version).contains('-')
         {
-            manifest["min_host_version"] =
-                json!(if requires_extended_import || requires_hide_all {
-                    "1.4.11"
-                } else if requires_dialogue_mood {
-                    "1.4.10"
-                } else {
-                    crate::vanilla_patch::MIN_HOST
-                });
+            manifest["min_host_version"] = json!(if requires_timed_hide_all {
+                "1.4.15"
+            } else if requires_extended_import || requires_hide_all {
+                "1.4.11"
+            } else if requires_dialogue_mood {
+                "1.4.10"
+            } else {
+                crate::vanilla_patch::MIN_HOST
+            });
         }
         validate::validate_manifest(&manifest)?;
     }

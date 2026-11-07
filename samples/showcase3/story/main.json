@@ -463,6 +463,12 @@
       "active": true
     },
     {
+      "id": "camera_preview_note",
+      "type": "say",
+      "mode": "narrative",
+      "text": "回忆滤镜已开启。编辑器会近似显示色调；从本步骤试玩也会恢复前面的滤镜状态。"
+    },
+    {
       "id": "camera2",
       "type": "camera",
       "name": "stage-memory",
@@ -691,6 +697,7 @@
     {
       "id": "hide1",
       "type": "hide_all",
+      "fadeDuration": 0.5,
       "wait_after": 0.25
     },
     {

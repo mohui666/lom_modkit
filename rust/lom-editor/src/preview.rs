@@ -10,6 +10,8 @@ use std::{
 #[path = "preview_effects.rs"]
 pub(crate) mod effects;
 pub(crate) use effects::Library as EffectLibrary;
+#[path = "preview_filters.rs"]
+mod filters;
 #[path = "flow_graph.rs"]
 mod flow_graph;
 #[path = "preview_handles.rs"]
@@ -139,6 +141,7 @@ fn simulate_until(story: &Value, target: &str, include_target: bool) -> Value {
     let mut state = json!({"actors":{},"dimming":{},"overlays":{},"official_pictures":{},"background":null,"view":null,"custom_cg":null,"dialog":null,"choice":null,"blackout":{"amount":0.0,"dir":"lr"},"reached":false,"steps":0});
     state["mood_enabled"] = json!(story["mood"].as_bool().unwrap_or(false));
     state["mood_overrides"] = json!({});
+    state["camera_filters"] = json!({});
     let Some(ns) = story["nodes"].as_array() else {
         return state;
     };
@@ -166,6 +169,9 @@ fn simulate_until(story: &Value, target: &str, include_target: bool) -> Value {
 pub fn build_playtest_prelude(story: &Value, target: &str) -> Vec<Value> {
     let state = simulate_until(story, target, false);
     let mut nodes = Vec::new();
+    for (name, active) in state["camera_filters"].as_object().into_iter().flatten() {
+        nodes.push(json!({"type":"camera","name":name,"active":active}));
+    }
     if story["nodes"]
         .as_array()
         .into_iter()
@@ -277,6 +283,14 @@ fn apply(s: &mut Value, n: &Value) {
     let cid = text(n, "character");
     let kind = text(n, "type");
     match kind {
+        "camera" => {
+            if let Some(name) = n["name"].as_str().filter(|name| !name.is_empty()) {
+                // Preserve independent enable/disable state, including parallel actions.
+                let settings = s["camera_filters"].as_object_mut().unwrap();
+                settings.shift_remove(name);
+                settings.insert(name.to_owned(), json!(n["active"] == true));
+            }
+        }
         "raw" => {
             let (actions, report) = lom_core::lua_import::preview_nodes(text(n, "code"));
             for action in &actions {
@@ -450,13 +464,13 @@ fn number(v: &Value, key: &str, default: f64) -> f64 {
 // a readable editor preview interval, not a claim about that installed value.
 const PREVIEW_TRANSITION_SECONDS: f64 = 1.0;
 
-/// Editor timing only: game loading, filters and audio are not simulated here.
+/// Editor timing only: game loading and audio are not simulated here.
 pub fn playback_duration(node: &Value) -> f64 {
     fn duration(action: &Value) -> f64 {
         match text(action, "type") {
             "portrait" => number(action, "fade_out", 0.5) + number(action, "fade_in", 1.5),
             "show" => number(action, "fadeDuration", 0.0).max(number(action, "moveDuration", 0.0)),
-            "hide" => number(action, "fadeDuration", 0.0),
+            "hide" | "hide_all" => number(action, "fadeDuration", 0.0),
             "move" => number(action, "duration", 1.0),
             "offset" | "rotate" => number(action, "duration", 0.0),
             "shock" => number(action, "duration", 0.5),
@@ -478,8 +492,8 @@ pub fn playback_duration(node: &Value) -> f64 {
             .max(0.1)
     } else {
         match text(node, "type") {
-            "show" | "portrait" | "hide" | "move" | "offset" | "rotate" | "shock" | "wait"
-            | "transition" | "mood" | "effect" => duration(node).max(0.1),
+            "show" | "portrait" | "hide" | "hide_all" | "move" | "offset" | "rotate" | "shock"
+            | "wait" | "transition" | "mood" | "effect" => duration(node).max(0.1),
             _ => 1.8,
         }
     }
@@ -514,6 +528,18 @@ fn simulate_frame(story: &Value, target: &str, elapsed: f64, positions: &Value) 
 
 fn animate_frame(state: &mut Value, before: &Value, node: &Value, elapsed: f64, positions: &Value) {
     for action in lom_core::parallel::actions(node) {
+        if action["type"] == "hide_all" {
+            let fade = number(action, "fadeDuration", 0.0);
+            if fade > elapsed && fade > 0.0 {
+                for (cid, actor) in before["actors"].as_object().into_iter().flatten() {
+                    state["actors"][cid] = actor.clone();
+                    state["actors"][cid]["preview_opacity"] =
+                        (1.0 - elapsed / fade).clamp(0.0, 1.0).into();
+                    state["actors"][cid]["preview_hide_mood"] = true.into();
+                }
+            }
+            continue;
+        }
         if action["type"] == "transition" {
             let from = number(&before["blackout"], "amount", 0.0);
             let to = if action["phase"] == "in" { 1.0 } else { 0.0 };
@@ -744,6 +770,7 @@ pub struct Preview {
     effect_library: Option<std::sync::Arc<effects::Library>>,
     effect_library_error: Option<String>,
     pub effect_extract_requested: Option<Vec<String>>,
+    camera_filter: filters::Settings,
 }
 impl Preview {
     fn character_rotation(&self, degrees: f32) -> f32 {
@@ -804,6 +831,7 @@ impl Preview {
             effect_library,
             effect_library_error,
             effect_extract_requested: None,
+            camera_filter: filters::Settings::default(),
         }
     }
     pub fn set_effect_library(&mut self, path: &Path) -> anyhow::Result<()> {
@@ -856,7 +884,9 @@ impl Preview {
         frame: &effects::Frame,
         expected: [usize; 2],
     ) -> Option<(TextureHandle, Rect)> {
-        let key = format!("effect-frame:{}", frame.file.display());
+        let key = self
+            .camera_filter
+            .cache_key(&format!("effect-frame:{}", frame.file.display()));
         self.tick += 1;
         if let Some(cached) = self.cache.get_mut(&key) {
             cached.touched = self.tick;
@@ -898,11 +928,9 @@ impl Preview {
                 self.cache.remove(&oldest);
             }
             // RGB at alpha=0 carries additive light. Never premultiply again.
-            let texture = ctx.load_texture(
-                &key,
-                egui::ColorImage::from_rgba_premultiplied(size, image.as_raw()),
-                egui::TextureOptions::LINEAR,
-            );
+            let mut pixels = egui::ColorImage::from_rgba_premultiplied(size, image.as_raw());
+            self.camera_filter.apply(&mut pixels);
+            let texture = ctx.load_texture(&key, pixels, egui::TextureOptions::LINEAR);
             self.cache.insert(
                 key,
                 Cached {
@@ -1084,7 +1112,13 @@ impl Preview {
         let mood_key = name
             .strip_prefix("@mood:")
             .map(|_| format!("mood-frame:{}:{name}", self.library.display()));
-        if let Some(cached) = mood_key.as_ref().and_then(|key| self.cache.get_mut(key)) {
+        let mood_cached_key = mood_key
+            .as_ref()
+            .map(|key| self.camera_filter.cache_key(key));
+        if let Some(cached) = mood_cached_key
+            .as_ref()
+            .and_then(|key| self.cache.get_mut(key))
+        {
             cached.touched = self.tick;
             return Some((cached.texture.clone(), json!({})));
         }
@@ -1108,6 +1142,7 @@ impl Preview {
                 }
             }
         };
+        let key = self.camera_filter.cache_key(&key);
         if let Some(c) = self.cache.get_mut(&key) {
             c.touched = self.tick;
             return Some((c.texture.clone(), meta));
@@ -1143,11 +1178,9 @@ impl Preview {
                 .unwrap();
             self.cache.remove(&oldest);
         }
-        let texture = ctx.load_texture(
-            &key,
-            egui::ColorImage::from_rgba_unmultiplied(size, image.as_raw()),
-            egui::TextureOptions::LINEAR,
-        );
+        let mut pixels = egui::ColorImage::from_rgba_unmultiplied(size, image.as_raw());
+        self.camera_filter.apply(&mut pixels);
+        let texture = ctx.load_texture(&key, pixels, egui::TextureOptions::LINEAR);
         self.cache.insert(
             key,
             Cached {
@@ -1388,6 +1421,13 @@ impl Preview {
             self.layout_context = context;
         }
         let mut state = self.state(story, target).clone();
+        self.camera_filter = filters::Settings::from_state(&state);
+        if state["camera_filters"]
+            .as_object()
+            .is_some_and(|items| items.values().any(|active| active == true))
+        {
+            ui.small(crate::i18n::key("editor.preview.camera_approximation"));
+        }
         if let Some(elapsed) = elapsed.filter(|_| !self.layout_mode) {
             animate_frame(
                 &mut state,
@@ -2059,6 +2099,7 @@ impl Preview {
                 );
             }
         }
+        self.camera_filter.paint_vignette(&painter, rect);
         if let Some(dialog) = state["dialog"].as_object() {
             let txt = dialog.get("text").and_then(Value::as_str).unwrap_or("");
             let mode = dialog
@@ -2322,6 +2363,7 @@ impl Preview {
                 Color32::LIGHT_RED,
             );
         }
+        self.camera_filter = filters::Settings::default();
         choice
     }
     pub fn show_portrait(&mut self, ui: &mut egui::Ui, project: &Project, node: &Value) {
@@ -3124,6 +3166,47 @@ mod tests {
         assert_eq!(
             playback_duration(&json!({"type":"mood","enabled":false,"wait_after":0})),
             0.1
+        );
+    }
+    #[test]
+    fn hide_all_preview_fades_every_actor_before_clearing() {
+        let story = json!({"start":"a","nodes":[
+            {"id":"a","type":"show","character":"player","position":"L1"},
+            {"id":"b","type":"show","character":"user:demo.actor","position":"R1"},
+            {"id":"clear","type":"hide_all","fadeDuration":2,"wait_after":0.5},
+            {"id":"end","type":"end"}]});
+        let positions = json!({});
+        let frame = simulate_frame(&story, "clear", 1.0, &positions);
+        for cid in ["player", "user:demo.actor"] {
+            assert_eq!(frame["actors"][cid]["preview_opacity"], 0.5);
+            assert_eq!(frame["actors"][cid]["preview_hide_mood"], true);
+        }
+        assert!(simulate_frame(&story, "clear", 2.0, &positions)["actors"]
+            .as_object()
+            .unwrap()
+            .is_empty());
+        assert_eq!(playback_duration(&story["nodes"][2]), 2.5);
+    }
+    #[test]
+    fn camera_resume_preserves_independent_switches_and_excludes_target() {
+        let story = json!({"start":"memory","nodes":[
+            {"id":"memory","type":"camera","name":"stage-memory","active":true},
+            {"id":"dream","type":"camera","name":"stage-dream","active":true},
+            {"id":"clear","type":"camera","name":"stage-memory","active":false},
+            {"id":"target","type":"camera","name":"stage-dream","active":false},
+            {"id":"end","type":"end"}]});
+        let prelude = build_playtest_prelude(&story, "target");
+        assert_eq!(prelude.len(), 2);
+        assert!(prelude
+            .iter()
+            .any(|n| n["name"] == "stage-memory" && n["active"] == false));
+        assert!(prelude
+            .iter()
+            .any(|n| n["name"] == "stage-dream" && n["active"] == true));
+        assert_eq!(prelude.last().unwrap()["goto"], "target");
+        assert_eq!(
+            simulate(&story, "end")["camera_filters"],
+            json!({"stage-memory":false,"stage-dream":false})
         );
     }
     #[test]

@@ -755,7 +755,7 @@ namespace MortalModHost
                 }, "mod_stop_voice");
                 script.Globals["mod_char_hide_all"] = new CallbackFunction((ctx, args) =>
                 {
-                    CustomCharacterRuntime.HideAllOnStage();
+                    CustomCharacterRuntime.HideAllOnStage(ArgFloat(args, 0, 0f));
                     return DynValue.Nil;
                 }, "mod_char_hide_all");
                 script.Globals["mod_hide_all"] = new CallbackFunction((ctx, args) =>
