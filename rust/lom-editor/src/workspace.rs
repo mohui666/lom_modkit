@@ -7222,12 +7222,12 @@ mod application_regression_tests {
             "live dragging is a draft"
         );
         draw(&mut app, vec![pointer(moved, false)]);
-        let offset = app.story()["nodes"][2].clone();
+        let offset = app.story()["nodes"][3].clone();
         assert_eq!(offset["type"], "offset");
         assert_eq!(offset["absolute"], true);
         assert!(offset["x"].as_f64().unwrap() > 30.0);
         assert!(offset["y"].as_f64().unwrap() > 20.0);
-        assert_eq!(app.story()["nodes"][app.selected]["id"], "line");
+        assert_eq!(app.story()["nodes"][app.selected]["id"], "offset1");
         assert_eq!(preview::simulate(&app.story(), "early")["actors"], earlier);
         assert_eq!(app.undo.len(), 1);
         app.undo();
@@ -7261,7 +7261,7 @@ mod application_regression_tests {
                 pointer(larger, false),
             ],
         );
-        let scaled = app.story()["nodes"][2].clone();
+        let scaled = app.story()["nodes"][3].clone();
         assert_eq!(
             app.story()["nodes"].as_array().unwrap().len(),
             5,
@@ -7335,7 +7335,7 @@ mod application_regression_tests {
             snapshot(&app.project) == moved_snapshot,
             "a new project cannot inherit a pending drag"
         );
-        app.selected = 2;
+        app.selected = 3;
         app.delete();
         app.track();
         let deleted = app.story();
@@ -9174,12 +9174,12 @@ mod application_regression_tests {
                 app.track();
                 app.flush();
                 let dragged = app.story();
-                assert_eq!(dragged["nodes"][1]["type"], "offset");
+                assert_eq!(dragged["nodes"][2]["type"], "offset");
                 assert_eq!(
-                    preview::simulate(&dragged, "line")["actors"]["player"]["offset_x"],
+                    preview::simulate(&dragged, "bubble")["actors"]["player"]["offset_x"],
                     120.0
                 );
-                app.selected = 1;
+                app.selected = 2;
                 app.delete();
                 app.track();
                 app.flush();
