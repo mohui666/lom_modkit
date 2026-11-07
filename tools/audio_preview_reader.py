@@ -36,7 +36,8 @@ def audio_key(game, kind, name):
             if asset_name == name:
                 key, _ = _string(entry_raw, offset)
                 return key
-    raise ValueError("当前游戏没有这个音频资源：" + name)
+    label = {"music": "音乐", "sound": "普通音效", "env": "环境音效"}[kind]
+    raise ValueError(f"当前游戏的{label}集合中没有资源“{name}”。请重新选择资源并确认音效类型；新建或旧工程均按同一游戏目录读取，重建工程不会补回缺失资源。")
 
 
 def extract_media(bank, media_id, destination):

@@ -6,6 +6,10 @@
 
 ## 2026-11-07 原版音频试听
 
+同日复核当前 `Mortal.Core.SoundDataCollection.GetKey(string)` 与 `Mortal.Story.LuaManager.PlaySound(string)`：按 `_list` 中资产名精确查找，找不到时返回空键并只记录警告。现场读取 Story 场景集合确认旧脚本清单中的 `Sword_001`、`Sword_Fight_001`、`重度掉落_001`、`防禦_002` 均不在集合中；从新增音效选项剔除，保留旧工程原引用，不猜测替代音效。该资源缺失独立于工程新旧；当前清单的 37 首音乐、8 项环境音均能解析到单媒体事件，普通音效另有 10 项多源事件，仍明确提示游戏中确认。
+
+随后用完整 Windows 包的读取组件与解码器逐项验证：37 首音乐、76 项普通音效、8 项环境音均提取并解码成有效非空 WAV；其余 10 项普通音效按现有多源限制返回明确提示。编辑器无窗口控件点击回归覆盖省略可选 `op/kind` 的旧格式剧情 JSON 与已有 v3 样例包：音效查找失败后关闭提示，原有官方／作品音频及新建音乐、音效仍可启动试听，已有节点和资源保持不变。这里不代表已验证反馈者的原工程，也不代表游戏内播放或人工听音验收。
+
 本次现场只读反编译确认 `LuaManager.PlayMusic/PlaySound/PlayEnvSound(string)` 分别经 `MusicDataCollection`、`SoundDataCollection`、`EnvSoundDataCollection.GetKey(string)` 按资产名取 `Key`；这些条目继承的 `CollectionData<T>._list` 为序列化引用列表，`MusicData/SoundData/EnvSoundData` 的 `_key` 为字符串。`SoundManager.PlayMusic/PlaySound/PlayEnvSound(string)` 分别向 Wwise 提交 `Music_`、`Sound_`、`Env_` 加该 Key 的事件名。试听只读取当前安装的对应集合和 `SoundbanksInfo.xml` 的事件媒体引用，并从 BNK 索引读取单个 WEM，用外置 vgmstream r2168 解码；不调用游戏播放接口、不修改官方资产。多源事件不任意挑一段替代运行时混音，明确提示实机确认。
 
 ## 2026-11-06 数值写入与系统提示

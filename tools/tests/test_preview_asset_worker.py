@@ -24,6 +24,15 @@ def sprite_data(image, rect=None, offset=(0, 0)):
 
 
 class PreviewWorkerTest(unittest.TestCase):
+    def test_missing_audio_reports_a_readable_error_without_a_traceback(self):
+        message = "当前游戏的普通音效集合中没有资源“Sword_Fight_001”。"
+        argv = ["preview_asset_worker", "--game-dir", "game", "--audio-kind", "sound",
+                "--audio-name", "Sword_Fight_001", "--audio-output", "preview.wem"]
+        with patch.object(sys, "argv", argv), patch("audio_preview_reader.extract", side_effect=ValueError(message)), contextlib.redirect_stderr(io.StringIO()) as stderr, contextlib.redirect_stdout(io.StringIO()) as stdout:
+            self.assertEqual(worker.main(), 1)
+        self.assertEqual(stderr.getvalue().strip(), message)
+        self.assertEqual(stdout.getvalue(), "")
+
     def setUp(self):
         patcher = patch.object(worker, "extract_moods", return_value={})
         patcher.start()

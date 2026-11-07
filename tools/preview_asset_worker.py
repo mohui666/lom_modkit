@@ -13,6 +13,8 @@ from pathlib import Path
 import sys
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
 from mood_preview import extract_moods
 from event_picture_preview import extract_event_book
 
@@ -190,7 +192,12 @@ def main():
         if args.game_dir is None or not args.audio_name or args.audio_output is None:
             parser.error("试听需要游戏目录、音频名称和缓存路径")
         from audio_preview_reader import extract as extract_audio
-        emit("result", **extract_audio(args.game_dir, args.audio_kind, args.audio_name, args.audio_output))
+        try:
+            result = extract_audio(args.game_dir, args.audio_kind, args.audio_name, args.audio_output)
+        except ValueError as error:
+            print(str(error), file=sys.stderr, flush=True)
+            return 1
+        emit("result", **result)
         return
     if args.story_routes:
         if args.game_dir is None:

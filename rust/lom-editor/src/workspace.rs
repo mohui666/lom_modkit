@@ -3581,8 +3581,14 @@ impl App {
                                         }
                                     }
                                 }
+                                self.catalog.stage_characters = Some(
+                                    self.preview.state_before(&story, node["id"].as_str().unwrap_or(""))["actors"]
+                                        .as_object().into_iter().flatten()
+                                        .map(|(id, _)| id.clone()).collect(),
+                                );
                                 let response =
                                     self.catalog.node_form(ui, &mut node, &ids, &stories);
+                                self.catalog.stage_characters = None;
                                 if let Some(kind) = response.help {
                                     self.tools_panel.open_node_help(&kind);
                                 }
@@ -8174,6 +8180,130 @@ mod application_regression_tests {
             target,
             data: None,
         })
+    }
+
+    #[cfg(windows)]
+    #[test]
+    #[ignore = "requires installed game settings; run the test executable from the complete Windows bundle"]
+    fn old_project_audio_failure_does_not_block_existing_or_new_nodes() {
+        fn draw(app: &mut App, ctx: &egui::Context, events: Vec<egui::Event>) -> egui::FullOutput {
+            ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        Vec2::new(1600.0, 1200.0),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ctx| {
+                    app.center(ctx);
+                    app.dialogs(ctx);
+                },
+            )
+        }
+        fn start(app: &mut App) {
+            let ctx = egui::Context::default();
+            ctx.enable_accesskit();
+            let output = draw(app, &ctx, vec![]);
+            let event = click_named_option(&output, &tr("试听音频"));
+            draw(app, &ctx, vec![event]);
+            assert!(app.error.is_none(), "{:?}", app.error);
+            assert!(app.audio.playing());
+        }
+        fn prepare(app: &mut App) -> anyhow::Result<()> {
+            let deadline = Instant::now() + Duration::from_secs(30);
+            while app.audio.preparing() {
+                app.audio.update()?;
+                assert!(Instant::now() < deadline, "试听准备超时");
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            Ok(())
+        }
+
+        let temp = tempfile::tempdir().unwrap();
+        let legacy = temp.path().join("旧工程.json");
+        // Older nodes omit the optional op/kind fields. Loading must preserve
+        // those fields and a failed old reference must not poison later previews.
+        let original = lom_core::stable_json(&json!({
+            "story_schema":2,"id":"main","title":"旧工程","start":"sound1",
+            "nodes":[
+                {"id":"sound1","type":"sound","name":"Sword_Fight_001"},
+                {"id":"music1","type":"music","name":"主題_001"},
+                {"id":"sound2","type":"sound","name":"Cymbal_001"},
+                {"id":"env1","type":"sound","kind":"env","name":"DrumRoll_001"},
+                {"id":"end1","type":"end"}
+            ]
+        }))
+        .unwrap();
+        std::fs::write(&legacy, &original).unwrap();
+        let package =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../samples/全节点样例3.0.lommod");
+        for path in [&legacy, &package] {
+            let mut app = app();
+            let game = app.tools_panel.game_directory();
+            assert!(game.join("Mortal_Data").is_dir(), "游戏目录未配置");
+            app.install(Project::open(path).unwrap());
+            app.recovery_dir = temp.path().join("recovery");
+            let existing: Vec<_> = app.story()["nodes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|node| {
+                    matches!(node["type"].as_str(), Some("music" | "sound"))
+                        && node["name"] != "Sword_Fight_001"
+                })
+                .map(|node| node["id"].as_str().unwrap().to_owned())
+                .collect();
+            let before = snapshot(&app.project);
+            app.add_node("sound");
+            let selected = app.selected;
+            app.project.stories.get_mut("main").unwrap()["nodes"][selected]["name"] =
+                json!("Sword_Fight_001");
+            start(&mut app);
+            let error = prepare(&mut app).unwrap_err().to_string();
+            assert!(error.contains("Sword_Fight_001"), "{error}");
+            assert!(!error.contains('�'), "{error}");
+            assert!(!app.audio.playing());
+            app.error = Some(error);
+            let ctx = egui::Context::default();
+            ctx.enable_accesskit();
+            let output = draw(&mut app, &ctx, vec![]);
+            let event = click_named_option(&output, &tr("关闭"));
+            draw(&mut app, &ctx, vec![event]);
+            assert!(app.error.is_none());
+            for id in existing {
+                app.selected = app.story()["nodes"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .position(|node| node["id"] == id)
+                    .unwrap();
+                start(&mut app);
+                prepare(&mut app).unwrap();
+                app.audio.stop();
+            }
+            for (kind, name) in [("music", "主題_001"), ("sound", "Cymbal_001")] {
+                app.add_node(kind);
+                let selected = app.selected;
+                app.project.stories.get_mut("main").unwrap()["nodes"][selected]["name"] =
+                    json!(name);
+                start(&mut app);
+                prepare(&mut app).unwrap();
+                app.audio.stop();
+            }
+            assert_eq!(app.tools_panel.game_directory(), game);
+            assert_eq!(std::fs::read(&legacy).unwrap(), original);
+            // Playback must leave all existing nodes and assets intact.
+            let after = snapshot(&app.project);
+            assert_eq!(before.assets, after.assets);
+            for node in before.stories["main"]["nodes"].as_array().unwrap() {
+                assert!(after.stories["main"]["nodes"]
+                    .as_array()
+                    .unwrap()
+                    .contains(node));
+            }
+        }
     }
     #[test]
     fn duplicate_chapter_names_select_distinct_ids_without_renaming_stories() {

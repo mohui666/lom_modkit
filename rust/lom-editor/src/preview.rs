@@ -878,6 +878,11 @@ impl Preview {
         &self.simulation.as_ref().unwrap().after
     }
 
+    pub fn state_before(&mut self, story: &Value, target: &str) -> &Value {
+        self.state(story, target);
+        &self.simulation.as_ref().unwrap().before
+    }
+
     fn effect_texture(
         &mut self,
         ctx: &egui::Context,
@@ -3231,6 +3236,45 @@ mod tests {
         assert!(build_playtest_prelude(&story, "end")
             .iter()
             .all(|n| n["type"] != "show"));
+    }
+
+    #[test]
+    fn stage_filter_state_is_before_target_and_follows_the_preview_route() {
+        let story = json!({"start":"branch","nodes":[
+            {"id":"branch","type":"choice","options":[{"goto":"a"},{"goto":"b"}]},
+            {"id":"a","type":"show","character":"first","goto":"hide"},
+            {"id":"b","type":"show","character":"other","goto":"end"},
+            {"id":"hide","type":"hide","character":"first","goto":"parallel"},
+            {"id":"parallel","type":"parallel","actions":[
+                {"type":"show","character":"user:hero"},
+                {"type":"show","character":"variant"}
+            ],"goto":"clear"},
+            {"id":"clear","type":"hide_all","goto":"end"},
+            {"id":"end","type":"end"}
+        ]});
+        let mut preview = Preview::new(Path::new("."));
+        assert!(preview.state_before(&story, "a")["actors"]
+            .as_object()
+            .unwrap()
+            .is_empty());
+        assert!(preview.state_before(&story, "hide")["actors"]
+            .get("first")
+            .is_some());
+        assert!(preview.state_before(&story, "parallel")["actors"]
+            .as_object()
+            .unwrap()
+            .is_empty());
+        let actors = &preview.state_before(&story, "clear")["actors"];
+        assert!(actors.get("user:hero").is_some());
+        assert!(actors.get("variant").is_some());
+        assert!(actors.get("other").is_none());
+        // Inspect the continuation of this route, rather than the other branch's shorter path.
+        let mut linear = story.clone();
+        linear["nodes"][0]["options"] = json!([{"goto":"a"}]);
+        assert!(preview.state_before(&linear, "end")["actors"]
+            .as_object()
+            .unwrap()
+            .is_empty());
     }
     #[test]
     fn character_bubble_resume_follows_hide_restore_and_global_clear() {

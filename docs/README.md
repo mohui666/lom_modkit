@@ -1,6 +1,6 @@
 # lom_modkit 文档
 
-当前版本为 **1.4.15**，编辑器和编译器使用 Rust，C# Host 提供游戏接入。更新内容见 [本版说明](../RELEASE_NOTES_v1.4.15.md)，下载见 [发布页](https://github.com/mohui666/lom_modkit/releases/latest)。
+当前版本为 **1.4.16**，编辑器和编译器使用 Rust，C# Host 提供游戏接入。更新内容见 [本版说明](../RELEASE_NOTES_v1.4.16.md)，下载见 [发布页](https://github.com/mohui666/lom_modkit/releases/latest)。
 
 ## 开始使用
 
