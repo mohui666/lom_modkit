@@ -182,7 +182,16 @@ def main():
     parser.add_argument("--story-list", action="store_true", help="读取本机游戏的原版章节目录")
     parser.add_argument("--story-script", help="读取一个原版章节，仅返回内存文本")
     parser.add_argument("--story-routes", action="store_true", help="读取原版章节的静态路线关系，不导出源码")
+    parser.add_argument("--audio-kind", choices=("music", "sound", "env"))
+    parser.add_argument("--audio-name")
+    parser.add_argument("--audio-output", type=Path)
     args = parser.parse_args()
+    if args.audio_kind:
+        if args.game_dir is None or not args.audio_name or args.audio_output is None:
+            parser.error("试听需要游戏目录、音频名称和缓存路径")
+        from audio_preview_reader import extract as extract_audio
+        emit("result", **extract_audio(args.game_dir, args.audio_kind, args.audio_name, args.audio_output))
+        return
     if args.story_routes:
         if args.game_dir is None:
             parser.error("读取路线需要 --game-dir")

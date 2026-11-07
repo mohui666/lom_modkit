@@ -9,10 +9,11 @@ use std::{
     fs,
     path::Path,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         mpsc, Arc,
     },
     thread::{self, JoinHandle},
+    time::{Duration, Instant},
 };
 
 const RELEASES: &str = "https://github.com/mohui666/lom_modkit/releases";
@@ -36,6 +37,44 @@ struct Download {
     url: String,
     size: u64,
     digest: String,
+}
+
+struct FileProgress {
+    path: String,
+    size: u64,
+    received: Arc<AtomicU64>,
+    verified: AtomicBool,
+}
+
+struct UpdateProgress {
+    files: Vec<FileProgress>,
+    started: Instant,
+}
+
+impl UpdateProgress {
+    fn new(release: &Release) -> Self {
+        Self {
+            files: release
+                .files
+                .iter()
+                .map(|file| FileProgress {
+                    path: file.path.clone(),
+                    size: file.size,
+                    received: Arc::new(AtomicU64::new(0)),
+                    verified: AtomicBool::new(false),
+                })
+                .collect(),
+            started: Instant::now(),
+        }
+    }
+}
+
+fn byte_size(bytes: f64) -> String {
+    if bytes < 1024.0 * 1024.0 {
+        format!("{:.1} KiB", bytes / 1024.0)
+    } else {
+        format!("{:.1} MiB", bytes / (1024.0 * 1024.0))
+    }
 }
 
 impl Release {
@@ -150,7 +189,7 @@ fn verify_file(path: &Path, file: &Download) -> Result<()> {
     Ok(())
 }
 
-fn prepare(release: &Release, cancel: &AtomicBool) -> Result<Prepared> {
+fn prepare(release: &Release, cancel: &AtomicBool, progress: &UpdateProgress) -> Result<Prepared> {
     ensure!(
         release.can_update(),
         "此发布缺少可直接更新的程序附件或校验信息"
@@ -159,7 +198,7 @@ fn prepare(release: &Release, cancel: &AtomicBool) -> Result<Prepared> {
     let first_error = std::sync::Mutex::new(None);
     thread::scope(|scope| {
         let mut workers = Vec::new();
-        for file in &release.files {
+        for (file, progress) in release.files.iter().zip(&progress.files) {
             let workspace = workspace.path();
             let first_error = &first_error;
             workers.push(scope.spawn(move || {
@@ -173,9 +212,12 @@ fn prepare(release: &Release, cancel: &AtomicBool) -> Result<Prepared> {
                         file.size,
                         MAX_DOWNLOAD,
                         cancel,
+                        &progress.received,
                     )
                     .with_context(|| format!("下载更新文件失败：{}", file.path))?;
-                    verify_file(&destination, file)
+                    verify_file(&destination, file)?;
+                    progress.verified.store(true, Ordering::Relaxed);
+                    Ok(())
                 })();
                 if let Err(error) = result {
                     if !cancel.swap(true, Ordering::Relaxed) {
@@ -220,6 +262,10 @@ pub struct Updater {
     error: Option<String>,
     cancel: Arc<AtomicBool>,
     worker: Option<JoinHandle<()>>,
+    progress: Option<Arc<UpdateProgress>>,
+    last_received: u64,
+    last_activity: Option<Instant>,
+    cancelling: bool,
 }
 
 impl Updater {
@@ -233,6 +279,7 @@ impl Updater {
         self.job = None;
         self.prepared = None;
         self.downloading = false;
+        self.progress = None;
     }
 
     pub fn show_completed(&mut self) {
@@ -263,6 +310,8 @@ impl Updater {
         self.prepared = None;
         self.error = None;
         self.downloading = false;
+        self.cancelling = false;
+        self.progress = None;
         let (tx, rx) = mpsc::channel();
         self.job = Some(rx);
         let ctx = ctx.clone();
@@ -295,6 +344,11 @@ impl Updater {
         self.downloading = true;
         self.silent = false;
         self.error = None;
+        self.cancelling = false;
+        self.last_received = 0;
+        self.last_activity = None;
+        let progress = Arc::new(UpdateProgress::new(&release));
+        self.progress = Some(progress.clone());
         let (tx, rx) = mpsc::channel();
         self.job = Some(rx);
         let ctx = ctx.clone();
@@ -302,7 +356,7 @@ impl Updater {
         let cancel = self.cancel.clone();
         self.worker = Some(thread::spawn(move || {
             let _ = tx.send(
-                prepare(&release, &cancel)
+                prepare(&release, &cancel, &progress)
                     .map(Job::Prepared)
                     .map_err(|e| format!("{e:#}")),
             );
@@ -330,6 +384,12 @@ impl Updater {
         }
         self.job = None;
         self.downloading = false;
+        self.progress = None;
+        // A cancel click must also win a race with the final verified download.
+        if self.cancelling {
+            self.error = Some(crate::i18n::key("common.update.cancelled"));
+            return false;
+        }
         match result {
             Ok(Job::Checked(release)) => {
                 self.open = !self.silent
@@ -350,6 +410,70 @@ impl Updater {
             }
         }
         false
+    }
+
+    fn cancel_job(&mut self) {
+        self.cancelling = true;
+        self.cancel.store(true, Ordering::Relaxed);
+    }
+
+    fn show_progress(&mut self, ui: &mut egui::Ui) {
+        use crate::i18n::{key, message};
+        let Some(progress) = &self.progress else {
+            return;
+        };
+        let received: Vec<_> = progress
+            .files
+            .iter()
+            .map(|file| file.received.load(Ordering::Relaxed).min(file.size))
+            .collect();
+        let total: u64 = progress.files.iter().map(|file| file.size).sum();
+        let downloaded: u64 = received.iter().sum();
+        let now = Instant::now();
+        if downloaded != self.last_received {
+            self.last_received = downloaded;
+            self.last_activity = Some(now);
+        }
+        let elapsed = progress.started.elapsed();
+        let speed = downloaded as f64 / elapsed.as_secs_f64().max(0.001);
+        ui.add(egui::ProgressBar::new(downloaded as f32 / total.max(1) as f32).show_percentage());
+        ui.label(message(
+            "common.update.transfer",
+            &[
+                ("received", byte_size(downloaded as f64)),
+                ("total", byte_size(total as f64)),
+                ("speed", byte_size(speed)),
+                (
+                    "elapsed",
+                    format!("{}:{:02}", elapsed.as_secs() / 60, elapsed.as_secs() % 60),
+                ),
+            ],
+        ));
+        for (file, received) in progress.files.iter().zip(received) {
+            let status = if file.verified.load(Ordering::Relaxed) {
+                "common.update.file_ready"
+            } else if received == file.size {
+                "common.update.file_verifying"
+            } else if received == 0 {
+                "common.update.file_connecting"
+            } else {
+                "common.update.file_downloading"
+            };
+            ui.small(format!(
+                "{} · {} / {} · {}",
+                file.path,
+                byte_size(received as f64),
+                byte_size(file.size as f64),
+                key(status)
+            ));
+        }
+        if downloaded < total
+            && now.duration_since(self.last_activity.unwrap_or(progress.started))
+                >= Duration::from_secs(15)
+        {
+            ui.label(key("common.update.no_data"));
+        }
+        ui.ctx().request_repaint_after(Duration::from_millis(200));
     }
 
     /// Returns true when the user chooses “update and restart”.
@@ -389,6 +513,20 @@ impl Updater {
                             "正在检查 GitHub 最新正式版…"
                         }));
                     });
+                    if self.downloading {
+                        egui::ScrollArea::vertical()
+                            .max_height((ctx.content_rect().height() - 210.0).max(80.0))
+                            .show(ui, |ui| self.show_progress(ui));
+                    }
+                    ui.hyperlink_to(tr("前往 GitHub 发布页面"), RELEASES);
+                    if self.cancelling {
+                        ui.label(crate::i18n::key("common.update.cancelling"));
+                    } else if ui
+                        .button(crate::i18n::key("common.update.cancel"))
+                        .clicked()
+                    {
+                        self.cancel_job();
+                    }
                 } else if let Some(error) = &self.error {
                     crate::error_location::show(ui, error);
                     ui.hyperlink_to(tr("前往 GitHub 发布页面"), RELEASES);
@@ -635,8 +773,14 @@ mod tests {
         for file in &mut release.files {
             file.url = format!("http://{address}/{}", file.path);
         }
-        let prepared = prepare(&release, &AtomicBool::new(false)).unwrap();
+        let progress = UpdateProgress::new(&release);
+        let prepared = prepare(&release, &AtomicBool::new(false), &progress).unwrap();
         server.join().unwrap();
+        assert!(progress
+            .files
+            .iter()
+            .all(|file| file.received.load(Ordering::Relaxed) == file.size
+                && file.verified.load(Ordering::Relaxed)));
         assert_eq!(prepared.files.len(), PROGRAM_FILES.len());
         for file in prepared.files {
             assert_eq!(
@@ -644,6 +788,124 @@ mod tests {
                 b"new program bytes"
             );
         }
+    }
+
+    #[test]
+    fn download_dialog_shows_transfer_states_and_no_data_hint() {
+        let release = parse_release(&release()).unwrap();
+        let mut progress = UpdateProgress::new(&release);
+        progress.started = Instant::now() - Duration::from_secs(16);
+        for (file, received) in progress.files.iter().zip([0, 1, 17, 17]) {
+            file.received.store(received, Ordering::Relaxed);
+        }
+        progress
+            .files
+            .last()
+            .unwrap()
+            .verified
+            .store(true, Ordering::Relaxed);
+        let (_tx, rx) = mpsc::channel();
+        let mut updater = Updater::default();
+        updater.job = Some(rx);
+        updater.downloading = true;
+        updater.last_received = 35;
+        updater.last_activity = Some(progress.started);
+        updater.progress = Some(Arc::new(progress));
+        let context = egui::Context::default();
+        context.enable_accesskit();
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(900.0, 560.0),
+            )),
+            ..Default::default()
+        };
+        let _ = context.run(input.clone(), |context| {
+            updater.dialog(context);
+        });
+        let output = context.run(input, |context| {
+            assert!(!updater.dialog(context));
+        });
+        let labels: Vec<_> = output
+            .platform_output
+            .accesskit_update
+            .unwrap()
+            .nodes
+            .into_iter()
+            .filter_map(|(_, node)| node.label().or_else(|| node.value()).map(str::to_owned))
+            .collect();
+        for key in [
+            "common.update.file_connecting",
+            "common.update.file_downloading",
+            "common.update.file_verifying",
+            "common.update.file_ready",
+            "common.update.no_data",
+            "common.update.cancel",
+        ] {
+            let text = crate::i18n::key(key);
+            assert!(
+                labels.iter().any(|label| label.contains(&text)),
+                "missing {key}: {labels:?}"
+            );
+        }
+        assert!(labels.iter().any(|label| label.contains("KiB/s")));
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(640.0, 400.0),
+            )),
+            ..Default::default()
+        };
+        let _ = context.run(input.clone(), |context| {
+            updater.dialog(context);
+        });
+        let output = context.run(input, |context| {
+            updater.dialog(context);
+        });
+        let cancel = output
+            .platform_output
+            .accesskit_update
+            .unwrap()
+            .nodes
+            .into_iter()
+            .find_map(|(_, node)| {
+                (node.label() == Some(crate::i18n::key("common.update.cancel").as_str()))
+                    .then(|| node.bounds())
+                    .flatten()
+            })
+            .unwrap();
+        assert!(
+            cancel.x0 >= 0.0 && cancel.y0 >= 0.0 && cancel.x1 <= 640.0 && cancel.y1 <= 400.0,
+            "cancel button must stay visible on small screens: {cancel:?}"
+        );
+    }
+
+    #[test]
+    fn cancelling_a_completed_download_does_not_start_installation() {
+        let workspace = tempfile::tempdir().unwrap();
+        let path = workspace.path().to_path_buf();
+        let (tx, rx) = mpsc::channel();
+        let mut updater = Updater::default();
+        updater.job = Some(rx);
+        updater.downloading = true;
+        tx.send(Ok(Job::Prepared(Prepared {
+            workspace,
+            files: Vec::new(),
+        })))
+        .unwrap();
+        updater.cancel_job();
+        assert!(!updater.poll());
+        assert!(updater.prepared.is_none());
+        assert!(updater.job.is_none());
+        assert!(!updater.downloading);
+        assert_eq!(
+            updater.error.as_deref(),
+            Some(crate::i18n::key("common.update.cancelled").as_str())
+        );
+        assert!(
+            !path.exists(),
+            "the cancelled staged download must be released"
+        );
     }
 
     #[test]
@@ -743,7 +1005,7 @@ mod tests {
         download(&host.url, &path, MAX_DOWNLOAD, &cancel).unwrap();
         verify_file(&path, host).unwrap();
         if release.can_update() {
-            let prepared = prepare(&release, &cancel).unwrap();
+            let prepared = prepare(&release, &cancel, &UpdateProgress::new(&release)).unwrap();
             assert_eq!(prepared.files.len(), 4);
         }
     }

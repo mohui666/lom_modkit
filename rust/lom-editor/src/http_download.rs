@@ -4,7 +4,10 @@ use std::{
     fs::OpenOptions,
     io::{Seek, SeekFrom, Write},
     path::Path,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        atomic::{AtomicBool, AtomicU64, Ordering},
+        Arc,
+    },
     time::Duration,
 };
 
@@ -12,7 +15,7 @@ const RANGE_THRESHOLD: u64 = 4 * 1024 * 1024;
 const RANGE_PARTS: u64 = 4;
 
 pub fn download(url: &str, destination: &Path, limit: u64, cancel: &AtomicBool) -> Result<()> {
-    run(url, destination, limit, None, cancel)
+    run(url, destination, limit, None, cancel, None)
 }
 
 pub fn download_update(
@@ -21,21 +24,33 @@ pub fn download_update(
     size: u64,
     limit: u64,
     cancel: &AtomicBool,
+    received: &Arc<AtomicU64>,
 ) -> Result<()> {
     ensure!(size > 0 && size <= limit, "更新文件大小超出限制");
-    run(url, destination, size, Some(size), cancel)
+    run(
+        url,
+        destination,
+        size,
+        Some(size),
+        cancel,
+        Some(received.clone()),
+    )
 }
 
 async fn write_body(
     mut response: reqwest::Response,
     mut file: std::fs::File,
     limit: u64,
+    received: Option<Arc<AtomicU64>>,
 ) -> Result<u64> {
     let mut total = 0_u64;
     while let Some(bytes) = response.chunk().await? {
         total += bytes.len() as u64;
         ensure!(total <= limit, "下载文件超过大小限制");
         file.write_all(&bytes)?;
+        if let Some(received) = &received {
+            received.fetch_add(bytes.len() as u64, Ordering::Relaxed);
+        }
     }
     Ok(total)
 }
@@ -69,6 +84,7 @@ async fn receive(
     destination: &Path,
     limit: u64,
     size: Option<u64>,
+    received: Option<Arc<AtomicU64>>,
 ) -> Result<()> {
     let segmented = size.filter(|size| *size >= RANGE_THRESHOLD);
     let mut request = client.get(url);
@@ -90,9 +106,10 @@ async fn receive(
                 .open(destination)?;
             file.set_len(size)?;
             let mut parts = tokio::task::JoinSet::new();
+            let first_received = received.clone();
             parts.spawn(async move {
                 ensure!(
-                    write_body(response, file, part_size).await? == part_size,
+                    write_body(response, file, part_size, first_received).await? == part_size,
                     "下载分片不完整"
                 );
                 Ok::<(), anyhow::Error>(())
@@ -101,6 +118,7 @@ async fn receive(
                 let client = client.clone();
                 let url = url.to_string();
                 let destination = destination.to_path_buf();
+                let received = received.clone();
                 let start = index * part_size;
                 let end = ((index + 1) * part_size).min(size) - 1;
                 parts.spawn(async move {
@@ -114,7 +132,8 @@ async fn receive(
                     let mut file = OpenOptions::new().write(true).open(destination)?;
                     file.seek(SeekFrom::Start(start))?;
                     ensure!(
-                        write_body(response, file, end - start + 1).await? == end - start + 1,
+                        write_body(response, file, end - start + 1, received).await?
+                            == end - start + 1,
                         "下载分片不完整"
                     );
                     Ok::<(), anyhow::Error>(())
@@ -140,7 +159,7 @@ async fn receive(
         .create_new(true)
         .open(destination)?;
     ensure!(
-        write_body(response, file, limit).await? > 0,
+        write_body(response, file, limit, received).await? > 0,
         "下载地址返回了空文件"
     );
     Ok(())
@@ -152,6 +171,7 @@ fn run(
     limit: u64,
     size: Option<u64>,
     cancel: &AtomicBool,
+    received: Option<Arc<AtomicU64>>,
 ) -> Result<()> {
     ensure!(!cancel.load(Ordering::Relaxed), "下载已取消");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -172,7 +192,7 @@ fn run(
                     .connect_timeout(Duration::from_secs(180))
                     .read_timeout(Duration::from_secs(180))
                     .build()?;
-                receive(client, url, destination, limit, size).await
+                receive(client, url, destination, limit, size, received).await
             } => result,
         }
     });
@@ -300,16 +320,65 @@ mod tests {
             });
             let temp = tempfile::tempdir().unwrap();
             let destination = temp.path().join("update.exe");
-            let result = download_update(&url, &destination, size, size, &AtomicBool::new(false));
+            let received = Arc::new(AtomicU64::new(0));
+            let result = download_update(
+                &url,
+                &destination,
+                size,
+                size,
+                &AtomicBool::new(false),
+                &received,
+            );
             server.join().unwrap();
             if mode == "wrong-range" {
                 assert!(format!("{:#}", result.unwrap_err()).contains("范围"));
                 assert!(!destination.exists());
             } else {
                 result.unwrap();
+                assert_eq!(received.load(Ordering::Relaxed), size);
                 assert_eq!(std::fs::read(destination).unwrap(), payload);
             }
         }
+    }
+
+    #[test]
+    fn update_progress_counts_received_bytes_before_the_response_finishes() {
+        use std::sync::mpsc;
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let url = format!("http://{}/update.exe", listener.local_addr().unwrap());
+        let (finish_tx, finish_rx) = mpsc::channel();
+        let server = thread::spawn(move || {
+            let (mut connection, _) = request(&listener);
+            connection
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\nConnection: close\r\n\r\n1234")
+                .unwrap();
+            finish_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+            connection.write_all(b"5678").unwrap();
+        });
+        let temp = tempfile::tempdir().unwrap();
+        let destination = temp.path().join("update.exe");
+        let output = destination.clone();
+        let received = Arc::new(AtomicU64::new(0));
+        let counter = received.clone();
+        let worker = thread::spawn(move || {
+            download_update(&url, &output, 8, 8, &AtomicBool::new(false), &counter)
+        });
+        let deadline = Instant::now() + Duration::from_secs(3);
+        while received.load(Ordering::Relaxed) == 0 {
+            assert!(
+                Instant::now() < deadline,
+                "progress was not reported during transfer"
+            );
+            thread::sleep(Duration::from_millis(10));
+        }
+        assert_eq!(received.load(Ordering::Relaxed), 4);
+        assert!(!worker.is_finished());
+        finish_tx.send(()).unwrap();
+        worker.join().unwrap().unwrap();
+        server.join().unwrap();
+        assert_eq!(received.load(Ordering::Relaxed), 8);
+        assert_eq!(std::fs::read(destination).unwrap(), b"12345678");
     }
 
     #[test]
@@ -324,7 +393,16 @@ mod tests {
         let output = destination.clone();
         let cancel = Arc::new(AtomicBool::new(false));
         let stop = cancel.clone();
-        let worker = thread::spawn(move || download_update(&url, &output, size, size, &stop));
+        let worker = thread::spawn(move || {
+            download_update(
+                &url,
+                &output,
+                size,
+                size,
+                &stop,
+                &Arc::new(AtomicU64::new(0)),
+            )
+        });
         let mut connections = Vec::new();
         for _ in 0..RANGE_PARTS {
             let (mut connection, range) = request(&listener);

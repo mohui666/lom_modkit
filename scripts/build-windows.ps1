@@ -5,6 +5,7 @@ param(
     [string]$OutputDirectory = "",
     [string]$RuntimeDirectory = "",
     [string]$ExtractorPython = "python",
+    [string]$AudioDecoderDirectory = "",
     [switch]$NoArchive,
     [switch]$Force
 )
@@ -133,6 +134,24 @@ foreach ($Name in @("README.md", "LICENSE.UnityDoorstop")) {
 Copy-Item -LiteralPath (Join-Path $RepositoryRoot "docs\chs\windows_quick_start.md") -Destination (Join-Path $BundleDirectory "README-Windows.md")
 Copy-Item -LiteralPath (Join-Path $RepositoryRoot "LICENSE") -Destination (Join-Path $BundleDirectory "LICENSE")
 Copy-Item -LiteralPath (Join-Path $RepositoryRoot "runtime\MortalModHost\THIRD_PARTY_NOTICES.md") -Destination (Join-Path $BundleDirectory "THIRD_PARTY_NOTICES.md")
+# The native audio preview uses the unmodified upstream decoder and its notices.
+if ([string]::IsNullOrWhiteSpace($AudioDecoderDirectory)) {
+    $AudioDecoderDirectory = Join-Path $RepositoryRoot "out\audio-decoder-r2168\bin"
+    if (-not (Test-Path -LiteralPath (Join-Path $AudioDecoderDirectory "vgmstream-cli.exe") -PathType Leaf)) {
+        $DecoderCache = Split-Path -Parent $AudioDecoderDirectory
+        [IO.Directory]::CreateDirectory($DecoderCache) | Out-Null
+        $DecoderArchive = Join-Path $DecoderCache "vgmstream-win64.zip"
+        if (-not (Test-Path -LiteralPath $DecoderArchive -PathType Leaf)) {
+            Invoke-WebRequest -Uri "https://github.com/vgmstream/vgmstream/releases/download/r2168/vgmstream-win64.zip" -OutFile $DecoderArchive
+        }
+        Expand-Archive -LiteralPath $DecoderArchive -DestinationPath $AudioDecoderDirectory
+    }
+}
+if (-not (Test-Path -LiteralPath (Join-Path $AudioDecoderDirectory "vgmstream-cli.exe") -PathType Leaf)) {
+    throw "Missing audio decoder: $AudioDecoderDirectory"
+}
+[IO.Directory]::CreateDirectory((Join-Path $BundleDirectory "audio-decoder")) | Out-Null
+Copy-Item -Path (Join-Path $AudioDecoderDirectory "*") -Destination (Join-Path $BundleDirectory "audio-decoder") -Recurse -Force
 if ($NoArchive) { Write-Host "Built native tools: $BundleDirectory"; return }
 $BundleDirectory = (Resolve-Path -LiteralPath $BundleDirectory).Path
 [IO.Directory]::CreateDirectory($OutputDirectory) | Out-Null
@@ -153,6 +172,8 @@ $RequiredFiles = @(
     "asset-extractor\lom-asset-extractor.exe",
     "lom-editor.exe",
     "lomc.exe",
+    "audio-decoder\vgmstream-cli.exe",
+    "audio-decoder\COPYING",
     "runtime\MortalModHost.dll",
     "runtime\NVorbis.dll",
     "assets\doorstop\win-x86-doorstop.dll",
