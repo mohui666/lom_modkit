@@ -1,5 +1,13 @@
 # Gameplay API 实证矩阵
 
+## 2026-11-07 人物震动预览
+
+现场只读反编译当前游戏 `Fungus.ShakePosition.DoTween()`，确认其读取 `_amount.Value`、`_duration.Value`、`_targetObject.Value`，调用 `iTween.ShakePosition` 并回调完成。现有官方人物生成代码设置 common 流图的 `ShockPosition`／`ShockDuration`，运行 `shock` 块；自定义人物仍使用 Host `CustomCharacterRuntime.Shock`／`ShakeImage` 的衰减位移。本次只补编辑器播放时遗漏的临时位移和 0.5 秒默认计时，不修改上述游戏执行逻辑。预览为衰减动画示意，不声称逐帧等同官方随机抖动。
+
+## 2026-11-07 原版音频试听
+
+本次现场只读反编译确认 `LuaManager.PlayMusic/PlaySound/PlayEnvSound(string)` 分别经 `MusicDataCollection`、`SoundDataCollection`、`EnvSoundDataCollection.GetKey(string)` 按资产名取 `Key`；这些条目继承的 `CollectionData<T>._list` 为序列化引用列表，`MusicData/SoundData/EnvSoundData` 的 `_key` 为字符串。`SoundManager.PlayMusic/PlaySound/PlayEnvSound(string)` 分别向 Wwise 提交 `Music_`、`Sound_`、`Env_` 加该 Key 的事件名。试听只读取当前安装的对应集合和 `SoundbanksInfo.xml` 的事件媒体引用，并从 BNK 索引读取单个 WEM，用外置 vgmstream r2168 解码；不调用游戏播放接口、不修改官方资产。多源事件不任意挑一段替代运行时混音，明确提示实机确认。
+
 ## 2026-11-06 数值写入与系统提示
 
 重新只读核对 `Mortal.Story.StatModifyManager`：`UpdateSetPlayerStat(string,int)` 仅按目标值计算变化量，调用 `StoryMainUI.DisplayStatModification`；真正写入需调用 `SetPlayer(string,int)`，由 `PlayerStatData.Set` 转到 `GameStat.SetValue` 并保留游戏自身上下限。生成器显示变化后始终执行写入。`LoverInfoPanel.UpdateStatus` 按 `FinalValue` 读取 `PlayerInfo/Lover/<编号>`；本机简体语言表确认 0～8 与 99 的名称，编辑器只提供选择，不改官方资产或上下限。

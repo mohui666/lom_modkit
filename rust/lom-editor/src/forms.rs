@@ -1521,13 +1521,47 @@ impl Catalog {
                                         );
                                     }
                                     let lower = search.to_lowercase();
+                                    let mut keyboard_choice = None;
+                                    if kind == "portrait" {
+                                        ui.small(crate::i18n::key("editor.form.portrait_keys"));
+                                        let editing_text = ui.memory(|memory| memory.focused())
+                                            .is_some_and(|id| egui::TextEdit::load_state(ui.ctx(), id).is_some());
+                                        if !editing_text {
+                                            let direction = ui.input_mut(|input| {
+                                                if input.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown) {
+                                                    1
+                                                } else if input.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp) {
+                                                    -1
+                                                } else { 0 }
+                                            });
+                                            let visible: Vec<_> = options.iter()
+                                                .filter(|(id, name)| resource_matches(id, name, &lower)).collect();
+                                            if direction != 0 && !visible.is_empty() {
+                                                let current = visible.iter().position(|(id, _)| id == &s);
+                                                let next = match (current, direction) {
+                                                    (Some(index), 1) => (index + 1).min(visible.len() - 1),
+                                                    (Some(index), _) => index.saturating_sub(1),
+                                                    (None, 1) => 0,
+                                                    (None, _) => visible.len() - 1,
+                                                };
+                                                keyboard_choice = Some(visible[next].0.clone());
+                                                if !present || s != visible[next].0 {
+                                                    s = visible[next].0.clone();
+                                                    c = true;
+                                                }
+                                            }
+                                        }
+                                    }
                                     for (id, name) in &options {
                                         if resource_matches(id,name,&lower) {
-                                            if ui
+                                            let response = ui
                                                 .selectable_label(present && id == &s, name)
-                                                .on_hover_text(id)
-                                                .clicked()
-                                            {
+                                                .on_hover_text(id);
+                                            if keyboard_choice.as_ref() == Some(id) {
+                                                response.request_focus();
+                                                response.scroll_to_me(Some(egui::Align::Center));
+                                            }
+                                            if response.clicked() {
                                                 s = id.clone();
                                                 c = true;
                                                 ui.close();
@@ -2534,6 +2568,63 @@ pub fn value_editor(ui: &mut Ui, label: &str, value: &mut Value, depth: usize) -
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn portrait_arrow_keys_select_and_preview_without_closing_the_list() {
+        let catalog = Catalog::new();
+        let context = egui::Context::default();
+        let mut node = json!({"id":"show","type":"show","character":"player","portrait":"normal"});
+        let options = catalog.options("portrait", &node, &[], &[]);
+        let index = options.iter().position(|(id, _)| id == "normal").unwrap();
+        let next = (index + 1).min(options.len() - 1);
+        assert_ne!(next, index);
+        let (output, _) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "portrait",
+            "portrait",
+            vec![],
+        );
+        let events = click(&output, egui::accesskit::Role::ComboBox, &options[index].1);
+        field_frame(
+            &catalog, &context, &mut node, "portrait", "portrait", events,
+        );
+        let key = |key| egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        };
+        let (_, changed) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "portrait",
+            "portrait",
+            vec![key(egui::Key::ArrowDown)],
+        );
+        assert!(changed);
+        assert_eq!(node["portrait"], options[next].0);
+        assert!(egui::Popup::is_any_open(&context));
+        let state = crate::preview::simulate(
+            &json!({"id":"main","start":"show","nodes":[node.clone()]}),
+            "show",
+        );
+        assert_eq!(state["actors"]["player"]["portrait"], options[next].0);
+        let (_, changed) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "portrait",
+            "portrait",
+            vec![key(egui::Key::ArrowUp)],
+        );
+        assert!(changed);
+        assert_eq!(node["portrait"], "normal");
+        assert!(egui::Popup::is_any_open(&context));
+    }
 
     #[test]
     fn effect_coordinate_mode_switches_preserve_position_and_legacy_fields() {

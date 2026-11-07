@@ -5,6 +5,7 @@ use crate::{
     forms::{value_editor, Catalog},
     preview::{self, Preview},
 };
+use anyhow::Context;
 use eframe::egui::{self, Color32, RichText, Vec2};
 use lom_core::project::Project;
 use serde_json::{json, Value};
@@ -1665,17 +1666,25 @@ impl App {
         } else if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::S)) {
             self.save(false);
         }
-        if ctx.input_mut(|i| {
-            i.consume_key(
-                egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
-                egui::Key::Z,
-            )
-        }) {
+        let editing_text = ctx
+            .memory(|memory| memory.focused())
+            .is_some_and(|id| egui::TextEdit::load_state(ctx, id).is_some());
+        if !editing_text
+            && ctx.input_mut(|i| {
+                i.consume_key(
+                    egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
+                    egui::Key::Z,
+                )
+            })
+        {
             self.redo();
-        } else if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::Z)) {
+        } else if !editing_text
+            && ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::Z))
+        {
             self.undo();
         }
-        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::Y)) {
+        if !editing_text && ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::Y))
+        {
             self.redo();
         }
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::N)) {
@@ -1760,6 +1769,8 @@ impl App {
         }
     }
     fn toolbar(&mut self, ctx: &egui::Context) {
+        let shortcut =
+            |modifiers, key| ctx.format_shortcut(&egui::KeyboardShortcut::new(modifiers, key));
         egui::TopBottomPanel::top("commands")
             .frame(surface(false))
             .show(ctx, |ui| {
@@ -1773,53 +1784,43 @@ impl App {
                         self.settings_error = None;
                     }
                     ui.menu_button(tr("文件"), |ui| {
-                        if ui.button(crate::i18n::key("editor.workspace.new_free")).clicked() {
-                            ui.close();
-                            self.request(Pending::New, ctx);
-                        }
-                        if ui.button(crate::i18n::key("editor.workspace.new_extra")).clicked() {
-                            ui.close();
-                            self.request(Pending::NewAddon,ctx);
-                        }
-                        if ui.button(crate::i18n::key("editor.workspace.import_original")).clicked() {
-                            ui.close();
-                            self.request(Pending::NewVanillaPatch, ctx);
-                        }
-                        if ui.button(crate::i18n::key("editor.workspace.routes")).clicked() {
-                            ui.close();self.open_vanilla_routes(ctx);
-                        }
-                        if ui.button(crate::i18n::key("editor.workspace.bookmark")).clicked() {
-                            ui.close();
-                            match lom_core::story_bookmarks::read(&lom_core::story_bookmarks::default_root()) {
-                                Ok(marks) => if let Some(mark)=marks.into_iter().next() {
-                                    self.open_story_bookmark(mark,ctx);
-                                } else {self.error=Some("还没有游戏标记。请在原版剧情中按 Ctrl+F6 后再打开。".into());},
-                                Err(error)=>self.error=Some(error.to_string()),
+                        ui.menu_button(crate::i18n::key("editor.workspace.new_project"), |ui| {
+                            if ui.add(egui::Button::new(crate::i18n::key("editor.workspace.new_free"))
+                                .shortcut_text(shortcut(egui::Modifiers::COMMAND, egui::Key::N))).clicked() {
+                                ui.close();
+                                self.request(Pending::New, ctx);
                             }
-                        }
-                        ui.menu_button(tr("从模板新建"), |ui| {
-                            let templates: Value = serde_json::from_str(include_str!(
-                                "../data/project-templates.json"
-                            ))
-                            .expect("built-in templates");
-                            for (key, item) in templates.as_object().unwrap() {
-                                if ui
-                                    .button(item["name"].as_str().unwrap_or(key))
-                                    .on_hover_text(item["description"].as_str().unwrap_or(""))
-                                    .clicked()
-                                {
-                                    ui.close();
-                                    self.request(Pending::Template(key.clone()), ctx);
+                            if ui.button(crate::i18n::key("editor.workspace.new_extra")).clicked() {
+                                ui.close();
+                                self.request(Pending::NewAddon,ctx);
+                            }
+                            ui.menu_button(tr("从模板新建"), |ui| {
+                                let templates: Value = serde_json::from_str(include_str!(
+                                    "../data/project-templates.json"
+                                ))
+                                .expect("built-in templates");
+                                for (key, item) in templates.as_object().unwrap() {
+                                    if ui
+                                        .button(item["name"].as_str().unwrap_or(key))
+                                        .on_hover_text(item["description"].as_str().unwrap_or(""))
+                                        .clicked()
+                                    {
+                                        ui.close();
+                                        self.request(Pending::Template(key.clone()), ctx);
+                                    }
                                 }
-                            }
+                            });
                         });
-                        if ui.button(tr("打开目录…")).clicked() {
+                        ui.separator();
+                        if ui.add(egui::Button::new(tr("打开目录…"))
+                            .shortcut_text(shortcut(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, egui::Key::O))).clicked() {
                             ui.close();
                             if let Some(path) = rfd::FileDialog::new().pick_folder() {
                                 self.request(Pending::Open(path), ctx);
                             }
                         }
-                        if ui.button(tr("打开 JSON / Mod 包…")).clicked() {
+                        if ui.add(egui::Button::new(tr("打开 JSON / Mod 包…"))
+                            .shortcut_text(shortcut(egui::Modifiers::COMMAND, egui::Key::O))).clicked() {
                             ui.close();
                             if let Some(path) = rfd::FileDialog::new()
                                 .add_filter("剧情、Lua 或 Mod 包", &["json", "lua", "lommod"])
@@ -1839,6 +1840,7 @@ impl App {
                                 }
                             }
                         });
+                        ui.separator();
                         let save_label = tr("保存全部章节  ⌘S");
                         let save_label = if cfg!(target_os = "macos") {
                             save_label
@@ -1849,42 +1851,62 @@ impl App {
                             ui.close();
                             self.save(false);
                         }
-                        ui.separator();
-                        if ui.button(crate::i18n::key("editor.workspace.release_settings")).clicked() {
-                            self.open_center(Center::Manifest);
-                            ui.close();
-                        }
-                        if ui.button(tr("另存项目目录…")).clicked() {
+                        if ui.add(egui::Button::new(tr("另存项目目录…"))
+                            .shortcut_text(shortcut(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, egui::Key::S))).clicked() {
                             ui.close();
                             self.save(true);
                         }
-                        if ui.button(tr("导出 .lommod…")).clicked() {
-                            ui.close();
-                            self.export();
-                        }
-                        if ui.button(crate::i18n::key("editor.workspace.export_player")).clicked() {
-                            ui.close();
-                            self.export_play_bundle();
-                        }
-                        if ui.button(tr("从游戏提取预览素材…")).clicked() {
-                            ui.close();
-                            self.tools_panel.start_extraction();
-                        }
-                        if ui.button(tr("选择预览素材库…")).on_hover_text(tr("选择包含 preview_map.json 的已提取素材库；选择游戏目录则自动开始提取。")).clicked() {
-                            ui.close();
-                            self.choose_preview_library();
-                        }
-                        if ui.button(tr("导出诊断报告…")).clicked() {
-                            ui.close();
-                            self.diagnostic();
-                        }
+                        ui.separator();
+                        ui.menu_button(crate::i18n::key("editor.workspace.original_tools"), |ui| {
+                            if ui.button(crate::i18n::key("editor.workspace.import_original")).clicked() {
+                                ui.close();
+                                self.request(Pending::NewVanillaPatch, ctx);
+                            }
+                            if ui.button(crate::i18n::key("editor.workspace.routes")).clicked() {
+                                ui.close();self.open_vanilla_routes(ctx);
+                            }
+                            if ui.button(crate::i18n::key("editor.workspace.bookmark")).clicked() {
+                                ui.close();
+                                match lom_core::story_bookmarks::read(&lom_core::story_bookmarks::default_root()) {
+                                    Ok(marks) => if let Some(mark)=marks.into_iter().next() {
+                                        self.open_story_bookmark(mark,ctx);
+                                    } else {self.error=Some("还没有游戏标记。请在原版剧情中按 Ctrl+F6 后再打开。".into());},
+                                    Err(error)=>self.error=Some(error.to_string()),
+                                }
+                            }
+                        });
+                        ui.menu_button(crate::i18n::key("editor.workspace.export_menu"), |ui| {
+                            if ui.button(crate::i18n::key("editor.workspace.release_settings")).clicked() {
+                                self.open_center(Center::Manifest);
+                                ui.close();
+                            }
+                            if ui.button(tr("导出 .lommod…")).clicked() {
+                                ui.close();
+                                self.export();
+                            }
+                            if ui.button(crate::i18n::key("editor.workspace.export_player")).clicked() {
+                                ui.close();
+                                self.export_play_bundle();
+                            }
+                        });
+                        ui.menu_button(crate::i18n::key("editor.workspace.preview_assets"), |ui| {
+                            if ui.button(tr("从游戏提取预览素材…")).clicked() {
+                                ui.close();
+                                self.tools_panel.start_extraction();
+                            }
+                            if ui.button(tr("选择预览素材库…")).on_hover_text(tr("选择包含 preview_map.json 的已提取素材库；选择游戏目录则自动开始提取。")).clicked() {
+                                ui.close();
+                                self.choose_preview_library();
+                            }
+                        });
                     });
 
                     ui.menu_button(crate::i18n::key("editor.workspace.edit"), |ui| {
                         if ui
                             .add_enabled(
                                 !self.undo.is_empty() || self.pending_history.is_some(),
-                                egui::Button::new(tr("撤销")),
+                                egui::Button::new(tr("撤销"))
+                                    .shortcut_text(shortcut(egui::Modifiers::COMMAND, egui::Key::Z)),
                             )
                             .clicked()
                         {
@@ -1892,7 +1914,8 @@ impl App {
                             ui.close();
                         }
                         if ui
-                            .add_enabled(!self.redo.is_empty(), egui::Button::new(tr("重做")))
+                            .add_enabled(!self.redo.is_empty(), egui::Button::new(tr("重做"))
+                                .shortcut_text(shortcut(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, egui::Key::Z)))
                             .clicked()
                         {
                             self.redo();
@@ -1968,6 +1991,10 @@ impl App {
                         if ui.button(tr("迁移与诊断")).clicked() {
                             self.open_tool_page(ToolPage::Maintenance);
                             ui.close();
+                        }
+                        if ui.button(tr("导出诊断报告…")).clicked() {
+                            ui.close();
+                            self.diagnostic();
                         }
                         if ui.button(tr("检查项目")).clicked() {
                             self.navigate(Section::Story);
@@ -3497,6 +3524,35 @@ impl App {
                                     self.catalog.node_form(ui, &mut node, &ids, &stories);
                                 if let Some(kind) = response.help {
                                     self.tools_panel.open_node_help(&kind);
+                                }
+                                if matches!(node["type"].as_str(), Some("music" | "sound")) {
+                                    ui.horizontal(|ui| {
+                                        let name = node["name"].as_str().unwrap_or("");
+                                        let playable = !name.is_empty() && node["op"].as_str().unwrap_or("play") == "play";
+                                        if ui.add_enabled(playable, egui::Button::new(tr("试听音频"))).clicked() {
+                                            let result = if name.starts_with("user:") {
+                                                self.audio.play_content(&self.project, name)
+                                            } else {
+                                                let kind = if node["type"] == "music" { "music" }
+                                                    else if node["kind"] == "env" { "env" } else { "sound" };
+                                                std::env::current_exe().map_err(anyhow::Error::from).and_then(|exe| {
+                                                    let root = exe.parent().context("无法确定试听组件位置")?;
+                                                    self.audio.play_official(&self.tools_panel.game_directory(), kind, name,
+                                                        &root.join("asset-extractor/lom-asset-extractor.exe"),
+                                                        &root.join("audio-decoder/vgmstream-cli.exe"))
+                                                })
+                                            };
+                                            if let Err(error) = result { self.error = Some(format!("{error:#}")); }
+                                        }
+                                        if ui.add_enabled(self.audio.playing(), egui::Button::new(tr("停止试听"))).clicked() {
+                                            self.audio.stop();
+                                        }
+                                        if self.audio.preparing() {
+                                            ui.spinner();
+                                            ui.label(crate::i18n::key("editor.audio.preparing"));
+                                        }
+                                    });
+                                    ui.small(crate::i18n::key("editor.audio.preview_hint"));
                                 }
                                 if response.changed || image_changed {
                                     story["nodes"][self.selected] = node.clone();
@@ -7392,6 +7448,130 @@ mod application_regression_tests {
             repeat: false,
             modifiers,
         }
+    }
+
+    #[test]
+    fn focused_text_input_keeps_project_undo_redo_and_delete_shortcuts() {
+        let mut app = app();
+        app.project.manifest["name"] = json!("keep this project edit");
+        app.track();
+        app.flush();
+        let before = snapshot(&app.project);
+        let history = (app.undo.len(), app.redo.len());
+        let ctx = egui::Context::default();
+        let id = egui::Id::new("typing-dialogue");
+        let mut text = "已有台词".to_owned();
+        let _ = ctx.run(Default::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                ui.add(egui::TextEdit::multiline(&mut text).id(id))
+                    .request_focus();
+            });
+        });
+        for (key, modifiers) in [
+            (egui::Key::Z, egui::Modifiers::COMMAND),
+            (
+                egui::Key::Z,
+                egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
+            ),
+            (egui::Key::Y, egui::Modifiers::COMMAND),
+            (egui::Key::Backspace, egui::Modifiers::NONE),
+            (egui::Key::Delete, egui::Modifiers::NONE),
+        ] {
+            let _ = ctx.run(
+                egui::RawInput {
+                    modifiers,
+                    events: vec![key_event(key, modifiers)],
+                    ..Default::default()
+                },
+                |ctx| {
+                    app.shortcuts(ctx);
+                    assert!(
+                        ctx.input(|input| input.key_pressed(key)),
+                        "the input must receive {key:?}"
+                    );
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        ui.add(egui::TextEdit::multiline(&mut text).id(id));
+                    });
+                },
+            );
+            assert!(snapshot(&app.project) == before);
+            assert_eq!((app.undo.len(), app.redo.len()), history);
+        }
+        ctx.memory_mut(|memory| memory.surrender_focus(id));
+        let _ = ctx.run(
+            egui::RawInput {
+                events: vec![key_event(egui::Key::Z, egui::Modifiers::COMMAND)],
+                ..Default::default()
+            },
+            |ctx| app.shortcuts(ctx),
+        );
+        assert!(
+            snapshot(&app.project) != before,
+            "project undo still works outside text inputs"
+        );
+    }
+
+    #[test]
+    fn file_menu_groups_secondary_actions_without_changing_the_project() {
+        let mut app = app();
+        let before = snapshot(&app.project);
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        let output = navigation_frame(&mut app, &ctx, vec![]);
+        let event = click_named_option(&output, &tr("文件"));
+        navigation_frame(&mut app, &ctx, vec![event]);
+        let output = navigation_frame(&mut app, &ctx, vec![]);
+        let labels: Vec<_> = output
+            .platform_output
+            .accesskit_update
+            .as_ref()
+            .unwrap()
+            .nodes
+            .iter()
+            .filter_map(|(_, node)| node.label())
+            .collect();
+        for key in [
+            "editor.workspace.new_project",
+            "editor.workspace.original_tools",
+            "editor.workspace.export_menu",
+            "editor.workspace.preview_assets",
+        ] {
+            assert!(
+                labels
+                    .iter()
+                    .any(|label| label.starts_with(&crate::i18n::key(key))),
+                "missing menu {key}: {labels:?}"
+            );
+        }
+        assert!(!labels.contains(&crate::i18n::key("editor.workspace.import_original").as_str()));
+        assert!(!labels.contains(&tr("从游戏提取预览素材…").as_str()));
+        assert!(!labels.contains(&tr("导出诊断报告…").as_str()));
+        let event = click_named_option(
+            &output,
+            &crate::i18n::key("editor.workspace.original_tools"),
+        );
+        navigation_frame(&mut app, &ctx, vec![event]);
+        let output = navigation_frame(&mut app, &ctx, vec![]);
+        let labels: Vec<_> = output
+            .platform_output
+            .accesskit_update
+            .as_ref()
+            .unwrap()
+            .nodes
+            .iter()
+            .filter_map(|(_, node)| node.label())
+            .collect();
+        for key in [
+            "editor.workspace.import_original",
+            "editor.workspace.routes",
+            "editor.workspace.bookmark",
+        ] {
+            assert!(
+                labels.contains(&crate::i18n::key(key).as_str()),
+                "missing action {key}: {labels:?}"
+            );
+        }
+        assert!(snapshot(&app.project) == before);
     }
 
     #[test]

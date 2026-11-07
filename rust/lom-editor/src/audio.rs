@@ -1,21 +1,85 @@
 //! Own the preview process so Stop and closing the editor really stop playback.
 use anyhow::{ensure, Context, Result};
 use std::{
-    path::Path,
+    path::{Path, PathBuf},
     process::{Child, Command, Stdio},
 };
 #[derive(Default)]
 pub struct Player {
     child: Option<Child>,
+    preparation: Option<Preparation>,
+    workspace: Option<tempfile::TempDir>,
+}
+
+struct Preparation {
+    child: Child,
+    workspace: tempfile::TempDir,
+    decoder: Option<PathBuf>,
+}
+
+fn hidden_command(program: &Path) -> Command {
+    let mut command = Command::new(program);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x0800_0000);
+    }
+    command
 }
 impl Player {
     pub fn stop(&mut self) {
+        if let Some(mut preparation) = self.preparation.take() {
+            let _ = preparation.child.kill();
+            let _ = preparation.child.wait();
+        }
         if let Some(mut child) = self.child.take() {
             let _ = child.kill();
             let _ = child.wait();
         }
+        self.workspace = None;
     }
     pub fn update(&mut self) -> Result<()> {
+        if let Some(preparation) = &mut self.preparation {
+            let status = match preparation.child.try_wait() {
+                Ok(status) => status,
+                Err(error) => {
+                    self.stop();
+                    return Err(error).context("无法读取试听准备状态");
+                }
+            };
+            if status.is_none() {
+                return Ok(());
+            }
+            let preparation = self.preparation.take().unwrap();
+            let output = preparation.child.wait_with_output()?;
+            ensure!(
+                output.status.success(),
+                "准备音频试听失败（{}）：{}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let wav = preparation.workspace.path().join("preview.wav");
+            if let Some(decoder) = preparation.decoder {
+                let child = hidden_command(&decoder)
+                    .arg("-i")
+                    .arg("-o")
+                    .arg(&wav)
+                    .arg(preparation.workspace.path().join("preview.wem"))
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::piped())
+                    .spawn()
+                    .context("无法启动原版音频解码组件")?;
+                self.preparation = Some(Preparation {
+                    child,
+                    workspace: preparation.workspace,
+                    decoder: None,
+                });
+                return Ok(());
+            }
+            self.play(&wav)?;
+            self.workspace = Some(preparation.workspace);
+        }
         let Some(child) = self.child.as_mut() else {
             return Ok(());
         };
@@ -28,12 +92,87 @@ impl Player {
         };
         if let Some(status) = status {
             self.child = None;
+            self.workspace = None;
             ensure!(status.success(), "音频试听失败（{status}）");
         }
         Ok(())
     }
     pub fn playing(&self) -> bool {
-        self.child.is_some()
+        self.child.is_some() || self.preparing()
+    }
+    pub fn preparing(&self) -> bool {
+        self.preparation.is_some()
+    }
+    pub fn play_official(
+        &mut self,
+        game: &Path,
+        kind: &str,
+        name: &str,
+        extractor: &Path,
+        decoder: &Path,
+    ) -> Result<()> {
+        ensure!(cfg!(windows), "原版音频试听目前支持 Windows");
+        ensure!(
+            extractor.is_file() && decoder.is_file(),
+            "原版音频试听组件缺失，请使用新版完整 Windows 包"
+        );
+        ensure!(
+            game.join("Mortal_Data").is_dir(),
+            "请先在“游戏与 MOD”中选择游戏目录"
+        );
+        ensure!(
+            ["music", "sound", "env"].contains(&kind),
+            "音频试听类型无效"
+        );
+        self.stop();
+        let workspace = lom_core::workdir::create()?;
+        let child = hidden_command(extractor)
+            .arg("--game-dir")
+            .arg(game)
+            .arg("--audio-kind")
+            .arg(kind)
+            .arg("--audio-name")
+            .arg(name)
+            .arg("--audio-output")
+            .arg(workspace.path().join("preview.wem"))
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()
+            .context("无法读取原版音频")?;
+        self.preparation = Some(Preparation {
+            child,
+            workspace,
+            decoder: Some(decoder.to_path_buf()),
+        });
+        Ok(())
+    }
+    pub fn play_content(
+        &mut self,
+        project: &lom_core::project::Project,
+        reference: &str,
+    ) -> Result<()> {
+        let id = reference.strip_prefix("user:").context("音频引用无效")?;
+        let root = format!("assets/user/audio/{id}/");
+        let meta: serde_json::Value = serde_json::from_slice(
+            project
+                .assets
+                .get(&format!("{root}content.json"))
+                .context("找不到作品音频")?,
+        )?;
+        let file = meta["files"]["main"].as_str().context("音频缺少主文件")?;
+        let data = project
+            .assets
+            .get(&format!("{root}{file}"))
+            .context("找不到作品音频文件")?;
+        let workspace = lom_core::workdir::create()?;
+        let destination = workspace
+            .path()
+            .join(Path::new(file).file_name().context("音频文件名无效")?);
+        std::fs::write(&destination, data)?;
+        self.play(&destination)?;
+        self.workspace = Some(workspace);
+        Ok(())
     }
     pub fn play(&mut self, path: &Path) -> Result<()> {
         ensure!(path.is_file(), "找不到试听文件");
@@ -108,6 +247,71 @@ mod tests {
             std::thread::sleep(Duration::from_millis(20));
         }
         Ok(())
+    }
+
+    #[test]
+    #[ignore = "requires the installed game and the complete Windows editor bundle"]
+    fn installed_official_audio_prepares_plays_and_releases_its_cache() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../out/windows/lom_modkit");
+        let game = Path::new("C:/Program Files (x86)/Steam/steamapps/common/LegendOfMortal");
+        let data: serde_json::Value =
+            serde_json::from_str(include_str!("../../../data/editor_data.json")).unwrap();
+        for (kind, key) in [
+            ("music", "music"),
+            ("sound", "sounds"),
+            ("env", "env_sounds"),
+        ] {
+            let name = data[key][0]["id"].as_str().unwrap();
+            let mut player = Player::default();
+            player
+                .play_official(
+                    game,
+                    kind,
+                    name,
+                    &root.join("asset-extractor/lom-asset-extractor.exe"),
+                    &root.join("audio-decoder/vgmstream-cli.exe"),
+                )
+                .unwrap();
+            let cache = player
+                .preparation
+                .as_ref()
+                .unwrap()
+                .workspace
+                .path()
+                .to_path_buf();
+            let deadline = Instant::now() + Duration::from_secs(30);
+            while player.preparing() {
+                player.update().unwrap();
+                assert!(Instant::now() < deadline);
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            assert!(player.playing());
+            let bytes = std::fs::read(cache.join("preview.wav")).unwrap();
+            assert_eq!(&bytes[..4], b"RIFF");
+            assert!(bytes.len() > 44);
+            player.stop();
+            assert!(!player.playing());
+            assert!(!cache.exists());
+            // Stopping during preparation must release both the process and cache.
+            player
+                .play_official(
+                    game,
+                    kind,
+                    name,
+                    &root.join("asset-extractor/lom-asset-extractor.exe"),
+                    &root.join("audio-decoder/vgmstream-cli.exe"),
+                )
+                .unwrap();
+            let cache = player
+                .preparation
+                .as_ref()
+                .unwrap()
+                .workspace
+                .path()
+                .to_path_buf();
+            player.stop();
+            assert!(!cache.exists());
+        }
     }
 
     #[test]
