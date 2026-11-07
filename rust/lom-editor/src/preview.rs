@@ -458,7 +458,8 @@ pub fn playback_duration(node: &Value) -> f64 {
             "show" => number(action, "fadeDuration", 0.0).max(number(action, "moveDuration", 0.0)),
             "hide" => number(action, "fadeDuration", 0.0),
             "move" => number(action, "duration", 1.0),
-            "offset" | "rotate" | "shock" => number(action, "duration", 0.0),
+            "offset" | "rotate" => number(action, "duration", 0.0),
+            "shock" => number(action, "duration", 0.5),
             "wait" => number(action, "seconds", 0.0),
             "transition" => PREVIEW_TRANSITION_SECONDS,
             "background" | "custom_cg" | "overlay" => number(action, "fade", 0.0),
@@ -477,8 +478,8 @@ pub fn playback_duration(node: &Value) -> f64 {
             .max(0.1)
     } else {
         match text(node, "type") {
-            "show" | "portrait" | "hide" | "move" | "offset" | "rotate" | "wait" | "transition"
-            | "mood" | "effect" => duration(node).max(0.1),
+            "show" | "portrait" | "hide" | "move" | "offset" | "rotate" | "shock" | "wait"
+            | "transition" | "mood" | "effect" => duration(node).max(0.1),
             _ => 1.8,
         }
     }
@@ -580,6 +581,19 @@ fn animate_frame(state: &mut Value, before: &Value, node: &Value, elapsed: f64, 
                 let p = progress(number(action, "duration", 1.0));
                 state["actors"][cid]["preview_x"] = (from.0 + (to.0 - from.0) * p).into();
                 state["actors"][cid]["preview_feet"] = (from.1 + (to.1 - from.1) * p).into();
+            }
+            "shock" if old.is_object() => {
+                let duration = number(action, "duration", 0.5);
+                if elapsed > 0.0 && elapsed < duration {
+                    // A diminishing preview, without persisting motion into the layout.
+                    // The official flowchart uses iTween; the custom actor uses this
+                    // sine/cosine envelope. This is an editor illustration, not its RNG.
+                    let strength = 12.0 * (1.0 - elapsed / duration);
+                    let phase = elapsed * 70.0;
+                    state["actors"][cid]["preview_shock_x"] = (phase.sin() * strength).into();
+                    state["actors"][cid]["preview_shock_y"] =
+                        ((phase * 0.73).cos() * strength * 0.45).into();
+                }
             }
             "offset" | "rotate" if old.is_object() => {
                 let p = progress(number(action, "duration", 0.0));
@@ -1606,9 +1620,15 @@ impl Preview {
                     let base = Pos2::new(
                         rect.left()
                             + rect.width() * x
-                            + number(a, "offset_x", 0.0) as f32 * rect.width() / 1920.0,
+                            + (number(a, "offset_x", 0.0) + number(a, "preview_shock_x", 0.0))
+                                as f32
+                                * rect.width()
+                                / 1920.0,
                         rect.top() + rect.height() * feet
-                            - number(a, "offset_y", 0.0) as f32 * rect.height() / 1080.0,
+                            - (number(a, "offset_y", 0.0) + number(a, "preview_shock_y", 0.0))
+                                as f32
+                                * rect.height()
+                                / 1080.0,
                     );
                     if let Some((tex, meta)) =
                         self.texture(&ctx, p, lookup, true, text(a, "portrait"))
@@ -2758,6 +2778,60 @@ pub fn graph(
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn shock_preview_moves_temporarily_and_restores_the_layout() {
+        use super::*;
+        let positions: Value =
+            serde_json::from_str(include_str!("../../../data/stage_positions.json")).unwrap();
+        for actor in ["player", "user:demo.actor"] {
+            for parallel in [false, true] {
+                let action = json!({"type":"shock","character":actor});
+                let mut shock = if parallel {
+                    json!({"id":"shake","type":"parallel","actions":[action,{"type":"wait","seconds":1.0}]})
+                } else {
+                    let mut node = action;
+                    node["id"] = json!("shake");
+                    node
+                };
+                let expected_duration = if parallel { 1.0 } else { 0.5 };
+                assert_eq!(playback_duration(&shock), expected_duration);
+                let story = json!({"id":"main","start":"enter","nodes":[
+                    {"id":"enter","type":"show","character":actor,"position":"M"},
+                    {"id":"offset","type":"offset","character":actor,"x":123,"y":45},
+                    shock.clone(), {"id":"after","type":"say","text":"结束"}]});
+                let original = story.clone();
+                let first = simulate_frame(&story, "shake", 0.05, &positions);
+                let second = simulate_frame(&story, "shake", 0.1, &positions);
+                assert_ne!(
+                    first["actors"][actor]["preview_shock_x"],
+                    second["actors"][actor]["preview_shock_x"]
+                );
+                assert!(number(&first["actors"][actor], "preview_shock_x", 0.0).abs() > 0.01);
+                for elapsed in [0.0, 0.5, 0.75, 1.0] {
+                    let frame = simulate_frame(&story, "shake", elapsed, &positions);
+                    assert_eq!(number(&frame["actors"][actor], "preview_shock_x", 0.0), 0.0);
+                    assert_eq!(number(&frame["actors"][actor], "preview_shock_y", 0.0), 0.0);
+                    assert_eq!(frame["actors"][actor]["offset_x"], 123.0);
+                    assert_eq!(frame["actors"][actor]["offset_y"], 45.0);
+                }
+                assert!(simulate(&story, "after")["actors"][actor]["preview_shock_x"].is_null());
+                assert_eq!(story, original);
+                if parallel {
+                    shock["actions"][0]["duration"] = json!(0);
+                } else {
+                    shock["duration"] = json!(0);
+                }
+                let stopped = json!({"id":"main","start":"enter","nodes":[
+                    {"id":"enter","type":"show","character":actor,"position":"M"},shock]});
+                assert!(
+                    simulate_frame(&stopped, "shake", 0.1, &positions)["actors"][actor]
+                        ["preview_shock_x"]
+                        .is_null()
+                );
+            }
+        }
+    }
+
     #[test]
     fn original_effect_frames_preserve_additive_pixels_and_stay_behind_dialogue_ui() {
         use super::*;
