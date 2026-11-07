@@ -19,6 +19,7 @@
     {
       "id": "extra_tired",
       "type": "portrait",
+      "_editor": {"note": "点角色列表上方“仅显示已登场角色”，此处应只列出已登场的夏灵犀；再次点击恢复全部角色。"},
       "character": "special825",
       "portrait": "tired",
       "fade_out": 0.2,

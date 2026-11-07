@@ -91,6 +91,11 @@ MUSIC_TITLES = {
     "魔王_004": "君所愿兮江湖行 最是轻狂不愿醒",
 }
 
+# These names occur in old scripts but are absent from the installed
+# SoundDataCollection._list (2026-11-07). LuaManager.PlaySound cannot resolve
+# them either. Keep saved references intact; do not offer them for new nodes.
+UNAVAILABLE_SOUNDS = {"Sword_001", "Sword_Fight_001", "重度掉落_001", "防禦_002"}
+
 # 契约 §5 固定值
 MODES = ["character", "think", "narrative", "center"]
 
@@ -586,7 +591,7 @@ def main():
             {"id": m, "name": MUSIC_TITLES.get(m, m)} for m in sorted(music)
         ],
         "sounds": [
-            {"id": sound, "name": sound} for sound in sorted(sounds)
+            {"id": sound, "name": sound} for sound in sorted(sounds - UNAVAILABLE_SOUNDS)
         ],  # 普通音效 id 来自原版 PlaySound 调用
         "env_sounds": [
             {"id": sound, "name": sound} for sound in sorted(env_sounds)

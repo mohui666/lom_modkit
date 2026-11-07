@@ -8,6 +8,8 @@ pub struct Catalog {
     story_titles: std::collections::BTreeMap<String, String>,
     character_options:
         std::cell::RefCell<std::collections::BTreeMap<(String, String), Vec<(String, String)>>>,
+    pub(crate) stage_characters: Option<std::collections::BTreeSet<String>>,
+    staged_characters_only: std::cell::Cell<bool>,
 }
 
 pub struct NodeFormResponse {
@@ -148,6 +150,8 @@ impl Catalog {
                 .expect("embedded editor data"),
             story_titles: Default::default(),
             character_options: Default::default(),
+            stage_characters: None,
+            staged_characters_only: Default::default(),
         }
     }
     pub fn sync_story_titles(&mut self, stories: &std::collections::BTreeMap<String, Value>) {
@@ -1069,7 +1073,10 @@ impl Catalog {
     fn character_field(&self, ui: &mut Ui, node: &mut Value, label: &str, optional: bool) -> bool {
         let before = node.clone();
         let mut selection = node.clone();
-        if let Some(id) = node["character"].as_str() {
+        if let Some(id) = node["character"]
+            .as_str()
+            .filter(|_| !self.filtering_stage_characters(node))
+        {
             selection["character"] = json!(self.character_group(id));
         }
         if self.field(
@@ -1117,6 +1124,48 @@ impl Catalog {
             }
         }
         *node != before
+    }
+    fn filtering_stage_characters(&self, node: &Value) -> bool {
+        node["type"] != "show"
+            && self.stage_characters.is_some()
+            && self.staged_characters_only.get()
+    }
+    fn stage_character_filter(&self, ui: &mut Ui, node: &Value) -> bool {
+        if node["type"] == "show" || self.stage_characters.is_none() {
+            return false;
+        }
+        let only = self.staged_characters_only.get();
+        if ui
+            .add(egui::Button::new(crate::i18n::key("editor.form.staged_only")).selected(only))
+            .on_hover_text(crate::i18n::key("editor.form.staged_only_hint"))
+            .clicked()
+        {
+            self.staged_characters_only.set(!only);
+            return true;
+        }
+        false
+    }
+    fn stage_character_options(
+        &self,
+        kind: &str,
+        node: &Value,
+        options: &[(String, String)],
+    ) -> Vec<(String, String)> {
+        if !self.filtering_stage_characters(node) {
+            return options.to_vec();
+        }
+        // Stage entries are actual appearance IDs. Do not replace an active
+        // variant with its off-stage group root when the author selects it.
+        let options = if kind == "character_group" {
+            self.options("character", node, &[], &[])
+        } else {
+            options.to_vec()
+        };
+        let staged = self.stage_characters.as_ref().unwrap();
+        options
+            .into_iter()
+            .filter(|(id, _)| staged.contains(id))
+            .collect()
     }
     pub fn field(
         &self,
@@ -1469,12 +1518,18 @@ impl Catalog {
                                 c = response.changed();
                                 reset |= c && optional && s.is_empty();
                             } else if is_character_selector(kind) {
+                                let filter_changed = self.stage_character_filter(ui, node);
+                                let options = self.stage_character_options(kind, node, &options);
+                                if self.filtering_stage_characters(node) && options.is_empty() {
+                                    ui.small(crate::i18n::key("editor.form.no_staged_characters"));
+                                }
                                 let absent = absent_label(node, key, kind);
                                 if let Some(selection) = character_picker(
                                     ui,
                                     present.then_some(s.as_str()),
                                     &options,
                                     optional.then_some(absent.as_str()),
+                                    filter_changed,
                                 ) {
                                     if let Some(id) = selection {
                                         if optional && id.is_empty() {
@@ -1755,6 +1810,7 @@ struct CharacterSearch {
     query: String,
     manual_id: String,
     open: bool,
+    filter_changed: bool,
 }
 
 /// Search is a draft; only choosing a result, clearing, or applying an ID commits.
@@ -1763,18 +1819,31 @@ fn character_picker(
     selected: Option<&str>,
     options: &[(String, String)],
     absent: Option<&str>,
+    keep_open: bool,
 ) -> Option<Option<String>> {
     let state_id = ui.id().with("character-search");
     let mut state = ui
         .data_mut(|data| data.get_temp::<CharacterSearch>(state_id))
         .unwrap_or_default();
     if state.source.as_deref() != selected {
+        // Filtering switches grouped characters to their actual stage IDs.
+        // Keep the open search when that presentation changes on the next frame.
+        let preserve_search = keep_open || state.filter_changed;
+        let query = if preserve_search {
+            std::mem::take(&mut state.query)
+        } else {
+            String::new()
+        };
         state = CharacterSearch {
             source: selected.map(str::to_owned),
             manual_id: selected.unwrap_or("").to_owned(),
+            query,
+            open: preserve_search && state.open,
             ..Default::default()
         };
     }
+    state.filter_changed = keep_open;
+    state.open |= keep_open;
     let selected_name = selected.and_then(|id| {
         options
             .iter()
@@ -1847,7 +1916,8 @@ fn character_picker(
             });
             result_focused |= manual.header_response.has_focus();
         });
-        close |= (search.clicked_elsewhere() || (search.lost_focus() && !result_focused))
+        close |= !keep_open
+            && (search.clicked_elsewhere() || (search.lost_focus() && !result_focused))
             && !results.response.contains_pointer();
     }
     if close || selection.is_some() {
@@ -3434,6 +3504,193 @@ mod tests {
             assert_eq!(node, before);
         }
     }
+
+    #[test]
+    fn staged_character_button_filters_the_list_without_rewriting_the_selection() {
+        use egui::accesskit::Role;
+        let mut catalog = Catalog::new();
+        catalog.data["characters"] = json!([
+            {"id":"onstage", "name":"场上甲"},
+            {"id":"offstage", "name":"场下乙"},
+            {"id":"user:hero", "name":"自创人物"}
+        ]);
+        catalog.stage_characters = Some(["onstage".into(), "user:hero".into()].into());
+        let context = egui::Context::default();
+        let mut node = json!({"id":"say1","type":"say","character":"offstage","text":"保留"});
+        let before = node.clone();
+        let (output, _) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "character",
+            "character",
+            vec![],
+        );
+        let button = crate::i18n::key("editor.form.staged_only");
+        let events = click(&output, Role::Button, &button);
+        let (output, changed) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "character",
+            "character",
+            events,
+        );
+        assert!(!changed);
+        assert_eq!(node, before);
+        let has_option = |output: &egui::FullOutput, name: &str| {
+            output
+                .platform_output
+                .accesskit_update
+                .as_ref()
+                .unwrap()
+                .nodes
+                .iter()
+                .any(|(_, node)| node.role() == Role::Button && node.label() == Some(name))
+        };
+        assert!(has_option(&output, "场上甲"));
+        assert!(has_option(&output, "自创人物"));
+        assert!(!has_option(&output, "场下乙"));
+        let events = click(&output, Role::Button, &button);
+        let (output, changed) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "character",
+            "character",
+            events,
+        );
+        assert!(!changed);
+        assert_eq!(node, before);
+        assert!(has_option(&output, "场下乙"));
+        assert_eq!(catalog.options("character", &node, &[], &[]).len(), 3);
+        let events = click(&output, Role::Button, "场上甲");
+        let (_, changed) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "character",
+            "character",
+            events,
+        );
+        assert!(changed);
+        assert_eq!(node["character"], "onstage");
+    }
+
+    #[test]
+    fn staged_character_filter_keeps_actual_appearances_and_exempts_entrances() {
+        let mut catalog = Catalog::new();
+        catalog.data["characters"] = json!([
+            {"id":"root", "name":"人物", "appearance_group":"root", "appearance_name":"普通"},
+            {"id":"variant", "name":"人物异装", "appearance_group":"root", "appearance_name":"异装"},
+            {"id":"other", "name":"另一人"}
+        ]);
+        catalog.stage_characters = Some(["variant".into()].into());
+        catalog.staged_characters_only.set(true);
+        let mut node = json!({"id":"say1","type":"say","character":"other"});
+        let options = catalog.options("character_group", &node, &[], &[]);
+        let filtered = catalog.stage_character_options("character_group", &node, &options);
+        assert_eq!(
+            filtered
+                .iter()
+                .map(|(id, _)| id.as_str())
+                .collect::<Vec<_>>(),
+            ["variant"]
+        );
+        let context = egui::Context::default();
+        let (output, _) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "character",
+            "character",
+            vec![],
+        );
+        let events = click(
+            &output,
+            egui::accesskit::Role::Button,
+            &crate::i18n::key("editor.form.staged_only"),
+        );
+        // Toggle off and back on to open the actual list with the filter enabled.
+        let (output, _) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "character",
+            "character",
+            events,
+        );
+        let events = click(
+            &output,
+            egui::accesskit::Role::Button,
+            &crate::i18n::key("editor.form.staged_only"),
+        );
+        let (output, _) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "character",
+            "character",
+            events,
+        );
+        let events = click(&output, egui::accesskit::Role::Button, &filtered[0].1);
+        let (_, changed) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "character",
+            "character",
+            events,
+        );
+        assert!(changed);
+        assert_eq!(node["character"], "variant");
+        // Switching between the grouped full list and exact stage appearance
+        // IDs must keep the results open across subsequent repaint frames.
+        for label in ["人物", "人物异装"] {
+            let (output, _) = field_frame(
+                &catalog,
+                &context,
+                &mut node,
+                "character",
+                "character",
+                vec![],
+            );
+            let events = click(
+                &output,
+                egui::accesskit::Role::Button,
+                &crate::i18n::key("editor.form.staged_only"),
+            );
+            field_frame(
+                &catalog,
+                &context,
+                &mut node,
+                "character",
+                "character",
+                events,
+            );
+            let (output, changed) = field_frame(
+                &catalog,
+                &context,
+                &mut node,
+                "character",
+                "character",
+                vec![],
+            );
+            assert!(!changed);
+            assert_eq!(node["character"], "variant");
+            let _ = click(&output, egui::accesskit::Role::Button, label);
+        }
+        node["type"] = json!("show");
+        assert_eq!(
+            catalog.stage_character_options("character_group", &node, &options),
+            options
+        );
+        catalog.stage_characters = Some(Default::default());
+        node["type"] = json!("hide");
+        assert!(catalog
+            .stage_character_options("character_group", &node, &options)
+            .is_empty());
+    }
     #[test]
     fn character_search_selects_user_content_and_optional_clear() {
         use egui::accesskit::Role;
@@ -4171,12 +4428,13 @@ fn typed_row(c: &Catalog, ui: &mut Ui, row: &mut Value, kind: &str) -> Option<bo
             "{} *",
             crate::i18n::key("workspace.form.official_character")
         ));
-        if let Some(Some(id)) = character_picker(
-            ui,
-            row.as_str(),
+        let filter_changed = c.stage_character_filter(ui, row);
+        let options = c.stage_character_options(
+            "battle_character",
+            row,
             &c.options("battle_character", row, &[], &[]),
-            None,
-        ) {
+        );
+        if let Some(Some(id)) = character_picker(ui, row.as_str(), &options, None, filter_changed) {
             if row.as_str() != Some(id.as_str()) {
                 *row = id.into();
                 changed = true;
