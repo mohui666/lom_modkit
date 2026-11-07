@@ -1,6 +1,7 @@
 //! Transactional edits made by dragging the stage preview.
 use anyhow::{ensure, Context, Result};
 use serde_json::{json, Value};
+use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Target {
@@ -206,7 +207,7 @@ fn apply_inner(story: &mut Value, selected: usize, change: &Change) -> Result<us
             return Ok(selected);
         }
         let action = child.map_or(&nodes[parent], |child| &nodes[parent]["actions"][child]);
-        if action["type"] == "offset" && action["absolute"] == true {
+        if parent == selected && action["type"] == "offset" && action["absolute"] == true {
             let action = if let Some(child) = child {
                 &mut story["nodes"][parent]["actions"][child]
             } else {
@@ -221,27 +222,43 @@ fn apply_inner(story: &mut Value, selected: usize, change: &Change) -> Result<us
             .unwrap();
         let mut offset = json!({"id":offset_id,"type":"offset","character":character,"duration":0});
         write_offset(&mut offset, change);
-        let successor = nodes[parent]["goto"]
-            .as_str()
-            .filter(|id| !id.is_empty())
-            .map(str::to_owned);
-        if let Some(successor) = successor {
+        let successors = lom_core::analysis::successors(story, selected);
+        ensure!(
+            successors.len() <= 1,
+            crate::i18n::key("preview.layout.after_branch")
+        );
+        let terminal = lom_core::validate::node_schema()["no_goto_types"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|kind| kind == &current["type"]);
+        ensure!(
+            !terminal || !successors.is_empty(),
+            crate::i18n::key("preview.layout.after_end")
+        );
+        if terminal {
+            let successor = &successors[0];
+            let mut anchor = current.clone();
+            crate::workspace::retarget(
+                &mut anchor,
+                &BTreeMap::from([(successor.clone(), offset_id.clone())]),
+            );
+            if anchor == *current && current["resume_original"] == true {
+                anchor["resume_node"] = json!(offset_id);
+            }
             offset["goto"] = json!(successor);
-            // Explicit branches must pass through the new layout step.
-            story["nodes"][parent]["goto"] = json!(offset_id);
+            story["nodes"][selected] = anchor;
+        } else if let Some(successor) = current["goto"].as_str().filter(|id| !id.is_empty()) {
+            offset["goto"] = json!(successor);
+            story["nodes"][selected]["goto"] = json!(offset_id);
         }
-        // Keep the layout on the branch which actually showed or moved the
-        // character. Sequential steps keep their implicit continuation, so
-        // adding and deleting a layout does not introduce a permanent jump.
+        // Select the inserted step so its new layout is visible immediately.
+        // Further drags edit this step; earlier layouts stay unchanged.
         story["nodes"]
             .as_array_mut()
             .unwrap()
-            .insert(parent + 1, offset);
-        Ok(if parent <= selected {
-            selected + 1
-        } else {
-            selected
-        })
+            .insert(selected + 1, offset);
+        Ok(selected + 1)
     } else {
         let action = if let Some(child) = child {
             &mut story["nodes"][parent]["actions"][child]
@@ -334,7 +351,7 @@ mod tests {
     }
 
     #[test]
-    fn branch_merge_edits_only_the_showing_branch_source() {
+    fn dragging_at_a_merge_inserts_after_the_selected_step_and_keeps_its_loop() {
         let mut source = story(json!([
             {"id":"choice1","type":"choice","options":[{"goto":"a_show","text":"人物登场"},{"goto":"b_wait","text":"无人物"}]},
             {"id":"a_show","type":"show","character":"player","goto":"current"},
@@ -345,18 +362,93 @@ mod tests {
         let original = source.clone();
         let selected = apply(&mut source, 3, &character(120.0)).unwrap();
         assert_eq!(selected, 4);
-        assert_eq!(source["nodes"][selected], original["nodes"][3]);
-        assert_eq!(source["nodes"][0], original["nodes"][0]);
-        assert_eq!(source["start"], "choice1");
-        assert_eq!(source["nodes"][1]["goto"], "offset1");
-        assert_eq!(source["nodes"][2]["goto"], "current");
-        assert_eq!(source["nodes"][3], original["nodes"][2]);
-        assert_eq!(lom_core::analysis::successors(&source, 3), vec!["current"]);
-        assert_eq!(source["nodes"][selected]["goto"], "current");
+        assert_eq!(source["nodes"][selected]["id"], "offset1");
+        assert_eq!(source["nodes"][3]["goto"], "offset1");
+        assert_eq!(source["nodes"][4]["goto"], "current");
+        assert_eq!(
+            source["nodes"].as_array().unwrap()[..3],
+            original["nodes"].as_array().unwrap()[..3]
+        );
     }
 
     #[test]
-    fn implicit_source_insertion_is_reused_on_the_next_drag() {
+    fn later_dialogue_drag_inserts_after_selection_and_preserves_earlier_layout() {
+        for explicit in [false, true] {
+            let mut source = story(json!([
+                {"id":"show","type":"show","character":"player","position":"M","facing":"left"},
+                {"id":"early","type":"say","character":"player","text":"先前的对白"},
+                {"id":"later","type":"say","character":"player","text":"当前对白"},
+                {"id":"next","type":"say","character":"player","text":"后续对白"},
+                {"id":"end","type":"end"}
+            ]));
+            if explicit {
+                source["nodes"][0]["goto"] = json!("early");
+                source["nodes"][1]["goto"] = json!("later");
+                source["nodes"][2]["goto"] = json!("next");
+                source["nodes"][3]["goto"] = json!("end");
+            }
+            let earlier = crate::preview::simulate(&source, "later")["actors"].clone();
+            let selected = apply(&mut source, 2, &character(120.0)).unwrap();
+            assert_eq!(selected, 3);
+            assert_eq!(source["nodes"][2]["id"], "later");
+            assert_eq!(source["nodes"][selected]["id"], "offset1");
+            assert_eq!(
+                crate::preview::simulate(&source, "later")["actors"],
+                earlier
+            );
+            assert_eq!(
+                crate::preview::simulate(&source, "offset1")["actors"]["player"]["offset_x"],
+                120.0
+            );
+            apply(&mut source, selected, &character(180.0)).unwrap();
+            assert_eq!(source["nodes"].as_array().unwrap().len(), 6);
+            let selected = apply(&mut source, selected + 1, &character(240.0)).unwrap();
+            assert_eq!(source["nodes"][selected]["id"], "offset2");
+            assert_eq!(source["nodes"].as_array().unwrap().len(), 7);
+            assert_eq!(
+                crate::preview::simulate(&source, "next")["actors"]["player"]["offset_x"],
+                180.0
+            );
+            assert_eq!(
+                crate::preview::simulate(&source, "end")["actors"]["player"]["offset_x"],
+                240.0
+            );
+            lom_core::validate::validate_story(&source).unwrap();
+        }
+    }
+
+    #[test]
+    fn dragging_inside_a_branch_keeps_the_other_branch_unchanged() {
+        let mut source = story(json!([
+            {"id":"show","type":"show","character":"player","position":"M","facing":"left"},
+            {"id":"choice","type":"choice","options":[{"text":"当前分支","goto":"current"},{"text":"另一分支","goto":"other"}]},
+            {"id":"other","type":"say","mode":"narrative","text":"另一分支","goto":"end"},
+            {"id":"current","type":"say","mode":"narrative","text":"当前对白","goto":"end"},
+            {"id":"end","type":"end"}
+        ]));
+        let original = source.clone();
+        let other = crate::preview::simulate(&source, "other")["actors"].clone();
+        let selected = apply(&mut source, 3, &character(120.0)).unwrap();
+        assert_eq!(selected, 4);
+        assert_eq!(source["nodes"][1], original["nodes"][1]);
+        assert_eq!(source["nodes"][2], original["nodes"][2]);
+        assert_eq!(source["nodes"][3]["goto"], "offset1");
+        assert_eq!(source["nodes"][4]["goto"], "end");
+        assert_eq!(crate::preview::simulate(&source, "other")["actors"], other);
+        assert_eq!(
+            crate::preview::simulate(&source, "offset1")["actors"]["player"]["offset_x"],
+            120.0
+        );
+        let before = source.clone();
+        assert!(apply(&mut source, 1, &character(180.0)).is_err());
+        assert_eq!(source, before);
+        assert!(apply(&mut source, 5, &character(180.0)).is_err());
+        assert_eq!(source, before);
+        lom_core::validate::validate_story(&source).unwrap();
+    }
+
+    #[test]
+    fn implicit_insertion_follows_the_current_step_and_is_reused_when_selected() {
         let mut source = story(json!([
             {"id":"show1","type":"show","character":"player"},
             {"id":"say1","type":"say","character":"player","text":"对白"},
@@ -364,8 +456,9 @@ mod tests {
         ]));
         let selected = apply(&mut source, 1, &character(120.0)).unwrap();
         assert_eq!(selected, 2);
-        assert_eq!(lom_core::analysis::successors(&source, 0), vec!["offset1"]);
-        assert_eq!(lom_core::analysis::successors(&source, 1), vec!["say1"]);
+        assert_eq!(lom_core::analysis::successors(&source, 0), vec!["say1"]);
+        assert_eq!(lom_core::analysis::successors(&source, 1), vec!["offset1"]);
+        assert_eq!(lom_core::analysis::successors(&source, 2), vec!["end"]);
         assert!(source["nodes"][0].get("goto").is_none());
         assert!(source["nodes"][1].get("goto").is_none());
         assert_eq!(
@@ -373,9 +466,9 @@ mod tests {
             selected
         );
         assert_eq!(source["nodes"].as_array().unwrap().len(), 4);
-        assert_eq!(source["nodes"][1]["x"], 180.0);
-        assert_eq!(source["nodes"][1]["absolute"], true);
-        assert_eq!(source["nodes"][1]["duration"], 0);
+        assert_eq!(source["nodes"][2]["x"], 180.0);
+        assert_eq!(source["nodes"][2]["absolute"], true);
+        assert_eq!(source["nodes"][2]["duration"], 0);
     }
 
     #[test]
@@ -416,7 +509,7 @@ mod tests {
             {"id":"say1","type":"say","mode":"narrative","text":"对白"}
         ]));
         let original = source.clone();
-        assert_eq!(apply(&mut source, 2, &character(80.0)).unwrap(), 2);
+        assert_eq!(apply(&mut source, 1, &character(80.0)).unwrap(), 1);
         assert_eq!(source["nodes"].as_array().unwrap().len(), 3);
         let action = &source["nodes"][1]["actions"][0];
         assert_eq!(action["x"], 80.0);
@@ -429,9 +522,9 @@ mod tests {
 
         source["nodes"][1]["actions"][0]["absolute"] = json!(false);
         let selected = apply(&mut source, 2, &character(140.0)).unwrap();
-        assert_eq!(source["nodes"][selected]["id"], "say1");
-        assert_eq!(source["nodes"][2]["type"], "offset");
-        assert_eq!(source["nodes"][2]["duration"], 0);
+        assert_eq!(source["nodes"][selected]["id"], "offset1");
+        assert_eq!(source["nodes"][3]["type"], "offset");
+        assert_eq!(source["nodes"][3]["duration"], 0);
         assert_eq!(source["nodes"][1]["actions"][0]["duration"], 2.5);
     }
 
