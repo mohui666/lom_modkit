@@ -1007,6 +1007,9 @@ fn extra(n: &Value, ntype: &str, catalog: &Value) -> Result<()> {
         }
     }
     range(n, "wait_after", 0.0, f64::INFINITY)?;
+    if ntype == "hide_all" {
+        range(n, "fadeDuration", 0.0, f64::INFINITY)?;
+    }
     if ntype == "parallel" {
         crate::parallel::validate_group(n)?;
         for (i, action) in crate::parallel::actions(n).iter().enumerate() {

@@ -43,6 +43,29 @@ fn hide_all_clears_stage_analysis_and_compiles_to_the_character_only_entry() {
 }
 
 #[test]
+fn timed_hide_all_waits_for_fade_and_requires_host_1415() {
+    let mut project = lom_core::project::Project::new();
+    project.manifest["min_host_version"] = json!("1.4.11");
+    let input =
+        story(json!({"id":"clear","type":"hide_all","fadeDuration":0.75,"wait_after":0.25}));
+    validate::validate_story(&input).unwrap();
+    let lua = codegen::compile_story(&input, None, None, None).unwrap();
+    assert!(
+        lua.contains("mod_char_hide_all(0.75)\n\twait(0.75)\n\tmod_char_hide_all()\n\twait(0.25)")
+    );
+    project.stories.insert("main".into(), input.clone());
+    let dir = tempfile::tempdir().unwrap();
+    let output = dir.path().join("timed-clear.lommod");
+    project.export(&output).unwrap();
+    let reopened = lom_core::project::Project::open(&output).unwrap();
+    assert_eq!(reopened.manifest["min_host_version"], "1.4.15");
+    assert_eq!(reopened.stories["main"]["nodes"][1]["fadeDuration"], 0.75);
+    let mut invalid = input;
+    invalid["nodes"][1]["fadeDuration"] = json!(-0.1);
+    assert!(validate::validate_story(&invalid).is_err());
+}
+
+#[test]
 fn hide_all_package_requires_host_1411_and_reopens() {
     let mut project = lom_core::project::Project::new();
     project.manifest["min_host_version"] = json!("1.4.0");

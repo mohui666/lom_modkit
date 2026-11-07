@@ -80,7 +80,8 @@
   "native_branch": {"id":"node","type":"native_branch","condition":{"kind":"literal","value":true},"success":"","failure":""},
   "hide_all": {
     "id": "node",
-    "type": "hide_all"
+    "type": "hide_all",
+    "fadeDuration": 0
   },
   "focus": {
     "id": "node",

@@ -1979,6 +1979,32 @@ mod tests {
         );
     }
     #[test]
+    fn preview_package_restores_camera_switches_before_selected_step() {
+        let mut project = Project::new();
+        project.stories.insert(
+            "main".into(),
+            json!({"id":"main","start":"on","nodes":[
+            {"id":"on","type":"camera","name":"stage-memory","active":true},
+            {"id":"off","type":"camera","name":"stage-dream","active":false},
+            {"id":"target","type":"say","mode":"narrative","text":"test"},
+            {"id":"end","type":"end"}]}),
+        );
+        let original = project.clone();
+        let preview = prepare_preview(&project, "main", "target").unwrap();
+        assert_eq!(project, original);
+        let story = &preview.stories["main"];
+        lom_core::validate::validate_story(story).unwrap();
+        let lua = lom_core::codegen::compile_story(story, None, None, None).unwrap();
+        let nodes = story["nodes"].as_array().unwrap();
+        let prelude = &nodes[4..];
+        assert_eq!(prelude.len(), 2);
+        assert_eq!(prelude[0]["active"], true);
+        assert_eq!(prelude[1]["active"], false);
+        assert_eq!(prelude[1]["goto"], "target");
+        assert!(lua.contains("maincamera.ActiveVolume(\"stage-memory\", 1)"));
+        assert!(lua.contains("maincamera.ActiveVolume(\"stage-dream\", 0)"));
+    }
+    #[test]
     fn preview_package_reconstructs_stage_without_mutating_author_project() {
         let mut project = Project::new();
         project.stories.insert("main".into(),json!({"id":"main","story_schema":2,"start":"show1","nodes":[{"id":"show1","type":"show","character":"player","position":"M"},{"id":"move1","type":"move","character":"player","from":"M","to":"L","duration":1},{"id":"end1","type":"end"}]}));

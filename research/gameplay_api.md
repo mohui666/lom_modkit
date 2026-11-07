@@ -120,6 +120,10 @@ Host 1.4.5 的 `mod_effect` 始终经原 SetupEffect(unique=0,play=1) 创建自�
 
 2026-11-06 清除画面人物：本机只读核对 `Fungus.Stage.CharactersOnStage` 返回舞台人物列表，`Mortal.Story.StoryStageController.Hide(PortraitOptions)` 先调用 `HideMood` 再交给原版退场。新增 `hide_all` 节点通过 `mod_char_hide_all()` 复用 Host 的 `CustomCharacterRuntime.HideAllOnStage()`，按现有逻辑清除自定义人物并以零淡出时长隐藏官方人物。该入口仅处理人物。此处记录接口依据，未作本次游戏实机验证。
 
+2026-11-07 人物清场时长：再次只读核对本机 `Mortal.Story.StoryStageController.Hide(Fungus.PortraitOptions)` 与 `Fungus.PortraitOptions`。正时长清场传入 `fadeDuration`、`useDefaultSettings=false`、`waitUntilFinished=false`，由生成的 Lua 等待时长；自定义人物复用 Host 现有 `Hide(raw, fade)`。省略参数保留立即清场。已通过 Host 编译，未作本次游戏内淡出验收。
+
+2026-11-07 滤镜预览：只读核对本机 `Mortal.Story.StoryCamera.ActiveVolume(string key, int active)`，它按键独立设置 `PostProcessingVolumeItem.Volume.enabled`。读取本机舞台 VolumeProfile 的 ColorAdjustments 色值：memory RGB 约 (1.059274, 0.948355, 0.643328)，dream (1.189207, 1.189207, 1.189207)，fire (2, 1.026768, 0.971698)，blurdim (0.641509, 0.641509, 0.641509)。编辑器对这四个预设模拟色调并近似绘制模糊、暗角，不执行 URP 景深或 FilmGrain；从中间步骤试玩的前置节点恢复各键开关。未提交原版资源，未作本次游戏画面一致性验收。
+
 2026-11-04 单人气泡：定向只读核对本机 `StoryStageController.CreateMoodObject/Show/Hide/SetDimmed`、`StoryCharacterController.SetupMood/ShowMood` 及 `CharacterMoodPanel.Show(string,float)/Hide()`。原版所有舞台人物都会创建面板，`Show` 只按输入键匹配面板 Mapping，不要求人物自身有这个表情。Host 1.4.1 的 `mod_character_mood(character,icon)` 直接调用该人物实例的 `Mood.Show`，使用已读资源的九种 Mapping；不改 `StoryCharacterData`、表情键或官方资产，继续使用原版动画和朝向。隐藏单人、恢复自动、压暗/解除压暗、离场及清舞台分别沿原版入口处理；本条仅记录接口与实现依据，运行证据另记。
 
 本次 Windows `release_1.0.6001.0` 隔离试玩中，实际观察到只有 `normal` 立绘的 `artist1`（武师）和 `aunt1`（大妈）同时显示独立气泡；叹号、音符、汗滴、害羞、阴影、乱线等可切换且立绘保持不变。已观察单人隐藏不影响另一人、恢复跟随普通表情、转身、压暗/解除压暗、离场重登不残留，以及全场关闭清除单人设置。自定义用户人物未接入，也未做全人物实机覆盖。

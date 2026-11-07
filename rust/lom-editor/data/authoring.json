@@ -1371,6 +1371,7 @@
     "hide_all": {
       "label": "清除画面人物",
       "fields": [
+        ["fadeDuration", "淡出时长", "float", true],
         [
           "wait_after",
           "动作后停留（秒）",
@@ -3636,7 +3637,7 @@
     },
     "native_action": {"operations": []},
     "native_branch": {"condition": {"kind":"literal","value":true},"success":"","failure":""},
-    "hide_all": {},
+    "hide_all": {"fadeDuration": 0},
     "focus": {
       "character": ""
     },

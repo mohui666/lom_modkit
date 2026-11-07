@@ -158,6 +158,9 @@ struct App {
     settings_open: bool,
     settings_page: usize,
     check_updates_on_startup: bool,
+    auto_save_project: bool,
+    auto_save_seconds: u64,
+    last_auto_save: Instant,
     settings_error: Option<String>,
     settings_comma_down: bool,
     dialog_ime: bool,
@@ -435,6 +438,12 @@ impl App {
             settings_open: false,
             settings_page: 0,
             check_updates_on_startup: prefs["check_updates_on_startup"].as_bool().unwrap_or(true),
+            auto_save_project: prefs["auto_save_project"].as_bool().unwrap_or(true),
+            auto_save_seconds: prefs["auto_save_seconds"]
+                .as_u64()
+                .filter(|seconds| [30, 60, 300, 600].contains(seconds))
+                .unwrap_or(300),
+            last_auto_save: Instant::now(),
             settings_error: None,
             settings_comma_down: false,
             dialog_ime: false,
@@ -1119,6 +1128,7 @@ impl App {
         self.preview.cancel_layout_drag();
         self.clear_recovery();
         self.project = p;
+        self.last_auto_save = Instant::now();
         self.center = Center::Node;
         self.scenario_selection = Default::default();
         self.advanced = Default::default();
@@ -1171,21 +1181,22 @@ impl App {
             return false;
         }
         self.flush();
-        let path = if !as_new {
-            self.project.source.clone().filter(|p| {
-                p.extension().and_then(|x| x.to_str()) != Some("json")
-                    || (self.project.stories.len() == 1
-                        && self.project.manifest == self.saved.manifest)
-            })
-        } else {
-            None
-        };
+        let path = if as_new { None } else { self.save_target() };
         let path = path.or_else(|| {
             rfd::FileDialog::new()
                 .set_title("选择项目保存目录（保存全部章节与素材）")
                 .pick_folder()
         });
         let Some(path) = path else { return false };
+        self.save_at(&path, false)
+    }
+    fn save_target(&self) -> Option<PathBuf> {
+        self.project.source.clone().filter(|path| {
+            path.extension().and_then(|x| x.to_str()) != Some("json")
+                || (self.project.stories.len() == 1 && self.project.manifest == self.saved.manifest)
+        })
+    }
+    fn save_at(&mut self, path: &Path, automatic: bool) -> bool {
         match crate::persistence::save_project(
             &mut self.project,
             &path,
@@ -1198,16 +1209,37 @@ impl App {
                 self.last = snapshot(&self.project);
                 self.mark_saved();
                 self.asset_dirty = false;
+                self.last_auto_save = Instant::now();
                 self.clear_recovery();
-                self.status = format!(
-                    "已保存全部 {} 个章节 · {}",
-                    self.project.stories.len(),
-                    path.display()
-                );
+                self.status = if automatic {
+                    crate::i18n::message(
+                        "editor.autosave.saved",
+                        &[
+                            ("count", self.project.stories.len().to_string()),
+                            ("path", path.display().to_string()),
+                        ],
+                    )
+                } else {
+                    format!(
+                        "已保存全部 {} 个章节 · {}",
+                        self.project.stories.len(),
+                        path.display()
+                    )
+                };
                 true
             }
             Err(e) => {
-                self.error = Some(format!("保存失败；修改仍保留在编辑器中。\n{e:#}"));
+                self.error = Some(if automatic {
+                    crate::i18n::message(
+                        "editor.autosave.failed",
+                        &[
+                            ("path", path.display().to_string()),
+                            ("error", format!("{e:#}")),
+                        ],
+                    )
+                } else {
+                    format!("保存失败；修改仍保留在编辑器中。\n{e:#}")
+                });
                 false
             }
         }
@@ -1521,6 +1553,15 @@ impl App {
         }
         if self.dirty() {
             delay = delay.min(Duration::from_secs(30).saturating_sub(self.last_recovery.elapsed()));
+            if self.auto_save_project
+                && !self.saved.stories.is_empty()
+                && self.save_target().is_some()
+            {
+                delay = delay.min(
+                    Duration::from_secs(self.auto_save_seconds)
+                        .saturating_sub(self.last_auto_save.elapsed()),
+                );
+            }
         }
         if self.audio.playing() {
             delay = delay.min(Duration::from_millis(200));
@@ -1531,6 +1572,26 @@ impl App {
         delay
     }
     fn autosave(&mut self) {
+        if self.auto_save_project
+            && self.dirty()
+            && !self.saved.stories.is_empty()
+            && self.last_auto_save.elapsed() >= Duration::from_secs(self.auto_save_seconds)
+        {
+            // Do not commit half-entered drafts or resolve a pending save/switch dialog.
+            self.last_auto_save = Instant::now();
+            if self.pending.is_none()
+                && self.error.is_none()
+                && !self.content_panel.has_pending()
+                && !self.advanced.has_pending()
+            {
+                if let Some(path) = self.save_target() {
+                    self.flush();
+                    if self.save_at(&path, true) {
+                        return;
+                    }
+                }
+            }
+        }
         if !self.dirty() || self.last_recovery.elapsed() < Duration::from_secs(30) {
             return;
         }
@@ -4713,6 +4774,22 @@ impl App {
         self.check_updates_on_startup = enabled;
         Ok(())
     }
+    fn set_auto_save(&mut self, enabled: bool, seconds: u64, path: &Path) -> anyhow::Result<()> {
+        anyhow::ensure!([30, 60, 300, 600].contains(&seconds), "自动保存间隔无效");
+        let mut prefs = if path.exists() {
+            lom_core::load_json(path)?
+        } else {
+            json!({})
+        };
+        anyhow::ensure!(prefs.is_object(), "个人设置格式无效，未修改自动保存设置");
+        prefs["auto_save_project"] = json!(enabled);
+        prefs["auto_save_seconds"] = json!(seconds);
+        lom_core::project::atomic_write(path, &lom_core::stable_json(&prefs)?)?;
+        self.auto_save_project = enabled;
+        self.auto_save_seconds = seconds;
+        self.last_auto_save = Instant::now();
+        Ok(())
+    }
     fn set_interface_locale(&mut self, locale: &str, path: &Path) -> anyhow::Result<()> {
         anyhow::ensure!(crate::i18n::LOCALES.contains(&locale), "不支持的界面语言");
         let mut prefs = lom_core::load_json(path)
@@ -4831,6 +4908,9 @@ impl App {
             let mut selected = None;
             let mut startup = self.check_updates_on_startup;
             let mut startup_changed = false;
+            let mut auto_save = self.auto_save_project;
+            let mut auto_save_seconds = self.auto_save_seconds;
+            let mut auto_save_changed = false;
             let mut choose_library = false;
             let mut extract_library = false;
             let mut resolution_changed = false;
@@ -4847,6 +4927,9 @@ impl App {
                     });
                     ui.separator();
                     ui.add_space(8.0);
+                    egui::ScrollArea::vertical()
+                        .max_height((ctx.content_rect().height() - 180.0).max(80.0))
+                        .show(ui, |ui| {
                     match self.settings_page {
                         0 => {
                             ui.strong(tr("界面语言"));
@@ -4856,6 +4939,16 @@ impl App {
                             ui.small(tr("只改变编辑器界面，不改写作品的台词与语言。"));
                             ui.add_space(12.0);
                             resolution_changed = self.shell.resolution_settings(ui);
+                            ui.add_space(12.0);
+                            auto_save_changed |= ui.checkbox(&mut auto_save, crate::i18n::key("editor.autosave.enabled")).changed();
+                            ui.add_enabled_ui(auto_save, |ui| {
+                                ui.horizontal_wrapped(|ui| {
+                                    for (seconds, key) in [(30,"editor.autosave.seconds30"),(60,"editor.autosave.minute1"),(300,"editor.autosave.minutes5"),(600,"editor.autosave.minutes10")] {
+                                        auto_save_changed |= ui.selectable_value(&mut auto_save_seconds,seconds,crate::i18n::key(key)).changed();
+                                    }
+                                });
+                            });
+                            ui.small(crate::i18n::key("editor.autosave.hint"));
                         }
                         1 => {
                             ui.strong(crate::i18n::key("editor.workspace.preview_library"));
@@ -4879,10 +4972,17 @@ impl App {
                         }
                     }
                     if let Some(error) = &self.settings_error { crate::error_location::show(ui, error); }
+                        });
                     ui.add_space(16.0);
                     shell::dialog_buttons(ui, |ui| { close |= ui.add_sized([80.0,30.0],egui::Button::new(tr("完成"))).clicked(); });
                 });
             let prefs = user_root().join("rust/preferences.json");
+            if auto_save_changed {
+                self.settings_error = self
+                    .set_auto_save(auto_save, auto_save_seconds, &prefs)
+                    .err()
+                    .map(|error| error.to_string());
+            }
             if resolution_changed {
                 let mut preferences = lom_core::load_json(&prefs).unwrap_or(json!({}));
                 self.shell.store_resolution_preferences(&mut preferences);
@@ -6339,7 +6439,156 @@ mod application_regression_tests {
         let cc = eframe::CreationContext::_new_kittest(egui::Context::default());
         let mut app = App::new(&cc, None, None);
         app.recovery_candidates.clear();
+        app.auto_save_project = false;
+        app.auto_save_seconds = 300;
         app
+    }
+    #[test]
+    fn project_autosave_writes_directory_json_and_package_without_a_dialog() {
+        for layout in ["directory", "json", "package"] {
+            let dir = tempfile::tempdir().unwrap();
+            let target = match layout {
+                "json" => dir.path().join("main.json"),
+                "package" => dir.path().join("work.lommod"),
+                _ => dir.path().join("project"),
+            };
+            let mut project = Project::new();
+            project.save_to(&target).unwrap();
+            let mut app = app();
+            app.install(Project::open(&target).unwrap());
+            app.recovery_dir = dir.path().join("recovery");
+            app.auto_save_project = true;
+            app.project.stories.get_mut("main").unwrap()["nodes"][0]["text"] =
+                json!("自动保存的新进度");
+            app.track();
+            app.last_auto_save = Instant::now() - Duration::from_secs(301);
+            app.autosave();
+            assert!(app.error.is_none(), "{layout}: {:?}", app.error);
+            assert!(!app.dirty(), "{layout}");
+            assert!(app.pending.is_none());
+            assert_eq!(
+                Project::open(&target).unwrap().stories["main"]["nodes"][0]["text"],
+                "自动保存的新进度"
+            );
+            assert!(app.status.contains(&target.display().to_string()));
+        }
+    }
+
+    #[test]
+    fn project_autosave_keeps_new_and_disabled_projects_in_recovery() {
+        for has_source in [false, true] {
+            let dir = tempfile::tempdir().unwrap();
+            let mut app = app();
+            if has_source {
+                app.project.save_to(&dir.path().join("project")).unwrap();
+                app.last = snapshot(&app.project);
+                app.mark_saved();
+            }
+            let original = app
+                .project
+                .source
+                .as_deref()
+                .map(|path| Project::open(path).unwrap());
+            app.auto_save_project = !has_source;
+            app.recovery_dir = dir.path().join("recovery");
+            app.project.stories.get_mut("main").unwrap()["nodes"][0]["text"] =
+                json!("恢复副本中的新进度");
+            app.track();
+            app.last_auto_save = Instant::now() - Duration::from_secs(301);
+            app.last_recovery = Instant::now() - Duration::from_secs(31);
+            app.autosave();
+            assert!(app.dirty());
+            assert!(app.pending.is_none());
+            assert_eq!(
+                Project::open(&app.recovery_dir).unwrap().stories["main"]["nodes"][0]["text"],
+                "恢复副本中的新进度"
+            );
+            if let Some(original) = original {
+                assert_eq!(
+                    Project::open(original.source.as_ref().unwrap())
+                        .unwrap()
+                        .stories,
+                    original.stories
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn project_autosave_preserves_newer_external_progress_and_keeps_its_own_recovery() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("project");
+        let mut app = app();
+        app.project.save_to(&root).unwrap();
+        app.last = snapshot(&app.project);
+        app.mark_saved();
+        let mut other = Project::open(&root).unwrap();
+        other.stories.get_mut("main").unwrap()["nodes"][0]["text"] = json!("另一个窗口的新进度");
+        other.save_to(&root).unwrap();
+        app.project.stories.get_mut("main").unwrap()["nodes"][0]["text"] = json!("本窗口的修改");
+        app.track();
+        app.auto_save_project = true;
+        app.recovery_dir = dir.path().join("recovery");
+        app.last_auto_save = Instant::now() - Duration::from_secs(301);
+        app.last_recovery = Instant::now() - Duration::from_secs(31);
+        app.autosave();
+        assert!(app.dirty());
+        assert!(app.error.as_ref().unwrap().contains("编辑器外修改"));
+        assert_eq!(
+            Project::open(&root).unwrap().stories["main"]["nodes"][0]["text"],
+            "另一个窗口的新进度"
+        );
+        assert_eq!(
+            Project::open(&app.recovery_dir).unwrap().stories["main"]["nodes"][0]["text"],
+            "本窗口的修改"
+        );
+    }
+
+    #[test]
+    fn project_autosave_preferences_preserve_other_settings_and_project() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("preferences.json");
+        std::fs::write(&path, r#"{"ui_locale":"chs","custom":"keep"}"#).unwrap();
+        let mut app = app();
+        let before = snapshot(&app.project);
+        assert_eq!(app.auto_save_seconds, 300);
+        app.set_auto_save(true, 60, &path).unwrap();
+        let prefs = lom_core::load_json(&path).unwrap();
+        assert_eq!(prefs["auto_save_project"], true);
+        assert_eq!(prefs["auto_save_seconds"], 60);
+        assert_eq!(prefs["custom"], "keep");
+        assert_eq!(prefs["ui_locale"], "chs");
+        assert!(app.set_auto_save(true, 0, &path).is_err());
+        assert!(snapshot(&app.project) == before);
+    }
+
+    #[test]
+    fn project_autosave_waits_for_the_interval_and_respects_pending_confirmation() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("project");
+        let mut app = app();
+        app.project.save_to(&root).unwrap();
+        app.last = snapshot(&app.project);
+        app.mark_saved();
+        let baseline = app.project.stories.clone();
+        app.auto_save_project = true;
+        app.recovery_dir = dir.path().join("recovery");
+        app.project.stories.get_mut("main").unwrap()["nodes"][0]["text"] = json!("待保存的新进度");
+        app.track();
+        app.last_auto_save = Instant::now();
+        app.autosave();
+        assert_eq!(Project::open(&root).unwrap().stories, baseline);
+        app.pending = Some(Pending::Quit);
+        app.last_auto_save = Instant::now() - Duration::from_secs(301);
+        app.autosave();
+        assert_eq!(Project::open(&root).unwrap().stories, baseline);
+        app.pending = None;
+        // Recovery deliberately clears the saved baseline until the user confirms it.
+        app.saved.stories.clear();
+        app.last_auto_save = Instant::now() - Duration::from_secs(301);
+        app.autosave();
+        assert_eq!(Project::open(&root).unwrap().stories, baseline);
+        assert!(app.dirty());
     }
     #[test]
     fn chapter_groups_support_rename_move_undo_and_project_roundtrip() {

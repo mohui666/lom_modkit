@@ -1406,6 +1406,7 @@ impl Catalog {
                                 drag
                             };
                             let response = if ["wait_after", "fade_out", "fade_in"].contains(&key)
+                                || node["type"] == "hide_all" && key == "fadeDuration"
                                 || node["type"] == "effect" && matches!(key, "speed" | "stop_after")
                             {
                                 ui.add(drag.range(0.0..=f64::INFINITY))

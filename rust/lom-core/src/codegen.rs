@@ -562,7 +562,18 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                 out.push(format!("\tstage.show{{character=characters.Get({c}), facing={facing}, useDefaultSettings=false}}"));
             }
         }
-        "hide_all" => out.push("\tmod_char_hide_all()".into()),
+        "hide_all" => {
+            let fade = n(node, "fadeDuration", json!(0));
+            if node["fadeDuration"].as_f64().unwrap_or(0.0) > 0.0 {
+                out.push(call("mod_char_hide_all", &[fade.clone()]));
+                out.push(call("wait", &[fade]));
+                // Finish the same character/layout cleanup as immediate clearing,
+                // after the fade and before executing another story step.
+                out.push("\tmod_char_hide_all()".into());
+            } else {
+                out.push("\tmod_char_hide_all()".into());
+            }
+        }
         "hide" => {
             let fade = n(node, "fadeDuration", json!(0));
             if user {

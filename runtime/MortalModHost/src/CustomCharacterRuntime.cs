@@ -78,12 +78,20 @@ namespace MortalModHost
         }
 
         /// <summary>
-        /// 离开当前剧情舞台：清掉自定义立绘，并立刻隐藏官方台上人物。
-        /// 切章 / goto_scene / 脚本开头调用，避免上一幕角色带到下一章。
+        /// 隐藏全部舞台人物；省略时长时保留切章等调用的立即清理行为。
         /// </summary>
-        public static void HideAllOnStage()
+        public static void HideAllOnStage(float fadeDuration = 0f)
         {
-            ClearAll();
+            if (fadeDuration <= 0f)
+                ClearAll();
+            else
+            {
+                // Generated Lua waits for these fades, then invokes immediate
+                // clearing before advancing to another story step.
+                foreach (string raw in new List<string>(Actors.Keys))
+                    Hide(raw, fadeDuration);
+                MoodControl.ClearOverrides();
+            }
             try
             {
                 StoryStageController[] stages = Resources.FindObjectsOfTypeAll<StoryStageController>();
@@ -102,7 +110,7 @@ namespace MortalModHost
                             continue;
                         PortraitOptions opt = new PortraitOptions();
                         opt.character = ch;
-                        opt.fadeDuration = 0f;
+                        opt.fadeDuration = fadeDuration;
                         opt.useDefaultSettings = false;
                         opt.waitUntilFinished = false;
                         try

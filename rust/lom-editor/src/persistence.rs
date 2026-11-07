@@ -21,6 +21,26 @@ pub fn save_project(
     let Some(root) = same_source_root(project, target)? else {
         return project.save_to(target);
     };
+    // A second editor may have saved newer text since this instance opened it.
+    // Check the known chapter baseline before writing any project documents.
+    for (id, filename) in saved_paths {
+        let relative = if target.extension().and_then(|value| value.to_str()) == Some("json") {
+            target
+                .canonicalize()?
+                .strip_prefix(&root)?
+                .to_string_lossy()
+                .replace('\\', "/")
+        } else if project.story_subdir {
+            format!("story/{}", filename.display())
+        } else {
+            filename.to_string_lossy().into_owned()
+        };
+        verify_story(
+            &root,
+            &relative,
+            saved_stories.get(id).context("已保存章节快照不完整")?,
+        )?;
+    }
     let removed_assets: Vec<_> = saved_assets
         .iter()
         .filter(|(name, _)| !project.assets.contains_key(*name))
@@ -170,7 +190,7 @@ fn verify_story(root: &Path, name: &str, expected: &Value) -> Result<Option<Path
     if let Some(path) = &path {
         ensure!(
             load_json(path)? == *expected,
-            "章节已在编辑器外修改，未删除：{name}"
+            "章节已在编辑器外修改，未覆盖或删除：{name}。请先另存项目，避免旧窗口覆盖新进度"
         );
     }
     Ok(path)
@@ -190,6 +210,31 @@ fn remove_owned_file(path: &Path) -> Result<()> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn stale_editor_does_not_overwrite_a_newer_saved_chapter() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        let mut older = Project::new();
+        older.save_to(root).unwrap();
+        let saved = older.clone();
+        let mut newer = Project::open(root).unwrap();
+        newer.stories.get_mut("main").unwrap()["nodes"][0]["text"] = json!("new progress");
+        newer.save_to(root).unwrap();
+        older.stories.get_mut("main").unwrap()["nodes"][0]["text"] = json!("stale progress");
+        assert!(save_project(
+            &mut older,
+            root,
+            &saved.assets,
+            &saved.stories,
+            &saved.paths
+        )
+        .is_err());
+        assert_eq!(
+            Project::open(root).unwrap().stories["main"]["nodes"][0]["text"],
+            "new progress"
+        );
+    }
 
     #[test]
     fn removed_assets_stay_removed_for_directory_and_both_single_json_layouts() {
