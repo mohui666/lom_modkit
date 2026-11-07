@@ -1,6 +1,7 @@
 //! Transactional edits made by dragging the stage preview.
 use anyhow::{ensure, Context, Result};
 use serde_json::{json, Value};
+use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Target {
@@ -205,8 +206,19 @@ fn apply_inner(story: &mut Value, selected: usize, change: &Change) -> Result<us
             write_offset(&mut story["nodes"][selected], change);
             return Ok(selected);
         }
+        let anchor = if parent == selected {
+            selected
+        } else {
+            let path =
+                crate::preview::route(story, &current_id).context("当前步骤无法从剧情开头到达")?;
+            let previous = path.iter().rev().nth(1).context("预览路径中的步骤不存在")?;
+            nodes
+                .iter()
+                .position(|node| node["id"] == *previous)
+                .context("预览路径中的步骤不存在")?
+        };
         let action = child.map_or(&nodes[parent], |child| &nodes[parent]["actions"][child]);
-        if action["type"] == "offset" && action["absolute"] == true {
+        if parent == anchor && action["type"] == "offset" && action["absolute"] == true {
             let action = if let Some(child) = child {
                 &mut story["nodes"][parent]["actions"][child]
             } else {
@@ -221,23 +233,29 @@ fn apply_inner(story: &mut Value, selected: usize, change: &Change) -> Result<us
             .unwrap();
         let mut offset = json!({"id":offset_id,"type":"offset","character":character,"duration":0});
         write_offset(&mut offset, change);
-        let successor = nodes[parent]["goto"]
-            .as_str()
-            .filter(|id| !id.is_empty())
-            .map(str::to_owned);
-        if let Some(successor) = successor {
-            offset["goto"] = json!(successor);
-            // Explicit branches must pass through the new layout step.
-            story["nodes"][parent]["goto"] = json!(offset_id);
+        if anchor == selected {
+            if let Some(successor) = nodes[anchor]["goto"].as_str().filter(|id| !id.is_empty()) {
+                offset["goto"] = json!(successor);
+                story["nodes"][anchor]["goto"] = json!(offset_id);
+            }
+        } else {
+            let mut predecessor = nodes[anchor].clone();
+            crate::workspace::retarget(
+                &mut predecessor,
+                &BTreeMap::from([(current_id.clone(), offset_id.clone())]),
+            );
+            if predecessor != nodes[anchor] {
+                offset["goto"] = json!(current_id);
+                story["nodes"][anchor] = predecessor;
+            }
         }
-        // Keep the layout on the branch which actually showed or moved the
-        // character. Sequential steps keep their implicit continuation, so
-        // adding and deleting a layout does not introduce a permanent jump.
+        // Adjust at the current preview point, not at the earlier appearance.
+        // Keep the actual incoming branch and implicit continuation intact.
         story["nodes"]
             .as_array_mut()
             .unwrap()
-            .insert(parent + 1, offset);
-        Ok(if parent <= selected {
+            .insert(anchor + 1, offset);
+        Ok(if anchor <= selected {
             selected + 1
         } else {
             selected
@@ -353,6 +371,71 @@ mod tests {
         assert_eq!(source["nodes"][3], original["nodes"][2]);
         assert_eq!(lom_core::analysis::successors(&source, 3), vec!["current"]);
         assert_eq!(source["nodes"][selected]["goto"], "current");
+    }
+
+    #[test]
+    fn later_dialogue_drag_inserts_at_the_current_point_and_preserves_earlier_layout() {
+        for explicit in [false, true] {
+            let mut source = story(json!([
+                {"id":"show","type":"show","character":"player","position":"M","facing":"left"},
+                {"id":"early","type":"say","character":"player","text":"先前的对白"},
+                {"id":"later","type":"say","character":"player","text":"当前对白"},
+                {"id":"end","type":"end"}
+            ]));
+            if explicit {
+                source["nodes"][0]["goto"] = json!("early");
+                source["nodes"][1]["goto"] = json!("later");
+            }
+            let earlier = crate::preview::simulate(&source, "early")["actors"].clone();
+            let selected = apply(&mut source, 2, &character(120.0)).unwrap();
+            assert_eq!(source["nodes"][selected]["id"], "later");
+            assert_eq!(source["nodes"][2]["type"], "offset");
+            assert_eq!(
+                crate::preview::simulate(&source, "early")["actors"],
+                earlier
+            );
+            assert_eq!(
+                crate::preview::simulate(&source, "later")["actors"]["player"]["offset_x"],
+                120.0
+            );
+            apply(&mut source, selected, &character(180.0)).unwrap();
+            assert_eq!(source["nodes"].as_array().unwrap().len(), 5);
+            let selected = apply(&mut source, selected + 1, &character(240.0)).unwrap();
+            assert_eq!(source["nodes"][selected]["id"], "end");
+            assert_eq!(source["nodes"].as_array().unwrap().len(), 6);
+            assert_eq!(
+                crate::preview::simulate(&source, "later")["actors"]["player"]["offset_x"],
+                180.0
+            );
+            assert_eq!(
+                crate::preview::simulate(&source, "end")["actors"]["player"]["offset_x"],
+                240.0
+            );
+            lom_core::validate::validate_story(&source).unwrap();
+        }
+    }
+
+    #[test]
+    fn layout_after_a_choice_retargets_only_the_current_branch() {
+        let mut source = story(json!([
+            {"id":"show","type":"show","character":"player","position":"M","facing":"left"},
+            {"id":"choice","type":"choice","options":[{"text":"当前分支","goto":"current"},{"text":"另一分支","goto":"other"}]},
+            {"id":"other","type":"say","mode":"narrative","text":"另一分支","goto":"end"},
+            {"id":"current","type":"say","mode":"narrative","text":"当前对白","goto":"end"},
+            {"id":"end","type":"end"}
+        ]));
+        let other = crate::preview::simulate(&source, "other")["actors"].clone();
+        let selected = apply(&mut source, 3, &character(120.0)).unwrap();
+        assert_eq!(source["nodes"][selected]["id"], "current");
+        assert_eq!(source["nodes"][1]["options"][0]["goto"], "offset1");
+        assert_eq!(source["nodes"][1]["options"][1]["goto"], "other");
+        assert_eq!(source["nodes"][2]["goto"], "current");
+        assert_eq!(crate::preview::simulate(&source, "other")["actors"], other);
+        assert_eq!(
+            crate::preview::simulate(&source, "current")["actors"]["player"]["offset_x"],
+            120.0
+        );
+        lom_core::validate::validate_story(&source).unwrap();
     }
 
     #[test]

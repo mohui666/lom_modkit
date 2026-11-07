@@ -7153,7 +7153,8 @@ mod application_regression_tests {
     fn preview_drag_and_corner_resize_commit_one_undo_each() {
         let mut app = app();
         app.project.stories.insert("main".into(), json!({"story_schema":2,"id":"main","start":"show","nodes":[
-            {"id":"show","type":"show","character":"user:test.actor","position":"M","facing":"left","goto":"line"},
+            {"id":"show","type":"show","character":"user:test.actor","position":"M","facing":"left","goto":"early"},
+            {"id":"early","type":"say","text":"前面的对白保持原来位置。","mode":"narrative","goto":"line"},
             {"id":"line","type":"say","text":"摆好的人物会继续留在这句对白里。","mode":"narrative","goto":"end"},
             {"id":"end","type":"end"}]}));
         app.project.assets.insert("assets/user/character/test.actor/content.json".into(),
@@ -7166,12 +7167,13 @@ mod application_regression_tests {
             "assets/user/character/test.actor/normal.png".into(),
             png.into_inner(),
         );
-        app.selected = 1;
+        app.selected = 2;
         app.preview.layout_mode = true;
         app.view = View::Stage;
         app.center = Center::Node;
         app.last = snapshot(&app.project);
         let original = snapshot(&app.project);
+        let earlier = preview::simulate(&app.story(), "early")["actors"].clone();
         let ctx = egui::Context::default();
         let draw = |app: &mut App, events| {
             ctx.run(
@@ -7216,22 +7218,23 @@ mod application_regression_tests {
         draw(&mut app, vec![egui::Event::PointerMoved(moved)]);
         assert_eq!(
             app.story()["nodes"].as_array().unwrap().len(),
-            3,
+            4,
             "live dragging is a draft"
         );
         draw(&mut app, vec![pointer(moved, false)]);
-        let offset = app.story()["nodes"][1].clone();
+        let offset = app.story()["nodes"][2].clone();
         assert_eq!(offset["type"], "offset");
         assert_eq!(offset["absolute"], true);
         assert!(offset["x"].as_f64().unwrap() > 30.0);
         assert!(offset["y"].as_f64().unwrap() > 20.0);
         assert_eq!(app.story()["nodes"][app.selected]["id"], "line");
+        assert_eq!(preview::simulate(&app.story(), "early")["actors"], earlier);
         assert_eq!(app.undo.len(), 1);
         app.undo();
         assert!(snapshot(&app.project) == original);
         app.redo();
         let moved_snapshot = snapshot(&app.project);
-        app.selected = 2;
+        app.selected = 3;
         draw(&mut app, vec![]);
         let output = draw(&mut app, vec![]);
         let corner = output
@@ -7258,10 +7261,10 @@ mod application_regression_tests {
                 pointer(larger, false),
             ],
         );
-        let scaled = app.story()["nodes"][1].clone();
+        let scaled = app.story()["nodes"][2].clone();
         assert_eq!(
             app.story()["nodes"].as_array().unwrap().len(),
-            4,
+            5,
             "a second gesture reuses the layout step"
         );
         assert!(scaled["scale"].as_f64().unwrap() > 100.0, "{scaled}");
@@ -7270,7 +7273,7 @@ mod application_regression_tests {
         assert_eq!(app.undo.len(), 2);
         app.undo();
         assert!(snapshot(&app.project) == moved_snapshot);
-        app.selected = 2;
+        app.selected = 3;
         draw(&mut app, vec![]);
         let output = draw(&mut app, vec![]);
         let center = output
@@ -7326,17 +7329,18 @@ mod application_regression_tests {
             vec![egui::Event::PointerMoved(center + Vec2::splat(20.0))],
         );
         app.install(app.project.clone());
-        app.selected = 2;
+        app.selected = 3;
         draw(&mut app, vec![pointer(center + Vec2::splat(40.0), false)]);
         assert!(
             snapshot(&app.project) == moved_snapshot,
             "a new project cannot inherit a pending drag"
         );
-        app.selected = 1;
+        app.selected = 2;
         app.delete();
         app.track();
         let deleted = app.story();
-        assert_eq!(deleted["nodes"][0]["goto"], "line");
+        assert_eq!(deleted["nodes"][0]["goto"], "early");
+        assert_eq!(deleted["nodes"][1]["goto"], "line");
         assert!(preview::route(&deleted, "line").is_some());
         assert!(preview::route(&deleted, "end").is_some());
         app.undo();
