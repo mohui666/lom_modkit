@@ -46,6 +46,6 @@ sh scripts/build-macos.sh
 
 ## GUI 与 CI
 
-当前 [CI 配置](../../.github/workflows/ci.yml) 包含 `Native Rust tools (macOS)` 与 Ubuntu 上的 `Runtime tests`。前者运行格式、Rust 测试、预览和样例生成；后者运行 C# 离线测试。CI 没有 Windows 或游戏实机任务，也没有替代本机窗口的视觉检查。
+当前 [CI 配置](../../.github/workflows/ci.yml) 仅保留 Ubuntu 上的 `Runtime tests`，运行 C# 离线测试。Rust 格式、测试、预览与样例生成按上面的本地命令验证。macOS CI 任务已移除；CI 不承担 Windows 或游戏实机验证，也不替代本机窗口的视觉检查。
 
 维护者操作与恢复目录说明见 [维护者手册](maintainers.md)。
