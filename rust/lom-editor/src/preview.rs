@@ -775,6 +775,35 @@ struct Simulation {
     has_effects: bool,
     effects: effects::Simulation,
 }
+pub struct MoodEdit {
+    pub action: Option<usize>,
+    pub x: f64,
+    pub y: f64,
+}
+struct MoodDrag {
+    character: String,
+    action: Option<usize>,
+    origin: Pos2,
+    x: f64,
+    y: f64,
+}
+fn editable_mood<'a>(node: &'a Value, character: &str) -> Option<(Option<usize>, &'a Value)> {
+    let matches = |action: &&Value| {
+        action["type"] == "mood"
+            && action["enabled"] == true
+            && text(action, "character") == character
+    };
+    if node["type"] == "parallel" {
+        node["actions"]
+            .as_array()?
+            .iter()
+            .enumerate()
+            .find(|(_, action)| matches(action))
+            .map(|(index, action)| (Some(index), action))
+    } else {
+        Some(node).filter(matches).map(|action| (None, action))
+    }
+}
 pub struct Preview {
     pub mapping: Value,
     pub library: PathBuf,
@@ -784,8 +813,8 @@ pub struct Preview {
     tick: u64,
     mood_clocks: BTreeMap<String, (String, f64)>,
     pub extract_requested: bool,
-    pub mood_edit: Option<(f64, f64)>,
-    mood_drag: Option<(Pos2, f64, f64)>,
+    pub mood_edit: Option<MoodEdit>,
+    mood_drag: Option<MoodDrag>,
     pub layout_mode: bool,
     pub legacy_character_rotation: bool,
     pub layout_edit: Option<LayoutChange>,
@@ -1451,6 +1480,8 @@ impl Preview {
         let context = (text(story, "id").to_owned(), target.to_owned());
         if self.layout_context != context {
             self.cancel_layout_drag();
+            self.mood_drag = None;
+            self.mood_edit = None;
             self.mood_clocks.clear();
             self.layout_context = context;
         }
@@ -1582,17 +1613,26 @@ impl Preview {
                 .sample(0.0, effect_library.as_deref());
         }
         self.apply_layout_draft(&mut state);
-        let mood_target = (node["type"] == "mood" && !self.layout_mode).then(|| {
-            if text(node, "character").is_empty() {
-                crate::i18n::tr("全场自动气泡")
-            } else {
-                format!(
-                    "{} · {}",
-                    character_display_name(p, text(node, "character")),
-                    crate::i18n::tr("表情气泡")
-                )
-            }
-        });
+        let mood_target = ((node["type"] == "mood"
+            || (node["type"] == "parallel"
+                && lom_core::parallel::actions(node)
+                    .iter()
+                    .any(|action| action["type"] == "mood")))
+            && !self.layout_mode)
+            .then(|| {
+                if node["type"] == "parallel" {
+                    return crate::i18n::tr("表情气泡");
+                }
+                if text(node, "character").is_empty() {
+                    crate::i18n::tr("全场自动气泡")
+                } else {
+                    format!(
+                        "{} · {}",
+                        character_display_name(p, text(node, "character")),
+                        crate::i18n::tr("表情气泡")
+                    )
+                }
+            });
         if let Some(label) = &mood_target {
             ui.label(
                 egui::RichText::new(crate::i18n::message(
@@ -1756,10 +1796,8 @@ impl Preview {
                                 units: Vec2::new(rect.width() / 1920.0, rect.height() / 1080.0),
                             });
                         }
-                        let editing_mood = node["type"] == "mood"
-                            && node["character"] == *cid
-                            && node["enabled"] == true
-                            && !self.layout_mode;
+                        let mood_action = editable_mood(node, cid);
+                        let editing_mood = mood_action.is_some() && !self.layout_mode;
                         let icon = visible_mood(&state, cid, a);
                         if icon.is_some() || editing_mood {
                             let unit = rect.height() / 1080.0
@@ -1926,32 +1964,50 @@ impl Preview {
                                     if ui.is_enabled()
                                         && ctx.layer_id_at(origin) == Some(ui.layer_id())
                                     {
-                                        self.mood_drag = Some((
+                                        let (action, mood) = mood_action.unwrap();
+                                        self.mood_drag = Some(MoodDrag {
+                                            character: cid.clone(),
+                                            action,
                                             origin,
-                                            number(node, "offset_x", 0.0),
-                                            number(node, "offset_y", 0.0),
-                                        ));
+                                            x: number(mood, "offset_x", 0.0),
+                                            y: number(mood, "offset_y", 0.0),
+                                        });
                                     }
                                 }
-                                if let Some((origin, x, y)) = self.mood_drag {
+                                if let Some(drag) = self
+                                    .mood_drag
+                                    .as_ref()
+                                    .filter(|drag| drag.character == *cid)
+                                {
                                     let position = ui
                                         .input(|input| input.pointer.latest_pos())
-                                        .unwrap_or(origin);
-                                    let delta = transform.inverse() * (position - origin);
+                                        .unwrap_or(drag.origin);
+                                    let delta = transform.inverse() * (position - drag.origin);
                                     let next = (
-                                        (x + (delta.x / unit / sign) as f64).clamp(-1920.0, 1920.0),
-                                        (y - (delta.y / unit) as f64).clamp(-1080.0, 1080.0),
+                                        (drag.x + (delta.x / unit / sign) as f64)
+                                            .clamp(-1920.0, 1920.0),
+                                        (drag.y - (delta.y / unit) as f64).clamp(-1080.0, 1080.0),
                                     );
+                                    let (_, mood) = mood_action.unwrap();
                                     if next
                                         != (
-                                            number(node, "offset_x", 0.0),
-                                            number(node, "offset_y", 0.0),
+                                            number(mood, "offset_x", 0.0),
+                                            number(mood, "offset_y", 0.0),
                                         )
                                     {
-                                        self.mood_edit = Some(next);
+                                        self.mood_edit = Some(MoodEdit {
+                                            action: drag.action,
+                                            x: next.0,
+                                            y: next.1,
+                                        });
                                     }
                                 }
-                                if !ui.input(|input| input.pointer.primary_down()) {
+                                if !ui.input(|input| input.pointer.primary_down())
+                                    && self
+                                        .mood_drag
+                                        .as_ref()
+                                        .is_some_and(|drag| drag.character == *cid)
+                                {
                                     self.mood_drag = None;
                                 }
                             }

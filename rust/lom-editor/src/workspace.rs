@@ -173,6 +173,7 @@ struct App {
     templates: Value,
     locale: String,
     auto: bool,
+    preview_waiting_branch: bool,
     last_step: Instant,
     preview_elapsed: Option<f64>,
     preview_location: (String, usize),
@@ -273,12 +274,22 @@ pub fn run() -> eframe::Result {
     }
     let mut open = None;
     let mut screenshot = None;
+    let mut initial_chapter = None;
+    let mut initial_node = None;
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
             "--screenshot" => {
                 i += 1;
                 screenshot = args.get(i).map(PathBuf::from);
+            }
+            "--chapter" => {
+                i += 1;
+                initial_chapter = args.get(i).cloned();
+            }
+            "--node" => {
+                i += 1;
+                initial_node = args.get(i).cloned();
             }
             s if !s.starts_with('-') => open = Some(PathBuf::from(s)),
             _ => {}
@@ -308,6 +319,19 @@ pub fn run() -> eframe::Result {
         },
         Box::new(move |cc| {
             let mut app = App::new(cc, open, screenshot);
+            if let Some(chapter) = initial_chapter.filter(|id| app.project.stories.contains_key(id))
+            {
+                app.current = chapter;
+                app.selected = 0;
+            }
+            if let Some(node) = initial_node {
+                if let Some(index) = app.story()["nodes"]
+                    .as_array()
+                    .and_then(|nodes| nodes.iter().position(|n| n["id"] == node))
+                {
+                    app.selected = index;
+                }
+            }
             if app.screenshot.is_none() {
                 app.tools_panel.sync_game_host();
             }
@@ -457,6 +481,7 @@ impl App {
             templates,
             locale: "cht".into(),
             auto: false,
+            preview_waiting_branch: false,
             last_step: Instant::now(),
             preview_elapsed: None,
             preview_location: (String::new(), usize::MAX),
@@ -3086,8 +3111,76 @@ impl App {
         if self.preview_location != location {
             self.preview_location = location;
             self.auto = false;
+            self.preview_waiting_branch = false;
             self.preview_elapsed = None;
             self.last_step = Instant::now();
+        }
+    }
+    fn advance_preview(&mut self) {
+        if self.auto
+            && !self.preview_waiting_branch
+            && self.last_step.elapsed().as_secs_f64()
+                >= preview::playback_duration(&self.story()["nodes"][self.selected])
+        {
+            let story = self.story();
+            let node = &story["nodes"][self.selected];
+            let branching = [
+                "choice",
+                "branch",
+                "dice",
+                "combat",
+                "battle",
+                "battle_result",
+                "stat_check",
+                "affinity_check",
+                "item_check",
+                "talent_check",
+                "flag_check",
+                "activity",
+                "quest_check",
+                "persistent_check",
+            ];
+            if branching.contains(&node["type"].as_str().unwrap_or("")) {
+                self.preview_waiting_branch = true;
+                self.preview_elapsed = Some(preview::playback_duration(node));
+                self.status = "流程在条件或选项处分叉，等待选择后继续播放".into();
+            } else {
+                let targets = lom_core::analysis::successors(&story, self.selected);
+                if targets.len() == 1 {
+                    if let Some(index) = story["nodes"]
+                        .as_array()
+                        .and_then(|nodes| nodes.iter().position(|n| n["id"] == targets[0]))
+                    {
+                        self.selected = index;
+                        self.preview_location = (self.current.clone(), index);
+                        self.preview_elapsed = Some(0.0);
+                    } else {
+                        self.auto = false;
+                        self.preview_elapsed = Some(preview::playback_duration(node));
+                    }
+                } else {
+                    self.auto = false;
+                    self.preview_elapsed = Some(preview::playback_duration(node));
+                }
+            }
+            self.last_step = Instant::now();
+        }
+    }
+    fn follow_preview_target(&mut self, target: &str) {
+        let story = self.story();
+        if let Some(index) = story["nodes"].as_array().and_then(|nodes| {
+            nodes
+                .iter()
+                .position(|node| node["id"].as_str() == Some(target))
+        }) {
+            // A choice is a playback transition, not manual editor navigation.
+            // Preserve the user's play/pause state and start the target's clock.
+            self.selected = index;
+            self.preview_location = (self.current.clone(), index);
+            self.preview_waiting_branch = false;
+            self.preview_elapsed = self.auto.then_some(0.0);
+            self.last_step = Instant::now();
+            self.status.clear();
         }
     }
     fn follow_scenario_link(&mut self, link: crate::scenario_panel::Navigate) {
@@ -3262,6 +3355,7 @@ impl App {
                                             self.preview_elapsed =
                                                 Some(self.last_step.elapsed().as_secs_f64());
                                             self.auto = false;
+                                            self.preview_waiting_branch = false;
                                         } else {
                                             self.last_step = Instant::now()
                                                 - Duration::from_secs_f64(
@@ -3292,9 +3386,10 @@ impl App {
                         self.sync_preview_selection();
                         if self.preview.layout_mode {
                             self.auto = false;
+                            self.preview_waiting_branch = false;
                             self.preview_elapsed = None;
                         }
-                        let elapsed = if self.auto {
+                        let elapsed = if self.auto && !self.preview_waiting_branch {
                             Some(self.last_step.elapsed().as_secs_f64())
                         } else {
                             self.preview_elapsed
@@ -3303,17 +3398,20 @@ impl App {
                             self.preview
                                 .show(ui, &self.project, &story, self.selected, elapsed)
                         {
-                            if let Some(i) = story["nodes"].as_array().and_then(|a| {
-                                a.iter().position(|n| n["id"].as_str() == Some(&target))
-                            }) {
-                                self.selected = i;
-                            }
+                            self.follow_preview_target(&target);
                         }
-                        if let Some((x, y)) = self.preview.mood_edit.take() {
+                        if let Some(edit) = self.preview.mood_edit.take() {
                             self.auto = false;
+                            self.preview_waiting_branch = false;
                             self.preview_elapsed = None;
-                            story["nodes"][self.selected]["offset_x"] = json!(x);
-                            story["nodes"][self.selected]["offset_y"] = json!(y);
+                            let node = &mut story["nodes"][self.selected];
+                            let mood = if let Some(action) = edit.action {
+                                &mut node["actions"][action]
+                            } else {
+                                node
+                            };
+                            mood["offset_x"] = json!(edit.x);
+                            mood["offset_y"] = json!(edit.y);
                             self.project
                                 .stories
                                 .insert(self.current.clone(), story.clone());
@@ -5152,6 +5250,11 @@ impl App {
             let mut submit = false;
             let mut cancel = false;
             let mut choose_files = false;
+            let mut choose_folder = false;
+            let prefix_id = egui::Id::new("portrait-folder-prefix");
+            let mut folder_prefix = ctx
+                .data_mut(|data| data.get_temp::<String>(prefix_id))
+                .unwrap_or_default();
             egui::Modal::new(egui::Id::new("asset-import"))
                 .frame(shell::dialog_frame())
                 .show(ctx, |ui| {
@@ -5238,6 +5341,14 @@ impl App {
                             })
                         ))
                         .clicked();
+                    if draft.kind == 1 {
+                        ui.small(tr("可按住 Ctrl 多选，Ctrl+A 全选。"));
+                        ui.add(
+                            egui::TextEdit::singleline(&mut folder_prefix)
+                                .hint_text(tr("文件名前缀（可选）")),
+                        );
+                        choose_folder = ui.button(tr("从文件夹选择全部立绘…")).clicked();
+                    }
                     if !draft.paths.is_empty() {
                         for path in &draft.paths {
                             ui.label(path.file_name().unwrap_or_default().to_string_lossy());
@@ -5258,9 +5369,17 @@ impl App {
                     cancel |= actions.1;
                     submit |= return_pressed && can_submit;
                 });
+            ctx.data_mut(|data| data.insert_temp(prefix_id, folder_prefix.clone()));
             if cancel || escape_pressed {
                 self.asset_import_dialog = None;
                 self.image_import_target = None;
+            } else if choose_folder {
+                if let Some(folder) = rfd::FileDialog::new().pick_folder() {
+                    match crate::content_panel::portrait_files(&folder, &folder_prefix) {
+                        Ok(paths) => draft.select_files(paths),
+                        Err(error) => draft.error = Some(crate::error_ui::capture(error)),
+                    }
+                }
             } else if choose_files {
                 let dialog = rfd::FileDialog::new();
                 let paths = if draft.kind == 8 {
@@ -5751,53 +5870,7 @@ impl eframe::App for App {
             self.remember_source();
         }
         self.sync_preview_selection();
-        if self.auto
-            && self.last_step.elapsed().as_secs_f64()
-                >= preview::playback_duration(&self.story()["nodes"][self.selected])
-        {
-            let story = self.story();
-            let node = &story["nodes"][self.selected];
-            let branching = [
-                "choice",
-                "branch",
-                "dice",
-                "combat",
-                "battle",
-                "battle_result",
-                "stat_check",
-                "affinity_check",
-                "item_check",
-                "talent_check",
-                "flag_check",
-                "activity",
-                "quest_check",
-                "persistent_check",
-            ];
-            if branching.contains(&node["type"].as_str().unwrap_or("")) {
-                self.auto = false;
-                self.preview_elapsed = Some(preview::playback_duration(node));
-                self.status = "流程在条件或选项处分叉，自动浏览已暂停".into();
-            } else {
-                let targets = lom_core::analysis::successors(&story, self.selected);
-                if targets.len() == 1 {
-                    if let Some(index) = story["nodes"]
-                        .as_array()
-                        .and_then(|nodes| nodes.iter().position(|n| n["id"] == targets[0]))
-                    {
-                        self.selected = index;
-                        self.preview_location = (self.current.clone(), index);
-                        self.preview_elapsed = Some(0.0);
-                    } else {
-                        self.auto = false;
-                        self.preview_elapsed = Some(preview::playback_duration(node));
-                    }
-                } else {
-                    self.auto = false;
-                    self.preview_elapsed = Some(preview::playback_duration(node));
-                }
-            }
-            self.last_step = Instant::now();
-        }
+        self.advance_preview();
         self.toolbar(ctx);
         egui::TopBottomPanel::bottom("status")
             .frame(surface(false))
@@ -5887,7 +5960,7 @@ impl eframe::App for App {
             }
             self.screenshot = None;
         }
-        if self.auto {
+        if self.auto && !self.preview_waiting_branch {
             // Vsync already paces playback. An extra 16 ms delay can miss the
             // next refresh and halve the frame rate on a 60 Hz display.
             ctx.request_repaint();
@@ -6580,6 +6653,65 @@ mod application_regression_tests {
         app.auto_save_project = false;
         app.auto_save_seconds = 300;
         app
+    }
+    fn choice_preview() -> App {
+        let mut app = app();
+        app.project.stories.insert("main".into(), json!({"id":"main","start":"choice1","nodes":[
+            {"id":"choice1","type":"choice","options":[{"text":"继续","goto":"choice2"},{"text":"回看","goto":"choice1"}]},
+            {"id":"choice2","type":"choice","options":[{"text":"继续","goto":"say1"},{"text":"结束","goto":"end1"}]},
+            {"id":"say1","type":"say","mode":"narrative","text":"选择后的对白。"},
+            {"id":"end1","type":"end"}]}));
+        app.current = "main".into();
+        app.selected = 0;
+        app.sync_preview_selection();
+        app
+    }
+    #[test]
+    fn preview_choices_resume_playback_through_consecutive_branches() {
+        let mut app = choice_preview();
+        app.auto = true;
+        for target in ["choice2", "say1"] {
+            app.last_step = Instant::now() - Duration::from_secs(60);
+            app.advance_preview();
+            assert!(app.auto);
+            assert!(app.preview_waiting_branch);
+            let waiting = app.selected;
+            app.advance_preview();
+            assert_eq!(app.selected, waiting);
+            app.follow_preview_target(target);
+            app.sync_preview_selection();
+            assert!(app.auto, "a choice must not act like manual node selection");
+            assert!(!app.preview_waiting_branch);
+            assert_eq!(app.preview_elapsed, Some(0.0));
+        }
+        app.last_step = Instant::now() - Duration::from_secs(60);
+        app.advance_preview();
+        assert_eq!(app.story()["nodes"][app.selected]["id"], "end1");
+        app.last_step = Instant::now() - Duration::from_secs(60);
+        app.advance_preview();
+        assert!(!app.auto);
+    }
+    #[test]
+    fn preview_choice_preserves_pause_and_manual_navigation_stops_playback() {
+        let mut app = choice_preview();
+        app.follow_preview_target("say1");
+        app.sync_preview_selection();
+        assert!(!app.auto);
+        app.selected = 0;
+        app.sync_preview_selection();
+        app.auto = true;
+        app.last_step = Instant::now() - Duration::from_secs(60);
+        app.advance_preview();
+        app.follow_preview_target("missing");
+        assert_eq!(app.selected, 0);
+        assert!(app.preview_waiting_branch);
+        app.follow_preview_target("choice1");
+        assert!(app.auto);
+        assert!(!app.preview_waiting_branch);
+        app.selected = 2;
+        app.sync_preview_selection();
+        assert!(!app.auto);
+        assert!(!app.preview_waiting_branch);
     }
     #[test]
     fn playtest_start_uses_the_chapter_entry_without_changing_selection() {
@@ -7632,10 +7764,43 @@ mod application_regression_tests {
     }
     #[test]
     fn dragging_a_mood_updates_the_same_node_as_the_form() {
+        assert_mood_drag_updates(None, false);
+    }
+    #[test]
+    fn dragging_a_group_mood_updates_only_its_action() {
+        for action in [0, 1] {
+            assert_mood_drag_updates(Some(action), false);
+        }
+        assert_mood_drag_updates(Some(0), true);
+    }
+    fn assert_mood_drag_updates(action: Option<usize>, second_mood: bool) {
         let mut app = app();
-        app.project.stories.insert("main".into(), json!({"id":"main","start":"show","nodes":[
+        app.project.stories.insert("main".into(), json!({"story_schema":2,"id":"main","title":"气泡拖动","start":"show","nodes":[
             {"id":"show","type":"show","character":"user:test.actor","position":"M","facing":"left"},
             {"id":"bubble","type":"mood","character":"user:test.actor","enabled":true,"icon":"laugh1"}]}));
+        if let Some(action) = action {
+            let mood = app.project.stories["main"]["nodes"][1].clone();
+            let mut actions =
+                vec![json!({"type":"shock","character":"user:test.actor","duration":0.5})];
+            let mut mood = mood;
+            mood.as_object_mut().unwrap().remove("id");
+            actions.insert(action, mood);
+            app.project.stories.get_mut("main").unwrap()["nodes"][1] =
+                json!({"id":"bubble","type":"parallel","actions":actions});
+        }
+        if second_mood {
+            let story = app.project.stories.get_mut("main").unwrap();
+            story["nodes"][0] = json!({"id":"show","type":"parallel","actions":[
+                {"type":"show","character":"user:test.actor","position":"L1","facing":"left"},
+                {"type":"show","character":"user:test.other","position":"R1","facing":"left"} ]});
+            story["nodes"][1]["actions"][1] = json!({"type":"mood","character":"user:test.other","enabled":true,"icon":"shock","offset_x":77,"offset_y":-31});
+        }
+        let original = app.story()["nodes"][1].clone();
+        let mood = |story: Value| -> Value {
+            action
+                .map(|index| story["nodes"][1]["actions"][index].clone())
+                .unwrap_or_else(|| story["nodes"][1].clone())
+        };
         app.project.assets.insert(
             "assets/user/character/test.actor/content.json".into(),
             serde_json::to_vec(
@@ -7651,6 +7816,15 @@ mod application_regression_tests {
             "assets/user/character/test.actor/normal.png".into(),
             png.into_inner(),
         );
+        if second_mood {
+            for name in ["content.json", "normal.png"] {
+                let bytes =
+                    app.project.assets[&format!("assets/user/character/test.actor/{name}")].clone();
+                app.project
+                    .assets
+                    .insert(format!("assets/user/character/test.other/{name}"), bytes);
+            }
+        }
         app.selected = 1;
         app.view = View::Stage;
         app.center = Center::Node;
@@ -7696,12 +7870,23 @@ mod application_regression_tests {
         let target = center + Vec2::new(30.0, -20.0);
         draw(&mut app, vec![egui::Event::PointerMoved(target)]);
         draw(&mut app, vec![pointer(target, false)]);
-        let offset = app.story()["nodes"][1].clone();
+        let offset = mood(app.story());
         assert!(offset["offset_x"].as_f64().unwrap() > 20.0, "{offset}");
         assert!(offset["offset_y"].as_f64().unwrap() > 20.0, "{offset}");
         draw(&mut app, vec![]);
-        assert_eq!(app.story()["nodes"][1], offset);
+        assert_eq!(mood(app.story()), offset);
         assert!(app.story()["nodes"][0].get("offset_x").is_none());
+        if let Some(action) = action {
+            assert!(app.story()["nodes"][1].get("offset_x").is_none());
+            assert_eq!(
+                app.story()["nodes"][1]["actions"][1 - action],
+                original["actions"][1 - action]
+            );
+            let saved = tempfile::tempdir().unwrap();
+            app.project.save_to(saved.path()).unwrap();
+            let reopened = Project::open(saved.path()).unwrap();
+            assert_eq!(mood(reopened.stories["main"].clone()), offset);
+        }
         let output = draw(&mut app, vec![]);
         let center = output
             .shapes
@@ -7724,8 +7909,7 @@ mod application_regression_tests {
             ],
         );
         assert!(
-            app.story()["nodes"][1]["offset_x"].as_f64().unwrap()
-                > offset["offset_x"].as_f64().unwrap()
+            mood(app.story())["offset_x"].as_f64().unwrap() > offset["offset_x"].as_f64().unwrap()
         );
     }
     #[test]

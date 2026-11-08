@@ -1,6 +1,6 @@
 # lom_modkit 文档
 
-当前版本为 **1.4.19**，编辑器和编译器使用 Rust，C# Host 提供游戏接入。更新内容见 [本版说明](../RELEASE_NOTES_v1.4.19.md)，下载见 [发布页](https://github.com/mohui666/lom_modkit/releases/latest)。
+当前版本为 **1.5.0**，编辑器和编译器使用 Rust，C# Host 提供游戏接入。更新内容见 [本版说明](../RELEASE_NOTES_v1.5.0.md)，下载见 [发布页](https://github.com/mohui666/lom_modkit/releases/latest)。
 
 ## 开始使用
 
@@ -9,7 +9,6 @@
 | [Windows 快速开始](chs/windows_quick_start.md) | 安装、升级、配置游戏和提取素材 |
 | [软件使用](chs/software_usage.md) | 章节、分组、步骤、气泡、预览和导出 |
 | [原版剧情编辑与路线图](chs/software_usage.md#原版剧情编辑与路线图) | 整章导入、条件插入、游戏标记与定位 |
-| [核心功能教程](chs/core_tutorial.md) | 从创建项目到事件、任务与发布 |
 | [Mac 编辑器](chs/macos.md) | 源码构建、启动与素材设置 |
 | [当前能力与边界](chs/current_capabilities.md) | 功能范围、Host 需求和本版验证范围 |
 
@@ -24,7 +23,7 @@
 | [多语言](chs/i18n.md) | 界面、资源名称与作品翻译 |
 | [自动恢复](chs/editor_recovery.md) | 恢复位置、流程和保存边界 |
 | [自由模式与人物立绘](chs/free_mode_portraits.md) | 赵活外观与旧战役触发器 |
-| [Showcase 样例](../samples/showcase3/README.md) | 10 章、67 类节点与生成入口 |
+| [Showcase 样例](../samples/showcase3/README.md) | 10 章、70 类节点与生成入口 |
 
 ## 契约与开发
 
@@ -32,7 +31,10 @@
 | --- | --- |
 | [Mod 格式 v3](chs/mod_format.md) | 包结构、字段、节点和运行时约定 |
 | [脚本与 API 索引](chs/script_reference.md) | 字段契约与受控接口 |
-| [受控 API 与 CLI](chs/ai_cli.md) | JSON 请求、校验、编译和打包 |
+| [Python 对象 API 与 CLI](chs/ai_cli.md) | 推荐的全节点构造函数接口、批量创作、异常诊断及底层 CLI |
+| [Python 接口参考](chs/python_api.md) | 节点、工程、事件任务、翻译、素材与测试构造函数 |
+| [CLI 命令参数](chs/cli_parameters.md) | 输入、选项、输出、退出码与操作类命令 |
+| [AI 剧本制作 skill](../skills/lom-modkit-authoring/SKILL.md) | 给 AI 的接口发现、生成与验收工作流 |
 | [来源水印](chs/watermark.md) | 嵌入、来源判定和截图／视频检测 |
 | [反编译接口](chs/decompiled_api.md) | 查询当前游戏类型和已用入口 |
 | [Gameplay API 笔记](../research/gameplay_api.md) | 已确认签名与使用边界 |

@@ -436,10 +436,28 @@ fn truth(value: &Value) -> bool {
     }
 }
 pub fn run_story_tests(stories: &BTreeMap<String, Value>, cases: &Value) -> Result<Value> {
+    fn fields(value: &Value, allowed: &[&str], label: &str) -> Result<()> {
+        for key in value
+            .as_object()
+            .with_context(|| format!("{label} 必须是对象"))?
+            .keys()
+        {
+            ensure!(
+                allowed.contains(&key.as_str()),
+                "{label} 含未知字段 {key}；预期检查请写入 assert"
+            );
+        }
+        Ok(())
+    }
     let cases = cases.as_array().context("测试定义必须为数组")?;
     let mut names = BTreeSet::new();
     let mut results = Vec::new();
     for case in cases {
+        fields(
+            case,
+            &["name", "story", "initial", "actions", "assert"],
+            "测试配置",
+        )?;
         let name = text(case, "name").trim();
         ensure!(
             !name.is_empty() && names.insert(name),
@@ -451,6 +469,40 @@ pub fn run_story_tests(stories: &BTreeMap<String, Value>, cases: &Value) -> Resu
                 case.get(key).is_none_or(Value::is_object),
                 "测试 {key} 必须是对象"
             );
+        }
+        if let Some(initial) = case.get("initial") {
+            fields(initial, &["variables", "flags"], "initial")?;
+        }
+        if let Some(actions) = case.get("actions") {
+            fields(actions, &["choices"], "actions")?;
+        }
+        if let Some(assertions) = case.get("assert") {
+            fields(
+                assertions,
+                &["reaches_node", "reaches_ending", "variables", "flags"],
+                "assert",
+            )?;
+            if let Some(required) = assertions.get("reaches_node") {
+                ensure!(
+                    required.is_string()
+                        || required
+                            .as_array()
+                            .is_some_and(|rows| rows.iter().all(Value::is_string)),
+                    "assert.reaches_node 必须是节点 ID 或 ID 数组"
+                );
+            }
+            ensure!(
+                assertions
+                    .get("reaches_ending")
+                    .is_none_or(Value::is_boolean),
+                "assert.reaches_ending 必须是布尔值"
+            );
+            for key in ["variables", "flags"] {
+                ensure!(
+                    assertions.get(key).is_none_or(Value::is_object),
+                    "assert.{key} 必须是对象"
+                );
+            }
         }
         for key in ["variables", "flags"] {
             ensure!(
@@ -472,6 +524,7 @@ pub fn run_story_tests(stories: &BTreeMap<String, Value>, cases: &Value) -> Resu
         }
         let mut actions: BTreeMap<String, VecDeque<usize>> = BTreeMap::new();
         for action in case["actions"]["choices"].as_array().into_iter().flatten() {
+            fields(action, &["node", "option"], "选项测试动作")?;
             ensure!(
                 action["node"].is_string() && action["option"].is_u64(),
                 "choice 动作需要 node 和非负整数 option"
@@ -756,5 +809,24 @@ mod tests {
         )]);
         let result=run_story_tests(&stories,&json!([{"name":"walk","story":"main","actions":{"choices":[{"node":"c","option":0}]},"assert":{"reaches_node":"e","flags":{"x":true},"reaches_ending":true}}])).unwrap();
         assert_eq!(result[0]["status"], "pass");
+    }
+    #[test]
+    fn misspelled_expectations_are_rejected_instead_of_reported_as_passed() {
+        let stories = BTreeMap::from([(
+            "main".into(),
+            json!({"start":"e","nodes":[{"id":"e","type":"end"}]}),
+        )]);
+        let error = run_story_tests(
+            &stories,
+            &json!([{"name":"typo","story":"main","expect":{"reaches_node":["missing"]}}]),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("expect"));
+        assert!(error.to_string().contains("assert"));
+        assert!(run_story_tests(
+            &stories,
+            &json!([{"name":"typo","story":"main","assert":{"reaches_nodes":["missing"]}}])
+        )
+        .is_err());
     }
 }
