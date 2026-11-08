@@ -8690,7 +8690,7 @@ mod application_regression_tests {
         .unwrap();
         std::fs::write(&legacy, &original).unwrap();
         let package =
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../samples/全节点样例3.0.lommod");
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/showcase3-legacy.lommod");
         for path in [&legacy, &package] {
             let mut app = app();
             let game = app.tools_panel.game_directory();
