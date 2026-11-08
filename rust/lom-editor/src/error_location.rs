@@ -139,6 +139,22 @@ fn field_label(message: &str, field: &str) -> String {
 }
 
 pub fn explanation(message: &str) -> String {
+    if let Some((_, detail)) = message.split_once("包内 ") {
+        if let Some((lua, detail)) = detail.split_once(" 不是由对应 ") {
+            if let Some((story, _)) = detail.split_once(" 编译生成") {
+                if lua.starts_with("lua/")
+                    && lua.ends_with(".lua")
+                    && story.starts_with("story/")
+                    && story.ends_with(".json")
+                {
+                    return crate::i18n::message(
+                        "editor.error.story_lua_mismatch",
+                        &[("story", story.into()), ("lua", lua.into())],
+                    );
+                }
+            }
+        }
+    }
     if (message.starts_with("无法打开") || message.starts_with("打开失败"))
         && message.contains("scenario.json")
     {
@@ -561,6 +577,15 @@ pub fn collect(value: &Value, project: &Project, out: &mut Vec<(Destination, Str
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn package_script_mismatch_names_the_affected_chapter_and_script() {
+        let message =
+            "打开失败\n包内 lua/chapter1.lua 不是由对应 story/chapter1.json 编译生成，拒绝导入";
+        let visible = explanation(message);
+        assert!(visible.contains("story/chapter1.json"));
+        assert!(visible.contains("lua/chapter1.lua"));
+        assert_ne!(visible, crate::i18n::key("common.error.generic"));
+    }
     use serde_json::json;
 
     #[test]

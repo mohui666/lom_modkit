@@ -396,8 +396,7 @@ fn verify_story_lua_pairs(entries: &Entries, manifest: &Value) -> Result<()> {
         } else {
             story
         };
-        let generated = compile_story(story, Some(manifest), Some(&source), Some(resources.path()))
-            .with_context(|| format!("无法复编译 {source} 以验证 {path}"))?;
+        let generated = compile_story(story, Some(manifest), Some(&source), Some(resources.path()));
         let old_displayed_set = story["nodes"].as_array().is_some_and(|nodes| {
             nodes.iter().any(|node| {
                 node["type"] == "stat_set"
@@ -405,7 +404,18 @@ fn verify_story_lua_pairs(entries: &Entries, manifest: &Value) -> Result<()> {
                     && node.get("show_message").is_none()
             })
         });
-        let matches = generated.as_bytes() == packaged
+        let matches = generated
+            .as_ref()
+            .is_ok_and(|lua| lua.as_bytes() == packaged)
+            || crate::codegen::compile_story_previous_shock_wait(
+                story,
+                Some(manifest),
+                Some(&source),
+                Some(resources.path()),
+            )
+            .with_context(|| format!("无法复编译 {source} 以验证 {path}"))?
+            .as_bytes()
+                == packaged
             || crate::codegen::compile_story_previous_visual_calls(
                 story,
                 Some(manifest),

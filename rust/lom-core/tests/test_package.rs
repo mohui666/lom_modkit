@@ -1,7 +1,7 @@
 use lom_core::package::{self, Entries};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::{fs, path::Path};
+use std::{fs, io::Write, path::Path};
 
 fn bytes(value: &Value) -> Vec<u8> {
     if let Some(text) = value["utf8"].as_str() {
@@ -440,6 +440,80 @@ fn rewritten_hashes(mut entries: Entries, path: &Path) -> Entries {
     );
     package::verify_integrity(&entries).unwrap();
     entries
+}
+
+#[test]
+fn released_1_4_14_packages_open_edit_export_and_reopen_without_rewriting_the_source() {
+    let captured: Value =
+        serde_json::from_str(include_str!("fixtures/released_1_4_14_packages.json")).unwrap();
+    for case in captured["cases"].as_array().unwrap() {
+        let dir = tempfile::tempdir().unwrap();
+        let old = dir.path().join("old.lommod");
+        let mut zip = zip::ZipWriter::new(fs::File::create(&old).unwrap());
+        for (name, value) in case["entries"].as_object().unwrap() {
+            zip.start_file(name, zip::write::SimpleFileOptions::default())
+                .unwrap();
+            zip.write_all(value.as_str().unwrap().as_bytes()).unwrap();
+        }
+        zip.finish().unwrap();
+        let original_bytes = fs::read(&old).unwrap();
+        let mut project = lom_core::project::Project::open(&old)
+            .unwrap_or_else(|error| panic!("{}: {error:#}", case["name"]));
+        let old_entries = package::read_package(&old).unwrap();
+        assert_eq!(
+            project.assets["assets/user/image/test.marker/pixel.png"],
+            b"authored resource"
+        );
+        let story = project.stories.get_mut("chapter1").unwrap();
+        if case["name"] == "blank_effect" {
+            assert!(lom_core::validate::validate_story(story)
+                .unwrap_err()
+                .to_string()
+                .contains("特效名称不能为空"));
+            story["nodes"][1]["name"] = json!("Hit_001");
+        }
+        story["nodes"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|node| node["id"] == "say1")
+            .unwrap()["text"] = json!("修改后继续创作");
+        let saved = dir.path().join("edited");
+        project.save_to(&saved).unwrap();
+        let mut reopened = lom_core::project::Project::open(&saved).unwrap();
+        assert_eq!(reopened.stories, project.stories);
+        let exported = dir.path().join("updated.lommod");
+        reopened.export(&exported).unwrap();
+        let updated = lom_core::project::Project::open(&exported).unwrap();
+        assert_eq!(updated.stories, project.stories);
+        assert_eq!(updated.assets, project.assets);
+        let entries = package::read_package(&exported).unwrap();
+        if case["name"] != "blank_effect" {
+            let lua = std::str::from_utf8(&entries["lua/chapter1.lua"]).unwrap();
+            let lines: Vec<_> = lua.lines().collect();
+            let shock = lines
+                .iter()
+                .position(|line| line.trim() == "runblock(flowcharts.common, \"shock\")")
+                .unwrap();
+            assert_eq!(lines[shock + 1].trim(), "wait(0.5)");
+        }
+        assert_eq!(
+            fs::read(&old).unwrap(),
+            original_bytes,
+            "opening/exporting must preserve the old file"
+        );
+        let mut substituted = old_entries;
+        substituted
+            .get_mut("lua/chapter1.lua")
+            .unwrap()
+            .extend_from_slice(b"\nreturn 'substituted'\n");
+        let bad = dir.path().join("substituted.lommod");
+        rewritten_hashes(substituted, &bad);
+        assert!(package::read_package(&bad)
+            .unwrap_err()
+            .to_string()
+            .contains("不是由对应"));
+    }
 }
 
 #[test]
