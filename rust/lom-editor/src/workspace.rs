@@ -1034,7 +1034,7 @@ impl App {
             Pending::Recover(path) => self.recover(&path),
             Pending::Open(path) => match Project::open(&path) {
                 Ok(p) => self.install(p),
-                Err(e) => self.error = Some(format!("打开失败\n{e:#}")),
+                Err(e) => self.error = Some(format!("打开失败\n{}\n{e:#}", path.display())),
             },
         }
     }

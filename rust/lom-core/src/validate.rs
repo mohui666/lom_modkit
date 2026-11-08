@@ -996,7 +996,7 @@ fn mod_death_id(key: &str) -> bool {
     let n = key.trim_start_matches('0');
     n.len() > 6 || (n.len() == 6 && n >= "900000")
 }
-fn extra(n: &Value, ntype: &str, catalog: &Value) -> Result<()> {
+fn extra(n: &Value, ntype: &str, catalog: &Value, check_effect_names: bool) -> Result<()> {
     for (raw, _, category) in crate::content::gameplay_references(n) {
         ensure!(
             category != "consumable" || raw.starts_with("user:"),
@@ -1015,7 +1015,7 @@ fn extra(n: &Value, ntype: &str, catalog: &Value) -> Result<()> {
         for (i, action) in crate::parallel::actions(n).iter().enumerate() {
             let label = format!("第 {} 个同时动作", i + 1);
             let kind = fields(action).with_context(|| label.clone())?;
-            extra(action, kind, catalog).with_context(|| label)?;
+            extra(action, kind, catalog, check_effect_names).with_context(|| label)?;
         }
         return Ok(());
     }
@@ -1070,7 +1070,7 @@ fn extra(n: &Value, ntype: &str, catalog: &Value) -> Result<()> {
                 .as_bool()
                 .unwrap_or_else(|| n.get("d").is_none_or(|value| value.as_f64() == Some(1.0)));
             ensure!(
-                nonblank(&n["name"]) || (!playing && nonblank(&n["tag"])),
+                !check_effect_names || nonblank(&n["name"]) || (!playing && nonblank(&n["tag"])),
                 "特效名称不能为空：请选择要播放的特效；停止特效时可填写名称或实例标记"
             );
             for key in ["x", "y", "a", "b", "c", "rotation", "speed", "stop_after"] {
@@ -1605,10 +1605,24 @@ pub fn validate_story(story: &Value) -> Result<Vec<String>> {
 /// Explicit catalog injection supports offline authoring and migration parity tests.
 /// Normal editor and CLI validation always uses the embedded official catalog.
 pub fn validate_story_with_catalog(story: &Value, catalog: &Value) -> Result<Vec<String>> {
-    story_inner(story, catalog).map_err(|error| anyhow::anyhow!("story.json: {error:#}"))?;
+    story_inner(story, catalog, true).map_err(|error| anyhow::anyhow!("story.json: {error:#}"))?;
     Ok(collect_warnings(story, catalog))
 }
-fn story_inner(story: &Value, catalog: &Value) -> Result<()> {
+// Only package verification reproduces the released empty-effect-name rule.
+pub(crate) fn validate_story_before_1_4_17(
+    story: &Value,
+    root: Option<&std::path::Path>,
+) -> Result<Vec<String>> {
+    let extensions = root
+        .map(crate::content::character_extensions_at)
+        .transpose()?
+        .unwrap_or_default();
+    let catalog = extend_portrait_catalog(&extensions);
+    story_inner(story, &catalog, false)
+        .map_err(|error| anyhow::anyhow!("story.json: {error:#}"))?;
+    Ok(collect_warnings(story, &catalog))
+}
+fn story_inner(story: &Value, catalog: &Value, check_effect_names: bool) -> Result<()> {
     object(story, "顶层必须是 JSON 对象")?;
     crate::vanilla_patch::parse(story)?;
     let imported = crate::vanilla_import::parse(story)?;
@@ -1666,7 +1680,7 @@ fn story_inner(story: &Value, catalog: &Value) -> Result<()> {
         let id = s(node, "id");
         let label = format!("节点 \"{id}\"({})", s(node, "type"));
         let kind = fields(node).with_context(|| label.clone())?;
-        extra(node, kind, catalog).with_context(|| label.clone())?;
+        extra(node, kind, catalog, check_effect_names).with_context(|| label.clone())?;
         if has(node, "resume_node") {
             ensure!(
                 kind == "end"

@@ -130,6 +130,7 @@ struct Context<'a> {
     preloaded: bool,
     previous_visual_calls: bool,
     previous_stat_sets: bool,
+    previous_shock_wait: bool,
     character_layout: bool,
     managed_effects: bool,
 }
@@ -779,7 +780,9 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                 out.push("\trunblock(flowcharts.common, \"shock\")".into());
                 // The native shock block starts an iTween with waitUntilFinished=false.
                 // Keep following portrait/show steps from resetting it immediately.
-                out.push(wait(d));
+                if !ctx.previous_shock_wait {
+                    out.push(wait(d));
+                }
             }
         }
         "mask" => out.push(format!("\tos_mask.Show({})", b(node, "show", false))),
@@ -1770,17 +1773,17 @@ pub fn compile_story(
     source: Option<&str>,
     content_root: Option<&Path>,
 ) -> Result<String> {
-    compile_story_impl(story, mod_info, source, content_root, false, false)
+    compile_story_impl(story, mod_info, source, content_root, false, false, false)
 }
 // Only used to verify already-published v3 packages. Raw code is never rewritten;
-// the two previous structured emitters are reproduced from the authored nodes.
+// historical structured emitters are reproduced from the authored nodes.
 pub(crate) fn compile_story_previous_visual_calls(
     story: &Value,
     mod_info: Option<&Value>,
     source: Option<&str>,
     content_root: Option<&Path>,
 ) -> Result<String> {
-    compile_story_impl(story, mod_info, source, content_root, true, true)
+    compile_story_impl(story, mod_info, source, content_root, true, true, true)
 }
 // Reproduce the old display-only setter solely when checking existing v3 Lua.
 // Newly compiled/exported stories always perform the actual write.
@@ -1790,7 +1793,16 @@ pub(crate) fn compile_story_previous_stat_sets(
     source: Option<&str>,
     content_root: Option<&Path>,
 ) -> Result<String> {
-    compile_story_impl(story, mod_info, source, content_root, false, true)
+    compile_story_impl(story, mod_info, source, content_root, false, true, true)
+}
+// Verify released <=1.4.16 output without changing newly exported scripts.
+pub(crate) fn compile_story_previous_shock_wait(
+    story: &Value,
+    mod_info: Option<&Value>,
+    source: Option<&str>,
+    content_root: Option<&Path>,
+) -> Result<String> {
+    compile_story_impl(story, mod_info, source, content_root, false, false, true)
 }
 fn compile_story_impl(
     story: &Value,
@@ -1799,8 +1811,11 @@ fn compile_story_impl(
     content_root: Option<&Path>,
     previous_visual_calls: bool,
     previous_stat_sets: bool,
+    previous_shock_wait: bool,
 ) -> Result<String> {
-    let warnings = if let Some(root) = content_root {
+    let warnings = if previous_shock_wait {
+        crate::validate::validate_story_before_1_4_17(story, content_root)?
+    } else if let Some(root) = content_root {
         crate::validate::validate_story_with_content_root(story, root)?
     } else {
         crate::validate::validate_story(story)?
@@ -1812,6 +1827,7 @@ fn compile_story_impl(
         content_root,
         previous_visual_calls,
         previous_stat_sets,
+        previous_shock_wait,
     )?;
     if warnings.is_empty() {
         Ok(lua)
@@ -1832,7 +1848,7 @@ pub fn story_to_lua(
     source: Option<&str>,
     content_root: Option<&Path>,
 ) -> Result<String> {
-    story_to_lua_impl(story, mod_info, source, content_root, false, false)
+    story_to_lua_impl(story, mod_info, source, content_root, false, false, false)
 }
 fn story_to_lua_impl(
     story: &Value,
@@ -1841,6 +1857,7 @@ fn story_to_lua_impl(
     content_root: Option<&Path>,
     previous_visual_calls: bool,
     previous_stat_sets: bool,
+    previous_shock_wait: bool,
 ) -> Result<String> {
     let default_root = crate::content::default_repository_root();
     let root = content_root.unwrap_or(&default_root);
@@ -1851,7 +1868,7 @@ fn story_to_lua_impl(
     let fallback = format!("story/{id}.json");
     let src = source.filter(|x| !x.is_empty()).unwrap_or(&fallback);
     if let Some(imported) = crate::vanilla_import::parse(story)? {
-        return imported_story_to_lua(story, info, src, root, &imported);
+        return imported_story_to_lua(story, info, src, root, &imported, previous_shock_wait);
     }
     if let Some(patch) = crate::vanilla_patch::parse(story)? {
         let edits: Vec<_> = patch
@@ -1932,6 +1949,7 @@ fn story_to_lua_impl(
             preloaded: false,
             previous_visual_calls,
             previous_stat_sets,
+            previous_shock_wait,
             character_layout,
             managed_effects,
         };
@@ -1993,10 +2011,11 @@ fn imported_story_to_lua(
     source: &str,
     root: &Path,
     imported: &crate::vanilla_import::Imported,
+    previous_shock_wait: bool,
 ) -> Result<String> {
     let nodes = arr(story, "nodes");
     if imported.schema == 2 {
-        return structured_import_to_lua(story, info, source, root, imported);
+        return structured_import_to_lua(story, info, source, root, imported, previous_shock_wait);
     }
     let origins = imported.associations(nodes);
     let mut lua = format!("{GENERATED_MARK}\n-- Source: {source}\nmodflags = modflags or {{}}\nmod_begin_vanilla_import({})\nlocal mod_vanilla_terminal = {{}}\n", q(story,"id"));
@@ -2054,6 +2073,7 @@ fn imported_story_to_lua(
                     preloaded: false,
                     previous_visual_calls: false,
                     previous_stat_sets: false,
+                    previous_shock_wait,
                     character_layout: true,
                     managed_effects: true,
                 };
@@ -2141,6 +2161,7 @@ fn structured_import_to_lua(
     source: &str,
     root: &Path,
     imported: &crate::vanilla_import::Imported,
+    previous_shock_wait: bool,
 ) -> Result<String> {
     let nodes = arr(story, "nodes");
     let origins = imported.associations(nodes);
@@ -2204,6 +2225,7 @@ fn structured_import_to_lua(
             preloaded: false,
             previous_visual_calls: false,
             previous_stat_sets: false,
+            previous_shock_wait,
             character_layout: true,
             managed_effects: true,
         };
