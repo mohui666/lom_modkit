@@ -99,12 +99,13 @@ impl Default for ToolsPanel {
                 .as_str()
                 .filter(|s| !s.is_empty())
                 .map(PathBuf::from)
-                .or_else(|| {
-                    std::env::current_exe()
-                        .ok()
-                        .and_then(|p| p.parent().map(|p| p.join("runtime")))
-                        .filter(|p| p.join("MortalModHost.dll").is_file())
+                .filter(|p| {
+                    !crate::components::is_managed_runtime(p)
+                        && game_tools::HOST_FILES
+                            .iter()
+                            .all(|name| p.join(name).is_file())
                 })
+                .or_else(crate::components::runtime)
                 .unwrap_or_default(),
             ffmpeg: settings["ffmpeg_path"]
                 .as_str()
@@ -258,14 +259,14 @@ impl ToolsPanel {
         std::thread::spawn(move || {
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f(tx.clone())))
                 .map_err(|_| "任务意外退出".to_owned())
-                .and_then(|r| r.map_err(|e| format!("{e:#}")));
+                .and_then(|r| r.map_err(|e| crate::error_ui::capture(e)));
             let _ = tx.send(JobEvent::Finished(result));
         });
     }
     fn result<T: serde::Serialize>(&mut self, title: &str, result: anyhow::Result<T>) {
         let value = match result {
             Ok(v) => serde_json::to_value(v).unwrap_or(Value::Null),
-            Err(e) => json!({"error":format!("{e:#}")}),
+            Err(e) => json!({"error":crate::error_ui::capture(e)}),
         };
         self.present(title, value);
     }
@@ -471,17 +472,20 @@ impl ToolsPanel {
                         .auto_shrink([false, true])
                         .show(ui, |ui| {
                             ui.set_max_width(ui.available_width());
-                            ui.add(
-                                egui::Label::new(
-                                    egui::RichText::new(crate::tool_report::summary(&self.report))
+                            if self.report["error"].as_str().is_none() {
+                                ui.add(
+                                    egui::Label::new(
+                                        egui::RichText::new(crate::tool_report::summary(
+                                            &self.report,
+                                        ))
                                         .strong(),
-                                )
-                                .wrap(),
-                            );
+                                    )
+                                    .wrap(),
+                                );
+                            }
                             ui.add_space(8.0);
-                            if self.report["error"].is_null() {
-                                crate::tool_report::show(ui, &self.report, 0);
-                            } else if self.report["partial"] == true {
+                            crate::tool_report::show(ui, &self.report, 0);
+                            if !self.report["error"].is_null() && self.report["partial"] == true {
                                 ui.label(crate::i18n::tr(
                                     "已完成的特效缓存仍可使用；本次提取未全部完成。",
                                 ));
@@ -496,7 +500,7 @@ impl ToolsPanel {
                                         .link(format!(
                                             "{} · {}",
                                             destination.label(),
-                                            crate::error_location::explanation(label)
+                                            crate::error_ui::text(label)
                                         ))
                                         .clicked()
                                     {
@@ -506,11 +510,9 @@ impl ToolsPanel {
                                     }
                                 }
                             }
-                            if ui.button(crate::i18n::tr("复制诊断信息")).clicked() {
-                                ui.ctx().copy_text(
-                                    serde_json::to_string_pretty(&self.report).unwrap_or_default(),
-                                );
-                            }
+                            crate::error_ui::copy_button(ui, || {
+                                serde_json::to_string_pretty(&self.report).unwrap_or_default()
+                            });
                         });
                 }
                 ui.separator();
@@ -568,12 +570,12 @@ impl ToolsPanel {
         self.installation = Some(
             match crate::game_setup::diagnose(&self.game, &self.runtime) {
                 Ok(report) => report,
-                Err(error) => json!({"error":format!("{error:#}")}),
+                Err(error) => json!({"error":crate::error_ui::capture(error)}),
             },
         );
         match game_tools::list_mods(&self.game) {
             Ok(rows) => self.mods = rows.as_array().cloned().unwrap_or_default(),
-            Err(error) => self.mods_error = Some(format!("{error:#}")),
+            Err(error) => self.mods_error = Some(crate::error_ui::capture(error)),
         }
     }
     pub fn take_export_request(&mut self) -> bool {
@@ -827,7 +829,7 @@ impl ToolsPanel {
                     if let Some(error) =
                         self.installation.as_ref().and_then(|r| r["error"].as_str())
                     {
-                        crate::error_location::show(ui, error);
+                        crate::error_ui::show_with_actions(ui, error);
                     }
                     if ui
                         .add_enabled(
@@ -897,7 +899,7 @@ impl ToolsPanel {
             ui.small(tr("完成上方游戏配置后即可安装作品。"));
         }
         if let Some(error) = &self.mods_error {
-            crate::error_location::show(ui, error);
+            crate::error_ui::show_with_actions(ui, error);
         } else if has_game && self.mods.is_empty() {
             ui.label(tr("还没有安装 MOD。"));
         }
@@ -931,7 +933,7 @@ impl ToolsPanel {
                     }
                 });
                 if let Some(error) = item["error"].as_str() {
-                    crate::error_location::show(ui, error);
+                    crate::error_ui::show_with_actions(ui, error);
                 }
             });
         }
@@ -1255,7 +1257,7 @@ impl ToolsPanel {
                     "检查未通过"
                 }));
                 if let Some(error) = self.package_report["validation_error"].as_str() {
-                    crate::error_location::show(ui, error);
+                    crate::error_ui::show_with_actions(ui, error);
                 }
                 ui.collapsing("SHA-256", |ui| {
                     ui.monospace(self.package_report["package_sha256"].as_str().unwrap_or(""));
@@ -1556,7 +1558,7 @@ impl ToolsPanel {
                         .link(format!(
                             "{} · {}",
                             destination.label(),
-                            crate::error_location::explanation(&label)
+                            crate::error_ui::text(&label)
                         ))
                         .clicked()
                     {
@@ -1566,7 +1568,7 @@ impl ToolsPanel {
                 }
             }
             if let Some(error) = self.report["error"].as_str() {
-                crate::error_location::show(ui, error);
+                crate::error_ui::show_with_actions(ui, error);
             } else if self.report.as_array().is_some_and(|a| a.is_empty()) {
                 ui.label(crate::i18n::tr("未发现问题"));
             }
@@ -1708,6 +1710,7 @@ fn collect_locations(
     out: &mut Vec<(crate::error_location::Destination, String)>,
 ) {
     crate::error_location::collect(value, project, out);
+    out.retain(|(target, _)| *target != crate::error_location::Destination::Current);
 }
 
 fn show_report(ui: &mut egui::Ui, value: &Value, depth: usize) {
@@ -1716,6 +1719,45 @@ fn show_report(ui: &mut egui::Ui, value: &Value, depth: usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn report_errors_show_nested_reasons_and_paths_without_expanding_or_copying() {
+        let mut panel = ToolsPanel::default();
+        panel.present(
+            "操作未完成",
+            json!({
+                "error":"读取素材失败：decoder returned exit code 1",
+                "paths":["C:/作品/audio/voice.wav"],
+                "findings":[{"issues":[{"error":"嵌套错误：audio source missing"}]}]
+            }),
+        );
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        let output = ctx.run(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1200.0, 1000.0),
+                )),
+                ..Default::default()
+            },
+            |ctx| panel.show_dialog(ctx, &Project::new()),
+        );
+        let update = output.platform_output.accesskit_update.unwrap();
+        let text = update
+            .nodes
+            .iter()
+            .filter_map(|(_, node)| node.label().or_else(|| node.value()))
+            .collect::<Vec<_>>()
+            .join("\n");
+        for detail in ["素材无法使用", "C:/作品/audio/voice.wav", "开发者"] {
+            assert!(text.contains(detail), "{text}");
+        }
+        assert!(panel.report["error"]
+            .as_str()
+            .unwrap()
+            .contains("exit code 1"));
+        assert!(output.platform_output.commands.is_empty());
+    }
     #[test]
     fn startup_host_sync_reports_changes_and_errors_without_a_noop_dialog() {
         for (result, opens) in [
@@ -1982,10 +2024,6 @@ mod tests {
                 (
                     crate::error_location::Destination::Story("main".into(), None),
                     "chapter issue".into()
-                ),
-                (
-                    crate::error_location::Destination::Current,
-                    "manifest issue".into()
                 ),
             ]
         );

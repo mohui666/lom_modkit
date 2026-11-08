@@ -63,7 +63,7 @@ impl View {
                 }
                 Err(error) => {
                     self.runtime = None;
-                    self.runtime_error = Some(error.to_string());
+                    self.runtime_error = Some(crate::error_ui::capture(error));
                 }
             }
             self.runtime_checked = Some(Instant::now());
@@ -109,10 +109,7 @@ impl View {
         ui.small(i18n::key("routes.click_guide"));
         ui.small(i18n::key("routes.mark_guide"));
         if let Some(error) = &self.runtime_error {
-            ui.colored_label(
-                Color32::DARK_RED,
-                i18n::message("routes.runtime.error", &[("error", error.clone())]),
-            );
+            crate::error_ui::show_with_actions(ui, error);
         }
         if let Some(snapshot) = &self.runtime {
             if snapshot.has_return_slot() {

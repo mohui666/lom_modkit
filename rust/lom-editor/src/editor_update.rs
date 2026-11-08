@@ -29,6 +29,7 @@ struct Release {
     url: String,
     files: Vec<Download>,
     repair_needed: bool,
+    embedded_components: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -90,12 +91,14 @@ impl Release {
         let paths = self
             .files
             .iter()
+            .filter(|file| !self.embedded_components || file.path == "lom-editor.exe")
             .map(|file| file.path.clone())
             .collect::<Vec<_>>();
         validate_install(root, &paths)?;
         self.repair_needed = self
             .files
             .iter()
+            .filter(|file| !self.embedded_components || file.path == "lom-editor.exe")
             .any(|file| verify_file(&root.join(&file.path), file).is_err());
         Ok(())
     }
@@ -155,6 +158,7 @@ fn parse_release(value: &Value) -> Result<Release> {
         url: release_url,
         files,
         repair_needed: false,
+        embedded_components: value["embedded_components"].as_bool().unwrap_or(false),
     })
 }
 
@@ -240,7 +244,12 @@ fn prepare(release: &Release, cancel: &AtomicBool, progress: &UpdateProgress) ->
         return Err(error);
     }
     ensure!(!cancel.load(Ordering::Relaxed), "更新已取消");
-    let mut files: Vec<_> = release.files.iter().map(|file| file.path.clone()).collect();
+    let mut files: Vec<_> = release
+        .files
+        .iter()
+        .filter(|file| !release.embedded_components || file.path == "lom-editor.exe")
+        .map(|file| file.path.clone())
+        .collect();
     files.sort_by_key(|name| name == "lom-editor.exe");
     Ok(Prepared { workspace, files })
 }
@@ -326,7 +335,7 @@ impl Updater {
                 }
                 Ok(Job::Checked(release))
             });
-            let _ = tx.send(result.map_err(|e| format!("{e:#}")));
+            let _ = tx.send(result.map_err(|e| crate::error_ui::capture(e)));
             if !cancel.load(Ordering::Relaxed) {
                 ctx.request_repaint();
             }
@@ -358,7 +367,7 @@ impl Updater {
             let _ = tx.send(
                 prepare(&release, &cancel, &progress)
                     .map(Job::Prepared)
-                    .map_err(|e| format!("{e:#}")),
+                    .map_err(|e| crate::error_ui::capture(e)),
             );
             if !cancel.load(Ordering::Relaxed) {
                 ctx.request_repaint();
@@ -528,7 +537,7 @@ impl Updater {
                         self.cancel_job();
                     }
                 } else if let Some(error) = &self.error {
-                    crate::error_location::show(ui, error);
+                    crate::error_ui::show_with_actions(ui, error);
                     ui.hyperlink_to(tr("前往 GitHub 发布页面"), RELEASES);
                     if ui.button(tr("重新检查")).clicked() {
                         self.check(ctx);
@@ -724,70 +733,95 @@ mod tests {
 
     #[test]
     fn all_update_files_are_requested_before_any_file_finishes() {
-        use std::{
-            io::{BufRead, BufReader, Write},
-            net::TcpListener,
-            time::{Duration, Instant},
-        };
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        listener.set_nonblocking(true).unwrap();
-        let address = listener.local_addr().unwrap();
-        let server = thread::spawn(move || {
-            let deadline = Instant::now() + Duration::from_secs(10);
-            let mut connections = Vec::new();
-            while connections.len() < PROGRAM_FILES.len() {
-                let mut connection = match listener.accept() {
-                    Ok((connection, _)) => connection,
-                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                        assert!(
-                            Instant::now() < deadline,
-                            "update files were downloaded serially"
-                        );
-                        thread::sleep(Duration::from_millis(10));
-                        continue;
-                    }
-                    Err(error) => panic!("{error}"),
-                };
-                connection.set_nonblocking(false).unwrap();
-                connection
-                    .set_read_timeout(Some(Duration::from_secs(3)))
-                    .unwrap();
-                {
-                    let mut request = BufReader::new(&mut connection);
-                    let mut line = String::new();
-                    loop {
-                        assert!(request.read_line(&mut line).unwrap() > 0);
-                        if line == "\r\n" {
-                            break;
+        for embedded in [false, true] {
+            use std::{
+                io::{BufRead, BufReader, Write},
+                net::TcpListener,
+                time::{Duration, Instant},
+            };
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            listener.set_nonblocking(true).unwrap();
+            let address = listener.local_addr().unwrap();
+            let server = thread::spawn(move || {
+                let deadline = Instant::now() + Duration::from_secs(10);
+                let mut connections = Vec::new();
+                while connections.len() < PROGRAM_FILES.len() {
+                    let mut connection = match listener.accept() {
+                        Ok((connection, _)) => connection,
+                        Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                            assert!(
+                                Instant::now() < deadline,
+                                "update files were downloaded serially"
+                            );
+                            thread::sleep(Duration::from_millis(10));
+                            continue;
                         }
-                        line.clear();
+                        Err(error) => panic!("{error}"),
+                    };
+                    connection.set_nonblocking(false).unwrap();
+                    connection
+                        .set_read_timeout(Some(Duration::from_secs(3)))
+                        .unwrap();
+                    {
+                        let mut request = BufReader::new(&mut connection);
+                        let mut line = String::new();
+                        loop {
+                            assert!(request.read_line(&mut line).unwrap() > 0);
+                            if line == "\r\n" {
+                                break;
+                            }
+                            line.clear();
+                        }
                     }
+                    connections.push(connection);
                 }
-                connections.push(connection);
+                for mut connection in connections {
+                    connection.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 17\r\nConnection: close\r\n\r\nnew program bytes").unwrap();
+                }
+            });
+            let mut release = parse_release(&release()).unwrap();
+            release.embedded_components = embedded;
+            for file in &mut release.files {
+                file.url = format!("http://{address}/{}", file.path);
             }
-            for mut connection in connections {
-                connection.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 17\r\nConnection: close\r\n\r\nnew program bytes").unwrap();
-            }
-        });
-        let mut release = parse_release(&release()).unwrap();
-        for file in &mut release.files {
-            file.url = format!("http://{address}/{}", file.path);
-        }
-        let progress = UpdateProgress::new(&release);
-        let prepared = prepare(&release, &AtomicBool::new(false), &progress).unwrap();
-        server.join().unwrap();
-        assert!(progress
-            .files
-            .iter()
-            .all(|file| file.received.load(Ordering::Relaxed) == file.size
-                && file.verified.load(Ordering::Relaxed)));
-        assert_eq!(prepared.files.len(), PROGRAM_FILES.len());
-        for file in prepared.files {
+            let progress = UpdateProgress::new(&release);
+            let prepared = prepare(&release, &AtomicBool::new(false), &progress).unwrap();
+            server.join().unwrap();
+            assert!(progress
+                .files
+                .iter()
+                .all(|file| file.received.load(Ordering::Relaxed) == file.size
+                    && file.verified.load(Ordering::Relaxed)));
             assert_eq!(
-                fs::read(prepared.workspace.path().join("bundle").join(file)).unwrap(),
-                b"new program bytes"
+                prepared.files.len(),
+                if embedded { 1 } else { PROGRAM_FILES.len() }
             );
+            assert!(
+                prepared.workspace.path().join("bundle/lomc.exe").is_file(),
+                "the verified installer is still required for single-exe updates"
+            );
+            for file in prepared.files {
+                assert_eq!(
+                    fs::read(prepared.workspace.path().join("bundle").join(file)).unwrap(),
+                    b"new program bytes"
+                );
+            }
         }
+    }
+
+    #[test]
+    fn embedded_installation_checks_only_the_editor_beside_user_projects() {
+        let root = tempfile::tempdir().unwrap();
+        let mut value = release();
+        value["version"] = json!(env!("CARGO_PKG_VERSION"));
+        value["embedded_components"] = json!(true);
+        let mut release = parse_release(&value).unwrap();
+        fs::write(root.path().join("lom-editor.exe"), b"new program bytes").unwrap();
+        release.inspect_installation(root.path()).unwrap();
+        assert!(!release.repair_needed);
+        fs::write(root.path().join("lom-editor.exe"), b"broken").unwrap();
+        release.inspect_installation(root.path()).unwrap();
+        assert!(release.repair_needed);
     }
 
     #[test]
@@ -1006,7 +1040,28 @@ mod tests {
         verify_file(&path, host).unwrap();
         if release.can_update() {
             let prepared = prepare(&release, &cancel, &UpdateProgress::new(&release)).unwrap();
-            assert_eq!(prepared.files.len(), 4);
+            assert_eq!(
+                prepared.files.len(),
+                if release.embedded_components { 1 } else { 4 }
+            );
+            #[cfg(windows)]
+            if release.embedded_components {
+                use std::os::windows::process::CommandExt;
+                let output = Command::new(prepared.workspace.path().join("bundle/lom-editor.exe"))
+                    .args(["--component-task", "--self-check"])
+                    .env("LOCALAPPDATA", temp.path().join("isolated-components"))
+                    .creation_flags(0x08000000)
+                    .output()
+                    .unwrap();
+                assert!(
+                    output.status.success(),
+                    "{}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
+                let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+                assert_eq!(result["engine"], "rust");
+                assert_eq!(result["sprite_decoder_ready"], true);
+            }
         }
     }
 

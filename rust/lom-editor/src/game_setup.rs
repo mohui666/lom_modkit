@@ -43,7 +43,7 @@ pub fn diagnose(game: &Path, runtime: &Path) -> Result<Value> {
     let mut report = game_tools::diagnose_installation(game, runtime)?;
     let (ready, detail) = match game_tools::steam_launch_fix_applied(game) {
         Ok(ready) => (ready, String::new()),
-        Err(error) => (false, format!("{error:#}")),
+        Err(error) => (false, crate::error_ui::capture(error)),
     };
     report["steam_ready"] = json!(ready);
     report["findings"].as_array_mut().unwrap().push(json!({
@@ -84,9 +84,13 @@ pub fn configure(
     let distribution = game_tools::bepinex_distribution(&architecture)?;
     let workspace = lom_core::workdir::create()?;
     let downloaded = workspace.path().join(distribution.filename);
+    let bundled = runtime.join(distribution.filename);
     let archive = if let Some(archive) = archive {
         progress("正在校验加载组件…", 0);
         archive
+    } else if bundled.is_file() {
+        progress("正在准备内置加载组件…", 0);
+        &bundled
     } else {
         progress("正在下载官方加载组件…", 0);
         download(distribution.url, &downloaded)?;

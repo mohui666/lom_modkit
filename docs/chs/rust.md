@@ -30,9 +30,9 @@ sh scripts/build-macos.sh
 open "out/LoM Modkit Rust.app"
 ```
 
-`build-macos.sh` 调用 `build_rust_macos.sh`，生成原生 `lom-editor` 与 `lomc`、打包图标及独立素材提取组件、执行应用签名检查及内置编译预览烟测。编辑器和编译器仍是 Rust；提取组件复用已有 UnityPy 地址解析，通过独立进程与 Rust 界面交换进度和结果。使用安装包不需要另装 Python、Qt 或当前源码目录。官方预览图片从作者自己的游戏提取，不随应用分发。
+`build-macos.sh` 调用 `build_rust_macos.sh`，生成原生 `lom-editor`、`lomc` 与 Rust 素材提取器，打包图标并执行应用签名检查及编译预览烟测。提取器通过独立进程与编辑器交换进度和结果；图片、动画、剧情和音频资源读取均由 `lom-assets` 实现。使用安装包不需要另装 Python、Qt 或当前源码目录。官方预览资源从作者自己的游戏提取，不随应用分发。
 
-构建提取组件需要 Python 和 `tools/requirements-preview-extractor.txt` 中固定的构建依赖。Mac 默认使用 `editor/.venv/bin/python`，可通过 `EXTRACTOR_PYTHON` 指定；Windows 使用 `scripts/build-windows.ps1 -NoArchive -ExtractorPython <python.exe>`。复用已有提取环境，缺少依赖时按该 requirements 文件补装。两端都调用 `scripts/build_asset_extractor.py` 构建本平台的独立组件，不能复制另一平台的提取程序。构建运行 `--help` 及 `--self-check` 检查，不读取游戏、不自动提取。
+构建提取器使用 `cargo build --locked --release -p lom-assets`；无需 UnityPy 或 PyInstaller。两端均构建本平台的提取器，不能复制另一平台的二进制。`--self-check` 不读取游戏。`tools` 中的旧 Python 读取器仅作为迁移结果的开发对照，不进入发布包。
 
 Windows 构建入口为 `scripts/build-windows.ps1 -NoArchive`，需要已构建的 `MortalModHost.dll`、`NVorbis.dll`；可用 `-RuntimeDirectory` 指定目录，默认产物为 `out/windows/lom_modkit/lom-editor.exe`。Host 本地引用及嵌入资源要求见 [Runtime 构建说明](../../runtime/MortalModHost/README.md#构建与测试)。
 

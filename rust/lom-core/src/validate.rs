@@ -1252,6 +1252,9 @@ fn extra(n: &Value, ntype: &str, catalog: &Value, check_effect_names: bool) -> R
         ),
         "cg" => {
             int_field(n, "color", 0, 2)?;
+            if s(n, "kind") == "event" && s(n, "action") == "show" {
+                range(n, "fade_in", 0.0, f32::MAX as f64)?;
+            }
             if s(n, "action") == "show" {
                 let keys: &[&str] = match s(n, "kind") {
                     "map" => &["key", "key2"],

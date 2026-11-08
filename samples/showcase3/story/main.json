@@ -151,6 +151,13 @@
           "name": "user:showcase.lantern_chime",
           "kind": "sound",
           "op": "play"
+        },
+        {
+          "type": "mood",
+          "character": "player",
+          "enabled": true,
+          "icon": "laugh1",
+          "wait_after": 0.9
         }
       ]
     },
@@ -190,6 +197,24 @@
       "type": "shock",
       "character": "player",
       "duration": 0.35
+    },
+    {
+      "id": "shock_bubble",
+      "type": "parallel",
+      "actions": [
+        {
+          "type": "shock",
+          "character": "player",
+          "duration": 0.35
+        },
+        {
+          "type": "mood",
+          "character": "player",
+          "enabled": true,
+          "icon": "shock",
+          "wait_after": 0.5
+        }
+      ]
     },
     {
       "id": "dim1",
@@ -503,6 +528,7 @@
       "action": "show",
       "key": "girlroom_work_002",
       "event_title": "事件",
+      "fade_in": 0.8,
       "event_text": "原版书页事件图。插图可以直接从原版图库选择，底部文字点击后继续。"
     },
     {
@@ -512,6 +538,7 @@
       "action": "show",
       "key": "user:showcase.departure_cg",
       "event_title": "来信",
+      "fade_in": 0.5,
       "event_text": "自定义图片按比例适配左侧图框，右侧题字也可以自行修改。"
     },
     {

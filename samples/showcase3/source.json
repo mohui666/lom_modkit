@@ -4,7 +4,7 @@
     "package_format": 3,
     "story_schema": 2,
     "content_schema": 1,
-    "min_host_version": "1.4.11",
+    "min_host_version": "1.4.19",
     "id": "showcase3",
     "campaign_id": "showcase3",
     "name": "全节点样例3.0·七十节点实机验收",
@@ -170,6 +170,13 @@
               "name": "user:showcase.lantern_chime",
               "kind": "sound",
               "op": "play"
+            },
+            {
+              "type": "mood",
+              "character": "player",
+              "enabled": true,
+              "icon": "laugh1",
+              "wait_after": 0.9
             }
           ]
         },
@@ -209,6 +216,24 @@
           "type": "shock",
           "character": "player",
           "duration": 0.35
+        },
+        {
+          "id": "shock_bubble",
+          "type": "parallel",
+          "actions": [
+            {
+              "type": "shock",
+              "character": "player",
+              "duration": 0.35
+            },
+            {
+              "type": "mood",
+              "character": "player",
+              "enabled": true,
+              "icon": "shock",
+              "wait_after": 0.5
+            }
+          ]
         },
         {
           "id": "dim1",
@@ -522,6 +547,7 @@
           "action": "show",
           "key": "girlroom_work_002",
           "event_title": "事件",
+          "fade_in": 0.8,
           "event_text": "原版书页事件图。插图可以直接从原版图库选择，底部文字点击后继续。"
         },
         {
@@ -531,6 +557,7 @@
           "action": "show",
           "key": "user:showcase.departure_cg",
           "event_title": "来信",
+          "fade_in": 0.5,
           "event_text": "自定义图片按比例适配左侧图框，右侧题字也可以自行修改。"
         },
         {
@@ -1610,7 +1637,9 @@
         {
           "id": "extra_tired",
           "type": "portrait",
-          "_editor": {"note": "点角色列表上方“仅显示已登场角色”，此处应只列出已登场的夏灵犀；再次点击恢复全部角色。"},
+          "_editor": {
+            "note": "点角色列表上方“仅显示已登场角色”，此处应只列出已登场的夏灵犀；再次点击恢复全部角色。"
+          },
           "character": "special825",
           "portrait": "tired",
           "fade_out": 0.2,

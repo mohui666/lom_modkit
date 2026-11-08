@@ -16,11 +16,7 @@ pub fn export(
     mut progress: impl FnMut(&str, u64),
 ) -> Result<Value> {
     ensure!(cfg!(windows), "完整游玩包请在 Windows 版编辑器导出");
-    let installer = std::env::current_exe()?.with_file_name("lomc.exe");
-    ensure!(
-        installer.is_file(),
-        "缺少 lomc.exe 安装助手，请使用完整的 Windows 编辑器目录"
-    );
+    let installer = crate::components::cli()?;
     for name in game_tools::HOST_FILES {
         ensure!(
             runtime.join(name).is_file(),

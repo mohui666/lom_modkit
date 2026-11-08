@@ -35,7 +35,7 @@ class AudioPreviewTests(unittest.TestCase):
                 extract_media(bank, 99, output)
             self.assertFalse(output.exists())
 
-    def test_dynamic_event_does_not_silently_choose_one_source(self):
+    def test_missing_playback_graph_does_not_silently_choose_one_source(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             game = root / "game"
@@ -43,11 +43,13 @@ class AudioPreviewTests(unittest.TestCase):
             banks.mkdir(parents=True)
             (banks / "SoundbanksInfo.xml").write_text(
                 '<SoundBanksInfo><SoundBanks><SoundBank><ShortName>SFX</ShortName>'
-                '<IncludedEvents><Event Name="Sound_Test"><IncludedMemoryFiles>'
+                '<IncludedEvents><Event Id="12" Name="Sound_Test"><IncludedMemoryFiles>'
                 '<File Id="1"/><File Id="2"/></IncludedMemoryFiles></Event></IncludedEvents>'
                 '</SoundBank></SoundBanks></SoundBanksInfo>', encoding="utf-8")
+            (banks / "SFX.bnk").write_bytes(b"BKHD" + struct.pack("<II", 4, 140)
+                                             + b"HIRC" + struct.pack("<II", 4, 0))
             with patch("audio_preview_reader.audio_key", return_value="Test"):
-                with self.assertRaisesRegex(ValueError, "动态混音"):
+                with self.assertRaisesRegex(ValueError, "播放对象不存在"):
                     extract(game, "sound", "test", root / "selected.wem")
             self.assertFalse((root / "selected.wem").exists())
 

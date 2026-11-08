@@ -1,6 +1,6 @@
 # 测试入口与验证边界
 
-当前验证结果见 [当前能力](current_capabilities.md#1418-验证范围)，功能见 [本版说明](../../RELEASE_NOTES_v1.4.18.md)。
+当前验证结果见 [当前能力](current_capabilities.md#1419-验证范围)，功能见 [本版说明](../../RELEASE_NOTES_v1.4.19.md)。
 
 ## 验证层次
 
@@ -13,6 +13,8 @@
 | Mac 应用构建 | `sh scripts/build-macos.sh` | 原生程序、应用资源、签名检查与内置预览烟测；GUI 仍需另外打开检查 |
 | C# 离线回归 | `dotnet run --project runtime/MortalModHost/test/SmokeTest/SmokeTest.csproj --configuration Release` | 使用离线测试工程；不启动 Unity，也不验证真实游戏生命周期 |
 | Windows 原生工具 | `scripts/build-windows.ps1 -NoArchive` | 使用正式 Host DLL 构建；构建、自动化与实际 UI 结果分开记录 |
+| Windows 单 exe | 发布版 `lom-editor.exe --standalone-smoke <项目> <游戏目录> <空输出目录>` | 使用内嵌组件完成项目导出重开、完整游玩包导出及 13 项音频播放／停止／取消；组件缓存必须与旧安装隔离 |
+| Rust 资源读取 | `lom-assets` 与 `vanilla_routes` 定向测试；本机游戏对照另行显式执行 | 合成音频包与路线 fixture 不含官方素材；全量游戏图片、动画、剧情及 45 分支对照不进入仓库，不等于游戏运行验收 |
 | 游戏实机 | [Showcase 手动流程](../../samples/showcase3/README.md#手动测试顺序) | 按具体场景记录结果，本版范围见当前能力 |
 
 受控 API 对照测试内部的旧版案例不能再加到 Rust 测试总数上重复计数；不同阶段重跑、预览状态、C# 冒烟、构建与 UI 操作也分别记录。旧 JSON／Lua fixture 是历史对照数据，当前测试不启动已退役的 Python 编辑器或编译器。

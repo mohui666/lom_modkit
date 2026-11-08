@@ -1,5 +1,19 @@
 # Gameplay API 实证矩阵
 
+## 2026-11-08 书页事件图淡入
+
+重新读取当前安装游戏的 `Mortal.Story.StoryPicture.Show(string)`：原版通过 `_canvasGroup.DOFade` 与图像淡入展示书页。Host 仍只克隆 `StoryMainUI._picture` 的实例，新增淡入操作只改变克隆根节点的 `CanvasGroup.alpha`，不修改官方实例、预制体或序列化时长。正数 `cg.fade_in` 调用独立的 `mod_event_picture_show_fade` 能力入口并等待完成，再显示可选旁白；省略或 0 保留旧的两参数显示调用。清理或替换书页时停止旧协程。旧 Host 在缺少新入口时得到明确的更新提示。
+
+隔离配置与测试存档中的本次游戏实测覆盖原版图、自定义图的 1.2 秒淡入，逐帧观察到书页实例透明度单调上升到 1；省略与 0 的旧调用保持透明度 1，隐藏后实例与协程均清除。另用实际发布的 1.4.14 编译器制作无淡入字段的书页包，验证打开后添加淡入、编辑、保存／导出、重开和原包不变；任意替换脚本或用旧立即显示脚本替换新淡入脚本后重算完整性记录仍被拒绝。
+
+## 2026-11-08 并行动作气泡与随机音效试听
+
+本次重新读取当前游戏 `StoryStageController.Show/Hide/SetDimmed`、`CharacterMoodPanel.Show/Hide`、`Fungus.PortraitController.CleanPortraitOptions/Show`。后者在未提供 portrait 时沿用 `character.State.portrait`；位移并不要求重新指定表情。编辑器「人物立绘」页现从当前章节路线读取这个人物的已选表情，而不是对没有 portrait 字段的移动／位移步骤显示 normal。
+
+同时执行组允许已登场人物的独立气泡设置与动画组合；登场、退场仍与气泡互斥，两项人物动画仍保留原冲突检查。当前 `release_1.0.6001.0` 的隔离试玩分别运行 player 与自定义人物的震动、移动、位移＋shock 气泡，共六组：每组在运动期间记录到可见气泡和非零位移，表情分别保持 angry1 / happy。仅在独立 BepInEx 目录和测试存档中运行，没有替换安装目录的 Host 或玩家存档。
+
+原版普通音效此前拒绝的 10 项多源事件，当前银行实际使用单次触发的随机容器，并非同时播放全部媒体。试听读取 Wwise v140 的 Event → Play Action → Random Container → Sound 及父混音器配置，按实际分支权重选择并保留音量、音高；不把 XML 媒体清单当播放列表。与独立银行解析结果逐分支核对并解码通过 45 个分支；完整 Windows 包的提取、解码、播放器退出及临时缓存清理回归亦通过。单次试听不复刻游戏全局的随机历史、实时状态、总线效果或混音；不支持的配置明确提示游戏内确认。布局参考 [wwiser parser](https://github.com/bnnm/wwiser/blob/master/wwiser/parser/wparser.py)，生产包只增加本项目的窄解析器，不附带 wwiser 或官方银行、媒体。
+
 ## 2026-11-08 人物震动等待与调试器
 
 只读复核当前安装的 `Fungus.ShakePosition.DoTween`、`Fungus.iTweenCommand.OnEnter`、`Fungus.Block.Execute`，并读取 Story 场景 common 流图的 `shock` 块配置：ShakePosition 的 `waitUntilFinished=false`，因此 `runblock` 返回不代表震动结束。原版脚本同样以 `ShockPosition` 指向人物 holder、以 `ShockDuration` 设置时长。生成器保留这些入口，随后显式等待所填时长，避免后续人物登场／换立绘覆盖震动。

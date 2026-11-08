@@ -2,13 +2,21 @@
 
 当前工具端由 Rust 编译器、核心库与 egui 编辑器组成；C# `MortalModHost` 保留游戏接入。日常编辑见 [软件使用](software_usage.md)，构建和 CLI 见 [Rust 工具端](rust.md)，验证层次见 [测试矩阵](test_matrix.md)。旧 Python／Qt／PyInstaller 入口已经退役，不作为本手册操作入口。
 
-当前版本为 1.4.18，功能见 [本版说明](../../RELEASE_NOTES_v1.4.18.md)，验证范围见 [当前能力](current_capabilities.md)。
+当前版本为 1.4.19，功能见 [本版说明](../../RELEASE_NOTES_v1.4.19.md)，验证范围见 [当前能力](current_capabilities.md)。
 
 ## 编辑器入口与设置
 
 在仓库根目录执行 `sh scripts/build-macos.sh`，产物为 `out/LoM Modkit Rust.app`；也可用 `cargo run --locked -p lom-editor -- <项目目录>` 启动源码版。应用内含原生 `lom-editor` 与 `lomc`，无需 Python 或 Qt。
 
 当前为浅色 Rust 通用外壳和三栏布局。Mac 界面语言在屏幕顶部系统应用菜单的“设置…”中选择，快捷键 `⌘,`；非 Mac 使用窗口内“设置…”或 `Ctrl+,`。四种语言按各自原文显示，选择即时生效，不把项目标为未保存。Swift／Liquid Glass 外壳尚未完成。
+
+## 错误组件
+
+编辑器统一使用 `rust/lom-editor/src/error_ui.rs`：业务入口用 `error_ui::capture(error)` 保留完整错误链；界面用 `error_ui::show(ui, message)` 显示用户能执行的处理办法，或用 `show_with_actions` 同时提供定位与复制。窗口标题用 `error_ui::title(message)`。内部文件名、调用与退出码保留在复制诊断中，正文不重复堆叠原始错误。不要在业务入口用 `error.to_string()` 截断底层原因；`error_location.rs` 负责解析修改位置和定位字段。
+
+成功状态与错误状态分别处理，不能根据“是否有未保存修改”决定是否展示错误。已知校验样例应得到对应处理办法，不能仅以隐藏技术词或落入通用反馈提示算通过；无法识别的错误仍保留通用反馈与完整诊断。复制、导出脚本须以实际编译结果决定是否允许输出，不依赖提示文字前缀。
+
+文件、下载、组件安装及后台任务的提示集中在 `error_operations.rs`，仍由统一组件调用。此类错误不应因诊断里出现章节文件名而跳到剧情设置；只有能处理该问题的位置才展示定位入口。报告中的失败状态和空错误字段应分别统计，不能把离线断言失败计作完成，也不能把空错误字段计作失败。
 
 ## 保存、撤销与恢复
 
@@ -96,14 +104,14 @@ dotnet run --project runtime/MortalModHost/test/SmokeTest/SmokeTest.csproj --con
 
 更新工作区版本、游戏接入组件版本、本版更新说明和当前使用文档后，通过项目既有的合并检查发布。
 
-Windows 发布入口为 `scripts/build-windows.ps1`。准备同版本的 `MortalModHost.dll` 与 `NVorbis.dll`，用 `-RuntimeDirectory` 指向包含两者的目录，`-ExtractorPython` 使用已有素材提取环境。默认构建完整压缩包，`-NoArchive` 仅生成程序目录。
+Windows 发布入口为 `scripts/build-windows.ps1`。准备同版本的 `MortalModHost.dll` 与 `NVorbis.dll`，用 `-RuntimeDirectory` 指向包含两者的目录，原生提取器由 `lom-assets` 构建，不再需要 UnityPy 或 PyInstaller。构建脚本先准备 CLI、提取器、解码器、同版 Host 和固定加载器，再把压缩组件嵌入 editor；`-NoArchive` 仅生成单 exe 及说明，发布时才构建压缩包。
 
 脚本从仓库根目录的 `RELEASE_NOTES_v<版本号>.md` 读取本版说明，并生成以下发布附件。
 
 - Windows x64 完整压缩包和对应校验文件。
 - 固定名称的 `lom-editor.exe`、`lomc.exe`、`MortalModHost.dll`、`NVorbis.dll`。
-- `update.json`，记录版本、说明和四个独立文件的大小与摘要。
+- `update.json`，记录版本、说明、`embedded_components: true` 和四个独立文件的大小与摘要。兼容旧更新器，保留 CLI 和两个 Host 附件；新版只替换 exe，下载的 CLI 仍用作安全退出后的安装助手。
 
-先上传到发布草稿，确认附件齐全后公开正式版本。内置更新读取清单和四个独立附件，完整压缩包同时提供素材提取组件。涉及提取组件更新时，在升级说明中明确要求使用完整包。
+先上传到发布草稿，确认附件齐全后公开正式版本。内置更新读取清单及独立附件；Windows 配套组件始终随 exe 内置和更新。原版资源只从用户自己的游戏安装读取，不随 exe 分发。
 
 仓库保留本版说明，旧版说明从对应的历史发布页查阅。清理旧说明时同步修改文档链接。

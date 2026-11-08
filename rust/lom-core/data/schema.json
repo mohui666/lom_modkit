@@ -271,7 +271,8 @@
         "color": "num",
         "wait_after": "num",
         "event_title": "str",
-        "event_text": "str"
+        "event_text": "str",
+        "fade_in": "num"
       }
     },
     "dim": {

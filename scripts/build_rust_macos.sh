@@ -4,14 +4,12 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$ROOT"
 CARGO_BIN=${CARGO_BIN:-"$HOME/.cargo/bin/cargo"}
-"$CARGO_BIN" build --locked --release -p lomc -p lom-editor
+"$CARGO_BIN" build --locked --release -p lomc -p lom-editor -p lom-assets
 APP_VERSION=$("$ROOT/target/release/lomc" --version | awk '{print $2}')
 APP="$ROOT/out/LoM Modkit Rust.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-EXTRACTOR_PYTHON=${EXTRACTOR_PYTHON:-"$ROOT/editor/.venv/bin/python"}
-"$EXTRACTOR_PYTHON" "$ROOT/scripts/build_asset_extractor.py" --output-dir "$ROOT/out/asset-extractor-dist"
 mkdir -p "$APP/Contents/Resources/asset-extractor"
-cp -R "$ROOT/out/asset-extractor-dist/lom-asset-extractor/." "$APP/Contents/Resources/asset-extractor/"
+cp "$ROOT/target/release/lom-asset-extractor" "$APP/Contents/Resources/asset-extractor/"
 cp "$ROOT/target/release/lom-editor" "$APP/Contents/MacOS/lom-editor"
 cp "$ROOT/target/release/lomc" "$APP/Contents/MacOS/lomc"
 # Bundle an already built managed Host; this does not install or launch the game.

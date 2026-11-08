@@ -15,6 +15,7 @@ pub const ACTION_TYPES: &[&str] = &[
     "rotate",
     "dim",
     "shock",
+    "mood",
     "scene",
     "background",
     "custom_cg",
@@ -52,7 +53,14 @@ fn channels(node: &Value) -> Vec<String> {
     let character = node["character"].as_str().unwrap_or("");
     let mut result = Vec::new();
     if !character.is_empty() {
-        result.push(format!("人物 {character}"));
+        // Bubble state is independent of an already-visible actor's animation.
+        // Entry/exit still owns both: a bubble must not race actor creation/removal.
+        if kind != "mood" {
+            result.push(format!("人物 {character}"));
+        }
+        if matches!(kind, "mood" | "show" | "hide") {
+            result.push(format!("人物 {character} 的气泡"));
+        }
     }
     match kind {
         "scene" => result.extend(["背景".into(), "剧情界面".into()]),
@@ -71,6 +79,7 @@ fn channels(node: &Value) -> Vec<String> {
             result.push(format!("特效实例 {effective_tag}"));
         }
         "dayenv" => result.push("日夜环境".into()),
+        "mood" if character.is_empty() => result.push("全场气泡".into()),
         // Native music changes can also stop the environment-sound channel.
         "music" => result.extend(["背景音乐".into(), "环境音".into()]),
         "sound" if node["kind"] == "env" || node["op"] == "fadeout" => result.push("环境音".into()),
@@ -90,6 +99,18 @@ pub fn validate_group(node: &Value) -> Result<()> {
         "同时执行组需要 2~{MAX_ACTIONS} 个动作"
     );
     let mut owners = BTreeMap::new();
+    if actions.iter().any(|action| {
+        action["type"] == "mood" && action["character"].as_str().unwrap_or("").is_empty()
+    }) {
+        ensure!(
+            actions
+                .iter()
+                .filter(|action| action["type"] == "mood")
+                .count()
+                == 1,
+            "全场气泡开关和单个人物气泡请拆成先后步骤，避免同时清除或覆盖设置"
+        );
+    }
     // A stop without a tag addresses every tracked instance of that name,
     // including tagged instances. Distinct tagged plays remain independent.
     for (index, action) in actions.iter().enumerate() {

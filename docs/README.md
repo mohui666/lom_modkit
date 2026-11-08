@@ -1,6 +1,6 @@
 # lom_modkit 文档
 
-当前版本为 **1.4.18**，编辑器和编译器使用 Rust，C# Host 提供游戏接入。更新内容见 [本版说明](../RELEASE_NOTES_v1.4.18.md)，下载见 [发布页](https://github.com/mohui666/lom_modkit/releases/latest)。
+当前版本为 **1.4.19**，编辑器和编译器使用 Rust，C# Host 提供游戏接入。更新内容见 [本版说明](../RELEASE_NOTES_v1.4.19.md)，下载见 [发布页](https://github.com/mohui666/lom_modkit/releases/latest)。
 
 ## 开始使用
 
@@ -18,6 +18,7 @@
 | 文档 | 内容 |
 | --- | --- |
 | [用户内容](chs/user_content.md) | 导入音频、人物、图片和原版人物补绘 |
+| [原版特效与音效常用组合](chs/effect_sound_combinations.md) | 按打击、格挡、暗器、内力和环境选择现成搭配 |
 | [事件与任务](chs/events_and_tasks.md) | 触发条件、重复事件、任务状态和结果动作 |
 | [自定义玩法与存档](chs/custom_gameplay.md) | 物品、消耗品、招式、三种玩法与独立存档 |
 | [多语言](chs/i18n.md) | 界面、资源名称与作品翻译 |

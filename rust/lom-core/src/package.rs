@@ -1150,13 +1150,26 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
                         .is_some_and(|v| !v.is_empty())
             })
     });
+    let event_fade = stories.values().any(|story| {
+        crate::parallel::story_actions(story).any(|(_, node)| {
+            node["type"] == "cg"
+                && node["kind"] == "event"
+                && node["action"] == "show"
+                && node["fade_in"]
+                    .as_f64()
+                    .is_some_and(|seconds| seconds > 0.0)
+        })
+    });
     if new_portrait_layout
         || free_image_scale
         || stage_layout
         || effect_controls
         || portrait_calibration
+        || event_fade
     {
-        let (minimum, required) = if portrait_calibration {
+        let (minimum, required) = if event_fade {
+            ([1, 4, 19], "1.4.19")
+        } else if portrait_calibration {
             ([1, 4, 6], "1.4.6")
         } else if effect_controls {
             ([1, 4, 5], "1.4.5")

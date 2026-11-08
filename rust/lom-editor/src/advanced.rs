@@ -127,7 +127,7 @@ impl Advanced {
             if let Err(error) = self.apply_pending(project) {
                 self.error = crate::i18n::message(
                     "common.advanced.unfinished_test",
-                    &[("error", error.to_string())],
+                    &[("error", crate::error_ui::capture(error))],
                 );
                 return false;
             }
@@ -428,7 +428,7 @@ impl Advanced {
                             self.proposal = Some((selection, project.stories.clone(), t));
                             self.error.clear();
                         }
-                        Err(e) => self.error = e.to_string(),
+                        Err(e) => self.error = crate::error_ui::capture(e),
                     }
                 }
                 if let Some((_, before, plan)) = &self.proposal {
@@ -497,7 +497,7 @@ impl Advanced {
                     if let Err(error) = self.apply_pending(project) {
                         self.error = crate::i18n::message(
                             "common.advanced.unfinished_test",
-                            &[("error", error.to_string())],
+                            &[("error", crate::error_ui::capture(error))],
                         );
                     }
                 }
@@ -525,7 +525,7 @@ impl Advanced {
                             self.error.clear();
                             self.results = result;
                         }
-                        Err(e) => self.error = e.to_string(),
+                        Err(e) => self.error = crate::error_ui::capture(e),
                     }
                 }
                 for result in self.results.as_array().into_iter().flatten() {
@@ -534,9 +534,12 @@ impl Advanced {
                         result["name"].as_str().unwrap_or(""),
                         display_label(result["status"].as_str().unwrap_or(""))
                     ));
-                    ui.label(crate::error_location::explanation(
-                        result["message"].as_str().unwrap_or(""),
-                    ));
+                    let message = result["message"].as_str().unwrap_or("");
+                    if matches!(result["status"].as_str(), Some("fail" | "failed" | "error")) {
+                        crate::error_ui::show(ui, message);
+                    } else {
+                        ui.label(message);
+                    }
                     ui.collapsing(tr("访问路径与最终状态"), |ui| {
                         for v in result["visited"].as_array().into_iter().flatten() {
                             if ui
@@ -577,7 +580,7 @@ impl Advanced {
             }
         }
         if !self.error.is_empty() {
-            crate::error_location::show(ui, &self.error);
+            crate::error_ui::show_with_actions(ui, &self.error);
         }
         nav
     }

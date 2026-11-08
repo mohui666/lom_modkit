@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Globalization;
 using System.Text;
 using HarmonyLib;
@@ -17,9 +18,15 @@ namespace MortalModHost
         private static Texture2D _texture;
         private static Sprite _sprite;
         private static AsyncOperationHandle<Sprite> _handle;
+        private static MonoBehaviour _host;
+        private static Coroutine _fade;
 
-        internal static void Show(string key, string title)
+        internal static void Init(MonoBehaviour host) { _host = host; }
+
+        internal static void Show(string key, string title, float fadeIn = 0f)
         {
+            if (float.IsNaN(fadeIn) || float.IsInfinity(fadeIn) || fadeIn < 0f)
+                throw new ArgumentOutOfRangeException("fadeIn", "事件图淡入时间必须为非负有限数值");
             Clear();
             try
             {
@@ -90,10 +97,15 @@ namespace MortalModHost
                 caption.resizeTextMinSize = 12;
                 caption.resizeTextMaxSize = caption.fontSize;
                 CanvasGroup group = _root.GetComponent<CanvasGroup>();
-                group.alpha = 1f;
+                group.alpha = fadeIn > 0f ? 0f : 1f;
                 group.blocksRaycasts = false;
                 group.interactable = false;
                 _root.SetActive(true);
+                if (fadeIn > 0f)
+                {
+                    if (_host == null) throw new InvalidOperationException("事件图淡入尚未准备，请更新游戏接入组件后重新试玩");
+                    _fade = _host.StartCoroutine(FadeIn(group, fadeIn));
+                }
             }
             catch
             {
@@ -102,8 +114,23 @@ namespace MortalModHost
             }
         }
 
+        private static IEnumerator FadeIn(CanvasGroup group, float seconds)
+        {
+            float elapsed = 0f;
+            while (group != null && elapsed < seconds)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                group.alpha = Mathf.Clamp01(elapsed / seconds);
+                yield return null;
+            }
+            if (group != null) group.alpha = 1f;
+            _fade = null;
+        }
+
         internal static void Clear()
         {
+            if (_fade != null && _host != null) _host.StopCoroutine(_fade);
+            _fade = null;
             if (_root != null)
             {
                 _root.SetActive(false);

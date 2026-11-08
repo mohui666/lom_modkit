@@ -591,6 +591,8 @@ assets/user/image/mohui.moon_bg/moon.jpg
 
 `cg` 支持 `kind="event"`。显示时 `key` 可为原版事件插图键或 `user:image` 引用，图片保持比例适配左侧图框。`event_title` 修改右侧题字，省略或留空使用“事件”。`event_text` 可选，使用底部旁白文本框，等待点击继续。`action="hide"` 关闭书页。这两个文字字段参与章节本地化，导出自动要求 Host 1.4.2。
 
+显示书页时可填 `fade_in`（非负秒数），整张书页、图像和题字一起淡入，完成后才显示 `event_text` 或继续流程。省略或 0 保留旧版立即显示的调用；正值自动要求 Host 1.4.19，使用独立能力入口 `mod_event_picture_show_fade`，旧 Host 明确提示同步组件。旧包不增加默认淡入，也不放宽源码／脚本一致性检查。
+
 ### 系统提示开关（1.4.9）
 
 `stat`、`stat_set`、`affinity`、`item`、`talent`、`reward`、`result_screen`、`activity`、`enemy`、`use_item` 可填可选布尔字段 `show_message`。关闭后照常变更，跳过自动提示和该步骤的提示等待；手动 `wait_after`、对白及作者填写的结算／活动文字保留。物品开启提示时按实际数量变化显示原版获得／失去消息，官方和用户物品均支持。新物品回调及静默回调要求 Host 1.4.9，打包自动提高最低版本。

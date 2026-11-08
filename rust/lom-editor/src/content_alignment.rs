@@ -65,9 +65,9 @@ impl ContentPanel {
             {
                 let images = files();
                 self.draft["portrait_reference"] = json!(reference);
-                self.message = alignment::auto_align(&mut self.draft, &images)
-                    .map(|_| crate::i18n::key("common.alignment.auto_done"))
-                    .unwrap_or_else(|e| e.to_string());
+                let result = alignment::auto_align(&mut self.draft, &images)
+                    .map(|_| crate::i18n::key("common.alignment.auto_done"));
+                self.set_message(result);
             }
             let mut transform = alignment::layout(&self.draft, &portrait);
             let mut changed = false;
@@ -128,7 +128,10 @@ impl ContentPanel {
                             transform[1] += bounds[3] - 1080.0;
                             changed = true;
                         }
-                        Err(error) => self.message = error.to_string(),
+                        Err(error) => {
+                            self.message_is_error = true;
+                            self.message = crate::error_ui::capture(error);
+                        }
                     }
                 }
                 if ui
@@ -165,9 +168,13 @@ impl ContentPanel {
                                     .clamp(0.0, 100.0)
                                     as i64);
                             self.draft["portrait_reference"] = json!(reference);
+                            self.message_is_error = false;
                             self.message = crate::i18n::key("common.alignment.bubble_done");
                         }
-                        Err(error) => self.message = error.to_string(),
+                        Err(error) => {
+                            self.message_is_error = true;
+                            self.message = crate::error_ui::capture(error);
+                        }
                     }
                 }
                 ui.add_enabled(

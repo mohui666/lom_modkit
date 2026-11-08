@@ -538,7 +538,7 @@ mod tests {
             let elapsed = started.elapsed().as_secs_f64();
             let report = match &result {
                 Ok(report) => report.clone(),
-                Err(error) => json!({"ok":false,"error":format!("{error:#}")}),
+                Err(error) => json!({"ok":false,"error":crate::error_ui::capture(error)}),
             };
             let directory = report["effect_library"].as_str().map(PathBuf::from);
             eprintln!(

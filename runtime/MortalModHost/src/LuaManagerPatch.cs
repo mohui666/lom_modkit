@@ -788,6 +788,11 @@ namespace MortalModHost
                     EventPictureRuntime.Show(ArgString(args, 0), ArgString(args, 1, "事件"));
                     return DynValue.Nil;
                 }, "mod_event_picture_show");
+                script.Globals["mod_event_picture_show_fade"] = new CallbackFunction((ctx, args) =>
+                {
+                    EventPictureRuntime.Show(ArgString(args, 0), ArgString(args, 1, "事件"), ArgFloat(args, 2, 0f));
+                    return DynValue.Nil;
+                }, "mod_event_picture_show_fade");
                 script.Globals["mod_event_picture_hide"] = new CallbackFunction((ctx, args) =>
                 {
                     EventPictureRuntime.Clear();

@@ -1,6 +1,13 @@
 use lom_core::project::Project;
 use serde_json::Value;
 
+pub(crate) fn authoring_schema() -> &'static Value {
+    static SCHEMA: std::sync::OnceLock<Value> = std::sync::OnceLock::new();
+    SCHEMA.get_or_init(|| {
+        serde_json::from_str(include_str!("../data/authoring.json")).expect("authoring schema")
+    })
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Destination {
     Story(String, Option<String>),
@@ -63,13 +70,7 @@ pub fn issue_label(issue: &lom_core::release::PreflightIssue, project: &Project)
 pub fn issue_report(issues: &[lom_core::release::PreflightIssue], project: &Project) -> String {
     issues
         .iter()
-        .map(|issue| {
-            format!(
-                "{}\n{}",
-                issue_label(issue, project),
-                explanation(&issue.message)
-            )
-        })
+        .map(|issue| format!("{}\n{}", issue_label(issue, project), issue.message))
         .collect::<Vec<_>>()
         .join("\n\n")
 }
@@ -90,263 +91,6 @@ impl Destination {
             Self::Current => crate::i18n::key("common.error.current"),
         }
     }
-}
-
-fn authoring_schema() -> &'static Value {
-    static SCHEMA: std::sync::OnceLock<Value> = std::sync::OnceLock::new();
-    SCHEMA.get_or_init(|| {
-        serde_json::from_str(include_str!("../data/authoring.json")).expect("authoring schema")
-    })
-}
-
-fn field_label(message: &str, field: &str) -> String {
-    let kind = message
-        .split_once("\"(")
-        .and_then(|(_, tail)| tail.split_once("):"))
-        .map(|(kind, _)| kind);
-    let label = kind
-        .and_then(|kind| authoring_schema()["NODE_SCHEMAS"][kind]["fields"].as_array())
-        .and_then(|fields| fields.iter().find(|entry| entry[0] == field))
-        .and_then(|entry| entry[1].as_str());
-    let label = label
-        .unwrap_or(match field {
-            "id" => "作品编号",
-            "campaign_id" => "存档身份",
-            "name" => "名称",
-            "version" => "版本",
-            "author" => "作者",
-            "description" => "简介",
-            "entry" => "入口章节",
-            "min_host_version" => "最低游戏接入组件版本",
-            "tested_host_version" => "已测试的游戏接入组件版本",
-            "game_version" => "游戏版本",
-            "tested_game_version" => "已测试的游戏版本",
-            "character" => "人物",
-            "image" => "图片",
-            "portrait" => "表情",
-            "text" => "文字",
-            "goto" => "后续步骤",
-            "duration" => "持续时间",
-            "position" => "站位",
-            "key" => "所选内容",
-            _ => "此项设置",
-        })
-        .replace(" ID", "编号")
-        .replace("ID", "编号")
-        .replace("Host", "游戏接入组件")
-        .replace("CG", "插图");
-    crate::i18n::tr(&label)
-}
-
-pub fn explanation(message: &str) -> String {
-    if let Some((_, detail)) = message.split_once("包内 ") {
-        if let Some((lua, detail)) = detail.split_once(" 不是由对应 ") {
-            if let Some((story, _)) = detail.split_once(" 编译生成") {
-                if lua.starts_with("lua/")
-                    && lua.ends_with(".lua")
-                    && story.starts_with("story/")
-                    && story.ends_with(".json")
-                {
-                    return crate::i18n::message(
-                        "editor.error.story_lua_mismatch",
-                        &[("story", story.into()), ("lua", lua.into())],
-                    );
-                }
-            }
-        }
-    }
-    if (message.starts_with("无法打开") || message.starts_with("打开失败"))
-        && message.contains("scenario.json")
-    {
-        return crate::i18n::key("common.error.no_scenario");
-    }
-    let lower = message.to_lowercase();
-    for (patterns, text) in [
-        (
-            &["os error 5", "permission denied", "拒绝访问"][..],
-            "无法访问文件。请选择有读写权限的位置后重试。",
-        ),
-        (
-            &[
-                "os error 32",
-                "另一个程序正在使用",
-                "being used by another process",
-            ][..],
-            "文件正在被其他程序使用。关闭占用它的程序后重试。",
-        ),
-        (
-            &["os error 112", "no space left", "磁盘空间不足"][..],
-            "磁盘空间不足。请更换保存位置或清理空间后重试。",
-        ),
-        (
-            &["timed out", "timeout", "超时"][..],
-            "连接超时。请检查网络连接后重试。",
-        ),
-        (
-            &["error sending request", "connection refused", "dns error"][..],
-            "无法连接下载服务。请检查网络连接后重试。",
-        ),
-    ] {
-        if patterns.iter().any(|pattern| lower.contains(pattern)) {
-            return crate::i18n::tr(text);
-        }
-    }
-    if (message.contains("asset-extractor") || message.contains("素材提取组件"))
-        && ["缺少", "缺失", "不存在", "找不到"]
-            .iter()
-            .any(|word| message.contains(word))
-    {
-        return crate::i18n::key("common.error.extractor_missing");
-    }
-    if message.contains("campaign_id") || message.contains("存档身份") {
-        if message.contains("缺少必填") || message.contains("未填写") {
-            return crate::i18n::key("common.error.identity_missing");
-        }
-        if message.contains("格式不合法") || message.contains("只能使用") {
-            return crate::i18n::key("common.error.identity_format");
-        }
-    }
-    let field = field(message);
-    let label = field.as_deref().map(|field| field_label(message, field));
-    if message.contains("缺少必填字段") {
-        return crate::i18n::message(
-            "common.error.fill_field",
-            &[(
-                "field",
-                label
-                    .clone()
-                    .unwrap_or_else(|| crate::i18n::tr("当前必填项")),
-            )],
-        );
-    }
-    if message.contains("SemVer") {
-        return crate::i18n::message(
-            "common.error.version_format",
-            &[(
-                "field",
-                label.clone().unwrap_or_else(|| crate::i18n::tr("版本号")),
-            )],
-        );
-    }
-    if message.contains("package_format")
-        || message.contains("content_schema")
-        || message.contains("story_schema")
-    {
-        return crate::i18n::key("common.error.package_format");
-    }
-    if message.contains("JSON")
-        || lower.contains("expected value")
-        || lower.contains("expected ident")
-        || lower.contains("invalid type:")
-    {
-        return crate::i18n::key("common.error.unreadable");
-    }
-    let mut text = message.trim_start_matches("导出失败\n").to_owned();
-    if let Some((_, rest)) = text.split_once("节点 \"") {
-        if let Some((_, detail)) = rest.split_once("): ") {
-            text = detail.to_owned();
-        }
-    }
-    for prefix in [
-        "manifest.json: ",
-        "story.json: ",
-        "content.json：",
-        "content.json: ",
-    ] {
-        text = text.trim_start_matches(prefix).to_owned();
-    }
-    if let (Some(field), Some(label)) = (&field, &label) {
-        if text.starts_with(field) {
-            text = text.replacen(field, label, 1);
-        }
-        text = text
-            .replace(&format!("字段 \"{field}\""), label)
-            .replace("（非空字符串）", "");
-    }
-    // Replace only diagnostic vocabulary. User-authored file names and identifiers
-    // remain available in copied diagnostics, rather than leaking into prose.
-    for (raw, readable) in [
-        ("非空字符串", "已填写的文字"),
-        ("字符串", "文字"),
-        ("布尔值", "开关值"),
-        ("JSON 对象", "设置内容"),
-        ("数组", "列表"),
-        ("null", "空值"),
-        ("Host", "游戏接入组件"),
-        ("MOD", "作品包"),
-        ("Mod", "作品包"),
-        ("Lua", "脚本"),
-        ("PNG/JPEG", "图片"),
-        ("PNG", "图片"),
-        ("JPEG", "图片"),
-        ("ZIP", "压缩包"),
-        ("true", "开启"),
-        ("false", "关闭"),
-        ("NaN", "无效数值"),
-        ("Infinity", "无限大"),
-    ] {
-        text = text.replace(raw, readable);
-    }
-    if !text.chars().any(|c| c.is_ascii_alphabetic()) && !text.contains('{') && !text.contains('}')
-    {
-        return crate::i18n::tr(&text);
-    }
-    if (message.contains("goto") || message.contains("跳转")) && message.contains("不存在") {
-        return crate::i18n::key("common.error.missing_next");
-    }
-    if message.contains("start") && message.contains("不存在") {
-        return crate::i18n::key("common.error.missing_start");
-    }
-    if message.contains("没有表情") {
-        return crate::i18n::key("common.error.unregistered_portrait");
-    }
-    if message.contains("portrait") && (message.contains("不存在") || message.contains("不在"))
-    {
-        return crate::i18n::key("common.error.invalid_portrait");
-    }
-    if message.contains("user:") && message.contains("引用") {
-        return crate::i18n::key("common.error.invalid_reference");
-    }
-    if let Some(label) = label {
-        if message.contains("整数") {
-            return crate::i18n::message("common.error.integer_field", &[("field", label)]);
-        }
-        if message.contains("数字") || message.contains("数值") {
-            return crate::i18n::message("common.error.number_field", &[("field", label)]);
-        }
-        return crate::i18n::message("common.error.invalid_field", &[("field", label)]);
-    }
-    if message.contains("不存在") || message.contains("找不到") || lower.contains("not found")
-    {
-        return crate::i18n::key("common.error.not_found");
-    }
-    if message.contains("图片") || message.contains("素材") || message.contains("content") {
-        return crate::i18n::key("common.error.invalid_asset");
-    }
-    crate::i18n::key("common.error.generic")
-}
-
-pub fn show(ui: &mut eframe::egui::Ui, message: &str) {
-    ui.colored_label(
-        eframe::egui::Color32::from_rgb(179, 55, 49),
-        explanation(message),
-    );
-    ui.horizontal(|ui| {
-        if ui
-            .small_button(crate::i18n::key("common.error.locate"))
-            .clicked()
-        {
-            ui.ctx().data_mut(|data| {
-                data.insert_temp(
-                    eframe::egui::Id::new("locate-error-message"),
-                    message.to_owned(),
-                )
-            });
-        }
-        if ui.small_button(crate::i18n::tr("复制诊断信息")).clicked() {
-            ui.ctx().copy_text(message.to_owned());
-        }
-    });
 }
 
 pub fn field(message: &str) -> Option<String> {
@@ -403,8 +147,17 @@ pub fn action_label(message: &str, destination: &Destination) -> String {
 }
 
 pub fn resolve(message: &str, project: &Project) -> Destination {
+    // Installing missing preview binaries cannot be fixed by editing a story
+    // or choosing a preview library. Keep the install instruction, without a
+    // misleading navigation button.
+    if message.contains("原版音频试听组件缺失") {
+        return Destination::Current;
+    }
     if message.starts_with("无法打开") || message.starts_with("打开失败") {
         return Destination::Open;
+    }
+    if let Some(destination) = operation_destination(message) {
+        return destination;
     }
     // Only recognized validator prefixes identify nodes. A destination mentioned
     // inside an error must never be mistaken for the node that needs fixing.
@@ -501,14 +254,26 @@ pub fn resolve(message: &str, project: &Project) -> Destination {
     Destination::Current
 }
 
+pub fn operation_destination(message: &str) -> Option<Destination> {
+    crate::error_ui::operation_key(message).map(|key| match key {
+        "editor.error.ops_game_directory"
+        | "editor.error.ops_game_components"
+        | "editor.error.ops_game_busy"
+        | "editor.error.ops_game_platform"
+        | "editor.error.ops_game_launch" => Destination::Game,
+        _ => Destination::Current,
+    })
+}
+
 pub fn collect(value: &Value, project: &Project, out: &mut Vec<(Destination, String)>) {
     if let Some(object) = value.as_object() {
-        let message = object
-            .get("message")
-            .or_else(|| object.get("text"))
-            .or_else(|| object.get("error"))
-            .and_then(Value::as_str)
+        let message = ["message", "text", "error", "validation_error"]
+            .iter()
+            .find_map(|key| object.get(*key).and_then(Value::as_str))
             .unwrap_or("");
+        let has_error = ["error", "validation_error"]
+            .iter()
+            .any(|key| object.get(*key).is_some_and(|value| !value.is_null()));
         let source = object
             .get("story_id")
             .or_else(|| object.get("story"))
@@ -530,11 +295,13 @@ pub fn collect(value: &Value, project: &Project, out: &mut Vec<(Destination, Str
                 .then(|| Destination::Story(story_id.into(), node.map(str::to_owned)))
             })
         } else if source.is_some()
-            || object.contains_key("error")
+            || has_error
             || object
                 .get("severity")
                 .is_some_and(|v| v == "error" || v == "warning")
-            || object.get("status").is_some_and(|v| v == "failed")
+            || object
+                .get("status")
+                .is_some_and(|v| v == "fail" || v == "failed" || v == "error")
         {
             Some(resolve(
                 &format!(
@@ -547,13 +314,12 @@ pub fn collect(value: &Value, project: &Project, out: &mut Vec<(Destination, Str
             None
         };
         let target = target.or_else(|| {
-            (object.contains_key("error") || object.get("severity").is_some_and(|v| v == "error"))
-                .then(|| {
-                    source
-                        .filter(|id| project.stories.contains_key(*id))
-                        .map(|id| Destination::Story(id.into(), None))
-                        .unwrap_or_else(|| resolve(message, project))
-                })
+            (has_error || object.get("severity").is_some_and(|v| v == "error")).then(|| {
+                source
+                    .filter(|id| project.stories.contains_key(*id))
+                    .map(|id| Destination::Story(id.into(), None))
+                    .unwrap_or_else(|| resolve(message, project))
+            })
         });
         if let Some(target) = target {
             let entry = (target, message.into());
@@ -577,49 +343,31 @@ pub fn collect(value: &Value, project: &Project, out: &mut Vec<(Destination, Str
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test]
-    fn package_script_mismatch_names_the_affected_chapter_and_script() {
-        let message =
-            "打开失败\n包内 lua/chapter1.lua 不是由对应 story/chapter1.json 编译生成，拒绝导入";
-        let visible = explanation(message);
-        assert!(visible.contains("story/chapter1.json"));
-        assert!(visible.contains("lua/chapter1.lua"));
-        assert_ne!(visible, crate::i18n::key("common.error.generic"));
-    }
     use serde_json::json;
-
     #[test]
-    fn validation_errors_use_chinese_controls_instead_of_serialized_fields() {
-        let fixtures: Value = serde_json::from_str(include_str!(
-            "../../lom-core/tests/test_validate_fixtures.json"
-        ))
-        .unwrap();
-        let mut checked = 0;
-        for case in fixtures["cases"].as_array().unwrap() {
-            let input: Value = serde_json::from_str(case["input_json"].as_str().unwrap()).unwrap();
-            let result = if case["kind"] == "manifest" {
-                lom_core::validate::validate_manifest(&input).map(|_| vec![])
-            } else {
-                lom_core::validate::validate_story(&input)
-            };
-            if let Err(error) = result {
-                let raw = format!("{error:#}");
-                let text = explanation(&raw);
-                assert!(
-                    !text.chars().any(|c| c.is_ascii_alphabetic()),
-                    "{raw}\n{text}"
-                );
-                assert!(!text.contains('{') && !text.contains('}'), "{text}");
-                checked += 1;
-            }
+    fn operation_failures_do_not_jump_to_story_settings_and_nullable_messages_keep_the_error() {
+        let project = Project::new();
+        for raw in [
+            "目标 manifest 不属于当前项目，拒绝覆盖",
+            "更新文件校验失败：runtime/MortalModHost.dll",
+            "共享库已有该 ID；请明确选择替换",
+            "无法保存 C:/work/manifest.json (os error 5)",
+        ] {
+            assert_eq!(resolve(raw, &project), Destination::Current, "{raw}");
         }
-        assert!(checked > 100);
         assert_eq!(
-            explanation("story.json: 节点 \"s\"(say): 缺少必填字段 \"text\""),
-            "请填写文本。"
+            resolve("BepInEx 不完整：core/loader.dll", &project),
+            Destination::Game
         );
+        let report = json!([
+            {"status":"pass","error":null},
+            {"story_id":"main","node_id":"say1","status":"fail","message":null,"error":"完整错误内容"}
+        ]);
+        let mut locations = Vec::new();
+        collect(&report, &project, &mut locations);
+        assert_eq!(locations.len(), 1);
+        assert_eq!(locations[0].1, "完整错误内容");
     }
-
     #[test]
     fn errors_resolve_to_owned_fields_and_never_to_a_missing_goto() {
         let mut project = Project::new();
@@ -640,7 +388,14 @@ mod tests {
         );
         assert_eq!(
             resolve("安装包缺少 asset-extractor", &project),
-            Destination::PreviewLibrary
+            Destination::Current
+        );
+        assert_eq!(
+            resolve(
+                "原版音频试听组件缺失：asset-extractor/lom-asset-extractor.exe",
+                &project
+            ),
+            Destination::Current
         );
         project
             .assets

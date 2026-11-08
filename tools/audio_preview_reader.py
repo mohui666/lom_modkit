@@ -1,5 +1,6 @@
 """Read one official Wwise media file from the user's installed game."""
 import struct
+import random
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -89,9 +90,19 @@ def extract(game, kind, name, output):
     if event is None:
         raise ValueError("没有找到音频事件：" + prefix + key)
     media = event.findall("./IncludedMemoryFiles/File")
-    # A multi-source event has runtime selection/layering. Never substitute an arbitrary file.
     ids = {int(node.get("Id")) for node in media}
-    if len(ids) != 1:
-        raise ValueError("此音频事件包含多段或动态混音，目前不能作为单段试听；请在游戏中确认")
-    extract_media(folder / (bank_name + ".bnk"), ids.pop(), output)
-    return {"name": name, "kind": kind, "event_name": prefix + key}
+    bank_path = folder / (bank_name + ".bnk")
+    if len(ids) == 1:
+        extract_media(bank_path, ids.pop(), output)
+        return {"name": name, "kind": kind, "event_name": prefix + key}
+    # Resolve the actual event/action/container graph. A random event is not a mix
+    # of all referenced WEMs, and several branches may reuse one WEM at other pitches.
+    from wwise_preview import random_choices, playback_parameters, write_playback_config
+    choices = random_choices(bank_path, int(event.get('Id')), ids)
+    choice = random.choices(choices, weights=[item['weight'] for item in choices])[0]
+    volume, pitch = playback_parameters(choice, random)
+    extract_media(bank_path, choice['media_id'], output)
+    write_playback_config(output, volume, pitch)
+    return {"name": name, "kind": kind, "event_name": prefix + key,
+            "preview_mode": "random", "variant_count": len(choices),
+            "media_id": choice['media_id'], "volume_db": volume, "pitch_cents": pitch}
