@@ -2,7 +2,7 @@
 
 ## 下载并打开
 
-从发布页下载 `lom-editor.exe` 附件，双击即可使用。[1.5.0 下载页](https://github.com/mohui666/lom_modkit/releases/tag/v1.5.0)。AI 创作可另下载 skill ZIP，普通使用无需下载。
+从发布页下载 `lom-editor.exe` 附件，双击即可使用。[1.5.0 下载页](https://github.com/mohui666/lom_modkit/releases/tag/v1.5.0)。AI 创作所需的接口、skill、文档和示例可通过 `lom-editor.exe --cli sdk -o sdk --json` 导出。
 
 运行只需要编辑器 exe；授权说明已内置到组件缓存。
 
@@ -15,7 +15,7 @@
 
 ## 升级到本版
 
-1. 保存作品，退出编辑器，旧版首次切换时手动下载新版 `lom-editor.exe`；新版之后的内置更新只下载一个 exe。
+1. 1.4.19 可通过“检查更新 → 更新并重启”升级；也可保存作品、退出编辑器后手动替换新版 `lom-editor.exe`。
 2. 使用新版编辑器打开自己的项目。
 3. 退出游戏后启动新版编辑器，已安装的 Host 会自动同步。在“游戏与 MOD”核对编辑器、随包 Host 和游戏已安装 Host 均为 1.5.0，必要时点击“更新游戏 Host”。
 4. 给原版人物追加图片时，从“素材管理 → 作品素材 → 为原版人物添加立绘…”导入；预览缺图时再从游戏预览素材中提取。
@@ -66,4 +66,4 @@ Windows 可只下载 `lom-editor.exe` 运行，提取器、音频解码器、Hos
 
 第三方组件的许可随包提供，项目许可位于 `LICENSE`，来源和致谢位于 `THIRD_PARTY_NOTICES.md`。
 
-从 1.4.19 升级到 1.5.0 时，请手动下载新版 exe。1.4.19 更新器只接受单附件，本版新增的 skill ZIP 会触发其限制；1.5.0 已支持忽略非程序附件。
+发布页只提供编辑器 exe，1.4.19 可直接通过内置更新升级。Skill、Python 接口、文档和示例保留在 exe 导出的 SDK 中。

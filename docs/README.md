@@ -25,16 +25,23 @@
 | [自由模式与人物立绘](chs/free_mode_portraits.md) | 赵活外观与旧战役触发器 |
 | [Showcase 样例](../samples/showcase3/README.md) | 10 章、70 类节点与生成入口 |
 
+## AI 与脚本制作
+
+使用 `lom-editor.exe --cli sdk -o sdk --json` 导出配套 Python 包、skill、文档和示例。
+
+| 文档 | 内容 |
+| --- | --- |
+| [Python 对象 API 与 CLI](chs/ai_cli.md) | 推荐的全节点构造函数接口、批量创作、异常诊断及底层 CLI |
+| [Python 接口参考](chs/python_api.md) | 节点、工程、事件任务、翻译、素材与测试构造函数 |
+| [CLI 命令参数](chs/cli_parameters.md) | 输入、选项、输出、退出码与操作类命令 |
+| [AI 剧本制作 skill](../skills/lom-modkit-authoring/SKILL.md) | 给 AI 的接口发现、生成与验收工作流 |
+
 ## 契约与开发
 
 | 文档 | 内容 |
 | --- | --- |
 | [Mod 格式 v3](chs/mod_format.md) | 包结构、字段、节点和运行时约定 |
 | [脚本与 API 索引](chs/script_reference.md) | 字段契约与受控接口 |
-| [Python 对象 API 与 CLI](chs/ai_cli.md) | 推荐的全节点构造函数接口、批量创作、异常诊断及底层 CLI |
-| [Python 接口参考](chs/python_api.md) | 节点、工程、事件任务、翻译、素材与测试构造函数 |
-| [CLI 命令参数](chs/cli_parameters.md) | 输入、选项、输出、退出码与操作类命令 |
-| [AI 剧本制作 skill](../skills/lom-modkit-authoring/SKILL.md) | 给 AI 的接口发现、生成与验收工作流 |
 | [来源水印](chs/watermark.md) | 嵌入、来源判定和截图／视频检测 |
 | [反编译接口](chs/decompiled_api.md) | 查询当前游戏类型和已用入口 |
 | [Gameplay API 笔记](../research/gameplay_api.md) | 已确认签名与使用边界 |
