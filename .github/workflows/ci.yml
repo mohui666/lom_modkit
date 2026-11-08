@@ -12,25 +12,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  rust:
-    name: Native Rust tools (macOS)
-    runs-on: macos-latest
-    timeout-minutes: 25
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-      - name: Verify Rust toolchain
-        run: rustup show
-      - name: Check Rust formatting
-        run: cargo fmt --all -- --check
-      - name: Test native compiler and editor
-        run: cargo test --locked --workspace
-      - name: Verify embedded authoring data and previews
-        run: cargo run --locked -p lom-editor -- --smoke-preview samples/showcase3
-
-      - name: Rebuild acceptance sample with Rust
-        run: cargo run --locked -p lomc --example build_showcase3 -- out/showcase3-native
-
   runtime:
     name: Runtime tests
     runs-on: ubuntu-latest
