@@ -4,6 +4,7 @@ use lom_core::{
 };
 use serde_json::json;
 use std::{env, fs, path::PathBuf};
+mod authoring;
 
 fn run() -> Result<i32> {
     let mut args: Vec<String> = env::args().skip(1).collect();
@@ -16,6 +17,7 @@ fn run() -> Result<i32> {
     if args.is_empty() || args.iter().any(|s| s == "--help" || s == "-h") {
         println!(concat!("lomc ", env!("CARGO_PKG_VERSION"), " — Rust 活侠传剧情工具\n\n用法: lomc <check|build|compile|pack|inspect|new-story> <路径> [-o 输出] [--json] [--locale chs|cht|ja|ko]\n水印: lomc detect-watermark <图片> [--json]\n      lomc detect-watermark-video <视频> [--ffmpeg 路径] [--interval 秒] [--max-frames 数量] [--json]\n\ncheck 校验剧情；build/compile 生成 Lua；pack 生成 v3 .lommod；inspect 验证完整性与源码/Lua一致性。\n扩展: analyze/test/statistics/preflight <项目> [--profile editing|release]\n      release <项目> -o <输出目录>\n      migrate <JSON> [--kind story|manifest|content]\n      content-inspect/content-import <.lomcontent> [--library 目录]\n      author <请求.json> [-o 输出.json]\n      edit <story.json> --operations <操作数组.json> [-o 输出.json]"));
         println!("游玩包: play-bundle <项目> -o <输出.zip> --runtime-dir <宿主目录> --loader-x86 <加载器.zip> --loader-x64 <加载器.zip>\n        install-play-bundle <解压目录> [--game <游戏目录>]");
+        println!("对象创作: schema <nodes|catalog|forms|defaults|project> [-o JSON]\n          sdk -o <Python接口目录>\n          project <工程请求.json> -o <编辑器工程目录>\n          project-read <工程或包> [-o JSON]\n          export <工程或包> -o <.lommod>\n          texts <章节.json> [-o JSON]\n单文件编辑器: lom-editor.exe --cli <以上命令>");
         return Ok(0);
     }
     if args[0] == "--version" {
@@ -25,8 +27,14 @@ fn run() -> Result<i32> {
     let as_json = args.iter().any(|s| s == "--json");
     args.retain(|s| s != "--json");
     let command = args.remove(0);
-    let path = PathBuf::from(args.first().context("缺少输入路径")?);
-    args.remove(0);
+    let path = if command == "sdk" {
+        PathBuf::new()
+    } else {
+        PathBuf::from(args.first().context("缺少输入路径")?.clone())
+    };
+    if command != "sdk" {
+        args.remove(0);
+    }
     let mut output = None;
     let mut title = None;
     let mut kind = "story".to_owned();
@@ -104,6 +112,35 @@ fn run() -> Result<i32> {
         index += 1;
     }
     let result = match command.as_str() {
+        "schema" => {
+            let result = authoring::schema(path.to_str().context("schema 分类无效")?)?;
+            if let Some(output) = output {
+                lom_core::project::atomic_write(&output, &stable_json(&result)?)?;
+            }
+            result
+        }
+        "sdk" => authoring::sdk(&output.context("sdk 需要 -o 输出目录")?)?,
+        "project" => authoring::build(&path, &output.context("project 需要 -o 工程目录")?)?,
+        "project-read" => {
+            let result = authoring::read(&path)?;
+            if let Some(output) = output {
+                lom_core::project::atomic_write(&output, &stable_json(&result)?)?;
+            }
+            result
+        }
+        "export" => {
+            let project = Project::open(&path)?;
+            let output = project.export(&output.context("export 需要 -o .lommod 输出路径")?)?;
+            json!({"ok":true,"output":output})
+        }
+        "texts" => {
+            let result =
+                json!({"ok":true,"texts":localization::iter_localizable_texts(&load_json(&path)?)});
+            if let Some(output) = output {
+                lom_core::project::atomic_write(&output, &stable_json(&result)?)?;
+            }
+            result
+        }
         "install-play-bundle" => {
             let game = if let Some(game) = game_dir {
                 game
@@ -195,7 +232,7 @@ fn run() -> Result<i32> {
                 } else {
                     lom_core::release::Profile::Editing
                 },
-                "1.1.3",
+                env!("CARGO_PKG_VERSION"),
             );
             json!({"ok":!issues.iter().any(|i|i.severity=="error"),"issues":issues})
         }
@@ -203,7 +240,9 @@ fn run() -> Result<i32> {
             let project = Project::open(&path)?;
             let target = output.context("发布构建需要 -o 输出目录")?;
             serde_json::to_value(lom_core::release::build_release_directory(
-                &project, &target, "1.1.3",
+                &project,
+                &target,
+                env!("CARGO_PKG_VERSION"),
             )?)?
         }
         "migrate" => {

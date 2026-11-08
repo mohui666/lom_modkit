@@ -231,6 +231,8 @@
               "character": "player",
               "enabled": true,
               "icon": "shock",
+              "offset_x": 36,
+              "offset_y": 24,
               "wait_after": 0.5
             }
           ]

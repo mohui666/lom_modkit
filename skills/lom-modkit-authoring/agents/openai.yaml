@@ -1,0 +1,4 @@
+interface:
+  display_name: "活侠传剧本制作"
+  short_description: "使用 Python 对象接口批量制作活侠传剧本，并通过 Rust CLI 校验和导出"
+  default_prompt: "使用 $lom-modkit-authoring，根据我的剧本编写 Python 制作脚本，生成可编辑工程和 MOD。"

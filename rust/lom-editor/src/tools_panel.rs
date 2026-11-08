@@ -179,42 +179,7 @@ impl ToolsPanel {
         script: &str,
         node: &str,
     ) -> anyhow::Result<String> {
-        anyhow::ensure!(
-            cfg!(windows),
-            "游戏接入仅支持 Windows；当前 Mac 可编辑、编译和预览"
-        );
-        anyhow::ensure!(
-            !self.game.as_os_str().is_empty() && !self.runtime.as_os_str().is_empty(),
-            "请先打开“游戏与 MOD”，选择游戏目录并完成一键配置"
-        );
-        let issues = release::run_preflight(
-            project,
-            release::Profile::Editing,
-            env!("CARGO_PKG_VERSION"),
-        );
-        let errors: Vec<_> = issues
-            .into_iter()
-            .filter(|issue| issue.severity == "error")
-            .collect();
-        anyhow::ensure!(
-            errors.is_empty(),
-            "{}",
-            crate::error_location::issue_report(&errors, project)
-        );
-        let preview = prepare_preview(project, script, node)?;
-        let temp = lom_core::workdir::create()?;
-        let package = temp.path().join("__lom_modkit_preview.lommod");
-        preview.export(&package)?;
-        let was_running = game_tools::is_game_running()?;
-        let runtime = game_tools::install_runtime(&self.game, &self.runtime)?;
-        game_tools::remove_preview_packages(&self.game)?;
-        game_tools::install_mod(&self.game, &package, true)?;
-        game_tools::request_preview(&self.game, script, node)?;
-        if was_running && runtime["changed"] == true {
-            return Ok("试玩已准备：C# 宿主刚刚更新，请完整退出并重新启动游戏。".into());
-        }
-        game_tools::launch_game()?;
-        Ok(format!("试玩请求已发送：{script}/{node}"))
+        play_project(project, script, node, &self.game, &self.runtime)
     }
     fn save_setting(&mut self, key: &str, value: Value) -> bool {
         let path = settings_path();
@@ -1608,7 +1573,56 @@ fn settings_path() -> PathBuf {
         .unwrap()
         .join("settings.json")
 }
-fn prepare_preview(project: &Project, script: &str, node: &str) -> anyhow::Result<Project> {
+pub(crate) fn play_project(
+    project: &Project,
+    script: &str,
+    node: &str,
+    game: &std::path::Path,
+    runtime: &std::path::Path,
+) -> anyhow::Result<String> {
+    anyhow::ensure!(
+        cfg!(windows),
+        "游戏接入仅支持 Windows；当前 Mac 可编辑、编译和预览"
+    );
+    anyhow::ensure!(
+        !game.as_os_str().is_empty() && !runtime.as_os_str().is_empty(),
+        "请先打开“游戏与 MOD”，选择游戏目录并完成一键配置"
+    );
+    let issues = release::run_preflight(
+        project,
+        release::Profile::Editing,
+        env!("CARGO_PKG_VERSION"),
+    );
+    let errors: Vec<_> = issues
+        .into_iter()
+        .filter(|issue| issue.severity == "error")
+        .collect();
+    anyhow::ensure!(
+        errors.is_empty(),
+        "{}",
+        crate::error_location::issue_report(&errors, project)
+    );
+    let preview = prepare_preview(project, script, node)?;
+    let temp = lom_core::workdir::create()?;
+    let package = temp.path().join("__lom_modkit_preview.lommod");
+    preview.export(&package)?;
+    let was_running = game_tools::is_game_running()?;
+    let runtime = game_tools::install_runtime(game, runtime)?;
+    game_tools::remove_preview_packages(game)?;
+    game_tools::install_mod(game, &package, true)?;
+    game_tools::request_preview(game, script, node)?;
+    if was_running && runtime["changed"] == true {
+        return Ok("试玩已准备：C# 宿主刚刚更新，请完整退出并重新启动游戏。".into());
+    }
+    game_tools::launch_game()?;
+    Ok(format!("试玩请求已发送：{script}/{node}"))
+}
+
+pub(crate) fn prepare_preview(
+    project: &Project,
+    script: &str,
+    node: &str,
+) -> anyhow::Result<Project> {
     let mut preview = project.clone();
     preview.scenario = None; // F5 previews presentation only; it must not advance authored tasks.
     let story = preview

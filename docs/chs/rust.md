@@ -49,6 +49,8 @@ Windows 构建入口为 `scripts/build-windows.ps1 -NoArchive`，需要已构建
 
 ## CLI
 
+Python 节点构造函数和完整工程生成见 [Python 对象创作与 CLI](ai_cli.md)。单文件编辑器使用 `lom-editor.exe --cli <命令>`，`sdk -o DIR` 导出配套的 Python 接口；`schema nodes/catalog` 可供 AI 查询完整字段与官方资源清单。
+
 以下示例使用当前 CLI 参数；`path/to/...` 为作者自己的输入文件：
 
 ```sh

@@ -14,6 +14,7 @@ pub struct ContentPanel {
     files: BTreeMap<String, Vec<u8>>,
     slot: usize,
     portrait: String,
+    portrait_prefix: String,
     message: String,
     message_is_error: bool,
     preview: Option<(String, egui::TextureHandle)>,
@@ -26,6 +27,58 @@ pub struct ContentPanel {
     alignment_textures: BTreeMap<String, (egui::TextureHandle, [u32; 2])>,
 }
 impl ContentPanel {
+    fn add_portraits(&mut self, paths: &[std::path::PathBuf]) -> anyhow::Result<usize> {
+        anyhow::ensure!(self.draft["type"] == "character", "仅人物素材支持新增表情");
+        let mut draft = self.draft.clone();
+        let mut files = self.files.clone();
+        let mut last = None;
+        for path in paths {
+            let ext = path
+                .extension()
+                .and_then(|v| v.to_str())
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            anyhow::ensure!(
+                ["png", "jpg", "jpeg"].contains(&ext.as_str()),
+                "立绘需要 PNG/JPG 图片"
+            );
+            anyhow::ensure!(
+                std::fs::metadata(path)?.len() <= lom_core::content::MAX_IMAGE_BYTES,
+                "图片超过 8 MiB"
+            );
+            let bytes = std::fs::read(path)?;
+            image::load_from_memory(&bytes)?;
+            let stem = path
+                .file_stem()
+                .and_then(|v| v.to_str())
+                .unwrap_or("portrait");
+            let stem = if lom_core::content::validate_portrait_id(stem).is_ok() {
+                stem
+            } else {
+                "portrait"
+            };
+            let portrait = if draft["portraits"].get(stem).is_none() {
+                stem.to_owned()
+            } else {
+                (2..)
+                    .map(|n| format!("{}_{n}", &stem[..stem.len().min(24)]))
+                    .find(|name| draft["portraits"].get(name).is_none())
+                    .unwrap()
+            };
+            let name = format!("{}.{ext}", uuid_name());
+            draft["portraits"][&portrait] = json!(name);
+            files.insert(name, bytes);
+            last = Some(portrait);
+        }
+        self.draft = draft;
+        self.files = files;
+        if let Some(portrait) = last {
+            self.portrait = portrait;
+            self.slot = 1;
+        }
+        self.preview = None;
+        Ok(paths.len())
+    }
     fn set_message(&mut self, result: anyhow::Result<String>) {
         self.message_is_error = result.is_err();
         self.message = result.unwrap_or_else(crate::error_ui::capture);
@@ -302,7 +355,35 @@ impl ContentPanel {
             });
             ui.small(crate::i18n::key("workspace.content.portrait_hint"));
         }
-        if ui.button(tr("添加或替换素材文件…")).clicked() {
+        if kind == "character" && ui.button(tr("新增表情立绘…")).clicked() {
+            if let Some(paths) = rfd::FileDialog::new()
+                .add_filter("立绘图片", &["png", "jpg", "jpeg"])
+                .pick_files()
+            {
+                let result = self
+                    .add_portraits(&paths)
+                    .map(|count| format!("已新增 {count} 张表情立绘"));
+                self.set_message(result);
+            }
+        }
+        if kind == "character" {
+            ui.small(tr(
+                "按住 Ctrl 多选图片，Ctrl+A 全选；新增不会覆盖已有表情。",
+            ));
+            ui.add(
+                egui::TextEdit::singleline(&mut self.portrait_prefix)
+                    .hint_text(tr("文件名前缀（可选，用于文件夹导入）")),
+            );
+            if ui.button(tr("从文件夹批量新增表情…")).clicked() {
+                if let Some(folder) = rfd::FileDialog::new().pick_folder() {
+                    let result = portrait_files(&folder, &self.portrait_prefix)
+                        .and_then(|paths| self.add_portraits(&paths))
+                        .map(|count| format!("已新增 {count} 张表情立绘"));
+                    self.set_message(result);
+                }
+            }
+        }
+        if ui.button(tr("替换当前素材文件…")).clicked() {
             let extensions = if kind == "audio" {
                 vec!["wav", "ogg"]
             } else {
@@ -1106,9 +1187,74 @@ fn uuid_name() -> String {
     )
 }
 
+pub(crate) fn portrait_files(
+    folder: &std::path::Path,
+    prefix: &str,
+) -> anyhow::Result<Vec<std::path::PathBuf>> {
+    let mut paths = Vec::new();
+    for entry in std::fs::read_dir(folder)? {
+        let entry = entry?;
+        if !entry.file_type()?.is_file() {
+            continue;
+        }
+        let path = entry.path();
+        if entry.file_name().to_string_lossy().starts_with(prefix)
+            && path
+                .extension()
+                .and_then(|s| s.to_str())
+                .is_some_and(|s| ["png", "jpg", "jpeg"].contains(&s.to_ascii_lowercase().as_str()))
+        {
+            paths.push(path);
+        }
+    }
+    paths.sort();
+    anyhow::ensure!(!paths.is_empty(), "文件夹中没有匹配前缀的 PNG/JPG 图片");
+    Ok(paths)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn adding_portraits_keeps_default_and_existing_expressions() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("happy.png");
+        image::RgbaImage::from_pixel(16, 24, image::Rgba([255, 80, 30, 255]))
+            .save(&path)
+            .unwrap();
+        let mut panel = ContentPanel::default();
+        panel.draft = json!({"type":"character","files":{"main":"normal.png"},"portraits":{"normal":"normal.png","happy":"old-happy.png"}});
+        let original = panel.draft.clone();
+        panel.add_portraits(&[path.clone(), path]).unwrap();
+        assert_eq!(panel.draft["files"], original["files"]);
+        assert_eq!(panel.draft["portraits"]["normal"], "normal.png");
+        assert_eq!(panel.draft["portraits"]["happy"], "old-happy.png");
+        assert_eq!(panel.draft["portraits"].as_object().unwrap().len(), 4);
+        assert!(panel.draft["portraits"].get("happy_2").is_some());
+        assert!(panel.draft["portraits"].get("happy_3").is_some());
+        let saved = (panel.draft.clone(), panel.files.clone());
+        let bad = temp.path().join("broken.png");
+        std::fs::write(&bad, b"broken").unwrap();
+        assert!(panel.add_portraits(&[bad]).is_err());
+        assert_eq!((panel.draft, panel.files), saved);
+    }
+    #[test]
+    fn folder_portraits_filter_by_prefix_and_ignore_subfolders() {
+        let temp = tempfile::tempdir().unwrap();
+        for file in [
+            "shen_happy.png",
+            "shen_angry.JPG",
+            "other.png",
+            "shen_note.txt",
+        ] {
+            std::fs::write(temp.path().join(file), b"fixture").unwrap();
+        }
+        std::fs::create_dir(temp.path().join("shen_subfolder.png")).unwrap();
+        let files = portrait_files(temp.path(), "shen_").unwrap();
+        assert_eq!(files.len(), 2);
+        assert_eq!(portrait_files(temp.path(), "").unwrap().len(), 3);
+        assert!(portrait_files(temp.path(), "missing_").is_err());
+    }
     #[test]
     fn operation_errors_use_the_component_even_without_pending_edits_and_success_keeps_its_path() {
         let mut panel = ContentPanel::default();

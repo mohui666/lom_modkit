@@ -184,7 +184,14 @@ fn parse_github_release(value: &Value) -> Result<Release> {
     if parsed >= [1, 4, 19] {
         if let Some(asset) = value["assets"]
             .as_array()
-            .filter(|items| items.len() == 1)
+            .filter(|items| parsed >= [1, 5, 0] || items.len() == 1)
+            .filter(|items| {
+                items
+                    .iter()
+                    .filter(|asset| asset["name"] == "lom-editor.exe")
+                    .count()
+                    == 1
+            })
             .and_then(|items| items.iter().find(|a| a["name"] == "lom-editor.exe"))
         {
             if let (Some(size), Some(digest)) = (
@@ -763,6 +770,23 @@ mod tests {
             !parse_release(&previous).unwrap().can_update(),
             "the previous multi-asset 1.4.19 cannot install itself"
         );
+    }
+    #[test]
+    fn github_release_with_skill_attachment_updates_only_the_editor() {
+        let mut value = single_release();
+        value["tag_name"] = json!("v1.5.0");
+        value["assets"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"name":"lom-modkit-authoring-v1.5.0.zip","size":2048}));
+        let release = parse_release(&value).unwrap();
+        assert!(release.can_update());
+        assert_eq!(release.files.len(), 1);
+        assert_eq!(release.files[0].path, "lom-editor.exe");
+        assert!(release.files[0].url.ends_with("/v1.5.0/lom-editor.exe"));
+        let duplicate = value["assets"][0].clone();
+        value["assets"].as_array_mut().unwrap().push(duplicate);
+        assert!(!parse_release(&value).unwrap().can_update());
     }
     #[test]
     fn single_asset_download_uses_the_verified_editor_as_installer() {

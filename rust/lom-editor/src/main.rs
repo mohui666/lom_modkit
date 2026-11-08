@@ -1,5 +1,6 @@
 mod asset_extraction;
 mod authoring;
+mod automation;
 mod components;
 mod editor_update;
 mod effect_capture;
@@ -28,6 +29,37 @@ mod workspace;
 
 fn main() -> eframe::Result {
     let args: Vec<_> = std::env::args().skip(1).collect();
+    if args.first().is_some_and(|s| s == "--cli") {
+        if let Some(result) = automation::run(&args[1..]) {
+            match result {
+                Ok(value) => {
+                    println!("{value}");
+                    std::process::exit(if value["ok"] == false { 1 } else { 0 });
+                }
+                Err(error) => {
+                    println!(
+                        "{}",
+                        serde_json::json!({"ok":false,"errors":[format!("{error:#}")]})
+                    );
+                    std::process::exit(1);
+                }
+            }
+        }
+        match components::cli_task(&args[1..]) {
+            Ok(code) => std::process::exit(code),
+            Err(error) => {
+                if args.iter().any(|s| s == "--json") {
+                    println!(
+                        "{}",
+                        serde_json::json!({"ok":false,"errors":[format!("{error:#}")],"warnings":[]})
+                    );
+                } else {
+                    eprintln!("{error:#}");
+                }
+                std::process::exit(1);
+            }
+        }
+    }
     #[cfg(windows)]
     if args.first().is_some_and(|s| s == "--apply-editor-update") {
         let result = if args.len() == 2 {

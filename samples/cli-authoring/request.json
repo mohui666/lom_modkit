@@ -1,0 +1,36 @@
+{
+  "manifest": {
+    "id": "cli_story",
+    "name": "山门初见",
+    "author": "剧本作者",
+    "entry": "chapter1"
+  },
+  "stories": {
+    "chapter1": {
+      "story_schema": 2,
+      "id": "chapter1",
+      "title": "第一章：山路",
+      "start": "opening",
+      "nodes": [
+        {"id":"opening","type":"say","mode":"narrative","text":"山雨初歇，远处传来钟声。"},
+        {"id":"choose","type":"choice","options":[
+          {"text":"上前问路","goto":"ask"},
+          {"text":"先歇一会","goto":"rest"}
+        ]},
+        {"id":"ask","type":"say","mode":"narrative","text":"你循着钟声，沿石阶向上。","goto":"finish"},
+        {"id":"rest","type":"say","mode":"narrative","text":"你在檐下稍作休息，随后继续赶路。","goto":"finish"},
+        {"id":"finish","type":"end","next_script":"chapter2"}
+      ]
+    },
+    "chapter2": {
+      "story_schema": 2,
+      "id": "chapter2",
+      "title": "第二章：山门",
+      "start": "arrival",
+      "nodes": [
+        {"id":"arrival","type":"say","mode":"narrative","text":"穿过薄雾，山门终于出现在眼前。"},
+        {"id":"finish","type":"end"}
+      ]
+    }
+  }
+}
