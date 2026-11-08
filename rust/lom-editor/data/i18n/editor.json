@@ -1,4 +1,34 @@
 {
+  "editor.play.current": {
+    "chs": "从当前步骤试玩    F5",
+    "cht": "從目前步驟試玩    F5",
+    "ja": "現在のステップからテスト    F5",
+    "ko": "현재 단계부터 테스트    F5"
+  },
+  "editor.play.chapter_start": {
+    "chs": "从当前章节开头试玩    Ctrl+F5",
+    "cht": "從目前章節開頭試玩    Ctrl+F5",
+    "ja": "現在の章の先頭からテスト    Ctrl+F5",
+    "ko": "현재 장의 처음부터 테스트    Ctrl+F5"
+  },
+  "editor.play.hint": {
+    "chs": "F5：从当前步骤试玩\nCtrl+F5：从当前章节开头试玩",
+    "cht": "F5：從目前步驟試玩\nCtrl+F5：從目前章節開頭試玩",
+    "ja": "F5：現在のステップからテスト\nCtrl+F5：現在の章の先頭からテスト",
+    "ko": "F5: 현재 단계부터 테스트\nCtrl+F5: 현재 장의 처음부터 테스트"
+  },
+  "editor.error.issue_count": {
+    "chs": "发现 {count} 个错误，请修正后再试玩或导出。",
+    "cht": "發現 {count} 個錯誤，請修正後再試玩或匯出。",
+    "ja": "エラーが {count} 件あります。修正してからテストまたはエクスポートしてください。",
+    "ko": "오류가 {count}개 있습니다. 수정 후 테스트하거나 내보내세요."
+  },
+  "editor.error.issue_location": {
+    "chs": "{chapter} · 第 {step} 步 · {note}",
+    "cht": "{chapter} · 第 {step} 步 · {note}",
+    "ja": "{chapter} · ステップ {step} · {note}",
+    "ko": "{chapter} · {step}단계 · {note}"
+  },
   "editor.form.staged_only": {
     "chs": "仅显示已登场角色",
     "cht": "僅顯示已登場角色",

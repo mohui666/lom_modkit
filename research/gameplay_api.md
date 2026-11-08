@@ -1,5 +1,11 @@
 # Gameplay API 实证矩阵
 
+## 2026-11-08 人物震动等待与调试器
+
+只读复核当前安装的 `Fungus.ShakePosition.DoTween`、`Fungus.iTweenCommand.OnEnter`、`Fungus.Block.Execute`，并读取 Story 场景 common 流图的 `shock` 块配置：ShakePosition 的 `waitUntilFinished=false`，因此 `runblock` 返回不代表震动结束。原版脚本同样以 `ShockPosition` 指向人物 holder、以 `ShockDuration` 设置时长。生成器保留这些入口，随后显式等待所填时长，避免后续人物登场／换立绘覆盖震动。
+
+本次在 `release_1.0.6001.0` 隔离配置及测试存档目录中实际运行原版 player 和自定义人物的 0.5／1 秒震动。修正前，原版震动步骤已返回，位移出现在后续等待步骤；修正后，两种人物在震动步骤内均记录到非零位移，后续等待步骤中恢复稳定。该观察不扩展为全部人物及第三方 MOD 组合兼容结论。调试器默认关闭，打开时自建透明 UGUI 命中区只覆盖调试窗口矩形；不调用 `StoryMainUI.Hide` 或更改游戏 CanvasGroup 显示状态。
+
 ## 2026-11-07 人物震动预览
 
 现场只读反编译当前游戏 `Fungus.ShakePosition.DoTween()`，确认其读取 `_amount.Value`、`_duration.Value`、`_targetObject.Value`，调用 `iTween.ShakePosition` 并回调完成。现有官方人物生成代码设置 common 流图的 `ShockPosition`／`ShockDuration`，运行 `shock` 块；自定义人物仍使用 Host `CustomCharacterRuntime.Shock`／`ShakeImage` 的衰减位移。本次只补编辑器播放时遗漏的临时位移和 0.5 秒默认计时，不修改上述游戏执行逻辑。预览为衰减动画示意，不声称逐帧等同官方随机抖动。

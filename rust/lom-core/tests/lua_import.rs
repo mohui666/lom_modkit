@@ -48,6 +48,62 @@ fn imports_scenes_character_aliases_portrait_changes_and_literal_dialogue() {
 }
 
 #[test]
+fn standalone_mixed_script_keeps_portraits_facing_and_native_timing_editable() {
+    let source = r#"luamanager.SetGameTime(1, 4, 1)
+shoppanel.NewShop()
+runwait(characters.LoadCharacterAsset("player"))
+stage.show{character=characters.Get("player"),portrait=characters.GetPortrait("player","normal"),fromPosition="M",toPosition="L3",facing="left",fadeDuration=0,moveDuration=0.5,useDefaultSettings=false}
+stage.show{character=characters.Get("player"),facing="right",useDefaultSettings=false}
+stage.showPortrait(characters.Get("player"),characters.GetPortrait("player","nervous1"))
+setsaydialog(saydialogs.character)
+setcharacter(characters.Get("player"),characters.GetPortrait("player","laugh1"))
+say("different speaking portrait")
+"#;
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("mixed.lua");
+    fs::write(&path, source).unwrap();
+    let (mut project, report) = Project::import_lua(&path).unwrap();
+    assert!(report.converted, "{report:?}");
+    let story = &project.stories["main"];
+    assert_eq!(story["vanilla_import"]["external"], true);
+    let nodes = story["nodes"].as_array().unwrap();
+    let shows: Vec<_> = nodes.iter().filter(|n| n["type"] == "show").collect();
+    assert_eq!(shows.len(), 3);
+    assert_eq!(shows[0]["facing"], "left");
+    assert_eq!(shows[0]["moveDuration"], 0.5);
+    assert_eq!(shows[1]["facing"], "right");
+    assert_eq!(shows[1]["position"], "L3");
+    assert_eq!(shows[2]["portrait"], "nervous1");
+    assert_eq!(shows[2]["facing"], "right");
+    let line = nodes.iter().find(|n| n["type"] == "say").unwrap();
+    assert_eq!(line["portrait"], "laugh1");
+    let lua = lom_core::codegen::compile_story(story, None, None, None).unwrap();
+    assert!(lua.contains("shoppanel.NewShop()"));
+    assert!(lua.contains("fromPosition"));
+    let output = dir.path().join("converted");
+    project.save_to(&output).unwrap();
+    let package = dir.path().join("converted.lommod");
+    project.export(&package).unwrap();
+    assert_eq!(
+        Project::open(&package).unwrap().stories["main"],
+        project.stories["main"]
+    );
+    assert_eq!(fs::read_to_string(path).unwrap(), source);
+}
+
+#[test]
+fn unsupported_standalone_grammar_keeps_source_and_explains_the_limit() {
+    let source = "function user_script()\n say('custom')\nend\nuser_script()";
+    let imported = lua_import::import_external(source, "main", "custom").unwrap();
+    assert!(!imported.report.converted);
+    assert_eq!(imported.story["nodes"][0]["code"], source);
+    assert!(imported.story["lua_import"]["notice"]
+        .as_str()
+        .unwrap()
+        .contains("完整结构解析未完成"));
+}
+
+#[test]
 fn unknown_flow_preserves_whole_scope_and_stops_static_preview_before_branch() {
     let source = format!("{PRESENTATION}\nlocal value = ReadGameState()\nif value then\nrunblock(flowcharts.view, 'out')\nend");
     let imported = lua_import::import(&source, "main", "旧故事").unwrap();

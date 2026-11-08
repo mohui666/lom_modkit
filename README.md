@@ -2,9 +2,9 @@
 
 用可视化步骤编写《活侠传》的对白、人物演出、事件和自定义玩法，预览后导出作品包，在自己的游戏中试玩。
 
-**当前版本为 1.4.16，提供 Windows x64 完整安装包。**
+**当前版本为 1.4.17，提供 Windows x64 完整安装包。**
 
-[下载 1.4.16 完整包](https://github.com/mohui666/lom_modkit/releases/download/v1.4.16/lom_modkit-v1.4.16_windows_x64.zip) · [本版更新说明](RELEASE_NOTES_v1.4.16.md) · [使用教程](docs/chs/software_usage.md) · [文档目录](docs/README.md)
+[下载 1.4.17 完整包](https://github.com/mohui666/lom_modkit/releases/download/v1.4.17/lom_modkit-v1.4.17_windows_x64.zip) · [本版更新说明](RELEASE_NOTES_v1.4.17.md) · [使用教程](docs/chs/software_usage.md) · [文档目录](docs/README.md)
 
 本版在角色选择列表上方新增「仅显示已登场角色」筛选，并修正失效音效选项与原版音频试听报错乱码。音频读取组件有更新，请下载完整 Windows 包。
 
@@ -19,11 +19,11 @@
 
 官方图片从你本机安装的游戏中提取，完整编辑器包自带提取组件。安装过程和常见问题见 [Windows 快速开始](docs/chs/windows_quick_start.md)。
 
-### 从旧版升级到 1.4.16
+### 从旧版升级到 1.4.17
 
-1. 保存作品并退出编辑器，下载本版完整包并完整解压，使用新文件夹内的编辑器打开已有作品。
-2. 本版修正了 `asset-extractor` 的音频报错编码。请使用完整包中的 `asset-extractor` 和 `audio-decoder`；四文件内置更新不会补装或替换这两个组件。
-3. 退出游戏后启动新版编辑器，已安装的 Host 会自动同步。进入「游戏与 MOD」核对三个版本均为 1.4.16，必要时点击「更新游戏 Host」。
+1. 已有完整 1.4.16 安装可使用内置更新；首次安装或更早版本缺少音频读取组件时，下载本版完整包并完整解压，再打开已有作品。
+2. 保留完整包中的 `asset-extractor` 和 `audio-decoder`；四文件内置更新不会补装或替换这两个组件。
+3. 退出游戏后启动新版编辑器，已安装的 Host 会自动同步。进入「游戏与 MOD」核对三个版本均为 1.4.17，必要时点击「更新游戏 Host」。
 4. 给原版人物追加图片时使用「素材管理 → 作品素材 → 为原版人物添加立绘…」。预览缓存中的图片与路径不能用来注册游戏表情。
 
 Windows 用户内容库默认位于 `%APPDATA%\lom_modkit\repository`，设置位于 `%APPDATA%\lom_modkit\rust`。作品及其素材保存在作者选择的项目目录中。新导出的人物素材与自由缩放等功能会自动声明对应最低 Host 版本；已发布作品继续沿用原存档身份。

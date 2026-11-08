@@ -151,6 +151,7 @@ struct App {
     lua: String,
     vanilla: crate::vanilla_panel::Panel,
     diagnostics: Vec<lom_core::release::PreflightIssue>,
+    error_issues: Vec<lom_core::release::PreflightIssue>,
     needs_compile: bool,
     chapter_dialog: Option<ChapterDialog>,
     delete_chapter_dialog: Option<DeleteChapterDialog>,
@@ -431,6 +432,7 @@ impl App {
             lua: String::new(),
             vanilla: Default::default(),
             diagnostics: vec![],
+            error_issues: vec![],
             needs_compile: true,
             chapter_dialog: None,
             delete_chapter_dialog: None,
@@ -1248,6 +1250,9 @@ impl App {
         if !self.apply_pending_drafts() {
             return;
         }
+        if !self.check_before_run_or_export() {
+            return;
+        }
         if let Some(path) = rfd::FileDialog::new()
             .add_filter("活侠传 Mod", &["lommod"])
             .set_file_name(format!(
@@ -1263,7 +1268,7 @@ impl App {
         }
     }
     fn export_play_bundle(&mut self) {
-        if self.apply_pending_drafts() {
+        if self.apply_pending_drafts() && self.check_before_run_or_export() {
             self.flush();
             self.tools_panel.export_play_bundle(&self.project);
         }
@@ -1751,7 +1756,9 @@ impl App {
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::N)) {
             self.request(Pending::New, ctx);
         }
-        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::F5)) {
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::F5)) {
+            self.play_chapter_start();
+        } else if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::F5)) {
             self.play_current();
         }
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::F6)) {
@@ -2028,6 +2035,15 @@ impl App {
                         });
                     });
                     ui.menu_button(tr("剧情工具"), |ui| {
+                        if ui.add_enabled(cfg!(windows), egui::Button::new(crate::i18n::key("editor.play.current"))).clicked() {
+                            self.play_current();
+                            ui.close();
+                        }
+                        if ui.add_enabled(cfg!(windows), egui::Button::new(crate::i18n::key("editor.play.chapter_start"))).clicked() {
+                            self.play_chapter_start();
+                            ui.close();
+                        }
+                        ui.separator();
                         for (page, label) in [
                             "全局查找",
                             "变量管理",
@@ -2082,6 +2098,7 @@ impl App {
                                 cfg!(windows),
                                 egui::Button::new(crate::i18n::key("toolbar.play")),
                             )
+                            .on_hover_text(crate::i18n::key("editor.play.hint"))
                             .clicked()
                         {
                             self.play_current();
@@ -2269,7 +2286,16 @@ impl App {
         ui.separator();
     }
     fn play_current(&mut self) {
+        self.play(false);
+    }
+    fn play_chapter_start(&mut self) {
+        self.play(true);
+    }
+    fn play(&mut self, from_start: bool) {
         if !self.apply_pending_drafts() {
+            return;
+        }
+        if !self.check_before_run_or_export() {
             return;
         }
         if cfg!(windows) {
@@ -2281,11 +2307,7 @@ impl App {
             }
         }
         self.flush();
-        let story = self.story();
-        let node = story["nodes"][self.selected]["id"]
-            .as_str()
-            .unwrap_or("")
-            .to_owned();
+        let node = self.playtest_node(from_start);
         match self
             .tools_panel
             .play_from_current(&self.project, &self.current, &node)
@@ -2293,6 +2315,35 @@ impl App {
             Ok(status) => self.status = status,
             Err(e) => self.error = Some(format!("{e:#}")),
         }
+    }
+    fn playtest_node(&self, from_start: bool) -> String {
+        let story = self.story();
+        (if from_start {
+            &story["start"]
+        } else {
+            &story["nodes"][self.selected]["id"]
+        })
+        .as_str()
+        .unwrap_or("")
+        .to_owned()
+    }
+    fn check_before_run_or_export(&mut self) -> bool {
+        self.error_issues = lom_core::release::run_preflight(
+            &self.project,
+            lom_core::release::Profile::Editing,
+            env!("CARGO_PKG_VERSION"),
+        )
+        .into_iter()
+        .filter(|issue| issue.severity == "error")
+        .collect();
+        if self.error_issues.is_empty() {
+            return true;
+        }
+        self.error = Some(crate::i18n::message(
+            "editor.error.issue_count",
+            &[("count", self.error_issues.len().to_string())],
+        ));
+        false
     }
     fn open_initial_setup(&mut self) {
         if self.is_vanilla_patch() {
@@ -4859,6 +4910,7 @@ impl App {
         if let Some(message) = self.error.clone() {
             let mut close = false;
             let mut locate = false;
+            let mut issue_location = None;
             let destination = crate::error_location::resolve(&message, &self.project);
             egui::Modal::new(egui::Id::new("operation-error"))
                 .frame(shell::dialog_frame())
@@ -4869,27 +4921,64 @@ impl App {
                         .max_height(ctx.content_rect().height() * 0.5)
                         .show(ui, |ui| {
                             ui.label(crate::error_location::explanation(&message));
+                            for issue in &self.error_issues {
+                                ui.add_space(10.0);
+                                ui.group(|ui| {
+                                    ui.strong(crate::error_location::issue_label(
+                                        issue,
+                                        &self.project,
+                                    ));
+                                    ui.label(crate::error_location::explanation(&issue.message));
+                                    let target = crate::error_location::issue_destination(
+                                        issue,
+                                        &self.project,
+                                    );
+                                    if target != crate::error_location::Destination::Current
+                                        && ui.button(target.label()).clicked()
+                                    {
+                                        issue_location = Some((target, issue.message.clone()));
+                                    }
+                                });
+                            }
                             if ui
                                 .small_button(crate::i18n::key("editor.workspace.copy_diagnostics"))
                                 .clicked()
                             {
-                                ui.ctx().copy_text(message.clone());
+                                ui.ctx().copy_text(if self.error_issues.is_empty() {
+                                    message.clone()
+                                } else {
+                                    format!(
+                                        "{message}\n\n{}",
+                                        crate::error_location::issue_report(
+                                            &self.error_issues,
+                                            &self.project
+                                        )
+                                    )
+                                });
                             }
                         });
                     ui.add_space(16.0);
                     shell::dialog_buttons(ui, |ui| {
-                        locate = ui
-                            .button(crate::error_location::action_label(&message, &destination))
-                            .clicked();
+                        if self.error_issues.is_empty()
+                            && destination != crate::error_location::Destination::Current
+                        {
+                            locate = ui
+                                .button(crate::error_location::action_label(&message, &destination))
+                                .clicked();
+                        }
                         close |= ui
                             .add_sized([80.0, 30.0], egui::Button::new(tr("关闭")))
                             .clicked();
                     });
                 });
-            if close || escape_pressed || locate {
+            if close || escape_pressed || locate || issue_location.is_some() {
                 self.error = None;
+                self.error_issues.clear();
             }
-            if locate {
+            if let Some((target, detail)) = issue_location {
+                crate::error_location::focus_field(ctx, &detail);
+                self.go_to_problem(ctx, target);
+            } else if locate {
                 crate::error_location::focus_field(ctx, &message);
                 self.go_to_problem(ctx, destination);
             }
@@ -6448,6 +6537,46 @@ mod application_regression_tests {
         app.auto_save_project = false;
         app.auto_save_seconds = 300;
         app
+    }
+    #[test]
+    fn playtest_start_uses_the_chapter_entry_without_changing_selection() {
+        let mut app = app();
+        app.project.stories.insert(
+            "main".into(),
+            json!({"id":"main","title":"测试章","start":"intro","nodes":[
+            {"id":"later","type":"end"},{"id":"intro","type":"wait","seconds":1}]}),
+        );
+        app.current = "main".into();
+        app.selected = 0;
+        assert_eq!(app.playtest_node(false), "later");
+        assert_eq!(app.playtest_node(true), "intro");
+        assert_eq!(app.selected, 0);
+    }
+    #[test]
+    fn preflight_errors_show_details_and_target_the_owning_chapter() {
+        let mut app = app();
+        for id in ["main", "other"] {
+            app.project.stories.insert(
+                id.into(),
+                json!({"id":id,"title":id,"start":"effect1","nodes":[
+                {"id":"effect1","type":"effect","name":""},{"id":"end","type":"end"}]}),
+            );
+        }
+        assert!(!app.check_before_run_or_export());
+        assert!(app.error.as_ref().unwrap().contains('2'));
+        assert_eq!(app.error_issues.len(), 2);
+        for issue in &app.error_issues {
+            assert!(issue.message.contains("特效名称不能为空"));
+            assert_eq!(
+                crate::error_location::issue_destination(issue, &app.project),
+                crate::error_location::Destination::Story(
+                    issue.story_id.clone(),
+                    Some("effect1".into())
+                )
+            );
+        }
+        let report = crate::error_location::issue_report(&app.error_issues, &app.project);
+        assert!(report.contains("main") && report.contains("other") && report.contains("effect1"));
     }
     #[test]
     fn project_autosave_writes_directory_json_and_package_without_a_dialog() {

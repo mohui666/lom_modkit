@@ -777,6 +777,9 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                     "\tgetvar(flowcharts.common, \"ShockDuration\").value = {d}"
                 ));
                 out.push("\trunblock(flowcharts.common, \"shock\")".into());
+                // The native shock block starts an iTween with waitUntilFinished=false.
+                // Keep following portrait/show steps from resetting it immediately.
+                out.push(wait(d));
             }
         }
         "mask" => out.push(format!("\tos_mask.Show({})", b(node, "show", false))),

@@ -1066,6 +1066,13 @@ fn extra(n: &Value, ntype: &str, catalog: &Value) -> Result<()> {
     }
     match ntype {
         "effect" => {
+            let playing = n["play"]
+                .as_bool()
+                .unwrap_or_else(|| n.get("d").is_none_or(|value| value.as_f64() == Some(1.0)));
+            ensure!(
+                nonblank(&n["name"]) || (!playing && nonblank(&n["tag"])),
+                "特效名称不能为空：请选择要播放的特效；停止特效时可填写名称或实例标记"
+            );
             for key in ["x", "y", "a", "b", "c", "rotation", "speed", "stop_after"] {
                 if let Some(value) = n.get(key) {
                     ensure!(

@@ -28,7 +28,7 @@ namespace MortalModHost
     {
         public const string GUID = "com.mohui666.mortalmodhost";
         public const string NAME = "MortalModHost";
-        public const string VERSION = "1.4.16";
+        public const string VERSION = "1.4.17";
 
         internal static Plugin Instance { get; private set; }
 
@@ -87,10 +87,11 @@ namespace MortalModHost
         private float _nextPreviewPoll;
         private long _loadedPreviewStamp = -1L;
         private string _previewWaitingScene = "";
-        private bool _showDebugger = true;
-        private bool _wasTraceActive;
+        private bool _showDebugger;
         private Rect _debugWindowRect = new Rect(20f, 20f, 520f, 680f);
         private Vector2 _debugScroll;
+        private GameObject _debugInputCanvas;
+        private RectTransform _debugInputRect;
 
         private void Awake()
         {
@@ -585,6 +586,7 @@ namespace MortalModHost
 
         private void Update()
         {
+            UpdateDebuggerInputBlocker();
             CustomCharacterRuntime.UpdateMoods();
             if (LuaManagerPatch.HasPendingAbort)
                 LuaManagerPatch.RetryPendingAbort();
@@ -599,8 +601,6 @@ namespace MortalModHost
             if (!_enabled.Value || !_runtimeReady) return;
             UpdateOverlaySceneTracking();
             bool traceActive = RuntimeTrace.Active;
-            if (traceActive && !_wasTraceActive) _showDebugger = true;
-            _wasTraceActive = traceActive;
             if (traceActive && IsHotkeyDown(_debuggerHotkey.Value))
                 _showDebugger = !_showDebugger;
             MaintainModDisclosure();
@@ -927,6 +927,7 @@ namespace MortalModHost
 
         private void OnDestroy()
         {
+            if (_debugInputCanvas != null) Destroy(_debugInputCanvas);
             RouteRuntimeCapture.Reset();
             if (_enabled != null)
                 _enabled.SettingChanged -= OnEnabledChanged;
@@ -1189,6 +1190,34 @@ namespace MortalModHost
             if (name == "LeftControl") name = "LeftCtrl";
             else if (name == "RightControl") name = "RightCtrl";
             return Enum.TryParse(name, true, out key);
+        }
+
+        private void UpdateDebuggerInputBlocker()
+        {
+            bool visible = _enabled != null && _enabled.Value && RuntimeTrace.Active && _showDebugger;
+            if (!visible)
+            {
+                if (_debugInputCanvas != null) _debugInputCanvas.SetActive(false);
+                return;
+            }
+            if (_debugInputCanvas == null)
+            {
+                // IMGUI does not participate in UGUI raycasts. Block only the
+                // debugger rectangle so its buttons cannot click the game below.
+                _debugInputCanvas = new GameObject("ModkitDebuggerInput", typeof(Canvas), typeof(UnityEngine.UI.GraphicRaycaster));
+                DontDestroyOnLoad(_debugInputCanvas);
+                Canvas canvas = _debugInputCanvas.GetComponent<Canvas>();
+                canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+                canvas.sortingOrder = short.MaxValue;
+                var hit = new GameObject("WindowHitArea", typeof(RectTransform), typeof(UnityEngine.UI.Image));
+                hit.transform.SetParent(_debugInputCanvas.transform, false);
+                hit.GetComponent<UnityEngine.UI.Image>().color = Color.clear;
+                _debugInputRect = hit.GetComponent<RectTransform>();
+                _debugInputRect.anchorMin = _debugInputRect.anchorMax = _debugInputRect.pivot = new Vector2(0f, 1f);
+            }
+            _debugInputCanvas.SetActive(true);
+            _debugInputRect.anchoredPosition = new Vector2(_debugWindowRect.x, -_debugWindowRect.y);
+            _debugInputRect.sizeDelta = _debugWindowRect.size;
         }
 
         private void OnGUI()

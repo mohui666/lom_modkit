@@ -186,10 +186,19 @@ impl ToolsPanel {
             !self.game.as_os_str().is_empty() && !self.runtime.as_os_str().is_empty(),
             "请先打开“游戏与 MOD”，选择游戏目录并完成一键配置"
         );
-        let issues = release::run_preflight(project, release::Profile::Editing, "1.1.3");
+        let issues = release::run_preflight(
+            project,
+            release::Profile::Editing,
+            env!("CARGO_PKG_VERSION"),
+        );
+        let errors: Vec<_> = issues
+            .into_iter()
+            .filter(|issue| issue.severity == "error")
+            .collect();
         anyhow::ensure!(
-            !issues.iter().any(|i| i.severity == "error"),
-            "项目存在体检错误，请先检查项目"
+            errors.is_empty(),
+            "{}",
+            crate::error_location::issue_report(&errors, project)
         );
         let preview = prepare_preview(project, script, node)?;
         let temp = lom_core::workdir::create()?;
@@ -1610,7 +1619,10 @@ fn prepare_preview(project: &Project, script: &str, node: &str) -> anyhow::Resul
             .is_some_and(|ns| ns.iter().any(|n| n["id"] == node)),
         "节点不存在"
     );
-    if story.get("vanilla_patch").is_none() && story.get("vanilla_import").is_none() {
+    if story.get("vanilla_patch").is_none()
+        && story.get("vanilla_import").is_none()
+        && story["start"] != node
+    {
         let prelude = crate::preview::build_playtest_prelude(story, node);
         story["start"] = json!(prelude
             .first()
@@ -2003,6 +2015,19 @@ mod tests {
         assert_eq!(prelude[1]["goto"], "target");
         assert!(lua.contains("maincamera.ActiveVolume(\"stage-memory\", 1)"));
         assert!(lua.contains("maincamera.ActiveVolume(\"stage-dream\", 0)"));
+    }
+    #[test]
+    fn chapter_start_preview_does_not_reconstruct_unreachable_earlier_steps() {
+        let mut project = Project::new();
+        project.stories.insert(
+            "main".into(),
+            json!({"id":"main","start":"intro","nodes":[
+            {"id":"unused","type":"camera","name":"stage-memory","active":true},
+            {"id":"intro","type":"say","mode":"narrative","text":"开场"},
+            {"id":"end","type":"end"}]}),
+        );
+        let preview = prepare_preview(&project, "main", "intro").unwrap();
+        assert_eq!(preview.stories["main"], project.stories["main"]);
     }
     #[test]
     fn preview_package_reconstructs_stage_without_mutating_author_project() {

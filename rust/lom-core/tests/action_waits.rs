@@ -1,6 +1,20 @@
 use lom_core::{codegen, validate};
 use serde_json::{json, Value};
 
+#[test]
+fn official_shock_finishes_before_following_actions_and_parallel_join() {
+    let action = json!({"type":"shock","character":"player","duration":0.8,"wait_after":0.2});
+    for node in [
+        action.clone(),
+        json!({"type":"parallel","actions":[action,{"type":"wait","seconds":0.3}]}),
+    ] {
+        let lua = codegen::compile_story(&story(node), None, None, None).unwrap();
+        let shock = lua.find("runblock(flowcharts.common, \"shock\")").unwrap();
+        let following = &lua[shock..];
+        assert!(following.find("wait(0.8)").unwrap() < following.find("wait(0.2)").unwrap());
+    }
+}
+
 fn story(action: Value) -> Value {
     let mut action = action;
     action["id"] = json!("action");
