@@ -17,7 +17,7 @@ use std::{
 };
 
 const RELEASES: &str = "https://github.com/mohui666/lom_modkit/releases";
-const LATEST: &str = "https://github.com/mohui666/lom_modkit/releases/latest/download/update.json";
+const LATEST: &str = "https://api.github.com/repos/mohui666/lom_modkit/releases/latest";
 const MAX_DOWNLOAD: u64 = 128 * 1024 * 1024;
 use lom_core::editor_update::validate_install;
 use lom_core::editor_update::{owned_file, PROGRAM_FILES};
@@ -30,6 +30,7 @@ struct Release {
     files: Vec<Download>,
     repair_needed: bool,
     embedded_components: bool,
+    self_installing: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -80,7 +81,11 @@ fn byte_size(bytes: f64) -> String {
 
 impl Release {
     fn can_update(&self) -> bool {
-        self.files.len() == PROGRAM_FILES.len()
+        if self.self_installing {
+            self.files.len() == 1 && self.files[0].path == "lom-editor.exe"
+        } else {
+            self.files.len() == PROGRAM_FILES.len()
+        }
     }
 
     fn inspect_installation(&mut self, root: &Path) -> Result<()> {
@@ -123,6 +128,9 @@ fn version(text: &str) -> Result<[u64; 3]> {
 }
 
 fn parse_release(value: &Value) -> Result<Release> {
+    if value.get("tag_name").is_some() {
+        return parse_github_release(value);
+    }
     let number = value["version"].as_str().context("更新清单缺少版本")?;
     version(number)?;
     let tag = format!("v{}", number.strip_prefix('v').unwrap_or(number));
@@ -159,6 +167,52 @@ fn parse_release(value: &Value) -> Result<Release> {
         files,
         repair_needed: false,
         embedded_components: value["embedded_components"].as_bool().unwrap_or(false),
+        self_installing: false,
+    })
+}
+
+fn parse_github_release(value: &Value) -> Result<Release> {
+    ensure!(
+        value["draft"] == false && value["prerelease"] == false,
+        "只支持正式发布版本"
+    );
+    let number = value["tag_name"].as_str().context("发布信息缺少版本")?;
+    let parsed = version(number)?;
+    let number = number.strip_prefix('v').unwrap_or(number);
+    let mut files = vec![];
+    // Earlier editors cannot act as their own native installation helper.
+    if parsed >= [1, 4, 19] {
+        if let Some(asset) = value["assets"]
+            .as_array()
+            .filter(|items| items.len() == 1)
+            .and_then(|items| items.iter().find(|a| a["name"] == "lom-editor.exe"))
+        {
+            if let (Some(size), Some(digest)) = (
+                asset["size"]
+                    .as_u64()
+                    .filter(|n| *n > 0 && *n <= MAX_DOWNLOAD),
+                asset["digest"]
+                    .as_str()
+                    .and_then(|d| d.strip_prefix("sha256:"))
+                    .filter(|d| d.len() == 64 && d.bytes().all(|b| b.is_ascii_hexdigit())),
+            ) {
+                files.push(Download {
+                    path: "lom-editor.exe".into(),
+                    url: format!("{RELEASES}/download/v{number}/lom-editor.exe"),
+                    size,
+                    digest: digest.into(),
+                });
+            }
+        }
+    }
+    Ok(Release {
+        version: number.into(),
+        notes: value["body"].as_str().unwrap_or("").into(),
+        url: format!("{RELEASES}/tag/v{number}"),
+        files,
+        repair_needed: false,
+        embedded_components: true,
+        self_installing: true,
     })
 }
 
@@ -176,6 +230,7 @@ fn check(cancel: &AtomicBool) -> Result<Release> {
 struct Prepared {
     workspace: tempfile::TempDir,
     files: Vec<String>,
+    installer: &'static str,
 }
 
 fn verify_file(path: &Path, file: &Download) -> Result<()> {
@@ -251,7 +306,15 @@ fn prepare(release: &Release, cancel: &AtomicBool, progress: &UpdateProgress) ->
         .map(|file| file.path.clone())
         .collect();
     files.sort_by_key(|name| name == "lom-editor.exe");
-    Ok(Prepared { workspace, files })
+    Ok(Prepared {
+        workspace,
+        files,
+        installer: if release.self_installing {
+            "lom-editor.exe"
+        } else {
+            "lomc.exe"
+        },
+    })
 }
 
 enum Job {
@@ -607,8 +670,12 @@ impl Updater {
         let job_path = prepared.workspace.path().join("install.json");
         let job = json!({"root":root,"stage":prepared.workspace.path(),"files":prepared.files,"parent_pid":std::process::id(),"project":project,"restart":true});
         fs::write(&job_path, serde_json::to_vec(&job)?)?;
-        // Use the downloaded, verified helper, never a missing or stale local CLI.
-        let installer = prepared.workspace.path().join("bundle/lomc.exe");
+        // The verified new editor is also the update helper; no other asset is needed.
+        let installer = prepared
+            .workspace
+            .path()
+            .join("bundle")
+            .join(prepared.installer);
         Command::new(&installer)
             .arg("--apply-editor-update")
             .arg(&job_path)
@@ -654,6 +721,80 @@ mod tests {
             })
             .collect::<Vec<_>>();
         json!({"version":"1.3.20","notes":"fixture release notes","files":files})
+    }
+
+    fn single_release() -> Value {
+        json!({"tag_name":"v1.4.19","draft":false,"prerelease":false,"body":"single exe release",
+            "assets":[{"name":"lom-editor.exe","size":17,"digest":format!("sha256:{:x}",Sha256::digest(b"new program bytes"))}]})
+    }
+    #[test]
+    fn github_single_asset_metadata_requires_stable_release_and_verified_editor() {
+        let value = single_release();
+        let parsed = parse_release(&value).unwrap();
+        assert!(parsed.can_update() && parsed.self_installing);
+        assert_eq!(parsed.files.len(), 1);
+        assert_eq!(
+            parsed.files[0].url,
+            format!("{RELEASES}/download/v1.4.19/lom-editor.exe")
+        );
+        for field in ["draft", "prerelease"] {
+            let mut bad = value.clone();
+            bad[field] = json!(true);
+            assert!(parse_release(&bad).is_err());
+        }
+        for (field, bad_value) in [
+            ("name", json!("../lom-editor.exe")),
+            ("size", json!(0)),
+            ("digest", json!("sha256:bad")),
+        ] {
+            let mut bad = value.clone();
+            bad["assets"][0][field] = bad_value;
+            assert!(!parse_release(&bad).unwrap().can_update());
+        }
+        let mut old = value;
+        old["tag_name"] = json!("v1.4.18");
+        assert!(!parse_release(&old).unwrap().can_update());
+        let mut previous = single_release();
+        previous["assets"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"name":"lomc.exe","size":17}));
+        assert!(
+            !parse_release(&previous).unwrap().can_update(),
+            "the previous multi-asset 1.4.19 cannot install itself"
+        );
+    }
+    #[test]
+    fn single_asset_download_uses_the_verified_editor_as_installer() {
+        use std::{
+            io::{Read, Write},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0; 2048];
+            let n = stream.read(&mut request).unwrap();
+            assert!(String::from_utf8_lossy(&request[..n]).contains("/lom-editor.exe"));
+            stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 17\r\nConnection: close\r\n\r\nnew program bytes").unwrap();
+        });
+        let mut release = parse_release(&single_release()).unwrap();
+        release.files[0].url = format!("http://{address}/lom-editor.exe");
+        let prepared = prepare(
+            &release,
+            &AtomicBool::new(false),
+            &UpdateProgress::new(&release),
+        )
+        .unwrap();
+        server.join().unwrap();
+        assert_eq!(prepared.files, vec!["lom-editor.exe"]);
+        assert_eq!(prepared.installer, "lom-editor.exe");
+        assert_eq!(
+            fs::read(prepared.workspace.path().join("bundle/lom-editor.exe")).unwrap(),
+            b"new program bytes"
+        );
+        assert!(!prepared.workspace.path().join("bundle/lomc.exe").exists());
     }
 
     #[test]
@@ -925,6 +1066,7 @@ mod tests {
         tx.send(Ok(Job::Prepared(Prepared {
             workspace,
             files: Vec::new(),
+            installer: "lom-editor.exe",
         })))
         .unwrap();
         updater.cancel_job();
@@ -1029,21 +1171,16 @@ mod tests {
     fn github_release_download_and_validation() {
         let cancel = AtomicBool::new(false);
         let release = check(&cancel).unwrap();
-        let host = release
-            .files
-            .iter()
-            .find(|file| file.path == "runtime/MortalModHost.dll")
-            .unwrap();
+        assert_eq!(
+            release.version,
+            env!("CARGO_PKG_VERSION"),
+            "publish the tested version first"
+        );
+        assert!(release.self_installing && release.can_update());
         let temp = lom_core::workdir::create().unwrap();
-        let path = temp.path().join("MortalModHost.dll");
-        download(&host.url, &path, MAX_DOWNLOAD, &cancel).unwrap();
-        verify_file(&path, host).unwrap();
         if release.can_update() {
             let prepared = prepare(&release, &cancel, &UpdateProgress::new(&release)).unwrap();
-            assert_eq!(
-                prepared.files.len(),
-                if release.embedded_components { 1 } else { 4 }
-            );
+            assert_eq!(prepared.files.len(), 1);
             #[cfg(windows)]
             if release.embedded_components {
                 use std::os::windows::process::CommandExt;

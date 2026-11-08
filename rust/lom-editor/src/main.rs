@@ -27,13 +27,28 @@ mod vanilla_panel;
 mod workspace;
 
 fn main() -> eframe::Result {
+    let args: Vec<_> = std::env::args().skip(1).collect();
+    #[cfg(windows)]
+    if args.first().is_some_and(|s| s == "--apply-editor-update") {
+        let result = if args.len() == 2 {
+            lom_core::editor_update::apply_job(std::path::Path::new(&args[1]))
+        } else {
+            Err(anyhow::anyhow!("更新助手需要安装任务文件"))
+        };
+        match result {
+            Ok(()) => std::process::exit(0),
+            Err(error) => {
+                eprintln!("{error:#}");
+                std::process::exit(1);
+            }
+        }
+    }
     if let Err(error) = components::root() {
         rfd::MessageDialog::new().set_title("无法准备编辑器组件")
             .set_description("请检查系统磁盘空间和当前账户的写入权限，然后重新打开编辑器。若仍然失败，请重新下载编辑器 exe。")
             .set_level(rfd::MessageLevel::Error).show();
         return Err(eframe::Error::AppCreation(error.into()));
     }
-    let args: Vec<_> = std::env::args().skip(1).collect();
     if args.first().is_some_and(|s| s == "--component-task") {
         match components::task(&args[1..]) {
             Ok(code) => std::process::exit(code),
