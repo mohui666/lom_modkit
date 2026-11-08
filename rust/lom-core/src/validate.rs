@@ -1180,6 +1180,12 @@ fn extra(n: &Value, ntype: &str, catalog: &Value, check_effect_names: bool) -> R
                     );
                 }
             }
+            if n["mode"] == "offscreen" {
+                ensure!(
+                    n["inherit_dialog"] != true,
+                    "画外音请关闭沿用原版发言人与对白设置"
+                );
+            }
             if n["inherit_dialog"] != true
                 && ["character", "think"].contains(&text(n, "mode", "character"))
             {

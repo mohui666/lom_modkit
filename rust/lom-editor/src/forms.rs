@@ -39,7 +39,7 @@ fn field_requirement(node: &Value, key: &str, optional: bool) -> Requirement {
     let conditional = match (kind, key) {
         ("say", "character") => Some(!matches!(
             node["mode"].as_str(),
-            Some("narrative" | "center")
+            Some("narrative" | "center" | "offscreen")
         )),
         ("intro", "character") => Some(node["intro_source"] != "custom"),
         ("intro", "name" | "text") => Some(node["intro_source"] == "custom"),
@@ -581,6 +581,7 @@ impl Catalog {
                 ("think".into(), "内心独白".into()),
                 ("narrative".into(), "旁白".into()),
                 ("center".into(), "居中旁白".into()),
+                ("offscreen".into(), "画外音（无立绘）".into()),
             ];
         }
         result
@@ -610,6 +611,9 @@ impl Catalog {
             }
         });
         ui.add_space(6.0);
+        if kind == "say" {
+            changed |= self.field(ui, node, "mode", "模式", "mode", true, node_ids, story_ids);
+        }
         let mut note = node["_editor"]["note"].as_str().unwrap_or("").to_owned();
         let editable_note = node["_editor"].is_null() || node["_editor"].is_object();
         ui.label(tr("节点备注"));
@@ -717,6 +721,9 @@ impl Catalog {
             if let (Some(key), Some(label), Some(field_kind)) =
                 (field[0].as_str(), field[1].as_str(), field[2].as_str())
             {
+                if kind == "say" && key == "mode" {
+                    continue;
+                }
                 if !field_visible(&kind, node, key) {
                     continue;
                 }
@@ -1181,8 +1188,25 @@ impl Catalog {
         node_ids: &[String],
         story_ids: &[String],
     ) -> bool {
+        if node["type"] == "say"
+            && node["mode"] == "offscreen"
+            && matches!(key, "character" | "portrait")
+        {
+            return false;
+        }
         if key == "character" && kind == "character" {
             return self.character_field(ui, node, label, optional);
+        }
+        if node["type"] == "dim" && key == "dimmed" && node["mode"] == "auto" {
+            return false;
+        }
+        if node["type"] == "say" {
+            if key == "speaker_name" && node["mode"] != "offscreen" {
+                return false;
+            }
+            if node["mode"] == "offscreen" && matches!(key, "character" | "portrait") {
+                return false;
+            }
         }
         if key == "show_message" {
             let mut show = lom_core::codegen::shows_system_messages(node);
@@ -1302,6 +1326,7 @@ impl Catalog {
                         ui.horizontal_wrapped(|ui| {
                             let response = ui.label(label);
                             let hint = match (node["type"].as_str().unwrap_or(""), key) {
+                                ("dim", "mode") => Some("持续保持会固定亮暗；下一句对白恢复自动适合无对白气泡；立即恢复自动可解除之前的固定设置。"),
                                 ("offset", "absolute") => Some("启用后，横纵位置相对人物当前站位锚点；关闭时累加到当前位置。"),
                                 ("offset", "x" | "y") => Some("以 1920×1080 舞台为单位，向右和向上为正；支持小数。"),
                                 ("offset", "scale") => Some("100% 为素材默认体型，支持任意正数；留空保留当前缩放。"),
@@ -1333,6 +1358,7 @@ impl Catalog {
                 ui.vertical(|ui| {
                     ui.set_width(value_width);
                     let mut value = node.get(key).cloned().unwrap_or_else(|| {
+                        if node["type"] == "dim" && key == "mode" { return json!("manual"); }
                         if node["type"] == "effect" {
                             match key {
                                 "space" => return json!("world"),
@@ -1674,6 +1700,10 @@ impl Catalog {
                             node["space"] = json!("world");
                         }
                         node[key] = value;
+                        if node["type"] == "say" && key == "mode" && node[key] == "offscreen" {
+                            node.as_object_mut().unwrap().remove("character");
+                            node.as_object_mut().unwrap().remove("portrait");
+                        }
                         if key == "character" && node["type"] == "show" && node[key] != "player" {
                             node.as_object_mut().unwrap().remove("appearance");
                         }
@@ -2094,6 +2124,7 @@ fn absent_label(node: &Value, key: &str, kind: &str) -> String {
         return crate::i18n::key("workspace.form.bubble_follow");
     }
     tr(match (node["type"].as_str().unwrap_or(""), key, kind) {
+        ("dim", "mode", _) => "持续保持",
         ("effect", "space", _) => "世界坐标（兼容旧项目）",
         ("mood", "character", _) => "全场自动气泡",
         ("mood", "icon", _) => "跟随人物表情（默认）",

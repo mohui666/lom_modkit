@@ -11,6 +11,16 @@ namespace MortalModHost
         private static Text _narrativeText;
         private static TextAnchor _originalAlignment;
         private static Vector2 _originalAnchorMin, _originalAnchorMax;
+
+        internal static Action DialogueName(string name)
+        {
+            SayDialog dialog = SayDialog.GetSayDialog();
+            if (dialog == null) throw new InvalidOperationException("当前没有可显示画外音的对白框");
+            string previous = dialog.NameText;
+            Color previousColor = dialog.SpeakingCharacter != null ? dialog.SpeakingCharacter.NameColor : Color.white;
+            dialog.SetCharacterName(name, Color.white);
+            return () => { if (dialog != null) dialog.SetCharacterName(previous, previousColor); };
+        }
         private static Vector2 _originalOffsetMin, _originalOffsetMax;
 
         // Only the current line overrides the live dialog component.

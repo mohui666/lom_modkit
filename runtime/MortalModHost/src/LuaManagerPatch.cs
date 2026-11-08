@@ -618,6 +618,15 @@ namespace MortalModHost
                     MoodControl.RefreshVisible();
                     return DynValue.Nil;
                 }, "mod_refresh_mood");
+                script.Globals["mod_dialogue_name"] = new CallbackFunction((ctx, args) =>
+                {
+                    Action restore = CharacterPresentation.DialogueName(ArgString(args, 0, "？？？"));
+                    return DynValue.NewCallback((restoreContext, restoreArgs) =>
+                    {
+                        restore();
+                        return DynValue.Nil;
+                    }, "restore_dialogue_name");
+                }, "mod_dialogue_name");
                 script.Globals["mod_character_mood"] = new CallbackFunction((ctx, args) =>
                 {
                     MoodControl.SetCharacter(ArgString(args, 0), ArgString(args, 1), ArgFloat(args, 2, 0f), ArgFloat(args, 3, 0f));
@@ -1052,6 +1061,11 @@ namespace MortalModHost
                 catch (Exception ex) { Log.LogWarning("mod_char_dim 失败：" + ex.Message); }
                 return DynValue.Nil;
             }, "mod_char_dim");
+            script.Globals["mod_char_dim_mode"] = new CallbackFunction((ctx, args) =>
+            {
+                CharacterDimming.SetMode(ArgString(args, 0), ArgBool(args, 1, true), ArgString(args, 2, "manual"));
+                return DynValue.Nil;
+            }, "mod_char_dim_mode");
             script.Globals["mod_char_rotate"] = new CallbackFunction((ctx, args) =>
             {
                 try

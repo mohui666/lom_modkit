@@ -123,6 +123,28 @@ impl AssetImportDialog {
         self.error = None;
     }
 }
+struct StepDrag {
+    chapter: String,
+    indices: Vec<usize>,
+}
+
+fn step_edge_scroll(rect: egui::Rect, pointer: egui::Pos2) -> f32 {
+    if !rect.contains(pointer) {
+        return 0.0;
+    }
+    let edge = 48.0_f32.min(rect.height() / 3.0);
+    if edge <= 0.0 {
+        return 0.0;
+    }
+    if pointer.y < rect.top() + edge {
+        -600.0 * (1.0 - (pointer.y - rect.top()) / edge)
+    } else if pointer.y > rect.bottom() - edge {
+        600.0 * (1.0 - (rect.bottom() - pointer.y) / edge)
+    } else {
+        0.0
+    }
+}
+
 struct App {
     project: Project,
     catalog: Catalog,
@@ -130,6 +152,7 @@ struct App {
     current: String,
     selected: usize,
     multiselect: BTreeSet<usize>,
+    selection_anchor: Option<(String, usize)>,
     center: Center,
     scenario_selection: crate::scenario_panel::Selection,
     view: View,
@@ -435,6 +458,7 @@ impl App {
             current,
             selected,
             multiselect: BTreeSet::new(),
+            selection_anchor: None,
             center: Center::Node,
             scenario_selection: Default::default(),
             view: View::Stage,
@@ -1501,22 +1525,108 @@ impl App {
         self.multiselect.clear();
     }
     fn move_node(&mut self, to: usize) {
-        self.flush();
-        if let Some(story) = self.project.stories.get_mut(&self.current) {
-            let old_front = story["nodes"][0]["id"].clone();
-            let follow = story["start"] == old_front;
-            if let Some(nodes) = story["nodes"].as_array_mut() {
-                if self.selected < nodes.len() && to < nodes.len() {
-                    let node = nodes.remove(self.selected);
-                    nodes.insert(to, node);
-                    if follow {
-                        story["start"] = nodes[0]["id"].clone();
-                    }
-                    self.selected = to;
-                    self.multiselect.clear();
-                }
-            }
+        let indices = self.selected_indices();
+        let Some(&first) = indices.first() else {
+            return;
+        };
+        let Some(&last) = indices.last() else { return };
+        let len = self.story()["nodes"].as_array().map_or(0, Vec::len);
+        if to >= len || to == self.selected {
+            return;
         }
+        let boundary = if indices.len() == 1 {
+            to + usize::from(to > first)
+        } else if to < self.selected {
+            if first == 0 {
+                return;
+            }
+            first - 1
+        } else {
+            if last + 1 >= len {
+                return;
+            }
+            last + 2
+        };
+        self.move_steps(&indices, boundary);
+    }
+    fn move_steps(&mut self, indices: &[usize], boundary: usize) {
+        let mut story = self.story();
+        let Some(nodes) = story["nodes"].as_array_mut() else {
+            return;
+        };
+        let selected: BTreeSet<_> = indices
+            .iter()
+            .copied()
+            .filter(|i| *i < nodes.len())
+            .collect();
+        if selected.is_empty() || boundary > nodes.len() {
+            return;
+        }
+        let follow = story["start"] == story["nodes"][0]["id"];
+        let primary_index = if selected.contains(&self.selected) {
+            self.selected
+        } else {
+            *selected.first().unwrap()
+        };
+        let primary = story["nodes"][primary_index]["id"].clone();
+        let old_nodes = story["nodes"].as_array().unwrap();
+        let at = boundary - selected.range(..boundary).count();
+        let mut remaining: Vec<_> = old_nodes
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| !selected.contains(i))
+            .map(|(_, n)| n.clone())
+            .collect();
+        let moving: Vec<_> = selected.iter().map(|i| old_nodes[*i].clone()).collect();
+        let count = moving.len();
+        remaining.splice(at..at, moving);
+        if remaining == *old_nodes {
+            return;
+        }
+        story["nodes"] = json!(remaining);
+        if follow {
+            story["start"] = story["nodes"][0]["id"].clone();
+        }
+        self.flush();
+        self.selected = story["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .position(|n| n["id"] == primary)
+            .unwrap_or(at);
+        self.multiselect = (at..at + count).collect();
+        self.selection_anchor = Some((self.current.clone(), self.selected));
+        self.project.stories.insert(self.current.clone(), story);
+        self.status =
+            crate::i18n::message("workspace.steps.moved", &[("count", count.to_string())]);
+    }
+    fn select_step(&mut self, index: usize, extend: bool, toggle: bool) {
+        if extend {
+            let anchor = self
+                .selection_anchor
+                .as_ref()
+                .filter(|(chapter, _)| chapter == &self.current)
+                .map_or(self.selected, |(_, i)| *i);
+            self.multiselect = (anchor.min(index)..=anchor.max(index)).collect();
+            self.selected = index;
+        } else if toggle {
+            if self.multiselect.is_empty() {
+                self.multiselect.insert(self.selected);
+            }
+            if !self.multiselect.insert(index) {
+                self.multiselect.remove(&index);
+                self.selected = self.multiselect.iter().next().copied().unwrap_or(index);
+            } else {
+                self.selected = index;
+            }
+            self.selection_anchor = Some((self.current.clone(), self.selected));
+        } else {
+            self.multiselect.clear();
+            self.selected = index;
+            self.selection_anchor = Some((self.current.clone(), index));
+        }
+        self.center = Center::Node;
+        self.scroll_selection = (self.current.clone(), self.selected);
     }
     fn recover(&mut self, path: &Path) {
         if recovery_owner_active(path) {
@@ -2742,6 +2852,20 @@ impl App {
                             self.move_node(self.selected + 1);
                             ui.close();
                         }
+                        if ui.button(tr("移到最前")).clicked() {
+                            self.move_steps(&self.selected_indices(), 0);
+                            ui.close();
+                        }
+                        if ui.button(tr("移到最后")).clicked() {
+                            let len = self.story()["nodes"].as_array().map_or(0, Vec::len);
+                            self.move_steps(&self.selected_indices(), len);
+                            ui.close();
+                        }
+                        if ui.button(tr("全选步骤")).clicked() {
+                            self.multiselect =
+                                (0..self.story()["nodes"].as_array().map_or(0, Vec::len)).collect();
+                            ui.close();
+                        }
                         if ui.button(tr("删除")).clicked() {
                             self.delete();
                             ui.close();
@@ -2886,11 +3010,26 @@ impl App {
                 }
                 let nodes = story["nodes"].as_array().map(Vec::as_slice).unwrap_or(&[]);
                 let rows = authoring::section_rows(&story);
+                ui.horizontal(|ui| {
+                    ui.small(crate::i18n::message(
+                        "workspace.steps.selected",
+                        &[("count", self.selected_indices().len().to_string())],
+                    ));
+                    if self.multiselect.len() > 1 && ui.small_button(tr("取消多选")).clicked() {
+                        self.multiselect.clear();
+                    }
+                });
+                ui.small(tr("勾选可多选 · Shift 连选 · 拖动可批量移动"))
+                    .on_hover_text(tr(
+                        "也可用 Ctrl 点选。拖到列表上下边缘可自动滚动；… 菜单可移到最前或最后。",
+                    ));
                 let row_height = 44.0;
                 let mut scroll = egui::ScrollArea::vertical()
                     .id_salt("steps")
                     .auto_shrink([false, false]);
-                if self.scroll_selection != (self.current.clone(), self.selected) {
+                if !egui::DragAndDrop::has_payload_of_type::<StepDrag>(ctx)
+                    && self.scroll_selection != (self.current.clone(), self.selected)
+                {
                     if let Some(row) = rows.iter().position(|row| {
                         matches!(row, authoring::Row::Node { index, .. } if *index == self.selected)
                     }) {
@@ -2900,7 +3039,7 @@ impl App {
                         self.scroll_selection = (self.current.clone(), self.selected);
                     }
                 }
-                scroll.show_rows(ui, row_height, rows.len(), |ui, visible| {
+                let mut output = scroll.show_rows(ui, row_height, rows.len(), |ui, visible| {
                     let mut drop_to = None;
                     for row in rows.into_iter().skip(visible.start).take(visible.len()) {
                         let (index, depth) = match row {
@@ -2997,6 +3136,29 @@ impl App {
                         let response = ui
                             .horizontal(|ui| {
                                 ui.add_space(depth as f32 * 9.0);
+                                let mut checked = self.selected_indices().contains(&index);
+                                let checkbox =
+                                    ui.checkbox(&mut checked, "").on_hover_text(tr("选择步骤"));
+                                ui.painter().rect_stroke(
+                                    egui::Rect::from_center_size(
+                                        checkbox.rect.center(),
+                                        Vec2::splat(ui.spacing().icon_width),
+                                    ),
+                                    3.0,
+                                    egui::Stroke::new(1.0_f32, Color32::from_rgb(120, 140, 158)),
+                                    egui::StrokeKind::Inside,
+                                );
+                                checkbox.widget_info(|| {
+                                    egui::WidgetInfo::selected(
+                                        egui::WidgetType::Checkbox,
+                                        ui.is_enabled(),
+                                        checked,
+                                        format!("{} {}", tr("选择步骤"), index + 1),
+                                    )
+                                });
+                                if checkbox.changed() {
+                                    self.select_step(index, ui.input(|i| i.modifiers.shift), true);
+                                }
                                 let selected =
                                     self.selected == index || self.multiselect.contains(&index);
                                 let primary = egui::TextFormat {
@@ -3062,23 +3224,16 @@ impl App {
                             ));
                         if response.clicked() {
                             let modifiers = ui.input(|i| i.modifiers);
-                            if modifiers.shift {
-                                self.multiselect =
-                                    (self.selected.min(index)..=self.selected.max(index)).collect();
-                            } else if modifiers.command || modifiers.ctrl {
-                                if self.multiselect.is_empty() {
-                                    self.multiselect.insert(self.selected);
-                                }
-                                if !self.multiselect.insert(index) {
-                                    self.multiselect.remove(&index);
-                                }
-                            } else {
-                                self.multiselect.clear();
-                            }
-                            self.selected = index;
-                            self.center = Center::Node;
+                            self.select_step(
+                                index,
+                                modifiers.shift,
+                                modifiers.command || modifiers.ctrl,
+                            );
                         }
                         response.context_menu(|ui| {
+                            if !self.selected_indices().contains(&index) {
+                                self.select_step(index, false, false);
+                            }
                             if ui.button(tr("复制")).clicked() {
                                 self.copy();
                                 ui.close();
@@ -3093,17 +3248,61 @@ impl App {
                             }
                         });
                         if response.drag_started() {
-                            response.dnd_set_drag_payload(index);
+                            if !self.selected_indices().contains(&index) {
+                                self.select_step(index, false, false);
+                            }
+                            response.dnd_set_drag_payload(StepDrag {
+                                chapter: self.current.clone(),
+                                indices: self.selected_indices(),
+                            });
                         }
-                        if let Some(from) = response.dnd_release_payload::<usize>() {
-                            drop_to = Some((*from, index));
+                        if let Some(drag) = response.dnd_hover_payload::<StepDrag>() {
+                            if drag.chapter == self.current {
+                                let after = ui
+                                    .input(|i| i.pointer.hover_pos())
+                                    .is_some_and(|p| p.y >= response.rect.center().y);
+                                let y = if after {
+                                    response.rect.bottom()
+                                } else {
+                                    response.rect.top()
+                                };
+                                ui.painter().hline(
+                                    response.rect.x_range(),
+                                    y,
+                                    egui::Stroke::new(2.0_f32, crate::shell::ACCENT),
+                                );
+                            }
+                        }
+                        if let Some(drag) = response.dnd_release_payload::<StepDrag>() {
+                            if drag.chapter == self.current {
+                                let after = ui
+                                    .input(|i| i.pointer.hover_pos())
+                                    .is_some_and(|p| p.y >= response.rect.center().y);
+                                drop_to = Some((drag.indices.clone(), index + usize::from(after)));
+                            }
                         }
                     }
-                    if let Some((from, to)) = drop_to {
-                        self.selected = from;
-                        self.move_node(to);
+                    if let Some((indices, boundary)) = drop_to {
+                        self.move_steps(&indices, boundary);
                     }
                 });
+                if egui::DragAndDrop::payload::<StepDrag>(ctx)
+                    .is_some_and(|drag| drag.chapter == self.current)
+                    && ui.input(|i| i.pointer.primary_down())
+                {
+                    let speed = ui
+                        .input(|i| i.pointer.hover_pos())
+                        .map_or(0.0, |pointer| step_edge_scroll(output.inner_rect, pointer));
+                    if speed != 0.0 {
+                        let dt = ui.input(|i| i.stable_dt).min(0.05);
+                        let max_offset =
+                            (output.content_size.y - output.inner_rect.height()).max(0.0);
+                        output.state.offset.y =
+                            (output.state.offset.y + speed * dt).clamp(0.0, max_offset);
+                        output.state.store(ctx, output.id);
+                        ctx.request_repaint();
+                    }
+                }
             });
     }
     fn sync_preview_selection(&mut self) {
@@ -10034,6 +10233,178 @@ mod application_regression_tests {
         app.selected = 1;
         app.move_node(0);
         assert_eq!(app.story()["start"], first);
+    }
+    #[test]
+    fn batch_step_moves_keep_order_links_selection_and_undo() {
+        let mut app = app();
+        app.project.stories.get_mut("main").unwrap()["nodes"] = json!([
+            {"id":"a","type":"say","text":"a","goto":"d"},
+            {"id":"b","type":"say","text":"b"},
+            {"id":"c","type":"choice","options":[{"text":"分支","goto":"a"}]},
+            {"id":"d","type":"say","text":"d"},
+            {"id":"e","type":"end"}
+        ]);
+        app.project.stories.get_mut("main").unwrap()["start"] = json!("a");
+        let original = app.story();
+        app.last = snapshot(&app.project);
+        app.mark_saved();
+        app.select_step(1, false, false);
+        app.select_step(3, false, true);
+        app.move_steps(&app.selected_indices(), 0);
+        let ids = |app: &App| {
+            app.story()["nodes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|n| n["id"].as_str().unwrap().to_owned())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(ids(&app), ["b", "d", "a", "c", "e"]);
+        assert_eq!(app.story()["start"], "b");
+        assert_eq!(app.selected, 1);
+        assert_eq!(app.selected_indices(), [0, 1]);
+        assert_eq!(app.story()["nodes"][2], original["nodes"][0]);
+        assert_eq!(app.story()["nodes"][3], original["nodes"][2]);
+        app.track();
+        app.flush();
+        app.undo();
+        assert_eq!(app.story(), original);
+        app.redo();
+        assert_eq!(ids(&app), ["b", "d", "a", "c", "e"]);
+        // Contiguous downward drop uses an insertion boundary from the original list.
+        app.move_steps(&[0, 1], 5);
+        assert_eq!(ids(&app), ["a", "c", "e", "b", "d"]);
+        assert_eq!(app.selected_indices(), [3, 4]);
+        let before = app.story();
+        app.move_steps(&[3, 4], 4);
+        assert_eq!(app.story(), before);
+    }
+    #[test]
+    fn batch_step_selection_extends_from_anchor_and_buttons_move_whole_block() {
+        let mut app = app();
+        app.project.stories.get_mut("main").unwrap()["nodes"] = json!([
+            {"id":"a","type":"wait"}, {"id":"b","type":"wait"},
+            {"id":"c","type":"wait"}, {"id":"d","type":"wait"},
+            {"id":"e","type":"end"}
+        ]);
+        app.select_step(1, false, false);
+        app.select_step(2, true, false);
+        app.select_step(3, true, false);
+        assert_eq!(app.selected_indices(), [1, 2, 3]);
+        app.select_step(2, false, true);
+        assert_eq!(app.selected_indices(), [1, 3]);
+        assert!(app.selected_indices().contains(&app.selected));
+        app.select_step(1, false, false);
+        app.select_step(2, true, false);
+        app.move_node(app.selected + 1);
+        assert_eq!(app.story()["nodes"][1]["id"], "d");
+        assert_eq!(app.selected_indices(), [2, 3]);
+        app.move_node(app.selected - 1);
+        assert_eq!(app.story()["nodes"][1]["id"], "b");
+        assert_eq!(app.story()["nodes"][2]["id"], "c");
+    }
+    #[test]
+    fn step_drag_edge_scrolling_only_runs_inside_top_and_bottom_edges() {
+        let rect = egui::Rect::from_min_max(egui::pos2(10.0, 100.0), egui::pos2(300.0, 600.0));
+        assert!(step_edge_scroll(rect, egui::pos2(100.0, 101.0)) < -500.0);
+        assert!(step_edge_scroll(rect, egui::pos2(100.0, 599.0)) > 500.0);
+        assert_eq!(step_edge_scroll(rect, rect.center()), 0.0);
+        assert_eq!(step_edge_scroll(rect, egui::pos2(310.0, 599.0)), 0.0);
+    }
+    #[test]
+    fn step_drag_stationary_edge_pointer_scrolls_virtual_list_without_reordering() {
+        let mut app = app();
+        app.project.stories.get_mut("main").unwrap()["nodes"] = json!((0..200)
+            .map(|i| json!({"id":format!("n{i}"),"type":"wait","duration":1.0}))
+            .collect::<Vec<_>>());
+        app.project.stories.get_mut("main").unwrap()["start"] = json!("n0");
+        let before = app.story();
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        let draw = |app: &mut App, events| {
+            ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1400.0, 900.0),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ctx| app.sidebar(ctx),
+            )
+        };
+        let checkbox_numbers = |out: egui::FullOutput| {
+            out.platform_output
+                .accesskit_update
+                .unwrap()
+                .nodes
+                .into_iter()
+                .filter_map(|(_, n)| {
+                    n.label()
+                        .and_then(|s| s.strip_prefix("选择步骤 "))
+                        .and_then(|s| s.parse::<usize>().ok())
+                })
+                .collect::<Vec<_>>()
+        };
+        let initial = checkbox_numbers(draw(&mut app, vec![]));
+        let pointer = egui::pos2(100.0, 840.0);
+        let _ = draw(
+            &mut app,
+            vec![
+                egui::Event::PointerMoved(pointer),
+                egui::Event::PointerButton {
+                    pos: pointer,
+                    button: egui::PointerButton::Primary,
+                    pressed: true,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+        );
+        egui::DragAndDrop::set_payload(
+            &ctx,
+            StepDrag {
+                chapter: "main".into(),
+                indices: vec![0, 1],
+            },
+        );
+        for _ in 0..90 {
+            let _ = draw(&mut app, vec![]);
+        }
+        let scrolled = checkbox_numbers(draw(&mut app, vec![]));
+        assert!(
+            scrolled.iter().max() > initial.iter().max(),
+            "stationary drag must reveal later rows: {initial:?} -> {scrolled:?}"
+        );
+        assert_eq!(
+            app.story(),
+            before,
+            "hover scrolling must not move steps before drop"
+        );
+        let _ = draw(
+            &mut app,
+            vec![egui::Event::PointerMoved(egui::pos2(100.0, 225.0))],
+        );
+        for _ in 0..90 {
+            let _ = draw(&mut app, vec![]);
+        }
+        let upward = checkbox_numbers(draw(&mut app, vec![]));
+        assert!(
+            upward.iter().min() < scrolled.iter().min(),
+            "top edge must reveal earlier rows"
+        );
+        let _ = draw(
+            &mut app,
+            vec![egui::Event::Key {
+                key: egui::Key::Escape,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+        );
+        assert!(!egui::DragAndDrop::has_payload_of_type::<StepDrag>(&ctx));
+        assert_eq!(app.story(), before);
     }
     #[test]
     fn deleting_dragged_offsets_preserves_branches_parallel_actions_and_nonadjacent_targets() {

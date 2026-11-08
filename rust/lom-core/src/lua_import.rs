@@ -450,6 +450,22 @@ fn recognize(code: &str, state: &mut State, nodes: &mut Vec<Value>) -> bool {
             nodes.push(json!({"type":"focus","character":cid}));
             true
         }
+        "mod_char_dim_mode" if args.len() == 3 => {
+            let Some(cid) = string(&args[0], state) else {
+                return false;
+            };
+            let Some(Literal::Bool(dimmed)) = literal(&args[1], state) else {
+                return false;
+            };
+            let Some(mode) = string(&args[2], state) else {
+                return false;
+            };
+            if !["manual", "until_dialogue", "auto"].contains(&mode.as_str()) {
+                return false;
+            }
+            nodes.push(json!({"type":"dim","character":cid,"dimmed":dimmed,"mode":mode}));
+            true
+        }
         "mod_char_dim" if args.len() == 2 => {
             let Some(cid) = string(&args[0], state) else {
                 return false;

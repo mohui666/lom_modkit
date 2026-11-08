@@ -449,6 +449,7 @@ namespace MortalModHost
             Actor actor;
             if (!TryGetOrCreate(raw, out actor))
                 return false;
+            CharacterDimming.BeginCustomDialogue(raw);
             try
             {
                 SayDialog dialog = SayDialog.GetSayDialog();

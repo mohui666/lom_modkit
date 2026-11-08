@@ -89,6 +89,12 @@ foreach ($Name in @("MortalModHost.dll", "NVorbis.dll")) {
         throw "Missing C# runtime dependency: $Name. Build Host first, or pass -RuntimeDirectory."
     }
 }
+$HostProjectVersion = Read-VersionMatch (Join-Path $RepositoryRoot "runtime\MortalModHost\MortalModHost.csproj") '<Version>([^<]+)</Version>' "Host project"
+$HostPluginVersion = Read-VersionMatch (Join-Path $RepositoryRoot "runtime\MortalModHost\src\Plugin.cs") 'public const string VERSION\s*=\s*"([^"]+)"' "Host entry point"
+$HostBinaryVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $RuntimeDirectory "MortalModHost.dll")).ProductVersion.Split('+')[0]
+if ($HostProjectVersion -ne $Version -or $HostPluginVersion -ne $Version -or $HostBinaryVersion -ne $Version) {
+    throw "Host project, entry point and prebuilt DLL must match editor $Version. Rebuild Host before packaging."
+}
 Push-Location $RepositoryRoot
 try {
     & cargo --config 'target.x86_64-pc-windows-msvc.rustflags=["-C","target-feature=+crt-static"]' build --locked --release --target $NativeTarget -p lomc -p lom-assets

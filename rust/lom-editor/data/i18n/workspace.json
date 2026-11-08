@@ -154,5 +154,17 @@
     "cht": "已選取 {count} 個步驟。左側 Shift 連選，⌘/Ctrl 多選。",
     "ja": "{count} ステップを選択中。左側で Shift による範囲選択、⌘/Ctrl による複数選択ができます。",
     "ko": "{count}개 단계를 선택했습니다. 왼쪽에서 Shift로 범위 선택, ⌘/Ctrl로 다중 선택할 수 있습니다."
+  },
+  "workspace.steps.selected": {
+    "chs": "已选 {count} 个步骤",
+    "cht": "已選 {count} 個步驟",
+    "ja": "{count} ステップを選択中",
+    "ko": "{count}개 단계 선택됨"
+  },
+  "workspace.steps.moved": {
+    "chs": "已移动 {count} 个步骤",
+    "cht": "已移動 {count} 個步驟",
+    "ja": "{count} ステップを移動しました",
+    "ko": "{count}개 단계를 이동했습니다"
   }
 }

@@ -184,7 +184,8 @@
     "id": "node",
     "type": "dim",
     "character": "artist1",
-    "dimmed": true
+    "dimmed": true,
+    "mode": "until_dialogue"
   },
   "message": {
     "id": "node",

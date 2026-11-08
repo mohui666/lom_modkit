@@ -19,6 +19,20 @@ fn authoring_api_matches_legacy_success_and_rejection_cases() {
             // Retain the Python capture. Reviewed v1.4.5 changes only the new
             // effect node's default coordinate mode and centered position.
             let mut expected = c.clone();
+            // New dim nodes now expire at the next dialogue. Keep the captured
+            // legacy fixture untouched; existing nodes without mode stay manual.
+            if c["op"] == "add_node" && c["params"]["node_type"] == "dim" {
+                assert!(c["result"].get("mode").is_none());
+                expected["result"]["mode"] = serde_json::json!("until_dialogue");
+                let generated = expected["result"].clone();
+                let id = generated["id"].clone();
+                *expected["after"]["nodes"]
+                    .as_array_mut()
+                    .unwrap()
+                    .iter_mut()
+                    .find(|node| node["id"] == id)
+                    .unwrap() = generated;
+            }
             if i == 62 {
                 assert_eq!(c["op"], "add_node");
                 assert_eq!(c["params"]["node_type"], "effect");
