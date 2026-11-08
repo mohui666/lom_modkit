@@ -4,7 +4,7 @@
 
 **当前版本为 1.4.19，Windows x64 只需一个 exe。**
 
-[下载编辑器 exe](https://github.com/mohui666/lom_modkit/releases/download/v1.4.19/lom-editor.exe) · [附说明文档的压缩包](https://github.com/mohui666/lom_modkit/releases/download/v1.4.19/lom_modkit-v1.4.19_windows_x64.zip) · [本版更新说明](RELEASE_NOTES_v1.4.19.md) · [使用教程](docs/chs/software_usage.md) · [文档目录](docs/README.md)
+[下载编辑器 exe](https://github.com/mohui666/lom_modkit/releases/download/v1.4.19/lom-editor.exe) · [本版更新说明](RELEASE_NOTES_v1.4.19.md) · [使用教程](docs/chs/software_usage.md) · [文档目录](docs/README.md)
 
 本版统一错误提示，支持更多原版音效试听、人物动作与气泡同时显示，并新增书页事件图淡入。继续兼容旧工程和旧作品包，保留原章节、素材与源码，无需重建作品。
 
@@ -21,7 +21,7 @@
 
 ### 从旧版升级到 1.4.19
 
-1. 下载新版 `lom-editor.exe`，或通过编辑器内置更新升级，再打开已有作品。图片、动画、原版剧情和音频提取已迁移为 Rust。
+1. 旧版首次切换到单文件版时，请手动下载新版 `lom-editor.exe`，再打开已有作品。新版之后的内置更新只下载一个 exe。图片、动画、原版剧情和音频提取已迁移为 Rust。
 2. 提取器、原生音频解码器和同版 Host 已嵌入 exe，首次运行自动准备到 `%LOCALAPPDATA%/lom_modkit/components`；不必再复制配套文件夹。
 3. 退出游戏后启动新版编辑器，已安装的 Host 会自动同步。进入「游戏与 MOD」核对三个版本均为 1.4.19，必要时点击「更新游戏 Host」。
 4. 给原版人物追加图片时使用「素材管理 → 作品素材 → 为原版人物添加立绘…」。预览缓存中的图片与路径不能用来注册游戏表情。

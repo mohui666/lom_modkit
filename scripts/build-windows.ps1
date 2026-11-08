@@ -6,6 +6,7 @@ param(
     [string]$RuntimeDirectory = "",
     [string]$AudioDecoderDirectory = "",
     [switch]$NoArchive,
+    [switch]$Archive,
     [switch]$Force
 )
 
@@ -193,7 +194,6 @@ foreach ($Relative in @("asset-extractor", "audio-decoder", "runtime", "assets",
         Remove-Item -LiteralPath $LegacyPath -Recurse -ErrorAction Stop
     }
 }
-if ($NoArchive) { Write-Host "Built native tools: $BundleDirectory"; return }
 $BundleDirectory = (Resolve-Path -LiteralPath $BundleDirectory).Path
 [IO.Directory]::CreateDirectory($OutputDirectory) | Out-Null
 $OutputDirectory = (Resolve-Path -LiteralPath $OutputDirectory).Path
@@ -228,6 +228,11 @@ foreach ($Item in Get-ChildItem -LiteralPath $BundleDirectory -Recurse -Force) {
         throw "Native bundle contains forbidden build/user file: $($Item.FullName)"
     }
 }
+
+$StandalonePath = Join-Path $OutputDirectory "lom-editor.exe"
+Copy-Item -LiteralPath (Join-Path $BundleDirectory "lom-editor.exe") -Destination $StandalonePath -ErrorAction Stop
+Write-Host "OK  $StandalonePath"
+if (-not $Archive -or $NoArchive) { return }
 
 $ArchiveName = "lom_modkit-v${Version}_windows_x64.zip"
 $ArchivePath = Join-Path $OutputDirectory $ArchiveName
@@ -268,22 +273,6 @@ try {
 
     Replace-FileAtomically $TemporaryArchive $ArchivePath
     Replace-FileAtomically $TemporaryChecksum $ChecksumPath
-    # Stable standalone asset names are consumed by the in-editor updater.
-    foreach ($Relative in @("lom-editor.exe", "lomc.exe", "runtime\MortalModHost.dll", "runtime\NVorbis.dll")) {
-        $StandalonePath = Join-Path $OutputDirectory (Split-Path -Leaf $Relative)
-        $Source = if ($Relative -eq "lom-editor.exe") { Join-Path $BundleDirectory $Relative } else { Join-Path $ComponentDirectory $Relative }
-        Copy-Item -LiteralPath $Source -Destination $StandalonePath -ErrorAction Stop
-        Write-Host "OK  $StandalonePath"
-    }
-    # Readable release metadata avoids unauthenticated GitHub REST API limits.
-    $UpdateFiles = foreach ($Name in @("lom-editor.exe", "lomc.exe", "MortalModHost.dll", "NVorbis.dll")) {
-        $File = Get-Item -LiteralPath (Join-Path $OutputDirectory $Name)
-        [ordered]@{ name = $Name; size = $File.Length; sha256 = (Get-FileHash -LiteralPath $File.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }
-    }
-    $UpdateNotes = [IO.File]::ReadAllText((Join-Path $RepositoryRoot "RELEASE_NOTES_v$Version.md"))
-    $UpdateManifest = [ordered]@{ version = $Version; notes = $UpdateNotes; embedded_components = $true; files = @($UpdateFiles) }
-    [IO.File]::WriteAllText((Join-Path $OutputDirectory "update.json"), ($UpdateManifest | ConvertTo-Json -Depth 6), (New-Object Text.UTF8Encoding($false)))
-    Write-Host "OK  $(Join-Path $OutputDirectory 'update.json')"
     Write-Host "OK  $ArchivePath"
     Write-Host "OK  $ChecksumPath"
     Write-Host "SHA256 $Digest"

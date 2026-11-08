@@ -104,14 +104,14 @@ dotnet run --project runtime/MortalModHost/test/SmokeTest/SmokeTest.csproj --con
 
 更新工作区版本、游戏接入组件版本、本版更新说明和当前使用文档后，通过项目既有的合并检查发布。
 
-Windows 发布入口为 `scripts/build-windows.ps1`。准备同版本的 `MortalModHost.dll` 与 `NVorbis.dll`，用 `-RuntimeDirectory` 指向包含两者的目录，原生提取器由 `lom-assets` 构建，不再需要 UnityPy 或 PyInstaller。构建脚本先准备 CLI、提取器、解码器、同版 Host 和固定加载器，再把压缩组件嵌入 editor；`-NoArchive` 仅生成单 exe 及说明，发布时才构建压缩包。
+Windows 发布入口为 `scripts/build-windows.ps1`。准备同版本的 `MortalModHost.dll` 与 `NVorbis.dll`，用 `-RuntimeDirectory` 指向包含两者的目录，原生提取器由 `lom-assets` 构建，不再需要 UnityPy 或 PyInstaller。构建脚本先准备 CLI、提取器、解码器、同版 Host 和固定加载器，再把压缩组件嵌入 editor；默认只输出单 exe，`-Archive` 才额外生成用于自行分发的压缩包；GitHub 正式发布仅上传 `lom-editor.exe`。
 
 脚本从仓库根目录的 `RELEASE_NOTES_v<版本号>.md` 读取本版说明，并生成以下发布附件。
 
-- Windows x64 完整压缩包和对应校验文件。
-- 固定名称的 `lom-editor.exe`、`lomc.exe`、`MortalModHost.dll`、`NVorbis.dll`。
-- `update.json`，记录版本、说明、`embedded_components: true` 和四个独立文件的大小与摘要。兼容旧更新器，保留 CLI 和两个 Host 附件；新版只替换 exe，下载的 CLI 仍用作安全退出后的安装助手。
+- 唯一附件 `lom-editor.exe`。更新器从 GitHub 正式发布信息读取版本、说明、文件大小与 SHA256，下载并校验后，使用新版 exe 自身作为安装助手，等待旧进程退出再替换。CLI 与 Host 仅存在于内置组件中。
 
-先上传到发布草稿，确认附件齐全后公开正式版本。内置更新读取清单及独立附件；Windows 配套组件始终随 exe 内置和更新。原版资源只从用户自己的游戏安装读取，不随 exe 分发。
+旧更新器首次切换需手动下载新版 exe；作品和素材格式继续兼容。GitHub 自动生成的源码归档不是用户需要下载的程序附件。
+
+先上传到发布草稿，确认附件齐全后公开正式版本。内置更新读取 GitHub 发布信息及唯一 exe 附件；Windows 配套组件始终随 exe 内置和更新。原版资源只从用户自己的游戏安装读取，不随 exe 分发。
 
 仓库保留本版说明，旧版说明从对应的历史发布页查阅。清理旧说明时同步修改文档链接。
