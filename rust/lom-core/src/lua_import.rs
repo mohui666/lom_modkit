@@ -17,8 +17,9 @@ impl ImportReport {
     pub fn summary(&self) -> String {
         if self.converted {
             format!(
-                "已导入 {} 个可编辑演出步骤；原始 Lua 保存在 assets/imported/source.lua。",
-                self.visual_nodes
+                "已导入 {} 个可编辑演出步骤；原始 Lua 保存在 assets/imported/source.lua。{}",
+                self.visual_nodes,
+                self.notes.join(" ")
             )
         } else {
             format!("原始 Lua 已完整保留为一个高级步骤（不拆分作用域）；仅静态预览已识别的前 {} 个演出步骤。{}", self.visual_nodes,
@@ -49,6 +50,48 @@ pub fn import(source: &str, id: &str, title: &str) -> Result<ImportResult> {
     "start":nodes[0]["id"],"nodes":nodes,"lua_import":{
         "source_asset":"assets/imported/source.lua","report":report,"notice":report.summary()
     }});
+    crate::validate::validate_story(&story)?;
+    Ok(ImportResult { story, report })
+}
+
+/// Standalone files may mix presentation with native setup and game commands.
+/// Reuse the existing scope-preserving parser, retaining the raw-file contract
+/// with a visible reason when its grammar cannot represent the whole source.
+pub fn import_external(source: &str, id: &str, title: &str) -> Result<ImportResult> {
+    let mut basic = import(source, id, title)?;
+    if basic.report.converted {
+        return Ok(basic);
+    }
+    let mut story = match crate::native_flow::import(source, id, title, id, &BTreeMap::new()) {
+        Ok(story) => story,
+        Err(error) => {
+            basic
+                .report
+                .notes
+                .push(format!("完整结构解析未完成，源码仍完整保留：{error:#}"));
+            basic.story["lua_import"]["report"] = json!(basic.report);
+            basic.story["lua_import"]["notice"] = json!(basic.report.summary());
+            return Ok(basic);
+        }
+    };
+    story["vanilla_import"]["external"] = json!(true);
+    let nodes = story["nodes"].as_array().unwrap();
+    let native = nodes
+        .iter()
+        .filter(|node| {
+            matches!(
+                node["type"].as_str(),
+                Some("native_action" | "native_branch")
+            )
+        })
+        .count();
+    let report = ImportReport {
+        converted: true,
+        visual_nodes: nodes.iter().filter(|node| !matches!(node["type"].as_str(), Some("native_action" | "native_branch" | "end"))).count(),
+        preview_stopped_at: None,
+        notes: vec![format!("另保留 {native} 个原版指令／分支步骤；原调用、作用域和异步时序随来源结构保留，导入不执行 Lua。")],
+    };
+    story["lua_import"] = json!({"source_asset":"assets/imported/source.lua","report":report,"notice":report.summary()});
     crate::validate::validate_story(&story)?;
     Ok(ImportResult { story, report })
 }

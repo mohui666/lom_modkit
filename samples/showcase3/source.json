@@ -416,7 +416,7 @@
         {
           "id": "effect1_stop",
           "type": "effect",
-          "name": "Hit_001",
+          "name": "",
           "play": false,
           "clear": true,
           "tag": "showcase_hit",

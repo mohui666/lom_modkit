@@ -213,7 +213,7 @@ impl Project {
             .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("导入的 Lua");
-        let imported = crate::lua_import::import(source, "main", title)?;
+        let imported = crate::lua_import::import_external(source, "main", title)?;
         let mut project = Self::new();
         project.manifest["name"] = json!(title);
         project.stories = BTreeMap::from([("main".into(), imported.story)]);

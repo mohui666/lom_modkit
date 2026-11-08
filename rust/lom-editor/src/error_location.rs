@@ -15,6 +15,65 @@ pub enum Destination {
     Current,
 }
 
+pub fn issue_destination(
+    issue: &lom_core::release::PreflightIssue,
+    project: &Project,
+) -> Destination {
+    if project.stories.contains_key(&issue.story_id) {
+        return Destination::Story(
+            issue.story_id.clone(),
+            (!issue.node_id.is_empty()).then(|| issue.node_id.clone()),
+        );
+    }
+    resolve(&format!("{}: {}", issue.code, issue.message), project)
+}
+
+pub fn issue_label(issue: &lom_core::release::PreflightIssue, project: &Project) -> String {
+    let Some(story) = project.stories.get(&issue.story_id) else {
+        return issue_destination(issue, project).label();
+    };
+    let chapter = story["title"]
+        .as_str()
+        .filter(|title| !title.is_empty())
+        .unwrap_or(&issue.story_id);
+    if let Some((index, node)) = story["nodes"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .enumerate()
+        .find(|(_, node)| node["id"] == issue.node_id)
+    {
+        let note = node["_editor"]["note"]
+            .as_str()
+            .filter(|note| !note.is_empty())
+            .unwrap_or(&issue.node_id);
+        crate::i18n::message(
+            "editor.error.issue_location",
+            &[
+                ("chapter", chapter.into()),
+                ("step", (index + 1).to_string()),
+                ("note", note.into()),
+            ],
+        )
+    } else {
+        chapter.to_owned()
+    }
+}
+
+pub fn issue_report(issues: &[lom_core::release::PreflightIssue], project: &Project) -> String {
+    issues
+        .iter()
+        .map(|issue| {
+            format!(
+                "{}\n{}",
+                issue_label(issue, project),
+                explanation(&issue.message)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n\n")
+}
+
 impl Destination {
     pub fn label(&self) -> String {
         match self {

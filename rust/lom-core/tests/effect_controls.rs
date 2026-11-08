@@ -143,14 +143,54 @@ fn only_new_controls_require_host_1_4_5_and_tested_versions_are_still_honored() 
 
 #[test]
 fn new_effects_start_centered_in_screen_coordinates() {
-    let node = story_api::new_node("effect", "effect1").unwrap();
+    let mut node = story_api::new_node("effect", "effect1").unwrap();
     assert_eq!(node["space"], "screen");
     assert_eq!(node["x"], 50);
     assert_eq!(node["y"], 50);
+    assert!(validate::validate_story(&story(vec![node.clone()])).is_err());
+    node["name"] = json!("Hit_001");
     let lua = codegen::compile_story(&story(vec![node]), None, None, None).unwrap();
     assert!(lua.contains(
-        "mod_effect(\"\", 50, 50, 1, 1, 1, true, \"screen\", 0, 1, -1, false, false, \"\")"
+        "mod_effect(\"Hit_001\", 50, 50, 1, 1, 1, true, \"screen\", 0, 1, -1, false, false, \"\")"
     ));
+}
+
+#[test]
+fn empty_effect_names_fail_before_runtime_but_tagged_stops_are_valid() {
+    for fields in [
+        json!({}),
+        json!({"play":false}),
+        json!({"play":true,"tag":"hit"}),
+        json!({"d":0}),
+        json!({"play":true,"d":0,"tag":"hit"}),
+    ] {
+        for name in ["", "  "] {
+            let mut effect = json!({"type":"effect","name":name});
+            effect
+                .as_object_mut()
+                .unwrap()
+                .extend(fields.as_object().unwrap().clone());
+            let input = story(vec![effect]);
+            assert!(validate::validate_story(&input)
+                .unwrap_err()
+                .to_string()
+                .contains("特效名称不能为空"));
+            assert!(codegen::compile_story(&input, None, None, None).is_err());
+        }
+    }
+    for fields in [
+        json!({"play":false}),
+        json!({"d":0}),
+        json!({"play":false,"d":1}),
+    ] {
+        let mut effect = json!({"type":"effect","name":"","tag":"hit"});
+        effect
+            .as_object_mut()
+            .unwrap()
+            .extend(fields.as_object().unwrap().clone());
+        let lua = codegen::compile_story(&story(vec![effect]), None, None, None).unwrap();
+        assert!(lua.contains("mod_effect(\"\", 0, 0, 1, 1, 1, false,"));
+    }
 }
 
 #[test]
