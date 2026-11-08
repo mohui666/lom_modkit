@@ -138,11 +138,11 @@ impl Panel {
         let root = story_bookmarks::default_root();
         match story_bookmarks::read(&root) {
             Ok(marks) => self.bookmarks = marks,
-            Err(error) => self.navigation_error = Some(error.to_string()),
+            Err(error) => self.navigation_error = Some(crate::error_ui::capture(error)),
         }
         match story_bookmarks::read_timeline(&root) {
             Ok(timeline) => self.update_timeline(timeline),
-            Err(error) => self.navigation_error = Some(error.to_string()),
+            Err(error) => self.navigation_error = Some(crate::error_ui::capture(error)),
         }
     }
     fn update_timeline(&mut self, timeline: Option<Timeline>) {
@@ -195,7 +195,7 @@ impl Panel {
                 );
                 let query = self.navigation_filter.to_lowercase();
                 if let Some(error) = &self.navigation_error {
-                    ui.colored_label(egui::Color32::RED, error);
+                    crate::error_ui::show_with_actions(ui, error);
                 }
                 if self.timeline_tab {
                     if let (Some(timeline), Some(graph)) = (&self.timeline, &self.graph) {
@@ -227,7 +227,7 @@ impl Panel {
                             ui.label(key("vanilla.reading_routes"));
                         }
                         if let Some(error) = &self.error {
-                            ui.colored_label(egui::Color32::RED, error);
+                            crate::error_ui::show_with_actions(ui, error);
                         }
                         if self.job.is_none() && ui.button(key("vanilla.read_routes")).clicked() {
                             self.routes_attempted = false;
@@ -336,7 +336,7 @@ impl Panel {
         let helper = match crate::asset_extraction::helper_path() {
             Ok(helper) => helper,
             Err(error) => {
-                self.error = Some(error.to_string());
+                self.error = Some(crate::error_ui::capture(error));
                 return;
             }
         };
@@ -377,7 +377,7 @@ impl Panel {
                 );
                 Ok(event)
             })()
-            .map_err(|error| error.to_string());
+            .map_err(|error| crate::error_ui::capture(error));
             let _ = sender.send(result);
             ctx.request_repaint();
         });
@@ -416,7 +416,7 @@ impl Panel {
                         Err(error) => {
                             self.error = Some(message(
                                 "vanilla.error_invalid_routes",
-                                &[("error", error.to_string())],
+                                &[("error", crate::error_ui::capture(error))],
                             ))
                         }
                     }
@@ -475,7 +475,7 @@ impl Panel {
         let mut patch: Patch = match serde_json::from_value(story["vanilla_patch"].clone()) {
             Ok(patch) => patch,
             Err(error) => {
-                ui.colored_label(egui::Color32::RED, error.to_string());
+                crate::error_ui::show_with_actions(ui, &crate::error_ui::capture(error));
                 return;
             }
         };
@@ -586,7 +586,7 @@ impl Panel {
         }
         story["vanilla_patch"] = json!(patch);
         if let Some(error) = &self.error {
-            ui.colored_label(egui::Color32::from_rgb(180, 50, 40), error);
+            crate::error_ui::show_with_actions(ui, error);
         }
         if self
             .job_target
@@ -609,7 +609,7 @@ impl Panel {
                     *story = imported;
                     self.imported = true;
                 }
-                Err(error) => self.error = Some(format!("{error:#}")),
+                Err(error) => self.error = Some(crate::error_ui::capture(error)),
             }
             return;
         }
@@ -820,7 +820,7 @@ impl Panel {
         }
         story["vanilla_patch"] = json!(patch);
         if let Err(error) = vanilla_patch::parse(story) {
-            ui.colored_label(egui::Color32::RED, error.to_string());
+            crate::error_ui::show_with_actions(ui, &crate::error_ui::capture(error));
         }
     }
 
@@ -882,7 +882,7 @@ impl Panel {
                         });
                     }
                     Err(error) => {
-                        ui.colored_label(egui::Color32::RED, error.to_string());
+                        crate::error_ui::show_with_actions(ui, &crate::error_ui::capture(error));
                     }
                 }
             });

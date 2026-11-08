@@ -756,6 +756,9 @@ impl Catalog {
                 );
             }
         }
+        if matches!(kind.as_str(), "move" | "offset") {
+            ui.small(crate::i18n::key("editor.form.movement_portrait_hint"));
+        }
         if kind == "mood" {
             ui.small(crate::i18n::key("editor.form.bubble_hint"));
             ui.small(tr(
@@ -998,7 +1001,7 @@ impl Catalog {
             node["actions"] = Value::Array(actions);
         }
         if let Err(error) = lom_core::parallel::validate_group(node) {
-            crate::error_location::show(ui, &error.to_string());
+            crate::error_ui::show_with_actions(ui, &crate::error_ui::capture(error));
         }
         changed
     }
@@ -2192,7 +2195,9 @@ fn field_visible(kind: &str, node: &Value, key: &str) -> bool {
             }
             "n1" | "n2" => node["action"] == "show" && node["kind"] == "family",
             "color" => node["action"] == "show" && node["kind"] == "big",
-            "event_title" | "event_text" => node["action"] == "show" && node["kind"] == "event",
+            "event_title" | "event_text" | "fade_in" => {
+                node["action"] == "show" && node["kind"] == "event"
+            }
             _ => true,
         };
     }
@@ -2210,6 +2215,28 @@ fn field_visible(kind: &str, node: &Value, key: &str) -> bool {
     !(kind == "branch" && node["source"] == "stat" && key == "flag")
 }
 
+#[test]
+fn event_fade_field_is_only_visible_for_showing_a_book_event() {
+    assert!(field_visible(
+        "cg",
+        &json!({"action":"show","kind":"event"}),
+        "fade_in"
+    ));
+    assert!(!field_visible(
+        "cg",
+        &json!({"action":"hide","kind":"event"}),
+        "fade_in"
+    ));
+    assert!(!field_visible(
+        "cg",
+        &json!({"action":"show","kind":"picture"}),
+        "fade_in"
+    ));
+    assert!(!Catalog::new()
+        .new_node("cg", "book".into())
+        .get("fade_in")
+        .is_some_and(|v| v.as_f64().is_some_and(|v| v > 0.0)));
+}
 #[test]
 fn portrait_and_narration_controls_follow_the_selected_mode() {
     let node = json!({"type":"portrait"});

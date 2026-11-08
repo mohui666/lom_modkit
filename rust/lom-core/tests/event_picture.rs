@@ -2,6 +2,37 @@ use lom_core::{codegen, localization, package, project::Project, validate};
 use serde_json::{json, Value};
 
 #[test]
+fn event_fade_is_optional_waits_before_text_and_keeps_legacy_output_for_zero() {
+    let source = json!({"id":"main","start":"book","nodes":[
+        {"id":"book","type":"cg","kind":"event","action":"show","key":"girlroom_work_002","event_title":"来信","event_text":"读信"},
+        {"id":"end","type":"end"}
+    ]});
+    let legacy = codegen::compile_story(&source, None, None, None).unwrap();
+    let mut current = source.clone();
+    current["nodes"][0]["fade_in"] = json!(0);
+    assert_eq!(
+        codegen::compile_story(&current, None, None, None).unwrap(),
+        legacy
+    );
+    current["nodes"][0]["fade_in"] = json!(0.8);
+    let lua = codegen::compile_story(&current, None, None, None).unwrap();
+    let show = lua
+        .find("mod_event_picture_show_fade(\"girlroom_work_002\", \"来信\", 0.8)")
+        .unwrap();
+    let wait = lua[show..].find("wait(0.8)").unwrap() + show;
+    let say = lua[show..].find("say(\"读信\")").unwrap() + show;
+    assert!(show < wait && wait < say);
+    assert!(lua.contains("if mod_event_picture_show_fade == nil then error("));
+    for invalid in [json!(-0.1), json!("soon"), Value::Null] {
+        current["nodes"][0]["fade_in"] = invalid;
+        assert!(validate::validate_story(&current)
+            .unwrap_err()
+            .to_string()
+            .contains("fade_in"));
+    }
+}
+
+#[test]
 fn event_book_exports_custom_image_caption_and_optional_dialogue() {
     let mut project = Project::new();
     project.manifest["min_host_version"] = json!("1.4.1");
@@ -68,4 +99,23 @@ fn campaign_id_errors_distinguish_absence_and_invalid_format() {
         .unwrap_err()
         .to_string();
     assert!(invalid.contains("格式不合法") && !invalid.contains("缺少必填字段"));
+}
+
+#[test]
+fn only_a_positive_event_fade_requires_host_1419_and_roundtrips() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut project = Project::new();
+    project.manifest["min_host_version"] = json!("1.4.2");
+    project.stories.insert("main".into(), json!({"story_schema":2,"id":"main","start":"book","nodes":[
+        {"id":"book","type":"cg","kind":"event","action":"show","key":"girlroom_work_002","fade_in":0},
+        {"id":"end","type":"end"}
+    ]}));
+    for (seconds, required) in [(0.0, "1.4.2"), (0.8, "1.4.19")] {
+        project.stories.get_mut("main").unwrap()["nodes"][0]["fade_in"] = json!(seconds);
+        let path = dir.path().join(format!("{seconds}.lommod"));
+        project.export(&path).unwrap();
+        let reopened = Project::open(&path).unwrap();
+        assert_eq!(reopened.manifest["min_host_version"], required);
+        assert_eq!(reopened.stories, project.stories);
+    }
 }

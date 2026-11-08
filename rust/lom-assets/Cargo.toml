@@ -1,0 +1,25 @@
+[package]
+name = "lom-assets"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "lom-asset-extractor"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+lom-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+regex.workspace = true
+base64 = "0.22"
+image = { version = "0.25", default-features = false, features = ["png"] }
+roxmltree = "0.20"
+rand = "0.9"
+unity-rs-core = { git = "https://github.com/seiunx-dev/unity-rs", rev = "30badcbe5f0acef5ee592c5d765d52c5c61f78e6" }
+
+[dev-dependencies]
+tempfile.workspace = true

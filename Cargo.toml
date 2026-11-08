@@ -1,9 +1,9 @@
 [workspace]
-members = ["rust/lom-core", "rust/lomc", "rust/lom-editor"]
+members = ["rust/lom-core", "rust/lomc", "rust/lom-editor", "rust/lom-assets"]
 resolver = "2"
 
 [workspace.package]
-version = "1.4.18"
+version = "1.4.19"
 edition = "2021"
 license = "MIT"
 

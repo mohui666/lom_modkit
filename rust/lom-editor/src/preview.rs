@@ -137,6 +137,18 @@ pub fn route(story: &Value, target: &str) -> Option<Vec<String>> {
 pub fn simulate(story: &Value, target: &str) -> Value {
     simulate_until(story, target, true)
 }
+fn portrait_preview_node(story: &Value, selected: usize) -> Value {
+    let mut node = story["nodes"][selected].clone();
+    let cid = text(&node, "character").to_owned();
+    if !cid.is_empty() && node["portrait"].as_str().is_none_or(str::is_empty) {
+        let state = simulate(story, text(&node, "id"));
+        if let Some(actor) = state["actors"].get(&cid) {
+            node["portrait"] = actor["portrait"].clone();
+            node["appearance"] = actor["appearance"].clone();
+        }
+    }
+    node
+}
 fn simulate_until(story: &Value, target: &str, include_target: bool) -> Value {
     let mut state = json!({"actors":{},"dimming":{},"overlays":{},"official_pictures":{},"background":null,"view":null,"custom_cg":null,"dialog":null,"choice":null,"blackout":{"amount":0.0,"dir":"lr"},"reached":false,"steps":0});
     state["mood_enabled"] = json!(story["mood"].as_bool().unwrap_or(false));
@@ -172,12 +184,7 @@ pub fn build_playtest_prelude(story: &Value, target: &str) -> Vec<Value> {
     for (name, active) in state["camera_filters"].as_object().into_iter().flatten() {
         nodes.push(json!({"type":"camera","name":name,"active":active}));
     }
-    if story["nodes"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .any(|n| n["type"] == "mood")
-    {
+    if lom_core::parallel::story_actions(story).any(|(_, n)| n["type"] == "mood") {
         nodes.push(json!({"type":"mood","enabled":state["mood_enabled"]}));
     }
     if number(&state["blackout"], "amount", 0.0) >= 1.0 {
@@ -249,6 +256,9 @@ pub fn build_playtest_prelude(story: &Value, target: &str) -> Vec<Value> {
         picture.as_object_mut().unwrap().remove("id");
         picture.as_object_mut().unwrap().remove("goto");
         picture.as_object_mut().unwrap().remove("event_text");
+        if picture["kind"] == "event" {
+            picture.as_object_mut().unwrap().remove("fade_in");
+        }
         nodes.push(picture);
     }
     let mut used: std::collections::BTreeSet<String> = story["nodes"]
@@ -479,6 +489,9 @@ pub fn playback_duration(node: &Value) -> f64 {
             "background" | "custom_cg" | "overlay" => number(action, "fade", 0.0),
             "music" | "sound" if action["op"] == "fadeout" => number(action, "seconds", 2.0),
             "effect" => 0.0,
+            "cg" if action["kind"] == "event" && action["action"] == "show" => {
+                number(action, "fade_in", 0.0)
+            }
             _ => 0.0,
         }
         .max(0.0)
@@ -492,6 +505,9 @@ pub fn playback_duration(node: &Value) -> f64 {
             .max(0.1)
     } else {
         match text(node, "type") {
+            "cg" if node["kind"] == "event" && node["action"] == "show" => {
+                duration(node).max(0.0) + 1.8
+            }
             "show" | "portrait" | "hide" | "hide_all" | "move" | "offset" | "rotate" | "shock"
             | "wait" | "transition" | "mood" | "effect" => duration(node).max(0.1),
             _ => 1.8,
@@ -545,6 +561,19 @@ fn animate_frame(state: &mut Value, before: &Value, node: &Value, elapsed: f64, 
             let to = if action["phase"] == "in" { 1.0 } else { 0.0 };
             let progress = (elapsed / PREVIEW_TRANSITION_SECONDS).clamp(0.0, 1.0);
             state["blackout"]["amount"] = (from + (to - from) * progress).into();
+            continue;
+        }
+        if action["type"] == "cg" && action["kind"] == "event" && action["action"] == "show" {
+            let fade = number(action, "fade_in", 0.0);
+            state["official_pictures"]["event"]["preview_opacity"] = if fade > 0.0 {
+                (elapsed / fade).clamp(0.0, 1.0)
+            } else {
+                1.0
+            }
+            .into();
+            if elapsed < fade {
+                state["dialog"] = before["dialog"].clone();
+            }
             continue;
         }
         let cid = text(action, "character");
@@ -805,7 +834,7 @@ impl Preview {
                 .unwrap_or(json!({}));
         let (effect_library, effect_library_error) = match effects::Library::current() {
             Ok(library) => (library.map(std::sync::Arc::new), None),
-            Err(error) => (None, Some(format!("{error:#}"))),
+            Err(error) => (None, Some(crate::error_ui::capture(error))),
         };
         Self {
             mapping,
@@ -853,7 +882,7 @@ impl Preview {
                 Ok(())
             }
             Err(error) => {
-                self.effect_library_error = Some(format!("{error:#}"));
+                self.effect_library_error = Some(crate::error_ui::capture(&error));
                 Err(error)
             }
         }
@@ -968,13 +997,13 @@ impl Preview {
         let mapping = lom_core::load_json(root.join("preview_map.json")).map_err(|error| {
             anyhow::anyhow!(crate::i18n::message(
                 "editor.preview.library_damaged",
-                &[("error", error.to_string())]
+                &[("error", crate::error_ui::capture(error))]
             ))
         })?;
         crate::asset_extraction::validate_mapping(&root, &mapping).map_err(|error| {
             anyhow::anyhow!(crate::i18n::message(
                 "editor.preview.library_incomplete",
-                &[("error", format!("{error:#}"))]
+                &[("error", crate::error_ui::capture(error))]
             ))
         })?;
         self.mapping = mapping;
@@ -1502,8 +1531,10 @@ impl Preview {
                     "原版特效预览缓存无效"
                 }));
                 if let Some(error) = &self.effect_library_error {
-                    ui.small(crate::i18n::tr("原版特效预览缓存无效"))
-                        .on_hover_text(error);
+                    crate::error_ui::show_with_actions(
+                        ui,
+                        &format!("原版特效预览缓存无效：{error}"),
+                    );
                 }
                 let names = effects::extraction_names(
                     &state,
@@ -1992,6 +2023,8 @@ impl Preview {
         {
             let kind = text(picture, "kind");
             if kind == "event" {
+                let mut painter = painter.clone();
+                painter.multiply_opacity(number(picture, "preview_opacity", 1.0) as f32);
                 // Scene layout from StoryMainUI._picture, in the native 1920×1080 canvas.
                 let scale = rect.height() / 1080.0;
                 let book = Rect::from_center_size(
@@ -2371,7 +2404,15 @@ impl Preview {
         self.camera_filter = filters::Settings::default();
         choice
     }
-    pub fn show_portrait(&mut self, ui: &mut egui::Ui, project: &Project, node: &Value) {
+    pub fn show_portrait(
+        &mut self,
+        ui: &mut egui::Ui,
+        project: &Project,
+        story: &Value,
+        selected: usize,
+    ) {
+        let resolved = portrait_preview_node(story, selected);
+        let node = &resolved;
         let cid = text(node, "character");
         if cid.is_empty() {
             ui.centered_and_justified(|ui| {
@@ -2825,6 +2866,78 @@ pub fn graph(
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn event_book_fades_as_a_whole_and_playtest_restoration_does_not_replay_the_fade() {
+        let positions = json!({});
+        let story = json!({"id":"main","start":"book","nodes":[
+            {"id":"book","type":"cg","kind":"event","action":"show","key":"girlroom_work_002","event_text":"淡入后读信","fade_in":0.8},
+            {"id":"later","type":"wait","seconds":1}, {"id":"end","type":"end"}
+        ]});
+        let half = simulate_frame(&story, "book", 0.4, &positions);
+        assert_eq!(half["official_pictures"]["event"]["preview_opacity"], 0.5);
+        assert!(half["dialog"].is_null());
+        let done = simulate_frame(&story, "book", 0.9, &positions);
+        assert_eq!(done["official_pictures"]["event"]["preview_opacity"], 1.0);
+        assert_eq!(done["dialog"]["text"], "淡入后读信");
+        let prelude = build_playtest_prelude(&story, "later");
+        let restored = prelude.iter().find(|node| node["kind"] == "event").unwrap();
+        assert!(restored.get("fade_in").is_none() && restored.get("event_text").is_none());
+        let mut old = story;
+        old["nodes"][0].as_object_mut().unwrap().remove("fade_in");
+        assert_eq!(
+            simulate_frame(&old, "book", 0.0, &positions)["official_pictures"]["event"]
+                ["preview_opacity"],
+            1.0
+        );
+    }
+    #[test]
+    fn movement_portrait_tab_inherits_the_selected_actors_current_expression() {
+        for character in ["player", "user:demo.actor"] {
+            let story = json!({"start":"enter","nodes":[
+                {"id":"enter","type":"show","character":character,"portrait":"shy","appearance":"beautified"},
+                {"id":"other","type":"show","character":"other_actor","portrait":"normal"},
+                {"id":"move","type":"move","character":character,"from":"L1","to":"M"},
+                {"id":"change","type":"portrait","character":character,"portrait":"angry1"},
+                {"id":"offset","type":"offset","character":character,"x":30,"y":0}
+            ]});
+            let before = story.clone();
+            assert_eq!(portrait_preview_node(&story, 2)["portrait"], "shy");
+            assert_eq!(portrait_preview_node(&story, 2)["appearance"], "beautified");
+            assert_eq!(portrait_preview_node(&story, 3)["portrait"], "angry1");
+            assert_eq!(portrait_preview_node(&story, 4)["portrait"], "angry1");
+            assert_eq!(
+                simulate(&story, "offset")["actors"][character]["portrait"],
+                "angry1"
+            );
+            assert_eq!(story, before);
+        }
+    }
+    #[test]
+    fn parallel_bubble_and_shock_are_visible_together_and_restored_for_playtest() {
+        use super::*;
+        let positions: Value =
+            serde_json::from_str(include_str!("../../../data/stage_positions.json")).unwrap();
+        for character in ["player", "user:demo.actor"] {
+            let story = json!({"id":"main","start":"enter","nodes":[
+                {"id":"enter","type":"show","character":character,"position":"M"},
+                {"id":"together","type":"parallel","actions":[
+                    {"type":"shock","character":character,"duration":0.5},
+                    {"type":"mood","character":character,"enabled":true,"icon":"shock","wait_after":0.5}
+                ]},
+                {"id":"after","type":"say","text":"气泡仍在"}
+            ]});
+            let frame = simulate_frame(&story, "together", 0.1, &positions);
+            assert!(number(&frame["actors"][character], "preview_shock_x", 0.0).abs() > 0.01);
+            assert_eq!(frame["mood_overrides"][character]["icon"], "shock");
+            let after = simulate(&story, "after");
+            assert!(after["actors"][character]["preview_shock_x"].is_null());
+            assert_eq!(after["mood_overrides"][character]["icon"], "shock");
+            let prelude = build_playtest_prelude(&story, "after");
+            assert!(prelude.iter().any(|node| node["type"] == "mood"
+                && node["character"] == character
+                && node["icon"] == "shock"));
+        }
+    }
     #[test]
     fn shock_preview_moves_temporarily_and_restores_the_layout() {
         use super::*;
@@ -3418,6 +3531,13 @@ end
         let error = preview.set_library(root.path()).unwrap_err().to_string();
         assert!(error.contains("preview_map.json"));
         assert!(error.contains("从游戏提取预览素材"));
+        assert_eq!(preview.library, original);
+        std::fs::write(root.path().join("preview_map.json"), b"{ not-json").unwrap();
+        let error = preview.set_library(root.path()).unwrap_err();
+        let visible = crate::error_ui::text(&format!("{error:#}"));
+        assert!(visible.contains("请"), "{visible}");
+        assert!(!visible.contains("key must be a string"), "{visible}");
+        assert!(format!("{error:#}").contains("key must be a string at line 1 column 3"));
         assert_eq!(preview.library, original);
         let mapping = json!({"characters":{"girl5_9":{"first":"normal","portraits":{"normal":"assets/normal.png"}}},"views":{}});
         std::fs::write(root.path().join("preview_map.json"), mapping.to_string()).unwrap();

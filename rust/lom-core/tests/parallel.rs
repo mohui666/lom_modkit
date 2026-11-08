@@ -8,6 +8,42 @@ fn story(actions: Value) -> Value {
 }
 
 #[test]
+fn bubbles_join_visible_actor_actions_without_erasing_them_or_weakening_conflicts() {
+    let bubble =
+        json!({"type":"mood","character":"player","enabled":true,"icon":"shock","wait_after":0.5});
+    for action in [
+        json!({"type":"shock","character":"player","duration":0.5}),
+        json!({"type":"move","character":"player","from":"L1","to":"R1","duration":0.5}),
+        json!({"type":"portrait","character":"player","portrait":"normal","fade_out":0,"fade_in":0.2}),
+        json!({"type":"face","character":"player","facing":"left"}),
+        json!({"type":"offset","character":"player","x":10,"y":0,"duration":0.5}),
+        json!({"type":"rotate","character":"player","angle":10,"duration":0.5}),
+        json!({"type":"dim","character":"player","dimmed":false}),
+    ] {
+        let mut source = story(json!([action, bubble]));
+        source["nodes"].as_array_mut().unwrap().insert(0, json!({"id":"enter","type":"show","character":"player","position":"L1","portrait":"normal","fadeDuration":0}));
+        source["start"] = json!("enter");
+        source["nodes"].as_array_mut().unwrap().insert(
+            2,
+            json!({"id":"line","type":"say","character":"player","text":"气泡与动作同时存在"}),
+        );
+        validate::validate_story(&source).unwrap();
+        let lua = codegen::compile_story(&source, None, None, None).unwrap();
+        assert!(lua.contains("mod_character_mood(\"player\", \"shock\")"));
+        assert!(!lua.contains("mod_hide_mood()"), "{lua}");
+        assert!(release::find_stage_issues(&source).is_empty());
+    }
+    for other in [
+        bubble.clone(),
+        json!({"type":"show","character":"player","position":"L1"}),
+        json!({"type":"hide","character":"player"}),
+        json!({"type":"mood","enabled":false}),
+    ] {
+        assert!(parallel::validate_group(&json!({"actions":[bubble,other]})).is_err());
+    }
+}
+
+#[test]
 fn rejects_flow_control_invalid_child_fields_and_competing_outputs() {
     let valid = json!([{"type":"hide","character":"player","fadeDuration":0.5},{"type":"hide","character":"brother1","fadeDuration":0.8}]);
     validate::validate_story(&story(valid.clone())).unwrap();

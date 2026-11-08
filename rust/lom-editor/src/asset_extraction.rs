@@ -13,20 +13,7 @@ use std::{
 };
 
 pub fn helper_path() -> Result<PathBuf> {
-    let exe = std::env::current_exe()?;
-    let folder = exe.parent().context("无法确定编辑器位置")?;
-    let name = if cfg!(windows) {
-        "lom-asset-extractor.exe"
-    } else {
-        "lom-asset-extractor"
-    };
-    [
-        folder.join("asset-extractor").join(name),
-        folder.join("../Resources/asset-extractor").join(name),
-    ]
-    .into_iter()
-    .find(|p| p.is_file())
-    .context("安装包缺少素材提取组件，请使用包含 asset-extractor 的完整编辑器安装包")
+    crate::components::extractor()
 }
 
 pub fn validate_game(root: &Path) -> Result<()> {

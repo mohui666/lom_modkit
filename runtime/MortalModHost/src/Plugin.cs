@@ -28,7 +28,7 @@ namespace MortalModHost
     {
         public const string GUID = "com.mohui666.mortalmodhost";
         public const string NAME = "MortalModHost";
-        public const string VERSION = "1.4.18";
+        public const string VERSION = "1.4.19";
 
         internal static Plugin Instance { get; private set; }
 
@@ -294,6 +294,7 @@ namespace MortalModHost
             EffectPreviewCapture.Init(this);
             CustomImageRuntime.Log = Logger;
             CustomImageRuntime.Init(this);
+            EventPictureRuntime.Init(this);
             ModDisclosure.Log = Logger;
 
             bool ok = true;

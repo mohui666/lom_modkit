@@ -911,10 +911,24 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
             if s(node, "action") == "hide" {
                 out.push("\tmod_event_picture_hide()".into());
             } else {
-                out.push(call(
-                    "mod_event_picture_show",
-                    &[q(node, "key"), qd(node, "event_title", "事件")],
-                ));
+                let fade = n(node, "fade_in", json!(0));
+                if fade.parse::<f64>()? > 0.0 {
+                    out.push("\tif mod_event_picture_show_fade == nil then error(\"事件图淡入需要更新游戏接入组件，请在游戏与 MOD 中同步后重新试玩\") end".into());
+                    out.push(call(
+                        "mod_event_picture_show_fade",
+                        &[
+                            q(node, "key"),
+                            qd(node, "event_title", "事件"),
+                            fade.clone(),
+                        ],
+                    ));
+                    out.push(wait(fade));
+                } else {
+                    out.push(call(
+                        "mod_event_picture_show",
+                        &[q(node, "key"), qd(node, "event_title", "事件")],
+                    ));
+                }
                 if !s(node, "event_text").is_empty() {
                     if ctx.narrative_layout {
                         out.push("\tmod_narrative_left(false)".into());
@@ -1889,7 +1903,7 @@ fn story_to_lua_impl(
     // Explicit switches follow runtime control flow, including loops/branches.
     // Let the existing Host ShowMood patch enforce disabled state; unconditional
     // legacy hide calls would otherwise erase an explicitly enabled bubble.
-    let dynamic_mood = nodes.iter().any(|n| s(n, "type") == "mood");
+    let dynamic_mood = crate::parallel::story_actions(story).any(|(_, n)| s(n, "type") == "mood");
     let narrative_layout = nodes
         .iter()
         .any(|n| ["narrative", "center"].contains(&s(n, "mode")) && s(n, "text_align") == "left");

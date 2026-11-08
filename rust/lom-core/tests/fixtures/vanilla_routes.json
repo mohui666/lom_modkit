@@ -1,0 +1,302 @@
+[
+  {
+    "sources": {
+      "ENTRY": "\n-- luamanager.SetNextScript(\"COMMENT\")\nlocal quoted = 'luamanager.SetNextScript(\"QUOTED\")'\nlocal options = {}\noptions[1] = \"O_LEFT\"\noptions[2] = \"O_RIGHT\"\nlocal choice = choose(options)\nif choice == 1 then\n    luamanager.SetNextScript(\"LEFT\")\nelseif choice == 2 then\n    statmodifymanager.Mission(\"Main\", \"RIGHT\")\nelse\n    luamanager.SetNextScript(\"RETURN\")\nend\nstatmodifymanager.Mission(\"Side\", \"NEXT\")\n"
+    },
+    "texts": {
+      "O_LEFT": "向左",
+      "O_RIGHT": "向右"
+    },
+    "positions": {},
+    "expected": {
+      "scripts": [
+        {
+          "script": "ENTRY",
+          "links": [
+            {
+              "target": "LEFT",
+              "condition": "选项：向左"
+            },
+            {
+              "target": "RETURN",
+              "condition": "其余分支（否则若 选项：向右）"
+            }
+          ],
+          "missions": [
+            {
+              "series": "Main",
+              "key": "RIGHT",
+              "condition": "否则若 选项：向右"
+            },
+            {
+              "series": "Side",
+              "key": "NEXT",
+              "condition": ""
+            }
+          ],
+          "unknown_jumps": 0
+        }
+      ]
+    }
+  },
+  {
+    "sources": {
+      "ENTRY": "\nvar1 = \"LEFT\"\nif flag then var1 = \"RIGHT\" end\nluamanager.SetNextScript(var1)\n",
+      "LEFT": "",
+      "RIGHT": ""
+    },
+    "texts": {},
+    "positions": {},
+    "expected": {
+      "scripts": [
+        {
+          "script": "ENTRY",
+          "links": [
+            {
+              "target": "LEFT",
+              "condition": "返回跨章节变量 var1：调用链候选"
+            },
+            {
+              "target": "RIGHT",
+              "condition": "返回跨章节变量 var1：调用链候选"
+            }
+          ],
+          "missions": [],
+          "unknown_jumps": 0
+        },
+        {
+          "script": "LEFT",
+          "links": [],
+          "missions": [],
+          "unknown_jumps": 0
+        },
+        {
+          "script": "RIGHT",
+          "links": [],
+          "missions": [],
+          "unknown_jumps": 0
+        }
+      ]
+    }
+  },
+  {
+    "sources": {
+      "ENTRY": "local target = \"PREFIX\" .. compute()\nluamanager.SetNextScript(target)"
+    },
+    "texts": {},
+    "positions": {},
+    "expected": {
+      "scripts": [
+        {
+          "script": "ENTRY",
+          "links": [],
+          "missions": [],
+          "unknown_jumps": 1
+        }
+      ]
+    }
+  },
+  {
+    "sources": {
+      "ENTRY": "\nlocal fixed = \"KNOWN\"\nluamanager.SetNextScript(fixed)\nif flag then fixed = \"OTHER\" end\nluamanager.SetNextScript(fixed)\nluamanager.SetNextScript(compute())\nluamanager.ChangeScene(\"Battle\", \"MAP\", \"Free\")\n"
+    },
+    "texts": {},
+    "positions": {},
+    "expected": {
+      "scripts": [
+        {
+          "script": "ENTRY",
+          "links": [
+            {
+              "target": "KNOWN",
+              "condition": ""
+            }
+          ],
+          "missions": [],
+          "unknown_jumps": 2
+        }
+      ]
+    }
+  },
+  {
+    "sources": {
+      "ENTRY": "\nsay([=[\nif fake then luamanager.SetNextScript(\"WRONG\") end\n]=])\n--[[ luamanager.SetNextScript(\"COMMENT\") ]]\nlocal target = [=[RIGHT]=]\nrunwait(wrapper(luamanager.SetNextScript(target)))\n"
+    },
+    "texts": {},
+    "positions": {},
+    "expected": {
+      "scripts": [
+        {
+          "script": "ENTRY",
+          "links": [
+            {
+              "target": "RIGHT",
+              "condition": ""
+            }
+          ],
+          "missions": [],
+          "unknown_jumps": 0
+        }
+      ]
+    }
+  },
+  {
+    "sources": {
+      "ENTRY": "\nif flag then\n    luamanager.SetTempScript(1, \"LEFT\")\n    var1 = checkpointmanager.Position(\"TEST\")\n    luamanager.SetNextScript(\"CHILD\")\nelse\n    luamanager.SetTempScript(1, \"RIGHT\")\n    luamanager.SetNextScript(\"OTHER_CHILD\")\nend\n",
+      "CHILD": "luamanager.SetNextScript(var1)",
+      "EVENT": "var2 = luamanager.GetTempScript(1)\nluamanager.SetNextScript(var2)",
+      "OTHER_CHILD": "var1 = luamanager.GetTempScript(1)\nluamanager.SetNextScript(var1)",
+      "LEFT": "",
+      "RIGHT": ""
+    },
+    "texts": {},
+    "positions": {
+      "TEST": [
+        "EVENT"
+      ]
+    },
+    "expected": {
+      "scripts": [
+        {
+          "script": "CHILD",
+          "links": [
+            {
+              "target": "EVENT",
+              "condition": "返回跨章节变量 var1：调用链候选"
+            }
+          ],
+          "missions": [],
+          "unknown_jumps": 0
+        },
+        {
+          "script": "ENTRY",
+          "links": [
+            {
+              "target": "CHILD",
+              "condition": "flag"
+            },
+            {
+              "target": "OTHER_CHILD",
+              "condition": "其余分支（flag）"
+            }
+          ],
+          "missions": [],
+          "unknown_jumps": 0
+        },
+        {
+          "script": "EVENT",
+          "links": [
+            {
+              "target": "LEFT",
+              "condition": "返回临时章节槽 1：调用链候选"
+            }
+          ],
+          "missions": [],
+          "unknown_jumps": 0
+        },
+        {
+          "script": "LEFT",
+          "links": [],
+          "missions": [],
+          "unknown_jumps": 0
+        },
+        {
+          "script": "OTHER_CHILD",
+          "links": [
+            {
+              "target": "RIGHT",
+              "condition": "返回临时章节槽 1：调用链候选"
+            }
+          ],
+          "missions": [],
+          "unknown_jumps": 0
+        },
+        {
+          "script": "RIGHT",
+          "links": [],
+          "missions": [],
+          "unknown_jumps": 0
+        }
+      ]
+    }
+  },
+  {
+    "sources": {
+      "SETUP": "luamanager.SetCurrentTravelScript(\"TRAVEL\")",
+      "EVENT": "var1 = luamanager.GetCurrentTravelScript()\nluamanager.SetNextScript(var1)",
+      "TRAVEL": ""
+    },
+    "texts": {},
+    "positions": {},
+    "expected": {
+      "scripts": [
+        {
+          "script": "EVENT",
+          "links": [
+            {
+              "target": "TRAVEL",
+              "condition": "返回当前游历章节：全局配置候选（调用上下文未记录）"
+            }
+          ],
+          "missions": [],
+          "unknown_jumps": 0
+        },
+        {
+          "script": "SETUP",
+          "links": [],
+          "missions": [],
+          "unknown_jumps": 0
+        },
+        {
+          "script": "TRAVEL",
+          "links": [],
+          "missions": [],
+          "unknown_jumps": 0
+        }
+      ]
+    }
+  },
+  {
+    "sources": {
+      "SETUP": "luamanager.SetTempScript(1, \"KNOWN\")",
+      "ENTRY": "luamanager.SetTempScript(1, compute())\nluamanager.SetNextScript(\"CHILD\")",
+      "CHILD": "var1 = luamanager.GetTempScript(1)\nluamanager.SetNextScript(var1)",
+      "KNOWN": ""
+    },
+    "texts": {},
+    "positions": {},
+    "expected": {
+      "scripts": [
+        {
+          "script": "CHILD",
+          "links": [],
+          "missions": [],
+          "unknown_jumps": 1
+        },
+        {
+          "script": "ENTRY",
+          "links": [
+            {
+              "target": "CHILD",
+              "condition": ""
+            }
+          ],
+          "missions": [],
+          "unknown_jumps": 0
+        },
+        {
+          "script": "KNOWN",
+          "links": [],
+          "missions": [],
+          "unknown_jumps": 0
+        },
+        {
+          "script": "SETUP",
+          "links": [],
+          "missions": [],
+          "unknown_jumps": 0
+        }
+      ]
+    }
+  }
+]

@@ -241,7 +241,7 @@ pub fn show(
     }
     if let Err(error) = lom_core::scenario::validate(config, &project.manifest, &project.stories) {
         ui.separator();
-        crate::error_location::show(ui, &format!("{error:#}"));
+        crate::error_ui::show_with_actions(ui, &crate::error_ui::capture(error));
     }
 }
 

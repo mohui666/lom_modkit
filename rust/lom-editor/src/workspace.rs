@@ -500,7 +500,7 @@ impl App {
                 {
                     self.status = format!(
                         "最近列表保存失败。{}",
-                        crate::error_location::explanation(&e.to_string())
+                        crate::error_ui::text(&crate::error_ui::capture(e))
                     );
                 }
             }
@@ -511,7 +511,7 @@ impl App {
             lom_core::project::atomic_write(&user_root().join("rust/node-templates.json"), &b)
         }) {
             Ok(()) => self.status = "节点模板已保存到本机创作数据目录".into(),
-            Err(e) => self.error = Some(e.to_string()),
+            Err(e) => self.error = Some(crate::error_ui::capture(e)),
         }
     }
     fn save_selected_template(&mut self) {
@@ -534,7 +534,7 @@ impl App {
                 self.persist_templates();
                 self.template_name.clear();
             }
-            Err(e) => self.error = Some(e.to_string()),
+            Err(e) => self.error = Some(crate::error_ui::capture(e)),
         }
     }
     fn dirty(&self) -> bool {
@@ -1003,14 +1003,14 @@ impl App {
                     self.saved.manifest = json!({});
                     self.document_dirty = true;
                 }
-                Err(error) => self.error = Some(error.to_string()),
+                Err(error) => self.error = Some(crate::error_ui::capture(error)),
             },
             Pending::OpenVanillaRoutes => match Project::new_vanilla_patch("ch1_1") {
                 Ok(project) => {
                     self.install(project);
                     self.vanilla.open_routes();
                 }
-                Err(error) => self.error = Some(error.to_string()),
+                Err(error) => self.error = Some(crate::error_ui::capture(error)),
             },
             Pending::OpenVanillaBookmark(mark) => match Project::new_vanilla_patch(&mark.script) {
                 Ok(project) => {
@@ -1019,7 +1019,7 @@ impl App {
                     self.document_dirty = true;
                     self.vanilla.focus_bookmark(mark);
                 }
-                Err(error) => self.error = Some(error.to_string()),
+                Err(error) => self.error = Some(crate::error_ui::capture(error)),
             },
             Pending::Template(key) => match template_project(&key) {
                 Ok(project) => {
@@ -1029,7 +1029,7 @@ impl App {
                     self.status =
                         "已从模板创建项目；user:template.* 占位资源需要在内容库中替换".into();
                 }
-                Err(error) => self.error = Some(error.to_string()),
+                Err(error) => self.error = Some(crate::error_ui::capture(error)),
             },
             Pending::Recover(path) => self.recover(&path),
             Pending::Open(path) => match Project::open(&path) {
@@ -1120,7 +1120,7 @@ impl App {
                     self.needs_compile = true;
                     self.vanilla.focus_bookmark(mark);
                 }
-                Err(error) => self.error = Some(error.to_string()),
+                Err(error) => self.error = Some(crate::error_ui::capture(error)),
             }
         } else {
             self.request(Pending::OpenVanillaBookmark(mark), ctx);
@@ -1236,7 +1236,7 @@ impl App {
                         "editor.autosave.failed",
                         &[
                             ("path", path.display().to_string()),
-                            ("error", format!("{e:#}")),
+                            ("error", crate::error_ui::capture(e)),
                         ],
                     )
                 } else {
@@ -1296,7 +1296,7 @@ impl App {
         }
         match compile_with_assets(&self.project, &self.story()) {
             Ok(lua) => self.lua = lua,
-            Err(e) => self.lua = crate::error_location::explanation(&format!("{e:#}")),
+            Err(e) => self.lua = crate::error_ui::text(&crate::error_ui::capture(e)),
         };
         self.needs_compile = false;
     }
@@ -1342,7 +1342,7 @@ impl App {
                 self.multiselect.clear();
                 self.center = Center::Node;
             }
-            Err(error) => self.error = Some(error.to_string()),
+            Err(error) => self.error = Some(crate::error_ui::capture(error)),
         }
     }
     fn selected_indices(&self) -> Vec<usize> {
@@ -1425,7 +1425,7 @@ impl App {
                 self.selected = at;
                 self.multiselect = (at..at + count).collect();
             }
-            Err(error) => self.error = Some(error.to_string()),
+            Err(error) => self.error = Some(crate::error_ui::capture(error)),
         }
     }
     fn delete(&mut self) {
@@ -1457,7 +1457,7 @@ impl App {
             reconnect_deleted_offsets(&mut story, &old_nodes, &removed)
         };
         if let Err(error) = reconnect {
-            self.error = Some(error.to_string());
+            self.error = Some(crate::error_ui::capture(error));
             return;
         }
         if removed.contains(story["start"].as_str().unwrap_or("")) {
@@ -1538,7 +1538,7 @@ impl App {
                     .retain(|candidate| candidate != path);
                 self.status = "已恢复创作副本，请检查并保存到原项目或新目录".into();
             }
-            Err(error) => self.error = Some(error.to_string()),
+            Err(error) => self.error = Some(crate::error_ui::capture(error)),
         }
     }
     fn clear_recovery(&mut self) {
@@ -1658,12 +1658,12 @@ impl App {
         if let Err(e) = result {
             self.status = format!(
                 "自动恢复副本写入失败。{}",
-                crate::error_location::explanation(&format!("{e:#}"))
+                crate::error_ui::text(&crate::error_ui::capture(e))
             );
         } else if let Some(error) = pending_warning {
             self.status = format!(
                 "素材输入尚未完成。{}",
-                crate::error_location::explanation(&error.to_string())
+                crate::error_ui::text(&crate::error_ui::capture(error))
             );
         }
     }
@@ -1939,7 +1939,7 @@ impl App {
                                     Ok(marks) => if let Some(mark)=marks.into_iter().next() {
                                         self.open_story_bookmark(mark,ctx);
                                     } else {self.error=Some("还没有游戏标记。请在原版剧情中按 Ctrl+F6 后再打开。".into());},
-                                    Err(error)=>self.error=Some(error.to_string()),
+                                    Err(error)=>self.error=Some(crate::error_ui::capture(error)),
                                 }
                             }
                         });
@@ -2313,7 +2313,7 @@ impl App {
             .play_from_current(&self.project, &self.current, &node)
         {
             Ok(status) => self.status = status,
-            Err(e) => self.error = Some(format!("{e:#}")),
+            Err(e) => self.error = Some(crate::error_ui::capture(e)),
         }
     }
     fn playtest_node(&self, from_start: bool) -> String {
@@ -2689,7 +2689,7 @@ impl App {
                                     .clicked()
                                 {
                                     if let Err(error) = self.move_chapter_to_group(&group) {
-                                        self.error = Some(error.to_string());
+                                        self.error = Some(crate::error_ui::capture(error));
                                     }
                                     ui.close();
                                 }
@@ -2806,7 +2806,7 @@ impl App {
                                 self.selected = 0;
                                 self.multiselect.clear();
                             }
-                            Err(error) => self.error = Some(error.to_string()),
+                            Err(error) => self.error = Some(crate::error_ui::capture(error)),
                         }
                     }
                     return;
@@ -2857,7 +2857,7 @@ impl App {
                     return;
                 }
                 if let Err(error) = authoring::validate_sections(&story) {
-                    crate::error_location::show(ui, &error.to_string());
+                    crate::error_ui::show_with_actions(ui, &crate::error_ui::capture(error));
                 }
                 let nodes = story["nodes"].as_array().map(Vec::as_slice).unwrap_or(&[]);
                 let rows = authoring::section_rows(&story);
@@ -3336,16 +3336,13 @@ impl App {
                                     self.flush();
                                     self.status = "已调整画面，可撤销".into();
                                 }
-                                Err(error) => self.error = Some(error.to_string()),
+                                Err(error) => self.error = Some(crate::error_ui::capture(error)),
                             }
                         }
                     }
                     View::Portraits => {
-                        self.preview.show_portrait(
-                            ui,
-                            &self.project,
-                            &story["nodes"][self.selected],
-                        );
+                        self.preview
+                            .show_portrait(ui, &self.project, &story, self.selected);
                     }
                     View::Graph => {
                         if let Some(i) = preview::graph(ui, &self.project, &story, self.selected) {
@@ -3359,19 +3356,30 @@ impl App {
                                 self.compile();
                             }
                             if ui.button(tr("复制 Lua")).clicked() {
-                                ctx.copy_text(self.lua.clone());
+                                match compile_with_assets(&self.project, &story) {
+                                    Ok(lua) => ctx.copy_text(lua),
+                                    Err(error) => {
+                                        self.error = Some(crate::error_ui::capture(error))
+                                    }
+                                }
                             }
                             if ui.button(tr("导出 Lua…")).clicked() {
-                                if let Some(path) = rfd::FileDialog::new()
-                                    .set_file_name(format!("{}.lua", self.current))
-                                    .save_file()
-                                {
-                                    if self.lua.starts_with("编译未通过") {
-                                        self.error = Some("编译尚未通过，不能导出 Lua。".into());
-                                    } else if let Err(e) =
-                                        lom_core::project::atomic_write(&path, self.lua.as_bytes())
-                                    {
-                                        self.error = Some(e.to_string());
+                                match compile_with_assets(&self.project, &story) {
+                                    Ok(lua) => {
+                                        if let Some(path) = rfd::FileDialog::new()
+                                            .set_file_name(format!("{}.lua", self.current))
+                                            .save_file()
+                                        {
+                                            if let Err(error) = lom_core::project::atomic_write(
+                                                &path,
+                                                lua.as_bytes(),
+                                            ) {
+                                                self.error = Some(crate::error_ui::capture(error));
+                                            }
+                                        }
+                                    }
+                                    Err(error) => {
+                                        self.error = Some(crate::error_ui::capture(error))
                                     }
                                 }
                             }
@@ -3418,7 +3426,7 @@ impl App {
                                         };
                                         ui.colored_label(
                                             Color32::from_rgb(179, 55, 49),
-                                            crate::error_location::explanation(&message),
+                                            crate::error_ui::text(&message),
                                         );
                                     }
                                 });
@@ -3628,14 +3636,19 @@ impl App {
                                             legacy,
                                             &user_root().join("rust/preferences.json"),
                                         ) {
-                                            self.error = Some(error.to_string());
+                                            self.error = Some(crate::error_ui::capture(error));
                                         }
                                     }
                                 }
                                 self.catalog.stage_characters = Some(
-                                    self.preview.state_before(&story, node["id"].as_str().unwrap_or(""))["actors"]
-                                        .as_object().into_iter().flatten()
-                                        .map(|(id, _)| id.clone()).collect(),
+                                    self.preview
+                                        .state_before(&story, node["id"].as_str().unwrap_or(""))
+                                        ["actors"]
+                                        .as_object()
+                                        .into_iter()
+                                        .flatten()
+                                        .map(|(id, _)| id.clone())
+                                        .collect(),
                                 );
                                 let response =
                                     self.catalog.node_form(ui, &mut node, &ids, &stories);
@@ -3646,23 +3659,50 @@ impl App {
                                 if matches!(node["type"].as_str(), Some("music" | "sound")) {
                                     ui.horizontal(|ui| {
                                         let name = node["name"].as_str().unwrap_or("");
-                                        let playable = !name.is_empty() && node["op"].as_str().unwrap_or("play") == "play";
-                                        if ui.add_enabled(playable, egui::Button::new(tr("试听音频"))).clicked() {
+                                        let playable = !name.is_empty()
+                                            && node["op"].as_str().unwrap_or("play") == "play";
+                                        if ui
+                                            .add_enabled(
+                                                playable,
+                                                egui::Button::new(tr("试听音频")),
+                                            )
+                                            .clicked()
+                                        {
                                             let result = if name.starts_with("user:") {
                                                 self.audio.play_content(&self.project, name)
                                             } else {
-                                                let kind = if node["type"] == "music" { "music" }
-                                                    else if node["kind"] == "env" { "env" } else { "sound" };
-                                                std::env::current_exe().map_err(anyhow::Error::from).and_then(|exe| {
-                                                    let root = exe.parent().context("无法确定试听组件位置")?;
-                                                    self.audio.play_official(&self.tools_panel.game_directory(), kind, name,
-                                                        &root.join("asset-extractor/lom-asset-extractor.exe"),
-                                                        &root.join("audio-decoder/vgmstream-cli.exe"))
-                                                })
+                                                let kind = if node["type"] == "music" {
+                                                    "music"
+                                                } else if node["kind"] == "env" {
+                                                    "env"
+                                                } else {
+                                                    "sound"
+                                                };
+                                                (|| -> anyhow::Result<()> {
+                                                    let helper = crate::components::extractor()?;
+                                                    let decoder = crate::components::decoder()?;
+                                                    self.audio.play_official(
+                                                        &self.tools_panel.game_directory(),
+                                                        kind,
+                                                        name,
+                                                        &helper,
+                                                        &decoder,
+                                                    )
+                                                })()
                                             };
-                                            if let Err(error) = result { self.error = Some(format!("{error:#}")); }
+                                            if let Err(error) = result
+                                                .with_context(|| format!("无法试听音频“{name}”"))
+                                            {
+                                                self.error = Some(crate::error_ui::capture(error));
+                                            }
                                         }
-                                        if ui.add_enabled(self.audio.playing(), egui::Button::new(tr("停止试听"))).clicked() {
+                                        if ui
+                                            .add_enabled(
+                                                self.audio.playing(),
+                                                egui::Button::new(tr("停止试听")),
+                                            )
+                                            .clicked()
+                                        {
                                             self.audio.stop();
                                         }
                                         if self.audio.preparing() {
@@ -3812,7 +3852,7 @@ impl App {
                     Err(error) => {
                         self.error = Some(crate::i18n::message(
                             "editor.upgrade.error",
-                            &[("error", format!("{error:#}"))],
+                            &[("error", crate::error_ui::capture(error))],
                         ))
                     }
                 }
@@ -3880,7 +3920,7 @@ impl App {
                 None,
             ) {
                 Ok(next) => story = next,
-                Err(e) => self.error = Some(e.to_string()),
+                Err(e) => self.error = Some(crate::error_ui::capture(e)),
             }
         }
         ui.horizontal(|ui| {
@@ -3930,14 +3970,14 @@ impl App {
                     Some(self.section_parent),
                 ) {
                     Ok(next) => story = next,
-                    Err(e) => self.error = Some(e.to_string()),
+                    Err(e) => self.error = Some(crate::error_ui::capture(e)),
                 }
             }
         });
         if let Some(result) = authoring::section_editor(ui, &story) {
             match result {
                 Ok(next) => story = next,
-                Err(e) => self.error = Some(format!("分区/分组修改未应用：{e}")),
+                Err(e) => self.error = Some(format!("分区/分组修改未应用：{e:#}")),
             }
         }
         ui.collapsing(tr("高级"), |ui| {
@@ -4091,7 +4131,7 @@ impl App {
                         &path,
                         &lom_core::stable_json(&s["localization"]).unwrap_or_default(),
                     ) {
-                        self.error = Some(e.to_string());
+                        self.error = Some(crate::error_ui::capture(e));
                     }
                 }
             }
@@ -4106,10 +4146,10 @@ impl App {
                             candidate["localization"] = config;
                             match lom_core::localization::validate_story_localization(&candidate) {
                                 Ok(()) => s = candidate,
-                                Err(e) => self.error = Some(e.to_string()),
+                                Err(e) => self.error = Some(crate::error_ui::capture(e)),
                             }
                         }
-                        Err(e) => self.error = Some(e.to_string()),
+                        Err(e) => self.error = Some(crate::error_ui::capture(e)),
                     }
                 }
             }
@@ -4231,7 +4271,7 @@ impl App {
                                 if let Err(e) = lom_core::project::atomic_write(&path, data)
                                     .and_then(|_| self.audio.play(&path))
                                 {
-                                    self.error = Some(e.to_string());
+                                    self.error = Some(crate::error_ui::capture(e));
                                 }
                             }
                         }
@@ -4269,7 +4309,7 @@ impl App {
             Ok(true) => self.track(),
             Ok(false) => {}
             Err(error) => {
-                self.error = Some(error.to_string());
+                self.error = Some(crate::error_ui::capture(error));
                 return false;
             }
         }
@@ -4277,7 +4317,7 @@ impl App {
             Ok(true) => self.track(),
             Ok(false) => {}
             Err(error) => {
-                self.error = Some(error.to_string());
+                self.error = Some(crate::error_ui::capture(error));
                 return false;
             }
         }
@@ -4656,7 +4696,7 @@ impl App {
                             self.project.stories.insert(self.current.clone(), next);
                             self.status = format!("已批改 {} 个步骤，可撤销", selected.len());
                         }
-                        Err(e) => self.error = Some(format!("{e:#}")),
+                        Err(e) => self.error = Some(crate::error_ui::capture(e)),
                     }
                 }
             }
@@ -4731,7 +4771,7 @@ impl App {
                                     self.pending_template = Some((nodes.clone(), warnings));
                                 }
                             }
-                            Err(e) => self.error = Some(e.to_string()),
+                            Err(e) => self.error = Some(crate::error_ui::capture(e)),
                         }
                     }
                     if ui.small_button(tr("移除模板")).clicked() {
@@ -4747,8 +4787,8 @@ impl App {
         ui.separator();
         ui.horizontal_wrapped(|ui|{
             if ui.button(tr("变量 / 条件 / 引用分析")).clicked(){self.tools_report=lom_core::analysis::analyze_project(&self.project.stories,&self.project.manifest);self.tools_panel.present("变量 / 条件 / 引用分析", self.tools_report.clone());}
-            if ui.button(tr("运行项目离线测试")).clicked(){let cases:Vec<Value>=self.project.stories.values().flat_map(|s|s["_editor"]["tests"].as_array().cloned().unwrap_or_default()).collect();if cases.is_empty(){self.error=Some("还没有定义离线测试。请打开章节设置，添加测试并填写初始变量、选项和断言。".into());}else{match lom_core::analysis::run_story_tests(&self.project.stories,&Value::Array(cases)){Ok(result)=>{self.tools_report=result;self.tools_panel.present("运行项目离线测试", self.tools_report.clone());},Err(e)=>self.error=Some(e.to_string())}}}
-            if ui.button(tr("从入口模拟当前章节")).clicked(){let case=json!([{"name":"入口路径模拟","story":self.current,"initial":{"variables":{},"flags":{}},"actions":{"choices":[]},"assert":{}}]);match lom_core::analysis::run_story_tests(&self.project.stories,&case){Ok(r)=>{self.tools_report=r;self.tools_panel.present("从入口模拟当前章节", self.tools_report.clone());},Err(e)=>self.error=Some(e.to_string())}}
+            if ui.button(tr("运行项目离线测试")).clicked(){let cases:Vec<Value>=self.project.stories.values().flat_map(|s|s["_editor"]["tests"].as_array().cloned().unwrap_or_default()).collect();if cases.is_empty(){self.error=Some("还没有定义离线测试。请打开章节设置，添加测试并填写初始变量、选项和断言。".into());}else{match lom_core::analysis::run_story_tests(&self.project.stories,&Value::Array(cases)){Ok(result)=>{self.tools_report=result;self.tools_panel.present("运行项目离线测试", self.tools_report.clone());},Err(e)=>self.error=Some(crate::error_ui::capture(e))}}}
+            if ui.button(tr("从入口模拟当前章节")).clicked(){let case=json!([{"name":"入口路径模拟","story":self.current,"initial":{"variables":{},"flags":{}},"actions":{"choices":[]},"assert":{}}]);match lom_core::analysis::run_story_tests(&self.project.stories,&case){Ok(r)=>{self.tools_report=r;self.tools_panel.present("从入口模拟当前章节", self.tools_report.clone());},Err(e)=>self.error=Some(crate::error_ui::capture(e))}}
         });
         ui.label(
             RichText::new(tr("离线模拟无法确定的游戏状态会标为“需要在游戏中确认”。"))
@@ -4774,7 +4814,7 @@ impl App {
                 &self.tools_panel.diagnostic_options(),
             ) {
                 Ok(saved) => self.status = format!("脱敏诊断包已保存：{}", saved.display()),
-                Err(e) => self.error = Some(e.to_string()),
+                Err(e) => self.error = Some(crate::error_ui::capture(e)),
             }
         }
     }
@@ -4804,7 +4844,7 @@ impl App {
                         self.error = Some(format!("素材已载入，但无法记住素材位置：{error:#}"));
                     }
                 }
-                Err(error) => self.error = Some(error.to_string()),
+                Err(error) => self.error = Some(crate::error_ui::capture(error)),
             }
         }
     }
@@ -4916,11 +4956,11 @@ impl App {
                 .frame(shell::dialog_frame())
                 .show(ctx, |ui| {
                     ui.set_width(460.0_f32.min(ctx.content_rect().width() - 80.0));
-                    close |= shell::dialog_header(ui, &tr("操作未完成"));
+                    close |= shell::dialog_header(ui, &crate::error_ui::title(&message));
                     egui::ScrollArea::vertical()
                         .max_height(ctx.content_rect().height() * 0.5)
                         .show(ui, |ui| {
-                            ui.label(crate::error_location::explanation(&message));
+                            crate::error_ui::show(ui, &message);
                             for issue in &self.error_issues {
                                 ui.add_space(10.0);
                                 ui.group(|ui| {
@@ -4928,7 +4968,7 @@ impl App {
                                         issue,
                                         &self.project,
                                     ));
-                                    ui.label(crate::error_location::explanation(&issue.message));
+                                    crate::error_ui::show(ui, &issue.message);
                                     let target = crate::error_location::issue_destination(
                                         issue,
                                         &self.project,
@@ -4940,11 +4980,8 @@ impl App {
                                     }
                                 });
                             }
-                            if ui
-                                .small_button(crate::i18n::key("editor.workspace.copy_diagnostics"))
-                                .clicked()
-                            {
-                                ui.ctx().copy_text(if self.error_issues.is_empty() {
+                            crate::error_ui::copy_button(ui, || {
+                                if self.error_issues.is_empty() {
                                     message.clone()
                                 } else {
                                     format!(
@@ -4954,8 +4991,8 @@ impl App {
                                             &self.project
                                         )
                                     )
-                                });
-                            }
+                                }
+                            });
                         });
                     ui.add_space(16.0);
                     shell::dialog_buttons(ui, |ui| {
@@ -5066,7 +5103,7 @@ impl App {
                             ui.label(tr("手动检查更新位于“游戏与 MOD”页面。"));
                         }
                     }
-                    if let Some(error) = &self.settings_error { crate::error_location::show(ui, error); }
+                    if let Some(error) = &self.settings_error { crate::error_ui::show_with_actions(ui, error); }
                         });
                     ui.add_space(16.0);
                     shell::dialog_buttons(ui, |ui| { close |= ui.add_sized([80.0,30.0],egui::Button::new(tr("完成"))).clicked(); });
@@ -5076,7 +5113,7 @@ impl App {
                 self.settings_error = self
                     .set_auto_save(auto_save, auto_save_seconds, &prefs)
                     .err()
-                    .map(|error| error.to_string());
+                    .map(|error| crate::error_ui::capture(error));
             }
             if resolution_changed {
                 let mut preferences = lom_core::load_json(&prefs).unwrap_or(json!({}));
@@ -5084,19 +5121,19 @@ impl App {
                 self.settings_error = lom_core::stable_json(&preferences)
                     .and_then(|bytes| lom_core::project::atomic_write(&prefs, &bytes))
                     .err()
-                    .map(|error| error.to_string());
+                    .map(|error| crate::error_ui::capture(error));
             }
             if let Some(locale) = selected {
                 self.settings_error = self
                     .set_interface_locale(locale, &prefs)
                     .err()
-                    .map(|e| e.to_string());
+                    .map(|e| crate::error_ui::capture(e));
             }
             if startup_changed {
                 self.settings_error = self
                     .set_startup_update_check(startup, &prefs)
                     .err()
-                    .map(|e| e.to_string());
+                    .map(|e| crate::error_ui::capture(e));
             }
             if close || escape_pressed {
                 self.settings_open = false;
@@ -5213,7 +5250,7 @@ impl App {
                         );
                     }
                     if let Some(error) = &draft.error {
-                        crate::error_location::show(ui, error);
+                        crate::error_ui::show_with_actions(ui, error);
                     }
                     let can_submit = !draft.paths.is_empty() && !draft.name.trim().is_empty();
                     let actions = dialog_actions(ui, "导入", can_submit);
@@ -5248,7 +5285,8 @@ impl App {
                 }
             } else if submit {
                 if let Err(error) = self.commit_asset_import() {
-                    self.asset_import_dialog.as_mut().unwrap().error = Some(error.to_string());
+                    self.asset_import_dialog.as_mut().unwrap().error =
+                        Some(crate::error_ui::capture(error));
                 }
             }
             return;
@@ -5312,7 +5350,7 @@ impl App {
                         ui.small(tr("确认删除时，这些引用会一并改到所选章节。"));
                     }
                     if let Some(error) = &draft.error {
-                        crate::error_location::show(ui, error);
+                        crate::error_ui::show_with_actions(ui, error);
                     }
                     ui.add_space(16.0);
                     shell::dialog_buttons(ui, |ui| {
@@ -5330,7 +5368,8 @@ impl App {
                 self.delete_chapter_dialog = None;
             } else if submit {
                 if let Err(error) = self.commit_delete_chapter() {
-                    self.delete_chapter_dialog.as_mut().unwrap().error = Some(error.to_string());
+                    self.delete_chapter_dialog.as_mut().unwrap().error =
+                        Some(crate::error_ui::capture(error));
                 }
             }
             return;
@@ -5371,7 +5410,7 @@ impl App {
                         name.request_focus();
                     }
                     if let Some(error) = &draft.error {
-                        crate::error_location::show(ui, error);
+                        crate::error_ui::show_with_actions(ui, error);
                     }
                     let can_submit = !draft.name.trim().is_empty();
                     let actions = dialog_actions(
@@ -5391,7 +5430,8 @@ impl App {
                 self.chapter_dialog = None;
             } else if submit {
                 if let Err(error) = self.commit_chapter() {
-                    self.chapter_dialog.as_mut().unwrap().error = Some(error.to_string());
+                    self.chapter_dialog.as_mut().unwrap().error =
+                        Some(crate::error_ui::capture(error));
                 }
             }
             return;
@@ -5420,7 +5460,7 @@ impl App {
                         field.request_focus();
                     }
                     if let Some(error) = &draft.error {
-                        crate::error_location::show(ui, error);
+                        crate::error_ui::show_with_actions(ui, error);
                     }
                     let can_submit = !draft.value.trim().is_empty();
                     let actions = dialog_actions(ui, "应用", can_submit);
@@ -5432,7 +5472,8 @@ impl App {
                 self.rename_dialog = None;
             } else if submit {
                 if let Err(error) = self.commit_rename() {
-                    self.rename_dialog.as_mut().unwrap().error = Some(error.to_string());
+                    self.rename_dialog.as_mut().unwrap().error =
+                        Some(crate::error_ui::capture(error));
                 }
             }
             return;
@@ -5462,10 +5503,7 @@ impl App {
                         } else {
                             warning
                         };
-                        ui.label(format!(
-                            "• {}",
-                            crate::error_location::explanation(&warning)
-                        ));
+                        ui.label(format!("• {}", crate::error_ui::text(&warning)));
                     }
                     (insert, cancel) = {
                         let (submit, footer_cancel) = dialog_actions(
@@ -5577,7 +5615,10 @@ impl App {
                                                     Ok(()) => self
                                                         .recovery_candidates
                                                         .retain(|p| p != &path),
-                                                    Err(e) => self.error = Some(e.to_string()),
+                                                    Err(e) => {
+                                                        self.error =
+                                                            Some(crate::error_ui::capture(e))
+                                                    }
                                                 }
                                             }
                                         });
@@ -5642,9 +5683,10 @@ impl eframe::App for App {
                         "原版特效预览已载入"
                     })
                 }
-                Err(error) => self
-                    .tools_panel
-                    .present("载入原版特效预览", json!({"error":format!("{error:#}")})),
+                Err(error) => self.tools_panel.present(
+                    "载入原版特效预览",
+                    json!({"error":crate::error_ui::capture(error)}),
+                ),
             }
         }
         if let Some(path) = self.tools_panel.take_preview_library() {
@@ -5665,15 +5707,16 @@ impl eframe::App for App {
                     }
                     self.status = tr("提取完成，预览素材已自动载入");
                 }
-                Err(error) => self
-                    .tools_panel
-                    .present("载入预览素材", json!({"error":format!("{error:#}")})),
+                Err(error) => self.tools_panel.present(
+                    "载入预览素材",
+                    json!({"error":crate::error_ui::capture(error)}),
+                ),
             }
         }
         self.frame += 1;
         self.shell.install(frame);
         if let Err(error) = self.audio.update() {
-            self.error = Some(error.to_string());
+            self.error = Some(crate::error_ui::capture(error));
         }
         #[cfg(target_os = "macos")]
         if self.frame == 1 {
@@ -5838,8 +5881,8 @@ impl eframe::App for App {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
                 Err(e) => {
-                    eprintln!("Screenshot failed: {e}");
-                    self.error = Some(e.to_string());
+                    eprintln!("Screenshot failed: {e:#}");
+                    self.error = Some(crate::error_ui::capture(e));
                 }
             }
             self.screenshot = None;
@@ -6577,6 +6620,102 @@ mod application_regression_tests {
         }
         let report = crate::error_location::issue_report(&app.error_issues, &app.project);
         assert!(report.contains("main") && report.contains("other") && report.contains("effect1"));
+    }
+    #[test]
+    fn error_dialog_shows_an_action_and_preserves_raw_diagnostics() {
+        for (message, action) in [
+            (
+                "原版音频试听组件缺失：C:/Modkit/audio-decoder/vgmstream-cli.exe",
+                "重新打开",
+            ),
+            (
+                "无法保存：C:/作品/story/chapter1.json: Permission denied (os error 5)",
+                "另存为",
+            ),
+            (
+                "打开失败：unrecognized project metadata in C:/作品/project.json",
+                "开发者",
+            ),
+        ] {
+            let mut app = app();
+            app.error = Some(message.into());
+            let ctx = egui::Context::default();
+            ctx.enable_accesskit();
+            let output = ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        Vec2::new(1200.0, 1000.0),
+                    )),
+                    ..Default::default()
+                },
+                |ctx| app.dialogs(ctx),
+            );
+            let update = output.platform_output.accesskit_update.unwrap();
+            let text = update
+                .nodes
+                .iter()
+                .filter_map(|(_, node)| node.label().or_else(|| node.value()))
+                .collect::<Vec<_>>()
+                .join("\n");
+            assert!(text.contains(action), "{text}");
+            assert!(!text.contains(message), "{text}");
+            assert_eq!(app.error.as_deref(), Some(message));
+            assert!(output.platform_output.commands.is_empty());
+        }
+    }
+    #[test]
+    fn lua_copy_and_export_recompile_instead_of_treating_error_prose_as_a_script() {
+        for valid in [true, false] {
+            let mut app = app();
+            if !valid {
+                app.project.stories.insert(
+                    "main".into(),
+                    json!({"id":"main","story_schema":2,"start":"broken","nodes":[
+                        {"id":"broken","type":"effect","name":""}, {"id":"end","type":"end"}
+                    ]}),
+                );
+            }
+            app.view = View::Lua;
+            app.lua = "缓存中的提示文字，不能当作脚本复制或导出".into();
+            let before = snapshot(&app.project);
+            let ctx = egui::Context::default();
+            ctx.enable_accesskit();
+            let input = |events| egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1200.0, 900.0),
+                )),
+                events,
+                ..Default::default()
+            };
+            let output = ctx.run(input(vec![]), |ctx| app.right(ctx));
+            let click = click_named_option(&output, &tr("复制 Lua"));
+            let output = ctx.run(input(vec![click]), |ctx| app.right(ctx));
+            let copied = output
+                .platform_output
+                .commands
+                .iter()
+                .find_map(|cmd| match cmd {
+                    egui::OutputCommand::CopyText(text) => Some(text.clone()),
+                    _ => None,
+                });
+            if valid {
+                assert_eq!(
+                    copied,
+                    Some(compile_with_assets(&app.project, &app.story()).unwrap())
+                );
+                assert!(app.error.is_none());
+            } else {
+                assert!(copied.is_none());
+                assert!(app.error.as_deref().unwrap().contains("特效名称不能为空"));
+                app.error = None;
+                let click = click_named_option(&output, &tr("导出 Lua…"));
+                let _ = ctx.run(input(vec![click]), |ctx| app.right(ctx));
+                assert!(app.error.as_deref().unwrap().contains("特效名称不能为空"));
+            }
+            assert!(snapshot(&app.project) == before);
+        }
     }
     #[test]
     fn project_autosave_writes_directory_json_and_package_without_a_dialog() {

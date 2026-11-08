@@ -9,6 +9,7 @@ pub struct Player {
     child: Option<Child>,
     preparation: Option<Preparation>,
     workspace: Option<tempfile::TempDir>,
+    description: Option<String>,
 }
 
 struct Preparation {
@@ -37,8 +38,22 @@ impl Player {
             let _ = child.wait();
         }
         self.workspace = None;
+        self.description = None;
     }
     pub fn update(&mut self) -> Result<()> {
+        let description = self.description.clone();
+        let result = self.poll();
+        if result.is_err() {
+            self.stop();
+        }
+        result.with_context(|| {
+            format!(
+                "音频试听失败：{}",
+                description.as_deref().unwrap_or("当前音频")
+            )
+        })
+    }
+    fn poll(&mut self) -> Result<()> {
         if let Some(preparation) = &mut self.preparation {
             let status = match preparation.child.try_wait() {
                 Ok(status) => status,
@@ -60,11 +75,17 @@ impl Player {
             );
             let wav = preparation.workspace.path().join("preview.wav");
             if let Some(decoder) = preparation.decoder {
+                let configured = preparation.workspace.path().join("preview.txtp");
+                let input = if configured.is_file() {
+                    configured
+                } else {
+                    preparation.workspace.path().join("preview.wem")
+                };
                 let child = hidden_command(&decoder)
                     .arg("-i")
                     .arg("-o")
                     .arg(&wav)
-                    .arg(preparation.workspace.path().join("preview.wem"))
+                    .arg(input)
                     .stdin(Stdio::null())
                     .stdout(Stdio::null())
                     .stderr(Stdio::piped())
@@ -77,7 +98,9 @@ impl Player {
                 });
                 return Ok(());
             }
+            let description = self.description.clone();
             self.play(&wav)?;
+            self.description = description;
             self.workspace = Some(preparation.workspace);
         }
         let Some(child) = self.child.as_mut() else {
@@ -91,9 +114,13 @@ impl Player {
             }
         };
         if let Some(status) = status {
-            self.child = None;
+            let output = self.child.take().unwrap().wait_with_output()?;
             self.workspace = None;
-            ensure!(status.success(), "音频试听失败（{status}）");
+            ensure!(
+                status.success(),
+                "音频试听失败（{status}）：{}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            );
         }
         Ok(())
     }
@@ -112,10 +139,13 @@ impl Player {
         decoder: &Path,
     ) -> Result<()> {
         ensure!(cfg!(windows), "原版音频试听目前支持 Windows");
-        ensure!(
-            extractor.is_file() && decoder.is_file(),
-            "原版音频试听组件缺失，请使用新版完整 Windows 包"
-        );
+        for component in [extractor, decoder] {
+            ensure!(
+                component.is_file(),
+                "原版音频试听组件缺失：{}。请关闭后重新打开新版编辑器 exe，自动补齐组件。",
+                component.display()
+            );
+        }
         ensure!(
             game.join("Mortal_Data").is_dir(),
             "请先在“游戏与 MOD”中选择游戏目录"
@@ -145,6 +175,12 @@ impl Player {
             workspace,
             decoder: Some(decoder.to_path_buf()),
         });
+        let label = match kind {
+            "music" => "音乐",
+            "env" => "环境音效",
+            _ => "普通音效",
+        };
+        self.description = Some(format!("原版{label}“{name}”"));
         Ok(())
     }
     pub fn play_content(
@@ -172,6 +208,7 @@ impl Player {
         std::fs::write(&destination, data)?;
         self.play(&destination)?;
         self.workspace = Some(workspace);
+        self.description = Some(format!("作品音频“{reference}”"));
         Ok(())
     }
     pub fn play(&mut self, path: &Path) -> Result<()> {
@@ -193,7 +230,7 @@ impl Player {
                 "-NoProfile",
                 "-NonInteractive",
                 "-Command",
-                "$p = New-Object System.Media.SoundPlayer $env:LOM_PREVIEW_AUDIO; $p.PlaySync()",
+                "[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false); $ErrorActionPreference = 'Stop'; $p = New-Object System.Media.SoundPlayer $env:LOM_PREVIEW_AUDIO; $p.PlaySync()",
             ])
             .env("LOM_PREVIEW_AUDIO", path);
             c
@@ -221,7 +258,7 @@ impl Player {
             command
                 .stdin(Stdio::null())
                 .stdout(Stdio::null())
-                .stderr(Stdio::null())
+                .stderr(Stdio::piped())
                 .spawn()
                 .context("无法启动试听；OGG 需要 FFplay（可用 LOM_FFPLAY 指定路径）")?,
         );
@@ -250,18 +287,30 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "requires the installed game and the complete Windows editor bundle"]
+    #[ignore = "requires the installed game and the built Windows editor components"]
     fn installed_official_audio_prepares_plays_and_releases_its_cache() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../out/windows/lom_modkit");
+        let root = crate::components::root().unwrap().unwrap_or_else(|| {
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../out/embedded-components")
+        });
         let game = Path::new("C:/Program Files (x86)/Steam/steamapps/common/LegendOfMortal");
         let data: serde_json::Value =
             serde_json::from_str(include_str!("../../../data/editor_data.json")).unwrap();
-        for (kind, key) in [
-            ("music", "music"),
-            ("sound", "sounds"),
-            ("env", "env_sounds"),
+        for (kind, name) in [
+            ("music", data["music"][0]["id"].as_str().unwrap()),
+            ("sound", data["sounds"][0]["id"].as_str().unwrap()),
+            ("env", data["env_sounds"][0]["id"].as_str().unwrap()),
+            ("sound", "子彈咻咻_001"),
+            ("sound", "丟錢_002"),
+            ("sound", "咻咻_001"),
+            ("sound", "打火石_001"),
+            ("sound", "捅人_001"),
+            ("sound", "男_受傷_001"),
+            ("sound", "男_受傷_002"),
+            ("sound", "砍人_001"),
+            ("sound", "重物掉落_002"),
+            ("sound", "釣魚竿_001"),
+            ("sound", "響指_001"),
         ] {
-            let name = data[key][0]["id"].as_str().unwrap();
             let mut player = Player::default();
             player
                 .play_official(
@@ -289,6 +338,9 @@ mod tests {
             let bytes = std::fs::read(cache.join("preview.wav")).unwrap();
             assert_eq!(&bytes[..4], b"RIFF");
             assert!(bytes.len() > 44);
+            if kind == "sound" {
+                wait_for_completion(&mut player).unwrap();
+            }
             player.stop();
             assert!(!player.playing());
             assert!(!cache.exists());
@@ -321,9 +373,13 @@ mod tests {
         std::fs::write(&path, b"not a wave file").unwrap();
         let mut player = Player::default();
         player.play(&path).unwrap();
+        player.description = Some("作品音频“user:test.invalid”".into());
         let error = wait_for_completion(&mut player).unwrap_err();
-        assert!(error.to_string().contains("音频试听失败"));
-        assert!(error.to_string().contains("exit code: 1"));
+        let detail = crate::error_ui::capture(error);
+        assert!(detail.contains("音频试听失败"));
+        assert!(detail.contains("exit code: 1"));
+        assert!(detail.contains("PlaySync"), "{detail}");
+        assert!(detail.contains("user:test.invalid"), "{detail}");
         assert!(!player.playing());
         player.update().unwrap();
     }

@@ -4,7 +4,6 @@ param(
     [string]$BundleDirectory = "",
     [string]$OutputDirectory = "",
     [string]$RuntimeDirectory = "",
-    [string]$ExtractorPython = "python",
     [string]$AudioDecoderDirectory = "",
     [switch]$NoArchive,
     [switch]$Force
@@ -15,6 +14,8 @@ Set-StrictMode -Version 2.0
 
 $ScriptDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepositoryRoot = Split-Path -Parent $ScriptDirectory
+$NativeTarget = "x86_64-pc-windows-msvc"
+$NativeOutput = Join-Path $RepositoryRoot "target\$NativeTarget\release"
 
 function Read-VersionMatch {
     param(
@@ -89,7 +90,7 @@ foreach ($Name in @("MortalModHost.dll", "NVorbis.dll")) {
 }
 Push-Location $RepositoryRoot
 try {
-    & cargo build --locked --release -p lomc -p lom-editor
+    & cargo --config 'target.x86_64-pc-windows-msvc.rustflags=["-C","target-feature=+crt-static"]' build --locked --release --target $NativeTarget -p lomc -p lom-assets
     if ($LASTEXITCODE -ne 0) { throw "Rust build failed: $LASTEXITCODE" }
 } finally { Pop-Location }
 if ([string]::IsNullOrWhiteSpace($BundleDirectory)) {
@@ -111,26 +112,42 @@ if (Test-Path -LiteralPath $BundleDirectory) {
     }
 }
 [IO.Directory]::CreateDirectory($BundleDirectory) | Out-Null
-[IO.Directory]::CreateDirectory((Join-Path $BundleDirectory "runtime")) | Out-Null
-[IO.Directory]::CreateDirectory((Join-Path $BundleDirectory "assets\doorstop")) | Out-Null
-Copy-Item -LiteralPath (Join-Path $RepositoryRoot "target\release\lom-editor.exe") -Destination (Join-Path $BundleDirectory "lom-editor.exe")
-Copy-Item -LiteralPath (Join-Path $RepositoryRoot "target\release\lomc.exe") -Destination (Join-Path $BundleDirectory "lomc.exe")
-$ExtractorDist = Join-Path $RepositoryRoot "out\asset-extractor-dist"
-& $ExtractorPython (Join-Path $RepositoryRoot "scripts\build_asset_extractor.py") --output-dir $ExtractorDist
-if ($LASTEXITCODE -ne 0) { throw "Preview extractor build failed" }
-[IO.Directory]::CreateDirectory((Join-Path $BundleDirectory "asset-extractor")) | Out-Null
-Copy-Item -Path (Join-Path $ExtractorDist "lom-asset-extractor\*") -Destination (Join-Path $BundleDirectory "asset-extractor") -Recurse -Force
-& (Join-Path $BundleDirectory "asset-extractor\lom-asset-extractor.exe") --self-check
-if ($LASTEXITCODE -ne 0) { throw "Bundled preview extractor self-check failed" }
+# Components are build inputs, never required beside the distributed editor.
+$ComponentDirectory = Join-Path $RepositoryRoot "out\embedded-components"
+[IO.Directory]::CreateDirectory($ComponentDirectory) | Out-Null
+foreach ($Folder in @("runtime", "asset-extractor", "audio-decoder", "licenses")) {
+    [IO.Directory]::CreateDirectory((Join-Path $ComponentDirectory $Folder)) | Out-Null
+}
+Copy-Item -LiteralPath (Join-Path $NativeOutput "lomc.exe") -Destination (Join-Path $ComponentDirectory "lomc.exe")
+Copy-Item -LiteralPath (Join-Path $NativeOutput "lom-asset-extractor.exe") -Destination (Join-Path $ComponentDirectory "asset-extractor\lom-asset-extractor.exe")
+& (Join-Path $ComponentDirectory "asset-extractor\lom-asset-extractor.exe") --self-check
+if ($LASTEXITCODE -ne 0) { throw "Native preview extractor self-check failed" }
 foreach ($Name in @("MortalModHost.dll", "NVorbis.dll")) {
-    Copy-Item -LiteralPath (Join-Path $RuntimeDirectory $Name) -Destination (Join-Path $BundleDirectory "runtime\$Name")
+    Copy-Item -LiteralPath (Join-Path $RuntimeDirectory $Name) -Destination (Join-Path $ComponentDirectory "runtime\$Name")
 }
+# Loaders use the same exact archives authenticated by game_tools.rs.
+$LoaderCache = Join-Path $env:LOCALAPPDATA "lom_modkit\cache\loaders"
+[IO.Directory]::CreateDirectory($LoaderCache) | Out-Null
 foreach ($Architecture in @("x86", "x64")) {
-    Copy-Item -LiteralPath (Join-Path $RepositoryRoot "editor\assets\doorstop\win-$Architecture-doorstop.dll") -Destination (Join-Path $BundleDirectory "assets\doorstop\win-$Architecture-doorstop.dll")
+    $Name = "BepInEx-Unity.Mono-win-$Architecture-6.0.0-be.692+851521c.zip"
+    $Cached = Join-Path $LoaderCache $Name
+    if (-not (Test-Path -LiteralPath $Cached -PathType Leaf)) {
+        Invoke-WebRequest -Uri ("https://builds.bepinex.dev/projects/bepinex_be/692/" + $Name.Replace("+", "%2B")) -OutFile $Cached
+    }
+    $Expected = if ($Architecture -eq "x86") { "97720c5f5c70abfb2ae19dba6000529049ae67f053303b3ce2b49e6ad6c0eca6" } else { "9a3472f5eefb35a84ae8c6dea16814b728aff807c67c14fbfd448e20112951a6" }
+    if ((Get-FileHash -LiteralPath $Cached -Algorithm SHA256).Hash.ToLowerInvariant() -ne $Expected) { throw "Pinned loader checksum mismatch: $Name" }
+    Copy-Item -LiteralPath $Cached -Destination (Join-Path $ComponentDirectory "runtime\$Name")
 }
-foreach ($Name in @("README.md", "LICENSE.UnityDoorstop")) {
-    Copy-Item -LiteralPath (Join-Path $RepositoryRoot "editor\assets\doorstop\$Name") -Destination (Join-Path $BundleDirectory "assets\doorstop\$Name")
+Push-Location $RepositoryRoot
+try { $Metadata = (& cargo metadata --locked --format-version 1 --filter-platform x86_64-pc-windows-msvc | ConvertFrom-Json) } finally { Pop-Location }
+$UnityPackage = $Metadata.packages | Where-Object { $_.name -eq "unity-rs-core" } | Select-Object -First 1
+$UnityDirectory = Split-Path -Parent $UnityPackage.manifest_path
+foreach ($Name in @("LICENSE", "THIRD_PARTY_NOTICES.md", "THIRD_PARTY_LICENSES.txt", "FSB_VORBIS_NOTICE.md")) {
+    Copy-Item -LiteralPath (Join-Path $UnityDirectory $Name) -Destination (Join-Path $ComponentDirectory "licenses\unity-rs-$Name")
 }
+Copy-Item -LiteralPath (Join-Path $RepositoryRoot "LICENSE") -Destination (Join-Path $ComponentDirectory "licenses\LICENSE")
+Copy-Item -LiteralPath (Join-Path $RepositoryRoot "runtime\MortalModHost\THIRD_PARTY_NOTICES.md") -Destination (Join-Path $ComponentDirectory "licenses\Host-NOTICES.md")
+Copy-Item -LiteralPath (Join-Path $RepositoryRoot "editor\assets\doorstop\LICENSE.UnityDoorstop") -Destination (Join-Path $ComponentDirectory "licenses\LICENSE.UnityDoorstop")
 Copy-Item -LiteralPath (Join-Path $RepositoryRoot "docs\chs\windows_quick_start.md") -Destination (Join-Path $BundleDirectory "README-Windows.md")
 Copy-Item -LiteralPath (Join-Path $RepositoryRoot "LICENSE") -Destination (Join-Path $BundleDirectory "LICENSE")
 Copy-Item -LiteralPath (Join-Path $RepositoryRoot "runtime\MortalModHost\THIRD_PARTY_NOTICES.md") -Destination (Join-Path $BundleDirectory "THIRD_PARTY_NOTICES.md")
@@ -150,8 +167,32 @@ if ([string]::IsNullOrWhiteSpace($AudioDecoderDirectory)) {
 if (-not (Test-Path -LiteralPath (Join-Path $AudioDecoderDirectory "vgmstream-cli.exe") -PathType Leaf)) {
     throw "Missing audio decoder: $AudioDecoderDirectory"
 }
-[IO.Directory]::CreateDirectory((Join-Path $BundleDirectory "audio-decoder")) | Out-Null
-Copy-Item -Path (Join-Path $AudioDecoderDirectory "*") -Destination (Join-Path $BundleDirectory "audio-decoder") -Recurse -Force
+Copy-Item -Path (Join-Path $AudioDecoderDirectory "*") -Destination (Join-Path $ComponentDirectory "audio-decoder") -Recurse -Force
+$ComponentPrefix = [IO.Path]::GetFullPath($ComponentDirectory).TrimEnd('\') + '\'
+$ComponentManifest = @(Get-ChildItem -LiteralPath $ComponentDirectory -File -Recurse | Where-Object { $_.Name -ne "components.json" } | ForEach-Object {
+    [ordered]@{ path = $_.FullName.Substring($ComponentPrefix.Length).Replace("\", "/"); size = $_.Length }
+})
+[IO.File]::WriteAllText((Join-Path $ComponentDirectory "components.json"), (ConvertTo-Json -InputObject $ComponentManifest -Depth 4), (New-Object Text.UTF8Encoding($false)))
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$ComponentsArchive = Join-Path $RepositoryRoot "out\embedded-components.zip"
+if (Test-Path -LiteralPath $ComponentsArchive) { Remove-Item -LiteralPath $ComponentsArchive -ErrorAction Stop }
+[IO.Compression.ZipFile]::CreateFromDirectory($ComponentDirectory, $ComponentsArchive, [IO.Compression.CompressionLevel]::Optimal, $false)
+$PreviousComponents = $env:LOM_EDITOR_COMPONENTS
+try {
+    $env:LOM_EDITOR_COMPONENTS = $ComponentsArchive
+    Push-Location $RepositoryRoot
+    try { & cargo --config 'target.x86_64-pc-windows-msvc.rustflags=["-C","target-feature=+crt-static"]' build --locked --release --target $NativeTarget -p lom-editor; if ($LASTEXITCODE -ne 0) { throw "Embedded editor build failed" } } finally { Pop-Location }
+} finally { $env:LOM_EDITOR_COMPONENTS = $PreviousComponents }
+Copy-Item -LiteralPath (Join-Path $NativeOutput "lom-editor.exe") -Destination (Join-Path $BundleDirectory "lom-editor.exe")
+# Remove only obsolete product components from an existing default build output.
+$OutPrefix = [IO.Path]::GetFullPath((Join-Path $RepositoryRoot "out")).TrimEnd('\') + '\'
+foreach ($Relative in @("asset-extractor", "audio-decoder", "runtime", "assets", "lomc.exe")) {
+    $LegacyPath = [IO.Path]::GetFullPath((Join-Path $BundleDirectory $Relative))
+    if (Test-Path -LiteralPath $LegacyPath) {
+        if (-not $LegacyPath.StartsWith($OutPrefix, [StringComparison]::OrdinalIgnoreCase)) { throw "Choose an empty bundle directory outside out/: $LegacyPath" }
+        Remove-Item -LiteralPath $LegacyPath -Recurse -ErrorAction Stop
+    }
+}
 if ($NoArchive) { Write-Host "Built native tools: $BundleDirectory"; return }
 $BundleDirectory = (Resolve-Path -LiteralPath $BundleDirectory).Path
 [IO.Directory]::CreateDirectory($OutputDirectory) | Out-Null
@@ -166,21 +207,7 @@ if ($OutputDirectory.Equals($BundleDirectory, [StringComparison]::OrdinalIgnoreC
     throw "Output directory must not be inside the frozen bundle: $OutputDirectory"
 }
 
-$RequiredFiles = @(
-    "README-Windows.md",
-    "LICENSE",
-    "asset-extractor\lom-asset-extractor.exe",
-    "lom-editor.exe",
-    "lomc.exe",
-    "audio-decoder\vgmstream-cli.exe",
-    "audio-decoder\COPYING",
-    "runtime\MortalModHost.dll",
-    "runtime\NVorbis.dll",
-    "assets\doorstop\win-x86-doorstop.dll",
-    "assets\doorstop\win-x64-doorstop.dll",
-    "assets\doorstop\README.md",
-    "assets\doorstop\LICENSE.UnityDoorstop"
-)
+$RequiredFiles = @("README-Windows.md", "LICENSE", "THIRD_PARTY_NOTICES.md", "lom-editor.exe")
 foreach ($Relative in $RequiredFiles) {
     $Required = Join-Path $BundleDirectory $Relative
     if (-not (Test-Path -LiteralPath $Required -PathType Leaf)) {
@@ -244,7 +271,8 @@ try {
     # Stable standalone asset names are consumed by the in-editor updater.
     foreach ($Relative in @("lom-editor.exe", "lomc.exe", "runtime\MortalModHost.dll", "runtime\NVorbis.dll")) {
         $StandalonePath = Join-Path $OutputDirectory (Split-Path -Leaf $Relative)
-        Copy-Item -LiteralPath (Join-Path $BundleDirectory $Relative) -Destination $StandalonePath -ErrorAction Stop
+        $Source = if ($Relative -eq "lom-editor.exe") { Join-Path $BundleDirectory $Relative } else { Join-Path $ComponentDirectory $Relative }
+        Copy-Item -LiteralPath $Source -Destination $StandalonePath -ErrorAction Stop
         Write-Host "OK  $StandalonePath"
     }
     # Readable release metadata avoids unauthenticated GitHub REST API limits.
@@ -253,7 +281,7 @@ try {
         [ordered]@{ name = $Name; size = $File.Length; sha256 = (Get-FileHash -LiteralPath $File.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }
     }
     $UpdateNotes = [IO.File]::ReadAllText((Join-Path $RepositoryRoot "RELEASE_NOTES_v$Version.md"))
-    $UpdateManifest = [ordered]@{ version = $Version; notes = $UpdateNotes; files = @($UpdateFiles) }
+    $UpdateManifest = [ordered]@{ version = $Version; notes = $UpdateNotes; embedded_components = $true; files = @($UpdateFiles) }
     [IO.File]::WriteAllText((Join-Path $OutputDirectory "update.json"), ($UpdateManifest | ConvertTo-Json -Depth 6), (New-Object Text.UTF8Encoding($false)))
     Write-Host "OK  $(Join-Path $OutputDirectory 'update.json')"
     Write-Host "OK  $ArchivePath"

@@ -459,6 +459,13 @@ fn released_1_4_14_packages_open_edit_export_and_reopen_without_rewriting_the_so
         let original_bytes = fs::read(&old).unwrap();
         let mut project = lom_core::project::Project::open(&old)
             .unwrap_or_else(|error| panic!("{}: {error:#}", case["name"]));
+        let authored: Value =
+            serde_json::from_str(case["entries"]["story/chapter1.json"].as_str().unwrap()).unwrap();
+        assert_eq!(
+            project.stories["chapter1"], authored,
+            "{}: opening must preserve authored values",
+            case["name"]
+        );
         let old_entries = package::read_package(&old).unwrap();
         assert_eq!(
             project.assets["assets/user/image/test.marker/pixel.png"],
@@ -471,6 +478,10 @@ fn released_1_4_14_packages_open_edit_export_and_reopen_without_rewriting_the_so
                 .to_string()
                 .contains("特效名称不能为空"));
             story["nodes"][1]["name"] = json!("Hit_001");
+        }
+        if case["name"] == "event_book" {
+            assert!(story["nodes"][1].get("fade_in").is_none());
+            story["nodes"][1]["fade_in"] = json!(0.8);
         }
         story["nodes"]
             .as_array_mut()
@@ -488,6 +499,36 @@ fn released_1_4_14_packages_open_edit_export_and_reopen_without_rewriting_the_so
         assert_eq!(updated.stories, project.stories);
         assert_eq!(updated.assets, project.assets);
         let entries = package::read_package(&exported).unwrap();
+        if case["name"] == "event_book" {
+            let lua = std::str::from_utf8(&entries["lua/chapter1.lua"]).unwrap();
+            assert!(lua.contains("mod_event_picture_show_fade(\"girlroom_work_002\""));
+            let mut no_fade_substitution = entries.clone();
+            no_fade_substitution.insert(
+                "lua/chapter1.lua".into(),
+                old_entries["lua/chapter1.lua"].clone(),
+            );
+            let substituted = dir.path().join("fade-removed.lommod");
+            rewritten_hashes(no_fade_substitution, &substituted);
+            assert!(package::read_package(&substituted)
+                .unwrap_err()
+                .to_string()
+                .contains("不是由对应"));
+        }
+        if case["name"] == "audio_and_mood" {
+            let lua = std::str::from_utf8(&entries["lua/chapter1.lua"]).unwrap();
+            for call in [
+                "luamanager.PlaySound(\"Cymbal_001\")",
+                "luamanager.PlayMusic(\"主題_001\")",
+                "mod_set_mood(true)",
+                "mod_character_mood(\"player\", \"shock\", 12, 0)",
+                "mod_dialogue_mood(\"player\", \"laugh1\")",
+            ] {
+                assert!(
+                    lua.contains(call),
+                    "missing preserved audio/mood call: {call}"
+                );
+            }
+        }
         if case["name"] != "blank_effect" {
             let lua = std::str::from_utf8(&entries["lua/chapter1.lua"]).unwrap();
             let lines: Vec<_> = lua.lines().collect();

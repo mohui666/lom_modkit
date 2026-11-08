@@ -180,9 +180,7 @@ fn scalar(key: &str, value: &Value) -> String {
             "read_write" => "读取与设置",
             _ => s,
         }),
-        Value::String(s) if matches!(key, "error" | "validation_error") => {
-            crate::error_location::explanation(s)
-        }
+        Value::String(s) if matches!(key, "error" | "validation_error") => crate::error_ui::text(s),
         Value::String(s)
             if matches!(
                 key,
@@ -205,7 +203,7 @@ fn scalar(key: &str, value: &Value) -> String {
         Value::String(s) => match s.as_str() {
             "ok" | "passed" | "pass" => crate::i18n::tr("通过"),
             "warning" => crate::i18n::tr("提醒"),
-            "error" | "failed" => crate::i18n::tr("未通过"),
+            "error" | "fail" | "failed" => crate::i18n::tr("未通过"),
             "unsupported" => crate::i18n::tr("需要在游戏中确认"),
             "skipped" => crate::i18n::tr("未执行"),
             "__narrator__" => crate::i18n::tr("旁白"),
@@ -219,7 +217,7 @@ fn scalar(key: &str, value: &Value) -> String {
 /// Counts real errors/warnings, without treating an unsupported offline step as a pass.
 pub fn summary(value: &Value) -> String {
     if let Some(error) = value["error"].as_str() {
-        return crate::error_location::explanation(error);
+        return crate::error_ui::text(error);
     }
     if value.is_null() {
         return crate::i18n::tr("操作完成");
@@ -239,8 +237,11 @@ pub fn summary(value: &Value) -> String {
         match v {
             Value::Object(o) => {
                 if o.get("severity").is_some_and(|s| s == "error")
-                    || o.get("status").is_some_and(|s| s == "failed")
-                    || o.contains_key("error")
+                    || o.get("status")
+                        .is_some_and(|s| s == "fail" || s == "failed" || s == "error")
+                    || ["error", "validation_error"]
+                        .iter()
+                        .any(|key| o.get(*key).is_some_and(|error| !error.is_null()))
                 {
                     *e += 1;
                 }
@@ -323,6 +324,30 @@ pub fn show(ui: &mut egui::Ui, value: &Value, depth: usize) {
     }
 }
 
+fn contains_problem(value: &Value) -> bool {
+    match value {
+        Value::Object(object) => {
+            object.get("error").is_some_and(|error| !error.is_null())
+                || object
+                    .get("validation_error")
+                    .is_some_and(|error| !error.is_null())
+                || matches!(
+                    object.get("severity").and_then(Value::as_str),
+                    Some("error" | "warning")
+                )
+                || matches!(
+                    object.get("status").and_then(Value::as_str),
+                    Some("fail" | "failed" | "error" | "unsupported")
+                )
+                || object.get("ok") == Some(&Value::Bool(false))
+                || object.get("healthy") == Some(&Value::Bool(false))
+                || object.values().any(contains_problem)
+        }
+        Value::Array(array) => array.iter().any(contains_problem),
+        _ => false,
+    }
+}
+
 fn show_fields(ui: &mut egui::Ui, value: &Value, depth: usize, named_entries: bool) -> bool {
     if depth > 8 {
         ui.label("…");
@@ -380,10 +405,9 @@ fn show_fields(ui: &mut egui::Ui, value: &Value, depth: usize, named_entries: bo
                     if v.as_array().is_some_and(Vec::is_empty) {
                         continue;
                     }
-                    egui::CollapsingHeader::new(title)
-                        .id_salt((depth, key))
-                        .default_open(depth < 1)
-                        .show(ui, |ui| {
+                    if contains_problem(v) {
+                        ui.strong(title);
+                        ui.indent((depth, key), |ui| {
                             technical_details |= show_fields(
                                 ui,
                                 v,
@@ -392,6 +416,23 @@ fn show_fields(ui: &mut egui::Ui, value: &Value, depth: usize, named_entries: bo
                                     && matches!(key.as_str(), "variables" | "flags" | "stories"),
                             );
                         });
+                    } else {
+                        egui::CollapsingHeader::new(title)
+                            .id_salt((depth, key))
+                            .default_open(depth < 1)
+                            .show(ui, |ui| {
+                                technical_details |= show_fields(
+                                    ui,
+                                    v,
+                                    depth + 1,
+                                    !named_entries
+                                        && matches!(
+                                            key.as_str(),
+                                            "variables" | "flags" | "stories"
+                                        ),
+                                );
+                            });
+                    }
                 } else {
                     // A horizontal wrapping row can place a multiline label
                     // outside its group. Keep each field in normal vertical flow.
@@ -402,12 +443,12 @@ fn show_fields(ui: &mut egui::Ui, value: &Value, depth: usize, named_entries: bo
                             Some("error" | "warning")
                         ) || matches!(
                             o.get("status").and_then(Value::as_str),
-                            Some("failed" | "error")
+                            Some("fail" | "failed" | "error")
                         ) || o.contains_key("error")
                             || o.get("ok") == Some(&Value::Bool(false)))
                     {
                         v.as_str()
-                            .map(crate::error_location::explanation)
+                            .map(crate::error_ui::text)
                             .unwrap_or_else(|| scalar(key, v))
                     } else {
                         scalar(key, v)
@@ -440,6 +481,27 @@ fn show_fields(ui: &mut egui::Ui, value: &Value, depth: usize, named_entries: bo
 mod tests {
     use super::*;
     use serde_json::json;
+    #[test]
+    fn offline_test_failures_are_recognized_without_marking_success_as_a_problem() {
+        assert!(contains_problem(
+            &json!({"status":"fail","message":"断言失败"})
+        ));
+        assert!(!contains_problem(
+            &json!({"status":"pass","message":"断言通过"})
+        ));
+        assert_eq!(scalar("status", &json!("fail")), crate::i18n::tr("未通过"));
+        let failed = json!([{"status":"pass","error":null}, {"status":"fail","message":"断言失败"}, {"status":"unsupported"}]);
+        assert!(
+            summary(&failed).contains("需修正 1"),
+            "{}",
+            summary(&failed)
+        );
+        assert!(summary(&failed).contains("待游戏确认 1"));
+        assert_eq!(
+            summary(&json!({"status":"pass","error":null})),
+            crate::i18n::tr("操作完成，结果如下")
+        );
+    }
     #[test]
     fn readable_report_keeps_user_names_and_errors_but_hides_unmapped_internal_labels() {
         assert_eq!(scalar("author", &json!("pass")), "pass");

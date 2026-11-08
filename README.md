@@ -2,28 +2,28 @@
 
 用可视化步骤编写《活侠传》的对白、人物演出、事件和自定义玩法，预览后导出作品包，在自己的游戏中试玩。
 
-**当前版本为 1.4.18，提供 Windows x64 完整安装包。**
+**当前版本为 1.4.19，Windows x64 只需一个 exe。**
 
-[下载 1.4.18 完整包](https://github.com/mohui666/lom_modkit/releases/download/v1.4.18/lom_modkit-v1.4.18_windows_x64.zip) · [本版更新说明](RELEASE_NOTES_v1.4.18.md) · [使用教程](docs/chs/software_usage.md) · [文档目录](docs/README.md)
+[下载编辑器 exe](https://github.com/mohui666/lom_modkit/releases/download/v1.4.19/lom-editor.exe) · [附说明文档的压缩包](https://github.com/mohui666/lom_modkit/releases/download/v1.4.19/lom_modkit-v1.4.19_windows_x64.zip) · [本版更新说明](RELEASE_NOTES_v1.4.19.md) · [使用教程](docs/chs/software_usage.md) · [文档目录](docs/README.md)
 
-本版修复 1.4.17 无法打开部分旧版 MOD 的兼容问题，保留原章节、素材和源码。升级后直接打开原包，无需用旧编辑器重新打包。
+本版统一错误提示，支持更多原版音效试听、人物动作与气泡同时显示，并新增书页事件图淡入。继续兼容旧工程和旧作品包，保留原章节、素材与源码，无需重建作品。
 
 ## 安装与更新
 
 ### 第一次使用
 
-1. 下载上方完整压缩包，解压到一个独立文件夹。
-2. 打开其中的 `lom_modkit/lom-editor.exe`。运行时需要同目录的 `lomc.exe`、`runtime`、`assets`、`asset-extractor` 和 `audio-decoder`。
+1. 下载上方 `lom-editor.exe`，放到自己选择的文件夹。
+2. 双击运行；配套组件已内置，首次启动会自动准备。
 3. 退出游戏，在编辑器的「游戏与 MOD」中点击「一键定位游戏目录」，确认路径后点击「一键配置游戏」。
 4. 打开「素材管理 → 游戏预览素材」，点击「一键提取游戏资产」。完成后即可预览原版立绘、背景、插图和气泡动画。
 
 官方图片从你本机安装的游戏中提取，完整编辑器包自带提取组件。安装过程和常见问题见 [Windows 快速开始](docs/chs/windows_quick_start.md)。
 
-### 从旧版升级到 1.4.18
+### 从旧版升级到 1.4.19
 
-1. 已有完整 1.4.16 或 1.4.17 安装可使用内置更新；首次安装或更早版本缺少音频读取组件时，下载本版完整包并完整解压，再打开已有作品。
-2. 保留完整包中的 `asset-extractor` 和 `audio-decoder`；四文件内置更新不会补装或替换这两个组件。
-3. 退出游戏后启动新版编辑器，已安装的 Host 会自动同步。进入「游戏与 MOD」核对三个版本均为 1.4.18，必要时点击「更新游戏 Host」。
+1. 下载新版 `lom-editor.exe`，或通过编辑器内置更新升级，再打开已有作品。图片、动画、原版剧情和音频提取已迁移为 Rust。
+2. 提取器、原生音频解码器和同版 Host 已嵌入 exe，首次运行自动准备到 `%LOCALAPPDATA%/lom_modkit/components`；不必再复制配套文件夹。
+3. 退出游戏后启动新版编辑器，已安装的 Host 会自动同步。进入「游戏与 MOD」核对三个版本均为 1.4.19，必要时点击「更新游戏 Host」。
 4. 给原版人物追加图片时使用「素材管理 → 作品素材 → 为原版人物添加立绘…」。预览缓存中的图片与路径不能用来注册游戏表情。
 
 Windows 用户内容库默认位于 `%APPDATA%\lom_modkit\repository`，设置位于 `%APPDATA%\lom_modkit\rust`。作品及其素材保存在作者选择的项目目录中。新导出的人物素材与自由缩放等功能会自动声明对应最低 Host 版本；已发布作品继续沿用原存档身份。
@@ -68,7 +68,7 @@ Windows 用户内容库默认位于 `%APPDATA%\lom_modkit\repository`，设置�
 
 ### 提示缺少素材提取组件
 
-请下载完整压缩包并完整解压，运行文件夹内的编辑器。提取组件位于 `asset-extractor`，更新页中的单独程序文件主要供已有完整安装使用。
+下载新版 `lom-editor.exe` 后直接运行即可。配套组件自动释放到系统缓存，缺失时自动补齐；已有作品无需重建。
 
 ### 找不到原版图片或气泡预览
 

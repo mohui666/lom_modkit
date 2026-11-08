@@ -21,6 +21,7 @@ pub mod story_routes;
 pub mod validate;
 pub mod vanilla_import;
 pub mod vanilla_patch;
+pub mod vanilla_routes;
 pub mod watermark;
 pub mod workdir;
 

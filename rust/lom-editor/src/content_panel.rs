@@ -15,6 +15,7 @@ pub struct ContentPanel {
     slot: usize,
     portrait: String,
     message: String,
+    message_is_error: bool,
     preview: Option<(String, egui::TextureHandle)>,
     replace_shared: bool,
     animation_frame: Option<usize>,
@@ -25,6 +26,19 @@ pub struct ContentPanel {
     alignment_textures: BTreeMap<String, (egui::TextureHandle, [u32; 2])>,
 }
 impl ContentPanel {
+    fn set_message(&mut self, result: anyhow::Result<String>) {
+        self.message_is_error = result.is_err();
+        self.message = result.unwrap_or_else(crate::error_ui::capture);
+    }
+    fn show_message(&self, ui: &mut egui::Ui) {
+        if !self.message.is_empty() {
+            if self.message_is_error {
+                crate::error_ui::show_with_actions(ui, &self.message);
+            } else {
+                ui.label(&self.message);
+            }
+        }
+    }
     #[cfg(test)]
     pub(crate) fn pending_fixture(project: &Project, key: &str, draft: Value) -> Self {
         let source = project.assets[key].clone();
@@ -80,7 +94,7 @@ impl ContentPanel {
                 Ok(applied) => changed = applied,
                 Err(error) => {
                     *selection = self.key.clone();
-                    self.message = format!("修改尚未完成：{error}");
+                    self.set_message(Err(error.context("修改尚未完成")));
                     return false;
                 }
             }
@@ -92,7 +106,9 @@ impl ContentPanel {
         if self.key != key || self.source != *bytes {
             // External project changes must not silently replace unfinished input.
             if self.has_pending() {
-                self.message = "素材已被其他操作修改；请撤销未完成的输入后重试".into();
+                self.set_message(Err(anyhow::anyhow!(
+                    "素材已被其他操作修改；请撤销未完成的输入后重试"
+                )));
                 return changed;
             }
             self.key = key.into();
@@ -346,9 +362,7 @@ impl ContentPanel {
                     self.preview = None;
                     Ok(())
                 })();
-                self.message = result
-                    .map(|_| String::new())
-                    .unwrap_or_else(|e| e.to_string());
+                self.set_message(result.map(|_| String::new()));
             }
         }
         if kind == "character" {
@@ -360,7 +374,7 @@ impl ContentPanel {
         {
             match self.apply_pending(project) {
                 Ok(applied) => changed |= applied,
-                Err(error) => self.message = format!("修改尚未完成：{error}"),
+                Err(error) => self.set_message(Err(error.context("修改尚未完成"))),
             }
         }
         ui.horizontal_wrapped(|ui| {
@@ -373,7 +387,7 @@ impl ContentPanel {
                         changed = true;
                         self.reset();
                     }
-                    Err(e) => self.message = e.to_string(),
+                    Err(e) => self.set_message(Err(e)),
                 }
             }
         });
@@ -459,30 +473,24 @@ impl ContentPanel {
                 .add_enabled(!self.has_pending(), egui::Button::new(tr("保存到共享库")))
                 .clicked()
             {
-                self.message = content_edit::store_shared(&root, project, key, self.replace_shared)
+                let result = content_edit::store_shared(&root, project, key, self.replace_shared)
                     .map(|b| {
                         format!(
                             "已保存到共享库；备份：{}",
                             b.map(|p| p.display().to_string())
                                 .unwrap_or_else(|| "首次创建".into())
                         )
-                    })
-                    .unwrap_or_else(|e| e.to_string());
+                    });
+                self.set_message(result);
             }
             if ui.button(tr("从共享库移入回收目录")).clicked() {
-                self.message =
+                let result =
                     content_edit::remove_shared(&root, self.draft["id"].as_str().unwrap_or(""))
-                        .map(|p| format!("已保留于 {}", p.display()))
-                        .unwrap_or_else(|e| e.to_string());
+                        .map(|p| format!("已保留于 {}", p.display()));
+                self.set_message(result);
             }
         });
-        if !self.message.is_empty() {
-            if self.has_pending() {
-                crate::error_location::show(ui, &self.message);
-            } else {
-                ui.label(&self.message);
-            }
-        }
+        self.show_message(ui);
         changed
     }
     fn append_animation_frames(
@@ -556,10 +564,10 @@ impl ContentPanel {
                 .add_filter("PNG动画帧", &["png"])
                 .pick_files()
             {
-                self.message = self
+                let result = self
                     .append_animation_frames(project, &paths)
-                    .map(|_| String::new())
-                    .unwrap_or_else(|error| error.to_string());
+                    .map(|_| String::new());
+                self.set_message(result);
             }
         }
         if !self.draft["animation"].is_object() {
@@ -1101,6 +1109,42 @@ fn uuid_name() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn operation_errors_use_the_component_even_without_pending_edits_and_success_keeps_its_path() {
+        let mut panel = ContentPanel::default();
+        assert!(!panel.has_pending());
+        panel.set_message(Err(
+            anyhow::anyhow!("Permission denied (os error 5)").context("C:/shared/content.json")
+        ));
+        let raw = panel.message.clone();
+        let read = |panel: &ContentPanel| {
+            let ctx = egui::Context::default();
+            ctx.enable_accesskit();
+            let output = ctx.run(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| panel.show_message(ui));
+            });
+            output
+                .platform_output
+                .accesskit_update
+                .unwrap()
+                .nodes
+                .iter()
+                .filter_map(|(_, node)| node.label().or_else(|| node.value()))
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+        let shown = read(&panel);
+        assert!(
+            shown.contains("读写权限") && shown.contains("复制诊断信息"),
+            "{shown}"
+        );
+        assert!(!shown.contains("C:/shared") && !shown.contains("Permission denied"));
+        assert_eq!(panel.message, raw);
+        let success = "已保存到共享库：C:/shared/MyCustomAsset";
+        panel.set_message(Ok(success.into()));
+        assert!(read(&panel).contains(success));
+        assert!(!panel.message_is_error);
+    }
 
     #[test]
     fn skill_frames_import_in_order_and_a_bad_batch_preserves_the_draft() {
