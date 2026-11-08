@@ -4,7 +4,7 @@
     "package_format": 3,
     "story_schema": 2,
     "content_schema": 1,
-    "min_host_version": "1.4.19",
+    "min_host_version": "1.5.1",
     "id": "showcase3",
     "campaign_id": "showcase3",
     "name": "全节点样例3.0·七十节点实机验收",
@@ -116,6 +116,19 @@
           "character": "player",
           "portrait": "normal",
           "mode": "character"
+        },
+        {
+          "id": "offscreen_help",
+          "type": "say",
+          "mode": "offscreen",
+          "text": "救命——有人听得见吗？"
+        },
+        {
+          "id": "offscreen_voice",
+          "type": "say",
+          "mode": "offscreen",
+          "speaker_name": "远处的声音",
+          "text": "这是无立绘画外音示例；不会加载或复用之前的匿名人物。"
         },
         {
           "id": "show2",
@@ -241,7 +254,8 @@
           "id": "dim1",
           "type": "dim",
           "character": "player",
-          "dimmed": true
+          "dimmed": true,
+          "mode": "until_dialogue"
         },
         {
           "id": "say_dim_persistent",
@@ -286,7 +300,8 @@
           "id": "dim2",
           "type": "dim",
           "character": "player",
-          "dimmed": false
+          "dimmed": false,
+          "mode": "auto"
         },
         {
           "id": "mood_on",

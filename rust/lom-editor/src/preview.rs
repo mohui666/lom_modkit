@@ -151,6 +151,9 @@ fn portrait_preview_node(story: &Value, selected: usize) -> Value {
 }
 fn simulate_until(story: &Value, target: &str, include_target: bool) -> Value {
     let mut state = json!({"actors":{},"dimming":{},"overlays":{},"official_pictures":{},"background":null,"view":null,"custom_cg":null,"dialog":null,"choice":null,"blackout":{"amount":0.0,"dir":"lr"},"reached":false,"steps":0});
+    state["hidden_actors"] = json!({});
+    state["dimming_modes"] = json!({});
+    state["speaker"] = Value::Null;
     state["mood_enabled"] = json!(story["mood"].as_bool().unwrap_or(false));
     state["mood_overrides"] = json!({});
     state["camera_filters"] = json!({});
@@ -231,8 +234,15 @@ pub fn build_playtest_prelude(story: &Value, target: &str) -> Vec<Value> {
                 );
             }
         }
-        if let Some(dimmed) = state["dimming"].get(id) {
+        if state["dimming_modes"][id]
+            .as_str()
+            .is_some_and(|mode| mode != "manual")
+        {
+            nodes.push(json!({"type":"dim","character":id,"dimmed":actor["dimmed"],"mode":"until_dialogue"}));
+        } else if let Some(dimmed) = state["dimming"].get(id) {
             nodes.push(json!({"type":"dim","character":id,"dimmed":dimmed}));
+        } else if actor["dimmed"] == true {
+            nodes.push(json!({"type":"dim","character":id,"dimmed":true,"mode":"until_dialogue"}));
         }
     }
     for (id, setting) in state["mood_overrides"].as_object().into_iter().flatten() {
@@ -290,8 +300,12 @@ fn apply(s: &mut Value, n: &Value) {
     s["dialog"] = Value::Null;
     s["choice"] = Value::Null;
     s["dialogue_mood"] = Value::Null;
-    let cid = text(n, "character");
     let kind = text(n, "type");
+    let cid = if kind == "say" && n["mode"] == "offscreen" {
+        ""
+    } else {
+        text(n, "character")
+    };
     match kind {
         "camera" => {
             if let Some(name) = n["name"].as_str().filter(|name| !name.is_empty()) {
@@ -394,8 +408,17 @@ fn apply(s: &mut Value, n: &Value) {
         "hide_all" => {
             s["actors"] = json!({});
             s["mood_overrides"] = json!({});
+            s["dimming"] = json!({});
+            s["dimming_modes"] = json!({});
+            s["hidden_actors"] = json!({});
         }
         "hide" => {
+            if let Some(actor) = s["actors"].get(cid).cloned() {
+                s["hidden_actors"][cid] = actor;
+                if n["to"].is_string() {
+                    s["hidden_actors"][cid]["position"] = n["to"].clone();
+                }
+            }
             if let Some(o) = s["actors"].as_object_mut() {
                 o.remove(cid);
             }
@@ -404,8 +427,16 @@ fn apply(s: &mut Value, n: &Value) {
         "move" | "face" | "rotate" | "dim" | "offset" => {
             if s["actors"].get(cid).is_some() {
                 if kind == "dim" {
-                    s["dimming"][cid] = n["dimmed"].clone();
+                    let mode = n["mode"].as_str().unwrap_or("manual");
+                    s["dimming_modes"][cid] = json!(mode);
+                    if mode == "auto" {
+                        s["dimming"].as_object_mut().unwrap().remove(cid);
+                    } else {
+                        s["dimming"][cid] = n["dimmed"].clone();
+                    }
                 }
+                let automatic_dim =
+                    !s["speaker"].as_str().unwrap_or("").is_empty() && s["speaker"] != cid;
                 let a = &mut s["actors"][cid];
                 match kind {
                     "move" => {
@@ -417,7 +448,13 @@ fn apply(s: &mut Value, n: &Value) {
                     }
                     "face" => a["facing"] = n["facing"].clone(),
                     "rotate" => a["rotation"] = n["angle"].clone(),
-                    "dim" => a["dimmed"] = n["dimmed"].clone(),
+                    "dim" => {
+                        a["dimmed"] = if n["mode"] == "auto" {
+                            json!(automatic_dim)
+                        } else {
+                            n["dimmed"].clone()
+                        }
+                    }
                     "offset" => {
                         if n.get("absolute").is_some() || n.get("scale").is_some() {
                             a["layout_active"] = true.into();
@@ -446,6 +483,52 @@ fn apply(s: &mut Value, n: &Value) {
             }
         }
         "say" => {
+            if !cid.is_empty()
+                && matches!(
+                    n["mode"].as_str().unwrap_or("character"),
+                    "character" | "think"
+                )
+                && s["actors"].get(cid).is_none()
+            {
+                let actor = s["hidden_actors"].get(cid).cloned().unwrap_or_else(|| json!({
+                    "position":"M","portrait":"normal","facing":"right","offset_x":0.0,"offset_y":0.0,"rotation":0.0,"dimmed":false
+                }));
+                s["actors"][cid] = actor;
+            }
+            s["speaker"] = json!(cid);
+            let ids: Vec<String> = s["dimming_modes"]
+                .as_object()
+                .unwrap()
+                .keys()
+                .cloned()
+                .collect();
+            for id in ids {
+                if matches!(
+                    s["dimming_modes"][&id].as_str(),
+                    Some("auto" | "until_dialogue")
+                ) {
+                    s["dimming_modes"][&id] = json!("auto");
+                    s["dimming"].as_object_mut().unwrap().remove(&id);
+                    if s["actors"].get(&id).is_some() {
+                        s["actors"][&id]["dimmed"] = json!(id != cid);
+                    }
+                }
+            }
+            let official: Vec<String> = s["actors"]
+                .as_object()
+                .unwrap()
+                .keys()
+                .filter(|id| !id.starts_with("user:"))
+                .cloned()
+                .collect();
+            for id in official {
+                if !cid.starts_with("user:")
+                    && n["inherit_dialog"] != true
+                    && s["dimming"].get(&id).is_none()
+                {
+                    s["actors"][&id]["dimmed"] = json!(id != cid);
+                }
+            }
             if n["mood_icon"].is_string() {
                 let target = n["mood_character"]
                     .as_str()
@@ -2213,11 +2296,20 @@ impl Preview {
                 .get("character")
                 .and_then(Value::as_str)
                 .unwrap_or("");
-            if mode == "character" || mode == "think" {
+            if mode == "character" || mode == "think" || mode == "offscreen" {
                 painter.text(
                     dr.left_top() + Vec2::new(12.0, 9.0),
                     egui::Align2::LEFT_TOP,
-                    character_display_name(p, character),
+                    if mode == "offscreen" {
+                        dialog
+                            .get("speaker_name")
+                            .and_then(Value::as_str)
+                            .filter(|name| !name.trim().is_empty())
+                            .unwrap_or("？？？")
+                            .to_owned()
+                    } else {
+                        character_display_name(p, character)
+                    },
                     FontId::proportional(13.0),
                     Color32::from_rgb(221, 168, 110),
                 );
@@ -2264,7 +2356,7 @@ impl Preview {
                         } else {
                             left_margin
                         },
-                        if mode == "character" || mode == "think" {
+                        if mode == "character" || mode == "think" || mode == "offscreen" {
                             30.0
                         } else {
                             12.0
@@ -3664,6 +3756,114 @@ end
         assert_eq!(blackout_rect(rect, 0.5, "lr").right(), rect.right());
         for direction in ["lr", "rl", "tb", "bt"] {
             assert_eq!(blackout_rect(rect, 0.0, direction).width(), 0.0);
+        }
+    }
+
+    #[test]
+    fn temporary_dimming_expires_at_dialogue_and_can_restore_automatic_after_manual_steps() {
+        for actor in ["player", "user:demo.speaker"] {
+            let story = json!({"id":"main","start":"enter","nodes":[
+                {"id":"enter","type":"show","character":actor,"position":"M"},
+                {"id":"other","type":"show","character":"brother1","position":"L1"},
+                {"id":"highlight","type":"parallel","actions":[
+                    {"type":"dim","character":actor,"dimmed":false,"mode":"until_dialogue"},
+                    {"type":"mood","character":actor,"enabled":true,"icon":"nervous1"}]},
+                {"id":"pause","type":"wait","seconds":1},
+                {"id":"first","type":"say","character":"brother1","text":"别人说话"},
+                {"id":"second","type":"say","character":actor,"text":"自己说话"},
+                {"id":"manual","type":"dim","character":actor,"dimmed":true},
+                {"id":"still_dark","type":"say","character":actor,"text":"旧行为仍是持续压暗"},
+                {"id":"restore","type":"dim","character":actor,"dimmed":true,"mode":"auto"},
+                {"id":"again","type":"say","character":"brother1","text":"恢复自动后别人说话"},
+                {"id":"own","type":"say","character":actor,"text":"恢复自动后自己说话"},
+                {"id":"end","type":"end"}]});
+            let paused = simulate(&story, "pause");
+            assert_eq!(paused["actors"][actor]["dimmed"], false);
+            assert_eq!(
+                visible_mood(&paused, actor, &paused["actors"][actor]),
+                Some("nervous1")
+            );
+            for (id, dark) in [
+                ("first", true),
+                ("second", false),
+                ("still_dark", true),
+                ("restore", false),
+                ("again", true),
+                ("own", false),
+            ] {
+                assert_eq!(
+                    simulate(&story, id)["actors"][actor]["dimmed"],
+                    dark,
+                    "{actor}/{id}"
+                );
+            }
+            let prelude = build_playtest_prelude(&story, "pause");
+            assert!(prelude.iter().any(|n| n["character"] == actor
+                && n["type"] == "dim"
+                && n["mode"] == "until_dialogue"));
+        }
+    }
+
+    #[test]
+    fn speech_can_introduce_a_new_appearance_and_offscreen_speech_keeps_the_stage_cast() {
+        let story = json!({"id":"main","start":"show","nodes":[
+            {"id":"show","type":"show","character":"girl8","position":"R1"},
+            {"id":"variant","type":"say","character":"girl8_2","portrait":"normal","text":"散发外观"},
+            {"id":"hide","type":"hide","character":"girl8_2"},
+            {"id":"return","type":"say","character":"girl8_2","portrait":"sad2","text":"再次发言"},
+            {"id":"voice","type":"say","mode":"offscreen","character":"special2_1","text":"无立绘呼救"},
+            {"id":"end","type":"end"}]});
+        let variant = simulate(&story, "variant");
+        assert_eq!(variant["actors"]["girl8_2"]["position"], "M");
+        assert_eq!(variant["actors"]["girl8"]["position"], "R1");
+        assert!(simulate(&story, "hide")["actors"].get("girl8_2").is_none());
+        let returned = simulate(&story, "return");
+        assert_eq!(returned["actors"]["girl8_2"]["portrait"], "sad2");
+        assert_eq!(returned["actors"]["girl8_2"]["position"], "M");
+        let voice = simulate(&story, "voice");
+        assert_eq!(voice["actors"].as_object().unwrap().len(), 2);
+        assert!(voice["actors"].get("special2_1").is_none());
+        assert!(voice["actors"].get("unknown").is_none());
+    }
+
+    #[test]
+    fn offscreen_dialogue_renders_its_own_name_without_a_portrait() {
+        for name in [None, Some("远处的声音")] {
+            let project = Project::new();
+            let mut node = json!({"id":"voice","type":"say","mode":"offscreen","text":"救命！"});
+            if let Some(name) = name {
+                node["speaker_name"] = json!(name);
+            }
+            let story = json!({"start":"voice","nodes":[node]});
+            assert!(simulate(&story, "voice")["actors"]
+                .as_object()
+                .unwrap()
+                .is_empty());
+            let context = egui::Context::default();
+            let mut preview = Preview::new(Path::new("/not-a-repository"));
+            let output = context.run(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 500.0))),
+                    ..Default::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        preview.show(ui, &project, &story, 0, None);
+                    });
+                },
+            );
+            let labels: Vec<_> = output
+                .shapes
+                .into_iter()
+                .filter_map(|shape| match shape.shape {
+                    egui::Shape::Text(text) => Some(text.galley.job.text.clone()),
+                    _ => None,
+                })
+                .collect();
+            assert!(
+                labels.iter().any(|text| text == name.unwrap_or("？？？")),
+                "{labels:?}"
+            );
         }
     }
 

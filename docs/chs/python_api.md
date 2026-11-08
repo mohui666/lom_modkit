@@ -112,3 +112,5 @@ except CLIError as error:
 构造参数问题抛 TypeError/ValueError，文件缺失抛 FileNotFoundError；Rust 命令失败抛 CLIError，含 result 和 returncode。不要捕获后仍声称成功。build 不自动执行游戏；open_editor 会开窗口，playtest/capture-effects 会执行明确的游戏操作。
 
 复杂可运行示例和一键重跑方法见 [创作指南](ai_cli.md#复杂样例与重跑)。
+
+画外音使用 `Say(id="voice", mode="offscreen", text="救命！", speaker_name="？？？")`，不需要人物或立绘。临时高亮使用 `Dim(character="player", dimmed=False, mode="until_dialogue")`；解除持续亮暗使用 `Dim(character="player", dimmed=False, mode="auto")`。这些选项需要 Host 1.5.1，SDK 应由配套编辑器重新导出。

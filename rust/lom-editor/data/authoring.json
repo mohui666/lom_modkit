@@ -961,13 +961,28 @@
         "screen",
         "画面百分比"
       ]
+    ],
+    "dim_mode": [
+      [
+        "manual",
+        "持续保持"
+      ],
+      [
+        "until_dialogue",
+        "下一句对白恢复自动"
+      ],
+      [
+        "auto",
+        "立即恢复自动"
+      ]
     ]
   },
   "MODE_CN_SRC": {
     "character": "对话",
     "think": "内心独白",
     "narrative": "旁白",
-    "center": "居中旁白"
+    "center": "居中旁白",
+    "offscreen": "画外音（无立绘）"
   },
   "FACING_CN": [
     [
@@ -1484,6 +1499,12 @@
           true
         ],
         [
+          "speaker_name",
+          "画外音姓名（留空显示？？？）",
+          "line",
+          true
+        ],
+        [
           "text_align",
           "旁白对齐",
           "enum:narrative_align",
@@ -1874,6 +1895,12 @@
           "人物",
           "character",
           false
+        ],
+        [
+          "mode",
+          "生效方式",
+          "enum:dim_mode",
+          true
         ],
         [
           "dimmed",
@@ -3720,7 +3747,8 @@
     },
     "dim": {
       "character": "",
-      "dimmed": true
+      "dimmed": true,
+      "mode": "until_dialogue"
     },
     "message": {
       "text": ""

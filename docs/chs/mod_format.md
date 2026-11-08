@@ -203,7 +203,7 @@ Host 从包内 Story 构建来源缓存，每次加载作品后首次进入该�
 | `camera` | `name`, `active`(bool) | 镜头滤镜 `maincamera.ActiveVolume(name, 0 | 1)`，如 stage-memory/stage-dream/stage-fire/stage-blurdim |
 | `block` | `flowchart`("view"/"common"), `name`；可选 `vars`: `[{"name","value"}]` | 通用 flowchart 块调用：`getvar` 逐个赋值后 `runblock(fc, name)`。覆盖 out_white/shake/flash/vshock 等 |
 | `cg` | `action`("show"/"hide"), `kind`("picture"/"item"/"big"/"map"/"family"/"title")；可选 `key`, `key2`, `n1`, `n2` | mainui 图片/地图/家谱/标题：`ShowPicture(key)`/`HidePicture`/`ShowItemPicture`/`ShowBigPicture`/`ShowMap(key,key2)`/`ShowFamilyTree(key,key2,n1,n2)`/`DisplayTitle(key)` 等 |
-| `dim` | `character`, `dimmed`(bool 必填，默认 true) | 人物持续压暗。官方与用户角色统一走 `mod_char_dim(id, bool)`；开启后保留到关闭指令，关闭后保持明亮，后续对白、换表情、移动不会覆盖。沿用舞台 `DimColor` / `FadeDuration`，不改变淡入淡出的 alpha；切章/离开舞台清理。需使用随新版编辑器提供的 Host |
+| `dim` | `character`, `dimmed`(bool 必填), `mode`(可选) | `manual` 持续保持亮暗；`until_dialogue` 保持到下一句对白，再恢复自动压暗；`auto` 立即恢复自动。旧作品省略 `mode` 时仍持续保持，新步骤默认 `until_dialogue`。临时和恢复自动需要 Host 1.5.1；与气泡、震动等可同时执行。 |
 | `message` | `text`（必填非空，多行合法） | 系统提示 `mainui.DisplayMessageText(text)` 显示**原文**（DisplayMessage 走本地化 key 解析，用 Text 版避免自定文本被当 key 查空） |
 | `rotate` | `character`, `angle`(int 必填，默认 180), `duration`(float 必填，默认 1，>0) | 人物旋转到绝对 Z 角度。官方角色走 `characters.Rotate(key, angle, duration)`；`user:` 角色走 `mod_char_rotate` 后等待相同时长 |
 | `dayenv` | `day_type`（int 必填，1=白天 / 2=晚上） | 日夜环境 `luamanager.SetGameDayEnvironment(day_type)`。**字段名 day_type**：避免与节点通用键 "type" 冲突 |
@@ -598,3 +598,9 @@ assets/user/image/mohui.moon_bg/moon.jpg
 `stat`、`stat_set`、`affinity`、`item`、`talent`、`reward`、`result_screen`、`activity`、`enemy`、`use_item` 可填可选布尔字段 `show_message`。关闭后照常变更，跳过自动提示和该步骤的提示等待；手动 `wait_after`、对白及作者填写的结算／活动文字保留。物品开启提示时按实际数量变化显示原版获得／失去消息，官方和用户物品均支持。新物品回调及静默回调要求 Host 1.4.9，打包自动提高最低版本。
 
 未填写时保留旧提示行为；`stat.display`、`enemy.display` 和 `stat_set.update` 继续支持，新字段优先。`stat_set` 显示变化后仍调用实际设置接口，修复旧 `update=true` 只提示不写值的问题；旧 v3 包可继续导入，重新导出后生效。心上人仍以数值编号保存，编辑器提供人名选择，不改变原版属性上下限。
+
+### 无立绘画外音（Host 1.5.1）
+
+`say` 的 `mode: "offscreen"` 使用对话框显示声音，不加载、聚焦或复用人物立绘。`speaker_name` 可填写显示姓名，省略或空白时显示“？？？”。支持普通对白已有的字号、语音和明确指定人物的本句气泡；下一句对白恢复自己的姓名。
+
+角色目录中的“？？？”仍指对应的具体原版人物；无立绘声音请使用画外音模式。

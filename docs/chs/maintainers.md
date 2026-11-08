@@ -2,7 +2,7 @@
 
 当前工具端由 Rust 编译器、核心库与 egui 编辑器组成；C# `MortalModHost` 保留游戏接入。日常编辑见 [软件使用](software_usage.md)，构建和 CLI 见 [Rust 工具端](rust.md)，验证层次见 [测试矩阵](test_matrix.md)。旧 Python／Qt／PyInstaller 入口已经退役，不作为本手册操作入口。
 
-当前版本为 1.5.0，功能见 [本版说明](../../RELEASE_NOTES_v1.5.0.md)，验证范围见 [当前能力](current_capabilities.md)。
+当前版本为 1.5.1，功能见 [本版说明](../../RELEASE_NOTES_v1.5.1.md)，验证范围见 [当前能力](current_capabilities.md)。
 
 ## 编辑器入口与设置
 
@@ -110,7 +110,7 @@ Windows 发布入口为 `scripts/build-windows.ps1`。准备同版本的 `Mortal
 
 - 发布附件只提供 `lom-editor.exe`，skill、接口文档和示例通过 `--cli sdk` 导出。1.5.0 更新器只选择 exe，从 GitHub 正式发布信息读取版本、说明、文件大小与 SHA256，下载并校验后，使用新版 exe 自身作为安装助手，等待旧进程退出再替换。CLI 与 Host 仅存在于内置组件中。
 
-旧更新器首次切换需手动下载新版 exe；作品和素材格式继续兼容。GitHub 自动生成的源码归档不是用户需要下载的程序附件。
+1.4.19 起可通过内置更新升级，也可退出编辑器后替换 exe；作品和素材格式继续兼容。GitHub 自动生成的源码归档不是用户需要下载的程序附件。
 
 先上传到发布草稿，确认 exe 大小与摘要后公开正式版本。内置更新读取 GitHub 发布信息及 exe 附件；Windows 配套组件始终随 exe 内置和更新。原版资源只从用户自己的游戏安装读取，不随 exe 分发。为兼容 1.4.19 更新器，发布页保持单附件。
 

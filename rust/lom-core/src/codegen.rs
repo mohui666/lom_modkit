@@ -673,9 +673,14 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
             } else {
                 "\tmod_stop_voice()".into()
             });
-            if ["narrative", "center"].contains(&mode) {
+            if ["narrative", "center", "offscreen"].contains(&mode) {
+                let dialog = if mode == "offscreen" {
+                    "character"
+                } else {
+                    mode
+                };
                 out.extend([
-                    format!("\tsetsaydialog(saydialogs.{mode})"),
+                    format!("\tsetsaydialog(saydialogs.{dialog})"),
                     "\tsayoptions.waitforinput = true".into(),
                     "\tsayoptions.fadewhendone  = true".into(),
                     "\tsetcharacter(narrative)".into(),
@@ -985,7 +990,9 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
             if !user && !ctx.preloaded {
                 out.push(load(&c));
             }
-            out.push(if ctx.previous_visual_calls && !user {
+            out.push(if matches!(s(node, "mode"), "until_dialogue" | "auto") {
+                format!("\tmod_char_dim_mode({c}, {dim}, {})", q(node, "mode"))
+            } else if ctx.previous_visual_calls && !user {
                 format!("\tstage.SetDimmed(characters.Get({c}), {dim})")
             } else {
                 format!("\tmod_char_dim({c}, {dim})")
@@ -2331,24 +2338,40 @@ fn structured_import_to_lua(
 }
 
 fn scoped_dialogue_line(node: &Value, ctx: &Context<'_>) -> Vec<String> {
-    let line = dialogue_line(node, ctx);
-    if !truth(node, "mood_icon") {
-        return vec![line];
+    let offscreen = s(node, "mode") == "offscreen";
+    let mut out = Vec::new();
+    if offscreen {
+        let name = s(node, "speaker_name");
+        let name = if name.trim().is_empty() {
+            "？？？"
+        } else {
+            name
+        };
+        out.push(format!(
+            "\tlocal __lom_restore_name = mod_dialogue_name({})",
+            lua_str(name)
+        ));
     }
-    let target = if truth(node, "mood_character") {
-        s(node, "mood_character")
-    } else {
-        s(node, "character")
-    };
-    vec![
-        format!(
+    if truth(node, "mood_icon") {
+        let target = if truth(node, "mood_character") {
+            s(node, "mood_character")
+        } else {
+            s(node, "character")
+        };
+        out.push(format!(
             "\tlocal __lom_restore_mood = mod_dialogue_mood({}, {})",
             lua_str(target),
             q(node, "mood_icon")
-        ),
-        line,
-        "\t__lom_restore_mood()".into(),
-    ]
+        ));
+    }
+    out.push(dialogue_line(node, ctx));
+    if truth(node, "mood_icon") {
+        out.push("\t__lom_restore_mood()".into());
+    }
+    if offscreen {
+        out.push("\t__lom_restore_name()".into());
+    }
+    out
 }
 fn dialogue_line(node: &Value, ctx: &Context<'_>) -> String {
     let mod_id = if ctx.mod_id.is_empty() {

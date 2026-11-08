@@ -3,7 +3,7 @@
   "package_format": 3,
   "story_schema": 2,
   "content_schema": 1,
-  "min_host_version": "1.4.19",
+  "min_host_version": "1.5.1",
   "id": "showcase3",
   "campaign_id": "showcase3",
   "name": "全节点样例3.0·六十七节点实机验收",

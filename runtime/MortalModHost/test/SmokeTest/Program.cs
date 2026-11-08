@@ -17,6 +17,7 @@ namespace MortalModHost
     {
         private static int Main()
         {
+            CharacterDimmingStateTests.Run();
             try
             {
                 return Run();

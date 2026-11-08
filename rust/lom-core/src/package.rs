@@ -1160,14 +1160,24 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
                     .is_some_and(|seconds| seconds > 0.0)
         })
     });
+    let dialogue_dimming = stories.values().any(|story| {
+        crate::parallel::story_actions(story).any(|(_, node)| {
+            (node["type"] == "dim"
+                && matches!(node["mode"].as_str(), Some("until_dialogue" | "auto")))
+                || node["type"] == "say" && node["mode"] == "offscreen"
+        })
+    });
     if new_portrait_layout
         || free_image_scale
         || stage_layout
         || effect_controls
         || portrait_calibration
         || event_fade
+        || dialogue_dimming
     {
-        let (minimum, required) = if event_fade {
+        let (minimum, required) = if dialogue_dimming {
+            ([1, 5, 1], "1.5.1")
+        } else if event_fade {
             ([1, 4, 19], "1.4.19")
         } else if portrait_calibration {
             ([1, 4, 6], "1.4.6")

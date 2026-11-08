@@ -167,7 +167,8 @@
         "mood_icon": "dialogue_mood_icon",
         "mood_character": "str",
         "text_align": "narrative_align",
-        "inherit_dialog": "bool"
+        "inherit_dialog": "bool",
+        "speaker_name": "str"
       }
     },
     "choice": {
@@ -282,7 +283,8 @@
       },
       "optional": {
         "wait_after": "num",
-        "wait_for_completion": "bool"
+        "wait_for_completion": "bool",
+        "mode": "dim_mode"
       }
     },
     "message": {
@@ -984,7 +986,8 @@
       "character",
       "think",
       "narrative",
-      "center"
+      "center",
+      "offscreen"
     ],
     "narrative_align": [
       "default",
@@ -1065,6 +1068,11 @@
     "effect_space": [
       "world",
       "screen"
+    ],
+    "dim_mode": [
+      "manual",
+      "until_dialogue",
+      "auto"
     ]
   },
   "type_names": {

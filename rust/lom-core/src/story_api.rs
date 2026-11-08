@@ -227,12 +227,12 @@ pub fn execute(op: &str, params: &Value) -> Result<Value> {
         "add_scene"=>{let view=string(params,"view")?;ensure!(!view.is_empty(),"view 不能为空");make(&mut story,"scene",json!({"view":view}),after)?},
         "add_say"=>{
             let text=string(params,"text")?;let mode=default_string(params,"mode","character")?;let portrait=default_string(params,"portrait","normal")?;
-            ensure!(["character","think","narrative","center"].contains(&mode),"非法 say mode");
+            ensure!(["character","think","narrative","center","offscreen"].contains(&mode),"非法 say mode");
             let mut fields=json!({"text":text,"mode":mode,"portrait":portrait});
             if matches!(mode,"character"|"think"){let cid=string(params,"character")?;ensure!(!cid.is_empty(),"人物必填");fields["character"]=json!(cid);}
             if let Some(v)=params.get("voice").filter(|v|!v.is_null()){ensure!(v.as_str().is_some_and(|s|!s.trim().is_empty()),"voice 必须非空");fields["voice"]=v.clone();}
             let mut n=make(&mut story,"say",fields,after)?;
-            if matches!(mode,"narrative"|"center"){n.as_object_mut().unwrap().remove("character");let i=index(&story,n["id"].as_str().unwrap())?;story["nodes"][i]=n.clone();}n
+            if matches!(mode,"narrative"|"center"|"offscreen"){n.as_object_mut().unwrap().remove("character");let i=index(&story,n["id"].as_str().unwrap())?;story["nodes"][i]=n.clone();}n
         },
         "add_death"=>{
             let text=string(params,"text")?;let id=string(params,"death_id")?;let next=default_string(params,"next","Title")?;
