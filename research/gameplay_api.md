@@ -1,5 +1,13 @@
 # Gameplay API 实证矩阵
 
+## 2026-11-09 独立自定义天赋与杂物目录
+
+本次现场读取当前安装的 `Mortal.Core.PlayerTalentData`（`GetIdKey/GetDescKey`、`Setup/AddLevel` 及 `_id/_displayLevel/_lowLevelTalent`）、`PlayerTalentDataCollection.Get/Set/Reset`、`CollectionData<T>.List` 和 `PlayerStatManagerData.Talents/Save/Load`。Host 自建无 Combat/Battle 标记的 `PlayerTalentData`，以包归属运行时 ID 注册进自有集合；不覆盖原版天赋对象或资源。集合 getter、`Get/Reset` 转到自有集合，原版 `Load` 的 `Set` 恢复级别，`Save` 后追加自定义 `TalentSave`，沿用隔离存档的原生记录。
+
+觉醒复用 `Mortal.Story.StatModifyManager.AddTalent(string,int)` → `StoryMainUI.DisplayTalentMessage` → `GameMessagePanel.DisplayTalentMessage`；名称／描述注册到独立 `PlayerTalent/Name|Desc/<runtime id>`。现场读取的 `PropertyStatPanel` 从 `Talents.List` 生成 `PlayerSkillTextPanel`。`CombatCharacterStatusUI.UpdateSkill` 原本仅展示存在战斗效果的天赋，故在该 UI 入口后追加 `CombatSkillTextPanel.Setup(data,level)` 条目，详情继续使用其 `OnItemSelected` 的 Desc key。未往 `CombatStat.TalentItems` 加空效果；`CombatActionController.InitSkill` 仍只初始化原版战斗天赋。本轮在隔离测试存档实机完成 22 项检查：新天赋授予与移除、原版名称及集合不变、人物和决斗原版 UI 的名称与描述、三种茶各取得一件、真实文件保存、清空运行时定义后从磁盘读档恢复。决斗效果初始化列表不含新天赋，展示前后效果列表不变；游戏窗口另行核对了人物与决斗详情。临时验证插件已在退出游戏后移除。
+
+杂物接口现场核对 `ItemData.Id`、`Misc.GetNameKey()` 返回 `Misc/Name/<Id>`。当前游戏 `globalgamemanagers.assets` 的 `ItemDatabase/MiscCollection` 与 `Misc` 定义包含 3001/3002/3003；名称表分别为纳溪梅岭、蒙顶露芽、峨嵋雪芽。旧提取器只从剧情 `AddMisc` 收集 ID，漏掉库存型道具；本次将已有名称表纳入杂物目录，19 项补至 43 项。未将游戏资源或反编译代码写入仓库。
+
 ## 2026-11-09 独立姓名与同立绘双人对话
 
 本次重新读取当前游戏的 `CharacterSayDialog.SetCharacterName(string, Color)` 和 `Fungus.SayDialog.NameText` 属性、`SetCharacter(Character)`。原版在设置姓名时按逗号拆分姓名与称号；自定义姓名在原版入口之后写入实例 `NameText`，避免姓名中的逗号改变称号，不修改官方 Character 或 ScriptableObject。姓名与称号以人物引用分别保存在当前作品的隔离存档 sidecar 中，两个操作互不重置。

@@ -75,6 +75,24 @@ pub struct ToolsPanel {
     preview_ready: Option<PathBuf>,
     effect_ready: VecDeque<(PathBuf, bool)>,
 }
+// A released single-file editor owns its Host. Saved runtime paths can point
+// to a previously extracted editor and are only used by development builds.
+fn runtime_path(settings: &Value, bundled: Option<PathBuf>) -> PathBuf {
+    bundled
+        .or_else(|| {
+            settings["rust_runtime_dir"]
+                .as_str()
+                .filter(|s| !s.is_empty())
+                .map(PathBuf::from)
+                .filter(|p| {
+                    game_tools::HOST_FILES
+                        .iter()
+                        .all(|name| p.join(name).is_file())
+                })
+        })
+        .unwrap_or_default()
+}
+
 impl Default for ToolsPanel {
     fn default() -> Self {
         let settings = lom_core::load_json(settings_path()).unwrap_or(json!({}));
@@ -95,18 +113,7 @@ impl Default for ToolsPanel {
             library: lom_core::content::default_repository_root(),
             game: PathBuf::from(settings["game_dir"].as_str().unwrap_or("")),
             game_candidates: Vec::new(),
-            runtime: settings["rust_runtime_dir"]
-                .as_str()
-                .filter(|s| !s.is_empty())
-                .map(PathBuf::from)
-                .filter(|p| {
-                    !crate::components::is_managed_runtime(p)
-                        && game_tools::HOST_FILES
-                            .iter()
-                            .all(|name| p.join(name).is_file())
-                })
-                .or_else(crate::components::runtime)
-                .unwrap_or_default(),
+            runtime: runtime_path(&settings, crate::components::runtime()),
             ffmpeg: settings["ffmpeg_path"]
                 .as_str()
                 .filter(|s| !s.is_empty())
@@ -1732,6 +1739,20 @@ fn show_report(ui: &mut egui::Ui, value: &Value, depth: usize) {
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn bundled_host_replaces_a_saved_old_runtime_directory() {
+        let root = tempfile::tempdir().unwrap();
+        let old = root.path().join("old-1.4.8/runtime");
+        std::fs::create_dir_all(&old).unwrap();
+        for name in game_tools::HOST_FILES {
+            std::fs::write(old.join(name), b"old").unwrap();
+        }
+        let settings = json!({"rust_runtime_dir":old});
+        let bundled = root.path().join("new-1.5.8/runtime");
+        assert_eq!(runtime_path(&settings, Some(bundled.clone())), bundled);
+        assert_eq!(runtime_path(&settings, None), old);
+    }
+
     use super::*;
     #[test]
     fn report_errors_show_nested_reasons_and_paths_without_expanding_or_copying() {

@@ -755,10 +755,13 @@ namespace MortalModHost
             var files = filesObj as Dictionary<string, object>;
             if (files == null)
                 throw new FormatException("content.json files 必须是对象");
-            string mainFile = GetString(files, "main", required: true);
+            string mainFile = GetString(files, "main", required: type != "talent") ?? "";
             if (mainFile.IndexOf('/') >= 0 || mainFile.IndexOf('\\') >= 0 || mainFile.IndexOf("..", StringComparison.Ordinal) >= 0)
                 throw new FormatException("files.main 必须是同目录文件名");
 
+            if (type == "talent")
+                return new UserContent { Id = id, Type = type, Name = name, MainFile = mainFile,
+                    Gameplay = CustomGameplayDefinition.Parse(root, type) };
             if (type == "audio")
                 return ParseAudioContent(package, expectedDir, id, name, mainFile, root, entries);
             if (type == "character")

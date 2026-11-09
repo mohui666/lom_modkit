@@ -271,6 +271,23 @@ pub fn install_runtime(root: &Path, bundle: &Path) -> Result<Value> {
     if !changed {
         return Ok(json!({"changed":false}));
     }
+    #[cfg(windows)]
+    if plugin.join("MortalModHost.dll").is_file() {
+        let installed_version = host_file_version(&plugin.join("MortalModHost.dll"))
+            .context("无法核对已安装 Host 的版本，未覆盖文件")?;
+        let bundled_version = host_file_version(&bundle.join("MortalModHost.dll"))
+            .context("无法核对待安装 Host 的版本，未覆盖文件")?;
+        let version = |value: &str| {
+            value
+                .split('.')
+                .map(str::parse::<u32>)
+                .collect::<std::result::Result<Vec<_>, _>>()
+        };
+        ensure!(
+            version(&bundled_version)? >= version(&installed_version)?,
+            "拒绝降级：游戏已安装 Host {installed_version}，所选目录只有 {bundled_version}。请使用新版编辑器内置 Host；已安装文件未修改。"
+        );
+    }
     let backup = confined(
         root,
         Path::new("BepInEx/plugins/MortalModHost/.runtime_rollback"),

@@ -13,8 +13,9 @@ pub const CONTENT_TYPES: &[&str] = &[
     "martial",
     "support",
     "skill",
+    "talent",
 ];
-pub const GAMEPLAY_TYPES: &[&str] = &["item", "martial", "support", "skill"];
+pub const GAMEPLAY_TYPES: &[&str] = &["item", "martial", "support", "skill", "talent"];
 const ANIMATIONS: &[&str] = &[
     "combat_idle",
     "combat_attack",
@@ -231,11 +232,20 @@ pub fn normalize_content_metadata(data: &Value) -> Result<Value> {
     let kind = text(data, "type");
     ensure!(
         CONTENT_TYPES.contains(&kind),
-        "type 必须是 audio / character / image / item / martial / support / skill 之一"
+        "type 必须是 audio / character / image / item / martial / support / skill / talent 之一"
     );
     let name = text(data, "name").trim();
     ensure!(!name.is_empty(), "name（显示名称）必须是非空字符串");
-    let main = safe_filename(&data["files"]["main"], "files.main", kind == "audio")?;
+    ensure!(
+        kind != "talent" || data["files"].is_null() || data["files"].is_object(),
+        "files 必须是对象"
+    );
+    let main =
+        if kind == "talent" && (data["files"]["main"].is_null() || data["files"]["main"] == "") {
+            String::new()
+        } else {
+            safe_filename(&data["files"]["main"], "files.main", kind == "audio")?
+        };
     let mut meta = json!({"schema":1,"content_schema":1,"id":id,"type":kind,"name":name,"audio_kind":null,"files":{"main":main},"portraits":null,"character":null,"intro":null,"title":null,"scale":null,"art_facing":null});
     if kind == "audio" {
         let audio = text(data, "audio_kind");
@@ -502,6 +512,14 @@ fn normalize_gameplay_metadata(data: &Value, meta: &mut Value) -> Result<()> {
     );
     meta["description"] = json!(description);
     match text(data, "type") {
+        "talent" => {
+            for key in ["effects", "bonuses", "combat_skill", "battle_skill"] {
+                ensure!(
+                    data.get(key).is_none(),
+                    "自定义天赋当前仅支持名称与描述，不支持 {key} 效果字段"
+                );
+            }
+        }
         "item" | "martial" => {
             meta["cost"] = json!(if data.get("cost").is_none() {
                 0
@@ -621,6 +639,7 @@ fn normalize_gameplay_metadata(data: &Value, meta: &mut Value) -> Result<()> {
 pub fn gameplay_references(node: &Value) -> Vec<(&str, &'static str, &str)> {
     let mut refs = Vec::new();
     match text(node, "type") {
+        "talent" | "talent_check" => refs.push((text(node, "talent"), "talent", "")),
         "item" | "item_check" | "use_item" => {
             if node["type"] == "use_item" {
                 refs.push((text(node, "item"), "item", "consumable"));
@@ -680,6 +699,9 @@ pub fn gameplay_references(node: &Value) -> Vec<(&str, &'static str, &str)> {
         "reward" | "result_screen" | "activity" => {
             for field in ["entries", "success_rewards", "failure_rewards"] {
                 if let Some(items) = node[field].as_array() {
+                    for item in items.iter().filter(|i| i["kind"] == "talent") {
+                        refs.push((text(item, "key"), "talent", ""));
+                    }
                     for item in items.iter().filter(|i| i["kind"] == "item") {
                         let category = text(item, "category");
                         refs.push((
@@ -702,6 +724,7 @@ pub fn gameplay_references(node: &Value) -> Vec<(&str, &'static str, &str)> {
 
 pub fn gameplay_defaults(kind: &str) -> Value {
     match kind {
+        "talent" => json!({"description":""}),
         "item" => json!({"description":"","category":"misc","cost":100}),
         "martial" => {
             json!({"description":"","cost":100,"levels":[{"points":10,"requirements":[],"bonuses":[{"stat":"internal","delta":1}]}]})
@@ -722,6 +745,9 @@ pub fn scenario_gameplay_nodes(config: &Value) -> Vec<Value> {
             Value::Object(object) => {
                 if value["type"] == "item" && text(value, "key").starts_with("user:") {
                     result.push(json!({"type":"item","kind":value["kind"],"item":value["key"]}));
+                }
+                if value["type"] == "talent" && text(value, "key").starts_with("user:") {
+                    result.push(json!({"type":"talent","talent":value["key"]}));
                 }
                 for child in object.values() {
                     collect(child, result);
@@ -903,7 +929,11 @@ pub fn resolve_content(root: &Path, kind: &str, id: &str) -> Result<(Value, Path
     }
     Ok((
         meta,
-        main.ok_or_else(|| anyhow::anyhow!("用户内容主文件不存在"))?,
+        if kind == "talent" {
+            main.unwrap_or(metadata_real)
+        } else {
+            main.ok_or_else(|| anyhow::anyhow!("用户内容主文件不存在"))?
+        },
     ))
 }
 

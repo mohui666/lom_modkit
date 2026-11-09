@@ -184,14 +184,6 @@ pub fn runtime() -> Option<PathBuf> {
                 .filter(|p| p.join("MortalModHost.dll").is_file())
         })
 }
-pub fn is_managed_runtime(path: &Path) -> bool {
-    path.components().any(|c| c.as_os_str() == "components")
-        && path
-            .parent()
-            .and_then(Path::parent)
-            .and_then(Path::file_name)
-            .is_some_and(|n| n == "components")
-}
 pub fn cli() -> Result<PathBuf> {
     file(if cfg!(windows) { "lomc.exe" } else { "lomc" })
 }

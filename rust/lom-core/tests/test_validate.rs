@@ -97,7 +97,7 @@ fn story(nodes: Value) -> Value {
 }
 #[test]
 fn schema_exposes_legacy_nodes_and_parallel_group() {
-    assert_eq!(node_schema()["nodes"].as_object().unwrap().len(), 70);
+    assert_eq!(node_schema()["nodes"].as_object().unwrap().len(), 71);
 }
 #[test]
 fn say_text_is_required_in_every_display_mode() {

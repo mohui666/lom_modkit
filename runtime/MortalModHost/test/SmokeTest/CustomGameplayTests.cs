@@ -8,6 +8,10 @@ namespace MortalModHost
     {
         internal static void Run(string root)
         {
+            var talent = Parse("{\"description\":\"独立天赋\"}", "talent");
+            Require(talent.Description == "独立天赋" && talent.Skill == null && talent.Levels.Count == 0
+                && talent.Effects.Count == 0 && talent.ConsumableEffects.Count == 0, "自定义天赋不得生成任何效果");
+            Reject<FormatException>(() => Parse("{\"effects\":[]}", "talent"));
             var martial = Parse("{\"levels\":[{\"points\":40,\"requirements\":[{\"stat\":\"strength\",\"min\":20}],\"bonuses\":[{\"stat\":\"dexterity\",\"delta\":2}]}]}", "martial");
             Require(martial.Category == "book" && martial.Levels[0].Points == 40
                 && martial.Levels[0].Requirements[0].Value == 20 && martial.Levels[0].Bonuses[0].Stat == "dexterity", "功法级别数据丢失");

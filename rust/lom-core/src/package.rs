@@ -1180,6 +1180,9 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
                 || node["type"] == "say" && node["mode"] == "offscreen"
         })
     });
+    let custom_talents = entries
+        .keys()
+        .any(|key| key.starts_with("assets/user/talent/") && key.ends_with("/content.json"));
     let character_titles = stories.values().any(|story| {
         crate::parallel::story_actions(story).any(|(_, node)| node["type"] == "character_title")
     });
@@ -1190,7 +1193,8 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
                     || matches!(node["name_action"].as_str(), Some("set" | "reset")))
         })
     });
-    if character_names
+    if custom_talents
+        || character_names
         || character_titles
         || new_portrait_layout
         || free_image_scale
@@ -1200,7 +1204,9 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
         || event_fade
         || dialogue_dimming
     {
-        let (minimum, required) = if character_names {
+        let (minimum, required) = if custom_talents {
+            ([1, 5, 8], "1.5.8")
+        } else if character_names {
             ([1, 5, 5], "1.5.5")
         } else if character_titles {
             ([1, 5, 4], "1.5.4")

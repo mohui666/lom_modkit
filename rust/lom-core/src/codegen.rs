@@ -229,7 +229,14 @@ fn reward(entries: &[Value], messages: Option<bool>) -> Vec<String> {
                 "statmodifymanager.Character",
                 &[key, amount, if show { "1" } else { "0" }.into()],
             )),
-            "talent" => out.push(call("statmodifymanager.AddTalent", &[key, amount])),
+            "talent" => out.push(call(
+                if s(e, "key").starts_with("user:") {
+                    "mod_talent"
+                } else {
+                    "statmodifymanager.AddTalent"
+                },
+                &[key, amount],
+            )),
             "item" if messages.is_some() => out.push(call(
                 "mod_change_item",
                 &[q(e, "category"), key, amount, show.to_string()],
@@ -1062,7 +1069,11 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
             ],
         )),
         "talent" => out.push(call(
-            "statmodifymanager.AddTalent",
+            if s(node, "talent").starts_with("user:") {
+                "mod_talent"
+            } else {
+                "statmodifymanager.AddTalent"
+            },
             &[q(node, "talent"), n(node, "level", json!(0))],
         )),
         "item" => {

@@ -161,7 +161,7 @@ namespace MortalModHost
                     case "affinity":if(op=="set")modifier.SetCharacter(key,n);else modifier.Character(key,n,0);break;
                     case "flag":modifier.AddStory(key);break;
                     case "game_flag":if(op=="set")modifier.SetFlag(key,n);else modifier.AddFlag(key,n);break;
-                    case "talent":modifier.AddTalent(key,n);break;
+                    case "talent":modifier.AddTalent(CustomTalentRuntime.ResolveId(package,key),n);break;
                     case "item":
                         CustomGameplayRuntime.ChangeItem(package,ScenarioJson.Text(a,"kind"),key,op=="remove" ? -n : n);break;
                     case "time":lua.SetGameTime(ScenarioJson.Int(a,"year",1,9),ScenarioJson.Int(a,"month",1,12),ScenarioJson.Int(a,"stage",1,3));break;

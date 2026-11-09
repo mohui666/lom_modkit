@@ -81,6 +81,11 @@ namespace MortalModHost
                         Value = Number(effect, "value", null, 1, 999999) });
                 }
             }
+            else if (type == "talent")
+            {
+                foreach (string key in new[] { "effects", "bonuses", "combat_skill", "battle_skill" })
+                    if (root.ContainsKey(key)) throw new FormatException("自定义天赋当前仅支持名称与描述：" + key);
+            }
             else if (type == "skill") data.Skill = CustomCombatSkillDefinition.Parse(root);
             else throw new FormatException("不是自定义玩法内容：" + type);
             return data;

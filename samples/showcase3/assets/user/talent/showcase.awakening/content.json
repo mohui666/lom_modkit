@@ -1,0 +1,10 @@
+{
+  "content_schema": 1,
+  "id": "showcase.awakening",
+  "type": "talent",
+  "name": "万木逢春",
+  "description": "自定义天赋示例。\n暂时没有属性或战斗效果。",
+  "files": {
+    "main": ""
+  }
+}

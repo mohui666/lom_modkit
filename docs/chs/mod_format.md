@@ -216,7 +216,7 @@ Host 从包内 Story 构建来源缓存，每次加载作品后首次进入该�
 | `stat_set` | `key`, `value`；可选 `update`(bool默认false) | 绝对设置 `SetPlayer(key, value)`；update=true 用 `UpdateSetPlayerStat`（title 等用） |
 | `character_title` | `character`、称号 `action`（`keep` / `set` / `hide` / `reset`）；可选姓名 `name_action`（`keep` / `set` / `reset`，缺省 keep）；对应设置操作必填 `title` / `name`（单行，最多 80 个 UTF-16 字符）；可选 `wait_after` | 编辑器显示“修改姓名与称号”，赵活 `player`、原版人物和 `user:` 人物共用此节点，无需先登场。姓名、称号独立保持、设置或恢复，称号还可隐藏；只改姓名时令 `action=keep`。作用于后续人物对白名牌，跨章持续生效并随当前作品存档保存；赵活恢复称号后继续按原版“称号”数值属性显示。称号功能需 Host 1.5.4，新增姓名操作需 1.5.5，打包自动提高最低版本。原 1.5.4 称号节点无姓名字段时继续保留原效果和 Lua 输出 |
 | `affinity` | `character`, `delta` | 人物好感度 `statmodifymanager.Character(character, delta, 1)` |
-| `talent` | `talent`, `level`(±1) | 天赋 `statmodifymanager.AddTalent(id, level)` |
+| `talent` | `talent`, `level`(±1) | 原版天赋 `statmodifymanager.AddTalent(id, level)`；独立自定义天赋使用 `user:` 引用并调用 `mod_talent(id, level)`，需要 Host 1.5.8 |
 | `item` | `kind`("book"/"misc"/"special"/"consumable"), `item`, `count`(默认1)；可选 `remove`(bool默认false) | 原版物品走 `AddBook/AddMisc/AddSpecial(id,count)`，原版 remove 仅 book/misc。1.4 的 `user:` 内容走 `mod_item(kind,id,count)`；consumable 仅允许用户消耗品 |
 | `use_item` | `item`，必须是本包 `user:` 养成消耗品引用 | `mod_use_item(item)`；实际应用属性效果并扣除一件；决斗专用药由决斗道具入口使用 |
 | `flag` | `flag` | mod 剧情 flag：`statmodifymanager.AddStory(flag)` + `modflags[flag]=true` |
@@ -581,6 +581,16 @@ assets/user/image/mohui.moon_bg/moon.jpg
 - Rust 侧唯一解析入口：`rust/lom-core/src/content.rs`。C# 侧契约实现：`ContentRef.cs` + `ModLoader`。
 
 使用说明见 `user_content.md`。
+
+### 独立自定义天赋（Host 1.5.8）
+
+`type=talent` 的素材只填写 `name`、`description`，不需要图片，`files.main` 可为空。天赋使用包内独立 ID，不覆盖任何原版天赋，暂时没有属性或战斗效果；不接受 `effects`、`bonuses`、`combat_skill`、`battle_skill`。
+
+```json
+{"content_schema":1,"id":"demo.awakening","type":"talent","name":"万木逢春","description":"自定义描述，可换行。","files":{"main":""}}
+```
+
+文件保存于 `assets/user/talent/demo.awakening/content.json`。`talent`、`talent_check`、天赋奖励和事件结果使用 `user:demo.awakening`；`level=1` 觉醒，`level=-1` 移除。拥有状态随当前 MOD 隔离存档保存，名称与描述来自所属包。人物属性和决斗详情显示独立条目，决斗详情只追加 UI，不把空效果交给原版战斗初始化。导出使用该素材的包会自动要求 Host 1.5.8。旧原版天赋节点的生成结果保持不变。
 
 ### 1.4.2 自定义人物气泡
 

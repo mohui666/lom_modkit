@@ -4521,6 +4521,7 @@ impl App {
                         "martial" => tr("功法"),
                         "support" => tr("决斗援助"),
                         "skill" => tr("自创招式"),
+                        "talent" => tr("自定义天赋"),
                         other => other.to_owned(),
                     };
                     let selected = self.asset_selection == *key;
@@ -4646,6 +4647,7 @@ impl App {
             7 => "support",
             8 => "skill",
             9 => "item",
+            10 => "talent",
             _ => "audio",
         };
         let namespace: String = self.project.manifest["id"]
@@ -4727,6 +4729,7 @@ impl App {
             7 => "support",
             8 => "skill",
             9 => "item",
+            10 => "talent",
             _ => "audio",
         };
         let prefix = format!("assets/user/{kind}/{id}");
@@ -4868,7 +4871,7 @@ impl App {
             }
             payload.insert(format!("{prefix}/{name}"), bytes);
         }
-        anyhow::ensure!(!main.is_empty(), "未选择素材");
+        anyhow::ensure!(kind == "talent" || !main.is_empty(), "未选择素材");
         let mut meta = json!({"schema":1,"content_schema":1,"id":id,"type":kind,"name":name,"files":{"main":main}});
         if kind == "character" {
             meta["portraits"] = portraits.into();
@@ -5478,6 +5481,7 @@ impl App {
                                 "决斗援助",
                                 "自创招式",
                                 "消耗品",
+                                "自定义天赋",
                             ][draft.kind]))
                             .show_ui(ui, |ui| {
                                 for (i, kind) in [
@@ -5491,6 +5495,7 @@ impl App {
                                     "决斗援助",
                                     "自创招式",
                                     "消耗品",
+                                    "自定义天赋",
                                 ]
                                 .iter()
                                 .enumerate()
@@ -5524,22 +5529,24 @@ impl App {
                         draft.extends = target["extends"].as_str().unwrap_or("").to_owned();
                         ui.small(crate::i18n::key("editor.workspace.character_hint"));
                     }
-                    choose_files = ui
-                        .button(format!(
-                            "{} *",
-                            tr(if draft.kind == 8 {
-                                "选择 PNG 动画帧…"
-                            } else if draft.kind == 1 {
-                                if draft.paths.is_empty() {
-                                    "选择立绘文件…"
+                    if draft.kind != 10 {
+                        choose_files = ui
+                            .button(format!(
+                                "{} *",
+                                tr(if draft.kind == 8 {
+                                    "选择 PNG 动画帧…"
+                                } else if draft.kind == 1 {
+                                    if draft.paths.is_empty() {
+                                        "选择立绘文件…"
+                                    } else {
+                                        "继续添加立绘…"
+                                    }
                                 } else {
-                                    "继续添加立绘…"
-                                }
-                            } else {
-                                "选择文件…"
-                            })
-                        ))
-                        .clicked();
+                                    "选择文件…"
+                                })
+                            ))
+                            .clicked();
+                    }
                     if draft.kind == 1 {
                         ui.small(tr("可按住 Ctrl 多选，Ctrl+A 全选。"));
                         ui.add(
@@ -5548,7 +5555,7 @@ impl App {
                         );
                         choose_folder = ui.button(tr("从文件夹选择全部立绘…")).clicked();
                     }
-                    if !draft.paths.is_empty() {
+                    if draft.kind == 10 || !draft.paths.is_empty() {
                         for path in &draft.paths {
                             ui.label(path.file_name().unwrap_or_default().to_string_lossy());
                         }
@@ -5562,7 +5569,8 @@ impl App {
                     if let Some(error) = &draft.error {
                         crate::error_ui::show_with_actions(ui, error);
                     }
-                    let can_submit = !draft.paths.is_empty() && !draft.name.trim().is_empty();
+                    let can_submit = (draft.kind == 10 || !draft.paths.is_empty())
+                        && !draft.name.trim().is_empty();
                     let actions = dialog_actions(ui, "导入", can_submit);
                     submit = actions.0;
                     cancel |= actions.1;
@@ -6832,7 +6840,7 @@ mod tests {
     fn all_catalog_node_forms_have_defaults() {
         let c = Catalog::new();
         let schemas = c.schema["NODE_SCHEMAS"].as_object().unwrap();
-        assert_eq!(schemas.len(), 70);
+        assert_eq!(schemas.len(), 71);
         for kind in schemas.keys() {
             let node = c.new_node(kind, "n1".into());
             assert_eq!(node["type"], kind.as_str());
@@ -10101,6 +10109,14 @@ mod application_regression_tests {
         let icon = dir.path().join("icon.png");
         std::fs::write(&icon, b"sample icon").unwrap();
         let mut app = app();
+        app.import_assets(vec![], "demo.awakening", "万木逢春", 10)
+            .unwrap();
+        app.catalog.sync_assets(&app.project.assets);
+        assert!(app
+            .catalog
+            .options("talent", &Value::Null, &[], &[])
+            .iter()
+            .any(|(id, name)| id == "user:demo.awakening" && name.contains("万木逢春")));
         for (kind, index, id) in [
             ("item", 5, "demo.token"),
             ("martial", 6, "demo.manual"),
