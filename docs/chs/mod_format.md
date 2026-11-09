@@ -205,7 +205,7 @@ Host 从包内 Story 构建来源缓存，每次加载作品后首次进入该�
 | `cg` | `action`("show"/"hide"), `kind`("picture"/"item"/"big"/"map"/"family"/"title")；可选 `key`, `key2`, `n1`, `n2` | mainui 图片/地图/家谱/标题：`ShowPicture(key)`/`HidePicture`/`ShowItemPicture`/`ShowBigPicture`/`ShowMap(key,key2)`/`ShowFamilyTree(key,key2,n1,n2)`/`DisplayTitle(key)` 等 |
 | `dim` | `character`, `dimmed`(bool 必填), `mode`(可选) | `manual` 持续保持亮暗；`until_dialogue` 保持到下一句对白，再恢复自动压暗；`auto` 立即恢复自动。旧作品省略 `mode` 时仍持续保持，新步骤默认 `until_dialogue`。临时和恢复自动需要 Host 1.5.1；与气泡、震动等可同时执行。 |
 | `message` | `text`（必填非空，多行合法） | 系统提示 `mainui.DisplayMessageText(text)` 显示**原文**（DisplayMessage 走本地化 key 解析，用 Text 版避免自定文本被当 key 查空） |
-| `rotate` | `character`, `angle`(int 必填，默认 180), `duration`(float 必填，默认 1，>0) | 人物旋转到绝对 Z 角度。官方角色走 `characters.Rotate(key, angle, duration)`；`user:` 角色走 `mod_char_rotate` 后等待相同时长 |
+| `rotate` | `character`, `angle`(int 必填，默认 180), `duration`(float 必填，默认 1，>0) | 人物旋转到绝对 Z 角度，保留正负方向与圈数；0→355 为逆时针 355°，0→360 为整圈，355→360 为继续 5°。官方角色走 `characters.Rotate(key, angle, duration)`，Host 包装其原版旋转入口；`user:` 角色走 `mod_char_rotate` 后等待相同时长。大角度修正需要 Host 1.5.2，Lua 接口与旧包格式不变 |
 | `dayenv` | `day_type`（int 必填，1=白天 / 2=晚上） | 日夜环境 `luamanager.SetGameDayEnvironment(day_type)`。**字段名 day_type**：避免与节点通用键 "type" 冲突 |
 
 **数值/状态类**

@@ -4,7 +4,7 @@
     "package_format": 3,
     "story_schema": 2,
     "content_schema": 1,
-    "min_host_version": "1.5.1",
+    "min_host_version": "1.5.2",
     "id": "showcase3",
     "campaign_id": "showcase3",
     "name": "全节点样例3.0·七十节点实机验收",
@@ -286,15 +286,15 @@
           "id": "rotate1",
           "type": "rotate",
           "character": "user:showcase.lin_deng",
-          "angle": -6,
-          "duration": 0.2
+          "angle": 355,
+          "duration": 1.5
         },
         {
           "id": "rotate2",
           "type": "rotate",
           "character": "user:showcase.lin_deng",
-          "angle": 6,
-          "duration": 0.2
+          "angle": 360,
+          "duration": 0.3
         },
         {
           "id": "dim2",
