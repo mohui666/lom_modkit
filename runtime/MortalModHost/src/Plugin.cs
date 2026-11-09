@@ -28,7 +28,7 @@ namespace MortalModHost
     {
         public const string GUID = "com.mohui666.mortalmodhost";
         public const string NAME = "MortalModHost";
-        public const string VERSION = "1.5.2";
+        public const string VERSION = "1.5.3";
 
         internal static Plugin Instance { get; private set; }
 
@@ -110,6 +110,8 @@ namespace MortalModHost
                 "内部一次性迁移标记。设为 true 后 Runtime 不会再自动改写 MenuHotkey。除非排查旧配置迁移，请勿修改。");
             _lastSelectedCampaignId = Config.Bind("Campaign", "LastSelectedCampaignId", "",
                 "最近一次在官方 MOD 战役页选择的稳定 campaign_id。仅用于显示最近入口，不会自动开始或读档。");
+            AutoDialogueRuntime.Speed = Config.Bind("Dialogue", "AutoSpeed", AutoDialogueSpeed.Standard,
+                "MOD 自动播放阅读速度：Slow / Standard / Fast。文字显示完成后按字数计时，语音结束后至少保留0.3秒。");
             MigrateLegacyHotkey();
             Logger.LogInfo("菜单热键：" + _menuHotkey.Value + "（Title 使用原版风格战役入口，Free 左下角保留常驻入口）；原版剧情开关热键：" + _vanillaStoryHotkey.Value);
 
@@ -299,6 +301,8 @@ namespace MortalModHost
             ModDisclosure.Log = Logger;
 
             bool ok = true;
+            ok &= CheckTarget("StoryManager._autoDialog", AccessTools.Field(typeof(StoryManager), "_autoDialog"));
+            ok &= CheckTarget("StoryManager._skipDialog", AccessTools.Field(typeof(StoryManager), "_skipDialog"));
             ok &= CheckTarget("LuaManager.ExecuteLuaScript",
                 AccessTools.Method(typeof(LuaManager), "ExecuteLuaScript"));
             ok &= CheckTarget("SaveSystem.NewGameData",
@@ -601,6 +605,7 @@ namespace MortalModHost
                 return;
             }
             if (!_enabled.Value || !_runtimeReady) return;
+            AutoDialogueRuntime.Tick();
             UpdateOverlaySceneTracking();
             bool traceActive = RuntimeTrace.Active;
             if (traceActive && IsHotkeyDown(_debuggerHotkey.Value))
@@ -1380,6 +1385,13 @@ namespace MortalModHost
         private void DrawWindow(int id)
         {
             GUILayout.BeginVertical();
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(I18n.T("auto.speed"));
+            foreach (AutoDialogueSpeed speed in Enum.GetValues(typeof(AutoDialogueSpeed)))
+                if (GUILayout.Toggle(AutoDialogueRuntime.Speed.Value == speed,
+                    I18n.T("auto." + speed.ToString().ToLowerInvariant()), GUI.skin.button))
+                    AutoDialogueRuntime.Speed.Value = speed;
+            GUILayout.EndHorizontal();
             if (_titleFallbackMenu)
             {
                 bool hasAddons = LoadedMods.Exists(m => m.PlayMode == "addon");

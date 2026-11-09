@@ -16,6 +16,7 @@ namespace MortalModHost
         private const uint WAVE_MAPPER = 0xFFFFFFFF;
         private const uint CALLBACK_EVENT = 0x00050000;
         private const uint WHDR_DONE = 0x00000001;
+        private const uint WHDR_INQUEUE = 0x00000010;
         private const int WAVE_FORMAT_PCM = 1;
         private const int MMSYSERR_NOERROR = 0;
         private const int FramesPerBuffer = 4096;
@@ -212,8 +213,9 @@ namespace MortalModHost
                         if (_stopping || _wave == IntPtr.Zero)
                             break;
                         uint hdrSize = (uint)Marshal.SizeOf(typeof(WaveHeader));
-                        RefillIfDone(source, buf0, hdr0, p0, hdrSize);
-                        RefillIfDone(source, buf1, hdr1, p1, hdrSize);
+                        bool active0 = RefillIfDone(source, buf0, hdr0, p0, hdrSize);
+                        bool active1 = RefillIfDone(source, buf1, hdr1, p1, hdrSize);
+                        if (!active0 && !active1) break;
                     }
                 }
             }
@@ -281,10 +283,10 @@ namespace MortalModHost
             return Prime(source, buf, hdr, hdrPtr, hdrSize);
         }
 
-        private void RefillIfDone(ISampleSource source, byte[] buf, WaveHeader hdr, IntPtr hdrPtr, uint hdrSize)
+        private bool RefillIfDone(ISampleSource source, byte[] buf, WaveHeader hdr, IntPtr hdrPtr, uint hdrSize)
         {
             if ((hdr.dwFlags & WHDR_DONE) == 0)
-                return;
+                return (hdr.dwFlags & WHDR_INQUEUE) != 0;
             waveOutUnprepareHeader(_wave, hdrPtr, hdrSize);
             int n = source.ReadPcm16(buf, 0, buf.Length);
             if (n <= 0)
@@ -295,12 +297,16 @@ namespace MortalModHost
                     n = source.ReadPcm16(buf, 0, buf.Length);
                 }
                 if (n <= 0)
-                    return;
+                {
+                    hdr.dwFlags = 0;
+                    return false;
+                }
             }
             hdr.dwBufferLength = (uint)n;
             hdr.dwFlags = 0;
             waveOutPrepareHeader(_wave, hdrPtr, hdrSize);
             waveOutWrite(_wave, hdrPtr, hdrSize);
+            return true;
         }
 
         private static ISampleSource OpenSource(byte[] encoded, string ext)

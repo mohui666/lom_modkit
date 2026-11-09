@@ -57,6 +57,7 @@
     <Compile Include="..\..\src\GameplaySession.cs" />
     <Compile Include="..\..\src\CharacterDimmingState.cs" />
     <Compile Include="..\..\src\CharacterRotationRuntime.cs" />
+    <Compile Include="..\..\src\AutoDialogueTiming.cs" />
     <Compile Include="..\..\src\SceneTransitionPolicy.cs" />
     <Compile Include="..\..\src\ModSaveSlotPolicy.cs" />
     <Compile Include="..\..\src\ModSaveNotes.cs" />

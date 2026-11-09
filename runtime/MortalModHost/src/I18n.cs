@@ -95,6 +95,7 @@ namespace MortalModHost
         {
             return new Dictionary<string, string>
             {
+                { "auto.speed", "自动播放速度" }, { "auto.slow", "慢" }, { "auto.standard", "标准" }, { "auto.fast", "快" },
                 { "entry", "活侠MOD" },
                 { "title.mod_campaign", "开始 MOD 战役" },
                 { "window", "MortalModHost — Mod 菜单（{0} 开关）" },
@@ -144,6 +145,7 @@ namespace MortalModHost
         {
             return new Dictionary<string, string>
             {
+                { "auto.speed", "自動播放速度" }, { "auto.slow", "慢" }, { "auto.standard", "標準" }, { "auto.fast", "快" },
                 { "entry", "活俠MOD" },
                 { "title.mod_campaign", "開始 MOD 戰役" },
                 { "window", "MortalModHost — Mod 選單（{0} 開關）" },
@@ -193,6 +195,7 @@ namespace MortalModHost
         {
             return new Dictionary<string, string>
             {
+                { "auto.speed", "自動再生速度" }, { "auto.slow", "遅い" }, { "auto.standard", "標準" }, { "auto.fast", "速い" },
                 { "entry", "活俠MOD" },
                 { "title.mod_campaign", "MOD戦役を開始" },
                 { "window", "MortalModHost — Mod メニュー（{0} で開閉）" },
@@ -242,6 +245,7 @@ namespace MortalModHost
         {
             return new Dictionary<string, string>
             {
+                { "auto.speed", "자동 진행 속도" }, { "auto.slow", "느림" }, { "auto.standard", "보통" }, { "auto.fast", "빠름" },
                 { "entry", "활협MOD" },
                 { "title.mod_campaign", "MOD 전역 시작" },
                 { "window", "MortalModHost — Mod 메뉴（{0} 로 여닫기）" },
