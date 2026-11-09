@@ -28,6 +28,7 @@
     "dim": "压暗",
     "message": "系统提示",
     "rotate": "旋转",
+    "character_title": "修改人物称号",
     "dayenv": "日夜环境",
     "stat": "属性增减",
     "stat_set": "属性设置",
@@ -105,6 +106,7 @@
         "mood",
         "message",
         "rotate",
+        "character_title",
         "dayenv",
         "parallel"
       ]
@@ -164,6 +166,7 @@
     ]
   ],
   "ENUM_SETS_SRC": {
+    "character_title_action": [["set", "设置称号"], ["hide", "隐藏称号"], ["reset", "恢复原称号"]],
     "player_appearance": [
       [
         "game",
@@ -1932,6 +1935,10 @@
           false
         ]
       ]
+    },
+    "character_title": {
+      "label": "修改人物称号",
+      "fields": [["character","人物","character",false],["action","操作","enum:character_title_action",false],["title","新称号","line",false],["wait_after","动作后停留（秒）","float",true]]
     },
     "rotate": {
       "label": "人物旋转",
@@ -3753,6 +3760,7 @@
     "message": {
       "text": ""
     },
+    "character_title": {"character":"player","action":"set","title":"新称号"},
     "rotate": {
       "character": "",
       "angle": 180,

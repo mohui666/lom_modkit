@@ -50,6 +50,20 @@ namespace MortalModHost
             return RequireStore(package).Add(package, slot, key, delta);
         }
 
+        internal static bool TryGetCharacterTitle(ModPackage package, string character, out string title)
+        {
+            string slot = CurrentSlot(package);
+            _package = package;
+            return RequireStore(package).TryGetCharacterTitle(package, slot, character, out title);
+        }
+
+        internal static void SetCharacterTitle(ModPackage package, string character, string title)
+        {
+            string slot = CurrentSlot(package);
+            _package = package;
+            RequireStore(package).SetCharacterTitle(package, slot, character, title);
+        }
+
         internal static void BeginNewCampaign(ModPackage package)
         {
             string slot = CurrentSlot(package);

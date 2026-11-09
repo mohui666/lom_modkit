@@ -1057,14 +1057,36 @@ fn extra(n: &Value, ntype: &str, catalog: &Value, check_effect_names: bool) -> R
     );
     if user(c)
         && [
-            "show", "say", "portrait", "hide", "move", "face", "focus", "offset", "shock", "dim",
+            "show",
+            "say",
+            "portrait",
+            "hide",
+            "move",
+            "face",
+            "focus",
+            "offset",
+            "shock",
+            "dim",
             "rotate",
+            "character_title",
         ]
         .contains(&ntype)
     {
         user_ref(c, "character")?;
     }
     match ntype {
+        "character_title" => {
+            ensure!(nonblank(&n["character"]), "称号人物不能为空");
+            if n["action"] == "set" {
+                let title = s(n, "title");
+                ensure!(
+                    !title.trim().is_empty()
+                        && title.encode_utf16().count() <= 80
+                        && !title.contains(['\r', '\n']),
+                    "新称号需要1～80字的单行文字；隐藏称号请选择隐藏操作"
+                );
+            }
+        }
         "effect" => {
             let playing = n["play"]
                 .as_bool()

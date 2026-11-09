@@ -192,6 +192,7 @@
     "type": "message",
     "text": ""
   },
+  "character_title": {"id":"node","type":"character_title","character":"player","action":"set","title":"新称号"},
   "rotate": {
     "id": "node",
     "type": "rotate",

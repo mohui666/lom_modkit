@@ -1,5 +1,13 @@
 # Gameplay API 实证矩阵
 
+## 2026-11-09 人物称号与自定义轮盘文字
+
+本次实时反编译确认 `CharacterSayDialog.SetCharacterName(string, Color)` 写入实例的 `_titleText`；赵活的 `{title}` 从 `GameStatType.稱號` 取得原版称号文字。Host 在此入口之后写入当前 MOD 存档的文字覆盖，自定义人物使用相同入口与自己的素材默认称号；`SayDialog.SetCharacter(Character)` 区分原版与自定义发言人，不修改官方人物资产或称号数值。
+
+`DiceHeader.Setup(string)` 和 `DiceMenuDialog.UpdateAddition()` 将标题、加点名称与状态传给 `LeanLocalizationResolver.GetString(string)`，后者对未注册的作者原文不提供原样返回。Host 仅在自定义 MOD 轮盘的这两个渲染入口内，将本次配置的对应文字作为原文返回；`RollStatAddition.Setup` 继续使用原版正负分组和数值显示。旧包无需重导出即可使用修正。
+
+本轮隔离游戏验证已检查赵活、大师兄和自定义人物的设置、隐藏、恢复、跨章显示；实际保存后清除称号内存，再读取的称号仍一致，原版数值称号未变。自定义轮盘的标题、正负加点名称与状态已从游戏实际 UI Text 读回核对。
+
 ## 2026-11-09 MOD 智能自动播放
 
 本次重新只读反编译当前 `StoryManager.StartAutoDialogue`、`SetDialogNextLineFlag`、`Menu/Log/OnPanelOpen/OnPanelClose`、`Fungus.Writer.Write/DoWaitForInput` 与 `DialogInput.SetNextLineFlag/Update`。原自动协程每 8 秒请求继续，快进每帧请求；手动提交与自动共用 StoryManager 入口。Host 标记原自动协程 MoveNext 的调用栈，仅在 MOD 包演出且非快进时阻止该协程的固定翻句；手动及原版剧情照常执行。MOD Writer 到达实际等待输入状态后按当前可见页计时，通过原 DialogInput 请求继续，保留选项拦截和原输入监听器。暂停读取原 StoryManager、Writer 与菜单状态。个人速度写 BepInEx 配置，不改变 Lua、工程或包格式。

@@ -612,8 +612,21 @@ fn add_user_content(
             refs.push(("key", "image", None));
         }
         if [
-            "show", "portrait", "move", "face", "hide", "focus", "offset", "say", "shock", "dim",
-            "rotate", "intro", "combat", "mood",
+            "show",
+            "portrait",
+            "move",
+            "face",
+            "hide",
+            "focus",
+            "offset",
+            "say",
+            "shock",
+            "dim",
+            "rotate",
+            "intro",
+            "combat",
+            "mood",
+            "character_title",
         ]
         .contains(&kind)
         {
@@ -1167,7 +1180,11 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
                 || node["type"] == "say" && node["mode"] == "offscreen"
         })
     });
-    if new_portrait_layout
+    let character_titles = stories.values().any(|story| {
+        crate::parallel::story_actions(story).any(|(_, node)| node["type"] == "character_title")
+    });
+    if character_titles
+        || new_portrait_layout
         || free_image_scale
         || stage_layout
         || effect_controls
@@ -1175,7 +1192,9 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
         || event_fade
         || dialogue_dimming
     {
-        let (minimum, required) = if dialogue_dimming {
+        let (minimum, required) = if character_titles {
+            ([1, 5, 4], "1.5.4")
+        } else if dialogue_dimming {
             ([1, 5, 1], "1.5.1")
         } else if event_fade {
             ([1, 4, 19], "1.4.19")

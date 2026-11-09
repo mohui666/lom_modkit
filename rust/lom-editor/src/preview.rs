@@ -184,6 +184,10 @@ fn simulate_until(story: &Value, target: &str, include_target: bool) -> Value {
 pub fn build_playtest_prelude(story: &Value, target: &str) -> Vec<Value> {
     let state = simulate_until(story, target, false);
     let mut nodes = Vec::new();
+    for (character, title) in state["character_titles"].as_object().into_iter().flatten() {
+        nodes.push(json!({"type":"character_title","character":character,
+            "action":if title == "" { "hide" } else { "set" },"title":title}));
+    }
     for (name, active) in state["camera_filters"].as_object().into_iter().flatten() {
         nodes.push(json!({"type":"camera","name":name,"active":active}));
     }
@@ -307,6 +311,19 @@ fn apply(s: &mut Value, n: &Value) {
         text(n, "character")
     };
     match kind {
+        "character_title" => {
+            if n["action"] == "reset" {
+                if let Some(titles) = s["character_titles"].as_object_mut() {
+                    titles.remove(cid);
+                }
+            } else {
+                s["character_titles"][cid] = if n["action"] == "hide" {
+                    json!("")
+                } else {
+                    n["title"].clone()
+                };
+            }
+        }
         "camera" => {
             if let Some(name) = n["name"].as_str().filter(|name| !name.is_empty()) {
                 // Preserve independent enable/disable state, including parallel actions.
@@ -592,7 +609,9 @@ pub fn playback_duration(node: &Value) -> f64 {
                 duration(node).max(0.0) + 1.8
             }
             "show" | "portrait" | "hide" | "hide_all" | "move" | "offset" | "rotate" | "shock"
-            | "wait" | "transition" | "mood" | "effect" => duration(node).max(0.1),
+            | "wait" | "transition" | "mood" | "effect" | "character_title" => {
+                duration(node).max(0.1)
+            }
             _ => 1.8,
         }
     }
@@ -806,6 +825,25 @@ fn raw_preview_notice(report: &Value, locale: &str) -> String {
         .collect::<Vec<_>>()
         .join(" ");
     crate::i18n::message_for_locale("editor.preview.raw_notice", &[("notes", notes)], locale)
+}
+
+fn preview_character_title(project: &Project, state: &Value, id: &str) -> String {
+    if let Some(title) = state["character_titles"].get(id).and_then(Value::as_str) {
+        return title.into();
+    }
+    if let Some(content_id) = id.strip_prefix("user:") {
+        for (path, bytes) in &project.assets {
+            if !path.ends_with("/content.json") {
+                continue;
+            }
+            if let Ok(meta) = serde_json::from_slice::<Value>(bytes) {
+                if meta["type"] == "character" && meta["id"] == content_id {
+                    return text(&meta, "title").into();
+                }
+            }
+        }
+    }
+    String::new()
 }
 
 fn character_display_name(project: &Project, id: &str) -> String {
@@ -2297,6 +2335,18 @@ impl Preview {
                 .and_then(Value::as_str)
                 .unwrap_or("");
             if mode == "character" || mode == "think" || mode == "offscreen" {
+                if mode != "offscreen" {
+                    let title = preview_character_title(p, &state, character);
+                    if !title.is_empty() {
+                        painter.text(
+                            dr.left_top() + Vec2::new(12.0, -8.0),
+                            egui::Align2::LEFT_BOTTOM,
+                            title,
+                            FontId::proportional(11.0),
+                            Color32::from_rgb(246, 241, 221),
+                        );
+                    }
+                }
                 painter.text(
                     dr.left_top() + Vec2::new(12.0, 9.0),
                     egui::Align2::LEFT_TOP,
@@ -3014,6 +3064,31 @@ pub fn graph(
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn titles_restore_for_playtest_and_reset_to_character_defaults() {
+        let story = json!({"id":"main","start":"title","nodes":[
+            {"id":"title","type":"character_title","character":"player","action":"set","title":"唐门新秀"},
+            {"id":"hide","type":"character_title","character":"brother1","action":"hide"},
+            {"id":"say","type":"say","mode":"character","character":"player","text":"好。"},
+            {"id":"reset","type":"character_title","character":"player","action":"reset"},
+            {"id":"end","type":"end"}]});
+        let state = simulate_until(&story, "say", true);
+        assert_eq!(state["character_titles"]["player"], "唐门新秀");
+        assert_eq!(state["character_titles"]["brother1"], "");
+        let prelude = build_playtest_prelude(&story, "say");
+        assert!(prelude
+            .iter()
+            .any(|n| n["character"] == "player" && n["action"] == "set"));
+        assert!(prelude
+            .iter()
+            .any(|n| n["character"] == "brother1" && n["action"] == "hide"));
+        let reset = simulate_until(&story, "end", true);
+        assert!(reset["character_titles"].get("player").is_none());
+        assert_eq!(
+            playback_duration(&json!({"type":"character_title","wait_after":0.5})),
+            0.5
+        );
+    }
     #[test]
     fn event_book_fades_as_a_whole_and_playtest_restoration_does_not_replay_the_fade() {
         let positions = json!({});

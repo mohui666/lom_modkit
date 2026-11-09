@@ -601,6 +601,10 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                 &[c],
             ));
         }
+        "character_title" => out.push(call(
+            "mod_character_title",
+            &[q(node, "character"), q(node, "action"), q(node, "title")],
+        )),
         "offset" | "rotate" => {
             let d = n(node, "duration", json!(0));
             if kind == "offset" && (has(node, "absolute") || has(node, "scale")) {
