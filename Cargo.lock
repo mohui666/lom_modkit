@@ -1017,8 +1017,6 @@ dependencies = [
 [[package]]
 name = "egui-winit"
 version = "0.33.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec6687e5bb551702f4ad10ac428bab12acf9d53047ebb1082d4a0ed8c6251a29"
 dependencies = [
  "accesskit_winit",
  "arboard",
@@ -1969,7 +1967,7 @@ checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
 name = "lom-assets"
-version = "1.5.5"
+version = "1.5.6"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -1987,7 +1985,7 @@ dependencies = [
 
 [[package]]
 name = "lom-core"
-version = "1.5.5"
+version = "1.5.6"
 dependencies = [
  "anyhow",
  "crc32fast",
@@ -2006,7 +2004,7 @@ dependencies = [
 
 [[package]]
 name = "lom-editor"
-version = "1.5.5"
+version = "1.5.6"
 dependencies = [
  "anyhow",
  "eframe",
@@ -2029,7 +2027,7 @@ dependencies = [
 
 [[package]]
 name = "lomc"
-version = "1.5.5"
+version = "1.5.6"
 dependencies = [
  "anyhow",
  "lom-core",
