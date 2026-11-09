@@ -40,6 +40,7 @@ namespace MortalModHost
 
         internal static int TalentLevel(string talentId)
         {
+            talentId = CustomTalentRuntime.ResolveId(ModOverlay.CurrentPackage, talentId);
             PlayerStatManagerData stats = PlayerStatManagerData.Instance;
             if (stats == null) throw new InvalidOperationException("PlayerStatManagerData.Instance 为 null");
             PlayerTalentData talent = stats.Talents.Get(talentId);

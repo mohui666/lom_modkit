@@ -516,7 +516,9 @@ def main():
     game_flags = set()
     talents = set()
     items_book = set()
-    items_misc = set()
+    # Localized misc definitions include inventory-only items (notably tea) that
+    # never appear as a literal AddMisc call in the extracted story scripts.
+    items_misc = set(misc_names)
     items_special = set()
     messages = set()
 

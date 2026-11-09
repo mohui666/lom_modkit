@@ -1299,7 +1299,8 @@ namespace MortalModHost
                 WriteV3Zip(Path.Combine(modsDir, "mod_a.lommod"),
                     ("manifest.json", "{\"format\":3,\"package_format\":3,\"story_schema\":2,\"content_schema\":1,\"id\":\"mod_a\",\"campaign_id\":\"audio-a-campaign\",\"name\":\"A\",\"version\":\"1\",\"author\":\"t\",\"description\":\"t\",\"entry\":\"main\",\"campaign\":{\"new_game\":true}}"),
                     ("lua/main.lua", "say(\"a\")"),
-                    ("assets/user/audio/mohui.boss_theme/content.json", contentJson));
+                    ("assets/user/audio/mohui.boss_theme/content.json", contentJson),
+                    ("assets/user/talent/demo.awakening/content.json", "{\"content_schema\":1,\"id\":\"demo.awakening\",\"type\":\"talent\",\"name\":\"万木逢春\",\"description\":\"独立天赋\\n暂时没有效果\",\"files\":{\"main\":\"\"}}"));
                 WriteV3Zip(Path.Combine(modsDir, "mod_b.lommod"),
                     ("manifest.json", "{\"format\":3,\"package_format\":3,\"story_schema\":2,\"content_schema\":1,\"id\":\"mod_b\",\"campaign_id\":\"audio-b-campaign\",\"name\":\"B\",\"version\":\"1\",\"author\":\"t\",\"description\":\"t\",\"entry\":\"main\",\"campaign\":{\"new_game\":true}}"),
                     ("lua/main.lua", "say(\"b\")"),
@@ -1328,6 +1329,12 @@ namespace MortalModHost
                 Assert(b.TryGetUserContent("mohui.boss_theme", out cb) && cb.Bytes != null && cb.Bytes[0] == 9,
                     "mod_b 应解析到自己的音频字节（不得串用 mod_a）");
                 Assert(ca.Name == "决战曲" && ca.AudioKind == "music", "mod_a metadata 解析错误");
+                UserContent talent;
+                Assert(a.TryGetUserContent("demo.awakening", out talent) && talent.Type == "talent"
+                    && talent.Name == "万木逢春" && talent.Gameplay.Description == "独立天赋\n暂时没有效果"
+                    && talent.Bytes == null && talent.Gameplay.Skill == null,
+                    "自定义天赋应在没有图片或任何战斗效果时独立加载");
+                Assert(!b.TryGetUserContent("demo.awakening", out talent), "自定义天赋不能串到另一个包");
                 Assert(!a.Assets.ContainsKey("assets/user/audio/mohui.boss_theme/boss_theme.ogg"),
                     "用户音频不应进入图片 Assets 表");
                 Assert(warnings.Exists(w => w.Contains("非法用户内容路径") || w.Contains("Bad.Id") || w.Contains("解析失败")),

@@ -42,7 +42,7 @@ fn fixture() -> Project {
 
 #[test]
 fn gameplay_metadata_roundtrips_and_rejects_unusable_definitions() {
-    for kind in content::GAMEPLAY_TYPES {
+    for kind in ["item", "martial", "support", "skill"] {
         let meta = metadata(kind, "demo.test");
         let normalized = content::normalize_content_metadata(&meta).unwrap();
         let payload = content::content_metadata_payload(&normalized);
@@ -75,7 +75,7 @@ fn gameplay_content_is_packaged_checked_and_requires_host_1_4() {
     let report = package::inspect_package(&path).unwrap();
     assert_eq!(report["manifest"]["min_host_version"], "1.4.0");
     let names = report["entries"].as_array().unwrap();
-    for kind in content::GAMEPLAY_TYPES {
+    for kind in ["item", "martial", "support", "skill"] {
         assert!(names.iter().any(|entry| entry["path"]
             .as_str()
             .unwrap()

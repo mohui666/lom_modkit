@@ -303,147 +303,152 @@ impl ContentPanel {
                 self.draft = values;
             }
         });
-        ui.add_space(4.0);
-        let slots = if kind == "character" {
-            vec![
-                "默认立绘",
-                "指定表情",
-                "介绍卡图片",
-                "战斗待机",
-                "战斗攻击",
-                "战斗受伤",
-                "战斗防御",
-            ]
-        } else {
-            vec!["主文件"]
-        };
-        self.slot = self.slot.min(slots.len() - 1);
-        egui::ComboBox::from_id_salt("content-file-slot")
-            .selected_text(format!(
-                "{}{}",
-                tr(slots[self.slot]),
-                if self.slot == 0 { " *" } else { "" }
-            ))
-            .show_ui(ui, |ui| {
-                for (i, label) in slots.iter().enumerate() {
-                    ui.selectable_value(
-                        &mut self.slot,
-                        i,
-                        format!("{}{}", tr(label), if i == 0 { " *" } else { "" }),
-                    );
-                }
-            });
-        if self.slot == 1 {
-            egui::ComboBox::from_id_salt("content-portrait")
-                .selected_text(if self.portrait.is_empty() {
-                    crate::i18n::key("editor.content.choose_portrait")
-                } else {
-                    self.portrait.clone()
-                })
+        if kind != "talent" {
+            ui.add_space(4.0);
+            let slots = if kind == "character" {
+                vec![
+                    "默认立绘",
+                    "指定表情",
+                    "介绍卡图片",
+                    "战斗待机",
+                    "战斗攻击",
+                    "战斗受伤",
+                    "战斗防御",
+                ]
+            } else {
+                vec!["主文件"]
+            };
+            self.slot = self.slot.min(slots.len() - 1);
+            egui::ComboBox::from_id_salt("content-file-slot")
+                .selected_text(format!(
+                    "{}{}",
+                    tr(slots[self.slot]),
+                    if self.slot == 0 { " *" } else { "" }
+                ))
                 .show_ui(ui, |ui| {
-                    for portrait in self.draft["portraits"]
-                        .as_object()
-                        .into_iter()
-                        .flat_map(|p| p.keys())
-                    {
-                        ui.selectable_value(&mut self.portrait, portrait.clone(), portrait);
+                    for (i, label) in slots.iter().enumerate() {
+                        ui.selectable_value(
+                            &mut self.slot,
+                            i,
+                            format!("{}{}", tr(label), if i == 0 { " *" } else { "" }),
+                        );
                     }
                 });
-            ui.horizontal(|ui| {
-                ui.label(format!("{} *", tr("表情 ID")));
-                ui.text_edit_singleline(&mut self.portrait);
-            });
-            ui.small(crate::i18n::key("workspace.content.portrait_hint"));
-        }
-        if kind == "character" && ui.button(tr("新增表情立绘…")).clicked() {
-            if let Some(paths) = rfd::FileDialog::new()
-                .add_filter("立绘图片", &["png", "jpg", "jpeg"])
-                .pick_files()
-            {
-                let result = self
-                    .add_portraits(&paths)
-                    .map(|count| format!("已新增 {count} 张表情立绘"));
-                self.set_message(result);
+            if self.slot == 1 {
+                egui::ComboBox::from_id_salt("content-portrait")
+                    .selected_text(if self.portrait.is_empty() {
+                        crate::i18n::key("editor.content.choose_portrait")
+                    } else {
+                        self.portrait.clone()
+                    })
+                    .show_ui(ui, |ui| {
+                        for portrait in self.draft["portraits"]
+                            .as_object()
+                            .into_iter()
+                            .flat_map(|p| p.keys())
+                        {
+                            ui.selectable_value(&mut self.portrait, portrait.clone(), portrait);
+                        }
+                    });
+                ui.horizontal(|ui| {
+                    ui.label(format!("{} *", tr("表情 ID")));
+                    ui.text_edit_singleline(&mut self.portrait);
+                });
+                ui.small(crate::i18n::key("workspace.content.portrait_hint"));
             }
-        }
-        if kind == "character" {
-            ui.small(tr(
-                "按住 Ctrl 多选图片，Ctrl+A 全选；新增不会覆盖已有表情。",
-            ));
-            ui.add(
-                egui::TextEdit::singleline(&mut self.portrait_prefix)
-                    .hint_text(tr("文件名前缀（可选，用于文件夹导入）")),
-            );
-            if ui.button(tr("从文件夹批量新增表情…")).clicked() {
-                if let Some(folder) = rfd::FileDialog::new().pick_folder() {
-                    let result = portrait_files(&folder, &self.portrait_prefix)
-                        .and_then(|paths| self.add_portraits(&paths))
+            if kind == "character" && ui.button(tr("新增表情立绘…")).clicked() {
+                if let Some(paths) = rfd::FileDialog::new()
+                    .add_filter("立绘图片", &["png", "jpg", "jpeg"])
+                    .pick_files()
+                {
+                    let result = self
+                        .add_portraits(&paths)
                         .map(|count| format!("已新增 {count} 张表情立绘"));
                     self.set_message(result);
                 }
             }
-        }
-        if ui.button(tr("替换当前素材文件…")).clicked() {
-            let extensions = if kind == "audio" {
-                vec!["wav", "ogg"]
-            } else {
-                vec!["png", "jpg", "jpeg"]
-            };
-            if let Some(path) = rfd::FileDialog::new()
-                .add_filter("素材", &extensions)
-                .pick_file()
-            {
-                let result = (|| -> anyhow::Result<()> {
-                    let bytes = std::fs::read(&path)?;
-                    let ext = path
-                        .extension()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or("")
-                        .to_ascii_lowercase();
-                    let name = format!("{}.{ext}", uuid_name());
-                    let limit = if kind == "audio" {
-                        20 * 1024 * 1024
-                    } else {
-                        8 * 1024 * 1024
-                    };
-                    anyhow::ensure!(
-                        !bytes.is_empty() && bytes.len() <= limit,
-                        "素材为空或超过大小限制"
-                    );
-                    if kind != "audio" {
-                        image::load_from_memory(&bytes)?;
+            if kind == "character" {
+                ui.small(tr(
+                    "按住 Ctrl 多选图片，Ctrl+A 全选；新增不会覆盖已有表情。",
+                ));
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.portrait_prefix)
+                        .hint_text(tr("文件名前缀（可选，用于文件夹导入）")),
+                );
+                if ui.button(tr("从文件夹批量新增表情…")).clicked() {
+                    if let Some(folder) = rfd::FileDialog::new().pick_folder() {
+                        let result = portrait_files(&folder, &self.portrait_prefix)
+                            .and_then(|paths| self.add_portraits(&paths))
+                            .map(|count| format!("已新增 {count} 张表情立绘"));
+                        self.set_message(result);
                     }
-                    if kind == "character" {
-                        match self.slot {
-                            0 => {
-                                self.draft["files"]["main"] = json!(name);
-                                self.draft["portraits"]["normal"] = json!(name);
-                            }
-                            1 => {
-                                lom_core::content::validate_portrait_id(&self.portrait)?;
-                                self.draft["portraits"][&self.portrait] = json!(name);
-                            }
-                            2 => {
-                                anyhow::ensure!(self.draft["intro"].is_object(), "请先添加介绍卡");
-                                self.draft["intro"]["image"] = json!(name);
-                            }
-                            i => {
-                                self.draft[[
-                                    "combat_idle",
-                                    "combat_attack",
-                                    "combat_hurt",
-                                    "combat_defence",
-                                ][i - 3]] = json!(name)
-                            }
+                }
+            }
+            if ui.button(tr("替换当前素材文件…")).clicked() {
+                let extensions = if kind == "audio" {
+                    vec!["wav", "ogg"]
+                } else {
+                    vec!["png", "jpg", "jpeg"]
+                };
+                if let Some(path) = rfd::FileDialog::new()
+                    .add_filter("素材", &extensions)
+                    .pick_file()
+                {
+                    let result = (|| -> anyhow::Result<()> {
+                        let bytes = std::fs::read(&path)?;
+                        let ext = path
+                            .extension()
+                            .and_then(|s| s.to_str())
+                            .unwrap_or("")
+                            .to_ascii_lowercase();
+                        let name = format!("{}.{ext}", uuid_name());
+                        let limit = if kind == "audio" {
+                            20 * 1024 * 1024
+                        } else {
+                            8 * 1024 * 1024
+                        };
+                        anyhow::ensure!(
+                            !bytes.is_empty() && bytes.len() <= limit,
+                            "素材为空或超过大小限制"
+                        );
+                        if kind != "audio" {
+                            image::load_from_memory(&bytes)?;
                         }
-                    } else {
-                        self.draft["files"]["main"] = json!(name);
-                    }
-                    self.files.insert(name, bytes);
-                    self.preview = None;
-                    Ok(())
-                })();
-                self.set_message(result.map(|_| String::new()));
+                        if kind == "character" {
+                            match self.slot {
+                                0 => {
+                                    self.draft["files"]["main"] = json!(name);
+                                    self.draft["portraits"]["normal"] = json!(name);
+                                }
+                                1 => {
+                                    lom_core::content::validate_portrait_id(&self.portrait)?;
+                                    self.draft["portraits"][&self.portrait] = json!(name);
+                                }
+                                2 => {
+                                    anyhow::ensure!(
+                                        self.draft["intro"].is_object(),
+                                        "请先添加介绍卡"
+                                    );
+                                    self.draft["intro"]["image"] = json!(name);
+                                }
+                                i => {
+                                    self.draft[[
+                                        "combat_idle",
+                                        "combat_attack",
+                                        "combat_hurt",
+                                        "combat_defence",
+                                    ][i - 3]] = json!(name)
+                                }
+                            }
+                        } else {
+                            self.draft["files"]["main"] = json!(name);
+                        }
+                        self.files.insert(name, bytes);
+                        self.preview = None;
+                        Ok(())
+                    })();
+                    self.set_message(result.map(|_| String::new()));
+                }
             }
         }
         if kind == "character" {
@@ -965,6 +970,9 @@ fn gameplay_fields(ui: &mut egui::Ui, draft: &mut Value, catalog: &crate::forms:
         &[],
     );
     match draft["type"].as_str().unwrap_or("") {
+        "talent" => {
+            ui.small(crate::i18n::key("editor.content.talent_no_effect"));
+        }
         "item" => {
             let old_category = draft["category"].clone();
             choice(
@@ -1128,6 +1136,7 @@ fn draft_from_source(bytes: &[u8]) -> Value {
             "item" => json!({"description":"","cost":0,"category":"misc"}),
             "martial" => json!({"description":"","cost":0}),
             "support" => json!({"description":"","trigger":"round_start","chance":100,"uses":1}),
+            "talent" => json!({"description":""}),
             _ => {
                 json!({"description":"","action":"attack","power":0,"stamina_cost":0,"accuracy":100,"cooldown":0,"ai_chance":100,"effects":[]})
             }

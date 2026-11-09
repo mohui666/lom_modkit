@@ -37,7 +37,7 @@ namespace MortalModHost
                 return;
             }
             if (!package.UserContents.Values.Any(c => c.Gameplay != null)) return;
-            EnsureDatabase();
+            if (package.UserContents.Values.Any(c => c.Gameplay != null && c.Type != "talent")) EnsureDatabase();
             int firstOwned = Owned.Count;
             var added = new List<ItemData>();
             var keys = new List<string>();
@@ -47,6 +47,13 @@ namespace MortalModHost
                 {
                     if (content.Gameplay == null) continue;
                     string id = RuntimeId(package, content.Id);
+                    if (content.Type == "talent")
+                    {
+                        PlayerTalentData talent = CustomTalentRuntime.Register(id);
+                        AddText(talent.GetIdKey(), content.Name, keys);
+                        AddText(talent.GetDescKey(), content.Gameplay.Description, keys);
+                        continue;
+                    }
                     if (content.Type != "item" && content.Type != "martial") continue;
                     ItemData item = BuildItem(package, content, id);
                     Collection(content.Gameplay.Category).List.Add(item);
@@ -60,6 +67,8 @@ namespace MortalModHost
             }
             catch
             {
+                foreach (UserContent content in package.UserContents.Values)
+                    if (content.Type == "talent") CustomTalentRuntime.Unregister(RuntimeId(package, content.Id));
                 foreach (ItemData item in added)
                 {
                     Collection(item.ItemType).List.Remove(item);
@@ -73,6 +82,7 @@ namespace MortalModHost
 
         internal static void Clear()
         {
+            CustomTalentRuntime.Clear();
             ClearSupports();
             CustomConsumableRuntime.Clear();
             // Only replace the singleton that we own; never overwrite another plugin's replacement.

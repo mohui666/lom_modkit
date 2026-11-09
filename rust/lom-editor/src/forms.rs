@@ -208,6 +208,7 @@ impl Catalog {
                 "image" => "user_images",
                 "support" => "user_supports",
                 "skill" => "user_skills",
+                "talent" => "talents",
                 "martial" => "items_book",
                 "item" => {
                     if meta["category"] == "consumable" {

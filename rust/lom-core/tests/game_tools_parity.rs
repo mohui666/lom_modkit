@@ -1,4 +1,7 @@
 //! Pure bytes and temporary synthetic directories only; no Windows or game execution.
+#[path = "fixtures/host_version.rs"]
+mod host_version;
+use host_version::host_fixture;
 use lom_core::game_tools as game;
 use serde_json::{json, Value};
 use std::{collections::BTreeMap, fs, path::Path};
@@ -232,11 +235,11 @@ fn doctor_repairs_owned_runtime_and_directories_but_retains_duplicates() {
     let bundle = dir.path().join("bundle");
     fs::create_dir(&bundle).unwrap();
     for name in game::HOST_FILES {
-        fs::write(bundle.join(name), b"new fixture").unwrap();
+        fs::write(bundle.join(name), host_fixture(1, 5, 8)).unwrap();
     }
     let plugin = game::plugin_dir(&root);
     fs::create_dir_all(&plugin).unwrap();
-    fs::write(plugin.join("MortalModHost.dll"), b"old fixture").unwrap();
+    fs::write(plugin.join("MortalModHost.dll"), host_fixture(1, 4, 8)).unwrap();
     let duplicate = root.join("BepInEx/plugins/third-party/MortalModHost.dll");
     fs::create_dir_all(duplicate.parent().unwrap()).unwrap();
     fs::write(&duplicate, b"third party").unwrap();
@@ -250,7 +253,7 @@ fn doctor_repairs_owned_runtime_and_directories_but_retains_duplicates() {
         .unwrap()
         .is_empty());
     for name in game::HOST_FILES {
-        assert_eq!(fs::read(plugin.join(name)).unwrap(), b"new fixture");
+        assert_eq!(fs::read(plugin.join(name)).unwrap(), host_fixture(1, 5, 8));
     }
     for name in ["mods", "mods_disabled"] {
         assert!(plugin.join(name).is_dir());

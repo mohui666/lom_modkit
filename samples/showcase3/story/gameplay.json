@@ -45,7 +45,7 @@
     {
       "id": "talent1",
       "type": "talent",
-      "talent": "1010",
+      "talent": "user:showcase.awakening",
       "level": 1
     },
     {

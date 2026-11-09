@@ -637,6 +637,11 @@ namespace MortalModHost
                     CharacterNameRuntime.Set(ArgString(args, 0), ArgString(args, 1), ArgString(args, 2, ""));
                     return DynValue.Nil;
                 }, "mod_character_name");
+                script.Globals["mod_talent"] = new CallbackFunction((ctx, args) =>
+                {
+                    CustomTalentRuntime.Change(ModOverlay.CurrentPackage, ArgString(args, 0), RequireArgInt(args, 1));
+                    return DynValue.Nil;
+                }, "mod_talent");
                 script.Globals["mod_character_mood"] = new CallbackFunction((ctx, args) =>
                 {
                     MoodControl.SetCharacter(ArgString(args, 0), ArgString(args, 1), ArgFloat(args, 2, 0f), ArgFloat(args, 3, 0f));
