@@ -442,16 +442,20 @@ impl Catalog {
                     Some((
                         row["key"].as_str()?.to_owned(),
                         row["category"].as_str()?.to_owned(),
+                        row["name"]
+                            .as_str()
+                            .unwrap_or(row["key"].as_str()?)
+                            .to_owned(),
                     ))
                 })
                 .collect();
-            result.sort_by_key(|(key, category)| (category != preferred, key.clone()));
+            result.sort_by_key(|(key, category, _)| (category != preferred, key.clone()));
             return result
                 .into_iter()
-                .map(|(key, category)| {
+                .map(|(key, category, name)| {
                     (
                         key.clone(),
-                        resource_label(&key, picture_category(&category), &key),
+                        resource_label(&key, picture_category(&category), &name),
                     )
                 })
                 .collect();
@@ -2064,8 +2068,12 @@ fn resource_label(id: &str, category: &str, name: &str) -> String {
     let label_key = match id {
         "section_001_cliff_dusk" => Some("workspace.resource.cliff_dusk"),
         "section_001_cliff_night" => Some("workspace.resource.cliff_night"),
-        _ if id.starts_with("dance_event_00") => Some("workspace.resource.dance_lesson"),
-        _ if id.starts_with("dance_event_10") => Some("workspace.resource.dance_battle"),
+        _ if name == id && id.starts_with("dance_event_00") => {
+            Some("workspace.resource.dance_lesson")
+        }
+        _ if name == id && id.starts_with("dance_event_10") => {
+            Some("workspace.resource.dance_battle")
+        }
         _ => None,
     };
     let description = label_key.map(crate::i18n::key).unwrap_or_else(|| {
@@ -3399,6 +3407,98 @@ mod tests {
         assert!(!title.contains("嚴肅_001"));
         assert_eq!(*title, crate::i18n::simplified_label(title));
         assert_eq!(catalog.data, before);
+    }
+
+    #[test]
+    fn picture_search_uses_game_names_and_preserves_original_keys() {
+        let catalog = Catalog::new();
+        let context = egui::Context::default();
+        let mut node =
+            json!({"id":"cg1","type":"cg","action":"show","kind":"item","key":"food_103"});
+        for (query, id) in [
+            ("酥黄独", "food_126"),
+            ("food_126", "food_126"),
+            ("叶云裳的梳子", "special_1005"),
+            ("偷看被发现", "girlroom_work_002"),
+            ("乌蚕宝衣", "equip_23"),
+            ("玉霄神匕", "sword_21"),
+            ("素醒酒冰", "food_125"),
+            ("尸心丹", "medi_002"),
+            ("大师兄拎起小师妹", "event_bubble_101"),
+        ] {
+            node["key"] = json!("food_103");
+            let original = node.clone();
+            let options = catalog.options("official_picture", &node, &[], &[]);
+            let current = &options.iter().find(|(id, _)| id == "food_103").unwrap().1;
+            let target = &options.iter().find(|(key, _)| key == id).unwrap().1;
+            let (output, changed) = field_frame(
+                &catalog,
+                &context,
+                &mut node,
+                "key",
+                "official_picture",
+                vec![],
+            );
+            assert!(!changed);
+            assert_eq!(
+                node, original,
+                "display labels must not rewrite an old image key"
+            );
+            let events = click(&output, egui::accesskit::Role::ComboBox, current);
+            let _ = field_frame(
+                &catalog,
+                &context,
+                &mut node,
+                "key",
+                "official_picture",
+                events,
+            );
+            let (output, _) = field_frame(
+                &catalog,
+                &context,
+                &mut node,
+                "key",
+                "official_picture",
+                vec![],
+            );
+            let events = search_character(&output, query);
+            let _ = field_frame(
+                &catalog,
+                &context,
+                &mut node,
+                "key",
+                "official_picture",
+                events,
+            );
+            let (output, _) = field_frame(
+                &catalog,
+                &context,
+                &mut node,
+                "key",
+                "official_picture",
+                vec![],
+            );
+            assert_eq!(
+                node, original,
+                "searching must not replace the selected picture"
+            );
+            let events = click(&output, egui::accesskit::Role::Button, target);
+            let (_, changed) = field_frame(
+                &catalog,
+                &context,
+                &mut node,
+                "key",
+                "official_picture",
+                events,
+            );
+            assert!(changed);
+            assert_eq!(node["key"], id);
+        }
+        let event = catalog.options("event_picture", &json!({"kind":"event"}), &[], &[]);
+        assert!(event
+            .iter()
+            .any(|(id, name)| id == "girlroom_work_002" && name.contains("吊打")));
+        assert!(!event.iter().any(|(id, _)| id == "food_126"));
     }
 
     #[test]

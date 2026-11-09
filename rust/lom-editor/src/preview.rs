@@ -1512,7 +1512,7 @@ impl Preview {
                                                     egui::Button::selectable(selected == key, name)
                                                         .truncate(),
                                                 )
-                                                .on_hover_text(name);
+                                                .on_hover_text(format!("{name}\n{key}"));
                                             if response.clicked() || label.clicked() {
                                                 chosen = Some(key.clone());
                                             }
