@@ -65,7 +65,10 @@ namespace MortalModHost
             if (ModOverlay.CurrentPackage == null || CharacterTitleRuntime.CustomSpeaker != null) return;
             var actor = __instance.SpeakingCharacter as StoryCharacterController;
             if (actor != null && actor.Data != null && ____titleText != null)
+            {
                 CharacterTitleRuntime.Apply(__instance, actor.Data.Id, ____titleText.text);
+                CharacterNameRuntime.Apply(__instance, actor.Data.Id);
+            }
         }
     }
 }

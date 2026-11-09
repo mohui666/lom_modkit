@@ -28,6 +28,8 @@ namespace MortalModHost
             new Dictionary<string, int>(StringComparer.Ordinal);
         private readonly Dictionary<string, string> _characterTitles =
             new Dictionary<string, string>(StringComparer.Ordinal);
+        private readonly Dictionary<string, string> _characterNames =
+            new Dictionary<string, string>(StringComparer.Ordinal);
         private string _modId = "";
         private string _campaignId = "";
         private string _slot = "";
@@ -91,6 +93,24 @@ namespace MortalModHost
             _dirty = true;
         }
 
+        internal bool TryGetCharacterName(ModPackage package, string slot, string character, out string name)
+        {
+            Bind(package, slot);
+            return _characterNames.TryGetValue(character, out name);
+        }
+
+        internal void SetCharacterName(ModPackage package, string slot, string character, string name)
+        {
+            Bind(package, slot);
+            if (string.IsNullOrEmpty(character) || character.Length > 128)
+                throw new ArgumentException("姓名人物标识无效");
+            if (name != null && (string.IsNullOrWhiteSpace(name) || name.Length > 80 || name.IndexOfAny(new[] { '\r', '\n' }) >= 0))
+                throw new ArgumentException("人物姓名需要1～80字符的单行文字");
+            if (name == null) _characterNames.Remove(character);
+            else _characterNames[character] = name;
+            _dirty = true;
+        }
+
         internal void BeginNewCampaign(ModPackage package, string slot)
         {
             ValidateIdentity(package, slot);
@@ -100,6 +120,7 @@ namespace MortalModHost
             _fingerprint = package.PackageFingerprint;
             _values.Clear();
             _characterTitles.Clear();
+            _characterNames.Clear();
             _loaded = true;
             _dirty = true;
         }
@@ -141,6 +162,7 @@ namespace MortalModHost
             _fingerprint = "";
             _values.Clear();
             _characterTitles.Clear();
+            _characterNames.Clear();
             _loaded = false;
             _dirty = false;
         }
@@ -223,6 +245,20 @@ namespace MortalModHost
                     _characterTitles.Add(pair.Key, title);
                 }
             }
+            object rawNames;
+            if (root.TryGetValue("character_names", out rawNames))
+            {
+                var names = rawNames as Dictionary<string, object>;
+                if (names == null) throw new InvalidDataException("人物姓名存档数据必须是对象");
+                foreach (var pair in names)
+                {
+                    string name = pair.Value as string;
+                    if (string.IsNullOrEmpty(pair.Key) || pair.Key.Length > 128 || string.IsNullOrWhiteSpace(name)
+                        || name.Length > 80 || name.IndexOfAny(new[] { '\r', '\n' }) >= 0)
+                        throw new InvalidDataException("人物姓名存档字段无效：" + pair.Key);
+                    _characterNames.Add(pair.Key, name);
+                }
+            }
         }
 
         private string Serialize()
@@ -251,6 +287,17 @@ namespace MortalModHost
                 {
                     sb.Append(first ? "\n" : ",\n"); first = false;
                     sb.Append("    ").Append(Quote(key)).Append(": ").Append(Quote(_characterTitles[key]));
+                }
+                sb.Append("\n  }");
+            }
+            if (_characterNames.Count > 0)
+            {
+                sb.Append(",\n  \"character_names\": {");
+                first = true;
+                foreach (string key in _characterNames.Keys.OrderBy(value => value, StringComparer.Ordinal))
+                {
+                    sb.Append(first ? "\n" : ",\n"); first = false;
+                    sb.Append("    ").Append(Quote(key)).Append(": ").Append(Quote(_characterNames[key]));
                 }
                 sb.Append("\n  }");
             }

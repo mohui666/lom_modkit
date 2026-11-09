@@ -25,7 +25,7 @@
     "dim": "Stage.SetDimmed",
     "message": "MainUI.DisplayMessageText",
     "rotate": "CharacterPlaceholder.Rotate",
-    "character_title": "MortalModHost.mod_character_title",
+    "character_title": "MortalModHost.mod_character_title / mod_character_name",
     "dayenv": "game day-environment API",
     "stat": "StatModifyManager.Player",
     "stat_set": "MortalModHost.mod_stat_set",

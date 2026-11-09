@@ -1193,6 +1193,9 @@ impl Catalog {
         if node["type"] == "character_title" && key == "title" && node["action"] != "set" {
             return false;
         }
+        if node["type"] == "character_title" && key == "name" && node["name_action"] != "set" {
+            return false;
+        }
         if node["type"] == "say"
             && node["mode"] == "offscreen"
             && matches!(key, "character" | "portrait")
@@ -1279,7 +1282,10 @@ impl Catalog {
         let localized = crate::i18n::key(&specific);
         let label = if crate::i18n::locale() == "chs" {
             label.to_owned()
-        } else if node["type"] == "effect" && matches!(key, "play" | "x" | "y" | "a" | "b" | "c") {
+        } else if (node["type"] == "effect" && matches!(key, "play" | "x" | "y" | "a" | "b" | "c"))
+            || (node["type"] == "character_title"
+                && matches!(key, "name_action" | "name" | "action" | "title"))
+        {
             tr(label)
         } else if localized != specific {
             localized
@@ -2125,6 +2131,9 @@ fn is_selector(kind: &str) -> bool {
         )
 }
 fn absent_label(node: &Value, key: &str, kind: &str) -> String {
+    if node["type"] == "character_title" && key == "name_action" {
+        return tr("保持不变");
+    }
     if node["type"] == "mood" && key == "icon" {
         return crate::i18n::key("workspace.form.bubble_follow");
     }
@@ -2758,6 +2767,48 @@ mod tests {
         assert!(changed);
         assert_eq!(node["portrait"], "normal");
         assert!(egui::Popup::is_any_open(&context));
+    }
+
+    #[test]
+    fn character_name_form_selects_set_and_reset_while_title_stays_unchanged() {
+        let catalog = Catalog::new();
+        let context = egui::Context::default();
+        let mut node = json!({"id":"name","type":"character_title","character":"trainee_girl1","action":"keep","name_action":"keep","name":"小圆"});
+        for (before, label, action) in [
+            ("保持不变", "设置姓名", "set"),
+            ("设置姓名", "恢复原名", "reset"),
+        ] {
+            let (output, _) = field_frame(
+                &catalog,
+                &context,
+                &mut node,
+                "name_action",
+                "enum:character_name_action",
+                vec![],
+            );
+            let events = click(&output, egui::accesskit::Role::ComboBox, &tr(before));
+            let (output, _) = field_frame(
+                &catalog,
+                &context,
+                &mut node,
+                "name_action",
+                "enum:character_name_action",
+                events,
+            );
+            let events = click(&output, egui::accesskit::Role::Button, &tr(label));
+            let (_, changed) = field_frame(
+                &catalog,
+                &context,
+                &mut node,
+                "name_action",
+                "enum:character_name_action",
+                events,
+            );
+            assert!(changed);
+            assert_eq!(node["name_action"], action);
+            assert_eq!(node["action"], "keep");
+            assert_eq!(node["character"], "trainee_girl1");
+        }
     }
 
     #[test]
