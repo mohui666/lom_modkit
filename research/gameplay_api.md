@@ -1,5 +1,11 @@
 # Gameplay API 实证矩阵
 
+## 2026-11-09 独立姓名与同立绘双人对话
+
+本次重新读取当前游戏的 `CharacterSayDialog.SetCharacterName(string, Color)` 和 `Fungus.SayDialog.NameText` 属性、`SetCharacter(Character)`。原版在设置姓名时按逗号拆分姓名与称号；自定义姓名在原版入口之后写入实例 `NameText`，避免姓名中的逗号改变称号，不修改官方 Character 或 ScriptableObject。姓名与称号以人物引用分别保存在当前作品的隔离存档 sidecar 中，两个操作互不重置。
+
+本轮隔离游戏完成 24 句检查：赵活、唐门女弟子和两个使用相同图片的独立自定义人物，覆盖姓名设置／恢复、仅改称号、画外音后恢复、跨章及实际保存后清除内存再读取。两份相同立绘的自定义人物有不同的 Actor 和 RectTransform，左右站位独立，交替对白未串名、串称号。复用同一个人物引用仍表示同一个角色；改名不创建第二个角色。旧版 1.5.4 真实发布包的称号节点输出保持不变，编辑加入姓名后保存、导出、重开通过，替换无关 Lua 仍被拒绝。
+
 ## 2026-11-09 人物称号与自定义轮盘文字
 
 本次实时反编译确认 `CharacterSayDialog.SetCharacterName(string, Color)` 写入实例的 `_titleText`；赵活的 `{title}` 从 `GameStatType.稱號` 取得原版称号文字。Host 在此入口之后写入当前 MOD 存档的文字覆盖，自定义人物使用相同入口与自己的素材默认称号；`SayDialog.SetCharacter(Character)` 区分原版与自定义发言人，不修改官方人物资产或称号数值。

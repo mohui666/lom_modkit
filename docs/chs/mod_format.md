@@ -214,7 +214,7 @@ Host 从包内 Story 构建来源缓存，每次加载作品后首次进入该�
 | --- | --- | --- |
 | `stat` | `key`, `delta`；可选 `waitDisplay`(默认true), `display`(默认1), `mode`(默认"") | 主角属性增减 `statmodifymanager.Player(key, delta, mode, display)` |
 | `stat_set` | `key`, `value`；可选 `update`(bool默认false) | 绝对设置 `SetPlayer(key, value)`；update=true 用 `UpdateSetPlayerStat`（title 等用） |
-| `character_title` | `character`、`action`（`set` / `hide` / `reset`）；设置时必填 `title`（单行，最多 80 个 UTF-16 字符）；可选 `wait_after` | 修改人物对白名牌的称号，赵活 `player`、原版人物和 `user:` 人物共用此节点，无需先登场。`set` 设置、`hide` 隐藏、`reset` 恢复原称号。后续对白及跨章持续生效，随当前作品的存档保存；赵活恢复后继续显示原版“称号”数值属性对应的文字。需要 Host 1.5.4，打包自动提高最低版本 |
+| `character_title` | `character`、称号 `action`（`keep` / `set` / `hide` / `reset`）；可选姓名 `name_action`（`keep` / `set` / `reset`，缺省 keep）；对应设置操作必填 `title` / `name`（单行，最多 80 个 UTF-16 字符）；可选 `wait_after` | 编辑器显示“修改姓名与称号”，赵活 `player`、原版人物和 `user:` 人物共用此节点，无需先登场。姓名、称号独立保持、设置或恢复，称号还可隐藏；只改姓名时令 `action=keep`。作用于后续人物对白名牌，跨章持续生效并随当前作品存档保存；赵活恢复称号后继续按原版“称号”数值属性显示。称号功能需 Host 1.5.4，新增姓名操作需 1.5.5，打包自动提高最低版本。原 1.5.4 称号节点无姓名字段时继续保留原效果和 Lua 输出 |
 | `affinity` | `character`, `delta` | 人物好感度 `statmodifymanager.Character(character, delta, 1)` |
 | `talent` | `talent`, `level`(±1) | 天赋 `statmodifymanager.AddTalent(id, level)` |
 | `item` | `kind`("book"/"misc"/"special"/"consumable"), `item`, `count`(默认1)；可选 `remove`(bool默认false) | 原版物品走 `AddBook/AddMisc/AddSpecial(id,count)`，原版 remove 仅 book/misc。1.4 的 `user:` 内容走 `mod_item(kind,id,count)`；consumable 仅允许用户消耗品 |

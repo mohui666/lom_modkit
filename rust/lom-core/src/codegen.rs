@@ -601,10 +601,24 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                 &[c],
             ));
         }
-        "character_title" => out.push(call(
-            "mod_character_title",
-            &[q(node, "character"), q(node, "action"), q(node, "title")],
-        )),
+        "character_title" => {
+            if node["action"] != "keep" {
+                out.push(call(
+                    "mod_character_title",
+                    &[q(node, "character"), q(node, "action"), q(node, "title")],
+                ));
+            }
+            if matches!(node["name_action"].as_str(), Some("set" | "reset")) {
+                out.push(call(
+                    "mod_character_name",
+                    &[
+                        q(node, "character"),
+                        q(node, "name_action"),
+                        q(node, "name"),
+                    ],
+                ));
+            }
+        }
         "offset" | "rotate" => {
             let d = n(node, "duration", json!(0));
             if kind == "offset" && (has(node, "absolute") || has(node, "scale")) {

@@ -95,7 +95,9 @@
       "character": "player",
       "id": "player_title1",
       "title": "唐门新秀",
-      "type": "character_title"
+      "type": "character_title",
+      "name": "叶云舟",
+      "name_action": "set"
     },
     {
       "id": "say1",

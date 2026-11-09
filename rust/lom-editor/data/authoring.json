@@ -28,7 +28,7 @@
     "dim": "压暗",
     "message": "系统提示",
     "rotate": "旋转",
-    "character_title": "修改人物称号",
+    "character_title": "修改姓名与称号",
     "dayenv": "日夜环境",
     "stat": "属性增减",
     "stat_set": "属性设置",
@@ -166,7 +166,8 @@
     ]
   ],
   "ENUM_SETS_SRC": {
-    "character_title_action": [["set", "设置称号"], ["hide", "隐藏称号"], ["reset", "恢复原称号"]],
+    "character_title_action": [["keep", "保持不变"], ["set", "设置称号"], ["hide", "隐藏称号"], ["reset", "恢复原称号"]],
+    "character_name_action": [["keep", "保持不变"], ["set", "设置姓名"], ["reset", "恢复原名"]],
     "player_appearance": [
       [
         "game",
@@ -1937,8 +1938,8 @@
       ]
     },
     "character_title": {
-      "label": "修改人物称号",
-      "fields": [["character","人物","character",false],["action","操作","enum:character_title_action",false],["title","新称号","line",false],["wait_after","动作后停留（秒）","float",true]]
+      "label": "修改姓名与称号",
+      "fields": [["character","人物","character",false],["name_action","姓名操作","enum:character_name_action",true],["name","新姓名","line",false],["action","称号操作","enum:character_title_action",false],["title","新称号","line",false],["wait_after","动作后停留（秒）","float",true]]
     },
     "rotate": {
       "label": "人物旋转",
@@ -3760,7 +3761,7 @@
     "message": {
       "text": ""
     },
-    "character_title": {"character":"player","action":"set","title":"新称号"},
+    "character_title": {"character":"player","action":"keep","name_action":"keep","name":"新姓名","title":"新称号"},
     "rotate": {
       "character": "",
       "angle": 180,

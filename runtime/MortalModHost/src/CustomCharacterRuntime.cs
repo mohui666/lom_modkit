@@ -455,6 +455,7 @@ namespace MortalModHost
                 {
                     dialog.SetCharacterName(actor.Name, Color.white);
                     CharacterTitleRuntime.Apply(dialog, raw, actor.Title);
+                    CharacterNameRuntime.Apply(dialog, raw);
                 }
             }
             catch (Exception ex)
@@ -462,6 +463,15 @@ namespace MortalModHost
                 if (Log != null) Log.LogDebug("设置自定义角色发言名失败：" + ex.Message);
             }
             return true;
+        }
+
+        internal static void RefreshName(string raw, SayDialog dialog)
+        {
+            Actor actor;
+            if (!Actors.TryGetValue(raw, out actor)) return;
+            dialog.SetCharacterName(actor.Name, Color.white);
+            CharacterTitleRuntime.Apply(dialog, raw, actor.Title);
+            CharacterNameRuntime.Apply(dialog, raw);
         }
 
         internal static void RefreshTitle(string raw, SayDialog dialog)

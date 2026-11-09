@@ -1183,7 +1183,15 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
     let character_titles = stories.values().any(|story| {
         crate::parallel::story_actions(story).any(|(_, node)| node["type"] == "character_title")
     });
-    if character_titles
+    let character_names = stories.values().any(|story| {
+        crate::parallel::story_actions(story).any(|(_, node)| {
+            node["type"] == "character_title"
+                && (node["action"] == "keep"
+                    || matches!(node["name_action"].as_str(), Some("set" | "reset")))
+        })
+    });
+    if character_names
+        || character_titles
         || new_portrait_layout
         || free_image_scale
         || stage_layout
@@ -1192,7 +1200,9 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
         || event_fade
         || dialogue_dimming
     {
-        let (minimum, required) = if character_titles {
+        let (minimum, required) = if character_names {
+            ([1, 5, 5], "1.5.5")
+        } else if character_titles {
             ([1, 5, 4], "1.5.4")
         } else if dialogue_dimming {
             ([1, 5, 1], "1.5.1")

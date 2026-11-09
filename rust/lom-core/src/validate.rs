@@ -1077,6 +1077,15 @@ fn extra(n: &Value, ntype: &str, catalog: &Value, check_effect_names: bool) -> R
     match ntype {
         "character_title" => {
             ensure!(nonblank(&n["character"]), "称号人物不能为空");
+            if n["name_action"] == "set" {
+                let name = s(n, "name");
+                ensure!(
+                    !name.trim().is_empty()
+                        && name.encode_utf16().count() <= 80
+                        && !name.contains(['\r', '\n']),
+                    "新姓名需要1～80字的单行文字；恢复原名请选择恢复操作"
+                );
+            }
             if n["action"] == "set" {
                 let title = s(n, "title");
                 ensure!(

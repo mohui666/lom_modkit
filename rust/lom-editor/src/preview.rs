@@ -188,6 +188,9 @@ pub fn build_playtest_prelude(story: &Value, target: &str) -> Vec<Value> {
         nodes.push(json!({"type":"character_title","character":character,
             "action":if title == "" { "hide" } else { "set" },"title":title}));
     }
+    for (character, name) in state["character_names"].as_object().into_iter().flatten() {
+        nodes.push(json!({"type":"character_title","character":character,"action":"keep","name_action":"set","name":name}));
+    }
     for (name, active) in state["camera_filters"].as_object().into_iter().flatten() {
         nodes.push(json!({"type":"camera","name":name,"active":active}));
     }
@@ -316,12 +319,19 @@ fn apply(s: &mut Value, n: &Value) {
                 if let Some(titles) = s["character_titles"].as_object_mut() {
                     titles.remove(cid);
                 }
-            } else {
+            } else if n["action"] != "keep" {
                 s["character_titles"][cid] = if n["action"] == "hide" {
                     json!("")
                 } else {
                     n["title"].clone()
                 };
+            }
+            if n["name_action"] == "reset" {
+                if let Some(names) = s["character_names"].as_object_mut() {
+                    names.remove(cid);
+                }
+            } else if n["name_action"] == "set" {
+                s["character_names"][cid] = n["name"].clone();
             }
         }
         "camera" => {
@@ -2358,7 +2368,11 @@ impl Preview {
                             .unwrap_or("？？？")
                             .to_owned()
                     } else {
-                        character_display_name(p, character)
+                        state["character_names"]
+                            .get(character)
+                            .and_then(Value::as_str)
+                            .map(str::to_owned)
+                            .unwrap_or_else(|| character_display_name(p, character))
                     },
                     FontId::proportional(13.0),
                     Color32::from_rgb(221, 168, 110),
@@ -3064,6 +3078,26 @@ pub fn graph(
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn names_and_titles_change_independently_and_both_restore_in_playtest() {
+        let story = json!({"id":"main","start":"title","nodes":[
+            {"id":"title","type":"character_title","character":"player","action":"set","title":"唐门新秀"},
+            {"id":"name","type":"character_title","character":"player","action":"keep","name_action":"set","name":"叶云舟"},
+            {"id":"say","type":"say","character":"player","text":"好"},
+            {"id":"reset","type":"character_title","character":"player","action":"keep","name_action":"reset"},
+            {"id":"end","type":"end"}]});
+        let state = simulate_until(&story, "say", true);
+        assert_eq!(state["character_names"]["player"], "叶云舟");
+        assert_eq!(state["character_titles"]["player"], "唐门新秀");
+        let prelude = build_playtest_prelude(&story, "say");
+        assert!(prelude
+            .iter()
+            .any(|n| n["name"] == "叶云舟" && n["action"] == "keep"));
+        assert!(prelude.iter().any(|n| n["title"] == "唐门新秀"));
+        let reset = simulate_until(&story, "end", true);
+        assert!(reset["character_names"].get("player").is_none());
+        assert_eq!(reset["character_titles"]["player"], "唐门新秀");
+    }
     #[test]
     fn titles_restore_for_playtest_and_reset_to_character_defaults() {
         let story = json!({"id":"main","start":"title","nodes":[

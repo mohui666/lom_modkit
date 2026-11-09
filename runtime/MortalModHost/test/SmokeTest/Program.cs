@@ -1791,6 +1791,22 @@ namespace MortalModHost
                 "另存和自动档要保存当前称号，不能改写旧手动档");
             reloaded.SetCharacterTitle(updatedPackage, slot, "player", null);
             Assert(!reloaded.TryGetCharacterTitle(updatedPackage, slot, "player", out title), "恢复原称号必须删除覆盖");
+            string name;
+            Assert(!reloaded.TryGetCharacterName(updatedPackage, slot, "player", out name), "旧称号 sidecar 无姓名字段时保留原名");
+            reloaded.SetCharacterName(updatedPackage, slot, "player", "叶云舟");
+            reloaded.SetCharacterName(updatedPackage, slot, "trainee_girl1", "小圆");
+            reloaded.Flush();
+            reloaded.ResetMemory();
+            Assert(reloaded.TryGetCharacterName(updatedPackage, slot, "trainee_girl1", out name) && name == "小圆"
+                && reloaded.TryGetCharacterTitle(updatedPackage, slot, "brother1", out title) && title == "",
+                "自定义姓名保存恢复后不得改变已隐藏的称号");
+            reloaded.SetCharacterName(updatedPackage, slot, "trainee_girl1", "小宁");
+            reloaded.SaveToSlot(updatedPackage, titleCopy);
+            Assert(new PersistentStateStore(root).TryGetCharacterName(updatedPackage, titleCopy, "trainee_girl1", out name) && name == "小宁"
+                && new PersistentStateStore(root).TryGetCharacterName(updatedPackage, slot, "trainee_girl1", out name) && name == "小圆",
+                "姓名另存应保存当前值，保留旧槽");
+            reloaded.SetCharacterName(updatedPackage, slot, "player", null);
+            Assert(!reloaded.TryGetCharacterName(updatedPackage, slot, "player", out name), "恢复原名清除姓名覆盖");
             bool wrongSlot = false;
             try { reloaded.Get(updatedPackage, "universe", "chapter"); }
             catch (InvalidOperationException) { wrongSlot = true; }
@@ -1807,6 +1823,7 @@ namespace MortalModHost
             Assert(badIdentity, "sidecar 必须独立拒绝路径型 id 与非十六进制指纹");
 
             reloaded.BeginNewCampaign(updatedPackage, slot);
+            Assert(!reloaded.TryGetCharacterName(updatedPackage, slot, "trainee_girl1", out name), "新战役清除姓名覆盖");
             Assert(!reloaded.TryGetCharacterTitle(updatedPackage, slot, "brother1", out title), "新战役必须清除称号覆盖");
             Assert(reloaded.Get(updatedPackage, slot, "chapter") == 0,
                 "开始新战役必须清空旧 sidecar 的内存状态");
