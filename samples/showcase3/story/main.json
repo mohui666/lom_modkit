@@ -91,6 +91,13 @@
       "wait_after": 0.2
     },
     {
+      "action": "set",
+      "character": "player",
+      "id": "player_title1",
+      "title": "唐门新秀",
+      "type": "character_title"
+    },
+    {
       "id": "say1",
       "type": "say",
       "text": "这是照镜子后的自恋赵活，使用游戏自己的立绘。下一步恢复原版赵活。",

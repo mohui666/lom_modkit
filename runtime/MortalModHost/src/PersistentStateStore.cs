@@ -26,6 +26,8 @@ namespace MortalModHost
         private readonly string _root;
         private readonly Dictionary<string, int> _values =
             new Dictionary<string, int>(StringComparer.Ordinal);
+        private readonly Dictionary<string, string> _characterTitles =
+            new Dictionary<string, string>(StringComparer.Ordinal);
         private string _modId = "";
         private string _campaignId = "";
         private string _slot = "";
@@ -71,6 +73,24 @@ namespace MortalModHost
             return result;
         }
 
+        internal bool TryGetCharacterTitle(ModPackage package, string slot, string character, out string title)
+        {
+            Bind(package, slot);
+            return _characterTitles.TryGetValue(character, out title);
+        }
+
+        internal void SetCharacterTitle(ModPackage package, string slot, string character, string title)
+        {
+            Bind(package, slot);
+            if (string.IsNullOrEmpty(character) || character.Length > 128)
+                throw new ArgumentException("称号人物标识无效");
+            if (title != null && (title.Length > 80 || title.IndexOfAny(new[] { '\r', '\n' }) >= 0))
+                throw new ArgumentException("人物称号需要不超过80字符的单行文字");
+            if (title == null) _characterTitles.Remove(character);
+            else _characterTitles[character] = title;
+            _dirty = true;
+        }
+
         internal void BeginNewCampaign(ModPackage package, string slot)
         {
             ValidateIdentity(package, slot);
@@ -79,6 +99,7 @@ namespace MortalModHost
             _slot = slot;
             _fingerprint = package.PackageFingerprint;
             _values.Clear();
+            _characterTitles.Clear();
             _loaded = true;
             _dirty = true;
         }
@@ -119,6 +140,7 @@ namespace MortalModHost
             _slot = "";
             _fingerprint = "";
             _values.Clear();
+            _characterTitles.Clear();
             _loaded = false;
             _dirty = false;
         }
@@ -187,6 +209,20 @@ namespace MortalModHost
                 loaded[pair.Key] = ToInt32(pair.Value, "values." + pair.Key);
             }
             foreach (var pair in loaded) _values[pair.Key] = pair.Value;
+            object rawTitles;
+            if (root.TryGetValue("character_titles", out rawTitles))
+            {
+                var titles = rawTitles as Dictionary<string, object>;
+                if (titles == null) throw new InvalidDataException("人物称号存档数据必须是对象");
+                foreach (var pair in titles)
+                {
+                    string title = pair.Value as string;
+                    if (string.IsNullOrEmpty(pair.Key) || pair.Key.Length > 128 || title == null
+                        || title.Length > 80 || title.IndexOfAny(new[] { '\r', '\n' }) >= 0)
+                        throw new InvalidDataException("人物称号存档字段无效：" + pair.Key);
+                    _characterTitles.Add(pair.Key, title);
+                }
+            }
         }
 
         private string Serialize()
@@ -206,7 +242,19 @@ namespace MortalModHost
                   .Append(_values[key].ToString(CultureInfo.InvariantCulture));
             }
             if (!first) sb.Append('\n');
-            sb.Append("  }\n}\n");
+            sb.Append("  }");
+            if (_characterTitles.Count > 0)
+            {
+                sb.Append(",\n  \"character_titles\": {");
+                first = true;
+                foreach (string key in _characterTitles.Keys.OrderBy(value => value, StringComparer.Ordinal))
+                {
+                    sb.Append(first ? "\n" : ",\n"); first = false;
+                    sb.Append("    ").Append(Quote(key)).Append(": ").Append(Quote(_characterTitles[key]));
+                }
+                sb.Append("\n  }");
+            }
+            sb.Append("\n}\n");
             return sb.ToString();
         }
 

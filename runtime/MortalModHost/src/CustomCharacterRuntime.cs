@@ -64,6 +64,7 @@ namespace MortalModHost
 
         public static void ClearAll()
         {
+            CharacterTitleRuntime.CustomSpeaker = null;
             AutoDialogueRuntime.Clear();
             CharacterPresentation.NarrativeLeft(false);
             CharacterDimming.Clear();
@@ -446,23 +447,14 @@ namespace MortalModHost
             if (!TryGetOrCreate(raw, out actor))
                 return false;
             CharacterDimming.BeginCustomDialogue(raw);
+            CharacterTitleRuntime.CustomSpeaker = raw;
             try
             {
                 SayDialog dialog = SayDialog.GetSayDialog();
                 if (dialog != null)
                 {
                     dialog.SetCharacterName(actor.Name, Color.white);
-                    Traverse titleField = Traverse.Create(dialog).Field("_titleText");
-                    if (titleField.FieldExists())
-                    {
-                        Text titleText = titleField.GetValue<Text>();
-                        if (titleText != null)
-                        {
-                            bool hasTitle = !string.IsNullOrEmpty(actor.Title);
-                            titleText.text = hasTitle ? actor.Title : "";
-                            titleText.gameObject.SetActive(hasTitle);
-                        }
-                    }
+                    CharacterTitleRuntime.Apply(dialog, raw, actor.Title);
                 }
             }
             catch (Exception ex)
@@ -470,6 +462,12 @@ namespace MortalModHost
                 if (Log != null) Log.LogDebug("设置自定义角色发言名失败：" + ex.Message);
             }
             return true;
+        }
+
+        internal static void RefreshTitle(string raw, SayDialog dialog)
+        {
+            Actor actor;
+            if (Actors.TryGetValue(raw, out actor)) CharacterTitleRuntime.Apply(dialog, raw, actor.Title);
         }
 
         private static bool TryGetOrCreate(string raw, out Actor actor)

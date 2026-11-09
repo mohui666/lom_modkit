@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using BepInEx.Logging;
 using HarmonyLib;
 using Mortal.Core;
@@ -14,6 +15,7 @@ namespace MortalModHost
     /// </summary>
     internal static class CustomDiceSession
     {
+        [ThreadStatic] internal static bool RenderingText;
         internal const string CheckName = "__lom_mod_custom";
         private static readonly List<int> UpperBounds = new List<int>();
         private static int _maximum;
@@ -22,6 +24,13 @@ namespace MortalModHost
         private static string _bonusName = "";
         private static string _bonusStatus = "";
         private static bool _active;
+
+        internal static bool IsLiteral(string key)
+        {
+            return _active && RenderingText && DiceModSupport.IsModStoryActive()
+                && (key == _header || key == _bonusStatus
+                    || key == (string.IsNullOrEmpty(_bonusName) ? "加值" : _bonusName));
+        }
 
         internal static void Prepare(
             int maximum, string header, string encodedBounds, int bonus,
@@ -101,6 +110,39 @@ namespace MortalModHost
             _bonusName = "";
             _bonusStatus = "";
             UpperBounds.Clear();
+        }
+    }
+
+    [HarmonyPatch]
+    internal static class CustomDiceTextScopePatch
+    {
+        private static IEnumerable<MethodBase> TargetMethods()
+        {
+            yield return AccessTools.Method(typeof(DiceHeader), "Setup", new[] { typeof(string) });
+            yield return AccessTools.Method(typeof(DiceMenuDialog), "UpdateAddition");
+        }
+
+        private static void Prefix(out bool __state)
+        {
+            __state = CustomDiceSession.RenderingText;
+            CustomDiceSession.RenderingText = true;
+        }
+
+        private static Exception Finalizer(Exception __exception, bool __state)
+        {
+            CustomDiceSession.RenderingText = __state;
+            return __exception;
+        }
+    }
+
+    [HarmonyPatch(typeof(LeanLocalizationResolver), "GetString", new[] { typeof(string) })]
+    internal static class CustomDiceLiteralTextPatch
+    {
+        private static bool Prefix(string key, ref string __result)
+        {
+            if (!CustomDiceSession.IsLiteral(key)) return true;
+            __result = key;
+            return false;
         }
     }
 

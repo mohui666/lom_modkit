@@ -293,6 +293,10 @@
       },
       "optional": {}
     },
+    "character_title": {
+      "required": {"character": "str", "action": "character_title_action"},
+      "optional": {"title": "str", "wait_after": "num"}
+    },
     "rotate": {
       "required": {
         "character": "str",
@@ -795,6 +799,7 @@
     }
   },
   "enums": {
+    "character_title_action": ["set", "hide", "reset"],
     "music_op": [
       "play",
       "stop",
@@ -1076,6 +1081,7 @@
     ]
   },
   "type_names": {
+    "character_title_action": "\"set\"/\"hide\"/\"reset\"",
     "str": "字符串",
     "idstr": "非空字符串（官方/资源 id）",
     "num": "数值",

@@ -12,7 +12,7 @@
 
 | 接口 | 参数与返回 |
 | --- | --- |
-| `Say/Show/Choice/...(*, id=None, **fields)` | 所有 70 类节点均有构造函数，type 按下划线转首字母大写；必填字段、类型、枚举与 `schema nodes` 完全对应，未知字段报错 |
+| `Say/Show/CharacterTitle/Choice/...(*, id=None, **fields)` | 所有 71 类节点均有构造函数，type 按下划线转首字母大写；必填字段、类型、枚举与 `schema nodes` 完全对应，未知字段报错 |
 | `NODE_TYPES[type](...)` | 按原始 type 动态构造同一种对象 |
 | `Node.from_dict(node)` | 从现有节点对象构造，执行同样的参数检查 |
 | `node.to_dict()` | 返回独立 JSON 对象 |

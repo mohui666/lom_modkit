@@ -116,8 +116,20 @@ fn content_specs(node: &Value) -> Vec<ContentSpec<'_>> {
         });
     }
     if [
-        "show", "say", "portrait", "hide", "move", "face", "focus", "offset", "shock", "dim",
-        "rotate", "intro", "combat",
+        "show",
+        "say",
+        "portrait",
+        "hide",
+        "move",
+        "face",
+        "focus",
+        "offset",
+        "shock",
+        "dim",
+        "rotate",
+        "intro",
+        "combat",
+        "character_title",
     ]
     .contains(&kind)
         && !text(node, "character").is_empty()

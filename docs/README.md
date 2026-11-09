@@ -1,6 +1,6 @@
 # lom_modkit 文档
 
-当前版本为 **1.5.3**，编辑器和编译器使用 Rust，C# Host 提供游戏接入。更新内容见 [本版说明](../RELEASE_NOTES_v1.5.3.md)，下载见 [发布页](https://github.com/mohui666/lom_modkit/releases/latest)。
+当前版本为 **1.5.4**，编辑器和编译器使用 Rust，C# Host 提供游戏接入。更新内容见 [本版说明](../RELEASE_NOTES_v1.5.4.md)，下载见 [发布页](https://github.com/mohui666/lom_modkit/releases/latest)。
 
 ## 开始使用
 
@@ -23,7 +23,7 @@
 | [多语言](chs/i18n.md) | 界面、资源名称与作品翻译 |
 | [自动恢复](chs/editor_recovery.md) | 恢复位置、流程和保存边界 |
 | [自由模式与人物立绘](chs/free_mode_portraits.md) | 赵活外观与旧战役触发器 |
-| [Showcase 样例](../samples/showcase3/README.md) | 10 章、70 类节点与生成入口 |
+| [Showcase 样例](../samples/showcase3/README.md) | 10 章、71 类节点与生成入口 |
 
 ## AI 与脚本制作
 

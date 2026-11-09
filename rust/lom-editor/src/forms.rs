@@ -1136,12 +1136,14 @@ impl Catalog {
         *node != before
     }
     fn filtering_stage_characters(&self, node: &Value) -> bool {
-        node["type"] != "show"
+        !matches!(node["type"].as_str(), Some("show" | "character_title"))
             && self.stage_characters.is_some()
             && self.staged_characters_only.get()
     }
     fn stage_character_filter(&self, ui: &mut Ui, node: &Value) -> bool {
-        if node["type"] == "show" || self.stage_characters.is_none() {
+        if matches!(node["type"].as_str(), Some("show" | "character_title"))
+            || self.stage_characters.is_none()
+        {
             return false;
         }
         let only = self.staged_characters_only.get();
@@ -1188,6 +1190,9 @@ impl Catalog {
         node_ids: &[String],
         story_ids: &[String],
     ) -> bool {
+        if node["type"] == "character_title" && key == "title" && node["action"] != "set" {
+            return false;
+        }
         if node["type"] == "say"
             && node["mode"] == "offscreen"
             && matches!(key, "character" | "portrait")
@@ -2753,6 +2758,48 @@ mod tests {
         assert!(changed);
         assert_eq!(node["portrait"], "normal");
         assert!(egui::Popup::is_any_open(&context));
+    }
+
+    #[test]
+    fn character_title_form_selects_hide_and_reset_without_changing_character() {
+        let catalog = Catalog::new();
+        let context = egui::Context::default();
+        let mut node = json!({"id":"title","type":"character_title","character":"player","action":"set","title":"唐门新秀"});
+        for (before, label, action) in [
+            ("设置称号", "隐藏称号", "hide"),
+            ("隐藏称号", "恢复原称号", "reset"),
+        ] {
+            let (output, _) = field_frame(
+                &catalog,
+                &context,
+                &mut node,
+                "action",
+                "enum:character_title_action",
+                vec![],
+            );
+            let events = click(&output, egui::accesskit::Role::ComboBox, &tr(before));
+            let (output, _) = field_frame(
+                &catalog,
+                &context,
+                &mut node,
+                "action",
+                "enum:character_title_action",
+                events,
+            );
+            let events = click(&output, egui::accesskit::Role::Button, &tr(label));
+            let (_, changed) = field_frame(
+                &catalog,
+                &context,
+                &mut node,
+                "action",
+                "enum:character_title_action",
+                events,
+            );
+            assert!(changed);
+            assert_eq!(node["action"], action);
+            assert_eq!(node["character"], "player");
+            assert_eq!(node["title"], "唐门新秀");
+        }
     }
 
     #[test]
