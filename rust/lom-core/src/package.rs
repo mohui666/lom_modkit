@@ -407,6 +407,13 @@ fn verify_story_lua_pairs(entries: &Entries, manifest: &Value) -> Result<()> {
         let matches = generated
             .as_ref()
             .is_ok_and(|lua| lua.as_bytes() == packaged)
+            || crate::codegen::compile_story_previous_big_pictures(
+                story,
+                Some(manifest),
+                Some(&source),
+                Some(resources.path()),
+            )
+            .is_ok_and(|expected| expected.as_bytes() == packaged)
             || crate::codegen::compile_story_previous_shock_wait(
                 story,
                 Some(manifest),
@@ -608,7 +615,11 @@ fn add_user_content(
                 refs.push(("mood_character", "character", None));
             }
         }
-        if kind == "cg" && node["kind"] == "event" && node["action"] == "show" {
+        if kind == "cg"
+            && matches!(node["kind"].as_str(), Some("event" | "big"))
+            && node["action"] == "show"
+            && node["background_only"] != true
+        {
             refs.push(("key", "image", None));
         }
         if [
@@ -1180,6 +1191,18 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
                 || node["type"] == "say" && node["mode"] == "offscreen"
         })
     });
+    let extended_big_picture = stories.values().any(|story| {
+        crate::parallel::story_actions(story).any(|(_, node)| {
+            node["type"] == "cg"
+                && node["kind"] == "big"
+                && node["action"] == "show"
+                && (node["background_only"] == true
+                    || node["key"]
+                        .as_str()
+                        .is_some_and(|key| key.starts_with("user:"))
+                    || node.get("fade_in").is_some())
+        })
+    });
     let custom_talents = entries
         .keys()
         .any(|key| key.starts_with("assets/user/talent/") && key.ends_with("/content.json"));
@@ -1193,7 +1216,8 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
                     || matches!(node["name_action"].as_str(), Some("set" | "reset")))
         })
     });
-    if custom_talents
+    if extended_big_picture
+        || custom_talents
         || character_names
         || character_titles
         || new_portrait_layout
@@ -1204,7 +1228,9 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
         || event_fade
         || dialogue_dimming
     {
-        let (minimum, required) = if custom_talents {
+        let (minimum, required) = if extended_big_picture {
+            ([1, 5, 9], "1.5.9")
+        } else if custom_talents {
             ([1, 5, 8], "1.5.8")
         } else if character_names {
             ([1, 5, 5], "1.5.5")

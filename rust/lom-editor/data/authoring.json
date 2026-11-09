@@ -1835,6 +1835,7 @@
           "enum:cg_kind",
           false
         ],
+        ["background_only", "只显示底色（不放图片）", "bool", true],
         [
           "key",
           "显示内容",

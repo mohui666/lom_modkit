@@ -1,5 +1,9 @@
 # Gameplay API 实证矩阵
 
+## 2026-11-09 自定义大图与无图片底色
+
+现场只读核对当前 `Mortal.Story.StoryMainUI.ShowBigPicture(string,int)/HideBigPicture()`、`_bigPicture/_bigPictureBackground` 和 `StoryPicture.Show/Hide/Awake/OnDestroy/ReleaseHandle`。原版 `Show` 将图片 alpha 先置零，随后根 CanvasGroup 淡入底色，再将图片淡入并移动 `_moveOffset`；`Hide` 使用 `_fadeoutDuration`。Host 在 `StoryMainUI` 的两个入口包装自定义路径，克隆当前大图实例；背景-only 不发起资源加载、不显示默认占位图，自定义图片从所属作品 image 素材解析。新增 `mod_big_picture_configure` 只为紧接的一次显示配置淡入时长。普通原版大图未使用扩展字段时保留原 Lua 和原入口；隐藏按当前活动实例处理，切场景清除克隆。本轮隔离测试存档实机 11 项检查通过：纯白底色淡入且不加载图片、克隆与原版图片实例分离、白底保持与隐藏、自定义图片先底色后图片的两段淡入、保持原始图片像素尺寸并按框适配、自定义图片隐藏清理，以及回到原版大图入口显示。日志无运行错误；测试后退出游戏并移除临时验证插件。
+
 ## 2026-11-09 独立自定义天赋与杂物目录
 
 本次现场读取当前安装的 `Mortal.Core.PlayerTalentData`（`GetIdKey/GetDescKey`、`Setup/AddLevel` 及 `_id/_displayLevel/_lowLevelTalent`）、`PlayerTalentDataCollection.Get/Set/Reset`、`CollectionData<T>.List` 和 `PlayerStatManagerData.Talents/Save/Load`。Host 自建无 Combat/Battle 标记的 `PlayerTalentData`，以包归属运行时 ID 注册进自有集合；不覆盖原版天赋对象或资源。集合 getter、`Get/Reset` 转到自有集合，原版 `Load` 的 `Set` 恢复级别，`Save` 后追加自定义 `TalentSave`，沿用隔离存档的原生记录。

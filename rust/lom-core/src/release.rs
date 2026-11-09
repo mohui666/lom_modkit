@@ -79,6 +79,20 @@ struct ContentSpec<'a> {
 fn content_specs(node: &Value) -> Vec<ContentSpec<'_>> {
     let kind = text(node, "type");
     let mut refs = Vec::new();
+    if kind == "cg"
+        && matches!(text(node, "kind"), "event" | "big")
+        && node["action"] == "show"
+        && node["background_only"] != true
+        && text(node, "key").starts_with("user:")
+    {
+        refs.push(ContentSpec {
+            field: "key",
+            raw: text(node, "key"),
+            kind: "image",
+            audio_kind: None,
+            portrait: None,
+        });
+    }
     if kind == "say"
         && !text(node, "mood_icon").is_empty()
         && !text(node, "mood_character").is_empty()

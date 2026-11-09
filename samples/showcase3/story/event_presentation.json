@@ -2,6 +2,46 @@
   "id": "event_presentation",
   "nodes": [
     {
+      "action": "show",
+      "background_only": true,
+      "color": 0,
+      "fade_in": 0.8,
+      "id": "white",
+      "kind": "big",
+      "type": "cg"
+    },
+    {
+      "id": "white_hold",
+      "seconds": 0.5,
+      "type": "wait"
+    },
+    {
+      "action": "hide",
+      "id": "white_hide",
+      "kind": "big",
+      "type": "cg"
+    },
+    {
+      "action": "show",
+      "color": 0,
+      "fade_in": 0.6,
+      "id": "custom_big",
+      "key": "user:showcase.courier_station",
+      "kind": "big",
+      "type": "cg"
+    },
+    {
+      "id": "custom_big_hold",
+      "seconds": 0.5,
+      "type": "wait"
+    },
+    {
+      "action": "hide",
+      "id": "custom_big_hide",
+      "kind": "big",
+      "type": "cg"
+    },
+    {
       "id": "say",
       "mode": "narrative",
       "text": "事件的触发条件和任务推进配置在独立页面，这里只负责演出并回报结果。",

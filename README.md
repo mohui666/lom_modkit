@@ -2,9 +2,9 @@
 
 用可视化步骤制作《活侠传》MOD，支持多章节、人物演出、分支、事件任务和自定义素材，也支持 Python 批量制作。
 
-**当前版本：1.5.8 · Windows x64 · 只需一个 exe**
+**当前版本：1.5.9 · Windows x64 · 只需一个 exe**
 
-[下载编辑器](https://github.com/mohui666/lom_modkit/releases/download/v1.5.8/lom-editor.exe) · [更新内容](RELEASE_NOTES_v1.5.8.md) · [全部文档](docs/README.md)
+[下载编辑器](https://github.com/mohui666/lom_modkit/releases/download/v1.5.9/lom-editor.exe) · [更新内容](RELEASE_NOTES_v1.5.9.md) · [全部文档](docs/README.md)
 
 [繁體中文](README.cht.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
