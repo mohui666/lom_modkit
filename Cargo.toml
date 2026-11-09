@@ -1,9 +1,10 @@
 [workspace]
 members = ["rust/lom-core", "rust/lomc", "rust/lom-editor", "rust/lom-assets"]
+exclude = ["vendor/egui-winit"]
 resolver = "2"
 
 [workspace.package]
-version = "1.5.5"
+version = "1.5.6"
 edition = "2021"
 license = "MIT"
 
@@ -16,3 +17,7 @@ regex = "1"
 tempfile = "3"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 lom-core = { path = "rust/lom-core" }
+
+[patch.crates-io]
+# Backport Windows IME Process-key handling without changing the egui version.
+egui-winit = { path = "vendor/egui-winit" }
