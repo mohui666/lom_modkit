@@ -51,7 +51,6 @@ namespace MortalModHost
             public Coroutine MotionRoutine;
             public Coroutine ShockRoutine;
             public Coroutine DimRoutine;
-            public Coroutine RotateRoutine;
             public Vector2 ShockOrigin;
             public bool Shocking;
             public readonly Dictionary<string, Sprite> Sprites = new Dictionary<string, Sprite>(StringComparer.Ordinal);
@@ -68,6 +67,7 @@ namespace MortalModHost
             CharacterPresentation.NarrativeLeft(false);
             CharacterDimming.Clear();
             CharacterLayoutRuntime.Clear();
+            CharacterRotationRuntime.Clear();
             EffectRuntime.Clear();
             EffectPreviewCapture.Cancel();
             MoodControl.ClearOverrides();
@@ -394,12 +394,7 @@ namespace MortalModHost
             if (!Actors.TryGetValue(raw ?? "", out actor) || actor == null
                 || actor.HolderRect == null || !actor.Visible)
                 return false;
-            StopRoutine(ref actor.RotateRoutine);
-            Quaternion target = Quaternion.Euler(0f, 0f, angle);
-            if (_host != null && duration > 0f)
-                actor.RotateRoutine = _host.StartCoroutine(RotateTo(actor, target, duration));
-            else
-                actor.HolderRect.localRotation = target;
+            CharacterRotationRuntime.Rotate(actor.HolderRect, 0f, angle, duration, false);
             return true;
         }
 
@@ -853,24 +848,6 @@ namespace MortalModHost
             actor.DimRoutine = null;
         }
 
-        private static IEnumerator RotateTo(Actor actor, Quaternion target, float seconds)
-        {
-            if (actor.HolderRect == null)
-                yield break;
-            Quaternion start = actor.HolderRect.localRotation;
-            float elapsed = 0f;
-            while (elapsed < seconds && actor.HolderRect != null)
-            {
-                elapsed += Time.unscaledDeltaTime;
-                actor.HolderRect.localRotation = Quaternion.Slerp(
-                    start, target, Mathf.Clamp01(elapsed / seconds));
-                yield return null;
-            }
-            if (actor.HolderRect != null)
-                actor.HolderRect.localRotation = target;
-            actor.RotateRoutine = null;
-        }
-
         private static void StopRoutine(ref Coroutine routine)
         {
             if (routine != null && _host != null)
@@ -896,7 +873,7 @@ namespace MortalModHost
             StopRoutine(ref actor.MotionRoutine);
             StopShock(actor);
             StopRoutine(ref actor.DimRoutine);
-            StopRoutine(ref actor.RotateRoutine);
+            CharacterRotationRuntime.Forget(actor.HolderRect);
             StopRoutine(ref actor.FadeRoutine);
             foreach (var pair in actor.Sprites)
             {

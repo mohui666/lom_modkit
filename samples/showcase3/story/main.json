@@ -267,15 +267,15 @@
       "id": "rotate1",
       "type": "rotate",
       "character": "user:showcase.lin_deng",
-      "angle": -6,
-      "duration": 0.2
+      "angle": 355,
+      "duration": 1.5
     },
     {
       "id": "rotate2",
       "type": "rotate",
       "character": "user:showcase.lin_deng",
-      "angle": 6,
-      "duration": 0.2
+      "angle": 360,
+      "duration": 0.3
     },
     {
       "id": "dim2",

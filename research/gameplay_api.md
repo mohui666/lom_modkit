@@ -1,5 +1,9 @@
 # Gameplay API 实证矩阵
 
+## 2026-11-09 人物大角度旋转
+
+现场只读反编译当前安装游戏的 `CharacterPlaceholder.Rotate(string,float,float)` 与 `StoryCharacterController.Rotate(float,float)`、`RestoreRotation()`、`ResetRotation()`：Rotate 先保存 `_rotationAngle`，再把角度转为 `Quaternion.Euler` 交给 `DORotateQuaternion`；RestoreRotation 使用保存的角度，ResetRotation 将角度归零。四元数目标不能保存圈数。Host 仅在作品运行时包装 `StoryCharacterController.Rotate`，保留原字段和恢复／重置入口，按未取模的数值角度插值，写入运行时 holder 的 world rotation；自定义人物同样保留数值角度并写入自己的 local rotation。清舞台、重置、恢复及销毁人物时停止相应动画，不改官方资产或生成 Lua。
+
 ## 2026-11-08 书页事件图淡入
 
 重新读取当前安装游戏的 `Mortal.Story.StoryPicture.Show(string)`：原版通过 `_canvasGroup.DOFade` 与图像淡入展示书页。Host 仍只克隆 `StoryMainUI._picture` 的实例，新增淡入操作只改变克隆根节点的 `CanvasGroup.alpha`，不修改官方实例、预制体或序列化时长。正数 `cg.fade_in` 调用独立的 `mod_event_picture_show_fade` 能力入口并等待完成，再显示可选旁白；省略或 0 保留旧的两参数显示调用。清理或替换书页时停止旧协程。旧 Host 在缺少新入口时得到明确的更新提示。

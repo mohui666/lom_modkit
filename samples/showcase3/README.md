@@ -35,3 +35,5 @@ cargo run --locked -p lomc -- inspect out/showcase3-check/showcase3.lommod --jso
 生成和离线检查通过不代表全部游戏路径已经实测。完整验证入口见 [测试矩阵](../../docs/chs/test_matrix.md)，功能边界见 [当前能力](../../docs/chs/current_capabilities.md)。
 
 第一章还展示了无立绘画外音（默认“？？？”与自定义姓名），以及临时高亮和恢复对白自动压暗；这些新选项需要 Host 1.5.1。
+
+第一章的人物旋转演示 0° → +355° → +360°，保留大圈和剩余 5°；需要 Host 1.5.2。
