@@ -259,7 +259,12 @@ Windows 实机还确认 `Mortal.Core.CharacterIntroPanel` 同时提供 `IEnumera
 
 ## 2026-10-27 官方插图预览与大图底色
 
-- 实时反编译 `Mortal.Story.StoryPicture.Show(string key)` 确认加载 `Addressables.LoadAssetAsync<Sprite>("pic_" + key)`；提取器因此仅从本机 catalog 的 `pic_` 地址生成图键，使用 catalog 的真实内部路径解析 Sprite。当前目录共 537 个图键，`data/picture_keys.json` 只保存键和目录分类；图片仅写入用户本地预览缓存。
+- 实时反编译 `Mortal.Story.StoryPicture.Show(string key)` 确认加载 `Addressables.LoadAssetAsync<Sprite>("pic_" + key)`；提取器因此仅从本机 catalog 的 `pic_` 地址生成图键，使用 catalog 的真实内部路径解析 Sprite。当前目录共 537 个图键，`data/picture_keys.json` 保存键、目录分类及显示名称；图片仅写入用户本地预览缓存。
+- 图片名称核对本机游戏的 `Mortal.Core.ItemData.Id` / `Image` 与 `Book.GetNameKey()`、`Misc.GetNameKey()`、`SpecialItem.GetNameKey()`：分别返回 `Book/Name/`、`Misc/Name/`、`Special/Name/` 加 ID，再从 `level0` 的 `LeanLanguageCSV` 读取简体正式名称。同一 Sprite 对应多个物品时列出别名。
+- 锻冶、炼毒等开发项目另由 `UpgradeItemData.Key` / `Icon` 与 `GetNameKey()` 关联，名称键为 `Equip/Name/<Key>`；`DevelopItemPanel.Setup` 也用 `NextItem.Icon` 与 `NextItem.GetNameKey()` 显示。不能只查背包物品，否则会漏掉乌蚕宝衣、乌水仙、三阴虫草胶、彼岸仙香、玉霄神匕等正式名称。`Consumables.GetNameKey()` 为 `Consume/Name/<Id>`，本机仅有无图的模板条目，不提供额外图名。
+- 剧情图说明依照本机原版 Lua 的实际显示段落、对应 `Story/` 台词或选项归纳，不能仅取显示前后少数句子：`ch3_1_4_1` 的 `food_125` 明指“素醒酒冰”；`ch2_2_5` 后续对白说明“王八刀”实际为“破山斩”；`ch4_3_8_4` 明指 `medi_002` 为“尸心丹”。
+- 未直接通过 Lua 显示的图片还需核对配置：`CombatEventActionShowImage` 的 `ShowImage_小竹橫掃` 引用 `pic_big_girl_event_004`；`C_Effect_106_崆峒神威_01/02` 使用四名弟子特写；`StoryCharacterData` 的 `picture1`～`picture4` 的 `special2` 依次引用 `cut_in_001`～`004`，与 `ch5_6_6_4` 的实际演出对应。气泡图中的蓝衣呆毛人物为大师兄唐布衣，已与 `brother1` 原版立绘对照。
+- 目录的 `name_source` 保留来源，`name_kind` 区分游戏名称（`game`）、原版剧情说明（`story`）、原版配置说明（`config`）及仅依据原图的画面说明（`visual`）。537 张均有可读标签；没有专名绑定证据的图使用画面说明，不声称已经找到官方专名。不收录原版完整脚本、台词或图片。
 - `StoryMainUI.ShowPicture(string)`、`ShowItemPicture(string)` 与 `ShowBigPicture(string,int)` 调用相同的 `StoryPicture.Show`。大图的第二参 `color` 为 0 白底、1 黑底、2 透明；`cg kind=big` 必须传此参数，省略编辑字段时生成 0。`ShowMap(string,string)` / `ShowFamilyTree(string,string,float,float)` 为地图点位演出，`DisplayTitle(string)` 为本地化标题文本，不能当作图片地址。
 - 本次实际从本机解码了普通插图、物品图和大图各一张；未启动游戏验证显示时序。自动用例检查图键映射、失败文件排除、缓存路径与大图参数。
 
