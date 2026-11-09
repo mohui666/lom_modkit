@@ -48,7 +48,9 @@ fn field_requirement(node: &Value, key: &str, optional: bool) -> Requirement {
             Some("set" | "show" | "replace" | "fadein")
         )),
         ("custom_cg" | "overlay", "image") => Some(node["action"] == "show"),
-        ("cg", "key") => Some(node["action"] == "show"),
+        ("cg", "key") => Some(
+            node["action"] == "show" && !(node["kind"] == "big" && node["background_only"] == true),
+        ),
         ("cg", "key2") => Some(
             node["action"] == "show" && matches!(node["kind"].as_str(), Some("map" | "family")),
         ),
@@ -422,7 +424,7 @@ impl Catalog {
             }
             return vec![("normal".into(), "normal".into())];
         }
-        if kind == "event_picture" {
+        if matches!(kind, "event_picture" | "big_picture") {
             let mut options = self.raw_options("official_picture", node, nodes, stories);
             options.extend(self.raw_options("user_image", node, nodes, stories));
             return options;
@@ -752,8 +754,15 @@ impl Catalog {
                     if kind == "intro" && key == "character" && node["intro_source"] == "character"
                     {
                         "character"
-                    } else if kind == "cg" && key == "key" && node["kind"] == "event" {
-                        "event_picture"
+                    } else if kind == "cg"
+                        && key == "key"
+                        && matches!(node["kind"].as_str(), Some("event" | "big"))
+                    {
+                        if node["kind"] == "big" {
+                            "big_picture"
+                        } else {
+                            "event_picture"
+                        }
                     } else if kind == "cg"
                         && key == "key"
                         && matches!(node["kind"].as_str(), Some("picture" | "item" | "big"))
@@ -2105,6 +2114,7 @@ fn is_selector(kind: &str) -> bool {
             "node_ref"
                 | "official_picture"
                 | "event_picture"
+                | "big_picture"
                 | "mood_character"
                 | "story_ref"
                 | "facing"
@@ -2243,15 +2253,20 @@ fn field_visible(kind: &str, node: &Value, key: &str) -> bool {
     }
     if kind == "cg" {
         return match key {
-            "key" => node["action"] == "show",
+            "key" => {
+                node["action"] == "show"
+                    && !(node["kind"] == "big" && node["background_only"] == true)
+            }
+            "background_only" => node["action"] == "show" && node["kind"] == "big",
             "key2" => {
                 node["action"] == "show" && matches!(node["kind"].as_str(), Some("map" | "family"))
             }
             "n1" | "n2" => node["action"] == "show" && node["kind"] == "family",
             "color" => node["action"] == "show" && node["kind"] == "big",
-            "event_title" | "event_text" | "fade_in" => {
-                node["action"] == "show" && node["kind"] == "event"
+            "fade_in" => {
+                node["action"] == "show" && matches!(node["kind"].as_str(), Some("event" | "big"))
             }
+            "event_title" | "event_text" => node["action"] == "show" && node["kind"] == "event",
             _ => true,
         };
     }
@@ -2719,6 +2734,28 @@ pub fn value_editor(ui: &mut Ui, label: &str, value: &mut Value, depth: usize) -
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn big_picture_selects_project_images_and_blank_mode_hides_the_image_field() {
+        let mut catalog = Catalog::new();
+        let mut assets = std::collections::BTreeMap::new();
+        assets.insert("assets/user/image/demo.big/content.json".into(), serde_json::to_vec(&json!({"content_schema":1,"id":"demo.big","type":"image","name":"自定义大图","files":{"main":"image.png"}})).unwrap());
+        catalog.sync_assets(&assets);
+        let node = json!({"type":"cg","kind":"big","action":"show"});
+        assert!(catalog
+            .options("big_picture", &node, &[], &[])
+            .iter()
+            .any(|(key, _)| key == "user:demo.big"));
+        let blank = json!({"type":"cg","kind":"big","action":"show","background_only":true});
+        assert!(!field_visible("cg", &blank, "key"));
+        assert!(field_visible("cg", &blank, "color"));
+        assert!(field_visible("cg", &blank, "fade_in"));
+        assert!(!field_visible(
+            "cg",
+            &json!({"kind":"big","action":"hide"}),
+            "background_only"
+        ));
+    }
+
     use super::*;
 
     #[test]

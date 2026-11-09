@@ -275,6 +275,8 @@ pub fn build_playtest_prelude(story: &Value, target: &str) -> Vec<Value> {
         picture.as_object_mut().unwrap().remove("event_text");
         if picture["kind"] == "event" {
             picture.as_object_mut().unwrap().remove("fade_in");
+        } else if picture["kind"] == "big" {
+            picture["fade_in"] = json!(0);
         }
         nodes.push(picture);
     }
@@ -602,6 +604,18 @@ pub fn playback_duration(node: &Value) -> f64 {
             "cg" if action["kind"] == "event" && action["action"] == "show" => {
                 number(action, "fade_in", 0.0)
             }
+            "cg" if action["kind"] == "big" => {
+                if action["action"] == "hide" {
+                    1.0
+                } else {
+                    number(action, "fade_in", 1.0)
+                        * if action["background_only"] == true {
+                            1.0
+                        } else {
+                            2.0
+                        }
+                }
+            }
             _ => 0.0,
         }
         .max(0.0)
@@ -615,6 +629,7 @@ pub fn playback_duration(node: &Value) -> f64 {
             .max(0.1)
     } else {
         match text(node, "type") {
+            "cg" if node["kind"] == "big" => duration(node).max(0.1),
             "cg" if node["kind"] == "event" && node["action"] == "show" => {
                 duration(node).max(0.0) + 1.8
             }
@@ -656,6 +671,32 @@ fn simulate_frame(story: &Value, target: &str, elapsed: f64, positions: &Value) 
 
 fn animate_frame(state: &mut Value, before: &Value, node: &Value, elapsed: f64, positions: &Value) {
     for action in lom_core::parallel::actions(node) {
+        if action["type"] == "cg" && action["kind"] == "big" {
+            let ease = |t: f64| {
+                let t = t.clamp(0.0, 1.0);
+                1.0 - (1.0 - t) * (1.0 - t)
+            };
+            if action["action"] == "hide" {
+                if elapsed < 1.0 {
+                    state["official_pictures"]["big"] = before["official_pictures"]["big"].clone();
+                    state["official_pictures"]["big"]["preview_opacity"] =
+                        json!(1.0 - ease(elapsed));
+                }
+            } else {
+                let fade = number(action, "fade_in", 1.0);
+                state["official_pictures"]["big"]["preview_opacity"] = json!(if fade > 0.0 {
+                    ease(elapsed / fade)
+                } else {
+                    1.0
+                });
+                state["official_pictures"]["big"]["preview_image_opacity"] = json!(if fade > 0.0 {
+                    ease((elapsed - fade) / fade)
+                } else {
+                    1.0
+                });
+            }
+            continue;
+        }
         if action["type"] == "hide_all" {
             let fade = number(action, "fadeDuration", 0.0);
             if fade > elapsed && fade > 0.0 {
@@ -2276,6 +2317,8 @@ impl Preview {
                     Color32::from_rgb(48, 44, 41),
                 );
             } else if matches!(kind, "picture" | "item" | "big") {
+                let mut painter = painter.clone();
+                painter.multiply_opacity(number(picture, "preview_opacity", 1.0) as f32);
                 if kind == "big" && picture["color"] != 2 {
                     painter.rect_filled(
                         rect,
@@ -2287,13 +2330,19 @@ impl Preview {
                         },
                     );
                 }
-                if let Some((texture, _)) = self.texture(
-                    &ctx,
-                    p,
-                    &format!("@picture:{}", text(picture, "key")),
-                    false,
-                    "",
-                ) {
+                if kind == "big" && picture["background_only"] == true {
+                    continue;
+                }
+                if kind == "big" {
+                    painter.multiply_opacity(number(picture, "preview_image_opacity", 1.0) as f32);
+                }
+                let key = text(picture, "key");
+                let lookup = if key.starts_with("user:") {
+                    key.to_owned()
+                } else {
+                    format!("@picture:{key}")
+                };
+                if let Some((texture, _)) = self.texture(&ctx, p, &lookup, false, "") {
                     let target = if kind == "big" {
                         rect
                     } else {
@@ -3078,6 +3127,35 @@ pub fn graph(
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn big_picture_preview_reveals_background_before_image_and_restores_without_replay() {
+        let story = json!({"id":"main","start":"big","nodes":[
+            {"id":"big","type":"cg","kind":"big","action":"show","key":"user:demo.big","color":0,"fade_in":2},
+            {"id":"hold","type":"wait","seconds":1},
+            {"id":"blank","type":"cg","kind":"big","action":"show","background_only":true,"color":0,"fade_in":2},
+            {"id":"hide","type":"cg","kind":"big","action":"hide"}, {"id":"end","type":"end"}]});
+        let first = simulate_frame(&story, "big", 1.0, &json!({}));
+        assert_eq!(first["official_pictures"]["big"]["preview_opacity"], 0.75);
+        assert_eq!(
+            first["official_pictures"]["big"]["preview_image_opacity"],
+            0.0
+        );
+        let image = simulate_frame(&story, "big", 3.0, &json!({}));
+        assert_eq!(image["official_pictures"]["big"]["preview_opacity"], 1.0);
+        assert_eq!(
+            image["official_pictures"]["big"]["preview_image_opacity"],
+            0.75
+        );
+        let prelude = build_playtest_prelude(&story, "hold");
+        assert!(prelude
+            .iter()
+            .any(|n| n["kind"] == "big" && n["key"] == "user:demo.big" && n["fade_in"] == 0));
+        let blank = simulate_frame(&story, "blank", 1.0, &json!({}));
+        assert_eq!(blank["official_pictures"]["big"]["background_only"], true);
+        let end = simulate(&story, "end");
+        assert!(end["official_pictures"].get("big").is_none());
+    }
+
     #[test]
     fn names_and_titles_change_independently_and_both_restore_in_playtest() {
         let story = json!({"id":"main","start":"title","nodes":[

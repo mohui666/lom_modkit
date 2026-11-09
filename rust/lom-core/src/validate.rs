@@ -1289,17 +1289,26 @@ fn extra(n: &Value, ntype: &str, catalog: &Value, check_effect_names: bool) -> R
         ),
         "cg" => {
             int_field(n, "color", 0, 2)?;
-            if s(n, "kind") == "event" && s(n, "action") == "show" {
+            if matches!(s(n, "kind"), "event" | "big") && s(n, "action") == "show" {
                 range(n, "fade_in", 0.0, f32::MAX as f64)?;
             }
+            ensure!(
+                n["background_only"] != true || s(n, "kind") == "big",
+                "只显示底色仅支持大图"
+            );
             if s(n, "action") == "show" {
                 let keys: &[&str] = match s(n, "kind") {
                     "map" => &["key", "key2"],
                     "family" => &["key", "key2", "n1", "n2"],
                     _ => &["key"],
                 };
-                require(n, keys, "action=show")?;
-                if s(n, "kind") == "event" && user(&n["key"]) {
+                if !(s(n, "kind") == "big" && n["background_only"] == true) {
+                    require(n, keys, "action=show")?;
+                }
+                if matches!(s(n, "kind"), "event" | "big")
+                    && n["background_only"] != true
+                    && user(&n["key"])
+                {
                     user_ref(&n["key"], "key")?;
                 }
             } else {

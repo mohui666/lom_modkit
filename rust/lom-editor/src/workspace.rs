@@ -3833,6 +3833,9 @@ impl App {
                             let stories = self.project.stories.keys().cloned().collect::<Vec<_>>();
                             if let Some(mut node) = story["nodes"].get(self.selected).cloned() {
                                 let event_picture = node["type"] == "cg" && node["kind"] == "event";
+                                if node["type"] == "cg" && node["kind"] == "big" {
+                                    ui.small(crate::i18n::key("editor.form.big_picture_hint"));
+                                }
                                 if event_picture {
                                     ui.small(crate::i18n::key("editor.workspace.event_hint"));
                                 }

@@ -807,6 +807,11 @@ namespace MortalModHost
                     catch (Exception ex) { Log.LogWarning("mod_background_clear 失败：" + ex.Message); }
                     return DynValue.Nil;
                 }, "mod_background_clear");
+                script.Globals["mod_big_picture_configure"] = new CallbackFunction((ctx, args) =>
+                {
+                    BigPictureRuntime.Configure(ArgFloat(args, 0, 1f));
+                    return DynValue.Nil;
+                }, "mod_big_picture_configure");
                 script.Globals["mod_event_picture_show"] = new CallbackFunction((ctx, args) =>
                 {
                     EventPictureRuntime.Show(ArgString(args, 0), ArgString(args, 1, "事件"));

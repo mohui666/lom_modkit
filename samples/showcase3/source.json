@@ -1629,6 +1629,46 @@
       "start": "say",
       "nodes": [
         {
+          "id": "white",
+          "type": "cg",
+          "kind": "big",
+          "action": "show",
+          "background_only": true,
+          "color": 0,
+          "fade_in": 0.8
+        },
+        {
+          "id": "white_hold",
+          "type": "wait",
+          "seconds": 0.5
+        },
+        {
+          "id": "white_hide",
+          "type": "cg",
+          "kind": "big",
+          "action": "hide"
+        },
+        {
+          "id": "custom_big",
+          "type": "cg",
+          "kind": "big",
+          "action": "show",
+          "key": "user:showcase.courier_station",
+          "color": 0,
+          "fade_in": 0.6
+        },
+        {
+          "id": "custom_big_hold",
+          "type": "wait",
+          "seconds": 0.5
+        },
+        {
+          "id": "custom_big_hide",
+          "type": "cg",
+          "kind": "big",
+          "action": "hide"
+        },
+        {
           "id": "say",
           "type": "say",
           "mode": "narrative",

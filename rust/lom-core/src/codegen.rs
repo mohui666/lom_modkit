@@ -128,6 +128,7 @@ struct Context<'a> {
     next: &'a str,
     content_root: &'a Path,
     preloaded: bool,
+    previous_big_pictures: bool,
     previous_visual_calls: bool,
     previous_stat_sets: bool,
     previous_shock_wait: bool,
@@ -973,6 +974,28 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                     ]);
                 }
             }
+        }
+        "cg" if !ctx.previous_big_pictures
+            && s(node, "kind") == "big"
+            && s(node, "action") == "show"
+            && (node["background_only"] == true
+                || s(node, "key").starts_with("user:")
+                || has(node, "fade_in")) =>
+        {
+            out.push("\tif mod_big_picture_configure == nil then error(\"自定义大图与纯底色需要 Host 1.5.9，请在游戏与 MOD 中更新 Host\") end".into());
+            out.push(call(
+                "mod_big_picture_configure",
+                &[n(node, "fade_in", json!(1))],
+            ));
+            let key = if node["background_only"] == true {
+                lua_str("")
+            } else {
+                q(node, "key")
+            };
+            out.push(format!(
+                "\trunwait(mainui.ShowBigPicture({key}, {}))",
+                n(node, "color", json!(0))
+            ));
         }
         "cg" => {
             let name = match s(node, "kind") {
@@ -1823,7 +1846,35 @@ pub fn compile_story(
     source: Option<&str>,
     content_root: Option<&Path>,
 ) -> Result<String> {
-    compile_story_impl(story, mod_info, source, content_root, false, false, false)
+    compile_story_impl(
+        story,
+        mod_info,
+        source,
+        content_root,
+        false,
+        false,
+        false,
+        false,
+    )
+}
+// Exact <=1.5.8 output, including author-entered fields that the older emitter
+// accepted but did not yet route to a custom big-picture implementation.
+pub(crate) fn compile_story_previous_big_pictures(
+    story: &Value,
+    mod_info: Option<&Value>,
+    source: Option<&str>,
+    content_root: Option<&Path>,
+) -> Result<String> {
+    compile_story_impl(
+        story,
+        mod_info,
+        source,
+        content_root,
+        true,
+        false,
+        false,
+        false,
+    )
 }
 // Only used to verify already-published v3 packages. Raw code is never rewritten;
 // historical structured emitters are reproduced from the authored nodes.
@@ -1833,7 +1884,16 @@ pub(crate) fn compile_story_previous_visual_calls(
     source: Option<&str>,
     content_root: Option<&Path>,
 ) -> Result<String> {
-    compile_story_impl(story, mod_info, source, content_root, true, true, true)
+    compile_story_impl(
+        story,
+        mod_info,
+        source,
+        content_root,
+        true,
+        true,
+        true,
+        true,
+    )
 }
 // Reproduce the old display-only setter solely when checking existing v3 Lua.
 // Newly compiled/exported stories always perform the actual write.
@@ -1843,7 +1903,16 @@ pub(crate) fn compile_story_previous_stat_sets(
     source: Option<&str>,
     content_root: Option<&Path>,
 ) -> Result<String> {
-    compile_story_impl(story, mod_info, source, content_root, false, true, true)
+    compile_story_impl(
+        story,
+        mod_info,
+        source,
+        content_root,
+        true,
+        false,
+        true,
+        true,
+    )
 }
 // Verify released <=1.4.16 output without changing newly exported scripts.
 pub(crate) fn compile_story_previous_shock_wait(
@@ -1852,29 +1921,58 @@ pub(crate) fn compile_story_previous_shock_wait(
     source: Option<&str>,
     content_root: Option<&Path>,
 ) -> Result<String> {
-    compile_story_impl(story, mod_info, source, content_root, false, false, true)
+    compile_story_impl(
+        story,
+        mod_info,
+        source,
+        content_root,
+        true,
+        false,
+        false,
+        true,
+    )
 }
 fn compile_story_impl(
     story: &Value,
     mod_info: Option<&Value>,
     source: Option<&str>,
     content_root: Option<&Path>,
+    previous_big_pictures: bool,
     previous_visual_calls: bool,
     previous_stat_sets: bool,
     previous_shock_wait: bool,
 ) -> Result<String> {
-    let warnings = if previous_shock_wait {
-        crate::validate::validate_story_before_1_4_17(story, content_root)?
-    } else if let Some(root) = content_root {
-        crate::validate::validate_story_with_content_root(story, root)?
+    // <=1.5.8 accepted fade_in on big pictures but ignored its value. Keep such
+    // source editable; current compilation still diagnoses invalid durations.
+    let mut historical_validation;
+    let validation_story = if previous_big_pictures {
+        historical_validation = story.clone();
+        for node in historical_validation["nodes"]
+            .as_array_mut()
+            .into_iter()
+            .flatten()
+        {
+            if node["type"] == "cg" && node["kind"] == "big" {
+                node.as_object_mut().unwrap().remove("fade_in");
+            }
+        }
+        &historical_validation
     } else {
-        crate::validate::validate_story(story)?
+        story
+    };
+    let warnings = if previous_shock_wait {
+        crate::validate::validate_story_before_1_4_17(validation_story, content_root)?
+    } else if let Some(root) = content_root {
+        crate::validate::validate_story_with_content_root(validation_story, root)?
+    } else {
+        crate::validate::validate_story(validation_story)?
     };
     let lua = story_to_lua_impl(
         story,
         mod_info,
         source,
         content_root,
+        previous_big_pictures,
         previous_visual_calls,
         previous_stat_sets,
         previous_shock_wait,
@@ -1898,13 +1996,23 @@ pub fn story_to_lua(
     source: Option<&str>,
     content_root: Option<&Path>,
 ) -> Result<String> {
-    story_to_lua_impl(story, mod_info, source, content_root, false, false, false)
+    story_to_lua_impl(
+        story,
+        mod_info,
+        source,
+        content_root,
+        false,
+        false,
+        false,
+        false,
+    )
 }
 fn story_to_lua_impl(
     story: &Value,
     mod_info: Option<&Value>,
     source: Option<&str>,
     content_root: Option<&Path>,
+    previous_big_pictures: bool,
     previous_visual_calls: bool,
     previous_stat_sets: bool,
     previous_shock_wait: bool,
@@ -1997,6 +2105,7 @@ fn story_to_lua_impl(
             next,
             content_root: root,
             preloaded: false,
+            previous_big_pictures,
             previous_visual_calls,
             previous_stat_sets,
             previous_shock_wait,
@@ -2121,6 +2230,7 @@ fn imported_story_to_lua(
                     next,
                     content_root: root,
                     preloaded: false,
+                    previous_big_pictures: false,
                     previous_visual_calls: false,
                     previous_stat_sets: false,
                     previous_shock_wait,
@@ -2273,6 +2383,7 @@ fn structured_import_to_lua(
             next,
             content_root: root,
             preloaded: false,
+            previous_big_pictures: false,
             previous_visual_calls: false,
             previous_stat_sets: false,
             previous_shock_wait,

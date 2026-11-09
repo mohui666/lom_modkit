@@ -273,7 +273,8 @@
         "wait_after": "num",
         "event_title": "str",
         "event_text": "str",
-        "fade_in": "num"
+        "fade_in": "num",
+        "background_only": "bool"
       }
     },
     "dim": {
