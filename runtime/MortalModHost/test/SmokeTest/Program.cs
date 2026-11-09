@@ -34,6 +34,7 @@ namespace MortalModHost
         private static int Run()
         {
             CharacterRotationRuntimeTests.Run();
+            AutoDialogueTimingTests.Run();
             ModSaveBrowserTests.Run();
             AddonSaveDependencyTests.Run();
             EffectPlaybackTests.Run();

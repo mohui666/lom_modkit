@@ -1,5 +1,11 @@
 # Gameplay API 实证矩阵
 
+## 2026-11-09 MOD 智能自动播放
+
+本次重新只读反编译当前 `StoryManager.StartAutoDialogue`、`SetDialogNextLineFlag`、`Menu/Log/OnPanelOpen/OnPanelClose`、`Fungus.Writer.Write/DoWaitForInput` 与 `DialogInput.SetNextLineFlag/Update`。原自动协程每 8 秒请求继续，快进每帧请求；手动提交与自动共用 StoryManager 入口。Host 标记原自动协程 MoveNext 的调用栈，仅在 MOD 包演出且非快进时阻止该协程的固定翻句；手动及原版剧情照常执行。MOD Writer 到达实际等待输入状态后按当前可见页计时，通过原 DialogInput 请求继续，保留选项拦截和原输入监听器。暂停读取原 StoryManager、Writer 与菜单状态。个人速度写 BepInEx 配置，不改变 Lua、工程或包格式。
+
+实际以游戏自动 Toggle 的事件开启自动，独立 BepInEx 配置和 `test-saves` 路径中完成 11 句定向回归：标准 2 字约 1.22 秒、10 字约 1.27 秒、40 字约 5.02 秒（均为显示完成到下一句）；3 秒 WAV 自然播完后再留约 0.31 秒。菜单和日志各暂停 1 秒，阅读剩余时间保留；手动提交、快进、选项等待、后续恢复及三档速度通过。原版范围另核对相同输入入口在无 MOD 包时仍放行，不宣称完成原版整章回归。语音等待同时修正本机 waveOut 双缓冲自然耗尽时未结束播放状态的问题，循环音频仍继续补充缓冲。
+
 ## 2026-11-09 人物大角度旋转
 
 现场只读反编译当前安装游戏的 `CharacterPlaceholder.Rotate(string,float,float)` 与 `StoryCharacterController.Rotate(float,float)`、`RestoreRotation()`、`ResetRotation()`：Rotate 先保存 `_rotationAngle`，再把角度转为 `Quaternion.Euler` 交给 `DORotateQuaternion`；RestoreRotation 使用保存的角度，ResetRotation 将角度归零。四元数目标不能保存圈数。Host 仅在作品运行时包装 `StoryCharacterController.Rotate`，保留原字段和恢复／重置入口，按未取模的数值角度插值，写入运行时 holder 的 world rotation；自定义人物同样保留数值角度并写入自己的 local rotation。清舞台、重置、恢复及销毁人物时停止相应动画，不改官方资产或生成 Lua。

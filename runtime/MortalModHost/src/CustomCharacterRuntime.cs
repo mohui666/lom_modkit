@@ -64,6 +64,7 @@ namespace MortalModHost
 
         public static void ClearAll()
         {
+            AutoDialogueRuntime.Clear();
             CharacterPresentation.NarrativeLeft(false);
             CharacterDimming.Clear();
             CharacterLayoutRuntime.Clear();
