@@ -43,6 +43,7 @@ pub struct ToolsPanel {
     installation: Option<Value>,
     mods: Vec<Value>,
     mods_error: Option<String>,
+    pending_remove_mod: Option<(PathBuf, String)>,
     game_loaded: bool,
     refresh_after_job: bool,
     report: Value,
@@ -103,6 +104,7 @@ impl Default for ToolsPanel {
             installation: None,
             mods: vec![],
             mods_error: None,
+            pending_remove_mod: None,
             game_loaded: false,
             refresh_after_job: false,
             report: Value::Null,
@@ -248,7 +250,7 @@ impl ToolsPanel {
         self.report_open = true;
     }
     pub fn dialog_open(&self) -> bool {
-        self.report_open || self.help_open
+        self.report_open || self.help_open || self.pending_remove_mod.is_some()
     }
     pub fn open_help(&mut self) {
         self.help.open_guide();
@@ -401,6 +403,37 @@ impl ToolsPanel {
         }
     }
     pub fn show_dialog(&mut self, ctx: &egui::Context, project: &Project) {
+        use crate::i18n::tr;
+        if let Some((path, name)) = self.pending_remove_mod.clone() {
+            let mut cancel = false;
+            let mut remove = false;
+            let response = egui::Modal::new(egui::Id::new("remove-installed-mod"))
+                .frame(crate::shell::dialog_frame())
+                .show(ctx, |ui| {
+                    ui.set_width(440.0_f32.min(ctx.content_rect().width() - 64.0).max(240.0));
+                    cancel |= crate::shell::dialog_header(ui, &tr("删除 MOD"));
+                    ui.label(crate::i18n::message(
+                        "common.mod.remove_confirm",
+                        &[("name", name.clone())],
+                    ));
+                    ui.label(path.display().to_string());
+                    ui.small(crate::i18n::key("common.mod.remove_scope"));
+                    crate::shell::dialog_buttons(ui, |ui| {
+                        remove = ui.button(tr("删除 MOD")).clicked();
+                        cancel |= ui.button(tr("取消")).clicked();
+                    });
+                });
+            if remove {
+                self.pending_remove_mod = None;
+                let result = game_tools::remove_mod(&self.game, &path)
+                    .map(|_| json!({"message":format!("已删除 MOD：{name}"),"path":path}));
+                self.result("删除 MOD", result);
+                self.refresh_game();
+            } else if cancel || response.should_close() {
+                self.pending_remove_mod = None;
+            }
+            return;
+        }
         if self.help_open {
             self.show_help(ctx);
             return;
@@ -554,6 +587,12 @@ impl ToolsPanel {
         std::mem::take(&mut self.export_requested)
     }
     pub fn export_play_bundle(&mut self, project: &Project) {
+        if self.game.join("Mortal.exe").is_file() {
+            if let Err(error) = game_tools::matching_installed_mod(&self.game, &project.manifest) {
+                self.result::<Value>("导出完整游玩包", Err(error));
+                return;
+            }
+        }
         if self.job.is_some() {
             self.report_title = self.job_title.clone();
             self.report_open = true;
@@ -839,11 +878,11 @@ impl ToolsPanel {
         ui.heading(tr("已安装 MOD"));
         ui.horizontal_wrapped(|ui| {
             if ui
-                .add_enabled(idle && ready, egui::Button::new(tr("安装当前作品")))
+                .add_enabled(idle && ready, egui::Button::new(tr("安装 / 更新当前作品")))
                 .clicked()
             {
                 self.result(
-                    "安装当前作品",
+                    "安装 / 更新当前作品",
                     crate::game_setup::install_project(&self.game, project),
                 );
                 self.refresh_game();
@@ -903,7 +942,39 @@ impl ToolsPanel {
                         );
                         self.refresh_game();
                     }
+                    if item["manifest"]["id"] == project.manifest["id"]
+                        && ui
+                            .add_enabled(idle && ready, egui::Button::new(tr("更新为当前作品")))
+                            .clicked()
+                    {
+                        self.result(
+                            "更新当前作品",
+                            crate::game_setup::install_project(&self.game, project),
+                        );
+                        self.refresh_game();
+                    }
+                    if ui
+                        .add_enabled(idle, egui::Button::new(tr("删除 MOD")))
+                        .clicked()
+                    {
+                        self.pending_remove_mod = Some((PathBuf::from(path), name.to_owned()));
+                    }
                 });
+                if let Some(id) = item["manifest"]["id"].as_str() {
+                    ui.small(crate::i18n::message("common.mod.id", &[("id", id.into())]));
+                    if self
+                        .mods
+                        .iter()
+                        .filter(|row| row["manifest"]["id"] == id)
+                        .count()
+                        > 1
+                    {
+                        ui.colored_label(
+                            egui::Color32::from_rgb(179, 55, 49),
+                            crate::i18n::key("common.mod.duplicate_id"),
+                        );
+                    }
+                }
                 if let Some(error) = item["error"].as_str() {
                     crate::error_ui::show_with_actions(ui, error);
                 }

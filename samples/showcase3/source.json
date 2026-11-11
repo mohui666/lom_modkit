@@ -4,13 +4,13 @@
     "package_format": 3,
     "story_schema": 2,
     "content_schema": 1,
-    "min_host_version": "1.5.5",
+    "min_host_version": "1.5.10",
     "id": "showcase3",
     "campaign_id": "showcase3",
-    "name": "全节点样例3.0·七十一节点实机验收",
+    "name": "全节点样例3.0·七十二节点实机验收",
     "version": "3.0.0",
     "author": "lom_modkit",
-    "description": "面向手动验收的 71 节点完整样例：用户图片/角色/音频、演出、人物称号、数值与检定、MOD 任务/持久变量、奖励/商店、原版 Combat/Battle 编排、独立决斗背景、运行时人物绑定、死亡与安全返回。 包含 1.4 自定义功法、物品、主动消耗品、决斗援助、招式与序列帧动画。",
+    "description": "面向手动验收的 72 节点完整样例：用户图片/角色/音频、演出、人物资料与传记解锁、人物称号、数值与检定、MOD 任务/持久变量、奖励/商店、原版 Combat/Battle 编排、独立决斗背景、运行时人物绑定、死亡与安全返回。 包含 1.4 自定义功法、物品、主动消耗品、决斗援助、招式与序列帧动画。",
     "entry": "main",
     "campaign": {
       "new_game": true
@@ -151,6 +151,12 @@
           "appearance": "original"
         },
         {
+          "id": "profile_meet",
+          "type": "character_profile",
+          "character": "user:showcase.lin_deng",
+          "op": "meet"
+        },
+        {
           "id": "show3",
           "type": "show",
           "character": "user:showcase.lin_deng",
@@ -159,6 +165,13 @@
           "facing": "left",
           "fadeDuration": 0,
           "moveDuration": 0
+        },
+        {
+          "id": "profile_biography_unlock",
+          "type": "character_profile",
+          "character": "user:showcase.lin_deng",
+          "op": "unlock_biography",
+          "page": 2
         },
         {
           "id": "say2",
@@ -527,23 +540,67 @@
           "dir": "lr"
         },
         {
+          "id": "custom_affinity_up",
+          "type": "affinity",
+          "character": "user:showcase.lin_deng",
+          "delta": 3,
+          "show_message": true
+        },
+        {
+          "id": "custom_affinity_down",
+          "type": "affinity",
+          "character": "user:showcase.lin_deng",
+          "delta": -2,
+          "show_message": true
+        },
+        {
+          "id": "custom_biography",
+          "type": "intro",
+          "intro_source": "character",
+          "character": "user:showcase.lin_deng"
+        },
+        {
           "id": "camera1",
           "type": "camera",
           "name": "stage-memory",
-          "active": true
+          "active": true,
+          "duration": 1.2,
+          "exclude_characters": ["user:showcase.lin_deng"]
         },
         {
           "id": "camera_preview_note",
           "type": "say",
           "mode": "narrative",
-          "text": "回忆滤镜已开启。编辑器会近似显示色调；从本步骤试玩也会恢复前面的滤镜状态。"
+          "text": "回忆滤镜用 1.2 秒渐入。赵活与场景进入回忆色调，讲述者林灯保持原彩；下一步再用 1.2 秒淡出滤镜。"
         },
         {
           "id": "camera2",
           "type": "camera",
           "name": "stage-memory",
-          "active": false
+          "active": false,
+          "duration": 1.2
         },
+          {
+            "id": "camera_gray_in",
+            "type": "camera",
+            "name": "stage-gray-100",
+            "active": true,
+            "duration": 1.2,
+            "exclude_characters": ["user:showcase.lin_deng"]
+          },
+          {
+            "id": "camera_gray_note",
+            "type": "say",
+            "mode": "narrative",
+            "text": "现在进入黑白回忆。场景与赵活先渲染并应用黑白滤镜；林灯与气泡放在场景后处理之后、对白之前绘制，保留原彩。"
+          },
+          {
+            "id": "camera_gray_out",
+            "type": "camera",
+            "name": "stage-gray-100",
+            "active": false,
+            "duration": 1.2
+          },
         {
           "id": "block1",
           "type": "block",

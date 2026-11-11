@@ -23,11 +23,12 @@ namespace MortalModHost
         internal readonly HashSet<string> Completed = new HashSet<string>(StringComparer.Ordinal);
         internal string Pending;
         internal string Result = "completed";
+        internal StoryEntryReturn StoryReturn;
 
         internal static ScenarioState Parse(string json)
         {
             var r = ScenarioJson.Object(MiniJson.Parse(json));
-            ScenarioJson.Fields(r, "schema", "variables", "tasks", "attempts", "pools", "completed", "pending", "result");
+            ScenarioJson.Fields(r, "schema", "variables", "tasks", "attempts", "pools", "completed", "pending", "result", "story_return");
             ScenarioJson.Int(r,"schema",1,1);
             var state = new ScenarioState();
             var vars = ScenarioJson.Object(ScenarioJson.Value(r,"variables"));
@@ -50,6 +51,11 @@ namespace MortalModHost
             state.Pending=ScenarioJson.Text(r,"pending",false);
             ScenarioJson.Require(state.Pending == null || ScenarioJson.ValidId(state.Pending),"存档事件 id 无效");
             state.Result=ScenarioJson.Id(r,"result");
+            object storyReturn;
+            if (r.TryGetValue("story_return",out storyReturn)) {
+                ScenarioJson.Require(state.Pending!=null,"章节续接缺少进行中事件");
+                state.StoryReturn=StoryEntryReturn.Parse(ScenarioJson.Object(storyReturn));
+            }
             return state;
         }
         internal static string ToJson(object value) {var b=new StringBuilder();Write(b,value);return b.ToString();}
@@ -61,6 +67,7 @@ namespace MortalModHost
                 {"completed",completed},{"result",Result}
             };
             if (Pending != null) r.Add("pending",Pending);
+            if (StoryReturn != null) r.Add("story_return",StoryReturn.ToJson());
             var b = new StringBuilder(); Write(b,r); return b.ToString();
         }
         private static void Write(StringBuilder b, object value)
@@ -96,6 +103,32 @@ namespace MortalModHost
             else b.Append(Convert.ToString(value,CultureInfo.InvariantCulture));
         }
     }
+    // Stored inside the existing namespaced event record, alongside Pending.
+    // These are the original LuaManager script registers, not a second save file.
+    internal sealed class StoryEntryReturn
+    {
+        internal string Target, From, Start="", Travel="", Temp1="", Temp2="", Temp3="";
+        internal bool SaveEnabled;
+        internal static StoryEntryReturn Parse(Dictionary<string,object> value)
+        {
+            ScenarioJson.Fields(value,"target","from","start","save_enabled","travel","temp1","temp2","temp3");
+            var result=new StoryEntryReturn {Target=ScenarioJson.Text(value,"target"),From=ScenarioJson.Text(value,"from",false),
+                Start=ScenarioJson.Text(value,"start"),SaveEnabled=ScenarioJson.Bool(value,"save_enabled",false),
+                Travel=ScenarioJson.Text(value,"travel"),Temp1=ScenarioJson.Text(value,"temp1"),
+                Temp2=ScenarioJson.Text(value,"temp2"),Temp3=ScenarioJson.Text(value,"temp3")};
+            ScenarioJson.Require(VanillaStoryPatch.ValidTarget(result.Target),"章节续接目标无效");
+            foreach(string script in new[]{result.From,result.Start,result.Travel,result.Temp1,result.Temp2,result.Temp3})
+                ScenarioJson.Require(script==null || script.Length<=256,"章节续接寄存器过长");
+            return result;
+        }
+        internal Dictionary<string,object> ToJson()
+        {
+            var value=new Dictionary<string,object>{{"target",Target},{"start",Start},{"save_enabled",SaveEnabled},
+                {"travel",Travel},{"temp1",Temp1},{"temp2",Temp2},{"temp3",Temp3}};
+            if(From!=null)value.Add("from",From);
+            return value;
+        }
+    }
     internal sealed class ScenarioEngine
     {
         internal readonly ScenarioConfig Config;
@@ -112,6 +145,13 @@ namespace MortalModHost
                 else if (!task.States.Contains(current)) throw new InvalidOperationException("任务存档状态不在当前配置中："+task.Id+"/"+current);
             }
             if (state.Pending != null && config.FindEvent(state.Pending) == null) throw new InvalidOperationException("存档中的进行中事件已不在配置中："+state.Pending);
+            if (state.Pending!=null && config.FindEvent(state.Pending).Trigger=="story_entry")
+                ScenarioJson.Require(state.StoryReturn!=null,"进行中的章节入口事件缺少续接数据");
+            if (state.StoryReturn!=null) {
+                var pending=config.FindEvent(state.Pending);
+                ScenarioJson.Require(pending!=null && pending.Trigger=="story_entry" && pending.Target==state.StoryReturn.Target
+                    && (pending.From==null || pending.From==state.StoryReturn.From),"存档中的章节续接与当前事件配置不一致");
+            }
         }
         internal static bool ModeAllows(string mode, string packageCampaign, string activeCampaign)
         {
@@ -126,7 +166,14 @@ namespace MortalModHost
         }
         internal ScenarioEvent Select(string trigger, string position)
         {
+            return Select(trigger,position,null,null);
+        }
+        internal ScenarioEvent Select(string trigger, string position, string target, string from)
+        {
             if (State.Pending != null) return null;
+            // Old auto/position-only packages must not advance task transitions
+            // merely because the game enters an original chapter.
+            if (trigger=="story_entry" && !Config.MatchesStoryEntry(target,from)) return null;
             var transitions=new Dictionary<string,string>(StringComparer.Ordinal);
             foreach (ScenarioTask task in Config.Tasks.Values)
             {
@@ -143,6 +190,7 @@ namespace MortalModHost
             {
                 string attempt;
                 if (!e.Enabled || e.Trigger != trigger || (trigger=="position" && e.Position!=position)
+                    || trigger=="story_entry" && (e.Target!=target || e.From!=null && e.From!=from)
                     || e.Once && State.Completed.Contains(e.Id)
                     || e.Pool!=null && State.Pools.TryGetValue(e.Pool,out attempt) && attempt==Token(e.Check)
                     || State.Attempts.TryGetValue(e.Id,out attempt) && attempt==Token(e.Check) || !Test(e.When)) continue;
@@ -181,7 +229,9 @@ namespace MortalModHost
                     double roll=Draw()*total;
                     while (index<ready.Count-1 && roll>=weights[index]) { roll-=weights[index]; index++; }
                 }
-                ScenarioEvent selected=ready[index]; State.Pending=selected.Id; State.Result="completed"; return selected;
+                ScenarioEvent selected=ready[index]; State.Pending=selected.Id; State.Result="completed";
+                if(trigger=="story_entry")State.StoryReturn=new StoryEntryReturn {Target=target,From=from};
+                return selected;
             }
             return null;
         }
@@ -213,7 +263,7 @@ namespace MortalModHost
             var next=ScenarioState.Parse(State.Serialize());
             next.Variables.Clear(); foreach (var v in variables) next.Variables.Add(v.Key,v.Value);
             if (effects.TryGetValue("tasks",out ops)) foreach (var t in ScenarioJson.Object(ops)) next.Tasks[t.Key]=(string)t.Value;
-            next.Completed.Add(e.Id); next.Pending=null; next.Result="completed";
+            next.Completed.Add(e.Id); next.Pending=null; next.Result="completed"; next.StoryReturn=null;
             if(validateState!=null) validateState(next);
             var actions=ScenarioJson.Array(effects,"actions",true);
             if(actions.Count>0) {
@@ -223,9 +273,9 @@ namespace MortalModHost
             // Commit owned state only after preflight and official actions succeed.
             State.Variables.Clear(); foreach (var v in next.Variables) State.Variables.Add(v.Key,v.Value);
             State.Tasks.Clear(); foreach (var t in next.Tasks) State.Tasks.Add(t.Key,t.Value);
-            State.Completed.Add(e.Id); State.Pending=null; State.Result="completed";
+            State.Completed.Add(e.Id); State.Pending=null; State.Result="completed"; State.StoryReturn=null;
         }
-        internal void Abort() { State.Pending=null; State.Result="completed"; }
+        internal void Abort() { State.Pending=null; State.Result="completed"; State.StoryReturn=null; }
         private string Token(string check)
         {
             string token=_context.Year.ToString(CultureInfo.InvariantCulture)+"/"+_context.Month.ToString(CultureInfo.InvariantCulture);

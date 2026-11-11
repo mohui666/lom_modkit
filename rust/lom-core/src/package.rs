@@ -589,13 +589,67 @@ fn add_user_content(
 ) -> Result<()> {
     let mut referenced: BTreeMap<String, String> = BTreeMap::new();
     let extensions = content::character_extensions_at(root)?;
-    let scenario_nodes = scenario
+    let mut scenario_nodes = scenario
         .map(content::scenario_gameplay_nodes)
         .unwrap_or_default();
-    for node in stories
-        .values()
-        .flat_map(|story| crate::parallel::story_actions(story).map(|(_, node)| node))
-        .chain(scenario_nodes.iter())
+    let characters = root.join("assets/user/character");
+    if characters.is_dir() {
+        for entry in fs::read_dir(characters)? {
+            let metadata_path = entry?.path().join("content.json");
+            if !metadata_path.is_file() {
+                continue;
+            }
+            let raw = load_json(resolve_confined_file(root, &metadata_path)?)?;
+            if raw["biography"].is_null()
+                && raw.get("biography_pages").is_none()
+                && raw.get("initially_known").is_none()
+            {
+                continue;
+            }
+            let metadata = content::normalize_content_metadata(&raw)
+                .with_context(|| format!("人物资料：{}", metadata_path.display()))?;
+            crate::character_profile::validate_for_export(&metadata)
+                .with_context(|| format!("人物资料：{}", metadata_path.display()))?;
+            ensure!(
+                metadata["type"] == "character"
+                    && metadata_path
+                        .parent()
+                        .and_then(Path::file_name)
+                        .and_then(|name| name.to_str())
+                        == metadata["id"].as_str(),
+                "人物资料 ID 与素材目录不一致：{}",
+                metadata_path.display()
+            );
+            if crate::character_profile::has_profile(&metadata)
+                && metadata["extends"].as_str().unwrap_or("").is_empty()
+            {
+                scenario_nodes.push(json!({"type":"affinity", "character":format!("user:{}", metadata["id"].as_str().context("人物资料缺少 id")?), "delta":0}));
+            }
+        }
+    }
+    for trigger in manifest["campaign"]["triggers"]
+        .as_array()
+        .into_iter()
+        .flatten()
+    {
+        if let Some(character) = trigger["when_affinity"]["character"]
+            .as_str()
+            .filter(|id| id.starts_with("user:"))
+        {
+            scenario_nodes.push(json!({"type":"affinity","character":character,"delta":0}));
+        }
+    }
+    for (story_id, parent, node) in stories
+        .iter()
+        .flat_map(|(id, story)| {
+            crate::parallel::story_actions(story)
+                .map(move |(parent, node)| (id.as_str(), parent, node))
+        })
+        .chain(
+            scenario_nodes
+                .iter()
+                .map(|node| ("scenario.json", node, node)),
+        )
     {
         let kind = node["type"].as_str().unwrap_or("");
         let mut refs = Vec::new();
@@ -675,6 +729,14 @@ fn add_user_content(
                 );
             }
             let (meta, _main) = content::resolve_content(root, ctype, id)?;
+            if ctype == "character" {
+                crate::character_profile::validate_for_export(&meta)?;
+                if kind == "character_profile" {
+                    crate::character_profile::validate_reference(node, &meta).with_context(
+                        || format!("章节 {story_id}，步骤 {} 的人物资料操作", parent["id"]),
+                    )?;
+                }
+            }
             if ctype == "item" {
                 ensure!(
                     category.is_some_and(|category| meta["category"] == category),
@@ -1216,7 +1278,60 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
                     || matches!(node["name_action"].as_str(), Some("set" | "reset")))
         })
     });
-    if extended_big_picture
+    let custom_affinity = stories.values().any(|story| {
+        crate::parallel::story_actions(story).any(|(_, node)| {
+            matches!(node["type"].as_str(), Some("affinity" | "affinity_check"))
+                && node["character"]
+                    .as_str()
+                    .is_some_and(|id| id.starts_with("user:"))
+                || content::gameplay_references(node)
+                    .iter()
+                    .any(|(raw, kind, _)| *kind == "character" && raw.starts_with("user:"))
+        })
+    }) || entries.iter().any(|(path, bytes)| {
+        path.starts_with("assets/user/character/")
+            && path.ends_with("/content.json")
+            && serde_json::from_slice::<Value>(bytes).is_ok_and(|meta| {
+                !meta["avatar"].is_null()
+                    || !meta["initial_affinity"].is_null()
+                    || !meta["biography"].is_null()
+                    || meta.get("initially_known").is_some()
+                    || meta.get("biography_pages").is_some()
+            })
+    }) || scenario.as_ref().is_some_and(|config| {
+        content::scenario_gameplay_nodes(config).iter().any(|node| {
+            node["type"] == "affinity"
+                && node["character"]
+                    .as_str()
+                    .is_some_and(|id| id.starts_with("user:"))
+        })
+    }) || manifest["campaign"]["triggers"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .any(|trigger| {
+            trigger["when_affinity"]["character"]
+                .as_str()
+                .is_some_and(|id| id.starts_with("user:"))
+        });
+    let filter_controls = stories.values().any(|story| {
+        crate::parallel::story_actions(story).any(|(_, node)| {
+            node["type"] == "camera"
+                && (node["duration"].as_f64().unwrap_or(0.0) > 0.0
+                    || node.get("exclude_characters").is_some())
+        })
+    });
+    let story_entry = scenario.as_ref().is_some_and(|config| {
+        config["events"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .any(|event| event["trigger"] == "story_entry")
+    });
+    if story_entry
+        || filter_controls
+        || custom_affinity
+        || extended_big_picture
         || custom_talents
         || character_names
         || character_titles
@@ -1228,7 +1343,9 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
         || event_fade
         || dialogue_dimming
     {
-        let (minimum, required) = if extended_big_picture {
+        let (minimum, required) = if story_entry || filter_controls || custom_affinity {
+            ([1, 5, 10], "1.5.10")
+        } else if extended_big_picture {
             ([1, 5, 9], "1.5.9")
         } else if custom_talents {
             ([1, 5, 8], "1.5.8")

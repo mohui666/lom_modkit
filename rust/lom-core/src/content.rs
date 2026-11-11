@@ -234,6 +234,12 @@ pub fn normalize_content_metadata(data: &Value) -> Result<Value> {
         CONTENT_TYPES.contains(&kind),
         "type 必须是 audio / character / image / item / martial / support / skill / talent 之一"
     );
+    if kind != "character" {
+        ensure!(
+            data.get("initially_known").is_none() && data.get("biography_pages").is_none(),
+            "initially_known 与 biography_pages 仅支持 character 人物素材"
+        );
+    }
     let name = text(data, "name").trim();
     ensure!(!name.is_empty(), "name（显示名称）必须是非空字符串");
     ensure!(
@@ -354,6 +360,20 @@ pub fn normalize_content_metadata(data: &Value) -> Result<Value> {
             ensure!(title.is_null(), "title（对话称号）必须是字符串");
         }
         meta["intro"] = intro;
+        if !data["biography"].is_null() {
+            ensure!(
+                data["biography"].is_string(),
+                "biography（状态页人物传记）必须是文字"
+            );
+            meta["biography"] = json!(text(data, "biography").trim());
+        }
+        crate::character_profile::normalize_metadata(data, &mut meta)?;
+        if let Some(avatar) = optional_image(&data["avatar"], "avatar（好感头像）")? {
+            meta["avatar"] = json!(avatar);
+        }
+        if !data["initial_affinity"].is_null() {
+            meta["initial_affinity"] = json!(integer_field(data, "initial_affinity", 0, 100)?);
+        }
         meta["scale"] = positive_scale(&data["scale"], "scale")?;
         for (key, default) in [("mood_x", 50), ("mood_y", 90)] {
             if !data[key].is_null() {
@@ -639,6 +659,17 @@ fn normalize_gameplay_metadata(data: &Value, meta: &mut Value) -> Result<()> {
 pub fn gameplay_references(node: &Value) -> Vec<(&str, &'static str, &str)> {
     let mut refs = Vec::new();
     match text(node, "type") {
+        "affinity" | "affinity_check" | "character_profile" => {
+            refs.push((text(node, "character"), "character", ""))
+        }
+        "free_trigger" => refs.push((text(node, "when_affinity"), "character", "")),
+        "camera" => {
+            for id in node["exclude_characters"].as_array().into_iter().flatten() {
+                if let Some(id) = id.as_str() {
+                    refs.push((id, "character", ""));
+                }
+            }
+        }
         "talent" | "talent_check" => refs.push((text(node, "talent"), "talent", "")),
         "item" | "item_check" | "use_item" => {
             if node["type"] == "use_item" {
@@ -699,6 +730,9 @@ pub fn gameplay_references(node: &Value) -> Vec<(&str, &'static str, &str)> {
         "reward" | "result_screen" | "activity" => {
             for field in ["entries", "success_rewards", "failure_rewards"] {
                 if let Some(items) = node[field].as_array() {
+                    for item in items.iter().filter(|i| i["kind"] == "affinity") {
+                        refs.push((text(item, "key"), "character", ""));
+                    }
                     for item in items.iter().filter(|i| i["kind"] == "talent") {
                         refs.push((text(item, "key"), "talent", ""));
                     }
@@ -749,6 +783,11 @@ pub fn scenario_gameplay_nodes(config: &Value) -> Vec<Value> {
                 if value["type"] == "talent" && text(value, "key").starts_with("user:") {
                     result.push(json!({"type":"talent","talent":value["key"]}));
                 }
+                if (value["type"] == "affinity" || value["source"] == "affinity")
+                    && text(value, "key").starts_with("user:")
+                {
+                    result.push(json!({"type":"affinity","character":value["key"],"delta":0}));
+                }
                 for child in object.values() {
                     collect(child, result);
                 }
@@ -789,6 +828,7 @@ pub fn listed_content_files(meta: &Value) -> Vec<String> {
         }
     }
     add(&meta["intro"]["image"]);
+    add(&meta["avatar"]);
     out
 }
 pub fn content_metadata_payload(meta: &Value) -> Value {
@@ -832,6 +872,17 @@ pub fn content_metadata_payload(meta: &Value) -> Value {
         }
         if meta["intro"].is_object() {
             p.insert("intro".into(), meta["intro"].clone());
+        }
+        for key in [
+            "avatar",
+            "initial_affinity",
+            "biography",
+            "initially_known",
+            "biography_pages",
+        ] {
+            if !meta[key].is_null() {
+                p.insert(key.into(), meta[key].clone());
+            }
         }
         for key in ["portrait_layouts", "portrait_reference"] {
             if !meta[key].is_null() {

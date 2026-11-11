@@ -34,6 +34,7 @@ namespace MortalModHost
         private static int Run()
         {
             CharacterRotationRuntimeTests.Run();
+            CharacterMovementRuntimeTests.Run();
             AutoDialogueTimingTests.Run();
             ModSaveBrowserTests.Run();
             AddonSaveDependencyTests.Run();
@@ -199,6 +200,7 @@ namespace MortalModHost
                 PlayModeTests.Run();
                 TestPersistentStateStore(Path.Combine(modsDir, "campaign_state"));
                 CustomGameplayTests.Run(modsDir);
+                CharacterProfileTests.Run(modsDir);
                 CustomConsumableTests.Run();
 
                 Console.WriteLine("--- 扫描信息 ---");
@@ -1353,6 +1355,7 @@ namespace MortalModHost
                     "{\"schema\":1,\"content_schema\":1,\"id\":\"mohui.luoxue\",\"type\":\"character\",\"name\":\"洛雪\",\"scale\":80,\"art_facing\":\"right\",\"portrait_reference\":\"normal\",\"portrait_layouts\":{\"happy\":{\"x\":-24.5,\"y\":-80,\"scale\":85.5}},\"files\":{\"main\":\"normal.png\"},\"portraits\":{\"normal\":\"normal.png\",\"happy\":\"happy.png\"}}";
                 string imageJson =
                     "{\"schema\":1,\"content_schema\":1,\"id\":\"mohui.moon_bg\",\"type\":\"image\",\"name\":\"月夜\",\"files\":{\"main\":\"moon.jpg\"}}";
+                charJson = charJson.Substring(0, charJson.Length - 1) + ",\"avatar\":\"happy.png\",\"initial_affinity\":37}";
                 byte[] png = new byte[] {
                     0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A,0x00,0x00,0x00,0x0D,0x49,0x48,0x44,0x52,
                     0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01,0x08,0x02,0x00,0x00,0x00,0x90,0x77,0x53,
@@ -1377,6 +1380,7 @@ namespace MortalModHost
                     && ch.Type == "character"
                     && ch.Portraits != null
                     && ch.Portraits.ContainsKey("happy")
+                    && ch.AvatarFile == "happy.png" && ch.InitialAffinity == 37
                     && ch.Files != null
                     && ch.Files.ContainsKey("happy.png")
                     && ch.Scale == 80
@@ -1814,6 +1818,18 @@ namespace MortalModHost
                 "姓名另存应保存当前值，保留旧槽");
             reloaded.SetCharacterName(updatedPackage, slot, "player", null);
             Assert(!reloaded.TryGetCharacterName(updatedPackage, slot, "player", out name), "恢复原名清除姓名覆盖");
+            Assert(reloaded.CharacterAffinity(updatedPackage, slot, "user:demo.actor", 23) == 23,
+                "旧 sidecar 不含人物好感时应采用素材初始值");
+            reloaded.SetCharacterAffinity(updatedPackage, slot, "user:demo.actor", 61);
+            reloaded.Flush();
+            var affinityReloaded = new PersistentStateStore(root);
+            Assert(affinityReloaded.CharacterAffinity(updatedPackage, slot, "user:demo.actor", 23) == 61,
+                "自定义人物好感应在磁盘保存后恢复");
+            affinityReloaded.SetCharacterAffinity(updatedPackage, slot, "user:demo.actor", 17);
+            affinityReloaded.SaveToSlot(updatedPackage, titleCopy);
+            Assert(new PersistentStateStore(root).CharacterAffinity(updatedPackage, titleCopy, "user:demo.actor", 23) == 17
+                && new PersistentStateStore(root).CharacterAffinity(updatedPackage, slot, "user:demo.actor", 23) == 61,
+                "人物好感另存应保存当前值，保留旧槽");
             bool wrongSlot = false;
             try { reloaded.Get(updatedPackage, "universe", "chapter"); }
             catch (InvalidOperationException) { wrongSlot = true; }
@@ -1830,6 +1846,8 @@ namespace MortalModHost
             Assert(badIdentity, "sidecar 必须独立拒绝路径型 id 与非十六进制指纹");
 
             reloaded.BeginNewCampaign(updatedPackage, slot);
+            Assert(reloaded.CharacterAffinity(updatedPackage, slot, "user:demo.actor", 23) == 23,
+                "新战役清除自定义人物好感，恢复素材初始值");
             Assert(!reloaded.TryGetCharacterName(updatedPackage, slot, "trainee_girl1", out name), "新战役清除姓名覆盖");
             Assert(!reloaded.TryGetCharacterTitle(updatedPackage, slot, "brother1", out title), "新战役必须清除称号覆盖");
             Assert(reloaded.Get(updatedPackage, slot, "chapter") == 0,

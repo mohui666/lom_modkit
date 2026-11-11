@@ -173,18 +173,8 @@ pub fn install_play_bundle(bundle: &Path, game: &Path) -> Result<Value> {
         &bundle.join(format!("loaders/{architecture}.zip")),
     )?;
     validate_loader_archive(&architecture, &loader)?;
-    let installed = game_tools::list_mods(game)?;
-    let same: Vec<_> = installed
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter(|row| row["manifest"]["id"] == manifest["id"])
-        .collect();
-    ensure!(
-        same.len() <= 1,
-        "同一作品已有多个安装包，请先在 MOD 管理中核对"
-    );
-    let (filename, enabled) = if let Some(row) = same.first() {
+    let installed = game_tools::matching_installed_mod(game, &manifest)?;
+    let (filename, enabled) = if let Some(row) = &installed {
         (
             Path::new(row["path"].as_str().unwrap())
                 .file_name()

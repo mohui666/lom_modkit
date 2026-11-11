@@ -28,7 +28,7 @@ namespace MortalModHost
     {
         public const string GUID = "com.mohui666.mortalmodhost";
         public const string NAME = "MortalModHost";
-        public const string VERSION = "1.5.9";
+        public const string VERSION = "1.5.10";
 
         internal static Plugin Instance { get; private set; }
 

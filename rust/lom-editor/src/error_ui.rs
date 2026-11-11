@@ -91,6 +91,9 @@ pub fn text(message: &str) -> String {
 }
 
 fn readable_summary(message: &str) -> String {
+    if message.contains("作品编号") && message.contains("作品设置") {
+        return message.to_owned();
+    }
     if let Some((_, detail)) = message.split_once("包内 ") {
         if let Some((lua, detail)) = detail.split_once(" 不是由对应 ") {
             if let Some((story, _)) = detail.split_once(" 编译生成") {
@@ -521,7 +524,10 @@ mod tests {
                 checked += 1;
             }
         }
-        assert!(checked >= 267);
+        assert_eq!(
+            checked, 266,
+            "reviewed custom-character affinity is now valid"
+        );
         assert_eq!(
             readable_summary("story.json: 节点 \"s\"(say): 缺少必填字段 \"text\""),
             "请填写文本。"

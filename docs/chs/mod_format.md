@@ -5,6 +5,8 @@
 **所有组件（编辑器 / 编译器 / 运行时插件）以本文档为准。** 改动需同步更新本文档。
 
 2026-10-24 工作区扩展：Host ≥1.1.3 支持 `play_mode=addon/sandbox` 与独立的 `scenario.json`。事件、任务和结果动作使用[事件与任务配置](events_and_tasks.md)契约，旧作品继续兼容。
+
+Host 1.5.10 增加 `scenario.events[].trigger="story_entry"`：必填 `target` 为原版目标章节 ID，可选 `from` 限制来源章节。两者使用原版章节 ID 的既有安全规则，不能指向 `MOD_` 注册名；其他事件类型不能填写这两个字段。时间条件继续使用 `all/any/not` 与 `time.year/month/stage`，普通结束后继续进入原目标章节。导出使用该入口的作品会自动提高最低 Host 版本，包格式及故事格式保持 v3／2，旧事件模式工程继续兼容。
 文中规则的官方脚本/反编译实证材料见 `../research/`，正文不重复展开。
 
 ## 1. 包结构
@@ -200,7 +202,7 @@ Host 从包内 Story 构建来源缓存，每次加载作品后首次进入该�
 | `intro` | 可选 `intro_source`(`official` 默认/`custom`)。official 必填 `character`；custom 必填 `name`,`text`，可选 `title`,`image`（包内 `assets/` PNG/JPG，≤8MB）、`image_scale`(正数百分比，默认100)、`image_x`/`image_y`(-30~30，默认0) | official 调用原版 `runwait(intropanel.Show(character))`；custom 调用 `mod_prepare_character_intro(title,name,text,image,scale,x,y)`。1.4.3 起 image_scale 无 40～160 限制；x 正数向右、y 正数向上，无图时隐藏头像区域 |
 | `effect` | `name`；可选 `x/y`、横纵倍数 `a/b`(默认1)、实例 `c`(1复用，其他值叠加)、`play`(bool默认true)；1.4.5 新增 `space`(`world`/`screen`)、`rotation`(默认0度)、`speed`(默认1，≥0)、`stop_after`(≥0秒)、`clear/restart`(bool默认false)、`tag`(字符串) | 详见下方特效控制。新建步骤默认为 screen、50/50；缺省 space 的旧数据保持 world、0/0。位置／缩放／角度支持有限小数，a/b 允许负数与0；所有数值须可表示为 Unity float。后台停止不等待，`wait_after` 控制步骤停留。新字段需 Host ≥1.4.5 |
 | `transition` | `phase`("in"/"out")；可选 `dir`(默认"lr"，lr/rl/tb/bt) | 黑场转场 `runwait(transitionblack.TransitionIn/Out(dir))`。**必须成对使用**：TransitionIn 隐藏剧情 UI 并盖满黑幕，TransitionOut 才恢复；有 in 无 out 时编译器警告（画面会一直黑屏） |
-| `camera` | `name`, `active`(bool) | 镜头滤镜 `maincamera.ActiveVolume(name, 0 | 1)`，如 stage-memory/stage-dream/stage-fire/stage-blurdim |
+| `camera` | `name`, `active`(bool)，可选 `duration`、`exclude_characters` | 镜头滤镜，如 stage-memory/stage-dream/stage-fire/stage-blurdim；`stage-gray-100` 是游戏自带的黑白（全灰度）滤镜。`duration` 为非负渐入／渐出秒数，0 或省略为立即切换；`exclude_characters` 是「滤镜后渲染的人物（保持原彩）」ID 数组，支持原版与 `user:` 人物。所选人物及气泡在场景后处理之后、对白和黑幕之前绘制，其他舞台人物继续在滤镜前渲染；对应滤镜淡出结束后恢复原顺序。扩展字段需要 Host 1.5.10 |
 | `block` | `flowchart`("view"/"common"), `name`；可选 `vars`: `[{"name","value"}]` | 通用 flowchart 块调用：`getvar` 逐个赋值后 `runblock(fc, name)`。覆盖 out_white/shake/flash/vshock 等 |
 | `cg` | `action`("show"/"hide"), `kind`("picture"/"item"/"big"/"map"/"family"/"title")；可选 `key`, `key2`, `n1`, `n2` | mainui 图片/地图/家谱/标题：`ShowPicture(key)`/`HidePicture`/`ShowItemPicture`/`ShowBigPicture`/`ShowMap(key,key2)`/`ShowFamilyTree(key,key2,n1,n2)`/`DisplayTitle(key)` 等。大图还支持 `key=user:...` 和 `background_only=true`（仅显示底色，无需 key）；可选 `fade_in` 为每段淡入秒数（默认1），纯底色只执行第一段，图片为底色与图片两段；这些扩展需要 Host 1.5.9。 |
 | `dim` | `character`, `dimmed`(bool 必填), `mode`(可选) | `manual` 持续保持亮暗；`until_dialogue` 保持到下一句对白，再恢复自动压暗；`auto` 立即恢复自动。旧作品省略 `mode` 时仍持续保持，新步骤默认 `until_dialogue`。临时和恢复自动需要 Host 1.5.1；与气泡、震动等可同时执行。 |
@@ -215,7 +217,7 @@ Host 从包内 Story 构建来源缓存，每次加载作品后首次进入该�
 | `stat` | `key`, `delta`；可选 `waitDisplay`(默认true), `display`(默认1), `mode`(默认"") | 主角属性增减 `statmodifymanager.Player(key, delta, mode, display)` |
 | `stat_set` | `key`, `value`；可选 `update`(bool默认false) | 绝对设置 `SetPlayer(key, value)`；update=true 用 `UpdateSetPlayerStat`（title 等用） |
 | `character_title` | `character`、称号 `action`（`keep` / `set` / `hide` / `reset`）；可选姓名 `name_action`（`keep` / `set` / `reset`，缺省 keep）；对应设置操作必填 `title` / `name`（单行，最多 80 个 UTF-16 字符）；可选 `wait_after` | 编辑器显示“修改姓名与称号”，赵活 `player`、原版人物和 `user:` 人物共用此节点，无需先登场。姓名、称号独立保持、设置或恢复，称号还可隐藏；只改姓名时令 `action=keep`。作用于后续人物对白名牌，跨章持续生效并随当前作品存档保存；赵活恢复称号后继续按原版“称号”数值属性显示。称号功能需 Host 1.5.4，新增姓名操作需 1.5.5，打包自动提高最低版本。原 1.5.4 称号节点无姓名字段时继续保留原效果和 Lua 输出 |
-| `affinity` | `character`, `delta` | 人物好感度 `statmodifymanager.Character(character, delta, 1)` |
+| `affinity` | `character`, `delta`；可选 `show_message` | 人物好感度 `statmodifymanager.Character(character, delta, display)`；1.5.10 起支持本包独立 `user:` 人物，正负值分别升降，保存在作品隔离槽，范围 0～100 |
 | `talent` | `talent`, `level`(±1) | 原版天赋 `statmodifymanager.AddTalent(id, level)`；独立自定义天赋使用 `user:` 引用并调用 `mod_talent(id, level)`，需要 Host 1.5.8 |
 | `item` | `kind`("book"/"misc"/"special"/"consumable"), `item`, `count`(默认1)；可选 `remove`(bool默认false) | 原版物品走 `AddBook/AddMisc/AddSpecial(id,count)`，原版 remove 仅 book/misc。1.4 的 `user:` 内容走 `mod_item(kind,id,count)`；consumable 仅允许用户消耗品 |
 | `use_item` | `item`，必须是本包 `user:` 养成消耗品引用 | `mod_use_item(item)`；实际应用属性效果并扣除一件；决斗专用药由决斗道具入口使用 |
@@ -230,7 +232,7 @@ Host 从包内 Story 构建来源缓存，每次加载作品后首次进入该�
 | `result_screen` | `title`（非空）、`entries`（同 reward）；可选 `text` | 先用原版 `mainui.DisplayMessageText` 显示作者填写的标题与说明，再按顺序执行 `reward` 的现有原子接口；这是作者友好的组合节点，不创建自定义结算 UI |
 | `custom_shop` | `items`(1~64)：`category`=book/misc/special、`item`(原版物品 id)、`count`(1~9999，默认1)，可选 `condition:{source,key,invert?}`；节点可选 `discount`(0/1，默认0) | Host 临时替换 `ShopDatabase` 三类库存并打开原版 `ShopPanel`，关闭或故障时恢复原库存。source=mod 读取本章 `modflags`，source=condition 调原版 `checkpointmanager.Condition`。discount=1 使用原版统一 50% 折扣；原版没有公开逐商品价格接口，`price` 字段会被拒绝 |
 | `stat_check` | `key`, `op`(>=/>/<=/</==), `value`, `success`, `failure` | 读取 `LuaManager.GetStatData(key,1)` 后二分；属性目录包含现版 54 项，心上人使用 `key="lover"` 按编号 `==` 检定，防御使用 `combat-defence` |
-| `affinity_check` | `character`, `op`, `value`, `success`, `failure` | Host 只读解析原版 RelationshipStatType 并读取 `Relationships.Get(type).Value` |
+| `affinity_check` | `character`, `op`, `value`, `success`, `failure` | 原版读取 `Relationships.Get(type).Value`；1.5.10 起本包 `user:` 人物读取作品隔离槽中的自定义好感 |
 | `item_check` | `category`=book/misc/special, `item`, `success`, `failure`；可选 `invert` | Host 只读调用原版 `ItemDatabase.HasItem`；未知 id 运行时 fail-closed |
 | `talent_check` | `talent`, `op`, `value`, `success`, `failure` | Host 只读读取原版 `PlayerStatManagerData.Talents.Get(id).Level` |
 | `flag_check` | `source`=mod/condition/flag_value, `flag`, `success`, `failure`；布尔来源可选 `invert`，flag_value 必填 `op/value` | 分别读取 `modflags`、`checkpointmanager.Condition` 或 `tonumber(luamanager.GetFlagData)`；二分节点不允许额外 goto |
@@ -545,7 +547,7 @@ user:<namespace>.<content_id>     例如 user:mohui.boss_theme
 
 官方 ID（`普通_001`、`brother4`）保持原样，不改成 `official:`。
 
-包内结构（仅打包实际引用）：
+包内结构（打包剧情实际引用的内容，以及填写状态页传记的独立人物）：
 
 ```text
 assets/user/audio/mohui.boss_theme/content.json
@@ -571,6 +573,12 @@ assets/user/image/mohui.moon_bg/moon.jpg
 对白语音仍是 `type=audio`，可另加可选管理字段 `character`（`user:mohui.luoxue` 或官方人物 id，如 `player`）。没有该字段的旧音频继续合法。`character` 不改变 `say.voice` 播放协议，也不导致未引用音频被打包。
 
 人物 `content.json` 还可选：`title`（对话短称号）、`scale`（正数体型百分比，默认 100）、`art_facing`（原图朝向 `left` 默认 / `right`）、`extends`（原版人物 ID，Host ≥1.4.3）。设置 `extends` 时仅增补或覆盖明确列出的表情，不隐式添加 normal，剧情仍引用原版 ID；每个人物同包最多一份扩展，随当前包隔离并在离开时清理。详见[原版人物补绘](user_content.md#为原版人物增加表情)。
+
+Host 1.5.10 支持人物可选 `avatar`（同目录头像文件名）、`initial_affinity`（0～100，默认 0）和 `biography`（可换行的状态页传记文本）。独立人物的姓名、称号、立绘、当前好感等级和传记显示在原版「状态」人物页，按当前作品及存档隔离。填写非空 `biography` 的独立人物即使未在剧情中登场，也会随包收集。`intro` 继续表示剧情介绍卡，和状态页传记独立保存。自定义人物好感变化使用既有 `affinity`／`affinity_check` 的 `character: "user:命名空间.人物"`；原版人物扩展可用 `avatar` 覆盖本包好感提示小头像。
+
+独立人物另可设置 `initially_known`（布尔，默认false）及 `biography_pages`（0～4个 `{ "text":"正文", "unlock_level":0 }`，等级为0～10整数，按数组顺序编号1～4）。未认识时显示黑色剪影且资料不公开；认识后按当前好感等级开放各页。旧 `biography` 在没有非空分页时继续作为0级单页使用；两种非空文稿并存时保留可编辑原稿，导出明确要求合并。填写这些资料的独立人物会随包收集。
+
+`character_profile` 节点仅操作本包独立自定义人物：`character` 使用 `user:` 引用，`op` 为 `meet`／`forget`／`unlock_biography`／`lock_biography`。认识与隐藏不填写 `page`；页操作必须填写已配置的1～4页码整数。手动页状态覆盖等级条件，认识与隐藏不改好感或清除已有解锁，状态存入所属作品的隔离存档。该节点要求Host 1.5.10，旧节点生成结果及v3包格式保持不变。
 
 - `type`：`audio` / `character` / `image`。`image` 是背景、CG、Overlay 共用的统一图片内容，不建立三个独立仓库。
 - `background.image` 只保存 `user:` 稳定引用；编辑器提供缩略图、缺失诊断与 F5 舞台重建，发布包只收集实际引用的图片。

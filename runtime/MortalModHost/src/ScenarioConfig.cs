@@ -52,10 +52,11 @@ namespace MortalModHost
             foreach (object raw in events)
             {
                 var e = ScenarioJson.Object(raw);
-                ScenarioJson.Fields(e, "id", "name", "enabled", "trigger", "position", "script", "once", "check", "priority", "chance", "pool", "weight", "weight_modifiers", "when", "outcomes");
+                ScenarioJson.Fields(e, "id", "name", "enabled", "trigger", "position", "target", "from", "script", "once", "check", "priority", "chance", "pool", "weight", "weight_modifiers", "when", "outcomes");
                 var item = new ScenarioEvent {
                     Id = ScenarioJson.Id(e, "id"), Script = ScenarioJson.Id(e, "script"),
                     Trigger = ScenarioJson.Text(e, "trigger"), Position = ScenarioJson.Text(e, "position", false),
+                    Target = ScenarioJson.Text(e, "target", false), From = ScenarioJson.Text(e, "from", false),
                     Check = ScenarioJson.Text(e, "check", false) ?? "stage", Pool = ScenarioJson.Text(e, "pool", false),
                     Enabled = ScenarioJson.Bool(e, "enabled", true), Once = ScenarioJson.Bool(e, "once", true),
                     Priority = ScenarioJson.Int(e, "priority", -100000, 100000, 0), Weight = ScenarioJson.Int(e, "weight", 0, 100000, 1),
@@ -63,11 +64,15 @@ namespace MortalModHost
                     Outcomes = ScenarioJson.Object(ScenarioJson.Value(e, "outcomes")), Raw = e
                 };
                 ScenarioJson.Require(ids.Add(item.Id), "事件 id 重复");
-                ScenarioJson.Require(item.Trigger == "start" || item.Trigger == "auto" || item.Trigger == "position", "事件入口无效");
+                ScenarioJson.Require(item.Trigger == "start" || item.Trigger == "auto" || item.Trigger == "position" || item.Trigger == "story_entry", "事件入口无效");
                 ScenarioJson.Require(item.Check == "month" || item.Check == "stage" || item.Check == "action", "判定周期无效");
                 if (item.Trigger == "position")
                     ScenarioJson.Require(Array.IndexOf(new[] { "Center", "Mall", "Alchemy", "Forge", "BackMountain", "Room1", "Room2", "Door", "Study", "Kitchen", "Secret" }, item.Position) >= 0, "事件位置无效");
                 else ScenarioJson.Require(!e.ContainsKey("position"), "非地点事件不能填写 position");
+                if (item.Trigger == "story_entry")
+                    ScenarioJson.Require(VanillaStoryPatch.ValidTarget(item.Target)
+                        && (!e.ContainsKey("from") || VanillaStoryPatch.ValidTarget(item.From)), "原版章节入口 target/from 无效");
+                else ScenarioJson.Require(!e.ContainsKey("target") && !e.ContainsKey("from"), "非原版章节入口不能填写 target/from");
                 config.ValidateCondition(item.When, 0);
                 var modifiers = ScenarioJson.Array(e, "weight_modifiers", true);
                 ScenarioJson.Require(modifiers.Count <= 64, "权重修正过多");
@@ -81,9 +86,9 @@ namespace MortalModHost
                 if (item.Pool != null)
                 {
                     ScenarioJson.Require(ScenarioJson.ValidId(item.Pool) && item.Trigger != "start", "事件池无效");
-                    string signature = item.Trigger + "\n" + item.Position + "\n" + item.Priority + "\n" + item.Check;
+                    string signature = item.Trigger + "\n" + item.Position + "\n" + item.Target + "\n" + item.From + "\n" + item.Priority + "\n" + item.Check;
                     string previous;
-                    ScenarioJson.Require(!pools.TryGetValue(item.Pool, out previous) || previous == signature, "同池入口/地点/优先级/周期必须一致");
+                    ScenarioJson.Require(!pools.TryGetValue(item.Pool, out previous) || previous == signature, "同池入口/地点/原版目标/来源/优先级/周期必须一致");
                     pools[item.Pool] = signature;
                 }
                 ScenarioJson.Require(item.Outcomes.Count <= 32 && item.Outcomes.ContainsKey("completed"), "结果需要 completed，最多 32 项");
@@ -104,6 +109,10 @@ namespace MortalModHost
             return config;
         }
         internal ScenarioEvent FindEvent(string id) { return Events.Find(e => string.Equals(e.Id, id, StringComparison.Ordinal)); }
+        internal bool MatchesStoryEntry(string target,string from)
+        {
+            return Events.Exists(e=>e.Enabled && e.Trigger=="story_entry" && e.Target==target && (e.From==null || e.From==from));
+        }
         internal void ValidateScripts(ICollection<string> scripts)
         {
             foreach(ScenarioEvent e in Events) ScenarioJson.Require(scripts.Contains(e.Script),"事件引用不存在的剧情："+e.Script);
@@ -219,7 +228,7 @@ namespace MortalModHost
     }
     internal sealed class ScenarioEvent
     {
-        internal string Id, Script, Trigger, Position, Check, Pool;
+        internal string Id, Script, Trigger, Position, Target, From, Check, Pool;
         internal bool Enabled, Once;
         internal int Priority, Weight;
         internal double Chance;

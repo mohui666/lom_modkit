@@ -135,6 +135,8 @@ fn validate_inner(c: &Value, m: &Value, stories: &BTreeMap<String, Value>) -> Re
                 "enabled",
                 "trigger",
                 "position",
+                "target",
+                "from",
                 "script",
                 "once",
                 "check",
@@ -150,8 +152,9 @@ fn validate_inner(c: &Value, m: &Value, stories: &BTreeMap<String, Value>) -> Re
         ensure!(id(&e["id"]), "事件 id 无效");
         ensure!(ids.insert(e["id"].as_str().unwrap()), "事件 id 重复");
         ensure!(
-            ["start", "auto", "position"].contains(&e["trigger"].as_str().unwrap_or("")),
-            "事件 trigger 必须是 start/auto/position"
+            ["start", "auto", "position", "story_entry"]
+                .contains(&e["trigger"].as_str().unwrap_or("")),
+            "事件 trigger 必须是 start/auto/position/story_entry"
         );
         ensure!(
             id(&e["script"]) && stories.contains_key(e["script"].as_str().unwrap()),
@@ -168,6 +171,26 @@ fn validate_inner(c: &Value, m: &Value, stories: &BTreeMap<String, Value>) -> Re
             );
         } else {
             ensure!(e.get("position").is_none(), "非地点事件不能填写 position");
+        }
+        if e["trigger"] == "story_entry" {
+            ensure!(
+                e["target"].as_str().is_some_and(crate::vanilla_patch::valid_target),
+                "事件 {} 的 target 必须是有效原版章节 ID（1~64 位字母、数字、下划线或连字符，不能以 MOD_ 开头）",
+                e["id"]
+            );
+            if let Some(from) = e.get("from") {
+                ensure!(
+                    from.as_str()
+                        .is_some_and(crate::vanilla_patch::valid_target),
+                    "事件 {} 的 from 必须是有效原版来源章节 ID；不限来源时请省略 from",
+                    e["id"]
+                );
+            }
+        } else {
+            ensure!(
+                e.get("target").is_none() && e.get("from").is_none(),
+                "仅 story_entry 事件能填写 target/from"
+            );
         }
         for key in ["once", "enabled"] {
             ensure!(
@@ -208,13 +231,15 @@ fn validate_inner(c: &Value, m: &Value, stories: &BTreeMap<String, Value>) -> Re
             let signature = json!([
                 e["trigger"],
                 e["position"],
+                e["target"],
+                e["from"],
                 e.get("priority").unwrap_or(&json!(0)),
                 e.get("check").unwrap_or(&json!("stage"))
             ]);
             if let Some(previous) = pools.insert(pool.as_str().unwrap(), signature.clone()) {
                 ensure!(
                     previous == signature,
-                    "同一事件池的入口、地点、优先级、判定周期必须一致"
+                    "同一事件池的入口、地点或原版目标与来源、优先级、判定周期必须一致"
                 );
             }
         }

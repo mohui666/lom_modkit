@@ -104,6 +104,7 @@ fn invalid_and_overlapping_changes_are_rejected_without_changing_source() {
 fn exported_patch_contains_only_changes_and_roundtrips_with_its_original_trigger() {
     let root = tempfile::tempdir().unwrap();
     let mut project = Project::new_vanilla_patch("CH_DEMO").unwrap();
+    project.manifest["id"] = json!("my_mod");
     project.stories.get_mut("main").unwrap()["vanilla_patch"]["edits"] =
         json!([insertion("say(\"hello\")")]);
     project.save_to(&root.path().join("project")).unwrap();

@@ -195,27 +195,148 @@ pub fn install_mod(root: &Path, source: &Path, enabled: bool) -> Result<PathBuf>
     let workspace = crate::workdir::create()?;
     let mut snapshot = tempfile::NamedTempFile::new_in(workspace.path())?;
     std::io::Write::write_all(&mut snapshot, &bytes)?;
-    package::read_package(snapshot.path())?;
-    let name = source.file_name().context("无效包文件名")?;
+    let entries = package::read_package(snapshot.path())?;
+    let manifest: Value = serde_json::from_slice(&entries["manifest.json"])?;
+    let installed = matching_installed_mod(root, &manifest)?;
+    let (name, enabled) = if let Some(row) = &installed {
+        (
+            Path::new(row["path"].as_str().unwrap())
+                .file_name()
+                .context("无效安装包文件名")?
+                .to_owned(),
+            row["enabled"] == true,
+        )
+    } else {
+        (
+            source.file_name().context("无效包文件名")?.to_owned(),
+            enabled,
+        )
+    };
     let dir = if enabled { "mods" } else { "mods_disabled" };
     let target = confined(
         root,
         &PathBuf::from("BepInEx/plugins/MortalModHost")
             .join(dir)
-            .join(name),
+            .join(&name),
     )?;
     let other = confined(
         root,
         &PathBuf::from("BepInEx/plugins/MortalModHost")
             .join(if enabled { "mods_disabled" } else { "mods" })
-            .join(name),
+            .join(&name),
     )?;
     ensure!(
         !other.exists(),
         "另一状态已有同名包，请先通过 MOD 管理切换状态，避免覆盖"
     );
+    if target.exists() {
+        let previous = package::read_package(&target)
+            .context("目标已有无法读取的 MOD，未覆盖；请在 MOD 列表中核对")?;
+        let previous: Value = serde_json::from_slice(&previous["manifest.json"])?;
+        ensure!(
+            previous["id"] == manifest["id"],
+            "同名文件属于另一作品（{}），未覆盖：{}",
+            previous["id"],
+            target.display()
+        );
+        ensure_same_mod_identity(&manifest, &previous, &target)?;
+    }
     atomic_write(&target, &bytes)?;
     Ok(target)
+}
+
+/// A package filename or display name is not its identity. Keep a legitimate
+/// update at its existing path, and reject a second work reusing the same ID.
+pub fn ensure_same_mod_identity(manifest: &Value, previous: &Value, path: &Path) -> Result<()> {
+    ensure!(
+        manifest["id"] != previous["id"] || manifest["campaign_id"] == previous["campaign_id"],
+        "作品编号 {} 已被另一作品「{}」使用：{}。请打开作品设置，修改作品编号后重新导出；原 MOD 未被覆盖。",
+        manifest["id"].as_str().unwrap_or(""),
+        previous["name"].as_str().unwrap_or("未命名作品"), path.display()
+    );
+    Ok(())
+}
+
+pub fn matching_installed_mod(root: &Path, manifest: &Value) -> Result<Option<Value>> {
+    let rows = list_mods(root)?;
+    let installed: Vec<_> = rows
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|row| row["manifest"]["id"] == manifest["id"])
+        .collect();
+    ensure!(installed.len() <= 1,
+        "作品编号 {} 已存在多个安装包：{}。请在游戏与 MOD 列表删除多余包，或在作品设置修改作品编号。",
+        manifest["id"].as_str().unwrap_or(""),
+        installed.iter().filter_map(|r| r["path"].as_str()).collect::<Vec<_>>().join("、"));
+    if let Some(row) = installed.first() {
+        ensure_same_mod_identity(
+            manifest,
+            &row["manifest"],
+            Path::new(row["path"].as_str().unwrap()),
+        )?;
+        return Ok(Some((*row).clone()));
+    }
+    Ok(None)
+}
+
+/// Check the selected export directory, including packages with other filenames.
+/// This reads bounded manifests only; normal export still verifies the entire package.
+pub fn check_export_mod_ids(target: &Path, manifest: &Value) -> Result<()> {
+    let folder = target
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    if !folder.exists() {
+        return Ok(());
+    }
+    for entry in fs::read_dir(folder)? {
+        let entry = entry?;
+        let path = entry.path();
+        if !entry.file_type()?.is_file()
+            || path.extension().and_then(|s| s.to_str()) != Some("lommod")
+        {
+            continue;
+        }
+        let previous = (|| -> Result<Value> {
+            let file = fs::File::open(&path)?;
+            ensure!(
+                file.metadata()?.len() <= package::MAX_PACKAGE_BYTES,
+                "包过大"
+            );
+            let mut archive = zip::ZipArchive::new(file)?;
+            let manifest = archive.by_name("manifest.json")?;
+            ensure!(manifest.size() <= package::MAX_TEXT_BYTES, "作品设置过大");
+            Ok(serde_json::from_reader(
+                manifest.take(package::MAX_TEXT_BYTES + 1),
+            )?)
+        })();
+        if let Ok(previous) = previous {
+            ensure_same_mod_identity(manifest, &previous, &path)?;
+        }
+    }
+    Ok(())
+}
+
+pub fn remove_mod(root: &Path, source: &Path) -> Result<()> {
+    validate_root(root)?;
+    ensure!(
+        source.extension().and_then(|s| s.to_str()) == Some("lommod"),
+        "不是 MOD 文件"
+    );
+    let relative = source
+        .strip_prefix(root)
+        .context("MOD 路径不属于此游戏目录")?;
+    let source = confined(root, relative)?;
+    let parent = source.parent().context("无效 MOD 路径")?.canonicalize()?;
+    let in_mod_directory = ["mods", "mods_disabled"]
+        .iter()
+        .any(|folder| plugin_dir(root).join(folder).canonicalize().ok().as_ref() == Some(&parent));
+    ensure!(
+        in_mod_directory && fs::symlink_metadata(&source)?.file_type().is_file(),
+        "只能删除当前游戏 MOD 列表中的普通 .lommod 文件"
+    );
+    fs::remove_file(&source).with_context(|| format!("无法删除 MOD：{}", source.display()))
 }
 pub fn set_enabled(root: &Path, source: &Path, enabled: bool) -> Result<PathBuf> {
     validate_root(root)?;
@@ -237,7 +358,9 @@ pub fn set_enabled(root: &Path, source: &Path, enabled: bool) -> Result<PathBuf>
     )?;
     ensure!(!target.exists(), "目标目录已经有同名文件");
     if enabled {
-        package::read_package(source).context("损坏或不符合契约的包不能启用")?;
+        let entries = package::read_package(source).context("损坏或不符合契约的包不能启用")?;
+        let manifest: Value = serde_json::from_slice(&entries["manifest.json"])?;
+        matching_installed_mod(root, &manifest)?;
     }
     fs::create_dir_all(target.parent().unwrap())?;
     fs::rename(source, &target)?;

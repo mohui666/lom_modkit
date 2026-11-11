@@ -574,6 +574,11 @@ namespace MortalModHost
                     ScenarioRuntime.SetResult(ModOverlay.CurrentPackage,ArgString(args,0));
                     return DynValue.Nil;
                 },"mod_event_result");
+                script.Globals["mod_character_profile"] = new CallbackFunction((ctx,args) =>
+                {
+                    CustomProfileRuntime.Change(ModOverlay.CurrentPackage,ArgString(args,0),ArgString(args,1),RequireArgInt(args,2));
+                    return DynValue.Nil;
+                },"mod_character_profile");
                 script.Globals["mod_trace_node"] = new CallbackFunction((ctx, args) =>
                 {
                     CaptureTraceState(script);
@@ -1086,6 +1091,19 @@ namespace MortalModHost
                 CharacterDimming.SetMode(ArgString(args, 0), ArgBool(args, 1, true), ArgString(args, 2, "manual"));
                 return DynValue.Nil;
             }, "mod_char_dim_mode");
+            script.Globals["mod_camera_filter"] = new CallbackFunction((ctx, args) =>
+            {
+                var characters = new List<string>();
+                if (args.Count > 3 && args[3].Type == DataType.Table)
+                    foreach (TablePair pair in args[3].Table.Pairs)
+                    {
+                        if (pair.Value.Type != DataType.String)
+                            throw new ArgumentException("滤镜原彩人物列表必须是字符串数组");
+                        characters.Add(pair.Value.String);
+                    }
+                CameraFilterRuntime.Set(ArgString(args, 0), ArgBool(args, 1, false), ArgFloat(args, 2, 0f), characters);
+                return DynValue.Nil;
+            }, "mod_camera_filter");
             script.Globals["mod_char_rotate"] = new CallbackFunction((ctx, args) =>
             {
                 try

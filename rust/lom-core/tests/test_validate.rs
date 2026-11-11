@@ -33,7 +33,7 @@ fn legacy_validation_acceptance_and_warning_parity() {
             }
         };
         // Keep the immutable Python acceptance evidence, while reviewing only
-        // the two inputs whose old limits were removed in v1.4.3.
+        // inputs whose restrictions were deliberately removed in later releases.
         let expected = match index {
             243 => {
                 assert!(!legacy_expected);
@@ -50,6 +50,14 @@ fn legacy_validation_acceptance_and_warning_parity() {
                     json!({"id":"n1","type":"intro","intro_source":"custom","name":"墨小侠","text":"介绍","image_scale":20})
                 );
                 true
+            }
+            334 => {
+                assert!(!legacy_expected);
+                assert_eq!(
+                    input["nodes"][0],
+                    json!({"id":"n1","type":"affinity","character":"user:mohui.luoxue","delta":1})
+                );
+                true // v1.5.10 adds independently saved custom-character affinity.
             }
             _ => legacy_expected,
         };
@@ -97,7 +105,7 @@ fn story(nodes: Value) -> Value {
 }
 #[test]
 fn schema_exposes_legacy_nodes_and_parallel_group() {
-    assert_eq!(node_schema()["nodes"].as_object().unwrap().len(), 71);
+    assert_eq!(node_schema()["nodes"].as_object().unwrap().len(), 72);
 }
 #[test]
 fn say_text_is_required_in_every_display_mode() {

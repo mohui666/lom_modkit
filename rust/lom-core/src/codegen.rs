@@ -609,6 +609,13 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                 &[c],
             ));
         }
+        "character_profile" => {
+            out.push("\tif mod_character_profile == nil then error(\"人物认识与传记解锁需要 Host 1.5.10，请更新游戏 Host\") end".into());
+            out.push(call(
+                "mod_character_profile",
+                &[c, q(node, "op"), n(node, "page", json!(0))],
+            ));
+        }
         "character_title" => {
             if node["action"] != "keep" {
                 out.push(call(
@@ -920,13 +927,39 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
             },
             qd(node, "dir", "lr")
         )),
-        "camera" => out.push(call(
-            "maincamera.ActiveVolume",
-            &[
-                q(node, "name"),
-                if b(node, "active", false) { "1" } else { "0" }.into(),
-            ],
-        )),
+        "camera" => {
+            let duration = n(node, "duration", json!(0));
+            if duration.parse::<f64>()? > 0.0 || has(node, "exclude_characters") {
+                out.push("\tif mod_camera_filter == nil then error(\"滤镜渐变与原彩人物需要 Host 1.5.10，请在游戏与 MOD 中更新 Host\") end".into());
+                out.push(call(
+                    "mod_camera_filter",
+                    &[
+                        q(node, "name"),
+                        b(node, "active", false).to_string(),
+                        duration.clone(),
+                        format!(
+                            "{{{}}}",
+                            arr(node, "exclude_characters")
+                                .iter()
+                                .map(|value| lua_str(value.as_str().unwrap()))
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        ),
+                    ],
+                ));
+                if duration.parse::<f64>()? > 0.0 {
+                    out.push(wait(duration));
+                }
+            } else {
+                out.push(call(
+                    "maincamera.ActiveVolume",
+                    &[
+                        q(node, "name"),
+                        if b(node, "active", false) { "1" } else { "0" }.into(),
+                    ],
+                ));
+            }
+        }
         "block" => {
             let fc = format!("flowcharts.{}", s(node, "flowchart"));
             for v in arr(node, "vars") {

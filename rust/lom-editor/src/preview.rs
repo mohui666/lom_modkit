@@ -157,6 +157,7 @@ fn simulate_until(story: &Value, target: &str, include_target: bool) -> Value {
     state["mood_enabled"] = json!(story["mood"].as_bool().unwrap_or(false));
     state["mood_overrides"] = json!({});
     state["camera_filters"] = json!({});
+    state["camera_filter_exclusions"] = json!({});
     let Some(ns) = story["nodes"].as_array() else {
         return state;
     };
@@ -192,7 +193,11 @@ pub fn build_playtest_prelude(story: &Value, target: &str) -> Vec<Value> {
         nodes.push(json!({"type":"character_title","character":character,"action":"keep","name_action":"set","name":name}));
     }
     for (name, active) in state["camera_filters"].as_object().into_iter().flatten() {
-        nodes.push(json!({"type":"camera","name":name,"active":active}));
+        let mut node = json!({"type":"camera","name":name,"active":active});
+        if let Some(ids) = state["camera_filter_exclusions"].get(name) {
+            node["exclude_characters"] = ids.clone();
+        }
+        nodes.push(node);
     }
     if lom_core::parallel::story_actions(story).any(|(_, n)| n["type"] == "mood") {
         nodes.push(json!({"type":"mood","enabled":state["mood_enabled"]}));
@@ -342,6 +347,16 @@ fn apply(s: &mut Value, n: &Value) {
                 let settings = s["camera_filters"].as_object_mut().unwrap();
                 settings.shift_remove(name);
                 settings.insert(name.to_owned(), json!(n["active"] == true));
+                if n["active"] == true {
+                    if let Some(ids) = n.get("exclude_characters") {
+                        s["camera_filter_exclusions"][name] = ids.clone();
+                    }
+                } else {
+                    s["camera_filter_exclusions"]
+                        .as_object_mut()
+                        .unwrap()
+                        .remove(name);
+                }
             }
         }
         "raw" => {
@@ -594,7 +609,7 @@ pub fn playback_duration(node: &Value) -> f64 {
             "show" => number(action, "fadeDuration", 0.0).max(number(action, "moveDuration", 0.0)),
             "hide" | "hide_all" => number(action, "fadeDuration", 0.0),
             "move" => number(action, "duration", 1.0),
-            "offset" | "rotate" => number(action, "duration", 0.0),
+            "offset" | "rotate" | "camera" => number(action, "duration", 0.0),
             "shock" => number(action, "duration", 0.5),
             "wait" => number(action, "seconds", 0.0),
             "transition" => PREVIEW_TRANSITION_SECONDS,
@@ -634,7 +649,7 @@ pub fn playback_duration(node: &Value) -> f64 {
                 duration(node).max(0.0) + 1.8
             }
             "show" | "portrait" | "hide" | "hide_all" | "move" | "offset" | "rotate" | "shock"
-            | "wait" | "transition" | "mood" | "effect" | "character_title" => {
+            | "wait" | "transition" | "mood" | "effect" | "character_title" | "camera" => {
                 duration(node).max(0.1)
             }
             _ => 1.8,
@@ -726,6 +741,31 @@ fn animate_frame(state: &mut Value, before: &Value, node: &Value, elapsed: f64, 
             .into();
             if elapsed < fade {
                 state["dialog"] = before["dialog"].clone();
+            }
+            continue;
+        }
+        if action["type"] == "camera" {
+            let name = text(action, "name");
+            let duration = number(action, "duration", 0.0);
+            let progress = if duration <= 0.0 {
+                1.0
+            } else {
+                (elapsed / duration).clamp(0.0, 1.0)
+            };
+            let progress = 1.0 - (1.0 - progress).powi(2);
+            let from = if before["camera_filters"][name] == true {
+                1.0
+            } else {
+                0.0
+            };
+            let to = if action["active"] == true { 1.0 } else { 0.0 };
+            let weight = from + (to - from) * progress;
+            state["camera_filter_weights"][name] = json!(weight);
+            state["camera_filters"][name] = json!(weight > 0.0);
+            if action["active"] == false && progress < 1.0 {
+                if let Some(ids) = before["camera_filter_exclusions"].get(name) {
+                    state["camera_filter_exclusions"][name] = ids.clone();
+                }
             }
             continue;
         }
@@ -930,6 +970,7 @@ fn character_display_name(project: &Project, id: &str) -> String {
 
 struct Cached {
     texture: TextureHandle,
+    filter_image: Option<filters::FilterImage>,
     opaque: Rect,
     bytes: usize,
     touched: u64,
@@ -1113,6 +1154,75 @@ impl Preview {
         &self.simulation.as_ref().unwrap().before
     }
 
+    fn trim_texture_cache(&mut self, additional: usize) {
+        while !self.cache.is_empty()
+            && self
+                .cache
+                .values()
+                .map(|cached| cached.bytes)
+                .sum::<usize>()
+                + additional
+                > 256 * 1024 * 1024
+        {
+            let oldest = self
+                .cache
+                .iter()
+                .min_by_key(|(_, cached)| cached.touched)
+                .map(|(key, _)| key.clone())
+                .unwrap();
+            self.cache.remove(&oldest);
+        }
+    }
+
+    fn cached_texture(&mut self, key: &str) -> Option<(TextureHandle, Rect)> {
+        let cached = self.cache.get_mut(key)?;
+        cached.touched = self.tick;
+        if let Some(image) = &mut cached.filter_image {
+            if image.update(&self.camera_filter) {
+                cached.texture.set(
+                    egui::ImageData::Color(image.pixels()),
+                    egui::TextureOptions::LINEAR,
+                );
+                cached.bytes = cached.texture.size().iter().product::<usize>() * 4 + image.bytes();
+            }
+        }
+        let result = (cached.texture.clone(), cached.opaque);
+        self.trim_texture_cache(0);
+        Some(result)
+    }
+
+    fn cache_texture(
+        &mut self,
+        ctx: &egui::Context,
+        key: String,
+        pixels: egui::ColorImage,
+        opaque: Rect,
+    ) -> TextureHandle {
+        let cost = pixels.pixels.len() * 4;
+        let (filter_image, pixels) = if self.camera_filter == filters::Settings::default() {
+            (None, egui::ImageData::from(pixels))
+        } else {
+            let mut image = filters::FilterImage::new(pixels);
+            image.update(&self.camera_filter);
+            let pixels = egui::ImageData::Color(image.pixels());
+            (Some(image), pixels)
+        };
+        let cost = cost + filter_image.as_ref().map_or(0, filters::FilterImage::bytes);
+        self.trim_texture_cache(cost);
+        let texture = ctx.load_texture(&key, pixels, egui::TextureOptions::LINEAR);
+        self.cache.insert(
+            key,
+            Cached {
+                texture: texture.clone(),
+                filter_image,
+                opaque,
+                bytes: cost,
+                touched: self.tick,
+            },
+        );
+        texture
+    }
+
     fn effect_texture(
         &mut self,
         ctx: &egui::Context,
@@ -1123,9 +1233,8 @@ impl Preview {
             .camera_filter
             .cache_key(&format!("effect-frame:{}", frame.file.display()));
         self.tick += 1;
-        if let Some(cached) = self.cache.get_mut(&key) {
-            cached.touched = self.tick;
-            return Some((cached.texture.clone(), cached.opaque));
+        if let Some(cached) = self.cached_texture(&key) {
+            return Some(cached);
         }
         let loaded = (|| -> anyhow::Result<_> {
             let bytes = std::fs::read(&frame.file)?;
@@ -1144,37 +1253,9 @@ impl Preview {
                 crate::i18n::key("editor.preview.frame_too_large")
             );
             let opaque = effects::visible_bounds(&image);
-            let cost = size[0] * size[1] * 4;
-            while !self.cache.is_empty()
-                && self
-                    .cache
-                    .values()
-                    .map(|cached| cached.bytes)
-                    .sum::<usize>()
-                    + cost
-                    > 256 * 1024 * 1024
-            {
-                let oldest = self
-                    .cache
-                    .iter()
-                    .min_by_key(|(_, cached)| cached.touched)
-                    .map(|(key, _)| key.clone())
-                    .unwrap();
-                self.cache.remove(&oldest);
-            }
             // RGB at alpha=0 carries additive light. Never premultiply again.
-            let mut pixels = egui::ColorImage::from_rgba_premultiplied(size, image.as_raw());
-            self.camera_filter.apply(&mut pixels);
-            let texture = ctx.load_texture(&key, pixels, egui::TextureOptions::LINEAR);
-            self.cache.insert(
-                key,
-                Cached {
-                    texture: texture.clone(),
-                    opaque,
-                    bytes: cost,
-                    touched: self.tick,
-                },
-            );
+            let pixels = egui::ColorImage::from_rgba_premultiplied(size, image.as_raw());
+            let texture = self.cache_texture(ctx, key, pixels, opaque);
             Ok((texture, opaque))
         })();
         match loaded {
@@ -1352,10 +1433,9 @@ impl Preview {
             .map(|key| self.camera_filter.cache_key(key));
         if let Some(cached) = mood_cached_key
             .as_ref()
-            .and_then(|key| self.cache.get_mut(key))
+            .and_then(|key| self.cached_texture(key))
         {
-            cached.touched = self.tick;
-            return Some((cached.texture.clone(), json!({})));
+            return Some((cached.0, json!({})));
         }
         let (key, source, meta) = self.asset(p, name, character, portrait)?;
         use std::hash::{Hash, Hasher};
@@ -1378,9 +1458,8 @@ impl Preview {
             }
         };
         let key = self.camera_filter.cache_key(&key);
-        if let Some(c) = self.cache.get_mut(&key) {
-            c.touched = self.tick;
-            return Some((c.texture.clone(), meta));
+        if let Some(cached) = self.cached_texture(&key) {
+            return Some((cached.0, meta));
         }
         let bytes = match source {
             AssetSource::Project(bytes) => std::borrow::Cow::Borrowed(bytes),
@@ -1401,30 +1480,8 @@ impl Preview {
         .into_rgba8();
         let size = [image.width() as usize, image.height() as usize];
         let opaque = opaque_bounds(&image);
-        let cost = size[0] * size[1] * 4;
-        while !self.cache.is_empty()
-            && self.cache.values().map(|c| c.bytes).sum::<usize>() + cost > 256 * 1024 * 1024
-        {
-            let oldest = self
-                .cache
-                .iter()
-                .min_by_key(|(_, c)| c.touched)
-                .map(|(k, _)| k.clone())
-                .unwrap();
-            self.cache.remove(&oldest);
-        }
-        let mut pixels = egui::ColorImage::from_rgba_unmultiplied(size, image.as_raw());
-        self.camera_filter.apply(&mut pixels);
-        let texture = ctx.load_texture(&key, pixels, egui::TextureOptions::LINEAR);
-        self.cache.insert(
-            key,
-            Cached {
-                texture: texture.clone(),
-                opaque,
-                bytes: cost,
-                touched: self.tick,
-            },
-        );
+        let pixels = egui::ColorImage::from_rgba_unmultiplied(size, image.as_raw());
+        let texture = self.cache_texture(ctx, key, pixels, opaque);
         Some((texture, meta))
     }
     pub fn image_browser(
@@ -1658,7 +1715,6 @@ impl Preview {
             self.layout_context = context;
         }
         let mut state = self.state(story, target).clone();
-        self.camera_filter = filters::Settings::from_state(&state);
         if state["camera_filters"]
             .as_object()
             .is_some_and(|items| items.values().any(|active| active == true))
@@ -1675,6 +1731,7 @@ impl Preview {
             );
         }
         let now = ui.input(|input| input.time);
+        self.camera_filter = filters::Settings::from_state(&state);
         let has_effects = self.simulation.as_ref().unwrap().has_effects;
         if has_effects {
             self.effect_clock.sync(p, story, target, now);
@@ -1884,8 +1941,166 @@ impl Preview {
             );
         }
         let mut layout_objects = Vec::new();
-        for layer in ["back", "actors", "front"] {
-            if layer == "actors" {
+        let scene_filter = self.camera_filter.clone();
+        for layer in ["back", "actors", "front", "pictures", "unfiltered_actors"] {
+            self.camera_filter = scene_filter.clone();
+            if layer == "pictures" {
+                if state["custom_cg"].is_object() {
+                    if let Some(object) = self.overlay(
+                        &ctx,
+                        &painter,
+                        p,
+                        &state["custom_cg"],
+                        rect,
+                        LayoutTarget::Cg,
+                    ) {
+                        layout_objects.push(object);
+                    }
+                }
+                layout_objects.extend(effects::paint(
+                    &painter,
+                    rect,
+                    &state["effects"],
+                    self.layout_mode,
+                    effect_library.as_deref(),
+                    |frame, size| self.effect_texture(&ctx, frame, size),
+                ));
+                for picture in state["official_pictures"]
+                    .as_object()
+                    .into_iter()
+                    .flat_map(|o| o.values())
+                {
+                    let kind = text(picture, "kind");
+                    if kind == "event" {
+                        let mut painter = painter.clone();
+                        painter.multiply_opacity(number(picture, "preview_opacity", 1.0) as f32);
+                        // Scene layout from StoryMainUI._picture, in the native 1920×1080 canvas.
+                        let scale = rect.height() / 1080.0;
+                        let book = Rect::from_center_size(
+                            rect.center() - egui::vec2(0.0, 65.0 * scale),
+                            egui::vec2(1000.0, 1000.0) * scale,
+                        );
+                        let frame = self.mapping["event_book"].as_str().unwrap_or("").to_owned();
+                        if let Some((texture, _)) = self.texture(&ctx, p, &frame, false, "") {
+                            painter.image(
+                                texture.id(),
+                                book,
+                                Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
+                                Color32::WHITE,
+                            );
+                        } else {
+                            painter.rect_filled(book, 3.0, Color32::from_rgb(220, 207, 176));
+                            painter.text(
+                                book.center_top() + egui::vec2(0.0, 100.0 * scale),
+                                egui::Align2::CENTER_TOP,
+                                crate::i18n::key("editor.preview.book_extract"),
+                                FontId::proportional(12.0),
+                                Color32::DARK_GRAY,
+                            );
+                        }
+                        let image_rect = Rect::from_min_size(
+                            book.min + egui::vec2(87.0, 202.0) * scale,
+                            egui::vec2(400.0, 588.0) * scale,
+                        );
+                        let key = text(picture, "key");
+                        let lookup = if key.starts_with("user:") {
+                            key.to_owned()
+                        } else {
+                            format!("@picture:{key}")
+                        };
+                        if let Some((texture, _)) = self.texture(&ctx, p, &lookup, false, "") {
+                            fit_image(&painter, &texture, image_rect);
+                        } else {
+                            painter.text(
+                                image_rect.center(),
+                                egui::Align2::CENTER_CENTER,
+                                crate::i18n::key("editor.preview.no_image"),
+                                FontId::proportional(12.0),
+                                Color32::DARK_GRAY,
+                            );
+                        }
+                        let default_title = crate::i18n::key("editor.preview.event");
+                        let title = picture["event_title"]
+                            .as_str()
+                            .filter(|s| !s.is_empty())
+                            .unwrap_or(&default_title);
+                        let caption = title
+                            .chars()
+                            .map(|c| c.to_string())
+                            .collect::<Vec<_>>()
+                            .join("\n");
+                        let font_size =
+                            (240.0 / title.chars().count().max(1) as f32).min(64.0) * scale;
+                        painter.text(
+                            book.min + egui::vec2(786.4, 625.6) * scale,
+                            egui::Align2::CENTER_CENTER,
+                            caption,
+                            FontId::proportional(font_size),
+                            Color32::from_rgb(48, 44, 41),
+                        );
+                    } else if matches!(kind, "picture" | "item" | "big") {
+                        let mut painter = painter.clone();
+                        painter.multiply_opacity(number(picture, "preview_opacity", 1.0) as f32);
+                        if kind == "big" && picture["color"] != 2 {
+                            painter.rect_filled(
+                                rect,
+                                0.0,
+                                if picture["color"] == 1 {
+                                    Color32::BLACK
+                                } else {
+                                    Color32::WHITE
+                                },
+                            );
+                        }
+                        if kind == "big" && picture["background_only"] == true {
+                            continue;
+                        }
+                        if kind == "big" {
+                            painter.multiply_opacity(
+                                number(picture, "preview_image_opacity", 1.0) as f32
+                            );
+                        }
+                        let key = text(picture, "key");
+                        let lookup = if key.starts_with("user:") {
+                            key.to_owned()
+                        } else {
+                            format!("@picture:{key}")
+                        };
+                        if let Some((texture, _)) = self.texture(&ctx, p, &lookup, false, "") {
+                            let target = if kind == "big" {
+                                rect
+                            } else {
+                                rect.shrink2(rect.size() * 0.18)
+                            };
+                            fit_image(&painter, &texture, target);
+                        } else {
+                            painter.text(
+                                rect.center(),
+                                egui::Align2::CENTER_CENTER,
+                                format!(
+                                    "{}: {}\n{}",
+                                    crate::i18n::key("editor.preview.official_images"),
+                                    text(picture, "key"),
+                                    crate::i18n::key("editor.preview.extract_images")
+                                ),
+                                FontId::proportional(13.0),
+                                Color32::GRAY,
+                            );
+                        }
+                    } else if kind == "title" {
+                        painter.text(
+                            rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            text(picture, "key"),
+                            FontId::proportional(rect.height() * 0.09),
+                            Color32::WHITE,
+                        );
+                    }
+                }
+                self.camera_filter.paint_vignette(&painter, rect);
+                continue;
+            }
+            if layer == "actors" || layer == "unfiltered_actors" {
                 let mut actors: Vec<(&String, &Value)> = state["actors"]
                     .as_object()
                     .map(|o| o.iter().collect())
@@ -1896,6 +2111,15 @@ impl Preview {
                         .total_cmp(&self.anchor(text(b.1, "position")).0)
                 });
                 for (cid, a) in actors {
+                    let excluded = filters::excludes(&state, cid);
+                    if excluded != (layer == "unfiltered_actors") {
+                        continue;
+                    }
+                    self.camera_filter = if excluded {
+                        filters::Settings::default()
+                    } else {
+                        scene_filter.clone()
+                    };
                     let lookup = if cid == "player" && a["appearance"] == "beautified" {
                         "player_beautified"
                     } else {
@@ -2224,156 +2448,6 @@ impl Preview {
                 }
             }
         }
-        if state["custom_cg"].is_object() {
-            if let Some(object) = self.overlay(
-                &ctx,
-                &painter,
-                p,
-                &state["custom_cg"],
-                rect,
-                LayoutTarget::Cg,
-            ) {
-                layout_objects.push(object);
-            }
-        }
-        layout_objects.extend(effects::paint(
-            &painter,
-            rect,
-            &state["effects"],
-            self.layout_mode,
-            effect_library.as_deref(),
-            |frame, size| self.effect_texture(&ctx, frame, size),
-        ));
-        for picture in state["official_pictures"]
-            .as_object()
-            .into_iter()
-            .flat_map(|o| o.values())
-        {
-            let kind = text(picture, "kind");
-            if kind == "event" {
-                let mut painter = painter.clone();
-                painter.multiply_opacity(number(picture, "preview_opacity", 1.0) as f32);
-                // Scene layout from StoryMainUI._picture, in the native 1920×1080 canvas.
-                let scale = rect.height() / 1080.0;
-                let book = Rect::from_center_size(
-                    rect.center() - egui::vec2(0.0, 65.0 * scale),
-                    egui::vec2(1000.0, 1000.0) * scale,
-                );
-                let frame = self.mapping["event_book"].as_str().unwrap_or("").to_owned();
-                if let Some((texture, _)) = self.texture(&ctx, p, &frame, false, "") {
-                    painter.image(
-                        texture.id(),
-                        book,
-                        Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
-                        Color32::WHITE,
-                    );
-                } else {
-                    painter.rect_filled(book, 3.0, Color32::from_rgb(220, 207, 176));
-                    painter.text(
-                        book.center_top() + egui::vec2(0.0, 100.0 * scale),
-                        egui::Align2::CENTER_TOP,
-                        crate::i18n::key("editor.preview.book_extract"),
-                        FontId::proportional(12.0),
-                        Color32::DARK_GRAY,
-                    );
-                }
-                let image_rect = Rect::from_min_size(
-                    book.min + egui::vec2(87.0, 202.0) * scale,
-                    egui::vec2(400.0, 588.0) * scale,
-                );
-                let key = text(picture, "key");
-                let lookup = if key.starts_with("user:") {
-                    key.to_owned()
-                } else {
-                    format!("@picture:{key}")
-                };
-                if let Some((texture, _)) = self.texture(&ctx, p, &lookup, false, "") {
-                    fit_image(&painter, &texture, image_rect);
-                } else {
-                    painter.text(
-                        image_rect.center(),
-                        egui::Align2::CENTER_CENTER,
-                        crate::i18n::key("editor.preview.no_image"),
-                        FontId::proportional(12.0),
-                        Color32::DARK_GRAY,
-                    );
-                }
-                let default_title = crate::i18n::key("editor.preview.event");
-                let title = picture["event_title"]
-                    .as_str()
-                    .filter(|s| !s.is_empty())
-                    .unwrap_or(&default_title);
-                let caption = title
-                    .chars()
-                    .map(|c| c.to_string())
-                    .collect::<Vec<_>>()
-                    .join("\n");
-                let font_size = (240.0 / title.chars().count().max(1) as f32).min(64.0) * scale;
-                painter.text(
-                    book.min + egui::vec2(786.4, 625.6) * scale,
-                    egui::Align2::CENTER_CENTER,
-                    caption,
-                    FontId::proportional(font_size),
-                    Color32::from_rgb(48, 44, 41),
-                );
-            } else if matches!(kind, "picture" | "item" | "big") {
-                let mut painter = painter.clone();
-                painter.multiply_opacity(number(picture, "preview_opacity", 1.0) as f32);
-                if kind == "big" && picture["color"] != 2 {
-                    painter.rect_filled(
-                        rect,
-                        0.0,
-                        if picture["color"] == 1 {
-                            Color32::BLACK
-                        } else {
-                            Color32::WHITE
-                        },
-                    );
-                }
-                if kind == "big" && picture["background_only"] == true {
-                    continue;
-                }
-                if kind == "big" {
-                    painter.multiply_opacity(number(picture, "preview_image_opacity", 1.0) as f32);
-                }
-                let key = text(picture, "key");
-                let lookup = if key.starts_with("user:") {
-                    key.to_owned()
-                } else {
-                    format!("@picture:{key}")
-                };
-                if let Some((texture, _)) = self.texture(&ctx, p, &lookup, false, "") {
-                    let target = if kind == "big" {
-                        rect
-                    } else {
-                        rect.shrink2(rect.size() * 0.18)
-                    };
-                    fit_image(&painter, &texture, target);
-                } else {
-                    painter.text(
-                        rect.center(),
-                        egui::Align2::CENTER_CENTER,
-                        format!(
-                            "{}: {}\n{}",
-                            crate::i18n::key("editor.preview.official_images"),
-                            text(picture, "key"),
-                            crate::i18n::key("editor.preview.extract_images")
-                        ),
-                        FontId::proportional(13.0),
-                        Color32::GRAY,
-                    );
-                }
-            } else if kind == "title" {
-                painter.text(
-                    rect.center(),
-                    egui::Align2::CENTER_CENTER,
-                    text(picture, "key"),
-                    FontId::proportional(rect.height() * 0.09),
-                    Color32::WHITE,
-                );
-            }
-        }
-        self.camera_filter.paint_vignette(&painter, rect);
         if let Some(dialog) = state["dialog"].as_object() {
             let txt = dialog.get("text").and_then(Value::as_str).unwrap_or("");
             let mode = dialog
@@ -3687,6 +3761,39 @@ mod tests {
     }
 
     #[test]
+    fn camera_fades_preserve_exclusions_until_fade_out_finishes_and_resume_them() {
+        let story = json!({"id":"main","start":"memory","nodes":[
+            {"id":"memory","type":"camera","name":"stage-memory","active":true,"duration":1,"exclude_characters":["player"]},
+            {"id":"say","type":"say","mode":"narrative","text":"回忆"},
+            {"id":"clear","type":"camera","name":"stage-memory","active":false,"duration":2},
+            {"id":"end","type":"end"}]});
+        let mut on = simulate(&story, "memory");
+        animate_frame(
+            &mut on,
+            &simulate_until(&story, "memory", false),
+            &story["nodes"][0],
+            0.5,
+            &json!({}),
+        );
+        assert_eq!(on["camera_filter_weights"]["stage-memory"], 0.75);
+        assert!(filters::excludes(&on, "player"));
+        assert!(!filters::excludes(&on, "brother1"));
+        let prelude = build_playtest_prelude(&story, "say");
+        assert!(prelude.iter().any(
+            |node| node["type"] == "camera" && node["exclude_characters"] == json!(["player"])
+        ));
+        let before = simulate_until(&story, "clear", false);
+        let mut off = simulate(&story, "clear");
+        animate_frame(&mut off, &before, &story["nodes"][2], 1.0, &json!({}));
+        assert_eq!(off["camera_filter_weights"]["stage-memory"], 0.25);
+        assert!(filters::excludes(&off, "player"));
+        let mut off = simulate(&story, "clear");
+        animate_frame(&mut off, &before, &story["nodes"][2], 2.0, &json!({}));
+        assert!(!filters::excludes(&off, "player"));
+        assert_eq!(playback_duration(&story["nodes"][2]), 2.0);
+    }
+
+    #[test]
     fn stage_filter_state_is_before_target_and_follows_the_preview_route() {
         let story = json!({"start":"branch","nodes":[
             {"id":"branch","type":"choice","options":[{"goto":"a"},{"goto":"b"}]},
@@ -4793,6 +4900,134 @@ mod card_tests {
             )
             .unwrap();
             assert_eq!(c.body, official["intro"].as_str().unwrap());
+        }
+    }
+}
+
+#[cfg(test)]
+mod filter_performance_tests {
+    use super::*;
+
+    #[test]
+    fn filter_fade_reuses_asset_and_effect_textures_without_changing_original_layers() {
+        let temp = tempfile::tempdir().unwrap();
+        let file = temp.path().join("own.png");
+        image::RgbaImage::from_pixel(8, 8, image::Rgba([80, 40, 10, 73]))
+            .save(&file)
+            .unwrap();
+        let mut project = Project::new();
+        project
+            .assets
+            .insert("assets/own.png".into(), std::fs::read(&file).unwrap());
+        let frame = effects::Frame { file, time: 0.0 };
+        let context = egui::Context::default();
+        let mut preview = Preview::new(Path::new("/not-a-repository"));
+        let mut ids = None;
+        for weight in [0.1, 0.5, 1.0, 0.5, 0.1, 0.1] {
+            let previous = ids;
+            let output = context.run(egui::RawInput::default(), |ctx| {
+                preview.camera_filter = filters::Settings::from_state(&json!({
+                    "camera_filters":{"stage-memory":true},"camera_filter_weights":{"stage-memory":weight}
+                }));
+                let filtered = preview.texture(ctx, &project, "assets/own.png", false, "").unwrap().0;
+                let effect = preview.effect_texture(ctx, &frame, [8, 8]).unwrap().0;
+                preview.camera_filter = filters::Settings::default();
+                let original = preview.texture(ctx, &project, "assets/own.png", false, "").unwrap().0;
+                assert_ne!(filtered.id(), original.id(), "original-color actors have a separate texture");
+                ids = Some((filtered.id(), effect.id(), original.id()));
+                if let Some(previous) = previous { assert_eq!(ids.unwrap(), previous); }
+            });
+            if weight == 0.1 && previous.is_some() {
+                assert!(
+                    output
+                        .textures_delta
+                        .set
+                        .iter()
+                        .all(|(id, _)| *id != ids.unwrap().2),
+                    "a filtered frame must not change the original texture"
+                );
+            }
+            assert_eq!(
+                preview.cache.len(),
+                3,
+                "weights must not create more cache entries"
+            );
+        }
+        let output = context.run(egui::RawInput::default(), |ctx| {
+            preview.camera_filter = filters::Settings::from_state(&json!({
+                "camera_filters":{"stage-memory":true},"camera_filter_weights":{"stage-memory":0.1}
+            }));
+            let _ = preview
+                .texture(ctx, &project, "assets/own.png", false, "")
+                .unwrap();
+            let _ = preview.effect_texture(ctx, &frame, [8, 8]).unwrap();
+        });
+        assert!(
+            output.textures_delta.set.is_empty(),
+            "a static frame needs no image upload"
+        );
+    }
+
+    // Run manually in release mode: uses only our own showcase art, never game assets.
+    #[test]
+    #[ignore]
+    fn measure_filter_fade_texture_cost() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let background = "assets/user/image/showcase.courier_station/courier_station.png";
+        let portrait = "assets/user/character/showcase.lin_deng/normal.png";
+        let mut project = Project::new();
+        for file in [background, portrait] {
+            project.assets.insert(
+                file.into(),
+                std::fs::read(root.join("samples/showcase3").join(file)).unwrap(),
+            );
+        }
+        let frame = effects::Frame {
+            file: root.join("samples/showcase3").join(background),
+            time: 0.0,
+        };
+        for preset in ["stage-memory", "stage-gray-100", "stage-dream"] {
+            for frames in [10, 60] {
+                let context = egui::Context::default();
+                let mut preview = Preview::new(Path::new("/not-a-repository"));
+                let mut uploads = 0;
+                let mut upload_bytes = 0;
+                let mut peak_cache = 0;
+                let mut unique_textures = std::collections::HashSet::new();
+                let mut frame_times = Vec::new();
+                let started = std::time::Instant::now();
+                for index in 0..frames {
+                    let frame_started = std::time::Instant::now();
+                    let weight = (index + 1) as f64 / frames as f64;
+                    preview.camera_filter = filters::Settings::from_state(&json!({
+                        "camera_filters":{preset:true},
+                        "camera_filter_weights":{preset:weight}
+                    }));
+                    let output = context.run(egui::RawInput::default(), |ctx| {
+                        let _ = preview
+                            .texture(ctx, &project, background, false, "")
+                            .unwrap();
+                        let _ = preview.texture(ctx, &project, portrait, false, "").unwrap();
+                        let _ = preview.effect_texture(ctx, &frame, [1672, 941]).unwrap();
+                    });
+                    unique_textures.extend(output.textures_delta.set.iter().map(|(id, _)| *id));
+                    uploads += output.textures_delta.set.len();
+                    upload_bytes += output
+                        .textures_delta
+                        .set
+                        .iter()
+                        .map(|(_, delta)| delta.image.size().iter().product::<usize>() * 4)
+                        .sum::<usize>();
+                    peak_cache =
+                        peak_cache.max(preview.cache.values().map(|c| c.bytes).sum::<usize>());
+                    frame_times.push(frame_started.elapsed().as_secs_f64() * 1000.0);
+                }
+                println!("FILTER_PERF preset={preset} frames={frames} ms={:.3} cold_ms={:.3} warm_ms={:.3} uploads={uploads} textures={} upload_mib={:.3} cache_entries={} peak_cache_mib={:.3}",
+                    started.elapsed().as_secs_f64()*1000.0,
+                    frame_times[0], frame_times[1..].iter().sum::<f64>() / (frames - 1) as f64,
+                    unique_textures.len(),
+                    upload_bytes as f64/1048576.0,preview.cache.len(),peak_cache as f64/1048576.0);
+            }
         }
     }
 }

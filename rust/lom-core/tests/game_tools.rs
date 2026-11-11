@@ -91,8 +91,81 @@ fn mod_toggle_is_confined_and_collision_safe() {
     assert!(g::set_enabled(&root, &source, false).is_err());
     let disabled = g::set_enabled(&root, &installed, false).unwrap();
     assert!(!installed.exists());
-    assert!(g::install_mod(&root, &source, true).is_err());
+    assert_eq!(g::install_mod(&root, &source, true).unwrap(), disabled);
     g::set_enabled(&root, &disabled, true).unwrap();
+}
+#[test]
+fn mod_updates_follow_identity_and_reject_another_work_reusing_the_id() {
+    let t = tempfile::tempdir().unwrap();
+    let root = t.path().join("fake-game");
+    fixture(&root);
+    let mut first = Project::new();
+    first.manifest["id"] = serde_json::json!("my_mod");
+    let source = t.path().join("first.lommod");
+    first.export(&source).unwrap();
+    let installed = g::install_mod(&root, &source, true).unwrap();
+    let original = fs::read(&installed).unwrap();
+    let mut second = Project::new();
+    second.manifest["id"] = serde_json::json!("my_mod");
+    second.manifest["name"] = serde_json::json!("另一作品");
+    let other = t.path().join("other-directory/different-name.lommod");
+    second.export(&other).unwrap();
+    let error = g::install_mod(&root, &other, true).unwrap_err().to_string();
+    assert!(error.contains("作品编号") && error.contains("作品设置"));
+    assert_eq!(fs::read(&installed).unwrap(), original);
+    let disabled = g::set_enabled(&root, &installed, false).unwrap();
+    first.manifest["name"] = serde_json::json!("修改后的名称");
+    first.stories.get_mut("main").unwrap()["nodes"][0]["text"] = serde_json::json!("已更新");
+    let updated = t.path().join("renamed-update.lommod");
+    first.export(&updated).unwrap();
+    assert_eq!(g::install_mod(&root, &updated, true).unwrap(), disabled);
+    assert_eq!(Project::open(&disabled).unwrap().stories, first.stories);
+    assert_eq!(g::list_mods(&root).unwrap().as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn export_detects_a_different_work_reusing_the_id_before_writing() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut first = Project::new();
+    first.manifest["id"] = serde_json::json!("my_mod");
+    let original = directory.path().join("first.lommod");
+    first.export(&original).unwrap();
+    let bytes = fs::read(&original).unwrap();
+    let mut second = Project::new();
+    second.manifest["id"] = first.manifest["id"].clone();
+    second.manifest["name"] = serde_json::json!("完全不同的名字");
+    let output = directory.path().join("another-file.lommod");
+    let error = second.export(&output).unwrap_err().to_string();
+    assert!(error.contains("作品编号") && error.contains("作品设置"));
+    assert!(!output.exists());
+    assert_eq!(fs::read(&original).unwrap(), bytes);
+    first.export(&output).unwrap();
+    assert_eq!(
+        Project::open(&output).unwrap().manifest["campaign_id"],
+        first.manifest["campaign_id"]
+    );
+}
+
+#[test]
+fn deleting_a_mod_keeps_sources_saves_and_unrelated_files() {
+    let t = tempfile::tempdir().unwrap();
+    let root = t.path().join("fake-game");
+    fixture(&root);
+    let source = t.path().join("source.lommod");
+    Project::new().export(&source).unwrap();
+    let installed = g::install_mod(&root, &source, true).unwrap();
+    let save = g::plugin_dir(&root).join("saves/keep.dat");
+    fs::create_dir_all(save.parent().unwrap()).unwrap();
+    fs::write(&save, b"save").unwrap();
+    let note = installed.parent().unwrap().join("keep.txt");
+    fs::write(&note, b"keep").unwrap();
+    assert!(g::remove_mod(&root, &source).is_err());
+    assert!(g::remove_mod(&root, &note).is_err());
+    g::remove_mod(&root, &installed).unwrap();
+    assert!(!installed.exists());
+    assert!(source.exists());
+    assert_eq!(fs::read(&save).unwrap(), b"save");
+    assert_eq!(fs::read(&note).unwrap(), b"keep");
 }
 #[test]
 fn incomplete_runtime_and_bad_loader_do_not_mutate_install() {

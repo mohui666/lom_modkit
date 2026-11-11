@@ -85,6 +85,48 @@ namespace MortalModHost
             RequireStore(package).BeginNewCampaign(package, slot);
         }
 
+        internal static int CharacterAffinity(ModPackage package, string character, int initial)
+        {
+            string slot = CurrentSlot(package);
+            _package = package;
+            return RequireStore(package).CharacterAffinity(package, slot, character, initial);
+        }
+
+        internal static void SetCharacterAffinity(ModPackage package, string character, int value)
+        {
+            string slot = CurrentSlot(package);
+            _package = package;
+            RequireStore(package).SetCharacterAffinity(package, slot, character, value);
+        }
+
+        internal static bool CharacterKnown(ModPackage package,string character,bool initial)
+        {
+            string slot=CurrentSlot(package);_package=package;
+            return RequireStore(package).CharacterKnown(package,slot,character,initial);
+        }
+        internal static void ReadCharacterProfile(ModPackage package,string character,UserContent content,
+            out int affinity,out bool known,out int unlocked,out int locked)
+        {
+            string slot=CurrentSlot(package);_package=package;
+            RequireStore(package).ReadCharacterProfile(package,slot,character,content.InitialAffinity,content.InitiallyKnown,
+                out affinity,out known,out unlocked,out locked);
+        }
+        internal static void SetCharacterKnown(ModPackage package,string character,bool known)
+        {
+            string slot=CurrentSlot(package);_package=package;
+            RequireStore(package).SetCharacterKnown(package,slot,character,known);
+        }
+        internal static int BiographyOverride(ModPackage package,string character,int page)
+        {
+            string slot=CurrentSlot(package);_package=package;
+            return RequireStore(package).BiographyOverride(package,slot,character,page);
+        }
+        internal static void SetBiographyOverride(ModPackage package,string character,int page,bool unlocked)
+        {
+            string slot=CurrentSlot(package);_package=package;
+            RequireStore(package).SetBiographyOverride(package,slot,character,page,unlocked);
+        }
+
         internal static void OnSlotChanged()
         {
             Stores.Clear();

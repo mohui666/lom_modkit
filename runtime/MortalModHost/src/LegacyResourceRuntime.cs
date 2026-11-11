@@ -296,7 +296,7 @@ namespace MortalModHost
         {
             Traverse fields = Traverse.Create(__instance);
             RelationshipStat data = fields.Field("_currentData").GetValue<RelationshipStat>();
-            if (data != null) LegacyResourceRuntime.ApplyAvatar(fields.Field("_avatarImage").GetValue<Image>(), data.Type.GetStringValue());
+            if (data != null && !CustomSocialRuntime.IsCustomData(data)) LegacyResourceRuntime.ApplyAvatar(fields.Field("_avatarImage").GetValue<Image>(), data.Type.GetStringValue());
         }
     }
     [HarmonyPatch(typeof(CombatCharacterStatusUI), "Setup")]

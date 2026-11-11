@@ -247,6 +247,8 @@
         "active": "bool"
       },
       "optional": {
+        "duration": "num",
+        "exclude_characters": "list",
         "wait_after": "num"
       }
     },
@@ -297,6 +299,10 @@
     "character_title": {
       "required": {"character": "str", "action": "character_title_action"},
       "optional": {"title": "str", "name_action": "character_name_action", "name": "str", "wait_after": "num"}
+    },
+    "character_profile": {
+      "required": {"character":"str","op":"character_profile_op"},
+      "optional": {"page":"num"}
     },
     "rotate": {
       "required": {
@@ -802,6 +808,7 @@
   "enums": {
     "character_title_action": ["keep", "set", "hide", "reset"],
     "character_name_action": ["keep", "set", "reset"],
+    "character_profile_op": ["meet", "forget", "unlock_biography", "lock_biography"],
     "music_op": [
       "play",
       "stop",
@@ -1085,6 +1092,7 @@
   "type_names": {
     "character_title_action": "\"keep\"/\"set\"/\"hide\"/\"reset\"",
     "character_name_action": "\"keep\"/\"set\"/\"reset\"",
+    "character_profile_op": "\"meet\"/\"forget\"/\"unlock_biography\"/\"lock_biography\"",
     "str": "字符串",
     "idstr": "非空字符串（官方/资源 id）",
     "num": "数值",

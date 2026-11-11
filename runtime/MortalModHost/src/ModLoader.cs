@@ -894,6 +894,16 @@ namespace MortalModHost
                 fileBytes[mainFile] = mainBytes;
             }
 
+            string avatar = GetString(root, "avatar", required: false);
+            if (!string.IsNullOrEmpty(avatar))
+            {
+                if (avatar.IndexOf('/') >= 0 || avatar.IndexOf('\\') >= 0
+                    || avatar.IndexOf("..", StringComparison.Ordinal) >= 0
+                    || !IsImageExt(Path.GetExtension(avatar)))
+                    throw new FormatException("avatar 必须是同一人物目录下的图片文件名");
+                if (!fileBytes.ContainsKey(avatar))
+                    fileBytes[avatar] = ReadZipBytes(package, entries, expectedDir + "/" + avatar, 8L * 1024 * 1024, "好感头像");
+            }
             string title = GetString(root, "title", required: false);
             if (string.IsNullOrEmpty(title) && root.ContainsKey("intro")
                 && root["intro"] is Dictionary<string, object>)
@@ -911,12 +921,15 @@ namespace MortalModHost
                 artFacing = "left";
             else
                 artFacing = artFacing.Equals("right", StringComparison.OrdinalIgnoreCase) ? "right" : "left";
-            return new UserContent
+            var content = new UserContent
             {
                 Id = id,
                 Type = "character",
                 Name = name,
                 Title = title,
+                Biography = GetString(root, "biography", required: false),
+                AvatarFile = avatar,
+                InitialAffinity = GetClampedInt(root, "initial_affinity", 0, 0, 100),
                 Scale = GetPositiveScale(root, "scale", 100f),
                 Extends = extends,
                 ArtFacing = artFacing,
@@ -931,6 +944,8 @@ namespace MortalModHost
                 CombatFrames = combatFrames,
                 Files = fileBytes
             };
+            CharacterProfilePolicy.ReadDefinition(root,content);
+            return content;
         }
 
         private static string ParsePortraitReference(Dictionary<string, object> root, Dictionary<string, string> portraits)

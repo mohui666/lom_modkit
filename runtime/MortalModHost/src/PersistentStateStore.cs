@@ -30,6 +30,11 @@ namespace MortalModHost
             new Dictionary<string, string>(StringComparer.Ordinal);
         private readonly Dictionary<string, string> _characterNames =
             new Dictionary<string, string>(StringComparer.Ordinal);
+        private readonly Dictionary<string, int> _characterAffinities =
+            new Dictionary<string, int>(StringComparer.Ordinal);
+        private sealed class ProfileState {internal bool? Known;internal int Unlocked,Locked;}
+        private readonly Dictionary<string,ProfileState> _characterProfiles =
+            new Dictionary<string,ProfileState>(StringComparer.Ordinal);
         private string _modId = "";
         private string _campaignId = "";
         private string _slot = "";
@@ -111,6 +116,77 @@ namespace MortalModHost
             _dirty = true;
         }
 
+        internal int CharacterAffinity(ModPackage package, string slot, string character, int initial)
+        {
+            Bind(package, slot);
+            int value;
+            return _characterAffinities.TryGetValue(character, out value) ? value : initial;
+        }
+
+        internal void SetCharacterAffinity(ModPackage package, string slot, string character, int value)
+        {
+            Bind(package, slot);
+            if (string.IsNullOrEmpty(character) || !character.StartsWith("user:", StringComparison.Ordinal)
+                || character.Length > 128 || value < 0 || value > 100)
+                throw new ArgumentException("自定义人物好感标识或数值无效（0～100）");
+            _characterAffinities[character] = value;
+            _dirty = true;
+        }
+
+        internal bool CharacterKnown(ModPackage package,string slot,string character,bool initial)
+        {
+            Bind(package,slot);
+            ProfileState state;
+            return _characterProfiles.TryGetValue(character,out state) && state.Known.HasValue ? state.Known.Value : initial;
+        }
+        // The social panel reads these together every frame. Bind the owning
+        // slot once rather than once for affinity and each biography page.
+        internal void ReadCharacterProfile(ModPackage package,string slot,string character,int initialAffinity,bool initiallyKnown,
+            out int affinity,out bool known,out int unlocked,out int locked)
+        {
+            Bind(package,slot);
+            if(!_characterAffinities.TryGetValue(character,out affinity))affinity=initialAffinity;
+            ProfileState state;
+            bool exists=_characterProfiles.TryGetValue(character,out state);
+            known=exists && state.Known.HasValue ? state.Known.Value : initiallyKnown;
+            unlocked=exists ? state.Unlocked : 0;
+            locked=exists ? state.Locked : 0;
+        }
+        internal void SetCharacterKnown(ModPackage package,string slot,string character,bool known)
+        {
+            Bind(package,slot);
+            Profile(character).Known=known;
+            _dirty=true;
+        }
+        internal int BiographyOverride(ModPackage package,string slot,string character,int page)
+        {
+            Bind(package,slot);
+            int bit=CharacterProfilePolicy.PageBit(page);
+            ProfileState state;
+            if(!_characterProfiles.TryGetValue(character,out state))return 0;
+            return (state.Locked&bit)!=0 ? -1 : (state.Unlocked&bit)!=0 ? 1 : 0;
+        }
+        internal void SetBiographyOverride(ModPackage package,string slot,string character,int page,bool unlocked)
+        {
+            Bind(package,slot);
+            int bit=CharacterProfilePolicy.PageBit(page);
+            ProfileState state=Profile(character);
+            state.Unlocked=unlocked ? state.Unlocked|bit : state.Unlocked&~bit;
+            state.Locked=unlocked ? state.Locked&~bit : state.Locked|bit;
+            _dirty=true;
+        }
+        private ProfileState Profile(string character)
+        {
+            ContentRef reference;string error;
+            if(!ContentRef.TryParse(character,out reference,out error) || !ContentRef.IsUserRef(character))
+                throw new ArgumentException("人物资料状态需要合法的 user: 自定义人物标识");
+            ProfileState state;
+            if(!_characterProfiles.TryGetValue(character,out state)) {
+                state=new ProfileState();_characterProfiles.Add(character,state);
+            }
+            return state;
+        }
+
         internal void BeginNewCampaign(ModPackage package, string slot)
         {
             ValidateIdentity(package, slot);
@@ -121,6 +197,8 @@ namespace MortalModHost
             _values.Clear();
             _characterTitles.Clear();
             _characterNames.Clear();
+            _characterAffinities.Clear();
+            _characterProfiles.Clear();
             _loaded = true;
             _dirty = true;
         }
@@ -163,6 +241,8 @@ namespace MortalModHost
             _values.Clear();
             _characterTitles.Clear();
             _characterNames.Clear();
+            _characterAffinities.Clear();
+            _characterProfiles.Clear();
             _loaded = false;
             _dirty = false;
         }
@@ -259,6 +339,38 @@ namespace MortalModHost
                     _characterNames.Add(pair.Key, name);
                 }
             }
+            object rawAffinities;
+            if (root.TryGetValue("character_affinities", out rawAffinities))
+            {
+                var affinities = rawAffinities as Dictionary<string, object>;
+                if (affinities == null) throw new InvalidDataException("人物好感存档数据必须是对象");
+                foreach (var pair in affinities)
+                {
+                    int value = ToInt32(pair.Value, "character_affinities." + pair.Key);
+                    if (!pair.Key.StartsWith("user:", StringComparison.Ordinal) || pair.Key.Length > 128 || value < 0 || value > 100)
+                        throw new InvalidDataException("人物好感存档字段无效：" + pair.Key);
+                    _characterAffinities.Add(pair.Key, value);
+                }
+            }
+            object rawProfiles;
+            if(root.TryGetValue("character_profiles",out rawProfiles)) {
+                var profiles=rawProfiles as Dictionary<string,object>;
+                if(profiles==null)throw new InvalidDataException("人物资料存档数据必须是对象");
+                foreach(var pair in profiles) {
+                    var data=pair.Value as Dictionary<string,object>;
+                    if(data==null || data.Keys.Any(key=>key!="known" && key!="unlocked" && key!="locked"))
+                        throw new InvalidDataException("人物资料存档字段无效："+pair.Key);
+                    ProfileState state=Profile(pair.Key);
+                    object known;
+                    if(data.TryGetValue("known",out known)) {
+                        if(!(known is bool))throw new InvalidDataException("人物认识状态必须是布尔值");
+                        state.Known=(bool)known;
+                    }
+                    state.Unlocked=ReadInt(data,"unlocked");state.Locked=ReadInt(data,"locked");
+                    if(state.Unlocked<0 || state.Unlocked>15 || state.Locked<0 || state.Locked>15 || (state.Unlocked&state.Locked)!=0)
+                        throw new InvalidDataException("人物传记解锁存档位无效："+pair.Key);
+                }
+            }
         }
 
         private string Serialize()
@@ -298,6 +410,29 @@ namespace MortalModHost
                 {
                     sb.Append(first ? "\n" : ",\n"); first = false;
                     sb.Append("    ").Append(Quote(key)).Append(": ").Append(Quote(_characterNames[key]));
+                }
+                sb.Append("\n  }");
+            }
+            if (_characterAffinities.Count > 0)
+            {
+                sb.Append(",\n  \"character_affinities\": {");
+                first = true;
+                foreach (string key in _characterAffinities.Keys.OrderBy(value => value, StringComparer.Ordinal))
+                {
+                    sb.Append(first ? "\n" : ",\n"); first = false;
+                    sb.Append("    ").Append(Quote(key)).Append(": ")
+                        .Append(_characterAffinities[key].ToString(CultureInfo.InvariantCulture));
+                }
+                sb.Append("\n  }");
+            }
+            if(_characterProfiles.Count>0) {
+                sb.Append(",\n  \"character_profiles\": {");first=true;
+                foreach(string key in _characterProfiles.Keys.OrderBy(value=>value,StringComparer.Ordinal)) {
+                    ProfileState state=_characterProfiles[key];
+                    sb.Append(first ? "\n" : ",\n");first=false;
+                    sb.Append("    ").Append(Quote(key)).Append(": {");
+                    if(state.Known.HasValue)sb.Append("\"known\": ").Append(state.Known.Value ? "true, " : "false, ");
+                    sb.Append("\"unlocked\": ").Append(state.Unlocked).Append(", \"locked\": ").Append(state.Locked).Append('}');
                 }
                 sb.Append("\n  }");
             }

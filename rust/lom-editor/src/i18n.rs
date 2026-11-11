@@ -263,6 +263,33 @@ pub fn help_text() -> String {
 mod tests {
     use std::collections::BTreeSet;
 
+    fn production_sources() -> Vec<std::path::PathBuf> {
+        fn collect(folder: &std::path::Path, paths: &mut Vec<std::path::PathBuf>) {
+            for entry in std::fs::read_dir(folder).unwrap() {
+                let path = entry.unwrap().path();
+                if path.is_dir() {
+                    if path.file_name().and_then(|name| name.to_str()) != Some("tests") {
+                        collect(&path, paths);
+                    }
+                } else if path.extension().is_some_and(|extension| extension == "rs")
+                    && !path
+                        .file_stem()
+                        .unwrap()
+                        .to_string_lossy()
+                        .ends_with("_tests")
+                {
+                    paths.push(path);
+                }
+            }
+        }
+        let mut paths = Vec::new();
+        collect(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"),
+            &mut paths,
+        );
+        paths
+    }
+
     fn placeholders(value: &str) -> BTreeSet<String> {
         regex::Regex::new(r"\{[a-zA-Z_][a-zA-Z_0-9]*\}|\{\}")
             .unwrap()
@@ -326,12 +353,7 @@ mod tests {
             r#"(?:i18n::(?:key|message|message_for_locale)|\bkey)\(\s*"([a-z][a-z0-9_.]+)""#,
         )
         .unwrap();
-        let source_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-        for entry in std::fs::read_dir(source_dir).unwrap() {
-            let path = entry.unwrap().path();
-            if path.extension().is_none_or(|extension| extension != "rs") {
-                continue;
-            }
+        for path in production_sources() {
             let source = std::fs::read_to_string(&path).unwrap();
             for capture in references.captures_iter(&source) {
                 for (index, dictionary) in super::dictionaries().iter().enumerate() {
@@ -359,12 +381,7 @@ mod tests {
             .filter_map(|value| value.as_str())
             .map(super::normalize)
             .collect();
-        let source_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-        for entry in std::fs::read_dir(source_dir).unwrap() {
-            let path = entry.unwrap().path();
-            if path.extension().is_none_or(|extension| extension != "rs") {
-                continue;
-            }
+        for path in production_sources() {
             let source = std::fs::read_to_string(&path).unwrap();
             for capture in references.captures_iter(&source) {
                 let text = &capture[1];
@@ -390,12 +407,7 @@ mod tests {
             r#"\.(?:checkbox|selectable_label)\(\s*[^,\n]+,\s*"([^"\\]*)""#,
         ].map(|pattern| regex::Regex::new(pattern).unwrap());
         let test_module = regex::Regex::new(r"#\[cfg\(test\)\]\s*mod\s+\w+\s*\{").unwrap();
-        let source_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-        for entry in std::fs::read_dir(source_dir).unwrap() {
-            let path = entry.unwrap().path();
-            if path.extension().is_none_or(|extension| extension != "rs") {
-                continue;
-            }
+        for path in production_sources() {
             let source = std::fs::read_to_string(&path).unwrap();
             let production = test_module
                 .find(&source)

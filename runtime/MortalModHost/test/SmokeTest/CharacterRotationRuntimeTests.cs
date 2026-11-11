@@ -106,7 +106,11 @@ namespace UnityEngine
         internal float Z;
         internal static Quaternion Euler(float x, float y, float z) { return new Quaternion { Z = (z % 360f + 360f) % 360f }; }
     }
-    internal class Transform { internal Quaternion rotation, localRotation; }
+    internal class Transform
+    {
+        internal Quaternion rotation, localRotation;
+        internal readonly GameObject gameObject = new GameObject();
+    }
     internal class Coroutine { internal IEnumerator Steps; }
     internal class MonoBehaviour
     {

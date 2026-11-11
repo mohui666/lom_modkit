@@ -132,6 +132,12 @@
       "appearance": "original"
     },
     {
+      "id": "profile_meet",
+      "type": "character_profile",
+      "character": "user:showcase.lin_deng",
+      "op": "meet"
+    },
+    {
       "id": "show3",
       "type": "show",
       "character": "user:showcase.lin_deng",
@@ -140,6 +146,13 @@
       "facing": "left",
       "fadeDuration": 0,
       "moveDuration": 0
+    },
+    {
+      "id": "profile_biography_unlock",
+      "type": "character_profile",
+      "character": "user:showcase.lin_deng",
+      "op": "unlock_biography",
+      "page": 2
     },
     {
       "id": "say2",
@@ -508,23 +521,71 @@
       "dir": "lr"
     },
     {
+      "character": "user:showcase.lin_deng",
+      "delta": 3,
+      "id": "custom_affinity_up",
+      "show_message": true,
+      "type": "affinity"
+    },
+    {
+      "character": "user:showcase.lin_deng",
+      "delta": -2,
+      "id": "custom_affinity_down",
+      "show_message": true,
+      "type": "affinity"
+    },
+    {
+      "character": "user:showcase.lin_deng",
+      "id": "custom_biography",
+      "intro_source": "character",
+      "type": "intro"
+    },
+    {
       "id": "camera1",
       "type": "camera",
       "name": "stage-memory",
-      "active": true
+      "active": true,
+      "duration": 1.2,
+      "exclude_characters": [
+        "user:showcase.lin_deng"
+      ]
     },
     {
       "id": "camera_preview_note",
       "type": "say",
       "mode": "narrative",
-      "text": "回忆滤镜已开启。编辑器会近似显示色调；从本步骤试玩也会恢复前面的滤镜状态。"
+      "text": "回忆滤镜用 1.2 秒渐入。赵活与场景进入回忆色调，讲述者林灯保持原彩；下一步再用 1.2 秒淡出滤镜。"
     },
     {
       "id": "camera2",
       "type": "camera",
       "name": "stage-memory",
-      "active": false
+      "active": false,
+      "duration": 1.2
     },
+      {
+        "id": "camera_gray_in",
+        "type": "camera",
+        "name": "stage-gray-100",
+        "active": true,
+        "duration": 1.2,
+        "exclude_characters": [
+          "user:showcase.lin_deng"
+        ]
+      },
+      {
+        "id": "camera_gray_note",
+        "type": "say",
+        "mode": "narrative",
+        "text": "现在进入黑白回忆。场景与赵活先渲染并应用黑白滤镜；林灯与气泡放在场景后处理之后、对白之前绘制，保留原彩。"
+      },
+      {
+        "id": "camera_gray_out",
+        "type": "camera",
+        "name": "stage-gray-100",
+        "active": false,
+        "duration": 1.2
+      },
     {
       "id": "block1",
       "type": "block",

@@ -1051,10 +1051,6 @@ fn extra(n: &Value, ntype: &str, catalog: &Value, check_effect_names: bool) -> R
             }
         }
     }
-    ensure!(
-        !(ntype == "affinity" && user(c)),
-        "自定义角色暂不支持该步骤，请改用官方角色，或用纯演出节点。"
-    );
     if user(c)
         && [
             "show",
@@ -1069,12 +1065,15 @@ fn extra(n: &Value, ntype: &str, catalog: &Value, check_effect_names: bool) -> R
             "dim",
             "rotate",
             "character_title",
+            "affinity",
+            "affinity_check",
         ]
         .contains(&ntype)
     {
         user_ref(c, "character")?;
     }
     match ntype {
+        "character_profile" => crate::character_profile::validate_node(n)?,
         "character_title" => {
             ensure!(nonblank(&n["character"]), "称号人物不能为空");
             if n["name_action"] == "set" {
@@ -1114,6 +1113,35 @@ fn extra(n: &Value, ntype: &str, catalog: &Value, check_effect_names: bool) -> R
             }
             range(n, "speed", 0.0, f64::INFINITY)?;
             range(n, "stop_after", 0.0, f64::INFINITY)?;
+        }
+        "camera" => {
+            range(n, "duration", 0.0, f64::INFINITY)?;
+            if let Some(duration) = n["duration"].as_f64() {
+                ensure!(
+                    (duration as f32).is_finite(),
+                    "滤镜 duration 必须是游戏可表示的有限秒数"
+                );
+            }
+            if let Some(characters) = n.get("exclude_characters") {
+                let mut unique = BTreeSet::new();
+                for raw in characters.as_array().unwrap() {
+                    let id = raw
+                        .as_str()
+                        .filter(|id| !id.trim().is_empty())
+                        .ok_or_else(|| anyhow::anyhow!("保持原彩的人物必须是非空人物 ID"))?;
+                    ensure!(unique.insert(id), "保持原彩的人物重复：{id}");
+                    if id.starts_with("user:") {
+                        user_ref(raw, "exclude_characters")?;
+                    } else {
+                        ensure!(
+                            array(&catalog["characters"])
+                                .iter()
+                                .any(|row| row["id"] == id),
+                            "保持原彩的人物不在原版清单中：{id}"
+                        );
+                    }
+                }
+            }
         }
         "mood" => {
             range(n, "offset_x", -1920.0, 1920.0)?;

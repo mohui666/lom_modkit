@@ -78,7 +78,44 @@
       "chance": 100,
       "weight": 30,
       "when": {
-        "all": []
+        "all": [
+          {
+            "any": [
+              { "source": "time", "key": "year", "op": "gt", "value": 2 },
+              {
+                "all": [
+                  { "source": "time", "key": "year", "op": "eq", "value": 2 },
+                  { "source": "time", "key": "month", "op": "gt", "value": 3 }
+                ]
+              },
+              {
+                "all": [
+                  { "source": "time", "key": "year", "op": "eq", "value": 2 },
+                  { "source": "time", "key": "month", "op": "eq", "value": 3 },
+                  { "source": "time", "key": "stage", "op": "ge", "value": 1 }
+                ]
+              }
+            ]
+          },
+          {
+            "any": [
+              { "source": "time", "key": "year", "op": "lt", "value": 3 },
+              {
+                "all": [
+                  { "source": "time", "key": "year", "op": "eq", "value": 3 },
+                  { "source": "time", "key": "month", "op": "lt", "value": 2 }
+                ]
+              },
+              {
+                "all": [
+                  { "source": "time", "key": "year", "op": "eq", "value": 3 },
+                  { "source": "time", "key": "month", "op": "eq", "value": 2 },
+                  { "source": "time", "key": "stage", "op": "le", "value": 3 }
+                ]
+              }
+            ]
+          }
+        ]
       },
       "outcomes": {
         "completed": {
@@ -155,6 +192,40 @@
         }
       },
       "position": "Door"
+    },
+    {
+      "id": "iron_fist_visit",
+      "name": "二年三月起拜访铁拳门",
+      "trigger": "story_entry",
+      "target": "section_01_free_03",
+      "from": "section_01_free_start_02",
+      "script": "iron_fist_visit",
+      "once": true,
+      "check": "action",
+      "priority": 0,
+      "chance": 100,
+      "weight": 1,
+      "when": {
+        "any": [
+          { "source": "time", "key": "year", "op": "gt", "value": 2 },
+          {
+            "all": [
+              { "source": "time", "key": "year", "op": "eq", "value": 2 },
+              { "source": "time", "key": "month", "op": "gt", "value": 3 }
+            ]
+          },
+          {
+            "all": [
+              { "source": "time", "key": "year", "op": "eq", "value": 2 },
+              { "source": "time", "key": "month", "op": "eq", "value": 3 },
+              { "source": "time", "key": "stage", "op": "ge", "value": 1 }
+            ]
+          }
+        ]
+      },
+      "outcomes": {
+        "completed": {}
+      }
     }
   ]
 }

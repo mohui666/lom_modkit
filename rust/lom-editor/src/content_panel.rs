@@ -208,11 +208,10 @@ impl ContentPanel {
         let symbol = format!("user:{}", self.draft["id"].as_str().unwrap_or(""));
         let kind = self.draft["type"].as_str().unwrap_or("").to_owned();
         if kind == "character" {
-            if self.draft.get("intro").is_none() && ui.button(tr("添加角色介绍卡")).clicked()
-            {
+            if self.draft["intro"].is_null() && ui.button(tr("添加介绍卡")).clicked() {
                 self.draft["intro"] = json!({"name":self.draft["name"],"title":"","text":"","image_scale":100,"image_x":0,"image_y":0});
             }
-            if self.draft.get("intro").is_some() && ui.button(tr("移除介绍卡")).clicked() {
+            if self.draft["intro"].is_object() && ui.button(tr("移除介绍卡")).clicked() {
                 self.draft.as_object_mut().unwrap().remove("intro");
             }
         }
@@ -243,14 +242,18 @@ impl ContentPanel {
                 &[],
             );
             ui.small(crate::i18n::key("workspace.content.extension_hint"));
+            if self.draft["extends"].as_str().unwrap_or("").is_empty() {
+                crate::character_profile_panel::content(ui, &mut self.draft, &catalog);
+            }
             for (key, label, field_kind) in [
                 ("title", "称号", "str"),
                 ("scale", "立绘缩放（%）", "float"),
                 ("art_facing", "原图朝向", "facing"),
                 ("mood_x", "气泡横向位置（%）", "int"),
                 ("mood_y", "气泡高度（%）", "int"),
+                ("initial_affinity", "初始好感度（0～100）", "int"),
             ] {
-                if matches!(key, "mood_x" | "mood_y")
+                if matches!(key, "mood_x" | "mood_y" | "initial_affinity")
                     && !self.draft["extends"].as_str().unwrap_or("").is_empty()
                 {
                     continue;
@@ -258,11 +261,11 @@ impl ContentPanel {
                 catalog.field(ui, &mut self.draft, key, label, field_kind, false, &[], &[]);
             }
             if self.draft["intro"].is_object() {
-                ui.collapsing(tr("角色介绍卡"), |ui| {
+                ui.collapsing(tr("人物介绍卡"), |ui| {
                     for (key, label, field_kind) in [
                         ("name", "名称", "str"),
                         ("title", "称号", "str"),
-                        ("text", "简介", "multiline"),
+                        ("text", "介绍文字", "multiline"),
                         ("image_scale", "图片缩放（%）", "float"),
                         ("image_x", "横向偏移", "int"),
                         ("image_y", "纵向偏移", "int"),
@@ -314,6 +317,7 @@ impl ContentPanel {
                     "战斗攻击",
                     "战斗受伤",
                     "战斗防御",
+                    "好感度头像",
                 ]
             } else {
                 vec!["主文件"]
@@ -334,6 +338,15 @@ impl ContentPanel {
                         );
                     }
                 });
+            if kind == "character" && self.slot == 7 {
+                ui.small(tr("好感提示使用此头像；未指定时使用默认立绘。人物好感保存在当前作品的独立存档中。"));
+                if self.draft["avatar"].is_string()
+                    && ui.button(tr("恢复使用默认立绘头像")).clicked()
+                {
+                    self.draft.as_object_mut().unwrap().remove("avatar");
+                    self.preview = None;
+                }
+            }
             if self.slot == 1 {
                 egui::ComboBox::from_id_salt("content-portrait")
                     .selected_text(if self.portrait.is_empty() {
@@ -431,6 +444,7 @@ impl ContentPanel {
                                     );
                                     self.draft["intro"]["image"] = json!(name);
                                 }
+                                7 => self.draft["avatar"] = json!(name),
                                 i => {
                                     self.draft[[
                                         "combat_idle",
@@ -509,6 +523,9 @@ impl ContentPanel {
                 match self.slot {
                     1 => self.draft["portraits"][&self.portrait].as_str(),
                     2 => self.draft["intro"]["image"].as_str(),
+                    7 => self.draft["avatar"]
+                        .as_str()
+                        .or_else(|| self.draft["files"]["main"].as_str()),
                     i if i >= 3 => self.draft[[
                         "combat_idle",
                         "combat_attack",

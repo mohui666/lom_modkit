@@ -9,18 +9,8 @@ pub fn install_project(game: &Path, project: &lom_core::project::Project) -> Res
     let temp = lom_core::workdir::create()?;
     lom_core::validate::validate_manifest(&project.manifest)?;
     let id = project.manifest["id"].as_str().unwrap();
-    let rows = game_tools::list_mods(game)?;
-    let installed: Vec<_> = rows
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter(|row| row["manifest"]["id"] == id)
-        .collect();
-    ensure!(
-        installed.len() <= 1,
-        "同一作品已有多个安装包，请先在 MOD 列表中核对"
-    );
-    let (filename, enabled) = if let Some(row) = installed.first() {
+    let installed = game_tools::matching_installed_mod(game, &project.manifest)?;
+    let (filename, enabled) = if let Some(row) = &installed {
         (
             Path::new(row["path"].as_str().unwrap())
                 .file_name()
@@ -35,7 +25,7 @@ pub fn install_project(game: &Path, project: &lom_core::project::Project) -> Res
     project.export(&package)?;
     let path = game_tools::install_mod(game, &package, enabled)?;
     Ok(
-        json!({"id":id,"path":path,"enabled":enabled,"message":if enabled {"作品已安装，下次启动游戏后生效。"} else {"作品已更新，仍保持停用；可在 MOD 列表中启用。"}}),
+        json!({"id":id,"path":path,"enabled":enabled,"updated":installed.is_some(),"message":if installed.is_some() {if enabled {"已重新导出并更新已安装作品，下次启动游戏后生效。"} else {"已重新导出并更新作品，仍保持停用；可在 MOD 列表中启用。"}} else {"作品已安装，下次启动游戏后生效。"}}),
     )
 }
 
