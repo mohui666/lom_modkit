@@ -8,6 +8,11 @@ fn new_campaign_identity_is_unique_valid_and_persisted_without_rewriting_imports
     let mut first = Project::new();
     let second = Project::new();
     let identity = first.manifest["campaign_id"].as_str().unwrap().to_owned();
+    let mod_id = first.manifest["id"].as_str().unwrap().to_owned();
+    assert_ne!(first.manifest["id"], second.manifest["id"]);
+    assert!(regex::Regex::new(r"^[a-z0-9_-]{1,64}$")
+        .unwrap()
+        .is_match(&mod_id));
     assert_ne!(
         first.manifest["campaign_id"],
         second.manifest["campaign_id"]
@@ -17,6 +22,7 @@ fn new_campaign_identity_is_unique_valid_and_persisted_without_rewriting_imports
         .is_match(&identity));
     let dir = tempfile::tempdir().unwrap();
     first.save_to(dir.path()).unwrap();
+    assert_eq!(Project::open(dir.path()).unwrap().manifest["id"], mod_id);
     assert_eq!(first.manifest["campaign_id"], identity);
     assert_eq!(
         Project::open(dir.path()).unwrap().manifest["campaign_id"],

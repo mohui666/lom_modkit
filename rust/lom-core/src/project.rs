@@ -29,6 +29,7 @@ impl Default for Project {
 impl Project {
     pub fn new() -> Self {
         let mut project = Self::draft();
+        project.manifest["id"] = json!(format!("mod_{}", uuid::Uuid::new_v4().simple()));
         project.manifest["campaign_id"] =
             json!(format!("campaign_{}", uuid::Uuid::new_v4().simple()));
         project
@@ -374,6 +375,7 @@ impl Project {
         Ok(())
     }
     pub fn export(&self, target: &Path) -> Result<PathBuf> {
+        crate::game_tools::check_export_mod_ids(target, &self.manifest)?;
         let temp = crate::workdir::create()?;
         let mut project = self.clone();
         project.paths.clear();

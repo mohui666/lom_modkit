@@ -205,6 +205,10 @@ impl Catalog {
                             .map(|o| o.keys().map(|s| json!(s)).collect())
                             .unwrap_or_default(),
                     );
+                    self.data["affinity_characters"]
+                        .as_array_mut()
+                        .unwrap()
+                        .push(entry.clone());
                     "characters"
                 }
                 "image" => "user_images",
@@ -261,7 +265,13 @@ impl Catalog {
         }
         node["id"] = id.into();
         node["type"] = kind.into();
-        if node.get("character").and_then(Value::as_str) == Some("") {
+        if kind == "character_profile" {
+            node["character"] = self
+                .options("profile_character", &node, &[], &[])
+                .first()
+                .map(|(id, _)| json!(id))
+                .unwrap_or(json!(""));
+        } else if node.get("character").and_then(Value::as_str) == Some("") {
             node["character"] = "player".into();
         }
         node
@@ -296,6 +306,20 @@ impl Catalog {
         nodes: &[String],
         stories: &[String],
     ) -> Vec<(String, String)> {
+        if kind == "profile_character" {
+            let characters: Vec<_> = self.data["characters"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter(|character| {
+                    character["id"]
+                        .as_str()
+                        .is_some_and(|id| id.starts_with("user:"))
+                })
+                .cloned()
+                .collect();
+            return localized_rows(&json!(characters), "characters");
+        }
         if kind == "official_character" {
             let characters: Vec<_> = self.data["characters"]
                 .as_array()
@@ -474,7 +498,17 @@ impl Catalog {
                 .unwrap_or_default();
         }
         if kind == "camera" {
-            return rows(&self.schema["CAMERA_PRESETS"]);
+            return rows(&self.schema["CAMERA_PRESETS"])
+                .into_iter()
+                .map(|(id, name)| {
+                    let name = if id == "stage-gray-100" {
+                        crate::i18n::key("editor.form.camera_grayscale")
+                    } else {
+                        name
+                    };
+                    (id, name)
+                })
+                .collect();
         }
         if kind == "flag_ref" {
             return std::iter::once((String::new(), tr("不限")))
@@ -1204,6 +1238,71 @@ impl Catalog {
         node_ids: &[String],
         story_ids: &[String],
     ) -> bool {
+        if node["type"] == "character_profile" && key == "op" {
+            return crate::character_profile_panel::operation_field(
+                ui,
+                node,
+                &self.options(kind, node, node_ids, story_ids),
+            );
+        }
+        if node["type"] == "character_profile" && key == "page" {
+            return crate::character_profile_panel::page_field(ui, node);
+        }
+        if node["type"] == "camera" && key == "exclude_characters" {
+            let options = self.options("character", node, node_ids, story_ids);
+            let mut selected = node[key].as_array().cloned().unwrap_or_default();
+            let mut changed = false;
+            ui.label(crate::i18n::key("field.camera.exclude_characters"));
+            ui.small(crate::i18n::key("editor.form.filter_exclusions_hint"));
+            egui::ComboBox::from_id_salt(("filter-exclusions", node["id"].as_str().unwrap_or("")))
+                .selected_text(if selected.is_empty() {
+                    crate::i18n::key("editor.form.filter_exclusions_empty")
+                } else {
+                    crate::i18n::message(
+                        "editor.form.filter_exclusions_count",
+                        &[("count", selected.len().to_string())],
+                    )
+                })
+                .show_ui(ui, |ui| {
+                    let search_id = ui.id().with("filter-character-search");
+                    let mut search =
+                        ui.data_mut(|data| data.get_temp::<String>(search_id).unwrap_or_default());
+                    ui.add(
+                        egui::TextEdit::singleline(&mut search)
+                            .hint_text(crate::i18n::key("editor.form.filter_character_search")),
+                    );
+                    let lower = search.to_lowercase();
+                    if ui
+                        .button(crate::i18n::key("editor.form.filter_exclusions_clear"))
+                        .clicked()
+                    {
+                        selected.clear();
+                        changed = true;
+                    }
+                    egui::ScrollArea::vertical()
+                        .max_height(280.0)
+                        .show(ui, |ui| {
+                            for (id, name) in &options {
+                                if !resource_matches(id, name, &lower) {
+                                    continue;
+                                }
+                                let mut enabled = selected.iter().any(|value| value == id);
+                                if ui.checkbox(&mut enabled, name).on_hover_text(id).changed() {
+                                    selected.retain(|value| value != id);
+                                    if enabled {
+                                        selected.push(json!(id));
+                                    }
+                                    changed = true;
+                                }
+                            }
+                        });
+                    ui.data_mut(|data| data.insert_temp(search_id, search));
+                });
+            if changed {
+                node[key] = json!(selected);
+            }
+            return changed;
+        }
         if node["type"] == "character_title" && key == "title" && node["action"] != "set" {
             return false;
         }
@@ -1759,6 +1858,7 @@ fn is_character_selector(kind: &str) -> bool {
         kind,
         "character"
             | "official_character"
+            | "profile_character"
             | "mood_character"
             | "character_group"
             | "affinity_character"
@@ -2129,6 +2229,7 @@ fn is_selector(kind: &str) -> bool {
                 | "voice"
                 | "character"
                 | "official_character"
+                | "profile_character"
                 | "affinity_character"
                 | "affinity_optional"
                 | "position"
@@ -2212,6 +2313,12 @@ pub fn number_duplicate_labels(options: &mut [(String, String)]) {
 }
 
 fn field_visible(kind: &str, node: &Value, key: &str) -> bool {
+    if kind == "character_profile" && key == "page" {
+        return matches!(
+            node["op"].as_str(),
+            Some("unlock_biography" | "lock_biography")
+        );
+    }
     if key == "inherit_dialog" {
         return node.get(key).is_some();
     }
@@ -4951,7 +5058,11 @@ mod catalog_parity_tests {
             .iter()
             .any(|(id, _)| id == "400"));
         assert_eq!(c.options("combat_skill", &Value::Null, &[], &[]).len(), 115);
-        assert_eq!(c.options("camera", &Value::Null, &[], &[]).len(), 4);
+        let cameras = c.options("camera", &Value::Null, &[], &[]);
+        assert_eq!(cameras.len(), 5);
+        assert!(cameras
+            .iter()
+            .any(|(id, name)| id == "stage-gray-100" && name != id));
     }
     #[test]
     fn typed_rows_preserve_values_until_user_edits() {

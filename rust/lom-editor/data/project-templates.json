@@ -350,17 +350,40 @@
         "campaign_id": "__NEW_CAMPAIGN_ID__",
         "campaign": {
           "new_game": true,
-          "triggers": [
-            {
-              "type": "position",
-              "position": "Center",
-              "script": "training_event",
-              "when_month": 4,
-              "when_stage": 1,
-              "when_flag_clear": "__NEW_CAMPAIGN_ID___event_done"
-            }
-          ]
+          "disable_official_events": false
         }
+      },
+      "scenario": {
+        "schema": 1,
+        "entry_event": "opening",
+        "tasks": [],
+        "events": [
+          {
+            "id": "opening",
+            "name": "开场剧情",
+            "trigger": "start",
+            "script": "main",
+            "once": true,
+            "when": {"all": []},
+            "outcomes": {"completed": {}}
+          },
+          {
+            "id": "training_event",
+            "name": "练功场剧情",
+            "trigger": "position",
+            "position": "Center",
+            "script": "training_event",
+            "once": false,
+            "when": {
+              "all": [
+                {"source": "time", "key": "month", "op": "eq", "value": 4},
+                {"source": "time", "key": "stage", "op": "eq", "value": 1},
+                {"source": "flag", "key": "__NEW_CAMPAIGN_ID___event_done", "op": "eq", "value": 0}
+              ]
+            },
+            "outcomes": {"completed": {}}
+          }
+        ]
       }
     }
   }

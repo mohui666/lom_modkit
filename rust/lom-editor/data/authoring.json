@@ -29,6 +29,7 @@
     "message": "系统提示",
     "rotate": "旋转",
     "character_title": "修改姓名与称号",
+    "character_profile": "人物资料解锁",
     "dayenv": "日夜环境",
     "stat": "属性增减",
     "stat_set": "属性设置",
@@ -117,6 +118,7 @@
         "stat",
         "stat_set",
         "affinity",
+        "character_profile",
         "talent",
         "item",
         "use_item",
@@ -168,6 +170,7 @@
   "ENUM_SETS_SRC": {
     "character_title_action": [["keep", "保持不变"], ["set", "设置称号"], ["hide", "隐藏称号"], ["reset", "恢复原称号"]],
     "character_name_action": [["keep", "保持不变"], ["set", "设置姓名"], ["reset", "恢复原名"]],
+    "character_profile_op": [["meet", "认识人物"], ["forget", "隐藏人物资料"], ["unlock_biography", "解锁传记页"], ["lock_biography", "锁定传记页"]],
     "player_appearance": [
       [
         "game",
@@ -1002,7 +1005,8 @@
     "stage-memory",
     "stage-dream",
     "stage-fire",
-    "stage-blurdim"
+    "stage-blurdim",
+    "stage-gray-100"
   ],
   "NODE_SCHEMAS": {
     "music": {
@@ -1790,6 +1794,18 @@
           false
         ],
         [
+          "duration",
+          "过渡时长（秒）",
+          "float",
+          true
+        ],
+        [
+          "exclude_characters",
+          "滤镜后渲染的人物（保持原彩）",
+          "filter_characters",
+          true
+        ],
+        [
           "wait_after",
           "动作后停留（秒）",
           "float",
@@ -1941,6 +1957,10 @@
     "character_title": {
       "label": "修改姓名与称号",
       "fields": [["character","人物","character",false],["name_action","姓名操作","enum:character_name_action",true],["name","新姓名","line",false],["action","称号操作","enum:character_title_action",false],["title","新称号","line",false],["wait_after","动作后停留（秒）","float",true]]
+    },
+    "character_profile": {
+      "label": "人物资料解锁",
+      "fields": [["character","人物","profile_character",false],["op","操作","enum:character_profile_op",false],["page","传记页码","int",true]]
     },
     "rotate": {
       "label": "人物旋转",
@@ -3763,6 +3783,7 @@
       "text": ""
     },
     "character_title": {"character":"player","action":"keep","name_action":"keep","name":"新姓名","title":"新称号"},
+    "character_profile": {"character":"","op":"meet"},
     "rotate": {
       "character": "",
       "angle": 180,

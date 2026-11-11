@@ -193,6 +193,7 @@
     "text": ""
   },
   "character_title": {"id":"node","type":"character_title","character":"player","action":"keep","name_action":"keep","name":"新姓名","title":"新称号"},
+  "character_profile": {"id":"node","type":"character_profile","character":"","op":"meet"},
   "rotate": {
     "id": "node",
     "type": "rotate",

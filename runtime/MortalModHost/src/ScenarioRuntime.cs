@@ -40,7 +40,7 @@ namespace MortalModHost
             }
             if (encoded!=null && encoded.Length>180000) throw new InvalidOperationException("事件存档超过上限");
             var state=encoded==null ? new ScenarioState() : ScenarioState.Parse(Utf8.GetString(Convert.FromBase64String(encoded)));
-            return new ScenarioEngine(package.Scenario,state,new Context(),Random.NextDouble);
+            return new ScenarioEngine(package.Scenario,state,new Context(package),Random.NextDouble);
         }
         private static void Store(ModPackage package,ScenarioEngine engine)
         {
@@ -63,7 +63,7 @@ namespace MortalModHost
         }
         internal static string BeginCampaign(ModPackage package)
         {
-            var engine=new ScenarioEngine(package.Scenario,new ScenarioState(),new Context(),Random.NextDouble);
+            var engine=new ScenarioEngine(package.Scenario,new ScenarioState(),new Context(package),Random.NextDouble);
             ScenarioEvent entry=engine.BeginEntry(); Store(package,engine);
             return package.GetRegisteredScriptName(entry.Script);
         }
@@ -77,6 +77,15 @@ namespace MortalModHost
         }
         internal static bool TryDispatch(string trigger,string position,out string script)
         {
+            return TryDispatch(trigger,position,null,null,null,out script);
+        }
+        internal static bool HasStoryEntry(string target,string from)
+        {
+            return Plugin.CanScheduleEvents && Plugin.LoadedMods!=null
+                && Plugin.LoadedMods.Exists(package=>Allowed(package) && package.Scenario.MatchesStoryEntry(target,from));
+        }
+        internal static bool TryDispatch(string trigger,string position,string target,string from,StoryEntryReturn storyReturn,out string script)
+        {
             script=null;
             if (!Plugin.CanScheduleEvents || Plugin.LoadedMods==null) return false;
             var eligible=new List<ModPackage>();
@@ -84,12 +93,18 @@ namespace MortalModHost
             {
                 if (!Allowed(package)) continue;
                 if (Open(package).State.Pending!=null) return false;
+                if (trigger=="story_entry" && !package.Scenario.MatchesStoryEntry(target,from)) continue;
                 eligible.Add(package);
             }
             foreach (ModPackage package in eligible)
             {
                 var engine=Open(package);
-                var selected=engine.Select(trigger,position);
+                var selected=engine.Select(trigger,position,target,from);
+                if (selected!=null && trigger=="story_entry") {
+                    if(storyReturn==null || storyReturn.Target!=target || storyReturn.From!=from)
+                        throw new InvalidOperationException("原版章节入口缺少准确的续接上下文");
+                    engine.State.StoryReturn=storyReturn;
+                }
                 Store(package,engine);
                 if (selected==null) continue;
                 script=package.GetRegisteredScriptName(selected.Script);
@@ -97,6 +112,13 @@ namespace MortalModHost
                 return true;
             }
             return false;
+        }
+        internal static StoryEntryReturn GetStoryReturn(LuaManager manager)
+        {
+            ModPackage package;
+            if(manager==null || !ModRegistry.TryGetPackageByRegisteredName(manager.ScriptName,out package)
+                || package.Scenario==null) return null;
+            return Open(package).State.StoryReturn;
         }
         internal static void SetResult(ModPackage package,string result)
         {
@@ -148,7 +170,7 @@ namespace MortalModHost
             foreach(object raw in actions) {
                 var a=ScenarioJson.Object(raw);string type=ScenarioJson.Text(a,"type"),key=ScenarioJson.Text(a,"key",false);
                 if(type=="stat") {GameStatType id;if(!EnumUtils.TryParseByStringValue<GameStatType>(key,out id) || stat.Stats.Get(id)==null) throw new InvalidOperationException("结果数值未定义："+key);}
-                if(type=="affinity") {RelationshipStatType id;if(!EnumUtils.TryParseByStringValue<RelationshipStatType>(key,out id) || stat.Relationships.Get(id)==null) throw new InvalidOperationException("结果人物未定义："+key);}
+                if(type=="affinity") GameplayChecks.AffinityValue(key, package);
                 if(type=="game_flag" && MissionManagerData.Instance.GetFlag(key)==null) throw new InvalidOperationException("结果旗标未定义："+key);
                 if(type=="talent" && stat.Talents.Get(key)==null) throw new InvalidOperationException("结果技能未定义："+key);
                 if(type=="item" && ItemDatabase.Instance.GetItem(ItemType(ScenarioJson.Text(a,"kind")),CustomGameplayRuntime.ResolveItemId(package,ScenarioJson.Text(a,"kind"),key))==null) throw new InvalidOperationException("结果物品未定义："+key);
@@ -158,7 +180,9 @@ namespace MortalModHost
                 int n=ScenarioJson.Int(a,"value",int.MinValue,int.MaxValue,0);
                 switch(type) {
                     case "stat":if(op=="set")modifier.SetPlayer(key,n);else modifier.Player(key,n,"",0);break;
-                    case "affinity":if(op=="set")modifier.SetCharacter(key,n);else modifier.Character(key,n,0);break;
+                    case "affinity":
+                        if(CustomAffinityRuntime.IsCustom(key)) CustomAffinityRuntime.Change(package,key,n,op=="set",false);
+                        else if(op=="set")modifier.SetCharacter(key,n);else modifier.Character(key,n,0);break;
                     case "flag":modifier.AddStory(key);break;
                     case "game_flag":if(op=="set")modifier.SetFlag(key,n);else modifier.AddFlag(key,n);break;
                     case "talent":modifier.AddTalent(CustomTalentRuntime.ResolveId(package,key),n);break;
@@ -171,6 +195,8 @@ namespace MortalModHost
         }
         private sealed class Context:IScenarioContext
         {
+            private readonly ModPackage _package;
+            internal Context(ModPackage package) { _package = package; }
             private PlayerStatManagerData Stat {get {return PlayerStatManagerData.Instance ?? throw new InvalidOperationException("玩家状态未就绪");}}
             public int Year {get {return Stat.GameTime.Year;}}
             public int Month {get {return Stat.GameTime.Month;}}
@@ -190,9 +216,7 @@ namespace MortalModHost
                     return Stat.Stats.Get(type).FinalValue;
                 }
                 if (source=="affinity") {
-                    RelationshipStatType type;
-                    if (!EnumUtils.TryParseByStringValue<RelationshipStatType>(key,out type)) throw new InvalidOperationException("人物好感未定义："+key);
-                    return Stat.Relationships.Get(type).Value;
+                    return GameplayChecks.AffinityValue(key, _package);
                 }
                 throw new InvalidOperationException("未知事件条件来源："+source);
             }
@@ -202,15 +226,17 @@ namespace MortalModHost
     internal static class ScenarioReturnPatch
     {
         [ThreadStatic] internal static bool ReturningToFree;
-        private static void Prefix(LuaManager __instance,string name)
+        private static bool Prefix(LuaManager __instance,string name)
         {
             ReturningToFree=name=="Free";
-            if (!ReturningToFree && name!="Title" && name!="End" && name!="GameOver") return;
+            if (ReturningToFree && StoryEntryRuntime.TryResume(__instance)) {ReturningToFree=false;return false;}
+            if (!ReturningToFree && name!="Title" && name!="End" && name!="GameOver") return true;
             var scenes=SceneController.Instance;
-            if (scenes==null || scenes.IsPrepare || scenes.IsLoading) {ReturningToFree=false;return;}
+            if (scenes==null || scenes.IsPrepare || scenes.IsLoading) {ReturningToFree=false;return true;}
             // An exception is intentionally propagated to the existing playback abort path:
             // failed task settlement must not be reported as a completed event.
             ScenarioRuntime.Complete(__instance);
+            return true;
         }
         private static Exception Finalizer(Exception __exception) {ReturningToFree=false;return __exception;}
     }

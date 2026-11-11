@@ -5,6 +5,19 @@
   "type": "character",
   "name": "林灯",
   "title": "提灯信使",
+  "avatar": "normal.png",
+  "initial_affinity": 25,
+  "initially_known": false,
+  "biography_pages": [
+    {"unlock_level": 0, "text": "提着一盏旧灯行走江湖的信使。她见过许多人来人往，也记得每一封未能送达的信。"},
+    {"unlock_level": 4, "text": "她与唐门结缘之后，仍常常提灯远行，将旧事记在随身的薄册上。"},
+    {"unlock_level": 7, "text": "薄册里没有旁人的秘密，只有那些终于等到回音的平安家书。"}
+  ],
+  "intro": {
+    "name": "林灯",
+    "title": "提灯信使",
+    "text": "提着一盏旧灯行走江湖的信使。她见过许多人来人往，也记得每一封未能送达的信。"
+  },
   "files": {"main": "normal.png"},
   "portraits": {
     "normal": "normal.png",

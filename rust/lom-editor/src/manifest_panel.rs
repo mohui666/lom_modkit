@@ -5,8 +5,29 @@ use crate::{
 use eframe::egui;
 use serde_json::{json, Value};
 
+pub fn show_project(
+    ui: &mut egui::Ui,
+    project: &mut lom_core::project::Project,
+    catalog: &Catalog,
+) {
+    let stories = project.stories.keys().cloned().collect::<Vec<_>>();
+    if project.scenario.is_none() {
+        show(ui, &mut project.manifest, catalog, &stories);
+        return;
+    }
+    ui.heading(tr("作品设置"));
+    crate::scenario_settings::mode(ui, project, catalog);
+    ui.add_space(8.0);
+    crate::scenario_settings::opening(ui, project);
+    fields(ui, &mut project.manifest, catalog, &stories);
+}
+
 pub fn show(ui: &mut egui::Ui, manifest: &mut Value, catalog: &Catalog, stories: &[String]) {
     ui.heading(tr("作品设置"));
+    fields(ui, manifest, catalog, stories);
+}
+
+fn fields(ui: &mut egui::Ui, manifest: &mut Value, catalog: &Catalog, stories: &[String]) {
     let reveal = ui
         .ctx()
         .data_mut(|data| data.remove_temp::<bool>(egui::Id::new("reveal-manifest-fields")))
@@ -29,7 +50,7 @@ pub fn show(ui: &mut egui::Ui, manifest: &mut Value, catalog: &Catalog, stories:
         ("description", "简介", "text"),
         ("entry", "入口章节", "story_ref"),
     ] {
-        if event_mode && matches!(key, "id" | "campaign_id" | "entry") {
+        if event_mode && matches!(key, "campaign_id" | "entry") {
             continue;
         }
         catalog.field(ui, manifest, key, label, kind, false, &[], stories);
@@ -38,7 +59,7 @@ pub fn show(ui: &mut egui::Ui, manifest: &mut Value, catalog: &Catalog, stories:
         egui::CollapsingHeader::new(crate::i18n::key("common.manifest.identifiers"))
             .open(reveal.then_some(true))
             .show(ui, |ui| {
-                for (key, label) in [("id", "作品编号"), ("campaign_id", "存档身份")] {
+                for (key, label) in [("campaign_id", "存档身份")] {
                     catalog.field(ui, manifest, key, label, "str", false, &[], stories);
                 }
                 ui.small(crate::i18n::key("common.manifest.identifier_hint"));

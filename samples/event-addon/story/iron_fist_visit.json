@@ -1,0 +1,19 @@
+{
+  "id": "iron_fist_visit",
+  "story_schema": 2,
+  "title": "拜访铁拳门",
+  "start": "say",
+  "nodes": [
+    {
+      "id": "say",
+      "type": "say",
+      "mode": "narrative",
+      "text": "来到铁拳门前，你稍作整顿，想起与同门的约定。"
+    },
+    {
+      "id": "end",
+      "type": "end",
+      "event_result": "completed"
+    }
+  ]
+}

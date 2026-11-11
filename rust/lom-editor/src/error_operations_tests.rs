@@ -119,6 +119,7 @@ fn http_status_and_empty_download_failures_keep_download_instructions() {
                     Err(error) => panic!("{error}"),
                 }
             };
+            connection.set_nonblocking(false).unwrap();
             connection
                 .set_read_timeout(Some(Duration::from_secs(5)))
                 .unwrap();

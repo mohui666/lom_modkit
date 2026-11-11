@@ -64,6 +64,7 @@ namespace MortalModHost
 
         public static void ClearAll()
         {
+            CameraFilterRuntime.Clear();
             CharacterTitleRuntime.CustomSpeaker = null;
             AutoDialogueRuntime.Clear();
             CharacterPresentation.NarrativeLeft(false);
@@ -274,6 +275,12 @@ namespace MortalModHost
             rect.anchorMax = actor.MoodLayoutAnchor;
             actor.Mood.SetPosition(0f, 0f);
             rect.localScale = Vector3.one * actor.BodyScale;
+        }
+
+        internal static GameObject FilterHolder(string raw)
+        {
+            Actor actor;
+            return Actors.TryGetValue(raw, out actor) ? actor.Holder : null;
         }
 
         internal static void UpdateMoods()

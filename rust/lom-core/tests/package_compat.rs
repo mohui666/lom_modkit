@@ -110,7 +110,10 @@ fn localized_package_contains_all_four_variants_and_matching_records() {
         assert!(entries.contains_key(&format!("texts/{locale}.json")));
     }
     let texts: serde_json::Value = serde_json::from_slice(&entries["texts/ja.json"]).unwrap();
-    assert_eq!(texts["MOD_my_mod_main_say1"], "繁體對白");
+    assert_eq!(
+        texts[format!("MOD_{}_main_say1", project.manifest["id"].as_str().unwrap())],
+        "繁體對白"
+    );
 }
 
 #[test]

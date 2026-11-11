@@ -54,7 +54,7 @@ namespace MortalModHost
                 catch(Exception ex){valid=false;error=ex.Message;}
                 Check(valid==ScenarioJson.Bool(c,"valid",false),ScenarioJson.Text(c,"name")+": "+error);cases++;
             }
-            TestModes();TestRepeatAndRestore();TestChanceAndCadence();TestPriorityAndWeight();TestResultsAndAtomicState();TestTransitions();TestPresentation();TestPackagedSamples();
+            TestModes();TestRepeatAndRestore();TestChanceAndCadence();TestPriorityAndWeight();TestResultsAndAtomicState();TestTransitions();TestStoryEntry();TestPresentation();TestPackagedSamples();
             Config(c=>Patch(c,"/events/1/outcomes/completed/actions",Json("[{\"type\":\"item\",\"kind\":\"consumable\",\"key\":\"user:demo.tonic\",\"op\":\"add\",\"value\":2}]")));
             Throws(()=>Config(c=>Patch(c,"/events/1/outcomes/completed/actions",Json("[{\"type\":\"item\",\"kind\":\"consumable\",\"key\":\"user:../bad\",\"op\":\"add\",\"value\":2}]"))),"result item path escape");
             Console.WriteLine("PASS scenario: "+cases+" shared contract cases, "+Assertions+" assertions; game execution=false");
@@ -156,6 +156,52 @@ namespace MortalModHost
             engine.Select("auto",null);Check(state.Tasks["dependent"]=="active","dependent transition on next evaluation");
             Check(engine.Test(Json("{\"all\":[]}")) && !engine.Test(Json("{\"any\":[]}")),"empty condition groups");
             Throws(()=>engine.Test(Json("{\"not\":{\"source\":\"stat\",\"key\":\"missing\",\"op\":\"eq\",\"value\":0}}")),"missing official values must not become true under NOT");
+        }
+        private static void TestStoryEntry()
+        {
+            Action<Dictionary<string,object>> edit=c=>{
+                Patch(c,"/events/1/trigger","story_entry");Patch(c,"/events/1/position",null,true);
+                Patch(c,"/events/1/target","section_01_free_03");Patch(c,"/events/1/from","section_01_free_start_02");
+                Patch(c,"/events/1/when",Json("{\"all\":[{\"source\":\"time\",\"key\":\"year\",\"op\":\"eq\",\"value\":2},{\"source\":\"time\",\"key\":\"month\",\"op\":\"ge\",\"value\":3}]}"));
+            };
+            var config=Single(edit);var context=new Context();var state=new ScenarioState();
+            var engine=new ScenarioEngine(config,state,context,()=>0);
+            Check(engine.Select("story_entry",null,"section_01_free_03","section_01_free_start_02")==null,"story entry date mismatch does not intercept");
+            context.Year=2;context.Month=3;
+            Check(engine.Select("story_entry",null,"section_01_free_03","S0019_01")==null,"story entry source must match");
+            Check(engine.Select("story_entry",null,"section_01_free_04","section_01_free_start_02")==null,"story entry target must match");
+            Check(state.Attempts.Count==0,"unmatched entry never consumes its chance cadence");
+            Check(engine.Select("story_entry",null,"section_01_free_03","section_01_free_start_02").Id=="visit","strict original transition dispatch");
+            state.StoryReturn.Travel="section_01_free_start_01";state.StoryReturn.Temp1="S2504_01";
+            var restored=ScenarioState.Parse(state.Serialize());
+            Check(restored.Pending=="visit" && restored.StoryReturn.Target=="section_01_free_03"
+                && restored.StoryReturn.From=="section_01_free_start_02" && restored.StoryReturn.Travel=="section_01_free_start_01"
+                && restored.StoryReturn.Temp1=="S2504_01" && restored.StoryReturn.Temp2=="","entry continuation survives existing state serialization");
+            engine=new ScenarioEngine(config,restored,context,()=>0);engine.Complete();
+            Check(restored.Pending==null && restored.StoryReturn==null && restored.Completed.Contains("visit"),"settlement clears continuation and completes once");
+            Check(engine.Select("story_entry",null,"section_01_free_03","section_01_free_start_02")==null,"resumed entry cannot reroll same period");
+            config=Single(c=>{edit(c);Patch(c,"/events/1/from",null,true);});
+            state=new ScenarioState();engine=new ScenarioEngine(config,state,context,()=>0);
+            Check(engine.Select("story_entry",null,"section_01_free_03",null)!=null,"optional source accepts a direct original chapter entry");
+            engine.Abort();Check(state.StoryReturn==null && state.Pending==null,"abort drops owned continuation without completion");
+            Throws(()=>Single(c=>{edit(c);Patch(c,"/events/1/target","MOD_other_main");}),"MOD target is not an original entry");
+            Throws(()=>Single(c=>{edit(c);Patch(c,"/events/1/from","");}),"empty original source");
+            Throws(()=>Single(c=>Patch(c,"/events/1/target","section_01_free_03")),"target on a position event");
+            Throws(()=>Single(c=>{edit(c);Patch(c,"/events/1/position","Forge");}),"position on a chapter entry");
+            var missing=new ScenarioState {Pending="visit"};
+            Throws(()=>new ScenarioEngine(config,missing,context,()=>0),"missing entry continuation must be diagnosed");
+            config=Single();
+            Check(ScenarioState.Parse(new ScenarioState().Serialize()).StoryReturn==null,"legacy state without continuation remains readable");
+            config=Config(c=>{
+                Patch(c,"/events/1/trigger","auto");Patch(c,"/events/1/position",null,true);
+                Patch(c,"/events/2/trigger","auto");Patch(c,"/events/2/position",null,true);
+                Patch(c,"/tasks/0/initial","locked");
+                Patch(c,"/tasks/0/transitions",Json("[{\"from\":\"locked\",\"to\":\"active\",\"when\":{\"all\":[]}}]"));
+            });
+            state=new ScenarioState();engine=new ScenarioEngine(config,state,context,()=>0);
+            string before=state.Serialize();
+            Check(engine.Select("story_entry",null,"section_01_free_03","section_01_free_start_02")==null
+                && state.Serialize()==before && state.Tasks["delivery"]=="locked","legacy auto-only tasks are not advanced by an unmatched chapter entry");
         }
         private static void TestPresentation()
         {

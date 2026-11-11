@@ -12,6 +12,11 @@ namespace MortalModHost
         public string Type;
         public string Name;
         public string Title;
+        public string Biography;
+        public bool InitiallyKnown;
+        public List<CharacterBiographyPage> BiographyPages = new List<CharacterBiographyPage>();
+        public string AvatarFile;
+        public int InitialAffinity;
         public float Scale = 100f;
         public string Extends;
         public string ArtFacing;
@@ -32,6 +37,12 @@ namespace MortalModHost
         public Dictionary<string, string> CombatFrames;
         public Dictionary<string, byte[]> Files;
         public CustomGameplayDefinition Gameplay;
+    }
+
+    internal sealed class CharacterBiographyPage
+    {
+        public string Text;
+        public int UnlockLevel;
     }
 
     internal sealed class PortraitCalibration

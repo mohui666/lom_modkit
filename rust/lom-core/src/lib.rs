@@ -1,5 +1,6 @@
 //! Native Rust authoring core for the existing Legend of Mortal package contract.
 pub mod analysis;
+pub mod character_profile;
 pub mod codegen;
 pub mod content;
 pub mod content_library;
@@ -66,4 +67,5 @@ pub mod editor_update;
 pub mod game_discovery;
 pub mod game_tools;
 pub mod scenario;
+pub mod scenario_edit;
 pub mod story_api;

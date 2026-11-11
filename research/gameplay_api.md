@@ -1,5 +1,67 @@
 # Gameplay API 实证矩阵
 
+## 2026-11-11 人物页与滤镜性能复核
+
+本次重新读取安装目录的 `Mortal.Core.CommonPanel.Show` 与 `SocialStatPanel.OnPanelOpen/InitToggleButtons`：关闭面板会停用 GameObject，打开时原版会逐行 `InitData`，因此同一作品／隔离槽可以保留 Host 自建行，仅刷新当前数值；作品对象或槽变化仍重新建立归属。状态轮询合并好感、认识及手动页掩码的读取，不改变 sidecar 格式或原版资源。现场确认 `UnityEngine.Component.GetComponentsInChildren<T>(bool,List<T>)` 与 `GetComponentsInParent<T>(bool,List<T>)` 存在，滤镜镜像改用复用列表和四角缓冲，最后一个分层结束后停用自身 LateUpdate，再次设置分层时恢复。
+
+隔离游戏进程中的同场景方法计时：100个自定义人物的稳定轮询中位数由1.0144ms降至0.1176ms，p95由1.0497ms降至0.1215ms；重复打开的 Host 准备部分由15.4931ms降至0.1756ms，p95由16.2189ms降至0.2546ms。数字是本机 CPU 方法计时，不代表整个游戏帧率、GPU耗时或首次载图速度。当前 Mono 没有提供所用的逐线程分配计数接口，未据此声称零内存分配。
+
+优化后人物资料35项实机回归通过，新增原生人物页重复打开仍复用同一自定义行的断言；另完成位移、滤镜、好感和状态页123项实机检查及回忆／黑白两组截图像素对照，隔离存读档、页面锁定与原版资源保持不变。人物资料测试完成后仍出现前文所述原版退出期 `FlowchartPlaceholder.OnDestroy` 空引用，未将其隐藏或计作运行零错误。
+
+## 2026-11-11 原版章节进入事件与铁拳巷拜访续接
+
+本次实时读取 `Mortal.Story.LuaManager.SetNextScript/SetCurrentStoryScript/Init/ExecuteLuaScript`：前两者写入 `PlayerStatManagerData.CurrentStoryScript`；`Init()` 初始化 Lua、启动卸载读取场景协程后立即调用 `ExecuteLuaScript()`，后者加载本机 `Story/ChineseTraditional/<ScriptName>` 的 `TextAsset`。Host 在该既有入口、原版章节正文执行前匹配 `story_entry.target` 与可选 `from`；来源记录自实际 `SetNextScript` 调用，省略来源时允许任意入口。只有存在匹配的新事件才进入该调度；旧包仅为防止跨包进行中事件嵌套而读取 Pending，不参与新入口的任务转换、Select 或 Store。
+
+当前游戏崆峒地图是 Story 菜单，非唐门 `PositionType`：原版 `section_01_free_start_02` 的第6项、键 `O_Section_01_Free_Start_02_005`，本机实际显示「铁拳巷」，先调用 `StatModifyManager.Player("action",-1,"",1)`，再 `SetNextScript("section_01_free_03")`、`Init()`。目标章自行加载人物及 `section_001_fist` 背景、写 view 流图的 `ViewName`，然后继续其官方支线或活动菜单。章内 `CheckPointManager.Position("Section_01_03")` 只属于选择锻造后的活动，不是地图拜访入口。
+
+事件的原版 target/from、travel、temp1～3 与原保存入口／保存按钮状态放在现有 `ScenarioState` 的可选 `story_return` 中，仍沿本包命名空间的 `StoryKeyList` 记录保存。现场读取 `PlayerStatManagerData.Save/Load` 确认 `GameSave.StartStoryScript` 是原版读档执行入口；捕获原保存入口后，进入事件同时通过 `PlayerStatManagerData.SetStartScript` 将当前保存入口指向 MOD 注册名，不改变来源已设置的保存按钮开关。这样即使来源已允许保存、事件没有再次调用 `ToggleSaveButton(1)`，直接保存也会重开进行中的 MOD 事件。续接通过 `SetStartScript`、`LuaManager.SetCurrentTravelScript/SetTempScript` 与 `StoryManager.ToggleSaveButton` 恢复原寄存器。MOD 正常 end 请求 Free 时，Host 在当前 Story 中结算事件并直接 `SetNextScript(originalTarget)`、`Init()`，单次跳过自身匹配；不再次执行地图点击或扣点。它是原章节开始前的插入，不是任意 Lua 调用栈、局部变量或上章舞台画面的暂停快照；目标应使用原版能自行初始化的章节入口，本次铁拳入口符合该条件。
+
+本轮独立 Host／测试存档的26项最小实机断言全部通过（含2项小头像检查）：原生崆峒菜单实际点击铁拳巷，早于条件的日期继续原版；受控错误来源经真实 setter/Init 不拦截；条件满足后先播放事件，实际 `SaveGameData/LoadGameData` 从磁盘恢复进行中记录，再加载未修改的原版目标正文，行动力只扣一次、结果只结算一次、旅行与暂存寄存器及原保存入口／按钮恢复。新增保存边界从实际原版菜单已允许保存的状态受控切入，事件内不调用 `ToggleSaveButton(1)`，直接保存后调用生产 `Plugin.LoadCampaign`，经 `LoadGameData/SceneController.LoadCurrentScene` 创建新的 LuaManager，确实重开 MOD 事件；结束后原目标完成其人物与背景加载，第二次结果只结算一次，原保存入口与启用状态恢复。已视读新场景续接后的铁拳门背景与原生人物。普通头像在原生小提示中完整可见，alpha 达到0.952后截图；临时探针没有改写动画透明度。此前快速自动退出曾出现原版 `FlowchartPlaceholder.OnDestroy` 空引用或尚在异步加载时的 AssetBundle 卸载错误；最终等待原版背景实载后完成的26项轮次日志未再出现这些异常，不将此前退出期日志当成功能通过证据。
+
+## 2026-11-11 紧邻登场／转身的人物位移
+
+现场读取 `Fungus.PortraitController.DoMoveTween` 与 `Mortal.Story.StoryCharacterController.MoveOffset/MoveOffsetCoroutine`：原版登场／转身通过 LeanTween 写 holder，即使时长为零仍可能留到下一帧；位移使用 DOTween，因此会被前一个位置补间覆盖。Host 只在 MOD 演出中取消目标 holder 上已有的 `TweenAction.MOVE`，保留透明度、旋转和其他人物；绝对布局与普通位移切换时停止同一人物上一段 Host 布局协程。原 Lua 输出保持不变。
+
+本轮独立配置及测试存档中完成29项实机检查：官方和自定义人物各重复紧邻登场的零时长位移、转身后位移、连续累加、绝对缩放后普通位移、移动中独立气泡，以及原版 void `MoveOffset` 入口。读取实际 holder 位置、缩放与可见气泡，全部通过。
+
+## 2026-11-11 滤镜渐变与原彩人物层
+
+黑白滤镜：本次从当前 `level2` 的 StoryCamera 实例序列化数组读取13项映射，确认精确键 `stage-gray-100` 指向 `Gray 100 Volume`，其 `Gray100Profile` 含 `ColorAdjustments`，`saturation.overrideState=true`、值为 -100。实时读取当前 URP 的 `Volume.sharedProfile`、`VolumeProfile`、`ColorAdjustments` 和 `ClampedFloatParameter` 接口及字段顺序后复核该数值。普通编辑节点只是补上遗漏的官方预设选项，继续通过 `StoryCamera.ActiveVolume`／`FadeVolume` 启停或渐变；不创建同名自定义键，不改官方 Profile。二维预览按滤镜权重混合亮度灰度，指定人物继续沿已验证的后处理后渲染层保留原彩。
+
+新增黑白域16项隔离实机检查通过，覆盖原版 Profile 与 -100 饱和度、渐入／渐出、指定人物后绘制、全员灰度、关闭恢复及清场。实际1920×1080截图中，滤镜前的赵活衣服区域平均色差（max RGB−min RGB）约33降至0.042，天空约81降至0；后绘制的林灯仍约31.7，取消后绘制时林灯降至0.049。关闭滤镜后所采样区域恢复基准帧RGB。实际画面同时核对了赵活与气泡黑白、林灯及其气泡彩色，官方共享 Profile 保持原引用与参数。
+
+本次实时读取当前 `Mortal.Story.StoryCamera.ActiveVolume(string,int)`、`FadeVolume(string,int,float)`；后者取消对应 Volume 的旧补间，以 `Volume.weight` 渐变，淡出完成后禁用 Volume。新 `camera.duration` 复用该入口，生成 Lua 等待填入时长；省略或 0 且未设置分层时仍输出旧的 `ActiveVolume` 调用。仅使用过扩展控制的滤镜会在后续立即开关时复位权重，避免关闭渐变后重新启用仍保持零权重。
+
+只读检查本机 `level2` 的画布与相机引用，并在真实 Story 场景读回相机栈：BackCamera → StageCamera → UICamera → TopCamera。舞台滤镜 Volume 位于层18，StageCamera 的 `volumeLayerMask` 为262144；后续 UICamera 为32（层5）、TopCamera 为524288（层19），均不包含舞台滤镜层。各相机的 `renderPostProcessing` 都开启，单看该总开关不能判断是否应用舞台滤镜。人物对白、旁白与 MainUI 使用 UICamera（同 UI 排序层，order 0），TopPanel 使用 TopCamera（order 99）。
+
+`camera.exclude_characters` 在 UICamera 上建立 order -1 的独立运行时画布，镜像指定人物及气泡的 Image、屏幕四角、表情、颜色与透明度；原 holder 留在舞台，继续原版移动、旋转和压暗。当前原版 SayDialog 在对白之间停用 GameObject，因此读取其序列化画布必须使用 `GetComponentInParent<Canvas>(true)`，不激活对白对象。镜像期间每帧保持原 Image 停用，避免自定义换表情重新启用原图后双重绘制。对应滤镜淡出完成后恢复原 Image，清舞台和离场清理克隆。未修改官方素材、相机配置或人物资产。编辑器模拟渐变权重，将原彩人物绘制于场景滤镜和前景后、对白与黑幕前；模糊、暗角仍是二维近似。
+
+已通过 Host 编译、真实发布版 1.5.9 滤镜包的打开→编辑新字段→保存／导出→重开，以及重算完整性记录后的无关 Lua 替换拒绝测试。本轮在独立 Host 与测试存档中完成滤镜域30项实机检查，覆盖渐入／渐出逐帧权重、相机栈 Volume 选择、官方和自定义人物及气泡的原彩层、位移与换表情、对白层序、淡出恢复23张原 Image、旧节点重新启用、再次分层和清场。满权重帧与正常基准帧的像素比较中，天空／地面蓝通道平均变化约75／73级，两个原彩人物衣物不透明内部区域各通道平均变化均低于3.4级；结合实际画面核对，确认场景黄化、人物保留原彩。该结果只覆盖本轮所用场景、滤镜和人物组合。
+
+## 2026-11-11 好感头像与自定义人物好感
+
+现场只读反编译当前 `Mortal.Story.StatModifyManager.Character(string,int,int)`、`SetCharacter(string,int)`、`Mortal.Core.RelationshipStat`、`RelationshipStatType`、`PlayerAvatarPanel.OnEnable()`、`RelationshipModifyMessagePanel.DisplayRelationshipModification(Sprite,int)` 与 `RelationshipStatModification.Setup(Sprite,int)`，并读取 `StoryMainUI.DisplayRelationshipModification(RelationshipStat,int)`。原版小好感提示通过 `RelationshipStat.Icon` 显示头像，`AddValue` 将原版好感限制在 0～100；`PlayerAvatarPanel.OnEnable()` 则选择状态面板的全身图，两者用途不同。
+
+Host 在好感展示入口克隆当前 `RelationshipStat`，只替换克隆的图标，原版资源不变。本轮游戏实际读取赵活的 `Icon=null`；`HeadIcon=icon_head_player`（66×172）与另一个通知用 `icon_player`（101×100）都不是用户所需的普通表情，因此不作为该修复的替代图。现场读取 `StoryCharacterController.LoadPortraitSync(string)`，确认它按 `StoryCharacterData.PortraitResourceList` 中 `Mapping.Value=="normal"` 的 `AddressKey` 调用 `Addressables.LoadAssetAsync<Sprite>().WaitForCompletion()`。本机实际地址为 `Assets/__Project/Images/Characters/Player_主角/normal.png`。`PlayerNormalAvatarRuntime` 复用相同地址入口，创建普通表情头部的正方形 Sprite；官方 texture 保持原引用，不改像素。测量来自 GPU 读回图，创建 Sprite 时转换纵坐标；当前实际 crop 为 `(254,818,485,485)`，通知继续使用原版 60×60 的 Simple Image 和 preserveAspect。只销毁新建 Sprite，并释放自己持有的 Addressables handle，绝不销毁官方 texture。最终已在真实小好感提示中视读确认完整普通表情头部，等待实际 alpha 达到0.952后拍摄；GPU 导出图片及尺寸断言未用来代替渲染验收。
+
+人物扩展的可选 `avatar` 使用本包图片。`StatModifyManager.Character/SetCharacter` 只对合法且属于当前作品的独立 `user:` 人物转到现有隔离 sidecar；默认值来自素材 `initial_affinity`，升降与原版相同保持 0～100，提示复用原版 `RelationshipModifyMessagePanel`。检定、事件与触发条件按所属包读取同一数据。26 项好感／演出接口实机检查覆盖自定义真实图片头像、25→33→27 的升降提示、0／100 上下限、检定双分支、实际 `SaveGameData/LoadGameData`、清除内存后从 sidecar 读回 27，以及独立的剧情介绍卡文字、姓名与图片。隔离直启未初始化 Steam，临时验证探针仅将 `SystemSettings.IsRunningOnSteamDeck()` 固定为 false 选择本机 PC 布局；生产 Host 未改 Steam 入口，面板、头像及存读档均执行原版入口。
+
+## 2026-11-11 状态页人物传记与好感等级
+
+本次实时读取 `PlayerStatusPanel.OnPanelOpen/SetSocialButtonActive`、`SocialStatPanel.OnPanelOpen/CharacterButtonOnActive/UpdateInfo/CharacterInfoOnActive`、`SocialCharacterButton.InitData/ToggleActive/RaiseActiveEvent`、`SocialCharacterInfoToggle.SetInteractable/RaiseActiveEvent` 与 `RelationshipStat.Active/SetActive/Level`。实际入口为游戏「状态 → 人际」，不是剧情介绍卡。资料使用 `_nameText/_titleText/_avatarImage/_introText/_levelText/_progressBar`；原版等级为好感值整数除10，进度为余数除10，100时填满。当前原版固定四页，正常门槛为0／4／7／10级，并有 Prologue 原版限制；Host 不改原版规则和资源。
+
+自定义人物的 `initially_known` 缺省 false；`biography_pages` 为0～4页，每页独立填写原样 `text` 与0～10整数 `unlock_level`。顺序就是页码，不去重、不删除空稿。旧 `biography` 映射为门槛0的单页，与剧情 `intro` 独立，仍需先认识才能阅读；非空白旧正文与非空新分页并存时报冲突，空白旧稿不阻止新页，并与编辑器保持相同判定。`mod_character_profile(character,op,page)` 对当前包独立的 `user:` 人物执行 meet／forget（page=0）或 unlock_biography／lock_biography（page=1～4且须已配置）。登场、对白与好感改变不会自动认识人物。手动解锁越过等级门槛，手动锁定覆盖等级；forget 只隐藏身份与资料，不清除好感和已存的解锁／锁定。认识和页决定沿现有 MOD／隔离槽 sidecar 保存，旧 sidecar 缺少这些可选字段时使用素材默认值。
+
+`CustomSocialRuntime` 在原版 GridLayoutGroup 人物列表追加克隆按钮，每个按钮引用 Host 自建的 `RelationshipStat`，不注册或改写官方集合／资产。选中自有对象时才接管详情和文字入口；原版对象继续原版逻辑。允许的作品由当前 MOD 玩法及隔离槽确定，Free 场景中无需当前演出的 `ModOverlay.CurrentPackage`。原版按钮顺序保持，新作品和人物分别按 `package.Id`、`content.Id` 的 Ordinal 顺序追加；切换作品／槽或回到纯原版时撤销对应自定义按钮与详情。人物的实际好感与名字／称号继续读取所属作品的隔离 sidecar。
+
+未知人物只把自有 `RelationshipStat.Active` 置为 false，通过原版 `SocialCharacterButton.InitData` 禁用该行，克隆行图标染黑保留素材透明轮廓；即使受控调用详情入口，姓名、等级与正文也显示问号，头像黑化，全部页不可读。认识后恢复彩色、姓名和实际好感，配置页保持可见并通过原版 `SocialCharacterInfoToggle.SetInteractable` 锁定未开放页。原版 `SocialStatPanel.UpdateInfo` 不重设头像 color，因此每个资料面板仅记录本实例原始头像颜色和四个页签 active 状态，在切回原版人物或清除自定义时恢复，再执行原版逻辑，防止忘记人物后的黑色或单页隐藏状态污染原版资料。
+
+此前单页实现完成19项状态页实机检查：实际进入 Free 后主动清空演出包指针，仍可通过原版状态页选中林灯，显示独立传记、姓名、称号与立绘；27好感显示2级和0.7进度，打开页面时改为37立即显示3级，保存、改为82、清除内存后加载恢复37。该单页历史证据与本次分级解锁及旧剧情介绍卡验收分开，不代替新接口的验证。
+
+本次认识／分页新接口完成34项隔离实机检查：真实编译的新节点覆盖登场仍未知、黑剪影／禁用行／详情问号、meet、39→40的等级门槛、低于10级手动开第4页、强制锁住已达等级的第2页、forget 与再次 meet 保留原好感和页决定。实际保存后用后续节点改变活状态，再按原版读档入口的 `SetSlot` → `LoadGameData` 恢复；另外调用生产 `Plugin.LoadCampaign` 经 `LoadCurrentScene` 重建 Story，在新人物页中核对好感40、第4页开放、第2页强制锁定及正文与磁盘一致。两份真实包的同内容 ID 不串状态，纯原版模式移除自定义行。另以单页自定义人物 forget 黑化后切回真实原版人物，确认正常头像颜色；使用原版数据的自有实例克隆核对较高等级页签的界面基线恢复，官方资源保持不变。已视读未知、手动解锁、生产重载和切回原版的实际截图。完成34项后自动退出仍出现原版 `FlowchartPlaceholder.OnDestroy` 的空引用栈，未吞掉或计为运行零错误。
+
+存档验证边界：当前 `LoadSlotPanel.OnTitleClick`、`RecentSaveSlotPanel.OnTitleClick` 均先 `SaveSystem.SetSlot` 再加载，`AutoSaveSlotPanel` 也先绑定所属手动槽；MOD 菜单和同槽手动重读进入现有 `ModSaveBrowser`／`Plugin.LoadCampaign`，同样先 SetSlot。Story／Free 的已核对输入监听没有独立 QuickLoad 分支。本次确认的是正式手动加载与生产场景重建；直接只调用低层 `LoadGameData()` 而绕过既有槽绑定不会自动清除 sidecar 缓存，未把该受控低层调用称为正式读档成功，也未据此扩建新的重载系统。
+
 ## 2026-11-09 自定义大图与无图片底色
 
 现场只读核对当前 `Mortal.Story.StoryMainUI.ShowBigPicture(string,int)/HideBigPicture()`、`_bigPicture/_bigPictureBackground` 和 `StoryPicture.Show/Hide/Awake/OnDestroy/ReleaseHandle`。原版 `Show` 将图片 alpha 先置零，随后根 CanvasGroup 淡入底色，再将图片淡入并移动 `_moveOffset`；`Hide` 使用 `_fadeoutDuration`。Host 在 `StoryMainUI` 的两个入口包装自定义路径，克隆当前大图实例；背景-only 不发起资源加载、不显示默认占位图，自定义图片从所属作品 image 素材解析。新增 `mod_big_picture_configure` 只为紧接的一次显示配置淡入时长。普通原版大图未使用扩展字段时保留原 Lua 和原入口；隐藏按当前活动实例处理，切场景清除克隆。本轮隔离测试存档实机 11 项检查通过：纯白底色淡入且不加载图片、克隆与原版图片实例分离、白底保持与隐藏、自定义图片先底色后图片的两段淡入、保持原始图片像素尺寸并按框适配、自定义图片隐藏清理，以及回到原版大图入口显示。日志无运行错误；测试后退出游戏并移除临时验证插件。

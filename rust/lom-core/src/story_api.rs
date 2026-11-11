@@ -104,6 +104,7 @@ fn checked_fields(kind: &str, fields: &Value) -> Result<Value> {
             "reward_entries_optional",
             "custom_shop_items",
             "parallel_actions",
+            "filter_characters",
         ]
         .contains(&f)
         {
@@ -115,7 +116,16 @@ fn checked_fields(kind: &str, fields: &Value) -> Result<Value> {
     }
     Ok(fields.clone())
 }
-fn normalize(node: &mut Value) -> Result<()> {
+fn normalize(node: &mut Value, changed: &Value) -> Result<()> {
+    if node["type"] == "character_profile" {
+        if changed.get("op").is_some()
+            && !crate::character_profile::page_operation(changed)
+            && changed.get("page").is_none()
+        {
+            node.as_object_mut().unwrap().remove("page");
+        }
+        crate::character_profile::validate_node(node)?;
+    }
     if node["type"] == "branch" {
         let field = if node["source"] == "stat" {
             "flag"
@@ -176,7 +186,7 @@ fn make(story: &mut Value, kind: &str, fields: Value, after: Option<&str>) -> Re
     node.as_object_mut()
         .unwrap()
         .extend(fields.as_object().context("fields 必须为对象")?.clone());
-    normalize(&mut node)?;
+    normalize(&mut node, &fields)?;
     let at = if let Some(id) = after {
         index(story, id)? + 1
     } else {
@@ -258,7 +268,7 @@ pub fn execute(op: &str, params: &Value) -> Result<Value> {
         "update_node"|"delete_node"|"rename_node"|"move_node"|"set_start"=>{
             let id=string(params,"node_id")?;let i=index(&story,id)?;let mut node=story["nodes"][i].clone();
             match op{
-                "update_node"=>{let f=checked_fields(node["type"].as_str().unwrap_or(""),&params["fields"])?;node.as_object_mut().unwrap().extend(f.as_object().unwrap().clone());normalize(&mut node)?;story["nodes"][i]=node.clone();if release::missing_stage_linear(story["nodes"].as_array().unwrap(),i).is_some(){release::ensure_stage(&mut story,node["id"].as_str().unwrap());}},
+                "update_node"=>{let f=checked_fields(node["type"].as_str().unwrap_or(""),&params["fields"])?;node.as_object_mut().unwrap().extend(f.as_object().unwrap().clone());normalize(&mut node,&f)?;story["nodes"][i]=node.clone();if release::missing_stage_linear(story["nodes"].as_array().unwrap(),i).is_some(){release::ensure_stage(&mut story,node["id"].as_str().unwrap());}},
                 "delete_node"=>{story["nodes"].as_array_mut().unwrap().remove(i);},
                 "set_start"=>{story["start"]=json!(id);},
                 "move_node"=>{let d=params["delta"].as_i64().context("delta 必须是整数")?;ensure!(d==1||d==-1,"delta 必须是 ±1");let dest=i as i64+d;ensure!(dest>=0&&(dest as usize)<story["nodes"].as_array().unwrap().len(),"移动越界");story["nodes"].as_array_mut().unwrap().swap(i,dest as usize);},

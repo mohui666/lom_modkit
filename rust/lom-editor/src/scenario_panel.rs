@@ -128,6 +128,9 @@ pub fn show(
     task_page: bool,
     selection: &Selection,
 ) {
+    if !task_page {
+        crate::scenario_settings::opening(ui, project);
+    }
     let names = crate::scenario_quick::Names::new(&project.stories, project.scenario.as_ref());
     let stories = project.stories.keys().cloned().collect::<Vec<_>>();
     let Some(config) = &mut project.scenario else {
@@ -402,17 +405,18 @@ fn event_advanced(
     text(ui, e, "name", "名称");
     bool_field(ui, e, "enabled", "启用", true);
     let before = e["trigger"].clone();
-    let mut kinds = vec![("auto", "自动触发"), ("position", "点击地点")];
+    let story_entry_label = crate::i18n::key("common.quick.original_trigger");
+    let mut kinds = vec![
+        ("auto", "自动触发"),
+        ("position", "点击地点"),
+        ("story_entry", story_entry_label.as_str()),
+    ];
     if sandbox {
         kinds.push(("start", "开场"));
     }
     select(ui, e, "trigger", "入口", &kinds, "position");
     if before != e["trigger"] {
-        if e["trigger"] == "position" {
-            e["position"] = json!("Center");
-        } else {
-            e.as_object_mut().unwrap().remove("position");
-        }
+        crate::scenario_quick::trigger_changed(e);
     }
     if e["trigger"] == "position" {
         catalog.field(
@@ -425,6 +429,9 @@ fn event_advanced(
             &[],
             stories,
         );
+    }
+    if e["trigger"] == "story_entry" {
+        crate::scenario_quick::story_entry_fields(ui, e, None);
     }
     catalog.field(
         ui,
@@ -540,26 +547,14 @@ fn task_advanced(
 ) {
     text(ui, t, "id", "任务 ID");
     text(ui, t, "name", "名称");
-    text(ui, t, "initial", "初始状态");
-    ui.horizontal(|ui| {
-        ui.label(crate::i18n::key("common.scenario.states"));
-        let mut s = t["states"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter_map(Value::as_str)
-            .collect::<Vec<_>>()
-            .join(",");
-        if ui.text_edit_singleline(&mut s).changed() {
-            t["states"] = json!(s
-                .split(',')
-                .map(str::trim)
-                .filter(|s| !s.is_empty())
-                .collect::<Vec<_>>());
-        }
-    });
+    let choices = crate::scenario_task_states::states(t);
+    crate::scenario_quick::task_state(ui, t, "initial", "初始状态", &choices);
+    let transition = crate::scenario_task_states::transition(t);
     if ui
-        .button(crate::i18n::key("common.scenario.add_condition_transition"))
+        .add_enabled(
+            transition.is_some(),
+            egui::Button::new(crate::i18n::key("common.scenario.add_condition_transition")),
+        )
         .clicked()
     {
         if !t["transitions"].is_array() {
@@ -568,7 +563,7 @@ fn task_advanced(
         t["transitions"]
             .as_array_mut()
             .unwrap()
-            .push(json!({"from":"locked","to":"active","when":{"all":[]}}));
+            .push(transition.unwrap());
     }
     let mut delete = None;
     for (j, r) in t
@@ -580,8 +575,8 @@ fn task_advanced(
     {
         ui.push_id(j, |ui| {
             egui::Frame::group(ui.style()).show(ui, |ui| {
-                text(ui, r, "from", "从状态");
-                text(ui, r, "to", "到状态");
+                crate::scenario_quick::task_state(ui, r, "from", "从状态", &choices);
+                crate::scenario_quick::task_state(ui, r, "to", "到状态", &choices);
                 condition(ui, &mut r["when"], states, catalog, stories, 0);
                 if ui
                     .button(crate::i18n::key(
@@ -755,13 +750,9 @@ fn condition(
             let options = tasks
                 .iter()
                 .find(|(id, _)| id == key)
-                .map(|(_, s)| {
-                    s.iter()
-                        .map(|s| (s.as_str(), s.as_str()))
-                        .collect::<Vec<_>>()
-                })
+                .map(|(_, states)| states.clone())
                 .unwrap_or_default();
-            select(ui, c, "value", "状态", &options, "");
+            crate::scenario_quick::task_state(ui, c, "value", "状态", &options);
         } else {
             integer(ui, c, "value", "数值", 0, i32::MIN as i64, i32::MAX as i64);
         }
@@ -903,13 +894,15 @@ fn outcomes(ui: &mut egui::Ui, v: &mut Value, tasks: &[(String, Vec<String>)]) {
                         let states = tasks
                             .iter()
                             .find(|(id, _)| id == &key)
-                            .map(|(_, s)| {
-                                s.iter()
-                                    .map(|s| (s.as_str(), s.as_str()))
-                                    .collect::<Vec<_>>()
-                            })
+                            .map(|(_, states)| states.clone())
                             .unwrap_or_default();
-                        select(ui, &mut effects["tasks"], &key, "推进到状态", &states, "");
+                        crate::scenario_quick::task_state(
+                            ui,
+                            &mut effects["tasks"],
+                            &key,
+                            "推进到状态",
+                            &states,
+                        );
                         if ui
                             .small_button(crate::i18n::key("common.scenario.delete_task_effect"))
                             .clicked()

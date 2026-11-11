@@ -3,12 +3,40 @@ use crate::{forms::Catalog, i18n::tr};
 use eframe::egui;
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
+#[path = "scenario_dates.rs"]
+mod date_conditions;
+use date_conditions::{Date, DateRange};
+#[path = "scenario_story_entry.rs"]
+mod original_entry;
+
+pub fn set_game_directory(ctx: &egui::Context, game: &std::path::Path) {
+    original_entry::set_game_directory(ctx, game);
+}
+pub fn story_entry_fields(ui: &mut egui::Ui, event: &mut Value, names: Option<&Names>) {
+    original_entry::fields(ui, event, names);
+}
+pub fn trigger_changed(event: &mut Value) {
+    if event["trigger"] == "position" {
+        event["position"] = json!("Center");
+    } else {
+        event.as_object_mut().unwrap().remove("position");
+    }
+    if event["trigger"] == "story_entry" {
+        if event.get("target").is_none() {
+            event["target"] = json!("");
+        }
+    } else {
+        event.as_object_mut().unwrap().remove("target");
+        event.as_object_mut().unwrap().remove("from");
+    }
+}
 
 pub struct Names {
     pub stories: Vec<(String, String)>,
     pub tasks: Vec<(String, String)>,
     pub states: BTreeMap<String, Vec<String>>,
     results: BTreeMap<String, BTreeMap<String, String>>,
+    originals: BTreeMap<String, String>,
 }
 impl Names {
     pub fn new(stories: &BTreeMap<String, Value>, config: Option<&Value>) -> Self {
@@ -17,6 +45,7 @@ impl Names {
             tasks: vec![],
             states: BTreeMap::new(),
             results: BTreeMap::new(),
+            originals: BTreeMap::new(),
         };
         for (id, story) in stories {
             let name = story["title"]
@@ -24,6 +53,11 @@ impl Names {
                 .filter(|s| !s.trim().is_empty())
                 .unwrap_or(id);
             result.stories.push((id.clone(), name.to_owned()));
+            if let Some(target) = lom_core::vanilla_import::target(story)
+                .or_else(|| story["vanilla_patch"]["target"].as_str())
+            {
+                result.originals.insert(target.to_owned(), name.to_owned());
+            }
             let mut labels = BTreeMap::new();
             for node in story["nodes"]
                 .as_array()
@@ -159,7 +193,8 @@ fn named_choice(
             .selected_text(label(items, &selected, missing))
             .show_ui(ui, |ui| {
                 for (id, name) in items {
-                    ui.selectable_value(&mut selected, id.clone(), tr(name));
+                    ui.selectable_value(&mut selected, id.clone(), tr(name))
+                        .on_hover_text(id);
                 }
             });
     });
@@ -177,6 +212,15 @@ pub fn task_state(
     title: &str,
     states: &[String],
 ) -> bool {
+    let current = v[key].as_str().unwrap_or("");
+    let missing = if !current.is_empty() && !states.iter().any(|state| state == current) {
+        crate::i18n::message(
+            "common.task_states.missing",
+            &[("state", current.to_owned())],
+        )
+    } else {
+        tr("请选择状态")
+    };
     named_choice(
         ui,
         v,
@@ -186,7 +230,7 @@ pub fn task_state(
             .iter()
             .map(|s| (s.clone(), state_name(s)))
             .collect::<Vec<_>>(),
-        "请选择状态",
+        &missing,
     )
 }
 
@@ -195,17 +239,25 @@ struct SimpleWhen {
     year: Option<i64>,
     month: Option<i64>,
     stage: Option<i64>,
+    range: Option<DateRange>,
     task: Option<(String, String)>,
     other: Vec<Value>,
 }
 impl SimpleWhen {
     fn read(v: &Value) -> Option<Self> {
-        if v.get("any").is_some() || v.get("not").is_some() {
+        if v.get("not").is_some()
+            || v.get("any").is_some() && date_conditions::read_bound(v).is_none()
+        {
             return None;
         }
         let mut parts = vec![];
         fn flatten(v: &Value, out: &mut Vec<Value>) {
-            if let Some(all) = v["all"].as_array() {
+            if date_conditions::read_bound(v).is_some() {
+                out.push(v.clone());
+            } else if let Some(all) = v["all"]
+                .as_array()
+                .filter(|_| v.as_object().is_some_and(|o| o.len() == 1))
+            {
                 for c in all {
                     flatten(c, out);
                 }
@@ -216,7 +268,21 @@ impl SimpleWhen {
         flatten(v, &mut parts);
         let mut s = Self::default();
         for c in parts {
-            if c["source"] == "time" && c["op"] == "eq" {
+            if let Some((date, from)) = date_conditions::read_bound(&c) {
+                let range = s.range.get_or_insert_with(DateRange::default);
+                let target = if from {
+                    &mut range.from
+                } else {
+                    &mut range.until
+                };
+                if target.is_some() {
+                    return None;
+                }
+                *target = Some(date);
+                continue;
+            }
+            let exact_fields = c.as_object().is_some_and(|o| o.len() == 4);
+            if exact_fields && c["source"] == "time" && c["op"] == "eq" {
                 let (target, max) = match c["key"].as_str() {
                     Some("year") => (&mut s.year, 9),
                     Some("month") => (&mut s.month, 12),
@@ -234,7 +300,7 @@ impl SimpleWhen {
                     continue;
                 }
             }
-            if c["source"] == "task" && c["op"] == "eq" {
+            if exact_fields && c["source"] == "task" && c["op"] == "eq" {
                 if let (Some(id), Some(state)) = (c["key"].as_str(), c["value"].as_str()) {
                     if s.task.is_some() {
                         return None;
@@ -244,6 +310,10 @@ impl SimpleWhen {
                 }
             }
             s.other.push(c);
+        }
+        // Mixed range and recurring exact-date predicates stay in the advanced editor.
+        if s.range.is_some() && (s.year.is_some() || s.month.is_some() || s.stage.is_some()) {
+            return None;
         }
         Some(s)
     }
@@ -258,12 +328,40 @@ impl SimpleWhen {
                 all.push(json!({"source":"time","key":key,"op":"eq","value":n}));
             }
         }
+        if let Some(range) = self.range {
+            all.push(range.write());
+        }
         if let Some((id, state)) = &self.task {
             all.push(json!({"source":"task","key":id,"op":"eq","value":state}));
         }
         json!({"all":all})
     }
     fn date(&self) -> String {
+        if let Some(range) = self.range {
+            let label = |date: Date| {
+                format!(
+                    "{}{}{}",
+                    date_name("year", date.year),
+                    date_name("month", date.month),
+                    date_name("stage", date.stage)
+                )
+            };
+            return match (range.from, range.until) {
+                (Some(from), Some(until)) => crate::i18n::message(
+                    "common.quick.date_range_summary",
+                    &[("from", label(from)), ("until", label(until))],
+                ),
+                (Some(from), None) => crate::i18n::message(
+                    "common.quick.date_since_summary",
+                    &[("date", label(from))],
+                ),
+                (None, Some(until)) => crate::i18n::message(
+                    "common.quick.date_until_summary",
+                    &[("date", label(until))],
+                ),
+                (None, None) => crate::i18n::key("common.quick.no_time"),
+            };
+        }
         let mut s = String::new();
         if let Some(n) = self.year {
             s += &crate::i18n::message("common.quick.year", &[("year", n.to_string())]);
@@ -284,31 +382,113 @@ impl SimpleWhen {
             s
         }
     }
+
+    fn date_mode(&self) -> u8 {
+        match self.range {
+            Some(DateRange {
+                from: Some(_),
+                until: Some(_),
+            }) => 3,
+            Some(DateRange {
+                from: Some(_),
+                until: None,
+            }) => 1,
+            Some(DateRange {
+                from: None,
+                until: Some(_),
+            }) => 2,
+            _ => 0,
+        }
+    }
+
+    fn set_date_mode(&mut self, mode: u8) {
+        if mode == self.date_mode() {
+            return;
+        }
+        let start = Date {
+            year: self.year.unwrap_or(1),
+            month: self.month.unwrap_or(1),
+            stage: self.stage.unwrap_or(1),
+        };
+        let end = Date {
+            year: self.year.unwrap_or(9),
+            month: self.month.unwrap_or(12),
+            stage: self.stage.unwrap_or(3),
+        };
+        let previous = self.range.unwrap_or_default();
+        if mode == 0 {
+            let date = previous.from.or(previous.until).unwrap_or(start);
+            self.year = Some(date.year);
+            self.month = Some(date.month);
+            self.stage = Some(date.stage);
+            self.range = None;
+        } else {
+            self.range = Some(DateRange {
+                from: (mode != 2).then_some(previous.from.or(previous.until).unwrap_or(start)),
+                until: (mode != 1).then_some(previous.until.or(previous.from).unwrap_or(end)),
+            });
+            self.year = None;
+            self.month = None;
+            self.stage = None;
+        }
+    }
+}
+fn date_name(key: &str, n: i64) -> String {
+    match key {
+        "year" => crate::i18n::message("common.quick.year", &[("year", n.to_string())]),
+        "month" => crate::i18n::message("common.quick.month", &[("month", n.to_string())]),
+        _ => tr(match n {
+            1 => "上旬",
+            2 => "中旬",
+            _ => "下旬",
+        }),
+    }
 }
 fn date_part(ui: &mut egui::Ui, key: &str, value: &mut Option<i64>, none: &str, max: i64) -> bool {
     let before = *value;
-    let name = |n: i64| -> String {
-        match key {
-            "year" => crate::i18n::message("common.quick.year", &[("year", n.to_string())]),
-            "month" => crate::i18n::message("common.quick.month", &[("month", n.to_string())]),
-            _ => tr(match n {
-                1 => "上旬",
-                2 => "中旬",
-                _ => "下旬",
-            }),
-        }
-    };
     egui::ComboBox::from_id_salt(key)
         .width(112.0_f32.min(ui.available_width()))
         .truncate()
-        .selected_text(value.map(name).unwrap_or_else(|| tr(none)))
+        .selected_text(value.map(|n| date_name(key, n)).unwrap_or_else(|| tr(none)))
         .show_ui(ui, |ui| {
             ui.selectable_value(value, None, tr(none));
             for n in 1..=max {
-                ui.selectable_value(value, Some(n), name(n));
+                ui.selectable_value(value, Some(n), date_name(key, n));
             }
         });
     before != *value
+}
+fn boundary_date(ui: &mut egui::Ui, id: &str, date: &mut Date) {
+    ui.push_id(id, |ui| {
+        ui.label(crate::i18n::key(if id == "from" {
+            "common.quick.date_start"
+        } else {
+            "common.quick.date_end"
+        }));
+        ui.horizontal_wrapped(|ui| {
+            for (key, value, max) in [
+                ("year", &mut date.year, 9),
+                ("month", &mut date.month, 12),
+                ("stage", &mut date.stage, 3),
+            ] {
+                ui.allocate_ui_with_layout(
+                    egui::vec2(112.0, ui.spacing().interact_size.y),
+                    egui::Layout::left_to_right(egui::Align::Center),
+                    |ui| {
+                        egui::ComboBox::from_id_salt(key)
+                            .width(112.0_f32.min(ui.available_width()))
+                            .truncate()
+                            .selected_text(date_name(key, *value))
+                            .show_ui(ui, |ui| {
+                                for n in 1..=max {
+                                    ui.selectable_value(value, n, date_name(key, n));
+                                }
+                            });
+                    },
+                );
+            }
+        });
+    });
 }
 pub fn dates(ui: &mut egui::Ui, when: &mut Value, show_task: bool, names: &Names) -> bool {
     let Some(mut simple) = SimpleWhen::read(when) else {
@@ -317,20 +497,53 @@ pub fn dates(ui: &mut egui::Ui, when: &mut Value, show_task: bool, names: &Names
     };
     let before = simple.clone();
     ui.label(crate::i18n::key("common.quick.time"));
-    ui.horizontal_wrapped(|ui| {
-        for (key, value, none, max) in [
-            ("year", &mut simple.year, "不限年份", 9),
-            ("month", &mut simple.month, "不限月份", 12),
-            ("stage", &mut simple.stage, "不限旬", 3),
-        ] {
-            // Reserve each date control before drawing it so the parent can wrap.
-            ui.allocate_ui_with_layout(
-                egui::vec2(112.0, ui.spacing().interact_size.y),
-                egui::Layout::left_to_right(egui::Align::Center),
-                |ui| date_part(ui, key, value, none, max),
+    let mut mode = simple.date_mode();
+    let modes = [
+        "common.quick.date_exact",
+        "common.quick.date_since",
+        "common.quick.date_until",
+        "common.quick.date_range",
+    ];
+    egui::ComboBox::from_id_salt("date_mode")
+        .width(240.0_f32.min(ui.available_width()))
+        .truncate()
+        .selected_text(crate::i18n::key(modes[mode as usize]))
+        .show_ui(ui, |ui| {
+            for (i, label) in modes.iter().enumerate() {
+                ui.selectable_value(&mut mode, i as u8, crate::i18n::key(label));
+            }
+        });
+    simple.set_date_mode(mode);
+    if let Some(range) = &mut simple.range {
+        if let Some(from) = &mut range.from {
+            boundary_date(ui, "from", from);
+        }
+        if let Some(until) = &mut range.until {
+            boundary_date(ui, "until", until);
+        }
+        ui.small(crate::i18n::key("common.quick.date_range_hint"));
+        if range.is_reversed() {
+            ui.colored_label(
+                ui.visuals().error_fg_color,
+                crate::i18n::key("common.quick.date_reversed"),
             );
         }
-    });
+    } else {
+        ui.horizontal_wrapped(|ui| {
+            for (key, value, none, max) in [
+                ("year", &mut simple.year, "不限年份", 9),
+                ("month", &mut simple.month, "不限月份", 12),
+                ("stage", &mut simple.stage, "不限旬", 3),
+            ] {
+                // Reserve each date control before drawing it so the parent can wrap.
+                ui.allocate_ui_with_layout(
+                    egui::vec2(112.0, ui.spacing().interact_size.y),
+                    egui::Layout::left_to_right(egui::Align::Center),
+                    |ui| date_part(ui, key, value, none, max),
+                );
+            }
+        });
+    }
     ui.small(crate::i18n::key("common.quick.stage_hint"));
     if show_task && !names.tasks.is_empty() {
         let title = match &simple.task {
@@ -409,11 +622,12 @@ pub fn event(
                 egui::ComboBox::from_id_salt("trigger")
                     .width(190.0_f32.min(ui.available_width()))
                     .truncate()
-                    .selected_text(tr(if trigger == "position" {
-                        "去某地点时"
-                    } else {
-                        "时间到了自动发生"
-                    }))
+                    .selected_text(match trigger.as_str() {
+                        "position" => crate::i18n::key("common.quick.visit"),
+                        "story_entry" => crate::i18n::key("common.quick.original_trigger"),
+                        "auto" => crate::i18n::key("common.quick.time_trigger"),
+                        _ => trigger.clone(),
+                    })
                     .show_ui(ui, |ui| {
                         ui.selectable_value(
                             &mut trigger,
@@ -425,19 +639,23 @@ pub fn event(
                             "position".into(),
                             crate::i18n::key("common.quick.visit"),
                         );
+                        ui.selectable_value(
+                            &mut trigger,
+                            "story_entry".into(),
+                            crate::i18n::key("common.quick.original_trigger"),
+                        );
                     });
             });
             if trigger != before {
                 e["trigger"] = json!(trigger);
-                if e["trigger"] == "position" {
-                    e["position"] = json!("Center");
-                } else {
-                    e.as_object_mut().unwrap().remove("position");
-                }
+                trigger_changed(e);
             }
             if e["trigger"] == "position" {
                 let places = catalog.options("free_position", e, &[], story_ids);
                 named_choice(ui, e, "position", "地点", &places, "请选择地点");
+            }
+            if e["trigger"] == "story_entry" {
+                story_entry_fields(ui, e, Some(names));
             }
         }
         named_choice(
@@ -503,6 +721,8 @@ pub fn event(
             crate::i18n::key("common.quick.on_start")
         } else if e["trigger"] == "position" {
             crate::i18n::key("common.quick.on_visit")
+        } else if e["trigger"] == "story_entry" {
+            crate::i18n::key("common.quick.original_trigger")
         } else {
             crate::i18n::key("common.quick.on_time")
         };
@@ -547,34 +767,28 @@ pub fn task(ui: &mut egui::Ui, t: &mut Value, names: &Names) {
                 t["name"] = json!(name);
             }
         });
-        let states = t["states"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter_map(|v| v.as_str().map(str::to_owned))
-            .collect::<Vec<_>>();
+        crate::scenario_task_states::definitions(ui, t);
+        let states = crate::scenario_task_states::states(t);
         task_state(ui, t, "initial", "开始时的状态", &states);
         let count = t["transitions"].as_array().map_or(0, Vec::len);
         if count == 0 {
             ui.small(crate::i18n::key("common.quick.task_outcome"));
         }
+        let transition = crate::scenario_task_states::transition(t);
         if ui
-            .button(crate::i18n::key("common.quick.add_auto"))
+            .add_enabled(
+                transition.is_some(),
+                egui::Button::new(crate::i18n::key("common.quick.add_auto")),
+            )
             .clicked()
         {
             if !t["transitions"].is_array() {
                 t["transitions"] = json!([]);
             }
-            let from = t["initial"].clone();
-            let to = states
-                .iter()
-                .find(|s| json!(s) != from)
-                .cloned()
-                .unwrap_or_default();
             t["transitions"]
                 .as_array_mut()
                 .unwrap()
-                .push(json!({"from":from,"to":to,"when":{"all":[]}}));
+                .push(transition.unwrap());
         }
         let mut remove = None;
         for (i, r) in t
@@ -743,6 +957,132 @@ mod tests {
         assert_eq!(read.task, Some(("letter".into(), "active".into())));
         assert_eq!(read.date(), "第2年7月上旬");
         assert!(SimpleWhen::read(&json!({"any":[raw]})).is_none());
+    }
+    #[test]
+    fn inclusive_date_modes_preserve_prerequisites_and_unknown_conditions() {
+        let extra = json!({"any":[{"source":"stat","key":"money","op":"ge","value":10},{"source":"flag","key":"letter","op":"eq","value":1}]});
+        let future =
+            json!({"source":"time","key":"month","op":"eq","value":8,"future_note":"preserve me"});
+        let raw = json!({"all":[{"source":"time","key":"month","op":"eq","value":7},{"source":"task","key":"letter","op":"eq","value":"active"},extra,future]});
+        let mut simple = SimpleWhen::read(&raw).unwrap();
+        assert_eq!(simple.date_mode(), 0);
+        assert_eq!(simple.year, None); // The released recurring July rule stays recurring.
+        assert_eq!(SimpleWhen::read(&simple.write()).unwrap(), simple);
+        simple.set_date_mode(1);
+        simple.range.as_mut().unwrap().from = Date::new(2, 3, 1);
+        assert_eq!(simple.date(), "从第2年3月上旬起");
+        simple.set_date_mode(3);
+        simple.range.as_mut().unwrap().until = Date::new(3, 2, 3);
+        let written = simple.write();
+        assert!(written["all"].as_array().unwrap().contains(&extra));
+        assert!(written["all"].as_array().unwrap().contains(&future));
+        assert_eq!(SimpleWhen::read(&written).unwrap(), simple);
+        assert_eq!(simple.task, Some(("letter".into(), "active".into())));
+        assert_eq!(simple.date(), "第2年3月上旬至第3年2月下旬");
+        simple.set_date_mode(2);
+        assert_eq!(simple.date(), "截至第3年2月下旬");
+        assert_eq!(SimpleWhen::read(&simple.write()).unwrap(), simple);
+    }
+    #[test]
+    fn mixed_or_ambiguous_advanced_dates_are_not_reinterpreted() {
+        let range = DateRange {
+            from: Date::new(2, 3, 1),
+            until: Date::new(3, 2, 3),
+        };
+        let mixed =
+            json!({"all":[range.write(),{"source":"time","key":"month","op":"eq","value":7}]});
+        assert!(SimpleWhen::read(&mixed).is_none());
+        let lower = DateRange {
+            from: Date::new(2, 3, 1),
+            until: None,
+        }
+        .write();
+        assert!(SimpleWhen::read(&json!({"all":[lower,lower]})).is_none());
+        let reversed = DateRange {
+            from: Date::new(3, 2, 3),
+            until: Date::new(2, 3, 1),
+        };
+        let mut editable = SimpleWhen::read(&reversed.write()).unwrap();
+        assert!(editable.range.unwrap().is_reversed());
+        editable.range.as_mut().unwrap().until = Date::new(3, 3, 1);
+        assert!(!SimpleWhen::read(&editable.write())
+            .unwrap()
+            .range
+            .unwrap()
+            .is_reversed());
+    }
+    #[test]
+    fn released_150_exact_date_package_edits_to_original_entry_range_and_rejects_lua_swap() {
+        use lom_core::{package, project::Project};
+        let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../lom-core/tests/fixtures/released-1.5.0-scenario-dates.lommod");
+        let original = std::fs::read(&fixture).unwrap();
+        let mut project = Project::open(&fixture).unwrap();
+        let scenario = project.scenario.as_mut().unwrap();
+        assert_eq!(scenario["events"][0]["position"], "Center");
+        let mut simple = SimpleWhen::read(&scenario["events"][0]["when"]).unwrap();
+        assert_eq!(
+            (simple.year, simple.month, simple.stage),
+            (Some(2), Some(3), Some(1))
+        );
+        simple.set_date_mode(3);
+        simple.range.as_mut().unwrap().until = Date::new(3, 2, 3);
+        scenario["events"][0]["when"] = simple.write();
+        scenario["events"][0]["trigger"] = json!("story_entry");
+        trigger_changed(&mut scenario["events"][0]);
+        scenario["events"][0]["target"] = json!("section_01_free_03");
+        scenario["events"][0]["from"] = json!("section_01_free_start_02");
+        assert_eq!(scenario["events"][0]["script"], "main");
+        let directory = tempfile::tempdir().unwrap();
+        let folder = directory.path().join("edited");
+        project.save_to(&folder).unwrap();
+        let edited = Project::open(&folder).unwrap();
+        let output = directory.path().join("updated.lommod");
+        edited.export(&output).unwrap();
+        let reopened = Project::open(&output).unwrap();
+        assert_eq!(reopened.manifest["min_host_version"], "1.5.10");
+        assert_eq!(reopened.scenario, edited.scenario);
+        assert_eq!(reopened.stories, project.stories);
+        let reopened_when = &reopened.scenario.as_ref().unwrap()["events"][0]["when"];
+        assert_eq!(SimpleWhen::read(reopened_when).unwrap(), simple);
+        assert!(simple
+            .other
+            .contains(&json!({"source":"stat","key":"money","op":"ge","value":10})));
+        assert_eq!(std::fs::read(&fixture).unwrap(), original);
+        let mut entries = package::read_package(&output).unwrap();
+        entries.remove("package-content.sha256");
+        entries
+            .get_mut("lua/main.lua")
+            .unwrap()
+            .extend_from_slice(b"\nerror('unrelated Lua')\n");
+        let tampered = directory.path().join("tampered.lommod");
+        package::write_package(entries, &tampered).unwrap();
+        assert!(Project::open(&tampered).is_err());
+    }
+    #[test]
+    fn changing_entry_kind_preserves_dates_and_events_and_keeps_position_distinct() {
+        let mut event = json!({"id":"visit","trigger":"position","position":"Door","script":"main","chance":35,
+            "once":false,"when":DateRange {from:Date::new(2,3,1),until:None}.write(),"outcomes":{"completed":{}}});
+        let original = event.clone();
+        event["trigger"] = json!("story_entry");
+        trigger_changed(&mut event);
+        assert!(event.get("position").is_none());
+        assert_eq!(event["target"], "");
+        event["target"] = json!("chapter_target");
+        event["from"] = json!("chapter_source");
+        for key in ["id", "script", "chance", "once", "when", "outcomes"] {
+            assert_eq!(event[key], original[key]);
+        }
+        event["trigger"] = json!("auto");
+        trigger_changed(&mut event);
+        assert!(
+            event.get("target").is_none()
+                && event.get("from").is_none()
+                && event.get("position").is_none()
+        );
+        event["trigger"] = json!("position");
+        trigger_changed(&mut event);
+        assert_eq!(event["position"], "Center");
     }
     #[test]
     fn names_and_choice_results_are_readable_without_changing_identifiers() {

@@ -104,7 +104,9 @@ pub fn remove(project: &mut Project, key: &str) -> Result<()> {
         ensure!(
             !content::scenario_gameplay_nodes(config)
                 .iter()
-                .any(|node| node["item"] == symbol),
+                .any(|node| node["item"] == symbol
+                    || node["talent"] == symbol
+                    || node["character"] == symbol),
             "事件或任务结果仍引用此内容，请先解除引用"
         );
     }

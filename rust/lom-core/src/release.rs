@@ -255,6 +255,19 @@ fn audit_content(project: &Project, root: &Path) -> Vec<PreflightIssue> {
                     }
                     match crate::content::resolve_content(root, r.kind, id) {
                         Ok((meta, _)) => {
+                            if node["type"] == "character_profile" {
+                                if let Err(error) =
+                                    crate::character_profile::validate_reference(node, &meta)
+                                {
+                                    out.push(PreflightIssue::new(
+                                        "error",
+                                        "invalid_character_profile",
+                                        sid,
+                                        nid,
+                                        format!("{error:#}"),
+                                    ));
+                                }
+                            }
                             if node["type"] == "use_item" && meta["use_in"] != "field" {
                                 out.push(PreflightIssue::new(
                                     "error",
@@ -417,6 +430,17 @@ fn audit_content(project: &Project, root: &Path) -> Vec<PreflightIssue> {
         }
         match crate::content::resolve_content(root, kind, id) {
             Ok((meta, _)) => {
+                if kind == "character" {
+                    if let Err(error) = crate::character_profile::validate_for_export(&meta) {
+                        out.push(PreflightIssue::new(
+                            "error",
+                            "conflicting_biography",
+                            "",
+                            "",
+                            format!("assets/user/character/{id}/content.json: {error:#}"),
+                        ));
+                    }
+                }
                 if meta["id"] != id || meta["type"] != kind {
                     out.push(PreflightIssue::new(
                         "error",
@@ -427,6 +451,12 @@ fn audit_content(project: &Project, root: &Path) -> Vec<PreflightIssue> {
                     ));
                 } else {
                     valid.insert((kind.to_owned(), id.to_owned()));
+                    if kind == "character"
+                        && meta["extends"].as_str().unwrap_or("").is_empty()
+                        && crate::character_profile::has_profile(&meta)
+                    {
+                        referenced.insert((kind.to_owned(), id.to_owned()));
+                    }
                 }
             }
             Err(e) => out.push(PreflightIssue::new(

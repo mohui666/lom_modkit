@@ -113,7 +113,10 @@ fn main() -> eframe::Result {
 mod advanced;
 
 mod audio;
+mod character_profile_panel;
 mod content_panel;
 mod manifest_panel;
 mod scenario_panel;
 mod scenario_quick;
+mod scenario_settings;
+mod scenario_task_states;

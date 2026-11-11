@@ -53,6 +53,13 @@ namespace MortalModHost
             if (options.character != null && Actors.TryGetValue(options.character, out actor)) ApplyScale(actor);
         }
 
+        internal static void BeforeOffset(StoryCharacterController character)
+        {
+            if (ModOverlay.CurrentPackage == null) return;
+            Actor actor;
+            if (Actors.TryGetValue(character, out actor)) StopMotion(actor);
+        }
+
         internal static void Set(string id, float x, float y, float scale, bool absolute, float duration)
         {
             if (float.IsNaN(x) || float.IsInfinity(x) || float.IsNaN(y) || float.IsInfinity(y)
@@ -70,6 +77,7 @@ namespace MortalModHost
             if (absolute && actor.Slot == null)
                 throw new InvalidOperationException("找不到人物的原始站位：" + id);
             StopMotion(actor);
+            CharacterMovementRuntime.CancelStageMovement(character.State.holder);
             if (scale != -1f) actor.Scale = scale / 100f;
             ApplyScale(actor);
             RectTransform holder = character.State.holder;
@@ -177,5 +185,17 @@ namespace MortalModHost
         {
             CharacterLayoutRuntime.ResolveMoodFacing(__instance, ref scaleX);
         }
+    }
+
+    [HarmonyPatch(typeof(StoryCharacterController), "MoveOffset", new[] { typeof(float), typeof(float), typeof(float) })]
+    internal static class CharacterLayoutNativeOffsetPatch
+    {
+        private static void Prefix(StoryCharacterController __instance) { CharacterLayoutRuntime.BeforeOffset(__instance); }
+    }
+
+    [HarmonyPatch(typeof(StoryCharacterController), "MoveOffsetCoroutine", new[] { typeof(float), typeof(float), typeof(float) })]
+    internal static class CharacterLayoutNativeOffsetCoroutinePatch
+    {
+        private static void Prefix(StoryCharacterController __instance) { CharacterLayoutRuntime.BeforeOffset(__instance); }
     }
 }

@@ -155,7 +155,7 @@ namespace MortalModHost
                         {
                             if (!string.Equals(trigger.Position, positionId, StringComparison.Ordinal)) continue;
                             if (!trigger.IsConditionMet(storyKeys)) continue;
-                            if (!IsTimeAndAffinityMet(trigger)) continue;
+                            if (!IsTimeAndAffinityMet(mod, trigger)) continue;
                             string registered = mod.GetRegisteredScriptName(trigger.Script);
                             __result = registered;
                             Log.LogInfo("位置触发器命中：" + positionId + " → " + registered);
@@ -199,7 +199,7 @@ namespace MortalModHost
         /// API 拿不到/异常一律按条件不满足处理（返回 false），不抛异常。数组顺序即优先级：
         /// 外层循环按 manifest.triggers 数组顺序逐个判定，第一个条件全部命中的触发器生效。
         /// </summary>
-        private static bool IsTimeAndAffinityMet(CampaignTrigger trigger)
+        private static bool IsTimeAndAffinityMet(ModPackage package, CampaignTrigger trigger)
         {
             if (trigger.WhenMonth == null && trigger.WhenStage == null && trigger.WhenAffinity == null)
                 return true;
@@ -219,12 +219,7 @@ namespace MortalModHost
                 if (trigger.WhenAffinity != null)
                 {
                     if (stat == null) return false;
-                    RelationshipStatType type;
-                    if (!EnumUtils.TryParseByStringValue<RelationshipStatType>(trigger.WhenAffinity.Character, out type))
-                        return false;
-                    RelationshipStat relationship = stat.Relationships.Get(type);
-                    if (relationship == null) return false;
-                    if (relationship.Value < trigger.WhenAffinity.Min) return false;
+                    if (GameplayChecks.AffinityValue(trigger.WhenAffinity.Character, package) < trigger.WhenAffinity.Min) return false;
                 }
                 return true;
             }
