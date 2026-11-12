@@ -50,6 +50,15 @@ impl App {
         {
             return;
         }
+        if self.quick_tools_shortcuts(ctx) {
+            return;
+        }
+        if ctx.data(|data| {
+            data.get_temp::<bool>(egui::Id::new("guided-export-open"))
+                .unwrap_or(false)
+        }) {
+            return;
+        }
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::Comma))
             || windows_settings_release
         {
@@ -100,6 +109,7 @@ impl App {
             if self.open_center(Center::Node) {
                 self.compile();
                 self.view = View::Checks;
+                self.problems_open = true;
             }
         }
         if ctx.input_mut(|i| {
@@ -288,6 +298,7 @@ impl App {
                                 }
                             }
                         });
+                        if ui.button(crate::i18n::key("usability.export.title")).clicked() {ui.close();self.request_export(ctx);}
                         ui.menu_button(crate::i18n::key("editor.workspace.export_menu"), |ui| {
                             if ui.button(crate::i18n::key("editor.workspace.release_settings")).clicked() {
                                 self.open_center(Center::Manifest);
@@ -380,6 +391,8 @@ impl App {
                         });
                     });
                     ui.menu_button(tr("剧情工具"), |ui| {
+                        if ui.button(crate::i18n::key("usability.dialogue.button")).clicked(){ui.close();self.open_dialogue_authoring(ctx);}
+                        if ui.button(crate::i18n::key("usability.search.button")).clicked(){ui.close();self.open_command_palette(ctx);}
                         if ui.add_enabled(cfg!(windows), egui::Button::new(crate::i18n::key("editor.play.current"))).clicked() {
                             self.play_current();
                             ui.close();
@@ -450,15 +463,12 @@ impl App {
                         }
                         if ui
                             .add(
-                                egui::Button::new(crate::i18n::key("toolbar.export"))
+                                egui::Button::new(crate::i18n::key("usability.export.title"))
                                     .fill(Color32::from_rgb(213, 231, 247)),
                             )
                             .clicked()
                         {
-                            self.export();
-                        }
-                        if ui.button(crate::i18n::key("editor.workspace.export_short")).clicked() {
-                            self.export_play_bundle();
+                            self.request_export(ctx);
                         }
                     });
                 });
@@ -474,6 +484,8 @@ impl App {
                             self.navigate(section);
                         }
                     }
+                    ui.separator();
+                    self.layout_controls(ui);
                 });
             });
     }

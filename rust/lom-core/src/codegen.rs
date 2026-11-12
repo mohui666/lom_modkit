@@ -481,6 +481,12 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
             let fade_out = n(node, "fade_out", json!(0.5));
             let fade_in = n(node, "fade_in", json!(1.5));
             for (duration, reveal) in [(fade_out, "false"), (fade_in, "true")] {
+                if reveal == "true" && node["brighten"] == true {
+                    out.push(call(
+                        "mod_char_dim_mode",
+                        &[c.clone(), "false".into(), lua_str("until_dialogue")],
+                    ));
+                }
                 out.push(call(
                     "mod_char_portrait_transition",
                     &[c.clone(), portrait.clone(), duration.clone(), reveal.into()],

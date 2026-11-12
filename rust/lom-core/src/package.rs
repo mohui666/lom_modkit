@@ -1286,6 +1286,7 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
             (node["type"] == "dim"
                 && matches!(node["mode"].as_str(), Some("until_dialogue" | "auto")))
                 || node["type"] == "say" && node["mode"] == "offscreen"
+                || node["type"] == "portrait" && node["brighten"] == true
         })
     });
     let extended_big_picture = stories.values().any(|story| {

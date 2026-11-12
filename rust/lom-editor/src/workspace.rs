@@ -8,11 +8,13 @@ mod preview_panel;
 mod project_actions;
 mod project_io;
 mod properties;
+mod quick_tools;
 mod recovery;
 mod settings;
 mod steps;
 mod text_edit;
 mod tools;
+mod usability;
 
 use crate::i18n::tr;
 use crate::tools_panel::ToolPage;
@@ -198,6 +200,9 @@ struct App {
     vanilla: crate::vanilla_panel::Panel,
     flag_reference: crate::vanilla_panel::FlagReference,
     diagnostics: Vec<lom_core::release::PreflightIssue>,
+    preflight_tracked: bool,
+    problems_open: bool,
+    usability: usability::Preferences,
     error_issues: Vec<lom_core::release::PreflightIssue>,
     needs_compile: bool,
     chapter_dialog: Option<ChapterDialog>,
@@ -505,6 +510,9 @@ impl App {
             vanilla: Default::default(),
             flag_reference: Default::default(),
             diagnostics: vec![],
+            preflight_tracked: false,
+            problems_open: false,
+            usability: usability::Preferences::load(&prefs),
             error_issues: vec![],
             needs_compile: true,
             chapter_dialog: None,
@@ -637,6 +645,12 @@ impl eframe::App for App {
             }
         }
         self.frame += 1;
+        if self.frame == 1 {
+            crate::forms::configure_resource_preferences(
+                ctx,
+                user_root().join("rust/resource-pickers.json"),
+            );
+        }
         self.shell.install(frame);
         if let Err(error) = self.audio.update() {
             self.error = Some(crate::error_ui::capture(error));
@@ -699,17 +713,39 @@ impl eframe::App for App {
                             .on_hover_text(&self.status);
                     }
                     self.tools_panel.status_ui(ui);
+                    ui.separator();
+                    if ui
+                        .selectable_label(
+                            self.problems_open,
+                            crate::i18n::message(
+                                "usability.problems.title",
+                                &[("count", self.diagnostics.len().to_string())],
+                            ),
+                        )
+                        .clicked()
+                    {
+                        self.problems_open = !self.problems_open;
+                    }
                 });
             });
+        self.problems_panel(ctx);
         if self.story_panels_visible() {
             self.sidebar(ctx);
             self.step_palette(ctx);
+            let story = self.story();
+            crate::forms::set_preview_scope(
+                ctx,
+                &self.current,
+                story["nodes"][self.selected]["id"].as_str().unwrap_or(""),
+            );
             self.right(ctx);
         }
         self.center(ctx);
         self.flag_reference
             .show(ctx, self.tools_panel.game_directory());
         self.track();
+        self.quick_tools(ctx);
+        self.guided_export(ctx);
         self.dialogs(ctx);
         self.tools_panel.show_dialog(ctx, &self.project);
         if let Some(destination) = self.tools_panel.take_location() {

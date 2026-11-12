@@ -2,6 +2,15 @@ use crate::i18n::tr;
 use eframe::egui::{self, Color32, RichText, Ui};
 use serde_json::{json, Value};
 
+mod resource_picker;
+pub(crate) use resource_picker::{
+    configure_resource_preferences, preview_story, resource_choice, set_preview_action,
+    set_preview_scope,
+};
+
+mod parallel_cards;
+pub(crate) use parallel_cards::reveal_parallel_action;
+
 pub(crate) fn unavailable_game_flag_warning(ui: &mut Ui, id: &str) {
     if matches!(id, "50019" | "TC00002") {
         ui.colored_label(
@@ -948,148 +957,7 @@ impl Catalog {
         }
     }
     fn parallel_actions(&self, ui: &mut Ui, node: &mut Value) -> bool {
-        ui.label(tr("这些动作会一起开始，全部完成后才继续下一步。"));
-        ui.small(tr(
-            "音乐、音效和循环特效在启动后即视为完成；可添加“等待”控制整组停留时间。",
-        ));
-        let Some(actions) = node.get("actions").and_then(Value::as_array) else {
-            ui.colored_label(
-                Color32::from_rgb(179, 55, 49),
-                tr("同时动作数据不是数组，请先修正原始数据。"),
-            );
-            return false;
-        };
-        let mut actions = actions.clone();
-        let mut changed = false;
-        let mut remove = None;
-        let mut swap = None;
-        for (index, action) in actions.iter_mut().enumerate() {
-            ui.push_id(index, |ui| {
-                let mut action_changed = false;
-                let response = egui::Frame::group(ui.style()).show(ui, |ui| {
-                    ui.horizontal_wrapped(|ui| {
-                        ui.strong(format!("{} {}", tr("同时动作"), index + 1));
-                        let old = action["type"].as_str().unwrap_or("").to_owned();
-                        let mut selected = old.clone();
-                        egui::ComboBox::from_id_salt("parallel-action-type")
-                            .selected_text(self.label(&old))
-                            .show_ui(ui, |ui| {
-                                for kind in lom_core::parallel::ACTION_TYPES {
-                                    ui.selectable_value(
-                                        &mut selected,
-                                        (*kind).into(),
-                                        self.label(kind),
-                                    );
-                                }
-                            });
-                        if selected != old {
-                            *action = self.new_node(&selected, String::new());
-                            action.as_object_mut().unwrap().remove("id");
-                            changed = true;
-                        }
-                        if ui
-                            .add_enabled(index > 0, egui::Button::new(tr("上移")))
-                            .clicked()
-                        {
-                            swap = Some((index, index - 1));
-                        }
-                        if ui.small_button(tr("移除")).clicked() {
-                            remove = Some(index);
-                        }
-                    });
-                    let kind = action["type"].as_str().unwrap_or("");
-                    if !lom_core::parallel::ACTION_TYPES.contains(&kind) {
-                        ui.colored_label(
-                            Color32::from_rgb(179, 55, 49),
-                            tr("这个步骤不能同时执行，请改为演出动作或移到组外。"),
-                        );
-                        return;
-                    }
-                    let fields = self.schema["NODE_SCHEMAS"][kind]["fields"]
-                        .as_array()
-                        .cloned()
-                        .unwrap_or_default();
-                    for field in fields {
-                        if field[0] == "appearance" || field[0] == "wait_for_completion" {
-                            continue;
-                        }
-                        if let (Some(key), Some(label), Some(field_kind)) =
-                            (field[0].as_str(), field[1].as_str(), field[2].as_str())
-                        {
-                            let field_changed = self.field(
-                                ui,
-                                action,
-                                key,
-                                label,
-                                field_kind,
-                                field[3].as_bool().unwrap_or(false),
-                                &[],
-                                &[],
-                            );
-                            changed |= field_changed;
-                            action_changed |= field_changed;
-                        }
-                    }
-                    for key in ["id", "goto", "appearance"] {
-                        if action.get(key).is_some() {
-                            ui.colored_label(
-                                Color32::from_rgb(179, 55, 49),
-                                format!("{}: {key}", tr("组内不支持此字段")),
-                            );
-                            if ui
-                                .small_button(format!("{} {key}", tr("移除非法字段")))
-                                .clicked()
-                            {
-                                action.as_object_mut().unwrap().remove(key);
-                                changed = true;
-                            }
-                        }
-                    }
-                });
-                if action_changed
-                    || response.response.contains_pointer() && ui.input(|i| i.pointer.any_pressed())
-                {
-                    ui.ctx().data_mut(|data| {
-                        data.insert_temp(
-                            egui::Id::new("preview-character-action"),
-                            (node["id"].as_str().unwrap_or("").to_owned(), index),
-                        );
-                    });
-                }
-            });
-        }
-        if let Some(index) = remove {
-            actions.remove(index);
-            changed = true;
-        } else if let Some((a, b)) = swap {
-            actions.swap(a, b);
-            changed = true;
-        }
-        ui.add_enabled_ui(actions.len() < lom_core::parallel::MAX_ACTIONS, |ui| {
-            ui.menu_button(tr("添加同时动作"), |ui| {
-                egui::ScrollArea::vertical()
-                    .id_salt("parallel-add-actions")
-                    .max_height((ui.ctx().content_rect().height() * 0.6).max(1.0))
-                    .show(ui, |ui| {
-                        for kind in lom_core::parallel::ACTION_TYPES {
-                            if ui.button(self.label(kind)).clicked() {
-                                let mut action = self.new_node(kind, String::new());
-                                action.as_object_mut().unwrap().remove("id");
-                                actions.push(action);
-                                changed = true;
-                                ui.close();
-                            }
-                        }
-                    });
-            });
-        });
-        if changed {
-            node["actions"] = Value::Array(actions);
-        }
-        if let Err(error) = lom_core::parallel::validate_group(node) {
-            crate::error_ui::show_with_actions(ui, &crate::error_ui::capture(error));
-        }
-        changed
+        parallel_cards::show(self, ui, node)
     }
     fn character_group<'a>(&'a self, id: &'a str) -> &'a str {
         self.data["characters"]
@@ -1212,6 +1080,7 @@ impl Catalog {
                 }
             }
         }
+        resource_picker::normalize_character_draft(self, ui.ctx(), node);
         *node != before
     }
     fn filtering_stage_characters(&self, node: &Value) -> bool {
@@ -1737,6 +1606,7 @@ impl Catalog {
                                     &options,
                                     optional.then_some(absent.as_str()),
                                     filter_changed,
+                                    Some((node, key, kind)),
                                 ) {
                                     if let Some(id) = selection {
                                         if optional && id.is_empty() {
@@ -1762,65 +1632,22 @@ impl Catalog {
                                 } else {
                                     tr("自定义")
                                 };
-                                resource_combo(ui, "select", &display, |ui| {
-                                    if optional {
-                                        if ui
-                                            .selectable_label(!present, &absent_label)
-                                            .clicked()
-                                        {
-                                            reset = true;
-                                            ui.close();
-                                        }
-                                        ui.separator();
-                                    }
-                                    let search_id = ui.id().with("search");
-                                    let direction = resource_arrow_direction(ui, search_id);
-                                    let mut search = ui.data_mut(|d| {
-                                        d.get_temp::<String>(search_id).unwrap_or_default()
-                                    });
-                                    if !options.is_empty() {
-                                        ui.add(
-                                            egui::TextEdit::singleline(&mut search)
-                                                .id(search_id)
-                                                .hint_text(tr("搜索名称")),
-                                        );
-                                    }
-                                    let lower = search.to_lowercase();
-                                    ui.small(crate::i18n::key("editor.form.resource_keys"));
-                                    let keyboard_choice = adjacent_resource(&options, &s, &lower, direction);
-                                    if let Some(choice) = &keyboard_choice {
-                                        if !present || s != *choice {
-                                            s = choice.clone();
-                                            c = true;
+                                let picker_id = ui.id().with("resource-browser");
+                                let popup = resource_combo(ui, "select", &display, |ui| {
+                                    if let Some(selection) = resource_picker::generic_selection(
+                                        ui, node, key, kind, present.then_some(s.as_str()), &options,
+                                        optional.then_some(absent_label.as_str()), picker_id,
+                                    ) {
+                                        match selection {
+                                            Some(id) => { s = id; c = true; },
+                                            None => reset = true,
                                         }
                                     }
-                                    for (id, name) in &options {
-                                        if resource_matches(id,name,&lower) {
-                                            let response = ui
-                                                .selectable_label(present && id == &s, name)
-                                                .on_hover_text(id);
-                                            if keyboard_choice.as_ref() == Some(id) {
-                                                response.request_focus();
-                                                response.scroll_to_me(Some(egui::Align::Center));
-                                            }
-                                            if response.clicked() {
-                                                s = id.clone();
-                                                c = true;
-                                                ui.close();
-                                            }
-                                        }
-                                    }
-                                    ui.collapsing(tr("手动输入"), |ui| {
-                                        c |= ui
-                                            .add(
-                                                egui::TextEdit::singleline(&mut s)
-                                                    .hint_text(tr("内部 ID / 自定义引用")),
-                                            )
-                                            .changed();
-                                    });
-                                    reset |= c && optional && s.is_empty();
-                                    ui.data_mut(|d| d.insert_temp(search_id, search));
                                 });
+                                if popup.inner.is_none() {
+                                    resource_picker::cancel_generic(ui, picker_id);
+                                }
+                                reset |= c && optional && s.is_empty();
                             }
                             if kind == "position" {
                                 if let Some(position) = stage_position_picker(ui, &s) {
@@ -2051,14 +1878,19 @@ fn adjacent_resource(
     Some(visible[next].0.clone())
 }
 
-/// Search text is a draft; result clicks/arrows, clearing, or applying an ID commit.
+/// Search text is a draft; optional browsing also keeps result choices separate.
 fn character_picker(
     ui: &mut Ui,
     selected: Option<&str>,
     options: &[(String, String)],
     absent: Option<&str>,
     keep_open: bool,
+    resource: Option<(&Value, &str, &str)>,
 ) -> Option<Option<String>> {
+    let no_resource = Value::Null;
+    let (resource_node, resource_key, resource_kind) = resource.unwrap_or((&no_resource, "", ""));
+    let mut picker =
+        resource_picker::Picker::new(ui, resource_node, resource_key, resource_kind, selected);
     let state_id = ui.id().with("character-search");
     let mut state = ui
         .data_mut(|data| data.get_temp::<CharacterSearch>(state_id))
@@ -2116,24 +1948,33 @@ fn character_picker(
     let mut close = escape;
     let mut keyboard_choice = None;
     if state.open && !escape {
-        keyboard_choice = adjacent_resource(
-            options,
-            selected.unwrap_or(""),
-            &state.query.to_lowercase(),
-            direction,
-        );
-        if let Some(choice) = &keyboard_choice {
-            if selected != Some(choice.as_str()) {
-                selection = Some(Some(choice.clone()));
-            }
-        }
         let mut result_focused = false;
         let results = egui::Frame::group(ui.style()).show(ui, |ui| {
-            ui.small(crate::i18n::key("editor.form.resource_keys"));
+            picker.controls(ui);
+            let options = picker.options(ui.ctx(), options);
+            keyboard_choice = adjacent_resource(
+                &options,
+                picker.current(selected).unwrap_or(""),
+                &state.query.to_lowercase(),
+                direction,
+            );
+            if let Some(choice) = &keyboard_choice {
+                if selected != Some(choice.as_str()) || picker.browse() {
+                    if picker.choose(ui, Some(choice.clone())) {
+                        selection = Some(Some(choice.clone()));
+                    }
+                }
+            }
+            if let Some(applied) = picker.actions(ui, search_id) {
+                selection = Some(applied);
+            }
+            if !picker.browse() {
+                ui.small(crate::i18n::key("editor.form.resource_keys"));
+            }
             if let Some(label) = absent {
-                let clear = ui.selectable_label(selected.is_none(), label);
+                let clear = ui.selectable_label(picker.current(selected).is_none(), label);
                 result_focused |= clear.has_focus();
-                if clear.clicked() {
+                if clear.clicked() && picker.choose(ui, None) {
                     selection = Some(None);
                 }
             }
@@ -2141,41 +1982,47 @@ fn character_picker(
             egui::ScrollArea::vertical()
                 .max_height(220.0)
                 .show(ui, |ui| {
-                    for (id, name) in options {
+                    for (id, name) in &options {
                         if resource_matches(id, name, &query) {
-                            let result = ui.selectable_label(
-                                keyboard_choice
-                                    .as_ref()
-                                    .map_or(selected == Some(id.as_str()), |choice| choice == id),
+                            let result = picker.row(
+                                ui,
+                                id,
                                 name,
+                                keyboard_choice.as_ref().map_or(
+                                    picker.current(selected) == Some(id.as_str()),
+                                    |choice| choice == id,
+                                ),
                             );
                             if keyboard_choice.as_ref() == Some(id) {
                                 result.request_focus();
                                 result.scroll_to_me(Some(egui::Align::Center));
                             }
                             result_focused |= result.has_focus();
-                            if result.clicked() {
+                            if result.clicked() && picker.choose(ui, Some(id.clone())) {
                                 selection = Some(Some(id.clone()));
                             }
                         }
                     }
                 });
             let manual = ui.collapsing(tr("手动输入"), |ui| {
-                result_focused |= ui
-                    .add(
-                        egui::TextEdit::singleline(&mut state.manual_id)
-                            .hint_text(tr("内部 ID / 自定义引用"))
-                            .desired_width(f32::INFINITY),
-                    )
-                    .has_focus();
+                let input = ui.add(
+                    egui::TextEdit::singleline(&mut state.manual_id)
+                        .hint_text(tr("内部 ID / 自定义引用"))
+                        .desired_width(f32::INFINITY),
+                );
+                picker.manual_input(input.id);
+                result_focused |= input.has_focus();
                 let apply = ui.button(tr("使用此值"));
                 result_focused |= apply.has_focus();
                 if apply.clicked() {
-                    selection = Some(if state.manual_id.is_empty() && absent.is_some() {
+                    let choice = if state.manual_id.is_empty() && absent.is_some() {
                         None
                     } else {
                         Some(state.manual_id.clone())
-                    });
+                    };
+                    if picker.choose(ui, choice.clone()) {
+                        selection = Some(choice);
+                    }
                 }
             });
             result_focused |= manual.header_response.has_focus();
@@ -2186,6 +2033,7 @@ fn character_picker(
             && !results.response.contains_pointer();
     }
     if close || selection.is_some() && keyboard_choice.is_none() {
+        picker.cancel(ui.ctx());
         state.open = false;
         state.query.clear();
         state.manual_id = selected.unwrap_or("").to_owned();
@@ -2194,6 +2042,10 @@ fn character_picker(
         state.source = Some(choice.clone());
         state.manual_id = choice.clone();
     }
+    if !state.open {
+        picker.close(ui.ctx());
+    }
+    picker.save(ui);
     ui.data_mut(|data| data.insert_temp(state_id, state));
     selection
 }
@@ -2985,6 +2837,285 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn browse_checkbox_keeps_character_results_open_and_favorites_do_not_edit_the_story() {
+        let mut catalog = Catalog::new();
+        catalog.data["characters"] = json!([
+            {"id":"one","name":"人物甲"}, {"id":"two","name":"人物乙"}
+        ]);
+        let context = egui::Context::default();
+        set_preview_scope(&context, "main", "show");
+        let mut node = json!({"id":"show","type":"show","character":"one","position":"M"});
+        let before = node.clone();
+        let (output, _) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "character",
+            "character",
+            vec![],
+        );
+        let events = search_character(&output, "人物");
+        let (output, _) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "character",
+            "character",
+            events,
+        );
+        let events = click(
+            &output,
+            egui::accesskit::Role::CheckBox,
+            &crate::i18n::key("editor.picker.browse"),
+        );
+        field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "character",
+            "character",
+            events,
+        );
+        let (output, changed) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "character",
+            "character",
+            vec![],
+        );
+        assert!(!changed);
+        let events = click(&output, egui::accesskit::Role::Button, "☆");
+        let (_, changed) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "character",
+            "character",
+            events,
+        );
+        assert!(!changed);
+        let (output, _) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "character",
+            "character",
+            vec![],
+        );
+        let events = click(
+            &output,
+            egui::accesskit::Role::Button,
+            &crate::i18n::key("editor.picker.favorites"),
+        );
+        let (output, changed) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "character",
+            "character",
+            events,
+        );
+        assert!(!changed);
+        let nodes = &output
+            .platform_output
+            .accesskit_update
+            .as_ref()
+            .unwrap()
+            .nodes;
+        assert!(nodes.iter().any(|(_, n)| n.label() == Some("人物甲")));
+        assert!(!nodes.iter().any(|(_, n)| n.label() == Some("人物乙")));
+        assert_eq!(node, before);
+    }
+
+    #[test]
+    fn resource_browse_previews_without_editing_and_enter_commits_once() {
+        let catalog = Catalog::new();
+        let context = egui::Context::default();
+        set_preview_scope(&context, "main", "show");
+        resource_picker::browse_for_test(&context);
+        let mut node = json!({"id":"show","type":"show","character":"player","portrait":"normal"});
+        let before = node.clone();
+        let options = catalog.options("portrait", &node, &[], &[]);
+        let index = options.iter().position(|(id, _)| id == "normal").unwrap();
+        let next = &options[(index + 1).min(options.len() - 1)];
+        let (output, _) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "portrait",
+            "portrait",
+            vec![],
+        );
+        let events = click(&output, egui::accesskit::Role::ComboBox, &options[index].1);
+        field_frame(
+            &catalog, &context, &mut node, "portrait", "portrait", events,
+        );
+        let key = |key| egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        };
+        let (_, changed) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "portrait",
+            "portrait",
+            vec![key(egui::Key::ArrowDown)],
+        );
+        assert!(!changed);
+        assert_eq!(node, before);
+        let story = json!({"id":"main","start":"show","nodes":[node.clone()]});
+        let draft = preview_story(&context, &story);
+        assert_eq!(draft["nodes"][0]["portrait"], next.0);
+        assert_eq!(story["nodes"][0], before);
+        let (_, changed) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "portrait",
+            "portrait",
+            vec![key(egui::Key::Enter)],
+        );
+        assert!(changed);
+        assert_eq!(node["portrait"], next.0);
+        let (_, changed) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "portrait",
+            "portrait",
+            vec![],
+        );
+        assert!(!changed);
+        assert_eq!(
+            preview_story(&context, &story),
+            story,
+            "Applying clears the temporary overlay"
+        );
+    }
+
+    #[test]
+    fn resource_browse_escape_restores_original_character_and_parallel_expression() {
+        let mut catalog = Catalog::new();
+        catalog.data["characters"] = json!([
+            {"id":"one","name":"人物甲","portraits":["normal"]},
+            {"id":"two","name":"人物乙","portraits":["normal","happy"]}
+        ]);
+        let context = egui::Context::default();
+        set_preview_scope(&context, "main", "show");
+        resource_picker::browse_for_test(&context);
+        let mut node =
+            json!({"id":"show","type":"show","character":"one","portrait":"normal","position":"M"});
+        let before = node.clone();
+        let (output, _) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "character",
+            "character",
+            vec![],
+        );
+        let events = search_character(&output, "人物");
+        field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "character",
+            "character",
+            events,
+        );
+        let key = |key| egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        };
+        let (_, changed) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "character",
+            "character",
+            vec![key(egui::Key::ArrowDown)],
+        );
+        assert!(!changed);
+        assert_eq!(node, before);
+        let story = json!({"id":"main","start":"show","nodes":[node.clone()]});
+        assert_eq!(
+            preview_story(&context, &story)["nodes"][0]["character"],
+            "two"
+        );
+        field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "character",
+            "character",
+            vec![key(egui::Key::Escape)],
+        );
+        assert_eq!(preview_story(&context, &story), story);
+        assert_eq!(node, before);
+
+        set_preview_scope(&context, "main", "parallel");
+        set_preview_action(&context, Some(1));
+        let mut action = json!({"type":"portrait","character":"two","portrait":"normal"});
+        let (output, _) = field_frame(
+            &catalog,
+            &context,
+            &mut action,
+            "portrait",
+            "portrait",
+            vec![],
+        );
+        let events = click(
+            &output,
+            egui::accesskit::Role::ComboBox,
+            &crate::i18n::term("portraits", "normal", "normal"),
+        );
+        field_frame(
+            &catalog,
+            &context,
+            &mut action,
+            "portrait",
+            "portrait",
+            events,
+        );
+        let (_, changed) = field_frame(
+            &catalog,
+            &context,
+            &mut action,
+            "portrait",
+            "portrait",
+            vec![key(egui::Key::ArrowDown)],
+        );
+        assert!(!changed);
+        let story = json!({"id":"main","start":"parallel","nodes":[{"id":"parallel","type":"parallel","actions":[{"type":"wait","seconds":1},action.clone()]}]});
+        let draft = preview_story(&context, &story);
+        assert_ne!(
+            draft["nodes"][0]["actions"][1]["portrait"],
+            action["portrait"]
+        );
+        assert_eq!(
+            draft["nodes"][0]["actions"][0],
+            story["nodes"][0]["actions"][0]
+        );
+        field_frame(
+            &catalog,
+            &context,
+            &mut action,
+            "portrait",
+            "portrait",
+            vec![key(egui::Key::Escape)],
+        );
+        assert_eq!(preview_story(&context, &story), story);
+    }
 
     #[test]
     fn portrait_arrow_keys_select_and_preview_without_closing_the_list() {
@@ -5082,7 +5213,9 @@ fn typed_row(c: &Catalog, ui: &mut Ui, row: &mut Value, kind: &str) -> Option<bo
             row,
             &c.options("battle_character", row, &[], &[]),
         );
-        if let Some(Some(id)) = character_picker(ui, row.as_str(), &options, None, filter_changed) {
+        if let Some(Some(id)) =
+            character_picker(ui, row.as_str(), &options, None, filter_changed, None)
+        {
             if row.as_str() != Some(id.as_str()) {
                 *row = id.into();
                 changed = true;

@@ -785,6 +785,7 @@
       "optional": {
         "fade_out": "num",
         "fade_in": "num",
+        "brighten": "bool",
         "wait_after": "num"
       }
     },

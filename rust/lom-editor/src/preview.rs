@@ -17,6 +17,8 @@ mod flow_graph;
 #[path = "preview_handles.rs"]
 mod handles;
 use handles::{opaque_bounds, LayoutClipboard, LayoutCommand, LayoutDrag, LayoutObject};
+#[path = "preview/stage_inspector.rs"]
+mod stage_inspector;
 
 pub fn edges(story: &Value) -> Vec<(String, String, String)> {
     let mut out = Vec::new();
@@ -137,14 +139,40 @@ pub fn route(story: &Value, target: &str) -> Option<Vec<String>> {
 pub fn simulate(story: &Value, target: &str) -> Value {
     simulate_until(story, target, true)
 }
-fn portrait_preview_node(story: &Value, selected: usize) -> Value {
-    let mut node = story["nodes"][selected].clone();
+fn portrait_action(node: &Value, selected: Option<usize>) -> Option<usize> {
+    let actions = lom_core::parallel::actions(node);
+    selected
+        .filter(|index| {
+            actions
+                .get(*index)
+                .is_some_and(|action| !text(action, "character").is_empty())
+        })
+        .or_else(|| {
+            actions
+                .iter()
+                .position(|action| !text(action, "character").is_empty())
+        })
+}
+
+fn portrait_preview_node(story: &Value, selected: usize, action: Option<usize>) -> Value {
+    let parent = &story["nodes"][selected];
+    let mut node = portrait_action(parent, action)
+        .and_then(|index| lom_core::parallel::actions(parent).get(index))
+        .unwrap_or(parent)
+        .clone();
     let cid = text(&node, "character").to_owned();
-    if !cid.is_empty() && node["portrait"].as_str().is_none_or(str::is_empty) {
-        let state = simulate(story, text(&node, "id"));
-        if let Some(actor) = state["actors"].get(&cid) {
-            node["portrait"] = actor["portrait"].clone();
-            node["appearance"] = actor["appearance"].clone();
+    if !cid.is_empty() {
+        let state = simulate(story, text(parent, "id"));
+        if let Some(actor) = state["actors"]
+            .get(&cid)
+            .or_else(|| state["hidden_actors"].get(&cid))
+        {
+            if node["portrait"].as_str().is_none_or(str::is_empty) {
+                node["portrait"] = actor["portrait"].clone();
+            }
+            if node["appearance"].is_null() {
+                node["appearance"] = actor["appearance"].clone();
+            }
         }
     }
     node
@@ -169,15 +197,7 @@ fn highlight_editing_character(
                 .filter(|a| {
                     matches!(
                         text(a, "type"),
-                        "show"
-                            | "portrait"
-                            | "move"
-                            | "face"
-                            | "rotate"
-                            | "offset"
-                            | "shock"
-                            | "focus"
-                            | "mood"
+                        "show" | "move" | "face" | "rotate" | "offset" | "shock" | "focus" | "mood"
                     )
                 })
                 .map(|a| text(a, "character"))
@@ -495,6 +515,11 @@ fn apply(s: &mut Value, n: &Value) {
         "portrait" => {
             if s["actors"].get(cid).is_some() {
                 s["actors"][cid]["portrait"] = n["portrait"].clone();
+                if n["brighten"] == true {
+                    s["actors"][cid]["dimmed"] = false.into();
+                    s["dimming"][cid] = false.into();
+                    s["dimming_modes"][cid] = "until_dialogue".into();
+                }
             }
         }
         "show" => {
@@ -657,55 +682,56 @@ fn number(v: &Value, key: &str, default: f64) -> f64 {
 const PREVIEW_TRANSITION_SECONDS: f64 = 1.0;
 
 /// Editor timing only: game loading and audio are not simulated here.
-pub fn playback_duration(node: &Value) -> f64 {
-    fn duration(action: &Value) -> f64 {
-        match text(action, "type") {
-            "portrait" => number(action, "fade_out", 0.5) + number(action, "fade_in", 1.5),
-            "show" => number(action, "fadeDuration", 0.0).max(number(action, "moveDuration", 0.0)),
-            "hide" | "hide_all" => number(action, "fadeDuration", 0.0),
-            "move" => number(action, "duration", 1.0),
-            "offset" | "rotate" | "camera" => number(action, "duration", 0.0),
-            "shock" => number(action, "duration", 0.5),
-            "wait" => number(action, "seconds", 0.0),
-            "transition" => PREVIEW_TRANSITION_SECONDS,
-            "background" | "custom_cg" | "overlay" => number(action, "fade", 0.0),
-            "music" | "sound" if action["op"] == "fadeout" => number(action, "seconds", 2.0),
-            "effect" => 0.0,
-            "cg" if action["kind"] == "event" && action["action"] == "show" => {
-                number(action, "fade_in", 0.0)
-            }
-            "cg" if action["kind"] == "big" => {
-                if action["action"] == "hide" {
-                    1.0
-                } else {
-                    number(action, "fade_in", 1.0)
-                        * if action["background_only"] == true {
-                            1.0
-                        } else {
-                            2.0
-                        }
-                }
-            }
-            _ => 0.0,
+pub(crate) fn action_duration(action: &Value) -> f64 {
+    match text(action, "type") {
+        "portrait" => number(action, "fade_out", 0.5) + number(action, "fade_in", 1.5),
+        "show" => number(action, "fadeDuration", 0.0).max(number(action, "moveDuration", 0.0)),
+        "hide" | "hide_all" => number(action, "fadeDuration", 0.0),
+        "move" => number(action, "duration", 1.0),
+        "offset" | "rotate" | "camera" => number(action, "duration", 0.0),
+        "shock" => number(action, "duration", 0.5),
+        "wait" => number(action, "seconds", 0.0),
+        "transition" => PREVIEW_TRANSITION_SECONDS,
+        "background" | "custom_cg" | "overlay" => number(action, "fade", 0.0),
+        "music" | "sound" if action["op"] == "fadeout" => number(action, "seconds", 2.0),
+        "effect" => 0.0,
+        "cg" if action["kind"] == "event" && action["action"] == "show" => {
+            number(action, "fade_in", 0.0)
         }
-        .max(0.0)
-            + number(action, "wait_after", 0.0).max(0.0)
+        "cg" if action["kind"] == "big" => {
+            if action["action"] == "hide" {
+                1.0
+            } else {
+                number(action, "fade_in", 1.0)
+                    * if action["background_only"] == true {
+                        1.0
+                    } else {
+                        2.0
+                    }
+            }
+        }
+        _ => 0.0,
     }
+    .max(0.0)
+        + number(action, "wait_after", 0.0).max(0.0)
+}
+
+pub fn playback_duration(node: &Value) -> f64 {
     if node["type"] == "parallel" {
         lom_core::parallel::actions(node)
             .iter()
-            .map(duration)
+            .map(action_duration)
             .fold(0.0, f64::max)
             .max(0.1)
     } else {
         match text(node, "type") {
-            "cg" if node["kind"] == "big" => duration(node).max(0.1),
+            "cg" if node["kind"] == "big" => action_duration(node).max(0.1),
             "cg" if node["kind"] == "event" && node["action"] == "show" => {
-                duration(node).max(0.0) + 1.8
+                action_duration(node).max(0.0) + 1.8
             }
             "show" | "portrait" | "hide" | "hide_all" | "move" | "offset" | "rotate" | "shock"
             | "wait" | "transition" | "mood" | "effect" | "character_title" | "camera" => {
-                duration(node).max(0.1)
+                action_duration(node).max(0.1)
             }
             _ => 1.8,
         }
@@ -2282,6 +2308,24 @@ impl Preview {
                         let sign = if flipped { -1.0 } else { 1.0 };
                         let dest =
                             portrait_rect(rect, base, size, body_scale, calibration, sign, &meta);
+                        if !self.layout_mode && node["type"] == "parallel" {
+                            if let Some(index) = lom_core::parallel::actions(node)
+                                .iter()
+                                .position(|action| action["character"] == *cid)
+                            {
+                                if ui
+                                    .interact(
+                                        dest.intersect(rect),
+                                        egui::Id::new((target, cid, "pick-stage-action")),
+                                        egui::Sense::click(),
+                                    )
+                                    .on_hover_text(crate::i18n::key("usability.state.edit_action"))
+                                    .clicked()
+                                {
+                                    crate::forms::reveal_parallel_action(&ctx, target, index);
+                                }
+                            }
+                        }
                         let brightness = if a["dimmed"].as_bool().unwrap_or(false) {
                             128
                         } else {
@@ -2917,7 +2961,40 @@ impl Preview {
         story: &Value,
         selected: usize,
     ) {
-        let resolved = portrait_preview_node(story, selected);
+        let parent = &story["nodes"][selected];
+        let target = text(parent, "id");
+        let selection_id = egui::Id::new("preview-character-action");
+        let requested = ui
+            .ctx()
+            .data(|data| data.get_temp::<(String, usize)>(selection_id))
+            .filter(|(id, _)| id == target)
+            .map(|(_, index)| index);
+        let mut action = portrait_action(parent, requested);
+        if parent["type"] == "parallel" {
+            let characters: Vec<_> = lom_core::parallel::actions(parent)
+                .iter()
+                .enumerate()
+                .filter(|(_, action)| !text(action, "character").is_empty())
+                .collect();
+            if characters.len() > 1 {
+                ui.small(crate::i18n::key("editor.preview.parallel_portraits"));
+                ui.horizontal_wrapped(|ui| {
+                    for (index, child) in characters {
+                        let label = format!(
+                            "{} · {} · {}",
+                            index + 1,
+                            character_display_name(project, text(child, "character")),
+                            crate::i18n::key(&format!("node.{}", text(child, "type")))
+                        );
+                        if ui.selectable_label(action == Some(index), label).clicked() {
+                            action = Some(index);
+                            crate::forms::reveal_parallel_action(ui.ctx(), target, index);
+                        }
+                    }
+                });
+            }
+        }
+        let resolved = portrait_preview_node(story, selected, action);
         let node = &resolved;
         let cid = text(node, "character");
         if cid.is_empty() {
@@ -3639,10 +3716,13 @@ mod tests {
                 {"id":"offset","type":"offset","character":character,"x":30,"y":0}
             ]});
             let before = story.clone();
-            assert_eq!(portrait_preview_node(&story, 2)["portrait"], "shy");
-            assert_eq!(portrait_preview_node(&story, 2)["appearance"], "beautified");
-            assert_eq!(portrait_preview_node(&story, 3)["portrait"], "angry1");
-            assert_eq!(portrait_preview_node(&story, 4)["portrait"], "angry1");
+            assert_eq!(portrait_preview_node(&story, 2, None)["portrait"], "shy");
+            assert_eq!(
+                portrait_preview_node(&story, 2, None)["appearance"],
+                "beautified"
+            );
+            assert_eq!(portrait_preview_node(&story, 3, None)["portrait"], "angry1");
+            assert_eq!(portrait_preview_node(&story, 4, None)["portrait"], "angry1");
             assert_eq!(
                 simulate(&story, "offset")["actors"][character]["portrait"],
                 "angry1"
@@ -3650,6 +3730,142 @@ mod tests {
             assert_eq!(story, before);
         }
     }
+    #[test]
+    fn parallel_portrait_preview_follows_the_edited_action_and_inherits_appearance() {
+        let story = json!({"id":"main","start":"player","nodes":[
+            {"id":"player","type":"show","character":"player","portrait":"angry1","appearance":"beautified","position":"L1"},
+            {"id":"enter","type":"parallel","actions":[
+                {"type":"show","character":"user:test.other","portrait":"happy","position":"R1"},
+                {"type":"wait","seconds":0.1}]},
+            {"id":"move","type":"parallel","actions":[
+                {"type":"wait","seconds":1},
+                {"type":"move","character":"player","from":"L1","to":"M"},
+                {"type":"offset","character":"user:test.other","x":10,"y":0,"duration":0}]},
+            {"id":"change","type":"parallel","actions":[
+                {"type":"portrait","character":"player","portrait":"laugh1"},
+                {"type":"hide","character":"user:test.other"}]},
+            {"id":"end","type":"end"}
+        ]});
+        lom_core::validate::validate_story(&story).unwrap();
+        let original = story.clone();
+        for selection in [None, Some(0), Some(1), Some(99)] {
+            let node = portrait_preview_node(&story, 2, selection);
+            assert_eq!(node["character"], "player");
+            assert_eq!(node["portrait"], "angry1");
+            assert_eq!(node["appearance"], "beautified");
+        }
+        assert_eq!(
+            portrait_preview_node(&story, 2, Some(2))["portrait"],
+            "happy"
+        );
+        assert_eq!(
+            portrait_preview_node(&story, 3, Some(0))["portrait"],
+            "laugh1"
+        );
+        assert_eq!(
+            portrait_preview_node(&story, 3, Some(0))["appearance"],
+            "beautified"
+        );
+        assert_eq!(
+            portrait_preview_node(&story, 3, Some(1))["portrait"],
+            "happy"
+        );
+        assert_eq!(
+            simulate(&story, "move")["actors"]
+                .as_object()
+                .unwrap()
+                .len(),
+            2
+        );
+        assert_eq!(story, original);
+    }
+
+    #[test]
+    fn parallel_portrait_picker_paints_both_characters_without_editing_the_group() {
+        let mut project = Project::new();
+        for (id, name, color) in [
+            ("test.first", "人物甲", [255, 0, 0, 255]),
+            ("test.second", "人物乙", [0, 0, 255, 255]),
+        ] {
+            let prefix = format!("assets/user/character/{id}");
+            project.assets.insert(format!("{prefix}/content.json"), serde_json::to_vec(&json!({
+                "schema":1,"id":id,"type":"character","name":name,"files":{"main":"normal.png"},"portraits":{"normal":"normal.png"}
+            })).unwrap());
+            let mut png = std::io::Cursor::new(Vec::new());
+            image::RgbaImage::from_pixel(16, 24, image::Rgba(color))
+                .write_to(&mut png, image::ImageFormat::Png)
+                .unwrap();
+            project
+                .assets
+                .insert(format!("{prefix}/normal.png"), png.into_inner());
+        }
+        let story = json!({"id":"main","start":"group","nodes":[{"id":"group","type":"parallel","actions":[
+            {"type":"show","character":"user:test.first","position":"L1"},
+            {"type":"show","character":"user:test.second","position":"R1"}]}]});
+        let original = story.clone();
+        let context = egui::Context::default();
+        context.enable_accesskit();
+        let mut preview = Preview::new(Path::new("."));
+        let draw = |preview: &mut Preview, events| {
+            context.run(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(700.0, 600.0))),
+                    events,
+                    ..Default::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default()
+                        .show(ctx, |ui| preview.show_portrait(ui, &project, &story, 0));
+                },
+            )
+        };
+        let output = draw(&mut preview, vec![]);
+        assert!(preview
+            .cache
+            .keys()
+            .any(|key| key.contains("test.first/normal.png")));
+        let target = output
+            .platform_output
+            .accesskit_update
+            .unwrap()
+            .nodes
+            .into_iter()
+            .find_map(|(id, node)| {
+                (node.role() == egui::accesskit::Role::Button
+                    && node.label().is_some_and(|label| label.contains("人物乙")))
+                .then_some(id)
+            })
+            .expect("the group must offer its second character");
+        let output = draw(
+            &mut preview,
+            vec![egui::Event::AccessKitActionRequest(
+                egui::accesskit::ActionRequest {
+                    action: egui::accesskit::Action::Click,
+                    target,
+                    data: None,
+                },
+            )],
+        );
+        let texture = preview
+            .cache
+            .iter()
+            .find(|(key, _)| key.contains("test.second/normal.png"))
+            .unwrap()
+            .1
+            .texture
+            .id();
+        assert!(output.shapes.iter().any(
+            |shape| matches!(&shape.shape, egui::Shape::Mesh(mesh) if mesh.texture_id==texture)
+        ));
+        assert_eq!(
+            context
+                .data(|data| data
+                    .get_temp::<(String, usize)>(egui::Id::new("preview-character-action"))),
+            Some(("group".into(), 1))
+        );
+        assert_eq!(story, original);
+    }
+
     #[test]
     fn parallel_bubble_and_shock_are_visible_together_and_restored_for_playtest() {
         use super::*;
@@ -4395,7 +4611,7 @@ end
         let actual = simulate(&story, "edit");
         let mut frame = actual.clone();
         highlight_editing_character(&mut frame, &story["nodes"][3], Some(0), None);
-        assert_eq!(frame["actors"]["player"]["dimmed"], false);
+        assert_eq!(frame["actors"]["player"]["dimmed"], true);
         assert_eq!(simulate(&story, "edit"), actual);
         let mut frame = actual.clone();
         highlight_editing_character(&mut frame, &story["nodes"][3], Some(1), None);
@@ -4520,6 +4736,42 @@ end
         }
     }
 
+    #[test]
+    fn portrait_brightening_waits_for_the_new_expression_and_then_restores_automatic_dimming() {
+        let positions: Value =
+            serde_json::from_str(include_str!("../../../data/stage_positions.json")).unwrap();
+        for character in ["player", "user:demo.actor"] {
+            for grouped in [false, true] {
+                let change = json!({"type":"portrait","character":character,"portrait":"angry1","fade_out":0.5,"fade_in":0.5,"brighten":true});
+                let mut story = json!({"id":"main","start":"enter","nodes":[
+                    {"id":"enter","type":"show","character":character,"position":"L1"},
+                    {"id":"dim","type":"dim","character":character,"dimmed":true},
+                    if grouped {json!({"id":"change","type":"parallel","actions":[change,{"type":"wait","seconds":1}]})} else {let mut change=change;change["id"]="change".into();change},
+                    {"id":"next","type":"say","character":"brother1","text":"下一句"}]});
+                let fading = simulate_frame(&story, "change", 0.25, &positions);
+                assert_eq!(fading["actors"][character]["dimmed"], true);
+                assert_eq!(fading["actors"][character]["portrait"], "normal");
+                let bright = simulate_frame(&story, "change", 0.75, &positions);
+                assert_eq!(bright["actors"][character]["dimmed"], false);
+                assert_eq!(bright["actors"][character]["portrait"], "angry1");
+                assert_eq!(bright["actors"][character]["position"], "L1");
+                assert_eq!(
+                    simulate(&story, "next")["actors"][character]["dimmed"],
+                    true
+                );
+                let change = if grouped {
+                    &mut story["nodes"][2]["actions"][0]
+                } else {
+                    &mut story["nodes"][2]
+                };
+                change.as_object_mut().unwrap().remove("brighten");
+                assert_eq!(
+                    simulate(&story, "change")["actors"][character]["dimmed"],
+                    true
+                );
+            }
+        }
+    }
     #[test]
     fn explicit_dimming_survives_speech_portrait_changes_and_playtest_prelude() {
         for actor in ["player", "user:demo.speaker"] {

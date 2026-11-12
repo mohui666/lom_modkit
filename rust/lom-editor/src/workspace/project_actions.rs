@@ -635,8 +635,11 @@ impl App {
         if !self.check_before_run_or_export() {
             return;
         }
-        if let Some(path) = rfd::FileDialog::new()
-            .add_filter("活侠传 Mod", &["lommod"])
+        let mut dialog = rfd::FileDialog::new().add_filter("活侠传 Mod", &["lommod"]);
+        if let Some(directory) = &self.usability.export_directory {
+            dialog = dialog.set_directory(directory);
+        }
+        if let Some(path) = dialog
             .set_file_name(format!(
                 "{}.lommod",
                 self.project.manifest["id"].as_str().unwrap_or("my_mod")
@@ -644,7 +647,10 @@ impl App {
             .save_file()
         {
             match self.project.export(&path) {
-                Ok(p) => self.status = format!("已导出 {}", p.display()),
+                Ok(p) => {
+                    self.remember_export_directory(&path);
+                    self.status = format!("已导出 {}", p.display());
+                }
                 Err(e) => self.error = Some(format!("导出失败\n{e:#}")),
             }
         }
@@ -652,7 +658,12 @@ impl App {
     pub(super) fn export_play_bundle(&mut self) {
         if self.apply_pending_drafts() && self.check_before_run_or_export() {
             self.flush();
-            self.tools_panel.export_play_bundle(&self.project);
+            if let Some(path) = self
+                .tools_panel
+                .export_play_bundle_in(&self.project, self.usability.export_directory.as_deref())
+            {
+                self.remember_export_directory(&path);
+            }
         }
     }
     pub(super) fn compile(&mut self) {
@@ -667,14 +678,31 @@ impl App {
             .filter(|n| n["type"] == "flag")
             .filter_map(|n| n["flag"].as_str())
             .collect::<BTreeSet<_>>());
-        self.diagnostics.clear();
-        for (id, s) in &self.project.stories {
-            self.diagnostics
-                .extend(lom_core::release::compiler_issues_with_catalog(
-                    id,
-                    s,
-                    &self.catalog.data,
-                ));
+        if self.preflight_tracked {
+            self.refresh_full_problems();
+        } else {
+            self.diagnostics.clear();
+            for (id, s) in &self.project.stories {
+                self.diagnostics
+                    .extend(lom_core::release::compiler_issues_with_catalog(
+                        id,
+                        s,
+                        &self.catalog.data,
+                    ));
+                for (node, character) in lom_core::release::find_stage_issues(s) {
+                    self.diagnostics.push(lom_core::release::PreflightIssue {
+                        severity: "warning".into(),
+                        code: "stage_missing".into(),
+                        story_id: id.clone(),
+                        node_id: node,
+                        message: crate::i18n::message(
+                            "usability.problems.stage_missing",
+                            &[("character", character)],
+                        ),
+                        fixable: false,
+                    });
+                }
+            }
         }
         match compile_with_assets(&self.project, &self.story()) {
             Ok(lua) => self.lua = lua,

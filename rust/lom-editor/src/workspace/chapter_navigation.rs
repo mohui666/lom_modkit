@@ -36,6 +36,15 @@ impl App {
                 );
                 ui.small(crate::i18n::key("editor.workspace.insert_hint"));
                 if ui
+                    .checkbox(
+                        &mut self.usability.auto_hide_palette,
+                        crate::i18n::key("usability.palette.auto_hide"),
+                    )
+                    .changed()
+                {
+                    self.save_usability_preferences();
+                }
+                if ui
                     .button(crate::i18n::key("editor.workspace.parallel"))
                     .on_hover_text(crate::i18n::key("editor.workspace.parallel_hint"))
                     .clicked()
@@ -106,9 +115,9 @@ impl App {
             });
     }
     pub(super) fn sidebar(&mut self, ctx: &egui::Context) {
-        egui::SidePanel::left("chapters")
+        let panel = egui::SidePanel::left(egui::Id::new(("chapters", self.usability.layout)))
             .frame(surface(true))
-            .default_width(shell::NAVIGATION_WIDTH)
+            .default_width(self.usability.widths[self.usability.layout][0])
             .min_width(180.0)
             .max_width((ctx.available_rect().width() - 620.0).max(180.0))
             .resizable(true)
@@ -116,6 +125,7 @@ impl App {
                 if self.screenshot.is_some() && self.frame == 12 {
                     println!("Layout navigation width: {}", ui.max_rect().width());
                 }
+                ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
                 {
                     ui.strong(
                         self.project.manifest["name"]
@@ -403,10 +413,13 @@ impl App {
                 ui.separator();
                 if !self.search.is_empty() {
                     ui.horizontal(|ui| {
-                        ui.label(format!("{}: {}", tr("查找"), self.search));
                         if ui.small_button("×").clicked() {
                             self.search.clear();
                         }
+                        ui.add(
+                            egui::Label::new(format!("{}: {}", tr("查找"), self.search)).truncate(),
+                        )
+                        .on_hover_text(&self.search);
                     });
                 }
                 let story = self.story();
@@ -669,6 +682,7 @@ impl App {
                                 let mut label = egui::text::LayoutJob::default();
                                 label.wrap.max_width = (ui.available_width() - 24.0).max(40.0);
                                 label.wrap.max_rows = 2;
+                                label.wrap.break_anywhere = true;
                                 label.append(
                                     &format!("{:02}  ", index + 1),
                                     0.0,
@@ -795,5 +809,6 @@ impl App {
                     }
                 }
             });
+        self.remember_panel_width(ctx, 0, panel.response.rect.width());
     }
 }

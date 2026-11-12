@@ -16,6 +16,12 @@ impl App {
             });
         }
         if ui
+            .button(crate::i18n::key("usability.authoring.talent"))
+            .clicked()
+        {
+            self.open_custom_talent();
+        }
+        if ui
             .button(crate::i18n::key("editor.workspace.add_portrait"))
             .clicked()
             && self.apply_pending_drafts()
