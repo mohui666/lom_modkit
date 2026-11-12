@@ -60,7 +60,7 @@ namespace MortalModHost
                 if (custom)
                 {
                     UserContent content = CustomGameplayRuntime.ResolveContent(ModOverlay.CurrentPackage, key);
-                    if (content.Type != "image" || content.Bytes == null) throw new InvalidOperationException("自定义大图不存在：" + key);
+                    if (!content.IsStoryPicture || content.Bytes == null) throw new InvalidOperationException("自定义大图不存在：" + key);
                     _texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
                     if (!_texture.LoadImage(content.Bytes)) throw new InvalidOperationException("自定义大图解码失败：" + key);
                     _texture.wrapMode = TextureWrapMode.Clamp;
@@ -97,7 +97,18 @@ namespace MortalModHost
                     if (custom)
                     {
                         RectTransform frame = _root.GetComponent<RectTransform>();
-                        float scale = Mathf.Min(frame.rect.width / picture.rect.width, frame.rect.height / picture.rect.height);
+                        RectTransform viewport = image.canvas.rootCanvas.GetComponent<RectTransform>();
+                        var corners = new Vector3[4];
+                        viewport.GetWorldCorners(corners);
+                        Vector3 lower = frame.InverseTransformPoint(corners[0]);
+                        Vector3 upper = frame.InverseTransformPoint(corners[2]);
+                        float width = Mathf.Min(frame.rect.width, Mathf.Abs(upper.x - lower.x));
+                        float height = Mathf.Min(frame.rect.height, Mathf.Abs(upper.y - lower.y));
+                        float scale = Mathf.Min(width / picture.rect.width, height / picture.rect.height);
+                        // The native image stretches across its parent. A fitted sizeDelta
+                        // would otherwise add the parent's size and crop the custom art.
+                        image.rectTransform.anchorMin = image.rectTransform.anchorMax = new Vector2(.5f, .5f);
+                        image.rectTransform.pivot = new Vector2(.5f, .5f);
                         image.rectTransform.sizeDelta = picture.rect.size * scale;
                         image.preserveAspect = true;
                     }

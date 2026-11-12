@@ -80,7 +80,7 @@ fn content_specs(node: &Value) -> Vec<ContentSpec<'_>> {
     let kind = text(node, "type");
     let mut refs = Vec::new();
     if kind == "cg"
-        && matches!(text(node, "kind"), "event" | "big")
+        && matches!(text(node, "kind"), "event" | "picture" | "item" | "big")
         && node["action"] == "show"
         && node["background_only"] != true
         && text(node, "key").starts_with("user:")
@@ -88,7 +88,7 @@ fn content_specs(node: &Value) -> Vec<ContentSpec<'_>> {
         refs.push(ContentSpec {
             field: "key",
             raw: text(node, "key"),
-            kind: "image",
+            kind: "picture",
             audio_kind: None,
             portrait: None,
         });
@@ -193,7 +193,7 @@ fn illegal_path(raw: &str) -> bool {
 fn missing_code(r: &ContentSpec<'_>) -> &'static str {
     if r.field == "voice" {
         "missing_voice"
-    } else if r.kind == "image" {
+    } else if matches!(r.kind, "image" | "picture") {
         "missing_image"
     } else {
         "impossible_content_reference"
@@ -217,7 +217,7 @@ fn audit_content(project: &Project, root: &Path) -> Vec<PreflightIssue> {
     }
     for (sid, story) in &project.stories {
         for (parent, node) in crate::parallel::story_actions(story) {
-            for r in content_specs(node) {
+            for mut r in content_specs(node) {
                 let nid = text(parent, "id");
                 if let Some(id) = r.raw.strip_prefix("user:") {
                     if let Err(e) = crate::content::validate_content_id(id) {
@@ -233,6 +233,21 @@ fn audit_content(project: &Project, root: &Path) -> Vec<PreflightIssue> {
                             e.to_string(),
                         ));
                         continue;
+                    }
+                    if r.kind == "picture" {
+                        match crate::content::picture_content_kind(root, id) {
+                            Ok(kind) => r.kind = kind,
+                            Err(error) => {
+                                out.push(PreflightIssue::new(
+                                    "error",
+                                    "missing_image",
+                                    sid,
+                                    nid,
+                                    format!("{error:#}"),
+                                ));
+                                continue;
+                            }
+                        }
                     }
                     referenced.insert((r.kind.to_owned(), id.to_owned()));
                     let base = root.join(format!("assets/user/{}/{id}", r.kind));

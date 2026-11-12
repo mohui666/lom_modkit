@@ -543,28 +543,34 @@ fn imported_step_image_is_applied_and_undone_with_its_asset() {
     let temp = tempfile::tempdir().unwrap();
     let file = temp.path().join("image.png");
     std::fs::write(&file, b"fixture image").unwrap();
-    let mut app = app();
-    let id = app.story()["nodes"][0]["id"].as_str().unwrap().to_owned();
-    app.project.stories.get_mut(&app.current).unwrap()["nodes"][0] =
-        json!({"id":id,"type":"overlay","slot":"main","action":"show"});
-    app.track();
-    app.flush();
-    let before = snapshot(&app.project);
-    app.image_import_target = Some((app.current.clone(), id));
-    app.asset_import_dialog = Some(AssetImportDialog {
-        extends: String::new(),
-        kind: 0,
-        name: "图片".into(),
-        paths: vec![file],
-        error: None,
-    });
-    app.commit_asset_import().unwrap();
-    let image = app.story()["nodes"][0]["image"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    assert!(image.starts_with("user:"));
-    assert!(!app.project.assets.is_empty());
-    app.undo();
-    assert!(snapshot(&app.project) == before);
+    for kind in ["overlay", "event", "picture", "item", "big"] {
+        let mut app = app();
+        let id = app.story()["nodes"][0]["id"].as_str().unwrap().to_owned();
+        let mut node = json!({"id":id,"type":"cg","kind":kind,"action":"show"});
+        if kind == "overlay" {
+            node = json!({"id":id,"type":"overlay","slot":"main","action":"show"});
+        }
+        app.project.stories.get_mut(&app.current).unwrap()["nodes"][0] = node;
+        app.track();
+        app.flush();
+        let before = snapshot(&app.project);
+        app.image_import_target = Some((app.current.clone(), id));
+        app.asset_import_dialog = Some(AssetImportDialog {
+            extends: String::new(),
+            kind: 0,
+            name: "图片".into(),
+            paths: vec![file.clone()],
+            error: None,
+        });
+        app.commit_asset_import().unwrap();
+        let field = if kind == "overlay" { "image" } else { "key" };
+        assert!(app.story()["nodes"][0][field]
+            .as_str()
+            .unwrap()
+            .starts_with("user:"));
+        assert!(kind == "overlay" || app.story()["nodes"][0].get("image").is_none());
+        assert!(!app.project.assets.is_empty());
+        app.undo();
+        assert!(snapshot(&app.project) == before);
+    }
 }

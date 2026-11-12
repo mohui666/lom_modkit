@@ -182,6 +182,7 @@ impl Catalog {
         self.data = lom_core::validate::catalog_with_assets(assets)
             .unwrap_or_else(|_| lom_core::validate::editor_data().clone());
         self.data["user_images"] = json!([]);
+        self.data["user_pictures"] = json!([]);
         self.data["user_voices"] = json!([]);
         self.data["user_supports"] = json!([]);
         self.data["user_skills"] = json!([]);
@@ -197,6 +198,14 @@ impl Catalog {
                 continue;
             };
             let mut entry = json!({"id":format!("user:{id}"),"name":meta["name"]});
+            if lom_core::content::PICTURE_CONTENT_TYPES
+                .contains(&meta["type"].as_str().unwrap_or(""))
+            {
+                self.data["user_pictures"]
+                    .as_array_mut()
+                    .unwrap()
+                    .push(entry.clone());
+            }
             let key = match meta["type"].as_str().unwrap_or("") {
                 "character" => {
                     if meta["extends"].as_str().is_some_and(|s| !s.is_empty()) {
@@ -463,9 +472,9 @@ impl Catalog {
             }
             return vec![("normal".into(), "normal".into())];
         }
-        if matches!(kind, "event_picture" | "big_picture") {
+        if matches!(kind, "story_picture" | "event_picture" | "big_picture") {
             let mut options = self.raw_options("official_picture", node, nodes, stories);
-            options.extend(self.raw_options("user_image", node, nodes, stories));
+            options.extend(rows(&self.data["user_pictures"]));
             return options;
         }
         if kind == "official_picture" {
@@ -805,18 +814,12 @@ impl Catalog {
                         "character"
                     } else if kind == "cg"
                         && key == "key"
-                        && matches!(node["kind"].as_str(), Some("event" | "big"))
+                        && matches!(
+                            node["kind"].as_str(),
+                            Some("event" | "picture" | "item" | "big")
+                        )
                     {
-                        if node["kind"] == "big" {
-                            "big_picture"
-                        } else {
-                            "event_picture"
-                        }
-                    } else if kind == "cg"
-                        && key == "key"
-                        && matches!(node["kind"].as_str(), Some("picture" | "item" | "big"))
-                    {
-                        "official_picture"
+                        "story_picture"
                     } else {
                         field_kind
                     },
@@ -1771,45 +1774,24 @@ impl Catalog {
                                         ui.separator();
                                     }
                                     let search_id = ui.id().with("search");
+                                    let direction = resource_arrow_direction(ui, search_id);
                                     let mut search = ui.data_mut(|d| {
                                         d.get_temp::<String>(search_id).unwrap_or_default()
                                     });
                                     if !options.is_empty() {
                                         ui.add(
                                             egui::TextEdit::singleline(&mut search)
+                                                .id(search_id)
                                                 .hint_text(tr("搜索名称")),
                                         );
                                     }
                                     let lower = search.to_lowercase();
-                                    let mut keyboard_choice = None;
-                                    if kind == "portrait" {
-                                        ui.small(crate::i18n::key("editor.form.portrait_keys"));
-                                        let editing_text = ui.memory(|memory| memory.focused())
-                                            .is_some_and(|id| egui::TextEdit::load_state(ui.ctx(), id).is_some());
-                                        if !editing_text {
-                                            let direction = ui.input_mut(|input| {
-                                                if input.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown) {
-                                                    1
-                                                } else if input.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp) {
-                                                    -1
-                                                } else { 0 }
-                                            });
-                                            let visible: Vec<_> = options.iter()
-                                                .filter(|(id, name)| resource_matches(id, name, &lower)).collect();
-                                            if direction != 0 && !visible.is_empty() {
-                                                let current = visible.iter().position(|(id, _)| id == &s);
-                                                let next = match (current, direction) {
-                                                    (Some(index), 1) => (index + 1).min(visible.len() - 1),
-                                                    (Some(index), _) => index.saturating_sub(1),
-                                                    (None, 1) => 0,
-                                                    (None, _) => visible.len() - 1,
-                                                };
-                                                keyboard_choice = Some(visible[next].0.clone());
-                                                if !present || s != visible[next].0 {
-                                                    s = visible[next].0.clone();
-                                                    c = true;
-                                                }
-                                            }
+                                    ui.small(crate::i18n::key("editor.form.resource_keys"));
+                                    let keyboard_choice = adjacent_resource(&options, &s, &lower, direction);
+                                    if let Some(choice) = &keyboard_choice {
+                                        if !present || s != *choice {
+                                            s = choice.clone();
+                                            c = true;
                                         }
                                     }
                                     for (id, name) in &options {
@@ -2025,7 +2007,51 @@ struct CharacterSearch {
     filter_changed: bool,
 }
 
-/// Search is a draft; only choosing a result, clearing, or applying an ID commits.
+fn resource_arrow_direction(ui: &mut Ui, search_id: egui::Id) -> i32 {
+    let editing_other_text = ui
+        .memory(|memory| memory.focused())
+        .is_some_and(|id| id != search_id && egui::TextEdit::load_state(ui.ctx(), id).is_some());
+    if editing_other_text {
+        return 0;
+    }
+    ui.input_mut(|input| {
+        if input.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown) {
+            1
+        } else if input.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp) {
+            -1
+        } else {
+            0
+        }
+    })
+}
+
+fn adjacent_resource(
+    options: &[(String, String)],
+    selected: &str,
+    query: &str,
+    direction: i32,
+) -> Option<String> {
+    if direction == 0 {
+        return None;
+    }
+    let visible: Vec<_> = options
+        .iter()
+        .filter(|(id, name)| resource_matches(id, name, query))
+        .collect();
+    if visible.is_empty() {
+        return None;
+    }
+    let current = visible.iter().position(|(id, _)| id == selected);
+    let next = match (current, direction) {
+        (Some(index), 1) => (index + 1).min(visible.len() - 1),
+        (Some(index), _) => index.saturating_sub(1),
+        (None, 1) => 0,
+        (None, _) => visible.len() - 1,
+    };
+    Some(visible[next].0.clone())
+}
+
+/// Search text is a draft; result clicks/arrows, clearing, or applying an ID commit.
 fn character_picker(
     ui: &mut Ui,
     selected: Option<&str>,
@@ -2067,9 +2093,16 @@ fn character_picker(
         .or(absent)
         .map(str::to_owned)
         .unwrap_or_else(|| tr("搜索名称"));
+    let search_id = state_id.with("query");
+    let direction = if state.open {
+        resource_arrow_direction(ui, search_id)
+    } else {
+        0
+    };
     let search = ui
         .add(
             egui::TextEdit::singleline(&mut state.query)
+                .id(search_id)
                 .hint_text(hint)
                 .desired_width(f32::INFINITY),
         )
@@ -2081,9 +2114,22 @@ fn character_picker(
         && ui.input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
     let mut selection = None;
     let mut close = escape;
+    let mut keyboard_choice = None;
     if state.open && !escape {
+        keyboard_choice = adjacent_resource(
+            options,
+            selected.unwrap_or(""),
+            &state.query.to_lowercase(),
+            direction,
+        );
+        if let Some(choice) = &keyboard_choice {
+            if selected != Some(choice.as_str()) {
+                selection = Some(Some(choice.clone()));
+            }
+        }
         let mut result_focused = false;
         let results = egui::Frame::group(ui.style()).show(ui, |ui| {
+            ui.small(crate::i18n::key("editor.form.resource_keys"));
             if let Some(label) = absent {
                 let clear = ui.selectable_label(selected.is_none(), label);
                 result_focused |= clear.has_focus();
@@ -2096,11 +2142,17 @@ fn character_picker(
                 .max_height(220.0)
                 .show(ui, |ui| {
                     for (id, name) in options {
-                        if query.is_empty()
-                            || name.to_lowercase().contains(&query)
-                            || id.to_lowercase().contains(&query)
-                        {
-                            let result = ui.selectable_label(selected == Some(id.as_str()), name);
+                        if resource_matches(id, name, &query) {
+                            let result = ui.selectable_label(
+                                keyboard_choice
+                                    .as_ref()
+                                    .map_or(selected == Some(id.as_str()), |choice| choice == id),
+                                name,
+                            );
+                            if keyboard_choice.as_ref() == Some(id) {
+                                result.request_focus();
+                                result.scroll_to_me(Some(egui::Align::Center));
+                            }
                             result_focused |= result.has_focus();
                             if result.clicked() {
                                 selection = Some(Some(id.clone()));
@@ -2128,15 +2180,19 @@ fn character_picker(
             });
             result_focused |= manual.header_response.has_focus();
         });
-        close |= !keep_open
+        close |= keyboard_choice.is_none()
+            && !keep_open
             && (search.clicked_elsewhere() || (search.lost_focus() && !result_focused))
             && !results.response.contains_pointer();
     }
-    if close || selection.is_some() {
+    if close || selection.is_some() && keyboard_choice.is_none() {
         state.open = false;
         state.query.clear();
         state.manual_id = selected.unwrap_or("").to_owned();
         search.surrender_focus();
+    } else if let Some(Some(choice)) = &selection {
+        state.source = Some(choice.clone());
+        state.manual_id = choice.clone();
     }
     ui.data_mut(|data| data.insert_temp(state_id, state));
     selection
@@ -2267,6 +2323,7 @@ fn is_selector(kind: &str) -> bool {
             kind,
             "node_ref"
                 | "official_picture"
+                | "story_picture"
                 | "event_picture"
                 | "big_picture"
                 | "mood_character"
@@ -2984,6 +3041,131 @@ mod tests {
         assert!(changed);
         assert_eq!(node["portrait"], "normal");
         assert!(egui::Popup::is_any_open(&context));
+    }
+
+    #[test]
+    fn character_arrows_follow_filtered_results_and_keep_search_open() {
+        let mut catalog = Catalog::new();
+        catalog.data["characters"] = json!([
+            {"id":"one","name":"人物甲"}, {"id":"two","name":"人物乙"},
+            {"id":"three","name":"人物丙"}
+        ]);
+        let context = egui::Context::default();
+        let mut node = json!({"id":"show","type":"show","character":"one","position":"M"});
+        let (output, _) = field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "character",
+            "character",
+            vec![],
+        );
+        let events = search_character(&output, "人物");
+        field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "character",
+            "character",
+            events,
+        );
+        for (key, expected) in [
+            (egui::Key::ArrowDown, "two"),
+            (egui::Key::ArrowDown, "three"),
+            (egui::Key::ArrowUp, "two"),
+        ] {
+            let (output, changed) = field_frame(
+                &catalog,
+                &context,
+                &mut node,
+                "character",
+                "character",
+                vec![egui::Event::Key {
+                    key,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: egui::Modifiers::NONE,
+                }],
+            );
+            assert!(changed);
+            assert_eq!(node["character"], expected);
+            assert!(output
+                .platform_output
+                .accesskit_update
+                .as_ref()
+                .unwrap()
+                .nodes
+                .iter()
+                .any(|(_, n)| n.role() == egui::accesskit::Role::Button
+                    && n.label() == Some("人物丙")));
+            let state = crate::preview::simulate(
+                &json!({"id":"main","start":"show","nodes":[node.clone()]}),
+                "show",
+            );
+            assert!(state["actors"][expected].is_object());
+        }
+    }
+
+    #[test]
+    fn visual_resource_arrows_update_selection_and_keep_the_popup_open() {
+        let mut catalog = Catalog::new();
+        let mut assets = std::collections::BTreeMap::new();
+        for (kind, id) in [
+            ("image", "demo.a"),
+            ("image", "demo.b"),
+            ("item", "demo.c"),
+            ("martial", "demo.d"),
+        ] {
+            assets.insert(format!("assets/user/{kind}/{id}/content.json"), serde_json::to_vec(&json!({
+                "schema":1,"id":id,"type":kind,"name":format!("测试{id}"),"files":{"main":"icon.png"}
+            })).unwrap());
+        }
+        catalog.sync_assets(&assets);
+        for (node_type, field, selector, picture_kind) in [
+            ("effect", "name", "effect", ""),
+            ("scene", "view", "view", ""),
+            ("cg", "key", "story_picture", "item"),
+            ("overlay", "image", "user_image", ""),
+        ] {
+            let context = egui::Context::default();
+            let mut node = catalog.new_node(node_type, "n".into());
+            if node_type == "cg" {
+                node["kind"] = json!(picture_kind);
+            }
+            let options = catalog.options(selector, &node, &[], &[]);
+            assert!(options.len() > 1, "{selector}");
+            node[field] = json!(options[0].0);
+            let (output, _) = field_frame(&catalog, &context, &mut node, field, selector, vec![]);
+            let events = click(&output, egui::accesskit::Role::ComboBox, &options[0].1);
+            field_frame(&catalog, &context, &mut node, field, selector, events);
+            let (_, changed) = field_frame(
+                &catalog,
+                &context,
+                &mut node,
+                field,
+                selector,
+                vec![egui::Event::Key {
+                    key: egui::Key::ArrowDown,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: egui::Modifiers::NONE,
+                }],
+            );
+            assert!(changed, "{selector}");
+            assert_eq!(node[field], options[1].0, "{selector}");
+            assert!(egui::Popup::is_any_open(&context), "{selector}");
+        }
+        for kind in ["picture", "item", "event", "big"] {
+            let options = catalog.options("story_picture", &json!({"kind":kind}), &[], &[]);
+            for id in ["demo.a", "demo.b", "demo.c", "demo.d"] {
+                assert!(
+                    options.iter().any(|(key, _)| key == &format!("user:{id}")),
+                    "{kind}: {id}"
+                );
+            }
+        }
     }
 
     #[test]

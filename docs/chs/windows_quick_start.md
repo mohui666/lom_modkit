@@ -2,7 +2,7 @@
 
 ## 下载并打开
 
-从发布页下载 `lom-editor.exe` 附件，双击即可使用。[1.5.11 下载页](https://github.com/mohui666/lom_modkit/releases/tag/v1.5.11)。AI 创作所需的接口、skill、文档和示例可通过 `lom-editor.exe --cli sdk -o sdk --json` 导出。
+从发布页下载 `lom-editor.exe` 附件，双击即可使用。[1.5.13 下载页](https://github.com/mohui666/lom_modkit/releases/tag/v1.5.13)。AI 创作所需的接口、skill、文档和示例可通过 `lom-editor.exe --cli sdk -o sdk --json` 导出。
 
 运行只需要编辑器 exe；授权说明已内置到组件缓存。
 

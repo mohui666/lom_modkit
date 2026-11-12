@@ -234,11 +234,7 @@ impl App {
                     .and_then(|story| story["nodes"].as_array_mut())
                     .and_then(|nodes| nodes.iter_mut().find(|n| n["id"] == node))
                 {
-                    let field = if node["type"] == "cg" && node["kind"] == "event" {
-                        "key"
-                    } else {
-                        "image"
-                    };
+                    let field = if node["type"] == "cg" { "key" } else { "image" };
                     node[field] = json!(format!("user:{id}"));
                 }
             }

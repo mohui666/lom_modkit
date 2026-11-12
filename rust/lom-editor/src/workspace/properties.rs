@@ -86,6 +86,11 @@ impl App {
                             let stories = self.project.stories.keys().cloned().collect::<Vec<_>>();
                             if let Some(mut node) = story["nodes"].get(self.selected).cloned() {
                                 let event_picture = node["type"] == "cg" && node["kind"] == "event";
+                                let story_picture = node["type"] == "cg"
+                                    && matches!(
+                                        node["kind"].as_str(),
+                                        Some("event" | "picture" | "item" | "big")
+                                    );
                                 if node["type"] == "cg" && node["kind"] == "big" {
                                     ui.small(crate::i18n::key("editor.form.big_picture_hint"));
                                 }
@@ -95,7 +100,9 @@ impl App {
                                 if matches!(
                                     node["type"].as_str(),
                                     Some("background" | "custom_cg" | "overlay")
-                                ) || event_picture && node["action"] == "show"
+                                ) || story_picture
+                                    && node["action"] == "show"
+                                    && node["background_only"] != true
                                 {
                                     ui.small(crate::i18n::key("editor.workspace.image_hint"));
                                     if ui
@@ -115,11 +122,7 @@ impl App {
                                         });
                                     }
                                 }
-                                let official = node["type"] == "cg"
-                                    && matches!(
-                                        node["kind"].as_str(),
-                                        Some("event" | "picture" | "item" | "big")
-                                    );
+                                let official = story_picture;
                                 let custom = matches!(
                                     node["type"].as_str(),
                                     Some("background" | "custom_cg" | "overlay")
@@ -128,6 +131,7 @@ impl App {
                                     matches!(node["type"].as_str(), Some("scene" | "combat"));
                                 let mut image_changed = false;
                                 if (official || custom || scene)
+                                    && node["background_only"] != true
                                     && !matches!(
                                         node["action"].as_str(),
                                         Some("hide" | "clear" | "fadeout")
@@ -143,10 +147,8 @@ impl App {
                                         "image"
                                     };
                                     let options = self.catalog.options(
-                                        if event_picture {
-                                            "event_picture"
-                                        } else if official {
-                                            "official_picture"
+                                        if official {
+                                            "story_picture"
                                         } else if scene {
                                             "view"
                                         } else {

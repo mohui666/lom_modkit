@@ -683,6 +683,43 @@
       "event_text": "原版书页事件图。在图库按“偷看被发现”搜索即可找到这张插图，也可按原图键搜索。底部文字由作者填写，点击后继续。"
     },
     {
+      "action": "show",
+      "id": "custom_item_picture",
+      "key": "user:showcase.courier_token",
+      "kind": "item",
+      "type": "cg",
+      "wait_after": 1
+    },
+    {
+      "action": "hide",
+      "id": "custom_item_picture_hide",
+      "kind": "item",
+      "type": "cg"
+    },
+    {
+      "action": "show",
+      "id": "custom_native_picture",
+      "key": "user:showcase.courier_station",
+      "kind": "picture",
+      "type": "cg",
+      "wait_after": 1
+    },
+    {
+      "action": "hide",
+      "id": "custom_native_picture_hide",
+      "kind": "picture",
+      "type": "cg"
+    },
+    {
+      "action": "show",
+      "event_text": "物品与功法的图标也可直接用于图片演出，不必重新导入。",
+      "event_title": "调息诀",
+      "id": "event_book_manual_icon",
+      "key": "user:showcase.lantern_breath",
+      "kind": "event",
+      "type": "cg"
+    },
+    {
       "id": "event_book_custom",
       "type": "cg",
       "kind": "event",

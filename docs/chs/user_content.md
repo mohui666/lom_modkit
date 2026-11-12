@@ -79,6 +79,8 @@ assets/user/image/<id>/
 
 旧人物介绍图 / 结局插图的 `assets/文件名.png` 路径继续兼容。新背景、CG、Overlay 统一引用 `type=image`，不分别创建 BackgroundStore / CGStore / OverlayStore。
 
+「图片/标题显示」的普通图片、物品图、事件图与大图也可直接引用 `type=item`（含消耗品）或 `type=martial` 的 `files.main` 图标；选择器与缩略图库都会列出，导出时携带原有定义及图标，不会增加物品数量。自定义普通图片、物品图及这些图标复用需要 Host 1.5.13。背景、全屏插图、前景等 `image` 字段继续选择图片素材。
+
 ## Story 保存的是什么
 
 音乐 / 音效步骤的 `name`：
