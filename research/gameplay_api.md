@@ -370,6 +370,8 @@ Windows 实机还确认 `Mortal.Core.CharacterIntroPanel` 同时提供 `IEnumera
 - `StoryMainUI.ShowPicture(string)`、`ShowItemPicture(string)` 与 `ShowBigPicture(string,int)` 调用相同的 `StoryPicture.Show`。大图的第二参 `color` 为 0 白底、1 黑底、2 透明；`cg kind=big` 必须传此参数，省略编辑字段时生成 0。`ShowMap(string,string)` / `ShowFamilyTree(string,string,float,float)` 为地图点位演出，`DisplayTitle(string)` 为本地化标题文本，不能当作图片地址。
 - 本次实际从本机解码了普通插图、物品图和大图各一张；未启动游戏验证显示时序。自动用例检查图键映射、失败文件排除、缓存路径与大图参数。
 
+2026-11-12 自定义普通图片与物品图：现场重读当前 `StoryMainUI.ShowPicture/HidePicture`、`ShowItemPicture/HideItemPicture`、`ShowBigPicture` 及 `StoryPicture.Show/Hide`。普通图与物品图在这两个 mainui 入口接入包内 image/item/martial 主图，克隆 `_picture` / `_itemPicture` 的当前场景实例，保留图框、淡入和原版移动，替换、隐藏与离场释放自有 Sprite/Texture；不注册虚构 Addressables 键、不改官方资源。事件图和大图同步支持物品／功法图标。修复自定义大图在原版拉伸锚点上设置 sizeDelta 导致超出图框的问题，改用居中固定锚点并按画布可见范围等比适配。Windows 隔离存档中完成 27 项定向实机检查及截图复核，覆盖自定义物品图／普通图、图标复用、原版物品图与普通图、替换后的资源释放、隐藏及舞台清理；不作为其它玩法或全部原版剧情的验收。
+
 ## 明确不支持
 
 - `draw` / `escape`：Combat 没有对应结果，Battle 虽有 `Timeout` 枚举但当前关卡逻辑按双方人数转成 FriendWin/EnemyWin。

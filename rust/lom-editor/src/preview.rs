@@ -1585,6 +1585,11 @@ impl Preview {
                             String::new(),
                             crate::i18n::key("editor.preview.images"),
                         );
+                        ui.selectable_value(
+                            &mut category,
+                            "user".to_owned(),
+                            crate::i18n::tr("作品素材"),
+                        );
                         for kind in ["BigPicture", "Picture", "Items", "Book", "Develop", "UI"] {
                             ui.selectable_value(
                                 &mut category,
@@ -1611,6 +1616,7 @@ impl Preview {
                                 for (key, name) in options.iter().filter(|(key, name)| {
                                     (!official
                                         || category.is_empty()
+                                        || category == "user" && key.starts_with("user:")
                                         || catalog["pictures"].as_array().unwrap().iter().any(
                                             |row| row["key"] == *key && row["category"] == category,
                                         ))
@@ -2085,7 +2091,7 @@ impl Preview {
                     .flat_map(|o| o.values())
                 {
                     let kind = text(picture, "kind");
-                    if kind == "event" {
+                    if matches!(kind, "event" | "picture") {
                         let mut painter = painter.clone();
                         painter.multiply_opacity(number(picture, "preview_opacity", 1.0) as f32);
                         // Scene layout from StoryMainUI._picture, in the native 1920×1080 canvas.
@@ -2152,7 +2158,7 @@ impl Preview {
                             FontId::proportional(font_size),
                             Color32::from_rgb(48, 44, 41),
                         );
-                    } else if matches!(kind, "picture" | "item" | "big") {
+                    } else if matches!(kind, "item" | "big") {
                         let mut painter = painter.clone();
                         painter.multiply_opacity(number(picture, "preview_opacity", 1.0) as f32);
                         if kind == "big" && picture["color"] != 2 {

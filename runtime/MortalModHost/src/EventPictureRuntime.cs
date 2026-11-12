@@ -28,6 +28,7 @@ namespace MortalModHost
             if (float.IsNaN(fadeIn) || float.IsInfinity(fadeIn) || fadeIn < 0f)
                 throw new ArgumentOutOfRangeException("fadeIn", "事件图淡入时间必须为非负有限数值");
             Clear();
+            CustomPictureRuntime.ClearPicture();
             try
             {
                 StoryMainUI main = StoryMainUI.Instance;
@@ -46,7 +47,7 @@ namespace MortalModHost
                     UserContent content;
                     ModPackage package = ModOverlay.CurrentPackage;
                     if (package == null || !package.TryGetUserContent(reference.ContentId, out content)
-                        || content.Type != "image" || content.Bytes == null)
+                        || !content.IsStoryPicture || content.Bytes == null)
                         throw new InvalidOperationException("事件图片不存在：" + key);
                     _texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
                     if (!_texture.LoadImage(content.Bytes))

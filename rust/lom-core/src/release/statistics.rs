@@ -85,7 +85,7 @@ pub fn calculate_project_statistics(stories: &Stories, assets: Option<&[String]>
                         "audio" => {
                             audio.insert(r.raw.to_owned());
                         }
-                        "image" => {
+                        "image" | "picture" => {
                             images.insert(r.raw.to_owned());
                         }
                         _ => {}

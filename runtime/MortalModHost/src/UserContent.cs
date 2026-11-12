@@ -26,6 +26,10 @@ namespace MortalModHost
         public string MainFile;
         public string PackagePath;
         public byte[] Bytes;
+        internal bool IsStoryPicture
+        {
+            get { return Type == "image" || Type == "item" || Type == "martial"; }
+        }
         public Dictionary<string, string> Portraits;
         public string PortraitReference;
         public Dictionary<string, PortraitCalibration> PortraitLayouts = new Dictionary<string, PortraitCalibration>();

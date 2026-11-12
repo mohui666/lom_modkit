@@ -16,6 +16,7 @@ pub const CONTENT_TYPES: &[&str] = &[
     "talent",
 ];
 pub const GAMEPLAY_TYPES: &[&str] = &["item", "martial", "support", "skill", "talent"];
+pub const PICTURE_CONTENT_TYPES: &[&str] = &["image", "item", "martial"];
 const ANIMATIONS: &[&str] = &[
     "combat_idle",
     "combat_attack",
@@ -956,6 +957,24 @@ pub fn load_content_metadata(path: &Path) -> Result<Value> {
     let data: Value = serde_json::from_str(raw.trim_start_matches('\u{feff}'))
         .with_context(|| format!("content.json 不是合法 JSON：{}", path.display()))?;
     normalize_content_metadata(&data).with_context(|| path.display().to_string())
+}
+/// Story pictures can reuse an imported image or an item's/manual's own icon.
+pub fn picture_content_kind(root: &Path, id: &str) -> Result<&'static str> {
+    validate_content_id(id)?;
+    let kinds: Vec<_> = PICTURE_CONTENT_TYPES
+        .iter()
+        .copied()
+        .filter(|kind| {
+            root.join(format!("assets/user/{kind}/{id}/content.json"))
+                .is_file()
+        })
+        .collect();
+    ensure!(
+        kinds.len() == 1,
+        "图片引用 user:{id} 需要唯一的图片、物品或功法素材，找到 {} 项；请在作品素材中检查内容 ID 与类型",
+        kinds.len()
+    );
+    Ok(kinds[0])
 }
 pub fn resolve_content(root: &Path, kind: &str, id: &str) -> Result<(Value, PathBuf)> {
     let relative = package_content_dir(kind, id)?;

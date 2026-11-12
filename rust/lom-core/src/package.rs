@@ -670,11 +670,14 @@ fn add_user_content(
             }
         }
         if kind == "cg"
-            && matches!(node["kind"].as_str(), Some("event" | "big"))
+            && matches!(
+                node["kind"].as_str(),
+                Some("event" | "picture" | "item" | "big")
+            )
             && node["action"] == "show"
             && node["background_only"] != true
         {
-            refs.push(("key", "image", None));
+            refs.push(("key", "picture", None));
         }
         if [
             "show",
@@ -722,6 +725,12 @@ fn add_user_content(
             let Some(id) = raw.strip_prefix("user:").or(extension_id) else {
                 continue;
             };
+            let ctype = if ctype == "picture" {
+                content::picture_content_kind(root, id)
+                    .with_context(|| format!("章节 {story_id}，步骤 {} 的图片引用", parent["id"]))?
+            } else {
+                ctype
+            };
             if let Some(previous) = referenced.get(id) {
                 ensure!(
                     previous == ctype,
@@ -737,7 +746,7 @@ fn add_user_content(
                     )?;
                 }
             }
-            if ctype == "item" {
+            if ctype == "item" && category.is_some() {
                 ensure!(
                     category.is_some_and(|category| meta["category"] == category),
                     "用户物品 {id} 类别不匹配"
@@ -1372,7 +1381,26 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
     let render_priority = stories.values().any(|story| {
         crate::parallel::story_actions(story).any(|(_, node)| node["type"] == "render_priority")
     });
-    if render_priority
+    let custom_pictures = stories.values().any(|story| {
+        crate::parallel::story_actions(story).any(|(_, node)| {
+            if node["type"] != "cg" || node["action"] != "show" || node["background_only"] == true {
+                return false;
+            }
+            let Some(id) = node["key"]
+                .as_str()
+                .and_then(|key| key.strip_prefix("user:"))
+            else {
+                return false;
+            };
+            matches!(node["kind"].as_str(), Some("picture" | "item"))
+                || matches!(node["kind"].as_str(), Some("event" | "big"))
+                    && ["item", "martial"].iter().any(|kind| {
+                        entries.contains_key(&format!("assets/user/{kind}/{id}/content.json"))
+                    })
+        })
+    });
+    if custom_pictures
+        || render_priority
         || martial_talents
         || story_entry
         || filter_controls
@@ -1389,7 +1417,9 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
         || event_fade
         || dialogue_dimming
     {
-        let (minimum, required) = if render_priority {
+        let (minimum, required) = if custom_pictures {
+            ([1, 5, 13], "1.5.13")
+        } else if render_priority {
             ([1, 5, 12], "1.5.12")
         } else if martial_talents {
             ([1, 5, 11], "1.5.11")
