@@ -4,7 +4,7 @@
     "package_format": 3,
     "story_schema": 2,
     "content_schema": 1,
-    "min_host_version": "1.5.10",
+    "min_host_version": "1.5.11",
     "id": "showcase3",
     "campaign_id": "showcase3",
     "name": "全节点样例3.0·七十二节点实机验收",
@@ -530,6 +530,20 @@
               "speed": 1.2,
               "stop_after": 1,
               "tag": "parallel_hit"
+            },
+            {
+              "type": "effect",
+              "name": "Hit_001",
+              "space": "screen",
+              "x": 65,
+              "y": 50,
+              "a": 1.5,
+              "b": 1.5,
+              "c": 0,
+              "rotation": -10,
+              "speed": 1.2,
+              "stop_after": 1,
+              "tag": "parallel_hit"
             }
           ]
         },
@@ -952,6 +966,11 @@
           "kind": "misc",
           "item": "user:showcase.courier_token",
           "count": 1
+        },
+        {
+          "id": "martial_talent_notice",
+          "type": "message",
+          "text": "灯下调息诀第二级同时增加属性并获得独立天赋「万木逢春」。可在功法素材的升级天赋中修改。"
         },
         {
           "id": "custom_manual_grant",

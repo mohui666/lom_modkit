@@ -16,6 +16,33 @@ fn fixture(root: &Path) {
         fs::write(root.join(f), b"fixture").unwrap();
     }
 }
+
+#[test]
+fn event_preview_requests_are_complete_before_publication_and_invalid_inputs_preserve_them() {
+    let dir = tempfile::tempdir().unwrap();
+    fixture(dir.path());
+    let event = serde_json::json!({"id":"visit","trigger":"story_entry","target":"section_01_free_03","from":"section_01_free_start_02"});
+    let path =
+        g::request_event_preview(dir.path(), "event_test_setup_1", "notice", &event).unwrap();
+    let request = lom_core::load_json(&path).unwrap();
+    assert_eq!(request["fresh_campaign"], true);
+    assert_eq!(request["event_id"], "visit");
+    assert_eq!(request["target"], event["target"]);
+    assert_eq!(request["from"], event["from"]);
+    assert_eq!(request["mod_id"], g::PREVIEW_ID);
+    let before = fs::read(&path).unwrap();
+    let mut invalid = event.clone();
+    invalid["from"] = serde_json::json!("../unowned");
+    assert!(
+        g::request_event_preview(dir.path(), "event_test_setup_1", "notice", &invalid).is_err()
+    );
+    assert_eq!(fs::read(&path).unwrap(), before);
+    g::request_preview(dir.path(), "main", "say1").unwrap();
+    assert!(lom_core::load_json(&path)
+        .unwrap()
+        .get("fresh_campaign")
+        .is_none());
+}
 #[test]
 fn host_install_and_verified_rollback_preserve_other_plugins() {
     let t = tempfile::tempdir().unwrap();

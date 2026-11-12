@@ -190,6 +190,31 @@ impl ToolsPanel {
     ) -> anyhow::Result<String> {
         play_project(project, script, node, &self.game, &self.runtime)
     }
+    pub fn play_event(&mut self, project: &Project, spec: &Value) -> anyhow::Result<String> {
+        let preview = crate::scenario_test::prepare(project, spec)?;
+        let script = preview.manifest["entry"].as_str().unwrap();
+        let event = project.scenario.as_ref().unwrap()["events"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|e| e["id"] == spec["event_id"])
+            .unwrap();
+        let temp = lom_core::workdir::create()?;
+        let package = temp.path().join("__lom_modkit_preview.lommod");
+        preview.export(&package)?;
+        let running = game_tools::is_game_running()?;
+        let runtime = game_tools::install_runtime(&self.game, &self.runtime)?;
+        game_tools::remove_preview_packages(&self.game)?;
+        game_tools::install_mod(&self.game, &package, true)?;
+        // Publish the complete isolated request once. A running game must never
+        // observe a normal F5 request before fresh_campaign has been written.
+        game_tools::request_event_preview(&self.game, script, "notice", event)?;
+        if running && runtime["changed"] == true {
+            return Ok("事件测试已准备，请完整退出游戏后重新启动以加载新版 Host。".into());
+        }
+        game_tools::launch_game()?;
+        Ok("事件测试已准备：游戏需处于标题或自由场景，将使用独立测试存档重新开局。".into())
+    }
     fn save_setting(&mut self, key: &str, value: Value) -> bool {
         let path = settings_path();
         let result = (|| {

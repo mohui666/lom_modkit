@@ -610,7 +610,7 @@ fn condition(
         ui.label(crate::i18n::key("common.scenario.condition_object"));
         return;
     }
-    let mut kind = if c.get("all").is_some() {
+    let kind = if c.get("all").is_some() {
         "all"
     } else if c.get("any").is_some() {
         "any"
@@ -619,53 +619,64 @@ fn condition(
     } else {
         "compare"
     };
-    let before = kind;
-    egui::ComboBox::from_id_salt("kind")
-        .selected_text(tr(match kind {
-            "all" => "全部满足",
-            "any" => "任一满足",
-            "not" => "不满足",
-            _ => "数值或状态比较",
-        }))
-        .show_ui(ui, |ui| {
-            for (id, label) in [
-                ("all", "全部满足"),
-                ("any", "任一满足"),
-                ("not", "不满足"),
-                ("compare", "数值或状态比较"),
-            ] {
-                ui.selectable_value(&mut kind, id, tr(label));
+    if kind == "all" || kind == "any" {
+        let mut group = kind;
+        ui.horizontal_wrapped(|ui| {
+            ui.label(tr("以下条件"));
+            egui::ComboBox::from_id_salt("condition-group")
+                .selected_text(tr(if kind == "all" {
+                    "全部满足（并且）"
+                } else {
+                    "任一满足（或者）"
+                }))
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut group, "all", tr("全部满足（并且）"));
+                    ui.selectable_value(&mut group, "any", tr("任一满足（或者）"));
+                });
+        });
+        if group != kind {
+            let children = c.as_object_mut().unwrap().remove(kind).unwrap();
+            c[group] = children;
+        }
+        let kind = group;
+        if c[kind].as_array().is_some_and(Vec::is_empty) {
+            ui.weak(tr(if kind == "all" {
+                "没有额外条件，按上方入口与时间触发。"
+            } else {
+                "尚无可满足的条件，请添加至少一项。"
+            }));
+        }
+        ui.horizontal_wrapped(|ui| {
+            if ui
+                .button(crate::i18n::key("common.scenario.add_condition"))
+                .clicked()
+            {
+                c[kind]
+                    .as_array_mut()
+                    .unwrap()
+                    .push(json!({"source":"time","key":"month","op":"eq","value":7}));
+            }
+            if ui.small_button(tr("添加条件组")).clicked() {
+                c[kind]
+                    .as_array_mut()
+                    .unwrap()
+                    .push(json!({"any":[{"source":"time","key":"month","op":"eq","value":7}]}));
             }
         });
-    if kind != before {
-        *c = match kind {
-            "all" => json!({"all":[]}),
-            "any" => json!({"any":[]}),
-            "not" => json!({"not":{"all":[]}}),
-            _ => json!({"source":"time","key":"month","op":"eq","value":7}),
-        };
-    }
-    if kind == "all" || kind == "any" {
-        if ui
-            .button(crate::i18n::key("common.scenario.add_condition"))
-            .clicked()
-        {
-            c[kind]
-                .as_array_mut()
-                .unwrap()
-                .push(json!({"source":"time","key":"month","op":"eq","value":7}));
-        }
         let mut delete = None;
         for (i, child) in c[kind].as_array_mut().into_iter().flatten().enumerate() {
             ui.push_id(i, |ui| {
                 egui::Frame::group(ui.style()).show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.strong(format!("{} {}", tr("条件"), i + 1));
+                        if ui
+                            .small_button(crate::i18n::key("common.scenario.delete_condition"))
+                            .clicked()
+                        {
+                            delete = Some(i);
+                        }
+                    });
                     condition(ui, child, tasks, catalog, stories, depth + 1);
-                    if ui
-                        .small_button(crate::i18n::key("common.scenario.delete_condition"))
-                        .clicked()
-                    {
-                        delete = Some(i);
-                    }
                 });
             });
         }
@@ -673,6 +684,7 @@ fn condition(
             c[kind].as_array_mut().unwrap().remove(i);
         }
     } else if kind == "not" {
+        ui.label(tr("以下条件不满足时通过"));
         ui.push_id("not", |ui| {
             condition(ui, &mut c["not"], tasks, catalog, stories, depth + 1)
         });
@@ -682,7 +694,7 @@ fn condition(
             ui,
             c,
             "source",
-            "来源",
+            "判断项目",
             &[
                 ("time", "时间"),
                 ("stat", "角色数值"),
@@ -728,6 +740,21 @@ fn condition(
                     stories,
                 );
             }
+            "stat" => {
+                catalog.field(ui, c, "key", "属性", "stat", false, &[], stories);
+            }
+            "game_flag" => {
+                catalog.field(ui, c, "key", "原版旗标", "game_flag", false, &[], stories);
+            }
+            "flag" => text(ui, c, "key", "剧情记录名称"),
+            "variable" => text(ui, c, "key", "事件变量名称"),
+            "task" => {
+                let values: Vec<_> = tasks
+                    .iter()
+                    .map(|(id, _)| (id.as_str(), id.as_str()))
+                    .collect();
+                select(ui, c, "key", "任务", &values, "");
+            }
             _ => text(ui, c, "key", "属性或任务 ID"),
         }
         select(
@@ -756,6 +783,25 @@ fn condition(
         } else {
             integer(ui, c, "value", "数值", 0, i32::MIN as i64, i32::MAX as i64);
         }
+        if c["source"] == "game_flag" {
+            ui.weak(tr("填写旗标状态数值；原版旗标沿用游戏判定，不是开关。"));
+        }
+        ui.menu_button(tr("组合条件…"), |ui| {
+            for (key, label) in [
+                ("all", "与其他条件同时满足"),
+                ("any", "与其他条件满足其一"),
+                ("not", "反转此条件"),
+            ] {
+                if ui.button(tr(label)).clicked() {
+                    *c = if key == "not" {
+                        json!({"not":c.clone()})
+                    } else {
+                        json!({key:[c.clone()]})
+                    };
+                    ui.close();
+                }
+            }
+        });
     }
 }
 fn outcomes(ui: &mut egui::Ui, v: &mut Value, tasks: &[(String, Vec<String>)]) {
@@ -1031,6 +1077,217 @@ fn result_actions(ui: &mut egui::Ui, effects: &mut Value) {
 #[cfg(test)]
 mod windows_merge_tests {
     use super::*;
+
+    fn condition_frame(
+        ctx: &egui::Context,
+        catalog: &Catalog,
+        when: &mut Value,
+        events: Vec<egui::Event>,
+    ) -> egui::FullOutput {
+        ctx.enable_accesskit();
+        ctx.run(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1000.0, 2400.0),
+                )),
+                events,
+                ..Default::default()
+            },
+            |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    let names = crate::scenario_quick::Names::new(&Default::default(), None);
+                    crate::scenario_quick::dates(ui, when, false, &names);
+                    ui.push_id("advanced", |ui| condition(ui, when, &[], catalog, &[], 0));
+                });
+            },
+        )
+    }
+
+    fn condition_click(
+        output: &egui::FullOutput,
+        label: &str,
+        role: egui::accesskit::Role,
+        occurrence: usize,
+    ) -> Vec<egui::Event> {
+        let nodes = &output
+            .platform_output
+            .accesskit_update
+            .as_ref()
+            .unwrap()
+            .nodes;
+        let mut matches: Vec<_> = nodes
+            .iter()
+            .filter(|(_, node)| {
+                node.role() == role && (node.label() == Some(label) || node.value() == Some(label))
+            })
+            .collect();
+        matches.sort_by(|(_, left), (_, right)| {
+            left.bounds()
+                .map(|r| r.y0)
+                .unwrap_or(f64::INFINITY)
+                .total_cmp(&right.bounds().map(|r| r.y0).unwrap_or(f64::INFINITY))
+        });
+        let (_, target) = matches
+            .into_iter()
+            .nth(occurrence)
+            .unwrap_or_else(|| panic!("Missing {role:?} {label}"));
+        let bounds = target.bounds().unwrap();
+        let pos = egui::pos2(
+            ((bounds.x0 + bounds.x1) / 2.0) as f32,
+            ((bounds.y0 + bounds.y1) / 2.0) as f32,
+        );
+        let button = |pressed| egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Default::default(),
+        };
+        vec![egui::Event::PointerMoved(pos), button(true), button(false)]
+    }
+
+    fn select_condition_option(
+        ctx: &egui::Context,
+        catalog: &Catalog,
+        when: &mut Value,
+        selected: &str,
+        option: &str,
+        occurrence: usize,
+    ) {
+        use egui::accesskit::Role;
+        let output = condition_frame(ctx, catalog, when, vec![]);
+        let events = condition_click(&output, &tr(selected), Role::ComboBox, occurrence);
+        condition_frame(ctx, catalog, when, events);
+        let output = condition_frame(ctx, catalog, when, vec![]);
+        let events = condition_click(&output, &tr(option), Role::Button, 0);
+        condition_frame(ctx, catalog, when, events);
+        condition_frame(ctx, catalog, when, vec![]);
+    }
+
+    #[test]
+    fn switching_condition_groups_keeps_every_nested_date_and_sibling_after_quick_form_refresh() {
+        let catalog = Catalog::new();
+        let ctx = egui::Context::default();
+        let children = json!([
+            {"all":[
+                {"source":"time","key":"year","op":"ge","value":2},
+                {"source":"time","key":"month","op":"eq","value":7},
+                {"source":"time","key":"stage","op":"le","value":2}]},
+            {"source":"stat","key":"money","op":"ge","value":100},
+            {"source":"game_flag","key":"original_flag","op":"eq","value":3}
+        ]);
+        let mut when = json!({"all":children});
+        select_condition_option(
+            &ctx,
+            &catalog,
+            &mut when,
+            "全部满足（并且）",
+            "任一满足（或者）",
+            0,
+        );
+        assert_eq!(when, json!({"any":children}));
+        select_condition_option(
+            &ctx,
+            &catalog,
+            &mut when,
+            "任一满足（或者）",
+            "全部满足（并且）",
+            0,
+        );
+        assert_eq!(when, json!({"all":children}));
+        select_condition_option(
+            &ctx,
+            &catalog,
+            &mut when,
+            "全部满足（并且）",
+            "任一满足（或者）",
+            1,
+        );
+        assert_eq!(when["all"][0]["any"], children[0]["all"]);
+        assert_eq!(when["all"][1], children[1]);
+        assert_eq!(when["all"][2], children[2]);
+    }
+
+    #[test]
+    fn wrapping_a_time_comparison_preserves_it_and_every_outer_condition() {
+        use egui::accesskit::Role;
+        let catalog = Catalog::new();
+        for (option, kind) in [
+            ("与其他条件同时满足", "all"),
+            ("与其他条件满足其一", "any"),
+            ("反转此条件", "not"),
+        ] {
+            let ctx = egui::Context::default();
+            let children = json!([
+                {"source":"time","key":"year","op":"eq","value":2},
+                {"source":"time","key":"month","op":"eq","value":7},
+                {"source":"time","key":"stage","op":"eq","value":3},
+                {"source":"stat","key":"money","op":"ge","value":100}
+            ]);
+            let mut when = json!({"all":children});
+            let output = condition_frame(&ctx, &catalog, &mut when, vec![]);
+            let events = condition_click(&output, &tr("组合条件…"), Role::Button, 1);
+            condition_frame(&ctx, &catalog, &mut when, events);
+            let output = condition_frame(&ctx, &catalog, &mut when, vec![]);
+            let events = condition_click(&output, &tr(option), Role::Button, 0);
+            condition_frame(&ctx, &catalog, &mut when, events);
+            condition_frame(&ctx, &catalog, &mut when, vec![]);
+            let mut expected = children.clone();
+            expected[1] = if kind == "not" {
+                json!({"not":children[1]})
+            } else {
+                json!({kind:[children[1]]})
+            };
+            assert_eq!(when, json!({"all":expected}), "{option}");
+        }
+    }
+
+    #[test]
+    fn released_date_conditions_survive_group_clicks_save_export_and_reopen() {
+        use lom_core::{package, project::Project};
+        let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../lom-core/tests/fixtures/released-1.5.0-scenario-dates.lommod");
+        let original = std::fs::read(&fixture).unwrap();
+        let mut project = Project::open(&fixture).unwrap();
+        let before = project.scenario.as_ref().unwrap()["events"][0]["when"].clone();
+        let ctx = egui::Context::default();
+        let catalog = Catalog::new();
+        let when = &mut project.scenario.as_mut().unwrap()["events"][0]["when"];
+        select_condition_option(
+            &ctx,
+            &catalog,
+            when,
+            "全部满足（并且）",
+            "任一满足（或者）",
+            0,
+        );
+        assert_eq!(when["any"], before["all"]);
+        select_condition_option(
+            &ctx,
+            &catalog,
+            when,
+            "任一满足（或者）",
+            "全部满足（并且）",
+            0,
+        );
+        assert_eq!(*when, before);
+        let dir = tempfile::tempdir().unwrap();
+        project.save_to(&dir.path().join("edited")).unwrap();
+        let edited = Project::open(&dir.path().join("edited")).unwrap();
+        let output = dir.path().join("edited.lommod");
+        edited.export(&output).unwrap();
+        assert_eq!(Project::open(&output).unwrap().scenario, edited.scenario);
+        assert_eq!(std::fs::read(&fixture).unwrap(), original);
+        let mut entries = package::read_package(&output).unwrap();
+        entries.remove("package-content.sha256");
+        entries
+            .get_mut("lua/main.lua")
+            .unwrap()
+            .extend_from_slice(b"\nerror('unrelated Lua')\n");
+        let tampered = dir.path().join("tampered.lommod");
+        package::write_package(entries, &tampered).unwrap();
+        assert!(Project::open(&tampered).is_err());
+    }
 
     #[test]
     fn browsing_optional_event_and_task_controls_preserves_source() {

@@ -28,7 +28,7 @@ namespace MortalModHost
     {
         public const string GUID = "com.mohui666.mortalmodhost";
         public const string NAME = "MortalModHost";
-        public const string VERSION = "1.5.10";
+        public const string VERSION = "1.5.11";
 
         internal static Plugin Instance { get; private set; }
 
@@ -712,12 +712,25 @@ namespace MortalModHost
                 return;
             }
 
+            SceneController sceneController = SceneController.Instance;
+            string scene = sceneController != null ? sceneController.CurrentScene : "";
+            if (request.FreshCampaign && scene != "Title" && scene != "Free")
+            {
+                // Wait before ReloadMods, which releases the current package's
+                // audio and character/image registrations during a rescan.
+                if (_previewWaitingScene != scene)
+                    Logger.LogInfo("事件测试等待标题或自由场景；不会重置当前剧情中的存档。");
+                _previewWaitingScene = scene;
+                return;
+            }
+
             long stamp;
             try { stamp = File.GetLastWriteTimeUtc(requestPath).Ticks; }
             catch (IOException) { return; }
             if (_loadedPreviewStamp != stamp)
             {
-                bool hotReload = ModDisclosurePolicy.CanHotReloadDevelopmentPreview(
+                EventTestRuntime.Clear();
+                bool hotReload = !request.FreshCampaign && ModDisclosurePolicy.CanHotReloadDevelopmentPreview(
                     RuntimeTrace.Active,
                     ModDisclosure.Active,
                     ModDisclosure.ModId,
@@ -756,8 +769,6 @@ namespace MortalModHost
                 return;
             }
 
-            SceneController sceneController = SceneController.Instance;
-            string scene = sceneController != null ? sceneController.CurrentScene : "";
             if ((scene == "Title" || scene == "Free")
                 && !IsSceneReadyForModNavigation(sceneController))
             {
@@ -782,7 +793,21 @@ namespace MortalModHost
             {
                 return;
             }
-            if (reloadCurrentPreview)
+            if (request.FreshCampaign)
+            {
+                try { EventTestRuntime.Arm(target, request); }
+                catch (InvalidOperationException eventError)
+                {
+                    EventTestRuntime.Clear();
+                    NavigationFailed("事件测试未启动：" + eventError.Message);
+                    TryDelete(requestPath, "无效事件测试请求");
+                    return;
+                }
+                StartCampaign(target);
+                if (LastNavigationError == null) CompletePreviewRequest(requestPath, target);
+                else { EventTestRuntime.Clear(); TryDelete(requestPath, "失败的事件测试请求"); }
+            }
+            else if (reloadCurrentPreview)
             {
                 Logger.LogInfo("F5 热重载：从节点 " + request.NodeId + " 重新载入 Story 场景");
                 PlayMod(target);

@@ -547,6 +547,11 @@ namespace MortalModHost
             Assert(PreviewRequest.TryRead(path, out request, out error), "合法试玩请求应解析成功：" + error);
             Assert(request.ModId == "lom_modkit_preview" && request.ScriptId == "main" && request.NodeId == "n3",
                 "试玩请求字段解析错误");
+            Assert(!request.FreshCampaign, "旧试玩请求不能重置战役");
+            File.WriteAllText(path, "{\"format\":1,\"mod_id\":\"lom_modkit_preview\",\"script_id\":\"event_test_setup_1\",\"node_id\":\"notice\",\"fresh_campaign\":true,\"event_id\":\"test\",\"target\":\"section_01_free_03\",\"from\":\"section_01_free_start_02\"}");
+            Assert(PreviewRequest.TryRead(path, out request, out error) && request.FreshCampaign && request.EventId == "test", "事件测试请求应保留隔离开局与目标");
+            File.WriteAllText(path, "{\"format\":1,\"mod_id\":\"some_other_mod\",\"script_id\":\"main\",\"node_id\":\"n3\",\"fresh_campaign\":true,\"event_id\":\"test\"}");
+            Assert(!PreviewRequest.TryRead(path, out request, out error), "其他作品不能请求重置测试战役");
             File.WriteAllText(path,
                 "{\"format\":1,\"mod_id\":\"bad id\",\"script_id\":\"main\",\"node_id\":\"n3\"}");
             Assert(!PreviewRequest.TryRead(path, out request, out error) && error.Contains("mod_id"),

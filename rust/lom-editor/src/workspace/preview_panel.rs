@@ -254,13 +254,41 @@ impl App {
                                     ],
                                 ));
                             }
-                        } else if let Some(link) = crate::scenario_panel::context(
-                            ui,
-                            &self.project,
-                            self.center == Center::Tasks,
-                            &self.scenario_selection,
-                        ) {
-                            self.follow_scenario_link(link);
+                        } else {
+                            if let Some(link) = crate::scenario_panel::context(
+                                ui,
+                                &self.project,
+                                self.center == Center::Tasks,
+                                &self.scenario_selection,
+                            ) {
+                                self.follow_scenario_link(link);
+                            }
+                            if self.center == Center::Events {
+                                if let Some(spec) = crate::scenario_test::show(
+                                    ui,
+                                    &self.project,
+                                    self.scenario_selection.event.as_deref(),
+                                    &self.catalog,
+                                ) {
+                                    if self.apply_pending_drafts()
+                                        && self.check_before_run_or_export()
+                                    {
+                                        self.tools_panel.refresh_game();
+                                        if self.tools_panel.ready_to_play() {
+                                            match self.tools_panel.play_event(&self.project, &spec)
+                                            {
+                                                Ok(status) => self.status = status,
+                                                Err(error) => {
+                                                    self.error =
+                                                        Some(crate::error_ui::capture(error))
+                                                }
+                                            }
+                                        } else {
+                                            self.open_tool_page(ToolPage::Game);
+                                        }
+                                    }
+                                }
+                            }
                         }
                     });
                 });

@@ -567,11 +567,45 @@ fn normalize_gameplay_metadata(data: &Value, meta: &mut Value) -> Result<()> {
                 ensure!((1..=20).contains(&levels.len()), "功法必须有 1~20 级");
                 meta["levels"] = json!(levels
                     .iter()
-                    .map(|level| Ok(json!({
+                    .enumerate()
+                    .map(|(index, level)| {
+                        let mut normalized = json!({
                         "points":integer_field(level,"points",1,999999)?,
                         "requirements":stat_rows(level,"requirements","min",-999999,999999)?,
                         "bonuses":stat_rows(level,"bonuses","delta",-999999,999999)?
-                    })))
+                        });
+                        if let Some(grants) = level.get("talents") {
+                            let grants =
+                                grants.as_array().context("升级天赋 talents 必须是列表")?;
+                            ensure!(grants.len() <= 32, "升级天赋最多 32 项");
+                            let mut seen = std::collections::BTreeSet::new();
+                            for grant in grants {
+                                let id = text(grant, "talent");
+                                if let Some(id) = id.strip_prefix("user:") {
+                                    validate_content_id(id)?;
+                                } else {
+                                    ensure!(
+                                        crate::validate::editor_data()["talents"]
+                                            .as_array()
+                                            .unwrap()
+                                            .iter()
+                                            .any(|t| t["id"] == id),
+                                        "第 {} 级的升级天赋不存在：{id}",
+                                        index + 1
+                                    );
+                                }
+                                ensure!(seen.insert(id), "第 {} 级的升级天赋重复：{id}", index + 1);
+                                let delta = integer_field(grant, "level", -1, 1)?;
+                                ensure!(
+                                    delta != 0,
+                                    "第 {} 级的天赋等级变化只能为 +1/-1",
+                                    index + 1
+                                );
+                            }
+                            normalized["talents"] = json!(grants);
+                        }
+                        Ok(normalized)
+                    })
                     .collect::<Result<Vec<_>>>()?);
             }
         }

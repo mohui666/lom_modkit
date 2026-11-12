@@ -511,6 +511,20 @@
           "speed": 1.2,
           "stop_after": 1,
           "tag": "parallel_hit"
+        },
+        {
+          "type": "effect",
+          "name": "Hit_001",
+          "space": "screen",
+          "x": 65,
+          "y": 50,
+          "a": 1.5,
+          "b": 1.5,
+          "c": 0,
+          "rotation": -10,
+          "speed": 1.2,
+          "stop_after": 1,
+          "tag": "parallel_hit"
         }
       ]
     },

@@ -13,6 +13,8 @@ namespace MortalModHost
         public string ModId;
         public string ScriptId;
         public string NodeId;
+        public bool FreshCampaign;
+        public string EventId, Target, From;
 
         public static bool TryRead(string path, out PreviewRequest request, out string error)
         {
@@ -32,6 +34,22 @@ namespace MortalModHost
                     ScriptId = RequiredId(root, "script_id"),
                     NodeId = RequiredId(root, "node_id")
                 };
+                object fresh;
+                if (root.TryGetValue("fresh_campaign", out fresh))
+                {
+                    if (!(fresh is bool)) throw new FormatException("fresh_campaign 必须是布尔值");
+                    parsed.FreshCampaign = (bool)fresh;
+                }
+                if (parsed.FreshCampaign)
+                {
+                    if (parsed.ModId != "lom_modkit_preview") throw new FormatException("事件测试只允许固定的编辑器临时包");
+                    parsed.EventId = RequiredId(root, "event_id");
+                    if (root.ContainsKey("target")) parsed.Target = RequiredId(root, "target");
+                    if (root.ContainsKey("from")) parsed.From = RequiredId(root, "from");
+                    if (parsed.Target != null && parsed.Target.StartsWith("MOD_", StringComparison.Ordinal)
+                        || parsed.From != null && (parsed.Target == null || parsed.From.StartsWith("MOD_", StringComparison.Ordinal)))
+                        throw new FormatException("事件测试 target/from 必须是原版章节");
+                }
                 request = parsed;
                 return true;
             }

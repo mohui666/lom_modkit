@@ -600,6 +600,10 @@ Host 1.5.10 支持人物可选 `avatar`（同目录头像文件名）、`initial
 
 文件保存于 `assets/user/talent/demo.awakening/content.json`。`talent`、`talent_check`、天赋奖励和事件结果使用 `user:demo.awakening`；`level=1` 觉醒，`level=-1` 移除。拥有状态随当前 MOD 隔离存档保存，名称与描述来自所属包。人物属性和决斗详情显示独立条目，决斗详情只追加 UI，不把空效果交给原版战斗初始化。导出使用该素材的包会自动要求 Host 1.5.8。旧原版天赋节点的生成结果保持不变。
 
+### 功法升级天赋（Host 1.5.11）
+
+`type=martial` 的每个 `levels[]` 可选 `talents`，最多32个 `{ "talent":"原版ID或user:命名空间.名称", "level":1 }`，`level` 只允许 `1`／`-1`，同一级内不能重复。省略保持旧属性加成行为。自定义天赋依赖自动收集进包；导出要求 Host 1.5.11。Host 通过自建 `MartialStatReference` 的天赋引用及 `MartialModifyStat` 加入该级 `LevelUpStat`，沿原版 `Book.Learn/DirectLevelUp` 执行，不修改官方功法定义或增加读档奖励。
+
 ### 1.4.2 自定义人物气泡
 
 `mood.character` 可以引用 `user:命名空间.人物`，人物需已登场。`icon` 使用既有九种样式或 `auto`，`enabled=false` 隐藏该人物。人物内容的 `mood_x`／`mood_y` 为原图横向／从脚底向上的百分比，默认 50／90。使用自定义人物气泡的作品自动要求 Host 1.4.2。包格式继续为 v3。

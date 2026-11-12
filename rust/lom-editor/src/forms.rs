@@ -947,7 +947,8 @@ impl Catalog {
         let mut swap = None;
         for (index, action) in actions.iter_mut().enumerate() {
             ui.push_id(index, |ui| {
-                egui::Frame::group(ui.style()).show(ui, |ui| {
+                let mut action_changed = false;
+                let response = egui::Frame::group(ui.style()).show(ui, |ui| {
                     ui.horizontal_wrapped(|ui| {
                         ui.strong(format!("{} {}", tr("同时动作"), index + 1));
                         let old = action["type"].as_str().unwrap_or("").to_owned();
@@ -997,7 +998,7 @@ impl Catalog {
                         if let (Some(key), Some(label), Some(field_kind)) =
                             (field[0].as_str(), field[1].as_str(), field[2].as_str())
                         {
-                            changed |= self.field(
+                            let field_changed = self.field(
                                 ui,
                                 action,
                                 key,
@@ -1007,6 +1008,8 @@ impl Catalog {
                                 &[],
                                 &[],
                             );
+                            changed |= field_changed;
+                            action_changed |= field_changed;
                         }
                     }
                     for key in ["id", "goto", "appearance"] {
@@ -1025,6 +1028,16 @@ impl Catalog {
                         }
                     }
                 });
+                if action_changed
+                    || response.response.contains_pointer() && ui.input(|i| i.pointer.any_pressed())
+                {
+                    ui.ctx().data_mut(|data| {
+                        data.insert_temp(
+                            egui::Id::new("preview-character-action"),
+                            (node["id"].as_str().unwrap_or("").to_owned(), index),
+                        );
+                    });
+                }
             });
         }
         if let Some(index) = remove {
@@ -1547,13 +1560,13 @@ impl Catalog {
                             let unique = value.as_f64().unwrap_or(1.0) == 1.0;
                             let mut edited = false;
                             egui::ComboBox::from_id_salt("effect-instance")
-                                .selected_text(tr(if unique { "复用匹配实例" } else { "叠加新实例" }))
+                                .selected_text(tr(if unique { "同名只播放一个" } else { "允许同名同时播放多个" }))
                                 .show_ui(ui, |ui| {
                                     if optional && ui.selectable_label(!present, tr("默认")).clicked() {
                                         reset = true;
                                         ui.close();
                                     }
-                                    for (number, label) in [(1, "复用匹配实例"), (0, "叠加新实例")] {
+                                    for (number, label) in [(1, "同名只播放一个"), (0, "允许同名同时播放多个")] {
                                         if ui.selectable_label(unique == (number == 1), tr(label)).clicked() {
                                             value = json!(number);
                                             edited = true;

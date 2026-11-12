@@ -2,6 +2,28 @@
 use super::*;
 
 impl App {
+    pub(super) fn merge_project_at(&mut self, path: &Path) {
+        if !self.apply_pending_drafts() {
+            return;
+        }
+        self.flush();
+        let result = open_project(path)
+            .and_then(|incoming| lom_core::project_merge::merge(&mut self.project, &incoming));
+        match result {
+            Ok(report) => {
+                self.track();
+                self.status = crate::i18n::message(
+                    "editor.merge.done",
+                    &[
+                        ("chapters", report.chapters.to_string()),
+                        ("assets", report.assets.to_string()),
+                        ("events", report.events.to_string()),
+                    ],
+                );
+            }
+            Err(error) => self.error = Some(crate::error_ui::capture(error)),
+        }
+    }
     pub(super) fn remember_source(&mut self) {
         if let Some(path) = self.project.source.clone() {
             if path.starts_with(user_root().join("rust/recovery")) {
