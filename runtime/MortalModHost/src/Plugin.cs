@@ -28,7 +28,7 @@ namespace MortalModHost
     {
         public const string GUID = "com.mohui666.mortalmodhost";
         public const string NAME = "MortalModHost";
-        public const string VERSION = "1.5.14";
+        public const string VERSION = "1.5.15";
 
         internal static Plugin Instance { get; private set; }
 
@@ -92,6 +92,9 @@ namespace MortalModHost
         private Vector2 _debugScroll;
         private GameObject _debugInputCanvas;
         private RectTransform _debugInputRect;
+        private Action _titleOpenModes;
+        private Action<string> _titleLogInfo;
+        private Action<string> _titleLogWarning;
 
         private void Awake()
         {
@@ -1012,14 +1015,20 @@ namespace MortalModHost
 
         private void MaintainVanillaTitleEntry()
         {
+            if (_titleOpenModes == null)
+            {
+                _titleOpenModes = OpenPlayModePicker;
+                _titleLogInfo = msg => Logger.LogInfo(msg);
+                _titleLogWarning = msg => Logger.LogWarning(msg);
+            }
             bool isTitle;
             bool shouldExist = _enabled.Value && _runtimeReady
                 && IsMenuScene(out isTitle) && isTitle;
             VanillaTitleModEntry.Maintain(
                 shouldExist,
-                OpenPlayModePicker,
-                msg => Logger.LogInfo(msg),
-                msg => Logger.LogWarning(msg));
+                _titleOpenModes,
+                _titleLogInfo,
+                _titleLogWarning);
         }
 
         internal bool TryOpenInGameModLoadMenu(object loadHost)
@@ -1218,10 +1227,7 @@ namespace MortalModHost
         /// <summary>KeyCode 与 InputSystem.Key 基本同名，仅 Control 系列命名不同（LeftControl→LeftCtrl），做个映射。</summary>
         private static bool TryConvertKeyCode(KeyCode keyCode, out Key key)
         {
-            string name = keyCode.ToString();
-            if (name == "LeftControl") name = "LeftCtrl";
-            else if (name == "RightControl") name = "RightCtrl";
-            return Enum.TryParse(name, true, out key);
+            return HotkeyKeyCache.TryConvert(keyCode, out key);
         }
 
         private void UpdateDebuggerInputBlocker()
@@ -1261,8 +1267,9 @@ namespace MortalModHost
                 _debugWindowRect = GUI.Window(DebugWindowId, _debugWindowRect, DrawDebuggerWindow, I18n.T("debug.window", _debuggerHotkey.Value));
             }
             bool isTitle;
-            if (!_enabled.Value || !_runtimeReady || !IsMenuScene(out isTitle)
-                || ModPlayModeSession.Selected == ModPlayModeKind.Original)
+            if (!_enabled.Value || !_runtimeReady
+                || ModPlayModeSession.Selected == ModPlayModeKind.Original
+                || !IsMenuScene(out isTitle))
             {
                 _showMenu = false; // 切场景/禁用时自动关窗，按钮也随之隐藏
                 return;

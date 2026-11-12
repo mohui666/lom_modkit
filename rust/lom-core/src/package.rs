@@ -1400,7 +1400,22 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
                     })
         })
     });
-    if custom_pictures
+    let presentation_controls = stories.values().any(|story| {
+        crate::parallel::story_actions(story).any(|(parent, node)| {
+            matches!(node["type"].as_str(), Some("show" | "cg")) && node.get("scale").is_some()
+                || node["type"] == "cg"
+                    && node["kind"] == "event"
+                    && node["action"] == "hide"
+                    && node["fade_out"].as_f64().unwrap_or(0.0) > 0.0
+                || parent["type"] == "parallel"
+                    && crate::parallel::independent_transforms(
+                        parent,
+                        node["character"].as_str().unwrap_or(""),
+                    )
+        })
+    });
+    if presentation_controls
+        || custom_pictures
         || render_priority
         || martial_talents
         || story_entry
@@ -1418,7 +1433,9 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
         || event_fade
         || dialogue_dimming
     {
-        let (minimum, required) = if custom_pictures {
+        let (minimum, required) = if presentation_controls {
+            ([1, 5, 15], "1.5.15")
+        } else if custom_pictures {
             ([1, 5, 13], "1.5.13")
         } else if render_priority {
             ([1, 5, 12], "1.5.12")

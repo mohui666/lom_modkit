@@ -667,6 +667,26 @@ namespace MortalModHost
                         ArgFloat(args, 3, -1f), ArgBool(args, 4, false), ArgFloat(args, 5, 0f));
                     return DynValue.Nil;
                 }, "mod_character_layout");
+                script.Globals["mod_character_scale"] = new CallbackFunction((ctx, args) =>
+                {
+                    CharacterLayoutRuntime.PrepareScale(ArgString(args, 0), ArgFloat(args, 1, -1f));
+                    return DynValue.Nil;
+                }, "mod_character_scale");
+                script.Globals["mod_character_move_preserve"] = new CallbackFunction((ctx, args) =>
+                {
+                    CharacterLayoutRuntime.MovePreserving(ArgString(args, 0), ArgString(args, 1), ArgString(args, 2), ArgFloat(args, 3, 1f));
+                    return DynValue.Nil;
+                }, "mod_character_move_preserve");
+                script.Globals["mod_character_face_preserve"] = new CallbackFunction((ctx, args) =>
+                {
+                    CharacterLayoutRuntime.FacePreserving(ArgString(args, 0), ArgString(args, 1));
+                    return DynValue.Nil;
+                }, "mod_character_face_preserve");
+                script.Globals["mod_picture_scale_configure"] = new CallbackFunction((ctx, args) =>
+                {
+                    PictureScaleRuntime.Configure(ArgString(args, 0), ArgFloat(args, 1, -1f));
+                    return DynValue.Nil;
+                }, "mod_picture_scale_configure");
                 script.Globals["mod_character_layout_reset"] = new CallbackFunction((ctx, args) =>
                 {
                     CharacterLayoutRuntime.Reset(ArgString(args, 0));
@@ -838,6 +858,13 @@ namespace MortalModHost
                     EventPictureRuntime.Clear();
                     return DynValue.Nil;
                 }, "mod_event_picture_hide");
+                script.Globals["mod_event_picture_hide_fade"] = new CallbackFunction((ctx, args) =>
+                {
+                    if (args.Count == 0 || args[0].Type != DataType.Number)
+                        throw new ArgumentException("事件图淡出时长必须是非负有限数值");
+                    EventPictureRuntime.Hide((float)args[0].Number);
+                    return DynValue.Nil;
+                }, "mod_event_picture_hide_fade");
                 script.Globals["mod_cg_show"] = new CallbackFunction((ctx, args) =>
                 {
                     try

@@ -2,6 +2,8 @@ use crate::i18n::tr;
 use eframe::egui::{self, Color32, RichText, Ui};
 use serde_json::{json, Value};
 
+#[cfg(test)]
+mod camera_characters_tests;
 mod resource_picker;
 pub(crate) use resource_picker::{
     configure_resource_preferences, preview_story, resource_choice, set_preview_action,
@@ -1172,6 +1174,7 @@ impl Catalog {
             ui.label(crate::i18n::key("field.camera.exclude_characters"));
             ui.small(crate::i18n::key("editor.form.filter_exclusions_hint"));
             egui::ComboBox::from_id_salt(("filter-exclusions", node["id"].as_str().unwrap_or("")))
+                .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
                 .selected_text(if selected.is_empty() {
                     crate::i18n::key("editor.form.filter_exclusions_empty")
                 } else {
@@ -1186,6 +1189,7 @@ impl Catalog {
                         ui.data_mut(|data| data.get_temp::<String>(search_id).unwrap_or_default());
                     ui.add(
                         egui::TextEdit::singleline(&mut search)
+                            .id(search_id)
                             .hint_text(crate::i18n::key("editor.form.filter_character_search")),
                     );
                     let lower = search.to_lowercase();
@@ -2335,6 +2339,15 @@ fn field_visible(kind: &str, node: &Value, key: &str) -> bool {
             "color" => node["action"] == "show" && node["kind"] == "big",
             "fade_in" => {
                 node["action"] == "show" && matches!(node["kind"].as_str(), Some("event" | "big"))
+            }
+            "fade_out" => node["action"] == "hide" && node["kind"] == "event",
+            "scale" => {
+                node["action"] == "show"
+                    && node["background_only"] != true
+                    && matches!(
+                        node["kind"].as_str(),
+                        Some("picture" | "item" | "event" | "big")
+                    )
             }
             "event_title" | "event_text" => node["action"] == "show" && node["kind"] == "event",
             _ => true,

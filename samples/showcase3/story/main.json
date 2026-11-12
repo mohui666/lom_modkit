@@ -88,7 +88,8 @@
       "moveDuration": 0,
       "appearance": "beautified",
       "wait_for_completion": true,
-      "wait_after": 0.2
+      "wait_after": 0.2,
+      "scale": 115
     },
     {
       "action": "set",
@@ -145,7 +146,8 @@
       "portrait": "normal",
       "facing": "left",
       "fadeDuration": 0,
-      "moveDuration": 0
+      "moveDuration": 0,
+      "scale": 115
     },
     {
       "id": "profile_biography_unlock",
@@ -175,23 +177,34 @@
           "duration": 0.6
         },
         {
+          "type": "face",
+          "character": "player",
+          "facing": "left"
+        },
+        {
+          "type": "rotate",
+          "angle": 5,
+          "character": "player",
+          "duration": 0.6
+        },
+        {
           "type": "move",
           "character": "user:showcase.lin_deng",
+          "duration": 0.9,
           "from": "R1",
-          "to": "RM1",
-          "duration": 0.9
+          "to": "RM1"
         },
         {
-          "type": "sound",
-          "name": "user:showcase.lantern_chime",
           "kind": "sound",
-          "op": "play"
+          "name": "user:showcase.lantern_chime",
+          "op": "play",
+          "type": "sound"
         },
         {
-          "type": "mood",
           "character": "player",
           "enabled": true,
           "icon": "laugh1",
+          "type": "mood",
           "wait_after": 0.9
         }
       ]
@@ -693,7 +706,8 @@
       "key": "user:showcase.courier_token",
       "kind": "item",
       "type": "cg",
-      "wait_after": 1
+      "wait_after": 1,
+      "scale": 125
     },
     {
       "action": "hide",
@@ -707,7 +721,8 @@
       "key": "user:showcase.courier_station",
       "kind": "picture",
       "type": "cg",
-      "wait_after": 1
+      "wait_after": 1,
+      "scale": 125
     },
     {
       "action": "hide",
@@ -738,7 +753,8 @@
       "id": "event_book_hide",
       "type": "cg",
       "kind": "event",
-      "action": "hide"
+      "action": "hide",
+      "fade_out": 0.8
     },
     {
       "id": "cg1",

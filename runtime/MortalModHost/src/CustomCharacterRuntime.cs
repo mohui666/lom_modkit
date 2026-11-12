@@ -64,6 +64,7 @@ namespace MortalModHost
 
         public static void ClearAll()
         {
+            ShowScales.Clear();
             RenderPriorityRuntime.Clear();
             CameraFilterRuntime.Clear();
             CharacterTitleRuntime.CustomSpeaker = null;
@@ -136,12 +137,17 @@ namespace MortalModHost
             }
         }
 
+        private static readonly Dictionary<string, float> ShowScales = new Dictionary<string, float>();
+        internal static void PrepareShowScale(string raw, float percent) { ShowScales[raw] = percent / 100f; }
+
         public static bool Show(string raw, string portrait, string position, string facing, float fade, float move)
         {
             Actor actor;
             if (!TryGetOrCreate(raw, out actor))
                 return false;
-            actor.LayoutScale = 1f;
+            float requestedScale;
+            actor.LayoutScale = ShowScales.TryGetValue(raw, out requestedScale) ? requestedScale : 1f;
+            ShowScales.Remove(raw);
             if (!ApplyPortrait(actor, portrait))
                 return false;
             // A previous offset/move may still be yielding its final frame.

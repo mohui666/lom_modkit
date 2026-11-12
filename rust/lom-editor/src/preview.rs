@@ -19,6 +19,11 @@ mod handles;
 use handles::{opaque_bounds, LayoutClipboard, LayoutCommand, LayoutDrag, LayoutObject};
 #[path = "preview/stage_inspector.rs"]
 mod stage_inspector;
+#[cfg(test)]
+#[path = "preview/stage_scale_tests.rs"]
+mod stage_scale_tests;
+#[path = "preview/viewer.rs"]
+mod viewer;
 
 pub fn edges(story: &Value) -> Vec<(String, String, String)> {
     let mut out = Vec::new();
@@ -310,6 +315,9 @@ pub fn build_playtest_prelude(story: &Value, target: &str) -> Vec<Value> {
         if let Some(appearance) = actor["appearance"].as_str().filter(|s| !s.is_empty()) {
             node["appearance"] = appearance.into();
         }
+        if number(actor, "layout_scale", 100.0) != 100.0 {
+            node["scale"] = actor["layout_scale"].clone();
+        }
         nodes.push(node);
         if actor["layout_active"] == true {
             nodes.push(json!({"type":"offset","character":id,"x":number(actor,"offset_x",0.0),"y":number(actor,"offset_y",0.0),"absolute":true,"scale":number(actor,"layout_scale",100.0),"duration":0}));
@@ -525,7 +533,7 @@ fn apply(s: &mut Value, n: &Value) {
         "show" => {
             if !cid.is_empty() {
                 let dimmed = s["dimming"].get(cid).cloned().unwrap_or(json!(false));
-                s["actors"][cid] = json!({"position":n.get("position").cloned().unwrap_or(json!("M")),"portrait":n.get("portrait").cloned().unwrap_or(json!("normal")),"facing":n.get("facing").cloned().unwrap_or(json!("right")),"appearance":n["appearance"],"offset_x":0.0,"offset_y":0.0,"rotation":0.0,"dimmed":dimmed});
+                s["actors"][cid] = json!({"position":n.get("position").cloned().unwrap_or(json!("M")),"portrait":n.get("portrait").cloned().unwrap_or(json!("normal")),"facing":n.get("facing").cloned().unwrap_or(json!("right")),"appearance":n["appearance"],"layout_scale":n.get("scale").cloned().unwrap_or(json!(100)),"offset_x":0.0,"offset_y":0.0,"rotation":0.0,"dimmed":dimmed});
             }
         }
         "hide_all" => {
@@ -698,6 +706,9 @@ pub(crate) fn action_duration(action: &Value) -> f64 {
         "cg" if action["kind"] == "event" && action["action"] == "show" => {
             number(action, "fade_in", 0.0)
         }
+        "cg" if action["kind"] == "event" && action["action"] == "hide" => {
+            number(action, "fade_out", 0.0)
+        }
         "cg" if action["kind"] == "big" => {
             if action["action"] == "hide" {
                 1.0
@@ -728,6 +739,9 @@ pub fn playback_duration(node: &Value) -> f64 {
             "cg" if node["kind"] == "big" => action_duration(node).max(0.1),
             "cg" if node["kind"] == "event" && node["action"] == "show" => {
                 action_duration(node).max(0.0) + 1.8
+            }
+            "cg" if node["kind"] == "event" && node["action"] == "hide" => {
+                action_duration(node).max(0.1)
             }
             "show" | "portrait" | "hide" | "hide_all" | "move" | "offset" | "rotate" | "shock"
             | "wait" | "transition" | "mood" | "effect" | "character_title" | "camera" => {
@@ -810,6 +824,12 @@ fn animate_frame(state: &mut Value, before: &Value, node: &Value, elapsed: f64, 
             let to = if action["phase"] == "in" { 1.0 } else { 0.0 };
             let progress = (elapsed / PREVIEW_TRANSITION_SECONDS).clamp(0.0, 1.0);
             state["blackout"]["amount"] = (from + (to - from) * progress).into();
+            continue;
+        }
+        if let Some(picture) =
+            crate::preview_event_fade::fading_event_picture(before, action, elapsed)
+        {
+            state["official_pictures"]["event"] = picture;
             continue;
         }
         if action["type"] == "cg" && action["kind"] == "event" && action["action"] == "show" {
@@ -1657,18 +1677,17 @@ impl Preview {
                                                 egui::vec2(width, 85.0),
                                                 egui::Sense::click(),
                                             );
+                                            let lookup = if official && !key.starts_with("user:") {
+                                                format!("@picture:{key}")
+                                            } else {
+                                                key.clone()
+                                            };
                                             if ui.is_rect_visible(rect) {
                                                 ui.painter().rect_filled(
                                                     rect,
                                                     3.0,
                                                     Color32::from_rgb(38, 44, 49),
                                                 );
-                                                let lookup =
-                                                    if official && !key.starts_with("user:") {
-                                                        format!("@picture:{key}")
-                                                    } else {
-                                                        key.clone()
-                                                    };
                                                 if let Some((texture, _)) = self.texture(
                                                     ui.ctx(),
                                                     project,
@@ -1701,6 +1720,25 @@ impl Preview {
                                             if response.clicked() || label.clicked() {
                                                 chosen = Some(key.clone());
                                             }
+                                            if ui
+                                                .small_button(crate::i18n::key(
+                                                    "preview.viewer.open",
+                                                ))
+                                                .on_hover_text(crate::i18n::key(
+                                                    "preview.viewer.view_only",
+                                                ))
+                                                .clicked()
+                                            {
+                                                self.open_image_viewer(
+                                                    ui.ctx(),
+                                                    viewer::Request {
+                                                        lookup,
+                                                        character: false,
+                                                        portrait: String::new(),
+                                                        label: name.clone(),
+                                                    },
+                                                );
+                                            }
                                         });
                                     });
                                     shown += 1;
@@ -1715,6 +1753,7 @@ impl Preview {
                     });
                 ui.data_mut(|data| data.insert_temp(id, query));
             });
+        self.image_viewer_window(ui.ctx(), project);
         chosen
     }
     fn mood_texture(
@@ -2155,7 +2194,20 @@ impl Preview {
                             format!("@picture:{key}")
                         };
                         if let Some((texture, _)) = self.texture(&ctx, p, &lookup, false, "") {
-                            fit_image(&painter, &texture, image_rect);
+                            let image_painter = if kind == "event" {
+                                painter.with_clip_rect(image_rect)
+                            } else {
+                                painter.clone()
+                            };
+                            fit_image(
+                                &image_painter,
+                                &texture,
+                                Rect::from_center_size(
+                                    image_rect.center(),
+                                    image_rect.size()
+                                        * (number(picture, "scale", 100.0) as f32 / 100.0),
+                                ),
+                            );
                         } else {
                             painter.text(
                                 image_rect.center(),
@@ -2218,7 +2270,15 @@ impl Preview {
                             } else {
                                 rect.shrink2(rect.size() * 0.18)
                             };
-                            fit_image(&painter, &texture, target);
+                            fit_image(
+                                &painter,
+                                &texture,
+                                Rect::from_center_size(
+                                    target.center(),
+                                    target.size()
+                                        * (number(picture, "scale", 100.0) as f32 / 100.0),
+                                ),
+                            );
                         } else {
                             painter.text(
                                 rect.center(),
@@ -3020,7 +3080,7 @@ impl Preview {
             crate::i18n::term("portraits", portrait, portrait)
         };
         ui.label(
-            egui::RichText::new(portrait_name)
+            egui::RichText::new(&portrait_name)
                 .small()
                 .color(Color32::GRAY),
         )
@@ -3043,20 +3103,20 @@ impl Preview {
         if !cid.starts_with("user:") {
             self.portrait_canvas_notice(ui);
         }
-        let (rect, _) = ui.allocate_exact_size(ui.available_size(), egui::Sense::hover());
-        let painter = ui.painter().with_clip_rect(rect);
-        painter.rect_filled(rect, 0.0, Color32::from_rgba_unmultiplied(18, 21, 31, 225));
         if let Some((texture, _)) = texture {
-            fit_image(&painter, &texture, rect.shrink(20.0));
-        } else {
-            painter.text(
-                rect.center(),
-                egui::Align2::CENTER_CENTER,
-                crate::i18n::key("portrait.no_assets"),
-                FontId::proportional(14.0),
-                Color32::GRAY,
+            self.portrait_image_viewer(
+                ui,
+                project,
+                viewer::Request {
+                    lookup: lookup.to_owned(),
+                    character: true,
+                    portrait: portrait.to_owned(),
+                    label: format!("{} · {portrait_name}", character_display_name(project, cid)),
+                },
+                texture,
             );
         }
+        self.image_viewer_window(ui.ctx(), project);
     }
     fn overlay(
         &mut self,

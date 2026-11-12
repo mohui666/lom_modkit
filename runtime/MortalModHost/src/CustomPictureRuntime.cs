@@ -73,6 +73,8 @@ namespace MortalModHost
                 controller.enabled = false;
                 visual.Image = Traverse.Create(controller).Field("_image").GetValue<Image>();
                 visual.Image.sprite = visual.Sprite;
+                PictureScaleRuntime.ApplyClone(slot == "_itemPicture" ? "item" : "picture", visual.Image.rectTransform,
+                    Traverse.Create(original).Field("_image").GetValue<Image>().rectTransform);
                 visual.Image.type = Image.Type.Simple;
                 visual.Image.preserveAspect = true;
                 visual.Image.raycastTarget = false;

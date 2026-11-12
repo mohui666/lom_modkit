@@ -1169,6 +1169,11 @@ fn extra(n: &Value, ntype: &str, catalog: &Value, check_effect_names: bool) -> R
                 );
             }
         }
+        "show" => {
+            if has(n, "scale") {
+                crate::content::positive_scale(&n["scale"], "scale")?;
+            }
+        }
         "portrait" => {
             ensure!(nonblank(&n["character"]), "换表情的 character 不能为空");
             ensure!(nonblank(&n["portrait"]), "换表情的 portrait 不能为空");
@@ -1320,8 +1325,20 @@ fn extra(n: &Value, ntype: &str, catalog: &Value, check_effect_names: bool) -> R
         ),
         "cg" => {
             int_field(n, "color", 0, 2)?;
+            if has(n, "scale") {
+                ensure!(
+                    s(n, "action") == "show"
+                        && n["background_only"] != true
+                        && matches!(s(n, "kind"), "picture" | "item" | "event" | "big"),
+                    "图片大小仅用于显示物品图、普通图、事件图或大图"
+                );
+                crate::content::positive_scale(&n["scale"], "scale")?;
+            }
             if matches!(s(n, "kind"), "event" | "big") && s(n, "action") == "show" {
                 range(n, "fade_in", 0.0, f32::MAX as f64)?;
+            }
+            if s(n, "kind") == "event" && s(n, "action") == "hide" {
+                range(n, "fade_out", 0.0, f32::MAX as f64)?;
             }
             ensure!(
                 n["background_only"] != true || s(n, "kind") == "big",

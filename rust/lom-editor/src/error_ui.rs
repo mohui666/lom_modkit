@@ -262,6 +262,26 @@ fn readable_summary(message: &str) -> String {
         None
     };
     if let Some(key) = validation_key {
+        if key == "parallel_conflict" {
+            let detail = message
+                .find("第 ")
+                .or_else(|| message.find("全场气泡"))
+                .map(|start| &message[start..])
+                .unwrap_or(message);
+            static ACTOR: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+            let detail = ACTOR
+                .get_or_init(|| regex::Regex::new(r"人物 ([A-Za-z0-9_.:-]+)").unwrap())
+                .replace_all(detail, |captures: &regex::Captures<'_>| {
+                    format!(
+                        "人物 {}",
+                        crate::i18n::term("characters", &captures[1], &captures[1])
+                    )
+                });
+            return format!(
+                "{}\n{detail}",
+                crate::i18n::key("editor.error.parallel_conflict")
+            );
+        }
         return crate::i18n::key(&format!("editor.error.{key}"));
     }
     let field = crate::error_location::field(message);
@@ -431,6 +451,10 @@ mod tests {
         let unknown = "unexpected subsystem error: opaque-482";
         assert_eq!(text(unknown), crate::i18n::key("common.error.generic"));
         assert_eq!(capture(unknown), unknown);
+        let conflict = text("story.json: 节点 \"g\"(parallel): 第 2 和第 4 个同时动作都会控制人物 player 的角度（人物旋转 / 人物旋转），请拆成先后步骤");
+        for detail in ["第 2 和第 4", "赵活", "角度", "人物旋转"] {
+            assert!(conflict.contains(detail), "{conflict}");
+        }
     }
     #[test]
     fn component_shows_a_next_step_and_keeps_the_complete_chain_for_diagnostics() {

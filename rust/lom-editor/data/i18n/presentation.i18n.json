@@ -1,0 +1,5 @@
+{
+  "editor.presentation.character_scale": {"chs": "人物大小（%）", "cht": "人物大小（%）", "ja": "人物サイズ（%）", "ko": "인물 크기(%)"},
+  "editor.presentation.picture_scale": {"chs": "图片大小（%）", "cht": "圖片大小（%）", "ja": "画像サイズ（%）", "ko": "이미지 크기(%)"},
+  "editor.event_picture.fade_out_label": {"chs": "淡出时长（秒）", "cht": "淡出時長（秒）", "ja": "フェードアウト時間（秒）", "ko": "페이드아웃 시간(초)"}
+}

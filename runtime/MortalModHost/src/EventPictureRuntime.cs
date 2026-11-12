@@ -84,6 +84,7 @@ namespace MortalModHost
                 rect.pivot = new Vector2(0.5f, 0.5f);
                 rect.offsetMin = Vector2.zero;
                 rect.offsetMax = Vector2.zero;
+                PictureScaleRuntime.ApplyClone("event", rect, Traverse.Create(original).Field("_image").GetValue<Image>().rectTransform);
 
                 Text caption = _root.transform.Find("Text").GetComponent<Text>();
                 foreach (MonoBehaviour component in caption.GetComponents<MonoBehaviour>())
@@ -126,6 +127,39 @@ namespace MortalModHost
             }
             if (group != null) group.alpha = 1f;
             _fade = null;
+        }
+
+        internal static void Hide(float fadeOut)
+        {
+            if (float.IsNaN(fadeOut) || float.IsInfinity(fadeOut) || fadeOut < 0f)
+                throw new ArgumentOutOfRangeException("fadeOut", "事件图淡出时间必须为非负有限数值");
+            if (fadeOut == 0f || _root == null)
+            {
+                Clear();
+                return;
+            }
+            if (_host == null)
+                throw new InvalidOperationException("事件图淡出尚未准备，请更新游戏接入组件后重新试玩");
+            CanvasGroup group = _root.GetComponent<CanvasGroup>();
+            if (group == null)
+                throw new InvalidOperationException("当前事件图缺少淡出所需的 CanvasGroup");
+            if (_fade != null) _host.StopCoroutine(_fade);
+            _fade = _host.StartCoroutine(FadeOut(group, fadeOut));
+        }
+
+        private static IEnumerator FadeOut(CanvasGroup group, float seconds)
+        {
+            float start = group.alpha;
+            float elapsed = 0f;
+            while (group != null && elapsed < seconds)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                group.alpha = start * (1f - Mathf.Clamp01(elapsed / seconds));
+                yield return null;
+            }
+            if (group != null) group.alpha = 0f;
+            _fade = null;
+            Clear();
         }
 
         internal static void Clear()
