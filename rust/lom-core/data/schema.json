@@ -72,6 +72,10 @@
         "y": "num"
       }
     },
+    "render_priority": {
+      "required": {"target": "render_target"},
+      "optional": {"character": "str", "slot": "str", "name": "str", "tag": "str", "order": "num", "enabled": "bool", "wait_after": "num"}
+    },
     "show": {
       "required": {
         "character": "str",
@@ -845,6 +849,7 @@
       "bottom_left",
       "bottom_right"
     ],
+    "render_target": ["character", "background", "custom_cg", "overlay", "effect"],
     "overlay_layer": [
       "back",
       "front"

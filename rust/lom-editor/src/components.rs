@@ -30,21 +30,33 @@ fn materialize() -> Result<Option<PathBuf>> {
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|p| PathBuf::from(p).join(".cache")))
         .context("无法确定组件缓存位置")?;
-    let root = cache.join("lom_modkit/components").join(format!(
-        "{}-{}",
-        env!("CARGO_PKG_VERSION"),
-        &KEY[..16]
-    ));
-    let mut archive = zip::ZipArchive::new(Cursor::new(PAYLOAD))?;
+    materialize_at(&cache, PAYLOAD, KEY).map(Some)
+}
+
+fn materialize_at(cache: &Path, payload: &[u8], key: &str) -> Result<PathBuf> {
+    let components = cache.join("lom_modkit/components");
+    fs::create_dir_all(&components).context("无法创建组件缓存，请检查系统磁盘空间和写入权限")?;
+    // GUI, CLI and extraction can start together. Publish one complete cache
+    // before another process reads it or performs the existing cache cleanup.
+    let lock = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(components.join(".prepare.lock"))
+        .context("无法打开组件准备锁")?;
+    lock.lock().context("无法锁定组件准备目录")?;
+    let root = components.join(format!("{}-{}", env!("CARGO_PKG_VERSION"), &key[..16]));
+    let mut archive = zip::ZipArchive::new(Cursor::new(payload))?;
     let entries: Vec<Entry> = serde_json::from_reader(archive.by_name("components.json")?)?;
     let marker = root.join(".complete");
-    let ready = fs::read_to_string(&marker).is_ok_and(|s| s == KEY)
+    let ready = fs::read_to_string(&marker).is_ok_and(|s| s == key)
         && entries.iter().all(|entry| {
             fs::metadata(root.join(&entry.path)).is_ok_and(|m| m.is_file() && m.len() == entry.size)
         });
     if ready {
         clean_old_components(&root);
-        return Ok(Some(root));
+        return Ok(root);
     }
     fs::create_dir_all(&root).context("无法创建组件缓存，请检查系统磁盘空间和写入权限")?;
     for entry in entries {
@@ -73,9 +85,9 @@ fn materialize() -> Result<Option<PathBuf>> {
             fs::set_permissions(&destination, fs::Permissions::from_mode(0o755))?;
         }
     }
-    lom_core::project::atomic_write(&marker, KEY.as_bytes())?;
+    lom_core::project::atomic_write(&marker, key.as_bytes())?;
     clean_old_components(&root);
-    Ok(Some(root))
+    Ok(root)
 }
 
 /// Only generated sibling directories belong to us. Never traverse reparse
@@ -229,6 +241,61 @@ pub fn cli_task(args: &[String]) -> Result<i32> {
 #[cfg(test)]
 mod cleanup_tests {
     use super::*;
+
+    #[test]
+    fn simultaneous_startups_publish_one_complete_component_cache() {
+        use std::{
+            io::Write,
+            sync::{Arc, Barrier},
+        };
+        let temp = tempfile::tempdir().unwrap();
+        let bytes = vec![73_u8; 1024 * 1024];
+        let mut archive = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        archive
+            .start_file("components.json", zip::write::SimpleFileOptions::default())
+            .unwrap();
+        archive
+            .write_all(
+                serde_json::to_string(&serde_json::json!([
+                    {"path":"runtime/NVorbis.dll","size":bytes.len()},
+                    {"path":"lomc.exe","size":bytes.len()}
+                ]))
+                .unwrap()
+                .as_bytes(),
+            )
+            .unwrap();
+        for path in ["runtime/NVorbis.dll", "lomc.exe"] {
+            archive
+                .start_file(path, zip::write::SimpleFileOptions::default())
+                .unwrap();
+            archive.write_all(&bytes).unwrap();
+        }
+        let payload = Arc::new(archive.finish().unwrap().into_inner());
+        let start = Arc::new(Barrier::new(4));
+        let key = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        let handles: Vec<_> = (0..4)
+            .map(|_| {
+                let cache = temp.path().to_owned();
+                let payload = payload.clone();
+                let start = start.clone();
+                std::thread::spawn(move || {
+                    start.wait();
+                    materialize_at(&cache, &payload, key).unwrap()
+                })
+            })
+            .collect();
+        let roots: Vec<_> = handles
+            .into_iter()
+            .map(|handle| handle.join().unwrap())
+            .collect();
+        assert!(roots.iter().all(|root| root == &roots[0]));
+        assert_eq!(
+            fs::read(roots[0].join("runtime/NVorbis.dll")).unwrap(),
+            bytes
+        );
+        assert_eq!(fs::read(roots[0].join("lomc.exe")).unwrap(), bytes);
+        assert_eq!(fs::read_to_string(roots[0].join(".complete")).unwrap(), key);
+    }
 
     #[test]
     fn removes_only_old_generated_directories() {

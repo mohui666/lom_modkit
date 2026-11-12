@@ -46,6 +46,7 @@
     "layer": "front",
     "fade": 0.25
   },
+  "render_priority": {"id":"node","type":"render_priority","target":"character","character":"player","order":0,"enabled":true},
   "show": {
     "id": "node",
     "type": "show",

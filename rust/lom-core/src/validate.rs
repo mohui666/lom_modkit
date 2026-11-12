@@ -997,6 +997,9 @@ fn mod_death_id(key: &str) -> bool {
     n.len() > 6 || (n.len() == 6 && n >= "900000")
 }
 fn extra(n: &Value, ntype: &str, catalog: &Value, check_effect_names: bool) -> Result<()> {
+    if ntype == "render_priority" {
+        crate::render_priority::validate(n)?;
+    }
     for (raw, _, category) in crate::content::gameplay_references(n) {
         ensure!(
             category != "consumable" || raw.starts_with("user:"),

@@ -196,6 +196,7 @@ struct App {
     asset_dirty: bool,
     lua: String,
     vanilla: crate::vanilla_panel::Panel,
+    flag_reference: crate::vanilla_panel::FlagReference,
     diagnostics: Vec<lom_core::release::PreflightIssue>,
     error_issues: Vec<lom_core::release::PreflightIssue>,
     needs_compile: bool,
@@ -502,6 +503,7 @@ impl App {
             asset_dirty: false,
             lua: String::new(),
             vanilla: Default::default(),
+            flag_reference: Default::default(),
             diagnostics: vec![],
             error_issues: vec![],
             needs_compile: true,
@@ -705,6 +707,8 @@ impl eframe::App for App {
             self.right(ctx);
         }
         self.center(ctx);
+        self.flag_reference
+            .show(ctx, self.tools_panel.game_directory());
         self.track();
         self.dialogs(ctx);
         self.tools_panel.show_dialog(ctx, &self.project);

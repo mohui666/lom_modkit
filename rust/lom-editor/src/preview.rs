@@ -199,6 +199,7 @@ fn simulate_until(story: &Value, target: &str, include_target: bool) -> Value {
     state["mood_overrides"] = json!({});
     state["camera_filters"] = json!({});
     state["camera_filter_exclusions"] = json!({});
+    state["render_priorities"] = json!([]);
     let Some(ns) = story["nodes"].as_array() else {
         return state;
     };
@@ -226,6 +227,17 @@ fn simulate_until(story: &Value, target: &str, include_target: bool) -> Value {
 pub fn build_playtest_prelude(story: &Value, target: &str) -> Vec<Value> {
     let state = simulate_until(story, target, false);
     let mut nodes = Vec::new();
+    nodes.extend(
+        state["render_priorities"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .cloned()
+            .map(|mut node| {
+                node.as_object_mut().unwrap().remove("wait_after");
+                node
+            }),
+    );
     for (character, title) in state["character_titles"].as_object().into_iter().flatten() {
         nodes.push(json!({"type":"character_title","character":character,
             "action":if title == "" { "hide" } else { "set" },"title":title}));
@@ -362,6 +374,7 @@ fn apply(s: &mut Value, n: &Value) {
         text(n, "character")
     };
     match kind {
+        "render_priority" => lom_core::render_priority::apply(&mut s["render_priorities"], n),
         "character_title" => {
             if n["action"] == "reset" {
                 if let Some(titles) = s["character_titles"].as_object_mut() {
@@ -491,6 +504,7 @@ fn apply(s: &mut Value, n: &Value) {
             }
         }
         "hide_all" => {
+            s["render_priorities"] = json!([]);
             s["actors"] = json!({});
             s["mood_overrides"] = json!({});
             s["dimming"] = json!({});
@@ -1981,6 +1995,11 @@ impl Preview {
         let rect = Rect::from_center_size(outer.center(), Vec2::new(width, width * 9.0 / 16.0));
         let painter = ui.painter().with_clip_rect(rect);
         painter.rect_filled(rect, 6.0, Color32::from_rgb(29, 35, 42));
+        let priorities = &state["render_priorities"];
+        let sorting = lom_core::render_priority::active(priorities);
+        let mut scene_order = ShapeOrder::new(sorting);
+        let mut unfiltered_order = ShapeOrder::new(sorting);
+        let bg_start = scene_order.begin(&painter);
         let bg = state["background"]
             .as_str()
             .or_else(|| state["view"].as_str())
@@ -1996,12 +2015,18 @@ impl Preview {
                 Color32::from_rgb(109, 118, 113),
             );
         }
+        scene_order.capture(
+            &painter,
+            bg_start,
+            lom_core::render_priority::priority(priorities, "background", "", ""),
+        );
         let mut layout_objects = Vec::new();
         let scene_filter = self.camera_filter.clone();
         for layer in ["back", "actors", "front", "pictures", "unfiltered_actors"] {
             self.camera_filter = scene_filter.clone();
             if layer == "pictures" {
                 if state["custom_cg"].is_object() {
+                    let start = scene_order.begin(&painter);
                     if let Some(object) = self.overlay(
                         &ctx,
                         &painter,
@@ -2012,15 +2037,48 @@ impl Preview {
                     ) {
                         layout_objects.push(object);
                     }
+                    scene_order.capture(
+                        &painter,
+                        start,
+                        lom_core::render_priority::priority(priorities, "custom_cg", "", ""),
+                    );
                 }
-                layout_objects.extend(effects::paint(
-                    &painter,
-                    rect,
-                    &state["effects"],
-                    self.layout_mode,
-                    effect_library.as_deref(),
-                    |frame, size| self.effect_texture(&ctx, frame, size),
-                ));
+                if sorting {
+                    for item in state["effects"].as_array().into_iter().flatten() {
+                        let start = scene_order.begin(&painter);
+                        layout_objects.extend(effects::paint(
+                            &painter,
+                            rect,
+                            &json!([item]),
+                            self.layout_mode,
+                            effect_library.as_deref(),
+                            |frame, size| self.effect_texture(&ctx, frame, size),
+                        ));
+                        let tag = item["tag"]
+                            .as_str()
+                            .filter(|tag| !tag.is_empty())
+                            .unwrap_or(text(item, "name"));
+                        scene_order.capture(
+                            &painter,
+                            start,
+                            lom_core::render_priority::priority(
+                                priorities,
+                                "effect",
+                                text(item, "name"),
+                                tag,
+                            ),
+                        );
+                    }
+                } else {
+                    layout_objects.extend(effects::paint(
+                        &painter,
+                        rect,
+                        &state["effects"],
+                        self.layout_mode,
+                        effect_library.as_deref(),
+                        |frame, size| self.effect_texture(&ctx, frame, size),
+                    ));
+                }
                 for picture in state["official_pictures"]
                     .as_object()
                     .into_iter()
@@ -2171,6 +2229,12 @@ impl Preview {
                     if excluded != (layer == "unfiltered_actors") {
                         continue;
                     }
+                    let order = if excluded {
+                        &mut unfiltered_order
+                    } else {
+                        &mut scene_order
+                    };
+                    let start = order.begin(&painter);
                     self.camera_filter = if excluded {
                         filters::Settings::default()
                     } else {
@@ -2485,12 +2549,18 @@ impl Preview {
                             Color32::LIGHT_GRAY.gamma_multiply(opacity),
                         );
                     }
+                    order.capture(
+                        &painter,
+                        start,
+                        lom_core::render_priority::priority(priorities, "character", cid, ""),
+                    );
                 }
             } else if let Some(overlays) = state["overlays"].as_object() {
                 for (slot, item) in overlays
                     .iter()
                     .filter(|(_, n)| n["layer"].as_str().unwrap_or("front") == layer)
                 {
+                    let start = scene_order.begin(&painter);
                     if let Some(object) = self.overlay(
                         &ctx,
                         &painter,
@@ -2501,8 +2571,47 @@ impl Preview {
                     ) {
                         layout_objects.push(object);
                     }
+                    scene_order.capture(
+                        &painter,
+                        start,
+                        lom_core::render_priority::priority(priorities, "overlay", slot, ""),
+                    );
                 }
             }
+        }
+        ShapeOrder::finish(&painter, [scene_order, unfiltered_order]);
+        if sorting {
+            layout_objects.sort_by_key(|object| {
+                let (kind, key, tag, lane) = match &object.target {
+                    LayoutTarget::Character(id) | LayoutTarget::Mood(id) => {
+                        ("character", id.as_str(), "", filters::excludes(&state, id))
+                    }
+                    LayoutTarget::Overlay(slot) => ("overlay", slot.as_str(), "", false),
+                    LayoutTarget::Cg => ("custom_cg", "", "", false),
+                    LayoutTarget::Effect { .. } => {
+                        let item = state["effects"]
+                            .as_array()
+                            .into_iter()
+                            .flatten()
+                            .find(|item| effects::target(item).as_ref() == Some(&object.target));
+                        item.map_or(("effect", "", "", false), |item| {
+                            (
+                                "effect",
+                                text(item, "name"),
+                                item["tag"]
+                                    .as_str()
+                                    .filter(|s| !s.is_empty())
+                                    .unwrap_or(text(item, "name")),
+                                false,
+                            )
+                        })
+                    }
+                };
+                (
+                    lane,
+                    lom_core::render_priority::priority(priorities, kind, key, tag),
+                )
+            });
         }
         if let Some(dialog) = state["dialog"].as_object() {
             let txt = dialog.get("text").and_then(Value::as_str).unwrap_or("");
@@ -2924,8 +3033,166 @@ impl Preview {
         None
     }
 }
+// Capture only stage objects, then insert their stable priority order at the
+// first object in each camera lane. Keep each shape's original clipping and
+// leave dialogue, official panels and blackout outside these ranges.
+#[derive(Default)]
+struct ShapeOrder {
+    active: bool,
+    ranges: Vec<(usize, usize, i64)>,
+}
+impl ShapeOrder {
+    fn new(active: bool) -> Self {
+        Self {
+            active,
+            ranges: Vec::new(),
+        }
+    }
+    fn begin(&self, painter: &egui::Painter) -> Option<usize> {
+        self.active.then(|| painter.add(egui::Shape::Noop).0)
+    }
+    fn capture(&mut self, painter: &egui::Painter, start: Option<usize>, priority: i64) {
+        if let Some(start) = start {
+            self.ranges
+                .push((start, painter.add(egui::Shape::Noop).0, priority));
+        }
+    }
+    fn finish(painter: &egui::Painter, mut lanes: [Self; 2]) {
+        let mut spans: Vec<_> = lanes
+            .iter()
+            .flat_map(|lane| lane.ranges.iter().map(|&(a, b, _)| (a, b)))
+            .collect();
+        spans.sort_unstable();
+        let (Some(&(first, _)), Some(&(_, last))) = (spans.first(), spans.last()) else {
+            return;
+        };
+        painter.ctx().graphics_mut(|graphics| {
+            let list = graphics.entry(painter.layer_id());
+            let shapes: Vec<_> = list.all_entries().cloned().collect();
+            let mut inserts = Vec::new();
+            for lane in &mut lanes {
+                if let Some(&(start, _, _)) = lane.ranges.first() {
+                    lane.ranges.sort_by_key(|&(_, _, priority)| priority);
+                    let ordered: Vec<_> = lane
+                        .ranges
+                        .iter()
+                        .flat_map(|&(a, b, _)| shapes[a + 1..b].iter().cloned())
+                        .collect();
+                    inserts.push((start, ordered));
+                }
+            }
+            let mut result = Vec::new();
+            let mut span = 0;
+            let mut index = first;
+            while index <= last {
+                if let Some((_, items)) = inserts.iter_mut().find(|(start, _)| *start == index) {
+                    result.append(items);
+                }
+                if span < spans.len() && spans[span].0 == index {
+                    index = spans[span].1 + 1;
+                    span += 1;
+                } else {
+                    result.push(shapes[index].clone());
+                    index += 1;
+                }
+            }
+            result.resize_with(last - first + 1, || egui::epaint::ClippedShape {
+                clip_rect: painter.clip_rect(),
+                shape: egui::Shape::Noop,
+            });
+            for (offset, shape) in result.into_iter().enumerate() {
+                list.set(
+                    egui::layers::ShapeIdx(first + offset),
+                    shape.clip_rect,
+                    shape.shape,
+                );
+            }
+        });
+    }
+}
+
 fn uv() -> Rect {
     Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0))
+}
+
+#[cfg(test)]
+mod render_priority_tests {
+    use super::*;
+
+    #[test]
+    fn render_priority_f5_preserves_future_targets_and_hide_all_clears_rules() {
+        let mut story = json!({"id":"main","story_schema":2,"start":"priority","nodes":[
+            {"id":"priority","type":"render_priority","target":"character","character":"player","order":12,"wait_after":12},
+            {"id":"show","type":"show","character":"player","position":"M","portrait":"normal"},
+            {"id":"hide","type":"hide","character":"player"},
+            {"id":"future","type":"wait","seconds":1},
+            {"id":"clear","type":"hide_all"},
+            {"id":"done","type":"end"}]});
+        let prelude = build_playtest_prelude(&story, "future");
+        assert_eq!(prelude[0]["type"], "render_priority");
+        assert_eq!(prelude[0]["order"], 12);
+        assert!(prelude[0].get("wait_after").is_none());
+        assert!(!prelude.iter().any(|node| node["type"] == "show"));
+        assert_eq!(
+            simulate_until(&story, "done", false)["render_priorities"],
+            json!([])
+        );
+        story["nodes"][1] = json!({"id":"show","type":"effect","name":"Hit_001","c":0});
+        assert!(effects::managed(&story));
+    }
+
+    #[test]
+    fn render_priority_paint_reorders_stage_without_crossing_ui_or_losing_clips() {
+        let ctx = egui::Context::default();
+        let stage = Rect::from_min_size(Pos2::ZERO, Vec2::splat(100.0));
+        let clipped = stage.shrink(10.0);
+        let output = ctx.run(Default::default(), |ctx| {
+            let painter = ctx
+                .layer_painter(egui::LayerId::background())
+                .with_clip_rect(stage);
+            let mut scene = ShapeOrder::new(true);
+            let mut unfiltered = ShapeOrder::new(true);
+            for (color, priority) in [(Color32::BLUE, 0), (Color32::GREEN, 30)] {
+                let start = scene.begin(&painter);
+                painter.rect_filled(stage, 0.0, color);
+                scene.capture(&painter, start, priority);
+            }
+            painter.rect_filled(stage, 0.0, Color32::YELLOW);
+            let start = scene.begin(&painter);
+            painter
+                .with_clip_rect(clipped)
+                .rect_filled(stage, 0.0, Color32::RED);
+            scene.capture(&painter, start, 10);
+            let start = unfiltered.begin(&painter);
+            painter.rect_filled(stage, 0.0, Color32::WHITE);
+            unfiltered.capture(&painter, start, -100);
+            painter.rect_filled(stage, 0.0, Color32::BLACK);
+            ShapeOrder::finish(&painter, [scene, unfiltered]);
+        });
+        let rectangles: Vec<_> = output
+            .shapes
+            .iter()
+            .filter_map(|shape| match &shape.shape {
+                egui::Shape::Rect(rect) => Some((rect.fill, shape.clip_rect)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            rectangles
+                .iter()
+                .map(|&(color, _)| color)
+                .collect::<Vec<_>>(),
+            [
+                Color32::BLUE,
+                Color32::RED,
+                Color32::GREEN,
+                Color32::YELLOW,
+                Color32::WHITE,
+                Color32::BLACK
+            ]
+        );
+        assert_eq!(rectangles[1].1, clipped);
+    }
 }
 fn portrait_rect(
     stage: Rect,

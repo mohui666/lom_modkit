@@ -1369,7 +1369,11 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
             .flatten()
             .any(|event| event["trigger"] == "story_entry")
     });
-    if martial_talents
+    let render_priority = stories.values().any(|story| {
+        crate::parallel::story_actions(story).any(|(_, node)| node["type"] == "render_priority")
+    });
+    if render_priority
+        || martial_talents
         || story_entry
         || filter_controls
         || custom_affinity
@@ -1385,7 +1389,9 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
         || event_fade
         || dialogue_dimming
     {
-        let (minimum, required) = if martial_talents {
+        let (minimum, required) = if render_priority {
+            ([1, 5, 12], "1.5.12")
+        } else if martial_talents {
             ([1, 5, 11], "1.5.11")
         } else if story_entry || filter_controls || custom_affinity {
             ([1, 5, 10], "1.5.10")

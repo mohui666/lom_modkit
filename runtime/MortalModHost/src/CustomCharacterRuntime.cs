@@ -64,6 +64,7 @@ namespace MortalModHost
 
         public static void ClearAll()
         {
+            RenderPriorityRuntime.Clear();
             CameraFilterRuntime.Clear();
             CharacterTitleRuntime.CustomSpeaker = null;
             AutoDialogueRuntime.Clear();
@@ -422,6 +423,7 @@ namespace MortalModHost
             if (!Actors.TryGetValue(raw ?? "", out actor) || actor == null || actor.Holder == null)
                 return false;
             actor.Holder.transform.SetAsLastSibling();
+            RenderPriorityRuntime.TrackUi(actor.Holder, "character", raw);
             return true;
         }
 

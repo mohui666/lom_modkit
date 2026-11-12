@@ -90,9 +90,10 @@
     {
       "id": "game_flag1",
       "type": "game_flag",
-      "flag": "50019",
+      "flag": "M20008",
       "value": 1,
-      "op": "set"
+      "op": "set",
+      "_editor": {"note": "原版数值旗标示例：搜索‘留学去向’，选择‘青城（1）’；工程仍保存 M20008 与数值 1。"}
     },
     {
       "id": "enemy1",

@@ -27,6 +27,175 @@ impl Source {
     }
 }
 
+/// A separate read-only view; inspecting a flag never replaces or edits the
+/// author's current project. The reader and source cache are the existing ones.
+#[derive(Default)]
+pub(crate) struct FlagReference {
+    panel: Panel,
+    request: Option<crate::game_flags::ReferenceRequest>,
+    filter: String,
+    open: bool,
+}
+
+#[cfg(test)]
+mod flag_reference_tests {
+    use super::*;
+
+    #[test]
+    fn game_flag_reference_uses_the_read_only_cache_without_opening_an_authoring_project() {
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        let source = "statmodifymanager.SetFlag(\"M20008\", 1)\n";
+        let mut reference = FlagReference {
+            panel: Panel::with_source("chapter", source),
+            ..Default::default()
+        };
+        ctx.data_mut(|data| {
+            data.insert_temp(
+                egui::Id::new("flag-story-reference"),
+                crate::game_flags::ReferenceRequest {
+                    script: "chapter".into(),
+                    flag: "M20008".into(),
+                },
+            )
+        });
+        let output = ctx.run(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1100.0, 800.0),
+                )),
+                ..Default::default()
+            },
+            |ctx| {
+                reference.show(ctx, PathBuf::from("unused_cached_game"));
+            },
+        );
+        assert!(reference.open);
+        assert!(reference.panel.job.is_none());
+        assert_eq!(reference.panel.sources["chapter"].text, source);
+        assert!(crate::game_flags::take_reference(&ctx).is_none());
+        assert!(output
+            .platform_output
+            .accesskit_update
+            .unwrap()
+            .nodes
+            .iter()
+            .any(|(_, node)| node
+                .value()
+                .is_some_and(|text| text.contains("SetFlag(\"M20008\", 1)"))));
+    }
+}
+
+impl FlagReference {
+    pub(crate) fn show(&mut self, ctx: &egui::Context, configured_game: PathBuf) {
+        if let Some(request) = crate::game_flags::take_reference(ctx) {
+            self.panel.activate_target(&request.script);
+            self.request = Some(request);
+            self.filter.clear();
+            self.open = true;
+        }
+        if !self.open {
+            return;
+        }
+        let Some(request) = self.request.clone() else {
+            return;
+        };
+        if self.panel.game.as_os_str().is_empty() {
+            self.panel.game = configured_game;
+        }
+        self.panel.poll();
+        egui::Window::new(key("game_flags.reference_title"))
+            .id(egui::Id::new("flag-reference-window"))
+            .default_size(egui::vec2(780.0, 600.0))
+            .open(&mut self.open)
+            .show(ctx, |ui| {
+                ui.strong(format!("{} · {}", request.script, request.flag));
+                if ui
+                    .add_enabled(
+                        self.panel.job.is_none(),
+                        egui::Button::new(key("vanilla.choose_directory")),
+                    )
+                    .clicked()
+                {
+                    if let Some(game) = rfd::FileDialog::new().pick_folder() {
+                        self.panel = Panel {
+                            game,
+                            ..Default::default()
+                        };
+                        self.panel.activate_target(&request.script);
+                    }
+                }
+                if self.panel.game.as_os_str().is_empty() {
+                    return;
+                }
+                if !self
+                    .panel
+                    .attempted
+                    .contains(&request.script.to_ascii_lowercase())
+                {
+                    self.panel.read(ctx, Some(&request.script));
+                }
+                if let Some(error) = &self.panel.error {
+                    crate::error_ui::show_with_actions(ui, error);
+                }
+                let Some(source) = self.panel.sources.get(&request.script.to_ascii_lowercase())
+                else {
+                    if self.panel.job.is_some() {
+                        ui.label(key("game_flags.reference_loading"));
+                    }
+                    return;
+                };
+                egui::CollapsingHeader::new(key("game_flags.reference_calls"))
+                    .default_open(true)
+                    .show(ui, |ui| {
+                        let quoted = format!("\"{}\"", request.flag);
+                        let single = format!("'{}'", request.flag);
+                        let lines: Vec<_> = source.text.lines().collect();
+                        let mut visible = BTreeSet::new();
+                        for (at, _) in lines
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, line)| line.contains(&quoted) || line.contains(&single))
+                        {
+                            visible.extend(at.saturating_sub(2)..(at + 4).min(lines.len()));
+                        }
+                        egui::ScrollArea::both()
+                            .id_salt("flag-source-lines")
+                            .max_height(220.0)
+                            .show(ui, |ui| {
+                                for at in visible {
+                                    ui.horizontal(|ui| {
+                                        ui.weak((at + 1).to_string());
+                                        ui.code(lines[at]);
+                                    });
+                                }
+                            });
+                    });
+                ui.separator();
+                ui.strong(key("game_flags.reference_dialogue"));
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.filter)
+                        .hint_text(key("game_flags.reference_search")),
+                );
+                let query = crate::i18n::simplified_label(&self.filter).to_lowercase();
+                egui::ScrollArea::vertical()
+                    .id_salt("flag-source-dialogue")
+                    .show(ui, |ui| {
+                        for site in &source.sites {
+                            let text = crate::game_flags::prose(&source.display(site));
+                            if crate::i18n::simplified_label(&text)
+                                .to_lowercase()
+                                .contains(&query)
+                            {
+                                ui.label(text);
+                            }
+                        }
+                    });
+            });
+    }
+}
+
 fn bookmark_caption(mark: &Bookmark) -> String {
     if mark.year <= 0 {
         return mark.script.clone();

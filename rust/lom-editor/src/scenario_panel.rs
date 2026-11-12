@@ -535,7 +535,7 @@ fn event_advanced(
         },
     );
     ui.collapsing(crate::i18n::key("common.scenario.outcome_tasks"), |ui| {
-        outcomes(ui, &mut e["outcomes"], task_states)
+        outcomes(ui, &mut e["outcomes"], task_states, catalog)
     });
 }
 fn task_advanced(
@@ -780,6 +780,13 @@ fn condition(
                 .map(|(_, states)| states.clone())
                 .unwrap_or_default();
             crate::scenario_quick::task_state(ui, c, "value", "状态", &options);
+        } else if c["source"] == "game_flag" {
+            ui.label(tr("目标值"));
+            let flag = c["key"].as_str().unwrap_or("").to_owned();
+            let mut value = c.get("value").cloned().unwrap_or(json!(0));
+            if crate::game_flags::number(ui, &catalog.data, &flag, &mut value, true) {
+                c["value"] = value;
+            }
         } else {
             integer(ui, c, "value", "数值", 0, i32::MIN as i64, i32::MAX as i64);
         }
@@ -804,7 +811,7 @@ fn condition(
         });
     }
 }
-fn outcomes(ui: &mut egui::Ui, v: &mut Value, tasks: &[(String, Vec<String>)]) {
+fn outcomes(ui: &mut egui::Ui, v: &mut Value, tasks: &[(String, Vec<String>)], catalog: &Catalog) {
     if !v.is_object() {
         ui.label(crate::i18n::key("common.scenario.outcomes_object"));
         return;
@@ -841,7 +848,7 @@ fn outcomes(ui: &mut egui::Ui, v: &mut Value, tasks: &[(String, Vec<String>)]) {
                     return;
                 }
                 ui.collapsing(crate::i18n::key("common.scenario.misc_effects"), |ui| {
-                    result_actions(ui, effects)
+                    result_actions(ui, effects, catalog)
                 });
                 if ui
                     .button(crate::i18n::key("common.scenario.add_variable_effect"))
@@ -968,7 +975,7 @@ fn outcomes(ui: &mut egui::Ui, v: &mut Value, tasks: &[(String, Vec<String>)]) {
         });
     }
 }
-fn result_actions(ui: &mut egui::Ui, effects: &mut Value) {
+fn result_actions(ui: &mut egui::Ui, effects: &mut Value, catalog: &Catalog) {
     if ui
         .button(crate::i18n::key("common.scenario.add_effect"))
         .clicked()
@@ -1024,7 +1031,11 @@ fn result_actions(ui: &mut egui::Ui, effects: &mut Value) {
                     integer(ui, a, "month", "月", 4, 1, 12);
                     integer(ui, a, "stage", "旬", 1, 1, 3);
                 } else {
-                    text(ui, a, "key", "属性、人物或物品 ID");
+                    if kind == "game_flag" {
+                        catalog.field(ui, a, "key", "原版数值旗标", "game_flag", false, &[], &[]);
+                    } else {
+                        text(ui, a, "key", "属性、人物或物品 ID");
+                    }
                     if kind == "item" {
                         select(
                             ui,
@@ -1048,7 +1059,16 @@ fn result_actions(ui: &mut egui::Ui, effects: &mut Value) {
                         };
                         select(ui, a, "op", "操作", &ops, "add");
                     }
-                    if kind != "flag" {
+                    if kind == "game_flag" {
+                        ui.label(tr("数值"));
+                        let flag = a["key"].as_str().unwrap_or("").to_owned();
+                        let absolute = a["op"] == "set";
+                        let mut value = a.get("value").cloned().unwrap_or(json!(1));
+                        if crate::game_flags::number(ui, &catalog.data, &flag, &mut value, absolute)
+                        {
+                            a["value"] = value;
+                        }
+                    } else if kind != "flag" {
                         integer(
                             ui,
                             a,
