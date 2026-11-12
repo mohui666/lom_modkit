@@ -54,11 +54,21 @@ fn channels(node: &Value) -> Vec<String> {
     let character = node["character"].as_str().unwrap_or("");
     let mut result = Vec::new();
     if !character.is_empty() {
-        // Bubble state is independent of an already-visible actor's animation.
-        // Entry/exit still owns both: a bubble must not race actor creation/removal.
-        if kind != "mood" && kind != "render_priority" {
-            result.push(format!("人物 {character}"));
-        }
+        let properties: &[&str] = match kind {
+            "move" | "shock" => &["位置"],
+            "offset" => &["位置", "大小"],
+            "rotate" => &["角度"],
+            "face" => &["朝向"],
+            "dim" => &["明暗"],
+            "focus" => &["前后顺序"],
+            "show" | "hide" | "portrait" => &["位置", "角度", "朝向", "大小", "明暗", "立绘"],
+            _ => &[],
+        };
+        result.extend(
+            properties
+                .iter()
+                .map(|property| format!("人物 {character} 的{property}")),
+        );
         if matches!(kind, "mood" | "show" | "hide") {
             result.push(format!("人物 {character} 的气泡"));
         }
@@ -190,10 +200,44 @@ pub fn validate_group(node: &Value) -> Result<()> {
         for channel in channels(action) {
             if let Some(previous) = owners.insert(channel.clone(), number) {
                 anyhow::bail!(
-                    "第 {previous} 和第 {number} 个同时动作都会控制{channel}，请拆成先后步骤"
+                    "第 {previous} 和第 {number} 个同时动作都会控制{channel}（{} / {}），请拆成先后步骤",
+                    action_label(actions[previous-1]["type"].as_str().unwrap_or("")),action_label(kind)
                 );
             }
         }
     }
     Ok(())
+}
+
+fn action_label(kind: &str) -> &str {
+    match kind {
+        "show" => "人物登场",
+        "hide" => "人物退场",
+        "portrait" => "人物换表情",
+        "move" => "人物位移",
+        "offset" => "人物偏移／大小",
+        "rotate" => "人物旋转",
+        "face" => "人物转向",
+        "dim" => "人物明暗",
+        "focus" => "人物前后顺序",
+        "mood" => "气泡表情",
+        _ => kind,
+    }
+}
+
+/// Only newly supported combinations use the preserving transform bridge.
+/// Released groups with one transform retain their exact historical Lua.
+pub fn independent_transforms(group: &Value, character: &str) -> bool {
+    !character.is_empty()
+        && actions(group)
+            .iter()
+            .filter(|action| {
+                action["character"] == character
+                    && matches!(
+                        action["type"].as_str(),
+                        Some("move" | "offset" | "rotate" | "face")
+                    )
+            })
+            .count()
+            > 1
 }

@@ -115,6 +115,7 @@ namespace MortalModHost
                     else if (Traverse.Create(original).Field("_setNativeSize").GetValue<bool>()) image.SetNativeSize();
                 }
                 CanvasGroup group = _root.GetComponent<CanvasGroup>();
+                PictureScaleRuntime.ApplyClone("big", image.rectTransform, Traverse.Create(original).Field("_image").GetValue<Image>().rectTransform);
                 group.alpha = 0f;
                 group.blocksRaycasts = false;
                 group.interactable = false;

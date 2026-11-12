@@ -1286,6 +1286,7 @@
           "float",
           true
         ],
+        ["scale", "人物大小（%）", "percent_scale", true],
         [
           "wait_for_completion",
           "等待动作完成",
@@ -1856,6 +1857,7 @@
           false
         ],
         ["background_only", "只显示底色（不放图片）", "bool", true],
+        ["scale", "图片大小（%）", "percent_scale", true],
         [
           "key",
           "显示内容",
@@ -1877,6 +1879,12 @@
         [
           "fade_in",
           "淡入时长（秒）",
+          "float",
+          true
+        ],
+        [
+          "fade_out",
+          "淡出时长（秒）",
           "float",
           true
         ],

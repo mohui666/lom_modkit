@@ -82,6 +82,7 @@
         "position": "str"
       },
       "optional": {
+        "scale": "num",
         "portrait": "str",
         "appearance": "str",
         "facing": "facing",
@@ -271,6 +272,7 @@
         "kind": "cg_kind"
       },
       "optional": {
+        "scale": "num",
         "key": "str",
         "key2": "str",
         "n1": "num",
@@ -280,6 +282,7 @@
         "event_title": "str",
         "event_text": "str",
         "fade_in": "num",
+        "fade_out": "num",
         "background_only": "bool"
       }
     },

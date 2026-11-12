@@ -19,6 +19,7 @@ mod native_forms;
 mod persistence;
 mod play_bundle;
 mod preview;
+mod preview_event_fade;
 mod preview_layout;
 mod route_map;
 mod shell;

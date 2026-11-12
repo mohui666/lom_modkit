@@ -25,6 +25,73 @@ namespace MortalModHost
 
         internal static void Init(MonoBehaviour host) { _host = host; }
 
+        internal static void PrepareScale(string id, float percent)
+        {
+            if (float.IsNaN(percent) || float.IsInfinity(percent) || percent <= 0f)
+                throw new ArgumentOutOfRangeException("percent", "人物大小必须为正有限百分比");
+            if (ContentRef.IsUserRef(id)) { CustomCharacterRuntime.PrepareShowScale(id, percent); return; }
+            CharacterPlaceholder placeholder = CharacterPlaceholder.Instance;
+            var character = placeholder != null ? placeholder.Get(id) as StoryCharacterController : null;
+            if (character == null || character.State == null) throw new InvalidOperationException("人物尚未加载：" + id);
+            Get(character).Scale = percent / 100f;
+        }
+
+        internal static void FacePreserving(string id, string facing)
+        {
+            if (facing != "left" && facing != "right") throw new ArgumentException("人物朝向只能是 left/right");
+            if (ContentRef.IsUserRef(id))
+            {
+                if (!CustomCharacterRuntime.Face(id, facing)) throw new InvalidOperationException("人物尚未登场：" + id);
+                return;
+            }
+            StoryCharacterController character = VisibleCharacter(id);
+            FacingDirection direction = facing == "left" ? FacingDirection.Left : FacingDirection.Right;
+            character.State.facing = direction;
+            Vector3 scale = character.State.holder.localScale;
+            scale.x = Mathf.Abs(scale.x) * (direction == character.PortraitsFace ? 1f : -1f);
+            character.State.holder.localScale = scale;
+            MoodControl.RefreshCharacter(character);
+        }
+
+        internal static void MovePreserving(string id, string from, string to, float duration)
+        {
+            if (float.IsNaN(duration) || float.IsInfinity(duration) || duration < 0f)
+                throw new ArgumentOutOfRangeException("duration");
+            if (ContentRef.IsUserRef(id))
+            {
+                if (!CustomCharacterRuntime.Move(id, from, to, duration)) throw new InvalidOperationException("人物位移失败：" + id);
+                return;
+            }
+            StoryCharacterController character = VisibleCharacter(id);
+            Stage stage = Stage.GetActiveStage();
+            RectTransform destination = stage != null ? stage.GetPosition(to) : null;
+            RectTransform origin = string.IsNullOrEmpty(from) ? null : stage != null ? stage.GetPosition(from) : null;
+            if (destination == null || !string.IsNullOrEmpty(from) && origin == null)
+                throw new InvalidOperationException("找不到人物位移站位：" + from + " → " + to);
+            Actor actor = Get(character);
+            StopMotion(actor);
+            CharacterMovementRuntime.CancelStageMovement(character.State.holder);
+            actor.Slot = destination;
+            if (origin != null) character.State.holder.position = origin.position;
+            if (duration > 0f) actor.Motion = _host.StartCoroutine(MoveWorld(actor, destination, duration));
+            else { character.State.holder.position = destination.position; character.State.position = destination; }
+        }
+
+        private static IEnumerator MoveWorld(Actor actor, RectTransform destination, float duration)
+        {
+            RectTransform holder = actor.Character.State.holder;
+            Vector3 start = holder.position;
+            float elapsed = 0f;
+            while (elapsed < duration && holder != null && destination != null)
+            {
+                elapsed += Time.deltaTime;
+                holder.position = Vector3.Lerp(start, destination.position, Mathf.Clamp01(elapsed / duration));
+                yield return null;
+            }
+            if (holder != null && destination != null) { holder.position = destination.position; actor.Character.State.position = destination; }
+            actor.Motion = null;
+        }
+
         private static Actor Get(StoryCharacterController character)
         {
             Actor actor;

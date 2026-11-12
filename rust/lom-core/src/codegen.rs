@@ -133,6 +133,8 @@ struct Context<'a> {
     previous_stat_sets: bool,
     previous_shock_wait: bool,
     character_layout: bool,
+    character_scaling: bool,
+    parallel_transform: bool,
     managed_effects: bool,
 }
 fn check(expr: String, node: &Value) -> Vec<String> {
@@ -318,11 +320,21 @@ pub(crate) fn flag_check_expression(node: &Value) -> String {
     }
     expr
 }
+fn uses_character_scaling(story: &Value) -> bool {
+    crate::parallel::story_actions(story)
+        .any(|(_, node)| node["type"] == "show" && has(node, "scale"))
+}
 fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
     let mut out = Vec::new();
     let kind = s(node, "type");
     let c = q(node, "character");
     let user = s(node, "character").starts_with("user:");
+    if kind == "cg" && node["action"] == "show" && has(node, "scale") {
+        out.push(call(
+            "mod_picture_scale_configure",
+            &[q(node, "kind"), n(node, "scale", json!(100))],
+        ));
+    }
     match kind {
         "render_priority" => {
             let (target, key, tag) = crate::render_priority::identity(node);
@@ -364,6 +376,10 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                 out.push("\t\tfunction()".into());
                 let child = Context {
                     preloaded: true,
+                    parallel_transform: crate::parallel::independent_transforms(
+                        node,
+                        s(action, "character"),
+                    ),
                     ..*ctx
                 };
                 out.extend(
@@ -541,6 +557,12 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                 out.push(call("mod_player_appearance", &[q(node, "appearance")]));
             }
             if user {
+                if ctx.character_scaling {
+                    out.push(call(
+                        "mod_character_scale",
+                        &[c.clone(), n(node, "scale", json!(100))],
+                    ));
+                }
                 out.push(call(
                     "mod_char_show",
                     &[c.clone(), portrait, pos, facing, fade, duration],
@@ -556,10 +578,16 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                         &[c.clone(), portrait.clone()],
                     ));
                 }
+                if ctx.character_scaling {
+                    out.push(call(
+                        "mod_character_scale",
+                        &[c.clone(), n(node, "scale", json!(100))],
+                    ));
+                }
                 out.push(format!("\tstage.show{{character=characters.Get({c}), portrait=characters.GetPortrait({c}, {portrait}), fromPosition={pos}, toPosition={pos}, facing={facing}, fadeDuration={fade}, moveDuration={duration}, useDefaultSettings=false}}"));
                 out.push(call("characters.Focus", &[c.clone()]));
             }
-            if ctx.character_layout {
+            if ctx.character_layout && !ctx.character_scaling {
                 out.push(call("mod_character_layout_reset", &[c]));
             }
             if !ctx.mood {
@@ -570,7 +598,12 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
             let from = q(node, "from");
             let to = q(node, "to");
             let duration = n(node, "duration", json!(1));
-            if user {
+            if ctx.parallel_transform {
+                out.push(call(
+                    "mod_character_move_preserve",
+                    &[c, from, to, duration.clone()],
+                ));
+            } else if user {
                 out.push(call("mod_char_move", &[c, from, to, duration.clone()]));
             } else {
                 if !ctx.preloaded {
@@ -582,7 +615,9 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
         }
         "face" => {
             let facing = q(node, "facing");
-            if user {
+            if ctx.parallel_transform {
+                out.push(call("mod_character_face_preserve", &[c, facing]));
+            } else if user {
                 out.push(call("mod_char_face", &[c, facing]));
             } else {
                 if !ctx.preloaded {
@@ -993,7 +1028,14 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
         }
         "cg" if s(node, "kind") == "event" => {
             if s(node, "action") == "hide" {
-                out.push("\tmod_event_picture_hide()".into());
+                let fade = n(node, "fade_out", json!(0));
+                if fade.parse::<f64>()? > 0.0 {
+                    out.push("\tif mod_event_picture_hide_fade == nil then error(\"事件图淡出需要 Host 1.5.15，请在游戏与 MOD 中更新 Host\") end".into());
+                    out.push(call("mod_event_picture_hide_fade", &[fade.clone()]));
+                    out.push(wait(fade));
+                } else {
+                    out.push("\tmod_event_picture_hide()".into());
+                }
             } else {
                 let fade = n(node, "fade_in", json!(0));
                 if fade.parse::<f64>()? > 0.0 {
@@ -2164,6 +2206,8 @@ fn story_to_lua_impl(
             previous_stat_sets,
             previous_shock_wait,
             character_layout,
+            character_scaling: uses_character_scaling(story),
+            parallel_transform: false,
             managed_effects,
         };
         lines.extend([
@@ -2289,6 +2333,8 @@ fn imported_story_to_lua(
                     previous_stat_sets: false,
                     previous_shock_wait,
                     character_layout: true,
+                    character_scaling: uses_character_scaling(story),
+                    parallel_transform: false,
                     managed_effects: true,
                 };
                 // Changing only the words keeps the native speaker, dialog,
@@ -2442,6 +2488,8 @@ fn structured_import_to_lua(
             previous_stat_sets: false,
             previous_shock_wait,
             character_layout: true,
+            character_scaling: uses_character_scaling(story),
+            parallel_transform: false,
             managed_effects: true,
         };
         let original = origins[index]

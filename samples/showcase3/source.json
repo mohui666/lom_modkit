@@ -106,6 +106,7 @@
           "fadeDuration": 0,
           "moveDuration": 0,
           "appearance": "beautified",
+          "scale": 115,
           "wait_for_completion": true,
           "wait_after": 0.2
         },
@@ -164,7 +165,8 @@
           "portrait": "normal",
           "facing": "left",
           "fadeDuration": 0,
-          "moveDuration": 0
+          "moveDuration": 0,
+          "scale": 115
         },
         {
           "id": "profile_biography_unlock",
@@ -191,6 +193,17 @@
               "character": "player",
               "from": "L1",
               "to": "LM1",
+              "duration": 0.6
+            },
+            {
+              "type": "face",
+              "character": "player",
+              "facing": "left"
+            },
+            {
+              "type": "rotate",
+              "character": "player",
+              "angle": 5,
               "duration": 0.6
             },
             {
@@ -706,6 +719,7 @@
           "kind": "item",
           "action": "show",
           "key": "user:showcase.courier_token",
+          "scale": 125,
           "wait_after": 1
         },
         {
@@ -720,6 +734,7 @@
           "kind": "picture",
           "action": "show",
           "key": "user:showcase.courier_station",
+          "scale": 125,
           "wait_after": 1
         },
         {
@@ -751,7 +766,8 @@
           "id": "event_book_hide",
           "type": "cg",
           "kind": "event",
-          "action": "hide"
+          "action": "hide",
+          "fade_out": 0.8
         },
         {
           "id": "cg1",

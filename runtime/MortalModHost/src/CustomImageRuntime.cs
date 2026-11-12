@@ -378,6 +378,7 @@ namespace MortalModHost
             CustomPictureRuntime.ClearAll();
             BigPictureRuntime.Clear();
             EventPictureRuntime.Clear();
+            PictureScaleRuntime.Clear();
             StopFade();
             DestroyVisual();
             StopCgFade();
