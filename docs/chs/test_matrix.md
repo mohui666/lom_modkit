@@ -1,6 +1,6 @@
 # 测试入口与验证边界
 
-本版变化见 [更新说明](../../RELEASE_NOTES_v1.5.11.md)；历史 1.4.19 验证记录见 [当前能力](current_capabilities.md#1419-验证范围)。
+本版变化见 [更新说明](../../RELEASE_NOTES_v1.5.12.md)；历史 1.4.19 验证记录见 [当前能力](current_capabilities.md#1419-验证范围)。
 
 ## 验证层次
 
@@ -9,7 +9,7 @@
 | Rust 格式 | `cargo fmt --all -- --check` | 源码格式，不证明运行正确 |
 | Rust workspace | `cargo test --locked --workspace`；发行配置另加 `--release` | 编译、包格式、受控创作 API、内容管理、编辑状态、表单、保存／恢复、模态与语言等单元／集成回归 |
 | 样例预览 | `cargo run --locked -p lom-editor -- --smoke-preview samples/showcase3` | 逐节点校验、编译与预览状态模拟；不是逐场游戏实机验收 |
-| 样例生成与包检查 | `lomc` 的 `build_showcase3` example 和 `inspect` | 源 JSON 校验、72 类型覆盖、打包、包内源码／Lua 一致性 |
+| 样例生成与包检查 | `lomc` 的 `build_showcase3` example 和 `inspect` | 源 JSON 校验、73 类型覆盖、打包、包内源码／Lua 一致性 |
 | Mac 应用构建 | `sh scripts/build-macos.sh` | 原生程序、应用资源、签名检查与内置预览烟测；GUI 仍需另外打开检查 |
 | C# 离线回归 | `dotnet run --project runtime/MortalModHost/test/SmokeTest/SmokeTest.csproj --configuration Release` | 使用离线测试工程；不启动 Unity，也不验证真实游戏生命周期 |
 | Windows 原生工具 | `scripts/build-windows.ps1 -NoArchive` | 使用正式 Host DLL 构建；构建、自动化与实际 UI 结果分开记录 |

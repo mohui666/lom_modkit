@@ -672,6 +672,12 @@ namespace MortalModHost
                     CharacterLayoutRuntime.Reset(ArgString(args, 0));
                     return DynValue.Nil;
                 }, "mod_character_layout_reset");
+                script.Globals["mod_render_priority"] = new CallbackFunction((ctx, args) =>
+                {
+                    RenderPriorityRuntime.Set(ArgString(args, 0), ArgString(args, 1), ArgString(args, 2),
+                        ArgFloat(args, 3, 0f), ArgBool(args, 4, true));
+                    return DynValue.Nil;
+                }, "mod_render_priority");
                 script.Globals["mod_effect"] = new CallbackFunction((ctx, args) =>
                 {
                     DynValue bound = script.Globals.Get("effects");

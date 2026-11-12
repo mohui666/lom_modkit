@@ -1,5 +1,27 @@
 # Gameplay API 实证矩阵
 
+## 2026-11-12 原版旗标用途目录（1.5.12）
+
+本次定向读取当前 `Mortal.Core.FlagData`：`DevNote` 返回 `_devNote`，`ResetData()` 将 `State` 设为 `_default`，`GetNameKey()` 返回 `Flag/Name/` 加对象名。编辑器只读当前安装的 `globalgamemanagers.assets` 中既有目录的 FlagData，不更改 ScriptableObject、游戏文件或存档。
+
+758 个可选 ID 保持不变，其中 610 个有开发备注；沿用原有 42 个正式本地化名称，再补充缺少名称的用途。46 项包含可明确解析的取值说明，22 项备注标明暂存／重复使用；751 项可关联到脚本直接读写它的章节。数值选项仅作编辑提示，不新增取值限制，也不把默认 0 推断为「未触发」。重复且冲突的取值说明保留原备注，不生成选项。
+
+刷新入口 `tools/refresh_game_flag_catalog.py --game-dir <游戏目录>`，使用已有 UnityPy 环境。读取调用沿用已确认的 `StatModifyManager.SetFlag/AddFlag` 与 `LuaManager.GetFlagData`，只记录章节 ID，不提交原版 Lua 或资源。`extract_editor_data.py` 保留这些用途、取值与引用元数据。此次不修改 Host 的旗标读写或条件判断。
+
+## 2026-11-12 舞台渲染优先级（1.5.12）
+
+本次实时读取 `Fungus.PortraitController.SetupPortrait(PortraitOptions)`、`Mortal.Story.StoryCharacterController.Focus()`、`StoryEffectsController.SetupEffect(string,float,float,float,float,int,int)`、`Fungus.Stage.PortraitCanvas` 和 `StoryTransitionBlack.TransitionIn/TransitionOut`。人物以运行时 `State.holder` 为坐标根，聚焦只调整兄弟顺序；特效从原版控制器的非唯一实例列表取得本次新建实例，不接管原版缓存资产。
+
+本机 Story 舞台使用 StageCamera、layer 18、排序层 0、画布顺序 3；对白与黑幕由 UICamera 渲染。新增实例画布使用舞台相机层，并按相对顺序排序。画布随人物实例存活，关闭或清空优先级时恢复继承排序，避免同帧清空／重显碰到 Unity 延迟销毁中的组件。粒子保留实例内排序层与顺序的相对关系；需要统一渲染队列时只克隆实例材质，恢复时释放，不修改官方素材。滤镜排除人物仍在 UICamera 的独立通道内排序。
+
+独立测试作品与独立存档的实机检查通过 23 项，画面像素确认原版人物、背景、CG、槽位插图和 `Hit_001` 粒子可按优先级互相遮挡；另覆盖名称／标记隔离、关闭排序后的默认画面、材质与粒子原排序恢复、原彩人物通道、黑幕覆盖以及同帧清空再显示。未逐一验收游戏全部特效素材。
+
+## 2026-11-12 旗标目录修正（1.5.12）
+
+本次实时读取当前游戏 `MissionManagerData.GetFlag/SetFlag`、`FlagsCollection`、`FlagData.State` 与 `StatModifyManager.SetFlag/AddStory`，并在独立 BepInEx 根目录与独立存档路径中实测。旧目录的760个原版数值旗标中，`50019`、`TC00002` 不在实际旗标表内；它们来自旧剧情脚本中的字面调用。原版 `GetFlag` 返回 null，`SetFlag` 不写入；Host 条件读取明确报未定义，不将其当作0或允许 NOT 条件通过。
+
+本地修正从新选项和目录生成器中排除这两个编号，样例改用已实测的 `A00001`。旧工程保留原编号，可编辑并显示修正提示，不自动替换或改变原始 Lua。实机已验证有效数值旗标、剧情记录、组合条件、同周期从未满足变为满足的地点事件，以及返回自由场景后的自动事件；正式存档未参与测试。
+
 ## 2026-11-12 功法天赋与事件测试接口
 
 本次实时读取当前游戏 `Mortal.Core.Book.Learn/DirectLevelUp/MartialLevelUpStatModify`、`MartialLevelData.LevelUpStat`、`MartialModifyStat.Apply` 和 `MartialStatReference.GetValue/AddValue/GetNameKey`：`MartialLevelupStatType.天賦` 使用 `_talent` 引用，`AddValue` 调用 `PlayerTalentData.AddLevel`。Host 只往自建功法的升级条目加入自建引用；独立天赋先于功法注册，原版天赋保持游戏对象归属，旧功法没有新字段时不添加条目。

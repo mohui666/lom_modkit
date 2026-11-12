@@ -115,6 +115,7 @@ namespace MortalModHost
             _sprite = sprite;
             _texture = texture;
             _backgroundReference = raw;
+            RenderPriorityRuntime.TrackUi(root, "background");
             float duration = Mathf.Max(0f, seconds);
             SetAlpha(image, duration > 0f ? 0f : 1f);
             if (_host != null && duration > 0f)
@@ -225,6 +226,7 @@ namespace MortalModHost
             _cgImage = image;
             _cgSprite = sprite;
             _cgTexture = texture;
+            RenderPriorityRuntime.TrackUi(root, "custom_cg");
             float duration = Mathf.Max(0f, seconds);
             SetAlpha(image, duration > 0f ? 0f : 1f);
             if (_host != null && duration > 0f)
@@ -341,6 +343,7 @@ namespace MortalModHost
                 Root = root, Image = image, Sprite = sprite, Texture = texture
             };
             Overlays[slot] = visual;
+            RenderPriorityRuntime.TrackUi(root, "overlay", slot);
             float target = Mathf.Clamp01(opacityPercent / 100f);
             float duration = Mathf.Max(0f, seconds);
             SetAlpha(image, duration > 0f ? 0f : target);
@@ -361,6 +364,13 @@ namespace MortalModHost
                 visual.Fade = _host.StartCoroutine(FadeOverlayTo(slot, visual, 0f, duration, true));
             else
                 DestroyOverlay(slot);
+        }
+
+        internal static void RegisterPriorities()
+        {
+            RenderPriorityRuntime.TrackUi(_root, "background");
+            RenderPriorityRuntime.TrackUi(_cgRoot, "custom_cg");
+            foreach (var pair in Overlays) RenderPriorityRuntime.TrackUi(pair.Value.Root, "overlay", pair.Key);
         }
 
         public static void ClearAll()

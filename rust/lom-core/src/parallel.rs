@@ -28,6 +28,7 @@ pub const ACTION_TYPES: &[&str] = &[
     "music",
     "sound",
     "wait",
+    "render_priority",
 ];
 
 pub fn actions(node: &Value) -> &[Value] {
@@ -55,7 +56,7 @@ fn channels(node: &Value) -> Vec<String> {
     if !character.is_empty() {
         // Bubble state is independent of an already-visible actor's animation.
         // Entry/exit still owns both: a bubble must not race actor creation/removal.
-        if kind != "mood" {
+        if kind != "mood" && kind != "render_priority" {
             result.push(format!("人物 {character}"));
         }
         if matches!(kind, "mood" | "show" | "hide") {
@@ -63,6 +64,10 @@ fn channels(node: &Value) -> Vec<String> {
         }
     }
     match kind {
+        "render_priority" => {
+            let (target, key, tag) = crate::render_priority::identity(node);
+            result.push(format!("渲染顺序 {target}/{key}/{tag}"));
+        }
         "scene" => result.extend(["背景".into(), "剧情界面".into()]),
         "background" => result.push("背景".into()),
         "transition" | "mask" => result.push("剧情界面".into()),

@@ -85,6 +85,7 @@ namespace MortalModHost
                 Instances.Add(instance);
             }
             long generation = CancelTimer(instance);
+            RenderPriorityRuntime.TrackEffect(instance.Root, instance.Playback.Name, instance.Playback.Tag);
             Transform transform = instance.Root.transform;
             transform.position = space == "screen" ? ScreenPosition(instance, x, y) : new Vector3(x, y, 0f);
             transform.localScale = new Vector3(scaleX, scaleY, instance.OriginalScaleZ);
@@ -203,6 +204,12 @@ namespace MortalModHost
                 instance.Root.SetActive(false);
                 UnityEngine.Object.Destroy(instance.Root);
             }
+        }
+
+        internal static void RegisterPriorities()
+        {
+            foreach (Instance instance in Instances)
+                RenderPriorityRuntime.TrackEffect(instance.Root, instance.Playback.Name, instance.Playback.Tag);
         }
 
         internal static void Clear()

@@ -441,6 +441,31 @@
       "image_y": 0
     },
     {
+      "id": "priority_player",
+      "type": "render_priority",
+      "target": "character",
+      "character": "player",
+      "order": 10,
+      "enabled": true
+    },
+    {
+      "id": "priority_overlay",
+      "type": "render_priority",
+      "target": "overlay",
+      "slot": "main",
+      "order": 5,
+      "enabled": true
+    },
+    {
+      "id": "priority_effect",
+      "type": "render_priority",
+      "target": "effect",
+      "name": "Hit_001",
+      "tag": "showcase_hit",
+      "order": 20,
+      "enabled": true
+    },
+    {
       "id": "effect1",
       "type": "effect",
       "name": "Hit_001",
@@ -466,6 +491,31 @@
       "clear": true,
       "tag": "showcase_hit",
       "wait_after": 0.25
+    },
+    {
+      "id": "priority_player_reset",
+      "type": "render_priority",
+      "target": "character",
+      "character": "player",
+      "order": 10,
+      "enabled": false
+    },
+    {
+      "id": "priority_overlay_reset",
+      "type": "render_priority",
+      "target": "overlay",
+      "slot": "main",
+      "order": 5,
+      "enabled": false
+    },
+    {
+      "id": "priority_effect_reset",
+      "type": "render_priority",
+      "target": "effect",
+      "name": "Hit_001",
+      "tag": "showcase_hit",
+      "order": 20,
+      "enabled": false
     },
     {
       "id": "transition1",

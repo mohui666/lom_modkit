@@ -29,6 +29,7 @@ namespace MortalModHost
         private static readonly List<Image> Sources = new List<Image>();
         private static readonly List<Image> RemovedImages = new List<Image>();
         private static readonly List<CanvasGroup> Groups = new List<CanvasGroup>();
+        private static readonly List<KeyValuePair<Image, Mirror>> OrderedMirrors = new List<KeyValuePair<Image, Mirror>>();
 
         private sealed class Mirror
         {
@@ -170,13 +171,26 @@ namespace MortalModHost
                     RemovedImages.Add(pair.Key);
                 }
             foreach (Image source in RemovedImages) Mirrors.Remove(source);
+            OrderedMirrors.Clear();
+            OrderedMirrors.AddRange(Mirrors);
+            OrderedMirrors.Sort((a,b) => {
+                int order = RenderPriorityRuntime.Priority("character",a.Value.Character).CompareTo(RenderPriorityRuntime.Priority("character",b.Value.Character));
+                if (order != 0) return order;
+                Transform ah, bh;
+                Holders.TryGetValue(a.Value.Character,out ah); Holders.TryGetValue(b.Value.Character,out bh);
+                if (ah == null) { GameObject holder = CustomCharacterRuntime.FilterHolder(a.Value.Character); if (holder != null) ah = holder.transform; }
+                if (bh == null) { GameObject holder = CustomCharacterRuntime.FilterHolder(b.Value.Character); if (holder != null) bh = holder.transform; }
+                order = (ah == null ? 0 : ah.GetSiblingIndex()).CompareTo(bh == null ? 0 : bh.GetSiblingIndex());
+                return order != 0 ? order : a.Key.transform.GetSiblingIndex().CompareTo(b.Key.transform.GetSiblingIndex());
+            });
+            foreach (var pair in OrderedMirrors) if (pair.Value.Image != null) pair.Value.Image.transform.SetAsLastSibling();
         }
 
         private static void Copy(Image source, Mirror mirror)
         {
             Image target = mirror.Image;
             if (target == null) return;
-            Canvas origin = source.canvas;
+            Canvas origin = source.canvas == null ? null : source.canvas.rootCanvas;
             target.gameObject.SetActive(source.gameObject.activeInHierarchy && mirror.Enabled
                 && origin != null && origin.isActiveAndEnabled);
             if (!target.gameObject.activeSelf) return;

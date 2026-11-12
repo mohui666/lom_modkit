@@ -6,6 +6,7 @@
     "background": "自定义背景",
     "custom_cg": "自定义全屏 CG",
     "overlay": "前景 / 插图",
+    "render_priority": "渲染优先级（Z轴）",
     "show": "人物登场",
     "move": "人物移动",
     "face": "人物转向",
@@ -83,6 +84,7 @@
         "background",
         "custom_cg",
         "overlay",
+        "render_priority",
         "show",
         "portrait",
         "move",
@@ -331,6 +333,7 @@
         "右下"
       ]
     ],
+    "render_target": [["character", "人物"], ["background", "自定义背景"], ["custom_cg", "自定义全屏 CG"], ["overlay", "前景 / 插图"], ["effect", "屏幕特效"]],
     "overlay_layer": [
       [
         "back",
@@ -1009,6 +1012,7 @@
     "stage-gray-100"
   ],
   "NODE_SCHEMAS": {
+    "render_priority": {"label":"渲染优先级（Z轴）","fields":[["target","排序对象","enum:render_target",false],["character","人物","character",true],["slot","前景槽位","str",true],["name","特效名","effect",true],["tag","实例标记","str",true],["order","渲染优先级","int",true],["enabled","启用优先级","bool",true]]},
     "music": {
       "label": "播放音乐",
       "fields": [
@@ -3638,6 +3642,7 @@
     }
   },
   "_NODE_DEFAULTS": {
+    "render_priority": {"target":"character","character":"player","order":0,"enabled":true},
     "music": {
       "name": "",
       "op": "play"

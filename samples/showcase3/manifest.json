@@ -3,13 +3,13 @@
   "package_format": 3,
   "story_schema": 2,
   "content_schema": 1,
-  "min_host_version": "1.5.11",
+  "min_host_version": "1.5.12",
   "id": "showcase3",
   "campaign_id": "showcase3",
-  "name": "全节点样例3.0·七十二节点实机验收",
+  "name": "全节点样例3.0·七十三节点实机验收",
   "version": "3.0.0",
   "author": "lom_modkit",
-  "description": "面向手动验收的 72 节点完整样例：用户图片/角色/音频、演出、人物资料与传记解锁、人物称号、数值与检定、MOD 任务/持久变量、奖励/商店、原版 Combat/Battle 编排、独立决斗背景、运行时人物绑定、死亡与安全返回。 包含 1.4 自定义功法、物品、主动消耗品、决斗援助、招式与序列帧动画。",
+  "description": "面向手动验收的 73 节点完整样例：用户图片/角色/音频、演出、人物资料与传记解锁、人物称号、数值与检定、MOD 任务/持久变量、奖励/商店、原版 Combat/Battle 编排、独立决斗背景、运行时人物绑定、死亡与安全返回。 包含 1.4 自定义功法、物品、主动消耗品、决斗援助、招式与序列帧动画。",
   "entry": "main",
   "campaign": {
     "new_game": true

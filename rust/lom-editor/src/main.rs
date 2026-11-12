@@ -7,6 +7,7 @@ mod effect_capture;
 mod error_location;
 mod error_ui;
 mod forms;
+mod game_flags;
 mod game_setup;
 mod graph_edges;
 mod help;
@@ -76,9 +77,20 @@ fn main() -> eframe::Result {
         }
     }
     if let Err(error) = components::root() {
-        rfd::MessageDialog::new().set_title("无法准备编辑器组件")
-            .set_description("请检查系统磁盘空间和当前账户的写入权限，然后重新打开编辑器。若仍然失败，请重新下载编辑器 exe。")
-            .set_level(rfd::MessageLevel::Error).show();
+        eprintln!("{error:#}");
+        let headless = args.iter().any(|arg| {
+            matches!(
+                arg.as_str(),
+                "--smoke-preview" | "--standalone-smoke" | "--component-task" | "--screenshot"
+            )
+        });
+        if !headless {
+            rfd::MessageDialog::new()
+                .set_title("无法准备编辑器组件")
+                .set_description(format!("编辑器内置组件准备失败。\n\n{error:#}"))
+                .set_level(rfd::MessageLevel::Error)
+                .show();
+        }
         return Err(eframe::Error::AppCreation(error.into()));
     }
     if args.first().is_some_and(|s| s == "--component-task") {

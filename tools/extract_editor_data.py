@@ -96,6 +96,11 @@ MUSIC_TITLES = {
 # them either. Keep saved references intact; do not offer them for new nodes.
 UNAVAILABLE_SOUNDS = {"Sword_001", "Sword_Fight_001", "重度掉落_001", "防禦_002"}
 
+# These literal calls remain in old story scripts, but the current installed
+# MissionManagerData.FlagsCollection has neither ID (verified in game 2026-11-12).
+# GetFlag returns null, so do not offer them as usable numeric flags.
+UNAVAILABLE_GAME_FLAGS = {"50019", "TC00002"}
+
 # 契约 §5 固定值
 MODES = ["character", "think", "narrative", "center"]
 
@@ -482,6 +487,12 @@ def main():
     free_pos_names = load_free_position_names()
     ref_ids = load_ref_ids()  # 死亡/结局 id 标题参考（death/ending/epilogue）
     flag_names = _load_prefixed_kv(CSV_STAT, RAW_FLAG, "Flag/Name")
+    # Preserve descriptions refreshed from live FlagData, including value
+    # suggestions and direct chapter references, when rebuilding other catalogs.
+    flag_metadata = {}
+    if os.path.isfile(OUT_PATH):
+        with open(OUT_PATH, encoding="utf-8") as f:
+            flag_metadata = {row["id"]: row for row in json.load(f).get("game_flags", [])}
     talent_names = _load_prefixed_kv(CSV_TALENT, RAW_TALENT, "PlayerTalent/Name")
     talent_descs = _load_prefixed_kv(CSV_TALENT, RAW_TALENT, "PlayerTalent/Desc")
     combat_skills = load_combat_skills()
@@ -625,7 +636,9 @@ def main():
         "death_ids": enrich_id_list(death_ids, ref_ids.get("death", {})),
         "ending_ids": enrich_id_list(ending_ids, ref_ids.get("ending", {})),
         "game_flags": [
-            {"id": g, "name": flag_names.get(g, g)} for g in sorted(game_flags)
+            {**flag_metadata.get(g, {}), "id": g,
+             "name": flag_names.get(g, flag_metadata.get(g, {}).get("name", g))}
+            for g in sorted(game_flags - UNAVAILABLE_GAME_FLAGS)
         ],
         "talents": [{"id": t, "name": talent_names.get(t, t)} for t in sorted(talents)],
         # PlayerTalentData._combatSkill 的完整官方集合；不同于只扫描
@@ -700,7 +713,7 @@ def main():
         "死亡/结局 id 标题命中: %d/%d, %d/%d"
         % (death_names, len(death_ids), ending_names, len(ending_ids))
     )
-    print("游戏 Flag 数: %s" % hit(game_flags, flag_names))
+    print("游戏 Flag 数: %s" % hit(game_flags - UNAVAILABLE_GAME_FLAGS, flag_names))
     print("天赋数: %s" % hit(talents, talent_names))
     print(
         "书籍: %s, 杂物: %s, 特殊物品: %s"

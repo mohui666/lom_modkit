@@ -67,6 +67,7 @@ pub mod editing;
 pub mod editor_update;
 pub mod game_discovery;
 pub mod game_tools;
+pub mod render_priority;
 pub mod scenario;
 pub mod scenario_edit;
 pub mod story_api;

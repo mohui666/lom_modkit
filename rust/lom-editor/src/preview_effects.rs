@@ -297,10 +297,11 @@ pub fn plays(node: &Value) -> bool {
 }
 pub fn managed(story: &Value) -> bool {
     lom_core::parallel::story_actions(story).any(|(_, action)| {
-        action["type"] == "effect"
-            && lom_core::validate::EFFECT_CONTROL_FIELDS
-                .iter()
-                .any(|field| action.get(field).is_some())
+        action["type"] == "render_priority"
+            || action["type"] == "effect"
+                && lom_core::validate::EFFECT_CONTROL_FIELDS
+                    .iter()
+                    .any(|field| action.get(field).is_some())
     })
 }
 pub fn coordinates(node: &Value) -> (f64, f64) {

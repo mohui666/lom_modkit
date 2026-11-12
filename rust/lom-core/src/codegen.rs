@@ -324,6 +324,20 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
     let c = q(node, "character");
     let user = s(node, "character").starts_with("user:");
     match kind {
+        "render_priority" => {
+            let (target, key, tag) = crate::render_priority::identity(node);
+            out.push("\tif mod_render_priority == nil then error(\"渲染优先级需要 Host 1.5.12，请在游戏与 MOD 中更新 Host\") end".into());
+            out.push(call(
+                "mod_render_priority",
+                &[
+                    lua_str(target),
+                    lua_str(key),
+                    lua_str(tag),
+                    n(node, "order", json!(0)),
+                    b(node, "enabled", true).to_string(),
+                ],
+            ));
+        }
         "parallel" => {
             // Asset loading can yield several frames. Finish it before any
             // branch starts so two characters do not enter at different times.
@@ -2087,10 +2101,11 @@ fn story_to_lua_impl(
     let character_layout = crate::parallel::story_actions(story)
         .any(|(_, node)| node["type"] == "offset" && (has(node, "absolute") || has(node, "scale")));
     let managed_effects = crate::parallel::story_actions(story).any(|(_, node)| {
-        node["type"] == "effect"
-            && crate::validate::EFFECT_CONTROL_FIELDS
-                .iter()
-                .any(|key| has(node, key))
+        node["type"] == "render_priority"
+            || node["type"] == "effect"
+                && crate::validate::EFFECT_CONTROL_FIELDS
+                    .iter()
+                    .any(|key| has(node, key))
     });
     let mut lines = vec![
         GENERATED_MARK.to_owned(),

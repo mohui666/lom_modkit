@@ -2,6 +2,18 @@ use crate::i18n::tr;
 use eframe::egui::{self, Color32, RichText, Ui};
 use serde_json::{json, Value};
 
+pub(crate) fn unavailable_game_flag_warning(ui: &mut Ui, id: &str) {
+    if matches!(id, "50019" | "TC00002") {
+        ui.colored_label(
+            ui.visuals().warn_fg_color,
+            crate::i18n::message(
+                "editor.form.unavailable_game_flag",
+                &[("flag", id.to_owned())],
+            ),
+        );
+    }
+}
+
 pub struct Catalog {
     pub schema: Value,
     pub data: Value,
@@ -37,6 +49,9 @@ fn field_requirement(node: &Value, key: &str, optional: bool) -> Requirement {
         !optional
     };
     let conditional = match (kind, key) {
+        ("render_priority", "character") => Some(node["target"] == "character"),
+        ("render_priority", "slot") => Some(node["target"] == "overlay"),
+        ("render_priority", "name" | "tag") if node["target"] == "effect" => return OneOf,
         ("say", "character") => Some(!matches!(
             node["mode"].as_str(),
             Some("narrative" | "center" | "offscreen")
@@ -345,7 +360,7 @@ impl Catalog {
             {
                 *name = crate::i18n::term("portraits", id, name);
             } else if kind == "game_flag" && id == name {
-                *name = format!("{} {id}", tr("检查点"));
+                *name = format!("{}（{id}）", crate::i18n::key("game_flags.unknown"));
             }
         }
         // A character keeps the same number in the full list and in restricted
@@ -1251,6 +1266,23 @@ impl Catalog {
         node_ids: &[String],
         story_ids: &[String],
     ) -> bool {
+        if kind == "game_flag" || key == "flag" && node["source"] == "flag_value" {
+            return crate::game_flags::field(ui, &self.data, node, key, label, optional);
+        }
+        if node["type"] == "render_priority" {
+            let target = node["target"].as_str().unwrap_or("character");
+            if matches!(key, "character" | "slot" | "name" | "tag")
+                && !matches!(
+                    (target, key),
+                    ("character", "character") | ("overlay", "slot") | ("effect", "name" | "tag")
+                )
+            {
+                return false;
+            }
+            if key == "order" {
+                ui.small(crate::i18n::key("editor.form.render_priority_hint"));
+            }
+        }
         if node["type"] == "character_profile" && key == "op" {
             return crate::character_profile_panel::operation_field(
                 ui,
@@ -1576,13 +1608,18 @@ impl Catalog {
                                 });
                             edited
                         }
+                        "int" if key == "value" && crate::game_flags::node_flag(node).is_some() => {
+                            crate::game_flags::number(ui,&self.data,crate::game_flags::node_flag(node).unwrap(),&mut value,node["op"] != "add")
+                        }
                         "int" | "bool_int" | "discount_toggle" => {
                             let mut n = value.as_i64().unwrap_or(match value.as_str() {
                                 Some("small") if key == "font_size" => 24,
                                 Some("large") if key == "font_size" => 60,
                                 _ => 0,
                             });
-                            let response = if key == "font_size" {
+                            let response = if node["type"] == "render_priority" && key == "order" {
+                                ui.add(egui::DragValue::new(&mut n).speed(1).range(-10000..=10000))
+                            } else if key == "font_size" {
                                 ui.add(egui::DragValue::new(&mut n).speed(1).range(0..=200))
                                     .on_hover_text(tr("0 使用游戏默认字号，1～200 调节本句字号。"))
                             } else {
@@ -1668,7 +1705,8 @@ impl Catalog {
                         | "official_characters"
                         | "reward_entries"
                         | "reward_entries_optional"
-                        | "custom_shop_items" => array_editor(self, ui, &mut value, kind, node_ids),
+                        | "custom_shop_items" => array_editor(self, ui, &mut value, kind, node_ids,
+                            (kind=="cases").then(||crate::game_flags::node_flag(node)).flatten()),
                         _ => {
                             let mut s = value.as_str().unwrap_or("").to_owned();
                             let mut c = false;
@@ -1861,6 +1899,9 @@ impl Catalog {
             );
             ui.ctx()
                 .data_mut(|data| data.remove::<String>(egui::Id::new("problem-field")));
+        }
+        if kind == "game_flag" {
+            unavailable_game_flag_warning(ui, node[key].as_str().unwrap_or(""));
         }
         changed
     }
@@ -2508,6 +2549,7 @@ fn array_editor(
     value: &mut Value,
     kind: &str,
     node_ids: &[String],
+    game_flag: Option<&str>,
 ) -> bool {
     let Some(array) = value.as_array_mut() else {
         return value_editor(ui, "内容", value, 0);
@@ -2569,6 +2611,15 @@ fn array_editor(
                                     *val = s.into();
                                     changed = true;
                                 }
+                            } else if key == "value" && game_flag.is_some() {
+                                ui.label(crate::i18n::tr("目标值"));
+                                changed |= crate::game_flags::number(
+                                    ui,
+                                    &catalog.data,
+                                    game_flag.unwrap(),
+                                    val,
+                                    true,
+                                );
                             } else {
                                 let required = matches!(
                                     (kind, key.as_str()),
@@ -4489,6 +4540,7 @@ mod tests {
                             value,
                             "options",
                             &["end1".into(), "end2".into()],
+                            None,
                         );
                     });
                 },
@@ -5105,6 +5157,92 @@ mod catalog_parity_tests {
             });
             assert_eq!(row, before);
         }
+    }
+}
+
+#[cfg(test)]
+mod game_flag_catalog_tests {
+    use super::*;
+    use lom_core::{package, project::Project};
+
+    fn browse(catalog: &Catalog, row: &mut Value, key: &str) {
+        let before = row.clone();
+        let id = row[key].as_str().unwrap().to_owned();
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        let output = ctx.run(Default::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                assert!(!catalog.field(ui, row, key, "原版旗标", "game_flag", false, &[], &[]));
+            });
+        });
+        assert_eq!(*row, before);
+        let message = crate::i18n::message("editor.form.unavailable_game_flag", &[("flag", id)]);
+        assert!(output
+            .platform_output
+            .accesskit_update
+            .unwrap()
+            .nodes
+            .iter()
+            .any(|(_, node)| {
+                node.label() == Some(message.as_str()) || node.value() == Some(message.as_str())
+            }));
+    }
+
+    #[test]
+    fn new_flag_choices_exclude_undefined_script_literals() {
+        let catalog = Catalog::new();
+        let options = catalog.options("game_flag", &Value::Null, &[], &[]);
+        for id in ["50019", "TC00002"] {
+            assert!(!options.iter().any(|(candidate, _)| candidate == id));
+        }
+        for id in ["A00001", "A00002"] {
+            assert!(options.iter().any(|(candidate, _)| candidate == id));
+        }
+    }
+
+    #[test]
+    fn released_unavailable_flags_remain_editable_and_round_trip_without_replacing_ids() {
+        let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../lom-core/tests/fixtures/released-1.5.11-unavailable-game-flags.lommod");
+        let original = std::fs::read(&fixture).unwrap();
+        let mut project = Project::open(&fixture).unwrap();
+        let catalog = Catalog::new();
+        browse(
+            &catalog,
+            &mut project.stories.get_mut("main").unwrap()["nodes"][0],
+            "flag",
+        );
+        browse(
+            &catalog,
+            &mut project.scenario.as_mut().unwrap()["events"][0]["when"]["all"][0],
+            "key",
+        );
+        assert_eq!(project.stories["main"]["nodes"][0]["flag"], "50019");
+        assert_eq!(project.stories["main"]["nodes"][1]["flag"], "50019");
+        assert_eq!(
+            project.scenario.as_ref().unwrap()["events"][0]["when"]["all"][0]["key"],
+            "TC00002"
+        );
+        project.stories.get_mut("main").unwrap()["nodes"][2]["text"] =
+            json!("已查看提示，保留旧编号供作者修正");
+        let dir = tempfile::tempdir().unwrap();
+        project.save_to(&dir.path().join("edited")).unwrap();
+        let edited = Project::open(&dir.path().join("edited")).unwrap();
+        let output = dir.path().join("edited.lommod");
+        edited.export(&output).unwrap();
+        let reopened = Project::open(&output).unwrap();
+        assert_eq!(reopened.stories, edited.stories);
+        assert_eq!(reopened.scenario, edited.scenario);
+        assert_eq!(std::fs::read(&fixture).unwrap(), original);
+        let mut entries = package::read_package(&output).unwrap();
+        entries.remove("package-content.sha256");
+        entries
+            .get_mut("lua/main.lua")
+            .unwrap()
+            .extend_from_slice(b"\nerror('unrelated Lua')\n");
+        let tampered = dir.path().join("tampered.lommod");
+        package::write_package(entries, &tampered).unwrap();
+        assert!(Project::open(&tampered).is_err());
     }
 }
 
