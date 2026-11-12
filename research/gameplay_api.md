@@ -1,5 +1,11 @@
 # Gameplay API 实证矩阵
 
+## 2026-11-12 功法天赋与事件测试接口
+
+本次实时读取当前游戏 `Mortal.Core.Book.Learn/DirectLevelUp/MartialLevelUpStatModify`、`MartialLevelData.LevelUpStat`、`MartialModifyStat.Apply` 和 `MartialStatReference.GetValue/AddValue/GetNameKey`：`MartialLevelupStatType.天賦` 使用 `_talent` 引用，`AddValue` 调用 `PlayerTalentData.AddLevel`。Host 只往自建功法的升级条目加入自建引用；独立天赋先于功法注册，原版天赋保持游戏对象归属，旧功法没有新字段时不添加条目。
+
+本次另实时读取 `LuaManager.SetGameTime/SetCurrentStoryScript` 与 `StatModifyManager.SetPlayer/SetCharacter/SetFlag`，事件测试复用既有结果动作建立独立测试状态，再走真实调度。原版入口测试通过 `SetCurrentStoryScript(from)`、`SetNextScript(target)`、`Init()` 进入指定章，不执行前置章节，也不绕过事件条件。以上为接口与构建依据，本轮尚未进行游戏实机验证。
+
 ## 2026-11-11 人物页与滤镜性能复核
 
 本次重新读取安装目录的 `Mortal.Core.CommonPanel.Show` 与 `SocialStatPanel.OnPanelOpen/InitToggleButtons`：关闭面板会停用 GameObject，打开时原版会逐行 `InitData`，因此同一作品／隔离槽可以保留 Host 自建行，仅刷新当前数值；作品对象或槽变化仍重新建立归属。状态轮询合并好感、认识及手动页掩码的读取，不改变 sidecar 格式或原版资源。现场确认 `UnityEngine.Component.GetComponentsInChildren<T>(bool,List<T>)` 与 `GetComponentsInParent<T>(bool,List<T>)` 存在，滤镜镜像改用复用列表和四角缓冲，最后一个分层结束后停用自身 LateUpdate，再次设置分层时恢复。

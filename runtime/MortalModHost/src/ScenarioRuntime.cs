@@ -236,6 +236,7 @@ namespace MortalModHost
             // An exception is intentionally propagated to the existing playback abort path:
             // failed task settlement must not be reported as a completed event.
             ScenarioRuntime.Complete(__instance);
+            if (ReturningToFree && EventTestRuntime.TryContinue(__instance)) { ReturningToFree=false; return false; }
             return true;
         }
         private static Exception Finalizer(Exception __exception) {ReturningToFree=false;return __exception;}

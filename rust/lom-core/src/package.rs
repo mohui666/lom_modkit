@@ -779,6 +779,32 @@ fn add_user_content(
             }
         }
     }
+    let martial_entries: Vec<_> = entries
+        .iter()
+        .filter(|(path, _)| {
+            path.starts_with("assets/user/martial/") && path.ends_with("/content.json")
+        })
+        .map(|(path, bytes)| Ok((path.clone(), serde_json::from_slice::<Value>(bytes)?)))
+        .collect::<Result<_>>()?;
+    for (path, meta) in martial_entries {
+        for (level, definition) in meta["levels"].as_array().into_iter().flatten().enumerate() {
+            for grant in definition["talents"].as_array().into_iter().flatten() {
+                let Some(id) = grant["talent"]
+                    .as_str()
+                    .and_then(|s| s.strip_prefix("user:"))
+                else {
+                    continue;
+                };
+                let (talent, _) = content::resolve_content(root, "talent", id)
+                    .with_context(|| format!("{path}，第 {} 级升级天赋 user:{id}", level + 1))?;
+                let key = format!("assets/user/talent/{id}/content.json");
+                entries.insert(
+                    key,
+                    stable_json(&content::content_metadata_payload(&talent))?,
+                );
+            }
+        }
+    }
     for (kind, id) in crate::legacy_loose::resource_references(manifest) {
         if let Some(previous) = referenced.get(id) {
             ensure!(
@@ -1268,6 +1294,21 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
     let custom_talents = entries
         .keys()
         .any(|key| key.starts_with("assets/user/talent/") && key.ends_with("/content.json"));
+    let martial_talents = entries.iter().any(|(key, bytes)| {
+        key.starts_with("assets/user/martial/")
+            && key.ends_with("/content.json")
+            && serde_json::from_slice::<Value>(bytes).is_ok_and(|meta| {
+                meta["levels"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .any(|level| {
+                        level["talents"]
+                            .as_array()
+                            .is_some_and(|rows| !rows.is_empty())
+                    })
+            })
+    });
     let character_titles = stories.values().any(|story| {
         crate::parallel::story_actions(story).any(|(_, node)| node["type"] == "character_title")
     });
@@ -1328,7 +1369,8 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
             .flatten()
             .any(|event| event["trigger"] == "story_entry")
     });
-    if story_entry
+    if martial_talents
+        || story_entry
         || filter_controls
         || custom_affinity
         || extended_big_picture
@@ -1343,7 +1385,9 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
         || event_fade
         || dialogue_dimming
     {
-        let (minimum, required) = if story_entry || filter_controls || custom_affinity {
+        let (minimum, required) = if martial_talents {
+            ([1, 5, 11], "1.5.11")
+        } else if story_entry || filter_controls || custom_affinity {
             ([1, 5, 10], "1.5.10")
         } else if extended_big_picture {
             ([1, 5, 9], "1.5.9")

@@ -232,6 +232,16 @@ impl App {
                                 self.request(Pending::Open(path), ctx);
                             }
                         }
+                        ui.menu_button(crate::i18n::key("editor.merge.menu"), |ui| {
+                            if ui.button(crate::i18n::key("editor.merge.folder")).clicked() {
+                                ui.close();
+                                if let Some(path) = rfd::FileDialog::new().pick_folder() { self.merge_project_at(&path); }
+                            }
+                            if ui.button(crate::i18n::key("editor.merge.package")).clicked() {
+                                ui.close();
+                                if let Some(path) = rfd::FileDialog::new().add_filter("LoM Modkit", &["json", "lommod"]).pick_file() { self.merge_project_at(&path); }
+                            }
+                        });
                         ui.menu_button(tr("最近打开"), |ui| {
                             if self.recent.is_empty() {
                                 ui.label(tr("还没有最近项目"));

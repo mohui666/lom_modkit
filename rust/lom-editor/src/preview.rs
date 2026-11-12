@@ -149,6 +149,47 @@ fn portrait_preview_node(story: &Value, selected: usize) -> Value {
     }
     node
 }
+
+// Editing focus changes only the frame being painted, never the simulated stage
+// used by export or the prelude for starting a game playtest at this step.
+fn highlight_editing_character(
+    state: &mut Value,
+    node: &Value,
+    action: Option<usize>,
+    layout: Option<&LayoutTarget>,
+) {
+    let character = match layout {
+        Some(LayoutTarget::Character(id) | LayoutTarget::Mood(id)) => Some(id.as_str()),
+        _ => {
+            let actions = lom_core::parallel::actions(node);
+            let target = action
+                .and_then(|index| actions.get(index))
+                .or_else(|| actions.iter().find(|a| !text(a, "character").is_empty()));
+            target
+                .filter(|a| {
+                    matches!(
+                        text(a, "type"),
+                        "show"
+                            | "portrait"
+                            | "move"
+                            | "face"
+                            | "rotate"
+                            | "offset"
+                            | "shock"
+                            | "focus"
+                            | "mood"
+                    )
+                })
+                .map(|a| text(a, "character"))
+        }
+    };
+    if let Some(actor) = character
+        .filter(|id| !id.is_empty())
+        .and_then(|id| state["actors"].get_mut(id))
+    {
+        actor["dimmed"] = json!(false);
+    }
+}
 fn simulate_until(story: &Value, target: &str, include_target: bool) -> Value {
     let mut state = json!({"actors":{},"dimming":{},"overlays":{},"official_pictures":{},"background":null,"view":null,"custom_cg":null,"dialog":null,"choice":null,"blackout":{"amount":0.0,"dir":"lr"},"reached":false,"steps":0});
     state["hidden_actors"] = json!({});
@@ -1842,6 +1883,21 @@ impl Preview {
                 .sample(0.0, effect_library.as_deref());
         }
         self.apply_layout_draft(&mut state);
+        if elapsed.is_none() || self.layout_mode {
+            let action = ui
+                .ctx()
+                .data(|data| {
+                    data.get_temp::<(String, usize)>(egui::Id::new("preview-character-action"))
+                })
+                .filter(|(id, _)| id == target)
+                .map(|(_, index)| index);
+            highlight_editing_character(
+                &mut state,
+                node,
+                action,
+                self.layout_selected.as_ref().filter(|_| self.layout_mode),
+            );
+        }
         let mood_target = ((node["type"] == "mood"
             || (node["type"] == "parallel"
                 && lom_core::parallel::actions(node)
@@ -4051,6 +4107,36 @@ end
         for direction in ["lr", "rl", "tb", "bt"] {
             assert_eq!(blackout_rect(rect, 0.0, direction).width(), 0.0);
         }
+    }
+
+    #[test]
+    fn editing_focus_brightens_only_the_painted_frame_and_respects_selected_parallel_action() {
+        let story = json!({"id":"main","start":"left","nodes":[
+            {"id":"left","type":"show","character":"player"},
+            {"id":"right","type":"show","character":"other"},
+            {"id":"dim","type":"dim","character":"player","dimmed":true},
+            {"id":"edit","type":"parallel","actions":[
+                {"type":"portrait","character":"player","portrait":"normal"},
+                {"type":"face","character":"other","facing":"left"}]},
+            {"id":"end","type":"end"}]});
+        let actual = simulate(&story, "edit");
+        let mut frame = actual.clone();
+        highlight_editing_character(&mut frame, &story["nodes"][3], Some(0), None);
+        assert_eq!(frame["actors"]["player"]["dimmed"], false);
+        assert_eq!(simulate(&story, "edit"), actual);
+        let mut frame = actual.clone();
+        highlight_editing_character(&mut frame, &story["nodes"][3], Some(1), None);
+        assert_eq!(frame["actors"]["player"]["dimmed"], true);
+        assert!(build_playtest_prelude(&story, "end")
+            .iter()
+            .any(|n| n["type"] == "dim" && n["character"] == "player" && n["dimmed"] == true));
+        highlight_editing_character(
+            &mut frame,
+            &json!({"type":"dim","character":"player","dimmed":true}),
+            None,
+            None,
+        );
+        assert_eq!(frame["actors"]["player"]["dimmed"], true);
     }
 
     #[test]

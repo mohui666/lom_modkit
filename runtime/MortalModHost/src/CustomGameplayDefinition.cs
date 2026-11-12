@@ -59,6 +59,16 @@ namespace MortalModHost
                     var value = new CustomMartialLevel { Points = Number(level, "points", null, 1, 999999) };
                     ParseStats(level, "requirements", "min", value.Requirements);
                     ParseStats(level, "bonuses", "delta", value.Bonuses);
+                    var seen = new HashSet<string>(StringComparer.Ordinal);
+                    foreach (object entry in Rows(level, "talents", 0, 32))
+                    {
+                        var grant = Object(entry, "talents");
+                        string id = Text(grant, "talent", null);
+                        int delta = Number(grant, "level", null, -1, 1);
+                        if (string.IsNullOrWhiteSpace(id) || !seen.Add(id) || delta == 0)
+                            throw new FormatException("升级天赋不能为空或重复，等级变化只能为 +1/-1");
+                        value.Talents.Add(new CustomTalentGrant { Talent = id, Level = delta });
+                    }
                     data.Levels.Add(value);
                 }
             }
@@ -160,7 +170,9 @@ namespace MortalModHost
         internal int Points;
         internal readonly List<CustomStatValue> Requirements = new List<CustomStatValue>();
         internal readonly List<CustomStatValue> Bonuses = new List<CustomStatValue>();
+        internal readonly List<CustomTalentGrant> Talents = new List<CustomTalentGrant>();
     }
+    internal sealed class CustomTalentGrant { internal string Talent; internal int Level; }
     internal sealed class CustomStatValue { internal string Stat; internal int Value; }
     internal sealed class CustomSupportAction { internal string Type, Target; internal int Value; }
     internal sealed class CustomConsumableEffect { internal string Type, Stat; internal int Value; }

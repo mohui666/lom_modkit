@@ -64,6 +64,11 @@
       "count": 1
     },
     {
+      "id": "martial_talent_notice",
+      "type": "message",
+      "text": "灯下调息诀第二级同时增加属性并获得独立天赋「万木逢春」。可在功法素材的升级天赋中修改。"
+    },
+    {
       "id": "custom_manual_grant",
       "type": "item",
       "kind": "book",

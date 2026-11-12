@@ -43,7 +43,7 @@ namespace MortalModHost
             var keys = new List<string>();
             try
             {
-                foreach (UserContent content in package.UserContents.Values)
+                foreach (UserContent content in package.UserContents.Values.OrderBy(c => c.Type == "talent" ? 0 : 1))
                 {
                     if (content.Gameplay == null) continue;
                     string id = RuntimeId(package, content.Id);
@@ -317,6 +317,25 @@ namespace MortalModHost
                         var change = new MartialModifyStat();
                         Set(change, "_stat", StatReference(bonus.Stat));
                         Set(change, "_value", bonus.Value);
+                        level.LevelUpStat.Add(change);
+                    }
+                    foreach (CustomTalentGrant grant in definition.Talents)
+                    {
+                        string talentId = grant.Talent;
+                        if (talentId.StartsWith("user:", StringComparison.Ordinal))
+                        {
+                            UserContent talentContent = ResolveContent(package, talentId);
+                            if (talentContent.Type != "talent") throw new InvalidOperationException("升级效果不是天赋：" + talentId);
+                            talentId = RuntimeId(package, talentContent.Id);
+                        }
+                        PlayerTalentData talent = PlayerStatManagerData.Instance.Talents.Get(talentId);
+                        if (talent == null) throw new InvalidOperationException("升级天赋不存在：" + grant.Talent);
+                        var reference = new MartialStatReference();
+                        Set(reference, "_type", MartialLevelupStatType.天賦);
+                        Set(reference, "_talent", talent);
+                        var change = new MartialModifyStat();
+                        Set(change, "_stat", reference);
+                        Set(change, "_value", grant.Level);
                         level.LevelUpStat.Add(change);
                     }
                     levels.Add(level);

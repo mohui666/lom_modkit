@@ -70,6 +70,12 @@ fn channels(node: &Value) -> Vec<String> {
         "overlay" => result.push(format!("前景位置 {}", node["slot"].as_str().unwrap_or(""))),
         "camera" => result.push(format!("镜头滤镜 {}", node["name"].as_str().unwrap_or(""))),
         "effect" => {
+            let playing = node["play"]
+                .as_bool()
+                .unwrap_or_else(|| node.get("d").is_none_or(|v| v.as_f64() == Some(1.0)));
+            if playing && node["c"].as_f64().unwrap_or(1.0) != 1.0 {
+                return result;
+            }
             let tag = node["tag"].as_str().unwrap_or("");
             let effective_tag = if tag.is_empty() {
                 node["name"].as_str().unwrap_or("")
@@ -119,20 +125,30 @@ pub fn validate_group(node: &Value) -> Result<()> {
                 .get("d")
                 .is_none_or(|value| value.as_f64() == Some(1.0))
         });
-        if action["type"] == "effect" && !playing && action["tag"].as_str().unwrap_or("").is_empty()
-        {
+        if action["type"] == "effect" && !playing {
             for (other_index, other) in actions.iter().enumerate() {
                 let other_playing = other["play"].as_bool().unwrap_or_else(|| {
                     other
                         .get("d")
                         .is_none_or(|value| value.as_f64() == Some(1.0))
                 });
-                if other_index != index
-                    && other["type"] == "effect"
-                    && other["name"] == action["name"]
-                    && other_playing
-                {
-                    anyhow::bail!("第 {} 和第 {} 个同时动作都会控制特效 {}；按名称停止会影响该名称下的全部标记实例，请拆成先后步骤", index+1, other_index+1, action["name"]);
+                let tag = action["tag"].as_str().unwrap_or("");
+                let other_tag = other["tag"]
+                    .as_str()
+                    .filter(|s| !s.is_empty())
+                    .or_else(|| other["name"].as_str())
+                    .unwrap_or("");
+                let matches = if tag.is_empty() {
+                    other["name"] == action["name"]
+                } else {
+                    other_tag == tag
+                };
+                if other_index != index && other["type"] == "effect" && matches && other_playing {
+                    anyhow::bail!(
+                        "第 {} 和第 {} 个同时动作会播放和停止同一特效实例；请拆成先后步骤",
+                        index + 1,
+                        other_index + 1
+                    );
                 }
             }
         }

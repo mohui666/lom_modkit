@@ -204,6 +204,22 @@ fn parallel_effect_tags_allow_independent_plays_and_preserve_stop_conflicts() {
     ]));
     let lua = codegen::compile_story(&independent, None, None, None).unwrap();
     assert_eq!(lua.matches("mod_effect(").count(), 2);
+    for tag in ["", "shared"] {
+        let stacked = wrap(json!([
+            {"type":"effect","name":"Hit_001","c":0,"space":"screen","x":30,"tag":tag},
+            {"type":"effect","name":"Hit_001","c":0,"space":"screen","x":70,"tag":tag}]));
+        assert_eq!(
+            codegen::compile_story(&stacked, None, None, None)
+                .unwrap()
+                .matches("mod_effect(")
+                .count(),
+            2
+        );
+        let stopped = wrap(json!([
+            {"type":"effect","name":"Hit_001","c":0,"tag":tag},
+            {"type":"effect","name":"Hit_001","play":false,"tag":tag}]));
+        assert!(validate::validate_story(&stopped).is_err());
+    }
     for actions in [
         json!([
             effect("Hit_001", "same", true),

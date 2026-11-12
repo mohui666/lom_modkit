@@ -15,6 +15,10 @@ namespace MortalModHost
             var martial = Parse("{\"levels\":[{\"points\":40,\"requirements\":[{\"stat\":\"strength\",\"min\":20}],\"bonuses\":[{\"stat\":\"dexterity\",\"delta\":2}]}]}", "martial");
             Require(martial.Category == "book" && martial.Levels[0].Points == 40
                 && martial.Levels[0].Requirements[0].Value == 20 && martial.Levels[0].Bonuses[0].Stat == "dexterity", "功法级别数据丢失");
+            Require(martial.Levels[0].Talents.Count == 0, "旧功法没有天赋时不得新增效果");
+            var newMartial = Parse("{\"levels\":[{\"points\":10,\"talents\":[{\"talent\":\"user:demo.awakening\",\"level\":1}]}]}", "martial");
+            Require(newMartial.Levels[0].Talents[0].Talent == "user:demo.awakening" && newMartial.Levels[0].Talents[0].Level == 1, "升级天赋定义丢失");
+            Reject<FormatException>(() => Parse("{\"levels\":[{\"points\":10,\"talents\":[{\"talent\":\"user:demo.awakening\",\"level\":0}]}]}", "martial"));
             var support = Parse("{\"effects\":[{\"type\":\"heal\",\"target\":\"self\",\"value\":25}]}", "support");
             Require(support.Trigger == "round_start" && support.Chance == 100 && support.Uses == 1, "援助默认值不一致");
             foreach (string invalid in new[] {

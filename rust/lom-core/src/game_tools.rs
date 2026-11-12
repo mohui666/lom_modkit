@@ -630,6 +630,45 @@ pub fn bepinex_install_plan(
     Ok(writes)
 }
 pub fn request_preview(root: &Path, script: &str, node: &str) -> Result<PathBuf> {
+    write_preview_request(root, script, node, json!({}))
+}
+
+pub fn request_event_preview(
+    root: &Path,
+    script: &str,
+    node: &str,
+    event: &Value,
+) -> Result<PathBuf> {
+    let id = event["id"].as_str().context("事件测试缺少事件编号")?;
+    ensure!(
+        !id.is_empty()
+            && id
+                .bytes()
+                .all(|c| c.is_ascii_alphanumeric() || c == b'_' || c == b'-'),
+        "无效事件测试编号：{id}"
+    );
+    let mut request = json!({"fresh_campaign":true,"event_id":id});
+    if event["trigger"] == "story_entry" {
+        for field in ["target", "from"] {
+            if field == "from" && event.get(field).is_none() {
+                continue;
+            }
+            let target = event[field]
+                .as_str()
+                .filter(|s| crate::vanilla_patch::valid_target(s))
+                .with_context(|| format!("事件测试 {field} 必须是有效原版章节"))?;
+            request[field] = json!(target);
+        }
+    }
+    write_preview_request(root, script, node, request)
+}
+
+fn write_preview_request(
+    root: &Path,
+    script: &str,
+    node: &str,
+    mut request: Value,
+) -> Result<PathBuf> {
     validate_root(root)?;
     for id in [script, node] {
         ensure!(
@@ -647,12 +686,8 @@ pub fn request_preview(root: &Path, script: &str, node: &str) -> Result<PathBuf>
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)?
         .as_secs();
-    atomic_write(
-        &target,
-        &stable_json(
-            &json!({"format":1,"mod_id":PREVIEW_ID,"script_id":script,"node_id":node,"requested_at":now}),
-        )?,
-    )?;
+    request.as_object_mut().unwrap().extend(json!({"format":1,"mod_id":PREVIEW_ID,"script_id":script,"node_id":node,"requested_at":now}).as_object().unwrap().clone());
+    atomic_write(&target, &stable_json(&request)?)?;
     Ok(target)
 }
 pub fn launch_game() -> Result<()> {

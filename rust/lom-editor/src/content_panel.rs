@@ -1036,6 +1036,57 @@ fn gameplay_fields(ui: &mut egui::Ui, draft: &mut Value, catalog: &crate::forms:
                     stat_rows(ui, level, "requirements", "min", "修炼条件", catalog);
                     ui.add_space(6.0);
                     stat_rows(ui, level, "bonuses", "delta", "升级加成", catalog);
+                    ui.add_space(6.0);
+                    ui.label(tr("升级天赋"));
+                    let mut remove_talent = None;
+                    for (i, grant) in level
+                        .get_mut("talents")
+                        .and_then(Value::as_array_mut)
+                        .into_iter()
+                        .flatten()
+                        .enumerate()
+                    {
+                        ui.push_id(("level-talent", i), |ui| {
+                            catalog.field(ui, grant, "talent", "天赋", "talent", false, &[], &[]);
+                            let mut delta = grant["level"].as_i64().unwrap_or(1);
+                            let before = delta;
+                            egui::ComboBox::from_id_salt("talent-delta")
+                                .selected_text(tr(if delta == 1 {
+                                    "获得／提升一级"
+                                } else {
+                                    "降低一级"
+                                }))
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(&mut delta, 1, tr("获得／提升一级"));
+                                    ui.selectable_value(&mut delta, -1, tr("降低一级"));
+                                });
+                            if delta != before {
+                                grant["level"] = json!(delta);
+                            }
+                            if ui.small_button(tr("移除")).clicked() {
+                                remove_talent = Some(i);
+                            }
+                        });
+                    }
+                    if let Some(i) = remove_talent {
+                        level["talents"].as_array_mut().unwrap().remove(i);
+                    }
+                    if level["talents"].as_array().map_or(0, Vec::len) < 32
+                        && ui.small_button(tr("添加天赋")).clicked()
+                    {
+                        if level.get("talents").is_none() {
+                            level["talents"] = json!([]);
+                        }
+                        let id = catalog
+                            .options("talent", &Value::Null, &[], &[])
+                            .first()
+                            .map(|(id, _)| id.clone())
+                            .unwrap_or_default();
+                        level["talents"]
+                            .as_array_mut()
+                            .unwrap()
+                            .push(json!({"talent":id,"level":1}));
+                    }
                     if ui
                         .add_enabled(can_remove, egui::Button::new(tr("移除此等级")).small())
                         .clicked()

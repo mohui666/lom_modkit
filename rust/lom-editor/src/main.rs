@@ -120,3 +120,4 @@ mod scenario_panel;
 mod scenario_quick;
 mod scenario_settings;
 mod scenario_task_states;
+mod scenario_test;

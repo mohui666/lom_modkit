@@ -118,6 +118,16 @@ pub fn remove(project: &mut Project, key: &str) -> Result<()> {
         if name.ends_with("/content.json") && !name.starts_with(&prefix) {
             if let Ok(m) = serde_json::from_slice::<Value>(data) {
                 ensure!(m["character"] != symbol, "仍有关联配音，请先解除角色绑定");
+                ensure!(
+                    !m["levels"].as_array().into_iter().flatten().any(|level| {
+                        level["talents"]
+                            .as_array()
+                            .into_iter()
+                            .flatten()
+                            .any(|grant| grant["talent"] == symbol)
+                    }),
+                    "仍有功法升级效果引用此天赋，请先解除引用"
+                );
             }
         }
     }
