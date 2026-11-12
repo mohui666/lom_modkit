@@ -85,6 +85,11 @@ impl App {
                                 .collect();
                             let stories = self.project.stories.keys().cloned().collect::<Vec<_>>();
                             if let Some(mut node) = story["nodes"].get(self.selected).cloned() {
+                                crate::forms::set_preview_scope(
+                                    ctx,
+                                    &self.current,
+                                    node["id"].as_str().unwrap_or(""),
+                                );
                                 let event_picture = node["type"] == "cg" && node["kind"] == "event";
                                 let story_picture = node["type"] == "cg"
                                     && matches!(
@@ -164,14 +169,34 @@ impl App {
                                             node["id"].as_str().unwrap_or("").to_owned(),
                                         ),
                                         |ui| {
-                                            if let Some(image) = self.preview.image_browser(
+                                            let browsing = crate::forms::preview_story(ctx, &story);
+                                            let chosen = self.preview.image_browser(
                                                 ui,
                                                 &self.project,
                                                 &options,
-                                                node[key].as_str().unwrap_or(""),
+                                                browsing["nodes"][self.selected][key]
+                                                    .as_str()
+                                                    .unwrap_or(""),
                                                 official,
+                                            );
+                                            if let Some(choice) = crate::forms::resource_choice(
+                                                ui,
+                                                &node,
+                                                key,
+                                                if official {
+                                                    "story_picture"
+                                                } else if scene {
+                                                    "view"
+                                                } else {
+                                                    "user_image"
+                                                },
+                                                chosen,
                                             ) {
-                                                node[key] = json!(image);
+                                                if let Some(image) = choice {
+                                                    node[key] = json!(image);
+                                                } else {
+                                                    node.as_object_mut().unwrap().remove(key);
+                                                }
                                                 image_changed = true;
                                             }
                                         },
@@ -212,8 +237,10 @@ impl App {
                                     self.tools_panel.open_node_help(&kind);
                                 }
                                 if matches!(node["type"].as_str(), Some("music" | "sound")) {
+                                    let browsing = crate::forms::preview_story(ctx, &story);
+                                    let audition = &browsing["nodes"][self.selected];
                                     ui.horizontal(|ui| {
-                                        let name = node["name"].as_str().unwrap_or("");
+                                        let name = audition["name"].as_str().unwrap_or("");
                                         let playable = !name.is_empty()
                                             && node["op"].as_str().unwrap_or("play") == "play";
                                         if ui

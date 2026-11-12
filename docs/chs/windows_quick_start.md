@@ -2,7 +2,7 @@
 
 ## 下载并打开
 
-从发布页下载 `lom-editor.exe` 附件，双击即可使用。[1.5.13 下载页](https://github.com/mohui666/lom_modkit/releases/tag/v1.5.13)。AI 创作所需的接口、skill、文档和示例可通过 `lom-editor.exe --cli sdk -o sdk --json` 导出。
+从发布页下载 `lom-editor.exe` 附件，双击即可使用。[1.5.14 下载页](https://github.com/mohui666/lom_modkit/releases/tag/v1.5.14)。AI 创作所需的接口、skill、文档和示例可通过 `lom-editor.exe --cli sdk -o sdk --json` 导出。
 
 运行只需要编辑器 exe；授权说明已内置到组件缓存。
 
@@ -62,7 +62,7 @@ Windows 可只下载 `lom-editor.exe` 运行，提取器、音频解码器、Hos
 
 ## 本版功能与验证范围
 
-原版整章结构化编辑、路线连线、四语界面和旧格式导入见 [软件使用](software_usage.md)。本版变化见 [更新说明](../../RELEASE_NOTES_v1.5.11.md)。路线图从“文件 → 原版剧情 → 原版路线图…”打开，游戏中按 `Ctrl+F6` 标记后，可用“打开最近游戏标记”定位。
+原版整章结构化编辑、路线连线、四语界面和旧格式导入见 [软件使用](software_usage.md)。本版变化见 [更新说明](../../RELEASE_NOTES_v1.5.14.md)。路线图从“文件 → 原版剧情 → 原版路线图…”打开，游戏中按 `Ctrl+F6` 标记后，可用“打开最近游戏标记”定位。
 
 本版游戏验证覆盖原版章节独立入口、选择分支、人物清除、动态去向及旧格式样例的资源、扩展接口和热重载恢复。完整范围见 [当前能力](current_capabilities.md#1419-验证范围)。
 

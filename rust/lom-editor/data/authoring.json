@@ -3575,6 +3575,12 @@
           true
         ],
         [
+          "brighten",
+          "换表情后变亮（到下一句对白）",
+          "bool",
+          true
+        ],
+        [
           "wait_after",
           "动作后停留（秒）",
           "float",

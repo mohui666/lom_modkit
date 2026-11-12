@@ -75,6 +75,7 @@ pub struct ToolsPanel {
     cancel: Arc<AtomicBool>,
     preview_ready: Option<PathBuf>,
     effect_ready: VecDeque<(PathBuf, bool)>,
+    notification: Option<(String, std::time::Instant)>,
 }
 // A released single-file editor owns its Host. Saved runtime paths can point
 // to a previously extracted editor and are only used by development builds.
@@ -145,6 +146,7 @@ impl Default for ToolsPanel {
             cancel: Arc::new(AtomicBool::new(false)),
             preview_ready: None,
             effect_ready: VecDeque::new(),
+            notification: None,
         }
     }
 }
@@ -291,6 +293,20 @@ impl ToolsPanel {
                 self.report_open = true;
             }
         }
+        if let Some((message, since)) = &self.notification {
+            if since.elapsed() < std::time::Duration::from_secs(8) {
+                ui.separator();
+                if ui
+                    .small_button(message)
+                    .on_hover_text(crate::i18n::key("usability.status.details"))
+                    .clicked()
+                {
+                    self.report_open = true;
+                }
+                ui.ctx()
+                    .request_repaint_after(std::time::Duration::from_secs(1));
+            }
+        }
     }
     pub fn take_update_check(&mut self) -> bool {
         std::mem::take(&mut self.update_check_requested)
@@ -406,9 +422,14 @@ impl ToolsPanel {
                         self.refresh_after_job = false;
                         self.refresh_game();
                     }
-                    self.report_open = self.job_title != "同步游戏 Host"
-                        || self.report["changed"] == true
-                        || !self.report["error"].is_null();
+                    self.report_open =
+                        self.job_title != "同步游戏 Host" || !self.report["error"].is_null();
+                    if !self.report_open {
+                        self.notification = Some((
+                            crate::i18n::key("usability.status.host_synced"),
+                            std::time::Instant::now(),
+                        ));
+                    }
                 }
                 Err(mpsc::TryRecvError::Disconnected) => {
                     self.report_title = self.job_title.clone();
@@ -612,19 +633,30 @@ impl ToolsPanel {
         std::mem::take(&mut self.export_requested)
     }
     pub fn export_play_bundle(&mut self, project: &Project) {
+        let _ = self.export_play_bundle_in(project, None);
+    }
+    pub fn export_play_bundle_in(
+        &mut self,
+        project: &Project,
+        directory: Option<&std::path::Path>,
+    ) -> Option<PathBuf> {
         if self.game.join("Mortal.exe").is_file() {
             if let Err(error) = game_tools::matching_installed_mod(&self.game, &project.manifest) {
                 self.result::<Value>("导出完整游玩包", Err(error));
-                return;
+                return None;
             }
         }
         if self.job.is_some() {
             self.report_title = self.job_title.clone();
             self.report_open = true;
-            return;
+            return None;
         }
-        if let Some(output) = rfd::FileDialog::new()
-            .set_title(crate::i18n::key("common.tools.save_play_pack"))
+        let mut dialog =
+            rfd::FileDialog::new().set_title(crate::i18n::key("common.tools.save_play_pack"));
+        if let Some(directory) = directory {
+            dialog = dialog.set_directory(directory);
+        }
+        if let Some(output) = dialog
             .add_filter("ZIP", &["zip"])
             .set_file_name(format!(
                 "{}-play.zip",
@@ -632,6 +664,7 @@ impl ToolsPanel {
             ))
             .save_file()
         {
+            let selected_output = output.clone();
             let project = project.clone();
             let runtime = self.runtime.clone();
             let cancel = self.cancel.clone();
@@ -648,7 +681,9 @@ impl ToolsPanel {
                     },
                 )
             });
+            return Some(selected_output);
         }
+        None
     }
     pub fn ready_to_play(&self) -> bool {
         self.game_ready()
@@ -1893,7 +1928,7 @@ mod tests {
     fn startup_host_sync_reports_changes_and_errors_without_a_noop_dialog() {
         for (result, opens) in [
             (Ok(json!({"changed":false})), false),
-            (Ok(json!({"changed":true})), true),
+            (Ok(json!({"changed":true})), false),
             (Err("游戏正在运行".to_owned()), true),
         ] {
             let mut panel = ToolsPanel::default();

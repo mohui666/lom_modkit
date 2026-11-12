@@ -45,14 +45,7 @@ impl App {
         .to_owned()
     }
     pub(super) fn check_before_run_or_export(&mut self) -> bool {
-        self.error_issues = lom_core::release::run_preflight(
-            &self.project,
-            lom_core::release::Profile::Editing,
-            env!("CARGO_PKG_VERSION"),
-        )
-        .into_iter()
-        .filter(|issue| issue.severity == "error")
-        .collect();
+        self.refresh_full_problems();
         if self.error_issues.is_empty() {
             let game = self.tools_panel.game_directory();
             if game.join("Mortal.exe").is_file() {
@@ -66,10 +59,11 @@ impl App {
             }
             return true;
         }
-        self.error = Some(crate::i18n::message(
+        self.problems_open = true;
+        self.status = crate::i18n::message(
             "editor.error.issue_count",
             &[("count", self.error_issues.len().to_string())],
-        ));
+        );
         false
     }
     pub(super) fn open_initial_setup(&mut self) {
@@ -295,9 +289,9 @@ impl App {
             return;
         }
         self.sync_preview_selection();
-        egui::SidePanel::right("preview")
+        let panel = egui::SidePanel::right(egui::Id::new(("preview", self.usability.layout)))
             .frame(surface(true))
-            .default_width(shell::PREVIEW_WIDTH)
+            .default_width(self.usability.widths[self.usability.layout][1])
             .min_width(320.0)
             .max_width((ctx.available_rect().width() - 300.0).max(320.0))
             .resizable(true)
@@ -325,8 +319,26 @@ impl App {
                 });
                 ui.separator();
                 let mut story = self.story();
+                let preview_story = crate::forms::preview_story(ctx, &story);
                 match self.view {
                     View::Stage => {
+                        if let Some((index, action)) = self.preview.stage_inspector(
+                            ui,
+                            &self.project,
+                            &preview_story,
+                            self.selected,
+                        ) {
+                            self.selected = index;
+                            self.multiselect.clear();
+                            self.center = Center::Node;
+                            if let Some(action) = action {
+                                crate::forms::reveal_parallel_action(
+                                    ctx,
+                                    story["nodes"][index]["id"].as_str().unwrap_or(""),
+                                    action,
+                                );
+                            }
+                        }
                         egui::TopBottomPanel::bottom("stage-transport")
                             .frame(egui::Frame::new().inner_margin(egui::Margin::symmetric(0, 5)))
                             .show_inside(ui, |ui| {
@@ -408,10 +420,13 @@ impl App {
                         } else {
                             self.preview_elapsed
                         };
-                        if let Some(target) =
-                            self.preview
-                                .show(ui, &self.project, &story, self.selected, elapsed)
-                        {
+                        if let Some(target) = self.preview.show(
+                            ui,
+                            &self.project,
+                            &preview_story,
+                            self.selected,
+                            elapsed,
+                        ) {
                             self.follow_preview_target(&target);
                         }
                         if let Some(edit) = self.preview.mood_edit.take() {
@@ -453,8 +468,12 @@ impl App {
                         }
                     }
                     View::Portraits => {
-                        self.preview
-                            .show_portrait(ui, &self.project, &story, self.selected);
+                        self.preview.show_portrait(
+                            ui,
+                            &self.project,
+                            &preview_story,
+                            self.selected,
+                        );
                     }
                     View::Graph => {
                         if let Some(i) = preview::graph(ui, &self.project, &story, self.selected) {
@@ -496,52 +515,14 @@ impl App {
                                 }
                             }
                         });
-                        if !self.diagnostics.is_empty() {
-                            egui::ScrollArea::vertical()
-                                .id_salt("compile-errors")
-                                .max_height(160.0)
-                                .show(ui, |ui| {
-                                    for issue in self.diagnostics.clone() {
-                                        let location = if issue.node_id.is_empty() {
-                                            issue.story_id.clone()
-                                        } else {
-                                            format!("{}/{}", issue.story_id, issue.node_id)
-                                        };
-                                        if ui.link(location).clicked() {
-                                            if let Some(story) =
-                                                self.project.stories.get_mut(&issue.story_id)
-                                            {
-                                                if let Some(index) =
-                                                    story["nodes"].as_array().and_then(|nodes| {
-                                                        nodes.iter().position(|node| {
-                                                            !issue.node_id.is_empty()
-                                                                && node["id"] == issue.node_id
-                                                        })
-                                                    })
-                                                {
-                                                    self.selected = index;
-                                                    self.center = Center::Node;
-                                                    authoring::expand_for_node(story, index);
-                                                } else {
-                                                    self.center = Center::Chapter;
-                                                }
-                                                self.current = issue.story_id;
-                                                self.multiselect.clear();
-                                                self.search.clear();
-                                                self.needs_compile = true;
-                                            }
-                                        }
-                                        let message = if issue.severity == "error" {
-                                            format!("错误：{}", issue.message)
-                                        } else {
-                                            issue.message
-                                        };
-                                        ui.colored_label(
-                                            Color32::from_rgb(179, 55, 49),
-                                            crate::error_ui::text(&message),
-                                        );
-                                    }
-                                });
+                        if ui
+                            .button(crate::i18n::message(
+                                "usability.problems.title",
+                                &[("count", self.diagnostics.len().to_string())],
+                            ))
+                            .clicked()
+                        {
+                            self.problems_open = true;
                         }
                         egui::ScrollArea::both().show(ui, |ui| {
                             ui.add(
@@ -563,5 +544,6 @@ impl App {
                     }
                 }
             });
+        self.remember_panel_width(ctx, 1, panel.response.rect.width());
     }
 }

@@ -8,6 +8,176 @@ fn app() -> App {
     app.auto_save_seconds = 300;
     app
 }
+
+#[test]
+fn typing_dialogue_keeps_the_sidebar_width_and_allows_shrinking_it() {
+    let mut app = app();
+    app.usability.layout = 0;
+    app.usability.widths[0][0] = 280.0;
+    app.project.stories.insert(
+        "main".into(),
+        json!({"id":"main","start":"say","nodes":[
+        {"id":"say","type":"say","mode":"narrative","text":""},
+        {"id":"end","type":"end"}]}),
+    );
+    app.current = "main".into();
+    app.selected = 0;
+    app.search.clear();
+    let ctx = egui::Context::default();
+    style(&ctx);
+    let id = egui::Id::new(("chapters", 0usize));
+    let draw = |app: &mut App| {
+        let _ = ctx.run(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    Vec2::new(1280.0, 800.0),
+                )),
+                ..Default::default()
+            },
+            |ctx| app.sidebar(ctx),
+        );
+        egui::containers::panel::PanelState::load(&ctx, id)
+            .unwrap()
+            .rect
+            .width()
+    };
+    draw(&mut app);
+    let initial = draw(&mut app);
+    for length in 1..=80 {
+        app.project.stories.get_mut("main").unwrap()["nodes"][0]["text"] =
+            json!("这是一段不停输入的对白WithoutAnySpaces"
+                .chars()
+                .cycle()
+                .take(length)
+                .collect::<String>());
+        let width = draw(&mut app);
+        assert!(
+            width <= initial + 1.0,
+            "typing {length} characters grew sidebar from {initial} to {width}"
+        );
+    }
+    for length in 1..=80 {
+        app.search = "长搜索内容WithoutAnySpaces"
+            .chars()
+            .cycle()
+            .take(length)
+            .collect();
+        let width = draw(&mut app);
+        assert!(
+            width <= initial + 1.0,
+            "typing search {length} characters grew sidebar from {initial} to {width}"
+        );
+    }
+    ctx.data_mut(|data| {
+        data.insert_persisted(
+            id,
+            egui::containers::panel::PanelState {
+                rect: egui::Rect::from_min_size(egui::Pos2::ZERO, Vec2::new(200.0, 800.0)),
+            },
+        )
+    });
+    assert!(
+        draw(&mut app) <= 201.0,
+        "long dialogue prevents resizing the sidebar down"
+    );
+}
+
+#[test]
+fn authoring_entries_open_the_existing_name_and_talent_workflows() {
+    let mut app = app();
+    let original = app.story();
+    app.open_name_authoring();
+    let node = app.story()["nodes"][app.selected].clone();
+    assert_eq!(node["type"], "character_title");
+    assert_eq!(node["name_action"], "set");
+    assert_eq!(node["action"], "keep");
+    app.track();
+    app.flush();
+    app.undo();
+    assert_eq!(app.story(), original);
+    let source = snapshot(&app.project);
+    app.open_custom_talent();
+    assert_eq!(app.center, Center::Assets);
+    assert_eq!(app.asset_import_dialog.as_ref().unwrap().kind, 10);
+    assert!(
+        snapshot(&app.project) == source,
+        "opening the talent dialog must not create an asset"
+    );
+}
+
+#[test]
+fn persistent_problems_update_after_a_fix_without_opening_an_error_dialog() {
+    let mut app = app();
+    app.project.stories.insert(
+        "main".into(),
+        json!({"id":"main","start":"say","nodes":[
+        {"id":"say","type":"say","mode":"narrative","text":"测试"},
+        {"id":"end","type":"end"}]}),
+    );
+    app.current = "main".into();
+    app.project.manifest["entry"] = json!("main");
+    app.project.stories.get_mut("main").unwrap()["nodes"][0]["goto"] = json!("missing");
+    app.error = None;
+    assert!(!app.check_before_run_or_export());
+    assert!(app.problems_open);
+    assert!(app.error.is_none());
+    assert!(!app.error_issues.is_empty());
+    app.project.stories.get_mut("main").unwrap()["nodes"][0]["goto"] = json!("end");
+    app.compile();
+    assert!(app.error_issues.is_empty(), "{:?}", app.error_issues);
+    assert!(app
+        .diagnostics
+        .iter()
+        .all(|issue| issue.severity != "error"));
+}
+
+#[test]
+fn guided_export_keeps_the_recipient_choice_between_frames_and_cancel_preserves_the_project() {
+    let mut app = app();
+    app.usability.export_bundle = false;
+    let before = snapshot(&app.project);
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    app.request_export(&ctx);
+    let draw = |app: &mut App, events| {
+        ctx.run(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    Vec2::new(1100.0, 800.0),
+                )),
+                events,
+                ..Default::default()
+            },
+            |ctx| app.guided_export(ctx),
+        )
+    };
+    draw(&mut app, vec![]);
+    let output = draw(&mut app, vec![]);
+    let event = click_named_option(&output, &crate::i18n::key("usability.export.first_time"));
+    draw(&mut app, vec![event]);
+    draw(&mut app, vec![]);
+    assert_eq!(
+        ctx.data(|data| data.get_temp::<bool>(egui::Id::new("guided-export-bundle"))),
+        Some(true)
+    );
+    draw(
+        &mut app,
+        vec![egui::Event::Key {
+            key: egui::Key::Escape,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        }],
+    );
+    assert!(!ctx.data(|data| data
+        .get_temp::<bool>(egui::Id::new("guided-export-open"))
+        .unwrap_or(false)));
+    assert!(snapshot(&app.project) == before);
+    assert!(!app.usability.export_bundle);
+}
 fn choice_preview() -> App {
     let mut app = app();
     app.project.stories.insert("main".into(), json!({"id":"main","start":"choice1","nodes":[
@@ -198,8 +368,9 @@ fn click_named_option(output: &egui::FullOutput, prefix: &str) -> egui::Event {
     let target = nodes
         .iter()
         .find_map(|(id, node)| {
-            (node.label().is_some_and(|label| label.starts_with(prefix))
-                || node.value().is_some_and(|value| value.starts_with(prefix)))
+            (node.supports_action(egui::accesskit::Action::Click)
+                && (node.label().is_some_and(|label| label.starts_with(prefix))
+                    || node.value().is_some_and(|value| value.starts_with(prefix))))
             .then_some(*id)
         })
         .unwrap_or_else(|| panic!("Missing option {prefix:?}: {nodes:?}"));

@@ -43,6 +43,9 @@ impl App {
                 self.selected = at;
                 self.multiselect.clear();
                 self.center = Center::Node;
+                if self.usability.auto_hide_palette {
+                    self.steps_panel_open = false;
+                }
             }
             Err(error) => self.error = Some(crate::error_ui::capture(error)),
         }

@@ -266,7 +266,7 @@
       "character": "player",
       "portrait": "normal",
       "mode": "character",
-      "text": "这句发言换表情后仍应保持压暗，直到后面的压暗关闭步骤。",
+      "text": "这句发言仍保持手动压暗；接下来换表情时勾选变亮，演示新表情亮起。",
       "font_size": 36
     },
     {
@@ -275,7 +275,11 @@
       "character": "player",
       "portrait": "angry1",
       "fade_out": 0.5,
-      "fade_in": 1.5
+      "fade_in": 1.5,
+      "brighten": true,
+      "_editor": {
+        "note": "勾选换表情后变亮，在新表情淡入时点亮人物；下一句对白恢复自动明暗。"
+      }
     },
     {
       "id": "portrait_user",
@@ -283,7 +287,8 @@
       "character": "user:showcase.lin_deng",
       "portrait": "happy",
       "fade_out": 0.5,
-      "fade_in": 1.0
+      "fade_in": 1.0,
+      "brighten": true
     },
     {
       "id": "rotate1",
@@ -405,7 +410,7 @@
     {
       "id": "say3",
       "type": "say",
-      "text": "这是靠左旁白。刚才人物在没有对白的情况下换了表情：赵活淡出 0.5 秒、淡入 1.5 秒，并保留偏移与压暗；林灯淡入 1 秒。",
+      "text": "这是靠左旁白。刚才赵活淡出 0.5 秒、淡入 1.5 秒，林灯淡入 1 秒；勾选变亮让新表情亮起并保留位置偏移，本句对白恢复自动明暗。",
       "portrait": "normal",
       "mode": "narrative",
       "text_align": "left"

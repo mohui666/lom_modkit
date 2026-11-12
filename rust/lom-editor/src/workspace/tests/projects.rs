@@ -11,7 +11,9 @@ fn preflight_errors_show_details_and_target_the_owning_chapter() {
         );
     }
     assert!(!app.check_before_run_or_export());
-    assert!(app.error.as_ref().unwrap().contains('2'));
+    assert!(app.error.is_none());
+    assert!(app.problems_open);
+    assert!(app.status.contains('2'));
     assert_eq!(app.error_issues.len(), 2);
     for issue in &app.error_issues {
         assert!(issue.message.contains("特效名称不能为空"));
@@ -140,12 +142,19 @@ fn compiler_diagnostic_link_selects_the_error_node_across_chapters() {
     app.multiselect.insert(0);
     app.search = "隐藏目标的旧过滤".into();
     app.compile();
-    assert_eq!(app.diagnostics.len(), 1);
+    assert_eq!(
+        app.diagnostics
+            .iter()
+            .filter(|issue| issue.severity == "error")
+            .count(),
+        1
+    );
     assert_eq!(app.diagnostics[0].story_id, "main");
     assert_eq!(app.diagnostics[0].node_id, "say_left");
     assert!(app.diagnostics[0].message.contains("missing"));
     let before = snapshot(&app.project);
     app.view = View::Checks;
+    app.problems_open = true;
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     let raw = egui::RawInput {
@@ -155,13 +164,15 @@ fn compiler_diagnostic_link_selects_the_error_node_across_chapters() {
         )),
         ..Default::default()
     };
-    let output = ctx.run(raw.clone(), |ctx| app.right(ctx));
+    let _ = ctx.run(raw.clone(), |ctx| app.problems_panel(ctx));
+    let output = ctx.run(raw.clone(), |ctx| app.problems_panel(ctx));
+    let label = crate::error_location::issue_label(&app.diagnostics[0], &app.project);
     let _ = ctx.run(
         egui::RawInput {
-            events: vec![click_named_option(&output, "main/say_left")],
+            events: vec![click_named_option(&output, &label)],
             ..raw
         },
-        |ctx| app.right(ctx),
+        |ctx| app.problems_panel(ctx),
     );
     assert_eq!(app.current, "main");
     assert_eq!(app.selected, 2);
