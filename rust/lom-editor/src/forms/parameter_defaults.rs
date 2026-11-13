@@ -42,6 +42,14 @@ fn supported(kind: &str) -> bool {
         )
 }
 
+fn unset_choice(field: &Value, value: &Value) -> bool {
+    field[3] == true
+        && field[2]
+            .as_str()
+            .is_some_and(|kind| kind.starts_with("enum:"))
+        && (value.is_null() || value.as_str() == Some(""))
+}
+
 impl ParameterDefaults {
     pub(super) fn load(&mut self, path: PathBuf) -> Result<()> {
         self.path = Some(path.clone());
@@ -96,10 +104,11 @@ impl ParameterDefaults {
             if !supported(kind) || matches!(key, "id" | "type") {
                 continue;
             }
-            if draft.get(key) == builtin.get(key) {
+            let value = draft.get(key).filter(|value| !unset_choice(field, value));
+            if value == builtin.get(key) {
                 overrides.remove(key);
             } else {
-                overrides.insert(key.into(), draft.get(key).cloned().unwrap_or(Value::Null));
+                overrides.insert(key.into(), value.cloned().unwrap_or(Value::Null));
             }
         }
         if !overrides.is_empty() {
@@ -294,7 +303,18 @@ impl ParameterDefaults {
                         .clicked()
                     {
                         match self.save_draft(node_type, fields, &draft.node, &builtin) {
-                            Ok(()) => close = true,
+                            Ok(()) => {
+                                ui.ctx().data_mut(|data| {
+                                    data.insert_temp(
+                                        egui::Id::new("saved-new-step-defaults"),
+                                        crate::i18n::message(
+                                            "editor.defaults.saved",
+                                            &[("node", catalog.label(node_type))],
+                                        ),
+                                    );
+                                });
+                                close = true;
+                            }
                             Err(error) => draft.error = Some(crate::error_ui::capture(error)),
                         }
                     }
@@ -334,7 +354,7 @@ impl ParameterDefaults {
                 continue;
             }
             if let Some(value) = overrides.get(key) {
-                if value.is_null() {
+                if value.is_null() || unset_choice(field, value) {
                     node.as_object_mut().unwrap().remove(key);
                 } else if value.is_string() || value.is_number() || value.is_boolean() {
                     if node["type"] == "effect" && key == "space" {
@@ -359,6 +379,57 @@ impl ParameterDefaults {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn blank_optional_choices_from_older_defaults_do_not_force_a_new_selection() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("node-defaults.json");
+        std::fs::write(
+            &path,
+            br#"{"say":{"mood_icon":""},"show":{"appearance":""}}"#,
+        )
+        .unwrap();
+        let mut catalog = Catalog::new();
+        catalog.configure_parameter_defaults(path.clone()).unwrap();
+        let mut line = catalog.new_node("say", "line".into());
+        line["text"] = json!("不设置本句气泡");
+        assert!(line.get("mood_icon").is_none(), "{line}");
+        assert!(catalog
+            .new_node("show", "show1".into())
+            .get("appearance")
+            .is_none());
+        lom_core::validate::validate_story(
+            &json!({"id":"main","start":"line","nodes":[line.clone(),{"id":"done","type":"end"}]}),
+        )
+        .unwrap();
+        line["mood_icon"] = json!("");
+        let original = line.clone();
+        let context = egui::Context::default();
+        context.enable_accesskit();
+        let output = context.run(Default::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                catalog.node_form(ui, &mut line, &[], &[]);
+            });
+        });
+        assert_eq!(
+            line, original,
+            "viewing a released project must preserve its values"
+        );
+        assert!(output
+            .platform_output
+            .accesskit_update
+            .unwrap()
+            .nodes
+            .iter()
+            .any(|(_, node)| node.value() == Some(crate::i18n::tr("沿用现有气泡").as_str())));
+        let fields = &catalog.schema["NODE_SCHEMAS"]["say"]["fields"];
+        let builtin = &catalog.schema["_NODE_DEFAULTS"]["say"];
+        catalog
+            .parameter_defaults
+            .save_draft("say", fields, &line, builtin)
+            .unwrap();
+        assert!(lom_core::load_json(&path).unwrap().get("say").is_none());
+    }
 
     #[test]
     fn defaults_editor_edits_new_step_timing_and_supports_copy_cancel_and_reset() {

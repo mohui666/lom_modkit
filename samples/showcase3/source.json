@@ -327,12 +327,14 @@
         },
         {
           "id": "portrait_user",
-          "type": "portrait",
-          "character": "user:showcase.lin_deng",
-          "portrait": "happy",
-          "fade_out": 0.5,
-          "fade_in": 1.0,
-          "brighten": true
+          "type": "parallel",
+          "_editor": {"note": "两人同时换表情并保持明亮；换表情保留原明暗，由两个明暗动作分别控制。"},
+          "actions": [
+            {"type": "portrait", "character": "player", "portrait": "angry1", "fade_out": 0.5, "fade_in": 1.5, "brighten": false},
+            {"type": "dim", "character": "user:showcase.lin_deng", "dimmed": false, "mode": "until_dialogue"},
+            {"type": "dim", "character": "player", "dimmed": false, "mode": "until_dialogue"},
+            {"type": "portrait", "character": "user:showcase.lin_deng", "portrait": "happy", "fade_out": 0.5, "fade_in": 1.0, "brighten": false}
+          ]
         },
         {
           "id": "rotate1",
@@ -444,7 +446,8 @@
           "id": "mood_custom_restore",
           "type": "say",
           "mode": "narrative",
-          "text": "本句结束后恢复先前的气泡样式和位置。"
+          "text": "本句结束后恢复先前的气泡样式和位置。",
+          "_editor": {"note": "本句表情气泡可选；留在“沿用现有气泡”即可，无需每句重新选择。"}
         },
         {
           "id": "mood_custom_exit",

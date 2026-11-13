@@ -30,6 +30,67 @@ fn parallel_body(lua: &str) -> &str {
         .unwrap()
 }
 
+fn portrait_and_dimming_actions(other: &str) -> Vec<Value> {
+    vec![
+        json!({"type":"portrait","character":"player","portrait":"angry1","fade_out":0.5,"fade_in":1.5}),
+        json!({"type":"dim","character":other,"dimmed":false,"mode":"until_dialogue"}),
+        json!({"type":"dim","character":"player","dimmed":false,"mode":"until_dialogue"}),
+        json!({"type":"portrait","character":other,"portrait":"normal","fade_out":0.5,"fade_in":1.5,"brighten":false}),
+    ]
+}
+
+#[test]
+fn parallel_portraits_can_keep_two_actors_bright_in_every_action_order() {
+    for other in ["special207", "user:demo.actor"] {
+        let actions = portrait_and_dimming_actions(other);
+        for a in 0..4 {
+            for b in 0..4 {
+                for c in 0..4 {
+                    for d in 0..4 {
+                        if [a, b, c, d]
+                            .into_iter()
+                            .collect::<std::collections::BTreeSet<_>>()
+                            .len()
+                            != 4
+                        {
+                            continue;
+                        }
+                        let mut source = story(
+                            "player",
+                            [a, b, c, d].map(|index| actions[index].clone()).into(),
+                        );
+                        source["nodes"].as_array_mut().unwrap().insert(1,
+                            json!({"id":"other","type":"show","character":other,"position":"R1","portrait":"normal"}));
+                        let original = source.clone();
+                        validate::validate_story(&source).unwrap();
+                        let lua = codegen::compile_story(&source, None, None, None).unwrap();
+                        let body = parallel_body(&lua);
+                        for actor in ["player", other] {
+                            assert_eq!(
+                                body.matches(&format!(
+                                    "mod_char_dim_mode(\"{actor}\", false, \"until_dialogue\")"
+                                ))
+                                .count(),
+                                1,
+                                "{body}"
+                            );
+                            assert_eq!(
+                                body.matches(&format!("mod_char_portrait_transition(\"{actor}\""))
+                                    .count(),
+                                2,
+                                "{body}"
+                            );
+                        }
+                        assert_eq!(body.matches("\t\tfunction()").count(), 4);
+                        assert!(!body.contains("stage.show"));
+                        assert_eq!(source, original);
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[test]
 fn independent_character_channels_compile_in_every_action_order_and_keep_mood() {
     for motion_kind in ["move", "offset"] {
@@ -143,6 +204,20 @@ fn competing_channels_still_name_both_action_numbers_types_and_the_character_pro
         ),
         (face.clone(), face.clone(), "朝向", "人物转向", "人物转向"),
         (
+            json!({"type":"portrait","character":"player","portrait":"angry1","brighten":true}),
+            json!({"type":"dim","character":"player","dimmed":false}),
+            "明暗",
+            "人物换表情",
+            "人物明暗",
+        ),
+        (
+            json!({"type":"dim","character":"player","dimmed":true}),
+            json!({"type":"dim","character":"player","dimmed":false}),
+            "明暗",
+            "人物明暗",
+            "人物明暗",
+        ),
+        (
             json!({"type":"show","character":"player","position":"M"}),
             move_action,
             "位置",
@@ -185,6 +260,9 @@ fn competing_channels_still_name_both_action_numbers_types_and_the_character_pro
                 &format!("（{first_label} / {second_label}）"),
             ] {
                 assert!(error.contains(expected), "{error}");
+            }
+            if [first_label, second_label].contains(&"人物换表情") {
+                assert!(error.contains("换表情后变亮"), "{error}");
             }
             let error = validate::validate_story(&story("player", children)).unwrap_err();
             let message = format!("{error:#}");
@@ -351,6 +429,50 @@ fn released_1514_parallel_package_retains_historical_lua_and_accepts_new_indepen
     // Its original group has one move plus a wait and uses legacy stage.show;
     // it was not produced by today's compiler or by an emulated old emitter.
     released_package_edit_roundtrip("released-1.5.14-parallel-base.lommod");
+}
+
+#[test]
+fn released_1514_package_can_add_portraits_with_independent_dimming_and_reopen() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/released-1.5.14-parallel-base.lommod");
+    let original_bytes = std::fs::read(&fixture).unwrap();
+    let original_entries = package::read_package(&fixture).unwrap();
+    let mut project = Project::open(&fixture).unwrap();
+    let old_story = project.stories["main"].clone();
+    let old_assets = project.assets.clone();
+    let directory = tempfile::tempdir().unwrap();
+    let unchanged = directory.path().join("unchanged.lommod");
+    project.export(&unchanged).unwrap();
+    assert_eq!(
+        package::read_package(&unchanged).unwrap()["lua/main.lua"],
+        original_entries["lua/main.lua"]
+    );
+    let chapter = project.stories.get_mut("main").unwrap();
+    chapter["nodes"].as_array_mut().unwrap().splice(0..0, [
+        json!({"id":"light_enter_player","type":"show","character":"player","portrait":"normal","position":"L1","goto":"light_enter_other"}),
+        json!({"id":"light_enter_other","type":"show","character":"special207","portrait":"normal","position":"R1","goto":"light_pair"}),
+        json!({"id":"light_pair","type":"parallel","actions":portrait_and_dimming_actions("special207"),"goto":old_story["start"]}),
+    ]);
+    chapter["start"] = json!("light_enter_player");
+    let folder = directory.path().join("edited");
+    project.save_to(&folder).unwrap();
+    let saved = Project::open(&folder).unwrap();
+    assert_eq!(saved.stories, project.stories);
+    let exported = directory.path().join("edited.lommod");
+    saved.export(&exported).unwrap();
+    let restored = Project::open(&exported).unwrap();
+    assert_eq!(restored.stories, saved.stories);
+    assert_eq!(restored.assets, old_assets);
+    assert_eq!(
+        restored.manifest["min_host_version"],
+        project.manifest["min_host_version"]
+    );
+    assert_eq!(
+        &restored.stories["main"]["nodes"].as_array().unwrap()[3..],
+        old_story["nodes"].as_array().unwrap()
+    );
+    assert_substituted_lua_is_rejected(&exported, &directory.path().join("substituted.lommod"));
+    assert_eq!(std::fs::read(&fixture).unwrap(), original_bytes);
 }
 
 #[test]

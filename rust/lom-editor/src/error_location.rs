@@ -17,6 +17,7 @@ pub enum Destination {
     Events,
     Game,
     PreviewLibrary,
+    ExistingPreviewLibrary,
     Settings,
     Open,
     Current,
@@ -89,6 +90,7 @@ impl Destination {
             Self::Events => crate::i18n::key("common.error.fix_events"),
             Self::Game => crate::i18n::key("common.error.open_game"),
             Self::PreviewLibrary => crate::i18n::key("common.error.open_preview"),
+            Self::ExistingPreviewLibrary => crate::i18n::tr("选择预览素材库…"),
             Self::Settings => crate::i18n::key("common.error.open_settings"),
             Self::Open => crate::i18n::key("common.error.reopen"),
             Self::Current => crate::i18n::key("common.error.current"),
@@ -154,6 +156,9 @@ pub fn action_label(message: &str, destination: &Destination) -> String {
 }
 
 pub fn resolve(message: &str, project: &Project) -> Destination {
+    if message.starts_with("无法载入上次选择的预览素材库") {
+        return Destination::ExistingPreviewLibrary;
+    }
     // Installing missing preview binaries cannot be fixed by editing a story
     // or choosing a preview library. Keep the install instruction, without a
     // misleading navigation button.

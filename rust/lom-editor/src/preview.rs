@@ -692,7 +692,7 @@ fn apply(s: &mut Value, n: &Value) {
                     s["actors"][&id]["dimmed"] = json!(id != cid);
                 }
             }
-            if n["mood_icon"].is_string() {
+            if !text(n, "mood_icon").is_empty() {
                 let target = n["mood_character"]
                     .as_str()
                     .filter(|id| !id.is_empty())
@@ -928,7 +928,14 @@ fn animate_frame(state: &mut Value, before: &Value, node: &Value, elapsed: f64, 
                 let fade_out = number(action, "fade_out", 0.5);
                 let fade_in = number(action, "fade_in", 1.5);
                 let alpha = if elapsed < fade_out {
+                    let explicit_dimming = lom_core::parallel::actions(node)
+                        .iter()
+                        .any(|other| other["type"] == "dim" && text(other, "character") == cid);
+                    let dimmed = state["actors"][cid]["dimmed"].clone();
                     state["actors"][cid] = old.clone();
+                    if explicit_dimming {
+                        state["actors"][cid]["dimmed"] = dimmed;
+                    }
                     1.0 - progress(fade_out)
                 } else if fade_in > 0.0 {
                     ((elapsed - fade_out) / fade_in).clamp(0.0, 1.0)
@@ -2001,6 +2008,22 @@ impl Preview {
                 .sample(0.0, effect_library.as_deref());
         }
         self.apply_layout_draft(&mut state);
+        for action in lom_core::parallel::actions(node) {
+            let cid = text(action, "character");
+            if action["type"] == "mood"
+                && action["enabled"] == true
+                && !cid.is_empty()
+                && state["actors"][cid]["dimmed"] == true
+            {
+                ui.colored_label(
+                    Color32::from_rgb(168, 93, 0),
+                    crate::i18n::message(
+                        "editor.preview.bubble_dimmed",
+                        &[("character", character_display_name(p, cid))],
+                    ),
+                );
+            }
+        }
         if elapsed.is_none() || self.layout_mode {
             let action = ui
                 .ctx()
@@ -4333,6 +4356,57 @@ mod tests {
             0.1
         );
     }
+
+    #[test]
+    fn one_second_bubbles_keep_real_dimming_separate_from_the_editing_highlight() {
+        for actor in ["special207", "user:demo.actor"] {
+            let mut story = json!({"id":"main","start":"left","nodes":[
+                {"id":"left","type":"show","character":"player","portrait":"normal"},
+                {"id":"right","type":"show","character":actor,"portrait":"normal"},
+                {"id":"speech","type":"say","character":"player","portrait":"normal","text":"前一句发言"},
+                {"id":"portrait","type":"portrait","character":actor,"portrait":"normal"},
+                {"id":"bubble","type":"mood","character":actor,"enabled":true,"icon":"nervous1","wait_after":1},
+                {"id":"done","type":"end"}
+            ]});
+            // Official automatic speaker dimming only applies to official actors;
+            // custom actors can carry the same explicit dimming from earlier steps.
+            if actor.starts_with("user:") {
+                story["nodes"].as_array_mut().unwrap().insert(
+                    3,
+                    json!({"id":"dark","type":"dim","character":actor,"dimmed":true}),
+                );
+            }
+            let bubble = story["nodes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|node| node["id"] == "bubble")
+                .unwrap();
+            assert_eq!(playback_duration(bubble), 1.0);
+            let actual = simulate_frame(&story, "bubble", 0.35, &json!({}));
+            assert_eq!(actual["actors"][actor]["dimmed"], true);
+            assert_eq!(visible_mood(&actual, actor, &actual["actors"][actor]), None);
+            let mut editing = actual.clone();
+            highlight_editing_character(&mut editing, bubble, None, None);
+            assert_eq!(
+                visible_mood(&editing, actor, &editing["actors"][actor]),
+                Some("nervous1")
+            );
+            assert_eq!(simulate(&story, "bubble")["actors"][actor]["dimmed"], true);
+            let portrait = story["nodes"]
+                .as_array_mut()
+                .unwrap()
+                .iter_mut()
+                .find(|node| node["id"] == "portrait")
+                .unwrap();
+            portrait["brighten"] = json!(true);
+            let bright = simulate_frame(&story, "bubble", 0.35, &json!({}));
+            assert_eq!(
+                visible_mood(&bright, actor, &bright["actors"][actor]),
+                Some("nervous1")
+            );
+        }
+    }
     #[test]
     fn hide_all_preview_fades_every_actor_before_clearing() {
         let story = json!({"start":"a","nodes":[
@@ -4719,6 +4793,53 @@ end
             None,
         );
         assert_eq!(frame["actors"]["player"]["dimmed"], true);
+    }
+
+    #[test]
+    fn parallel_portrait_fades_keep_both_explicit_brightness_choices() {
+        for other in ["special207", "user:demo.actor"] {
+            let mut story = json!({"id":"main","start":"enter","nodes":[
+                {"id":"enter","type":"show","character":"player","portrait":"normal"},
+                {"id":"other","type":"show","character":other,"portrait":"normal"},
+                {"id":"dark1","type":"dim","character":"player","dimmed":true},
+                {"id":"dark2","type":"dim","character":other,"dimmed":true},
+                {"id":"together","type":"parallel","actions":[
+                    {"type":"portrait","character":"player","portrait":"angry1","fade_out":0.5,"fade_in":1.5},
+                    {"type":"dim","character":other,"dimmed":false,"mode":"until_dialogue"},
+                    {"type":"dim","character":"player","dimmed":false,"mode":"until_dialogue"},
+                    {"type":"portrait","character":other,"portrait":"normal","fade_out":0.5,"fade_in":1.5,"brighten":false}]},
+                {"id":"pause","type":"wait","seconds":1},
+                {"id":"line","type":"say","character":"player","portrait":"angry1","text":"下一句恢复自动"}
+            ]});
+            for reversed in [false, true] {
+                if reversed {
+                    story["nodes"][4]["actions"]
+                        .as_array_mut()
+                        .unwrap()
+                        .reverse();
+                }
+                let before = simulate_until(&story, "together", false);
+                for actor in ["player", other] {
+                    assert_eq!(before["actors"][actor]["dimmed"], true);
+                }
+                for elapsed in [0.0, 0.25, 0.5, 1.0, 2.0] {
+                    let state = simulate_frame(&story, "together", elapsed, &json!({}));
+                    for actor in ["player", other] {
+                        assert_eq!(
+                            state["actors"][actor]["dimmed"], false,
+                            "{actor} at {elapsed}: {state}"
+                        );
+                    }
+                }
+                let paused = simulate(&story, "pause");
+                for actor in ["player", other] {
+                    assert_eq!(paused["actors"][actor]["dimmed"], false);
+                }
+                let next = simulate(&story, "line");
+                assert_eq!(next["actors"]["player"]["dimmed"], false);
+                assert_eq!(next["actors"][other]["dimmed"], true);
+            }
+        }
     }
 
     #[test]
@@ -5134,6 +5255,14 @@ mod content_tests {
                 assert!(!prelude
                     .iter()
                     .any(|node| node["icon"] == icon && icon != "silent"));
+            }
+            for empty in [json!(""), Value::Null] {
+                story["nodes"][2]["mood_icon"] = empty;
+                let state = simulate(&story, "line");
+                assert_eq!(
+                    visible_mood(&state, character, &state["actors"][character]),
+                    Some("silent")
+                );
             }
         }
     }
