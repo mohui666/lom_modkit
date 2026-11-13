@@ -157,6 +157,96 @@ fn full_original_import_button_preserves_source_undo_and_editable_step_defaults(
     assert_eq!(app.story()["nodes"][app.selected]["resume_original"], true);
     lom_core::validate::validate_story(&app.story()).unwrap();
 }
+#[test]
+fn whole_segment_buttons_copy_a_chapter_and_undo_as_one_edit() {
+    for before in [true, false] {
+        let mut app = app();
+        let mut project = Project::new_vanilla_patch("DEMO").unwrap();
+        let extra = json!({"story_schema":2,"id":"extra","title":"整段剧情","start":"line","nodes":[
+            {"id":"line","type":"say","mode":"narrative","text":"整段开场"},
+            {"id":"pause","type":"wait","seconds":0.1},
+            {"id":"done","type":"end"}
+        ]});
+        project.stories.insert("extra".into(), extra.clone());
+        app.install(project);
+        let source =
+            "setsaydialog(saydialogs.narrative)\nsetcharacter(narrative)\nlocal amount=3\nif original then\nsay(\"原对白\")\nend\nadvance_original(amount)\n";
+        app.vanilla = crate::vanilla_panel::Panel::with_source("DEMO", source);
+        let original = snapshot(&app.project);
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        let draw = |app: &mut App, events| {
+            ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1600.0, 1800.0),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ctx| app.center(ctx),
+            )
+        };
+        draw(&mut app, vec![]);
+        let output = draw(&mut app, vec![]);
+        let label = crate::i18n::key(if before {
+            "vanilla.segment_before"
+        } else {
+            "vanilla.segment_after"
+        });
+        let target = output
+            .platform_output
+            .accesskit_update
+            .unwrap()
+            .nodes
+            .into_iter()
+            .find(|(_, node)| node.label() == Some(label.as_str()))
+            .unwrap()
+            .0;
+        draw(
+            &mut app,
+            vec![egui::Event::AccessKitActionRequest(
+                egui::accesskit::ActionRequest {
+                    action: egui::accesskit::Action::Click,
+                    target,
+                    data: None,
+                },
+            )],
+        );
+        let after = draw(&mut app, vec![]);
+        assert!(
+            app.story().get("vanilla_patch").is_none(),
+            "{:?}",
+            after
+                .platform_output
+                .accesskit_update
+                .unwrap()
+                .nodes
+                .iter()
+                .filter_map(|(_, node)| node.label().or(node.value()))
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(app.story()["nodes"][app.selected]["text"], "整段开场");
+        assert_eq!(app.multiselect.len(), 3);
+        assert_eq!(app.project.stories["extra"], extra);
+        assert_eq!(
+            lom_core::vanilla_import::parse(&app.story())
+                .unwrap()
+                .unwrap()
+                .source(),
+            source
+        );
+        let inserted = snapshot(&app.project);
+        app.undo();
+        assert!(snapshot(&app.project) == original);
+        app.redo();
+        assert!(snapshot(&app.project) == inserted);
+        draw(&mut app, vec![]);
+        assert!(snapshot(&app.project) == inserted);
+    }
+}
+
 fn structured_branch_app() -> App {
     let mut app = app();
     let mut project = Project::new_vanilla_patch("DEMO").unwrap();

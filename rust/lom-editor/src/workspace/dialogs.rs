@@ -462,7 +462,7 @@ impl App {
                             tr("将改到替代章节的入口、跳转及事件引用")
                         ));
                         ui.label(tr("替代章节"));
-                        egui::ComboBox::from_id_salt("delete-chapter-replacement")
+                        crate::forms::SearchCombo::from_id_salt("delete-chapter-replacement")
                             .width(ui.available_width())
                             .selected_text(
                                 choices
@@ -471,9 +471,17 @@ impl App {
                                     .map(|(_, name)| name.as_str())
                                     .unwrap_or(""),
                             )
-                            .show_ui(ui, |ui| {
+                            .show_ui(ui, |ui, query| {
                                 for (id, name) in &choices {
-                                    ui.selectable_value(&mut draft.replacement, id.clone(), name);
+                                    if !crate::forms::resource_matches(id, name, query) {
+                                        continue;
+                                    }
+                                    if ui
+                                        .selectable_value(&mut draft.replacement, id.clone(), name)
+                                        .clicked()
+                                    {
+                                        ui.close();
+                                    }
                                 }
                             });
                         ui.small(tr("确认删除时，这些引用会一并改到所选章节。"));

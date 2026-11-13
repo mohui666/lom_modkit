@@ -77,7 +77,7 @@ impl App {
                 );
             }
         }
-        if self.audio.playing() {
+        if self.audio.playing() || self.preview_audio.needs_tick() {
             delay = delay.min(Duration::from_millis(200));
         }
         if self.screenshot.is_some() {

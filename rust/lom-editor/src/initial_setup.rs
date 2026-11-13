@@ -82,7 +82,7 @@ pub fn show(ui: &mut egui::Ui, project: &mut Project, catalog: &Catalog, current
     ui.heading(crate::i18n::key("common.initial.title"));
     ui.label(crate::i18n::key("common.initial.hint"));
     ui.small(crate::i18n::key("common.initial.repeat_hint"));
-    egui::ComboBox::from_id_salt("setup-chapter")
+    crate::forms::SearchCombo::from_id_salt("setup-chapter")
         .selected_text(
             project
                 .stories
@@ -91,9 +91,18 @@ pub fn show(ui: &mut egui::Ui, project: &mut Project, catalog: &Catalog, current
                 .unwrap_or(current),
         )
         .width(ui.available_width())
-        .show_ui(ui, |ui| {
+        .show_ui(ui, |ui, query| {
             for (id, story) in &project.stories {
-                ui.selectable_value(current, id.clone(), story["title"].as_str().unwrap_or(id));
+                if !crate::forms::resource_matches(id, story["title"].as_str().unwrap_or(""), query)
+                {
+                    continue;
+                }
+                if ui
+                    .selectable_value(current, id.clone(), story["title"].as_str().unwrap_or(id))
+                    .clicked()
+                {
+                    ui.close();
+                }
             }
         });
     let story_ids = project.stories.keys().cloned().collect::<Vec<_>>();

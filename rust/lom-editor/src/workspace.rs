@@ -2,17 +2,21 @@
 mod assets;
 mod chapter_navigation;
 mod dialogs;
+mod editor_shortcuts;
 mod history;
 mod navigation;
+mod original_content;
 mod preview_panel;
 mod project_actions;
 mod project_io;
 mod properties;
 mod quick_tools;
 mod recovery;
+mod segment_insertion;
 mod settings;
 mod steps;
 mod text_edit;
+mod timeline_audio;
 mod tools;
 mod usability;
 
@@ -249,6 +253,9 @@ struct App {
     advanced: crate::advanced::Advanced,
     content_panel: crate::content_panel::ContentPanel,
     audio: crate::audio::Player,
+    preview_audio: crate::preview_audio::Timeline,
+    preview_sound: bool,
+    preview_buffering: Option<f64>,
     updater: crate::editor_update::Updater,
 }
 fn user_root() -> PathBuf {
@@ -445,6 +452,11 @@ impl App {
             .unwrap_or_else(|| p.stories.keys().next().cloned().unwrap_or_default());
         let selected = 0;
         let mut catalog = Catalog::new();
+        if let Err(e) =
+            catalog.configure_parameter_defaults(user_root().join("rust/node-defaults.json"))
+        {
+            error = Some(crate::error_ui::capture(e));
+        }
         catalog.sync_assets(&p.assets);
         catalog.sync_story_titles(&p.stories);
         let snap = snapshot(&p);
@@ -565,6 +577,9 @@ impl App {
             advanced: crate::advanced::Advanced::default(),
             content_panel: Default::default(),
             audio: Default::default(),
+            preview_audio: Default::default(),
+            preview_sound: cfg!(windows),
+            preview_buffering: None,
             updater: Default::default(),
         }
     }
@@ -688,7 +703,13 @@ impl eframe::App for App {
             self.remember_source();
         }
         self.sync_preview_selection();
-        self.advance_preview();
+        let preview_index = self.selected;
+        if !self.tick_preview_audio() {
+            self.advance_preview();
+        }
+        if self.selected != preview_index {
+            self.tick_preview_audio();
+        }
         self.toolbar(ctx);
         egui::TopBottomPanel::bottom("status")
             .frame(surface(false))

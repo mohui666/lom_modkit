@@ -334,6 +334,7 @@ impl<'a> Picker<'a> {
             let mut browse = self.browse;
             if ui
                 .checkbox(&mut browse, crate::i18n::key("editor.picker.browse"))
+                .on_hover_text(crate::i18n::key("editor.picker.browse_hint"))
                 .changed()
             {
                 self.browse = browse;
@@ -488,16 +489,18 @@ impl<'a> Picker<'a> {
         let mut apply = key_for_picker(ui, search_id, self.cursor.manual_id, egui::Key::Enter);
         let mut cancel = key_for_picker(ui, search_id, self.cursor.manual_id, egui::Key::Escape);
         ui.horizontal_wrapped(|ui| {
-            ui.small(crate::i18n::key("editor.picker.preview_keys"));
             apply |= ui
                 .add_enabled(
                     self.cursor.candidate.is_some(),
                     egui::Button::new(crate::i18n::key("editor.picker.apply")),
                 )
+                .on_hover_text(crate::i18n::key("editor.picker.preview_keys"))
                 .clicked();
             cancel |= ui
                 .button(crate::i18n::key("editor.picker.cancel"))
                 .clicked();
+            ui.small(crate::i18n::key("editor.picker.preview_only"))
+                .on_hover_text(crate::i18n::key("editor.picker.preview_keys"));
         });
         if cancel {
             self.cancel(ui.ctx());
@@ -597,13 +600,15 @@ pub(super) fn generic_selection(
     let mut search = ui
         .data_mut(|data| data.get_temp::<String>(search_id))
         .unwrap_or_default();
-    if !options.is_empty() {
-        ui.add(
-            egui::TextEdit::singleline(&mut search)
-                .id(search_id)
-                .hint_text(tr("搜索名称")),
-        );
-    }
+    let search_changed = !options.is_empty()
+        && ui
+            .add(
+                egui::TextEdit::singleline(&mut search)
+                    .id(search_id)
+                    .desired_width(f32::INFINITY)
+                    .hint_text(crate::i18n::key("editor.form.search_choices")),
+            )
+            .changed();
     let mut selection = None;
     let current = picker.current(selected).unwrap_or("").to_owned();
     let keyboard_choice = adjacent_resource(&options, &current, &search.to_lowercase(), direction);
@@ -612,6 +617,7 @@ pub(super) fn generic_selection(
             selection = Some(Some(choice.clone()));
         }
     }
+    // Applying a preview must stay reachable while the candidate list scrolls.
     if let Some(applied) = picker.actions(ui, search_id) {
         selection = Some(applied);
         ui.close();
@@ -619,56 +625,62 @@ pub(super) fn generic_selection(
     if !picker.browse() {
         ui.small(crate::i18n::key("editor.form.resource_keys"));
     }
-    if let Some(label) = absent {
-        if ui
-            .selectable_label(picker.current(selected).is_none(), label)
-            .clicked()
-            && picker.choose(ui, None)
-        {
-            selection = Some(None);
-            ui.close();
-        }
-        ui.separator();
+    let mut scroll = egui::ScrollArea::vertical().auto_shrink([false, false]);
+    if search_changed {
+        scroll = scroll.vertical_scroll_offset(0.0);
     }
-    for (id, name) in &options {
-        if resource_matches(id, name, &search.to_lowercase()) {
-            let active = picker.current(selected) == Some(id.as_str());
-            let response = picker.row(ui, id, name, active);
-            if keyboard_choice.as_ref() == Some(id) {
-                response.request_focus();
-                response.scroll_to_me(Some(egui::Align::Center));
-            }
-            if response.clicked() && picker.choose(ui, Some(id.clone())) {
-                selection = Some(Some(id.clone()));
+    scroll.show(ui, |ui| {
+        if let Some(label) = absent {
+            if ui
+                .selectable_label(picker.current(selected).is_none(), label)
+                .clicked()
+                && picker.choose(ui, None)
+            {
+                selection = Some(None);
                 ui.close();
             }
+            ui.separator();
         }
-    }
-    ui.collapsing(tr("手动输入"), |ui| {
-        let manual_id = ui.id().with("resource-manual");
-        let mut manual = if picker.browse() {
-            ui.data_mut(|data| data.get_temp::<String>(manual_id))
-                .unwrap_or_else(|| current.clone())
-        } else {
-            selected.unwrap_or("").to_owned()
-        };
-        let response =
-            ui.add(egui::TextEdit::singleline(&mut manual).hint_text(tr("内部 ID / 自定义引用")));
-        picker.manual_input(response.id);
-        if response.changed() {
-            let choice = if manual.is_empty() && absent.is_some() {
-                None
-            } else {
-                Some(manual.clone())
-            };
-            if picker.choose(ui, choice.clone()) {
-                selection = Some(choice);
+        for (id, name) in &options {
+            if resource_matches(id, name, &search.to_lowercase()) {
+                let active = picker.current(selected) == Some(id.as_str());
+                let response = picker.row(ui, id, name, active);
+                if keyboard_choice.as_ref() == Some(id) {
+                    response.request_focus();
+                    response.scroll_to_me(Some(egui::Align::Center));
+                }
+                if response.clicked() && picker.choose(ui, Some(id.clone())) {
+                    selection = Some(Some(id.clone()));
+                    ui.close();
+                }
             }
         }
-        ui.data_mut(|data| data.insert_temp(manual_id, manual));
+        ui.collapsing(tr("手动输入"), |ui| {
+            let manual_id = ui.id().with("resource-manual");
+            let mut manual = if picker.browse() {
+                ui.data_mut(|data| data.get_temp::<String>(manual_id))
+                    .unwrap_or_else(|| current.clone())
+            } else {
+                selected.unwrap_or("").to_owned()
+            };
+            let response = ui
+                .add(egui::TextEdit::singleline(&mut manual).hint_text(tr("内部 ID / 自定义引用")));
+            picker.manual_input(response.id);
+            if response.changed() {
+                let choice = if manual.is_empty() && absent.is_some() {
+                    None
+                } else {
+                    Some(manual.clone())
+                };
+                if picker.choose(ui, choice.clone()) {
+                    selection = Some(choice);
+                }
+            }
+            ui.data_mut(|data| data.insert_temp(manual_id, manual));
+        });
     });
-    ui.data_mut(|data| data.insert_temp(search_id, search));
     picker.save(ui);
+    ui.data_mut(|data| data.insert_temp(search_id, search));
     selection
 }
 

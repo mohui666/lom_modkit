@@ -17,6 +17,92 @@ struct Source {
     sites: Vec<TextSite>,
     translations: BTreeMap<String, String>,
 }
+
+#[derive(Default, PartialEq, Eq)]
+enum ContentPosition {
+    BeforeChapter,
+    #[default]
+    Sentence,
+    FullChapter,
+}
+
+fn segment_picker(ui: &mut egui::Ui, chapters: &[(String, String)], selected: &mut String) -> bool {
+    if chapters.is_empty() {
+        ui.small(key("vanilla.segment_empty"));
+    } else {
+        forms::SearchCombo::from_id_salt("insert-story-segment")
+            .width(ui.available_width())
+            .selected_text(
+                chapters
+                    .iter()
+                    .find(|(id, _)| id == selected)
+                    .map(|(id, title)| format!("{title} · {id}"))
+                    .unwrap_or_default(),
+            )
+            .show_ui(ui, |ui, query| {
+                for (id, title) in chapters {
+                    if forms::resource_matches(id, title, query)
+                        && ui
+                            .selectable_value(selected, id.clone(), format!("{title} · {id}"))
+                            .clicked()
+                    {
+                        ui.close();
+                    }
+                }
+            });
+    }
+    ui.small_button(key("vanilla.segment_new")).clicked()
+}
+
+pub(crate) struct SegmentInsertion {
+    pub story: Value,
+    pub anchor: String,
+    pub chapter: String,
+    pub before: bool,
+}
+
+fn segment_request(
+    story: &Value,
+    source: &Source,
+    site: &TextSite,
+    chapter: &str,
+    before: bool,
+) -> anyhow::Result<SegmentInsertion> {
+    use anyhow::Context;
+    let text = source.text.strip_prefix('\u{feff}').unwrap_or(&source.text);
+    let at = text
+        .match_indices(&site.find)
+        .nth(site.occurrence - 1)
+        .context("原句定位已失效，请重新读取原版章节")?
+        .0;
+    let imported = lom_core::vanilla_import::import_patch(story, text, &source.translations)?;
+    let metadata = lom_core::vanilla_import::parse(&imported)?.context("缺少原版来源")?;
+    let mut offset = 0;
+    let origin = metadata
+        .origins
+        .iter()
+        .position(|origin| {
+            let start = offset;
+            offset += origin.code.len();
+            at >= start && at + site.find.len() <= offset
+        })
+        .context("无法定位原句对应的步骤")?;
+    let anchor = imported["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|node| lom_core::vanilla_import::origin_index(node) == Some(origin))
+        .filter(|node| node["type"] == "say")
+        .and_then(|node| node["id"].as_str())
+        .context("这句位于不能单独拆分的原版逻辑块内，请选择相邻的可编辑原句")?
+        .to_owned();
+    Ok(SegmentInsertion {
+        story: imported,
+        anchor,
+        chapter: chapter.to_owned(),
+        before,
+    })
+}
 impl Source {
     fn display(&self, site: &TextSite) -> String {
         site.key
@@ -245,9 +331,39 @@ pub struct Panel {
     requested_bookmark: Option<Bookmark>,
     focus: Option<Bookmark>,
     imported: bool,
+    segment_chapters: Vec<(String, String)>,
+    segment_chapter: String,
+    segment_request: Option<SegmentInsertion>,
+    content_position: ContentPosition,
+    before_chapter: Option<(String, String)>,
+    new_segment: bool,
 }
 
 impl Panel {
+    pub fn open_content(&mut self) {
+        self.timeline_tab = false;
+    }
+    pub fn take_before_chapter(&mut self) -> Option<(String, String)> {
+        self.before_chapter.take()
+    }
+    pub fn take_new_segment(&mut self) -> bool {
+        std::mem::take(&mut self.new_segment)
+    }
+    pub fn set_segment_chapters(&mut self, chapters: Vec<(String, String)>) {
+        if !chapters.iter().any(|(id, _)| id == &self.segment_chapter) {
+            self.segment_chapter = chapters
+                .first()
+                .map(|(id, _)| id.clone())
+                .unwrap_or_default();
+        }
+        self.segment_chapters = chapters;
+    }
+    pub fn take_segment_insertion(&mut self) -> Option<SegmentInsertion> {
+        self.segment_request.take()
+    }
+    pub fn segment_error(&mut self, error: anyhow::Error) {
+        self.error = Some(crate::error_ui::capture(error));
+    }
     pub fn take_imported(&mut self) -> bool {
         std::mem::take(&mut self.imported)
     }
@@ -261,6 +377,7 @@ impl Panel {
     pub fn focus_bookmark(&mut self, bookmark: Bookmark) {
         self.navigation_loaded = false;
         self.timeline_tab = false;
+        self.content_position = ContentPosition::Sentence;
         if !bookmark.game_dir.as_os_str().is_empty() && self.game != bookmark.game_dir {
             self.game = bookmark.game_dir.clone();
             self.sources.clear();
@@ -650,8 +767,8 @@ impl Panel {
         };
         self.activate_target(&patch.target);
         self.poll();
-        ui.heading(key("vanilla.title"));
-        ui.label(key("vanilla.intro"));
+        ui.heading(key("vanilla.content_title"));
+        ui.label(key("vanilla.content_intro"));
         if let Some(status) = &self.navigation_status {
             ui.label(key(status));
         }
@@ -701,28 +818,32 @@ impl Panel {
                         .desired_width(f32::INFINITY)
                         .hint_text(key("vanilla.chapter_search")),
                 );
-                for target in &self.chapters {
-                    if !target
-                        .to_lowercase()
-                        .contains(&self.chapter_filter.to_lowercase())
-                    {
-                        continue;
-                    }
-                    if ui
-                        .add_enabled(
-                            patch.target.eq_ignore_ascii_case(target)
-                                || !used.iter().any(|id| id.eq_ignore_ascii_case(target)),
-                            egui::Button::selectable(
-                                patch.target.eq_ignore_ascii_case(target),
-                                target,
-                            ),
-                        )
-                        .clicked()
-                    {
-                        patch.target = target.clone();
-                        ui.close();
-                    }
-                }
+                egui::ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        for target in &self.chapters {
+                            if !target
+                                .to_lowercase()
+                                .contains(&self.chapter_filter.to_lowercase())
+                            {
+                                continue;
+                            }
+                            if ui
+                                .add_enabled(
+                                    patch.target.eq_ignore_ascii_case(target)
+                                        || !used.iter().any(|id| id.eq_ignore_ascii_case(target)),
+                                    egui::Button::selectable(
+                                        patch.target.eq_ignore_ascii_case(target),
+                                        target,
+                                    ),
+                                )
+                                .clicked()
+                            {
+                                patch.target = target.clone();
+                                ui.close();
+                            }
+                        }
+                    });
             });
         });
         self.activate_target(&patch.target);
@@ -731,6 +852,35 @@ impl Panel {
         }
         if !patch.edits.is_empty() {
             ui.small(key("vanilla.chapter_has_edits"));
+        }
+        ui.strong(key("vanilla.content_position"));
+        ui.horizontal_wrapped(|ui| {
+            for (position, label) in [
+                (ContentPosition::BeforeChapter, "vanilla.content_before"),
+                (ContentPosition::Sentence, "vanilla.content_sentence"),
+                (ContentPosition::FullChapter, "vanilla.content_edit"),
+            ] {
+                ui.selectable_value(&mut self.content_position, position, key(label));
+            }
+        });
+        if self.content_position == ContentPosition::BeforeChapter {
+            story["vanilla_patch"] = json!(patch);
+            ui.small(key("vanilla.content_before_hint"));
+            self.new_segment |=
+                segment_picker(ui, &self.segment_chapters, &mut self.segment_chapter);
+            if ui
+                .add_enabled(
+                    !self.segment_chapter.is_empty(),
+                    egui::Button::new(key("vanilla.content_create_event")),
+                )
+                .clicked()
+            {
+                self.before_chapter = Some((patch.target.clone(), self.segment_chapter.clone()));
+            }
+            if let Some(error) = &self.error {
+                crate::error_ui::show_with_actions(ui, error);
+            }
+            return;
         }
         ui.horizontal(|ui| {
             if ui
@@ -783,6 +933,9 @@ impl Panel {
             return;
         }
         ui.small(key("vanilla.import_hint"));
+        if self.content_position == ContentPosition::FullChapter {
+            return;
+        }
         if let Some(mark) = self
             .focus
             .take()
@@ -957,6 +1110,34 @@ impl Panel {
                     || edit.after_condition.is_some())
             {
                 patch.edits.push(edit);
+            }
+        }
+        if site.kind == "say" {
+            ui.separator();
+            ui.strong(key("vanilla.segment_title"));
+            ui.small(key("vanilla.segment_hint"));
+            self.new_segment |=
+                segment_picker(ui, &self.segment_chapters, &mut self.segment_chapter);
+            if !self.segment_chapters.is_empty() {
+                let side = ui
+                    .horizontal_wrapped(|ui| {
+                        if ui.button(key("vanilla.segment_before")).clicked() {
+                            Some(true)
+                        } else if ui.button(key("vanilla.segment_after")).clicked() {
+                            Some(false)
+                        } else {
+                            None
+                        }
+                    })
+                    .inner;
+                if let Some(before) = side {
+                    let mut current = story.clone();
+                    current["vanilla_patch"] = json!(patch);
+                    match segment_request(&current, source, site, &self.segment_chapter, before) {
+                        Ok(request) => self.segment_request = Some(request),
+                        Err(error) => self.error = Some(crate::error_ui::capture(error)),
+                    }
+                }
             }
         }
         let orphaned: Vec<_> = patch
@@ -1174,6 +1355,42 @@ fn preview_insertion(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn segment_request_locates_repeated_unicode_dialogue_and_keeps_existing_edits() {
+        let text = "\u{feff}setsaydialog(saydialogs.narrative)\nsetcharacter(narrative)\nsay(\"重复原句\")\nsay(\"重复原句\")\nsay(\"原版尾句\")\n";
+        let source = Source {
+            text: text.into(),
+            sites: vanilla_patch::text_sites(text),
+            translations: BTreeMap::new(),
+        };
+        let mut patch = vanilla_patch::new_story("main", "DEMO").unwrap();
+        patch["vanilla_patch"]["edits"] = json!([{"find":"say(\"重复原句\")","occurrence":2,"kind":"say","text":"保留改写","before":"保留新增"}]);
+        let request = segment_request(&patch, &source, &source.sites[1], "extra", false).unwrap();
+        let nodes = request.story["nodes"].as_array().unwrap();
+        assert_eq!(
+            nodes
+                .iter()
+                .find(|node| node["id"] == request.anchor)
+                .unwrap()["text"],
+            "保留改写"
+        );
+        assert!(nodes.iter().any(|node| node["text"] == "保留新增"));
+        assert_eq!(
+            nodes
+                .iter()
+                .filter(|node| node["text"] == "重复原句")
+                .count(),
+            1
+        );
+        assert_eq!(
+            lom_core::vanilla_import::parse(&request.story)
+                .unwrap()
+                .unwrap()
+                .source(),
+            text.trim_start_matches('\u{feff}')
+        );
+    }
 
     #[test]
     fn localized_status_templates_preserve_user_identifiers_and_substitute_once() {

@@ -525,6 +525,8 @@ impl App {
         self.image_import_target = None;
         self.audio.stop();
         self.auto = false;
+        self.preview_audio.stop();
+        self.preview_buffering = None;
         self.preview_elapsed = None;
         self.remember_source();
         self.catalog.sync_assets(&self.project.assets);

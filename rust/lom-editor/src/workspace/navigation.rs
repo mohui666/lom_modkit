@@ -66,6 +66,9 @@ impl App {
             self.settings_error = None;
             return;
         }
+        if self.editor_shortcuts(ctx) {
+            return;
+        }
         if ctx.input_mut(|i| {
             i.consume_key(
                 egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
@@ -283,7 +286,7 @@ impl App {
                         ui.menu_button(crate::i18n::key("editor.workspace.original_tools"), |ui| {
                             if ui.button(crate::i18n::key("editor.workspace.import_original")).clicked() {
                                 ui.close();
-                                self.request(Pending::NewVanillaPatch, ctx);
+                                self.open_original_content(ctx);
                             }
                             if ui.button(crate::i18n::key("editor.workspace.routes")).clicked() {
                                 ui.close();self.open_vanilla_routes(ctx);
@@ -353,6 +356,15 @@ impl App {
                             self.paste();
                             ui.close();
                         }
+                        let editable = matches!(self.center, Center::Node | Center::Chapter) && !self.is_vanilla_patch();
+                        if ui.add_enabled(editable, egui::Button::new(crate::i18n::key("editor.shortcuts.duplicate"))
+                            .shortcut_text(shortcut(egui::Modifiers::COMMAND,egui::Key::D))).clicked() {
+                            self.duplicate_steps(); ui.close();
+                        }
+                        if ui.add_enabled(editable, egui::Button::new(crate::i18n::key("editor.shortcuts.find"))
+                            .shortcut_text(shortcut(egui::Modifiers::COMMAND,egui::Key::F))).clicked() {
+                            self.open_step_search(ctx); ui.close();
+                        }
                         if ui.button(tr("多语言")).clicked() {
                             self.open_center(Center::Localization);
                             ui.close();
@@ -391,7 +403,13 @@ impl App {
                         });
                     });
                     ui.menu_button(tr("剧情工具"), |ui| {
-                        if ui.button(crate::i18n::key("usability.dialogue.button")).clicked(){ui.close();self.open_dialogue_authoring(ctx);}
+                        let editable = matches!(self.center, Center::Node | Center::Chapter) && !self.is_vanilla_patch();
+                        if ui.add_enabled(editable,egui::Button::new(crate::i18n::key("editor.shortcuts.add_dialogue"))
+                            .shortcut_text(shortcut(egui::Modifiers::COMMAND,egui::Key::Enter))).clicked(){self.add_node("say");ui.close();}
+                        if ui.add_enabled(editable,egui::Button::new(crate::i18n::key("usability.dialogue.button"))
+                            .shortcut_text(shortcut(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,egui::Key::Enter))).clicked(){ui.close();self.open_dialogue_authoring(ctx);}
+                        if ui.add_enabled(editable && self.view==View::Stage,egui::Button::new(crate::i18n::key("editor.shortcuts.preview"))
+                            .shortcut_text("Space")).clicked(){self.toggle_preview();ui.close();}
                         if ui.button(crate::i18n::key("usability.search.button")).clicked(){ui.close();self.open_command_palette(ctx);}
                         if ui.add_enabled(cfg!(windows), egui::Button::new(crate::i18n::key("editor.play.current"))).clicked() {
                             self.play_current();
@@ -399,6 +417,11 @@ impl App {
                         }
                         if ui.add_enabled(cfg!(windows), egui::Button::new(crate::i18n::key("editor.play.chapter_start"))).clicked() {
                             self.play_chapter_start();
+                            ui.close();
+                        }
+                        if ui.add_enabled(self.test_event_id().is_some(), egui::Button::new(crate::i18n::key("usability.testing.event")))
+                            .on_hover_text(crate::i18n::key("usability.testing.event_hint")).clicked() {
+                            self.open_event_test(ctx);
                             ui.close();
                         }
                         ui.separator();
@@ -451,10 +474,14 @@ impl App {
                         self.tools_panel.open_help();
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.add_enabled(self.test_event_id().is_some(), egui::Button::new(crate::i18n::key("usability.testing.event")))
+                            .on_hover_text(crate::i18n::key("usability.testing.event_hint")).clicked() {
+                            self.open_event_test(ctx);
+                        }
                         if ui
                             .add_enabled(
                                 cfg!(windows),
-                                egui::Button::new(crate::i18n::key("toolbar.play")),
+                                egui::Button::new(crate::i18n::key("usability.testing.story")),
                             )
                             .on_hover_text(crate::i18n::key("editor.play.hint"))
                             .clicked()

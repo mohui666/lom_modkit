@@ -1,5 +1,9 @@
 # Gameplay API 实证矩阵
 
+## 2026-11-13 补齐原版注册旗标目录
+
+本次实时只读核对当前 Windows 游戏 `MissionManagerData.FlagsCollection/GetFlag(string)`、`FlagCollectionData.List/Get(string)`、`FlagData.DevNote/ResetData()`。`GetFlag` 按任务管理器持有的集合查找，目录生成因此改为沿这些真实集合引用读取全部 1068 个旗标，补入旧目录未收录的 310 个编号，包括 `M00032`（崆峒留学·瑞笙参战）。883 项有原始开发备注，52 项有可明确解析的数值说明；没有备注或数值含义不明确时保持未知，不猜测。常规目录重建保留这份已核对的完整集合，不再只留下旧 Lua 字面调用出现的编号。未改写官方资产、游戏文件或存档；这是接口与资源核对，不是本次实机读写验证。
+
 ## 2026-11-12 原版旗标用途目录（1.5.12）
 
 本次定向读取当前 `Mortal.Core.FlagData`：`DevNote` 返回 `_devNote`，`ResetData()` 将 `State` 设为 `_default`，`GetNameKey()` 返回 `Flag/Name/` 加对象名。编辑器只读当前安装的 `globalgamemanagers.assets` 中既有目录的 FlagData，不更改 ScriptableObject、游戏文件或存档。
@@ -151,6 +155,8 @@ Host 在好感展示入口克隆当前 `RelationshipStat`，只替换克隆的�
 现场只读反编译当前游戏 `Fungus.ShakePosition.DoTween()`，确认其读取 `_amount.Value`、`_duration.Value`、`_targetObject.Value`，调用 `iTween.ShakePosition` 并回调完成。现有官方人物生成代码设置 common 流图的 `ShockPosition`／`ShockDuration`，运行 `shock` 块；自定义人物仍使用 Host `CustomCharacterRuntime.Shock`／`ShakeImage` 的衰减位移。本次只补编辑器播放时遗漏的临时位移和 0.5 秒默认计时，不修改上述游戏执行逻辑。预览为衰减动画示意，不声称逐帧等同官方随机抖动。
 
 ## 2026-11-07 原版音频试听
+
+2026-11-13 再次只读核对当前 `Mortal.Story.LuaManager.PlayMusic/PlaySound/PlayEnvSound`、`FadeOutMusic/FadeOutEnvSound` 与 `Mortal.Core.SoundManager` 的对应入口：音乐／环境音经各自集合取键；淡出秒数转成毫秒；`SoundManager.StopMusic()` 提交全部停止事件，并清空当前音乐和环境音记录。编辑器连续预览据此维护音乐、环境音及一次性音效，音乐停止节点清空全部预览通道；读取仍复用已有按需提取／解码组件。预览暂停、循环和混音在编辑器内处理，不调用游戏接口，不改官方资源；高级 Lua、原生调用和复杂 Wwise 运行时混音不在此次预览覆盖范围。
 
 同日复核当前 `Mortal.Core.SoundDataCollection.GetKey(string)` 与 `Mortal.Story.LuaManager.PlaySound(string)`：按 `_list` 中资产名精确查找，找不到时返回空键并只记录警告。现场读取 Story 场景集合确认旧脚本清单中的 `Sword_001`、`Sword_Fight_001`、`重度掉落_001`、`防禦_002` 均不在集合中；从新增音效选项剔除，保留旧工程原引用，不猜测替代音效。该资源缺失独立于工程新旧；当前清单的 37 首音乐、8 项环境音均能解析到单媒体事件，普通音效另有 10 项多源事件，仍明确提示游戏中确认。
 

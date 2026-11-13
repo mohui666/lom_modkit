@@ -86,6 +86,7 @@ end}
         }
         Console.WriteLine("PASS "+passed+" full-import coroutine cases: native scopes, both branches, choices, speaker/options restoration and source attribution (MoonSharp offline)");
         RunNestedTerminal(root);
+        SegmentInsertionLuaTests.Run(root);
     }
 
     private static void RunNestedTerminal(string root)

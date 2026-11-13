@@ -1375,15 +1375,21 @@ impl ToolsPanel {
                         .unwrap_or("")
                         .into();
                 }
-                egui::ComboBox::from_id_salt("package-entry")
-                    .truncate()
+                crate::forms::SearchCombo::from_id_salt("package-entry")
                     .width(ui.available_width())
                     .selected_text(&self.package_entry)
-                    .height(300.0)
-                    .show_ui(ui, |ui| {
+                    .show_ui(ui, |ui, query| {
                         for e in entries {
                             if let Some(name) = e["path"].as_str() {
-                                ui.selectable_value(&mut self.package_entry, name.into(), name);
+                                if !crate::forms::resource_matches(name, "", query) {
+                                    continue;
+                                }
+                                if ui
+                                    .selectable_value(&mut self.package_entry, name.into(), name)
+                                    .clicked()
+                                {
+                                    ui.close();
+                                }
                             }
                         }
                     });

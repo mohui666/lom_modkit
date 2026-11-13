@@ -1,4 +1,4 @@
-use super::{Catalog, Value};
+use super::{resource_matches, Catalog, SearchCombo, Value};
 use crate::i18n::{key, message, tr};
 use eframe::egui::{self, Color32, Ui};
 
@@ -265,11 +265,23 @@ pub(super) fn show(catalog: &Catalog, ui: &mut Ui, node: &mut Value) -> bool {
                 }
                 let old = action["type"].as_str().unwrap_or("").to_owned();
                 let mut selected = old.clone();
-                egui::ComboBox::from_id_salt("parallel-action-type")
+                SearchCombo::from_id_salt("parallel-action-type")
                     .selected_text(catalog.label(&old))
-                    .show_ui(ui, |ui| {
+                    .show_ui(ui, |ui, query| {
                         for kind in lom_core::parallel::ACTION_TYPES {
-                            ui.selectable_value(&mut selected, (*kind).into(), catalog.label(kind));
+                            if !resource_matches(kind, &catalog.label(kind), query) {
+                                continue;
+                            }
+                            if ui
+                                .selectable_value(
+                                    &mut selected,
+                                    (*kind).into(),
+                                    catalog.label(kind),
+                                )
+                                .clicked()
+                            {
+                                ui.close();
+                            }
                         }
                     });
                 if selected != old {

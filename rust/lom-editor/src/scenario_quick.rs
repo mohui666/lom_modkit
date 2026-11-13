@@ -187,14 +187,21 @@ fn named_choice(
     let mut selected = v[key].as_str().unwrap_or("").to_owned();
     let before = selected.clone();
     field_row(ui, title, |ui| {
-        egui::ComboBox::from_id_salt(key)
+        crate::forms::SearchCombo::from_id_salt(key)
             .width(190.0_f32.min(ui.available_width()))
-            .truncate()
             .selected_text(label(items, &selected, missing))
-            .show_ui(ui, |ui| {
+            .show_ui(ui, |ui, query| {
                 for (id, name) in items {
-                    ui.selectable_value(&mut selected, id.clone(), tr(name))
-                        .on_hover_text(id);
+                    if !crate::forms::resource_matches(id, &tr(name), query) {
+                        continue;
+                    }
+                    if ui
+                        .selectable_value(&mut selected, id.clone(), tr(name))
+                        .on_hover_text(id)
+                        .clicked()
+                    {
+                        ui.close();
+                    }
                 }
             });
     });
@@ -564,9 +571,9 @@ pub fn dates(ui: &mut egui::Ui, when: &mut Value, show_task: bool, names: &Names
         let title_galley = ui.fonts_mut(|fonts| fonts.layout_job(title_job));
         let response = egui::CollapsingHeader::new(title_galley).id_salt("require_task").show(ui,|ui| {
             let mut id=simple.task.as_ref().map(|(id,_)|id.clone()).unwrap_or_default();
-            egui::ComboBox::from_id_salt("required_task").width(190.0_f32.min(ui.available_width())).truncate().selected_text(if id.is_empty(){crate::i18n::key("common.quick.no_task")}else{names.task(&id)}).show_ui(ui,|ui| {
-                ui.selectable_value(&mut id,String::new(),crate::i18n::key("common.quick.no_task"));
-                for (key,name) in &names.tasks {ui.selectable_value(&mut id,key.clone(),name);}
+            crate::forms::SearchCombo::from_id_salt("required_task").width(190.0_f32.min(ui.available_width())).selected_text(if id.is_empty(){crate::i18n::key("common.quick.no_task")}else{names.task(&id)}).show_ui(ui,|ui, query| {
+                if ui.selectable_value(&mut id,String::new(),crate::i18n::key("common.quick.no_task")).clicked() {ui.close();}
+                for (key,name) in &names.tasks {if crate::forms::resource_matches(key, name, query) {if ui.selectable_value(&mut id,key.clone(),name).clicked() {ui.close();}}}
             });
             if id.is_empty(){simple.task=None;}
             else {
@@ -831,13 +838,17 @@ pub fn results(ui: &mut egui::Ui, e: &mut Value, names: &Names) {
                         ui.small(crate::i18n::key("common.quick.unlinked_story"));
                     } else {
                         let mut add = String::new();
-                        egui::ComboBox::from_id_salt("add_progress")
+                        crate::forms::SearchCombo::from_id_salt("add_progress")
                             .width(190.0_f32.min(ui.available_width()))
-                            .truncate()
                             .selected_text(crate::i18n::key("common.quick.update_task"))
-                            .show_ui(ui, |ui| {
+                            .show_ui(ui, |ui, query| {
                                 for (id, name) in &names.tasks {
-                                    ui.selectable_value(&mut add, id.clone(), name);
+                                    if !crate::forms::resource_matches(id, name, query) {
+                                        continue;
+                                    }
+                                    if ui.selectable_value(&mut add, id.clone(), name).clicked() {
+                                        ui.close();
+                                    }
                                 }
                             });
                         if !add.is_empty() && effects["tasks"].get(&add).is_none() {

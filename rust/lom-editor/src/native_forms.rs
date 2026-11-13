@@ -662,15 +662,20 @@ fn edit_parameter(
                 .clone();
             let mut selected = None;
             crate::forms::resource_combo(ui, label, &current, |ui| {
-                for (expr, caption) in &options {
-                    if ui
-                        .selectable_label(raw_name(expr) == raw_name(expression), caption)
-                        .clicked()
-                    {
-                        selected = Some(expr.clone());
-                        ui.close();
+                crate::forms::search_menu(ui, |ui, query| {
+                    for (expr, caption) in &options {
+                        if !crate::forms::resource_matches(&raw_name(expr), caption, query) {
+                            continue;
+                        }
+                        if ui
+                            .selectable_label(raw_name(expr) == raw_name(expression), caption)
+                            .clicked()
+                        {
+                            selected = Some(expr.clone());
+                            ui.close();
+                        }
                     }
-                }
+                })
             });
             if let Some(selected) = selected {
                 *expression = selected;
@@ -704,36 +709,26 @@ fn resource_picker(
                 )],
             )
         });
-    let query_id = ui.id().with((label, "native-resource-search"));
-    let mut query = ui
-        .ctx()
-        .data(|data| data.get_temp::<String>(query_id))
-        .unwrap_or_default();
     let mut selected = None;
     crate::forms::resource_combo(ui, label, &caption, |ui| {
-        ui.add(
-            egui::TextEdit::singleline(&mut query)
-                .desired_width(f32::INFINITY)
-                .hint_text(key("native.form.search")),
-        );
-        let query = query.to_lowercase();
-        for (id, name) in options {
-            if !query.is_empty() && !format!("{name} {id}").to_lowercase().contains(&query) {
-                continue;
+        crate::forms::search_menu(ui, |ui, query| {
+            for (id, name) in options {
+                if !crate::forms::resource_matches(&id.to_string(), name, query) {
+                    continue;
+                }
+                if ui
+                    .selectable_label(id == &current, name)
+                    .on_hover_text(id.to_string())
+                    .clicked()
+                {
+                    selected = Some(id.clone());
+                    ui.close();
+                }
             }
-            if ui
-                .selectable_label(id == &current, name)
-                .on_hover_text(id.to_string())
-                .clicked()
-            {
-                selected = Some(id.clone());
-                ui.close();
-            }
-        }
+        })
     })
     .response
     .on_hover_text(current.to_string());
-    ui.ctx().data_mut(|data| data.insert_temp(query_id, query));
     if let Some(selected) = selected {
         expression["value"] = selected;
         expression.as_object_mut().unwrap().remove("display");

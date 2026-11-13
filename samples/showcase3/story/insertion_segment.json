@@ -1,0 +1,50 @@
+{
+  "_editor": {
+    "chapter_group": "原版编辑",
+    "note": "在原版补丁中选择本章，点击「在原句前插入整段」或「在原句后插入整段」。"
+  },
+  "id": "insertion_segment",
+  "nodes": [
+    {
+      "id": "intro",
+      "mode": "narrative",
+      "text": "这是一整段插入剧情的开场。",
+      "type": "say"
+    },
+    {
+      "id": "choose",
+      "options": [
+        {
+          "goto": "left",
+          "text": "听第一段"
+        },
+        {
+          "goto": "right",
+          "text": "听第二段"
+        }
+      ],
+      "type": "choice"
+    },
+    {
+      "goto": "done",
+      "id": "left",
+      "mode": "narrative",
+      "text": "第一条路径结束后，会继续原版剧情。",
+      "type": "say"
+    },
+    {
+      "goto": "done",
+      "id": "right",
+      "mode": "narrative",
+      "text": "第二条路径也会接回同一个原版位置。",
+      "type": "say"
+    },
+    {
+      "id": "done",
+      "type": "end"
+    }
+  ],
+  "start": "intro",
+  "story_schema": 2,
+  "title": "整段插入示例（先在此编写）"
+}

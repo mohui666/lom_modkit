@@ -2,6 +2,47 @@
 use super::*;
 
 impl App {
+    pub(super) fn toggle_preview(&mut self) {
+        self.sync_preview_selection();
+        if self.auto {
+            self.preview_elapsed = Some(self.last_step.elapsed().as_secs_f64());
+            self.auto = false;
+            self.preview_audio.pause();
+            self.preview_buffering = None;
+            self.preview_waiting_branch = false;
+        } else {
+            self.last_step =
+                Instant::now() - Duration::from_secs_f64(self.preview_elapsed.unwrap_or(0.0));
+            self.preview_elapsed = Some(0.0);
+            self.auto = true;
+        }
+    }
+    pub(super) fn test_event_id(&self) -> Option<String> {
+        let events: Vec<_> = self.project.scenario.as_ref()?["events"]
+            .as_array()?
+            .iter()
+            .filter(|event| event["trigger"] != "start")
+            .collect();
+        let selected = (self.center == Center::Events)
+            .then_some(self.scenario_selection.event.as_deref())
+            .flatten();
+        events
+            .iter()
+            .find(|event| event["id"].as_str() == selected)
+            .or_else(|| events.iter().find(|event| event["script"] == self.current))
+            .or_else(|| events.first())?["id"]
+            .as_str()
+            .map(str::to_owned)
+    }
+    pub(super) fn open_event_test(&mut self, ctx: &egui::Context) {
+        if let Some(event) = self.test_event_id() {
+            if !self.open_center(Center::Events) {
+                return;
+            }
+            self.scenario_selection.event = Some(event.clone());
+            crate::scenario_test::reveal(ctx, &self.project, &event);
+        }
+    }
     pub(super) fn play_current(&mut self) {
         self.play(false);
     }
@@ -91,6 +132,8 @@ impl App {
     pub(super) fn sync_preview_selection(&mut self) {
         let location = (self.current.clone(), self.selected);
         if self.preview_location != location {
+            self.preview_audio.stop();
+            self.preview_buffering = None;
             self.preview_location = location;
             self.auto = false;
             self.preview_waiting_branch = false;
@@ -138,10 +181,12 @@ impl App {
                         self.preview_elapsed = Some(0.0);
                     } else {
                         self.auto = false;
+                        self.preview_audio.finish();
                         self.preview_elapsed = Some(preview::playback_duration(node));
                     }
                 } else {
                     self.auto = false;
+                    self.preview_audio.finish();
                     self.preview_elapsed = Some(preview::playback_duration(node));
                 }
             }
@@ -375,23 +420,61 @@ impl App {
                                         } else {
                                             "stage.play"
                                         }))
+                                        .on_hover_text(crate::i18n::key(
+                                            "editor.shortcuts.preview_hint",
+                                        ))
                                         .clicked()
                                     {
-                                        if self.auto {
-                                            self.preview_elapsed =
-                                                Some(self.last_step.elapsed().as_secs_f64());
-                                            self.auto = false;
-                                            self.preview_waiting_branch = false;
-                                        } else {
-                                            self.last_step = Instant::now()
-                                                - Duration::from_secs_f64(
-                                                    self.preview_elapsed.unwrap_or(0.0),
-                                                );
-                                            self.preview_elapsed = Some(0.0);
-                                            self.auto = true;
-                                        }
+                                        self.toggle_preview();
+                                    }
+                                    if ui
+                                        .button(crate::i18n::key("editor.audio.stop_preview"))
+                                        .clicked()
+                                    {
+                                        self.stop_preview();
+                                    }
+                                    if ui
+                                        .add_enabled(
+                                            cfg!(windows),
+                                            egui::Checkbox::new(
+                                                &mut self.preview_sound,
+                                                crate::i18n::key("editor.audio.timeline_sound"),
+                                            ),
+                                        )
+                                        .on_hover_text(crate::i18n::key(
+                                            "editor.audio.timeline_hint",
+                                        ))
+                                        .changed()
+                                        && !self.preview_sound
+                                    {
+                                        self.preview_audio.stop();
+                                        self.preview_buffering = None;
                                     }
                                 });
+                                if self.preview_audio.buffering() {
+                                    ui.horizontal(|ui| {
+                                        ui.spinner();
+                                        ui.label(crate::i18n::key(
+                                            "editor.audio.timeline_preparing",
+                                        ));
+                                    });
+                                }
+                                if !self.preview_audio.warnings().is_empty() {
+                                    ui.collapsing(
+                                        crate::i18n::message(
+                                            "editor.audio.timeline_errors",
+                                            &[(
+                                                "count",
+                                                self.preview_audio.warnings().len().to_string(),
+                                            )],
+                                        ),
+                                        |ui| {
+                                            for warning in self.preview_audio.warnings() {
+                                                crate::error_ui::show(ui, warning);
+                                            }
+                                        },
+                                    );
+                                }
                                 let node = &story["nodes"][self.selected];
                                 if node["type"] == "transition" {
                                     ui.label(RichText::new(tr("黑幕转场预览（节奏示意）")).small());

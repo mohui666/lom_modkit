@@ -81,7 +81,14 @@ pub fn show(
     }
     draft["values"] = json!(current);
     let mut run = false;
-    egui::CollapsingHeader::new(i18n::key("editor.event_test.title")).show(ui, |ui| {
+    let reveal = ui
+        .ctx()
+        .data_mut(|data| data.remove_temp::<bool>(id.with("reveal")))
+        .unwrap_or(false);
+    let panel = egui::CollapsingHeader::new(i18n::key("editor.event_test.title"))
+        .id_salt(id.with("panel"))
+        .open(reveal.then_some(true));
+    panel.show(ui, |ui| {
         ui.small(i18n::key("editor.event_test.hint"));
         let mut original = draft["include_official_events"].as_bool().unwrap_or(false);
         if ui
@@ -145,20 +152,32 @@ pub fn show(
                         .flatten()
                         .find(|t| t["id"] == key);
                     let mut state = row["value"].as_str().unwrap_or("").to_owned();
-                    egui::ComboBox::from_id_salt("task-state")
+                    crate::forms::SearchCombo::from_id_salt("task-state")
                         .selected_text(crate::scenario_quick::state_name(&state))
-                        .show_ui(ui, |ui| {
+                        .show_ui(ui, |ui, query| {
                             for option in task
                                 .into_iter()
                                 .flat_map(|t| t["states"].as_array())
                                 .flatten()
                                 .filter_map(Value::as_str)
                             {
-                                ui.selectable_value(
-                                    &mut state,
-                                    option.into(),
-                                    crate::scenario_quick::state_name(option),
-                                );
+                                if !crate::forms::resource_matches(
+                                    option,
+                                    &crate::scenario_quick::state_name(option),
+                                    query,
+                                ) {
+                                    continue;
+                                }
+                                if ui
+                                    .selectable_value(
+                                        &mut state,
+                                        option.into(),
+                                        crate::scenario_quick::state_name(option),
+                                    )
+                                    .clicked()
+                                {
+                                    ui.close();
+                                }
                             }
                         });
                     row["value"] = json!(state);
@@ -180,6 +199,15 @@ pub fn show(
     });
     ui.ctx().data_mut(|d| d.insert_temp(id, draft.clone()));
     run.then_some(draft)
+}
+
+pub fn reveal(ctx: &egui::Context, project: &Project, event: &str) {
+    let id = egui::Id::new((
+        "event-test-state",
+        project.manifest["id"].as_str(),
+        Some(event),
+    ));
+    ctx.data_mut(|data| data.insert_temp(id.with("reveal"), true));
 }
 
 pub fn prepare(project: &Project, spec: &Value) -> Result<Project> {

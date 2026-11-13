@@ -1,6 +1,6 @@
 # 测试入口与验证边界
 
-本版变化见 [更新说明](../../RELEASE_NOTES_v1.5.15.md)；历史 1.4.19 验证记录见 [当前能力](current_capabilities.md#1419-验证范围)。
+本版变化见 [更新说明](../../RELEASE_NOTES_v1.5.16.md)；历史 1.4.19 验证记录见 [当前能力](current_capabilities.md#1419-验证范围)。
 
 ## 验证层次
 

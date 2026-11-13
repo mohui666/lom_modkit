@@ -46,6 +46,17 @@ fn focused_text_input_keeps_project_undo_redo_and_delete_shortcuts() {
         (egui::Key::Y, egui::Modifiers::COMMAND),
         (egui::Key::Backspace, egui::Modifiers::NONE),
         (egui::Key::Delete, egui::Modifiers::NONE),
+        (egui::Key::D, egui::Modifiers::COMMAND),
+        (egui::Key::Enter, egui::Modifiers::COMMAND),
+        (
+            egui::Key::Enter,
+            egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
+        ),
+        (egui::Key::A, egui::Modifiers::COMMAND),
+        (egui::Key::F, egui::Modifiers::COMMAND),
+        (egui::Key::ArrowUp, egui::Modifiers::ALT),
+        (egui::Key::ArrowDown, egui::Modifiers::ALT),
+        (egui::Key::Space, egui::Modifiers::NONE),
     ] {
         let _ = ctx.run(
             egui::RawInput {
@@ -66,6 +77,8 @@ fn focused_text_input_keeps_project_undo_redo_and_delete_shortcuts() {
         );
         assert!(snapshot(&app.project) == before);
         assert_eq!((app.undo.len(), app.redo.len()), history);
+        assert!(app.multiselect.is_empty());
+        assert!(!app.auto);
     }
     ctx.memory_mut(|memory| memory.surrender_focus(id));
     let _ = ctx.run(
@@ -79,6 +92,220 @@ fn focused_text_input_keeps_project_undo_redo_and_delete_shortcuts() {
         snapshot(&app.project) != before,
         "project undo still works outside text inputs"
     );
+}
+
+#[test]
+fn duplicate_shortcut_keeps_internal_edges_clipboard_and_one_undo() {
+    for modifiers in [
+        egui::Modifiers::CTRL | egui::Modifiers::COMMAND,
+        egui::Modifiers::MAC_CMD | egui::Modifiers::COMMAND,
+    ] {
+        let mut app = app();
+        app.project.stories.insert(
+            "main".into(),
+            json!({"id":"main","start":"a","nodes":[
+            {"id":"a","type":"wait","seconds":0.1,"goto":"b"},
+            {"id":"b","type":"wait","seconds":0.2,"goto":"done"},
+            {"id":"done","type":"end"}]}),
+        );
+        app.selected = 0;
+        app.multiselect = [0, 1].into();
+        app.clipboard = vec![json!({"id":"keep","type":"wait","seconds":9})];
+        app.track();
+        app.flush();
+        let original = snapshot(&app.project);
+        let clipboard = app.clipboard.clone();
+        let ctx = egui::Context::default();
+        let _ = ctx.run(
+            egui::RawInput {
+                events: vec![key_event(egui::Key::D, modifiers)],
+                ..Default::default()
+            },
+            |ctx| app.shortcuts(ctx),
+        );
+        app.track();
+        app.flush();
+        assert_eq!(app.clipboard, clipboard);
+        let story = app.story();
+        let nodes = story["nodes"].as_array().unwrap();
+        assert_eq!(nodes.len(), 5);
+        assert_eq!(nodes[0]["goto"], "b");
+        assert_eq!(nodes[2]["goto"], nodes[3]["id"]);
+        assert_eq!(nodes[3]["goto"], "done");
+        assert_eq!(app.multiselect, [2, 3].into());
+        app.undo();
+        assert!(snapshot(&app.project) == original);
+    }
+}
+
+#[test]
+fn authoring_shortcuts_move_select_and_add_steps_without_changing_existing_content() {
+    let mut app = app();
+    app.project.stories.insert(
+        "main".into(),
+        json!({"id":"main","start":"a","nodes":[
+        {"id":"a","type":"wait","seconds":0.1},{"id":"b","type":"wait","seconds":0.2},
+        {"id":"c","type":"wait","seconds":0.3},{"id":"done","type":"end"}]}),
+    );
+    let original = app.story();
+    app.selected = 2;
+    app.multiselect = [1, 2].into();
+    let ctx = egui::Context::default();
+    let press = |app: &mut App, key, modifiers| {
+        let _ = ctx.run(
+            egui::RawInput {
+                events: vec![key_event(key, modifiers)],
+                ..Default::default()
+            },
+            |ctx| app.shortcuts(ctx),
+        );
+    };
+    press(&mut app, egui::Key::ArrowUp, egui::Modifiers::ALT);
+    assert_eq!(app.story()["nodes"][0]["id"], "b");
+    assert_eq!(app.story()["nodes"][1]["id"], "c");
+    press(&mut app, egui::Key::ArrowDown, egui::Modifiers::ALT);
+    assert_eq!(app.story(), original);
+    press(&mut app, egui::Key::A, egui::Modifiers::COMMAND);
+    assert_eq!(app.multiselect.len(), 4);
+    press(&mut app, egui::Key::Enter, egui::Modifiers::COMMAND);
+    assert_eq!(app.story()["nodes"].as_array().unwrap().len(), 5);
+    assert_eq!(app.story()["nodes"][app.selected]["type"], "say");
+}
+
+#[test]
+fn shortcut_search_gets_focus_and_preserves_the_existing_global_search_binding() {
+    let mut app = app();
+    let original = snapshot(&app.project);
+    let ctx = egui::Context::default();
+    let _ = ctx.run(
+        egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1200.0, 900.0),
+            )),
+            events: vec![key_event(egui::Key::F, egui::Modifiers::COMMAND)],
+            ..Default::default()
+        },
+        |ctx| {
+            app.shortcuts(ctx);
+            app.sidebar(ctx);
+        },
+    );
+    let search = egui::Id::new("story-step-search");
+    assert_eq!(ctx.memory(|memory| memory.focused()), Some(search));
+    let _ = ctx.run(
+        egui::RawInput {
+            events: vec![egui::Event::Text("查找台词".into())],
+            ..Default::default()
+        },
+        |ctx| {
+            app.shortcuts(ctx);
+            app.sidebar(ctx);
+        },
+    );
+    assert_eq!(app.search, "查找台词");
+    ctx.memory_mut(|memory| memory.surrender_focus(search));
+    let _ = ctx.run(
+        egui::RawInput {
+            events: vec![key_event(
+                egui::Key::F,
+                egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
+            )],
+            ..Default::default()
+        },
+        |ctx| app.shortcuts(ctx),
+    );
+    assert_eq!(app.center, Center::Advanced);
+    assert_eq!(app.advanced.page, 0);
+    assert!(snapshot(&app.project) == original);
+}
+
+#[test]
+fn authoring_shortcuts_leave_ime_popup_and_repeat_events_alone() {
+    let mut app = app();
+    let original = snapshot(&app.project);
+    let ctx = egui::Context::default();
+    let _ = ctx.run(
+        egui::RawInput {
+            events: vec![
+                egui::Event::Ime(egui::ImeEvent::Preedit("候选".into())),
+                key_event(egui::Key::D, egui::Modifiers::COMMAND),
+            ],
+            ..Default::default()
+        },
+        |ctx| app.shortcuts(ctx),
+    );
+    let mut release = key_event(egui::Key::D, egui::Modifiers::COMMAND);
+    if let egui::Event::Key { pressed, .. } = &mut release {
+        *pressed = false;
+    }
+    let _ = ctx.run(
+        egui::RawInput {
+            events: vec![release],
+            ..Default::default()
+        },
+        |_| {},
+    );
+    let _ = ctx.run(
+        egui::RawInput {
+            events: vec![key_event(egui::Key::D, egui::Modifiers::COMMAND)],
+            ..Default::default()
+        },
+        |ctx| {
+            egui::Popup::open_id(ctx, egui::Id::new("shortcut-popup"));
+            app.shortcuts(ctx);
+            egui::Popup::close_all(ctx);
+        },
+    );
+    let mut repeat = key_event(egui::Key::D, egui::Modifiers::COMMAND);
+    if let egui::Event::Key {
+        repeat: repeated, ..
+    } = &mut repeat
+    {
+        *repeated = true;
+    }
+    let _ = ctx.run(
+        egui::RawInput {
+            events: vec![repeat],
+            ..Default::default()
+        },
+        |ctx| app.shortcuts(ctx),
+    );
+    assert!(snapshot(&app.project) == original);
+}
+
+#[test]
+fn space_shortcut_pauses_and_resumes_editor_preview_without_launching_the_game() {
+    let mut app = app();
+    let original = snapshot(&app.project);
+    let ctx = egui::Context::default();
+    let press = |app: &mut App| {
+        let down = key_event(egui::Key::Space, egui::Modifiers::NONE);
+        let mut up = down.clone();
+        if let egui::Event::Key { pressed, .. } = &mut up {
+            *pressed = false;
+        }
+        let _ = ctx.run(
+            egui::RawInput {
+                events: vec![down, up],
+                ..Default::default()
+            },
+            |ctx| app.shortcuts(ctx),
+        );
+    };
+    press(&mut app);
+    assert!(app.auto);
+    app.last_step = Instant::now() - Duration::from_millis(200);
+    press(&mut app);
+    assert!(!app.auto);
+    assert!(app.preview_elapsed.unwrap() >= 0.2);
+    press(&mut app);
+    assert!(app.auto);
+    assert!(snapshot(&app.project) == original);
+    app.auto = false;
+    app.view = View::Graph;
+    press(&mut app);
+    assert!(!app.auto);
 }
 
 #[test]

@@ -97,64 +97,71 @@ pub(crate) fn field(
             let mut search =
                 ui.data_mut(|data| data.get_temp::<String>(search_id).unwrap_or_default());
             ui.add(
-                egui::TextEdit::singleline(&mut search).hint_text(i18n::key("game_flags.search")),
+                egui::TextEdit::singleline(&mut search)
+                    .desired_width(f32::INFINITY)
+                    .hint_text(i18n::key("game_flags.search")),
             );
-            if optional
-                && ui
-                    .selectable_label(before.is_none(), i18n::key("game_flags.clear"))
-                    .clicked()
-            {
-                clear = true;
-                ui.close();
-            }
-            let visible: Vec<_> = data["game_flags"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter(|row| matches(row, &search))
-                .collect();
-            let mut choose = |ui: &mut Ui, row: &Value| {
-                ui.horizontal(|ui| {
-                    if ui
-                        .selectable_label(id == text(row, "id"), label(row))
-                        .on_hover_text(prose(text(row, "description")))
-                        .clicked()
+            egui::ScrollArea::vertical()
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    if optional
+                        && ui
+                            .selectable_label(before.is_none(), i18n::key("game_flags.clear"))
+                            .clicked()
                     {
-                        id = text(row, "id").into();
-                        edited = true;
+                        clear = true;
                         ui.close();
                     }
-                    ui.weak(text(row, "id"));
-                });
-            };
-            for row in visible.iter().filter(|row| !advanced(row)) {
-                choose(ui, row);
-            }
-            if visible.iter().any(|row| advanced(row)) {
-                egui::CollapsingHeader::new(i18n::key("game_flags.advanced"))
-                    .open((!search.trim().is_empty()).then_some(true))
-                    .show(ui, |ui| {
-                        for row in visible.iter().filter(|row| advanced(row)) {
-                            choose(ui, row)
+                    let visible: Vec<_> = data["game_flags"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter(|row| matches(row, &search))
+                        .collect();
+                    let mut choose = |ui: &mut Ui, row: &Value| {
+                        ui.horizontal(|ui| {
+                            if ui
+                                .selectable_label(id == text(row, "id"), label(row))
+                                .on_hover_text(prose(text(row, "description")))
+                                .clicked()
+                            {
+                                id = text(row, "id").into();
+                                edited = true;
+                                ui.close();
+                            }
+                            ui.weak(text(row, "id"));
+                        });
+                    };
+                    for row in visible.iter().filter(|row| !advanced(row)) {
+                        choose(ui, row);
+                    }
+                    if visible.iter().any(|row| advanced(row)) {
+                        egui::CollapsingHeader::new(i18n::key("game_flags.advanced"))
+                            .open((!search.trim().is_empty()).then_some(true))
+                            .show(ui, |ui| {
+                                for row in visible.iter().filter(|row| advanced(row)) {
+                                    choose(ui, row)
+                                }
+                            });
+                    }
+                    ui.collapsing(i18n::key("game_flags.manual"), |ui| {
+                        let manual_id = ui.id().with("manual-id");
+                        let mut manual = ui.data_mut(|data| {
+                            data.get_temp::<String>(manual_id)
+                                .unwrap_or_else(|| id.clone())
+                        });
+                        ui.add(
+                            egui::TextEdit::singleline(&mut manual)
+                                .hint_text(i18n::key("game_flags.code")),
+                        );
+                        if ui.button(i18n::key("game_flags.apply_id")).clicked() {
+                            id = manual.clone();
+                            edited = true;
+                            ui.close();
                         }
+                        ui.data_mut(|data| data.insert_temp(manual_id, manual));
                     });
-            }
-            ui.collapsing(i18n::key("game_flags.manual"), |ui| {
-                let manual_id = ui.id().with("manual-id");
-                let mut manual = ui.data_mut(|data| {
-                    data.get_temp::<String>(manual_id)
-                        .unwrap_or_else(|| id.clone())
                 });
-                ui.add(
-                    egui::TextEdit::singleline(&mut manual).hint_text(i18n::key("game_flags.code")),
-                );
-                if ui.button(i18n::key("game_flags.apply_id")).clicked() {
-                    id = manual.clone();
-                    edited = true;
-                    ui.close();
-                }
-                ui.data_mut(|data| data.insert_temp(manual_id, manual));
-            });
             ui.data_mut(|data| data.insert_temp(search_id, search));
         });
         if !id.is_empty() {
@@ -268,41 +275,47 @@ pub(crate) fn number(
                 i18n::message("game_flags.current_value", &[("value", value.to_string())])
             });
         forms::resource_combo(ui, "flag-value", &display, |ui| {
-            for choice in choices {
-                let selected = choice["value"].as_i64().expect("flag value suggestion");
-                if ui
-                    .selectable_label(current == selected, title(choice))
-                    .clicked()
-                {
-                    number = selected;
-                    edited = true;
-                    ui.close();
+            forms::search_menu(ui, |ui, query| {
+                for choice in choices {
+                    if !forms::resource_matches(&choice["value"].to_string(), &title(choice), query)
+                    {
+                        continue;
+                    }
+                    let selected = choice["value"].as_i64().expect("flag value suggestion");
+                    if ui
+                        .selectable_label(current == selected, title(choice))
+                        .clicked()
+                    {
+                        number = selected;
+                        edited = true;
+                        ui.close();
+                    }
                 }
-            }
-            if let Some(default) =
-                metadata
-                    .and_then(|row| row["default"].as_i64())
-                    .filter(|default| {
-                        !choices
-                            .iter()
-                            .any(|item| item["value"].as_i64() == Some(*default))
-                    })
-            {
-                if ui
-                    .selectable_label(
-                        current == default,
-                        i18n::message(
-                            "game_flags.initial_value",
-                            &[("value", default.to_string())],
-                        ),
-                    )
-                    .clicked()
+                if let Some(default) =
+                    metadata
+                        .and_then(|row| row["default"].as_i64())
+                        .filter(|default| {
+                            !choices
+                                .iter()
+                                .any(|item| item["value"].as_i64() == Some(*default))
+                        })
                 {
-                    number = default;
-                    edited = true;
-                    ui.close();
+                    if ui
+                        .selectable_label(
+                            current == default,
+                            i18n::message(
+                                "game_flags.initial_value",
+                                &[("value", default.to_string())],
+                            ),
+                        )
+                        .clicked()
+                    {
+                        number = default;
+                        edited = true;
+                        ui.close();
+                    }
                 }
-            }
+            })
         });
     }
     edited |= ui

@@ -215,9 +215,8 @@ impl Preview {
         ui.horizontal_wrapped(|ui| {
             ui.checkbox(&mut self.layout_mode, crate::i18n::tr("调整画面"));
             if self.layout_mode {
-                egui::ComboBox::from_id_salt("layout-object")
+                crate::forms::SearchCombo::from_id_salt("layout-object")
                     .width((ui.available_width() - 64.0).clamp(100.0, 260.0))
-                    .truncate()
                     .selected_text(
                         choices
                             .iter()
@@ -225,16 +224,20 @@ impl Preview {
                             .map(|(_, label)| label.clone())
                             .unwrap_or_else(|| crate::i18n::tr("选择人物、插图或特效")),
                     )
-                    .show_ui(ui, |ui| {
+                    .show_ui(ui, |ui, query| {
                         for (target, label) in &choices {
-                            if ui
-                                .selectable_value(
-                                    &mut self.layout_selected,
-                                    Some(target.clone()),
-                                    label,
-                                )
-                                .changed()
-                            {
+                            if !crate::forms::resource_matches("", label, query) {
+                                continue;
+                            }
+                            let response = ui.selectable_value(
+                                &mut self.layout_selected,
+                                Some(target.clone()),
+                                label,
+                            );
+                            if response.clicked() {
+                                ui.close();
+                            }
+                            if response.changed() {
                                 self.layout_drag = None;
                             }
                         }

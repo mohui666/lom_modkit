@@ -16842,6 +16842,14 @@
       ]
     },
     {
+      "id": "A10016",
+      "name": "A10016",
+      "default": 0,
+      "scripts": [
+        "ch8_6_3"
+      ]
+    },
+    {
       "id": "ActionCheck01",
       "name": "任務行動次數檢查",
       "default": 0,
@@ -16864,6 +16872,11 @@
         "alchemy_work_901",
         "alchemy_work_901_01"
       ]
+    },
+    {
+      "id": "Alpha_001",
+      "name": "Alpha_001",
+      "default": 0
     },
     {
       "id": "B00001",
@@ -17006,6 +17019,78 @@
       ]
     },
     {
+      "id": "BattleProgress_01",
+      "name": "旗標暫存1",
+      "default": 0,
+      "description": "旗標暫存1",
+      "temporary": true
+    },
+    {
+      "id": "BattleProgress_02",
+      "name": "旗標暫存1",
+      "default": 0,
+      "description": "旗標暫存1",
+      "temporary": true
+    },
+    {
+      "id": "BattleProgress_03",
+      "name": "旗標暫存1",
+      "default": 0,
+      "description": "旗標暫存1",
+      "temporary": true
+    },
+    {
+      "id": "BattleResult_001",
+      "name": "通用戰役結果",
+      "default": 0,
+      "description": "通用戰役結果",
+      "scripts": [
+        "ch4_1_2"
+      ]
+    },
+    {
+      "id": "BattleResult_002",
+      "name": "通用戰役結果",
+      "default": 0,
+      "description": "通用戰役結果"
+    },
+    {
+      "id": "C00000",
+      "name": "通用決鬥成敗",
+      "default": 0,
+      "description": "通用決鬥成敗"
+    },
+    {
+      "id": "C00001",
+      "name": "煎藥決鬥大師兄成敗",
+      "default": 0,
+      "description": "煎藥決鬥大師兄成敗"
+    },
+    {
+      "id": "C00002",
+      "name": "決鬥龍大俠成敗",
+      "default": 0,
+      "description": "決鬥龍大俠成敗"
+    },
+    {
+      "id": "C00003",
+      "name": "決鬥萬里鵬程 - 使用回合次數結果",
+      "default": 0,
+      "description": "決鬥萬里鵬程 - 使用回合次數結果"
+    },
+    {
+      "id": "C00004",
+      "name": "決鬥閻關三煞成敗",
+      "default": 0,
+      "description": "決鬥閻關三煞成敗"
+    },
+    {
+      "id": "C00005",
+      "name": "毛二壯決鬥結果",
+      "default": 0,
+      "description": "毛二壯決鬥結果"
+    },
+    {
       "id": "C30000",
       "name": "小梅練武場決鬥次數",
       "default": 0,
@@ -17045,11 +17130,28 @@
       ]
     },
     {
+      "id": "Ch_5_6_2_05",
+      "name": "Ch_5_6_2_05",
+      "default": 0,
+      "scripts": [
+        "ch5_6_2_4"
+      ]
+    },
+    {
       "id": "Ch_6_4_3_Break_01_001",
       "name": "Ch_6_4_3_Break_01_001",
       "default": 0,
       "scripts": [
         "ch6_4_3_break_start_01"
+      ]
+    },
+    {
+      "id": "Craft_Work_302_001",
+      "name": "二師兄限定",
+      "default": 0,
+      "description": "二師兄限定",
+      "scripts": [
+        "craft_work_302"
       ]
     },
     {
@@ -17060,6 +17162,12 @@
       "scripts": [
         "S0003_02_03"
       ]
+    },
+    {
+      "id": "Demo",
+      "name": "試玩版",
+      "default": 0,
+      "description": "試玩版"
     },
     {
       "id": "Door_Free_201",
@@ -17123,6 +17231,12 @@
       ]
     },
     {
+      "id": "E00004",
+      "name": "曾跟劉顎一起襲擊南嵩山",
+      "default": 0,
+      "description": "曾跟劉顎一起襲擊南嵩山"
+    },
+    {
       "id": "E00005",
       "name": "點蒼劍鬼",
       "default": 0,
@@ -17156,6 +17270,12 @@
       "scripts": [
         "S0703_01"
       ]
+    },
+    {
+      "id": "E00008",
+      "name": "曾經被嵩山派抓走",
+      "default": 0,
+      "description": "曾經被嵩山派抓走"
     },
     {
       "id": "E00009",
@@ -17195,6 +17315,15 @@
       ]
     },
     {
+      "id": "E00013",
+      "name": "觸發過二師兄團練",
+      "default": 0,
+      "description": "觸發過二師兄團練",
+      "scripts": [
+        "center_free_101"
+      ]
+    },
+    {
       "id": "E00014",
       "name": "觸發過醫治葉雲裳",
       "default": 0,
@@ -17219,6 +17348,15 @@
       "description": "藏寶圖中，江湖少俠已經還過錢了",
       "scripts": [
         "S0018_02_01"
+      ]
+    },
+    {
+      "id": "E00017",
+      "name": "完竟劍",
+      "default": 0,
+      "description": "完竟劍",
+      "scripts": [
+        "ch7_3_2_5"
       ]
     },
     {
@@ -17746,6 +17884,123 @@
       ]
     },
     {
+      "id": "E21002",
+      "name": "支線：萬壽屍心丹完成",
+      "default": 0,
+      "description": "支線：萬壽屍心丹完成"
+    },
+    {
+      "id": "E21003",
+      "name": "六道之緣・畜生",
+      "default": 0,
+      "description": "六道之緣・畜生"
+    },
+    {
+      "id": "E21004",
+      "name": "支線：小竹回家完成",
+      "default": 0,
+      "description": "支線：小竹回家完成",
+      "scripts": [
+        "S2901_06"
+      ]
+    },
+    {
+      "id": "E21005",
+      "name": "追加小竹養成事件",
+      "default": 0,
+      "description": "追加小竹養成事件",
+      "scripts": [
+        "S2910_02"
+      ]
+    },
+    {
+      "id": "E21006",
+      "name": "被小竹無視次數",
+      "default": 0,
+      "description": "被小竹無視次數",
+      "scripts": [
+        "section_01_free_03_501"
+      ]
+    },
+    {
+      "id": "E21007",
+      "name": "神兵帖進度",
+      "default": 0,
+      "description": "神兵帖進度",
+      "scripts": [
+        "S2910_02",
+        "S2911_01",
+        "S2912_01",
+        "S2913_01",
+        "S2914_03_03"
+      ]
+    },
+    {
+      "id": "E21008",
+      "name": "小竹作品",
+      "default": 0,
+      "description": "小竹作品",
+      "scripts": [
+        "S2911_01"
+      ]
+    },
+    {
+      "id": "E21009",
+      "name": "仙劍被弄斷",
+      "default": 0,
+      "description": "仙劍被弄斷",
+      "scripts": [
+        "S2912_01"
+      ]
+    },
+    {
+      "id": "E21010",
+      "name": "調戲小竹",
+      "default": 0,
+      "description": "調戲小竹",
+      "scripts": [
+        "S2901_04_02_01",
+        "S2901_04_02_04",
+        "S2901_04_03",
+        "S2911_01",
+        "ch3_16_5",
+        "ch3_8_3_1",
+        "ch4_9_3_3_break_start_01",
+        "ch5_6_8_3_6",
+        "ch6_3_4",
+        "ch6_9_2_break_start_01",
+        "ch8_2_6_4_break_start_01",
+        "travel_result_310_503_02"
+      ]
+    },
+    {
+      "id": "E21011",
+      "name": "六戒刀",
+      "default": 0,
+      "description": "六戒刀",
+      "scripts": [
+        "S2913_01"
+      ]
+    },
+    {
+      "id": "E22000",
+      "name": "崆峒探險隊養成事件",
+      "default": 0,
+      "description": "崆峒探險隊養成事件",
+      "scripts": [
+        "S2320_01"
+      ]
+    },
+    {
+      "id": "E22001",
+      "name": "崆峒探險隊次數",
+      "default": 0,
+      "description": "崆峒探險隊次數",
+      "scripts": [
+        "section_01_free_01_01"
+      ]
+    },
+    {
       "id": "E30001",
       "name": "旗標暫存1",
       "default": 0,
@@ -17756,12 +18011,42 @@
       ]
     },
     {
+      "id": "FacilityAdd_001_01",
+      "name": "FacilityAdd_001_01",
+      "default": 0
+    },
+    {
+      "id": "FacilityAdd_002_01",
+      "name": "FacilityAdd_002_01",
+      "default": 0
+    },
+    {
       "id": "FacilityAdd_002_02",
       "name": "FacilityAdd_002_02",
       "default": 0,
       "scripts": [
         "kitchen_work_902"
       ]
+    },
+    {
+      "id": "FacilityAdd_003_01",
+      "name": "FacilityAdd_003_01",
+      "default": 0
+    },
+    {
+      "id": "FacilityAdd_004_01",
+      "name": "FacilityAdd_004_01",
+      "default": 0
+    },
+    {
+      "id": "FacilityAdd_005_01",
+      "name": "FacilityAdd_005_01",
+      "default": 0
+    },
+    {
+      "id": "FacilityAdd_006_01",
+      "name": "FacilityAdd_006_01",
+      "default": 0
     },
     {
       "id": "Facility_001",
@@ -17853,6 +18138,11 @@
       ]
     },
     {
+      "id": "Facility_006",
+      "name": "Facility_006",
+      "default": 0
+    },
+    {
       "id": "G00001",
       "name": "葉雲裳專屬的隱藏屬性，會決定她看待主角的角度",
       "default": 0,
@@ -17898,6 +18188,24 @@
       "description": "向龍湘告白",
       "scripts": [
         "S0020_02_04_part_3"
+      ]
+    },
+    {
+      "id": "G00005",
+      "name": "向小梅告白",
+      "default": 0,
+      "description": "向小梅告白",
+      "scripts": [
+        "S2300_02"
+      ]
+    },
+    {
+      "id": "G00006",
+      "name": "小竹告白",
+      "default": 0,
+      "description": "小竹告白",
+      "scripts": [
+        "ch4_9_3_8_part_2"
       ]
     },
     {
@@ -17973,6 +18281,12 @@
       ]
     },
     {
+      "id": "G10008",
+      "name": "認識瑞杏",
+      "default": 0,
+      "description": "認識瑞杏"
+    },
+    {
       "id": "G11000",
       "name": "攻略小師妹",
       "default": 0,
@@ -18012,6 +18326,15 @@
       ]
     },
     {
+      "id": "G11004",
+      "name": "攻略小梅",
+      "default": 0,
+      "description": "攻略小梅",
+      "scripts": [
+        "ch5_6_8_3_5"
+      ]
+    },
+    {
       "id": "G11005",
       "name": "攻略小蘭",
       "default": 0,
@@ -18020,6 +18343,27 @@
         "S2504_02_07",
         "ch7_5_6_3_2"
       ]
+    },
+    {
+      "id": "G11006",
+      "name": "攻略小竹",
+      "default": 0,
+      "description": "攻略小竹",
+      "scripts": [
+        "ch5_6_8_3_4"
+      ]
+    },
+    {
+      "id": "G11007",
+      "name": "攻略小菊",
+      "default": 0,
+      "description": "攻略小菊"
+    },
+    {
+      "id": "G11008",
+      "name": "攻略瑞杏",
+      "default": 0,
+      "description": "攻略瑞杏"
     },
     {
       "id": "G20000",
@@ -18045,6 +18389,12 @@
         "ch2_5_3_3_3",
         "section_01_free_08_04"
       ]
+    },
+    {
+      "id": "G30001",
+      "name": "認識劉顎",
+      "default": 0,
+      "description": "認識劉顎"
     },
     {
       "id": "G30002",
@@ -18141,6 +18491,12 @@
       ]
     },
     {
+      "id": "G30011",
+      "name": "認識萬里鵬程",
+      "default": 0,
+      "description": "認識萬里鵬程"
+    },
+    {
       "id": "G30012",
       "name": "認識福韞",
       "default": 0,
@@ -18165,6 +18521,17 @@
       "description": "認識趙逵",
       "scripts": [
         "ch3_1_6_3"
+      ]
+    },
+    {
+      "id": "G30015",
+      "name": "認識南宮淺",
+      "default": 0,
+      "description": "認識南宮淺",
+      "scripts": [
+        "S2600_01",
+        "S2700_02_02",
+        "ch2_2_6_3"
       ]
     },
     {
@@ -18722,6 +19089,12 @@
       ]
     },
     {
+      "id": "H03004",
+      "name": "畜生道",
+      "default": 0,
+      "description": "畜生道"
+    },
+    {
       "id": "H03005",
       "name": "人道",
       "default": 0,
@@ -18730,6 +19103,12 @@
         "ch6_4_4_2",
         "ch6_6_2_break_start_01"
       ]
+    },
+    {
+      "id": "H03006",
+      "name": "修羅道",
+      "default": 0,
+      "description": "修羅道"
     },
     {
       "id": "H04001",
@@ -18748,6 +19127,43 @@
       "description": "唐嬌嬌好感",
       "scripts": [
         "ch2_4_1"
+      ]
+    },
+    {
+      "id": "H04003",
+      "name": "孟仙謠好感",
+      "default": 0,
+      "description": "孟仙謠好感",
+      "scripts": [
+        "S2321_04_02_01_01",
+        "S2321_04_02_03",
+        "S2321_04_02_05",
+        "S2321_04_02_06",
+        "S2321_04_03_02_401",
+        "S2321_06_01_02"
+      ]
+    },
+    {
+      "id": "H04004",
+      "name": "孟珙好感",
+      "default": 0,
+      "description": "孟珙好感",
+      "scripts": [
+        "S2321_03_01",
+        "S2321_04_03_02_402",
+        "S2321_06_01_02",
+        "S2321_06_02"
+      ]
+    },
+    {
+      "id": "H04005",
+      "name": "丁承烈好感",
+      "default": 0,
+      "description": "丁承烈好感",
+      "scripts": [
+        "S2321_03_03",
+        "S2321_04_02_04",
+        "S2321_06_03_01"
       ]
     },
     {
@@ -18893,6 +19309,12 @@
       ]
     },
     {
+      "id": "M00013",
+      "name": "屍弟",
+      "default": 0,
+      "description": "屍弟"
+    },
+    {
       "id": "M00014",
       "name": "亂丟垃圾",
       "default": 0,
@@ -18958,6 +19380,15 @@
       "description": "龍湘被石灰粉弄眼",
       "scripts": [
         "S0017_03"
+      ]
+    },
+    {
+      "id": "M00021",
+      "name": "支線：龍湘炒菜有觸發",
+      "default": 0,
+      "description": "支線：龍湘炒菜有觸發",
+      "scripts": [
+        "S0031_01"
       ]
     },
     {
@@ -19035,6 +19466,282 @@
       ]
     },
     {
+      "id": "M00030",
+      "name": "養成場所追加：鶴崖",
+      "default": 0,
+      "description": "養成場所追加：鶴崖",
+      "scripts": [
+        "S2600_02_05",
+        "S2800_03_05_02",
+        "section_01_free_08_05",
+        "section_01_free_08_07"
+      ]
+    },
+    {
+      "id": "M00031",
+      "name": "前往飛天殿時，追加養成事件[飛天弟子找碴]",
+      "default": 0,
+      "description": "前往飛天殿時，追加養成事件[飛天弟子找碴]",
+      "scripts": [
+        "S2600_02_05",
+        "S2800_03_05_02"
+      ]
+    },
+    {
+      "id": "M00032",
+      "name": "崆峒留學 瑞笙參戰",
+      "default": 0,
+      "description": "崆峒留學 瑞笙參戰",
+      "scripts": [
+        "S2600_02_04",
+        "S2700_02_03_01"
+      ]
+    },
+    {
+      "id": "M00033",
+      "name": "友善的顏疆",
+      "default": 0,
+      "description": "友善的顏疆",
+      "scripts": [
+        "S2600_01_02"
+      ]
+    },
+    {
+      "id": "M00034",
+      "name": "飛天弟子找碴 武功高強",
+      "default": 0,
+      "description": "飛天弟子找碴 武功高強",
+      "scripts": [
+        "S2600_02_05",
+        "S2800_03_05_02",
+        "section_01_free_01_501_01"
+      ]
+    },
+    {
+      "id": "M00035",
+      "name": "鐵拳門事件選擇忍辱負重",
+      "default": 0,
+      "description": "鐵拳門事件選擇忍辱負重",
+      "scripts": [
+        "S2700_02_03_01"
+      ]
+    },
+    {
+      "id": "M00036",
+      "name": "飛天門事件 南宮淺參戰",
+      "default": 0,
+      "description": "飛天門事件 南宮淺參戰",
+      "scripts": [
+        "S2600_01_01"
+      ]
+    },
+    {
+      "id": "M00037",
+      "name": "俠義良心",
+      "default": 0,
+      "description": "俠義良心",
+      "scripts": [
+        "S2800_02_break_start_01"
+      ]
+    },
+    {
+      "id": "M00038",
+      "name": "崆峒留學 嘗試逃獄",
+      "default": 0,
+      "description": "崆峒留學 嘗試逃獄",
+      "scripts": [
+        "S2800_02_break_01_501"
+      ]
+    },
+    {
+      "id": "M00039",
+      "name": "聽三師兄江湖掌故的次數",
+      "default": 0,
+      "description": "聽三師兄江湖掌故的次數",
+      "scripts": [
+        "talk_brother3_01"
+      ]
+    },
+    {
+      "id": "M00040",
+      "name": "飛天門事件 選擇立刻發飆",
+      "default": 0,
+      "description": "飛天門事件 選擇立刻發飆",
+      "scripts": [
+        "S2600_01_02"
+      ]
+    },
+    {
+      "id": "M00041",
+      "name": "主角骨折",
+      "default": 0,
+      "description": "主角骨折",
+      "scripts": [
+        "S2901_03_01_08_02",
+        "S2901_06"
+      ]
+    },
+    {
+      "id": "M00042",
+      "name": "開發機關馬桶",
+      "default": 0,
+      "description": "開發機關馬桶",
+      "scripts": [
+        "meeting_option_103_01"
+      ]
+    },
+    {
+      "id": "M00043",
+      "name": "小竹一起刷地",
+      "default": 0,
+      "description": "小竹一起刷地",
+      "scripts": [
+        "center_work_501"
+      ]
+    },
+    {
+      "id": "M00044",
+      "name": "小竹 有一口井",
+      "default": 0,
+      "description": "小竹 有一口井",
+      "scripts": [
+        "center_work_502"
+      ]
+    },
+    {
+      "id": "M00045",
+      "name": "小竹學武功",
+      "default": 0,
+      "description": "小竹學武功",
+      "scripts": [
+        "back_03_502"
+      ]
+    },
+    {
+      "id": "M00046",
+      "name": "榮譽幫眾",
+      "default": 0,
+      "description": "榮譽幫眾",
+      "scripts": [
+        "door_free_515"
+      ]
+    },
+    {
+      "id": "M00047",
+      "name": "開啟小竹練功",
+      "default": 0,
+      "description": "開啟小竹練功",
+      "scripts": [
+        "S2919_01"
+      ]
+    },
+    {
+      "id": "M00048",
+      "name": "鍛冶場性能提升",
+      "default": 0,
+      "description": "鍛冶場性能提升",
+      "scripts": [
+        "S2918_01"
+      ]
+    },
+    {
+      "id": "M00049",
+      "name": "跟小梅跑步",
+      "default": 0,
+      "description": "跟小梅跑步",
+      "scripts": [
+        "door_girl_03_01"
+      ]
+    },
+    {
+      "id": "M00050",
+      "name": "小梅屍心蠱",
+      "default": 0,
+      "description": "小梅屍心蠱"
+    },
+    {
+      "id": "M00051",
+      "name": "小梅挑戰第一次",
+      "default": 0,
+      "description": "小梅挑戰第一次",
+      "scripts": [
+        "center_girl_03_01"
+      ]
+    },
+    {
+      "id": "M00052",
+      "name": "拒絕小梅",
+      "default": 0,
+      "description": "拒絕小梅",
+      "scripts": [
+        "center_girl_03_01"
+      ]
+    },
+    {
+      "id": "M00053",
+      "name": "小梅挑戰決鬥次數",
+      "default": 0,
+      "description": "小梅挑戰決鬥次數",
+      "scripts": [
+        "center_girl_03_01"
+      ]
+    },
+    {
+      "id": "M00054",
+      "name": "第一次觸發小梅跑步",
+      "default": 0,
+      "description": "第一次觸發小梅跑步",
+      "scripts": [
+        "door_girl_03_01"
+      ]
+    },
+    {
+      "id": "M00055",
+      "name": "開啟彈珠台",
+      "default": 0,
+      "description": "開啟彈珠台",
+      "scripts": [
+        "S0032_03",
+        "S0032_04"
+      ]
+    },
+    {
+      "id": "M00056",
+      "name": "竹之心",
+      "default": 0,
+      "description": "竹之心",
+      "scripts": [
+        "S2920_01"
+      ]
+    },
+    {
+      "id": "M00057",
+      "name": "改不了對二師兄的稱呼",
+      "default": 0,
+      "description": "改不了對二師兄的稱呼",
+      "scripts": [
+        "meeting_option_705_01"
+      ]
+    },
+    {
+      "id": "M00058",
+      "name": "小竹的謊言",
+      "default": 0,
+      "description": "小竹的謊言",
+      "scripts": [
+        "ch4_9_3_8_1"
+      ]
+    },
+    {
+      "id": "M00059",
+      "name": "曾經在三師兄閒談中聽聞過極樂左使",
+      "default": 0,
+      "description": "曾經在三師兄閒談中聽聞過極樂左使",
+      "scripts": [
+        "talk_brother3_03_04"
+      ]
+    },
+    {
       "id": "M10001",
       "name": "唐門收留葉式兄妹",
       "default": 0,
@@ -19042,6 +19749,24 @@
       "scripts": [
         "S0018_06"
       ]
+    },
+    {
+      "id": "M10002",
+      "name": "與葉雲舟對立",
+      "default": 0,
+      "description": "與葉雲舟對立"
+    },
+    {
+      "id": "M10004",
+      "name": "曾被劉顎綁架",
+      "default": 0,
+      "description": "曾被劉顎綁架"
+    },
+    {
+      "id": "M10005",
+      "name": "護送上官螢",
+      "default": 0,
+      "description": "護送上官螢"
     },
     {
       "id": "M10006",
@@ -19053,12 +19778,48 @@
       ]
     },
     {
+      "id": "M10007",
+      "name": "後山蒙面人，主角說的話",
+      "default": 0,
+      "description": "後山蒙面人，主角說的話",
+      "scripts": [
+        "S8400_02"
+      ]
+    },
+    {
       "id": "M10008",
       "name": "段考勝利",
       "default": 0,
       "description": "段考勝利",
       "scripts": [
         "ch1_2_2"
+      ]
+    },
+    {
+      "id": "M10009",
+      "name": "段考考官",
+      "default": 0,
+      "description": "段考考官\n1. 掌門人\n2. 三師兄\n3. 二師兄\n4. 大師兄",
+      "values": [
+        {
+          "value": 1,
+          "name": "掌門人"
+        },
+        {
+          "value": 2,
+          "name": "三師兄"
+        },
+        {
+          "value": 3,
+          "name": "二師兄"
+        },
+        {
+          "value": 4,
+          "name": "大師兄"
+        }
+      ],
+      "scripts": [
+        "ch1_2_1"
       ]
     },
     {
@@ -19177,6 +19938,21 @@
       "description": "追加遭遇事件：夏侯蘭的敵人(小蘭存活)",
       "scripts": [
         "S2504_02_07_break_start_01"
+      ]
+    },
+    {
+      "id": "M10022",
+      "name": "天王座來訪",
+      "default": 0,
+      "description": "天王座來訪"
+    },
+    {
+      "id": "M10023",
+      "name": "支持自己當掌門",
+      "default": 0,
+      "description": "支持自己當掌門",
+      "scripts": [
+        "ch1_1_2"
       ]
     },
     {
@@ -19465,6 +20241,21 @@
       ]
     },
     {
+      "id": "M20025",
+      "name": "捉捕譚霸刀時曾見過大師兄用飛燕流星翎粉碎畫舫",
+      "default": 0,
+      "description": "捉捕譚霸刀時曾見過大師兄用飛燕流星翎粉碎畫舫",
+      "scripts": [
+        "ch2_2_3_4_1_1"
+      ]
+    },
+    {
+      "id": "M20026",
+      "name": "小師妹守護者",
+      "default": 0,
+      "description": "小師妹守護者"
+    },
+    {
       "id": "M20027",
       "name": "唐門留學 離家出走",
       "default": 0,
@@ -19501,6 +20292,12 @@
       "scripts": [
         "section_01_free_02_302"
       ]
+    },
+    {
+      "id": "M20030",
+      "name": "和小菊下過棋",
+      "default": 0,
+      "description": "和小菊下過棋"
     },
     {
       "id": "M20031",
@@ -19619,6 +20416,14 @@
       ]
     },
     {
+      "id": "M20040",
+      "name": "M20040",
+      "default": 0,
+      "scripts": [
+        "ch2_2_5_4"
+      ]
+    },
+    {
       "id": "M20041",
       "name": "小師妹覺醒技能[醫術]",
       "default": 0,
@@ -19634,6 +20439,263 @@
       "description": "有幫南宮己求情",
       "scripts": [
         "ch2_6_3_2"
+      ]
+    },
+    {
+      "id": "M20043",
+      "name": "觸發與南宮淺對練事件",
+      "default": 0,
+      "description": "觸發與南宮淺對練事件"
+    },
+    {
+      "id": "M20044",
+      "name": "在南宮家宴時曾為南宮淺出頭",
+      "default": 0,
+      "description": "在南宮家宴時曾為南宮淺出頭",
+      "scripts": [
+        "ch2_2_6_3"
+      ]
+    },
+    {
+      "id": "M20045",
+      "name": "火閃電",
+      "default": 0,
+      "description": "火閃電",
+      "scripts": [
+        "section_01_free_08_01_01",
+        "section_01_free_08_06_01"
+      ]
+    },
+    {
+      "id": "M20046",
+      "name": "火閃電受傷",
+      "default": 0,
+      "description": "火閃電受傷",
+      "scripts": [
+        "section_01_free_08_06",
+        "section_01_free_08_06_01"
+      ]
+    },
+    {
+      "id": "M20047",
+      "name": "火閃電強化",
+      "default": 0,
+      "description": "火閃電強化",
+      "scripts": [
+        "section_01_free_08_03"
+      ]
+    },
+    {
+      "id": "M20048",
+      "name": "觸發 小梅支線 舞",
+      "default": 0,
+      "description": "觸發 小梅支線 舞",
+      "scripts": [
+        "section_01_free_08_05"
+      ]
+    },
+    {
+      "id": "M20049",
+      "name": "取得攻略小竹的獎盃",
+      "default": 0,
+      "description": "取得攻略小竹的獎盃"
+    },
+    {
+      "id": "M20050",
+      "name": "觸發 鶴崖事件 又一個被騙",
+      "default": 0,
+      "description": "觸發 鶴崖事件 又一個被騙",
+      "scripts": [
+        "section_01_free_08_04"
+      ]
+    },
+    {
+      "id": "M20051",
+      "name": "觸發 鶴崖事件 怪胎",
+      "default": 0,
+      "description": "觸發 鶴崖事件 怪胎",
+      "scripts": [
+        "section_01_free_08_02"
+      ]
+    },
+    {
+      "id": "M20052",
+      "name": "觸發 鶴崖事件 強鶴所難",
+      "default": 0,
+      "description": "觸發 鶴崖事件 強鶴所難",
+      "scripts": [
+        "section_01_free_08_03"
+      ]
+    },
+    {
+      "id": "M20053",
+      "name": "小梅喇逼雕",
+      "default": 0,
+      "description": "小梅喇逼雕",
+      "scripts": [
+        "S2200_02"
+      ]
+    },
+    {
+      "id": "M20054",
+      "name": "邀請小梅",
+      "default": 0,
+      "description": "邀請小梅",
+      "scripts": [
+        "S2321_01"
+      ]
+    },
+    {
+      "id": "M20055",
+      "name": "襲擊六道峽",
+      "default": 0,
+      "description": "襲擊六道峽",
+      "scripts": [
+        "S2321_02_03_02_01"
+      ]
+    },
+    {
+      "id": "M20056",
+      "name": "決鬥丁護衛勝敗",
+      "default": 0,
+      "description": "決鬥丁護衛勝敗",
+      "scripts": [
+        "S2321_02_05_04_01"
+      ]
+    },
+    {
+      "id": "M20057",
+      "name": "金葉子",
+      "default": 0,
+      "description": "金葉子",
+      "scripts": [
+        "S2321_04_02_05"
+      ]
+    },
+    {
+      "id": "M20058",
+      "name": "在崆峒大試中優勝得到焚心火印",
+      "default": 0,
+      "description": "在崆峒大試中優勝得到焚心火印",
+      "scripts": [
+        "S2200_04"
+      ]
+    },
+    {
+      "id": "M20059",
+      "name": "觸發襄陽行之兇手是小梅",
+      "default": 0,
+      "description": "觸發襄陽行之兇手是小梅",
+      "scripts": [
+        "S2321_05_01"
+      ]
+    },
+    {
+      "id": "M20060",
+      "name": "觸發襄陽行下",
+      "default": 0,
+      "description": "觸發襄陽行下",
+      "scripts": [
+        "S2321_06_03_03"
+      ]
+    },
+    {
+      "id": "M20061",
+      "name": "襄陽行提問你聽過唐門嗎？",
+      "default": 0,
+      "description": "襄陽行提問你聽過唐門嗎？",
+      "scripts": [
+        "S2321_04_02_05"
+      ]
+    },
+    {
+      "id": "M20062",
+      "name": "主角經歷過襄陽行",
+      "default": 0,
+      "description": "主角經歷過襄陽行",
+      "scripts": [
+        "S2321_07_02"
+      ]
+    },
+    {
+      "id": "M20063",
+      "name": "觸發襄陽行",
+      "default": 0,
+      "description": "觸發襄陽行",
+      "scripts": [
+        "S2321_01",
+        "S2321_07_02"
+      ]
+    },
+    {
+      "id": "M20064",
+      "name": "給郁城的劍",
+      "default": 0,
+      "description": "給郁城的劍",
+      "scripts": [
+        "S2901_03_01_06_01_01"
+      ]
+    },
+    {
+      "id": "M20065",
+      "name": "余功子道別",
+      "default": 0,
+      "description": "余功子道別",
+      "scripts": [
+        "S2901_03_01_07",
+        "S2901_03_01_08_01",
+        "S2901_03_01_08_02"
+      ]
+    },
+    {
+      "id": "M20066",
+      "name": "觸發崆峒惡霸",
+      "default": 0,
+      "description": "觸發崆峒惡霸",
+      "scripts": [
+        "S2310_01_05"
+      ]
+    },
+    {
+      "id": "M20067",
+      "name": "崆峒留學 瑞笙曾出手相救",
+      "default": 0,
+      "description": "崆峒留學 瑞笙曾出手相救",
+      "scripts": [
+        "ch2_5_3_3_3"
+      ]
+    },
+    {
+      "id": "M20068",
+      "name": "觸發鎮魂獄",
+      "default": 0,
+      "description": "觸發鎮魂獄",
+      "scripts": [
+        "S2800_01_01"
+      ]
+    },
+    {
+      "id": "M20069",
+      "name": "崆峒大試勝利次數",
+      "default": 0,
+      "description": "崆峒大試勝利次數",
+      "scripts": [
+        "S2200_03",
+        "S2200_03_01",
+        "S2200_03_02",
+        "S2200_03_03",
+        "S2200_03_04",
+        "S2200_04",
+        "S2200_04_07"
+      ]
+    },
+    {
+      "id": "M20070",
+      "name": "崆峒大試後進入鶴崖",
+      "default": 0,
+      "description": "崆峒大試後進入鶴崖",
+      "scripts": [
+        "section_01_free_08_07"
       ]
     },
     {
@@ -19659,6 +20721,44 @@
         "ch2_5_1",
         "craft_work_302",
         "craft_work_303"
+      ]
+    },
+    {
+      "id": "M21002",
+      "name": "奪魄門好感",
+      "default": 0,
+      "description": "奪魄門好感",
+      "scripts": [
+        "S2310_01",
+        "S2700_02_03",
+        "S2700_02_03_01",
+        "S2700_02_03_02",
+        "craft_work_003",
+        "craft_work_505",
+        "craft_work_506",
+        "craft_work_509"
+      ]
+    },
+    {
+      "id": "M21003",
+      "name": "鐵拳門好感",
+      "default": 0,
+      "description": "鐵拳門好感",
+      "scripts": [
+        "S2310_01",
+        "S2310_01_04_01",
+        "S2700_02_03",
+        "craft_work_001"
+      ]
+    },
+    {
+      "id": "M30001",
+      "name": "小竹攜帶虎戰車",
+      "default": 0,
+      "description": "小竹攜帶虎戰車",
+      "scripts": [
+        "S0305_02_04_01",
+        "S2913_01"
       ]
     },
     {
@@ -19744,6 +20844,12 @@
       ]
     },
     {
+      "id": "M30008",
+      "name": "被丐幫綁架",
+      "default": 0,
+      "description": "被丐幫綁架"
+    },
+    {
       "id": "M30009",
       "name": "南宮淺強化",
       "default": 0,
@@ -19775,6 +20881,15 @@
       "description": "戰役追加葉雲舟召喚技",
       "scripts": [
         "ch3_8_2"
+      ]
+    },
+    {
+      "id": "M30012",
+      "name": "虎戰車命名",
+      "default": 0,
+      "description": "虎戰車命名",
+      "scripts": [
+        "S0305_02_03"
       ]
     },
     {
@@ -19879,12 +20994,28 @@
       ]
     },
     {
+      "id": "M30024",
+      "name": "A書事件得到大師兄幫助",
+      "default": 0,
+      "description": "A書事件得到大師兄幫助"
+    },
+    {
       "id": "M30025",
       "name": "毛二壯曾經在江陵大戰使用過金剛神槍指",
       "default": 0,
       "description": "毛二壯曾經在江陵大戰使用過金剛神槍指",
       "scripts": [
         "ch3_11_4"
+      ]
+    },
+    {
+      "id": "M30026",
+      "name": "觸發笙活雙俠分支",
+      "default": 0,
+      "description": "觸發笙活雙俠分支",
+      "scripts": [
+        "S0702_01_03_break_start_01",
+        "S2200_03_05"
       ]
     },
     {
@@ -19916,6 +21047,32 @@
       ]
     },
     {
+      "id": "M30030",
+      "name": "向瑞杏許願",
+      "default": 0,
+      "description": "向瑞杏許願"
+    },
+    {
+      "id": "M30031",
+      "name": "M30031",
+      "default": 0
+    },
+    {
+      "id": "M30032",
+      "name": "M30032",
+      "default": 0
+    },
+    {
+      "id": "M30033",
+      "name": "M30033",
+      "default": 0
+    },
+    {
+      "id": "M30034",
+      "name": "M30034",
+      "default": 0
+    },
+    {
       "id": "M30035",
       "name": "毛二壯幫南宮淺打通任督二脈",
       "default": 0,
@@ -19925,12 +21082,33 @@
       ]
     },
     {
+      "id": "M30036",
+      "name": "上官螢的救命恩人",
+      "default": 0,
+      "description": "上官螢的救命恩人"
+    },
+    {
+      "id": "M30037",
+      "name": "上官螢來到江陵",
+      "default": 0,
+      "description": "上官螢來到江陵"
+    },
+    {
       "id": "M30038",
       "name": "葉雲裳閒談：碧潤糕開啟",
       "default": 0,
       "description": "葉雲裳閒談：碧潤糕開啟",
       "scripts": [
         "ch3_6_3_3_2"
+      ]
+    },
+    {
+      "id": "M30039",
+      "name": "江陵大戰觸發瑞笙劇情",
+      "default": 0,
+      "description": "江陵大戰觸發瑞笙劇情",
+      "scripts": [
+        "ch3_11_4"
       ]
     },
     {
@@ -19967,6 +21145,12 @@
         "section_02_free_01_02_303",
         "section_02_free_01_02_401"
       ]
+    },
+    {
+      "id": "M30042",
+      "name": "青城留學 特殊遭遇",
+      "default": 0,
+      "description": "青城留學 特殊遭遇"
     },
     {
       "id": "M30043",
@@ -20075,6 +21259,12 @@
       "scripts": [
         "S3003_01"
       ]
+    },
+    {
+      "id": "M30053",
+      "name": "青城留學 葉雲裳回唐門",
+      "default": 0,
+      "description": "青城留學 葉雲裳回唐門"
     },
     {
       "id": "M30054",
@@ -20195,6 +21385,161 @@
       ]
     },
     {
+      "id": "M30067",
+      "name": "小竹送行",
+      "default": 0,
+      "description": "小竹送行",
+      "scripts": [
+        "ch3_2_2"
+      ]
+    },
+    {
+      "id": "M30068",
+      "name": "開啟江陵期間崆峒養成事件",
+      "default": 0,
+      "description": "開啟江陵期間崆峒養成事件",
+      "scripts": [
+        "S0304_01"
+      ]
+    },
+    {
+      "id": "M30069",
+      "name": "崆峒在江陵",
+      "default": 0,
+      "description": "崆峒在江陵",
+      "scripts": [
+        "S0304_01"
+      ]
+    },
+    {
+      "id": "M30070",
+      "name": "在襄陽跟孟仙謠討要葡萄",
+      "default": 0,
+      "description": "在襄陽跟孟仙謠討要葡萄",
+      "scripts": [
+        "S2321_03_02"
+      ]
+    },
+    {
+      "id": "M30071",
+      "name": "崆峒劇變 小梅道別",
+      "default": 0,
+      "description": "崆峒劇變 小梅道別",
+      "scripts": [
+        "ch3_2_2_1"
+      ]
+    },
+    {
+      "id": "M30072",
+      "name": "誘拐宣言",
+      "default": 0,
+      "description": "誘拐宣言",
+      "scripts": [
+        "ch3_8_3_1"
+      ]
+    },
+    {
+      "id": "M30073",
+      "name": "江陵大戰期間 與南宮深切磋過",
+      "default": 0,
+      "description": "江陵大戰期間 與南宮深切磋過",
+      "scripts": [
+        "ch3_6_3"
+      ]
+    },
+    {
+      "id": "M30074",
+      "name": "女飛賊的報復",
+      "default": 0,
+      "description": "女飛賊的報復",
+      "scripts": [
+        "ch3_8_2_2"
+      ]
+    },
+    {
+      "id": "M30075",
+      "name": "江陵大戰 小梅現身",
+      "default": 0,
+      "description": "江陵大戰 小梅現身",
+      "scripts": [
+        "ch3_8_2_2"
+      ]
+    },
+    {
+      "id": "M30076",
+      "name": "製作虎戰車",
+      "default": 0,
+      "description": "製作虎戰車",
+      "scripts": [
+        "S0305_02_02",
+        "S0305_02_03",
+        "S0305_02_04_01"
+      ]
+    },
+    {
+      "id": "M30077",
+      "name": "小竹參戰江陵大戰",
+      "default": 0,
+      "description": "小竹參戰江陵大戰",
+      "scripts": [
+        "ch3_10_3"
+      ]
+    },
+    {
+      "id": "M30078",
+      "name": "小竹被拋棄",
+      "default": 0,
+      "description": "小竹被拋棄",
+      "scripts": [
+        "ch3_14_1"
+      ]
+    },
+    {
+      "id": "M30079",
+      "name": "關心上官螢",
+      "default": 0,
+      "description": "關心上官螢",
+      "scripts": [
+        "ch3_14_2"
+      ]
+    },
+    {
+      "id": "M30080",
+      "name": "小竹同行",
+      "default": 0,
+      "description": "小竹同行",
+      "scripts": [
+        "ch3_15_1"
+      ]
+    },
+    {
+      "id": "M30081",
+      "name": "嚴厲的二師兄",
+      "default": 0,
+      "description": "嚴厲的二師兄",
+      "scripts": [
+        "travel_result_310_503_02"
+      ]
+    },
+    {
+      "id": "M30082",
+      "name": "主動請纓出戰胡嵩",
+      "default": 0,
+      "description": "主動請纓出戰胡嵩",
+      "scripts": [
+        "S2321_06_03_break_01"
+      ]
+    },
+    {
+      "id": "M30083",
+      "name": "虎戰車觸發火燒屋",
+      "default": 0,
+      "description": "虎戰車觸發火燒屋",
+      "scripts": [
+        "S0305_02_04_01"
+      ]
+    },
+    {
       "id": "M40001",
       "name": "與飛石幫進入交戰",
       "default": 0,
@@ -20263,6 +21608,18 @@
       ]
     },
     {
+      "id": "M40008",
+      "name": "曾經提案嚐試與飛石幫和解",
+      "default": 0,
+      "description": "曾經提案嚐試與飛石幫和解"
+    },
+    {
+      "id": "M40009",
+      "name": "觸發接掌練丹房事件",
+      "default": 0,
+      "description": "觸發接掌練丹房事件"
+    },
+    {
       "id": "M40010",
       "name": "大師兄痊癒",
       "default": 0,
@@ -20279,6 +21636,12 @@
       "scripts": [
         "S0401_01"
       ]
+    },
+    {
+      "id": "M40012",
+      "name": "知道石公遠以前是山賊",
+      "default": 0,
+      "description": "知道石公遠以前是山賊"
     },
     {
       "id": "M40013",
@@ -20346,6 +21709,15 @@
       "description": "小梅與主角們同行回唐門",
       "scripts": [
         "ch4_8_1"
+      ]
+    },
+    {
+      "id": "M40019",
+      "name": "觸發女飛賊追殺事件",
+      "default": 0,
+      "description": "觸發女飛賊追殺事件",
+      "scripts": [
+        "ch3_8_2_2"
       ]
     },
     {
@@ -20419,6 +21791,12 @@
       ]
     },
     {
+      "id": "M40026",
+      "name": "見過成吉思汗",
+      "default": 0,
+      "description": "見過成吉思汗"
+    },
+    {
       "id": "M40027",
       "name": "龍湘中毒值",
       "default": 0,
@@ -20446,6 +21824,12 @@
       "scripts": [
         "ch4_8_9_3"
       ]
+    },
+    {
+      "id": "M40030",
+      "name": "說得唐守鴻",
+      "default": 0,
+      "description": "說得唐守鴻"
     },
     {
       "id": "M40031",
@@ -20534,6 +21918,12 @@
       ]
     },
     {
+      "id": "M40039",
+      "name": "雲裳病情",
+      "default": 0,
+      "description": "雲裳病情"
+    },
+    {
       "id": "M40040",
       "name": "決戰臥雲崗大師兄勝敗",
       "default": 0,
@@ -20549,6 +21939,15 @@
       "description": "幫大師兄療傷",
       "scripts": [
         "ch4_6_13"
+      ]
+    },
+    {
+      "id": "M40042",
+      "name": "小梅贈刀",
+      "default": 0,
+      "description": "小梅贈刀",
+      "scripts": [
+        "ch4_9_3_7"
       ]
     },
     {
@@ -20595,6 +21994,12 @@
       "scripts": [
         "ch4_3_2"
       ]
+    },
+    {
+      "id": "M40048",
+      "name": "崆峒地牢救小梅",
+      "default": 0,
+      "description": "崆峒地牢救小梅"
     },
     {
       "id": "M40049",
@@ -20706,6 +22111,68 @@
       ]
     },
     {
+      "id": "M40061",
+      "name": "神兵帖4鍛冶場",
+      "default": 0,
+      "description": "神兵帖4鍛冶場",
+      "scripts": [
+        "S2914_01",
+        "S2914_02",
+        "S2914_03_03"
+      ]
+    },
+    {
+      "id": "M40062",
+      "name": "神兵帖4幫助同門",
+      "default": 0,
+      "description": "神兵帖4幫助同門",
+      "scripts": [
+        "S2914_02"
+      ]
+    },
+    {
+      "id": "M40063",
+      "name": "救大師兄選擇不收功被飛天弟子捅",
+      "default": 0,
+      "description": "救大師兄選擇不收功被飛天弟子捅",
+      "scripts": [
+        "ch4_6_13"
+      ]
+    },
+    {
+      "id": "M40064",
+      "name": "進入世外桃源的來源",
+      "default": 0,
+      "description": "進入世外桃源的來源\n1. 真正的敵人\n2. 收功\n3. 其他",
+      "values": [
+        {
+          "value": 1,
+          "name": "真正的敵人"
+        },
+        {
+          "value": 2,
+          "name": "收功"
+        },
+        {
+          "value": 3,
+          "name": "其他"
+        }
+      ],
+      "scripts": [
+        "ch4_6_13",
+        "ch4_8_7_3_part_2"
+      ]
+    },
+    {
+      "id": "M40065",
+      "name": "晚安",
+      "default": 0,
+      "description": "晚安",
+      "scripts": [
+        "ch4_6_12"
+      ]
+    },
+    {
       "id": "M50001",
       "name": "唐門會議追加選項：前往崆峒",
       "default": 0,
@@ -20757,6 +22224,12 @@
       "scripts": [
         "ch5_3_3"
       ]
+    },
+    {
+      "id": "M50007",
+      "name": "南宮淺拜師夏侯蘭",
+      "default": 0,
+      "description": "南宮淺拜師夏侯蘭"
     },
     {
       "id": "M50008",
@@ -20814,6 +22287,12 @@
         "ch5_4_7_3_3",
         "ch5_4_7_3_5"
       ]
+    },
+    {
+      "id": "M50012",
+      "name": "口嚼茶事件中小菊被燙",
+      "default": 0,
+      "description": "口嚼茶事件中小菊被燙"
     },
     {
       "id": "M50013",
@@ -20940,6 +22419,15 @@
       ]
     },
     {
+      "id": "M50023",
+      "name": "金烏上人成為掌派人",
+      "default": 0,
+      "description": "金烏上人成為掌派人",
+      "scripts": [
+        "S2201_01"
+      ]
+    },
+    {
       "id": "M50024",
       "name": "葉雲裳結緣前置",
       "default": 0,
@@ -20947,6 +22435,12 @@
       "scripts": [
         "ch5_4_1"
       ]
+    },
+    {
+      "id": "M50025",
+      "name": "腿傷",
+      "default": 0,
+      "description": "腿傷"
     },
     {
       "id": "M50026",
@@ -21004,6 +22498,172 @@
       ]
     },
     {
+      "id": "M50033",
+      "name": "唐門守護者 放話",
+      "default": 0,
+      "description": "唐門守護者 放話",
+      "scripts": [
+        "ch5_4_8_2"
+      ]
+    },
+    {
+      "id": "M50034",
+      "name": "唐門守護者 人肉炸彈",
+      "default": 0,
+      "description": "唐門守護者 人肉炸彈",
+      "scripts": [
+        "ch5_4_8_8_5"
+      ]
+    },
+    {
+      "id": "M50035",
+      "name": "旗標暫存3",
+      "default": 0,
+      "description": "旗標暫存3",
+      "temporary": true,
+      "scripts": [
+        "ch5_4_8_5_1"
+      ]
+    },
+    {
+      "id": "M50036",
+      "name": "逼供刺客",
+      "default": 0,
+      "description": "逼供刺客",
+      "scripts": [
+        "ch5_6_1"
+      ]
+    },
+    {
+      "id": "M50037",
+      "name": "丹霞子的承諾",
+      "default": 0,
+      "description": "丹霞子的承諾",
+      "scripts": [
+        "ch5_6_2_4"
+      ]
+    },
+    {
+      "id": "M50038",
+      "name": "軍師趙活",
+      "default": 0,
+      "description": "軍師趙活",
+      "scripts": [
+        "ch5_6_3_2_1"
+      ]
+    },
+    {
+      "id": "M50039",
+      "name": "顏疆被狗啃",
+      "default": 0,
+      "description": "顏疆被狗啃",
+      "scripts": [
+        "ch5_4_8_5_1"
+      ]
+    },
+    {
+      "id": "M50040",
+      "name": "崆峒神威 來者何人",
+      "default": 0,
+      "description": "崆峒神威 來者何人\n1. 綠色的\n2. 紅色的",
+      "values": [
+        {
+          "value": 1,
+          "name": "綠色的"
+        },
+        {
+          "value": 2,
+          "name": "紅色的"
+        }
+      ],
+      "scripts": [
+        "ch5_6_4_3"
+      ]
+    },
+    {
+      "id": "M50041",
+      "name": "小竹嘴炮",
+      "default": 0,
+      "description": "小竹嘴炮",
+      "scripts": [
+        "ch5_6_4_4_4"
+      ]
+    },
+    {
+      "id": "M50042",
+      "name": "荊紅死亡",
+      "default": 0,
+      "description": "荊紅死亡",
+      "scripts": [
+        "ch5_6_4_4_4_1"
+      ]
+    },
+    {
+      "id": "M50043",
+      "name": "娶回家",
+      "default": 0,
+      "description": "娶回家",
+      "scripts": [
+        "ch5_6_5_2_3"
+      ]
+    },
+    {
+      "id": "M50044",
+      "name": "喚醒小梅",
+      "default": 0,
+      "description": "喚醒小梅",
+      "scripts": [
+        "ch5_6_6_2"
+      ]
+    },
+    {
+      "id": "M50045",
+      "name": "第二次決鬥魔小梅",
+      "default": 0,
+      "description": "第二次決鬥魔小梅",
+      "scripts": [
+        "ch5_6_6_2"
+      ]
+    },
+    {
+      "id": "M50046",
+      "name": "崆峒神威分支",
+      "default": 0,
+      "description": "崆峒神威分支\n1. 小梅 \n2. 小竹",
+      "values": [
+        {
+          "value": 1,
+          "name": "小梅"
+        },
+        {
+          "value": 2,
+          "name": "小竹"
+        }
+      ],
+      "scripts": [
+        "ch5_6_6_4",
+        "ch5_6_7_3"
+      ]
+    },
+    {
+      "id": "M50047",
+      "name": "崆峒神威 內情",
+      "default": 0,
+      "description": "崆峒神威 內情",
+      "scripts": [
+        "ch5_6_8_1"
+      ]
+    },
+    {
+      "id": "M50048",
+      "name": "金烏上人真面目",
+      "default": 0,
+      "description": "金烏上人真面目",
+      "scripts": [
+        "ch5_4_8_8_1"
+      ]
+    },
+    {
       "id": "M60001",
       "name": "委託四師兄的事情",
       "default": 0,
@@ -21021,6 +22681,12 @@
       "scripts": [
         "meeting_option_501_01"
       ]
+    },
+    {
+      "id": "M60002",
+      "name": "與南宮世家結盟",
+      "default": 0,
+      "description": "與南宮世家結盟"
     },
     {
       "id": "M60003",
@@ -21137,6 +22803,15 @@
       ]
     },
     {
+      "id": "M60015",
+      "name": "成為崆峒掌派人",
+      "default": 0,
+      "description": "成為崆峒掌派人",
+      "scripts": [
+        "ch5_6_8_3_6"
+      ]
+    },
+    {
       "id": "M60016",
       "name": "前往武林大會路線",
       "default": 0,
@@ -21203,6 +22878,12 @@
       "scripts": [
         "ch6_4_3_4_2"
       ]
+    },
+    {
+      "id": "M60022",
+      "name": "觸發大漠行",
+      "default": 0,
+      "description": "觸發大漠行"
     },
     {
       "id": "M60023",
@@ -21276,6 +22957,12 @@
       "scripts": [
         "ch6_5_4"
       ]
+    },
+    {
+      "id": "M60031",
+      "name": "上官螢的可能性",
+      "default": 0,
+      "description": "上官螢的可能性"
     },
     {
       "id": "M60032",
@@ -21539,6 +23226,12 @@
       ]
     },
     {
+      "id": "M60058",
+      "name": "地獄道行",
+      "default": 0,
+      "description": "地獄道行"
+    },
+    {
       "id": "M60059",
       "name": "投降正派",
       "default": 0,
@@ -21606,6 +23299,15 @@
       "description": "小菊喝醉",
       "scripts": [
         "ch6_9_2_1"
+      ]
+    },
+    {
+      "id": "M60065",
+      "name": "有任何人幫忙備馬",
+      "default": 0,
+      "description": "有任何人幫忙備馬",
+      "scripts": [
+        "ch6_10_1"
       ]
     },
     {
@@ -21729,6 +23431,168 @@
       "description": "葉雲舟從武林大會離開",
       "scripts": [
         "ch6_5_4_1"
+      ]
+    },
+    {
+      "id": "M60078",
+      "name": "孟仙謠忌憚",
+      "default": 0,
+      "description": "孟仙謠忌憚",
+      "scripts": [
+        "ch6_9_2_4"
+      ]
+    },
+    {
+      "id": "M60079",
+      "name": "縣主的混亂暴言",
+      "default": 0,
+      "description": "縣主的混亂暴言",
+      "scripts": [
+        "ch6_9_2_4"
+      ]
+    },
+    {
+      "id": "M60080",
+      "name": "縣主的二度混亂暴言",
+      "default": 0,
+      "description": "縣主的二度混亂暴言",
+      "scripts": [
+        "ch6_9_2_4"
+      ]
+    },
+    {
+      "id": "M60081",
+      "name": "縣主的三度混亂暴言",
+      "default": 0,
+      "description": "縣主的三度混亂暴言",
+      "scripts": [
+        "ch6_9_2_4"
+      ]
+    },
+    {
+      "id": "M60082",
+      "name": "鐵劍令",
+      "default": 0,
+      "description": "鐵劍令",
+      "scripts": [
+        "travel_result_601_504"
+      ]
+    },
+    {
+      "id": "M60083",
+      "name": "孟仙謠賭注2",
+      "default": 0,
+      "description": "孟仙謠賭注2",
+      "scripts": [
+        "ch6_6_2_2_5"
+      ]
+    },
+    {
+      "id": "M60084",
+      "name": "後山練功追加偶發事件：[小梅練功]",
+      "default": 0,
+      "description": "後山練功追加偶發事件：[小梅練功]",
+      "scripts": [
+        "ch6_4_3_4_2"
+      ]
+    },
+    {
+      "id": "M60085",
+      "name": "邀請南宮淺",
+      "default": 0,
+      "description": "邀請南宮淺",
+      "scripts": [
+        "ch6_7_1"
+      ]
+    },
+    {
+      "id": "M60086",
+      "name": "小梅告發申屠龍",
+      "default": 0,
+      "description": "小梅告發申屠龍",
+      "scripts": [
+        "travel_result_601_902_02"
+      ]
+    },
+    {
+      "id": "M60087",
+      "name": "過度幸福小竹",
+      "default": 0,
+      "description": "過度幸福小竹",
+      "scripts": [
+        "ch6_9_2_break_start_01"
+      ]
+    },
+    {
+      "id": "M60088",
+      "name": "孟仙謠的抱怨",
+      "default": 0,
+      "description": "孟仙謠的抱怨",
+      "scripts": [
+        "ch6_9_2_4"
+      ]
+    },
+    {
+      "id": "M60089",
+      "name": "泥教來襲",
+      "default": 0,
+      "description": "泥教來襲",
+      "scripts": [
+        "ch6_8_4_part_2"
+      ]
+    },
+    {
+      "id": "M60090",
+      "name": "成功幫孟仙謠墊付",
+      "default": 0,
+      "description": "成功幫孟仙謠墊付",
+      "scripts": [
+        "ch6_9_2_4"
+      ]
+    },
+    {
+      "id": "M60091",
+      "name": "孟仙謠在崆峒",
+      "default": 0,
+      "description": "孟仙謠在崆峒",
+      "scripts": [
+        "ch6_10_1_part_2"
+      ]
+    },
+    {
+      "id": "M60092",
+      "name": "小梅賭氣",
+      "default": 0,
+      "description": "小梅賭氣",
+      "scripts": [
+        "ch6_10_1_part_2"
+      ]
+    },
+    {
+      "id": "M60093",
+      "name": "接納錦香宮弟子",
+      "default": 0,
+      "description": "接納錦香宮弟子",
+      "scripts": [
+        "ch6_4_4_3"
+      ]
+    },
+    {
+      "id": "M60094",
+      "name": "錦香宮提議去崆峒沒有被拒絕",
+      "default": 0,
+      "description": "錦香宮提議去崆峒沒有被拒絕",
+      "scripts": [
+        "ch6_4_4_3"
+      ]
+    },
+    {
+      "id": "M60095",
+      "name": "武林大會途中遭遇鐵匠",
+      "default": 0,
+      "description": "武林大會途中遭遇鐵匠",
+      "scripts": [
+        "travel_result_601_504"
       ]
     },
     {
@@ -22544,6 +24408,74 @@
       ]
     },
     {
+      "id": "M70069",
+      "name": "小竹的秘密武器",
+      "default": 0,
+      "description": "小竹的秘密武器",
+      "scripts": [
+        "ch7_3_2_5"
+      ]
+    },
+    {
+      "id": "M70070",
+      "name": "退隱江湖去崆峒",
+      "default": 0,
+      "description": "退隱江湖去崆峒",
+      "scripts": [
+        "ch7_5_2_3",
+        "ch7_5_2_5"
+      ]
+    },
+    {
+      "id": "M70071",
+      "name": "退隱江湖加入金人",
+      "default": 0,
+      "description": "退隱江湖加入金人",
+      "scripts": [
+        "ch7_5_2_3"
+      ]
+    },
+    {
+      "id": "M70072",
+      "name": "小梅吃趙活",
+      "default": 0,
+      "description": "小梅吃趙活",
+      "scripts": [
+        "ch7_5_4_4_1"
+      ]
+    },
+    {
+      "id": "M70073",
+      "name": "丹霞子帶操 支援",
+      "default": 0,
+      "description": "丹霞子帶操 支援",
+      "scripts": [
+        "center_free_905"
+      ]
+    },
+    {
+      "id": "M70074",
+      "name": "開啟陪小梅",
+      "default": 0,
+      "description": "開啟陪小梅",
+      "scripts": [
+        "ch7_5_6_10",
+        "ch7_5_6_2",
+        "ch7_5_6_9"
+      ]
+    },
+    {
+      "id": "M70075",
+      "name": "開啟陪小竹",
+      "default": 0,
+      "description": "開啟陪小竹",
+      "scripts": [
+        "ch7_5_6_11",
+        "ch7_5_6_2",
+        "ch7_5_6_9"
+      ]
+    },
+    {
       "id": "M80001",
       "name": "8-1 你的對策",
       "default": 0,
@@ -22747,6 +24679,15 @@
         "ch8_2_6_1",
         "ch8_2_6_2_4",
         "ch8_2_6_3_2"
+      ]
+    },
+    {
+      "id": "M80014",
+      "name": "錦香宮失望",
+      "default": 0,
+      "description": "錦香宮失望",
+      "scripts": [
+        "ch8_2_6_2_7"
       ]
     },
     {
@@ -22956,6 +24897,12 @@
       "scripts": [
         "S0702_01_03_break_start_01"
       ]
+    },
+    {
+      "id": "M80033",
+      "name": "武林群俠投降",
+      "default": 0,
+      "description": "武林群俠投降"
     },
     {
       "id": "M80034",
@@ -23238,6 +25185,12 @@
       ]
     },
     {
+      "id": "M80064",
+      "name": "戰勝丹霞子",
+      "default": 0,
+      "description": "戰勝丹霞子"
+    },
+    {
       "id": "M80065",
       "name": "戰勝南溪",
       "default": 0,
@@ -23299,6 +25252,140 @@
       "description": "可與申屠龍切磋",
       "scripts": [
         "S0801_02_02"
+      ]
+    },
+    {
+      "id": "M80072",
+      "name": "西武林盟崆峒支援",
+      "default": 0,
+      "description": "西武林盟崆峒支援",
+      "scripts": [
+        "ch8_1_1_1"
+      ]
+    },
+    {
+      "id": "M80073",
+      "name": "石公遠上大院",
+      "default": 0,
+      "description": "石公遠上大院",
+      "scripts": [
+        "ch8_2_6_7"
+      ]
+    },
+    {
+      "id": "M80074",
+      "name": "小竹已登場",
+      "default": 0,
+      "description": "小竹已登場",
+      "scripts": [
+        "ch8_2_6_3_3_1",
+        "ch8_3_1_3_1",
+        "ch8_3_1_4_1"
+      ]
+    },
+    {
+      "id": "M80075",
+      "name": "有金念珠並敗給上官隼",
+      "default": 0,
+      "description": "有金念珠並敗給上官隼",
+      "scripts": [
+        "ch8_3_2_3_2"
+      ]
+    },
+    {
+      "id": "M80076",
+      "name": "小梅找你",
+      "default": 0,
+      "description": "小梅找你",
+      "scripts": [
+        "ch8_4_12",
+        "ch8_4_12_1",
+        "ch8_4_3_4"
+      ]
+    },
+    {
+      "id": "M80077",
+      "name": "小竹找你",
+      "default": 0,
+      "description": "小竹找你",
+      "scripts": [
+        "ch8_4_13",
+        "ch8_4_3_4"
+      ]
+    },
+    {
+      "id": "M80078",
+      "name": "上官隼VS小梅",
+      "default": 0,
+      "description": "上官隼VS小梅",
+      "scripts": [
+        "ch8_3_1_2_1"
+      ]
+    },
+    {
+      "id": "M80079",
+      "name": "掌派人的覺悟",
+      "default": 0,
+      "description": "掌派人的覺悟",
+      "scripts": [
+        "ch8_4_8_1"
+      ]
+    },
+    {
+      "id": "M80080",
+      "name": "間章結束 鍛冶場小竹",
+      "default": 0,
+      "description": "間章結束 鍛冶場小竹",
+      "scripts": [
+        "ch8_4_13",
+        "forge_001"
+      ]
+    },
+    {
+      "id": "M80081",
+      "name": "瑞笙是朋友",
+      "default": 0,
+      "description": "瑞笙是朋友",
+      "scripts": [
+        "ch8_7_2_1"
+      ]
+    },
+    {
+      "id": "M80082",
+      "name": "旗標暫存1",
+      "default": 0,
+      "description": "旗標暫存1",
+      "temporary": true,
+      "scripts": [
+        "ch8_7_2_2_3"
+      ]
+    },
+    {
+      "id": "M80083",
+      "name": "在山上等",
+      "default": 0,
+      "description": "在山上等",
+      "scripts": [
+        "ch8_3_1_1"
+      ]
+    },
+    {
+      "id": "M80084",
+      "name": "瑞笙投降",
+      "default": 0,
+      "description": "瑞笙投降",
+      "scripts": [
+        "ch8_7_2_2"
+      ]
+    },
+    {
+      "id": "M80085",
+      "name": "小竹全武裝戰役事件",
+      "default": 0,
+      "description": "小竹全武裝戰役事件",
+      "scripts": [
+        "ch8_3_1_2",
+        "ch8_3_1_3_1"
       ]
     },
     {
@@ -23425,6 +25512,26 @@
       "description": "小梅 守護唐門",
       "scripts": [
         "ch8_3_2_1"
+      ]
+    },
+    {
+      "id": "M81013",
+      "name": "崆峒派",
+      "default": 0,
+      "description": "崆峒派",
+      "scripts": [
+        "ch8_2_6_3_2_part_2",
+        "ch8_3_1_1"
+      ]
+    },
+    {
+      "id": "M81014",
+      "name": "崆峒派 小竹",
+      "default": 0,
+      "description": "崆峒派 小竹",
+      "scripts": [
+        "ch8_2_6_3_2_part_2",
+        "ch8_3_1_1"
       ]
     },
     {
@@ -23616,6 +25723,14 @@
       ]
     },
     {
+      "id": "Meeting_Option_705_01",
+      "name": "Meeting_Option_705_01",
+      "default": 0,
+      "scripts": [
+        "meeting_option_01"
+      ]
+    },
+    {
       "id": "N00001",
       "name": "已贖回外堡",
       "default": 0,
@@ -23624,6 +25739,18 @@
         "S0703_01_01",
         "meeting_option_f_01_01"
       ]
+    },
+    {
+      "id": "N00002",
+      "name": "已贖回練功塔",
+      "default": 0,
+      "description": "已贖回練功塔"
+    },
+    {
+      "id": "NewGamePlus",
+      "name": "二週目",
+      "default": 0,
+      "description": "二週目"
     },
     {
       "id": "P_Alchemy_01",
@@ -23799,6 +25926,70 @@
       ]
     },
     {
+      "id": "Pinball_Award_01",
+      "name": "大獎次數",
+      "default": 0,
+      "description": "大獎次數",
+      "scripts": [
+        "talk_brother4_option_04"
+      ]
+    },
+    {
+      "id": "Pinball_Award_02",
+      "name": "二獎次數",
+      "default": 0,
+      "description": "二獎次數",
+      "scripts": [
+        "talk_brother4_option_04"
+      ]
+    },
+    {
+      "id": "Pinball_Award_02_01",
+      "name": "二獎 小竹打工券",
+      "default": 0,
+      "description": "二獎 小竹打工券",
+      "scripts": [
+        "talk_brother4_option_04"
+      ]
+    },
+    {
+      "id": "Pinball_Award_03",
+      "name": "三獎次數",
+      "default": 0,
+      "description": "三獎次數",
+      "scripts": [
+        "talk_brother4_option_04"
+      ]
+    },
+    {
+      "id": "Pinball_Award_03_01",
+      "name": "三獎 小竹打工券",
+      "default": 0,
+      "description": "三獎 小竹打工券",
+      "scripts": [
+        "talk_brother4_option_04"
+      ]
+    },
+    {
+      "id": "Pinball_Broken",
+      "name": "彈珠台本場是否搖壞(0/1)",
+      "default": 0,
+      "description": "彈珠台本場是否搖壞(0/1)",
+      "scripts": [
+        "S0033_01",
+        "S0033_02"
+      ]
+    },
+    {
+      "id": "Pinball_Broken_Count",
+      "name": "彈珠台搖壞累計次數",
+      "default": 0,
+      "description": "彈珠台搖壞累計次數",
+      "scripts": [
+        "S0033_01"
+      ]
+    },
+    {
       "id": "Prison_01",
       "name": "被關次數",
       "default": 0,
@@ -23825,6 +26016,25 @@
         "ch0_6",
         "ch1_2_5"
       ]
+    },
+    {
+      "id": "R0001",
+      "name": "旗標暫存1",
+      "default": 0,
+      "description": "旗標暫存1",
+      "temporary": true
+    },
+    {
+      "id": "S0002",
+      "name": "完成支線任務-反間諜",
+      "default": 0,
+      "description": "完成支線任務-反間諜"
+    },
+    {
+      "id": "S0002_01",
+      "name": "煎藥保存成敗",
+      "default": 0,
+      "description": "煎藥保存成敗"
     },
     {
       "id": "S0014_01",
@@ -23913,6 +26123,14 @@
       ]
     },
     {
+      "id": "S0033_01",
+      "name": "S0033_01",
+      "default": 0,
+      "scripts": [
+        "S0033_01"
+      ]
+    },
+    {
       "id": "S0100_01",
       "name": "S0100_01",
       "default": 0,
@@ -23955,6 +26173,19 @@
       ]
     },
     {
+      "id": "S0305_01",
+      "name": "觸發小竹在江陵",
+      "default": 0,
+      "description": "觸發小竹在江陵",
+      "scripts": [
+        "S0305_01",
+        "S0305_01_01",
+        "S0305_02_02",
+        "S0305_02_03",
+        "S0305_02_04_01"
+      ]
+    },
+    {
       "id": "S0501_01",
       "name": "觸發勸離事件",
       "default": 0,
@@ -23990,12 +26221,27 @@
       ]
     },
     {
+      "id": "S2003_01",
+      "name": "絕世雞腿事件",
+      "default": 0,
+      "description": "絕世雞腿事件"
+    },
+    {
       "id": "S2003_02",
       "name": "開啟絕世雞腿完結篇",
       "default": 0,
       "description": "開啟絕世雞腿完結篇",
       "scripts": [
         "ch4_7_3_2"
+      ]
+    },
+    {
+      "id": "S2321_02_03_Option_01",
+      "name": "(解鎖[崆峒探險隊強襲六道峽]、[啟程])",
+      "default": 0,
+      "description": "(解鎖[崆峒探險隊強襲六道峽]、[啟程])",
+      "scripts": [
+        "S2321_02_03_01"
       ]
     },
     {
@@ -24007,12 +26253,351 @@
       ]
     },
     {
+      "id": "S2510_01",
+      "name": "S2510_01",
+      "default": 0,
+      "scripts": [
+        "ch7_4_3_2",
+        "ch7_4_4"
+      ]
+    },
+    {
+      "id": "S2600_00",
+      "name": "S2600_00",
+      "default": 0,
+      "scripts": [
+        "S2600_02_05",
+        "S2700_01_01",
+        "S2700_02_01",
+        "S2700_02_02",
+        "S2700_02_03_01",
+        "S2800_01_02",
+        "S2800_03_05_02",
+        "S2800_03_06"
+      ]
+    },
+    {
+      "id": "S2600_01",
+      "name": "觸發飛天門事件 拜碼頭",
+      "default": 0,
+      "description": "觸發飛天門事件 拜碼頭",
+      "scripts": [
+        "S2600_01"
+      ]
+    },
+    {
+      "id": "S2600_02",
+      "name": "拜碼頭 分支",
+      "default": 0,
+      "description": "拜碼頭 分支\n1. 成功逃跑\n2. 鐵拳飛天混戰\n3. 夏侯蘭抓",
+      "values": [
+        {
+          "value": 1,
+          "name": "成功逃跑"
+        },
+        {
+          "value": 2,
+          "name": "鐵拳飛天混戰"
+        },
+        {
+          "value": 3,
+          "name": "夏侯蘭抓"
+        }
+      ],
+      "scripts": [
+        "S2600_02_03_01",
+        "S2600_02_04_01",
+        "S2600_02_05"
+      ]
+    },
+    {
+      "id": "S2700_00",
+      "name": "S2700_00",
+      "default": 0,
+      "scripts": [
+        "S2600_02_05",
+        "S2700_01_01",
+        "S2700_02_01",
+        "S2700_02_02",
+        "S2700_02_03_01",
+        "S2800_01_02",
+        "S2800_03_05_02",
+        "S2800_03_06"
+      ]
+    },
+    {
+      "id": "S2700_01",
+      "name": "觸發鐵拳門事件 不速之客",
+      "default": 0,
+      "description": "觸發鐵拳門事件 不速之客",
+      "scripts": [
+        "S2700_01"
+      ]
+    },
+    {
+      "id": "S2700_02",
+      "name": "觸發鐵拳門事件 貴客",
+      "default": 0,
+      "description": "觸發鐵拳門事件 貴客",
+      "scripts": [
+        "S2700_02_02"
+      ]
+    },
+    {
+      "id": "S2700_03",
+      "name": "觸發鐵拳門事件 情敵",
+      "default": 0,
+      "description": "觸發鐵拳門事件 情敵",
+      "scripts": [
+        "S2700_02_03"
+      ]
+    },
+    {
+      "id": "S2800_01",
+      "name": "聽過奪魄弟子抱怨小竹",
+      "default": 0,
+      "description": "聽過奪魄弟子抱怨小竹",
+      "scripts": [
+        "S2800_01_02"
+      ]
+    },
+    {
+      "id": "S2800_02",
+      "name": "(開啟閒談：犯案動機)",
+      "default": 0,
+      "description": "(開啟閒談：犯案動機)",
+      "scripts": [
+        "S2800_02_break_start_01"
+      ]
+    },
+    {
+      "id": "S2800_02_Talk_01",
+      "name": "S2800_02_Talk_01",
+      "default": 0,
+      "scripts": [
+        "S2800_01",
+        "S2800_01_01",
+        "S2800_02_break_start_01"
+      ]
+    },
+    {
+      "id": "S2800_02_Talk_02",
+      "name": "S2800_02_Talk_02",
+      "default": 0,
+      "scripts": [
+        "S2800_01",
+        "S2800_01_01",
+        "S2800_02_break_start_01"
+      ]
+    },
+    {
+      "id": "S2800_02_Talk_03",
+      "name": "S2800_02_Talk_03",
+      "default": 0,
+      "scripts": [
+        "S2800_01",
+        "S2800_01_01",
+        "S2800_02_break_start_01"
+      ]
+    },
+    {
+      "id": "S2800_02_Talk_04",
+      "name": "S2800_02_Talk_04",
+      "default": 0,
+      "scripts": [
+        "S2800_01",
+        "S2800_01_01",
+        "S2800_01_02",
+        "S2800_02_break_start_01"
+      ]
+    },
+    {
+      "id": "S2800_02_Talk_05",
+      "name": "S2800_02_Talk_05",
+      "default": 0,
+      "scripts": [
+        "S2800_01",
+        "S2800_02_break_start_01"
+      ]
+    },
+    {
+      "id": "S2900_01",
+      "name": "觸發小竹回家",
+      "default": 0,
+      "description": "觸發小竹回家",
+      "scripts": [
+        "S2900_01",
+        "S2900_02"
+      ]
+    },
+    {
+      "id": "S2900_02",
+      "name": "小竹回家觸發來源",
+      "default": 0,
+      "description": "小竹回家觸發來源\n1. 小梅\n2. 小竹",
+      "values": [
+        {
+          "value": 1,
+          "name": "小梅"
+        },
+        {
+          "value": 2,
+          "name": "小竹"
+        }
+      ],
+      "scripts": [
+        "S2900_01",
+        "S2900_02"
+      ]
+    },
+    {
+      "id": "S2900_03",
+      "name": "可觸發小竹回家",
+      "default": 0,
+      "description": "可觸發小竹回家",
+      "scripts": [
+        "S2900_03",
+        "S2900_03_01"
+      ]
+    },
+    {
+      "id": "S2900_04",
+      "name": "軍火頭子",
+      "default": 0,
+      "description": "軍火頭子",
+      "scripts": [
+        "S2900_02"
+      ]
+    },
+    {
+      "id": "S2900_05",
+      "name": "胡荽不耐受",
+      "default": 0,
+      "description": "胡荽不耐受",
+      "scripts": [
+        "S2900_03"
+      ]
+    },
+    {
+      "id": "S2901_01",
+      "name": "追上小竹",
+      "default": 0,
+      "description": "追上小竹",
+      "scripts": [
+        "S2901_03_01_07"
+      ]
+    },
+    {
+      "id": "S2901_02",
+      "name": "讓小梅發揮",
+      "default": 0,
+      "description": "讓小梅發揮",
+      "scripts": [
+        "S2901_03_01_07"
+      ]
+    },
+    {
+      "id": "S2901_03",
+      "name": "揍小竹全家 余公子勝敗",
+      "default": 0,
+      "description": "揍小竹全家 余公子勝敗",
+      "scripts": [
+        "S2901_03_01_08_01",
+        "S2901_03_01_08_02"
+      ]
+    },
+    {
+      "id": "S2901_04_02_Talk_01",
+      "name": "閒談：家人",
+      "default": 0,
+      "description": "閒談：家人",
+      "scripts": [
+        "S2901_04_02_01"
+      ]
+    },
+    {
+      "id": "S2901_04_02_Talk_02",
+      "name": "閒談：崆峒派",
+      "default": 0,
+      "description": "閒談：崆峒派",
+      "scripts": [
+        "S2901_04_02_05"
+      ]
+    },
+    {
+      "id": "S2901_04_02_Talk_03",
+      "name": "閒談：我的家人",
+      "default": 0,
+      "description": "閒談：我的家人",
+      "scripts": [
+        "S2901_04_02_05"
+      ]
+    },
+    {
+      "id": "S2902_01",
+      "name": "旗標暫存1",
+      "default": 0,
+      "description": "旗標暫存1",
+      "temporary": true,
+      "scripts": [
+        "S2901_06"
+      ]
+    },
+    {
+      "id": "S2915_01",
+      "name": "觸發可疑的行蹤",
+      "default": 0,
+      "description": "觸發可疑的行蹤",
+      "scripts": [
+        "S2915_01"
+      ]
+    },
+    {
+      "id": "S2916_01",
+      "name": "觸發畫皮妖",
+      "default": 0,
+      "description": "觸發畫皮妖",
+      "scripts": [
+        "S2916_01_02"
+      ]
+    },
+    {
+      "id": "S2918_01",
+      "name": "S2918_01",
+      "default": 0,
+      "scripts": [
+        "S2918_01"
+      ]
+    },
+    {
+      "id": "S2919_01",
+      "name": "S2919_01",
+      "default": 0,
+      "scripts": [
+        "S2919_01"
+      ]
+    },
+    {
+      "id": "S2920_01",
+      "name": "S2920_01",
+      "default": 0,
+      "scripts": [
+        "S2920_01"
+      ]
+    },
+    {
       "id": "S3001_01",
       "name": "S3001_01",
       "default": 0,
       "scripts": [
         "S3001_01"
       ]
+    },
+    {
+      "id": "S8000",
+      "name": "煉丹房支線成功",
+      "default": 0,
+      "description": "煉丹房支線成功"
     },
     {
       "id": "S8400",
@@ -24042,6 +26627,12 @@
       ]
     },
     {
+      "id": "S9200",
+      "name": "是否下雨",
+      "default": 0,
+      "description": "是否下雨"
+    },
+    {
       "id": "S9904_01",
       "name": "支持肩甲狀態",
       "default": 0,
@@ -24060,6 +26651,15 @@
           "name": "反對"
         }
       ],
+      "scripts": [
+        "S9904_01"
+      ]
+    },
+    {
+      "id": "S9904_02",
+      "name": "大師兄談論南宮世家",
+      "default": 0,
+      "description": "大師兄談論南宮世家",
       "scripts": [
         "S9904_01"
       ]
@@ -24112,6 +26712,25 @@
       "scripts": [
         "S9907_01"
       ]
+    },
+    {
+      "id": "Score_01",
+      "name": "旗標暫存1",
+      "default": 0,
+      "description": "旗標暫存1",
+      "temporary": true
+    },
+    {
+      "id": "Shop_01",
+      "name": "商店累積消費",
+      "default": 0,
+      "description": "商店累積消費"
+    },
+    {
+      "id": "Shop_02",
+      "name": "商店總累積消費",
+      "default": 0,
+      "description": "商店總累積消費"
     },
     {
       "id": "T0001",
@@ -24491,12 +27110,27 @@
       ]
     },
     {
+      "id": "TC0012",
+      "name": "決鬥泛用事件旗標1",
+      "default": 0,
+      "description": "決鬥泛用事件旗標1",
+      "scripts": [
+        "ch8_1_1_2",
+        "ch8_1_1_2_break_start_01"
+      ]
+    },
+    {
       "id": "Talk_Brother2_00",
       "name": "Talk_Brother2_00",
       "default": 0,
       "scripts": [
         "alchemy_001"
       ]
+    },
+    {
+      "id": "Talk_Brother3",
+      "name": "Talk_Brother3",
+      "default": 0
     },
     {
       "id": "Talk_Brother3_00",
@@ -24759,6 +27393,17 @@
       ]
     },
     {
+      "id": "Talk_Brother3_Option_05",
+      "name": "Talk_Brother3_Option_05",
+      "default": 0
+    },
+    {
+      "id": "Talk_Brother4",
+      "name": "弟子房四師兄閒聊",
+      "default": 0,
+      "description": "弟子房四師兄閒聊"
+    },
+    {
       "id": "Talk_Brother4_00",
       "name": "弟子房四師兄閒聊",
       "default": 0,
@@ -24822,6 +27467,11 @@
       "scripts": [
         "talk_brother4_option_02_04_01"
       ]
+    },
+    {
+      "id": "Talk_Brother4_02_05",
+      "name": "Talk_Brother4_02_05",
+      "default": 0
     },
     {
       "id": "Talk_Brother4_02_05_01",
@@ -24948,6 +27598,26 @@
         "talk_girl5",
         "talk_girl5_05"
       ]
+    },
+    {
+      "id": "Talk_Girl_05_06",
+      "name": "Talk_Girl_05_06",
+      "default": 0
+    },
+    {
+      "id": "Talk_Girl_05_07",
+      "name": "Talk_Girl_05_07",
+      "default": 0
+    },
+    {
+      "id": "Talk_Girl_05_08",
+      "name": "Talk_Girl_05_08",
+      "default": 0
+    },
+    {
+      "id": "Talk_Girl_05_09",
+      "name": "Talk_Girl_05_09",
+      "default": 0
     },
     {
       "id": "Talk_Girl_05_09_001",
@@ -25319,6 +27989,11 @@
       ]
     },
     {
+      "id": "Talk_Option_12",
+      "name": "Talk_Option_12",
+      "default": 0
+    },
+    {
       "id": "Talk_Sister1_00",
       "name": "Talk_Sister1_00",
       "default": 0,
@@ -25336,6 +28011,18 @@
         "act1",
         "ch1_1"
       ]
+    },
+    {
+      "id": "Z00002",
+      "name": "旗標暫存1",
+      "default": 0,
+      "description": "旗標暫存1",
+      "temporary": true
+    },
+    {
+      "id": "test",
+      "name": "test",
+      "default": 0
     }
   ],
   "talents": [

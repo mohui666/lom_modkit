@@ -231,9 +231,7 @@ impl App {
                 crate::forms::number_duplicate_labels(&mut chapter_names);
                 ui.label(crate::i18n::key("nav.story"));
                 ui.horizontal(|ui| {
-                    egui::ComboBox::from_id_salt("chapters")
-                        .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
-                        .truncate()
+                    crate::forms::SearchCombo::from_id_salt("chapters")
                         .width((ui.available_width() - 112.0).max(75.0))
                         .selected_text(
                             chapter_names
@@ -242,9 +240,12 @@ impl App {
                                 .map(|(_, name)| name.as_str())
                                 .unwrap_or(&self.current),
                         )
-                        .show_ui(ui, |ui| {
+                        .show_ui(ui, |ui, query| {
                             let mut groups = BTreeMap::<&str, Vec<(&String, &String)>>::new();
                             for (id, name) in &chapter_names {
+                                if !crate::forms::resource_matches(id, name, query) {
+                                    continue;
+                                }
                                 groups
                                     .entry(chapter_group(&self.project.stories[id]))
                                     .or_default()
@@ -259,6 +260,7 @@ impl App {
                                         group.to_owned()
                                     })
                                     .id_salt(("chapter-group", group))
+                                    .open((!query.is_empty()).then_some(true))
                                     .default_open(
                                         chapters.iter().any(|(id, _)| *id == &self.current),
                                     )
@@ -344,6 +346,9 @@ impl App {
                     });
 
                     ui.menu_button("…", |ui| {
+                        let key = |modifiers, key| {
+                            ctx.format_shortcut(&egui::KeyboardShortcut::new(modifiers, key))
+                        };
                         if ui.button(tr("复制")).clicked() {
                             self.copy();
                             ui.close();
@@ -355,11 +360,24 @@ impl App {
                             self.paste();
                             ui.close();
                         }
-                        if ui.button(tr("上移")).clicked() && self.selected > 0 {
+                        if ui
+                            .add(
+                                egui::Button::new(tr("上移"))
+                                    .shortcut_text(key(egui::Modifiers::ALT, egui::Key::ArrowUp)),
+                            )
+                            .clicked()
+                            && self.selected > 0
+                        {
                             self.move_node(self.selected - 1);
                             ui.close();
                         }
-                        if ui.button(tr("下移")).clicked() {
+                        if ui
+                            .add(
+                                egui::Button::new(tr("下移"))
+                                    .shortcut_text(key(egui::Modifiers::ALT, egui::Key::ArrowDown)),
+                            )
+                            .clicked()
+                        {
                             self.move_node(self.selected + 1);
                             ui.close();
                         }
@@ -372,7 +390,13 @@ impl App {
                             self.move_steps(&self.selected_indices(), len);
                             ui.close();
                         }
-                        if ui.button(tr("全选步骤")).clicked() {
+                        if ui
+                            .add(
+                                egui::Button::new(tr("全选步骤"))
+                                    .shortcut_text(key(egui::Modifiers::COMMAND, egui::Key::A)),
+                            )
+                            .clicked()
+                        {
                             self.multiselect =
                                 (0..self.story()["nodes"].as_array().map_or(0, Vec::len)).collect();
                             ui.close();
@@ -411,15 +435,37 @@ impl App {
                     self.open_center(Center::Chapter);
                 }
                 ui.separator();
-                if !self.search.is_empty() {
+                if !self.search.is_empty()
+                    || ctx.data(|data| {
+                        data.get_temp::<bool>(egui::Id::new("step-search-open"))
+                            .unwrap_or(false)
+                    })
+                {
                     ui.horizontal(|ui| {
-                        if ui.small_button("×").clicked() {
-                            self.search.clear();
+                        let close = ui.small_button("×").clicked();
+                        let response = ui
+                            .add(
+                                egui::TextEdit::singleline(&mut self.search)
+                                    .id(egui::Id::new("story-step-search"))
+                                    .hint_text(tr("搜索所有章节 · ID / 台词 / 角色"))
+                                    .desired_width(ui.available_width()),
+                            )
+                            .on_hover_text(tr("搜索所有章节 · ID / 台词 / 角色"));
+                        if ctx
+                            .data_mut(|data| {
+                                data.remove_temp::<bool>(egui::Id::new("step-search-focus"))
+                            })
+                            .unwrap_or(false)
+                        {
+                            response.request_focus();
                         }
-                        ui.add(
-                            egui::Label::new(format!("{}: {}", tr("查找"), self.search)).truncate(),
-                        )
-                        .on_hover_text(&self.search);
+                        if close {
+                            self.search.clear();
+                            ctx.data_mut(|data| {
+                                data.remove::<bool>(egui::Id::new("step-search-open"))
+                            });
+                            response.surrender_focus();
+                        }
                     });
                 }
                 let story = self.story();

@@ -348,19 +348,27 @@ impl ContentPanel {
                 }
             }
             if self.slot == 1 {
-                egui::ComboBox::from_id_salt("content-portrait")
+                crate::forms::SearchCombo::from_id_salt("content-portrait")
                     .selected_text(if self.portrait.is_empty() {
                         crate::i18n::key("editor.content.choose_portrait")
                     } else {
                         self.portrait.clone()
                     })
-                    .show_ui(ui, |ui| {
+                    .show_ui(ui, |ui, query| {
                         for portrait in self.draft["portraits"]
                             .as_object()
                             .into_iter()
                             .flat_map(|p| p.keys())
                         {
-                            ui.selectable_value(&mut self.portrait, portrait.clone(), portrait);
+                            if !crate::forms::resource_matches(portrait, "", query) {
+                                continue;
+                            }
+                            if ui
+                                .selectable_value(&mut self.portrait, portrait.clone(), portrait)
+                                .clicked()
+                            {
+                                ui.close();
+                            }
                         }
                     });
                 ui.horizontal(|ui| {

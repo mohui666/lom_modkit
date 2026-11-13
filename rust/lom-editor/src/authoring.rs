@@ -574,11 +574,16 @@ fn range_form(ui: &mut eframe::egui::Ui, item: &mut Value, ids: &[String]) -> bo
             ui.label(format!("{} *", crate::i18n::tr(label)));
             let old = item[key].as_str().unwrap_or("").to_owned();
             let mut selected = old.clone();
-            eframe::egui::ComboBox::from_id_salt(key)
+            crate::forms::SearchCombo::from_id_salt(key)
                 .selected_text(&selected)
-                .show_ui(ui, |ui| {
+                .show_ui(ui, |ui, query| {
                     for id in ids {
-                        ui.selectable_value(&mut selected, id.clone(), id);
+                        if !crate::forms::resource_matches(id, "", query) {
+                            continue;
+                        }
+                        if ui.selectable_value(&mut selected, id.clone(), id).clicked() {
+                            ui.close();
+                        }
                     }
                 });
             if selected != old {
