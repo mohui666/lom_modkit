@@ -156,6 +156,7 @@ fn type_valid(tag: &str, v: &Value) -> bool {
         "talent_level" => v.as_f64().is_some_and(|n| n == 1.0 || n == -1.0),
         "save_button" => v.as_f64().is_some_and(|n| n == 0.0 || n == 1.0),
         "script_id" => v.as_str().is_some_and(|x| matches(SCRIPT_ID, x)),
+        "dialogue_mood_icon" => v.is_null() || v.as_str() == Some("") || enumeration(tag, v),
         _ => enumeration(tag, v),
     }
 }
@@ -1229,7 +1230,7 @@ fn extra(n: &Value, ntype: &str, catalog: &Value, check_effect_names: bool) -> R
         }
         "say" => {
             ensure!(nonblank(&n["text"]), "必填字段 \"text\" 不能为空或仅含空白");
-            if has(n, "mood_icon") {
+            if nonempty(&n["mood_icon"]) {
                 let target = if nonblank(&n["mood_character"]) {
                     &n["mood_character"]
                 } else {

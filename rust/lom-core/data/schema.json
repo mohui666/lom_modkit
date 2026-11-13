@@ -1099,6 +1099,8 @@
     ]
   },
   "type_names": {
+    "dialogue_mood_icon": "本句表情气泡选项（沿用现有气泡可留空；也可选 auto/hide/shock/silent/angry2/nervous1/laugh1/shy/nervous3/nervous4/nervous2）",
+    "mood_icon": "表情气泡选项（auto/shock/silent/angry2/nervous1/laugh1/shy/nervous3/nervous4/nervous2）",
     "character_title_action": "\"keep\"/\"set\"/\"hide\"/\"reset\"",
     "character_name_action": "\"keep\"/\"set\"/\"reset\"",
     "character_profile_op": "\"meet\"/\"forget\"/\"unlock_biography\"/\"lock_biography\"",

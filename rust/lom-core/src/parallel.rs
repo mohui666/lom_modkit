@@ -61,7 +61,8 @@ fn channels(node: &Value) -> Vec<String> {
             "face" => &["朝向"],
             "dim" => &["明暗"],
             "focus" => &["前后顺序"],
-            "show" | "hide" | "portrait" => &["位置", "角度", "朝向", "大小", "明暗", "立绘"],
+            "show" | "hide" => &["位置", "角度", "朝向", "大小", "明暗", "立绘"],
+            "portrait" => &["位置", "角度", "朝向", "大小", "立绘"],
             _ => &[],
         };
         result.extend(
@@ -69,6 +70,9 @@ fn channels(node: &Value) -> Vec<String> {
                 .iter()
                 .map(|property| format!("人物 {character} 的{property}")),
         );
+        if kind == "portrait" && node["brighten"] == true {
+            result.push(format!("人物 {character} 的明暗"));
+        }
         if matches!(kind, "mood" | "show" | "hide") {
             result.push(format!("人物 {character} 的气泡"));
         }
@@ -204,9 +208,19 @@ pub fn validate_group(node: &Value) -> Result<()> {
         }
         for channel in channels(action) {
             if let Some(previous) = owners.insert(channel.clone(), number) {
+                let previous_kind = actions[previous - 1]["type"].as_str().unwrap_or("");
+                let advice = if matches!(
+                    (previous_kind, kind),
+                    ("portrait", "dim") | ("dim", "portrait")
+                ) {
+                    "换表情已启用“换表情后变亮”；请关闭该选项后由明暗动作控制，或移除重复的明暗动作"
+                } else {
+                    "请拆成先后步骤"
+                };
                 anyhow::bail!(
-                    "第 {previous} 和第 {number} 个同时动作都会控制{channel}（{} / {}），请拆成先后步骤",
-                    action_label(actions[previous-1]["type"].as_str().unwrap_or("")),action_label(kind)
+                    "第 {previous} 和第 {number} 个同时动作都会控制{channel}（{} / {}），{advice}",
+                    action_label(previous_kind),
+                    action_label(kind)
                 );
             }
         }

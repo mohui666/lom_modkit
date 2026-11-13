@@ -142,7 +142,7 @@ pub fn find_stage_issues(story: &Value) -> Vec<(String, String)> {
                 .iter()
                 .flat_map(|action| {
                     let speaker = required_character(action);
-                    let mood = (action["type"] == "say" && action["mood_icon"].is_string())
+                    let mood = (action["type"] == "say" && !text(action, "mood_icon").is_empty())
                         .then(|| text(action, "mood_character"))
                         .filter(|cid| !cid.is_empty() && Some(*cid) != speaker);
                     [speaker, mood]

@@ -91,6 +91,9 @@ pub fn text(message: &str) -> String {
 }
 
 fn readable_summary(message: &str) -> String {
+    if message.starts_with("无法载入上次选择的预览素材库") {
+        return crate::i18n::key("editor.preview.restore_failed");
+    }
     if message.contains("作品编号") && message.contains("作品设置") {
         return message.to_owned();
     }

@@ -437,6 +437,52 @@ mod tests {
         assert_eq!(state.observed, None);
     }
 
+    #[test]
+    fn dimming_choices_edit_brightness_instead_of_disabling_the_action() {
+        use egui::accesskit::{Action, ActionRequest, Role};
+        let catalog = Catalog::new();
+        let context = egui::Context::default();
+        let mut node = serde_json::json!({"id":"group","type":"parallel","actions":[
+            {"type":"dim","character":"player","dimmed":false,"mode":"until_dialogue"},
+            {"type":"wait","seconds":1}
+        ]});
+        let untouched = node["actions"][1].clone();
+        let click = |output: &egui::FullOutput, role: Role, label: &str| {
+            let target = output
+                .platform_output
+                .accesskit_update
+                .as_ref()
+                .unwrap()
+                .nodes
+                .iter()
+                .find_map(|(id, node)| {
+                    (node.role() == role
+                        && (node.label() == Some(label) || node.value() == Some(label)))
+                    .then_some(*id)
+                })
+                .unwrap_or_else(|| panic!("missing {role:?}: {label}"));
+            vec![egui::Event::AccessKitActionRequest(ActionRequest {
+                action: Action::Click,
+                target,
+                data: None,
+            })]
+        };
+        for (before, after, expected) in [
+            ("editor.form.bright", "editor.form.dimmed", true),
+            ("editor.form.dimmed", "editor.form.bright", false),
+        ] {
+            let (output, changed) = frame(&catalog, &context, &mut node);
+            assert!(!changed);
+            let events = click(&output, Role::ComboBox, &key(before));
+            let (output, _) = frame_with_events(&catalog, &context, &mut node, events);
+            let events = click(&output, Role::Button, &key(after));
+            let (_, changed) = frame_with_events(&catalog, &context, &mut node, events);
+            assert!(changed);
+            assert_eq!(node["actions"][0]["dimmed"], expected);
+            assert_eq!(node["actions"][1], untouched);
+        }
+    }
+
     fn frame(
         catalog: &Catalog,
         context: &egui::Context,

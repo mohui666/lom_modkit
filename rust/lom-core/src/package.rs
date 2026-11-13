@@ -665,7 +665,10 @@ fn add_user_content(
         }
         if kind == "say" {
             refs.push(("voice", "audio", None));
-            if node["mood_icon"].is_string() {
+            if node["mood_icon"]
+                .as_str()
+                .is_some_and(|icon| !icon.is_empty())
+            {
                 refs.push(("mood_character", "character", None));
             }
         }
@@ -1054,8 +1057,12 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
         manifest["vanilla_overrides"] = json!(overrides);
     }
     let requires_dialogue_mood = stories.values().any(|story| {
-        crate::parallel::story_actions(story)
-            .any(|(_, node)| node["type"] == "say" && node["mood_icon"].is_string())
+        crate::parallel::story_actions(story).any(|(_, node)| {
+            node["type"] == "say"
+                && node["mood_icon"]
+                    .as_str()
+                    .is_some_and(|icon| !icon.is_empty())
+        })
     });
     let requires_hide_all = stories.values().any(|story| {
         crate::parallel::story_actions(story).any(|(_, node)| node["type"] == "hide_all")

@@ -589,6 +589,7 @@ impl App {
                 self.center = Center::Tools;
                 self.tools_panel.page = ToolPage::Previews;
             }
+            Destination::ExistingPreviewLibrary => self.choose_preview_library(),
             Destination::Settings => self.settings_open = true,
             Destination::Open => {
                 if let Some(path) = rfd::FileDialog::new()

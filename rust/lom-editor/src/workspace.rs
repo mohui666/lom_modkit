@@ -271,6 +271,40 @@ fn user_root() -> PathBuf {
         home.join(".local/share/lom_modkit")
     }
 }
+
+fn restore_saved_preview_library(
+    preview: &mut Preview,
+    preferences: &Value,
+    legacy_settings: &Path,
+) -> anyhow::Result<()> {
+    let path = if let Some(value) = preferences.get("preview_library_dir") {
+        value.as_str().map(PathBuf::from)
+    } else if legacy_settings.try_exists().with_context(|| {
+        format!(
+            "无法载入上次选择的预览素材库设置：{}",
+            legacy_settings.display()
+        )
+    })? {
+        // A new preferences file may contain only language or window settings.
+        // Its existence must not hide the library selected in older settings.
+        let legacy = lom_core::load_json(legacy_settings).with_context(|| {
+            format!(
+                "无法载入上次选择的预览素材库设置：{}",
+                legacy_settings.display()
+            )
+        })?;
+        legacy["preview_library_dir"].as_str().map(PathBuf::from)
+    } else {
+        None
+    };
+    if let Some(path) = path {
+        preview
+            .set_library(&path)
+            .with_context(|| format!("无法载入上次选择的预览素材库：{}", path.display()))?;
+    }
+    Ok(())
+}
+
 fn dialog_actions(ui: &mut egui::Ui, primary: &str, enabled: bool) -> (bool, bool) {
     ui.add_space(16.0);
     shell::dialog_buttons(ui, |ui| {
@@ -509,8 +543,14 @@ impl App {
         {
             crate::i18n::set_locale(locale);
         }
-        if let Some(path) = prefs["preview_library_dir"].as_str() {
-            let _ = preview.set_library(Path::new(path));
+        if let Err(preview_error) =
+            restore_saved_preview_library(&mut preview, &prefs, &user_root().join("settings.json"))
+        {
+            let message = crate::error_ui::capture(preview_error);
+            error = Some(match error {
+                Some(previous) => format!("{previous}\n\n{message}"),
+                None => message,
+            });
         }
         let templates =
             lom_core::load_json(user_root().join("rust/node-templates.json")).unwrap_or(json!({}));
@@ -796,6 +836,11 @@ impl eframe::App for App {
         self.guided_export(ctx);
         self.dialogs(ctx);
         self.tools_panel.show_dialog(ctx, &self.project);
+        if let Some(message) = ctx
+            .data_mut(|data| data.remove_temp::<String>(egui::Id::new("saved-new-step-defaults")))
+        {
+            self.status = message;
+        }
         if let Some(destination) = self.tools_panel.take_location() {
             self.go_to_problem(ctx, destination);
         }

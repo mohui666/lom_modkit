@@ -896,10 +896,13 @@ impl Catalog {
         if matches!(kind.as_str(), "move" | "offset") {
             ui.small(crate::i18n::key("editor.form.movement_portrait_hint"));
         }
+        if kind == "dim" && node["mode"] != "auto" {
+            ui.small(crate::i18n::key("editor.form.dimming_hint"));
+        }
         if kind == "mood" {
             ui.small(crate::i18n::key("editor.form.bubble_hint"));
             ui.small(tr(
-                "气泡执行后停留：显示、切换或隐藏后等待指定秒数，再执行下一步；默认 0 秒。",
+                "显示、切换或隐藏气泡后等待指定秒数。软件初始值为 0 秒；新步骤默认值可在上方设置。",
             ));
             if node["character"].is_string() && node["enabled"] == true {
                 ui.small(crate::i18n::key("workspace.form.bubble_drag"));
@@ -1501,13 +1504,30 @@ impl Catalog {
                     let field_changed = ui.vertical(|ui| {
                     ui.set_max_width(input_width);
                     match kind {
+                        "bool" if node["type"] == "dim" && key == "dimmed" => {
+                            let mut dimmed = value.as_bool().unwrap_or(false);
+                            let previous = dimmed;
+                            egui::ComboBox::from_id_salt("dimming-state")
+                                .selected_text(crate::i18n::key(if dimmed { "editor.form.dimmed" } else { "editor.form.bright" }))
+                                .width(ui.available_width())
+                                .show_ui(ui, |ui| {
+                                    for (state, label) in [(false, "editor.form.bright"), (true, "editor.form.dimmed")] {
+                                        if ui.selectable_value(&mut dimmed, state, crate::i18n::key(label)).clicked() { ui.close(); }
+                                    }
+                                });
+                            if dimmed != previous { value = json!(dimmed); }
+                            dimmed != previous
+                        }
                         "bool" if optional => {
                             let mut edited = false;
                             let effect_play = node["type"] == "effect" && key == "play";
-                            let (on, off) = if effect_play { ("播放", "停止") } else { ("启用", "关闭") };
+                            let portrait_brighten = node["type"] == "portrait" && key == "brighten";
+                            let (on, off) = if effect_play { ("播放", "停止") } else if portrait_brighten { ("变亮", "保留原明暗") } else { ("启用", "关闭") };
                             let title = if !present {
                                 if effect_play {
                                     format!("{}（{}）", tr("默认"), tr(if effect_playing(node) { on } else { off }))
+                                } else if portrait_brighten {
+                                    format!("{}（{}）", tr("默认"), tr(off))
                                 } else { tr("默认") }
                             } else if let Some(b) = value.as_bool() {
                                 tr(if b { on } else { off })
@@ -1704,7 +1724,9 @@ impl Catalog {
                                 }
                             } else {
                                 let absent_label = absent_label(node, key, kind);
-                                let display = if !present {
+                                let empty_optional_choice = optional
+                                    && kind.starts_with("enum:") && s.is_empty();
+                                let display = if !present || empty_optional_choice {
                                     absent_label.clone()
                                 } else if let Some((_, name)) =
                                     options.iter().find(|(v, _)| v == &s)
@@ -1718,7 +1740,7 @@ impl Catalog {
                                 let picker_id = ui.id().with("resource-browser");
                                 let popup = resource_combo(ui, "select", &display, |ui| {
                                     if let Some(selection) = resource_picker::generic_selection(
-                                        ui, node, key, kind, present.then_some(s.as_str()), &options,
+                                        ui, node, key, kind, (present && !empty_optional_choice).then_some(s.as_str()), &options,
                                         optional.then_some(absent_label.as_str()), picker_id,
                                     ) {
                                         match selection {
