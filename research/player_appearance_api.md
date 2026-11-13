@@ -1,5 +1,7 @@
 # 赵活外观接口确认
 
+2026-11-13 重新只读反编译当前安装的 `Mortal.Story.CharacterPlaceholder.LoadCharacterAsset/LoadCharacterPortrait/AddCharacterGameObject/UnloadCharacterAsset`，确认 `player` 按 `_talentData.Level` 选择 `_player2` 或 `_config.Get("player")`，表情加载作用于已经创建的人物实例。同时执行组复用现有 Host 外观覆盖，在所有人物预加载之前调用 `mod_player_appearance`，不在并发分支内切换配置；本次未据此声称游戏实机验证。
+
 2026-10-01 在 Windows 的当前游戏安装中定向反编译以下类型，并读取本机人物资源映射。未启动游戏。
 
 | 类型 / 成员 | 用途 |

@@ -64,6 +64,8 @@ impl App {
                 return;
             }
         }
+        self.stop_preview();
+        self.audio.stop();
         self.flush();
         let node = self.playtest_node(from_start);
         match self
@@ -334,9 +336,9 @@ impl App {
             return;
         }
         self.sync_preview_selection();
-        let panel = egui::SidePanel::right(egui::Id::new(("preview", self.usability.layout)))
+        let panel = egui::SidePanel::right("preview")
             .frame(surface(true))
-            .default_width(self.usability.widths[self.usability.layout][1])
+            .default_width(self.usability.widths[1])
             .min_width(320.0)
             .max_width((ctx.available_rect().width() - 300.0).max(320.0))
             .resizable(true)

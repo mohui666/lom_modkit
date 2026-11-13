@@ -366,6 +366,14 @@ pub fn build_playtest_prelude(story: &Value, target: &str) -> Vec<Value> {
         }
         nodes.push(picture);
     }
+    // Start the currently active looping tracks after preparing the visual
+    // state. Music comes first: a custom music start stops official ambience.
+    // One-shot effects before the selected step must not be played again.
+    for channel in ["music", "env_sound"] {
+        if let Some(audio) = state.get(channel).filter(|audio| audio.is_object()) {
+            nodes.push(audio.clone());
+        }
+    }
     let mut used: std::collections::BTreeSet<String> = story["nodes"]
         .as_array()
         .into_iter()
@@ -402,6 +410,29 @@ fn apply(s: &mut Value, n: &Value) {
         text(n, "character")
     };
     match kind {
+        "music" => match n["op"].as_str().unwrap_or("play") {
+            "stop" => {
+                s["music"] = Value::Null;
+                s["env_sound"] = Value::Null;
+            }
+            "fadeout" => s["music"] = Value::Null,
+            "play" if !text(n, "name").is_empty() => {
+                if text(n, "name").starts_with("user:")
+                    && !text(&s["env_sound"], "name").starts_with("user:")
+                {
+                    s["env_sound"] = Value::Null;
+                }
+                s["music"] = json!({"type":"music","name":n["name"]});
+            }
+            _ => (),
+        },
+        "sound" => match n["op"].as_str().unwrap_or("play") {
+            "fadeout" => s["env_sound"] = Value::Null,
+            "play" if n["kind"] == "env" && !text(n, "name").is_empty() => {
+                s["env_sound"] = json!({"type":"sound","kind":"env","name":n["name"]});
+            }
+            _ => (),
+        },
         "render_priority" => lom_core::render_priority::apply(&mut s["render_priorities"], n),
         "character_title" => {
             if n["action"] == "reset" {
@@ -5708,8 +5739,113 @@ mod filter_performance_tests {
 #[cfg(test)]
 mod prelude_tests {
     use super::*;
+
+    fn audio_story(actions: Vec<Value>) -> Value {
+        let mut nodes = Vec::new();
+        for (index, mut node) in actions.into_iter().enumerate() {
+            node["id"] = json!(format!("audio{index}"));
+            nodes.push(node);
+        }
+        nodes.push(json!({"id":"target","type":"say","mode":"narrative","text":"从这里试玩"}));
+        nodes.push(json!({"id":"later","type":"sound","name":"user:demo.later"}));
+        nodes.push(json!({"id":"done","type":"end"}));
+        json!({"id":"main","story_schema":2,"start":"audio0","nodes":nodes})
+    }
+
+    fn restored_audio(story: &Value) -> Vec<Value> {
+        build_playtest_prelude(story, "target")
+            .into_iter()
+            .filter(|node| matches!(text(node, "type"), "music" | "sound"))
+            .map(|mut node| {
+                node.as_object_mut().unwrap().remove("id");
+                node.as_object_mut().unwrap().remove("goto");
+                node
+            })
+            .collect()
+    }
+
     #[test]
-    fn playtest_prelude_restores_only_visual_state_before_target_and_avoids_id_collisions() {
+    fn playtest_prelude_restores_looping_audio_and_keeps_later_effects_in_their_steps() {
+        let music = json!({"type":"music","name":"user:demo.music"});
+        let env = json!({"type":"sound","kind":"env","name":"user:demo.env"});
+        let story = audio_story(vec![
+            music.clone(),
+            json!({"type":"parallel","actions":[
+                env.clone(), {"type":"sound","name":"user:demo.earlier"}
+            ]}),
+        ]);
+        let original = story.clone();
+        assert_eq!(restored_audio(&story), vec![music, env]);
+        assert!(build_playtest_prelude(&story, "audio0").is_empty());
+        let mut project = Project::new();
+        project.stories.insert("main".into(), story);
+        let preview = crate::tools_panel::prepare_preview(&project, "main", "target").unwrap();
+        assert_eq!(project.stories["main"], original);
+        let source = &preview.stories["main"];
+        let start = text(source, "start");
+        let route = route(source, "later").unwrap();
+        assert_eq!(route.first().unwrap(), start);
+        assert!(!route.contains(&"audio0".to_owned()));
+        assert!(!route.contains(&"audio1".to_owned()));
+        let mut playable = source.clone();
+        playable["nodes"]
+            .as_array_mut()
+            .unwrap()
+            .retain(|node| route.iter().any(|id| node["id"] == *id) || node["id"] == "done");
+        let lua = lom_core::codegen::compile_story(&playable, None, None, None).unwrap();
+        assert!(lua.contains("luamanager.PlayMusic(\"user:demo.music\")"));
+        assert!(lua.contains("luamanager.PlayEnvSound(\"user:demo.env\")"));
+        assert!(lua.contains("luamanager.PlaySound(\"user:demo.later\")"));
+        assert!(!lua.contains("user:demo.earlier"));
+    }
+
+    #[test]
+    fn playtest_prelude_does_not_restart_stopped_or_faded_audio() {
+        let music = json!({"type":"music","name":"user:demo.music"});
+        let env = json!({"type":"sound","kind":"env","name":"user:demo.env"});
+        for (stop, expected) in [
+            (json!({"type":"music","op":"stop"}), vec![]),
+            (
+                json!({"type":"music","op":"fadeout","seconds":1}),
+                vec![env.clone()],
+            ),
+            (
+                json!({"type":"sound","op":"fadeout","seconds":1}),
+                vec![music.clone()],
+            ),
+        ] {
+            let story = audio_story(vec![
+                music.clone(),
+                env.clone(),
+                json!({"type":"parallel","actions":[stop,{"type":"wait","seconds":1}]}),
+            ]);
+            assert_eq!(restored_audio(&story), expected);
+        }
+    }
+
+    #[test]
+    fn playtest_prelude_preserves_environment_according_to_the_actual_music_path() {
+        for (music, env, keep_env) in [
+            ("user:demo.music", "Market_001", false),
+            ("user:demo.music", "user:demo.env", true),
+            ("GamePlay_001", "Market_001", true),
+            ("GamePlay_001", "user:demo.env", true),
+        ] {
+            let story = audio_story(vec![
+                json!({"type":"sound","kind":"env","name":env}),
+                json!({"type":"music","name":music}),
+            ]);
+            let audio = restored_audio(&story);
+            assert_eq!(audio[0], json!({"type":"music","name":music}));
+            assert_eq!(audio.len(), if keep_env { 2 } else { 1 });
+            if keep_env {
+                assert_eq!(audio[1], json!({"type":"sound","kind":"env","name":env}));
+            }
+        }
+    }
+
+    #[test]
+    fn playtest_prelude_restores_visual_state_before_target_and_avoids_id_collisions() {
         let mut story = json!({"id":"main","start":"scene","nodes":[{"id":"scene","type":"scene","view":"black"},{"id":"zz_playtest_0","type":"show","character":"player","position":"L","portrait":"normal","facing":"right","appearance":"beautified"},{"id":"target","type":"hide","character":"player"},{"id":"end","type":"end"}]});
         let nodes = build_playtest_prelude(&story, "target");
         assert_eq!(nodes.len(), 2);

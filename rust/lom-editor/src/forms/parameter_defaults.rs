@@ -4,6 +4,16 @@ use std::{cell::RefCell, collections::BTreeMap, path::PathBuf};
 
 type Values = BTreeMap<String, BTreeMap<String, Value>>;
 
+pub(super) fn request_editor(ctx: &egui::Context) {
+    ctx.data_mut(|data| data.insert_temp(egui::Id::new("request-default-parameters"), true));
+}
+
+#[derive(Clone)]
+struct DefaultsDraft {
+    node: Value,
+    error: Option<String>,
+}
+
 #[derive(Default)]
 pub(super) struct ParameterDefaults {
     values: RefCell<Values>,
@@ -24,10 +34,6 @@ fn supported(kind: &str) -> bool {
                 | "percent_position"
                 | "percent_offset"
                 | "percent_opacity"
-                | "line"
-                | "str"
-                | "text"
-                | "multiline"
                 | "mode"
                 | "facing"
                 | "branch_source"
@@ -49,6 +55,7 @@ impl ParameterDefaults {
         Ok(())
     }
 
+    #[cfg(test)]
     fn update(&self, node_type: &str, key: &str, value: Option<Value>) -> Result<()> {
         let mut next = self.values.borrow().clone();
         if let Some(value) = value {
@@ -61,12 +68,257 @@ impl ParameterDefaults {
                 next.remove(node_type);
             }
         }
+        self.store(next)
+    }
+
+    fn store(&self, next: Values) -> Result<()> {
         if let Some(path) = &self.path {
             let bytes = lom_core::stable_json(&serde_json::to_value(&next)?)?;
             lom_core::project::atomic_write(path, &bytes)?;
         }
         *self.values.borrow_mut() = next;
         Ok(())
+    }
+
+    fn save_draft(
+        &self,
+        node_type: &str,
+        fields: &Value,
+        draft: &Value,
+        builtin: &Value,
+    ) -> Result<()> {
+        let mut next = self.values.borrow().clone();
+        let mut overrides = next.remove(node_type).unwrap_or_default();
+        for field in fields.as_array().into_iter().flatten() {
+            let (Some(key), Some(kind)) = (field[0].as_str(), field[2].as_str()) else {
+                continue;
+            };
+            if !supported(kind) || matches!(key, "id" | "type") {
+                continue;
+            }
+            if draft.get(key) == builtin.get(key) {
+                overrides.remove(key);
+            } else {
+                overrides.insert(key.into(), draft.get(key).cloned().unwrap_or(Value::Null));
+            }
+        }
+        if !overrides.is_empty() {
+            next.insert(node_type.into(), overrides);
+        }
+        self.store(next)
+    }
+
+    pub(super) fn editor(&self, catalog: &Catalog, ui: &mut Ui, node: &Value) {
+        let node_type = node["type"].as_str().unwrap_or("");
+        let fields = &catalog.schema["NODE_SCHEMAS"][node_type]["fields"];
+        let eligible: Vec<_> = fields
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|field| {
+                field[2].as_str().is_some_and(supported)
+                    && !matches!(field[0].as_str(), Some("id" | "type"))
+            })
+            .collect();
+        if eligible.is_empty() {
+            return;
+        }
+        let draft_id = ui.id().with(("new-step-defaults", node_type));
+        let mut builtin = catalog.schema["_NODE_DEFAULTS"][node_type].clone();
+        if !builtin.is_object() {
+            builtin = json!({});
+        }
+        builtin["type"] = json!(node_type);
+        let requested = ui.ctx().data_mut(|data| {
+            let id = egui::Id::new("request-default-parameters");
+            let requested = data.get_temp::<bool>(id).unwrap_or(false);
+            data.remove::<bool>(id);
+            requested
+        });
+        if ui
+            .button(crate::i18n::key("editor.defaults.manage"))
+            .clicked()
+            || requested
+        {
+            ui.ctx().data_mut(|data| {
+                data.insert_temp(
+                    draft_id,
+                    DefaultsDraft {
+                        node: catalog.new_node(node_type, String::new()),
+                        error: None,
+                    },
+                )
+            });
+        }
+        let Some(mut draft) = ui
+            .ctx()
+            .data(|data| data.get_temp::<DefaultsDraft>(draft_id))
+        else {
+            return;
+        };
+        let mut close = false;
+        egui::Modal::new(draft_id)
+            .frame(crate::shell::dialog_frame())
+            .show(ui.ctx(), |ui| {
+                ui.set_width(520.0_f32.min((ui.ctx().content_rect().width() - 48.0).max(280.0)));
+                close |= crate::shell::dialog_header(
+                    ui,
+                    &crate::i18n::message(
+                        "editor.defaults.title",
+                        &[("node", catalog.label(node_type))],
+                    ),
+                );
+                ui.label(crate::i18n::key("editor.defaults.scope_hint"));
+                if ui
+                    .button(crate::i18n::key("editor.defaults.copy_current"))
+                    .clicked()
+                {
+                    for field in &eligible {
+                        let key = field[0].as_str().unwrap();
+                        if let Some(value) = node.get(key) {
+                            draft.node[key] = value.clone();
+                        } else {
+                            draft.node.as_object_mut().unwrap().remove(key);
+                        }
+                    }
+                    draft.error = None;
+                }
+                ui.separator();
+                let timing = |field: &&Value| {
+                    matches!(
+                        field[0].as_str(),
+                        Some(
+                            "duration"
+                                | "seconds"
+                                | "fade"
+                                | "fade_out"
+                                | "fade_in"
+                                | "fadeDuration"
+                                | "moveDuration"
+                                | "wait_after"
+                                | "stop_after"
+                        )
+                    )
+                };
+                egui::ScrollArea::vertical()
+                    .max_height((ui.ctx().content_rect().height() * 0.55).max(120.0))
+                    .show(ui, |ui| {
+                        let draw = |ui: &mut Ui, draft: &mut Value, field: &Value| {
+                            catalog.field(
+                                ui,
+                                draft,
+                                field[0].as_str().unwrap(),
+                                field[1].as_str().unwrap_or(""),
+                                field[2].as_str().unwrap(),
+                                field[3].as_bool().unwrap_or(false),
+                                &[],
+                                &[],
+                            );
+                        };
+                        if eligible.iter().any(timing) {
+                            ui.strong(crate::i18n::key("editor.defaults.times"));
+                            egui::Frame::group(ui.style())
+                                .inner_margin(12.0)
+                                .show(ui, |ui| {
+                                    for field in eligible.iter().filter(|field| timing(field)) {
+                                        let key = field[0].as_str().unwrap();
+                                        let mut seconds = draft.node[key].as_f64().unwrap_or(0.0);
+                                        ui.push_id(key, |ui| {
+                                            ui.horizontal(|ui| {
+                                                let label = ui.add_sized(
+                                                    [
+                                                        (ui.available_width()
+                                                            - 120.0
+                                                            - 88.0
+                                                            - 2.0 * ui.spacing().item_spacing.x)
+                                                            .max(100.0),
+                                                        32.0,
+                                                    ],
+                                                    egui::Label::new(crate::i18n::tr(
+                                                        field[1].as_str().unwrap_or(key),
+                                                    )),
+                                                );
+                                                if ui
+                                                    .add_sized(
+                                                        [120.0, 32.0],
+                                                        egui::DragValue::new(&mut seconds)
+                                                            .speed(0.05)
+                                                            .range(0.0..=f64::MAX),
+                                                    )
+                                                    .labelled_by(label.id)
+                                                    .changed()
+                                                {
+                                                    draft.node[key] = json!(seconds);
+                                                }
+                                                if ui
+                                                    .add_sized(
+                                                        [88.0, 32.0],
+                                                        egui::Button::new(crate::i18n::key(
+                                                            "editor.defaults.field_reset",
+                                                        ))
+                                                        .small()
+                                                        .truncate(),
+                                                    )
+                                                    .clicked()
+                                                {
+                                                    if let Some(value) = builtin.get(key) {
+                                                        draft.node[key] = value.clone();
+                                                    } else {
+                                                        draft
+                                                            .node
+                                                            .as_object_mut()
+                                                            .unwrap()
+                                                            .remove(key);
+                                                    }
+                                                }
+                                            })
+                                        });
+                                    }
+                                });
+                        }
+                        if eligible.iter().any(|field| !timing(field)) {
+                            egui::CollapsingHeader::new(crate::i18n::key("editor.defaults.other"))
+                                .id_salt("other-new-step-defaults")
+                                .default_open(!eligible.iter().any(timing))
+                                .show(ui, |ui| {
+                                    for field in eligible.iter().filter(|field| !timing(field)) {
+                                        draw(ui, &mut draft.node, field);
+                                    }
+                                });
+                        }
+                    });
+                ui.separator();
+                ui.horizontal_wrapped(|ui| {
+                    if ui
+                        .button(crate::i18n::key("editor.defaults.save"))
+                        .clicked()
+                    {
+                        match self.save_draft(node_type, fields, &draft.node, &builtin) {
+                            Ok(()) => close = true,
+                            Err(error) => draft.error = Some(crate::error_ui::capture(error)),
+                        }
+                    }
+                    if ui
+                        .button(crate::i18n::key("editor.defaults.fill_builtin"))
+                        .clicked()
+                    {
+                        draft.node = builtin.clone();
+                        draft.error = None;
+                    }
+                    if ui.button(crate::i18n::tr("取消")).clicked() {
+                        close = true;
+                    }
+                });
+                if let Some(error) = &draft.error {
+                    ui.colored_label(ui.visuals().error_fg_color, error);
+                }
+            });
+        if close {
+            ui.ctx()
+                .data_mut(|data| data.remove::<DefaultsDraft>(draft_id));
+        } else {
+            ui.ctx().data_mut(|data| data.insert_temp(draft_id, draft));
+        }
     }
 
     pub(super) fn apply(&self, node: &mut Value, fields: &Value) {
@@ -102,93 +354,177 @@ impl ParameterDefaults {
             node.as_object_mut().unwrap().remove("portrait");
         }
     }
-
-    pub(super) fn width(&self, ui: &Ui, node: &Value, key: &str, kind: &str) -> f32 {
-        if !supported(kind) || matches!(key, "id" | "type") {
-            return 0.0;
-        }
-        let node_type = node["type"].as_str().unwrap_or("");
-        if node_type.is_empty() {
-            return 0.0;
-        }
-        ui.painter()
-            .layout_no_wrap(
-                format!("{} ✓", crate::i18n::key("editor.defaults.set")),
-                egui::TextStyle::Button.resolve(ui.style()),
-                ui.visuals().text_color(),
-            )
-            .size()
-            .x
-            + ui.spacing().button_padding.x * 2.0
-            + ui.spacing().item_spacing.x
-    }
-
-    pub(super) fn button(
-        &self,
-        ui: &mut Ui,
-        node: &Value,
-        key: &str,
-        kind: &str,
-        value: &Value,
-    ) -> Option<String> {
-        if self.width(ui, node, key, kind) == 0.0 {
-            return None;
-        }
-        let node_type = node["type"].as_str().unwrap();
-        let error_id = ui.id().with(("parameter-default-error", node_type, key));
-        let saved = self
-            .values
-            .borrow()
-            .get(node_type)
-            .and_then(|fields| fields.get(key))
-            .cloned();
-        let is_saved = saved.as_ref() == Some(value);
-        let mut label = crate::i18n::key("editor.defaults.set");
-        if is_saved {
-            label.push_str(" ✓");
-        }
-        let response = ui
-            .add(egui::Button::new(label).small().selected(is_saved))
-            .on_hover_text(if is_saved {
-                format!(
-                    "{}\n{}",
-                    crate::i18n::key("editor.defaults.saved"),
-                    crate::i18n::key("editor.defaults.hint")
-                )
-            } else {
-                crate::i18n::key("editor.defaults.hint")
-            });
-        let mut result = response
-            .clicked()
-            .then(|| self.update(node_type, key, Some(value.clone())));
-        response.context_menu(|ui| {
-            if ui
-                .add_enabled(
-                    saved.is_some(),
-                    egui::Button::new(crate::i18n::key("editor.defaults.reset")),
-                )
-                .clicked()
-            {
-                result = Some(self.update(node_type, key, None));
-                ui.close();
-            }
-        });
-        if let Some(result) = result {
-            ui.data_mut(|data| {
-                if let Err(error) = result {
-                    data.insert_temp(error_id, crate::error_ui::capture(error));
-                } else {
-                    data.remove::<String>(error_id);
-                }
-            });
-        }
-        ui.data(|data| data.get_temp::<String>(error_id))
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn defaults_editor_edits_new_step_timing_and_supports_copy_cancel_and_reset() {
+        use egui::accesskit::{Action, ActionData, ActionRequest, Role};
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("node-defaults.json");
+        let mut catalog = Catalog::new();
+        catalog.configure_parameter_defaults(path.clone()).unwrap();
+        let builtin = catalog.new_node("show", "builtin".into());
+        let hide = catalog.new_node("hide", "hide".into());
+        let mut current = json!({"id":"existing","type":"show","character":"brother1","position":"L1",
+            "fadeDuration":0.8,"moveDuration":1.2,"wait_after":0.4,"text":"不要复制正文"});
+        let context = egui::Context::default();
+        context.enable_accesskit();
+        let frame = |current: &Value, events| {
+            context.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1000.0, 900.0),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        catalog.parameter_defaults.editor(&catalog, ui, current)
+                    });
+                },
+            )
+        };
+        let click = |output: &egui::FullOutput, key: &str| {
+            let label = crate::i18n::key(key);
+            let target = output
+                .platform_output
+                .accesskit_update
+                .as_ref()
+                .unwrap()
+                .nodes
+                .iter()
+                .find_map(|(id, node)| {
+                    (node.role() == Role::Button && node.label() == Some(label.as_str()))
+                        .then_some(*id)
+                })
+                .unwrap_or_else(|| panic!("missing {label}"));
+            vec![egui::Event::AccessKitActionRequest(ActionRequest {
+                action: Action::Click,
+                target,
+                data: None,
+            })]
+        };
+        let output = frame(&current, vec![]);
+        frame(&current, click(&output, "editor.defaults.manage"));
+        let output = frame(&current, vec![]);
+        let first_input = |output: &egui::FullOutput| {
+            output
+                .platform_output
+                .accesskit_update
+                .as_ref()
+                .unwrap()
+                .nodes
+                .iter()
+                .filter(|(_, node)| node.role() == Role::SpinButton)
+                .min_by(|(_, left), (_, right)| {
+                    left.bounds()
+                        .unwrap()
+                        .y0
+                        .total_cmp(&right.bounds().unwrap().y0)
+                })
+                .map(|(id, node)| (*id, node.bounds().unwrap()))
+                .unwrap()
+        };
+        let (_, bounds) = first_input(&output);
+        let position = egui::pos2(
+            ((bounds.x0 + bounds.x1) / 2.0) as f32,
+            ((bounds.y0 + bounds.y1) / 2.0) as f32,
+        );
+        for pressed in [true, false] {
+            frame(
+                &current,
+                vec![
+                    egui::Event::PointerMoved(position),
+                    egui::Event::PointerButton {
+                        pos: position,
+                        button: egui::PointerButton::Primary,
+                        pressed,
+                        modifiers: Default::default(),
+                    },
+                ],
+            );
+        }
+        let output = frame(
+            &current,
+            vec![egui::Event::Key {
+                key: egui::Key::Escape,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Default::default(),
+            }],
+        );
+        assert!(
+            !click(&output, "editor.defaults.save").is_empty(),
+            "clicking a time input must keep the dialog open"
+        );
+        let (target, _) = first_input(&output);
+        let output = frame(
+            &current,
+            vec![egui::Event::AccessKitActionRequest(ActionRequest {
+                action: Action::SetValue,
+                target,
+                data: Some(ActionData::NumericValue(0.65)),
+            })],
+        );
+        assert_eq!(
+            catalog.new_node("show", "unsaved".into())["fadeDuration"],
+            builtin["fadeDuration"]
+        );
+        frame(&current, click(&output, "editor.defaults.save"));
+        let mut reopened = Catalog::new();
+        reopened.configure_parameter_defaults(path.clone()).unwrap();
+        assert_eq!(
+            reopened.new_node("show", "next".into())["fadeDuration"],
+            0.65
+        );
+        assert_eq!(current["fadeDuration"], 0.8);
+        assert_eq!(catalog.new_node("hide", "hide".into()), hide);
+
+        for save in [false, true] {
+            let output = frame(&current, vec![]);
+            let output = frame(&current, click(&output, "editor.defaults.manage"));
+            let output = frame(&current, click(&output, "editor.defaults.copy_current"));
+            let events = if save {
+                click(&output, "editor.defaults.save")
+            } else {
+                click(&output, "取消")
+            };
+            frame(&current, events);
+            reopened.configure_parameter_defaults(path.clone()).unwrap();
+            let next = reopened.new_node("show", "next".into());
+            assert_eq!(
+                next["fadeDuration"],
+                if save { json!(0.8) } else { json!(0.65) }
+            );
+            if save {
+                assert_eq!(next["moveDuration"], 1.2);
+                assert_eq!(next["wait_after"], 0.4);
+                assert_eq!(next["character"], builtin["character"]);
+                assert!(next.get("text").is_none());
+                assert_eq!(next["id"], "next");
+            }
+        }
+        let original = current.clone();
+        let output = frame(&current, vec![]);
+        let output = frame(&current, click(&output, "editor.defaults.manage"));
+        let output = frame(&current, click(&output, "editor.defaults.fill_builtin"));
+        frame(&current, click(&output, "editor.defaults.save"));
+        reopened.configure_parameter_defaults(path).unwrap();
+        let restored = reopened.new_node("show", "builtin".into());
+        assert_eq!(restored, builtin);
+        assert_eq!(current, original);
+        // The manager is also available for a show action without a flow-node id.
+        current.as_object_mut().unwrap().remove("id");
+        let output = frame(&current, vec![]);
+        assert!(!click(&output, "editor.defaults.manage").is_empty());
+    }
 
     #[test]
     fn released_project_keeps_existing_parameters_with_custom_defaults_and_reexports() {
@@ -288,6 +624,11 @@ mod tests {
             .parameter_defaults
             .update("overlay", "next", Some(json!("other_project")))
             .unwrap();
+        let original_dialogue = catalog.new_node("say", "old_say".into());
+        catalog
+            .parameter_defaults
+            .update("say", "text", Some(json!("误设为默认的对白正文")))
+            .unwrap();
         let mut reopened = Catalog::new();
         reopened.configure_parameter_defaults(path).unwrap();
         let next = reopened.new_node("overlay", "new".into());
@@ -295,6 +636,10 @@ mod tests {
         assert_eq!(next["scale"], 125);
         assert_eq!(next["id"], "new");
         assert!(next.get("next").is_none());
+        assert_eq!(
+            reopened.new_node("say", "new_say".into())["text"],
+            original_dialogue["text"]
+        );
         assert_eq!(
             reopened.new_node("show", "show1".into())["fadeDuration"],
             0.3

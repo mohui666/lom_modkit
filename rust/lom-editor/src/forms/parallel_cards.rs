@@ -235,9 +235,15 @@ pub(super) fn show(catalog: &Catalog, ui: &mut Ui, node: &mut Value) -> bool {
             let response = egui::Frame::group(ui.style()).show(ui, |ui| {
                 let header = ui.horizontal_wrapped(|ui| {
                     let expanded = state.expanded == Some(index);
-                    let symbol = if expanded { "▾" } else { "▸" };
+                    let toggle = key(if expanded {
+                        "editor.parallel.collapse_details"
+                    } else {
+                        "editor.parallel.expand_details"
+                    });
                     if ui
-                        .add(egui::Button::new(format!("{symbol} {}", labels[index])).frame(false))
+                        .add(
+                            egui::Button::new(format!("{toggle} · {}", labels[index])).frame(false),
+                        )
                         .clicked()
                     {
                         state.expanded = if expanded { None } else { Some(index) };
@@ -302,6 +308,7 @@ pub(super) fn show(catalog: &Catalog, ui: &mut Ui, node: &mut Value) -> bool {
                     .as_array()
                     .cloned()
                     .unwrap_or_default();
+                catalog.parameter_defaults.editor(catalog, ui, action);
                 super::set_preview_action(ui.ctx(), Some(index));
                 for field in fields {
                     if field[0] == "appearance" || field[0] == "wait_for_completion" {
@@ -325,7 +332,7 @@ pub(super) fn show(catalog: &Catalog, ui: &mut Ui, node: &mut Value) -> bool {
                     }
                 }
                 super::set_preview_action(ui.ctx(), None);
-                for key in ["id", "goto", "appearance"] {
+                for key in ["id", "goto"] {
                     if action.get(key).is_some() {
                         ui.colored_label(
                             Color32::from_rgb(179, 55, 49),
@@ -465,6 +472,52 @@ mod tests {
     }
 
     #[test]
+    fn parallel_player_arrival_can_select_beautified_without_changing_other_actions() {
+        use egui::accesskit::{Action, ActionRequest, Role};
+        let catalog = Catalog::new();
+        let context = egui::Context::default();
+        let mut node = json!({"id":"group","type":"parallel","actions":[
+            {"type":"show","character":"player","position":"L1","portrait":"normal"},
+            {"type":"show","character":"brother1","position":"R1","portrait":"normal"}
+        ]});
+        let original = node.clone();
+        frame(&catalog, &context, &mut node);
+        let (output, changed) = frame(&catalog, &context, &mut node);
+        assert!(!changed);
+        assert_eq!(node, original);
+        let click = |output: egui::FullOutput, role, text: &str| {
+            let target = output
+                .platform_output
+                .accesskit_update
+                .unwrap()
+                .nodes
+                .into_iter()
+                .find_map(|(id, node)| {
+                    (node.role() == role
+                        && (node.value() == Some(text) || node.label() == Some(text)))
+                    .then_some(id)
+                })
+                .unwrap_or_else(|| panic!("missing {text}"));
+            vec![egui::Event::AccessKitActionRequest(ActionRequest {
+                action: Action::Click,
+                target,
+                data: None,
+            })]
+        };
+        let events = click(output, Role::ComboBox, &tr("跟随游戏"));
+        let (output, _) = frame_with_events(&catalog, &context, &mut node, events);
+        let events = click(output, Role::Button, &tr("美颜"));
+        let (_, changed) = frame_with_events(&catalog, &context, &mut node, events);
+        assert!(changed);
+        assert_eq!(node["actions"][0]["character"], "player");
+        assert_eq!(node["actions"][0]["appearance"], "beautified");
+        assert!(node["actions"][0].get("id").is_none());
+        assert_eq!(node["actions"][1], original["actions"][1]);
+        lom_core::parallel::validate_group(&node).unwrap();
+        assert!(!frame(&catalog, &context, &mut node).1);
+    }
+
+    #[test]
     fn external_preview_selection_only_changes_visible_form_not_the_story() {
         use egui::accesskit::Role;
         let catalog = Catalog::new();
@@ -500,7 +553,8 @@ mod tests {
             && node.value() == Some(catalog.label("wait").as_str())));
 
         let header = format!(
-            "▾ {}",
+            "{} · {}",
+            key("editor.parallel.collapse_details"),
             title(
                 &catalog,
                 &node["actions"][2],

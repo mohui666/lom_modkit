@@ -333,6 +333,7 @@ pub fn run() -> eframe::Result {
     }
     let mut open = None;
     let mut screenshot = None;
+    let mut screenshot_panel = None;
     let mut initial_chapter = None;
     let mut initial_node = None;
     let mut i = 0;
@@ -341,6 +342,15 @@ pub fn run() -> eframe::Result {
             "--screenshot" => {
                 i += 1;
                 screenshot = args.get(i).map(PathBuf::from);
+            }
+            "--screenshot-panel" => {
+                i += 1;
+                let panel = args.get(i).map(String::as_str).unwrap_or("");
+                if !matches!(panel, "defaults" | "content" | "commands" | "problems") {
+                    eprintln!("--screenshot-panel 需要 defaults/content/commands/problems");
+                    std::process::exit(2);
+                }
+                screenshot_panel = Some(panel.to_owned());
             }
             "--chapter" => {
                 i += 1;
@@ -389,6 +399,18 @@ pub fn run() -> eframe::Result {
                     .and_then(|nodes| nodes.iter().position(|n| n["id"] == node))
                 {
                     app.selected = index;
+                }
+            }
+            if app.screenshot.is_some() {
+                match screenshot_panel.as_deref() {
+                    Some("defaults") => crate::forms::request_default_parameters(&cc.egui_ctx),
+                    Some("content") => app.open_global_search(&cc.egui_ctx),
+                    Some("commands") => app.open_command_palette(&cc.egui_ctx),
+                    Some("problems") => {
+                        app.refresh_full_problems();
+                        app.problems_open = true;
+                    }
+                    _ => (),
                 }
             }
             if app.screenshot.is_none() {
@@ -492,6 +514,11 @@ impl App {
         }
         let templates =
             lom_core::load_json(user_root().join("rust/node-templates.json")).unwrap_or(json!({}));
+        quick_tools::configure_shortcuts(
+            &cc.egui_ctx,
+            &prefs,
+            (!cfg!(test)).then(|| user_root().join("rust/preferences.json")),
+        );
         Self {
             project: p,
             catalog,

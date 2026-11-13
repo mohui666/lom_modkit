@@ -44,14 +44,20 @@ fn rows(
     for (i, h) in hits.iter().enumerate() {
         ui.push_id(i, |ui| {
             egui::Frame::group(ui.style()).show(ui, |ui| {
-                ui.set_min_width((ui.available_width() - 12.0).max(100.0));
+                ui.set_width((ui.available_width() - 12.0).max(100.0));
                 ui.horizontal_wrapped(|ui| {
                     let label = format!(
                         "{} / {}",
                         h.story_id,
                         h.node_id.as_deref().unwrap_or("章节设置")
                     );
-                    if ui.link(label).clicked() {
+                    let link = ui
+                        .scope(|ui| {
+                            ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
+                            ui.link(&label)
+                        })
+                        .inner;
+                    if link.on_hover_text(label).clicked() {
                         nav = Some((
                             if h.field.starts_with("manifest.") {
                                 String::new()
@@ -147,6 +153,79 @@ impl Advanced {
         true
     }
 
+    pub(crate) fn search_ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        project: &Project,
+        query: &str,
+    ) -> Option<Location> {
+        crate::forms::SearchCombo::from_id_salt("search-category")
+            .selected_text(if self.category.is_empty() {
+                tr("全部类型")
+            } else {
+                display_label(&self.category)
+            })
+            .show_ui(ui, |ui, query| {
+                if ui
+                    .selectable_value(&mut self.category, String::new(), tr("全部类型"))
+                    .clicked()
+                {
+                    ui.close();
+                }
+                for category in editing::CATEGORIES {
+                    if !crate::forms::resource_matches(category, &display_label(category), query) {
+                        continue;
+                    }
+                    if ui
+                        .selectable_value(
+                            &mut self.category,
+                            category.to_string(),
+                            display_label(category),
+                        )
+                        .clicked()
+                    {
+                        ui.close();
+                    }
+                }
+            });
+        let hits = editing::search(
+            &editing::index_project(&project.stories),
+            query,
+            &self.category,
+        );
+        ui.label(crate::i18n::message(
+            "common.advanced.matches",
+            &[("count", hits.len().to_string())],
+        ));
+        let (location, refs) = rows(ui, &hits);
+        let mut nav = location;
+        if let Some(h) = refs {
+            self.references = Some(editing::references(
+                &project.stories,
+                &project.manifest,
+                ref_kind(&h),
+                if h.category == "story" {
+                    &h.story_id
+                } else {
+                    &h.value
+                },
+                Some(&h.story_id),
+            ));
+        }
+        if let Some(hits) = self.references.clone() {
+            ui.separator();
+            ui.strong(tr("引用结果"));
+            if ui.small_button(tr("关闭引用结果")).clicked() {
+                self.references = None;
+            }
+            let (location, _) = ui.push_id("reference-results", |ui| rows(ui, &hits)).inner;
+            if location.is_some() {
+                nav = location;
+            }
+        }
+        nav
+    }
+
     pub fn show(
         &mut self,
         ui: &mut egui::Ui,
@@ -182,63 +261,8 @@ impl Advanced {
                         .desired_width(f32::INFINITY)
                         .hint_text(tr("查找台词、人物或节点")),
                 );
-                crate::forms::SearchCombo::from_id_salt("search-category")
-                    .selected_text(if self.category.is_empty() {
-                        tr("全部类型")
-                    } else {
-                        display_label(&self.category)
-                    })
-                    .show_ui(ui, |ui, query| {
-                        if ui
-                            .selectable_value(&mut self.category, String::new(), tr("全部类型"))
-                            .clicked()
-                        {
-                            ui.close();
-                        }
-                        for category in editing::CATEGORIES {
-                            if !crate::forms::resource_matches(
-                                category,
-                                &display_label(category),
-                                query,
-                            ) {
-                                continue;
-                            }
-                            if ui
-                                .selectable_value(
-                                    &mut self.category,
-                                    category.to_string(),
-                                    display_label(category),
-                                )
-                                .clicked()
-                            {
-                                ui.close();
-                            }
-                        }
-                    });
-                let hits = editing::search(
-                    &editing::index_project(&project.stories),
-                    &self.query,
-                    &self.category,
-                );
-                ui.label(crate::i18n::message(
-                    "common.advanced.matches",
-                    &[("count", hits.len().to_string())],
-                ));
-                let (location, refs) = rows(ui, &hits);
-                nav = location;
-                if let Some(h) = refs {
-                    self.references = Some(editing::references(
-                        &project.stories,
-                        &project.manifest,
-                        ref_kind(&h),
-                        if h.category == "story" {
-                            &h.story_id
-                        } else {
-                            &h.value
-                        },
-                        Some(&h.story_id),
-                    ));
-                }
+                let query = self.query.clone();
+                nav = self.search_ui(ui, project, &query);
             }
             1 => {
                 egui::ComboBox::from_id_salt("symbol-kind")
@@ -606,7 +630,7 @@ impl Advanced {
             }
             _ => (),
         }
-        if let Some(hits) = self.references.clone() {
+        if let Some(hits) = self.references.clone().filter(|_| self.page != 0) {
             ui.separator();
             ui.strong(tr("引用结果"));
             if ui.small_button(tr("关闭引用结果")).clicked() {

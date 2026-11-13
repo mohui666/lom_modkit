@@ -580,6 +580,7 @@ fn step_drag_stationary_edge_pointer_scrolls_virtual_list_without_reordering() {
         .map(|i| json!({"id":format!("n{i}"),"type":"wait","duration":1.0}))
         .collect::<Vec<_>>());
     app.project.stories.get_mut("main").unwrap()["start"] = json!("n0");
+    app.multiselect = [0, 1].into();
     let before = app.story();
     let ctx = egui::Context::default();
     ctx.enable_accesskit();

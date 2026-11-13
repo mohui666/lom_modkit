@@ -2,6 +2,79 @@
 use super::*;
 
 const STATE_ID: &str = "workspace-quick-tools";
+const SHORTCUTS_ID: &str = "workspace-user-shortcuts";
+
+#[derive(Clone, Default)]
+struct UserShortcuts {
+    ids: Vec<String>,
+    path: Option<PathBuf>,
+}
+
+pub(super) fn configure_shortcuts(ctx: &egui::Context, prefs: &Value, path: Option<PathBuf>) {
+    let mut ids = Vec::new();
+    for id in prefs["quick_shortcuts"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+    {
+        if !ids.iter().any(|saved| saved == id) {
+            ids.push(id.to_owned());
+        }
+    }
+    ctx.data_mut(|data| data.insert_temp(egui::Id::new(SHORTCUTS_ID), UserShortcuts { ids, path }));
+}
+
+fn user_shortcuts(ctx: &egui::Context) -> UserShortcuts {
+    ctx.data(|data| data.get_temp(egui::Id::new(SHORTCUTS_ID)))
+        .unwrap_or_default()
+}
+
+fn toggle_shortcut(ctx: &egui::Context, id: &str) -> anyhow::Result<()> {
+    let mut next = user_shortcuts(ctx);
+    if next.ids.iter().any(|saved| saved == id) {
+        next.ids.retain(|saved| saved != id);
+    } else {
+        next.ids.push(id.into());
+    }
+    if let Some(path) = &next.path {
+        let mut prefs = if path.exists() {
+            lom_core::load_json(path)?
+        } else {
+            json!({})
+        };
+        anyhow::ensure!(prefs.is_object(), "个人设置格式无效");
+        prefs["quick_shortcuts"] = json!(next.ids);
+        lom_core::project::atomic_write(path, &lom_core::stable_json(&prefs)?)?;
+    }
+    ctx.data_mut(|data| data.insert_temp(egui::Id::new(SHORTCUTS_ID), next));
+    Ok(())
+}
+
+#[cfg(test)]
+#[derive(Clone, Debug)]
+struct SearchGeometry {
+    modal: egui::Rect,
+    input: egui::Rect,
+    viewport: egui::Rect,
+    offset: egui::Vec2,
+    pins: Vec<egui::Rect>,
+    categories: Vec<egui::Rect>,
+}
+
+#[cfg(test)]
+impl Default for SearchGeometry {
+    fn default() -> Self {
+        Self {
+            modal: egui::Rect::NOTHING,
+            input: egui::Rect::NOTHING,
+            viewport: egui::Rect::NOTHING,
+            offset: egui::Vec2::ZERO,
+            pins: Vec::new(),
+            categories: Vec::new(),
+        }
+    }
+}
 
 #[derive(Clone, Default)]
 struct QuickToolsState {
@@ -16,6 +89,8 @@ struct CommandPalette {
     focus: bool,
     composing: bool,
     reveal_selection: bool,
+    content: bool,
+    pin_error: Option<String>,
 }
 
 impl Default for CommandPalette {
@@ -26,6 +101,8 @@ impl Default for CommandPalette {
             focus: true,
             composing: false,
             reveal_selection: false,
+            content: false,
+            pin_error: None,
         }
     }
 }
@@ -47,6 +124,40 @@ enum QuickAction {
     Undo,
     Redo,
     PlayCurrent,
+    GlobalSearch,
+    SearchLocation(crate::advanced::Location),
+}
+
+impl QuickAction {
+    fn shortcut_id(&self) -> Option<String> {
+        let id = match self {
+            Self::Dialogue => "dialogue",
+            Self::RenameCharacter => "rename_character",
+            Self::CustomTalent => "custom_talent",
+            Self::Export => "export",
+            Self::Save => "save",
+            Self::Undo => "undo",
+            Self::Redo => "redo",
+            Self::PlayCurrent => "play",
+            Self::GlobalSearch => "global_search",
+            Self::AddNode(kind) => return Some(format!("node:{kind}")),
+            Self::Center(Center::Assets) => "assets",
+            Self::Center(Center::Chapter) => "chapter",
+            Self::Center(Center::Manifest) => "manifest",
+            Self::Center(Center::Events) => "events",
+            Self::Center(Center::Tasks) => "tasks",
+            Self::Center(Center::Localization) => "localization",
+            Self::Tool(ToolPage::Game) => "game",
+            Self::Tool(ToolPage::Release) => "release",
+            Self::Tool(ToolPage::Previews) => "previews",
+            Self::View(View::Stage) => "stage",
+            Self::View(View::Graph) => "graph",
+            Self::View(View::Lua) => "lua",
+            Self::View(View::Checks) => "checks",
+            _ => return None,
+        };
+        Some(id.into())
+    }
 }
 
 struct CommandEntry {
@@ -270,6 +381,58 @@ fn command_matches(entry: &CommandEntry, query: &str) -> bool {
         .all(|term| entry.search.contains(term))
 }
 
+fn shortcut_icon(painter: &egui::Painter, center: egui::Pos2, id: &str, color: egui::Color32) {
+    let stroke = egui::Stroke::new(1.35_f32, color);
+    let point = |x, y| center + egui::vec2(x, y);
+    match id {
+        "node:show" | "node:hide" | "rename_character" => {
+            painter.circle_stroke(point(0.0, -3.5), 2.8, stroke);
+            painter.add(egui::Shape::line(
+                vec![
+                    point(-5.5, 6.0),
+                    point(-4.5, 2.5),
+                    point(0.0, 1.0),
+                    point(4.5, 2.5),
+                    point(5.5, 6.0),
+                ],
+                stroke,
+            ));
+        }
+        "dialogue" | "node:say" => {
+            painter.add(egui::Shape::closed_line(
+                vec![
+                    point(-6.0, -5.0),
+                    point(6.0, -5.0),
+                    point(6.0, 3.0),
+                    point(-1.0, 3.0),
+                    point(-4.0, 6.0),
+                    point(-4.0, 3.0),
+                    point(-6.0, 3.0),
+                ],
+                stroke,
+            ));
+            painter.line_segment([point(-3.0, -1.0), point(3.0, -1.0)], stroke);
+        }
+        "node:music" | "node:sound" => {
+            painter.line_segment([point(-2.0, 4.0), point(-2.0, -5.0)], stroke);
+            painter.line_segment([point(-2.0, -5.0), point(5.0, -6.5)], stroke);
+            painter.line_segment([point(5.0, -6.5), point(5.0, 2.5)], stroke);
+            painter.circle_filled(point(-4.0, 4.0), 2.2, color);
+            painter.circle_filled(point(3.0, 2.5), 2.2, color);
+        }
+        _ => {
+            painter.rect_stroke(
+                egui::Rect::from_center_size(center, egui::vec2(12.0, 12.0)),
+                1,
+                stroke,
+                egui::StrokeKind::Inside,
+            );
+            painter.line_segment([point(-3.0, 0.0), point(3.0, 0.0)], stroke);
+            painter.line_segment([point(0.0, -3.0), point(0.0, 3.0)], stroke);
+        }
+    }
+}
+
 impl App {
     /// Call after the existing modal guard in `shortcuts`; true suppresses
     /// document shortcuts while a quick tool owns keyboard input.
@@ -290,6 +453,222 @@ impl App {
         if current.dialogue.is_none() {
             current.palette = Some(CommandPalette::default());
             store_state(ctx, current);
+        }
+    }
+
+    pub(super) fn open_global_search(&mut self, ctx: &egui::Context) {
+        if !self.apply_pending_drafts() {
+            return;
+        }
+        let mut current = state(ctx);
+        if current.dialogue.is_none() {
+            let palette = current.palette.get_or_insert_with(CommandPalette::default);
+            palette.content = true;
+            palette.focus = true;
+            store_state(ctx, current);
+        }
+    }
+
+    pub(super) fn quick_shortcuts(&mut self, ui: &mut egui::Ui) {
+        let shortcuts = user_shortcuts(ui.ctx());
+        if shortcuts.ids.is_empty() {
+            return;
+        }
+        let entries = self.command_entries();
+        let mut chosen = None;
+        let mut remove = None;
+        let width = ui.available_width();
+        ui.allocate_ui_with_layout(
+            egui::vec2(width, 34.0),
+            egui::Layout::left_to_right(egui::Align::Center),
+            |ui| {
+                let bar_rect =
+                    egui::Rect::from_min_size(ui.max_rect().min, egui::vec2(width, 34.0));
+                let bar_fill = egui::Color32::from_rgb(232, 236, 241);
+                let separator = egui::Color32::from_rgb(208, 215, 224);
+                ui.painter().rect_filled(
+                    egui::Rect::from_min_max(
+                        bar_rect.min - egui::vec2(14.0, 0.0),
+                        bar_rect.max + egui::vec2(14.0, 5.0),
+                    ),
+                    0,
+                    bar_fill,
+                );
+                ui.painter().hline(
+                    bar_rect.x_range().expand(14.0),
+                    bar_rect.top(),
+                    egui::Stroke::new(1.0_f32, separator),
+                );
+                ui.spacing_mut().item_spacing.x = 0.0;
+                ui.add_sized(
+                    [48.0, 34.0],
+                    egui::Label::new(
+                        egui::RichText::new(qt("shortcuts"))
+                            .size(12.0)
+                            .color(egui::Color32::from_rgb(91, 104, 122)),
+                    ),
+                );
+                ui.add_space(8.0);
+                let mut overflow = Vec::new();
+                for id in &shortcuts.ids {
+                    let entry = entries
+                        .iter()
+                        .find(|entry| entry.action.shortcut_id().as_ref() == Some(id));
+                    let label = if id == "dialogue" {
+                        qt("dialogue_short")
+                    } else {
+                        id.strip_prefix("node:")
+                            .map(|kind| self.catalog.label(kind))
+                            .unwrap_or_else(|| {
+                                entry
+                                    .map(|entry| entry.label.clone())
+                                    .unwrap_or_else(|| qt(id))
+                            })
+                    };
+                    let full = entry
+                        .map(|entry| format!("{}\n{}", entry.label, entry.detail))
+                        .unwrap_or_else(|| label.clone());
+                    let font = egui::TextStyle::Button.resolve(ui.style());
+                    let tab_width = (ui
+                        .painter()
+                        .layout_no_wrap(label.clone(), font.clone(), ui.visuals().text_color())
+                        .size()
+                        .x
+                        + 60.0)
+                        .clamp(100.0, 210.0);
+                    if tab_width + 72.0 > ui.available_width() {
+                        overflow.push((id, label, full, entry));
+                        continue;
+                    }
+                    let (rect, _) =
+                        ui.allocate_exact_size(egui::vec2(tab_width, 34.0), egui::Sense::hover());
+                    let hovered = ui.rect_contains_pointer(rect);
+                    if hovered {
+                        ui.painter()
+                            .rect_filled(rect, 0, egui::Color32::from_rgb(248, 250, 253));
+                    }
+                    let main_rect =
+                        egui::Rect::from_min_max(rect.min, rect.max - egui::vec2(24.0, 0.0));
+                    let response = ui
+                        .add_enabled_ui(entry.is_some(), |ui| {
+                            ui.interact(
+                                main_rect,
+                                ui.id().with(("shortcut", id)),
+                                egui::Sense::click(),
+                            )
+                        })
+                        .inner
+                        .on_hover_text(format!("{full}\n{}", qt("shortcut_hint")))
+                        .on_hover_cursor(egui::CursorIcon::PointingHand);
+                    response.widget_info(|| {
+                        egui::WidgetInfo::labeled(egui::WidgetType::Button, entry.is_some(), &label)
+                    });
+                    let foreground = if entry.is_some() {
+                        ui.visuals().text_color()
+                    } else {
+                        ui.visuals().weak_text_color()
+                    };
+                    shortcut_icon(
+                        ui.painter(),
+                        egui::pos2(rect.left() + 17.0, rect.center().y),
+                        id,
+                        egui::Color32::from_rgb(91, 111, 138),
+                    );
+                    let mut text =
+                        egui::text::LayoutJob::simple_singleline(label.clone(), font, foreground);
+                    text.wrap.max_width = (main_rect.width() - 34.0).max(0.0);
+                    text.wrap.max_rows = 1;
+                    let galley = ui.painter().layout_job(text);
+                    ui.painter().galley(
+                        egui::pos2(rect.left() + 32.0, rect.center().y - galley.size().y / 2.0),
+                        galley,
+                        foreground,
+                    );
+                    if response.has_focus() {
+                        ui.painter().rect_stroke(
+                            main_rect.shrink(2.0),
+                            0,
+                            ui.visuals().selection.stroke,
+                            egui::StrokeKind::Inside,
+                        );
+                    }
+                    ui.painter().vline(
+                        rect.right(),
+                        (rect.top() + 10.0)..=(rect.bottom() - 10.0),
+                        egui::Stroke::new(1.0_f32, separator),
+                    );
+                    if response.clicked() {
+                        chosen = entry.map(|entry| entry.action.clone());
+                    }
+                    response.context_menu(|ui| {
+                        if ui.button(qt("unpin")).clicked() {
+                            remove = Some(id.clone());
+                            ui.close();
+                        }
+                    });
+                    if hovered {
+                        let close_rect = egui::Rect::from_min_max(
+                            egui::pos2(rect.right() - 25.0, rect.top() + 5.0),
+                            rect.max - egui::vec2(1.0, 5.0),
+                        );
+                        let close = ui
+                            .put(
+                                close_rect,
+                                egui::Button::new("×").frame(false).corner_radius(0),
+                            )
+                            .on_hover_text(qt("unpin"));
+                        close.widget_info(|| {
+                            egui::WidgetInfo::labeled(egui::WidgetType::Button, true, qt("unpin"))
+                        });
+                        if close.clicked() {
+                            remove = Some(id.clone());
+                        }
+                    }
+                }
+                if !overflow.is_empty() {
+                    ui.menu_button("…", |ui| {
+                        for (id, label, full, entry) in overflow {
+                            ui.horizontal(|ui| {
+                                if ui
+                                    .add_enabled(entry.is_some(), egui::Button::new(label))
+                                    .on_hover_text(full)
+                                    .clicked()
+                                {
+                                    chosen = entry.map(|entry| entry.action.clone());
+                                    ui.close();
+                                }
+                                if ui.small_button("×").on_hover_text(qt("unpin")).clicked() {
+                                    remove = Some(id.clone());
+                                    ui.close();
+                                }
+                            });
+                        }
+                    });
+                }
+                ui.add_space(8.0);
+                let add = ui
+                    .add_sized(
+                        [28.0, 28.0],
+                        egui::Button::new(egui::RichText::new("+").size(20.0))
+                            .frame(false)
+                            .corner_radius(0),
+                    )
+                    .on_hover_text(qt("add_shortcut"));
+                add.widget_info(|| {
+                    egui::WidgetInfo::labeled(egui::WidgetType::Button, true, qt("add_shortcut"))
+                });
+                if add.clicked() {
+                    self.open_command_palette(ui.ctx());
+                }
+            },
+        );
+        if let Some(id) = remove {
+            if let Err(error) = toggle_shortcut(ui.ctx(), &id) {
+                self.error = Some(crate::error_ui::capture(error));
+            }
+        }
+        if let Some(action) = chosen {
+            self.execute_quick_action(ui.ctx(), action);
         }
     }
 
@@ -498,6 +877,12 @@ impl App {
             QuickAction::CustomTalent,
         );
         push("export", "", "导出作品 export", QuickAction::Export);
+        push(
+            "global_search",
+            "Ctrl+Shift+F",
+            "全局查找 搜索 台词 内容 find search",
+            QuickAction::GlobalSearch,
+        );
         push("save", "Ctrl+S", "save 保存", QuickAction::Save);
         if !self.undo.is_empty() || self.pending_history.is_some() {
             push("undo", "Ctrl+Z", "undo 撤销", QuickAction::Undo);
@@ -651,7 +1036,7 @@ impl App {
     }
 
     fn command_palette_ui(
-        &self,
+        &mut self,
         ctx: &egui::Context,
         palette: &mut CommandPalette,
     ) -> (bool, Option<QuickAction>) {
@@ -659,17 +1044,99 @@ impl App {
         let entries = self.command_entries();
         let mut close = escape;
         let mut chosen = None;
-        egui::Modal::new(egui::Id::new("command-palette"))
+        let available = ctx.content_rect().size();
+        let panel_size = egui::vec2(
+            (available.x - 72.0).clamp(280.0, 680.0),
+            (available.y - 72.0).clamp(230.0, 560.0),
+        );
+        #[cfg(test)]
+        let mut geometry = SearchGeometry::default();
+        let modal = egui::Modal::new(egui::Id::new("command-palette"))
             .frame(shell::dialog_frame())
-            .show(ctx, |ui| {
-                ui.set_width(620.0);
-                close |= shell::dialog_header(ui, &qt("search"));
-                let input = ui.add(
+            .show(ctx, |outer| {
+                // Only this allocation contributes to the modal's size. Result
+                // children stay clipped inside it and cannot resize the area.
+                let (panel_rect, _) = outer.allocate_exact_size(panel_size, egui::Sense::hover());
+                let mut panel = outer.new_child(
+                    egui::UiBuilder::new()
+                        .max_rect(panel_rect)
+                        .layout(egui::Layout::top_down(egui::Align::Min)),
+                );
+                panel.set_clip_rect(panel_rect);
+                let ui = &mut panel;
+                let header_rect =
+                    egui::Rect::from_min_size(panel_rect.min, egui::vec2(panel_rect.width(), 36.0));
+                let mut header = ui.new_child(
+                    egui::UiBuilder::new()
+                        .id_salt("search-header")
+                        .max_rect(header_rect),
+                );
+                close |= shell::dialog_header(&mut header, &qt("search"));
+                let tabs_rect = egui::Rect::from_min_size(
+                    panel_rect.min + egui::vec2(0.0, 40.0),
+                    egui::vec2(panel_rect.width(), 28.0),
+                );
+                let mut tabs = ui.new_child(
+                    egui::UiBuilder::new()
+                        .id_salt("search-tabs")
+                        .max_rect(tabs_rect)
+                        .layout(egui::Layout::left_to_right(egui::Align::Center)),
+                );
+                for (content, label) in [(true, "content_tab"), (false, "commands_tab")] {
+                    if tabs
+                        .selectable_value(&mut palette.content, content, qt(label))
+                        .clicked()
+                    {
+                        palette.focus = true;
+                        palette.reveal_selection = true;
+                    }
+                }
+                let shortcuts = user_shortcuts(ctx);
+                if !shortcuts.ids.is_empty() {
+                    tabs.menu_button(qt("manage_shortcuts"), |ui| {
+                        for id in &shortcuts.ids {
+                            ui.horizontal(|ui| {
+                                let label = id
+                                    .strip_prefix("node:")
+                                    .map(|kind| self.catalog.label(kind))
+                                    .unwrap_or_else(|| {
+                                        entries
+                                            .iter()
+                                            .find(|entry| {
+                                                entry.action.shortcut_id().as_ref() == Some(id)
+                                            })
+                                            .map(|entry| entry.label.clone())
+                                            .unwrap_or_else(|| qt(id))
+                                    });
+                                ui.label(label);
+                                if ui.small_button(qt("unpin")).clicked() {
+                                    palette.pin_error = toggle_shortcut(ctx, id)
+                                        .err()
+                                        .map(crate::error_ui::capture);
+                                }
+                            });
+                        }
+                    });
+                }
+                let input_rect = egui::Rect::from_min_size(
+                    panel_rect.min + egui::vec2(0.0, 76.0),
+                    egui::vec2(panel_rect.width(), 32.0),
+                );
+                let input = ui.put(
+                    input_rect,
                     egui::TextEdit::singleline(&mut palette.query)
                         .id(egui::Id::new("command-palette-query"))
-                        .desired_width(f32::INFINITY)
-                        .hint_text(qt("search_hint")),
+                        .desired_width(input_rect.width())
+                        .hint_text(qt(if palette.content {
+                            "content_hint"
+                        } else {
+                            "search_hint"
+                        })),
                 );
+                #[cfg(test)]
+                {
+                    geometry.input = input.rect;
+                }
                 if std::mem::take(&mut palette.focus) {
                     input.request_focus();
                 }
@@ -677,66 +1144,209 @@ impl App {
                     palette.selected = 0;
                     palette.reveal_selection = true;
                 }
-                let query = palette.query.trim().to_lowercase();
-                let mut filtered: Vec<_> = entries
-                    .iter()
-                    .filter(|entry| command_matches(entry, &query))
-                    .collect();
-                if !query.is_empty() {
-                    filtered.sort_by_key(|entry| !entry.label.to_lowercase().starts_with(&query));
-                }
-                palette.selected = palette.selected.min(filtered.len().saturating_sub(1));
-                if movement != 0 && !filtered.is_empty() {
-                    palette.selected = palette
-                        .selected
-                        .saturating_add_signed(movement)
-                        .min(filtered.len() - 1);
-                    palette.reveal_selection = true;
-                }
-                ui.small(qt("search_keys"));
-                ui.separator();
-                if filtered.is_empty() {
-                    ui.label(qt("no_results"));
+                let hint_rect = egui::Rect::from_min_size(
+                    panel_rect.min + egui::vec2(0.0, 115.0),
+                    egui::vec2(panel_rect.width(), 40.0),
+                );
+                let mut hints = ui.new_child(
+                    egui::UiBuilder::new()
+                        .id_salt("search-hints")
+                        .max_rect(hint_rect),
+                );
+                for key in if palette.content {
+                    ["content_keys", "content_hint"]
                 } else {
-                    let row_height = 44.0;
-                    let row_stride = row_height + ui.spacing().item_spacing.y;
-                    let max_height = 350.0;
-                    let mut scroll = egui::ScrollArea::vertical()
-                        .id_salt("command-palette-results")
-                        .max_height(max_height)
-                        .auto_shrink([false, false]);
-                    if std::mem::take(&mut palette.reveal_selection) {
-                        scroll = scroll.vertical_scroll_offset(
-                            (palette.selected as f32 * row_stride - max_height / 2.0).max(0.0),
-                        );
-                    }
-                    scroll.show_rows(ui, row_height, filtered.len(), |ui, range| {
-                        for index in range {
-                            let entry = filtered[index];
-                            let label = if entry.detail.is_empty() {
-                                entry.label.clone()
-                            } else {
-                                format!("{}\n{}", entry.label, entry.detail)
-                            };
-                            if ui
-                                .add_sized(
-                                    [ui.available_width(), row_height],
-                                    egui::Button::selectable(index == palette.selected, label)
-                                        .right_text(RichText::new(&entry.category).small().weak())
-                                        .truncate(),
-                                )
-                                .on_hover_text(format!("{}\n{}", entry.label, entry.detail))
-                                .clicked()
-                            {
-                                chosen = Some(entry.action.clone());
-                            }
+                    ["search_keys", "pin_hint"]
+                } {
+                    let hint = qt(key);
+                    hints
+                        .add_sized(
+                            [hint_rect.width(), 18.0],
+                            egui::Label::new(egui::RichText::new(&hint).small()).truncate(),
+                        )
+                        .on_hover_text(hint);
+                }
+                let result_rect = egui::Rect::from_min_max(
+                    panel_rect.min + egui::vec2(0.0, 162.0),
+                    panel_rect.max - egui::vec2(0.0, 26.0),
+                );
+                let mut results = ui.new_child(
+                    egui::UiBuilder::new()
+                        .id_salt("search-results")
+                        .max_rect(result_rect)
+                        .layout(egui::Layout::top_down(egui::Align::Min)),
+                );
+                results.set_clip_rect(result_rect);
+                let scroll = egui::ScrollArea::vertical()
+                    .id_salt("unified-search-results")
+                    .max_height(result_rect.height())
+                    .min_scrolled_height(result_rect.height())
+                    .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
+                    .auto_shrink([false, false]);
+                if palette.content {
+                    let scroll = if std::mem::take(&mut palette.reveal_selection) {
+                        scroll.vertical_scroll_offset(0.0)
+                    } else {
+                        scroll
+                    };
+                    let _output = scroll.show(&mut results, |ui| {
+                        ui.set_max_width(result_rect.width() - 16.0);
+                        if let Some(location) =
+                            self.advanced.search_ui(ui, &self.project, &palette.query)
+                        {
+                            chosen = Some(QuickAction::SearchLocation(location));
                         }
                     });
-                    if enter {
+                    #[cfg(test)]
+                    {
+                        geometry.viewport = _output.inner_rect;
+                        geometry.offset = _output.state.offset;
+                    }
+                } else {
+                    let query = palette.query.trim().to_lowercase();
+                    let mut filtered: Vec<_> = entries
+                        .iter()
+                        .filter(|entry| command_matches(entry, &query))
+                        .collect();
+                    if !query.is_empty() {
+                        filtered
+                            .sort_by_key(|entry| !entry.label.to_lowercase().starts_with(&query));
+                    }
+                    palette.selected = palette.selected.min(filtered.len().saturating_sub(1));
+                    if movement != 0 && !filtered.is_empty() {
+                        palette.selected = palette
+                            .selected
+                            .saturating_add_signed(movement)
+                            .min(filtered.len() - 1);
+                        palette.reveal_selection = true;
+                    }
+                    let row_height = 44.0;
+                    let mut scroll = scroll;
+                    if std::mem::take(&mut palette.reveal_selection) {
+                        scroll = scroll.vertical_scroll_offset(
+                            (palette.selected as f32
+                                * (row_height + results.spacing().item_spacing.y)
+                                - result_rect.height() / 2.0)
+                                .max(0.0),
+                        );
+                    }
+                    let row_width = result_rect.width() - 16.0;
+                    let _output =
+                        scroll.show_rows(&mut results, row_height, filtered.len(), |ui, range| {
+                            for index in range {
+                                let entry = filtered[index];
+                                let (rect, _) = ui.allocate_exact_size(
+                                    egui::vec2(row_width, row_height),
+                                    egui::Sense::hover(),
+                                );
+                                let pin_rect = egui::Rect::from_min_max(
+                                    egui::pos2(rect.right() - 30.0, rect.top()),
+                                    rect.max,
+                                );
+                                let category_rect = egui::Rect::from_min_max(
+                                    egui::pos2(pin_rect.left() - 112.0, rect.top()),
+                                    egui::pos2(pin_rect.left() - 8.0, rect.bottom()),
+                                );
+                                let label_rect = egui::Rect::from_min_max(
+                                    rect.min,
+                                    egui::pos2(category_rect.left() - 8.0, rect.bottom()),
+                                );
+                                let label = if entry.detail.is_empty() {
+                                    entry.label.clone()
+                                } else {
+                                    format!("{}\n{}", entry.label, entry.detail)
+                                };
+                                if ui
+                                    .put(
+                                        label_rect,
+                                        egui::Button::selectable(index == palette.selected, label)
+                                            .right_text("")
+                                            .truncate(),
+                                    )
+                                    .on_hover_text(format!("{}\n{}", entry.label, entry.detail))
+                                    .clicked()
+                                {
+                                    chosen = Some(entry.action.clone());
+                                }
+                                let _category = ui
+                                    .put(
+                                        category_rect,
+                                        egui::Label::new(
+                                            egui::RichText::new(&entry.category).small().weak(),
+                                        )
+                                        .halign(egui::Align::Max)
+                                        .truncate(),
+                                    )
+                                    .on_hover_text(&entry.category);
+                                #[cfg(test)]
+                                {
+                                    geometry.categories.push(_category.rect);
+                                }
+                                if let Some(id) = entry.action.shortcut_id() {
+                                    let pinned = user_shortcuts(ctx).ids.contains(&id);
+                                    let pin = crate::shell::pin_button(
+                                        ui,
+                                        pin_rect,
+                                        pinned,
+                                        &qt(if pinned { "unpin" } else { "pin" }),
+                                    );
+                                    #[cfg(test)]
+                                    {
+                                        geometry.pins.push(pin.rect);
+                                    }
+                                    if pin.clicked() {
+                                        palette.pin_error = toggle_shortcut(ctx, &id)
+                                            .err()
+                                            .map(crate::error_ui::capture);
+                                    }
+                                } else {
+                                    // Project-local results reserve the same trailing slot.
+                                    #[cfg(test)]
+                                    {
+                                        geometry.pins.push(pin_rect);
+                                    }
+                                }
+                            }
+                            if filtered.is_empty() {
+                                ui.add_sized(
+                                    [row_width, row_height],
+                                    egui::Label::new(qt("no_results")).truncate(),
+                                );
+                            }
+                        });
+                    #[cfg(test)]
+                    {
+                        geometry.viewport = _output.inner_rect;
+                        geometry.offset = _output.state.offset;
+                    }
+                    if enter && !filtered.is_empty() {
                         chosen = Some(filtered[palette.selected].action.clone());
                     }
                 }
+                if let Some(error) = &palette.pin_error {
+                    let error_rect = egui::Rect::from_min_max(
+                        egui::pos2(panel_rect.left(), panel_rect.bottom() - 22.0),
+                        panel_rect.max,
+                    );
+                    ui.put(
+                        error_rect,
+                        egui::Label::new(
+                            egui::RichText::new(error).color(ui.visuals().error_fg_color),
+                        )
+                        .truncate(),
+                    )
+                    .on_hover_text(error);
+                }
             });
+        #[cfg(test)]
+        {
+            geometry.modal = modal.response.rect;
+            ctx.data_mut(|data| {
+                data.insert_temp(egui::Id::new("search-rendered-geometry"), geometry)
+            });
+        }
+        #[cfg(not(test))]
+        let _ = modal;
         (close || chosen.is_some(), chosen)
     }
 
@@ -789,6 +1399,15 @@ impl App {
             QuickAction::Undo => self.undo(),
             QuickAction::Redo => self.redo(),
             QuickAction::PlayCurrent => self.play_current(),
+            QuickAction::GlobalSearch => self.open_global_search(ctx),
+            QuickAction::SearchLocation((story, node)) => self.go_to_problem(
+                ctx,
+                if story.is_empty() {
+                    Destination::Manifest
+                } else {
+                    Destination::Story(story, node)
+                },
+            ),
         }
     }
 }
@@ -1048,6 +1667,454 @@ mod tests {
         app.recovery_candidates.clear();
         app.auto_save_project = false;
         app
+    }
+
+    #[test]
+    fn bookmark_chips_use_short_labels_and_keep_one_row_when_they_overflow() {
+        let mut app = app();
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        let draw = |app: &mut App| {
+            let mut height = 0.0;
+            let output = ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(280.0, 500.0),
+                    )),
+                    ..Default::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        let before = ui.cursor().min.y;
+                        app.quick_shortcuts(ui);
+                        height = ui.cursor().min.y - before;
+                    });
+                },
+            );
+            (output, height)
+        };
+        configure_shortcuts(&ctx, &json!({}), None);
+        let (_, height) = draw(&mut app);
+        assert_eq!(height, 0.0, "empty bookmarks should not allocate a row");
+        configure_shortcuts(
+            &ctx,
+            &json!({"quick_shortcuts":["node:show","node:wait","global_search","node:sound","node:camera","node:choice","node:scene","node:hide"]}),
+            None,
+        );
+        let (output, height) = draw(&mut app);
+        let expected = 34.0 + ctx.style().spacing.item_spacing.y;
+        assert!(
+            (height - expected).abs() < 0.1,
+            "bookmark row grew to {height}"
+        );
+        let nodes = output.platform_output.accesskit_update.unwrap().nodes;
+        assert!(nodes
+            .iter()
+            .any(|(_, node)| node.label() == Some(app.catalog.label("show").as_str())));
+        assert!(!nodes.iter().any(|(_, node)| node.label()
+            == Some(qmessage("add_node", &[("name", app.catalog.label("show"))]).as_str())));
+        assert!(
+            nodes.iter().any(|(_, node)| node.label() == Some("…")),
+            "overflow uses one menu instead of a second row"
+        );
+    }
+
+    #[test]
+    fn search_geometry_and_zoom_stay_fixed_during_real_wheel_scrolling_and_filtering() {
+        let mut app = app();
+        app.shell = shell::Shell::default();
+        for index in 0..90 {
+            let id = format!("long_chapter_{index}");
+            app.project.stories.insert(id.clone(), json!({"id":id,"title":if index % 2 == 0 {"短".into()} else {"很长的章节标题".repeat(100)},"start":"done","nodes":[{"id":"done","type":"end"}]}));
+        }
+        let ctx = egui::Context::default();
+        app.open_command_palette(&ctx);
+        let mut time = 0.0;
+        let mut frame = |app: &mut App, events| {
+            time += 1.0 / 60.0;
+            let output = ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1600.0, 1000.0),
+                    )),
+                    time: Some(time),
+                    events,
+                    ..Default::default()
+                },
+                |ctx| {
+                    app.shell.apply_layout(ctx);
+                    app.quick_tools(ctx);
+                },
+            );
+            let geometry = ctx
+                .data(|data| {
+                    data.get_temp::<SearchGeometry>(egui::Id::new("search-rendered-geometry"))
+                })
+                .unwrap();
+            (output, geometry)
+        };
+        frame(&mut app, vec![]);
+        let (_, baseline) = frame(&mut app, vec![]);
+        let same_rect = |name: &str, a: egui::Rect, b: egui::Rect| {
+            assert!(
+                (a.min - b.min).length() < 0.1 && (a.max - b.max).length() < 0.1,
+                "{name}: {a:?} != {b:?}"
+            );
+        };
+        let check = |geometry: &SearchGeometry| {
+            same_rect("modal", geometry.modal, baseline.modal);
+            same_rect("input", geometry.input, baseline.input);
+            same_rect("viewport", geometry.viewport, baseline.viewport);
+            assert_eq!(ctx.zoom_factor(), 1.0, "ordinary wheel must not zoom");
+            for pin in &geometry.pins {
+                assert!(
+                    (pin.left() - baseline.pins[0].left()).abs() < 0.1,
+                    "pin column moved: {pin:?}"
+                );
+            }
+            for category in &geometry.categories {
+                assert!(
+                    (category.left() - baseline.categories[0].left()).abs() < 0.1,
+                    "category column moved: {category:?}"
+                );
+            }
+        };
+        let mut observed_scroll = false;
+        for query in ["", "chapter", "node", "not_a_result_908765"] {
+            // Filtering uses the real query edit events; scrolling uses pointer and wheel events.
+            ctx.memory_mut(|memory| memory.request_focus(egui::Id::new("command-palette-query")));
+            let (_, geometry) = frame(
+                &mut app,
+                vec![
+                    egui::Event::Key {
+                        key: egui::Key::A,
+                        physical_key: None,
+                        pressed: true,
+                        repeat: false,
+                        modifiers: egui::Modifiers::COMMAND,
+                    },
+                    egui::Event::Text(query.into()),
+                ],
+            );
+            check(&geometry);
+            for delta in [-180.0, -180.0, -180.0, 140.0, 140.0, 140.0] {
+                let (_, geometry) = frame(
+                    &mut app,
+                    vec![
+                        egui::Event::PointerMoved(baseline.viewport.center()),
+                        egui::Event::MouseWheel {
+                            unit: egui::MouseWheelUnit::Point,
+                            delta: egui::vec2(0.0, delta),
+                            modifiers: egui::Modifiers::NONE,
+                        },
+                    ],
+                );
+                check(&geometry);
+                observed_scroll |= geometry.offset.y > 1.0;
+            }
+        }
+        assert!(
+            observed_scroll,
+            "the wheel must actually scroll the result list"
+        );
+        assert_eq!(state(&ctx).palette.unwrap().query, "not_a_result_908765");
+    }
+
+    #[test]
+    fn content_search_long_text_and_references_keep_the_same_window_when_scrolled() {
+        use egui::accesskit::{Action, ActionRequest};
+        let mut app = app();
+        app.shell = shell::Shell::default();
+        let character = format!("user:long_character_{}", "x".repeat(300));
+        let nodes:Vec<_>=(0..24).map(|index|json!({"id":format!("line_{index}"),"type":"say","character":character,"text":format!("needle {}","很长的台词".repeat(160))})).collect();
+        let id = format!("long_source_{}", "y".repeat(220));
+        app.project
+            .stories
+            .insert(id.clone(), json!({"id":id,"start":"line_0","nodes":nodes}));
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        app.open_global_search(&ctx);
+        let mut time = 0.0;
+        let mut frame = |app: &mut App, events| {
+            time += 1.0 / 60.0;
+            let output = ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1600.0, 1000.0),
+                    )),
+                    time: Some(time),
+                    events,
+                    ..Default::default()
+                },
+                |ctx| {
+                    app.shell.apply_layout(ctx);
+                    app.quick_tools(ctx);
+                },
+            );
+            let geometry = ctx
+                .data(|data| {
+                    data.get_temp::<SearchGeometry>(egui::Id::new("search-rendered-geometry"))
+                })
+                .unwrap();
+            (output, geometry)
+        };
+        frame(&mut app, vec![]);
+        let (_, baseline) = frame(&mut app, vec![]);
+        let mut observed_scroll = false;
+        for query in ["needle", "long_character_", "no_such_content_5821"] {
+            ctx.memory_mut(|memory| memory.request_focus(egui::Id::new("command-palette-query")));
+            let (mut output, geometry) = frame(
+                &mut app,
+                vec![
+                    egui::Event::Key {
+                        key: egui::Key::A,
+                        physical_key: None,
+                        pressed: true,
+                        repeat: false,
+                        modifiers: egui::Modifiers::COMMAND,
+                    },
+                    egui::Event::Text(query.into()),
+                ],
+            );
+            if query == "long_character_" {
+                let target = output
+                    .platform_output
+                    .accesskit_update
+                    .as_ref()
+                    .unwrap()
+                    .nodes
+                    .iter()
+                    .find_map(|(id, node)| {
+                        (node.label() == Some(crate::i18n::tr("查找引用").as_str())).then_some(*id)
+                    })
+                    .expect("find references action");
+                output = frame(
+                    &mut app,
+                    vec![egui::Event::AccessKitActionRequest(ActionRequest {
+                        action: Action::Click,
+                        target,
+                        data: None,
+                    })],
+                )
+                .0;
+                let _ = output;
+            }
+            assert!(
+                (geometry.modal.min - baseline.modal.min).length() < 0.1
+                    && (geometry.modal.max - baseline.modal.max).length() < 0.1
+            );
+            let mut saw_references = false;
+            for delta in [-220.0, -220.0, 160.0, -220.0, 160.0, 160.0] {
+                let (output, geometry) = frame(
+                    &mut app,
+                    vec![
+                        egui::Event::PointerMoved(baseline.viewport.center()),
+                        egui::Event::MouseWheel {
+                            unit: egui::MouseWheelUnit::Point,
+                            delta: egui::vec2(0.0, delta),
+                            modifiers: egui::Modifiers::NONE,
+                        },
+                    ],
+                );
+                assert!(
+                    (geometry.modal.min - baseline.modal.min).length() < 0.1
+                        && (geometry.modal.max - baseline.modal.max).length() < 0.1
+                );
+                assert!(
+                    (geometry.input.min - baseline.input.min).length() < 0.1
+                        && (geometry.input.max - baseline.input.max).length() < 0.1
+                );
+                assert!(
+                    (geometry.viewport.min - baseline.viewport.min).length() < 0.1
+                        && (geometry.viewport.max - baseline.viewport.max).length() < 0.1
+                );
+                assert_eq!(ctx.zoom_factor(), 1.0);
+                observed_scroll |= geometry.offset.y > 1.0;
+                saw_references |= output
+                    .platform_output
+                    .accesskit_update
+                    .unwrap()
+                    .nodes
+                    .iter()
+                    .any(|(_, node)| node.value() == Some(crate::i18n::tr("引用结果").as_str()));
+            }
+            if query == "long_character_" {
+                assert!(saw_references, "reference results remain available");
+            }
+        }
+        assert!(observed_scroll);
+    }
+
+    #[test]
+    fn unified_content_search_navigates_across_chapters_without_editing_the_project() {
+        use egui::accesskit::{Action, ActionRequest};
+        let mut app = app();
+        app.project.stories.insert(
+            "content_target".into(),
+            json!({
+                "id":"content_target","title":"目标章节","start":"line","nodes":[
+                    {"id":"line","type":"say","mode":"narrative","text":"统一查找的唯一台词"},
+                    {"id":"done","type":"end"}
+                ]
+            }),
+        );
+        let original = snapshot(&app.project);
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        app.open_global_search(&ctx);
+        let frame = |app: &mut App, events| {
+            ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1100.0, 900.0),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ctx| app.quick_tools(ctx),
+            )
+        };
+        frame(&mut app, vec![]);
+        let output = frame(
+            &mut app,
+            vec![egui::Event::Text("统一查找的唯一台词".into())],
+        );
+        assert!(state(&ctx).palette.as_ref().unwrap().content);
+        assert_eq!(
+            state(&ctx).palette.as_ref().unwrap().query,
+            "统一查找的唯一台词"
+        );
+        let nodes = output.platform_output.accesskit_update.unwrap().nodes;
+        let target = nodes
+            .iter()
+            .find_map(|(id, node)| (node.label() == Some("content_target / line")).then_some(*id))
+            .expect("global search result link");
+        frame(
+            &mut app,
+            vec![egui::Event::AccessKitActionRequest(ActionRequest {
+                action: Action::Click,
+                target,
+                data: None,
+            })],
+        );
+        assert_eq!(app.current, "content_target");
+        assert_eq!(app.selected, 0);
+        assert_eq!(app.center, Center::Node);
+        assert!(state(&ctx).palette.is_none());
+        assert!(snapshot(&app.project) == original);
+    }
+
+    #[test]
+    fn pinning_a_step_persists_without_inserting_it_and_toolbar_runs_the_saved_action() {
+        use egui::accesskit::{Action, ActionRequest, Role};
+        let mut app = app();
+        let original = snapshot(&app.project);
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("preferences.json");
+        let prefs = json!({"unrelated_setting":"keep"});
+        std::fs::write(&path, lom_core::stable_json(&prefs).unwrap()).unwrap();
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        configure_shortcuts(&ctx, &prefs, Some(path.clone()));
+        assert!(user_shortcuts(&ctx).ids.is_empty());
+        app.open_command_palette(&ctx);
+        let frame = |app: &mut App, events| {
+            ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1100.0, 900.0),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ctx| app.quick_tools(ctx),
+            )
+        };
+        frame(&mut app, vec![]);
+        let output = frame(&mut app, vec![egui::Event::Text("node wait".into())]);
+        let target = output
+            .platform_output
+            .accesskit_update
+            .unwrap()
+            .nodes
+            .into_iter()
+            .find_map(|(id, node)| {
+                (node.role() == Role::Button && node.label() == Some(qt("pin").as_str()))
+                    .then_some(id)
+            })
+            .unwrap();
+        frame(
+            &mut app,
+            vec![egui::Event::AccessKitActionRequest(ActionRequest {
+                action: Action::Click,
+                target,
+                data: None,
+            })],
+        );
+        assert_eq!(user_shortcuts(&ctx).ids, vec!["node:wait"]);
+        assert!(
+            state(&ctx).palette.is_some(),
+            "pinning must keep the search open"
+        );
+        assert!(
+            snapshot(&app.project) == original,
+            "pinning is a preference, not a story edit"
+        );
+        let saved = lom_core::load_json(&path).unwrap();
+        assert_eq!(saved["unrelated_setting"], "keep");
+        let reopened = egui::Context::default();
+        reopened.enable_accesskit();
+        configure_shortcuts(&reopened, &saved, Some(path.clone()));
+        assert_eq!(user_shortcuts(&reopened).ids, vec!["node:wait"]);
+        let draw = |app: &mut App, events| {
+            reopened.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1100.0, 900.0),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        ui.horizontal(|ui| app.quick_shortcuts(ui));
+                    });
+                },
+            )
+        };
+        let output = draw(&mut app, vec![]);
+        let label = app.catalog.label("wait");
+        let target = output
+            .platform_output
+            .accesskit_update
+            .unwrap()
+            .nodes
+            .into_iter()
+            .find_map(|(id, node)| {
+                (node.role() == Role::Button && node.label() == Some(label.as_str())).then_some(id)
+            })
+            .unwrap();
+        draw(
+            &mut app,
+            vec![egui::Event::AccessKitActionRequest(ActionRequest {
+                action: Action::Click,
+                target,
+                data: None,
+            })],
+        );
+        assert_eq!(app.story()["nodes"][app.selected]["type"], "wait");
+        toggle_shortcut(&reopened, "node:wait").unwrap();
+        assert!(user_shortcuts(&reopened).ids.is_empty());
+        assert_eq!(
+            lom_core::load_json(path).unwrap()["quick_shortcuts"],
+            json!([])
+        );
     }
 
     #[test]

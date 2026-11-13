@@ -121,9 +121,7 @@ impl App {
                 egui::Key::F,
             )
         }) {
-            if self.open_center(Center::Advanced) {
-                self.advanced.page = 0;
-            }
+            self.open_global_search(ctx);
         }
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::F1)) {
             self.tools_panel.open_help();
@@ -437,7 +435,8 @@ impl App {
                         .enumerate()
                         {
                             if ui.button(tr(label)).clicked() {
-                                if self.open_center(Center::Advanced) { self.advanced.page = page; }
+                                if page == 0 { self.open_global_search(ctx); }
+                                else if self.open_center(Center::Advanced) { self.advanced.page = page; }
                                 ui.close();
                             }
                         }
@@ -500,7 +499,7 @@ impl App {
                     });
                 });
                 ui.add_space(6.0);
-                ui.horizontal_wrapped(|ui| {
+                ui.horizontal(|ui| {
                     for (section, label) in [
                         (Section::Story, "剧情编辑"),
                         (Section::Materials, "素材管理"),
@@ -511,9 +510,9 @@ impl App {
                             self.navigate(section);
                         }
                     }
-                    ui.separator();
-                    self.layout_controls(ui);
+                    self.search_control(ui);
                 });
+                self.quick_shortcuts(ui);
             });
     }
     pub(super) fn section(&self) -> Section {

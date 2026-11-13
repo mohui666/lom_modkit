@@ -234,7 +234,7 @@ mod tests {
     }
 
     #[test]
-    fn default_actions_fit_a_narrow_form_with_large_button_text() {
+    fn defaults_entry_fits_a_narrow_form_without_repeated_field_buttons() {
         let catalog = Catalog::new();
         let mut node = json!({"id":"stop","type":"effect","play":false,"tag":"loop","clear":true,"wait_after":0.2});
         let ctx = egui::Context::default();
@@ -262,7 +262,7 @@ mod tests {
         };
         draw(&mut node);
         let output = draw(&mut node);
-        let label = crate::i18n::key("editor.defaults.set");
+        let label = crate::i18n::key("editor.defaults.manage");
         let buttons: Vec<_> = output
             .platform_output
             .accesskit_update
@@ -271,7 +271,7 @@ mod tests {
             .into_iter()
             .filter(|(_, node)| node.label().is_some_and(|text| text.starts_with(&label)))
             .collect();
-        assert_eq!(buttons.len(), 4);
+        assert_eq!(buttons.len(), 1);
         for (_, button) in buttons {
             assert!(
                 button.bounds().unwrap().x1 <= 332.0,

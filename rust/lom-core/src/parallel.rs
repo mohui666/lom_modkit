@@ -178,8 +178,13 @@ pub fn validate_group(node: &Value) -> Result<()> {
             "第 {number} 个同时动作不允许 id/goto；整组完成后才统一继续"
         );
         ensure!(
-            action.get("appearance").is_none(),
-            "第 {number} 个同时动作：赵活外观切换请放在同时执行组之前"
+            action.get("appearance").is_none()
+                || kind == "show"
+                    && action["character"] == "player"
+                    && action["appearance"]
+                        .as_str()
+                        .is_some_and(|value| ["game", "original", "beautified"].contains(&value)),
+            "第 {number} 个同时动作：appearance 仅支持赵活 player 登场时的 game/original/beautified 外观"
         );
         for field in [
             "duration",

@@ -2,33 +2,33 @@ use super::*;
 
 #[derive(Clone, Debug)]
 pub(super) struct Preferences {
-    pub layout: usize,
-    pub widths: [[f32; 2]; 3],
+    pub widths: [f32; 2],
     pub auto_hide_palette: bool,
     pub export_bundle: bool,
     pub export_directory: Option<PathBuf>,
 }
 impl Preferences {
     pub fn load(prefs: &Value) -> Self {
-        let mut widths = [
-            [shell::NAVIGATION_WIDTH, shell::PREVIEW_WIDTH],
-            [190.0, 340.0],
-            [190.0, 560.0],
-        ];
-        for (layout, values) in widths.iter_mut().enumerate() {
-            for (panel, width) in values.iter_mut().enumerate() {
-                if let Some(saved) = prefs["workspace_widths"][layout][panel]
-                    .as_f64()
-                    .filter(|n| n.is_finite() && *n >= 160.0 && *n <= 1600.0)
-                {
-                    *width = saved as f32;
-                }
+        let mut widths = [shell::NAVIGATION_WIDTH, shell::PREVIEW_WIDTH];
+        // Older preferences stored one pair per layout. Keep the pair the
+        // author was using; subsequent saves use the single draggable layout.
+        let stored = if prefs["workspace_widths"][0].is_array() {
+            let selected = prefs["workspace_layout"].as_u64().unwrap_or(0).min(2) as usize;
+            &prefs["workspace_widths"][selected]
+        } else {
+            &prefs["workspace_widths"]
+        };
+        for (panel, width) in widths.iter_mut().enumerate() {
+            if let Some(saved) = stored[panel]
+                .as_f64()
+                .filter(|n| n.is_finite() && *n >= 160.0 && *n <= 1600.0)
+            {
+                *width = saved as f32;
             }
         }
         Self {
-            layout: prefs["workspace_layout"].as_u64().unwrap_or(0).min(2) as usize,
             widths,
-            auto_hide_palette: prefs["palette_auto_hide"].as_bool().unwrap_or(true),
+            auto_hide_palette: prefs["palette_auto_hide"].as_bool().unwrap_or(false),
             export_bundle: prefs["export_bundle"].as_bool().unwrap_or(false),
             export_directory: prefs["export_directory"]
                 .as_str()
@@ -51,7 +51,7 @@ impl App {
                 json!({})
             };
             anyhow::ensure!(value.is_object(), "个人设置格式无效");
-            value["workspace_layout"] = json!(self.usability.layout);
+            value.as_object_mut().unwrap().remove("workspace_layout");
             value["workspace_widths"] = json!(self.usability.widths);
             value["palette_auto_hide"] = json!(self.usability.auto_hide_palette);
             value["export_bundle"] = json!(self.usability.export_bundle);
@@ -64,82 +64,32 @@ impl App {
     }
     pub(super) fn remember_panel_width(&mut self, ctx: &egui::Context, panel: usize, width: f32) {
         if ctx.input(|i| i.pointer.any_released())
-            && (self.usability.widths[self.usability.layout][panel] - width).abs() > 1.0
+            && (self.usability.widths[panel] - width).abs() > 1.0
         {
-            self.usability.widths[self.usability.layout][panel] = width;
+            self.usability.widths[panel] = width;
             self.save_usability_preferences();
         }
     }
-    pub(super) fn layout_controls(&mut self, ui: &mut egui::Ui) {
-        let old = self.usability.layout;
-        egui::ComboBox::from_id_salt("workspace-layout")
-            .selected_text(crate::i18n::key(
-                [
-                    "usability.layout.standard",
-                    "usability.layout.writing",
-                    "usability.layout.staging",
-                ][old],
-            ))
-            .show_ui(ui, |ui| {
-                for (index, key) in [
-                    "usability.layout.standard",
-                    "usability.layout.writing",
-                    "usability.layout.staging",
-                ]
-                .into_iter()
-                .enumerate()
-                {
-                    ui.selectable_value(&mut self.usability.layout, index, crate::i18n::key(key));
-                }
-                ui.separator();
-                if ui
-                    .button(crate::i18n::key("usability.layout.reset"))
-                    .clicked()
-                {
-                    let layout = self.usability.layout;
-                    self.usability.widths[layout] = Preferences::load(&json!({})).widths[layout];
-                    ui.ctx().data_mut(|data| {
-                        data.remove::<egui::containers::panel::PanelState>(egui::Id::new((
-                            "chapters", layout,
-                        )));
-                        data.remove::<egui::containers::panel::PanelState>(egui::Id::new((
-                            "preview", layout,
-                        )));
-                    });
-                    self.save_usability_preferences();
-                    ui.close();
-                }
+    pub(super) fn search_control(&mut self, ui: &mut egui::Ui) {
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let label = crate::i18n::key("usability.search.button");
+            let response = ui.add_sized([30.0, 28.0], egui::Button::new(""));
+            response.widget_info(|| {
+                egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), &label)
             });
-        if old != self.usability.layout {
-            self.save_usability_preferences();
-        }
-        if ui
-            .small_button(crate::i18n::key("usability.search.button"))
-            .on_hover_text("Ctrl+K / ⌘K")
-            .clicked()
-        {
-            self.open_command_palette(ui.ctx());
-        }
-        if ui
-            .small_button(crate::i18n::key("usability.dialogue.button"))
-            .clicked()
-        {
-            self.open_dialogue_authoring(ui.ctx());
-        }
-        ui.menu_button(crate::i18n::key("usability.authoring.entries"), |ui| {
-            if ui
-                .button(crate::i18n::key("usability.authoring.rename"))
+            let color = ui.style().interact(&response).fg_stroke.color;
+            let center = response.rect.center() - egui::vec2(2.0, 2.0);
+            let stroke = egui::Stroke::new(1.5_f32, color);
+            ui.painter().circle_stroke(center, 5.0, stroke);
+            ui.painter().line_segment(
+                [center + egui::vec2(3.5, 3.5), center + egui::vec2(8.0, 8.0)],
+                stroke,
+            );
+            if response
+                .on_hover_text(crate::i18n::key("usability.search.hint"))
                 .clicked()
             {
-                ui.close();
-                self.open_name_authoring();
-            }
-            if ui
-                .button(crate::i18n::key("usability.authoring.talent"))
-                .clicked()
-            {
-                ui.close();
-                self.open_custom_talent();
+                self.open_global_search(ui.ctx());
             }
         });
     }
@@ -283,6 +233,7 @@ impl App {
                         }
                     });
                 });
+                ui.small(crate::i18n::key("usability.problems.severity_hint"));
                 egui::ScrollArea::vertical()
                     .id_salt("persistent-problem-list")
                     .show(ui, |ui| {
@@ -297,11 +248,11 @@ impl App {
                                     } else {
                                         ui.visuals().warn_fg_color
                                     },
-                                    if issue.severity == "error" {
-                                        "●"
+                                    crate::i18n::key(if issue.severity == "error" {
+                                        "usability.problems.error"
                                     } else {
-                                        "▲"
-                                    },
+                                        "usability.problems.warning"
+                                    }),
                                 );
                                 if ui
                                     .link(crate::error_location::issue_label(issue, &self.project))

@@ -351,6 +351,13 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
             ));
         }
         "parallel" => {
+            // Select the player configuration before loading its instance and
+            // portraits. All prepared actors then enter together in the branches.
+            for action in crate::parallel::actions(node) {
+                if s(action, "type") == "show" && truth(action, "appearance") {
+                    out.push(call("mod_player_appearance", &[q(action, "appearance")]));
+                }
+            }
             // Asset loading can yield several frames. Finish it before any
             // branch starts so two characters do not enter at different times.
             let mut loaded = std::collections::BTreeSet::new();
@@ -553,7 +560,7 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
             let pos = q(node, "position");
             let fade = n(node, "fadeDuration", json!(0));
             let duration = n(node, "moveDuration", json!(0));
-            if truth(node, "appearance") {
+            if truth(node, "appearance") && !ctx.preloaded {
                 out.push(call("mod_player_appearance", &[q(node, "appearance")]));
             }
             if user {
