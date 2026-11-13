@@ -381,58 +381,6 @@ fn command_matches(entry: &CommandEntry, query: &str) -> bool {
         .all(|term| entry.search.contains(term))
 }
 
-fn shortcut_icon(painter: &egui::Painter, center: egui::Pos2, id: &str, color: egui::Color32) {
-    let stroke = egui::Stroke::new(1.35_f32, color);
-    let point = |x, y| center + egui::vec2(x, y);
-    match id {
-        "node:show" | "node:hide" | "rename_character" => {
-            painter.circle_stroke(point(0.0, -3.5), 2.8, stroke);
-            painter.add(egui::Shape::line(
-                vec![
-                    point(-5.5, 6.0),
-                    point(-4.5, 2.5),
-                    point(0.0, 1.0),
-                    point(4.5, 2.5),
-                    point(5.5, 6.0),
-                ],
-                stroke,
-            ));
-        }
-        "dialogue" | "node:say" => {
-            painter.add(egui::Shape::closed_line(
-                vec![
-                    point(-6.0, -5.0),
-                    point(6.0, -5.0),
-                    point(6.0, 3.0),
-                    point(-1.0, 3.0),
-                    point(-4.0, 6.0),
-                    point(-4.0, 3.0),
-                    point(-6.0, 3.0),
-                ],
-                stroke,
-            ));
-            painter.line_segment([point(-3.0, -1.0), point(3.0, -1.0)], stroke);
-        }
-        "node:music" | "node:sound" => {
-            painter.line_segment([point(-2.0, 4.0), point(-2.0, -5.0)], stroke);
-            painter.line_segment([point(-2.0, -5.0), point(5.0, -6.5)], stroke);
-            painter.line_segment([point(5.0, -6.5), point(5.0, 2.5)], stroke);
-            painter.circle_filled(point(-4.0, 4.0), 2.2, color);
-            painter.circle_filled(point(3.0, 2.5), 2.2, color);
-        }
-        _ => {
-            painter.rect_stroke(
-                egui::Rect::from_center_size(center, egui::vec2(12.0, 12.0)),
-                1,
-                stroke,
-                egui::StrokeKind::Inside,
-            );
-            painter.line_segment([point(-3.0, 0.0), point(3.0, 0.0)], stroke);
-            painter.line_segment([point(0.0, -3.0), point(0.0, 3.0)], stroke);
-        }
-    }
-}
-
 impl App {
     /// Call after the existing modal guard in `shortcuts`; true suppresses
     /// document shortcuts while a quick tool owns keyboard input.
@@ -479,36 +427,12 @@ impl App {
         let mut remove = None;
         let width = ui.available_width();
         ui.allocate_ui_with_layout(
-            egui::vec2(width, 34.0),
+            egui::vec2(width, 28.0),
             egui::Layout::left_to_right(egui::Align::Center),
             |ui| {
-                let bar_rect =
-                    egui::Rect::from_min_size(ui.max_rect().min, egui::vec2(width, 34.0));
-                let bar_fill = egui::Color32::from_rgb(232, 236, 241);
-                let separator = egui::Color32::from_rgb(208, 215, 224);
-                ui.painter().rect_filled(
-                    egui::Rect::from_min_max(
-                        bar_rect.min - egui::vec2(14.0, 0.0),
-                        bar_rect.max + egui::vec2(14.0, 5.0),
-                    ),
-                    0,
-                    bar_fill,
-                );
-                ui.painter().hline(
-                    bar_rect.x_range().expand(14.0),
-                    bar_rect.top(),
-                    egui::Stroke::new(1.0_f32, separator),
-                );
-                ui.spacing_mut().item_spacing.x = 0.0;
-                ui.add_sized(
-                    [48.0, 34.0],
-                    egui::Label::new(
-                        egui::RichText::new(qt("shortcuts"))
-                            .size(12.0)
-                            .color(egui::Color32::from_rgb(91, 104, 122)),
-                    ),
-                );
-                ui.add_space(8.0);
+                ui.spacing_mut().item_spacing.x = 6.0;
+                ui.spacing_mut().button_padding.x = 8.0;
+                let border = egui::Stroke::new(1.0_f32, egui::Color32::from_rgb(121, 137, 158));
                 let mut overflow = Vec::new();
                 for id in &shortcuts.ids {
                     let entry = entries
@@ -516,87 +440,52 @@ impl App {
                         .find(|entry| entry.action.shortcut_id().as_ref() == Some(id));
                     let label = if id == "dialogue" {
                         qt("dialogue_short")
+                    } else if let Some(kind) = id.strip_prefix("node:") {
+                        self.catalog.label(kind)
                     } else {
-                        id.strip_prefix("node:")
-                            .map(|kind| self.catalog.label(kind))
-                            .unwrap_or_else(|| {
-                                entry
-                                    .map(|entry| entry.label.clone())
-                                    .unwrap_or_else(|| qt(id))
-                            })
+                        entry
+                            .map(|entry| entry.label.clone())
+                            .unwrap_or_else(|| qt(id))
                     };
                     let full = entry
                         .map(|entry| format!("{}\n{}", entry.label, entry.detail))
                         .unwrap_or_else(|| label.clone());
-                    let font = egui::TextStyle::Button.resolve(ui.style());
-                    let tab_width = (ui
+                    let button_width = (ui
                         .painter()
-                        .layout_no_wrap(label.clone(), font.clone(), ui.visuals().text_color())
+                        .layout_no_wrap(
+                            label.clone(),
+                            egui::FontId::proportional(13.0),
+                            ui.visuals().text_color(),
+                        )
                         .size()
                         .x
-                        + 60.0)
-                        .clamp(100.0, 210.0);
-                    if tab_width + 72.0 > ui.available_width() {
+                        + 16.0)
+                        .clamp(48.0, 172.0);
+                    if button_width + 64.0 > ui.available_width() {
                         overflow.push((id, label, full, entry));
                         continue;
                     }
-                    let (rect, _) =
-                        ui.allocate_exact_size(egui::vec2(tab_width, 34.0), egui::Sense::hover());
-                    let hovered = ui.rect_contains_pointer(rect);
-                    if hovered {
-                        ui.painter()
-                            .rect_filled(rect, 0, egui::Color32::from_rgb(248, 250, 253));
-                    }
-                    let main_rect =
-                        egui::Rect::from_min_max(rect.min, rect.max - egui::vec2(24.0, 0.0));
                     let response = ui
                         .add_enabled_ui(entry.is_some(), |ui| {
-                            ui.interact(
-                                main_rect,
-                                ui.id().with(("shortcut", id)),
-                                egui::Sense::click(),
+                            ui.add_sized(
+                                [button_width, 24.0],
+                                egui::Button::new(egui::RichText::new(&label).size(13.0))
+                                    .small()
+                                    .corner_radius(2)
+                                    .stroke(border)
+                                    .truncate(),
                             )
                         })
                         .inner
-                        .on_hover_text(format!("{full}\n{}", qt("shortcut_hint")))
-                        .on_hover_cursor(egui::CursorIcon::PointingHand);
-                    response.widget_info(|| {
-                        egui::WidgetInfo::labeled(egui::WidgetType::Button, entry.is_some(), &label)
-                    });
-                    let foreground = if entry.is_some() {
-                        ui.visuals().text_color()
-                    } else {
-                        ui.visuals().weak_text_color()
-                    };
-                    shortcut_icon(
-                        ui.painter(),
-                        egui::pos2(rect.left() + 17.0, rect.center().y),
-                        id,
-                        egui::Color32::from_rgb(91, 111, 138),
-                    );
-                    let mut text =
-                        egui::text::LayoutJob::simple_singleline(label.clone(), font, foreground);
-                    text.wrap.max_width = (main_rect.width() - 34.0).max(0.0);
-                    text.wrap.max_rows = 1;
-                    let galley = ui.painter().layout_job(text);
-                    ui.painter().galley(
-                        egui::pos2(rect.left() + 32.0, rect.center().y - galley.size().y / 2.0),
-                        galley,
-                        foreground,
-                    );
-                    if response.has_focus() {
+                        .on_hover_text(format!("{full}\n{}", qt("shortcut_hint")));
+                    if response.hovered() {
                         ui.painter().rect_stroke(
-                            main_rect.shrink(2.0),
-                            0,
-                            ui.visuals().selection.stroke,
+                            response.rect,
+                            2,
+                            egui::Stroke::new(1.0_f32, crate::shell::ACCENT),
                             egui::StrokeKind::Inside,
                         );
                     }
-                    ui.painter().vline(
-                        rect.right(),
-                        (rect.top() + 10.0)..=(rect.bottom() - 10.0),
-                        egui::Stroke::new(1.0_f32, separator),
-                    );
                     if response.clicked() {
                         chosen = entry.map(|entry| entry.action.clone());
                     }
@@ -606,24 +495,6 @@ impl App {
                             ui.close();
                         }
                     });
-                    if hovered {
-                        let close_rect = egui::Rect::from_min_max(
-                            egui::pos2(rect.right() - 25.0, rect.top() + 5.0),
-                            rect.max - egui::vec2(1.0, 5.0),
-                        );
-                        let close = ui
-                            .put(
-                                close_rect,
-                                egui::Button::new("×").frame(false).corner_radius(0),
-                            )
-                            .on_hover_text(qt("unpin"));
-                        close.widget_info(|| {
-                            egui::WidgetInfo::labeled(egui::WidgetType::Button, true, qt("unpin"))
-                        });
-                        if close.clicked() {
-                            remove = Some(id.clone());
-                        }
-                    }
                 }
                 if !overflow.is_empty() {
                     ui.menu_button("…", |ui| {
@@ -637,7 +508,7 @@ impl App {
                                     chosen = entry.map(|entry| entry.action.clone());
                                     ui.close();
                                 }
-                                if ui.small_button("×").on_hover_text(qt("unpin")).clicked() {
+                                if ui.small_button(qt("unpin")).clicked() {
                                     remove = Some(id.clone());
                                     ui.close();
                                 }
@@ -645,13 +516,13 @@ impl App {
                         }
                     });
                 }
-                ui.add_space(8.0);
                 let add = ui
                     .add_sized(
-                        [28.0, 28.0],
-                        egui::Button::new(egui::RichText::new("+").size(20.0))
-                            .frame(false)
-                            .corner_radius(0),
+                        [24.0, 24.0],
+                        egui::Button::new("+")
+                            .small()
+                            .corner_radius(2)
+                            .stroke(border),
                     )
                     .on_hover_text(qt("add_shortcut"));
                 add.widget_info(|| {
@@ -671,7 +542,6 @@ impl App {
             self.execute_quick_action(ui.ctx(), action);
         }
     }
-
     pub(super) fn open_dialogue_authoring(&mut self, ctx: &egui::Context) {
         if self.is_vanilla_patch() || !self.project.stories.contains_key(&self.current) {
             self.status = qt("dialogue_unavailable");
@@ -1703,7 +1573,7 @@ mod tests {
             None,
         );
         let (output, height) = draw(&mut app);
-        let expected = 34.0 + ctx.style().spacing.item_spacing.y;
+        let expected = 28.0 + ctx.style().spacing.item_spacing.y;
         assert!(
             (height - expected).abs() < 0.1,
             "bookmark row grew to {height}"

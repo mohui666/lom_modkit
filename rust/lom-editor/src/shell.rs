@@ -194,22 +194,22 @@ pub fn pin_button(
     let center = response.rect.center();
     let point = |x, y| center + egui::vec2(x, y);
     if pinned {
-        ui.painter().rect_filled(
-            egui::Rect::from_min_max(point(-5.0, -6.0), point(5.0, -4.0)),
-            0,
-            color,
-        );
-        ui.painter().rect_filled(
-            egui::Rect::from_min_max(point(-2.0, -4.0), point(2.0, 0.0)),
-            0,
-            color,
-        );
         ui.painter().add(egui::Shape::convex_polygon(
             vec![
-                point(-2.0, 0.0),
-                point(2.0, 0.0),
-                point(5.0, 4.0),
-                point(-5.0, 4.0),
+                point(-3.0, -5.0),
+                point(3.0, -5.0),
+                point(2.0, -1.0),
+                point(-2.0, -1.0),
+            ],
+            color,
+            egui::Stroke::NONE,
+        ));
+        ui.painter().add(egui::Shape::convex_polygon(
+            vec![
+                point(-2.0, -1.0),
+                point(2.0, -1.0),
+                point(5.0, 3.0),
+                point(-5.0, 3.0),
             ],
             color,
             egui::Stroke::NONE,
@@ -218,21 +218,17 @@ pub fn pin_button(
     let stroke = egui::Stroke::new(1.4_f32, color);
     ui.painter().add(egui::Shape::closed_line(
         vec![
-            point(-5.0, -6.0),
-            point(5.0, -6.0),
-            point(5.0, -4.0),
-            point(2.0, -4.0),
-            point(2.0, 0.0),
-            point(5.0, 4.0),
-            point(-5.0, 4.0),
-            point(-2.0, 0.0),
-            point(-2.0, -4.0),
-            point(-5.0, -4.0),
+            point(-3.0, -5.0),
+            point(3.0, -5.0),
+            point(2.0, -1.0),
+            point(5.0, 3.0),
+            point(-5.0, 3.0),
+            point(-2.0, -1.0),
         ],
         stroke,
     ));
     ui.painter()
-        .line_segment([point(0.0, 4.0), point(0.0, 8.0)], stroke);
+        .line_segment([point(0.0, 3.0), point(0.0, 7.0)], stroke);
     response
 }
 

@@ -753,7 +753,11 @@ impl App {
                                     ..Default::default()
                                 };
                                 let mut label = egui::text::LayoutJob::default();
-                                label.wrap.max_width = (ui.available_width() - 24.0).max(40.0);
+                                // right_text adds two gaps around its stretch spacer.
+                                label.wrap.max_width = (ui.available_width()
+                                    - 2.0 * ui.spacing().button_padding.x
+                                    - 2.0 * ui.spacing().icon_spacing)
+                                    .max(40.0);
                                 label.wrap.max_rows = 2;
                                 label.wrap.break_anywhere = true;
                                 label.append(
