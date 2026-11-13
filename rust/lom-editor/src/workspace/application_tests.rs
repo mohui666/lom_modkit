@@ -10,10 +10,151 @@ fn app() -> App {
 }
 
 #[test]
+fn single_layout_loads_previously_selected_widths() {
+    let widths = [[245.0, 420.0], [215.0, 365.0], [230.0, 595.0]];
+    for selected in 0..3 {
+        let prefs = usability::Preferences::load(&json!({
+            "workspace_layout":selected, "workspace_widths":widths
+        }));
+        assert_eq!(prefs.widths, widths[selected]);
+    }
+    let prefs = usability::Preferences::load(&json!({
+        "workspace_widths":[225.0,455.0], "workspace_layout":2
+    }));
+    assert_eq!(prefs.widths, [225.0, 455.0]);
+}
+
+#[test]
+fn continuous_dialogue_entry_is_beside_add_steps_and_search_is_on_the_right() {
+    use egui::accesskit::Role;
+    let mut app = app();
+    let before = snapshot(&app.project);
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let input = |events| egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            Vec2::new(1280.0, 900.0),
+        )),
+        events,
+        ..Default::default()
+    };
+    let output = ctx.run(input(vec![]), |ctx| app.toolbar(ctx));
+    let nodes = output.platform_output.accesskit_update.unwrap().nodes;
+    assert!(!nodes.iter().any(|(_, node)| node.role() == Role::ComboBox));
+    assert!(!nodes
+        .iter()
+        .any(|(_, node)| node.label()
+            == Some(crate::i18n::key("usability.dialogue.button").as_str())));
+    let search = nodes
+        .iter()
+        .find(|(_, node)| {
+            node.label() == Some(crate::i18n::key("usability.search.button").as_str())
+        })
+        .unwrap();
+    assert!(search.1.bounds().unwrap().x0 > 1200.0);
+    assert!(
+        1280.0 - search.1.bounds().unwrap().x1 <= 20.0,
+        "the search icon must align to the actual page bar's right edge"
+    );
+    app.center = Center::Node;
+    app.steps_panel_open = true;
+    let _ = ctx.run(input(vec![]), |ctx| app.sidebar(ctx));
+    let output = ctx.run(input(vec![]), |ctx| app.sidebar(ctx));
+    let event = click_named_option(&output, &crate::i18n::key("usability.dialogue.add_steps"));
+    let _ = ctx.run(input(vec![event]), |ctx| {
+        app.sidebar(ctx);
+        app.quick_tools(ctx);
+    });
+    assert_eq!(
+        ctx.memory(|memory| memory.focused()),
+        Some(egui::Id::new("continuous-dialogue-source"))
+    );
+    assert!(snapshot(&app.project) == before);
+}
+
+#[test]
+fn step_multiselect_checkboxes_only_show_while_mode_is_active() {
+    use egui::accesskit::Role;
+    let mut app = app();
+    let mut project = Project::new();
+    project.stories.get_mut("main").unwrap()["nodes"] = json!([
+        {"id":"a","type":"wait","seconds":1},
+        {"id":"b","type":"wait","seconds":2},
+        {"id":"c","type":"wait","seconds":3},
+        {"id":"done","type":"end"}
+    ]);
+    project.stories.get_mut("main").unwrap()["start"] = json!("a");
+    app.install(project);
+    let before = snapshot(&app.project);
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let draw = |app: &mut App, events| {
+        ctx.run(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    Vec2::new(1280.0, 900.0),
+                )),
+                events,
+                ..Default::default()
+            },
+            |ctx| app.sidebar(ctx),
+        )
+    };
+    let has_checkboxes = |output: &egui::FullOutput| {
+        output
+            .platform_output
+            .accesskit_update
+            .as_ref()
+            .unwrap()
+            .nodes
+            .iter()
+            .any(|(_, node)| node.role() == Role::CheckBox)
+    };
+    draw(&mut app, vec![]);
+    let output = draw(&mut app, vec![]);
+    assert!(!has_checkboxes(&output));
+    let event = click_named_option(&output, &crate::i18n::key("usability.steps.multiselect"));
+    let output = draw(&mut app, vec![event]);
+    assert!(has_checkboxes(&output));
+    let event = click_named_option(&output, "选择步骤 2");
+    let output = draw(&mut app, vec![event]);
+    assert_eq!(app.selected_indices(), [0, 1]);
+    app.copy();
+    assert_eq!(app.clipboard.len(), 2);
+    let event = click_named_option(
+        &output,
+        &crate::i18n::key("usability.steps.end_multiselect"),
+    );
+    let output = draw(&mut app, vec![event]);
+    assert!(!has_checkboxes(&output));
+    assert!(app.multiselect.is_empty());
+    assert_eq!(app.selected, 1);
+    let event = click_named_option(&output, "03");
+    draw(&mut app, vec![event]);
+    assert_eq!(app.selected, 2);
+    assert!(app.multiselect.is_empty());
+    app.select_step(0, false, false);
+    app.select_step(2, true, false);
+    let output = draw(&mut app, vec![]);
+    assert!(has_checkboxes(&output));
+    assert_eq!(app.selected_indices(), [0, 1, 2]);
+    let event = click_named_option(
+        &output,
+        &crate::i18n::key("usability.steps.end_multiselect"),
+    );
+    let output = draw(&mut app, vec![event]);
+    assert!(!has_checkboxes(&output));
+    assert!(app.multiselect.is_empty());
+    assert_eq!(app.selected, 2);
+    assert!(snapshot(&app.project) == before);
+}
+
+#[test]
 fn typing_dialogue_keeps_the_sidebar_width_and_allows_shrinking_it() {
     let mut app = app();
-    app.usability.layout = 0;
-    app.usability.widths[0][0] = 280.0;
+    app.usability.widths[0] = 280.0;
     app.project.stories.insert(
         "main".into(),
         json!({"id":"main","start":"say","nodes":[
@@ -25,7 +166,7 @@ fn typing_dialogue_keeps_the_sidebar_width_and_allows_shrinking_it() {
     app.search.clear();
     let ctx = egui::Context::default();
     style(&ctx);
-    let id = egui::Id::new(("chapters", 0usize));
+    let id = egui::Id::new("chapters");
     let draw = |app: &mut App| {
         let _ = ctx.run(
             egui::RawInput {

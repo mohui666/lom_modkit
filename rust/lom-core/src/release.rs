@@ -484,12 +484,23 @@ fn audit_content(project: &Project, root: &Path) -> Vec<PreflightIssue> {
         }
     }
     for (kind, id) in valid.difference(&referenced) {
+        let label = match kind.as_str() {
+            "image" => "图片",
+            "audio" => "音频",
+            "character" => "人物",
+            "item" => "物品",
+            "martial" => "功法",
+            "support" => "支援",
+            "skill" => "技能",
+            "talent" => "天赋",
+            _ => kind.as_str(),
+        };
         out.push(PreflightIssue::new(
             "warning",
             "unused_content",
             "",
             "",
-            format!("未使用用户内容 user:{id}（{kind}）"),
+            format!("已导入{label} user:{id}，但未找到作品中的引用，可保留备用。此提醒本身不阻止试玩或导出，无需重新提取；要使用时，请在对应步骤中选择这项内容。"),
         ));
     }
     out

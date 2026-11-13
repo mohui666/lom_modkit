@@ -207,6 +207,11 @@ fn content_preflight_distinguishes_type_portrait_and_hidden_images() {
         "assets/user/character/demo.hero/normal.png".into(),
         b"test image bytes".to_vec(),
     );
+    p.assets.insert("assets/user/image/demo.spare/content.json".into(), serde_json::to_vec(&json!({"content_schema":1,"id":"demo.spare","name":"备用图片","type":"image","files":{"main":"spare.png"}})).unwrap());
+    p.assets.insert(
+        "assets/user/image/demo.spare/spare.png".into(),
+        b"test image bytes".to_vec(),
+    );
     let issues = run_preflight(&p, Profile::Editing, "1.1.2");
     assert!(issues
         .iter()
@@ -220,6 +225,20 @@ fn content_preflight_distinguishes_type_portrait_and_hidden_images() {
     assert!(!issues
         .iter()
         .any(|i| i.code == "missing_image" && i.node_id == "overlay1"));
+    let unused = issues
+        .iter()
+        .find(|issue| issue.code == "unused_content" && issue.message.contains("user:demo.spare"))
+        .unwrap();
+    assert_eq!(unused.severity, "warning");
+    for explanation in [
+        "已导入图片",
+        "未找到作品中的引用",
+        "可保留备用",
+        "不阻止试玩或导出",
+        "无需重新提取",
+    ] {
+        assert!(unused.message.contains(explanation), "{}", unused.message);
+    }
 }
 
 #[test]

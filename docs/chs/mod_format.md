@@ -291,7 +291,7 @@ Host 从包内 Story 构建来源缓存，每次加载作品后首次进入该�
 
 父节点仍是唯一的流程节点：上述两人一起开始退场，整组等 0.8 秒，而非依次等待 1.3 秒，再继续父节点的 `goto` 或下一步。动作对象复用原有字段校验，不另写动作 ID、跳转或执行顺序分支。允许 2～32 个动作，不允许嵌套组。
 
-支持 `show/hide/move/face/focus/offset/rotate/dim/shock`、`scene/background/custom_cg/overlay`、`effect/camera/transition/mask/dayenv`、`music/sound/wait`。对白、选项、检定、战斗、跨场景跳转、面板、原生 Lua 等需要独占流程的节点放在组外。赵活外观 `appearance` 切换也放在组前。
+支持 `show/hide/move/face/focus/offset/rotate/dim/shock`、`scene/background/custom_cg/overlay`、`effect/camera/transition/mask/dayenv`、`music/sound/wait`。对白、选项、检定、战斗、跨场景跳转、面板、原生 Lua 等需要独占流程的节点放在组外。组内赵活 `show` 可选择 `appearance`（跟随游戏、普通、美颜）；生成器先设置外观、完成该配置的人物与表情预加载，再一起启动组内动作，沿用现有 Host 外观接口。
 
 同一人物的位移、旋转、转向、气泡可以放在同组，组合控制需要 Host 1.5.15。位置、角度、朝向、大小、明暗和前后顺序分别判断冲突；例如位移与偏移共用位置，两个旋转共用角度，仍须先后执行。登场、退场、换表情会重新布置立绘，不能与该人物的其他变换同组。重复气泡，以及全场气泡开关与单人气泡也须拆开。背景、前景槽、同名滤镜不得重复控制；特效按非空 tag 分通道，同名不同 tag 可同时播放，同 tag 冲突，空 tag 的同名停止与任意同名播放冲突。官方背景切换与黑幕转场共享剧情界面，不能放在同组；原版人物震动复用同一个 common 流图，同组只能放一个，用户人物震动不受此限制。音乐切换可能影响环境音，因此同组不再另加环境音控制。冲突会报出具体子动作序号、类型和控制属性。
 

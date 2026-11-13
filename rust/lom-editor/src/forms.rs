@@ -6,6 +6,10 @@ use serde_json::{json, Value};
 mod camera_characters_tests;
 mod combat_sections;
 mod parameter_defaults;
+
+pub(crate) fn request_default_parameters(ctx: &egui::Context) {
+    parameter_defaults::request_editor(ctx);
+}
 mod resource_picker;
 pub(crate) use resource_picker::{
     configure_resource_preferences, preview_story, resource_choice, set_preview_action,
@@ -721,7 +725,7 @@ impl Catalog {
             .unwrap_or_default();
         let mut changed = false;
         let mut help_request = None;
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             ui.heading(self.label(&kind));
             let help_key = format!("help.{kind}");
             let help = crate::i18n::key(&help_key);
@@ -730,6 +734,7 @@ impl Catalog {
                     help_request = Some(kind.clone());
                 }
             }
+            self.parameter_defaults.editor(self, ui, node);
         });
         ui.add_space(6.0);
         if kind == "say" {
@@ -1026,7 +1031,7 @@ impl Catalog {
                 let Some(id) = row["id"].as_str() else {
                     continue;
                 };
-                if id == "player" && node["type"] == "show" && node.get("id").is_some() {
+                if id == "player" && node["type"] == "show" {
                     options.extend([
                         ("player".into(), tr("跟随游戏")),
                         ("@original".into(), tr("普通")),
@@ -1051,9 +1056,7 @@ impl Catalog {
         let (character, appearance) = match selected {
             "@original" => ("player", Some("original")),
             "@beautified" => ("player", Some("beautified")),
-            "player" if node["type"] == "show" && node.get("id").is_some() => {
-                ("player", Some("game"))
-            }
+            "player" if node["type"] == "show" => ("player", Some("game")),
             other => (other, None),
         };
         node["character"] = json!(character);
@@ -1304,7 +1307,6 @@ impl Catalog {
         }
         if key == "show_message" {
             let mut show = lom_core::codegen::shows_system_messages(node);
-            let mut default_error = None;
             let changed = ui
                 .horizontal(|ui| {
                     let changed = ui
@@ -1314,15 +1316,9 @@ impl Catalog {
                     if changed {
                         node[key] = json!(show);
                     }
-                    default_error =
-                        self.parameter_defaults
-                            .button(ui, node, key, kind, &json!(show));
                     changed
                 })
                 .inner;
-            if let Some(error) = default_error {
-                ui.colored_label(ui.visuals().error_fg_color, error);
-            }
             return changed;
         }
         if key == "resume_original" {
@@ -1349,11 +1345,8 @@ impl Catalog {
                 );
             let mut changed = false;
             ui.label(crate::i18n::key("editor.form.lover"));
-            let mut default_error = None;
             ui.horizontal_top(|ui| {
-                let width = (ui.available_width()
-                    - self.parameter_defaults.width(ui, node, key, kind))
-                .max(60.0);
+                let width = ui.available_width().max(60.0);
                 ui.vertical(|ui| {
                     ui.set_max_width(width);
                     resource_combo(
@@ -1389,13 +1382,7 @@ impl Catalog {
                 if changed {
                     node[key] = json!(value);
                 }
-                default_error = self
-                    .parameter_defaults
-                    .button(ui, node, key, kind, &json!(value));
             });
-            if let Some(error) = default_error {
-                ui.colored_label(ui.visuals().error_fg_color, error);
-            }
             return changed;
         }
         let specific = format!("field.{}.{}", node["type"].as_str().unwrap_or(""), key);
@@ -1509,9 +1496,8 @@ impl Catalog {
                             template.clone()
                         }
                     });
-                    let mut default_error = None;
                     let field_changed = ui.horizontal_top(|ui| {
-                    let input_width = (ui.available_width() - self.parameter_defaults.width(ui, node, key, kind)).max(60.0);
+                    let input_width = ui.available_width().max(60.0);
                     let field_changed = ui.vertical(|ui| {
                     ui.set_max_width(input_width);
                     match kind {
@@ -1759,10 +1745,8 @@ impl Catalog {
                         }
                     }
                     }).inner;
-                    default_error = self.parameter_defaults.button(ui, node, key, kind, &value);
                     field_changed
                     }).inner;
-                    if let Some(error) = default_error { ui.colored_label(ui.visuals().error_fg_color, error); }
                     if reset {
                         if node["type"] == "effect" && key == "space" {
                             set_effect_space(node, "world");
@@ -3905,7 +3889,7 @@ mod tests {
         assert_eq!(node["portrait"], "special1");
     }
     #[test]
-    fn player_appearance_choices_keep_existing_host_contract_and_parallel_restrictions() {
+    fn player_appearance_choices_keep_existing_host_contract_inside_parallel_actions() {
         let catalog = Catalog::new();
         let mut node = json!({"id":"n1","type":"show","character":"player","position":"M","portrait":"normal"});
         assert!(catalog
@@ -3918,12 +3902,17 @@ mod tests {
         catalog.select_appearance(&mut node, "player");
         assert_eq!(node["appearance"], "game");
         node.as_object_mut().unwrap().remove("id");
-        catalog.select_appearance(&mut node, "player");
-        assert!(node.get("appearance").is_none());
-        assert!(!catalog
+        assert!(catalog
             .appearance_options(&node)
             .iter()
-            .any(|(id, _)| id.starts_with('@')));
+            .any(|(id, _)| id == "@beautified"));
+        catalog.select_appearance(&mut node, "@beautified");
+        assert_eq!(node["appearance"], "beautified");
+        catalog.select_appearance(&mut node, "player");
+        assert_eq!(node["appearance"], "game");
+        node["type"] = json!("say");
+        catalog.select_appearance(&mut node, "player");
+        assert!(node.get("appearance").is_none());
     }
     #[test]
     fn clicking_appearance_then_expression_writes_the_selected_official_variant() {
@@ -4092,57 +4081,6 @@ mod tests {
             },
         );
         (output, changed)
-    }
-    #[test]
-    fn set_default_button_persists_a_fade_without_editing_the_current_step() {
-        use egui::accesskit::Role;
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("node-defaults.json");
-        let mut catalog = Catalog::new();
-        catalog.configure_parameter_defaults(path.clone()).unwrap();
-        let context = egui::Context::default();
-        let mut node = json!({"id":"overlay1","type":"overlay","action":"show","fade":0.8});
-        let original = node.clone();
-        let (output, changed) = field_frame(&catalog, &context, &mut node, "fade", "float", vec![]);
-        assert!(!changed);
-        let widgets = &output
-            .platform_output
-            .accesskit_update
-            .as_ref()
-            .unwrap()
-            .nodes;
-        let input = widgets
-            .iter()
-            .find(|(_, node)| node.role() == Role::SpinButton)
-            .unwrap()
-            .1
-            .bounds()
-            .unwrap();
-        let button = widgets
-            .iter()
-            .find(|(_, node)| {
-                node.label() == Some(crate::i18n::key("editor.defaults.set").as_str())
-            })
-            .unwrap()
-            .1
-            .bounds()
-            .unwrap();
-        assert!(
-            input.y0.max(button.y0) < input.y1.min(button.y1),
-            "the default action must share the input row"
-        );
-        assert!(button.x0 >= input.x1);
-        let events = click(
-            &output,
-            Role::Button,
-            &crate::i18n::key("editor.defaults.set"),
-        );
-        let (_, changed) = field_frame(&catalog, &context, &mut node, "fade", "float", events);
-        assert!(!changed, "saving a preference is not a story edit");
-        assert_eq!(node, original);
-        let mut reopened = Catalog::new();
-        reopened.configure_parameter_defaults(path).unwrap();
-        assert_eq!(reopened.new_node("overlay", "next".into())["fade"], 0.8);
     }
     #[test]
     fn long_project_menu_keeps_search_visible_and_commits_only_a_result_click() {

@@ -59,7 +59,9 @@ fn rejects_flow_control_invalid_child_fields_and_competing_outputs() {
         json!([{"type":"move","character":"player","from":"L","to":"R","duration":1},{"type":"hide","character":"player","fadeDuration":1}]),
         json!([{"type":"scene","view":"center"},{"type":"transition","phase":"out"}]),
         json!([{"type":"overlay","action":"hide","slot":"same"},{"type":"overlay","action":"hide","slot":"same"}]),
-        json!([{"type":"show","character":"player","position":"M","appearance":"original"},{"type":"wait","seconds":1}]),
+        json!([{"type":"show","character":"brother1","position":"M","appearance":"original"},{"type":"wait","seconds":1}]),
+        json!([{"type":"show","character":"player","position":"M","appearance":"unknown"},{"type":"wait","seconds":1}]),
+        json!([{"type":"hide","character":"player","appearance":"beautified"},{"type":"wait","seconds":1}]),
         Value::Array(vec![
             json!({"type":"wait","seconds":0});
             parallel::MAX_ACTIONS + 1
@@ -74,6 +76,39 @@ fn rejects_flow_control_invalid_child_fields_and_competing_outputs() {
         parallel::validate_group(&json!({"actions": [valid[0].clone(), valid[0].clone()]}))
             .unwrap_err();
     assert!(conflict.to_string().contains("第 1 和第 2"));
+}
+
+#[test]
+fn player_appearance_is_selected_before_parallel_preloads_in_either_action_order() {
+    for appearance in ["game", "original", "beautified"] {
+        for reversed in [false, true] {
+            let mut actions = vec![
+                json!({"type":"show","character":"player","position":"L1","portrait":"normal","appearance":appearance}),
+                json!({"type":"show","character":"brother1","position":"R1","portrait":"normal"}),
+            ];
+            if reversed {
+                actions.reverse();
+            }
+            let source = story(Value::Array(actions));
+            validate::validate_story(&source).unwrap();
+            let lua = codegen::compile_story(&source, None, None, None).unwrap();
+            let select = format!("mod_player_appearance(\"{appearance}\")");
+            assert_eq!(lua.matches(&select).count(), 1, "{lua}");
+            let selected = lua.find(&select).unwrap();
+            let load = lua.find("runwait(characters.LoadCharacterAsset(").unwrap();
+            let portrait = lua.find("characters.LoadCharacterPortrait(").unwrap();
+            let start = lua.find("\t__lom_parallel({").unwrap();
+            assert!(
+                selected < load && load < portrait && portrait < start,
+                "{lua}"
+            );
+            assert!(!lua[start..].contains("mod_player_appearance"));
+            assert!(!lua[start..].contains("LoadCharacterAsset"));
+            let mut conflict = source;
+            conflict["nodes"][0]["actions"][1] = conflict["nodes"][0]["actions"][0].clone();
+            assert!(validate::validate_story(&conflict).is_err());
+        }
+    }
 }
 
 #[test]

@@ -991,11 +991,8 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
         }
     }
     if stories.values().any(|s| {
-        s["nodes"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .any(|n| n["appearance"].as_str().is_some_and(|s| !s.is_empty()))
+        crate::parallel::story_actions(s)
+            .any(|(_, n)| n["appearance"].as_str().is_some_and(|s| !s.is_empty()))
     }) {
         let version = manifest
             .get("min_host_version")

@@ -36,6 +36,9 @@ pub fn issue_destination(
 }
 
 pub fn issue_label(issue: &lom_core::release::PreflightIssue, project: &Project) -> String {
+    if issue.code == "unused_content" {
+        return crate::i18n::key("usability.problems.view_asset");
+    }
     let Some(story) = project.stories.get(&issue.story_id) else {
         return issue_destination(issue, project).label();
     };
@@ -137,7 +140,11 @@ pub fn focus_field(ctx: &eframe::egui::Context, message: &str) {
 }
 
 pub fn action_label(message: &str, destination: &Destination) -> String {
-    if *destination == Destination::Manifest
+    if matches!(destination, Destination::Asset(_))
+        && (message.contains("unused_content") || message.contains("未找到作品中的引用"))
+    {
+        crate::i18n::key("usability.problems.view_asset")
+    } else if *destination == Destination::Manifest
         && (message.contains("campaign_id") || message.contains("存档身份"))
     {
         crate::i18n::key("common.error.fill_identity")
@@ -403,6 +410,33 @@ mod tests {
         assert_eq!(
             resolve("用户内容 demo.pic 缺少图片", &project),
             Destination::Asset("assets/user/image/demo.pic/content.json".into())
+        );
+        let unused = lom_core::release::PreflightIssue {
+            severity: "warning".into(),
+            code: "unused_content".into(),
+            story_id: String::new(),
+            node_id: String::new(),
+            message: "已导入图片 user:demo.pic，但未找到作品中的引用，可保留备用。".into(),
+            fixable: false,
+        };
+        assert_eq!(
+            issue_label(&unused, &project),
+            crate::i18n::key("usability.problems.view_asset")
+        );
+        assert_eq!(
+            issue_destination(&unused, &project),
+            Destination::Asset("assets/user/image/demo.pic/content.json".into())
+        );
+        assert_eq!(
+            action_label(&unused.message, &issue_destination(&unused, &project)),
+            crate::i18n::key("usability.problems.view_asset")
+        );
+        assert_eq!(
+            action_label(
+                "用户内容 demo.pic 缺少图片",
+                &issue_destination(&unused, &project)
+            ),
+            crate::i18n::key("common.error.fix_asset")
         );
         assert_eq!(
             resolve("scenario.json: 事件不存在", &project),

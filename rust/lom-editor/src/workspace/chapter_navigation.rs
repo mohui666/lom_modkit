@@ -44,6 +44,7 @@ impl App {
                 {
                     self.save_usability_preferences();
                 }
+                ui.small(crate::i18n::key("usability.palette.reopen_hint"));
                 if ui
                     .button(crate::i18n::key("editor.workspace.parallel"))
                     .on_hover_text(crate::i18n::key("editor.workspace.parallel_hint"))
@@ -115,9 +116,9 @@ impl App {
             });
     }
     pub(super) fn sidebar(&mut self, ctx: &egui::Context) {
-        let panel = egui::SidePanel::left(egui::Id::new(("chapters", self.usability.layout)))
+        let panel = egui::SidePanel::left("chapters")
             .frame(surface(true))
-            .default_width(self.usability.widths[self.usability.layout][0])
+            .default_width(self.usability.widths[0])
             .min_width(180.0)
             .max_width((ctx.available_rect().width() - 620.0).max(180.0))
             .resizable(true)
@@ -215,8 +216,19 @@ impl App {
                 egui::TopBottomPanel::bottom("add-step-bottom")
                     .frame(egui::Frame::new().inner_margin(egui::Margin::symmetric(0, 5)))
                     .show_inside(ui, |ui| {
-                        ui.toggle_value(&mut self.steps_panel_open, tr("＋ 添加步骤"))
-                            .on_hover_text(crate::i18n::key("editor.workspace.panel_toggle"));
+                        ui.horizontal_wrapped(|ui| {
+                            ui.toggle_value(&mut self.steps_panel_open, tr("＋ 添加步骤"))
+                                .on_hover_text(crate::i18n::key("usability.palette.reopen_hint"));
+                            if ui
+                                .button(crate::i18n::key("usability.dialogue.add_steps"))
+                                .on_hover_text(crate::i18n::key(
+                                    "usability.dialogue.add_steps_hint",
+                                ))
+                                .clicked()
+                            {
+                                self.open_dialogue_authoring(ui.ctx());
+                            }
+                        });
                         ui.small(crate::i18n::key("editor.workspace.panel_resize"));
                     });
                 let old = self.current.clone();
@@ -510,6 +522,36 @@ impl App {
                     }
                     return;
                 }
+                let selection_mode_id = egui::Id::new(("step-multiselect-mode", &self.current));
+                let mut selection_mode = ctx
+                    .data(|data| data.get_temp::<bool>(selection_mode_id).unwrap_or(false))
+                    || !self.multiselect.is_empty();
+                ui.horizontal_wrapped(|ui| {
+                    ui.small(crate::i18n::message(
+                        "workspace.steps.selected",
+                        &[("count", self.selected_indices().len().to_string())],
+                    ));
+                    if ui
+                        .small_button(crate::i18n::key(if selection_mode {
+                            "usability.steps.end_multiselect"
+                        } else {
+                            "usability.steps.multiselect"
+                        }))
+                        .clicked()
+                    {
+                        selection_mode = !selection_mode;
+                        if !selection_mode {
+                            self.multiselect.clear();
+                        }
+                    }
+                });
+                ctx.data_mut(|data| data.insert_temp(selection_mode_id, selection_mode));
+                ui.small(crate::i18n::key(if selection_mode {
+                    "usability.steps.multiselect_active_hint"
+                } else {
+                    "usability.steps.select_hint"
+                }))
+                .on_hover_text(crate::i18n::key("usability.steps.select_detail"));
                 ui.visuals_mut().widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
                 ui.visuals_mut().widgets.inactive.bg_fill = Color32::TRANSPARENT;
                 ui.visuals_mut().widgets.inactive.bg_stroke = egui::Stroke::NONE;
@@ -542,6 +584,7 @@ impl App {
                                             ))
                                             .clicked()
                                     {
+                                        self.multiselect.clear();
                                         self.current = sid.clone();
                                         self.selected = index;
                                         self.center = Center::Node;
@@ -560,19 +603,6 @@ impl App {
                 }
                 let nodes = story["nodes"].as_array().map(Vec::as_slice).unwrap_or(&[]);
                 let rows = authoring::section_rows(&story);
-                ui.horizontal(|ui| {
-                    ui.small(crate::i18n::message(
-                        "workspace.steps.selected",
-                        &[("count", self.selected_indices().len().to_string())],
-                    ));
-                    if self.multiselect.len() > 1 && ui.small_button(tr("取消多选")).clicked() {
-                        self.multiselect.clear();
-                    }
-                });
-                ui.small(tr("勾选可多选 · Shift 连选 · 拖动可批量移动"))
-                    .on_hover_text(tr(
-                        "也可用 Ctrl 点选。拖到列表上下边缘可自动滚动；… 菜单可移到最前或最后。",
-                    ));
                 let row_height = 44.0;
                 let mut scroll = egui::ScrollArea::vertical()
                     .id_salt("steps")
@@ -686,28 +716,25 @@ impl App {
                         let response = ui
                             .horizontal(|ui| {
                                 ui.add_space(depth as f32 * 9.0);
-                                let mut checked = self.selected_indices().contains(&index);
-                                let checkbox =
-                                    ui.checkbox(&mut checked, "").on_hover_text(tr("选择步骤"));
-                                ui.painter().rect_stroke(
-                                    egui::Rect::from_center_size(
-                                        checkbox.rect.center(),
-                                        Vec2::splat(ui.spacing().icon_width),
-                                    ),
-                                    3.0,
-                                    egui::Stroke::new(1.0_f32, Color32::from_rgb(120, 140, 158)),
-                                    egui::StrokeKind::Inside,
-                                );
-                                checkbox.widget_info(|| {
-                                    egui::WidgetInfo::selected(
-                                        egui::WidgetType::Checkbox,
-                                        ui.is_enabled(),
-                                        checked,
-                                        format!("{} {}", tr("选择步骤"), index + 1),
-                                    )
-                                });
-                                if checkbox.changed() {
-                                    self.select_step(index, ui.input(|i| i.modifiers.shift), true);
+                                if selection_mode {
+                                    let mut checked = self.selected_indices().contains(&index);
+                                    let checkbox =
+                                        ui.checkbox(&mut checked, "").on_hover_text(tr("选择步骤"));
+                                    checkbox.widget_info(|| {
+                                        egui::WidgetInfo::selected(
+                                            egui::WidgetType::Checkbox,
+                                            ui.is_enabled(),
+                                            checked,
+                                            format!("{} {}", tr("选择步骤"), index + 1),
+                                        )
+                                    });
+                                    if checkbox.changed() {
+                                        self.select_step(
+                                            index,
+                                            ui.input(|i| i.modifiers.shift),
+                                            true,
+                                        );
+                                    }
                                 }
                                 let selected =
                                     self.selected == index || self.multiselect.contains(&index);
@@ -726,7 +753,11 @@ impl App {
                                     ..Default::default()
                                 };
                                 let mut label = egui::text::LayoutJob::default();
-                                label.wrap.max_width = (ui.available_width() - 24.0).max(40.0);
+                                // right_text adds two gaps around its stretch spacer.
+                                label.wrap.max_width = (ui.available_width()
+                                    - 2.0 * ui.spacing().button_padding.x
+                                    - 2.0 * ui.spacing().icon_spacing)
+                                    .max(40.0);
                                 label.wrap.max_rows = 2;
                                 label.wrap.break_anywhere = true;
                                 label.append(

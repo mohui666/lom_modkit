@@ -588,6 +588,7 @@
             {
               "type": "show",
               "character": "player",
+              "appearance": "beautified",
               "position": "L1",
               "portrait": "normal",
               "fadeDuration": 0,

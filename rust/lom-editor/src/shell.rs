@@ -168,6 +168,70 @@ pub fn dialog_buttons<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R
     .inner
 }
 
+pub fn pin_button(
+    ui: &mut egui::Ui,
+    rect: egui::Rect,
+    pinned: bool,
+    label: &str,
+) -> egui::Response {
+    let response = ui
+        .put(
+            rect,
+            egui::Button::new("")
+                .small()
+                .frame(false)
+                .min_size(rect.size()),
+        )
+        .on_hover_text(label);
+    response.widget_info(|| {
+        egui::WidgetInfo::selected(egui::WidgetType::Button, ui.is_enabled(), pinned, label)
+    });
+    let color = if pinned {
+        ACCENT
+    } else {
+        ui.style().interact(&response).fg_stroke.color
+    };
+    let center = response.rect.center();
+    let point = |x, y| center + egui::vec2(x, y);
+    if pinned {
+        ui.painter().add(egui::Shape::convex_polygon(
+            vec![
+                point(-3.0, -5.0),
+                point(3.0, -5.0),
+                point(2.0, -1.0),
+                point(-2.0, -1.0),
+            ],
+            color,
+            egui::Stroke::NONE,
+        ));
+        ui.painter().add(egui::Shape::convex_polygon(
+            vec![
+                point(-2.0, -1.0),
+                point(2.0, -1.0),
+                point(5.0, 3.0),
+                point(-5.0, 3.0),
+            ],
+            color,
+            egui::Stroke::NONE,
+        ));
+    }
+    let stroke = egui::Stroke::new(1.4_f32, color);
+    ui.painter().add(egui::Shape::closed_line(
+        vec![
+            point(-3.0, -5.0),
+            point(3.0, -5.0),
+            point(2.0, -1.0),
+            point(5.0, 3.0),
+            point(-5.0, 3.0),
+            point(-2.0, -1.0),
+        ],
+        stroke,
+    ));
+    ui.painter()
+        .line_segment([point(0.0, 3.0), point(0.0, 7.0)], stroke);
+    response
+}
+
 pub fn viewport() -> egui::ViewportBuilder {
     egui::ViewportBuilder::default()
         .with_inner_size([1280.0, 760.0])

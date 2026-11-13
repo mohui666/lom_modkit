@@ -352,3 +352,55 @@ fn released_1514_parallel_package_retains_historical_lua_and_accepts_new_indepen
     // it was not produced by today's compiler or by an emulated old emitter.
     released_package_edit_roundtrip("released-1.5.14-parallel-base.lommod");
 }
+
+#[test]
+fn released_1514_package_can_add_beautified_parallel_arrival_save_export_and_reopen() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/released-1.5.14-parallel-base.lommod");
+    let original_bytes = std::fs::read(&fixture).unwrap();
+    let original_entries = package::read_package(&fixture).unwrap();
+    let mut project = Project::open(&fixture).unwrap();
+    let old_story = project.stories["main"].clone();
+    let old_assets = project.assets.clone();
+    let directory = tempfile::tempdir().unwrap();
+    let unchanged = directory.path().join("unchanged.lommod");
+    project.export(&unchanged).unwrap();
+    assert_eq!(
+        package::read_package(&unchanged).unwrap()["lua/main.lua"],
+        original_entries["lua/main.lua"]
+    );
+    assert_substituted_lua_is_rejected(&fixture, &directory.path().join("old-substituted.lommod"));
+
+    let chapter = project.stories.get_mut("main").unwrap();
+    chapter["nodes"].as_array_mut().unwrap().insert(0, json!({
+        "id":"beautified_arrival","type":"parallel","goto":old_story["start"],"actions":[
+            {"type":"show","character":"player","appearance":"beautified","portrait":"normal","position":"L1"},
+            {"type":"show","character":"brother1","portrait":"normal","position":"R1"}
+        ]
+    }));
+    chapter["start"] = json!("beautified_arrival");
+    let folder = directory.path().join("edited");
+    project.save_to(&folder).unwrap();
+    let saved = Project::open(&folder).unwrap();
+    assert_eq!(saved.stories, project.stories);
+    assert_eq!(saved.assets, old_assets);
+    let exported = directory.path().join("edited.lommod");
+    saved.export(&exported).unwrap();
+    let restored = Project::open(&exported).unwrap();
+    assert_eq!(restored.stories, project.stories);
+    assert_eq!(restored.assets, old_assets);
+    assert_eq!(
+        &restored.stories["main"]["nodes"].as_array().unwrap()[1..],
+        old_story["nodes"].as_array().unwrap()
+    );
+    let entries = package::read_package(&exported).unwrap();
+    let lua = std::str::from_utf8(&entries["lua/main.lua"]).unwrap();
+    assert!(
+        lua.find("mod_player_appearance(\"beautified\")").unwrap()
+            < lua
+                .find("runwait(characters.LoadCharacterAsset(\"player\"))")
+                .unwrap()
+    );
+    assert_substituted_lua_is_rejected(&exported, &directory.path().join("new-substituted.lommod"));
+    assert_eq!(std::fs::read(&fixture).unwrap(), original_bytes);
+}

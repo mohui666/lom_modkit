@@ -177,6 +177,7 @@ fn shortcut_search_gets_focus_and_preserves_the_existing_global_search_binding()
     let mut app = app();
     let original = snapshot(&app.project);
     let ctx = egui::Context::default();
+    ctx.enable_accesskit();
     let _ = ctx.run(
         egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(
@@ -215,8 +216,12 @@ fn shortcut_search_gets_focus_and_preserves_the_existing_global_search_binding()
         },
         |ctx| app.shortcuts(ctx),
     );
-    assert_eq!(app.center, Center::Advanced);
-    assert_eq!(app.advanced.page, 0);
+    assert_eq!(app.center, Center::Node);
+    let output = ctx.run(Default::default(), |ctx| app.quick_tools(ctx));
+    let nodes = output.platform_output.accesskit_update.unwrap().nodes;
+    for tab in ["作品内容", "步骤与操作"] {
+        assert!(nodes.iter().any(|(_, node)| node.label() == Some(tab)));
+    }
     assert!(snapshot(&app.project) == original);
 }
 
