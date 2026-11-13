@@ -129,6 +129,7 @@ mod audio;
 mod character_profile_panel;
 mod content_panel;
 mod manifest_panel;
+mod preview_audio;
 mod scenario_panel;
 mod scenario_quick;
 mod scenario_settings;

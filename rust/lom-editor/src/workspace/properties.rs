@@ -5,6 +5,19 @@ impl App {
     pub(super) fn center(&mut self, ctx: &egui::Context) {
         if self.center == Center::Node && self.is_vanilla_patch() {
             let mut story = self.story();
+            self.vanilla.set_segment_chapters(
+                self.project
+                    .stories
+                    .iter()
+                    .filter(|(_, story)| {
+                        story.get("vanilla_patch").is_none()
+                            && story.get("vanilla_import").is_none()
+                    })
+                    .map(|(id, story)| {
+                        (id.clone(), story["title"].as_str().unwrap_or(id).to_owned())
+                    })
+                    .collect(),
+            );
             let used = self
                 .project
                 .stories
@@ -35,21 +48,62 @@ impl App {
                         });
                     }
                 });
-            let imported = self.vanilla.take_imported();
+            let mut inserted = None;
+            if let Some(request) = self.vanilla.take_segment_insertion() {
+                let result = self
+                    .project
+                    .stories
+                    .get(&request.chapter)
+                    .context("选择的剧情章节已不存在")
+                    .and_then(|source| {
+                        super::segment_insertion::insert_segment(
+                            request.story,
+                            source,
+                            &request.anchor,
+                            request.before,
+                        )
+                    });
+                match result {
+                    Ok((next, start, count)) => {
+                        story = next;
+                        inserted = Some((start, count));
+                    }
+                    Err(error) => self.vanilla.segment_error(error),
+                }
+            }
+            let imported = self.vanilla.take_imported() || inserted.is_some();
             if imported {
                 self.flush();
             }
             self.project.stories.insert(self.current.clone(), story);
+            if let Some((target, chapter)) = self.vanilla.take_before_chapter() {
+                if let Err(error) = self.add_before_original_event(&target, &chapter) {
+                    self.vanilla.segment_error(error);
+                }
+            }
+            if self.vanilla.take_new_segment() {
+                self.begin_chapter(false);
+                if let Some(draft) = &mut self.chapter_dialog {
+                    draft.name = crate::i18n::key("vanilla.content_segment_name");
+                }
+            }
             if imported {
-                self.selected = 0;
+                self.selected = inserted.map_or(0, |(start, _)| start);
                 self.multiselect.clear();
+                if let Some((start, count)) = inserted {
+                    self.multiselect = (start..start + count).collect();
+                }
                 self.view = View::Stage;
                 self.auto = false;
                 self.audio.stop();
                 self.needs_compile = true;
                 self.track();
                 self.flush();
-                self.status = "已导入原版整章，可在步骤间插入内容。F5 从原版章节入口试玩。".into();
+                self.status = if let Some((_, count)) = inserted {
+                    crate::i18n::message("vanilla.segment_done", &[("count", count.to_string())])
+                } else {
+                    "已导入原版整章，可在步骤间插入内容。F5 从原版章节入口试玩。".into()
+                };
             }
             if let Some(mark) = self.vanilla.take_bookmark() {
                 self.open_story_bookmark(mark, ctx);
@@ -250,6 +304,7 @@ impl App {
                                             )
                                             .clicked()
                                         {
+                                            self.stop_preview();
                                             let result = if name.starts_with("user:") {
                                                 self.audio.play_content(&self.project, name)
                                             } else {
@@ -453,7 +508,7 @@ impl App {
             });
         }
         ui.add_enabled_ui(story.get("vanilla_import").is_none(), |ui| {
-            egui::ComboBox::from_id_salt("start")
+            crate::forms::SearchCombo::from_id_salt("start")
                 .selected_text(
                     ids.iter()
                         .enumerate()
@@ -467,18 +522,31 @@ impl App {
                         })
                         .unwrap_or_else(|| tr("选择入口步骤")),
                 )
-                .show_ui(ui, |ui| {
+                .show_ui(ui, |ui, query| {
                     for (index, n) in ids.iter().enumerate() {
                         if let Some(id) = n["id"].as_str() {
-                            ui.selectable_value(
-                                &mut start,
-                                id.into(),
-                                format!(
-                                    "{:02} {}",
-                                    index + 1,
-                                    self.catalog.label(n["type"].as_str().unwrap_or(""))
-                                ),
+                            let label = format!(
+                                "{:02} {}",
+                                index + 1,
+                                self.catalog.label(n["type"].as_str().unwrap_or(""))
                             );
+                            if !crate::forms::resource_matches(id, &label, query) {
+                                continue;
+                            }
+                            if ui
+                                .selectable_value(
+                                    &mut start,
+                                    id.into(),
+                                    format!(
+                                        "{:02} {}",
+                                        index + 1,
+                                        self.catalog.label(n["type"].as_str().unwrap_or(""))
+                                    ),
+                                )
+                                .clicked()
+                            {
+                                ui.close();
+                            }
                         }
                     }
                 });
@@ -525,16 +593,24 @@ impl App {
                 })
                 .collect();
             crate::forms::number_duplicate_labels(&mut section_names);
-            egui::ComboBox::from_id_salt("parent-section")
+            crate::forms::SearchCombo::from_id_salt("parent-section")
                 .selected_text(
                     section_names
                         .get(self.section_parent)
                         .map(|(_, name)| name.clone())
                         .unwrap_or_else(|| crate::i18n::key("editor.workspace.section_owner")),
                 )
-                .show_ui(ui, |ui| {
-                    for (i, (_, name)) in section_names.iter().enumerate() {
-                        ui.selectable_value(&mut self.section_parent, i, name);
+                .show_ui(ui, |ui, query| {
+                    for (i, (id, name)) in section_names.iter().enumerate() {
+                        if !crate::forms::resource_matches(id, name, query) {
+                            continue;
+                        }
+                        if ui
+                            .selectable_value(&mut self.section_parent, i, name)
+                            .clicked()
+                        {
+                            ui.close();
+                        }
                     }
                 });
             if ui

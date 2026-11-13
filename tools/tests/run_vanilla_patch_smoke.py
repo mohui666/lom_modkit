@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import zipfile
 
 
 def main():
@@ -12,10 +13,17 @@ def main():
     parser.add_argument("--dotnet", required=True, type=Path)
     parser.add_argument("--fungus", required=True, type=Path)
     parser.add_argument("--lomc", required=True, type=Path)
+    parser.add_argument("--segment-package", type=Path, help="Also execute the showcase's whole-segment insertion")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[2]
     output = root / "out/vanilla-patch-lua"
     output.mkdir(parents=True, exist_ok=True)
+    if args.segment_package:
+        with zipfile.ZipFile(args.segment_package) as package:
+            for entry, name in [("story/original_story_import.json", "import-segment.json"),
+                                ("lua/original_story_import.lua", "import-segment.lua"),
+                                ("texts.json", "import-segment-texts.json")]:
+                (output / name).write_bytes(package.read(entry))
     full = json.loads((root / "rust/lom-core/tests/fixtures/vanilla-import.json").read_text(encoding="utf-8"))
     (output / "import-original.lua").write_text(full["source"],encoding="utf-8",newline="")
     variants = {"baseline":full["baseline"],"edited":full["story"]}

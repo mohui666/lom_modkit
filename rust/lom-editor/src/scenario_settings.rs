@@ -32,14 +32,21 @@ fn choice(
                 selected.clone()
             }
         });
-    egui::ComboBox::from_id_salt(salt)
+    crate::forms::SearchCombo::from_id_salt(salt)
         .width(ui.available_width().clamp(80.0, 320.0))
-        .truncate()
         .selected_text(caption)
-        .show_ui(ui, |ui| {
+        .show_ui(ui, |ui, query| {
             for (id, name) in options {
-                ui.selectable_value(selected, id.clone(), name)
-                    .on_hover_text(id);
+                if !crate::forms::resource_matches(id, name, query) {
+                    continue;
+                }
+                if ui
+                    .selectable_value(selected, id.clone(), name)
+                    .on_hover_text(id)
+                    .clicked()
+                {
+                    ui.close();
+                }
             }
         });
     before != *selected

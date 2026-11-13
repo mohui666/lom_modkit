@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read flag descriptions from the installed game; write only editor metadata.
+"""Read the complete registered flag catalog; write only editor metadata.
 
 FlagData's live fields are m_Name, _devNote, _default, State. No flag state,
 game files or save files are changed. Run with the existing UnityPy environment.
@@ -79,29 +79,70 @@ def enrich(row, note, default, official_name, scripts):
     return row
 
 
-def refresh(game, output=ROOT / "data/editor_data.json"):
+def registered_flags(game):
+    """Follow MissionManagerData.FlagsCollection, exactly as GetFlag does."""
     import UnityPy
+    from UnityPy.classes import PPtr
 
-    document = json.loads(output.read_text(encoding="utf-8"))
-    rows = {row["id"]: row for row in document["game_flags"]}
     assets = UnityPy.load(str(game / "Mortal_Data/globalgamemanagers.assets"))
-    flags = {}
+    managers = []
     for obj in assets.objects:
         if obj.type.name != "MonoBehaviour":
             continue
         header = obj.read(check_read=False)
-        if header.m_Name not in rows:
-            continue
         script = header.m_Script.read()
-        if script.m_ClassName != "FlagData" or script.m_Namespace != "Mortal.Core":
-            continue
-        raw = obj.get_raw_data()
-        flag, at = _string(raw, 28)
-        note, at = _string(raw, at)
-        if at + 8 != len(raw):
-            raise ValueError(f"FlagData 字段布局已改变：{flag}")
-        default, _ = struct.unpack_from("<ii", raw, at)
-        flags[flag] = (note, default)
+        if script.m_ClassName == "MissionManagerData" and script.m_Namespace == "Mortal.Core":
+            managers.append(obj)
+    if len(managers) != 1:
+        raise ValueError("无法确认唯一的原版 MissionManagerData")
+
+    def pointer_list(owner, at):
+        raw = owner.get_raw_data()
+        count = struct.unpack_from("<i", raw, at)[0]
+        at += 4
+        end = at + count * 12
+        if count < 0 or end > len(raw):
+            raise ValueError("原版旗标集合字段布局已改变")
+        pointers = []
+        for offset in range(at, end, 12):
+            file_id, path_id = struct.unpack_from("<iq", raw, offset)
+            if not path_id:
+                raise ValueError("原版旗标集合含空引用")
+            pointers.append(PPtr(m_FileID=file_id, m_PathID=path_id,
+                                 assetsfile=owner.assets_file).deref())
+        return pointers, end
+
+    manager = managers[0]
+    _, at = _string(manager.get_raw_data(), 28)
+    # Live MissionManagerData: player stat, main mission, sub-missions, then flags.
+    collections, _ = pointer_list(manager, at + 3 * 12)
+    flags = {}
+    for collection in collections:
+        _, at = _string(collection.get_raw_data(), 28)
+        entries, end = pointer_list(collection, at)
+        if end != len(collection.get_raw_data()):
+            raise ValueError("FlagCollectionData.List 字段布局已改变")
+        for obj in entries:
+            header = obj.read(check_read=False)
+            script = header.m_Script.read()
+            if script.m_ClassName != "FlagData" or script.m_Namespace != "Mortal.Core":
+                raise ValueError("原版旗标集合引用了非 FlagData 对象")
+            raw = obj.get_raw_data()
+            flag, at = _string(raw, 28)
+            note, at = _string(raw, at)
+            if at + 8 != len(raw):
+                raise ValueError(f"FlagData 字段布局已改变：{flag}")
+            default, _ = struct.unpack_from("<ii", raw, at)
+            if flag in flags and flags[flag] != (note, default):
+                raise ValueError(f"原版旗标编号重复且内容冲突：{flag}")
+            flags[flag] = (note, default)
+    return flags
+
+
+def refresh(game, output=ROOT / "data/editor_data.json"):
+    document = json.loads(output.read_text(encoding="utf-8"))
+    rows = {row["id"]: row for row in document["game_flags"]}
+    flags = registered_flags(game)
     missing = sorted(rows.keys() - flags.keys())
     if missing:
         raise ValueError("当前游戏缺少目录中的旗标：" + ", ".join(missing))
@@ -109,12 +150,13 @@ def refresh(game, output=ROOT / "data/editor_data.json"):
     references = direct_references(entries)
     official = _load_prefixed_kv(CSV_STAT, RAW_FLAG, "Flag/Name")
     document["game_flags"] = [
-        enrich(row, *flags[flag], official.get(flag), references.get(flag, []))
-        for flag, row in sorted(rows.items())
+        enrich({"id": flag}, *flags[flag], official.get(flag), references.get(flag, []))
+        for flag in sorted(flags)
     ]
     output.write_text(json.dumps(document, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return {
-        "flags": len(rows),
+        "flags": len(flags),
+        "added": len(flags.keys() - rows.keys()),
         "described": sum("description" in row for row in document["game_flags"]),
         "value_choices": sum("values" in row for row in document["game_flags"]),
         "temporary": sum(row.get("temporary", False) for row in document["game_flags"]),

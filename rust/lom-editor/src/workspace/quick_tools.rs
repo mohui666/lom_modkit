@@ -255,6 +255,15 @@ fn dialogue_ready(rows: &[DialogueRow], actors: &[DialogueActor]) -> bool {
         })
 }
 
+fn apply_same_speaker(rows: &mut [DialogueRow], name: &str, speaker: &Speaker) {
+    if name.is_empty() || *speaker == Speaker::Unresolved {
+        return;
+    }
+    for row in rows.iter_mut().filter(|row| row.source_speaker == name) {
+        row.speaker = speaker.clone();
+    }
+}
+
 fn command_matches(entry: &CommandEntry, query: &str) -> bool {
     query
         .split_whitespace()
@@ -865,6 +874,13 @@ fn dialogue_ui(
                         ui.colored_label(ui.visuals().warn_fg_color, qt("source_changed"));
                     }
                     let mut remove = None;
+                    let mut apply_name = None;
+                    let mut speaker_counts = BTreeMap::<String, usize>::new();
+                    for row in &draft.rows {
+                        *speaker_counts
+                            .entry(row.source_speaker.clone())
+                            .or_default() += 1;
+                    }
                     for (index, row) in draft.rows.iter_mut().enumerate() {
                         ui.push_id(("dialogue-row", index), |ui| {
                             ui.separator();
@@ -886,40 +902,59 @@ fn dialogue_ui(
                                     .unwrap_or_else(|| id.clone()),
                                 Speaker::Unresolved => qt("unmatched"),
                             };
-                            egui::ComboBox::from_id_salt("dialogue-speaker")
-                                .selected_text(selected)
-                                .width(350.0)
-                                .height(220.0)
-                                .show_ui(ui, |ui| {
-                                    ui.add(
-                                        egui::TextEdit::singleline(&mut row.actor_search)
-                                            .hint_text(qt("actor_search"))
-                                            .desired_width(340.0),
-                                    );
-                                    ui.selectable_value(
-                                        &mut row.speaker,
-                                        Speaker::Narration,
-                                        qt("narration"),
-                                    );
-                                    let search = row.actor_search.trim().to_lowercase();
-                                    for actor in actors.iter().filter(|actor| {
-                                        search.is_empty()
-                                            || format!(
-                                                "{} {} {}",
-                                                actor.label,
-                                                actor.id,
-                                                actor.aliases.join(" ")
-                                            )
-                                            .to_lowercase()
-                                            .contains(&search)
-                                    }) {
+                            crate::forms::resource_combo(ui, "dialogue-speaker", &selected, |ui| {
+                                ui.add(
+                                    egui::TextEdit::singleline(&mut row.actor_search)
+                                        .hint_text(qt("actor_search"))
+                                        .desired_width(340.0),
+                                );
+                                egui::ScrollArea::vertical()
+                                    .auto_shrink([false, false])
+                                    .show(ui, |ui| {
                                         ui.selectable_value(
                                             &mut row.speaker,
-                                            Speaker::Character(actor.id.clone()),
-                                            format!("{} ({})", actor.label, actor.id),
+                                            Speaker::Narration,
+                                            qt("narration"),
                                         );
-                                    }
-                                });
+                                        let search = row.actor_search.trim().to_lowercase();
+                                        for actor in actors.iter().filter(|actor| {
+                                            search.is_empty()
+                                                || format!(
+                                                    "{} {} {}",
+                                                    actor.label,
+                                                    actor.id,
+                                                    actor.aliases.join(" ")
+                                                )
+                                                .to_lowercase()
+                                                .contains(&search)
+                                        }) {
+                                            ui.selectable_value(
+                                                &mut row.speaker,
+                                                Speaker::Character(actor.id.clone()),
+                                                format!("{} ({})", actor.label, actor.id),
+                                            );
+                                        }
+                                    });
+                            });
+                            let same = speaker_counts[&row.source_speaker];
+                            if !row.source_speaker.is_empty()
+                                && same > 1
+                                && row.speaker != Speaker::Unresolved
+                            {
+                                if ui
+                                    .small_button(qmessage(
+                                        "apply_same_speaker",
+                                        &[
+                                            ("name", row.source_speaker.clone()),
+                                            ("count", same.to_string()),
+                                        ],
+                                    ))
+                                    .clicked()
+                                {
+                                    apply_name =
+                                        Some((row.source_speaker.clone(), row.speaker.clone()));
+                                }
+                            }
                             if row.speaker == Speaker::Unresolved {
                                 ui.colored_label(ui.visuals().warn_fg_color, qt("match_required"));
                             }
@@ -932,6 +967,9 @@ fn dialogue_ui(
                                 ui.colored_label(ui.visuals().warn_fg_color, qt("empty_text"));
                             }
                         });
+                    }
+                    if let Some((name, speaker)) = apply_name {
+                        apply_same_speaker(&mut draft.rows, &name, &speaker);
                     }
                     if let Some(index) = remove {
                         draft.rows.remove(index);
@@ -956,6 +994,28 @@ fn dialogue_ui(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn batch_dialogue_shortcut_opens_the_review_dialog_without_inserting_a_step() {
+        let mut app = app();
+        let before = snapshot(&app.project);
+        let ctx = egui::Context::default();
+        let _ = ctx.run(
+            egui::RawInput {
+                events: vec![egui::Event::Key {
+                    key: egui::Key::Enter,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: egui::Modifiers::COMMAND | egui::Modifiers::SHIFT,
+                }],
+                ..Default::default()
+            },
+            |ctx| app.shortcuts(ctx),
+        );
+        assert!(state(&ctx).dialogue.is_some());
+        assert!(snapshot(&app.project) == before);
+    }
 
     fn actors() -> Vec<DialogueActor> {
         vec![
@@ -1016,6 +1076,75 @@ mod tests {
         assert_eq!(rows[0].text, "时间：到了。");
         assert_eq!(rows[1].speaker, Speaker::Narration);
         assert_eq!(rows[1].text, "他道：回来了。");
+    }
+
+    #[test]
+    fn matching_one_speaker_can_apply_to_the_batch_without_touching_other_names_or_text() {
+        let actors = actors();
+        let source = "客人：第一句。\n客人：第二句。\n陌生人：仍需匹配。\n旁白：保留叙述。\nuser:demo.actor：保留自建人物。";
+        let mut rows = parse_dialogue(source, &actors);
+        rows[0].speaker = Speaker::Character("guest2".into());
+        let original = rows.clone();
+        let mut draft = DialogueDraft {
+            chapter: "main".into(),
+            anchor: None,
+            source: source.into(),
+            parsed_source: source.into(),
+            rows,
+            focus: false,
+            composing: false,
+            error: None,
+        };
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        let draw = |draft: &mut DialogueDraft, events| {
+            ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1400.0, 1800.0),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ctx| {
+                    dialogue_ui(ctx, draft, &actors);
+                },
+            )
+        };
+        let output = draw(&mut draft, vec![]);
+        let label = qmessage(
+            "apply_same_speaker",
+            &[("name", "客人".into()), ("count", "2".into())],
+        );
+        let target = output
+            .platform_output
+            .accesskit_update
+            .unwrap()
+            .nodes
+            .into_iter()
+            .find(|(_, node)| node.label() == Some(label.as_str()))
+            .unwrap()
+            .0;
+        draw(
+            &mut draft,
+            vec![egui::Event::AccessKitActionRequest(
+                egui::accesskit::ActionRequest {
+                    action: egui::accesskit::Action::Click,
+                    target,
+                    data: None,
+                },
+            )],
+        );
+        assert_eq!(draft.rows[1].speaker, Speaker::Character("guest2".into()));
+        for index in 2..draft.rows.len() {
+            assert_eq!(draft.rows[index].speaker, original[index].speaker);
+        }
+        assert_eq!(
+            draft.rows.iter().map(|row| &row.text).collect::<Vec<_>>(),
+            original.iter().map(|row| &row.text).collect::<Vec<_>>()
+        );
+        assert!(!dialogue_ready(&draft.rows, &actors));
     }
 
     #[test]

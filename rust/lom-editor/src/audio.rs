@@ -10,6 +10,8 @@ pub struct Player {
     preparation: Option<Preparation>,
     workspace: Option<tempfile::TempDir>,
     description: Option<String>,
+    prepare_only: bool,
+    prepared_file: Option<PathBuf>,
 }
 
 struct Preparation {
@@ -28,6 +30,15 @@ fn hidden_command(program: &Path) -> Command {
     command
 }
 impl Player {
+    /// Reuse the existing extraction/decoding pipeline without starting a player.
+    pub(crate) fn preparer() -> Self {
+        let mut player = Self::default();
+        player.prepare_only = true;
+        player
+    }
+    pub(crate) fn prepared_file(&self) -> Option<&Path> {
+        self.prepared_file.as_deref()
+    }
     pub fn stop(&mut self) {
         if let Some(mut preparation) = self.preparation.take() {
             let _ = preparation.child.kill();
@@ -39,6 +50,7 @@ impl Player {
         }
         self.workspace = None;
         self.description = None;
+        self.prepared_file = None;
     }
     pub fn update(&mut self) -> Result<()> {
         let description = self.description.clone();
@@ -220,6 +232,10 @@ impl Player {
             .to_ascii_lowercase();
         ensure!(["ogg", "wav"].contains(&ext.as_str()), "试听只支持 OGG/WAV");
         self.stop();
+        if self.prepare_only {
+            self.prepared_file = Some(path.to_path_buf());
+            return Ok(());
+        }
         let mut command = if cfg!(target_os = "macos") && ext == "wav" {
             let mut c = Command::new("/usr/bin/afplay");
             c.arg(path);

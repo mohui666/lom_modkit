@@ -689,7 +689,7 @@ fn number(v: &Value, key: &str, default: f64) -> f64 {
 // a readable editor preview interval, not a claim about that installed value.
 const PREVIEW_TRANSITION_SECONDS: f64 = 1.0;
 
-/// Editor timing only: game loading and audio are not simulated here.
+/// Editor timing only; resource loading is handled by the playback transport.
 pub(crate) fn action_duration(action: &Value) -> f64 {
     match text(action, "type") {
         "portrait" => number(action, "fade_out", 0.5) + number(action, "fade_in", 1.5),
@@ -701,7 +701,8 @@ pub(crate) fn action_duration(action: &Value) -> f64 {
         "wait" => number(action, "seconds", 0.0),
         "transition" => PREVIEW_TRANSITION_SECONDS,
         "background" | "custom_cg" | "overlay" => number(action, "fade", 0.0),
-        "music" | "sound" if action["op"] == "fadeout" => number(action, "seconds", 2.0),
+        "music" if action["op"] == "fadeout" => number(action, "seconds", 2.0),
+        "sound" if action["op"] == "fadeout" => number(action, "seconds", 1.0),
         "effect" => 0.0,
         "cg" if action["kind"] == "event" && action["action"] == "show" => {
             number(action, "fade_in", 0.0)
@@ -736,6 +737,7 @@ pub fn playback_duration(node: &Value) -> f64 {
             .max(0.1)
     } else {
         match text(node, "type") {
+            "music" | "sound" if node["op"] == "fadeout" => action_duration(node).max(0.1),
             "cg" if node["kind"] == "big" => action_duration(node).max(0.1),
             "cg" if node["kind"] == "event" && node["action"] == "show" => {
                 action_duration(node).max(0.0) + 1.8

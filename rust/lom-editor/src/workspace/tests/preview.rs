@@ -1,6 +1,68 @@
 use super::*;
 
 #[test]
+#[cfg(windows)]
+fn preview_audio_waits_for_preparation_and_follows_transport_without_changing_the_project() {
+    let mut app = app();
+    app.install(
+        Project::open(&PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../samples/showcase3"))
+            .unwrap(),
+    );
+    app.current = "main".into();
+    app.selected = app.story()["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .position(|node| node["id"] == "audio_preview_mix")
+        .unwrap();
+    app.center = Center::Node;
+    app.view = View::Stage;
+    app.preview_sound = true;
+    app.sync_preview_selection();
+    let (mixer, _source) = rodio::mixer::mixer(1, 8000);
+    app.preview_audio.test_mixer = Some(mixer);
+    let original = snapshot(&app.project);
+    app.toggle_preview();
+    assert!(
+        app.tick_preview_audio(),
+        "both clips must be ready before the visual clock continues"
+    );
+    let frozen = app.preview_elapsed.unwrap();
+    assert!(frozen < 0.1);
+    assert!(!app.tick_preview_audio());
+    assert!(app.preview_audio.warnings().is_empty());
+    app.toggle_preview();
+    assert!(!app.auto);
+    app.toggle_preview();
+    assert!(app.auto);
+    assert!(
+        !app.tick_preview_audio(),
+        "resuming must reuse prepared audio"
+    );
+    app.last_step = Instant::now() - Duration::from_secs(4);
+    app.advance_preview();
+    app.sync_preview_selection();
+    assert!(app.auto, "automatic navigation preserves playback");
+    app.tick_preview_audio();
+    assert_eq!(app.preview_audio.location().unwrap().1, "scene1");
+    app.selected += 1;
+    app.sync_preview_selection();
+    assert!(!app.auto);
+    assert!(app.preview_audio.location().is_none());
+    app.toggle_preview();
+    app.tick_preview_audio();
+    assert!(
+        app.preview_audio.location().is_some(),
+        "a new start restores earlier persistent music"
+    );
+    app.stop_preview();
+    assert!(!app.auto);
+    assert!(app.preview_audio.location().is_none());
+    assert_eq!(app.preview_elapsed, None);
+    assert!(snapshot(&app.project) == original);
+}
+
+#[test]
 fn preview_choices_resume_playback_through_consecutive_branches() {
     let mut app = choice_preview();
     app.auto = true;
@@ -60,6 +122,54 @@ fn playtest_start_uses_the_chapter_entry_without_changing_selection() {
     assert_eq!(app.playtest_node(false), "later");
     assert_eq!(app.playtest_node(true), "intro");
     assert_eq!(app.selected, 0);
+}
+
+#[test]
+fn event_test_entry_selects_the_current_story_and_reveals_settings_without_starting_the_game() {
+    let mut app = app();
+    let mut project = Project::new_scenario("addon");
+    let event = project.scenario.as_mut().unwrap()["events"][0].clone();
+    let mut unrelated = event.clone();
+    unrelated["id"] = json!("unrelated");
+    unrelated["script"] = json!("other");
+    project.scenario.as_mut().unwrap()["events"] = json!([unrelated, event]);
+    app.install(project);
+    app.current = "main".into();
+    app.scenario_selection.event = Some("unrelated".into());
+    let original = snapshot(&app.project);
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    app.open_event_test(&ctx);
+    assert_eq!(app.center, Center::Events);
+    assert_eq!(app.scenario_selection.event.as_deref(), Some("opening"));
+    let output = ctx.run(
+        egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(900.0, 1200.0),
+            )),
+            ..Default::default()
+        },
+        |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                assert!(crate::scenario_test::show(
+                    ui,
+                    &app.project,
+                    app.scenario_selection.event.as_deref(),
+                    &app.catalog
+                )
+                .is_none());
+            });
+        },
+    );
+    assert!(output
+        .platform_output
+        .accesskit_update
+        .unwrap()
+        .nodes
+        .iter()
+        .any(|(_, node)| node.label() == Some(crate::i18n::key("editor.event_test.run").as_str())));
+    assert!(snapshot(&app.project) == original);
 }
 #[test]
 fn dragging_a_mood_updates_the_same_node_as_the_form() {

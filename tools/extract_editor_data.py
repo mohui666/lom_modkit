@@ -638,7 +638,9 @@ def main():
         "game_flags": [
             {**flag_metadata.get(g, {}), "id": g,
              "name": flag_names.get(g, flag_metadata.get(g, {}).get("name", g))}
-            for g in sorted(game_flags - UNAVAILABLE_GAME_FLAGS)
+            # Keep the complete live catalog, including flags only referenced by
+            # mission assets, dynamic Lua keys or newly added game chapters.
+            for g in sorted((game_flags | flag_metadata.keys()) - UNAVAILABLE_GAME_FLAGS)
         ],
         "talents": [{"id": t, "name": talent_names.get(t, t)} for t in sorted(talents)],
         # PlayerTalentData._combatSkill 的完整官方集合；不同于只扫描

@@ -182,20 +182,37 @@ impl Advanced {
                         .desired_width(f32::INFINITY)
                         .hint_text(tr("查找台词、人物或节点")),
                 );
-                egui::ComboBox::from_id_salt("search-category")
+                crate::forms::SearchCombo::from_id_salt("search-category")
                     .selected_text(if self.category.is_empty() {
                         tr("全部类型")
                     } else {
                         display_label(&self.category)
                     })
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.category, String::new(), tr("全部类型"));
+                    .show_ui(ui, |ui, query| {
+                        if ui
+                            .selectable_value(&mut self.category, String::new(), tr("全部类型"))
+                            .clicked()
+                        {
+                            ui.close();
+                        }
                         for category in editing::CATEGORIES {
-                            ui.selectable_value(
-                                &mut self.category,
-                                category.to_string(),
-                                display_label(category),
-                            );
+                            if !crate::forms::resource_matches(
+                                category,
+                                &display_label(category),
+                                query,
+                            ) {
+                                continue;
+                            }
+                            if ui
+                                .selectable_value(
+                                    &mut self.category,
+                                    category.to_string(),
+                                    display_label(category),
+                                )
+                                .clicked()
+                            {
+                                ui.close();
+                            }
                         }
                     });
                 let hits = editing::search(
@@ -367,11 +384,20 @@ impl Advanced {
                     ("目标章节", &mut self.target),
                 ] {
                     ui.label(format!("{} *", tr(label)));
-                    egui::ComboBox::from_id_salt(label)
+                    crate::forms::SearchCombo::from_id_salt(label)
                         .selected_text(selected.as_str())
-                        .show_ui(ui, |ui| {
+                        .show_ui(ui, |ui, query| {
                             for id in project.stories.keys() {
-                                ui.selectable_value(selected, id.clone(), id);
+                                if !crate::forms::resource_matches(
+                                    id,
+                                    project.stories[id]["title"].as_str().unwrap_or(""),
+                                    query,
+                                ) {
+                                    continue;
+                                }
+                                if ui.selectable_value(selected, id.clone(), id).clicked() {
+                                    ui.close();
+                                }
                             }
                         });
                 }
@@ -471,11 +497,23 @@ impl Advanced {
                     self.tests_story.clone()
                 };
                 self.select_tests(project, &selected);
-                egui::ComboBox::from_id_salt("test-chapter")
+                crate::forms::SearchCombo::from_id_salt("test-chapter")
                     .selected_text(&self.tests_story)
-                    .show_ui(ui, |ui| {
+                    .show_ui(ui, |ui, query| {
                         for sid in project.stories.keys() {
-                            ui.selectable_value(&mut selected, sid.clone(), sid);
+                            if !crate::forms::resource_matches(
+                                sid,
+                                project.stories[sid]["title"].as_str().unwrap_or(""),
+                                query,
+                            ) {
+                                continue;
+                            }
+                            if ui
+                                .selectable_value(&mut selected, sid.clone(), sid)
+                                .clicked()
+                            {
+                                ui.close();
+                            }
                         }
                     });
                 if selected != self.tests_story {

@@ -340,7 +340,7 @@ fn select(
         ui.label(tr(label));
         let mut value = v[key].as_str().unwrap_or(default).to_owned();
         let before = value.clone();
-        egui::ComboBox::from_id_salt(key)
+        crate::forms::SearchCombo::from_id_salt(key)
             .selected_text(
                 items
                     .iter()
@@ -348,9 +348,17 @@ fn select(
                     .map(|(_, name)| tr(name))
                     .unwrap_or_else(|| value.clone()),
             )
-            .show_ui(ui, |ui| {
+            .show_ui(ui, |ui, query| {
                 for (id, name) in items {
-                    ui.selectable_value(&mut value, (*id).into(), tr(name));
+                    if !crate::forms::resource_matches(id, &tr(name), query) {
+                        continue;
+                    }
+                    if ui
+                        .selectable_value(&mut value, (*id).into(), tr(name))
+                        .clicked()
+                    {
+                        ui.close();
+                    }
                 }
             });
         if value != before {
@@ -384,10 +392,10 @@ fn bool_field(ui: &mut egui::Ui, v: &mut Value, key: &str, label: &str, default:
         v[key] = json!(b);
     }
 }
-fn new_event(id: &str, script: &str) -> Value {
+pub(crate) fn new_event(id: &str, script: &str) -> Value {
     json!({"id":id,"name":"新的事件","trigger":"position","position":"Center","script":script,"once":true,"check":"stage","priority":0,"chance":100,"weight":1,"when":{"all":[]},"outcomes":{"completed":{"variables":{},"tasks":{}}}})
 }
-fn unique(items: &[Value], prefix: &str) -> String {
+pub(crate) fn unique(items: &[Value], prefix: &str) -> String {
     (1..)
         .map(|i| format!("{prefix}_{i}"))
         .find(|id| !items.iter().any(|v| v["id"] == *id))
@@ -928,11 +936,19 @@ fn outcomes(ui: &mut egui::Ui, v: &mut Value, tasks: &[(String, Vec<String>)], c
                 for key in updates {
                     ui.push_id(&key, |ui| {
                         let mut id = key.clone();
-                        egui::ComboBox::from_id_salt("task")
+                        crate::forms::SearchCombo::from_id_salt("task")
                             .selected_text(&id)
-                            .show_ui(ui, |ui| {
+                            .show_ui(ui, |ui, query| {
                                 for (candidate, _) in tasks {
-                                    ui.selectable_value(&mut id, candidate.clone(), candidate);
+                                    if !crate::forms::resource_matches(candidate, "", query) {
+                                        continue;
+                                    }
+                                    if ui
+                                        .selectable_value(&mut id, candidate.clone(), candidate)
+                                        .clicked()
+                                    {
+                                        ui.close();
+                                    }
                                 }
                             });
                         if id != key && effects["tasks"].get(&id).is_none() {

@@ -1,6 +1,7 @@
 {
   "_editor": {
-    "chapter_group": "原版编辑"
+    "chapter_group": "原版编辑",
+    "note": "示例：整段复制「整段插入示例」到新增对白后，内部选项的两条路径都自动接回原版尾句。"
   },
   "id": "original_story_import",
   "mood": true,
@@ -320,11 +321,52 @@
       "type": "native_action"
     },
     {
-      "goto": "original_10",
+      "goto": "segment1_0",
       "id": "inserted",
       "inherit_dialog": true,
       "text": "新增对白",
       "type": "say"
+    },
+    {
+      "goto": "segment1_1",
+      "id": "segment1_0",
+      "mode": "narrative",
+      "text": "这是一整段插入剧情的开场。",
+      "type": "say"
+    },
+    {
+      "id": "segment1_1",
+      "options": [
+        {
+          "goto": "segment1_2",
+          "text": "听第一段"
+        },
+        {
+          "goto": "segment1_3",
+          "text": "听第二段"
+        }
+      ],
+      "type": "choice"
+    },
+    {
+      "goto": "segment1_4",
+      "id": "segment1_2",
+      "mode": "narrative",
+      "text": "第一条路径结束后，会继续原版剧情。",
+      "type": "say"
+    },
+    {
+      "goto": "segment1_4",
+      "id": "segment1_3",
+      "mode": "narrative",
+      "text": "第二条路径也会接回同一个原版位置。",
+      "type": "say"
+    },
+    {
+      "id": "segment1_4",
+      "resume_node": "original_10",
+      "resume_original": true,
+      "type": "end"
     },
     {
       "_editor": {

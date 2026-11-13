@@ -32,6 +32,18 @@
       "op": "play"
     },
     {
+      "id": "audio_preview_mix",
+      "type": "parallel",
+      "actions": [
+        {"type": "music", "name": "user:showcase.lantern_theme", "op": "play"},
+        {"type": "sound", "name": "user:showcase.lantern_chime", "kind": "sound", "op": "play"},
+        {"type": "wait", "seconds": 3}
+      ],
+      "_editor": {
+        "note": "Windows 预览声音示例：播放时背景音乐与铃声音效同时响起，停留 3 秒。暂停后一起暂停，再次播放继续；停止或手动选择其他步骤会清理声音。"
+      }
+    },
+    {
       "id": "scene1",
       "type": "scene",
       "view": "center"
@@ -508,7 +520,11 @@
       "play": false,
       "clear": true,
       "tag": "showcase_hit",
-      "wait_after": 0.25
+      "wait_after": 0.25,
+      "_editor": {
+        "note": "快捷清除示例：选择名称或实例标记后点「停止并清空此特效」。停止模式只显示定位、清空残余和动作后停留；已有坐标与缩放保留，切回播放后可继续编辑。"
+      },
+      "space": "world"
     },
     {
       "id": "priority_player_reset",
@@ -645,29 +661,29 @@
       "active": false,
       "duration": 1.2
     },
-      {
-        "id": "camera_gray_in",
-        "type": "camera",
-        "name": "stage-gray-100",
-        "active": true,
-        "duration": 1.2,
-        "exclude_characters": [
-          "user:showcase.lin_deng"
-        ]
-      },
-      {
-        "id": "camera_gray_note",
-        "type": "say",
-        "mode": "narrative",
-        "text": "现在进入黑白回忆。场景与赵活先渲染并应用黑白滤镜；林灯与气泡放在场景后处理之后、对白之前绘制，保留原彩。"
-      },
-      {
-        "id": "camera_gray_out",
-        "type": "camera",
-        "name": "stage-gray-100",
-        "active": false,
-        "duration": 1.2
-      },
+    {
+      "id": "camera_gray_in",
+      "type": "camera",
+      "name": "stage-gray-100",
+      "active": true,
+      "duration": 1.2,
+      "exclude_characters": [
+        "user:showcase.lin_deng"
+      ]
+    },
+    {
+      "id": "camera_gray_note",
+      "type": "say",
+      "mode": "narrative",
+      "text": "现在进入黑白回忆。场景与赵活先渲染并应用黑白滤镜；林灯与气泡放在场景后处理之后、对白之前绘制，保留原彩。"
+    },
+    {
+      "id": "camera_gray_out",
+      "type": "camera",
+      "name": "stage-gray-100",
+      "active": false,
+      "duration": 1.2
+    },
     {
       "id": "block1",
       "type": "block",

@@ -109,7 +109,10 @@
       ],
       "enemy_skills": [
         "user:showcase.lantern_strike"
-      ]
+      ],
+      "_editor": {
+        "note": "决斗表单示例：常用设置集中显示对手、背景、血量气力和胜负去向；武学状态、补正、赵活数值、技能援助与行动概率分别折叠，标题提示已填写项数。"
+      }
     },
     {
       "id": "battle_result1",

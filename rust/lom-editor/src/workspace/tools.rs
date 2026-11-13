@@ -75,7 +75,7 @@ impl App {
                 return;
             }
             let old = self.bulk_key.clone();
-            egui::ComboBox::from_id_salt("bulk-field")
+            crate::forms::SearchCombo::from_id_salt("bulk-field")
                 .selected_text(
                     fields
                         .iter()
@@ -83,13 +83,21 @@ impl App {
                         .map(|f| f.label.as_str())
                         .unwrap_or("选择共同字段"),
                 )
-                .show_ui(ui, |ui| {
+                .show_ui(ui, |ui, query| {
                     for f in &fields {
-                        ui.selectable_value(
-                            &mut self.bulk_key,
-                            f.key.clone(),
-                            format!("{} · {}", f.label, f.key),
-                        );
+                        if !crate::forms::resource_matches(&f.key, &f.label, query) {
+                            continue;
+                        }
+                        if ui
+                            .selectable_value(
+                                &mut self.bulk_key,
+                                f.key.clone(),
+                                format!("{} · {}", f.label, f.key),
+                            )
+                            .clicked()
+                        {
+                            ui.close();
+                        }
                     }
                 });
             if let Some(field) = fields.iter().find(|f| f.key == self.bulk_key) {

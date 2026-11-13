@@ -23,18 +23,26 @@ impl ContentPanel {
             }
             let mut reference = alignment::reference(&self.draft).to_owned();
             let before = reference.clone();
-            egui::ComboBox::from_id_salt("portrait-reference")
+            crate::forms::SearchCombo::from_id_salt("portrait-reference")
                 .selected_text(crate::i18n::message(
                     "common.alignment.reference_value",
                     &[("portrait", reference.clone())],
                 ))
-                .show_ui(ui, |ui| {
+                .show_ui(ui, |ui, query| {
                     for name in self.draft["portraits"]
                         .as_object()
                         .into_iter()
                         .flat_map(|v| v.keys())
                     {
-                        ui.selectable_value(&mut reference, name.clone(), name);
+                        if !crate::forms::resource_matches(name, "", query) {
+                            continue;
+                        }
+                        if ui
+                            .selectable_value(&mut reference, name.clone(), name)
+                            .clicked()
+                        {
+                            ui.close();
+                        }
                     }
                 });
             if reference != before {

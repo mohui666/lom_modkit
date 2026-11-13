@@ -4,6 +4,8 @@ use serde_json::{json, Value};
 
 #[cfg(test)]
 mod camera_characters_tests;
+mod combat_sections;
+mod parameter_defaults;
 mod resource_picker;
 pub(crate) use resource_picker::{
     configure_resource_preferences, preview_story, resource_choice, set_preview_action,
@@ -33,6 +35,7 @@ pub struct Catalog {
         std::cell::RefCell<std::collections::BTreeMap<(String, String), Vec<(String, String)>>>,
     pub(crate) stage_characters: Option<std::collections::BTreeSet<String>>,
     staged_characters_only: std::cell::Cell<bool>,
+    parameter_defaults: parameter_defaults::ParameterDefaults,
 }
 
 pub struct NodeFormResponse {
@@ -60,6 +63,17 @@ fn field_requirement(node: &Value, key: &str, optional: bool) -> Requirement {
         !optional
     };
     let conditional = match (kind, key) {
+        ("effect", "name" | "tag") if !effect_playing(node) => {
+            let other = if key == "name" { "tag" } else { "name" };
+            return if node[other]
+                .as_str()
+                .is_some_and(|value| !value.trim().is_empty())
+            {
+                Optional
+            } else {
+                OneOf
+            };
+        }
         ("render_priority", "character") => Some(node["target"] == "character"),
         ("render_priority", "slot") => Some(node["target"] == "overlay"),
         ("render_priority", "name" | "tag") if node["target"] == "effect" => return OneOf,
@@ -144,6 +158,31 @@ fn effect_playing(node: &Value) -> bool {
     })
 }
 
+fn effect_clear_shortcut(ui: &mut Ui, node: &mut Value) -> bool {
+    let target = ["name", "tag"].iter().any(|key| {
+        node[*key]
+            .as_str()
+            .is_some_and(|value| !value.trim().is_empty())
+    });
+    if !ui
+        .add_enabled(
+            target,
+            egui::Button::new(crate::i18n::key("editor.form.clear_effect")),
+        )
+        .on_hover_text(crate::i18n::key("editor.form.clear_effect_hint"))
+        .clicked()
+    {
+        return false;
+    }
+    let before = node.clone();
+    node["play"] = json!(false);
+    node["clear"] = json!(true);
+    if node.get("space").is_none() {
+        node["space"] = json!("world");
+    }
+    *node != before
+}
+
 fn effect_coordinate_default(node: &Value) -> f64 {
     if node["space"] == "screen" {
         50.0
@@ -180,7 +219,11 @@ impl Catalog {
             character_options: Default::default(),
             stage_characters: None,
             staged_characters_only: Default::default(),
+            parameter_defaults: Default::default(),
         }
+    }
+    pub fn configure_parameter_defaults(&mut self, path: std::path::PathBuf) -> anyhow::Result<()> {
+        self.parameter_defaults.load(path)
     }
     pub fn sync_story_titles(&mut self, stories: &std::collections::BTreeMap<String, Value>) {
         self.story_titles = stories
@@ -309,6 +352,8 @@ impl Catalog {
         } else if node.get("character").and_then(Value::as_str) == Some("") {
             node["character"] = "player".into();
         }
+        self.parameter_defaults
+            .apply(&mut node, &self.schema["NODE_SCHEMAS"][kind]["fields"]);
         node
     }
     pub fn options(
@@ -793,11 +838,14 @@ impl Catalog {
             }
         }
         changed |= crate::native_forms::show(ui, node);
+        if kind == "combat" {
+            changed |= combat_sections::show(self, ui, node, &fields, node_ids, story_ids);
+        }
         for field in &fields {
             if let (Some(key), Some(label), Some(field_kind)) =
                 (field[0].as_str(), field[1].as_str(), field[2].as_str())
             {
-                if kind == "say" && key == "mode" {
+                if kind == "combat" || kind == "say" && key == "mode" {
                     continue;
                 }
                 if !field_visible(&kind, node, key) {
@@ -860,7 +908,7 @@ impl Catalog {
                 }
             }
         }
-        if kind == "effect" {
+        if kind == "effect" && effect_playing(node) {
             ui.small(tr(if node["space"] == "screen" {
                 "画面百分比：左→右 0～100，上→下 0～100；可填屏外位置。"
             } else {
@@ -1173,23 +1221,26 @@ impl Catalog {
             let mut changed = false;
             ui.label(crate::i18n::key("field.camera.exclude_characters"));
             ui.small(crate::i18n::key("editor.form.filter_exclusions_hint"));
-            egui::ComboBox::from_id_salt(("filter-exclusions", node["id"].as_str().unwrap_or("")))
-                .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
-                .selected_text(if selected.is_empty() {
-                    crate::i18n::key("editor.form.filter_exclusions_empty")
-                } else {
-                    crate::i18n::message(
-                        "editor.form.filter_exclusions_count",
-                        &[("count", selected.len().to_string())],
-                    )
-                })
-                .show_ui(ui, |ui| {
+            let caption = if selected.is_empty() {
+                crate::i18n::key("editor.form.filter_exclusions_empty")
+            } else {
+                crate::i18n::message(
+                    "editor.form.filter_exclusions_count",
+                    &[("count", selected.len().to_string())],
+                )
+            };
+            resource_combo(
+                ui,
+                ("filter-exclusions", node["id"].as_str().unwrap_or("")),
+                &caption,
+                |ui| {
                     let search_id = ui.id().with("filter-character-search");
                     let mut search =
                         ui.data_mut(|data| data.get_temp::<String>(search_id).unwrap_or_default());
                     ui.add(
                         egui::TextEdit::singleline(&mut search)
                             .id(search_id)
+                            .desired_width(f32::INFINITY)
                             .hint_text(crate::i18n::key("editor.form.filter_character_search")),
                     );
                     let lower = search.to_lowercase();
@@ -1201,7 +1252,7 @@ impl Catalog {
                         changed = true;
                     }
                     egui::ScrollArea::vertical()
-                        .max_height(280.0)
+                        .auto_shrink([false, false])
                         .show(ui, |ui| {
                             for (id, name) in &options {
                                 if !resource_matches(id, name, &lower) {
@@ -1218,7 +1269,8 @@ impl Catalog {
                             }
                         });
                     ui.data_mut(|data| data.insert_temp(search_id, search));
-                });
+                },
+            );
             if changed {
                 node[key] = json!(selected);
             }
@@ -1252,12 +1304,24 @@ impl Catalog {
         }
         if key == "show_message" {
             let mut show = lom_core::codegen::shows_system_messages(node);
+            let mut default_error = None;
             let changed = ui
-                .checkbox(&mut show, crate::i18n::key("editor.form.notice"))
-                .on_hover_text(crate::i18n::key("editor.form.notice_hint"))
-                .changed();
-            if changed {
-                node[key] = json!(show);
+                .horizontal(|ui| {
+                    let changed = ui
+                        .checkbox(&mut show, crate::i18n::key("editor.form.notice"))
+                        .on_hover_text(crate::i18n::key("editor.form.notice_hint"))
+                        .changed();
+                    if changed {
+                        node[key] = json!(show);
+                    }
+                    default_error =
+                        self.parameter_defaults
+                            .button(ui, node, key, kind, &json!(show));
+                    changed
+                })
+                .inner;
+            if let Some(error) = default_error {
+                ui.colored_label(ui.visuals().error_fg_color, error);
             }
             return changed;
         }
@@ -1285,29 +1349,52 @@ impl Catalog {
                 );
             let mut changed = false;
             ui.label(crate::i18n::key("editor.form.lover"));
-            resource_combo(
-                ui,
-                ("lover-value", node["id"].as_str().unwrap_or("")),
-                &display,
-                |ui| {
-                    for (id, name) in &options {
-                        let number = id.parse::<i64>().expect("embedded lover number");
-                        if ui
-                            .selectable_label(value == number, format!("{name}（{id}）"))
-                            .clicked()
-                        {
-                            value = number;
-                            changed = true;
-                            ui.close();
-                        }
-                    }
-                    ui.separator();
-                    ui.label(crate::i18n::key("editor.form.custom_id"));
-                    changed |= ui.add(egui::DragValue::new(&mut value)).changed();
-                },
-            );
-            if changed {
-                node[key] = json!(value);
+            let mut default_error = None;
+            ui.horizontal_top(|ui| {
+                let width = (ui.available_width()
+                    - self.parameter_defaults.width(ui, node, key, kind))
+                .max(60.0);
+                ui.vertical(|ui| {
+                    ui.set_max_width(width);
+                    resource_combo(
+                        ui,
+                        ("lover-value", node["id"].as_str().unwrap_or("")),
+                        &display,
+                        |ui| {
+                            search_menu(ui, |ui, query| {
+                                for (id, name) in &options {
+                                    if !resource_matches(id, name, query) {
+                                        continue;
+                                    }
+                                    let number = id.parse::<i64>().expect("embedded lover number");
+                                    if ui
+                                        .selectable_label(
+                                            value == number,
+                                            format!("{name}（{id}）"),
+                                        )
+                                        .clicked()
+                                    {
+                                        value = number;
+                                        changed = true;
+                                        ui.close();
+                                    }
+                                }
+                                ui.separator();
+                                ui.label(crate::i18n::key("editor.form.custom_id"));
+                                changed |= ui.add(egui::DragValue::new(&mut value)).changed();
+                            })
+                        },
+                    );
+                });
+                if changed {
+                    node[key] = json!(value);
+                }
+                default_error = self
+                    .parameter_defaults
+                    .button(ui, node, key, kind, &json!(value));
+            });
+            if let Some(error) = default_error {
+                ui.colored_label(ui.visuals().error_fg_color, error);
             }
             return changed;
         }
@@ -1334,7 +1421,8 @@ impl Catalog {
         let label = requirement_label(label, field_requirement(node, key, optional));
         let label = label.as_str();
         let options = self.options(kind, node, node_ids, story_ids);
-        let mut changed = false;
+        let mut changed =
+            node["type"] == "effect" && key == "play" && effect_clear_shortcut(ui, node);
         let locate = ui
             .ctx()
             .data(|data| data.get_temp::<String>(egui::Id::new("problem-field")))
@@ -1421,7 +1509,12 @@ impl Catalog {
                             template.clone()
                         }
                     });
-                    let field_changed = match kind {
+                    let mut default_error = None;
+                    let field_changed = ui.horizontal_top(|ui| {
+                    let input_width = (ui.available_width() - self.parameter_defaults.width(ui, node, key, kind)).max(60.0);
+                    let field_changed = ui.vertical(|ui| {
+                    ui.set_max_width(input_width);
+                    match kind {
                         "bool" if optional => {
                             let mut edited = false;
                             let effect_play = node["type"] == "effect" && key == "play";
@@ -1664,7 +1757,12 @@ impl Catalog {
                             }
                             c
                         }
-                    };
+                    }
+                    }).inner;
+                    default_error = self.parameter_defaults.button(ui, node, key, kind, &value);
+                    field_changed
+                    }).inner;
+                    if let Some(error) = default_error { ui.colored_label(ui.visuals().error_fg_color, error); }
                     if reset {
                         if node["type"] == "effect" && key == "space" {
                             set_effect_space(node, "world");
@@ -2060,9 +2158,22 @@ pub(crate) fn resource_combo<R>(
     selected: &str,
     contents: impl FnOnce(&mut Ui) -> R,
 ) -> egui::InnerResponse<Option<R>> {
+    resource_combo_width(ui, id_salt, selected, ui.available_width(), contents)
+}
+
+fn resource_combo_width<R>(
+    ui: &mut Ui,
+    id_salt: impl std::hash::Hash,
+    selected: &str,
+    width: f32,
+    contents: impl FnOnce(&mut Ui) -> R,
+) -> egui::InnerResponse<Option<R>> {
     ui.push_id(id_salt, |ui| {
         let response = ui.add_sized(
-            [ui.available_width(), ui.spacing().interact_size.y],
+            [
+                width.min(ui.available_width()),
+                ui.spacing().interact_size.y,
+            ],
             egui::Button::new(selected).truncate().right_text("⏷"),
         );
         response.widget_info(|| {
@@ -2103,13 +2214,8 @@ pub(crate) fn resource_combo<R>(
                 .max_size(max_size)
                 .with_stroke(false)
                 .show(ui, |ui| {
-                    egui::ScrollArea::vertical()
-                        .auto_shrink([false, false])
-                        .show(ui, |ui| {
-                            ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
-                            contents(ui)
-                        })
-                        .inner
+                    ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
+                    contents(ui)
                 })
         });
         egui::InnerResponse {
@@ -2118,6 +2224,66 @@ pub(crate) fn resource_combo<R>(
         }
     })
     .inner
+}
+
+/// Keep the search above the scrolling results, including after resizing.
+pub(crate) fn search_menu<R>(ui: &mut Ui, contents: impl FnOnce(&mut Ui, &str) -> R) -> R {
+    let id = ui.id().with("choice-search");
+    let mut query = ui.data_mut(|data| data.get_temp::<String>(id).unwrap_or_default());
+    let changed = ui
+        .add(
+            egui::TextEdit::singleline(&mut query)
+                .id(id)
+                .desired_width(f32::INFINITY)
+                .hint_text(crate::i18n::key("editor.form.search_choices")),
+        )
+        .changed();
+    let mut scroll = egui::ScrollArea::vertical()
+        .id_salt("choice-results")
+        .auto_shrink([false, false]);
+    if changed {
+        scroll = scroll.vertical_scroll_offset(0.0);
+    }
+    let result = scroll
+        .show(ui, |ui| contents(ui, &query.trim().to_lowercase()))
+        .inner;
+    ui.data_mut(|data| data.insert_temp(id, query));
+    result
+}
+
+/// Searchable menus for project lists that do not need resource preview controls.
+pub(crate) struct SearchCombo {
+    id: egui::Id,
+    selected: String,
+    width: Option<f32>,
+}
+
+impl SearchCombo {
+    pub(crate) fn from_id_salt(id: impl std::hash::Hash) -> Self {
+        Self {
+            id: egui::Id::new(id),
+            selected: String::new(),
+            width: None,
+        }
+    }
+    pub(crate) fn selected_text(mut self, text: impl ToString) -> Self {
+        self.selected = text.to_string();
+        self
+    }
+    pub(crate) fn width(mut self, width: f32) -> Self {
+        self.width = Some(width);
+        self
+    }
+    pub(crate) fn show_ui<R>(
+        self,
+        ui: &mut Ui,
+        contents: impl FnOnce(&mut Ui, &str) -> R,
+    ) -> egui::InnerResponse<Option<R>> {
+        let width = self.width.unwrap_or(ui.spacing().combo_width);
+        resource_combo_width(ui, self.id, &self.selected, width, |ui| {
+            search_menu(ui, contents)
+        })
+    }
 }
 
 pub(crate) fn picture_catalog() -> &'static Value {
@@ -2162,14 +2328,18 @@ fn resource_label(id: &str, category: &str, name: &str) -> String {
     format!("{} · {description}", tr(category))
 }
 
-fn resource_matches(id: &str, name: &str, query: &str) -> bool {
-    query.is_empty()
-        || id.to_lowercase().contains(query)
-        || name.to_lowercase().contains(query)
-        || crate::i18n::locale() == "chs"
-            && crate::i18n::simplified_label(id)
-                .to_lowercase()
-                .contains(query)
+pub(crate) fn resource_matches(id: &str, name: &str, query: &str) -> bool {
+    if query.trim().is_empty() {
+        return true;
+    }
+    let text = format!("{id} {name}").to_lowercase();
+    if query.split_whitespace().all(|term| text.contains(term)) {
+        return true;
+    }
+    let simplified = (crate::i18n::locale() == "chs").then(|| crate::i18n::simplified_label(&text));
+    query.split_whitespace().all(|term| {
+        text.contains(term) || simplified.as_ref().is_some_and(|text| text.contains(term))
+    })
 }
 
 fn is_selector(kind: &str) -> bool {
@@ -2280,6 +2450,9 @@ pub fn number_duplicate_labels(options: &mut [(String, String)]) {
 }
 
 fn field_visible(kind: &str, node: &Value, key: &str) -> bool {
+    if kind == "effect" && !effect_playing(node) {
+        return matches!(key, "name" | "play" | "tag" | "clear" | "wait_after");
+    }
     if kind == "character_profile" && key == "page" {
         return matches!(
             node["op"].as_str(),
@@ -2515,14 +2688,17 @@ fn array_editor(
                                 ui.label(format!("{key} *"));
                                 let mut s = val.as_str().unwrap_or("").to_owned();
                                 let mut edited = false;
-                                egui::ComboBox::from_id_salt("target")
-                                    .truncate()
+                                SearchCombo::from_id_salt("target")
                                     .width(ui.available_width())
                                     .selected_text(&s)
-                                    .show_ui(ui, |ui| {
+                                    .show_ui(ui, |ui, query| {
                                         for n in node_ids {
+                                            if !resource_matches(n, "", query) {
+                                                continue;
+                                            }
                                             if ui.selectable_value(&mut s, n.clone(), n).changed() {
                                                 edited = true;
+                                                ui.close();
                                             }
                                         }
                                         ui.collapsing(tr("手动输入"), |ui| {
@@ -3011,6 +3187,135 @@ mod tests {
             story,
             "Applying clears the temporary overlay"
         );
+    }
+
+    #[test]
+    fn browse_confirmation_stays_visible_after_scrolling_and_applies_the_candidate() {
+        use egui::accesskit::Role;
+        fn bounds(output: &egui::FullOutput, label: &str) -> egui::accesskit::Rect {
+            output
+                .platform_output
+                .accesskit_update
+                .as_ref()
+                .unwrap()
+                .nodes
+                .iter()
+                .find(|(_, node)| node.role() == Role::Button && node.label() == Some(label))
+                .unwrap()
+                .1
+                .bounds()
+                .unwrap()
+        }
+        let mut catalog = Catalog::new();
+        catalog.data["views"] = (0..80).map(|index|
+            json!({"id":format!("fixture_{index:02}"),"name":format!("Background {index:02}")}))
+            .collect();
+        let context = egui::Context::default();
+        set_preview_scope(&context, "main", "scene1");
+        resource_picker::browse_for_test(&context);
+        let mut node = json!({"id":"scene1","type":"scene","view":"fixture_00"});
+        let original = node.clone();
+        let (output, _) = field_frame(&catalog, &context, &mut node, "view", "view", vec![]);
+        let events = click(
+            &output,
+            Role::ComboBox,
+            &resource_label("fixture_00", "场景背景", "Background 00"),
+        );
+        field_frame(&catalog, &context, &mut node, "view", "view", events);
+        let (output, _) = field_frame(&catalog, &context, &mut node, "view", "view", vec![]);
+        let events = search_character(&output, "fixture_75");
+        field_frame(&catalog, &context, &mut node, "view", "view", events);
+        let (output, _) = field_frame(&catalog, &context, &mut node, "view", "view", vec![]);
+        let events = click(
+            &output,
+            Role::Button,
+            &resource_label("fixture_75", "场景背景", "Background 75"),
+        );
+        let (_, changed) = field_frame(&catalog, &context, &mut node, "view", "view", events);
+        assert!(!changed);
+        assert_eq!(
+            node, original,
+            "preview clicks must remain temporary until confirmed"
+        );
+        let story = json!({"id":"main","start":"scene1","nodes":[node.clone()]});
+        assert_eq!(
+            preview_story(&context, &story)["nodes"][0]["view"],
+            "fixture_75"
+        );
+        let (output, _) = field_frame(&catalog, &context, &mut node, "view", "view", vec![]);
+        let events = search_character(&output, "");
+        field_frame(&catalog, &context, &mut node, "view", "view", events);
+        let (output, _) = field_frame(&catalog, &context, &mut node, "view", "view", vec![]);
+        let apply = crate::i18n::key("editor.picker.apply");
+        let before = bounds(&output, &apply);
+        let first_label = resource_label("fixture_00", "场景背景", "Background 00");
+        let first_before = bounds(&output, &first_label);
+        let point = egui::pos2((before.x0 + 30.0) as f32, (before.y1 + 100.0) as f32);
+        field_frame(
+            &catalog,
+            &context,
+            &mut node,
+            "view",
+            "view",
+            vec![
+                egui::Event::PointerMoved(point),
+                egui::Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta: egui::vec2(0.0, -900.0),
+                    modifiers: Default::default(),
+                },
+            ],
+        );
+        let (output, _) = field_frame(&catalog, &context, &mut node, "view", "view", vec![]);
+        assert!(
+            (bounds(&output, &first_label).y0 - first_before.y0).abs() > 20.0,
+            "the resource list must actually scroll"
+        );
+        assert_eq!(
+            bounds(&output, &apply),
+            before,
+            "confirmation must stay pinned while choices scroll"
+        );
+        assert!(
+            before.y0 >= 0.0 && before.y1 <= 600.0,
+            "confirmation must remain on screen"
+        );
+        let events = click(&output, Role::Button, &apply);
+        let (_, changed) = field_frame(&catalog, &context, &mut node, "view", "view", events);
+        assert!(changed);
+        assert_eq!(node["view"], "fixture_75");
+        assert_eq!(preview_story(&context, &story), story);
+        let (_, changed) = field_frame(&catalog, &context, &mut node, "view", "view", vec![]);
+        assert!(!changed, "confirmation must commit only once");
+        let (output, _) = field_frame(&catalog, &context, &mut node, "view", "view", vec![]);
+        let events = click(
+            &output,
+            Role::ComboBox,
+            &resource_label("fixture_75", "场景背景", "Background 75"),
+        );
+        field_frame(&catalog, &context, &mut node, "view", "view", events);
+        let (output, _) = field_frame(&catalog, &context, &mut node, "view", "view", vec![]);
+        let events = click(
+            &output,
+            Role::CheckBox,
+            &crate::i18n::key("editor.picker.browse"),
+        );
+        field_frame(&catalog, &context, &mut node, "view", "view", events);
+        let (output, _) = field_frame(&catalog, &context, &mut node, "view", "view", vec![]);
+        let events = search_character(&output, "fixture_74");
+        field_frame(&catalog, &context, &mut node, "view", "view", events);
+        let (output, _) = field_frame(&catalog, &context, &mut node, "view", "view", vec![]);
+        let events = click(
+            &output,
+            Role::Button,
+            &resource_label("fixture_74", "场景背景", "Background 74"),
+        );
+        let (_, changed) = field_frame(&catalog, &context, &mut node, "view", "view", events);
+        assert!(
+            changed,
+            "disabling preview mode must restore immediate selection"
+        );
+        assert_eq!(node["view"], "fixture_74");
     }
 
     #[test]
@@ -3514,6 +3819,48 @@ mod tests {
     }
 
     #[test]
+    fn clear_effect_shortcut_keeps_the_target_and_clears_stacked_particles() {
+        use egui::accesskit::Role;
+        let catalog = Catalog::new();
+        for target in [json!({"name":"Hit_001"}), json!({"name":"", "tag":"smoke"})] {
+            let context = egui::Context::default();
+            let mut node = json!({"id":"stop","type":"effect","d":1,"c":0,"x":12.5,"a":-2});
+            node.as_object_mut()
+                .unwrap()
+                .extend(target.as_object().unwrap().clone());
+            let original = node.clone();
+            let (output, changed) =
+                field_frame(&catalog, &context, &mut node, "play", "bool", vec![]);
+            assert!(!changed);
+            assert_eq!(node, original);
+            let events = click(
+                &output,
+                Role::Button,
+                &crate::i18n::key("editor.form.clear_effect"),
+            );
+            let (_, changed) = field_frame(&catalog, &context, &mut node, "play", "bool", events);
+            assert!(changed);
+            assert_eq!(node["play"], false);
+            assert_eq!(node["clear"], true);
+            assert_eq!(node["name"], original["name"]);
+            assert_eq!(node["tag"], original["tag"]);
+            assert_eq!(node["x"], 12.5);
+            assert_eq!(node["a"], -2);
+            let tag = node["tag"].as_str().unwrap_or("");
+            let story = json!({"id":"main","start":"play","nodes":[
+                {"id":"play","type":"effect","name":"Hit_001","tag":tag,"c":0},
+                {"id":"stack","type":"effect","name":"Hit_001","tag":tag,"c":0},
+                node, {"id":"end","type":"end"}
+            ]});
+            let lua = lom_core::codegen::compile_story(&story, None, None, None).unwrap();
+            assert_eq!(lua.matches("mod_effect(").count(), 3);
+            assert!(!lua.contains("effects.SetupEffect("));
+            let state = crate::preview::simulate(&story, "stop");
+            assert!(state["effects"].as_array().unwrap().is_empty());
+        }
+    }
+
+    #[test]
     fn important_characters_group_appearances_and_filter_expressions_by_real_id() {
         let catalog = Catalog::new();
         let characters = catalog.options("character_group", &Value::Null, &[], &[]);
@@ -3745,6 +4092,150 @@ mod tests {
             },
         );
         (output, changed)
+    }
+    #[test]
+    fn set_default_button_persists_a_fade_without_editing_the_current_step() {
+        use egui::accesskit::Role;
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("node-defaults.json");
+        let mut catalog = Catalog::new();
+        catalog.configure_parameter_defaults(path.clone()).unwrap();
+        let context = egui::Context::default();
+        let mut node = json!({"id":"overlay1","type":"overlay","action":"show","fade":0.8});
+        let original = node.clone();
+        let (output, changed) = field_frame(&catalog, &context, &mut node, "fade", "float", vec![]);
+        assert!(!changed);
+        let widgets = &output
+            .platform_output
+            .accesskit_update
+            .as_ref()
+            .unwrap()
+            .nodes;
+        let input = widgets
+            .iter()
+            .find(|(_, node)| node.role() == Role::SpinButton)
+            .unwrap()
+            .1
+            .bounds()
+            .unwrap();
+        let button = widgets
+            .iter()
+            .find(|(_, node)| {
+                node.label() == Some(crate::i18n::key("editor.defaults.set").as_str())
+            })
+            .unwrap()
+            .1
+            .bounds()
+            .unwrap();
+        assert!(
+            input.y0.max(button.y0) < input.y1.min(button.y1),
+            "the default action must share the input row"
+        );
+        assert!(button.x0 >= input.x1);
+        let events = click(
+            &output,
+            Role::Button,
+            &crate::i18n::key("editor.defaults.set"),
+        );
+        let (_, changed) = field_frame(&catalog, &context, &mut node, "fade", "float", events);
+        assert!(!changed, "saving a preference is not a story edit");
+        assert_eq!(node, original);
+        let mut reopened = Catalog::new();
+        reopened.configure_parameter_defaults(path).unwrap();
+        assert_eq!(reopened.new_node("overlay", "next".into())["fade"], 0.8);
+    }
+    #[test]
+    fn long_project_menu_keeps_search_visible_and_commits_only_a_result_click() {
+        use egui::accesskit::Role;
+        fn frame(
+            context: &egui::Context,
+            selected: &mut String,
+            events: Vec<egui::Event>,
+        ) -> egui::FullOutput {
+            context.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(700.0, 600.0),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        SearchCombo::from_id_salt("chapters-test")
+                            .selected_text(selected.as_str())
+                            .show_ui(ui, |ui, query| {
+                                for index in 0..80 {
+                                    let id = format!("chapter{index}");
+                                    let name = format!("Chapter {index}");
+                                    if resource_matches(&id, &name, query)
+                                        && ui.selectable_value(selected, id, name).clicked()
+                                    {
+                                        ui.close();
+                                    }
+                                }
+                            });
+                    });
+                },
+            )
+        }
+        fn search_bounds(output: &egui::FullOutput) -> egui::accesskit::Rect {
+            output
+                .platform_output
+                .accesskit_update
+                .as_ref()
+                .unwrap()
+                .nodes
+                .iter()
+                .find(|(_, node)| node.role() == Role::TextInput)
+                .unwrap()
+                .1
+                .bounds()
+                .unwrap()
+        }
+        let context = egui::Context::default();
+        context.enable_accesskit();
+        let mut selected = "chapter0".to_owned();
+        let output = frame(&context, &mut selected, vec![]);
+        let events = click(&output, Role::ComboBox, "chapter0");
+        frame(&context, &mut selected, events);
+        let output = frame(&context, &mut selected, vec![]);
+        let before = search_bounds(&output);
+        let point = egui::pos2((before.x0 + 20.0) as f32, (before.y1 + 70.0) as f32);
+        frame(
+            &context,
+            &mut selected,
+            vec![
+                egui::Event::PointerMoved(point),
+                egui::Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta: egui::vec2(0.0, -800.0),
+                    modifiers: Default::default(),
+                },
+            ],
+        );
+        let output = frame(&context, &mut selected, vec![]);
+        assert_eq!(
+            search_bounds(&output),
+            before,
+            "scrolling must leave the search pinned"
+        );
+        let events = search_character(&output, "chapter49");
+        frame(&context, &mut selected, events);
+        let output = frame(&context, &mut selected, vec![]);
+        assert_eq!(selected, "chapter0");
+        let events = click(&output, Role::Button, "Chapter 49");
+        frame(&context, &mut selected, events);
+        assert_eq!(selected, "chapter49");
+        let output = frame(&context, &mut selected, vec![]);
+        assert!(!output
+            .platform_output
+            .accesskit_update
+            .unwrap()
+            .nodes
+            .iter()
+            .any(|(_, node)| node.role() == Role::TextInput));
     }
     fn click(
         output: &egui::FullOutput,
@@ -5143,25 +5634,24 @@ fn pick(
             })
         });
     resource_combo(ui, key, &display, |ui| {
-        let sid = ui.id().with("filter");
-        let mut q = ui.data_mut(|d| d.get_temp::<String>(sid).unwrap_or_default());
-        ui.add(egui::TextEdit::singleline(&mut q).hint_text(tr("搜索名称")));
-        let lower = q.to_lowercase();
-        for (id, name) in options {
-            if resource_matches(&id, &name, &lower) {
-                if ui
-                    .selectable_value(&mut selected, id.clone(), name)
-                    .on_hover_text(&id)
-                    .clicked()
-                {
-                    ui.close();
+        search_menu(ui, |ui, query| {
+            for (id, name) in options {
+                if resource_matches(&id, &name, query) {
+                    if ui
+                        .selectable_value(&mut selected, id.clone(), name)
+                        .on_hover_text(&id)
+                        .clicked()
+                    {
+                        ui.close();
+                    }
                 }
             }
-        }
-        ui.collapsing(tr("手动输入"), |ui| {
-            ui.add(egui::TextEdit::singleline(&mut selected).hint_text(tr("内部 ID / 自定义引用")));
-        });
-        ui.data_mut(|d| d.insert_temp(sid, q));
+            ui.collapsing(tr("手动输入"), |ui| {
+                ui.add(
+                    egui::TextEdit::singleline(&mut selected).hint_text(tr("内部 ID / 自定义引用")),
+                );
+            });
+        })
     });
     if before != selected {
         row[key] = json!(selected);
@@ -5526,6 +6016,15 @@ mod game_flag_catalog_tests {
         for id in ["A00001", "A00002"] {
             assert!(options.iter().any(|(candidate, _)| candidate == id));
         }
+        for id in ["M00032", "M80072", "M81013"] {
+            assert!(
+                options.iter().any(|(candidate, _)| candidate == id),
+                "missing registered flag {id}"
+            );
+        }
+        let row = crate::game_flags::row(&catalog.data, "M00032").unwrap();
+        assert!(crate::game_flags::matches(row, "崆峒 参战"));
+        assert_eq!(row["description"], "崆峒留學 瑞笙參戰");
     }
 
     #[test]
@@ -5551,6 +6050,7 @@ mod game_flag_catalog_tests {
             project.scenario.as_ref().unwrap()["events"][0]["when"]["all"][0]["key"],
             "TC00002"
         );
+        project.stories.get_mut("main").unwrap()["nodes"][0]["flag"] = json!("M00032");
         project.stories.get_mut("main").unwrap()["nodes"][2]["text"] =
             json!("已查看提示，保留旧编号供作者修正");
         let dir = tempfile::tempdir().unwrap();
@@ -5559,6 +6059,8 @@ mod game_flag_catalog_tests {
         let output = dir.path().join("edited.lommod");
         edited.export(&output).unwrap();
         let reopened = Project::open(&output).unwrap();
+        assert_eq!(reopened.stories["main"]["nodes"][0]["flag"], "M00032");
+        assert_eq!(reopened.stories["main"]["nodes"][1]["flag"], "50019");
         assert_eq!(reopened.stories, edited.stories);
         assert_eq!(reopened.scenario, edited.scenario);
         assert_eq!(std::fs::read(&fixture).unwrap(), original);
